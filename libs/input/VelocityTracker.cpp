@@ -17,6 +17,7 @@
 #define LOG_TAG "VelocityTracker"
 
 #include <android-base/logging.h>
+#include <ftl/enum.h>
 #include <inttypes.h>
 #include <limits.h>
 #include <math.h>
@@ -148,27 +149,19 @@ static std::string matrixToString(const float* a, uint32_t m, uint32_t n, bool r
 VelocityTracker::VelocityTracker(const Strategy strategy)
       : mLastEventTime(0), mCurrentPointerIdBits(0), mOverrideStrategy(strategy) {}
 
-VelocityTracker::~VelocityTracker() {
-}
-
 bool VelocityTracker::isAxisSupported(int32_t axis) {
     return DEFAULT_STRATEGY_BY_AXIS.find(axis) != DEFAULT_STRATEGY_BY_AXIS.end();
 }
 
 void VelocityTracker::configureStrategy(int32_t axis) {
     const bool isDifferentialAxis = DIFFERENTIAL_AXES.find(axis) != DIFFERENTIAL_AXES.end();
-
-    std::unique_ptr<VelocityTrackerStrategy> createdStrategy;
-    if (mOverrideStrategy != VelocityTracker::Strategy::DEFAULT) {
-        createdStrategy = createStrategy(mOverrideStrategy, /*deltaValues=*/isDifferentialAxis);
+    if (isDifferentialAxis || mOverrideStrategy == VelocityTracker::Strategy::DEFAULT) {
+        // Do not allow overrides of strategies for differential axes, for now.
+        mConfiguredStrategies[axis] = createStrategy(DEFAULT_STRATEGY_BY_AXIS.at(axis),
+                                                     /*deltaValues=*/isDifferentialAxis);
     } else {
-        createdStrategy = createStrategy(DEFAULT_STRATEGY_BY_AXIS.at(axis),
-                                         /*deltaValues=*/isDifferentialAxis);
+        mConfiguredStrategies[axis] = createStrategy(mOverrideStrategy, /*deltaValues=*/false);
     }
-
-    LOG_ALWAYS_FATAL_IF(createdStrategy == nullptr,
-                        "Could not create velocity tracker strategy for axis '%" PRId32 "'!", axis);
-    mConfiguredStrategies[axis] = std::move(createdStrategy);
 }
 
 std::unique_ptr<VelocityTrackerStrategy> VelocityTracker::createStrategy(
@@ -216,6 +209,9 @@ std::unique_ptr<VelocityTrackerStrategy> VelocityTracker::createStrategy(
         default:
             break;
     }
+    LOG(FATAL) << "Invalid strategy: " << ftl::enum_string(strategy)
+               << ", deltaValues = " << deltaValues;
+
     return nullptr;
 }
 
@@ -272,12 +268,10 @@ void VelocityTracker::addMovement(nsecs_t eventTime, int32_t pointerId, int32_t 
     mConfiguredStrategies[axis]->addMovement(eventTime, pointerId, position);
 
     if (DEBUG_VELOCITY) {
-        ALOGD("VelocityTracker: addMovement eventTime=%" PRId64 ", pointerId=%" PRId32
-              ", activePointerId=%s",
-              eventTime, pointerId, toString(mActivePointerId).c_str());
-
-        ALOGD("  %d: axis=%d, position=%0.3f, velocity=%s", pointerId, axis, position,
-              toString(getVelocity(axis, pointerId)).c_str());
+        LOG(INFO) << "VelocityTracker: addMovement axis=" << MotionEvent::getLabel(axis)
+                  << ", eventTime=" << eventTime << ", pointerId=" << pointerId
+                  << ", activePointerId=" << toString(mActivePointerId) << ", position=" << position
+                  << ", velocity=" << toString(getVelocity(axis, pointerId));
     }
 }
 
