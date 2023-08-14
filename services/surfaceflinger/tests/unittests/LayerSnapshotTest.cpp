@@ -24,6 +24,7 @@
 #include "FrontEnd/LayerSnapshotBuilder.h"
 #include "Layer.h"
 #include "LayerHierarchyTest.h"
+#include "ui/GraphicTypes.h"
 
 #define UPDATE_AND_VERIFY(BUILDER, ...)                                    \
     ({                                                                     \
@@ -601,6 +602,12 @@ TEST_F(LayerSnapshotTest, framerate) {
     EXPECT_EQ(getSnapshot({.id = 122})->frameRate.rate.getValue(), 244.f);
     EXPECT_EQ(getSnapshot({.id = 122})->frameRate.type,
               scheduler::LayerInfo::FrameRateCompatibility::Default);
+}
+
+TEST_F(LayerSnapshotTest, translateDataspace) {
+    setDataspace(1, ui::Dataspace::UNKNOWN);
+    UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
+    EXPECT_EQ(getSnapshot({.id = 1})->dataspace, ui::Dataspace::V0_SRGB);
 }
 
 TEST_F(LayerSnapshotTest, skipRoundCornersWhenProtected) {

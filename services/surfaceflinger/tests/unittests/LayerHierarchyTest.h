@@ -361,6 +361,17 @@ protected:
         mLifecycleManager.applyTransactions(transactions);
     }
 
+    void setDataspace(uint32_t id, ui::Dataspace dataspace) {
+        std::vector<TransactionState> transactions;
+        transactions.emplace_back();
+        transactions.back().states.push_back({});
+
+        transactions.back().states.front().state.what = layer_state_t::eDataspaceChanged;
+        transactions.back().states.front().layerId = id;
+        transactions.back().states.front().state.dataspace = dataspace;
+        mLifecycleManager.applyTransactions(transactions);
+    }
+
     LayerLifecycleManager mLifecycleManager;
 };
 

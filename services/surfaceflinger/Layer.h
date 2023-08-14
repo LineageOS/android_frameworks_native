@@ -427,7 +427,7 @@ public:
     bool needsFilteringForScreenshots(const DisplayDevice*, const ui::Transform&) const;
 
     // from graphics API
-    ui::Dataspace translateDataspace(ui::Dataspace dataspace);
+    static ui::Dataspace translateDataspace(ui::Dataspace dataspace);
     void updateCloneBufferInfo();
     uint64_t mPreviousFrameNumber = 0;
 
