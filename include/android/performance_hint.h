@@ -14,6 +14,23 @@
  * limitations under the License.
  */
 
+ /**
+ * @defgroup APerformanceHint Performance Hint Manager
+ *
+ * APerformanceHint allows apps to create performance hint sessions for groups
+ * of threads, and provide hints to the system about the workload of those threads,
+ * to help the system more accurately allocate power for them. It is the NDK
+ * counterpart to the Java PerformanceHintManager SDK API.
+ *
+ * @{
+ */
+
+/**
+ * @file performance_hint.h
+ * @brief API for creating and managing a hint session.
+ */
+
+
 #ifndef ANDROID_NATIVE_PERFORMANCE_HINT_H
 #define ANDROID_NATIVE_PERFORMANCE_HINT_H
 
@@ -48,7 +65,7 @@ struct APerformanceHintSession;
  * An opaque type representing a handle to a performance hint manager.
  * It must be released after use.
  *
- * <p>To use:<ul>
+ * To use:<ul>
  *    <li>Obtain the performance hint manager instance by calling
  *        {@link APerformanceHint_getManager} function.</li>
  *    <li>Create an {@link APerformanceHintSession} with
@@ -61,50 +78,43 @@ typedef struct APerformanceHintManager APerformanceHintManager;
 /**
  * An opaque type representing a handle to a performance hint session.
  * A session can only be acquired from a {@link APerformanceHintManager}
- * with {@link APerformanceHint_getPreferredUpdateRateNanos}. It must be
+ * with {@link APerformanceHint_createSession}. It must be
  * freed with {@link APerformanceHint_closeSession} after use.
  *
  * A Session represents a group of threads with an inter-related workload such that hints for
  * their performance should be considered as a unit. The threads in a given session should be
- * long-life and not created or destroyed dynamically.
+ * long-lived and not created or destroyed dynamically.
  *
- * <p>Each session is expected to have a periodic workload with a target duration for each
- * cycle. The cycle duration is likely greater than the target work duration to allow other
- * parts of the pipeline to run within the available budget. For example, a renderer thread may
- * work at 60hz in order to produce frames at the display's frame but have a target work
- * duration of only 6ms.</p>
+ * The work duration API can be used with periodic workloads to dynamically adjust thread
+ * performance and keep the work on schedule while optimizing the available power budget.
+ * When using the work duration API, the starting target duration should be specified
+ * while creating the session, and can later be adjusted with
+ * {@link APerformanceHint_updateTargetWorkDuration}. While using the work duration
+ * API, the client is expected to call {@link APerformanceHint_reportActualWorkDuration} each
+ * cycle to report the actual time taken to complete to the system.
  *
- * <p>After each cycle of work, the client is expected to use
- * {@link APerformanceHint_reportActualWorkDuration} to report the actual time taken to
- * complete.</p>
- *
- * <p>To use:<ul>
- *    <li>Update a sessions target duration for each cycle of work
- *        with  {@link APerformanceHint_updateTargetWorkDuration}.</li>
- *    <li>Report the actual duration for the last cycle of work with
- *        {@link APerformanceHint_reportActualWorkDuration}.</li>
- *    <li>Release the session instance with
- *        {@link APerformanceHint_closeSession}.</li></ul></p>
+ * All timings should be from `std::chrono::steady_clock` or `clock_gettime(CLOCK_MONOTONIC, ...)`
  */
 typedef struct APerformanceHintSession APerformanceHintSession;
 
 /**
   * Acquire an instance of the performance hint manager.
   *
-  * @return manager instance on success, nullptr on failure.
+  * @return APerformanceHintManager instance on success, nullptr on failure.
   */
 APerformanceHintManager* APerformanceHint_getManager() __INTRODUCED_IN(__ANDROID_API_T__);
 
 /**
  * Creates a session for the given set of threads and sets their initial target work
  * duration.
+ *
  * @param manager The performance hint manager instance.
  * @param threadIds The list of threads to be associated with this session. They must be part of
- *     this app's thread group.
- * @param size the size of threadIds.
- * @param initialTargetWorkDurationNanos The desired duration in nanoseconds for the new session.
- *     This must be positive.
- * @return manager instance on success, nullptr on failure.
+ *     this process' thread group.
+ * @param size The size of the list of threadIds.
+ * @param initialTargetWorkDurationNanos The target duration in nanoseconds for the new session.
+ *     This must be positive if using the work duration API, or 0 otherwise.
+ * @return APerformanceHintManager instance on success, nullptr on failure.
  */
 APerformanceHintSession* APerformanceHint_createSession(
         APerformanceHintManager* manager,
@@ -124,8 +134,8 @@ int64_t APerformanceHint_getPreferredUpdateRateNanos(
  * Updates this session's target duration for each cycle of work.
  *
  * @param session The performance hint session instance to update.
- * @param targetDurationNanos the new desired duration in nanoseconds. This must be positive.
- * @return 0 on success
+ * @param targetDurationNanos The new desired duration in nanoseconds. This must be positive.
+ * @return 0 on success.
  *         EINVAL if targetDurationNanos is not positive.
  *         EPIPE if communication with the system service has failed.
  */
@@ -136,14 +146,13 @@ int APerformanceHint_updateTargetWorkDuration(
 /**
  * Reports the actual duration for the last cycle of work.
  *
- * <p>The system will attempt to adjust the core placement of the threads within the thread
- * group and/or the frequency of the core on which they are run to bring the actual duration
- * close to the target duration.</p>
+ * The system will attempt to adjust the scheduling and performance of the
+ * threads within the thread group to bring the actual duration close to the target duration.
  *
  * @param session The performance hint session instance to update.
- * @param actualDurationNanos how long the thread group took to complete its last task in
- *     nanoseconds. This must be positive.
- * @return 0 on success
+ * @param actualDurationNanos The duration of time the thread group took to complete its last
+ *     task in nanoseconds. This must be positive.
+ * @return 0 on success.
  *         EINVAL if actualDurationNanos is not positive.
  *         EPIPE if communication with the system service has failed.
  */
@@ -164,12 +173,13 @@ void APerformanceHint_closeSession(
  * Set a list of threads to the performance hint session. This operation will replace
  * the current list of threads with the given list of threads.
  *
- * @param session The performance hint session instance for the threads.
+ * @param session The performance hint session instance to update.
  * @param threadIds The list of threads to be associated with this session. They must be part of
  *     this app's thread group.
- * @param size the size of the list of threadIds.
+ * @param size The size of the list of threadIds.
  * @return 0 on success.
- *         EINVAL if the list of thread ids is empty or if  any of the thread ids is not part of the thread group.
+ *         EINVAL if the list of thread ids is empty or if any of the thread ids are not part of
+               the thread group.
  *         EPIPE if communication with the system service has failed.
  *         EPERM if any thread id doesn't belong to the application.
  */
@@ -178,6 +188,21 @@ int APerformanceHint_setThreads(
         const pid_t* threadIds,
         size_t size) __INTRODUCED_IN(__ANDROID_API_U__);
 
+/**
+ * This tells the session that these threads can be
+ * safely scheduled to prefer power efficiency over performance.
+ *
+ * @param session The performance hint session instance to update.
+ * @param enabled The flag which sets whether this session will use power-efficient scheduling.
+ * @return 0 on success.
+ *         EPIPE if communication with the system service has failed.
+ */
+int APerformanceHint_setPreferPowerEfficiency(
+        APerformanceHintSession* session,
+        bool enabled) __INTRODUCED_IN(__ANDROID_API_V__);
+
 __END_DECLS
 
 #endif // ANDROID_NATIVE_PERFORMANCE_HINT_H
+
+/** @} */

@@ -24,6 +24,7 @@ package {
 
 cc_defaults {
     name: "libgui_fuzzer_defaults",
+    defaults: ["android.hardware.power-ndk_shared"],
     static_libs: [
         "android.hidl.token@1.0-utils",
         "libbinder_random_parcel",
@@ -46,7 +47,6 @@ cc_defaults {
         "android.hardware.configstore-utils",
         "android.hardware.graphics.bufferqueue@1.0",
         "android.hardware.graphics.bufferqueue@2.0",
-        "android.hardware.power-V4-ndk",
         "android.hidl.token@1.0",
         "libSurfaceFlingerProp",
         "libgui",

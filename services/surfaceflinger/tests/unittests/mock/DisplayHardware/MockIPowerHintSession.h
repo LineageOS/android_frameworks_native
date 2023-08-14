@@ -23,6 +23,7 @@
 
 using aidl::android::hardware::power::IPowerHintSession;
 using aidl::android::hardware::power::SessionHint;
+using aidl::android::hardware::power::SessionMode;
 using android::binder::Status;
 
 using namespace aidl::android::hardware::power;
@@ -45,6 +46,7 @@ public:
                 (override));
     MOCK_METHOD(ndk::ScopedAStatus, sendHint, (SessionHint), (override));
     MOCK_METHOD(ndk::ScopedAStatus, setThreads, (const ::std::vector<int32_t>&), (override));
+    MOCK_METHOD(ndk::ScopedAStatus, setMode, (SessionMode, bool), (override));
 };
 
 } // namespace android::Hwc2::mock
