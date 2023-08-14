@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <android/os/IInputConstants.h>
 #include <input/Input.h>
 #include <input/RingBuffer.h>
 #include <utils/BitSet.h>
@@ -35,18 +36,18 @@ public:
     static const size_t MAX_DEGREE = 4;
 
     enum class Strategy : int32_t {
-        DEFAULT = -1,
-        MIN = 0,
-        IMPULSE = 0,
-        LSQ1 = 1,
-        LSQ2 = 2,
-        LSQ3 = 3,
-        WLSQ2_DELTA = 4,
-        WLSQ2_CENTRAL = 5,
-        WLSQ2_RECENT = 6,
-        INT1 = 7,
-        INT2 = 8,
-        LEGACY = 9,
+        DEFAULT = android::os::IInputConstants::VELOCITY_TRACKER_STRATEGY_DEFAULT,
+        IMPULSE = android::os::IInputConstants::VELOCITY_TRACKER_STRATEGY_IMPULSE,
+        LSQ1 = android::os::IInputConstants::VELOCITY_TRACKER_STRATEGY_LSQ1,
+        LSQ2 = android::os::IInputConstants::VELOCITY_TRACKER_STRATEGY_LSQ2,
+        LSQ3 = android::os::IInputConstants::VELOCITY_TRACKER_STRATEGY_LSQ3,
+        WLSQ2_DELTA = android::os::IInputConstants::VELOCITY_TRACKER_STRATEGY_WLSQ2_DELTA,
+        WLSQ2_CENTRAL = android::os::IInputConstants::VELOCITY_TRACKER_STRATEGY_WLSQ2_CENTRAL,
+        WLSQ2_RECENT = android::os::IInputConstants::VELOCITY_TRACKER_STRATEGY_WLSQ2_RECENT,
+        INT1 = android::os::IInputConstants::VELOCITY_TRACKER_STRATEGY_INT1,
+        INT2 = android::os::IInputConstants::VELOCITY_TRACKER_STRATEGY_INT2,
+        LEGACY = android::os::IInputConstants::VELOCITY_TRACKER_STRATEGY_LEGACY,
+        MIN = IMPULSE,
         MAX = LEGACY,
         ftl_last = LEGACY,
     };
