@@ -441,24 +441,6 @@ TEST_F(RunDex2OatTest, Runtime) {
     VerifyExpectedFlags();
 }
 
-TEST_F(RunDex2OatTest, SkipRelocationInMinFramework) {
-    setSystemProperty("vold.decrypt", "trigger_restart_min_framework");
-    CallRunDex2Oat(RunDex2OatArgs::MakeDefaultTestArgs());
-
-    SetExpectedFlagUsed("--compiler-filter", "=extract");
-    SetExpectedFlagUsed("-Xnorelocate", "");
-    VerifyExpectedFlags();
-}
-
-TEST_F(RunDex2OatTest, SkipRelocationIfDecryptedWithFullDiskEncryption) {
-    setSystemProperty("vold.decrypt", "1");
-    CallRunDex2Oat(RunDex2OatArgs::MakeDefaultTestArgs());
-
-    SetExpectedFlagUsed("--compiler-filter", "=extract");
-    SetExpectedFlagUsed("-Xnorelocate", "");
-    VerifyExpectedFlags();
-}
-
 TEST_F(RunDex2OatTest, DalvikVmDex2oatFilter) {
     setSystemProperty("dalvik.vm.dex2oat-filter", "speed");
     auto args = RunDex2OatArgs::MakeDefaultTestArgs();
