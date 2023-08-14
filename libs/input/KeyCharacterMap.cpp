@@ -1345,7 +1345,7 @@ status_t KeyCharacterMap::Parser::parseCharacterLiteral(char16_t* outCharacter) 
     }
 
     // Ensure that we consumed the entire token.
-    if (mTokenizer->nextToken(WHITESPACE).isEmpty()) {
+    if (mTokenizer->nextToken(WHITESPACE).empty()) {
         return NO_ERROR;
     }
 
