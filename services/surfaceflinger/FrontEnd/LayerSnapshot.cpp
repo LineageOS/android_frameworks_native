@@ -19,6 +19,7 @@
 #define LOG_TAG "SurfaceFlinger"
 
 #include "LayerSnapshot.h"
+#include "Layer.h"
 
 namespace android::surfaceflinger::frontend {
 
@@ -363,7 +364,7 @@ void LayerSnapshot::merge(const RequestedLayerState& requested, bool forceUpdate
         geomBufferUsesDisplayInverseTransform = requested.transformToDisplayInverse;
     }
     if (forceUpdate || requested.what & layer_state_t::eDataspaceChanged) {
-        dataspace = requested.dataspace;
+        dataspace = Layer::translateDataspace(requested.dataspace);
     }
     if (forceUpdate || requested.what & layer_state_t::eExtendedRangeBrightnessChanged) {
         currentHdrSdrRatio = requested.currentHdrSdrRatio;
