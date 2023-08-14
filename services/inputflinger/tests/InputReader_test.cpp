@@ -1829,6 +1829,38 @@ TEST_P(TouchIntegrationTest, InputEvent_ProcessPalm) {
     ASSERT_EQ(AMOTION_EVENT_ACTION_UP, args.action);
 }
 
+/**
+ * Some drivers historically have reported axis values outside of the range specified in the
+ * evdev axis info. Ensure we don't crash when this happens. For example, a driver may report a
+ * pressure value greater than the reported maximum, since it unclear what specific meaning the
+ * maximum value for pressure has (beyond the maximum value that can be produced by a sensor),
+ * and no units for pressure (resolution) is specified by the evdev documentation.
+ */
+TEST_P(TouchIntegrationTest, AcceptsAxisValuesOutsideReportedRange) {
+    const Point centerPoint = mDevice->getCenterPoint();
+
+    // Down with pressure outside the reported range
+    mDevice->sendSlot(FIRST_SLOT);
+    mDevice->sendTrackingId(FIRST_TRACKING_ID);
+    mDevice->sendDown(centerPoint);
+    mDevice->sendPressure(UinputTouchScreen::RAW_PRESSURE_MAX + 2);
+    mDevice->sendSync();
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasCalled(
+            WithMotionAction(AMOTION_EVENT_ACTION_DOWN)));
+
+    // Move to a point outside the reported range
+    mDevice->sendMove(Point(DISPLAY_WIDTH, DISPLAY_HEIGHT) + Point(1, 1));
+    mDevice->sendSync();
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasCalled(
+            WithMotionAction(AMOTION_EVENT_ACTION_MOVE)));
+
+    // Up
+    mDevice->sendUp();
+    mDevice->sendSync();
+    ASSERT_NO_FATAL_FAILURE(
+            mTestListener->assertNotifyMotionWasCalled(WithMotionAction(AMOTION_EVENT_ACTION_UP)));
+}
+
 TEST_P(TouchIntegrationTest, NotifiesPolicyWhenStylusGestureStarted) {
     const Point centerPoint = mDevice->getCenterPoint();
 
