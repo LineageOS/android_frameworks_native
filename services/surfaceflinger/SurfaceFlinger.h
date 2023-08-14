@@ -941,7 +941,8 @@ private:
     template <typename Predicate>
     sp<DisplayDevice> findDisplay(Predicate p) const REQUIRES(mStateLock) {
         const auto it = std::find_if(mDisplays.begin(), mDisplays.end(),
-                                     [&](const auto& pair) { return p(*pair.second); });
+                                     [&](const auto& pair)
+                                             REQUIRES(mStateLock) { return p(*pair.second); });
 
         return it == mDisplays.end() ? nullptr : it->second;
     }
@@ -1053,6 +1054,9 @@ private:
     // Virtual display lifecycle for ID generation and HAL allocation.
     VirtualDisplayId acquireVirtualDisplay(ui::Size, ui::PixelFormat) REQUIRES(mStateLock);
     void releaseVirtualDisplay(VirtualDisplayId);
+
+    // Returns a display other than `mActiveDisplayId` that can be activated, if any.
+    sp<DisplayDevice> getActivatableDisplay() const REQUIRES(mStateLock, kMainThreadContext);
 
     void onActiveDisplayChangedLocked(const DisplayDevice* inactiveDisplayPtr,
                                       const DisplayDevice& activeDisplay)
