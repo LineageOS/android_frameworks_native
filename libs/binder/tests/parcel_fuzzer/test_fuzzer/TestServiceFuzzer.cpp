@@ -33,6 +33,8 @@ enum class CrashType {
     ON_KNOWN_UID,
     ON_SYSTEM_AID,
     ON_ROOT_AID,
+    ON_DUMP_TRANSACT,
+    ON_SHELL_CMD_TRANSACT,
 };
 
 // This service is to verify that fuzzService is functioning properly
@@ -92,6 +94,16 @@ public:
         return Status::ok();
     }
 
+    status_t onTransact(uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags) override {
+        if (mCrash == CrashType::ON_DUMP_TRANSACT && code == DUMP_TRANSACTION) {
+            LOG_ALWAYS_FATAL("Expected crash, DUMP.");
+        } else if (mCrash == CrashType::ON_SHELL_CMD_TRANSACT &&
+                   code == SHELL_COMMAND_TRANSACTION) {
+            LOG_ALWAYS_FATAL("Expected crash, SHELL_CMD.");
+        }
+        return BnTestService::onTransact(code, data, reply, flags);
+    }
+
 private:
     CrashType mCrash;
 };
@@ -121,6 +133,10 @@ extern "C" int LLVMFuzzerInitialize(int* argc, char*** argv) {
         gCrashType = CrashType::ON_ROOT_AID;
     } else if (arg == "BINDER") {
         gCrashType = CrashType::ON_BINDER;
+    } else if (arg == "DUMP") {
+        gCrashType = CrashType::ON_DUMP_TRANSACT;
+    } else if (arg == "SHELL_CMD") {
+        gCrashType = CrashType::ON_SHELL_CMD_TRANSACT;
     } else {
         printf("INVALID ARG\n");
         exit(0); // success because this is a crash test
