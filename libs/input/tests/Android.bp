@@ -18,6 +18,7 @@ cc_test {
         "InputDevice_test.cpp",
         "InputEvent_test.cpp",
         "InputPublisherAndConsumer_test.cpp",
+        "InputVerifier_test.cpp",
         "MotionPredictor_test.cpp",
         "RingBuffer_test.cpp",
         "TfLiteMotionPredictor_test.cpp",
