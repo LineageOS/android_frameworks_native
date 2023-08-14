@@ -796,7 +796,7 @@ static bool setCategoriesEnableFromFile(const char* categories_file)
     bool ok = true;
     while (!tokenizer->isEol()) {
         String8 token = tokenizer->nextToken(" ");
-        if (token.isEmpty()) {
+        if (token.empty()) {
             tokenizer->skipDelimiters(" ");
             continue;
         }
