@@ -271,14 +271,13 @@ struct RenderEngineCreationArgs {
 
 private:
     // must be created by Builder via constructor with full argument list
-    RenderEngineCreationArgs(int _pixelFormat, uint32_t _imageCacheSize, bool _useColorManagement,
+    RenderEngineCreationArgs(int _pixelFormat, uint32_t _imageCacheSize,
                              bool _enableProtectedContext, bool _precacheToneMapperShaderOnly,
                              bool _supportsBackgroundBlur,
                              RenderEngine::ContextPriority _contextPriority,
                              RenderEngine::RenderEngineType _renderEngineType)
           : pixelFormat(_pixelFormat),
             imageCacheSize(_imageCacheSize),
-            useColorManagement(_useColorManagement),
             enableProtectedContext(_enableProtectedContext),
             precacheToneMapperShaderOnly(_precacheToneMapperShaderOnly),
             supportsBackgroundBlur(_supportsBackgroundBlur),
@@ -296,10 +295,6 @@ struct RenderEngineCreationArgs::Builder {
     }
     Builder& setImageCacheSize(uint32_t imageCacheSize) {
         this->imageCacheSize = imageCacheSize;
-        return *this;
-    }
-    Builder& setUseColorManagerment(bool useColorManagement) {
-        this->useColorManagement = useColorManagement;
         return *this;
     }
     Builder& setEnableProtectedContext(bool enableProtectedContext) {
@@ -323,16 +318,15 @@ struct RenderEngineCreationArgs::Builder {
         return *this;
     }
     RenderEngineCreationArgs build() const {
-        return RenderEngineCreationArgs(pixelFormat, imageCacheSize, useColorManagement,
-                                        enableProtectedContext, precacheToneMapperShaderOnly,
-                                        supportsBackgroundBlur, contextPriority, renderEngineType);
+        return RenderEngineCreationArgs(pixelFormat, imageCacheSize, enableProtectedContext,
+                                        precacheToneMapperShaderOnly, supportsBackgroundBlur,
+                                        contextPriority, renderEngineType);
     }
 
 private:
     // 1 means RGBA_8888
     int pixelFormat = 1;
     uint32_t imageCacheSize = 0;
-    bool useColorManagement = true;
     bool enableProtectedContext = false;
     bool precacheToneMapperShaderOnly = false;
     bool supportsBackgroundBlur = false;

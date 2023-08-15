@@ -879,10 +879,6 @@ public:
         return binder::Status::ok();
     }
 
-    binder::Status getColorManagement(bool* /*outGetColorManagement*/) override {
-        return binder::Status::ok();
-    }
-
     binder::Status getCompositionPreference(gui::CompositionPreference* /*outPref*/) override {
         return binder::Status::ok();
     }

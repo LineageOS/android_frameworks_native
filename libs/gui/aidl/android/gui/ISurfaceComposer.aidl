@@ -280,8 +280,6 @@ interface ISurfaceComposer {
      */
     List<LayerDebugInfo> getLayerDebugInfo();
 
-    boolean getColorManagement();
-
     /**
      * Gets the composition preference of the default data space and default pixel format,
      * as well as the wide color gamut data space and wide color gamut pixel format.

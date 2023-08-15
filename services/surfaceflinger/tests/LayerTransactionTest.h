@@ -47,9 +47,6 @@ protected:
         ASSERT_NO_FATAL_FAILURE(SetUpDisplay());
 
         sp<gui::ISurfaceComposer> sf(ComposerServiceAIDL::getComposerService());
-        binder::Status status = sf->getColorManagement(&mColorManagementUsed);
-        ASSERT_NO_FATAL_FAILURE(gui::aidl_utils::statusTFromBinderStatus(status));
-
         mCaptureArgs.displayToken = mDisplay;
     }
 
@@ -282,7 +279,6 @@ protected:
     const int32_t mLayerZBase = std::numeric_limits<int32_t>::max() - 256;
 
     sp<SurfaceControl> mBlackBgSurface;
-    bool mColorManagementUsed;
 
     DisplayCaptureArgs mCaptureArgs;
     ScreenCaptureResults mCaptureResults;

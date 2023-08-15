@@ -389,7 +389,6 @@ GLESRenderEngine::GLESRenderEngine(const RenderEngineCreationArgs& args, EGLDisp
         mVpWidth(0),
         mVpHeight(0),
         mFramebufferImageCacheSize(args.imageCacheSize),
-        mUseColorManagement(args.useColorManagement),
         mPrecacheToneMapperShaderOnly(args.precacheToneMapperShaderOnly) {
     glGetIntegerv(GL_MAX_TEXTURE_SIZE, &mMaxTextureSize);
     glGetIntegerv(GL_MAX_VIEWPORT_DIMS, mMaxViewportDims);
@@ -410,33 +409,31 @@ GLESRenderEngine::GLESRenderEngine(const RenderEngineCreationArgs& args, EGLDisp
 
     // mColorBlindnessCorrection = M;
 
-    if (mUseColorManagement) {
-        const ColorSpace srgb(ColorSpace::sRGB());
-        const ColorSpace displayP3(ColorSpace::DisplayP3());
-        const ColorSpace bt2020(ColorSpace::BT2020());
+    const ColorSpace srgb(ColorSpace::sRGB());
+    const ColorSpace displayP3(ColorSpace::DisplayP3());
+    const ColorSpace bt2020(ColorSpace::BT2020());
 
-        // no chromatic adaptation needed since all color spaces use D65 for their white points.
-        mSrgbToXyz = mat4(srgb.getRGBtoXYZ());
-        mDisplayP3ToXyz = mat4(displayP3.getRGBtoXYZ());
-        mBt2020ToXyz = mat4(bt2020.getRGBtoXYZ());
-        mXyzToSrgb = mat4(srgb.getXYZtoRGB());
-        mXyzToDisplayP3 = mat4(displayP3.getXYZtoRGB());
-        mXyzToBt2020 = mat4(bt2020.getXYZtoRGB());
+    // no chromatic adaptation needed since all color spaces use D65 for their white points.
+    mSrgbToXyz = mat4(srgb.getRGBtoXYZ());
+    mDisplayP3ToXyz = mat4(displayP3.getRGBtoXYZ());
+    mBt2020ToXyz = mat4(bt2020.getRGBtoXYZ());
+    mXyzToSrgb = mat4(srgb.getXYZtoRGB());
+    mXyzToDisplayP3 = mat4(displayP3.getXYZtoRGB());
+    mXyzToBt2020 = mat4(bt2020.getXYZtoRGB());
 
-        // Compute sRGB to Display P3 and BT2020 transform matrix.
-        // NOTE: For now, we are limiting output wide color space support to
-        // Display-P3 and BT2020 only.
-        mSrgbToDisplayP3 = mXyzToDisplayP3 * mSrgbToXyz;
-        mSrgbToBt2020 = mXyzToBt2020 * mSrgbToXyz;
+    // Compute sRGB to Display P3 and BT2020 transform matrix.
+    // NOTE: For now, we are limiting output wide color space support to
+    // Display-P3 and BT2020 only.
+    mSrgbToDisplayP3 = mXyzToDisplayP3 * mSrgbToXyz;
+    mSrgbToBt2020 = mXyzToBt2020 * mSrgbToXyz;
 
-        // Compute Display P3 to sRGB and BT2020 transform matrix.
-        mDisplayP3ToSrgb = mXyzToSrgb * mDisplayP3ToXyz;
-        mDisplayP3ToBt2020 = mXyzToBt2020 * mDisplayP3ToXyz;
+    // Compute Display P3 to sRGB and BT2020 transform matrix.
+    mDisplayP3ToSrgb = mXyzToSrgb * mDisplayP3ToXyz;
+    mDisplayP3ToBt2020 = mXyzToBt2020 * mDisplayP3ToXyz;
 
-        // Compute BT2020 to sRGB and Display P3 transform matrix
-        mBt2020ToSrgb = mXyzToSrgb * mBt2020ToXyz;
-        mBt2020ToDisplayP3 = mXyzToDisplayP3 * mBt2020ToXyz;
-    }
+    // Compute BT2020 to sRGB and Display P3 transform matrix
+    mBt2020ToSrgb = mXyzToSrgb * mBt2020ToXyz;
+    mBt2020ToDisplayP3 = mXyzToDisplayP3 * mBt2020ToXyz;
 
     char value[PROPERTY_VALUE_MAX];
     property_get("debug.egl.traceGpuCompletion", value, "0");
@@ -518,7 +515,7 @@ Framebuffer* GLESRenderEngine::getFramebufferForDrawing() {
 
 std::future<void> GLESRenderEngine::primeCache() {
     ProgramCache::getInstance().primeCache(mInProtectedContext ? mProtectedEGLContext : mEGLContext,
-                                           mUseColorManagement, mPrecacheToneMapperShaderOnly);
+                                           mPrecacheToneMapperShaderOnly);
     return {};
 }
 
@@ -1444,97 +1441,93 @@ void GLESRenderEngine::drawMesh(const Mesh& mesh) {
     // BT2020 data space, in that case, the output data space is set to be
     // BT2020_HLG or BT2020_PQ respectively. In GPU fall back we need
     // to respect this and convert non-HDR content to HDR format.
-    if (mUseColorManagement) {
-        Dataspace inputStandard = static_cast<Dataspace>(mDataSpace & Dataspace::STANDARD_MASK);
-        Dataspace inputTransfer = static_cast<Dataspace>(mDataSpace & Dataspace::TRANSFER_MASK);
-        Dataspace outputStandard =
-                static_cast<Dataspace>(mOutputDataSpace & Dataspace::STANDARD_MASK);
-        Dataspace outputTransfer =
-                static_cast<Dataspace>(mOutputDataSpace & Dataspace::TRANSFER_MASK);
-        bool needsXYZConversion = needsXYZTransformMatrix();
+    Dataspace inputStandard = static_cast<Dataspace>(mDataSpace & Dataspace::STANDARD_MASK);
+    Dataspace inputTransfer = static_cast<Dataspace>(mDataSpace & Dataspace::TRANSFER_MASK);
+    Dataspace outputStandard = static_cast<Dataspace>(mOutputDataSpace & Dataspace::STANDARD_MASK);
+    Dataspace outputTransfer = static_cast<Dataspace>(mOutputDataSpace & Dataspace::TRANSFER_MASK);
+    bool needsXYZConversion = needsXYZTransformMatrix();
 
-        // NOTE: if the input standard of the input dataspace is not STANDARD_DCI_P3 or
-        // STANDARD_BT2020, it will be  treated as STANDARD_BT709
-        if (inputStandard != Dataspace::STANDARD_DCI_P3 &&
-            inputStandard != Dataspace::STANDARD_BT2020) {
-            inputStandard = Dataspace::STANDARD_BT709;
+    // NOTE: if the input standard of the input dataspace is not STANDARD_DCI_P3 or
+    // STANDARD_BT2020, it will be  treated as STANDARD_BT709
+    if (inputStandard != Dataspace::STANDARD_DCI_P3 &&
+        inputStandard != Dataspace::STANDARD_BT2020) {
+        inputStandard = Dataspace::STANDARD_BT709;
+    }
+
+    if (needsXYZConversion) {
+        // The supported input color spaces are standard RGB, Display P3 and BT2020.
+        switch (inputStandard) {
+            case Dataspace::STANDARD_DCI_P3:
+                managedState.inputTransformMatrix = mDisplayP3ToXyz;
+                break;
+            case Dataspace::STANDARD_BT2020:
+                managedState.inputTransformMatrix = mBt2020ToXyz;
+                break;
+            default:
+                managedState.inputTransformMatrix = mSrgbToXyz;
+                break;
         }
 
-        if (needsXYZConversion) {
-            // The supported input color spaces are standard RGB, Display P3 and BT2020.
-            switch (inputStandard) {
-                case Dataspace::STANDARD_DCI_P3:
-                    managedState.inputTransformMatrix = mDisplayP3ToXyz;
-                    break;
-                case Dataspace::STANDARD_BT2020:
-                    managedState.inputTransformMatrix = mBt2020ToXyz;
-                    break;
-                default:
-                    managedState.inputTransformMatrix = mSrgbToXyz;
-                    break;
-            }
-
-            // The supported output color spaces are BT2020, Display P3 and standard RGB.
-            switch (outputStandard) {
-                case Dataspace::STANDARD_BT2020:
-                    managedState.outputTransformMatrix = mXyzToBt2020;
-                    break;
-                case Dataspace::STANDARD_DCI_P3:
-                    managedState.outputTransformMatrix = mXyzToDisplayP3;
-                    break;
-                default:
-                    managedState.outputTransformMatrix = mXyzToSrgb;
-                    break;
-            }
-        } else if (inputStandard != outputStandard) {
-            // At this point, the input data space and output data space could be both
-            // HDR data spaces, but they match each other, we do nothing in this case.
-            // In addition to the case above, the input data space could be
-            // - scRGB linear
-            // - scRGB non-linear
-            // - sRGB
-            // - Display P3
-            // - BT2020
-            // The output data spaces could be
-            // - sRGB
-            // - Display P3
-            // - BT2020
-            switch (outputStandard) {
-                case Dataspace::STANDARD_BT2020:
-                    if (inputStandard == Dataspace::STANDARD_BT709) {
-                        managedState.outputTransformMatrix = mSrgbToBt2020;
-                    } else if (inputStandard == Dataspace::STANDARD_DCI_P3) {
-                        managedState.outputTransformMatrix = mDisplayP3ToBt2020;
-                    }
-                    break;
-                case Dataspace::STANDARD_DCI_P3:
-                    if (inputStandard == Dataspace::STANDARD_BT709) {
-                        managedState.outputTransformMatrix = mSrgbToDisplayP3;
-                    } else if (inputStandard == Dataspace::STANDARD_BT2020) {
-                        managedState.outputTransformMatrix = mBt2020ToDisplayP3;
-                    }
-                    break;
-                default:
-                    if (inputStandard == Dataspace::STANDARD_DCI_P3) {
-                        managedState.outputTransformMatrix = mDisplayP3ToSrgb;
-                    } else if (inputStandard == Dataspace::STANDARD_BT2020) {
-                        managedState.outputTransformMatrix = mBt2020ToSrgb;
-                    }
-                    break;
-            }
+        // The supported output color spaces are BT2020, Display P3 and standard RGB.
+        switch (outputStandard) {
+            case Dataspace::STANDARD_BT2020:
+                managedState.outputTransformMatrix = mXyzToBt2020;
+                break;
+            case Dataspace::STANDARD_DCI_P3:
+                managedState.outputTransformMatrix = mXyzToDisplayP3;
+                break;
+            default:
+                managedState.outputTransformMatrix = mXyzToSrgb;
+                break;
         }
-
-        // we need to convert the RGB value to linear space and convert it back when:
-        // - there is a color matrix that is not an identity matrix, or
-        // - there is an output transform matrix that is not an identity matrix, or
-        // - the input transfer function doesn't match the output transfer function.
-        if (managedState.hasColorMatrix() || managedState.hasOutputTransformMatrix() ||
-            inputTransfer != outputTransfer) {
-            managedState.inputTransferFunction =
-                    Description::dataSpaceToTransferFunction(inputTransfer);
-            managedState.outputTransferFunction =
-                    Description::dataSpaceToTransferFunction(outputTransfer);
+    } else if (inputStandard != outputStandard) {
+        // At this point, the input data space and output data space could be both
+        // HDR data spaces, but they match each other, we do nothing in this case.
+        // In addition to the case above, the input data space could be
+        // - scRGB linear
+        // - scRGB non-linear
+        // - sRGB
+        // - Display P3
+        // - BT2020
+        // The output data spaces could be
+        // - sRGB
+        // - Display P3
+        // - BT2020
+        switch (outputStandard) {
+            case Dataspace::STANDARD_BT2020:
+                if (inputStandard == Dataspace::STANDARD_BT709) {
+                    managedState.outputTransformMatrix = mSrgbToBt2020;
+                } else if (inputStandard == Dataspace::STANDARD_DCI_P3) {
+                    managedState.outputTransformMatrix = mDisplayP3ToBt2020;
+                }
+                break;
+            case Dataspace::STANDARD_DCI_P3:
+                if (inputStandard == Dataspace::STANDARD_BT709) {
+                    managedState.outputTransformMatrix = mSrgbToDisplayP3;
+                } else if (inputStandard == Dataspace::STANDARD_BT2020) {
+                    managedState.outputTransformMatrix = mBt2020ToDisplayP3;
+                }
+                break;
+            default:
+                if (inputStandard == Dataspace::STANDARD_DCI_P3) {
+                    managedState.outputTransformMatrix = mDisplayP3ToSrgb;
+                } else if (inputStandard == Dataspace::STANDARD_BT2020) {
+                    managedState.outputTransformMatrix = mBt2020ToSrgb;
+                }
+                break;
         }
+    }
+
+    // we need to convert the RGB value to linear space and convert it back when:
+    // - there is a color matrix that is not an identity matrix, or
+    // - there is an output transform matrix that is not an identity matrix, or
+    // - the input transfer function doesn't match the output transfer function.
+    if (managedState.hasColorMatrix() || managedState.hasOutputTransformMatrix() ||
+        inputTransfer != outputTransfer) {
+        managedState.inputTransferFunction =
+                Description::dataSpaceToTransferFunction(inputTransfer);
+        managedState.outputTransferFunction =
+                Description::dataSpaceToTransferFunction(outputTransfer);
     }
 
     ProgramCache::getInstance().useProgram(mInProtectedContext ? mProtectedEGLContext : mEGLContext,
@@ -1547,7 +1540,7 @@ void GLESRenderEngine::drawMesh(const Mesh& mesh) {
         glDrawArrays(mesh.getPrimitive(), 0, mesh.getVertexCount());
     }
 
-    if (mUseColorManagement && outputDebugPPMs) {
+    if (outputDebugPPMs) {
         static uint64_t managedColorFrameCount = 0;
         std::ostringstream out;
         out << "/data/texture_out" << managedColorFrameCount++;

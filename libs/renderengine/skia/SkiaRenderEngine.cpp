@@ -269,10 +269,8 @@ void SkiaRenderEngine::setEnableTracing(bool tracingEnabled) {
 }
 
 SkiaRenderEngine::SkiaRenderEngine(RenderEngineType type, PixelFormat pixelFormat,
-                                   bool useColorManagement, bool supportsBackgroundBlur)
-      : RenderEngine(type),
-        mDefaultPixelFormat(pixelFormat),
-        mUseColorManagement(useColorManagement) {
+                                   bool supportsBackgroundBlur)
+      : RenderEngine(type), mDefaultPixelFormat(pixelFormat) {
     if (supportsBackgroundBlur) {
         ALOGD("Background Blurs Enabled");
         mBlurFilter = new KawaseBlurFilter();
@@ -926,8 +924,7 @@ void SkiaRenderEngine::drawLayersInternal(
         // luminance in linear space, which color pipelines request GAMMA_OETF break
         // without a gamma 2.2 fixup.
         const bool requiresLinearEffect = layer.colorTransform != mat4() ||
-                (mUseColorManagement &&
-                 needsToneMapping(layer.sourceDataspace, display.outputDataspace)) ||
+                (needsToneMapping(layer.sourceDataspace, display.outputDataspace)) ||
                 (dimInLinearSpace && !equalsWithinMargin(1.f, layerDimmingRatio)) ||
                 (!dimInLinearSpace && isExtendedHdr);
 
@@ -938,10 +935,7 @@ void SkiaRenderEngine::drawLayersInternal(
             continue;
         }
 
-        // If color management is disabled, then mark the source image with the same colorspace as
-        // the destination surface so that Skia's color management is a no-op.
-        const ui::Dataspace layerDataspace =
-                !mUseColorManagement ? display.outputDataspace : layer.sourceDataspace;
+        const ui::Dataspace layerDataspace = layer.sourceDataspace;
 
         SkPaint paint;
         if (layer.source.buffer.buffer) {

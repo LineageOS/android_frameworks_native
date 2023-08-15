@@ -121,7 +121,6 @@ static std::unique_ptr<RenderEngine> createRenderEngine(RenderEngine::RenderEngi
                         .setSupportsBackgroundBlur(true)
                         .setContextPriority(RenderEngine::ContextPriority::REALTIME)
                         .setRenderEngineType(type)
-                        .setUseColorManagerment(true)
                         .build();
     return RenderEngine::create(args);
 }
