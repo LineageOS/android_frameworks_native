@@ -324,6 +324,12 @@ void Choreographer::dispatchHotplug(nsecs_t, PhysicalDisplayId displayId, bool c
           to_string(displayId).c_str(), toString(connected));
 }
 
+void Choreographer::dispatchHotplugConnectionError(nsecs_t, int32_t connectionError) {
+    ALOGV("choreographer %p ~ received hotplug connection error event (connectionError=%d), "
+          "ignoring.",
+          this, connectionError);
+}
+
 void Choreographer::dispatchModeChanged(nsecs_t, PhysicalDisplayId, int32_t, nsecs_t) {
     LOG_ALWAYS_FATAL("dispatchModeChanged was called but was never registered");
 }

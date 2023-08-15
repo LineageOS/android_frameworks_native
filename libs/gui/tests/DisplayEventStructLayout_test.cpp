@@ -59,6 +59,7 @@ TEST(DisplayEventStructLayoutTest, TestEventAlignment) {
                  lastFrameTimelineOffset + 16);
 
     CHECK_OFFSET(DisplayEventReceiver::Event::Hotplug, connected, 0);
+    CHECK_OFFSET(DisplayEventReceiver::Event::Hotplug, connectionError, 4);
 
     CHECK_OFFSET(DisplayEventReceiver::Event::ModeChange, modeId, 0);
     CHECK_OFFSET(DisplayEventReceiver::Event::ModeChange, vsyncPeriod, 8);

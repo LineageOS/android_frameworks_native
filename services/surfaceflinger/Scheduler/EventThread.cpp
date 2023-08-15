@@ -111,6 +111,15 @@ DisplayEventReceiver::Event makeHotplug(PhysicalDisplayId displayId, nsecs_t tim
     return event;
 }
 
+DisplayEventReceiver::Event makeHotplugError(nsecs_t timestamp, int32_t connectionError) {
+    DisplayEventReceiver::Event event;
+    PhysicalDisplayId unusedDisplayId;
+    event.header = {DisplayEventReceiver::DISPLAY_EVENT_HOTPLUG, unusedDisplayId, timestamp};
+    event.hotplug.connected = false;
+    event.hotplug.connectionError = connectionError;
+    return event;
+}
+
 DisplayEventReceiver::Event makeVSync(PhysicalDisplayId displayId, nsecs_t timestamp,
                                       uint32_t count, nsecs_t expectedPresentationTime,
                                       nsecs_t deadlineTimestamp) {
@@ -408,6 +417,13 @@ void EventThread::onHotplugReceived(PhysicalDisplayId displayId, bool connected)
     mCondition.notify_all();
 }
 
+void EventThread::onHotplugConnectionError(int32_t errorCode) {
+    std::lock_guard<std::mutex> lock(mMutex);
+
+    mPendingEvents.push_back(makeHotplugError(systemTime(), errorCode));
+    mCondition.notify_all();
+}
+
 void EventThread::onModeChanged(const scheduler::FrameRateMode& mode) {
     std::lock_guard<std::mutex> lock(mMutex);
 
@@ -439,11 +455,15 @@ void EventThread::threadMain(std::unique_lock<std::mutex>& lock) {
             mPendingEvents.pop_front();
 
             if (event->header.type == DisplayEventReceiver::DISPLAY_EVENT_HOTPLUG) {
-                if (event->hotplug.connected && !mVSyncState) {
-                    mVSyncState.emplace(event->header.displayId);
-                } else if (!event->hotplug.connected && mVSyncState &&
-                           mVSyncState->displayId == event->header.displayId) {
-                    mVSyncState.reset();
+                if (event->hotplug.connectionError == 0) {
+                    if (event->hotplug.connected && !mVSyncState) {
+                        mVSyncState.emplace(event->header.displayId);
+                    } else if (!event->hotplug.connected && mVSyncState &&
+                               mVSyncState->displayId == event->header.displayId) {
+                        mVSyncState.reset();
+                    }
+                } else {
+                    // Ignore vsync stuff on an error.
                 }
             }
         }

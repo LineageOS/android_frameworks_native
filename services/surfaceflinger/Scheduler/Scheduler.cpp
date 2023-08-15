@@ -347,6 +347,17 @@ void Scheduler::onHotplugReceived(ConnectionHandle handle, PhysicalDisplayId dis
     thread->onHotplugReceived(displayId, connected);
 }
 
+void Scheduler::onHotplugConnectionError(ConnectionHandle handle, int32_t errorCode) {
+    android::EventThread* thread;
+    {
+        std::lock_guard<std::mutex> lock(mConnectionsLock);
+        RETURN_IF_INVALID_HANDLE(handle);
+        thread = mConnections[handle].thread.get();
+    }
+
+    thread->onHotplugConnectionError(errorCode);
+}
+
 void Scheduler::enableSyntheticVsync(bool enable) {
     // TODO(b/241285945): Remove connection handles.
     const ConnectionHandle handle = mAppConnectionHandle;

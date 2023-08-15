@@ -62,7 +62,10 @@ DisplayEventReceiver::Event buildDisplayEvent(FuzzedDataProvider* fdp, uint32_t 
 
         }
         case DisplayEventReceiver::DISPLAY_EVENT_HOTPLUG: {
-            event.hotplug = DisplayEventReceiver::Event::Hotplug{fdp->ConsumeBool() /*connected*/};
+            event.hotplug =
+                    DisplayEventReceiver::Event::Hotplug{fdp->ConsumeBool() /*connected*/,
+                                                         fdp->ConsumeIntegral<
+                                                                 int32_t>() /*connectionError*/};
             break;
         }
         case DisplayEventReceiver::DISPLAY_EVENT_MODE_CHANGE: {
