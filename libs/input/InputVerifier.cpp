@@ -29,7 +29,7 @@ namespace android {
 // --- InputVerifier ---
 
 InputVerifier::InputVerifier(const std::string& name)
-      : mVerifier(android::input::verifier::create(name)){};
+      : mVerifier(android::input::verifier::create(rust::String::lossy(name))){};
 
 Result<void> InputVerifier::processMovement(int32_t deviceId, int32_t action, uint32_t pointerCount,
                                             const PointerProperties* pointerProperties,
