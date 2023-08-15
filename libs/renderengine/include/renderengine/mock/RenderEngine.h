@@ -19,9 +19,7 @@
 #include <gmock/gmock.h>
 #include <renderengine/DisplaySettings.h>
 #include <renderengine/LayerSettings.h>
-#include <renderengine/Mesh.h>
 #include <renderengine/RenderEngine.h>
-#include <renderengine/Texture.h>
 #include <ui/Fence.h>
 #include <ui/GraphicBuffer.h>
 #include <ui/Region.h>

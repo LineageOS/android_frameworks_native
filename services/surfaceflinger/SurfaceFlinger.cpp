@@ -769,13 +769,9 @@ void SurfaceFlinger::deleteTextureAsync(uint32_t texture) {
 static std::optional<renderengine::RenderEngine::RenderEngineType>
 chooseRenderEngineTypeViaSysProp() {
     char prop[PROPERTY_VALUE_MAX];
-    property_get(PROPERTY_DEBUG_RENDERENGINE_BACKEND, prop, "");
+    property_get(PROPERTY_DEBUG_RENDERENGINE_BACKEND, prop, "skiaglthreaded");
 
-    if (strcmp(prop, "gles") == 0) {
-        return renderengine::RenderEngine::RenderEngineType::GLES;
-    } else if (strcmp(prop, "threaded") == 0) {
-        return renderengine::RenderEngine::RenderEngineType::THREADED;
-    } else if (strcmp(prop, "skiagl") == 0) {
+    if (strcmp(prop, "skiagl") == 0) {
         return renderengine::RenderEngine::RenderEngineType::SKIA_GL;
     } else if (strcmp(prop, "skiaglthreaded") == 0) {
         return renderengine::RenderEngine::RenderEngineType::SKIA_GL_THREADED;
@@ -3578,8 +3574,6 @@ void SurfaceFlinger::processDisplayChanged(const wp<IBinder>& displayToken,
 
     // Recreate the DisplayDevice if the surface or sequence ID changed.
     if (currentBinder != drawingBinder || currentState.sequenceId != drawingState.sequenceId) {
-        getRenderEngine().cleanFramebufferCache();
-
         if (const auto display = getDisplayDeviceLocked(displayToken)) {
             display->disconnect();
             if (display->isVirtual()) {
@@ -7872,7 +7866,7 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
     const bool renderEngineIsThreaded = [&]() {
         using Type = renderengine::RenderEngine::RenderEngineType;
         const auto type = mRenderEngine->getRenderEngineType();
-        return type == Type::THREADED || type == Type::SKIA_GL_THREADED;
+        return type == Type::SKIA_GL_THREADED;
     }();
     auto presentFuture = renderEngineIsThreaded ? ftl::defer(std::move(present)).share()
                                                 : ftl::yield(present()).share();

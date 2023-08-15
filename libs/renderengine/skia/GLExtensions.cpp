@@ -23,11 +23,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-ANDROID_SINGLETON_STATIC_INSTANCE(android::renderengine::gl::GLExtensions)
+ANDROID_SINGLETON_STATIC_INSTANCE(android::renderengine::skia::GLExtensions)
 
 namespace android {
 namespace renderengine {
-namespace gl {
+namespace skia {
 
 namespace {
 
@@ -134,6 +134,6 @@ char const* GLExtensions::getEGLExtensions() const {
     return mEGLExtensions.string();
 }
 
-} // namespace gl
+} // namespace skia
 } // namespace renderengine
 } // namespace android

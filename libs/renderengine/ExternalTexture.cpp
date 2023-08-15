@@ -27,14 +27,6 @@ ExternalTexture::ExternalTexture(const sp<GraphicBuffer>& buffer,
       : mBuffer(buffer), mRenderEngine(renderEngine), mWritable(usage & WRITEABLE) {
     LOG_ALWAYS_FATAL_IF(buffer == nullptr,
                         "Attempted to bind a null buffer to an external texture!");
-    // GLESRenderEngine has a separate texture cache for output buffers,
-    if (usage == WRITEABLE &&
-        (mRenderEngine.getRenderEngineType() ==
-                 renderengine::RenderEngine::RenderEngineType::GLES ||
-         mRenderEngine.getRenderEngineType() ==
-                 renderengine::RenderEngine::RenderEngineType::THREADED)) {
-        return;
-    }
     mRenderEngine.mapExternalTextureBuffer(mBuffer, mWritable);
 }
 

@@ -31,8 +31,6 @@
 #include <gui/LayerMetadata.h>
 #include <log/log.h>
 #include <renderengine/mock/FakeExternalTexture.h>
-#include <renderengine/mock/Framebuffer.h>
-#include <renderengine/mock/Image.h>
 #include <renderengine/mock/RenderEngine.h>
 #include <system/window.h>
 #include <utils/String8.h>

@@ -29,7 +29,7 @@
 
 namespace android {
 namespace renderengine {
-namespace gl {
+namespace skia {
 
 class GLExtensions : public Singleton<GLExtensions> {
 public:
@@ -81,7 +81,7 @@ private:
     GLExtensions& operator=(const GLExtensions&);
 };
 
-} // namespace gl
+} // namespace skia
 } // namespace renderengine
 } // namespace android
 

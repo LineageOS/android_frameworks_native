@@ -36,7 +36,7 @@ struct RenderEngineThreadedTest : public ::testing::Test {
     void SetUp() override {
         mThreadedRE = renderengine::threaded::RenderEngineThreaded::create(
                 [this]() { return std::unique_ptr<renderengine::RenderEngine>(mRenderEngine); },
-                renderengine::RenderEngine::RenderEngineType::THREADED);
+                renderengine::RenderEngine::RenderEngineType::SKIA_GL_THREADED);
     }
 
     std::unique_ptr<renderengine::threaded::RenderEngineThreaded> mThreadedRE;
@@ -55,18 +55,6 @@ TEST_F(RenderEngineThreadedTest, primeCache) {
     // need to call ANY synchronous function after primeCache to ensure that primeCache has
     // completed asynchronously before the test completes execution.
     mThreadedRE->getContextPriority();
-}
-
-TEST_F(RenderEngineThreadedTest, genTextures) {
-    uint32_t texName;
-    EXPECT_CALL(*mRenderEngine, genTextures(1, &texName));
-    mThreadedRE->genTextures(1, &texName);
-}
-
-TEST_F(RenderEngineThreadedTest, deleteTextures) {
-    uint32_t texName;
-    EXPECT_CALL(*mRenderEngine, deleteTextures(1, &texName));
-    mThreadedRE->deleteTextures(1, &texName);
 }
 
 TEST_F(RenderEngineThreadedTest, getMaxTextureSize_returns20) {
