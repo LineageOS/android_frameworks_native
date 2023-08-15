@@ -251,14 +251,13 @@ EGLConfig SkiaGLRenderEngine::chooseEglConfig(EGLDisplay display, int format, bo
 SkiaGLRenderEngine::SkiaGLRenderEngine(const RenderEngineCreationArgs& args, EGLDisplay display,
                                        EGLContext ctxt, EGLSurface placeholder,
                                        EGLContext protectedContext, EGLSurface protectedPlaceholder)
-      : SkiaRenderEngine(args.renderEngineType,
-                         static_cast<PixelFormat>(args.pixelFormat),
-                         args.useColorManagement, args.supportsBackgroundBlur),
+      : SkiaRenderEngine(args.renderEngineType, static_cast<PixelFormat>(args.pixelFormat),
+                         args.supportsBackgroundBlur),
         mEGLDisplay(display),
         mEGLContext(ctxt),
         mPlaceholderSurface(placeholder),
         mProtectedEGLContext(protectedContext),
-        mProtectedPlaceholderSurface(protectedPlaceholder) { }
+        mProtectedPlaceholderSurface(protectedPlaceholder) {}
 
 SkiaGLRenderEngine::~SkiaGLRenderEngine() {
     finishRenderingAndAbandonContext();

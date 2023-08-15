@@ -236,10 +236,6 @@ private:
     // Current output dataspace of the render engine
     ui::Dataspace mOutputDataSpace = ui::Dataspace::UNKNOWN;
 
-    // Whether device supports color management, currently color management
-    // supports sRGB, DisplayP3 color spaces.
-    const bool mUseColorManagement = false;
-
     // Whether only shaders performing tone mapping from HDR to SDR will be generated on
     // primeCache().
     const bool mPrecacheToneMapperShaderOnly = false;

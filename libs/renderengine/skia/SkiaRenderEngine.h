@@ -59,10 +59,7 @@ class BlurFilter;
 class SkiaRenderEngine : public RenderEngine {
 public:
     static std::unique_ptr<SkiaRenderEngine> create(const RenderEngineCreationArgs& args);
-    SkiaRenderEngine(RenderEngineType type,
-                     PixelFormat pixelFormat,
-                     bool useColorManagement,
-                     bool supportsBackgroundBlur);
+    SkiaRenderEngine(RenderEngineType type, PixelFormat pixelFormat, bool supportsBackgroundBlur);
     ~SkiaRenderEngine() override;
 
     std::future<void> primeCache() override final;
@@ -162,7 +159,6 @@ private:
     sk_sp<SkShader> createRuntimeEffectShader(const RuntimeEffectShaderParameters&);
 
     const PixelFormat mDefaultPixelFormat;
-    const bool mUseColorManagement;
 
     // Identifier used for various mappings of layers to various
     // textures or shaders

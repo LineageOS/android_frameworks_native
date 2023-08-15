@@ -109,7 +109,6 @@ public:
     virtual renderengine::RenderEngine::RenderEngineType type() = 0;
     virtual std::unique_ptr<renderengine::RenderEngine> createRenderEngine() = 0;
     virtual bool typeSupported() = 0;
-    virtual bool useColorManagement() const = 0;
 };
 
 class SkiaVkRenderEngineFactory : public RenderEngineFactory {
@@ -130,13 +129,11 @@ public:
                 renderengine::RenderEngineCreationArgs::Builder()
                         .setPixelFormat(static_cast<int>(ui::PixelFormat::RGBA_8888))
                         .setImageCacheSize(1)
-                        .setUseColorManagerment(false)
                         .setEnableProtectedContext(false)
                         .setPrecacheToneMapperShaderOnly(false)
                         .setSupportsBackgroundBlur(true)
                         .setContextPriority(renderengine::RenderEngine::ContextPriority::MEDIUM)
                         .setRenderEngineType(type())
-                        .setUseColorManagerment(useColorManagement())
                         .build();
         return renderengine::skia::SkiaVkRenderEngine::create(reCreationArgs);
     }
@@ -144,14 +141,9 @@ public:
     bool typeSupported() override {
         return skia::SkiaVkRenderEngine::canSupportSkiaVkRenderEngine();
     }
-    bool useColorManagement() const override { return false; }
     void skip() { GTEST_SKIP(); }
 };
 
-class SkiaVkCMRenderEngineFactory : public SkiaVkRenderEngineFactory {
-public:
-    bool useColorManagement() const override { return true; }
-};
 class SkiaGLESRenderEngineFactory : public RenderEngineFactory {
 public:
     std::string name() override { return "SkiaGLRenderEngineFactory"; }
@@ -170,13 +162,11 @@ public:
                         .setSupportsBackgroundBlur(true)
                         .setContextPriority(renderengine::RenderEngine::ContextPriority::MEDIUM)
                         .setRenderEngineType(type())
-                        .setUseColorManagerment(useColorManagement())
                         .build();
         return renderengine::skia::SkiaGLRenderEngine::create(reCreationArgs);
     }
 
     bool typeSupported() override { return true; }
-    bool useColorManagement() const override { return false; }
 };
 
 class SkiaGLESCMRenderEngineFactory : public RenderEngineFactory {
@@ -197,13 +187,11 @@ public:
                         .setSupportsBackgroundBlur(true)
                         .setContextPriority(renderengine::RenderEngine::ContextPriority::MEDIUM)
                         .setRenderEngineType(type())
-                        .setUseColorManagerment(useColorManagement())
                         .build();
         return renderengine::skia::SkiaGLRenderEngine::create(reCreationArgs);
     }
 
     bool typeSupported() override { return true; }
-    bool useColorManagement() const override { return true; }
 };
 
 class RenderEngineTest : public ::testing::TestWithParam<std::shared_ptr<RenderEngineFactory>> {
@@ -1559,9 +1547,7 @@ void RenderEngineTest::tonemap(ui::Dataspace sourceDataspace, std::function<vec3
 
 INSTANTIATE_TEST_SUITE_P(PerRenderEngineType, RenderEngineTest,
                          testing::Values(std::make_shared<SkiaGLESRenderEngineFactory>(),
-                                         std::make_shared<SkiaGLESCMRenderEngineFactory>(),
-                                         std::make_shared<SkiaVkRenderEngineFactory>(),
-                                         std::make_shared<SkiaVkCMRenderEngineFactory>()));
+                                         std::make_shared<SkiaVkRenderEngineFactory>()));
 
 TEST_P(RenderEngineTest, drawLayers_noLayersToDraw) {
     if (!GetParam()->typeSupported()) {
@@ -1745,7 +1731,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransform_colorSource) {
 TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransform_sourceDataspace) {
     const auto& renderEngineFactory = GetParam();
     // skip for non color management
-    if (!renderEngineFactory->typeSupported() || !renderEngineFactory->useColorManagement()) {
+    if (!renderEngineFactory->typeSupported()) {
         GTEST_SKIP();
     }
 
@@ -1756,7 +1742,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransform_sourceDataspace) {
 TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransform_outputDataspace) {
     const auto& renderEngineFactory = GetParam();
     // skip for non color management
-    if (!renderEngineFactory->typeSupported() || !renderEngineFactory->useColorManagement()) {
+    if (!renderEngineFactory->typeSupported()) {
         GTEST_SKIP();
     }
 
@@ -1895,7 +1881,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransform_opaqueBufferSource)
 TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformAndSourceDataspace_opaqueBufferSource) {
     const auto& renderEngineFactory = GetParam();
     // skip for non color management
-    if (!renderEngineFactory->typeSupported() || !renderEngineFactory->useColorManagement()) {
+    if (!renderEngineFactory->typeSupported()) {
         GTEST_SKIP();
     }
 
@@ -1906,7 +1892,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformAndSourceDataspace_o
 TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformAndOutputDataspace_opaqueBufferSource) {
     const auto& renderEngineFactory = GetParam();
     // skip for non color management
-    if (!renderEngineFactory->typeSupported() || !renderEngineFactory->useColorManagement()) {
+    if (!renderEngineFactory->typeSupported()) {
         GTEST_SKIP();
     }
 
@@ -2045,7 +2031,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransform_bufferSource) {
 TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformAndSourceDataspace_bufferSource) {
     const auto& renderEngineFactory = GetParam();
     // skip for non color management
-    if (!renderEngineFactory->typeSupported() || !renderEngineFactory->useColorManagement()) {
+    if (!renderEngineFactory->typeSupported()) {
         GTEST_SKIP();
     }
 
@@ -2056,7 +2042,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformAndSourceDataspace_b
 TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformAndOutputDataspace_bufferSource) {
     const auto& renderEngineFactory = GetParam();
     // skip for non color management
-    if (!renderEngineFactory->typeSupported() || !renderEngineFactory->useColorManagement()) {
+    if (!renderEngineFactory->typeSupported()) {
         GTEST_SKIP();
     }
 
@@ -2592,10 +2578,6 @@ TEST_P(RenderEngineTest, testBorder) {
         GTEST_SKIP();
     }
 
-    if (!GetParam()->useColorManagement()) {
-        GTEST_SKIP();
-    }
-
     initializeRenderEngine();
 
     const ui::Dataspace dataspace = ui::Dataspace::V0_SRGB;
@@ -3017,15 +2999,11 @@ TEST_P(RenderEngineTest, test_isOpaque) {
     std::vector<renderengine::LayerSettings> layers{greenLayer};
     invokeDraw(display, layers);
 
-    if (GetParam()->useColorManagement()) {
-        expectBufferColor(rect, 117, 251, 76, 255);
-    } else {
-        expectBufferColor(rect, 0, 255, 0, 255);
-    }
+    expectBufferColor(rect, 117, 251, 76, 255);
 }
 
 TEST_P(RenderEngineTest, test_tonemapPQMatches) {
-    if (!GetParam()->typeSupported() || !GetParam()->useColorManagement()) {
+    if (!GetParam()->typeSupported()) {
         GTEST_SKIP();
     }
 
@@ -3042,7 +3020,7 @@ TEST_P(RenderEngineTest, test_tonemapPQMatches) {
 }
 
 TEST_P(RenderEngineTest, test_tonemapHLGMatches) {
-    if (!GetParam()->typeSupported() || !GetParam()->useColorManagement()) {
+    if (!GetParam()->typeSupported()) {
         GTEST_SKIP();
     }
 
@@ -3262,9 +3240,9 @@ TEST_P(RenderEngineTest, primeShaderCache) {
         fut.wait();
     }
 
-    const int minimumExpectedShadersCompiled = GetParam()->useColorManagement() ? 60 : 30;
+    static constexpr int kMinimumExpectedShadersCompiled = 60;
     ASSERT_GT(static_cast<skia::SkiaGLRenderEngine*>(mRE.get())->reportShadersCompiled(),
-              minimumExpectedShadersCompiled);
+              kMinimumExpectedShadersCompiled);
 }
 } // namespace renderengine
 } // namespace android

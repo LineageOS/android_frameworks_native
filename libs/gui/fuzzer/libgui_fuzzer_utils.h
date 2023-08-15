@@ -110,7 +110,6 @@ public:
                 (override));
     MOCK_METHOD(binder::Status, onPullAtom, (int32_t, gui::PullAtomData*), (override));
     MOCK_METHOD(binder::Status, getLayerDebugInfo, (std::vector<gui::LayerDebugInfo>*), (override));
-    MOCK_METHOD(binder::Status, getColorManagement, (bool*), (override));
     MOCK_METHOD(binder::Status, getCompositionPreference, (gui::CompositionPreference*),
                 (override));
     MOCK_METHOD(binder::Status, getDisplayedContentSamplingAttributes,

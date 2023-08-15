@@ -644,14 +644,6 @@ sp<IBinder> SurfaceFlinger::getPhysicalDisplayToken(PhysicalDisplayId displayId)
     return getPhysicalDisplayTokenLocked(displayId);
 }
 
-status_t SurfaceFlinger::getColorManagement(bool* outGetColorManagement) const {
-    if (!outGetColorManagement) {
-        return BAD_VALUE;
-    }
-    *outGetColorManagement = useColorManagement;
-    return NO_ERROR;
-}
-
 HWComposer& SurfaceFlinger::getHwComposer() const {
     return mCompositionEngine->getHwComposer();
 }
@@ -812,7 +804,6 @@ void SurfaceFlinger::init() FTL_FAKE_GUARD(kMainThreadContext) {
     auto builder = renderengine::RenderEngineCreationArgs::Builder()
                            .setPixelFormat(static_cast<int32_t>(defaultCompositionPixelFormat))
                            .setImageCacheSize(maxFrameBufferAcquiredBuffers)
-                           .setUseColorManagerment(useColorManagement)
                            .setEnableProtectedContext(enable_protected_contents(false))
                            .setPrecacheToneMapperShaderOnly(false)
                            .setSupportsBackgroundBlur(mSupportsBlur)
@@ -2622,9 +2613,7 @@ CompositeResultsPerDisplay SurfaceFlinger::composite(
             refreshArgs.layersWithQueuedFrames.push_back(layerFE);
     }
 
-    refreshArgs.outputColorSetting = useColorManagement
-            ? mDisplayColorSetting
-            : compositionengine::OutputColorSetting::kUnmanaged;
+    refreshArgs.outputColorSetting = mDisplayColorSetting;
     refreshArgs.forceOutputColorMode = mForceColorMode;
 
     refreshArgs.updatingOutputGeometryThisFrame = mVisibleRegionsDirty;
@@ -3395,18 +3384,16 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
 
         creationArgs.isPrimary = physical->id == getPrimaryDisplayIdLocked();
 
-        if (useColorManagement) {
-            mPhysicalDisplays.get(physical->id)
-                    .transform(&PhysicalDisplay::snapshotRef)
-                    .transform(ftl::unit_fn([&](const display::DisplaySnapshot& snapshot) {
-                        for (const auto mode : snapshot.colorModes()) {
-                            creationArgs.hasWideColorGamut |= ui::isWideColorMode(mode);
-                            creationArgs.hwcColorModes
-                                    .emplace(mode,
-                                             getHwComposer().getRenderIntents(physical->id, mode));
-                        }
-                    }));
-        }
+        mPhysicalDisplays.get(physical->id)
+                .transform(&PhysicalDisplay::snapshotRef)
+                .transform(ftl::unit_fn([&](const display::DisplaySnapshot& snapshot) {
+                    for (const auto mode : snapshot.colorModes()) {
+                        creationArgs.hasWideColorGamut |= ui::isWideColorMode(mode);
+                        creationArgs.hwcColorModes
+                                .emplace(mode,
+                                         getHwComposer().getRenderIntents(physical->id, mode));
+                    }
+                }));
     }
 
     if (const auto id = HalDisplayId::tryCast(compositionDisplay->getId())) {
@@ -6107,7 +6094,6 @@ void SurfaceFlinger::dumpRawDisplayIdentificationData(const DumpArgs& args,
 
 void SurfaceFlinger::dumpWideColorInfo(std::string& result) const {
     StringAppendF(&result, "Device supports wide color: %d\n", mSupportsWideColor);
-    StringAppendF(&result, "Device uses color management: %d\n", useColorManagement);
     StringAppendF(&result, "DisplayColorSetting: %s\n",
                   decodeDisplayColorSetting(mDisplayColorSetting).c_str());
 
@@ -6782,8 +6768,6 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 DisplayColorSetting setting = static_cast<DisplayColorSetting>(data.readInt32());
                 switch (setting) {
                     case DisplayColorSetting::kManaged:
-                        reply->writeBool(useColorManagement);
-                        break;
                     case DisplayColorSetting::kUnmanaged:
                         reply->writeBool(true);
                         break;
@@ -6816,7 +6800,8 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
             }
             // Is device color managed?
             case 1030: {
-                reply->writeBool(useColorManagement);
+                // ColorDisplayManager stil calls this
+                reply->writeBool(true);
                 return NO_ERROR;
             }
             // Override default composition data space
@@ -9215,11 +9200,6 @@ binder::Status SurfaceComposerAIDL::getLayerDebugInfo(std::vector<gui::LayerDebu
         return binderStatusFromStatusT(PERMISSION_DENIED);
     }
     status_t status = mFlinger->getLayerDebugInfo(outLayers);
-    return binderStatusFromStatusT(status);
-}
-
-binder::Status SurfaceComposerAIDL::getColorManagement(bool* outGetColorManagement) {
-    status_t status = mFlinger->getColorManagement(outGetColorManagement);
     return binderStatusFromStatusT(status);
 }
 
