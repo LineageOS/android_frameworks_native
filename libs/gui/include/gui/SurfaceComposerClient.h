@@ -371,6 +371,10 @@ public:
     //! Get token for a physical display given its stable ID
     static sp<IBinder> getPhysicalDisplayToken(PhysicalDisplayId displayId);
 
+    // Returns StalledTransactionInfo if a transaction from the provided pid has not been applied
+    // due to an unsignaled fence.
+    static std::optional<gui::StalledTransactionInfo> getStalledTransactionInfo(pid_t pid);
+
     struct SCHash {
         std::size_t operator()(const sp<SurfaceControl>& sc) const {
             return std::hash<SurfaceControl *>{}(sc.get());

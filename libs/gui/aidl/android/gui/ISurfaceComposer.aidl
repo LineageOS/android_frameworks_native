@@ -46,6 +46,7 @@ import android.gui.LayerDebugInfo;
 import android.gui.OverlayProperties;
 import android.gui.PullAtomData;
 import android.gui.ARect;
+import android.gui.StalledTransactionInfo;
 import android.gui.StaticDisplayInfo;
 import android.gui.WindowInfosListenerInfo;
 
@@ -507,4 +508,10 @@ interface ISurfaceComposer {
     void removeWindowInfosListener(IWindowInfosListener windowInfosListener);
 
     OverlayProperties getOverlaySupport();
+
+    /**
+     * Returns an instance of StalledTransaction if a transaction from the passed pid has not been
+     * applied in SurfaceFlinger due to an unsignaled fence. Otherwise, null is returned.
+     */
+    @nullable StalledTransactionInfo getStalledTransactionInfo(int pid);
 }

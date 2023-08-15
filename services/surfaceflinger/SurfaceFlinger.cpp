@@ -4369,9 +4369,13 @@ TransactionHandler::TransactionReadiness SurfaceFlinger::transactionReadyBufferC
                     (flushState.queueProcessTime - transaction.postTime) >
                             std::chrono::nanoseconds(4s).count()) {
                     mTransactionHandler
-                            .onTransactionQueueStalled(transaction.id, listener,
-                                                       "Buffer processing hung up due to stuck "
-                                                       "fence. Indicates GPU hang");
+                            .onTransactionQueueStalled(transaction.id,
+                                                       {.pid = layer->getOwnerPid(),
+                                                        .layerId = static_cast<uint32_t>(
+                                                                layer->getSequence()),
+                                                        .layerName = layer->getDebugName(),
+                                                        .bufferId = s.bufferData->getId(),
+                                                        .frameNumber = s.bufferData->frameNumber});
                 }
                 ATRACE_FORMAT("fence unsignaled %s", layer->getDebugName());
                 return TraverseBuffersReturnValues::STOP_TRAVERSAL;
@@ -5394,6 +5398,8 @@ void SurfaceFlinger::onHandleDestroyed(BBinder* handle, sp<Layer>& layer, uint32
         std::scoped_lock<std::mutex> lock(mCreatedLayersLock);
         mDestroyedHandles.emplace_back(layerId);
     }
+
+    mTransactionHandler.onLayerDestroyed(layerId);
 
     Mutex::Autolock lock(mStateLock);
     markLayerPendingRemovalLocked(layer);
@@ -8017,6 +8023,12 @@ status_t SurfaceFlinger::removeWindowInfosListener(
     return NO_ERROR;
 }
 
+status_t SurfaceFlinger::getStalledTransactionInfo(
+        int pid, std::optional<TransactionHandler::StalledTransactionInfo>& result) {
+    result = mTransactionHandler.getStalledTransactionInfo(pid);
+    return NO_ERROR;
+}
+
 std::shared_ptr<renderengine::ExternalTexture> SurfaceFlinger::getExternalTextureFromBufferData(
         BufferData& bufferData, const char* layerName, uint64_t transactionId) {
     if (bufferData.buffer &&
@@ -9117,6 +9129,28 @@ binder::Status SurfaceComposerAIDL::removeWindowInfosListener(
         status = mFlinger->removeWindowInfosListener(windowInfosListener);
     } else {
         status = PERMISSION_DENIED;
+    }
+    return binderStatusFromStatusT(status);
+}
+
+binder::Status SurfaceComposerAIDL::getStalledTransactionInfo(
+        int pid, std::optional<gui::StalledTransactionInfo>* outInfo) {
+    const int callingPid = IPCThreadState::self()->getCallingPid();
+    const int callingUid = IPCThreadState::self()->getCallingUid();
+    if (!checkPermission(sAccessSurfaceFlinger, callingPid, callingUid)) {
+        return binderStatusFromStatusT(PERMISSION_DENIED);
+    }
+
+    std::optional<TransactionHandler::StalledTransactionInfo> stalledTransactionInfo;
+    status_t status = mFlinger->getStalledTransactionInfo(pid, stalledTransactionInfo);
+    if (stalledTransactionInfo) {
+        gui::StalledTransactionInfo result;
+        result.layerName = String16{stalledTransactionInfo->layerName.c_str()},
+        result.bufferId = stalledTransactionInfo->bufferId,
+        result.frameNumber = stalledTransactionInfo->frameNumber,
+        outInfo->emplace(std::move(result));
+    } else {
+        outInfo->reset();
     }
     return binderStatusFromStatusT(status);
 }
