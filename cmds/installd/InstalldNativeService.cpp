@@ -19,6 +19,7 @@
 #include <errno.h>
 #include <fts.h>
 #include <inttypes.h>
+#include <linux/fsverity.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -51,6 +52,7 @@
 #include <android-base/unique_fd.h>
 #include <cutils/ashmem.h>
 #include <cutils/fs.h>
+#include <cutils/misc.h>
 #include <cutils/properties.h>
 #include <cutils/sched_policy.h>
 #include <linux/quota.h>
@@ -84,6 +86,8 @@
 using android::base::ParseUint;
 using android::base::Split;
 using android::base::StringPrintf;
+using android::base::unique_fd;
+using android::os::ParcelFileDescriptor;
 using std::endl;
 
 namespace android {
@@ -229,6 +233,14 @@ binder::Status checkArgumentFileName(const std::string& path) {
     return ok();
 }
 
+binder::Status checkUidInAppRange(int32_t appUid) {
+    if (FIRST_APPLICATION_UID <= appUid && appUid <= LAST_APPLICATION_UID) {
+        return ok();
+    }
+    return exception(binder::Status::EX_ILLEGAL_ARGUMENT,
+                     StringPrintf("UID %d is outside of the range", appUid));
+}
+
 #define ENFORCE_UID(uid) {                                  \
     binder::Status status = checkUid((uid));                \
     if (!status.isOk()) {                                   \
@@ -281,6 +293,14 @@ binder::Status checkArgumentFileName(const std::string& path) {
         if (!status.isOk()) {                                  \
             return status;                                     \
         }                                                      \
+    }
+
+#define CHECK_ARGUMENT_UID_IN_APP_RANGE(uid)               \
+    {                                                      \
+        binder::Status status = checkUidInAppRange((uid)); \
+        if (!status.isOk()) {                              \
+            return status;                                 \
+        }                                                  \
     }
 
 #ifdef GRANULAR_LOCKS
@@ -382,6 +402,33 @@ using PackageLockGuard = std::lock_guard<PackageLock>;
 #endif // GRANULAR_LOCKS
 
 }  // namespace
+
+binder::Status InstalldNativeService::FsveritySetupAuthToken::authenticate(
+        const ParcelFileDescriptor& authFd, int32_t appUid, int32_t userId) {
+    int open_flags = fcntl(authFd.get(), F_GETFL);
+    if (open_flags < 0) {
+        return exception(binder::Status::EX_SERVICE_SPECIFIC, "fcntl failed");
+    }
+    if ((open_flags & O_ACCMODE) != O_WRONLY && (open_flags & O_ACCMODE) != O_RDWR) {
+        return exception(binder::Status::EX_SECURITY, "Received FD with unexpected open flag");
+    }
+    if (fstat(authFd.get(), &this->mStatFromAuthFd) < 0) {
+        return exception(binder::Status::EX_SERVICE_SPECIFIC, "fstat failed");
+    }
+    if (!S_ISREG(this->mStatFromAuthFd.st_mode)) {
+        return exception(binder::Status::EX_SECURITY, "Not a regular file");
+    }
+    // Don't accept a file owned by a different app.
+    uid_t uid = multiuser_get_uid(userId, appUid);
+    if (this->mStatFromAuthFd.st_uid != uid) {
+        return exception(binder::Status::EX_SERVICE_SPECIFIC, "File not owned by appUid");
+    }
+    return ok();
+}
+
+bool InstalldNativeService::FsveritySetupAuthToken::isSameStat(const struct stat& st) const {
+    return memcmp(&st, &mStatFromAuthFd, sizeof(st)) == 0;
+}
 
 status_t InstalldNativeService::start() {
     IPCThreadState::self()->disableBackgroundScheduling(true);
@@ -3855,6 +3902,85 @@ binder::Status InstalldNativeService::getOdexVisibility(
 
     *_aidl_return = get_odex_visibility(apk_path, instruction_set, oat_dir);
     return *_aidl_return == -1 ? error() : ok();
+}
+
+// Creates an auth token to be used in enableFsverity. This token is really to store a proof that
+// the caller can write to a file, represented by the authFd. Effectively, system_server as the
+// attacker-in-the-middle cannot enable fs-verity on arbitrary app files. If the FD is not writable,
+// return null.
+//
+// appUid and userId are passed for additional ownership check, such that one app can not be
+// authenticated for another app's file. These parameters are assumed trusted for this purpose of
+// consistency check.
+//
+// Notably, creating the token allows us to manage the writable FD easily during enableFsverity.
+// Since enabling fs-verity to a file requires no outstanding writable FD, passing the authFd to the
+// server allows the server to hold the only reference (as long as the client app doesn't).
+binder::Status InstalldNativeService::createFsveritySetupAuthToken(
+        const ParcelFileDescriptor& authFd, int32_t appUid, int32_t userId,
+        sp<IFsveritySetupAuthToken>* _aidl_return) {
+    CHECK_ARGUMENT_UID_IN_APP_RANGE(appUid);
+    ENFORCE_VALID_USER(userId);
+
+    auto token = sp<FsveritySetupAuthToken>::make();
+    binder::Status status = token->authenticate(authFd, appUid, userId);
+    if (!status.isOk()) {
+        return status;
+    }
+    *_aidl_return = token;
+    return ok();
+}
+
+// Enables fs-verity for filePath, which must be an absolute path and the same inode as in the auth
+// token previously returned from createFsveritySetupAuthToken, and owned by the app uid. As
+// installd is more privileged than its client / system server, we attempt to limit what a
+// (compromised) client can do.
+//
+// The reason for this app request to go through installd is to avoid exposing a risky area (PKCS#7
+// signature verification) in the kernel to the app as an attack surface (it can't be system server
+// because it can't override DAC and manipulate app files). Note that we should be able to drop
+// these hops and simply the app calls the ioctl, once all upgrading devices run with a kernel
+// without fs-verity built-in signature (https://r.android.com/2650402).
+binder::Status InstalldNativeService::enableFsverity(const sp<IFsveritySetupAuthToken>& authToken,
+                                                     const std::string& filePath,
+                                                     const std::string& packageName,
+                                                     int32_t* _aidl_return) {
+    ENFORCE_UID(AID_SYSTEM);
+    CHECK_ARGUMENT_PATH(filePath);
+    CHECK_ARGUMENT_PACKAGE_NAME(packageName);
+    LOCK_PACKAGE();
+    if (authToken == nullptr) {
+        return exception(binder::Status::EX_ILLEGAL_ARGUMENT, "Received a null auth token");
+    }
+
+    // Authenticate to check the targeting file is the same inode as the authFd.
+    sp<IBinder> authTokenBinder = IInterface::asBinder(authToken)->localBinder();
+    if (authTokenBinder == nullptr) {
+        return exception(binder::Status::EX_SECURITY, "Received a non-local auth token");
+    }
+    auto authTokenInstance = sp<FsveritySetupAuthToken>::cast(authTokenBinder);
+    unique_fd rfd(open(filePath.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW));
+    struct stat stFromPath;
+    if (fstat(rfd.get(), &stFromPath) < 0) {
+        *_aidl_return = errno;
+        return ok();
+    }
+    if (!authTokenInstance->isSameStat(stFromPath)) {
+        LOG(DEBUG) << "FD authentication failed";
+        *_aidl_return = EPERM;
+        return ok();
+    }
+
+    fsverity_enable_arg arg = {};
+    arg.version = 1;
+    arg.hash_algorithm = FS_VERITY_HASH_ALG_SHA256;
+    arg.block_size = 4096;
+    if (ioctl(rfd.get(), FS_IOC_ENABLE_VERITY, &arg) < 0) {
+        *_aidl_return = errno;
+    } else {
+        *_aidl_return = 0;
+    }
+    return ok();
 }
 
 }  // namespace installd
