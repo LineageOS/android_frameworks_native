@@ -101,6 +101,11 @@ public:
         }
 
         bool operator!=(const Policy& other) const { return !(*this == other); }
+
+        bool primaryRangeIsSingleRate() const {
+            return isApproxEqual(primaryRanges.physical.min, primaryRanges.physical.max);
+        }
+
         std::string toString() const;
     };
 
@@ -468,8 +473,8 @@ private:
     }
 
     std::vector<FrameRateMode> createFrameRateModes(
-            std::function<bool(const DisplayMode&)>&& filterModes, const FpsRange&) const
-            REQUIRES(mLock);
+            const Policy&, std::function<bool(const DisplayMode&)>&& filterModes,
+            const FpsRange&) const REQUIRES(mLock);
 
     // The display modes of the active display. The DisplayModeIterators below are pointers into
     // this container, so must be invalidated whenever the DisplayModes change. The Policy below
