@@ -49,6 +49,7 @@ const auto kFlip = mat4(1.1f, -0.1f,  0.f, 0.f,
 // a color correction effect is added to the shader.
 constexpr auto kDestDataSpace = ui::Dataspace::SRGB;
 constexpr auto kOtherDataSpace = ui::Dataspace::DISPLAY_P3;
+constexpr auto kBT2020DataSpace = ui::Dataspace::BT2020_ITU_PQ;
 // Dimming is needed to trigger linear effects for some dataspace pairs
 const std::array<float, 3> kLayerWhitePoints = {
         1000.0f, 500.0f,
@@ -466,6 +467,72 @@ static void drawSolidDimmedLayers(SkiaRenderEngine* renderengine, const DisplayS
     renderengine->drawLayers(display, layers, dstTexture, base::unique_fd());
 }
 
+static void drawBT2020ImageLayers(SkiaRenderEngine* renderengine, const DisplaySettings& display,
+                                  const std::shared_ptr<ExternalTexture>& dstTexture,
+                                  const std::shared_ptr<ExternalTexture>& srcTexture) {
+    const Rect& displayRect = display.physicalDisplay;
+    FloatRect rect(0, 0, displayRect.width(), displayRect.height());
+    LayerSettings layer{
+            .geometry =
+                    Geometry{
+                            // The position transform doesn't matter when the reduced shader mode
+                            // in in effect. A matrix transform stage is always included.
+                            .positionTransform = mat4(),
+                            .boundaries = rect,
+                            .roundedCornersCrop = rect,
+                            .roundedCornersRadius = {0.f, 0.f},
+                    },
+            .source = PixelSource{.buffer = Buffer{.buffer = srcTexture,
+                                                   .maxLuminanceNits = 1000.f,
+                                                   .usePremultipliedAlpha = true,
+                                                   .isOpaque = true}},
+            .alpha = 1.f,
+            .sourceDataspace = kBT2020DataSpace,
+    };
+
+    for (auto alpha : {0.5f, 1.f}) {
+        layer.alpha = alpha;
+        std::vector<LayerSettings> layers;
+        layer.whitePointNits = -1.f;
+        layers.push_back(layer);
+
+        renderengine->drawLayers(display, layers, dstTexture, base::unique_fd());
+    }
+}
+static void drawBT2020ClippedImageLayers(SkiaRenderEngine* renderengine,
+                                         const DisplaySettings& display,
+                                         const std::shared_ptr<ExternalTexture>& dstTexture,
+                                         const std::shared_ptr<ExternalTexture>& srcTexture) {
+    const Rect& displayRect = display.physicalDisplay;
+
+    // If rect and boundary is too small compared to roundedCornersRadius, Skia will switch to
+    // blending instead of EllipticalRRect, so enlarge them a bit.
+    FloatRect rect(0, 0, displayRect.width(), displayRect.height());
+    FloatRect boundary(0, 0, displayRect.width(),
+                       displayRect.height() - 10); // boundary is smaller
+    LayerSettings layer{
+            .geometry =
+                    Geometry{
+                            .positionTransform = kScaleAsymmetric,
+                            .boundaries = boundary,
+                            .roundedCornersCrop = rect,
+                            .roundedCornersRadius = {64.1f, 64.1f},
+                    },
+            .source = PixelSource{.buffer =
+                                          Buffer{
+                                                  .buffer = srcTexture,
+                                                  .maxLuminanceNits = 1000.f,
+                                                  .usePremultipliedAlpha = true,
+                                                  .isOpaque = true,
+                                          }},
+            .alpha = 0.5f,
+            .sourceDataspace = kBT2020DataSpace,
+    };
+
+    std::vector<LayerSettings> layers = {layer};
+    renderengine->drawLayers(display, layers, dstTexture, base::unique_fd());
+}
+
 //
 // The collection of shaders cached here were found by using perfetto to record shader compiles
 // during actions that involve RenderEngine, logging the layer settings, and the shader code
@@ -590,6 +657,10 @@ void Cache::primeShaderCache(SkiaRenderEngine* renderengine) {
         drawTransparentImageDimmedLayers(renderengine, p3Display, dstTexture, externalTexture);
 
         drawClippedDimmedImageLayers(renderengine, bt2020Display, dstTexture, externalTexture);
+        drawBT2020ClippedImageLayers(renderengine, bt2020Display, dstTexture, externalTexture);
+
+        drawBT2020ImageLayers(renderengine, bt2020Display, dstTexture, externalTexture);
+        drawBT2020ImageLayers(renderengine, p3Display, dstTexture, externalTexture);
 
         // draw one final layer synchronously to force GL submit
         LayerSettings layer{
