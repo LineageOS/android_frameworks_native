@@ -35,9 +35,6 @@ public:
 
     MOCK_METHOD0(primeCache, std::future<void>());
     MOCK_METHOD1(dump, void(std::string&));
-    MOCK_METHOD2(genTextures, void(size_t, uint32_t*));
-    MOCK_METHOD2(deleteTextures, void(size_t, uint32_t const*));
-    MOCK_METHOD1(drawMesh, void(const renderengine::Mesh&));
     MOCK_CONST_METHOD0(getMaxTextureSize, size_t());
     MOCK_CONST_METHOD0(getMaxViewportDims, size_t());
     MOCK_CONST_METHOD0(isProtected, bool());
@@ -53,7 +50,6 @@ public:
                  void(const std::shared_ptr<std::promise<FenceResult>>&&, const DisplaySettings&,
                       const std::vector<LayerSettings>&, const std::shared_ptr<ExternalTexture>&,
                       const bool, base::unique_fd&&));
-    MOCK_METHOD0(cleanFramebufferCache, void());
     MOCK_METHOD0(getContextPriority, int());
     MOCK_METHOD0(supportsBackgroundBlur, bool());
     MOCK_METHOD1(onActiveDisplaySizeChanged, void(ui::Size));

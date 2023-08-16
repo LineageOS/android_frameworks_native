@@ -277,13 +277,6 @@ public:
     // The CompositionEngine encapsulates all composition related interfaces and actions.
     compositionengine::CompositionEngine& getCompositionEngine() const;
 
-    // Obtains a name from the texture pool, or, if the pool is empty, posts a
-    // synchronous message to the main thread to obtain one on the fly
-    uint32_t getNewTexture();
-
-    // utility function to delete a texture on the main thread
-    void deleteTextureAsync(uint32_t texture);
-
     renderengine::RenderEngine& getRenderEngine() const;
 
     void onLayerFirstRef(Layer*);
@@ -1273,13 +1266,6 @@ private:
     bool mSupportsBlur = false;
 
     TransactionCallbackInvoker mTransactionCallbackInvoker;
-
-    // We maintain a pool of pre-generated texture names to hand out to avoid
-    // layer creation needing to run on the main thread (which it would
-    // otherwise need to do to access RenderEngine).
-    std::mutex mTexturePoolMutex;
-    uint32_t mTexturePoolSize = 0;
-    std::vector<uint32_t> mTexturePool;
 
     std::atomic<size_t> mNumLayers = 0;
 

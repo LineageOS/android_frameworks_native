@@ -41,8 +41,7 @@ inline bool equalIgnoringSource(const renderengine::LayerSettings& lhs,
 }
 
 inline bool equalIgnoringBuffer(const renderengine::Buffer& lhs, const renderengine::Buffer& rhs) {
-    return lhs.textureName == rhs.textureName &&
-            lhs.useTextureFiltering == rhs.useTextureFiltering &&
+    return lhs.useTextureFiltering == rhs.useTextureFiltering &&
             lhs.textureTransform == rhs.textureTransform &&
             lhs.usePremultipliedAlpha == rhs.usePremultipliedAlpha &&
             lhs.isOpaque == rhs.isOpaque && lhs.maxLuminanceNits == rhs.maxLuminanceNits;

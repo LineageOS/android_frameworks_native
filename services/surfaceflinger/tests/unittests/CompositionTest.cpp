@@ -597,7 +597,6 @@ struct BaseLayerProperties {
                     const renderengine::LayerSettings layer = layerSettings.back();
                     EXPECT_THAT(layer.source.buffer.buffer, Not(IsNull()));
                     EXPECT_THAT(layer.source.buffer.fence, Not(IsNull()));
-                    EXPECT_EQ(DEFAULT_TEXTURE_ID, layer.source.buffer.textureName);
                     EXPECT_EQ(true, layer.source.buffer.usePremultipliedAlpha);
                     EXPECT_EQ(false, layer.source.buffer.isOpaque);
                     EXPECT_EQ(0.0, layer.geometry.roundedCornersRadius.x);
@@ -873,15 +872,11 @@ struct BufferLayerVariant : public BaseLayerVariant<LayerProperties> {
     using FlingerLayerType = sp<Layer>;
 
     static FlingerLayerType createLayer(CompositionTest* test) {
-        test->mFlinger.mutableTexturePool().push_back(DEFAULT_TEXTURE_ID);
-
-        FlingerLayerType layer =
-                Base::template createLayerWithFactory<Layer>(test, [test]() {
-                    LayerCreationArgs args(test->mFlinger.flinger(), sp<Client>(), "test-layer",
-                                           LayerProperties::LAYER_FLAGS, LayerMetadata());
-                    args.textureName = test->mFlinger.mutableTexturePool().back();
-                    return sp<Layer>::make(args);
-                });
+        FlingerLayerType layer = Base::template createLayerWithFactory<Layer>(test, [test]() {
+            LayerCreationArgs args(test->mFlinger.flinger(), sp<Client>(), "test-layer",
+                                   LayerProperties::LAYER_FLAGS, LayerMetadata());
+            return sp<Layer>::make(args);
+        });
 
         LayerProperties::setupLayerState(test, layer);
 

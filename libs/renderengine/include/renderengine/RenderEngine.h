@@ -112,9 +112,6 @@ public:
     // dump the extension strings. always call the base class.
     virtual void dump(std::string& result) = 0;
 
-    virtual void genTextures(size_t count, uint32_t* names) = 0;
-    virtual void deleteTextures(size_t count, uint32_t const* names) = 0;
-
     // queries that are required to be thread safe
     virtual size_t getMaxTextureSize() const = 0;
     virtual size_t getMaxViewportDims() const = 0;

@@ -118,7 +118,6 @@ LayerSnapshot::LayerSnapshot(const RequestedLayerState& state,
     sequence = static_cast<int32_t>(state.id);
     name = state.name;
     debugName = state.debugName;
-    textureName = state.textureName;
     premultipliedAlpha = state.premultipliedAlpha;
     inputInfo.name = state.name;
     inputInfo.id = static_cast<int32_t>(uniqueSequence);

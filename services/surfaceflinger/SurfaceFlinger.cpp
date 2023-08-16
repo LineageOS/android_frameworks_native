@@ -730,42 +730,6 @@ void SurfaceFlinger::bootFinished() {
     }));
 }
 
-uint32_t SurfaceFlinger::getNewTexture() {
-    {
-        std::lock_guard lock(mTexturePoolMutex);
-        if (!mTexturePool.empty()) {
-            uint32_t name = mTexturePool.back();
-            mTexturePool.pop_back();
-            ATRACE_INT("TexturePoolSize", mTexturePool.size());
-            return name;
-        }
-
-        // The pool was too small, so increase it for the future
-        ++mTexturePoolSize;
-    }
-
-    // The pool was empty, so we need to get a new texture name directly using a
-    // blocking call to the main thread
-    auto genTextures = [this] {
-               uint32_t name = 0;
-               getRenderEngine().genTextures(1, &name);
-               return name;
-    };
-    if (std::this_thread::get_id() == mMainThreadId) {
-        return genTextures();
-    } else {
-        return mScheduler->schedule(genTextures).get();
-    }
-}
-
-void SurfaceFlinger::deleteTextureAsync(uint32_t texture) {
-    std::lock_guard lock(mTexturePoolMutex);
-    // We don't change the pool size, so the fix-up logic in postComposition will decide whether
-    // to actually delete this or not based on mTexturePoolSize
-    mTexturePool.push_back(texture);
-    ATRACE_INT("TexturePoolSize", mTexturePool.size());
-}
-
 static std::optional<renderengine::RenderEngine::RenderEngineType>
 chooseRenderEngineTypeViaSysProp() {
     char prop[PROPERTY_VALUE_MAX];
@@ -3059,23 +3023,6 @@ void SurfaceFlinger::postComposition(PhysicalDisplayId pacesetterId,
 
     // Cleanup any outstanding resources due to rendering a prior frame.
     getRenderEngine().cleanupPostRender();
-
-    {
-        std::lock_guard lock(mTexturePoolMutex);
-        if (mTexturePool.size() < mTexturePoolSize) {
-            const size_t refillCount = mTexturePoolSize - mTexturePool.size();
-            const size_t offset = mTexturePool.size();
-            mTexturePool.resize(mTexturePoolSize);
-            getRenderEngine().genTextures(refillCount, mTexturePool.data() + offset);
-            ATRACE_INT("TexturePoolSize", mTexturePool.size());
-        } else if (mTexturePool.size() > mTexturePoolSize) {
-            const size_t deleteCount = mTexturePool.size() - mTexturePoolSize;
-            const size_t offset = mTexturePoolSize;
-            getRenderEngine().deleteTextures(deleteCount, mTexturePool.data() + offset);
-            mTexturePool.resize(mTexturePoolSize);
-            ATRACE_INT("TexturePoolSize", mTexturePool.size());
-        }
-    }
 
     if (mNumTrustedPresentationListeners > 0) {
         // We avoid any reverse traversal upwards so this shouldn't be too expensive
@@ -5553,7 +5500,6 @@ status_t SurfaceFlinger::createLayer(LayerCreationArgs& args, gui::CreateSurface
 
 status_t SurfaceFlinger::createBufferStateLayer(LayerCreationArgs& args, sp<IBinder>* handle,
                                                 sp<Layer>* outLayer) {
-    args.textureName = getNewTexture();
     *outLayer = getFactory().createBufferStateLayer(args);
     *handle = (*outLayer)->getHandle();
     return NO_ERROR;
