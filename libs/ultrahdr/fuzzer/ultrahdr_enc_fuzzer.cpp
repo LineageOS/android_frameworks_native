@@ -161,10 +161,8 @@ void UltraHdrEncFuzzer::process() {
                 fillP010Buffer(bufferUVHdr.get(), width, height / 2, uvStride);
             }
         } else {
-            size_t map_width = static_cast<size_t>(
-                    floor((width + kMapDimensionScaleFactor - 1) / kMapDimensionScaleFactor));
-            size_t map_height = static_cast<size_t>(
-                    floor((height + kMapDimensionScaleFactor - 1) / kMapDimensionScaleFactor));
+            size_t map_width = width / kMapDimensionScaleFactor;
+            size_t map_height = height / kMapDimensionScaleFactor;
             // init 400 image
             grayImg.width = map_width;
             grayImg.height = map_height;
@@ -207,7 +205,7 @@ void UltraHdrEncFuzzer::process() {
                 fill420Buffer(bufferYSdr.get(), width, height, yStride);
                 size_t yuv420UVSize = uvStride * yuv420Img.height / 2 * 2;
                 bufferUVSdr = std::make_unique<uint8_t[]>(yuv420UVSize);
-                yuv420Img.chroma_data = bufferYSdr.get();
+                yuv420Img.chroma_data = bufferUVSdr.get();
                 yuv420Img.chroma_stride = uvStride;
                 fill420Buffer(bufferUVSdr.get(), width / 2, height / 2, uvStride);
                 fill420Buffer(bufferUVSdr.get() + uvStride * height / 2, width / 2, height / 2,
