@@ -34,5 +34,10 @@
     {
       "name": "libscheduler_test"
     }
+  ],
+  "postsubmit": [
+    {
+      "name": "CtsSurfaceControlTestsStaging"
+    }
   ]
 }
