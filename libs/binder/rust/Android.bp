@@ -11,9 +11,6 @@ rust_library {
     name: "libbinder_rs",
     crate_name: "binder",
     srcs: ["src/lib.rs"],
-    shared_libs: [
-        "libutils",
-    ],
     rustlibs: [
         "libbinder_ndk_sys",
         "libdowncast_rs",
