@@ -50,6 +50,9 @@ const auto kFlip = mat4(1.1f, -0.1f,  0.f, 0.f,
 constexpr auto kDestDataSpace = ui::Dataspace::SRGB;
 constexpr auto kOtherDataSpace = ui::Dataspace::DISPLAY_P3;
 constexpr auto kBT2020DataSpace = ui::Dataspace::BT2020_ITU_PQ;
+constexpr auto kExtendedHdrDataSpce =
+        static_cast<ui::Dataspace>(ui::Dataspace::RANGE_EXTENDED | ui::Dataspace::TRANSFER_SRGB |
+                                   ui::Dataspace::STANDARD_DCI_P3);
 // Dimming is needed to trigger linear effects for some dataspace pairs
 const std::array<float, 3> kLayerWhitePoints = {
         1000.0f, 500.0f,
@@ -382,13 +385,21 @@ static void drawTransparentImageDimmedLayers(SkiaRenderEngine* renderengine,
         layer.geometry.roundedCornersRadius = {roundedCornerRadius, roundedCornerRadius};
         for (auto alpha : {0.5f, 1.0f}) {
             layer.alpha = alpha;
-            std::vector<LayerSettings> layers;
+            for (auto isOpaque : {true, false}) {
+                if (roundedCornerRadius == 0.f && isOpaque) {
+                    // already covered in drawImageDimmedLayers
+                    continue;
+                }
 
-            for (auto layerWhitePoint : kLayerWhitePoints) {
-                layer.whitePointNits = layerWhitePoint;
-                layers.push_back(layer);
+                layer.source.buffer.isOpaque = isOpaque;
+                std::vector<LayerSettings> layers;
+
+                for (auto layerWhitePoint : kLayerWhitePoints) {
+                    layer.whitePointNits = layerWhitePoint;
+                    layers.push_back(layer);
+                }
+                renderengine->drawLayers(display, layers, dstTexture, base::unique_fd());
             }
-            renderengine->drawLayers(display, layers, dstTexture, base::unique_fd());
         }
     }
 }
@@ -533,6 +544,80 @@ static void drawBT2020ClippedImageLayers(SkiaRenderEngine* renderengine,
     renderengine->drawLayers(display, layers, dstTexture, base::unique_fd());
 }
 
+static void drawExtendedHDRImageLayers(SkiaRenderEngine* renderengine,
+                                       const DisplaySettings& display,
+                                       const std::shared_ptr<ExternalTexture>& dstTexture,
+                                       const std::shared_ptr<ExternalTexture>& srcTexture) {
+    const Rect& displayRect = display.physicalDisplay;
+    FloatRect rect(0, 0, displayRect.width(), displayRect.height());
+    LayerSettings layer{
+            .geometry =
+                    Geometry{
+                            // The position transform doesn't matter when the reduced shader mode
+                            // in in effect. A matrix transform stage is always included.
+                            .positionTransform = mat4(),
+                            .boundaries = rect,
+                            .roundedCornersCrop = rect,
+                            .roundedCornersRadius = {50.f, 50.f},
+                    },
+            .source = PixelSource{.buffer = Buffer{.buffer = srcTexture,
+                                                   .maxLuminanceNits = 1000.f,
+                                                   .usePremultipliedAlpha = true,
+                                                   .isOpaque = true}},
+            .alpha = 0.5f,
+            .sourceDataspace = kExtendedHdrDataSpce,
+    };
+
+    for (auto roundedCornerRadius : {0.f, 50.f}) {
+        layer.geometry.roundedCornersRadius = {roundedCornerRadius, roundedCornerRadius};
+        for (auto alpha : {0.5f, 1.f}) {
+            layer.alpha = alpha;
+            std::vector<LayerSettings> layers;
+
+            for (auto layerWhitePoint : kLayerWhitePoints) {
+                layer.whitePointNits = layerWhitePoint;
+                layers.push_back(layer);
+            }
+            renderengine->drawLayers(display, layers, dstTexture, base::unique_fd());
+        }
+    }
+}
+
+static void drawP3ImageLayers(SkiaRenderEngine* renderengine, const DisplaySettings& display,
+                              const std::shared_ptr<ExternalTexture>& dstTexture,
+                              const std::shared_ptr<ExternalTexture>& srcTexture) {
+    const Rect& displayRect = display.physicalDisplay;
+    FloatRect rect(0, 0, displayRect.width(), displayRect.height());
+    LayerSettings layer{
+            .geometry =
+                    Geometry{
+                            // The position transform doesn't matter when the reduced shader mode
+                            // in in effect. A matrix transform stage is always included.
+                            .positionTransform = mat4(),
+                            .boundaries = rect,
+                            .roundedCornersCrop = rect,
+                            .roundedCornersRadius = {50.f, 50.f},
+                    },
+            .source = PixelSource{.buffer = Buffer{.buffer = srcTexture,
+                                                   .maxLuminanceNits = 1000.f,
+                                                   .usePremultipliedAlpha = true,
+                                                   .isOpaque = false}},
+            .alpha = 0.5f,
+            .sourceDataspace = kOtherDataSpace,
+    };
+
+    for (auto alpha : {0.5f, 1.f}) {
+        layer.alpha = alpha;
+        std::vector<LayerSettings> layers;
+
+        for (auto layerWhitePoint : kLayerWhitePoints) {
+            layer.whitePointNits = layerWhitePoint;
+            layers.push_back(layer);
+        }
+        renderengine->drawLayers(display, layers, dstTexture, base::unique_fd());
+    }
+}
+
 //
 // The collection of shaders cached here were found by using perfetto to record shader compiles
 // during actions that involve RenderEngine, logging the layer settings, and the shader code
@@ -569,6 +654,14 @@ void Cache::primeShaderCache(SkiaRenderEngine* renderengine) {
                 .maxLuminance = 500,
                 .outputDataspace = kOtherDataSpace,
         };
+        DisplaySettings p3DisplayEnhance{.physicalDisplay = displayRect,
+                                         .clip = displayRect,
+                                         .maxLuminance = 500,
+                                         .outputDataspace = kOtherDataSpace,
+                                         .dimmingStage = aidl::android::hardware::graphics::
+                                                 composer3::DimmingStage::GAMMA_OETF,
+                                         .renderIntent = aidl::android::hardware::graphics::
+                                                 composer3::RenderIntent::ENHANCE};
         DisplaySettings bt2020Display{.physicalDisplay = displayRect,
                                       .clip = displayRect,
                                       .maxLuminance = 500,
@@ -602,6 +695,7 @@ void Cache::primeShaderCache(SkiaRenderEngine* renderengine) {
                                                impl::ExternalTexture::Usage::WRITEABLE);
         drawHolePunchLayer(renderengine, display, dstTexture);
         drawSolidLayers(renderengine, display, dstTexture);
+        drawSolidLayers(renderengine, p3Display, dstTexture);
         drawSolidDimmedLayers(renderengine, display, dstTexture);
 
         drawShadowLayers(renderengine, display, srcTexture);
@@ -643,9 +737,11 @@ void Cache::primeShaderCache(SkiaRenderEngine* renderengine) {
 
         for (auto texture : textures) {
             drawImageLayers(renderengine, display, dstTexture, texture);
+
             drawImageDimmedLayers(renderengine, display, dstTexture, texture);
             drawImageDimmedLayers(renderengine, p3Display, dstTexture, texture);
             drawImageDimmedLayers(renderengine, bt2020Display, dstTexture, texture);
+
             // Draw layers for b/185569240.
             drawClippedLayers(renderengine, display, dstTexture, texture);
         }
@@ -655,12 +751,20 @@ void Cache::primeShaderCache(SkiaRenderEngine* renderengine) {
         drawTransparentImageDimmedLayers(renderengine, bt2020Display, dstTexture, externalTexture);
         drawTransparentImageDimmedLayers(renderengine, display, dstTexture, externalTexture);
         drawTransparentImageDimmedLayers(renderengine, p3Display, dstTexture, externalTexture);
+        drawTransparentImageDimmedLayers(renderengine, p3DisplayEnhance, dstTexture,
+                                         externalTexture);
 
         drawClippedDimmedImageLayers(renderengine, bt2020Display, dstTexture, externalTexture);
         drawBT2020ClippedImageLayers(renderengine, bt2020Display, dstTexture, externalTexture);
 
         drawBT2020ImageLayers(renderengine, bt2020Display, dstTexture, externalTexture);
         drawBT2020ImageLayers(renderengine, p3Display, dstTexture, externalTexture);
+
+        drawExtendedHDRImageLayers(renderengine, display, dstTexture, externalTexture);
+        drawExtendedHDRImageLayers(renderengine, p3Display, dstTexture, externalTexture);
+        drawExtendedHDRImageLayers(renderengine, p3DisplayEnhance, dstTexture, externalTexture);
+
+        drawP3ImageLayers(renderengine, p3DisplayEnhance, dstTexture, externalTexture);
 
         // draw one final layer synchronously to force GL submit
         LayerSettings layer{
