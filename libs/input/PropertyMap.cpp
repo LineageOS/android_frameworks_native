@@ -163,8 +163,8 @@ PropertyMap::Parser::~Parser() {}
 status_t PropertyMap::Parser::parse() {
     while (!mTokenizer->isEof()) {
 #if DEBUG_PARSER
-        ALOGD("Parsing %s: '%s'.", mTokenizer->getLocation().string(),
-              mTokenizer->peekRemainderOfLine().string());
+        ALOGD("Parsing %s: '%s'.", mTokenizer->getLocation().c_str(),
+              mTokenizer->peekRemainderOfLine().c_str());
 #endif
 
         mTokenizer->skipDelimiters(WHITESPACE);
@@ -172,7 +172,7 @@ status_t PropertyMap::Parser::parse() {
         if (!mTokenizer->isEol() && mTokenizer->peekChar() != '#') {
             String8 keyToken = mTokenizer->nextToken(WHITESPACE_OR_PROPERTY_DELIMITER);
             if (keyToken.isEmpty()) {
-                ALOGE("%s: Expected non-empty property key.", mTokenizer->getLocation().string());
+                ALOGE("%s: Expected non-empty property key.", mTokenizer->getLocation().c_str());
                 return BAD_VALUE;
             }
 
@@ -180,7 +180,7 @@ status_t PropertyMap::Parser::parse() {
 
             if (mTokenizer->nextChar() != '=') {
                 ALOGE("%s: Expected '=' between property key and value.",
-                      mTokenizer->getLocation().string());
+                      mTokenizer->getLocation().c_str());
                 return BAD_VALUE;
             }
 
@@ -189,20 +189,20 @@ status_t PropertyMap::Parser::parse() {
             String8 valueToken = mTokenizer->nextToken(WHITESPACE);
             if (valueToken.find("\\", 0) >= 0 || valueToken.find("\"", 0) >= 0) {
                 ALOGE("%s: Found reserved character '\\' or '\"' in property value.",
-                      mTokenizer->getLocation().string());
+                      mTokenizer->getLocation().c_str());
                 return BAD_VALUE;
             }
 
             mTokenizer->skipDelimiters(WHITESPACE);
             if (!mTokenizer->isEol()) {
-                ALOGE("%s: Expected end of line, got '%s'.", mTokenizer->getLocation().string(),
-                      mTokenizer->peekRemainderOfLine().string());
+                ALOGE("%s: Expected end of line, got '%s'.", mTokenizer->getLocation().c_str(),
+                      mTokenizer->peekRemainderOfLine().c_str());
                 return BAD_VALUE;
             }
 
             if (mMap->hasProperty(keyToken.string())) {
                 ALOGE("%s: Duplicate property value for key '%s'.",
-                      mTokenizer->getLocation().string(), keyToken.string());
+                      mTokenizer->getLocation().c_str(), keyToken.c_str());
                 return BAD_VALUE;
             }
 
