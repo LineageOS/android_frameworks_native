@@ -30,15 +30,13 @@ namespace vibrator {
 // Wrapper for a callback to be executed after a delay.
 class DelayedCallback {
 public:
-    using Timestamp = std::chrono::time_point<std::chrono::steady_clock>;
-
     DelayedCallback(std::function<void()> callback, std::chrono::milliseconds delay)
           : mCallback(callback), mExpiration(std::chrono::steady_clock::now() + delay) {}
     ~DelayedCallback() = default;
 
     void run() const;
     bool isExpired() const;
-    Timestamp getExpiration() const;
+    std::chrono::milliseconds getWaitForExpirationDuration() const;
 
     // Compare by expiration time, where A < B when A expires first.
     bool operator<(const DelayedCallback& other) const;
@@ -46,7 +44,9 @@ public:
 
 private:
     std::function<void()> mCallback;
-    Timestamp mExpiration;
+    // Use a steady monotonic clock to calculate the duration until expiration.
+    // This clock is not related to wall clock time and is most suitable for measuring intervals.
+    std::chrono::time_point<std::chrono::steady_clock> mExpiration;
 };
 
 // Schedules callbacks to be executed after a delay.
