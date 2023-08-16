@@ -35,6 +35,7 @@ enum class CrashType {
     ON_ROOT_AID,
     ON_DUMP_TRANSACT,
     ON_SHELL_CMD_TRANSACT,
+    CRASH_ALWAYS,
 };
 
 // This service is to verify that fuzzService is functioning properly
@@ -112,8 +113,10 @@ CrashType gCrashType = CrashType::NONE;
 
 extern "C" int LLVMFuzzerInitialize(int* argc, char*** argv) {
     if (*argc < 2) {
-        printf("You must specify at least one argument\n");
-        exit(0); // success because this is a crash test
+        // This fuzzer is also used as test fuzzer to check infra pipeline.
+        // It should always run and find a crash in TestService.
+        gCrashType = CrashType::CRASH_ALWAYS;
+        return 0;
     }
 
     std::string arg = std::string((*argv)[1]);
@@ -146,6 +149,9 @@ extern "C" int LLVMFuzzerInitialize(int* argc, char*** argv) {
 }
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
+    if (gCrashType == CrashType::CRASH_ALWAYS) {
+        LOG_ALWAYS_FATAL("Expected crash, This fuzzer will always crash.");
+    }
     auto service = sp<TestService>::make(gCrashType);
     fuzzService(service, FuzzedDataProvider(data, size));
     return 0;
