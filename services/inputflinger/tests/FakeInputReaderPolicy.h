@@ -64,7 +64,7 @@ public:
     void removeDisabledDevice(int32_t deviceId);
     void setPointerController(std::shared_ptr<FakePointerController> controller);
     const InputReaderConfiguration& getReaderConfiguration() const;
-    const std::vector<InputDeviceInfo>& getInputDevices() const;
+    const std::vector<InputDeviceInfo> getInputDevices() const;
     TouchAffineTransformation getTouchAffineTransformation(const std::string& inputDeviceDescriptor,
                                                            ui::Rotation surfaceRotation);
     void setTouchAffineTransformation(const TouchAffineTransformation t);
@@ -91,7 +91,7 @@ private:
     void waitForInputDevices(std::function<void(bool)> processDevicesChanged);
     void notifyStylusGestureStarted(int32_t deviceId, nsecs_t eventTime) override;
 
-    std::mutex mLock;
+    mutable std::mutex mLock;
     std::condition_variable mDevicesChangedCondition;
 
     InputReaderConfiguration mConfig;
