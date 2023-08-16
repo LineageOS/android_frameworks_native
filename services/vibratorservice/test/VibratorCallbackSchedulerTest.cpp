@@ -71,15 +71,21 @@ protected:
     }
 
     int32_t waitForCallbacks(int32_t callbackCount, milliseconds timeout) {
-        time_point<steady_clock> expiration = steady_clock::now() + timeout + TEST_TIMEOUT;
+        time_point<steady_clock> expirationTime = steady_clock::now() + timeout + TEST_TIMEOUT;
         int32_t expiredCallbackCount = 0;
-        while (steady_clock::now() < expiration) {
+        while (steady_clock::now() < expirationTime) {
             std::lock_guard<std::mutex> lock(mMutex);
             expiredCallbackCount = mExpiredCallbacks.size();
             if (callbackCount <= expiredCallbackCount) {
                 return expiredCallbackCount;
             }
-            mCondition.wait_until(mMutex, expiration);
+            auto currentTimeout = std::chrono::duration_cast<std::chrono::milliseconds>(
+                    expirationTime - steady_clock::now());
+            if (currentTimeout > currentTimeout.zero()) {
+                // Use the monotonic steady clock to wait for the requested timeout via wait_for
+                // instead of using a wall clock via wait_until.
+                mCondition.wait_for(mMutex, currentTimeout);
+            }
         }
         return expiredCallbackCount;
     }
