@@ -2784,7 +2784,7 @@ TEST_F(InputDeviceTest, WhenMappersAreRegistered_DeviceIsNotIgnoredAndForwardsRe
     String8 propertyValue;
     ASSERT_TRUE(mDevice->getConfiguration().tryGetProperty(String8("key"), propertyValue))
             << "Device should have read configuration during configuration phase.";
-    ASSERT_STREQ("value", propertyValue.string());
+    ASSERT_STREQ("value", propertyValue.c_str());
 
     ASSERT_NO_FATAL_FAILURE(mapper1.assertConfigureWasCalled());
     ASSERT_NO_FATAL_FAILURE(mapper2.assertConfigureWasCalled());

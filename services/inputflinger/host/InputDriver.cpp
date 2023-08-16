@@ -259,14 +259,14 @@ input_property_t* InputDriver::inputGetDeviceProperty(input_property_map_t* map,
 
 const char* InputDriver::inputGetPropertyKey(input_property_t* property) {
     if (property != nullptr) {
-        return property->key.string();
+        return property->key.c_str();
     }
     return nullptr;
 }
 
 const char* InputDriver::inputGetPropertyValue(input_property_t* property) {
     if (property != nullptr) {
-        return property->value.string();
+        return property->value.c_str();
     }
     return nullptr;
 }
@@ -284,7 +284,7 @@ void InputDriver::inputFreeDevicePropertyMap(input_property_map_t* map) {
 }
 
 void InputDriver::dump(String8& result) {
-    result.appendFormat(INDENT2 "HAL Input Driver (%s)\n", mName.string());
+    result.appendFormat(INDENT2 "HAL Input Driver (%s)\n", mName.c_str());
 }
 
 } // namespace android
