@@ -32,6 +32,7 @@ use bitflags::bitflags;
 use log::info;
 
 #[cxx::bridge(namespace = "android::input")]
+#[allow(unsafe_op_in_unsafe_fn)]
 mod ffi {
     #[namespace = "android"]
     unsafe extern "C++" {
