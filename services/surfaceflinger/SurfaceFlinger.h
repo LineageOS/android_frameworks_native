@@ -1088,6 +1088,7 @@ private:
     void dumpDisplayIdentificationData(std::string& result) const REQUIRES(mStateLock);
     void dumpRawDisplayIdentificationData(const DumpArgs&, std::string& result) const;
     void dumpWideColorInfo(std::string& result) const REQUIRES(mStateLock);
+    void dumpHdrInfo(std::string& result) const REQUIRES(mStateLock);
 
     LayersProto dumpDrawingStateProto(uint32_t traceFlags) const;
     void dumpOffscreenLayersProto(LayersProto& layersProto,

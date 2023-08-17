@@ -30,8 +30,8 @@
 #include "FrontEnd/LayerCreationArgs.h"
 #include "FrontEnd/Update.h"
 #include "LocklessStack.h"
-#include "RingBuffer.h"
 #include "TransactionProtoParser.h"
+#include "TransactionRingBuffer.h"
 
 using namespace android::surfaceflinger;
 
@@ -81,7 +81,7 @@ private:
     static constexpr auto FILE_PATH = "/data/misc/wmtrace/transactions_trace.winscope";
 
     mutable std::mutex mTraceLock;
-    RingBuffer<proto::TransactionTraceFile, proto::TransactionTraceEntry> mBuffer
+    TransactionRingBuffer<proto::TransactionTraceFile, proto::TransactionTraceEntry> mBuffer
             GUARDED_BY(mTraceLock);
     size_t mBufferSizeInBytes GUARDED_BY(mTraceLock) = CONTINUOUS_TRACING_BUFFER_SIZE;
     std::unordered_map<uint64_t, proto::TransactionState> mQueuedTransactions
