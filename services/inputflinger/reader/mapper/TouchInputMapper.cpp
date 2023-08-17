@@ -429,7 +429,7 @@ void TouchInputMapper::configureParameters() {
         } else if (gestureModeString == "multi-touch") {
             mParameters.gestureMode = Parameters::GestureMode::MULTI_TOUCH;
         } else if (gestureModeString != "default") {
-            ALOGW("Invalid value for touch.gestureMode: '%s'", gestureModeString.string());
+            ALOGW("Invalid value for touch.gestureMode: '%s'", gestureModeString.c_str());
         }
     }
 
@@ -463,7 +463,7 @@ void TouchInputMapper::configureParameters() {
         } else if (deviceTypeString == "pointer") {
             mParameters.deviceType = Parameters::DeviceType::POINTER;
         } else if (deviceTypeString != "default") {
-            ALOGW("Invalid value for touch.deviceType: '%s'", deviceTypeString.string());
+            ALOGW("Invalid value for touch.deviceType: '%s'", deviceTypeString.c_str());
         }
     }
 
@@ -484,7 +484,7 @@ void TouchInputMapper::configureParameters() {
         } else if (orientationString == "ORIENTATION_270") {
             mParameters.orientation = Parameters::Orientation::ORIENTATION_270;
         } else if (orientationString != "ORIENTATION_0") {
-            ALOGW("Invalid value for touch.orientation: '%s'", orientationString.string());
+            ALOGW("Invalid value for touch.orientation: '%s'", orientationString.c_str());
         }
     }
 
@@ -1204,7 +1204,7 @@ void TouchInputMapper::parseCalibration() {
         } else if (sizeCalibrationString == "area") {
             out.sizeCalibration = Calibration::SizeCalibration::AREA;
         } else if (sizeCalibrationString != "default") {
-            ALOGW("Invalid value for touch.size.calibration: '%s'", sizeCalibrationString.string());
+            ALOGW("Invalid value for touch.size.calibration: '%s'", sizeCalibrationString.c_str());
         }
     }
 
@@ -1224,7 +1224,7 @@ void TouchInputMapper::parseCalibration() {
             out.pressureCalibration = Calibration::PressureCalibration::AMPLITUDE;
         } else if (pressureCalibrationString != "default") {
             ALOGW("Invalid value for touch.pressure.calibration: '%s'",
-                  pressureCalibrationString.string());
+                  pressureCalibrationString.c_str());
         }
     }
 
@@ -1242,7 +1242,7 @@ void TouchInputMapper::parseCalibration() {
             out.orientationCalibration = Calibration::OrientationCalibration::VECTOR;
         } else if (orientationCalibrationString != "default") {
             ALOGW("Invalid value for touch.orientation.calibration: '%s'",
-                  orientationCalibrationString.string());
+                  orientationCalibrationString.c_str());
         }
     }
 
@@ -1256,7 +1256,7 @@ void TouchInputMapper::parseCalibration() {
             out.distanceCalibration = Calibration::DistanceCalibration::SCALED;
         } else if (distanceCalibrationString != "default") {
             ALOGW("Invalid value for touch.distance.calibration: '%s'",
-                  distanceCalibrationString.string());
+                  distanceCalibrationString.c_str());
         }
     }
 
@@ -1271,7 +1271,7 @@ void TouchInputMapper::parseCalibration() {
             out.coverageCalibration = Calibration::CoverageCalibration::BOX;
         } else if (coverageCalibrationString != "default") {
             ALOGW("Invalid value for touch.coverage.calibration: '%s'",
-                  coverageCalibrationString.string());
+                  coverageCalibrationString.c_str());
         }
     }
 }

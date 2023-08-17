@@ -251,7 +251,7 @@ void CursorInputMapper::configureParameters() {
         if (cursorModeString == "navigation") {
             mParameters.mode = Parameters::Mode::NAVIGATION;
         } else if (cursorModeString != "pointer" && cursorModeString != "default") {
-            ALOGW("Invalid value for cursor.mode: '%s'", cursorModeString.string());
+            ALOGW("Invalid value for cursor.mode: '%s'", cursorModeString.c_str());
         }
     }
 
