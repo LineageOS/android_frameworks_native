@@ -23,8 +23,6 @@
 #include <gui/WindowInfo.h>
 #include <layerproto/LayerProtoHeader.h>
 #include <math/vec4.h>
-#include <renderengine/Mesh.h>
-#include <renderengine/Texture.h>
 #include <sys/types.h>
 #include <ui/BlurRegion.h>
 #include <ui/FloatRect.h>

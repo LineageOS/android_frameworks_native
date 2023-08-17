@@ -43,10 +43,6 @@ std::string RenderEngineTypeName(RenderEngine::RenderEngineType type) {
             return "skiavk";
         case RenderEngine::RenderEngineType::SKIA_VK_THREADED:
             return "skiavkthreaded";
-        case RenderEngine::RenderEngineType::GLES:
-        case RenderEngine::RenderEngineType::THREADED:
-            LOG_ALWAYS_FATAL("GLESRenderEngine is deprecated - why time it?");
-            return "unused";
     }
 }
 

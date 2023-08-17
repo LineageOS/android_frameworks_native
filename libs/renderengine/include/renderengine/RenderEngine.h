@@ -22,8 +22,6 @@
 #include <math/mat4.h>
 #include <renderengine/DisplaySettings.h>
 #include <renderengine/ExternalTexture.h>
-#include <renderengine/Framebuffer.h>
-#include <renderengine/Image.h>
 #include <renderengine/LayerSettings.h>
 #include <stdint.h>
 #include <sys/types.h>
@@ -95,8 +93,6 @@ public:
     };
 
     enum class RenderEngineType {
-        GLES = 1,
-        THREADED = 2,
         SKIA_GL = 3,
         SKIA_GL_THREADED = 4,
         SKIA_VK = 5,
@@ -171,8 +167,6 @@ public:
     // being drawn, then the implementation is free to silently ignore this call.
     virtual void cleanupPostRender() = 0;
 
-    virtual void cleanFramebufferCache() = 0;
-
     // Returns the priority this context was actually created with. Note: this
     // may not be the same as specified at context creation time, due to
     // implementation limits on the number of contexts that can be created at a
@@ -204,7 +198,7 @@ public:
     virtual void setEnableTracing(bool /*tracingEnabled*/) {}
 
 protected:
-    RenderEngine() : RenderEngine(RenderEngineType::GLES) {}
+    RenderEngine() : RenderEngine(RenderEngineType::SKIA_GL) {}
 
     RenderEngine(RenderEngineType type) : mRenderEngineType(type) {}
 

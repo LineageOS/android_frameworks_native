@@ -27,8 +27,6 @@
 #include <processgroup/processgroup.h>
 #include <utils/Trace.h>
 
-#include "gl/GLESRenderEngine.h"
-
 using namespace std::chrono_literals;
 
 namespace android {
@@ -178,41 +176,13 @@ void RenderEngineThreaded::dump(std::string& result) {
 void RenderEngineThreaded::genTextures(size_t count, uint32_t* names) {
     ATRACE_CALL();
     // This is a no-op in SkiaRenderEngine.
-    if (getRenderEngineType() != RenderEngineType::THREADED) {
-        return;
-    }
-    std::promise<void> resultPromise;
-    std::future<void> resultFuture = resultPromise.get_future();
-    {
-        std::lock_guard lock(mThreadMutex);
-        mFunctionCalls.push([&resultPromise, count, names](renderengine::RenderEngine& instance) {
-            ATRACE_NAME("REThreaded::genTextures");
-            instance.genTextures(count, names);
-            resultPromise.set_value();
-        });
-    }
-    mCondition.notify_one();
-    resultFuture.wait();
+    return;
 }
 
 void RenderEngineThreaded::deleteTextures(size_t count, uint32_t const* names) {
     ATRACE_CALL();
     // This is a no-op in SkiaRenderEngine.
-    if (getRenderEngineType() != RenderEngineType::THREADED) {
-        return;
-    }
-    std::promise<void> resultPromise;
-    std::future<void> resultFuture = resultPromise.get_future();
-    {
-        std::lock_guard lock(mThreadMutex);
-        mFunctionCalls.push([&resultPromise, count, &names](renderengine::RenderEngine& instance) {
-            ATRACE_NAME("REThreaded::deleteTextures");
-            instance.deleteTextures(count, names);
-            resultPromise.set_value();
-        });
-    }
-    mCondition.notify_one();
-    resultFuture.wait();
+    return;
 }
 
 void RenderEngineThreaded::mapExternalTextureBuffer(const sp<GraphicBuffer>& buffer,
@@ -311,20 +281,6 @@ ftl::Future<FenceResult> RenderEngineThreaded::drawLayers(
     }
     mCondition.notify_one();
     return resultFuture;
-}
-
-void RenderEngineThreaded::cleanFramebufferCache() {
-    ATRACE_CALL();
-    // This function is designed so it can run asynchronously, so we do not need to wait
-    // for the futures.
-    {
-        std::lock_guard lock(mThreadMutex);
-        mFunctionCalls.push([](renderengine::RenderEngine& instance) {
-            ATRACE_NAME("REThreaded::cleanFramebufferCache");
-            instance.cleanFramebufferCache();
-        });
-    }
-    mCondition.notify_one();
 }
 
 int RenderEngineThreaded::getContextPriority() {

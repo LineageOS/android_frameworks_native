@@ -64,7 +64,6 @@ public:
 
     std::future<void> primeCache() override final;
     void cleanupPostRender() override final;
-    void cleanFramebufferCache() override final{ }
     bool supportsBackgroundBlur() override final {
         return mBlurFilter != nullptr;
     }
