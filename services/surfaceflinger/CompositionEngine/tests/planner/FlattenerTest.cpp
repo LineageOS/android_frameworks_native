@@ -168,7 +168,7 @@ void FlattenerTest::initializeFlattener(const std::vector<const LayerState*>& la
 
 void FlattenerTest::expectAllLayersFlattened(const std::vector<const LayerState*>& layers) {
     // layers would be flattened but the buffer would not be overridden
-    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _))
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _))
             .WillOnce(Return(ByMove(ftl::yield<FenceResult>(Fence::NO_FENCE))));
 
     initializeOverrideBuffer(layers);
@@ -419,7 +419,7 @@ TEST_F(FlattenerTest, flattenLayers_BufferUpdateToFlatten) {
     // caleed for Layer2 and Layer3
     layerState1->resetFramesSinceBufferUpdate();
 
-    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _))
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _))
             .WillOnce(Return(ByMove(ftl::yield<FenceResult>(Fence::NO_FENCE))));
     initializeOverrideBuffer(layers);
     EXPECT_EQ(getNonBufferHash(layers),
@@ -442,7 +442,7 @@ TEST_F(FlattenerTest, flattenLayers_BufferUpdateToFlatten) {
     layerState1->incrementFramesSinceBufferUpdate();
     mTime += 200ms;
 
-    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _))
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _))
             .WillOnce(Return(ByMove(ftl::yield<FenceResult>(Fence::NO_FENCE))));
     initializeOverrideBuffer(layers);
     EXPECT_NE(getNonBufferHash(layers),
@@ -494,7 +494,7 @@ TEST_F(FlattenerTest, flattenLayers_BufferUpdateForMiddleLayer) {
     // called for Layer1 and Layer2
     layerState3->resetFramesSinceBufferUpdate();
 
-    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _))
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _))
             .WillOnce(Return(ByMove(ftl::yield<FenceResult>(Fence::NO_FENCE))));
     initializeOverrideBuffer(layers);
     EXPECT_EQ(getNonBufferHash(layers),
@@ -508,7 +508,7 @@ TEST_F(FlattenerTest, flattenLayers_BufferUpdateForMiddleLayer) {
     EXPECT_EQ(nullptr, overrideBuffer5);
 
     // Layers 1 and 2 will be flattened a new drawFrame would be called for Layer4 and Layer5
-    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _))
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _))
             .WillOnce(Return(ByMove(ftl::yield<FenceResult>(Fence::NO_FENCE))));
     initializeOverrideBuffer(layers);
     EXPECT_NE(getNonBufferHash(layers),
@@ -537,7 +537,7 @@ TEST_F(FlattenerTest, flattenLayers_BufferUpdateForMiddleLayer) {
 
     layerState3->incrementFramesSinceBufferUpdate();
     mTime += 200ms;
-    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _))
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _))
             .WillOnce(Return(ByMove(ftl::yield<FenceResult>(Fence::NO_FENCE))));
     initializeOverrideBuffer(layers);
     EXPECT_NE(getNonBufferHash(layers),
@@ -592,7 +592,7 @@ TEST_F(FlattenerTest, flattenLayers_pipRequiresRoundedCorners) {
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
 
     // This will render a CachedSet.
-    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _))
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _))
             .WillOnce(Return(ByMove(ftl::yield<FenceResult>(Fence::NO_FENCE))));
     mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
 
@@ -603,7 +603,7 @@ TEST_F(FlattenerTest, flattenLayers_pipRequiresRoundedCorners) {
 
     // This time we merge the CachedSet in, so we have a new hash, and we should
     // only have two sets.
-    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _)).Times(0);
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _)).Times(0);
     initializeOverrideBuffer(layers);
     EXPECT_NE(getNonBufferHash(layers),
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
@@ -656,7 +656,7 @@ TEST_F(FlattenerTest, flattenLayers_pip) {
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
 
     // This will render a CachedSet.
-    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _))
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _))
             .WillOnce(Return(ByMove(ftl::yield<FenceResult>(Fence::NO_FENCE))));
     mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
 
@@ -667,7 +667,7 @@ TEST_F(FlattenerTest, flattenLayers_pip) {
 
     // This time we merge the CachedSet in, so we have a new hash, and we should
     // only have two sets.
-    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _)).Times(0);
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _)).Times(0);
     initializeOverrideBuffer(layers);
     EXPECT_NE(getNonBufferHash(layers),
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
@@ -728,7 +728,7 @@ TEST_F(FlattenerTest, flattenLayers_holePunchSingleLayer) {
 
     // This will render a CachedSet of layer 0. Though it is just one layer, it satisfies the
     // exception that there would be a hole punch above it.
-    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _))
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _))
             .WillOnce(Return(ByMove(ftl::yield<FenceResult>(Fence::NO_FENCE))));
     mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
 
@@ -736,7 +736,7 @@ TEST_F(FlattenerTest, flattenLayers_holePunchSingleLayer) {
     EXPECT_EQ(nullptr, overrideBuffer0);
 
     // This time we merge the CachedSet in and we should still have only two sets.
-    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _)).Times(0);
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _)).Times(0);
     initializeOverrideBuffer(layers);
     EXPECT_EQ(getNonBufferHash(layers),
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
@@ -798,7 +798,7 @@ TEST_F(FlattenerTest, flattenLayers_holePunchSingleColorLayer) {
 
     // This will render a CachedSet of layer 0. Though it is just one layer, it satisfies the
     // exception that there would be a hole punch above it.
-    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _))
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _))
             .WillOnce(Return(ByMove(ftl::yield<FenceResult>(Fence::NO_FENCE))));
     mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
 
@@ -806,7 +806,7 @@ TEST_F(FlattenerTest, flattenLayers_holePunchSingleColorLayer) {
     EXPECT_EQ(nullptr, overrideBuffer0);
 
     // This time we merge the CachedSet in and we should still have only two sets.
-    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _)).Times(0);
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _)).Times(0);
     initializeOverrideBuffer(layers);
     EXPECT_EQ(getNonBufferHash(layers),
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
@@ -849,7 +849,7 @@ TEST_F(FlattenerTest, flattenLayers_flattensBlurBehindRunIfFirstRun) {
     layerState3->resetFramesSinceBufferUpdate();
 
     // layers would be flattened but the buffer would not be overridden
-    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _))
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _))
             .WillOnce(Return(ByMove(ftl::yield<FenceResult>(Fence::NO_FENCE))));
 
     initializeOverrideBuffer(layers);
@@ -894,7 +894,7 @@ TEST_F(FlattenerTest, flattenLayers_doesNotFlattenBlurBehindRun) {
     layerState1->resetFramesSinceBufferUpdate();
 
     // layers would be flattened but the buffer would not be overridden
-    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _))
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _))
             .WillRepeatedly(Return(ByMove(ftl::yield<FenceResult>(Fence::NO_FENCE))));
 
     initializeOverrideBuffer(layers);
@@ -947,7 +947,7 @@ TEST_F(FlattenerTest, flattenLayers_flattenSkipsLayerWithBlurBehind) {
     layerState1->resetFramesSinceBufferUpdate();
 
     // layers would be flattened but the buffer would not be overridden
-    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _))
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _))
             .WillOnce(Return(ByMove(ftl::yield<FenceResult>(Fence::NO_FENCE))));
 
     initializeOverrideBuffer(layers);
@@ -995,7 +995,7 @@ TEST_F(FlattenerTest, flattenLayers_whenBlurLayerIsChanging_appliesBlurToInactiv
     layerStateWithBlurBehind->resetFramesSinceBufferUpdate();
 
     // layers would be flattened but the buffer would not be overridden
-    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _))
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _))
             .WillOnce(Return(ByMove(ftl::yield<FenceResult>(Fence::NO_FENCE))));
 
     initializeOverrideBuffer(layers);
@@ -1037,7 +1037,7 @@ TEST_F(FlattenerTest, flattenLayers_renderCachedSets_doesNotRenderTwice) {
     // Mark the layers inactive
     mTime += 200ms;
     // layers would be flattened but the buffer would not be overridden
-    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _))
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _))
             .WillOnce(Return(ByMove(ftl::yield<FenceResult>(Fence::NO_FENCE))));
 
     initializeOverrideBuffer(layers);
@@ -1050,7 +1050,7 @@ TEST_F(FlattenerTest, flattenLayers_renderCachedSets_doesNotRenderTwice) {
 
     // Simulate attempting to render prior to merging the new cached set with the layer stack.
     // Here we should not try to re-render.
-    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _)).Times(0);
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _)).Times(0);
     mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
 
     // We provide the override buffer now that it's rendered
@@ -1097,14 +1097,14 @@ TEST_F(FlattenerRenderSchedulingTest, flattenLayers_renderCachedSets_defersUpToM
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
 
     for (size_t i = 0; i < kMaxDeferRenderAttempts; i++) {
-        EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _)).Times(0);
+        EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _)).Times(0);
         mFlattener->renderCachedSets(mOutputState,
                                      std::chrono::steady_clock::now() -
                                              (kCachedSetRenderDuration + 10ms),
                                      true);
     }
 
-    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _))
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _))
             .WillOnce(Return(ByMove(ftl::yield<FenceResult>(Fence::NO_FENCE))));
     mFlattener->renderCachedSets(mOutputState,
                                  std::chrono::steady_clock::now() -
@@ -1139,7 +1139,7 @@ TEST_F(FlattenerTest, flattenLayers_skipsLayersDisabledFromCaching) {
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
 
     // This will render a CachedSet.
-    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _))
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _))
             .WillOnce(Return(ByMove(ftl::yield<FenceResult>(Fence::NO_FENCE))));
     mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
 
@@ -1150,7 +1150,7 @@ TEST_F(FlattenerTest, flattenLayers_skipsLayersDisabledFromCaching) {
 
     // This time we merge the CachedSet in, so we have a new hash, and we should
     // only have two sets.
-    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _)).Times(0);
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _)).Times(0);
     initializeOverrideBuffer(layers);
     EXPECT_NE(getNonBufferHash(layers),
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
@@ -1189,7 +1189,7 @@ TEST_F(FlattenerTest, flattenLayers_skipsBT601_625) {
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
 
     // This will render a CachedSet.
-    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _))
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _))
             .WillOnce(Return(ByMove(ftl::yield<FenceResult>(Fence::NO_FENCE))));
     mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
 
@@ -1200,7 +1200,7 @@ TEST_F(FlattenerTest, flattenLayers_skipsBT601_625) {
 
     // This time we merge the CachedSet in, so we have a new hash, and we should
     // only have two sets.
-    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _)).Times(0);
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _)).Times(0);
     initializeOverrideBuffer(layers);
     EXPECT_NE(getNonBufferHash(layers),
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
@@ -1239,7 +1239,7 @@ TEST_F(FlattenerTest, flattenLayers_skipsHDR) {
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
 
     // This will render a CachedSet.
-    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _))
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _))
             .WillOnce(Return(ByMove(ftl::yield<FenceResult>(Fence::NO_FENCE))));
     mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
 
@@ -1250,7 +1250,7 @@ TEST_F(FlattenerTest, flattenLayers_skipsHDR) {
 
     // This time we merge the CachedSet in, so we have a new hash, and we should
     // only have two sets.
-    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _)).Times(0);
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _)).Times(0);
     initializeOverrideBuffer(layers);
     EXPECT_NE(getNonBufferHash(layers),
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
@@ -1289,7 +1289,7 @@ TEST_F(FlattenerTest, flattenLayers_skipsHDR2) {
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
 
     // This will render a CachedSet.
-    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _))
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _))
             .WillOnce(Return(ByMove(ftl::yield<FenceResult>(Fence::NO_FENCE))));
     mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
 
@@ -1300,7 +1300,7 @@ TEST_F(FlattenerTest, flattenLayers_skipsHDR2) {
 
     // This time we merge the CachedSet in, so we have a new hash, and we should
     // only have two sets.
-    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _)).Times(0);
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _)).Times(0);
     initializeOverrideBuffer(layers);
     EXPECT_NE(getNonBufferHash(layers),
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
@@ -1342,7 +1342,7 @@ TEST_F(FlattenerTest, flattenLayers_skipsColorLayers) {
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
 
     // This will render a CachedSet.
-    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _))
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _))
             .WillOnce(Return(ByMove(ftl::yield<FenceResult>(Fence::NO_FENCE))));
     mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
 
@@ -1354,7 +1354,7 @@ TEST_F(FlattenerTest, flattenLayers_skipsColorLayers) {
 
     // This time we merge the CachedSet in, so we have a new hash, and we should
     // only have two sets.
-    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _)).Times(0);
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _)).Times(0);
     initializeOverrideBuffer(layers);
     EXPECT_NE(getNonBufferHash(layers),
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
@@ -1394,7 +1394,7 @@ TEST_F(FlattenerTest, flattenLayers_includes_DISPLAY_DECORATION) {
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
 
     // This will render a CachedSet.
-    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _))
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _))
             .WillOnce(Return(ByMove(ftl::yield<FenceResult>(Fence::NO_FENCE))));
     mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
 
@@ -1405,7 +1405,7 @@ TEST_F(FlattenerTest, flattenLayers_includes_DISPLAY_DECORATION) {
 
     // This time we merge the CachedSet in, so we have a new hash, and we should
     // only have two sets.
-    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _, _)).Times(0);
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _)).Times(0);
     initializeOverrideBuffer(layers);
     EXPECT_NE(getNonBufferHash(layers),
               mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));

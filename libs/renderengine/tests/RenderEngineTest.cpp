@@ -490,7 +490,7 @@ public:
     void invokeDraw(const renderengine::DisplaySettings& settings,
                     const std::vector<renderengine::LayerSettings>& layers) {
         ftl::Future<FenceResult> future =
-                mRE->drawLayers(settings, layers, mBuffer, true, base::unique_fd());
+                mRE->drawLayers(settings, layers, mBuffer, base::unique_fd());
         ASSERT_TRUE(future.valid());
 
         auto result = future.get();
@@ -1610,8 +1610,7 @@ TEST_P(RenderEngineTest, drawLayers_nullOutputBuffer) {
     layer.geometry.boundaries = fullscreenRect().toFloatRect();
     BufferSourceVariant<ForceOpaqueBufferVariant>::fillColor(layer, 1.0f, 0.0f, 0.0f, this);
     layers.push_back(layer);
-    ftl::Future<FenceResult> future =
-            mRE->drawLayers(settings, layers, nullptr, true, base::unique_fd());
+    ftl::Future<FenceResult> future = mRE->drawLayers(settings, layers, nullptr, base::unique_fd());
 
     ASSERT_TRUE(future.valid());
     auto result = future.get();
@@ -2263,14 +2262,14 @@ TEST_P(RenderEngineTest, cleanupPostRender_cleansUpOnce) {
     layers.push_back(layer);
 
     ftl::Future<FenceResult> futureOne =
-            mRE->drawLayers(settings, layers, mBuffer, true, base::unique_fd());
+            mRE->drawLayers(settings, layers, mBuffer, base::unique_fd());
     ASSERT_TRUE(futureOne.valid());
     auto resultOne = futureOne.get();
     ASSERT_TRUE(resultOne.ok());
     auto fenceOne = resultOne.value();
 
     ftl::Future<FenceResult> futureTwo =
-            mRE->drawLayers(settings, layers, mBuffer, true, base::unique_fd(fenceOne->dup()));
+            mRE->drawLayers(settings, layers, mBuffer, base::unique_fd(fenceOne->dup()));
     ASSERT_TRUE(futureTwo.valid());
     auto resultTwo = futureTwo.get();
     ASSERT_TRUE(resultTwo.ok());

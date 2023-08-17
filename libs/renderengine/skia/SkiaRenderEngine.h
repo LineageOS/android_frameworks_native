@@ -136,7 +136,6 @@ private:
                             const DisplaySettings& display,
                             const std::vector<LayerSettings>& layers,
                             const std::shared_ptr<ExternalTexture>& buffer,
-                            const bool useFramebufferCache,
                             base::unique_fd&& bufferFence) override final;
 
     void dump(std::string& result) override final;

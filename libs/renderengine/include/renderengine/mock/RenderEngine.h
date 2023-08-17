@@ -42,14 +42,14 @@ public:
     MOCK_METHOD1(useProtectedContext, void(bool));
     MOCK_METHOD0(cleanupPostRender, void());
     MOCK_CONST_METHOD0(canSkipPostRenderCleanup, bool());
-    MOCK_METHOD5(drawLayers,
+    MOCK_METHOD4(drawLayers,
                  ftl::Future<FenceResult>(const DisplaySettings&, const std::vector<LayerSettings>&,
-                                          const std::shared_ptr<ExternalTexture>&, const bool,
+                                          const std::shared_ptr<ExternalTexture>&,
                                           base::unique_fd&&));
-    MOCK_METHOD6(drawLayersInternal,
+    MOCK_METHOD5(drawLayersInternal,
                  void(const std::shared_ptr<std::promise<FenceResult>>&&, const DisplaySettings&,
                       const std::vector<LayerSettings>&, const std::shared_ptr<ExternalTexture>&,
-                      const bool, base::unique_fd&&));
+                      base::unique_fd&&));
     MOCK_METHOD0(getContextPriority, int());
     MOCK_METHOD0(supportsBackgroundBlur, bool());
     MOCK_METHOD1(onActiveDisplaySizeChanged, void(ui::Size));
