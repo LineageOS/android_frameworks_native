@@ -55,8 +55,8 @@ status_t KeyMap::load(const InputDeviceIdentifier& deviceIdentifier,
             status_t status = loadKeyLayout(deviceIdentifier, keyLayoutName.c_str());
             if (status == NAME_NOT_FOUND) {
                 ALOGE("Configuration for keyboard device '%s' requested keyboard layout '%s' but "
-                        "it was not found.",
-                        deviceIdentifier.name.c_str(), keyLayoutName.string());
+                      "it was not found.",
+                      deviceIdentifier.name.c_str(), keyLayoutName.c_str());
             }
         }
 
@@ -66,8 +66,8 @@ status_t KeyMap::load(const InputDeviceIdentifier& deviceIdentifier,
             status_t status = loadKeyCharacterMap(deviceIdentifier, keyCharacterMapName.c_str());
             if (status == NAME_NOT_FOUND) {
                 ALOGE("Configuration for keyboard device '%s' requested keyboard character "
-                        "map '%s' but it was not found.",
-                        deviceIdentifier.name.c_str(), keyCharacterMapName.string());
+                      "map '%s' but it was not found.",
+                      deviceIdentifier.name.c_str(), keyCharacterMapName.c_str());
             }
         }
 
