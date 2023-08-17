@@ -70,8 +70,6 @@ public:
     void onActiveDisplaySizeChanged(ui::Size size) override final;
     int reportShadersCompiled();
 
-    virtual void genTextures(size_t /*count*/, uint32_t* /*names*/) override final{};
-    virtual void deleteTextures(size_t /*count*/, uint32_t const* /*names*/) override final{};
     virtual void setEnableTracing(bool tracingEnabled) override final;
 
     void useProtectedContext(bool useProtectedContext) override;

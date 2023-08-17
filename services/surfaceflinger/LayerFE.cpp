@@ -223,7 +223,6 @@ void LayerFE::prepareBufferStateClientComposition(
     layerSettings.source.buffer.buffer = mSnapshot->externalTexture;
     layerSettings.source.buffer.isOpaque = mSnapshot->contentOpaque;
     layerSettings.source.buffer.fence = mSnapshot->acquireFence;
-    layerSettings.source.buffer.textureName = mSnapshot->textureName;
     layerSettings.source.buffer.usePremultipliedAlpha = mSnapshot->premultipliedAlpha;
     bool hasSmpte2086 = mSnapshot->hdrMetadata.validTypes & HdrMetadata::SMPTE2086;
     bool hasCta861_3 = mSnapshot->hdrMetadata.validTypes & HdrMetadata::CTA861_3;

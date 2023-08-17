@@ -144,9 +144,6 @@ void SurfaceFlingerFuzzer::invokeFlinger() {
     mFlinger->scheduleRepaint();
     mFlinger->scheduleSample();
 
-    uint32_t texture = mFlinger->getNewTexture();
-    mFlinger->deleteTextureAsync(texture);
-
     sp<IBinder> handle = defaultServiceManager()->checkService(
             String16(mFdp.ConsumeRandomLengthString().c_str()));
     LayerHandle::getLayer(handle);
