@@ -177,6 +177,7 @@ void UinputTouchScreen::configureDevice(int fd, uinput_user_dev* device) {
     ioctl(fd, UI_SET_ABSBIT, ABS_MT_POSITION_Y);
     ioctl(fd, UI_SET_ABSBIT, ABS_MT_TRACKING_ID);
     ioctl(fd, UI_SET_ABSBIT, ABS_MT_TOOL_TYPE);
+    ioctl(fd, UI_SET_ABSBIT, ABS_MT_PRESSURE);
     ioctl(fd, UI_SET_PROPBIT, INPUT_PROP_DIRECT);
     if (!mPhysicalPort.empty()) {
         ioctl(fd, UI_SET_PHYS, mPhysicalPort.c_str());
@@ -194,6 +195,8 @@ void UinputTouchScreen::configureDevice(int fd, uinput_user_dev* device) {
     device->absmax[ABS_MT_TRACKING_ID] = RAW_ID_MAX;
     device->absmin[ABS_MT_TOOL_TYPE] = MT_TOOL_FINGER;
     device->absmax[ABS_MT_TOOL_TYPE] = MT_TOOL_MAX;
+    device->absmin[ABS_MT_PRESSURE] = RAW_PRESSURE_MIN;
+    device->absmax[ABS_MT_PRESSURE] = RAW_PRESSURE_MAX;
 }
 
 void UinputTouchScreen::sendSlot(int32_t slot) {
@@ -206,6 +209,7 @@ void UinputTouchScreen::sendTrackingId(int32_t trackingId) {
 
 void UinputTouchScreen::sendDown(const Point& point) {
     injectEvent(EV_KEY, BTN_TOUCH, 1);
+    injectEvent(EV_ABS, ABS_MT_PRESSURE, RAW_PRESSURE_MAX);
     injectEvent(EV_ABS, ABS_MT_POSITION_X, point.x);
     injectEvent(EV_ABS, ABS_MT_POSITION_Y, point.y);
 }
@@ -213,6 +217,10 @@ void UinputTouchScreen::sendDown(const Point& point) {
 void UinputTouchScreen::sendMove(const Point& point) {
     injectEvent(EV_ABS, ABS_MT_POSITION_X, point.x);
     injectEvent(EV_ABS, ABS_MT_POSITION_Y, point.y);
+}
+
+void UinputTouchScreen::sendPressure(int32_t pressure) {
+    injectEvent(EV_ABS, ABS_MT_PRESSURE, pressure);
 }
 
 void UinputTouchScreen::sendPointerUp() {
