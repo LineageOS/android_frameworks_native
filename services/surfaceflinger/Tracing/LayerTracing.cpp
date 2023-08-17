@@ -27,12 +27,13 @@
 #include <utils/Trace.h>
 
 #include "LayerTracing.h"
-#include "RingBuffer.h"
+#include "TransactionRingBuffer.h"
 
 namespace android {
 
 LayerTracing::LayerTracing()
-      : mBuffer(std::make_unique<RingBuffer<LayersTraceFileProto, LayersTraceProto>>()) {}
+      : mBuffer(std::make_unique<TransactionRingBuffer<LayersTraceFileProto, LayersTraceProto>>()) {
+}
 
 LayerTracing::~LayerTracing() = default;
 

@@ -19,9 +19,11 @@
 #include <android-base/thread_annotations.h>
 #include <android/gui/IHdrLayerInfoListener.h>
 #include <binder/IBinder.h>
+#include <utils/Timers.h>
 
 #include <unordered_map>
 
+#include "Utils/RingBuffer.h"
 #include "WpHash.h"
 
 namespace android {
@@ -79,6 +81,8 @@ public:
         return !mListeners.empty();
     }
 
+    void dump(std::string& result) const;
+
 private:
     mutable std::mutex mMutex;
 
@@ -88,6 +92,17 @@ private:
     };
 
     std::unordered_map<wp<IBinder>, TrackedListener, WpHash> mListeners GUARDED_BY(mMutex);
+
+    struct EventHistoryEntry {
+        nsecs_t timestamp = -1;
+        HdrLayerInfo info;
+
+        EventHistoryEntry() {}
+
+        EventHistoryEntry(const HdrLayerInfo& info) : info(info) { timestamp = systemTime(); }
+    };
+
+    utils::RingBuffer<EventHistoryEntry, 32> mHdrInfoHistory;
 };
 
 } // namespace android

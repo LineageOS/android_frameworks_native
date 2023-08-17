@@ -25,7 +25,6 @@
 #include "FrontEnd/LayerCreationArgs.h"
 #include "FrontEnd/Update.h"
 #include "Tracing/LayerTracing.h"
-#include "Tracing/RingBuffer.h"
 #include "Tracing/TransactionTracing.h"
 
 using namespace android::surfaceflinger;

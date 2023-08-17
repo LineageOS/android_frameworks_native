@@ -30,7 +30,7 @@ using namespace android::surfaceflinger;
 namespace android {
 
 template <typename FileProto, typename EntryProto>
-class RingBuffer;
+class TransactionRingBuffer;
 
 class SurfaceFlinger;
 
@@ -71,7 +71,7 @@ private:
     uint32_t mFlags = TRACE_INPUT;
     mutable std::mutex mTraceLock;
     bool mEnabled GUARDED_BY(mTraceLock) = false;
-    std::unique_ptr<RingBuffer<LayersTraceFileProto, LayersTraceProto>> mBuffer
+    std::unique_ptr<TransactionRingBuffer<LayersTraceFileProto, LayersTraceProto>> mBuffer
             GUARDED_BY(mTraceLock);
     size_t mBufferSizeInBytes GUARDED_BY(mTraceLock) = 20 * 1024 * 1024;
 };

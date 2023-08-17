@@ -32,7 +32,7 @@ namespace android {
 class SurfaceFlinger;
 
 template <typename FileProto, typename EntryProto>
-class RingBuffer {
+class TransactionRingBuffer {
 public:
     size_t size() const { return mSizeInBytes; }
     size_t used() const { return mUsedInBytes; }

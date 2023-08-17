@@ -5750,6 +5750,7 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args, bool asProto) {
                 {"--edid"s, argsDumper(&SurfaceFlinger::dumpRawDisplayIdentificationData)},
                 {"--events"s, dumper(&SurfaceFlinger::dumpEvents)},
                 {"--frametimeline"s, argsDumper(&SurfaceFlinger::dumpFrameTimeline)},
+                {"--hdrinfo"s, dumper(&SurfaceFlinger::dumpHdrInfo)},
                 {"--hwclayers"s, dumper(&SurfaceFlinger::dumpHwcLayersMinidumpLockedLegacy)},
                 {"--latency"s, argsDumper(&SurfaceFlinger::dumpStatsLocked)},
                 {"--latency-clear"s, argsDumper(&SurfaceFlinger::clearStatsLocked)},
@@ -6058,6 +6059,14 @@ void SurfaceFlinger::dumpWideColorInfo(std::string& result) const {
     result.append("\n");
 }
 
+void SurfaceFlinger::dumpHdrInfo(std::string& result) const {
+    for (const auto& [displayId, listener] : mHdrLayerInfoListeners) {
+        StringAppendF(&result, "HDR events for display %" PRIu64 "\n", displayId.value);
+        listener->dump(result);
+        result.append("\n");
+    }
+}
+
 LayersProto SurfaceFlinger::dumpDrawingStateProto(uint32_t traceFlags) const {
     std::unordered_set<uint64_t> stackIdsToSkip;
 
@@ -6221,6 +6230,8 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, const std::string& comp
 
     result.append("\nWide-Color information:\n");
     dumpWideColorInfo(result);
+
+    dumpHdrInfo(result);
 
     colorizer.bold(result);
     result.append("Sync configuration: ");
