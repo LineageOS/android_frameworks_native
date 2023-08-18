@@ -869,7 +869,7 @@ void SurfaceFlinger::init() FTL_FAKE_GUARD(kMainThreadContext) {
             auto writeFn = [&]() {
                 const std::string filename =
                         TransactionTracing::DIR_NAME + prefix + TransactionTracing::FILE_NAME;
-                if (overwrite && access(filename.c_str(), F_OK) == 0) {
+                if (!overwrite && access(filename.c_str(), F_OK) == 0) {
                     ALOGD("TransactionTraceWriter: file=%s already exists", filename.c_str());
                     return;
                 }
