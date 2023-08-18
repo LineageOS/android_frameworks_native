@@ -16,7 +16,6 @@ elif [ "$1" == "rootandsetup" ]; then
   # first time use requires these changes
   adb root
   adb shell setenforce 0
-  adb shell setprop debug.renderengine.backend "skiaglthreaded"
   adb shell stop
   adb shell start
   exit 1;
