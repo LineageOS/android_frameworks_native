@@ -1275,7 +1275,7 @@ sp<IBinder> SurfaceComposerClient::createDisplay(const String8& displayName, boo
     sp<IBinder> display = nullptr;
     binder::Status status =
             ComposerServiceAIDL::getComposerService()->createDisplay(std::string(
-                                                                             displayName.string()),
+                                                                             displayName.c_str()),
                                                                      secure, requestedRefereshRate,
                                                                      &display);
     return status.isOk() ? display : nullptr;

@@ -170,7 +170,7 @@ public:
             String8 err(String8::format("pixel @ (%3d, %3d): "
                                         "expected [%3d, %3d, %3d], got [%3d, %3d, %3d]",
                                         x, y, r, g, b, pixel[0], pixel[1], pixel[2]));
-            EXPECT_EQ(String8(), err) << err.string();
+            EXPECT_EQ(String8(), err) << err.c_str();
         }
     }
 

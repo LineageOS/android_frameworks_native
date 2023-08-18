@@ -59,7 +59,7 @@ TEST_F(SurfaceTextureFBOTest, BlitFromCpuFilledBufferToFbo) {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     for (int i = 0; i < 4; i++) {
-        SCOPED_TRACE(String8::format("frame %d", i).string());
+        SCOPED_TRACE(String8::format("frame %d", i).c_str());
 
         ASSERT_EQ(NO_ERROR, native_window_dequeue_buffer_and_wait(mANW.get(),
                 &anb));

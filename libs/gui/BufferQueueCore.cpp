@@ -41,20 +41,20 @@
 namespace android {
 
 // Macros for include BufferQueueCore information in log messages
-#define BQ_LOGV(x, ...)                                                                           \
-    ALOGV("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.string(), mUniqueId, \
+#define BQ_LOGV(x, ...)                                                                          \
+    ALOGV("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.c_str(), mUniqueId, \
           mConnectedApi, mConnectedPid, mUniqueId >> 32, ##__VA_ARGS__)
-#define BQ_LOGD(x, ...)                                                                           \
-    ALOGD("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.string(), mUniqueId, \
+#define BQ_LOGD(x, ...)                                                                          \
+    ALOGD("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.c_str(), mUniqueId, \
           mConnectedApi, mConnectedPid, mUniqueId >> 32, ##__VA_ARGS__)
-#define BQ_LOGI(x, ...)                                                                           \
-    ALOGI("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.string(), mUniqueId, \
+#define BQ_LOGI(x, ...)                                                                          \
+    ALOGI("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.c_str(), mUniqueId, \
           mConnectedApi, mConnectedPid, mUniqueId >> 32, ##__VA_ARGS__)
-#define BQ_LOGW(x, ...)                                                                           \
-    ALOGW("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.string(), mUniqueId, \
+#define BQ_LOGW(x, ...)                                                                          \
+    ALOGW("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.c_str(), mUniqueId, \
           mConnectedApi, mConnectedPid, mUniqueId >> 32, ##__VA_ARGS__)
-#define BQ_LOGE(x, ...)                                                                           \
-    ALOGE("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.string(), mUniqueId, \
+#define BQ_LOGE(x, ...)                                                                          \
+    ALOGE("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.c_str(), mUniqueId, \
           mConnectedApi, mConnectedPid, mUniqueId >> 32, ##__VA_ARGS__)
 
 static String8 getUniqueName() {
@@ -146,23 +146,23 @@ BufferQueueCore::~BufferQueueCore() {}
 void BufferQueueCore::dumpState(const String8& prefix, String8* outResult) const {
     std::lock_guard<std::mutex> lock(mMutex);
 
-    outResult->appendFormat("%s- BufferQueue ", prefix.string());
+    outResult->appendFormat("%s- BufferQueue ", prefix.c_str());
     outResult->appendFormat("mMaxAcquiredBufferCount=%d mMaxDequeuedBufferCount=%d\n",
                             mMaxAcquiredBufferCount, mMaxDequeuedBufferCount);
-    outResult->appendFormat("%s  mDequeueBufferCannotBlock=%d mAsyncMode=%d\n", prefix.string(),
+    outResult->appendFormat("%s  mDequeueBufferCannotBlock=%d mAsyncMode=%d\n", prefix.c_str(),
                             mDequeueBufferCannotBlock, mAsyncMode);
-    outResult->appendFormat("%s  mQueueBufferCanDrop=%d mLegacyBufferDrop=%d\n", prefix.string(),
+    outResult->appendFormat("%s  mQueueBufferCanDrop=%d mLegacyBufferDrop=%d\n", prefix.c_str(),
                             mQueueBufferCanDrop, mLegacyBufferDrop);
-    outResult->appendFormat("%s  default-size=[%dx%d] default-format=%d ", prefix.string(),
+    outResult->appendFormat("%s  default-size=[%dx%d] default-format=%d ", prefix.c_str(),
                             mDefaultWidth, mDefaultHeight, mDefaultBufferFormat);
-    outResult->appendFormat("%s  transform-hint=%02x frame-counter=%" PRIu64 "\n", prefix.string(),
+    outResult->appendFormat("%s  transform-hint=%02x frame-counter=%" PRIu64 "\n", prefix.c_str(),
                             mTransformHint, mFrameCounter);
-    outResult->appendFormat("%s  mTransformHintInUse=%02x mAutoPrerotation=%d\n", prefix.string(),
+    outResult->appendFormat("%s  mTransformHintInUse=%02x mAutoPrerotation=%d\n", prefix.c_str(),
                             mTransformHintInUse, mAutoPrerotation);
 
-    outResult->appendFormat("%sFIFO(%zu):\n", prefix.string(), mQueue.size());
+    outResult->appendFormat("%sFIFO(%zu):\n", prefix.c_str(), mQueue.size());
 
-    outResult->appendFormat("%s(mConsumerName=%s, ", prefix.string(), mConsumerName.string());
+    outResult->appendFormat("%s(mConsumerName=%s, ", prefix.c_str(), mConsumerName.c_str());
 
     outResult->appendFormat("mConnectedApi=%d, mConsumerUsageBits=%" PRIu64 ", ", mConnectedApi,
                             mConsumerUsageBits);
@@ -173,12 +173,11 @@ void BufferQueueCore::dumpState(const String8& prefix, String8* outResult) const
     getProcessName(mConnectedPid, producerProcName);
     getProcessName(pid, consumerProcName);
     outResult->appendFormat("mId=%" PRIx64 ", producer=[%d:%s], consumer=[%d:%s])\n", mUniqueId,
-                            mConnectedPid, producerProcName.string(), pid,
-                            consumerProcName.string());
+                            mConnectedPid, producerProcName.c_str(), pid, consumerProcName.c_str());
     Fifo::const_iterator current(mQueue.begin());
     while (current != mQueue.end()) {
         double timestamp = current->mTimestamp / 1e9;
-        outResult->appendFormat("%s  %02d:%p ", prefix.string(), current->mSlot,
+        outResult->appendFormat("%s  %02d:%p ", prefix.c_str(), current->mSlot,
                                 current->mGraphicBuffer.get());
         outResult->appendFormat("crop=[%d,%d,%d,%d] ", current->mCrop.left, current->mCrop.top,
                                 current->mCrop.right, current->mCrop.bottom);
@@ -187,12 +186,12 @@ void BufferQueueCore::dumpState(const String8& prefix, String8* outResult) const
         ++current;
     }
 
-    outResult->appendFormat("%sSlots:\n", prefix.string());
+    outResult->appendFormat("%sSlots:\n", prefix.c_str());
     for (int s : mActiveBuffers) {
         const sp<GraphicBuffer>& buffer(mSlots[s].mGraphicBuffer);
         // A dequeued buffer might be null if it's still being allocated
         if (buffer.get()) {
-            outResult->appendFormat("%s %s[%02d:%p] ", prefix.string(),
+            outResult->appendFormat("%s %s[%02d:%p] ", prefix.c_str(),
                                     (mSlots[s].mBufferState.isAcquired()) ? ">" : " ", s,
                                     buffer.get());
             outResult->appendFormat("state=%-8s %p frame=%" PRIu64, mSlots[s].mBufferState.string(),
@@ -200,14 +199,14 @@ void BufferQueueCore::dumpState(const String8& prefix, String8* outResult) const
             outResult->appendFormat(" [%4ux%4u:%4u,%3X]\n", buffer->width, buffer->height,
                                     buffer->stride, buffer->format);
         } else {
-            outResult->appendFormat("%s  [%02d:%p] ", prefix.string(), s, buffer.get());
+            outResult->appendFormat("%s  [%02d:%p] ", prefix.c_str(), s, buffer.get());
             outResult->appendFormat("state=%-8s frame=%" PRIu64 "\n",
                                     mSlots[s].mBufferState.string(), mSlots[s].mFrameNumber);
         }
     }
     for (int s : mFreeBuffers) {
         const sp<GraphicBuffer>& buffer(mSlots[s].mGraphicBuffer);
-        outResult->appendFormat("%s  [%02d:%p] ", prefix.string(), s, buffer.get());
+        outResult->appendFormat("%s  [%02d:%p] ", prefix.c_str(), s, buffer.get());
         outResult->appendFormat("state=%-8s %p frame=%" PRIu64, mSlots[s].mBufferState.string(),
                                 buffer->handle, mSlots[s].mFrameNumber);
         outResult->appendFormat(" [%4ux%4u:%4u,%3X]\n", buffer->width, buffer->height,
@@ -216,7 +215,7 @@ void BufferQueueCore::dumpState(const String8& prefix, String8* outResult) const
 
     for (int s : mFreeSlots) {
         const sp<GraphicBuffer>& buffer(mSlots[s].mGraphicBuffer);
-        outResult->appendFormat("%s  [%02d:%p] state=%-8s\n", prefix.string(), s, buffer.get(),
+        outResult->appendFormat("%s  [%02d:%p] state=%-8s\n", prefix.c_str(), s, buffer.get(),
                                 mSlots[s].mBufferState.string());
     }
 }
