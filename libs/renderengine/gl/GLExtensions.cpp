@@ -68,19 +68,19 @@ void GLExtensions::initWithGLStrings(GLubyte const* vendor, GLubyte const* rende
 }
 
 char const* GLExtensions::getVendor() const {
-    return mVendor.string();
+    return mVendor.c_str();
 }
 
 char const* GLExtensions::getRenderer() const {
-    return mRenderer.string();
+    return mRenderer.c_str();
 }
 
 char const* GLExtensions::getVersion() const {
-    return mVersion.string();
+    return mVersion.c_str();
 }
 
 char const* GLExtensions::getExtensions() const {
-    return mExtensions.string();
+    return mExtensions.c_str();
 }
 
 void GLExtensions::initWithEGLStrings(char const* eglVersion, char const* eglExtensions) {
@@ -127,11 +127,11 @@ void GLExtensions::initWithEGLStrings(char const* eglVersion, char const* eglExt
 }
 
 char const* GLExtensions::getEGLVersion() const {
-    return mEGLVersion.string();
+    return mEGLVersion.c_str();
 }
 
 char const* GLExtensions::getEGLExtensions() const {
-    return mEGLExtensions.string();
+    return mEGLExtensions.c_str();
 }
 
 } // namespace gl

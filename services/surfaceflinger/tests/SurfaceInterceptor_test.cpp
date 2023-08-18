@@ -775,7 +775,7 @@ bool SurfaceInterceptorTest::surfaceDeletionFound(const Increment& increment,
 }
 
 bool SurfaceInterceptorTest::displayCreationFound(const Increment& increment, bool foundDisplay) {
-    bool isMatch(increment.display_creation().name() == DISPLAY_NAME.string() &&
+    bool isMatch(increment.display_creation().name() == DISPLAY_NAME.c_str() &&
                  !increment.display_creation().is_secure());
     if (isMatch && !foundDisplay) {
         foundDisplay = true;
@@ -816,7 +816,7 @@ bool SurfaceInterceptorTest::singleIncrementFound(const Trace& trace,
                     break;
                 case Increment::IncrementCase::kDisplayDeletion:
                     // Find the id of created display.
-                    targetId = getDisplayId(trace, DISPLAY_NAME.string());
+                    targetId = getDisplayId(trace, DISPLAY_NAME.c_str());
                     foundIncrement = displayDeletionFound(increment, targetId, foundIncrement);
                     break;
                 default:

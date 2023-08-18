@@ -559,7 +559,7 @@ void SurfaceInterceptor::addDisplaySurfaceLocked(Transaction* transaction, int32
         DisplayChange* dispChange(createDisplayChangeLocked(transaction, sequenceId));
         DispSurfaceChange* surfaceChange(dispChange->mutable_surface());
         surfaceChange->set_buffer_queue_id(bufferQueueId);
-        surfaceChange->set_buffer_queue_name(surface->getConsumerName().string());
+        surfaceChange->set_buffer_queue_name(surface->getConsumerName().c_str());
     }
     else {
         ALOGE("invalid graphic buffer producer received while tracing a display change (%s)",

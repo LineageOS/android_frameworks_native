@@ -408,7 +408,7 @@ TEST_F(SurfaceTest, GetConsumerName) {
     sp<ANativeWindow> window(surface);
     native_window_api_connect(window.get(), NATIVE_WINDOW_API_CPU);
 
-    EXPECT_STREQ("TestConsumer", surface->getConsumerName().string());
+    EXPECT_STREQ("TestConsumer", surface->getConsumerName().c_str());
 }
 
 TEST_F(SurfaceTest, GetWideColorSupport) {
