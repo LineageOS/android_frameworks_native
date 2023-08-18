@@ -115,7 +115,7 @@ sp<Fence> Fence::merge(const char* name, const sp<Fence>& f1,
 
 sp<Fence> Fence::merge(const String8& name, const sp<Fence>& f1,
         const sp<Fence>& f2) {
-    return merge(name.string(), f1, f2);
+    return merge(name.c_str(), f1, f2);
 }
 
 int Fence::dup() const {
