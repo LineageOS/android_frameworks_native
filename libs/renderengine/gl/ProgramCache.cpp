@@ -62,7 +62,7 @@ public:
         return out;
     }
     friend inline Formatter& operator<<(Formatter& out, const String8& in) {
-        return operator<<(out, in.string());
+        return operator<<(out, in.c_str());
     }
     friend inline Formatter& operator<<(Formatter& to, FormaterManipFunc func) {
         return (*func)(to);
@@ -797,7 +797,7 @@ std::unique_ptr<Program> ProgramCache::generateProgram(const Key& needs) {
     // fragment shader
     String8 fs = generateFragmentShader(needs);
 
-    return std::make_unique<Program>(needs, vs.string(), fs.string());
+    return std::make_unique<Program>(needs, vs.c_str(), fs.c_str());
 }
 
 void ProgramCache::useProgram(EGLContext context, const Description& description) {

@@ -46,23 +46,23 @@ namespace android {
 
 // Macros for include BufferQueueCore information in log messages
 #define BQ_LOGV(x, ...)                                                                           \
-    ALOGV("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.string(),            \
+    ALOGV("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.c_str(),             \
           mCore->mUniqueId, mCore->mConnectedApi, mCore->mConnectedPid, (mCore->mUniqueId) >> 32, \
           ##__VA_ARGS__)
 #define BQ_LOGD(x, ...)                                                                           \
-    ALOGD("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.string(),            \
+    ALOGD("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.c_str(),             \
           mCore->mUniqueId, mCore->mConnectedApi, mCore->mConnectedPid, (mCore->mUniqueId) >> 32, \
           ##__VA_ARGS__)
 #define BQ_LOGI(x, ...)                                                                           \
-    ALOGI("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.string(),            \
+    ALOGI("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.c_str(),             \
           mCore->mUniqueId, mCore->mConnectedApi, mCore->mConnectedPid, (mCore->mUniqueId) >> 32, \
           ##__VA_ARGS__)
 #define BQ_LOGW(x, ...)                                                                           \
-    ALOGW("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.string(),            \
+    ALOGW("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.c_str(),             \
           mCore->mUniqueId, mCore->mConnectedApi, mCore->mConnectedPid, (mCore->mUniqueId) >> 32, \
           ##__VA_ARGS__)
 #define BQ_LOGE(x, ...)                                                                           \
-    ALOGE("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.string(),            \
+    ALOGE("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.c_str(),             \
           mCore->mUniqueId, mCore->mConnectedApi, mCore->mConnectedPid, (mCore->mUniqueId) >> 32, \
           ##__VA_ARGS__)
 
@@ -297,8 +297,7 @@ status_t BufferQueueConsumer::acquireBuffer(BufferItem* outBuffer,
         // decrease.
         mCore->mDequeueCondition.notify_all();
 
-        ATRACE_INT(mCore->mConsumerName.string(),
-                static_cast<int32_t>(mCore->mQueue.size()));
+        ATRACE_INT(mCore->mConsumerName.c_str(), static_cast<int32_t>(mCore->mQueue.size()));
 #ifndef NO_BINDER
         mCore->mOccupancyTracker.registerOccupancyChange(mCore->mQueue.size());
 #endif
@@ -717,7 +716,7 @@ status_t BufferQueueConsumer::setMaxAcquiredBufferCount(
 
 status_t BufferQueueConsumer::setConsumerName(const String8& name) {
     ATRACE_CALL();
-    BQ_LOGV("setConsumerName: '%s'", name.string());
+    BQ_LOGV("setConsumerName: '%s'", name.c_str());
     std::lock_guard<std::mutex> lock(mCore->mMutex);
     mCore->mConsumerName = name;
     mConsumerName = name;

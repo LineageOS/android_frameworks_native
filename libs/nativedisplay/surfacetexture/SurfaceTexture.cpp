@@ -26,10 +26,10 @@
 namespace android {
 
 // Macros for including the SurfaceTexture name in log messages
-#define SFT_LOGV(x, ...) ALOGV("[%s] " x, mName.string(), ##__VA_ARGS__)
-#define SFT_LOGD(x, ...) ALOGD("[%s] " x, mName.string(), ##__VA_ARGS__)
-#define SFT_LOGW(x, ...) ALOGW("[%s] " x, mName.string(), ##__VA_ARGS__)
-#define SFT_LOGE(x, ...) ALOGE("[%s] " x, mName.string(), ##__VA_ARGS__)
+#define SFT_LOGV(x, ...) ALOGV("[%s] " x, mName.c_str(), ##__VA_ARGS__)
+#define SFT_LOGD(x, ...) ALOGD("[%s] " x, mName.c_str(), ##__VA_ARGS__)
+#define SFT_LOGW(x, ...) ALOGW("[%s] " x, mName.c_str(), ##__VA_ARGS__)
+#define SFT_LOGE(x, ...) ALOGE("[%s] " x, mName.c_str(), ##__VA_ARGS__)
 
 static const mat4 mtxIdentity;
 
