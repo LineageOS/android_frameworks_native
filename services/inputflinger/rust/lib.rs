@@ -32,6 +32,7 @@ use log::debug;
 const LOG_TAG: &str = "inputflinger_bootstrap";
 
 #[cxx::bridge]
+#[allow(unsafe_op_in_unsafe_fn)]
 mod ffi {
     extern "C++" {
         include!("InputFlingerBootstrap.h");
@@ -67,7 +68,9 @@ unsafe fn create_inputflinger_rust(callback: *mut ffi::IInputFlingerRustBootstra
         panic!("create_inputflinger_rust cannot be called with a null callback");
     }
 
-    let Some(callback) = new_spibinder(callback) else {
+    // SAFETY: Our caller guaranteed that `callback` is a valid pointer to an `AIBinder` and its
+    // reference count has been incremented..
+    let Some(callback) = (unsafe { new_spibinder(callback) }) else {
             panic!("Failed to get SpAIBinder from raw callback pointer");
         };
 
