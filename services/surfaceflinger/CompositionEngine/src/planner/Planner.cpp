@@ -216,32 +216,32 @@ void Planner::dump(const Vector<String16>& args, std::string& result) {
                 base::StringAppendF(&result,
                                     "Expected two layer stack hashes, e.g. '--planner %s "
                                     "<left_hash> <right_hash>'\n",
-                                    command.string());
+                                    command.c_str());
                 return;
             }
             if (args.size() > 4) {
                 base::StringAppendF(&result,
                                     "Too many arguments found, expected '--planner %s <left_hash> "
                                     "<right_hash>'\n",
-                                    command.string());
+                                    command.c_str());
                 return;
             }
 
             const String8 leftHashString(args[2]);
             size_t leftHash = 0;
-            int fieldsRead = sscanf(leftHashString.string(), "%zx", &leftHash);
+            int fieldsRead = sscanf(leftHashString.c_str(), "%zx", &leftHash);
             if (fieldsRead != 1) {
                 base::StringAppendF(&result, "Failed to parse %s as a size_t\n",
-                                    leftHashString.string());
+                                    leftHashString.c_str());
                 return;
             }
 
             const String8 rightHashString(args[3]);
             size_t rightHash = 0;
-            fieldsRead = sscanf(rightHashString.string(), "%zx", &rightHash);
+            fieldsRead = sscanf(rightHashString.c_str(), "%zx", &rightHash);
             if (fieldsRead != 1) {
                 base::StringAppendF(&result, "Failed to parse %s as a size_t\n",
-                                    rightHashString.string());
+                                    rightHashString.c_str());
                 return;
             }
 
@@ -252,22 +252,22 @@ void Planner::dump(const Vector<String16>& args, std::string& result) {
             if (args.size() < 3) {
                 base::StringAppendF(&result,
                                     "Expected a layer stack hash, e.g. '--planner %s <hash>'\n",
-                                    command.string());
+                                    command.c_str());
                 return;
             }
             if (args.size() > 3) {
                 base::StringAppendF(&result,
                                     "Too many arguments found, expected '--planner %s <hash>'\n",
-                                    command.string());
+                                    command.c_str());
                 return;
             }
 
             const String8 hashString(args[2]);
             size_t hash = 0;
-            const int fieldsRead = sscanf(hashString.string(), "%zx", &hash);
+            const int fieldsRead = sscanf(hashString.c_str(), "%zx", &hash);
             if (fieldsRead != 1) {
                 base::StringAppendF(&result, "Failed to parse %s as a size_t\n",
-                                    hashString.string());
+                                    hashString.c_str());
                 return;
             }
 
@@ -279,20 +279,20 @@ void Planner::dump(const Vector<String16>& args, std::string& result) {
         } else if (command == "--similar" || command == "-s") {
             if (args.size() < 3) {
                 base::StringAppendF(&result, "Expected a plan string, e.g. '--planner %s <plan>'\n",
-                                    command.string());
+                                    command.c_str());
                 return;
             }
             if (args.size() > 3) {
                 base::StringAppendF(&result,
                                     "Too many arguments found, expected '--planner %s <plan>'\n",
-                                    command.string());
+                                    command.c_str());
                 return;
             }
 
             const String8 planString(args[2]);
-            std::optional<Plan> plan = Plan::fromString(std::string(planString.string()));
+            std::optional<Plan> plan = Plan::fromString(std::string(planString.c_str()));
             if (!plan) {
-                base::StringAppendF(&result, "Failed to parse %s as a Plan\n", planString.string());
+                base::StringAppendF(&result, "Failed to parse %s as a Plan\n", planString.c_str());
                 return;
             }
 
@@ -302,7 +302,7 @@ void Planner::dump(const Vector<String16>& args, std::string& result) {
         } else if (command == "--layers" || command == "-l") {
             mFlattener.dumpLayers(result);
         } else {
-            base::StringAppendF(&result, "Unknown command '%s'\n\n", command.string());
+            base::StringAppendF(&result, "Unknown command '%s'\n\n", command.c_str());
             dumpUsage(result);
         }
         return;
