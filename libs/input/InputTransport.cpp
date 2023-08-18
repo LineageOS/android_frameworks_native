@@ -24,6 +24,7 @@
 #include <utils/Trace.h>
 
 #include <input/InputTransport.h>
+#include <input/TraceTools.h>
 
 namespace {
 
@@ -432,6 +433,10 @@ status_t InputChannel::openInputChannelPair(const std::string& name,
 }
 
 status_t InputChannel::sendMessage(const InputMessage* msg) {
+    ATRACE_NAME_IF(ATRACE_ENABLED(), [&]() {
+        return StringPrintf("sendMessage(inputChannel=%s, seq=0x%" PRIx32 ", type=0x%" PRIx32 ")",
+                            mName.c_str(), msg->header.seq, msg->header.type);
+    });
     const size_t msgLength = msg->size();
     InputMessage cleanMsg;
     msg->getSanitizedCopy(&cleanMsg);
@@ -463,16 +468,13 @@ status_t InputChannel::sendMessage(const InputMessage* msg) {
     ALOGD_IF(DEBUG_CHANNEL_MESSAGES, "channel '%s' ~ sent message of type %s", mName.c_str(),
              ftl::enum_string(msg->header.type).c_str());
 
-    if (ATRACE_ENABLED()) {
-        std::string message =
-                StringPrintf("sendMessage(inputChannel=%s, seq=0x%" PRIx32 ", type=0x%" PRIx32 ")",
-                             mName.c_str(), msg->header.seq, msg->header.type);
-        ATRACE_NAME(message.c_str());
-    }
     return OK;
 }
 
 status_t InputChannel::receiveMessage(InputMessage* msg) {
+    ATRACE_NAME_IF(ATRACE_ENABLED(), [&]() {
+        return StringPrintf("receiveMessage(inputChannel=%s)", mName.c_str());
+    });
     ssize_t nRead;
     do {
         nRead = ::recv(getFd(), msg, sizeof(InputMessage), MSG_DONTWAIT);
@@ -504,8 +506,8 @@ status_t InputChannel::receiveMessage(InputMessage* msg) {
 
     ALOGD_IF(DEBUG_CHANNEL_MESSAGES, "channel '%s' ~ received message of type %s", mName.c_str(),
              ftl::enum_string(msg->header.type).c_str());
-
     if (ATRACE_ENABLED()) {
+        // Add an additional trace point to include data about the received message.
         std::string message = StringPrintf("receiveMessage(inputChannel=%s, seq=0x%" PRIx32
                                            ", type=0x%" PRIx32 ")",
                                            mName.c_str(), msg->header.seq, msg->header.type);
@@ -578,13 +580,11 @@ status_t InputPublisher::publishKeyEvent(uint32_t seq, int32_t eventId, int32_t 
                                          int32_t flags, int32_t keyCode, int32_t scanCode,
                                          int32_t metaState, int32_t repeatCount, nsecs_t downTime,
                                          nsecs_t eventTime) {
-    if (ATRACE_ENABLED()) {
-        std::string message =
-                StringPrintf("publishKeyEvent(inputChannel=%s, action=%s, keyCode=%s)",
-                             mChannel->getName().c_str(), KeyEvent::actionToString(action),
-                             KeyEvent::getLabel(keyCode));
-        ATRACE_NAME(message.c_str());
-    }
+    ATRACE_NAME_IF(ATRACE_ENABLED(), [&]() {
+        return StringPrintf("publishKeyEvent(inputChannel=%s, action=%s, keyCode=%s)",
+                            mChannel->getName().c_str(), KeyEvent::actionToString(action),
+                            KeyEvent::getLabel(keyCode));
+    });
     ALOGD_IF(debugTransportPublisher(),
              "channel '%s' publisher ~ %s: seq=%u, id=%d, deviceId=%d, source=%s, "
              "action=%s, flags=0x%x, keyCode=%s, scanCode=%d, metaState=0x%x, repeatCount=%d,"
@@ -626,12 +626,11 @@ status_t InputPublisher::publishMotionEvent(
         const ui::Transform& rawTransform, nsecs_t downTime, nsecs_t eventTime,
         uint32_t pointerCount, const PointerProperties* pointerProperties,
         const PointerCoords* pointerCoords) {
-    if (ATRACE_ENABLED()) {
-        std::string message = StringPrintf("publishMotionEvent(inputChannel=%s, action=%s)",
-                                           mChannel->getName().c_str(),
-                                           MotionEvent::actionToString(action).c_str());
-        ATRACE_NAME(message.c_str());
-    }
+    ATRACE_NAME_IF(ATRACE_ENABLED(), [&]() {
+        return StringPrintf("publishMotionEvent(inputChannel=%s, action=%s)",
+                            mChannel->getName().c_str(),
+                            MotionEvent::actionToString(action).c_str());
+    });
     if (verifyEvents()) {
         Result<void> result =
                 mInputVerifier.processMovement(deviceId, action, pointerCount, pointerProperties,
@@ -710,11 +709,10 @@ status_t InputPublisher::publishMotionEvent(
 }
 
 status_t InputPublisher::publishFocusEvent(uint32_t seq, int32_t eventId, bool hasFocus) {
-    if (ATRACE_ENABLED()) {
-        std::string message = StringPrintf("publishFocusEvent(inputChannel=%s, hasFocus=%s)",
-                                           mChannel->getName().c_str(), toString(hasFocus));
-        ATRACE_NAME(message.c_str());
-    }
+    ATRACE_NAME_IF(ATRACE_ENABLED(), [&]() {
+        return StringPrintf("publishFocusEvent(inputChannel=%s, hasFocus=%s)",
+                            mChannel->getName().c_str(), toString(hasFocus));
+    });
     ALOGD_IF(debugTransportPublisher(), "channel '%s' publisher ~ %s: seq=%u, id=%d, hasFocus=%s",
              mChannel->getName().c_str(), __func__, seq, eventId, toString(hasFocus));
 
@@ -728,12 +726,10 @@ status_t InputPublisher::publishFocusEvent(uint32_t seq, int32_t eventId, bool h
 
 status_t InputPublisher::publishCaptureEvent(uint32_t seq, int32_t eventId,
                                              bool pointerCaptureEnabled) {
-    if (ATRACE_ENABLED()) {
-        std::string message =
-                StringPrintf("publishCaptureEvent(inputChannel=%s, pointerCaptureEnabled=%s)",
-                             mChannel->getName().c_str(), toString(pointerCaptureEnabled));
-        ATRACE_NAME(message.c_str());
-    }
+    ATRACE_NAME_IF(ATRACE_ENABLED(), [&]() {
+        return StringPrintf("publishCaptureEvent(inputChannel=%s, pointerCaptureEnabled=%s)",
+                            mChannel->getName().c_str(), toString(pointerCaptureEnabled));
+    });
     ALOGD_IF(debugTransportPublisher(),
              "channel '%s' publisher ~ %s: seq=%u, id=%d, pointerCaptureEnabled=%s",
              mChannel->getName().c_str(), __func__, seq, eventId, toString(pointerCaptureEnabled));
@@ -748,12 +744,10 @@ status_t InputPublisher::publishCaptureEvent(uint32_t seq, int32_t eventId,
 
 status_t InputPublisher::publishDragEvent(uint32_t seq, int32_t eventId, float x, float y,
                                           bool isExiting) {
-    if (ATRACE_ENABLED()) {
-        std::string message =
-                StringPrintf("publishDragEvent(inputChannel=%s, x=%f, y=%f, isExiting=%s)",
-                             mChannel->getName().c_str(), x, y, toString(isExiting));
-        ATRACE_NAME(message.c_str());
-    }
+    ATRACE_NAME_IF(ATRACE_ENABLED(), [&]() {
+        return StringPrintf("publishDragEvent(inputChannel=%s, x=%f, y=%f, isExiting=%s)",
+                            mChannel->getName().c_str(), x, y, toString(isExiting));
+    });
     ALOGD_IF(debugTransportPublisher(),
              "channel '%s' publisher ~ %s: seq=%u, id=%d, x=%f, y=%f, isExiting=%s",
              mChannel->getName().c_str(), __func__, seq, eventId, x, y, toString(isExiting));
@@ -769,12 +763,10 @@ status_t InputPublisher::publishDragEvent(uint32_t seq, int32_t eventId, float x
 }
 
 status_t InputPublisher::publishTouchModeEvent(uint32_t seq, int32_t eventId, bool isInTouchMode) {
-    if (ATRACE_ENABLED()) {
-        std::string message =
-                StringPrintf("publishTouchModeEvent(inputChannel=%s, isInTouchMode=%s)",
-                             mChannel->getName().c_str(), toString(isInTouchMode));
-        ATRACE_NAME(message.c_str());
-    }
+    ATRACE_NAME_IF(ATRACE_ENABLED(), [&]() {
+        return StringPrintf("publishTouchModeEvent(inputChannel=%s, isInTouchMode=%s)",
+                            mChannel->getName().c_str(), toString(isInTouchMode));
+    });
     ALOGD_IF(debugTransportPublisher(),
              "channel '%s' publisher ~ %s: seq=%u, id=%d, isInTouchMode=%s",
              mChannel->getName().c_str(), __func__, seq, eventId, toString(isInTouchMode));
