@@ -76,14 +76,26 @@ public:
      */
     size_t getXMPSize();
     /*
+     * Extracts EXIF package and updates the EXIF position / length without decoding the image.
+     */
+    bool extractEXIF(const void* image, int length);
+    /*
      * Returns the EXIF data from the image.
+     * This method must be called after extractEXIF() or decompressImage().
      */
     void* getEXIFPtr();
     /*
      * Returns the decompressed EXIF buffer size. This method must be called only after
-     * calling decompressImage() or getCompressedImageParameters().
+     * calling decompressImage(), extractEXIF() or getCompressedImageParameters().
      */
     size_t getEXIFSize();
+    /*
+     * Returns the position offset of EXIF package
+     * (4 bypes offset to FF sign, the byte after FF E1 XX XX <this byte>),
+     * or -1  if no EXIF exists.
+     * This method must be called after extractEXIF() or decompressImage().
+     */
+    int getEXIFPos() { return mExifPos; }
     /*
      * Returns the ICC data from the image.
      */
@@ -122,6 +134,9 @@ private:
     // Resolution of the decompressed image.
     size_t mWidth;
     size_t mHeight;
+
+    // Position of EXIF package, default value is -1 which means no EXIF package appears.
+    size_t mExifPos;
 };
 } /* namespace android::ultrahdr  */
 
