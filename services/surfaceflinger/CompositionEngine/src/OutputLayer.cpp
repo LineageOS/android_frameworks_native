@@ -394,7 +394,6 @@ void OutputLayer::writeStateToHWC(bool includeGeometry, bool skipLayer, uint32_t
     auto requestedCompositionType = outputIndependentState->compositionType;
 
     if (requestedCompositionType == Composition::SOLID_COLOR && state.overrideInfo.buffer) {
-        // this should never happen, as SOLID_COLOR is skipped from caching, b/230073351
         requestedCompositionType = Composition::DEVICE;
     }
 
