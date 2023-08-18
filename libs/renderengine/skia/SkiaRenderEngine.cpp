@@ -650,8 +650,7 @@ private:
 void SkiaRenderEngine::drawLayersInternal(
         const std::shared_ptr<std::promise<FenceResult>>&& resultPromise,
         const DisplaySettings& display, const std::vector<LayerSettings>& layers,
-        const std::shared_ptr<ExternalTexture>& buffer, const bool /*useFramebufferCache*/,
-        base::unique_fd&& bufferFence) {
+        const std::shared_ptr<ExternalTexture>& buffer, base::unique_fd&& bufferFence) {
     ATRACE_FORMAT("%s for %s", __func__, display.namePlusId.c_str());
 
     std::lock_guard<std::mutex> lock(mRenderingMutex);

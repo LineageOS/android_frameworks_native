@@ -143,11 +143,11 @@ TEST_F(RenderEngineThreadedTest, drawLayers) {
             .WillOnce([&](const std::shared_ptr<std::promise<FenceResult>>&& resultPromise,
                           const renderengine::DisplaySettings&,
                           const std::vector<renderengine::LayerSettings>&,
-                          const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
+                          const std::shared_ptr<renderengine::ExternalTexture>&,
                           base::unique_fd&&) { resultPromise->set_value(Fence::NO_FENCE); });
 
     ftl::Future<FenceResult> future =
-            mThreadedRE->drawLayers(settings, layers, buffer, false, std::move(bufferFence));
+            mThreadedRE->drawLayers(settings, layers, buffer, std::move(bufferFence));
     ASSERT_TRUE(future.valid());
     auto result = future.get();
     ASSERT_TRUE(result.ok());
@@ -176,11 +176,11 @@ TEST_F(RenderEngineThreadedTest, drawLayers_protectedLayer) {
             .WillOnce([&](const std::shared_ptr<std::promise<FenceResult>>&& resultPromise,
                           const renderengine::DisplaySettings&,
                           const std::vector<renderengine::LayerSettings>&,
-                          const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
+                          const std::shared_ptr<renderengine::ExternalTexture>&,
                           base::unique_fd&&) { resultPromise->set_value(Fence::NO_FENCE); });
 
     ftl::Future<FenceResult> future =
-            mThreadedRE->drawLayers(settings, layers, buffer, false, std::move(bufferFence));
+            mThreadedRE->drawLayers(settings, layers, buffer, std::move(bufferFence));
     ASSERT_TRUE(future.valid());
     auto result = future.get();
     ASSERT_TRUE(result.ok());
@@ -204,11 +204,11 @@ TEST_F(RenderEngineThreadedTest, drawLayers_protectedOutputBuffer) {
             .WillOnce([&](const std::shared_ptr<std::promise<FenceResult>>&& resultPromise,
                           const renderengine::DisplaySettings&,
                           const std::vector<renderengine::LayerSettings>&,
-                          const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
+                          const std::shared_ptr<renderengine::ExternalTexture>&,
                           base::unique_fd&&) { resultPromise->set_value(Fence::NO_FENCE); });
 
     ftl::Future<FenceResult> future =
-            mThreadedRE->drawLayers(settings, layers, buffer, false, std::move(bufferFence));
+            mThreadedRE->drawLayers(settings, layers, buffer, std::move(bufferFence));
     ASSERT_TRUE(future.valid());
     auto result = future.get();
     ASSERT_TRUE(result.ok());

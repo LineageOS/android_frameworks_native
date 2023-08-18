@@ -243,29 +243,27 @@ bool RenderEngineThreaded::canSkipPostRenderCleanup() const {
 void RenderEngineThreaded::drawLayersInternal(
         const std::shared_ptr<std::promise<FenceResult>>&& resultPromise,
         const DisplaySettings& display, const std::vector<LayerSettings>& layers,
-        const std::shared_ptr<ExternalTexture>& buffer, const bool useFramebufferCache,
-        base::unique_fd&& bufferFence) {
+        const std::shared_ptr<ExternalTexture>& buffer, base::unique_fd&& bufferFence) {
     resultPromise->set_value(Fence::NO_FENCE);
     return;
 }
 
 ftl::Future<FenceResult> RenderEngineThreaded::drawLayers(
         const DisplaySettings& display, const std::vector<LayerSettings>& layers,
-        const std::shared_ptr<ExternalTexture>& buffer, const bool useFramebufferCache,
-        base::unique_fd&& bufferFence) {
+        const std::shared_ptr<ExternalTexture>& buffer, base::unique_fd&& bufferFence) {
     ATRACE_CALL();
     const auto resultPromise = std::make_shared<std::promise<FenceResult>>();
     std::future<FenceResult> resultFuture = resultPromise->get_future();
     int fd = bufferFence.release();
     {
         std::lock_guard lock(mThreadMutex);
-        mFunctionCalls.push([resultPromise, display, layers, buffer, useFramebufferCache,
-                             fd](renderengine::RenderEngine& instance) {
-            ATRACE_NAME("REThreaded::drawLayers");
-            instance.updateProtectedContext(layers, buffer);
-            instance.drawLayersInternal(std::move(resultPromise), display, layers, buffer,
-                                        useFramebufferCache, base::unique_fd(fd));
-        });
+        mFunctionCalls.push(
+                [resultPromise, display, layers, buffer, fd](renderengine::RenderEngine& instance) {
+                    ATRACE_NAME("REThreaded::drawLayers");
+                    instance.updateProtectedContext(layers, buffer);
+                    instance.drawLayersInternal(std::move(resultPromise), display, layers, buffer,
+                                                base::unique_fd(fd));
+                });
     }
     mCondition.notify_one();
     return resultFuture;

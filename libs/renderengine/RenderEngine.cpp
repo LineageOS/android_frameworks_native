@@ -68,13 +68,11 @@ void RenderEngine::validateOutputBufferUsage(const sp<GraphicBuffer>& buffer) {
 ftl::Future<FenceResult> RenderEngine::drawLayers(const DisplaySettings& display,
                                                   const std::vector<LayerSettings>& layers,
                                                   const std::shared_ptr<ExternalTexture>& buffer,
-                                                  const bool useFramebufferCache,
                                                   base::unique_fd&& bufferFence) {
     const auto resultPromise = std::make_shared<std::promise<FenceResult>>();
     std::future<FenceResult> resultFuture = resultPromise->get_future();
     updateProtectedContext(layers, buffer);
-    drawLayersInternal(std::move(resultPromise), display, layers, buffer, useFramebufferCache,
-                       std::move(bufferFence));
+    drawLayersInternal(std::move(resultPromise), display, layers, buffer, std::move(bufferFence));
     return resultFuture;
 }
 
