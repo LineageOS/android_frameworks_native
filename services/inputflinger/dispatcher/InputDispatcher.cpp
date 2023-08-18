@@ -3263,11 +3263,6 @@ void InputDispatcher::enqueueDispatchEntryLocked(const std::shared_ptr<Connectio
                                                  std::shared_ptr<EventEntry> eventEntry,
                                                  const InputTarget& inputTarget,
                                                  ftl::Flags<InputTarget::Flags> dispatchMode) {
-    ATRACE_NAME_IF(ATRACE_ENABLED(), [&]() {
-        return StringPrintf("enqueueDispatchEntry(inputChannel=%s, dispatchMode=%s)",
-                            connection->getInputChannelName().c_str(),
-                            dispatchMode.string().c_str());
-    });
     ftl::Flags<InputTarget::Flags> inputTargetFlags = inputTarget.flags;
     if (!inputTargetFlags.any(dispatchMode)) {
         return;
