@@ -5714,7 +5714,7 @@ void SurfaceFlinger::dumpStatsLocked(const DumpArgs& args, std::string& result) 
 
     const auto name = String8(args[1]);
     mCurrentState.traverseInZOrder([&](Layer* layer) {
-        if (layer->getName() == name.string()) {
+        if (layer->getName() == name.c_str()) {
             layer->dumpFrameStats(result);
         }
     });
@@ -5725,7 +5725,7 @@ void SurfaceFlinger::clearStatsLocked(const DumpArgs& args, std::string&) {
     const auto name = clearAll ? String8() : String8(args[1]);
 
     mCurrentState.traverse([&](Layer* layer) {
-        if (clearAll || layer->getName() == name.string()) {
+        if (clearAll || layer->getName() == name.c_str()) {
             layer->clearFrameStats();
         }
     });
