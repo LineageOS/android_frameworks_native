@@ -109,11 +109,11 @@ bool LayerTraceGenerator::generate(const proto::TransactionTraceFile& traceFile,
             ALOGV("       destroyedHandles=%d", entry.destroyed_layers(j));
         }
 
-        std::vector<uint32_t> destroyedHandles;
+        std::vector<std::pair<uint32_t, std::string>> destroyedHandles;
         destroyedHandles.reserve((size_t)entry.destroyed_layer_handles_size());
         for (int j = 0; j < entry.destroyed_layer_handles_size(); j++) {
             ALOGV("       destroyedHandles=%d", entry.destroyed_layer_handles(j));
-            destroyedHandles.push_back(entry.destroyed_layer_handles(j));
+            destroyedHandles.push_back({entry.destroyed_layer_handles(j), ""});
         }
 
         bool displayChanged = entry.displays_changed();

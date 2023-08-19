@@ -523,12 +523,9 @@ const LayerSnapshot& LayerSnapshotBuilder::updateSnapshotsInHierarchy(
         const Args& args, const LayerHierarchy& hierarchy,
         LayerHierarchy::TraversalPath& traversalPath, const LayerSnapshot& parentSnapshot,
         int depth) {
-    if (depth > 50) {
-        TransactionTraceWriter::getInstance().invoke("layer_builder_stack_overflow_",
-                                                     /*overwrite=*/false);
-        LOG_ALWAYS_FATAL("Cycle detected in LayerSnapshotBuilder. See "
-                         "builder_stack_overflow_transactions.winscope");
-    }
+    LLOG_ALWAYS_FATAL_WITH_TRACE_IF(depth > 50,
+                                    "Cycle detected in LayerSnapshotBuilder. See "
+                                    "builder_stack_overflow_transactions.winscope");
 
     const RequestedLayerState* layer = hierarchy.getLayer();
     LayerSnapshot* snapshot = getSnapshot(traversalPath);

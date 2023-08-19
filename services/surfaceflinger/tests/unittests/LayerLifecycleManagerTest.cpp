@@ -84,7 +84,7 @@ TEST_F(LayerLifecycleManagerTest, addLayers) {
     layers.emplace_back(rootLayer(2));
     layers.emplace_back(rootLayer(3));
     lifecycleManager.addLayers(std::move(layers));
-    lifecycleManager.onHandlesDestroyed({1, 2, 3});
+    lifecycleManager.onHandlesDestroyed({{1, "1"}, {2, "2"}, {3, "3"}});
     EXPECT_TRUE(lifecycleManager.getGlobalChanges().test(RequestedLayerState::Changes::Hierarchy));
     lifecycleManager.commitChanges();
     EXPECT_FALSE(lifecycleManager.getGlobalChanges().test(RequestedLayerState::Changes::Hierarchy));
@@ -133,7 +133,7 @@ TEST_F(LayerLifecycleManagerTest, layerWithoutHandleIsDestroyed) {
     layers.emplace_back(rootLayer(1));
     layers.emplace_back(rootLayer(2));
     lifecycleManager.addLayers(std::move(layers));
-    lifecycleManager.onHandlesDestroyed({1});
+    lifecycleManager.onHandlesDestroyed({{1, "1"}});
     lifecycleManager.commitChanges();
 
     SCOPED_TRACE("layerWithoutHandleIsDestroyed");
@@ -149,7 +149,7 @@ TEST_F(LayerLifecycleManagerTest, rootLayerWithoutHandleIsDestroyed) {
     layers.emplace_back(rootLayer(1));
     layers.emplace_back(rootLayer(2));
     lifecycleManager.addLayers(std::move(layers));
-    lifecycleManager.onHandlesDestroyed({1});
+    lifecycleManager.onHandlesDestroyed({{1, "1"}});
     lifecycleManager.commitChanges();
     listener->expectLayersAdded({1, 2});
     listener->expectLayersDestroyed({1});
@@ -173,7 +173,7 @@ TEST_F(LayerLifecycleManagerTest, offscreenLayerIsDestroyed) {
     listener->expectLayersAdded({});
     listener->expectLayersDestroyed({});
 
-    lifecycleManager.onHandlesDestroyed({3});
+    lifecycleManager.onHandlesDestroyed({{3, "3"}});
     lifecycleManager.commitChanges();
     listener->expectLayersAdded({});
     listener->expectLayersDestroyed({3});
@@ -194,7 +194,7 @@ TEST_F(LayerLifecycleManagerTest, offscreenChildLayerWithHandleIsNotDestroyed) {
     listener->expectLayersDestroyed({});
 
     lifecycleManager.applyTransactions(reparentLayerTransaction(3, UNASSIGNED_LAYER_ID));
-    lifecycleManager.onHandlesDestroyed({3});
+    lifecycleManager.onHandlesDestroyed({{3, "3"}});
     lifecycleManager.commitChanges();
     listener->expectLayersAdded({});
     listener->expectLayersDestroyed({3});
@@ -215,7 +215,7 @@ TEST_F(LayerLifecycleManagerTest, offscreenChildLayerWithoutHandleIsDestroyed) {
     listener->expectLayersDestroyed({});
 
     lifecycleManager.applyTransactions(reparentLayerTransaction(3, UNASSIGNED_LAYER_ID));
-    lifecycleManager.onHandlesDestroyed({3, 4});
+    lifecycleManager.onHandlesDestroyed({{3, "3"}, {4, "4"}});
     lifecycleManager.commitChanges();
     listener->expectLayersAdded({});
     listener->expectLayersDestroyed({3, 4});
@@ -376,7 +376,7 @@ TEST_F(LayerLifecycleManagerTest, onParentDestroyDestroysBackgroundLayer) {
     transactions.back().states.front().layerId = 1;
     transactions.emplace_back();
     lifecycleManager.applyTransactions(transactions);
-    lifecycleManager.onHandlesDestroyed({1});
+    lifecycleManager.onHandlesDestroyed({{1, "1"}});
 
     ASSERT_EQ(lifecycleManager.getLayers().size(), 0u);
     ASSERT_EQ(lifecycleManager.getDestroyedLayers().size(), 2u);
