@@ -389,4 +389,52 @@ TEST_F(LayerLifecycleManagerTest, onParentDestroyDestroysBackgroundLayer) {
     listener->expectLayersDestroyed({1, bgLayerId});
 }
 
+TEST_F(LayerLifecycleManagerTest, blurSetsVisibilityChangeFlag) {
+    // clear default color on layer so we start with a layer that does not draw anything.
+    setColor(1, {-1.f, -1.f, -1.f});
+    mLifecycleManager.commitChanges();
+
+    // layer has something to draw
+    setBackgroundBlurRadius(1, 2);
+    EXPECT_TRUE(
+            mLifecycleManager.getGlobalChanges().test(RequestedLayerState::Changes::Visibility));
+    mLifecycleManager.commitChanges();
+
+    // layer still has something to draw, so visibility shouldn't change
+    setBackgroundBlurRadius(1, 3);
+    EXPECT_FALSE(
+            mLifecycleManager.getGlobalChanges().test(RequestedLayerState::Changes::Visibility));
+    mLifecycleManager.commitChanges();
+
+    // layer has nothing to draw
+    setBackgroundBlurRadius(1, 0);
+    EXPECT_TRUE(
+            mLifecycleManager.getGlobalChanges().test(RequestedLayerState::Changes::Visibility));
+    mLifecycleManager.commitChanges();
+}
+
+TEST_F(LayerLifecycleManagerTest, colorSetsVisibilityChangeFlag) {
+    // clear default color on layer so we start with a layer that does not draw anything.
+    setColor(1, {-1.f, -1.f, -1.f});
+    mLifecycleManager.commitChanges();
+
+    // layer has something to draw
+    setColor(1, {2.f, 3.f, 4.f});
+    EXPECT_TRUE(
+            mLifecycleManager.getGlobalChanges().test(RequestedLayerState::Changes::Visibility));
+    mLifecycleManager.commitChanges();
+
+    // layer still has something to draw, so visibility shouldn't change
+    setColor(1, {0.f, 0.f, 0.f});
+    EXPECT_FALSE(
+            mLifecycleManager.getGlobalChanges().test(RequestedLayerState::Changes::Visibility));
+    mLifecycleManager.commitChanges();
+
+    // layer has nothing to draw
+    setColor(1, {-1.f, -1.f, -1.f});
+    EXPECT_TRUE(
+            mLifecycleManager.getGlobalChanges().test(RequestedLayerState::Changes::Visibility));
+    mLifecycleManager.commitChanges();
+}
+
 } // namespace android::surfaceflinger::frontend

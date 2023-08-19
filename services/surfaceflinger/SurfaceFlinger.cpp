@@ -134,6 +134,7 @@
 #include "FrontEnd/LayerCreationArgs.h"
 #include "FrontEnd/LayerHandle.h"
 #include "FrontEnd/LayerLifecycleManager.h"
+#include "FrontEnd/LayerLog.h"
 #include "FrontEnd/LayerSnapshot.h"
 #include "HdrLayerInfoReporter.h"
 #include "Layer.h"
@@ -2619,6 +2620,23 @@ CompositeResultsPerDisplay SurfaceFlinger::composite(
 
     constexpr bool kCursorOnly = false;
     const auto layers = moveSnapshotsToCompositionArgs(refreshArgs, kCursorOnly);
+
+    if (mLayerLifecycleManagerEnabled && !refreshArgs.updatingGeometryThisFrame) {
+        for (const auto& [token, display] : FTL_FAKE_GUARD(mStateLock, mDisplays)) {
+            auto compositionDisplay = display->getCompositionDisplay();
+            if (!compositionDisplay->getState().isEnabled) continue;
+            for (auto outputLayer : compositionDisplay->getOutputLayersOrderedByZ()) {
+                LLOG_ALWAYS_FATAL_WITH_TRACE_IF(outputLayer->getLayerFE().getCompositionState() ==
+                                                        nullptr,
+                                                "Output layer %s for display %s %" PRIu64
+                                                " has a null "
+                                                "snapshot.",
+                                                outputLayer->getLayerFE().getDebugName(),
+                                                compositionDisplay->getName().c_str(),
+                                                compositionDisplay->getId().value);
+            }
+        }
+    }
 
     mCompositionEngine->present(refreshArgs);
     moveSnapshotsFromCompositionArgs(refreshArgs, layers);

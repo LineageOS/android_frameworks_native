@@ -265,6 +265,7 @@ struct layer_state_t {
     // Changes affecting child states.
     static constexpr uint64_t AFFECTS_CHILDREN = layer_state_t::GEOMETRY_CHANGES |
             layer_state_t::HIERARCHY_CHANGES | layer_state_t::eAlphaChanged |
+            layer_state_t::eBackgroundBlurRadiusChanged | layer_state_t::eBlurRegionsChanged |
             layer_state_t::eColorTransformChanged | layer_state_t::eCornerRadiusChanged |
             layer_state_t::eFlagsChanged | layer_state_t::eTrustedOverlayChanged |
             layer_state_t::eFrameRateChanged | layer_state_t::eFrameRateSelectionPriority |
