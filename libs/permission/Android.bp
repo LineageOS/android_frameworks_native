@@ -20,6 +20,12 @@ aidl_interface {
     ],
 }
 
+filegroup {
+    name: "framework-permission-aidl-filegroup",
+    srcs: ["aidl/android/**/*.aidl"],
+    path: "aidl",
+}
+
 cc_library {
     name: "libpermission",
     host_supported: true,
@@ -35,6 +41,7 @@ cc_library {
         "-Werror",
     ],
     srcs: [
+        ":framework-permission-aidl-filegroup",
         "AppOpsManager.cpp",
         "IAppOpsCallback.cpp",
         "IAppOpsService.cpp",
