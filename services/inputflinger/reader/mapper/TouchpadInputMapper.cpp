@@ -167,6 +167,10 @@ HardwareProperties createHardwareProperties(const InputDeviceContext& context) {
     // Linux Kernel haptic touchpad support isn't merged yet, so for now assume that no touchpads
     // are haptic.
     props.is_haptic_pad = false;
+
+    RawAbsoluteAxisInfo absMtPressure;
+    context.getAbsoluteAxisInfo(ABS_MT_PRESSURE, &absMtPressure);
+    props.reports_pressure = absMtPressure.valid;
     return props;
 }
 
