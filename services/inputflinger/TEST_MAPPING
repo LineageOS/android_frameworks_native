@@ -72,9 +72,6 @@
           "include-filter": "android.view.cts.TouchDelegateTest"
         },
         {
-          "include-filter": "android.view.cts.VelocityTrackerTest"
-        },
-        {
           "include-filter": "android.view.cts.VerifyInputEventTest"
         },
         {
@@ -216,9 +213,6 @@
         },
         {
           "include-filter": "android.view.cts.TouchDelegateTest"
-        },
-        {
-          "include-filter": "android.view.cts.VelocityTrackerTest"
         },
         {
           "include-filter": "android.view.cts.VerifyInputEventTest"
