@@ -170,7 +170,7 @@ protected:
         mLifecycleManager.applyTransactions(transactions);
     }
 
-    void destroyLayerHandle(uint32_t id) { mLifecycleManager.onHandlesDestroyed({id}); }
+    void destroyLayerHandle(uint32_t id) { mLifecycleManager.onHandlesDestroyed({{id, "test"}}); }
 
     void updateAndVerify(LayerHierarchyBuilder& hierarchyBuilder) {
         if (mLifecycleManager.getGlobalChanges().test(RequestedLayerState::Changes::Hierarchy)) {

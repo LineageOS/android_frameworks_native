@@ -111,7 +111,7 @@ void TransactionTracing::addCommittedTransactions(int64_t vsyncId, nsecs_t commi
     update.createdLayers = std::move(newUpdate.layerCreationArgs);
     newUpdate.layerCreationArgs.clear();
     update.destroyedLayerHandles.reserve(newUpdate.destroyedHandles.size());
-    for (uint32_t handle : newUpdate.destroyedHandles) {
+    for (auto& [handle, _] : newUpdate.destroyedHandles) {
         update.destroyedLayerHandles.push_back(handle);
     }
     mPendingUpdates.emplace_back(update);

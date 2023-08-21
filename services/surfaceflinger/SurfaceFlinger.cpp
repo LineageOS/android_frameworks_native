@@ -134,6 +134,7 @@
 #include "FrontEnd/LayerCreationArgs.h"
 #include "FrontEnd/LayerHandle.h"
 #include "FrontEnd/LayerLifecycleManager.h"
+#include "FrontEnd/LayerLog.h"
 #include "FrontEnd/LayerSnapshot.h"
 #include "HdrLayerInfoReporter.h"
 #include "Layer.h"
@@ -863,28 +864,30 @@ void SurfaceFlinger::init() FTL_FAKE_GUARD(kMainThreadContext) {
         ALOGE("Run StartPropertySetThread failed!");
     }
 
-    if (mTransactionTracing) {
-        TransactionTraceWriter::getInstance().setWriterFunction([&](const std::string& prefix,
-                                                                    bool overwrite) {
-            auto writeFn = [&]() {
-                const std::string filename =
-                        TransactionTracing::DIR_NAME + prefix + TransactionTracing::FILE_NAME;
-                if (!overwrite && access(filename.c_str(), F_OK) == 0) {
-                    ALOGD("TransactionTraceWriter: file=%s already exists", filename.c_str());
-                    return;
-                }
-                mTransactionTracing->flush();
-                mTransactionTracing->writeToFile(filename);
-            };
-            if (std::this_thread::get_id() == mMainThreadId) {
-                writeFn();
-            } else {
-                mScheduler->schedule(writeFn).get();
-            }
-        });
-    }
-
+    initTransactionTraceWriter();
     ALOGV("Done initializing");
+}
+
+void SurfaceFlinger::initTransactionTraceWriter() {
+    if (!mTransactionTracing) {
+        return;
+    }
+    TransactionTraceWriter::getInstance().setWriterFunction(
+            [&](const std::string& filename, bool overwrite) {
+                auto writeFn = [&]() {
+                    if (!overwrite && access(filename.c_str(), F_OK) == 0) {
+                        ALOGD("TransactionTraceWriter: file=%s already exists", filename.c_str());
+                        return;
+                    }
+                    mTransactionTracing->flush();
+                    mTransactionTracing->writeToFile(filename);
+                };
+                if (std::this_thread::get_id() == mMainThreadId) {
+                    writeFn();
+                } else {
+                    mScheduler->schedule(writeFn).get();
+                }
+            });
 }
 
 void SurfaceFlinger::readPersistentProperties() {
@@ -2617,6 +2620,23 @@ CompositeResultsPerDisplay SurfaceFlinger::composite(
 
     constexpr bool kCursorOnly = false;
     const auto layers = moveSnapshotsToCompositionArgs(refreshArgs, kCursorOnly);
+
+    if (mLayerLifecycleManagerEnabled && !refreshArgs.updatingGeometryThisFrame) {
+        for (const auto& [token, display] : FTL_FAKE_GUARD(mStateLock, mDisplays)) {
+            auto compositionDisplay = display->getCompositionDisplay();
+            if (!compositionDisplay->getState().isEnabled) continue;
+            for (auto outputLayer : compositionDisplay->getOutputLayersOrderedByZ()) {
+                LLOG_ALWAYS_FATAL_WITH_TRACE_IF(outputLayer->getLayerFE().getCompositionState() ==
+                                                        nullptr,
+                                                "Output layer %s for display %s %" PRIu64
+                                                " has a null "
+                                                "snapshot.",
+                                                outputLayer->getLayerFE().getDebugName(),
+                                                compositionDisplay->getName().c_str(),
+                                                compositionDisplay->getId().value);
+            }
+        }
+    }
 
     mCompositionEngine->present(refreshArgs);
     moveSnapshotsFromCompositionArgs(refreshArgs, layers);
@@ -5525,7 +5545,7 @@ void SurfaceFlinger::markLayerPendingRemovalLocked(const sp<Layer>& layer) {
 void SurfaceFlinger::onHandleDestroyed(BBinder* handle, sp<Layer>& layer, uint32_t layerId) {
     {
         std::scoped_lock<std::mutex> lock(mCreatedLayersLock);
-        mDestroyedHandles.emplace_back(layerId);
+        mDestroyedHandles.emplace_back(layerId, layer->getDebugName());
     }
 
     mTransactionHandler.onLayerDestroyed(layerId);

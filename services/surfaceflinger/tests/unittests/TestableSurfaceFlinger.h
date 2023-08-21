@@ -651,6 +651,11 @@ public:
 
     auto fromHandle(const sp<IBinder>& handle) { return LayerHandle::getLayer(handle); }
 
+    auto initTransactionTraceWriter() {
+        mFlinger->mTransactionTracing.emplace();
+        return mFlinger->initTransactionTraceWriter();
+    }
+
     ~TestableSurfaceFlinger() {
         // All these pointer and container clears help ensure that GMock does
         // not report a leaked object, since the SurfaceFlinger instance may
@@ -664,6 +669,7 @@ public:
         mFlinger->mCompositionEngine->setHwComposer(std::unique_ptr<HWComposer>());
         mFlinger->mRenderEngine = std::unique_ptr<renderengine::RenderEngine>();
         mFlinger->mCompositionEngine->setRenderEngine(mFlinger->mRenderEngine.get());
+        mFlinger->mTransactionTracing.reset();
     }
 
     /* ------------------------------------------------------------------------

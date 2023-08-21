@@ -66,6 +66,7 @@ cc_test {
         // option to false temporarily.
         address: true,
     },
+    static_libs: ["libc++fs"],
     srcs: [
         ":libsurfaceflinger_mock_sources",
         ":libsurfaceflinger_sources",
@@ -128,6 +129,7 @@ cc_test {
         "TransactionFrameTracerTest.cpp",
         "TransactionProtoParserTest.cpp",
         "TransactionSurfaceFrameTest.cpp",
+        "TransactionTraceWriterTest.cpp",
         "TransactionTracingTest.cpp",
         "TunnelModeEnabledReporterTest.cpp",
         "StrongTypingTest.cpp",

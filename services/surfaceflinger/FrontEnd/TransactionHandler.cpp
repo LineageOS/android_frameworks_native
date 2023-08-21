@@ -22,6 +22,7 @@
 #include <cutils/trace.h>
 #include <utils/Log.h>
 #include <utils/Trace.h>
+#include "FrontEnd/LayerLog.h"
 
 #include "TransactionHandler.h"
 
@@ -87,8 +88,8 @@ void TransactionHandler::applyUnsignaledBufferTransaction(
     }
 
     auto it = mPendingTransactionQueues.find(flushState.queueWithUnsignaledBuffer);
-    LOG_ALWAYS_FATAL_IF(it == mPendingTransactionQueues.end(),
-                        "Could not find queue with unsignaled buffer!");
+    LLOG_ALWAYS_FATAL_WITH_TRACE_IF(it == mPendingTransactionQueues.end(),
+                                    "Could not find queue with unsignaled buffer!");
 
     auto& queue = it->second;
     popTransactionFromPending(transactions, flushState, queue);

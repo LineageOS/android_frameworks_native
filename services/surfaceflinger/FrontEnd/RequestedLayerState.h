@@ -87,6 +87,7 @@ struct RequestedLayerState : layer_state_t {
     bool backpressureEnabled() const;
     bool isSimpleBufferUpdate(const layer_state_t&) const;
     bool isProtected() const;
+    bool hasSomethingToDraw() const;
 
     // Layer serial number.  This gives layers an explicit ordering, so we
     // have a stable sort order when their layer stack and Z-order are

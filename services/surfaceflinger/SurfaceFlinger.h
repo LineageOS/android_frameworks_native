@@ -1134,7 +1134,7 @@ private:
     ui::Rotation getPhysicalDisplayOrientation(DisplayId, bool isPrimary) const
             REQUIRES(mStateLock);
     void traverseLegacyLayers(const LayerVector::Visitor& visitor) const;
-
+    void initTransactionTraceWriter();
     sp<StartPropertySetThread> mStartPropertySetThread;
     surfaceflinger::Factory& mFactory;
     pid_t mPid;
@@ -1425,7 +1425,7 @@ private:
     frontend::LayerHierarchyBuilder mLayerHierarchyBuilder{{}};
     frontend::LayerSnapshotBuilder mLayerSnapshotBuilder;
 
-    std::vector<uint32_t> mDestroyedHandles;
+    std::vector<std::pair<uint32_t, std::string>> mDestroyedHandles;
     std::vector<std::unique_ptr<frontend::RequestedLayerState>> mNewLayers;
     std::vector<LayerCreationArgs> mNewLayerArgs;
     // These classes do not store any client state but help with managing transaction callbacks

@@ -349,16 +349,22 @@ TEST_F(LayerSnapshotTest, CanCropTouchableRegion) {
 }
 
 TEST_F(LayerSnapshotTest, blurUpdatesWhenAlphaChanges) {
-    static constexpr int blurRadius = 42;
-    setBackgroundBlurRadius(1221, blurRadius);
+    int blurRadius = 42;
+    setBackgroundBlurRadius(1221, static_cast<uint32_t>(blurRadius));
 
+    UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
+    EXPECT_EQ(getSnapshot({.id = 1221})->backgroundBlurRadius, blurRadius);
+
+    blurRadius = 21;
+    setBackgroundBlurRadius(1221, static_cast<uint32_t>(blurRadius));
     UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
     EXPECT_EQ(getSnapshot({.id = 1221})->backgroundBlurRadius, blurRadius);
 
     static constexpr float alpha = 0.5;
     setAlpha(12, alpha);
     UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
-    EXPECT_EQ(getSnapshot({.id = 1221})->backgroundBlurRadius, blurRadius * alpha);
+    EXPECT_EQ(getSnapshot({.id = 1221})->backgroundBlurRadius,
+              static_cast<int>(static_cast<float>(blurRadius) * alpha));
 }
 
 // Display Mirroring Tests
