@@ -137,10 +137,7 @@ android::base::Result<void> MotionPredictor::record(const MotionEvent& event) {
 
     // Pass input event to the MetricsManager.
     if (!mMetricsManager) {
-        mMetricsManager =
-                std::make_optional<MotionPredictorMetricsManager>(mModel->config()
-                                                                          .predictionInterval,
-                                                                  mModel->outputLength());
+        mMetricsManager.emplace(mModel->config().predictionInterval, mModel->outputLength());
     }
     mMetricsManager->onRecord(event);
 
