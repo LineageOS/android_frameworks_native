@@ -185,8 +185,8 @@ void LayerProtoHelper::writeToProto(
     static_assert(std::is_same_v<U, int32_t>);
     proto->set_layout_params_type(static_cast<U>(inputInfo.layoutParamsType));
 
-    LayerProtoHelper::writeToProto({inputInfo.frameLeft, inputInfo.frameTop, inputInfo.frameRight,
-                                    inputInfo.frameBottom},
+    LayerProtoHelper::writeToProto({inputInfo.frame.left, inputInfo.frame.top,
+                                    inputInfo.frame.right, inputInfo.frame.bottom},
                                    [&]() { return proto->mutable_frame(); });
     LayerProtoHelper::writeToProto(inputInfo.touchableRegion,
                                    [&]() { return proto->mutable_touchable_region(); });

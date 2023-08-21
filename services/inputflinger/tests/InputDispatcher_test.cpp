@@ -1131,10 +1131,7 @@ public:
         mInfo.name = name;
         mInfo.dispatchingTimeout = DISPATCHING_TIMEOUT;
         mInfo.alpha = 1.0;
-        mInfo.frameLeft = 0;
-        mInfo.frameTop = 0;
-        mInfo.frameRight = WIDTH;
-        mInfo.frameBottom = HEIGHT;
+        mInfo.frame = Rect(0, 0, WIDTH, HEIGHT);
         mInfo.transform.set(0, 0);
         mInfo.globalScaleFactor = 1.0;
         mInfo.touchableRegion.clear();
@@ -1215,10 +1212,7 @@ public:
     void setApplicationToken(sp<IBinder> token) { mInfo.applicationInfo.token = token; }
 
     void setFrame(const Rect& frame, const ui::Transform& displayTransform = ui::Transform()) {
-        mInfo.frameLeft = frame.left;
-        mInfo.frameTop = frame.top;
-        mInfo.frameRight = frame.right;
-        mInfo.frameBottom = frame.bottom;
+        mInfo.frame = frame;
         mInfo.touchableRegion.clear();
         mInfo.addTouchableRegion(frame);
 
