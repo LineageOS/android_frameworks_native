@@ -817,10 +817,13 @@ status_t JpegR::generateGainMap(jr_uncompressed_ptr yuv420_image_ptr,
   map_data.reset(reinterpret_cast<uint8_t*>(dest->data));
 
   ColorTransformFn hdrInvOetf = nullptr;
-  float hdr_white_nits = kSdrWhiteNits;
+  float hdr_white_nits;
   switch (hdr_tf) {
     case ULTRAHDR_TF_LINEAR:
       hdrInvOetf = identityConversion;
+      // Note: this will produce clipping if the input exceeds kHlgMaxNits.
+      // TODO: TF LINEAR will be deprecated.
+      hdr_white_nits = kHlgMaxNits;
       break;
     case ULTRAHDR_TF_HLG:
 #if USE_HLG_INVOETF_LUT
