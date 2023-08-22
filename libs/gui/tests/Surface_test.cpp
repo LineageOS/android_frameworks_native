@@ -989,6 +989,16 @@ public:
         return binder::Status::ok();
     }
 
+    binder::Status enableRefreshRateOverlay(bool /*active*/) override {
+        return binder::Status::ok();
+    }
+
+    binder::Status setDebugFlash(int /*delay*/) override { return binder::Status::ok(); }
+
+    binder::Status scheduleComposite() override { return binder::Status::ok(); }
+
+    binder::Status scheduleCommit() override { return binder::Status::ok(); }
+
     binder::Status getGpuContextPriority(int32_t* /*outPriority*/) override {
         return binder::Status::ok();
     }

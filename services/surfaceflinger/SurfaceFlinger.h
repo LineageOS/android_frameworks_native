@@ -1442,6 +1442,11 @@ private:
     // Mirroring
     // Map of displayid to mirrorRoot
     ftl::SmallMap<int64_t, sp<SurfaceControl>, 3> mMirrorMapForDebug;
+
+    void sfdo_enableRefreshRateOverlay(bool active);
+    void sfdo_setDebugFlash(int delay);
+    void sfdo_scheduleComposite();
+    void sfdo_scheduleCommit();
 };
 
 class SurfaceComposerAIDL : public gui::BnSurfaceComposer {
@@ -1548,6 +1553,10 @@ public:
             const sp<IBinder>& displayToken,
             std::optional<gui::DisplayDecorationSupport>* outSupport) override;
     binder::Status setOverrideFrameRate(int32_t uid, float frameRate) override;
+    binder::Status enableRefreshRateOverlay(bool active) override;
+    binder::Status setDebugFlash(int delay) override;
+    binder::Status scheduleComposite() override;
+    binder::Status scheduleCommit() override;
     binder::Status getGpuContextPriority(int32_t* outPriority) override;
     binder::Status getMaxAcquiredBufferCount(int32_t* buffers) override;
     binder::Status addWindowInfosListener(const sp<gui::IWindowInfosListener>& windowInfosListener,
