@@ -71,6 +71,7 @@ filegroup {
 cc_library_shared {
     name: "libgpuservice",
     defaults: ["libgpuservice_production_defaults"],
+    export_include_dirs: ["include"],
     srcs: [
         ":libgpuservice_sources",
     ],
