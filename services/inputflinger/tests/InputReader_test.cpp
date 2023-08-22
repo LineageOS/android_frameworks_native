@@ -1508,6 +1508,28 @@ TEST_F(InputReaderIntegrationTest, KeyboardWithStylusButtons) {
     ASSERT_EQ(AINPUT_KEYBOARD_TYPE_ALPHABETIC, device->getKeyboardType());
 }
 
+TEST_F(InputReaderIntegrationTest, HidUsageKeyboardIsNotAStylus) {
+    // Create a Uinput keyboard that simulates a keyboard that can report HID usage codes. The
+    // hid-input driver reports HID usage codes using the value for EV_MSC MSC_SCAN event.
+    std::unique_ptr<UinputKeyboardWithHidUsage> keyboard =
+            createUinputDevice<UinputKeyboardWithHidUsage>(
+                    std::initializer_list<int>{KEY_VOLUMEUP, KEY_VOLUMEDOWN});
+    ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertInputDevicesChanged());
+
+    const auto device = findDeviceByName(keyboard->getName());
+    ASSERT_TRUE(device.has_value());
+
+    ASSERT_EQ(AINPUT_SOURCE_KEYBOARD, device->getSources())
+            << "Unexpected source " << inputEventSourceToString(device->getSources()).c_str();
+
+    // If a device supports reporting HID usage codes, it shouldn't automatically support
+    // stylus keys.
+    const std::vector<int> keycodes{AKEYCODE_STYLUS_BUTTON_PRIMARY};
+    uint8_t outFlags[] = {0};
+    ASSERT_TRUE(mReader->hasKeys(device->getId(), AINPUT_SOURCE_KEYBOARD, keycodes, outFlags));
+    ASSERT_EQ(0, outFlags[0]) << "Keyboard should not have stylus button";
+}
+
 /**
  * The Steam controller sends BTN_GEAR_DOWN and BTN_GEAR_UP for the two "paddle" buttons
  * on the back. In this test, we make sure that BTN_GEAR_DOWN / BTN_WHEEL and BTN_GEAR_UP
