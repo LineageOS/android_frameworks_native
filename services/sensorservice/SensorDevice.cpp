@@ -299,7 +299,7 @@ std::string SensorDevice::dump() const {
         result.appendFormat("}, selected = %.2f ms\n", info.bestBatchParams.mTBatch / 1e6f);
     }
 
-    return result.string();
+    return result.c_str();
 }
 
 /**
