@@ -37,6 +37,7 @@ cc_test {
     shared_libs: [
         "android.hardware.graphics.common@1.2",
         "libnativewindow",
+        "libbase",
     ],
     static_libs: [
         "libarect",
