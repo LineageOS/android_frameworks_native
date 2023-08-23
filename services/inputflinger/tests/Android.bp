@@ -63,6 +63,7 @@ cc_test {
         "PropertyProvider_test.cpp",
         "SlopController_test.cpp",
         "SyncQueue_test.cpp",
+        "TimerProvider_test.cpp",
         "TestInputListener.cpp",
         "TestInputListenerMatchers.cpp",
         "TouchpadInputMapper_test.cpp",
