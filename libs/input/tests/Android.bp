@@ -62,6 +62,7 @@ cc_test {
         "libtinyxml2",
         "libutils",
         "libvintf",
+        "server_configurable_flags",
     ],
     data: [
         "data/*",

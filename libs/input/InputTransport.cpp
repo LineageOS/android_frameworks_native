@@ -23,8 +23,11 @@
 #include <log/log.h>
 #include <utils/Trace.h>
 
+#include <com_android_input_flags.h>
 #include <input/InputTransport.h>
 #include <input/TraceTools.h>
+
+namespace input_flags = com::android::input::flags;
 
 namespace {
 
@@ -139,7 +142,8 @@ static const char* PROPERTY_RESAMPLING_ENABLED = "ro.input.resampling";
  * Enable this via "adb shell setprop log.tag.InputTransportVerifyEvents DEBUG"
  */
 static bool verifyEvents() {
-    return __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "VerifyEvents", ANDROID_LOG_INFO);
+    return input_flags::enable_outbound_event_verification() ||
+            __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "VerifyEvents", ANDROID_LOG_INFO);
 }
 
 template<typename T>

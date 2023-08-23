@@ -1,0 +1,15 @@
+package: "com.android.input.flags"
+
+flag {
+  name: "enable_outbound_event_verification"
+  namespace: "input"
+  description: "Set to true to enable crashing whenever bad outbound events are detected inside InputTransport"
+  bug: "271455682"
+}
+
+flag {
+  name: "enable_inbound_event_verification"
+  namespace: "input"
+  description: "Set to true to enable crashing whenever bad inbound events are going into InputDispatcher"
+  bug: "271455682"
+}
