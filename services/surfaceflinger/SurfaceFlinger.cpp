@@ -2308,11 +2308,22 @@ bool SurfaceFlinger::updateLayerSnapshots(VsyncId vsyncId, nsecs_t frameTimeNs,
                 mLegacyLayers[bgColorLayer->sequence] = bgColorLayer;
             }
             const bool willReleaseBufferOnLatch = layer->willReleaseBufferOnLatch();
-            if (!layer->hasReadyFrame() && !willReleaseBufferOnLatch) continue;
 
             auto it = mLegacyLayers.find(layer->id);
             LOG_ALWAYS_FATAL_IF(it == mLegacyLayers.end(), "Couldnt find layer object for %s",
                                 layer->getDebugString().c_str());
+            if (!layer->hasReadyFrame() && !willReleaseBufferOnLatch) {
+                if (!it->second->hasBuffer()) {
+                    // The last latch time is used to classify a missed frame as buffer stuffing
+                    // instead of a missed frame. This is used to identify scenarios where we
+                    // could not latch a buffer or apply a transaction due to backpressure.
+                    // We only update the latch time for buffer less layers here, the latch time
+                    // is updated for buffer layers when the buffer is latched.
+                    it->second->updateLastLatchTime(latchTime);
+                }
+                continue;
+            }
+
             const bool bgColorOnly =
                     !layer->externalTexture && (layer->bgColorLayerId != UNASSIGNED_LAYER_ID);
             if (willReleaseBufferOnLatch) {
