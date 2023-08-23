@@ -9727,12 +9727,11 @@ struct User {
                                           mPolicyFlags);
     }
 
-    sp<FakeWindowHandle> createWindow() const {
+    sp<FakeWindowHandle> createWindow(const char* name) const {
         std::shared_ptr<FakeApplicationHandle> overlayApplication =
                 std::make_shared<FakeApplicationHandle>();
-        sp<FakeWindowHandle> window =
-                sp<FakeWindowHandle>::make(overlayApplication, mDispatcher, "Owned Window",
-                                           ADISPLAY_ID_DEFAULT);
+        sp<FakeWindowHandle> window = sp<FakeWindowHandle>::make(overlayApplication, mDispatcher,
+                                                                 name, ADISPLAY_ID_DEFAULT);
         window->setOwnerInfo(mPid, mUid);
         return window;
     }
@@ -9742,7 +9741,7 @@ using InputDispatcherTargetedInjectionTest = InputDispatcherTest;
 
 TEST_F(InputDispatcherTargetedInjectionTest, CanInjectIntoOwnedWindow) {
     auto owner = User(mDispatcher, gui::Pid{10}, gui::Uid{11});
-    auto window = owner.createWindow();
+    auto window = owner.createWindow("Owned window");
     mDispatcher->onWindowInfosChanged({{*window->getInfo()}, {}, 0, 0});
 
     EXPECT_EQ(InputEventInjectionResult::SUCCEEDED,
@@ -9759,7 +9758,7 @@ TEST_F(InputDispatcherTargetedInjectionTest, CanInjectIntoOwnedWindow) {
 
 TEST_F(InputDispatcherTargetedInjectionTest, CannotInjectIntoUnownedWindow) {
     auto owner = User(mDispatcher, gui::Pid{10}, gui::Uid{11});
-    auto window = owner.createWindow();
+    auto window = owner.createWindow("Owned window");
     mDispatcher->onWindowInfosChanged({{*window->getInfo()}, {}, 0, 0});
 
     auto rando = User(mDispatcher, gui::Pid{20}, gui::Uid{21});
@@ -9776,8 +9775,8 @@ TEST_F(InputDispatcherTargetedInjectionTest, CannotInjectIntoUnownedWindow) {
 
 TEST_F(InputDispatcherTargetedInjectionTest, CanInjectIntoOwnedSpyWindow) {
     auto owner = User(mDispatcher, gui::Pid{10}, gui::Uid{11});
-    auto window = owner.createWindow();
-    auto spy = owner.createWindow();
+    auto window = owner.createWindow("Owned window");
+    auto spy = owner.createWindow("Owned spy");
     spy->setSpy(true);
     spy->setTrustedOverlay(true);
     mDispatcher->onWindowInfosChanged({{*spy->getInfo(), *window->getInfo()}, {}, 0, 0});
@@ -9790,10 +9789,10 @@ TEST_F(InputDispatcherTargetedInjectionTest, CanInjectIntoOwnedSpyWindow) {
 
 TEST_F(InputDispatcherTargetedInjectionTest, CannotInjectIntoUnownedSpyWindow) {
     auto owner = User(mDispatcher, gui::Pid{10}, gui::Uid{11});
-    auto window = owner.createWindow();
+    auto window = owner.createWindow("Owned window");
 
     auto rando = User(mDispatcher, gui::Pid{20}, gui::Uid{21});
-    auto randosSpy = rando.createWindow();
+    auto randosSpy = rando.createWindow("Rando's spy");
     randosSpy->setSpy(true);
     randosSpy->setTrustedOverlay(true);
     mDispatcher->onWindowInfosChanged({{*randosSpy->getInfo(), *window->getInfo()}, {}, 0, 0});
@@ -9808,10 +9807,10 @@ TEST_F(InputDispatcherTargetedInjectionTest, CannotInjectIntoUnownedSpyWindow) {
 
 TEST_F(InputDispatcherTargetedInjectionTest, CanInjectIntoAnyWindowWhenNotTargeting) {
     auto owner = User(mDispatcher, gui::Pid{10}, gui::Uid{11});
-    auto window = owner.createWindow();
+    auto window = owner.createWindow("Owned window");
 
     auto rando = User(mDispatcher, gui::Pid{20}, gui::Uid{21});
-    auto randosSpy = rando.createWindow();
+    auto randosSpy = rando.createWindow("Rando's spy");
     randosSpy->setSpy(true);
     randosSpy->setTrustedOverlay(true);
     mDispatcher->onWindowInfosChanged({{*randosSpy->getInfo(), *window->getInfo()}, {}, 0, 0});
@@ -9833,10 +9832,10 @@ TEST_F(InputDispatcherTargetedInjectionTest, CanInjectIntoAnyWindowWhenNotTarget
 
 TEST_F(InputDispatcherTargetedInjectionTest, CannotGenerateActionOutsideToOtherUids) {
     auto owner = User(mDispatcher, gui::Pid{10}, gui::Uid{11});
-    auto window = owner.createWindow();
+    auto window = owner.createWindow("Owned window");
 
     auto rando = User(mDispatcher, gui::Pid{20}, gui::Uid{21});
-    auto randosWindow = rando.createWindow();
+    auto randosWindow = rando.createWindow("Rando's window");
     randosWindow->setFrame(Rect{-10, -10, -5, -5});
     randosWindow->setWatchOutsideTouch(true);
     mDispatcher->onWindowInfosChanged({{*randosWindow->getInfo(), *window->getInfo()}, {}, 0, 0});
