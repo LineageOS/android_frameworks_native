@@ -451,6 +451,9 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
     property_get("debug.sf.treat_170m_as_sRGB", value, "0");
     mTreat170mAsSrgb = atoi(value);
 
+    property_get("debug.sf.dim_in_gamma_in_enhanced_screenshots", value, 0);
+    mDimInGammaSpaceForEnhancedScreenshots = atoi(value);
+
     mIgnoreHwcPhysicalDisplayOrientation =
             base::GetBoolProperty("debug.sf.ignore_hwc_physical_display_orientation"s, false);
 
@@ -7480,7 +7483,9 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
                                         .displayBrightnessNits = displayBrightnessNits,
                                         .targetBrightness = targetBrightness,
                                         .regionSampling = regionSampling,
-                                        .treat170mAsSrgb = mTreat170mAsSrgb});
+                                        .treat170mAsSrgb = mTreat170mAsSrgb,
+                                        .dimInGammaSpaceForEnhancedScreenshots =
+                                                mDimInGammaSpaceForEnhancedScreenshots});
 
         const float colorSaturation = grayscale ? 0 : 1;
         compositionengine::CompositionRefreshArgs refreshArgs{
