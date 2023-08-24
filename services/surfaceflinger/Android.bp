@@ -185,6 +185,7 @@ filegroup {
         "Scheduler/MessageQueue.cpp",
         "Scheduler/RefreshRateSelector.cpp",
         "Scheduler/Scheduler.cpp",
+        "Scheduler/SmallAreaDetectionAllowMappings.cpp",
         "Scheduler/VSyncDispatchTimerQueue.cpp",
         "Scheduler/VSyncPredictor.cpp",
         "Scheduler/VSyncReactor.cpp",

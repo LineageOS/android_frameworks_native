@@ -4363,7 +4363,8 @@ void Layer::setIsSmallDirty() {
 
     // If the damage region is a small dirty, this could give the hint for the layer history that
     // it could suppress the heuristic rate when calculating.
-    mSmallDirty = mFlinger->mScheduler->isSmallDirtyArea(bounds.getWidth() * bounds.getHeight());
+    mSmallDirty = mFlinger->mScheduler->isSmallDirtyArea(mOwnerUid,
+                                                         bounds.getWidth() * bounds.getHeight());
 }
 
 // ---------------------------------------------------------------------------

@@ -1048,4 +1048,20 @@ void Scheduler::setPreferredRefreshRateForUid(FrameRateOverride frameRateOverrid
     mFrameRateOverrideMappings.setPreferredRefreshRateForUid(frameRateOverride);
 }
 
+void Scheduler::updateSmallAreaDetection(
+        std::vector<std::pair<uid_t, float>>& uidThresholdMappings) {
+    mSmallAreaDetectionAllowMappings.update(uidThresholdMappings);
+}
+
+void Scheduler::setSmallAreaDetectionThreshold(uid_t uid, float threshold) {
+    mSmallAreaDetectionAllowMappings.setThesholdForUid(uid, threshold);
+}
+
+bool Scheduler::isSmallDirtyArea(uid_t uid, uint32_t dirtyArea) {
+    std::optional<float> oThreshold = mSmallAreaDetectionAllowMappings.getThresholdForUid(uid);
+    if (oThreshold) return mLayerHistory.isSmallDirtyArea(dirtyArea, oThreshold.value());
+
+    return false;
+}
+
 } // namespace android::scheduler
