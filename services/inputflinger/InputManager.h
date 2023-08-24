@@ -137,6 +137,8 @@ private:
     std::unique_ptr<InputDispatcherInterface> mDispatcher;
 
     std::shared_ptr<IInputFlingerRust> mInputFlingerRust;
+
+    std::vector<std::unique_ptr<TracedInputListener>> mTracingStages;
 };
 
 } // namespace android

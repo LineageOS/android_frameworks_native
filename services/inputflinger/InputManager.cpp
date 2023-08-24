@@ -122,15 +122,24 @@ InputManager::InputManager(const sp<InputReaderPolicyInterface>& readerPolicy,
     mInputFlingerRust = createInputFlingerRust();
 
     mDispatcher = createInputDispatcher(dispatcherPolicy);
+    mTracingStages.emplace_back(
+            std::make_unique<TracedInputListener>("InputDispatcher", *mDispatcher));
 
     if (ENABLE_INPUT_DEVICE_USAGE_METRICS) {
-        mCollector = std::make_unique<InputDeviceMetricsCollector>(*mDispatcher);
+        mCollector = std::make_unique<InputDeviceMetricsCollector>(*mTracingStages.back());
+        mTracingStages.emplace_back(
+                std::make_unique<TracedInputListener>("MetricsCollector", *mCollector));
     }
 
-    mProcessor = ENABLE_INPUT_DEVICE_USAGE_METRICS ? std::make_unique<InputProcessor>(*mCollector)
-                                                   : std::make_unique<InputProcessor>(*mDispatcher);
-    mBlocker = std::make_unique<UnwantedInteractionBlocker>(*mProcessor);
-    mReader = createInputReader(readerPolicy, *mBlocker);
+    mProcessor = std::make_unique<InputProcessor>(*mTracingStages.back());
+    mTracingStages.emplace_back(
+            std::make_unique<TracedInputListener>("InputProcessor", *mProcessor));
+
+    mBlocker = std::make_unique<UnwantedInteractionBlocker>(*mTracingStages.back());
+    mTracingStages.emplace_back(
+            std::make_unique<TracedInputListener>("UnwantedInteractionBlocker", *mBlocker));
+
+    mReader = createInputReader(readerPolicy, *mTracingStages.back());
 }
 
 InputManager::~InputManager() {

@@ -32,6 +32,7 @@
 #endif
 #include <input/InputDevice.h>
 #include <input/PrintTools.h>
+#include <input/TraceTools.h>
 #include <openssl/mem.h>
 #include <powermanager/PowerManager.h>
 #include <unistd.h>
@@ -3161,12 +3162,10 @@ void InputDispatcher::prepareDispatchCycleLocked(nsecs_t currentTime,
                                                  const std::shared_ptr<Connection>& connection,
                                                  std::shared_ptr<EventEntry> eventEntry,
                                                  const InputTarget& inputTarget) {
-    if (ATRACE_ENABLED()) {
-        std::string message =
-                StringPrintf("prepareDispatchCycleLocked(inputChannel=%s, id=0x%" PRIx32 ")",
-                             connection->getInputChannelName().c_str(), eventEntry->id);
-        ATRACE_NAME(message.c_str());
-    }
+    ATRACE_NAME_IF(ATRACE_ENABLED(), [&]() {
+        return StringPrintf("prepareDispatchCycleLocked(inputChannel=%s, id=0x%" PRIx32 ")",
+                            connection->getInputChannelName().c_str(), eventEntry->id);
+    });
     if (DEBUG_DISPATCH_CYCLE) {
         ALOGD("channel '%s' ~ prepareDispatchCycle - flags=%s, "
               "globalScaleFactor=%f, pointerIds=%s %s",
@@ -3231,12 +3230,10 @@ void InputDispatcher::enqueueDispatchEntriesLocked(nsecs_t currentTime,
                                                    const std::shared_ptr<Connection>& connection,
                                                    std::shared_ptr<EventEntry> eventEntry,
                                                    const InputTarget& inputTarget) {
-    if (ATRACE_ENABLED()) {
-        std::string message =
-                StringPrintf("enqueueDispatchEntriesLocked(inputChannel=%s, id=0x%" PRIx32 ")",
-                             connection->getInputChannelName().c_str(), eventEntry->id);
-        ATRACE_NAME(message.c_str());
-    }
+    ATRACE_NAME_IF(ATRACE_ENABLED(), [&]() {
+        return StringPrintf("enqueueDispatchEntriesLocked(inputChannel=%s, id=0x%" PRIx32 ")",
+                            connection->getInputChannelName().c_str(), eventEntry->id);
+    });
     LOG_ALWAYS_FATAL_IF(!inputTarget.flags.any(InputTarget::DISPATCH_MASK),
                         "No dispatch flags are set for %s", eventEntry->getDescription().c_str());
 
@@ -3266,12 +3263,6 @@ void InputDispatcher::enqueueDispatchEntryLocked(const std::shared_ptr<Connectio
                                                  std::shared_ptr<EventEntry> eventEntry,
                                                  const InputTarget& inputTarget,
                                                  ftl::Flags<InputTarget::Flags> dispatchMode) {
-    if (ATRACE_ENABLED()) {
-        std::string message = StringPrintf("enqueueDispatchEntry(inputChannel=%s, dispatchMode=%s)",
-                                           connection->getInputChannelName().c_str(),
-                                           dispatchMode.string().c_str());
-        ATRACE_NAME(message.c_str());
-    }
     ftl::Flags<InputTarget::Flags> inputTargetFlags = inputTarget.flags;
     if (!inputTargetFlags.any(dispatchMode)) {
         return;
@@ -3558,11 +3549,10 @@ status_t InputDispatcher::publishMotionEvent(Connection& connection,
 
 void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
                                                const std::shared_ptr<Connection>& connection) {
-    if (ATRACE_ENABLED()) {
-        std::string message = StringPrintf("startDispatchCycleLocked(inputChannel=%s)",
-                                           connection->getInputChannelName().c_str());
-        ATRACE_NAME(message.c_str());
-    }
+    ATRACE_NAME_IF(ATRACE_ENABLED(), [&]() {
+        return StringPrintf("startDispatchCycleLocked(inputChannel=%s)",
+                            connection->getInputChannelName().c_str());
+    });
     if (DEBUG_DISPATCH_CYCLE) {
         ALOGD("channel '%s' ~ startDispatchCycle", connection->getInputChannelName().c_str());
     }
@@ -4136,12 +4126,10 @@ std::unique_ptr<MotionEntry> InputDispatcher::splitMotionEvent(
     }
 
     int32_t newId = mIdGenerator.nextId();
-    if (ATRACE_ENABLED()) {
-        std::string message = StringPrintf("Split MotionEvent(id=0x%" PRIx32
-                                           ") to MotionEvent(id=0x%" PRIx32 ").",
-                                           originalMotionEntry.id, newId);
-        ATRACE_NAME(message.c_str());
-    }
+    ATRACE_NAME_IF(ATRACE_ENABLED(), [&]() {
+        return StringPrintf("Split MotionEvent(id=0x%" PRIx32 ") to MotionEvent(id=0x%" PRIx32 ").",
+                            originalMotionEntry.id, newId);
+    });
     std::unique_ptr<MotionEntry> splitMotionEntry =
             std::make_unique<MotionEntry>(newId, originalMotionEntry.eventTime,
                                           originalMotionEntry.deviceId, originalMotionEntry.source,
