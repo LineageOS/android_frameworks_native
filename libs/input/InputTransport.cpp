@@ -791,8 +791,10 @@ android::base::Result<InputPublisher::ConsumerResponse> InputPublisher::receiveC
     InputMessage msg;
     status_t result = mChannel->receiveMessage(&msg);
     if (result) {
-        ALOGD_IF(debugTransportPublisher(), "channel '%s' publisher ~ %s: %s",
-                 mChannel->getName().c_str(), __func__, strerror(result));
+        if (debugTransportPublisher() && result != WOULD_BLOCK) {
+            LOG(INFO) << "channel '" << mChannel->getName() << "' publisher ~ " << __func__ << ": "
+                      << strerror(result);
+        }
         return android::base::Error(result);
     }
     if (msg.header.type == InputMessage::Type::FINISHED) {
