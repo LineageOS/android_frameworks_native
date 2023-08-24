@@ -154,6 +154,9 @@ public:
     MOCK_METHOD(binder::Status, setDebugFlash, (int), (override));
     MOCK_METHOD(binder::Status, scheduleComposite, (), (override));
     MOCK_METHOD(binder::Status, scheduleCommit, (), (override));
+    MOCK_METHOD(binder::Status, updateSmallAreaDetection,
+                (const std::vector<int32_t>&, const std::vector<float>&), (override));
+    MOCK_METHOD(binder::Status, setSmallAreaDetectionThreshold, (int32_t, float), (override));
     MOCK_METHOD(binder::Status, getGpuContextPriority, (int32_t*), (override));
     MOCK_METHOD(binder::Status, getMaxAcquiredBufferCount, (int32_t*), (override));
     MOCK_METHOD(binder::Status, addWindowInfosListener,
