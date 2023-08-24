@@ -15,3 +15,22 @@
 package {
     default_applicable_licenses: ["frameworks_native_license"],
 }
+
+aconfig_declarations {
+    name: "bufferstreams_flags",
+    package: "com.android.graphics.bufferstreams.flags",
+    srcs: [
+        "aconfig/bufferstreams_flags.aconfig",
+    ],
+}
+
+rust_aconfig_library {
+    name: "libbufferstreams_flags_rust",
+    crate_name: "bufferstreams_flags",
+    aconfig_declarations: "bufferstreams_flags",
+}
+
+cc_aconfig_library {
+    name: "libbufferstreams_flags_cc",
+    aconfig_declarations: "bufferstreams_flags",
+}
