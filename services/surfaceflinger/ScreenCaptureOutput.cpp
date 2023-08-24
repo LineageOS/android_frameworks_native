@@ -45,10 +45,9 @@ Rect getOrientedDisplaySpaceRect(ui::Rotation orientation, int reqWidth, int req
 std::shared_ptr<ScreenCaptureOutput> createScreenCaptureOutput(ScreenCaptureOutputArgs args) {
     std::shared_ptr<ScreenCaptureOutput> output = compositionengine::impl::createOutputTemplated<
             ScreenCaptureOutput, compositionengine::CompositionEngine, const RenderArea&,
-            const compositionengine::Output::ColorProfile&, bool>(args.compositionEngine,
-                                                                  args.renderArea,
-                                                                  args.colorProfile,
-                                                                  args.regionSampling);
+            const compositionengine::Output::ColorProfile&,
+            bool>(args.compositionEngine, args.renderArea, args.colorProfile, args.regionSampling,
+                  args.dimInGammaSpaceForEnhancedScreenshots);
     output->editState().isSecure = args.renderArea.isSecure();
     output->setCompositionEnabled(true);
     output->setLayerFilter({args.layerStack});
@@ -81,8 +80,11 @@ std::shared_ptr<ScreenCaptureOutput> createScreenCaptureOutput(ScreenCaptureOutp
 
 ScreenCaptureOutput::ScreenCaptureOutput(
         const RenderArea& renderArea, const compositionengine::Output::ColorProfile& colorProfile,
-        bool regionSampling)
-      : mRenderArea(renderArea), mColorProfile(colorProfile), mRegionSampling(regionSampling) {}
+        bool regionSampling, bool dimInGammaSpaceForEnhancedScreenshots)
+      : mRenderArea(renderArea),
+        mColorProfile(colorProfile),
+        mRegionSampling(regionSampling),
+        mDimInGammaSpaceForEnhancedScreenshots(dimInGammaSpaceForEnhancedScreenshots) {}
 
 void ScreenCaptureOutput::updateColorProfile(const compositionengine::CompositionRefreshArgs&) {
     auto& outputState = editState();
@@ -95,6 +97,14 @@ renderengine::DisplaySettings ScreenCaptureOutput::generateClientCompositionDisp
     auto clientCompositionDisplay =
             compositionengine::impl::Output::generateClientCompositionDisplaySettings();
     clientCompositionDisplay.clip = mRenderArea.getSourceCrop();
+
+    auto renderIntent = static_cast<ui::RenderIntent>(clientCompositionDisplay.renderIntent);
+    if (mDimInGammaSpaceForEnhancedScreenshots && renderIntent != ui::RenderIntent::COLORIMETRIC &&
+        renderIntent != ui::RenderIntent::TONE_MAP_COLORIMETRIC) {
+        clientCompositionDisplay.dimmingStage =
+                aidl::android::hardware::graphics::composer3::DimmingStage::GAMMA_OETF;
+    }
+
     return clientCompositionDisplay;
 }
 

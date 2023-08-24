@@ -323,6 +323,11 @@ public:
     // on this behavior to increase contrast for some media sources.
     bool mTreat170mAsSrgb = false;
 
+    // If true, then screenshots with an enhanced render intent will dim in gamma space.
+    // The purpose is to ensure that screenshots appear correct during system animations for devices
+    // that require that dimming must occur in gamma space.
+    bool mDimInGammaSpaceForEnhancedScreenshots = false;
+
     // Allows to ignore physical orientation provided through hwc API in favour of
     // 'ro.surface_flinger.primary_display_orientation'.
     // TODO(b/246793311): Clean up a temporary property

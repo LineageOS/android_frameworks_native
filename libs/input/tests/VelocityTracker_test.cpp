@@ -282,6 +282,11 @@ static void computeAndCheckAxisScrollVelocity(
         const std::vector<std::pair<std::chrono::nanoseconds, float>>& motions,
         std::optional<float> targetVelocity) {
     checkVelocity(computeVelocity(strategy, motions, AMOTION_EVENT_AXIS_SCROLL), targetVelocity);
+    // The strategy LSQ2 is not compatible with AXIS_SCROLL. In those situations, we should fall
+    // back to a strategy that supports differential axes.
+    checkVelocity(computeVelocity(VelocityTracker::Strategy::LSQ2, motions,
+                                  AMOTION_EVENT_AXIS_SCROLL),
+                  targetVelocity);
 }
 
 static void computeAndCheckQuadraticEstimate(const std::vector<PlanarMotionEventEntry>& motions,
