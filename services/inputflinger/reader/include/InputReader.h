@@ -174,7 +174,14 @@ private:
     // in parallel to passing it to the InputReader.
     std::shared_ptr<EventHubInterface> mEventHub;
     sp<InputReaderPolicyInterface> mPolicy;
-    QueuedInputListener mQueuedListener;
+
+    // The next stage that should receive the events generated inside InputReader.
+    InputListenerInterface& mNextListener;
+    // As various events are generated inside InputReader, they are stored inside this list. The
+    // list can only be accessed with the lock, so the events inside it are well-ordered.
+    // Once the reader is done working, these events will be swapped into a temporary storage and
+    // sent to the 'mNextListener' without holding the lock.
+    std::list<NotifyArgs> mPendingArgs GUARDED_BY(mLock);
 
     InputReaderConfiguration mConfig GUARDED_BY(mLock);
 
@@ -241,8 +248,6 @@ private:
 
     ConfigurationChanges mConfigurationChangesToRefresh GUARDED_BY(mLock);
     void refreshConfigurationLocked(ConfigurationChanges changes) REQUIRES(mLock);
-
-    void notifyAll(std::list<NotifyArgs>&& argsList);
 
     PointerCaptureRequest mCurrentPointerCaptureRequest GUARDED_BY(mLock);
 
