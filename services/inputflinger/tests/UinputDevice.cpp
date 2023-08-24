@@ -157,6 +157,18 @@ void UinputExternalStylusWithPressure::setPressure(int32_t pressure) {
     injectEvent(EV_SYN, SYN_REPORT, 0);
 }
 
+// --- UinputKeyboardWithHidUsage ---
+
+UinputKeyboardWithHidUsage::UinputKeyboardWithHidUsage(std::initializer_list<int> keys)
+      : UinputKeyboard(DEVICE_NAME, PRODUCT_ID, keys) {}
+
+void UinputKeyboardWithHidUsage::configureDevice(int fd, uinput_user_dev* device) {
+    UinputKeyboard::configureDevice(fd, device);
+
+    ioctl(fd, UI_SET_EVBIT, EV_MSC);
+    ioctl(fd, UI_SET_MSCBIT, MSC_SCAN);
+}
+
 // --- UinputTouchScreen ---
 
 UinputTouchScreen::UinputTouchScreen(const Rect& size)
