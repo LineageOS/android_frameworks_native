@@ -63,9 +63,12 @@ static void drawShadowLayers(SkiaRenderEngine* renderengine, const DisplaySettin
             .geometry =
                     Geometry{
                             .boundaries = rect,
-                            .roundedCornersCrop = rect,
                             .roundedCornersRadius = {50.f, 50.f},
+                            .roundedCornersCrop = rect,
                     },
+            .alpha = 1,
+            // setting this is mandatory for shadows and blurs
+            .skipContentDraw = true,
             // drawShadow ignores alpha
             .shadow =
                     ShadowSettings{
@@ -76,16 +79,13 @@ static void drawShadowLayers(SkiaRenderEngine* renderengine, const DisplaySettin
                             .lightRadius = 2500.0f,
                             .length = 15.f,
                     },
-            // setting this is mandatory for shadows and blurs
-            .skipContentDraw = true,
-            .alpha = 1,
     };
     LayerSettings caster{
             .geometry =
                     Geometry{
                             .boundaries = smallerRect,
-                            .roundedCornersCrop = rect,
                             .roundedCornersRadius = {50.f, 50.f},
+                            .roundedCornersCrop = rect,
                     },
             .source =
                     PixelSource{
@@ -126,10 +126,10 @@ static void drawImageLayers(SkiaRenderEngine* renderengine, const DisplaySetting
     LayerSettings layer{
             .geometry =
                     Geometry{
+                            .boundaries = rect,
                             // The position transform doesn't matter when the reduced shader mode
                             // in in effect. A matrix transform stage is always included.
                             .positionTransform = mat4(),
-                            .boundaries = rect,
                             .roundedCornersCrop = rect,
                     },
             .source = PixelSource{.buffer =
@@ -263,11 +263,11 @@ static void drawPIPImageLayer(SkiaRenderEngine* renderengine, const DisplaySetti
     LayerSettings layer{
             .geometry =
                     Geometry{
+                            .boundaries = rect,
                             // Note that this flip matrix only makes a difference when clipping,
                             // which happens in this layer because the roundrect crop is just a bit
                             // larger than the layer bounds.
                             .positionTransform = kFlip,
-                            .boundaries = rect,
                             .roundedCornersRadius = {94.2551f, 94.2551f},
                             .roundedCornersCrop = FloatRect(-93.75, 0, displayRect.width() + 93.75,
                                                             displayRect.height()),
@@ -275,12 +275,12 @@ static void drawPIPImageLayer(SkiaRenderEngine* renderengine, const DisplaySetti
             .source = PixelSource{.buffer =
                                           Buffer{
                                                   .buffer = srcTexture,
-                                                  .maxLuminanceNits = 1000.f,
-                                                  .isOpaque = 0,
                                                   .usePremultipliedAlpha = 1,
+                                                  .isOpaque = 0,
+                                                  .maxLuminanceNits = 1000.f,
                                           }},
-            .sourceDataspace = kOtherDataSpace,
             .alpha = 1,
+            .sourceDataspace = kOtherDataSpace,
 
     };
 
@@ -296,10 +296,10 @@ static void drawHolePunchLayer(SkiaRenderEngine* renderengine, const DisplaySett
     LayerSettings layer{
             .geometry =
                     Geometry{
-                            .positionTransform = kScaleAndTranslate,
                             // the boundaries have to be smaller than the rounded crop so that
                             // clipRRect is used instead of drawRRect
                             .boundaries = small,
+                            .positionTransform = kScaleAndTranslate,
                             .roundedCornersRadius = {50.f, 50.f},
                             .roundedCornersCrop = rect,
                     },
@@ -307,8 +307,8 @@ static void drawHolePunchLayer(SkiaRenderEngine* renderengine, const DisplaySett
                     PixelSource{
                             .solidColor = half3(0.f, 0.f, 0.f),
                     },
-            .sourceDataspace = kDestDataSpace,
             .alpha = 0,
+            .sourceDataspace = kDestDataSpace,
             .disableBlending = true,
 
     };
