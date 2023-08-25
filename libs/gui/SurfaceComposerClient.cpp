@@ -2092,6 +2092,18 @@ SurfaceComposerClient::Transaction::setDefaultFrameRateCompatibility(const sp<Su
     return *this;
 }
 
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setFrameRateCategory(
+        const sp<SurfaceControl>& sc, int8_t category) {
+    layer_state_t* s = getLayerState(sc);
+    if (!s) {
+        mStatus = BAD_INDEX;
+        return *this;
+    }
+    s->what |= layer_state_t::eFrameRateCategoryChanged;
+    s->frameRateCategory = category;
+    return *this;
+}
+
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setFixedTransformHint(
         const sp<SurfaceControl>& sc, int32_t fixedTransformHint) {
     layer_state_t* s = getLayerState(sc);

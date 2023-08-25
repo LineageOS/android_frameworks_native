@@ -1060,6 +1060,42 @@ enum {
     ANATIVEWINDOW_FRAME_RATE_MIN
 };
 
+/*
+ * Frame rate category values that can be used in Transaction::setFrameRateCategory.
+ */
+enum {
+    /**
+     * Default value. This value can also be set to return to default behavior, such as layers
+     * without animations.
+     */
+    ANATIVEWINDOW_FRAME_RATE_CATEGORY_DEFAULT = 0,
+
+    /**
+     * The layer will explicitly not influence the frame rate.
+     * This may indicate a frame rate suitable for no animation updates (such as a cursor blinking
+     * or a sporadic update).
+     */
+    ANATIVEWINDOW_FRAME_RATE_CATEGORY_NO_PREFERENCE = 1,
+
+    /**
+     * Indicates a frame rate suitable for animations that looks fine even if played at a low frame
+     * rate.
+     */
+    ANATIVEWINDOW_FRAME_RATE_CATEGORY_LOW = 2,
+
+    /**
+     * Indicates a middle frame rate suitable for animations that do not require higher frame
+     * rates, or do not benefit from high smoothness. This is normally 60 Hz or close to it.
+     */
+    ANATIVEWINDOW_FRAME_RATE_CATEGORY_NORMAL = 3,
+
+    /**
+     * Indicates a frame rate suitable for animations that require a high frame rate, which may
+     * increase smoothness but may also increase power usage.
+     */
+    ANATIVEWINDOW_FRAME_RATE_CATEGORY_HIGH = 4
+};
+
 static inline int native_window_set_frame_rate(struct ANativeWindow* window, float frameRate,
                                         int8_t compatibility, int8_t changeFrameRateStrategy) {
     return window->perform(window, NATIVE_WINDOW_SET_FRAME_RATE, (double)frameRate,

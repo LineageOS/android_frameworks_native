@@ -26,10 +26,12 @@
 #include <algorithm>
 #include <utility>
 
+#include <android/native_window.h>
 #include <cutils/compiler.h>
 #include <cutils/trace.h>
 #include <ftl/enum.h>
 #include <gui/TraceUtils.h>
+#include <system/window.h>
 
 #undef LOG_TAG
 #define LOG_TAG "LayerInfo"
@@ -265,19 +267,34 @@ std::optional<Fps> LayerInfo::calculateRefreshRateIfPossible(const RefreshRateSe
                                                : std::nullopt;
 }
 
-LayerInfo::LayerVote LayerInfo::getRefreshRateVote(const RefreshRateSelector& selector,
-                                                   nsecs_t now) {
+LayerInfo::RefreshRateVotes LayerInfo::getRefreshRateVote(const RefreshRateSelector& selector,
+                                                          nsecs_t now) {
     ATRACE_CALL();
+    LayerInfo::RefreshRateVotes votes;
+
     if (mLayerVote.type != LayerHistory::LayerVoteType::Heuristic) {
-        ALOGV("%s voted %d ", mName.c_str(), static_cast<int>(mLayerVote.type));
-        return mLayerVote;
+        if (mLayerVote.category != FrameRateCategory::Default) {
+            ALOGV("%s uses frame rate category: %d", mName.c_str(),
+                  static_cast<int>(mLayerVote.category));
+            votes.push_back({LayerHistory::LayerVoteType::ExplicitCategory, mLayerVote.fps,
+                             Seamlessness::Default, mLayerVote.category});
+        }
+
+        if (mLayerVote.fps.isValid() ||
+            mLayerVote.type != LayerHistory::LayerVoteType::ExplicitDefault) {
+            ALOGV("%s voted %d ", mName.c_str(), static_cast<int>(mLayerVote.type));
+            votes.push_back(mLayerVote);
+        }
+
+        return votes;
     }
 
     if (isAnimating(now)) {
         ATRACE_FORMAT_INSTANT("animating");
         ALOGV("%s is animating", mName.c_str());
         mLastRefreshRate.animating = true;
-        return {LayerHistory::LayerVoteType::Max, Fps()};
+        votes.push_back({LayerHistory::LayerVoteType::Max, Fps()});
+        return votes;
     }
 
     const LayerInfo::Frequent frequent = isFrequent(now);
@@ -288,7 +305,8 @@ LayerInfo::LayerVote LayerInfo::getRefreshRateVote(const RefreshRateSelector& se
         mLastRefreshRate.infrequent = true;
         // Infrequent layers vote for minimal refresh rate for
         // battery saving purposes and also to prevent b/135718869.
-        return {LayerHistory::LayerVoteType::Min, Fps()};
+        votes.push_back({LayerHistory::LayerVoteType::Min, Fps()});
+        return votes;
     }
 
     if (frequent.clearHistory) {
@@ -298,11 +316,13 @@ LayerInfo::LayerVote LayerInfo::getRefreshRateVote(const RefreshRateSelector& se
     auto refreshRate = calculateRefreshRateIfPossible(selector, now);
     if (refreshRate.has_value()) {
         ALOGV("%s calculated refresh rate: %s", mName.c_str(), to_string(*refreshRate).c_str());
-        return {LayerHistory::LayerVoteType::Heuristic, refreshRate.value()};
+        votes.push_back({LayerHistory::LayerVoteType::Heuristic, refreshRate.value()});
+        return votes;
     }
 
     ALOGV("%s Max (can't resolve refresh rate)", mName.c_str());
-    return {LayerHistory::LayerVoteType::Max, Fps()};
+    votes.push_back({LayerHistory::LayerVoteType::Max, Fps()});
+    return votes;
 }
 
 const char* LayerInfo::getTraceTag(LayerHistory::LayerVoteType type) const {
@@ -389,6 +409,68 @@ bool LayerInfo::RefreshRateHistory::isConsistent() const {
     }
 
     return consistent;
+}
+
+LayerInfo::FrameRateCompatibility LayerInfo::FrameRate::convertCompatibility(int8_t compatibility) {
+    switch (compatibility) {
+        case ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT:
+            return FrameRateCompatibility::Default;
+        case ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_FIXED_SOURCE:
+            return FrameRateCompatibility::ExactOrMultiple;
+        case ANATIVEWINDOW_FRAME_RATE_EXACT:
+            return FrameRateCompatibility::Exact;
+        case ANATIVEWINDOW_FRAME_RATE_MIN:
+            return FrameRateCompatibility::Min;
+        case ANATIVEWINDOW_FRAME_RATE_NO_VOTE:
+            return FrameRateCompatibility::NoVote;
+        default:
+            LOG_ALWAYS_FATAL("Invalid frame rate compatibility value %d", compatibility);
+            return FrameRateCompatibility::Default;
+    }
+}
+
+Seamlessness LayerInfo::FrameRate::convertChangeFrameRateStrategy(int8_t strategy) {
+    switch (strategy) {
+        case ANATIVEWINDOW_CHANGE_FRAME_RATE_ONLY_IF_SEAMLESS:
+            return Seamlessness::OnlySeamless;
+        case ANATIVEWINDOW_CHANGE_FRAME_RATE_ALWAYS:
+            return Seamlessness::SeamedAndSeamless;
+        default:
+            LOG_ALWAYS_FATAL("Invalid change frame sate strategy value %d", strategy);
+            return Seamlessness::Default;
+    }
+}
+
+FrameRateCategory LayerInfo::FrameRate::convertCategory(int8_t category) {
+    switch (category) {
+        case ANATIVEWINDOW_FRAME_RATE_CATEGORY_DEFAULT:
+            return FrameRateCategory::Default;
+        case ANATIVEWINDOW_FRAME_RATE_CATEGORY_NO_PREFERENCE:
+            return FrameRateCategory::NoPreference;
+        case ANATIVEWINDOW_FRAME_RATE_CATEGORY_LOW:
+            return FrameRateCategory::Low;
+        case ANATIVEWINDOW_FRAME_RATE_CATEGORY_NORMAL:
+            return FrameRateCategory::Normal;
+        case ANATIVEWINDOW_FRAME_RATE_CATEGORY_HIGH:
+            return FrameRateCategory::High;
+        default:
+            LOG_ALWAYS_FATAL("Invalid frame rate category value %d", category);
+            return FrameRateCategory::Default;
+    }
+}
+
+bool LayerInfo::FrameRate::isNoVote() const {
+    return vote.type == FrameRateCompatibility::NoVote ||
+            category == FrameRateCategory::NoPreference;
+}
+
+bool LayerInfo::FrameRate::isValid() const {
+    return isNoVote() || vote.rate.isValid() || category != FrameRateCategory::Default;
+}
+
+std::ostream& operator<<(std::ostream& stream, const LayerInfo::FrameRate& rate) {
+    return stream << "{rate=" << rate.vote.rate << " type=" << ftl::enum_string(rate.vote.type)
+                  << " seamlessness=" << ftl::enum_string(rate.vote.seamlessness) << '}';
 }
 
 } // namespace android::scheduler

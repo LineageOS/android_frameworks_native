@@ -26,6 +26,7 @@
 #include <log/log.h>
 #include <ui/Size.h>
 
+#include <scheduler/Fps.h>
 #include <scheduler/FrameRateMode.h>
 #include "DisplayHardware/HWC2.h"
 #include "FpsOps.h"
@@ -1379,6 +1380,120 @@ TEST_P(RefreshRateSelectorTest, touchConsidered) {
     lr2.name = "60Hz Heuristic";
     std::tie(std::ignore, signals) = selector.getRankedRefreshRatesAsPair(layers, {.touch = true});
     EXPECT_FALSE(signals.touch);
+}
+
+TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_withFrameRateCategory_30_60_90_120) {
+    auto selector = createSelector(makeModes(kMode30, kMode60, kMode90, kMode120), kModeId60);
+
+    std::vector<LayerRequirement> layers = {{.vote = LayerVoteType::ExplicitDefault, .weight = 1.f},
+                                            {.vote = LayerVoteType::ExplicitCategory,
+                                             .weight = 1.f}};
+    auto& lr = layers[0];
+
+    struct Case {
+        // Params
+        Fps desiredFrameRate = 0_Hz;
+        FrameRateCategory frameRateCategory = FrameRateCategory::Default;
+
+        // Expected result
+        Fps expectedFrameRate = 0_Hz;
+    };
+
+    // Prepare a table with the vote and the expected refresh rate
+    const std::initializer_list<Case> testCases = {
+            // Cases that only have frame rate category requirements, but no desired frame rate.
+            // When frame rates get an equal score, the lower is chosen, unless there are Max votes.
+            {0_Hz, FrameRateCategory::High, 90_Hz},
+            {0_Hz, FrameRateCategory::Normal, 60_Hz},
+            {0_Hz, FrameRateCategory::Low, 30_Hz},
+            {0_Hz, FrameRateCategory::NoPreference, 60_Hz},
+
+            // Cases that have both desired frame rate and frame rate category requirements.
+            {24_Hz, FrameRateCategory::High, 120_Hz},
+            {30_Hz, FrameRateCategory::High, 90_Hz},
+            {12_Hz, FrameRateCategory::Normal, 60_Hz},
+            {30_Hz, FrameRateCategory::NoPreference, 30_Hz},
+
+            // Cases that only have desired frame rate.
+            {30_Hz, FrameRateCategory::Default, 30_Hz},
+    };
+
+    for (auto testCase : testCases) {
+        ALOGI("**** %s: Testing desiredFrameRate=%s, frameRateCategory=%s", __func__,
+              to_string(testCase.desiredFrameRate).c_str(),
+              ftl::enum_string(testCase.frameRateCategory).c_str());
+
+        lr.desiredRefreshRate = testCase.desiredFrameRate;
+
+        std::stringstream ss;
+        ss << to_string(testCase.desiredFrameRate)
+           << ", category=" << ftl::enum_string(testCase.frameRateCategory);
+        lr.name = ss.str();
+
+        if (testCase.frameRateCategory != FrameRateCategory::Default) {
+            layers[1].frameRateCategory = testCase.frameRateCategory;
+        }
+
+        EXPECT_EQ(testCase.expectedFrameRate, selector.getBestFrameRateMode(layers)->getFps())
+                << "did not get expected frame rate for " << lr.name;
+    }
+}
+
+TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_withFrameRateCategory_60_120) {
+    auto selector = createSelector(makeModes(kMode60, kMode120), kModeId60);
+
+    std::vector<LayerRequirement> layers = {{.vote = LayerVoteType::ExplicitDefault, .weight = 1.f},
+                                            {.vote = LayerVoteType::ExplicitCategory,
+                                             .weight = 1.f}};
+    auto& lr = layers[0];
+
+    struct Case {
+        // Params
+        Fps desiredFrameRate = 0_Hz;
+        FrameRateCategory frameRateCategory = FrameRateCategory::Default;
+
+        // Expected result
+        Fps expectedFrameRate = 0_Hz;
+    };
+
+    // Prepare a table with the vote and the expected refresh rate
+    const std::initializer_list<Case> testCases = {
+            // Cases that only have frame rate category requirements, but no desired frame rate.
+            // When frame rates get an equal score, the lower is chosen, unless there are Max votes.
+            {0_Hz, FrameRateCategory::High, 120_Hz},
+            {0_Hz, FrameRateCategory::Normal, 60_Hz},
+            {0_Hz, FrameRateCategory::Low, 60_Hz},
+            {0_Hz, FrameRateCategory::NoPreference, 60_Hz},
+
+            // Cases that have both desired frame rate and frame rate category requirements.
+            {24_Hz, FrameRateCategory::High, 120_Hz},
+            {30_Hz, FrameRateCategory::High, 120_Hz},
+            {12_Hz, FrameRateCategory::Normal, 60_Hz},
+            {30_Hz, FrameRateCategory::NoPreference, 60_Hz},
+
+            // Cases that only have desired frame rate.
+            {30_Hz, FrameRateCategory::Default, 60_Hz},
+    };
+
+    for (auto testCase : testCases) {
+        ALOGI("**** %s: Testing desiredFrameRate=%s, frameRateCategory=%s", __func__,
+              to_string(testCase.desiredFrameRate).c_str(),
+              ftl::enum_string(testCase.frameRateCategory).c_str());
+
+        lr.desiredRefreshRate = testCase.desiredFrameRate;
+
+        std::stringstream ss;
+        ss << to_string(testCase.desiredFrameRate)
+           << ", category=" << ftl::enum_string(testCase.frameRateCategory);
+        lr.name = ss.str();
+
+        if (testCase.frameRateCategory != FrameRateCategory::Default) {
+            layers[1].frameRateCategory = testCase.frameRateCategory;
+        }
+
+        EXPECT_EQ(testCase.expectedFrameRate, selector.getBestFrameRateMode(layers)->getFps())
+                << "did not get expected frame rate for " << lr.name;
+    }
 }
 
 TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_ExplicitDefault) {

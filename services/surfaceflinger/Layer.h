@@ -776,7 +776,8 @@ public:
      */
     Rect getCroppedBufferSize(const Layer::State& s) const;
 
-    bool setFrameRate(FrameRate);
+    bool setFrameRate(FrameRate::FrameRateVote);
+    bool setFrameRateCategory(FrameRateCategory);
 
     virtual void setFrameTimelineInfoForBuffer(const FrameTimelineInfo& /*info*/) {}
     void setFrameTimelineVsyncForBufferTransaction(const FrameTimelineInfo& info, nsecs_t postTime);

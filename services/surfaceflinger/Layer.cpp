@@ -27,7 +27,6 @@
 
 #include <android-base/properties.h>
 #include <android-base/stringprintf.h>
-#include <android/native_window.h>
 #include <binder/IPCThreadState.h>
 #include <compositionengine/CompositionEngine.h>
 #include <compositionengine/Display.h>
@@ -101,7 +100,7 @@ TimeStats::SetFrameRateVote frameRateToSetFrameRateVotePayload(Layer::FrameRate 
     using FrameRateCompatibility = TimeStats::SetFrameRateVote::FrameRateCompatibility;
     using Seamlessness = TimeStats::SetFrameRateVote::Seamlessness;
     const auto frameRateCompatibility = [frameRate] {
-        switch (frameRate.type) {
+        switch (frameRate.vote.type) {
             case Layer::FrameRateCompatibility::Default:
                 return FrameRateCompatibility::Default;
             case Layer::FrameRateCompatibility::ExactOrMultiple:
@@ -112,7 +111,7 @@ TimeStats::SetFrameRateVote frameRateToSetFrameRateVotePayload(Layer::FrameRate 
     }();
 
     const auto seamlessness = [frameRate] {
-        switch (frameRate.seamlessness) {
+        switch (frameRate.vote.seamlessness) {
             case scheduler::Seamlessness::OnlySeamless:
                 return Seamlessness::ShouldBeSeamless;
             case scheduler::Seamlessness::SeamedAndSeamless:
@@ -122,7 +121,7 @@ TimeStats::SetFrameRateVote frameRateToSetFrameRateVotePayload(Layer::FrameRate 
         }
     }();
 
-    return TimeStats::SetFrameRateVote{.frameRate = frameRate.rate.getValue(),
+    return TimeStats::SetFrameRateVote{.frameRate = frameRate.vote.rate.getValue(),
                                        .frameRateCompatibility = frameRateCompatibility,
                                        .seamlessness = seamlessness};
 }
@@ -1255,8 +1254,7 @@ const half4& Layer::getBorderColor() {
 bool Layer::propagateFrameRateForLayerTree(FrameRate parentFrameRate, bool* transactionNeeded) {
     // The frame rate for layer tree is this layer's frame rate if present, or the parent frame rate
     const auto frameRate = [&] {
-        if (mDrawingState.frameRate.rate.isValid() ||
-            mDrawingState.frameRate.type == FrameRateCompatibility::NoVote) {
+        if (mDrawingState.frameRate.isValid()) {
             return mDrawingState.frameRate;
         }
 
@@ -1272,23 +1270,23 @@ bool Layer::propagateFrameRateForLayerTree(FrameRate parentFrameRate, bool* tran
                 child->propagateFrameRateForLayerTree(frameRate, transactionNeeded);
     }
 
-    // If we don't have a valid frame rate, but the children do, we set this
+    // If we don't have a valid frame rate specification, but the children do, we set this
     // layer as NoVote to allow the children to control the refresh rate
-    if (!frameRate.rate.isValid() && frameRate.type != FrameRateCompatibility::NoVote &&
-        childrenHaveFrameRate) {
+    if (!frameRate.isValid() && childrenHaveFrameRate) {
         *transactionNeeded |=
                 setFrameRateForLayerTreeLegacy(FrameRate(Fps(), FrameRateCompatibility::NoVote));
     }
 
-    // We return whether this layer ot its children has a vote. We ignore ExactOrMultiple votes for
+    // We return whether this layer or its children has a vote. We ignore ExactOrMultiple votes for
     // the same reason we are allowing touch boost for those layers. See
     // RefreshRateSelector::rankFrameRates for details.
     const auto layerVotedWithDefaultCompatibility =
-            frameRate.rate.isValid() && frameRate.type == FrameRateCompatibility::Default;
-    const auto layerVotedWithNoVote = frameRate.type == FrameRateCompatibility::NoVote;
+            frameRate.vote.rate.isValid() && frameRate.vote.type == FrameRateCompatibility::Default;
+    const auto layerVotedWithNoVote = frameRate.vote.type == FrameRateCompatibility::NoVote;
+    const auto layerVotedWithCategory = frameRate.category != FrameRateCategory::Default;
     const auto layerVotedWithExactCompatibility =
-            frameRate.rate.isValid() && frameRate.type == FrameRateCompatibility::Exact;
-    return layerVotedWithDefaultCompatibility || layerVotedWithNoVote ||
+            frameRate.vote.rate.isValid() && frameRate.vote.type == FrameRateCompatibility::Exact;
+    return layerVotedWithDefaultCompatibility || layerVotedWithNoVote || layerVotedWithCategory ||
             layerVotedWithExactCompatibility || childrenHaveFrameRate;
 }
 
@@ -1310,13 +1308,28 @@ void Layer::updateTreeHasFrameRateVote() {
     }
 }
 
-bool Layer::setFrameRate(FrameRate frameRate) {
-    if (mDrawingState.frameRate == frameRate) {
+bool Layer::setFrameRate(FrameRate::FrameRateVote frameRateVote) {
+    if (mDrawingState.frameRate.vote == frameRateVote) {
         return false;
     }
 
     mDrawingState.sequence++;
-    mDrawingState.frameRate = frameRate;
+    mDrawingState.frameRate.vote = frameRateVote;
+    mDrawingState.modified = true;
+
+    updateTreeHasFrameRateVote();
+
+    setTransactionFlags(eTransactionNeeded);
+    return true;
+}
+
+bool Layer::setFrameRateCategory(FrameRateCategory category) {
+    if (mDrawingState.frameRate.category == category) {
+        return false;
+    }
+
+    mDrawingState.sequence++;
+    mDrawingState.frameRate.category = category;
     mDrawingState.modified = true;
 
     updateTreeHasFrameRateVote();
@@ -1642,10 +1655,10 @@ void Layer::miniDumpLegacy(std::string& result, const DisplayDevice& display) co
     StringAppendF(&result, "%6.1f %6.1f %6.1f %6.1f | ", crop.left, crop.top, crop.right,
                   crop.bottom);
     const auto frameRate = getFrameRateForLayerTree();
-    if (frameRate.rate.isValid() || frameRate.type != FrameRateCompatibility::Default) {
-        StringAppendF(&result, "%s %15s %17s", to_string(frameRate.rate).c_str(),
-                      ftl::enum_string(frameRate.type).c_str(),
-                      ftl::enum_string(frameRate.seamlessness).c_str());
+    if (frameRate.vote.rate.isValid() || frameRate.vote.type != FrameRateCompatibility::Default) {
+        StringAppendF(&result, "%s %15s %17s", to_string(frameRate.vote.rate).c_str(),
+                      ftl::enum_string(frameRate.vote.type).c_str(),
+                      ftl::enum_string(frameRate.vote.seamlessness).c_str());
     } else {
         result.append(41, ' ');
     }
@@ -1677,10 +1690,10 @@ void Layer::miniDump(std::string& result, const frontend::LayerSnapshot& snapsho
     StringAppendF(&result, "%6.1f %6.1f %6.1f %6.1f | ", crop.left, crop.top, crop.right,
                   crop.bottom);
     const auto frameRate = snapshot.frameRate;
-    if (frameRate.rate.isValid() || frameRate.type != FrameRateCompatibility::Default) {
-        StringAppendF(&result, "%s %15s %17s", to_string(frameRate.rate).c_str(),
-                      ftl::enum_string(frameRate.type).c_str(),
-                      ftl::enum_string(frameRate.seamlessness).c_str());
+    if (frameRate.vote.rate.isValid() || frameRate.vote.type != FrameRateCompatibility::Default) {
+        StringAppendF(&result, "%s %15s %17s", to_string(frameRate.vote.rate).c_str(),
+                      ftl::enum_string(frameRate.vote.type).c_str(),
+                      ftl::enum_string(frameRate.vote.seamlessness).c_str());
     } else {
         result.append(41, ' ');
     }
@@ -2808,36 +2821,6 @@ void Layer::updateClonedRelatives(const std::map<sp<Layer>, sp<Layer>>& clonedLa
 void Layer::addChildToDrawing(const sp<Layer>& layer) {
     mDrawingChildren.add(layer);
     layer->mDrawingParent = sp<Layer>::fromExisting(this);
-}
-
-Layer::FrameRateCompatibility Layer::FrameRate::convertCompatibility(int8_t compatibility) {
-    switch (compatibility) {
-        case ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT:
-            return FrameRateCompatibility::Default;
-        case ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_FIXED_SOURCE:
-            return FrameRateCompatibility::ExactOrMultiple;
-        case ANATIVEWINDOW_FRAME_RATE_EXACT:
-            return FrameRateCompatibility::Exact;
-        case ANATIVEWINDOW_FRAME_RATE_MIN:
-            return FrameRateCompatibility::Min;
-        case ANATIVEWINDOW_FRAME_RATE_NO_VOTE:
-            return FrameRateCompatibility::NoVote;
-        default:
-            LOG_ALWAYS_FATAL("Invalid frame rate compatibility value %d", compatibility);
-            return FrameRateCompatibility::Default;
-    }
-}
-
-scheduler::Seamlessness Layer::FrameRate::convertChangeFrameRateStrategy(int8_t strategy) {
-    switch (strategy) {
-        case ANATIVEWINDOW_CHANGE_FRAME_RATE_ONLY_IF_SEAMLESS:
-            return Seamlessness::OnlySeamless;
-        case ANATIVEWINDOW_CHANGE_FRAME_RATE_ALWAYS:
-            return Seamlessness::SeamedAndSeamless;
-        default:
-            LOG_ALWAYS_FATAL("Invalid change frame sate strategy value %d", strategy);
-            return Seamlessness::Default;
-    }
 }
 
 bool Layer::isInternalDisplayOverlay() const {
@@ -4350,13 +4333,6 @@ bool Layer::setTrustedPresentationInfo(TrustedPresentationThresholds const& thre
 
 void Layer::updateLastLatchTime(nsecs_t latchTime) {
     mLastLatchTime = latchTime;
-}
-
-// ---------------------------------------------------------------------------
-
-std::ostream& operator<<(std::ostream& stream, const Layer::FrameRate& rate) {
-    return stream << "{rate=" << rate.rate << " type=" << ftl::enum_string(rate.type)
-                  << " seamlessness=" << ftl::enum_string(rate.seamlessness) << '}';
 }
 
 } // namespace android

@@ -314,13 +314,15 @@ TEST_F(LayerSnapshotTest, NoLayerVoteForParentWithChildVotes) {
     mLifecycleManager.applyTransactions(transactions);
     UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
 
-    EXPECT_EQ(getSnapshot(11)->frameRate.rate.getIntValue(), 90);
-    EXPECT_EQ(getSnapshot(11)->frameRate.type, scheduler::LayerInfo::FrameRateCompatibility::Exact);
-    EXPECT_EQ(getSnapshot(111)->frameRate.rate.getIntValue(), 90);
-    EXPECT_EQ(getSnapshot(111)->frameRate.type,
+    EXPECT_EQ(getSnapshot(11)->frameRate.vote.rate.getIntValue(), 90);
+    EXPECT_EQ(getSnapshot(11)->frameRate.vote.type,
               scheduler::LayerInfo::FrameRateCompatibility::Exact);
-    EXPECT_EQ(getSnapshot(1)->frameRate.rate.getIntValue(), 0);
-    EXPECT_EQ(getSnapshot(1)->frameRate.type, scheduler::LayerInfo::FrameRateCompatibility::NoVote);
+    EXPECT_EQ(getSnapshot(111)->frameRate.vote.rate.getIntValue(), 90);
+    EXPECT_EQ(getSnapshot(111)->frameRate.vote.type,
+              scheduler::LayerInfo::FrameRateCompatibility::Exact);
+    EXPECT_EQ(getSnapshot(1)->frameRate.vote.rate.getIntValue(), 0);
+    EXPECT_EQ(getSnapshot(1)->frameRate.vote.type,
+              scheduler::LayerInfo::FrameRateCompatibility::NoVote);
 }
 
 TEST_F(LayerSnapshotTest, CanCropTouchableRegion) {
@@ -531,21 +533,21 @@ TEST_F(LayerSnapshotTest, framerate) {
 
     UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
     // verify parent is gets no vote
-    EXPECT_FALSE(getSnapshot({.id = 1})->frameRate.rate.isValid());
-    EXPECT_EQ(getSnapshot({.id = 1})->frameRate.type,
+    EXPECT_FALSE(getSnapshot({.id = 1})->frameRate.vote.rate.isValid());
+    EXPECT_EQ(getSnapshot({.id = 1})->frameRate.vote.type,
               scheduler::LayerInfo::FrameRateCompatibility::NoVote);
     EXPECT_TRUE(getSnapshot({.id = 1})->changes.test(RequestedLayerState::Changes::FrameRate));
 
     // verify layer and children get the requested votes
-    EXPECT_TRUE(getSnapshot({.id = 11})->frameRate.rate.isValid());
-    EXPECT_EQ(getSnapshot({.id = 11})->frameRate.rate.getValue(), 244.f);
-    EXPECT_EQ(getSnapshot({.id = 11})->frameRate.type,
+    EXPECT_TRUE(getSnapshot({.id = 11})->frameRate.vote.rate.isValid());
+    EXPECT_EQ(getSnapshot({.id = 11})->frameRate.vote.rate.getValue(), 244.f);
+    EXPECT_EQ(getSnapshot({.id = 11})->frameRate.vote.type,
               scheduler::LayerInfo::FrameRateCompatibility::Default);
     EXPECT_TRUE(getSnapshot({.id = 11})->changes.test(RequestedLayerState::Changes::FrameRate));
 
-    EXPECT_TRUE(getSnapshot({.id = 111})->frameRate.rate.isValid());
-    EXPECT_EQ(getSnapshot({.id = 111})->frameRate.rate.getValue(), 244.f);
-    EXPECT_EQ(getSnapshot({.id = 111})->frameRate.type,
+    EXPECT_TRUE(getSnapshot({.id = 111})->frameRate.vote.rate.isValid());
+    EXPECT_EQ(getSnapshot({.id = 111})->frameRate.vote.rate.getValue(), 244.f);
+    EXPECT_EQ(getSnapshot({.id = 111})->frameRate.vote.type,
               scheduler::LayerInfo::FrameRateCompatibility::Default);
     EXPECT_TRUE(getSnapshot({.id = 111})->changes.test(RequestedLayerState::Changes::FrameRate));
 
@@ -555,24 +557,24 @@ TEST_F(LayerSnapshotTest, framerate) {
     std::vector<uint32_t> expected = {1, 11, 111, 122, 1221, 12, 121, 13, 2};
     UPDATE_AND_VERIFY(mSnapshotBuilder, expected);
     // verify parent is gets no vote
-    EXPECT_FALSE(getSnapshot({.id = 1})->frameRate.rate.isValid());
-    EXPECT_EQ(getSnapshot({.id = 1})->frameRate.type,
+    EXPECT_FALSE(getSnapshot({.id = 1})->frameRate.vote.rate.isValid());
+    EXPECT_EQ(getSnapshot({.id = 1})->frameRate.vote.type,
               scheduler::LayerInfo::FrameRateCompatibility::NoVote);
 
     // verify layer and children get the requested votes
-    EXPECT_TRUE(getSnapshot({.id = 11})->frameRate.rate.isValid());
-    EXPECT_EQ(getSnapshot({.id = 11})->frameRate.rate.getValue(), 244.f);
-    EXPECT_EQ(getSnapshot({.id = 11})->frameRate.type,
+    EXPECT_TRUE(getSnapshot({.id = 11})->frameRate.vote.rate.isValid());
+    EXPECT_EQ(getSnapshot({.id = 11})->frameRate.vote.rate.getValue(), 244.f);
+    EXPECT_EQ(getSnapshot({.id = 11})->frameRate.vote.type,
               scheduler::LayerInfo::FrameRateCompatibility::Default);
 
-    EXPECT_TRUE(getSnapshot({.id = 111})->frameRate.rate.isValid());
-    EXPECT_EQ(getSnapshot({.id = 111})->frameRate.rate.getValue(), 244.f);
-    EXPECT_EQ(getSnapshot({.id = 111})->frameRate.type,
+    EXPECT_TRUE(getSnapshot({.id = 111})->frameRate.vote.rate.isValid());
+    EXPECT_EQ(getSnapshot({.id = 111})->frameRate.vote.rate.getValue(), 244.f);
+    EXPECT_EQ(getSnapshot({.id = 111})->frameRate.vote.type,
               scheduler::LayerInfo::FrameRateCompatibility::Default);
 
-    EXPECT_TRUE(getSnapshot({.id = 122})->frameRate.rate.isValid());
-    EXPECT_EQ(getSnapshot({.id = 122})->frameRate.rate.getValue(), 244.f);
-    EXPECT_EQ(getSnapshot({.id = 122})->frameRate.type,
+    EXPECT_TRUE(getSnapshot({.id = 122})->frameRate.vote.rate.isValid());
+    EXPECT_EQ(getSnapshot({.id = 122})->frameRate.vote.rate.getValue(), 244.f);
+    EXPECT_EQ(getSnapshot({.id = 122})->frameRate.vote.type,
               scheduler::LayerInfo::FrameRateCompatibility::Default);
     EXPECT_TRUE(getSnapshot({.id = 122})->changes.test(RequestedLayerState::Changes::FrameRate));
 
@@ -582,31 +584,31 @@ TEST_F(LayerSnapshotTest, framerate) {
     UPDATE_AND_VERIFY(mSnapshotBuilder, expected);
 
     // verify old parent has invalid framerate (default)
-    EXPECT_FALSE(getSnapshot({.id = 1})->frameRate.rate.isValid());
-    EXPECT_EQ(getSnapshot({.id = 1})->frameRate.type,
+    EXPECT_FALSE(getSnapshot({.id = 1})->frameRate.vote.rate.isValid());
+    EXPECT_EQ(getSnapshot({.id = 1})->frameRate.vote.type,
               scheduler::LayerInfo::FrameRateCompatibility::Default);
     EXPECT_TRUE(getSnapshot({.id = 1})->changes.test(RequestedLayerState::Changes::FrameRate));
 
     // verify new parent get no vote
-    EXPECT_FALSE(getSnapshot({.id = 2})->frameRate.rate.isValid());
-    EXPECT_EQ(getSnapshot({.id = 2})->frameRate.type,
+    EXPECT_FALSE(getSnapshot({.id = 2})->frameRate.vote.rate.isValid());
+    EXPECT_EQ(getSnapshot({.id = 2})->frameRate.vote.type,
               scheduler::LayerInfo::FrameRateCompatibility::NoVote);
     EXPECT_TRUE(getSnapshot({.id = 2})->changes.test(RequestedLayerState::Changes::FrameRate));
 
     // verify layer and children get the requested votes (unchanged)
-    EXPECT_TRUE(getSnapshot({.id = 11})->frameRate.rate.isValid());
-    EXPECT_EQ(getSnapshot({.id = 11})->frameRate.rate.getValue(), 244.f);
-    EXPECT_EQ(getSnapshot({.id = 11})->frameRate.type,
+    EXPECT_TRUE(getSnapshot({.id = 11})->frameRate.vote.rate.isValid());
+    EXPECT_EQ(getSnapshot({.id = 11})->frameRate.vote.rate.getValue(), 244.f);
+    EXPECT_EQ(getSnapshot({.id = 11})->frameRate.vote.type,
               scheduler::LayerInfo::FrameRateCompatibility::Default);
 
-    EXPECT_TRUE(getSnapshot({.id = 111})->frameRate.rate.isValid());
-    EXPECT_EQ(getSnapshot({.id = 111})->frameRate.rate.getValue(), 244.f);
-    EXPECT_EQ(getSnapshot({.id = 111})->frameRate.type,
+    EXPECT_TRUE(getSnapshot({.id = 111})->frameRate.vote.rate.isValid());
+    EXPECT_EQ(getSnapshot({.id = 111})->frameRate.vote.rate.getValue(), 244.f);
+    EXPECT_EQ(getSnapshot({.id = 111})->frameRate.vote.type,
               scheduler::LayerInfo::FrameRateCompatibility::Default);
 
-    EXPECT_TRUE(getSnapshot({.id = 122})->frameRate.rate.isValid());
-    EXPECT_EQ(getSnapshot({.id = 122})->frameRate.rate.getValue(), 244.f);
-    EXPECT_EQ(getSnapshot({.id = 122})->frameRate.type,
+    EXPECT_TRUE(getSnapshot({.id = 122})->frameRate.vote.rate.isValid());
+    EXPECT_EQ(getSnapshot({.id = 122})->frameRate.vote.rate.getValue(), 244.f);
+    EXPECT_EQ(getSnapshot({.id = 122})->frameRate.vote.type,
               scheduler::LayerInfo::FrameRateCompatibility::Default);
 }
 
@@ -614,6 +616,112 @@ TEST_F(LayerSnapshotTest, translateDataspace) {
     setDataspace(1, ui::Dataspace::UNKNOWN);
     UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
     EXPECT_EQ(getSnapshot({.id = 1})->dataspace, ui::Dataspace::V0_SRGB);
+}
+
+// This test is similar to "frameRate" test case but checks that the setFrameRateCategory API
+// interaction also works correctly with the setFrameRate API within SF frontend.
+TEST_F(LayerSnapshotTest, frameRateWithCategory) {
+    // ROOT
+    // ├── 1
+    // │   ├── 11 (frame rate set to 244.f)
+    // │   │   └── 111
+    // │   ├── 12
+    // │   │   ├── 121
+    // │   │   └── 122 (frame rate category set to Normal)
+    // │   │       └── 1221
+    // │   └── 13
+    // └── 2
+    setFrameRate(11, 244.f, 0, 0);
+    setFrameRateCategory(122, 3 /* Normal */);
+
+    UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
+    // verify parent 1 gets no vote
+    EXPECT_FALSE(getSnapshot({.id = 1})->frameRate.vote.rate.isValid());
+    EXPECT_EQ(getSnapshot({.id = 1})->frameRate.vote.type,
+              scheduler::LayerInfo::FrameRateCompatibility::NoVote);
+    EXPECT_TRUE(getSnapshot({.id = 1})->changes.test(RequestedLayerState::Changes::FrameRate));
+
+    // verify layer 11 and children 111 get the requested votes
+    EXPECT_TRUE(getSnapshot({.id = 11})->frameRate.vote.rate.isValid());
+    EXPECT_EQ(getSnapshot({.id = 11})->frameRate.vote.rate.getValue(), 244.f);
+    EXPECT_EQ(getSnapshot({.id = 11})->frameRate.vote.type,
+              scheduler::LayerInfo::FrameRateCompatibility::Default);
+    EXPECT_TRUE(getSnapshot({.id = 11})->changes.test(RequestedLayerState::Changes::FrameRate));
+
+    EXPECT_TRUE(getSnapshot({.id = 111})->frameRate.vote.rate.isValid());
+    EXPECT_EQ(getSnapshot({.id = 111})->frameRate.vote.rate.getValue(), 244.f);
+    EXPECT_EQ(getSnapshot({.id = 111})->frameRate.vote.type,
+              scheduler::LayerInfo::FrameRateCompatibility::Default);
+    EXPECT_TRUE(getSnapshot({.id = 111})->changes.test(RequestedLayerState::Changes::FrameRate));
+
+    // verify parent 12 gets no vote
+    EXPECT_FALSE(getSnapshot({.id = 12})->frameRate.vote.rate.isValid());
+    EXPECT_EQ(getSnapshot({.id = 12})->frameRate.vote.type,
+              scheduler::LayerInfo::FrameRateCompatibility::NoVote);
+    EXPECT_TRUE(getSnapshot({.id = 12})->changes.test(RequestedLayerState::Changes::FrameRate));
+
+    // verify layer 122 and children 1221 get the requested votes
+    EXPECT_FALSE(getSnapshot({.id = 122})->frameRate.vote.rate.isValid());
+    EXPECT_TRUE(getSnapshot({.id = 122})->frameRate.isValid());
+    EXPECT_EQ(getSnapshot({.id = 122})->frameRate.vote.type,
+              scheduler::LayerInfo::FrameRateCompatibility::Default);
+    EXPECT_EQ(getSnapshot({.id = 122})->frameRate.category, FrameRateCategory::Normal);
+    EXPECT_TRUE(getSnapshot({.id = 122})->changes.test(RequestedLayerState::Changes::FrameRate));
+
+    EXPECT_FALSE(getSnapshot({.id = 1221})->frameRate.vote.rate.isValid());
+    EXPECT_TRUE(getSnapshot({.id = 1221})->frameRate.isValid());
+    EXPECT_EQ(getSnapshot({.id = 1221})->frameRate.vote.type,
+              scheduler::LayerInfo::FrameRateCompatibility::Default);
+    EXPECT_EQ(getSnapshot({.id = 1221})->frameRate.category, FrameRateCategory::Normal);
+    EXPECT_TRUE(getSnapshot({.id = 1221})->changes.test(RequestedLayerState::Changes::FrameRate));
+
+    // reparent and verify the child does NOT get the new parent's framerate because it already has
+    // the frame rate category specified.
+    // ROOT
+    //  ├─1
+    //  │  ├─11 (frame rate set to 244.f)
+    //  │  │  ├─111
+    //  │  │  └─122 (frame rate category set to Normal)
+    //  │  │     └─1221
+    //  │  ├─12
+    //  │  │  └─121
+    //  │  └─13
+    //  └─2
+    reparentLayer(122, 11);
+
+    std::vector<uint32_t> expected = {1, 11, 111, 122, 1221, 12, 121, 13, 2};
+    UPDATE_AND_VERIFY(mSnapshotBuilder, expected);
+    // verify parent is gets no vote
+    EXPECT_FALSE(getSnapshot({.id = 1})->frameRate.vote.rate.isValid());
+    EXPECT_EQ(getSnapshot({.id = 1})->frameRate.vote.type,
+              scheduler::LayerInfo::FrameRateCompatibility::NoVote);
+
+    // verify layer 11 and children 111 get the requested votes
+    EXPECT_TRUE(getSnapshot({.id = 11})->frameRate.vote.rate.isValid());
+    EXPECT_EQ(getSnapshot({.id = 11})->frameRate.vote.rate.getValue(), 244.f);
+    EXPECT_EQ(getSnapshot({.id = 11})->frameRate.vote.type,
+              scheduler::LayerInfo::FrameRateCompatibility::Default);
+
+    EXPECT_TRUE(getSnapshot({.id = 111})->frameRate.vote.rate.isValid());
+    EXPECT_EQ(getSnapshot({.id = 111})->frameRate.vote.rate.getValue(), 244.f);
+    EXPECT_EQ(getSnapshot({.id = 111})->frameRate.vote.type,
+              scheduler::LayerInfo::FrameRateCompatibility::Default);
+
+    // verify layer 122 and children 1221 get the requested category vote (unchanged from
+    // reparenting)
+    EXPECT_FALSE(getSnapshot({.id = 122})->frameRate.vote.rate.isValid());
+    EXPECT_TRUE(getSnapshot({.id = 122})->frameRate.isValid());
+    EXPECT_EQ(getSnapshot({.id = 122})->frameRate.vote.type,
+              scheduler::LayerInfo::FrameRateCompatibility::Default);
+    EXPECT_EQ(getSnapshot({.id = 122})->frameRate.category, FrameRateCategory::Normal);
+    EXPECT_TRUE(getSnapshot({.id = 122})->changes.test(RequestedLayerState::Changes::FrameRate));
+
+    EXPECT_FALSE(getSnapshot({.id = 1221})->frameRate.vote.rate.isValid());
+    EXPECT_TRUE(getSnapshot({.id = 1221})->frameRate.isValid());
+    EXPECT_EQ(getSnapshot({.id = 1221})->frameRate.vote.type,
+              scheduler::LayerInfo::FrameRateCompatibility::Default);
+    EXPECT_EQ(getSnapshot({.id = 1221})->frameRate.category, FrameRateCategory::Normal);
+    EXPECT_TRUE(getSnapshot({.id = 1221})->changes.test(RequestedLayerState::Changes::FrameRate));
 }
 
 TEST_F(LayerSnapshotTest, skipRoundCornersWhenProtected) {

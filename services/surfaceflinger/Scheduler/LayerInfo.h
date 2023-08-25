@@ -25,6 +25,7 @@
 #include <ui/Transform.h>
 #include <utils/Timers.h>
 
+#include <scheduler/Fps.h>
 #include <scheduler/Seamlessness.h>
 
 #include "LayerHistory.h"
@@ -67,7 +68,14 @@ public:
         LayerHistory::LayerVoteType type = LayerHistory::LayerVoteType::Heuristic;
         Fps fps;
         Seamlessness seamlessness = Seamlessness::Default;
+        // Category is in effect if fps is not specified.
+        FrameRateCategory category = FrameRateCategory::Default;
+
+        // Returns true if the layer explicitly should contribute to frame rate scoring.
+        bool isNoVote() const { return RefreshRateSelector::isNoVote(type, category); }
     };
+
+    using RefreshRateVotes = ftl::SmallVector<LayerInfo::LayerVote, 2>;
 
     // FrameRateCompatibility specifies how we should interpret the frame rate associated with
     // the layer.
@@ -87,24 +95,40 @@ public:
         ftl_last = NoVote
     };
 
-    // Encapsulates the frame rate and compatibility of the layer. This information will be used
+    // Encapsulates the frame rate specifications of the layer. This information will be used
     // when the display refresh rate is determined.
     struct FrameRate {
         using Seamlessness = scheduler::Seamlessness;
 
-        Fps rate;
-        FrameRateCompatibility type = FrameRateCompatibility::Default;
-        Seamlessness seamlessness = Seamlessness::Default;
+        // Information related to a specific desired frame rate vote.
+        struct FrameRateVote {
+            Fps rate;
+            FrameRateCompatibility type = FrameRateCompatibility::Default;
+            Seamlessness seamlessness = Seamlessness::Default;
+
+            bool operator==(const FrameRateVote& other) const {
+                return isApproxEqual(rate, other.rate) && type == other.type &&
+                        seamlessness == other.seamlessness;
+            }
+
+            FrameRateVote() = default;
+
+            FrameRateVote(Fps rate, FrameRateCompatibility type,
+                          Seamlessness seamlessness = Seamlessness::OnlySeamless)
+                  : rate(rate), type(type), seamlessness(getSeamlessness(rate, seamlessness)) {}
+        } vote;
+
+        FrameRateCategory category = FrameRateCategory::Default;
 
         FrameRate() = default;
 
         FrameRate(Fps rate, FrameRateCompatibility type,
-                  Seamlessness seamlessness = Seamlessness::OnlySeamless)
-              : rate(rate), type(type), seamlessness(getSeamlessness(rate, seamlessness)) {}
+                  Seamlessness seamlessness = Seamlessness::OnlySeamless,
+                  FrameRateCategory category = FrameRateCategory::Default)
+              : vote(FrameRateVote(rate, type, seamlessness)), category(category) {}
 
         bool operator==(const FrameRate& other) const {
-            return isApproxEqual(rate, other.rate) && type == other.type &&
-                    seamlessness == other.seamlessness;
+            return vote == other.vote && category == other.category;
         }
 
         bool operator!=(const FrameRate& other) const { return !(*this == other); }
@@ -112,7 +136,21 @@ public:
         // Convert an ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_* value to a
         // Layer::FrameRateCompatibility. Logs fatal if the compatibility value is invalid.
         static FrameRateCompatibility convertCompatibility(int8_t compatibility);
+
+        // Convert an ANATIVEWINDOW_CHANGE_FRAME_RATE_* value to a scheduler::Seamlessness.
+        // Logs fatal if the compatibility value is invalid.
         static scheduler::Seamlessness convertChangeFrameRateStrategy(int8_t strategy);
+
+        // Convert an ANATIVEWINDOW_FRAME_RATE_CATEGORY_* value to a FrameRateCategory.
+        // Logs fatal if the compatibility value is invalid.
+        static FrameRateCategory convertCategory(int8_t category);
+
+        // True if the FrameRate has explicit frame rate specifications.
+        bool isValid() const;
+
+        // Returns true if the FrameRate explicitly instructs to not contribute to frame rate
+        // selection.
+        bool isNoVote() const;
 
     private:
         static Seamlessness getSeamlessness(Fps rate, Seamlessness seamlessness) {
@@ -148,13 +186,15 @@ public:
     void setDefaultLayerVote(LayerHistory::LayerVoteType type) { mDefaultVote = type; }
 
     // Resets the layer vote to its default.
-    void resetLayerVote() { mLayerVote = {mDefaultVote, Fps(), Seamlessness::Default}; }
+    void resetLayerVote() {
+        mLayerVote = {mDefaultVote, Fps(), Seamlessness::Default, FrameRateCategory::Default};
+    }
 
     std::string getName() const { return mName; }
 
     uid_t getOwnerUid() const { return mOwnerUid; }
 
-    LayerVote getRefreshRateVote(const RefreshRateSelector&, nsecs_t now);
+    RefreshRateVotes getRefreshRateVote(const RefreshRateSelector&, nsecs_t now);
 
     // Return the last updated time. If the present time is farther in the future than the
     // updated time, the updated time is the present time.

@@ -152,8 +152,9 @@ public:
                                  // ExactOrMultiple compatibility
         ExplicitExact,           // Specific refresh rate that was provided by the app with
                                  // Exact compatibility
+        ExplicitCategory,        // Specific frame rate category was provided by the app
 
-        ftl_last = ExplicitExact
+        ftl_last = ExplicitCategory
     };
 
     // Captures the layer requirements for a refresh rate. This will be used to determine the
@@ -169,6 +170,8 @@ public:
         Fps desiredRefreshRate;
         // If a seamless mode switch is required.
         Seamlessness seamlessness = Seamlessness::Default;
+        // Layer frame rate category. Superseded by desiredRefreshRate.
+        FrameRateCategory frameRateCategory = FrameRateCategory::Default;
         // Layer's weight in the range of [0, 1]. The higher the weight the more impact this layer
         // would have on choosing the refresh rate.
         float weight = 0.0f;
@@ -179,11 +182,19 @@ public:
             return name == other.name && vote == other.vote &&
                     isApproxEqual(desiredRefreshRate, other.desiredRefreshRate) &&
                     seamlessness == other.seamlessness && weight == other.weight &&
-                    focused == other.focused;
+                    focused == other.focused && frameRateCategory == other.frameRateCategory;
         }
 
         bool operator!=(const LayerRequirement& other) const { return !(*this == other); }
+
+        bool isNoVote() const { return RefreshRateSelector::isNoVote(vote, frameRateCategory); }
     };
+
+    // Returns true if the layer explicitly instructs to not contribute to refresh rate selection.
+    // In other words, true if the layer should be ignored.
+    static bool isNoVote(LayerVoteType vote, FrameRateCategory category) {
+        return vote == LayerVoteType::NoVote || category == FrameRateCategory::NoPreference;
+    }
 
     // Global state describing signals that affect refresh rate choice.
     struct GlobalSignals {
@@ -349,6 +360,9 @@ public:
                                                  Fps displayFrameRate, GlobalSignals) const
             EXCLUDES(mLock);
 
+    // Gets the FpsRange that the FrameRateCategory represents.
+    static FpsRange getFrameRateCategoryRange(FrameRateCategory category);
+
     std::optional<KernelIdleTimerController> kernelIdleTimerController() {
         return mConfig.kernelIdleTimerController;
     }
@@ -450,6 +464,11 @@ private:
                                     bool isSeamlessSwitch) const REQUIRES(mLock);
 
     float calculateNonExactMatchingLayerScoreLocked(const LayerRequirement&, Fps refreshRate) const
+            REQUIRES(mLock);
+
+    // Calculates the score for non-exact matching layer that has LayerVoteType::ExplicitDefault.
+    float calculateNonExactMatchingDefaultLayerScoreLocked(nsecs_t displayPeriod,
+                                                           nsecs_t layerPeriod) const
             REQUIRES(mLock);
 
     void updateDisplayModes(DisplayModes, DisplayModeId activeModeId) EXCLUDES(mLock)

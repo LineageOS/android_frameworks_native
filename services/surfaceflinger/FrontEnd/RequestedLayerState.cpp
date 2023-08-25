@@ -24,6 +24,8 @@
 #include <private/android_filesystem_config.h>
 #include <sys/types.h>
 
+#include <scheduler/Fps.h>
+
 #include "Layer.h"
 #include "LayerCreationArgs.h"
 #include "LayerLog.h"
@@ -122,6 +124,7 @@ RequestedLayerState::RequestedLayerState(const LayerCreationArgs& args)
     dimmingEnabled = true;
     defaultFrameRateCompatibility =
             static_cast<int8_t>(scheduler::LayerInfo::FrameRateCompatibility::Default);
+    frameRateCategory = static_cast<int8_t>(FrameRateCategory::Default);
     dataspace = ui::Dataspace::V0_SRGB;
     gameMode = gui::GameMode::Unsupported;
     requestedFrameRate = {};
@@ -317,8 +320,14 @@ void RequestedLayerState::merge(const ResolvedComposerState& resolvedComposerSta
                 Layer::FrameRate::convertCompatibility(clientState.frameRateCompatibility);
         const auto strategy = Layer::FrameRate::convertChangeFrameRateStrategy(
                 clientState.changeFrameRateStrategy);
-        requestedFrameRate =
-                Layer::FrameRate(Fps::fromValue(clientState.frameRate), compatibility, strategy);
+        requestedFrameRate.vote =
+                Layer::FrameRate::FrameRateVote(Fps::fromValue(clientState.frameRate),
+                                                compatibility, strategy);
+        changes |= RequestedLayerState::Changes::FrameRate;
+    }
+    if (clientState.what & layer_state_t::eFrameRateCategoryChanged) {
+        const auto category = Layer::FrameRate::convertCategory(clientState.frameRateCategory);
+        requestedFrameRate.category = category;
         changes |= RequestedLayerState::Changes::FrameRate;
     }
 }
