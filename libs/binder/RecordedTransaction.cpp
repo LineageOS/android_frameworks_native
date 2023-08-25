@@ -124,7 +124,7 @@ std::optional<RecordedTransaction> RecordedTransaction::fromDetails(
                        static_cast<int32_t>(timestamp.tv_nsec),
                        0};
 
-    t.mData.mInterfaceName = std::string(String8(interfaceName).string());
+    t.mData.mInterfaceName = std::string(String8(interfaceName).c_str());
     if (interfaceName.size() != t.mData.mInterfaceName.size()) {
         LOG(ERROR) << "Interface Name is not valid. Contains characters that aren't single byte "
                       "utf-8.";
