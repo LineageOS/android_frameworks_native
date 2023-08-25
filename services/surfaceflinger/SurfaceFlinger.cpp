@@ -80,7 +80,6 @@
 #include <scheduler/FrameTargeter.h>
 #include <sys/types.h>
 #include <ui/ColorSpace.h>
-#include <ui/DataspaceUtils.h>
 #include <ui/DebugUtils.h>
 #include <ui/DisplayId.h>
 #include <ui/DisplayMode.h>
@@ -88,6 +87,7 @@
 #include <ui/DisplayState.h>
 #include <ui/DynamicDisplayInfo.h>
 #include <ui/GraphicBufferAllocator.h>
+#include <ui/HdrRenderTypeUtils.h>
 #include <ui/LayerStack.h>
 #include <ui/PixelFormat.h>
 #include <ui/StaticDisplayInfo.h>
@@ -2737,7 +2737,14 @@ bool SurfaceFlinger::isHdrLayer(const frontend::LayerSnapshot& snapshot) const {
             return false;
         }
     }
-    if (isHdrDataspace(snapshot.dataspace)) {
+    // RANGE_EXTENDED layer may identify themselves as being "HDR"
+    // via a desired hdr/sdr ratio
+    auto pixelFormat = snapshot.buffer
+            ? std::make_optional(static_cast<ui::PixelFormat>(snapshot.buffer->getPixelFormat()))
+            : std::nullopt;
+
+    if (getHdrRenderType(snapshot.dataspace, pixelFormat, snapshot.desiredHdrSdrRatio) !=
+        HdrRenderType::SDR) {
         return true;
     }
     // If the layer is not allowed to be dimmed, treat it as HDR. WindowManager may disable
@@ -2745,12 +2752,6 @@ bool SurfaceFlinger::isHdrLayer(const frontend::LayerSnapshot& snapshot) const {
     // Treat such tagged layers as HDR so that DisplayManagerService does not try to change
     // the screen brightness
     if (!snapshot.dimmingEnabled) {
-        return true;
-    }
-    // RANGE_EXTENDED layers may identify themselves as being "HDR" via a desired sdr/hdr ratio
-    if ((snapshot.dataspace & (int32_t)Dataspace::RANGE_MASK) ==
-                (int32_t)Dataspace::RANGE_EXTENDED &&
-        snapshot.desiredHdrSdrRatio > 1.01f) {
         return true;
     }
     return false;
