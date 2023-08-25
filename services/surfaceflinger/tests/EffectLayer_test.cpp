@@ -120,7 +120,7 @@ TEST_F(EffectLayerTest, BlurEffectLayerIsVisible) {
     const auto canvasSize = 256;
 
     sp<SurfaceControl> leftLayer = createColorLayer("Left", Color::BLUE);
-    sp<SurfaceControl> rightLayer = createColorLayer("Right", Color::GREEN);
+    sp<SurfaceControl> rightLayer = createColorLayer("Right", Color::RED);
     sp<SurfaceControl> blurLayer;
     const auto leftRect = Rect(0, 0, canvasSize / 2, canvasSize);
     const auto rightRect = Rect(canvasSize / 2, 0, canvasSize, canvasSize);
@@ -140,12 +140,12 @@ TEST_F(EffectLayerTest, BlurEffectLayerIsVisible) {
     {
         auto shot = screenshot();
         shot->expectColor(leftRect, Color::BLUE);
-        shot->expectColor(rightRect, Color::GREEN);
+        shot->expectColor(rightRect, Color::RED);
     }
 
     ASSERT_NO_FATAL_FAILURE(blurLayer = createColorLayer("BackgroundBlur", Color::TRANSPARENT));
 
-    const auto blurRadius = canvasSize / 2;
+    const auto blurRadius = canvasSize / 4;
     asTransaction([&](Transaction& t) {
         t.setLayer(blurLayer, mLayerZBase + 3);
         t.reparent(blurLayer, mParentLayer);
@@ -159,21 +159,26 @@ TEST_F(EffectLayerTest, BlurEffectLayerIsVisible) {
         auto shot = screenshot();
 
         const auto stepSize = 1;
-        const auto blurAreaOffset = blurRadius * 0.7f;
-        const auto blurAreaStartX = canvasSize / 2 - blurRadius + blurAreaOffset;
-        const auto blurAreaEndX = canvasSize / 2 + blurRadius - blurAreaOffset;
+        const auto expectedBlurAreaSize = blurRadius * 1.5f;
+        const auto blurAreaStartX = canvasSize / 2 - expectedBlurAreaSize / 2;
+        const auto blurAreaEndX = canvasSize / 2 + expectedBlurAreaSize / 2;
+        // testAreaEndY is needed because the setBackgroundBlurRadius API blurs everything behind
+        // the surface, which means it samples pixels from outside the canvasSize and we get some
+        // unexpected colors in the screenshot.
+        const auto testAreaEndY = canvasSize - blurRadius * 2;
+
         Color previousColor;
         Color currentColor;
-        for (int y = 0; y < canvasSize; y++) {
+        for (int y = 0; y < testAreaEndY; y++) {
             shot->checkPixel(0, y, /* r = */ 0, /* g = */ 0, /* b = */ 255);
             previousColor = shot->getPixelColor(0, y);
             for (int x = blurAreaStartX; x < blurAreaEndX; x += stepSize) {
                 currentColor = shot->getPixelColor(x, y);
-                ASSERT_GT(currentColor.g, previousColor.g);
+                ASSERT_GT(currentColor.r, previousColor.r);
                 ASSERT_LT(currentColor.b, previousColor.b);
-                ASSERT_EQ(0, currentColor.r);
+                ASSERT_EQ(0, currentColor.g);
             }
-            shot->checkPixel(canvasSize - 1, y, 0, 255, 0);
+            shot->checkPixel(canvasSize - 1, y, 255, 0, 0);
         }
     }
 }
