@@ -854,7 +854,7 @@ constexpr int32_t kHeader = B_PACK_CHARS('S', 'Y', 'S', 'T');
 // Write RPC headers.  (previously just the interface token)
 status_t Parcel::writeInterfaceToken(const String16& interface)
 {
-    return writeInterfaceToken(interface.string(), interface.size());
+    return writeInterfaceToken(interface.c_str(), interface.size());
 }
 
 status_t Parcel::writeInterfaceToken(const char16_t* str, size_t len) {
@@ -918,7 +918,7 @@ bool Parcel::checkInterface(IBinder* binder) const
 bool Parcel::enforceInterface(const String16& interface,
                               IPCThreadState* threadState) const
 {
-    return enforceInterface(interface.string(), interface.size(), threadState);
+    return enforceInterface(interface.c_str(), interface.size(), threadState);
 }
 
 bool Parcel::enforceInterface(const char16_t* interface,
@@ -977,8 +977,8 @@ bool Parcel::enforceInterface(const char16_t* interface,
             return true;
         } else {
             ALOGW("**** enforceInterface() expected '%s' but read '%s'",
-                  String8(interface, len).string(),
-                  String8(parcel_interface, parcel_interface_len).string());
+                  String8(interface, len).c_str(),
+                  String8(parcel_interface, parcel_interface_len).c_str());
             return false;
         }
     }
@@ -1376,7 +1376,7 @@ status_t Parcel::writeCString(const char* str)
 
 status_t Parcel::writeString8(const String8& str)
 {
-    return writeString8(str.string(), str.size());
+    return writeString8(str.c_str(), str.size());
 }
 
 status_t Parcel::writeString8(const char* str, size_t len)
@@ -1399,7 +1399,7 @@ status_t Parcel::writeString8(const char* str, size_t len)
 
 status_t Parcel::writeString16(const String16& str)
 {
-    return writeString16(str.string(), str.size());
+    return writeString16(str.c_str(), str.size());
 }
 
 status_t Parcel::writeString16(const char16_t* str, size_t len)
