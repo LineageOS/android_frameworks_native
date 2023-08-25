@@ -8102,7 +8102,13 @@ bool SurfaceFlinger::commitMirrorDisplays(VsyncId vsyncId) {
         // Set mirror layer's default layer stack to -1 so it doesn't end up rendered on a display
         // accidentally.
         sp<Layer> rootMirrorLayer = LayerHandle::getLayer(mirrorDisplay.rootHandle);
-        rootMirrorLayer->setLayerStack(ui::LayerStack::fromValue(-1));
+        ssize_t idx = mCurrentState.layersSortedByZ.indexOf(rootMirrorLayer);
+        bool ret = rootMirrorLayer->setLayerStack(ui::LayerStack::fromValue(-1));
+        if (idx >= 0 && ret) {
+            mCurrentState.layersSortedByZ.removeAt(idx);
+            mCurrentState.layersSortedByZ.add(rootMirrorLayer);
+        }
+
         for (const auto& layer : mDrawingState.layersSortedByZ) {
             if (layer->getLayerStack() != mirrorDisplay.layerStack ||
                 layer->isInternalDisplayOverlay()) {
