@@ -24,8 +24,6 @@
 #include <cinttypes>
 
 using namespace android::hardware::power;
-namespace V1_0 = android::hardware::power::V1_0;
-namespace V1_1 = android::hardware::power::V1_1;
 namespace Aidl = android::hardware::power;
 
 namespace android {
@@ -108,7 +106,7 @@ HalResult<int64_t> EmptyHalWrapper::getHintSessionPreferredRate() {
 
 HalResult<void> HidlHalWrapperV1_0::setBoost(Boost boost, int32_t durationMs) {
     if (boost == Boost::INTERACTION) {
-        return sendPowerHint(V1_0::PowerHint::INTERACTION, durationMs);
+        return sendPowerHint(V1_3::PowerHint::INTERACTION, durationMs);
     } else {
         ALOGV("Skipped setBoost %s because Power HAL AIDL not available", toString(boost).c_str());
         return HalResult<void>::unsupported();
@@ -119,13 +117,13 @@ HalResult<void> HidlHalWrapperV1_0::setMode(Mode mode, bool enabled) {
     uint32_t data = enabled ? 1 : 0;
     switch (mode) {
         case Mode::LAUNCH:
-            return sendPowerHint(V1_0::PowerHint::LAUNCH, data);
+            return sendPowerHint(V1_3::PowerHint::LAUNCH, data);
         case Mode::LOW_POWER:
-            return sendPowerHint(V1_0::PowerHint::LOW_POWER, data);
+            return sendPowerHint(V1_3::PowerHint::LOW_POWER, data);
         case Mode::SUSTAINED_PERFORMANCE:
-            return sendPowerHint(V1_0::PowerHint::SUSTAINED_PERFORMANCE, data);
+            return sendPowerHint(V1_3::PowerHint::SUSTAINED_PERFORMANCE, data);
         case Mode::VR:
-            return sendPowerHint(V1_0::PowerHint::VR_MODE, data);
+            return sendPowerHint(V1_3::PowerHint::VR_MODE, data);
         case Mode::INTERACTIVE:
             return setInteractive(enabled);
         case Mode::DOUBLE_TAP_TO_WAKE:
@@ -137,8 +135,8 @@ HalResult<void> HidlHalWrapperV1_0::setMode(Mode mode, bool enabled) {
     }
 }
 
-HalResult<void> HidlHalWrapperV1_0::sendPowerHint(V1_0::PowerHint hintId, uint32_t data) {
-    auto ret = mHandleV1_0->powerHint(hintId, data);
+HalResult<void> HidlHalWrapperV1_0::sendPowerHint(V1_3::PowerHint hintId, uint32_t data) {
+    auto ret = mHandleV1_0->powerHint(static_cast<V1_0::PowerHint>(hintId), data);
     return HalResult<void>::fromReturn(ret);
 }
 
@@ -152,7 +150,7 @@ HalResult<void> HidlHalWrapperV1_0::setFeature(V1_0::Feature feature, bool enabl
     return HalResult<void>::fromReturn(ret);
 }
 
-HalResult<sp<Aidl::IPowerHintSession>> HidlHalWrapperV1_0::createHintSession(
+HalResult<sp<hardware::power::IPowerHintSession>> HidlHalWrapperV1_0::createHintSession(
         int32_t, int32_t, const std::vector<int32_t>& threadIds, int64_t) {
     ALOGV("Skipped createHintSession(task num=%zu) because Power HAL not available",
           threadIds.size());
@@ -166,8 +164,59 @@ HalResult<int64_t> HidlHalWrapperV1_0::getHintSessionPreferredRate() {
 
 // -------------------------------------------------------------------------------------------------
 
-HalResult<void> HidlHalWrapperV1_1::sendPowerHint(V1_0::PowerHint hintId, uint32_t data) {
-    auto ret = mHandleV1_1->powerHintAsync(hintId, data);
+HalResult<void> HidlHalWrapperV1_1::sendPowerHint(V1_3::PowerHint hintId, uint32_t data) {
+    auto handle = static_cast<V1_1::IPower*>(mHandleV1_0.get());
+    auto ret = handle->powerHintAsync(static_cast<V1_0::PowerHint>(hintId), data);
+    return HalResult<void>::fromReturn(ret);
+}
+
+// -------------------------------------------------------------------------------------------------
+
+HalResult<void> HidlHalWrapperV1_2::sendPowerHint(V1_3::PowerHint hintId, uint32_t data) {
+    auto handle = static_cast<V1_2::IPower*>(mHandleV1_0.get());
+    auto ret = handle->powerHintAsync_1_2(static_cast<V1_2::PowerHint>(hintId), data);
+    return HalResult<void>::fromReturn(ret);
+}
+
+HalResult<void> HidlHalWrapperV1_2::setBoost(Boost boost, int32_t durationMs) {
+    switch (boost) {
+        case Boost::CAMERA_SHOT:
+            return sendPowerHint(V1_3::PowerHint::CAMERA_SHOT, durationMs);
+        case Boost::CAMERA_LAUNCH:
+            return sendPowerHint(V1_3::PowerHint::CAMERA_LAUNCH, durationMs);
+        default:
+            return HidlHalWrapperV1_1::setBoost(boost, durationMs);
+    }
+}
+
+HalResult<void> HidlHalWrapperV1_2::setMode(Mode mode, bool enabled) {
+    uint32_t data = enabled ? 1 : 0;
+    switch (mode) {
+        case Mode::CAMERA_STREAMING_SECURE:
+        case Mode::CAMERA_STREAMING_LOW:
+        case Mode::CAMERA_STREAMING_MID:
+        case Mode::CAMERA_STREAMING_HIGH:
+            return sendPowerHint(V1_3::PowerHint::CAMERA_STREAMING, data);
+        case Mode::AUDIO_STREAMING_LOW_LATENCY:
+            return sendPowerHint(V1_3::PowerHint::AUDIO_LOW_LATENCY, data);
+        default:
+            return HidlHalWrapperV1_1::setMode(mode, enabled);
+    }
+}
+
+// -------------------------------------------------------------------------------------------------
+
+HalResult<void> HidlHalWrapperV1_3::setMode(Mode mode, bool enabled) {
+    uint32_t data = enabled ? 1 : 0;
+    if (mode == Mode::EXPENSIVE_RENDERING) {
+        return sendPowerHint(V1_3::PowerHint::EXPENSIVE_RENDERING, data);
+    }
+    return HidlHalWrapperV1_2::setMode(mode, enabled);
+}
+
+HalResult<void> HidlHalWrapperV1_3::sendPowerHint(V1_3::PowerHint hintId, uint32_t data) {
+    auto handle = static_cast<V1_3::IPower*>(mHandleV1_0.get());
+    auto ret = handle->powerHintAsync_1_3(hintId, data);
     return HalResult<void>::fromReturn(ret);
 }
 

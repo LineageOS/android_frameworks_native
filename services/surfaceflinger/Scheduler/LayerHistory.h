@@ -27,7 +27,9 @@
 #include <utility>
 #include <vector>
 
-#include "RefreshRateConfigs.h"
+#include "EventThread.h"
+
+#include "RefreshRateSelector.h"
 
 namespace android {
 
@@ -36,16 +38,17 @@ class Layer;
 namespace scheduler {
 
 class LayerInfo;
+struct LayerProps;
 
 class LayerHistory {
 public:
-    using LayerVoteType = RefreshRateConfigs::LayerVoteType;
+    using LayerVoteType = RefreshRateSelector::LayerVoteType;
 
     LayerHistory();
     ~LayerHistory();
 
     // Layers are unregistered when the weak reference expires.
-    void registerLayer(Layer*, LayerVoteType type);
+    void registerLayer(Layer*, bool contentDetectionEnabled);
 
     // Sets the display size. Client is responsible for synchronization.
     void setDisplayArea(uint32_t displayArea) { mDisplayArea = displayArea; }
@@ -61,12 +64,17 @@ public:
     };
 
     // Marks the layer as active, and records the given state to its history.
-    void record(Layer*, nsecs_t presentTime, nsecs_t now, LayerUpdateType updateType);
+    void record(int32_t id, const LayerProps& props, nsecs_t presentTime, nsecs_t now,
+                LayerUpdateType updateType);
 
-    using Summary = std::vector<RefreshRateConfigs::LayerRequirement>;
+    // Updates the default frame rate compatibility which takes effect when the app
+    // does not set a preference for refresh rate.
+    void setDefaultFrameRateCompatibility(Layer*, bool contentDetectionEnabled);
+
+    using Summary = std::vector<RefreshRateSelector::LayerRequirement>;
 
     // Rebuilds sets of active/inactive layers, and accumulates stats for active layers.
-    Summary summarize(const RefreshRateConfigs&, nsecs_t now);
+    Summary summarize(const RefreshRateSelector&, nsecs_t now);
 
     void clear();
 
@@ -75,6 +83,9 @@ public:
 
     // return the frames per second of the layer with the given sequence id.
     float getLayerFramerate(nsecs_t now, int32_t id) const;
+
+    void attachChoreographer(int32_t layerId,
+                             const sp<EventThreadConnection>& choreographerConnection);
 
 private:
     friend class LayerHistoryTest;
@@ -112,6 +123,10 @@ private:
     // validity of each map.
     LayerInfos mActiveLayerInfos GUARDED_BY(mLock);
     LayerInfos mInactiveLayerInfos GUARDED_BY(mLock);
+
+    // Map keyed by layer ID (sequence) to choreographer connections.
+    std::unordered_multimap<int32_t, wp<EventThreadConnection>> mAttachedChoreographers
+            GUARDED_BY(mLock);
 
     uint32_t mDisplayArea = 0;
 

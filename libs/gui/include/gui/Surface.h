@@ -17,8 +17,8 @@
 #ifndef ANDROID_GUI_SURFACE_H
 #define ANDROID_GUI_SURFACE_H
 
+#include <android/gui/FrameTimelineInfo.h>
 #include <gui/BufferQueueDefs.h>
-#include <gui/FrameTimelineInfo.h>
 #include <gui/HdrMetadata.h>
 #include <gui/IGraphicBufferProducer.h>
 #include <gui/IProducerListener.h>
@@ -40,6 +40,8 @@ class ISurfaceComposer;
 } // namespace gui
 
 class ISurfaceComposer;
+
+using gui::FrameTimelineInfo;
 
 /* This is the same as ProducerListener except that onBuffersDiscarded is
  * called with a vector of graphic buffers instead of buffer slots.
@@ -203,8 +205,8 @@ public:
             nsecs_t* outDisplayPresentTime, nsecs_t* outDequeueReadyTime,
             nsecs_t* outReleaseTime);
 
-    status_t getWideColorSupport(bool* supported);
-    status_t getHdrSupport(bool* supported);
+    status_t getWideColorSupport(bool* supported) __attribute__((__deprecated__));
+    status_t getHdrSupport(bool* supported) __attribute__((__deprecated__));
 
     status_t getUniqueId(uint64_t* outId) const;
     status_t getConsumerUsage(uint64_t* outUsage) const;
@@ -300,6 +302,10 @@ private:
     int dispatchGetLastQueuedBuffer(va_list args);
     int dispatchGetLastQueuedBuffer2(va_list args);
     int dispatchSetFrameTimelineInfo(va_list args);
+
+    std::mutex mNameMutex;
+    std::string mName;
+    const char* getDebugName();
 
 protected:
     virtual int dequeueBuffer(ANativeWindowBuffer** buffer, int* fenceFd);

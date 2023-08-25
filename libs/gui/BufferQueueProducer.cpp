@@ -35,6 +35,7 @@
 #include <gui/GLConsumer.h>
 #include <gui/IConsumerListener.h>
 #include <gui/IProducerListener.h>
+#include <gui/TraceUtils.h>
 #include <private/gui/BufferQueueThreadState.h>
 
 #include <utils/Log.h>
@@ -125,7 +126,7 @@ status_t BufferQueueProducer::setMaxDequeuedBufferCount(
 
 status_t BufferQueueProducer::setMaxDequeuedBufferCount(int maxDequeuedBuffers,
                                                         int* maxBufferCount) {
-    ATRACE_CALL();
+    ATRACE_FORMAT("%s(%d)", __func__, maxDequeuedBuffers);
     BQ_LOGV("setMaxDequeuedBufferCount: maxDequeuedBuffers = %d",
             maxDequeuedBuffers);
 
@@ -502,6 +503,20 @@ status_t BufferQueueProducer::dequeueBuffer(int* outSlot, sp<android::Fence>* ou
         if ((buffer == nullptr) ||
                 buffer->needsReallocation(width, height, format, BQ_LAYER_COUNT, usage))
         {
+            if (CC_UNLIKELY(ATRACE_ENABLED())) {
+                if (buffer == nullptr) {
+                    ATRACE_FORMAT_INSTANT("%s buffer reallocation: null", mConsumerName.string());
+                } else {
+                    ATRACE_FORMAT_INSTANT("%s buffer reallocation actual %dx%d format:%d "
+                                          "layerCount:%d "
+                                          "usage:%d requested: %dx%d format:%d layerCount:%d "
+                                          "usage:%d ",
+                                          mConsumerName.string(), width, height, format,
+                                          BQ_LAYER_COUNT, usage, buffer->getWidth(),
+                                          buffer->getHeight(), buffer->getPixelFormat(),
+                                          buffer->getLayerCount(), buffer->getUsage());
+                }
+            }
             mSlots[found].mAcquireCalled = false;
             mSlots[found].mGraphicBuffer = nullptr;
             mSlots[found].mRequestBufferCalled = false;

@@ -20,19 +20,25 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+#include <ftl/flags.h>
+
 #include <utils/Errors.h>
 #include <utils/RefBase.h>
 #include <utils/Timers.h>
 
+#include <android/gui/ISurfaceComposer.h>
 #include <binder/IInterface.h>
-#include <gui/ISurfaceComposer.h>
 #include <gui/VsyncEventData.h>
+
+#include <ui/DisplayId.h>
 
 // ----------------------------------------------------------------------------
 
 namespace android {
 
 // ----------------------------------------------------------------------------
+
+using EventRegistrationFlags = ftl::Flags<gui::ISurfaceComposer::EventRegistration>;
 
 using gui::IDisplayEventConnection;
 using gui::ParcelableVsyncEventData;
@@ -111,9 +117,10 @@ public:
      * To receive ModeChanged and/or FrameRateOverrides events specify this in
      * the constructor. Other events start being delivered immediately.
      */
-    explicit DisplayEventReceiver(
-            ISurfaceComposer::VsyncSource vsyncSource = ISurfaceComposer::eVsyncSourceApp,
-            ISurfaceComposer::EventRegistrationFlags eventRegistration = {});
+    explicit DisplayEventReceiver(gui::ISurfaceComposer::VsyncSource vsyncSource =
+                                          gui::ISurfaceComposer::VsyncSource::eVsyncSourceApp,
+                                  EventRegistrationFlags eventRegistration = {},
+                                  const sp<IBinder>& layerHandle = nullptr);
 
     /*
      * ~DisplayEventReceiver severs the connection with SurfaceFlinger, new events

@@ -51,6 +51,7 @@ public:
     enum Buffer {
         NOT_ACQUIRED = 0,
         ACQUIRED,
+        ACQUIRED_NULL,
     };
 
     enum PreviousBuffer {
@@ -133,17 +134,28 @@ private:
               : mBufferResult(bufferResult), mPreviousBufferResult(previousBufferResult) {}
 
         void verifySurfaceControlStats(const SurfaceControlStats& surfaceControlStats,
-                                       nsecs_t latchTime) const {
+                                       nsecs_t /* latchTime */) const {
             const auto& [surfaceControl, latch, acquireTimeOrFence, presentFence,
                          previousReleaseFence, transformHint, frameEvents, ignore] =
-                surfaceControlStats;
+                    surfaceControlStats;
 
-            ASSERT_TRUE(std::holds_alternative<nsecs_t>(acquireTimeOrFence));
-            ASSERT_EQ(std::get<nsecs_t>(acquireTimeOrFence) > 0,
-                      mBufferResult == ExpectedResult::Buffer::ACQUIRED)
-                    << "bad acquire time";
-            ASSERT_LE(std::get<nsecs_t>(acquireTimeOrFence), latchTime)
-                    << "acquire time should be <= latch time";
+            nsecs_t acquireTime = -1;
+            if (std::holds_alternative<nsecs_t>(acquireTimeOrFence)) {
+                acquireTime = std::get<nsecs_t>(acquireTimeOrFence);
+            } else {
+                auto fence = std::get<sp<Fence>>(acquireTimeOrFence);
+                if (fence) {
+                    ASSERT_EQ(fence->wait(3000), NO_ERROR);
+                    acquireTime = fence->getSignalTime();
+                }
+            }
+
+            if (mBufferResult == ExpectedResult::Buffer::ACQUIRED) {
+                ASSERT_GT(acquireTime, 0) << "acquire time should be valid";
+            } else {
+                ASSERT_LE(acquireTime, 0) << "acquire time should not be valid";
+            }
+            ASSERT_EQ(acquireTime > 0, mBufferResult == ExpectedResult::Buffer::ACQUIRED);
 
             if (mPreviousBufferResult == ExpectedResult::PreviousBuffer::RELEASED) {
                 ASSERT_NE(previousReleaseFence, nullptr)

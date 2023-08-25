@@ -27,6 +27,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <unordered_map>
 
 #include "TimeStats.h"
@@ -68,6 +69,8 @@ SurfaceflingerStatsLayerInfo_GameMode gameModeToProto(GameMode gameMode) {
             return SurfaceflingerStatsLayerInfo::GAME_MODE_PERFORMANCE;
         case GameMode::Battery:
             return SurfaceflingerStatsLayerInfo::GAME_MODE_BATTERY;
+        case GameMode::Custom:
+            return SurfaceflingerStatsLayerInfo::GAME_MODE_CUSTOM;
         default:
             return SurfaceflingerStatsLayerInfo::GAME_MODE_UNSPECIFIED;
     }
@@ -88,7 +91,7 @@ SurfaceflingerStatsLayerInfo_SetFrameRateVote frameRateVoteToProto(
 }
 } // namespace
 
-bool TimeStats::populateGlobalAtom(std::string* pulledData) {
+bool TimeStats::populateGlobalAtom(std::vector<uint8_t>* pulledData) {
     std::lock_guard<std::mutex> lock(mMutex);
 
     if (mTimeStats.statsStartLegacy == 0) {
@@ -136,10 +139,11 @@ bool TimeStats::populateGlobalAtom(std::string* pulledData) {
     // Always clear data.
     clearGlobalLocked();
 
-    return atomList.SerializeToString(pulledData);
+    pulledData->resize(atomList.ByteSizeLong());
+    return atomList.SerializeToArray(pulledData->data(), atomList.ByteSizeLong());
 }
 
-bool TimeStats::populateLayerAtom(std::string* pulledData) {
+bool TimeStats::populateLayerAtom(std::vector<uint8_t>* pulledData) {
     std::lock_guard<std::mutex> lock(mMutex);
 
     std::vector<TimeStatsHelper::TimeStatsLayer*> dumpStats;
@@ -176,6 +180,12 @@ bool TimeStats::populateLayerAtom(std::string* pulledData) {
         if (present2PresentHist != layer->deltas.cend()) {
             *atom->mutable_present_to_present() =
                     histogramToProto(present2PresentHist->second.hist, mMaxPulledHistogramBuckets);
+        }
+        const auto& present2PresentDeltaHist = layer->deltas.find("present2presentDelta");
+        if (present2PresentDeltaHist != layer->deltas.cend()) {
+            *atom->mutable_present_to_present_delta() =
+                    histogramToProto(present2PresentDeltaHist->second.hist,
+                                     mMaxPulledHistogramBuckets);
         }
         const auto& post2presentHist = layer->deltas.find("post2present");
         if (post2presentHist != layer->deltas.cend()) {
@@ -227,7 +237,8 @@ bool TimeStats::populateLayerAtom(std::string* pulledData) {
     // Always clear data.
     clearLayersLocked();
 
-    return atomList.SerializeToString(pulledData);
+    pulledData->resize(atomList.ByteSizeLong());
+    return atomList.SerializeToArray(pulledData->data(), atomList.ByteSizeLong());
 }
 
 TimeStats::TimeStats() : TimeStats(std::nullopt, std::nullopt) {}
@@ -243,7 +254,7 @@ TimeStats::TimeStats(std::optional<size_t> maxPulledLayers,
     }
 }
 
-bool TimeStats::onPullAtom(const int atomId, std::string* pulledData) {
+bool TimeStats::onPullAtom(const int atomId, std::vector<uint8_t>* pulledData) {
     bool success = false;
     if (atomId == 10062) { // SURFACEFLINGER_STATS_GLOBAL_INFO
         success = populateGlobalAtom(pulledData);
@@ -448,6 +459,7 @@ void TimeStats::flushAvailableRecordsToStatsLocked(int32_t layerId, Fps displayR
 
     LayerRecord& layerRecord = mTimeStatsTracker[layerId];
     TimeRecord& prevTimeRecord = layerRecord.prevTimeRecord;
+    std::optional<int32_t>& prevPresentToPresentMs = layerRecord.prevPresentToPresentMs;
     std::deque<TimeRecord>& timeRecords = layerRecord.timeRecords;
     const int32_t refreshRateBucket =
             clampToNearestBucket(displayRefreshRate, REFRESH_RATE_BUCKET_WIDTH);
@@ -525,6 +537,12 @@ void TimeStats::flushAvailableRecordsToStatsLocked(int32_t layerId, Fps displayR
             ALOGV("[%d]-[%" PRIu64 "]-present2present[%d]", layerId,
                   timeRecords[0].frameTime.frameNumber, presentToPresentMs);
             timeStatsLayer.deltas["present2present"].insert(presentToPresentMs);
+            if (prevPresentToPresentMs) {
+                const int32_t presentToPresentDeltaMs =
+                        std::abs(presentToPresentMs - *prevPresentToPresentMs);
+                timeStatsLayer.deltas["present2presentDelta"].insert(presentToPresentDeltaMs);
+            }
+            prevPresentToPresentMs = presentToPresentMs;
         }
         prevTimeRecord = timeRecords[0];
         timeRecords.pop_front();

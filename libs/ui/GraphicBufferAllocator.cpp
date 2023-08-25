@@ -34,6 +34,7 @@
 #include <ui/Gralloc2.h>
 #include <ui/Gralloc3.h>
 #include <ui/Gralloc4.h>
+#include <ui/Gralloc5.h>
 #include <ui/GraphicBufferMapper.h>
 
 namespace android {
@@ -48,23 +49,27 @@ KeyedVector<buffer_handle_t,
     GraphicBufferAllocator::alloc_rec_t> GraphicBufferAllocator::sAllocList;
 
 GraphicBufferAllocator::GraphicBufferAllocator() : mMapper(GraphicBufferMapper::getInstance()) {
-    mAllocator = std::make_unique<const Gralloc4Allocator>(
-            reinterpret_cast<const Gralloc4Mapper&>(mMapper.getGrallocMapper()));
-    if (mAllocator->isLoaded()) {
-        return;
+    switch (mMapper.getMapperVersion()) {
+        case GraphicBufferMapper::GRALLOC_5:
+            mAllocator = std::make_unique<const Gralloc5Allocator>(
+                    reinterpret_cast<const Gralloc5Mapper&>(mMapper.getGrallocMapper()));
+            break;
+        case GraphicBufferMapper::GRALLOC_4:
+            mAllocator = std::make_unique<const Gralloc4Allocator>(
+                    reinterpret_cast<const Gralloc4Mapper&>(mMapper.getGrallocMapper()));
+            break;
+        case GraphicBufferMapper::GRALLOC_3:
+            mAllocator = std::make_unique<const Gralloc3Allocator>(
+                    reinterpret_cast<const Gralloc3Mapper&>(mMapper.getGrallocMapper()));
+            break;
+        case GraphicBufferMapper::GRALLOC_2:
+            mAllocator = std::make_unique<const Gralloc2Allocator>(
+                    reinterpret_cast<const Gralloc2Mapper&>(mMapper.getGrallocMapper()));
+            break;
     }
-    mAllocator = std::make_unique<const Gralloc3Allocator>(
-            reinterpret_cast<const Gralloc3Mapper&>(mMapper.getGrallocMapper()));
-    if (mAllocator->isLoaded()) {
-        return;
-    }
-    mAllocator = std::make_unique<const Gralloc2Allocator>(
-            reinterpret_cast<const Gralloc2Mapper&>(mMapper.getGrallocMapper()));
-    if (mAllocator->isLoaded()) {
-        return;
-    }
-
-    LOG_ALWAYS_FATAL("gralloc-allocator is missing");
+    LOG_ALWAYS_FATAL_IF(!mAllocator->isLoaded(),
+                        "Failed to load matching allocator for mapper version %d",
+                        mMapper.getMapperVersion());
 }
 
 GraphicBufferAllocator::~GraphicBufferAllocator() {}

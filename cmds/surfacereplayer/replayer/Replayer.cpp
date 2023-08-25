@@ -464,7 +464,6 @@ void Replayer::setPosition(SurfaceComposerClient::Transaction& t,
 void Replayer::setSize(SurfaceComposerClient::Transaction& t,
         layer_id id, const SizeChange& sc) {
     ALOGV("Layer %d: Setting Size -- w=%u, h=%u", id, sc.w(), sc.h());
-    t.setSize(mLayers[id], sc.w(), sc.h());
 }
 
 void Replayer::setLayer(SurfaceComposerClient::Transaction& t,

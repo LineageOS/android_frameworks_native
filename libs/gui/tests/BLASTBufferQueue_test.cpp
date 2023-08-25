@@ -19,6 +19,7 @@
 #include <gui/BLASTBufferQueue.h>
 
 #include <android/hardware/graphics/common/1.2/types.h>
+#include <gui/AidlStatusUtil.h>
 #include <gui/BufferQueueCore.h>
 #include <gui/BufferQueueProducer.h>
 #include <gui/FrameTimestamps.h>
@@ -31,6 +32,7 @@
 #include <private/gui/ComposerService.h>
 #include <private/gui/ComposerServiceAIDL.h>
 #include <ui/DisplayMode.h>
+#include <ui/DisplayState.h>
 #include <ui/GraphicBuffer.h>
 #include <ui/GraphicTypes.h>
 #include <ui/Transform.h>
@@ -115,14 +117,16 @@ public:
         mBlastBufferQueueAdapter->syncNextTransaction(callback, acquireSingleBuffer);
     }
 
-    void syncNextTransaction(std::function<void(Transaction*)> callback,
+    bool syncNextTransaction(std::function<void(Transaction*)> callback,
                              bool acquireSingleBuffer = true) {
-        mBlastBufferQueueAdapter->syncNextTransaction(callback, acquireSingleBuffer);
+        return mBlastBufferQueueAdapter->syncNextTransaction(callback, acquireSingleBuffer);
     }
 
     void stopContinuousSyncTransaction() {
         mBlastBufferQueueAdapter->stopContinuousSyncTransaction();
     }
+
+    void clearSyncTransaction() { mBlastBufferQueueAdapter->clearSyncTransaction(); }
 
     int getWidth() { return mBlastBufferQueueAdapter->mSize.width; }
 
@@ -175,30 +179,35 @@ protected:
     BLASTBufferQueueTest() {
         const ::testing::TestInfo* const testInfo =
                 ::testing::UnitTest::GetInstance()->current_test_info();
-        ALOGV("Begin test: %s.%s", testInfo->test_case_name(), testInfo->name());
+        ALOGD("Begin test: %s.%s", testInfo->test_case_name(), testInfo->name());
     }
 
     ~BLASTBufferQueueTest() {
         const ::testing::TestInfo* const testInfo =
                 ::testing::UnitTest::GetInstance()->current_test_info();
-        ALOGV("End test:   %s.%s", testInfo->test_case_name(), testInfo->name());
+        ALOGD("End test:   %s.%s", testInfo->test_case_name(), testInfo->name());
     }
 
     void SetUp() {
         mComposer = ComposerService::getComposerService();
         mClient = new SurfaceComposerClient();
-        mDisplayToken = mClient->getInternalDisplayToken();
+        const auto ids = SurfaceComposerClient::getPhysicalDisplayIds();
+        ASSERT_FALSE(ids.empty());
+        // display 0 is picked as this test is not much display depedent
+        mDisplayToken = SurfaceComposerClient::getPhysicalDisplayToken(ids.front());
         ASSERT_NE(nullptr, mDisplayToken.get());
         Transaction t;
         t.setDisplayLayerStack(mDisplayToken, ui::DEFAULT_LAYER_STACK);
         t.apply();
         t.clear();
 
-        ui::DisplayMode mode;
-        ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayMode(mDisplayToken, &mode));
-        const ui::Size& resolution = mode.resolution;
+        ui::DisplayState displayState;
+        ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayState(mDisplayToken, &displayState));
+        const ui::Size& resolution = displayState.layerStackSpaceRect;
         mDisplayWidth = resolution.getWidth();
         mDisplayHeight = resolution.getHeight();
+        ALOGD("Display: %dx%d orientation:%d", mDisplayWidth, mDisplayHeight,
+              displayState.orientation);
 
         mSurfaceControl = mClient->createSurface(String8("TestSurface"), mDisplayWidth,
                                                  mDisplayHeight, PIXEL_FORMAT_RGBA_8888,
@@ -305,11 +314,12 @@ protected:
 
         const sp<SyncScreenCaptureListener> captureListener = new SyncScreenCaptureListener();
         binder::Status status = sf->captureDisplay(captureArgs, captureListener);
-        if (status.transactionError() != NO_ERROR) {
-            return status.transactionError();
+        status_t err = gui::aidl_utils::statusTFromBinderStatus(status);
+        if (err != NO_ERROR) {
+            return err;
         }
         captureResults = captureListener->waitForResults();
-        return captureResults.result;
+        return fenceStatus(captureResults.fenceResult);
     }
 
     void queueBuffer(sp<IGraphicBufferProducer> igbp, uint8_t r, uint8_t g, uint8_t b,
@@ -1103,7 +1113,11 @@ TEST_F(BLASTBufferQueueTest, SyncNextTransactionOverwrite) {
     ASSERT_NE(nullptr, adapter.getTransactionReadyCallback());
 
     auto callback2 = [](Transaction*) {};
-    adapter.syncNextTransaction(callback2);
+    ASSERT_FALSE(adapter.syncNextTransaction(callback2));
+
+    sp<IGraphicBufferProducer> igbProducer;
+    setUpProducer(adapter, igbProducer);
+    queueBuffer(igbProducer, 0, 255, 0, 0);
 
     std::unique_lock<std::mutex> lock(mutex);
     if (!receivedCallback) {
@@ -1113,6 +1127,37 @@ TEST_F(BLASTBufferQueueTest, SyncNextTransactionOverwrite) {
     }
 
     ASSERT_TRUE(receivedCallback);
+}
+
+TEST_F(BLASTBufferQueueTest, ClearSyncTransaction) {
+    std::mutex mutex;
+    std::condition_variable callbackReceivedCv;
+    bool receivedCallback = false;
+
+    BLASTBufferQueueHelper adapter(mSurfaceControl, mDisplayWidth, mDisplayHeight);
+    ASSERT_EQ(nullptr, adapter.getTransactionReadyCallback());
+    auto callback = [&](Transaction*) {
+        std::unique_lock<std::mutex> lock(mutex);
+        receivedCallback = true;
+        callbackReceivedCv.notify_one();
+    };
+    adapter.syncNextTransaction(callback);
+    ASSERT_NE(nullptr, adapter.getTransactionReadyCallback());
+
+    adapter.clearSyncTransaction();
+
+    sp<IGraphicBufferProducer> igbProducer;
+    setUpProducer(adapter, igbProducer);
+    queueBuffer(igbProducer, 0, 255, 0, 0);
+
+    std::unique_lock<std::mutex> lock(mutex);
+    if (!receivedCallback) {
+        ASSERT_EQ(callbackReceivedCv.wait_for(lock, std::chrono::seconds(3)),
+                  std::cv_status::timeout)
+                << "did not receive callback";
+    }
+
+    ASSERT_FALSE(receivedCallback);
 }
 
 TEST_F(BLASTBufferQueueTest, SyncNextTransactionDropBuffer) {
@@ -1146,6 +1191,7 @@ TEST_F(BLASTBufferQueueTest, SyncNextTransactionDropBuffer) {
     ASSERT_EQ(NO_ERROR, captureDisplay(mCaptureArgs, mCaptureResults));
     ASSERT_NO_FATAL_FAILURE(
             checkScreenCapture(r, g, b, {0, 0, (int32_t)mDisplayWidth, (int32_t)mDisplayHeight}));
+    sync.apply();
 }
 
 // This test will currently fail because the old surfacecontrol will steal the last presented buffer

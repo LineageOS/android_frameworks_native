@@ -40,8 +40,8 @@ TEST(AnrTrackerTest, SingleEntry_First) {
 TEST(AnrTrackerTest, MultipleEntries_RemoveToken) {
     AnrTracker tracker;
 
-    sp<IBinder> token1 = new BBinder();
-    sp<IBinder> token2 = new BBinder();
+    sp<IBinder> token1 = sp<BBinder>::make();
+    sp<IBinder> token2 = sp<BBinder>::make();
 
     tracker.insert(1, token1);
     tracker.insert(2, token2);
@@ -90,8 +90,8 @@ TEST(AnrTrackerTest, SingleToken_MaintainsOrder) {
 TEST(AnrTrackerTest, MultipleTokens_MaintainsOrder) {
     AnrTracker tracker;
 
-    sp<IBinder> token1 = new BBinder();
-    sp<IBinder> token2 = new BBinder();
+    sp<IBinder> token1 = sp<BBinder>::make();
+    sp<IBinder> token2 = sp<BBinder>::make();
 
     tracker.insert(2, token1);
     tracker.insert(5, token2);
@@ -104,8 +104,8 @@ TEST(AnrTrackerTest, MultipleTokens_MaintainsOrder) {
 TEST(AnrTrackerTest, MultipleTokens_IdenticalTimes) {
     AnrTracker tracker;
 
-    sp<IBinder> token1 = new BBinder();
-    sp<IBinder> token2 = new BBinder();
+    sp<IBinder> token1 = sp<BBinder>::make();
+    sp<IBinder> token2 = sp<BBinder>::make();
 
     tracker.insert(2, token1);
     tracker.insert(2, token2);
@@ -119,8 +119,8 @@ TEST(AnrTrackerTest, MultipleTokens_IdenticalTimes) {
 TEST(AnrTrackerTest, MultipleTokens_IdenticalTimesRemove) {
     AnrTracker tracker;
 
-    sp<IBinder> token1 = new BBinder();
-    sp<IBinder> token2 = new BBinder();
+    sp<IBinder> token1 = sp<BBinder>::make();
+    sp<IBinder> token2 = sp<BBinder>::make();
 
     tracker.insert(2, token1);
     tracker.insert(2, token2);
@@ -137,7 +137,7 @@ TEST(AnrTrackerTest, Empty_DoesntCrash) {
 
     ASSERT_TRUE(tracker.empty());
 
-    ASSERT_EQ(LONG_LONG_MAX, tracker.firstTimeout());
+    ASSERT_EQ(LLONG_MAX, tracker.firstTimeout());
     // Can't call firstToken() if tracker.empty()
 }
 
@@ -152,12 +152,12 @@ TEST(AnrTrackerTest, RemoveInvalidItem_DoesntCrash) {
     ASSERT_EQ(nullptr, tracker.firstToken());
 
     // Remove with non-matching token
-    tracker.erase(1, new BBinder());
+    tracker.erase(1, sp<BBinder>::make());
     ASSERT_EQ(1, tracker.firstTimeout());
     ASSERT_EQ(nullptr, tracker.firstToken());
 
     // Remove with both non-matching
-    tracker.erase(2, new BBinder());
+    tracker.erase(2, sp<BBinder>::make());
     ASSERT_EQ(1, tracker.firstTimeout());
     ASSERT_EQ(nullptr, tracker.firstToken());
 }

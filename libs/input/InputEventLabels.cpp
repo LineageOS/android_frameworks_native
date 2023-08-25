@@ -16,12 +16,17 @@
 
 #include <input/InputEventLabels.h>
 
+#include <linux/input-event-codes.h>
+#include <linux/input.h>
+
 #define DEFINE_KEYCODE(key) { #key, AKEYCODE_##key }
 #define DEFINE_AXIS(axis) { #axis, AMOTION_EVENT_AXIS_##axis }
 #define DEFINE_LED(led) { #led, ALED_##led }
 #define DEFINE_FLAG(flag) { #flag, POLICY_FLAG_##flag }
 
 namespace android {
+
+// clang-format off
 
 // NOTE: If you add a new keycode here you must also add it to several other files.
 //       Refer to frameworks/base/core/java/android/view/KeyEvent.java for the full list.
@@ -330,7 +335,19 @@ namespace android {
     DEFINE_KEYCODE(DEMO_APP_1), \
     DEFINE_KEYCODE(DEMO_APP_2), \
     DEFINE_KEYCODE(DEMO_APP_3), \
-    DEFINE_KEYCODE(DEMO_APP_4)
+    DEFINE_KEYCODE(DEMO_APP_4), \
+    DEFINE_KEYCODE(KEYBOARD_BACKLIGHT_DOWN), \
+    DEFINE_KEYCODE(KEYBOARD_BACKLIGHT_UP), \
+    DEFINE_KEYCODE(KEYBOARD_BACKLIGHT_TOGGLE), \
+    DEFINE_KEYCODE(STYLUS_BUTTON_PRIMARY), \
+    DEFINE_KEYCODE(STYLUS_BUTTON_SECONDARY), \
+    DEFINE_KEYCODE(STYLUS_BUTTON_TERTIARY), \
+    DEFINE_KEYCODE(STYLUS_BUTTON_TAIL), \
+    DEFINE_KEYCODE(RECENT_APPS), \
+    DEFINE_KEYCODE(MACRO_1), \
+    DEFINE_KEYCODE(MACRO_2), \
+    DEFINE_KEYCODE(MACRO_3), \
+    DEFINE_KEYCODE(MACRO_4)
 
 // NOTE: If you add a new axis here you must also add it to several other files.
 //       Refer to frameworks/base/core/java/android/view/MotionEvent.java for the full list.
@@ -382,8 +399,12 @@ namespace android {
     DEFINE_AXIS(GENERIC_13), \
     DEFINE_AXIS(GENERIC_14), \
     DEFINE_AXIS(GENERIC_15), \
-    DEFINE_AXIS(GENERIC_16)
-
+    DEFINE_AXIS(GENERIC_16), \
+    DEFINE_AXIS(GESTURE_X_OFFSET), \
+    DEFINE_AXIS(GESTURE_Y_OFFSET), \
+    DEFINE_AXIS(GESTURE_SCROLL_X_DISTANCE), \
+    DEFINE_AXIS(GESTURE_SCROLL_Y_DISTANCE), \
+    DEFINE_AXIS(GESTURE_PINCH_SCALE_FACTOR)
 
 // NOTE: If you add new LEDs here, you must also add them to Input.h
 #define LEDS_SEQUENCE \
@@ -409,6 +430,8 @@ namespace android {
     DEFINE_FLAG(GESTURE), \
     DEFINE_FLAG(WAKE)
 
+// clang-format on
+
 // --- InputEventLookup ---
 const std::unordered_map<std::string, int> InputEventLookup::KEYCODES = {KEYCODES_SEQUENCE};
 
@@ -422,11 +445,11 @@ const std::unordered_map<std::string, int> InputEventLookup::LEDS = {LEDS_SEQUEN
 
 const std::unordered_map<std::string, int> InputEventLookup::FLAGS = {FLAGS_SEQUENCE};
 
-int InputEventLookup::lookupValueByLabel(const std::unordered_map<std::string, int>& map,
-                                         const char* literal) {
+std::optional<int> InputEventLookup::lookupValueByLabel(
+        const std::unordered_map<std::string, int>& map, const char* literal) {
     std::string str(literal);
     auto it = map.find(str);
-    return it != map.end() ? it->second : 0;
+    return it != map.end() ? std::make_optional(it->second) : std::nullopt;
 }
 
 const char* InputEventLookup::lookupLabelByValue(const std::vector<InputEventLabel>& vec,
@@ -437,8 +460,8 @@ const char* InputEventLookup::lookupLabelByValue(const std::vector<InputEventLab
     return nullptr;
 }
 
-int32_t InputEventLookup::getKeyCodeByLabel(const char* label) {
-    return int32_t(lookupValueByLabel(KEYCODES, label));
+std::optional<int> InputEventLookup::getKeyCodeByLabel(const char* label) {
+    return lookupValueByLabel(KEYCODES, label);
 }
 
 const char* InputEventLookup::getLabelByKeyCode(int32_t keyCode) {
@@ -448,20 +471,101 @@ const char* InputEventLookup::getLabelByKeyCode(int32_t keyCode) {
     return nullptr;
 }
 
-uint32_t InputEventLookup::getKeyFlagByLabel(const char* label) {
-    return uint32_t(lookupValueByLabel(FLAGS, label));
+std::optional<int> InputEventLookup::getKeyFlagByLabel(const char* label) {
+    return lookupValueByLabel(FLAGS, label);
 }
 
-int32_t InputEventLookup::getAxisByLabel(const char* label) {
-    return int32_t(lookupValueByLabel(AXES, label));
+std::optional<int> InputEventLookup::getAxisByLabel(const char* label) {
+    return lookupValueByLabel(AXES, label);
 }
 
 const char* InputEventLookup::getAxisLabel(int32_t axisId) {
     return lookupLabelByValue(AXES_NAMES, axisId);
 }
 
-int32_t InputEventLookup::getLedByLabel(const char* label) {
-    return int32_t(lookupValueByLabel(LEDS, label));
+std::optional<int> InputEventLookup::getLedByLabel(const char* label) {
+    return lookupValueByLabel(LEDS, label);
+}
+
+namespace {
+
+struct label {
+    const char* name;
+    int value;
+};
+
+#define LABEL(constant) \
+    { #constant, constant }
+#define LABEL_END \
+    { nullptr, -1 }
+
+static struct label ev_key_value_labels[] = {
+        {"UP", 0},
+        {"DOWN", 1},
+        {"REPEAT", 2},
+        LABEL_END,
+};
+
+#include "input.h-labels.h"
+
+#undef LABEL
+#undef LABEL_END
+
+std::string getLabel(const label* labels, int value) {
+    if (labels == nullptr) return std::to_string(value);
+    while (labels->name != nullptr && value != labels->value) {
+        labels++;
+    }
+    return labels->name != nullptr ? labels->name : std::to_string(value);
+}
+
+const label* getCodeLabelsForType(int32_t type) {
+    switch (type) {
+        case EV_SYN:
+            return syn_labels;
+        case EV_KEY:
+            return key_labels;
+        case EV_REL:
+            return rel_labels;
+        case EV_ABS:
+            return abs_labels;
+        case EV_SW:
+            return sw_labels;
+        case EV_MSC:
+            return msc_labels;
+        case EV_LED:
+            return led_labels;
+        case EV_REP:
+            return rep_labels;
+        case EV_SND:
+            return snd_labels;
+        case EV_FF:
+            return ff_labels;
+        case EV_FF_STATUS:
+            return ff_status_labels;
+        default:
+            return nullptr;
+    }
+}
+
+const label* getValueLabelsForTypeAndCode(int32_t type, int32_t code) {
+    if (type == EV_KEY) {
+        return ev_key_value_labels;
+    }
+    if (type == EV_MSC && code == ABS_MT_TOOL_TYPE) {
+        return mt_tool_labels;
+    }
+    return nullptr;
+}
+
+} // namespace
+
+EvdevEventLabel InputEventLookup::getLinuxEvdevLabel(int32_t type, int32_t code, int32_t value) {
+    return {
+            .type = getLabel(ev_labels, type),
+            .code = getLabel(getCodeLabelsForType(type), code),
+            .value = getLabel(getValueLabelsForTypeAndCode(type, code), value),
+    };
 }
 
 } // namespace android

@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _UI_INPUTREADER_CURSOR_INPUT_MAPPER_H
-#define _UI_INPUTREADER_CURSOR_INPUT_MAPPER_H
+#pragma once
 
 #include "CursorButtonAccumulator.h"
 #include "CursorScrollAccumulator.h"
@@ -23,6 +22,7 @@
 
 #include <PointerControllerInterface.h>
 #include <input/VelocityControl.h>
+#include <ui/Rotation.h>
 
 namespace android {
 
@@ -53,16 +53,20 @@ private:
 
 class CursorInputMapper : public InputMapper {
 public:
-    explicit CursorInputMapper(InputDeviceContext& deviceContext);
+    template <class T, class... Args>
+    friend std::unique_ptr<T> createInputMapper(InputDeviceContext& deviceContext,
+                                                const InputReaderConfiguration& readerConfig,
+                                                Args... args);
     virtual ~CursorInputMapper();
 
     virtual uint32_t getSources() const override;
-    virtual void populateDeviceInfo(InputDeviceInfo* deviceInfo) override;
+    virtual void populateDeviceInfo(InputDeviceInfo& deviceInfo) override;
     virtual void dump(std::string& dump) override;
-    virtual void configure(nsecs_t when, const InputReaderConfiguration* config,
-                           uint32_t changes) override;
-    virtual void reset(nsecs_t when) override;
-    virtual void process(const RawEvent* rawEvent) override;
+    [[nodiscard]] std::list<NotifyArgs> reconfigure(nsecs_t when,
+                                                    const InputReaderConfiguration& readerConfig,
+                                                    ConfigurationChanges changes) override;
+    [[nodiscard]] std::list<NotifyArgs> reset(nsecs_t when) override;
+    [[nodiscard]] std::list<NotifyArgs> process(const RawEvent* rawEvent) override;
 
     virtual int32_t getScanCodeState(uint32_t sourceMask, int32_t scanCode) override;
 
@@ -115,19 +119,25 @@ private:
     // ADISPLAY_ID_NONE to target the focused display. If there is no display target (i.e.
     // std::nullopt), all events will be ignored.
     std::optional<int32_t> mDisplayId;
-    int32_t mOrientation;
+    ui::Rotation mOrientation;
 
     std::shared_ptr<PointerControllerInterface> mPointerController;
 
     int32_t mButtonState;
     nsecs_t mDownTime;
+    nsecs_t mLastEventTime;
 
-    void configureParameters();
+    explicit CursorInputMapper(InputDeviceContext& deviceContext,
+                               const InputReaderConfiguration& readerConfig);
     void dumpParameters(std::string& dump);
+    void configureBasicParams();
+    void configureOnPointerCapture(const InputReaderConfiguration& config);
+    void configureOnChangePointerSpeed(const InputReaderConfiguration& config);
+    void configureOnChangeDisplayInfo(const InputReaderConfiguration& config);
 
-    void sync(nsecs_t when, nsecs_t readTime);
+    [[nodiscard]] std::list<NotifyArgs> sync(nsecs_t when, nsecs_t readTime);
+
+    static Parameters computeParameters(const InputDeviceContext& deviceContext);
 };
 
 } // namespace android
-
-#endif // _UI_INPUTREADER_CURSOR_INPUT_MAPPER_H

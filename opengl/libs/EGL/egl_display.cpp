@@ -353,8 +353,9 @@ EGLBoolean egl_display_t::initialize(EGLint* major, EGLint* minor) {
             // Typically that means there is an HDR capable display attached, but could be
             // support for attaching an HDR display. In either case, advertise support for
             // HDR color spaces.
-            mExtensionString.append(
-                    "EGL_EXT_gl_colorspace_bt2020_linear EGL_EXT_gl_colorspace_bt2020_pq ");
+            mExtensionString.append("EGL_EXT_gl_colorspace_bt2020_hlg "
+                                    "EGL_EXT_gl_colorspace_bt2020_linear "
+                                    "EGL_EXT_gl_colorspace_bt2020_pq ");
         }
 
         char const* start = gExtensionString;

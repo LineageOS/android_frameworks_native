@@ -201,8 +201,11 @@ int ALooper_pollOnce(int timeoutMillis, int* outFd, int* outEvents, void** outDa
  * Like ALooper_pollOnce(), but performs all pending callbacks until all
  * data has been consumed or a file descriptor is available with no callback.
  * This function will never return ALOOPER_POLL_CALLBACK.
+ *
+ * Removed in API 34 as ALooper_pollAll can swallow ALooper_wake calls.
+ * Use ALooper_pollOnce instead.
  */
-int ALooper_pollAll(int timeoutMillis, int* outFd, int* outEvents, void** outData);
+int ALooper_pollAll(int timeoutMillis, int* outFd, int* outEvents, void** outData) __REMOVED_IN(1);
 
 /**
  * Wakes the poll asynchronously.

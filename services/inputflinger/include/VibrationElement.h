@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _VIBRATION_ELEMENT_H
-#define _VIBRATION_ELEMENT_H
+#pragma once
 
 #include <array>
 #include <chrono>
@@ -71,5 +70,3 @@ struct VibrationSequence {
 };
 
 } // namespace android
-
-#endif // _VIBRATION_ELEMENT_H

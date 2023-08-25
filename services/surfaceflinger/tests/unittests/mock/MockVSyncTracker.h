@@ -34,6 +34,7 @@ public:
     MOCK_METHOD0(resetModel, void());
     MOCK_CONST_METHOD0(needsMoreSamples, bool());
     MOCK_CONST_METHOD2(isVSyncInPhase, bool(nsecs_t, Fps));
+    MOCK_METHOD(void, setRenderRate, (Fps), (override));
     MOCK_CONST_METHOD1(dump, void(std::string&));
 };
 

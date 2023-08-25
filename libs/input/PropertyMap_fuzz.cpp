@@ -17,32 +17,21 @@
 #include "android-base/file.h"
 #include "fuzzer/FuzzedDataProvider.h"
 #include "input/PropertyMap.h"
-#include "utils/String8.h"
 
 static constexpr int MAX_FILE_SIZE = 256;
 static constexpr int MAX_STR_LEN = 2048;
 static constexpr int MAX_OPERATIONS = 1000;
 
-static const std::vector<std::function<void(FuzzedDataProvider*, android::PropertyMap)>>
+static const std::vector<std::function<void(FuzzedDataProvider*, android::PropertyMap&)>>
         operations = {
-                [](FuzzedDataProvider*, android::PropertyMap propertyMap) -> void {
-                    propertyMap.getProperties();
-                },
-                [](FuzzedDataProvider*, android::PropertyMap propertyMap) -> void {
+                [](FuzzedDataProvider*, android::PropertyMap& propertyMap) -> void {
                     propertyMap.clear();
                 },
-                [](FuzzedDataProvider* dataProvider, android::PropertyMap propertyMap) -> void {
-                    std::string keyStr = dataProvider->ConsumeRandomLengthString(MAX_STR_LEN);
-                    android::String8 key = android::String8(keyStr.c_str());
-                    propertyMap.hasProperty(key);
+                [](FuzzedDataProvider* dataProvider, android::PropertyMap& propertyMap) -> void {
+                    std::string key = dataProvider->ConsumeRandomLengthString(MAX_STR_LEN);
+                    propertyMap.getString(key);
                 },
-                [](FuzzedDataProvider* dataProvider, android::PropertyMap propertyMap) -> void {
-                    std::string keyStr = dataProvider->ConsumeRandomLengthString(MAX_STR_LEN);
-                    android::String8 key = android::String8(keyStr.c_str());
-                    android::String8 out;
-                    propertyMap.tryGetProperty(key, out);
-                },
-                [](FuzzedDataProvider* dataProvider, android::PropertyMap /*unused*/) -> void {
+                [](FuzzedDataProvider* dataProvider, android::PropertyMap& /*unused*/) -> void {
                     TemporaryFile tf;
                     // Generate file contents
                     std::string contents = dataProvider->ConsumeRandomLengthString(MAX_FILE_SIZE);
@@ -54,17 +43,15 @@ static const std::vector<std::function<void(FuzzedDataProvider*, android::Proper
                     }
                     android::PropertyMap::load(tf.path);
                 },
-                [](FuzzedDataProvider* dataProvider, android::PropertyMap propertyMap) -> void {
-                    std::string keyStr = dataProvider->ConsumeRandomLengthString(MAX_STR_LEN);
-                    std::string valStr = dataProvider->ConsumeRandomLengthString(MAX_STR_LEN);
-                    android::String8 key = android::String8(keyStr.c_str());
-                    android::String8 val = android::String8(valStr.c_str());
+                [](FuzzedDataProvider* dataProvider, android::PropertyMap& propertyMap) -> void {
+                    std::string key = dataProvider->ConsumeRandomLengthString(MAX_STR_LEN);
+                    std::string val = dataProvider->ConsumeRandomLengthString(MAX_STR_LEN);
                     propertyMap.addProperty(key, val);
                 },
 };
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     FuzzedDataProvider dataProvider(data, size);
-    android::PropertyMap propertyMap = android::PropertyMap();
+    android::PropertyMap propertyMap;
 
     int opsRun = 0;
     while (dataProvider.remaining_bytes() > 0 && opsRun++ < MAX_OPERATIONS) {

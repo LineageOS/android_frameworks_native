@@ -28,7 +28,7 @@ cc_library {
         "libbinder_ndk",
         "libsensor",
         "android.frameworks.sensorservice-V1-ndk",
-        "android.hardware.sensors-V1-ndk",
+        "android.hardware.sensors-V2-ndk",
     ],
     export_include_dirs: [
         "include/",

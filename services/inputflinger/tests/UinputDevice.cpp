@@ -17,13 +17,15 @@
 #include "UinputDevice.h"
 
 #include <android-base/stringprintf.h>
+#include <cutils/memory.h>
 #include <fcntl.h>
 
 namespace android {
 
 // --- UinputDevice ---
 
-UinputDevice::UinputDevice(const char* name) : mName(name) {}
+UinputDevice::UinputDevice(const char* name, int16_t productId)
+      : mName(name), mProductId(productId) {}
 
 UinputDevice::~UinputDevice() {
     if (ioctl(mDeviceFd, UI_DEV_DESTROY)) {
@@ -42,7 +44,7 @@ void UinputDevice::init() {
     strlcpy(device.name, mName, UINPUT_MAX_NAME_SIZE);
     device.id.bustype = BUS_USB;
     device.id.vendor = 0x01;
-    device.id.product = 0x01;
+    device.id.product = mProductId;
     device.id.version = 1;
 
     ASSERT_NO_FATAL_FAILURE(configureDevice(mDeviceFd, &device));
@@ -58,11 +60,11 @@ void UinputDevice::init() {
 }
 
 void UinputDevice::injectEvent(uint16_t type, uint16_t code, int32_t value) {
+    // uinput ignores the timestamp
     struct input_event event = {};
     event.type = type;
     event.code = code;
     event.value = value;
-    event.time = {}; // uinput ignores the timestamp
 
     if (write(mDeviceFd, &event, sizeof(input_event)) < 0) {
         std::string msg = base::StringPrintf("Could not write event %" PRIu16 " %" PRIu16
@@ -75,8 +77,8 @@ void UinputDevice::injectEvent(uint16_t type, uint16_t code, int32_t value) {
 
 // --- UinputKeyboard ---
 
-UinputKeyboard::UinputKeyboard(std::initializer_list<int> keys)
-      : UinputDevice(UinputKeyboard::KEYBOARD_NAME), mKeys(keys.begin(), keys.end()) {}
+UinputKeyboard::UinputKeyboard(const char* name, int16_t productId, std::initializer_list<int> keys)
+      : UinputDevice(name, productId), mKeys(keys.begin(), keys.end()) {}
 
 void UinputKeyboard::configureDevice(int fd, uinput_user_dev* device) {
     // enable key press/release event
@@ -120,22 +122,52 @@ void UinputKeyboard::pressAndReleaseKey(int key) {
 
 // --- UinputHomeKey ---
 
-UinputHomeKey::UinputHomeKey() : UinputKeyboard({KEY_HOME}) {}
+UinputHomeKey::UinputHomeKey() : UinputKeyboard(DEVICE_NAME, PRODUCT_ID, {KEY_HOME}) {}
 
 void UinputHomeKey::pressAndReleaseHomeKey() {
     pressAndReleaseKey(KEY_HOME);
 }
 
-// --- UinputSteamController
-UinputSteamController::UinputSteamController() : UinputKeyboard({BTN_GEAR_DOWN, BTN_GEAR_UP}) {}
+// --- UinputSteamController ---
+
+UinputSteamController::UinputSteamController()
+      : UinputKeyboard(DEVICE_NAME, PRODUCT_ID, {BTN_GEAR_DOWN, BTN_GEAR_UP}) {}
+
+// --- UinputExternalStylus ---
+
+UinputExternalStylus::UinputExternalStylus()
+      : UinputKeyboard(DEVICE_NAME, PRODUCT_ID, {BTN_STYLUS, BTN_STYLUS2, BTN_STYLUS3}) {}
+
+// --- UinputExternalStylusWithPressure ---
+
+UinputExternalStylusWithPressure::UinputExternalStylusWithPressure()
+      : UinputKeyboard(DEVICE_NAME, PRODUCT_ID, {BTN_STYLUS, BTN_STYLUS2, BTN_STYLUS3}) {}
+
+void UinputExternalStylusWithPressure::configureDevice(int fd, uinput_user_dev* device) {
+    UinputKeyboard::configureDevice(fd, device);
+
+    ioctl(fd, UI_SET_EVBIT, EV_ABS);
+    ioctl(fd, UI_SET_ABSBIT, ABS_PRESSURE);
+    device->absmin[ABS_PRESSURE] = RAW_PRESSURE_MIN;
+    device->absmax[ABS_PRESSURE] = RAW_PRESSURE_MAX;
+}
+
+void UinputExternalStylusWithPressure::setPressure(int32_t pressure) {
+    injectEvent(EV_ABS, ABS_PRESSURE, pressure);
+    injectEvent(EV_SYN, SYN_REPORT, 0);
+}
 
 // --- UinputTouchScreen ---
-UinputTouchScreen::UinputTouchScreen(const Rect* size)
-      : UinputDevice(UinputTouchScreen::DEVICE_NAME), mSize(*size) {}
+
+UinputTouchScreen::UinputTouchScreen(const Rect& size)
+      : UinputKeyboard(DEVICE_NAME, PRODUCT_ID,
+                       {BTN_TOUCH, BTN_TOOL_PEN, BTN_STYLUS, BTN_STYLUS2, BTN_STYLUS3}),
+        mSize(size) {}
 
 void UinputTouchScreen::configureDevice(int fd, uinput_user_dev* device) {
+    UinputKeyboard::configureDevice(fd, device);
+
     // Setup the touch screen device
-    ioctl(fd, UI_SET_EVBIT, EV_KEY);
     ioctl(fd, UI_SET_EVBIT, EV_REL);
     ioctl(fd, UI_SET_EVBIT, EV_ABS);
     ioctl(fd, UI_SET_ABSBIT, ABS_MT_SLOT);
@@ -145,7 +177,6 @@ void UinputTouchScreen::configureDevice(int fd, uinput_user_dev* device) {
     ioctl(fd, UI_SET_ABSBIT, ABS_MT_TRACKING_ID);
     ioctl(fd, UI_SET_ABSBIT, ABS_MT_TOOL_TYPE);
     ioctl(fd, UI_SET_PROPBIT, INPUT_PROP_DIRECT);
-    ioctl(fd, UI_SET_KEYBIT, BTN_TOUCH);
 
     device->absmin[ABS_MT_SLOT] = RAW_SLOT_MIN;
     device->absmax[ABS_MT_SLOT] = RAW_SLOT_MAX;
@@ -157,6 +188,8 @@ void UinputTouchScreen::configureDevice(int fd, uinput_user_dev* device) {
     device->absmax[ABS_MT_POSITION_Y] = mSize.bottom - 1;
     device->absmin[ABS_MT_TRACKING_ID] = RAW_ID_MIN;
     device->absmax[ABS_MT_TRACKING_ID] = RAW_ID_MAX;
+    device->absmin[ABS_MT_TOOL_TYPE] = MT_TOOL_FINGER;
+    device->absmax[ABS_MT_TOOL_TYPE] = MT_TOOL_MAX;
 }
 
 void UinputTouchScreen::sendSlot(int32_t slot) {

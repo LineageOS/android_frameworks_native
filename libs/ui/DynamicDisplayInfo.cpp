@@ -18,11 +18,6 @@
 
 #include <cstdint>
 
-#include <ui/FlattenableHelpers.h>
-
-#define RETURN_IF_ERROR(op) \
-    if (const status_t status = (op); status != OK) return status;
-
 namespace android::ui {
 
 std::optional<ui::DisplayMode> DynamicDisplayInfo::getActiveDisplayMode() const {
@@ -32,44 +27,6 @@ std::optional<ui::DisplayMode> DynamicDisplayInfo::getActiveDisplayMode() const 
         }
     }
     return {};
-}
-
-size_t DynamicDisplayInfo::getFlattenedSize() const {
-    return FlattenableHelpers::getFlattenedSize(supportedDisplayModes) +
-            FlattenableHelpers::getFlattenedSize(activeDisplayModeId) +
-            FlattenableHelpers::getFlattenedSize(supportedColorModes) +
-            FlattenableHelpers::getFlattenedSize(activeColorMode) +
-            FlattenableHelpers::getFlattenedSize(hdrCapabilities) +
-            FlattenableHelpers::getFlattenedSize(autoLowLatencyModeSupported) +
-            FlattenableHelpers::getFlattenedSize(gameContentTypeSupported) +
-            FlattenableHelpers::getFlattenedSize(preferredBootDisplayMode);
-}
-
-status_t DynamicDisplayInfo::flatten(void* buffer, size_t size) const {
-    if (size < getFlattenedSize()) {
-        return NO_MEMORY;
-    }
-    RETURN_IF_ERROR(FlattenableHelpers::flatten(&buffer, &size, supportedDisplayModes));
-    RETURN_IF_ERROR(FlattenableHelpers::flatten(&buffer, &size, activeDisplayModeId));
-    RETURN_IF_ERROR(FlattenableHelpers::flatten(&buffer, &size, supportedColorModes));
-    RETURN_IF_ERROR(FlattenableHelpers::flatten(&buffer, &size, activeColorMode));
-    RETURN_IF_ERROR(FlattenableHelpers::flatten(&buffer, &size, hdrCapabilities));
-    RETURN_IF_ERROR(FlattenableHelpers::flatten(&buffer, &size, autoLowLatencyModeSupported));
-    RETURN_IF_ERROR(FlattenableHelpers::flatten(&buffer, &size, gameContentTypeSupported));
-    RETURN_IF_ERROR(FlattenableHelpers::flatten(&buffer, &size, preferredBootDisplayMode));
-    return OK;
-}
-
-status_t DynamicDisplayInfo::unflatten(const void* buffer, size_t size) {
-    RETURN_IF_ERROR(FlattenableHelpers::unflatten(&buffer, &size, &supportedDisplayModes));
-    RETURN_IF_ERROR(FlattenableHelpers::unflatten(&buffer, &size, &activeDisplayModeId));
-    RETURN_IF_ERROR(FlattenableHelpers::unflatten(&buffer, &size, &supportedColorModes));
-    RETURN_IF_ERROR(FlattenableHelpers::unflatten(&buffer, &size, &activeColorMode));
-    RETURN_IF_ERROR(FlattenableHelpers::unflatten(&buffer, &size, &hdrCapabilities));
-    RETURN_IF_ERROR(FlattenableHelpers::unflatten(&buffer, &size, &autoLowLatencyModeSupported));
-    RETURN_IF_ERROR(FlattenableHelpers::unflatten(&buffer, &size, &gameContentTypeSupported));
-    RETURN_IF_ERROR(FlattenableHelpers::unflatten(&buffer, &size, &preferredBootDisplayMode));
-    return OK;
 }
 
 } // namespace android::ui

@@ -56,7 +56,7 @@ int main(int argc, char* argv[]) {
             MYLOGE("Unable to start 'dumpstate' service: %d", ret);
             exit(1);
         }
-        MYLOGI("'dumpstate' service started and will wait for a call to startBugreport()");
+        MYLOGI("'dumpstate' service started and will wait for a call");
 
         // Waits forever for an incoming connection.
         // TODO(b/111441001): should this time out?

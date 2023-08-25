@@ -342,10 +342,6 @@ cc_library {
     },
 
     afdo: true,
-
-    header_abi_checker: {
-        diff_flags: ["-allow-adding-removing-weak-symbols"],
-    },
 }
 
 cc_library_static {
@@ -486,9 +482,7 @@ aidl_interface {
     local_include_dir: "aidl",
     host_supported: true,
     srcs: [
-        "aidl/android/content/pm/IPackageChangeObserver.aidl",
         "aidl/android/content/pm/IPackageManagerNative.aidl",
-        "aidl/android/content/pm/PackageChangeEvent.aidl",
         "aidl/android/content/pm/IStagedApexObserver.aidl",
         "aidl/android/content/pm/ApexStagedEvent.aidl",
         "aidl/android/content/pm/StagedApexInfo.aidl",

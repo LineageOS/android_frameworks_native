@@ -34,7 +34,9 @@ public:
     ScreenCaptureResults waitForResults() {
         std::future<ScreenCaptureResults> resultsFuture = resultsPromise.get_future();
         const auto screenCaptureResults = resultsFuture.get();
-        screenCaptureResults.fence->waitForever("");
+        if (screenCaptureResults.fenceResult.ok()) {
+            screenCaptureResults.fenceResult.value()->waitForever("");
+        }
         return screenCaptureResults;
     }
 

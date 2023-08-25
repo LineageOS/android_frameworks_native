@@ -51,29 +51,29 @@ struct LinearEffect {
     // Input dataspace of the source colors.
     const ui::Dataspace inputDataspace = ui::Dataspace::SRGB;
 
-    // Working dataspace for the output surface, for conversion from linear space.
+    // Working dataspace for the output surface.
     const ui::Dataspace outputDataspace = ui::Dataspace::SRGB;
 
     // Sets whether alpha premultiplication must be undone.
     // This is required if the source colors use premultiplied alpha and is not opaque.
     const bool undoPremultipliedAlpha = false;
 
-    // "Fake" dataspace of the source colors. This is used for applying an EOTF to compute linear
-    // RGB. This is used when Skia is expected to color manage the input image based on the
-    // dataspace of the provided source image and destination surface. SkRuntimeEffects use the
-    // destination color space as the working color space. RenderEngine deliberately sets the color
-    // space for input images and destination surfaces to be the same whenever LinearEffects are
-    // expected to be used so that color-management is controlled by RenderEngine, but other users
-    // of a LinearEffect may not be able to control the color space of the images and surfaces. So
-    // fakeInputDataspace is used to essentially masquerade the input dataspace to be the output
-    // dataspace for correct conversion to linear colors.
-    ui::Dataspace fakeInputDataspace = ui::Dataspace::UNKNOWN;
+    // "Fake" dataspace of the destination colors. This is used for applying an OETF to compute
+    // non-linear RGB. This is used when Skia is expected to color manage the input image based on
+    // the dataspace of the provided source image and destination surface. Some use-cases in
+    // RenderEngine expect to apply a different OETF than what is expected by Skia. As in,
+    // RenderEngine will color manage to a custom destination and "cast" the result to Skia's
+    // working space.
+    ui::Dataspace fakeOutputDataspace = ui::Dataspace::UNKNOWN;
+
+    enum SkSLType { Shader, ColorFilter };
+    SkSLType type = Shader;
 };
 
 static inline bool operator==(const LinearEffect& lhs, const LinearEffect& rhs) {
     return lhs.inputDataspace == rhs.inputDataspace && lhs.outputDataspace == rhs.outputDataspace &&
             lhs.undoPremultipliedAlpha == rhs.undoPremultipliedAlpha &&
-            lhs.fakeInputDataspace == rhs.fakeInputDataspace;
+            lhs.fakeOutputDataspace == rhs.fakeOutputDataspace;
 }
 
 struct LinearEffectHasher {
@@ -86,7 +86,7 @@ struct LinearEffectHasher {
         size_t result = std::hash<ui::Dataspace>{}(le.inputDataspace);
         result = HashCombine(result, std::hash<ui::Dataspace>{}(le.outputDataspace));
         result = HashCombine(result, std::hash<bool>{}(le.undoPremultipliedAlpha));
-        return HashCombine(result, std::hash<ui::Dataspace>{}(le.fakeInputDataspace));
+        return HashCombine(result, std::hash<ui::Dataspace>{}(le.fakeOutputDataspace));
     }
 };
 

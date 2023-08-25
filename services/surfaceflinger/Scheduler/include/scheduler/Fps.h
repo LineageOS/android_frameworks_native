@@ -23,7 +23,7 @@
 #include <type_traits>
 
 #include <android-base/stringprintf.h>
-#include <utils/Timers.h>
+#include <scheduler/Time.h>
 
 namespace android {
 
@@ -52,6 +52,7 @@ public:
     constexpr float getValue() const { return mFrequency; }
     int getIntValue() const { return static_cast<int>(std::round(mFrequency)); }
 
+    constexpr Period getPeriod() const { return Period::fromNs(mPeriod); }
     constexpr nsecs_t getPeriodNsecs() const { return mPeriod; }
 
 private:
@@ -66,6 +67,18 @@ struct FpsRange {
     Fps max = Fps::fromValue(std::numeric_limits<float>::max());
 
     bool includes(Fps) const;
+    bool includes(FpsRange) const;
+};
+
+struct FpsRanges {
+    // The range of refresh rates that refers to the display mode setting.
+    FpsRange physical;
+
+    // the range of frame rates that refers to the render rate, which is
+    // the rate that frames are swapped.
+    FpsRange render;
+
+    bool valid() const;
 };
 
 static_assert(std::is_trivially_copyable_v<Fps>);
@@ -127,11 +140,37 @@ inline bool operator!=(FpsRange lhs, FpsRange rhs) {
     return !(lhs == rhs);
 }
 
+inline bool operator==(const FpsRanges& lhs, const FpsRanges& rhs) {
+    return lhs.physical == rhs.physical && lhs.render == rhs.render;
+}
+
+inline bool operator!=(const FpsRanges& lhs, const FpsRanges& rhs) {
+    return !(lhs == rhs);
+}
+
+inline unsigned operator/(Fps lhs, Fps rhs) {
+    return static_cast<unsigned>(std::ceil(lhs.getValue() / rhs.getValue()));
+}
+
 } // namespace fps_approx_ops
+
+constexpr Fps operator/(Fps fps, unsigned divisor) {
+    return Fps::fromPeriodNsecs(fps.getPeriodNsecs() * static_cast<nsecs_t>(divisor));
+}
 
 inline bool FpsRange::includes(Fps fps) const {
     using fps_approx_ops::operator<=;
     return min <= fps && fps <= max;
+}
+
+inline bool FpsRange::includes(FpsRange range) const {
+    using namespace fps_approx_ops;
+    return min <= range.min && max >= range.max;
+}
+
+inline bool FpsRanges::valid() const {
+    using fps_approx_ops::operator>=;
+    return physical.max >= render.max;
 }
 
 struct FpsApproxEqual {
@@ -149,6 +188,12 @@ inline std::ostream& operator<<(std::ostream& stream, Fps fps) {
 inline std::string to_string(FpsRange range) {
     const auto [min, max] = range;
     return base::StringPrintf("[%s, %s]", to_string(min).c_str(), to_string(max).c_str());
+}
+
+inline std::string to_string(FpsRanges ranges) {
+    const auto& [physical, render] = ranges;
+    return base::StringPrintf("{physical=%s, render=%s}", to_string(physical).c_str(),
+                              to_string(render).c_str());
 }
 
 } // namespace android

@@ -151,6 +151,10 @@ std::string to_string(const Plan& plan) {
                 // A for "Alpha", since the decoration is an alpha layer.
                 result.append("A");
                 break;
+            case aidl::android::hardware::graphics::composer3::Composition::REFRESH_RATE_INDICATOR:
+                // R for "Refresh", since the layer is Refresh rate overlay.
+                result.append("R");
+                break;
         }
     }
     return result;

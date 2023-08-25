@@ -15,6 +15,7 @@
  */
 
 //#define LOG_NDEBUG 0
+#define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 #include "BlobCache.h"
 
@@ -22,6 +23,7 @@
 #include <errno.h>
 #include <inttypes.h>
 #include <log/log.h>
+#include <utils/Trace.h>
 
 #include <chrono>
 
@@ -230,6 +232,8 @@ int BlobCache::flatten(void* buffer, size_t size) const {
 }
 
 int BlobCache::unflatten(void const* buffer, size_t size) {
+    ATRACE_NAME("BlobCache::unflatten");
+
     // All errors should result in the BlobCache being in an empty state.
     clear();
 
@@ -293,6 +297,8 @@ long int BlobCache::blob_random() {
 }
 
 void BlobCache::clean() {
+    ATRACE_NAME("BlobCache::clean");
+
     // Remove a random cache entry until the total cache size gets below half
     // the maximum total cache size.
     while (mTotalSize > mMaxTotalSize / 2) {

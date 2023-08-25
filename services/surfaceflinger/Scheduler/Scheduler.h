@@ -22,8 +22,8 @@
 #include <future>
 #include <memory>
 #include <mutex>
-#include <optional>
 #include <unordered_map>
+#include <utility>
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic push
@@ -32,15 +32,24 @@
 #include <ui/GraphicTypes.h>
 #pragma clang diagnostic pop // ignored "-Wconversion -Wextra"
 
+#include <ftl/fake_guard.h>
+#include <ftl/optional.h>
 #include <scheduler/Features.h>
+#include <scheduler/Time.h>
+#include <scheduler/VsyncConfig.h>
+#include <ui/DisplayId.h>
 
+#include "Display/DisplayMap.h"
+#include "Display/DisplayModeRequest.h"
 #include "EventThread.h"
 #include "FrameRateOverrideMappings.h"
+#include "ISchedulerCallback.h"
 #include "LayerHistory.h"
 #include "MessageQueue.h"
 #include "OneShotTimer.h"
-#include "RefreshRateConfigs.h"
-#include "VsyncSchedule.h"
+#include "RefreshRateSelector.h"
+#include "Utils/Dumper.h"
+#include "VsyncModulator.h"
 
 namespace android::scheduler {
 
@@ -74,7 +83,6 @@ struct hash<android::scheduler::ConnectionHandle> {
 namespace android {
 
 class FenceTime;
-class InjectVSyncSource;
 
 namespace frametimeline {
 class TokenManager;
@@ -82,39 +90,40 @@ class TokenManager;
 
 namespace scheduler {
 
-struct ISchedulerCallback {
-    using DisplayModeEvent = scheduler::DisplayModeEvent;
+using GlobalSignals = RefreshRateSelector::GlobalSignals;
 
-    virtual void setVsyncEnabled(bool) = 0;
-    virtual void requestDisplayMode(DisplayModePtr, DisplayModeEvent) = 0;
-    virtual void kernelTimerChanged(bool expired) = 0;
-    virtual void triggerOnFrameRateOverridesChanged() = 0;
+class VsyncSchedule;
 
-protected:
-    ~ISchedulerCallback() = default;
-};
-
-class Scheduler : impl::MessageQueue {
-    using Impl = impl::MessageQueue;
+class Scheduler : android::impl::MessageQueue {
+    using Impl = android::impl::MessageQueue;
 
 public:
-    Scheduler(ICompositor&, ISchedulerCallback&, FeatureFlags);
+    Scheduler(ICompositor&, ISchedulerCallback&, FeatureFlags, sp<VsyncModulator>);
     virtual ~Scheduler();
 
     void startTimers();
-    void setRefreshRateConfigs(std::shared_ptr<RefreshRateConfigs>)
-            EXCLUDES(mRefreshRateConfigsLock);
+
+    // TODO(b/241285191): Remove this API by promoting pacesetter in onScreen{Acquired,Released}.
+    void setPacesetterDisplay(std::optional<PhysicalDisplayId>) REQUIRES(kMainThreadContext)
+            EXCLUDES(mDisplayLock);
+
+    using RefreshRateSelectorPtr = std::shared_ptr<RefreshRateSelector>;
+
+    using ConstVsyncSchedulePtr = std::shared_ptr<const VsyncSchedule>;
+    using VsyncSchedulePtr = std::shared_ptr<VsyncSchedule>;
+
+    void registerDisplay(PhysicalDisplayId, RefreshRateSelectorPtr) REQUIRES(kMainThreadContext)
+            EXCLUDES(mDisplayLock);
+    void unregisterDisplay(PhysicalDisplayId) REQUIRES(kMainThreadContext) EXCLUDES(mDisplayLock);
 
     void run();
 
-    void createVsyncSchedule(FeatureFlags);
-
     using Impl::initVsync;
-    using Impl::setInjector;
 
     using Impl::getScheduledFrameTime;
     using Impl::setDuration;
 
+    using Impl::scheduleConfigure;
     using Impl::scheduleFrame;
 
     // Schedule an asynchronous or synchronous task on the main thread.
@@ -125,21 +134,33 @@ public:
         return std::move(future);
     }
 
-    ConnectionHandle createConnection(const char* connectionName, frametimeline::TokenManager*,
-                                      std::chrono::nanoseconds workDuration,
-                                      std::chrono::nanoseconds readyDuration,
-                                      impl::EventThread::InterceptVSyncsCallback);
+    template <typename F, typename T = std::invoke_result_t<F>>
+    [[nodiscard]] std::future<T> scheduleDelayed(F&& f, nsecs_t uptimeDelay) {
+        auto [task, future] = makeTask(std::move(f));
+        postMessageDelayed(std::move(task), uptimeDelay);
+        return std::move(future);
+    }
+
+    enum class Cycle {
+        Render,       // Surface rendering.
+        LastComposite // Ahead of display compositing by one refresh period.
+    };
+
+    ConnectionHandle createEventThread(Cycle, frametimeline::TokenManager*,
+                                       std::chrono::nanoseconds workDuration,
+                                       std::chrono::nanoseconds readyDuration);
 
     sp<IDisplayEventConnection> createDisplayEventConnection(
-            ConnectionHandle, ISurfaceComposer::EventRegistrationFlags eventRegistration = {});
+            ConnectionHandle, EventRegistrationFlags eventRegistration = {},
+            const sp<IBinder>& layerHandle = nullptr);
 
     sp<EventThreadConnection> getEventConnection(ConnectionHandle);
 
     void onHotplugReceived(ConnectionHandle, PhysicalDisplayId, bool connected);
-    void onPrimaryDisplayModeChanged(ConnectionHandle, DisplayModePtr) EXCLUDES(mPolicyLock);
-    void onNonPrimaryDisplayModeChanged(ConnectionHandle, DisplayModePtr);
-    void onScreenAcquired(ConnectionHandle);
-    void onScreenReleased(ConnectionHandle);
+    void onPrimaryDisplayModeChanged(ConnectionHandle, const FrameRateMode&) EXCLUDES(mPolicyLock);
+    void onNonPrimaryDisplayModeChanged(ConnectionHandle, const FrameRateMode&);
+
+    void enableSyntheticVsync(bool = true) REQUIRES(kMainThreadContext);
 
     void onFrameRateOverridesChanged(ConnectionHandle, PhysicalDisplayId)
             EXCLUDES(mConnectionsLock);
@@ -148,60 +169,98 @@ public:
     void setDuration(ConnectionHandle, std::chrono::nanoseconds workDuration,
                      std::chrono::nanoseconds readyDuration);
 
-    DisplayStatInfo getDisplayStatInfo(nsecs_t now);
+    VsyncModulator& vsyncModulator() { return *mVsyncModulator; }
 
-    // Returns injector handle if injection has toggled, or an invalid handle otherwise.
-    ConnectionHandle enableVSyncInjection(bool enable);
-    // Returns false if injection is disabled.
-    bool injectVSync(nsecs_t when, nsecs_t expectedVSyncTime, nsecs_t deadlineTimestamp);
-    void enableHardwareVsync();
-    void disableHardwareVsync(bool makeUnavailable);
+    // In some cases, we should only modulate for the pacesetter display. In those
+    // cases, the caller should pass in the relevant display, and the method
+    // will no-op if it's not the pacesetter. Other cases are not specific to a
+    // display.
+    template <typename... Args,
+              typename Handler = std::optional<VsyncConfig> (VsyncModulator::*)(Args...)>
+    void modulateVsync(std::optional<PhysicalDisplayId> id, Handler handler, Args... args) {
+        if (id) {
+            std::scoped_lock lock(mDisplayLock);
+            ftl::FakeGuard guard(kMainThreadContext);
+            if (id != mPacesetterDisplayId) {
+                return;
+            }
+        }
+
+        if (const auto config = (*mVsyncModulator.*handler)(args...)) {
+            setVsyncConfig(*config, getPacesetterVsyncPeriod());
+        }
+    }
+
+    void setVsyncConfigSet(const VsyncConfigSet&, Period vsyncPeriod);
+
+    // Sets the render rate for the scheduler to run at.
+    void setRenderRate(PhysicalDisplayId, Fps);
+
+    void enableHardwareVsync(PhysicalDisplayId) REQUIRES(kMainThreadContext);
+    void disableHardwareVsync(PhysicalDisplayId, bool disallow) REQUIRES(kMainThreadContext);
 
     // Resyncs the scheduler to hardware vsync.
-    // If makeAvailable is true, then hardware vsync will be turned on.
+    // If allowToEnable is true, then hardware vsync will be turned on.
     // Otherwise, if hardware vsync is not already enabled then this method will
     // no-op.
-    void resyncToHardwareVsync(bool makeAvailable, Fps refreshRate);
-    void resync() EXCLUDES(mRefreshRateConfigsLock);
+    // If refreshRate is nullopt, use the existing refresh rate of the display.
+    void resyncToHardwareVsync(PhysicalDisplayId id, bool allowToEnable,
+                               std::optional<Fps> refreshRate = std::nullopt)
+            EXCLUDES(mDisplayLock) {
+        std::scoped_lock lock(mDisplayLock);
+        ftl::FakeGuard guard(kMainThreadContext);
+        resyncToHardwareVsyncLocked(id, allowToEnable, refreshRate);
+    }
+    void resync() EXCLUDES(mDisplayLock);
     void forceNextResync() { mLastResyncTime = 0; }
 
-    // Passes a vsync sample to VsyncController. periodFlushed will be true if
-    // VsyncController detected that the vsync period changed, and false otherwise.
-    void addResyncSample(nsecs_t timestamp, std::optional<nsecs_t> hwcVsyncPeriod,
-                         bool* periodFlushed);
-    void addPresentFence(std::shared_ptr<FenceTime>);
+    // Passes a vsync sample to VsyncController. Returns true if
+    // VsyncController detected that the vsync period changed and false
+    // otherwise.
+    bool addResyncSample(PhysicalDisplayId, nsecs_t timestamp,
+                         std::optional<nsecs_t> hwcVsyncPeriod);
+    void addPresentFence(PhysicalDisplayId, std::shared_ptr<FenceTime>) EXCLUDES(mDisplayLock)
+            REQUIRES(kMainThreadContext);
 
     // Layers are registered on creation, and unregistered when the weak reference expires.
     void registerLayer(Layer*);
-    void recordLayerHistory(Layer*, nsecs_t presentTime, LayerHistory::LayerUpdateType updateType)
-            EXCLUDES(mRefreshRateConfigsLock);
+    void recordLayerHistory(int32_t id, const LayerProps& layerProps, nsecs_t presentTime,
+                            LayerHistory::LayerUpdateType) EXCLUDES(mDisplayLock);
     void setModeChangePending(bool pending);
+    void setDefaultFrameRateCompatibility(Layer*);
     void deregisterLayer(Layer*);
 
     // Detects content using layer history, and selects a matching refresh rate.
-    void chooseRefreshRateForContent() EXCLUDES(mRefreshRateConfigsLock);
+    void chooseRefreshRateForContent() EXCLUDES(mDisplayLock);
 
     void resetIdleTimer();
 
     // Indicates that touch interaction is taking place.
     void onTouchHint();
 
-    void setDisplayPowerMode(hal::PowerMode powerMode);
+    void setDisplayPowerMode(PhysicalDisplayId, hal::PowerMode powerMode)
+            REQUIRES(kMainThreadContext);
 
-    VSyncDispatch& getVsyncDispatch() { return mVsyncSchedule->getDispatch(); }
+    ConstVsyncSchedulePtr getVsyncSchedule(std::optional<PhysicalDisplayId> = std::nullopt) const
+            EXCLUDES(mDisplayLock);
+
+    VsyncSchedulePtr getVsyncSchedule(std::optional<PhysicalDisplayId> idOpt = std::nullopt)
+            EXCLUDES(mDisplayLock) {
+        return std::const_pointer_cast<VsyncSchedule>(std::as_const(*this).getVsyncSchedule(idOpt));
+    }
 
     // Returns true if a given vsync timestamp is considered valid vsync
     // for a given uid
-    bool isVsyncValid(nsecs_t expectedVsyncTimestamp, uid_t uid) const;
+    bool isVsyncValid(TimePoint expectedVsyncTimestamp, uid_t uid) const;
 
-    std::chrono::steady_clock::time_point getPreviousVsyncFrom(nsecs_t expectedPresentTime) const;
+    bool isVsyncInPhase(TimePoint expectedVsyncTime, Fps frameRate) const;
 
-    void dump(std::string&) const;
+    void dump(utils::Dumper&) const;
     void dump(ConnectionHandle, std::string&) const;
-    void dumpVsync(std::string&) const;
+    void dumpVsync(std::string&) const EXCLUDES(mDisplayLock);
 
-    // Get the appropriate refresh for current conditions.
-    DisplayModePtr getPreferredDisplayMode();
+    // Returns the preferred refresh rate and frame rate for the pacesetter display.
+    FrameRateMode getPreferredDisplayMode();
 
     // Notifies the scheduler about a refresh rate timeline change.
     void onNewVsyncPeriodChangeTimeline(const hal::VsyncPeriodChangeTimeline& timeline);
@@ -214,11 +273,6 @@ public:
 
     size_t getEventThreadConnectionCount(ConnectionHandle handle);
 
-    std::unique_ptr<VSyncSource> makePrimaryDispSyncSource(const char* name,
-                                                           std::chrono::nanoseconds workDuration,
-                                                           std::chrono::nanoseconds readyDuration,
-                                                           bool traceVsync = true);
-
     // Stores the preferred refresh rate that an app should run at.
     // FrameRateOverride.refreshRateHz == 0 means no preference.
     void setPreferredRefreshRateForUid(FrameRateOverride);
@@ -226,11 +280,14 @@ public:
     void setGameModeRefreshRateForUid(FrameRateOverride);
 
     // Retrieves the overridden refresh rate for a given uid.
-    std::optional<Fps> getFrameRateOverride(uid_t uid) const EXCLUDES(mRefreshRateConfigsLock);
+    std::optional<Fps> getFrameRateOverride(uid_t) const EXCLUDES(mDisplayLock);
 
-    nsecs_t getVsyncPeriodFromRefreshRateConfigs() const EXCLUDES(mRefreshRateConfigsLock) {
-        std::scoped_lock lock(mRefreshRateConfigsLock);
-        return mRefreshRateConfigs->getActiveMode()->getFps().getPeriodNsecs();
+    Period getPacesetterVsyncPeriod() const EXCLUDES(mDisplayLock) {
+        return pacesetterSelectorPtr()->getActiveMode().fps.getPeriod();
+    }
+
+    Fps getPacesetterRefreshRate() const EXCLUDES(mDisplayLock) {
+        return pacesetterSelectorPtr()->getActiveMode().fps;
     }
 
     // Returns the framerate of the layer with the given sequence ID
@@ -245,20 +302,49 @@ private:
     enum class TimerState { Reset, Expired };
     enum class TouchState { Inactive, Active };
 
+    // impl::MessageQueue overrides:
+    void onFrameSignal(ICompositor&, VsyncId, TimePoint expectedVsyncTime) override;
+
     // Create a connection on the given EventThread.
     ConnectionHandle createConnection(std::unique_ptr<EventThread>);
     sp<EventThreadConnection> createConnectionInternal(
-            EventThread*, ISurfaceComposer::EventRegistrationFlags eventRegistration = {});
+            EventThread*, EventRegistrationFlags eventRegistration = {},
+            const sp<IBinder>& layerHandle = nullptr);
 
     // Update feature state machine to given state when corresponding timer resets or expires.
-    void kernelIdleTimerCallback(TimerState) EXCLUDES(mRefreshRateConfigsLock);
+    void kernelIdleTimerCallback(TimerState) EXCLUDES(mDisplayLock);
     void idleTimerCallback(TimerState);
     void touchTimerCallback(TimerState);
     void displayPowerTimerCallback(TimerState);
 
-    void setVsyncPeriod(nsecs_t period);
+    void resyncToHardwareVsyncLocked(PhysicalDisplayId, bool allowToEnable,
+                                     std::optional<Fps> refreshRate = std::nullopt)
+            REQUIRES(kMainThreadContext, mDisplayLock);
+    void resyncAllToHardwareVsync(bool allowToEnable) EXCLUDES(mDisplayLock);
+    void setVsyncConfig(const VsyncConfig&, Period vsyncPeriod);
 
-    using GlobalSignals = RefreshRateConfigs::GlobalSignals;
+    // Chooses a pacesetter among the registered displays, unless `pacesetterIdOpt` is specified.
+    // The new `mPacesetterDisplayId` is never `std::nullopt`.
+    void promotePacesetterDisplay(std::optional<PhysicalDisplayId> pacesetterIdOpt = std::nullopt)
+            REQUIRES(kMainThreadContext) EXCLUDES(mDisplayLock);
+
+    // Changes to the displays (e.g. registering and unregistering) must be made
+    // while mDisplayLock is locked, and the new pacesetter then must be promoted while
+    // mDisplayLock is still locked. However, a new pacesetter means that
+    // MessageQueue and EventThread need to use the new pacesetter's
+    // VsyncSchedule, and this must happen while mDisplayLock is *not* locked,
+    // or else we may deadlock with EventThread.
+    std::shared_ptr<VsyncSchedule> promotePacesetterDisplayLocked(
+            std::optional<PhysicalDisplayId> pacesetterIdOpt = std::nullopt)
+            REQUIRES(kMainThreadContext, mDisplayLock);
+    void applyNewVsyncSchedule(std::shared_ptr<VsyncSchedule>) EXCLUDES(mDisplayLock);
+
+    // Blocks until the pacesetter's idle timer thread exits. `mDisplayLock` must not be locked by
+    // the caller on the main thread to avoid deadlock, since the timer thread locks it before exit.
+    void demotePacesetterDisplay() REQUIRES(kMainThreadContext) EXCLUDES(mDisplayLock, mPolicyLock);
+
+    void registerDisplayInternal(PhysicalDisplayId, RefreshRateSelectorPtr, VsyncSchedulePtr)
+            REQUIRES(kMainThreadContext) EXCLUDES(mDisplayLock);
 
     struct Policy;
 
@@ -267,22 +353,38 @@ private:
     template <typename S, typename T>
     GlobalSignals applyPolicy(S Policy::*, T&&) EXCLUDES(mPolicyLock);
 
-    // Returns the display mode that fulfills the policy, and the signals that were considered.
-    std::pair<DisplayModePtr, GlobalSignals> chooseDisplayMode() REQUIRES(mPolicyLock);
+    struct DisplayModeChoice {
+        DisplayModeChoice(FrameRateMode mode, GlobalSignals consideredSignals)
+              : mode(std::move(mode)), consideredSignals(consideredSignals) {}
+
+        FrameRateMode mode;
+        GlobalSignals consideredSignals;
+
+        bool operator==(const DisplayModeChoice& other) const {
+            return mode == other.mode && consideredSignals == other.consideredSignals;
+        }
+
+        // For tests.
+        friend std::ostream& operator<<(std::ostream& stream, const DisplayModeChoice& choice) {
+            return stream << '{' << to_string(*choice.mode.modePtr) << " considering "
+                          << choice.consideredSignals.toString().c_str() << '}';
+        }
+    };
+
+    using DisplayModeChoiceMap = display::PhysicalDisplayMap<PhysicalDisplayId, DisplayModeChoice>;
+
+    // See mDisplayLock for thread safety.
+    DisplayModeChoiceMap chooseDisplayModes() const
+            REQUIRES(mPolicyLock, mDisplayLock, kMainThreadContext);
+
+    GlobalSignals makeGlobalSignals() const REQUIRES(mPolicyLock);
 
     bool updateFrameRateOverrides(GlobalSignals, Fps displayRefreshRate) REQUIRES(mPolicyLock);
 
-    void dispatchCachedReportedMode() REQUIRES(mPolicyLock) EXCLUDES(mRefreshRateConfigsLock);
+    void dispatchCachedReportedMode() REQUIRES(mPolicyLock) EXCLUDES(mDisplayLock);
 
-    impl::EventThread::ThrottleVsyncCallback makeThrottleVsyncCallback() const
-            EXCLUDES(mRefreshRateConfigsLock);
-    impl::EventThread::GetVsyncPeriodFunction makeGetVsyncPeriodFunction() const;
-
-    std::shared_ptr<RefreshRateConfigs> holdRefreshRateConfigs() const
-            EXCLUDES(mRefreshRateConfigsLock) {
-        std::scoped_lock lock(mRefreshRateConfigsLock);
-        return mRefreshRateConfigs;
-    }
+    android::impl::EventThread::ThrottleVsyncCallback makeThrottleVsyncCallback() const;
+    android::impl::EventThread::GetVsyncPeriodFunction makeGetVsyncPeriodFunction() const;
 
     // Stores EventThread associated with a given VSyncSource, and an initial EventThreadConnection.
     struct Connection {
@@ -294,30 +396,85 @@ private:
     mutable std::mutex mConnectionsLock;
     std::unordered_map<ConnectionHandle, Connection> mConnections GUARDED_BY(mConnectionsLock);
 
-    bool mInjectVSyncs = false;
-    InjectVSyncSource* mVSyncInjector = nullptr;
-    ConnectionHandle mInjectorConnectionHandle;
-
-    mutable std::mutex mHWVsyncLock;
-    bool mPrimaryHWVsyncEnabled GUARDED_BY(mHWVsyncLock) = false;
-    bool mHWVsyncAvailable GUARDED_BY(mHWVsyncLock) = false;
+    ConnectionHandle mAppConnectionHandle;
+    ConnectionHandle mSfConnectionHandle;
 
     std::atomic<nsecs_t> mLastResyncTime = 0;
 
     const FeatureFlags mFeatures;
-    std::optional<VsyncSchedule> mVsyncSchedule;
+
+    // Shifts the VSYNC phase during certain transactions and refresh rate changes.
+    const sp<VsyncModulator> mVsyncModulator;
 
     // Used to choose refresh rate if content detection is enabled.
     LayerHistory mLayerHistory;
 
     // Timer used to monitor touch events.
-    std::optional<OneShotTimer> mTouchTimer;
+    ftl::Optional<OneShotTimer> mTouchTimer;
     // Timer used to monitor display power mode.
-    std::optional<OneShotTimer> mDisplayPowerTimer;
+    ftl::Optional<OneShotTimer> mDisplayPowerTimer;
 
     ISchedulerCallback& mSchedulerCallback;
 
+    // mDisplayLock may be locked while under mPolicyLock.
     mutable std::mutex mPolicyLock;
+
+    // Only required for reads outside kMainThreadContext. kMainThreadContext is the only writer, so
+    // must lock for writes but not reads. See also mPolicyLock for locking order.
+    mutable std::mutex mDisplayLock;
+
+    struct Display {
+        Display(RefreshRateSelectorPtr selectorPtr, VsyncSchedulePtr schedulePtr)
+              : selectorPtr(std::move(selectorPtr)), schedulePtr(std::move(schedulePtr)) {}
+
+        // Effectively const except in move constructor.
+        RefreshRateSelectorPtr selectorPtr;
+        VsyncSchedulePtr schedulePtr;
+    };
+
+    using DisplayRef = std::reference_wrapper<Display>;
+    using ConstDisplayRef = std::reference_wrapper<const Display>;
+
+    display::PhysicalDisplayMap<PhysicalDisplayId, Display> mDisplays GUARDED_BY(mDisplayLock)
+            GUARDED_BY(kMainThreadContext);
+
+    ftl::Optional<PhysicalDisplayId> mPacesetterDisplayId GUARDED_BY(mDisplayLock)
+            GUARDED_BY(kMainThreadContext);
+
+    ftl::Optional<DisplayRef> pacesetterDisplayLocked() REQUIRES(mDisplayLock) {
+        return static_cast<const Scheduler*>(this)->pacesetterDisplayLocked().transform(
+                [](const Display& display) { return std::ref(const_cast<Display&>(display)); });
+    }
+
+    ftl::Optional<ConstDisplayRef> pacesetterDisplayLocked() const REQUIRES(mDisplayLock) {
+        ftl::FakeGuard guard(kMainThreadContext);
+        return mPacesetterDisplayId.and_then([this](PhysicalDisplayId pacesetterId)
+                                                     REQUIRES(mDisplayLock, kMainThreadContext) {
+                                                         return mDisplays.get(pacesetterId);
+                                                     });
+    }
+
+    RefreshRateSelectorPtr pacesetterSelectorPtr() const EXCLUDES(mDisplayLock) {
+        std::scoped_lock lock(mDisplayLock);
+        return pacesetterSelectorPtrLocked();
+    }
+
+    RefreshRateSelectorPtr pacesetterSelectorPtrLocked() const REQUIRES(mDisplayLock) {
+        ftl::FakeGuard guard(kMainThreadContext);
+        return pacesetterDisplayLocked()
+                .transform([](const Display& display) { return display.selectorPtr; })
+                .or_else([] { return std::optional<RefreshRateSelectorPtr>(nullptr); })
+                .value();
+    }
+
+    ConstVsyncSchedulePtr getVsyncScheduleLocked(
+            std::optional<PhysicalDisplayId> = std::nullopt) const REQUIRES(mDisplayLock);
+
+    VsyncSchedulePtr getVsyncScheduleLocked(std::optional<PhysicalDisplayId> idOpt = std::nullopt)
+            REQUIRES(mDisplayLock) {
+        return std::const_pointer_cast<VsyncSchedule>(
+                static_cast<const Scheduler*>(this)->getVsyncScheduleLocked(idOpt));
+    }
 
     struct Policy {
         // Policy for choosing the display mode.
@@ -328,19 +485,16 @@ private:
         hal::PowerMode displayPowerMode = hal::PowerMode::ON;
 
         // Chosen display mode.
-        DisplayModePtr mode;
+        ftl::Optional<FrameRateMode> modeOpt;
 
         struct ModeChangedParams {
             ConnectionHandle handle;
-            DisplayModePtr mode;
+            FrameRateMode mode;
         };
 
         // Parameters for latest dispatch of mode change event.
         std::optional<ModeChangedParams> cachedModeChangedParams;
     } mPolicy GUARDED_BY(mPolicyLock);
-
-    mutable std::mutex mRefreshRateConfigsLock;
-    std::shared_ptr<RefreshRateConfigs> mRefreshRateConfigs GUARDED_BY(mRefreshRateConfigsLock);
 
     std::mutex mVsyncTimelineLock;
     std::optional<hal::VsyncPeriodChangeTimeline> mLastVsyncPeriodChangeTimeline
@@ -348,9 +502,6 @@ private:
     static constexpr std::chrono::nanoseconds MAX_VSYNC_APPLIED_TIME = 200ms;
 
     FrameRateOverrideMappings mFrameRateOverrideMappings;
-
-    // Keeps track of whether the screen is acquired for debug
-    std::atomic<bool> mScreenAcquired = false;
 };
 
 } // namespace scheduler

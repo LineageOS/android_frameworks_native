@@ -19,6 +19,7 @@
 #include "GpuService.h"
 
 #include <android-base/stringprintf.h>
+#include <android-base/properties.h>
 #include <binder/IPCThreadState.h>
 #include <binder/IResultReceiver.h>
 #include <binder/Parcel.h>
@@ -46,6 +47,8 @@ void dumpGameDriverInfo(std::string* result);
 } // namespace
 
 const String16 sDump("android.permission.DUMP");
+const String16 sAccessGpuServicePermission("android.permission.ACCESS_GPU_SERVICE");
+const std::string sAngleGlesDriverSuffix = "angle";
 
 const char* const GpuService::SERVICE_NAME = "gpu";
 
@@ -81,6 +84,35 @@ void GpuService::setTargetStats(const std::string& appPackageName, const uint64_
                                 const GpuStatsInfo::Stats stats, const uint64_t value) {
     mGpuStats->insertTargetStats(appPackageName, driverVersionCode, stats, value);
 }
+
+void GpuService::setTargetStatsArray(const std::string& appPackageName,
+                                const uint64_t driverVersionCode, const GpuStatsInfo::Stats stats,
+                                const uint64_t* values, const uint32_t valueCount) {
+    mGpuStats->insertTargetStatsArray(appPackageName, driverVersionCode, stats, values, valueCount);
+}
+
+void GpuService::toggleAngleAsSystemDriver(bool enabled) {
+    IPCThreadState* ipc = IPCThreadState::self();
+    const int pid = ipc->getCallingPid();
+    const int uid = ipc->getCallingUid();
+
+    // only system_server with the ACCESS_GPU_SERVICE permission is allowed to set
+    // persist.graphics.egl
+    if (uid != AID_SYSTEM ||
+        !PermissionCache::checkPermission(sAccessGpuServicePermission, pid, uid)) {
+        ALOGE("Permission Denial: can't set persist.graphics.egl from setAngleAsSystemDriver() "
+                "pid=%d, uid=%d\n", pid, uid);
+        return;
+    }
+
+    std::lock_guard<std::mutex> lock(mLock);
+    if (enabled) {
+        android::base::SetProperty("persist.graphics.egl", sAngleGlesDriverSuffix);
+    } else {
+        android::base::SetProperty("persist.graphics.egl", "");
+    }
+}
+
 
 void GpuService::setUpdatableDriverPath(const std::string& driverPath) {
     IPCThreadState* ipc = IPCThreadState::self();

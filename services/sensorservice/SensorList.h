@@ -37,20 +37,18 @@ namespace SensorServiceUtil {
 class SensorList : public Dumpable {
 public:
     struct Entry {
-        sp<SensorInterface> si;
+        std::shared_ptr<SensorInterface> si;
         const bool isForDebug;
         const bool isVirtual;
-        Entry(SensorInterface* si_, bool debug_, bool virtual_) :
-            si(si_), isForDebug(debug_), isVirtual(virtual_) {
+        const int deviceId;
+        Entry(std::shared_ptr<SensorInterface> si_, bool debug_, bool virtual_, int deviceId_) :
+            si(std::move(si_)), isForDebug(debug_), isVirtual(virtual_), deviceId(deviceId_) {
         }
     };
 
-    // After SensorInterface * is added into SensorList, it can be assumed that SensorList own the
-    // object it pointed to and the object should not be released elsewhere.
-    bool add(int handle, SensorInterface* si, bool isForDebug = false, bool isVirtual = false);
-
-    // After a handle is removed, the object that SensorInterface * pointing to may get deleted if
-    // no more sp<> of the same object exist.
+    // SensorList owns the SensorInterface pointer.
+    bool add(int handle, std::shared_ptr<SensorInterface> si, bool isForDebug = false,
+             bool isVirtual = false, int deviceId = RuntimeSensor::DEFAULT_DEVICE_ID);
     bool remove(int handle);
 
     inline bool hasAnySensor() const { return mHandleMap.size() > 0;}
@@ -60,11 +58,12 @@ public:
     const Vector<Sensor> getUserDebugSensors() const;
     const Vector<Sensor> getDynamicSensors() const;
     const Vector<Sensor> getVirtualSensors() const;
+    const Vector<Sensor> getRuntimeSensors(int deviceId) const;
 
     String8 getName(int handle) const;
     String8 getStringType(int handle) const;
 
-    sp<SensorInterface> getInterface(int handle) const;
+    std::shared_ptr<SensorInterface> getInterface(int handle) const;
     bool isNewHandle(int handle) const;
 
     // Iterate through Sensor in sensor list and perform operation f on each Sensor object.

@@ -15,6 +15,7 @@
  */
 
 #include <gtest/gtest.h>
+#include <gui/constants.h>
 #include "../PreferStylusOverTouchBlocker.h"
 
 namespace android {
@@ -33,14 +34,8 @@ static constexpr int32_t POINTER_1_DOWN =
 constexpr int32_t TOUCHSCREEN = AINPUT_SOURCE_TOUCHSCREEN;
 constexpr int32_t STYLUS = AINPUT_SOURCE_STYLUS;
 
-struct PointerData {
-    float x;
-    float y;
-};
-
 static NotifyMotionArgs generateMotionArgs(nsecs_t downTime, nsecs_t eventTime, int32_t action,
-                                           const std::vector<PointerData>& points,
-                                           uint32_t source) {
+                                           const std::vector<Point>& points, uint32_t source) {
     size_t pointerCount = points.size();
     if (action == DOWN || action == UP) {
         EXPECT_EQ(1U, pointerCount) << "Actions DOWN and UP can only contain a single pointer";
@@ -50,8 +45,8 @@ static NotifyMotionArgs generateMotionArgs(nsecs_t downTime, nsecs_t eventTime, 
     PointerCoords pointerCoords[pointerCount];
 
     const int32_t deviceId = isFromSource(source, TOUCHSCREEN) ? TOUCH_DEVICE_ID : STYLUS_DEVICE_ID;
-    const int32_t toolType = isFromSource(source, TOUCHSCREEN) ? AMOTION_EVENT_TOOL_TYPE_FINGER
-                                                               : AMOTION_EVENT_TOOL_TYPE_STYLUS;
+    const ToolType toolType =
+            isFromSource(source, TOUCHSCREEN) ? ToolType::FINGER : ToolType::STYLUS;
     for (size_t i = 0; i < pointerCount; i++) {
         pointerProperties[i].clear();
         pointerProperties[i].id = i;
@@ -69,13 +64,13 @@ static NotifyMotionArgs generateMotionArgs(nsecs_t downTime, nsecs_t eventTime, 
     }
 
     // Define a valid motion event.
-    NotifyMotionArgs args(/* id */ 0, eventTime, 0 /*readTime*/, deviceId, source, 0 /*displayId*/,
+    NotifyMotionArgs args(/*id=*/0, eventTime, /*readTime=*/0, deviceId, source, /*displayId=*/0,
                           POLICY_FLAG_PASS_TO_USER, action, /* actionButton */ 0,
-                          /* flags */ 0, AMETA_NONE, /* buttonState */ 0,
-                          MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE, pointerCount,
-                          pointerProperties, pointerCoords, /* xPrecision */ 0, /* yPrecision */ 0,
+                          /*flags=*/0, AMETA_NONE, /*buttonState=*/0, MotionClassification::NONE,
+                          AMOTION_EVENT_EDGE_FLAG_NONE, pointerCount, pointerProperties,
+                          pointerCoords, /*xPrecision=*/0, /*yPrecision=*/0,
                           AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                          AMOTION_EVENT_INVALID_CURSOR_POSITION, downTime, /* videoFrames */ {});
+                          AMOTION_EVENT_INVALID_CURSOR_POSITION, downTime, /*videoFrames=*/{});
 
     return args;
 }
@@ -114,26 +109,26 @@ private:
 TEST_F(PreferStylusOverTouchTest, TouchGestureIsNotBlocked) {
     NotifyMotionArgs args;
 
-    args = generateMotionArgs(0 /*downTime*/, 0 /*eventTime*/, DOWN, {{1, 2}}, TOUCHSCREEN);
+    args = generateMotionArgs(/*downTime=*/0, /*eventTime=*/0, DOWN, {{1, 2}}, TOUCHSCREEN);
     assertNotBlocked(args);
 
-    args = generateMotionArgs(0 /*downTime*/, 1 /*eventTime*/, MOVE, {{1, 3}}, TOUCHSCREEN);
+    args = generateMotionArgs(/*downTime=*/0, /*eventTime=*/1, MOVE, {{1, 3}}, TOUCHSCREEN);
     assertNotBlocked(args);
 
-    args = generateMotionArgs(0 /*downTime*/, 2 /*eventTime*/, UP, {{1, 3}}, TOUCHSCREEN);
+    args = generateMotionArgs(/*downTime=*/0, /*eventTime=*/2, UP, {{1, 3}}, TOUCHSCREEN);
     assertNotBlocked(args);
 }
 
 TEST_F(PreferStylusOverTouchTest, StylusGestureIsNotBlocked) {
     NotifyMotionArgs args;
 
-    args = generateMotionArgs(0 /*downTime*/, 0 /*eventTime*/, DOWN, {{1, 2}}, STYLUS);
+    args = generateMotionArgs(/*downTime=*/0, /*eventTime=*/0, DOWN, {{1, 2}}, STYLUS);
     assertNotBlocked(args);
 
-    args = generateMotionArgs(0 /*downTime*/, 1 /*eventTime*/, MOVE, {{1, 3}}, STYLUS);
+    args = generateMotionArgs(/*downTime=*/0, /*eventTime=*/1, MOVE, {{1, 3}}, STYLUS);
     assertNotBlocked(args);
 
-    args = generateMotionArgs(0 /*downTime*/, 2 /*eventTime*/, UP, {{1, 3}}, STYLUS);
+    args = generateMotionArgs(/*downTime=*/0, /*eventTime=*/2, UP, {{1, 3}}, STYLUS);
     assertNotBlocked(args);
 }
 
@@ -144,24 +139,24 @@ TEST_F(PreferStylusOverTouchTest, StylusGestureIsNotBlocked) {
 TEST_F(PreferStylusOverTouchTest, TouchIsCanceledWhenStylusGoesDown) {
     NotifyMotionArgs args;
 
-    args = generateMotionArgs(0 /*downTime*/, 0 /*eventTime*/, DOWN, {{1, 2}}, TOUCHSCREEN);
+    args = generateMotionArgs(/*downTime=*/0, /*eventTime=*/0, DOWN, {{1, 2}}, TOUCHSCREEN);
     assertNotBlocked(args);
 
-    args = generateMotionArgs(0 /*downTime*/, 1 /*eventTime*/, MOVE, {{1, 3}}, TOUCHSCREEN);
+    args = generateMotionArgs(/*downTime=*/0, /*eventTime=*/1, MOVE, {{1, 3}}, TOUCHSCREEN);
     assertNotBlocked(args);
 
-    args = generateMotionArgs(3 /*downTime*/, 3 /*eventTime*/, DOWN, {{10, 30}}, STYLUS);
+    args = generateMotionArgs(/*downTime=*/3, /*eventTime=*/3, DOWN, {{10, 30}}, STYLUS);
     NotifyMotionArgs cancelArgs =
-            generateMotionArgs(0 /*downTime*/, 1 /*eventTime*/, CANCEL, {{1, 3}}, TOUCHSCREEN);
+            generateMotionArgs(/*downTime=*/0, /*eventTime=*/1, CANCEL, {{1, 3}}, TOUCHSCREEN);
     cancelArgs.flags |= AMOTION_EVENT_FLAG_CANCELED;
     assertResponse(args, {cancelArgs, args});
 
     // Both stylus and touch events continue. Stylus should be not blocked, and touch should be
     // blocked
-    args = generateMotionArgs(3 /*downTime*/, 4 /*eventTime*/, MOVE, {{10, 31}}, STYLUS);
+    args = generateMotionArgs(/*downTime=*/3, /*eventTime=*/4, MOVE, {{10, 31}}, STYLUS);
     assertNotBlocked(args);
 
-    args = generateMotionArgs(0 /*downTime*/, 5 /*eventTime*/, MOVE, {{1, 4}}, TOUCHSCREEN);
+    args = generateMotionArgs(/*downTime=*/0, /*eventTime=*/5, MOVE, {{1, 4}}, TOUCHSCREEN);
     assertDropped(args);
 }
 
@@ -171,17 +166,17 @@ TEST_F(PreferStylusOverTouchTest, TouchIsCanceledWhenStylusGoesDown) {
 TEST_F(PreferStylusOverTouchTest, StylusDownAfterTouch) {
     NotifyMotionArgs args;
 
-    args = generateMotionArgs(0 /*downTime*/, 0 /*eventTime*/, DOWN, {{1, 2}}, TOUCHSCREEN);
+    args = generateMotionArgs(/*downTime=*/0, /*eventTime=*/0, DOWN, {{1, 2}}, TOUCHSCREEN);
     assertNotBlocked(args);
 
-    args = generateMotionArgs(0 /*downTime*/, 1 /*eventTime*/, MOVE, {{1, 3}}, TOUCHSCREEN);
+    args = generateMotionArgs(/*downTime=*/0, /*eventTime=*/1, MOVE, {{1, 3}}, TOUCHSCREEN);
     assertNotBlocked(args);
 
-    args = generateMotionArgs(0 /*downTime*/, 2 /*eventTime*/, UP, {{1, 3}}, TOUCHSCREEN);
+    args = generateMotionArgs(/*downTime=*/0, /*eventTime=*/2, UP, {{1, 3}}, TOUCHSCREEN);
     assertNotBlocked(args);
 
     // Stylus goes down
-    args = generateMotionArgs(3 /*downTime*/, 3 /*eventTime*/, DOWN, {{10, 30}}, STYLUS);
+    args = generateMotionArgs(/*downTime=*/3, /*eventTime=*/3, DOWN, {{10, 30}}, STYLUS);
     assertNotBlocked(args);
 }
 
@@ -194,21 +189,21 @@ TEST_F(PreferStylusOverTouchTest, NewTouchIsBlockedWhenStylusIsDown) {
     constexpr nsecs_t stylusDownTime = 0;
     constexpr nsecs_t touchDownTime = 1;
 
-    args = generateMotionArgs(stylusDownTime, 0 /*eventTime*/, DOWN, {{10, 30}}, STYLUS);
+    args = generateMotionArgs(stylusDownTime, /*eventTime=*/0, DOWN, {{10, 30}}, STYLUS);
     assertNotBlocked(args);
 
-    args = generateMotionArgs(touchDownTime, 1 /*eventTime*/, DOWN, {{1, 2}}, TOUCHSCREEN);
+    args = generateMotionArgs(touchDownTime, /*eventTime=*/1, DOWN, {{1, 2}}, TOUCHSCREEN);
     assertDropped(args);
 
     // Stylus should continue to work
-    args = generateMotionArgs(stylusDownTime, 2 /*eventTime*/, MOVE, {{10, 31}}, STYLUS);
+    args = generateMotionArgs(stylusDownTime, /*eventTime=*/2, MOVE, {{10, 31}}, STYLUS);
     assertNotBlocked(args);
 
     // Touch should continue to be blocked
-    args = generateMotionArgs(touchDownTime, 1 /*eventTime*/, MOVE, {{1, 3}}, TOUCHSCREEN);
+    args = generateMotionArgs(touchDownTime, /*eventTime=*/1, MOVE, {{1, 3}}, TOUCHSCREEN);
     assertDropped(args);
 
-    args = generateMotionArgs(0 /*downTime*/, 5 /*eventTime*/, MOVE, {{1, 4}}, TOUCHSCREEN);
+    args = generateMotionArgs(/*downTime=*/0, /*eventTime=*/5, MOVE, {{1, 4}}, TOUCHSCREEN);
     assertDropped(args);
 }
 
@@ -222,23 +217,23 @@ TEST_F(PreferStylusOverTouchTest, NewTouchWorksAfterStylusIsLifted) {
     constexpr nsecs_t touchDownTime = 4;
 
     // Stylus goes down and up
-    args = generateMotionArgs(stylusDownTime, 0 /*eventTime*/, DOWN, {{10, 30}}, STYLUS);
+    args = generateMotionArgs(stylusDownTime, /*eventTime=*/0, DOWN, {{10, 30}}, STYLUS);
     assertNotBlocked(args);
 
-    args = generateMotionArgs(stylusDownTime, 2 /*eventTime*/, MOVE, {{10, 31}}, STYLUS);
+    args = generateMotionArgs(stylusDownTime, /*eventTime=*/2, MOVE, {{10, 31}}, STYLUS);
     assertNotBlocked(args);
 
-    args = generateMotionArgs(stylusDownTime, 3 /*eventTime*/, UP, {{10, 31}}, STYLUS);
+    args = generateMotionArgs(stylusDownTime, /*eventTime=*/3, UP, {{10, 31}}, STYLUS);
     assertNotBlocked(args);
 
     // New touch goes down. It should not be blocked
     args = generateMotionArgs(touchDownTime, touchDownTime, DOWN, {{1, 2}}, TOUCHSCREEN);
     assertNotBlocked(args);
 
-    args = generateMotionArgs(touchDownTime, 5 /*eventTime*/, MOVE, {{1, 3}}, TOUCHSCREEN);
+    args = generateMotionArgs(touchDownTime, /*eventTime=*/5, MOVE, {{1, 3}}, TOUCHSCREEN);
     assertNotBlocked(args);
 
-    args = generateMotionArgs(touchDownTime, 6 /*eventTime*/, UP, {{1, 3}}, TOUCHSCREEN);
+    args = generateMotionArgs(touchDownTime, /*eventTime=*/6, UP, {{1, 3}}, TOUCHSCREEN);
     assertNotBlocked(args);
 }
 
@@ -251,25 +246,25 @@ TEST_F(PreferStylusOverTouchTest, AfterStylusIsLiftedCurrentTouchIsBlocked) {
     constexpr nsecs_t stylusDownTime = 0;
     constexpr nsecs_t touchDownTime = 1;
 
-    assertNotBlocked(generateMotionArgs(stylusDownTime, 0 /*eventTime*/, DOWN, {{10, 30}}, STYLUS));
+    assertNotBlocked(generateMotionArgs(stylusDownTime, /*eventTime=*/0, DOWN, {{10, 30}}, STYLUS));
 
-    args = generateMotionArgs(touchDownTime, 1 /*eventTime*/, DOWN, {{1, 2}}, TOUCHSCREEN);
+    args = generateMotionArgs(touchDownTime, /*eventTime=*/1, DOWN, {{1, 2}}, TOUCHSCREEN);
     assertDropped(args);
 
     // Lift the stylus
-    args = generateMotionArgs(stylusDownTime, 2 /*eventTime*/, UP, {{10, 30}}, STYLUS);
+    args = generateMotionArgs(stylusDownTime, /*eventTime=*/2, UP, {{10, 30}}, STYLUS);
     assertNotBlocked(args);
 
     // Touch should continue to be blocked
-    args = generateMotionArgs(touchDownTime, 3 /*eventTime*/, MOVE, {{1, 3}}, TOUCHSCREEN);
+    args = generateMotionArgs(touchDownTime, /*eventTime=*/3, MOVE, {{1, 3}}, TOUCHSCREEN);
     assertDropped(args);
 
-    args = generateMotionArgs(touchDownTime, 4 /*eventTime*/, UP, {{1, 3}}, TOUCHSCREEN);
+    args = generateMotionArgs(touchDownTime, /*eventTime=*/4, UP, {{1, 3}}, TOUCHSCREEN);
     assertDropped(args);
 
     // New touch should go through, though.
     constexpr nsecs_t newTouchDownTime = 5;
-    args = generateMotionArgs(newTouchDownTime, 5 /*eventTime*/, DOWN, {{10, 20}}, TOUCHSCREEN);
+    args = generateMotionArgs(newTouchDownTime, /*eventTime=*/5, DOWN, {{10, 20}}, TOUCHSCREEN);
     assertNotBlocked(args);
 }
 
@@ -281,22 +276,22 @@ TEST_F(PreferStylusOverTouchTest, MixedStylusAndTouchPointersAreIgnored) {
     NotifyMotionArgs args;
 
     // Event from a stylus device, but with finger tool type
-    args = generateMotionArgs(1 /*downTime*/, 1 /*eventTime*/, DOWN, {{1, 2}}, STYLUS);
+    args = generateMotionArgs(/*downTime=*/1, /*eventTime=*/1, DOWN, {{1, 2}}, STYLUS);
     // Keep source stylus, but make the tool type touch
-    args.pointerProperties[0].toolType = AMOTION_EVENT_TOOL_TYPE_FINGER;
+    args.pointerProperties[0].toolType = ToolType::FINGER;
     assertNotBlocked(args);
 
     // Second pointer (stylus pointer) goes down, from the same device
-    args = generateMotionArgs(1 /*downTime*/, 2 /*eventTime*/, POINTER_1_DOWN, {{1, 2}, {10, 20}},
+    args = generateMotionArgs(/*downTime=*/1, /*eventTime=*/2, POINTER_1_DOWN, {{1, 2}, {10, 20}},
                               STYLUS);
     // Keep source stylus, but make the tool type touch
-    args.pointerProperties[0].toolType = AMOTION_EVENT_TOOL_TYPE_STYLUS;
+    args.pointerProperties[0].toolType = ToolType::STYLUS;
     assertNotBlocked(args);
 
     // Second pointer (stylus pointer) goes down, from the same device
-    args = generateMotionArgs(1 /*downTime*/, 3 /*eventTime*/, MOVE, {{2, 3}, {11, 21}}, STYLUS);
+    args = generateMotionArgs(/*downTime=*/1, /*eventTime=*/3, MOVE, {{2, 3}, {11, 21}}, STYLUS);
     // Keep source stylus, but make the tool type touch
-    args.pointerProperties[0].toolType = AMOTION_EVENT_TOOL_TYPE_FINGER;
+    args.pointerProperties[0].toolType = ToolType::FINGER;
     assertNotBlocked(args);
 }
 
@@ -305,16 +300,16 @@ TEST_F(PreferStylusOverTouchTest, MixedStylusAndTouchPointersAreIgnored) {
  */
 TEST_F(PreferStylusOverTouchTest, TouchFromTwoDevicesAndStylus) {
     NotifyMotionArgs touch1Down =
-            generateMotionArgs(1 /*downTime*/, 1 /*eventTime*/, DOWN, {{1, 2}}, TOUCHSCREEN);
+            generateMotionArgs(/*downTime=*/1, /*eventTime=*/1, DOWN, {{1, 2}}, TOUCHSCREEN);
     assertNotBlocked(touch1Down);
 
     NotifyMotionArgs touch2Down =
-            generateMotionArgs(2 /*downTime*/, 2 /*eventTime*/, DOWN, {{3, 4}}, TOUCHSCREEN);
+            generateMotionArgs(/*downTime=*/2, /*eventTime=*/2, DOWN, {{3, 4}}, TOUCHSCREEN);
     touch2Down.deviceId = SECOND_TOUCH_DEVICE_ID;
     assertNotBlocked(touch2Down);
 
     NotifyMotionArgs stylusDown =
-            generateMotionArgs(3 /*downTime*/, 3 /*eventTime*/, DOWN, {{10, 30}}, STYLUS);
+            generateMotionArgs(/*downTime=*/3, /*eventTime=*/3, DOWN, {{10, 30}}, STYLUS);
     NotifyMotionArgs cancelArgs1 = touch1Down;
     cancelArgs1.action = CANCEL;
     cancelArgs1.flags |= AMOTION_EVENT_FLAG_CANCELED;
@@ -333,12 +328,12 @@ TEST_F(PreferStylusOverTouchTest, TouchFromTwoDevicesAndStylus) {
 TEST_F(PreferStylusOverTouchTest, AllTouchMustLiftAfterCanceledByStylus) {
     // First device touches down
     NotifyMotionArgs touch1Down =
-            generateMotionArgs(1 /*downTime*/, 1 /*eventTime*/, DOWN, {{1, 2}}, TOUCHSCREEN);
+            generateMotionArgs(/*downTime=*/1, /*eventTime=*/1, DOWN, {{1, 2}}, TOUCHSCREEN);
     assertNotBlocked(touch1Down);
 
     // Stylus goes down - touch should be canceled
     NotifyMotionArgs stylusDown =
-            generateMotionArgs(2 /*downTime*/, 2 /*eventTime*/, DOWN, {{10, 30}}, STYLUS);
+            generateMotionArgs(/*downTime=*/2, /*eventTime=*/2, DOWN, {{10, 30}}, STYLUS);
     NotifyMotionArgs cancelArgs1 = touch1Down;
     cancelArgs1.action = CANCEL;
     cancelArgs1.flags |= AMOTION_EVENT_FLAG_CANCELED;
@@ -346,44 +341,44 @@ TEST_F(PreferStylusOverTouchTest, AllTouchMustLiftAfterCanceledByStylus) {
 
     // Stylus goes up
     NotifyMotionArgs stylusUp =
-            generateMotionArgs(2 /*downTime*/, 3 /*eventTime*/, UP, {{10, 30}}, STYLUS);
+            generateMotionArgs(/*downTime=*/2, /*eventTime=*/3, UP, {{10, 30}}, STYLUS);
     assertNotBlocked(stylusUp);
 
     // Touch from the first device remains blocked
     NotifyMotionArgs touch1Move =
-            generateMotionArgs(1 /*downTime*/, 4 /*eventTime*/, MOVE, {{2, 3}}, TOUCHSCREEN);
+            generateMotionArgs(/*downTime=*/1, /*eventTime=*/4, MOVE, {{2, 3}}, TOUCHSCREEN);
     assertDropped(touch1Move);
 
     // Second touch goes down. It should not be blocked because stylus has already lifted.
     NotifyMotionArgs touch2Down =
-            generateMotionArgs(5 /*downTime*/, 5 /*eventTime*/, DOWN, {{31, 32}}, TOUCHSCREEN);
+            generateMotionArgs(/*downTime=*/5, /*eventTime=*/5, DOWN, {{31, 32}}, TOUCHSCREEN);
     touch2Down.deviceId = SECOND_TOUCH_DEVICE_ID;
     assertNotBlocked(touch2Down);
 
     // First device is lifted up. It's already been canceled, so the UP event should be dropped.
     NotifyMotionArgs touch1Up =
-            generateMotionArgs(1 /*downTime*/, 6 /*eventTime*/, UP, {{2, 3}}, TOUCHSCREEN);
+            generateMotionArgs(/*downTime=*/1, /*eventTime=*/6, UP, {{2, 3}}, TOUCHSCREEN);
     assertDropped(touch1Up);
 
     // Touch from second device touch should continue to work
     NotifyMotionArgs touch2Move =
-            generateMotionArgs(5 /*downTime*/, 7 /*eventTime*/, MOVE, {{32, 33}}, TOUCHSCREEN);
+            generateMotionArgs(/*downTime=*/5, /*eventTime=*/7, MOVE, {{32, 33}}, TOUCHSCREEN);
     touch2Move.deviceId = SECOND_TOUCH_DEVICE_ID;
     assertNotBlocked(touch2Move);
 
     // Second touch lifts up
     NotifyMotionArgs touch2Up =
-            generateMotionArgs(5 /*downTime*/, 8 /*eventTime*/, UP, {{32, 33}}, TOUCHSCREEN);
+            generateMotionArgs(/*downTime=*/5, /*eventTime=*/8, UP, {{32, 33}}, TOUCHSCREEN);
     touch2Up.deviceId = SECOND_TOUCH_DEVICE_ID;
     assertNotBlocked(touch2Up);
 
     // Now that all touch has been lifted, new touch from either first or second device should work
     NotifyMotionArgs touch3Down =
-            generateMotionArgs(9 /*downTime*/, 9 /*eventTime*/, DOWN, {{1, 2}}, TOUCHSCREEN);
+            generateMotionArgs(/*downTime=*/9, /*eventTime=*/9, DOWN, {{1, 2}}, TOUCHSCREEN);
     assertNotBlocked(touch3Down);
 
     NotifyMotionArgs touch4Down =
-            generateMotionArgs(10 /*downTime*/, 10 /*eventTime*/, DOWN, {{100, 200}}, TOUCHSCREEN);
+            generateMotionArgs(/*downTime=*/10, /*eventTime=*/10, DOWN, {{100, 200}}, TOUCHSCREEN);
     touch4Down.deviceId = SECOND_TOUCH_DEVICE_ID;
     assertNotBlocked(touch4Down);
 }
@@ -408,47 +403,47 @@ TEST_F(PreferStylusOverTouchTest, AllTouchMustLiftAfterCanceledByStylus) {
 TEST_F(PreferStylusOverTouchTest, MixedStylusAndTouchDeviceIsCanceledAtFirst) {
     // Touch from device 1 goes down
     NotifyMotionArgs touchDown =
-            generateMotionArgs(1 /*downTime*/, 1 /*eventTime*/, DOWN, {{1, 2}}, TOUCHSCREEN);
+            generateMotionArgs(/*downTime=*/1, /*eventTime=*/1, DOWN, {{1, 2}}, TOUCHSCREEN);
     touchDown.source = STYLUS;
     assertNotBlocked(touchDown);
 
     // Stylus from device 2 goes down. Touch should be canceled.
     NotifyMotionArgs args =
-            generateMotionArgs(2 /*downTime*/, 2 /*eventTime*/, DOWN, {{10, 20}}, STYLUS);
+            generateMotionArgs(/*downTime=*/2, /*eventTime=*/2, DOWN, {{10, 20}}, STYLUS);
     NotifyMotionArgs cancelTouchArgs = touchDown;
     cancelTouchArgs.action = CANCEL;
     cancelTouchArgs.flags |= AMOTION_EVENT_FLAG_CANCELED;
     assertResponse(args, {cancelTouchArgs, args});
 
     // Introduce a stylus pointer into the device 1 stream. It should be ignored.
-    args = generateMotionArgs(1 /*downTime*/, 3 /*eventTime*/, POINTER_1_DOWN, {{1, 2}, {3, 4}},
+    args = generateMotionArgs(/*downTime=*/1, /*eventTime=*/3, POINTER_1_DOWN, {{1, 2}, {3, 4}},
                               TOUCHSCREEN);
-    args.pointerProperties[1].toolType = AMOTION_EVENT_TOOL_TYPE_STYLUS;
+    args.pointerProperties[1].toolType = ToolType::STYLUS;
     args.source = STYLUS;
     assertDropped(args);
 
     // Lift up touch from the mixed touch/stylus device
-    args = generateMotionArgs(1 /*downTime*/, 4 /*eventTime*/, CANCEL, {{1, 2}, {3, 4}},
+    args = generateMotionArgs(/*downTime=*/1, /*eventTime=*/4, CANCEL, {{1, 2}, {3, 4}},
                               TOUCHSCREEN);
-    args.pointerProperties[1].toolType = AMOTION_EVENT_TOOL_TYPE_STYLUS;
+    args.pointerProperties[1].toolType = ToolType::STYLUS;
     args.source = STYLUS;
     assertDropped(args);
 
     // Stylus from device 2 is still down. Since the device 1 is now identified as a mixed
     // touch/stylus device, its events should go through, even if they are touch.
-    args = generateMotionArgs(5 /*downTime*/, 5 /*eventTime*/, DOWN, {{21, 22}}, TOUCHSCREEN);
+    args = generateMotionArgs(/*downTime=*/5, /*eventTime=*/5, DOWN, {{21, 22}}, TOUCHSCREEN);
     touchDown.source = STYLUS;
     assertResponse(args, {args});
 
     // Reconfigure such that only the stylus device remains
     InputDeviceInfo stylusDevice;
-    stylusDevice.initialize(STYLUS_DEVICE_ID, 1 /*generation*/, 1 /*controllerNumber*/,
-                            {} /*identifier*/, "stylus device", false /*external*/,
-                            false /*hasMic*/);
+    stylusDevice.initialize(STYLUS_DEVICE_ID, /*generation=*/1, /*controllerNumber=*/1,
+                            /*identifier=*/{}, "stylus device", /*external=*/false,
+                            /*hasMic=*/false, ADISPLAY_ID_NONE);
     notifyInputDevicesChanged({stylusDevice});
     // The touchscreen device was removed, so we no longer remember anything about it. We should
     // again start blocking touch events from it.
-    args = generateMotionArgs(6 /*downTime*/, 6 /*eventTime*/, DOWN, {{1, 2}}, TOUCHSCREEN);
+    args = generateMotionArgs(/*downTime=*/6, /*eventTime=*/6, DOWN, {{1, 2}}, TOUCHSCREEN);
     args.source = STYLUS;
     assertDropped(args);
 }
@@ -461,41 +456,41 @@ TEST_F(PreferStylusOverTouchTest, TouchIsBlockedWhenTwoStyliAreUsed) {
     NotifyMotionArgs args;
 
     // First stylus is down
-    assertNotBlocked(generateMotionArgs(0 /*downTime*/, 0 /*eventTime*/, DOWN, {{10, 30}}, STYLUS));
+    assertNotBlocked(generateMotionArgs(/*downTime=*/0, /*eventTime=*/0, DOWN, {{10, 30}}, STYLUS));
 
     // Second stylus is down
-    args = generateMotionArgs(1 /*downTime*/, 1 /*eventTime*/, DOWN, {{20, 40}}, STYLUS);
+    args = generateMotionArgs(/*downTime=*/1, /*eventTime=*/1, DOWN, {{20, 40}}, STYLUS);
     args.deviceId = SECOND_STYLUS_DEVICE_ID;
     assertNotBlocked(args);
 
     // Touch goes down. It should be ignored.
-    args = generateMotionArgs(2 /*downTime*/, 2 /*eventTime*/, DOWN, {{1, 2}}, TOUCHSCREEN);
+    args = generateMotionArgs(/*downTime=*/2, /*eventTime=*/2, DOWN, {{1, 2}}, TOUCHSCREEN);
     assertDropped(args);
 
     // Lift the first stylus
-    args = generateMotionArgs(0 /*downTime*/, 3 /*eventTime*/, UP, {{10, 30}}, STYLUS);
+    args = generateMotionArgs(/*downTime=*/0, /*eventTime=*/3, UP, {{10, 30}}, STYLUS);
     assertNotBlocked(args);
 
     // Touch should continue to be blocked
-    args = generateMotionArgs(2 /*downTime*/, 4 /*eventTime*/, UP, {{1, 2}}, TOUCHSCREEN);
+    args = generateMotionArgs(/*downTime=*/2, /*eventTime=*/4, UP, {{1, 2}}, TOUCHSCREEN);
     assertDropped(args);
 
     // New touch should be blocked because second stylus is still down
-    args = generateMotionArgs(5 /*downTime*/, 5 /*eventTime*/, DOWN, {{5, 6}}, TOUCHSCREEN);
+    args = generateMotionArgs(/*downTime=*/5, /*eventTime=*/5, DOWN, {{5, 6}}, TOUCHSCREEN);
     assertDropped(args);
 
     // Second stylus goes up
-    args = generateMotionArgs(1 /*downTime*/, 6 /*eventTime*/, UP, {{20, 40}}, STYLUS);
+    args = generateMotionArgs(/*downTime=*/1, /*eventTime=*/6, UP, {{20, 40}}, STYLUS);
     args.deviceId = SECOND_STYLUS_DEVICE_ID;
     assertNotBlocked(args);
 
     // Current touch gesture should continue to be blocked
     // Touch should continue to be blocked
-    args = generateMotionArgs(5 /*downTime*/, 7 /*eventTime*/, UP, {{5, 6}}, TOUCHSCREEN);
+    args = generateMotionArgs(/*downTime=*/5, /*eventTime=*/7, UP, {{5, 6}}, TOUCHSCREEN);
     assertDropped(args);
 
     // Now that all styli were lifted, new touch should go through
-    args = generateMotionArgs(8 /*downTime*/, 8 /*eventTime*/, DOWN, {{7, 8}}, TOUCHSCREEN);
+    args = generateMotionArgs(/*downTime=*/8, /*eventTime=*/8, DOWN, {{7, 8}}, TOUCHSCREEN);
     assertNotBlocked(args);
 }
 

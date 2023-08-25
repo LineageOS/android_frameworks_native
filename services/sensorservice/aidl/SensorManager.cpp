@@ -59,6 +59,9 @@ SensorManagerAidl::~SensorManagerAidl() {
     if (mPollThread.joinable()) {
         mPollThread.join();
     }
+
+    ::android::SensorManager::removeInstanceForPackage(
+            String16(ISensorManager::descriptor));
 }
 
 ndk::ScopedAStatus createDirectChannel(::android::SensorManager& manager, size_t size, int type,
@@ -185,12 +188,8 @@ ndk::ScopedAStatus SensorManagerAidl::getSensorList(std::vector<SensorInfo>* _ai
 }
 
 ::android::SensorManager& SensorManagerAidl::getInternalManager() {
-    std::lock_guard<std::mutex> lock(mInternalManagerMutex);
-    if (mInternalManager == nullptr) {
-        mInternalManager = &::android::SensorManager::getInstanceForPackage(
-                String16(ISensorManager::descriptor));
-    }
-    return *mInternalManager;
+    return ::android::SensorManager::getInstanceForPackage(
+            String16(ISensorManager::descriptor));
 }
 
 /* One global looper for all event queues created from this SensorManager. */

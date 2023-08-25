@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _UI_INPUTREADER_JOYSTICK_INPUT_MAPPER_H
-#define _UI_INPUTREADER_JOYSTICK_INPUT_MAPPER_H
+#pragma once
 
 #include "InputMapper.h"
 
@@ -23,16 +22,20 @@ namespace android {
 
 class JoystickInputMapper : public InputMapper {
 public:
-    explicit JoystickInputMapper(InputDeviceContext& deviceContext);
+    template <class T, class... Args>
+    friend std::unique_ptr<T> createInputMapper(InputDeviceContext& deviceContext,
+                                                const InputReaderConfiguration& readerConfig,
+                                                Args... args);
     virtual ~JoystickInputMapper();
 
     virtual uint32_t getSources() const override;
-    virtual void populateDeviceInfo(InputDeviceInfo* deviceInfo) override;
+    virtual void populateDeviceInfo(InputDeviceInfo& deviceInfo) override;
     virtual void dump(std::string& dump) override;
-    virtual void configure(nsecs_t when, const InputReaderConfiguration* config,
-                           uint32_t changes) override;
-    virtual void reset(nsecs_t when) override;
-    virtual void process(const RawEvent* rawEvent) override;
+    [[nodiscard]] std::list<NotifyArgs> reconfigure(nsecs_t when,
+                                                    const InputReaderConfiguration& config,
+                                                    ConfigurationChanges changes) override;
+    [[nodiscard]] std::list<NotifyArgs> reset(nsecs_t when) override;
+    [[nodiscard]] std::list<NotifyArgs> process(const RawEvent* rawEvent) override;
 
 private:
     struct Axis {
@@ -86,13 +89,16 @@ private:
         }
     };
 
+    explicit JoystickInputMapper(InputDeviceContext& deviceContext,
+                                 const InputReaderConfiguration& readerConfig);
+
     static Axis createAxis(const AxisInfo& AxisInfo, const RawAbsoluteAxisInfo& rawAxisInfo,
                            bool explicitlyMapped);
 
     // Axes indexed by raw ABS_* axis index.
     std::unordered_map<int32_t, Axis> mAxes;
 
-    void sync(nsecs_t when, nsecs_t readTime, bool force);
+    [[nodiscard]] std::list<NotifyArgs> sync(nsecs_t when, nsecs_t readTime, bool force);
 
     bool haveAxis(int32_t axisId);
     void pruneAxes(bool ignoreExplicitlyMappedAxes);
@@ -106,10 +112,8 @@ private:
     static bool isCenteredAxis(int32_t axis);
     static int32_t getCompatAxis(int32_t axis);
 
-    static void addMotionRange(int32_t axisId, const Axis& axis, InputDeviceInfo* info);
+    static void addMotionRange(int32_t axisId, const Axis& axis, InputDeviceInfo& info);
     static void setPointerCoordsAxisValue(PointerCoords* pointerCoords, int32_t axis, float value);
 };
 
 } // namespace android
-
-#endif // _UI_INPUTREADER_JOYSTICK_INPUT_MAPPER_H

@@ -21,7 +21,6 @@ package {
     default_applicable_licenses: ["frameworks_native_license"],
 }
 
-
 cc_fuzz {
     name: "inputflinger_latencytracker_fuzzer",
     defaults: [
@@ -34,7 +33,6 @@ cc_fuzz {
         "libbase",
         "libbinder",
         "liblog",
-        "libui",
         "libutils",
         "libinput",
         "libinputflinger",
@@ -43,6 +41,107 @@ cc_fuzz {
         "LatencyTrackerFuzzer.cpp",
     ],
     fuzz_config: {
-       cc: ["android-framework-input@google.com"],
+        cc: ["android-framework-input@google.com"],
     },
+}
+
+cc_defaults {
+    name: "inputflinger_fuzz_defaults",
+    defaults: [
+        "inputflinger_defaults",
+    ],
+    include_dirs: [
+        "frameworks/native/services/inputflinger",
+    ],
+    shared_libs: [
+        "android.hardware.input.classifier@1.0",
+        "android.hardware.input.processor-V1-ndk",
+        "libbase",
+        "libbinder",
+        "libcutils",
+        "liblog",
+        "libutils",
+        "libinput",
+        "libinputflinger",
+        "libinputreader",
+        "libinputflinger_base",
+        "libstatslog",
+    ],
+    header_libs: [
+        "libbatteryservice_headers",
+        "libinputreader_headers",
+    ],
+    fuzz_config: {
+        cc: ["android-framework-input@google.com"],
+    },
+}
+
+cc_fuzz {
+    name: "inputflinger_cursor_input_fuzzer",
+    defaults: [
+        "inputflinger_fuzz_defaults",
+    ],
+    srcs: [
+        "CursorInputFuzzer.cpp",
+    ],
+}
+
+cc_fuzz {
+    name: "inputflinger_keyboard_input_fuzzer",
+    defaults: [
+        "inputflinger_fuzz_defaults",
+    ],
+    srcs: [
+        "KeyboardInputFuzzer.cpp",
+    ],
+}
+
+cc_fuzz {
+    name: "inputflinger_multitouch_input_fuzzer",
+    defaults: [
+        "inputflinger_fuzz_defaults",
+    ],
+    srcs: [
+        "MultiTouchInputFuzzer.cpp",
+    ],
+}
+
+cc_fuzz {
+    name: "inputflinger_switch_input_fuzzer",
+    defaults: [
+        "inputflinger_fuzz_defaults",
+    ],
+    srcs: [
+        "SwitchInputFuzzer.cpp",
+    ],
+}
+
+cc_fuzz {
+    name: "inputflinger_input_reader_fuzzer",
+    defaults: [
+        "inputflinger_fuzz_defaults",
+    ],
+    srcs: [
+        "InputReaderFuzzer.cpp",
+    ],
+}
+
+cc_fuzz {
+    name: "inputflinger_blocking_queue_fuzzer",
+    defaults: [
+        "inputflinger_fuzz_defaults",
+    ],
+    srcs: [
+        "BlockingQueueFuzzer.cpp",
+    ],
+}
+
+cc_fuzz {
+    name: "inputflinger_input_classifier_fuzzer",
+    defaults: [
+        "inputflinger_fuzz_defaults",
+    ],
+    srcs: [
+        "InputClassifierFuzzer.cpp",
+    ],
 }

@@ -54,6 +54,12 @@ typedef struct ASurfaceControl ASurfaceControl;
  * The caller takes ownership of the ASurfaceControl returned and must release it
  * using ASurfaceControl_release below.
  *
+ * By default the \a ASurfaceControl will be visible and display any buffer submitted. In
+ * addition, the default buffer submission control may release and not display all buffers
+ * that are submitted before receiving a callback for the previous buffer. See
+ * \a ASurfaceTransaction_setVisibility and \a ASurfaceTransaction_setEnableBackPressure to
+ * change the default behaviors after creation.
+ *
  * Available since API level 29.
  */
 ASurfaceControl* ASurfaceControl_createFromWindow(ANativeWindow* parent, const char* debug_name)
@@ -521,6 +527,53 @@ void ASurfaceTransaction_setHdrMetadata_cta861_3(ASurfaceTransaction* transactio
                                                  __INTRODUCED_IN(29);
 
 /**
+ * Sets the desired extended range brightness for the layer. This only applies for layers whose
+ * dataspace has RANGE_EXTENDED set on it.
+ *
+ * Available since API level 34.
+ *
+ * @param surface_control The layer whose extended range brightness is being specified
+ * @param currentBufferRatio The current hdr/sdr ratio of the current buffer as represented as
+ *                           peakHdrBrightnessInNits / targetSdrWhitePointInNits. For example if the
+ *                           buffer was rendered with a target SDR whitepoint of 100nits and a max
+ *                           display brightness of 200nits, this should be set to 2.0f.
+ *
+ *                           Default value is 1.0f.
+ *
+ *                           Transfer functions that encode their own brightness ranges, such as
+ *                           HLG or PQ, should also set this to 1.0f and instead communicate
+ *                           extended content brightness information via metadata such as CTA861_3
+ *                           or SMPTE2086.
+ *
+ *                           Must be finite && >= 1.0f
+ *
+ * @param desiredRatio The desired hdr/sdr ratio as represented as peakHdrBrightnessInNits /
+ *                     targetSdrWhitePointInNits. This can be used to communicate the max desired
+ *                     brightness range. This is similar to the "max luminance" value in other
+ *                     HDR metadata formats, but represented as a ratio of the target SDR whitepoint
+ *                     to the max display brightness. The system may not be able to, or may choose
+ *                     not to, deliver the requested range.
+ *
+ *                     While requesting a large desired ratio will result in the most
+ *                     dynamic range, voluntarily reducing the requested range can help
+ *                     improve battery life as well as can improve quality by ensuring
+ *                     greater bit depth is allocated to the luminance range in use.
+ *
+ *                     Default value is 1.0f and indicates that extended range brightness
+ *                     is not being used, so the resulting SDR or HDR behavior will be
+ *                     determined entirely by the dataspace being used (ie, typically SDR
+ *                     however PQ or HLG transfer functions will still result in HDR)
+ *
+ *                     Must be finite && >= 1.0f
+ *
+ * Available since API level 34.
+ */
+void ASurfaceTransaction_setExtendedRangeBrightness(ASurfaceTransaction* transaction,
+                                            ASurfaceControl* surface_control,
+                                            float currentBufferRatio,
+                                            float desiredRatio) __INTRODUCED_IN(__ANDROID_API_U__);
+
+/**
  * Same as ASurfaceTransaction_setFrameRateWithChangeStrategy(transaction, surface_control,
  * frameRate, compatibility, ANATIVEWINDOW_CHANGE_FRAME_RATE_ONLY_IF_SEAMLESS).
  *
@@ -545,6 +598,8 @@ void ASurfaceTransaction_setFrameRate(ASurfaceTransaction* transaction,
  * You can register for changes in the refresh rate using
  * \a AChoreographer_registerRefreshRateCallback.
  *
+ * See ASurfaceTransaction_clearFrameRate().
+ *
  * \param frameRate is the intended frame rate of this surface, in frames per second. 0 is a special
  * value that indicates the app will accept the system's choice for the display frame rate, which is
  * the default behavior if this function isn't called. The frameRate param does <em>not</em> need to
@@ -568,6 +623,31 @@ void ASurfaceTransaction_setFrameRateWithChangeStrategy(ASurfaceTransaction* tra
                                       __INTRODUCED_IN(31);
 
 /**
+ * Clears the frame rate which is set for \a surface_control.
+ *
+ * This is equivalent to calling
+ * ASurfaceTransaction_setFrameRateWithChangeStrategy(
+ * transaction, 0, compatibility, changeFrameRateStrategy).
+ *
+ * Usage of this API won't directly affect the application's frame production pipeline. However,
+ * because the system may change the display refresh rate, calls to this function may result in
+ * changes to Choreographer callback timings, and changes to the time interval at which the system
+ * releases buffers back to the application.
+ *
+ * See ASurfaceTransaction_setFrameRateWithChangeStrategy()
+ *
+ * You can register for changes in the refresh rate using
+ * \a AChoreographer_registerRefreshRateCallback.
+ *
+ * See ASurfaceTransaction_setFrameRateWithChangeStrategy().
+ *
+ * Available since API level 34.
+ */
+void ASurfaceTransaction_clearFrameRate(ASurfaceTransaction* transaction,
+                                        ASurfaceControl* surface_control)
+                                        __INTRODUCED_IN(__ANDROID_API_U__);
+
+/**
  * Indicate whether to enable backpressure for buffer submission to a given SurfaceControl.
  *
  * By default backpressure is disabled, which means submitting a buffer prior to receiving
@@ -586,6 +666,8 @@ void ASurfaceTransaction_setFrameRateWithChangeStrategy(ASurfaceTransaction* tra
  * your app may not have enough time to respond in the callback. Using this flag
  * and pushing buffers earlier for server side queuing will be advantageous
  * in such cases.
+ *
+ * Available since API level 31.
  *
  * \param transaction The transaction in which to make the change.
  * \param surface_control The ASurfaceControl on which to control buffer backpressure behavior.
@@ -607,6 +689,8 @@ void ASurfaceTransaction_setEnableBackPressure(ASurfaceTransaction* transaction,
  * To receive frame timelines, a callback must be posted to Choreographer using
  * AChoreographer_postVsyncCallback(). The \c vsyncId can then be extracted from the
  * callback payload using AChoreographerFrameCallbackData_getFrameTimelineVsyncId().
+ *
+ * Available since API level 33.
  *
  * \param vsyncId The vsync ID received from AChoreographer, setting the frame's presentation target
  * to the corresponding expected presentation time and deadline from the frame to be rendered. A

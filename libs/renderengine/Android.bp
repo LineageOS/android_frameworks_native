@@ -21,13 +21,15 @@ cc_defaults {
 
 cc_defaults {
     name: "librenderengine_defaults",
-    defaults: ["renderengine_defaults"],
+    defaults: [
+        "android.hardware.graphics.composer3-ndk_shared",
+        "renderengine_defaults",
+    ],
     cflags: [
         "-DGL_GLEXT_PROTOTYPES",
         "-DEGL_EGLEXT_PROTOTYPES",
     ],
     shared_libs: [
-        "android.hardware.graphics.composer3-V1-ndk",
         "libbase",
         "libcutils",
         "libEGL",
@@ -40,6 +42,7 @@ cc_defaults {
         "libsync",
         "libui",
         "libutils",
+        "libvulkan",
     ],
 
     static_libs: [
@@ -95,6 +98,7 @@ filegroup {
         "skia/ColorSpaces.cpp",
         "skia/SkiaRenderEngine.cpp",
         "skia/SkiaGLRenderEngine.cpp",
+        "skia/SkiaVkRenderEngine.cpp",
         "skia/debug/CaptureTimer.cpp",
         "skia/debug/CommonPool.cpp",
         "skia/debug/SkiaCapture.cpp",
@@ -107,9 +111,23 @@ filegroup {
     ],
 }
 
+// Used to consolidate and simplify pulling Skia & Skia deps into targets that depend on
+// librenderengine. This allows shared deps to be deduplicated (e.g. Perfetto), which doesn't seem
+// possible if libskia_renderengine is just pulled into librenderengine via whole_static_libs.
+cc_defaults {
+    name: "librenderengine_deps",
+    defaults: ["skia_renderengine_deps"],
+    static_libs: ["libskia_renderengine"],
+}
+
+// Note: if compilation fails when adding librenderengine as a dependency, try adding
+// librenderengine_deps to the defaults field of your dependent target.
 cc_library_static {
     name: "librenderengine",
-    defaults: ["librenderengine_defaults"],
+    defaults: [
+        "librenderengine_defaults",
+        "librenderengine_deps",
+    ],
     double_loadable: true,
     cflags: [
         "-fvisibility=hidden",
@@ -128,7 +146,6 @@ cc_library_static {
     include_dirs: [
         "external/skia/src/gpu",
     ],
-    whole_static_libs: ["libskia_renderengine"],
     lto: {
         thin: true,
     },

@@ -37,6 +37,7 @@
 
 #include <android/api-level.h>
 #include <stdint.h>
+#include <unistd.h>
 
 __BEGIN_DECLS
 
@@ -158,6 +159,23 @@ int APerformanceHint_reportActualWorkDuration(
  */
 void APerformanceHint_closeSession(
         APerformanceHintSession* session) __INTRODUCED_IN(__ANDROID_API_T__);
+
+/**
+ * Set a list of threads to the performance hint session. This operation will replace
+ * the current list of threads with the given list of threads.
+ *
+ * @param session The performance hint session instance for the threads.
+ * @param threadIds The list of threads to be associated with this session. They must be part of
+ *     this app's thread group.
+ * @param size the size of the list of threadIds.
+ * @return 0 on success.
+ *         EINVAL if the list of thread ids is empty or if  any of the thread ids is not part of the thread group.
+ *         EPIPE if communication with the system service has failed.
+ */
+int APerformanceHint_setThreads(
+        APerformanceHintSession* session,
+        const pid_t* threadIds,
+        size_t size) __INTRODUCED_IN(__ANDROID_API_U__);
 
 __END_DECLS
 

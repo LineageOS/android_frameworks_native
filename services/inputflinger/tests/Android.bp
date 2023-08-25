@@ -23,6 +23,7 @@ package {
 
 cc_test {
     name: "inputflinger_tests",
+    host_supported: true,
     defaults: [
         "inputflinger_defaults",
         // For all targets inside inputflinger, these tests build all of their sources using their
@@ -38,17 +39,27 @@ cc_test {
     srcs: [
         "AnrTracker_test.cpp",
         "BlockingQueue_test.cpp",
+        "CapturedTouchpadEventConverter_test.cpp",
+        "CursorInputMapper_test.cpp",
         "EventHub_test.cpp",
+        "FakeEventHub.cpp",
+        "FakeInputReaderPolicy.cpp",
+        "FakePointerController.cpp",
         "FocusResolver_test.cpp",
-        "IInputFlingerQuery.aidl",
-        "InputClassifier_test.cpp",
-        "InputClassifierConverter_test.cpp",
+        "GestureConverter_test.cpp",
+        "HardwareStateConverter_test.cpp",
+        "InputMapperTest.cpp",
+        "InputProcessor_test.cpp",
+        "InputProcessorConverter_test.cpp",
         "InputDispatcher_test.cpp",
         "InputReader_test.cpp",
-        "InputFlingerService_test.cpp",
+        "InstrumentedInputReader.cpp",
         "LatencyTracker_test.cpp",
+        "NotifyArgs_test.cpp",
         "PreferStylusOverTouch_test.cpp",
+        "PropertyProvider_test.cpp",
         "TestInputListener.cpp",
+        "TouchpadInputMapper_test.cpp",
         "UinputDevice.cpp",
         "UnwantedInteractionBlocker_test.cpp",
     ],
@@ -58,10 +69,40 @@ cc_test {
             "frameworks/native/libs/input",
         ],
     },
+    target: {
+        android: {
+            shared_libs: [
+                "libinput",
+                "libvintf",
+            ],
+        },
+        host: {
+            include_dirs: [
+                "bionic/libc/kernel/android/uapi/",
+                "bionic/libc/kernel/uapi",
+            ],
+            cflags: [
+                "-D__ANDROID_HOST__",
+            ],
+            static_libs: [
+                "libinput",
+            ],
+        },
+    },
+    sanitize: {
+        undefined: true,
+        all_undefined: true,
+        diag: {
+            undefined: true,
+        },
+    },
     static_libs: [
         "libc++fs",
         "libgmock",
     ],
     require_root: true,
+    test_options: {
+        unit_test: true,
+    },
     test_suites: ["device-tests"],
 }

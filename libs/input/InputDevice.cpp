@@ -22,6 +22,7 @@
 
 #include <android-base/stringprintf.h>
 #include <ftl/enum.h>
+#include <gui/constants.h>
 #include <input/InputDevice.h>
 #include <input/InputEventLabels.h>
 
@@ -166,7 +167,7 @@ std::string InputDeviceIdentifier::getCanonicalName() const {
 // --- InputDeviceInfo ---
 
 InputDeviceInfo::InputDeviceInfo() {
-    initialize(-1, 0, -1, InputDeviceIdentifier(), "", false, false);
+    initialize(-1, 0, -1, InputDeviceIdentifier(), "", false, false, ADISPLAY_ID_NONE);
 }
 
 InputDeviceInfo::InputDeviceInfo(const InputDeviceInfo& other)
@@ -177,9 +178,12 @@ InputDeviceInfo::InputDeviceInfo(const InputDeviceInfo& other)
         mAlias(other.mAlias),
         mIsExternal(other.mIsExternal),
         mHasMic(other.mHasMic),
+        mKeyboardLayoutInfo(other.mKeyboardLayoutInfo),
         mSources(other.mSources),
         mKeyboardType(other.mKeyboardType),
         mKeyCharacterMap(other.mKeyCharacterMap),
+        mUsiVersion(other.mUsiVersion),
+        mAssociatedDisplayId(other.mAssociatedDisplayId),
         mHasVibrator(other.mHasVibrator),
         mHasBattery(other.mHasBattery),
         mHasButtonUnderPad(other.mHasButtonUnderPad),
@@ -192,8 +196,8 @@ InputDeviceInfo::~InputDeviceInfo() {
 }
 
 void InputDeviceInfo::initialize(int32_t id, int32_t generation, int32_t controllerNumber,
-        const InputDeviceIdentifier& identifier, const std::string& alias, bool isExternal,
-        bool hasMic) {
+                                 const InputDeviceIdentifier& identifier, const std::string& alias,
+                                 bool isExternal, bool hasMic, int32_t associatedDisplayId) {
     mId = id;
     mGeneration = generation;
     mControllerNumber = controllerNumber;
@@ -203,10 +207,12 @@ void InputDeviceInfo::initialize(int32_t id, int32_t generation, int32_t control
     mHasMic = hasMic;
     mSources = 0;
     mKeyboardType = AINPUT_KEYBOARD_TYPE_NONE;
+    mAssociatedDisplayId = associatedDisplayId;
     mHasVibrator = false;
     mHasBattery = false;
     mHasButtonUnderPad = false;
     mHasSensor = false;
+    mUsiVersion.reset();
     mMotionRanges.clear();
     mSensors.clear();
     mLights.clear();
@@ -263,6 +269,10 @@ void InputDeviceInfo::setKeyboardType(int32_t keyboardType) {
     static_assert(AINPUT_KEYBOARD_TYPE_NON_ALPHABETIC < AINPUT_KEYBOARD_TYPE_ALPHABETIC);
     // There can be multiple subdevices with different keyboard types, set it to the highest type
     mKeyboardType = std::max(mKeyboardType, keyboardType);
+}
+
+void InputDeviceInfo::setKeyboardLayoutInfo(KeyboardLayoutInfo layoutInfo) {
+    mKeyboardLayoutInfo = std::move(layoutInfo);
 }
 
 std::vector<InputDeviceSensorInfo> InputDeviceInfo::getSensors() {

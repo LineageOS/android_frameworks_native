@@ -21,12 +21,10 @@ cc_benchmark {
         "libbinder",
         "libcrypto",
         "libcutils",
-        "libinput",
         "libinputflinger_base",
         "libinputreporter",
         "liblog",
         "libstatslog",
-        "libui",
         "libutils",
     ],
     static_libs: [

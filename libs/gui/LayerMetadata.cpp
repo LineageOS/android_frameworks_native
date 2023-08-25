@@ -23,7 +23,7 @@
 
 using android::base::StringPrintf;
 
-namespace android {
+namespace android::gui {
 
 LayerMetadata::LayerMetadata() = default;
 
@@ -144,4 +144,4 @@ std::string LayerMetadata::itemToString(uint32_t key, const char* separator) con
     }
 }
 
-} // namespace android
+} // namespace android::gui

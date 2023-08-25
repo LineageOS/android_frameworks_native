@@ -213,6 +213,19 @@ ssize_t SensorManager::getDynamicSensorList(Vector<Sensor> & dynamicSensors) {
     return static_cast<ssize_t>(count);
 }
 
+ssize_t SensorManager::getRuntimeSensorList(int deviceId, Vector<Sensor>& runtimeSensors) {
+    Mutex::Autolock _l(mLock);
+    status_t err = assertStateLocked();
+    if (err < 0) {
+        return static_cast<ssize_t>(err);
+    }
+
+    runtimeSensors = mSensorServer->getRuntimeSensorList(mOpPackageName, deviceId);
+    size_t count = runtimeSensors.size();
+
+    return static_cast<ssize_t>(count);
+}
+
 ssize_t SensorManager::getDynamicSensorList(Sensor const* const** list) {
     Mutex::Autolock _l(mLock);
     status_t err = assertStateLocked();
@@ -299,6 +312,12 @@ bool SensorManager::isDataInjectionEnabled() {
 
 int SensorManager::createDirectChannel(
         size_t size, int channelType, const native_handle_t *resourceHandle) {
+    static constexpr int DEFAULT_DEVICE_ID = 0;
+    return createDirectChannel(DEFAULT_DEVICE_ID, size, channelType, resourceHandle);
+}
+
+int SensorManager::createDirectChannel(
+        int deviceId, size_t size, int channelType, const native_handle_t *resourceHandle) {
     Mutex::Autolock _l(mLock);
     if (assertStateLocked() != NO_ERROR) {
         return NO_INIT;
@@ -311,7 +330,7 @@ int SensorManager::createDirectChannel(
     }
 
     sp<ISensorEventConnection> conn =
-              mSensorServer->createSensorDirectConnection(mOpPackageName,
+              mSensorServer->createSensorDirectConnection(mOpPackageName, deviceId,
                   static_cast<uint32_t>(size),
                   static_cast<int32_t>(channelType),
                   SENSOR_DIRECT_FMT_SENSORS_EVENT, resourceHandle);

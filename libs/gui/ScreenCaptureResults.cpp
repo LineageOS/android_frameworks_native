@@ -17,6 +17,7 @@
 #include <gui/ScreenCaptureResults.h>
 
 #include <private/gui/ParcelUtils.h>
+#include <ui/FenceResult.h>
 
 namespace android::gui {
 
@@ -28,17 +29,17 @@ status_t ScreenCaptureResults::writeToParcel(android::Parcel* parcel) const {
         SAFE_PARCEL(parcel->writeBool, false);
     }
 
-    if (fence != Fence::NO_FENCE) {
+    if (fenceResult.ok() && fenceResult.value() != Fence::NO_FENCE) {
         SAFE_PARCEL(parcel->writeBool, true);
-        SAFE_PARCEL(parcel->write, *fence);
+        SAFE_PARCEL(parcel->write, *fenceResult.value());
     } else {
         SAFE_PARCEL(parcel->writeBool, false);
+        SAFE_PARCEL(parcel->writeInt32, fenceStatus(fenceResult));
     }
 
     SAFE_PARCEL(parcel->writeBool, capturedSecureLayers);
     SAFE_PARCEL(parcel->writeBool, capturedHdrLayers);
     SAFE_PARCEL(parcel->writeUint32, static_cast<uint32_t>(capturedDataspace));
-    SAFE_PARCEL(parcel->writeInt32, result);
     return NO_ERROR;
 }
 
@@ -53,8 +54,13 @@ status_t ScreenCaptureResults::readFromParcel(const android::Parcel* parcel) {
     bool hasFence;
     SAFE_PARCEL(parcel->readBool, &hasFence);
     if (hasFence) {
-        fence = new Fence();
-        SAFE_PARCEL(parcel->read, *fence);
+        fenceResult = sp<Fence>::make();
+        SAFE_PARCEL(parcel->read, *fenceResult.value());
+    } else {
+        status_t status;
+        SAFE_PARCEL(parcel->readInt32, &status);
+        fenceResult = status == NO_ERROR ? FenceResult(Fence::NO_FENCE)
+                                         : FenceResult(base::unexpected(status));
     }
 
     SAFE_PARCEL(parcel->readBool, &capturedSecureLayers);
@@ -62,7 +68,6 @@ status_t ScreenCaptureResults::readFromParcel(const android::Parcel* parcel) {
     uint32_t dataspace = 0;
     SAFE_PARCEL(parcel->readUint32, &dataspace);
     capturedDataspace = static_cast<ui::Dataspace>(dataspace);
-    SAFE_PARCEL(parcel->readInt32, &result);
     return NO_ERROR;
 }
 

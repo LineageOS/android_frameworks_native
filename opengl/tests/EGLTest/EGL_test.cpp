@@ -343,6 +343,11 @@ TEST_F(EGLTest, EGLDisplayP3Passthrough) {
 }
 
 TEST_F(EGLTest, EGLDisplayP31010102) {
+    // This test has been failing since:
+    // libEGL: When driver doesn't understand P3, map sRGB-encoded P3 to sRGB
+    // https://android-review.git.corp.google.com/c/platform/frameworks/native/+/793504
+    GTEST_SKIP() << "Skipping broken test. See b/120714942 and b/117104367";
+
     EGLint numConfigs;
     EGLConfig config;
     EGLBoolean success;
@@ -866,6 +871,12 @@ TEST_F(EGLTest, EGLUnsupportedColorspaceFormatCombo) {
     EGLConfig config;
     EGLBoolean success;
 
+    if (!hasWideColorDisplay) {
+        // skip this test if device does not have wide-color display
+        RecordProperty("hasWideColorDisplay", false);
+        return;
+    }
+
     const EGLint attrs[] = {
             // clang-format off
             EGL_SURFACE_TYPE,             EGL_WINDOW_BIT,
@@ -950,6 +961,12 @@ TEST_F(EGLTest, EGLCreateWindowFailAndSucceed) {
 
 TEST_F(EGLTest, EGLCreateWindowTwoColorspaces) {
     EGLConfig config;
+
+    if (!hasWideColorDisplay) {
+        // skip this test if device does not have wide-color display
+        RecordProperty("hasWideColorDisplay", false);
+        return;
+    }
 
     ASSERT_NO_FATAL_FAILURE(get8BitConfig(config));
 

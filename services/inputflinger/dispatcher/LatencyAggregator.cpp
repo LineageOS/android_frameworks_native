@@ -256,7 +256,7 @@ void LatencyAggregator::processSlowEvent(const InputEventTimeline& timeline) {
     }
 }
 
-std::string LatencyAggregator::dump(const char* prefix) {
+std::string LatencyAggregator::dump(const char* prefix) const {
     std::string sketchDump = StringPrintf("%s  Sketches:\n", prefix);
     for (size_t i = 0; i < SketchIndex::SIZE; i++) {
         const int64_t numDown = mDownSketches[i]->num_values();

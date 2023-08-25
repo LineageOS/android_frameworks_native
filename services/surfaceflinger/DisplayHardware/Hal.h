@@ -20,6 +20,7 @@
 #include <android/hardware/graphics/composer/2.4/IComposer.h>
 #include <android/hardware/graphics/composer/2.4/IComposerClient.h>
 
+#include <aidl/android/hardware/graphics/common/Hdr.h>
 #include <aidl/android/hardware/graphics/composer3/Composition.h>
 #include <aidl/android/hardware/graphics/composer3/DisplayCapability.h>
 
@@ -39,7 +40,6 @@ using types::V1_0::Transform;
 using types::V1_1::RenderIntent;
 using types::V1_2::ColorMode;
 using types::V1_2::Dataspace;
-using types::V1_2::Hdr;
 using types::V1_2::PixelFormat;
 
 using V2_1::Error;
@@ -69,6 +69,7 @@ using PerFrameMetadataBlob = IComposerClient::PerFrameMetadataBlob;
 using PowerMode = IComposerClient::PowerMode;
 using Vsync = IComposerClient::Vsync;
 using VsyncPeriodChangeConstraints = IComposerClient::VsyncPeriodChangeConstraints;
+using Hdr = aidl::android::hardware::graphics::common::Hdr;
 
 } // namespace hardware::graphics::composer::hal
 
@@ -112,6 +113,8 @@ inline std::string to_string(
             return "Sideband";
         case aidl::android::hardware::graphics::composer3::Composition::DISPLAY_DECORATION:
             return "DisplayDecoration";
+        case aidl::android::hardware::graphics::composer3::Composition::REFRESH_RATE_INDICATOR:
+            return "RefreshRateIndicator";
         default:
             return "Unknown";
     }
@@ -177,6 +180,10 @@ inline std::string to_string(hardware::graphics::composer::hal::Error error) {
     return to_string(static_cast<hardware::graphics::composer::hal::V2_4::Error>(error));
 }
 
+// For utils::Dumper ADL.
+namespace hardware::graphics::composer {
+namespace V2_2 {
+
 inline std::string to_string(hardware::graphics::composer::hal::PowerMode mode) {
     switch (mode) {
         case hardware::graphics::composer::hal::PowerMode::OFF:
@@ -194,6 +201,10 @@ inline std::string to_string(hardware::graphics::composer::hal::PowerMode mode) 
     }
 }
 
+} // namespace V2_2
+
+namespace V2_1 {
+
 inline std::string to_string(hardware::graphics::composer::hal::Vsync vsync) {
     switch (vsync) {
         case hardware::graphics::composer::hal::Vsync::ENABLE:
@@ -205,4 +216,6 @@ inline std::string to_string(hardware::graphics::composer::hal::Vsync vsync) {
     }
 }
 
+} // namespace V2_1
+} // namespace hardware::graphics::composer
 } // namespace android

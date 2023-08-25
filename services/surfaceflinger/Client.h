@@ -24,54 +24,39 @@
 #include <utils/KeyedVector.h>
 #include <utils/Mutex.h>
 
-#include <gui/ISurfaceComposerClient.h>
+#include <android/gui/BnSurfaceComposerClient.h>
 
 namespace android {
 
 class Layer;
 class SurfaceFlinger;
 
-class Client : public BnSurfaceComposerClient
-{
+class Client : public gui::BnSurfaceComposerClient {
 public:
     explicit Client(const sp<SurfaceFlinger>& flinger);
     ~Client() = default;
 
     status_t initCheck() const;
 
-    // protected by SurfaceFlinger::mStateLock
-    void attachLayer(const sp<IBinder>& handle, const sp<Layer>& layer);
-    void detachLayer(const Layer* layer);
-
-    sp<Layer> getLayerUser(const sp<IBinder>& handle) const;
-
 private:
     // ISurfaceComposerClient interface
-    virtual status_t createSurface(const String8& name, uint32_t w, uint32_t h, PixelFormat format,
-                                   uint32_t flags, const sp<IBinder>& parent,
-                                   LayerMetadata metadata, sp<IBinder>* handle,
-                                   sp<IGraphicBufferProducer>* gbp, int32_t* outLayerId,
-                                   uint32_t* outTransformHint = nullptr);
 
-    virtual status_t createWithSurfaceParent(const String8& name, uint32_t w, uint32_t h,
-                                             PixelFormat format, uint32_t flags,
-                                             const sp<IGraphicBufferProducer>& parent,
-                                             LayerMetadata metadata, sp<IBinder>* handle,
-                                             sp<IGraphicBufferProducer>* gbp, int32_t* outLayerId,
-                                             uint32_t* outTransformHint = nullptr);
+    binder::Status createSurface(const std::string& name, int32_t flags, const sp<IBinder>& parent,
+                                 const gui::LayerMetadata& metadata,
+                                 gui::CreateSurfaceResult* outResult) override;
 
-    status_t mirrorSurface(const sp<IBinder>& mirrorFromHandle, sp<IBinder>* handle,
-                           int32_t* outLayerId);
+    binder::Status clearLayerFrameStats(const sp<IBinder>& handle) override;
 
-    virtual status_t clearLayerFrameStats(const sp<IBinder>& handle) const;
+    binder::Status getLayerFrameStats(const sp<IBinder>& handle,
+                                      gui::FrameStats* outStats) override;
 
-    virtual status_t getLayerFrameStats(const sp<IBinder>& handle, FrameStats* outStats) const;
+    binder::Status mirrorSurface(const sp<IBinder>& mirrorFromHandle,
+                                 gui::CreateSurfaceResult* outResult) override;
+
+    binder::Status mirrorDisplay(int64_t displayId, gui::CreateSurfaceResult* outResult) override;
 
     // constant
     sp<SurfaceFlinger> mFlinger;
-
-    // protected by mLock
-    DefaultKeyedVector< wp<IBinder>, wp<Layer> > mLayers;
 
     // thread-safe
     mutable Mutex mLock;

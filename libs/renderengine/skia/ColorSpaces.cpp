@@ -21,6 +21,8 @@ namespace renderengine {
 namespace skia {
 
 // please keep in sync with hwui/utils/Color.cpp
+// TODO: Scale by the dimming ratio here instead of in a generic 3x3 transform
+// Otherwise there may be luminance shift for e.g., HLG.
 sk_sp<SkColorSpace> toSkColorSpace(ui::Dataspace dataspace) {
     skcms_Matrix3x3 gamut;
     switch (dataspace & HAL_DATASPACE_STANDARD_MASK) {
@@ -61,13 +63,14 @@ sk_sp<SkColorSpace> toSkColorSpace(ui::Dataspace dataspace) {
         case HAL_DATASPACE_TRANSFER_GAMMA2_8:
             return SkColorSpace::MakeRGB({2.8f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f}, gamut);
         case HAL_DATASPACE_TRANSFER_ST2084:
-            return SkColorSpace::MakeRGB(SkNamedTransferFn::kPQ, gamut);
+            return SkColorSpace::MakeRGB({-2.f, -1.55522297832f, 1.86045365631f, 32 / 2523.0f,
+                                          2413 / 128.0f, -2392 / 128.0f, 8192 / 1305.0f},
+                                         gamut);
         case HAL_DATASPACE_TRANSFER_SMPTE_170M:
             return SkColorSpace::MakeRGB(SkNamedTransferFn::kRec2020, gamut);
         case HAL_DATASPACE_TRANSFER_HLG:
-            // return HLG transfer but scale by 1/12
             skcms_TransferFunction hlgFn;
-            if (skcms_TransferFunction_makeScaledHLGish(&hlgFn, 1.f / 12.f, 2.f, 2.f,
+            if (skcms_TransferFunction_makeScaledHLGish(&hlgFn, 0.314509843, 2.f, 2.f,
                                                         1.f / 0.17883277f, 0.28466892f,
                                                         0.55991073f)) {
                 return SkColorSpace::MakeRGB(hlgFn, gamut);

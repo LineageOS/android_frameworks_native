@@ -44,7 +44,7 @@ public:
 
     ~GLHelper();
 
-    bool setUp(const ShaderDesc* shaderDescs, size_t numShaders);
+    bool setUp(const sp<IBinder>& displayToken, const ShaderDesc* shaderDescs, size_t numShaders);
 
     void tearDown();
 
@@ -87,6 +87,8 @@ private:
     size_t mNumShaders;
 
     GLuint mDitherTexture;
+
+    sp<IBinder> mDisplayToken;
 };
 
 } // namespace android

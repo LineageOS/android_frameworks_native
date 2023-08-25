@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _UI_INPUT_INPUTDISPATCHER_INPUTDISPATCHERPOLICYINTERFACE_H
-#define _UI_INPUT_INPUTDISPATCHER_INPUTDISPATCHERPOLICYINTERFACE_H
+#pragma once
 
 #include "InputDispatcherConfiguration.h"
 
@@ -35,12 +34,11 @@ namespace android {
  * The actual implementation is partially supported by callbacks into the DVM
  * via JNI.  This interface is also mocked in the unit tests.
  */
-class InputDispatcherPolicyInterface : public virtual RefBase {
-protected:
-    InputDispatcherPolicyInterface() {}
-    virtual ~InputDispatcherPolicyInterface() {}
-
+class InputDispatcherPolicyInterface {
 public:
+    InputDispatcherPolicyInterface() = default;
+    virtual ~InputDispatcherPolicyInterface() = default;
+
     /* Notifies the system that a configuration change has occurred. */
     virtual void notifyConfigurationChanged(nsecs_t when) = 0;
 
@@ -74,18 +72,15 @@ public:
                                       InputDeviceSensorAccuracy accuracy) = 0;
     virtual void notifyVibratorState(int32_t deviceId, bool isOn) = 0;
 
-    /* Notifies the system that an untrusted touch occurred. */
-    virtual void notifyUntrustedTouch(const std::string& obscuringPackage) = 0;
-
     /* Gets the input dispatcher configuration. */
-    virtual void getDispatcherConfiguration(InputDispatcherConfiguration* outConfig) = 0;
+    virtual InputDispatcherConfiguration getDispatcherConfiguration() = 0;
 
     /* Filters an input event.
      * Return true to dispatch the event unmodified, false to consume the event.
      * A filter can also transform and inject events later by passing POLICY_FLAG_FILTERED
      * to injectInputEvent.
      */
-    virtual bool filterInputEvent(const InputEvent* inputEvent, uint32_t policyFlags) = 0;
+    virtual bool filterInputEvent(const InputEvent& inputEvent, uint32_t policyFlags) = 0;
 
     /* Intercepts a key event immediately before queueing it.
      * The policy can use this method as an opportunity to perform power management functions
@@ -94,7 +89,7 @@ public:
      * This method is expected to set the POLICY_FLAG_PASS_TO_USER policy flag if the event
      * should be dispatched to applications.
      */
-    virtual void interceptKeyBeforeQueueing(const KeyEvent* keyEvent, uint32_t& policyFlags) = 0;
+    virtual void interceptKeyBeforeQueueing(const KeyEvent& keyEvent, uint32_t& policyFlags) = 0;
 
     /* Intercepts a touch, trackball or other motion event before queueing it.
      * The policy can use this method as an opportunity to perform power management functions
@@ -103,18 +98,19 @@ public:
      * This method is expected to set the POLICY_FLAG_PASS_TO_USER policy flag if the event
      * should be dispatched to applications.
      */
-    virtual void interceptMotionBeforeQueueing(const int32_t displayId, nsecs_t when,
+    virtual void interceptMotionBeforeQueueing(int32_t displayId, nsecs_t when,
                                                uint32_t& policyFlags) = 0;
 
     /* Allows the policy a chance to intercept a key before dispatching. */
     virtual nsecs_t interceptKeyBeforeDispatching(const sp<IBinder>& token,
-                                                  const KeyEvent* keyEvent,
+                                                  const KeyEvent& keyEvent,
                                                   uint32_t policyFlags) = 0;
 
     /* Allows the policy a chance to perform default processing for an unhandled key.
-     * Returns an alternate keycode to redispatch as a fallback, or 0 to give up. */
-    virtual bool dispatchUnhandledKey(const sp<IBinder>& token, const KeyEvent* keyEvent,
-                                      uint32_t policyFlags, KeyEvent* outFallbackKeyEvent) = 0;
+     * Returns an alternate key event to redispatch as a fallback, if needed. */
+    virtual std::optional<KeyEvent> dispatchUnhandledKey(const sp<IBinder>& token,
+                                                         const KeyEvent& keyEvent,
+                                                         uint32_t policyFlags) = 0;
 
     /* Notifies the policy about switch events.
      */
@@ -142,5 +138,3 @@ public:
 };
 
 } // namespace android
-
-#endif // _UI_INPUT_INPUTDISPATCHER_INPUTDISPATCHERPOLICYINTERFACE_H

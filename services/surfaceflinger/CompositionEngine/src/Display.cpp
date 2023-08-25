@@ -25,6 +25,7 @@
 #include <compositionengine/impl/DumpHelpers.h>
 #include <compositionengine/impl/OutputLayer.h>
 #include <compositionengine/impl/RenderSurface.h>
+#include <gui/TraceUtils.h>
 
 #include <utils/Trace.h>
 
@@ -196,7 +197,7 @@ void Display::setReleasedLayers(const compositionengine::CompositionRefreshArgs&
                             });
 
         if (hasQueuedFrames) {
-            releasedLayers.emplace_back(layerFE);
+            releasedLayers.emplace_back(wp<LayerFE>::fromExisting(layerFE));
         }
     }
 
@@ -235,7 +236,7 @@ void Display::beginFrame() {
 
 bool Display::chooseCompositionStrategy(
         std::optional<android::HWComposer::DeviceRequestedChanges>* outChanges) {
-    ATRACE_CALL();
+    ATRACE_FORMAT("%s for %s", __func__, getNamePlusId().c_str());
     ALOGV(__FUNCTION__);
 
     if (mIsDisconnected) {
@@ -248,16 +249,20 @@ bool Display::chooseCompositionStrategy(
         return false;
     }
 
-    const nsecs_t startTime = systemTime();
-
     // Get any composition changes requested by the HWC device, and apply them.
     std::optional<android::HWComposer::DeviceRequestedChanges> changes;
     auto& hwc = getCompositionEngine().getHwComposer();
     const bool requiresClientComposition = anyLayersRequireClientComposition();
+
+    if (isPowerHintSessionEnabled()) {
+        mPowerAdvisor->setRequiresClientComposition(mId, requiresClientComposition);
+    }
+
+    const TimePoint hwcValidateStartTime = TimePoint::now();
+
     if (status_t result =
                 hwc.getDeviceCompositionChanges(*halDisplayId, requiresClientComposition,
                                                 getState().earliestPresentTime,
-                                                getState().previousPresentFence,
                                                 getState().expectedPresentTime, outChanges);
         result != NO_ERROR) {
         ALOGE("chooseCompositionStrategy failed for %s: %d (%s)", getName().c_str(), result,
@@ -266,8 +271,10 @@ bool Display::chooseCompositionStrategy(
     }
 
     if (isPowerHintSessionEnabled()) {
-        mPowerAdvisor->setHwcValidateTiming(mId, startTime, systemTime());
-        mPowerAdvisor->setRequiresClientComposition(mId, requiresClientComposition);
+        mPowerAdvisor->setHwcValidateTiming(mId, hwcValidateStartTime, TimePoint::now());
+        if (auto halDisplayId = HalDisplayId::tryCast(mId)) {
+            mPowerAdvisor->setSkippedValidate(mId, hwc.getValidateSkipped(*halDisplayId));
+        }
     }
 
     return true;
@@ -370,21 +377,16 @@ compositionengine::Output::FrameFences Display::presentAndGetFrameFences() {
 
     auto& hwc = getCompositionEngine().getHwComposer();
 
-    const nsecs_t startTime = systemTime();
+    const TimePoint startTime = TimePoint::now();
 
-    if (isPowerHintSessionEnabled()) {
-        if (!getCompositionEngine().getHwComposer().getComposer()->isSupported(
-                    Hwc2::Composer::OptionalFeature::ExpectedPresentTime) &&
-            getState().previousPresentFence->getSignalTime() != Fence::SIGNAL_TIME_PENDING) {
-            mPowerAdvisor->setHwcPresentDelayedTime(mId, getState().earliestPresentTime);
-        }
+    if (isPowerHintSessionEnabled() && getState().earliestPresentTime) {
+        mPowerAdvisor->setHwcPresentDelayedTime(mId, *getState().earliestPresentTime);
     }
 
-    hwc.presentAndGetReleaseFences(*halDisplayIdOpt, getState().earliestPresentTime,
-                                   getState().previousPresentFence);
+    hwc.presentAndGetReleaseFences(*halDisplayIdOpt, getState().earliestPresentTime);
 
     if (isPowerHintSessionEnabled()) {
-        mPowerAdvisor->setHwcPresentTiming(mId, startTime, systemTime());
+        mPowerAdvisor->setHwcPresentTiming(mId, startTime, TimePoint::now());
     }
 
     fences.presentFence = hwc.getPresentFence(*halDisplayIdOpt);
@@ -420,8 +422,7 @@ void Display::setHintSessionGpuFence(std::unique_ptr<FenceTime>&& gpuFence) {
     mPowerAdvisor->setGpuFenceTime(mId, std::move(gpuFence));
 }
 
-void Display::finishFrame(const compositionengine::CompositionRefreshArgs& refreshArgs,
-                          GpuCompositionResult&& result) {
+void Display::finishFrame(GpuCompositionResult&& result) {
     // We only need to actually compose the display if:
     // 1) It is being handled by hardware composer, which may need this to
     //    keep its virtual display state machine in sync, or
@@ -431,14 +432,7 @@ void Display::finishFrame(const compositionengine::CompositionRefreshArgs& refre
         return;
     }
 
-    impl::Output::finishFrame(refreshArgs, std::move(result));
-
-    if (isPowerHintSessionEnabled()) {
-        auto& hwc = getCompositionEngine().getHwComposer();
-        if (auto halDisplayId = HalDisplayId::tryCast(mId)) {
-            mPowerAdvisor->setSkippedValidate(mId, hwc.getValidateSkipped(*halDisplayId));
-        }
-    }
+    impl::Output::finishFrame(std::move(result));
 }
 
 } // namespace android::compositionengine::impl

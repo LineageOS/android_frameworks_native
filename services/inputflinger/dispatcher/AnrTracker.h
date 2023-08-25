@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _UI_INPUT_INPUTDISPATCHER_ANRTRACKER_H
-#define _UI_INPUT_INPUTDISPATCHER_ANRTRACKER_H
+#pragma once
 
 #include <binder/IBinder.h>
 #include <utils/Timers.h>
@@ -36,7 +35,7 @@ public:
 
     bool empty() const;
     // If empty() is false, return the time at which the next connection should cause an ANR
-    // If empty() is true, return LONG_LONG_MAX
+    // If empty() is true, return LLONG_MAX
     nsecs_t firstTimeout() const;
     // Return the token of the next connection that should cause an ANR.
     // Do not call this unless empty() is false, you will encounter undefined behaviour.
@@ -56,5 +55,3 @@ private:
 };
 
 } // namespace android::inputdispatcher
-
-#endif // _UI_INPUT_INPUTDISPATCHER_ANRTRACKER_H

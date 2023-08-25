@@ -7,7 +7,7 @@ package {
     default_applicable_licenses: ["frameworks_native_license"],
 }
 
-cc_library_shared {
+cc_library {
     name: "libsensorservice",
 
     srcs: [
@@ -76,7 +76,7 @@ cc_library_shared {
         "libaidlcommonsupport",
         "android.hardware.sensors@1.0-convert",
         "android.hardware.sensors-V1-convert",
-        "android.hardware.sensors-V1-ndk",
+        "android.hardware.sensors-V2-ndk",
     ],
 
     generated_headers: ["framework-cppstream-protos"],
@@ -89,6 +89,12 @@ cc_library_shared {
     ],
 
     afdo: true,
+}
+
+cc_library_headers {
+    name: "libsensorservice_headers",
+    export_include_dirs: ["."],
+    visibility: ["//frameworks/native/services/sensorservice/fuzzer"],
 }
 
 cc_binary {

@@ -37,9 +37,6 @@ TEST_F(DestroyDisplayTest, destroyDisplayClearsCurrentStateForDisplay) {
     // --------------------------------------------------------------------
     // Call Expectations
 
-    // The call should notify the interceptor that a display was created.
-    EXPECT_CALL(*mSurfaceInterceptor, saveDisplayDeletion(_)).Times(1);
-
     // Destroying the display commits a display transaction.
     EXPECT_CALL(*mFlinger.scheduler(), scheduleFrame()).Times(1);
 
@@ -65,7 +62,7 @@ TEST_F(DestroyDisplayTest, destroyDisplayHandlesUnknownDisplay) {
     // --------------------------------------------------------------------
     // Preconditions
 
-    sp<BBinder> displayToken = new BBinder();
+    sp<BBinder> displayToken = sp<BBinder>::make();
 
     // --------------------------------------------------------------------
     // Invocation

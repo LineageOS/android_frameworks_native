@@ -26,6 +26,8 @@
 
 using IPowerV1_0 = android::hardware::power::V1_0::IPower;
 using IPowerV1_1 = android::hardware::power::V1_1::IPower;
+using IPowerV1_2 = android::hardware::power::V1_2::IPower;
+using IPowerV1_3 = android::hardware::power::V1_3::IPower;
 using IPowerAidl = android::hardware::power::IPower;
 
 using namespace android;
@@ -52,6 +54,16 @@ sp<IPowerV1_1> loadHal<IPowerV1_1>() {
     return PowerHalLoader::loadHidlV1_1();
 }
 
+template <>
+sp<IPowerV1_2> loadHal<IPowerV1_2>() {
+    return PowerHalLoader::loadHidlV1_2();
+}
+
+template <>
+sp<IPowerV1_3> loadHal<IPowerV1_3>() {
+    return PowerHalLoader::loadHidlV1_3();
+}
+
 // -------------------------------------------------------------------------------------------------
 
 template <typename T>
@@ -63,7 +75,7 @@ public:
 
 // -------------------------------------------------------------------------------------------------
 
-typedef ::testing::Types<IPowerAidl, IPowerV1_0, IPowerV1_1> PowerHalTypes;
+typedef ::testing::Types<IPowerAidl, IPowerV1_0, IPowerV1_1, IPowerV1_2, IPowerV1_3> PowerHalTypes;
 TYPED_TEST_SUITE(PowerHalLoaderTest, PowerHalTypes);
 
 TYPED_TEST(PowerHalLoaderTest, TestLoadsOnlyOnce) {

@@ -48,6 +48,7 @@ TEST_F(PointerCoordsTest, ClearSetsBitsToZero) {
     coords.clear();
 
     ASSERT_EQ(0ULL, coords.bits);
+    ASSERT_FALSE(coords.isResampled);
 }
 
 TEST_F(PointerCoordsTest, AxisValues) {
@@ -160,11 +161,13 @@ TEST_F(PointerCoordsTest, Parcel) {
     outCoords.readFromParcel(&parcel);
 
     ASSERT_EQ(0ULL, outCoords.bits);
+    ASSERT_FALSE(outCoords.isResampled);
 
     // Round trip with some values.
     parcel.freeData();
     inCoords.setAxisValue(2, 5);
     inCoords.setAxisValue(5, 8);
+    inCoords.isResampled = true;
 
     inCoords.writeToParcel(&parcel);
     parcel.setDataPosition(0);
@@ -173,6 +176,7 @@ TEST_F(PointerCoordsTest, Parcel) {
     ASSERT_EQ(outCoords.bits, inCoords.bits);
     ASSERT_EQ(outCoords.values[0], inCoords.values[0]);
     ASSERT_EQ(outCoords.values[1], inCoords.values[1]);
+    ASSERT_TRUE(outCoords.isResampled);
 }
 
 
@@ -193,7 +197,7 @@ TEST_F(KeyEventTest, Properties) {
                      ARBITRARY_DOWN_TIME, ARBITRARY_EVENT_TIME);
 
     ASSERT_EQ(id, event.getId());
-    ASSERT_EQ(AINPUT_EVENT_TYPE_KEY, event.getType());
+    ASSERT_EQ(InputEventType::KEY, event.getType());
     ASSERT_EQ(2, event.getDeviceId());
     ASSERT_EQ(AINPUT_SOURCE_GAMEPAD, event.getSource());
     ASSERT_EQ(DISPLAY_ID, event.getDisplayId());
@@ -255,10 +259,10 @@ void MotionEventTest::SetUp() {
 
     mPointerProperties[0].clear();
     mPointerProperties[0].id = 1;
-    mPointerProperties[0].toolType = AMOTION_EVENT_TOOL_TYPE_FINGER;
+    mPointerProperties[0].toolType = ToolType::FINGER;
     mPointerProperties[1].clear();
     mPointerProperties[1].id = 2;
-    mPointerProperties[1].toolType = AMOTION_EVENT_TOOL_TYPE_STYLUS;
+    mPointerProperties[1].toolType = ToolType::STYLUS;
 
     mSamples[0].pointerCoords[0].clear();
     mSamples[0].pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_X, 10);
@@ -270,6 +274,7 @@ void MotionEventTest::SetUp() {
     mSamples[0].pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_TOOL_MAJOR, 16);
     mSamples[0].pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_TOOL_MINOR, 17);
     mSamples[0].pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION, 18);
+    mSamples[0].pointerCoords[0].isResampled = true;
     mSamples[0].pointerCoords[1].clear();
     mSamples[0].pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_X, 20);
     mSamples[0].pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_Y, 21);
@@ -291,6 +296,7 @@ void MotionEventTest::SetUp() {
     mSamples[1].pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_TOOL_MAJOR, 116);
     mSamples[1].pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_TOOL_MINOR, 117);
     mSamples[1].pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION, 118);
+    mSamples[1].pointerCoords[0].isResampled = true;
     mSamples[1].pointerCoords[1].clear();
     mSamples[1].pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_X, 120);
     mSamples[1].pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_Y, 121);
@@ -301,6 +307,7 @@ void MotionEventTest::SetUp() {
     mSamples[1].pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_TOOL_MAJOR, 126);
     mSamples[1].pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_TOOL_MINOR, 127);
     mSamples[1].pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION, 128);
+    mSamples[1].pointerCoords[1].isResampled = true;
 
     mSamples[2].pointerCoords[0].clear();
     mSamples[2].pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_X, 210);
@@ -339,7 +346,7 @@ void MotionEventTest::initializeEventWithHistory(MotionEvent* event) {
 void MotionEventTest::assertEqualsEventWithHistory(const MotionEvent* event) {
     // Check properties.
     ASSERT_EQ(mId, event->getId());
-    ASSERT_EQ(AINPUT_EVENT_TYPE_MOTION, event->getType());
+    ASSERT_EQ(InputEventType::MOTION, event->getType());
     ASSERT_EQ(2, event->getDeviceId());
     ASSERT_EQ(AINPUT_SOURCE_TOUCHSCREEN, event->getSource());
     ASSERT_EQ(DISPLAY_ID, event->getDisplayId());
@@ -359,9 +366,9 @@ void MotionEventTest::assertEqualsEventWithHistory(const MotionEvent* event) {
 
     ASSERT_EQ(2U, event->getPointerCount());
     ASSERT_EQ(1, event->getPointerId(0));
-    ASSERT_EQ(AMOTION_EVENT_TOOL_TYPE_FINGER, event->getToolType(0));
+    ASSERT_EQ(ToolType::FINGER, event->getToolType(0));
     ASSERT_EQ(2, event->getPointerId(1));
-    ASSERT_EQ(AMOTION_EVENT_TOOL_TYPE_STYLUS, event->getToolType(1));
+    ASSERT_EQ(ToolType::STYLUS, event->getToolType(1));
 
     ASSERT_EQ(2U, event->getHistorySize());
 
@@ -485,6 +492,13 @@ void MotionEventTest::assertEqualsEventWithHistory(const MotionEvent* event) {
     ASSERT_EQ(toScaledOrientation(128), event->getHistoricalOrientation(1, 1));
     ASSERT_EQ(toScaledOrientation(218), event->getOrientation(0));
     ASSERT_EQ(toScaledOrientation(228), event->getOrientation(1));
+
+    ASSERT_TRUE(event->isResampled(0, 0));
+    ASSERT_FALSE(event->isResampled(1, 0));
+    ASSERT_TRUE(event->isResampled(0, 1));
+    ASSERT_TRUE(event->isResampled(1, 1));
+    ASSERT_FALSE(event->isResampled(0, 2));
+    ASSERT_FALSE(event->isResampled(1, 2));
 }
 
 TEST_F(MotionEventTest, Properties) {
@@ -517,7 +531,7 @@ TEST_F(MotionEventTest, CopyFrom_KeepHistory) {
     initializeEventWithHistory(&event);
 
     MotionEvent copy;
-    copy.copyFrom(&event, true /*keepHistory*/);
+    copy.copyFrom(&event, /*keepHistory=*/true);
 
     ASSERT_NO_FATAL_FAILURE(assertEqualsEventWithHistory(&event));
 }
@@ -527,7 +541,7 @@ TEST_F(MotionEventTest, CopyFrom_DoNotKeepHistory) {
     initializeEventWithHistory(&event);
 
     MotionEvent copy;
-    copy.copyFrom(&event, false /*keepHistory*/);
+    copy.copyFrom(&event, /*keepHistory=*/false);
 
     ASSERT_EQ(event.getPointerCount(), copy.getPointerCount());
     ASSERT_EQ(0U, copy.getHistorySize());
@@ -628,12 +642,12 @@ TEST_F(MotionEventTest, Transform) {
     }
     MotionEvent event;
     ui::Transform identityTransform;
-    event.initialize(InputEvent::nextId(), 0 /*deviceId*/, AINPUT_SOURCE_TOUCHSCREEN, DISPLAY_ID,
-                     INVALID_HMAC, AMOTION_EVENT_ACTION_MOVE, 0 /*actionButton*/, 0 /*flags*/,
-                     AMOTION_EVENT_EDGE_FLAG_NONE, AMETA_NONE, 0 /*buttonState*/,
-                     MotionClassification::NONE, identityTransform, 0 /*xPrecision*/,
-                     0 /*yPrecision*/, 3 + RADIUS /*xCursorPosition*/, 2 /*yCursorPosition*/,
-                     identityTransform, 0 /*downTime*/, 0 /*eventTime*/, pointerCount,
+    event.initialize(InputEvent::nextId(), /*deviceId=*/0, AINPUT_SOURCE_TOUCHSCREEN, DISPLAY_ID,
+                     INVALID_HMAC, AMOTION_EVENT_ACTION_MOVE, /*actionButton=*/0, /*flags=*/0,
+                     AMOTION_EVENT_EDGE_FLAG_NONE, AMETA_NONE, /*buttonState=*/0,
+                     MotionClassification::NONE, identityTransform, /*xPrecision=*/0,
+                     /*yPrecision=*/0, /*xCursorPosition=*/3 + RADIUS, /*yCursorPosition=*/2,
+                     identityTransform, /*downTime=*/0, /*eventTime=*/0, pointerCount,
                      pointerProperties, pointerCoords);
     float originalRawX = 0 + 3;
     float originalRawY = -RADIUS + 2;
@@ -678,7 +692,7 @@ TEST_F(MotionEventTest, Transform) {
 MotionEvent createMotionEvent(int32_t source, uint32_t action, float x, float y, float dx, float dy,
                               const ui::Transform& transform, const ui::Transform& rawTransform) {
     std::vector<PointerProperties> pointerProperties;
-    pointerProperties.push_back(PointerProperties{/* id */ 0, AMOTION_EVENT_TOOL_TYPE_FINGER});
+    pointerProperties.push_back(PointerProperties{/*id=*/0, ToolType::FINGER});
     std::vector<PointerCoords> pointerCoords;
     pointerCoords.emplace_back().clear();
     pointerCoords.back().setAxisValue(AMOTION_EVENT_AXIS_X, x);
@@ -834,12 +848,12 @@ TEST_F(MotionEventTest, Initialize_SetsClassification) {
 
     ui::Transform identityTransform;
     for (MotionClassification classification : classifications) {
-        event.initialize(InputEvent::nextId(), 0 /*deviceId*/, AINPUT_SOURCE_TOUCHSCREEN,
+        event.initialize(InputEvent::nextId(), /*deviceId=*/0, AINPUT_SOURCE_TOUCHSCREEN,
                          DISPLAY_ID, INVALID_HMAC, AMOTION_EVENT_ACTION_DOWN, 0, 0,
                          AMOTION_EVENT_EDGE_FLAG_NONE, AMETA_NONE, 0, classification,
                          identityTransform, 0, 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                         AMOTION_EVENT_INVALID_CURSOR_POSITION, identityTransform, 0 /*downTime*/,
-                         0 /*eventTime*/, pointerCount, pointerProperties, pointerCoords);
+                         AMOTION_EVENT_INVALID_CURSOR_POSITION, identityTransform, /*downTime=*/0,
+                         /*eventTime=*/0, pointerCount, pointerProperties, pointerCoords);
         ASSERT_EQ(classification, event.getClassification());
     }
 }
@@ -856,11 +870,11 @@ TEST_F(MotionEventTest, Initialize_SetsCursorPosition) {
     }
 
     ui::Transform identityTransform;
-    event.initialize(InputEvent::nextId(), 0 /*deviceId*/, AINPUT_SOURCE_MOUSE, DISPLAY_ID,
+    event.initialize(InputEvent::nextId(), /*deviceId=*/0, AINPUT_SOURCE_MOUSE, DISPLAY_ID,
                      INVALID_HMAC, AMOTION_EVENT_ACTION_DOWN, 0, 0, AMOTION_EVENT_EDGE_FLAG_NONE,
                      AMETA_NONE, 0, MotionClassification::NONE, identityTransform, 0, 0,
-                     280 /*xCursorPosition*/, 540 /*yCursorPosition*/, identityTransform,
-                     0 /*downTime*/, 0 /*eventTime*/, pointerCount, pointerProperties,
+                     /*xCursorPosition=*/280, /*yCursorPosition=*/540, identityTransform,
+                     /*downTime=*/0, /*eventTime=*/0, pointerCount, pointerProperties,
                      pointerCoords);
     event.offsetLocation(20, 60);
     ASSERT_EQ(280, event.getRawXCursorPosition());

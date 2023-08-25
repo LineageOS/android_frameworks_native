@@ -28,12 +28,12 @@ public:
     ~VsyncController() override;
 
     MOCK_METHOD(bool, addPresentFence, (std::shared_ptr<FenceTime>), (override));
-    MOCK_METHOD3(addHwVsyncTimestamp, bool(nsecs_t, std::optional<nsecs_t>, bool*));
-    MOCK_METHOD1(startPeriodTransition, void(nsecs_t));
-    MOCK_METHOD1(setIgnorePresentFences, void(bool));
+    MOCK_METHOD(bool, addHwVsyncTimestamp, (nsecs_t, std::optional<nsecs_t>, bool*), (override));
+    MOCK_METHOD(void, startPeriodTransition, (nsecs_t, bool), (override));
+    MOCK_METHOD(void, setIgnorePresentFences, (bool), (override));
     MOCK_METHOD(void, setDisplayPowerMode, (hal::PowerMode), (override));
 
-    MOCK_CONST_METHOD1(dump, void(std::string&));
+    MOCK_METHOD(void, dump, (std::string&), (const, override));
 };
 
 } // namespace android::mock

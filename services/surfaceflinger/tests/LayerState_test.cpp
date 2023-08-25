@@ -35,7 +35,7 @@ TEST(LayerStateTest, ParcellingDisplayCaptureArgs) {
     args.frameScaleX = 2;
     args.frameScaleY = 4;
     args.captureSecureLayers = true;
-    args.displayToken = new BBinder();
+    args.displayToken = sp<BBinder>::make();
     args.width = 10;
     args.height = 20;
     args.useIdentityTransform = true;
@@ -67,8 +67,8 @@ TEST(LayerStateTest, ParcellingLayerCaptureArgs) {
     args.frameScaleX = 2;
     args.frameScaleY = 4;
     args.captureSecureLayers = true;
-    args.layerHandle = new BBinder();
-    args.excludeHandles = {new BBinder(), new BBinder()};
+    args.layerHandle = sp<BBinder>::make();
+    args.excludeHandles = {sp<BBinder>::make(), sp<BBinder>::make()};
     args.childrenOnly = false;
     args.grayscale = true;
 
@@ -90,13 +90,12 @@ TEST(LayerStateTest, ParcellingLayerCaptureArgs) {
     ASSERT_EQ(args.grayscale, args2.grayscale);
 }
 
-TEST(LayerStateTest, ParcellingScreenCaptureResults) {
+TEST(LayerStateTest, ParcellingScreenCaptureResultsWithFence) {
     ScreenCaptureResults results;
-    results.buffer = new GraphicBuffer(100, 200, PIXEL_FORMAT_RGBA_8888, 1, 0);
-    results.fence = new Fence(dup(fileno(tmpfile())));
+    results.buffer = sp<GraphicBuffer>::make(100u, 200u, PIXEL_FORMAT_RGBA_8888, 1u, 0u);
+    results.fenceResult = sp<Fence>::make(dup(fileno(tmpfile())));
     results.capturedSecureLayers = true;
     results.capturedDataspace = ui::Dataspace::DISPLAY_P3;
-    results.result = BAD_VALUE;
 
     Parcel p;
     results.writeToParcel(&p);
@@ -110,10 +109,41 @@ TEST(LayerStateTest, ParcellingScreenCaptureResults) {
     ASSERT_EQ(results.buffer->getWidth(), results2.buffer->getWidth());
     ASSERT_EQ(results.buffer->getHeight(), results2.buffer->getHeight());
     ASSERT_EQ(results.buffer->getPixelFormat(), results2.buffer->getPixelFormat());
-    ASSERT_EQ(results.fence->isValid(), results2.fence->isValid());
+    ASSERT_TRUE(results.fenceResult.ok());
+    ASSERT_TRUE(results2.fenceResult.ok());
+    ASSERT_EQ(results.fenceResult.value()->isValid(), results2.fenceResult.value()->isValid());
     ASSERT_EQ(results.capturedSecureLayers, results2.capturedSecureLayers);
     ASSERT_EQ(results.capturedDataspace, results2.capturedDataspace);
-    ASSERT_EQ(results.result, results2.result);
+}
+
+TEST(LayerStateTest, ParcellingScreenCaptureResultsWithNoFenceOrError) {
+    ScreenCaptureResults results;
+
+    Parcel p;
+    results.writeToParcel(&p);
+    p.setDataPosition(0);
+
+    ScreenCaptureResults results2;
+    results2.readFromParcel(&p);
+
+    ASSERT_TRUE(results2.fenceResult.ok());
+    ASSERT_EQ(results2.fenceResult.value(), Fence::NO_FENCE);
+}
+
+TEST(LayerStateTest, ParcellingScreenCaptureResultsWithFenceError) {
+    ScreenCaptureResults results;
+    results.fenceResult = base::unexpected(BAD_VALUE);
+
+    Parcel p;
+    results.writeToParcel(&p);
+    p.setDataPosition(0);
+
+    ScreenCaptureResults results2;
+    results2.readFromParcel(&p);
+
+    ASSERT_FALSE(results.fenceResult.ok());
+    ASSERT_FALSE(results2.fenceResult.ok());
+    ASSERT_EQ(results.fenceResult.error(), results2.fenceResult.error());
 }
 
 } // namespace test

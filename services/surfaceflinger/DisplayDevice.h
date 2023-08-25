@@ -24,6 +24,7 @@
 #include <android-base/thread_annotations.h>
 #include <android/native_window.h>
 #include <binder/IBinder.h>
+#include <ftl/concat.h>
 #include <gui/LayerState.h>
 #include <math/mat4.h>
 #include <renderengine/RenderEngine.h>
@@ -41,13 +42,15 @@
 #include <utils/RefBase.h>
 #include <utils/Timers.h>
 
+#include "Display/DisplayModeRequest.h"
 #include "DisplayHardware/DisplayMode.h"
 #include "DisplayHardware/Hal.h"
 #include "DisplayHardware/PowerAdvisor.h"
-#include "Scheduler/RefreshRateConfigs.h"
+#include "FrontEnd/DisplayInfo.h"
+#include "Scheduler/RefreshRateSelector.h"
 #include "ThreadContext.h"
 #include "TracedOrdinal.h"
-
+#include "Utils/Dumper.h"
 namespace android {
 
 class Fence;
@@ -65,6 +68,10 @@ class Display;
 class DisplaySurface;
 } // namespace compositionengine
 
+namespace display {
+class DisplaySnapshot;
+} // namespace display
+
 class DisplayDevice : public RefBase {
 public:
     constexpr static float sDefaultMinLumiance = 0.0;
@@ -80,11 +87,8 @@ public:
         return mCompositionDisplay;
     }
 
-    std::optional<ui::DisplayConnectionType> getConnectionType() const { return mConnectionType; }
-
-    bool isVirtual() const { return !mConnectionType; }
+    bool isVirtual() const { return VirtualDisplayId::tryCast(getId()).has_value(); }
     bool isPrimary() const { return mIsPrimary; }
-    bool isInternal() const { return mConnectionType == ui::DisplayConnectionType::Internal; }
 
     // isSecure indicates whether this display can be trusted to display
     // secure surfaces.
@@ -94,7 +98,7 @@ public:
     int getHeight() const;
     ui::Size getSize() const { return {getWidth(), getHeight()}; }
 
-    void setLayerStack(ui::LayerStack);
+    void setLayerFilter(ui::LayerFilter);
     void setDisplaySize(int width, int height);
     void setProjection(ui::Rotation orientation, Rect viewport, Rect frame);
     void stageBrightness(float brightness) REQUIRES(kMainThreadContext);
@@ -105,14 +109,11 @@ public:
     ui::Rotation getPhysicalOrientation() const { return mPhysicalOrientation; }
     ui::Rotation getOrientation() const { return mOrientation; }
 
-    static ui::Transform::RotationFlags getPrimaryDisplayRotationFlags();
-
     std::optional<float> getStagedBrightness() const REQUIRES(kMainThreadContext);
     ui::Transform::RotationFlags getTransformHint() const;
     const ui::Transform& getTransform() const;
     const Rect& getLayerStackSpaceRect() const;
     const Rect& getOrientedDisplaySpaceRect() const;
-    bool needsFiltering() const;
     ui::LayerStack getLayerStack() const;
     bool receivesInput() const { return mFlags & eReceivesInput; }
 
@@ -164,19 +165,7 @@ public:
     void setDisplayName(const std::string& displayName);
     const std::string& getDisplayName() const { return mDisplayName; }
 
-    void setDeviceProductInfo(std::optional<DeviceProductInfo> info);
-    const std::optional<DeviceProductInfo>& getDeviceProductInfo() const {
-        return mDeviceProductInfo;
-    }
-
-    struct InputInfo {
-        gui::DisplayInfo info;
-        ui::Transform transform;
-        bool receivesInput;
-        bool isSecure;
-    };
-
-    InputInfo getInputInfo() const;
+    surfaceflinger::frontend::DisplayInfo getFrontEndInfo() const;
 
     /* ------------------------------------------------------------------------
      * Display power mode management.
@@ -184,6 +173,7 @@ public:
     std::optional<hardware::graphics::composer::hal::PowerMode> getPowerMode() const;
     void setPowerMode(hardware::graphics::composer::hal::PowerMode mode);
     bool isPoweredOn() const;
+    void tracePowerMode();
 
     // Enables layer caching on this DisplayDevice
     void enableLayerCaching(bool enable);
@@ -193,135 +183,136 @@ public:
     /* ------------------------------------------------------------------------
      * Display mode management.
      */
-    const DisplayModePtr& getActiveMode() const;
 
+    // TODO(b/241285876): Replace ActiveModeInfo and DisplayModeEvent with DisplayModeRequest.
     struct ActiveModeInfo {
-        DisplayModePtr mode;
-        scheduler::DisplayModeEvent event = scheduler::DisplayModeEvent::None;
+        using Event = scheduler::DisplayModeEvent;
+
+        ActiveModeInfo() = default;
+        ActiveModeInfo(scheduler::FrameRateMode mode, Event event)
+              : modeOpt(std::move(mode)), event(event) {}
+
+        explicit ActiveModeInfo(display::DisplayModeRequest&& request)
+              : ActiveModeInfo(std::move(request.mode),
+                               request.emitEvent ? Event::Changed : Event::None) {}
+
+        ftl::Optional<scheduler::FrameRateMode> modeOpt;
+        Event event = Event::None;
 
         bool operator!=(const ActiveModeInfo& other) const {
-            return mode != other.mode || event != other.event;
+            return modeOpt != other.modeOpt || event != other.event;
         }
     };
 
-    bool setDesiredActiveMode(const ActiveModeInfo&, bool force = false) EXCLUDES(mActiveModeLock);
+    enum class DesiredActiveModeAction {
+        None,
+        InitiateDisplayModeSwitch,
+        InitiateRenderRateSwitch
+    };
+    DesiredActiveModeAction setDesiredActiveMode(const ActiveModeInfo&, bool force = false)
+            EXCLUDES(mActiveModeLock);
     std::optional<ActiveModeInfo> getDesiredActiveMode() const EXCLUDES(mActiveModeLock);
     void clearDesiredActiveModeState() EXCLUDES(mActiveModeLock);
     ActiveModeInfo getUpcomingActiveMode() const REQUIRES(kMainThreadContext) {
         return mUpcomingActiveMode;
     }
 
-    void setActiveMode(DisplayModeId) REQUIRES(kMainThreadContext);
+    scheduler::FrameRateMode getActiveMode() const REQUIRES(kMainThreadContext) {
+        return mRefreshRateSelector->getActiveMode();
+    }
+
+    void setActiveMode(DisplayModeId, Fps displayFps, Fps renderFps);
+
     status_t initiateModeChange(const ActiveModeInfo&,
                                 const hal::VsyncPeriodChangeConstraints& constraints,
                                 hal::VsyncPeriodChangeTimeline* outTimeline)
             REQUIRES(kMainThreadContext);
 
-    // Return the immutable list of supported display modes. The HWC may report different modes
-    // after a hotplug reconnect event, in which case the DisplayDevice object will be recreated.
-    // Hotplug reconnects are common for external displays.
-    const DisplayModes& getSupportedModes() const;
+    scheduler::RefreshRateSelector& refreshRateSelector() const { return *mRefreshRateSelector; }
 
-    // Returns nullptr if the given mode ID is not supported. A previously
-    // supported mode may be no longer supported for some devices like TVs and
-    // set-top boxes after a hotplug reconnect.
-    DisplayModePtr getMode(DisplayModeId) const;
-
-    std::optional<DisplayModeId> translateModeId(hal::HWConfigId) const;
-
-    // Returns the refresh rate configs for this display.
-    scheduler::RefreshRateConfigs& refreshRateConfigs() const { return *mRefreshRateConfigs; }
-
-    // Returns a shared pointer to the refresh rate configs for this display.
-    // Clients can store this refresh rate configs and use it even if the DisplayDevice
-    // is destroyed.
-    std::shared_ptr<scheduler::RefreshRateConfigs> holdRefreshRateConfigs() const {
-        return mRefreshRateConfigs;
+    // Extends the lifetime of the RefreshRateSelector, so it can outlive this DisplayDevice.
+    std::shared_ptr<scheduler::RefreshRateSelector> holdRefreshRateSelector() const {
+        return mRefreshRateSelector;
     }
 
     // Enables an overlay to be displayed with the current refresh rate
-    void enableRefreshRateOverlay(bool enable, bool showSpinner);
+    void enableRefreshRateOverlay(bool enable, bool setByHwc, bool showSpinner, bool showRenderRate,
+                                  bool showInMiddle) REQUIRES(kMainThreadContext);
+    void updateRefreshRateOverlayRate(Fps displayFps, Fps renderFps, bool setByHwc = false);
     bool isRefreshRateOverlayEnabled() const { return mRefreshRateOverlay != nullptr; }
     bool onKernelTimerChanged(std::optional<DisplayModeId>, bool timerExpired);
     void animateRefreshRateOverlay();
 
-    void onVsync(nsecs_t timestamp);
     nsecs_t getVsyncPeriodFromHWC() const;
-    nsecs_t getRefreshTimestamp() const;
 
-    status_t setRefreshRatePolicy(
-            const std::optional<scheduler::RefreshRateConfigs::Policy>& policy,
-            bool overridePolicy);
+    Fps getAdjustedRefreshRate() const { return mAdjustedRefreshRate; }
+
+    // Round the requested refresh rate to match a divisor of the pacesetter
+    // display's refresh rate. Only supported for virtual displays.
+    void adjustRefreshRate(Fps pacesetterDisplayRefreshRate);
 
     // release HWC resources (if any) for removable displays
     void disconnect();
 
-    /* ------------------------------------------------------------------------
-     * Debugging
-     */
-    uint32_t getPageFlipCount() const;
-    std::string getDebugName() const;
-    void dump(std::string& result) const;
+    void dump(utils::Dumper&) const;
 
 private:
     const sp<SurfaceFlinger> mFlinger;
     HWComposer& mHwComposer;
     const wp<IBinder> mDisplayToken;
     const int32_t mSequenceId;
-    const std::optional<ui::DisplayConnectionType> mConnectionType;
 
     const std::shared_ptr<compositionengine::Display> mCompositionDisplay;
 
     std::string mDisplayName;
     std::string mActiveModeFPSTrace;
     std::string mActiveModeFPSHwcTrace;
+    std::string mRenderFrameRateFPSTrace;
 
     const ui::Rotation mPhysicalOrientation;
     ui::Rotation mOrientation = ui::ROTATION_0;
 
-    static ui::Transform::RotationFlags sPrimaryDisplayRotationFlags;
+    // Allow nullopt as initial power mode.
+    using TracedPowerMode = TracedOrdinal<hardware::graphics::composer::hal::PowerMode>;
+    std::optional<TracedPowerMode> mPowerMode;
 
-     // allow initial power mode as null.
-    std::optional<hardware::graphics::composer::hal::PowerMode> mPowerMode;
-    DisplayModePtr mActiveMode;
     std::optional<float> mStagedBrightness;
     std::optional<float> mBrightness;
-    const DisplayModes mSupportedModes;
-
-    std::atomic<nsecs_t> mLastHwVsync = 0;
 
     // TODO(b/182939859): Remove special cases for primary display.
     const bool mIsPrimary;
 
     uint32_t mFlags = 0;
 
-    std::optional<DeviceProductInfo> mDeviceProductInfo;
+    // Requested refresh rate in fps, supported only for virtual displays.
+    // when this value is non zero, SurfaceFlinger will try to drop frames
+    // for virtual displays to match this requested refresh rate.
+    const Fps mRequestedRefreshRate;
+
+    // Adjusted refresh rate, rounded to match a divisor of the pacesetter
+    // display's refresh rate. Only supported for virtual displays.
+    Fps mAdjustedRefreshRate = 0_Hz;
 
     std::vector<ui::Hdr> mOverrideHdrTypes;
 
-    std::shared_ptr<scheduler::RefreshRateConfigs> mRefreshRateConfigs;
+    std::shared_ptr<scheduler::RefreshRateSelector> mRefreshRateSelector;
     std::unique_ptr<RefreshRateOverlay> mRefreshRateOverlay;
 
     mutable std::mutex mActiveModeLock;
     ActiveModeInfo mDesiredActiveMode GUARDED_BY(mActiveModeLock);
-    TracedOrdinal<bool> mDesiredActiveModeChanged
-            GUARDED_BY(mActiveModeLock) = {"DesiredActiveModeChanged", false};
+    TracedOrdinal<bool> mDesiredActiveModeChanged GUARDED_BY(mActiveModeLock) =
+            {ftl::Concat("DesiredActiveModeChanged-", getId().value).c_str(), false};
     ActiveModeInfo mUpcomingActiveMode GUARDED_BY(kMainThreadContext);
-
-    std::atomic_int mNumModeSwitchesInPolicy = 0;
 };
 
 struct DisplayDeviceState {
     struct Physical {
         PhysicalDisplayId id;
-        ui::DisplayConnectionType type;
         hardware::graphics::composer::hal::HWDisplayId hwcDisplayId;
-        std::optional<DeviceProductInfo> deviceProductInfo;
-        DisplayModes supportedModes;
         DisplayModePtr activeMode;
 
         bool operator==(const Physical& other) const {
-            return id == other.id && type == other.type && hwcDisplayId == other.hwcDisplayId;
+            return id == other.id && hwcDisplayId == other.hwcDisplayId;
         }
     };
 
@@ -339,6 +330,8 @@ struct DisplayDeviceState {
     uint32_t height = 0;
     std::string displayName;
     bool isSecure = false;
+    // Refer to DisplayDevice::mRequestedRefreshRate, for virtual display only
+    Fps requestedRefreshRate;
 
 private:
     static std::atomic<int32_t> sNextSequenceId;
@@ -354,10 +347,9 @@ struct DisplayDeviceCreationArgs {
     HWComposer& hwComposer;
     const wp<IBinder> displayToken;
     const std::shared_ptr<compositionengine::Display> compositionDisplay;
-    std::shared_ptr<scheduler::RefreshRateConfigs> refreshRateConfigs;
+    std::shared_ptr<scheduler::RefreshRateSelector> refreshRateSelector;
 
     int32_t sequenceId{0};
-    std::optional<ui::DisplayConnectionType> connectionType;
     bool isSecure{false};
     sp<ANativeWindow> nativeWindow;
     sp<compositionengine::DisplaySurface> displaySurface;
@@ -368,8 +360,9 @@ struct DisplayDeviceCreationArgs {
     std::unordered_map<ui::ColorMode, std::vector<ui::RenderIntent>> hwcColorModes;
     std::optional<hardware::graphics::composer::hal::PowerMode> initialPowerMode;
     bool isPrimary{false};
-    DisplayModes supportedModes;
     DisplayModeId activeModeId;
+    // Refer to DisplayDevice::mRequestedRefreshRate, for virtual display only
+    Fps requestedRefreshRate;
 };
 
 } // namespace android
