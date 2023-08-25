@@ -121,7 +121,7 @@ public:
 
 protected:
     // These members are protected so they can be instrumented by test cases.
-    virtual std::shared_ptr<InputDevice> createDeviceLocked(int32_t deviceId,
+    virtual std::shared_ptr<InputDevice> createDeviceLocked(nsecs_t when, int32_t deviceId,
                                                             const InputDeviceIdentifier& identifier)
             REQUIRES(mLock);
 
