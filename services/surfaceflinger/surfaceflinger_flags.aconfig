@@ -1,0 +1,9 @@
+package: "com.android.graphics.surfaceflinger.flags"
+
+flag {
+  name: "misc1"
+  namespace: "core_graphics"
+  description: "This flag controls minor miscellaneous SurfaceFlinger changes"
+  bug: "297389311"
+  is_fixed_read_only: true
+}

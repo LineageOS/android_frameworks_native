@@ -161,6 +161,8 @@
 #include <aidl/android/hardware/graphics/composer3/DisplayCapability.h>
 #include <aidl/android/hardware/graphics/composer3/RenderIntent.h>
 
+#include <com_android_graphics_surfaceflinger_flags.h>
+
 #undef NO_THREAD_SAFETY_ANALYSIS
 #define NO_THREAD_SAFETY_ANALYSIS \
     _Pragma("GCC error \"Prefer <ftl/fake_guard.h> or MutexUtils.h helpers.\"")
@@ -170,6 +172,7 @@
 #define DOES_CONTAIN_BORDER false
 
 namespace android {
+using namespace com::android::graphics::surfaceflinger;
 
 using namespace std::chrono_literals;
 using namespace std::string_literals;
@@ -490,6 +493,8 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
             base::GetBoolProperty("persist.debug.sf.enable_layer_lifecycle_manager"s, true);
     mLegacyFrontEndEnabled = !mLayerLifecycleManagerEnabled ||
             base::GetBoolProperty("persist.debug.sf.enable_legacy_frontend"s, false);
+
+    mMiscFlagValue = flags::misc1();
 }
 
 LatchUnsignaledConfig SurfaceFlinger::getLatchUnsignaledConfig() {
@@ -731,6 +736,8 @@ void SurfaceFlinger::bootFinished() {
             enableRefreshRateOverlay(true);
         }
     }));
+
+    LOG_ALWAYS_FATAL_IF(flags::misc1() != mMiscFlagValue, "misc1 flag is not boot stable!");
 }
 
 static std::optional<renderengine::RenderEngine::RenderEngineType>
@@ -5912,6 +5919,7 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args, bool asProto) {
             }
         }
     }
+
     write(fd, result.c_str(), result.size());
     return NO_ERROR;
 }
@@ -6332,6 +6340,8 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, const std::string& comp
     colorizer.bold(result);
     result.append("SurfaceFlinger global state:\n");
     colorizer.reset(result);
+
+    StringAppendF(&result, "MiscFlagValue: %s\n", mMiscFlagValue ? "true" : "false");
 
     getRenderEngine().dump(result);
 
