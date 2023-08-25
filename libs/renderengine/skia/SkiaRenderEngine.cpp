@@ -709,9 +709,7 @@ void SkiaRenderEngine::drawLayersInternal(
     SkCanvas* canvas = dstCanvas;
     SkiaCapture::OffscreenState offscreenCaptureState;
     const LayerSettings* blurCompositionLayer = nullptr;
-
-    // TODO (b/270314344): Enable blurs in protected context.
-    if (mBlurFilter && !mInProtectedContext) {
+    if (mBlurFilter) {
         bool requiresCompositionLayer = false;
         for (const auto& layer : layers) {
             // if the layer doesn't have blur or it is not visible then continue
@@ -805,8 +803,7 @@ void SkiaRenderEngine::drawLayersInternal(
         const auto [bounds, roundRectClip] =
                 getBoundsAndClip(layer.geometry.boundaries, layer.geometry.roundedCornersCrop,
                                  layer.geometry.roundedCornersRadius);
-        // TODO (b/270314344): Enable blurs in protected context.
-        if (mBlurFilter && layerHasBlur(layer, ctModifiesAlpha) && !mInProtectedContext) {
+        if (mBlurFilter && layerHasBlur(layer, ctModifiesAlpha)) {
             std::unordered_map<uint32_t, sk_sp<SkImage>> cachedBlurs;
 
             // if multiple layers have blur, then we need to take a snapshot now because
