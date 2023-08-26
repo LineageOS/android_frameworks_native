@@ -532,7 +532,8 @@ android::PixelFormat GetNativePixelFormat(VkFormat format) {
     return native_format;
 }
 
-android_dataspace GetNativeDataspace(VkColorSpaceKHR colorspace) {
+android_dataspace GetNativeDataspace(VkColorSpaceKHR colorspace,
+                                     android::PixelFormat pixelFormat) {
     switch (colorspace) {
         case VK_COLOR_SPACE_SRGB_NONLINEAR_KHR:
             return HAL_DATASPACE_V0_SRGB;
@@ -551,7 +552,14 @@ android_dataspace GetNativeDataspace(VkColorSpaceKHR colorspace) {
         case VK_COLOR_SPACE_BT709_NONLINEAR_EXT:
             return HAL_DATASPACE_V0_SRGB;
         case VK_COLOR_SPACE_BT2020_LINEAR_EXT:
-            return HAL_DATASPACE_BT2020_LINEAR;
+            if (pixelFormat == HAL_PIXEL_FORMAT_RGBA_FP16) {
+                return static_cast<android_dataspace>(
+                    HAL_DATASPACE_STANDARD_BT2020 |
+                    HAL_DATASPACE_TRANSFER_LINEAR |
+                    HAL_DATASPACE_RANGE_EXTENDED);
+            } else {
+                return HAL_DATASPACE_BT2020_LINEAR;
+            }
         case VK_COLOR_SPACE_HDR10_ST2084_EXT:
             return static_cast<android_dataspace>(
                 HAL_DATASPACE_STANDARD_BT2020 | HAL_DATASPACE_TRANSFER_ST2084 |
@@ -561,9 +569,7 @@ android_dataspace GetNativeDataspace(VkColorSpaceKHR colorspace) {
                 HAL_DATASPACE_STANDARD_BT2020 | HAL_DATASPACE_TRANSFER_ST2084 |
                 HAL_DATASPACE_RANGE_FULL);
         case VK_COLOR_SPACE_HDR10_HLG_EXT:
-            return static_cast<android_dataspace>(
-                HAL_DATASPACE_STANDARD_BT2020 | HAL_DATASPACE_TRANSFER_HLG |
-                HAL_DATASPACE_RANGE_FULL);
+            return static_cast<android_dataspace>(HAL_DATASPACE_BT2020_HLG);
         case VK_COLOR_SPACE_ADOBERGB_LINEAR_EXT:
             return static_cast<android_dataspace>(
                 HAL_DATASPACE_STANDARD_ADOBE_RGB |
@@ -1364,7 +1370,7 @@ VkResult CreateSwapchainKHR(VkDevice device,
     android::PixelFormat native_pixel_format =
         GetNativePixelFormat(create_info->imageFormat);
     android_dataspace native_dataspace =
-        GetNativeDataspace(create_info->imageColorSpace);
+        GetNativeDataspace(create_info->imageColorSpace, native_pixel_format);
     if (native_dataspace == HAL_DATASPACE_UNKNOWN) {
         ALOGE(
             "CreateSwapchainKHR(VkSwapchainCreateInfoKHR.imageColorSpace = %d) "
