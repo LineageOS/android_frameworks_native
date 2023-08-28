@@ -292,7 +292,7 @@ private:
 
     // MessageQueue overrides:
     void scheduleFrame() override {}
-    void postMessage(sp<MessageHandler>&&) override {}
+    void postMessage(sp<MessageHandler>&& handler) override { handler->handleMessage(Message()); }
 };
 
 } // namespace scheduler
