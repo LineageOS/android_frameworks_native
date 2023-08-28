@@ -67,7 +67,7 @@ static void startDisplayService() {
     using android::frameworks::displayservice::V1_0::implementation::DisplayService;
     using android::frameworks::displayservice::V1_0::IDisplayService;
 
-    sp<IDisplayService> displayservice = new DisplayService();
+    sp<IDisplayService> displayservice = sp<DisplayService>::make();
     status_t err = displayservice->registerAsService();
 
     // b/141930622
@@ -91,7 +91,7 @@ int main(int, char**) {
     // Set uclamp.min setting on all threads, maybe an overkill but we want
     // to cover important threads like RenderEngine.
     if (SurfaceFlinger::setSchedAttr(true) != NO_ERROR) {
-        ALOGW("Couldn't set uclamp.min: %s\n", strerror(errno));
+        ALOGW("Failed to set uclamp.min during boot: %s", strerror(errno));
     }
 
     // The binder threadpool we start will inherit sched policy and priority
@@ -148,14 +148,14 @@ int main(int, char**) {
                    IServiceManager::DUMP_FLAG_PRIORITY_CRITICAL | IServiceManager::DUMP_FLAG_PROTO);
 
     // publish gui::ISurfaceComposer, the new AIDL interface
-    sp<SurfaceComposerAIDL> composerAIDL = new SurfaceComposerAIDL(flinger);
+    sp<SurfaceComposerAIDL> composerAIDL = sp<SurfaceComposerAIDL>::make(flinger);
     sm->addService(String16("SurfaceFlingerAIDL"), composerAIDL, false,
                    IServiceManager::DUMP_FLAG_PRIORITY_CRITICAL | IServiceManager::DUMP_FLAG_PROTO);
 
     startDisplayService(); // dependency on SF getting registered above
 
     if (SurfaceFlinger::setSchedFifo(true) != NO_ERROR) {
-        ALOGW("Couldn't set to SCHED_FIFO: %s", strerror(errno));
+        ALOGW("Failed to set SCHED_FIFO during boot: %s", strerror(errno));
     }
 
     // run surface flinger in this thread

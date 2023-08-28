@@ -51,16 +51,14 @@ public:
     size_t getMaxTextureSize() const override;
     size_t getMaxViewportDims() const override;
 
-    bool isProtected() const override;
     bool supportsProtectedContent() const override;
-    void useProtectedContext(bool useProtectedContext) override;
     void cleanupPostRender() override;
 
-    std::future<RenderEngineResult> drawLayers(const DisplaySettings& display,
-                                               const std::vector<LayerSettings>& layers,
-                                               const std::shared_ptr<ExternalTexture>& buffer,
-                                               const bool useFramebufferCache,
-                                               base::unique_fd&& bufferFence) override;
+    ftl::Future<FenceResult> drawLayers(const DisplaySettings& display,
+                                        const std::vector<LayerSettings>& layers,
+                                        const std::shared_ptr<ExternalTexture>& buffer,
+                                        const bool useFramebufferCache,
+                                        base::unique_fd&& bufferFence) override;
 
     void cleanFramebufferCache() override;
     int getContextPriority() override;
@@ -71,9 +69,9 @@ public:
 
 protected:
     void mapExternalTextureBuffer(const sp<GraphicBuffer>& buffer, bool isRenderable) override;
-    void unmapExternalTextureBuffer(const sp<GraphicBuffer>& buffer) override;
+    void unmapExternalTextureBuffer(sp<GraphicBuffer>&& buffer) override;
     bool canSkipPostRenderCleanup() const override;
-    void drawLayersInternal(const std::shared_ptr<std::promise<RenderEngineResult>>&& resultPromise,
+    void drawLayersInternal(const std::shared_ptr<std::promise<FenceResult>>&& resultPromise,
                             const DisplaySettings& display,
                             const std::vector<LayerSettings>& layers,
                             const std::shared_ptr<ExternalTexture>& buffer,
@@ -83,6 +81,9 @@ private:
     void threadMain(CreateInstanceFactory factory);
     void waitUntilInitialized() const;
     static status_t setSchedFifo(bool enabled);
+
+    // No-op. This method is only called on leaf implementations of RenderEngine.
+    void useProtectedContext(bool) override {}
 
     /* ------------------------------------------------------------------------
      * Threading
@@ -107,7 +108,6 @@ private:
      * Render Engine
      */
     std::unique_ptr<renderengine::RenderEngine> mRenderEngine;
-    std::atomic<bool> mIsProtected = false;
 };
 } // namespace threaded
 } // namespace renderengine

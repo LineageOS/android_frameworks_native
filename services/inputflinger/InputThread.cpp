@@ -41,7 +41,7 @@ private:
 
 InputThread::InputThread(std::string name, std::function<void()> loop, std::function<void()> wake)
       : mName(name), mThreadWake(wake) {
-    mThread = new InputThreadImpl(loop);
+    mThread = sp<InputThreadImpl>::make(loop);
     mThread->run(mName.c_str(), ANDROID_PRIORITY_URGENT_DISPLAY);
 }
 
@@ -54,7 +54,13 @@ InputThread::~InputThread() {
 }
 
 bool InputThread::isCallingThread() {
+#if defined(__ANDROID__)
     return gettid() == mThread->getTid();
+#else
+    // Assume that the caller is doing everything correctly,
+    // since thread information is not available on host
+    return false;
+#endif
 }
 
 } // namespace android

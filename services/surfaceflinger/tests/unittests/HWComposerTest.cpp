@@ -52,6 +52,7 @@ namespace aidl = aidl::android::hardware::graphics::composer3;
 
 using Hwc2::Config;
 
+using ::aidl::android::hardware::graphics::composer3::RefreshRateChangedDebugData;
 using ::testing::_;
 using ::testing::DoAll;
 using ::testing::ElementsAreArray;
@@ -59,27 +60,91 @@ using ::testing::Return;
 using ::testing::SetArgPointee;
 using ::testing::StrictMock;
 
-TEST(HWComposerTest, isHeadless) {
-    Hwc2::mock::Composer* mHal = new StrictMock<Hwc2::mock::Composer>();
-    impl::HWComposer hwc{std::unique_ptr<Hwc2::Composer>(mHal)};
-    ASSERT_TRUE(hwc.isHeadless());
+struct HWComposerTest : testing::Test {
+    using HalError = hardware::graphics::composer::V2_1::Error;
 
-    const hal::HWDisplayId hwcId = 1;
+    Hwc2::mock::Composer* const mHal = new StrictMock<Hwc2::mock::Composer>();
+    impl::HWComposer mHwc{std::unique_ptr<Hwc2::Composer>(mHal)};
 
-    EXPECT_CALL(*mHal, getDisplayIdentificationData(_, _, _))
-            .WillOnce(DoAll(SetArgPointee<2>(getExternalEdid()),
-                            Return(hardware::graphics::composer::V2_1::Error::NONE)));
+    void expectHotplugConnect(hal::HWDisplayId hwcDisplayId) {
+        constexpr uint8_t kPort = 255;
+        EXPECT_CALL(*mHal, getDisplayIdentificationData(hwcDisplayId, _, _))
+                .WillOnce(DoAll(SetArgPointee<1>(kPort),
+                                SetArgPointee<2>(getExternalEdid()), Return(HalError::NONE)));
 
-    EXPECT_CALL(*mHal, setVsyncEnabled(_, _));
-    EXPECT_CALL(*mHal, setClientTargetSlotCount(_));
+        EXPECT_CALL(*mHal, setClientTargetSlotCount(_));
+        EXPECT_CALL(*mHal, setVsyncEnabled(hwcDisplayId, Hwc2::IComposerClient::Vsync::DISABLE));
+        EXPECT_CALL(*mHal, onHotplugConnect(hwcDisplayId));
+    }
+};
 
-    auto info = hwc.onHotplug(hwcId, hal::Connection::CONNECTED);
+TEST_F(HWComposerTest, isHeadless) {
+    ASSERT_TRUE(mHwc.isHeadless());
+
+    constexpr hal::HWDisplayId kHwcDisplayId = 1;
+    expectHotplugConnect(kHwcDisplayId);
+
+    const auto info = mHwc.onHotplug(kHwcDisplayId, hal::Connection::CONNECTED);
     ASSERT_TRUE(info);
-    auto displayId = info->id;
-    ASSERT_FALSE(hwc.isHeadless());
 
-    hwc.disconnectDisplay(displayId);
-    ASSERT_TRUE(hwc.isHeadless());
+    ASSERT_FALSE(mHwc.isHeadless());
+
+    mHwc.disconnectDisplay(info->id);
+    ASSERT_TRUE(mHwc.isHeadless());
+}
+
+TEST_F(HWComposerTest, getActiveMode) {
+    // Unknown display.
+    EXPECT_EQ(mHwc.getActiveMode(PhysicalDisplayId::fromPort(0)), std::nullopt);
+
+    constexpr hal::HWDisplayId kHwcDisplayId = 2;
+    expectHotplugConnect(kHwcDisplayId);
+
+    const auto info = mHwc.onHotplug(kHwcDisplayId, hal::Connection::CONNECTED);
+    ASSERT_TRUE(info);
+
+    {
+        // Display is known to SF but not HWC, e.g. the hotplug disconnect is pending.
+        EXPECT_CALL(*mHal, getActiveConfig(kHwcDisplayId, _))
+                .WillOnce(Return(HalError::BAD_DISPLAY));
+
+        EXPECT_EQ(mHwc.getActiveMode(info->id), std::nullopt);
+    }
+    {
+        constexpr hal::HWConfigId kConfigId = 42;
+        EXPECT_CALL(*mHal, getActiveConfig(kHwcDisplayId, _))
+                .WillOnce(DoAll(SetArgPointee<1>(kConfigId), Return(HalError::NONE)));
+
+        EXPECT_EQ(mHwc.getActiveMode(info->id), kConfigId);
+    }
+}
+
+TEST_F(HWComposerTest, onVsync) {
+    constexpr hal::HWDisplayId kHwcDisplayId = 1;
+    expectHotplugConnect(kHwcDisplayId);
+
+    const auto info = mHwc.onHotplug(kHwcDisplayId, hal::Connection::CONNECTED);
+    ASSERT_TRUE(info);
+
+    const auto physicalDisplayId = info->id;
+
+    // Deliberately chosen not to match DisplayData.lastPresentTimestamp's
+    // initial value.
+    constexpr nsecs_t kTimestamp = 1;
+    auto displayIdOpt = mHwc.onVsync(kHwcDisplayId, kTimestamp);
+    ASSERT_TRUE(displayIdOpt);
+    EXPECT_EQ(physicalDisplayId, displayIdOpt);
+
+    // Attempt to send the same time stamp again.
+    displayIdOpt = mHwc.onVsync(kHwcDisplayId, kTimestamp);
+    EXPECT_FALSE(displayIdOpt);
+}
+
+TEST_F(HWComposerTest, onVsyncInvalid) {
+    constexpr hal::HWDisplayId kInvalidHwcDisplayId = 2;
+    constexpr nsecs_t kTimestamp = 1;
+    const auto displayIdOpt = mHwc.onVsync(kInvalidHwcDisplayId, kTimestamp);
+    EXPECT_FALSE(displayIdOpt);
 }
 
 struct MockHWC2ComposerCallback final : StrictMock<HWC2::ComposerCallback> {
@@ -91,10 +156,10 @@ struct MockHWC2ComposerCallback final : StrictMock<HWC2::ComposerCallback> {
                  void(hal::HWDisplayId, const hal::VsyncPeriodChangeTimeline&));
     MOCK_METHOD1(onComposerHalSeamlessPossible, void(hal::HWDisplayId));
     MOCK_METHOD1(onComposerHalVsyncIdle, void(hal::HWDisplayId));
+    MOCK_METHOD(void, onRefreshRateChangedDebug, (const RefreshRateChangedDebugData&), (override));
 };
 
-struct HWComposerSetCallbackTest : testing::Test {
-    Hwc2::mock::Composer* mHal = new StrictMock<Hwc2::mock::Composer>();
+struct HWComposerSetCallbackTest : HWComposerTest {
     MockHWC2ComposerCallback mCallback;
 };
 
@@ -111,12 +176,14 @@ TEST_F(HWComposerSetCallbackTest, loadsLayerMetadataSupport) {
                                     {kMetadata2Name, kMetadata2Mandatory},
                             }),
                             Return(hardware::graphics::composer::V2_4::Error::NONE)));
+    EXPECT_CALL(*mHal, getOverlaySupport(_)).WillOnce(Return(HalError::NONE));
+    EXPECT_CALL(*mHal, getHdrConversionCapabilities(_)).WillOnce(Return(HalError::NONE));
+
     EXPECT_CALL(*mHal, registerCallback(_));
 
-    impl::HWComposer hwc{std::unique_ptr<Hwc2::Composer>(mHal)};
-    hwc.setCallback(mCallback);
+    mHwc.setCallback(mCallback);
 
-    const auto& supported = hwc.getSupportedLayerGenericMetadata();
+    const auto& supported = mHwc.getSupportedLayerGenericMetadata();
     EXPECT_EQ(2u, supported.size());
     EXPECT_EQ(1u, supported.count(kMetadata1Name));
     EXPECT_EQ(kMetadata1Mandatory, supported.find(kMetadata1Name)->second);
@@ -128,13 +195,14 @@ TEST_F(HWComposerSetCallbackTest, handlesUnsupportedCallToGetLayerGenericMetadat
     EXPECT_CALL(*mHal, getCapabilities()).WillOnce(Return(std::vector<aidl::Capability>{}));
     EXPECT_CALL(*mHal, getLayerGenericMetadataKeys(_))
             .WillOnce(Return(hardware::graphics::composer::V2_4::Error::UNSUPPORTED));
+    EXPECT_CALL(*mHal, getOverlaySupport(_)).WillOnce(Return(HalError::UNSUPPORTED));
+    EXPECT_CALL(*mHal, getHdrConversionCapabilities(_)).WillOnce(Return(HalError::UNSUPPORTED));
     EXPECT_CALL(*mHal, registerCallback(_));
 
-    impl::HWComposer hwc{std::unique_ptr<Hwc2::Composer>(mHal)};
-    hwc.setCallback(mCallback);
+    mHwc.setCallback(mCallback);
 
-    const auto& supported = hwc.getSupportedLayerGenericMetadata();
-    EXPECT_EQ(0u, supported.size());
+    const auto& supported = mHwc.getSupportedLayerGenericMetadata();
+    EXPECT_TRUE(supported.empty());
 }
 
 struct HWComposerLayerTest : public testing::Test {

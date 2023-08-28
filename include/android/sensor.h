@@ -45,6 +45,11 @@
  *   - DO NOT CHANGE THE LAYOUT OR SIZE OF STRUCTURES
  */
 
+// This file is included by modules that have host support but android/looper.h is not supported
+// on host. __REMOVED_IN needs to be defined in order for android/looper.h to be compiled.
+#ifndef __BIONIC__
+#define __REMOVED_IN(x) __attribute__((deprecated))
+#endif
 #include <android/looper.h>
 
 #include <stdbool.h>
@@ -606,10 +611,14 @@ typedef struct AHeadingEvent {
  * sensors_event_t
  */
 typedef struct ASensorEvent {
-    int32_t version; /* sizeof(struct ASensorEvent) */
-    int32_t sensor;  /** The sensor that generates this event */
-    int32_t type;    /** Sensor type for the event, such as {@link ASENSOR_TYPE_ACCELEROMETER} */
-    int32_t reserved0; /** do not use */
+    /* sizeof(struct ASensorEvent) */
+    int32_t version;
+    /** The sensor that generates this event */
+    int32_t sensor;
+    /** Sensor type for the event, such as {@link ASENSOR_TYPE_ACCELEROMETER} */
+    int32_t type;
+    /** do not use */
+    int32_t reserved0;
     /**
      * The time in nanoseconds at which the event happened, and its behavior
      * is identical to <a href="/reference/android/hardware/SensorEvent#timestamp">

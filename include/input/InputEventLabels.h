@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _LIBINPUT_INPUT_EVENT_LABELS_H
-#define _LIBINPUT_INPUT_EVENT_LABELS_H
+#pragma once
 
 #include <input/Input.h>
 #include <android/keycodes.h>
@@ -31,27 +30,35 @@ struct InputEventLabel {
     int value;
 };
 
+struct EvdevEventLabel {
+    std::string type;
+    std::string code;
+    std::string value;
+};
+
 //   NOTE: If you want a new key code, axis code, led code or flag code in keylayout file,
 //   then you must add it to InputEventLabels.cpp.
 
 class InputEventLookup {
 public:
-    static int lookupValueByLabel(const std::unordered_map<std::string, int>& map,
-                                  const char* literal);
+    static std::optional<int> lookupValueByLabel(const std::unordered_map<std::string, int>& map,
+                                                 const char* literal);
 
     static const char* lookupLabelByValue(const std::vector<InputEventLabel>& vec, int value);
 
-    static int32_t getKeyCodeByLabel(const char* label);
+    static std::optional<int> getKeyCodeByLabel(const char* label);
 
     static const char* getLabelByKeyCode(int32_t keyCode);
 
-    static uint32_t getKeyFlagByLabel(const char* label);
+    static std::optional<int> getKeyFlagByLabel(const char* label);
 
-    static int32_t getAxisByLabel(const char* label);
+    static std::optional<int> getAxisByLabel(const char* label);
 
     static const char* getAxisLabel(int32_t axisId);
 
-    static int32_t getLedByLabel(const char* label);
+    static std::optional<int> getLedByLabel(const char* label);
+
+    static EvdevEventLabel getLinuxEvdevLabel(int32_t type, int32_t code, int32_t value);
 
 private:
     static const std::unordered_map<std::string, int> KEYCODES;
@@ -68,4 +75,3 @@ private:
 };
 
 } // namespace android
-#endif // _LIBINPUT_INPUT_EVENT_LABELS_H

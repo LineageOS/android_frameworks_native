@@ -23,17 +23,20 @@
 
 namespace android {
 
-ExternalStylusInputMapper::ExternalStylusInputMapper(InputDeviceContext& deviceContext)
-      : InputMapper(deviceContext) {}
+ExternalStylusInputMapper::ExternalStylusInputMapper(InputDeviceContext& deviceContext,
+                                                     const InputReaderConfiguration& readerConfig)
+      : InputMapper(deviceContext, readerConfig), mTouchButtonAccumulator(deviceContext) {}
 
 uint32_t ExternalStylusInputMapper::getSources() const {
     return AINPUT_SOURCE_STYLUS;
 }
 
-void ExternalStylusInputMapper::populateDeviceInfo(InputDeviceInfo* info) {
+void ExternalStylusInputMapper::populateDeviceInfo(InputDeviceInfo& info) {
     InputMapper::populateDeviceInfo(info);
-    info->addMotionRange(AMOTION_EVENT_AXIS_PRESSURE, AINPUT_SOURCE_STYLUS, 0.0f, 1.0f, 0.0f, 0.0f,
-                         0.0f);
+    if (mRawPressureAxis.valid) {
+        info.addMotionRange(AMOTION_EVENT_AXIS_PRESSURE, AINPUT_SOURCE_STYLUS, 0.0f, 1.0f, 0.0f,
+                            0.0f, 0.0f);
+    }
 }
 
 void ExternalStylusInputMapper::dump(std::string& dump) {
@@ -44,49 +47,52 @@ void ExternalStylusInputMapper::dump(std::string& dump) {
     dumpStylusState(dump, mStylusState);
 }
 
-void ExternalStylusInputMapper::configure(nsecs_t when, const InputReaderConfiguration* config,
-                                          uint32_t changes) {
+std::list<NotifyArgs> ExternalStylusInputMapper::reconfigure(nsecs_t when,
+                                                             const InputReaderConfiguration& config,
+                                                             ConfigurationChanges changes) {
     getAbsoluteAxisInfo(ABS_PRESSURE, &mRawPressureAxis);
-    mTouchButtonAccumulator.configure(getDeviceContext());
+    mTouchButtonAccumulator.configure();
+    return {};
 }
 
-void ExternalStylusInputMapper::reset(nsecs_t when) {
+std::list<NotifyArgs> ExternalStylusInputMapper::reset(nsecs_t when) {
     mSingleTouchMotionAccumulator.reset(getDeviceContext());
-    mTouchButtonAccumulator.reset(getDeviceContext());
-    InputMapper::reset(when);
+    mTouchButtonAccumulator.reset();
+    return InputMapper::reset(when);
 }
 
-void ExternalStylusInputMapper::process(const RawEvent* rawEvent) {
+std::list<NotifyArgs> ExternalStylusInputMapper::process(const RawEvent* rawEvent) {
+    std::list<NotifyArgs> out;
     mSingleTouchMotionAccumulator.process(rawEvent);
     mTouchButtonAccumulator.process(rawEvent);
 
     if (rawEvent->type == EV_SYN && rawEvent->code == SYN_REPORT) {
-        sync(rawEvent->when);
+        out += sync(rawEvent->when);
     }
+    return out;
 }
 
-void ExternalStylusInputMapper::sync(nsecs_t when) {
+std::list<NotifyArgs> ExternalStylusInputMapper::sync(nsecs_t when) {
     mStylusState.clear();
 
     mStylusState.when = when;
 
     mStylusState.toolType = mTouchButtonAccumulator.getToolType();
-    if (mStylusState.toolType == AMOTION_EVENT_TOOL_TYPE_UNKNOWN) {
-        mStylusState.toolType = AMOTION_EVENT_TOOL_TYPE_STYLUS;
+    if (mStylusState.toolType == ToolType::UNKNOWN) {
+        mStylusState.toolType = ToolType::STYLUS;
     }
 
-    int32_t pressure = mSingleTouchMotionAccumulator.getAbsolutePressure();
     if (mRawPressureAxis.valid) {
-        mStylusState.pressure = float(pressure) / mRawPressureAxis.maxValue;
-    } else if (mTouchButtonAccumulator.isToolActive()) {
-        mStylusState.pressure = 1.0f;
-    } else {
-        mStylusState.pressure = 0.0f;
+        auto rawPressure = static_cast<float>(mSingleTouchMotionAccumulator.getAbsolutePressure());
+        mStylusState.pressure = (rawPressure - mRawPressureAxis.minValue) /
+                static_cast<float>(mRawPressureAxis.maxValue - mRawPressureAxis.minValue);
+    } else if (mTouchButtonAccumulator.hasButtonTouch()) {
+        mStylusState.pressure = mTouchButtonAccumulator.isHovering() ? 0.0f : 1.0f;
     }
 
     mStylusState.buttons = mTouchButtonAccumulator.getButtonState();
 
-    getContext()->dispatchExternalStylusState(mStylusState);
+    return getContext()->dispatchExternalStylusState(mStylusState);
 }
 
 } // namespace android

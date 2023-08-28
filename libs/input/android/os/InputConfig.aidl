@@ -144,4 +144,10 @@ enum InputConfig {
      * It is not valid to set this configuration if {@link #TRUSTED_OVERLAY} is not set.
      */
     INTERCEPTS_STYLUS            = 1 << 15,
+
+    /**
+     * The window is a clone of another window. This may be treated differently since there's
+     * likely a duplicate window with the same client token, but different bounds.
+     */
+    CLONE                        = 1 << 16,
 }

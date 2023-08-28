@@ -19,14 +19,35 @@
 #include <cinttypes>
 #include <cmath>
 
+#include <android/gui/ISurfaceComposerClient.h>
 #include <android/native_window.h>
 #include <binder/Parcel.h>
 #include <gui/IGraphicBufferProducer.h>
-#include <gui/ISurfaceComposerClient.h>
 #include <gui/LayerState.h>
+#include <gui/SurfaceControl.h>
 #include <private/gui/ParcelUtils.h>
 #include <system/window.h>
 #include <utils/Errors.h>
+
+#define CHECK_DIFF(DIFF_RESULT, CHANGE_FLAG, OTHER, FIELD)          \
+    {                                                               \
+        if ((OTHER.what & CHANGE_FLAG) && (FIELD != OTHER.FIELD)) { \
+            DIFF_RESULT |= CHANGE_FLAG;                             \
+        }                                                           \
+    }
+
+#define CHECK_DIFF2(DIFF_RESULT, CHANGE_FLAG, OTHER, FIELD1, FIELD2) \
+    {                                                                \
+        CHECK_DIFF(DIFF_RESULT, CHANGE_FLAG, OTHER, FIELD1)          \
+        CHECK_DIFF(DIFF_RESULT, CHANGE_FLAG, OTHER, FIELD2)          \
+    }
+
+#define CHECK_DIFF3(DIFF_RESULT, CHANGE_FLAG, OTHER, FIELD1, FIELD2, FIELD3) \
+    {                                                                        \
+        CHECK_DIFF(DIFF_RESULT, CHANGE_FLAG, OTHER, FIELD1)                  \
+        CHECK_DIFF(DIFF_RESULT, CHANGE_FLAG, OTHER, FIELD2)                  \
+        CHECK_DIFF(DIFF_RESULT, CHANGE_FLAG, OTHER, FIELD3)                  \
+    }
 
 namespace android {
 
@@ -40,22 +61,20 @@ layer_state_t::layer_state_t()
         x(0),
         y(0),
         z(0),
-        w(0),
-        h(0),
-        alpha(0),
         flags(0),
         mask(0),
         reserved(0),
         cornerRadius(0.0f),
         backgroundBlurRadius(0),
-        transform(0),
+        color(0),
+        bufferTransform(0),
         transformToDisplayInverse(false),
         crop(Rect::INVALID_RECT),
         dataspace(ui::Dataspace::UNKNOWN),
         surfaceDamageRegion(),
         api(-1),
         colorTransform(mat4()),
-        bgColorAlpha(0),
+        bgColor(0),
         bgColorDataspace(ui::Dataspace::UNKNOWN),
         colorSpaceAgnostic(false),
         shadowRadius(0.0f),
@@ -63,9 +82,11 @@ layer_state_t::layer_state_t()
         frameRate(0.0f),
         frameRateCompatibility(ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT),
         changeFrameRateStrategy(ANATIVEWINDOW_CHANGE_FRAME_RATE_ONLY_IF_SEAMLESS),
+        defaultFrameRateCompatibility(ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT),
         fixedTransformHint(ui::Transform::ROT_INVALID),
         autoRefresh(false),
         isTrustedOverlay(false),
+        borderEnabled(false),
         bufferCrop(Rect::INVALID_RECT),
         destinationFrame(Rect::INVALID_RECT),
         dropInputMode(gui::DropInputMode::NONE) {
@@ -82,25 +103,27 @@ status_t layer_state_t::write(Parcel& output) const
     SAFE_PARCEL(output.writeFloat, x);
     SAFE_PARCEL(output.writeFloat, y);
     SAFE_PARCEL(output.writeInt32, z);
-    SAFE_PARCEL(output.writeUint32, w);
-    SAFE_PARCEL(output.writeUint32, h);
     SAFE_PARCEL(output.writeUint32, layerStack.id);
-    SAFE_PARCEL(output.writeFloat, alpha);
     SAFE_PARCEL(output.writeUint32, flags);
     SAFE_PARCEL(output.writeUint32, mask);
     SAFE_PARCEL(matrix.write, output);
     SAFE_PARCEL(output.write, crop);
-    SAFE_PARCEL(SurfaceControl::writeNullableToParcel, output, reparentSurfaceControl);
     SAFE_PARCEL(SurfaceControl::writeNullableToParcel, output, relativeLayerSurfaceControl);
     SAFE_PARCEL(SurfaceControl::writeNullableToParcel, output, parentSurfaceControlForChild);
     SAFE_PARCEL(output.writeFloat, color.r);
     SAFE_PARCEL(output.writeFloat, color.g);
     SAFE_PARCEL(output.writeFloat, color.b);
+    SAFE_PARCEL(output.writeFloat, color.a);
     SAFE_PARCEL(windowInfoHandle->writeToParcel, &output);
     SAFE_PARCEL(output.write, transparentRegion);
-    SAFE_PARCEL(output.writeUint32, transform);
+    SAFE_PARCEL(output.writeUint32, bufferTransform);
     SAFE_PARCEL(output.writeBool, transformToDisplayInverse);
-
+    SAFE_PARCEL(output.writeBool, borderEnabled);
+    SAFE_PARCEL(output.writeFloat, borderWidth);
+    SAFE_PARCEL(output.writeFloat, borderColor.r);
+    SAFE_PARCEL(output.writeFloat, borderColor.g);
+    SAFE_PARCEL(output.writeFloat, borderColor.b);
+    SAFE_PARCEL(output.writeFloat, borderColor.a);
     SAFE_PARCEL(output.writeUint32, static_cast<uint32_t>(dataspace));
     SAFE_PARCEL(output.write, hdrMetadata);
     SAFE_PARCEL(output.write, surfaceDamageRegion);
@@ -117,7 +140,10 @@ status_t layer_state_t::write(Parcel& output) const
     SAFE_PARCEL(output.writeFloat, cornerRadius);
     SAFE_PARCEL(output.writeUint32, backgroundBlurRadius);
     SAFE_PARCEL(output.writeParcelable, metadata);
-    SAFE_PARCEL(output.writeFloat, bgColorAlpha);
+    SAFE_PARCEL(output.writeFloat, bgColor.r);
+    SAFE_PARCEL(output.writeFloat, bgColor.g);
+    SAFE_PARCEL(output.writeFloat, bgColor.b);
+    SAFE_PARCEL(output.writeFloat, bgColor.a);
     SAFE_PARCEL(output.writeUint32, static_cast<uint32_t>(bgColorDataspace));
     SAFE_PARCEL(output.writeBool, colorSpaceAgnostic);
     SAFE_PARCEL(output.writeVectorSize, listeners);
@@ -131,6 +157,7 @@ status_t layer_state_t::write(Parcel& output) const
     SAFE_PARCEL(output.writeFloat, frameRate);
     SAFE_PARCEL(output.writeByte, frameRateCompatibility);
     SAFE_PARCEL(output.writeByte, changeFrameRateStrategy);
+    SAFE_PARCEL(output.writeByte, defaultFrameRateCompatibility);
     SAFE_PARCEL(output.writeUint32, fixedTransformHint);
     SAFE_PARCEL(output.writeBool, autoRefresh);
     SAFE_PARCEL(output.writeBool, dimmingEnabled);
@@ -161,6 +188,11 @@ status_t layer_state_t::write(Parcel& output) const
     if (hasBufferData) {
         SAFE_PARCEL(output.writeParcelable, *bufferData);
     }
+    SAFE_PARCEL(output.writeParcelable, trustedPresentationThresholds);
+    SAFE_PARCEL(output.writeParcelable, trustedPresentationListener);
+    SAFE_PARCEL(output.writeFloat, currentHdrSdrRatio);
+    SAFE_PARCEL(output.writeFloat, desiredHdrSdrRatio);
+    SAFE_PARCEL(output.writeInt32, static_cast<int32_t>(cachingHint))
     return NO_ERROR;
 }
 
@@ -172,10 +204,7 @@ status_t layer_state_t::read(const Parcel& input)
     SAFE_PARCEL(input.readFloat, &x);
     SAFE_PARCEL(input.readFloat, &y);
     SAFE_PARCEL(input.readInt32, &z);
-    SAFE_PARCEL(input.readUint32, &w);
-    SAFE_PARCEL(input.readUint32, &h);
     SAFE_PARCEL(input.readUint32, &layerStack.id);
-    SAFE_PARCEL(input.readFloat, &alpha);
 
     SAFE_PARCEL(input.readUint32, &flags);
 
@@ -183,7 +212,6 @@ status_t layer_state_t::read(const Parcel& input)
 
     SAFE_PARCEL(matrix.read, input);
     SAFE_PARCEL(input.read, crop);
-    SAFE_PARCEL(SurfaceControl::readNullableFromParcel, input, &reparentSurfaceControl);
 
     SAFE_PARCEL(SurfaceControl::readNullableFromParcel, input, &relativeLayerSurfaceControl);
     SAFE_PARCEL(SurfaceControl::readNullableFromParcel, input, &parentSurfaceControlForChild);
@@ -195,11 +223,25 @@ status_t layer_state_t::read(const Parcel& input)
     color.g = tmpFloat;
     SAFE_PARCEL(input.readFloat, &tmpFloat);
     color.b = tmpFloat;
+    SAFE_PARCEL(input.readFloat, &tmpFloat);
+    color.a = tmpFloat;
+
     SAFE_PARCEL(windowInfoHandle->readFromParcel, &input);
 
     SAFE_PARCEL(input.read, transparentRegion);
-    SAFE_PARCEL(input.readUint32, &transform);
+    SAFE_PARCEL(input.readUint32, &bufferTransform);
     SAFE_PARCEL(input.readBool, &transformToDisplayInverse);
+    SAFE_PARCEL(input.readBool, &borderEnabled);
+    SAFE_PARCEL(input.readFloat, &tmpFloat);
+    borderWidth = tmpFloat;
+    SAFE_PARCEL(input.readFloat, &tmpFloat);
+    borderColor.r = tmpFloat;
+    SAFE_PARCEL(input.readFloat, &tmpFloat);
+    borderColor.g = tmpFloat;
+    SAFE_PARCEL(input.readFloat, &tmpFloat);
+    borderColor.b = tmpFloat;
+    SAFE_PARCEL(input.readFloat, &tmpFloat);
+    borderColor.a = tmpFloat;
 
     uint32_t tmpUint32 = 0;
     SAFE_PARCEL(input.readUint32, &tmpUint32);
@@ -220,7 +262,14 @@ status_t layer_state_t::read(const Parcel& input)
     SAFE_PARCEL(input.readUint32, &backgroundBlurRadius);
     SAFE_PARCEL(input.readParcelable, &metadata);
 
-    SAFE_PARCEL(input.readFloat, &bgColorAlpha);
+    SAFE_PARCEL(input.readFloat, &tmpFloat);
+    bgColor.r = tmpFloat;
+    SAFE_PARCEL(input.readFloat, &tmpFloat);
+    bgColor.g = tmpFloat;
+    SAFE_PARCEL(input.readFloat, &tmpFloat);
+    bgColor.b = tmpFloat;
+    SAFE_PARCEL(input.readFloat, &tmpFloat);
+    bgColor.a = tmpFloat;
     SAFE_PARCEL(input.readUint32, &tmpUint32);
     bgColorDataspace = static_cast<ui::Dataspace>(tmpUint32);
     SAFE_PARCEL(input.readBool, &colorSpaceAgnostic);
@@ -240,6 +289,7 @@ status_t layer_state_t::read(const Parcel& input)
     SAFE_PARCEL(input.readFloat, &frameRate);
     SAFE_PARCEL(input.readByte, &frameRateCompatibility);
     SAFE_PARCEL(input.readByte, &changeFrameRateStrategy);
+    SAFE_PARCEL(input.readByte, &defaultFrameRateCompatibility);
     SAFE_PARCEL(input.readUint32, &tmpUint32);
     fixedTransformHint = static_cast<ui::Transform::RotationFlags>(tmpUint32);
     SAFE_PARCEL(input.readBool, &autoRefresh);
@@ -280,6 +330,19 @@ status_t layer_state_t::read(const Parcel& input)
     } else {
         bufferData = nullptr;
     }
+
+    SAFE_PARCEL(input.readParcelable, &trustedPresentationThresholds);
+    SAFE_PARCEL(input.readParcelable, &trustedPresentationListener);
+
+    SAFE_PARCEL(input.readFloat, &tmpFloat);
+    currentHdrSdrRatio = tmpFloat;
+    SAFE_PARCEL(input.readFloat, &tmpFloat);
+    desiredHdrSdrRatio = tmpFloat;
+
+    int32_t tmpInt32;
+    SAFE_PARCEL(input.readInt32, &tmpInt32);
+    cachingHint = static_cast<gui::CachingHint>(tmpInt32);
+
     return NO_ERROR;
 }
 
@@ -458,14 +521,9 @@ void layer_state_t::merge(const layer_state_t& other) {
         what &= ~eRelativeLayerChanged;
         z = other.z;
     }
-    if (other.what & eSizeChanged) {
-        what |= eSizeChanged;
-        w = other.w;
-        h = other.h;
-    }
     if (other.what & eAlphaChanged) {
         what |= eAlphaChanged;
-        alpha = other.alpha;
+        color.a = other.color.a;
     }
     if (other.what & eMatrixChanged) {
         what |= eMatrixChanged;
@@ -507,12 +565,9 @@ void layer_state_t::merge(const layer_state_t& other) {
         what |= eReparent;
         parentSurfaceControlForChild = other.parentSurfaceControlForChild;
     }
-    if (other.what & eDestroySurface) {
-        what |= eDestroySurface;
-    }
-    if (other.what & eTransformChanged) {
-        what |= eTransformChanged;
-        transform = other.transform;
+    if (other.what & eBufferTransformChanged) {
+        what |= eBufferTransformChanged;
+        bufferTransform = other.bufferTransform;
     }
     if (other.what & eTransformToDisplayInverseChanged) {
         what |= eTransformToDisplayInverseChanged;
@@ -526,9 +581,23 @@ void layer_state_t::merge(const layer_state_t& other) {
         what |= eBufferChanged;
         bufferData = other.bufferData;
     }
+    if (other.what & eTrustedPresentationInfoChanged) {
+        what |= eTrustedPresentationInfoChanged;
+        trustedPresentationListener = other.trustedPresentationListener;
+        trustedPresentationThresholds = other.trustedPresentationThresholds;
+    }
     if (other.what & eDataspaceChanged) {
         what |= eDataspaceChanged;
         dataspace = other.dataspace;
+    }
+    if (other.what & eExtendedRangeBrightnessChanged) {
+        what |= eExtendedRangeBrightnessChanged;
+        desiredHdrSdrRatio = other.desiredHdrSdrRatio;
+        currentHdrSdrRatio = other.currentHdrSdrRatio;
+    }
+    if (other.what & eCachingHintChanged) {
+        what |= eCachingHintChanged;
+        cachingHint = other.cachingHint;
     }
     if (other.what & eHdrMetadataChanged) {
         what |= eHdrMetadataChanged;
@@ -559,8 +628,7 @@ void layer_state_t::merge(const layer_state_t& other) {
     }
     if (other.what & eBackgroundColorChanged) {
         what |= eBackgroundColorChanged;
-        color = other.color;
-        bgColorAlpha = other.bgColorAlpha;
+        bgColor = other.bgColor;
         bgColorDataspace = other.bgColorDataspace;
     }
     if (other.what & eMetadataChanged) {
@@ -570,6 +638,16 @@ void layer_state_t::merge(const layer_state_t& other) {
     if (other.what & eShadowRadiusChanged) {
         what |= eShadowRadiusChanged;
         shadowRadius = other.shadowRadius;
+    }
+    if (other.what & eRenderBorderChanged) {
+        what |= eRenderBorderChanged;
+        borderEnabled = other.borderEnabled;
+        borderWidth = other.borderWidth;
+        borderColor = other.borderColor;
+    }
+    if (other.what & eDefaultFrameRateCompatibilityChanged) {
+        what |= eDefaultFrameRateCompatibilityChanged;
+        defaultFrameRateCompatibility = other.defaultFrameRateCompatibility;
     }
     if (other.what & eFrameRateSelectionPriority) {
         what |= eFrameRateSelectionPriority;
@@ -614,7 +692,7 @@ void layer_state_t::merge(const layer_state_t& other) {
     }
     if (other.what & eColorChanged) {
         what |= eColorChanged;
-        color = other.color;
+        color.rgb = other.color.rgb;
     }
     if (other.what & eColorSpaceAgnosticChanged) {
         what |= eColorSpaceAgnosticChanged;
@@ -624,6 +702,9 @@ void layer_state_t::merge(const layer_state_t& other) {
         what |= eDimmingEnabledChanged;
         dimmingEnabled = other.dimmingEnabled;
     }
+    if (other.what & eFlushJankData) {
+        what |= eFlushJankData;
+    }
     if ((other.what & what) != other.what) {
         ALOGE("Unmerged SurfaceComposer Transaction properties. LayerState::merge needs updating? "
               "other.what=0x%" PRIX64 " what=0x%" PRIX64 " unmerged flags=0x%" PRIX64,
@@ -631,12 +712,83 @@ void layer_state_t::merge(const layer_state_t& other) {
     }
 }
 
+uint64_t layer_state_t::diff(const layer_state_t& other) const {
+    uint64_t diff = 0;
+    CHECK_DIFF2(diff, ePositionChanged, other, x, y);
+    if (other.what & eLayerChanged) {
+        diff |= eLayerChanged;
+        diff &= ~eRelativeLayerChanged;
+    }
+    CHECK_DIFF(diff, eAlphaChanged, other, color.a);
+    CHECK_DIFF(diff, eMatrixChanged, other, matrix);
+    if (other.what & eTransparentRegionChanged &&
+        (!transparentRegion.hasSameRects(other.transparentRegion))) {
+        diff |= eTransparentRegionChanged;
+    }
+    if (other.what & eFlagsChanged) {
+        uint64_t changedFlags = (flags & other.mask) ^ (other.flags & other.mask);
+        if (changedFlags) diff |= eFlagsChanged;
+    }
+    CHECK_DIFF(diff, eLayerStackChanged, other, layerStack);
+    CHECK_DIFF(diff, eCornerRadiusChanged, other, cornerRadius);
+    CHECK_DIFF(diff, eBackgroundBlurRadiusChanged, other, backgroundBlurRadius);
+    if (other.what & eBlurRegionsChanged) diff |= eBlurRegionsChanged;
+    if (other.what & eRelativeLayerChanged) {
+        diff |= eRelativeLayerChanged;
+        diff &= ~eLayerChanged;
+    }
+    if (other.what & eReparent &&
+        !SurfaceControl::isSameSurface(parentSurfaceControlForChild,
+                                       other.parentSurfaceControlForChild)) {
+        diff |= eReparent;
+    }
+    CHECK_DIFF(diff, eBufferTransformChanged, other, bufferTransform);
+    CHECK_DIFF(diff, eTransformToDisplayInverseChanged, other, transformToDisplayInverse);
+    CHECK_DIFF(diff, eCropChanged, other, crop);
+    if (other.what & eBufferChanged) diff |= eBufferChanged;
+    CHECK_DIFF(diff, eDataspaceChanged, other, dataspace);
+    CHECK_DIFF2(diff, eExtendedRangeBrightnessChanged, other, currentHdrSdrRatio,
+                desiredHdrSdrRatio);
+    CHECK_DIFF(diff, eCachingHintChanged, other, cachingHint);
+    CHECK_DIFF(diff, eHdrMetadataChanged, other, hdrMetadata);
+    if (other.what & eSurfaceDamageRegionChanged &&
+        (!surfaceDamageRegion.hasSameRects(other.surfaceDamageRegion))) {
+        diff |= eSurfaceDamageRegionChanged;
+    }
+    CHECK_DIFF(diff, eApiChanged, other, api);
+    if (other.what & eSidebandStreamChanged) diff |= eSidebandStreamChanged;
+    CHECK_DIFF(diff, eApiChanged, other, api);
+    CHECK_DIFF(diff, eColorTransformChanged, other, colorTransform);
+    if (other.what & eHasListenerCallbacksChanged) diff |= eHasListenerCallbacksChanged;
+    if (other.what & eInputInfoChanged) diff |= eInputInfoChanged;
+    CHECK_DIFF2(diff, eBackgroundColorChanged, other, bgColor, bgColorDataspace);
+    if (other.what & eMetadataChanged) diff |= eMetadataChanged;
+    CHECK_DIFF(diff, eShadowRadiusChanged, other, shadowRadius);
+    CHECK_DIFF3(diff, eRenderBorderChanged, other, borderEnabled, borderWidth, borderColor);
+    CHECK_DIFF(diff, eDefaultFrameRateCompatibilityChanged, other, defaultFrameRateCompatibility);
+    CHECK_DIFF(diff, eFrameRateSelectionPriority, other, frameRateSelectionPriority);
+    CHECK_DIFF3(diff, eFrameRateChanged, other, frameRate, frameRateCompatibility,
+                changeFrameRateStrategy);
+    CHECK_DIFF(diff, eFixedTransformHintChanged, other, fixedTransformHint);
+    CHECK_DIFF(diff, eAutoRefreshChanged, other, autoRefresh);
+    CHECK_DIFF(diff, eTrustedOverlayChanged, other, isTrustedOverlay);
+    CHECK_DIFF(diff, eStretchChanged, other, stretchEffect);
+    CHECK_DIFF(diff, eBufferCropChanged, other, bufferCrop);
+    CHECK_DIFF(diff, eDestinationFrameChanged, other, destinationFrame);
+    if (other.what & eProducerDisconnect) diff |= eProducerDisconnect;
+    CHECK_DIFF(diff, eDropInputModeChanged, other, dropInputMode);
+    CHECK_DIFF(diff, eColorChanged, other, color.rgb);
+    CHECK_DIFF(diff, eColorSpaceAgnosticChanged, other, colorSpaceAgnostic);
+    CHECK_DIFF(diff, eDimmingEnabledChanged, other, dimmingEnabled);
+    return diff;
+}
+
 bool layer_state_t::hasBufferChanges() const {
     return what & layer_state_t::eBufferChanged;
 }
 
 bool layer_state_t::hasValidBuffer() const {
-    return bufferData && (bufferData->buffer || bufferData->cachedBuffer.isValid());
+    return bufferData && (bufferData->hasBuffer() || bufferData->cachedBuffer.isValid());
 }
 
 status_t layer_state_t::matrix22_t::write(Parcel& output) const {
@@ -662,29 +814,44 @@ bool InputWindowCommands::merge(const InputWindowCommands& other) {
     changes |= !other.focusRequests.empty();
     focusRequests.insert(focusRequests.end(), std::make_move_iterator(other.focusRequests.begin()),
                          std::make_move_iterator(other.focusRequests.end()));
-    changes |= other.syncInputWindows && !syncInputWindows;
-    syncInputWindows |= other.syncInputWindows;
+    changes |= !other.windowInfosReportedListeners.empty();
+    windowInfosReportedListeners.insert(other.windowInfosReportedListeners.begin(),
+                                        other.windowInfosReportedListeners.end());
     return changes;
 }
 
 bool InputWindowCommands::empty() const {
-    return focusRequests.empty() && !syncInputWindows;
+    return focusRequests.empty() && windowInfosReportedListeners.empty();
 }
 
 void InputWindowCommands::clear() {
     focusRequests.clear();
-    syncInputWindows = false;
+    windowInfosReportedListeners.clear();
 }
 
 status_t InputWindowCommands::write(Parcel& output) const {
     SAFE_PARCEL(output.writeParcelableVector, focusRequests);
-    SAFE_PARCEL(output.writeBool, syncInputWindows);
+
+    SAFE_PARCEL(output.writeInt32, windowInfosReportedListeners.size());
+    for (const auto& listener : windowInfosReportedListeners) {
+        SAFE_PARCEL(output.writeStrongBinder, listener);
+    }
+
     return NO_ERROR;
 }
 
 status_t InputWindowCommands::read(const Parcel& input) {
     SAFE_PARCEL(input.readParcelableVector, &focusRequests);
-    SAFE_PARCEL(input.readBool, &syncInputWindows);
+
+    int listenerSize = 0;
+    SAFE_PARCEL_READ_SIZE(input.readInt32, &listenerSize, input.dataSize());
+    windowInfosReportedListeners.reserve(listenerSize);
+    for (int i = 0; i < listenerSize; i++) {
+        sp<gui::IWindowInfosReportedListener> listener;
+        SAFE_PARCEL(input.readStrongBinder, &listener);
+        windowInfosReportedListeners.insert(listener);
+    }
+
     return NO_ERROR;
 }
 
@@ -730,6 +897,11 @@ status_t CaptureArgs::writeToParcel(Parcel* output) const {
     SAFE_PARCEL(output->writeInt32, static_cast<int32_t>(dataspace));
     SAFE_PARCEL(output->writeBool, allowProtected);
     SAFE_PARCEL(output->writeBool, grayscale);
+    SAFE_PARCEL(output->writeInt32, excludeHandles.size());
+    for (auto& excludeHandle : excludeHandles) {
+        SAFE_PARCEL(output->writeStrongBinder, excludeHandle);
+    }
+    SAFE_PARCEL(output->writeBool, hintForSeamlessTransition);
     return NO_ERROR;
 }
 
@@ -746,6 +918,15 @@ status_t CaptureArgs::readFromParcel(const Parcel* input) {
     dataspace = static_cast<ui::Dataspace>(value);
     SAFE_PARCEL(input->readBool, &allowProtected);
     SAFE_PARCEL(input->readBool, &grayscale);
+    int32_t numExcludeHandles = 0;
+    SAFE_PARCEL_READ_SIZE(input->readInt32, &numExcludeHandles, input->dataSize());
+    excludeHandles.reserve(numExcludeHandles);
+    for (int i = 0; i < numExcludeHandles; i++) {
+        sp<IBinder> binder;
+        SAFE_PARCEL(input->readStrongBinder, &binder);
+        excludeHandles.emplace(binder);
+    }
+    SAFE_PARCEL(input->readBool, &hintForSeamlessTransition);
     return NO_ERROR;
 }
 
@@ -773,10 +954,6 @@ status_t LayerCaptureArgs::writeToParcel(Parcel* output) const {
     SAFE_PARCEL(CaptureArgs::writeToParcel, output);
 
     SAFE_PARCEL(output->writeStrongBinder, layerHandle);
-    SAFE_PARCEL(output->writeInt32, excludeHandles.size());
-    for (auto el : excludeHandles) {
-        SAFE_PARCEL(output->writeStrongBinder, el);
-    }
     SAFE_PARCEL(output->writeBool, childrenOnly);
     return NO_ERROR;
 }
@@ -785,15 +962,6 @@ status_t LayerCaptureArgs::readFromParcel(const Parcel* input) {
     SAFE_PARCEL(CaptureArgs::readFromParcel, input);
 
     SAFE_PARCEL(input->readStrongBinder, &layerHandle);
-
-    int32_t numExcludeHandles = 0;
-    SAFE_PARCEL_READ_SIZE(input->readInt32, &numExcludeHandles, input->dataSize());
-    excludeHandles.reserve(numExcludeHandles);
-    for (int i = 0; i < numExcludeHandles; i++) {
-        sp<IBinder> binder;
-        SAFE_PARCEL(input->readStrongBinder, &binder);
-        excludeHandles.emplace(binder);
-    }
 
     SAFE_PARCEL(input->readBool, &childrenOnly);
     return NO_ERROR;
@@ -836,6 +1004,7 @@ status_t BufferData::writeToParcel(Parcel* output) const {
     SAFE_PARCEL(output->writeUint64, cachedBuffer.id);
     SAFE_PARCEL(output->writeBool, hasBarrier);
     SAFE_PARCEL(output->writeUint64, barrierFrameNumber);
+    SAFE_PARCEL(output->writeUint32, producerId);
 
     return NO_ERROR;
 }
@@ -874,7 +1043,24 @@ status_t BufferData::readFromParcel(const Parcel* input) {
 
     SAFE_PARCEL(input->readBool, &hasBarrier);
     SAFE_PARCEL(input->readUint64, &barrierFrameNumber);
+    SAFE_PARCEL(input->readUint32, &producerId);
 
+    return NO_ERROR;
+}
+
+status_t TrustedPresentationListener::writeToParcel(Parcel* parcel) const {
+    SAFE_PARCEL(parcel->writeStrongBinder, callbackInterface);
+    SAFE_PARCEL(parcel->writeInt32, callbackId);
+    return NO_ERROR;
+}
+
+status_t TrustedPresentationListener::readFromParcel(const Parcel* parcel) {
+    sp<IBinder> tmpBinder = nullptr;
+    SAFE_PARCEL(parcel->readNullableStrongBinder, &tmpBinder);
+    if (tmpBinder) {
+        callbackInterface = checked_interface_cast<ITransactionCompletedListener>(tmpBinder);
+    }
+    SAFE_PARCEL(parcel->readInt32, &callbackId);
     return NO_ERROR;
 }
 

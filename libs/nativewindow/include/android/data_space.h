@@ -548,14 +548,14 @@ enum ADataSpace {
      *
      * This value is valid with formats HAL_PIXEL_FORMAT_Y16 and HAL_PIXEL_FORMAT_BLOB.
      */
-    DEPTH = 4096,
+    ADATASPACE_DEPTH = 4096,
 
     /**
      * ISO 16684-1:2011(E) Dynamic Depth:
      *
      * Embedded depth metadata following the dynamic depth specification.
      */
-    DYNAMIC_DEPTH = 4098
+    ADATASPACE_DYNAMIC_DEPTH = 4098
 };
 
 __END_DECLS

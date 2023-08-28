@@ -17,11 +17,11 @@
 #pragma once
 
 #include <ftl/initializer_list.h>
+#include <ftl/optional.h>
 #include <ftl/small_vector.h>
 
 #include <algorithm>
 #include <functional>
-#include <optional>
 #include <type_traits>
 #include <utility>
 
@@ -47,7 +47,7 @@ namespace android::ftl {
 //   assert(!map.dynamic());
 //
 //   assert(map.contains(123));
-//   assert(map.get(42, [](const std::string& s) { return s.size(); }) == 3u);
+//   assert(map.get(42).transform([](const std::string& s) { return s.size(); }) == 3u);
 //
 //   const auto opt = map.get(-1);
 //   assert(opt);
@@ -59,7 +59,7 @@ namespace android::ftl {
 //   map.emplace_or_replace(0, "vanilla", 2u, 3u);
 //   assert(map.dynamic());
 //
-//   assert(map == SmallMap(ftl::init::map(-1, "xyz")(0, "nil")(42, "???")(123, "abc")));
+//   assert(map == SmallMap(ftl::init::map(-1, "xyz"sv)(0, "nil"sv)(42, "???"sv)(123, "abc"sv)));
 //
 template <typename K, typename V, std::size_t N, typename KeyEqual = std::equal_to<K>>
 class SmallMap final {
@@ -123,9 +123,7 @@ class SmallMap final {
   const_iterator cend() const { return map_.cend(); }
 
   // Returns whether a mapping exists for the given key.
-  bool contains(const key_type& key) const {
-    return get(key, [](const mapped_type&) {});
-  }
+  bool contains(const key_type& key) const { return get(key).has_value(); }
 
   // Returns a reference to the value for the given key, or std::nullopt if the key was not found.
   //
@@ -139,44 +137,22 @@ class SmallMap final {
   //   ref.get() = 'D';
   //   assert(d == 'D');
   //
-  auto get(const key_type& key) const -> std::optional<std::reference_wrapper<const mapped_type>> {
-    return get(key, [](const mapped_type& v) { return std::cref(v); });
-  }
-
-  auto get(const key_type& key) -> std::optional<std::reference_wrapper<mapped_type>> {
-    return get(key, [](mapped_type& v) { return std::ref(v); });
-  }
-
-  // Returns the result R of a unary operation F on (a constant or mutable reference to) the value
-  // for the given key, or std::nullopt if the key was not found. If F has a return type of void,
-  // then the Boolean result indicates whether the key was found.
-  //
-  //   ftl::SmallMap map = ftl::init::map('a', 'x')('b', 'y')('c', 'z');
-  //
-  //   assert(map.get('c', [](char c) { return std::toupper(c); }) == 'Z');
-  //   assert(map.get('c', [](char& c) { c = std::toupper(c); }));
-  //
-  template <typename F, typename R = std::invoke_result_t<F, const mapped_type&>>
-  auto get(const key_type& key, F f) const
-      -> std::conditional_t<std::is_void_v<R>, bool, std::optional<R>> {
-    for (auto& [k, v] : *this) {
+  auto get(const key_type& key) const -> Optional<std::reference_wrapper<const mapped_type>> {
+    for (const auto& [k, v] : *this) {
       if (KeyEqual{}(k, key)) {
-        if constexpr (std::is_void_v<R>) {
-          f(v);
-          return true;
-        } else {
-          return f(v);
-        }
+        return std::cref(v);
       }
     }
-
     return {};
   }
 
-  template <typename F>
-  auto get(const key_type& key, F f) {
-    return std::as_const(*this).get(
-        key, [&f](const mapped_type& v) { return f(const_cast<mapped_type&>(v)); });
+  auto get(const key_type& key) -> Optional<std::reference_wrapper<mapped_type>> {
+    for (auto& [k, v] : *this) {
+      if (KeyEqual{}(k, key)) {
+        return std::ref(v);
+      }
+    }
+    return {};
   }
 
   // Returns an iterator to an existing mapping for the given key, or the end() iterator otherwise.
@@ -286,7 +262,7 @@ bool operator==(const SmallMap<K, V, N, E>& lhs, const SmallMap<Q, W, M, E>& rhs
 
   for (const auto& [k, v] : lhs) {
     const auto& lv = v;
-    if (!rhs.get(k, [&lv](const auto& rv) { return lv == rv; }).value_or(false)) {
+    if (!rhs.get(k).transform([&lv](const W& rv) { return lv == rv; }).value_or(false)) {
       return false;
     }
   }

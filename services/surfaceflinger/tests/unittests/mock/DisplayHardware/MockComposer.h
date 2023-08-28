@@ -32,7 +32,6 @@ using android::hardware::graphics::common::V1_0::Transform;
 using android::hardware::graphics::common::V1_1::RenderIntent;
 using android::hardware::graphics::common::V1_2::ColorMode;
 using android::hardware::graphics::common::V1_2::Dataspace;
-using android::hardware::graphics::common::V1_2::Hdr;
 using android::hardware::graphics::common::V1_2::PixelFormat;
 
 using android::hardware::graphics::composer::V2_1::Config;
@@ -56,8 +55,7 @@ public:
                  std::vector<aidl::android::hardware::graphics::composer3::Capability>());
     MOCK_METHOD0(dumpDebugInfo, std::string());
     MOCK_METHOD1(registerCallback, void(HWC2::ComposerCallback&));
-    MOCK_METHOD0(resetCommands, void());
-    MOCK_METHOD0(executeCommands, Error());
+    MOCK_METHOD1(executeCommands, Error(Display));
     MOCK_METHOD0(getMaxVirtualDisplayCount, uint32_t());
     MOCK_METHOD4(createVirtualDisplay, Error(uint32_t, uint32_t, PixelFormat*, Display*));
     MOCK_METHOD1(destroyVirtualDisplay, Error(Display));
@@ -99,6 +97,8 @@ public:
                  Error(Display, nsecs_t, uint32_t*, uint32_t*, int*, uint32_t*));
     MOCK_METHOD4(setCursorPosition, Error(Display, Layer, int32_t, int32_t));
     MOCK_METHOD5(setLayerBuffer, Error(Display, Layer, uint32_t, const sp<GraphicBuffer>&, int));
+    MOCK_METHOD4(setLayerBufferSlotsToClear,
+                 Error(Display, Layer, const std::vector<uint32_t>&, uint32_t));
     MOCK_METHOD3(setLayerSurfaceDamage,
                  Error(Display, Layer, const std::vector<IComposerClient::Rect>&));
     MOCK_METHOD3(setLayerBlendMode, Error(Display, Layer, IComposerClient::BlendMode));
@@ -144,6 +144,12 @@ public:
     MOCK_METHOD2(setBootDisplayConfig, Error(Display, Config));
     MOCK_METHOD1(clearBootDisplayConfig, Error(Display));
     MOCK_METHOD2(getPreferredBootDisplayConfig, Error(Display, Config*));
+    MOCK_METHOD1(getHdrConversionCapabilities,
+                 Error(std::vector<
+                         aidl::android::hardware::graphics::common::HdrConversionCapability>*));
+    MOCK_METHOD2(setHdrConversionStrategy,
+                 Error(aidl::android::hardware::graphics::common::HdrConversionStrategy,
+                       aidl::android::hardware::graphics::common::Hdr*));
     MOCK_METHOD2(getSupportedContentTypes,
                  V2_4::Error(Display, std::vector<IComposerClient::ContentType>*));
     MOCK_METHOD2(setContentType, V2_4::Error(Display, IComposerClient::ContentType));
@@ -164,6 +170,11 @@ public:
     MOCK_METHOD2(setIdleTimerEnabled, Error(Display, std::chrono::milliseconds));
     MOCK_METHOD2(hasDisplayIdleTimerCapability, Error(Display, bool*));
     MOCK_METHOD2(getPhysicalDisplayOrientation, Error(Display, AidlTransform*));
+    MOCK_METHOD1(getOverlaySupport,
+                 Error(aidl::android::hardware::graphics::composer3::OverlayProperties*));
+    MOCK_METHOD1(onHotplugConnect, void(Display));
+    MOCK_METHOD1(onHotplugDisconnect, void(Display));
+    MOCK_METHOD(Error, setRefreshRateChangedCallbackDebugEnabled, (Display, bool));
 };
 
 } // namespace Hwc2::mock

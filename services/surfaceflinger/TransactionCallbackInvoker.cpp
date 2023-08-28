@@ -92,11 +92,6 @@ status_t TransactionCallbackInvoker::addCallbackHandles(
     return NO_ERROR;
 }
 
-status_t TransactionCallbackInvoker::registerUnpresentedCallbackHandle(
-        const sp<CallbackHandle>& handle) {
-    return addCallbackHandle(handle, std::vector<JankData>());
-}
-
 status_t TransactionCallbackInvoker::findOrCreateTransactionStats(
         const sp<IBinder>& listener, const std::vector<CallbackId>& callbackIds,
         TransactionStats** outTransactionStats) {
@@ -137,7 +132,6 @@ status_t TransactionCallbackInvoker::addCallbackHandle(const sp<CallbackHandle>&
             sp<Fence> currentFence = future.get().value_or(Fence::NO_FENCE);
             if (prevFence == nullptr && currentFence->getStatus() != Fence::Status::Invalid) {
                 prevFence = std::move(currentFence);
-                handle->previousReleaseFence = prevFence;
             } else if (prevFence != nullptr) {
                 // If both fences are signaled or both are unsignaled, we need to merge
                 // them to get an accurate timestamp.
@@ -147,8 +141,7 @@ status_t TransactionCallbackInvoker::addCallbackHandle(const sp<CallbackHandle>&
                     snprintf(fenceName, 32, "%.28s", handle->name.c_str());
                     sp<Fence> mergedFence = Fence::merge(fenceName, prevFence, currentFence);
                     if (mergedFence->isValid()) {
-                        handle->previousReleaseFence = std::move(mergedFence);
-                        prevFence = handle->previousReleaseFence;
+                        prevFence = std::move(mergedFence);
                     }
                 } else if (currentFence->getStatus() == Fence::Status::Unsignaled) {
                     // If one fence has signaled and the other hasn't, the unsignaled
@@ -158,10 +151,11 @@ status_t TransactionCallbackInvoker::addCallbackHandle(const sp<CallbackHandle>&
                     // by this point, they will have both signaled and only the timestamp
                     // will be slightly off; any dependencies after this point will
                     // already have been met.
-                    handle->previousReleaseFence = std::move(currentFence);
+                    prevFence = std::move(currentFence);
                 }
             }
         }
+        handle->previousReleaseFence = prevFence;
         handle->previousReleaseFences.clear();
 
         FrameEventHistoryStats eventStats(handle->frameNumber,
@@ -178,8 +172,8 @@ status_t TransactionCallbackInvoker::addCallbackHandle(const sp<CallbackHandle>&
     return NO_ERROR;
 }
 
-void TransactionCallbackInvoker::addPresentFence(const sp<Fence>& presentFence) {
-    mPresentFence = presentFence;
+void TransactionCallbackInvoker::addPresentFence(sp<Fence> presentFence) {
+    mPresentFence = std::move(presentFence);
 }
 
 void TransactionCallbackInvoker::sendCallbacks(bool onCommitOnly) {

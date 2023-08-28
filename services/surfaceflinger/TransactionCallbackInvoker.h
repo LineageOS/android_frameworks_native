@@ -19,6 +19,7 @@
 #include <condition_variable>
 #include <deque>
 #include <mutex>
+#include <optional>
 #include <queue>
 #include <thread>
 #include <unordered_map>
@@ -26,10 +27,10 @@
 
 #include <android-base/thread_annotations.h>
 #include <binder/IBinder.h>
-#include <compositionengine/FenceResult.h>
 #include <ftl/future.h>
 #include <gui/ITransactionCompletedListener.h>
 #include <ui/Fence.h>
+#include <ui/FenceResult.h>
 
 namespace android {
 
@@ -48,7 +49,7 @@ public:
     std::vector<ftl::SharedFuture<FenceResult>> previousReleaseFences;
     std::variant<nsecs_t, sp<Fence>> acquireTimeOrFence = -1;
     nsecs_t latchTime = -1;
-    uint32_t transformHint = 0;
+    std::optional<uint32_t> transformHint = std::nullopt;
     uint32_t currentMaxAcquiredBufferCount = 0;
     std::shared_ptr<FenceTime> gpuCompositionDoneFence{FenceTime::NO_FENCE};
     CompositorTiming compositorTiming;
@@ -65,12 +66,9 @@ public:
     status_t addOnCommitCallbackHandles(const std::deque<sp<CallbackHandle>>& handles,
                                              std::deque<sp<CallbackHandle>>& outRemainingHandles);
 
-    // Adds the Transaction CallbackHandle from a layer that does not need to be relatched and
-    // presented this frame.
-    status_t registerUnpresentedCallbackHandle(const sp<CallbackHandle>& handle);
     void addEmptyTransaction(const ListenerCallbacks& listenerCallbacks);
 
-    void addPresentFence(const sp<Fence>& presentFence);
+    void addPresentFence(sp<Fence>);
 
     void sendCallbacks(bool onCommitOnly);
     void clearCompletedTransactions() {

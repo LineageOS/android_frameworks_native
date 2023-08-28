@@ -28,13 +28,13 @@ namespace SensorServiceUtil {
 
 const Sensor SensorList::mNonSensor = Sensor("unknown");
 
-bool SensorList::add(
-        int handle, SensorInterface* si, bool isForDebug, bool isVirtual) {
+bool SensorList::add(int handle, std::shared_ptr<SensorInterface> si, bool isForDebug,
+                     bool isVirtual, int deviceId) {
     std::lock_guard<std::mutex> lk(mLock);
     if (handle == si->getSensor().getHandle() &&
         mUsedHandle.insert(handle).second) {
         // will succeed as the mUsedHandle does not have this handle
-        mHandleMap.emplace(handle, Entry(si, isForDebug, isVirtual));
+        mHandleMap.emplace(handle, Entry(std::move(si), isForDebug, isVirtual, deviceId));
         return true;
     }
     // handle exist already or handle mismatch
@@ -63,11 +63,11 @@ String8 SensorList::getStringType(int handle) const {
             mNonSensor.getStringType());
 }
 
-sp<SensorInterface> SensorList::getInterface(int handle) const {
-    return getOne<sp<SensorInterface>>(
-            handle, [] (const Entry& e) -> sp<SensorInterface> {return e.si;}, nullptr);
+std::shared_ptr<SensorInterface> SensorList::getInterface(int handle) const {
+    return getOne<std::shared_ptr<SensorInterface>>(
+            handle, [] (const Entry& e) -> std::shared_ptr<SensorInterface> {return e.si;},
+            nullptr);
 }
-
 
 bool SensorList::isNewHandle(int handle) const {
     std::lock_guard<std::mutex> lk(mLock);
@@ -79,7 +79,8 @@ const Vector<Sensor> SensorList::getUserSensors() const {
     Vector<Sensor> sensors;
     forEachEntry(
             [&sensors] (const Entry& e) -> bool {
-                if (!e.isForDebug && !e.si->getSensor().isDynamicSensor()) {
+                if (!e.isForDebug && !e.si->getSensor().isDynamicSensor()
+                    && e.deviceId == RuntimeSensor::DEFAULT_DEVICE_ID) {
                     sensors.add(e.si->getSensor());
                 }
                 return true;
@@ -92,7 +93,8 @@ const Vector<Sensor> SensorList::getUserDebugSensors() const {
     Vector<Sensor> sensors;
     forEachEntry(
             [&sensors] (const Entry& e) -> bool {
-                if (!e.si->getSensor().isDynamicSensor()) {
+                if (!e.si->getSensor().isDynamicSensor()
+                    && e.deviceId == RuntimeSensor::DEFAULT_DEVICE_ID) {
                     sensors.add(e.si->getSensor());
                 }
                 return true;
@@ -105,7 +107,8 @@ const Vector<Sensor> SensorList::getDynamicSensors() const {
     Vector<Sensor> sensors;
     forEachEntry(
             [&sensors] (const Entry& e) -> bool {
-                if (!e.isForDebug && e.si->getSensor().isDynamicSensor()) {
+                if (!e.isForDebug && e.si->getSensor().isDynamicSensor()
+                     && e.deviceId == RuntimeSensor::DEFAULT_DEVICE_ID) {
                     sensors.add(e.si->getSensor());
                 }
                 return true;
@@ -118,7 +121,20 @@ const Vector<Sensor> SensorList::getVirtualSensors() const {
     Vector<Sensor> sensors;
     forEachEntry(
             [&sensors] (const Entry& e) -> bool {
-                if (e.isVirtual) {
+                if (e.isVirtual && e.deviceId == RuntimeSensor::DEFAULT_DEVICE_ID) {
+                    sensors.add(e.si->getSensor());
+                }
+                return true;
+            });
+    return sensors;
+}
+
+const Vector<Sensor> SensorList::getRuntimeSensors(int deviceId) const {
+    // lock in forEachEntry
+    Vector<Sensor> sensors;
+    forEachEntry(
+            [&sensors, deviceId] (const Entry& e) -> bool {
+                if (!e.isForDebug && e.deviceId == deviceId) {
                     sensors.add(e.si->getSensor());
                 }
                 return true;

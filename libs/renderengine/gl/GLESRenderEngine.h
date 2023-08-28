@@ -31,6 +31,7 @@
 #include <renderengine/RenderEngine.h>
 #include <renderengine/private/Description.h>
 #include <sys/types.h>
+#include <ui/FenceResult.h>
 #include "GLShadowTexture.h"
 #include "ImageManager.h"
 
@@ -60,7 +61,7 @@ public:
     std::future<void> primeCache() override;
     void genTextures(size_t count, uint32_t* names) override;
     void deleteTextures(size_t count, uint32_t const* names) override;
-    bool isProtected() const override { return mInProtectedContext; }
+    bool isProtected() const { return mInProtectedContext; }
     bool supportsProtectedContent() const override;
     void useProtectedContext(bool useProtectedContext) override;
     void cleanupPostRender() override;
@@ -100,9 +101,9 @@ protected:
     size_t getMaxViewportDims() const override;
     void mapExternalTextureBuffer(const sp<GraphicBuffer>& buffer, bool isRenderable)
             EXCLUDES(mRenderingMutex);
-    void unmapExternalTextureBuffer(const sp<GraphicBuffer>& buffer) EXCLUDES(mRenderingMutex);
+    void unmapExternalTextureBuffer(sp<GraphicBuffer>&& buffer) EXCLUDES(mRenderingMutex);
     bool canSkipPostRenderCleanup() const override;
-    void drawLayersInternal(const std::shared_ptr<std::promise<RenderEngineResult>>&& resultPromise,
+    void drawLayersInternal(const std::shared_ptr<std::promise<FenceResult>>&& resultPromise,
                             const DisplaySettings& display,
                             const std::vector<LayerSettings>& layers,
                             const std::shared_ptr<ExternalTexture>& buffer,

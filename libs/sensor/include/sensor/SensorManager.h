@@ -60,11 +60,14 @@ public:
     ssize_t getSensorList(Sensor const* const** list);
     ssize_t getDynamicSensorList(Vector<Sensor>& list);
     ssize_t getDynamicSensorList(Sensor const* const** list);
+    ssize_t getRuntimeSensorList(int deviceId, Vector<Sensor>& list);
     Sensor const* getDefaultSensor(int type);
     sp<SensorEventQueue> createEventQueue(
         String8 packageName = String8(""), int mode = 0, String16 attributionTag = String16(""));
     bool isDataInjectionEnabled();
     int createDirectChannel(size_t size, int channelType, const native_handle_t *channelData);
+    int createDirectChannel(
+        int deviceId, size_t size, int channelType, const native_handle_t *channelData);
     void destroyDirectChannel(int channelNativeHandle);
     int configureDirectChannel(int channelNativeHandle, int sensorHandle, int rateLevel);
     int setOperationParameter(int handle, int type, const Vector<float> &floats, const Vector<int32_t> &ints);

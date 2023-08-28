@@ -28,8 +28,6 @@ Connection::Connection(const std::shared_ptr<InputChannel>& inputChannel, bool m
         inputPublisher(inputChannel),
         inputState(idGenerator) {}
 
-Connection::~Connection() {}
-
 const std::string Connection::getWindowName() const {
     if (inputChannel != nullptr) {
         return inputChannel->getName();

@@ -20,12 +20,12 @@
 #include <optional>
 #include <string>
 
+#include <android-base/thread_annotations.h>
 #include <ftl/small_map.h>
 #include <utils/Timers.h>
 
 #include <scheduler/Fps.h>
-
-#include "VsyncModulator.h"
+#include <scheduler/VsyncConfig.h>
 
 namespace android::scheduler {
 
@@ -37,8 +37,6 @@ namespace android::scheduler {
  */
 class VsyncConfiguration {
 public:
-    using VsyncConfigSet = VsyncModulator::VsyncConfigSet;
-
     virtual ~VsyncConfiguration() = default;
     virtual VsyncConfigSet getCurrentConfigs() const = 0;
     virtual VsyncConfigSet getConfigsForRefreshRate(Fps fps) const = 0;
@@ -85,7 +83,7 @@ public:
     void dump(std::string& result) const override;
 
 protected:
-    virtual VsyncConfiguration::VsyncConfigSet constructOffsets(nsecs_t vsyncDuration) const = 0;
+    virtual VsyncConfigSet constructOffsets(nsecs_t vsyncDuration) const = 0;
 
     VsyncConfigSet getConfigsForRefreshRateLocked(Fps fps) const REQUIRES(mLock);
 
@@ -115,7 +113,7 @@ protected:
                  nsecs_t hwcMinWorkDuration);
 
 private:
-    VsyncConfiguration::VsyncConfigSet constructOffsets(nsecs_t vsyncDuration) const override;
+    VsyncConfigSet constructOffsets(nsecs_t vsyncDuration) const override;
 
     VsyncConfigSet getDefaultOffsets(nsecs_t vsyncPeriod) const;
     VsyncConfigSet getHighFpsOffsets(nsecs_t vsyncPeriod) const;
@@ -154,7 +152,7 @@ protected:
                  nsecs_t hwcMinWorkDuration);
 
 private:
-    VsyncConfiguration::VsyncConfigSet constructOffsets(nsecs_t vsyncDuration) const override;
+    VsyncConfigSet constructOffsets(nsecs_t vsyncDuration) const override;
 
     const nsecs_t mSfDuration;
     const nsecs_t mAppDuration;

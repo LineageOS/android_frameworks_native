@@ -27,7 +27,7 @@ using android::base::StringAppendF;
 
 #define RETURN_ON_ERROR(X) do {status_t res = (X); if (res != NO_ERROR) return res;} while(false)
 
-namespace android {
+namespace android::gui {
 
 status_t LayerDebugInfo::writeToParcel(Parcel* parcel) const {
     RETURN_ON_ERROR(parcel->writeCString(mName.c_str()));
@@ -149,4 +149,4 @@ std::string to_string(const LayerDebugInfo& info) {
     return result;
 }
 
-} // android
+} // namespace android::gui

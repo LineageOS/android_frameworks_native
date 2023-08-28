@@ -25,7 +25,7 @@
 #include <string>
 #include <math/vec4.h>
 
-namespace android {
+namespace android::gui {
 
 /* Class for transporting debug info from SurfaceFlinger to authorized
  * recipients.  The class is intended to be a data container. There are
@@ -52,7 +52,7 @@ public:
     uint32_t mZ = 0 ;
     int32_t mWidth = -1;
     int32_t mHeight = -1;
-    Rect mCrop = Rect::INVALID_RECT;
+    android::Rect mCrop = android::Rect::INVALID_RECT;
     half4 mColor = half4(1.0_hf, 1.0_hf, 1.0_hf, 0.0_hf);
     uint32_t mFlags = 0;
     PixelFormat mPixelFormat = PIXEL_FORMAT_NONE;
@@ -71,4 +71,4 @@ public:
 
 std::string to_string(const LayerDebugInfo& info);
 
-} // namespace android
+} // namespace android::gui

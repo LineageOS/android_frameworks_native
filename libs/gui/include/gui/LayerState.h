@@ -21,6 +21,8 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+#include <android/gui/IWindowInfosReportedListener.h>
+#include <android/gui/TrustedPresentationThresholds.h>
 #include <android/native_window.h>
 #include <gui/IGraphicBufferProducer.h>
 #include <gui/ITransactionCompletedListener.h>
@@ -51,7 +53,11 @@
 namespace android {
 
 class Parcel;
-class ISurfaceComposerClient;
+
+using gui::ISurfaceComposerClient;
+using gui::LayerMetadata;
+
+using gui::TrustedPresentationThresholds;
 
 struct client_cache_t {
     wp<IBinder> token = nullptr;
@@ -60,6 +66,19 @@ struct client_cache_t {
     bool operator==(const client_cache_t& other) const { return id == other.id; }
 
     bool isValid() const { return token != nullptr; }
+};
+
+class TrustedPresentationListener : public Parcelable {
+public:
+    sp<ITransactionCompletedListener> callbackInterface;
+    int callbackId = -1;
+
+    void invoke(bool presentedWithinThresholds) {
+        callbackInterface->onTrustedPresentationChanged(callbackId, presentedWithinThresholds);
+    }
+
+    status_t writeToParcel(Parcel* parcel) const;
+    status_t readFromParcel(const Parcel* parcel);
 };
 
 class BufferData : public Parcelable {
@@ -92,6 +111,7 @@ public:
     uint64_t frameNumber = 0;
     bool hasBarrier = false;
     uint64_t barrierFrameNumber = 0;
+    uint32_t producerId = 0;
 
     // Listens to when the buffer is safe to be released. This is used for blast
     // layers only. The callback includes a release fence as well as the graphic
@@ -130,7 +150,7 @@ struct layer_state_t {
         eLayerOpaque = 0x02,         // SURFACE_OPAQUE
         eLayerSkipScreenshot = 0x40, // SKIP_SCREENSHOT
         eLayerSecure = 0x80,         // SECURE
-        // Queue up BufferStateLayer buffers instead of dropping the oldest buffer when this flag is
+        // Queue up layer buffers instead of dropping the oldest buffer when this flag is
         // set. This blocks the client until all the buffers have been presented. If the buffers
         // have presentation timestamps, then we may drop buffers.
         eEnableBackpressure = 0x100,       // ENABLE_BACKPRESSURE
@@ -140,30 +160,33 @@ struct layer_state_t {
         // This is needed to maintain compatibility for SurfaceView scaling behavior.
         // See SurfaceView scaling behavior for more details.
         eIgnoreDestinationFrame = 0x400,
+        eLayerIsRefreshRateIndicator = 0x800, // REFRESH_RATE_INDICATOR
     };
 
     enum {
         ePositionChanged = 0x00000001,
         eLayerChanged = 0x00000002,
-        eSizeChanged = 0x00000004,
+        eTrustedPresentationInfoChanged = 0x00000004,
         eAlphaChanged = 0x00000008,
         eMatrixChanged = 0x00000010,
         eTransparentRegionChanged = 0x00000020,
         eFlagsChanged = 0x00000040,
         eLayerStackChanged = 0x00000080,
+        eFlushJankData = 0x00000100,
+        eCachingHintChanged = 0x00000200,
         eDimmingEnabledChanged = 0x00000400,
         eShadowRadiusChanged = 0x00000800,
-        /* unused 0x00001000, */
+        eRenderBorderChanged = 0x00001000,
         eBufferCropChanged = 0x00002000,
         eRelativeLayerChanged = 0x00004000,
         eReparent = 0x00008000,
         eColorChanged = 0x00010000,
-        eDestroySurface = 0x00020000,
-        eTransformChanged = 0x00040000,
+        /* unused = 0x00020000, */
+        eBufferTransformChanged = 0x00040000,
         eTransformToDisplayInverseChanged = 0x00080000,
         eCropChanged = 0x00100000,
         eBufferChanged = 0x00200000,
-        /* unused 0x00400000, */
+        eDefaultFrameRateCompatibilityChanged = 0x00400000,
         eDataspaceChanged = 0x00800000,
         eHdrMetadataChanged = 0x01000000,
         eSurfaceDamageRegionChanged = 0x02000000,
@@ -188,7 +211,9 @@ struct layer_state_t {
         eAutoRefreshChanged = 0x1000'00000000,
         eStretchChanged = 0x2000'00000000,
         eTrustedOverlayChanged = 0x4000'00000000,
-        eDropInputModeChanged = 0x8000'00000000
+        eDropInputModeChanged = 0x8000'00000000,
+        eExtendedRangeBrightnessChanged = 0x10000'00000000,
+
     };
 
     layer_state_t();
@@ -196,7 +221,63 @@ struct layer_state_t {
     void merge(const layer_state_t& other);
     status_t write(Parcel& output) const;
     status_t read(const Parcel& input);
+    // Compares two layer_state_t structs and returns a set of change flags describing all the
+    // states that are different.
+    uint64_t diff(const layer_state_t& other) const;
     bool hasBufferChanges() const;
+
+    // Layer hierarchy updates.
+    static constexpr uint64_t HIERARCHY_CHANGES = layer_state_t::eLayerChanged |
+            layer_state_t::eRelativeLayerChanged | layer_state_t::eReparent |
+            layer_state_t::eLayerStackChanged;
+
+    // Geometry updates.
+    static constexpr uint64_t GEOMETRY_CHANGES = layer_state_t::eBufferCropChanged |
+            layer_state_t::eBufferTransformChanged | layer_state_t::eCornerRadiusChanged |
+            layer_state_t::eCropChanged | layer_state_t::eDestinationFrameChanged |
+            layer_state_t::eMatrixChanged | layer_state_t::ePositionChanged |
+            layer_state_t::eTransformToDisplayInverseChanged |
+            layer_state_t::eTransparentRegionChanged;
+
+    // Buffer and related updates.
+    static constexpr uint64_t BUFFER_CHANGES = layer_state_t::eApiChanged |
+            layer_state_t::eBufferChanged | layer_state_t::eBufferCropChanged |
+            layer_state_t::eBufferTransformChanged | layer_state_t::eDataspaceChanged |
+            layer_state_t::eSidebandStreamChanged | layer_state_t::eSurfaceDamageRegionChanged |
+            layer_state_t::eTransformToDisplayInverseChanged |
+            layer_state_t::eTransparentRegionChanged |
+            layer_state_t::eExtendedRangeBrightnessChanged;
+
+    // Content updates.
+    static constexpr uint64_t CONTENT_CHANGES = layer_state_t::BUFFER_CHANGES |
+            layer_state_t::eAlphaChanged | layer_state_t::eAutoRefreshChanged |
+            layer_state_t::eBackgroundBlurRadiusChanged | layer_state_t::eBackgroundColorChanged |
+            layer_state_t::eBlurRegionsChanged | layer_state_t::eColorChanged |
+            layer_state_t::eColorSpaceAgnosticChanged | layer_state_t::eColorTransformChanged |
+            layer_state_t::eCornerRadiusChanged | layer_state_t::eDimmingEnabledChanged |
+            layer_state_t::eHdrMetadataChanged | layer_state_t::eRenderBorderChanged |
+            layer_state_t::eShadowRadiusChanged | layer_state_t::eStretchChanged;
+
+    // Changes which invalidates the layer's visible region in CE.
+    static constexpr uint64_t CONTENT_DIRTY = layer_state_t::CONTENT_CHANGES |
+            layer_state_t::GEOMETRY_CHANGES | layer_state_t::HIERARCHY_CHANGES;
+
+    // Changes affecting child states.
+    static constexpr uint64_t AFFECTS_CHILDREN = layer_state_t::GEOMETRY_CHANGES |
+            layer_state_t::HIERARCHY_CHANGES | layer_state_t::eAlphaChanged |
+            layer_state_t::eColorTransformChanged | layer_state_t::eCornerRadiusChanged |
+            layer_state_t::eFlagsChanged | layer_state_t::eTrustedOverlayChanged |
+            layer_state_t::eFrameRateChanged | layer_state_t::eFixedTransformHintChanged;
+
+    // Changes affecting data sent to input.
+    static constexpr uint64_t INPUT_CHANGES = layer_state_t::GEOMETRY_CHANGES |
+            layer_state_t::HIERARCHY_CHANGES | layer_state_t::eInputInfoChanged |
+            layer_state_t::eDropInputModeChanged | layer_state_t::eTrustedOverlayChanged;
+
+    // Changes that affect the visible region on a display.
+    static constexpr uint64_t VISIBLE_REGION_CHANGES =
+            layer_state_t::GEOMETRY_CHANGES | layer_state_t::HIERARCHY_CHANGES;
+
     bool hasValidBuffer() const;
     void sanitize(int32_t permissions);
 
@@ -207,6 +288,11 @@ struct layer_state_t {
         float dsdy{0};
         status_t write(Parcel& output) const;
         status_t read(const Parcel& input);
+        inline bool operator==(const matrix22_t& other) const {
+            return std::tie(dsdx, dtdx, dtdy, dsdy) ==
+                    std::tie(other.dsdx, other.dtdx, other.dtdy, other.dsdy);
+        }
+        inline bool operator!=(const matrix22_t& other) const { return !(*this == other); }
     };
     sp<IBinder> surface;
     int32_t layerId;
@@ -214,28 +300,23 @@ struct layer_state_t {
     float x;
     float y;
     int32_t z;
-    uint32_t w;
-    uint32_t h;
     ui::LayerStack layerStack = ui::DEFAULT_LAYER_STACK;
-    float alpha;
     uint32_t flags;
     uint32_t mask;
     uint8_t reserved;
     matrix22_t matrix;
     float cornerRadius;
     uint32_t backgroundBlurRadius;
-    sp<SurfaceControl> reparentSurfaceControl;
 
     sp<SurfaceControl> relativeLayerSurfaceControl;
 
     sp<SurfaceControl> parentSurfaceControlForChild;
 
-    half3 color;
+    half4 color;
 
     // non POD must be last. see write/read
     Region transparentRegion;
-
-    uint32_t transform;
+    uint32_t bufferTransform;
     bool transformToDisplayInverse;
     Rect crop;
     std::shared_ptr<BufferData> bufferData = nullptr;
@@ -247,13 +328,13 @@ struct layer_state_t {
     mat4 colorTransform;
     std::vector<BlurRegion> blurRegions;
 
-    sp<gui::WindowInfoHandle> windowInfoHandle = new gui::WindowInfoHandle();
+    sp<gui::WindowInfoHandle> windowInfoHandle = sp<gui::WindowInfoHandle>::make();
 
     LayerMetadata metadata;
 
     // The following refer to the alpha, and dataspace, respectively of
     // the background color layer
-    float bgColorAlpha;
+    half4 bgColor;
     ui::Dataspace bgColorDataspace;
 
     // A color space agnostic layer means the color of this layer can be
@@ -273,6 +354,9 @@ struct layer_state_t {
     int8_t frameRateCompatibility;
     int8_t changeFrameRateStrategy;
 
+    // Default frame rate compatibility used to set the layer refresh rate votetype.
+    int8_t defaultFrameRateCompatibility;
+
     // Set by window manager indicating the layer and all its children are
     // in a different orientation than the display. The hint suggests that
     // the graphic producers should receive a transform hint as if the
@@ -291,6 +375,11 @@ struct layer_state_t {
     // should be trusted for input occlusion detection purposes
     bool isTrustedOverlay;
 
+    // Flag to indicate if border needs to be enabled on the layer
+    bool borderEnabled;
+    float borderWidth;
+    half4 borderColor;
+
     // Stretch effect to be applied to this layer
     StretchEffect stretchEffect;
 
@@ -301,9 +390,17 @@ struct layer_state_t {
     gui::DropInputMode dropInputMode;
 
     bool dimmingEnabled;
+    float currentHdrSdrRatio = 1.f;
+    float desiredHdrSdrRatio = 1.f;
+
+    gui::CachingHint cachingHint = gui::CachingHint::Enabled;
+
+    TrustedPresentationThresholds trustedPresentationThresholds;
+    TrustedPresentationListener trustedPresentationListener;
 };
 
-struct ComposerState {
+class ComposerState {
+public:
     layer_state_t state;
     status_t write(Parcel& output) const;
     status_t read(const Parcel& input);
@@ -353,7 +450,9 @@ struct DisplayState {
 
 struct InputWindowCommands {
     std::vector<gui::FocusRequest> focusRequests;
-    bool syncInputWindows{false};
+    std::unordered_set<sp<gui::IWindowInfosReportedListener>,
+                       SpHash<gui::IWindowInfosReportedListener>>
+            windowInfosReportedListeners;
 
     // Merges the passed in commands and returns true if there were any changes.
     bool merge(const InputWindowCommands& other);

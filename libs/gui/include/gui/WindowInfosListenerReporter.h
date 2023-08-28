@@ -17,33 +17,32 @@
 #pragma once
 
 #include <android/gui/BnWindowInfosListener.h>
+#include <android/gui/ISurfaceComposer.h>
 #include <android/gui/IWindowInfosReportedListener.h>
 #include <binder/IBinder.h>
-#include <gui/ISurfaceComposer.h>
 #include <gui/SpHash.h>
 #include <gui/WindowInfosListener.h>
+#include <gui/WindowInfosUpdate.h>
 #include <unordered_set>
 
 namespace android {
-class ISurfaceComposer;
 
 class WindowInfosListenerReporter : public gui::BnWindowInfosListener {
 public:
     static sp<WindowInfosListenerReporter> getInstance();
-    binder::Status onWindowInfosChanged(const std::vector<gui::WindowInfo>&,
-                                        const std::vector<gui::DisplayInfo>&,
+    binder::Status onWindowInfosChanged(const gui::WindowInfosUpdate& update,
                                         const sp<gui::IWindowInfosReportedListener>&) override;
-
     status_t addWindowInfosListener(
-            const sp<gui::WindowInfosListener>& windowInfosListener, const sp<ISurfaceComposer>&,
+            const sp<gui::WindowInfosListener>& windowInfosListener,
+            const sp<gui::ISurfaceComposer>&,
             std::pair<std::vector<gui::WindowInfo>, std::vector<gui::DisplayInfo>>* outInitialInfo);
     status_t removeWindowInfosListener(const sp<gui::WindowInfosListener>& windowInfosListener,
-                                       const sp<ISurfaceComposer>& surfaceComposer);
-    void reconnect(const sp<ISurfaceComposer>&);
+                                       const sp<gui::ISurfaceComposer>& surfaceComposer);
+    void reconnect(const sp<gui::ISurfaceComposer>&);
 
 private:
     std::mutex mListenersMutex;
-    std::unordered_set<sp<gui::WindowInfosListener>, SpHash<gui::WindowInfosListener>>
+    std::unordered_set<sp<gui::WindowInfosListener>, gui::SpHash<gui::WindowInfosListener>>
             mWindowInfosListeners GUARDED_BY(mListenersMutex);
 
     std::vector<gui::WindowInfo> mLastWindowInfos GUARDED_BY(mListenersMutex);

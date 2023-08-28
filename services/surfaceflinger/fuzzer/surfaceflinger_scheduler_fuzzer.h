@@ -27,7 +27,6 @@
 #include "Clock.h"
 #include "Layer.h"
 #include "Scheduler/EventThread.h"
-#include "Scheduler/RefreshRateConfigs.h"
 #include "Scheduler/Scheduler.h"
 #include "Scheduler/VSyncTracker.h"
 #include "Scheduler/VsyncModulator.h"
@@ -76,23 +75,7 @@ public:
 
     bool isVisible() const override { return true; }
 
-    sp<Layer> createClone() override { return nullptr; }
-};
-
-class FuzzImplVSyncSource : public VSyncSource {
-public:
-    const char* getName() const override { return "fuzz"; }
-
-    void setVSyncEnabled(bool /* enable */) override {}
-
-    void setCallback(Callback* /* callback */) override {}
-
-    void setDuration(std::chrono::nanoseconds /* workDuration */,
-                     std::chrono::nanoseconds /* readyDuration */) override {}
-
-    VSyncData getLatestVSyncData() const override { return {}; }
-
-    void dump(std::string& /* result */) const override {}
+    sp<Layer> createClone(uint32_t /* mirrorRootId */) override { return nullptr; }
 };
 
 class FuzzImplVSyncTracker : public scheduler::VSyncTracker {
@@ -116,6 +99,8 @@ public:
     bool isVSyncInPhase(nsecs_t /* timePoint */, Fps /* frameRate */) const override {
         return true;
     }
+
+    void setRenderRate(Fps) override {}
 
     nsecs_t nextVSyncTime(nsecs_t timePoint) const {
         if (timePoint % mPeriod == 0) {
@@ -141,6 +126,11 @@ public:
 
     scheduler::ScheduleResult schedule(CallbackToken /* token */,
                                        ScheduleTiming /* scheduleTiming */) override {
+        return (scheduler::ScheduleResult)0;
+    }
+
+    scheduler::ScheduleResult update(CallbackToken /* token */,
+                                     ScheduleTiming /* scheduleTiming */) override {
         return (scheduler::ScheduleResult)0;
     }
 

@@ -23,75 +23,14 @@
 #include <utils/SystemClock.h>
 #include <utils/Trace.h>
 
-#include "ClientCache.h"
+#include "Client.h"
+#include "FrontEnd/LayerCreationArgs.h"
 #include "TransactionTracing.h"
-#include "renderengine/ExternalTexture.h"
 
 namespace android {
 
-// Keeps the binder address as the layer id so we can avoid holding the tracing lock in the
-// binder thread.
-class FlatDataMapper : public TransactionProtoParser::FlingerDataMapper {
-public:
-    virtual int64_t getLayerId(const sp<IBinder>& layerHandle) const {
-        if (layerHandle == nullptr) {
-            return -1;
-        }
-
-        return reinterpret_cast<int64_t>(layerHandle->localBinder());
-    }
-
-    void getGraphicBufferPropertiesFromCache(client_cache_t cachedBuffer, uint64_t* outBufferId,
-                                             uint32_t* outWidth, uint32_t* outHeight,
-                                             int32_t* outPixelFormat,
-                                             uint64_t* outUsage) const override {
-        std::shared_ptr<renderengine::ExternalTexture> buffer =
-                ClientCache::getInstance().get(cachedBuffer);
-        if (!buffer || !buffer->getBuffer()) {
-            *outBufferId = 0;
-            *outWidth = 0;
-            *outHeight = 0;
-            *outPixelFormat = 0;
-            *outUsage = 0;
-            return;
-        }
-
-        *outBufferId = buffer->getId();
-        *outWidth = buffer->getWidth();
-        *outHeight = buffer->getHeight();
-        *outPixelFormat = buffer->getPixelFormat();
-        *outUsage = buffer->getUsage();
-        return;
-    }
-};
-
-class FlingerDataMapper : public FlatDataMapper {
-    std::unordered_map<BBinder* /* layerHandle */, int32_t /* layerId */>& mLayerHandles;
-
-public:
-    FlingerDataMapper(std::unordered_map<BBinder* /* handle */, int32_t /* id */>& layerHandles)
-          : mLayerHandles(layerHandles) {}
-
-    int64_t getLayerId(const sp<IBinder>& layerHandle) const override {
-        if (layerHandle == nullptr) {
-            return -1;
-        }
-        return getLayerId(layerHandle->localBinder());
-    }
-
-    int64_t getLayerId(BBinder* localBinder) const {
-        auto it = mLayerHandles.find(localBinder);
-        if (it == mLayerHandles.end()) {
-            ALOGW("Could not find layer handle %p", localBinder);
-            return -1;
-        }
-        return it->second;
-    }
-};
-
 TransactionTracing::TransactionTracing()
-      : mProtoParser(std::make_unique<FlingerDataMapper>(mLayerHandles)),
-        mLockfreeProtoParser(std::make_unique<FlatDataMapper>()) {
+      : mProtoParser(std::make_unique<TransactionProtoParser::FlingerDataMapper>()) {
     std::scoped_lock lock(mTraceLock);
 
     mBuffer.setSize(mBufferSizeInBytes);
@@ -134,68 +73,80 @@ proto::TransactionTraceFile TransactionTracing::createTraceFileProto() const {
     proto::TransactionTraceFile proto;
     proto.set_magic_number(uint64_t(proto::TransactionTraceFile_MagicNumber_MAGIC_NUMBER_H) << 32 |
                            proto::TransactionTraceFile_MagicNumber_MAGIC_NUMBER_L);
+    auto timeOffsetNs = static_cast<std::uint64_t>(systemTime(SYSTEM_TIME_REALTIME) -
+                                                   systemTime(SYSTEM_TIME_MONOTONIC));
+    proto.set_real_to_elapsed_time_offset_nanos(timeOffsetNs);
+    proto.set_version(TRACING_VERSION);
     return proto;
 }
 
 void TransactionTracing::dump(std::string& result) const {
     std::scoped_lock lock(mTraceLock);
-    base::StringAppendF(&result,
-                        "  queued transactions=%zu created layers=%zu handles=%zu states=%zu\n",
-                        mQueuedTransactions.size(), mCreatedLayers.size(), mLayerHandles.size(),
-                        mStartingStates.size());
+    base::StringAppendF(&result, "  queued transactions=%zu created layers=%zu states=%zu\n",
+                        mQueuedTransactions.size(), mCreatedLayers.size(), mStartingStates.size());
     mBuffer.dump(result);
 }
 
 void TransactionTracing::addQueuedTransaction(const TransactionState& transaction) {
-    proto::TransactionState* state =
-            new proto::TransactionState(mLockfreeProtoParser.toProto(transaction));
+    proto::TransactionState* state = new proto::TransactionState(mProtoParser.toProto(transaction));
     mTransactionQueue.push(state);
 }
 
-void TransactionTracing::addCommittedTransactions(std::vector<TransactionState>& transactions,
-                                                  int64_t vsyncId) {
-    CommittedTransactions committedTransactions;
-    committedTransactions.vsyncId = vsyncId;
-    committedTransactions.timestamp = systemTime();
-    committedTransactions.transactionIds.reserve(transactions.size());
-    for (const auto& transaction : transactions) {
-        committedTransactions.transactionIds.emplace_back(transaction.id);
+void TransactionTracing::addCommittedTransactions(
+        int64_t vsyncId, nsecs_t commitTime, frontend::Update& newUpdate,
+        const display::DisplayMap<ui::LayerStack, frontend::DisplayInfo>& displayInfos,
+        bool displayInfoChanged) {
+    CommittedUpdates update;
+    update.vsyncId = vsyncId;
+    update.timestamp = commitTime;
+    update.transactionIds.reserve(newUpdate.transactions.size());
+    for (const auto& transaction : newUpdate.transactions) {
+        update.transactionIds.emplace_back(transaction.id);
     }
-
-    mPendingTransactions.emplace_back(committedTransactions);
+    update.displayInfoChanged = displayInfoChanged;
+    if (displayInfoChanged) {
+        update.displayInfos = displayInfos;
+    }
+    update.createdLayers = std::move(newUpdate.layerCreationArgs);
+    newUpdate.layerCreationArgs.clear();
+    update.destroyedLayerHandles.reserve(newUpdate.destroyedHandles.size());
+    for (uint32_t handle : newUpdate.destroyedHandles) {
+        update.destroyedLayerHandles.push_back(handle);
+    }
+    mPendingUpdates.emplace_back(update);
     tryPushToTracingThread();
 }
 
 void TransactionTracing::loop() {
     while (true) {
-        std::vector<CommittedTransactions> committedTransactions;
-        std::vector<int32_t> removedLayers;
+        std::vector<CommittedUpdates> committedUpdates;
+        std::vector<uint32_t> destroyedLayers;
         {
             std::unique_lock<std::mutex> lock(mMainThreadLock);
             base::ScopedLockAssertion assumeLocked(mMainThreadLock);
             mTransactionsAvailableCv.wait(lock, [&]() REQUIRES(mMainThreadLock) {
-                return mDone || !mCommittedTransactions.empty();
+                return mDone || !mUpdates.empty();
             });
             if (mDone) {
-                mCommittedTransactions.clear();
-                mRemovedLayers.clear();
+                mUpdates.clear();
+                mDestroyedLayers.clear();
                 break;
             }
 
-            removedLayers = std::move(mRemovedLayers);
-            mRemovedLayers.clear();
-            committedTransactions = std::move(mCommittedTransactions);
-            mCommittedTransactions.clear();
+            destroyedLayers = std::move(mDestroyedLayers);
+            mDestroyedLayers.clear();
+            committedUpdates = std::move(mUpdates);
+            mUpdates.clear();
         } // unlock mMainThreadLock
 
-        if (!committedTransactions.empty() || !removedLayers.empty()) {
-            addEntry(committedTransactions, removedLayers);
+        if (!committedUpdates.empty() || !destroyedLayers.empty()) {
+            addEntry(committedUpdates, destroyedLayers);
         }
     }
 }
 
-void TransactionTracing::addEntry(const std::vector<CommittedTransactions>& committedTransactions,
-                                  const std::vector<int32_t>& removedLayers) {
+void TransactionTracing::addEntry(const std::vector<CommittedUpdates>& committedUpdates,
+                                  const std::vector<uint32_t>& destroyedLayers) {
     ATRACE_CALL();
     std::scoped_lock lock(mTraceLock);
     std::vector<std::string> removedEntries;
@@ -203,56 +154,49 @@ void TransactionTracing::addEntry(const std::vector<CommittedTransactions>& comm
 
     while (auto incomingTransaction = mTransactionQueue.pop()) {
         auto transaction = *incomingTransaction;
-        int32_t layerCount = transaction.layer_changes_size();
-        for (int i = 0; i < layerCount; i++) {
-            auto layer = transaction.mutable_layer_changes(i);
-            layer->set_layer_id(
-                mProtoParser.mMapper->getLayerId(reinterpret_cast<BBinder*>(layer->layer_id())));
-            if ((layer->what() & layer_state_t::eReparent) && layer->parent_id() != -1) {
-                layer->set_parent_id(
-                    mProtoParser.mMapper->getLayerId(reinterpret_cast<BBinder*>(
-                        layer->parent_id())));
-            }
-
-            if ((layer->what() & layer_state_t::eRelativeLayerChanged) &&
-                layer->relative_parent_id() != -1) {
-                layer->set_relative_parent_id(
-                    mProtoParser.mMapper->getLayerId(reinterpret_cast<BBinder*>(
-                        layer->relative_parent_id())));
-            }
-
-            if (layer->has_window_info_handle() &&
-                layer->window_info_handle().crop_layer_id() != -1) {
-                auto input = layer->mutable_window_info_handle();
-                input->set_crop_layer_id(
-                        mProtoParser.mMapper->getLayerId(reinterpret_cast<BBinder*>(
-                            input->crop_layer_id())));
-            }
-        }
         mQueuedTransactions[incomingTransaction->transaction_id()] = transaction;
         delete incomingTransaction;
     }
-    for (const CommittedTransactions& entry : committedTransactions) {
-        entryProto.set_elapsed_realtime_nanos(entry.timestamp);
-        entryProto.set_vsync_id(entry.vsyncId);
-        entryProto.mutable_added_layers()->Reserve(static_cast<int32_t>(mCreatedLayers.size()));
-        for (auto& newLayer : mCreatedLayers) {
-            entryProto.mutable_added_layers()->Add(std::move(newLayer));
+    for (const CommittedUpdates& update : committedUpdates) {
+        entryProto.set_elapsed_realtime_nanos(update.timestamp);
+        entryProto.set_vsync_id(update.vsyncId);
+        entryProto.mutable_added_layers()->Reserve(
+                static_cast<int32_t>(update.createdLayers.size()));
+
+        for (const auto& args : update.createdLayers) {
+            entryProto.mutable_added_layers()->Add(std::move(mProtoParser.toProto(args)));
         }
-        entryProto.mutable_removed_layers()->Reserve(static_cast<int32_t>(removedLayers.size()));
-        for (auto& removedLayer : removedLayers) {
-            entryProto.mutable_removed_layers()->Add(removedLayer);
+
+        entryProto.mutable_destroyed_layers()->Reserve(
+                static_cast<int32_t>(destroyedLayers.size()));
+        for (auto& destroyedLayer : destroyedLayers) {
+            entryProto.mutable_destroyed_layers()->Add(destroyedLayer);
         }
-        mCreatedLayers.clear();
         entryProto.mutable_transactions()->Reserve(
-                static_cast<int32_t>(entry.transactionIds.size()));
-        for (const uint64_t& id : entry.transactionIds) {
+                static_cast<int32_t>(update.transactionIds.size()));
+        for (const uint64_t& id : update.transactionIds) {
             auto it = mQueuedTransactions.find(id);
             if (it != mQueuedTransactions.end()) {
                 entryProto.mutable_transactions()->Add(std::move(it->second));
                 mQueuedTransactions.erase(it);
             } else {
                 ALOGW("Could not find transaction id %" PRIu64, id);
+            }
+        }
+
+        entryProto.mutable_destroyed_layer_handles()->Reserve(
+                static_cast<int32_t>(update.destroyedLayerHandles.size()));
+        for (auto layerId : update.destroyedLayerHandles) {
+            entryProto.mutable_destroyed_layer_handles()->Add(layerId);
+        }
+
+        entryProto.set_displays_changed(update.displayInfoChanged);
+        if (update.displayInfoChanged) {
+            entryProto.mutable_displays()->Reserve(
+                    static_cast<int32_t>(update.displayInfos.size()));
+            for (auto& [layerStack, displayInfo] : update.displayInfos) {
+                entryProto.mutable_displays()->Add(
+                        std::move(mProtoParser.toProto(displayInfo, layerStack.id)));
             }
         }
 
@@ -263,13 +207,6 @@ void TransactionTracing::addEntry(const std::vector<CommittedTransactions>& comm
         removedEntries.reserve(removedEntries.size() + entries.size());
         removedEntries.insert(removedEntries.end(), std::make_move_iterator(entries.begin()),
                               std::make_move_iterator(entries.end()));
-
-        entryProto.mutable_removed_layer_handles()->Reserve(
-                static_cast<int32_t>(mRemovedLayerHandles.size()));
-        for (auto& handle : mRemovedLayerHandles) {
-            entryProto.mutable_removed_layer_handles()->Add(handle);
-        }
-        mRemovedLayerHandles.clear();
     }
 
     proto::TransactionTraceEntry removedEntryProto;
@@ -282,7 +219,7 @@ void TransactionTracing::addEntry(const std::vector<CommittedTransactions>& comm
 }
 
 void TransactionTracing::flush(int64_t vsyncId) {
-    while (!mPendingTransactions.empty() || !mPendingRemovedLayers.empty()) {
+    while (!mPendingUpdates.empty() || !mPendingDestroyedLayers.empty()) {
         tryPushToTracingThread();
     }
     std::unique_lock<std::mutex> lock(mTraceLock);
@@ -296,56 +233,21 @@ void TransactionTracing::flush(int64_t vsyncId) {
     });
 }
 
-void TransactionTracing::onLayerAdded(BBinder* layerHandle, int layerId, const std::string& name,
-                                      uint32_t flags, int parentId) {
-    std::scoped_lock lock(mTraceLock);
-    TracingLayerCreationArgs args{layerId, name, flags, parentId, -1 /* mirrorFromId */};
-    if (mLayerHandles.find(layerHandle) != mLayerHandles.end()) {
-        ALOGW("Duplicate handles found. %p", layerHandle);
-    }
-    mLayerHandles[layerHandle] = layerId;
-    mCreatedLayers.push_back(mProtoParser.toProto(args));
-}
-
-void TransactionTracing::onMirrorLayerAdded(BBinder* layerHandle, int layerId,
-                                            const std::string& name, int mirrorFromId) {
-    std::scoped_lock lock(mTraceLock);
-    TracingLayerCreationArgs args{layerId, name, 0 /* flags */, -1 /* parentId */, mirrorFromId};
-    if (mLayerHandles.find(layerHandle) != mLayerHandles.end()) {
-        ALOGW("Duplicate handles found. %p", layerHandle);
-    }
-    mLayerHandles[layerHandle] = layerId;
-    mCreatedLayers.emplace_back(mProtoParser.toProto(args));
-}
-
 void TransactionTracing::onLayerRemoved(int32_t layerId) {
-    mPendingRemovedLayers.emplace_back(layerId);
+    mPendingDestroyedLayers.emplace_back(layerId);
     tryPushToTracingThread();
-}
-
-void TransactionTracing::onHandleRemoved(BBinder* layerHandle) {
-    std::scoped_lock lock(mTraceLock);
-    auto it = mLayerHandles.find(layerHandle);
-    if (it == mLayerHandles.end()) {
-        ALOGW("handle not found. %p", layerHandle);
-        return;
-    }
-
-    mRemovedLayerHandles.push_back(it->second);
-    mLayerHandles.erase(it);
 }
 
 void TransactionTracing::tryPushToTracingThread() {
     // Try to acquire the lock from main thread.
     if (mMainThreadLock.try_lock()) {
         // We got the lock! Collect any pending transactions and continue.
-        mCommittedTransactions.insert(mCommittedTransactions.end(),
-                                      std::make_move_iterator(mPendingTransactions.begin()),
-                                      std::make_move_iterator(mPendingTransactions.end()));
-        mPendingTransactions.clear();
-        mRemovedLayers.insert(mRemovedLayers.end(), mPendingRemovedLayers.begin(),
-                              mPendingRemovedLayers.end());
-        mPendingRemovedLayers.clear();
+        mUpdates.insert(mUpdates.end(), std::make_move_iterator(mPendingUpdates.begin()),
+                        std::make_move_iterator(mPendingUpdates.end()));
+        mPendingUpdates.clear();
+        mDestroyedLayers.insert(mDestroyedLayers.end(), mPendingDestroyedLayers.begin(),
+                                mPendingDestroyedLayers.end());
+        mPendingDestroyedLayers.clear();
         mTransactionsAvailableCv.notify_one();
         mMainThreadLock.unlock();
     } else {
@@ -367,19 +269,29 @@ void TransactionTracing::updateStartingStateLocked(
     // Merge layer states to starting transaction state.
     for (const proto::TransactionState& transaction : removedEntry.transactions()) {
         for (const proto::LayerState& layerState : transaction.layer_changes()) {
-            auto it = mStartingStates.find((int32_t)layerState.layer_id());
+            auto it = mStartingStates.find(layerState.layer_id());
             if (it == mStartingStates.end()) {
-                ALOGW("Could not find layer id %d", (int32_t)layerState.layer_id());
+                // TODO(b/238781169) make this log fatal when we switch over to using new fe
+                ALOGW("Could not find layer id %d", layerState.layer_id());
                 continue;
             }
             mProtoParser.mergeFromProto(layerState, it->second);
         }
     }
 
+    for (const uint32_t destroyedLayerHandleId : removedEntry.destroyed_layer_handles()) {
+        mRemovedLayerHandlesAtStart.insert(destroyedLayerHandleId);
+    }
+
     // Clean up stale starting states since the layer has been removed and the buffer does not
     // contain any references to the layer.
-    for (const int32_t removedLayerId : removedEntry.removed_layers()) {
-        mStartingStates.erase(removedLayerId);
+    for (const uint32_t destroyedLayerId : removedEntry.destroyed_layers()) {
+        mStartingStates.erase(destroyedLayerId);
+        mRemovedLayerHandlesAtStart.erase(destroyedLayerId);
+    }
+
+    if (removedEntry.displays_changed()) {
+        mProtoParser.fromProto(removedEntry.displays(), mStartingDisplayInfos);
     }
 }
 
@@ -401,6 +313,17 @@ void TransactionTracing::addStartingStateToProtoLocked(proto::TransactionTraceFi
     transactionProto.set_vsync_id(0);
     transactionProto.set_post_time(mStartingTimestamp);
     entryProto->mutable_transactions()->Add(std::move(transactionProto));
+
+    entryProto->mutable_destroyed_layer_handles()->Reserve(
+            static_cast<int32_t>(mRemovedLayerHandlesAtStart.size()));
+    for (const uint32_t destroyedLayerHandleId : mRemovedLayerHandlesAtStart) {
+        entryProto->mutable_destroyed_layer_handles()->Add(destroyedLayerHandleId);
+    }
+
+    entryProto->mutable_displays()->Reserve(static_cast<int32_t>(mStartingDisplayInfos.size()));
+    for (auto& [layerStack, displayInfo] : mStartingDisplayInfos) {
+        entryProto->mutable_displays()->Add(mProtoParser.toProto(displayInfo, layerStack.id));
+    }
 }
 
 proto::TransactionTraceFile TransactionTracing::writeToProto() {

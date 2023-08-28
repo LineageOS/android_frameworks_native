@@ -116,7 +116,8 @@ static constexpr hal::HWConfigId kActiveConfig = 0;
 class DisplayHardwareFuzzer {
 public:
     DisplayHardwareFuzzer(const uint8_t* data, size_t size) : mFdp(data, size) {
-        mPhysicalDisplayId = SurfaceComposerClient::getInternalDisplayId().value();
+        mPhysicalDisplayId = TestableSurfaceFlinger::getFirstDisplayId().value_or(
+                PhysicalDisplayId::fromPort(mFdp.ConsumeIntegral<uint8_t>()));
     };
     void process();
 
@@ -221,7 +222,7 @@ void DisplayHardwareFuzzer::getDeviceCompositionChanges(HalDisplayId halDisplayI
     std::optional<impl::HWComposer::DeviceRequestedChanges> outChanges;
     mHwc.getDeviceCompositionChanges(halDisplayID,
                                      mFdp.ConsumeBool() /*frameUsesClientComposition*/,
-                                     std::chrono::steady_clock::now(), FenceTime::NO_FENCE,
+                                     std::chrono::steady_clock::now(),
                                      mFdp.ConsumeIntegral<nsecs_t>(), &outChanges);
 }
 
@@ -325,8 +326,7 @@ void DisplayHardwareFuzzer::invokeAidlComposer() {
     invokeComposerHal2_3(&composer, display, outLayer);
     invokeComposerHal2_4(&composer, display, outLayer);
 
-    composer.executeCommands();
-    composer.resetCommands();
+    composer.executeCommands(display);
 
     composer.destroyLayer(display, outLayer);
     composer.destroyVirtualDisplay(display);
@@ -480,8 +480,8 @@ void DisplayHardwareFuzzer::invokeFrameBufferSurface() {
     BufferQueue::createBufferQueue(&bqProducer, &bqConsumer);
 
     sp<FramebufferSurface> surface =
-            new FramebufferSurface(mHwc, mPhysicalDisplayId, bqConsumer, getFuzzedSize() /*size*/,
-                                   getFuzzedSize() /*maxSize*/);
+            sp<FramebufferSurface>::make(mHwc, mPhysicalDisplayId, bqConsumer,
+                                         getFuzzedSize() /*size*/, getFuzzedSize() /*maxSize*/);
     surface->beginFrame(mFdp.ConsumeBool());
 
     surface->prepareFrame(mFdp.PickValueInArray(kCompositionTypes));
@@ -497,15 +497,15 @@ void DisplayHardwareFuzzer::invokeVirtualDisplaySurface() {
     DisplayIdGenerator<HalVirtualDisplayId> mGenerator;
     VirtualDisplayId VirtualDisplayId = mGenerator.generateId().value();
 
-    sp<SurfaceComposerClient> mClient = new SurfaceComposerClient();
+    sp<SurfaceComposerClient> mClient = sp<SurfaceComposerClient>::make();
     sp<SurfaceControl> mSurfaceControl =
             mClient->createSurface(String8("TestSurface"), 100, 100, PIXEL_FORMAT_RGBA_8888,
                                    ISurfaceComposerClient::eFXSurfaceBufferState,
                                    /*parent*/ nullptr);
 
-    sp<BLASTBufferQueue> mBlastBufferQueueAdapter =
-            new BLASTBufferQueue("TestBLASTBufferQueue", mSurfaceControl, 100, 100,
-                                 PIXEL_FORMAT_RGBA_8888);
+    auto mBlastBufferQueueAdapter =
+            sp<BLASTBufferQueue>::make("TestBLASTBufferQueue", mSurfaceControl, 100, 100,
+                                       PIXEL_FORMAT_RGBA_8888);
 
     sp<IGraphicBufferProducer> sink = mBlastBufferQueueAdapter->getIGraphicBufferProducer();
     sp<IGraphicBufferProducer> bqProducer = mBlastBufferQueueAdapter->getIGraphicBufferProducer();
@@ -513,9 +513,9 @@ void DisplayHardwareFuzzer::invokeVirtualDisplaySurface() {
     BufferQueue::createBufferQueue(&bqProducer, &bqConsumer);
     BufferQueue::createBufferQueue(&sink, &bqConsumer);
 
-    sp<VirtualDisplaySurface> surface =
-            new VirtualDisplaySurface(mHwc, VirtualDisplayId, sink, bqProducer, bqConsumer,
-                                      mFdp.ConsumeRandomLengthString().c_str() /*name*/);
+    auto surface =
+            sp<VirtualDisplaySurface>::make(mHwc, VirtualDisplayId, sink, bqProducer, bqConsumer,
+                                            mFdp.ConsumeRandomLengthString().c_str() /*name*/);
 
     surface->beginFrame(mFdp.ConsumeBool());
     surface->prepareFrame(mFdp.PickValueInArray(kCompositionTypes));
@@ -554,8 +554,7 @@ void DisplayHardwareFuzzer::invokeComposer() {
     mHwc.setClientTarget(halDisplayID, mFdp.ConsumeIntegral<uint32_t>(), Fence::NO_FENCE,
                          sp<GraphicBuffer>::make(), mFdp.PickValueInArray(kDataspaces));
 
-    mHwc.presentAndGetReleaseFences(halDisplayID, std::chrono::steady_clock::now(),
-                                    FenceTime::NO_FENCE);
+    mHwc.presentAndGetReleaseFences(halDisplayID, std::chrono::steady_clock::now());
 
     mHwc.setPowerMode(mPhysicalDisplayId, mFdp.PickValueInArray(kPowerModes));
 
@@ -565,7 +564,7 @@ void DisplayHardwareFuzzer::invokeComposer() {
 
     mHwc.getLayerReleaseFence(halDisplayID, layer);
 
-    mHwc.setOutputBuffer(halVirtualDisplayId, sp<Fence>::make().get(), sp<GraphicBuffer>::make());
+    mHwc.setOutputBuffer(halVirtualDisplayId, sp<Fence>::make(), sp<GraphicBuffer>::make());
 
     mHwc.clearReleaseFences(halDisplayID);
 

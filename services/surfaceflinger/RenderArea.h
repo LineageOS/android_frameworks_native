@@ -25,14 +25,29 @@ public:
     static float getCaptureFillValue(CaptureFill captureFill);
 
     RenderArea(ui::Size reqSize, CaptureFill captureFill, ui::Dataspace reqDataSpace,
-               const Rect& layerStackRect, bool allowSecureLayers = false,
+               bool hintForSeamlessTransition, bool allowSecureLayers = false,
                RotationFlags rotation = ui::Transform::ROT_0)
           : mAllowSecureLayers(allowSecureLayers),
             mReqSize(reqSize),
             mReqDataSpace(reqDataSpace),
             mCaptureFill(captureFill),
             mRotationFlags(rotation),
-            mLayerStackSpaceRect(layerStackRect) {}
+            mHintForSeamlessTransition(hintForSeamlessTransition) {}
+
+    static std::function<std::vector<std::pair<Layer*, sp<LayerFE>>>()> fromTraverseLayersLambda(
+            std::function<void(const LayerVector::Visitor&)> traverseLayers) {
+        return [traverseLayers = std::move(traverseLayers)]() {
+            std::vector<std::pair<Layer*, sp<LayerFE>>> layers;
+            traverseLayers([&](Layer* layer) {
+                // Layer::prepareClientComposition uses the layer's snapshot to populate the
+                // resulting LayerSettings. Calling Layer::updateSnapshot ensures that LayerSettings
+                // are generated with the layer's current buffer and geometry.
+                layer->updateSnapshot(true /* updateGeometry */);
+                layers.emplace_back(layer, layer->copyCompositionEngineLayerFE());
+            });
+            return layers;
+        };
+    }
 
     virtual ~RenderArea() = default;
 
@@ -43,19 +58,9 @@ public:
     // blacked out / skipped when rendered to an insecure render area.
     virtual bool isSecure() const = 0;
 
-    // Returns true if the otherwise disabled layer filtering should be
-    // enabled when rendering to this render area.
-    virtual bool needsFiltering() const = 0;
-
     // Returns the transform to be applied on layers to transform them into
     // the logical render area.
     virtual const ui::Transform& getTransform() const = 0;
-
-    // Returns the size of the logical render area.  Layers are clipped to the
-    // logical render area.
-    virtual int getWidth() const = 0;
-    virtual int getHeight() const = 0;
-    virtual Rect getBounds() const = 0;
 
     // Returns the source crop of the render area.  The source crop defines
     // how layers are projected from the logical render area onto the physical
@@ -83,12 +88,13 @@ public:
 
     virtual sp<const DisplayDevice> getDisplayDevice() const = 0;
 
-    // Returns the source display viewport.
-    const Rect& getLayerStackSpaceRect() const { return mLayerStackSpaceRect; }
-
     // If this is a LayerRenderArea, return the root layer of the
     // capture operation.
     virtual sp<Layer> getParentLayer() const { return nullptr; }
+
+    // Returns whether the render result may be used for system animations that
+    // must preserve the exact colors of the display.
+    bool getHintForSeamlessTransition() const { return mHintForSeamlessTransition; }
 
 protected:
     const bool mAllowSecureLayers;
@@ -98,7 +104,7 @@ private:
     const ui::Dataspace mReqDataSpace;
     const CaptureFill mCaptureFill;
     const RotationFlags mRotationFlags;
-    const Rect mLayerStackSpaceRect;
+    const bool mHintForSeamlessTransition;
 };
 
 } // namespace android

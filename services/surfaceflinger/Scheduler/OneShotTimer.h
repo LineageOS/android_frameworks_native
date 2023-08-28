@@ -23,6 +23,7 @@
 #include "../Clock.h"
 
 #include <android-base/thread_annotations.h>
+#include <scheduler/Time.h>
 
 namespace android {
 namespace scheduler {
@@ -39,8 +40,10 @@ public:
 
     OneShotTimer(std::string name, const Interval& interval, const ResetCallback& resetCallback,
                  const TimeoutCallback& timeoutCallback,
-                 std::unique_ptr<Clock> clock = std::make_unique<SteadyClock>());
+                 std::unique_ptr<android::Clock> clock = std::make_unique<SteadyClock>());
     ~OneShotTimer();
+
+    Duration interval() const { return mInterval; }
 
     // Initializes and turns on the idle timer.
     void start();
@@ -48,8 +51,6 @@ public:
     void stop();
     // Resets the wakeup time and fires the reset callback.
     void reset();
-
-    std::string dump() const;
 
 private:
     // Enum to track in what state is the timer.
@@ -81,7 +82,7 @@ private:
     std::thread mThread;
 
     // Clock object for the timer. Mocked in unit tests.
-    std::unique_ptr<Clock> mClock;
+    std::unique_ptr<android::Clock> mClock;
 
     // Semaphore to keep mThread synchronized.
     sem_t mSemaphore;

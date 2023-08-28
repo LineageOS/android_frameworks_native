@@ -14,13 +14,9 @@
  * limitations under the License.
  *
  */
-#include <BufferStateLayer.h>
 #include <Client.h>
 #include <DisplayDevice.h>
-#include <EffectLayer.h>
-#include <LayerRejecter.h>
 #include <LayerRenderArea.h>
-#include <MonitoredProducer.h>
 #include <ftl/future.h>
 #include <fuzzer/FuzzedDataProvider.h>
 #include <gui/IProducerListener.h>
@@ -29,6 +25,7 @@
 #include <gui/WindowInfo.h>
 #include <renderengine/mock/FakeExternalTexture.h>
 #include <ui/DisplayStatInfo.h>
+#include <ui/Transform.h>
 
 #include <FuzzableDataspaces.h>
 #include <surfaceflinger_fuzzers_utils.h>
@@ -46,6 +43,7 @@ public:
     void invokeEffectLayer();
     LayerCreationArgs createLayerCreationArgs(TestableSurfaceFlinger* flinger, sp<Client> client);
     Rect getFuzzedRect();
+    ui::Transform getFuzzedTransform();
     FrameTimelineInfo getFuzzedFrameTimelineInfo();
 
 private:
@@ -58,9 +56,17 @@ Rect LayerFuzzer::getFuzzedRect() {
                 mFdp.ConsumeIntegral<int32_t>() /*bottom*/);
 }
 
+ui::Transform LayerFuzzer::getFuzzedTransform() {
+    return ui::Transform(mFdp.ConsumeIntegral<int32_t>() /*orientation*/,
+                         mFdp.ConsumeIntegral<int32_t>() /*width*/,
+                         mFdp.ConsumeIntegral<int32_t>() /*height*/);
+}
+
 FrameTimelineInfo LayerFuzzer::getFuzzedFrameTimelineInfo() {
-    return FrameTimelineInfo{.vsyncId = mFdp.ConsumeIntegral<int64_t>(),
-                             .inputEventId = mFdp.ConsumeIntegral<int32_t>()};
+    FrameTimelineInfo ftInfo;
+    ftInfo.vsyncId = mFdp.ConsumeIntegral<int64_t>();
+    ftInfo.inputEventId = mFdp.ConsumeIntegral<int32_t>();
+    return ftInfo;
 }
 
 LayerCreationArgs LayerFuzzer::createLayerCreationArgs(TestableSurfaceFlinger* flinger,
@@ -77,15 +83,15 @@ LayerCreationArgs LayerFuzzer::createLayerCreationArgs(TestableSurfaceFlinger* f
 
 void LayerFuzzer::invokeEffectLayer() {
     TestableSurfaceFlinger flinger;
-    sp<Client> client = sp<Client>::make(flinger.flinger());
+    sp<Client> client = sp<Client>::make(sp<SurfaceFlinger>::fromExisting(flinger.flinger()));
     const LayerCreationArgs layerCreationArgs = createLayerCreationArgs(&flinger, client);
-    sp<EffectLayer> effectLayer = sp<EffectLayer>::make(layerCreationArgs);
+    sp<Layer> effectLayer = sp<Layer>::make(layerCreationArgs);
 
     effectLayer->setColor({(mFdp.ConsumeFloatingPointInRange<float>(0, 255) /*x*/,
                             mFdp.ConsumeFloatingPointInRange<float>(0, 255) /*y*/,
                             mFdp.ConsumeFloatingPointInRange<float>(0, 255) /*z*/)});
     effectLayer->setDataspace(mFdp.PickValueInArray(kDataspaces));
-    sp<EffectLayer> parent = sp<EffectLayer>::make(layerCreationArgs);
+    sp<Layer> parent = sp<Layer>::make(layerCreationArgs);
     effectLayer->setChildrenDrawingParent(parent);
 
     const FrameTimelineInfo frameInfo = getFuzzedFrameTimelineInfo();
@@ -109,24 +115,25 @@ void LayerFuzzer::invokeEffectLayer() {
 
 void LayerFuzzer::invokeBufferStateLayer() {
     TestableSurfaceFlinger flinger;
-    sp<Client> client = sp<Client>::make(flinger.flinger());
-    sp<BufferStateLayer> layer =
-            sp<BufferStateLayer>::make(createLayerCreationArgs(&flinger, client));
+    sp<Client> client = sp<Client>::make(sp<SurfaceFlinger>::fromExisting(flinger.flinger()));
+    sp<Layer> layer = sp<Layer>::make(createLayerCreationArgs(&flinger, client));
     sp<Fence> fence = sp<Fence>::make();
     const std::shared_ptr<FenceTime> fenceTime = std::make_shared<FenceTime>(fence);
 
-    const CompositorTiming compositor = {mFdp.ConsumeIntegral<int64_t>(),
-                                         mFdp.ConsumeIntegral<int64_t>(),
-                                         mFdp.ConsumeIntegral<int64_t>()};
+    const CompositorTiming compositorTiming(mFdp.ConsumeIntegral<int64_t>(),
+                                            mFdp.ConsumeIntegral<int64_t>(),
+                                            mFdp.ConsumeIntegral<int64_t>(),
+                                            mFdp.ConsumeIntegral<int64_t>());
 
-    layer->onLayerDisplayed(ftl::yield<FenceResult>(fence).share());
-    layer->onLayerDisplayed(
-            ftl::yield<FenceResult>(base::unexpected(mFdp.ConsumeIntegral<status_t>())).share());
+    layer->onLayerDisplayed(ftl::yield<FenceResult>(fence).share(),
+                            ui::LayerStack::fromValue(mFdp.ConsumeIntegral<uint32_t>()));
+    layer->onLayerDisplayed(ftl::yield<FenceResult>(
+                                    base::unexpected(mFdp.ConsumeIntegral<status_t>()))
+                                    .share(),
+                            ui::LayerStack::fromValue(mFdp.ConsumeIntegral<uint32_t>()));
 
     layer->releasePendingBuffer(mFdp.ConsumeIntegral<int64_t>());
-    layer->finalizeFrameEventHistory(fenceTime, compositor);
-    layer->onPostComposition(nullptr, fenceTime, fenceTime, compositor);
-    layer->isBufferDue(mFdp.ConsumeIntegral<int64_t>());
+    layer->onPostComposition(nullptr, fenceTime, fenceTime, compositorTiming);
 
     layer->setTransform(mFdp.ConsumeIntegral<uint32_t>());
     layer->setTransformToDisplayInverse(mFdp.ConsumeBool());
@@ -150,10 +157,9 @@ void LayerFuzzer::invokeBufferStateLayer() {
     layer->computeSourceBounds(getFuzzedFloatRect(&mFdp));
 
     layer->fenceHasSignaled();
-    layer->framePresentTimeIsCurrent(mFdp.ConsumeIntegral<int64_t>());
     layer->onPreComposition(mFdp.ConsumeIntegral<int64_t>());
     const std::vector<sp<CallbackHandle>> callbacks;
-    layer->setTransactionCompletedListeners(callbacks);
+    layer->setTransactionCompletedListeners(callbacks, mFdp.ConsumeBool());
 
     std::shared_ptr<renderengine::ExternalTexture> texture = std::make_shared<
             renderengine::mock::FakeExternalTexture>(mFdp.ConsumeIntegral<uint32_t>(),
@@ -171,7 +177,8 @@ void LayerFuzzer::invokeBufferStateLayer() {
                               {mFdp.ConsumeIntegral<int32_t>(),
                                mFdp.ConsumeIntegral<int32_t>()} /*reqSize*/,
                               mFdp.PickValueInArray(kDataspaces), mFdp.ConsumeBool(),
-                              getFuzzedRect(), mFdp.ConsumeBool());
+                              mFdp.ConsumeBool(), getFuzzedTransform(), getFuzzedRect(),
+                              mFdp.ConsumeBool());
     layerArea.render([]() {} /*drawLayers*/);
 
     if (!ownsHandle) {

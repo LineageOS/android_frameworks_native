@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _UI_INPUTREADER_VIBRATOR_INPUT_MAPPER_H
-#define _UI_INPUTREADER_VIBRATOR_INPUT_MAPPER_H
+#pragma once
 
 #include "InputMapper.h"
 
@@ -23,18 +22,22 @@ namespace android {
 
 class VibratorInputMapper : public InputMapper {
 public:
-    explicit VibratorInputMapper(InputDeviceContext& deviceContext);
+    template <class T, class... Args>
+    friend std::unique_ptr<T> createInputMapper(InputDeviceContext& deviceContext,
+                                                const InputReaderConfiguration& readerConfig,
+                                                Args... args);
     virtual ~VibratorInputMapper();
 
     virtual uint32_t getSources() const override;
-    virtual void populateDeviceInfo(InputDeviceInfo* deviceInfo) override;
-    virtual void process(const RawEvent* rawEvent) override;
+    virtual void populateDeviceInfo(InputDeviceInfo& deviceInfo) override;
+    [[nodiscard]] std::list<NotifyArgs> process(const RawEvent* rawEvent) override;
 
-    virtual void vibrate(const VibrationSequence& sequence, ssize_t repeat, int32_t token) override;
-    virtual void cancelVibrate(int32_t token) override;
+    [[nodiscard]] std::list<NotifyArgs> vibrate(const VibrationSequence& sequence, ssize_t repeat,
+                                                int32_t token) override;
+    [[nodiscard]] std::list<NotifyArgs> cancelVibrate(int32_t token) override;
     virtual bool isVibrating() override;
     virtual std::vector<int32_t> getVibratorIds() override;
-    virtual void timeoutExpired(nsecs_t when) override;
+    [[nodiscard]] std::list<NotifyArgs> timeoutExpired(nsecs_t when) override;
     virtual void dump(std::string& dump) override;
 
 private:
@@ -45,10 +48,10 @@ private:
     ssize_t mIndex;
     nsecs_t mNextStepTime;
 
-    void nextStep();
-    void stopVibrating();
+    explicit VibratorInputMapper(InputDeviceContext& deviceContext,
+                                 const InputReaderConfiguration& readerConfig);
+    [[nodiscard]] std::list<NotifyArgs> nextStep();
+    [[nodiscard]] NotifyVibratorStateArgs stopVibrating();
 };
 
 } // namespace android
-
-#endif // _UI_INPUTREADER_VIBRATOR_INPUT_MAPPER_H

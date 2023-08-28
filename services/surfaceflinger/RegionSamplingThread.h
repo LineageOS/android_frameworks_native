@@ -26,6 +26,7 @@
 
 #include <chrono>
 #include <condition_variable>
+#include <cstdint>
 #include <mutex>
 #include <thread>
 #include <unordered_map>
@@ -36,7 +37,6 @@
 namespace android {
 
 class Layer;
-class Scheduler;
 class SurfaceFlinger;
 struct SamplingOffsetCallback;
 
@@ -73,7 +73,7 @@ public:
 
     // Add a listener to receive luma notifications. The luma reported via listener will
     // report the median luma for the layers under the stopLayerHandle, in the samplingArea region.
-    void addListener(const Rect& samplingArea, const wp<Layer>& stopLayer,
+    void addListener(const Rect& samplingArea, uint32_t stopLayerId,
                      const sp<IRegionSamplingListener>& listener);
     // Remove the listener to stop receiving median luma notifications.
     void removeListener(const sp<IRegionSamplingListener>& listener);
@@ -87,7 +87,7 @@ public:
 private:
     struct Descriptor {
         Rect area = Rect::EMPTY_RECT;
-        wp<Layer> stopLayer;
+        uint32_t stopLayerId;
         sp<IRegionSamplingListener> listener;
     };
 

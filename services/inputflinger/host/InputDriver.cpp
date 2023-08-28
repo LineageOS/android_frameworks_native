@@ -240,19 +240,16 @@ input_property_map_t* InputDriver::inputGetDevicePropertyMap(input_device_identi
     return nullptr;
 }
 
-input_property_t* InputDriver::inputGetDeviceProperty(input_property_map_t* map,
-        const char* key) {
-    String8 keyString(key);
+input_property_t* InputDriver::inputGetDeviceProperty(input_property_map_t* map, const char* key) {
     if (map != nullptr) {
-        if (map->propertyMap->hasProperty(keyString)) {
-            auto prop = new input_property_t();
-            if (!map->propertyMap->tryGetProperty(keyString, prop->value)) {
-                delete prop;
-                return nullptr;
-            }
-            prop->key = keyString;
-            return prop;
+        std::optional<std::string> value = map->propertyMap->getString(key);
+        if (!value.has_value()) {
+            return nullptr;
         }
+        auto prop = std::make_unique<input_property_t>();
+        prop->key = key;
+        prop->value = value->c_str();
+        return prop.release();
     }
     return nullptr;
 }

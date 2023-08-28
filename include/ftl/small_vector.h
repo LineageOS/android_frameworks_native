@@ -21,10 +21,11 @@
 
 #include <algorithm>
 #include <iterator>
-#include <type_traits>
 #include <utility>
 #include <variant>
 #include <vector>
+
+#include <ftl/details/type_traits.h>
 
 namespace android::ftl {
 
@@ -80,10 +81,6 @@ class SmallVector final : details::ArrayTraits<T>, details::ArrayComparators<Sma
   using Static = StaticVector<T, N>;
   using Dynamic = SmallVector<T, 0>;
 
-  // TODO: Replace with std::remove_cvref_t in C++20.
-  template <typename U>
-  using remove_cvref_t = std::remove_cv_t<std::remove_reference_t<U>>;
-
  public:
   FTL_ARRAY_TRAIT(T, value_type);
   FTL_ARRAY_TRAIT(T, size_type);
@@ -104,7 +101,7 @@ class SmallVector final : details::ArrayTraits<T>, details::ArrayComparators<Sma
 
   // Constructs at most N elements. See StaticVector for underlying constructors.
   template <typename Arg, typename... Args,
-            typename = std::enable_if_t<!is_small_vector<remove_cvref_t<Arg>>{}>>
+            typename = std::enable_if_t<!is_small_vector<details::remove_cvref_t<Arg>>{}>>
   SmallVector(Arg&& arg, Args&&... args)
       : vector_(std::in_place_type<Static>, std::forward<Arg>(arg), std::forward<Args>(args)...) {}
 

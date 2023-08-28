@@ -22,6 +22,7 @@
 #include <string>
 
 #include <android-base/stringprintf.h>
+#include <ftl/algorithm.h>
 #include <ftl/small_map.h>
 #include <utils/Timers.h>
 
@@ -82,12 +83,18 @@ public:
         flushTime();
 
         TotalTimes totalTimes = ftl::init::map("ScreenOff", mScreenOffTime);
-        const auto zero = std::chrono::milliseconds::zero();
 
         // Sum the times for modes that map to the same name, e.g. "60 Hz".
         for (const auto& [fps, time] : mFpsTotalTimes) {
             const auto string = to_string(fps);
-            const auto total = std::as_const(totalTimes).get(string).value_or(std::cref(zero));
+            const auto total = std::as_const(totalTimes)
+                                       .get(string)
+                                       .or_else(ftl::static_ref<std::chrono::milliseconds>([] {
+                                           using namespace std::chrono_literals;
+                                           return 0ms;
+                                       }))
+                                       .value();
+
             totalTimes.emplace_or_replace(string, total.get() + time);
         }
 
@@ -114,15 +121,18 @@ private:
         mPreviousRecordedTime = currentTime;
 
         const auto duration = std::chrono::milliseconds{ns2ms(timeElapsed)};
-        const auto zero = std::chrono::milliseconds::zero();
-
         uint32_t fps = 0;
 
         if (mCurrentPowerMode == PowerMode::ON) {
             // Normal power mode is counted under different config modes.
             const auto total = std::as_const(mFpsTotalTimes)
                                        .get(mCurrentRefreshRate)
-                                       .value_or(std::cref(zero));
+                                       .or_else(ftl::static_ref<std::chrono::milliseconds>([] {
+                                           using namespace std::chrono_literals;
+                                           return 0ms;
+                                       }))
+                                       .value();
+
             mFpsTotalTimes.emplace_or_replace(mCurrentRefreshRate, total.get() + duration);
 
             fps = static_cast<uint32_t>(mCurrentRefreshRate.getIntValue());

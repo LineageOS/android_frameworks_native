@@ -25,15 +25,15 @@
 
 #include "TestableSurfaceFlinger.h"
 #include "mock/DisplayHardware/MockComposer.h"
-#include "mock/MockEventThread.h"
-#include "mock/MockVsyncController.h"
 
 namespace android {
 
 using testing::_;
 using testing::Mock;
 using testing::Return;
-using FakeHwcDisplayInjector = TestableSurfaceFlinger::FakeHwcDisplayInjector;
+
+using gui::GameMode;
+using gui::LayerMetadata;
 
 class GameModeTest : public testing::Test {
 public:
@@ -41,7 +41,7 @@ public:
         const ::testing::TestInfo* const test_info =
                 ::testing::UnitTest::GetInstance()->current_test_info();
         ALOGD("**** Setting up for %s.%s\n", test_info->test_case_name(), test_info->name());
-        setupScheduler();
+        mFlinger.setupMockScheduler();
         setupComposer();
     }
 
@@ -51,36 +51,10 @@ public:
         ALOGD("**** Tearing down after %s.%s\n", test_info->test_case_name(), test_info->name());
     }
 
-    sp<BufferStateLayer> createBufferStateLayer() {
+    sp<Layer> createLayer() {
         sp<Client> client;
-        LayerCreationArgs args(mFlinger.flinger(), client, "buffer-state-layer", 0,
-                               LayerMetadata());
-        return new BufferStateLayer(args);
-    }
-
-    void setupScheduler() {
-        auto eventThread = std::make_unique<mock::EventThread>();
-        auto sfEventThread = std::make_unique<mock::EventThread>();
-
-        EXPECT_CALL(*eventThread, registerDisplayEventConnection(_));
-        EXPECT_CALL(*eventThread, createEventConnection(_, _))
-                .WillOnce(Return(new EventThreadConnection(eventThread.get(), /*callingUid=*/0,
-                                                           ResyncCallback())));
-
-        EXPECT_CALL(*sfEventThread, registerDisplayEventConnection(_));
-        EXPECT_CALL(*sfEventThread, createEventConnection(_, _))
-                .WillOnce(Return(new EventThreadConnection(sfEventThread.get(), /*callingUid=*/0,
-                                                           ResyncCallback())));
-
-        auto vsyncController = std::make_unique<mock::VsyncController>();
-        auto vsyncTracker = std::make_unique<mock::VSyncTracker>();
-
-        EXPECT_CALL(*vsyncTracker, nextAnticipatedVSyncTimeFrom(_)).WillRepeatedly(Return(0));
-        EXPECT_CALL(*vsyncTracker, currentPeriod())
-                .WillRepeatedly(Return(FakeHwcDisplayInjector::DEFAULT_VSYNC_PERIOD));
-        EXPECT_CALL(*vsyncTracker, nextAnticipatedVSyncTimeFrom(_)).WillRepeatedly(Return(0));
-        mFlinger.setupScheduler(std::move(vsyncController), std::move(vsyncTracker),
-                                std::move(eventThread), std::move(sfEventThread));
+        LayerCreationArgs args(mFlinger.flinger(), client, "layer", 0, LayerMetadata());
+        return sp<Layer>::make(args);
     }
 
     void setupComposer() {
@@ -92,7 +66,7 @@ public:
 
     // Mocks the behavior of applying a transaction from WMShell
     void setGameModeMetadata(sp<Layer> layer, GameMode gameMode) {
-        mLayerMetadata.setInt32(METADATA_GAME_MODE, static_cast<int32_t>(gameMode));
+        mLayerMetadata.setInt32(gui::METADATA_GAME_MODE, static_cast<int32_t>(gameMode));
         layer->setMetadata(mLayerMetadata);
         layer->setGameModeForTree(gameMode);
     }
@@ -104,9 +78,9 @@ public:
 };
 
 TEST_F(GameModeTest, SetGameModeSetsForAllCurrentChildren) {
-    sp<BufferStateLayer> rootLayer = createBufferStateLayer();
-    sp<BufferStateLayer> childLayer1 = createBufferStateLayer();
-    sp<BufferStateLayer> childLayer2 = createBufferStateLayer();
+    sp<Layer> rootLayer = createLayer();
+    sp<Layer> childLayer1 = createLayer();
+    sp<Layer> childLayer2 = createLayer();
     rootLayer->addChild(childLayer1);
     rootLayer->addChild(childLayer2);
     rootLayer->setGameModeForTree(GameMode::Performance);
@@ -117,8 +91,8 @@ TEST_F(GameModeTest, SetGameModeSetsForAllCurrentChildren) {
 }
 
 TEST_F(GameModeTest, AddChildAppliesGameModeFromParent) {
-    sp<BufferStateLayer> rootLayer = createBufferStateLayer();
-    sp<BufferStateLayer> childLayer = createBufferStateLayer();
+    sp<Layer> rootLayer = createLayer();
+    sp<Layer> childLayer = createLayer();
     rootLayer->setGameModeForTree(GameMode::Performance);
     rootLayer->addChild(childLayer);
 
@@ -127,8 +101,8 @@ TEST_F(GameModeTest, AddChildAppliesGameModeFromParent) {
 }
 
 TEST_F(GameModeTest, RemoveChildResetsGameMode) {
-    sp<BufferStateLayer> rootLayer = createBufferStateLayer();
-    sp<BufferStateLayer> childLayer = createBufferStateLayer();
+    sp<Layer> rootLayer = createLayer();
+    sp<Layer> childLayer = createLayer();
     rootLayer->setGameModeForTree(GameMode::Performance);
     rootLayer->addChild(childLayer);
 
@@ -140,9 +114,9 @@ TEST_F(GameModeTest, RemoveChildResetsGameMode) {
 }
 
 TEST_F(GameModeTest, ReparentingDoesNotOverrideMetadata) {
-    sp<BufferStateLayer> rootLayer = createBufferStateLayer();
-    sp<BufferStateLayer> childLayer1 = createBufferStateLayer();
-    sp<BufferStateLayer> childLayer2 = createBufferStateLayer();
+    sp<Layer> rootLayer = createLayer();
+    sp<Layer> childLayer1 = createLayer();
+    sp<Layer> childLayer2 = createLayer();
     rootLayer->setGameModeForTree(GameMode::Standard);
     rootLayer->addChild(childLayer1);
 

@@ -138,6 +138,10 @@ public:
             const sp<GraphicBuffer>& buf, const Rect& cropRect,
             uint32_t transform, bool filtering);
 
+    static void computeTransformMatrix(float outTransform[16], float bufferWidth,
+                                       float bufferHeight, PixelFormat pixelFormat,
+                                       const Rect& cropRect, uint32_t transform, bool filtering);
+
     // Scale the crop down horizontally or vertically such that it has the
     // same aspect ratio as the buffer does.
     static Rect scaleDownCrop(const Rect& crop, uint32_t bufferWidth,

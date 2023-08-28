@@ -32,7 +32,7 @@ namespace android {
 
 TEST(SurfaceFlingerStress, create_and_destroy) {
     auto do_stress = []() {
-        sp<SurfaceComposerClient> client = new SurfaceComposerClient;
+        sp<SurfaceComposerClient> client = sp<SurfaceComposerClient>::make();
         ASSERT_EQ(NO_ERROR, client->initCheck());
         for (int j = 0; j < 1000; j++) {
             auto surf = client->createSurface(String8("t"), 100, 100,

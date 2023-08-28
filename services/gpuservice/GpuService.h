@@ -56,8 +56,12 @@ private:
                      int64_t driverLoadingTime) override;
     void setTargetStats(const std::string& appPackageName, const uint64_t driverVersionCode,
                         const GpuStatsInfo::Stats stats, const uint64_t value) override;
+    void setTargetStatsArray(const std::string& appPackageName,
+                        const uint64_t driverVersionCode, const GpuStatsInfo::Stats stats,
+                        const uint64_t* values, const uint32_t valueCount) override;
     void setUpdatableDriverPath(const std::string& driverPath) override;
     std::string getUpdatableDriverPath() override;
+    void toggleAngleAsSystemDriver(bool enabled) override;
 
     /*
      * IBinder interface

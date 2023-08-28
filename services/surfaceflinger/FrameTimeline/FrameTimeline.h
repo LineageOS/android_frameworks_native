@@ -474,6 +474,7 @@ private:
     friend class android::frametimeline::FrameTimelineTest;
 
     void flushPendingPresentFences() REQUIRES(mMutex);
+    std::optional<size_t> getFirstSignalFenceIndex() const REQUIRES(mMutex);
     void finalizeCurrentDisplayFrame() REQUIRES(mMutex);
     void dumpAll(std::string& result);
     void dumpJank(std::string& result);

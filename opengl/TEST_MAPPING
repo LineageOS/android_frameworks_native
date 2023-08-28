@@ -2,6 +2,9 @@
   "presubmit": [
     {
       "name": "CtsGpuToolsHostTestCases"
+    },
+    {
+      "name": "EGL_test"
     }
   ]
 }

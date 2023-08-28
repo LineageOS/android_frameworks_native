@@ -164,7 +164,7 @@ public:
     void assertFocusChange(bool hasFocus) {
         InputEvent *ev = consumeEvent();
         ASSERT_NE(ev, nullptr);
-        ASSERT_EQ(AINPUT_EVENT_TYPE_FOCUS, ev->getType());
+        ASSERT_EQ(InputEventType::FOCUS, ev->getType());
         FocusEvent *focusEvent = static_cast<FocusEvent *>(ev);
         EXPECT_EQ(hasFocus, focusEvent->getHasFocus());
     }
@@ -172,7 +172,7 @@ public:
     void expectTap(int x, int y) {
         InputEvent* ev = consumeEvent();
         ASSERT_NE(ev, nullptr);
-        ASSERT_EQ(AINPUT_EVENT_TYPE_MOTION, ev->getType());
+        ASSERT_EQ(InputEventType::MOTION, ev->getType());
         MotionEvent* mev = static_cast<MotionEvent*>(ev);
         EXPECT_EQ(AMOTION_EVENT_ACTION_DOWN, mev->getAction());
         EXPECT_EQ(x, mev->getX(0));
@@ -181,7 +181,7 @@ public:
 
         ev = consumeEvent();
         ASSERT_NE(ev, nullptr);
-        ASSERT_EQ(AINPUT_EVENT_TYPE_MOTION, ev->getType());
+        ASSERT_EQ(InputEventType::MOTION, ev->getType());
         mev = static_cast<MotionEvent*>(ev);
         EXPECT_EQ(AMOTION_EVENT_ACTION_UP, mev->getAction());
         EXPECT_EQ(0, mev->getFlags() & VERIFIED_MOTION_EVENT_FLAGS);
@@ -190,7 +190,7 @@ public:
     void expectTapWithFlag(int x, int y, int32_t flags) {
         InputEvent *ev = consumeEvent();
         ASSERT_NE(ev, nullptr);
-        ASSERT_EQ(AINPUT_EVENT_TYPE_MOTION, ev->getType());
+        ASSERT_EQ(InputEventType::MOTION, ev->getType());
         MotionEvent *mev = static_cast<MotionEvent *>(ev);
         EXPECT_EQ(AMOTION_EVENT_ACTION_DOWN, mev->getAction());
         EXPECT_EQ(x, mev->getX(0));
@@ -199,7 +199,7 @@ public:
 
         ev = consumeEvent();
         ASSERT_NE(ev, nullptr);
-        ASSERT_EQ(AINPUT_EVENT_TYPE_MOTION, ev->getType());
+        ASSERT_EQ(InputEventType::MOTION, ev->getType());
         mev = static_cast<MotionEvent *>(ev);
         EXPECT_EQ(AMOTION_EVENT_ACTION_UP, mev->getAction());
         EXPECT_EQ(flags, mev->getFlags() & flags);
@@ -208,7 +208,7 @@ public:
     void expectTapInDisplayCoordinates(int displayX, int displayY) {
         InputEvent *ev = consumeEvent();
         ASSERT_NE(ev, nullptr);
-        ASSERT_EQ(AINPUT_EVENT_TYPE_MOTION, ev->getType());
+        ASSERT_EQ(InputEventType::MOTION, ev->getType());
         MotionEvent *mev = static_cast<MotionEvent *>(ev);
         EXPECT_EQ(AMOTION_EVENT_ACTION_DOWN, mev->getAction());
         const PointerCoords &coords = *mev->getRawPointerCoords(0 /*pointerIndex*/);
@@ -218,7 +218,7 @@ public:
 
         ev = consumeEvent();
         ASSERT_NE(ev, nullptr);
-        ASSERT_EQ(AINPUT_EVENT_TYPE_MOTION, ev->getType());
+        ASSERT_EQ(InputEventType::MOTION, ev->getType());
         mev = static_cast<MotionEvent *>(ev);
         EXPECT_EQ(AMOTION_EVENT_ACTION_UP, mev->getAction());
         EXPECT_EQ(0, mev->getFlags() & VERIFIED_MOTION_EVENT_FLAGS);
@@ -227,7 +227,7 @@ public:
     void expectKey(uint32_t keycode) {
         InputEvent *ev = consumeEvent();
         ASSERT_NE(ev, nullptr);
-        ASSERT_EQ(AINPUT_EVENT_TYPE_KEY, ev->getType());
+        ASSERT_EQ(InputEventType::KEY, ev->getType());
         KeyEvent *keyEvent = static_cast<KeyEvent *>(ev);
         EXPECT_EQ(AMOTION_EVENT_ACTION_DOWN, keyEvent->getAction());
         EXPECT_EQ(keycode, keyEvent->getKeyCode());
@@ -235,7 +235,7 @@ public:
 
         ev = consumeEvent();
         ASSERT_NE(ev, nullptr);
-        ASSERT_EQ(AINPUT_EVENT_TYPE_KEY, ev->getType());
+        ASSERT_EQ(InputEventType::KEY, ev->getType());
         keyEvent = static_cast<KeyEvent *>(ev);
         EXPECT_EQ(AMOTION_EVENT_ACTION_UP, keyEvent->getAction());
         EXPECT_EQ(keycode, keyEvent->getKeyCode());
@@ -272,8 +272,6 @@ public:
         FocusRequest request;
         request.token = mInputInfo.token;
         request.windowName = mInputInfo.name;
-        request.focusedToken = nullptr;
-        request.focusedWindowName = "";
         request.timestamp = systemTime(SYSTEM_TIME_MONOTONIC);
         request.displayId = displayId;
         t.setFocusedWindow(request);
@@ -360,8 +358,10 @@ public:
     void SetUp() {
         mComposerClient = new SurfaceComposerClient;
         ASSERT_EQ(NO_ERROR, mComposerClient->initCheck());
-
-        const auto display = mComposerClient->getInternalDisplayToken();
+        const auto ids = SurfaceComposerClient::getPhysicalDisplayIds();
+        ASSERT_FALSE(ids.empty());
+        // display 0 is picked for now, can extend to support all displays if needed
+        const auto display = SurfaceComposerClient::getPhysicalDisplayToken(ids.front());
         ASSERT_NE(display, nullptr);
 
         ui::DisplayMode mode;
@@ -510,6 +510,22 @@ TEST_F(InputSurfacesTest, input_respects_surface_insets) {
     bgSurface->expectTap(1, 1);
 }
 
+TEST_F(InputSurfacesTest, input_respects_surface_insets_with_replaceTouchableRegionWithCrop) {
+    std::unique_ptr<InputSurface> bgSurface = makeSurface(100, 100);
+    std::unique_ptr<InputSurface> fgSurface = makeSurface(100, 100);
+    bgSurface->showAt(100, 100);
+
+    fgSurface->mInputInfo.surfaceInset = 5;
+    fgSurface->mInputInfo.replaceTouchableRegionWithCrop = true;
+    fgSurface->showAt(100, 100);
+
+    injectTap(106, 106);
+    fgSurface->expectTap(1, 1);
+
+    injectTap(101, 101);
+    bgSurface->expectTap(1, 1);
+}
+
 // Ensure a surface whose insets are cropped, handles the touch offset correctly. ref:b/120413463
 TEST_F(InputSurfacesTest, input_respects_cropped_surface_insets) {
     std::unique_ptr<InputSurface> parentSurface = makeSurface(100, 100);
@@ -612,7 +628,7 @@ TEST_F(InputSurfacesTest, input_respects_scaled_touchable_region_overflow) {
 
     // Expect no crash for overflow.
     injectTap(12, 24);
-    fgSurface->expectTap(6, 12);
+    bgSurface->expectTap(12, 24);
 }
 
 // Ensure we ignore transparent region when getting screen bounds when positioning input frame.
@@ -1217,32 +1233,6 @@ TEST_F(MultiDisplayTests, virtual_display_receives_input) {
     surface->assertFocusChange(true);
     injectKeyOnDisplay(AKEYCODE_V, layerStack.id);
     surface->expectKey(AKEYCODE_V);
-}
-
-/**
- * When multiple DisplayDevices are mapped to the same layerStack, use the configuration for the
- * display that can receive input.
- */
-TEST_F(MultiDisplayTests, many_to_one_display_mapping) {
-    ui::LayerStack layerStack = ui::LayerStack::fromValue(42);
-    createDisplay(1000, 1000, false /*isSecure*/, layerStack, false /*receivesInput*/,
-                  100 /*offsetX*/, 100 /*offsetY*/);
-    createDisplay(1000, 1000, false /*isSecure*/, layerStack, true /*receivesInput*/,
-                  200 /*offsetX*/, 200 /*offsetY*/);
-    createDisplay(1000, 1000, false /*isSecure*/, layerStack, false /*receivesInput*/,
-                  300 /*offsetX*/, 300 /*offsetY*/);
-    std::unique_ptr<InputSurface> surface = makeSurface(100, 100);
-    surface->doTransaction([&](auto &t, auto &sc) { t.setLayerStack(sc, layerStack); });
-    surface->showAt(10, 10);
-
-    // Input injection happens in logical display coordinates.
-    injectTapOnDisplay(11, 11, layerStack.id);
-    // Expect that the display transform for the display that receives input was used.
-    surface->expectTapInDisplayCoordinates(211, 211);
-
-    surface->requestFocus(layerStack.id);
-    surface->assertFocusChange(true);
-    injectKeyOnDisplay(AKEYCODE_V, layerStack.id);
 }
 
 TEST_F(MultiDisplayTests, drop_input_for_secure_layer_on_nonsecure_display) {

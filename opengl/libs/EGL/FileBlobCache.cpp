@@ -14,6 +14,8 @@
  ** limitations under the License.
  */
 
+#define ATRACE_TAG ATRACE_TAG_GRAPHICS
+
 #include "FileBlobCache.h"
 
 #include <errno.h>
@@ -24,6 +26,7 @@
 #include <unistd.h>
 
 #include <log/log.h>
+#include <utils/Trace.h>
 
 // Cache file header
 static const char* cacheFileMagic = "EGL$";
@@ -31,7 +34,7 @@ static const size_t cacheFileHeaderSize = 8;
 
 namespace android {
 
-static uint32_t crc32c(const uint8_t* buf, size_t len) {
+uint32_t crc32c(const uint8_t* buf, size_t len) {
     const uint32_t polyBits = 0x82F63B78;
     uint32_t r = 0;
     for (size_t i = 0; i < len; i++) {
@@ -51,6 +54,8 @@ FileBlobCache::FileBlobCache(size_t maxKeySize, size_t maxValueSize, size_t maxT
         const std::string& filename)
         : BlobCache(maxKeySize, maxValueSize, maxTotalSize)
         , mFilename(filename) {
+    ATRACE_CALL();
+
     if (mFilename.length() > 0) {
         size_t headerSize = cacheFileHeaderSize;
 
@@ -117,6 +122,8 @@ FileBlobCache::FileBlobCache(size_t maxKeySize, size_t maxValueSize, size_t maxT
 }
 
 void FileBlobCache::writeToFile() {
+    ATRACE_CALL();
+
     if (mFilename.length() > 0) {
         size_t cacheSize = getFlattenedSize();
         size_t headerSize = cacheFileHeaderSize;
@@ -185,4 +192,10 @@ void FileBlobCache::writeToFile() {
     }
 }
 
+size_t FileBlobCache::getSize() {
+    if (mFilename.length() > 0) {
+        return getFlattenedSize() + cacheFileHeaderSize;
+    }
+    return 0;
+}
 }

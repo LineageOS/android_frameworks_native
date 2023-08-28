@@ -19,10 +19,15 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeTrue;
 
+import android.platform.test.annotations.RestrictedBuildTest;
+
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 import com.android.tradefed.util.CommandResult;
 import com.android.tradefed.util.CommandStatus;
+
+import com.android.compatibility.common.util.PropertyUtil;
+import com.android.compatibility.common.util.VsrTest;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -57,15 +62,23 @@ public class GpuWorkTracepointTest extends BaseHostJUnit4Test {
                 commandResult.getStatus(), CommandStatus.SUCCESS);
     }
 
+    @VsrTest(requirements={"VSR-3.3-004"})
+    @RestrictedBuildTest
     @Test
     public void testGpuWorkPeriodTracepointFormat() throws Exception {
         CommandResult commandResult = getDevice().executeShellV2Command(
                 String.format("cat %s", GPU_WORK_PERIOD_TRACEPOINT_FORMAT_PATH));
 
         // If we failed to cat the tracepoint format then the test ends here.
-        assumeTrue(String.format("Failed to cat the gpu_work_period tracepoint format at %s",
-                        GPU_WORK_PERIOD_TRACEPOINT_FORMAT_PATH),
-                commandResult.getStatus().equals(CommandStatus.SUCCESS));
+        if (!commandResult.getStatus().equals(CommandStatus.SUCCESS)) {
+            String message = String.format(
+                "Failed to cat the gpu_work_period tracepoint format at %s\n",
+                GPU_WORK_PERIOD_TRACEPOINT_FORMAT_PATH);
+
+            // Tracepoint MUST exist on devices released with Android 14 or later
+            assumeTrue(message, PropertyUtil.getVsrApiLevel(getDevice()) >= 34);
+            fail(message);
+        }
 
         // Otherwise, we check that the fields match the expected fields.
         String actualFields = Arrays.stream(

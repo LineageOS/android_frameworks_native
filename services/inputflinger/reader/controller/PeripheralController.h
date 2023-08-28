@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _UI_INPUTREADER_LIGHT_CONTROLLER_H
-#define _UI_INPUTREADER_LIGHT_CONTROLLER_H
+#pragma once
 
 #include "PeripheralControllerInterface.h"
 
@@ -68,6 +67,7 @@ private:
         std::string name;
         int32_t id;
         InputDeviceLightType type;
+        ftl::Flags<InputDeviceLightCapability> capabilityFlags;
 
         virtual bool setLightColor(int32_t color) { return false; }
         virtual std::optional<int32_t> getLightColor() { return std::nullopt; }
@@ -82,8 +82,10 @@ private:
 
     struct MonoLight : public Light {
         explicit MonoLight(InputDeviceContext& context, const std::string& name, int32_t id,
-                           int32_t rawId)
-              : Light(context, name, id, InputDeviceLightType::MONO), rawId(rawId) {}
+                           InputDeviceLightType type, int32_t rawId)
+              : Light(context, name, id, type), rawId(rawId) {
+            capabilityFlags |= InputDeviceLightCapability::BRIGHTNESS;
+        }
         int32_t rawId;
 
         bool setLightColor(int32_t color) override;
@@ -92,15 +94,15 @@ private:
     };
 
     struct RgbLight : public Light {
-        explicit RgbLight(InputDeviceContext& context, int32_t id,
+        explicit RgbLight(InputDeviceContext& context, int32_t id, InputDeviceLightType type,
                           const std::unordered_map<LightColor, int32_t>& rawRgbIds,
                           std::optional<int32_t> rawGlobalId)
-              : Light(context, "RGB", id, InputDeviceLightType::RGB),
-                rawRgbIds(rawRgbIds),
-                rawGlobalId(rawGlobalId) {
+              : Light(context, "RGB", id, type), rawRgbIds(rawRgbIds), rawGlobalId(rawGlobalId) {
             brightness = rawGlobalId.has_value()
                     ? getRawLightBrightness(rawGlobalId.value()).value_or(MAX_BRIGHTNESS)
                     : MAX_BRIGHTNESS;
+            capabilityFlags |= InputDeviceLightCapability::BRIGHTNESS;
+            capabilityFlags |= InputDeviceLightCapability::RGB;
         }
         // Map from color to raw light id.
         std::unordered_map<LightColor, int32_t /* rawLightId */> rawRgbIds;
@@ -115,8 +117,11 @@ private:
 
     struct MultiColorLight : public Light {
         explicit MultiColorLight(InputDeviceContext& context, const std::string& name, int32_t id,
-                                 int32_t rawId)
-              : Light(context, name, id, InputDeviceLightType::MULTI_COLOR), rawId(rawId) {}
+                                 InputDeviceLightType type, int32_t rawId)
+              : Light(context, name, id, type), rawId(rawId) {
+            capabilityFlags |= InputDeviceLightCapability::BRIGHTNESS;
+            capabilityFlags |= InputDeviceLightCapability::RGB;
+        }
         int32_t rawId;
 
         bool setLightColor(int32_t color) override;
@@ -132,7 +137,7 @@ private:
         // Map from player Id to raw light Id
         std::unordered_map<int32_t, int32_t> rawLightIds;
 
-        bool setLightPlayerId(int32_t palyerId) override;
+        bool setLightPlayerId(int32_t playerId) override;
         std::optional<int32_t> getLightPlayerId() override;
         void dump(std::string& dump) override;
     };
@@ -150,5 +155,3 @@ private:
 };
 
 } // namespace android
-
-#endif // _UI_INPUTREADER_LIGHT_CONTROLLER_H

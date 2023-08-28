@@ -42,13 +42,13 @@ protected:
     sp<SurfaceComposerClient> mScc;
     sp<SurfaceControl> mNotSc;
     void SetUp() override {
-        mScc = new SurfaceComposerClient;
+        mScc = sp<SurfaceComposerClient>::make();
         ASSERT_EQ(NO_ERROR, mScc->initCheck());
         mNotSc = makeNotSurfaceControl();
     }
 
     sp<SurfaceControl> makeNotSurfaceControl() {
-        return new SurfaceControl(mScc, new NotALayer(), nullptr, true);
+        return sp<SurfaceControl>::make(mScc, sp<NotALayer>::make(), 1, "#1");
     }
 };
 

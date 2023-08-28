@@ -136,7 +136,7 @@ public:
     }
 
     status_t initClient() override {
-        mClient = new SurfaceComposerClient;
+        mClient = sp<SurfaceComposerClient>::make();
         auto err = mClient->initCheck();
         return err;
     }
@@ -221,10 +221,12 @@ public:
         ProcessState::self()->startThreadPool();
     }
     void SetUp() {
-        mClient = new SurfaceComposerClient;
+        mClient = sp<SurfaceComposerClient>::make();
         ASSERT_EQ(NO_ERROR, mClient->initCheck());
 
-        mPrimaryDisplay = mClient->getInternalDisplayToken();
+        const auto ids = SurfaceComposerClient::getPhysicalDisplayIds();
+        ASSERT_FALSE(ids.empty());
+        mPrimaryDisplay = SurfaceComposerClient::getPhysicalDisplayToken(ids.front());
         ui::DisplayMode mode;
         mClient->getActiveDisplayMode(mPrimaryDisplay, &mode);
         mDisplayWidth = mode.resolution.getWidth();

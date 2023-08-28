@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _UI_INPUTREADER_STYLUS_STATE_H
-#define _UI_INPUTREADER_STYLUS_STATE_H
+#pragma once
 
 #include <input/Input.h>
 
@@ -25,29 +24,19 @@ namespace android {
 
 struct StylusState {
     /* Time the stylus event was received. */
-    nsecs_t when;
-    /* Pressure as reported by the stylus, normalized to the range [0, 1.0]. */
-    float pressure;
+    nsecs_t when{};
+    /*
+     * Pressure as reported by the stylus if supported, normalized to the range [0, 1.0].
+     * The presence of a pressure value indicates that the stylus is able to tell whether it is
+     * touching the display.
+     */
+    std::optional<float> pressure{};
     /* The state of the stylus buttons as a bitfield (e.g. AMOTION_EVENT_BUTTON_SECONDARY). */
-    uint32_t buttons;
-    /* Which tool type the stylus is currently using (e.g. AMOTION_EVENT_TOOL_TYPE_ERASER). */
-    int32_t toolType;
+    uint32_t buttons{};
+    /* Which tool type the stylus is currently using (e.g. ToolType::ERASER). */
+    ToolType toolType{ToolType::UNKNOWN};
 
-    void copyFrom(const StylusState& other) {
-        when = other.when;
-        pressure = other.pressure;
-        buttons = other.buttons;
-        toolType = other.toolType;
-    }
-
-    void clear() {
-        when = LLONG_MAX;
-        pressure = 0.f;
-        buttons = 0;
-        toolType = AMOTION_EVENT_TOOL_TYPE_UNKNOWN;
-    }
+    void clear() { *this = StylusState{}; }
 };
 
 } // namespace android
-
-#endif // _UI_INPUTREADER_STYLUS_STATE_H

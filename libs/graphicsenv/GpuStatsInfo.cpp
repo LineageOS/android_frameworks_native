@@ -89,6 +89,14 @@ status_t GpuStatsAppInfo::writeToParcel(Parcel* parcel) const {
     if ((status = parcel->writeBool(falsePrerotation)) != OK) return status;
     if ((status = parcel->writeBool(gles1InUse)) != OK) return status;
     if ((status = parcel->writeBool(angleInUse)) != OK) return status;
+    if ((status = parcel->writeBool(createdGlesContext)) != OK) return status;
+    if ((status = parcel->writeBool(createdVulkanDevice)) != OK) return status;
+    if ((status = parcel->writeBool(createdVulkanSwapchain)) != OK) return status;
+    if ((status = parcel->writeUint32(vulkanApiVersion)) != OK) return status;
+    if ((status = parcel->writeUint64(vulkanDeviceFeaturesEnabled)) != OK) return status;
+    if ((status = parcel->writeInt32Vector(vulkanInstanceExtensions)) != OK) return status;
+    if ((status = parcel->writeInt32Vector(vulkanDeviceExtensions)) != OK) return status;
+
     return OK;
 }
 
@@ -103,6 +111,14 @@ status_t GpuStatsAppInfo::readFromParcel(const Parcel* parcel) {
     if ((status = parcel->readBool(&falsePrerotation)) != OK) return status;
     if ((status = parcel->readBool(&gles1InUse)) != OK) return status;
     if ((status = parcel->readBool(&angleInUse)) != OK) return status;
+    if ((status = parcel->readBool(&createdGlesContext)) != OK) return status;
+    if ((status = parcel->readBool(&createdVulkanDevice)) != OK) return status;
+    if ((status = parcel->readBool(&createdVulkanSwapchain)) != OK) return status;
+    if ((status = parcel->readUint32(&vulkanApiVersion)) != OK) return status;
+    if ((status = parcel->readUint64(&vulkanDeviceFeaturesEnabled)) != OK) return status;
+    if ((status = parcel->readInt32Vector(&vulkanInstanceExtensions)) != OK) return status;
+    if ((status = parcel->readInt32Vector(&vulkanDeviceExtensions)) != OK) return status;
+
     return OK;
 }
 
@@ -114,6 +130,12 @@ std::string GpuStatsAppInfo::toString() const {
     StringAppendF(&result, "falsePrerotation = %d\n", falsePrerotation);
     StringAppendF(&result, "gles1InUse = %d\n", gles1InUse);
     StringAppendF(&result, "angleInUse = %d\n", angleInUse);
+    StringAppendF(&result, "createdGlesContext = %d\n", createdGlesContext);
+    StringAppendF(&result, "createdVulkanDevice = %d\n", createdVulkanDevice);
+    StringAppendF(&result, "createdVulkanSwapchain = %d\n", createdVulkanSwapchain);
+    StringAppendF(&result, "vulkanApiVersion = 0x%" PRIx32 "\n", vulkanApiVersion);
+    StringAppendF(&result, "vulkanDeviceFeaturesEnabled = 0x%" PRIx64 "\n",
+                  vulkanDeviceFeaturesEnabled);
     result.append("glDriverLoadingTime:");
     for (int32_t loadingTime : glDriverLoadingTime) {
         StringAppendF(&result, " %d", loadingTime);
@@ -127,6 +149,16 @@ std::string GpuStatsAppInfo::toString() const {
     result.append("vkDriverLoadingTime:");
     for (int32_t loadingTime : vkDriverLoadingTime) {
         StringAppendF(&result, " %d", loadingTime);
+    }
+    result.append("\n");
+    result.append("vulkanInstanceExtensions:");
+    for (int32_t extension : vulkanInstanceExtensions) {
+        StringAppendF(&result, " 0x%x", extension);
+    }
+    result.append("\n");
+    result.append("vulkanDeviceExtensions:");
+    for (int32_t extension : vulkanDeviceExtensions) {
+        StringAppendF(&result, " 0x%x", extension);
     }
     result.append("\n");
     return result;

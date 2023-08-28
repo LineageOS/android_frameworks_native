@@ -14,74 +14,43 @@
  * limitations under the License.
  */
 
+#include <ftl/match.h>
 #include <ui/DeviceProductInfo.h>
 
 #include <android-base/stringprintf.h>
-#include <ui/FlattenableHelpers.h>
-#include <utils/Log.h>
-
-#define RETURN_IF_ERROR(op) \
-    if (const status_t status = (op); status != OK) return status;
 
 namespace android {
 
-using base::StringAppendF;
+std::string to_string(const DeviceProductInfo& info) {
+    using base::StringAppendF;
 
-size_t DeviceProductInfo::getFlattenedSize() const {
-    return FlattenableHelpers::getFlattenedSize(name) +
-            FlattenableHelpers::getFlattenedSize(manufacturerPnpId) +
-            FlattenableHelpers::getFlattenedSize(productId) +
-            FlattenableHelpers::getFlattenedSize(manufactureOrModelDate) +
-            FlattenableHelpers::getFlattenedSize(relativeAddress);
-}
+    std::string result;
+    StringAppendF(&result, "{name=\"%s\", ", info.name.c_str());
+    StringAppendF(&result, "manufacturerPnpId=%s, ", info.manufacturerPnpId.data());
+    StringAppendF(&result, "productId=%s, ", info.productId.c_str());
 
-status_t DeviceProductInfo::flatten(void* buffer, size_t size) const {
-    if (size < getFlattenedSize()) {
-        return NO_MEMORY;
-    }
-    RETURN_IF_ERROR(FlattenableHelpers::flatten(&buffer, &size, name));
-    RETURN_IF_ERROR(FlattenableHelpers::flatten(&buffer, &size, manufacturerPnpId));
-    RETURN_IF_ERROR(FlattenableHelpers::flatten(&buffer, &size, productId));
-    RETURN_IF_ERROR(FlattenableHelpers::flatten(&buffer, &size, manufactureOrModelDate));
-    RETURN_IF_ERROR(FlattenableHelpers::flatten(&buffer, &size, relativeAddress));
-    return OK;
-}
-
-status_t DeviceProductInfo::unflatten(void const* buffer, size_t size) {
-    RETURN_IF_ERROR(FlattenableHelpers::unflatten(&buffer, &size, &name));
-    RETURN_IF_ERROR(FlattenableHelpers::unflatten(&buffer, &size, &manufacturerPnpId));
-    RETURN_IF_ERROR(FlattenableHelpers::unflatten(&buffer, &size, &productId));
-    RETURN_IF_ERROR(FlattenableHelpers::unflatten(&buffer, &size, &manufactureOrModelDate));
-    RETURN_IF_ERROR(FlattenableHelpers::unflatten(&buffer, &size, &relativeAddress));
-    return OK;
-}
-
-void DeviceProductInfo::dump(std::string& result) const {
-    StringAppendF(&result, "{name=\"%s\", ", name.c_str());
-    StringAppendF(&result, "manufacturerPnpId=%s, ", manufacturerPnpId.data());
-    StringAppendF(&result, "productId=%s, ", productId.c_str());
-
-    if (const auto* model = std::get_if<ModelYear>(&manufactureOrModelDate)) {
-        StringAppendF(&result, "modelYear=%u, ", model->year);
-    } else if (const auto* manufactureWeekAndYear =
-                       std::get_if<ManufactureWeekAndYear>(&manufactureOrModelDate)) {
-        StringAppendF(&result, "manufactureWeek=%u, ", manufactureWeekAndYear->week);
-        StringAppendF(&result, "manufactureYear=%d, ", manufactureWeekAndYear->year);
-    } else if (const auto* manufactureYear =
-                       std::get_if<ManufactureYear>(&manufactureOrModelDate)) {
-        StringAppendF(&result, "manufactureYear=%d, ", manufactureYear->year);
-    } else {
-        ALOGE("Unknown alternative for variant DeviceProductInfo::ManufactureOrModelDate");
-    }
+    ftl::match(
+            info.manufactureOrModelDate,
+            [&](DeviceProductInfo::ModelYear model) {
+                StringAppendF(&result, "modelYear=%u, ", model.year);
+            },
+            [&](DeviceProductInfo::ManufactureWeekAndYear manufacture) {
+                StringAppendF(&result, "manufactureWeek=%u, ", manufacture.week);
+                StringAppendF(&result, "manufactureYear=%d, ", manufacture.year);
+            },
+            [&](DeviceProductInfo::ManufactureYear manufacture) {
+                StringAppendF(&result, "manufactureYear=%d, ", manufacture.year);
+            });
 
     result.append("relativeAddress=[");
-    for (size_t i = 0; i < relativeAddress.size(); i++) {
+    for (size_t i = 0; i < info.relativeAddress.size(); i++) {
         if (i != 0) {
             result.append(", ");
         }
-        StringAppendF(&result, "%u", relativeAddress[i]);
+        StringAppendF(&result, "%u", info.relativeAddress[i]);
     }
     result.append("]}");
+    return result;
 }
 
 } // namespace android

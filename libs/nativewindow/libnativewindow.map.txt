@@ -23,6 +23,7 @@ LIBNATIVEWINDOW {
     ANativeWindow_cancelBuffer; # llndk
     ANativeWindow_dequeueBuffer; # llndk
     ANativeWindow_getBuffersDataSpace; # introduced=28
+    ANativeWindow_getBuffersDefaultDataSpace; # introduced=34
     ANativeWindow_getFormat;
     ANativeWindow_getHeight;
     ANativeWindow_getLastDequeueDuration; # systemapi # introduced=30
@@ -69,6 +70,7 @@ LIBNATIVEWINDOW_PLATFORM {
       android::AHardwareBuffer_convertToPixelFormat*;
       android::AHardwareBuffer_convertFromGrallocUsageBits*;
       android::AHardwareBuffer_convertToGrallocUsageBits*;
+      android::AHardwareBuffer_getDataSpace*;
       android::AHardwareBuffer_to_GraphicBuffer*;
       android::AHardwareBuffer_to_ANativeWindowBuffer*;
       android::AHardwareBuffer_from_GraphicBuffer*;

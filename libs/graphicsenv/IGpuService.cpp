@@ -61,12 +61,29 @@ public:
         remote()->transact(BnGpuService::SET_TARGET_STATS, data, &reply, IBinder::FLAG_ONEWAY);
     }
 
+    void setTargetStatsArray(const std::string& appPackageName, const uint64_t driverVersionCode,
+                             const GpuStatsInfo::Stats stats, const uint64_t* values,
+                             const uint32_t valueCount) override {
+        for (uint32_t i = 0; i < valueCount; i++) {
+            setTargetStats(appPackageName, driverVersionCode, stats, values[i]);
+        }
+    }
+
     void setUpdatableDriverPath(const std::string& driverPath) override {
         Parcel data, reply;
         data.writeInterfaceToken(IGpuService::getInterfaceDescriptor());
         data.writeUtf8AsUtf16(driverPath);
 
         remote()->transact(BnGpuService::SET_UPDATABLE_DRIVER_PATH, data, &reply,
+                           IBinder::FLAG_ONEWAY);
+    }
+
+    void toggleAngleAsSystemDriver(bool enabled) override {
+        Parcel data, reply;
+        data.writeInterfaceToken(IGpuService::getInterfaceDescriptor());
+        data.writeBool(enabled);
+
+        remote()->transact(BnGpuService::TOGGLE_ANGLE_AS_SYSTEM_DRIVER, data, &reply,
                            IBinder::FLAG_ONEWAY);
     }
 
@@ -179,6 +196,15 @@ status_t BnGpuService::onTransact(uint32_t code, const Parcel& data, Parcel* rep
             status = shellCommand(in, out, err, args);
             if (resultReceiver != nullptr) resultReceiver->send(status);
 
+            return OK;
+        }
+        case TOGGLE_ANGLE_AS_SYSTEM_DRIVER: {
+            CHECK_INTERFACE(IGpuService, data, reply);
+
+            bool enableAngleAsSystemDriver;
+            if ((status = data.readBool(&enableAngleAsSystemDriver)) != OK) return status;
+
+            toggleAngleAsSystemDriver(enableAngleAsSystemDriver);
             return OK;
         }
         default:

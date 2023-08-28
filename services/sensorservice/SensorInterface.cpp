@@ -87,6 +87,45 @@ VirtualSensor::VirtualSensor() :
 
 // ---------------------------------------------------------------------------
 
+RuntimeSensor::RuntimeSensor(const sensor_t& sensor, sp<SensorCallback> callback)
+  : BaseSensor(sensor), mCallback(std::move(callback)) {
+}
+
+status_t RuntimeSensor::activate(void*, bool enabled) {
+    if (enabled != mEnabled) {
+        mEnabled = enabled;
+        return mCallback->onConfigurationChanged(mSensor.getHandle(), mEnabled, mSamplingPeriodNs,
+                mBatchReportLatencyNs);
+    }
+    return OK;
+}
+
+status_t RuntimeSensor::batch(void*, int, int, int64_t samplingPeriodNs,
+                              int64_t maxBatchReportLatencyNs) {
+    if (mSamplingPeriodNs != samplingPeriodNs || mBatchReportLatencyNs != maxBatchReportLatencyNs) {
+        mSamplingPeriodNs = samplingPeriodNs;
+        mBatchReportLatencyNs = maxBatchReportLatencyNs;
+        if (mEnabled) {
+            return mCallback->onConfigurationChanged(mSensor.getHandle(), mEnabled,
+                    mSamplingPeriodNs, mBatchReportLatencyNs);
+        }
+    }
+    return OK;
+}
+
+status_t RuntimeSensor::setDelay(void*, int, int64_t ns) {
+    if (mSamplingPeriodNs != ns) {
+        mSamplingPeriodNs = ns;
+        if (mEnabled) {
+            return mCallback->onConfigurationChanged(mSensor.getHandle(), mEnabled,
+                    mSamplingPeriodNs, mBatchReportLatencyNs);
+        }
+    }
+    return OK;
+}
+
+// ---------------------------------------------------------------------------
+
 ProximitySensor::ProximitySensor(const sensor_t& sensor, SensorService& service)
         : HardwareSensor(sensor), mSensorService(service) {
 }

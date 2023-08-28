@@ -20,6 +20,7 @@
 #include <sys/types.h>
 
 #include <android/gui/ISurfaceComposer.h>
+#include <ui/DisplayId.h>
 
 #include <utils/Singleton.h>
 #include <utils/StrongPointer.h>
@@ -50,28 +51,6 @@ public:
     // Get a connection to the Composer Service.  This will block until
     // a connection is established. Returns null if permission is denied.
     static sp<gui::ISurfaceComposer> getComposerService();
-
-    // the following two methods are moved from ISurfaceComposer.h
-    // TODO(b/74619554): Remove this stopgap once the framework is display-agnostic.
-    std::optional<PhysicalDisplayId> getInternalDisplayId() const {
-        std::vector<int64_t> displayIds;
-        binder::Status status = mComposerService->getPhysicalDisplayIds(&displayIds);
-        return (!status.isOk() || displayIds.empty())
-                ? std::nullopt
-                : DisplayId::fromValue<PhysicalDisplayId>(
-                          static_cast<uint64_t>(displayIds.front()));
-    }
-
-    // TODO(b/74619554): Remove this stopgap once the framework is display-agnostic.
-    sp<IBinder> getInternalDisplayToken() const {
-        const auto displayId = getInternalDisplayId();
-        if (!displayId) return nullptr;
-        sp<IBinder> display;
-        binder::Status status =
-                mComposerService->getPhysicalDisplayToken(static_cast<int64_t>(displayId->value),
-                                                          &display);
-        return status.isOk() ? display : nullptr;
-    }
 };
 
 // ---------------------------------------------------------------------------

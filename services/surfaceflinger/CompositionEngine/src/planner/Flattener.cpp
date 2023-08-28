@@ -413,6 +413,7 @@ std::vector<Flattener::Run> Flattener::findCandidateRuns(time_point now) const {
     for (auto currentSet = mLayers.cbegin(); currentSet != mLayers.cend(); ++currentSet) {
         bool layerIsInactive = now - currentSet->getLastUpdate() > mTunables.mActiveLayerTimeout;
         const bool layerHasBlur = currentSet->hasBlurBehind();
+        const bool layerDeniedFromCaching = currentSet->cachingHintExcludesLayers();
 
         // Layers should also be considered inactive whenever their framerate is lower than 1fps.
         if (!layerIsInactive && currentSet->getLayerCount() == kNumLayersFpsConsideration) {
@@ -424,7 +425,8 @@ std::vector<Flattener::Run> Flattener::findCandidateRuns(time_point now) const {
             }
         }
 
-        if (layerIsInactive && (firstLayer || runHasFirstLayer || !layerHasBlur) &&
+        if (!layerDeniedFromCaching && layerIsInactive &&
+            (firstLayer || runHasFirstLayer || !layerHasBlur) &&
             !currentSet->hasUnsupportedDataspace()) {
             if (isPartOfRun) {
                 builder.increment();

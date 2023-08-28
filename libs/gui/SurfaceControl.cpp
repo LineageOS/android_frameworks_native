@@ -26,6 +26,7 @@
 #include <utils/Errors.h>
 #include <utils/KeyedVector.h>
 #include <utils/Log.h>
+#include <utils/Looper.h>
 #include <utils/threads.h>
 
 #include <binder/IPCThreadState.h>
@@ -34,8 +35,9 @@
 #include <ui/Rect.h>
 #include <ui/StaticDisplayInfo.h>
 
-#include <gui/BufferQueueCore.h>
 #include <gui/BLASTBufferQueue.h>
+#include <gui/BufferQueueCore.h>
+#include <gui/Choreographer.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/Surface.h>
 #include <gui/SurfaceComposerClient.h>
@@ -49,13 +51,12 @@ namespace android {
 // ============================================================================
 
 SurfaceControl::SurfaceControl(const sp<SurfaceComposerClient>& client, const sp<IBinder>& handle,
-                               const sp<IGraphicBufferProducer>& gbp, int32_t layerId,
-                               uint32_t w, uint32_t h, PixelFormat format, uint32_t transform,
-                               uint32_t flags)
+                               int32_t layerId, const std::string& name, uint32_t w, uint32_t h,
+                               PixelFormat format, uint32_t transform, uint32_t flags)
       : mClient(client),
         mHandle(handle),
-        mGraphicBufferProducer(gbp),
         mLayerId(layerId),
+        mName(name),
         mTransformHint(transform),
         mWidth(w),
         mHeight(h),
@@ -65,9 +66,9 @@ SurfaceControl::SurfaceControl(const sp<SurfaceComposerClient>& client, const sp
 SurfaceControl::SurfaceControl(const sp<SurfaceControl>& other) {
     mClient = other->mClient;
     mHandle = other->mHandle;
-    mGraphicBufferProducer = other->mGraphicBufferProducer;
     mTransformHint = other->mTransformHint;
     mLayerId = other->mLayerId;
+    mName = other->mName;
     mWidth = other->mWidth;
     mHeight = other->mHeight;
     mFormat = other->mFormat;
@@ -165,11 +166,11 @@ sp<Surface> SurfaceControl::createSurface()
 
 void SurfaceControl::updateDefaultBufferSize(uint32_t width, uint32_t height) {
     Mutex::Autolock _l(mLock);
-    mWidth = width; mHeight = height;
+    mWidth = width;
+    mHeight = height;
     if (mBbq) {
         mBbq->update(mBbqChild, width, height, mFormat);
     }
-
 }
 
 sp<IBinder> SurfaceControl::getLayerStateHandle() const
@@ -186,6 +187,28 @@ sp<IBinder> SurfaceControl::getHandle() const {
 
 int32_t SurfaceControl::getLayerId() const {
     return mLayerId;
+}
+
+const std::string& SurfaceControl::getName() const {
+    return mName;
+}
+
+std::shared_ptr<Choreographer> SurfaceControl::getChoreographer() {
+    if (mChoreographer) {
+        return mChoreographer;
+    }
+    sp<Looper> looper = Looper::getForThread();
+    if (!looper.get()) {
+        ALOGE("%s: No looper prepared for thread", __func__);
+        return nullptr;
+    }
+    mChoreographer = std::make_shared<Choreographer>(looper, getHandle());
+    status_t result = mChoreographer->initialize();
+    if (result != OK) {
+        ALOGE("Failed to initialize choreographer");
+        mChoreographer = nullptr;
+    }
+    return mChoreographer;
 }
 
 sp<IGraphicBufferProducer> SurfaceControl::getIGraphicBufferProducer()
@@ -215,6 +238,7 @@ status_t SurfaceControl::writeToParcel(Parcel& parcel) {
     SAFE_PARCEL(parcel.writeStrongBinder, ISurfaceComposerClient::asBinder(mClient->getClient()));
     SAFE_PARCEL(parcel.writeStrongBinder, mHandle);
     SAFE_PARCEL(parcel.writeInt32, mLayerId);
+    SAFE_PARCEL(parcel.writeUtf8AsUtf16, mName);
     SAFE_PARCEL(parcel.writeUint32, mTransformHint);
     SAFE_PARCEL(parcel.writeUint32, mWidth);
     SAFE_PARCEL(parcel.writeUint32, mHeight);
@@ -228,6 +252,7 @@ status_t SurfaceControl::readFromParcel(const Parcel& parcel,
     sp<IBinder> client;
     sp<IBinder> handle;
     int32_t layerId;
+    std::string layerName;
     uint32_t transformHint;
     uint32_t width;
     uint32_t height;
@@ -236,18 +261,17 @@ status_t SurfaceControl::readFromParcel(const Parcel& parcel,
     SAFE_PARCEL(parcel.readStrongBinder, &client);
     SAFE_PARCEL(parcel.readStrongBinder, &handle);
     SAFE_PARCEL(parcel.readInt32, &layerId);
+    SAFE_PARCEL(parcel.readUtf8FromUtf16, &layerName);
     SAFE_PARCEL(parcel.readUint32, &transformHint);
     SAFE_PARCEL(parcel.readUint32, &width);
     SAFE_PARCEL(parcel.readUint32, &height);
     SAFE_PARCEL(parcel.readUint32, &format);
 
     // We aren't the original owner of the surface.
-    *outSurfaceControl =
-            new SurfaceControl(new SurfaceComposerClient(
-                                       interface_cast<ISurfaceComposerClient>(client)),
-                               handle.get(), nullptr, layerId,
-                               width, height, format,
-                               transformHint);
+    *outSurfaceControl = new SurfaceControl(new SurfaceComposerClient(
+                                                    interface_cast<ISurfaceComposerClient>(client)),
+                                            handle.get(), layerId, layerName, width, height, format,
+                                            transformHint);
 
     return NO_ERROR;
 }

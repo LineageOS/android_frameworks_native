@@ -27,6 +27,13 @@ namespace android {
 void GLConsumer::computeTransformMatrix(float outTransform[16],
         const sp<GraphicBuffer>& buf, const Rect& cropRect, uint32_t transform,
         bool filtering) {
+    computeTransformMatrix(outTransform, buf->getWidth(), buf->getHeight(), buf->getPixelFormat(),
+                           cropRect, transform, filtering);
+}
+
+void GLConsumer::computeTransformMatrix(float outTransform[16], float bufferWidth,
+                                        float bufferHeight, PixelFormat pixelFormat,
+                                        const Rect& cropRect, uint32_t transform, bool filtering) {
     // Transform matrices
     static const mat4 mtxFlipH(
         -1, 0, 0, 0,
@@ -60,8 +67,6 @@ void GLConsumer::computeTransformMatrix(float outTransform[16],
 
     if (!cropRect.isEmpty()) {
         float tx = 0.0f, ty = 0.0f, sx = 1.0f, sy = 1.0f;
-        float bufferWidth = buf->getWidth();
-        float bufferHeight = buf->getHeight();
         float shrinkAmount = 0.0f;
         if (filtering) {
             // In order to prevent bilinear sampling beyond the edge of the
@@ -70,7 +75,7 @@ void GLConsumer::computeTransformMatrix(float outTransform[16],
             // off each end, but because the chroma channels of YUV420 images
             // are subsampled we may need to shrink the crop region by a whole
             // texel on each side.
-            switch (buf->getPixelFormat()) {
+            switch (pixelFormat) {
                 case PIXEL_FORMAT_RGBA_8888:
                 case PIXEL_FORMAT_RGBX_8888:
                 case PIXEL_FORMAT_RGBA_FP16:
