@@ -1575,8 +1575,6 @@ void AidlComposer::onHotplugDisconnect(Display display) {
 }
 
 bool AidlComposer::hasMultiThreadedPresentSupport(Display display) {
-#if 0
-    // TODO (b/259132483): Reenable
     const auto displayId = translate<int64_t>(display);
     std::vector<AidlDisplayCapability> capabilities;
     const auto status = mAidlComposerClient->getDisplayCapabilities(displayId, &capabilities);
@@ -1586,10 +1584,6 @@ bool AidlComposer::hasMultiThreadedPresentSupport(Display display) {
     }
     return std::find(capabilities.begin(), capabilities.end(),
                      AidlDisplayCapability::MULTI_THREADED_PRESENT) != capabilities.end();
-#else
-    (void) display;
-    return false;
-#endif
 }
 
 void AidlComposer::addReader(Display display) {
