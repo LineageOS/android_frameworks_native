@@ -146,7 +146,7 @@ bool VirtualKeyMap::Parser::parseNextIntField(int32_t* outValue) {
     String8 token = mTokenizer->nextToken(WHITESPACE_OR_FIELD_DELIMITER);
     char* end;
     *outValue = strtol(token.c_str(), &end, 0);
-    if (token.isEmpty() || *end != '\0') {
+    if (token.empty() || *end != '\0') {
         ALOGE("Expected an integer, got '%s'.", token.c_str());
         return false;
     }
