@@ -4018,7 +4018,7 @@ void Layer::onPostComposition(const DisplayDevice* display,
         const std::optional<Fps> renderRate =
                 mFlinger->mScheduler->getFrameRateOverride(getOwnerUid());
 
-        const auto vote = frameRateToSetFrameRateVotePayload(mDrawingState.frameRate);
+        const auto vote = frameRateToSetFrameRateVotePayload(getFrameRateForLayerTree());
         const auto gameMode = getGameMode();
 
         if (presentFence->isValid()) {
