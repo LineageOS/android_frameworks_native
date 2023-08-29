@@ -543,7 +543,7 @@ status_t Dumpsys::writeDump(int fd, const String16& serviceName, std::chrono::mi
 
     if ((status == TIMED_OUT) && (!asProto)) {
         std::string msg = StringPrintf("\n*** SERVICE '%s' DUMP TIMEOUT (%llums) EXPIRED ***\n\n",
-                                       String8(serviceName).string(), timeout.count());
+                                       String8(serviceName).c_str(), timeout.count());
         WriteStringToFd(msg, fd);
     }
 
@@ -562,6 +562,6 @@ void Dumpsys::writeDumpFooter(int fd, const String16& serviceName,
     oss << std::put_time(&finish_tm, "%Y-%m-%d %H:%M:%S");
     std::string msg =
         StringPrintf("--------- %.3fs was the duration of dumpsys %s, ending at: %s\n",
-                     elapsedDuration.count(), String8(serviceName).string(), oss.str().c_str());
+                     elapsedDuration.count(), String8(serviceName).c_str(), oss.str().c_str());
     WriteStringToFd(msg, fd);
 }

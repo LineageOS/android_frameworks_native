@@ -78,7 +78,7 @@ public:
             return -EPERM;
         }
 #if DEBUG
-        ALOGD("openFile: %s, full=%s", path8.string(), fullPath.string());
+        ALOGD("openFile: %s, full=%s", path8.c_str(), fullPath.c_str());
 #endif
         int flags = 0;
         bool checkRead = false;
@@ -96,10 +96,10 @@ public:
             flags = O_RDWR;
             checkRead = checkWrite = true;
         } else {
-            mErrorLog << "Invalid mode requested: " << mode.string() << endl;
+            mErrorLog << "Invalid mode requested: " << mode.c_str() << endl;
             return -EINVAL;
         }
-        int fd = open(fullPath.string(), flags, S_IRWXU|S_IRWXG);
+        int fd = open(fullPath.c_str(), flags, S_IRWXU|S_IRWXG);
 #if DEBUG
         ALOGD("openFile: fd=%d", fd);
 #endif
@@ -109,29 +109,29 @@ public:
         if (is_selinux_enabled() && seLinuxContext.size() > 0) {
             String8 seLinuxContext8(seLinuxContext);
             char* tmp = nullptr;
-            getfilecon(fullPath.string(), &tmp);
+            getfilecon(fullPath.c_str(), &tmp);
             Unique_SecurityContext context(tmp);
             if (checkWrite) {
-                int accessGranted = selinux_check_access(seLinuxContext8.string(), context.get(),
+                int accessGranted = selinux_check_access(seLinuxContext8.c_str(), context.get(),
                         "file", "write", nullptr);
                 if (accessGranted != 0) {
 #if DEBUG
                     ALOGD("openFile: failed selinux write check!");
 #endif
                     close(fd);
-                    mErrorLog << "System server has no access to write file context " << context.get() << " (from path " << fullPath.string() << ", context " << seLinuxContext8.string() << ")" << endl;
+                    mErrorLog << "System server has no access to write file context " << context.get() << " (from path " << fullPath.c_str() << ", context " << seLinuxContext8.c_str() << ")" << endl;
                     return -EPERM;
                 }
             }
             if (checkRead) {
-                int accessGranted = selinux_check_access(seLinuxContext8.string(), context.get(),
+                int accessGranted = selinux_check_access(seLinuxContext8.c_str(), context.get(),
                         "file", "read", nullptr);
                 if (accessGranted != 0) {
 #if DEBUG
                     ALOGD("openFile: failed selinux read check!");
 #endif
                     close(fd);
-                    mErrorLog << "System server has no access to read file context " << context.get() << " (from path " << fullPath.string() << ", context " << seLinuxContext8.string() << ")" << endl;
+                    mErrorLog << "System server has no access to read file context " << context.get() << " (from path " << fullPath.c_str() << ", context " << seLinuxContext8.c_str() << ")" << endl;
                     return -EPERM;
                 }
             }
