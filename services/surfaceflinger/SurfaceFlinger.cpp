@@ -488,7 +488,7 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
     mIgnoreHdrCameraLayers = ignore_hdr_camera_layers(false);
 
     mLayerLifecycleManagerEnabled =
-            base::GetBoolProperty("persist.debug.sf.enable_layer_lifecycle_manager"s, false);
+            base::GetBoolProperty("persist.debug.sf.enable_layer_lifecycle_manager"s, true);
     mLegacyFrontEndEnabled = !mLayerLifecycleManagerEnabled ||
             base::GetBoolProperty("persist.debug.sf.enable_legacy_frontend"s, false);
 }
