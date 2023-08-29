@@ -1172,9 +1172,12 @@ status_t H2BGraphicBufferProducer::setGenerationNumber(uint32_t generationNumber
 
 String8 H2BGraphicBufferProducer::getConsumerName() const {
     String8 lName;
-    mBase->getConsumerName([&lName] (hidl_string const& name) {
-                lName = name.c_str();
-            });
+    status_t transStatus = toStatusT(
+            mBase->getConsumerName([&lName](hidl_string const& name) { lName = name.c_str(); }));
+    if (transStatus != NO_ERROR) {
+        ALOGE("getConsumerName failed to transact: %d", transStatus);
+        return String8("TransactFailed");
+    }
     return lName;
 }
 
