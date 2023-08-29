@@ -627,7 +627,7 @@ bool Sensor::unflattenString8(void const*& buffer, size_t& size, String8& output
     if (size < len) {
         return false;
     }
-    outputString8.setTo(static_cast<char const*>(buffer), len);
+    outputString8 = String8(static_cast<char const*>(buffer), len);
 
     if (size < FlattenableUtils::align<4>(len)) {
         ALOGE("Malformed Sensor String8 field. Should be in a 4-byte aligned buffer but is not.");
