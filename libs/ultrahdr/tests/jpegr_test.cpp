@@ -30,9 +30,9 @@
 namespace android::ultrahdr {
 
 // resources used by unit tests
-const char* kYCbCrP010FileName = "raw_p010_image.p010";
-const char* kYCbCr420FileName = "raw_yuv420_image.yuv420";
-const char* kSdrJpgFileName = "jpeg_image.jpg";
+const char* kYCbCrP010FileName = "/data/local/tmp/raw_p010_image.p010";
+const char* kYCbCr420FileName = "/data/local/tmp/raw_yuv420_image.yuv420";
+const char* kSdrJpgFileName = "/data/local/tmp/jpeg_image.jpg";
 const int kImageWidth = 1280;
 const int kImageHeight = 720;
 const int kQuality = 90;

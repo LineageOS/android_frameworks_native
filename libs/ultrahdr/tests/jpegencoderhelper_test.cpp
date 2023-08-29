@@ -22,13 +22,13 @@
 
 namespace android::ultrahdr {
 
-#define ALIGNED_IMAGE "/sdcard/Documents/minnie-320x240.yu12"
+#define ALIGNED_IMAGE "/data/local/tmp/minnie-320x240.yu12"
 #define ALIGNED_IMAGE_WIDTH 320
 #define ALIGNED_IMAGE_HEIGHT 240
-#define SINGLE_CHANNEL_IMAGE "/sdcard/Documents/minnie-320x240.y"
+#define SINGLE_CHANNEL_IMAGE "/data/local/tmp/minnie-320x240.y"
 #define SINGLE_CHANNEL_IMAGE_WIDTH ALIGNED_IMAGE_WIDTH
 #define SINGLE_CHANNEL_IMAGE_HEIGHT ALIGNED_IMAGE_HEIGHT
-#define UNALIGNED_IMAGE "/sdcard/Documents/minnie-318x240.yu12"
+#define UNALIGNED_IMAGE "/data/local/tmp/minnie-318x240.yu12"
 #define UNALIGNED_IMAGE_WIDTH 318
 #define UNALIGNED_IMAGE_HEIGHT 240
 #define JPEG_QUALITY 90
