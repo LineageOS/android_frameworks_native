@@ -2336,7 +2336,7 @@ status_t SensorService::changeOperatingMode(const Vector<String16>& args,
         mCurrentOperatingMode = RESTRICTED;
         // temporarily stop all sensor direct report and disable sensors
         disableAllSensorsLocked(&connLock);
-        mAllowListedPackage.setTo(String8(args[1]));
+        mAllowListedPackage = String8(args[1]);
         return status_t(NO_ERROR);
       case REPLAY_DATA_INJECTION:
         if (SensorServiceUtil::isUserBuild()) {
@@ -2356,7 +2356,7 @@ status_t SensorService::changeOperatingMode(const Vector<String16>& args,
                 // Re-enable sensors.
                 dev.enableAllSensors();
             }
-            mAllowListedPackage.setTo(String8(args[1]));
+            mAllowListedPackage = String8(args[1]);
             return NO_ERROR;
         } else {
             // Transition to data injection mode supported only from NORMAL mode.
