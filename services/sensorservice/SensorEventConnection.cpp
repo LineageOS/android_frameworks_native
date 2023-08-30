@@ -854,7 +854,7 @@ int SensorService::SensorEventConnection::handleEvent(int fd, int events, void* 
                 }
                 if (!mService->isAllowListedPackage(mPackageName)) {
                     ALOGE("App not allowed to inject data, dropping event"
-                          "package=%s uid=%d", mPackageName.string(), mUid);
+                          "package=%s uid=%d", mPackageName.c_str(), mUid);
                     return 0;
                 }
                 sensors_event_t sensor_event;

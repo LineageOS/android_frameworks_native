@@ -2420,7 +2420,7 @@ status_t SurfaceComposerClient::createSurfaceChecked(const String8& name, uint32
 
     if (mStatus == NO_ERROR) {
         gui::CreateSurfaceResult result;
-        binder::Status status = mClient->createSurface(std::string(name.string()), flags,
+        binder::Status status = mClient->createSurface(std::string(name.c_str()), flags,
                                                        parentHandle, std::move(metadata), &result);
         err = statusTFromBinderStatus(status);
         if (outTransformHint) {
