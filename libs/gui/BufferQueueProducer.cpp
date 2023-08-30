@@ -508,13 +508,13 @@ status_t BufferQueueProducer::dequeueBuffer(int* outSlot, sp<android::Fence>* ou
         {
             if (CC_UNLIKELY(ATRACE_ENABLED())) {
                 if (buffer == nullptr) {
-                    ATRACE_FORMAT_INSTANT("%s buffer reallocation: null", mConsumerName.string());
+                    ATRACE_FORMAT_INSTANT("%s buffer reallocation: null", mConsumerName.c_str());
                 } else {
                     ATRACE_FORMAT_INSTANT("%s buffer reallocation actual %dx%d format:%d "
                                           "layerCount:%d "
                                           "usage:%d requested: %dx%d format:%d layerCount:%d "
                                           "usage:%d ",
-                                          mConsumerName.string(), width, height, format,
+                                          mConsumerName.c_str(), width, height, format,
                                           BQ_LAYER_COUNT, usage, buffer->getWidth(),
                                           buffer->getHeight(), buffer->getPixelFormat(),
                                           buffer->getLayerCount(), buffer->getUsage());
