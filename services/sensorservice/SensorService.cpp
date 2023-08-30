@@ -472,7 +472,7 @@ status_t SensorService::dump(int fd, const Vector<String16>& args) {
             mCurrentOperatingMode = RESTRICTED;
             // temporarily stop all sensor direct report and disable sensors
             disableAllSensorsLocked(&connLock);
-            mWhiteListedPackage.setTo(String8(args[1]));
+            mWhiteListedPackage = String8(args[1]);
             return status_t(NO_ERROR);
         } else if (args.size() == 1 && args[0] == String16("enable")) {
             // If currently in restricted mode, reset back to NORMAL mode else ignore.
@@ -496,7 +496,7 @@ status_t SensorService::dump(int fd, const Vector<String16>& args) {
                     // Re-enable sensors.
                     dev.enableAllSensors();
                 }
-                mWhiteListedPackage.setTo(String8(args[1]));
+                mWhiteListedPackage = String8(args[1]);
                 return NO_ERROR;
             } else if (mCurrentOperatingMode == DATA_INJECTION) {
                 // Already in DATA_INJECTION mode. Treat this as a no_op.
