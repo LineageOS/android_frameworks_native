@@ -570,7 +570,7 @@ status_t SensorService::dump(int fd, const Vector<String16>& args) {
         }
         if (args.size() > 0) {
             Mode targetOperatingMode = NORMAL;
-            std::string inputStringMode = String8(args[0]).string();
+            std::string inputStringMode = String8(args[0]).c_str();
             if (getTargetOperatingMode(inputStringMode, &targetOperatingMode)) {
               status_t error = changeOperatingMode(args, targetOperatingMode);
               // Dump the latest state only if no error was encountered.
@@ -1460,7 +1460,7 @@ void SensorService::addSensorIfAccessible(const String16& opPackageName, const S
         accessibleSensorList.add(sensor);
     } else if (sensor.getType() != SENSOR_TYPE_HEAD_TRACKER) {
         ALOGI("Skipped sensor %s because it requires permission %s and app op %" PRId32,
-        sensor.getName().string(), sensor.getRequiredPermission().string(),
+        sensor.getName().c_str(), sensor.getRequiredPermission().c_str(),
         sensor.getRequiredAppOp());
     }
 }

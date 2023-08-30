@@ -200,13 +200,13 @@ status_t PropertyMap::Parser::parse() {
                 return BAD_VALUE;
             }
 
-            if (mMap->hasProperty(keyToken.string())) {
+            if (mMap->hasProperty(keyToken.c_str())) {
                 ALOGE("%s: Duplicate property value for key '%s'.",
                       mTokenizer->getLocation().c_str(), keyToken.c_str());
                 return BAD_VALUE;
             }
 
-            mMap->addProperty(keyToken.string(), valueToken.string());
+            mMap->addProperty(keyToken.c_str(), valueToken.c_str());
         }
 
         mTokenizer->nextLine();
