@@ -153,8 +153,8 @@ public:
     MOCK_METHOD(binder::Status, setOverrideFrameRate, (int32_t, float), (override));
     MOCK_METHOD(binder::Status, getGpuContextPriority, (int32_t*), (override));
     MOCK_METHOD(binder::Status, getMaxAcquiredBufferCount, (int32_t*), (override));
-    MOCK_METHOD(binder::Status, addWindowInfosListener, (const sp<gui::IWindowInfosListener>&),
-                (override));
+    MOCK_METHOD(binder::Status, addWindowInfosListener,
+                (const sp<gui::IWindowInfosListener>&, gui::WindowInfosListenerInfo*), (override));
     MOCK_METHOD(binder::Status, removeWindowInfosListener, (const sp<gui::IWindowInfosListener>&),
                 (override));
     MOCK_METHOD(binder::Status, getOverlaySupport, (gui::OverlayProperties*), (override));
