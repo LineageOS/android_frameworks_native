@@ -24,12 +24,14 @@
 
 #include "HidlComposerHal.h"
 
+#include <SurfaceFlingerProperties.h>
 #include <android/binder_manager.h>
 #include <composer-command-buffer/2.2/ComposerCommandBuffer.h>
 #include <hidl/HidlTransportSupport.h>
 #include <hidl/HidlTransportUtils.h>
 #include <log/log.h>
 #include <utils/Trace.h>
+
 #include "HWC2.h"
 #include "Hal.h"
 
@@ -189,6 +191,9 @@ std::vector<To> translate(const hidl_vec<From>& in) {
 }
 
 sp<GraphicBuffer> allocateClearSlotBuffer() {
+    if (!sysprop::clear_slots_with_set_layer_buffer(false)) {
+        return nullptr;
+    }
     sp<GraphicBuffer> buffer = sp<GraphicBuffer>::make(1, 1, PIXEL_FORMAT_RGBX_8888,
                                                        GraphicBuffer::USAGE_HW_COMPOSER |
                                                                GraphicBuffer::USAGE_SW_READ_OFTEN |
@@ -246,7 +251,7 @@ HidlComposer::HidlComposer(const std::string& serviceName)
         LOG_ALWAYS_FATAL("failed to create composer client");
     }
 
-    if (!mClearSlotBuffer) {
+    if (!mClearSlotBuffer && sysprop::clear_slots_with_set_layer_buffer(false)) {
         LOG_ALWAYS_FATAL("Failed to allocate a buffer for clearing layer buffer slots");
         return;
     }
@@ -716,7 +721,11 @@ Error HidlComposer::setLayerBufferSlotsToClear(Display display, Layer layer,
     if (slotsToClear.empty()) {
         return Error::NONE;
     }
-    // Backwards compatible way of clearing buffer is to set the layer buffer with a placeholder
+    // This can be null when the HAL hasn't explicitly enabled this feature.
+    if (mClearSlotBuffer == nullptr) {
+        return Error::NONE;
+    }
+    //  Backwards compatible way of clearing buffer is to set the layer buffer with a placeholder
     // buffer, using the slot that needs to cleared... tricky.
     for (uint32_t slot : slotsToClear) {
         // Don't clear the active buffer slot because we need to restore the active buffer after
