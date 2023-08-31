@@ -85,13 +85,11 @@ public:
     // return the frames per second of the layer with the given sequence id.
     float getLayerFramerate(nsecs_t now, int32_t id) const;
 
-    bool isSmallDirtyArea(uint32_t dirtyArea) const;
+    bool isSmallDirtyArea(uint32_t dirtyArea, float threshold) const;
 
 private:
     friend class LayerHistoryTest;
     friend class TestableScheduler;
-
-    static constexpr float kSmallDirtyArea = 0.07f;
 
     using LayerPair = std::pair<Layer*, std::unique_ptr<LayerInfo>>;
     // keyed by id as returned from Layer::getSequence()
