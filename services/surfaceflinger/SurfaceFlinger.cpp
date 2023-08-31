@@ -4554,6 +4554,9 @@ status_t SurfaceFlinger::setTransactionState(
             resolvedState.externalTexture =
                     getExternalTextureFromBufferData(*resolvedState.state.bufferData,
                                                      layerName.c_str(), transactionId);
+            if (resolvedState.externalTexture) {
+                resolvedState.state.bufferData->buffer = resolvedState.externalTexture->getBuffer();
+            }
             mBufferCountTracker.increment(resolvedState.state.surface->localBinder());
         }
         resolvedState.layerId = LayerHandle::getLayerId(resolvedState.state.surface);
