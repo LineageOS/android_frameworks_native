@@ -24,6 +24,7 @@
 #include <include/gpu/ganesh/SkImageGanesh.h>
 #include <include/gpu/ganesh/SkSurfaceGanesh.h>
 #include <include/gpu/ganesh/gl/GrGLBackendSurface.h>
+#include <include/gpu/ganesh/vk/GrVkBackendSurface.h>
 #include <include/gpu/vk/GrVkTypes.h>
 #include <android/hardware_buffer.h>
 #include "ColorSpaces.h"
@@ -139,7 +140,7 @@ void logFatalTexture(const char* msg, const GrBackendTexture& tex, ui::Dataspace
         }
         case GrBackendApi::kVulkan: {
             GrVkImageInfo imageInfo;
-            bool retrievedImageInfo = tex.getVkImageInfo(&imageInfo);
+            bool retrievedImageInfo = GrBackendTextures::GetVkImageInfo(tex, &imageInfo);
             LOG_ALWAYS_FATAL("%s isTextureValid:%d dataspace:%d"
                              "\n\tGrBackendTexture: (%i x %i) hasMipmaps: %i isProtected: %i "
                              "texType: %i\n\t\tVkImageInfo: success: %i fFormat: %i "
