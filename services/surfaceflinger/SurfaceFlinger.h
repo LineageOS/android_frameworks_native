@@ -612,8 +612,7 @@ private:
 
     status_t getMaxAcquiredBufferCount(int* buffers) const;
 
-    status_t addWindowInfosListener(const sp<gui::IWindowInfosListener>& windowInfosListener,
-                                    gui::WindowInfosListenerInfo* outResult);
+    status_t addWindowInfosListener(const sp<gui::IWindowInfosListener>& windowInfosListener);
     status_t removeWindowInfosListener(
             const sp<gui::IWindowInfosListener>& windowInfosListener) const;
 
@@ -1557,8 +1556,8 @@ public:
     binder::Status setOverrideFrameRate(int32_t uid, float frameRate) override;
     binder::Status getGpuContextPriority(int32_t* outPriority) override;
     binder::Status getMaxAcquiredBufferCount(int32_t* buffers) override;
-    binder::Status addWindowInfosListener(const sp<gui::IWindowInfosListener>& windowInfosListener,
-                                          gui::WindowInfosListenerInfo* outInfo) override;
+    binder::Status addWindowInfosListener(
+            const sp<gui::IWindowInfosListener>& windowInfosListener) override;
     binder::Status removeWindowInfosListener(
             const sp<gui::IWindowInfosListener>& windowInfosListener) override;
 
