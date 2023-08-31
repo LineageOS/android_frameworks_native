@@ -3212,6 +3212,14 @@ bool Layer::setBuffer(std::shared_ptr<renderengine::ExternalTexture>& buffer,
     }
 
     mDrawingState.releaseBufferEndpoint = bufferData.releaseBufferEndpoint;
+
+    // If the layer had been updated a TextureView, this would make sure the present time could be
+    // same to TextureView update when it's a small dirty, and get the correct heuristic rate.
+    if (mFlinger->mScheduler->supportSmallDirtyDetection()) {
+        if (mDrawingState.useVsyncIdForRefreshRateSelection) {
+            mUsedVsyncIdForRefreshRateSelection = true;
+        }
+    }
     return true;
 }
 
@@ -3234,7 +3242,35 @@ void Layer::recordLayerHistoryBufferUpdate(const scheduler::LayerProps& layerPro
                             mDrawingState.latchedVsyncId);
             if (prediction.has_value()) {
                 ATRACE_FORMAT_INSTANT("predictedPresentTime");
+                mMaxTimeForUseVsyncId = prediction->presentTime +
+                        scheduler::LayerHistory::kMaxPeriodForHistory.count();
                 return prediction->presentTime;
+            }
+        }
+
+        if (!mFlinger->mScheduler->supportSmallDirtyDetection()) {
+            return static_cast<nsecs_t>(0);
+        }
+
+        // If the layer is not an application and didn't set an explicit rate or desiredPresentTime,
+        // return "0" to tell the layer history that it will use the max refresh rate without
+        // calculating the adaptive rate.
+        if (mWindowType != WindowInfo::Type::APPLICATION &&
+            mWindowType != WindowInfo::Type::BASE_APPLICATION) {
+            return static_cast<nsecs_t>(0);
+        }
+
+        // Return the valid present time only when the layer potentially updated a TextureView so
+        // LayerHistory could heuristically calculate the rate if the UI is continually updating.
+        if (mUsedVsyncIdForRefreshRateSelection) {
+            const auto prediction =
+                    mFlinger->mFrameTimeline->getTokenManager()->getPredictionsForToken(
+                            mDrawingState.latchedVsyncId);
+            if (prediction.has_value()) {
+                if (mMaxTimeForUseVsyncId >= prediction->presentTime) {
+                    return prediction->presentTime;
+                }
+                mUsedVsyncIdForRefreshRateSelection = false;
             }
         }
 
@@ -3297,6 +3333,7 @@ bool Layer::setSurfaceDamageRegion(const Region& surfaceDamage) {
     mDrawingState.surfaceDamageRegion = surfaceDamage;
     mDrawingState.modified = true;
     setTransactionFlags(eTransactionNeeded);
+    setIsSmallDirty();
     return true;
 }
 
@@ -4333,6 +4370,25 @@ bool Layer::setTrustedPresentationInfo(TrustedPresentationThresholds const& thre
 
 void Layer::updateLastLatchTime(nsecs_t latchTime) {
     mLastLatchTime = latchTime;
+}
+
+void Layer::setIsSmallDirty() {
+    if (!mFlinger->mScheduler->supportSmallDirtyDetection()) {
+        return;
+    }
+
+    if (mWindowType != WindowInfo::Type::APPLICATION &&
+        mWindowType != WindowInfo::Type::BASE_APPLICATION) {
+        return;
+    }
+    Rect bounds = mDrawingState.surfaceDamageRegion.getBounds();
+    if (!bounds.isValid()) {
+        return;
+    }
+
+    // If the damage region is a small dirty, this could give the hint for the layer history that
+    // it could suppress the heuristic rate when calculating.
+    mSmallDirty = mFlinger->mScheduler->isSmallDirtyArea(bounds.getWidth() * bounds.getHeight());
 }
 
 } // namespace android
