@@ -16,9 +16,11 @@
 
 package android.gui;
 
+import android.gui.IWindowInfosReportedListener;
 import android.gui.WindowInfosUpdate;
 
 /** @hide */
 oneway interface IWindowInfosListener {
-    void onWindowInfosChanged(in WindowInfosUpdate update);
+    void onWindowInfosChanged(
+        in WindowInfosUpdate update, in @nullable IWindowInfosReportedListener windowInfosReportedListener);
 }

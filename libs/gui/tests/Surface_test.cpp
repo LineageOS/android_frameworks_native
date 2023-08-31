@@ -998,8 +998,7 @@ public:
     }
 
     binder::Status addWindowInfosListener(
-            const sp<gui::IWindowInfosListener>& /*windowInfosListener*/,
-            gui::WindowInfosListenerInfo* /*outInfo*/) override {
+            const sp<gui::IWindowInfosListener>& /*windowInfosListener*/) override {
         return binder::Status::ok();
     }
 

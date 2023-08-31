@@ -19,12 +19,11 @@
 #include <optional>
 #include <unordered_set>
 
-#include <android/gui/BnWindowInfosPublisher.h>
+#include <android/gui/BnWindowInfosReportedListener.h>
 #include <android/gui/IWindowInfosListener.h>
 #include <android/gui/IWindowInfosReportedListener.h>
 #include <binder/IBinder.h>
 #include <ftl/small_map.h>
-#include <ftl/small_vector.h>
 #include <gui/SpHash.h>
 #include <utils/Mutex.h>
 
@@ -36,22 +35,22 @@ using WindowInfosReportedListenerSet =
         std::unordered_set<sp<gui::IWindowInfosReportedListener>,
                            gui::SpHash<gui::IWindowInfosReportedListener>>;
 
-class WindowInfosListenerInvoker : public gui::BnWindowInfosPublisher,
+class WindowInfosListenerInvoker : public gui::BnWindowInfosReportedListener,
                                    public IBinder::DeathRecipient {
 public:
-    void addWindowInfosListener(sp<gui::IWindowInfosListener>, gui::WindowInfosListenerInfo*);
+    void addWindowInfosListener(sp<gui::IWindowInfosListener>);
     void removeWindowInfosListener(const sp<gui::IWindowInfosListener>& windowInfosListener);
 
     void windowInfosChanged(gui::WindowInfosUpdate update,
                             WindowInfosReportedListenerSet windowInfosReportedListeners,
                             bool forceImmediateCall);
 
-    binder::Status ackWindowInfosReceived(int64_t, int64_t) override;
+    binder::Status onWindowInfosReported() override;
 
     struct DebugInfo {
         VsyncId maxSendDelayVsyncId;
         nsecs_t maxSendDelayDuration;
-        size_t pendingMessageCount;
+        uint32_t pendingMessageCount;
     };
     DebugInfo getDebugInfo();
 
@@ -59,28 +58,24 @@ protected:
     void binderDied(const wp<IBinder>& who) override;
 
 private:
-    static constexpr size_t kStaticCapacity = 3;
-    std::atomic<int64_t> mNextListenerId{0};
-    ftl::SmallMap<wp<IBinder>, const std::pair<int64_t, sp<gui::IWindowInfosListener>>,
-                  kStaticCapacity>
-            mWindowInfosListeners;
+    std::mutex mListenersMutex;
 
-    std::optional<gui::WindowInfosUpdate> mDelayedUpdate;
+    static constexpr size_t kStaticCapacity = 3;
+    ftl::SmallMap<wp<IBinder>, const sp<gui::IWindowInfosListener>, kStaticCapacity>
+            mWindowInfosListeners GUARDED_BY(mListenersMutex);
+
+    std::mutex mMessagesMutex;
+    uint32_t mActiveMessageCount GUARDED_BY(mMessagesMutex) = 0;
+    std::optional<gui::WindowInfosUpdate> mDelayedUpdate GUARDED_BY(mMessagesMutex);
     WindowInfosReportedListenerSet mReportedListeners;
 
-    struct UnackedState {
-        ftl::SmallVector<int64_t, kStaticCapacity> unackedListenerIds;
-        WindowInfosReportedListenerSet reportedListeners;
-    };
-    ftl::SmallMap<int64_t /* vsyncId */, UnackedState, 5> mUnackedState;
-
-    DebugInfo mDebugInfo;
+    DebugInfo mDebugInfo GUARDED_BY(mMessagesMutex);
     struct DelayInfo {
         int64_t vsyncId;
         nsecs_t frameTime;
     };
-    std::optional<DelayInfo> mDelayInfo;
-    void updateMaxSendDelay();
+    std::optional<DelayInfo> mDelayInfo GUARDED_BY(mMessagesMutex);
+    void updateMaxSendDelay() REQUIRES(mMessagesMutex);
 };
 
 } // namespace android
