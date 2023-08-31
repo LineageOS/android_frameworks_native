@@ -15,23 +15,35 @@ protected:
     WindowInfosListenerInvokerTest() : mInvoker(sp<WindowInfosListenerInvoker>::make()) {}
 
     ~WindowInfosListenerInvokerTest() {
+        std::mutex mutex;
+        std::condition_variable cv;
+        bool flushComplete = false;
         // Flush the BackgroundExecutor thread to ensure any scheduled tasks are complete.
         // Otherwise, references those tasks hold may go out of scope before they are done
         // executing.
-        BackgroundExecutor::getInstance().flushQueue();
+        BackgroundExecutor::getInstance().sendCallbacks({[&]() {
+            std::scoped_lock lock{mutex};
+            flushComplete = true;
+            cv.notify_one();
+        }});
+        std::unique_lock<std::mutex> lock{mutex};
+        cv.wait(lock, [&]() { return flushComplete; });
     }
 
     sp<WindowInfosListenerInvoker> mInvoker;
 };
 
-using WindowInfosUpdateConsumer = std::function<void(const gui::WindowInfosUpdate&)>;
+using WindowInfosUpdateConsumer = std::function<void(const gui::WindowInfosUpdate&,
+                                                     const sp<gui::IWindowInfosReportedListener>&)>;
 
 class Listener : public gui::BnWindowInfosListener {
 public:
     Listener(WindowInfosUpdateConsumer consumer) : mConsumer(std::move(consumer)) {}
 
-    binder::Status onWindowInfosChanged(const gui::WindowInfosUpdate& update) override {
-        mConsumer(update);
+    binder::Status onWindowInfosChanged(
+            const gui::WindowInfosUpdate& update,
+            const sp<gui::IWindowInfosReportedListener>& reportedListener) override {
+        mConsumer(update, reportedListener);
         return binder::Status::ok();
     }
 
@@ -46,17 +58,15 @@ TEST_F(WindowInfosListenerInvokerTest, callsSingleListener) {
 
     int callCount = 0;
 
-    gui::WindowInfosListenerInfo listenerInfo;
-    mInvoker->addWindowInfosListener(sp<Listener>::make([&](const gui::WindowInfosUpdate& update) {
-                                         std::scoped_lock lock{mutex};
-                                         callCount++;
-                                         cv.notify_one();
+    mInvoker->addWindowInfosListener(
+            sp<Listener>::make([&](const gui::WindowInfosUpdate&,
+                                   const sp<gui::IWindowInfosReportedListener>& reportedListener) {
+                std::scoped_lock lock{mutex};
+                callCount++;
+                cv.notify_one();
 
-                                         listenerInfo.windowInfosPublisher
-                                                 ->ackWindowInfosReceived(update.vsyncId,
-                                                                          listenerInfo.listenerId);
-                                     }),
-                                     &listenerInfo);
+                reportedListener->onWindowInfosReported();
+            }));
 
     BackgroundExecutor::getInstance().sendCallbacks(
             {[this]() { mInvoker->windowInfosChanged({}, {}, false); }});
@@ -71,27 +81,21 @@ TEST_F(WindowInfosListenerInvokerTest, callsMultipleListeners) {
     std::mutex mutex;
     std::condition_variable cv;
 
-    size_t callCount = 0;
-    const size_t expectedCallCount = 3;
-    std::vector<gui::WindowInfosListenerInfo> listenerInfos{expectedCallCount,
-                                                            gui::WindowInfosListenerInfo{}};
+    int callCount = 0;
+    const int expectedCallCount = 3;
 
-    for (size_t i = 0; i < expectedCallCount; i++) {
-        mInvoker->addWindowInfosListener(sp<Listener>::make([&, &listenerInfo = listenerInfos[i]](
-                                                                    const gui::WindowInfosUpdate&
-                                                                            update) {
-                                             std::scoped_lock lock{mutex};
-                                             callCount++;
-                                             if (callCount == expectedCallCount) {
-                                                 cv.notify_one();
-                                             }
+    for (int i = 0; i < expectedCallCount; i++) {
+        mInvoker->addWindowInfosListener(sp<Listener>::make(
+                [&](const gui::WindowInfosUpdate&,
+                    const sp<gui::IWindowInfosReportedListener>& reportedListener) {
+                    std::scoped_lock lock{mutex};
+                    callCount++;
+                    if (callCount == expectedCallCount) {
+                        cv.notify_one();
+                    }
 
-                                             listenerInfo.windowInfosPublisher
-                                                     ->ackWindowInfosReceived(update.vsyncId,
-                                                                              listenerInfo
-                                                                                      .listenerId);
-                                         }),
-                                         &listenerInfos[i]);
+                    reportedListener->onWindowInfosReported();
+                }));
     }
 
     BackgroundExecutor::getInstance().sendCallbacks(
@@ -110,20 +114,17 @@ TEST_F(WindowInfosListenerInvokerTest, delaysUnackedCall) {
 
     int callCount = 0;
 
-    // Simulate a slow ack by not calling IWindowInfosPublisher.ackWindowInfosReceived
-    gui::WindowInfosListenerInfo listenerInfo;
-    mInvoker->addWindowInfosListener(sp<Listener>::make([&](const gui::WindowInfosUpdate&) {
-                                         std::scoped_lock lock{mutex};
-                                         callCount++;
-                                         cv.notify_one();
-                                     }),
-                                     &listenerInfo);
+    // Simulate a slow ack by not calling the WindowInfosReportedListener.
+    mInvoker->addWindowInfosListener(sp<Listener>::make(
+            [&](const gui::WindowInfosUpdate&, const sp<gui::IWindowInfosReportedListener>&) {
+                std::scoped_lock lock{mutex};
+                callCount++;
+                cv.notify_one();
+            }));
 
     BackgroundExecutor::getInstance().sendCallbacks({[&]() {
-        mInvoker->windowInfosChanged(gui::WindowInfosUpdate{{}, {}, /* vsyncId= */ 0, 0}, {},
-                                     false);
-        mInvoker->windowInfosChanged(gui::WindowInfosUpdate{{}, {}, /* vsyncId= */ 1, 0}, {},
-                                     false);
+        mInvoker->windowInfosChanged({}, {}, false);
+        mInvoker->windowInfosChanged({}, {}, false);
     }});
 
     {
@@ -133,7 +134,7 @@ TEST_F(WindowInfosListenerInvokerTest, delaysUnackedCall) {
     EXPECT_EQ(callCount, 1);
 
     // Ack the first message.
-    listenerInfo.windowInfosPublisher->ackWindowInfosReceived(0, listenerInfo.listenerId);
+    mInvoker->onWindowInfosReported();
 
     {
         std::unique_lock lock{mutex};
@@ -151,21 +152,19 @@ TEST_F(WindowInfosListenerInvokerTest, sendsForcedMessage) {
     int callCount = 0;
     const int expectedCallCount = 2;
 
-    // Simulate a slow ack by not calling IWindowInfosPublisher.ackWindowInfosReceived
-    gui::WindowInfosListenerInfo listenerInfo;
-    mInvoker->addWindowInfosListener(sp<Listener>::make([&](const gui::WindowInfosUpdate&) {
-                                         std::scoped_lock lock{mutex};
-                                         callCount++;
-                                         if (callCount == expectedCallCount) {
-                                             cv.notify_one();
-                                         }
-                                     }),
-                                     &listenerInfo);
+    // Simulate a slow ack by not calling the WindowInfosReportedListener.
+    mInvoker->addWindowInfosListener(sp<Listener>::make(
+            [&](const gui::WindowInfosUpdate&, const sp<gui::IWindowInfosReportedListener>&) {
+                std::scoped_lock lock{mutex};
+                callCount++;
+                if (callCount == expectedCallCount) {
+                    cv.notify_one();
+                }
+            }));
 
     BackgroundExecutor::getInstance().sendCallbacks({[&]() {
-        mInvoker->windowInfosChanged(gui::WindowInfosUpdate{{}, {}, /* vsyncId= */ 0, 0}, {},
-                                     false);
-        mInvoker->windowInfosChanged(gui::WindowInfosUpdate{{}, {}, /* vsyncId= */ 1, 0}, {}, true);
+        mInvoker->windowInfosChanged({}, {}, false);
+        mInvoker->windowInfosChanged({}, {}, true);
     }});
 
     {
@@ -183,14 +182,14 @@ TEST_F(WindowInfosListenerInvokerTest, skipsDelayedMessage) {
 
     int64_t lastUpdateId = -1;
 
-    // Simulate a slow ack by not calling IWindowInfosPublisher.ackWindowInfosReceived
-    gui::WindowInfosListenerInfo listenerInfo;
-    mInvoker->addWindowInfosListener(sp<Listener>::make([&](const gui::WindowInfosUpdate& update) {
-                                         std::scoped_lock lock{mutex};
-                                         lastUpdateId = update.vsyncId;
-                                         cv.notify_one();
-                                     }),
-                                     &listenerInfo);
+    // Simulate a slow ack by not calling the WindowInfosReportedListener.
+    mInvoker->addWindowInfosListener(
+            sp<Listener>::make([&](const gui::WindowInfosUpdate& update,
+                                   const sp<gui::IWindowInfosReportedListener>&) {
+                std::scoped_lock lock{mutex};
+                lastUpdateId = update.vsyncId;
+                cv.notify_one();
+            }));
 
     BackgroundExecutor::getInstance().sendCallbacks({[&]() {
         mInvoker->windowInfosChanged({{}, {}, /* vsyncId= */ 1, 0}, {}, false);
@@ -205,7 +204,7 @@ TEST_F(WindowInfosListenerInvokerTest, skipsDelayedMessage) {
     EXPECT_EQ(lastUpdateId, 1);
 
     // Ack the first message. The third update should be sent.
-    listenerInfo.windowInfosPublisher->ackWindowInfosReceived(1, listenerInfo.listenerId);
+    mInvoker->onWindowInfosReported();
 
     {
         std::unique_lock lock{mutex};
@@ -226,17 +225,14 @@ TEST_F(WindowInfosListenerInvokerTest, noListeners) {
     // delayed.
     BackgroundExecutor::getInstance().sendCallbacks({[&]() {
         mInvoker->windowInfosChanged({}, {}, false);
-        gui::WindowInfosListenerInfo listenerInfo;
-        mInvoker->addWindowInfosListener(sp<Listener>::make([&](const gui::WindowInfosUpdate&) {
-                                             std::scoped_lock lock{mutex};
-                                             callCount++;
-                                             cv.notify_one();
-                                         }),
-                                         &listenerInfo);
+        mInvoker->addWindowInfosListener(sp<Listener>::make(
+                [&](const gui::WindowInfosUpdate&, const sp<gui::IWindowInfosReportedListener>&) {
+                    std::scoped_lock lock{mutex};
+                    callCount++;
+                    cv.notify_one();
+                }));
+        mInvoker->windowInfosChanged({}, {}, false);
     }});
-    BackgroundExecutor::getInstance().flushQueue();
-    BackgroundExecutor::getInstance().sendCallbacks(
-            {[&]() { mInvoker->windowInfosChanged({}, {}, false); }});
 
     {
         std::unique_lock lock{mutex};
