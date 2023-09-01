@@ -155,7 +155,7 @@ status_t PropertyMap::Parser::parse() {
 
         if (!mTokenizer->isEol() && mTokenizer->peekChar() != '#') {
             String8 keyToken = mTokenizer->nextToken(WHITESPACE_OR_PROPERTY_DELIMITER);
-            if (keyToken.isEmpty()) {
+            if (keyToken.empty()) {
                 ALOGE("%s: Expected non-empty property key.", mTokenizer->getLocation().c_str());
                 return BAD_VALUE;
             }

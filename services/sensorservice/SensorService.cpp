@@ -531,7 +531,7 @@ status_t SensorService::dump(int fd, const Vector<String16>& args) {
             for (auto&& i : mRecentEvent) {
                 sp<SensorInterface> s = mSensors.getInterface(i.first);
                 if (!i.second->isEmpty()) {
-                    if (privileged || s->getSensor().getRequiredPermission().isEmpty()) {
+                    if (privileged || s->getSensor().getRequiredPermission().empty()) {
                         i.second->setFormat("normal");
                     } else {
                         i.second->setFormat("mask_data");
@@ -649,7 +649,7 @@ status_t SensorService::dumpProtoLocked(int fd, ConnectionSafeAutolock* connLock
     for (auto&& i : mRecentEvent) {
         sp<SensorInterface> s = mSensors.getInterface(i.first);
         if (!i.second->isEmpty()) {
-            i.second->setFormat(privileged || s->getSensor().getRequiredPermission().isEmpty() ?
+            i.second->setFormat(privileged || s->getSensor().getRequiredPermission().empty() ?
                     "normal" : "mask_data");
             const uint64_t mToken = proto.start(service::SensorEventsProto::RECENT_EVENTS_LOGS);
             proto.write(service::SensorEventsProto::RecentEventsLog::NAME,
