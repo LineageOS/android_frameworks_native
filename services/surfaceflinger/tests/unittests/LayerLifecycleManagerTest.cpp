@@ -17,6 +17,8 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include <renderengine/mock/FakeExternalTexture.h>
+
 #include "FrontEnd/LayerLifecycleManager.h"
 #include "LayerHierarchyTest.h"
 #include "TransactionState.h"
@@ -24,6 +26,8 @@
 using namespace android::surfaceflinger;
 
 namespace android::surfaceflinger::frontend {
+
+using namespace ftl::flag_operators;
 
 // To run test:
 /**
@@ -434,6 +438,90 @@ TEST_F(LayerLifecycleManagerTest, colorSetsVisibilityChangeFlag) {
     setColor(1, {-1.f, -1.f, -1.f});
     EXPECT_TRUE(
             mLifecycleManager.getGlobalChanges().test(RequestedLayerState::Changes::Visibility));
+    mLifecycleManager.commitChanges();
+}
+
+TEST_F(LayerLifecycleManagerTest, layerOpacityChangesSetsVisibilityChangeFlag) {
+    // add a default buffer and make the layer opaque
+    setFlags(1, layer_state_t::eLayerOpaque, layer_state_t::eLayerOpaque);
+    setBuffer(1,
+              std::make_shared<
+                      renderengine::mock::FakeExternalTexture>(1U /*width*/, 1U /*height*/,
+                                                               1ULL /* bufferId */,
+                                                               HAL_PIXEL_FORMAT_RGBA_8888,
+                                                               GRALLOC_USAGE_PROTECTED /*usage*/));
+
+    mLifecycleManager.commitChanges();
+
+    // set new buffer but layer opacity doesn't change
+    setBuffer(1,
+              std::make_shared<
+                      renderengine::mock::FakeExternalTexture>(1U /*width*/, 1U /*height*/,
+                                                               2ULL /* bufferId */,
+                                                               HAL_PIXEL_FORMAT_RGBA_8888,
+                                                               GRALLOC_USAGE_PROTECTED /*usage*/));
+    EXPECT_EQ(mLifecycleManager.getGlobalChanges().get(),
+              ftl::Flags<RequestedLayerState::Changes>(RequestedLayerState::Changes::Buffer |
+                                                       RequestedLayerState::Changes::Content)
+                      .get());
+    mLifecycleManager.commitChanges();
+
+    // change layer flags and confirm visibility flag is set
+    setFlags(1, layer_state_t::eLayerOpaque, 0);
+    EXPECT_TRUE(
+            mLifecycleManager.getGlobalChanges().test(RequestedLayerState::Changes::Visibility));
+    mLifecycleManager.commitChanges();
+}
+
+TEST_F(LayerLifecycleManagerTest, bufferFormatChangesSetsVisibilityChangeFlag) {
+    // add a default buffer and make the layer opaque
+    setFlags(1, layer_state_t::eLayerOpaque, layer_state_t::eLayerOpaque);
+    setBuffer(1,
+              std::make_shared<
+                      renderengine::mock::FakeExternalTexture>(1U /*width*/, 1U /*height*/,
+                                                               1ULL /* bufferId */,
+                                                               HAL_PIXEL_FORMAT_RGBA_8888,
+                                                               GRALLOC_USAGE_PROTECTED /*usage*/));
+
+    mLifecycleManager.commitChanges();
+
+    // set new buffer with an opaque buffer format
+    setBuffer(1,
+              std::make_shared<
+                      renderengine::mock::FakeExternalTexture>(1U /*width*/, 1U /*height*/,
+                                                               2ULL /* bufferId */,
+                                                               HAL_PIXEL_FORMAT_RGB_888,
+                                                               GRALLOC_USAGE_PROTECTED /*usage*/));
+    EXPECT_EQ(mLifecycleManager.getGlobalChanges().get(),
+              ftl::Flags<RequestedLayerState::Changes>(RequestedLayerState::Changes::Buffer |
+                                                       RequestedLayerState::Changes::Content |
+                                                       RequestedLayerState::Changes::VisibleRegion |
+                                                       RequestedLayerState::Changes::Visibility)
+                      .get());
+    mLifecycleManager.commitChanges();
+}
+
+TEST_F(LayerLifecycleManagerTest, roundedCornerChangesSetsVisibilityChangeFlag) {
+    // add a default buffer and make the layer opaque
+    setFlags(1, layer_state_t::eLayerOpaque, layer_state_t::eLayerOpaque);
+    setBuffer(1,
+              std::make_shared<
+                      renderengine::mock::FakeExternalTexture>(1U /*width*/, 1U /*height*/,
+                                                               1ULL /* bufferId */,
+                                                               HAL_PIXEL_FORMAT_RGBA_8888,
+                                                               GRALLOC_USAGE_PROTECTED /*usage*/));
+
+    mLifecycleManager.commitChanges();
+
+    // add rounded corners which should make the layer translucent
+    setRoundedCorners(1, 5.f);
+    EXPECT_EQ(mLifecycleManager.getGlobalChanges().get(),
+              ftl::Flags<RequestedLayerState::Changes>(
+                      RequestedLayerState::Changes::AffectsChildren |
+                      RequestedLayerState::Changes::Content |
+                      RequestedLayerState::Changes::Geometry |
+                      RequestedLayerState::Changes::VisibleRegion)
+                      .get());
     mLifecycleManager.commitChanges();
 }
 
