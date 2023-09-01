@@ -40,12 +40,14 @@ import android.gui.IScreenCaptureListener;
 import android.gui.ISurfaceComposerClient;
 import android.gui.ITunnelModeEnabledListener;
 import android.gui.IWindowInfosListener;
+import android.gui.IWindowInfosPublisher;
 import android.gui.LayerCaptureArgs;
 import android.gui.LayerDebugInfo;
 import android.gui.OverlayProperties;
 import android.gui.PullAtomData;
 import android.gui.ARect;
 import android.gui.StaticDisplayInfo;
+import android.gui.WindowInfosListenerInfo;
 
 /** @hide */
 interface ISurfaceComposer {
@@ -500,7 +502,7 @@ interface ISurfaceComposer {
      */
     int getMaxAcquiredBufferCount();
 
-    void addWindowInfosListener(IWindowInfosListener windowInfosListener);
+    WindowInfosListenerInfo addWindowInfosListener(IWindowInfosListener windowInfosListener);
 
     void removeWindowInfosListener(IWindowInfosListener windowInfosListener);
 
