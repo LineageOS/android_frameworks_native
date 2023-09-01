@@ -368,6 +368,7 @@ private:
     friend class RefreshRateOverlay;
     friend class RegionSamplingThread;
     friend class LayerRenderArea;
+    friend class LayerTracing;
     friend class SurfaceComposerAIDL;
     friend class DisplayRenderArea;
 
@@ -1095,10 +1096,7 @@ private:
     void dumpOffscreenLayersProto(perfetto::protos::LayersProto& layersProto,
                                   uint32_t traceFlags = LayerTracing::TRACE_ALL) const;
     google::protobuf::RepeatedPtrField<perfetto::protos::DisplayProto> dumpDisplayProto() const;
-    void doActiveLayersTracingIfNeeded(bool isCompositionComputed, bool visibleRegionDirty,
-                                       TimePoint, VsyncId) REQUIRES(kMainThreadContext);
-    perfetto::protos::LayersSnapshotProto takeLayersSnapshotProto(uint32_t flags, TimePoint,
-                                                                  VsyncId, bool visibleRegionDirty)
+    void addToLayerTracing(bool visibleRegionDirty, TimePoint, VsyncId)
             REQUIRES(kMainThreadContext);
 
     // Dumps state from HW Composer
@@ -1263,7 +1261,10 @@ private:
     bool mBackpressureGpuComposition = false;
 
     LayerTracing mLayerTracing;
+    bool mLayerTracingEnabled = false;
+
     std::optional<TransactionTracing> mTransactionTracing;
+    std::atomic<bool> mTracingEnabledChanged = false;
 
     const std::shared_ptr<TimeStats> mTimeStats;
     const std::unique_ptr<FrameTracer> mFrameTracer;
