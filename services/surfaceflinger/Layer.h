@@ -235,7 +235,7 @@ public:
         bool useVsyncIdForRefreshRateSelection = false;
     };
 
-    explicit Layer(const surfaceflinger::LayerCreationArgs& args);
+    explicit Layer(const LayerCreationArgs& args);
     virtual ~Layer();
 
     static bool isLayerFocusedBasedOnPriority(int32_t priority);
@@ -634,19 +634,17 @@ public:
 
     bool isRemovedFromCurrentState() const;
 
-    perfetto::protos::LayerProto* writeToProto(perfetto::protos::LayersProto& layersProto,
-                                               uint32_t traceFlags);
-    void writeCompositionStateToProto(perfetto::protos::LayerProto* layerProto,
-                                      ui::LayerStack layerStack);
+    LayerProto* writeToProto(LayersProto& layersProto, uint32_t traceFlags);
+    void writeCompositionStateToProto(LayerProto* layerProto, ui::LayerStack layerStack);
 
     // Write states that are modified by the main thread. This includes drawing
     // state as well as buffer data. This should be called in the main or tracing
     // thread.
-    void writeToProtoDrawingState(perfetto::protos::LayerProto* layerInfo);
+    void writeToProtoDrawingState(LayerProto* layerInfo);
     // Write drawing or current state. If writing current state, the caller should hold the
     // external mStateLock. If writing drawing state, this function should be called on the
     // main or tracing thread.
-    void writeToProtoCommonState(perfetto::protos::LayerProto* layerInfo, LayerVector::StateSet,
+    void writeToProtoCommonState(LayerProto* layerInfo, LayerVector::StateSet,
                                  uint32_t traceFlags = LayerTracing::TRACE_ALL);
 
     gui::WindowInfo::Type getWindowType() const { return mWindowType; }

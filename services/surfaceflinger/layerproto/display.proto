@@ -14,7 +14,29 @@
  * limitations under the License.
  */
 
-// disable the warnings emitted from the protobuf headers. This file should be included instead of
-// directly including the generated header file
-#pragma GCC system_header
-#include <transactions.pb.h>
+syntax = "proto3";
+option optimize_for = LITE_RUNTIME;
+
+import "frameworks/native/services/surfaceflinger/layerproto/common.proto";
+
+package android.surfaceflinger;
+
+message DisplayProto {
+    uint64 id = 1;
+
+    string name = 2;
+
+    uint32 layer_stack = 3;
+
+    SizeProto size = 4;
+
+    RectProto layer_stack_space_rect = 5;
+
+    TransformProto transform = 6;
+
+    bool is_virtual = 7;
+
+    double dpi_x = 8;
+
+    double dpi_y = 9;
+}

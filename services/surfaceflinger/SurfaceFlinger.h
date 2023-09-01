@@ -1092,17 +1092,17 @@ private:
     void dumpWideColorInfo(std::string& result) const REQUIRES(mStateLock);
     void dumpHdrInfo(std::string& result) const REQUIRES(mStateLock);
 
-    perfetto::protos::LayersProto dumpDrawingStateProto(uint32_t traceFlags) const;
-    void dumpOffscreenLayersProto(perfetto::protos::LayersProto& layersProto,
+    LayersProto dumpDrawingStateProto(uint32_t traceFlags) const;
+    void dumpOffscreenLayersProto(LayersProto& layersProto,
                                   uint32_t traceFlags = LayerTracing::TRACE_ALL) const;
-    google::protobuf::RepeatedPtrField<perfetto::protos::DisplayProto> dumpDisplayProto() const;
+    google::protobuf::RepeatedPtrField<DisplayProto> dumpDisplayProto() const;
     void addToLayerTracing(bool visibleRegionDirty, TimePoint, VsyncId)
             REQUIRES(kMainThreadContext);
 
     // Dumps state from HW Composer
     void dumpHwc(std::string& result) const;
-    perfetto::protos::LayersProto dumpProtoFromMainThread(
-            uint32_t traceFlags = LayerTracing::TRACE_ALL) EXCLUDES(mStateLock);
+    LayersProto dumpProtoFromMainThread(uint32_t traceFlags = LayerTracing::TRACE_ALL)
+            EXCLUDES(mStateLock);
     void dumpOffscreenLayers(std::string& result) EXCLUDES(mStateLock);
     void dumpPlannerInfo(const DumpArgs& args, std::string& result) const REQUIRES(mStateLock);
 

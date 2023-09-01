@@ -59,7 +59,7 @@ TransactionTracing::~TransactionTracing() {
 
 status_t TransactionTracing::writeToFile(const std::string& filename) {
     std::scoped_lock lock(mTraceLock);
-    perfetto::protos::TransactionTraceFile fileProto = createTraceFileProto();
+    proto::TransactionTraceFile fileProto = createTraceFileProto();
     addStartingStateToProtoLocked(fileProto);
     return mBuffer.writeToFile(fileProto, filename);
 }
@@ -70,11 +70,10 @@ void TransactionTracing::setBufferSize(size_t bufferSizeInBytes) {
     mBuffer.setSize(mBufferSizeInBytes);
 }
 
-perfetto::protos::TransactionTraceFile TransactionTracing::createTraceFileProto() const {
-    perfetto::protos::TransactionTraceFile proto;
-    proto.set_magic_number(
-            uint64_t(perfetto::protos::TransactionTraceFile_MagicNumber_MAGIC_NUMBER_H) << 32 |
-            perfetto::protos::TransactionTraceFile_MagicNumber_MAGIC_NUMBER_L);
+proto::TransactionTraceFile TransactionTracing::createTraceFileProto() const {
+    proto::TransactionTraceFile proto;
+    proto.set_magic_number(uint64_t(proto::TransactionTraceFile_MagicNumber_MAGIC_NUMBER_H) << 32 |
+                           proto::TransactionTraceFile_MagicNumber_MAGIC_NUMBER_L);
     auto timeOffsetNs = static_cast<std::uint64_t>(systemTime(SYSTEM_TIME_REALTIME) -
                                                    systemTime(SYSTEM_TIME_MONOTONIC));
     proto.set_real_to_elapsed_time_offset_nanos(timeOffsetNs);
@@ -90,8 +89,7 @@ void TransactionTracing::dump(std::string& result) const {
 }
 
 void TransactionTracing::addQueuedTransaction(const TransactionState& transaction) {
-    perfetto::protos::TransactionState* state =
-            new perfetto::protos::TransactionState(mProtoParser.toProto(transaction));
+    proto::TransactionState* state = new proto::TransactionState(mProtoParser.toProto(transaction));
     mTransactionQueue.push(state);
 }
 
@@ -154,7 +152,7 @@ void TransactionTracing::addEntry(const std::vector<CommittedUpdates>& committed
     ATRACE_CALL();
     std::scoped_lock lock(mTraceLock);
     std::vector<std::string> removedEntries;
-    perfetto::protos::TransactionTraceEntry entryProto;
+    proto::TransactionTraceEntry entryProto;
 
     while (auto incomingTransaction = mTransactionQueue.pop()) {
         auto transaction = *incomingTransaction;
@@ -213,7 +211,7 @@ void TransactionTracing::addEntry(const std::vector<CommittedUpdates>& committed
                               std::make_move_iterator(entries.end()));
     }
 
-    perfetto::protos::TransactionTraceEntry removedEntryProto;
+    proto::TransactionTraceEntry removedEntryProto;
     for (const std::string& removedEntry : removedEntries) {
         removedEntryProto.ParseFromString(removedEntry);
         updateStartingStateLocked(removedEntryProto);
@@ -238,7 +236,7 @@ void TransactionTracing::flush() {
     base::ScopedLockAssertion assumeLocked(mTraceLock);
     mTransactionsAddedToBufferCv.wait_for(lock, std::chrono::milliseconds(100),
                                           [&]() REQUIRES(mTraceLock) {
-                                              perfetto::protos::TransactionTraceEntry entry;
+                                              proto::TransactionTraceEntry entry;
                                               if (mBuffer.used() > 0) {
                                                   entry.ParseFromString(mBuffer.back());
                                               }
@@ -270,19 +268,19 @@ void TransactionTracing::tryPushToTracingThread() {
 }
 
 void TransactionTracing::updateStartingStateLocked(
-        const perfetto::protos::TransactionTraceEntry& removedEntry) {
+        const proto::TransactionTraceEntry& removedEntry) {
     mStartingTimestamp = removedEntry.elapsed_realtime_nanos();
     // Keep track of layer starting state so we can reconstruct the layer state as we purge
     // transactions from the buffer.
-    for (const perfetto::protos::LayerCreationArgs& addedLayer : removedEntry.added_layers()) {
+    for (const proto::LayerCreationArgs& addedLayer : removedEntry.added_layers()) {
         TracingLayerState& startingState = mStartingStates[addedLayer.layer_id()];
         startingState.layerId = addedLayer.layer_id();
         mProtoParser.fromProto(addedLayer, startingState.args);
     }
 
     // Merge layer states to starting transaction state.
-    for (const perfetto::protos::TransactionState& transaction : removedEntry.transactions()) {
-        for (const perfetto::protos::LayerState& layerState : transaction.layer_changes()) {
+    for (const proto::TransactionState& transaction : removedEntry.transactions()) {
+        for (const proto::LayerState& layerState : transaction.layer_changes()) {
             auto it = mStartingStates.find(layerState.layer_id());
             if (it == mStartingStates.end()) {
                 // TODO(b/238781169) make this log fatal when we switch over to using new fe
@@ -309,13 +307,12 @@ void TransactionTracing::updateStartingStateLocked(
     }
 }
 
-void TransactionTracing::addStartingStateToProtoLocked(
-        perfetto::protos::TransactionTraceFile& proto) {
+void TransactionTracing::addStartingStateToProtoLocked(proto::TransactionTraceFile& proto) {
     if (mStartingStates.size() == 0) {
         return;
     }
 
-    perfetto::protos::TransactionTraceEntry* entryProto = proto.add_entry();
+    proto::TransactionTraceEntry* entryProto = proto.add_entry();
     entryProto->set_elapsed_realtime_nanos(mStartingTimestamp);
     entryProto->set_vsync_id(0);
 
@@ -324,7 +321,7 @@ void TransactionTracing::addStartingStateToProtoLocked(
         entryProto->mutable_added_layers()->Add(mProtoParser.toProto(state.args));
     }
 
-    perfetto::protos::TransactionState transactionProto = mProtoParser.toProto(mStartingStates);
+    proto::TransactionState transactionProto = mProtoParser.toProto(mStartingStates);
     transactionProto.set_vsync_id(0);
     transactionProto.set_post_time(mStartingTimestamp);
     entryProto->mutable_transactions()->Add(std::move(transactionProto));
@@ -341,9 +338,9 @@ void TransactionTracing::addStartingStateToProtoLocked(
     }
 }
 
-perfetto::protos::TransactionTraceFile TransactionTracing::writeToProto() {
+proto::TransactionTraceFile TransactionTracing::writeToProto() {
     std::scoped_lock<std::mutex> lock(mTraceLock);
-    perfetto::protos::TransactionTraceFile proto = createTraceFileProto();
+    proto::TransactionTraceFile proto = createTraceFileProto();
     addStartingStateToProtoLocked(proto);
     mBuffer.writeToProto(proto);
     return proto;

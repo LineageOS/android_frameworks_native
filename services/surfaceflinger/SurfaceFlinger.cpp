@@ -5889,10 +5889,9 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args, bool asProto) {
         }
 
         if (dumpLayers) {
-            perfetto::protos::LayersTraceFileProto traceFileProto =
-                    mLayerTracing.createTraceFileProto();
-            perfetto::protos::LayersSnapshotProto* layersTrace = traceFileProto.add_entry();
-            perfetto::protos::LayersProto layersProto = dumpProtoFromMainThread();
+            LayersTraceFileProto traceFileProto = mLayerTracing.createTraceFileProto();
+            LayersTraceProto* layersTrace = traceFileProto.add_entry();
+            LayersProto layersProto = dumpProtoFromMainThread();
             layersTrace->mutable_layers()->Swap(&layersProto);
             auto displayProtos = dumpDisplayProto();
             layersTrace->mutable_displays()->Swap(&displayProtos);
@@ -6118,7 +6117,7 @@ void SurfaceFlinger::dumpHdrInfo(std::string& result) const {
     }
 }
 
-perfetto::protos::LayersProto SurfaceFlinger::dumpDrawingStateProto(uint32_t traceFlags) const {
+LayersProto SurfaceFlinger::dumpDrawingStateProto(uint32_t traceFlags) const {
     std::unordered_set<uint64_t> stackIdsToSkip;
 
     // Determine if virtual layers display should be skipped
@@ -6131,7 +6130,7 @@ perfetto::protos::LayersProto SurfaceFlinger::dumpDrawingStateProto(uint32_t tra
     }
 
     if (mLegacyFrontEndEnabled) {
-        perfetto::protos::LayersProto layersProto;
+        LayersProto layersProto;
         for (const sp<Layer>& layer : mDrawingState.layersSortedByZ) {
             if (stackIdsToSkip.find(layer->getLayerStack().id) != stackIdsToSkip.end()) {
                 continue;
@@ -6146,11 +6145,10 @@ perfetto::protos::LayersProto SurfaceFlinger::dumpDrawingStateProto(uint32_t tra
             .generate(mLayerHierarchyBuilder.getHierarchy());
 }
 
-google::protobuf::RepeatedPtrField<perfetto::protos::DisplayProto>
-SurfaceFlinger::dumpDisplayProto() const {
-    google::protobuf::RepeatedPtrField<perfetto::protos::DisplayProto> displays;
+google::protobuf::RepeatedPtrField<DisplayProto> SurfaceFlinger::dumpDisplayProto() const {
+    google::protobuf::RepeatedPtrField<DisplayProto> displays;
     for (const auto& [_, display] : FTL_FAKE_GUARD(mStateLock, mDisplays)) {
-        perfetto::protos::DisplayProto* displayProto = displays.Add();
+        DisplayProto* displayProto = displays.Add();
         displayProto->set_id(display->getId().value);
         displayProto->set_name(display->getDisplayName());
         displayProto->set_layer_stack(display->getLayerStack().id);
@@ -6177,11 +6175,10 @@ void SurfaceFlinger::dumpHwc(std::string& result) const {
     getHwComposer().dump(result);
 }
 
-void SurfaceFlinger::dumpOffscreenLayersProto(perfetto::protos::LayersProto& layersProto,
-                                              uint32_t traceFlags) const {
+void SurfaceFlinger::dumpOffscreenLayersProto(LayersProto& layersProto, uint32_t traceFlags) const {
     // Add a fake invisible root layer to the proto output and parent all the offscreen layers to
     // it.
-    perfetto::protos::LayerProto* rootProto = layersProto.add_layers();
+    LayerProto* rootProto = layersProto.add_layers();
     const int32_t offscreenRootLayerId = INT32_MAX - 2;
     rootProto->set_id(offscreenRootLayerId);
     rootProto->set_name("Offscreen Root");
@@ -6192,12 +6189,12 @@ void SurfaceFlinger::dumpOffscreenLayersProto(perfetto::protos::LayersProto& lay
         rootProto->add_children(offscreenLayer->sequence);
 
         // Add layer
-        auto* layerProto = offscreenLayer->writeToProto(layersProto, traceFlags);
+        LayerProto* layerProto = offscreenLayer->writeToProto(layersProto, traceFlags);
         layerProto->set_parent(offscreenRootLayerId);
     }
 }
 
-perfetto::protos::LayersProto SurfaceFlinger::dumpProtoFromMainThread(uint32_t traceFlags) {
+LayersProto SurfaceFlinger::dumpProtoFromMainThread(uint32_t traceFlags) {
     return mScheduler->schedule([=] { return dumpDrawingStateProto(traceFlags); }).get();
 }
 
@@ -8793,7 +8790,7 @@ frontend::Update SurfaceFlinger::flushLifecycleUpdates() {
 
 void SurfaceFlinger::addToLayerTracing(bool visibleRegionDirty, TimePoint time, VsyncId vsyncId) {
     const uint32_t tracingFlags = mLayerTracing.getFlags();
-    perfetto::protos::LayersProto layers(dumpDrawingStateProto(tracingFlags));
+    LayersProto layers(dumpDrawingStateProto(tracingFlags));
     if (tracingFlags & LayerTracing::TRACE_EXTRA) {
         dumpOffscreenLayersProto(layers);
     }

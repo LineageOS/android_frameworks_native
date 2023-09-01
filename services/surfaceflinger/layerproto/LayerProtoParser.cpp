@@ -37,8 +37,7 @@ bool sortLayers(LayerProtoParser::Layer* lhs, const LayerProtoParser::Layer* rhs
     return lhs->id < rhs->id;
 }
 
-LayerProtoParser::LayerTree LayerProtoParser::generateLayerTree(
-        const perfetto::protos::LayersProto& layersProto) {
+LayerProtoParser::LayerTree LayerProtoParser::generateLayerTree(const LayersProto& layersProto) {
     LayerTree layerTree;
     layerTree.allLayers = generateLayerList(layersProto);
 
@@ -54,7 +53,7 @@ LayerProtoParser::LayerTree LayerProtoParser::generateLayerTree(
 }
 
 std::vector<LayerProtoParser::Layer> LayerProtoParser::generateLayerList(
-        const perfetto::protos::LayersProto& layersProto) {
+        const LayersProto& layersProto) {
     std::vector<Layer> layerList;
     std::unordered_map<int32_t, Layer*> layerMap;
 
@@ -75,8 +74,7 @@ std::vector<LayerProtoParser::Layer> LayerProtoParser::generateLayerList(
     return layerList;
 }
 
-LayerProtoParser::Layer LayerProtoParser::generateLayer(
-        const perfetto::protos::LayerProto& layerProto) {
+LayerProtoParser::Layer LayerProtoParser::generateLayer(const LayerProto& layerProto) {
     Layer layer;
     layer.id = layerProto.id();
     layer.name = layerProto.name();
@@ -122,19 +120,17 @@ LayerProtoParser::Layer LayerProtoParser::generateLayer(
     return layer;
 }
 
-LayerProtoParser::Region LayerProtoParser::generateRegion(
-        const perfetto::protos::RegionProto& regionProto) {
+LayerProtoParser::Region LayerProtoParser::generateRegion(const RegionProto& regionProto) {
     LayerProtoParser::Region region;
     for (int i = 0; i < regionProto.rect_size(); i++) {
-        const perfetto::protos::RectProto& rectProto = regionProto.rect(i);
+        const RectProto& rectProto = regionProto.rect(i);
         region.rects.push_back(generateRect(rectProto));
     }
 
     return region;
 }
 
-LayerProtoParser::Rect LayerProtoParser::generateRect(
-        const perfetto::protos::RectProto& rectProto) {
+LayerProtoParser::Rect LayerProtoParser::generateRect(const RectProto& rectProto) {
     LayerProtoParser::Rect rect;
     rect.left = rectProto.left();
     rect.top = rectProto.top();
@@ -144,8 +140,7 @@ LayerProtoParser::Rect LayerProtoParser::generateRect(
     return rect;
 }
 
-LayerProtoParser::FloatRect LayerProtoParser::generateFloatRect(
-        const perfetto::protos::FloatRectProto& rectProto) {
+LayerProtoParser::FloatRect LayerProtoParser::generateFloatRect(const FloatRectProto& rectProto) {
     LayerProtoParser::FloatRect rect;
     rect.left = rectProto.left();
     rect.top = rectProto.top();
@@ -156,7 +151,7 @@ LayerProtoParser::FloatRect LayerProtoParser::generateFloatRect(
 }
 
 LayerProtoParser::Transform LayerProtoParser::generateTransform(
-        const perfetto::protos::TransformProto& transformProto) {
+        const TransformProto& transformProto) {
     LayerProtoParser::Transform transform;
     transform.dsdx = transformProto.dsdx();
     transform.dtdx = transformProto.dtdx();
@@ -167,7 +162,7 @@ LayerProtoParser::Transform LayerProtoParser::generateTransform(
 }
 
 LayerProtoParser::ActiveBuffer LayerProtoParser::generateActiveBuffer(
-        const perfetto::protos::ActiveBufferProto& activeBufferProto) {
+        const ActiveBufferProto& activeBufferProto) {
     LayerProtoParser::ActiveBuffer activeBuffer;
     activeBuffer.width = activeBufferProto.width();
     activeBuffer.height = activeBufferProto.height();
@@ -177,7 +172,7 @@ LayerProtoParser::ActiveBuffer LayerProtoParser::generateActiveBuffer(
     return activeBuffer;
 }
 
-void LayerProtoParser::updateChildrenAndRelative(const perfetto::protos::LayerProto& layerProto,
+void LayerProtoParser::updateChildrenAndRelative(const LayerProto& layerProto,
                                                  std::unordered_map<int32_t, Layer*>& layerMap) {
     auto currLayer = layerMap[layerProto.id()];
 

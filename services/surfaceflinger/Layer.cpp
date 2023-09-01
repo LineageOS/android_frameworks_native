@@ -139,7 +139,7 @@ using gui::WindowInfo;
 
 using PresentState = frametimeline::SurfaceFrame::PresentState;
 
-Layer::Layer(const surfaceflinger::LayerCreationArgs& args)
+Layer::Layer(const LayerCreationArgs& args)
       : sequence(args.sequence),
         mFlinger(sp<SurfaceFlinger>::fromExisting(args.flinger)),
         mName(base::StringPrintf("%s#%d", args.name.c_str(), sequence)),
@@ -1000,8 +1000,8 @@ bool Layer::setBackgroundColor(const half3& color, float alpha, ui::Dataspace da
         uint32_t flags = ISurfaceComposerClient::eFXSurfaceEffect;
         std::string name = mName + "BackgroundColorLayer";
         mDrawingState.bgColorLayer = mFlinger->getFactory().createEffectLayer(
-                surfaceflinger::LayerCreationArgs(mFlinger.get(), nullptr, std::move(name), flags,
-                                                  LayerMetadata()));
+                LayerCreationArgs(mFlinger.get(), nullptr, std::move(name), flags,
+                                  LayerMetadata()));
 
         // add to child list
         addChild(mDrawingState.bgColorLayer);
@@ -2203,9 +2203,8 @@ void Layer::setInputInfo(const WindowInfo& info) {
     setTransactionFlags(eTransactionNeeded);
 }
 
-perfetto::protos::LayerProto* Layer::writeToProto(perfetto::protos::LayersProto& layersProto,
-                                                  uint32_t traceFlags) {
-    perfetto::protos::LayerProto* layerProto = layersProto.add_layers();
+LayerProto* Layer::writeToProto(LayersProto& layersProto, uint32_t traceFlags) {
+    LayerProto* layerProto = layersProto.add_layers();
     writeToProtoDrawingState(layerProto);
     writeToProtoCommonState(layerProto, LayerVector::StateSet::Drawing, traceFlags);
 
@@ -2222,22 +2221,20 @@ perfetto::protos::LayerProto* Layer::writeToProto(perfetto::protos::LayersProto&
     return layerProto;
 }
 
-void Layer::writeCompositionStateToProto(perfetto::protos::LayerProto* layerProto,
-                                         ui::LayerStack layerStack) {
+void Layer::writeCompositionStateToProto(LayerProto* layerProto, ui::LayerStack layerStack) {
     ftl::FakeGuard guard(mFlinger->mStateLock); // Called from the main thread.
     ftl::FakeGuard mainThreadGuard(kMainThreadContext);
 
     // Only populate for the primary display.
     if (const auto display = mFlinger->getDisplayFromLayerStack(layerStack)) {
         const auto compositionType = getCompositionType(*display);
-        layerProto->set_hwc_composition_type(
-                static_cast<perfetto::protos::HwcCompositionType>(compositionType));
+        layerProto->set_hwc_composition_type(static_cast<HwcCompositionType>(compositionType));
         LayerProtoHelper::writeToProto(getVisibleRegion(display),
                                        [&]() { return layerProto->mutable_visible_region(); });
     }
 }
 
-void Layer::writeToProtoDrawingState(perfetto::protos::LayerProto* layerInfo) {
+void Layer::writeToProtoDrawingState(LayerProto* layerInfo) {
     const ui::Transform transform = getTransform();
     auto buffer = getExternalTexture();
     if (buffer != nullptr) {
@@ -2276,8 +2273,8 @@ void Layer::writeToProtoDrawingState(perfetto::protos::LayerProto* layerInfo) {
     layerInfo->set_shadow_radius(mEffectiveShadowRadius);
 }
 
-void Layer::writeToProtoCommonState(perfetto::protos::LayerProto* layerInfo,
-                                    LayerVector::StateSet stateSet, uint32_t traceFlags) {
+void Layer::writeToProtoCommonState(LayerProto* layerInfo, LayerVector::StateSet stateSet,
+                                    uint32_t traceFlags) {
     const bool useDrawing = stateSet == LayerVector::StateSet::Drawing;
     const LayerVector& children = useDrawing ? mDrawingChildren : mCurrentChildren;
     const State& state = useDrawing ? mDrawingState : mDrawingState;
@@ -3633,8 +3630,7 @@ Rect Layer::computeBufferCrop(const State& s) {
 }
 
 sp<Layer> Layer::createClone(uint32_t mirrorRootId) {
-    surfaceflinger::LayerCreationArgs args(mFlinger.get(), nullptr, mName + " (Mirror)", 0,
-                                           LayerMetadata());
+    LayerCreationArgs args(mFlinger.get(), nullptr, mName + " (Mirror)", 0, LayerMetadata());
     sp<Layer> layer = mFlinger->getFactory().createBufferStateLayer(args);
     layer->setInitialValuesForClone(sp<Layer>::fromExisting(this), mirrorRootId);
     return layer;

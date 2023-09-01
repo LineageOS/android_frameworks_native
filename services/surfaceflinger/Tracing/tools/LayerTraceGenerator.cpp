@@ -40,8 +40,8 @@
 namespace android {
 using namespace ftl::flag_operators;
 
-bool LayerTraceGenerator::generate(const perfetto::protos::TransactionTraceFile& traceFile,
-                                   const char*, bool onlyLastEntry) {
+bool LayerTraceGenerator::generate(const proto::TransactionTraceFile& traceFile,
+                                   const char* outputLayersTracePath, bool onlyLastEntry) {
     if (traceFile.entry_size() == 0) {
         ALOGD("Trace file is empty");
         return false;

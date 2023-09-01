@@ -51,8 +51,8 @@ public:
     ~FakeExternalTexture() = default;
 };
 
-perfetto::protos::TransactionState TransactionProtoParser::toProto(const TransactionState& t) {
-    perfetto::protos::TransactionState proto;
+proto::TransactionState TransactionProtoParser::toProto(const TransactionState& t) {
+    proto::TransactionState proto;
     proto.set_pid(t.originPid);
     proto.set_uid(t.originUid);
     proto.set_vsync_id(t.frameTimelineInfo.vsyncId);
@@ -79,21 +79,21 @@ perfetto::protos::TransactionState TransactionProtoParser::toProto(const Transac
     return proto;
 }
 
-perfetto::protos::TransactionState TransactionProtoParser::toProto(
+proto::TransactionState TransactionProtoParser::toProto(
         const std::map<uint32_t /* layerId */, TracingLayerState>& states) {
-    perfetto::protos::TransactionState proto;
+    proto::TransactionState proto;
     proto.mutable_layer_changes()->Reserve(static_cast<int32_t>(states.size()));
     for (auto& [layerId, state] : states) {
-        perfetto::protos::LayerState layerProto = toProto(state);
+        proto::LayerState layerProto = toProto(state);
         layerProto.set_has_sideband_stream(state.hasSidebandStream);
         proto.mutable_layer_changes()->Add(std::move(layerProto));
     }
     return proto;
 }
 
-perfetto::protos::LayerState TransactionProtoParser::toProto(
+proto::LayerState TransactionProtoParser::toProto(
         const ResolvedComposerState& resolvedComposerState) {
-    perfetto::protos::LayerState proto;
+    proto::LayerState proto;
     auto& layer = resolvedComposerState.state;
     proto.set_layer_id(resolvedComposerState.layerId);
     proto.set_what(layer.what);
@@ -114,7 +114,7 @@ perfetto::protos::LayerState TransactionProtoParser::toProto(
         proto.set_mask(layer.mask);
     }
     if (layer.what & layer_state_t::eMatrixChanged) {
-        perfetto::protos::LayerState_Matrix22* matrixProto = proto.mutable_matrix();
+        proto::LayerState_Matrix22* matrixProto = proto.mutable_matrix();
         matrixProto->set_dsdx(layer.matrix.dsdx);
         matrixProto->set_dsdy(layer.matrix.dsdy);
         matrixProto->set_dtdx(layer.matrix.dtdx);
@@ -132,7 +132,7 @@ perfetto::protos::LayerState TransactionProtoParser::toProto(
     }
 
     if (layer.what & layer_state_t::eColorChanged) {
-        perfetto::protos::LayerState_Color3* colorProto = proto.mutable_color();
+        proto::LayerState_Color3* colorProto = proto.mutable_color();
         colorProto->set_r(layer.color.r);
         colorProto->set_g(layer.color.g);
         colorProto->set_b(layer.color.b);
@@ -150,14 +150,13 @@ perfetto::protos::LayerState TransactionProtoParser::toProto(
         LayerProtoHelper::writeToProto(layer.crop, proto.mutable_crop());
     }
     if (layer.what & layer_state_t::eBufferChanged) {
-        perfetto::protos::LayerState_BufferData* bufferProto = proto.mutable_buffer_data();
+        proto::LayerState_BufferData* bufferProto = proto.mutable_buffer_data();
         if (resolvedComposerState.externalTexture) {
             bufferProto->set_buffer_id(resolvedComposerState.externalTexture->getId());
             bufferProto->set_width(resolvedComposerState.externalTexture->getWidth());
             bufferProto->set_height(resolvedComposerState.externalTexture->getHeight());
-            bufferProto->set_pixel_format(
-                    static_cast<perfetto::protos::LayerState_BufferData_PixelFormat>(
-                            resolvedComposerState.externalTexture->getPixelFormat()));
+            bufferProto->set_pixel_format(static_cast<proto::LayerState_BufferData_PixelFormat>(
+                    resolvedComposerState.externalTexture->getPixelFormat()));
             bufferProto->set_usage(resolvedComposerState.externalTexture->getUsage());
         }
         bufferProto->set_frame_number(layer.bufferData->frameNumber);
@@ -192,8 +191,7 @@ perfetto::protos::LayerState TransactionProtoParser::toProto(
     if (layer.what & layer_state_t::eInputInfoChanged) {
         if (layer.windowInfoHandle) {
             const gui::WindowInfo* inputInfo = layer.windowInfoHandle->getInfo();
-            perfetto::protos::LayerState_WindowInfo* windowInfoProto =
-                    proto.mutable_window_info_handle();
+            proto::LayerState_WindowInfo* windowInfoProto = proto.mutable_window_info_handle();
             windowInfoProto->set_layout_params_flags(inputInfo->layoutParamsFlags.get());
             windowInfoProto->set_layout_params_type(
                     static_cast<int32_t>(inputInfo->layoutParamsType));
@@ -206,7 +204,7 @@ perfetto::protos::LayerState TransactionProtoParser::toProto(
             windowInfoProto->set_has_wallpaper(inputInfo->inputConfig.test(
                     gui::WindowInfo::InputConfig::DUPLICATE_TOUCH_TO_WALLPAPER));
             windowInfoProto->set_global_scale_factor(inputInfo->globalScaleFactor);
-            perfetto::protos::Transform* transformProto = windowInfoProto->mutable_transform();
+            proto::Transform* transformProto = windowInfoProto->mutable_transform();
             transformProto->set_dsdx(inputInfo->transform.dsdx());
             transformProto->set_dtdx(inputInfo->transform.dtdx());
             transformProto->set_dtdy(inputInfo->transform.dtdy());
@@ -221,7 +219,7 @@ perfetto::protos::LayerState TransactionProtoParser::toProto(
     if (layer.what & layer_state_t::eBackgroundColorChanged) {
         proto.set_bg_color_alpha(layer.bgColor.a);
         proto.set_bg_color_dataspace(static_cast<int32_t>(layer.bgColorDataspace));
-        perfetto::protos::LayerState_Color3* colorProto = proto.mutable_color();
+        proto::LayerState_Color3* colorProto = proto.mutable_color();
         colorProto->set_r(layer.bgColor.r);
         colorProto->set_g(layer.bgColor.g);
         colorProto->set_b(layer.bgColor.b);
@@ -257,13 +255,13 @@ perfetto::protos::LayerState TransactionProtoParser::toProto(
     }
     if (layer.what & layer_state_t::eDropInputModeChanged) {
         proto.set_drop_input_mode(
-                static_cast<perfetto::protos::LayerState_DropInputMode>(layer.dropInputMode));
+                static_cast<proto::LayerState_DropInputMode>(layer.dropInputMode));
     }
     return proto;
 }
 
-perfetto::protos::DisplayState TransactionProtoParser::toProto(const DisplayState& display) {
-    perfetto::protos::DisplayState proto;
+proto::DisplayState TransactionProtoParser::toProto(const DisplayState& display) {
+    proto::DisplayState proto;
     proto.set_what(display.what);
     proto.set_id(mMapper->getDisplayId(display.token));
 
@@ -287,8 +285,8 @@ perfetto::protos::DisplayState TransactionProtoParser::toProto(const DisplayStat
     return proto;
 }
 
-perfetto::protos::LayerCreationArgs TransactionProtoParser::toProto(const LayerCreationArgs& args) {
-    perfetto::protos::LayerCreationArgs proto;
+proto::LayerCreationArgs TransactionProtoParser::toProto(const LayerCreationArgs& args) {
+    proto::LayerCreationArgs proto;
     proto.set_layer_id(args.sequence);
     proto.set_name(args.name);
     proto.set_flags(args.flags);
@@ -299,8 +297,7 @@ perfetto::protos::LayerCreationArgs TransactionProtoParser::toProto(const LayerC
     return proto;
 }
 
-TransactionState TransactionProtoParser::fromProto(
-        const perfetto::protos::TransactionState& proto) {
+TransactionState TransactionProtoParser::fromProto(const proto::TransactionState& proto) {
     TransactionState t;
     t.originPid = proto.pid();
     t.originUid = proto.uid();
@@ -326,7 +323,7 @@ TransactionState TransactionProtoParser::fromProto(
     return t;
 }
 
-void TransactionProtoParser::fromProto(const perfetto::protos::LayerCreationArgs& proto,
+void TransactionProtoParser::fromProto(const proto::LayerCreationArgs& proto,
                                        LayerCreationArgs& outArgs) {
     outArgs.sequence = proto.layer_id();
 
@@ -338,7 +335,7 @@ void TransactionProtoParser::fromProto(const perfetto::protos::LayerCreationArgs
     outArgs.layerStackToMirror.id = proto.layer_stack_to_mirror();
 }
 
-void TransactionProtoParser::mergeFromProto(const perfetto::protos::LayerState& proto,
+void TransactionProtoParser::mergeFromProto(const proto::LayerState& proto,
                                             TracingLayerState& outState) {
     ResolvedComposerState resolvedComposerState;
     fromProto(proto, resolvedComposerState);
@@ -363,7 +360,7 @@ void TransactionProtoParser::mergeFromProto(const perfetto::protos::LayerState& 
     }
 }
 
-void TransactionProtoParser::fromProto(const perfetto::protos::LayerState& proto,
+void TransactionProtoParser::fromProto(const proto::LayerState& proto,
                                        ResolvedComposerState& resolvedComposerState) {
     auto& layer = resolvedComposerState.state;
     resolvedComposerState.layerId = proto.layer_id();
@@ -384,7 +381,7 @@ void TransactionProtoParser::fromProto(const perfetto::protos::LayerState& proto
         layer.mask = proto.mask();
     }
     if (proto.what() & layer_state_t::eMatrixChanged) {
-        const perfetto::protos::LayerState_Matrix22& matrixProto = proto.matrix();
+        const proto::LayerState_Matrix22& matrixProto = proto.matrix();
         layer.matrix.dsdx = matrixProto.dsdx();
         layer.matrix.dsdy = matrixProto.dsdy();
         layer.matrix.dtdx = matrixProto.dtdx();
@@ -402,7 +399,7 @@ void TransactionProtoParser::fromProto(const perfetto::protos::LayerState& proto
     }
 
     if (proto.what() & layer_state_t::eColorChanged) {
-        const perfetto::protos::LayerState_Color3& colorProto = proto.color();
+        const proto::LayerState_Color3& colorProto = proto.color();
         layer.color.r = colorProto.r();
         layer.color.g = colorProto.g();
         layer.color.b = colorProto.b();
@@ -420,7 +417,7 @@ void TransactionProtoParser::fromProto(const perfetto::protos::LayerState& proto
         LayerProtoHelper::readFromProto(proto.crop(), layer.crop);
     }
     if (proto.what() & layer_state_t::eBufferChanged) {
-        const perfetto::protos::LayerState_BufferData& bufferProto = proto.buffer_data();
+        const proto::LayerState_BufferData& bufferProto = proto.buffer_data();
         layer.bufferData =
                 std::make_shared<fake::BufferData>(bufferProto.buffer_id(), bufferProto.width(),
                                                    bufferProto.height(), bufferProto.pixel_format(),
@@ -463,7 +460,7 @@ void TransactionProtoParser::fromProto(const perfetto::protos::LayerState& proto
 
     if ((proto.what() & layer_state_t::eInputInfoChanged) && proto.has_window_info_handle()) {
         gui::WindowInfo inputInfo;
-        const perfetto::protos::LayerState_WindowInfo& windowInfoProto = proto.window_info_handle();
+        const proto::LayerState_WindowInfo& windowInfoProto = proto.window_info_handle();
 
         inputInfo.layoutParamsFlags =
                 static_cast<gui::WindowInfo::Flag>(windowInfoProto.layout_params_flags());
@@ -475,7 +472,7 @@ void TransactionProtoParser::fromProto(const perfetto::protos::LayerState& proto
                 ftl::Flags<gui::WindowInfo::InputConfig>(windowInfoProto.input_config());
         inputInfo.surfaceInset = windowInfoProto.surface_inset();
         inputInfo.globalScaleFactor = windowInfoProto.global_scale_factor();
-        const perfetto::protos::Transform& transformProto = windowInfoProto.transform();
+        const proto::Transform& transformProto = windowInfoProto.transform();
         inputInfo.transform.set(transformProto.dsdx(), transformProto.dtdx(), transformProto.dtdy(),
                                 transformProto.dsdy());
         inputInfo.transform.set(transformProto.tx(), transformProto.ty());
@@ -488,7 +485,7 @@ void TransactionProtoParser::fromProto(const perfetto::protos::LayerState& proto
     if (proto.what() & layer_state_t::eBackgroundColorChanged) {
         layer.bgColor.a = proto.bg_color_alpha();
         layer.bgColorDataspace = static_cast<ui::Dataspace>(proto.bg_color_dataspace());
-        const perfetto::protos::LayerState_Color3& colorProto = proto.color();
+        const proto::LayerState_Color3& colorProto = proto.color();
         layer.bgColor.r = colorProto.r();
         layer.bgColor.g = colorProto.g();
         layer.bgColor.b = colorProto.b();
@@ -528,7 +525,7 @@ void TransactionProtoParser::fromProto(const perfetto::protos::LayerState& proto
     }
 }
 
-DisplayState TransactionProtoParser::fromProto(const perfetto::protos::DisplayState& proto) {
+DisplayState TransactionProtoParser::fromProto(const proto::DisplayState& proto) {
     DisplayState display;
     display.what = proto.what();
     display.token = mMapper->getDisplayHandle(proto.id());
@@ -553,7 +550,7 @@ DisplayState TransactionProtoParser::fromProto(const perfetto::protos::DisplaySt
     return display;
 }
 
-void asProto(perfetto::protos::Transform* proto, const ui::Transform& transform) {
+void asProto(proto::Transform* proto, const ui::Transform& transform) {
     proto->set_dsdx(transform.dsdx());
     proto->set_dtdx(transform.dtdx());
     proto->set_dtdy(transform.dtdy());
@@ -562,9 +559,9 @@ void asProto(perfetto::protos::Transform* proto, const ui::Transform& transform)
     proto->set_ty(transform.ty());
 }
 
-perfetto::protos::DisplayInfo TransactionProtoParser::toProto(
-        const frontend::DisplayInfo& displayInfo, uint32_t layerStack) {
-    perfetto::protos::DisplayInfo proto;
+proto::DisplayInfo TransactionProtoParser::toProto(const frontend::DisplayInfo& displayInfo,
+                                                   uint32_t layerStack) {
+    proto::DisplayInfo proto;
     proto.set_layer_stack(layerStack);
     proto.set_display_id(displayInfo.info.displayId);
     proto.set_logical_width(displayInfo.info.logicalWidth);
@@ -580,13 +577,12 @@ perfetto::protos::DisplayInfo TransactionProtoParser::toProto(
     return proto;
 }
 
-void fromProto2(ui::Transform& outTransform, const perfetto::protos::Transform& proto) {
+void fromProto2(ui::Transform& outTransform, const proto::Transform& proto) {
     outTransform.set(proto.dsdx(), proto.dtdx(), proto.dtdy(), proto.dsdy());
     outTransform.set(proto.tx(), proto.ty());
 }
 
-frontend::DisplayInfo TransactionProtoParser::fromProto(
-        const perfetto::protos::DisplayInfo& proto) {
+frontend::DisplayInfo TransactionProtoParser::fromProto(const proto::DisplayInfo& proto) {
     frontend::DisplayInfo displayInfo;
     displayInfo.info.displayId = proto.display_id();
     displayInfo.info.logicalWidth = proto.logical_width();
@@ -603,10 +599,10 @@ frontend::DisplayInfo TransactionProtoParser::fromProto(
 }
 
 void TransactionProtoParser::fromProto(
-        const google::protobuf::RepeatedPtrField<perfetto::protos::DisplayInfo>& proto,
+        const google::protobuf::RepeatedPtrField<proto::DisplayInfo>& proto,
         frontend::DisplayInfos& outDisplayInfos) {
     outDisplayInfos.clear();
-    for (const perfetto::protos::DisplayInfo& displayInfo : proto) {
+    for (const proto::DisplayInfo& displayInfo : proto) {
         outDisplayInfos.emplace_or_replace(ui::LayerStack::fromValue(displayInfo.layer_stack()),
                                            fromProto(displayInfo));
     }

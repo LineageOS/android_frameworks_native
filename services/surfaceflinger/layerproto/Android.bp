@@ -13,20 +13,7 @@ cc_library {
 
     srcs: [
         "LayerProtoParser.cpp",
-    ],
-
-    static_libs: [
-        "libperfetto_client_experimental",
-    ],
-
-    whole_static_libs: [
-        // TODO(b/169779783): move  into "static_libs" when the soong issue is fixed
-        "perfetto_trace_protos",
-    ],
-
-    export_static_lib_headers: [
-        "libperfetto_client_experimental",
-        "perfetto_trace_protos",
+        "*.proto",
     ],
 
     shared_libs: [
@@ -36,6 +23,10 @@ cc_library {
         "libprotobuf-cpp-lite",
         "libbase",
     ],
+
+    proto: {
+        export_proto_headers: true,
+    },
 
     cppflags: [
         "-Werror",
@@ -50,4 +41,23 @@ cc_library {
         "-Wno-old-style-cast",
         "-Wno-undef",
     ],
+}
+
+java_library_static {
+    name: "layersprotoslite",
+    host_supported: true,
+    proto: {
+        type: "lite",
+        include_dirs: ["external/protobuf/src"],
+    },
+    srcs: ["*.proto"],
+    sdk_version: "core_platform",
+    target: {
+        android: {
+            jarjar_rules: "jarjar-rules.txt",
+        },
+        host: {
+            static_libs: ["libprotobuf-java-lite"],
+        },
+    },
 }
