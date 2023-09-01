@@ -944,16 +944,34 @@ VkResult GetPhysicalDeviceSurfaceCapabilities2KHR(
             return VK_ERROR_SURFACE_LOST_KHR;
         }
 
-        if (pPresentMode && IsSharedPresentMode(pPresentMode->presentMode)) {
-            capabilities->minImageCount = 1;
-            capabilities->maxImageCount = 1;
-        } else if (pPresentMode && pPresentMode->presentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
-            capabilities->minImageCount =
-                std::min(max_buffer_count, min_undequeued_buffers + 2);
-            capabilities->maxImageCount = static_cast<uint32_t>(max_buffer_count);
+        if(pPresentMode != nullptr) {
+            switch (pPresentMode->presentMode) {
+                case VK_PRESENT_MODE_IMMEDIATE_KHR:
+                    ALOGE("Swapchain present mode VK_PRESENT_MODE_IMMEDIATE_KHR is not supported");
+                    break;
+                case VK_PRESENT_MODE_MAILBOX_KHR:
+                case VK_PRESENT_MODE_FIFO_KHR:
+                    capabilities->minImageCount =
+                        std::min(max_buffer_count, min_undequeued_buffers + 2);
+                    capabilities->maxImageCount = static_cast<uint32_t>(max_buffer_count);
+                    break;
+                case VK_PRESENT_MODE_FIFO_RELAXED_KHR:
+                    ALOGE("Swapchain present mode VK_PRESENT_MODE_FIFO_RELEAXED_KHR "
+                          "is not supported");
+                    break;
+                case VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR:
+                case VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR:
+                    capabilities->minImageCount = 1;
+                    capabilities->maxImageCount = 1;
+                    break;
+
+                default:
+                    ALOGE("Unrecognized swapchain present mode %u is not supported",
+                            pPresentMode->presentMode);
+                    break;
+            }
         } else {
-            capabilities->minImageCount =
-                std::min(max_buffer_count, min_undequeued_buffers + 1);
+            capabilities->minImageCount = std::min(max_buffer_count, min_undequeued_buffers + 2);
             capabilities->maxImageCount = static_cast<uint32_t>(max_buffer_count);
         }
     }
