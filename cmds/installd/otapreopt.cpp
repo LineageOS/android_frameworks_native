@@ -422,7 +422,8 @@ private:
 
     bool IsAotCompilation() const {
         if (std::find(std::begin(kAotCompilerFilters), std::end(kAotCompilerFilters),
-                      parameters_.compiler_filter) == std::end(kAotCompilerFilters)) {
+                      std::string_view(parameters_.compiler_filter)) ==
+            std::end(kAotCompilerFilters)) {
             return false;
         }
 
