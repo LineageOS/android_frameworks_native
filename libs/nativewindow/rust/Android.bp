@@ -19,7 +19,7 @@ package {
 }
 
 rust_bindgen {
-    name: "libnativewindow_bindgen",
+    name: "libnativewindow_bindgen_internal",
     crate_name: "nativewindow_bindgen",
     wrapper_src: "sys/nativewindow_bindings.h",
     source_stem: "bindings",
@@ -28,12 +28,20 @@ rust_bindgen {
         "--bitfield-enum=AHardwareBuffer_UsageFlags",
 
         "--allowlist-file=.*/nativewindow/include/.*\\.h",
+        "--blocklist-type",
+        "AParcel",
+        "--raw-line",
+        "use binder::unstable_api::AParcel;",
 
         "--with-derive-eq",
         "--with-derive-partialeq",
     ],
     shared_libs: [
+        "libbinder_ndk",
         "libnativewindow",
+    ],
+    rustlibs: [
+        "libbinder_rs",
     ],
 
     // Currently necessary for host builds
@@ -44,12 +52,40 @@ rust_bindgen {
         },
     },
     min_sdk_version: "VanillaIceCream",
+    vendor_available: true,
+}
+
+rust_library {
+    name: "libnativewindow_bindgen",
+    crate_name: "nativewindow_bindgen",
+    srcs: [":libnativewindow_bindgen_internal"],
+    shared_libs: [
+        "libbinder_ndk",
+        "libnativewindow",
+    ],
+    rustlibs: [
+        "libbinder_rs",
+    ],
+    lints: "none",
+    clippy_lints: "none",
+    // Currently necessary for host builds
+    // TODO(b/31559095): bionic on host should define this
+    target: {
+        darwin: {
+            enabled: false,
+        },
+    },
+    min_sdk_version: "VanillaIceCream",
+    vendor_available: true,
 }
 
 rust_test {
     name: "libnativewindow_bindgen_test",
-    srcs: [":libnativewindow_bindgen"],
+    srcs: [":libnativewindow_bindgen_internal"],
     crate_name: "nativewindow_bindgen_test",
+    rustlibs: [
+        "libbinder_rs",
+    ],
     test_suites: ["general-tests"],
     auto_gen_config: true,
     clippy_lints: "none",
@@ -60,6 +96,7 @@ rust_defaults {
     name: "libnativewindow_defaults",
     srcs: ["src/lib.rs"],
     rustlibs: [
+        "libbinder_rs",
         "libnativewindow_bindgen",
     ],
 }
@@ -77,6 +114,7 @@ rust_library {
         },
     },
     min_sdk_version: "VanillaIceCream",
+    vendor_available: true,
 }
 
 rust_test {
