@@ -188,8 +188,8 @@ auto LayerHistory::summarize(const RefreshRateSelector& selector, nsecs_t now) -
             const float layerArea = transformed.getWidth() * transformed.getHeight();
             float weight = mDisplayArea ? layerArea / mDisplayArea : 0.0f;
             const std::string categoryString = vote.category == FrameRateCategory::Default
-                    ? base::StringPrintf("category=%s", ftl::enum_string(vote.category).c_str())
-                    : "";
+                    ? ""
+                    : base::StringPrintf("category=%s", ftl::enum_string(vote.category).c_str());
             ATRACE_FORMAT_INSTANT("%s %s %s (%d%)", ftl::enum_string(vote.type).c_str(),
                                   to_string(vote.fps).c_str(), categoryString.c_str(),
                                   weight * 100);
