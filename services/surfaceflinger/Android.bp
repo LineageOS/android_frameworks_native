@@ -200,7 +200,6 @@ filegroup {
         "SurfaceFlingerDefaultFactory.cpp",
         "Tracing/LayerDataSource.cpp",
         "Tracing/LayerTracing.cpp",
-        "Tracing/TransactionDataSource.cpp",
         "Tracing/TransactionTracing.cpp",
         "Tracing/TransactionProtoParser.cpp",
         "Tracing/tools/LayerTraceGenerator.cpp",
