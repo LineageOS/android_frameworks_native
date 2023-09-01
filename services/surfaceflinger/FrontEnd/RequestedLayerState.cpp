@@ -491,6 +491,9 @@ aidl::android::hardware::graphics::composer3::Composition RequestedLayerState::g
     if (flags & layer_state_t::eLayerIsDisplayDecoration) {
         return Composition::DISPLAY_DECORATION;
     }
+    if (flags & layer_state_t::eLayerIsRefreshRateIndicator) {
+        return Composition::REFRESH_RATE_INDICATOR;
+    }
     if (potentialCursor) {
         return Composition::CURSOR;
     }

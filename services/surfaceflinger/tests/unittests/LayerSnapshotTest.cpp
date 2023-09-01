@@ -770,4 +770,17 @@ TEST_F(LayerSnapshotTest, skipRoundCornersWhenProtected) {
     EXPECT_EQ(getSnapshot({.id = 1})->roundedCorner.radius.x, 42.f);
 }
 
+TEST_F(LayerSnapshotTest, setRefreshRateIndicatorCompositionType) {
+    setFlags(1, layer_state_t::eLayerIsRefreshRateIndicator,
+             layer_state_t::eLayerIsRefreshRateIndicator);
+    setBuffer(1,
+              std::make_shared<renderengine::mock::FakeExternalTexture>(1U /*width*/, 1U /*height*/,
+                                                                        42ULL /* bufferId */,
+                                                                        HAL_PIXEL_FORMAT_RGBA_8888,
+                                                                        0 /*usage*/));
+    UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
+    EXPECT_EQ(getSnapshot({.id = 1})->compositionType,
+              aidl::android::hardware::graphics::composer3::Composition::REFRESH_RATE_INDICATOR);
+}
+
 } // namespace android::surfaceflinger::frontend
