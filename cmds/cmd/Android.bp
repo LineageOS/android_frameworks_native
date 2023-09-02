@@ -27,6 +27,9 @@ cc_library_static {
         "libselinux",
         "libbinder",
     ],
+    whole_static_libs: [
+        "libc++fs",
+    ],
 
     cflags: [
         "-Wall",
