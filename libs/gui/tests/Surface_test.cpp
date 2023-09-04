@@ -999,12 +999,12 @@ public:
 
     binder::Status scheduleCommit() override { return binder::Status::ok(); }
 
-    binder::Status updateSmallAreaDetection(const std::vector<int32_t>& /*uids*/,
+    binder::Status updateSmallAreaDetection(const std::vector<int32_t>& /*appIds*/,
                                             const std::vector<float>& /*thresholds*/) {
         return binder::Status::ok();
     }
 
-    binder::Status setSmallAreaDetectionThreshold(int32_t /*uid*/, float /*threshold*/) {
+    binder::Status setSmallAreaDetectionThreshold(int32_t /*appId*/, float /*threshold*/) {
         return binder::Status::ok();
     }
 
