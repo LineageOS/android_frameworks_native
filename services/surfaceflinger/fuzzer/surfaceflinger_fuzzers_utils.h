@@ -455,7 +455,8 @@ public:
         result = fdp->ConsumeRandomLengthString().c_str();
         mFlinger->dumpRawDisplayIdentificationData(dumpArgs, result);
 
-        LayersProto layersProto = mFlinger->dumpDrawingStateProto(fdp->ConsumeIntegral<uint32_t>());
+        perfetto::protos::LayersProto layersProto =
+                mFlinger->dumpDrawingStateProto(fdp->ConsumeIntegral<uint32_t>());
         mFlinger->dumpOffscreenLayersProto(layersProto);
         mFlinger->dumpDisplayProto();
 

@@ -320,8 +320,6 @@ const String16 sWakeupSurfaceFlinger("android.permission.WAKEUP_SURFACE_FLINGER"
 
 const char* KERNEL_IDLE_TIMER_PROP = "graphics.display.kernel_idle_timer.enabled";
 
-static const int MAX_TRACING_MEMORY = 1024 * 1024 * 1024; // 1GB
-
 // ---------------------------------------------------------------------------
 int64_t SurfaceFlinger::dispSyncPresentTimeOffset;
 bool SurfaceFlinger::useHwcForRgbToYuv;
@@ -483,6 +481,7 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
 
     if (!mIsUserBuild && base::GetBoolProperty("debug.sf.enable_transaction_tracing"s, true)) {
         mTransactionTracing.emplace();
+        mLayerTracing.setTransactionTracing(*mTransactionTracing);
     }
 
     mIgnoreHdrCameraLayers = ignore_hdr_camera_layers(false);
@@ -826,6 +825,17 @@ void SurfaceFlinger::init() FTL_FAKE_GUARD(kMainThreadContext) {
     // initializing the Scheduler after configureLocked, once decoupled from DisplayDevice.
     initScheduler(display);
     dispatchDisplayHotplugEvent(display->getPhysicalId(), true);
+
+    mLayerTracing.setTakeLayersSnapshotProtoFunction([&](uint32_t traceFlags) {
+        auto snapshot = perfetto::protos::LayersSnapshotProto{};
+        mScheduler
+                ->schedule([&]() FTL_FAKE_GUARD(mStateLock) FTL_FAKE_GUARD(kMainThreadContext) {
+                    snapshot = takeLayersSnapshotProto(traceFlags, TimePoint::now(),
+                                                       mLastCommittedVsyncId, true);
+                })
+                .wait();
+        return snapshot;
+    });
 
     // Commit secondary display(s).
     processDisplayChangesLocked();
@@ -2378,11 +2388,6 @@ bool SurfaceFlinger::commit(PhysicalDisplayId pacesetterId,
         mTimeStats->incrementMissedFrames();
     }
 
-    if (mTracingEnabledChanged) {
-        mLayerTracingEnabled = mLayerTracing.isEnabled();
-        mTracingEnabledChanged = false;
-    }
-
     // If a mode set is pending and the fence hasn't fired yet, wait for the next commit.
     if (std::any_of(frameTargets.begin(), frameTargets.end(),
                     [this](const auto& pair) FTL_FAKE_GUARD(mStateLock)
@@ -2509,11 +2514,9 @@ bool SurfaceFlinger::commit(PhysicalDisplayId pacesetterId,
     if (!mustComposite) {
         updateInputFlinger(vsyncId, pacesetterFrameTarget.frameBeginTime());
     }
+    doActiveLayersTracingIfNeeded(false, mVisibleRegionsDirty,
+                                  pacesetterFrameTarget.frameBeginTime(), vsyncId);
 
-    if (mLayerTracingEnabled && !mLayerTracing.flagIsSet(LayerTracing::TRACE_COMPOSITION)) {
-        // This will block and tracing should only be enabled for debugging.
-        addToLayerTracing(mVisibleRegionsDirty, pacesetterFrameTarget.frameBeginTime(), vsyncId);
-    }
     mLastCommittedVsyncId = vsyncId;
 
     persistDisplayBrightness(mustComposite);
@@ -2735,10 +2738,8 @@ CompositeResultsPerDisplay SurfaceFlinger::composite(
 
     mLayersWithQueuedFrames.clear();
     mLayersIdsWithQueuedFrames.clear();
-    if (mLayerTracingEnabled && mLayerTracing.flagIsSet(LayerTracing::TRACE_COMPOSITION)) {
-        // This will block and should only be used for debugging.
-        addToLayerTracing(mVisibleRegionsDirty, pacesetterTarget.frameBeginTime(), vsyncId);
-    }
+    doActiveLayersTracingIfNeeded(true, mVisibleRegionsDirty, pacesetterTarget.frameBeginTime(),
+                                  vsyncId);
 
     updateInputFlinger(vsyncId, pacesetterTarget.frameBeginTime());
 
@@ -5889,9 +5890,10 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args, bool asProto) {
         }
 
         if (dumpLayers) {
-            LayersTraceFileProto traceFileProto = mLayerTracing.createTraceFileProto();
-            LayersTraceProto* layersTrace = traceFileProto.add_entry();
-            LayersProto layersProto = dumpProtoFromMainThread();
+            perfetto::protos::LayersTraceFileProto traceFileProto =
+                    mLayerTracing.createTraceFileProto();
+            perfetto::protos::LayersSnapshotProto* layersTrace = traceFileProto.add_entry();
+            perfetto::protos::LayersProto layersProto = dumpProtoFromMainThread();
             layersTrace->mutable_layers()->Swap(&layersProto);
             auto displayProtos = dumpDisplayProto();
             layersTrace->mutable_displays()->Swap(&displayProtos);
@@ -6117,7 +6119,7 @@ void SurfaceFlinger::dumpHdrInfo(std::string& result) const {
     }
 }
 
-LayersProto SurfaceFlinger::dumpDrawingStateProto(uint32_t traceFlags) const {
+perfetto::protos::LayersProto SurfaceFlinger::dumpDrawingStateProto(uint32_t traceFlags) const {
     std::unordered_set<uint64_t> stackIdsToSkip;
 
     // Determine if virtual layers display should be skipped
@@ -6130,7 +6132,7 @@ LayersProto SurfaceFlinger::dumpDrawingStateProto(uint32_t traceFlags) const {
     }
 
     if (mLegacyFrontEndEnabled) {
-        LayersProto layersProto;
+        perfetto::protos::LayersProto layersProto;
         for (const sp<Layer>& layer : mDrawingState.layersSortedByZ) {
             if (stackIdsToSkip.find(layer->getLayerStack().id) != stackIdsToSkip.end()) {
                 continue;
@@ -6145,10 +6147,11 @@ LayersProto SurfaceFlinger::dumpDrawingStateProto(uint32_t traceFlags) const {
             .generate(mLayerHierarchyBuilder.getHierarchy());
 }
 
-google::protobuf::RepeatedPtrField<DisplayProto> SurfaceFlinger::dumpDisplayProto() const {
-    google::protobuf::RepeatedPtrField<DisplayProto> displays;
+google::protobuf::RepeatedPtrField<perfetto::protos::DisplayProto>
+SurfaceFlinger::dumpDisplayProto() const {
+    google::protobuf::RepeatedPtrField<perfetto::protos::DisplayProto> displays;
     for (const auto& [_, display] : FTL_FAKE_GUARD(mStateLock, mDisplays)) {
-        DisplayProto* displayProto = displays.Add();
+        perfetto::protos::DisplayProto* displayProto = displays.Add();
         displayProto->set_id(display->getId().value);
         displayProto->set_name(display->getDisplayName());
         displayProto->set_layer_stack(display->getLayerStack().id);
@@ -6175,10 +6178,11 @@ void SurfaceFlinger::dumpHwc(std::string& result) const {
     getHwComposer().dump(result);
 }
 
-void SurfaceFlinger::dumpOffscreenLayersProto(LayersProto& layersProto, uint32_t traceFlags) const {
+void SurfaceFlinger::dumpOffscreenLayersProto(perfetto::protos::LayersProto& layersProto,
+                                              uint32_t traceFlags) const {
     // Add a fake invisible root layer to the proto output and parent all the offscreen layers to
     // it.
-    LayerProto* rootProto = layersProto.add_layers();
+    perfetto::protos::LayerProto* rootProto = layersProto.add_layers();
     const int32_t offscreenRootLayerId = INT32_MAX - 2;
     rootProto->set_id(offscreenRootLayerId);
     rootProto->set_name("Offscreen Root");
@@ -6189,12 +6193,12 @@ void SurfaceFlinger::dumpOffscreenLayersProto(LayersProto& layersProto, uint32_t
         rootProto->add_children(offscreenLayer->sequence);
 
         // Add layer
-        LayerProto* layerProto = offscreenLayer->writeToProto(layersProto, traceFlags);
+        auto* layerProto = offscreenLayer->writeToProto(layersProto, traceFlags);
         layerProto->set_parent(offscreenRootLayerId);
     }
 }
 
-LayersProto SurfaceFlinger::dumpProtoFromMainThread(uint32_t traceFlags) {
+perfetto::protos::LayersProto SurfaceFlinger::dumpProtoFromMainThread(uint32_t traceFlags) {
     return mScheduler->schedule([=] { return dumpDrawingStateProto(traceFlags); }).get();
 }
 
@@ -6362,11 +6366,6 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, const std::string& comp
     }
 
     StringAppendF(&result, "  transaction time: %f us\n", inTransactionDuration / 1000.0);
-
-    /*
-     * Tracing state
-     */
-    mLayerTracing.dump(result);
 
     result.append("\nTransaction tracing: ");
     if (mTransactionTracing) {
@@ -6719,42 +6718,13 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
             case 1024: {
                 return NAME_NOT_FOUND;
             }
-            case 1025: { // Set layer tracing
-                n = data.readInt32();
-                bool tracingEnabledChanged;
-                if (n == 1) {
-                    int64_t fixedStartingTime = data.readInt64();
-                    ALOGD("LayerTracing enabled");
-                    tracingEnabledChanged = mLayerTracing.enable();
-                    if (tracingEnabledChanged) {
-                        const TimePoint startingTime = fixedStartingTime
-                                ? TimePoint::fromNs(fixedStartingTime)
-                                : TimePoint::now();
-
-                        mScheduler
-                                ->schedule([this, startingTime]() FTL_FAKE_GUARD(
-                                                   mStateLock) FTL_FAKE_GUARD(kMainThreadContext) {
-                                    constexpr bool kVisibleRegionDirty = true;
-                                    addToLayerTracing(kVisibleRegionDirty, startingTime,
-                                                      mLastCommittedVsyncId);
-                                })
-                                .wait();
-                    }
-                } else if (n == 2) {
-                    std::string filename = std::string(data.readCString());
-                    ALOGD("LayerTracing disabled. Trace wrote to %s", filename.c_str());
-                    tracingEnabledChanged = mLayerTracing.disable(filename.c_str());
-                } else {
-                    ALOGD("LayerTracing disabled");
-                    tracingEnabledChanged = mLayerTracing.disable();
-                }
-                mTracingEnabledChanged = tracingEnabledChanged;
-                reply->writeInt32(NO_ERROR);
-                return NO_ERROR;
+            // Deprecated, use perfetto to start/stop the layer tracing
+            case 1025: {
+                return NAME_NOT_FOUND;
             }
-            case 1026: { // Get layer tracing status
-                reply->writeBool(mLayerTracing.isEnabled());
-                return NO_ERROR;
+            // Deprecated, execute "adb shell perfetto --query" to see the ongoing tracing sessions
+            case 1026: {
+                return NAME_NOT_FOUND;
             }
             // Is a DisplayColorSetting supported?
             case 1027: {
@@ -6782,19 +6752,9 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
             case 1028: { // Unused.
                 return NAME_NOT_FOUND;
             }
-            // Set buffer size for SF tracing (value in KB)
+            // Deprecated, use perfetto to set the active layer tracing buffer size
             case 1029: {
-                n = data.readInt32();
-                if (n <= 0 || n > MAX_TRACING_MEMORY) {
-                    ALOGW("Invalid buffer size: %d KB", n);
-                    reply->writeInt32(BAD_VALUE);
-                    return BAD_VALUE;
-                }
-
-                ALOGD("Updating trace buffer to %d KB", n);
-                mLayerTracing.setBufferSize(n * 1024);
-                reply->writeInt32(NO_ERROR);
-                return NO_ERROR;
+                return NAME_NOT_FOUND;
             }
             // Is device color managed?
             case 1030: {
@@ -6834,13 +6794,9 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 }
                 return NO_ERROR;
             }
-            // Set trace flags
+            // Deprecated, use perfetto to set layer trace flags
             case 1033: {
-                n = data.readUint32();
-                ALOGD("Updating trace flags to 0x%x", n);
-                mLayerTracing.setTraceFlags(n);
-                reply->writeInt32(NO_ERROR);
-                return NO_ERROR;
+                return NAME_NOT_FOUND;
             }
             case 1034: {
                 n = data.readInt32();
@@ -6985,7 +6941,7 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                         // Transaction tracing is always running but allow the user to temporarily
                         // increase the buffer when actively debugging.
                         mTransactionTracing->setBufferSize(
-                                TransactionTracing::ACTIVE_TRACING_BUFFER_SIZE);
+                                TransactionTracing::LEGACY_ACTIVE_TRACING_BUFFER_SIZE);
                     } else {
                         TransactionTraceWriter::getInstance().invoke("", /* overwrite= */ true);
                         mTransactionTracing->setBufferSize(
@@ -6995,12 +6951,9 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 reply->writeInt32(NO_ERROR);
                 return NO_ERROR;
             }
-            case 1042: { // Write layers trace or transaction trace to file
+            case 1042: { // Write transaction trace to file
                 if (mTransactionTracing) {
                     mTransactionTracing->writeToFile();
-                }
-                if (mLayerTracingEnabled) {
-                    mLayerTracing.writeToFile();
                 }
                 reply->writeInt32(NO_ERROR);
                 return NO_ERROR;
@@ -8788,19 +8741,50 @@ frontend::Update SurfaceFlinger::flushLifecycleUpdates() {
     return update;
 }
 
-void SurfaceFlinger::addToLayerTracing(bool visibleRegionDirty, TimePoint time, VsyncId vsyncId) {
-    const uint32_t tracingFlags = mLayerTracing.getFlags();
-    LayersProto layers(dumpDrawingStateProto(tracingFlags));
-    if (tracingFlags & LayerTracing::TRACE_EXTRA) {
+void SurfaceFlinger::doActiveLayersTracingIfNeeded(bool isCompositionComputed,
+                                                   bool visibleRegionDirty, TimePoint time,
+                                                   VsyncId vsyncId) {
+    if (!mLayerTracing.isActiveTracingStarted()) {
+        return;
+    }
+    if (isCompositionComputed !=
+        mLayerTracing.isActiveTracingFlagSet(LayerTracing::Flag::TRACE_COMPOSITION)) {
+        return;
+    }
+    if (!visibleRegionDirty &&
+        !mLayerTracing.isActiveTracingFlagSet(LayerTracing::Flag::TRACE_BUFFERS)) {
+        return;
+    }
+    auto snapshot = takeLayersSnapshotProto(mLayerTracing.getActiveTracingFlags(), time, vsyncId,
+                                            visibleRegionDirty);
+    mLayerTracing.addProtoSnapshotToOstream(std::move(snapshot), LayerTracing::Mode::MODE_ACTIVE);
+}
+
+perfetto::protos::LayersSnapshotProto SurfaceFlinger::takeLayersSnapshotProto(
+        uint32_t traceFlags, TimePoint time, VsyncId vsyncId, bool visibleRegionDirty) {
+    ATRACE_CALL();
+    perfetto::protos::LayersSnapshotProto snapshot;
+    snapshot.set_elapsed_realtime_nanos(time.ns());
+    snapshot.set_vsync_id(ftl::to_underlying(vsyncId));
+    snapshot.set_where(visibleRegionDirty ? "visibleRegionsDirty" : "bufferLatched");
+    snapshot.set_excludes_composition_state((traceFlags & LayerTracing::Flag::TRACE_COMPOSITION) ==
+                                            0);
+
+    auto layers = dumpDrawingStateProto(traceFlags);
+    if (traceFlags & LayerTracing::Flag::TRACE_EXTRA) {
         dumpOffscreenLayersProto(layers);
     }
-    std::string hwcDump;
-    if (tracingFlags & LayerTracing::TRACE_HWC) {
+    *snapshot.mutable_layers() = std::move(layers);
+
+    if (traceFlags & LayerTracing::Flag::TRACE_HWC) {
+        std::string hwcDump;
         dumpHwc(hwcDump);
+        snapshot.set_hwc_blob(std::move(hwcDump));
     }
-    auto displays = dumpDisplayProto();
-    mLayerTracing.notify(visibleRegionDirty, time.ns(), ftl::to_underlying(vsyncId), &layers,
-                         std::move(hwcDump), &displays);
+
+    *snapshot.mutable_displays() = dumpDisplayProto();
+
+    return snapshot;
 }
 
 // sfdo functions

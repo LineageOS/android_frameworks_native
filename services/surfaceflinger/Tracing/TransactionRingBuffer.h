@@ -47,31 +47,13 @@ public:
         mUsedInBytes = 0U;
     }
 
-    void writeToProto(FileProto& fileProto) {
+    void writeToProto(FileProto& fileProto) const {
         fileProto.mutable_entry()->Reserve(static_cast<int>(mStorage.size()) +
                                            fileProto.entry().size());
         for (const std::string& entry : mStorage) {
             EntryProto* entryProto = fileProto.add_entry();
             entryProto->ParseFromString(entry);
         }
-    }
-
-    status_t writeToFile(FileProto& fileProto, std::string filename) {
-        ATRACE_CALL();
-        writeToProto(fileProto);
-        std::string output;
-        if (!fileProto.SerializeToString(&output)) {
-            ALOGE("Could not serialize proto.");
-            return UNKNOWN_ERROR;
-        }
-
-        // -rw-r--r--
-        const mode_t mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
-        if (!android::base::WriteStringToFile(output, filename, mode, getuid(), getgid(), true)) {
-            ALOGE("Could not save the proto file %s", filename.c_str());
-            return PERMISSION_DENIED;
-        }
-        return NO_ERROR;
     }
 
     status_t appendToStream(FileProto& fileProto, std::ofstream& out) {
