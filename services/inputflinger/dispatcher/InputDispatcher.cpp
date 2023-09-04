@@ -4195,45 +4195,6 @@ void InputDispatcher::notifyConfigurationChanged(const NotifyConfigurationChange
     }
 }
 
-/**
- * If one of the meta shortcuts is detected, process them here:
- *     Meta + Backspace; Meta + Grave; Meta + Left arrow -> generate BACK
- * Most System shortcuts are handled in PhoneWindowManager.java except 'Back' shortcuts. Unlike
- * Back, other shortcuts DO NOT need to be sent to applications and are fully handled by the system.
- * But for Back key and Back shortcuts, we need to send KEYCODE_BACK to applications which can
- * potentially handle the back key presses.
- * Note: We don't send any Meta based KeyEvents to applications, so we need to convert to a KeyEvent
- * where meta modifier is off before sending. Currently only use case is 'Back'.
- */
-void InputDispatcher::accelerateMetaShortcuts(const int32_t deviceId, const int32_t action,
-                                              int32_t& keyCode, int32_t& metaState) {
-    if (metaState & AMETA_META_ON && action == AKEY_EVENT_ACTION_DOWN) {
-        int32_t newKeyCode = AKEYCODE_UNKNOWN;
-        if (keyCode == AKEYCODE_DEL || keyCode == AKEYCODE_GRAVE || keyCode == AKEYCODE_DPAD_LEFT) {
-            newKeyCode = AKEYCODE_BACK;
-        }
-        if (newKeyCode != AKEYCODE_UNKNOWN) {
-            std::scoped_lock _l(mLock);
-            struct KeyReplacement replacement = {keyCode, deviceId};
-            mReplacedKeys[replacement] = newKeyCode;
-            keyCode = newKeyCode;
-            metaState &= ~(AMETA_META_ON | AMETA_META_LEFT_ON | AMETA_META_RIGHT_ON);
-        }
-    } else if (action == AKEY_EVENT_ACTION_UP) {
-        // In order to maintain a consistent stream of up and down events, check to see if the key
-        // going up is one we've replaced in a down event and haven't yet replaced in an up event,
-        // even if the modifier was released between the down and the up events.
-        std::scoped_lock _l(mLock);
-        struct KeyReplacement replacement = {keyCode, deviceId};
-        auto replacementIt = mReplacedKeys.find(replacement);
-        if (replacementIt != mReplacedKeys.end()) {
-            keyCode = replacementIt->second;
-            mReplacedKeys.erase(replacementIt);
-            metaState &= ~(AMETA_META_ON | AMETA_META_LEFT_ON | AMETA_META_RIGHT_ON);
-        }
-    }
-}
-
 void InputDispatcher::notifyKey(const NotifyKeyArgs& args) {
     ALOGD_IF(debugInboundEventDetails(),
              "notifyKey - id=%" PRIx32 ", eventTime=%" PRId64
@@ -4266,8 +4227,6 @@ void InputDispatcher::notifyKey(const NotifyKeyArgs& args) {
     policyFlags |= POLICY_FLAG_TRUSTED;
 
     int32_t keyCode = args.keyCode;
-    accelerateMetaShortcuts(args.deviceId, args.action, keyCode, metaState);
-
     KeyEvent event;
     event.initialize(args.id, args.deviceId, args.source, args.displayId, INVALID_HMAC, args.action,
                      flags, keyCode, args.scanCode, metaState, repeatCount, args.downTime,
@@ -4578,8 +4537,6 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(const InputEvent* ev
             }
             int32_t keyCode = incomingKey.getKeyCode();
             int32_t metaState = incomingKey.getMetaState();
-            accelerateMetaShortcuts(resolvedDeviceId, action,
-                                    /*byref*/ keyCode, /*byref*/ metaState);
             KeyEvent keyEvent;
             keyEvent.initialize(incomingKey.getId(), resolvedDeviceId, incomingKey.getSource(),
                                 incomingKey.getDisplayId(), INVALID_HMAC, action, flags, keyCode,
@@ -5554,7 +5511,6 @@ void InputDispatcher::resetAndDropEverythingLocked(const char* reason) {
 
     mAnrTracker.clear();
     mTouchStatesByDisplay.clear();
-    mReplacedKeys.clear();
 }
 
 void InputDispatcher::logDispatchStateLocked() const {
@@ -5721,16 +5677,6 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) const {
         }
     } else {
         dump += INDENT "InboundQueue: <empty>\n";
-    }
-
-    if (!mReplacedKeys.empty()) {
-        dump += INDENT "ReplacedKeys:\n";
-        for (const auto& [replacement, newKeyCode] : mReplacedKeys) {
-            dump += StringPrintf(INDENT2 "originalKeyCode=%d, deviceId=%d -> newKeyCode=%d\n",
-                                 replacement.keyCode, replacement.deviceId, newKeyCode);
-        }
-    } else {
-        dump += INDENT "ReplacedKeys: <empty>\n";
     }
 
     if (!mCommandQueue.empty()) {

@@ -302,25 +302,6 @@ private:
     void resetKeyRepeatLocked() REQUIRES(mLock);
     std::shared_ptr<KeyEntry> synthesizeKeyRepeatLocked(nsecs_t currentTime) REQUIRES(mLock);
 
-    // Key replacement tracking
-    struct KeyReplacement {
-        int32_t keyCode;
-        int32_t deviceId;
-        bool operator==(const KeyReplacement& rhs) const {
-            return keyCode == rhs.keyCode && deviceId == rhs.deviceId;
-        }
-    };
-    struct KeyReplacementHash {
-        size_t operator()(const KeyReplacement& key) const {
-            return std::hash<int32_t>()(key.keyCode) ^ (std::hash<int32_t>()(key.deviceId) << 1);
-        }
-    };
-    // Maps the key code replaced, device id tuple to the key code it was replaced with
-    std::unordered_map<KeyReplacement, int32_t, KeyReplacementHash> mReplacedKeys GUARDED_BY(mLock);
-    // Process certain Meta + Key combinations
-    void accelerateMetaShortcuts(const int32_t deviceId, const int32_t action, int32_t& keyCode,
-                                 int32_t& metaState);
-
     // Deferred command processing.
     bool haveCommandsLocked() const REQUIRES(mLock);
     bool runCommandsLockedInterruptable() REQUIRES(mLock);
