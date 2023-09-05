@@ -7841,6 +7841,17 @@ status_t SurfaceFlinger::setOverrideFrameRate(uid_t uid, float frameRate) {
     return NO_ERROR;
 }
 
+status_t SurfaceFlinger::updateSmallAreaDetection(
+        std::vector<std::pair<uid_t, float>>& uidThresholdMappings) {
+    mScheduler->updateSmallAreaDetection(uidThresholdMappings);
+    return NO_ERROR;
+}
+
+status_t SurfaceFlinger::setSmallAreaDetectionThreshold(uid_t uid, float threshold) {
+    mScheduler->setSmallAreaDetectionThreshold(uid, threshold);
+    return NO_ERROR;
+}
+
 void SurfaceFlinger::enableRefreshRateOverlay(bool enable) {
     bool setByHwc = getHwComposer().hasCapability(Capability::REFRESH_RATE_CHANGED_CALLBACK_DEBUG);
     for (const auto& [id, display] : mPhysicalDisplays) {
@@ -9111,6 +9122,40 @@ binder::Status SurfaceComposerAIDL::setOverrideFrameRate(int32_t uid, float fram
         status = mFlinger->setOverrideFrameRate(uid, frameRate);
     } else {
         ALOGE("setOverrideFrameRate() permission denied for uid: %d", c_uid);
+        status = PERMISSION_DENIED;
+    }
+    return binderStatusFromStatusT(status);
+}
+
+binder::Status SurfaceComposerAIDL::updateSmallAreaDetection(const std::vector<int32_t>& uids,
+                                                             const std::vector<float>& thresholds) {
+    status_t status;
+    const int c_uid = IPCThreadState::self()->getCallingUid();
+    if (c_uid == AID_ROOT || c_uid == AID_SYSTEM) {
+        if (uids.size() != thresholds.size()) return binderStatusFromStatusT(BAD_VALUE);
+
+        std::vector<std::pair<uid_t, float>> mappings;
+        const size_t size = uids.size();
+        mappings.reserve(size);
+        for (int i = 0; i < size; i++) {
+            auto row = std::make_pair(static_cast<uid_t>(uids[i]), thresholds[i]);
+            mappings.push_back(row);
+        }
+        status = mFlinger->updateSmallAreaDetection(mappings);
+    } else {
+        ALOGE("updateSmallAreaDetection() permission denied for uid: %d", c_uid);
+        status = PERMISSION_DENIED;
+    }
+    return binderStatusFromStatusT(status);
+}
+
+binder::Status SurfaceComposerAIDL::setSmallAreaDetectionThreshold(int32_t uid, float threshold) {
+    status_t status;
+    const int c_uid = IPCThreadState::self()->getCallingUid();
+    if (c_uid == AID_ROOT || c_uid == AID_SYSTEM) {
+        status = mFlinger->setSmallAreaDetectionThreshold(uid, threshold);
+    } else {
+        ALOGE("setSmallAreaDetectionThreshold() permission denied for uid: %d", c_uid);
         status = PERMISSION_DENIED;
     }
     return binderStatusFromStatusT(status);

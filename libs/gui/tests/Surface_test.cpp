@@ -993,6 +993,15 @@ public:
         return binder::Status::ok();
     }
 
+    binder::Status updateSmallAreaDetection(const std::vector<int32_t>& /*uids*/,
+                                            const std::vector<float>& /*thresholds*/) {
+        return binder::Status::ok();
+    }
+
+    binder::Status setSmallAreaDetectionThreshold(int32_t /*uid*/, float /*threshold*/) {
+        return binder::Status::ok();
+    }
+
     binder::Status getGpuContextPriority(int32_t* /*outPriority*/) override {
         return binder::Status::ok();
     }
