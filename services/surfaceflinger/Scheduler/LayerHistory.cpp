@@ -320,9 +320,9 @@ auto LayerHistory::findLayer(int32_t id) -> std::pair<LayerStatus, LayerPair*> {
     return {LayerStatus::NotFound, nullptr};
 }
 
-bool LayerHistory::isSmallDirtyArea(uint32_t dirtyArea) const {
+bool LayerHistory::isSmallDirtyArea(uint32_t dirtyArea, float threshold) const {
     const float ratio = (float)dirtyArea / mDisplayArea;
-    const bool isSmallDirty = ratio <= kSmallDirtyArea;
+    const bool isSmallDirty = ratio <= threshold;
     ATRACE_FORMAT_INSTANT("small dirty=%s, ratio=%.3f", isSmallDirty ? "true" : "false", ratio);
     return isSmallDirty;
 }

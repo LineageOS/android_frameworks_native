@@ -614,6 +614,10 @@ private:
 
     status_t setOverrideFrameRate(uid_t uid, float frameRate);
 
+    status_t updateSmallAreaDetection(std::vector<std::pair<uid_t, float>>& uidThresholdMappings);
+
+    status_t setSmallAreaDetectionThreshold(uid_t uid, float threshold);
+
     int getGpuContextPriority();
 
     status_t getMaxAcquiredBufferCount(int* buffers) const;
@@ -1547,6 +1551,9 @@ public:
             const sp<IBinder>& displayToken,
             std::optional<gui::DisplayDecorationSupport>* outSupport) override;
     binder::Status setOverrideFrameRate(int32_t uid, float frameRate) override;
+    binder::Status updateSmallAreaDetection(const std::vector<int32_t>& uids,
+                                            const std::vector<float>& thresholds) override;
+    binder::Status setSmallAreaDetectionThreshold(int32_t uid, float threshold) override;
     binder::Status getGpuContextPriority(int32_t* outPriority) override;
     binder::Status getMaxAcquiredBufferCount(int32_t* buffers) override;
     binder::Status addWindowInfosListener(const sp<gui::IWindowInfosListener>& windowInfosListener,

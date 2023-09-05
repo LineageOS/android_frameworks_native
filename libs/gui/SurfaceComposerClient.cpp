@@ -2750,6 +2750,20 @@ status_t SurfaceComposerClient::setOverrideFrameRate(uid_t uid, float frameRate)
     return statusTFromBinderStatus(status);
 }
 
+status_t SurfaceComposerClient::updateSmallAreaDetection(std::vector<int32_t>& uids,
+                                                         std::vector<float>& thresholds) {
+    binder::Status status =
+            ComposerServiceAIDL::getComposerService()->updateSmallAreaDetection(uids, thresholds);
+    return statusTFromBinderStatus(status);
+}
+
+status_t SurfaceComposerClient::setSmallAreaDetectionThreshold(uid_t uid, float threshold) {
+    binder::Status status =
+            ComposerServiceAIDL::getComposerService()->setSmallAreaDetectionThreshold(uid,
+                                                                                      threshold);
+    return statusTFromBinderStatus(status);
+}
+
 void SurfaceComposerClient::setAutoLowLatencyMode(const sp<IBinder>& display, bool on) {
     ComposerServiceAIDL::getComposerService()->setAutoLowLatencyMode(display, on);
 }

@@ -481,6 +481,15 @@ interface ISurfaceComposer {
      */
     void setOverrideFrameRate(int uid, float frameRate);
 
+    oneway void updateSmallAreaDetection(in int[] uids, in float[] thresholds);
+
+    /**
+     * Set the small area detection threshold for a specified uid by SmallAreaDetectionController.
+     * Passing the threshold and uid to SurfaceFlinger to update the uid-threshold mapping
+     * in the scheduler.
+     */
+    oneway void setSmallAreaDetectionThreshold(int uid, float threshold);
+
     /**
      * Gets priority of the RenderEngine in SurfaceFlinger.
      */
