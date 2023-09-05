@@ -49,6 +49,7 @@
 #include "MessageQueue.h"
 #include "OneShotTimer.h"
 #include "RefreshRateSelector.h"
+#include "SmallAreaDetectionAllowMappings.h"
 #include "Utils/Dumper.h"
 #include "VsyncModulator.h"
 
@@ -289,6 +290,13 @@ public:
 
     void setGameModeRefreshRateForUid(FrameRateOverride);
 
+    void updateSmallAreaDetection(std::vector<std::pair<uid_t, float>>& uidThresholdMappings);
+
+    void setSmallAreaDetectionThreshold(uid_t uid, float threshold);
+
+    // Returns true if the dirty area is less than threshold.
+    bool isSmallDirtyArea(uid_t uid, uint32_t dirtyArea);
+
     // Retrieves the overridden refresh rate for a given uid.
     std::optional<Fps> getFrameRateOverride(uid_t) const EXCLUDES(mDisplayLock);
 
@@ -303,6 +311,11 @@ public:
     // Returns the framerate of the layer with the given sequence ID
     float getLayerFramerate(nsecs_t now, int32_t id) const {
         return mLayerHistory.getLayerFramerate(now, id);
+    }
+
+    // Returns true if the small dirty detection is enabled.
+    bool supportSmallDirtyDetection() const {
+        return mFeatures.test(Feature::kSmallDirtyContentDetection);
     }
 
 private:
@@ -529,6 +542,7 @@ private:
     static constexpr std::chrono::nanoseconds MAX_VSYNC_APPLIED_TIME = 200ms;
 
     FrameRateOverrideMappings mFrameRateOverrideMappings;
+    SmallAreaDetectionAllowMappings mSmallAreaDetectionAllowMappings;
 };
 
 } // namespace scheduler

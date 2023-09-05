@@ -63,7 +63,8 @@ void LayerInfo::setLastPresentTime(nsecs_t lastPresentTime, nsecs_t now, LayerUp
         case LayerUpdateType::Buffer:
             FrameTimeData frameTime = {.presentTime = lastPresentTime,
                                        .queueTime = mLastUpdatedTime,
-                                       .pendingModeChange = pendingModeChange};
+                                       .pendingModeChange = pendingModeChange,
+                                       .isSmallDirty = props.isSmallDirty};
             mFrameTimes.push_back(frameTime);
             if (mFrameTimes.size() > HISTORY_SIZE) {
                 mFrameTimes.pop_front();
@@ -99,11 +100,15 @@ LayerInfo::Frequent LayerInfo::isFrequent(nsecs_t now) const {
     // classification.
     bool isFrequent = true;
     bool isInfrequent = true;
+    int32_t smallDirtyCount = 0;
     const auto n = mFrameTimes.size() - 1;
     for (size_t i = 0; i < kFrequentLayerWindowSize - 1; i++) {
         if (mFrameTimes[n - i].queueTime - mFrameTimes[n - i - 1].queueTime <
             kMaxPeriodForFrequentLayerNs.count()) {
             isInfrequent = false;
+            if (mFrameTimes[n - i].presentTime == 0 && mFrameTimes[n - i].isSmallDirty) {
+                smallDirtyCount++;
+            }
         } else {
             isFrequent = false;
         }
@@ -113,7 +118,8 @@ LayerInfo::Frequent LayerInfo::isFrequent(nsecs_t now) const {
         // If the layer was previously inconclusive, we clear
         // the history as indeterminate layers changed to frequent,
         // and we should not look at the stale data.
-        return {isFrequent, isFrequent && !mIsFrequencyConclusive, /* isConclusive */ true};
+        return {isFrequent, isFrequent && !mIsFrequencyConclusive, /* isConclusive */ true,
+                /* isSmallDirty */ smallDirtyCount >= kNumSmallDirtyThreshold};
     }
 
     // If we can't determine whether the layer is frequent or not, we return
@@ -202,11 +208,19 @@ std::optional<nsecs_t> LayerInfo::calculateAverageFrameTime() const {
 
     nsecs_t totalDeltas = 0;
     int numDeltas = 0;
+    int32_t smallDirtyCount = 0;
     auto prevFrame = mFrameTimes.begin();
     for (auto it = mFrameTimes.begin() + 1; it != mFrameTimes.end(); ++it) {
         const auto currDelta = getFrameTime(*it) - getFrameTime(*prevFrame);
         if (currDelta < kMinPeriodBetweenFrames) {
             // Skip this frame, but count the delta into the next frame
+            continue;
+        }
+
+        // If this is a small area update, we don't want to consider it for calculating the average
+        // frame time. Instead, we let the bigger frame updates to drive the calculation.
+        if (it->isSmallDirty && currDelta < kMinPeriodBetweenSmallDirtyFrames) {
+            smallDirtyCount++;
             continue;
         }
 
@@ -219,6 +233,10 @@ std::optional<nsecs_t> LayerInfo::calculateAverageFrameTime() const {
 
         totalDeltas += currDelta;
         numDeltas++;
+    }
+
+    if (smallDirtyCount > 0) {
+        ATRACE_FORMAT_INSTANT("small dirty = %" PRIu32, smallDirtyCount);
     }
 
     if (numDeltas == 0) {
@@ -293,6 +311,13 @@ LayerInfo::LayerVote LayerInfo::getRefreshRateVote(const RefreshRateSelector& se
 
     if (frequent.clearHistory) {
         clearHistory(now);
+    }
+
+    // Return no vote if the latest frames are small dirty.
+    if (frequent.isSmallDirty && !mLastRefreshRate.reported.isValid()) {
+        ATRACE_FORMAT_INSTANT("NoVote (small dirty)");
+        ALOGV("%s is small dirty", mName.c_str());
+        return {LayerHistory::LayerVoteType::NoVote, Fps()};
     }
 
     auto refreshRate = calculateRefreshRateIfPossible(selector, now);
