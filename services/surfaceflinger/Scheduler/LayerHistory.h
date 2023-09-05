@@ -43,6 +43,7 @@ struct LayerProps;
 class LayerHistory {
 public:
     using LayerVoteType = RefreshRateSelector::LayerVoteType;
+    static constexpr std::chrono::nanoseconds kMaxPeriodForHistory = 1s;
 
     LayerHistory();
     ~LayerHistory();
@@ -87,9 +88,13 @@ public:
     void attachChoreographer(int32_t layerId,
                              const sp<EventThreadConnection>& choreographerConnection);
 
+    bool isSmallDirtyArea(uint32_t dirtyArea) const;
+
 private:
     friend class LayerHistoryTest;
     friend class TestableScheduler;
+
+    static constexpr float kSmallDirtyArea = 0.07f;
 
     using LayerPair = std::pair<Layer*, std::unique_ptr<LayerInfo>>;
     // keyed by id as returned from Layer::getSequence()
