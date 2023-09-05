@@ -168,9 +168,6 @@ private:
     // Number of external holders of ExternalTexture references, per GraphicBuffer ID.
     std::unordered_map<GraphicBufferId, int32_t> mGraphicBufferExternalRefs
             GUARDED_BY(mRenderingMutex);
-    // For GL, this cache is shared between protected and unprotected contexts. For Vulkan, it is
-    // only used for the unprotected context, because Vulkan does not allow sharing between
-    // contexts, and protected is less common.
     std::unordered_map<GraphicBufferId, std::shared_ptr<AutoBackendTexture::LocalRef>> mTextureCache
             GUARDED_BY(mRenderingMutex);
     std::unordered_map<shaders::LinearEffect, sk_sp<SkRuntimeEffect>, shaders::LinearEffectHasher>
