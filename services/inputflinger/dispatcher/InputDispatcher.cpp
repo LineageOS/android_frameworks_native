@@ -4424,7 +4424,8 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs& args) {
             const auto touchStateIt = mTouchStatesByDisplay.find(args.displayId);
             if (touchStateIt != mTouchStatesByDisplay.end()) {
                 const TouchState& touchState = touchStateIt->second;
-                if (touchState.hasTouchingPointers(args.deviceId)) {
+                if (touchState.hasTouchingPointers(args.deviceId) ||
+                    touchState.hasHoveringPointers(args.deviceId)) {
                     policyFlags |= POLICY_FLAG_PASS_TO_USER;
                 }
             }
