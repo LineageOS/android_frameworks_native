@@ -1450,6 +1450,8 @@ private:
     void sfdo_setDebugFlash(int delay);
     void sfdo_scheduleComposite();
     void sfdo_scheduleCommit();
+
+    bool mMiscFlagValue;
 };
 
 class SurfaceComposerAIDL : public gui::BnSurfaceComposer {
