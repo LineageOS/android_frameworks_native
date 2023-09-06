@@ -19,7 +19,11 @@
 #include <utils/Trace.h>
 #include <optional>
 
-#define ATRACE_NAME_IF(condition, messageProvider)                                            \
-    const auto _trace_token = condition                                                       \
-            ? std::make_optional<android::ScopedTrace>(ATRACE_TAG, messageProvider().c_str()) \
+// A macro for tracing when the given condition is true.
+// This macro relies on the fact that only one branch of the ternary operator is evaluated. That
+// means if `message` is an expression that evaluates to a std::string value, the value will
+// not be computed unless the condition is true.
+#define ATRACE_NAME_IF(condition, message)                                            \
+    const auto _trace_token = condition                                               \
+            ? std::make_optional<android::ScopedTrace>(ATRACE_TAG, (message).c_str()) \
             : std::nullopt
