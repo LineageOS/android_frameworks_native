@@ -294,7 +294,7 @@ LayerInfo::RefreshRateVotes LayerInfo::getRefreshRateVote(const RefreshRateSelec
         if (mLayerVote.category != FrameRateCategory::Default) {
             ALOGV("%s uses frame rate category: %d", mName.c_str(),
                   static_cast<int>(mLayerVote.category));
-            votes.push_back({LayerHistory::LayerVoteType::ExplicitCategory, mLayerVote.fps,
+            votes.push_back({LayerHistory::LayerVoteType::ExplicitCategory, Fps(),
                              Seamlessness::Default, mLayerVote.category});
         }
 

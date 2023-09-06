@@ -529,7 +529,7 @@ TEST_F(LayerHistoryTest, oneLayerExplicitVoteWithCategory) {
     EXPECT_EQ(1, frequentLayerCount(time));
     // First LayerRequirement is the layer's category specification
     EXPECT_EQ(LayerHistory::LayerVoteType::ExplicitCategory, summarizeLayerHistory(time)[0].vote);
-    EXPECT_EQ(73.4_Hz, summarizeLayerHistory(time)[0].desiredRefreshRate);
+    EXPECT_EQ(0_Hz, summarizeLayerHistory(time)[0].desiredRefreshRate);
     EXPECT_EQ(FrameRateCategory::High, summarizeLayerHistory(time)[0].frameRateCategory);
 
     // Second LayerRequirement is the frame rate specification
@@ -544,7 +544,7 @@ TEST_F(LayerHistoryTest, oneLayerExplicitVoteWithCategory) {
     EXPECT_EQ(1, activeLayerCount());
     EXPECT_EQ(0, frequentLayerCount(time));
     EXPECT_EQ(LayerHistory::LayerVoteType::ExplicitCategory, summarizeLayerHistory(time)[0].vote);
-    EXPECT_EQ(73.4_Hz, summarizeLayerHistory(time)[0].desiredRefreshRate);
+    EXPECT_EQ(0_Hz, summarizeLayerHistory(time)[0].desiredRefreshRate);
     EXPECT_EQ(FrameRateCategory::High, summarizeLayerHistory(time)[0].frameRateCategory);
 }
 
