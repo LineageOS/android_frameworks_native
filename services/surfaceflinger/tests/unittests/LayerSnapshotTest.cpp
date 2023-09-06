@@ -667,6 +667,8 @@ TEST_F(LayerSnapshotTest, frameRateWithCategory) {
               scheduler::LayerInfo::FrameRateCompatibility::Default);
     EXPECT_EQ(getSnapshot({.id = 122})->frameRate.category, FrameRateCategory::Normal);
     EXPECT_TRUE(getSnapshot({.id = 122})->changes.test(RequestedLayerState::Changes::FrameRate));
+    EXPECT_TRUE(
+            getSnapshot({.id = 122})->changes.test(RequestedLayerState::Changes::AffectsChildren));
 
     EXPECT_FALSE(getSnapshot({.id = 1221})->frameRate.vote.rate.isValid());
     EXPECT_TRUE(getSnapshot({.id = 1221})->frameRate.isValid());
@@ -674,6 +676,8 @@ TEST_F(LayerSnapshotTest, frameRateWithCategory) {
               scheduler::LayerInfo::FrameRateCompatibility::Default);
     EXPECT_EQ(getSnapshot({.id = 1221})->frameRate.category, FrameRateCategory::Normal);
     EXPECT_TRUE(getSnapshot({.id = 1221})->changes.test(RequestedLayerState::Changes::FrameRate));
+    EXPECT_TRUE(
+            getSnapshot({.id = 1221})->changes.test(RequestedLayerState::Changes::AffectsChildren));
 
     // reparent and verify the child does NOT get the new parent's framerate because it already has
     // the frame rate category specified.
