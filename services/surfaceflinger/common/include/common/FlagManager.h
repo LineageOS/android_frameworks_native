@@ -64,6 +64,7 @@ public:
     bool cache_if_source_crop_layer_only_moved() const;
     bool enable_fro_dependent_features() const;
     bool display_protected() const;
+    bool fp16_client_target() const;
 
 protected:
     // overridden for unit tests

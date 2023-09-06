@@ -86,9 +86,10 @@ public:
     MOCK_METHOD3(getReleaseFences, Error(Display, std::vector<Layer>*, std::vector<int>*));
     MOCK_METHOD2(presentDisplay, Error(Display, int*));
     MOCK_METHOD2(setActiveConfig, Error(Display, Config));
-    MOCK_METHOD6(setClientTarget,
-                 Error(Display, uint32_t, const sp<GraphicBuffer>&, int, Dataspace,
-                       const std::vector<IComposerClient::Rect>&));
+    MOCK_METHOD(Error, setClientTarget,
+                (Display, uint32_t, const sp<GraphicBuffer>&, int, Dataspace,
+                 const std::vector<IComposerClient::Rect>&, float),
+                (override));
     MOCK_METHOD3(setColorMode, Error(Display, ColorMode, RenderIntent));
     MOCK_METHOD2(setColorTransform, Error(Display, const float*));
     MOCK_METHOD3(setOutputBuffer, Error(Display, const native_handle_t*, int));

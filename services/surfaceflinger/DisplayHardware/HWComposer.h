@@ -151,7 +151,8 @@ public:
             std::optional<DeviceRequestedChanges>* outChanges) = 0;
 
     virtual status_t setClientTarget(HalDisplayId, uint32_t slot, const sp<Fence>& acquireFence,
-                                     const sp<GraphicBuffer>& target, ui::Dataspace) = 0;
+                                     const sp<GraphicBuffer>& target, ui::Dataspace,
+                                     float hdrSdrRatio) = 0;
 
     // Present layers to the display and read releaseFences.
     virtual status_t presentAndGetReleaseFences(
@@ -352,7 +353,8 @@ public:
             std::optional<DeviceRequestedChanges>* outChanges) override;
 
     status_t setClientTarget(HalDisplayId, uint32_t slot, const sp<Fence>& acquireFence,
-                             const sp<GraphicBuffer>& target, ui::Dataspace) override;
+                             const sp<GraphicBuffer>& target, ui::Dataspace,
+                             float hdrSdrRatio) override;
 
     // Present layers to the display and read releaseFences.
     status_t presentAndGetReleaseFences(

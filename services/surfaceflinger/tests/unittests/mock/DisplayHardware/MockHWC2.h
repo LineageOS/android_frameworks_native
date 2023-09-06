@@ -66,8 +66,8 @@ public:
                 ((std::unordered_map<Layer *, android::sp<android::Fence>> *)), (const, override));
     MOCK_METHOD(hal::Error, present, (android::sp<android::Fence> *), (override));
     MOCK_METHOD(hal::Error, setClientTarget,
-                (uint32_t, const android::sp<android::GraphicBuffer> &,
-                 const android::sp<android::Fence> &, hal::Dataspace),
+                (uint32_t, const android::sp<android::GraphicBuffer>&,
+                 const android::sp<android::Fence>&, hal::Dataspace, float),
                 (override));
     MOCK_METHOD(hal::Error, setColorMode, (hal::ColorMode, hal::RenderIntent), (override));
     MOCK_METHOD(hal::Error, setColorTransform, (const android::mat4 &), (override));

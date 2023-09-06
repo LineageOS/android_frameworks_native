@@ -286,7 +286,7 @@ void DisplayHardwareFuzzer::invokeAidlComposer() {
 
     composer.setClientTarget(display, mFdp.ConsumeIntegral<uint32_t>(), sp<GraphicBuffer>(),
                              mFdp.ConsumeIntegral<int32_t>(), mFdp.PickValueInArray(kDataspaces),
-                             {});
+                             {}, mFdp.ConsumeFloatingPoint<float>());
 
     composer.setColorMode(display, mFdp.PickValueInArray(kColormodes),
                           mFdp.PickValueInArray(kRenderIntents));
@@ -494,7 +494,7 @@ void DisplayHardwareFuzzer::invokeFrameBufferSurface() {
     surface->beginFrame(mFdp.ConsumeBool());
 
     surface->prepareFrame(mFdp.PickValueInArray(kCompositionTypes));
-    surface->advanceFrame();
+    surface->advanceFrame(mFdp.ConsumeFloatingPoint<float>());
     surface->onFrameCommitted();
     String8 result = String8(mFdp.ConsumeRandomLengthString().c_str());
     surface->dumpAsString(result);
@@ -530,7 +530,7 @@ void DisplayHardwareFuzzer::invokeVirtualDisplaySurface() {
     surface->prepareFrame(mFdp.PickValueInArray(kCompositionTypes));
     surface->resizeBuffers(getFuzzedSize());
     surface->getClientTargetAcquireFence();
-    surface->advanceFrame();
+    surface->advanceFrame(mFdp.ConsumeFloatingPoint<float>());
     surface->onFrameCommitted();
     String8 result = String8(mFdp.ConsumeRandomLengthString().c_str());
     surface->dumpAsString(result);
@@ -561,7 +561,8 @@ void DisplayHardwareFuzzer::invokeComposer() {
     getDeviceCompositionChanges(halDisplayID);
 
     mHwc.setClientTarget(halDisplayID, mFdp.ConsumeIntegral<uint32_t>(), Fence::NO_FENCE,
-                         sp<GraphicBuffer>::make(), mFdp.PickValueInArray(kDataspaces));
+                         sp<GraphicBuffer>::make(), mFdp.PickValueInArray(kDataspaces),
+                         mFdp.ConsumeFloatingPoint<float>());
 
     mHwc.presentAndGetReleaseFences(halDisplayID, std::chrono::steady_clock::now());
 
