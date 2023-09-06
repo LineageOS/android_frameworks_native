@@ -197,7 +197,7 @@ struct layer_state_t {
         eInputInfoChanged = 0x40000000,
         eCornerRadiusChanged = 0x80000000,
         eDestinationFrameChanged = 0x1'00000000,
-        /* unused = 0x2'00000000, */
+        eFrameRateSelectionStrategyChanged = 0x2'00000000,
         eBackgroundColorChanged = 0x4'00000000,
         eMetadataChanged = 0x8'00000000,
         eColorSpaceAgnosticChanged = 0x10'00000000,
@@ -268,6 +268,7 @@ struct layer_state_t {
             layer_state_t::eColorTransformChanged | layer_state_t::eCornerRadiusChanged |
             layer_state_t::eFlagsChanged | layer_state_t::eTrustedOverlayChanged |
             layer_state_t::eFrameRateChanged | layer_state_t::eFrameRateCategoryChanged |
+            layer_state_t::eFrameRateSelectionStrategyChanged |
             layer_state_t::eFrameRateSelectionPriority | layer_state_t::eFixedTransformHintChanged;
 
     // Changes affecting data sent to input.
@@ -360,6 +361,9 @@ struct layer_state_t {
 
     // Frame rate category to suggest what frame rate range a surface should run.
     int8_t frameRateCategory;
+
+    // Strategy of the layer for frame rate selection.
+    int8_t frameRateSelectionStrategy;
 
     // Set by window manager indicating the layer and all its children are
     // in a different orientation than the display. The hint suggests that

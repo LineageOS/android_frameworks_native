@@ -5206,6 +5206,14 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
             flags |= eTraversalNeeded;
         }
     }
+    if (what & layer_state_t::eFrameRateSelectionStrategyChanged) {
+        const scheduler::LayerInfo::FrameRateSelectionStrategy strategy =
+                scheduler::LayerInfo::convertFrameRateSelectionStrategy(
+                        s.frameRateSelectionStrategy);
+        if (layer->setFrameRateSelectionStrategy(strategy)) {
+            flags |= eTraversalNeeded;
+        }
+    }
     if (what & layer_state_t::eFixedTransformHintChanged) {
         if (layer->setFixedTransformHint(s.fixedTransformHint)) {
             flags |= eTraversalNeeded | eTransformHintUpdateNeeded;

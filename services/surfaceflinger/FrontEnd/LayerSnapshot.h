@@ -85,6 +85,7 @@ struct LayerSnapshot : public compositionengine::LayerFECompositionState {
     bool isTrustedOverlay;
     gui::GameMode gameMode;
     scheduler::LayerInfo::FrameRate frameRate;
+    scheduler::LayerInfo::FrameRateSelectionStrategy frameRateSelectionStrategy;
     ui::Transform::RotationFlags fixedTransformHint;
     std::optional<ui::Transform::RotationFlags> transformHint;
     bool handleSkipScreenshotFlag = false;

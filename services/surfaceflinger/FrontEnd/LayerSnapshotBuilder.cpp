@@ -813,9 +813,21 @@ void LayerSnapshotBuilder::updateSnapshot(LayerSnapshot& snapshot, const Args& a
                 RequestedLayerState::Changes::Hierarchy) ||
         snapshot.changes.any(RequestedLayerState::Changes::FrameRate |
                              RequestedLayerState::Changes::Hierarchy)) {
-        snapshot.frameRate = requested.requestedFrameRate.isValid() ? requested.requestedFrameRate
-                                                                    : parentSnapshot.frameRate;
+        bool shouldOverrideChildren = parentSnapshot.frameRateSelectionStrategy ==
+                scheduler::LayerInfo::FrameRateSelectionStrategy::OverrideChildren;
+        snapshot.frameRate = !requested.requestedFrameRate.isValid() || shouldOverrideChildren
+                ? parentSnapshot.frameRate
+                : requested.requestedFrameRate;
         snapshot.changes |= RequestedLayerState::Changes::FrameRate;
+    }
+
+    if (forceUpdate || snapshot.clientChanges & layer_state_t::eFrameRateSelectionStrategyChanged) {
+        const auto strategy = scheduler::LayerInfo::convertFrameRateSelectionStrategy(
+                requested.frameRateSelectionStrategy);
+        snapshot.frameRateSelectionStrategy =
+                strategy == scheduler::LayerInfo::FrameRateSelectionStrategy::Self
+                ? parentSnapshot.frameRateSelectionStrategy
+                : strategy;
     }
 
     if (forceUpdate || snapshot.clientChanges & layer_state_t::eFrameRateSelectionPriority) {

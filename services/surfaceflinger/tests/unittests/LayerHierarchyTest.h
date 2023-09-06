@@ -346,6 +346,18 @@ protected:
         mLifecycleManager.applyTransactions(transactions);
     }
 
+    void setFrameRateSelectionStrategy(uint32_t id, int8_t strategy) {
+        std::vector<TransactionState> transactions;
+        transactions.emplace_back();
+        transactions.back().states.push_back({});
+
+        transactions.back().states.front().state.what =
+                layer_state_t::eFrameRateSelectionStrategyChanged;
+        transactions.back().states.front().layerId = id;
+        transactions.back().states.front().state.frameRateSelectionStrategy = strategy;
+        mLifecycleManager.applyTransactions(transactions);
+    }
+
     void setRoundedCorners(uint32_t id, float radius) {
         std::vector<TransactionState> transactions;
         transactions.emplace_back();

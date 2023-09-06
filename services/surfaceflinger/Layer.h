@@ -112,6 +112,7 @@ public:
 
     using FrameRate = scheduler::LayerInfo::FrameRate;
     using FrameRateCompatibility = scheduler::LayerInfo::FrameRateCompatibility;
+    using FrameRateSelectionStrategy = scheduler::LayerInfo::FrameRateSelectionStrategy;
 
     struct State {
         int32_t z;
@@ -187,6 +188,8 @@ public:
 
         // The combined frame rate of parents / children of this layer
         FrameRate frameRateForLayerTree;
+
+        FrameRateSelectionStrategy frameRateSelectionStrategy;
 
         // Set by window manager indicating the layer and all its children are
         // in a different orientation than the display. The hint suggests that
@@ -781,6 +784,8 @@ public:
 
     bool setFrameRate(FrameRate::FrameRateVote);
     bool setFrameRateCategory(FrameRateCategory);
+
+    bool setFrameRateSelectionStrategy(FrameRateSelectionStrategy);
 
     virtual void setFrameTimelineInfoForBuffer(const FrameTimelineInfo& /*info*/) {}
     void setFrameTimelineVsyncForBufferTransaction(const FrameTimelineInfo& info, nsecs_t postTime);
