@@ -196,6 +196,11 @@ ndk::ScopedAStatus SensorManagerAidl::getSensorList(std::vector<SensorInfo>* _ai
 sp<Looper> SensorManagerAidl::getLooper() {
     std::lock_guard<std::mutex> lock(mThreadMutex);
 
+    if (!mJavaVm) {
+        LOG(ERROR) << "No Java VM. This must be running in a test or fuzzer.";
+        return mLooper;
+    }
+
     if (!mPollThread.joinable()) {
         // if thread not initialized, start thread
         mStopThread = false;
