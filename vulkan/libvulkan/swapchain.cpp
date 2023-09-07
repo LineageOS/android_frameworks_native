@@ -1565,22 +1565,26 @@ VkResult CreateSwapchainKHR(VkDevice device,
               query_value);
         return VK_ERROR_SURFACE_LOST_KHR;
     }
-    uint32_t min_undequeued_buffers = static_cast<uint32_t>(query_value);
-    const auto mailbox_num_images = std::max(3u, create_info->minImageCount);
-    const auto requested_images =
-        swap_interval ? create_info->minImageCount : mailbox_num_images;
-    uint32_t num_images = requested_images - 1 + min_undequeued_buffers;
+    const uint32_t min_undequeued_buffers = static_cast<uint32_t>(query_value);
 
     // Lower layer insists that we have at least min_undequeued_buffers + 1
     // buffers.  This is wasteful and we'd like to relax it in the shared case,
     // but not all the pieces are in place for that to work yet.  Note we only
     // lie to the lower layer--we don't want to give the app back a swapchain
     // with extra images (which they can't actually use!).
-    uint32_t min_buffer_count = min_undequeued_buffers + 1;
-    err = native_window_set_buffer_count(
-        window, std::max(min_buffer_count, num_images));
+    const uint32_t min_buffer_count = min_undequeued_buffers + 1;
+
+    uint32_t num_images;
+    if (create_info->presentMode  == VK_PRESENT_MODE_MAILBOX_KHR) {
+        num_images = std::max(3u, create_info->minImageCount);
+    } else {
+        num_images = create_info->minImageCount;
+    }
+
+    const uint32_t buffer_count = std::max(min_buffer_count, num_images);
+    err = native_window_set_buffer_count(window, buffer_count);
     if (err != android::OK) {
-        ALOGE("native_window_set_buffer_count(%d) failed: %s (%d)", num_images,
+        ALOGE("native_window_set_buffer_count(%d) failed: %s (%d)", buffer_count,
               strerror(-err), err);
         return VK_ERROR_SURFACE_LOST_KHR;
     }
