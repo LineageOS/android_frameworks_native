@@ -192,6 +192,18 @@ cc_library_static {
     },
 }
 
+aconfig_declarations {
+    name: "libgui_flags",
+    package: "com.android.graphics.libgui.flags",
+    srcs: ["libgui_flags.aconfig"],
+}
+
+cc_aconfig_library {
+    name: "libguiflags",
+    vendor_available: true,
+    aconfig_declarations: "libgui_flags",
+}
+
 cc_library_shared {
     name: "libgui",
     vendor_available: true,
@@ -206,6 +218,7 @@ cc_library_shared {
     static_libs: [
         "libgui_aidl_static",
         "libgui_window_info_static",
+        "libguiflags",
     ],
     export_static_lib_headers: [
         "libgui_aidl_static",
