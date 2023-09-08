@@ -7,3 +7,11 @@ flag {
   bug: "297389311"
   is_fixed_read_only: true
 }
+
+flag {
+  name: "connected_display"
+  namespace: "core_graphics"
+  description: "Controls SurfaceFlinger support for Connected Displays"
+  bug: "278199093"
+  is_fixed_read_only: true
+}

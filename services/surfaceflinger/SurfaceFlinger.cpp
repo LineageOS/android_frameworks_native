@@ -494,7 +494,9 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
     mLegacyFrontEndEnabled = !mLayerLifecycleManagerEnabled ||
             base::GetBoolProperty("persist.debug.sf.enable_legacy_frontend"s, false);
 
+    // Trunk-Stable flags
     mMiscFlagValue = flags::misc1();
+    mConnectedDisplayFlagValue = flags::connected_display();
 }
 
 LatchUnsignaledConfig SurfaceFlinger::getLatchUnsignaledConfig() {
@@ -6342,6 +6344,8 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, const std::string& comp
     colorizer.reset(result);
 
     StringAppendF(&result, "MiscFlagValue: %s\n", mMiscFlagValue ? "true" : "false");
+    StringAppendF(&result, "ConnectedDisplayFlagValue: %s\n",
+                  mConnectedDisplayFlagValue ? "true" : "false");
 
     getRenderEngine().dump(result);
 

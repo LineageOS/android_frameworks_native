@@ -1451,7 +1451,9 @@ private:
     void sfdo_scheduleComposite();
     void sfdo_scheduleCommit();
 
+    // Trunk-Stable flags
     bool mMiscFlagValue;
+    bool mConnectedDisplayFlagValue;
 };
 
 class SurfaceComposerAIDL : public gui::BnSurfaceComposer {
