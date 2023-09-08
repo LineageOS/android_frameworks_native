@@ -143,8 +143,7 @@ std::span<T> getTensorBuffer(typename std::conditional<std::is_const<T>::value, 
                         tensor->name, TfLiteTypeGetName(tensor->type), TfLiteTypeGetName(type));
 
     LOG_ALWAYS_FATAL_IF(!tensor->data.data);
-    return {reinterpret_cast<T*>(tensor->data.data),
-            static_cast<typename std::span<T>::index_type>(tensor->bytes / sizeof(T))};
+    return std::span<T>(reinterpret_cast<T*>(tensor->data.data), tensor->bytes / sizeof(T));
 }
 
 // Verifies that a tensor exists and has an underlying buffer of type T.
