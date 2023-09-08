@@ -66,21 +66,14 @@ InputDeviceIdentifier generateTestIdentifier(int32_t id = DEVICE_ID) {
 }
 
 InputDeviceInfo generateTestDeviceInfo(int32_t id = DEVICE_ID,
-                                       uint32_t sources = TOUCHSCREEN | STYLUS,
-                                       bool isAlphabetic = false) {
+                                       uint32_t sources = TOUCHSCREEN | STYLUS) {
     auto info = InputDeviceInfo();
     info.initialize(id, /*generation=*/1, /*controllerNumber=*/1, generateTestIdentifier(id),
                     "alias", /*isExternal=*/false, /*hasMic=*/false, ADISPLAY_ID_NONE);
     info.addSource(sources);
-    info.setKeyboardType(isAlphabetic ? AINPUT_KEYBOARD_TYPE_ALPHABETIC
-                                      : AINPUT_KEYBOARD_TYPE_NON_ALPHABETIC);
     return info;
 }
 
-const InputDeviceInfo ALPHABETIC_KEYBOARD_INFO =
-        generateTestDeviceInfo(DEVICE_ID, KEY_SOURCES, /*isAlphabetic=*/true);
-const InputDeviceInfo NON_ALPHABETIC_KEYBOARD_INFO =
-        generateTestDeviceInfo(DEVICE_ID, KEY_SOURCES, /*isAlphabetic=*/false);
 const InputDeviceInfo TOUCHSCREEN_STYLUS_INFO = generateTestDeviceInfo(DEVICE_ID);
 const InputDeviceInfo SECOND_TOUCHSCREEN_STYLUS_INFO = generateTestDeviceInfo(DEVICE_ID_2);
 
@@ -106,7 +99,7 @@ TEST_P(DeviceClassificationFixture, ValidClassifications) {
     switch (usageSource) {
         case InputDeviceUsageSource::UNKNOWN: {
             ASSERT_EQ(InputDeviceUsageSource::UNKNOWN,
-                      getUsageSourceForKeyArgs(generateTestDeviceInfo(),
+                      getUsageSourceForKeyArgs(AINPUT_KEYBOARD_TYPE_NONE,
                                                KeyArgsBuilder(AKEY_EVENT_ACTION_DOWN, TOUCHSCREEN)
                                                        .build()));
 
@@ -123,7 +116,7 @@ TEST_P(DeviceClassificationFixture, ValidClassifications) {
 
         case InputDeviceUsageSource::BUTTONS: {
             ASSERT_EQ(InputDeviceUsageSource::BUTTONS,
-                      getUsageSourceForKeyArgs(NON_ALPHABETIC_KEYBOARD_INFO,
+                      getUsageSourceForKeyArgs(AINPUT_KEYBOARD_TYPE_NON_ALPHABETIC,
                                                KeyArgsBuilder(AKEY_EVENT_ACTION_DOWN, KEY_SOURCES)
                                                        .keyCode(AKEYCODE_STYLUS_BUTTON_TAIL)
                                                        .build()));
@@ -132,7 +125,7 @@ TEST_P(DeviceClassificationFixture, ValidClassifications) {
 
         case InputDeviceUsageSource::KEYBOARD: {
             ASSERT_EQ(InputDeviceUsageSource::KEYBOARD,
-                      getUsageSourceForKeyArgs(ALPHABETIC_KEYBOARD_INFO,
+                      getUsageSourceForKeyArgs(AINPUT_KEYBOARD_TYPE_ALPHABETIC,
                                                KeyArgsBuilder(AKEY_EVENT_ACTION_DOWN, KEY_SOURCES)
                                                        .build()));
             break;
@@ -140,13 +133,13 @@ TEST_P(DeviceClassificationFixture, ValidClassifications) {
 
         case InputDeviceUsageSource::DPAD: {
             ASSERT_EQ(InputDeviceUsageSource::DPAD,
-                      getUsageSourceForKeyArgs(NON_ALPHABETIC_KEYBOARD_INFO,
+                      getUsageSourceForKeyArgs(AINPUT_KEYBOARD_TYPE_NON_ALPHABETIC,
                                                KeyArgsBuilder(AKEY_EVENT_ACTION_DOWN, KEY_SOURCES)
                                                        .keyCode(AKEYCODE_DPAD_CENTER)
                                                        .build()));
 
             ASSERT_EQ(InputDeviceUsageSource::DPAD,
-                      getUsageSourceForKeyArgs(ALPHABETIC_KEYBOARD_INFO,
+                      getUsageSourceForKeyArgs(AINPUT_KEYBOARD_TYPE_ALPHABETIC,
                                                KeyArgsBuilder(AKEY_EVENT_ACTION_DOWN, KEY_SOURCES)
                                                        .keyCode(AKEYCODE_DPAD_CENTER)
                                                        .build()));
@@ -155,13 +148,13 @@ TEST_P(DeviceClassificationFixture, ValidClassifications) {
 
         case InputDeviceUsageSource::GAMEPAD: {
             ASSERT_EQ(InputDeviceUsageSource::GAMEPAD,
-                      getUsageSourceForKeyArgs(NON_ALPHABETIC_KEYBOARD_INFO,
+                      getUsageSourceForKeyArgs(AINPUT_KEYBOARD_TYPE_NON_ALPHABETIC,
                                                KeyArgsBuilder(AKEY_EVENT_ACTION_DOWN, KEY_SOURCES)
                                                        .keyCode(AKEYCODE_BUTTON_A)
                                                        .build()));
 
             ASSERT_EQ(InputDeviceUsageSource::GAMEPAD,
-                      getUsageSourceForKeyArgs(ALPHABETIC_KEYBOARD_INFO,
+                      getUsageSourceForKeyArgs(AINPUT_KEYBOARD_TYPE_ALPHABETIC,
                                                KeyArgsBuilder(AKEY_EVENT_ACTION_DOWN, KEY_SOURCES)
                                                        .keyCode(AKEYCODE_BUTTON_A)
                                                        .build()));
@@ -358,7 +351,13 @@ protected:
                            std::optional<UidUsageBreakdown> uidBreakdown = {}) {
         ASSERT_GE(mLoggedUsageSessions.size(), 1u);
         const auto& [loggedInfo, report] = *mLoggedUsageSessions.begin();
-        ASSERT_EQ(info.getIdentifier(), loggedInfo.getIdentifier());
+        const auto& i = info.getIdentifier();
+        ASSERT_EQ(info.getId(), loggedInfo.deviceId);
+        ASSERT_EQ(i.vendor, loggedInfo.vendor);
+        ASSERT_EQ(i.product, loggedInfo.product);
+        ASSERT_EQ(i.version, loggedInfo.version);
+        ASSERT_EQ(i.bus, loggedInfo.bus);
+        ASSERT_EQ(info.getUsiVersion().has_value(), loggedInfo.isUsiStylus);
         ASSERT_EQ(duration, report.usageDuration);
         if (sourceBreakdown) {
             ASSERT_EQ(sourceBreakdown, report.sourceBreakdown);
@@ -389,12 +388,12 @@ protected:
     }
 
 private:
-    std::vector<std::tuple<InputDeviceInfo, DeviceUsageReport>> mLoggedUsageSessions;
+    std::vector<std::tuple<MetricsDeviceInfo, DeviceUsageReport>> mLoggedUsageSessions;
     nanoseconds mCurrentTime{TIME};
 
     nanoseconds getCurrentTime() override { return mCurrentTime; }
 
-    void logInputDeviceUsageReported(const InputDeviceInfo& info,
+    void logInputDeviceUsageReported(const MetricsDeviceInfo& info,
                                      const DeviceUsageReport& report) override {
         mLoggedUsageSessions.emplace_back(info, report);
     }
