@@ -18,6 +18,7 @@
 #define ANDROID_GUI_BUFFERQUEUEPRODUCER_H
 
 #include <gui/BufferQueueDefs.h>
+#include <gui/Flags.h>
 #include <gui/IGraphicBufferProducer.h>
 
 namespace android {
@@ -201,6 +202,11 @@ public:
 
     // See IGraphicBufferProducer::setAutoPrerotation
     virtual status_t setAutoPrerotation(bool autoPrerotation);
+#if FLAG_BQ_SET_FRAME_RATE
+    // See IGraphicBufferProducer::setFrameRate
+    status_t setFrameRate(float frameRate, int8_t compatibility,
+                          int8_t changeFrameRateStrategy) override;
+#endif
 
 protected:
     // see IGraphicsBufferProducer::setMaxDequeuedBufferCount, but with the ability to retrieve the

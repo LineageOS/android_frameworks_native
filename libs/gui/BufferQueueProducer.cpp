@@ -32,6 +32,8 @@
 #include <gui/BufferItem.h>
 #include <gui/BufferQueueCore.h>
 #include <gui/BufferQueueProducer.h>
+#include <gui/Flags.h>
+#include <gui/FrameRateUtils.h>
 #include <gui/GLConsumer.h>
 #include <gui/IConsumerListener.h>
 #include <gui/IProducerListener.h>
@@ -1750,5 +1752,28 @@ status_t BufferQueueProducer::setAutoPrerotation(bool autoPrerotation) {
     mCore->mAutoPrerotation = autoPrerotation;
     return NO_ERROR;
 }
+
+#if FLAG_BQ_SET_FRAME_RATE
+status_t BufferQueueProducer::setFrameRate(float frameRate, int8_t compatibility,
+                                           int8_t changeFrameRateStrategy) {
+    ATRACE_CALL();
+    BQ_LOGV("setFrameRate: %.2f", frameRate);
+
+    if (!ValidateFrameRate(frameRate, compatibility, changeFrameRateStrategy,
+                           "BufferQueueProducer::setFrameRate")) {
+        return BAD_VALUE;
+    }
+
+    sp<IConsumerListener> listener;
+    {
+        std::lock_guard<std::mutex> lock(mCore->mMutex);
+        listener = mCore->mConsumerListener;
+    }
+    if (listener != nullptr) {
+        listener->onSetFrameRate(frameRate, compatibility, changeFrameRateStrategy);
+    }
+    return NO_ERROR;
+}
+#endif
 
 } // namespace android

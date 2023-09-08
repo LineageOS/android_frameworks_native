@@ -22,6 +22,7 @@
 #include <gui/BufferQueueConsumer.h>
 #include <gui/BufferQueueCore.h>
 #include <gui/BufferQueueProducer.h>
+#include <gui/Flags.h>
 
 namespace android {
 
@@ -97,6 +98,16 @@ void BufferQueue::ProxyConsumerListener::addAndGetFrameTimestamps(
         listener->addAndGetFrameTimestamps(newTimestamps, outDelta);
     }
 }
+
+#if FLAG_BQ_SET_FRAME_RATE
+void BufferQueue::ProxyConsumerListener::onSetFrameRate(float frameRate, int8_t compatibility,
+                                                        int8_t changeFrameRateStrategy) {
+    sp<ConsumerListener> listener(mConsumerListener.promote());
+    if (listener != nullptr) {
+        listener->onSetFrameRate(frameRate, compatibility, changeFrameRateStrategy);
+    }
+}
+#endif
 
 void BufferQueue::createBufferQueue(sp<IGraphicBufferProducer>* outProducer,
         sp<IGraphicBufferConsumer>* outConsumer,

@@ -17,9 +17,10 @@
 #ifndef ANDROID_GUI_BLAST_BUFFER_QUEUE_H
 #define ANDROID_GUI_BLAST_BUFFER_QUEUE_H
 
-#include <gui/IGraphicBufferProducer.h>
-#include <gui/BufferItemConsumer.h>
 #include <gui/BufferItem.h>
+#include <gui/BufferItemConsumer.h>
+#include <gui/Flags.h>
+#include <gui/IGraphicBufferProducer.h>
 #include <gui/SurfaceComposerClient.h>
 
 #include <utils/Condition.h>
@@ -58,6 +59,10 @@ public:
 
 protected:
     void onSidebandStreamChanged() override EXCLUDES(mMutex);
+#if FLAG_BQ_SET_FRAME_RATE
+    void onSetFrameRate(float frameRate, int8_t compatibility,
+                        int8_t changeFrameRateStrategy) override;
+#endif
 
 private:
     const wp<BLASTBufferQueue> mBLASTBufferQueue;

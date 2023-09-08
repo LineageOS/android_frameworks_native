@@ -19,6 +19,8 @@
 #include <binder/IInterface.h>
 #include <binder/SafeInterface.h>
 
+#include <gui/Flags.h>
+
 #include <utils/Errors.h>
 #include <utils/RefBase.h>
 
@@ -90,6 +92,12 @@ public:
     // WARNING: This method can only be called when the BufferQueue is in the consumer's process.
     virtual void addAndGetFrameTimestamps(const NewFrameEventsEntry* /*newTimestamps*/,
                                           FrameEventHistoryDelta* /*outDelta*/) {}
+
+#if FLAG_BQ_SET_FRAME_RATE
+    // Notifies the consumer of a setFrameRate call from the producer side.
+    virtual void onSetFrameRate(float /*frameRate*/, int8_t /*compatibility*/,
+                                int8_t /*changeFrameRateStrategy*/) {}
+#endif
 };
 
 #ifndef NO_BINDER

@@ -26,6 +26,8 @@
 #include <gui/BufferQueueConsumer.h>
 #include <gui/BufferQueueCore.h>
 #include <gui/BufferQueueProducer.h>
+#include <gui/Flags.h>
+#include <gui/FrameRateUtils.h>
 #include <gui/GLConsumer.h>
 #include <gui/IProducerListener.h>
 #include <gui/Surface.h>
@@ -39,6 +41,9 @@
 #include <android-base/thread_annotations.h>
 #include <chrono>
 
+#include <com_android_graphics_libgui_flags.h>
+
+using namespace com::android::graphics::libgui;
 using namespace std::chrono_literals;
 
 namespace {
@@ -138,6 +143,16 @@ void BLASTBufferItemConsumer::onSidebandStreamChanged() {
         bbq->setSidebandStream(stream);
     }
 }
+
+#if FLAG_BQ_SET_FRAME_RATE
+void BLASTBufferItemConsumer::onSetFrameRate(float frameRate, int8_t compatibility,
+                                             int8_t changeFrameRateStrategy) {
+    sp<BLASTBufferQueue> bbq = mBLASTBufferQueue.promote();
+    if (bbq != nullptr) {
+        bbq->setFrameRate(frameRate, compatibility, changeFrameRateStrategy);
+    }
+}
+#endif
 
 void BLASTBufferItemConsumer::resizeFrameEventHistory(size_t newSize) {
     Mutex::Autolock lock(mMutex);
@@ -890,6 +905,10 @@ public:
 
     status_t setFrameRate(float frameRate, int8_t compatibility,
                           int8_t changeFrameRateStrategy) override {
+        if (flags::bq_setframerate()) {
+            return Surface::setFrameRate(frameRate, compatibility, changeFrameRateStrategy);
+        }
+
         std::lock_guard _lock{mMutex};
         if (mDestroyed) {
             return DEAD_OBJECT;

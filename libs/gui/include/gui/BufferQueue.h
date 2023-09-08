@@ -19,9 +19,10 @@
 
 #include <gui/BufferItem.h>
 #include <gui/BufferQueueDefs.h>
+#include <gui/Flags.h>
+#include <gui/IConsumerListener.h>
 #include <gui/IGraphicBufferConsumer.h>
 #include <gui/IGraphicBufferProducer.h>
-#include <gui/IConsumerListener.h>
 
 namespace android {
 
@@ -69,6 +70,10 @@ public:
         void addAndGetFrameTimestamps(
                 const NewFrameEventsEntry* newTimestamps,
                 FrameEventHistoryDelta* outDelta) override;
+#if FLAG_BQ_SET_FRAME_RATE
+        void onSetFrameRate(float frameRate, int8_t compatibility,
+                            int8_t changeFrameRateStrategy) override;
+#endif
     private:
         // mConsumerListener is a weak reference to the IConsumerListener.  This is
         // the raison d'etre of ProxyConsumerListener.

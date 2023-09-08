@@ -476,16 +476,6 @@ static inline int compare_type(const DisplayState& lhs, const DisplayState& rhs)
     return compare_type(lhs.token, rhs.token);
 }
 
-// Returns true if the frameRate is valid.
-//
-// @param frameRate the frame rate in Hz
-// @param compatibility a ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_*
-// @param changeFrameRateStrategy a ANATIVEWINDOW_CHANGE_FRAME_RATE_*
-// @param functionName calling function or nullptr. Used for logging
-// @param privileged whether caller has unscoped surfaceflinger access
-bool ValidateFrameRate(float frameRate, int8_t compatibility, int8_t changeFrameRateStrategy,
-                       const char* functionName, bool privileged = false);
-
 }; // namespace android
 
 #endif // ANDROID_SF_LAYER_STATE_H
