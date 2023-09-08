@@ -294,8 +294,11 @@ std::string LayerSnapshot::getDebugString() const {
 
 std::ostream& operator<<(std::ostream& out, const LayerSnapshot& obj) {
     out << "Layer [" << obj.path.id;
-    if (obj.path.mirrorRootId != UNASSIGNED_LAYER_ID) {
-        out << " mirrored from " << obj.path.mirrorRootId;
+    if (!obj.path.mirrorRootIds.empty()) {
+        out << " mirrored from ";
+        for (auto rootId : obj.path.mirrorRootIds) {
+            out << rootId << ",";
+        }
     }
     out << "] " << obj.name << "\n    " << (obj.isVisible ? "visible" : "invisible")
         << " reason=" << obj.getIsVisibleReason();

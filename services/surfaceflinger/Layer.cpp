@@ -2648,7 +2648,7 @@ Region Layer::getVisibleRegion(const DisplayDevice* display) const {
 
 void Layer::setInitialValuesForClone(const sp<Layer>& clonedFrom, uint32_t mirrorRootId) {
     mSnapshot->path.id = clonedFrom->getSequence();
-    mSnapshot->path.mirrorRootId = mirrorRootId;
+    mSnapshot->path.mirrorRootIds.emplace_back(mirrorRootId);
 
     cloneDrawingState(clonedFrom.get());
     mClonedFrom = clonedFrom;

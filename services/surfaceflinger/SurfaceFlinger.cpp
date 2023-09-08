@@ -5826,6 +5826,7 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args, bool asProto) {
                 {"--timestats"s, protoDumper(&SurfaceFlinger::dumpTimeStats)},
                 {"--vsync"s, dumper(&SurfaceFlinger::dumpVsync)},
                 {"--wide-color"s, dumper(&SurfaceFlinger::dumpWideColorInfo)},
+                {"--frontend"s, dumper(&SurfaceFlinger::dumpFrontEnd)},
         };
 
         const auto flag = args.empty() ? ""s : std::string(String8(args[0]));
@@ -6133,6 +6134,38 @@ void SurfaceFlinger::dumpHdrInfo(std::string& result) const {
         listener->dump(result);
         result.append("\n");
     }
+}
+
+void SurfaceFlinger::dumpFrontEnd(std::string& result) {
+    mScheduler
+            ->schedule([&]() FTL_FAKE_GUARD(mStateLock) FTL_FAKE_GUARD(kMainThreadContext) {
+                std::ostringstream out;
+                out << "\nComposition list\n";
+                ui::LayerStack lastPrintedLayerStackHeader = ui::INVALID_LAYER_STACK;
+                for (const auto& snapshot : mLayerSnapshotBuilder.getSnapshots()) {
+                    if (lastPrintedLayerStackHeader != snapshot->outputFilter.layerStack) {
+                        lastPrintedLayerStackHeader = snapshot->outputFilter.layerStack;
+                        out << "LayerStack=" << lastPrintedLayerStackHeader.id << "\n";
+                    }
+                    out << "  " << *snapshot << "\n";
+                }
+
+                out << "\nInput list\n";
+                lastPrintedLayerStackHeader = ui::INVALID_LAYER_STACK;
+                mLayerSnapshotBuilder.forEachInputSnapshot(
+                        [&](const frontend::LayerSnapshot& snapshot) {
+                            if (lastPrintedLayerStackHeader != snapshot.outputFilter.layerStack) {
+                                lastPrintedLayerStackHeader = snapshot.outputFilter.layerStack;
+                                out << "LayerStack=" << lastPrintedLayerStackHeader.id << "\n";
+                            }
+                            out << "  " << snapshot << "\n";
+                        });
+
+                out << "\nLayer Hierarchy\n"
+                    << mLayerHierarchyBuilder.getHierarchy().dump() << "\n\n";
+                result.append(out.str());
+            })
+            .get();
 }
 
 perfetto::protos::LayersProto SurfaceFlinger::dumpDrawingStateProto(uint32_t traceFlags) const {
