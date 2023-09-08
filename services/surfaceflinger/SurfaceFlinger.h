@@ -1454,6 +1454,8 @@ private:
     // Trunk-Stable flags
     bool mMiscFlagValue;
     bool mConnectedDisplayFlagValue;
+    bool mMisc2FlagEarlyBootValue;
+    bool mMisc2FlagLateBootValue;
 };
 
 class SurfaceComposerAIDL : public gui::BnSurfaceComposer {

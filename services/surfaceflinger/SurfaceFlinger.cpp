@@ -497,6 +497,7 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
     // Trunk-Stable flags
     mMiscFlagValue = flags::misc1();
     mConnectedDisplayFlagValue = flags::connected_display();
+    mMisc2FlagEarlyBootValue = flags::late_boot_misc2();
 }
 
 LatchUnsignaledConfig SurfaceFlinger::getLatchUnsignaledConfig() {
@@ -740,6 +741,8 @@ void SurfaceFlinger::bootFinished() {
     }));
 
     LOG_ALWAYS_FATAL_IF(flags::misc1() != mMiscFlagValue, "misc1 flag is not boot stable!");
+
+    mMisc2FlagLateBootValue = flags::late_boot_misc2();
 }
 
 static std::optional<renderengine::RenderEngine::RenderEngineType>
@@ -6346,6 +6349,9 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, const std::string& comp
     StringAppendF(&result, "MiscFlagValue: %s\n", mMiscFlagValue ? "true" : "false");
     StringAppendF(&result, "ConnectedDisplayFlagValue: %s\n",
                   mConnectedDisplayFlagValue ? "true" : "false");
+    StringAppendF(&result, "Misc2FlagValue: %s (%s after boot)\n",
+                  mMisc2FlagLateBootValue ? "true" : "false",
+                  mMisc2FlagEarlyBootValue == mMisc2FlagLateBootValue ? "stable" : "modified");
 
     getRenderEngine().dump(result);
 
