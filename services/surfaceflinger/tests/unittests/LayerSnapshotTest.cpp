@@ -410,8 +410,8 @@ TEST_F(LayerSnapshotTest, mirrorLayerGetsCorrectLayerStack) {
     std::vector<uint32_t> expected = {1,  11, 111, 13, 2,  3,   1,  11, 111,
                                       13, 2,  4,   1,  11, 111, 13, 2};
     UPDATE_AND_VERIFY(mSnapshotBuilder, expected);
-    EXPECT_EQ(getSnapshot({.id = 111, .mirrorRootId = 3})->outputFilter.layerStack.id, 3u);
-    EXPECT_EQ(getSnapshot({.id = 111, .mirrorRootId = 4})->outputFilter.layerStack.id, 4u);
+    EXPECT_EQ(getSnapshot({.id = 111, .mirrorRootIds = 3u})->outputFilter.layerStack.id, 3u);
+    EXPECT_EQ(getSnapshot({.id = 111, .mirrorRootIds = 4u})->outputFilter.layerStack.id, 4u);
 }
 
 // ROOT (DISPLAY 0)
@@ -435,7 +435,7 @@ TEST_F(LayerSnapshotTest, mirrorLayerTouchIsCroppedByMirrorRoot) {
     UPDATE_AND_VERIFY(mSnapshotBuilder, expected);
     EXPECT_TRUE(getSnapshot({.id = 111})->inputInfo.touchableRegion.hasSameRects(touch));
     Region touchCroppedByMirrorRoot{Rect{0, 0, 50, 50}};
-    EXPECT_TRUE(getSnapshot({.id = 111, .mirrorRootId = 3})
+    EXPECT_TRUE(getSnapshot({.id = 111, .mirrorRootIds = 3u})
                         ->inputInfo.touchableRegion.hasSameRects(touchCroppedByMirrorRoot));
 }
 
@@ -460,6 +460,21 @@ TEST_F(LayerSnapshotTest, cleanUpUnreachableSnapshotsAfterMirroring) {
     UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
 
     EXPECT_EQ(startingNumSnapshots, mSnapshotBuilder.getSnapshots().size());
+}
+
+TEST_F(LayerSnapshotTest, canMirrorDisplayWithMirrors) {
+    reparentLayer(12, UNASSIGNED_LAYER_ID);
+    mirrorLayer(/*layer*/ 14, /*parent*/ 1, /*layerToMirror*/ 11);
+    std::vector<uint32_t> expected = {1, 11, 111, 13, 14, 11, 111, 2};
+    UPDATE_AND_VERIFY(mSnapshotBuilder, expected);
+
+    createDisplayMirrorLayer(3, ui::LayerStack::fromValue(0));
+    setLayerStack(3, 3);
+    expected = {1, 11, 111, 13, 14, 11, 111, 2, 3, 1, 11, 111, 13, 14, 11, 111, 2};
+    UPDATE_AND_VERIFY(mSnapshotBuilder, expected);
+    EXPECT_EQ(getSnapshot({.id = 11, .mirrorRootIds = 14u})->outputFilter.layerStack.id, 0u);
+    EXPECT_EQ(getSnapshot({.id = 11, .mirrorRootIds = 3u})->outputFilter.layerStack.id, 3u);
+    EXPECT_EQ(getSnapshot({.id = 11, .mirrorRootIds = 3u, 14u})->outputFilter.layerStack.id, 3u);
 }
 
 // Rel z doesn't create duplicate snapshots but this is for completeness
