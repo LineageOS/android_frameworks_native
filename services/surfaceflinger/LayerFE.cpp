@@ -345,7 +345,7 @@ const LayerMetadata* LayerFE::getRelativeMetadata() const {
 }
 
 int32_t LayerFE::getSequence() const {
-    return mSnapshot->sequence;
+    return static_cast<int32_t>(mSnapshot->uniqueSequence);
 }
 
 bool LayerFE::hasRoundedCorners() const {
