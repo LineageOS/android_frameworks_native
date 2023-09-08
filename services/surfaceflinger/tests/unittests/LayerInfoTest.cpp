@@ -223,8 +223,6 @@ TEST_F(LayerInfoTest, getRefreshRateVote_explicitVoteWithCategory) {
 }
 
 TEST_F(LayerInfoTest, getRefreshRateVote_explicitCategory) {
-    // When a layer only has a category set, the LayerVoteType should be the LayerInfo's default.
-    // The most common case should be Heuristic.
     LayerInfo::LayerVote vote = {.type = LayerHistory::LayerVoteType::ExplicitDefault,
                                  .category = FrameRateCategory::High};
     layerInfo.setLayerVote(vote);
@@ -234,6 +232,20 @@ TEST_F(LayerInfoTest, getRefreshRateVote_explicitCategory) {
     ASSERT_EQ(actualVotes.size(), 1u);
     ASSERT_EQ(actualVotes[0].type, LayerHistory::LayerVoteType::ExplicitCategory);
     ASSERT_EQ(actualVotes[0].category, vote.category);
+    ASSERT_EQ(actualVotes[0].fps, 0_Hz);
+}
+
+TEST_F(LayerInfoTest, getRefreshRateVote_categoryNoPreference) {
+    LayerInfo::LayerVote vote = {.type = LayerHistory::LayerVoteType::ExplicitDefault,
+                                 .category = FrameRateCategory::NoPreference};
+    layerInfo.setLayerVote(vote);
+
+    auto actualVotes =
+            layerInfo.getRefreshRateVote(*mScheduler->refreshRateSelector(), systemTime());
+    ASSERT_EQ(actualVotes.size(), 1u);
+    ASSERT_EQ(actualVotes[0].type, LayerHistory::LayerVoteType::ExplicitCategory);
+    ASSERT_EQ(actualVotes[0].category, vote.category);
+    ASSERT_EQ(actualVotes[0].fps, 0_Hz);
 }
 
 TEST_F(LayerInfoTest, getRefreshRateVote_noData) {

@@ -501,6 +501,12 @@ auto RefreshRateSelector::getRankedFrameRatesLocked(const std::vector<LayerRequi
                 break;
             case LayerVoteType::ExplicitCategory:
                 explicitCategoryVoteLayers++;
+                if (layer.frameRateCategory == FrameRateCategory::NoPreference) {
+                    // Count this layer for Min vote as well. The explicit vote avoids
+                    // touch boost and idle for choosing a category, while Min vote is for correct
+                    // behavior when all layers are Min or no vote.
+                    minVoteLayers++;
+                }
                 break;
             case LayerVoteType::Heuristic:
                 break;
