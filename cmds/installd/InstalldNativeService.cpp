@@ -250,12 +250,18 @@ binder::Status checkUidInAppRange(int32_t appUid) {
 
 // we could have tighter checks, but this is only to avoid hard errors. Negative values are defined
 // in UserHandle.java and carry specific meanings that may not be handled by certain APIs here.
-#define ENFORCE_VALID_USER(userId)                                     \
-    {                                                                  \
-        if (static_cast<uid_t>(std::abs(userId)) >=                    \
-            std::numeric_limits<uid_t>::max() / AID_USER_OFFSET) {     \
-            return error("userId invalid: " + std::to_string(userId)); \
-        }                                                              \
+#define ENFORCE_VALID_USER(userId)                                                               \
+    {                                                                                            \
+        if (static_cast<uid_t>(userId) >= std::numeric_limits<uid_t>::max() / AID_USER_OFFSET) { \
+            return error("userId invalid: " + std::to_string(userId));                           \
+        }                                                                                        \
+    }
+
+#define ENFORCE_VALID_USER_OR_NULL(userId)             \
+    {                                                  \
+        if (static_cast<uid_t>(userId) != USER_NULL) { \
+            ENFORCE_VALID_USER(userId);                \
+        }                                              \
     }
 
 #define CHECK_ARGUMENT_UUID(uuid) {                         \
@@ -3841,7 +3847,7 @@ binder::Status InstalldNativeService::prepareAppProfile(const std::string& packa
         int32_t userId, int32_t appId, const std::string& profileName, const std::string& codePath,
         const std::optional<std::string>& dexMetadata, bool* _aidl_return) {
     ENFORCE_UID(AID_SYSTEM);
-    ENFORCE_VALID_USER(userId);
+    ENFORCE_VALID_USER_OR_NULL(userId);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
     CHECK_ARGUMENT_PATH(codePath);
     LOCK_PACKAGE_USER();
