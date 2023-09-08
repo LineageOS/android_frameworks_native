@@ -22,3 +22,11 @@ flag{
   description: "This flag controls minor miscellaneous SurfaceFlinger changes. Cannot be read before boot finished!"
   bug: "297389311"
 }
+
+flag {
+  name: "vrr_config"
+  namespace: "core_graphics"
+  description: "Controls SurfaceFlinger support for VRR Configurations"
+  bug: "284845445"
+  is_fixed_read_only: true
+}
