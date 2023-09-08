@@ -1268,7 +1268,7 @@ status_t JpegR::appendGainMap(jr_compressed_ptr primary_jpg_image_ptr,
   jpegr_compressed_struct new_jpg_image;
   new_jpg_image.data = nullptr;
   new_jpg_image.length = 0;
-  if (decoder.getEXIFPos() != 0) {
+  if (decoder.getEXIFPos() >= 0) {
     if (pExif != nullptr) {
       ALOGE("received EXIF from outside while the primary image already contains EXIF");
       return ERROR_JPEGR_INVALID_INPUT_TYPE;
