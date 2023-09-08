@@ -95,14 +95,22 @@ public:
 
     binder_status_t readFromParcel(const AParcel* _Nonnull parcel) {
         reset();
-        return AHardwareBuffer_readFromParcel(parcel, &mBuffer);
+        if (__builtin_available(android __ANDROID_API_U__, *)) {
+            return AHardwareBuffer_readFromParcel(parcel, &mBuffer);
+        } else {
+            return STATUS_FAILED_TRANSACTION;
+        }
     }
 
     binder_status_t writeToParcel(AParcel* _Nonnull parcel) const {
         if (!mBuffer) {
             return STATUS_BAD_VALUE;
         }
-        return AHardwareBuffer_writeToParcel(mBuffer, parcel);
+        if (__builtin_available(android __ANDROID_API_U__, *)) {
+            return AHardwareBuffer_writeToParcel(mBuffer, parcel);
+        } else {
+            return STATUS_FAILED_TRANSACTION;
+        }
     }
 
     /**
@@ -150,9 +158,13 @@ public:
         if (!mBuffer) {
             return "<HardwareBuffer: Invalid>";
         }
-        uint64_t id = 0;
-        AHardwareBuffer_getId(mBuffer, &id);
-        return "<HardwareBuffer " + std::to_string(id) + ">";
+        if (__builtin_available(android __ANDROID_API_S__, *)) {
+            uint64_t id = 0;
+            AHardwareBuffer_getId(mBuffer, &id);
+            return "<HardwareBuffer " + std::to_string(id) + ">";
+        } else {
+            return "<HardwareBuffer (unknown)>";
+        }
     }
 
 private:
