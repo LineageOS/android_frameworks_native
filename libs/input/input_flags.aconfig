@@ -13,3 +13,10 @@ flag {
   description: "Set to true to enable crashing whenever bad inbound events are going into InputDispatcher"
   bug: "271455682"
 }
+
+flag {
+  name: "enable_pointer_choreographer"
+  namespace: "input"
+  description: "Set to true to enable PointerChoreographer: the new pipeline for showing pointer icons"
+  bug: "293587049"
+}

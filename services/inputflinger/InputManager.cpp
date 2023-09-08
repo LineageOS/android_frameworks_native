@@ -27,9 +27,12 @@
 #include <android/binder_interface_utils.h>
 #include <android/sysprop/InputProperties.sysprop.h>
 #include <binder/IPCThreadState.h>
+#include <com_android_input_flags.h>
 #include <inputflinger_bootstrap.rs.h>
 #include <log/log.h>
 #include <private/android_filesystem_config.h>
+
+namespace input_flags = com::android::input::flags;
 
 namespace android {
 
@@ -38,8 +41,7 @@ namespace {
 const bool ENABLE_INPUT_DEVICE_USAGE_METRICS =
         sysprop::InputProperties::enable_input_device_usage_metrics().value_or(true);
 
-const bool ENABLE_POINTER_CHOREOGRAPHER =
-        sysprop::InputProperties::enable_pointer_choreographer().value_or(false);
+const bool ENABLE_POINTER_CHOREOGRAPHER = input_flags::enable_pointer_choreographer();
 
 int32_t exceptionCodeFromStatusT(status_t status) {
     switch (status) {
