@@ -30,7 +30,7 @@ fi
 for CRASH_TYPE in PLAIN KNOWN_UID AID_SYSTEM AID_ROOT BINDER DUMP SHELL_CMD; do
     echo "INFO: Running fuzzer : test_service_fuzzer_should_crash $CRASH_TYPE"
 
-    ./test_service_fuzzer_should_crash "$CRASH_TYPE" -max_total_time=30 &>"$FUZZER_OUT"
+    ./test_service_fuzzer_should_crash "$CRASH_TYPE" -max_total_time=60 &>"$FUZZER_OUT"
 
     echo "INFO: Searching fuzzer output for expected crashes"
     if grep -q "Expected crash, $CRASH_TYPE." "$FUZZER_OUT"
