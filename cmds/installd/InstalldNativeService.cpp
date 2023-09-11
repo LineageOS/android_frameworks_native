@@ -757,7 +757,7 @@ static binder::Status createAppDataDirs(const std::string& path, int32_t uid, in
 binder::Status InstalldNativeService::createAppDataLocked(
         const std::optional<std::string>& uuid, const std::string& packageName, int32_t userId,
         int32_t flags, int32_t appId, int32_t previousAppId, const std::string& seInfo,
-        int32_t targetSdkVersion, int64_t* _aidl_return) {
+        int32_t targetSdkVersion, int64_t* ceDataInode, int64_t* deDataInode) {
     ENFORCE_UID(AID_SYSTEM);
     ENFORCE_VALID_USER(userId);
     CHECK_ARGUMENT_UUID(uuid);
@@ -767,7 +767,8 @@ binder::Status InstalldNativeService::createAppDataLocked(
     const char* pkgname = packageName.c_str();
 
     // Assume invalid inode unless filled in below
-    if (_aidl_return != nullptr) *_aidl_return = -1;
+    if (ceDataInode != nullptr) *ceDataInode = -1;
+    if (deDataInode != nullptr) *deDataInode = -1;
 
     int32_t uid = multiuser_get_uid(userId, appId);
 
@@ -805,12 +806,12 @@ binder::Status InstalldNativeService::createAppDataLocked(
 
         // And return the CE inode of the top-level data directory so we can
         // clear contents while CE storage is locked
-        if (_aidl_return != nullptr) {
+        if (ceDataInode != nullptr) {
             ino_t result;
             if (get_path_inode(path, &result) != 0) {
                 return error("Failed to get_path_inode for " + path);
             }
-            *_aidl_return = static_cast<uint64_t>(result);
+            *ceDataInode = static_cast<uint64_t>(result);
         }
     }
     if (flags & FLAG_STORAGE_DE) {
@@ -828,6 +829,14 @@ binder::Status InstalldNativeService::createAppDataLocked(
 
         if (!prepare_app_profile_dir(packageName, appId, userId)) {
             return error("Failed to prepare profiles for " + packageName);
+        }
+
+        if (deDataInode != nullptr) {
+            ino_t result;
+            if (get_path_inode(path, &result) != 0) {
+                return error("Failed to get_path_inode for " + path);
+            }
+            *deDataInode = static_cast<uint64_t>(result);
         }
     }
 
@@ -892,14 +901,14 @@ binder::Status InstalldNativeService::createSdkSandboxDataPackageDirectory(
 binder::Status InstalldNativeService::createAppData(
         const std::optional<std::string>& uuid, const std::string& packageName, int32_t userId,
         int32_t flags, int32_t appId, int32_t previousAppId, const std::string& seInfo,
-        int32_t targetSdkVersion, int64_t* _aidl_return) {
+        int32_t targetSdkVersion, int64_t* ceDataInode, int64_t* deDataInode) {
     ENFORCE_UID(AID_SYSTEM);
     ENFORCE_VALID_USER(userId);
     CHECK_ARGUMENT_UUID(uuid);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
     LOCK_PACKAGE_USER();
     return createAppDataLocked(uuid, packageName, userId, flags, appId, previousAppId, seInfo,
-                               targetSdkVersion, _aidl_return);
+                               targetSdkVersion, ceDataInode, deDataInode);
 }
 
 binder::Status InstalldNativeService::createAppData(
@@ -910,9 +919,12 @@ binder::Status InstalldNativeService::createAppData(
     // Locking is performed depeer in the callstack.
 
     int64_t ceDataInode = -1;
+    int64_t deDataInode = -1;
     auto status = createAppData(args.uuid, args.packageName, args.userId, args.flags, args.appId,
-            args.previousAppId, args.seInfo, args.targetSdkVersion, &ceDataInode);
+                                args.previousAppId, args.seInfo, args.targetSdkVersion,
+                                &ceDataInode, &deDataInode);
     _aidl_return->ceDataInode = ceDataInode;
+    _aidl_return->deDataInode = deDataInode;
     _aidl_return->exceptionCode = status.exceptionCode();
     _aidl_return->exceptionMessage = status.exceptionMessage();
     return ok();
@@ -1839,7 +1851,8 @@ binder::Status InstalldNativeService::moveCompleteApp(const std::optional<std::s
         }
 
         if (!createAppDataLocked(toUuid, packageName, userId, FLAG_STORAGE_CE | FLAG_STORAGE_DE,
-                                 appId, /* previousAppId */ -1, seInfo, targetSdkVersion, nullptr)
+                                 appId, /* previousAppId */ -1, seInfo, targetSdkVersion, nullptr,
+                                 nullptr)
                      .isOk()) {
             res = error("Failed to create package target");
             goto fail;

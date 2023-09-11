@@ -68,7 +68,8 @@ public:
     binder::Status createAppData(const std::optional<std::string>& uuid,
                                  const std::string& packageName, int32_t userId, int32_t flags,
                                  int32_t appId, int32_t previousAppId, const std::string& seInfo,
-                                 int32_t targetSdkVersion, int64_t* _aidl_return);
+                                 int32_t targetSdkVersion, int64_t* ceDataInode,
+                                 int64_t* deDataInode);
 
     binder::Status createAppData(
             const android::os::CreateAppDataArgs& args,
@@ -238,7 +239,7 @@ private:
                                        const std::string& packageName, int32_t userId,
                                        int32_t flags, int32_t appId, int32_t previousAppId,
                                        const std::string& seInfo, int32_t targetSdkVersion,
-                                       int64_t* _aidl_return);
+                                       int64_t* ceDataInode, int64_t* deDataInode);
     binder::Status restoreconAppDataLocked(const std::optional<std::string>& uuid,
                                            const std::string& packageName, int32_t userId,
                                            int32_t flags, int32_t appId, const std::string& seInfo);
