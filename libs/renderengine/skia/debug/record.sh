@@ -43,7 +43,6 @@ sleep $(($1 / 1000 + 4));
 # There is no guarantee that at least one frame passed through renderengine during that time
 # but as far as I know it always at least writes a 0-byte file with a new name, unless it crashes
 # the process it is recording.
-# /data/user/re_skiacapture_56204430551705.mskp
 
 spin() {
     case "$spin" in
