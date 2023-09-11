@@ -224,14 +224,14 @@ public:
         return mRefreshRateSelector->getActiveMode();
     }
 
-    void setActiveMode(DisplayModeId, Fps displayFps, Fps renderFps);
+    void setActiveMode(DisplayModeId, Fps vsyncRate, Fps renderFps);
 
     status_t initiateModeChange(const ActiveModeInfo&,
                                 const hal::VsyncPeriodChangeConstraints& constraints,
                                 hal::VsyncPeriodChangeTimeline* outTimeline)
             REQUIRES(kMainThreadContext);
 
-    void finalizeModeChange(DisplayModeId, Fps displayFps, Fps renderFps)
+    void finalizeModeChange(DisplayModeId, Fps vsyncRate, Fps renderFps)
             REQUIRES(kMainThreadContext);
 
     scheduler::RefreshRateSelector& refreshRateSelector() const { return *mRefreshRateSelector; }
@@ -246,7 +246,7 @@ public:
     // Enables an overlay to be displayed with the current refresh rate
     void enableRefreshRateOverlay(bool enable, bool setByHwc, bool showSpinner, bool showRenderRate,
                                   bool showInMiddle) REQUIRES(kMainThreadContext);
-    void updateRefreshRateOverlayRate(Fps displayFps, Fps renderFps, bool setByHwc = false);
+    void updateRefreshRateOverlayRate(Fps vsyncRate, Fps renderFps, bool setByHwc = false);
     bool isRefreshRateOverlayEnabled() const { return mRefreshRateOverlay != nullptr; }
     bool onKernelTimerChanged(std::optional<DisplayModeId>, bool timerExpired);
 

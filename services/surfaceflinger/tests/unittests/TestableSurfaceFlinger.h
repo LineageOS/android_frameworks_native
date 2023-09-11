@@ -997,7 +997,7 @@ public:
 
                 const auto activeMode = modes.get(activeModeId);
                 LOG_ALWAYS_FATAL_IF(!activeMode);
-                const auto fps = activeMode->get()->getFps();
+                const auto fps = activeMode->get()->getPeakFps();
 
                 state.physical = {.id = physicalId,
                                   .hwcDisplayId = *mHwcDisplayId,

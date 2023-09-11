@@ -253,7 +253,8 @@ public:
 
     FpsRange getSupportedRefreshRateRange() const EXCLUDES(mLock) {
         std::lock_guard lock(mLock);
-        return {mMinRefreshRateModeIt->second->getFps(), mMaxRefreshRateModeIt->second->getFps()};
+        return {mMinRefreshRateModeIt->second->getPeakFps(),
+                mMaxRefreshRateModeIt->second->getPeakFps()};
     }
 
     ftl::Optional<FrameRateMode> onKernelTimerChanged(

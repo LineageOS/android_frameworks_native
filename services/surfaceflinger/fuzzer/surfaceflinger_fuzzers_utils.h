@@ -666,7 +666,7 @@ public:
         }
 
         mRefreshRateSelector = std::make_shared<scheduler::RefreshRateSelector>(modes, kModeId60);
-        const auto fps = mRefreshRateSelector->getActiveMode().modePtr->getFps();
+        const auto fps = mRefreshRateSelector->getActiveMode().modePtr->getVsyncRate();
         mFlinger->mVsyncConfiguration = mFactory.createVsyncConfiguration(fps);
 
         mFlinger->mRefreshRateStats =

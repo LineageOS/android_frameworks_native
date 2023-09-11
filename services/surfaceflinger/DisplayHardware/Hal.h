@@ -24,6 +24,7 @@
 #include <aidl/android/hardware/graphics/composer3/Composition.h>
 #include <aidl/android/hardware/graphics/composer3/DisplayCapability.h>
 #include <aidl/android/hardware/graphics/composer3/DisplayConfiguration.h>
+#include <aidl/android/hardware/graphics/composer3/VrrConfig.h>
 
 #define ERROR_HAS_CHANGES 5
 
@@ -73,6 +74,7 @@ using Vsync = IComposerClient::Vsync;
 using VsyncPeriodChangeConstraints = IComposerClient::VsyncPeriodChangeConstraints;
 using Hdr = aidl::android::hardware::graphics::common::Hdr;
 using DisplayConfiguration = V3_0::DisplayConfiguration;
+using VrrConfig = V3_0::VrrConfig;
 
 } // namespace hardware::graphics::composer::hal
 
@@ -146,6 +148,34 @@ inline std::string to_string(
         default:
             return "Unknown";
     }
+}
+
+inline std::string to_string(
+        const std::optional<aidl::android::hardware::graphics::composer3::VrrConfig>& vrrConfig) {
+    if (vrrConfig) {
+        std::ostringstream out;
+        out << "{minFrameIntervalNs=" << vrrConfig->minFrameIntervalNs << ", ";
+        out << "frameIntervalPowerHints={";
+        if (vrrConfig->frameIntervalPowerHints) {
+            const auto& powerHint = *vrrConfig->frameIntervalPowerHints;
+            for (size_t i = 0; i < powerHint.size(); i++) {
+                if (i > 0) out << ", ";
+                out << "[frameIntervalNs=" << powerHint[i]->frameIntervalNs
+                    << ", averageRefreshPeriodNs=" << powerHint[i]->averageRefreshPeriodNs << "]";
+            }
+        }
+        out << "}, ";
+        out << "notifyExpectedPresentConfig={";
+        if (vrrConfig->notifyExpectedPresentConfig) {
+            out << "notifyExpectedPresentHeadsUpNs="
+                << vrrConfig->notifyExpectedPresentConfig->notifyExpectedPresentHeadsUpNs
+                << ", notifyExpectedPresentTimeoutNs="
+                << vrrConfig->notifyExpectedPresentConfig->notifyExpectedPresentTimeoutNs;
+        }
+        out << "}}";
+        return out.str();
+    }
+    return "N/A";
 }
 
 inline std::string to_string(hardware::graphics::composer::hal::V2_4::Error error) {

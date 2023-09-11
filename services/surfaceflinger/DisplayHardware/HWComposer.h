@@ -102,11 +102,13 @@ public:
         float dpiX = -1.f;
         float dpiY = -1.f;
         int32_t configGroup = -1;
+        std::optional<hal::VrrConfig> vrrConfig;
 
         friend std::ostream& operator<<(std::ostream& os, const HWCDisplayMode& mode) {
             return os << "id=" << mode.hwcId << " res=" << mode.width << "x" << mode.height
                       << " vsyncPeriod=" << mode.vsyncPeriod << " dpi=" << mode.dpiX << "x"
-                      << mode.dpiY << " group=" << mode.configGroup;
+                      << mode.dpiY << " group=" << mode.configGroup
+                      << " vrrConfig=" << to_string(mode.vrrConfig).c_str();
         }
     };
 

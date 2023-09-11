@@ -27,7 +27,7 @@
 
 namespace android {
 
-auto RefreshRateOverlay::draw(int displayFps, int renderFps, SkColor color,
+auto RefreshRateOverlay::draw(int vsyncRate, int renderFps, SkColor color,
                               ui::Transform::RotationFlags rotation, ftl::Flags<Features> features)
         -> Buffers {
     const size_t loopCount = features.test(Features::Spinner) ? 6 : 1;
@@ -70,7 +70,7 @@ auto RefreshRateOverlay::draw(int displayFps, int renderFps, SkColor color,
         canvas->setMatrix(canvasTransform);
 
         int left = 0;
-        drawNumber(displayFps, left, color, *canvas);
+        drawNumber(vsyncRate, left, color, *canvas);
         left += 3 * (kDigitWidth + kDigitSpace);
         if (features.test(Features::Spinner)) {
             switch (i) {
@@ -153,7 +153,7 @@ RefreshRateOverlay::RefreshRateOverlay(FpsRange fpsRange, ftl::Flags<Features> f
             .apply();
 }
 
-auto RefreshRateOverlay::getOrCreateBuffers(Fps displayFps, Fps renderFps) -> const Buffers& {
+auto RefreshRateOverlay::getOrCreateBuffers(Fps vsyncRate, Fps renderFps) -> const Buffers& {
     static const Buffers kNoBuffers;
     if (!mSurfaceControl) return kNoBuffers;
 
@@ -180,16 +180,16 @@ auto RefreshRateOverlay::getOrCreateBuffers(Fps displayFps, Fps renderFps) -> co
     createTransaction().setTransform(mSurfaceControl->get(), transform).apply();
 
     BufferCache::const_iterator it =
-            mBufferCache.find({displayFps.getIntValue(), renderFps.getIntValue(), transformHint});
+            mBufferCache.find({vsyncRate.getIntValue(), renderFps.getIntValue(), transformHint});
     if (it == mBufferCache.end()) {
         // HWC minFps is not known by the framework in order
         // to consider lower rates we set minFps to 0.
         const int minFps = isSetByHwc() ? 0 : mFpsRange.min.getIntValue();
         const int maxFps = mFpsRange.max.getIntValue();
 
-        // Clamp to the range. The current displayFps may be outside of this range if the display
+        // Clamp to the range. The current vsyncRate may be outside of this range if the display
         // has changed its set of supported refresh rates.
-        const int displayIntFps = std::clamp(displayFps.getIntValue(), minFps, maxFps);
+        const int displayIntFps = std::clamp(vsyncRate.getIntValue(), minFps, maxFps);
         const int renderIntFps = renderFps.getIntValue();
 
         // Ensure non-zero range to avoid division by zero.
@@ -242,17 +242,17 @@ void RefreshRateOverlay::setLayerStack(ui::LayerStack stack) {
     createTransaction().setLayerStack(mSurfaceControl->get(), stack).apply();
 }
 
-void RefreshRateOverlay::changeRefreshRate(Fps displayFps, Fps renderFps) {
-    mDisplayFps = displayFps;
+void RefreshRateOverlay::changeRefreshRate(Fps vsyncRate, Fps renderFps) {
+    mVsyncRate = vsyncRate;
     mRenderFps = renderFps;
-    const auto buffer = getOrCreateBuffers(displayFps, renderFps)[mFrame];
+    const auto buffer = getOrCreateBuffers(vsyncRate, renderFps)[mFrame];
     createTransaction().setBuffer(mSurfaceControl->get(), buffer).apply();
 }
 
 void RefreshRateOverlay::animate() {
-    if (!mFeatures.test(Features::Spinner) || !mDisplayFps) return;
+    if (!mFeatures.test(Features::Spinner) || !mVsyncRate) return;
 
-    const auto& buffers = getOrCreateBuffers(*mDisplayFps, *mRenderFps);
+    const auto& buffers = getOrCreateBuffers(*mVsyncRate, *mRenderFps);
     mFrame = (mFrame + 1) % buffers.size();
     const auto buffer = buffers[mFrame];
     createTransaction().setBuffer(mSurfaceControl->get(), buffer).apply();

@@ -494,7 +494,7 @@ void Scheduler::resyncToHardwareVsyncLocked(PhysicalDisplayId id, bool allowToEn
 
     if (display.schedulePtr->isHardwareVsyncAllowed(allowToEnable)) {
         if (!refreshRate) {
-            refreshRate = display.selectorPtr->getActiveMode().modePtr->getFps();
+            refreshRate = display.selectorPtr->getActiveMode().modePtr->getVsyncRate();
         }
         if (refreshRate->isValid()) {
             constexpr bool kForce = false;
@@ -542,7 +542,7 @@ void Scheduler::setRenderRate(PhysicalDisplayId id, Fps renderFrameRate) {
                         to_string(mode.fps).c_str(), to_string(renderFrameRate).c_str(), id.value);
 
     ALOGV("%s %s (%s)", __func__, to_string(mode.fps).c_str(),
-          to_string(mode.modePtr->getFps()).c_str());
+          to_string(mode.modePtr->getVsyncRate()).c_str());
 
     display.schedulePtr->getTracker().setRenderRate(renderFrameRate);
 }
@@ -717,7 +717,7 @@ void Scheduler::kernelIdleTimerCallback(TimerState state) {
 
     // TODO(145561154): cleanup the kernel idle timer implementation and the refresh rate
     // magic number
-    const Fps refreshRate = pacesetterSelectorPtr()->getActiveMode().modePtr->getFps();
+    const Fps refreshRate = pacesetterSelectorPtr()->getActiveMode().modePtr->getPeakFps();
 
     constexpr Fps FPS_THRESHOLD_FOR_KERNEL_TIMER = 65_Hz;
     using namespace fps_approx_ops;
@@ -877,7 +877,7 @@ std::shared_ptr<VsyncSchedule> Scheduler::promotePacesetterDisplayLocked(
 
         newVsyncSchedulePtr = pacesetter.schedulePtr;
 
-        const Fps refreshRate = pacesetter.selectorPtr->getActiveMode().modePtr->getFps();
+        const Fps refreshRate = pacesetter.selectorPtr->getActiveMode().modePtr->getVsyncRate();
         constexpr bool kForce = true;
         newVsyncSchedulePtr->startPeriodTransition(refreshRate.getPeriod(), kForce);
     }
