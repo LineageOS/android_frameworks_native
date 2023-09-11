@@ -19,6 +19,7 @@ package android.os;
 /** {@hide} */
 parcelable CreateAppDataResult {
     long ceDataInode;
+    long deDataInode;
     int exceptionCode;
     @utf8InCpp String exceptionMessage;
 }
