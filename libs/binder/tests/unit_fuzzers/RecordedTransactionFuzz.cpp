@@ -54,7 +54,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
 
     if (transaction.has_value()) {
         std::FILE* intermediateFile = std::tmpfile();
-        android::base::unique_fd fdForWriting(fileno(intermediateFile));
+        android::base::unique_fd fdForWriting(dup(fileno(intermediateFile)));
         auto writeStatus ATTRIBUTE_UNUSED = transaction.value().dumpToFile(fdForWriting);
 
         std::fclose(intermediateFile);
