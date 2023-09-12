@@ -491,8 +491,7 @@ FrameRateCategory LayerInfo::FrameRate::convertCategory(int8_t category) {
 }
 
 bool LayerInfo::FrameRate::isNoVote() const {
-    return vote.type == FrameRateCompatibility::NoVote ||
-            category == FrameRateCategory::NoPreference;
+    return vote.type == FrameRateCompatibility::NoVote;
 }
 
 bool LayerInfo::FrameRate::isValid() const {

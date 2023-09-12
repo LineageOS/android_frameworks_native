@@ -41,7 +41,7 @@ namespace {
 
 bool isLayerActive(const LayerInfo& info, nsecs_t threshold) {
     // Layers with an explicit frame rate or frame rate category are always kept active,
-    // but ignore NoVote/NoPreference.
+    // but ignore NoVote.
     if (info.getSetFrameRateVote().isValid() && !info.getSetFrameRateVote().isNoVote()) {
         return true;
     }

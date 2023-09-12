@@ -187,14 +187,12 @@ public:
 
         bool operator!=(const LayerRequirement& other) const { return !(*this == other); }
 
-        bool isNoVote() const { return RefreshRateSelector::isNoVote(vote, frameRateCategory); }
+        bool isNoVote() const { return RefreshRateSelector::isNoVote(vote); }
     };
 
     // Returns true if the layer explicitly instructs to not contribute to refresh rate selection.
     // In other words, true if the layer should be ignored.
-    static bool isNoVote(LayerVoteType vote, FrameRateCategory category) {
-        return vote == LayerVoteType::NoVote || category == FrameRateCategory::NoPreference;
-    }
+    static bool isNoVote(LayerVoteType vote) { return vote == LayerVoteType::NoVote; }
 
     // Global state describing signals that affect refresh rate choice.
     struct GlobalSignals {

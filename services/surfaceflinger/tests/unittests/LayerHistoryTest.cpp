@@ -494,14 +494,14 @@ TEST_F(LayerHistoryTest, oneLayerCategoryNoPreference) {
         time += HI_FPS_PERIOD;
     }
 
-    ASSERT_TRUE(summarizeLayerHistory(time).empty());
+    EXPECT_EQ(1, summarizeLayerHistory(time).size());
     EXPECT_EQ(1, activeLayerCount());
     EXPECT_EQ(1, frequentLayerCount(time));
 
     // layer became inactive
     time += MAX_ACTIVE_LAYER_PERIOD_NS.count();
-    ASSERT_TRUE(summarizeLayerHistory(time).empty());
-    EXPECT_EQ(0, activeLayerCount());
+    EXPECT_EQ(1, summarizeLayerHistory(time).size());
+    EXPECT_EQ(1, activeLayerCount());
     EXPECT_EQ(0, frequentLayerCount(time));
 }
 
