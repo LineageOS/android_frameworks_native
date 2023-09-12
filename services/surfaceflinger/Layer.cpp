@@ -3092,6 +3092,32 @@ bool Layer::setPosition(float x, float y) {
     return true;
 }
 
+void Layer::releasePreviousBuffer() {
+    mReleasePreviousBuffer = true;
+    if (!mBufferInfo.mBuffer ||
+        (!mDrawingState.buffer->hasSameBuffer(*mBufferInfo.mBuffer) ||
+         mDrawingState.frameNumber != mBufferInfo.mFrameNumber)) {
+        // If mDrawingState has a buffer, and we are about to update again
+        // before swapping to drawing state, then the first buffer will be
+        // dropped and we should decrement the pending buffer count and
+        // call any release buffer callbacks if set.
+        callReleaseBufferCallback(mDrawingState.releaseBufferListener,
+                                  mDrawingState.buffer->getBuffer(), mDrawingState.frameNumber,
+                                  mDrawingState.acquireFence);
+        decrementPendingBufferCount();
+        if (mDrawingState.bufferSurfaceFrameTX != nullptr &&
+            mDrawingState.bufferSurfaceFrameTX->getPresentState() != PresentState::Presented) {
+            addSurfaceFrameDroppedForBuffer(mDrawingState.bufferSurfaceFrameTX, systemTime());
+            mDrawingState.bufferSurfaceFrameTX.reset();
+        }
+    } else if (EARLY_RELEASE_ENABLED && mLastClientCompositionFence != nullptr) {
+        callReleaseBufferCallback(mDrawingState.releaseBufferListener,
+                                  mDrawingState.buffer->getBuffer(), mDrawingState.frameNumber,
+                                  mLastClientCompositionFence);
+        mLastClientCompositionFence = nullptr;
+    }
+}
+
 void Layer::resetDrawingStateBufferInfo() {
     mDrawingState.producerId = 0;
     mDrawingState.frameNumber = 0;
@@ -3116,29 +3142,7 @@ bool Layer::setBuffer(std::shared_ptr<renderengine::ExternalTexture>& buffer,
     ATRACE_FORMAT_INSTANT("setBuffer %s - %" PRIu64, getDebugName(), frameNumber);
 
     if (mDrawingState.buffer) {
-        mReleasePreviousBuffer = true;
-        if (!mBufferInfo.mBuffer ||
-            (!mDrawingState.buffer->hasSameBuffer(*mBufferInfo.mBuffer) ||
-             mDrawingState.frameNumber != mBufferInfo.mFrameNumber)) {
-            // If mDrawingState has a buffer, and we are about to update again
-            // before swapping to drawing state, then the first buffer will be
-            // dropped and we should decrement the pending buffer count and
-            // call any release buffer callbacks if set.
-            callReleaseBufferCallback(mDrawingState.releaseBufferListener,
-                                      mDrawingState.buffer->getBuffer(), mDrawingState.frameNumber,
-                                      mDrawingState.acquireFence);
-            decrementPendingBufferCount();
-            if (mDrawingState.bufferSurfaceFrameTX != nullptr &&
-                mDrawingState.bufferSurfaceFrameTX->getPresentState() != PresentState::Presented) {
-                addSurfaceFrameDroppedForBuffer(mDrawingState.bufferSurfaceFrameTX, systemTime());
-                mDrawingState.bufferSurfaceFrameTX.reset();
-            }
-        } else if (EARLY_RELEASE_ENABLED && mLastClientCompositionFence != nullptr) {
-            callReleaseBufferCallback(mDrawingState.releaseBufferListener,
-                                      mDrawingState.buffer->getBuffer(), mDrawingState.frameNumber,
-                                      mLastClientCompositionFence);
-            mLastClientCompositionFence = nullptr;
-        }
+        releasePreviousBuffer();
     } else if (buffer) {
         // if we are latching a buffer for the first time then clear the mLastLatchTime since
         // we don't want to incorrectly classify a frame if we miss the desired present time.
@@ -3156,6 +3160,12 @@ bool Layer::setBuffer(std::shared_ptr<renderengine::ExternalTexture>& buffer,
         mDrawingState.bufferSurfaceFrameTX = nullptr;
         setFrameTimelineVsyncForBufferlessTransaction(info, postTime);
         return true;
+    } else {
+        // release sideband stream if it exists and a non null buffer is being set
+        if (mDrawingState.sidebandStream != nullptr) {
+            mFlinger->mTunnelModeEnabledReporter->decrementTunnelModeCount();
+            mDrawingState.sidebandStream = nullptr;
+        }
     }
 
     if ((mDrawingState.producerId > bufferData.producerId) ||
@@ -3344,7 +3354,8 @@ bool Layer::setApi(int32_t api) {
     return true;
 }
 
-bool Layer::setSidebandStream(const sp<NativeHandle>& sidebandStream) {
+bool Layer::setSidebandStream(const sp<NativeHandle>& sidebandStream, const FrameTimelineInfo& info,
+                              nsecs_t postTime) {
     if (mDrawingState.sidebandStream == sidebandStream) return false;
 
     if (mDrawingState.sidebandStream != nullptr && sidebandStream == nullptr) {
@@ -3355,6 +3366,12 @@ bool Layer::setSidebandStream(const sp<NativeHandle>& sidebandStream) {
 
     mDrawingState.sidebandStream = sidebandStream;
     mDrawingState.modified = true;
+    if (sidebandStream != nullptr && mDrawingState.buffer != nullptr) {
+        releasePreviousBuffer();
+        resetDrawingStateBufferInfo();
+        mDrawingState.bufferSurfaceFrameTX = nullptr;
+        setFrameTimelineVsyncForBufferlessTransaction(info, postTime);
+    }
     setTransactionFlags(eTransactionNeeded);
     if (!mSidebandStreamChanged.exchange(true)) {
         // mSidebandStreamChanged was false

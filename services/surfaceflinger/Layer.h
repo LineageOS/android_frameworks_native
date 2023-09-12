@@ -317,7 +317,8 @@ public:
     bool setHdrMetadata(const HdrMetadata& /*hdrMetadata*/);
     bool setSurfaceDamageRegion(const Region& /*surfaceDamage*/);
     bool setApi(int32_t /*api*/);
-    bool setSidebandStream(const sp<NativeHandle>& /*sidebandStream*/);
+    bool setSidebandStream(const sp<NativeHandle>& /*sidebandStream*/,
+                           const FrameTimelineInfo& /* info*/, nsecs_t /* postTime */);
     bool setTransactionCompletedListeners(const std::vector<sp<CallbackHandle>>& /*handles*/,
                                           bool willPresent);
     virtual bool setBackgroundColor(const half3& color, float alpha, ui::Dataspace dataspace)
@@ -1204,6 +1205,7 @@ private:
     half4 mBorderColor;
 
     void setTransformHintLegacy(ui::Transform::RotationFlags);
+    void releasePreviousBuffer();
     void resetDrawingStateBufferInfo();
 
     // Transform hint provided to the producer. This must be accessed holding
