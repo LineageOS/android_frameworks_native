@@ -110,8 +110,7 @@ public:
         UidUsageBreakdown uidBreakdown;
     };
 
-    virtual void logInputDeviceUsageReported(const InputDeviceIdentifier&,
-                                             const DeviceUsageReport&) = 0;
+    virtual void logInputDeviceUsageReported(const InputDeviceInfo&, const DeviceUsageReport&) = 0;
     virtual ~InputDeviceMetricsLogger() = default;
 };
 
@@ -189,7 +188,7 @@ private:
     std::map<DeviceId, ActiveSession> mActiveUsageSessions;
 
     void onInputDevicesChanged(const std::vector<InputDeviceInfo>& infos);
-    void onInputDeviceRemoved(DeviceId deviceId, const InputDeviceIdentifier& identifier);
+    void onInputDeviceRemoved(DeviceId deviceId, const InputDeviceInfo& info);
     using SourceProvider = std::function<std::set<InputDeviceUsageSource>(const InputDeviceInfo&)>;
     void onInputDeviceUsage(DeviceId deviceId, std::chrono::nanoseconds eventTime,
                             const SourceProvider& getSources);

@@ -125,7 +125,13 @@ void gestureInterpreterCallback(void* clientData, const Gesture* gesture) {
     mapper->consumeGesture(gesture);
 }
 
-int32_t linuxBusToInputDeviceBusEnum(int32_t linuxBus) {
+int32_t linuxBusToInputDeviceBusEnum(int32_t linuxBus, bool isUsiStylus) {
+    if (isUsiStylus) {
+        // This is a stylus connected over the Universal Stylus Initiative (USI) protocol.
+        // For metrics purposes, we treat this protocol as a separate bus.
+        return util::INPUT_DEVICE_USAGE_REPORTED__DEVICE_BUS__USI;
+    }
+
     // When adding cases to this switch, also add them to the copy of this method in
     // InputDeviceMetricsCollector.cpp.
     // TODO(b/286394420): deduplicate this method with the one in InputDeviceMetricsCollector.cpp.
@@ -199,8 +205,8 @@ private:
         for (auto& [id, counters] : mCounters) {
             auto [busId, vendorId, productId, versionId] = id;
             addAStatsEvent(outEventList, android::util::TOUCHPAD_USAGE, vendorId, productId,
-                           versionId, linuxBusToInputDeviceBusEnum(busId), counters.fingers,
-                           counters.palms, counters.twoFingerSwipeGestures,
+                           versionId, linuxBusToInputDeviceBusEnum(busId, /*isUsi=*/false),
+                           counters.fingers, counters.palms, counters.twoFingerSwipeGestures,
                            counters.threeFingerSwipeGestures, counters.fourFingerSwipeGestures,
                            counters.pinchGestures);
         }
