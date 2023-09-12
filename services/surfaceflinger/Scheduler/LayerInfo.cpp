@@ -292,6 +292,8 @@ LayerInfo::RefreshRateVotes LayerInfo::getRefreshRateVote(const RefreshRateSelec
 
     if (mLayerVote.type != LayerHistory::LayerVoteType::Heuristic) {
         if (mLayerVote.category != FrameRateCategory::Default) {
+            ATRACE_FORMAT_INSTANT("ExplicitCategory (%s)",
+                                  ftl::enum_string(mLayerVote.category).c_str());
             ALOGV("%s uses frame rate category: %d", mName.c_str(),
                   static_cast<int>(mLayerVote.category));
             votes.push_back({LayerHistory::LayerVoteType::ExplicitCategory, Fps(),
@@ -300,6 +302,7 @@ LayerInfo::RefreshRateVotes LayerInfo::getRefreshRateVote(const RefreshRateSelec
 
         if (mLayerVote.fps.isValid() ||
             mLayerVote.type != LayerHistory::LayerVoteType::ExplicitDefault) {
+            ATRACE_FORMAT_INSTANT("Vote %s", ftl::enum_string(mLayerVote.type).c_str());
             ALOGV("%s voted %d ", mName.c_str(), static_cast<int>(mLayerVote.type));
             votes.push_back(mLayerVote);
         }
@@ -341,11 +344,13 @@ LayerInfo::RefreshRateVotes LayerInfo::getRefreshRateVote(const RefreshRateSelec
 
     auto refreshRate = calculateRefreshRateIfPossible(selector, now);
     if (refreshRate.has_value()) {
+        ATRACE_FORMAT_INSTANT("calculated (%s)", to_string(*refreshRate).c_str());
         ALOGV("%s calculated refresh rate: %s", mName.c_str(), to_string(*refreshRate).c_str());
         votes.push_back({LayerHistory::LayerVoteType::Heuristic, refreshRate.value()});
         return votes;
     }
 
+    ATRACE_FORMAT_INSTANT("Max (can't resolve refresh rate)");
     ALOGV("%s Max (can't resolve refresh rate)", mName.c_str());
     votes.push_back({LayerHistory::LayerVoteType::Max, Fps()});
     return votes;
