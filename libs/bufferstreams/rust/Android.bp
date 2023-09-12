@@ -12,13 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+rust_defaults {
+    name: "libbufferstreams_defaults",
+    srcs: ["src/lib.rs"],
+    rustlibs: [
+        "libnativewindow_rs",
+    ],
+    edition: "2021",
+}
+
 rust_library {
     name: "libbufferstreams",
     crate_name: "bufferstreams",
-    srcs: ["src/lib.rs"],
-    edition: "2021",
-    rlibs: [
-        "libnativewindow_rs",
-    ],
+    defaults: ["libbufferstreams_defaults"],
     min_sdk_version: "30",
+}
+
+rust_test {
+    name: "libbufferstreams-internal_test",
+    crate_name: "bufferstreams",
+    defaults: ["libbufferstreams_defaults"],
+    test_suites: ["general-tests"],
 }

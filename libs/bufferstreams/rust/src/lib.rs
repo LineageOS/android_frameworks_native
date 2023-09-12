@@ -14,6 +14,10 @@
 
 //! libbufferstreams: Reactive Streams for Graphics Buffers
 
+mod stream_config;
+
+pub use stream_config::*;
+
 use nativewindow::*;
 use std::sync::{Arc, Weak};
 use std::time::Instant;
@@ -50,6 +54,8 @@ pub extern "C" fn hello() -> bool {
 /// *  A Publisher MAY support multiple Subscribers and decides whether each
 /// Subscription is unicast or multicast.
 pub trait BufferPublisher {
+    /// Returns the StreamConfig of buffers that publisher creates.
+    fn get_publisher_stream_config(&self) -> StreamConfig;
     /// This function will create the subscription between the publisher and
     /// the subscriber.
     fn subscribe(&self, subscriber: Weak<dyn BufferSubscriber>);
@@ -82,6 +88,8 @@ pub trait BufferPublisher {
 /// *   A Publisher MAY support multiple Subscribers and decides whether each
 /// Subscription is unicast or multicast.
 pub trait BufferSubscriber {
+    /// The StreamConfig of buffers that this subscriber expects.
+    fn get_subscriber_stream_config(&self) -> StreamConfig;
     /// This function will be called at the beginning of the subscription.
     fn on_subscribe(&self, subscription: Arc<dyn BufferSubscription>);
     /// This function will be called for buffer that comes in.
