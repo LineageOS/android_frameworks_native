@@ -22,6 +22,7 @@
 
 #include <GrBackendSemaphore.h>
 #include <GrContextOptions.h>
+#include <GrTypes.h>
 #include <SkBlendMode.h>
 #include <SkCanvas.h>
 #include <SkColor.h>
@@ -289,12 +290,12 @@ void SkiaRenderEngine::finishRenderingAndAbandonContext() {
     }
 
     if (mGrContext) {
-        mGrContext->flushAndSubmit(true);
+        mGrContext->flushAndSubmit(GrSyncCpu::kYes);
         mGrContext->abandonContext();
     }
 
     if (mProtectedGrContext) {
-        mProtectedGrContext->flushAndSubmit(true);
+        mProtectedGrContext->flushAndSubmit(GrSyncCpu::kYes);
         mProtectedGrContext->abandonContext();
     }
 }
@@ -307,7 +308,7 @@ void SkiaRenderEngine::useProtectedContext(bool useProtectedContext) {
 
     // release any scratch resources before switching into a new mode
     if (getActiveGrContext()) {
-        getActiveGrContext()->purgeUnlockedResources(true);
+        getActiveGrContext()->purgeUnlockedResources(GrPurgeResourceOptions::kScratchResourcesOnly);
     }
 
     // Backend-specific way to switch to protected context
