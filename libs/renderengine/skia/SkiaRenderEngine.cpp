@@ -400,7 +400,10 @@ void SkiaRenderEngine::mapExternalTextureBuffer(const sp<GraphicBuffer>& buffer,
     // simply match the existing behavior for protected buffers.)  We also never cache any
     // buffers while in a protected context.
     const bool isProtectedBuffer = buffer->getUsage() & GRALLOC_USAGE_PROTECTED;
-    if (isProtectedBuffer || isProtected()) {
+    // Don't attempt to map buffers if we're not gpu sampleable. Callers shouldn't send a buffer
+    // over to RenderEngine.
+    const bool isGpuSampleable = buffer->getUsage() & GRALLOC_USAGE_HW_TEXTURE;
+    if (isProtectedBuffer || isProtected() || !isGpuSampleable) {
         return;
     }
     ATRACE_CALL();
