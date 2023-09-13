@@ -69,6 +69,7 @@ filegroup {
         "mapper/gestures/HardwareProperties.cpp",
         "mapper/gestures/HardwareStateConverter.cpp",
         "mapper/gestures/PropertyProvider.cpp",
+        "mapper/gestures/TimerProvider.cpp",
     ],
 }
 

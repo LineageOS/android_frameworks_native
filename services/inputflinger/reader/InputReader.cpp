@@ -946,6 +946,7 @@ void InputReader::dump(std::string& dump) {
         device->dump(dump, eventHubDevStr);
     }
 
+    dump += StringPrintf(INDENT "NextTimeout: %" PRId64 "\n", mNextTimeout);
     dump += INDENT "Configuration:\n";
     dump += INDENT2 "ExcludedDeviceNames: [";
     for (size_t i = 0; i < mConfig.excludedDeviceNames.size(); i++) {

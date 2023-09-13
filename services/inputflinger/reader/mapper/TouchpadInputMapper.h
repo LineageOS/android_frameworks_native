@@ -34,6 +34,7 @@
 #include "gestures/GestureConverter.h"
 #include "gestures/HardwareStateConverter.h"
 #include "gestures/PropertyProvider.h"
+#include "gestures/TimerProvider.h"
 
 #include "include/gestures.h"
 
@@ -56,6 +57,7 @@ public:
                                                     ConfigurationChanges changes) override;
     [[nodiscard]] std::list<NotifyArgs> reset(nsecs_t when) override;
     [[nodiscard]] std::list<NotifyArgs> process(const RawEvent* rawEvent) override;
+    [[nodiscard]] std::list<NotifyArgs> timeoutExpired(nsecs_t when) override;
 
     void consumeGesture(const Gesture* gesture);
 
@@ -80,6 +82,7 @@ private:
     std::shared_ptr<PointerControllerInterface> mPointerController;
 
     PropertyProvider mPropertyProvider;
+    TimerProvider mTimerProvider;
 
     // The MultiTouchMotionAccumulator is shared between the HardwareStateConverter and
     // CapturedTouchpadEventConverter, so that if the touchpad is captured or released while touches
@@ -92,7 +95,6 @@ private:
     CapturedTouchpadEventConverter mCapturedEventConverter;
 
     bool mPointerCaptured = false;
-    bool mProcessing = false;
     bool mResettingInterpreter = false;
     std::vector<Gesture> mGesturesToProcess;
 

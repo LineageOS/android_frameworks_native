@@ -25,6 +25,7 @@
 
 #include <android-base/stringprintf.h>
 #include <android/input.h>
+#include <com_android_input_flags.h>
 #include <ftl/enum.h>
 #include <input/PrintTools.h>
 #include <linux/input-event-codes.h>
@@ -34,7 +35,10 @@
 #include "TouchCursorInputMapperCommon.h"
 #include "TouchpadInputMapper.h"
 #include "gestures/HardwareProperties.h"
+#include "gestures/TimerProvider.h"
 #include "ui/Rotation.h"
+
+namespace input_flags = com::android::input::flags;
 
 namespace android {
 
@@ -238,6 +242,7 @@ TouchpadInputMapper::TouchpadInputMapper(InputDeviceContext& deviceContext,
       : InputMapper(deviceContext, readerConfig),
         mGestureInterpreter(NewGestureInterpreter(), DeleteGestureInterpreter),
         mPointerController(getContext()->getPointerController(getDeviceId())),
+        mTimerProvider(*getContext()),
         mStateConverter(deviceContext, mMotionAccumulator),
         mGestureConverter(*getContext(), deviceContext, getDeviceId()),
         mCapturedEventConverter(*getContext(), deviceContext, mMotionAccumulator, getDeviceId()),
@@ -259,8 +264,12 @@ TouchpadInputMapper::TouchpadInputMapper(InputDeviceContext& deviceContext,
     // 2) TouchpadInputMapper is stored as a unique_ptr and not moved.
     mGestureInterpreter->SetPropProvider(const_cast<GesturesPropProvider*>(&gesturePropProvider),
                                          &mPropertyProvider);
+    if (input_flags::enable_gestures_library_timer_provider()) {
+        mGestureInterpreter->SetTimerProvider(const_cast<GesturesTimerProvider*>(
+                                                      &kGestureTimerProvider),
+                                              &mTimerProvider);
+    }
     mGestureInterpreter->SetCallback(gestureInterpreterCallback, this);
-    // TODO(b/251196347): set a timer provider, so the library can use timers.
 }
 
 TouchpadInputMapper::~TouchpadInputMapper() {
@@ -268,14 +277,14 @@ TouchpadInputMapper::~TouchpadInputMapper() {
         mPointerController->fade(PointerControllerInterface::Transition::IMMEDIATE);
     }
 
-    // The gesture interpreter's destructor will call its property provider's free function for all
-    // gesture properties, in this case calling PropertyProvider::freeProperty using a raw pointer
-    // to mPropertyProvider. Depending on the declaration order in TouchpadInputMapper.h, this may
-    // happen after mPropertyProvider has been destructed, causing allocation errors. Depending on
-    // declaration order to avoid crashes seems rather fragile, so explicitly clear the property
-    // provider here to ensure all the freeProperty calls happen before mPropertyProvider is
-    // destructed.
+    // The gesture interpreter's destructor will try to free its property and timer providers,
+    // calling PropertyProvider::freeProperty and TimerProvider::freeTimer using a raw pointers.
+    // Depending on the declaration order in TouchpadInputMapper.h, those providers may have already
+    // been freed, causing allocation errors or use-after-free bugs. Depending on declaration order
+    // to avoid this seems rather fragile, so explicitly clear the providers here to ensure all the
+    // freeProperty and freeTimer calls happen before the providers are destructed.
     mGestureInterpreter->SetPropProvider(nullptr, nullptr);
+    mGestureInterpreter->SetTimerProvider(nullptr, nullptr);
 }
 
 uint32_t TouchpadInputMapper::getSources() const {
@@ -293,9 +302,6 @@ void TouchpadInputMapper::populateDeviceInfo(InputDeviceInfo& info) {
 
 void TouchpadInputMapper::dump(std::string& dump) {
     dump += INDENT2 "Touchpad Input Mapper:\n";
-    if (mProcessing) {
-        dump += INDENT3 "Currently processing a hardware state\n";
-    }
     if (mResettingInterpreter) {
         dump += INDENT3 "Currently resetting gesture interpreter\n";
     }
@@ -304,6 +310,12 @@ void TouchpadInputMapper::dump(std::string& dump) {
     dump += addLinePrefix(mGestureConverter.dump(), INDENT4);
     dump += INDENT3 "Gesture properties:\n";
     dump += addLinePrefix(mPropertyProvider.dump(), INDENT4);
+    if (input_flags::enable_gestures_library_timer_provider()) {
+        dump += INDENT3 "Timer provider:\n";
+        dump += addLinePrefix(mTimerProvider.dump(), INDENT4);
+    } else {
+        dump += INDENT3 "Timer provider: disabled by flag\n";
+    }
     dump += INDENT3 "Captured event converter:\n";
     dump += addLinePrefix(mCapturedEventConverter.dump(), INDENT4);
     dump += StringPrintf(INDENT3 "DisplayId: %s\n", toString(mDisplayId).c_str());
@@ -449,11 +461,16 @@ void TouchpadInputMapper::updatePalmDetectionMetrics() {
 std::list<NotifyArgs> TouchpadInputMapper::sendHardwareState(nsecs_t when, nsecs_t readTime,
                                                              SelfContainedHardwareState schs) {
     ALOGD_IF(DEBUG_TOUCHPAD_GESTURES, "New hardware state: %s", schs.state.String().c_str());
-    mProcessing = true;
     mGestureInterpreter->PushHardwareState(&schs.state);
-    mProcessing = false;
-
     return processGestures(when, readTime);
+}
+
+std::list<NotifyArgs> TouchpadInputMapper::timeoutExpired(nsecs_t when) {
+    if (!input_flags::enable_gestures_library_timer_provider()) {
+        return {};
+    }
+    mTimerProvider.triggerCallbacks(when);
+    return processGestures(when, when);
 }
 
 void TouchpadInputMapper::consumeGesture(const Gesture* gesture) {
@@ -461,10 +478,6 @@ void TouchpadInputMapper::consumeGesture(const Gesture* gesture) {
     if (mResettingInterpreter) {
         // We already handle tidying up fake fingers etc. in GestureConverter::reset, so we should
         // ignore any gestures produced from the interpreter while we're resetting it.
-        return;
-    }
-    if (!mProcessing) {
-        ALOGE("Received gesture outside of the normal processing flow; ignoring it.");
         return;
     }
     mGesturesToProcess.push_back(*gesture);

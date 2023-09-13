@@ -20,3 +20,10 @@ flag {
   description: "Set to true to enable PointerChoreographer: the new pipeline for showing pointer icons"
   bug: "293587049"
 }
+
+flag {
+  name: "enable_gestures_library_timer_provider"
+  namespace: "input"
+  description: "Set to true to enable timer support for the touchpad Gestures library"
+  bug: "297192727"
+}
