@@ -140,18 +140,6 @@ cc_test {
         "libgtest",
     ],
     sanitize: {
-        // By using the address sanitizer, we not only uncover any issues
-        // with the test, but also any issues with the code under test.
-        //
-        // Note: If you get an runtime link error like:
-        //
-        //   CANNOT LINK EXECUTABLE "/data/local/tmp/libcompositionengine_test": library "libclang_rt.asan-aarch64-android.so" not found
-        //
-        // it is because the address sanitizer shared objects are not installed
-        // by default in the system image.
-        //
-        // You can either "make dist tests" before flashing, or set this
-        // option to false temporarily.
-        address: true,
+        hwaddress: true,
     },
 }
