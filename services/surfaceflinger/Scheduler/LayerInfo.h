@@ -73,7 +73,7 @@ public:
         FrameRateCategory category = FrameRateCategory::Default;
 
         // Returns true if the layer explicitly should contribute to frame rate scoring.
-        bool isNoVote() const { return RefreshRateSelector::isNoVote(type, category); }
+        bool isNoVote() const { return RefreshRateSelector::isNoVote(type); }
     };
 
     using RefreshRateVotes = ftl::SmallVector<LayerInfo::LayerVote, 2>;

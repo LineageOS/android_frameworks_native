@@ -599,7 +599,8 @@ auto RefreshRateSelector::getRankedFrameRatesLocked(const std::vector<LayerRequi
               layer.name.c_str(), ftl::enum_string(layer.vote).c_str(), layer.weight,
               layer.desiredRefreshRate.getValue(),
               ftl::enum_string(layer.frameRateCategory).c_str());
-        if (layer.isNoVote() || layer.vote == LayerVoteType::Min) {
+        if (layer.isNoVote() || layer.frameRateCategory == FrameRateCategory::NoPreference ||
+            layer.vote == LayerVoteType::Min) {
             continue;
         }
 

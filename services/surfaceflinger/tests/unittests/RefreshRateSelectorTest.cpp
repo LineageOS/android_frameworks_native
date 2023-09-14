@@ -1410,11 +1410,6 @@ TEST_P(RefreshRateSelectorTest, touchConsidered) {
 TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_withFrameRateCategory_30_60_90_120) {
     auto selector = createSelector(makeModes(kMode30, kMode60, kMode90, kMode120), kModeId60);
 
-    std::vector<LayerRequirement> layers = {{.vote = LayerVoteType::ExplicitDefault, .weight = 1.f},
-                                            {.vote = LayerVoteType::ExplicitCategory,
-                                             .weight = 1.f}};
-    auto& lr = layers[0];
-
     struct Case {
         // Params
         Fps desiredFrameRate = 0_Hz;
@@ -1431,7 +1426,7 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_withFrameRateCategory_30_60
             {0_Hz, FrameRateCategory::High, 90_Hz},
             {0_Hz, FrameRateCategory::Normal, 60_Hz},
             {0_Hz, FrameRateCategory::Low, 30_Hz},
-            {0_Hz, FrameRateCategory::NoPreference, 60_Hz},
+            {0_Hz, FrameRateCategory::NoPreference, 30_Hz},
 
             // Cases that have both desired frame rate and frame rate category requirements.
             {24_Hz, FrameRateCategory::High, 120_Hz},
@@ -1444,33 +1439,40 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_withFrameRateCategory_30_60
     };
 
     for (auto testCase : testCases) {
+        std::vector<LayerRequirement> layers;
         ALOGI("**** %s: Testing desiredFrameRate=%s, frameRateCategory=%s", __func__,
               to_string(testCase.desiredFrameRate).c_str(),
               ftl::enum_string(testCase.frameRateCategory).c_str());
 
-        lr.desiredRefreshRate = testCase.desiredFrameRate;
-
-        std::stringstream ss;
-        ss << to_string(testCase.desiredFrameRate)
-           << ", category=" << ftl::enum_string(testCase.frameRateCategory);
-        lr.name = ss.str();
+        if (testCase.desiredFrameRate.isValid()) {
+            std::stringstream ss;
+            ss << to_string(testCase.desiredFrameRate) << "ExplicitDefault";
+            LayerRequirement layer = {.name = ss.str(),
+                                      .vote = LayerVoteType::ExplicitDefault,
+                                      .desiredRefreshRate = testCase.desiredFrameRate,
+                                      .weight = 1.f};
+            layers.push_back(layer);
+        }
 
         if (testCase.frameRateCategory != FrameRateCategory::Default) {
-            layers[1].frameRateCategory = testCase.frameRateCategory;
+            std::stringstream ss;
+            ss << "ExplicitCategory (" << ftl::enum_string(testCase.frameRateCategory) << ")";
+            LayerRequirement layer = {.name = ss.str(),
+                                      .vote = LayerVoteType::ExplicitCategory,
+                                      .frameRateCategory = testCase.frameRateCategory,
+                                      .weight = 1.f};
+            layers.push_back(layer);
         }
 
         EXPECT_EQ(testCase.expectedFrameRate, selector.getBestFrameRateMode(layers)->getPeakFps())
-                << "did not get expected frame rate for " << lr.name;
+                << "Did not get expected frame rate for frameRate="
+                << to_string(testCase.desiredFrameRate)
+                << " category=" << ftl::enum_string(testCase.frameRateCategory);
     }
 }
 
 TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_withFrameRateCategory_60_120) {
     auto selector = createSelector(makeModes(kMode60, kMode120), kModeId60);
-
-    std::vector<LayerRequirement> layers = {{.vote = LayerVoteType::ExplicitDefault, .weight = 1.f},
-                                            {.vote = LayerVoteType::ExplicitCategory,
-                                             .weight = 1.f}};
-    auto& lr = layers[0];
 
     struct Case {
         // Params
@@ -1501,23 +1503,35 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_withFrameRateCategory_60_12
     };
 
     for (auto testCase : testCases) {
+        std::vector<LayerRequirement> layers;
         ALOGI("**** %s: Testing desiredFrameRate=%s, frameRateCategory=%s", __func__,
               to_string(testCase.desiredFrameRate).c_str(),
               ftl::enum_string(testCase.frameRateCategory).c_str());
 
-        lr.desiredRefreshRate = testCase.desiredFrameRate;
-
-        std::stringstream ss;
-        ss << to_string(testCase.desiredFrameRate)
-           << ", category=" << ftl::enum_string(testCase.frameRateCategory);
-        lr.name = ss.str();
+        if (testCase.desiredFrameRate.isValid()) {
+            std::stringstream ss;
+            ss << to_string(testCase.desiredFrameRate) << "ExplicitDefault";
+            LayerRequirement layer = {.name = ss.str(),
+                                      .vote = LayerVoteType::ExplicitDefault,
+                                      .desiredRefreshRate = testCase.desiredFrameRate,
+                                      .weight = 1.f};
+            layers.push_back(layer);
+        }
 
         if (testCase.frameRateCategory != FrameRateCategory::Default) {
-            layers[1].frameRateCategory = testCase.frameRateCategory;
+            std::stringstream ss;
+            ss << "ExplicitCategory (" << ftl::enum_string(testCase.frameRateCategory) << ")";
+            LayerRequirement layer = {.name = ss.str(),
+                                      .vote = LayerVoteType::ExplicitCategory,
+                                      .frameRateCategory = testCase.frameRateCategory,
+                                      .weight = 1.f};
+            layers.push_back(layer);
         }
 
         EXPECT_EQ(testCase.expectedFrameRate, selector.getBestFrameRateMode(layers)->getPeakFps())
-                << "did not get expected frame rate for " << lr.name;
+                << "Did not get expected frame rate for frameRate="
+                << to_string(testCase.desiredFrameRate)
+                << " category=" << ftl::enum_string(testCase.frameRateCategory);
     }
 }
 
