@@ -372,6 +372,17 @@ protected:
         mLifecycleManager.applyTransactions(transactions);
     }
 
+    void setBufferCrop(uint32_t id, const Rect& bufferCrop) {
+        std::vector<TransactionState> transactions;
+        transactions.emplace_back();
+        transactions.back().states.push_back({});
+
+        transactions.back().states.front().state.what = layer_state_t::eBufferCropChanged;
+        transactions.back().states.front().layerId = id;
+        transactions.back().states.front().state.bufferCrop = bufferCrop;
+        mLifecycleManager.applyTransactions(transactions);
+    }
+
     void setDataspace(uint32_t id, ui::Dataspace dataspace) {
         std::vector<TransactionState> transactions;
         transactions.emplace_back();
