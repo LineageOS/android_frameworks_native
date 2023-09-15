@@ -7814,10 +7814,9 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
                     displayBrightnessNits = std::min(sdrWhitePointNits * kMaxScreenshotHeadroom,
                                                      displayBrightnessNits);
                 }
-
-                if (requestedDataspace == ui::Dataspace::UNKNOWN) {
-                    renderIntent = state.renderIntent;
-                }
+            }
+            if (requestedDataspace == ui::Dataspace::UNKNOWN) {
+                renderIntent = state.renderIntent;
             }
         }
     }
