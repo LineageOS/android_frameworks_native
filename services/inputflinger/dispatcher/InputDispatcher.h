@@ -598,8 +598,8 @@ private:
     void abortBrokenDispatchCycleLocked(nsecs_t currentTime,
                                         const std::shared_ptr<Connection>& connection, bool notify)
             REQUIRES(mLock);
-    void drainDispatchQueue(std::deque<DispatchEntry*>& queue);
-    void releaseDispatchEntry(DispatchEntry* dispatchEntry);
+    void drainDispatchQueue(std::deque<std::unique_ptr<DispatchEntry>>& queue);
+    void releaseDispatchEntry(std::unique_ptr<DispatchEntry> dispatchEntry);
     int handleReceiveCallback(int events, sp<IBinder> connectionToken);
     // The action sent should only be of type AMOTION_EVENT_*
     void dispatchPointerDownOutsideFocus(uint32_t source, int32_t action,
@@ -664,10 +664,10 @@ private:
             REQUIRES(mLock);
     std::map<int32_t /*displayId*/, InputVerifier> mVerifiersByDisplay;
     bool afterKeyEventLockedInterruptable(const std::shared_ptr<Connection>& connection,
-                                          DispatchEntry* dispatchEntry, KeyEntry& keyEntry,
+                                          DispatchEntry& dispatchEntry, KeyEntry& keyEntry,
                                           bool handled) REQUIRES(mLock);
     bool afterMotionEventLockedInterruptable(const std::shared_ptr<Connection>& connection,
-                                             DispatchEntry* dispatchEntry, MotionEntry& motionEntry,
+                                             DispatchEntry& dispatchEntry, MotionEntry& motionEntry,
                                              bool handled) REQUIRES(mLock);
 
     // Find touched state and touched window by token.
