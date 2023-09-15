@@ -466,12 +466,18 @@ Rect RequestedLayerState::getCroppedBufferSize(const Rect& bufferSize) const {
 Rect RequestedLayerState::getBufferCrop() const {
     // this is the crop rectangle that applies to the buffer
     // itself (as opposed to the window)
-    if (!bufferCrop.isEmpty()) {
-        // if the buffer crop is defined, we use that
-        return bufferCrop;
+    if (!bufferCrop.isEmpty() && externalTexture != nullptr) {
+        // if the buffer crop is defined and there's a valid buffer, intersect buffer size and crop
+        // since the crop should never exceed the size of the buffer.
+        Rect sizeAndCrop;
+        externalTexture->getBounds().intersect(bufferCrop, &sizeAndCrop);
+        return sizeAndCrop;
     } else if (externalTexture != nullptr) {
         // otherwise we use the whole buffer
         return externalTexture->getBounds();
+    } else if (!bufferCrop.isEmpty()) {
+        // if the buffer crop is defined, we use that
+        return bufferCrop;
     } else {
         // if we don't have a buffer yet, we use an empty/invalid crop
         return Rect();

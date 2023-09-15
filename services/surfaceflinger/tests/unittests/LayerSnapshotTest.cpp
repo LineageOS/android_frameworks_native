@@ -802,4 +802,33 @@ TEST_F(LayerSnapshotTest, setRefreshRateIndicatorCompositionType) {
               aidl::android::hardware::graphics::composer3::Composition::REFRESH_RATE_INDICATOR);
 }
 
+TEST_F(LayerSnapshotTest, setBufferCrop) {
+    // validate no buffer but has crop
+    Rect crop = Rect(0, 0, 50, 50);
+    setBufferCrop(1, crop);
+    UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
+    EXPECT_EQ(getSnapshot(1)->geomContentCrop, crop);
+
+    setBuffer(1,
+              std::make_shared<renderengine::mock::FakeExternalTexture>(100U /*width*/,
+                                                                        100U /*height*/,
+                                                                        42ULL /* bufferId */,
+                                                                        HAL_PIXEL_FORMAT_RGBA_8888,
+                                                                        0 /*usage*/));
+    // validate a buffer crop within the buffer bounds
+    setBufferCrop(1, crop);
+    UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
+    EXPECT_EQ(getSnapshot(1)->geomContentCrop, crop);
+
+    // validate a buffer crop outside the buffer bounds
+    crop = Rect(0, 0, 150, 150);
+    setBufferCrop(1, crop);
+    UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
+    EXPECT_EQ(getSnapshot(1)->geomContentCrop, Rect(0, 0, 100, 100));
+
+    // validate no buffer crop
+    setBufferCrop(1, Rect());
+    UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
+    EXPECT_EQ(getSnapshot(1)->geomContentCrop, Rect(0, 0, 100, 100));
+}
 } // namespace android::surfaceflinger::frontend
