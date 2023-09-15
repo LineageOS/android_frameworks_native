@@ -5820,6 +5820,20 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args, bool asProto) {
         StringAppendF(&result, "Permission Denial: can't dump SurfaceFlinger from pid=%d, uid=%d\n",
                       pid, uid);
     } else {
+        Dumper hwclayersDump = [this](const DumpArgs&, bool, std::string& result)
+                                       FTL_FAKE_GUARD(mStateLock) -> void const {
+            if (mLayerLifecycleManagerEnabled) {
+                mScheduler
+                        ->schedule([this, &result]() FTL_FAKE_GUARD(kMainThreadContext)
+                                           FTL_FAKE_GUARD(mStateLock) {
+                                               dumpHwcLayersMinidump(result);
+                                           })
+                        .get();
+            } else {
+                dumpHwcLayersMinidumpLockedLegacy(result);
+            }
+        };
+
         static const std::unordered_map<std::string, Dumper> dumpers = {
                 {"--comp-displays"s, dumper(&SurfaceFlinger::dumpCompositionDisplays)},
                 {"--display-id"s, dumper(&SurfaceFlinger::dumpDisplayIdentificationData)},
@@ -5828,7 +5842,7 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args, bool asProto) {
                 {"--events"s, dumper(&SurfaceFlinger::dumpEvents)},
                 {"--frametimeline"s, argsDumper(&SurfaceFlinger::dumpFrameTimeline)},
                 {"--hdrinfo"s, dumper(&SurfaceFlinger::dumpHdrInfo)},
-                {"--hwclayers"s, dumper(&SurfaceFlinger::dumpHwcLayersMinidumpLockedLegacy)},
+                {"--hwclayers"s, std::move(hwclayersDump)},
                 {"--latency"s, argsDumper(&SurfaceFlinger::dumpStatsLocked)},
                 {"--latency-clear"s, argsDumper(&SurfaceFlinger::clearStatsLocked)},
                 {"--list"s, dumper(&SurfaceFlinger::listLayersLocked)},
