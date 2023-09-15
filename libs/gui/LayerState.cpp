@@ -22,6 +22,7 @@
 #include <android/gui/ISurfaceComposerClient.h>
 #include <android/native_window.h>
 #include <binder/Parcel.h>
+#include <gui/FrameRateUtils.h>
 #include <gui/IGraphicBufferProducer.h>
 #include <gui/LayerState.h>
 #include <gui/SurfaceControl.h>
@@ -861,34 +862,6 @@ status_t InputWindowCommands::read(const Parcel& input) {
     }
 
     return NO_ERROR;
-}
-
-bool ValidateFrameRate(float frameRate, int8_t compatibility, int8_t changeFrameRateStrategy,
-                       const char* inFunctionName, bool privileged) {
-    const char* functionName = inFunctionName != nullptr ? inFunctionName : "call";
-    int floatClassification = std::fpclassify(frameRate);
-    if (frameRate < 0 || floatClassification == FP_INFINITE || floatClassification == FP_NAN) {
-        ALOGE("%s failed - invalid frame rate %f", functionName, frameRate);
-        return false;
-    }
-
-    if (compatibility != ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT &&
-        compatibility != ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_FIXED_SOURCE &&
-        (!privileged ||
-         (compatibility != ANATIVEWINDOW_FRAME_RATE_EXACT &&
-          compatibility != ANATIVEWINDOW_FRAME_RATE_NO_VOTE))) {
-        ALOGE("%s failed - invalid compatibility value %d privileged: %s", functionName,
-              compatibility, privileged ? "yes" : "no");
-        return false;
-    }
-
-    if (changeFrameRateStrategy != ANATIVEWINDOW_CHANGE_FRAME_RATE_ONLY_IF_SEAMLESS &&
-        changeFrameRateStrategy != ANATIVEWINDOW_CHANGE_FRAME_RATE_ALWAYS) {
-        ALOGE("%s failed - invalid change frame rate strategy value %d", functionName,
-              changeFrameRateStrategy);
-    }
-
-    return true;
 }
 
 // ----------------------------------------------------------------------------
