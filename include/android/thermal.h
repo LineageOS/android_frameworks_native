@@ -188,13 +188,13 @@ int AThermal_unregisterThermalStatusListener(AThermalManager *manager,
  * Note that this only attempts to track the headroom of slow-moving sensors, such as
  * the skin temperature sensor. This means that there is no benefit to calling this function
  * more frequently than about once per second, and attempted to call significantly
- * more frequently may result in the function returning {@code NaN}.
+ * more frequently may result in the function returning `NaN`.
  *
  * In addition, in order to be able to provide an accurate forecast, the system does
  * not attempt to forecast until it has multiple temperature samples from which to
  * extrapolate. This should only take a few seconds from the time of the first call,
  * but during this time, no forecasting will occur, and the current headroom will be
- * returned regardless of the value of {@code forecastSeconds}.
+ * returned regardless of the value of `forecastSeconds`.
  *
  * The value returned is a non-negative float that represents how much of the thermal envelope
  * is in use (or is forecasted to be in use). A value of 1.0 indicates that the device is
