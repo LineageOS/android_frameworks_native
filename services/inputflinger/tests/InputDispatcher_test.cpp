@@ -4028,6 +4028,61 @@ TEST_F(InputDispatcherTest, MultiplePointersWithRotatingWindow) {
 }
 
 /**
+ * When there are multiple screens, such as screen projection to TV or screen recording, if the
+ * cancel event occurs, the coordinates of the cancel event should be sent to the target screen, and
+ * its coordinates should be converted by the transform of the windows of target screen.
+ */
+TEST_F(InputDispatcherTest, WhenMultiDisplayWindowSameToken_DispatchCancelToTargetDisplay) {
+    // This case will create a window and a spy window on the default display and mirror
+    //  window on the second display. cancel event is sent through spy  window pilferPointers
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+
+    sp<FakeWindowHandle> spyWindowDefaultDisplay =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Spy", ADISPLAY_ID_DEFAULT);
+    spyWindowDefaultDisplay->setTrustedOverlay(true);
+    spyWindowDefaultDisplay->setSpy(true);
+
+    sp<FakeWindowHandle> windowDefaultDisplay =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "DefaultDisplay",
+                                       ADISPLAY_ID_DEFAULT);
+    windowDefaultDisplay->setWindowTransform(1, 0, 0, 1);
+
+    sp<FakeWindowHandle> windowSecondDisplay =
+            windowDefaultDisplay->clone(application, mDispatcher, SECOND_DISPLAY_ID);
+    windowSecondDisplay->setWindowTransform(2, 0, 0, 2);
+
+    // Add the windows to the dispatcher
+    mDispatcher->onWindowInfosChanged(
+            {{*spyWindowDefaultDisplay->getInfo(), *windowDefaultDisplay->getInfo(),
+              *windowSecondDisplay->getInfo()},
+             {},
+             0,
+             0});
+
+    // Send down to ADISPLAY_ID_DEFAULT
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionDown(mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+                               {100, 100}))
+            << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
+
+    spyWindowDefaultDisplay->consumeMotionDown();
+    windowDefaultDisplay->consumeMotionDown();
+
+    EXPECT_EQ(OK, mDispatcher->pilferPointers(spyWindowDefaultDisplay->getToken()));
+
+    // windowDefaultDisplay gets cancel
+    MotionEvent* event = windowDefaultDisplay->consumeMotion();
+    EXPECT_EQ(AMOTION_EVENT_ACTION_CANCEL, event->getAction());
+
+    // The cancel event is sent to windowDefaultDisplay of the ADISPLAY_ID_DEFAULT display, so the
+    // coordinates of the cancel are converted by windowDefaultDisplay's transform, the x and y
+    // coordinates are both 100, otherwise if the cancel event is sent to windowSecondDisplay of
+    // SECOND_DISPLAY_ID, the x and y coordinates are 200
+    EXPECT_EQ(100, event->getX(0));
+    EXPECT_EQ(100, event->getY(0));
+}
+
+/**
  * Ensure the correct coordinate spaces are used by InputDispatcher.
  *
  * InputDispatcher works in the display space, so its coordinate system is relative to the display
