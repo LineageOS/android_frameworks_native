@@ -3957,8 +3957,13 @@ void InputDispatcher::synthesizeCancelationEventsForConnectionLocked(
             << connection->getInputChannelName().c_str() << reason << LOG_ID_EVENTS;
 
     InputTarget target;
-    sp<WindowInfoHandle> windowHandle =
-            getWindowHandleLocked(connection->inputChannel->getConnectionToken());
+    sp<WindowInfoHandle> windowHandle;
+    if (options.displayId) {
+        windowHandle = getWindowHandleLocked(connection->inputChannel->getConnectionToken(),
+                                             options.displayId.value());
+    } else {
+        windowHandle = getWindowHandleLocked(connection->inputChannel->getConnectionToken());
+    }
     if (windowHandle != nullptr) {
         const WindowInfo* windowInfo = windowHandle->getInfo();
         target.setDefaultPointerTransform(windowInfo->transform);
