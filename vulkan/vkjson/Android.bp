@@ -7,8 +7,19 @@ package {
     default_applicable_licenses: ["frameworks_native_license"],
 }
 
-cc_library_shared {
+cc_defaults {
+    name: "libvkjson_deps",
+    shared_libs: [
+        "libjsoncpp",
+        "libvulkan",
+    ],
+}
+
+cc_library_static {
     name: "libvkjson",
+    defaults: [
+        "libvkjson_deps",
+    ],
     srcs: [
         "vkjson.cc",
         "vkjson_instance.cc",
@@ -23,10 +34,6 @@ cc_library_shared {
     ],
     export_include_dirs: [
         ".",
-    ],
-    shared_libs: [
-        "libjsoncpp",
-        "libvulkan",
     ],
     export_shared_lib_headers: [
         "libvulkan",
