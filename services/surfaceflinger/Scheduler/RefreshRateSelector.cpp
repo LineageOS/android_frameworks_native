@@ -905,7 +905,8 @@ auto RefreshRateSelector::getFrameRateOverrides(const std::vector<LayerRequireme
         }
 
         for (const auto& layer : layersWithSameUid) {
-            if (layer->vote == LayerVoteType::NoVote || layer->vote == LayerVoteType::Min) {
+            if (layer->isNoVote() || layer->frameRateCategory == FrameRateCategory::NoPreference ||
+                layer->vote == LayerVoteType::Min) {
                 continue;
             }
 
