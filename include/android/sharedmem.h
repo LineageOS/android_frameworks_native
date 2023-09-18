@@ -53,7 +53,7 @@ extern "C" {
 /**
  * Create a shared memory region.
  *
- * Create shared memory region and returns an file descriptor.  The resulting file descriptor can be
+ * Create shared memory region and returns a file descriptor.  The resulting file descriptor can be
  * mmap'ed to process memory space with PROT_READ | PROT_WRITE | PROT_EXEC. Access to shared memory
  * region can be restricted with {@link ASharedMemory_setProt}.
  *
@@ -65,7 +65,7 @@ extern "C" {
  * cmsg(3) man pages for more information.
  *
  * If you intend to share this file descriptor with a child process after
- * calling exec(3), note that you will need to use fcntl(2) with FD_SETFD
+ * calling exec(3), note that you will need to use fcntl(2) with F_SETFD
  * to clear the FD_CLOEXEC flag for this to work on all versions of Android.
  *
  * Available since API level 26.
