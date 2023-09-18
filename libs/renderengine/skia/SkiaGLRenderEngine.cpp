@@ -24,6 +24,7 @@
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 #include <GrContextOptions.h>
+#include <GrTypes.h>
 #include <android-base/stringprintf.h>
 #include <gl/GrGLInterface.h>
 #include <gui/TraceUtils.h>
@@ -338,7 +339,8 @@ base::unique_fd SkiaGLRenderEngine::flushAndSubmit(GrDirectContext* grContext) {
     } else {
         ATRACE_BEGIN("Submit(sync=false)");
     }
-    bool success = grContext->submit(requireSync);
+    bool success = grContext->submit(requireSync ? GrSyncCpu::kYes :
+                                                   GrSyncCpu::kNo);
     ATRACE_END();
     if (!success) {
         ALOGE("Failed to flush RenderEngine commands");
