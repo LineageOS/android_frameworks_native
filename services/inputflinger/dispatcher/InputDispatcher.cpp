@@ -5918,14 +5918,16 @@ status_t InputDispatcher::pilferPointers(const sp<IBinder>& token) {
 status_t InputDispatcher::pilferPointersLocked(const sp<IBinder>& token) {
     const std::shared_ptr<InputChannel> requestingChannel = getInputChannelLocked(token);
     if (!requestingChannel) {
-        ALOGW("Attempted to pilfer pointers from an un-registered channel or invalid token");
+        LOG(WARNING)
+                << "Attempted to pilfer pointers from an un-registered channel or invalid token";
         return BAD_VALUE;
     }
 
     auto [statePtr, windowPtr, displayId] = findTouchStateWindowAndDisplayLocked(token);
     if (statePtr == nullptr || windowPtr == nullptr) {
-        ALOGW("Attempted to pilfer points from a channel without any on-going pointer streams."
-              " Ignoring.");
+        LOG(WARNING)
+                << "Attempted to pilfer points from a channel without any on-going pointer streams."
+                   " Ignoring.";
         return BAD_VALUE;
     }
     std::set<int32_t> deviceIds = windowPtr->getTouchingDeviceIds();
@@ -5934,36 +5936,38 @@ status_t InputDispatcher::pilferPointersLocked(const sp<IBinder>& token) {
                      << " in window: " << windowPtr->dump();
         return BAD_VALUE;
     }
-    const int32_t deviceId = *deviceIds.begin();
 
-    TouchState& state = *statePtr;
-    TouchedWindow& window = *windowPtr;
-    // Send cancel events to all the input channels we're stealing from.
-    CancelationOptions options(CancelationOptions::Mode::CANCEL_POINTER_EVENTS,
-                               "input channel stole pointer stream");
-    options.deviceId = deviceId;
-    options.displayId = displayId;
-    std::bitset<MAX_POINTER_ID + 1> pointerIds = window.getTouchingPointers(deviceId);
-    options.pointerIds = pointerIds;
-    std::string canceledWindows;
-    for (const TouchedWindow& w : state.windows) {
-        const std::shared_ptr<InputChannel> channel =
-                getInputChannelLocked(w.windowHandle->getToken());
-        if (channel != nullptr && channel->getConnectionToken() != token) {
-            synthesizeCancelationEventsForInputChannelLocked(channel, options);
-            canceledWindows += canceledWindows.empty() ? "[" : ", ";
-            canceledWindows += channel->getName();
+    for (const DeviceId deviceId : deviceIds) {
+        TouchState& state = *statePtr;
+        TouchedWindow& window = *windowPtr;
+        // Send cancel events to all the input channels we're stealing from.
+        CancelationOptions options(CancelationOptions::Mode::CANCEL_POINTER_EVENTS,
+                                   "input channel stole pointer stream");
+        options.deviceId = deviceId;
+        options.displayId = displayId;
+        std::bitset<MAX_POINTER_ID + 1> pointerIds = window.getTouchingPointers(deviceId);
+        options.pointerIds = pointerIds;
+        std::string canceledWindows;
+        for (const TouchedWindow& w : state.windows) {
+            const std::shared_ptr<InputChannel> channel =
+                    getInputChannelLocked(w.windowHandle->getToken());
+            if (channel != nullptr && channel->getConnectionToken() != token) {
+                synthesizeCancelationEventsForInputChannelLocked(channel, options);
+                canceledWindows += canceledWindows.empty() ? "[" : ", ";
+                canceledWindows += channel->getName();
+            }
         }
+        canceledWindows += canceledWindows.empty() ? "[]" : "]";
+        LOG(INFO) << "Channel " << requestingChannel->getName()
+                  << " is stealing input gesture for device " << deviceId << " from "
+                  << canceledWindows;
+
+        // Prevent the gesture from being sent to any other windows.
+        // This only blocks relevant pointers to be sent to other windows
+        window.addPilferingPointers(deviceId, pointerIds);
+
+        state.cancelPointersForWindowsExcept(deviceId, pointerIds, token);
     }
-    canceledWindows += canceledWindows.empty() ? "[]" : "]";
-    ALOGI("Channel %s is stealing touch from %s", requestingChannel->getName().c_str(),
-          canceledWindows.c_str());
-
-    // Prevent the gesture from being sent to any other windows.
-    // This only blocks relevant pointers to be sent to other windows
-    window.addPilferingPointers(deviceId, pointerIds);
-
-    state.cancelPointersForWindowsExcept(deviceId, pointerIds, token);
     return OK;
 }
 
