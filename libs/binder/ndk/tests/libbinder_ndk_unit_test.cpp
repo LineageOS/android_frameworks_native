@@ -435,7 +435,7 @@ TEST(NdkBinder, GetLazyService) {
 
 TEST(NdkBinder, IsUpdatable) {
     bool isUpdatable = AServiceManager_isUpdatableViaApex("android.hardware.light.ILights/default");
-    EXPECT_EQ(isUpdatable, false);
+    EXPECT_EQ(isUpdatable, true);
 }
 
 TEST(NdkBinder, GetUpdatableViaApex) {
@@ -445,7 +445,7 @@ TEST(NdkBinder, GetUpdatableViaApex) {
             [](const char* apexName, void* context) {
                 *static_cast<std::optional<std::string>*>(context) = apexName;
             });
-    EXPECT_EQ(updatableViaApex, std::nullopt) << *updatableViaApex;
+    EXPECT_NE(updatableViaApex, std::nullopt) << *updatableViaApex;
 }
 
 // This is too slow
