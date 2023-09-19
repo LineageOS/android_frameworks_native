@@ -112,6 +112,15 @@ TEST_F(KeyboardInputMapperUnitTest, AlphanumericKeystrokesWithIMeConnectionHideP
 }
 
 /**
+ * Pointer should still hide if touchpad taps are already disabled
+ */
+TEST_F(KeyboardInputMapperUnitTest, AlphanumericKeystrokesWithTouchpadTapDisabledHidePointer) {
+    mFakePolicy->setIsInputMethodConnectionActive(true);
+    EXPECT_CALL(mMockInputReaderContext, isPreventingTouchpadTaps).WillRepeatedly(Return(true));
+    testPointerVisibilityForKeys({KEY_0, KEY_A}, /* expectVisible= */ false);
+}
+
+/**
  * Pointer visibility should remain unaffected by meta keys even if Input Method Connection is
  * active
  */
