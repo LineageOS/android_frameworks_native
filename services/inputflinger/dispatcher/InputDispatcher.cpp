@@ -4324,9 +4324,9 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs& args) {
                 mVerifiersByDisplay.try_emplace(args.displayId,
                                                 StringPrintf("display %" PRId32, args.displayId));
         Result<void> result =
-                it->second.processMovement(args.deviceId, args.action, args.getPointerCount(),
-                                           args.pointerProperties.data(), args.pointerCoords.data(),
-                                           args.flags);
+                it->second.processMovement(args.deviceId, args.source, args.action,
+                                           args.getPointerCount(), args.pointerProperties.data(),
+                                           args.pointerCoords.data(), args.flags);
         if (!result.ok()) {
             LOG(FATAL) << "Bad stream: " << result.error() << " caused by " << args.dump();
         }

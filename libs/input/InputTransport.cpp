@@ -632,8 +632,8 @@ status_t InputPublisher::publishMotionEvent(
                                 MotionEvent::actionToString(action).c_str()));
     if (verifyEvents()) {
         Result<void> result =
-                mInputVerifier.processMovement(deviceId, action, pointerCount, pointerProperties,
-                                               pointerCoords, flags);
+                mInputVerifier.processMovement(deviceId, source, action, pointerCount,
+                                               pointerProperties, pointerCoords, flags);
         if (!result.ok()) {
             LOG(FATAL) << "Bad stream: " << result.error();
         }
