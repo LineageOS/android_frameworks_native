@@ -85,13 +85,11 @@ static void copyJpegWithoutExif(jr_compressed_ptr pDest,
                                 jr_compressed_ptr pSource,
                                 size_t exif_pos,
                                 size_t exif_size) {
-  memcpy(pDest, pSource, sizeof(jpegr_compressed_struct));
-
   const size_t exif_offset = 4; //exif_pos has 4 bytes offset to the FF sign
   pDest->length = pSource->length - exif_size - exif_offset;
   pDest->data = new uint8_t[pDest->length];
-  std::unique_ptr<uint8_t[]> dest_data;
-  dest_data.reset(reinterpret_cast<uint8_t*>(pDest->data));
+  pDest->maxLength = pDest->length;
+  pDest->colorGamut = pSource->colorGamut;
   memcpy(pDest->data, pSource->data, exif_pos - exif_offset);
   memcpy((uint8_t*)pDest->data + exif_pos - exif_offset,
          (uint8_t*)pSource->data + exif_pos + exif_size,
@@ -1262,13 +1260,13 @@ status_t JpegR::appendGainMap(jr_compressed_ptr primary_jpg_image_ptr,
   if (!decoder.extractEXIF(primary_jpg_image_ptr->data, primary_jpg_image_ptr->length)) {
     return ERROR_JPEGR_DECODE_ERROR;
   }
-  jpegr_exif_struct exif_from_jpg;
-  exif_from_jpg.data = nullptr;
-  exif_from_jpg.length = 0;
-  jpegr_compressed_struct new_jpg_image;
-  new_jpg_image.data = nullptr;
-  new_jpg_image.length = 0;
-  if (decoder.getEXIFPos() != 0) {
+  jpegr_exif_struct exif_from_jpg = {.data = nullptr, .length = 0};
+  jpegr_compressed_struct new_jpg_image = {.data = nullptr,
+                                           .length = 0,
+                                           .maxLength = 0,
+                                           .colorGamut = ULTRAHDR_COLORGAMUT_UNSPECIFIED};
+  std::unique_ptr<uint8_t[]> dest_data;
+  if (decoder.getEXIFPos() >= 0) {
     if (pExif != nullptr) {
       ALOGE("received EXIF from outside while the primary image already contains EXIF");
       return ERROR_JPEGR_INVALID_INPUT_TYPE;
@@ -1277,6 +1275,7 @@ status_t JpegR::appendGainMap(jr_compressed_ptr primary_jpg_image_ptr,
                         primary_jpg_image_ptr,
                         decoder.getEXIFPos(),
                         decoder.getEXIFSize());
+    dest_data.reset(reinterpret_cast<uint8_t*>(new_jpg_image.data));
     exif_from_jpg.data = decoder.getEXIFPtr();
     exif_from_jpg.length = decoder.getEXIFSize();
     pExif = &exif_from_jpg;
