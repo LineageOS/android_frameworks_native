@@ -24,6 +24,7 @@
 #include <stdint.h>
 #include <utils/Timers.h>
 #include <functional>
+#include <ostream>
 #include <string>
 
 namespace android::inputdispatcher {
@@ -188,6 +189,8 @@ struct MotionEntry : EventEntry {
 
     ~MotionEntry() override;
 };
+
+std::ostream& operator<<(std::ostream& out, const MotionEntry& motionEntry);
 
 struct SensorEntry : EventEntry {
     int32_t deviceId;

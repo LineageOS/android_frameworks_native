@@ -256,5 +256,10 @@ std::string TouchedWindow::dump() const {
     return out;
 }
 
+std::ostream& operator<<(std::ostream& out, const TouchedWindow& window) {
+    out << window.dump();
+    return out;
+}
+
 } // namespace inputdispatcher
 } // namespace android

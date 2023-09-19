@@ -17,6 +17,7 @@
 #pragma once
 
 #include <bitset>
+#include <ostream>
 #include <set>
 #include "TouchedWindow.h"
 
@@ -78,6 +79,8 @@ struct TouchState {
             DeviceId deviceId, int32_t pointerId) const;
     std::string dump() const;
 };
+
+std::ostream& operator<<(std::ostream& out, const TouchState& state);
 
 } // namespace inputdispatcher
 } // namespace android
