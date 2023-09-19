@@ -714,6 +714,40 @@ void filterUntrustedTargets(TouchState& touchState, std::vector<InputTarget>& ta
     });
 }
 
+/**
+ * In general, touch should be always split between windows. Some exceptions:
+ * 1. Don't split touch if all of the below is true:
+ *     (a) we have an active pointer down *and*
+ *     (b) a new pointer is going down that's from the same device *and*
+ *     (c) the window that's receiving the current pointer does not support split touch.
+ * 2. Don't split mouse events
+ */
+bool shouldSplitTouch(const TouchState& touchState, const MotionEntry& entry) {
+    if (isFromSource(entry.source, AINPUT_SOURCE_MOUSE)) {
+        // We should never split mouse events
+        return false;
+    }
+    for (const TouchedWindow& touchedWindow : touchState.windows) {
+        if (touchedWindow.windowHandle->getInfo()->isSpy()) {
+            // Spy windows should not affect whether or not touch is split.
+            continue;
+        }
+        if (touchedWindow.windowHandle->getInfo()->supportsSplitTouch()) {
+            continue;
+        }
+        if (touchedWindow.windowHandle->getInfo()->inputConfig.test(
+                    gui::WindowInfo::InputConfig::IS_WALLPAPER)) {
+            // Wallpaper window should not affect whether or not touch is split
+            continue;
+        }
+
+        if (touchedWindow.hasTouchingPointers(entry.deviceId)) {
+            return false;
+        }
+    }
+    return true;
+}
+
 } // namespace
 
 // --- InputDispatcher ---
@@ -2216,40 +2250,6 @@ std::vector<Monitor> InputDispatcher::selectResponsiveMonitorsLocked(
                      return true;
                  });
     return responsiveMonitors;
-}
-
-/**
- * In general, touch should be always split between windows. Some exceptions:
- * 1. Don't split touch is if we have an active pointer down, and a new pointer is going down that's
- *    from the same device, *and* the window that's receiving the current pointer does not support
- *    split touch.
- * 2. Don't split mouse events
- */
-bool InputDispatcher::shouldSplitTouch(const TouchState& touchState,
-                                       const MotionEntry& entry) const {
-    if (isFromSource(entry.source, AINPUT_SOURCE_MOUSE)) {
-        // We should never split mouse events
-        return false;
-    }
-    for (const TouchedWindow& touchedWindow : touchState.windows) {
-        if (touchedWindow.windowHandle->getInfo()->isSpy()) {
-            // Spy windows should not affect whether or not touch is split.
-            continue;
-        }
-        if (touchedWindow.windowHandle->getInfo()->supportsSplitTouch()) {
-            continue;
-        }
-        if (touchedWindow.windowHandle->getInfo()->inputConfig.test(
-                    gui::WindowInfo::InputConfig::IS_WALLPAPER)) {
-            // Wallpaper window should not affect whether or not touch is split
-            continue;
-        }
-
-        if (touchedWindow.hasTouchingPointers(entry.deviceId)) {
-            return false;
-        }
-    }
-    return true;
 }
 
 std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
