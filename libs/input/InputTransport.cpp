@@ -476,8 +476,6 @@ status_t InputChannel::sendMessage(const InputMessage* msg) {
 }
 
 status_t InputChannel::receiveMessage(InputMessage* msg) {
-    ATRACE_NAME_IF(ATRACE_ENABLED(),
-                   StringPrintf("receiveMessage(inputChannel=%s)", mName.c_str()));
     ssize_t nRead;
     do {
         nRead = ::recv(getFd(), msg, sizeof(InputMessage), MSG_DONTWAIT);
