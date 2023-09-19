@@ -39,6 +39,8 @@ class InputMapperUnitTest : public testing::Test {
 protected:
     static constexpr int32_t EVENTHUB_ID = 1;
     static constexpr int32_t DEVICE_ID = END_RESERVED_ID + 1000;
+    static constexpr float INITIAL_CURSOR_X = 400;
+    static constexpr float INITIAL_CURSOR_Y = 240;
     virtual void SetUp() override;
 
     void setupAxis(int axis, bool valid, int32_t min, int32_t max, int32_t resolution);

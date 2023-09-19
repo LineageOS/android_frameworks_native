@@ -27,7 +27,7 @@ using testing::Return;
 void InputMapperUnitTest::SetUp() {
     mFakePointerController = std::make_shared<FakePointerController>();
     mFakePointerController->setBounds(0, 0, 800 - 1, 480 - 1);
-    mFakePointerController->setPosition(400, 240);
+    mFakePointerController->setPosition(INITIAL_CURSOR_X, INITIAL_CURSOR_Y);
 
     EXPECT_CALL(mMockInputReaderContext, getPointerController(DEVICE_ID))
             .WillRepeatedly(Return(mFakePointerController));
