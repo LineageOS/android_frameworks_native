@@ -844,10 +844,16 @@ void OutputLayer::applyDeviceLayerRequest(hal::LayerRequest request) {
 
 bool OutputLayer::needsFiltering() const {
     const auto& state = getState();
-    const auto& displayFrame = state.displayFrame;
     const auto& sourceCrop = state.sourceCrop;
-    return sourceCrop.getHeight() != displayFrame.getHeight() ||
-            sourceCrop.getWidth() != displayFrame.getWidth();
+    auto displayFrameWidth = static_cast<float>(state.displayFrame.getWidth());
+    auto displayFrameHeight = static_cast<float>(state.displayFrame.getHeight());
+
+    if (state.bufferTransform & HAL_TRANSFORM_ROT_90) {
+        std::swap(displayFrameWidth, displayFrameHeight);
+    }
+
+    return sourceCrop.getHeight() != displayFrameHeight ||
+            sourceCrop.getWidth() != displayFrameWidth;
 }
 
 std::optional<LayerFE::LayerSettings> OutputLayer::getOverrideCompositionSettings() const {
