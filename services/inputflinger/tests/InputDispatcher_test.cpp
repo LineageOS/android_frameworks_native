@@ -3349,6 +3349,31 @@ TEST_F(InputDispatcherTest, HoverExitIsSentToRemovedWindow) {
 }
 
 /**
+ * Test that invalid HOVER events sent by accessibility do not cause a fatal crash.
+ */
+TEST_F(InputDispatcherTest, InvalidA11yHoverStreamDoesNotCrash) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> window =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Window", ADISPLAY_ID_DEFAULT);
+    window->setFrame(Rect(0, 0, 1200, 800));
+
+    mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
+
+    mDispatcher->onWindowInfosChanged({{*window->getInfo()}, {}, 0, 0});
+
+    MotionEventBuilder hoverEnterBuilder =
+            MotionEventBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, AINPUT_SOURCE_MOUSE)
+                    .pointer(PointerBuilder(0, ToolType::MOUSE).x(300).y(400))
+                    .addFlag(AMOTION_EVENT_FLAG_IS_ACCESSIBILITY_EVENT);
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionEvent(*mDispatcher, hoverEnterBuilder.build()));
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionEvent(*mDispatcher, hoverEnterBuilder.build()));
+    window->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER));
+    window->consumeMotionEvent(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER));
+}
+
+/**
  * If mouse is hovering when the touch goes down, the hovering should be stopped via HOVER_EXIT.
  */
 TEST_F(InputDispatcherTest, TouchDownAfterMouseHover) {
