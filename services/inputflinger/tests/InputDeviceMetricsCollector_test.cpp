@@ -53,7 +53,7 @@ constexpr uint32_t KEY_SOURCES =
 constexpr int32_t POINTER_1_DOWN =
         AMOTION_EVENT_ACTION_POINTER_DOWN | (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
 
-InputDeviceIdentifier getIdentifier(int32_t id = DEVICE_ID) {
+InputDeviceIdentifier generateTestIdentifier(int32_t id = DEVICE_ID) {
     InputDeviceIdentifier identifier;
     identifier.name = DEVICE_NAME + "_" + std::to_string(id);
     identifier.location = LOCATION;
@@ -69,8 +69,8 @@ InputDeviceInfo generateTestDeviceInfo(int32_t id = DEVICE_ID,
                                        uint32_t sources = TOUCHSCREEN | STYLUS,
                                        bool isAlphabetic = false) {
     auto info = InputDeviceInfo();
-    info.initialize(id, /*generation=*/1, /*controllerNumber=*/1, getIdentifier(id), "alias",
-                    /*isExternal=*/false, /*hasMic=*/false, ADISPLAY_ID_NONE);
+    info.initialize(id, /*generation=*/1, /*controllerNumber=*/1, generateTestIdentifier(id),
+                    "alias", /*isExternal=*/false, /*hasMic=*/false, ADISPLAY_ID_NONE);
     info.addSource(sources);
     info.setKeyboardType(isAlphabetic ? AINPUT_KEYBOARD_TYPE_ALPHABETIC
                                       : AINPUT_KEYBOARD_TYPE_NON_ALPHABETIC);
@@ -81,6 +81,8 @@ const InputDeviceInfo ALPHABETIC_KEYBOARD_INFO =
         generateTestDeviceInfo(DEVICE_ID, KEY_SOURCES, /*isAlphabetic=*/true);
 const InputDeviceInfo NON_ALPHABETIC_KEYBOARD_INFO =
         generateTestDeviceInfo(DEVICE_ID, KEY_SOURCES, /*isAlphabetic=*/false);
+const InputDeviceInfo TOUCHSCREEN_STYLUS_INFO = generateTestDeviceInfo(DEVICE_ID);
+const InputDeviceInfo SECOND_TOUCHSCREEN_STYLUS_INFO = generateTestDeviceInfo(DEVICE_ID_2);
 
 std::set<gui::Uid> uids(std::initializer_list<int32_t> vals) {
     std::set<gui::Uid> set;
@@ -351,12 +353,12 @@ protected:
     TestInputListener mTestListener;
     InputDeviceMetricsCollector mMetricsCollector{mTestListener, *this, USAGE_TIMEOUT};
 
-    void assertUsageLogged(InputDeviceIdentifier identifier, nanoseconds duration,
+    void assertUsageLogged(const InputDeviceInfo& info, nanoseconds duration,
                            std::optional<SourceUsageBreakdown> sourceBreakdown = {},
                            std::optional<UidUsageBreakdown> uidBreakdown = {}) {
         ASSERT_GE(mLoggedUsageSessions.size(), 1u);
-        const auto& [loggedIdentifier, report] = *mLoggedUsageSessions.begin();
-        ASSERT_EQ(identifier, loggedIdentifier);
+        const auto& [loggedInfo, report] = *mLoggedUsageSessions.begin();
+        ASSERT_EQ(info.getIdentifier(), loggedInfo.getIdentifier());
         ASSERT_EQ(duration, report.usageDuration);
         if (sourceBreakdown) {
             ASSERT_EQ(sourceBreakdown, report.sourceBreakdown);
@@ -387,14 +389,14 @@ protected:
     }
 
 private:
-    std::vector<std::tuple<InputDeviceIdentifier, DeviceUsageReport>> mLoggedUsageSessions;
+    std::vector<std::tuple<InputDeviceInfo, DeviceUsageReport>> mLoggedUsageSessions;
     nanoseconds mCurrentTime{TIME};
 
     nanoseconds getCurrentTime() override { return mCurrentTime; }
 
-    void logInputDeviceUsageReported(const InputDeviceIdentifier& identifier,
+    void logInputDeviceUsageReported(const InputDeviceInfo& info,
                                      const DeviceUsageReport& report) override {
-        mLoggedUsageSessions.emplace_back(identifier, report);
+        mLoggedUsageSessions.emplace_back(info, report);
     }
 };
 
@@ -438,7 +440,7 @@ TEST_F(InputDeviceMetricsCollectorTest, DontLogUsageForIgnoredDevices) {
 }
 
 TEST_F(InputDeviceMetricsCollectorTest, LogsSingleEventUsageSession) {
-    mMetricsCollector.notifyInputDevicesChanged({/*id=*/0, {generateTestDeviceInfo()}});
+    mMetricsCollector.notifyInputDevicesChanged({/*id=*/0, {TOUCHSCREEN_STYLUS_INFO}});
 
     // Device was used.
     mMetricsCollector.notifyMotion(generateMotionArgs(DEVICE_ID));
@@ -448,11 +450,11 @@ TEST_F(InputDeviceMetricsCollectorTest, LogsSingleEventUsageSession) {
     setCurrentTime(TIME + USAGE_TIMEOUT);
     mMetricsCollector.notifyMotion(generateMotionArgs(DEVICE_ID));
     // The usage session has zero duration because it consisted of only one event.
-    ASSERT_NO_FATAL_FAILURE(assertUsageLogged(getIdentifier(), 0ns));
+    ASSERT_NO_FATAL_FAILURE(assertUsageLogged(TOUCHSCREEN_STYLUS_INFO, 0ns));
 }
 
 TEST_F(InputDeviceMetricsCollectorTest, LogsMultipleEventUsageSession) {
-    mMetricsCollector.notifyInputDevicesChanged({/*id=*/0, {generateTestDeviceInfo()}});
+    mMetricsCollector.notifyInputDevicesChanged({/*id=*/0, {TOUCHSCREEN_STYLUS_INFO}});
 
     // Device was used.
     mMetricsCollector.notifyMotion(generateMotionArgs(DEVICE_ID));
@@ -468,11 +470,11 @@ TEST_F(InputDeviceMetricsCollectorTest, LogsMultipleEventUsageSession) {
     // Device was used again after the usage timeout.
     setCurrentTime(TIME + 42ns + 2 * USAGE_TIMEOUT);
     mMetricsCollector.notifyMotion(generateMotionArgs(DEVICE_ID));
-    ASSERT_NO_FATAL_FAILURE(assertUsageLogged(getIdentifier(), 42ns));
+    ASSERT_NO_FATAL_FAILURE(assertUsageLogged(TOUCHSCREEN_STYLUS_INFO, 42ns));
 }
 
 TEST_F(InputDeviceMetricsCollectorTest, RemovingDeviceEndsUsageSession) {
-    mMetricsCollector.notifyInputDevicesChanged({/*id=*/0, {generateTestDeviceInfo()}});
+    mMetricsCollector.notifyInputDevicesChanged({/*id=*/0, {TOUCHSCREEN_STYLUS_INFO}});
 
     // Device was used.
     mMetricsCollector.notifyMotion(generateMotionArgs(DEVICE_ID));
@@ -485,12 +487,12 @@ TEST_F(InputDeviceMetricsCollectorTest, RemovingDeviceEndsUsageSession) {
     // The device was removed before the usage timeout expired.
     setCurrentTime(TIME + 42ns);
     mMetricsCollector.notifyInputDevicesChanged({/*id=*/0, {}});
-    ASSERT_NO_FATAL_FAILURE(assertUsageLogged(getIdentifier(), 21ns));
+    ASSERT_NO_FATAL_FAILURE(assertUsageLogged(TOUCHSCREEN_STYLUS_INFO, 21ns));
 }
 
 TEST_F(InputDeviceMetricsCollectorTest, TracksUsageFromDifferentDevicesIndependently) {
     mMetricsCollector.notifyInputDevicesChanged(
-            {/*id=*/0, {generateTestDeviceInfo(), generateTestDeviceInfo(DEVICE_ID_2)}});
+            {/*id=*/0, {TOUCHSCREEN_STYLUS_INFO, SECOND_TOUCHSCREEN_STYLUS_INFO}});
 
     // Device 1 was used.
     setCurrentTime(TIME);
@@ -509,7 +511,7 @@ TEST_F(InputDeviceMetricsCollectorTest, TracksUsageFromDifferentDevicesIndepende
     // Device 1 was used after its usage timeout expired. Its usage session is reported.
     setCurrentTime(TIME + 300ns + USAGE_TIMEOUT);
     mMetricsCollector.notifyMotion(generateMotionArgs(DEVICE_ID));
-    ASSERT_NO_FATAL_FAILURE(assertUsageLogged(getIdentifier(DEVICE_ID), 100ns));
+    ASSERT_NO_FATAL_FAILURE(assertUsageLogged(TOUCHSCREEN_STYLUS_INFO, 100ns));
 
     // Device 2 was used.
     setCurrentTime(TIME + 350ns + USAGE_TIMEOUT);
@@ -525,13 +527,14 @@ TEST_F(InputDeviceMetricsCollectorTest, TracksUsageFromDifferentDevicesIndepende
     setCurrentTime(TIME + 400ns + (2 * USAGE_TIMEOUT));
     mMetricsCollector.notifyMotion(generateMotionArgs(DEVICE_ID));
     // Since Device 2's usage session ended, its usage should be reported.
-    ASSERT_NO_FATAL_FAILURE(assertUsageLogged(getIdentifier(DEVICE_ID_2), 150ns + USAGE_TIMEOUT));
+    ASSERT_NO_FATAL_FAILURE(
+            assertUsageLogged(SECOND_TOUCHSCREEN_STYLUS_INFO, 150ns + USAGE_TIMEOUT));
 
     ASSERT_NO_FATAL_FAILURE(assertUsageNotLogged());
 }
 
 TEST_F(InputDeviceMetricsCollectorTest, BreakdownUsageBySource) {
-    mMetricsCollector.notifyInputDevicesChanged({/*id=*/0, {generateTestDeviceInfo()}});
+    mMetricsCollector.notifyInputDevicesChanged({/*id=*/0, {TOUCHSCREEN_STYLUS_INFO}});
     InputDeviceMetricsLogger::SourceUsageBreakdown expectedSourceBreakdown;
 
     // Use touchscreen.
@@ -576,7 +579,7 @@ TEST_F(InputDeviceMetricsCollectorTest, BreakdownUsageBySource) {
                                          100ns + USAGE_TIMEOUT);
     // Verify that only one usage session was logged for the device, and that session was broken
     // down by source correctly.
-    ASSERT_NO_FATAL_FAILURE(assertUsageLogged(getIdentifier(),
+    ASSERT_NO_FATAL_FAILURE(assertUsageLogged(TOUCHSCREEN_STYLUS_INFO,
                                               400ns + USAGE_TIMEOUT + USAGE_TIMEOUT,
                                               expectedSourceBreakdown));
 
@@ -585,7 +588,7 @@ TEST_F(InputDeviceMetricsCollectorTest, BreakdownUsageBySource) {
 
 TEST_F(InputDeviceMetricsCollectorTest, BreakdownUsageBySource_TrackSourceByDevice) {
     mMetricsCollector.notifyInputDevicesChanged(
-            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID), generateTestDeviceInfo(DEVICE_ID_2)}});
+            {/*id=*/0, {TOUCHSCREEN_STYLUS_INFO, SECOND_TOUCHSCREEN_STYLUS_INFO}});
     InputDeviceMetricsLogger::SourceUsageBreakdown expectedSourceBreakdown1;
     InputDeviceMetricsLogger::SourceUsageBreakdown expectedSourceBreakdown2;
 
@@ -602,15 +605,15 @@ TEST_F(InputDeviceMetricsCollectorTest, BreakdownUsageBySource_TrackSourceByDevi
     expectedSourceBreakdown1.emplace_back(InputDeviceUsageSource::TOUCHSCREEN, 100ns);
     expectedSourceBreakdown2.emplace_back(InputDeviceUsageSource::STYLUS_DIRECT, 100ns);
     ASSERT_NO_FATAL_FAILURE(
-            assertUsageLogged(getIdentifier(DEVICE_ID), 100ns, expectedSourceBreakdown1));
+            assertUsageLogged(TOUCHSCREEN_STYLUS_INFO, 100ns, expectedSourceBreakdown1));
     ASSERT_NO_FATAL_FAILURE(
-            assertUsageLogged(getIdentifier(DEVICE_ID_2), 100ns, expectedSourceBreakdown2));
+            assertUsageLogged(SECOND_TOUCHSCREEN_STYLUS_INFO, 100ns, expectedSourceBreakdown2));
 
     ASSERT_NO_FATAL_FAILURE(assertUsageNotLogged());
 }
 
 TEST_F(InputDeviceMetricsCollectorTest, BreakdownUsageBySource_MultiSourceEvent) {
-    mMetricsCollector.notifyInputDevicesChanged({/*id=*/0, {generateTestDeviceInfo(DEVICE_ID)}});
+    mMetricsCollector.notifyInputDevicesChanged({/*id=*/0, {TOUCHSCREEN_STYLUS_INFO}});
     InputDeviceMetricsLogger::SourceUsageBreakdown expectedSourceBreakdown;
 
     mMetricsCollector.notifyMotion(generateMotionArgs(DEVICE_ID, TOUCHSCREEN | STYLUS, //
@@ -634,13 +637,13 @@ TEST_F(InputDeviceMetricsCollectorTest, BreakdownUsageBySource_MultiSourceEvent)
     expectedSourceBreakdown.emplace_back(InputDeviceUsageSource::STYLUS_DIRECT, 200ns);
     expectedSourceBreakdown.emplace_back(InputDeviceUsageSource::TOUCHSCREEN, 300ns);
     ASSERT_NO_FATAL_FAILURE(
-            assertUsageLogged(getIdentifier(DEVICE_ID), 400ns, expectedSourceBreakdown));
+            assertUsageLogged(TOUCHSCREEN_STYLUS_INFO, 400ns, expectedSourceBreakdown));
 
     ASSERT_NO_FATAL_FAILURE(assertUsageNotLogged());
 }
 
 TEST_F(InputDeviceMetricsCollectorTest, UidsNotTrackedWhenThereIsNoActiveSession) {
-    mMetricsCollector.notifyInputDevicesChanged({/*id=*/0, {generateTestDeviceInfo()}});
+    mMetricsCollector.notifyInputDevicesChanged({/*id=*/0, {TOUCHSCREEN_STYLUS_INFO}});
 
     // Notify interaction with UIDs before the device is used.
     mMetricsCollector.notifyDeviceInteraction(DEVICE_ID, currentTime(), uids({1}));
@@ -665,14 +668,15 @@ TEST_F(InputDeviceMetricsCollectorTest, UidsNotTrackedWhenThereIsNoActiveSession
 
     // The first usage session is logged.
     static const UidUsageBreakdown emptyBreakdown;
-    ASSERT_NO_FATAL_FAILURE(assertUsageLogged(getIdentifier(), 100ns, /*sourceBreakdown=*/{},
+    ASSERT_NO_FATAL_FAILURE(assertUsageLogged(TOUCHSCREEN_STYLUS_INFO, 100ns,
+                                              /*sourceBreakdown=*/{},
                                               /*uidBreakdown=*/emptyBreakdown));
 
     ASSERT_NO_FATAL_FAILURE(assertUsageNotLogged());
 }
 
 TEST_F(InputDeviceMetricsCollectorTest, BreakdownUsageByUid) {
-    mMetricsCollector.notifyInputDevicesChanged({/*id=*/0, {generateTestDeviceInfo()}});
+    mMetricsCollector.notifyInputDevicesChanged({/*id=*/0, {TOUCHSCREEN_STYLUS_INFO}});
     UidUsageBreakdown expectedUidBreakdown;
 
     mMetricsCollector.notifyMotion(generateMotionArgs(DEVICE_ID));
@@ -691,14 +695,14 @@ TEST_F(InputDeviceMetricsCollectorTest, BreakdownUsageByUid) {
 
     // Remove the device to force the usage session to be logged.
     mMetricsCollector.notifyInputDevicesChanged({});
-    ASSERT_NO_FATAL_FAILURE(assertUsageLogged(getIdentifier(), 200ns, /*sourceBreakdown=*/{},
-                                              expectedUidBreakdown));
+    ASSERT_NO_FATAL_FAILURE(assertUsageLogged(TOUCHSCREEN_STYLUS_INFO, 200ns,
+                                              /*sourceBreakdown=*/{}, expectedUidBreakdown));
 
     ASSERT_NO_FATAL_FAILURE(assertUsageNotLogged());
 }
 
 TEST_F(InputDeviceMetricsCollectorTest, BreakdownUsageByUid_TracksMultipleSessionsForUid) {
-    mMetricsCollector.notifyInputDevicesChanged({/*id=*/0, {generateTestDeviceInfo()}});
+    mMetricsCollector.notifyInputDevicesChanged({/*id=*/0, {TOUCHSCREEN_STYLUS_INFO}});
     UidUsageBreakdown expectedUidBreakdown;
 
     mMetricsCollector.notifyMotion(generateMotionArgs(DEVICE_ID));
@@ -742,7 +746,7 @@ TEST_F(InputDeviceMetricsCollectorTest, BreakdownUsageByUid_TracksMultipleSessio
     expectedUidBreakdown.emplace_back(2, 0ns);
     expectedUidBreakdown.emplace_back(3, 100ns);
     expectedUidBreakdown.emplace_back(4, 100ns);
-    ASSERT_NO_FATAL_FAILURE(assertUsageLogged(getIdentifier(), 500ns + USAGE_TIMEOUT,
+    ASSERT_NO_FATAL_FAILURE(assertUsageLogged(TOUCHSCREEN_STYLUS_INFO, 500ns + USAGE_TIMEOUT,
                                               /*sourceBreakdown=*/{}, expectedUidBreakdown));
 
     ASSERT_NO_FATAL_FAILURE(assertUsageNotLogged());
@@ -750,7 +754,7 @@ TEST_F(InputDeviceMetricsCollectorTest, BreakdownUsageByUid_TracksMultipleSessio
 
 TEST_F(InputDeviceMetricsCollectorTest, BreakdownUsageByUid_TracksUidsByDevice) {
     mMetricsCollector.notifyInputDevicesChanged(
-            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID), generateTestDeviceInfo(DEVICE_ID_2)}});
+            {/*id=*/0, {TOUCHSCREEN_STYLUS_INFO, SECOND_TOUCHSCREEN_STYLUS_INFO}});
     UidUsageBreakdown expectedUidBreakdown1;
     UidUsageBreakdown expectedUidBreakdown2;
 
@@ -773,9 +777,9 @@ TEST_F(InputDeviceMetricsCollectorTest, BreakdownUsageByUid_TracksUidsByDevice) 
     expectedUidBreakdown2.emplace_back(1, 100ns);
     expectedUidBreakdown2.emplace_back(3, 100ns);
     mMetricsCollector.notifyMotion(generateMotionArgs(DEVICE_ID));
-    ASSERT_NO_FATAL_FAILURE(assertUsageLogged(getIdentifier(DEVICE_ID), 200ns,
+    ASSERT_NO_FATAL_FAILURE(assertUsageLogged(TOUCHSCREEN_STYLUS_INFO, 200ns,
                                               /*sourceBreakdown=*/{}, expectedUidBreakdown1));
-    ASSERT_NO_FATAL_FAILURE(assertUsageLogged(getIdentifier(DEVICE_ID_2), 100ns,
+    ASSERT_NO_FATAL_FAILURE(assertUsageLogged(SECOND_TOUCHSCREEN_STYLUS_INFO, 100ns,
                                               /*sourceBreakdown=*/{}, expectedUidBreakdown2));
 
     ASSERT_NO_FATAL_FAILURE(assertUsageNotLogged());
