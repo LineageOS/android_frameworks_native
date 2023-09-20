@@ -70,7 +70,7 @@ void TransactionTracing::onStart(TransactionTracing::Mode mode) {
 
     writeRingBufferToPerfetto(TransactionTracing::Mode::MODE_ACTIVE);
 
-    ALOGV("Started active mode tracing (wrote initial transactions ring buffer to perfetto)");
+    ALOGD("Started active mode tracing (wrote initial transactions ring buffer to perfetto)");
 }
 
 void TransactionTracing::onFlush(TransactionTracing::Mode mode) {
@@ -83,7 +83,7 @@ void TransactionTracing::onFlush(TransactionTracing::Mode mode) {
 
     writeRingBufferToPerfetto(TransactionTracing::Mode::MODE_CONTINUOUS);
 
-    ALOGV("Flushed continuous mode tracing (wrote transactions ring buffer to perfetto");
+    ALOGD("Flushed continuous mode tracing (wrote transactions ring buffer to perfetto");
 }
 
 void TransactionTracing::writeRingBufferToPerfetto(TransactionTracing::Mode mode) {
