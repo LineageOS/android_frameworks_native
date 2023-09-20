@@ -1096,6 +1096,26 @@ enum {
     ANATIVEWINDOW_FRAME_RATE_CATEGORY_HIGH = 4
 };
 
+/*
+ * Frame rate selection strategy values that can be used in
+ * Transaction::setFrameRateSelectionStrategy.
+ */
+enum {
+    /**
+     * Default value. The layer uses its own frame rate specifications, assuming it has any
+     * specifications, instead of its parent's.
+     */
+    ANATIVEWINDOW_FRAME_RATE_SELECTION_STRATEGY_SELF = 0,
+
+    /**
+     * The layer's frame rate specifications will propagate to and override those of its descendant
+     * layers.
+     * The layer with this strategy has the ANATIVEWINDOW_FRAME_RATE_SELECTION_STRATEGY_SELF
+     * behavior for itself.
+     */
+    ANATIVEWINDOW_FRAME_RATE_SELECTION_STRATEGY_OVERRIDE_CHILDREN = 1,
+};
+
 static inline int native_window_set_frame_rate(struct ANativeWindow* window, float frameRate,
                                         int8_t compatibility, int8_t changeFrameRateStrategy) {
     return window->perform(window, NATIVE_WINDOW_SET_FRAME_RATE, (double)frameRate,

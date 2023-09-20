@@ -192,6 +192,7 @@ Layer::Layer(const surfaceflinger::LayerCreationArgs& args)
     mDrawingState.dropInputMode = gui::DropInputMode::NONE;
     mDrawingState.dimmingEnabled = true;
     mDrawingState.defaultFrameRateCompatibility = FrameRateCompatibility::Default;
+    mDrawingState.frameRateSelectionStrategy = FrameRateSelectionStrategy::Self;
 
     if (args.flags & ISurfaceComposerClient::eNoColorFill) {
         // Set an invalid color so there is no color fill.
@@ -1334,6 +1335,15 @@ bool Layer::setFrameRateCategory(FrameRateCategory category) {
 
     updateTreeHasFrameRateVote();
 
+    setTransactionFlags(eTransactionNeeded);
+    return true;
+}
+
+bool Layer::setFrameRateSelectionStrategy(FrameRateSelectionStrategy strategy) {
+    if (mDrawingState.frameRateSelectionStrategy == strategy) return false;
+    mDrawingState.frameRateSelectionStrategy = strategy;
+    mDrawingState.sequence++;
+    mDrawingState.modified = true;
     setTransactionFlags(eTransactionNeeded);
     return true;
 }

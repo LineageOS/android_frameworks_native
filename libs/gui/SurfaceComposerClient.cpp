@@ -2105,6 +2105,19 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setFrame
     return *this;
 }
 
+SurfaceComposerClient::Transaction&
+SurfaceComposerClient::Transaction::setFrameRateSelectionStrategy(const sp<SurfaceControl>& sc,
+                                                                  int8_t strategy) {
+    layer_state_t* s = getLayerState(sc);
+    if (!s) {
+        mStatus = BAD_INDEX;
+        return *this;
+    }
+    s->what |= layer_state_t::eFrameRateSelectionStrategyChanged;
+    s->frameRateSelectionStrategy = strategy;
+    return *this;
+}
+
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setFixedTransformHint(
         const sp<SurfaceControl>& sc, int32_t fixedTransformHint) {
     layer_state_t* s = getLayerState(sc);

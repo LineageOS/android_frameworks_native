@@ -125,6 +125,8 @@ RequestedLayerState::RequestedLayerState(const LayerCreationArgs& args)
     defaultFrameRateCompatibility =
             static_cast<int8_t>(scheduler::LayerInfo::FrameRateCompatibility::Default);
     frameRateCategory = static_cast<int8_t>(FrameRateCategory::Default);
+    frameRateSelectionStrategy =
+            static_cast<int8_t>(scheduler::LayerInfo::FrameRateSelectionStrategy::Self);
     dataspace = ui::Dataspace::V0_SRGB;
     gameMode = gui::GameMode::Unsupported;
     requestedFrameRate = {};

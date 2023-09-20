@@ -743,6 +743,50 @@ TEST_F(LayerSnapshotTest, frameRateWithCategory) {
     EXPECT_TRUE(getSnapshot({.id = 1221})->changes.test(RequestedLayerState::Changes::FrameRate));
 }
 
+TEST_F(LayerSnapshotTest, frameRateSelectionStrategy) {
+    // ROOT
+    // ├── 1
+    // │   ├── 11
+    // │   │   └── 111
+    // │   ├── 12 (frame rate set to 244.f with strategy OverrideChildren)
+    // │   │   ├── 121
+    // │   │   └── 122 (frame rate set to 123.f but should be overridden by layer 12)
+    // │   │       └── 1221
+    // │   └── 13
+    // └── 2
+    setFrameRate(12, 244.f, 0, 0);
+    setFrameRate(122, 123.f, 0, 0);
+    setFrameRateSelectionStrategy(12, 1 /* OverrideChildren */);
+
+    UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
+    // verify parent 1 gets no vote
+    EXPECT_FALSE(getSnapshot({.id = 1})->frameRate.vote.rate.isValid());
+    EXPECT_EQ(getSnapshot({.id = 1})->frameRate.vote.type,
+              scheduler::LayerInfo::FrameRateCompatibility::NoVote);
+    EXPECT_TRUE(getSnapshot({.id = 1})->changes.test(RequestedLayerState::Changes::FrameRate));
+
+    // verify layer 12 and all descendants (121, 122, 1221) get the requested vote
+    EXPECT_EQ(getSnapshot({.id = 12})->frameRate.vote.rate.getValue(), 244.f);
+    EXPECT_EQ(getSnapshot({.id = 12})->frameRateSelectionStrategy,
+              scheduler::LayerInfo::FrameRateSelectionStrategy::OverrideChildren);
+    EXPECT_TRUE(getSnapshot({.id = 12})->changes.test(RequestedLayerState::Changes::FrameRate));
+
+    EXPECT_EQ(getSnapshot({.id = 121})->frameRate.vote.rate.getValue(), 244.f);
+    EXPECT_EQ(getSnapshot({.id = 121})->frameRateSelectionStrategy,
+              scheduler::LayerInfo::FrameRateSelectionStrategy::OverrideChildren);
+    EXPECT_TRUE(getSnapshot({.id = 121})->changes.test(RequestedLayerState::Changes::FrameRate));
+
+    EXPECT_EQ(getSnapshot({.id = 122})->frameRate.vote.rate.getValue(), 244.f);
+    EXPECT_EQ(getSnapshot({.id = 122})->frameRateSelectionStrategy,
+              scheduler::LayerInfo::FrameRateSelectionStrategy::OverrideChildren);
+    EXPECT_TRUE(getSnapshot({.id = 122})->changes.test(RequestedLayerState::Changes::FrameRate));
+
+    EXPECT_EQ(getSnapshot({.id = 1221})->frameRate.vote.rate.getValue(), 244.f);
+    EXPECT_EQ(getSnapshot({.id = 1221})->frameRateSelectionStrategy,
+              scheduler::LayerInfo::FrameRateSelectionStrategy::OverrideChildren);
+    EXPECT_TRUE(getSnapshot({.id = 1221})->changes.test(RequestedLayerState::Changes::FrameRate));
+}
+
 TEST_F(LayerSnapshotTest, skipRoundCornersWhenProtected) {
     setRoundedCorners(1, 42.f);
     setRoundedCorners(2, 42.f);

@@ -96,6 +96,13 @@ public:
         ftl_last = NoVote
     };
 
+    enum class FrameRateSelectionStrategy {
+        Self,
+        OverrideChildren,
+
+        ftl_last = OverrideChildren
+    };
+
     // Encapsulates the frame rate specifications of the layer. This information will be used
     // when the display refresh rate is determined.
     struct FrameRate {
@@ -139,11 +146,11 @@ public:
         static FrameRateCompatibility convertCompatibility(int8_t compatibility);
 
         // Convert an ANATIVEWINDOW_CHANGE_FRAME_RATE_* value to a scheduler::Seamlessness.
-        // Logs fatal if the compatibility value is invalid.
+        // Logs fatal if the strategy value is invalid.
         static scheduler::Seamlessness convertChangeFrameRateStrategy(int8_t strategy);
 
         // Convert an ANATIVEWINDOW_FRAME_RATE_CATEGORY_* value to a FrameRateCategory.
-        // Logs fatal if the compatibility value is invalid.
+        // Logs fatal if the category value is invalid.
         static FrameRateCategory convertCategory(int8_t category);
 
         // True if the FrameRate has explicit frame rate specifications.
@@ -163,6 +170,10 @@ public:
             return seamlessness;
         }
     };
+
+    // Convert an ANATIVEWINDOW_FRAME_RATE_SELECTION_STRATEGY_* value to FrameRateSelectionStrategy.
+    // Logs fatal if the strategy value is invalid.
+    static FrameRateSelectionStrategy convertFrameRateSelectionStrategy(int8_t strategy);
 
     static void setTraceEnabled(bool enabled) { sTraceEnabled = enabled; }
 

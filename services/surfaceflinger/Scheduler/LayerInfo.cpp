@@ -490,6 +490,19 @@ FrameRateCategory LayerInfo::FrameRate::convertCategory(int8_t category) {
     }
 }
 
+LayerInfo::FrameRateSelectionStrategy LayerInfo::convertFrameRateSelectionStrategy(
+        int8_t strategy) {
+    switch (strategy) {
+        case ANATIVEWINDOW_FRAME_RATE_SELECTION_STRATEGY_SELF:
+            return FrameRateSelectionStrategy::Self;
+        case ANATIVEWINDOW_FRAME_RATE_SELECTION_STRATEGY_OVERRIDE_CHILDREN:
+            return FrameRateSelectionStrategy::OverrideChildren;
+        default:
+            LOG_ALWAYS_FATAL("Invalid frame rate selection strategy value %d", strategy);
+            return FrameRateSelectionStrategy::Self;
+    }
+}
+
 bool LayerInfo::FrameRate::isNoVote() const {
     return vote.type == FrameRateCompatibility::NoVote;
 }
