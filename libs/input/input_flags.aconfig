@@ -55,3 +55,10 @@ flag {
   description: "Remove the logic of dropping events due to pending app switch"
   bug: "284808102"
 }
+
+flag {
+  name: "disable_reject_touch_on_stylus_hover"
+  namespace: "input"
+  description: "Disable touch rejection when the stylus hovers the screen"
+  bug: "301216095"
+}
