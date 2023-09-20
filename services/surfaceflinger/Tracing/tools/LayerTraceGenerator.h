@@ -30,7 +30,6 @@ class LayerTracing;
 class LayerTraceGenerator {
 public:
     bool generate(const perfetto::protos::TransactionTraceFile&, std::uint32_t traceFlags,
-                  std::optional<std::reference_wrapper<std::ostream>> outStream = std::nullopt,
-                  bool onlyLastEntry = false);
+                  LayerTracing& layerTracing, bool onlyLastEntry = false);
 };
 } // namespace android

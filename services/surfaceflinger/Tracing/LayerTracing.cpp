@@ -36,6 +36,10 @@ LayerTracing::LayerTracing() {
     LayerDataSource::Initialize(*this);
 }
 
+LayerTracing::LayerTracing(std::ostream& outStream) : LayerTracing() {
+    mOutStream = std::ref(outStream);
+}
+
 LayerTracing::~LayerTracing() {
     LayerDataSource::UnregisterLayerTracing();
 }
@@ -47,10 +51,6 @@ void LayerTracing::setTakeLayersSnapshotProtoFunction(
 
 void LayerTracing::setTransactionTracing(TransactionTracing& transactionTracing) {
     mTransactionTracing = &transactionTracing;
-}
-
-void LayerTracing::setOutputStream(std::ostream& outStream) {
-    mOutStream = std::ref(outStream);
 }
 
 void LayerTracing::onStart(Mode mode, uint32_t flags) {
@@ -95,7 +95,7 @@ void LayerTracing::onFlush(Mode mode, uint32_t flags) {
     }
 
     auto transactionTrace = mTransactionTracing->writeToProto();
-    LayerTraceGenerator{}.generate(transactionTrace, flags);
+    LayerTraceGenerator{}.generate(transactionTrace, flags, *this);
     ALOGD("Flushed generated tracing");
 }
 

@@ -97,11 +97,11 @@ public:
     };
 
     LayerTracing();
+    LayerTracing(std::ostream&);
     ~LayerTracing();
     void setTakeLayersSnapshotProtoFunction(
             const std::function<perfetto::protos::LayersSnapshotProto(uint32_t)>&);
     void setTransactionTracing(TransactionTracing&);
-    void setOutputStream(std::ostream&);
 
     // Start event from perfetto data source
     void onStart(Mode mode, uint32_t flags);
