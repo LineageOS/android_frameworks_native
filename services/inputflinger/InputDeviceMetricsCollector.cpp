@@ -41,7 +41,13 @@ const bool DEBUG = __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG, ANDROID
 
 constexpr size_t INTERACTIONS_QUEUE_CAPACITY = 500;
 
-int32_t linuxBusToInputDeviceBusEnum(int32_t linuxBus) {
+int32_t linuxBusToInputDeviceBusEnum(int32_t linuxBus, bool isUsiStylus) {
+    if (isUsiStylus) {
+        // This is a stylus connected over the Universal Stylus Initiative (USI) protocol.
+        // For metrics purposes, we treat this protocol as a separate bus.
+        return util::INPUT_DEVICE_USAGE_REPORTED__DEVICE_BUS__USI;
+    }
+
     // When adding cases to this switch, also add them to the copy of this method in
     // TouchpadInputMapper.cpp.
     // TODO(b/286394420): deduplicate this method with the one in TouchpadInputMapper.cpp.
@@ -58,11 +64,12 @@ int32_t linuxBusToInputDeviceBusEnum(int32_t linuxBus) {
 class : public InputDeviceMetricsLogger {
     nanoseconds getCurrentTime() override { return nanoseconds(systemTime(SYSTEM_TIME_MONOTONIC)); }
 
-    void logInputDeviceUsageReported(const InputDeviceIdentifier& identifier,
+    void logInputDeviceUsageReported(const InputDeviceInfo& info,
                                      const DeviceUsageReport& report) override {
         const int32_t durationMillis =
                 std::chrono::duration_cast<std::chrono::milliseconds>(report.usageDuration).count();
         const static std::vector<int32_t> empty;
+        const auto& identifier = info.getIdentifier();
 
         ALOGD_IF(DEBUG, "Usage session reported for device: %s", identifier.name.c_str());
         ALOGD_IF(DEBUG, "    Total duration: %dms", durationMillis);
@@ -90,7 +97,9 @@ class : public InputDeviceMetricsLogger {
                      durMillis);
         }
         util::stats_write(util::INPUTDEVICE_USAGE_REPORTED, identifier.vendor, identifier.product,
-                          identifier.version, linuxBusToInputDeviceBusEnum(identifier.bus),
+                          identifier.version,
+                          linuxBusToInputDeviceBusEnum(identifier.bus,
+                                                       info.getUsiVersion().has_value()),
                           durationMillis, sources, durationsPerSource, uids, durationsPerUid);
     }
 } sStatsdLogger;
@@ -295,21 +304,21 @@ void InputDeviceMetricsCollector::onInputDevicesChanged(const std::vector<InputD
         if (newDeviceInfos.count(deviceId) != 0) {
             continue;
         }
-        onInputDeviceRemoved(deviceId, info.getIdentifier());
+        onInputDeviceRemoved(deviceId, info);
     }
 
     std::swap(newDeviceInfos, mLoggedDeviceInfos);
 }
 
 void InputDeviceMetricsCollector::onInputDeviceRemoved(DeviceId deviceId,
-                                                       const InputDeviceIdentifier& identifier) {
+                                                       const InputDeviceInfo& info) {
     auto it = mActiveUsageSessions.find(deviceId);
     if (it == mActiveUsageSessions.end()) {
         return;
     }
     // Report usage for that device if there is an active session.
     auto& [_, activeSession] = *it;
-    mLogger.logInputDeviceUsageReported(identifier, activeSession.finishSession());
+    mLogger.logInputDeviceUsageReported(info, activeSession.finishSession());
     mActiveUsageSessions.erase(it);
 
     // We don't remove this from mLoggedDeviceInfos because it will be updated in
@@ -365,8 +374,7 @@ void InputDeviceMetricsCollector::reportCompletedSessions() {
         auto activeSessionIt = mActiveUsageSessions.find(deviceId);
         LOG_ALWAYS_FATAL_IF(activeSessionIt == mActiveUsageSessions.end());
         auto& [_, activeSession] = *activeSessionIt;
-        mLogger.logInputDeviceUsageReported(infoIt->second.getIdentifier(),
-                                            activeSession.finishSession());
+        mLogger.logInputDeviceUsageReported(infoIt->second, activeSession.finishSession());
         mActiveUsageSessions.erase(activeSessionIt);
     }
 }
