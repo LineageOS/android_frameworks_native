@@ -1614,5 +1614,20 @@ TEST_F(OutputLayerTest, needsFilteringReturnsTrueIfDisplaySizeDifferentFromSourc
     EXPECT_TRUE(mOutputLayer.needsFiltering());
 }
 
+TEST_F(OutputLayerTest, needsFilteringReturnsFalseIfRotatedDisplaySizeSameAsSourceSize) {
+    mOutputLayer.editState().displayFrame = Rect(100, 100, 300, 200);
+    mOutputLayer.editState().sourceCrop = FloatRect{0.f, 0.f, 100.f, 200.f};
+    mOutputLayer.editState().bufferTransform = Hwc2::Transform::ROT_90;
+
+    EXPECT_FALSE(mOutputLayer.needsFiltering());
+}
+
+TEST_F(OutputLayerTest, needsFilteringReturnsTrueIfRotatedDisplaySizeDiffersFromSourceSize) {
+    mOutputLayer.editState().displayFrame = Rect(100, 100, 300, 200);
+    mOutputLayer.editState().sourceCrop = FloatRect{0.f, 0.f, 100.f, 200.f};
+
+    EXPECT_TRUE(mOutputLayer.needsFiltering());
+}
+
 } // namespace
 } // namespace android::compositionengine
