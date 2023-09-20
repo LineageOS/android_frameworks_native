@@ -67,7 +67,25 @@ void LayerTracing::onStart(Mode mode, uint32_t flags) {
             break;
         }
         case Mode::MODE_GENERATED: {
+            // This tracing mode processes the buffer of transactions (owned by TransactionTracing),
+            // generates layers snapshots and writes them to perfetto. This happens every time an
+            // OnFlush event is received.
             ALOGD("Started generated tracing (waiting for OnFlush event to generated layers)");
+            break;
+        }
+        case Mode::MODE_GENERATED_BUGREPORT_ONLY: {
+            // Same as MODE_GENERATED, but only when the received OnFlush event is due to a
+            // bugreport being taken. This mode exists because the generated layers trace is very
+            // large (hundreds of MB), hence we want to include it only in bugreports and not in
+            // field uploads.
+            //
+            // Note that perfetto communicates only whether the OnFlush event is due to a bugreport
+            // or not, hence we need an additional "bugreport only" tracing mode.
+            // If perfetto had communicated when the OnFlush is due to a field upload, then we could
+            // have had a single "generated" tracing mode that would have been a noop in case of
+            // field uploads.
+            ALOGD("Started 'generated bugreport only' tracing"
+                  " (waiting for bugreport's OnFlush event to generate layers)");
             break;
         }
         case Mode::MODE_DUMP: {
@@ -82,10 +100,18 @@ void LayerTracing::onStart(Mode mode, uint32_t flags) {
     }
 }
 
-void LayerTracing::onFlush(Mode mode, uint32_t flags) {
+void LayerTracing::onFlush(Mode mode, uint32_t flags, bool isBugreport) {
     // In "generated" mode process the buffer of transactions (owned by TransactionTracing),
-    // generate a sequence of layers snapshots and write them to perfetto.
-    if (mode != Mode::MODE_GENERATED) {
+    // generate layers snapshots and write them to perfetto.
+    if (mode != Mode::MODE_GENERATED && mode != Mode::MODE_GENERATED_BUGREPORT_ONLY) {
+        ALOGD("Skipping layers trace generation (not a 'generated' tracing session)");
+        return;
+    }
+
+    // In "generated bugreport only" mode skip the layers snapshot generation
+    // if the perfetto's OnFlush event is not due to a bugreport being taken.
+    if (mode == Mode::MODE_GENERATED_BUGREPORT_ONLY && !isBugreport) {
+        ALOGD("Skipping layers trace generation (not a bugreport OnFlush event)");
         return;
     }
 
@@ -147,14 +173,23 @@ void LayerTracing::writeSnapshotToStream(perfetto::protos::LayersSnapshotProto&&
 }
 
 void LayerTracing::writeSnapshotToPerfetto(const perfetto::protos::LayersSnapshotProto& snapshot,
-                                           Mode mode) {
+                                           Mode srcMode) {
     const auto snapshotBytes = snapshot.SerializeAsString();
 
     LayerDataSource::Trace([&](LayerDataSource::TraceContext context) {
-        if (mode != context.GetCustomTlsState()->mMode) {
+        auto dstMode = context.GetCustomTlsState()->mMode;
+        if (srcMode == Mode::MODE_GENERATED) {
+            // Layers snapshots produced by LayerTraceGenerator have srcMode == MODE_GENERATED
+            // and should be written to tracing sessions with MODE_GENERATED
+            // or MODE_GENERATED_BUGREPORT_ONLY.
+            if (dstMode != Mode::MODE_GENERATED && dstMode != Mode::MODE_GENERATED_BUGREPORT_ONLY) {
+                return;
+            }
+        } else if (srcMode != dstMode) {
             return;
         }
-        if (!checkAndUpdateLastVsyncIdWrittenToPerfetto(mode, snapshot.vsync_id())) {
+
+        if (!checkAndUpdateLastVsyncIdWrittenToPerfetto(srcMode, snapshot.vsync_id())) {
             return;
         }
         {
@@ -176,7 +211,7 @@ bool LayerTracing::checkAndUpdateLastVsyncIdWrittenToPerfetto(Mode mode, std::in
     // In some situations (e.g. two bugreports taken shortly one after the other) the generated
     // sequence of layers snapshots might overlap. Here we check the snapshot's vsyncid to make
     // sure that in generated tracing mode a given snapshot is written only once to perfetto.
-    if (mode != Mode::MODE_GENERATED) {
+    if (mode != Mode::MODE_GENERATED && mode != Mode::MODE_GENERATED_BUGREPORT_ONLY) {
         return true;
     }
 

@@ -51,8 +51,9 @@ void LayerDataSource::OnSetup(const LayerDataSource::SetupArgs& args) {
     if (config.has_mode() && config.mode() != LayerTracing::Mode::MODE_UNSPECIFIED) {
         mMode = static_cast<LayerTracing::Mode>(config.mode());
     } else {
-        mMode = LayerTracing::Mode::MODE_GENERATED;
-        ALOGD("Received config with unspecified 'mode'. Using 'GENERATED' as default");
+        mMode = LayerTracing::Mode::MODE_GENERATED_BUGREPORT_ONLY;
+        ALOGD("Received config with unspecified 'mode'."
+              " Using 'MODE_GENERATED_BUGREPORT_ONLY' as default");
     }
 
     mFlags = 0;
@@ -68,10 +69,16 @@ void LayerDataSource::OnStart(const LayerDataSource::StartArgs&) {
     }
 }
 
-void LayerDataSource::OnFlush(const LayerDataSource::FlushArgs&) {
-    ALOGD("Received OnFlush event (mode = 0x%02x, flags = 0x%02x)", mMode, mFlags);
+void LayerDataSource::OnFlush(const LayerDataSource::FlushArgs& args) {
+    ALOGD("Received OnFlush event"
+          " (mode = 0x%02x, flags = 0x%02x, reason = 0x%" PRIx64 ", clone_target = 0x%0" PRIx64 ")",
+          mMode, mFlags, args.flush_flags.reason(), args.flush_flags.clone_target());
+
+    bool isBugreport = args.flush_flags.reason() == perfetto::FlushFlags::Reason::kTraceClone &&
+            args.flush_flags.clone_target() == perfetto::FlushFlags::CloneTarget::kBugreport;
+
     if (auto* p = mLayerTracing.load()) {
-        p->onFlush(mMode, mFlags);
+        p->onFlush(mMode, mFlags, isBugreport);
     }
 }
 

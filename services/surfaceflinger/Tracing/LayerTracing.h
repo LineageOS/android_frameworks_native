@@ -55,7 +55,9 @@ class TransactionTracing;
  * and written to perfetto.
  *
  *
- * E.g. start active mode tracing:
+ * E.g. start active mode tracing
+ * (replace mode value with MODE_DUMP, MODE_GENERATED or MODE_GENERATED_BUGREPORT_ONLY to enable
+ * different tracing modes):
  *
    adb shell -t perfetto \
      -c - --txt \
@@ -79,7 +81,7 @@ class TransactionTracing;
            }
        }
    }
-   EOF
+EOF
  *
  */
 class LayerTracing {
@@ -106,7 +108,7 @@ public:
     // Start event from perfetto data source
     void onStart(Mode mode, uint32_t flags);
     // Flush event from perfetto data source
-    void onFlush(Mode mode, uint32_t flags);
+    void onFlush(Mode mode, uint32_t flags, bool isBugreport);
     // Stop event from perfetto data source
     void onStop(Mode mode);
 
