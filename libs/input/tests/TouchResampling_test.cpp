@@ -27,6 +27,8 @@ using namespace std::chrono_literals;
 
 namespace android {
 
+namespace {
+
 struct Pointer {
     int32_t id;
     float x;
@@ -40,6 +42,8 @@ struct InputEventEntry {
     std::vector<Pointer> pointers;
     int32_t action;
 };
+
+} // namespace
 
 class TouchResamplingTest : public testing::Test {
 protected:
@@ -587,13 +591,13 @@ TEST_F(TouchResamplingTest, TwoPointersAreResampledIndependently) {
     // First pointer id=0 leaves the screen
     entries = {
             //      id  x    y
-            {80ms, {{1, 600, 600}}, actionPointer0Up},
+            {80ms, {{0, 120, 120}, {1, 600, 600}}, actionPointer0Up},
     };
     publishInputEventEntries(entries);
     frameTime = 90ms;
     expectedEntries = {
             //      id  x    y
-            {80ms, {{1, 600, 600}}, actionPointer0Up},
+            {80ms, {{0, 120, 120}, {1, 600, 600}}, actionPointer0Up},
             // no resampled event for ACTION_POINTER_UP
     };
     consumeInputEventEntries(expectedEntries, frameTime);
