@@ -288,4 +288,9 @@ std::string TouchState::dump() const {
     return out;
 }
 
+std::ostream& operator<<(std::ostream& out, const TouchState& state) {
+    out << state.dump();
+    return out;
+}
+
 } // namespace android::inputdispatcher

@@ -269,6 +269,11 @@ std::string MotionEntry::getDescription() const {
     return msg;
 }
 
+std::ostream& operator<<(std::ostream& out, const MotionEntry& motionEntry) {
+    out << motionEntry.getDescription();
+    return out;
+}
+
 // --- SensorEntry ---
 
 SensorEntry::SensorEntry(int32_t id, nsecs_t eventTime, int32_t deviceId, uint32_t source,
