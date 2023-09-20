@@ -155,6 +155,7 @@
 #include "TimeStats/TimeStats.h"
 #include "TunnelModeEnabledReporter.h"
 #include "Utils/Dumper.h"
+#include "Utils/FlagUtils.h"
 #include "WindowInfosListenerInvoker.h"
 
 #include <aidl/android/hardware/graphics/common/DisplayDecorationSupport.h>
@@ -498,7 +499,6 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
     mMiscFlagValue = flags::misc1();
     mConnectedDisplayFlagValue = flags::connected_display();
     mMisc2FlagEarlyBootValue = flags::late_boot_misc2();
-    mVrrConfigFlagValue = flags::vrr_config();
 }
 
 LatchUnsignaledConfig SurfaceFlinger::getLatchUnsignaledConfig() {
@@ -6418,7 +6418,8 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, const std::string& comp
     StringAppendF(&result, "Misc2FlagValue: %s (%s after boot)\n",
                   mMisc2FlagLateBootValue ? "true" : "false",
                   mMisc2FlagEarlyBootValue == mMisc2FlagLateBootValue ? "stable" : "modified");
-    StringAppendF(&result, "VrrConfigFlagValue: %s\n", mVrrConfigFlagValue ? "true" : "false");
+    StringAppendF(&result, "VrrConfigFlagValue: %s\n",
+                  flagutils::vrrConfigEnabled() ? "true" : "false");
 
     getRenderEngine().dump(result);
 

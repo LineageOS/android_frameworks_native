@@ -38,6 +38,7 @@
 
 #include "../SurfaceFlingerProperties.h"
 #include "RefreshRateSelector.h"
+#include "Utils/FlagUtils.h"
 
 #include <com_android_graphics_surfaceflinger_flags.h>
 
@@ -114,7 +115,7 @@ std::pair<unsigned, unsigned> divisorRange(Fps vsyncRate, Fps peakFps, FpsRange 
     using fps_approx_ops::operator/;
     // use signed type as `fps / range.max` might be 0
     auto start = std::max(1, static_cast<int>(peakFps / range.max) - 1);
-    if (flags::vrr_config()) {
+    if (flagutils::vrrConfigEnabled()) {
         start = std::max(1,
                          static_cast<int>(vsyncRate /
                                           std::min(range.max, peakFps, fps_approx_ops::operator<)) -

@@ -31,8 +31,7 @@
 
 #include "DisplayHardware/Hal.h"
 #include "Scheduler/StrongTyping.h"
-
-#include <com_android_graphics_surfaceflinger_flags.h>
+#include "Utils/FlagUtils.h"
 
 namespace android {
 
@@ -141,7 +140,7 @@ public:
     // Peak refresh rate represents the highest refresh rate that can be used
     // for the presentation.
     Fps getPeakFps() const {
-        return flags::vrr_config() && mVrrConfig
+        return flagutils::vrrConfigEnabled() && mVrrConfig
                 ? Fps::fromPeriodNsecs(mVrrConfig->minFrameIntervalNs)
                 : mVsyncRate;
     }
