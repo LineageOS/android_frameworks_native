@@ -57,6 +57,7 @@ using namespace std::chrono_literals;
 
 using Hwc2::Config;
 
+using ::aidl::android::hardware::graphics::common::DisplayHotplugEvent;
 using ::aidl::android::hardware::graphics::composer3::RefreshRateChangedDebugData;
 using hal::IComposerClient;
 using ::testing::_;
@@ -555,7 +556,8 @@ TEST_F(HWComposerTest, notifyExpectedPresentRenderRateChanged) {
 }
 
 struct MockHWC2ComposerCallback final : StrictMock<HWC2::ComposerCallback> {
-    MOCK_METHOD2(onComposerHalHotplug, void(hal::HWDisplayId, hal::Connection));
+    MOCK_METHOD(void, onComposerHalHotplugEvent, (hal::HWDisplayId, DisplayHotplugEvent),
+                (override));
     MOCK_METHOD1(onComposerHalRefresh, void(hal::HWDisplayId));
     MOCK_METHOD3(onComposerHalVsync,
                  void(hal::HWDisplayId, int64_t timestamp, std::optional<hal::VsyncPeriodNanos>));

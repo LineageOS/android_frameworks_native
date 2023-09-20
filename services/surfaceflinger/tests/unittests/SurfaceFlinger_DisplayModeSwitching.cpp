@@ -46,7 +46,8 @@ public:
 
         setupScheduler(selectorPtr);
 
-        mFlinger.onComposerHalHotplug(PrimaryDisplayVariant::HWC_DISPLAY_ID, Connection::CONNECTED);
+        mFlinger.onComposerHalHotplugEvent(PrimaryDisplayVariant::HWC_DISPLAY_ID,
+                                           DisplayHotplugEvent::CONNECTED);
         mFlinger.configureAndCommit();
 
         auto vsyncController = std::make_unique<mock::VsyncController>();
