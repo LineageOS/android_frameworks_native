@@ -359,7 +359,7 @@ void SurfaceInterceptorTest::backgroundBlurRadiusUpdate(Transaction& t) {
 }
 
 void SurfaceInterceptorTest::blurRegionsUpdate(Transaction& t) {
-    BLUR_REGIONS_UPDATE.empty();
+    BLUR_REGIONS_UPDATE.clear();
     BLUR_REGIONS_UPDATE.push_back(BlurRegion());
     t.setBlurRegions(mBGSurfaceControl, BLUR_REGIONS_UPDATE);
 }
