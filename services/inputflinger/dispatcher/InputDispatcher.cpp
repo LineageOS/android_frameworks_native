@@ -4041,23 +4041,33 @@ void InputDispatcher::synthesizePointerDownEventsForConnectionLocked(
               connection->getInputChannelName().c_str(), downEvents.size());
     }
 
-    InputTarget target;
     sp<WindowInfoHandle> windowHandle =
             getWindowHandleLocked(connection->inputChannel->getConnectionToken());
-    if (windowHandle != nullptr) {
-        const WindowInfo* windowInfo = windowHandle->getInfo();
-        target.setDefaultPointerTransform(windowInfo->transform);
-        target.globalScaleFactor = windowInfo->globalScaleFactor;
-    }
-    target.inputChannel = connection->inputChannel;
-    target.flags = targetFlags;
 
     const bool wasEmpty = connection->outboundQueue.empty();
     for (std::unique_ptr<EventEntry>& downEventEntry : downEvents) {
+        std::vector<InputTarget> targets{};
         switch (downEventEntry->type) {
             case EventEntry::Type::MOTION: {
-                logOutboundMotionDetails("down - ",
-                        static_cast<const MotionEntry&>(*downEventEntry));
+                const auto& motionEntry = static_cast<const MotionEntry&>(*downEventEntry);
+                if (windowHandle != nullptr) {
+                    std::bitset<MAX_POINTER_ID + 1> pointerIds;
+                    for (uint32_t pointerIndex = 0; pointerIndex < motionEntry.pointerCount;
+                         pointerIndex++) {
+                        pointerIds.set(motionEntry.pointerProperties[pointerIndex].id);
+                    }
+                    addWindowTargetLocked(windowHandle, targetFlags, pointerIds,
+                                          motionEntry.downTime, targets);
+                } else {
+                    targets.emplace_back(InputTarget{.inputChannel = connection->inputChannel,
+                                                     .flags = targetFlags});
+                    const auto it = mDisplayInfos.find(motionEntry.displayId);
+                    if (it != mDisplayInfos.end()) {
+                        targets.back().displayTransform = it->second.transform;
+                        targets.back().setDefaultPointerTransform(it->second.transform);
+                    }
+                }
+                logOutboundMotionDetails("down - ", motionEntry);
                 break;
             }
 
@@ -4075,7 +4085,8 @@ void InputDispatcher::synthesizePointerDownEventsForConnectionLocked(
             }
         }
 
-        enqueueDispatchEntryLocked(connection, std::move(downEventEntry), target,
+        if (targets.size() != 1) LOG(FATAL) << __func__ << ": InputTarget not created";
+        enqueueDispatchEntryLocked(connection, std::move(downEventEntry), targets[0],
                                    InputTarget::Flags::DISPATCH_AS_IS);
     }
 

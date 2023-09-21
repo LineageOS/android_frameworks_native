@@ -4700,6 +4700,21 @@ TEST_F(InputDispatcherDisplayProjectionTest, CancelMotionWithCorrectCoordinates)
             AllOf(WithMotionAction(ACTION_CANCEL), WithPointers(expectedMonitorPointers)));
 }
 
+TEST_F(InputDispatcherDisplayProjectionTest, SynthesizeDownWithCorrectCoordinates) {
+    auto [firstWindow, secondWindow] = setupScaledDisplayScenario();
+
+    // Send down to the first window.
+    mDispatcher->notifyMotion(generateMotionArgs(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN,
+                                                 ADISPLAY_ID_DEFAULT, {PointF{50, 100}}));
+    firstWindow->consumeMotionEvent(AllOf(WithMotionAction(ACTION_DOWN), WithCoords(100, 400)));
+
+    // The pointer is transferred to the second window, and the second window receives it in the
+    // correct coordinate space.
+    mDispatcher->transferTouchFocus(firstWindow->getToken(), secondWindow->getToken());
+    firstWindow->consumeMotionEvent(AllOf(WithMotionAction(ACTION_CANCEL), WithCoords(100, 400)));
+    secondWindow->consumeMotionEvent(AllOf(WithMotionAction(ACTION_DOWN), WithCoords(-100, -400)));
+}
+
 /** Ensure consistent behavior of InputDispatcher in all orientations. */
 class InputDispatcherDisplayOrientationFixture
       : public InputDispatcherDisplayProjectionTest,
