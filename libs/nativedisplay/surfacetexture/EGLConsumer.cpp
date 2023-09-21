@@ -38,10 +38,10 @@
 namespace android {
 
 // Macros for including the SurfaceTexture name in log messages
-#define EGC_LOGV(x, ...) ALOGV("[%s] " x, st.mName.string(), ##__VA_ARGS__)
-#define EGC_LOGD(x, ...) ALOGD("[%s] " x, st.mName.string(), ##__VA_ARGS__)
-#define EGC_LOGW(x, ...) ALOGW("[%s] " x, st.mName.string(), ##__VA_ARGS__)
-#define EGC_LOGE(x, ...) ALOGE("[%s] " x, st.mName.string(), ##__VA_ARGS__)
+#define EGC_LOGV(x, ...) ALOGV("[%s] " x, st.mName.c_str(), ##__VA_ARGS__)
+#define EGC_LOGD(x, ...) ALOGD("[%s] " x, st.mName.c_str(), ##__VA_ARGS__)
+#define EGC_LOGW(x, ...) ALOGW("[%s] " x, st.mName.c_str(), ##__VA_ARGS__)
+#define EGC_LOGE(x, ...) ALOGE("[%s] " x, st.mName.c_str(), ##__VA_ARGS__)
 
 static const struct {
     uint32_t width, height;

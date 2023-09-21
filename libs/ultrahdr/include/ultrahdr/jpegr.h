@@ -366,22 +366,24 @@ private:
      * the compressed gain map and optionally the exif package as inputs, and generate the XMP
      * metadata, and finally append everything in the order of:
      *     SOI, APP2(EXIF) (if EXIF is from outside), APP2(XMP), primary image, gain map
-     * Note that EXIF package is only available for encoding API-0 and API-1. For encoding API-2 and
-     * API-3 this parameter is null, but the primary image in JPEG/R may still have EXIF as long as
-     * the input JPEG has EXIF.
      *
-
+     * Note that in the final JPEG/R output, EXIF package will appear if ONLY ONE of the following
+     * conditions is fulfilled:
+     *  (1) EXIF package is available from outside input. I.e. pExif != nullptr.
+     *  (2) Input JPEG has EXIF.
+     * If both conditions are fulfilled, this method will return ERROR_JPEGR_INVALID_INPUT_TYPE
+     *
      * @param primary_jpg_image_ptr destination of primary image
      * @param gainmap_jpg_image_ptr destination of compressed gain map image
-     * @param (nullable) exif EXIF package
-     * @param (nullable) icc ICC package
+     * @param (nullable) pExif EXIF package
+     * @param (nullable) pIcc ICC package
      * @param icc_size length in bytes of ICC package
      * @param metadata JPEG/R metadata to encode in XMP of the jpeg
      * @param dest compressed JPEGR image
      * @return NO_ERROR if calculation succeeds, error code if error occurs.
      */
     status_t appendGainMap(jr_compressed_ptr primary_jpg_image_ptr,
-                           jr_compressed_ptr gainmap_jpg_image_ptr, jr_exif_ptr exif, void* icc,
+                           jr_compressed_ptr gainmap_jpg_image_ptr, jr_exif_ptr pExif, void* pIcc,
                            size_t icc_size, ultrahdr_metadata_ptr metadata, jr_compressed_ptr dest);
 
     /*

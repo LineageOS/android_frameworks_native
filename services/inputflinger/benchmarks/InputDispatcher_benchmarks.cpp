@@ -185,10 +185,7 @@ public:
         mInfo.token = mClientChannel->getConnectionToken();
         mInfo.name = "FakeWindowHandle";
         mInfo.dispatchingTimeout = DISPATCHING_TIMEOUT;
-        mInfo.frameLeft = mFrame.left;
-        mInfo.frameTop = mFrame.top;
-        mInfo.frameRight = mFrame.right;
-        mInfo.frameBottom = mFrame.bottom;
+        mInfo.frame = mFrame;
         mInfo.globalScaleFactor = 1.0;
         mInfo.touchableRegion.clear();
         mInfo.addTouchableRegion(mFrame);

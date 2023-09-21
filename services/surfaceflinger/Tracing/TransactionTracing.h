@@ -22,16 +22,16 @@
 #include <utils/Singleton.h>
 #include <utils/Timers.h>
 
-#include <memory>
 #include <mutex>
+#include <optional>
 #include <thread>
 
 #include "FrontEnd/DisplayInfo.h"
 #include "FrontEnd/LayerCreationArgs.h"
 #include "FrontEnd/Update.h"
 #include "LocklessStack.h"
-#include "RingBuffer.h"
 #include "TransactionProtoParser.h"
+#include "TransactionRingBuffer.h"
 
 using namespace android::surfaceflinger;
 
@@ -41,7 +41,7 @@ class SurfaceFlinger;
 class TransactionTracingTest;
 
 /*
- * Records all committed transactions into a ring bufffer.
+ * Records all committed transactions into a ring buffer.
  *
  * Transactions come in via the binder thread. They are serialized to proto
  * and stored in a map using the transaction id as key. Main thread will
@@ -49,46 +49,129 @@ class TransactionTracingTest;
  * the tracing thread. The tracing thread will then wake up and add the
  * committed transactions to the ring buffer.
  *
- * When generating SF dump state, we will flush the buffer to a file which
- * will then be included in the bugreport.
+ * The traced data can then be collected via:
+ * - Perfetto (preferred).
+ * - File system, after triggering the disk write through SF backdoor. This is legacy and is going
+ *   to be phased out.
+ *
+ * The Perfetto custom data source TransactionDataSource is registered with perfetto and is used
+ * to listen to perfetto events (setup, start, stop, flush) and to write trace packets to perfetto.
+ *
+ * The user can configure/start/stop tracing via /system/bin/perfetto.
+ *
+ * Tracing can operate in the following modes.
+ *
+ * ACTIVE mode:
+ * The transactions ring buffer (starting state + following committed transactions) is written
+ * (only once) to perfetto when the 'start' event is received.
+ * Transactions are then written to perfetto each time they are committed.
+ * On the receiver side, the data source is to be configured to periodically
+ * flush data to disk providing virtually infinite storage.
+ *
+ * CONTINUOUS mode:
+ * Listens to the perfetto 'flush' event (e.g. when a bugreport is taken).
+ * When a 'flush' event is received, the ring buffer of transactions (starting state + following
+ * committed transactions) is written to perfetto. On the receiver side, the data source is to be
+ * configured with a dedicated buffer large enough to store all the flushed data.
+ *
+ *
+ * E.g. start active mode tracing:
+ *
+   adb shell perfetto \
+     -c - --txt \
+     -o /data/misc/perfetto-traces/trace \
+   <<EOF
+   unique_session_name: "surfaceflinger_transactions_active"
+   buffers: {
+       size_kb: 1024
+       fill_policy: RING_BUFFER
+   }
+   data_sources: {
+       config {
+           name: "android.surfaceflinger.transactions"
+           surfaceflinger_transactions_config: {
+               mode: MODE_ACTIVE
+           }
+       }
+   }
+   write_into_file: true
+   file_write_period_ms: 100
+   EOF
+ *
+ *
+ * E.g. start continuous mode tracing:
+ *
+   adb shell perfetto \
+     -c - --txt \
+     -o /data/misc/perfetto-traces/trace \
+   <<EOF
+   unique_session_name: "surfaceflinger_transactions_continuous"
+   buffers: {
+       size_kb: 1024
+       fill_policy: RING_BUFFER
+   }
+   data_sources: {
+       config {
+           name: "android.surfaceflinger.transactions"
+           surfaceflinger_transactions_config: {
+               mode: MODE_CONTINUOUS
+           }
+       }
+   }
+   EOF
  *
  */
 class TransactionTracing {
 public:
+    using Mode = perfetto::protos::pbzero::SurfaceFlingerTransactionsConfig::Mode;
+
     TransactionTracing();
     ~TransactionTracing();
+
+    // Start event from perfetto data source
+    void onStart(Mode mode);
+    // Flush event from perfetto data source
+    void onFlush(Mode mode);
 
     void addQueuedTransaction(const TransactionState&);
     void addCommittedTransactions(int64_t vsyncId, nsecs_t commitTime, frontend::Update& update,
                                   const frontend::DisplayInfos&, bool displayInfoChanged);
     status_t writeToFile(const std::string& filename = FILE_PATH);
+    // Return buffer contents as trace file proto
+    perfetto::protos::TransactionTraceFile writeToProto() EXCLUDES(mMainThreadLock);
     void setBufferSize(size_t bufferSizeInBytes);
     void onLayerRemoved(int layerId);
     void dump(std::string&) const;
     // Wait until all the committed transactions for the specified vsync id are added to the buffer.
     void flush() EXCLUDES(mMainThreadLock);
+
     static constexpr auto CONTINUOUS_TRACING_BUFFER_SIZE = 512 * 1024;
-    static constexpr auto ACTIVE_TRACING_BUFFER_SIZE = 100 * 1024 * 1024;
+    static constexpr auto LEGACY_ACTIVE_TRACING_BUFFER_SIZE = 100 * 1024 * 1024;
     // version 1 - switching to support new frontend
     static constexpr auto TRACING_VERSION = 1;
 
 private:
+    friend class TransactionTraceWriter;
     friend class TransactionTracingTest;
     friend class SurfaceFlinger;
 
     static constexpr auto DIR_NAME = "/data/misc/wmtrace/";
     static constexpr auto FILE_NAME = "transactions_trace.winscope";
     static constexpr auto FILE_PATH = "/data/misc/wmtrace/transactions_trace.winscope";
+    static std::string getFilePath(const std::string& prefix) {
+        return DIR_NAME + prefix + FILE_NAME;
+    }
 
     mutable std::mutex mTraceLock;
-    RingBuffer<proto::TransactionTraceFile, proto::TransactionTraceEntry> mBuffer
+    TransactionRingBuffer<perfetto::protos::TransactionTraceFile,
+                          perfetto::protos::TransactionTraceEntry>
+            mBuffer GUARDED_BY(mTraceLock);
+    std::unordered_map<uint64_t, perfetto::protos::TransactionState> mQueuedTransactions
             GUARDED_BY(mTraceLock);
-    size_t mBufferSizeInBytes GUARDED_BY(mTraceLock) = CONTINUOUS_TRACING_BUFFER_SIZE;
-    std::unordered_map<uint64_t, proto::TransactionState> mQueuedTransactions
-            GUARDED_BY(mTraceLock);
-    LocklessStack<proto::TransactionState> mTransactionQueue;
+    LocklessStack<perfetto::protos::TransactionState> mTransactionQueue;
     nsecs_t mStartingTimestamp GUARDED_BY(mTraceLock);
-    std::unordered_map<int, proto::LayerCreationArgs> mCreatedLayers GUARDED_BY(mTraceLock);
+    std::unordered_map<int, perfetto::protos::LayerCreationArgs> mCreatedLayers
+            GUARDED_BY(mTraceLock);
     std::map<uint32_t /* layerId */, TracingLayerState> mStartingStates GUARDED_BY(mTraceLock);
     frontend::DisplayInfos mStartingDisplayInfos GUARDED_BY(mTraceLock);
 
@@ -118,17 +201,17 @@ private:
     std::vector<uint32_t /* layerId */> mPendingDestroyedLayers; // only accessed by main thread
     int64_t mLastUpdatedVsyncId = -1;
 
-    proto::TransactionTraceFile createTraceFileProto() const;
+    void writeRingBufferToPerfetto(TransactionTracing::Mode mode);
+    perfetto::protos::TransactionTraceFile createTraceFileProto() const;
     void loop();
     void addEntry(const std::vector<CommittedUpdates>& committedTransactions,
                   const std::vector<uint32_t>& removedLayers) EXCLUDES(mTraceLock);
     int32_t getLayerIdLocked(const sp<IBinder>& layerHandle) REQUIRES(mTraceLock);
     void tryPushToTracingThread() EXCLUDES(mMainThreadLock);
-    void addStartingStateToProtoLocked(proto::TransactionTraceFile& proto) REQUIRES(mTraceLock);
-    void updateStartingStateLocked(const proto::TransactionTraceEntry& entry) REQUIRES(mTraceLock);
-    // TEST
-    // Return buffer contents as trace file proto
-    proto::TransactionTraceFile writeToProto() EXCLUDES(mMainThreadLock);
+    std::optional<perfetto::protos::TransactionTraceEntry> createStartingStateProtoLocked()
+            REQUIRES(mTraceLock);
+    void updateStartingStateLocked(const perfetto::protos::TransactionTraceEntry& entry)
+            REQUIRES(mTraceLock);
 };
 
 class TransactionTraceWriter : public Singleton<TransactionTraceWriter> {
@@ -138,10 +221,16 @@ class TransactionTraceWriter : public Singleton<TransactionTraceWriter> {
 
 public:
     void setWriterFunction(
-            std::function<void(const std::string& prefix, bool overwrite)> function) {
+            std::function<void(const std::string& filename, bool overwrite)> function) {
         mWriterFunction = std::move(function);
     }
-    void invoke(const std::string& prefix, bool overwrite) { mWriterFunction(prefix, overwrite); }
+    void invoke(const std::string& prefix, bool overwrite) {
+        mWriterFunction(TransactionTracing::getFilePath(prefix), overwrite);
+    }
+    /* pass in a complete file path for testing */
+    void invokeForTest(const std::string& filename, bool overwrite) {
+        mWriterFunction(filename, overwrite);
+    }
 };
 
 } // namespace android

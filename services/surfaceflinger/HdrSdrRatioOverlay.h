@@ -35,11 +35,15 @@ public:
 private:
     float mCurrentHdrSdrRatio = 1.f;
 
-    static sp<GraphicBuffer> draw(float currentHdrSdrRatio, SkColor, ui::Transform::RotationFlags);
+    static sp<GraphicBuffer> draw(float currentHdrSdrRatio, SkColor, ui::Transform::RotationFlags,
+                                  sp<GraphicBuffer>& ringBufer);
     static void drawNumber(float number, int left, SkColor, SkCanvas&);
 
     const sp<GraphicBuffer> getOrCreateBuffers(float currentHdrSdrRatio);
 
     const std::unique_ptr<SurfaceControlHolder> mSurfaceControl;
+
+    size_t mIndex = 0;
+    std::array<sp<GraphicBuffer>, 2> mRingBuffer;
 };
 } // namespace android

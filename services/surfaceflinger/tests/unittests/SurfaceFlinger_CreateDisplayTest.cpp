@@ -47,7 +47,7 @@ public:
         const auto& display = getCurrentDisplayState(displayToken);
         EXPECT_TRUE(display.isVirtual());
         EXPECT_EQ(display.requestedRefreshRate, Fps::fromValue(requestedRefreshRate));
-        EXPECT_EQ(name.string(), display.displayName);
+        EXPECT_EQ(name.c_str(), display.displayName);
 
         std::optional<VirtualDisplayId> vid =
                 DisplayId::fromValue<VirtualDisplayId>(displayId | DisplayId::FLAG_VIRTUAL);
@@ -91,7 +91,7 @@ TEST_F(CreateDisplayTest, createDisplaySetsCurrentStateForNonsecureDisplay) {
     const auto& display = getCurrentDisplayState(displayToken);
     EXPECT_TRUE(display.isVirtual());
     EXPECT_FALSE(display.isSecure);
-    EXPECT_EQ(name.string(), display.displayName);
+    EXPECT_EQ(name.c_str(), display.displayName);
 
     // --------------------------------------------------------------------
     // Cleanup conditions
@@ -123,7 +123,7 @@ TEST_F(CreateDisplayTest, createDisplaySetsCurrentStateForSecureDisplay) {
     const auto& display = getCurrentDisplayState(displayToken);
     EXPECT_TRUE(display.isVirtual());
     EXPECT_TRUE(display.isSecure);
-    EXPECT_EQ(name.string(), display.displayName);
+    EXPECT_EQ(name.c_str(), display.displayName);
 
     // --------------------------------------------------------------------
     // Cleanup conditions

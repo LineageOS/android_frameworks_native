@@ -28,6 +28,8 @@ cc_test {
         "gainmapmath_test.cpp",
         "icchelper_test.cpp",
         "jpegr_test.cpp",
+        "jpegencoderhelper_test.cpp",
+        "jpegdecoderhelper_test.cpp",
     ],
     shared_libs: [
         "libimage_io",
@@ -42,38 +44,7 @@ cc_test {
         "libultrahdr",
         "libutils",
     ],
-}
-
-cc_test {
-    name: "jpegencoderhelper_test",
-    test_suites: ["device-tests"],
-    srcs: [
-        "jpegencoderhelper_test.cpp",
-    ],
-    shared_libs: [
-        "libjpeg",
-        "liblog",
-    ],
-    static_libs: [
-        "libgtest",
-        "libjpegencoder",
-    ],
-}
-
-cc_test {
-    name: "jpegdecoderhelper_test",
-    test_suites: ["device-tests"],
-    srcs: [
-        "jpegdecoderhelper_test.cpp",
-    ],
-    shared_libs: [
-        "libjpeg",
-        "liblog",
-    ],
-    static_libs: [
-        "libgtest",
-        "libjpegdecoder",
-        "libultrahdr",
-        "libutils",
+    data: [
+        "./data/*.*",
     ],
 }

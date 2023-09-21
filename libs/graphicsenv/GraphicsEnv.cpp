@@ -60,6 +60,17 @@ typedef bool (*fpANGLEShouldBeUsedForApplication)(void* rulesHandle, int rulesVe
 typedef bool (*fpANGLEFreeRulesHandle)(void* handle);
 typedef bool (*fpANGLEFreeSystemInfoHandle)(void* handle);
 
+namespace {
+static bool isVndkEnabled() {
+#ifdef __BIONIC__
+    // TODO(b/290159430) Use ro.vndk.version to check if VNDK is enabled instead
+    static bool isVndkEnabled = !android::base::GetBoolProperty("ro.vndk.deprecate", false);
+    return isVndkEnabled;
+#endif
+    return false;
+}
+} // namespace
+
 namespace android {
 
 enum NativeLibrary {
@@ -70,6 +81,8 @@ enum NativeLibrary {
 static constexpr const char* kNativeLibrariesSystemConfigPath[] =
         {"/apex/com.android.vndk.v{}/etc/llndk.libraries.{}.txt",
          "/apex/com.android.vndk.v{}/etc/vndksp.libraries.{}.txt"};
+
+static const char* kLlndkLibrariesTxtPath = "/system/etc/llndk.libraries.txt";
 
 static std::string vndkVersionStr() {
 #ifdef __BIONIC__
@@ -108,8 +121,14 @@ static bool readConfig(const std::string& configFile, std::vector<std::string>* 
 }
 
 static const std::string getSystemNativeLibraries(NativeLibrary type) {
-    std::string nativeLibrariesSystemConfig = kNativeLibrariesSystemConfigPath[type];
-    insertVndkVersionStr(&nativeLibrariesSystemConfig);
+    std::string nativeLibrariesSystemConfig = "";
+
+    if (!isVndkEnabled() && type == NativeLibrary::LLNDK) {
+        nativeLibrariesSystemConfig = kLlndkLibrariesTxtPath;
+    } else {
+        nativeLibrariesSystemConfig = kNativeLibrariesSystemConfigPath[type];
+        insertVndkVersionStr(&nativeLibrariesSystemConfig);
+    }
 
     std::vector<std::string> soNames;
     if (!readConfig(nativeLibrariesSystemConfig, &soNames)) {

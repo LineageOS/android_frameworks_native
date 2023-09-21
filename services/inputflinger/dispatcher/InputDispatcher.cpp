@@ -32,6 +32,7 @@
 #endif
 #include <input/InputDevice.h>
 #include <input/PrintTools.h>
+#include <input/TraceTools.h>
 #include <openssl/mem.h>
 #include <powermanager/PowerManager.h>
 #include <unistd.h>
@@ -667,7 +668,15 @@ std::vector<TouchedWindow> getHoveringWindowsLocked(const TouchState* oldState,
         } else {
             // This pointer was already sent to the window. Use ACTION_HOVER_MOVE.
             if (CC_UNLIKELY(maskedAction != AMOTION_EVENT_ACTION_HOVER_MOVE)) {
-                LOG(FATAL) << "Expected ACTION_HOVER_MOVE instead of " << entry.getDescription();
+                android::base::LogSeverity severity = android::base::LogSeverity::FATAL;
+                if (entry.flags & AMOTION_EVENT_FLAG_IS_ACCESSIBILITY_EVENT) {
+                    // The Accessibility injected touch exploration event stream
+                    // has known inconsistencies, so log ERROR instead of
+                    // crashing the device with FATAL.
+                    // TODO(b/299977100): Move a11y severity back to FATAL.
+                    severity = android::base::LogSeverity::ERROR;
+                }
+                LOG(severity) << "Expected ACTION_HOVER_MOVE instead of " << entry.getDescription();
             }
             touchedWindow.targetFlags = InputTarget::Flags::DISPATCH_AS_IS;
         }
@@ -1105,7 +1114,8 @@ bool InputDispatcher::shouldPruneInboundQueueLocked(const MotionEntry& motionEnt
         const auto [x, y] = resolveTouchedPosition(motionEntry);
         const bool isStylus = isPointerFromStylus(motionEntry, /*pointerIndex=*/0);
 
-        auto [touchedWindowHandle, _] = findTouchedWindowAtLocked(displayId, x, y, isStylus);
+        sp<WindowInfoHandle> touchedWindowHandle =
+                findTouchedWindowAtLocked(displayId, x, y, isStylus);
         if (touchedWindowHandle != nullptr &&
             touchedWindowHandle->getApplicationToken() !=
                     mAwaitedFocusedApplication->getApplicationToken()) {
@@ -1229,11 +1239,10 @@ void InputDispatcher::addRecentEventLocked(std::shared_ptr<EventEntry> entry) {
     }
 }
 
-std::pair<sp<WindowInfoHandle>, std::vector<InputTarget>>
-InputDispatcher::findTouchedWindowAtLocked(int32_t displayId, float x, float y, bool isStylus,
-                                           bool ignoreDragWindow) const {
+sp<WindowInfoHandle> InputDispatcher::findTouchedWindowAtLocked(int32_t displayId, float x, float y,
+                                                                bool isStylus,
+                                                                bool ignoreDragWindow) const {
     // Traverse windows from front to back to find touched window.
-    std::vector<InputTarget> outsideTargets;
     const auto& windowHandles = getWindowHandlesLocked(displayId);
     for (const sp<WindowInfoHandle>& windowHandle : windowHandles) {
         if (ignoreDragWindow && haveSameToken(windowHandle, mDragState->dragWindow)) {
@@ -1243,16 +1252,35 @@ InputDispatcher::findTouchedWindowAtLocked(int32_t displayId, float x, float y, 
         const WindowInfo& info = *windowHandle->getInfo();
         if (!info.isSpy() &&
             windowAcceptsTouchAt(info, displayId, x, y, isStylus, getTransformLocked(displayId))) {
-            return {windowHandle, outsideTargets};
+            return windowHandle;
+        }
+    }
+    return nullptr;
+}
+
+std::vector<InputTarget> InputDispatcher::findOutsideTargetsLocked(
+        int32_t displayId, const sp<WindowInfoHandle>& touchedWindow) const {
+    if (touchedWindow == nullptr) {
+        return {};
+    }
+    // Traverse windows from front to back until we encounter the touched window.
+    std::vector<InputTarget> outsideTargets;
+    const auto& windowHandles = getWindowHandlesLocked(displayId);
+    for (const sp<WindowInfoHandle>& windowHandle : windowHandles) {
+        if (windowHandle == touchedWindow) {
+            // Stop iterating once we found a touched window. Any WATCH_OUTSIDE_TOUCH window
+            // below the touched window will not get ACTION_OUTSIDE event.
+            return outsideTargets;
         }
 
+        const WindowInfo& info = *windowHandle->getInfo();
         if (info.inputConfig.test(WindowInfo::InputConfig::WATCH_OUTSIDE_TOUCH)) {
             addWindowTargetLocked(windowHandle, InputTarget::Flags::DISPATCH_AS_OUTSIDE,
                                   /*pointerIds=*/{}, /*firstDownTimeInTarget=*/std::nullopt,
                                   outsideTargets);
         }
     }
-    return {nullptr, {}};
+    return outsideTargets;
 }
 
 std::vector<sp<WindowInfoHandle>> InputDispatcher::findTouchedSpyWindowsAtLocked(
@@ -2308,11 +2336,11 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
         // Outside targets should be added upon first dispatched DOWN event. That means, this should
         // be a pointer that would generate ACTION_DOWN, *and* touch should not already be down.
         const bool isStylus = isPointerFromStylus(entry, pointerIndex);
-        auto [newTouchedWindowHandle, outsideTargets] =
+        sp<WindowInfoHandle> newTouchedWindowHandle =
                 findTouchedWindowAtLocked(displayId, x, y, isStylus);
 
         if (isDown) {
-            targets += outsideTargets;
+            targets += findOutsideTargetsLocked(displayId, newTouchedWindowHandle);
         }
         // Handle the case where we did not find a window.
         if (newTouchedWindowHandle == nullptr) {
@@ -2488,7 +2516,8 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
             sp<WindowInfoHandle> oldTouchedWindowHandle =
                     tempTouchState.getFirstForegroundWindowHandle();
             LOG_ALWAYS_FATAL_IF(oldTouchedWindowHandle == nullptr);
-            auto [newTouchedWindowHandle, _] = findTouchedWindowAtLocked(displayId, x, y, isStylus);
+            sp<WindowInfoHandle> newTouchedWindowHandle =
+                    findTouchedWindowAtLocked(displayId, x, y, isStylus);
 
             // Verify targeted injection.
             if (const auto err = verifyTargetedInjection(newTouchedWindowHandle, entry); err) {
@@ -2734,7 +2763,7 @@ void InputDispatcher::finishDragAndDrop(int32_t displayId, float x, float y) {
     // have an explicit reason to support it.
     constexpr bool isStylus = false;
 
-    auto [dropWindow, _] =
+    sp<WindowInfoHandle> dropWindow =
             findTouchedWindowAtLocked(displayId, x, y, isStylus, /*ignoreDragWindow=*/true);
     if (dropWindow) {
         vec2 local = dropWindow->getInfo()->transform.transform(x, y);
@@ -2788,8 +2817,9 @@ void InputDispatcher::addDragEventLocked(const MotionEntry& entry) {
             // until we have an explicit reason to support it.
             constexpr bool isStylus = false;
 
-            auto [hoverWindowHandle, _] = findTouchedWindowAtLocked(entry.displayId, x, y, isStylus,
-                                                                    /*ignoreDragWindow=*/true);
+            sp<WindowInfoHandle> hoverWindowHandle =
+                    findTouchedWindowAtLocked(entry.displayId, x, y, isStylus,
+                                              /*ignoreDragWindow=*/true);
             // enqueue drag exit if needed.
             if (hoverWindowHandle != mDragState->dragHoverWindowHandle &&
                 !haveSameToken(hoverWindowHandle, mDragState->dragHoverWindowHandle)) {
@@ -3011,8 +3041,8 @@ std::string InputDispatcher::dumpWindowForTouchOcclusion(const WindowInfo* info,
                                 "hasToken=%s, applicationInfo.name=%s, applicationInfo.token=%s\n",
                         isTouchedWindow ? "[TOUCHED] " : "", info->packageName.c_str(),
                         info->ownerUid.toString().c_str(), info->id,
-                        toString(info->touchOcclusionMode).c_str(), info->alpha, info->frameLeft,
-                        info->frameTop, info->frameRight, info->frameBottom,
+                        toString(info->touchOcclusionMode).c_str(), info->alpha, info->frame.left,
+                        info->frame.top, info->frame.right, info->frame.bottom,
                         dumpRegion(info->touchableRegion).c_str(), info->name.c_str(),
                         info->inputConfig.string().c_str(), toString(info->token != nullptr),
                         info->applicationInfo.name.c_str(),
@@ -3161,12 +3191,9 @@ void InputDispatcher::prepareDispatchCycleLocked(nsecs_t currentTime,
                                                  const std::shared_ptr<Connection>& connection,
                                                  std::shared_ptr<EventEntry> eventEntry,
                                                  const InputTarget& inputTarget) {
-    if (ATRACE_ENABLED()) {
-        std::string message =
-                StringPrintf("prepareDispatchCycleLocked(inputChannel=%s, id=0x%" PRIx32 ")",
-                             connection->getInputChannelName().c_str(), eventEntry->id);
-        ATRACE_NAME(message.c_str());
-    }
+    ATRACE_NAME_IF(ATRACE_ENABLED(),
+                   StringPrintf("prepareDispatchCycleLocked(inputChannel=%s, id=0x%" PRIx32 ")",
+                                connection->getInputChannelName().c_str(), eventEntry->id));
     if (DEBUG_DISPATCH_CYCLE) {
         ALOGD("channel '%s' ~ prepareDispatchCycle - flags=%s, "
               "globalScaleFactor=%f, pointerIds=%s %s",
@@ -3231,12 +3258,9 @@ void InputDispatcher::enqueueDispatchEntriesLocked(nsecs_t currentTime,
                                                    const std::shared_ptr<Connection>& connection,
                                                    std::shared_ptr<EventEntry> eventEntry,
                                                    const InputTarget& inputTarget) {
-    if (ATRACE_ENABLED()) {
-        std::string message =
-                StringPrintf("enqueueDispatchEntriesLocked(inputChannel=%s, id=0x%" PRIx32 ")",
-                             connection->getInputChannelName().c_str(), eventEntry->id);
-        ATRACE_NAME(message.c_str());
-    }
+    ATRACE_NAME_IF(ATRACE_ENABLED(),
+                   StringPrintf("enqueueDispatchEntriesLocked(inputChannel=%s, id=0x%" PRIx32 ")",
+                                connection->getInputChannelName().c_str(), eventEntry->id));
     LOG_ALWAYS_FATAL_IF(!inputTarget.flags.any(InputTarget::DISPATCH_MASK),
                         "No dispatch flags are set for %s", eventEntry->getDescription().c_str());
 
@@ -3266,12 +3290,6 @@ void InputDispatcher::enqueueDispatchEntryLocked(const std::shared_ptr<Connectio
                                                  std::shared_ptr<EventEntry> eventEntry,
                                                  const InputTarget& inputTarget,
                                                  ftl::Flags<InputTarget::Flags> dispatchMode) {
-    if (ATRACE_ENABLED()) {
-        std::string message = StringPrintf("enqueueDispatchEntry(inputChannel=%s, dispatchMode=%s)",
-                                           connection->getInputChannelName().c_str(),
-                                           dispatchMode.string().c_str());
-        ATRACE_NAME(message.c_str());
-    }
     ftl::Flags<InputTarget::Flags> inputTargetFlags = inputTarget.flags;
     if (!inputTargetFlags.any(dispatchMode)) {
         return;
@@ -3558,11 +3576,9 @@ status_t InputDispatcher::publishMotionEvent(Connection& connection,
 
 void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
                                                const std::shared_ptr<Connection>& connection) {
-    if (ATRACE_ENABLED()) {
-        std::string message = StringPrintf("startDispatchCycleLocked(inputChannel=%s)",
-                                           connection->getInputChannelName().c_str());
-        ATRACE_NAME(message.c_str());
-    }
+    ATRACE_NAME_IF(ATRACE_ENABLED(),
+                   StringPrintf("startDispatchCycleLocked(inputChannel=%s)",
+                                connection->getInputChannelName().c_str()));
     if (DEBUG_DISPATCH_CYCLE) {
         ALOGD("channel '%s' ~ startDispatchCycle", connection->getInputChannelName().c_str());
     }
@@ -4136,12 +4152,10 @@ std::unique_ptr<MotionEntry> InputDispatcher::splitMotionEvent(
     }
 
     int32_t newId = mIdGenerator.nextId();
-    if (ATRACE_ENABLED()) {
-        std::string message = StringPrintf("Split MotionEvent(id=0x%" PRIx32
-                                           ") to MotionEvent(id=0x%" PRIx32 ").",
-                                           originalMotionEntry.id, newId);
-        ATRACE_NAME(message.c_str());
-    }
+    ATRACE_NAME_IF(ATRACE_ENABLED(),
+                   StringPrintf("Split MotionEvent(id=0x%" PRIx32 ") to MotionEvent(id=0x%" PRIx32
+                                ").",
+                                originalMotionEntry.id, newId));
     std::unique_ptr<MotionEntry> splitMotionEntry =
             std::make_unique<MotionEntry>(newId, originalMotionEntry.eventTime,
                                           originalMotionEntry.deviceId, originalMotionEntry.source,
@@ -4186,45 +4200,6 @@ void InputDispatcher::notifyConfigurationChanged(const NotifyConfigurationChange
     }
 }
 
-/**
- * If one of the meta shortcuts is detected, process them here:
- *     Meta + Backspace; Meta + Grave; Meta + Left arrow -> generate BACK
- * Most System shortcuts are handled in PhoneWindowManager.java except 'Back' shortcuts. Unlike
- * Back, other shortcuts DO NOT need to be sent to applications and are fully handled by the system.
- * But for Back key and Back shortcuts, we need to send KEYCODE_BACK to applications which can
- * potentially handle the back key presses.
- * Note: We don't send any Meta based KeyEvents to applications, so we need to convert to a KeyEvent
- * where meta modifier is off before sending. Currently only use case is 'Back'.
- */
-void InputDispatcher::accelerateMetaShortcuts(const int32_t deviceId, const int32_t action,
-                                              int32_t& keyCode, int32_t& metaState) {
-    if (metaState & AMETA_META_ON && action == AKEY_EVENT_ACTION_DOWN) {
-        int32_t newKeyCode = AKEYCODE_UNKNOWN;
-        if (keyCode == AKEYCODE_DEL || keyCode == AKEYCODE_GRAVE || keyCode == AKEYCODE_DPAD_LEFT) {
-            newKeyCode = AKEYCODE_BACK;
-        }
-        if (newKeyCode != AKEYCODE_UNKNOWN) {
-            std::scoped_lock _l(mLock);
-            struct KeyReplacement replacement = {keyCode, deviceId};
-            mReplacedKeys[replacement] = newKeyCode;
-            keyCode = newKeyCode;
-            metaState &= ~(AMETA_META_ON | AMETA_META_LEFT_ON | AMETA_META_RIGHT_ON);
-        }
-    } else if (action == AKEY_EVENT_ACTION_UP) {
-        // In order to maintain a consistent stream of up and down events, check to see if the key
-        // going up is one we've replaced in a down event and haven't yet replaced in an up event,
-        // even if the modifier was released between the down and the up events.
-        std::scoped_lock _l(mLock);
-        struct KeyReplacement replacement = {keyCode, deviceId};
-        auto replacementIt = mReplacedKeys.find(replacement);
-        if (replacementIt != mReplacedKeys.end()) {
-            keyCode = replacementIt->second;
-            mReplacedKeys.erase(replacementIt);
-            metaState &= ~(AMETA_META_ON | AMETA_META_LEFT_ON | AMETA_META_RIGHT_ON);
-        }
-    }
-}
-
 void InputDispatcher::notifyKey(const NotifyKeyArgs& args) {
     ALOGD_IF(debugInboundEventDetails(),
              "notifyKey - id=%" PRIx32 ", eventTime=%" PRId64
@@ -4257,8 +4232,6 @@ void InputDispatcher::notifyKey(const NotifyKeyArgs& args) {
     policyFlags |= POLICY_FLAG_TRUSTED;
 
     int32_t keyCode = args.keyCode;
-    accelerateMetaShortcuts(args.deviceId, args.action, keyCode, metaState);
-
     KeyEvent event;
     event.initialize(args.id, args.deviceId, args.source, args.displayId, INVALID_HMAC, args.action,
                      flags, keyCode, args.scanCode, metaState, repeatCount, args.downTime,
@@ -4569,8 +4542,6 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(const InputEvent* ev
             }
             int32_t keyCode = incomingKey.getKeyCode();
             int32_t metaState = incomingKey.getMetaState();
-            accelerateMetaShortcuts(resolvedDeviceId, action,
-                                    /*byref*/ keyCode, /*byref*/ metaState);
             KeyEvent keyEvent;
             keyEvent.initialize(incomingKey.getId(), resolvedDeviceId, incomingKey.getSource(),
                                 incomingKey.getDisplayId(), INVALID_HMAC, action, flags, keyCode,
@@ -5545,7 +5516,6 @@ void InputDispatcher::resetAndDropEverythingLocked(const char* reason) {
 
     mAnrTracker.clear();
     mTouchStatesByDisplay.clear();
-    mReplacedKeys.clear();
 }
 
 void InputDispatcher::logDispatchStateLocked() const {
@@ -5644,9 +5614,9 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) const {
                                          i, windowInfo->name.c_str(), windowInfo->id,
                                          windowInfo->displayId,
                                          windowInfo->inputConfig.string().c_str(),
-                                         windowInfo->alpha, windowInfo->frameLeft,
-                                         windowInfo->frameTop, windowInfo->frameRight,
-                                         windowInfo->frameBottom, windowInfo->globalScaleFactor,
+                                         windowInfo->alpha, windowInfo->frame.left,
+                                         windowInfo->frame.top, windowInfo->frame.right,
+                                         windowInfo->frame.bottom, windowInfo->globalScaleFactor,
                                          windowInfo->applicationInfo.name.c_str(),
                                          binderToString(windowInfo->applicationInfo.token).c_str());
                     dump += dumpRegion(windowInfo->touchableRegion);
@@ -5712,16 +5682,6 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) const {
         }
     } else {
         dump += INDENT "InboundQueue: <empty>\n";
-    }
-
-    if (!mReplacedKeys.empty()) {
-        dump += INDENT "ReplacedKeys:\n";
-        for (const auto& [replacement, newKeyCode] : mReplacedKeys) {
-            dump += StringPrintf(INDENT2 "originalKeyCode=%d, deviceId=%d -> newKeyCode=%d\n",
-                                 replacement.keyCode, replacement.deviceId, newKeyCode);
-        }
-    } else {
-        dump += INDENT "ReplacedKeys: <empty>\n";
     }
 
     if (!mCommandQueue.empty()) {

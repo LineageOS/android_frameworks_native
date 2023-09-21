@@ -20,6 +20,7 @@
 #include <input/Input.h>
 #include <utils/BitSet.h>
 #include <bitset>
+#include <ostream>
 #include <set>
 #include "InputTarget.h"
 
@@ -91,6 +92,8 @@ private:
 
     static std::string deviceStateToString(const TouchedWindow::DeviceState& state);
 };
+
+std::ostream& operator<<(std::ostream& out, const TouchedWindow& window);
 
 } // namespace inputdispatcher
 } // namespace android

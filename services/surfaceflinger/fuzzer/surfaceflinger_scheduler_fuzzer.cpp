@@ -390,7 +390,7 @@ void SchedulerFuzzer::fuzzRefreshRateSelector() {
                                       PowerMode::OFF);
 
     const auto fpsOpt = displayModes.get(modeId).transform(
-            [](const DisplayModePtr& mode) { return mode->getFps(); });
+            [](const DisplayModePtr& mode) { return mode->getVsyncRate(); });
     refreshRateStats.setRefreshRate(*fpsOpt);
 
     refreshRateStats.setPowerMode(mFdp.PickValueInArray(kPowerModes));

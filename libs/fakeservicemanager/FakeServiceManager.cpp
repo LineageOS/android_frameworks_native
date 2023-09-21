@@ -16,6 +16,10 @@
 
 #include "fakeservicemanager/FakeServiceManager.h"
 
+using android::sp;
+using android::FakeServiceManager;
+using android::setDefaultServiceManager;
+
 namespace android {
 
 FakeServiceManager::FakeServiceManager() {}
@@ -80,7 +84,7 @@ Vector<String16> FakeServiceManager::getDeclaredInstances(const String16& name) 
     for (const auto& [registeredName, service] : mNameToService) {
         (void) service;
         if (registeredName.startsWith(prefix)) {
-            out.add(String16(registeredName.string() + prefix.size()));
+            out.add(String16(registeredName.c_str() + prefix.size()));
         }
     }
     return out;
@@ -123,3 +127,24 @@ void FakeServiceManager::clear() {
     mNameToService.clear();
 }
 }  // namespace android
+
+[[clang::no_destroy]] static sp<FakeServiceManager> gFakeServiceManager;
+[[clang::no_destroy]] static std::once_flag gSmOnce;
+
+extern "C" {
+
+// Setup FakeServiceManager to mock dependencies in test using this API for rust backend
+void setupFakeServiceManager() {
+    /* Create a FakeServiceManager instance and add required services */
+    std::call_once(gSmOnce, [&]() {
+        gFakeServiceManager = new FakeServiceManager();
+        android::setDefaultServiceManager(gFakeServiceManager);
+    });
+}
+
+// Clear existing services from Fake SM for rust backend
+void clearFakeServiceManager() {
+    LOG_ALWAYS_FATAL_IF(gFakeServiceManager == nullptr, "Fake Service Manager is not available. Forgot to call setupFakeServiceManager?");
+    gFakeServiceManager->clear();
+}
+} //extern "C"

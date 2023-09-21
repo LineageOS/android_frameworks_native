@@ -22,6 +22,7 @@
 #include <android/gui/ISurfaceComposerClient.h>
 #include <android/native_window.h>
 #include <binder/Parcel.h>
+#include <gui/FrameRateUtils.h>
 #include <gui/IGraphicBufferProducer.h>
 #include <gui/LayerState.h>
 #include <gui/SurfaceControl.h>
@@ -83,6 +84,8 @@ layer_state_t::layer_state_t()
         frameRateCompatibility(ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT),
         changeFrameRateStrategy(ANATIVEWINDOW_CHANGE_FRAME_RATE_ONLY_IF_SEAMLESS),
         defaultFrameRateCompatibility(ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT),
+        frameRateCategory(ANATIVEWINDOW_FRAME_RATE_CATEGORY_DEFAULT),
+        frameRateSelectionStrategy(ANATIVEWINDOW_FRAME_RATE_SELECTION_STRATEGY_SELF),
         fixedTransformHint(ui::Transform::ROT_INVALID),
         autoRefresh(false),
         isTrustedOverlay(false),
@@ -158,6 +161,8 @@ status_t layer_state_t::write(Parcel& output) const
     SAFE_PARCEL(output.writeByte, frameRateCompatibility);
     SAFE_PARCEL(output.writeByte, changeFrameRateStrategy);
     SAFE_PARCEL(output.writeByte, defaultFrameRateCompatibility);
+    SAFE_PARCEL(output.writeByte, frameRateCategory);
+    SAFE_PARCEL(output.writeByte, frameRateSelectionStrategy);
     SAFE_PARCEL(output.writeUint32, fixedTransformHint);
     SAFE_PARCEL(output.writeBool, autoRefresh);
     SAFE_PARCEL(output.writeBool, dimmingEnabled);
@@ -290,6 +295,8 @@ status_t layer_state_t::read(const Parcel& input)
     SAFE_PARCEL(input.readByte, &frameRateCompatibility);
     SAFE_PARCEL(input.readByte, &changeFrameRateStrategy);
     SAFE_PARCEL(input.readByte, &defaultFrameRateCompatibility);
+    SAFE_PARCEL(input.readByte, &frameRateCategory);
+    SAFE_PARCEL(input.readByte, &frameRateSelectionStrategy);
     SAFE_PARCEL(input.readUint32, &tmpUint32);
     fixedTransformHint = static_cast<ui::Transform::RotationFlags>(tmpUint32);
     SAFE_PARCEL(input.readBool, &autoRefresh);
@@ -659,6 +666,14 @@ void layer_state_t::merge(const layer_state_t& other) {
         frameRateCompatibility = other.frameRateCompatibility;
         changeFrameRateStrategy = other.changeFrameRateStrategy;
     }
+    if (other.what & eFrameRateCategoryChanged) {
+        what |= eFrameRateCategoryChanged;
+        frameRateCategory = other.frameRateCategory;
+    }
+    if (other.what & eFrameRateSelectionStrategyChanged) {
+        what |= eFrameRateSelectionStrategyChanged;
+        frameRateSelectionStrategy = other.frameRateSelectionStrategy;
+    }
     if (other.what & eFixedTransformHintChanged) {
         what |= eFixedTransformHintChanged;
         fixedTransformHint = other.fixedTransformHint;
@@ -769,6 +784,8 @@ uint64_t layer_state_t::diff(const layer_state_t& other) const {
     CHECK_DIFF(diff, eFrameRateSelectionPriority, other, frameRateSelectionPriority);
     CHECK_DIFF3(diff, eFrameRateChanged, other, frameRate, frameRateCompatibility,
                 changeFrameRateStrategy);
+    CHECK_DIFF(diff, eFrameRateCategoryChanged, other, frameRateCategory);
+    CHECK_DIFF(diff, eFrameRateSelectionStrategyChanged, other, frameRateSelectionStrategy);
     CHECK_DIFF(diff, eFixedTransformHintChanged, other, fixedTransformHint);
     CHECK_DIFF(diff, eAutoRefreshChanged, other, autoRefresh);
     CHECK_DIFF(diff, eTrustedOverlayChanged, other, isTrustedOverlay);
@@ -853,34 +870,6 @@ status_t InputWindowCommands::read(const Parcel& input) {
     }
 
     return NO_ERROR;
-}
-
-bool ValidateFrameRate(float frameRate, int8_t compatibility, int8_t changeFrameRateStrategy,
-                       const char* inFunctionName, bool privileged) {
-    const char* functionName = inFunctionName != nullptr ? inFunctionName : "call";
-    int floatClassification = std::fpclassify(frameRate);
-    if (frameRate < 0 || floatClassification == FP_INFINITE || floatClassification == FP_NAN) {
-        ALOGE("%s failed - invalid frame rate %f", functionName, frameRate);
-        return false;
-    }
-
-    if (compatibility != ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT &&
-        compatibility != ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_FIXED_SOURCE &&
-        (!privileged ||
-         (compatibility != ANATIVEWINDOW_FRAME_RATE_EXACT &&
-          compatibility != ANATIVEWINDOW_FRAME_RATE_NO_VOTE))) {
-        ALOGE("%s failed - invalid compatibility value %d privileged: %s", functionName,
-              compatibility, privileged ? "yes" : "no");
-        return false;
-    }
-
-    if (changeFrameRateStrategy != ANATIVEWINDOW_CHANGE_FRAME_RATE_ONLY_IF_SEAMLESS &&
-        changeFrameRateStrategy != ANATIVEWINDOW_CHANGE_FRAME_RATE_ALWAYS) {
-        ALOGE("%s failed - invalid change frame rate strategy value %d", functionName,
-              changeFrameRateStrategy);
-    }
-
-    return true;
 }
 
 // ----------------------------------------------------------------------------

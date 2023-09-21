@@ -1,0 +1,29 @@
+package: "com.android.input.flags"
+
+flag {
+  name: "enable_outbound_event_verification"
+  namespace: "input"
+  description: "Set to true to enable crashing whenever bad outbound events are detected inside InputTransport"
+  bug: "271455682"
+}
+
+flag {
+  name: "enable_inbound_event_verification"
+  namespace: "input"
+  description: "Set to true to enable crashing whenever bad inbound events are going into InputDispatcher"
+  bug: "271455682"
+}
+
+flag {
+  name: "enable_pointer_choreographer"
+  namespace: "input"
+  description: "Set to true to enable PointerChoreographer: the new pipeline for showing pointer icons"
+  bug: "293587049"
+}
+
+flag {
+  name: "enable_gestures_library_timer_provider"
+  namespace: "input"
+  description: "Set to true to enable timer support for the touchpad Gestures library"
+  bug: "297192727"
+}

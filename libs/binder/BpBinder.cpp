@@ -261,7 +261,7 @@ std::optional<int32_t> BpBinder::getDebugBinderHandle() const {
 
 bool BpBinder::isDescriptorCached() const {
     Mutex::Autolock _l(mLock);
-    return mDescriptorCache.string() != kDescriptorUninit.string();
+    return mDescriptorCache.c_str() != kDescriptorUninit.c_str();
 }
 
 const String16& BpBinder::getInterfaceDescriptor() const
@@ -279,7 +279,7 @@ const String16& BpBinder::getInterfaceDescriptor() const
             Mutex::Autolock _l(mLock);
             // mDescriptorCache could have been assigned while the lock was
             // released.
-            if (mDescriptorCache.string() == kDescriptorUninit.string()) mDescriptorCache = res;
+            if (mDescriptorCache.c_str() == kDescriptorUninit.c_str()) mDescriptorCache = res;
         }
     }
 

@@ -278,9 +278,6 @@ public:
         if (WRITE_BUFFER_TO_FILE_ON_FAILURE && ::testing::Test::HasFailure()) {
             writeBufferToFile("/data/texture_out_");
         }
-        for (uint32_t texName : mTexNames) {
-            mRE->deleteTextures(1, &texName);
-        }
         const ::testing::TestInfo* const test_info =
                 ::testing::UnitTest::GetInstance()->current_test_info();
         ALOGD("**** Tearing down after %s.%s\n", test_info->test_case_name(), test_info->name());
@@ -493,7 +490,7 @@ public:
     void invokeDraw(const renderengine::DisplaySettings& settings,
                     const std::vector<renderengine::LayerSettings>& layers) {
         ftl::Future<FenceResult> future =
-                mRE->drawLayers(settings, layers, mBuffer, true, base::unique_fd());
+                mRE->drawLayers(settings, layers, mBuffer, base::unique_fd());
         ASSERT_TRUE(future.valid());
 
         auto result = future.get();
@@ -623,8 +620,6 @@ public:
 
     std::unique_ptr<renderengine::RenderEngine> mRE;
     std::shared_ptr<renderengine::ExternalTexture> mBuffer;
-
-    std::vector<uint32_t> mTexNames;
 };
 
 void RenderEngineTest::initializeRenderEngine() {
@@ -668,9 +663,6 @@ struct BufferSourceVariant {
     static void fillColor(renderengine::LayerSettings& layer, half r, half g, half b,
                           RenderEngineTest* fixture) {
         const auto buf = fixture->allocateSourceBuffer(1, 1);
-        uint32_t texName;
-        fixture->mRE->genTextures(1, &texName);
-        fixture->mTexNames.push_back(texName);
 
         uint8_t* pixels;
         buf->getBuffer()->lock(GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN,
@@ -690,7 +682,6 @@ struct BufferSourceVariant {
         buf->getBuffer()->unlock();
 
         layer.source.buffer.buffer = buf;
-        layer.source.buffer.textureName = texName;
         layer.sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR;
         OpaquenessVariant::setOpaqueBit(layer);
     }
@@ -1239,9 +1230,6 @@ void RenderEngineTest::fillRedBufferTextureTransform() {
     // Here will allocate a checker board texture, but transform texture
     // coordinates so that only the upper left is applied.
     const auto buf = allocateSourceBuffer(2, 2);
-    uint32_t texName;
-    RenderEngineTest::mRE->genTextures(1, &texName);
-    this->mTexNames.push_back(texName);
 
     uint8_t* pixels;
     buf->getBuffer()->lock(GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN,
@@ -1262,7 +1250,6 @@ void RenderEngineTest::fillRedBufferTextureTransform() {
     buf->getBuffer()->unlock();
 
     layer.source.buffer.buffer = buf;
-    layer.source.buffer.textureName = texName;
     // Transform coordinates to only be inside the red quadrant.
     layer.source.buffer.textureTransform = mat4::scale(vec4(0.2f, 0.2f, 1.f, 1.f));
     layer.alpha = 1.0f;
@@ -1288,9 +1275,6 @@ void RenderEngineTest::fillRedBufferWithPremultiplyAlpha() {
 
     renderengine::LayerSettings layer;
     const auto buf = allocateSourceBuffer(1, 1);
-    uint32_t texName;
-    RenderEngineTest::mRE->genTextures(1, &texName);
-    this->mTexNames.push_back(texName);
 
     uint8_t* pixels;
     buf->getBuffer()->lock(GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN,
@@ -1302,7 +1286,6 @@ void RenderEngineTest::fillRedBufferWithPremultiplyAlpha() {
     buf->getBuffer()->unlock();
 
     layer.source.buffer.buffer = buf;
-    layer.source.buffer.textureName = texName;
     layer.source.buffer.usePremultipliedAlpha = true;
     layer.alpha = 0.5f;
     layer.geometry.boundaries = Rect(1, 1).toFloatRect();
@@ -1327,9 +1310,6 @@ void RenderEngineTest::fillRedBufferWithoutPremultiplyAlpha() {
 
     renderengine::LayerSettings layer;
     const auto buf = allocateSourceBuffer(1, 1);
-    uint32_t texName;
-    RenderEngineTest::mRE->genTextures(1, &texName);
-    this->mTexNames.push_back(texName);
 
     uint8_t* pixels;
     buf->getBuffer()->lock(GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN,
@@ -1341,7 +1321,6 @@ void RenderEngineTest::fillRedBufferWithoutPremultiplyAlpha() {
     buf->getBuffer()->unlock();
 
     layer.source.buffer.buffer = buf;
-    layer.source.buffer.textureName = texName;
     layer.source.buffer.usePremultipliedAlpha = false;
     layer.alpha = 0.5f;
     layer.geometry.boundaries = Rect(1, 1).toFloatRect();
@@ -1631,8 +1610,7 @@ TEST_P(RenderEngineTest, drawLayers_nullOutputBuffer) {
     layer.geometry.boundaries = fullscreenRect().toFloatRect();
     BufferSourceVariant<ForceOpaqueBufferVariant>::fillColor(layer, 1.0f, 0.0f, 0.0f, this);
     layers.push_back(layer);
-    ftl::Future<FenceResult> future =
-            mRE->drawLayers(settings, layers, nullptr, true, base::unique_fd());
+    ftl::Future<FenceResult> future = mRE->drawLayers(settings, layers, nullptr, base::unique_fd());
 
     ASSERT_TRUE(future.valid());
     auto result = future.get();
@@ -2284,14 +2262,14 @@ TEST_P(RenderEngineTest, cleanupPostRender_cleansUpOnce) {
     layers.push_back(layer);
 
     ftl::Future<FenceResult> futureOne =
-            mRE->drawLayers(settings, layers, mBuffer, true, base::unique_fd());
+            mRE->drawLayers(settings, layers, mBuffer, base::unique_fd());
     ASSERT_TRUE(futureOne.valid());
     auto resultOne = futureOne.get();
     ASSERT_TRUE(resultOne.ok());
     auto fenceOne = resultOne.value();
 
     ftl::Future<FenceResult> futureTwo =
-            mRE->drawLayers(settings, layers, mBuffer, true, base::unique_fd(fenceOne->dup()));
+            mRE->drawLayers(settings, layers, mBuffer, base::unique_fd(fenceOne->dup()));
     ASSERT_TRUE(futureTwo.valid());
     auto resultTwo = futureTwo.get();
     ASSERT_TRUE(resultTwo.ok());

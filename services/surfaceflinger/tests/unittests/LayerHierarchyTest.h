@@ -170,7 +170,7 @@ protected:
         mLifecycleManager.applyTransactions(transactions);
     }
 
-    void destroyLayerHandle(uint32_t id) { mLifecycleManager.onHandlesDestroyed({id}); }
+    void destroyLayerHandle(uint32_t id) { mLifecycleManager.onHandlesDestroyed({{id, "test"}}); }
 
     void updateAndVerify(LayerHierarchyBuilder& hierarchyBuilder) {
         if (mLifecycleManager.getGlobalChanges().test(RequestedLayerState::Changes::Hierarchy)) {
@@ -335,6 +335,29 @@ protected:
         mLifecycleManager.applyTransactions(transactions);
     }
 
+    void setFrameRateCategory(uint32_t id, int8_t frameRateCategory) {
+        std::vector<TransactionState> transactions;
+        transactions.emplace_back();
+        transactions.back().states.push_back({});
+
+        transactions.back().states.front().state.what = layer_state_t::eFrameRateCategoryChanged;
+        transactions.back().states.front().layerId = id;
+        transactions.back().states.front().state.frameRateCategory = frameRateCategory;
+        mLifecycleManager.applyTransactions(transactions);
+    }
+
+    void setFrameRateSelectionStrategy(uint32_t id, int8_t strategy) {
+        std::vector<TransactionState> transactions;
+        transactions.emplace_back();
+        transactions.back().states.push_back({});
+
+        transactions.back().states.front().state.what =
+                layer_state_t::eFrameRateSelectionStrategyChanged;
+        transactions.back().states.front().layerId = id;
+        transactions.back().states.front().state.frameRateSelectionStrategy = strategy;
+        mLifecycleManager.applyTransactions(transactions);
+    }
+
     void setRoundedCorners(uint32_t id, float radius) {
         std::vector<TransactionState> transactions;
         transactions.emplace_back();
@@ -358,6 +381,17 @@ protected:
                 std::make_shared<fake::BufferData>(texture->getId(), texture->getWidth(),
                                                    texture->getHeight(), texture->getPixelFormat(),
                                                    texture->getUsage());
+        mLifecycleManager.applyTransactions(transactions);
+    }
+
+    void setBufferCrop(uint32_t id, const Rect& bufferCrop) {
+        std::vector<TransactionState> transactions;
+        transactions.emplace_back();
+        transactions.back().states.push_back({});
+
+        transactions.back().states.front().state.what = layer_state_t::eBufferCropChanged;
+        transactions.back().states.front().layerId = id;
+        transactions.back().states.front().state.bufferCrop = bufferCrop;
         mLifecycleManager.applyTransactions(transactions);
     }
 

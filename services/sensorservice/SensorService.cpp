@@ -584,7 +584,7 @@ status_t SensorService::dump(int fd, const Vector<String16>& args) {
         }
         if (args.size() > 0) {
             Mode targetOperatingMode = NORMAL;
-            std::string inputStringMode = String8(args[0]).string();
+            std::string inputStringMode = String8(args[0]).c_str();
             if (getTargetOperatingMode(inputStringMode, &targetOperatingMode)) {
               status_t error = changeOperatingMode(args, targetOperatingMode);
               // Dump the latest state only if no error was encountered.
@@ -623,13 +623,13 @@ status_t SensorService::dump(int fd, const Vector<String16>& args) {
             for (auto&& i : mRecentEvent) {
                 std::shared_ptr<SensorInterface> s = getSensorInterfaceFromHandle(i.first);
                 if (!i.second->isEmpty() && s != nullptr) {
-                    if (privileged || s->getSensor().getRequiredPermission().isEmpty()) {
+                    if (privileged || s->getSensor().getRequiredPermission().empty()) {
                         i.second->setFormat("normal");
                     } else {
                         i.second->setFormat("mask_data");
                     }
                     // if there is events and sensor does not need special permission.
-                    result.appendFormat("%s: ", s->getSensor().getName().string());
+                    result.appendFormat("%s: ", s->getSensor().getName().c_str());
                     result.append(i.second->dump().c_str());
                 }
             }
@@ -640,7 +640,7 @@ status_t SensorService::dump(int fd, const Vector<String16>& args) {
                 int handle = mActiveSensors.keyAt(i);
                 if (dev.isSensorActive(handle)) {
                     result.appendFormat("%s (handle=0x%08x, connections=%zu)\n",
-                            getSensorName(handle).string(),
+                            getSensorName(handle).c_str(),
                             handle,
                             mActiveSensors.valueAt(i)->getNumConnections());
                 }
@@ -656,14 +656,14 @@ status_t SensorService::dump(int fd, const Vector<String16>& args) {
                    result.appendFormat(" NORMAL\n");
                    break;
                case RESTRICTED:
-                   result.appendFormat(" RESTRICTED : %s\n", mAllowListedPackage.string());
+                   result.appendFormat(" RESTRICTED : %s\n", mAllowListedPackage.c_str());
                    break;
                case DATA_INJECTION:
-                   result.appendFormat(" DATA_INJECTION : %s\n", mAllowListedPackage.string());
+                   result.appendFormat(" DATA_INJECTION : %s\n", mAllowListedPackage.c_str());
                    break;
                case REPLAY_DATA_INJECTION:
                    result.appendFormat(" REPLAY_DATA_INJECTION : %s\n",
-                            mAllowListedPackage.string());
+                            mAllowListedPackage.c_str());
                    break;
                default:
                    result.appendFormat(" UNKNOWN\n");
@@ -705,7 +705,7 @@ status_t SensorService::dump(int fd, const Vector<String16>& args) {
             } while(startIndex != currentIndex);
         }
     }
-    write(fd, result.string(), result.size());
+    write(fd, result.c_str(), result.size());
     return NO_ERROR;
 }
 
@@ -749,11 +749,11 @@ status_t SensorService::dumpProtoLocked(int fd, ConnectionSafeAutolock* connLock
     for (auto&& i : mRecentEvent) {
         std::shared_ptr<SensorInterface> s = getSensorInterfaceFromHandle(i.first);
         if (!i.second->isEmpty() && s != nullptr) {
-            i.second->setFormat(privileged || s->getSensor().getRequiredPermission().isEmpty() ?
+            i.second->setFormat(privileged || s->getSensor().getRequiredPermission().empty() ?
                     "normal" : "mask_data");
             const uint64_t mToken = proto.start(service::SensorEventsProto::RECENT_EVENTS_LOGS);
             proto.write(service::SensorEventsProto::RecentEventsLog::NAME,
-                    std::string(s->getSensor().getName().string()));
+                    std::string(s->getSensor().getName().c_str()));
             i.second->dump(&proto);
             proto.end(mToken);
         }
@@ -767,7 +767,7 @@ status_t SensorService::dumpProtoLocked(int fd, ConnectionSafeAutolock* connLock
         if (dev.isSensorActive(handle)) {
             token = proto.start(ACTIVE_SENSORS);
             proto.write(service::ActiveSensorProto::NAME,
-                    std::string(getSensorName(handle).string()));
+                    std::string(getSensorName(handle).c_str()));
             proto.write(service::ActiveSensorProto::HANDLE, handle);
             proto.write(service::ActiveSensorProto::NUM_CONNECTIONS,
                     int(mActiveSensors.valueAt(i)->getNumConnections()));
@@ -785,11 +785,11 @@ status_t SensorService::dumpProtoLocked(int fd, ConnectionSafeAutolock* connLock
             break;
         case RESTRICTED:
             proto.write(OPERATING_MODE, OP_MODE_RESTRICTED);
-            proto.write(WHITELISTED_PACKAGE, std::string(mAllowListedPackage.string()));
+            proto.write(WHITELISTED_PACKAGE, std::string(mAllowListedPackage.c_str()));
             break;
         case DATA_INJECTION:
             proto.write(OPERATING_MODE, OP_MODE_DATA_INJECTION);
-            proto.write(WHITELISTED_PACKAGE, std::string(mAllowListedPackage.string()));
+            proto.write(WHITELISTED_PACKAGE, std::string(mAllowListedPackage.c_str()));
             break;
         default:
             proto.write(OPERATING_MODE, OP_MODE_UNKNOWN);
@@ -932,8 +932,8 @@ static status_t getUidForPackage(String16 packageName, int userId, /*inout*/uid_
     PermissionController pc;
     uid = pc.getPackageUid(packageName, 0);
     if (uid <= 0) {
-        ALOGE("Unknown package: '%s'", String8(packageName).string());
-        dprintf(err, "Unknown package: '%s'\n", String8(packageName).string());
+        ALOGE("Unknown package: '%s'", String8(packageName).c_str());
+        dprintf(err, "Unknown package: '%s'\n", String8(packageName).c_str());
         return BAD_VALUE;
     }
 
@@ -958,7 +958,7 @@ status_t SensorService::handleSetUidState(Vector<String16>& args, int err) {
     if (args[2] == String16("active")) {
         active = true;
     } else if ((args[2] != String16("idle"))) {
-        ALOGE("Expected active or idle but got: '%s'", String8(args[2]).string());
+        ALOGE("Expected active or idle but got: '%s'", String8(args[2]).c_str());
         return BAD_VALUE;
     }
 
@@ -1495,7 +1495,7 @@ void SensorService::addSensorIfAccessible(const String16& opPackageName, const S
         accessibleSensorList.add(sensor);
     } else if (sensor.getType() != SENSOR_TYPE_HEAD_TRACKER) {
         ALOGI("Skipped sensor %s because it requires permission %s and app op %" PRId32,
-        sensor.getName().string(), sensor.getRequiredPermission().string(),
+        sensor.getName().c_str(), sensor.getRequiredPermission().c_str(),
         sensor.getRequiredAppOp());
     }
 }
@@ -2217,10 +2217,10 @@ bool SensorService::canAccessSensor(const Sensor& sensor, const char* operation,
             !isAudioServerOrSystemServerUid(IPCThreadState::self()->getCallingUid())) {
         if (!mHtRestricted) {
             ALOGI("Permitting access to HT sensor type outside system (%s)",
-                  String8(opPackageName).string());
+                  String8(opPackageName).c_str());
         } else {
-            ALOGW("%s %s a sensor (%s) as a non-system client", String8(opPackageName).string(),
-                  operation, sensor.getName().string());
+            ALOGW("%s %s a sensor (%s) as a non-system client", String8(opPackageName).c_str(),
+                  operation, sensor.getName().c_str());
             return false;
         }
     }
@@ -2253,8 +2253,8 @@ bool SensorService::canAccessSensor(const Sensor& sensor, const char* operation,
     }
 
     if (!canAccess) {
-        ALOGE("%s %s a sensor (%s) without holding %s", String8(opPackageName).string(),
-              operation, sensor.getName().string(), sensor.getRequiredPermission().string());
+        ALOGE("%s %s a sensor (%s) without holding %s", String8(opPackageName).c_str(),
+              operation, sensor.getName().c_str(), sensor.getRequiredPermission().c_str());
     }
 
     return canAccess;
@@ -2371,7 +2371,7 @@ status_t SensorService::changeOperatingMode(const Vector<String16>& args,
         mCurrentOperatingMode = RESTRICTED;
         // temporarily stop all sensor direct report and disable sensors
         disableAllSensorsLocked(&connLock);
-        mAllowListedPackage.setTo(String8(args[1]));
+        mAllowListedPackage = String8(args[1]);
         return status_t(NO_ERROR);
       case REPLAY_DATA_INJECTION:
         if (SensorServiceUtil::isUserBuild()) {
@@ -2391,7 +2391,7 @@ status_t SensorService::changeOperatingMode(const Vector<String16>& args,
                 // Re-enable sensors.
                 dev.enableAllSensors();
             }
-            mAllowListedPackage.setTo(String8(args[1]));
+            mAllowListedPackage = String8(args[1]);
             return NO_ERROR;
         } else {
             // Transition to data injection mode supported only from NORMAL mode.
@@ -2434,7 +2434,7 @@ void SensorService::sendEventsFromCache(const sp<SensorEventConnection>& connect
 }
 
 bool SensorService::isAllowListedPackage(const String8& packageName) {
-    return (packageName.contains(mAllowListedPackage.string()));
+    return (packageName.contains(mAllowListedPackage.c_str()));
 }
 
 bool SensorService::isOperationRestrictedLocked(const String16& opPackageName) {

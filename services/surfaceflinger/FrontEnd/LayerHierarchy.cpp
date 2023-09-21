@@ -60,9 +60,9 @@ void LayerHierarchy::traverse(const Visitor& visitor,
             return;
         }
     }
-    if (traversalPath.hasRelZLoop()) {
-        LOG_ALWAYS_FATAL("Found relative z loop layerId:%d", traversalPath.invalidRelativeRootId);
-    }
+
+    LLOG_ALWAYS_FATAL_WITH_TRACE_IF(traversalPath.hasRelZLoop(), "Found relative z loop layerId:%d",
+                                    traversalPath.invalidRelativeRootId);
     for (auto& [child, childVariant] : mChildren) {
         ScopedAddToTraversalPath addChildToTraversalPath(traversalPath, child->mLayer->id,
                                                          childVariant);
@@ -104,9 +104,7 @@ void LayerHierarchy::removeChild(LayerHierarchy* child) {
                            [child](const std::pair<LayerHierarchy*, Variant>& x) {
                                return x.first == child;
                            });
-    if (it == mChildren.end()) {
-        LOG_ALWAYS_FATAL("Could not find child!");
-    }
+    LLOG_ALWAYS_FATAL_WITH_TRACE_IF(it == mChildren.end(), "Could not find child!");
     mChildren.erase(it);
 }
 
@@ -119,11 +117,8 @@ void LayerHierarchy::updateChild(LayerHierarchy* hierarchy, LayerHierarchy::Vari
                            [hierarchy](std::pair<LayerHierarchy*, Variant>& child) {
                                return child.first == hierarchy;
                            });
-    if (it == mChildren.end()) {
-        LOG_ALWAYS_FATAL("Could not find child!");
-    } else {
-        it->second = variant;
-    }
+    LLOG_ALWAYS_FATAL_WITH_TRACE_IF(it == mChildren.end(), "Could not find child!");
+    it->second = variant;
 }
 
 const RequestedLayerState* LayerHierarchy::getLayer() const {
@@ -150,7 +145,8 @@ std::string LayerHierarchy::getDebugStringShort() const {
 }
 
 void LayerHierarchy::dump(std::ostream& out, const std::string& prefix,
-                          LayerHierarchy::Variant variant, bool isLastChild) const {
+                          LayerHierarchy::Variant variant, bool isLastChild,
+                          bool includeMirroredHierarchy) const {
     if (!mLayer) {
         out << " ROOT";
     } else {
@@ -158,8 +154,11 @@ void LayerHierarchy::dump(std::ostream& out, const std::string& prefix,
         if (variant == LayerHierarchy::Variant::Relative) {
             out << "(Relative) ";
         } else if (variant == LayerHierarchy::Variant::Mirror) {
-            out << "(Mirroring) " << *mLayer << "\n" + prefix + "   └─ ...";
-            return;
+            if (!includeMirroredHierarchy) {
+                out << "(Mirroring) " << *mLayer << "\n" + prefix + "   └─ ...";
+                return;
+            }
+            out << "(Mirroring) ";
         }
         out << *mLayer;
     }
@@ -173,7 +172,7 @@ void LayerHierarchy::dump(std::ostream& out, const std::string& prefix,
             childPrefix += (isLastChild ? "   " : "│  ");
         }
         out << "\n";
-        child->dump(out, childPrefix, childVariant, lastChild);
+        child->dump(out, childPrefix, childVariant, lastChild, includeMirroredHierarchy);
     }
     return;
 }
@@ -422,9 +421,8 @@ LayerHierarchy LayerHierarchyBuilder::getPartialHierarchy(uint32_t layerId,
 LayerHierarchy* LayerHierarchyBuilder::getHierarchyFromId(uint32_t layerId, bool crashOnFailure) {
     auto it = mLayerIdToHierarchy.find(layerId);
     if (it == mLayerIdToHierarchy.end()) {
-        if (crashOnFailure) {
-            LOG_ALWAYS_FATAL("Could not find hierarchy for layer id %d", layerId);
-        }
+        LLOG_ALWAYS_FATAL_WITH_TRACE_IF(crashOnFailure, "Could not find hierarchy for layer id %d",
+                                        layerId);
         return nullptr;
     };
 
@@ -441,8 +439,11 @@ std::string LayerHierarchy::TraversalPath::toString() const {
     std::stringstream ss;
     ss << "TraversalPath{.id = " << id;
 
-    if (mirrorRootId != UNASSIGNED_LAYER_ID) {
-        ss << ", .mirrorRootId=" << mirrorRootId;
+    if (!mirrorRootIds.empty()) {
+        ss << ", .mirrorRootIds=";
+        for (auto rootId : mirrorRootIds) {
+            ss << rootId << ",";
+        }
     }
 
     if (!relativeRootIds.empty()) {
@@ -459,13 +460,6 @@ std::string LayerHierarchy::TraversalPath::toString() const {
     return ss.str();
 }
 
-LayerHierarchy::TraversalPath LayerHierarchy::TraversalPath::getMirrorRoot() const {
-    LOG_ALWAYS_FATAL_IF(!isClone(), "Cannot get mirror root of a non cloned node");
-    TraversalPath mirrorRootPath = *this;
-    mirrorRootPath.id = mirrorRootId;
-    return mirrorRootPath;
-}
-
 // Helper class to update a passed in TraversalPath when visiting a child. When the object goes out
 // of scope the TraversalPath is reset to its original state.
 LayerHierarchy::ScopedAddToTraversalPath::ScopedAddToTraversalPath(TraversalPath& traversalPath,
@@ -477,7 +471,7 @@ LayerHierarchy::ScopedAddToTraversalPath::ScopedAddToTraversalPath(TraversalPath
     traversalPath.id = layerId;
     traversalPath.variant = variant;
     if (variant == LayerHierarchy::Variant::Mirror) {
-        traversalPath.mirrorRootId = mParentPath.id;
+        traversalPath.mirrorRootIds.emplace_back(mParentPath.id);
     } else if (variant == LayerHierarchy::Variant::Relative) {
         if (std::find(traversalPath.relativeRootIds.begin(), traversalPath.relativeRootIds.end(),
                       layerId) != traversalPath.relativeRootIds.end()) {
@@ -492,7 +486,7 @@ LayerHierarchy::ScopedAddToTraversalPath::~ScopedAddToTraversalPath() {
     // Reset the traversal id to its original parent state using the state that was saved in
     // the constructor.
     if (mTraversalPath.variant == LayerHierarchy::Variant::Mirror) {
-        mTraversalPath.mirrorRootId = mParentPath.mirrorRootId;
+        mTraversalPath.mirrorRootIds.pop_back();
     } else if (mTraversalPath.variant == LayerHierarchy::Variant::Relative) {
         mTraversalPath.relativeRootIds.pop_back();
     }

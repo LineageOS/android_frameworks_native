@@ -137,10 +137,7 @@ android::base::Result<void> MotionPredictor::record(const MotionEvent& event) {
 
     // Pass input event to the MetricsManager.
     if (!mMetricsManager) {
-        mMetricsManager =
-                std::make_optional<MotionPredictorMetricsManager>(mModel->config()
-                                                                          .predictionInterval,
-                                                                  mModel->outputLength());
+        mMetricsManager.emplace(mModel->config().predictionInterval, mModel->outputLength());
     }
     mMetricsManager->onRecord(event);
 
@@ -184,7 +181,8 @@ std::unique_ptr<MotionEvent> MotionPredictor::predict(nsecs_t timestamp) {
     int64_t predictionTime = mBuffers->lastTimestamp();
     const int64_t futureTime = timestamp + mPredictionTimestampOffsetNanos;
 
-    for (int i = 0; i < predictedR.size() && predictionTime <= futureTime; ++i) {
+    for (size_t i = 0; i < static_cast<size_t>(predictedR.size()) && predictionTime <= futureTime;
+         ++i) {
         if (predictedR[i] < mModel->config().distanceNoiseFloor) {
             // Stop predicting when the predicted output is below the model's noise floor.
             //
@@ -201,7 +199,7 @@ std::unique_ptr<MotionEvent> MotionPredictor::predict(nsecs_t timestamp) {
         const TfLiteMotionPredictorSample::Point predictedPoint =
                 convertPrediction(axisFrom, axisTo, predictedR[i], predictedPhi[i]);
 
-        ALOGD_IF(isDebug(), "prediction %d: %f, %f", i, predictedPoint.x, predictedPoint.y);
+        ALOGD_IF(isDebug(), "prediction %zu: %f, %f", i, predictedPoint.x, predictedPoint.y);
         PointerCoords coords;
         coords.clear();
         coords.setAxisValue(AMOTION_EVENT_AXIS_X, predictedPoint.x);

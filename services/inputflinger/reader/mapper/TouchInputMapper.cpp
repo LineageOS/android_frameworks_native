@@ -130,7 +130,10 @@ TouchInputMapper::TouchInputMapper(InputDeviceContext& deviceContext,
 TouchInputMapper::~TouchInputMapper() {}
 
 uint32_t TouchInputMapper::getSources() const {
-    return mSource;
+    // The SOURCE_BLUETOOTH_STYLUS is added to events dynamically if the current stream is modified
+    // by the external stylus state. That's why we don't add it directly to mSource during
+    // configuration.
+    return mSource | (hasExternalStylus() ? AINPUT_SOURCE_BLUETOOTH_STYLUS : 0);
 }
 
 void TouchInputMapper::populateDeviceInfo(InputDeviceInfo& info) {
@@ -932,9 +935,6 @@ void TouchInputMapper::configureInputDevice(nsecs_t when, bool* outResetNeeded) 
         if (hasStylus()) {
             mSource |= AINPUT_SOURCE_STYLUS;
         }
-        if (hasExternalStylus()) {
-            mSource |= AINPUT_SOURCE_BLUETOOTH_STYLUS;
-        }
     } else if (mParameters.deviceType == Parameters::DeviceType::TOUCH_NAVIGATION) {
         mSource = AINPUT_SOURCE_TOUCH_NAVIGATION;
         mDeviceMode = DeviceMode::NAVIGATION;
@@ -1664,6 +1664,10 @@ std::list<NotifyArgs> TouchInputMapper::cookAndDispatch(nsecs_t when, nsecs_t re
                                 mSource, mViewport.displayId, policyFlags,
                                 mLastCookedState.buttonState, mCurrentCookedState.buttonState);
 
+    if (mCurrentCookedState.cookedPointerData.pointerCount == 0) {
+        mCurrentStreamModifiedByExternalStylus = false;
+    }
+
     // Clear some transient state.
     mCurrentRawState.rawVScroll = 0;
     mCurrentRawState.rawHScroll = 0;
@@ -1715,6 +1719,10 @@ void TouchInputMapper::applyExternalStylusButtonState(nsecs_t when) {
 
         mExternalStylusButtonsApplied |= pressedButtons;
         mExternalStylusButtonsApplied &= ~releasedButtons;
+
+        if (mExternalStylusButtonsApplied != 0 || releasedButtons != 0) {
+            mCurrentStreamModifiedByExternalStylus = true;
+        }
     }
 }
 
@@ -1724,6 +1732,8 @@ void TouchInputMapper::applyExternalStylusTouchState(nsecs_t when) {
     if (!mFusedStylusPointerId || !currentPointerData.isTouching(*mFusedStylusPointerId)) {
         return;
     }
+
+    mCurrentStreamModifiedByExternalStylus = true;
 
     float pressure = lastPointerData.isTouching(*mFusedStylusPointerId)
             ? lastPointerData.pointerCoordsForId(*mFusedStylusPointerId)
@@ -3820,6 +3830,9 @@ NotifyMotionArgs TouchInputMapper::dispatchMotion(
             // Can't happen.
             ALOG_ASSERT(false);
         }
+    }
+    if (mCurrentStreamModifiedByExternalStylus) {
+        source |= AINPUT_SOURCE_BLUETOOTH_STYLUS;
     }
 
     const int32_t displayId = getAssociatedDisplayId().value_or(ADISPLAY_ID_NONE);

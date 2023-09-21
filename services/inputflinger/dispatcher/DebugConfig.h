@@ -19,6 +19,9 @@
 #define LOG_TAG "InputDispatcher"
 
 #include <android-base/logging.h>
+#include <com_android_input_flags.h>
+
+namespace input_flags = com::android::input::flags;
 
 namespace android::inputdispatcher {
 
@@ -102,7 +105,7 @@ const bool DEBUG_HOVER =
  * Crash if a bad stream from InputListener is detected.
  * Enable this via "adb shell setprop log.tag.InputDispatcherVerifyEvents DEBUG" (requires restart)
  */
-const bool DEBUG_VERIFY_EVENTS =
+const bool DEBUG_VERIFY_EVENTS = input_flags::enable_inbound_event_verification() ||
         android::base::ShouldLog(android::base::LogSeverity::DEBUG, LOG_TAG "VerifyEvents");
 
 } // namespace android::inputdispatcher

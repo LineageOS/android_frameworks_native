@@ -327,10 +327,6 @@ void OutputLayer::updateCompositionState(
             ? outputState.dataspace
             : layerFEState->dataspace;
 
-    // re-get HdrRenderType after the dataspace gets changed.
-    hdrRenderType =
-            getHdrRenderType(state.dataspace, pixelFormat, layerFEState->desiredHdrSdrRatio);
-
     // Override the dataspace transfer from 170M to sRGB if the device configuration requests this.
     // We do this here instead of in buffer info so that dumpsys can still report layers that are
     // using the 170M transfer. Also we only do this if the colorspace is not agnostic for the
@@ -341,6 +337,10 @@ void OutputLayer::updateCompositionState(
                 (state.dataspace & HAL_DATASPACE_STANDARD_MASK) |
                 (state.dataspace & HAL_DATASPACE_RANGE_MASK) | HAL_DATASPACE_TRANSFER_SRGB);
     }
+
+    // re-get HdrRenderType after the dataspace gets changed.
+    hdrRenderType =
+            getHdrRenderType(state.dataspace, pixelFormat, layerFEState->desiredHdrSdrRatio);
 
     // For hdr content, treat the white point as the display brightness - HDR content should not be
     // boosted or dimmed.
@@ -844,10 +844,16 @@ void OutputLayer::applyDeviceLayerRequest(hal::LayerRequest request) {
 
 bool OutputLayer::needsFiltering() const {
     const auto& state = getState();
-    const auto& displayFrame = state.displayFrame;
     const auto& sourceCrop = state.sourceCrop;
-    return sourceCrop.getHeight() != displayFrame.getHeight() ||
-            sourceCrop.getWidth() != displayFrame.getWidth();
+    auto displayFrameWidth = static_cast<float>(state.displayFrame.getWidth());
+    auto displayFrameHeight = static_cast<float>(state.displayFrame.getHeight());
+
+    if (state.bufferTransform & HAL_TRANSFORM_ROT_90) {
+        std::swap(displayFrameWidth, displayFrameHeight);
+    }
+
+    return sourceCrop.getHeight() != displayFrameHeight ||
+            sourceCrop.getWidth() != displayFrameWidth;
 }
 
 std::optional<LayerFE::LayerSettings> OutputLayer::getOverrideCompositionSettings() const {

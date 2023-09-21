@@ -118,7 +118,6 @@ LayerSnapshot::LayerSnapshot(const RequestedLayerState& state,
     sequence = static_cast<int32_t>(state.id);
     name = state.name;
     debugName = state.debugName;
-    textureName = state.textureName;
     premultipliedAlpha = state.premultipliedAlpha;
     inputInfo.name = state.name;
     inputInfo.id = static_cast<int32_t>(uniqueSequence);
@@ -295,8 +294,11 @@ std::string LayerSnapshot::getDebugString() const {
 
 std::ostream& operator<<(std::ostream& out, const LayerSnapshot& obj) {
     out << "Layer [" << obj.path.id;
-    if (obj.path.mirrorRootId != UNASSIGNED_LAYER_ID) {
-        out << " mirrored from " << obj.path.mirrorRootId;
+    if (!obj.path.mirrorRootIds.empty()) {
+        out << " mirrored from ";
+        for (auto rootId : obj.path.mirrorRootIds) {
+            out << rootId << ",";
+        }
     }
     out << "] " << obj.name << "\n    " << (obj.isVisible ? "visible" : "invisible")
         << " reason=" << obj.getIsVisibleReason();

@@ -85,7 +85,7 @@ TEST(TransactionProtoParserTest, parse) {
 
     TransactionProtoParser parser(std::make_unique<TestMapper>(displayHandle));
 
-    proto::TransactionState proto = parser.toProto(t1);
+    perfetto::protos::TransactionState proto = parser.toProto(t1);
     TransactionState t2 = parser.fromProto(proto);
 
     ASSERT_EQ(t1.originPid, t2.originPid);
@@ -119,7 +119,7 @@ TEST(TransactionProtoParserTest, parseDisplayInfo) {
     d1.transformHint = ui::Transform::ROT_90;
 
     const uint32_t layerStack = 2;
-    google::protobuf::RepeatedPtrField<proto::DisplayInfo> displayProtos;
+    google::protobuf::RepeatedPtrField<perfetto::protos::DisplayInfo> displayProtos;
     auto displayInfoProto = displayProtos.Add();
     *displayInfoProto = TransactionProtoParser::toProto(d1, layerStack);
     frontend::DisplayInfos displayInfos;

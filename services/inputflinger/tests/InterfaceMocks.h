@@ -16,8 +16,32 @@
 
 #pragma once
 
+#include <cstdint>
+#include <list>
+#include <memory>
+#include <optional>
+#include <string>
+#include <unordered_map>
+#include <utility>
+#include <vector>
+
+#include <EventHub.h>
+#include <InputReaderBase.h>
+#include <NotifyArgs.h>
+#include <PointerControllerInterface.h>
+#include <StylusState.h>
+#include <VibrationElement.h>
 #include <android-base/logging.h>
+#include <android-base/result.h>
 #include <gmock/gmock.h>
+#include <input/InputDevice.h>
+#include <input/KeyCharacterMap.h>
+#include <input/KeyLayoutMap.h>
+#include <input/PropertyMap.h>
+#include <input/TouchVideoFrame.h>
+#include <input/VirtualKeyMap.h>
+#include <utils/Errors.h>
+#include <utils/Timers.h>
 
 namespace android {
 

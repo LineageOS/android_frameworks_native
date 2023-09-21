@@ -25,6 +25,7 @@
 #include <ui/Transform.h>
 #include <utils/Timers.h>
 
+#include <scheduler/Fps.h>
 #include <scheduler/Seamlessness.h>
 
 #include "LayerHistory.h"
@@ -57,6 +58,7 @@ class LayerInfo {
     static constexpr Fps kMinFpsForFrequentLayer = 10_Hz;
     static constexpr auto kMaxPeriodForFrequentLayerNs =
             std::chrono::nanoseconds(kMinFpsForFrequentLayer.getPeriodNsecs()) + 1ms;
+    static constexpr size_t kNumSmallDirtyThreshold = 2;
 
     friend class LayerHistoryTest;
     friend class LayerInfoTest;
@@ -67,7 +69,14 @@ public:
         LayerHistory::LayerVoteType type = LayerHistory::LayerVoteType::Heuristic;
         Fps fps;
         Seamlessness seamlessness = Seamlessness::Default;
+        // Category is in effect if fps is not specified.
+        FrameRateCategory category = FrameRateCategory::Default;
+
+        // Returns true if the layer explicitly should contribute to frame rate scoring.
+        bool isNoVote() const { return RefreshRateSelector::isNoVote(type); }
     };
+
+    using RefreshRateVotes = ftl::SmallVector<LayerInfo::LayerVote, 2>;
 
     // FrameRateCompatibility specifies how we should interpret the frame rate associated with
     // the layer.
@@ -87,24 +96,47 @@ public:
         ftl_last = NoVote
     };
 
-    // Encapsulates the frame rate and compatibility of the layer. This information will be used
+    enum class FrameRateSelectionStrategy {
+        Self,
+        OverrideChildren,
+
+        ftl_last = OverrideChildren
+    };
+
+    // Encapsulates the frame rate specifications of the layer. This information will be used
     // when the display refresh rate is determined.
     struct FrameRate {
         using Seamlessness = scheduler::Seamlessness;
 
-        Fps rate;
-        FrameRateCompatibility type = FrameRateCompatibility::Default;
-        Seamlessness seamlessness = Seamlessness::Default;
+        // Information related to a specific desired frame rate vote.
+        struct FrameRateVote {
+            Fps rate;
+            FrameRateCompatibility type = FrameRateCompatibility::Default;
+            Seamlessness seamlessness = Seamlessness::Default;
+
+            bool operator==(const FrameRateVote& other) const {
+                return isApproxEqual(rate, other.rate) && type == other.type &&
+                        seamlessness == other.seamlessness;
+            }
+
+            FrameRateVote() = default;
+
+            FrameRateVote(Fps rate, FrameRateCompatibility type,
+                          Seamlessness seamlessness = Seamlessness::OnlySeamless)
+                  : rate(rate), type(type), seamlessness(getSeamlessness(rate, seamlessness)) {}
+        } vote;
+
+        FrameRateCategory category = FrameRateCategory::Default;
 
         FrameRate() = default;
 
         FrameRate(Fps rate, FrameRateCompatibility type,
-                  Seamlessness seamlessness = Seamlessness::OnlySeamless)
-              : rate(rate), type(type), seamlessness(getSeamlessness(rate, seamlessness)) {}
+                  Seamlessness seamlessness = Seamlessness::OnlySeamless,
+                  FrameRateCategory category = FrameRateCategory::Default)
+              : vote(FrameRateVote(rate, type, seamlessness)), category(category) {}
 
         bool operator==(const FrameRate& other) const {
-            return isApproxEqual(rate, other.rate) && type == other.type &&
-                    seamlessness == other.seamlessness;
+            return vote == other.vote && category == other.category;
         }
 
         bool operator!=(const FrameRate& other) const { return !(*this == other); }
@@ -112,7 +144,21 @@ public:
         // Convert an ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_* value to a
         // Layer::FrameRateCompatibility. Logs fatal if the compatibility value is invalid.
         static FrameRateCompatibility convertCompatibility(int8_t compatibility);
+
+        // Convert an ANATIVEWINDOW_CHANGE_FRAME_RATE_* value to a scheduler::Seamlessness.
+        // Logs fatal if the strategy value is invalid.
         static scheduler::Seamlessness convertChangeFrameRateStrategy(int8_t strategy);
+
+        // Convert an ANATIVEWINDOW_FRAME_RATE_CATEGORY_* value to a FrameRateCategory.
+        // Logs fatal if the category value is invalid.
+        static FrameRateCategory convertCategory(int8_t category);
+
+        // True if the FrameRate has explicit frame rate specifications.
+        bool isValid() const;
+
+        // Returns true if the FrameRate explicitly instructs to not contribute to frame rate
+        // selection.
+        bool isNoVote() const;
 
     private:
         static Seamlessness getSeamlessness(Fps rate, Seamlessness seamlessness) {
@@ -124,6 +170,10 @@ public:
             return seamlessness;
         }
     };
+
+    // Convert an ANATIVEWINDOW_FRAME_RATE_SELECTION_STRATEGY_* value to FrameRateSelectionStrategy.
+    // Logs fatal if the strategy value is invalid.
+    static FrameRateSelectionStrategy convertFrameRateSelectionStrategy(int8_t strategy);
 
     static void setTraceEnabled(bool enabled) { sTraceEnabled = enabled; }
 
@@ -148,13 +198,15 @@ public:
     void setDefaultLayerVote(LayerHistory::LayerVoteType type) { mDefaultVote = type; }
 
     // Resets the layer vote to its default.
-    void resetLayerVote() { mLayerVote = {mDefaultVote, Fps(), Seamlessness::Default}; }
+    void resetLayerVote() {
+        mLayerVote = {mDefaultVote, Fps(), Seamlessness::Default, FrameRateCategory::Default};
+    }
 
     std::string getName() const { return mName; }
 
     uid_t getOwnerUid() const { return mOwnerUid; }
 
-    LayerVote getRefreshRateVote(const RefreshRateSelector&, nsecs_t now);
+    RefreshRateVotes getRefreshRateVote(const RefreshRateSelector&, nsecs_t now);
 
     // Return the last updated time. If the present time is farther in the future than the
     // updated time, the updated time is the present time.
@@ -195,6 +247,7 @@ private:
         nsecs_t presentTime; // desiredPresentTime, if provided
         nsecs_t queueTime;  // buffer queue time
         bool pendingModeChange;
+        bool isSmallDirty;
     };
 
     // Holds information about the calculated and reported refresh rate
@@ -259,6 +312,8 @@ private:
         bool clearHistory;
         // Represents whether we were able to determine isFrequent conclusively
         bool isConclusive;
+        // Represents whether the latest frames are small dirty.
+        bool isSmallDirty = false;
     };
     Frequent isFrequent(nsecs_t now) const;
     bool isAnimating(nsecs_t now) const;
@@ -277,6 +332,11 @@ private:
     // this period apart from each other, the interval between them won't be
     // taken into account when calculating average frame rate.
     static constexpr nsecs_t kMaxPeriodBetweenFrames = kMinFpsForFrequentLayer.getPeriodNsecs();
+    // Used for sanitizing the heuristic data. If frames are small dirty updating and are less
+    // than this period apart from each other, the interval between them won't be
+    // taken into account when calculating average frame rate.
+    static constexpr nsecs_t kMinPeriodBetweenSmallDirtyFrames = (60_Hz).getPeriodNsecs();
+
     LayerHistory::LayerVoteType mDefaultVote;
 
     LayerVote mLayerVote;
@@ -291,11 +351,15 @@ private:
     std::chrono::time_point<std::chrono::steady_clock> mFrameTimeValidSince =
             std::chrono::steady_clock::now();
     static constexpr size_t HISTORY_SIZE = RefreshRateHistory::HISTORY_SIZE;
-    static constexpr std::chrono::nanoseconds HISTORY_DURATION = 1s;
+    static constexpr std::chrono::nanoseconds HISTORY_DURATION = LayerHistory::kMaxPeriodForHistory;
 
     std::unique_ptr<LayerProps> mLayerProps;
 
     RefreshRateHistory mRefreshRateHistory;
+
+    // This will be accessed from only one thread when counting a layer is frequent or infrequent,
+    // and to determine whether a layer is in small dirty updating.
+    mutable int32_t mLastSmallDirtyCount = 0;
 
     mutable std::unordered_map<LayerHistory::LayerVoteType, std::string> mTraceTags;
 
@@ -309,6 +373,7 @@ struct LayerProps {
     ui::Transform transform;
     LayerInfo::FrameRate setFrameRateVote;
     int32_t frameRateSelectionPriority = -1;
+    bool isSmallDirty = false;
 };
 
 } // namespace scheduler

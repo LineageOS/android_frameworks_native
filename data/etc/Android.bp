@@ -107,6 +107,18 @@ prebuilt_etc {
 }
 
 prebuilt_etc {
+    name: "android.hardware.nfc.prebuilt.xml",
+    src: "android.hardware.nfc.xml",
+    defaults: ["frameworks_native_data_etc_defaults"],
+}
+
+prebuilt_etc {
+    name: "android.hardware.nfc.hce.prebuilt.xml",
+    src: "android.hardware.nfc.hce.xml",
+    defaults: ["frameworks_native_data_etc_defaults"],
+}
+
+prebuilt_etc {
     name: "android.hardware.reboot_escrow.prebuilt.xml",
     src: "android.hardware.reboot_escrow.xml",
     defaults: ["frameworks_native_data_etc_defaults"],

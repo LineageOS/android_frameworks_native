@@ -43,6 +43,7 @@ struct LayerProps;
 class LayerHistory {
 public:
     using LayerVoteType = RefreshRateSelector::LayerVoteType;
+    static constexpr std::chrono::nanoseconds kMaxPeriodForHistory = 1s;
 
     LayerHistory();
     ~LayerHistory();
@@ -83,6 +84,8 @@ public:
 
     // return the frames per second of the layer with the given sequence id.
     float getLayerFramerate(nsecs_t now, int32_t id) const;
+
+    bool isSmallDirtyArea(uint32_t dirtyArea, float threshold) const;
 
 private:
     friend class LayerHistoryTest;

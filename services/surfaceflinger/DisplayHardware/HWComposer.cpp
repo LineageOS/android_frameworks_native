@@ -285,13 +285,12 @@ std::vector<HWComposer::HWCDisplayMode> HWComposer::getModesFromDisplayConfigura
     std::vector<HWCDisplayMode> modes;
     modes.reserve(configs.size());
     for (auto config : configs) {
-        auto hwcMode = HWCDisplayMode{
-                .hwcId = static_cast<hal::HWConfigId>(config.configId),
-                .width = config.width,
-                .height = config.height,
-                .vsyncPeriod = config.vsyncPeriod,
-                .configGroup = config.configGroup,
-        };
+        auto hwcMode = HWCDisplayMode{.hwcId = static_cast<hal::HWConfigId>(config.configId),
+                                      .width = config.width,
+                                      .height = config.height,
+                                      .vsyncPeriod = config.vsyncPeriod,
+                                      .configGroup = config.configGroup,
+                                      .vrrConfig = config.vrrConfig};
 
         if (config.dpi) {
             hwcMode.dpiX = config.dpi->x;

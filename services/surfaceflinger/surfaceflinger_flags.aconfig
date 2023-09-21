@@ -1,0 +1,32 @@
+package: "com.android.graphics.surfaceflinger.flags"
+
+flag {
+  name: "misc1"
+  namespace: "core_graphics"
+  description: "This flag controls minor miscellaneous SurfaceFlinger changes"
+  bug: "297389311"
+  is_fixed_read_only: true
+}
+
+flag {
+  name: "connected_display"
+  namespace: "core_graphics"
+  description: "Controls SurfaceFlinger support for Connected Displays"
+  bug: "278199093"
+  is_fixed_read_only: true
+}
+
+flag{
+  name: "late_boot_misc2"
+  namespace: "core_graphics"
+  description: "This flag controls minor miscellaneous SurfaceFlinger changes. Cannot be read before boot finished!"
+  bug: "297389311"
+}
+
+flag {
+  name: "vrr_config"
+  namespace: "core_graphics"
+  description: "Controls SurfaceFlinger support for VRR Configurations"
+  bug: "284845445"
+  is_fixed_read_only: true
+}

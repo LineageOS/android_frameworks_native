@@ -1,0 +1,17 @@
+cc_binary {
+    name: "sfdo",
+
+    srcs: ["sfdo.cpp"],
+
+    shared_libs: [
+        "libutils",
+        "libgui",
+    ],
+
+    cflags: [
+        "-Wall",
+        "-Werror",
+        "-Wunused",
+        "-Wunreachable-code",
+    ],
+}

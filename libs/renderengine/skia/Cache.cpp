@@ -29,8 +29,6 @@
 namespace android::renderengine::skia {
 
 namespace {
-// Warming shader cache, not framebuffer cache.
-constexpr bool kUseFrameBufferCache = false;
 
 // clang-format off
 // Any non-identity matrix will do.
@@ -65,9 +63,12 @@ static void drawShadowLayers(SkiaRenderEngine* renderengine, const DisplaySettin
             .geometry =
                     Geometry{
                             .boundaries = rect,
-                            .roundedCornersCrop = rect,
                             .roundedCornersRadius = {50.f, 50.f},
+                            .roundedCornersCrop = rect,
                     },
+            .alpha = 1,
+            // setting this is mandatory for shadows and blurs
+            .skipContentDraw = true,
             // drawShadow ignores alpha
             .shadow =
                     ShadowSettings{
@@ -78,16 +79,13 @@ static void drawShadowLayers(SkiaRenderEngine* renderengine, const DisplaySettin
                             .lightRadius = 2500.0f,
                             .length = 15.f,
                     },
-            // setting this is mandatory for shadows and blurs
-            .skipContentDraw = true,
-            .alpha = 1,
     };
     LayerSettings caster{
             .geometry =
                     Geometry{
                             .boundaries = smallerRect,
-                            .roundedCornersCrop = rect,
                             .roundedCornersRadius = {50.f, 50.f},
+                            .roundedCornersCrop = rect,
                     },
             .source =
                     PixelSource{
@@ -116,8 +114,7 @@ static void drawShadowLayers(SkiaRenderEngine* renderengine, const DisplaySettin
         caster.geometry.positionTransform = transform;
 
         auto layers = std::vector<LayerSettings>{layer, caster};
-        renderengine->drawLayers(display, layers, dstTexture, kUseFrameBufferCache,
-                                 base::unique_fd());
+        renderengine->drawLayers(display, layers, dstTexture, base::unique_fd());
     }
 }
 
@@ -129,10 +126,10 @@ static void drawImageLayers(SkiaRenderEngine* renderengine, const DisplaySetting
     LayerSettings layer{
             .geometry =
                     Geometry{
+                            .boundaries = rect,
                             // The position transform doesn't matter when the reduced shader mode
                             // in in effect. A matrix transform stage is always included.
                             .positionTransform = mat4(),
-                            .boundaries = rect,
                             .roundedCornersCrop = rect,
                     },
             .source = PixelSource{.buffer =
@@ -154,8 +151,7 @@ static void drawImageLayers(SkiaRenderEngine* renderengine, const DisplaySetting
                 for (auto alpha : {half(.2f), half(1.0f)}) {
                     layer.alpha = alpha;
                     auto layers = std::vector<LayerSettings>{layer};
-                    renderengine->drawLayers(display, layers, dstTexture, kUseFrameBufferCache,
-                                             base::unique_fd());
+                    renderengine->drawLayers(display, layers, dstTexture, base::unique_fd());
                 }
             }
         }
@@ -183,8 +179,7 @@ static void drawSolidLayers(SkiaRenderEngine* renderengine, const DisplaySetting
         for (float roundedCornersRadius : {0.0f, 50.f}) {
             layer.geometry.roundedCornersRadius = {roundedCornersRadius, roundedCornersRadius};
             auto layers = std::vector<LayerSettings>{layer};
-            renderengine->drawLayers(display, layers, dstTexture, kUseFrameBufferCache,
-                                     base::unique_fd());
+            renderengine->drawLayers(display, layers, dstTexture, base::unique_fd());
         }
     }
 }
@@ -207,8 +202,7 @@ static void drawBlurLayers(SkiaRenderEngine* renderengine, const DisplaySettings
     for (int radius : {9, 60}) {
         layer.backgroundBlurRadius = radius;
         auto layers = std::vector<LayerSettings>{layer};
-        renderengine->drawLayers(display, layers, dstTexture, kUseFrameBufferCache,
-                                 base::unique_fd());
+        renderengine->drawLayers(display, layers, dstTexture, base::unique_fd());
     }
 }
 
@@ -254,8 +248,7 @@ static void drawClippedLayers(SkiaRenderEngine* renderengine, const DisplaySetti
                 for (float alpha : {0.5f, 1.f}) {
                     layer.alpha = alpha;
                     auto layers = std::vector<LayerSettings>{layer};
-                    renderengine->drawLayers(display, layers, dstTexture, kUseFrameBufferCache,
-                                             base::unique_fd());
+                    renderengine->drawLayers(display, layers, dstTexture, base::unique_fd());
                 }
             }
         }
@@ -270,11 +263,11 @@ static void drawPIPImageLayer(SkiaRenderEngine* renderengine, const DisplaySetti
     LayerSettings layer{
             .geometry =
                     Geometry{
+                            .boundaries = rect,
                             // Note that this flip matrix only makes a difference when clipping,
                             // which happens in this layer because the roundrect crop is just a bit
                             // larger than the layer bounds.
                             .positionTransform = kFlip,
-                            .boundaries = rect,
                             .roundedCornersRadius = {94.2551f, 94.2551f},
                             .roundedCornersCrop = FloatRect(-93.75, 0, displayRect.width() + 93.75,
                                                             displayRect.height()),
@@ -282,17 +275,17 @@ static void drawPIPImageLayer(SkiaRenderEngine* renderengine, const DisplaySetti
             .source = PixelSource{.buffer =
                                           Buffer{
                                                   .buffer = srcTexture,
-                                                  .maxLuminanceNits = 1000.f,
-                                                  .isOpaque = 0,
                                                   .usePremultipliedAlpha = 1,
+                                                  .isOpaque = 0,
+                                                  .maxLuminanceNits = 1000.f,
                                           }},
-            .sourceDataspace = kOtherDataSpace,
             .alpha = 1,
+            .sourceDataspace = kOtherDataSpace,
 
     };
 
     auto layers = std::vector<LayerSettings>{layer};
-    renderengine->drawLayers(display, layers, dstTexture, kUseFrameBufferCache, base::unique_fd());
+    renderengine->drawLayers(display, layers, dstTexture, base::unique_fd());
 }
 
 static void drawHolePunchLayer(SkiaRenderEngine* renderengine, const DisplaySettings& display,
@@ -303,10 +296,10 @@ static void drawHolePunchLayer(SkiaRenderEngine* renderengine, const DisplaySett
     LayerSettings layer{
             .geometry =
                     Geometry{
-                            .positionTransform = kScaleAndTranslate,
                             // the boundaries have to be smaller than the rounded crop so that
                             // clipRRect is used instead of drawRRect
                             .boundaries = small,
+                            .positionTransform = kScaleAndTranslate,
                             .roundedCornersRadius = {50.f, 50.f},
                             .roundedCornersCrop = rect,
                     },
@@ -314,14 +307,14 @@ static void drawHolePunchLayer(SkiaRenderEngine* renderengine, const DisplaySett
                     PixelSource{
                             .solidColor = half3(0.f, 0.f, 0.f),
                     },
-            .sourceDataspace = kDestDataSpace,
             .alpha = 0,
+            .sourceDataspace = kDestDataSpace,
             .disableBlending = true,
 
     };
 
     auto layers = std::vector<LayerSettings>{layer};
-    renderengine->drawLayers(display, layers, dstTexture, kUseFrameBufferCache, base::unique_fd());
+    renderengine->drawLayers(display, layers, dstTexture, base::unique_fd());
 }
 
 //
@@ -436,9 +429,7 @@ void Cache::primeShaderCache(SkiaRenderEngine* renderengine) {
         };
         auto layers = std::vector<LayerSettings>{layer};
         // call get() to make it synchronous
-        renderengine
-                ->drawLayers(display, layers, dstTexture, kUseFrameBufferCache, base::unique_fd())
-                .get();
+        renderengine->drawLayers(display, layers, dstTexture, base::unique_fd()).get();
 
         const nsecs_t timeAfter = systemTime();
         const float compileTimeMs = static_cast<float>(timeAfter - timeBefore) / 1.0E6;

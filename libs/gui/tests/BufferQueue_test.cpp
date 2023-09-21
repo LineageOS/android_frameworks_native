@@ -37,14 +37,18 @@
 
 #include <system/window.h>
 
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
 #include <future>
 #include <thread>
 
+#include <com_android_graphics_libgui_flags.h>
+
 using namespace std::chrono_literals;
 
 namespace android {
+using namespace com::android::graphics::libgui;
 
 class BufferQueueTest : public ::testing::Test {
 
@@ -1259,6 +1263,31 @@ TEST_F(BufferQueueTest, TestProducerConnectDisconnect) {
     ASSERT_EQ(BAD_VALUE, mProducer->disconnect(NATIVE_WINDOW_API_MEDIA));
     ASSERT_EQ(OK, mProducer->disconnect(NATIVE_WINDOW_API_CPU));
     ASSERT_EQ(NO_INIT, mProducer->disconnect(NATIVE_WINDOW_API_CPU));
+}
+
+TEST_F(BufferQueueTest, TestBqSetFrameRateFlagBuildTimeIsSet) {
+    if (flags::bq_setframerate()) {
+        ASSERT_EQ(true, FLAG_BQ_SET_FRAME_RATE);
+    }
+}
+
+struct BufferItemConsumerSetFrameRateListener : public BufferItemConsumer {
+    BufferItemConsumerSetFrameRateListener(const sp<IGraphicBufferConsumer>& consumer)
+          : BufferItemConsumer(consumer, GRALLOC_USAGE_SW_READ_OFTEN, 1) {}
+
+    MOCK_METHOD(void, onSetFrameRate, (float, int8_t, int8_t), (override));
+};
+
+TEST_F(BufferQueueTest, TestSetFrameRate) {
+    sp<IGraphicBufferProducer> producer;
+    sp<IGraphicBufferConsumer> consumer;
+    BufferQueue::createBufferQueue(&producer, &consumer);
+
+    sp<BufferItemConsumerSetFrameRateListener> bufferConsumer =
+            sp<BufferItemConsumerSetFrameRateListener>::make(consumer);
+
+    EXPECT_CALL(*bufferConsumer, onSetFrameRate(12.34f, 1, 0)).Times(1);
+    producer->setFrameRate(12.34f, 1, 0);
 }
 
 class Latch {

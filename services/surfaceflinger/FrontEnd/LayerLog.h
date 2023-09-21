@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include "Tracing/TransactionTracing.h"
+
 // Uncomment to trace layer updates for a single layer
 // #define LOG_LAYER 1
 
@@ -27,3 +29,17 @@
 #endif
 
 #define LLOGD(LAYER_ID, x, ...) ALOGD("[%d] %s " x, (LAYER_ID), __func__, ##__VA_ARGS__);
+
+#define LLOG_ALWAYS_FATAL_WITH_TRACE(...)                                               \
+    do {                                                                                \
+        TransactionTraceWriter::getInstance().invoke(__func__, /* overwrite= */ false); \
+        LOG_ALWAYS_FATAL(##__VA_ARGS__);                                                \
+    } while (false)
+
+#define LLOG_ALWAYS_FATAL_WITH_TRACE_IF(cond, ...)                                          \
+    do {                                                                                    \
+        if (__predict_false(cond)) {                                                        \
+            TransactionTraceWriter::getInstance().invoke(__func__, /* overwrite= */ false); \
+        }                                                                                   \
+        LOG_ALWAYS_FATAL_IF(cond, ##__VA_ARGS__);                                           \
+    } while (false)

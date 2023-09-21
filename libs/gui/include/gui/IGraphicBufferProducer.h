@@ -31,6 +31,7 @@
 #include <ui/Rect.h>
 #include <ui/Region.h>
 
+#include <gui/Flags.h>
 #include <gui/FrameTimestamps.h>
 #include <gui/HdrMetadata.h>
 
@@ -675,6 +676,12 @@ public:
     // specifies a 90 or 270 degree rotation, if auto prerotation is enabled,
     // the width and height used for dequeueBuffer will be additionally swapped.
     virtual status_t setAutoPrerotation(bool autoPrerotation);
+
+#if FLAG_BQ_SET_FRAME_RATE
+    // Sets the apps intended frame rate.
+    virtual status_t setFrameRate(float frameRate, int8_t compatibility,
+                                  int8_t changeFrameRateStrategy);
+#endif
 
     struct RequestBufferOutput : public Flattenable<RequestBufferOutput> {
         RequestBufferOutput() = default;

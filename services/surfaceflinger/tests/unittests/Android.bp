@@ -66,6 +66,7 @@ cc_test {
         // option to false temporarily.
         address: true,
     },
+    static_libs: ["libc++fs"],
     srcs: [
         ":libsurfaceflinger_mock_sources",
         ":libsurfaceflinger_sources",
@@ -100,6 +101,7 @@ cc_test {
         "LayerTestUtils.cpp",
         "MessageQueueTest.cpp",
         "PowerAdvisorTest.cpp",
+        "SmallAreaDetectionAllowMappingsTest.cpp",
         "SurfaceFlinger_CreateDisplayTest.cpp",
         "SurfaceFlinger_DestroyDisplayTest.cpp",
         "SurfaceFlinger_DisplayModeSwitching.cpp",
@@ -128,6 +130,7 @@ cc_test {
         "TransactionFrameTracerTest.cpp",
         "TransactionProtoParserTest.cpp",
         "TransactionSurfaceFrameTest.cpp",
+        "TransactionTraceWriterTest.cpp",
         "TransactionTracingTest.cpp",
         "TunnelModeEnabledReporterTest.cpp",
         "StrongTypingTest.cpp",

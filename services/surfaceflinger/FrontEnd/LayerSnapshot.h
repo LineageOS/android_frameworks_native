@@ -64,7 +64,6 @@ struct LayerSnapshot : public compositionengine::LayerFECompositionState {
     int32_t sequence;
     std::string name;
     std::string debugName;
-    uint32_t textureName;
     bool contentOpaque;
     bool layerOpaqueFlagSet;
     RoundedCornerState roundedCorner;
@@ -86,6 +85,7 @@ struct LayerSnapshot : public compositionengine::LayerFECompositionState {
     bool isTrustedOverlay;
     gui::GameMode gameMode;
     scheduler::LayerInfo::FrameRate frameRate;
+    scheduler::LayerInfo::FrameRateSelectionStrategy frameRateSelectionStrategy;
     ui::Transform::RotationFlags fixedTransformHint;
     std::optional<ui::Transform::RotationFlags> transformHint;
     bool handleSkipScreenshotFlag = false;

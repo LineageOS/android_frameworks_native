@@ -24,12 +24,22 @@
 #include "FpsOps.h"
 #include "Scheduler/LayerHistory.h"
 #include "Scheduler/LayerInfo.h"
+#include "TestableScheduler.h"
+#include "TestableSurfaceFlinger.h"
+#include "mock/MockSchedulerCallback.h"
 
 namespace android::scheduler {
+
+using android::mock::createDisplayMode;
 
 class LayerInfoTest : public testing::Test {
 protected:
     using FrameTimeData = LayerInfo::FrameTimeData;
+
+    static constexpr Fps LO_FPS = 30_Hz;
+    static constexpr Fps HI_FPS = 90_Hz;
+
+    LayerInfoTest() { mFlinger.resetScheduler(mScheduler); }
 
     void setFrameTimes(const std::deque<FrameTimeData>& frameTimes) {
         layerInfo.mFrameTimes = frameTimes;
@@ -43,6 +53,16 @@ protected:
     auto calculateAverageFrameTime() { return layerInfo.calculateAverageFrameTime(); }
 
     LayerInfo layerInfo{"TestLayerInfo", 0, LayerHistory::LayerVoteType::Heuristic};
+
+    std::shared_ptr<RefreshRateSelector> mSelector =
+            std::make_shared<RefreshRateSelector>(makeModes(createDisplayMode(DisplayModeId(0),
+                                                                              LO_FPS),
+                                                            createDisplayMode(DisplayModeId(1),
+                                                                              HI_FPS)),
+                                                  DisplayModeId(0));
+    mock::SchedulerCallback mSchedulerCallback;
+    TestableScheduler* mScheduler = new TestableScheduler(mSelector, mSchedulerCallback);
+    TestableSurfaceFlinger mFlinger;
 };
 
 namespace {
@@ -169,6 +189,76 @@ TEST_F(LayerInfoTest, ignoresLargePeriods) {
     const auto averageFrameTime = calculateAverageFrameTime();
     ASSERT_TRUE(averageFrameTime.has_value());
     ASSERT_EQ(kExpectedFps, Fps::fromPeriodNsecs(*averageFrameTime));
+}
+
+TEST_F(LayerInfoTest, getRefreshRateVote_explicitVote) {
+    LayerInfo::LayerVote vote = {.type = LayerHistory::LayerVoteType::ExplicitDefault,
+                                 .fps = 20_Hz};
+    layerInfo.setLayerVote(vote);
+
+    auto actualVotes =
+            layerInfo.getRefreshRateVote(*mScheduler->refreshRateSelector(), systemTime());
+    ASSERT_EQ(actualVotes.size(), 1u);
+    ASSERT_EQ(actualVotes[0].type, vote.type);
+    ASSERT_EQ(actualVotes[0].fps, vote.fps);
+    ASSERT_EQ(actualVotes[0].seamlessness, vote.seamlessness);
+    ASSERT_EQ(actualVotes[0].category, vote.category);
+}
+
+TEST_F(LayerInfoTest, getRefreshRateVote_explicitVoteWithCategory) {
+    LayerInfo::LayerVote vote = {.type = LayerHistory::LayerVoteType::ExplicitDefault,
+                                 .fps = 20_Hz,
+                                 .category = FrameRateCategory::High};
+    layerInfo.setLayerVote(vote);
+
+    auto actualVotes =
+            layerInfo.getRefreshRateVote(*mScheduler->refreshRateSelector(), systemTime());
+    ASSERT_EQ(actualVotes.size(), 2u);
+    ASSERT_EQ(actualVotes[0].type, LayerHistory::LayerVoteType::ExplicitCategory);
+    ASSERT_EQ(actualVotes[0].category, vote.category);
+    ASSERT_EQ(actualVotes[1].type, vote.type);
+    ASSERT_EQ(actualVotes[1].fps, vote.fps);
+    ASSERT_EQ(actualVotes[1].seamlessness, vote.seamlessness);
+    ASSERT_EQ(actualVotes[1].category, vote.category);
+}
+
+TEST_F(LayerInfoTest, getRefreshRateVote_explicitCategory) {
+    LayerInfo::LayerVote vote = {.type = LayerHistory::LayerVoteType::ExplicitDefault,
+                                 .category = FrameRateCategory::High};
+    layerInfo.setLayerVote(vote);
+
+    auto actualVotes =
+            layerInfo.getRefreshRateVote(*mScheduler->refreshRateSelector(), systemTime());
+    ASSERT_EQ(actualVotes.size(), 1u);
+    ASSERT_EQ(actualVotes[0].type, LayerHistory::LayerVoteType::ExplicitCategory);
+    ASSERT_EQ(actualVotes[0].category, vote.category);
+    ASSERT_EQ(actualVotes[0].fps, 0_Hz);
+}
+
+TEST_F(LayerInfoTest, getRefreshRateVote_categoryNoPreference) {
+    LayerInfo::LayerVote vote = {.type = LayerHistory::LayerVoteType::ExplicitDefault,
+                                 .category = FrameRateCategory::NoPreference};
+    layerInfo.setLayerVote(vote);
+
+    auto actualVotes =
+            layerInfo.getRefreshRateVote(*mScheduler->refreshRateSelector(), systemTime());
+    ASSERT_EQ(actualVotes.size(), 1u);
+    ASSERT_EQ(actualVotes[0].type, LayerHistory::LayerVoteType::ExplicitCategory);
+    ASSERT_EQ(actualVotes[0].category, vote.category);
+    ASSERT_EQ(actualVotes[0].fps, 0_Hz);
+}
+
+TEST_F(LayerInfoTest, getRefreshRateVote_noData) {
+    LayerInfo::LayerVote vote = {
+            .type = LayerHistory::LayerVoteType::Heuristic,
+    };
+    layerInfo.setLayerVote(vote);
+
+    auto actualVotes =
+            layerInfo.getRefreshRateVote(*mScheduler->refreshRateSelector(), systemTime());
+    ASSERT_EQ(actualVotes.size(), 1u);
+    ASSERT_EQ(actualVotes[0].type, LayerHistory::LayerVoteType::Max);
+    ASSERT_EQ(actualVotes[0].fps, vote.fps);
 }
 
 } // namespace

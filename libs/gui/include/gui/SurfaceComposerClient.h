@@ -203,6 +203,16 @@ public:
     // by GameManager.
     static status_t setOverrideFrameRate(uid_t uid, float frameRate);
 
+    // Update the small area detection whole uid-threshold mappings by same size uid and threshold
+    // vector.
+    // Ref:setSmallAreaDetectionThreshold.
+    static status_t updateSmallAreaDetection(std::vector<int32_t>& uids,
+                                             std::vector<float>& thresholds);
+
+    // Sets the small area detection threshold to particular apps (uid). Passing value 0 means
+    // to disable small area detection to the app.
+    static status_t setSmallAreaDetectionThreshold(uid_t uid, float threshold);
+
     // Switches on/off Auto Low Latency Mode on the connected display. This should only be
     // called if the connected display supports Auto Low Latency Mode as reported by
     // #getAutoLowLatencyModeSupport
@@ -674,6 +684,10 @@ public:
 
         Transaction& setDefaultFrameRateCompatibility(const sp<SurfaceControl>& sc,
                                                       int8_t compatibility);
+
+        Transaction& setFrameRateCategory(const sp<SurfaceControl>& sc, int8_t category);
+
+        Transaction& setFrameRateSelectionStrategy(const sp<SurfaceControl>& sc, int8_t strategy);
 
         // Set by window manager indicating the layer and all its children are
         // in a different orientation than the display. The hint suggests that

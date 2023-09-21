@@ -415,7 +415,7 @@ TEST_F(SurfaceTest, GetConsumerName) {
     sp<ANativeWindow> window(surface);
     native_window_api_connect(window.get(), NATIVE_WINDOW_API_CPU);
 
-    EXPECT_STREQ("TestConsumer", surface->getConsumerName().string());
+    EXPECT_STREQ("TestConsumer", surface->getConsumerName().c_str());
 }
 
 TEST_F(SurfaceTest, GetWideColorSupport) {
@@ -986,6 +986,25 @@ public:
     }
 
     binder::Status setOverrideFrameRate(int32_t /*uid*/, float /*frameRate*/) override {
+        return binder::Status::ok();
+    }
+
+    binder::Status enableRefreshRateOverlay(bool /*active*/) override {
+        return binder::Status::ok();
+    }
+
+    binder::Status setDebugFlash(int /*delay*/) override { return binder::Status::ok(); }
+
+    binder::Status scheduleComposite() override { return binder::Status::ok(); }
+
+    binder::Status scheduleCommit() override { return binder::Status::ok(); }
+
+    binder::Status updateSmallAreaDetection(const std::vector<int32_t>& /*uids*/,
+                                            const std::vector<float>& /*thresholds*/) {
+        return binder::Status::ok();
+    }
+
+    binder::Status setSmallAreaDetectionThreshold(int32_t /*uid*/, float /*threshold*/) {
         return binder::Status::ok();
     }
 

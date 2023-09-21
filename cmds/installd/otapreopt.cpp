@@ -422,7 +422,8 @@ private:
 
     bool IsAotCompilation() const {
         if (std::find(std::begin(kAotCompilerFilters), std::end(kAotCompilerFilters),
-                      parameters_.compiler_filter) == std::end(kAotCompilerFilters)) {
+                      std::string_view(parameters_.compiler_filter)) ==
+            std::end(kAotCompilerFilters)) {
             return false;
         }
 
@@ -436,6 +437,9 @@ private:
                     maybe_open_reference_profile(parameters_.pkgName, parameters_.apk_path,
                                                  parameters_.profile_name, profile_guided,
                                                  is_public, parameters_.uid, is_secondary_dex);
+            // `maybe_open_reference_profile` installs a hook that clears the profile on
+            // destruction. Disable it.
+            reference_profile.DisableCleanup();
             struct stat sbuf;
             if (reference_profile.fd() == -1 ||
                 (fstat(reference_profile.fd(), &sbuf) != -1 && sbuf.st_size == 0)) {

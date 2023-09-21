@@ -26,6 +26,7 @@
 #include <android/gui/IWindowInfosListener.h>
 #include <android/gui/TrustedPresentationThresholds.h>
 #include <android/os/IInputConstants.h>
+#include <gui/FrameRateUtils.h>
 #include <gui/TraceUtils.h>
 #include <utils/Errors.h>
 #include <utils/Log.h>
@@ -1275,7 +1276,7 @@ sp<IBinder> SurfaceComposerClient::createDisplay(const String8& displayName, boo
     sp<IBinder> display = nullptr;
     binder::Status status =
             ComposerServiceAIDL::getComposerService()->createDisplay(std::string(
-                                                                             displayName.string()),
+                                                                             displayName.c_str()),
                                                                      secure, requestedRefereshRate,
                                                                      &display);
     return status.isOk() ? display : nullptr;
@@ -2092,6 +2093,31 @@ SurfaceComposerClient::Transaction::setDefaultFrameRateCompatibility(const sp<Su
     return *this;
 }
 
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setFrameRateCategory(
+        const sp<SurfaceControl>& sc, int8_t category) {
+    layer_state_t* s = getLayerState(sc);
+    if (!s) {
+        mStatus = BAD_INDEX;
+        return *this;
+    }
+    s->what |= layer_state_t::eFrameRateCategoryChanged;
+    s->frameRateCategory = category;
+    return *this;
+}
+
+SurfaceComposerClient::Transaction&
+SurfaceComposerClient::Transaction::setFrameRateSelectionStrategy(const sp<SurfaceControl>& sc,
+                                                                  int8_t strategy) {
+    layer_state_t* s = getLayerState(sc);
+    if (!s) {
+        mStatus = BAD_INDEX;
+        return *this;
+    }
+    s->what |= layer_state_t::eFrameRateSelectionStrategyChanged;
+    s->frameRateSelectionStrategy = strategy;
+    return *this;
+}
+
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setFixedTransformHint(
         const sp<SurfaceControl>& sc, int32_t fixedTransformHint) {
     layer_state_t* s = getLayerState(sc);
@@ -2419,7 +2445,7 @@ status_t SurfaceComposerClient::createSurfaceChecked(const String8& name, uint32
 
     if (mStatus == NO_ERROR) {
         gui::CreateSurfaceResult result;
-        binder::Status status = mClient->createSurface(std::string(name.string()), flags,
+        binder::Status status = mClient->createSurface(std::string(name.c_str()), flags,
                                                        parentHandle, std::move(metadata), &result);
         err = statusTFromBinderStatus(status);
         if (outTransformHint) {
@@ -2753,6 +2779,20 @@ status_t SurfaceComposerClient::getHdrOutputConversionSupport(bool* isSupported)
 status_t SurfaceComposerClient::setOverrideFrameRate(uid_t uid, float frameRate) {
     binder::Status status =
             ComposerServiceAIDL::getComposerService()->setOverrideFrameRate(uid, frameRate);
+    return statusTFromBinderStatus(status);
+}
+
+status_t SurfaceComposerClient::updateSmallAreaDetection(std::vector<int32_t>& uids,
+                                                         std::vector<float>& thresholds) {
+    binder::Status status =
+            ComposerServiceAIDL::getComposerService()->updateSmallAreaDetection(uids, thresholds);
+    return statusTFromBinderStatus(status);
+}
+
+status_t SurfaceComposerClient::setSmallAreaDetectionThreshold(uid_t uid, float threshold) {
+    binder::Status status =
+            ComposerServiceAIDL::getComposerService()->setSmallAreaDetectionThreshold(uid,
+                                                                                      threshold);
     return statusTFromBinderStatus(status);
 }
 

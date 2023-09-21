@@ -736,4 +736,22 @@ TEST_F(LayerHierarchyTest, removedRootLayerIsNoLongerMirrored) {
     EXPECT_EQ(getTraversalPath(hierarchyBuilder.getOffscreenHierarchy()), expected);
 }
 
+TEST_F(LayerHierarchyTest, canMirrorDisplayWithMirrors) {
+    LayerHierarchyBuilder hierarchyBuilder(mLifecycleManager.getLayers());
+    reparentLayer(12, UNASSIGNED_LAYER_ID);
+    mirrorLayer(/*layer*/ 14, /*parent*/ 1, /*layerToMirror*/ 11);
+    UPDATE_AND_VERIFY(hierarchyBuilder);
+
+    createDisplayMirrorLayer(3, ui::LayerStack::fromValue(0));
+    setLayerStack(3, 1);
+    UPDATE_AND_VERIFY(hierarchyBuilder);
+
+    std::vector<uint32_t> expected = {1, 11, 111, 13, 14, 11, 111, 2, 3,
+                                      1, 11, 111, 13, 14, 11, 111, 2};
+    EXPECT_EQ(getTraversalPath(hierarchyBuilder.getHierarchy()), expected);
+    EXPECT_EQ(getTraversalPathInZOrder(hierarchyBuilder.getHierarchy()), expected);
+    expected = {12, 121, 122, 1221};
+    EXPECT_EQ(getTraversalPath(hierarchyBuilder.getOffscreenHierarchy()), expected);
+}
+
 } // namespace android::surfaceflinger::frontend

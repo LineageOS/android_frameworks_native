@@ -277,13 +277,6 @@ public:
     // The CompositionEngine encapsulates all composition related interfaces and actions.
     compositionengine::CompositionEngine& getCompositionEngine() const;
 
-    // Obtains a name from the texture pool, or, if the pool is empty, posts a
-    // synchronous message to the main thread to obtain one on the fly
-    uint32_t getNewTexture();
-
-    // utility function to delete a texture on the main thread
-    void deleteTextureAsync(uint32_t texture);
-
     renderengine::RenderEngine& getRenderEngine() const;
 
     void onLayerFirstRef(Layer*);
@@ -323,6 +316,11 @@ public:
     // SMPTE 170M as sRGB prior to color management being implemented, and now implementations rely
     // on this behavior to increase contrast for some media sources.
     bool mTreat170mAsSrgb = false;
+
+    // If true, then screenshots with an enhanced render intent will dim in gamma space.
+    // The purpose is to ensure that screenshots appear correct during system animations for devices
+    // that require that dimming must occur in gamma space.
+    bool mDimInGammaSpaceForEnhancedScreenshots = false;
 
     // Allows to ignore physical orientation provided through hwc API in favour of
     // 'ro.surface_flinger.primary_display_orientation'.
@@ -370,7 +368,6 @@ private:
     friend class RefreshRateOverlay;
     friend class RegionSamplingThread;
     friend class LayerRenderArea;
-    friend class LayerTracing;
     friend class SurfaceComposerAIDL;
     friend class DisplayRenderArea;
 
@@ -608,6 +605,10 @@ private:
                                   const gui::FrameTimelineInfo& frameTimelineInfo);
 
     status_t setOverrideFrameRate(uid_t uid, float frameRate);
+
+    status_t updateSmallAreaDetection(std::vector<std::pair<uid_t, float>>& uidThresholdMappings);
+
+    status_t setSmallAreaDetectionThreshold(uid_t uid, float threshold);
 
     int getGpuContextPriority();
 
@@ -1088,18 +1089,23 @@ private:
     void dumpDisplayIdentificationData(std::string& result) const REQUIRES(mStateLock);
     void dumpRawDisplayIdentificationData(const DumpArgs&, std::string& result) const;
     void dumpWideColorInfo(std::string& result) const REQUIRES(mStateLock);
+    void dumpHdrInfo(std::string& result) const REQUIRES(mStateLock);
+    void dumpFrontEnd(std::string& result);
 
-    LayersProto dumpDrawingStateProto(uint32_t traceFlags) const;
-    void dumpOffscreenLayersProto(LayersProto& layersProto,
+    perfetto::protos::LayersProto dumpDrawingStateProto(uint32_t traceFlags) const;
+    void dumpOffscreenLayersProto(perfetto::protos::LayersProto& layersProto,
                                   uint32_t traceFlags = LayerTracing::TRACE_ALL) const;
-    google::protobuf::RepeatedPtrField<DisplayProto> dumpDisplayProto() const;
-    void addToLayerTracing(bool visibleRegionDirty, TimePoint, VsyncId)
+    google::protobuf::RepeatedPtrField<perfetto::protos::DisplayProto> dumpDisplayProto() const;
+    void doActiveLayersTracingIfNeeded(bool isCompositionComputed, bool visibleRegionDirty,
+                                       TimePoint, VsyncId) REQUIRES(kMainThreadContext);
+    perfetto::protos::LayersSnapshotProto takeLayersSnapshotProto(uint32_t flags, TimePoint,
+                                                                  VsyncId, bool visibleRegionDirty)
             REQUIRES(kMainThreadContext);
 
     // Dumps state from HW Composer
     void dumpHwc(std::string& result) const;
-    LayersProto dumpProtoFromMainThread(uint32_t traceFlags = LayerTracing::TRACE_ALL)
-            EXCLUDES(mStateLock);
+    perfetto::protos::LayersProto dumpProtoFromMainThread(
+            uint32_t traceFlags = LayerTracing::TRACE_ALL) EXCLUDES(mStateLock);
     void dumpOffscreenLayers(std::string& result) EXCLUDES(mStateLock);
     void dumpPlannerInfo(const DumpArgs& args, std::string& result) const REQUIRES(mStateLock);
 
@@ -1135,7 +1141,7 @@ private:
     ui::Rotation getPhysicalDisplayOrientation(DisplayId, bool isPrimary) const
             REQUIRES(mStateLock);
     void traverseLegacyLayers(const LayerVector::Visitor& visitor) const;
-
+    void initTransactionTraceWriter();
     sp<StartPropertySetThread> mStartPropertySetThread;
     surfaceflinger::Factory& mFactory;
     pid_t mPid;
@@ -1258,10 +1264,7 @@ private:
     bool mBackpressureGpuComposition = false;
 
     LayerTracing mLayerTracing;
-    bool mLayerTracingEnabled = false;
-
     std::optional<TransactionTracing> mTransactionTracing;
-    std::atomic<bool> mTracingEnabledChanged = false;
 
     const std::shared_ptr<TimeStats> mTimeStats;
     const std::unique_ptr<FrameTracer> mFrameTracer;
@@ -1273,13 +1276,6 @@ private:
     bool mSupportsBlur = false;
 
     TransactionCallbackInvoker mTransactionCallbackInvoker;
-
-    // We maintain a pool of pre-generated texture names to hand out to avoid
-    // layer creation needing to run on the main thread (which it would
-    // otherwise need to do to access RenderEngine).
-    std::mutex mTexturePoolMutex;
-    uint32_t mTexturePoolSize = 0;
-    std::vector<uint32_t> mTexturePool;
 
     std::atomic<size_t> mNumLayers = 0;
 
@@ -1433,7 +1429,7 @@ private:
     frontend::LayerHierarchyBuilder mLayerHierarchyBuilder{{}};
     frontend::LayerSnapshotBuilder mLayerSnapshotBuilder;
 
-    std::vector<uint32_t> mDestroyedHandles;
+    std::vector<std::pair<uint32_t, std::string>> mDestroyedHandles;
     std::vector<std::unique_ptr<frontend::RequestedLayerState>> mNewLayers;
     std::vector<LayerCreationArgs> mNewLayerArgs;
     // These classes do not store any client state but help with managing transaction callbacks
@@ -1450,6 +1446,18 @@ private:
     // Mirroring
     // Map of displayid to mirrorRoot
     ftl::SmallMap<int64_t, sp<SurfaceControl>, 3> mMirrorMapForDebug;
+
+    void sfdo_enableRefreshRateOverlay(bool active);
+    void sfdo_setDebugFlash(int delay);
+    void sfdo_scheduleComposite();
+    void sfdo_scheduleCommit();
+
+    // Trunk-Stable flags
+    bool mMiscFlagValue;
+    bool mConnectedDisplayFlagValue;
+    bool mMisc2FlagEarlyBootValue;
+    bool mMisc2FlagLateBootValue;
+    bool mVrrConfigFlagValue;
 };
 
 class SurfaceComposerAIDL : public gui::BnSurfaceComposer {
@@ -1556,6 +1564,13 @@ public:
             const sp<IBinder>& displayToken,
             std::optional<gui::DisplayDecorationSupport>* outSupport) override;
     binder::Status setOverrideFrameRate(int32_t uid, float frameRate) override;
+    binder::Status enableRefreshRateOverlay(bool active) override;
+    binder::Status setDebugFlash(int delay) override;
+    binder::Status scheduleComposite() override;
+    binder::Status scheduleCommit() override;
+    binder::Status updateSmallAreaDetection(const std::vector<int32_t>& uids,
+                                            const std::vector<float>& thresholds) override;
+    binder::Status setSmallAreaDetectionThreshold(int32_t uid, float threshold) override;
     binder::Status getGpuContextPriority(int32_t* outPriority) override;
     binder::Status getMaxAcquiredBufferCount(int32_t* buffers) override;
     binder::Status addWindowInfosListener(const sp<gui::IWindowInfosListener>& windowInfosListener,

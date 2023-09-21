@@ -20,6 +20,7 @@ cc_test {
         "InputPublisherAndConsumer_test.cpp",
         "InputVerifier_test.cpp",
         "MotionPredictor_test.cpp",
+        "MotionPredictorMetricsManager_test.cpp",
         "RingBuffer_test.cpp",
         "TfLiteMotionPredictor_test.cpp",
         "TouchResampling_test.cpp",
@@ -52,13 +53,6 @@ cc_test {
             undefined: true,
         },
     },
-    target: {
-        host: {
-            sanitize: {
-                address: true,
-            },
-        },
-    },
     shared_libs: [
         "libbase",
         "libbinder",
@@ -68,6 +62,7 @@ cc_test {
         "libtinyxml2",
         "libutils",
         "libvintf",
+        "server_configurable_flags",
     ],
     data: [
         "data/*",
@@ -77,6 +72,21 @@ cc_test {
         unit_test: true,
     },
     test_suites: ["device-tests"],
+    target: {
+        host: {
+            sanitize: {
+                address: true,
+            },
+        },
+        android: {
+            static_libs: [
+                // Stats logging library and its dependencies.
+                "libstatslog_libinput",
+                "libstatsbootstrap",
+                "android.os.statsbootstrap_aidl-cpp",
+            ],
+        },
+    },
 }
 
 // NOTE: This is a compile time test, and does not need to be

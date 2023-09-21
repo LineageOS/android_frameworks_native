@@ -72,6 +72,30 @@ int GetCPUCoreCount() {
   return cpuCoreCount;
 }
 
+/*
+ * Helper function copies the JPEG image from without EXIF.
+ *
+ * @param pDest destination of the data to be written.
+ * @param pSource source of data being written.
+ * @param exif_pos position of the EXIF package, which is aligned with jpegdecoder.getEXIFPos().
+ *                 (4 bytes offset to FF sign, the byte after FF E1 XX XX <this byte>).
+ * @param exif_size exif size without the initial 4 bytes, aligned with jpegdecoder.getEXIFSize().
+ */
+static void copyJpegWithoutExif(jr_compressed_ptr pDest,
+                                jr_compressed_ptr pSource,
+                                size_t exif_pos,
+                                size_t exif_size) {
+  const size_t exif_offset = 4; //exif_pos has 4 bytes offset to the FF sign
+  pDest->length = pSource->length - exif_size - exif_offset;
+  pDest->data = new uint8_t[pDest->length];
+  pDest->maxLength = pDest->length;
+  pDest->colorGamut = pSource->colorGamut;
+  memcpy(pDest->data, pSource->data, exif_pos - exif_offset);
+  memcpy((uint8_t*)pDest->data + exif_pos - exif_offset,
+         (uint8_t*)pSource->data + exif_pos + exif_size,
+         pSource->length - exif_pos - exif_size);
+}
+
 status_t JpegR::areInputArgumentsValid(jr_uncompressed_ptr p010_image_ptr,
                                        jr_uncompressed_ptr yuv420_image_ptr,
                                        ultrahdr_transfer_function hdr_tf,
@@ -815,10 +839,13 @@ status_t JpegR::generateGainMap(jr_uncompressed_ptr yuv420_image_ptr,
   map_data.reset(reinterpret_cast<uint8_t*>(dest->data));
 
   ColorTransformFn hdrInvOetf = nullptr;
-  float hdr_white_nits = kSdrWhiteNits;
+  float hdr_white_nits;
   switch (hdr_tf) {
     case ULTRAHDR_TF_LINEAR:
       hdrInvOetf = identityConversion;
+      // Note: this will produce clipping if the input exceeds kHlgMaxNits.
+      // TODO: TF LINEAR will be deprecated.
+      hdr_white_nits = kHlgMaxNits;
       break;
     case ULTRAHDR_TF_HLG:
 #if USE_HLG_INVOETF_LUT
@@ -1149,7 +1176,8 @@ status_t JpegR::extractPrimaryImageAndGainMap(jr_compressed_ptr jpegr_image_ptr,
 // JPEG/R structure:
 // SOI (ff d8)
 //
-// (Optional, only if EXIF package is from outside)
+// (Optional, if EXIF package is from outside (Encode API-0 API-1), or if EXIF package presents
+// in the JPEG input (Encode API-2, API-3, API-4))
 // APP1 (ff e1)
 // 2 bytes of length (2 + length of exif package)
 // EXIF package (this includes the first two bytes representing the package length)
@@ -1163,7 +1191,7 @@ status_t JpegR::extractPrimaryImageAndGainMap(jr_compressed_ptr jpegr_image_ptr,
 // 2 bytes of length
 // MPF
 //
-// (Required) primary image (without the first two bytes (SOI), may have other packages)
+// (Required) primary image (without the first two bytes (SOI) and EXIF, may have other packages)
 //
 // SOI (ff d8)
 //
@@ -1180,8 +1208,8 @@ status_t JpegR::extractPrimaryImageAndGainMap(jr_compressed_ptr jpegr_image_ptr,
 // Adobe XMP spec part 3 for XMP marker
 // ICC v4.3 spec for ICC
 status_t JpegR::appendGainMap(jr_compressed_ptr primary_jpg_image_ptr,
-                              jr_compressed_ptr gainmap_jpg_image_ptr, jr_exif_ptr exif, void* icc,
-                              size_t icc_size, ultrahdr_metadata_ptr metadata,
+                              jr_compressed_ptr gainmap_jpg_image_ptr, jr_exif_ptr pExif,
+                              void* pIcc, size_t icc_size, ultrahdr_metadata_ptr metadata,
                               jr_compressed_ptr dest) {
   if (primary_jpg_image_ptr == nullptr || gainmap_jpg_image_ptr == nullptr || metadata == nullptr ||
       dest == nullptr) {
@@ -1226,6 +1254,36 @@ status_t JpegR::appendGainMap(jr_compressed_ptr primary_jpg_image_ptr,
   // same as primary
   const int xmp_primary_length = 2 + nameSpaceLength + xmp_primary.size();
 
+  // Check if EXIF package presents in the JPEG input.
+  // If so, extract and remove the EXIF package.
+  JpegDecoderHelper decoder;
+  if (!decoder.extractEXIF(primary_jpg_image_ptr->data, primary_jpg_image_ptr->length)) {
+    return ERROR_JPEGR_DECODE_ERROR;
+  }
+  jpegr_exif_struct exif_from_jpg = {.data = nullptr, .length = 0};
+  jpegr_compressed_struct new_jpg_image = {.data = nullptr,
+                                           .length = 0,
+                                           .maxLength = 0,
+                                           .colorGamut = ULTRAHDR_COLORGAMUT_UNSPECIFIED};
+  std::unique_ptr<uint8_t[]> dest_data;
+  if (decoder.getEXIFPos() >= 0) {
+    if (pExif != nullptr) {
+      ALOGE("received EXIF from outside while the primary image already contains EXIF");
+      return ERROR_JPEGR_INVALID_INPUT_TYPE;
+    }
+    copyJpegWithoutExif(&new_jpg_image,
+                        primary_jpg_image_ptr,
+                        decoder.getEXIFPos(),
+                        decoder.getEXIFSize());
+    dest_data.reset(reinterpret_cast<uint8_t*>(new_jpg_image.data));
+    exif_from_jpg.data = decoder.getEXIFPtr();
+    exif_from_jpg.length = decoder.getEXIFSize();
+    pExif = &exif_from_jpg;
+  }
+
+  jr_compressed_ptr final_primary_jpg_image_ptr =
+          new_jpg_image.length == 0 ? primary_jpg_image_ptr : &new_jpg_image;
+
   int pos = 0;
   // Begin primary image
   // Write SOI
@@ -1233,15 +1291,15 @@ status_t JpegR::appendGainMap(jr_compressed_ptr primary_jpg_image_ptr,
   JPEGR_CHECK(Write(dest, &photos_editing_formats::image_io::JpegMarker::kSOI, 1, pos));
 
   // Write EXIF
-  if (exif != nullptr) {
-    const int length = 2 + exif->length;
+  if (pExif != nullptr) {
+    const int length = 2 + pExif->length;
     const uint8_t lengthH = ((length >> 8) & 0xff);
     const uint8_t lengthL = (length & 0xff);
     JPEGR_CHECK(Write(dest, &photos_editing_formats::image_io::JpegMarker::kStart, 1, pos));
     JPEGR_CHECK(Write(dest, &photos_editing_formats::image_io::JpegMarker::kAPP1, 1, pos));
     JPEGR_CHECK(Write(dest, &lengthH, 1, pos));
     JPEGR_CHECK(Write(dest, &lengthL, 1, pos));
-    JPEGR_CHECK(Write(dest, exif->data, exif->length, pos));
+    JPEGR_CHECK(Write(dest, pExif->data, pExif->length, pos));
   }
 
   // Prepare and write XMP
@@ -1258,7 +1316,7 @@ status_t JpegR::appendGainMap(jr_compressed_ptr primary_jpg_image_ptr,
   }
 
   // Write ICC
-  if (icc != nullptr && icc_size > 0) {
+  if (pIcc != nullptr && icc_size > 0) {
     const int length = icc_size + 2;
     const uint8_t lengthH = ((length >> 8) & 0xff);
     const uint8_t lengthL = (length & 0xff);
@@ -1266,7 +1324,7 @@ status_t JpegR::appendGainMap(jr_compressed_ptr primary_jpg_image_ptr,
     JPEGR_CHECK(Write(dest, &photos_editing_formats::image_io::JpegMarker::kAPP2, 1, pos));
     JPEGR_CHECK(Write(dest, &lengthH, 1, pos));
     JPEGR_CHECK(Write(dest, &lengthL, 1, pos));
-    JPEGR_CHECK(Write(dest, icc, icc_size, pos));
+    JPEGR_CHECK(Write(dest, pIcc, icc_size, pos));
   }
 
   // Prepare and write MPF
@@ -1274,7 +1332,7 @@ status_t JpegR::appendGainMap(jr_compressed_ptr primary_jpg_image_ptr,
     const int length = 2 + calculateMpfSize();
     const uint8_t lengthH = ((length >> 8) & 0xff);
     const uint8_t lengthL = (length & 0xff);
-    int primary_image_size = pos + length + primary_jpg_image_ptr->length;
+    int primary_image_size = pos + length + final_primary_jpg_image_ptr->length;
     // between APP2 + package size + signature
     // ff e2 00 58 4d 50 46 00
     // 2 + 2 + 4 = 8 (bytes)
@@ -1290,8 +1348,8 @@ status_t JpegR::appendGainMap(jr_compressed_ptr primary_jpg_image_ptr,
   }
 
   // Write primary image
-  JPEGR_CHECK(Write(dest, (uint8_t*)primary_jpg_image_ptr->data + 2,
-                    primary_jpg_image_ptr->length - 2, pos));
+  JPEGR_CHECK(Write(dest, (uint8_t*)final_primary_jpg_image_ptr->data + 2,
+                    final_primary_jpg_image_ptr->length - 2, pos));
   // Finish primary image
 
   // Begin secondary image (gain map)

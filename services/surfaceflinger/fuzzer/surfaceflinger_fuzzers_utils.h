@@ -295,7 +295,7 @@ private:
 
     // MessageQueue overrides:
     void scheduleFrame() override {}
-    void postMessage(sp<MessageHandler>&&) override {}
+    void postMessage(sp<MessageHandler>&& handler) override { handler->handleMessage(Message()); }
 };
 
 } // namespace scheduler
@@ -455,7 +455,8 @@ public:
         result = fdp->ConsumeRandomLengthString().c_str();
         mFlinger->dumpRawDisplayIdentificationData(dumpArgs, result);
 
-        LayersProto layersProto = mFlinger->dumpDrawingStateProto(fdp->ConsumeIntegral<uint32_t>());
+        perfetto::protos::LayersProto layersProto =
+                mFlinger->dumpDrawingStateProto(fdp->ConsumeIntegral<uint32_t>());
         mFlinger->dumpOffscreenLayersProto(layersProto);
         mFlinger->dumpDisplayProto();
 
@@ -665,7 +666,7 @@ public:
         }
 
         mRefreshRateSelector = std::make_shared<scheduler::RefreshRateSelector>(modes, kModeId60);
-        const auto fps = mRefreshRateSelector->getActiveMode().modePtr->getFps();
+        const auto fps = mRefreshRateSelector->getActiveMode().modePtr->getVsyncRate();
         mFlinger->mVsyncConfiguration = mFactory.createVsyncConfiguration(fps);
 
         mFlinger->mRefreshRateStats =

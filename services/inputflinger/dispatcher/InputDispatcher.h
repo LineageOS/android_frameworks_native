@@ -238,9 +238,12 @@ private:
     // to transfer focus to a new application.
     std::shared_ptr<EventEntry> mNextUnblockedEvent GUARDED_BY(mLock);
 
-    std::pair<sp<android::gui::WindowInfoHandle>, std::vector<InputTarget>>
-    findTouchedWindowAtLocked(int32_t displayId, float x, float y, bool isStylus = false,
-                              bool ignoreDragWindow = false) const REQUIRES(mLock);
+    sp<android::gui::WindowInfoHandle> findTouchedWindowAtLocked(
+            int32_t displayId, float x, float y, bool isStylus = false,
+            bool ignoreDragWindow = false) const REQUIRES(mLock);
+    std::vector<InputTarget> findOutsideTargetsLocked(
+            int32_t displayId, const sp<android::gui::WindowInfoHandle>& touchedWindow) const
+            REQUIRES(mLock);
 
     std::vector<sp<android::gui::WindowInfoHandle>> findTouchedSpyWindowsAtLocked(
             int32_t displayId, float x, float y, bool isStylus) const REQUIRES(mLock);
@@ -298,25 +301,6 @@ private:
 
     void resetKeyRepeatLocked() REQUIRES(mLock);
     std::shared_ptr<KeyEntry> synthesizeKeyRepeatLocked(nsecs_t currentTime) REQUIRES(mLock);
-
-    // Key replacement tracking
-    struct KeyReplacement {
-        int32_t keyCode;
-        int32_t deviceId;
-        bool operator==(const KeyReplacement& rhs) const {
-            return keyCode == rhs.keyCode && deviceId == rhs.deviceId;
-        }
-    };
-    struct KeyReplacementHash {
-        size_t operator()(const KeyReplacement& key) const {
-            return std::hash<int32_t>()(key.keyCode) ^ (std::hash<int32_t>()(key.deviceId) << 1);
-        }
-    };
-    // Maps the key code replaced, device id tuple to the key code it was replaced with
-    std::unordered_map<KeyReplacement, int32_t, KeyReplacementHash> mReplacedKeys GUARDED_BY(mLock);
-    // Process certain Meta + Key combinations
-    void accelerateMetaShortcuts(const int32_t deviceId, const int32_t action, int32_t& keyCode,
-                                 int32_t& metaState);
 
     // Deferred command processing.
     bool haveCommandsLocked() const REQUIRES(mLock);

@@ -158,7 +158,8 @@ const InputReaderConfiguration& FakeInputReaderPolicy::getReaderConfiguration() 
     return mConfig;
 }
 
-const std::vector<InputDeviceInfo>& FakeInputReaderPolicy::getInputDevices() const {
+const std::vector<InputDeviceInfo> FakeInputReaderPolicy::getInputDevices() const {
+    std::scoped_lock lock(mLock);
     return mInputDevices;
 }
 
@@ -228,7 +229,7 @@ std::shared_ptr<PointerControllerInterface> FakeInputReaderPolicy::obtainPointer
 
 void FakeInputReaderPolicy::notifyInputDevicesChanged(
         const std::vector<InputDeviceInfo>& inputDevices) {
-    std::scoped_lock<std::mutex> lock(mLock);
+    std::scoped_lock lock(mLock);
     mInputDevices = inputDevices;
     mInputDevicesChanged = true;
     mDevicesChangedCondition.notify_all();
@@ -256,7 +257,7 @@ void FakeInputReaderPolicy::waitForInputDevices(std::function<void(bool)> proces
 }
 
 void FakeInputReaderPolicy::notifyStylusGestureStarted(int32_t deviceId, nsecs_t eventTime) {
-    std::scoped_lock<std::mutex> lock(mLock);
+    std::scoped_lock lock(mLock);
     mStylusGestureNotified = deviceId;
 }
 

@@ -24,6 +24,8 @@
 #include <private/android_filesystem_config.h>
 #include <sys/types.h>
 
+#include <scheduler/Fps.h>
+
 #include "Layer.h"
 #include "LayerCreationArgs.h"
 #include "LayerLog.h"
@@ -51,7 +53,6 @@ RequestedLayerState::RequestedLayerState(const LayerCreationArgs& args)
         name(args.name + "#" + std::to_string(args.sequence)),
         canBeRoot(args.addToRoot),
         layerCreationFlags(args.flags),
-        textureName(args.textureName),
         ownerUid(args.ownerUid),
         ownerPid(args.ownerPid),
         parentId(args.parentId),
@@ -123,6 +124,9 @@ RequestedLayerState::RequestedLayerState(const LayerCreationArgs& args)
     dimmingEnabled = true;
     defaultFrameRateCompatibility =
             static_cast<int8_t>(scheduler::LayerInfo::FrameRateCompatibility::Default);
+    frameRateCategory = static_cast<int8_t>(FrameRateCategory::Default);
+    frameRateSelectionStrategy =
+            static_cast<int8_t>(scheduler::LayerInfo::FrameRateSelectionStrategy::Self);
     dataspace = ui::Dataspace::V0_SRGB;
     gameMode = gui::GameMode::Unsupported;
     requestedFrameRate = {};
@@ -148,17 +152,19 @@ void RequestedLayerState::merge(const ResolvedComposerState& resolvedComposerSta
             ? ui::Size(externalTexture->getWidth(), externalTexture->getHeight())
             : ui::Size();
     const uint64_t oldUsageFlags = hadBuffer ? externalTexture->getUsage() : 0;
+    const bool oldBufferFormatOpaque = LayerSnapshot::isOpaqueFormat(
+            externalTexture ? externalTexture->getPixelFormat() : PIXEL_FORMAT_NONE);
 
     const bool hadSideStream = sidebandStream != nullptr;
     const layer_state_t& clientState = resolvedComposerState.state;
-    const bool hadBlur = hasBlur();
+    const bool hadSomethingToDraw = hasSomethingToDraw();
     uint64_t clientChanges = what | layer_state_t::diff(clientState);
     layer_state_t::merge(clientState);
     what = clientChanges;
     LLOGV(layerId, "requested=%" PRIu64 "flags=%" PRIu64, clientState.what, clientChanges);
 
     if (clientState.what & layer_state_t::eFlagsChanged) {
-        if ((oldFlags ^ flags) & layer_state_t::eLayerHidden) {
+        if ((oldFlags ^ flags) & (layer_state_t::eLayerHidden | layer_state_t::eLayerOpaque)) {
             changes |= RequestedLayerState::Changes::Visibility |
                     RequestedLayerState::Changes::VisibleRegion;
         }
@@ -212,6 +218,13 @@ void RequestedLayerState::merge(const ResolvedComposerState& resolvedComposerSta
             barrierProducerId = std::max(bufferData->producerId, barrierProducerId);
             barrierFrameNumber = std::max(bufferData->frameNumber, barrierFrameNumber);
         }
+
+        const bool newBufferFormatOpaque = LayerSnapshot::isOpaqueFormat(
+                externalTexture ? externalTexture->getPixelFormat() : PIXEL_FORMAT_NONE);
+        if (newBufferFormatOpaque != oldBufferFormatOpaque) {
+            changes |= RequestedLayerState::Changes::Visibility |
+                    RequestedLayerState::Changes::VisibleRegion;
+        }
     }
 
     if (clientState.what & layer_state_t::eSidebandStreamChanged) {
@@ -229,11 +242,10 @@ void RequestedLayerState::merge(const ResolvedComposerState& resolvedComposerSta
                     RequestedLayerState::Changes::VisibleRegion;
         }
     }
-    if (what & (layer_state_t::eBackgroundBlurRadiusChanged | layer_state_t::eBlurRegionsChanged)) {
-        if (hadBlur != hasBlur()) {
-            changes |= RequestedLayerState::Changes::Visibility |
-                    RequestedLayerState::Changes::VisibleRegion;
-        }
+
+    if (hadSomethingToDraw != hasSomethingToDraw()) {
+        changes |= RequestedLayerState::Changes::Visibility |
+                RequestedLayerState::Changes::VisibleRegion;
     }
     if (clientChanges & layer_state_t::HIERARCHY_CHANGES)
         changes |= RequestedLayerState::Changes::Hierarchy;
@@ -319,8 +331,14 @@ void RequestedLayerState::merge(const ResolvedComposerState& resolvedComposerSta
                 Layer::FrameRate::convertCompatibility(clientState.frameRateCompatibility);
         const auto strategy = Layer::FrameRate::convertChangeFrameRateStrategy(
                 clientState.changeFrameRateStrategy);
-        requestedFrameRate =
-                Layer::FrameRate(Fps::fromValue(clientState.frameRate), compatibility, strategy);
+        requestedFrameRate.vote =
+                Layer::FrameRate::FrameRateVote(Fps::fromValue(clientState.frameRate),
+                                                compatibility, strategy);
+        changes |= RequestedLayerState::Changes::FrameRate;
+    }
+    if (clientState.what & layer_state_t::eFrameRateCategoryChanged) {
+        const auto category = Layer::FrameRate::convertCategory(clientState.frameRateCategory);
+        requestedFrameRate.category = category;
         changes |= RequestedLayerState::Changes::FrameRate;
     }
 }
@@ -450,12 +468,18 @@ Rect RequestedLayerState::getCroppedBufferSize(const Rect& bufferSize) const {
 Rect RequestedLayerState::getBufferCrop() const {
     // this is the crop rectangle that applies to the buffer
     // itself (as opposed to the window)
-    if (!bufferCrop.isEmpty()) {
-        // if the buffer crop is defined, we use that
-        return bufferCrop;
+    if (!bufferCrop.isEmpty() && externalTexture != nullptr) {
+        // if the buffer crop is defined and there's a valid buffer, intersect buffer size and crop
+        // since the crop should never exceed the size of the buffer.
+        Rect sizeAndCrop;
+        externalTexture->getBounds().intersect(bufferCrop, &sizeAndCrop);
+        return sizeAndCrop;
     } else if (externalTexture != nullptr) {
         // otherwise we use the whole buffer
         return externalTexture->getBounds();
+    } else if (!bufferCrop.isEmpty()) {
+        // if the buffer crop is defined, we use that
+        return bufferCrop;
     } else {
         // if we don't have a buffer yet, we use an empty/invalid crop
         return Rect();
@@ -474,6 +498,9 @@ aidl::android::hardware::graphics::composer3::Composition RequestedLayerState::g
     }
     if (flags & layer_state_t::eLayerIsDisplayDecoration) {
         return Composition::DISPLAY_DECORATION;
+    }
+    if (flags & layer_state_t::eLayerIsRefreshRateIndicator) {
+        return Composition::REFRESH_RATE_INDICATOR;
     }
     if (potentialCursor) {
         return Composition::CURSOR;
@@ -578,6 +605,12 @@ bool RequestedLayerState::isSimpleBufferUpdate(const layer_state_t& s) const {
 
 bool RequestedLayerState::isProtected() const {
     return externalTexture && externalTexture->getUsage() & GRALLOC_USAGE_PROTECTED;
+}
+
+bool RequestedLayerState::hasSomethingToDraw() const {
+    return externalTexture != nullptr || sidebandStream != nullptr || shadowRadius > 0.f ||
+            backgroundBlurRadius > 0 || blurRegions.size() > 0 ||
+            (color.r >= 0.0_hf && color.g >= 0.0_hf && color.b >= 0.0_hf);
 }
 
 void RequestedLayerState::clearChanges() {

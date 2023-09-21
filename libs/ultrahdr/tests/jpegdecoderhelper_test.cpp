@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-#include <ultrahdr/jpegdecoderhelper.h>
-#include <ultrahdr/icc.h>
 #include <gtest/gtest.h>
+#include <ultrahdr/icc.h>
+#include <ultrahdr/jpegdecoderhelper.h>
 #include <utils/Log.h>
 
 #include <fcntl.h>
@@ -24,13 +24,13 @@
 namespace android::ultrahdr {
 
 // No ICC or EXIF
-#define YUV_IMAGE "/sdcard/Documents/minnie-320x240-yuv.jpg"
+#define YUV_IMAGE "/data/local/tmp/minnie-320x240-yuv.jpg"
 #define YUV_IMAGE_SIZE 20193
 // Has ICC and EXIF
-#define YUV_ICC_IMAGE "/sdcard/Documents/minnie-320x240-yuv-icc.jpg"
+#define YUV_ICC_IMAGE "/data/local/tmp/minnie-320x240-yuv-icc.jpg"
 #define YUV_ICC_IMAGE_SIZE 34266
 // No ICC or EXIF
-#define GREY_IMAGE "/sdcard/Documents/minnie-320x240-y.jpg"
+#define GREY_IMAGE "/data/local/tmp/minnie-320x240-y.jpg"
 #define GREY_IMAGE_SIZE 20193
 
 #define IMAGE_WIDTH 320
@@ -44,6 +44,7 @@ public:
     };
     JpegDecoderHelperTest();
     ~JpegDecoderHelperTest();
+
 protected:
     virtual void SetUp();
     virtual void TearDown();
@@ -127,8 +128,8 @@ TEST_F(JpegDecoderHelperTest, getCompressedImageParameters) {
     std::vector<uint8_t> icc, exif;
 
     JpegDecoderHelper decoder;
-    EXPECT_TRUE(decoder.getCompressedImageParameters(mYuvImage.buffer.get(), mYuvImage.size,
-                                                     &width, &height, &icc, &exif));
+    EXPECT_TRUE(decoder.getCompressedImageParameters(mYuvImage.buffer.get(), mYuvImage.size, &width,
+                                                     &height, &icc, &exif));
 
     EXPECT_EQ(width, IMAGE_WIDTH);
     EXPECT_EQ(height, IMAGE_HEIGHT);
@@ -149,8 +150,7 @@ TEST_F(JpegDecoderHelperTest, getCompressedImageParametersIcc) {
     EXPECT_GT(icc.size(), 0);
     EXPECT_GT(exif.size(), 0);
 
-    EXPECT_EQ(IccHelper::readIccColorGamut(icc.data(), icc.size()),
-              ULTRAHDR_COLORGAMUT_BT709);
+    EXPECT_EQ(IccHelper::readIccColorGamut(icc.data(), icc.size()), ULTRAHDR_COLORGAMUT_BT709);
 }
 
-}  // namespace android::ultrahdr
+} // namespace android::ultrahdr

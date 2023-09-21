@@ -178,12 +178,7 @@ void fillInputFrameInfo(gui::WindowInfo& info, const ui::Transform& screenToDisp
         info.touchableRegion.clear();
     }
 
-    const Rect roundedFrameInDisplay =
-            getInputBoundsInDisplaySpace(snapshot, inputBounds, screenToDisplay);
-    info.frameLeft = roundedFrameInDisplay.left;
-    info.frameTop = roundedFrameInDisplay.top;
-    info.frameRight = roundedFrameInDisplay.right;
-    info.frameBottom = roundedFrameInDisplay.bottom;
+    info.frame = getInputBoundsInDisplaySpace(snapshot, inputBounds, screenToDisplay);
 
     ui::Transform inputToLayer;
     inputToLayer.set(inputBounds.left, inputBounds.top);
@@ -523,12 +518,9 @@ const LayerSnapshot& LayerSnapshotBuilder::updateSnapshotsInHierarchy(
         const Args& args, const LayerHierarchy& hierarchy,
         LayerHierarchy::TraversalPath& traversalPath, const LayerSnapshot& parentSnapshot,
         int depth) {
-    if (depth > 50) {
-        TransactionTraceWriter::getInstance().invoke("layer_builder_stack_overflow_",
-                                                     /*overwrite=*/false);
-        LOG_ALWAYS_FATAL("Cycle detected in LayerSnapshotBuilder. See "
-                         "builder_stack_overflow_transactions.winscope");
-    }
+    LLOG_ALWAYS_FATAL_WITH_TRACE_IF(depth > 50,
+                                    "Cycle detected in LayerSnapshotBuilder. See "
+                                    "builder_stack_overflow_transactions.winscope");
 
     const RequestedLayerState* layer = hierarchy.getLayer();
     LayerSnapshot* snapshot = getSnapshot(traversalPath);
@@ -675,8 +667,7 @@ void LayerSnapshotBuilder::updateFrameRateFromChildSnapshot(LayerSnapshot& snaps
     }
 
     using FrameRateCompatibility = scheduler::LayerInfo::FrameRateCompatibility;
-    if (snapshot.frameRate.rate.isValid() ||
-        snapshot.frameRate.type == FrameRateCompatibility::NoVote) {
+    if (snapshot.frameRate.isValid()) {
         // we already have a valid framerate.
         return;
     }
@@ -684,15 +675,17 @@ void LayerSnapshotBuilder::updateFrameRateFromChildSnapshot(LayerSnapshot& snaps
     // We return whether this layer or its children has a vote. We ignore ExactOrMultiple votes
     // for the same reason we are allowing touch boost for those layers. See
     // RefreshRateSelector::rankFrameRates for details.
-    const auto layerVotedWithDefaultCompatibility = childSnapshot.frameRate.rate.isValid() &&
-            childSnapshot.frameRate.type == FrameRateCompatibility::Default;
+    const auto layerVotedWithDefaultCompatibility = childSnapshot.frameRate.vote.rate.isValid() &&
+            childSnapshot.frameRate.vote.type == FrameRateCompatibility::Default;
     const auto layerVotedWithNoVote =
-            childSnapshot.frameRate.type == FrameRateCompatibility::NoVote;
-    const auto layerVotedWithExactCompatibility = childSnapshot.frameRate.rate.isValid() &&
-            childSnapshot.frameRate.type == FrameRateCompatibility::Exact;
+            childSnapshot.frameRate.vote.type == FrameRateCompatibility::NoVote;
+    const auto layerVotedWithCategory =
+            childSnapshot.frameRate.category != FrameRateCategory::Default;
+    const auto layerVotedWithExactCompatibility = childSnapshot.frameRate.vote.rate.isValid() &&
+            childSnapshot.frameRate.vote.type == FrameRateCompatibility::Exact;
 
     bool childHasValidFrameRate = layerVotedWithDefaultCompatibility || layerVotedWithNoVote ||
-            layerVotedWithExactCompatibility;
+            layerVotedWithCategory || layerVotedWithExactCompatibility;
 
     // If we don't have a valid frame rate, but the children do, we set this
     // layer as NoVote to allow the children to control the refresh rate
@@ -820,12 +813,21 @@ void LayerSnapshotBuilder::updateSnapshot(LayerSnapshot& snapshot, const Args& a
                 RequestedLayerState::Changes::Hierarchy) ||
         snapshot.changes.any(RequestedLayerState::Changes::FrameRate |
                              RequestedLayerState::Changes::Hierarchy)) {
-        snapshot.frameRate = (requested.requestedFrameRate.rate.isValid() ||
-                              (requested.requestedFrameRate.type ==
-                               scheduler::LayerInfo::FrameRateCompatibility::NoVote))
-                ? requested.requestedFrameRate
-                : parentSnapshot.frameRate;
+        bool shouldOverrideChildren = parentSnapshot.frameRateSelectionStrategy ==
+                scheduler::LayerInfo::FrameRateSelectionStrategy::OverrideChildren;
+        snapshot.frameRate = !requested.requestedFrameRate.isValid() || shouldOverrideChildren
+                ? parentSnapshot.frameRate
+                : requested.requestedFrameRate;
         snapshot.changes |= RequestedLayerState::Changes::FrameRate;
+    }
+
+    if (forceUpdate || snapshot.clientChanges & layer_state_t::eFrameRateSelectionStrategyChanged) {
+        const auto strategy = scheduler::LayerInfo::convertFrameRateSelectionStrategy(
+                requested.frameRateSelectionStrategy);
+        snapshot.frameRateSelectionStrategy =
+                strategy == scheduler::LayerInfo::FrameRateSelectionStrategy::Self
+                ? parentSnapshot.frameRateSelectionStrategy
+                : strategy;
     }
 
     if (forceUpdate || snapshot.clientChanges & layer_state_t::eFrameRateSelectionPriority) {
