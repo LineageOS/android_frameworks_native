@@ -681,7 +681,7 @@ base::unique_fd SkiaVkRenderEngine::flushAndSubmit(GrDirectContext* grContext) {
         flushInfo.fFinishedContext = destroySemaphoreInfo;
     }
     GrSemaphoresSubmitted submitted = grContext->flush(flushInfo);
-    grContext->submit(false /* no cpu sync */);
+    grContext->submit(GrSyncCpu::kNo);
     int drawFenceFd = -1;
     if (semaphore != VK_NULL_HANDLE) {
         if (GrSemaphoresSubmitted::kYes == submitted) {
