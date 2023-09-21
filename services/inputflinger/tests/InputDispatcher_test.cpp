@@ -1451,6 +1451,69 @@ private:
 
 std::atomic<int32_t> FakeWindowHandle::sId{1};
 
+class FakeMonitorReceiver {
+public:
+    FakeMonitorReceiver(const std::unique_ptr<InputDispatcher>& dispatcher, const std::string name,
+                        int32_t displayId) {
+        base::Result<std::unique_ptr<InputChannel>> channel =
+                dispatcher->createInputMonitor(displayId, name, MONITOR_PID);
+        mInputReceiver = std::make_unique<FakeInputReceiver>(std::move(*channel), name);
+    }
+
+    sp<IBinder> getToken() { return mInputReceiver->getToken(); }
+
+    void consumeKeyDown(int32_t expectedDisplayId, int32_t expectedFlags = 0) {
+        mInputReceiver->consumeEvent(InputEventType::KEY, AKEY_EVENT_ACTION_DOWN, expectedDisplayId,
+                                     expectedFlags);
+    }
+
+    std::optional<int32_t> receiveEvent() {
+        return mInputReceiver->receiveEvent(CONSUME_TIMEOUT_EVENT_EXPECTED);
+    }
+
+    void finishEvent(uint32_t consumeSeq) { return mInputReceiver->finishEvent(consumeSeq); }
+
+    void consumeMotionDown(int32_t expectedDisplayId, int32_t expectedFlags = 0) {
+        mInputReceiver->consumeEvent(InputEventType::MOTION, AMOTION_EVENT_ACTION_DOWN,
+                                     expectedDisplayId, expectedFlags);
+    }
+
+    void consumeMotionMove(int32_t expectedDisplayId, int32_t expectedFlags = 0) {
+        mInputReceiver->consumeEvent(InputEventType::MOTION, AMOTION_EVENT_ACTION_MOVE,
+                                     expectedDisplayId, expectedFlags);
+    }
+
+    void consumeMotionUp(int32_t expectedDisplayId, int32_t expectedFlags = 0) {
+        mInputReceiver->consumeEvent(InputEventType::MOTION, AMOTION_EVENT_ACTION_UP,
+                                     expectedDisplayId, expectedFlags);
+    }
+
+    void consumeMotionCancel(int32_t expectedDisplayId, int32_t expectedFlags = 0) {
+        mInputReceiver->consumeMotionEvent(
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_CANCEL),
+                      WithDisplayId(expectedDisplayId),
+                      WithFlags(expectedFlags | AMOTION_EVENT_FLAG_CANCELED)));
+    }
+
+    void consumeMotionPointerDown(int32_t pointerIdx) {
+        int32_t action = AMOTION_EVENT_ACTION_POINTER_DOWN |
+                (pointerIdx << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
+        mInputReceiver->consumeEvent(InputEventType::MOTION, action, ADISPLAY_ID_DEFAULT,
+                                     /*expectedFlags=*/0);
+    }
+
+    void consumeMotionEvent(const ::testing::Matcher<MotionEvent>& matcher) {
+        mInputReceiver->consumeMotionEvent(matcher);
+    }
+
+    MotionEvent* consumeMotion() { return mInputReceiver->consumeMotion(); }
+
+    void assertNoEvents() { mInputReceiver->assertNoEvents(); }
+
+private:
+    std::unique_ptr<FakeInputReceiver> mInputReceiver;
+};
+
 static InputEventInjectionResult injectKey(
         InputDispatcher& dispatcher, int32_t action, int32_t repeatCount,
         int32_t displayId = ADISPLAY_ID_NONE,
@@ -4607,6 +4670,36 @@ TEST_F(InputDispatcherDisplayProjectionTest, WindowGetsEventsInCorrectCoordinate
     EXPECT_EQ(80, event->getY(0));
 }
 
+TEST_F(InputDispatcherDisplayProjectionTest, CancelMotionWithCorrectCoordinates) {
+    auto [firstWindow, secondWindow] = setupScaledDisplayScenario();
+    // The monitor will always receive events in the logical display's coordinate space, because
+    // it does not have a window.
+    FakeMonitorReceiver monitor{mDispatcher, "Monitor", ADISPLAY_ID_DEFAULT};
+
+    // Send down to the first window.
+    mDispatcher->notifyMotion(generateMotionArgs(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN,
+                                                 ADISPLAY_ID_DEFAULT, {PointF{50, 100}}));
+    firstWindow->consumeMotionEvent(AllOf(WithMotionAction(ACTION_DOWN), WithCoords(100, 400)));
+    monitor.consumeMotionEvent(AllOf(WithMotionAction(ACTION_DOWN), WithCoords(100, 400)));
+
+    // Second pointer goes down on second window.
+    mDispatcher->notifyMotion(generateMotionArgs(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN,
+                                                 ADISPLAY_ID_DEFAULT,
+                                                 {PointF{50, 100}, PointF{150, 220}}));
+    secondWindow->consumeMotionEvent(AllOf(WithMotionAction(ACTION_DOWN), WithCoords(100, 80)));
+    const std::map<int32_t, PointF> expectedMonitorPointers{{0, PointF{100, 400}},
+                                                            {1, PointF{300, 880}}};
+    monitor.consumeMotionEvent(
+            AllOf(WithMotionAction(POINTER_1_DOWN), WithPointers(expectedMonitorPointers)));
+
+    mDispatcher->cancelCurrentTouch();
+
+    firstWindow->consumeMotionEvent(AllOf(WithMotionAction(ACTION_CANCEL), WithCoords(100, 400)));
+    secondWindow->consumeMotionEvent(AllOf(WithMotionAction(ACTION_CANCEL), WithCoords(100, 80)));
+    monitor.consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_CANCEL), WithPointers(expectedMonitorPointers)));
+}
+
 /** Ensure consistent behavior of InputDispatcher in all orientations. */
 class InputDispatcherDisplayOrientationFixture
       : public InputDispatcherDisplayProjectionTest,
@@ -5388,65 +5481,6 @@ TEST_F(InputDispatcherTest, SendTimeline_DoesNotCrashDispatcher) {
     window->assertNoEvents();
     mDispatcher->waitForIdle();
 }
-
-class FakeMonitorReceiver {
-public:
-    FakeMonitorReceiver(const std::unique_ptr<InputDispatcher>& dispatcher, const std::string name,
-                        int32_t displayId) {
-        base::Result<std::unique_ptr<InputChannel>> channel =
-                dispatcher->createInputMonitor(displayId, name, MONITOR_PID);
-        mInputReceiver = std::make_unique<FakeInputReceiver>(std::move(*channel), name);
-    }
-
-    sp<IBinder> getToken() { return mInputReceiver->getToken(); }
-
-    void consumeKeyDown(int32_t expectedDisplayId, int32_t expectedFlags = 0) {
-        mInputReceiver->consumeEvent(InputEventType::KEY, AKEY_EVENT_ACTION_DOWN, expectedDisplayId,
-                                     expectedFlags);
-    }
-
-    std::optional<int32_t> receiveEvent() {
-        return mInputReceiver->receiveEvent(CONSUME_TIMEOUT_EVENT_EXPECTED);
-    }
-
-    void finishEvent(uint32_t consumeSeq) { return mInputReceiver->finishEvent(consumeSeq); }
-
-    void consumeMotionDown(int32_t expectedDisplayId, int32_t expectedFlags = 0) {
-        mInputReceiver->consumeEvent(InputEventType::MOTION, AMOTION_EVENT_ACTION_DOWN,
-                                     expectedDisplayId, expectedFlags);
-    }
-
-    void consumeMotionMove(int32_t expectedDisplayId, int32_t expectedFlags = 0) {
-        mInputReceiver->consumeEvent(InputEventType::MOTION, AMOTION_EVENT_ACTION_MOVE,
-                                     expectedDisplayId, expectedFlags);
-    }
-
-    void consumeMotionUp(int32_t expectedDisplayId, int32_t expectedFlags = 0) {
-        mInputReceiver->consumeEvent(InputEventType::MOTION, AMOTION_EVENT_ACTION_UP,
-                                     expectedDisplayId, expectedFlags);
-    }
-
-    void consumeMotionCancel(int32_t expectedDisplayId, int32_t expectedFlags = 0) {
-        mInputReceiver->consumeMotionEvent(
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_CANCEL),
-                      WithDisplayId(expectedDisplayId),
-                      WithFlags(expectedFlags | AMOTION_EVENT_FLAG_CANCELED)));
-    }
-
-    void consumeMotionPointerDown(int32_t pointerIdx) {
-        int32_t action = AMOTION_EVENT_ACTION_POINTER_DOWN |
-                (pointerIdx << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
-        mInputReceiver->consumeEvent(InputEventType::MOTION, action, ADISPLAY_ID_DEFAULT,
-                                     /*expectedFlags=*/0);
-    }
-
-    MotionEvent* consumeMotion() { return mInputReceiver->consumeMotion(); }
-
-    void assertNoEvents() { mInputReceiver->assertNoEvents(); }
-
-private:
-    std::unique_ptr<FakeInputReceiver> mInputReceiver;
-};
 
 using InputDispatcherMonitorTest = InputDispatcherTest;
 
