@@ -1124,8 +1124,8 @@ TEST_F(LayerHistoryTest, smallDirtyInMultiLayer) {
 
     LayerHistory::Summary summary;
 
-    // layer1 is active but infrequent.
-    for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE; i++) {
+    // layer1 is updating small dirty.
+    for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE + FREQUENT_LAYER_WINDOW_SIZE + 1; i++) {
         auto props = layer1->getLayerProps();
         props.isSmallDirty = true;
         history().record(layer1->getSequence(), props, 0 /*presentTime*/, time,

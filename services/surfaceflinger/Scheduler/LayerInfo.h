@@ -357,6 +357,10 @@ private:
 
     RefreshRateHistory mRefreshRateHistory;
 
+    // This will be accessed from only one thread when counting a layer is frequent or infrequent,
+    // and to determine whether a layer is in small dirty updating.
+    mutable int32_t mLastSmallDirtyCount = 0;
+
     mutable std::unordered_map<LayerHistory::LayerVoteType, std::string> mTraceTags;
 
     // Shared for all LayerInfo instances
