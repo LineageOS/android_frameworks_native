@@ -357,6 +357,8 @@ protected:
     bool mExternalStylusDataPending;
     // A subset of the buttons in mCurrentRawState that came from an external stylus.
     int32_t mExternalStylusButtonsApplied{0};
+    // True if the current cooked pointer data was modified due to the state of an external stylus.
+    bool mCurrentStreamModifiedByExternalStylus{false};
 
     // True if we sent a HOVER_ENTER event.
     bool mSentHoverEnter{false};
