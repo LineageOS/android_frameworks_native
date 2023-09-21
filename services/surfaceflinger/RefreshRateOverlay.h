@@ -50,6 +50,7 @@ public:
     void setLayerStack(ui::LayerStack);
     void setViewport(ui::Size);
     void changeRefreshRate(Fps, Fps);
+    void changeRenderRate(Fps);
     void animate();
     bool isSetByHwc() const { return mFeatures.test(RefreshRateOverlay::Features::SetByHwc); }
 
