@@ -1780,7 +1780,7 @@ bool InputDispatcher::dispatchKeyLocked(nsecs_t currentTime, std::shared_ptr<con
                                         DropReason* dropReason, nsecs_t& nextWakeupTime) {
     // Preprocessing.
     if (!entry->dispatchInProgress) {
-        if (entry->repeatCount == 0 && entry->action == AKEY_EVENT_ACTION_DOWN &&
+        if (!entry->syntheticRepeat && entry->action == AKEY_EVENT_ACTION_DOWN &&
             (entry->policyFlags & POLICY_FLAG_TRUSTED) &&
             (!(entry->policyFlags & POLICY_FLAG_DISABLE_KEY_REPEAT))) {
             if (mKeyRepeatState.lastKeyEntry &&
