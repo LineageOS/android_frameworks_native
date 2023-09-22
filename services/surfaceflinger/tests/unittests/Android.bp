@@ -87,6 +87,7 @@ cc_test {
         "FramebufferSurfaceTest.cpp",
         "FrameRateOverrideMappingsTest.cpp",
         "FrameRateSelectionPriorityTest.cpp",
+        "FrameRateSelectionStrategyTest.cpp",
         "FrameTimelineTest.cpp",
         "GameModeTest.cpp",
         "HWComposerTest.cpp",
