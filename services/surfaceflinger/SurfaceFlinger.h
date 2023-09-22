@@ -1457,7 +1457,6 @@ private:
     bool mConnectedDisplayFlagValue;
     bool mMisc2FlagEarlyBootValue;
     bool mMisc2FlagLateBootValue;
-    bool mVrrConfigFlagValue;
 };
 
 class SurfaceComposerAIDL : public gui::BnSurfaceComposer {
