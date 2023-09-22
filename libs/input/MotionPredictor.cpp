@@ -205,6 +205,13 @@ std::unique_ptr<MotionEvent> MotionPredictor::predict(nsecs_t timestamp) {
         coords.setAxisValue(AMOTION_EVENT_AXIS_X, predictedPoint.x);
         coords.setAxisValue(AMOTION_EVENT_AXIS_Y, predictedPoint.y);
         coords.setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, predictedPressure[i]);
+        // Copy forward tilt and orientation from the last event until they are predicted
+        // (b/291789258).
+        coords.setAxisValue(AMOTION_EVENT_AXIS_TILT,
+                            event.getAxisValue(AMOTION_EVENT_AXIS_TILT, 0));
+        coords.setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION,
+                            event.getRawPointerCoords(0)->getAxisValue(
+                                    AMOTION_EVENT_AXIS_ORIENTATION));
 
         predictionTime += mModel->config().predictionInterval;
         if (i == 0) {
