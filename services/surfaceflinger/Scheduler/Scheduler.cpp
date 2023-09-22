@@ -211,6 +211,17 @@ void Scheduler::onFrameSignal(ICompositor& compositor, VsyncId vsyncId,
         targeters.try_emplace(id, &targeter);
     }
 
+    if (flagutils::vrrConfigEnabled() &&
+        CC_UNLIKELY(mPacesetterFrameDurationFractionToSkip > 0.f)) {
+        const auto period = pacesetterTargeter.target().expectedFrameDuration();
+        const auto skipDuration = Duration::fromNs(
+                static_cast<nsecs_t>(period.ns() * mPacesetterFrameDurationFractionToSkip));
+        ATRACE_FORMAT("Injecting jank for %f%% of the frame (%" PRId64 " ns)",
+                      mPacesetterFrameDurationFractionToSkip * 100, skipDuration.ns());
+        std::this_thread::sleep_for(skipDuration);
+        mPacesetterFrameDurationFractionToSkip = 0.f;
+    }
+
     const auto resultsPerDisplay = compositor.composite(pacesetterId, targeters);
     compositor.sample();
 

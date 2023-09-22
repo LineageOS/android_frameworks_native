@@ -6660,9 +6660,9 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         code == IBinder::SYSPROPS_TRANSACTION) {
         return OK;
     }
-    // Numbers from 1000 to 1044 are currently used for backdoors. The code
+    // Numbers from 1000 to 1045 are currently used for backdoors. The code
     // in onTransact verifies that the user is root, and has access to use SF.
-    if (code >= 1000 && code <= 1044) {
+    if (code >= 1000 && code <= 1045) {
         ALOGV("Accessing SurfaceFlinger through backdoor code: %u", code);
         return OK;
     }
@@ -7150,6 +7150,39 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                         return BAD_VALUE;
                 }
                 return NO_ERROR;
+            }
+            // Inject jank
+            // First argument is a float that describes the fraction of frame duration to jank by.
+            // Second argument is a delay in ms for triggering the jank. This is useful for working
+            // with tools that steal the adb connection. This argument is optional.
+            case 1045: {
+                if (flagutils::vrrConfigEnabled()) {
+                    float jankAmount = data.readFloat();
+                    int32_t jankDelayMs = 0;
+                    if (data.readInt32(&jankDelayMs) != NO_ERROR) {
+                        jankDelayMs = 0;
+                    }
+
+                    const auto jankDelayDuration = Duration(std::chrono::milliseconds(jankDelayMs));
+
+                    const bool jankAmountValid = jankAmount > 0.0 && jankAmount < 100.0;
+
+                    if (!jankAmountValid) {
+                        ALOGD("Ignoring invalid jank amount: %f", jankAmount);
+                        reply->writeInt32(BAD_VALUE);
+                        return BAD_VALUE;
+                    }
+
+                    (void)mScheduler->scheduleDelayed(
+                            [&, jankAmount]() FTL_FAKE_GUARD(kMainThreadContext) {
+                                mScheduler->injectPacesetterDelay(jankAmount);
+                                scheduleComposite(FrameHint::kActive);
+                            },
+                            jankDelayDuration.ns());
+                    reply->writeInt32(NO_ERROR);
+                    return NO_ERROR;
+                }
+                return err;
             }
         }
     }

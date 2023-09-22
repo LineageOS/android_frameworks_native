@@ -323,6 +323,11 @@ public:
         return mFeatures.test(Feature::kSmallDirtyContentDetection);
     }
 
+    // Injects a delay that is a fraction of the predicted frame duration for the next frame.
+    void injectPacesetterDelay(float frameDurationFraction) REQUIRES(kMainThreadContext) {
+        mPacesetterFrameDurationFractionToSkip = frameDurationFraction;
+    }
+
 private:
     friend class TestableScheduler;
 
@@ -451,6 +456,9 @@ private:
     ftl::Optional<OneShotTimer> mTouchTimer;
     // Timer used to monitor display power mode.
     ftl::Optional<OneShotTimer> mDisplayPowerTimer;
+
+    // Injected delay prior to compositing, for simulating jank.
+    float mPacesetterFrameDurationFractionToSkip GUARDED_BY(kMainThreadContext) = 0.f;
 
     ISchedulerCallback& mSchedulerCallback;
 
