@@ -19,6 +19,7 @@
 #include <android/hardware_buffer.h>
 #include <gui/BufferQueueDefs.h>
 #include <gui/ConsumerBase.h>
+#include <gui/Flags.h>
 #include <gui/IGraphicBufferProducer.h>
 #include <sys/cdefs.h>
 #include <system/graphics.h>
@@ -295,6 +296,8 @@ public:
      */
     struct SurfaceTextureListener : public RefBase {
         virtual void onFrameAvailable(const BufferItem& item) = 0;
+        virtual void onSetFrameRate(float frameRate, int8_t compatibility,
+                                    int8_t changeFrameRateStrategy) = 0;
     };
 
     /**
@@ -345,6 +348,14 @@ protected:
      * mCurrentTextureImage must not be NULL.
      */
     void computeCurrentTransformMatrixLocked();
+
+    /**
+     * onSetFrameRate Notifies the consumer of a setFrameRate call from the producer side.
+     */
+#if FLAG_BQ_SET_FRAME_RATE
+    void onSetFrameRate(float frameRate, int8_t compatibility,
+                        int8_t changeFrameRateStrategy) override;
+#endif
 
     /**
      * The default consumer usage flags that SurfaceTexture always sets on its

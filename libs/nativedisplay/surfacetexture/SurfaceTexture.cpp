@@ -515,4 +515,20 @@ void SurfaceTexture::FrameAvailableListenerProxy::onFrameAvailable(const BufferI
     }
 }
 
+#if FLAG_BQ_SET_FRAME_RATE
+void SurfaceTexture::onSetFrameRate(float frameRate, int8_t compatibility,
+                                    int8_t changeFrameRateStrategy) {
+    SFT_LOGV("onSetFrameRate: %.2f", frameRate);
+
+    auto listener = [&] {
+        Mutex::Autolock _l(mMutex);
+        return mSurfaceTextureListener;
+    }();
+
+    if (listener) {
+        listener->onSetFrameRate(frameRate, compatibility, changeFrameRateStrategy);
+    }
+}
+#endif
+
 } // namespace android
