@@ -87,6 +87,7 @@ public:
     static void         setCountByUidEnabled(bool enable);
     static void         setLimitCallback(binder_proxy_limit_callback cb);
     static void         setBinderProxyCountWatermarks(int high, int low);
+    static uint32_t     getBinderProxyCount();
 
     std::optional<int32_t> getDebugBinderHandle() const;
 
@@ -208,6 +209,8 @@ private:
     static uint32_t                             sBinderProxyCountLowWatermark;
     static bool                                 sBinderProxyThrottleCreate;
     static std::unordered_map<int32_t,uint32_t> sLastLimitCallbackMap;
+    static std::atomic<uint32_t>                sBinderProxyCount;
+    static std::atomic<uint32_t>                sBinderProxyCountWarned;
 };
 
 } // namespace android
