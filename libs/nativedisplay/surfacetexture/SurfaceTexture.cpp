@@ -23,6 +23,8 @@
 #include <system/window.h>
 #include <utils/Trace.h>
 
+#include <com_android_graphics_libgui_flags.h>
+
 namespace android {
 
 // Macros for including the SurfaceTexture name in log messages
@@ -489,6 +491,28 @@ sp<GraphicBuffer> SurfaceTexture::dequeueBuffer(int* outSlotid, android_dataspac
     *outTransform = mCurrentTransform;
     *currentCrop = mCurrentCrop;
     return buffer;
+}
+
+void SurfaceTexture::setSurfaceTextureListener(
+        const sp<android::SurfaceTexture::SurfaceTextureListener>& listener) {
+    SFT_LOGV("setSurfaceTextureListener");
+
+    Mutex::Autolock _l(mMutex);
+    mSurfaceTextureListener = listener;
+    if (mSurfaceTextureListener != nullptr) {
+        mFrameAvailableListenerProxy =
+                sp<FrameAvailableListenerProxy>::make(mSurfaceTextureListener);
+        setFrameAvailableListener(mFrameAvailableListenerProxy);
+    } else {
+        mFrameAvailableListenerProxy.clear();
+    }
+}
+
+void SurfaceTexture::FrameAvailableListenerProxy::onFrameAvailable(const BufferItem& item) {
+    const auto listener = mSurfaceTextureListener.promote();
+    if (listener) {
+        listener->onFrameAvailable(item);
+    }
 }
 
 } // namespace android

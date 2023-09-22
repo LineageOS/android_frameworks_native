@@ -290,6 +290,18 @@ public:
      */
     void releaseConsumerOwnership();
 
+    /**
+     * Interface for SurfaceTexture callback(s).
+     */
+    struct SurfaceTextureListener : public RefBase {
+        virtual void onFrameAvailable(const BufferItem& item) = 0;
+    };
+
+    /**
+     * setSurfaceTextureListener registers a SurfaceTextureListener.
+     */
+    void setSurfaceTextureListener(const sp<SurfaceTextureListener>&);
+
 protected:
     /**
      * abandonLocked overrides the ConsumerBase method to clear
@@ -465,8 +477,30 @@ protected:
      */
     ImageConsumer mImageConsumer;
 
+    /**
+     * mSurfaceTextureListener holds the registered SurfaceTextureListener.
+     * Note that SurfaceTexture holds the lister with an sp<>, which means that the listener
+     * must only hold a wp<> to SurfaceTexture and not an sp<>.
+     */
+    sp<SurfaceTextureListener> mSurfaceTextureListener;
+
     friend class ImageConsumer;
     friend class EGLConsumer;
+
+private:
+    // Proxy listener to avoid having SurfaceTexture directly implement FrameAvailableListener as it
+    // is extending ConsumerBase which also implements FrameAvailableListener.
+    class FrameAvailableListenerProxy : public ConsumerBase::FrameAvailableListener {
+    public:
+        FrameAvailableListenerProxy(const wp<SurfaceTextureListener>& listener)
+              : mSurfaceTextureListener(listener) {}
+
+    private:
+        void onFrameAvailable(const BufferItem& item) override;
+
+        const wp<SurfaceTextureListener> mSurfaceTextureListener;
+    };
+    sp<FrameAvailableListenerProxy> mFrameAvailableListenerProxy;
 };
 
 // ----------------------------------------------------------------------------
