@@ -522,7 +522,6 @@ private:
     // shade is pulled down while we are counting down the timeout).
     void resetNoFocusedWindowTimeoutLocked() REQUIRES(mLock);
 
-    bool shouldSplitTouch(const TouchState& touchState, const MotionEntry& entry) const;
     int32_t getTargetDisplayId(const EventEntry& entry);
     sp<android::gui::WindowInfoHandle> findFocusedWindowTargetLocked(
             nsecs_t currentTime, const EventEntry& entry, nsecs_t* nextWakeupTime,
