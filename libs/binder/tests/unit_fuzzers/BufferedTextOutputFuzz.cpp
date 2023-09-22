@@ -16,6 +16,7 @@
 
 #include <commonFuzzHelpers.h>
 #include <fuzzer/FuzzedDataProvider.h>
+#include <functional>
 #include <string>
 #include <vector>
 #include "BufferedTextOutput.h"
