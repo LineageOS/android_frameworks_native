@@ -7027,7 +7027,10 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
             }
             case 1041: { // Transaction tracing
                 if (mTransactionTracing) {
-                    if (data.readInt32()) {
+                    int arg = data.readInt32();
+                    if (arg == -1) {
+                        mTransactionTracing.reset();
+                    } else if (arg > 0) {
                         // Transaction tracing is always running but allow the user to temporarily
                         // increase the buffer when actively debugging.
                         mTransactionTracing->setBufferSize(
