@@ -20,6 +20,7 @@
 #include <fuzzer/FuzzedDataProvider.h>
 #include <android-base/unique_fd.h>
 #include <cputimeinstate.h>
+#include <functional>
 
 using namespace android::bpf;
 

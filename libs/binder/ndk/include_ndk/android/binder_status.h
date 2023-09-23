@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include <assert.h>
 #include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
