@@ -346,7 +346,7 @@ int main(int argc, char *argv[])
             cout << "\t-m N    : Specify expected max latency in microseconds." << endl;
             cout << "\t-p      : Split workers into client/server pairs." << endl;
             cout << "\t-s N    : Specify payload size." << endl;
-            cout << "\t-t N    : Run training round." << endl;
+            cout << "\t-t      : Run training round." << endl;
             cout << "\t-w N    : Specify total number of workers." << endl;
             return 0;
         }
