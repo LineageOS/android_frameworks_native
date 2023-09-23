@@ -204,10 +204,7 @@ void worker_fx(int num,
     for (int i = 0; i < server_count; i++) {
         if (num == i)
             continue;
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-        workers.push_back(serviceMgr->getService(generateServiceName(i)));
-#pragma clang diagnostic pop
+        workers.push_back(serviceMgr->waitForService(generateServiceName(i)));
     }
 
     // Run the benchmark if client
