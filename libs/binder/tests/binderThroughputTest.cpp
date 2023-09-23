@@ -340,8 +340,6 @@ int main(int argc, char *argv[])
     int payload_size = 0;
     bool cs_pair = false;
     bool training_round = false;
-    (void)argc;
-    (void)argv;
 
     // Parse arguments.
     for (int i = 1; i < argc; i++) {
