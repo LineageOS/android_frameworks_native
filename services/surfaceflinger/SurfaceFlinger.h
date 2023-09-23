@@ -710,6 +710,9 @@ private:
             const sp<DisplayDevice>&, const scheduler::RefreshRateSelector::PolicyVariant&)
             EXCLUDES(mStateLock) REQUIRES(kMainThreadContext);
 
+    bool shouldApplyRefreshRateSelectorPolicy(const DisplayDevice&) const
+            REQUIRES(mStateLock, kMainThreadContext);
+
     // TODO(b/241285191): Look up RefreshRateSelector on Scheduler to remove redundant parameter.
     status_t applyRefreshRateSelectorPolicy(PhysicalDisplayId,
                                             const scheduler::RefreshRateSelector&,
