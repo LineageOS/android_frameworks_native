@@ -337,6 +337,7 @@ int main(int argc, char *argv[])
     int payload_size = 0;
     bool cs_pair = false;
     bool training_round = false;
+    int max_time_us;
 
     // Parse arguments.
     for (int i = 1; i < argc; i++) {
@@ -381,14 +382,14 @@ int main(int argc, char *argv[])
         if (string(argv[i]) == "-m") {
             // Caller specified the max latency in microseconds.
             // No need to run training round in this case.
-            if (atoi(argv[i+1]) > 0) {
-                max_time_bucket = strtoull(argv[i+1], (char **)nullptr, 10) * 1000;
-                time_per_bucket = max_time_bucket / num_buckets;
-                i++;
-            } else {
+            max_time_us = atoi(argv[i+1]);
+            if (max_time_us <= 0) {
                 cout << "Max latency -m must be positive." << endl;
                 exit(EXIT_FAILURE);
             }
+            max_time_bucket = max_time_us * 1000ull;
+            time_per_bucket = max_time_bucket / num_buckets;
+            i++;
             continue;
         }
     }
