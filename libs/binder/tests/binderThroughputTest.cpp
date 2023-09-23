@@ -363,17 +363,20 @@ int main(int argc, char *argv[])
         if (string(argv[i]) == "-s") {
             payload_size = atoi(argv[i+1]);
             i++;
+            continue;
         }
         if (string(argv[i]) == "-p") {
             // client/server pairs instead of spreading
             // requests to all workers. If true, half
             // the workers become clients and half servers
             cs_pair = true;
+            continue;
         }
         if (string(argv[i]) == "-t") {
             // Run one training round before actually collecting data
             // to get an approximation of max latency.
             training_round = true;
+            continue;
         }
         if (string(argv[i]) == "-m") {
             // Caller specified the max latency in microseconds.
@@ -386,6 +389,7 @@ int main(int argc, char *argv[])
                 cout << "Max latency -m must be positive." << endl;
                 exit(EXIT_FAILURE);
             }
+            continue;
         }
     }
 
