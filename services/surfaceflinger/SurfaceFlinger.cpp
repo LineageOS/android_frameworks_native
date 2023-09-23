@@ -1380,8 +1380,7 @@ void SurfaceFlinger::initiateDisplayModeChanges() {
             continue;
         }
 
-        if (!display->isPoweredOn()) {
-            // Display is no longer powered on, so abort the mode change.
+        if (!shouldApplyRefreshRateSelectorPolicy(*display)) {
             clearDesiredActiveModeState(display);
             continue;
         }
@@ -3885,8 +3884,9 @@ void SurfaceFlinger::requestDisplayModes(std::vector<display::DisplayModeRequest
 
         if (!display) continue;
 
-        if (!display->isPoweredOn()) {
-            ALOGV("%s(%s): Display is powered off", __func__, to_string(displayId).c_str());
+        if (ftl::FakeGuard guard(kMainThreadContext);
+            !shouldApplyRefreshRateSelectorPolicy(*display)) {
+            ALOGV("%s(%s): Skipped applying policy", __func__, to_string(displayId).c_str());
             continue;
         }
 
@@ -7645,15 +7645,31 @@ status_t SurfaceFlinger::setDesiredDisplayModeSpecsInternal(
             break;
     }
 
-    // TODO(b/255635711): Apply the policy once the display is powered on, which is currently only
-    // done for the internal display that becomes active on fold/unfold. For now, assume that DM
-    // always powers on the secondary (internal or external) display before setting its policy.
-    if (!display->isPoweredOn()) {
-        ALOGV("%s(%s): Display is powered off", __func__, to_string(displayId).c_str());
+    if (!shouldApplyRefreshRateSelectorPolicy(*display)) {
+        ALOGV("%s(%s): Skipped applying policy", __func__, to_string(displayId).c_str());
         return NO_ERROR;
     }
 
     return applyRefreshRateSelectorPolicy(displayId, selector);
+}
+
+bool SurfaceFlinger::shouldApplyRefreshRateSelectorPolicy(const DisplayDevice& display) const {
+    if (display.isPoweredOn() || mPhysicalDisplays.size() == 1) return true;
+
+    LOG_ALWAYS_FATAL_IF(display.isVirtual());
+    const auto displayId = display.getPhysicalId();
+
+    // The display is powered off, and this is a multi-display device. If the display is the
+    // inactive internal display of a dual-display foldable, then the policy will be applied
+    // when it becomes active upon powering on.
+    //
+    // TODO(b/255635711): Remove this function (i.e. returning `false` as a special case) once
+    // concurrent mode setting across multiple (potentially powered off) displays is supported.
+    //
+    return displayId == mActiveDisplayId ||
+            !mPhysicalDisplays.get(displayId)
+                     .transform(&PhysicalDisplay::isInternal)
+                     .value_or(false);
 }
 
 status_t SurfaceFlinger::applyRefreshRateSelectorPolicy(
