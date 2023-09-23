@@ -405,10 +405,19 @@ std::string RequestedLayerState::getDebugString() const {
     return debug.str();
 }
 
+std::ostream& operator<<(std::ostream& out, const scheduler::LayerInfo::FrameRate& obj) {
+    out << obj.vote.rate;
+    out << " " << ftl::enum_string_full(obj.vote.type);
+    out << " " << ftl::enum_string_full(obj.category);
+    return out;
+}
+
 std::ostream& operator<<(std::ostream& out, const RequestedLayerState& obj) {
     out << obj.debugName;
     if (obj.relativeParentId != UNASSIGNED_LAYER_ID) out << " parent=" << obj.parentId;
     if (!obj.handleAlive) out << " handleNotAlive";
+    if (obj.requestedFrameRate.isValid())
+        out << " requestedFrameRate: {" << obj.requestedFrameRate << "}";
     return out;
 }
 
