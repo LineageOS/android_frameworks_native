@@ -220,6 +220,9 @@ void worker_fx(int num,
         workers.push_back(serviceMgr->waitForService(generateServiceName(i)));
     }
 
+    p.signal();
+    p.wait();
+
     // Run the benchmark if client
     ProcResults results(iterations);
 
@@ -300,8 +303,15 @@ void run_main(int iterations,
         pipes.push_back(make_worker(i, iterations, workers, payload_size, cs_pair));
     }
     wait_all(pipes);
+    // All workers have now been spawned and added themselves to service
+    // manager. Signal each worker to obtain a handle to the server workers from
+    // servicemanager.
+    signal_all(pipes);
+    // Wait for each worker to finish obtaining a handle to all server workers
+    // from servicemanager.
+    wait_all(pipes);
 
-    // Run the workers and wait for completion.
+    // Run the benchmark and wait for completion.
     chrono::time_point<chrono::high_resolution_clock> start, end;
     cout << "waiting for workers to complete" << endl;
     start = chrono::high_resolution_clock::now();
