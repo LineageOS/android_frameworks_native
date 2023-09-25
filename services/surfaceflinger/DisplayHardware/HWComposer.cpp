@@ -876,6 +876,19 @@ status_t HWComposer::setRefreshRateChangedCallbackDebugEnabled(PhysicalDisplayId
     return NO_ERROR;
 }
 
+status_t HWComposer::notifyExpectedPresent(PhysicalDisplayId displayId, nsecs_t expectedPresentTime,
+                                           int32_t frameIntervalNs) {
+    ATRACE_CALL();
+    RETURN_IF_INVALID_DISPLAY(displayId, BAD_INDEX);
+    const auto error = mComposer->notifyExpectedPresent(mDisplayData[displayId].hwcDisplay->getId(),
+                                                        expectedPresentTime, frameIntervalNs);
+    if (error != hal::Error::NONE) {
+        ALOGE("Error in notifyExpectedPresent call %s", to_string(error).c_str());
+        return INVALID_OPERATION;
+    }
+    return NO_ERROR;
+}
+
 status_t HWComposer::getDisplayDecorationSupport(
         PhysicalDisplayId displayId,
         std::optional<aidl::android::hardware::graphics::common::DisplayDecorationSupport>*

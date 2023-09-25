@@ -1450,6 +1450,20 @@ Error AidlComposer::setRefreshRateChangedCallbackDebugEnabled(Display displayId,
     return Error::NONE;
 }
 
+Error AidlComposer::notifyExpectedPresent(Display displayId, nsecs_t expectedPresentTime,
+                                          int32_t frameIntervalNs) {
+    const auto status =
+            mAidlComposerClient->notifyExpectedPresent(translate<int64_t>(displayId),
+                                                       ClockMonotonicTimestamp{expectedPresentTime},
+                                                       frameIntervalNs);
+
+    if (!status.isOk()) {
+        ALOGE("notifyExpectedPresent failed %s", status.getDescription().c_str());
+        return static_cast<Error>(status.getServiceSpecificError());
+    }
+    return Error::NONE;
+}
+
 Error AidlComposer::getClientTargetProperty(
         Display display, ClientTargetPropertyWithBrightness* outClientTargetProperty) {
     Error error = Error::NONE;
