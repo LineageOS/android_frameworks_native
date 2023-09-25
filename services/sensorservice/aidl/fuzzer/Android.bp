@@ -46,7 +46,6 @@ cc_fuzz {
                 "unsigned-integer-overflow",
             ],
         },
-        address: true,
         integer_overflow: true,
     },
 
