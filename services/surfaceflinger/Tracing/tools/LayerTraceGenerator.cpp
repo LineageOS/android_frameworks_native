@@ -41,8 +41,7 @@ namespace android {
 using namespace ftl::flag_operators;
 
 bool LayerTraceGenerator::generate(const perfetto::protos::TransactionTraceFile& traceFile,
-                                   std::uint32_t traceFlags,
-                                   std::optional<std::reference_wrapper<std::ostream>> outStream,
+                                   std::uint32_t traceFlags, LayerTracing& layerTracing,
                                    bool onlyLastEntry) {
     if (traceFile.entry_size() == 0) {
         ALOGD("Trace file is empty");
@@ -50,11 +49,6 @@ bool LayerTraceGenerator::generate(const perfetto::protos::TransactionTraceFile&
     }
 
     TransactionProtoParser parser(std::make_unique<TransactionProtoParser::FlingerDataMapper>());
-
-    LayerTracing layerTracing;
-    if (outStream) {
-        layerTracing.setOutputStream(outStream->get());
-    }
 
     // frontend
     frontend::LayerLifecycleManager lifecycleManager;
