@@ -2083,6 +2083,17 @@ nsecs_t SurfaceFlinger::getVsyncPeriodFromHWC() const {
 
 void SurfaceFlinger::onComposerHalVsync(hal::HWDisplayId hwcDisplayId, int64_t timestamp,
                                         std::optional<hal::VsyncPeriodNanos> vsyncPeriod) {
+    if (mConnectedDisplayFlagValue) {
+        // use ~0 instead of -1 as AidlComposerHal.cpp passes the param as unsigned int32
+        if (mIsHotplugErrViaNegVsync && timestamp < 0 && vsyncPeriod.has_value() &&
+            vsyncPeriod.value() == ~0) {
+            int hotplugErrorCode = static_cast<int32_t>(-timestamp);
+            ALOGD("SurfaceFlinger got hotplugErrorCode=%d", hotplugErrorCode);
+            mScheduler->onHotplugConnectionError(mAppConnectionHandle, hotplugErrorCode);
+            return;
+        }
+    }
+
     ATRACE_NAME(vsyncPeriod
                         ? ftl::Concat(__func__, ' ', hwcDisplayId, ' ', *vsyncPeriod, "ns").c_str()
                         : ftl::Concat(__func__, ' ', hwcDisplayId).c_str());
@@ -4050,6 +4061,9 @@ void SurfaceFlinger::initScheduler(const sp<const DisplayDevice>& display) {
             sp<RegionSamplingThread>::make(*this,
                                            RegionSamplingThread::EnvironmentTimingTunables());
     mFpsReporter = sp<FpsReporter>::make(*mFrameTimeline, *this);
+
+    mIsHotplugErrViaNegVsync =
+            base::GetBoolProperty("debug.sf.hwc_hotplug_error_via_neg_vsync"s, false);
 }
 
 void SurfaceFlinger::updatePhaseConfiguration(Fps refreshRate) {

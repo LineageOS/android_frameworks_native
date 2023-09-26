@@ -1236,6 +1236,8 @@ private:
         hal::Connection connection = hal::Connection::INVALID;
     };
 
+    bool mIsHotplugErrViaNegVsync = false;
+
     std::mutex mHotplugMutex;
     std::vector<HotplugEvent> mPendingHotplugEvents GUARDED_BY(mHotplugMutex);
 
