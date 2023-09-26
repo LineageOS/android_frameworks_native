@@ -944,6 +944,11 @@ VkResult GetPhysicalDeviceSurfaceCapabilities2KHR(
             return VK_ERROR_SURFACE_LOST_KHR;
         }
 
+        // Additional buffer count over min_undequeued_buffers in vulkan came from 2 total
+        // being technically enough for fifo (although a poor experience) vs 3 being the
+        // absolute minimum for mailbox to be useful. So min_undequeued_buffers + 2 is sensible
+        static constexpr int default_additional_buffers = 2;
+
         if(pPresentMode != nullptr) {
             switch (pPresentMode->presentMode) {
                 case VK_PRESENT_MODE_IMMEDIATE_KHR:
@@ -951,8 +956,8 @@ VkResult GetPhysicalDeviceSurfaceCapabilities2KHR(
                     break;
                 case VK_PRESENT_MODE_MAILBOX_KHR:
                 case VK_PRESENT_MODE_FIFO_KHR:
-                    capabilities->minImageCount =
-                        std::min(max_buffer_count, min_undequeued_buffers + 2);
+                    capabilities->minImageCount = std::min(max_buffer_count,
+                            min_undequeued_buffers + default_additional_buffers);
                     capabilities->maxImageCount = static_cast<uint32_t>(max_buffer_count);
                     break;
                 case VK_PRESENT_MODE_FIFO_RELAXED_KHR:
@@ -971,7 +976,8 @@ VkResult GetPhysicalDeviceSurfaceCapabilities2KHR(
                     break;
             }
         } else {
-            capabilities->minImageCount = std::min(max_buffer_count, min_undequeued_buffers + 2);
+            capabilities->minImageCount = std::min(max_buffer_count,
+                    min_undequeued_buffers + default_additional_buffers);
             capabilities->maxImageCount = static_cast<uint32_t>(max_buffer_count);
         }
     }
