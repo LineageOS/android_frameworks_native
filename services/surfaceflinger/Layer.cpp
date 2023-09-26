@@ -1352,6 +1352,8 @@ bool Layer::setFrameRateSelectionStrategy(FrameRateSelectionStrategy strategy) {
     mDrawingState.frameRateSelectionStrategy = strategy;
     mDrawingState.sequence++;
     mDrawingState.modified = true;
+
+    updateTreeHasFrameRateVote();
     setTransactionFlags(eTransactionNeeded);
     return true;
 }
