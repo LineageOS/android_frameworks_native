@@ -33,6 +33,7 @@ public:
                 (ResyncCallback, EventRegistrationFlags), (const, override));
     MOCK_METHOD(void, enableSyntheticVsync, (bool), (override));
     MOCK_METHOD(void, onHotplugReceived, (PhysicalDisplayId, bool), (override));
+    MOCK_METHOD(void, onHotplugConnectionError, (int32_t), (override));
     MOCK_METHOD(void, onModeChanged, (const scheduler::FrameRateMode&), (override));
     MOCK_METHOD(void, onFrameRateOverridesChanged,
                 (PhysicalDisplayId, std::vector<FrameRateOverride>), (override));

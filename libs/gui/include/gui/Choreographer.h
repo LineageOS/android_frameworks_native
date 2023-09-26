@@ -110,6 +110,7 @@ private:
     void dispatchVsync(nsecs_t timestamp, PhysicalDisplayId displayId, uint32_t count,
                        VsyncEventData vsyncEventData) override;
     void dispatchHotplug(nsecs_t timestamp, PhysicalDisplayId displayId, bool connected) override;
+    void dispatchHotplugConnectionError(nsecs_t timestamp, int32_t connectionError) override;
     void dispatchModeChanged(nsecs_t timestamp, PhysicalDisplayId displayId, int32_t modeId,
                              nsecs_t vsyncPeriod) override;
     void dispatchNullEvent(nsecs_t, PhysicalDisplayId) override;
