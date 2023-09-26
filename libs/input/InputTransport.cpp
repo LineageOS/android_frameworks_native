@@ -1276,13 +1276,13 @@ void InputConsumer::resampleTouchState(nsecs_t sampleTime, MotionEvent* event,
         PointerCoords& resampledCoords = touchState.lastResample.pointers[i];
         const PointerCoords& currentCoords = current->getPointerById(id);
         resampledCoords = currentCoords;
+        resampledCoords.isResampled = true;
         if (other->idBits.hasBit(id) && shouldResampleTool(event->getToolType(i))) {
             const PointerCoords& otherCoords = other->getPointerById(id);
             resampledCoords.setAxisValue(AMOTION_EVENT_AXIS_X,
                                          lerp(currentCoords.getX(), otherCoords.getX(), alpha));
             resampledCoords.setAxisValue(AMOTION_EVENT_AXIS_Y,
                                          lerp(currentCoords.getY(), otherCoords.getY(), alpha));
-            resampledCoords.isResampled = true;
             ALOGD_IF(debugResampling(),
                      "[%d] - out (%0.3f, %0.3f), cur (%0.3f, %0.3f), "
                      "other (%0.3f, %0.3f), alpha %0.3f",
