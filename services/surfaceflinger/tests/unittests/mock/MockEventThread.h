@@ -29,8 +29,16 @@ public:
     EventThread();
     ~EventThread() override;
 
-    MOCK_METHOD(sp<EventThreadConnection>, createEventConnection,
-                (ResyncCallback, EventRegistrationFlags), (const, override));
+    // TODO(b/302035909): workaround otherwise gtest complains about
+    //  error: no viable conversion from
+    //  'tuple<android::ftl::Flags<android::gui::ISurfaceComposer::EventRegistration> &&>' to 'const
+    //  tuple<android::ftl::Flags<android::gui::ISurfaceComposer::EventRegistration>>'
+    sp<EventThreadConnection> createEventConnection(EventRegistrationFlags flags) const override {
+        return createEventConnection(false, flags);
+    }
+    MOCK_METHOD(sp<EventThreadConnection>, createEventConnection, (bool, EventRegistrationFlags),
+                (const));
+
     MOCK_METHOD(void, enableSyntheticVsync, (bool), (override));
     MOCK_METHOD(void, onHotplugReceived, (PhysicalDisplayId, bool), (override));
     MOCK_METHOD(void, onHotplugConnectionError, (int32_t), (override));

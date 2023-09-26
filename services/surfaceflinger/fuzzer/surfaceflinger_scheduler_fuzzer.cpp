@@ -97,21 +97,26 @@ PhysicalDisplayId SchedulerFuzzer::getPhysicalDisplayId() {
     return displayId;
 }
 
+struct EventThreadCallback : public IEventThreadCallback {
+    bool throttleVsync(TimePoint, uid_t) override { return false; }
+    Period getVsyncPeriod(uid_t) override { return kSyncPeriod; }
+    void resync() override {}
+};
+
 void SchedulerFuzzer::fuzzEventThread() {
     mVsyncSchedule = std::shared_ptr<scheduler::VsyncSchedule>(
             new scheduler::VsyncSchedule(getPhysicalDisplayId(),
                                          std::make_shared<mock::VSyncTracker>(),
                                          std::make_shared<mock::VSyncDispatch>(), nullptr));
-    const auto getVsyncPeriod = [](uid_t /* uid */) { return kSyncPeriod.count(); };
+    EventThreadCallback callback;
     std::unique_ptr<android::impl::EventThread> thread = std::make_unique<
-            android::impl::EventThread>("fuzzer", mVsyncSchedule, nullptr, nullptr, getVsyncPeriod,
+            android::impl::EventThread>("fuzzer", mVsyncSchedule, nullptr, callback,
                                         (std::chrono::nanoseconds)mFdp.ConsumeIntegral<uint64_t>(),
                                         (std::chrono::nanoseconds)mFdp.ConsumeIntegral<uint64_t>());
 
     thread->onHotplugReceived(getPhysicalDisplayId(), mFdp.ConsumeBool());
     sp<EventThreadConnection> connection =
-            sp<EventThreadConnection>::make(thread.get(), mFdp.ConsumeIntegral<uint16_t>(),
-                                            nullptr);
+            sp<EventThreadConnection>::make(thread.get(), mFdp.ConsumeIntegral<uint16_t>());
     thread->requestNextVsync(connection);
     thread->setVsyncRate(mFdp.ConsumeIntegral<uint32_t>() /*rate*/, connection);
 

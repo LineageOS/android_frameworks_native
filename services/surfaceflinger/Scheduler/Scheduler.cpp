@@ -242,36 +242,35 @@ bool Scheduler::isVsyncInPhase(TimePoint expectedVsyncTime, Fps frameRate) const
     return getVsyncSchedule()->getTracker().isVSyncInPhase(expectedVsyncTime.ns(), frameRate);
 }
 
-impl::EventThread::ThrottleVsyncCallback Scheduler::makeThrottleVsyncCallback() const {
-    return [this](nsecs_t expectedVsyncTime, uid_t uid) {
-        return !isVsyncValid(TimePoint::fromNs(expectedVsyncTime), uid);
-    };
+bool Scheduler::throttleVsync(android::TimePoint expectedPresentTime, uid_t uid) {
+    return !isVsyncValid(expectedPresentTime, uid);
 }
 
-impl::EventThread::GetVsyncPeriodFunction Scheduler::makeGetVsyncPeriodFunction() const {
-    return [this](uid_t uid) {
-        const auto [refreshRate, period] = [this] {
-            std::scoped_lock lock(mDisplayLock);
-            const auto pacesetterOpt = pacesetterDisplayLocked();
-            LOG_ALWAYS_FATAL_IF(!pacesetterOpt);
-            const Display& pacesetter = *pacesetterOpt;
-            return std::make_pair(pacesetter.selectorPtr->getActiveMode().fps,
-                                  pacesetter.schedulePtr->period());
-        }();
+Period Scheduler::getVsyncPeriod(uid_t uid) {
+    const auto [refreshRate, period] = [this] {
+        std::scoped_lock lock(mDisplayLock);
+        const auto pacesetterOpt = pacesetterDisplayLocked();
+        LOG_ALWAYS_FATAL_IF(!pacesetterOpt);
+        const Display& pacesetter = *pacesetterOpt;
+        return std::make_pair(pacesetter.selectorPtr->getActiveMode().fps,
+                              pacesetter.schedulePtr->period());
+    }();
 
-        const Period currentPeriod = period != Period::zero() ? period : refreshRate.getPeriod();
+    const Period currentPeriod = period != Period::zero() ? period : refreshRate.getPeriod();
 
-        const auto frameRate = getFrameRateOverride(uid);
-        if (!frameRate.has_value()) {
-            return currentPeriod.ns();
-        }
+    const auto frameRate = getFrameRateOverride(uid);
+    if (!frameRate.has_value()) {
+        return currentPeriod;
+    }
 
-        const auto divisor = RefreshRateSelector::getFrameRateDivisor(refreshRate, *frameRate);
-        if (divisor <= 1) {
-            return currentPeriod.ns();
-        }
-        return currentPeriod.ns() * divisor;
-    };
+    const auto divisor = RefreshRateSelector::getFrameRateDivisor(refreshRate, *frameRate);
+    if (divisor <= 1) {
+        return currentPeriod;
+    }
+
+    // TODO(b/299378819): the casting is not needed, but we need a flag as it might change
+    // behaviour.
+    return Period::fromNs(currentPeriod.ns() * divisor);
 }
 
 ConnectionHandle Scheduler::createEventThread(Cycle cycle,
@@ -279,9 +278,7 @@ ConnectionHandle Scheduler::createEventThread(Cycle cycle,
                                               std::chrono::nanoseconds workDuration,
                                               std::chrono::nanoseconds readyDuration) {
     auto eventThread = std::make_unique<impl::EventThread>(cycle == Cycle::Render ? "app" : "appSf",
-                                                           getVsyncSchedule(), tokenManager,
-                                                           makeThrottleVsyncCallback(),
-                                                           makeGetVsyncPeriodFunction(),
+                                                           getVsyncSchedule(), tokenManager, *this,
                                                            workDuration, readyDuration);
 
     auto& handle = cycle == Cycle::Render ? mAppConnectionHandle : mSfConnectionHandle;
@@ -293,7 +290,7 @@ ConnectionHandle Scheduler::createConnection(std::unique_ptr<EventThread> eventT
     const ConnectionHandle handle = ConnectionHandle{mNextConnectionHandleId++};
     ALOGV("Creating a connection handle with ID %" PRIuPTR, handle.id);
 
-    auto connection = eventThread->createEventConnection([&] { resync(); });
+    auto connection = eventThread->createEventConnection();
 
     std::lock_guard<std::mutex> lock(mConnectionsLock);
     mConnections.emplace(handle, Connection{connection, std::move(eventThread)});
@@ -307,8 +304,7 @@ sp<IDisplayEventConnection> Scheduler::createDisplayEventConnection(
         std::scoped_lock lock(mConnectionsLock);
         RETURN_IF_INVALID_HANDLE(handle, nullptr);
 
-        return mConnections[handle].thread->createEventConnection([&] { resync(); },
-                                                                  eventRegistration);
+        return mConnections[handle].thread->createEventConnection(eventRegistration);
     }();
     const auto layerId = static_cast<int32_t>(LayerHandle::getLayerId(layerHandle));
 
