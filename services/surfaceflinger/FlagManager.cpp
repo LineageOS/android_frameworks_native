@@ -110,6 +110,7 @@ void FlagManager::dump(std::string& result) const {
     /// Trunk stable server flags ///
     DUMP_SERVER_FLAG(late_boot_misc2);
     DUMP_SERVER_FLAG(dont_skip_on_early);
+    DUMP_SERVER_FLAG(refresh_rate_overlay_on_external_display);
 
     /// Trunk stable readonly flags ///
     DUMP_READ_ONLY_FLAG(connected_display);
@@ -190,6 +191,7 @@ FLAG_MANAGER_READ_ONLY_FLAG(multithreaded_present, "debug.sf.multithreaded_prese
 
 /// Trunk stable server flags ///
 FLAG_MANAGER_SERVER_FLAG(late_boot_misc2, "")
+FLAG_MANAGER_SERVER_FLAG(refresh_rate_overlay_on_external_display, "")
 
 /// Exceptions ///
 bool FlagManager::dont_skip_on_early() const {

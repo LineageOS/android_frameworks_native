@@ -70,3 +70,9 @@ flag {
   is_fixed_read_only: true
 }
 
+flag {
+  name: "refresh_rate_overlay_on_external_display"
+  namespace: "core_graphics"
+  description: "enable refresh rate indicator on the external display"
+  bug: "301647974"
+}
