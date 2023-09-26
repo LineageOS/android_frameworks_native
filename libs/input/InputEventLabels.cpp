@@ -429,7 +429,8 @@ namespace android {
     DEFINE_FLAG(VIRTUAL), \
     DEFINE_FLAG(FUNCTION), \
     DEFINE_FLAG(GESTURE), \
-    DEFINE_FLAG(WAKE)
+    DEFINE_FLAG(WAKE), \
+    DEFINE_FLAG(FALLBACK_USAGE_MAPPING)
 
 // clang-format on
 
