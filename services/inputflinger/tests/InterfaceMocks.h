@@ -59,7 +59,7 @@ public:
                 (int32_t deviceId), (override));
 
     MOCK_METHOD(void, requestTimeoutAtTime, (nsecs_t when), (override));
-    MOCK_METHOD(int32_t, bumpGeneration, (), (override));
+    int32_t bumpGeneration() override { return ++mGeneration; }
 
     MOCK_METHOD(void, getExternalStylusDevices, (std::vector<InputDeviceInfo> & outDevices),
                 (override));
@@ -76,6 +76,9 @@ public:
 
     MOCK_METHOD(void, setPreventingTouchpadTaps, (bool prevent), (override));
     MOCK_METHOD(bool, isPreventingTouchpadTaps, (), (override));
+
+private:
+    int32_t mGeneration = 0;
 };
 
 class MockEventHubInterface : public EventHubInterface {
