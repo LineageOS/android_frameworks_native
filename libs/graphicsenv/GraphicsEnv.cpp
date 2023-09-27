@@ -63,8 +63,7 @@ typedef bool (*fpANGLEFreeSystemInfoHandle)(void* handle);
 namespace {
 static bool isVndkEnabled() {
 #ifdef __BIONIC__
-    // TODO(b/290159430) Use ro.vndk.version to check if VNDK is enabled instead
-    static bool isVndkEnabled = !android::base::GetBoolProperty("ro.vndk.deprecate", false);
+    static bool isVndkEnabled = android::base::GetProperty("ro.vndk.version", "") != "";
     return isVndkEnabled;
 #endif
     return false;
