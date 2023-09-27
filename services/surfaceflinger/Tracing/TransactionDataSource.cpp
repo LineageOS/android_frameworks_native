@@ -49,26 +49,26 @@ void TransactionDataSource::OnSetup(const TransactionDataSource::SetupArgs& args
         mMode = static_cast<TransactionTracing::Mode>(config.mode());
     } else {
         mMode = TransactionTracing::Mode::MODE_CONTINUOUS;
-        ALOGV("Received config with unspecified 'mode'. Using 'CONTINUOUS' as default");
+        ALOGD("Received config with unspecified 'mode'. Using 'CONTINUOUS' as default");
     }
 }
 
 void TransactionDataSource::OnStart(const StartArgs&) {
-    ALOGV("Received OnStart event");
+    ALOGD("Received OnStart event");
     if (auto* p = mTransactionTracing.load()) {
         p->onStart(mMode);
     }
 }
 
 void TransactionDataSource::OnFlush(const FlushArgs&) {
-    ALOGV("Received OnFlush event");
+    ALOGD("Received OnFlush event");
     if (auto* p = mTransactionTracing.load()) {
         p->onFlush(mMode);
     }
 }
 
 void TransactionDataSource::OnStop(const StopArgs&) {
-    ALOGV("Received OnStop event");
+    ALOGD("Received OnStop event");
 }
 
 TransactionTracing::Mode TransactionDataSource::GetMode() const {

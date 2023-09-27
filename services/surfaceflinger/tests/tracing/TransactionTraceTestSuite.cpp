@@ -23,6 +23,7 @@
 #include <unordered_map>
 
 #include <LayerProtoHelper.h>
+#include <Tracing/LayerTracing.h>
 #include <Tracing/TransactionProtoParser.h>
 #include <Tracing/tools/LayerTraceGenerator.h>
 #include <layerproto/LayerProtoHeader.h>
@@ -62,7 +63,8 @@ protected:
         {
             auto traceFlags = LayerTracing::TRACE_INPUT | LayerTracing::TRACE_BUFFERS;
             std::ofstream outStream{actualLayersTracePath, std::ios::binary | std::ios::app};
-            EXPECT_TRUE(LayerTraceGenerator().generate(mTransactionTrace, traceFlags, outStream,
+            auto layerTracing = LayerTracing{outStream};
+            EXPECT_TRUE(LayerTraceGenerator().generate(mTransactionTrace, traceFlags, layerTracing,
                                                        /*onlyLastEntry=*/true))
                     << "Failed to generate layers trace from " << transactionTracePath;
         }

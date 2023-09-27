@@ -88,6 +88,7 @@ public:
 
         struct Hotplug {
             bool connected;
+            int32_t connectionError __attribute__((aligned(4)));
         };
 
         struct ModeChange {

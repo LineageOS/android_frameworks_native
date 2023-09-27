@@ -52,7 +52,7 @@ void LayerDataSource::OnSetup(const LayerDataSource::SetupArgs& args) {
         mMode = static_cast<LayerTracing::Mode>(config.mode());
     } else {
         mMode = LayerTracing::Mode::MODE_GENERATED;
-        ALOGV("Received config with unspecified 'mode'. Using 'GENERATED' as default");
+        ALOGD("Received config with unspecified 'mode'. Using 'GENERATED' as default");
     }
 
     mFlags = 0;
@@ -62,21 +62,21 @@ void LayerDataSource::OnSetup(const LayerDataSource::SetupArgs& args) {
 }
 
 void LayerDataSource::OnStart(const LayerDataSource::StartArgs&) {
-    ALOGV("Received OnStart event (mode = 0x%02x, flags = 0x%02x)", mMode, mFlags);
+    ALOGD("Received OnStart event (mode = 0x%02x, flags = 0x%02x)", mMode, mFlags);
     if (auto* p = mLayerTracing.load()) {
         p->onStart(mMode, mFlags);
     }
 }
 
 void LayerDataSource::OnFlush(const LayerDataSource::FlushArgs&) {
-    ALOGV("Received OnFlush event (mode = 0x%02x, flags = 0x%02x)", mMode, mFlags);
+    ALOGD("Received OnFlush event (mode = 0x%02x, flags = 0x%02x)", mMode, mFlags);
     if (auto* p = mLayerTracing.load()) {
         p->onFlush(mMode, mFlags);
     }
 }
 
 void LayerDataSource::OnStop(const LayerDataSource::StopArgs&) {
-    ALOGV("Received OnStop event (mode = 0x%02x, flags = 0x%02x)", mMode, mFlags);
+    ALOGD("Received OnStop event (mode = 0x%02x, flags = 0x%02x)", mMode, mFlags);
     if (auto* p = mLayerTracing.load()) {
         p->onStop(mMode);
     }

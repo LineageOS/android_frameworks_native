@@ -4,7 +4,7 @@
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//      http://www.apache.org/licenses/LICENSE-2.0
+//     http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,26 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-rust_defaults {
-    name: "libbufferstreams_defaults",
-    srcs: ["src/lib.rs"],
-    rustlibs: [
-        "libanyhow",
-        "libnativewindow_rs",
-    ],
-    edition: "2021",
-}
+//! This module provides [BufferSubscription] implementations and helpers.
 
-rust_library {
-    name: "libbufferstreams",
-    crate_name: "bufferstreams",
-    defaults: ["libbufferstreams_defaults"],
-    min_sdk_version: "30",
-}
+mod shared_buffer_subscription;
 
-rust_test {
-    name: "libbufferstreams-internal_test",
-    crate_name: "bufferstreams",
-    defaults: ["libbufferstreams_defaults"],
-    test_suites: ["general-tests"],
-}
+pub use shared_buffer_subscription::*;

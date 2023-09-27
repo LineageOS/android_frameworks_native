@@ -161,6 +161,8 @@ public:
     sp<EventThreadConnection> getEventConnection(ConnectionHandle);
 
     void onHotplugReceived(ConnectionHandle, PhysicalDisplayId, bool connected);
+    void onHotplugConnectionError(ConnectionHandle, int32_t errorCode);
+
     void onPrimaryDisplayModeChanged(ConnectionHandle, const FrameRateMode&) EXCLUDES(mPolicyLock);
     void onNonPrimaryDisplayModeChanged(ConnectionHandle, const FrameRateMode&);
 

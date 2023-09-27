@@ -36,6 +36,10 @@ LayerTracing::LayerTracing() {
     LayerDataSource::Initialize(*this);
 }
 
+LayerTracing::LayerTracing(std::ostream& outStream) : LayerTracing() {
+    mOutStream = std::ref(outStream);
+}
+
 LayerTracing::~LayerTracing() {
     LayerDataSource::UnregisterLayerTracing();
 }
@@ -49,10 +53,6 @@ void LayerTracing::setTransactionTracing(TransactionTracing& transactionTracing)
     mTransactionTracing = &transactionTracing;
 }
 
-void LayerTracing::setOutputStream(std::ostream& outStream) {
-    mOutStream = std::ref(outStream);
-}
-
 void LayerTracing::onStart(Mode mode, uint32_t flags) {
     switch (mode) {
         case Mode::MODE_ACTIVE: {
@@ -63,18 +63,17 @@ void LayerTracing::onStart(Mode mode, uint32_t flags) {
             // taken. Let's manually take a snapshot, so that the trace's first entry will contain
             // the current layers state.
             addProtoSnapshotToOstream(mTakeLayersSnapshotProto(flags), Mode::MODE_ACTIVE);
-            ALOGV("Started active tracing (traced initial snapshot)");
+            ALOGD("Started active tracing (traced initial snapshot)");
             break;
         }
         case Mode::MODE_GENERATED: {
-            ALOGV("Started generated tracing (waiting for OnFlush event to generated layers)");
+            ALOGD("Started generated tracing (waiting for OnFlush event to generated layers)");
             break;
         }
         case Mode::MODE_DUMP: {
-            ALOGV("Starting dump tracing (dumping single snapshot)");
             auto snapshot = mTakeLayersSnapshotProto(flags);
             addProtoSnapshotToOstream(std::move(snapshot), Mode::MODE_DUMP);
-            ALOGV("Started dump tracing (dumped single snapshot)");
+            ALOGD("Started dump tracing (dumped single snapshot)");
             break;
         }
         default: {
@@ -91,19 +90,19 @@ void LayerTracing::onFlush(Mode mode, uint32_t flags) {
     }
 
     if (!mTransactionTracing) {
-        ALOGV("Skipping layers trace generation (transactions tracing disabled)");
+        ALOGD("Skipping layers trace generation (transactions tracing disabled)");
         return;
     }
 
     auto transactionTrace = mTransactionTracing->writeToProto();
-    LayerTraceGenerator{}.generate(transactionTrace, flags);
-    ALOGV("Flushed generated tracing");
+    LayerTraceGenerator{}.generate(transactionTrace, flags, *this);
+    ALOGD("Flushed generated tracing");
 }
 
 void LayerTracing::onStop(Mode mode) {
     if (mode == Mode::MODE_ACTIVE) {
         mIsActiveTracingStarted.store(false);
-        ALOGV("Stopped active tracing");
+        ALOGD("Stopped active tracing");
     }
 }
 

@@ -197,6 +197,7 @@ public:
 
     MOCK_METHOD4(dispatchVsync, void(nsecs_t, PhysicalDisplayId, uint32_t, VsyncEventData));
     MOCK_METHOD3(dispatchHotplug, void(nsecs_t, PhysicalDisplayId, bool));
+    MOCK_METHOD2(dispatchHotplugConnectionError, void(nsecs_t, int32_t));
     MOCK_METHOD4(dispatchModeChanged, void(nsecs_t, PhysicalDisplayId, int32_t, nsecs_t));
     MOCK_METHOD2(dispatchNullEvent, void(nsecs_t, PhysicalDisplayId));
     MOCK_METHOD3(dispatchFrameRateOverrides,

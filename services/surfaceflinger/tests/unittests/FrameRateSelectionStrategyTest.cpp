@@ -153,6 +153,19 @@ TEST_P(FrameRateSelectionStrategyTest, SetParentAndGet) {
     EXPECT_EQ(FRAME_RATE_VOTE1, layer3->getFrameRateForLayerTree());
     EXPECT_EQ(FrameRateSelectionStrategy::Self,
               layer3->getDrawingState().frameRateSelectionStrategy);
+
+    layer1->setFrameRateSelectionStrategy(FrameRateSelectionStrategy::Self);
+    commitTransaction();
+
+    EXPECT_EQ(FRAME_RATE_VOTE1, layer1->getFrameRateForLayerTree());
+    EXPECT_EQ(FrameRateSelectionStrategy::Self,
+              layer1->getDrawingState().frameRateSelectionStrategy);
+    EXPECT_EQ(FRAME_RATE_VOTE2, layer2->getFrameRateForLayerTree());
+    EXPECT_EQ(FrameRateSelectionStrategy::OverrideChildren,
+              layer2->getDrawingState().frameRateSelectionStrategy);
+    EXPECT_EQ(FRAME_RATE_VOTE2, layer3->getFrameRateForLayerTree());
+    EXPECT_EQ(FrameRateSelectionStrategy::Self,
+              layer3->getDrawingState().frameRateSelectionStrategy);
 }
 
 } // namespace
