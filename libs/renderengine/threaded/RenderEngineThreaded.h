@@ -89,6 +89,7 @@ private:
     mutable std::mutex mThreadMutex;
     std::thread mThread GUARDED_BY(mThreadMutex);
     std::atomic<bool> mRunning = true;
+    std::atomic<bool> mNeedsPostRenderCleanup = false;
 
     using Work = std::function<void(renderengine::RenderEngine&)>;
     mutable std::queue<Work> mFunctionCalls GUARDED_BY(mThreadMutex);
