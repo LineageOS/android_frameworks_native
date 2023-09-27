@@ -18,6 +18,7 @@
 
 #include <android-base/logging.h>
 #include <android-base/properties.h>
+#include <android-base/strings.h>
 #include <binder/BpBinder.h>
 #include <binder/IPCThreadState.h>
 #include <binder/ProcessState.h>
@@ -117,10 +118,26 @@ static bool isVintfDeclared(const std::string& name) {
     });
 
     if (!found) {
+        std::set<std::string> instances;
+        forEachManifest([&](const ManifestWithDescription& mwd) {
+            std::set<std::string> res = mwd.manifest->getAidlInstances(aname.package, aname.iface);
+            instances.insert(res.begin(), res.end());
+            return true;
+        });
+
+        std::string available;
+        if (instances.empty()) {
+            available = "No alternative instances declared in VINTF";
+        } else {
+            // for logging only. We can't return this information to the client
+            // because they may not have permissions to find or list those
+            // instances
+            available = "VINTF declared instances: " + base::Join(instances, ", ");
+        }
         // Although it is tested, explicitly rebuilding qualified name, in case it
         // becomes something unexpected.
-        ALOGI("Could not find %s.%s/%s in the VINTF manifest.", aname.package.c_str(),
-              aname.iface.c_str(), aname.instance.c_str());
+        ALOGI("Could not find %s.%s/%s in the VINTF manifest. %s.", aname.package.c_str(),
+              aname.iface.c_str(), aname.instance.c_str(), available.c_str());
     }
 
     return found;
