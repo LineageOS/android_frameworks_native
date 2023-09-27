@@ -2,6 +2,9 @@
   "imports": [
     {
       "path": "frameworks/native/libs/gui"
+    },
+    {
+      "path": "frameworks/native/services/inputflinger"
     }
   ],
   "presubmit": [
