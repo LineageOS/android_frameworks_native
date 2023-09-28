@@ -38,6 +38,7 @@
 #include <cutils/sched_policy.h>
 
 #include <gui/DisplayEventReceiver.h>
+#include <gui/SchedulingPolicy.h>
 
 #include <utils/Errors.h>
 #include <utils/Trace.h>
@@ -211,6 +212,10 @@ binder::Status EventThreadConnection::getLatestVsyncEventData(
     return binder::Status::ok();
 }
 
+binder::Status EventThreadConnection::getSchedulingPolicy(gui::SchedulingPolicy* outPolicy) {
+    return gui::getSchedulingPolicy(outPolicy);
+}
+
 status_t EventThreadConnection::postEvent(const DisplayEventReceiver::Event& event) {
     constexpr auto toStatus = [](ssize_t size) {
         return size < 0 ? status_t(size) : status_t(NO_ERROR);
@@ -299,9 +304,13 @@ void EventThread::setDuration(std::chrono::nanoseconds workDuration,
 
 sp<EventThreadConnection> EventThread::createEventConnection(
         ResyncCallback resyncCallback, EventRegistrationFlags eventRegistration) const {
-    return sp<EventThreadConnection>::make(const_cast<EventThread*>(this),
-                                           IPCThreadState::self()->getCallingUid(),
-                                           std::move(resyncCallback), eventRegistration);
+    auto connection = sp<EventThreadConnection>::make(const_cast<EventThread*>(this),
+                                                      IPCThreadState::self()->getCallingUid(),
+                                                      std::move(resyncCallback),
+                                                      eventRegistration);
+    const int policy = SCHED_FIFO;
+    connection->setMinSchedulerPolicy(policy, sched_get_priority_min(policy));
+    return connection;
 }
 
 status_t EventThread::registerDisplayEventConnection(const sp<EventThreadConnection>& connection) {

@@ -1563,8 +1563,9 @@ public:
                                           gui::WindowInfosListenerInfo* outInfo) override;
     binder::Status removeWindowInfosListener(
             const sp<gui::IWindowInfosListener>& windowInfosListener) override;
-    binder::Status getStalledTransactionInfo(int pid,
-                                             std::optional<gui::StalledTransactionInfo>* outInfo);
+    binder::Status getStalledTransactionInfo(
+            int pid, std::optional<gui::StalledTransactionInfo>* outInfo) override;
+    binder::Status getSchedulingPolicy(gui::SchedulingPolicy* outPolicy) override;
 
 private:
     static const constexpr bool kUsePermissionCache = true;

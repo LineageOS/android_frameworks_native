@@ -95,6 +95,7 @@ static constexpr BnSurfaceComposer::ISurfaceComposerTag kSurfaceComposerTags[]{
         BnSurfaceComposer::REMOVE_TUNNEL_MODE_ENABLED_LISTENER,
         BnSurfaceComposer::ADD_WINDOW_INFOS_LISTENER,
         BnSurfaceComposer::REMOVE_WINDOW_INFOS_LISTENER,
+        BnSurfaceComposer::GET_SCHEDULING_POLICY,
 };
 
 static constexpr uint32_t kMinCode = 1000;

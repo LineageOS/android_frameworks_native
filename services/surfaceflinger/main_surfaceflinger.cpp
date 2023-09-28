@@ -149,6 +149,7 @@ int main(int, char**) {
 
     // publish gui::ISurfaceComposer, the new AIDL interface
     sp<SurfaceComposerAIDL> composerAIDL = sp<SurfaceComposerAIDL>::make(flinger);
+    composerAIDL->setMinSchedulerPolicy(SCHED_FIFO, newPriority);
     sm->addService(String16("SurfaceFlingerAIDL"), composerAIDL, false,
                    IServiceManager::DUMP_FLAG_PRIORITY_CRITICAL | IServiceManager::DUMP_FLAG_PROTO);
 

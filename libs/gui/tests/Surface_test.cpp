@@ -1030,6 +1030,10 @@ public:
         return binder::Status::ok();
     }
 
+    binder::Status getSchedulingPolicy(gui::SchedulingPolicy*) override {
+        return binder::Status::ok();
+    }
+
 protected:
     IBinder* onAsBinder() override { return nullptr; }
 
