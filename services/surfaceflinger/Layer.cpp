@@ -1334,13 +1334,15 @@ bool Layer::setFrameRate(FrameRate::FrameRateVote frameRateVote) {
     return true;
 }
 
-bool Layer::setFrameRateCategory(FrameRateCategory category) {
-    if (mDrawingState.frameRate.category == category) {
+bool Layer::setFrameRateCategory(FrameRateCategory category, bool smoothSwitchOnly) {
+    if (mDrawingState.frameRate.category == category &&
+        mDrawingState.frameRate.categorySmoothSwitchOnly == smoothSwitchOnly) {
         return false;
     }
 
     mDrawingState.sequence++;
     mDrawingState.frameRate.category = category;
+    mDrawingState.frameRate.categorySmoothSwitchOnly = smoothSwitchOnly;
     mDrawingState.modified = true;
 
     updateTreeHasFrameRateVote();

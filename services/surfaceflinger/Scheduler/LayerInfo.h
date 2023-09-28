@@ -71,8 +71,8 @@ public:
         LayerHistory::LayerVoteType type = LayerHistory::LayerVoteType::Heuristic;
         Fps fps;
         Seamlessness seamlessness = Seamlessness::Default;
-        // Category is in effect if fps is not specified.
         FrameRateCategory category = FrameRateCategory::Default;
+        bool categorySmoothSwitchOnly = false;
 
         // Returns true if the layer explicitly should contribute to frame rate scoring.
         bool isNoVote() const { return RefreshRateSelector::isNoVote(type); }
@@ -111,6 +111,7 @@ public:
         } vote;
 
         FrameRateCategory category = FrameRateCategory::Default;
+        bool categorySmoothSwitchOnly = false;
 
         FrameRate() = default;
 

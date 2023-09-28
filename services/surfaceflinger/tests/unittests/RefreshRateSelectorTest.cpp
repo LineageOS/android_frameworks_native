@@ -117,9 +117,9 @@ struct TestableRefreshRateSelector : RefreshRateSelector {
         return std::make_pair(ranking, consideredSignals);
     }
 
-    ftl::NonNull<DisplayModePtr> getBestFrameRateMode(
-            const std::vector<LayerRequirement>& layers = {}, GlobalSignals signals = {}) const {
-        return getRankedFrameRates(layers, signals).ranking.front().frameRateMode.modePtr;
+    FrameRateMode getBestFrameRateMode(const std::vector<LayerRequirement>& layers = {},
+                                       GlobalSignals signals = {}) const {
+        return getRankedFrameRates(layers, signals).ranking.front().frameRateMode;
     }
 
     ScoredFrameRate getBestScoredFrameRate(const std::vector<LayerRequirement>& layers = {},
@@ -429,11 +429,11 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_noLayers) {
 
         // If there are no layers we select the default frame rate, which is the max of the primary
         // range.
-        EXPECT_EQ(kMode90, selector.getBestFrameRateMode());
+        EXPECT_EQ(kMode90, selector.getBestFrameRateMode().modePtr);
 
         EXPECT_EQ(SetPolicyResult::Changed,
                   selector.setDisplayManagerPolicy({kModeId60, {60_Hz, 60_Hz}}));
-        EXPECT_EQ(kMode60, selector.getBestFrameRateMode());
+        EXPECT_EQ(kMode60, selector.getBestFrameRateMode().modePtr);
     }
     {
         // We select max even when this will cause a non-seamless switch.
@@ -442,7 +442,7 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_noLayers) {
         EXPECT_EQ(SetPolicyResult::Changed,
                   selector.setDisplayManagerPolicy(
                           {kModeId90, {0_Hz, 90_Hz}, kAllowGroupSwitching}));
-        EXPECT_EQ(kMode90_G1, selector.getBestFrameRateMode());
+        EXPECT_EQ(kMode90_G1, selector.getBestFrameRateMode().modePtr);
     }
 }
 
@@ -455,7 +455,7 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_exactDontChangeRefreshRateW
 
     EXPECT_EQ(SetPolicyResult::Changed,
               selector.setDisplayManagerPolicy({kModeId72, {0_Hz, 90_Hz}}));
-    EXPECT_EQ(kMode72, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode72, selector.getBestFrameRateMode(layers).modePtr);
 }
 
 TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_60_90) {
@@ -466,107 +466,107 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_60_90) {
 
     lr.vote = LayerVoteType::Min;
     lr.name = "Min";
-    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.vote = LayerVoteType::Max;
     lr.name = "Max";
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.desiredRefreshRate = 90_Hz;
     lr.vote = LayerVoteType::Heuristic;
     lr.name = "90Hz Heuristic";
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.desiredRefreshRate = 60_Hz;
     lr.name = "60Hz Heuristic";
-    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.desiredRefreshRate = 45_Hz;
     lr.name = "45Hz Heuristic";
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.desiredRefreshRate = 30_Hz;
     lr.name = "30Hz Heuristic";
-    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.desiredRefreshRate = 24_Hz;
     lr.name = "24Hz Heuristic";
-    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.name = "";
     EXPECT_EQ(SetPolicyResult::Changed,
               selector.setDisplayManagerPolicy({kModeId60, {60_Hz, 60_Hz}}));
 
     lr.vote = LayerVoteType::Min;
-    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.vote = LayerVoteType::Max;
-    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.desiredRefreshRate = 90_Hz;
     lr.vote = LayerVoteType::Heuristic;
-    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.desiredRefreshRate = 60_Hz;
-    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.desiredRefreshRate = 45_Hz;
-    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.desiredRefreshRate = 30_Hz;
-    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.desiredRefreshRate = 24_Hz;
-    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers).modePtr);
 
     EXPECT_EQ(SetPolicyResult::Changed,
               selector.setDisplayManagerPolicy({kModeId90, {90_Hz, 90_Hz}}));
 
     lr.vote = LayerVoteType::Min;
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.vote = LayerVoteType::Max;
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.desiredRefreshRate = 90_Hz;
     lr.vote = LayerVoteType::Heuristic;
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.desiredRefreshRate = 60_Hz;
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.desiredRefreshRate = 45_Hz;
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.desiredRefreshRate = 30_Hz;
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.desiredRefreshRate = 24_Hz;
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers).modePtr);
 
     EXPECT_EQ(SetPolicyResult::Changed,
               selector.setDisplayManagerPolicy({kModeId60, {0_Hz, 120_Hz}}));
     lr.vote = LayerVoteType::Min;
-    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.vote = LayerVoteType::Max;
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.desiredRefreshRate = 90_Hz;
     lr.vote = LayerVoteType::Heuristic;
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.desiredRefreshRate = 60_Hz;
-    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.desiredRefreshRate = 45_Hz;
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.desiredRefreshRate = 30_Hz;
-    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.desiredRefreshRate = 24_Hz;
-    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers).modePtr);
 }
 
 TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_multipleThreshold_60_90) {
@@ -577,32 +577,32 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_multipleThreshold_60_90) {
 
     lr.vote = LayerVoteType::Min;
     lr.name = "Min";
-    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.vote = LayerVoteType::Max;
     lr.name = "Max";
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.desiredRefreshRate = 90_Hz;
     lr.vote = LayerVoteType::Heuristic;
     lr.name = "90Hz Heuristic";
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.desiredRefreshRate = 60_Hz;
     lr.name = "60Hz Heuristic";
-    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.desiredRefreshRate = 45_Hz;
     lr.name = "45Hz Heuristic";
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.desiredRefreshRate = 30_Hz;
     lr.name = "30Hz Heuristic";
-    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.desiredRefreshRate = 24_Hz;
     lr.name = "24Hz Heuristic";
-    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers).modePtr);
 }
 
 TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_60_72_90) {
@@ -612,26 +612,26 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_60_72_90) {
     auto& lr = layers[0];
 
     lr.vote = LayerVoteType::Min;
-    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.vote = LayerVoteType::Max;
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.desiredRefreshRate = 90_Hz;
     lr.vote = LayerVoteType::Heuristic;
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.desiredRefreshRate = 60_Hz;
-    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.desiredRefreshRate = 45_Hz;
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.desiredRefreshRate = 30_Hz;
-    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.desiredRefreshRate = 24_Hz;
-    EXPECT_EQ(kMode72, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode72, selector.getBestFrameRateMode(layers).modePtr);
 }
 
 TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_30_60_72_90_120) {
@@ -645,19 +645,19 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_30_60_72_90_120) {
     lr1.vote = LayerVoteType::Heuristic;
     lr2.desiredRefreshRate = 60_Hz;
     lr2.vote = LayerVoteType::Heuristic;
-    EXPECT_EQ(kMode120, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode120, selector.getBestFrameRateMode(layers).modePtr);
 
     lr1.desiredRefreshRate = 24_Hz;
     lr1.vote = LayerVoteType::Heuristic;
     lr2.desiredRefreshRate = 48_Hz;
     lr2.vote = LayerVoteType::Heuristic;
-    EXPECT_EQ(kMode72, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode72, selector.getBestFrameRateMode(layers).modePtr);
 
     lr1.desiredRefreshRate = 24_Hz;
     lr1.vote = LayerVoteType::Heuristic;
     lr2.desiredRefreshRate = 48_Hz;
     lr2.vote = LayerVoteType::Heuristic;
-    EXPECT_EQ(kMode72, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode72, selector.getBestFrameRateMode(layers).modePtr);
 }
 
 TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_30_60_90_120_DifferentTypes) {
@@ -673,7 +673,7 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_30_60_90_120_DifferentTypes
     lr2.desiredRefreshRate = 60_Hz;
     lr2.vote = LayerVoteType::Heuristic;
     lr2.name = "60Hz Heuristic";
-    EXPECT_EQ(kMode120, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode120, selector.getBestFrameRateMode(layers).modePtr);
 
     lr1.desiredRefreshRate = 24_Hz;
     lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
@@ -681,7 +681,7 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_30_60_90_120_DifferentTypes
     lr2.desiredRefreshRate = 60_Hz;
     lr2.vote = LayerVoteType::Heuristic;
     lr2.name = "60Hz Heuristic";
-    EXPECT_EQ(kMode120, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode120, selector.getBestFrameRateMode(layers).modePtr);
 
     lr1.desiredRefreshRate = 24_Hz;
     lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
@@ -689,7 +689,7 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_30_60_90_120_DifferentTypes
     lr2.desiredRefreshRate = 60_Hz;
     lr2.vote = LayerVoteType::ExplicitDefault;
     lr2.name = "60Hz ExplicitDefault";
-    EXPECT_EQ(kMode120, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode120, selector.getBestFrameRateMode(layers).modePtr);
 
     lr1.desiredRefreshRate = 24_Hz;
     lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
@@ -697,7 +697,7 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_30_60_90_120_DifferentTypes
     lr2.desiredRefreshRate = 90_Hz;
     lr2.vote = LayerVoteType::Heuristic;
     lr2.name = "90Hz Heuristic";
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers).modePtr);
 
     lr1.desiredRefreshRate = 24_Hz;
     lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
@@ -705,7 +705,7 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_30_60_90_120_DifferentTypes
     lr2.desiredRefreshRate = 90_Hz;
     lr2.vote = LayerVoteType::ExplicitDefault;
     lr2.name = "90Hz Heuristic";
-    EXPECT_EQ(kMode72, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode72, selector.getBestFrameRateMode(layers).modePtr);
 
     lr1.desiredRefreshRate = 24_Hz;
     lr1.vote = LayerVoteType::ExplicitDefault;
@@ -713,7 +713,7 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_30_60_90_120_DifferentTypes
     lr2.desiredRefreshRate = 90_Hz;
     lr2.vote = LayerVoteType::Heuristic;
     lr2.name = "90Hz Heuristic";
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers).modePtr);
 
     lr1.desiredRefreshRate = 24_Hz;
     lr1.vote = LayerVoteType::Heuristic;
@@ -721,7 +721,7 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_30_60_90_120_DifferentTypes
     lr2.desiredRefreshRate = 90_Hz;
     lr2.vote = LayerVoteType::ExplicitDefault;
     lr2.name = "90Hz ExplicitDefault";
-    EXPECT_EQ(kMode72, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode72, selector.getBestFrameRateMode(layers).modePtr);
 
     lr1.desiredRefreshRate = 24_Hz;
     lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
@@ -729,7 +729,7 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_30_60_90_120_DifferentTypes
     lr2.desiredRefreshRate = 90_Hz;
     lr2.vote = LayerVoteType::ExplicitDefault;
     lr2.name = "90Hz ExplicitDefault";
-    EXPECT_EQ(kMode72, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode72, selector.getBestFrameRateMode(layers).modePtr);
 
     lr1.desiredRefreshRate = 24_Hz;
     lr1.vote = LayerVoteType::ExplicitDefault;
@@ -737,7 +737,7 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_30_60_90_120_DifferentTypes
     lr2.desiredRefreshRate = 90_Hz;
     lr2.vote = LayerVoteType::ExplicitExactOrMultiple;
     lr2.name = "90Hz ExplicitExactOrMultiple";
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers).modePtr);
 }
 
 TEST_P(RefreshRateSelectorTest,
@@ -756,7 +756,7 @@ TEST_P(RefreshRateSelectorTest,
     lr2.desiredRefreshRate = 60_Hz;
     lr2.vote = LayerVoteType::Heuristic;
     lr2.name = "60Hz Heuristic";
-    EXPECT_EQ(kMode120, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode120, selector.getBestFrameRateMode(layers).modePtr);
 
     lr1.desiredRefreshRate = 24_Hz;
     lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
@@ -764,7 +764,7 @@ TEST_P(RefreshRateSelectorTest,
     lr2.desiredRefreshRate = 60_Hz;
     lr2.vote = LayerVoteType::Heuristic;
     lr2.name = "60Hz Heuristic";
-    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers).modePtr);
 
     lr1.desiredRefreshRate = 24_Hz;
     lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
@@ -772,7 +772,7 @@ TEST_P(RefreshRateSelectorTest,
     lr2.desiredRefreshRate = 60_Hz;
     lr2.vote = LayerVoteType::ExplicitDefault;
     lr2.name = "60Hz ExplicitDefault";
-    EXPECT_EQ(kMode72, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode72, selector.getBestFrameRateMode(layers).modePtr);
 
     lr1.desiredRefreshRate = 24_Hz;
     lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
@@ -780,7 +780,7 @@ TEST_P(RefreshRateSelectorTest,
     lr2.desiredRefreshRate = 90_Hz;
     lr2.vote = LayerVoteType::Heuristic;
     lr2.name = "90Hz Heuristic";
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers).modePtr);
 
     lr1.desiredRefreshRate = 24_Hz;
     lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
@@ -788,7 +788,7 @@ TEST_P(RefreshRateSelectorTest,
     lr2.desiredRefreshRate = 90_Hz;
     lr2.vote = LayerVoteType::ExplicitDefault;
     lr2.name = "90Hz Heuristic";
-    EXPECT_EQ(kMode72, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode72, selector.getBestFrameRateMode(layers).modePtr);
 
     lr1.desiredRefreshRate = 24_Hz;
     lr1.vote = LayerVoteType::ExplicitDefault;
@@ -796,7 +796,7 @@ TEST_P(RefreshRateSelectorTest,
     lr2.desiredRefreshRate = 90_Hz;
     lr2.vote = LayerVoteType::Heuristic;
     lr2.name = "90Hz Heuristic";
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers).modePtr);
 
     lr1.desiredRefreshRate = 24_Hz;
     lr1.vote = LayerVoteType::Heuristic;
@@ -804,7 +804,7 @@ TEST_P(RefreshRateSelectorTest,
     lr2.desiredRefreshRate = 90_Hz;
     lr2.vote = LayerVoteType::ExplicitDefault;
     lr2.name = "90Hz ExplicitDefault";
-    EXPECT_EQ(kMode72, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode72, selector.getBestFrameRateMode(layers).modePtr);
 
     lr1.desiredRefreshRate = 24_Hz;
     lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
@@ -812,7 +812,7 @@ TEST_P(RefreshRateSelectorTest,
     lr2.desiredRefreshRate = 90_Hz;
     lr2.vote = LayerVoteType::ExplicitDefault;
     lr2.name = "90Hz ExplicitDefault";
-    EXPECT_EQ(kMode72, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode72, selector.getBestFrameRateMode(layers).modePtr);
 
     lr1.desiredRefreshRate = 24_Hz;
     lr1.vote = LayerVoteType::ExplicitDefault;
@@ -820,14 +820,14 @@ TEST_P(RefreshRateSelectorTest,
     lr2.desiredRefreshRate = 90_Hz;
     lr2.vote = LayerVoteType::ExplicitExactOrMultiple;
     lr2.name = "90Hz ExplicitExactOrMultiple";
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers).modePtr);
 
     lr1.desiredRefreshRate = 24_Hz;
     lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
     lr1.name = "24Hz ExplicitExactOrMultiple";
     lr2.vote = LayerVoteType::Max;
     lr2.name = "Max";
-    EXPECT_EQ(kMode120, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode120, selector.getBestFrameRateMode(layers).modePtr);
 
     lr1.desiredRefreshRate = 24_Hz;
     lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
@@ -835,7 +835,7 @@ TEST_P(RefreshRateSelectorTest,
     lr2.desiredRefreshRate = 120_Hz;
     lr2.vote = LayerVoteType::ExplicitDefault;
     lr2.name = "120Hz ExplicitDefault";
-    EXPECT_EQ(kMode120, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode120, selector.getBestFrameRateMode(layers).modePtr);
 
     lr1.desiredRefreshRate = 24_Hz;
     lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
@@ -843,7 +843,7 @@ TEST_P(RefreshRateSelectorTest,
     lr2.desiredRefreshRate = 120_Hz;
     lr2.vote = LayerVoteType::ExplicitExact;
     lr2.name = "120Hz ExplicitExact";
-    EXPECT_EQ(kMode120, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode120, selector.getBestFrameRateMode(layers).modePtr);
 
     lr1.desiredRefreshRate = 10_Hz;
     lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
@@ -851,7 +851,7 @@ TEST_P(RefreshRateSelectorTest,
     lr2.desiredRefreshRate = 120_Hz;
     lr2.vote = LayerVoteType::Heuristic;
     lr2.name = "120Hz ExplicitExact";
-    EXPECT_EQ(kMode120, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode120, selector.getBestFrameRateMode(layers).modePtr);
 
     lr1.desiredRefreshRate = 30_Hz;
     lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
@@ -862,7 +862,7 @@ TEST_P(RefreshRateSelectorTest,
     lr3.vote = LayerVoteType::Heuristic;
     lr3.desiredRefreshRate = 120_Hz;
     lr3.name = "120Hz Heuristic";
-    EXPECT_EQ(kMode120, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode120, selector.getBestFrameRateMode(layers).modePtr);
 }
 
 TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_30_60) {
@@ -872,26 +872,26 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_30_60) {
     auto& lr = layers[0];
 
     lr.vote = LayerVoteType::Min;
-    EXPECT_EQ(kMode30, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode30, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.vote = LayerVoteType::Max;
-    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.desiredRefreshRate = 90_Hz;
     lr.vote = LayerVoteType::Heuristic;
-    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.desiredRefreshRate = 60_Hz;
-    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.desiredRefreshRate = 45_Hz;
-    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.desiredRefreshRate = 30_Hz;
-    EXPECT_EQ(kMode30, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode30, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.desiredRefreshRate = 24_Hz;
-    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers).modePtr);
 }
 
 TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_30_60_72_90) {
@@ -902,42 +902,42 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_30_60_72_90) {
 
     lr.vote = LayerVoteType::Min;
     lr.name = "Min";
-    EXPECT_EQ(kMode30, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode30, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.vote = LayerVoteType::Max;
     lr.name = "Max";
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.desiredRefreshRate = 90_Hz;
     lr.vote = LayerVoteType::Heuristic;
     lr.name = "90Hz Heuristic";
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.desiredRefreshRate = 60_Hz;
     lr.name = "60Hz Heuristic";
-    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers));
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers, {.touch = true}));
+    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers).modePtr);
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers, {.touch = true}).modePtr);
 
     lr.desiredRefreshRate = 45_Hz;
     lr.name = "45Hz Heuristic";
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers));
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers, {.touch = true}));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers).modePtr);
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers, {.touch = true}).modePtr);
 
     lr.desiredRefreshRate = 30_Hz;
     lr.name = "30Hz Heuristic";
-    EXPECT_EQ(kMode30, selector.getBestFrameRateMode(layers));
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers, {.touch = true}));
+    EXPECT_EQ(kMode30, selector.getBestFrameRateMode(layers).modePtr);
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers, {.touch = true}).modePtr);
 
     lr.desiredRefreshRate = 24_Hz;
     lr.name = "24Hz Heuristic";
-    EXPECT_EQ(kMode72, selector.getBestFrameRateMode(layers));
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers, {.touch = true}));
+    EXPECT_EQ(kMode72, selector.getBestFrameRateMode(layers).modePtr);
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers, {.touch = true}).modePtr);
 
     lr.desiredRefreshRate = 24_Hz;
     lr.vote = LayerVoteType::ExplicitExactOrMultiple;
     lr.name = "24Hz ExplicitExactOrMultiple";
-    EXPECT_EQ(kMode72, selector.getBestFrameRateMode(layers));
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers, {.touch = true}));
+    EXPECT_EQ(kMode72, selector.getBestFrameRateMode(layers).modePtr);
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers, {.touch = true}).modePtr);
 }
 
 TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_PriorityTest) {
@@ -949,39 +949,39 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_PriorityTest) {
 
     lr1.vote = LayerVoteType::Min;
     lr2.vote = LayerVoteType::Max;
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers).modePtr);
 
     lr1.vote = LayerVoteType::Min;
     lr2.vote = LayerVoteType::Heuristic;
     lr2.desiredRefreshRate = 24_Hz;
-    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers).modePtr);
 
     lr1.vote = LayerVoteType::Min;
     lr2.vote = LayerVoteType::ExplicitExactOrMultiple;
     lr2.desiredRefreshRate = 24_Hz;
-    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers).modePtr);
 
     lr1.vote = LayerVoteType::Max;
     lr2.vote = LayerVoteType::Heuristic;
     lr2.desiredRefreshRate = 60_Hz;
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers).modePtr);
 
     lr1.vote = LayerVoteType::Max;
     lr2.vote = LayerVoteType::ExplicitExactOrMultiple;
     lr2.desiredRefreshRate = 60_Hz;
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers).modePtr);
 
     lr1.vote = LayerVoteType::Heuristic;
     lr1.desiredRefreshRate = 15_Hz;
     lr2.vote = LayerVoteType::Heuristic;
     lr2.desiredRefreshRate = 45_Hz;
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers).modePtr);
 
     lr1.vote = LayerVoteType::Heuristic;
     lr1.desiredRefreshRate = 30_Hz;
     lr2.vote = LayerVoteType::ExplicitExactOrMultiple;
     lr2.desiredRefreshRate = 45_Hz;
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers).modePtr);
 }
 
 TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_24FpsVideo) {
@@ -993,7 +993,7 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_24FpsVideo) {
     lr.vote = LayerVoteType::ExplicitExactOrMultiple;
     for (float fps = 23.0f; fps < 25.0f; fps += 0.1f) {
         lr.desiredRefreshRate = Fps::fromValue(fps);
-        const auto mode = selector.getBestFrameRateMode(layers);
+        const auto mode = selector.getBestFrameRateMode(layers).modePtr;
         EXPECT_EQ(kMode60, mode) << lr.desiredRefreshRate << " chooses "
                                  << to_string(mode->getPeakFps()) << "("
                                  << to_string(mode->getVsyncRate()) << ")";
@@ -1009,7 +1009,7 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_24FpsVideo_multipleThreshol
     lr.vote = LayerVoteType::ExplicitExactOrMultiple;
     for (float fps = 23.0f; fps < 25.0f; fps += 0.1f) {
         lr.desiredRefreshRate = Fps::fromValue(fps);
-        const auto mode = selector.getBestFrameRateMode(layers);
+        const auto mode = selector.getBestFrameRateMode(layers).modePtr;
         EXPECT_EQ(kMode60, mode) << lr.desiredRefreshRate << " chooses "
                                  << to_string(mode->getPeakFps()) << "("
                                  << to_string(mode->getVsyncRate()) << ")";
@@ -1027,19 +1027,19 @@ TEST_P(RefreshRateSelectorTest, twoModes_getBestFrameRateMode_Explicit) {
     lr1.desiredRefreshRate = 60_Hz;
     lr2.vote = LayerVoteType::ExplicitExactOrMultiple;
     lr2.desiredRefreshRate = 90_Hz;
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers).modePtr);
 
     lr1.vote = LayerVoteType::ExplicitDefault;
     lr1.desiredRefreshRate = 90_Hz;
     lr2.vote = LayerVoteType::ExplicitExactOrMultiple;
     lr2.desiredRefreshRate = 60_Hz;
-    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers).modePtr);
 
     lr1.vote = LayerVoteType::Heuristic;
     lr1.desiredRefreshRate = 90_Hz;
     lr2.vote = LayerVoteType::ExplicitExactOrMultiple;
     lr2.desiredRefreshRate = 60_Hz;
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers).modePtr);
 }
 
 TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_75HzContent) {
@@ -1051,7 +1051,7 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_75HzContent) {
     lr.vote = LayerVoteType::ExplicitExactOrMultiple;
     for (float fps = 75.0f; fps < 100.0f; fps += 0.1f) {
         lr.desiredRefreshRate = Fps::fromValue(fps);
-        const auto mode = selector.getBestFrameRateMode(layers, {});
+        const auto mode = selector.getBestFrameRateMode(layers, {}).modePtr;
         EXPECT_EQ(kMode90, mode) << lr.desiredRefreshRate << " chooses "
                                  << to_string(mode->getPeakFps()) << "("
                                  << to_string(mode->getVsyncRate()) << ")";
@@ -1071,7 +1071,7 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_Multiples) {
     lr2.vote = LayerVoteType::Heuristic;
     lr2.desiredRefreshRate = 90_Hz;
     lr2.name = "90Hz Heuristic";
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers).modePtr);
 
     lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
     lr1.desiredRefreshRate = 60_Hz;
@@ -1079,14 +1079,14 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_Multiples) {
     lr2.vote = LayerVoteType::ExplicitDefault;
     lr2.desiredRefreshRate = 90_Hz;
     lr2.name = "90Hz ExplicitDefault";
-    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers).modePtr);
 
     lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
     lr1.desiredRefreshRate = 60_Hz;
     lr1.name = "60Hz ExplicitExactOrMultiple";
     lr2.vote = LayerVoteType::Max;
     lr2.name = "Max";
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers).modePtr);
 
     lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
     lr1.desiredRefreshRate = 30_Hz;
@@ -1094,14 +1094,14 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_Multiples) {
     lr2.vote = LayerVoteType::Heuristic;
     lr2.desiredRefreshRate = 90_Hz;
     lr2.name = "90Hz Heuristic";
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers).modePtr);
 
     lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
     lr1.desiredRefreshRate = 30_Hz;
     lr1.name = "30Hz ExplicitExactOrMultiple";
     lr2.vote = LayerVoteType::Max;
     lr2.name = "Max";
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers).modePtr);
 }
 
 TEST_P(RefreshRateSelectorTest, scrollWhileWatching60fps_60_90) {
@@ -1116,28 +1116,28 @@ TEST_P(RefreshRateSelectorTest, scrollWhileWatching60fps_60_90) {
     lr1.name = "60Hz ExplicitExactOrMultiple";
     lr2.vote = LayerVoteType::NoVote;
     lr2.name = "NoVote";
-    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers).modePtr);
 
     lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
     lr1.desiredRefreshRate = 60_Hz;
     lr1.name = "60Hz ExplicitExactOrMultiple";
     lr2.vote = LayerVoteType::NoVote;
     lr2.name = "NoVote";
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers, {.touch = true}));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers, {.touch = true}).modePtr);
 
     lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
     lr1.desiredRefreshRate = 60_Hz;
     lr1.name = "60Hz ExplicitExactOrMultiple";
     lr2.vote = LayerVoteType::Max;
     lr2.name = "Max";
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers, {.touch = true}));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers, {.touch = true}).modePtr);
 
     lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
     lr1.desiredRefreshRate = 60_Hz;
     lr1.name = "60Hz ExplicitExactOrMultiple";
     lr2.vote = LayerVoteType::Max;
     lr2.name = "Max";
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers).modePtr);
 
     // The other layer starts to provide buffers
     lr1.vote = LayerVoteType::ExplicitExactOrMultiple;
@@ -1146,7 +1146,7 @@ TEST_P(RefreshRateSelectorTest, scrollWhileWatching60fps_60_90) {
     lr2.vote = LayerVoteType::Heuristic;
     lr2.desiredRefreshRate = 90_Hz;
     lr2.name = "90Hz Heuristic";
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers).modePtr);
 }
 
 TEST_P(RefreshRateSelectorTest, getMaxRefreshRatesByPolicy) {
@@ -1464,7 +1464,8 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_withFrameRateCategory_30_60
             layers.push_back(layer);
         }
 
-        EXPECT_EQ(testCase.expectedFrameRate, selector.getBestFrameRateMode(layers)->getPeakFps())
+        EXPECT_EQ(testCase.expectedFrameRate,
+                  selector.getBestFrameRateMode(layers).modePtr->getPeakFps())
                 << "Did not get expected frame rate for frameRate="
                 << to_string(testCase.desiredFrameRate)
                 << " category=" << ftl::enum_string(testCase.frameRateCategory);
@@ -1528,10 +1529,144 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_withFrameRateCategory_60_12
             layers.push_back(layer);
         }
 
-        EXPECT_EQ(testCase.expectedFrameRate, selector.getBestFrameRateMode(layers)->getPeakFps())
+        EXPECT_EQ(testCase.expectedFrameRate,
+                  selector.getBestFrameRateMode(layers).modePtr->getPeakFps())
                 << "Did not get expected frame rate for frameRate="
                 << to_string(testCase.desiredFrameRate)
                 << " category=" << ftl::enum_string(testCase.frameRateCategory);
+    }
+}
+
+TEST_P(RefreshRateSelectorTest,
+       getBestFrameRateMode_withFrameRateCategory_smoothSwitchOnly_60_120_nonVrr) {
+    if (GetParam() != Config::FrameRateOverride::Enabled) {
+        return;
+    }
+
+    // VRR compatibility is determined by the presence of a vrr config in the DisplayMode.
+    auto selector = createSelector(makeModes(kMode60, kMode120), kModeId120);
+
+    struct Case {
+        // Params
+        FrameRateCategory frameRateCategory = FrameRateCategory::Default;
+        bool smoothSwitchOnly = false;
+
+        // Expected result
+        Fps expectedFrameRate = 0_Hz;
+        DisplayModeId expectedModeId = kModeId60;
+    };
+
+    const std::initializer_list<Case> testCases = {
+            // These layers may switch modes because smoothSwitchOnly=false.
+            {FrameRateCategory::Default, false, 120_Hz, kModeId120},
+            // TODO(b/266481656): Once this bug is fixed, NoPreference should be a lower frame rate.
+            {FrameRateCategory::NoPreference, false, 60_Hz, kModeId60},
+            {FrameRateCategory::Low, false, 30_Hz, kModeId60},
+            {FrameRateCategory::Normal, false, 60_Hz, kModeId60},
+            {FrameRateCategory::High, false, 120_Hz, kModeId120},
+
+            // These layers cannot change mode due to smoothSwitchOnly, and will definitely use
+            // active mode (120Hz).
+            {FrameRateCategory::NoPreference, true, 120_Hz, kModeId120},
+            {FrameRateCategory::Low, true, 40_Hz, kModeId120},
+            {FrameRateCategory::Normal, true, 40_Hz, kModeId120},
+            {FrameRateCategory::High, true, 120_Hz, kModeId120},
+    };
+
+    for (auto testCase : testCases) {
+        std::vector<LayerRequirement> layers;
+        ALOGI("**** %s: Testing frameRateCategory=%s (smooth=%d)", __func__,
+              ftl::enum_string(testCase.frameRateCategory).c_str(), testCase.smoothSwitchOnly);
+
+        if (testCase.frameRateCategory != FrameRateCategory::Default) {
+            std::stringstream ss;
+            ss << "ExplicitCategory (" << ftl::enum_string(testCase.frameRateCategory)
+               << " smooth:" << testCase.smoothSwitchOnly << ")";
+            LayerRequirement layer = {.name = ss.str(),
+                                      .vote = LayerVoteType::ExplicitCategory,
+                                      .frameRateCategory = testCase.frameRateCategory,
+                                      .frameRateCategorySmoothSwitchOnly =
+                                              testCase.smoothSwitchOnly,
+                                      .weight = 1.f};
+            layers.push_back(layer);
+        }
+
+        auto actualFrameRateMode = selector.getBestFrameRateMode(layers);
+        EXPECT_EQ(testCase.expectedFrameRate, actualFrameRateMode.fps)
+                << "Did not get expected frame rate for category="
+                << ftl::enum_string(testCase.frameRateCategory)
+                << " (smooth=" << testCase.smoothSwitchOnly << ")";
+
+        EXPECT_EQ(testCase.expectedModeId, actualFrameRateMode.modePtr->getId())
+                << "Did not get expected mode for category="
+                << ftl::enum_string(testCase.frameRateCategory)
+                << " (smooth=" << testCase.smoothSwitchOnly << ")";
+    }
+}
+
+TEST_P(RefreshRateSelectorTest,
+       getBestFrameRateMode_withFrameRateCategory_smoothSwitchOnly_60_120_vrr) {
+    if (GetParam() != Config::FrameRateOverride::Enabled) {
+        return;
+    }
+
+    // VRR compatibility is determined by the presence of a vrr config in the DisplayMode.
+    auto selector = createSelector(kVrrModes_60_120, kModeId120);
+
+    struct Case {
+        // Params
+        FrameRateCategory frameRateCategory = FrameRateCategory::Default;
+        bool smoothSwitchOnly = false;
+
+        // Expected result
+        Fps expectedFrameRate = 0_Hz;
+    };
+
+    // Note that `smoothSwitchOnly` should not have an effect.
+    const std::initializer_list<Case> testCases = {
+            {FrameRateCategory::Default, false, 240_Hz},
+            // TODO(b/266481656): Once this bug is fixed, NoPreference should be a lower frame rate.
+            {FrameRateCategory::NoPreference, false, 240_Hz},
+            {FrameRateCategory::Low, false, 30_Hz},
+            {FrameRateCategory::Normal, false, 60_Hz},
+            {FrameRateCategory::High, false, 120_Hz},
+            {FrameRateCategory::Default, true, 240_Hz},
+            // TODO(b/266481656): Once this bug is fixed, NoPreference should be a lower frame rate.
+            {FrameRateCategory::NoPreference, true, 240_Hz},
+            {FrameRateCategory::Low, true, 30_Hz},
+            {FrameRateCategory::Normal, true, 60_Hz},
+            {FrameRateCategory::High, true, 120_Hz},
+    };
+
+    for (auto testCase : testCases) {
+        std::vector<LayerRequirement> layers;
+        ALOGI("**** %s: Testing frameRateCategory=%s (smooth=%d)", __func__,
+              ftl::enum_string(testCase.frameRateCategory).c_str(), testCase.smoothSwitchOnly);
+
+        if (testCase.frameRateCategory != FrameRateCategory::Default) {
+            std::stringstream ss;
+            ss << "ExplicitCategory (" << ftl::enum_string(testCase.frameRateCategory)
+               << " smooth:" << testCase.smoothSwitchOnly << ")";
+            LayerRequirement layer = {.name = ss.str(),
+                                      .vote = LayerVoteType::ExplicitCategory,
+                                      .frameRateCategory = testCase.frameRateCategory,
+                                      .frameRateCategorySmoothSwitchOnly =
+                                              testCase.smoothSwitchOnly,
+                                      .weight = 1.f};
+            layers.push_back(layer);
+        }
+
+        auto actualFrameRateMode = selector.getBestFrameRateMode(layers);
+        EXPECT_EQ(testCase.expectedFrameRate, actualFrameRateMode.fps)
+                << "Did not get expected frame rate for category="
+                << ftl::enum_string(testCase.frameRateCategory)
+                << " (smooth=" << testCase.smoothSwitchOnly << ")";
+
+        // Expect all cases to be able to stay at the mode with TE 240 due to VRR compatibility.
+        EXPECT_EQ(kVrrMode120TE240->getId(), actualFrameRateMode.modePtr->getId())
+                << "Did not get expected mode for category="
+                << ftl::enum_string(testCase.frameRateCategory)
+                << " (smooth=" << testCase.smoothSwitchOnly << ")";
     }
 }
 
@@ -1568,7 +1703,7 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_ExplicitDefault) {
         ss << "ExplicitDefault " << desired;
         lr.name = ss.str();
 
-        const auto bestMode = selector.getBestFrameRateMode(layers);
+        const auto bestMode = selector.getBestFrameRateMode(layers).modePtr;
         EXPECT_EQ(expected, bestMode->getPeakFps())
                 << "expected " << expected << " for " << desired << " but got "
                 << bestMode->getPeakFps() << "(" << bestMode->getVsyncRate() << ")";
@@ -1589,7 +1724,7 @@ TEST_P(RefreshRateSelectorTest,
         lr.vote = LayerVoteType::ExplicitExactOrMultiple;
         lr.desiredRefreshRate = 23.976_Hz;
         lr.name = "ExplicitExactOrMultiple 23.976 Hz";
-        EXPECT_EQ(kModeId60, selector.getBestFrameRateMode(layers)->getId());
+        EXPECT_EQ(kModeId60, selector.getBestFrameRateMode(layers).modePtr->getId());
     }
 
     // Test that 24 will choose 23.976 if 24 is not supported
@@ -1600,7 +1735,7 @@ TEST_P(RefreshRateSelectorTest,
 
         lr.desiredRefreshRate = 24_Hz;
         lr.name = "ExplicitExactOrMultiple 24 Hz";
-        EXPECT_EQ(kModeId24Frac, selector.getBestFrameRateMode(layers)->getId());
+        EXPECT_EQ(kModeId24Frac, selector.getBestFrameRateMode(layers).modePtr->getId());
     }
 
     // Test that 29.97 will prefer 59.94 over 60 and 30
@@ -1611,7 +1746,7 @@ TEST_P(RefreshRateSelectorTest,
 
         lr.desiredRefreshRate = 29.97_Hz;
         lr.name = "ExplicitExactOrMultiple 29.97 Hz";
-        EXPECT_EQ(kModeId60Frac, selector.getBestFrameRateMode(layers)->getId());
+        EXPECT_EQ(kModeId60Frac, selector.getBestFrameRateMode(layers).modePtr->getId());
     }
 
     // Test that 29.97 will choose 60 if 59.94 is not supported
@@ -1620,7 +1755,7 @@ TEST_P(RefreshRateSelectorTest,
 
         lr.desiredRefreshRate = 29.97_Hz;
         lr.name = "ExplicitExactOrMultiple 29.97 Hz";
-        EXPECT_EQ(kModeId60, selector.getBestFrameRateMode(layers)->getId());
+        EXPECT_EQ(kModeId60, selector.getBestFrameRateMode(layers).modePtr->getId());
     }
 
     // Test that 59.94 will choose 60 if 59.94 is not supported
@@ -1629,7 +1764,7 @@ TEST_P(RefreshRateSelectorTest,
 
         lr.desiredRefreshRate = 59.94_Hz;
         lr.name = "ExplicitExactOrMultiple 59.94 Hz";
-        EXPECT_EQ(kModeId60, selector.getBestFrameRateMode(layers)->getId());
+        EXPECT_EQ(kModeId60, selector.getBestFrameRateMode(layers).modePtr->getId());
     }
 }
 
@@ -1648,7 +1783,8 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_ExplicitExact_WithFractiona
             ss << "ExplicitExact " << desired;
             lr.name = ss.str();
 
-            EXPECT_EQ(lr.desiredRefreshRate, selector.getBestFrameRateMode(layers)->getPeakFps());
+            EXPECT_EQ(lr.desiredRefreshRate,
+                      selector.getBestFrameRateMode(layers).modePtr->getPeakFps());
         }
     }
 }
@@ -1694,7 +1830,7 @@ TEST_P(RefreshRateSelectorTest,
     lr.desiredRefreshRate = 90_Hz;
     lr.name = "90Hz ExplicitDefault";
     lr.focused = true;
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers, {.idle = true}));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers, {.idle = true}).modePtr);
 }
 
 TEST_P(RefreshRateSelectorTest, testDisplayModeOrdering) {
@@ -1905,46 +2041,46 @@ TEST_P(RefreshRateSelectorTest,
     lr.desiredRefreshRate = 60_Hz;
     lr.name = "60Hz ExplicitExactOrMultiple";
     lr.focused = false;
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.focused = true;
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.vote = LayerVoteType::ExplicitDefault;
     lr.desiredRefreshRate = 60_Hz;
     lr.name = "60Hz ExplicitDefault";
     lr.focused = false;
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.focused = true;
-    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.vote = LayerVoteType::Heuristic;
     lr.desiredRefreshRate = 60_Hz;
     lr.name = "60Hz Heuristic";
     lr.focused = false;
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.focused = true;
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.vote = LayerVoteType::Max;
     lr.desiredRefreshRate = 60_Hz;
     lr.name = "60Hz Max";
     lr.focused = false;
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.focused = true;
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.vote = LayerVoteType::Min;
     lr.desiredRefreshRate = 60_Hz;
     lr.name = "60Hz Min";
     lr.focused = false;
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers).modePtr);
 
     lr.focused = true;
-    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers).modePtr);
 }
 
 TEST_P(RefreshRateSelectorTest, groupSwitchingNotAllowed) {
@@ -1960,7 +2096,7 @@ TEST_P(RefreshRateSelectorTest, groupSwitchingNotAllowed) {
     layer.name = "90Hz ExplicitDefault";
     layer.focused = true;
 
-    EXPECT_EQ(kModeId60, selector.getBestFrameRateMode(layers)->getId());
+    EXPECT_EQ(kModeId60, selector.getBestFrameRateMode(layers).modePtr->getId());
 }
 
 TEST_P(RefreshRateSelectorTest, groupSwitchingWithOneLayer) {
@@ -1978,7 +2114,7 @@ TEST_P(RefreshRateSelectorTest, groupSwitchingWithOneLayer) {
     layer.seamlessness = Seamlessness::SeamedAndSeamless;
     layer.name = "90Hz ExplicitDefault";
     layer.focused = true;
-    EXPECT_EQ(kModeId90, selector.getBestFrameRateMode(layers)->getId());
+    EXPECT_EQ(kModeId90, selector.getBestFrameRateMode(layers).modePtr->getId());
 }
 
 TEST_P(RefreshRateSelectorTest, groupSwitchingWithOneLayerOnlySeamless) {
@@ -1997,7 +2133,7 @@ TEST_P(RefreshRateSelectorTest, groupSwitchingWithOneLayerOnlySeamless) {
     layer.seamlessness = Seamlessness::OnlySeamless;
     layer.name = "90Hz ExplicitDefault";
     layer.focused = true;
-    EXPECT_EQ(kModeId60, selector.getBestFrameRateMode(layers)->getId());
+    EXPECT_EQ(kModeId60, selector.getBestFrameRateMode(layers).modePtr->getId());
 }
 
 TEST_P(RefreshRateSelectorTest, groupSwitchingWithOneLayerOnlySeamlessDefaultFps) {
@@ -2018,7 +2154,7 @@ TEST_P(RefreshRateSelectorTest, groupSwitchingWithOneLayerOnlySeamlessDefaultFps
     layer.seamlessness = Seamlessness::OnlySeamless;
     layer.name = "60Hz ExplicitDefault";
     layer.focused = true;
-    EXPECT_EQ(kModeId90, selector.getBestFrameRateMode(layers)->getId());
+    EXPECT_EQ(kModeId90, selector.getBestFrameRateMode(layers).modePtr->getId());
 }
 
 TEST_P(RefreshRateSelectorTest, groupSwitchingWithOneLayerDefaultSeamlessness) {
@@ -2042,7 +2178,7 @@ TEST_P(RefreshRateSelectorTest, groupSwitchingWithOneLayerDefaultSeamlessness) {
     layer.name = "60Hz ExplicitDefault";
     layer.focused = true;
 
-    EXPECT_EQ(kModeId60, selector.getBestFrameRateMode(layers)->getId());
+    EXPECT_EQ(kModeId60, selector.getBestFrameRateMode(layers).modePtr->getId());
 }
 
 TEST_P(RefreshRateSelectorTest, groupSwitchingWithTwoLayersOnlySeamlessAndSeamed) {
@@ -2071,7 +2207,7 @@ TEST_P(RefreshRateSelectorTest, groupSwitchingWithTwoLayersOnlySeamlessAndSeamed
     layers[1].name = "90Hz ExplicitDefault";
     layers[1].focused = false;
 
-    EXPECT_EQ(kModeId90, selector.getBestFrameRateMode(layers)->getId());
+    EXPECT_EQ(kModeId90, selector.getBestFrameRateMode(layers).modePtr->getId());
 }
 
 TEST_P(RefreshRateSelectorTest, groupSwitchingWithTwoLayersDefaultFocusedAndSeamed) {
@@ -2104,7 +2240,7 @@ TEST_P(RefreshRateSelectorTest, groupSwitchingWithTwoLayersDefaultFocusedAndSeam
     layers[1].vote = LayerVoteType::ExplicitDefault;
     layers[1].name = "90Hz ExplicitDefault";
 
-    EXPECT_EQ(kModeId90, selector.getBestFrameRateMode(layers)->getId());
+    EXPECT_EQ(kModeId90, selector.getBestFrameRateMode(layers).modePtr->getId());
 }
 
 TEST_P(RefreshRateSelectorTest, groupSwitchingWithTwoLayersDefaultNotFocusedAndSeamed) {
@@ -2134,7 +2270,7 @@ TEST_P(RefreshRateSelectorTest, groupSwitchingWithTwoLayersDefaultNotFocusedAndS
     layers[1].vote = LayerVoteType::ExplicitDefault;
     layers[1].name = "90Hz ExplicitDefault";
 
-    EXPECT_EQ(kModeId60, selector.getBestFrameRateMode(layers)->getId());
+    EXPECT_EQ(kModeId60, selector.getBestFrameRateMode(layers).modePtr->getId());
 }
 
 TEST_P(RefreshRateSelectorTest, nonSeamlessVotePrefersSeamlessSwitches) {
@@ -2154,10 +2290,10 @@ TEST_P(RefreshRateSelectorTest, nonSeamlessVotePrefersSeamlessSwitches) {
     layer.name = "60Hz ExplicitExactOrMultiple";
     layer.focused = true;
 
-    EXPECT_EQ(kModeId60, selector.getBestFrameRateMode(layers)->getId());
+    EXPECT_EQ(kModeId60, selector.getBestFrameRateMode(layers).modePtr->getId());
 
     selector.setActiveMode(kModeId120, 120_Hz);
-    EXPECT_EQ(kModeId120, selector.getBestFrameRateMode(layers)->getId());
+    EXPECT_EQ(kModeId120, selector.getBestFrameRateMode(layers).modePtr->getId());
 }
 
 TEST_P(RefreshRateSelectorTest, nonSeamlessExactAndSeamlessMultipleLayers) {
@@ -2182,14 +2318,14 @@ TEST_P(RefreshRateSelectorTest, nonSeamlessExactAndSeamlessMultipleLayers) {
                                              .weight = 1.f,
                                              .focused = true}};
 
-    EXPECT_EQ(kModeId50, selector.getBestFrameRateMode(layers)->getId());
+    EXPECT_EQ(kModeId50, selector.getBestFrameRateMode(layers).modePtr->getId());
 
     auto& seamedLayer = layers[0];
     seamedLayer.desiredRefreshRate = 30_Hz;
     seamedLayer.name = "30Hz ExplicitDefault";
     selector.setActiveMode(kModeId30, 30_Hz);
 
-    EXPECT_EQ(kModeId25, selector.getBestFrameRateMode(layers)->getId());
+    EXPECT_EQ(kModeId25, selector.getBestFrameRateMode(layers).modePtr->getId());
 }
 
 TEST_P(RefreshRateSelectorTest, minLayersDontTrigerSeamedSwitch) {
@@ -2204,7 +2340,7 @@ TEST_P(RefreshRateSelectorTest, minLayersDontTrigerSeamedSwitch) {
     std::vector<LayerRequirement> layers = {
             {.name = "Min", .vote = LayerVoteType::Min, .weight = 1.f, .focused = true}};
 
-    EXPECT_EQ(kModeId90, selector.getBestFrameRateMode(layers)->getId());
+    EXPECT_EQ(kModeId90, selector.getBestFrameRateMode(layers).modePtr->getId());
 }
 
 TEST_P(RefreshRateSelectorTest, primaryVsAppRequestPolicy) {
@@ -2225,7 +2361,7 @@ TEST_P(RefreshRateSelectorTest, primaryVsAppRequestPolicy) {
         layers[0].vote = voteType;
         layers[0].desiredRefreshRate = fps;
         layers[0].focused = args.focused;
-        return selector.getBestFrameRateMode(layers, {.touch = args.touch})->getId();
+        return selector.getBestFrameRateMode(layers, {.touch = args.touch}).modePtr->getId();
     };
 
     constexpr FpsRange k30_60 = {30_Hz, 60_Hz};
@@ -2234,7 +2370,7 @@ TEST_P(RefreshRateSelectorTest, primaryVsAppRequestPolicy) {
     EXPECT_EQ(SetPolicyResult::Changed,
               selector.setDisplayManagerPolicy({kModeId60, {k30_60, k30_60}, {k30_90, k30_90}}));
 
-    EXPECT_EQ(kModeId60, selector.getBestFrameRateMode()->getId());
+    EXPECT_EQ(kModeId60, selector.getBestFrameRateMode().modePtr->getId());
     EXPECT_EQ(kModeId60, getFrameRate(LayerVoteType::NoVote, 90_Hz));
     EXPECT_EQ(kModeId30, getFrameRate(LayerVoteType::Min, 90_Hz));
     EXPECT_EQ(kModeId60, getFrameRate(LayerVoteType::Max, 90_Hz));
@@ -2302,7 +2438,8 @@ TEST_P(RefreshRateSelectorTest, idle) {
     }
 
     // With no layers, idle should still be lower priority than touch boost.
-    EXPECT_EQ(kModeId90, selector.getBestFrameRateMode({}, {.touch = true, .idle = true})->getId());
+    EXPECT_EQ(kModeId90,
+              selector.getBestFrameRateMode({}, {.touch = true, .idle = true}).modePtr->getId());
 
     // Idle should be higher precedence than other layer frame rate considerations.
     selector.setActiveMode(kModeId90, 90_Hz);
@@ -2319,7 +2456,7 @@ TEST_P(RefreshRateSelectorTest, idle) {
     }
 
     // Idle should be applied rather than the active mode when there are no layers.
-    EXPECT_EQ(kModeId60, selector.getBestFrameRateMode({}, {.idle = true})->getId());
+    EXPECT_EQ(kModeId60, selector.getBestFrameRateMode({}, {.idle = true}).modePtr->getId());
 }
 
 TEST_P(RefreshRateSelectorTest, findClosestKnownFrameRate) {
@@ -2368,7 +2505,7 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_KnownFrameRate) {
 
     for (const auto& [fps, mode] : knownFrameRatesExpectations) {
         layer.desiredRefreshRate = fps;
-        EXPECT_EQ(mode, selector.getBestFrameRateMode(layers));
+        EXPECT_EQ(mode, selector.getBestFrameRateMode(layers).modePtr);
     }
 }
 
@@ -2471,17 +2608,17 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_ExplicitExactTouchBoost) {
     explicitExactLayer.name = "ExplicitExact";
     explicitExactLayer.desiredRefreshRate = 30_Hz;
 
-    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers).modePtr);
     if (GetParam() == Config::FrameRateOverride::Disabled) {
-        EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers, {.touch = true}));
+        EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers, {.touch = true}).modePtr);
     } else {
-        EXPECT_EQ(kMode120, selector.getBestFrameRateMode(layers, {.touch = true}));
+        EXPECT_EQ(kMode120, selector.getBestFrameRateMode(layers, {.touch = true}).modePtr);
     }
 
     explicitExactOrMultipleLayer.vote = LayerVoteType::NoVote;
 
-    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers));
-    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers, {.touch = true}));
+    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers).modePtr);
+    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers, {.touch = true}).modePtr);
 }
 
 TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_FractionalRefreshRates_ExactAndDefault) {
@@ -2499,7 +2636,7 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_FractionalRefreshRates_Exac
     explicitDefaultLayer.name = "ExplicitDefault";
     explicitDefaultLayer.desiredRefreshRate = 59.94_Hz;
 
-    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers));
+    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers).modePtr);
 }
 
 // b/190578904
@@ -2526,7 +2663,7 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_withCloseRefreshRates) {
         layers[0].desiredRefreshRate = fps;
         layers[0].vote = vote;
         EXPECT_EQ(fps.getIntValue(),
-                  selector.getBestFrameRateMode(layers)->getPeakFps().getIntValue())
+                  selector.getBestFrameRateMode(layers).modePtr->getPeakFps().getIntValue())
                 << "Failed for " << ftl::enum_string(vote);
     };
 
@@ -2565,7 +2702,7 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_conflictingVotes) {
             },
     };
 
-    EXPECT_EQ(53_Hz, selector.getBestFrameRateMode(layers, globalSignals)->getPeakFps());
+    EXPECT_EQ(53_Hz, selector.getBestFrameRateMode(layers, globalSignals).modePtr->getPeakFps());
 }
 
 TEST_P(RefreshRateSelectorTest, modeComparison) {
@@ -3176,7 +3313,8 @@ TEST_P(RefreshRateSelectorTest, idleWhenLowestRefreshRateIsNotDivisor) {
               selector.setDisplayManagerPolicy({kModeId60, {0_Hz, 90_Hz}}));
 
     // With no layers, idle should still be lower priority than touch boost.
-    EXPECT_EQ(kModeId90, selector.getBestFrameRateMode({}, {.touch = true, .idle = true})->getId());
+    EXPECT_EQ(kModeId90,
+              selector.getBestFrameRateMode({}, {.touch = true, .idle = true}).modePtr->getId());
 
     // Idle should be higher precedence than other layer frame rate considerations.
     selector.setActiveMode(kModeId90, 90_Hz);
@@ -3192,7 +3330,7 @@ TEST_P(RefreshRateSelectorTest, idleWhenLowestRefreshRateIsNotDivisor) {
     }
 
     // Idle should be applied rather than the active mode when there are no layers.
-    EXPECT_EQ(kModeId35, selector.getBestFrameRateMode({}, {.idle = true})->getId());
+    EXPECT_EQ(kModeId35, selector.getBestFrameRateMode({}, {.idle = true}).modePtr->getId());
 }
 
 TEST_P(RefreshRateSelectorTest, policyCanBeInfinity) {

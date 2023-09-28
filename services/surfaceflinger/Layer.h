@@ -783,7 +783,7 @@ public:
     Rect getCroppedBufferSize(const Layer::State& s) const;
 
     bool setFrameRate(FrameRate::FrameRateVote);
-    bool setFrameRateCategory(FrameRateCategory);
+    bool setFrameRateCategory(FrameRateCategory, bool smoothSwitchOnly);
 
     bool setFrameRateSelectionStrategy(FrameRateSelectionStrategy);
 
