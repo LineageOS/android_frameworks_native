@@ -46,6 +46,7 @@ import android.gui.LayerDebugInfo;
 import android.gui.OverlayProperties;
 import android.gui.PullAtomData;
 import android.gui.ARect;
+import android.gui.SchedulingPolicy;
 import android.gui.StalledTransactionInfo;
 import android.gui.StaticDisplayInfo;
 import android.gui.WindowInfosListenerInfo;
@@ -545,4 +546,6 @@ interface ISurfaceComposer {
      * applied in SurfaceFlinger due to an unsignaled fence. Otherwise, null is returned.
      */
     @nullable StalledTransactionInfo getStalledTransactionInfo(int pid);
+
+    SchedulingPolicy getSchedulingPolicy();
 }

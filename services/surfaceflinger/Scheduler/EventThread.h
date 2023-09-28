@@ -78,6 +78,7 @@ public:
     binder::Status setVsyncRate(int rate) override;
     binder::Status requestNextVsync() override; // asynchronous
     binder::Status getLatestVsyncEventData(ParcelableVsyncEventData* outVsyncEventData) override;
+    binder::Status getSchedulingPolicy(gui::SchedulingPolicy* outPolicy) override;
 
     VSyncRequest vsyncRequest = VSyncRequest::None;
     const uid_t mOwnerUid;

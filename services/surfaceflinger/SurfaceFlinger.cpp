@@ -113,6 +113,7 @@
 #include <vector>
 
 #include <gui/LayerStatePermissions.h>
+#include <gui/SchedulingPolicy.h>
 #include <ui/DisplayIdentification.h>
 #include "BackgroundExecutor.h"
 #include "Client.h"
@@ -6579,6 +6580,7 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case GET_ACTIVE_DISPLAY_MODE:
         case GET_DISPLAY_COLOR_MODES:
         case GET_DISPLAY_MODES:
+        case GET_SCHEDULING_POLICY:
         // Calling setTransactionState is safe, because you need to have been
         // granted a reference to Client* and Handle* to do anything with it.
         case SET_TRANSACTION_STATE: {
@@ -9016,6 +9018,10 @@ binder::Status SurfaceComposerAIDL::createConnection(sp<gui::ISurfaceComposerCli
     const sp<Client> client = sp<Client>::make(mFlinger);
     if (client->initCheck() == NO_ERROR) {
         *outClient = client;
+        if (flags::misc1()) {
+            const int policy = SCHED_FIFO;
+            client->setMinSchedulerPolicy(policy, sched_get_priority_min(policy));
+        }
         return binder::Status::ok();
     } else {
         *outClient = nullptr;
@@ -9795,6 +9801,10 @@ binder::Status SurfaceComposerAIDL::getStalledTransactionInfo(
         outInfo->reset();
     }
     return binderStatusFromStatusT(status);
+}
+
+binder::Status SurfaceComposerAIDL::getSchedulingPolicy(gui::SchedulingPolicy* outPolicy) {
+    return gui::getSchedulingPolicy(outPolicy);
 }
 
 status_t SurfaceComposerAIDL::checkAccessPermission(bool usePermissionCache) {
