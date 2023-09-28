@@ -1293,7 +1293,7 @@ sp<WindowInfoHandle> InputDispatcher::findTouchedWindowAtLocked(int32_t displayI
 }
 
 std::vector<InputTarget> InputDispatcher::findOutsideTargetsLocked(
-        int32_t displayId, const sp<WindowInfoHandle>& touchedWindow) const {
+        int32_t displayId, const sp<WindowInfoHandle>& touchedWindow, int32_t pointerId) const {
     if (touchedWindow == nullptr) {
         return {};
     }
@@ -1309,9 +1309,10 @@ std::vector<InputTarget> InputDispatcher::findOutsideTargetsLocked(
 
         const WindowInfo& info = *windowHandle->getInfo();
         if (info.inputConfig.test(WindowInfo::InputConfig::WATCH_OUTSIDE_TOUCH)) {
-            addWindowTargetLocked(windowHandle, InputTarget::Flags::DISPATCH_AS_OUTSIDE,
-                                  /*pointerIds=*/{}, /*firstDownTimeInTarget=*/std::nullopt,
-                                  outsideTargets);
+            std::bitset<MAX_POINTER_ID + 1> pointerIds;
+            pointerIds.set(pointerId);
+            addWindowTargetLocked(windowHandle, InputTarget::Flags::DISPATCH_AS_OUTSIDE, pointerIds,
+                                  /*firstDownTimeInTarget=*/std::nullopt, outsideTargets);
         }
     }
     return outsideTargets;
@@ -2333,6 +2334,7 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
         /* Case 1: New splittable pointer going down, or need target for hover or scroll. */
         const auto [x, y] = resolveTouchedPosition(entry);
         const int32_t pointerIndex = MotionEvent::getActionIndex(action);
+        const int32_t pointerId = entry.pointerProperties[pointerIndex].id;
         // Outside targets should be added upon first dispatched DOWN event. That means, this should
         // be a pointer that would generate ACTION_DOWN, *and* touch should not already be down.
         const bool isStylus = isPointerFromStylus(entry, pointerIndex);
@@ -2340,7 +2342,7 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
                 findTouchedWindowAtLocked(displayId, x, y, isStylus);
 
         if (isDown) {
-            targets += findOutsideTargetsLocked(displayId, newTouchedWindowHandle);
+            targets += findOutsideTargetsLocked(displayId, newTouchedWindowHandle, pointerId);
         }
         // Handle the case where we did not find a window.
         if (newTouchedWindowHandle == nullptr) {
@@ -2398,7 +2400,6 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
 
             if (maskedAction == AMOTION_EVENT_ACTION_HOVER_ENTER ||
                 maskedAction == AMOTION_EVENT_ACTION_HOVER_MOVE) {
-                const int32_t pointerId = entry.pointerProperties[0].id;
                 // The "windowHandle" is the target of this hovering pointer.
                 tempTouchState.addHoveringPointerToWindow(windowHandle, entry.deviceId, pointerId);
             }
@@ -2423,7 +2424,7 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
             // Update the temporary touch state.
             std::bitset<MAX_POINTER_ID + 1> pointerIds;
             if (!isHoverAction) {
-                pointerIds.set(entry.pointerProperties[pointerIndex].id);
+                pointerIds.set(pointerId);
             }
 
             const bool isDownOrPointerDown = maskedAction == AMOTION_EVENT_ACTION_DOWN ||
@@ -2467,7 +2468,6 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
         // If a window is already pilfering some pointers, give it this new pointer as well and
         // make it pilfering. This will prevent other non-spy windows from getting this pointer,
         // which is a specific behaviour that we want.
-        const int32_t pointerId = entry.pointerProperties[pointerIndex].id;
         for (TouchedWindow& touchedWindow : tempTouchState.windows) {
             if (touchedWindow.hasTouchingPointer(entry.deviceId, pointerId) &&
                 touchedWindow.hasPilferingPointers(entry.deviceId)) {
@@ -3948,8 +3948,13 @@ void InputDispatcher::synthesizeCancelationEventsForConnectionLocked(
             << connection->getInputChannelName().c_str() << reason << LOG_ID_EVENTS;
 
     InputTarget target;
-    sp<WindowInfoHandle> windowHandle =
-            getWindowHandleLocked(connection->inputChannel->getConnectionToken());
+    sp<WindowInfoHandle> windowHandle;
+    if (options.displayId) {
+        windowHandle = getWindowHandleLocked(connection->inputChannel->getConnectionToken(),
+                                             options.displayId.value());
+    } else {
+        windowHandle = getWindowHandleLocked(connection->inputChannel->getConnectionToken());
+    }
     if (windowHandle != nullptr) {
         const WindowInfo* windowInfo = windowHandle->getInfo();
         target.setDefaultPointerTransform(windowInfo->transform);
@@ -4319,9 +4324,9 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs& args) {
                 mVerifiersByDisplay.try_emplace(args.displayId,
                                                 StringPrintf("display %" PRId32, args.displayId));
         Result<void> result =
-                it->second.processMovement(args.deviceId, args.action, args.getPointerCount(),
-                                           args.pointerProperties.data(), args.pointerCoords.data(),
-                                           args.flags);
+                it->second.processMovement(args.deviceId, args.source, args.action,
+                                           args.getPointerCount(), args.pointerProperties.data(),
+                                           args.pointerCoords.data(), args.flags);
         if (!result.ok()) {
             LOG(FATAL) << "Bad stream: " << result.error() << " caused by " << args.dump();
         }

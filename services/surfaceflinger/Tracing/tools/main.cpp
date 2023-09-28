@@ -50,7 +50,7 @@ int main(int argc, char** argv) {
 
     const auto* outputLayersTracePath =
             (argc == 3) ? argv[2] : "/data/misc/wmtrace/layers_trace.winscope";
-    auto outStream = std::ofstream{outputLayersTracePath, std::ios::binary | std::ios::app};
+    auto outStream = std::ofstream{outputLayersTracePath, std::ios::binary | std::ios::out};
 
     auto layerTracing = LayerTracing{outStream};
 

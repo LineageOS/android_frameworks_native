@@ -23,6 +23,54 @@ use std::fmt;
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct DeviceId(pub i32);
 
+#[repr(u32)]
+pub enum SourceClass {
+    None = input_bindgen::AINPUT_SOURCE_CLASS_NONE,
+    Button = input_bindgen::AINPUT_SOURCE_CLASS_BUTTON,
+    Pointer = input_bindgen::AINPUT_SOURCE_CLASS_POINTER,
+    Navigation = input_bindgen::AINPUT_SOURCE_CLASS_NAVIGATION,
+    Position = input_bindgen::AINPUT_SOURCE_CLASS_POSITION,
+    Joystick = input_bindgen::AINPUT_SOURCE_CLASS_JOYSTICK,
+}
+
+bitflags! {
+    /// Source of the input device or input events.
+    pub struct Source: u32 {
+        /// SOURCE_UNKNOWN
+        const Unknown = input_bindgen::AINPUT_SOURCE_UNKNOWN;
+        /// SOURCE_KEYBOARD
+        const Keyboard = input_bindgen::AINPUT_SOURCE_KEYBOARD;
+        /// SOURCE_DPAD
+        const Dpad = input_bindgen::AINPUT_SOURCE_DPAD;
+        /// SOURCE_GAMEPAD
+        const Gamepad = input_bindgen::AINPUT_SOURCE_GAMEPAD;
+        /// SOURCE_TOUCHSCREEN
+        const Touchscreen = input_bindgen::AINPUT_SOURCE_TOUCHSCREEN;
+        /// SOURCE_MOUSE
+        const Mouse = input_bindgen::AINPUT_SOURCE_MOUSE;
+        /// SOURCE_STYLUS
+        const Stylus = input_bindgen::AINPUT_SOURCE_STYLUS;
+        /// SOURCE_BLUETOOTH_STYLUS
+        const BluetoothStylus = input_bindgen::AINPUT_SOURCE_BLUETOOTH_STYLUS;
+        /// SOURCE_TRACKBALL
+        const Trackball = input_bindgen::AINPUT_SOURCE_TRACKBALL;
+        /// SOURCE_MOUSE_RELATIVE
+        const MouseRelative = input_bindgen::AINPUT_SOURCE_MOUSE_RELATIVE;
+        /// SOURCE_TOUCHPAD
+        const Touchpad = input_bindgen::AINPUT_SOURCE_TOUCHPAD;
+        /// SOURCE_TOUCH_NAVIGATION
+        const TouchNavigation = input_bindgen::AINPUT_SOURCE_TOUCH_NAVIGATION;
+        /// SOURCE_JOYSTICK
+        const Joystick = input_bindgen::AINPUT_SOURCE_JOYSTICK;
+        /// SOURCE_HDMI
+        const HDMI = input_bindgen::AINPUT_SOURCE_HDMI;
+        /// SOURCE_SENSOR
+        const Sensor = input_bindgen::AINPUT_SOURCE_SENSOR;
+        /// SOURCE_ROTARY_ENCODER
+        const RotaryEncoder = input_bindgen::AINPUT_SOURCE_ROTARY_ENCODER;
+    }
+}
+
 /// A rust enum representation of a MotionEvent action.
 #[repr(u32)]
 pub enum MotionAction {
@@ -132,5 +180,13 @@ bitflags! {
                 input_bindgen::AMOTION_EVENT_FLAG_IS_ACCESSIBILITY_EVENT;
         /// FLAG_NO_FOCUS_CHANGE
         const NO_FOCUS_CHANGE = input_bindgen::AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE;
+    }
+}
+
+impl Source {
+    /// Return true if this source is from the provided class
+    pub fn is_from_class(&self, source_class: SourceClass) -> bool {
+        let class_bits = source_class as u32;
+        self.bits() & class_bits == class_bits
     }
 }

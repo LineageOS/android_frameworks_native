@@ -18,6 +18,7 @@
 #include "UnwantedInteractionBlocker.h"
 
 #include <android-base/stringprintf.h>
+#include <com_android_input_flags.h>
 #include <ftl/enum.h>
 #include <input/PrintTools.h>
 #include <inttypes.h>
@@ -27,6 +28,8 @@
 
 #include "ui/events/ozone/evdev/touch_filter/neural_stylus_palm_detection_filter.h"
 #include "ui/events/ozone/evdev/touch_filter/palm_model/onedevice_train_palm_detection_filter_model.h"
+
+namespace input_flags = com::android::input::flags;
 
 using android::base::StringPrintf;
 
@@ -344,10 +347,14 @@ void UnwantedInteractionBlocker::notifyMotion(const NotifyMotionArgs& args) {
     ALOGD_IF(DEBUG_INBOUND_MOTION, "%s: %s", __func__, args.dump().c_str());
     { // acquire lock
         std::scoped_lock lock(mLock);
-        const std::vector<NotifyMotionArgs> processedArgs =
-                mPreferStylusOverTouchBlocker.processMotion(args);
-        for (const NotifyMotionArgs& loopArgs : processedArgs) {
-            notifyMotionLocked(loopArgs);
+        if (input_flags::enable_multi_device_input()) {
+            notifyMotionLocked(args);
+        } else {
+            const std::vector<NotifyMotionArgs> processedArgs =
+                    mPreferStylusOverTouchBlocker.processMotion(args);
+            for (const NotifyMotionArgs& loopArgs : processedArgs) {
+                notifyMotionLocked(loopArgs);
+            }
         }
     } // release lock
 

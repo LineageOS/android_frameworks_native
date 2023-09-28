@@ -200,6 +200,7 @@ aconfig_declarations {
 
 cc_aconfig_library {
     name: "libguiflags",
+    host_supported: true,
     vendor_available: true,
     aconfig_declarations: "libgui_flags",
 }

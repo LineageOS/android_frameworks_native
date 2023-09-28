@@ -17,7 +17,7 @@
 //! Contains the InputVerifier, used to validate a stream of input events.
 
 use crate::ffi::RustPointerProperties;
-use crate::input::{DeviceId, MotionAction, MotionFlags};
+use crate::input::{DeviceId, MotionAction, MotionFlags, Source, SourceClass};
 use log::info;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -51,10 +51,15 @@ impl InputVerifier {
     pub fn process_movement(
         &mut self,
         device_id: DeviceId,
+        source: Source,
         action: u32,
         pointer_properties: &[RustPointerProperties],
         flags: MotionFlags,
     ) -> Result<(), String> {
+        if !source.is_from_class(SourceClass::Pointer) {
+            // Skip non-pointer sources like MOUSE_RELATIVE for now
+            return Ok(());
+        }
         if self.should_log {
             info!(
                 "Processing {} for device {:?} ({} pointer{}) on {}",
@@ -68,6 +73,13 @@ impl InputVerifier {
 
         match action.into() {
             MotionAction::Down => {
+                if pointer_properties.len() != 1 {
+                    return Err(format!(
+                        "{}: Invalid DOWN event: there are {} pointers in the event",
+                        self.name,
+                        pointer_properties.len()
+                    ));
+                }
                 let it = self
                     .touching_pointer_ids_by_device
                     .entry(device_id)
@@ -90,10 +102,19 @@ impl InputVerifier {
                     ));
                 }
                 let it = self.touching_pointer_ids_by_device.get_mut(&device_id).unwrap();
+                if it.len() != pointer_properties.len() - 1 {
+                    return Err(format!(
+                        "{}: There are currently {} touching pointers, but the incoming \
+                         POINTER_DOWN event has {}",
+                        self.name,
+                        it.len(),
+                        pointer_properties.len()
+                    ));
+                }
                 let pointer_id = pointer_properties[action_index].id;
                 if it.contains(&pointer_id) {
                     return Err(format!(
-                        "{}: Pointer with id={} not found in the properties",
+                        "{}: Pointer with id={} already present found in the properties",
                         self.name, pointer_id
                     ));
                 }
@@ -108,11 +129,10 @@ impl InputVerifier {
                 }
             }
             MotionAction::PointerUp { action_index } => {
-                if !self.touching_pointer_ids_by_device.contains_key(&device_id) {
+                if !self.ensure_touching_pointers_match(device_id, pointer_properties) {
                     return Err(format!(
-                        "{}: Received POINTER_UP but no pointers are currently down for device \
-                        {:?}",
-                        self.name, device_id
+                        "{}: ACTION_POINTER_UP touching pointers don't match",
+                        self.name
                     ));
                 }
                 let it = self.touching_pointer_ids_by_device.get_mut(&device_id).unwrap();
@@ -120,6 +140,13 @@ impl InputVerifier {
                 it.remove(&pointer_id);
             }
             MotionAction::Up => {
+                if pointer_properties.len() != 1 {
+                    return Err(format!(
+                        "{}: Invalid UP event: there are {} pointers in the event",
+                        self.name,
+                        pointer_properties.len()
+                    ));
+                }
                 if !self.touching_pointer_ids_by_device.contains_key(&device_id) {
                     return Err(format!(
                         "{} Received ACTION_UP but no pointers are currently down for device {:?}",
@@ -246,6 +273,7 @@ mod tests {
     use crate::DeviceId;
     use crate::MotionFlags;
     use crate::RustPointerProperties;
+    use crate::Source;
     #[test]
     fn single_pointer_stream() {
         let mut verifier = InputVerifier::new("Test", /*should_log*/ false);
@@ -253,6 +281,7 @@ mod tests {
         assert!(verifier
             .process_movement(
                 DeviceId(1),
+                Source::Touchscreen,
                 input_bindgen::AMOTION_EVENT_ACTION_DOWN,
                 &pointer_properties,
                 MotionFlags::empty(),
@@ -261,6 +290,7 @@ mod tests {
         assert!(verifier
             .process_movement(
                 DeviceId(1),
+                Source::Touchscreen,
                 input_bindgen::AMOTION_EVENT_ACTION_MOVE,
                 &pointer_properties,
                 MotionFlags::empty(),
@@ -269,6 +299,7 @@ mod tests {
         assert!(verifier
             .process_movement(
                 DeviceId(1),
+                Source::Touchscreen,
                 input_bindgen::AMOTION_EVENT_ACTION_UP,
                 &pointer_properties,
                 MotionFlags::empty(),
@@ -283,6 +314,7 @@ mod tests {
         assert!(verifier
             .process_movement(
                 DeviceId(1),
+                Source::Touchscreen,
                 input_bindgen::AMOTION_EVENT_ACTION_DOWN,
                 &pointer_properties,
                 MotionFlags::empty(),
@@ -291,6 +323,7 @@ mod tests {
         assert!(verifier
             .process_movement(
                 DeviceId(1),
+                Source::Touchscreen,
                 input_bindgen::AMOTION_EVENT_ACTION_MOVE,
                 &pointer_properties,
                 MotionFlags::empty(),
@@ -299,6 +332,7 @@ mod tests {
         assert!(verifier
             .process_movement(
                 DeviceId(2),
+                Source::Touchscreen,
                 input_bindgen::AMOTION_EVENT_ACTION_DOWN,
                 &pointer_properties,
                 MotionFlags::empty(),
@@ -307,6 +341,7 @@ mod tests {
         assert!(verifier
             .process_movement(
                 DeviceId(2),
+                Source::Touchscreen,
                 input_bindgen::AMOTION_EVENT_ACTION_MOVE,
                 &pointer_properties,
                 MotionFlags::empty(),
@@ -315,6 +350,7 @@ mod tests {
         assert!(verifier
             .process_movement(
                 DeviceId(1),
+                Source::Touchscreen,
                 input_bindgen::AMOTION_EVENT_ACTION_UP,
                 &pointer_properties,
                 MotionFlags::empty(),
@@ -329,6 +365,7 @@ mod tests {
         assert!(verifier
             .process_movement(
                 DeviceId(1),
+                Source::Touchscreen,
                 input_bindgen::AMOTION_EVENT_ACTION_DOWN,
                 &pointer_properties,
                 MotionFlags::empty(),
@@ -337,6 +374,7 @@ mod tests {
         assert!(verifier
             .process_movement(
                 DeviceId(1),
+                Source::Touchscreen,
                 input_bindgen::AMOTION_EVENT_ACTION_CANCEL,
                 &pointer_properties,
                 MotionFlags::CANCELED,
@@ -351,6 +389,7 @@ mod tests {
         assert!(verifier
             .process_movement(
                 DeviceId(1),
+                Source::Touchscreen,
                 input_bindgen::AMOTION_EVENT_ACTION_DOWN,
                 &pointer_properties,
                 MotionFlags::empty(),
@@ -359,6 +398,7 @@ mod tests {
         assert!(verifier
             .process_movement(
                 DeviceId(1),
+                Source::Touchscreen,
                 input_bindgen::AMOTION_EVENT_ACTION_CANCEL,
                 &pointer_properties,
                 MotionFlags::empty(), // forgot to set FLAG_CANCELED
@@ -373,6 +413,7 @@ mod tests {
         assert!(verifier
             .process_movement(
                 DeviceId(1),
+                Source::Touchscreen,
                 input_bindgen::AMOTION_EVENT_ACTION_UP,
                 &pointer_properties,
                 MotionFlags::empty(),
@@ -387,6 +428,7 @@ mod tests {
         assert!(verifier
             .process_movement(
                 DeviceId(1),
+                Source::Touchscreen,
                 input_bindgen::AMOTION_EVENT_ACTION_HOVER_ENTER,
                 &pointer_properties,
                 MotionFlags::empty(),
@@ -396,6 +438,7 @@ mod tests {
         assert!(verifier
             .process_movement(
                 DeviceId(1),
+                Source::Touchscreen,
                 input_bindgen::AMOTION_EVENT_ACTION_HOVER_MOVE,
                 &pointer_properties,
                 MotionFlags::empty(),
@@ -405,6 +448,7 @@ mod tests {
         assert!(verifier
             .process_movement(
                 DeviceId(1),
+                Source::Touchscreen,
                 input_bindgen::AMOTION_EVENT_ACTION_HOVER_EXIT,
                 &pointer_properties,
                 MotionFlags::empty(),
@@ -414,6 +458,7 @@ mod tests {
         assert!(verifier
             .process_movement(
                 DeviceId(1),
+                Source::Touchscreen,
                 input_bindgen::AMOTION_EVENT_ACTION_HOVER_ENTER,
                 &pointer_properties,
                 MotionFlags::empty(),
@@ -428,6 +473,7 @@ mod tests {
         assert!(verifier
             .process_movement(
                 DeviceId(1),
+                Source::Touchscreen,
                 input_bindgen::AMOTION_EVENT_ACTION_HOVER_ENTER,
                 &pointer_properties,
                 MotionFlags::empty(),
@@ -437,10 +483,28 @@ mod tests {
         assert!(verifier
             .process_movement(
                 DeviceId(1),
+                Source::Touchscreen,
                 input_bindgen::AMOTION_EVENT_ACTION_HOVER_ENTER,
                 &pointer_properties,
                 MotionFlags::empty(),
             )
             .is_err());
+    }
+
+    // Send a MOVE without a preceding DOWN event. This is OK because it's from source
+    // MOUSE_RELATIVE, which is used during pointer capture. The verifier should allow such event.
+    #[test]
+    fn relative_mouse_move() {
+        let mut verifier = InputVerifier::new("Test", /*should_log*/ false);
+        let pointer_properties = Vec::from([RustPointerProperties { id: 0 }]);
+        assert!(verifier
+            .process_movement(
+                DeviceId(2),
+                Source::MouseRelative,
+                input_bindgen::AMOTION_EVENT_ACTION_MOVE,
+                &pointer_properties,
+                MotionFlags::empty(),
+            )
+            .is_ok());
     }
 }

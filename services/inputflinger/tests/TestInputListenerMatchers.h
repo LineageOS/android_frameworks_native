@@ -185,6 +185,14 @@ MATCHER_P2(WithCoords, x, y, "InputEvent with specified coords") {
     return argX == x && argY == y;
 }
 
+MATCHER_P2(WithCursorPosition, x, y, "InputEvent with specified cursor position") {
+    const auto argX = arg.xCursorPosition;
+    const auto argY = arg.yCursorPosition;
+    *result_listener << "expected cursor position (" << x << ", " << y << "), but got (" << argX
+                     << ", " << argY << ")";
+    return (isnan(x) ? isnan(argX) : x == argX) && (isnan(y) ? isnan(argY) : y == argY);
+}
+
 MATCHER_P3(WithPointerCoords, pointer, x, y, "InputEvent with specified coords for pointer") {
     const auto argX = arg.pointerCoords[pointer].getX();
     const auto argY = arg.pointerCoords[pointer].getY();

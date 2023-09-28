@@ -19,7 +19,7 @@
 mod input;
 mod input_verifier;
 
-pub use input::{DeviceId, MotionAction, MotionFlags};
+pub use input::{DeviceId, MotionAction, MotionFlags, Source};
 pub use input_verifier::InputVerifier;
 
 #[cxx::bridge(namespace = "android::input")]
@@ -51,6 +51,7 @@ mod ffi {
         fn process_movement(
             verifier: &mut InputVerifier,
             device_id: i32,
+            source: u32,
             action: u32,
             pointer_properties: &[RustPointerProperties],
             flags: u32,
@@ -73,12 +74,14 @@ fn create(name: String) -> Box<InputVerifier> {
 fn process_movement(
     verifier: &mut InputVerifier,
     device_id: i32,
+    source: u32,
     action: u32,
     pointer_properties: &[RustPointerProperties],
     flags: u32,
 ) -> String {
     let result = verifier.process_movement(
         DeviceId(device_id),
+        Source::from_bits(source).unwrap(),
         action,
         pointer_properties,
         MotionFlags::from_bits(flags).unwrap(),

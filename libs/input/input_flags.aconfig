@@ -27,3 +27,10 @@ flag {
   description: "Set to true to enable timer support for the touchpad Gestures library"
   bug: "297192727"
 }
+
+flag {
+  name: "enable_multi_device_input"
+  namespace: "input"
+  description: "Set to true to enable multi-device input: touch and stylus can be active at the same time, but in different windows"
+  bug: "211379801"
+}

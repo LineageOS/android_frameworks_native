@@ -27,10 +27,13 @@ using namespace std::chrono_literals;
 
 namespace android {
 
+namespace {
+
 struct Pointer {
     int32_t id;
     float x;
     float y;
+    ToolType toolType = ToolType::FINGER;
     bool isResampled = false;
 };
 
@@ -39,6 +42,8 @@ struct InputEventEntry {
     std::vector<Pointer> pointers;
     int32_t action;
 };
+
+} // namespace
 
 class TouchResamplingTest : public testing::Test {
 protected:
@@ -99,7 +104,7 @@ void TouchResamplingTest::publishSimpleMotionEvent(int32_t action, nsecs_t event
         properties.push_back({});
         properties.back().clear();
         properties.back().id = pointer.id;
-        properties.back().toolType = ToolType::FINGER;
+        properties.back().toolType = pointer.toolType;
 
         coords.push_back({});
         coords.back().clear();
@@ -287,6 +292,48 @@ TEST_F(TouchResamplingTest, EventIsResampledWithDifferentId) {
             {10ms, {{1, 20, 30}}, AMOTION_EVENT_ACTION_MOVE},
             {20ms, {{1, 30, 30}}, AMOTION_EVENT_ACTION_MOVE},
             {25ms, {{1, 35, 30, .isResampled = true}}, AMOTION_EVENT_ACTION_MOVE},
+    };
+    consumeInputEventEntries(expectedEntries, frameTime);
+}
+
+/**
+ * Stylus pointer coordinates are not resampled, but an event is still generated for the batch with
+ * a resampled timestamp and should be marked as such.
+ */
+TEST_F(TouchResamplingTest, StylusCoordinatesNotResampledFor) {
+    std::chrono::nanoseconds frameTime;
+    std::vector<InputEventEntry> entries, expectedEntries;
+
+    // Initial ACTION_DOWN should be separate, because the first consume event will only return
+    // InputEvent with a single action.
+    entries = {
+            //      id  x   y
+            {0ms, {{0, 10, 20, .toolType = ToolType::STYLUS}}, AMOTION_EVENT_ACTION_DOWN},
+    };
+    publishInputEventEntries(entries);
+    frameTime = 5ms;
+    expectedEntries = {
+            //      id  x   y
+            {0ms, {{0, 10, 20, .toolType = ToolType::STYLUS}}, AMOTION_EVENT_ACTION_DOWN},
+    };
+    consumeInputEventEntries(expectedEntries, frameTime);
+
+    // Two ACTION_MOVE events 10 ms apart that move in X direction and stay still in Y
+    entries = {
+            //      id  x   y
+            {10ms, {{0, 20, 30, .toolType = ToolType::STYLUS}}, AMOTION_EVENT_ACTION_MOVE},
+            {20ms, {{0, 30, 30, .toolType = ToolType::STYLUS}}, AMOTION_EVENT_ACTION_MOVE},
+    };
+    publishInputEventEntries(entries);
+    frameTime = 35ms;
+    expectedEntries = {
+            //      id  x   y
+            {10ms, {{0, 20, 30, .toolType = ToolType::STYLUS}}, AMOTION_EVENT_ACTION_MOVE},
+            {20ms, {{0, 30, 30, .toolType = ToolType::STYLUS}}, AMOTION_EVENT_ACTION_MOVE},
+            // A resampled event is generated, but the stylus coordinates are not resampled.
+            {25ms,
+             {{0, 30, 30, .toolType = ToolType::STYLUS, .isResampled = true}},
+             AMOTION_EVENT_ACTION_MOVE},
     };
     consumeInputEventEntries(expectedEntries, frameTime);
 }
@@ -544,13 +591,13 @@ TEST_F(TouchResamplingTest, TwoPointersAreResampledIndependently) {
     // First pointer id=0 leaves the screen
     entries = {
             //      id  x    y
-            {80ms, {{1, 600, 600}}, actionPointer0Up},
+            {80ms, {{0, 120, 120}, {1, 600, 600}}, actionPointer0Up},
     };
     publishInputEventEntries(entries);
     frameTime = 90ms;
     expectedEntries = {
             //      id  x    y
-            {80ms, {{1, 600, 600}}, actionPointer0Up},
+            {80ms, {{0, 120, 120}, {1, 600, 600}}, actionPointer0Up},
             // no resampled event for ACTION_POINTER_UP
     };
     consumeInputEventEntries(expectedEntries, frameTime);

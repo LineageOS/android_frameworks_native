@@ -3183,8 +3183,7 @@ bool Layer::setBuffer(std::shared_ptr<renderengine::ExternalTexture>& buffer,
     } else {
         // release sideband stream if it exists and a non null buffer is being set
         if (mDrawingState.sidebandStream != nullptr) {
-            mFlinger->mTunnelModeEnabledReporter->decrementTunnelModeCount();
-            mDrawingState.sidebandStream = nullptr;
+            setSidebandStream(nullptr, info, postTime);
         }
     }
 

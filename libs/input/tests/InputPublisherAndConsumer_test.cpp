@@ -25,7 +25,22 @@ using android::base::Result;
 
 namespace android {
 
-constexpr static float EPSILON = MotionEvent::ROUNDING_PRECISION;
+namespace {
+
+static constexpr float EPSILON = MotionEvent::ROUNDING_PRECISION;
+static constexpr int32_t POINTER_1_DOWN =
+        AMOTION_EVENT_ACTION_POINTER_DOWN | (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
+static constexpr int32_t POINTER_2_DOWN =
+        AMOTION_EVENT_ACTION_POINTER_DOWN | (2 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
+
+struct Pointer {
+    int32_t id;
+    float x;
+    float y;
+    bool isResampled = false;
+};
+
+} // namespace
 
 class InputPublisherAndConsumerTest : public testing::Test {
 protected:
@@ -46,12 +61,28 @@ protected:
         mConsumer = std::make_unique<InputConsumer>(mClientChannel);
     }
 
-    void PublishAndConsumeKeyEvent();
-    void PublishAndConsumeMotionEvent();
-    void PublishAndConsumeFocusEvent();
-    void PublishAndConsumeCaptureEvent();
-    void PublishAndConsumeDragEvent();
-    void PublishAndConsumeTouchModeEvent();
+    void publishAndConsumeKeyEvent();
+    void publishAndConsumeMotionStream();
+    void publishAndConsumeFocusEvent();
+    void publishAndConsumeCaptureEvent();
+    void publishAndConsumeDragEvent();
+    void publishAndConsumeTouchModeEvent();
+    void publishAndConsumeMotionEvent(int32_t action, nsecs_t downTime,
+                                      const std::vector<Pointer>& pointers);
+
+private:
+    // The sequence number to use when publishing the next event
+    uint32_t mSeq = 1;
+
+    void publishAndConsumeMotionEvent(
+            int32_t deviceId, uint32_t source, int32_t displayId, std::array<uint8_t, 32> hmac,
+            int32_t action, int32_t actionButton, int32_t flags, int32_t edgeFlags,
+            int32_t metaState, int32_t buttonState, MotionClassification classification,
+            float xScale, float yScale, float xOffset, float yOffset, float xPrecision,
+            float yPrecision, float xCursorPosition, float yCursorPosition, float rawXScale,
+            float rawYScale, float rawXOffset, float rawYOffset, nsecs_t downTime,
+            nsecs_t eventTime, const std::vector<PointerProperties>& pointerProperties,
+            const std::vector<PointerCoords>& pointerCoords);
 };
 
 TEST_F(InputPublisherAndConsumerTest, GetChannel_ReturnsTheChannel) {
@@ -63,10 +94,10 @@ TEST_F(InputPublisherAndConsumerTest, GetChannel_ReturnsTheChannel) {
               mConsumer->getChannel()->getConnectionToken());
 }
 
-void InputPublisherAndConsumerTest::PublishAndConsumeKeyEvent() {
+void InputPublisherAndConsumerTest::publishAndConsumeKeyEvent() {
     status_t status;
 
-    constexpr uint32_t seq = 15;
+    const uint32_t seq = mSeq++;
     int32_t eventId = InputEvent::nextId();
     constexpr int32_t deviceId = 1;
     constexpr uint32_t source = AINPUT_SOURCE_KEYBOARD;
@@ -132,20 +163,43 @@ void InputPublisherAndConsumerTest::PublishAndConsumeKeyEvent() {
             << "finished signal's consume time should be greater than publish time";
 }
 
-void InputPublisherAndConsumerTest::PublishAndConsumeMotionEvent() {
-    status_t status;
+void InputPublisherAndConsumerTest::publishAndConsumeMotionStream() {
+    const nsecs_t downTime = systemTime(SYSTEM_TIME_MONOTONIC);
 
-    constexpr uint32_t seq = 15;
-    int32_t eventId = InputEvent::nextId();
+    publishAndConsumeMotionEvent(AMOTION_EVENT_ACTION_DOWN, downTime,
+                                 {Pointer{.id = 0, .x = 20, .y = 30}});
+
+    publishAndConsumeMotionEvent(POINTER_1_DOWN, downTime,
+                                 {Pointer{.id = 0, .x = 20, .y = 30},
+                                  Pointer{.id = 1, .x = 200, .y = 300}});
+
+    publishAndConsumeMotionEvent(POINTER_2_DOWN, downTime,
+                                 {Pointer{.id = 0, .x = 20, .y = 30},
+                                  Pointer{.id = 1, .x = 200, .y = 300},
+                                  Pointer{.id = 2, .x = 300, .y = 400}});
+
+    // Provide a consistent input stream - cancel the gesture that was started above
+    publishAndConsumeMotionEvent(AMOTION_EVENT_ACTION_CANCEL, downTime,
+                                 {Pointer{.id = 0, .x = 20, .y = 30},
+                                  Pointer{.id = 1, .x = 200, .y = 300},
+                                  Pointer{.id = 2, .x = 300, .y = 400}});
+}
+
+void InputPublisherAndConsumerTest::publishAndConsumeMotionEvent(
+        int32_t action, nsecs_t downTime, const std::vector<Pointer>& pointers) {
     constexpr int32_t deviceId = 1;
     constexpr uint32_t source = AINPUT_SOURCE_TOUCHSCREEN;
     constexpr int32_t displayId = ADISPLAY_ID_DEFAULT;
     constexpr std::array<uint8_t, 32> hmac = {0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10,
                                               11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
                                               22, 23, 24, 25, 26, 27, 28, 29, 30, 31};
-    constexpr int32_t action = AMOTION_EVENT_ACTION_MOVE;
     constexpr int32_t actionButton = 0;
-    constexpr int32_t flags = AMOTION_EVENT_FLAG_WINDOW_IS_OBSCURED;
+    int32_t flags = AMOTION_EVENT_FLAG_WINDOW_IS_OBSCURED;
+
+    if (action == AMOTION_EVENT_ACTION_CANCEL) {
+        flags |= AMOTION_EVENT_FLAG_CANCELED;
+    }
+    const size_t pointerCount = pointers.size();
     constexpr int32_t edgeFlags = AMOTION_EVENT_EDGE_FLAG_TOP;
     constexpr int32_t metaState = AMETA_ALT_LEFT_ON | AMETA_ALT_ON;
     constexpr int32_t buttonState = AMOTION_EVENT_BUTTON_PRIMARY;
@@ -162,20 +216,21 @@ void InputPublisherAndConsumerTest::PublishAndConsumeMotionEvent() {
     constexpr float yPrecision = 0.5;
     constexpr float xCursorPosition = 1.3;
     constexpr float yCursorPosition = 50.6;
-    constexpr nsecs_t downTime = 3;
-    constexpr size_t pointerCount = 3;
-    constexpr nsecs_t eventTime = 4;
-    const nsecs_t publishTime = systemTime(SYSTEM_TIME_MONOTONIC);
-    PointerProperties pointerProperties[pointerCount];
-    PointerCoords pointerCoords[pointerCount];
+
+    const nsecs_t eventTime = systemTime(SYSTEM_TIME_MONOTONIC);
+    std::vector<PointerProperties> pointerProperties;
+    std::vector<PointerCoords> pointerCoords;
     for (size_t i = 0; i < pointerCount; i++) {
+        pointerProperties.push_back({});
         pointerProperties[i].clear();
-        pointerProperties[i].id = (i + 2) % pointerCount;
+        pointerProperties[i].id = pointers[i].id;
         pointerProperties[i].toolType = ToolType::FINGER;
 
+        pointerCoords.push_back({});
         pointerCoords[i].clear();
-        pointerCoords[i].setAxisValue(AMOTION_EVENT_AXIS_X, 100 * i);
-        pointerCoords[i].setAxisValue(AMOTION_EVENT_AXIS_Y, 200 * i);
+        pointerCoords[i].isResampled = pointers[i].isResampled;
+        pointerCoords[i].setAxisValue(AMOTION_EVENT_AXIS_X, pointers[i].x);
+        pointerCoords[i].setAxisValue(AMOTION_EVENT_AXIS_Y, pointers[i].y);
         pointerCoords[i].setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, 0.5 * i);
         pointerCoords[i].setAxisValue(AMOTION_EVENT_AXIS_SIZE, 0.7 * i);
         pointerCoords[i].setAxisValue(AMOTION_EVENT_AXIS_TOUCH_MAJOR, 1.5 * i);
@@ -185,18 +240,40 @@ void InputPublisherAndConsumerTest::PublishAndConsumeMotionEvent() {
         pointerCoords[i].setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION, 3.5 * i);
     }
 
+    publishAndConsumeMotionEvent(deviceId, source, displayId, hmac, action, actionButton, flags,
+                                 edgeFlags, metaState, buttonState, classification, xScale, yScale,
+                                 xOffset, yOffset, xPrecision, yPrecision, xCursorPosition,
+                                 yCursorPosition, rawXScale, rawYScale, rawXOffset, rawYOffset,
+                                 downTime, eventTime, pointerProperties, pointerCoords);
+}
+
+void InputPublisherAndConsumerTest::publishAndConsumeMotionEvent(
+        int32_t deviceId, uint32_t source, int32_t displayId, std::array<uint8_t, 32> hmac,
+        int32_t action, int32_t actionButton, int32_t flags, int32_t edgeFlags, int32_t metaState,
+        int32_t buttonState, MotionClassification classification, float xScale, float yScale,
+        float xOffset, float yOffset, float xPrecision, float yPrecision, float xCursorPosition,
+        float yCursorPosition, float rawXScale, float rawYScale, float rawXOffset, float rawYOffset,
+        nsecs_t downTime, nsecs_t eventTime,
+        const std::vector<PointerProperties>& pointerProperties,
+        const std::vector<PointerCoords>& pointerCoords) {
+    const uint32_t seq = mSeq++;
+    const int32_t eventId = InputEvent::nextId();
     ui::Transform transform;
     transform.set({xScale, 0, xOffset, 0, yScale, yOffset, 0, 0, 1});
     ui::Transform rawTransform;
     rawTransform.set({rawXScale, 0, rawXOffset, 0, rawYScale, rawYOffset, 0, 0, 1});
+
+    status_t status;
+    ASSERT_EQ(pointerProperties.size(), pointerCoords.size());
+    const size_t pointerCount = pointerProperties.size();
+    const nsecs_t publishTime = systemTime(SYSTEM_TIME_MONOTONIC);
     status = mPublisher->publishMotionEvent(seq, eventId, deviceId, source, displayId, hmac, action,
                                             actionButton, flags, edgeFlags, metaState, buttonState,
                                             classification, transform, xPrecision, yPrecision,
                                             xCursorPosition, yCursorPosition, rawTransform,
-                                            downTime, eventTime, pointerCount, pointerProperties,
-                                            pointerCoords);
-    ASSERT_EQ(OK, status)
-            << "publisher publishMotionEvent should return OK";
+                                            downTime, eventTime, pointerCount,
+                                            pointerProperties.data(), pointerCoords.data());
+    ASSERT_EQ(OK, status) << "publisher publishMotionEvent should return OK";
 
     uint32_t consumeSeq;
     InputEvent* event;
@@ -280,7 +357,7 @@ void InputPublisherAndConsumerTest::PublishAndConsumeMotionEvent() {
             << "finished signal's consume time should be greater than publish time";
 }
 
-void InputPublisherAndConsumerTest::PublishAndConsumeFocusEvent() {
+void InputPublisherAndConsumerTest::publishAndConsumeFocusEvent() {
     status_t status;
 
     constexpr uint32_t seq = 15;
@@ -321,7 +398,7 @@ void InputPublisherAndConsumerTest::PublishAndConsumeFocusEvent() {
             << "finished signal's consume time should be greater than publish time";
 }
 
-void InputPublisherAndConsumerTest::PublishAndConsumeCaptureEvent() {
+void InputPublisherAndConsumerTest::publishAndConsumeCaptureEvent() {
     status_t status;
 
     constexpr uint32_t seq = 42;
@@ -361,7 +438,7 @@ void InputPublisherAndConsumerTest::PublishAndConsumeCaptureEvent() {
             << "finished signal's consume time should be greater than publish time";
 }
 
-void InputPublisherAndConsumerTest::PublishAndConsumeDragEvent() {
+void InputPublisherAndConsumerTest::publishAndConsumeDragEvent() {
     status_t status;
 
     constexpr uint32_t seq = 15;
@@ -405,7 +482,7 @@ void InputPublisherAndConsumerTest::PublishAndConsumeDragEvent() {
             << "finished signal's consume time should be greater than publish time";
 }
 
-void InputPublisherAndConsumerTest::PublishAndConsumeTouchModeEvent() {
+void InputPublisherAndConsumerTest::publishAndConsumeTouchModeEvent() {
     status_t status;
 
     constexpr uint32_t seq = 15;
@@ -462,27 +539,27 @@ TEST_F(InputPublisherAndConsumerTest, SendTimeline) {
 }
 
 TEST_F(InputPublisherAndConsumerTest, PublishKeyEvent_EndToEnd) {
-    ASSERT_NO_FATAL_FAILURE(PublishAndConsumeKeyEvent());
+    ASSERT_NO_FATAL_FAILURE(publishAndConsumeKeyEvent());
 }
 
 TEST_F(InputPublisherAndConsumerTest, PublishMotionEvent_EndToEnd) {
-    ASSERT_NO_FATAL_FAILURE(PublishAndConsumeMotionEvent());
+    ASSERT_NO_FATAL_FAILURE(publishAndConsumeMotionStream());
 }
 
 TEST_F(InputPublisherAndConsumerTest, PublishFocusEvent_EndToEnd) {
-    ASSERT_NO_FATAL_FAILURE(PublishAndConsumeFocusEvent());
+    ASSERT_NO_FATAL_FAILURE(publishAndConsumeFocusEvent());
 }
 
 TEST_F(InputPublisherAndConsumerTest, PublishCaptureEvent_EndToEnd) {
-    ASSERT_NO_FATAL_FAILURE(PublishAndConsumeCaptureEvent());
+    ASSERT_NO_FATAL_FAILURE(publishAndConsumeCaptureEvent());
 }
 
 TEST_F(InputPublisherAndConsumerTest, PublishDragEvent_EndToEnd) {
-    ASSERT_NO_FATAL_FAILURE(PublishAndConsumeDragEvent());
+    ASSERT_NO_FATAL_FAILURE(publishAndConsumeDragEvent());
 }
 
 TEST_F(InputPublisherAndConsumerTest, PublishTouchModeEvent_EndToEnd) {
-    ASSERT_NO_FATAL_FAILURE(PublishAndConsumeTouchModeEvent());
+    ASSERT_NO_FATAL_FAILURE(publishAndConsumeTouchModeEvent());
 }
 
 TEST_F(InputPublisherAndConsumerTest, PublishMotionEvent_WhenSequenceNumberIsZero_ReturnsError) {
@@ -546,17 +623,29 @@ TEST_F(InputPublisherAndConsumerTest,
 }
 
 TEST_F(InputPublisherAndConsumerTest, PublishMultipleEvents_EndToEnd) {
-    ASSERT_NO_FATAL_FAILURE(PublishAndConsumeMotionEvent());
-    ASSERT_NO_FATAL_FAILURE(PublishAndConsumeKeyEvent());
-    ASSERT_NO_FATAL_FAILURE(PublishAndConsumeMotionEvent());
-    ASSERT_NO_FATAL_FAILURE(PublishAndConsumeFocusEvent());
-    ASSERT_NO_FATAL_FAILURE(PublishAndConsumeMotionEvent());
-    ASSERT_NO_FATAL_FAILURE(PublishAndConsumeKeyEvent());
-    ASSERT_NO_FATAL_FAILURE(PublishAndConsumeCaptureEvent());
-    ASSERT_NO_FATAL_FAILURE(PublishAndConsumeDragEvent());
-    ASSERT_NO_FATAL_FAILURE(PublishAndConsumeMotionEvent());
-    ASSERT_NO_FATAL_FAILURE(PublishAndConsumeKeyEvent());
-    ASSERT_NO_FATAL_FAILURE(PublishAndConsumeTouchModeEvent());
+    const nsecs_t downTime = systemTime(SYSTEM_TIME_MONOTONIC);
+
+    publishAndConsumeMotionEvent(AMOTION_EVENT_ACTION_DOWN, downTime,
+                                 {Pointer{.id = 0, .x = 20, .y = 30}});
+    ASSERT_NO_FATAL_FAILURE(publishAndConsumeKeyEvent());
+    publishAndConsumeMotionEvent(POINTER_1_DOWN, downTime,
+                                 {Pointer{.id = 0, .x = 20, .y = 30},
+                                  Pointer{.id = 1, .x = 200, .y = 300}});
+    ASSERT_NO_FATAL_FAILURE(publishAndConsumeFocusEvent());
+    publishAndConsumeMotionEvent(POINTER_2_DOWN, downTime,
+                                 {Pointer{.id = 0, .x = 20, .y = 30},
+                                  Pointer{.id = 1, .x = 200, .y = 300},
+                                  Pointer{.id = 2, .x = 200, .y = 300}});
+    ASSERT_NO_FATAL_FAILURE(publishAndConsumeKeyEvent());
+    ASSERT_NO_FATAL_FAILURE(publishAndConsumeCaptureEvent());
+    ASSERT_NO_FATAL_FAILURE(publishAndConsumeDragEvent());
+    // Provide a consistent input stream - cancel the gesture that was started above
+    publishAndConsumeMotionEvent(AMOTION_EVENT_ACTION_CANCEL, downTime,
+                                 {Pointer{.id = 0, .x = 20, .y = 30},
+                                  Pointer{.id = 1, .x = 200, .y = 300},
+                                  Pointer{.id = 2, .x = 200, .y = 300}});
+    ASSERT_NO_FATAL_FAILURE(publishAndConsumeKeyEvent());
+    ASSERT_NO_FATAL_FAILURE(publishAndConsumeTouchModeEvent());
 }
 
 } // namespace android

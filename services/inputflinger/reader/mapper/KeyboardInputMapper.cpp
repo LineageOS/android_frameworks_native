@@ -451,7 +451,8 @@ std::list<NotifyArgs> KeyboardInputMapper::cancelAllDownKeys(nsecs_t when) {
 void KeyboardInputMapper::onKeyDownProcessed() {
     InputReaderContext& context = *getContext();
     if (context.isPreventingTouchpadTaps()) {
-        // avoid pinging java service unnecessarily
+        // avoid pinging java service unnecessarily, just fade pointer again if it became visible
+        context.fadePointer();
         return;
     }
     // Ignore meta keys or multiple simultaneous down keys as they are likely to be keyboard

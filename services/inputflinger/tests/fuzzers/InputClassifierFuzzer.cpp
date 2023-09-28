@@ -73,9 +73,11 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t *data, size_t size) {
                 },
                 [&]() -> void {
                     // SendToNextStage_NotifyKeyArgs
-                    const nsecs_t eventTime = fdp.ConsumeIntegral<nsecs_t>();
-                    const nsecs_t readTime =
-                            eventTime + fdp.ConsumeIntegralInRange<nsecs_t>(0, 1E8);
+                    const nsecs_t eventTime =
+                            fdp.ConsumeIntegralInRange<nsecs_t>(0,
+                                                                systemTime(SYSTEM_TIME_MONOTONIC));
+                    const nsecs_t readTime = fdp.ConsumeIntegralInRange<
+                            nsecs_t>(eventTime, std::numeric_limits<nsecs_t>::max());
                     mClassifier->notifyKey({/*sequenceNum=*/fdp.ConsumeIntegral<int32_t>(),
                                             eventTime, readTime,
                                             /*deviceId=*/fdp.ConsumeIntegral<int32_t>(),
