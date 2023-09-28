@@ -171,10 +171,8 @@ DisplayEventReceiver::Event makeFrameRateOverrideFlushEvent(PhysicalDisplayId di
 } // namespace
 
 EventThreadConnection::EventThreadConnection(EventThread* eventThread, uid_t callingUid,
-                                             ResyncCallback resyncCallback,
                                              EventRegistrationFlags eventRegistration)
-      : resyncCallback(std::move(resyncCallback)),
-        mOwnerUid(callingUid),
+      : mOwnerUid(callingUid),
         mEventRegistration(eventRegistration),
         mEventThread(eventThread),
         mChannel(gui::BitTube::DefaultSize) {}
@@ -250,9 +248,7 @@ namespace impl {
 
 EventThread::EventThread(const char* name, std::shared_ptr<scheduler::VsyncSchedule> vsyncSchedule,
                          android::frametimeline::TokenManager* tokenManager,
-                         ThrottleVsyncCallback throttleVsyncCallback,
-                         GetVsyncPeriodFunction getVsyncPeriodFunction,
-                         std::chrono::nanoseconds workDuration,
+                         IEventThreadCallback& callback, std::chrono::nanoseconds workDuration,
                          std::chrono::nanoseconds readyDuration)
       : mThreadName(name),
         mVsyncTracer(base::StringPrintf("VSYNC-%s", name), 0),
@@ -261,11 +257,7 @@ EventThread::EventThread(const char* name, std::shared_ptr<scheduler::VsyncSched
         mVsyncSchedule(std::move(vsyncSchedule)),
         mVsyncRegistration(mVsyncSchedule->getDispatch(), createDispatchCallback(), name),
         mTokenManager(tokenManager),
-        mThrottleVsyncCallback(std::move(throttleVsyncCallback)),
-        mGetVsyncPeriodFunction(std::move(getVsyncPeriodFunction)) {
-    LOG_ALWAYS_FATAL_IF(getVsyncPeriodFunction == nullptr,
-            "getVsyncPeriodFunction must not be null");
-
+        mCallback(callback) {
     mThread = std::thread([this]() NO_THREAD_SAFETY_ANALYSIS {
         std::unique_lock<std::mutex> lock(mMutex);
         threadMain(lock);
@@ -307,10 +299,10 @@ void EventThread::setDuration(std::chrono::nanoseconds workDuration,
 }
 
 sp<EventThreadConnection> EventThread::createEventConnection(
-        ResyncCallback resyncCallback, EventRegistrationFlags eventRegistration) const {
+        EventRegistrationFlags eventRegistration) const {
     return sp<EventThreadConnection>::make(const_cast<EventThread*>(this),
                                            IPCThreadState::self()->getCallingUid(),
-                                           std::move(resyncCallback), eventRegistration);
+                                           eventRegistration);
 }
 
 status_t EventThread::registerDisplayEventConnection(const sp<EventThreadConnection>& connection) {
@@ -353,9 +345,7 @@ void EventThread::setVsyncRate(uint32_t rate, const sp<EventThreadConnection>& c
 }
 
 void EventThread::requestNextVsync(const sp<EventThreadConnection>& connection) {
-    if (connection->resyncCallback) {
-        connection->resyncCallback();
-    }
+    mCallback.resync();
 
     std::lock_guard<std::mutex> lock(mMutex);
 
@@ -371,20 +361,18 @@ VsyncEventData EventThread::getLatestVsyncEventData(
         const sp<EventThreadConnection>& connection) const {
     // Resync so that the vsync is accurate with hardware. getLatestVsyncEventData is an alternate
     // way to get vsync data (instead of posting callbacks to Choreographer).
-    if (connection->resyncCallback) {
-        connection->resyncCallback();
-    }
+    mCallback.resync();
 
     VsyncEventData vsyncEventData;
-    nsecs_t frameInterval = mGetVsyncPeriodFunction(connection->mOwnerUid);
-    vsyncEventData.frameInterval = frameInterval;
+    const Period frameInterval = mCallback.getVsyncPeriod(connection->mOwnerUid);
+    vsyncEventData.frameInterval = frameInterval.ns();
     const auto [presentTime, deadline] = [&]() -> std::pair<nsecs_t, nsecs_t> {
         std::lock_guard<std::mutex> lock(mMutex);
         const auto vsyncTime = mVsyncSchedule->getTracker().nextAnticipatedVSyncTimeFrom(
                 systemTime() + mWorkDuration.get().count() + mReadyDuration.count());
         return {vsyncTime, vsyncTime - mReadyDuration.count()};
     }();
-    generateFrameTimeline(vsyncEventData, frameInterval, systemTime(SYSTEM_TIME_MONOTONIC),
+    generateFrameTimeline(vsyncEventData, frameInterval.ns(), systemTime(SYSTEM_TIME_MONOTONIC),
                           presentTime, deadline);
     return vsyncEventData;
 }
@@ -549,9 +537,9 @@ bool EventThread::shouldConsumeEvent(const DisplayEventReceiver::Event& event,
                                             connection->frameRate);
         }
 
-        return mThrottleVsyncCallback &&
-                mThrottleVsyncCallback(event.vsync.vsyncData.preferredExpectedPresentationTime(),
-                                       connection->mOwnerUid);
+        const auto expectedPresentTime =
+                TimePoint::fromNs(event.vsync.vsyncData.preferredExpectedPresentationTime());
+        return mCallback.throttleVsync(expectedPresentTime, connection->mOwnerUid);
     };
 
     switch (event.header.type) {
@@ -671,9 +659,9 @@ void EventThread::dispatchEvent(const DisplayEventReceiver::Event& event,
     for (const auto& consumer : consumers) {
         DisplayEventReceiver::Event copy = event;
         if (event.header.type == DisplayEventReceiver::DISPLAY_EVENT_VSYNC) {
-            const int64_t frameInterval = mGetVsyncPeriodFunction(consumer->mOwnerUid);
-            copy.vsync.vsyncData.frameInterval = frameInterval;
-            generateFrameTimeline(copy.vsync.vsyncData, frameInterval, copy.header.timestamp,
+            const Period frameInterval = mCallback.getVsyncPeriod(consumer->mOwnerUid);
+            copy.vsync.vsyncData.frameInterval = frameInterval.ns();
+            generateFrameTimeline(copy.vsync.vsyncData, frameInterval.ns(), copy.header.timestamp,
                                   event.vsync.vsyncData.preferredExpectedPresentationTime(),
                                   event.vsync.vsyncData.preferredDeadlineTimestamp());
         }

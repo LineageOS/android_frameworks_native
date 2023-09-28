@@ -55,8 +55,7 @@ protected:
     class MockEventThreadConnection : public android::EventThreadConnection {
     public:
         explicit MockEventThreadConnection(EventThread* eventThread)
-              : EventThreadConnection(eventThread, /*callingUid*/ static_cast<uid_t>(0),
-                                      ResyncCallback()) {}
+              : EventThreadConnection(eventThread, /*callingUid*/ static_cast<uid_t>(0)) {}
         ~MockEventThreadConnection() = default;
 
         MOCK_METHOD1(stealReceiveChannel, binder::Status(gui::BitTube* outChannel));
