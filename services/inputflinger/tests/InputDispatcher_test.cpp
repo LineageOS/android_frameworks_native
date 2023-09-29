@@ -6848,6 +6848,10 @@ TEST_F(InputDispatcherSingleWindowAnr, StaleKeyEventDoesNotAnr) {
 // We have a focused application, but no focused window
 // Make sure that we don't notify policy twice about the same ANR.
 TEST_F(InputDispatcherSingleWindowAnr, NoFocusedWindow_DoesNotSendDuplicateAnr) {
+    const std::chrono::duration appTimeout = 400ms;
+    mApplication->setDispatchingTimeout(appTimeout);
+    mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, mApplication);
+
     mWindow->setFocusable(false);
     mDispatcher->onWindowInfosChanged({{*mWindow->getInfo()}, {}, 0, 0});
     mWindow->consumeFocusEvent(false);
@@ -6855,13 +6859,18 @@ TEST_F(InputDispatcherSingleWindowAnr, NoFocusedWindow_DoesNotSendDuplicateAnr) 
     // Once a focused event arrives, we get an ANR for this application
     // We specify the injection timeout to be smaller than the application timeout, to ensure that
     // injection times out (instead of failing).
+    const std::chrono::duration eventInjectionTimeout = 100ms;
+    ASSERT_LT(eventInjectionTimeout, appTimeout);
     const InputEventInjectionResult result =
             injectKey(*mDispatcher, AKEY_EVENT_ACTION_DOWN, /*repeatCount=*/0, ADISPLAY_ID_DEFAULT,
-                      InputEventInjectionSync::WAIT_FOR_RESULT, 100ms, /*allowKeyRepeat=*/false);
-    ASSERT_EQ(InputEventInjectionResult::TIMED_OUT, result);
-    const std::chrono::duration appTimeout =
-            mApplication->getDispatchingTimeout(DISPATCHING_TIMEOUT);
-    mFakePolicy->assertNotifyNoFocusedWindowAnrWasCalled(appTimeout, mApplication);
+                      InputEventInjectionSync::WAIT_FOR_RESULT, eventInjectionTimeout,
+                      /*allowKeyRepeat=*/false);
+    ASSERT_EQ(InputEventInjectionResult::TIMED_OUT, result)
+            << "result=" << ftl::enum_string(result);
+    // We already waited for 'eventInjectionTimeout`, because the countdown started when the event
+    // was first injected. So now we have (appTimeout - eventInjectionTimeout) left to wait.
+    std::chrono::duration remainingWaitTime = appTimeout - eventInjectionTimeout;
+    mFakePolicy->assertNotifyNoFocusedWindowAnrWasCalled(remainingWaitTime, mApplication);
 
     std::this_thread::sleep_for(appTimeout);
     // ANR should not be raised again. It is up to policy to do that if it desires.
