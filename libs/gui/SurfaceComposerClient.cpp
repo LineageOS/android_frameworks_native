@@ -1227,7 +1227,7 @@ status_t SurfaceComposerClient::Transaction::apply(bool synchronous, bool oneWay
         flags |= ISurfaceComposer::eEarlyWakeupEnd;
     }
 
-    sp<IBinder> applyToken = mApplyToken ? mApplyToken : sApplyToken;
+    sp<IBinder> applyToken = mApplyToken ? mApplyToken : getDefaultApplyToken();
 
     sp<ISurfaceComposer> sf(ComposerService::getComposerService());
     sf->setTransactionState(mFrameTimelineInfo, composerStates, displayStates, flags, applyToken,
@@ -1249,11 +1249,15 @@ status_t SurfaceComposerClient::Transaction::apply(bool synchronous, bool oneWay
 
 sp<IBinder> SurfaceComposerClient::Transaction::sApplyToken = new BBinder();
 
+std::mutex SurfaceComposerClient::Transaction::sApplyTokenMutex;
+
 sp<IBinder> SurfaceComposerClient::Transaction::getDefaultApplyToken() {
+    std::scoped_lock lock{sApplyTokenMutex};
     return sApplyToken;
 }
 
 void SurfaceComposerClient::Transaction::setDefaultApplyToken(sp<IBinder> applyToken) {
+    std::scoped_lock lock{sApplyTokenMutex};
     sApplyToken = applyToken;
 }
 
