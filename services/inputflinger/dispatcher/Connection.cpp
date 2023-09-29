@@ -38,13 +38,4 @@ const std::string Connection::getWindowName() const {
     return "?";
 }
 
-std::deque<DispatchEntry*>::iterator Connection::findWaitQueueEntry(uint32_t seq) {
-    for (std::deque<DispatchEntry*>::iterator it = waitQueue.begin(); it != waitQueue.end(); it++) {
-        if ((*it)->seq == seq) {
-            return it;
-        }
-    }
-    return waitQueue.end();
-}
-
 } // namespace android::inputdispatcher
