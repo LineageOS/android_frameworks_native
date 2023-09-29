@@ -392,6 +392,10 @@ void DisplayColorProfile::dump(std::string& out) const {
     dumpVal(out, "dv", hasDolbyVisionSupport());
     dumpVal(out, "metadata", getSupportedPerFrameMetadata());
 
+    out.append("\n   Hdr Luminance Info:");
+    dumpVal(out, "desiredMinLuminance", mHdrCapabilities.getDesiredMinLuminance());
+    dumpVal(out, "desiredMaxLuminance", mHdrCapabilities.getDesiredMaxLuminance());
+    dumpVal(out, "desiredMaxAverageLuminance", mHdrCapabilities.getDesiredMaxAverageLuminance());
     out.append("\n");
 }
 
