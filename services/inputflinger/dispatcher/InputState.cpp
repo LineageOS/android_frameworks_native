@@ -83,6 +83,11 @@ bool InputState::trackKey(const KeyEntry& entry, int32_t action, int32_t flags) 
     }
 }
 
+/**
+ * Return:
+ *  true if the incoming event was correctly tracked,
+ *  false if the incoming event should be dropped.
+ */
 bool InputState::trackMotion(const MotionEntry& entry, int32_t action, int32_t flags) {
     int32_t actionMasked = action & AMOTION_EVENT_ACTION_MASK;
     switch (actionMasked) {
@@ -310,7 +315,7 @@ std::vector<std::unique_ptr<EventEntry>> InputState::synthesizePointerDownEvents
         nsecs_t currentTime) {
     std::vector<std::unique_ptr<EventEntry>> events;
     for (MotionMemento& memento : mMotionMementos) {
-        if (!(memento.source & AINPUT_SOURCE_CLASS_POINTER)) {
+        if (!isFromSource(memento.source, AINPUT_SOURCE_CLASS_POINTER)) {
             continue;
         }
 
@@ -443,7 +448,7 @@ void InputState::mergePointerStateTo(InputState& other) {
         MotionMemento& memento = mMotionMementos[i];
         // Since we support split pointers we need to merge touch events
         // from the same source + device + screen.
-        if (memento.source & AINPUT_SOURCE_CLASS_POINTER) {
+        if (isFromSource(memento.source, AINPUT_SOURCE_CLASS_POINTER)) {
             bool merged = false;
             for (size_t j = 0; j < other.mMotionMementos.size(); j++) {
                 MotionMemento& otherMemento = other.mMotionMementos[j];

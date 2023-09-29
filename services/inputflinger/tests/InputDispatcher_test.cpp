@@ -28,6 +28,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <input/Input.h>
+#include <input/PrintTools.h>
 #include <linux/input.h>
 #include <sys/epoll.h>
 
@@ -49,6 +50,8 @@ namespace android::inputdispatcher {
 
 using namespace ftl::flag_operators;
 using testing::AllOf;
+
+namespace {
 
 // An arbitrary time value.
 static constexpr nsecs_t ARBITRARY_TIME = 1234;
@@ -136,6 +139,10 @@ struct PointF {
     auto operator<=>(const PointF&) const = default;
 };
 
+inline std::string pointFToString(const PointF& p) {
+    return std::string("(") + std::to_string(p.x) + ", " + std::to_string(p.y) + ")";
+}
+
 /**
  * Return a DOWN key event with KEYCODE_A.
  */
@@ -148,13 +155,8 @@ static KeyEvent getTestKeyEvent() {
     return event;
 }
 
-static void assertMotionAction(int32_t expectedAction, int32_t receivedAction) {
-    ASSERT_EQ(expectedAction, receivedAction)
-            << "expected " << MotionEvent::actionToString(expectedAction) << ", got "
-            << MotionEvent::actionToString(receivedAction);
-}
-
 MATCHER_P(WithDownTime, downTime, "InputEvent with specified downTime") {
+    *result_listener << "expected downTime " << downTime << ", but got " << arg.getDownTime();
     return arg.getDownTime() == downTime;
 }
 
@@ -165,6 +167,7 @@ MATCHER_P(WithSource, source, "InputEvent with specified source") {
 }
 
 MATCHER_P(WithFlags, flags, "InputEvent with specified flags") {
+    *result_listener << "expected flags " << std::hex << flags << ", but got " << arg.getFlags();
     return arg.getFlags() == flags;
 }
 
@@ -173,10 +176,16 @@ MATCHER_P2(WithCoords, x, y, "MotionEvent with specified coordinates") {
         *result_listener << "Expected 1 pointer, got " << arg.getPointerCount();
         return false;
     }
-    return arg.getX(/*pointerIndex=*/0) == x && arg.getY(/*pointerIndex=*/0) == y;
+    const float receivedX = arg.getX(/*pointerIndex=*/0);
+    const float receivedY = arg.getY(/*pointerIndex=*/0);
+    *result_listener << "expected coords (" << x << ", " << y << "), but got (" << receivedX << ", "
+                     << receivedY << ")";
+    return receivedX == x && receivedY == y;
 }
 
 MATCHER_P(WithPointerCount, pointerCount, "MotionEvent with specified number of pointers") {
+    *result_listener << "expected pointerCount " << pointerCount << ", but got "
+                     << arg.getPointerCount();
     return arg.getPointerCount() == pointerCount;
 }
 
@@ -187,6 +196,8 @@ MATCHER_P(WithPointers, pointers, "MotionEvent with specified pointers") {
         const int32_t pointerId = arg.getPointerId(pointerIndex);
         actualPointers[pointerId] = {arg.getX(pointerIndex), arg.getY(pointerIndex)};
     }
+    *result_listener << "expected pointers " << dumpMap(pointers, constToString, pointFToString)
+                     << ", but got " << dumpMap(actualPointers, constToString, pointFToString);
     return pointers == actualPointers;
 }
 
@@ -617,6 +628,7 @@ private:
         mFilteredEvent = nullptr;
     }
 };
+} // namespace
 
 // --- InputDispatcherTest ---
 
@@ -959,7 +971,7 @@ public:
         switch (expectedEventType) {
             case InputEventType::KEY: {
                 const KeyEvent& keyEvent = static_cast<const KeyEvent&>(*event);
-                EXPECT_EQ(expectedAction, keyEvent.getAction());
+                ASSERT_THAT(keyEvent, WithKeyAction(expectedAction));
                 if (expectedFlags.has_value()) {
                     EXPECT_EQ(expectedFlags.value(), keyEvent.getFlags());
                 }
@@ -967,8 +979,7 @@ public:
             }
             case InputEventType::MOTION: {
                 const MotionEvent& motionEvent = static_cast<const MotionEvent&>(*event);
-                assertMotionAction(expectedAction, motionEvent.getAction());
-
+                ASSERT_THAT(motionEvent, WithMotionAction(expectedAction));
                 if (expectedFlags.has_value()) {
                     EXPECT_EQ(expectedFlags.value(), motionEvent.getFlags());
                 }
@@ -6467,7 +6478,7 @@ protected:
         ASSERT_NE(nullptr, motionEvent)
                 << name.c_str() << ": consumer should have returned non-NULL event.";
 
-        assertMotionAction(expectedAction, motionEvent->getAction());
+        ASSERT_THAT(*motionEvent, WithMotionAction(expectedAction));
         ASSERT_EQ(points.size(), motionEvent->getPointerCount());
 
         for (size_t i = 0; i < points.size(); i++) {

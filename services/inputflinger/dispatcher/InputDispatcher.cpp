@@ -4531,7 +4531,7 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(const InputEvent* ev
     // the injected event, it is responsible for setting POLICY_FLAG_INJECTED_FROM_ACCESSIBILITY.
     // For those events, we will set FLAG_IS_ACCESSIBILITY_EVENT to allow apps to distinguish them
     // from events that originate from actual hardware.
-    int32_t resolvedDeviceId = VIRTUAL_KEYBOARD_ID;
+    DeviceId resolvedDeviceId = VIRTUAL_KEYBOARD_ID;
     if (policyFlags & POLICY_FLAG_FILTERED) {
         resolvedDeviceId = event->getDeviceId();
     }
