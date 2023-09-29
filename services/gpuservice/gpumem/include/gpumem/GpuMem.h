@@ -44,12 +44,12 @@ private:
     friend class TestableGpuMem;
 
     // set gpu memory total map
-    void setGpuMemTotalMap(bpf::BpfMap<uint64_t, uint64_t>& map);
+    void setGpuMemTotalMap(bpf::BpfMapRO<uint64_t, uint64_t>& map);
 
     // indicate whether ebpf has been initialized
     std::atomic<bool> mInitialized = false;
     // bpf map for GPU memory total data
-    android::bpf::BpfMap<uint64_t, uint64_t> mGpuMemTotalMap;
+    android::bpf::BpfMapRO<uint64_t, uint64_t> mGpuMemTotalMap;
 
     // gpu memory tracepoint event category
     static constexpr char kGpuMemTraceGroup[] = "gpu_mem";
