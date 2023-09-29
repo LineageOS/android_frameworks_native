@@ -50,25 +50,10 @@ using namespace ftl::flag_operators;
     --gtest_filter="LayerSnapshotTest.*" --gtest_brief=1
 */
 
-class LayerSnapshotTest : public LayerHierarchyTestBase {
+class LayerSnapshotTest : public LayerSnapshotTestBase {
 protected:
-    LayerSnapshotTest() : LayerHierarchyTestBase() {
+    LayerSnapshotTest() : LayerSnapshotTestBase() {
         UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
-    }
-
-    void createRootLayer(uint32_t id) override {
-        LayerHierarchyTestBase::createRootLayer(id);
-        setColor(id);
-    }
-
-    void createLayer(uint32_t id, uint32_t parentId) override {
-        LayerHierarchyTestBase::createLayer(id, parentId);
-        setColor(parentId);
-    }
-
-    void mirrorLayer(uint32_t id, uint32_t parent, uint32_t layerToMirror) override {
-        LayerHierarchyTestBase::mirrorLayer(id, parent, layerToMirror);
-        setColor(id);
     }
 
     void update(LayerSnapshotBuilder& actualBuilder, LayerSnapshotBuilder::Args& args) {
@@ -111,11 +96,7 @@ protected:
     LayerSnapshot* getSnapshot(const LayerHierarchy::TraversalPath path) {
         return mSnapshotBuilder.getSnapshot(path);
     }
-
-    LayerHierarchyBuilder mHierarchyBuilder{{}};
     LayerSnapshotBuilder mSnapshotBuilder;
-    DisplayInfos mFrontEndDisplayInfos;
-    renderengine::ShadowSettings globalShadowSettings;
     static const std::vector<uint32_t> STARTING_ZORDER;
 };
 const std::vector<uint32_t> LayerSnapshotTest::STARTING_ZORDER = {1,   11,   111, 12, 121,

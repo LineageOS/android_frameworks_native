@@ -1267,7 +1267,8 @@ bool Layer::propagateFrameRateForLayerTree(FrameRate parentFrameRate, bool overr
         return parentFrameRate;
     }();
 
-    *transactionNeeded |= setFrameRateForLayerTreeLegacy(frameRate);
+    auto now = systemTime();
+    *transactionNeeded |= setFrameRateForLayerTreeLegacy(frameRate, now);
 
     // The frame rate is propagated to the children
     bool childrenHaveFrameRate = false;
@@ -1283,7 +1284,8 @@ bool Layer::propagateFrameRateForLayerTree(FrameRate parentFrameRate, bool overr
     // layer as NoVote to allow the children to control the refresh rate
     if (!frameRate.isValid() && childrenHaveFrameRate) {
         *transactionNeeded |=
-                setFrameRateForLayerTreeLegacy(FrameRate(Fps(), FrameRateCompatibility::NoVote));
+                setFrameRateForLayerTreeLegacy(FrameRate(Fps(), FrameRateCompatibility::NoVote),
+                                               now);
     }
 
     // We return whether this layer or its children has a vote. We ignore ExactOrMultiple votes for
@@ -1492,7 +1494,7 @@ void Layer::setFrameTimelineVsyncForSkippedFrames(const FrameTimelineInfo& info,
     addSurfaceFrameDroppedForBuffer(surfaceFrame, postTime);
 }
 
-bool Layer::setFrameRateForLayerTreeLegacy(FrameRate frameRate) {
+bool Layer::setFrameRateForLayerTreeLegacy(FrameRate frameRate, nsecs_t now) {
     if (mDrawingState.frameRateForLayerTree == frameRate) {
         return false;
     }
@@ -1506,19 +1508,20 @@ bool Layer::setFrameRateForLayerTreeLegacy(FrameRate frameRate) {
     setTransactionFlags(eTransactionNeeded);
 
     mFlinger->mScheduler
-            ->recordLayerHistory(sequence, getLayerProps(), systemTime(),
+            ->recordLayerHistory(sequence, getLayerProps(), now, now,
                                  scheduler::LayerHistory::LayerUpdateType::SetFrameRate);
     return true;
 }
 
-bool Layer::setFrameRateForLayerTree(FrameRate frameRate, const scheduler::LayerProps& layerProps) {
+bool Layer::setFrameRateForLayerTree(FrameRate frameRate, const scheduler::LayerProps& layerProps,
+                                     nsecs_t now) {
     if (mDrawingState.frameRateForLayerTree == frameRate) {
         return false;
     }
 
     mDrawingState.frameRateForLayerTree = frameRate;
     mFlinger->mScheduler
-            ->recordLayerHistory(sequence, layerProps, systemTime(),
+            ->recordLayerHistory(sequence, layerProps, now, now,
                                  scheduler::LayerHistory::LayerUpdateType::SetFrameRate);
     return true;
 }
@@ -3225,7 +3228,7 @@ bool Layer::setBuffer(std::shared_ptr<renderengine::ExternalTexture>& buffer,
                                       mOwnerUid, postTime, getGameMode());
 
     if (mFlinger->mLegacyFrontEndEnabled) {
-        recordLayerHistoryBufferUpdate(getLayerProps());
+        recordLayerHistoryBufferUpdate(getLayerProps(), systemTime());
     }
 
     setFrameTimelineVsyncForBufferTransaction(info, postTime);
@@ -3256,7 +3259,7 @@ void Layer::setDesiredPresentTime(nsecs_t desiredPresentTime, bool isAutoTimesta
     mDrawingState.isAutoTimestamp = isAutoTimestamp;
 }
 
-void Layer::recordLayerHistoryBufferUpdate(const scheduler::LayerProps& layerProps) {
+void Layer::recordLayerHistoryBufferUpdate(const scheduler::LayerProps& layerProps, nsecs_t now) {
     ATRACE_CALL();
     const nsecs_t presentTime = [&] {
         if (!mDrawingState.isAutoTimestamp) {
@@ -3310,14 +3313,14 @@ void Layer::recordLayerHistoryBufferUpdate(const scheduler::LayerProps& layerPro
         ATRACE_FORMAT_INSTANT("presentIn %s", to_string(presentIn).c_str());
     }
 
-    mFlinger->mScheduler->recordLayerHistory(sequence, layerProps, presentTime,
+    mFlinger->mScheduler->recordLayerHistory(sequence, layerProps, presentTime, now,
                                              scheduler::LayerHistory::LayerUpdateType::Buffer);
 }
 
-void Layer::recordLayerHistoryAnimationTx(const scheduler::LayerProps& layerProps) {
+void Layer::recordLayerHistoryAnimationTx(const scheduler::LayerProps& layerProps, nsecs_t now) {
     const nsecs_t presentTime =
             mDrawingState.isAutoTimestamp ? 0 : mDrawingState.desiredPresentTime;
-    mFlinger->mScheduler->recordLayerHistory(sequence, layerProps, presentTime,
+    mFlinger->mScheduler->recordLayerHistory(sequence, layerProps, presentTime, now,
                                              scheduler::LayerHistory::LayerUpdateType::AnimationTX);
 }
 

@@ -18,11 +18,13 @@
 #include <gtest/gtest.h>
 
 #include <gui/fake/BufferData.h>
+#include <renderengine/mock/FakeExternalTexture.h>
 
 #include "Client.h" // temporarily needed for LayerCreationArgs
 #include "FrontEnd/LayerCreationArgs.h"
 #include "FrontEnd/LayerHierarchy.h"
 #include "FrontEnd/LayerLifecycleManager.h"
+#include "FrontEnd/LayerSnapshotBuilder.h"
 
 namespace android::surfaceflinger::frontend {
 
@@ -358,6 +360,19 @@ protected:
         mLifecycleManager.applyTransactions(transactions);
     }
 
+    void setDefaultFrameRateCompatibility(uint32_t id, int8_t defaultFrameRateCompatibility) {
+        std::vector<TransactionState> transactions;
+        transactions.emplace_back();
+        transactions.back().states.push_back({});
+
+        transactions.back().states.front().state.what =
+                layer_state_t::eDefaultFrameRateCompatibilityChanged;
+        transactions.back().states.front().layerId = id;
+        transactions.back().states.front().state.defaultFrameRateCompatibility =
+                defaultFrameRateCompatibility;
+        mLifecycleManager.applyTransactions(transactions);
+    }
+
     void setRoundedCorners(uint32_t id, float radius) {
         std::vector<TransactionState> transactions;
         transactions.emplace_back();
@@ -384,6 +399,16 @@ protected:
         mLifecycleManager.applyTransactions(transactions);
     }
 
+    void setBuffer(uint32_t id) {
+        static uint64_t sBufferId = 1;
+        setBuffer(id,
+                  std::make_shared<renderengine::mock::
+                                           FakeExternalTexture>(1U /*width*/, 1U /*height*/,
+                                                                sBufferId++,
+                                                                HAL_PIXEL_FORMAT_RGBA_8888,
+                                                                GRALLOC_USAGE_PROTECTED /*usage*/));
+    }
+
     void setBufferCrop(uint32_t id, const Rect& bufferCrop) {
         std::vector<TransactionState> transactions;
         transactions.emplace_back();
@@ -407,6 +432,52 @@ protected:
     }
 
     LayerLifecycleManager mLifecycleManager;
+};
+
+class LayerSnapshotTestBase : public LayerHierarchyTestBase {
+protected:
+    LayerSnapshotTestBase() : LayerHierarchyTestBase() {}
+
+    void createRootLayer(uint32_t id) override {
+        LayerHierarchyTestBase::createRootLayer(id);
+        setColor(id);
+    }
+
+    void createLayer(uint32_t id, uint32_t parentId) override {
+        LayerHierarchyTestBase::createLayer(id, parentId);
+        setColor(parentId);
+    }
+
+    void mirrorLayer(uint32_t id, uint32_t parent, uint32_t layerToMirror) override {
+        LayerHierarchyTestBase::mirrorLayer(id, parent, layerToMirror);
+        setColor(id);
+    }
+
+    void update(LayerSnapshotBuilder& snapshotBuilder) {
+        if (mLifecycleManager.getGlobalChanges().test(RequestedLayerState::Changes::Hierarchy)) {
+            mHierarchyBuilder.update(mLifecycleManager.getLayers(),
+                                     mLifecycleManager.getDestroyedLayers());
+        }
+        LayerSnapshotBuilder::Args args{.root = mHierarchyBuilder.getHierarchy(),
+                                        .layerLifecycleManager = mLifecycleManager,
+                                        .includeMetadata = false,
+                                        .displays = mFrontEndDisplayInfos,
+                                        .displayChanges = mHasDisplayChanges,
+                                        .globalShadowSettings = globalShadowSettings,
+                                        .supportsBlur = true,
+                                        .supportedLayerGenericMetadata = {},
+                                        .genericLayerMetadataKeyMap = {}};
+        snapshotBuilder.update(args);
+
+        mLifecycleManager.commitChanges();
+    }
+
+    LayerHierarchyBuilder mHierarchyBuilder{{}};
+
+    DisplayInfos mFrontEndDisplayInfos;
+    bool mHasDisplayChanges = false;
+
+    renderengine::ShadowSettings globalShadowSettings;
 };
 
 } // namespace android::surfaceflinger::frontend

@@ -93,6 +93,7 @@ cc_test {
         "HWComposerTest.cpp",
         "OneShotTimerTest.cpp",
         "LayerHistoryTest.cpp",
+        "LayerHistoryIntegrationTest.cpp",
         "LayerInfoTest.cpp",
         "LayerMetadataTest.cpp",
         "LayerHierarchyTest.cpp",

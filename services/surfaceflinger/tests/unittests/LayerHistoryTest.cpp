@@ -45,6 +45,8 @@ using MockLayer = android::mock::MockLayer;
 
 using android::mock::createDisplayMode;
 
+// WARNING: LEGACY TESTS FOR LEGACY FRONT END
+// Update LayerHistoryIntegrationTest instead
 class LayerHistoryTest : public testing::Test {
 protected:
     static constexpr auto PRESENT_TIME_HISTORY_SIZE = LayerInfo::HISTORY_SIZE;
