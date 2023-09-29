@@ -42,6 +42,8 @@ protected:
 
     virtual void TearDown() { mMBC.reset(); }
 
+    int getFileDescriptorCount();
+
     std::unique_ptr<TemporaryFile> mTempFile;
     std::unique_ptr<MultifileBlobCache> mMBC;
 };
@@ -214,6 +216,58 @@ TEST_F(MultifileBlobCacheTest, CacheMinKeyAndValueSizeSucceeds) {
     mMBC->set("x", 1, "y", 1);
     ASSERT_EQ(size_t(1), mMBC->get("x", 1, buf, 1));
     ASSERT_EQ('y', buf[0]);
+}
+
+int MultifileBlobCacheTest::getFileDescriptorCount() {
+    DIR* directory = opendir("/proc/self/fd");
+
+    int fileCount = 0;
+    struct dirent* entry;
+    while ((entry = readdir(directory)) != NULL) {
+        fileCount++;
+        // printf("File: %s\n", entry->d_name);
+    }
+
+    closedir(directory);
+    return fileCount;
+}
+
+TEST_F(MultifileBlobCacheTest, EnsureFileDescriptorsClosed) {
+    // Populate the cache with a bunch of entries
+    size_t kLargeNumberOfEntries = 1024;
+    for (int i = 0; i < kLargeNumberOfEntries; i++) {
+        // printf("Caching: %i", i);
+
+        // Use the index as the key and value
+        mMBC->set(&i, sizeof(i), &i, sizeof(i));
+
+        int result = 0;
+        ASSERT_EQ(sizeof(i), mMBC->get(&i, sizeof(i), &result, sizeof(result)));
+        ASSERT_EQ(i, result);
+    }
+
+    // Ensure we don't have a bunch of open fds
+    ASSERT_LT(getFileDescriptorCount(), kLargeNumberOfEntries / 2);
+
+    // Close the cache so everything writes out
+    mMBC->finish();
+    mMBC.reset();
+
+    // Now open it again and ensure we still don't have a bunch of open fds
+    mMBC.reset(
+            new MultifileBlobCache(kMaxKeySize, kMaxValueSize, kMaxTotalSize, &mTempFile->path[0]));
+
+    // Check after initialization
+    ASSERT_LT(getFileDescriptorCount(), kLargeNumberOfEntries / 2);
+
+    for (int i = 0; i < kLargeNumberOfEntries; i++) {
+        int result = 0;
+        ASSERT_EQ(sizeof(i), mMBC->get(&i, sizeof(i), &result, sizeof(result)));
+        ASSERT_EQ(i, result);
+    }
+
+    // And again after we've actually used it
+    ASSERT_LT(getFileDescriptorCount(), kLargeNumberOfEntries / 2);
 }
 
 } // namespace android

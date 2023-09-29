@@ -64,14 +64,13 @@ int32_t linuxBusToInputDeviceBusEnum(int32_t linuxBus, bool isUsiStylus) {
 class : public InputDeviceMetricsLogger {
     nanoseconds getCurrentTime() override { return nanoseconds(systemTime(SYSTEM_TIME_MONOTONIC)); }
 
-    void logInputDeviceUsageReported(const InputDeviceInfo& info,
+    void logInputDeviceUsageReported(const MetricsDeviceInfo& info,
                                      const DeviceUsageReport& report) override {
         const int32_t durationMillis =
                 std::chrono::duration_cast<std::chrono::milliseconds>(report.usageDuration).count();
         const static std::vector<int32_t> empty;
-        const auto& identifier = info.getIdentifier();
 
-        ALOGD_IF(DEBUG, "Usage session reported for device: %s", identifier.name.c_str());
+        ALOGD_IF(DEBUG, "Usage session reported for device id: %d", info.deviceId);
         ALOGD_IF(DEBUG, "    Total duration: %dms", durationMillis);
         ALOGD_IF(DEBUG, "    Source breakdown:");
 
@@ -96,11 +95,9 @@ class : public InputDeviceMetricsLogger {
             ALOGD_IF(DEBUG, "        - uid: %s\t duration: %dms", uid.toString().c_str(),
                      durMillis);
         }
-        util::stats_write(util::INPUTDEVICE_USAGE_REPORTED, identifier.vendor, identifier.product,
-                          identifier.version,
-                          linuxBusToInputDeviceBusEnum(identifier.bus,
-                                                       info.getUsiVersion().has_value()),
-                          durationMillis, sources, durationsPerSource, uids, durationsPerUid);
+        util::stats_write(util::INPUTDEVICE_USAGE_REPORTED, info.vendor, info.product, info.version,
+                          linuxBusToInputDeviceBusEnum(info.bus, info.isUsiStylus), durationMillis,
+                          sources, durationsPerSource, uids, durationsPerUid);
     }
 } sStatsdLogger;
 
@@ -116,7 +113,7 @@ bool isIgnoredInputDeviceId(int32_t deviceId) {
 
 } // namespace
 
-InputDeviceUsageSource getUsageSourceForKeyArgs(const InputDeviceInfo& info,
+InputDeviceUsageSource getUsageSourceForKeyArgs(int32_t keyboardType,
                                                 const NotifyKeyArgs& keyArgs) {
     if (!isFromSource(keyArgs.source, AINPUT_SOURCE_KEYBOARD)) {
         return InputDeviceUsageSource::UNKNOWN;
@@ -132,7 +129,7 @@ InputDeviceUsageSource getUsageSourceForKeyArgs(const InputDeviceInfo& info,
         return InputDeviceUsageSource::GAMEPAD;
     }
 
-    if (info.getKeyboardType() == AINPUT_KEYBOARD_TYPE_ALPHABETIC) {
+    if (keyboardType == AINPUT_KEYBOARD_TYPE_ALPHABETIC) {
         return InputDeviceUsageSource::KEYBOARD;
     }
 
@@ -232,8 +229,8 @@ void InputDeviceMetricsCollector::notifyConfigurationChanged(
 
 void InputDeviceMetricsCollector::notifyKey(const NotifyKeyArgs& args) {
     reportCompletedSessions();
-    const SourceProvider getSources = [&args](const InputDeviceInfo& info) {
-        return std::set{getUsageSourceForKeyArgs(info, args)};
+    const SourceProvider getSources = [&args](const MetricsDeviceInfo& info) {
+        return std::set{getUsageSourceForKeyArgs(info.keyboardType, args)};
     };
     onInputDeviceUsage(DeviceId{args.deviceId}, nanoseconds(args.eventTime), getSources);
 
@@ -291,13 +288,23 @@ void InputDeviceMetricsCollector::dump(std::string& dump) {
 }
 
 void InputDeviceMetricsCollector::onInputDevicesChanged(const std::vector<InputDeviceInfo>& infos) {
-    std::map<DeviceId, InputDeviceInfo> newDeviceInfos;
+    std::map<DeviceId, MetricsDeviceInfo> newDeviceInfos;
 
     for (const InputDeviceInfo& info : infos) {
         if (isIgnoredInputDeviceId(info.getId())) {
             continue;
         }
-        newDeviceInfos.emplace(info.getId(), info);
+        const auto& i = info.getIdentifier();
+        newDeviceInfos.emplace(info.getId(),
+                               MetricsDeviceInfo{
+                                       .deviceId = info.getId(),
+                                       .vendor = i.vendor,
+                                       .product = i.product,
+                                       .version = i.version,
+                                       .bus = i.bus,
+                                       .isUsiStylus = info.getUsiVersion().has_value(),
+                                       .keyboardType = info.getKeyboardType(),
+                               });
     }
 
     for (auto [deviceId, info] : mLoggedDeviceInfos) {
@@ -311,7 +318,7 @@ void InputDeviceMetricsCollector::onInputDevicesChanged(const std::vector<InputD
 }
 
 void InputDeviceMetricsCollector::onInputDeviceRemoved(DeviceId deviceId,
-                                                       const InputDeviceInfo& info) {
+                                                       const MetricsDeviceInfo& info) {
     auto it = mActiveUsageSessions.find(deviceId);
     if (it == mActiveUsageSessions.end()) {
         return;

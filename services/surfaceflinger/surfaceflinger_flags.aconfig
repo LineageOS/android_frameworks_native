@@ -11,8 +11,8 @@ flag {
 flag {
   name: "connected_display"
   namespace: "core_graphics"
-  description: "Controls SurfaceFlinger support for Connected Displays"
-  bug: "278199093"
+  description: "Controls SurfaceFlinger support for Connected Displays in 24Q1"
+  bug: "299486625"
   is_fixed_read_only: true
 }
 
