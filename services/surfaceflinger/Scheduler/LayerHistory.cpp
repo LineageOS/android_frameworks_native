@@ -76,12 +76,12 @@ void trace(const LayerInfo& info, LayerHistory::LayerVoteType type, int fps) {
     ALOGD("%s: %s @ %d Hz", __FUNCTION__, info.getName().c_str(), fps);
 }
 
-LayerHistory::LayerVoteType getVoteType(LayerInfo::FrameRateCompatibility compatibility,
+LayerHistory::LayerVoteType getVoteType(FrameRateCompatibility compatibility,
                                         bool contentDetectionEnabled) {
     LayerHistory::LayerVoteType voteType;
-    if (!contentDetectionEnabled || compatibility == LayerInfo::FrameRateCompatibility::NoVote) {
+    if (!contentDetectionEnabled || compatibility == FrameRateCompatibility::NoVote) {
         voteType = LayerHistory::LayerVoteType::NoVote;
-    } else if (compatibility == LayerInfo::FrameRateCompatibility::Min) {
+    } else if (compatibility == FrameRateCompatibility::Min) {
         voteType = LayerHistory::LayerVoteType::Min;
     } else {
         voteType = LayerHistory::LayerVoteType::Heuristic;

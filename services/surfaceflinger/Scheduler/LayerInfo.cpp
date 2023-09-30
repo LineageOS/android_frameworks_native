@@ -455,7 +455,7 @@ bool LayerInfo::RefreshRateHistory::isConsistent() const {
     return consistent;
 }
 
-LayerInfo::FrameRateCompatibility LayerInfo::FrameRate::convertCompatibility(int8_t compatibility) {
+FrameRateCompatibility LayerInfo::FrameRate::convertCompatibility(int8_t compatibility) {
     switch (compatibility) {
         case ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT:
             return FrameRateCompatibility::Default;

@@ -1160,7 +1160,7 @@ bool Layer::setDefaultFrameRateCompatibility(FrameRateCompatibility compatibilit
     return true;
 }
 
-scheduler::LayerInfo::FrameRateCompatibility Layer::getDefaultFrameRateCompatibility() const {
+scheduler::FrameRateCompatibility Layer::getDefaultFrameRateCompatibility() const {
     return mDrawingState.defaultFrameRateCompatibility;
 }
 
