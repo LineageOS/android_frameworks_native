@@ -86,6 +86,8 @@ struct LayerSnapshot : public compositionengine::LayerFECompositionState {
     gui::GameMode gameMode;
     scheduler::LayerInfo::FrameRate frameRate;
     scheduler::LayerInfo::FrameRateSelectionStrategy frameRateSelectionStrategy;
+    scheduler::FrameRateCompatibility defaultFrameRateCompatibility =
+            scheduler::FrameRateCompatibility::Default;
     ui::Transform::RotationFlags fixedTransformHint;
     std::optional<ui::Transform::RotationFlags> transformHint;
     bool handleSkipScreenshotFlag = false;

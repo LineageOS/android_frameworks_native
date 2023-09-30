@@ -141,20 +141,20 @@ void LayerHistory::record(int32_t id, const LayerProps& layerProps, nsecs_t pres
     }
 }
 
-void LayerHistory::setDefaultFrameRateCompatibility(Layer* layer, bool contentDetectionEnabled) {
+void LayerHistory::setDefaultFrameRateCompatibility(int32_t id,
+                                                    FrameRateCompatibility frameRateCompatibility,
+                                                    bool contentDetectionEnabled) {
     std::lock_guard lock(mLock);
-    auto id = layer->getSequence();
 
     auto [found, layerPair] = findLayer(id);
     if (found == LayerStatus::NotFound) {
         // Offscreen layer
-        ALOGV("%s: %s not registered", __func__, layer->getName().c_str());
+        ALOGV("%s: %d not registered", __func__, id);
         return;
     }
 
     const auto& info = layerPair->second;
-    info->setDefaultLayerVote(
-            getVoteType(layer->getDefaultFrameRateCompatibility(), contentDetectionEnabled));
+    info->setDefaultLayerVote(getVoteType(frameRateCompatibility, contentDetectionEnabled));
 }
 
 auto LayerHistory::summarize(const RefreshRateSelector& selector, nsecs_t now) -> Summary {

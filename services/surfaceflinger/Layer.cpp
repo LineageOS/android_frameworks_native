@@ -1155,7 +1155,7 @@ bool Layer::setDefaultFrameRateCompatibility(FrameRateCompatibility compatibilit
     if (mDrawingState.defaultFrameRateCompatibility == compatibility) return false;
     mDrawingState.defaultFrameRateCompatibility = compatibility;
     mDrawingState.modified = true;
-    mFlinger->mScheduler->setDefaultFrameRateCompatibility(this);
+    mFlinger->mScheduler->setDefaultFrameRateCompatibility(sequence, compatibility);
     setTransactionFlags(eTransactionNeeded);
     return true;
 }

@@ -165,7 +165,10 @@ TEST_F(LayerHistoryTest, singleLayerNoVoteDefaultCompatibility) {
 
     history().record(layer->getSequence(), layer->getLayerProps(), 0, time,
                      LayerHistory::LayerUpdateType::Buffer);
-    history().setDefaultFrameRateCompatibility(layer.get(), true /* contentDetectionEnabled */);
+    history().setDefaultFrameRateCompatibility(layer->getSequence(),
+
+                                               layer->getDefaultFrameRateCompatibility(),
+                                               true /* contentDetectionEnabled */);
 
     EXPECT_TRUE(summarizeLayerHistory(time).empty());
     EXPECT_EQ(1, activeLayerCount());
@@ -188,7 +191,9 @@ TEST_F(LayerHistoryTest, singleLayerMinVoteDefaultCompatibility) {
 
     history().record(layer->getSequence(), layer->getLayerProps(), 0, time,
                      LayerHistory::LayerUpdateType::Buffer);
-    history().setDefaultFrameRateCompatibility(layer.get(), true /* contentDetectionEnabled */);
+    history().setDefaultFrameRateCompatibility(layer->getSequence(),
+                                               layer->getDefaultFrameRateCompatibility(),
+                                               true /* contentDetectionEnabled */);
 
     auto summary = summarizeLayerHistory(time);
     ASSERT_EQ(1, summarizeLayerHistory(time).size());

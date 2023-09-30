@@ -635,8 +635,9 @@ void Scheduler::setModeChangePending(bool pending) {
     mLayerHistory.setModeChangePending(pending);
 }
 
-void Scheduler::setDefaultFrameRateCompatibility(Layer* layer) {
-    mLayerHistory.setDefaultFrameRateCompatibility(layer,
+void Scheduler::setDefaultFrameRateCompatibility(
+        int32_t id, scheduler::FrameRateCompatibility frameRateCompatibility) {
+    mLayerHistory.setDefaultFrameRateCompatibility(id, frameRateCompatibility,
                                                    mFeatures.test(Feature::kContentDetection));
 }
 

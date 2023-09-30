@@ -2205,8 +2205,12 @@ bool SurfaceFlinger::updateLayerSnapshotsLegacy(VsyncId vsyncId, nsecs_t frameTi
 
 void SurfaceFlinger::updateLayerHistory(const frontend::LayerSnapshot& snapshot) {
     using Changes = frontend::RequestedLayerState::Changes;
-    if (snapshot.path.isClone() ||
-        !snapshot.changes.any(Changes::FrameRate | Changes::Buffer | Changes::Animation)) {
+    if (snapshot.path.isClone()) {
+        return;
+    }
+
+    if (!snapshot.changes.any(Changes::FrameRate | Changes::Buffer | Changes::Animation) &&
+        (snapshot.clientChanges & layer_state_t::eDefaultFrameRateCompatibilityChanged) == 0) {
         return;
     }
 
@@ -2224,6 +2228,11 @@ void SurfaceFlinger::updateLayerHistory(const frontend::LayerSnapshot& snapshot)
 
     if (snapshot.changes.test(Changes::Animation)) {
         it->second->recordLayerHistoryAnimationTx(layerProps);
+    }
+
+    if (snapshot.clientChanges & layer_state_t::eDefaultFrameRateCompatibilityChanged) {
+        mScheduler->setDefaultFrameRateCompatibility(snapshot.sequence,
+                                                     snapshot.defaultFrameRateCompatibility);
     }
 
     if (snapshot.changes.test(Changes::FrameRate)) {
