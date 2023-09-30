@@ -271,7 +271,8 @@ std::string dumpRegion(const Region& region) {
     return dump;
 }
 
-std::string dumpQueue(const std::deque<DispatchEntry*>& queue, nsecs_t currentTime) {
+std::string dumpQueue(const std::deque<std::unique_ptr<DispatchEntry>>& queue,
+                      nsecs_t currentTime) {
     constexpr size_t maxEntries = 50; // max events to print
     constexpr size_t skipBegin = maxEntries / 2;
     const size_t skipEnd = queue.size() - maxEntries / 2;
@@ -492,8 +493,8 @@ bool shouldReportFinishedEvent(const DispatchEntry& dispatchEntry, const Connect
  */
 bool isConnectionResponsive(const Connection& connection) {
     const nsecs_t currentTime = now();
-    for (const DispatchEntry* entry : connection.waitQueue) {
-        if (entry->timeoutTime < currentTime) {
+    for (const auto& dispatchEntry : connection.waitQueue) {
+        if (dispatchEntry->timeoutTime < currentTime) {
             return false;
         }
     }
@@ -3415,7 +3416,7 @@ void InputDispatcher::enqueueDispatchEntryLocked(const std::shared_ptr<Connectio
     }
 
     // Enqueue the dispatch entry.
-    connection->outboundQueue.push_back(dispatchEntry.release());
+    connection->outboundQueue.emplace_back(std::move(dispatchEntry));
     traceOutboundQueueLength(*connection);
 }
 
@@ -3584,7 +3585,7 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
     }
 
     while (connection->status == Connection::Status::NORMAL && !connection->outboundQueue.empty()) {
-        DispatchEntry* dispatchEntry = connection->outboundQueue.front();
+        std::unique_ptr<DispatchEntry>& dispatchEntry = connection->outboundQueue.front();
         dispatchEntry->deliveryTime = currentTime;
         const std::chrono::nanoseconds timeout = getDispatchingTimeoutLocked(connection);
         dispatchEntry->timeoutTime = currentTime + timeout.count();
@@ -3699,14 +3700,12 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
         }
 
         // Re-enqueue the event on the wait queue.
-        connection->outboundQueue.erase(std::remove(connection->outboundQueue.begin(),
-                                                    connection->outboundQueue.end(),
-                                                    dispatchEntry));
+        const nsecs_t timeoutTime = dispatchEntry->timeoutTime;
+        connection->waitQueue.emplace_back(std::move(dispatchEntry));
+        connection->outboundQueue.erase(connection->outboundQueue.begin());
         traceOutboundQueueLength(*connection);
-        connection->waitQueue.push_back(dispatchEntry);
         if (connection->responsive) {
-            mAnrTracker.insert(dispatchEntry->timeoutTime,
-                               connection->inputChannel->getConnectionToken());
+            mAnrTracker.insert(timeoutTime, connection->inputChannel->getConnectionToken());
         }
         traceWaitQueueLength(*connection);
     }
@@ -3805,19 +3804,17 @@ void InputDispatcher::abortBrokenDispatchCycleLocked(nsecs_t currentTime,
     }
 }
 
-void InputDispatcher::drainDispatchQueue(std::deque<DispatchEntry*>& queue) {
+void InputDispatcher::drainDispatchQueue(std::deque<std::unique_ptr<DispatchEntry>>& queue) {
     while (!queue.empty()) {
-        DispatchEntry* dispatchEntry = queue.front();
+        releaseDispatchEntry(std::move(queue.front()));
         queue.pop_front();
-        releaseDispatchEntry(dispatchEntry);
     }
 }
 
-void InputDispatcher::releaseDispatchEntry(DispatchEntry* dispatchEntry) {
+void InputDispatcher::releaseDispatchEntry(std::unique_ptr<DispatchEntry> dispatchEntry) {
     if (dispatchEntry->hasForegroundTarget()) {
         decrementPendingForegroundDispatches(*(dispatchEntry->eventEntry));
     }
-    delete dispatchEntry;
 }
 
 int InputDispatcher::handleReceiveCallback(int events, sp<IBinder> connectionToken) {
@@ -4531,7 +4528,7 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(const InputEvent* ev
     // the injected event, it is responsible for setting POLICY_FLAG_INJECTED_FROM_ACCESSIBILITY.
     // For those events, we will set FLAG_IS_ACCESSIBILITY_EVENT to allow apps to distinguish them
     // from events that originate from actual hardware.
-    int32_t resolvedDeviceId = VIRTUAL_KEYBOARD_ID;
+    DeviceId resolvedDeviceId = VIRTUAL_KEYBOARD_ID;
     if (policyFlags & POLICY_FLAG_FILTERED) {
         resolvedDeviceId = event->getDeviceId();
     }
@@ -5918,14 +5915,16 @@ status_t InputDispatcher::pilferPointers(const sp<IBinder>& token) {
 status_t InputDispatcher::pilferPointersLocked(const sp<IBinder>& token) {
     const std::shared_ptr<InputChannel> requestingChannel = getInputChannelLocked(token);
     if (!requestingChannel) {
-        ALOGW("Attempted to pilfer pointers from an un-registered channel or invalid token");
+        LOG(WARNING)
+                << "Attempted to pilfer pointers from an un-registered channel or invalid token";
         return BAD_VALUE;
     }
 
     auto [statePtr, windowPtr, displayId] = findTouchStateWindowAndDisplayLocked(token);
     if (statePtr == nullptr || windowPtr == nullptr) {
-        ALOGW("Attempted to pilfer points from a channel without any on-going pointer streams."
-              " Ignoring.");
+        LOG(WARNING)
+                << "Attempted to pilfer points from a channel without any on-going pointer streams."
+                   " Ignoring.";
         return BAD_VALUE;
     }
     std::set<int32_t> deviceIds = windowPtr->getTouchingDeviceIds();
@@ -5934,36 +5933,38 @@ status_t InputDispatcher::pilferPointersLocked(const sp<IBinder>& token) {
                      << " in window: " << windowPtr->dump();
         return BAD_VALUE;
     }
-    const int32_t deviceId = *deviceIds.begin();
 
-    TouchState& state = *statePtr;
-    TouchedWindow& window = *windowPtr;
-    // Send cancel events to all the input channels we're stealing from.
-    CancelationOptions options(CancelationOptions::Mode::CANCEL_POINTER_EVENTS,
-                               "input channel stole pointer stream");
-    options.deviceId = deviceId;
-    options.displayId = displayId;
-    std::bitset<MAX_POINTER_ID + 1> pointerIds = window.getTouchingPointers(deviceId);
-    options.pointerIds = pointerIds;
-    std::string canceledWindows;
-    for (const TouchedWindow& w : state.windows) {
-        const std::shared_ptr<InputChannel> channel =
-                getInputChannelLocked(w.windowHandle->getToken());
-        if (channel != nullptr && channel->getConnectionToken() != token) {
-            synthesizeCancelationEventsForInputChannelLocked(channel, options);
-            canceledWindows += canceledWindows.empty() ? "[" : ", ";
-            canceledWindows += channel->getName();
+    for (const DeviceId deviceId : deviceIds) {
+        TouchState& state = *statePtr;
+        TouchedWindow& window = *windowPtr;
+        // Send cancel events to all the input channels we're stealing from.
+        CancelationOptions options(CancelationOptions::Mode::CANCEL_POINTER_EVENTS,
+                                   "input channel stole pointer stream");
+        options.deviceId = deviceId;
+        options.displayId = displayId;
+        std::bitset<MAX_POINTER_ID + 1> pointerIds = window.getTouchingPointers(deviceId);
+        options.pointerIds = pointerIds;
+        std::string canceledWindows;
+        for (const TouchedWindow& w : state.windows) {
+            const std::shared_ptr<InputChannel> channel =
+                    getInputChannelLocked(w.windowHandle->getToken());
+            if (channel != nullptr && channel->getConnectionToken() != token) {
+                synthesizeCancelationEventsForInputChannelLocked(channel, options);
+                canceledWindows += canceledWindows.empty() ? "[" : ", ";
+                canceledWindows += channel->getName();
+            }
         }
+        canceledWindows += canceledWindows.empty() ? "[]" : "]";
+        LOG(INFO) << "Channel " << requestingChannel->getName()
+                  << " is stealing input gesture for device " << deviceId << " from "
+                  << canceledWindows;
+
+        // Prevent the gesture from being sent to any other windows.
+        // This only blocks relevant pointers to be sent to other windows
+        window.addPilferingPointers(deviceId, pointerIds);
+
+        state.cancelPointersForWindowsExcept(deviceId, pointerIds, token);
     }
-    canceledWindows += canceledWindows.empty() ? "[]" : "]";
-    ALOGI("Channel %s is stealing touch from %s", requestingChannel->getName().c_str(),
-          canceledWindows.c_str());
-
-    // Prevent the gesture from being sent to any other windows.
-    // This only blocks relevant pointers to be sent to other windows
-    window.addPilferingPointers(deviceId, pointerIds);
-
-    state.cancelPointersForWindowsExcept(deviceId, pointerIds, token);
     return OK;
 }
 
@@ -6061,43 +6062,52 @@ void InputDispatcher::doDispatchCycleFinishedCommand(nsecs_t finishTime,
                                                      uint32_t seq, bool handled,
                                                      nsecs_t consumeTime) {
     // Handle post-event policy actions.
-    std::deque<DispatchEntry*>::iterator dispatchEntryIt = connection->findWaitQueueEntry(seq);
-    if (dispatchEntryIt == connection->waitQueue.end()) {
-        return;
-    }
-    DispatchEntry* dispatchEntry = *dispatchEntryIt;
-    const nsecs_t eventDuration = finishTime - dispatchEntry->deliveryTime;
-    if (eventDuration > SLOW_EVENT_PROCESSING_WARNING_TIMEOUT) {
-        ALOGI("%s spent %" PRId64 "ms processing %s", connection->getWindowName().c_str(),
-              ns2ms(eventDuration), dispatchEntry->eventEntry->getDescription().c_str());
-    }
-    if (shouldReportFinishedEvent(*dispatchEntry, *connection)) {
-        mLatencyTracker.trackFinishedEvent(dispatchEntry->eventEntry->id,
-                                           connection->inputChannel->getConnectionToken(),
-                                           dispatchEntry->deliveryTime, consumeTime, finishTime);
-    }
-
     bool restartEvent;
-    if (dispatchEntry->eventEntry->type == EventEntry::Type::KEY) {
-        KeyEntry& keyEntry = static_cast<KeyEntry&>(*(dispatchEntry->eventEntry));
-        restartEvent =
-                afterKeyEventLockedInterruptable(connection, dispatchEntry, keyEntry, handled);
-    } else if (dispatchEntry->eventEntry->type == EventEntry::Type::MOTION) {
-        MotionEntry& motionEntry = static_cast<MotionEntry&>(*(dispatchEntry->eventEntry));
-        restartEvent = afterMotionEventLockedInterruptable(connection, dispatchEntry, motionEntry,
-                                                           handled);
-    } else {
-        restartEvent = false;
-    }
+
+    { // Start critical section
+        auto dispatchEntryIt =
+                std::find_if(connection->waitQueue.begin(), connection->waitQueue.end(),
+                             [seq](auto& e) { return e->seq == seq; });
+        if (dispatchEntryIt == connection->waitQueue.end()) {
+            return;
+        }
+
+        DispatchEntry& dispatchEntry = **dispatchEntryIt;
+
+        const nsecs_t eventDuration = finishTime - dispatchEntry.deliveryTime;
+        if (eventDuration > SLOW_EVENT_PROCESSING_WARNING_TIMEOUT) {
+            ALOGI("%s spent %" PRId64 "ms processing %s", connection->getWindowName().c_str(),
+                  ns2ms(eventDuration), dispatchEntry.eventEntry->getDescription().c_str());
+        }
+        if (shouldReportFinishedEvent(dispatchEntry, *connection)) {
+            mLatencyTracker.trackFinishedEvent(dispatchEntry.eventEntry->id,
+                                               connection->inputChannel->getConnectionToken(),
+                                               dispatchEntry.deliveryTime, consumeTime, finishTime);
+        }
+
+        if (dispatchEntry.eventEntry->type == EventEntry::Type::KEY) {
+            KeyEntry& keyEntry = static_cast<KeyEntry&>(*(dispatchEntry.eventEntry));
+            restartEvent =
+                    afterKeyEventLockedInterruptable(connection, dispatchEntry, keyEntry, handled);
+        } else if (dispatchEntry.eventEntry->type == EventEntry::Type::MOTION) {
+            MotionEntry& motionEntry = static_cast<MotionEntry&>(*(dispatchEntry.eventEntry));
+            restartEvent = afterMotionEventLockedInterruptable(connection, dispatchEntry,
+                                                               motionEntry, handled);
+        } else {
+            restartEvent = false;
+        }
+    } // End critical section: The -LockedInterruptable methods may have released the lock.
 
     // Dequeue the event and start the next cycle.
     // Because the lock might have been released, it is possible that the
     // contents of the wait queue to have been drained, so we need to double-check
     // a few things.
-    dispatchEntryIt = connection->findWaitQueueEntry(seq);
-    if (dispatchEntryIt != connection->waitQueue.end()) {
-        dispatchEntry = *dispatchEntryIt;
-        connection->waitQueue.erase(dispatchEntryIt);
+    auto entryIt = std::find_if(connection->waitQueue.begin(), connection->waitQueue.end(),
+                                [seq](auto& e) { return e->seq == seq; });
+    if (entryIt != connection->waitQueue.end()) {
+        std::unique_ptr<DispatchEntry> dispatchEntry = std::move(*entryIt);
+        connection->waitQueue.erase(entryIt);
+
         const sp<IBinder>& connectionToken = connection->inputChannel->getConnectionToken();
         mAnrTracker.erase(dispatchEntry->timeoutTime, connectionToken);
         if (!connection->responsive) {
@@ -6109,10 +6119,10 @@ void InputDispatcher::doDispatchCycleFinishedCommand(nsecs_t finishTime,
         }
         traceWaitQueueLength(*connection);
         if (restartEvent && connection->status == Connection::Status::NORMAL) {
-            connection->outboundQueue.push_front(dispatchEntry);
+            connection->outboundQueue.emplace_front(std::move(dispatchEntry));
             traceOutboundQueueLength(*connection);
         } else {
-            releaseDispatchEntry(dispatchEntry);
+            releaseDispatchEntry(std::move(dispatchEntry));
         }
     }
 
@@ -6156,13 +6166,13 @@ void InputDispatcher::onAnrLocked(const std::shared_ptr<Connection>& connection)
      * processes the events linearly. So providing information about the oldest entry seems to be
      * most useful.
      */
-    DispatchEntry* oldestEntry = *connection->waitQueue.begin();
-    const nsecs_t currentWait = now() - oldestEntry->deliveryTime;
+    DispatchEntry& oldestEntry = *connection->waitQueue.front();
+    const nsecs_t currentWait = now() - oldestEntry.deliveryTime;
     std::string reason =
             android::base::StringPrintf("%s is not responding. Waited %" PRId64 "ms for %s",
                                         connection->inputChannel->getName().c_str(),
                                         ns2ms(currentWait),
-                                        oldestEntry->eventEntry->getDescription().c_str());
+                                        oldestEntry.eventEntry->getDescription().c_str());
     sp<IBinder> connectionToken = connection->inputChannel->getConnectionToken();
     updateLastAnrStateLocked(getWindowHandleLocked(connectionToken), reason);
 
@@ -6299,7 +6309,7 @@ void InputDispatcher::processConnectionResponsiveLocked(const Connection& connec
 }
 
 bool InputDispatcher::afterKeyEventLockedInterruptable(
-        const std::shared_ptr<Connection>& connection, DispatchEntry* dispatchEntry,
+        const std::shared_ptr<Connection>& connection, DispatchEntry& dispatchEntry,
         KeyEntry& keyEntry, bool handled) {
     if (keyEntry.flags & AKEY_EVENT_FLAG_FALLBACK) {
         if (!handled) {
@@ -6317,7 +6327,7 @@ bool InputDispatcher::afterKeyEventLockedInterruptable(
         connection->inputState.removeFallbackKey(originalKeyCode);
     }
 
-    if (handled || !dispatchEntry->hasForegroundTarget()) {
+    if (handled || !dispatchEntry.hasForegroundTarget()) {
         // If the application handles the original key for which we previously
         // generated a fallback or if the window is not a foreground window,
         // then cancel the associated fallback key, if any.
@@ -6484,7 +6494,7 @@ bool InputDispatcher::afterKeyEventLockedInterruptable(
 }
 
 bool InputDispatcher::afterMotionEventLockedInterruptable(
-        const std::shared_ptr<Connection>& connection, DispatchEntry* dispatchEntry,
+        const std::shared_ptr<Connection>& connection, DispatchEntry& dispatchEntry,
         MotionEntry& motionEntry, bool handled) {
     return false;
 }

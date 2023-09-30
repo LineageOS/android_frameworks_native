@@ -124,14 +124,12 @@ void DisplayModeSwitchingTest::setupScheduler(
     EXPECT_CALL(*eventThread, registerDisplayEventConnection(_));
     EXPECT_CALL(*eventThread, createEventConnection(_, _))
             .WillOnce(Return(sp<EventThreadConnection>::make(eventThread.get(),
-                                                             mock::EventThread::kCallingUid,
-                                                             ResyncCallback())));
+                                                             mock::EventThread::kCallingUid)));
 
     EXPECT_CALL(*sfEventThread, registerDisplayEventConnection(_));
     EXPECT_CALL(*sfEventThread, createEventConnection(_, _))
             .WillOnce(Return(sp<EventThreadConnection>::make(sfEventThread.get(),
-                                                             mock::EventThread::kCallingUid,
-                                                             ResyncCallback())));
+                                                             mock::EventThread::kCallingUid)));
 
     auto vsyncController = std::make_unique<mock::VsyncController>();
     auto vsyncTracker = std::make_shared<mock::VSyncTracker>();

@@ -98,7 +98,7 @@ using GlobalSignals = RefreshRateSelector::GlobalSignals;
 
 class VsyncSchedule;
 
-class Scheduler : android::impl::MessageQueue {
+class Scheduler : public IEventThreadCallback, android::impl::MessageQueue {
     using Impl = android::impl::MessageQueue;
 
 public:
@@ -217,7 +217,6 @@ public:
         ftl::FakeGuard guard(kMainThreadContext);
         resyncToHardwareVsyncLocked(id, allowToEnable, refreshRate);
     }
-    void resync() EXCLUDES(mDisplayLock);
     void forceNextResync() { mLastResyncTime = 0; }
 
     // Passes a vsync sample to VsyncController. Returns true if
@@ -324,6 +323,11 @@ public:
         return mFeatures.test(Feature::kSmallDirtyContentDetection);
     }
 
+    // Injects a delay that is a fraction of the predicted frame duration for the next frame.
+    void injectPacesetterDelay(float frameDurationFraction) REQUIRES(kMainThreadContext) {
+        mPacesetterFrameDurationFractionToSkip = frameDurationFraction;
+    }
+
 private:
     friend class TestableScheduler;
 
@@ -420,8 +424,10 @@ private:
 
     void dispatchCachedReportedMode() REQUIRES(mPolicyLock) EXCLUDES(mDisplayLock);
 
-    android::impl::EventThread::ThrottleVsyncCallback makeThrottleVsyncCallback() const;
-    android::impl::EventThread::GetVsyncPeriodFunction makeGetVsyncPeriodFunction() const;
+    // IEventThreadCallback overrides
+    bool throttleVsync(TimePoint, uid_t) override;
+    Period getVsyncPeriod(uid_t) override EXCLUDES(mDisplayLock);
+    void resync() override EXCLUDES(mDisplayLock);
 
     // Stores EventThread associated with a given VSyncSource, and an initial EventThreadConnection.
     struct Connection {
@@ -450,6 +456,9 @@ private:
     ftl::Optional<OneShotTimer> mTouchTimer;
     // Timer used to monitor display power mode.
     ftl::Optional<OneShotTimer> mDisplayPowerTimer;
+
+    // Injected delay prior to compositing, for simulating jank.
+    float mPacesetterFrameDurationFractionToSkip GUARDED_BY(kMainThreadContext) = 0.f;
 
     ISchedulerCallback& mSchedulerCallback;
 
