@@ -1047,6 +1047,7 @@ void SurfaceFlinger::getDynamicDisplayInfoInternal(ui::DynamicDisplayInfo*& info
 
         const auto peakFps = mode->getPeakFps();
         outMode.refreshRate = peakFps.getValue();
+        outMode.vsyncRate = mode->getVsyncRate().getValue();
 
         const auto vsyncConfigSet =
                 mVsyncConfiguration->getConfigsForRefreshRate(Fps::fromValue(outMode.refreshRate));
@@ -9189,6 +9190,7 @@ void SurfaceComposerAIDL::getDynamicDisplayInfoInternal(ui::DynamicDisplayInfo& 
         outMode.xDpi = mode.xDpi;
         outMode.yDpi = mode.yDpi;
         outMode.refreshRate = mode.refreshRate;
+        outMode.vsyncRate = mode.vsyncRate;
         outMode.appVsyncOffset = mode.appVsyncOffset;
         outMode.sfVsyncOffset = mode.sfVsyncOffset;
         outMode.presentationDeadline = mode.presentationDeadline;
