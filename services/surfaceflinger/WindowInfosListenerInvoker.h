@@ -67,6 +67,7 @@ private:
 
     std::optional<gui::WindowInfosUpdate> mDelayedUpdate;
     WindowInfosReportedListenerSet mReportedListeners;
+    void eraseListenerAndAckMessages(const wp<IBinder>&);
 
     struct UnackedState {
         ftl::SmallVector<int64_t, kStaticCapacity> unackedListenerIds;
