@@ -36,9 +36,11 @@ public:
      * \param [in] minimumSamplesForPrediction The minimum number of samples to collect before
      * predicting. \param [in] outlierTolerancePercent a number 0 to 100 that will be used to filter
      * samples that fall outlierTolerancePercent from an anticipated vsync event.
+     * \param [in] IVsyncTrackerCallback The callback for the VSyncTracker.
      */
     VSyncPredictor(PhysicalDisplayId, nsecs_t idealPeriod, size_t historySize,
-                   size_t minimumSamplesForPrediction, uint32_t outlierTolerancePercent);
+                   size_t minimumSamplesForPrediction, uint32_t outlierTolerancePercent,
+                   IVsyncTrackerCallback&);
     ~VSyncPredictor();
 
     bool addVsyncTimestamp(nsecs_t timestamp) final EXCLUDES(mMutex);
@@ -69,7 +71,7 @@ public:
 
     bool isVSyncInPhase(nsecs_t timePoint, Fps frameRate) const final EXCLUDES(mMutex);
 
-    void setRenderRate(Fps) final EXCLUDES(mMutex);
+    void setDisplayModeData(const DisplayModeData&) final EXCLUDES(mMutex);
 
     void dump(std::string& result) const final EXCLUDES(mMutex);
 
@@ -99,6 +101,7 @@ private:
     size_t const kHistorySize;
     size_t const kMinimumSamplesForPrediction;
     size_t const kOutlierTolerancePercent;
+    IVsyncTrackerCallback& mVsyncTrackerCallback;
     std::mutex mutable mMutex;
 
     nsecs_t mIdealPeriod GUARDED_BY(mMutex);
@@ -110,7 +113,7 @@ private:
     size_t mLastTimestampIndex GUARDED_BY(mMutex) = 0;
     std::vector<nsecs_t> mTimestamps GUARDED_BY(mMutex);
 
-    std::optional<Fps> mRenderRate GUARDED_BY(mMutex);
+    std::optional<DisplayModeData> mDisplayModeDataOpt GUARDED_BY(mMutex);
 
     mutable std::optional<VsyncSequence> mLastVsyncSequence GUARDED_BY(mMutex);
 };

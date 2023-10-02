@@ -67,11 +67,12 @@
 namespace android::scheduler {
 
 Scheduler::Scheduler(ICompositor& compositor, ISchedulerCallback& callback, FeatureFlags features,
-                     sp<VsyncModulator> modulatorPtr)
+                     sp<VsyncModulator> modulatorPtr, IVsyncTrackerCallback& vsyncTrackerCallback)
       : impl::MessageQueue(compositor),
         mFeatures(features),
         mVsyncModulator(std::move(modulatorPtr)),
-        mSchedulerCallback(callback) {}
+        mSchedulerCallback(callback),
+        mVsyncTrackerCallback(vsyncTrackerCallback) {}
 
 Scheduler::~Scheduler() {
     // MessageQueue depends on VsyncSchedule, so first destroy it.
@@ -116,10 +117,10 @@ void Scheduler::setPacesetterDisplay(std::optional<PhysicalDisplayId> pacesetter
 }
 
 void Scheduler::registerDisplay(PhysicalDisplayId displayId, RefreshRateSelectorPtr selectorPtr) {
-    auto schedulePtr = std::make_shared<VsyncSchedule>(displayId, mFeatures,
-                                                       [this](PhysicalDisplayId id, bool enable) {
-                                                           onHardwareVsyncRequest(id, enable);
-                                                       });
+    auto schedulePtr = std::make_shared<VsyncSchedule>(
+            displayId, mFeatures,
+            [this](PhysicalDisplayId id, bool enable) { onHardwareVsyncRequest(id, enable); },
+            mVsyncTrackerCallback);
 
     registerDisplayInternal(displayId, std::move(selectorPtr), std::move(schedulePtr));
 }
@@ -562,7 +563,19 @@ void Scheduler::setRenderRate(PhysicalDisplayId id, Fps renderFrameRate) {
     ALOGV("%s %s (%s)", __func__, to_string(mode.fps).c_str(),
           to_string(mode.modePtr->getVsyncRate()).c_str());
 
-    display.schedulePtr->getTracker().setRenderRate(renderFrameRate);
+    display.schedulePtr->getTracker().setDisplayModeData(
+            {.renderRate = renderFrameRate,
+             .notifyExpectedPresentTimeoutOpt = getNotifyExpectedPresentTimeout(mode)});
+}
+
+std::optional<Period> Scheduler::getNotifyExpectedPresentTimeout(const FrameRateMode& mode) {
+    if (mode.modePtr->getVrrConfig() && mode.modePtr->getVrrConfig()->notifyExpectedPresentConfig) {
+        return Period::fromNs(
+                mode.modePtr->getVrrConfig()
+                        ->notifyExpectedPresentConfig->notifyExpectedPresentTimeoutNs);
+    } else {
+        return std::nullopt;
+    }
 }
 
 void Scheduler::resync() {

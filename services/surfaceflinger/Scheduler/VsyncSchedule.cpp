@@ -54,10 +54,11 @@ private:
 };
 
 VsyncSchedule::VsyncSchedule(PhysicalDisplayId id, FeatureFlags features,
-                             RequestHardwareVsync requestHardwareVsync)
+                             RequestHardwareVsync requestHardwareVsync,
+                             IVsyncTrackerCallback& callback)
       : mId(id),
         mRequestHardwareVsync(std::move(requestHardwareVsync)),
-        mTracker(createTracker(id)),
+        mTracker(createTracker(id, callback)),
         mDispatch(createDispatch(mTracker)),
         mController(createController(id, *mTracker, features)),
         mTracer(features.test(Feature::kTracePredictedVsync)
@@ -100,7 +101,8 @@ void VsyncSchedule::dump(std::string& out) const {
     mDispatch->dump(out);
 }
 
-VsyncSchedule::TrackerPtr VsyncSchedule::createTracker(PhysicalDisplayId id) {
+VsyncSchedule::TrackerPtr VsyncSchedule::createTracker(PhysicalDisplayId id,
+                                                       IVsyncTrackerCallback& callback) {
     // TODO(b/144707443): Tune constants.
     constexpr nsecs_t kInitialPeriod = (60_Hz).getPeriodNsecs();
     constexpr size_t kHistorySize = 20;
@@ -108,7 +110,8 @@ VsyncSchedule::TrackerPtr VsyncSchedule::createTracker(PhysicalDisplayId id) {
     constexpr uint32_t kDiscardOutlierPercent = 20;
 
     return std::make_unique<VSyncPredictor>(id, kInitialPeriod, kHistorySize,
-                                            kMinSamplesForPrediction, kDiscardOutlierPercent);
+                                            kMinSamplesForPrediction, kDiscardOutlierPercent,
+                                            callback);
 }
 
 VsyncSchedule::DispatchPtr VsyncSchedule::createDispatch(TrackerPtr tracker) {

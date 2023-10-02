@@ -36,18 +36,21 @@ namespace android::scheduler {
 
 class TestableScheduler : public Scheduler, private ICompositor {
 public:
-    TestableScheduler(RefreshRateSelectorPtr selectorPtr, ISchedulerCallback& callback)
+    TestableScheduler(RefreshRateSelectorPtr selectorPtr, ISchedulerCallback& callback,
+                      IVsyncTrackerCallback& vsyncTrackerCallback)
           : TestableScheduler(std::make_unique<mock::VsyncController>(),
                               std::make_shared<mock::VSyncTracker>(), std::move(selectorPtr),
-                              sp<VsyncModulator>::make(VsyncConfigSet{}), callback) {}
+                              sp<VsyncModulator>::make(VsyncConfigSet{}), callback,
+                              vsyncTrackerCallback) {}
 
     TestableScheduler(std::unique_ptr<VsyncController> controller,
                       std::shared_ptr<VSyncTracker> tracker, RefreshRateSelectorPtr selectorPtr,
-                      sp<VsyncModulator> modulatorPtr, ISchedulerCallback& callback)
-          : Scheduler(*this, callback,
+                      sp<VsyncModulator> modulatorPtr, ISchedulerCallback& schedulerCallback,
+                      IVsyncTrackerCallback& vsyncTrackerCallback)
+          : Scheduler(*this, schedulerCallback,
                       (FeatureFlags)Feature::kContentDetection |
                               Feature::kSmallDirtyContentDetection,
-                      std::move(modulatorPtr)) {
+                      std::move(modulatorPtr), vsyncTrackerCallback) {
         const auto displayId = selectorPtr->getActiveMode().modePtr->getPhysicalDisplayId();
         registerDisplay(displayId, std::move(selectorPtr), std::move(controller),
                         std::move(tracker));
