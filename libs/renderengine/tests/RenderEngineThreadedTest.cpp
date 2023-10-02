@@ -98,7 +98,6 @@ TEST_F(RenderEngineThreadedTest, supportsProtectedContent_returnsTrue) {
 }
 
 TEST_F(RenderEngineThreadedTest, PostRenderCleanup_skipped) {
-    EXPECT_CALL(*mRenderEngine, canSkipPostRenderCleanup()).WillOnce(Return(true));
     EXPECT_CALL(*mRenderEngine, cleanupPostRender()).Times(0);
     mThreadedRE->cleanupPostRender();
 
@@ -107,8 +106,25 @@ TEST_F(RenderEngineThreadedTest, PostRenderCleanup_skipped) {
 }
 
 TEST_F(RenderEngineThreadedTest, PostRenderCleanup_notSkipped) {
-    EXPECT_CALL(*mRenderEngine, canSkipPostRenderCleanup()).WillOnce(Return(false));
+    renderengine::DisplaySettings settings;
+    std::vector<renderengine::LayerSettings> layers;
+    std::shared_ptr<renderengine::ExternalTexture> buffer = std::make_shared<
+            renderengine::impl::
+                    ExternalTexture>(sp<GraphicBuffer>::make(), *mRenderEngine,
+                                     renderengine::impl::ExternalTexture::Usage::READABLE |
+                                             renderengine::impl::ExternalTexture::Usage::WRITEABLE);
+    base::unique_fd bufferFence;
+
+    EXPECT_CALL(*mRenderEngine, useProtectedContext(false));
+    EXPECT_CALL(*mRenderEngine, drawLayersInternal)
+        .WillOnce([&](const std::shared_ptr<std::promise<FenceResult>>&& resultPromise,
+                          const renderengine::DisplaySettings&,
+                          const std::vector<renderengine::LayerSettings>&,
+                          const std::shared_ptr<renderengine::ExternalTexture>&,
+                          base::unique_fd&&) { resultPromise->set_value(Fence::NO_FENCE); });
     EXPECT_CALL(*mRenderEngine, cleanupPostRender()).WillOnce(Return());
+    ftl::Future<FenceResult> future =
+            mThreadedRE->drawLayers(settings, layers, buffer, std::move(bufferFence));
     mThreadedRE->cleanupPostRender();
 
     // call ANY synchronous function to ensure that cleanupPostRender has completed.
