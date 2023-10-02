@@ -31,6 +31,7 @@
 #include <compositionengine/OutputLayer.h>
 #include <compositionengine/impl/OutputLayerCompositionState.h>
 #include <ftl/concat.h>
+#include <gui/TraceUtils.h>
 #include <log/log.h>
 #include <ui/DebugUtils.h>
 #include <ui/GraphicBuffer.h>
@@ -484,6 +485,7 @@ status_t HWComposer::getDeviceCompositionChanges(
     }();
 
     displayData.validateWasSkipped = false;
+    displayData.lastExpectedPresentTimestamp = expectedPresentTime;
     if (canSkipValidate) {
         sp<Fence> outPresentFence;
         uint32_t state = UINT32_MAX;
@@ -876,12 +878,23 @@ status_t HWComposer::setRefreshRateChangedCallbackDebugEnabled(PhysicalDisplayId
     return NO_ERROR;
 }
 
-status_t HWComposer::notifyExpectedPresent(PhysicalDisplayId displayId, nsecs_t expectedPresentTime,
-                                           int32_t frameIntervalNs) {
-    ATRACE_CALL();
+status_t HWComposer::notifyExpectedPresentIfRequired(PhysicalDisplayId displayId,
+                                                     nsecs_t expectedPresentTime,
+                                                     int32_t frameIntervalNs, int32_t timeoutNs) {
     RETURN_IF_INVALID_DISPLAY(displayId, BAD_INDEX);
-    const auto error = mComposer->notifyExpectedPresent(mDisplayData[displayId].hwcDisplay->getId(),
+
+    auto& displayData = mDisplayData[displayId];
+    if (expectedPresentTime >= displayData.lastExpectedPresentTimestamp &&
+        expectedPresentTime < displayData.lastExpectedPresentTimestamp + timeoutNs) {
+        return NO_ERROR;
+    }
+
+    displayData.lastExpectedPresentTimestamp = expectedPresentTime;
+    ATRACE_FORMAT("%s ExpectedPresentTime %" PRId64 " frameIntervalNs %d", __func__,
+                  expectedPresentTime, frameIntervalNs);
+    const auto error = mComposer->notifyExpectedPresent(displayData.hwcDisplay->getId(),
                                                         expectedPresentTime, frameIntervalNs);
+
     if (error != hal::Error::NONE) {
         ALOGE("Error in notifyExpectedPresent call %s", to_string(error).c_str());
         return INVALID_OPERATION;

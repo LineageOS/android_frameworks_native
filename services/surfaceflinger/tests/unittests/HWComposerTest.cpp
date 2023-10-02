@@ -32,6 +32,7 @@
 
 #include <gui/LayerMetadata.h>
 #include <log/log.h>
+#include <chrono>
 
 #include "DisplayHardware/DisplayMode.h"
 #include "DisplayHardware/HWComposer.h"
@@ -44,11 +45,11 @@
 #pragma clang diagnostic pop // ignored "-Wconversion"
 
 namespace android {
-namespace {
 
 namespace V2_1 = hardware::graphics::composer::V2_1;
 namespace V2_4 = hardware::graphics::composer::V2_4;
 namespace aidl = aidl::android::hardware::graphics::composer3;
+using namespace std::chrono_literals;
 
 using Hwc2::Config;
 
@@ -76,6 +77,12 @@ struct HWComposerTest : testing::Test {
         EXPECT_CALL(*mHal, setClientTargetSlotCount(_));
         EXPECT_CALL(*mHal, setVsyncEnabled(hwcDisplayId, Hwc2::IComposerClient::Vsync::DISABLE));
         EXPECT_CALL(*mHal, onHotplugConnect(hwcDisplayId));
+    }
+
+    void setDisplayData(HalDisplayId displayId, nsecs_t lastExpectedPresentTimestamp) {
+        ASSERT_TRUE(mHwc.mDisplayData.find(displayId) != mHwc.mDisplayData.end());
+        auto& displayData = mHwc.mDisplayData.at(displayId);
+        displayData.lastExpectedPresentTimestamp = lastExpectedPresentTimestamp;
     }
 };
 
@@ -227,12 +234,19 @@ TEST_F(HWComposerTest, getModesWithDisplayConfigurations) {
         constexpr int32_t kHeight = 720;
         constexpr int32_t kConfigGroup = 1;
         constexpr int32_t kVsyncPeriod = 16666667;
-        hal::DisplayConfiguration displayConfiguration;
-        displayConfiguration.configId = kConfigId;
-        displayConfiguration.configGroup = kConfigGroup;
-        displayConfiguration.height = kHeight;
-        displayConfiguration.width = kWidth;
-        displayConfiguration.vsyncPeriod = kVsyncPeriod;
+        const hal::VrrConfig vrrConfig =
+                hal::VrrConfig{.minFrameIntervalNs = static_cast<Fps>(120_Hz).getPeriodNsecs(),
+                               .notifyExpectedPresentConfig = hal::VrrConfig::
+                                       NotifyExpectedPresentConfig{.notifyExpectedPresentHeadsUpNs =
+                                                                           ms2ns(30),
+                                                                   .notifyExpectedPresentTimeoutNs =
+                                                                           ms2ns(30)}};
+        hal::DisplayConfiguration displayConfiguration{.configId = kConfigId,
+                                                       .width = kWidth,
+                                                       .height = kHeight,
+                                                       .configGroup = kConfigGroup,
+                                                       .vsyncPeriod = kVsyncPeriod,
+                                                       .vrrConfig = vrrConfig};
 
         EXPECT_CALL(*mHal, getDisplayConfigurations(kHwcDisplayId, _, _))
                 .WillOnce(DoAll(SetArgPointee<2>(std::vector<hal::DisplayConfiguration>{
@@ -247,6 +261,7 @@ TEST_F(HWComposerTest, getModesWithDisplayConfigurations) {
         EXPECT_EQ(modes.front().height, kHeight);
         EXPECT_EQ(modes.front().configGroup, kConfigGroup);
         EXPECT_EQ(modes.front().vsyncPeriod, kVsyncPeriod);
+        EXPECT_EQ(modes.front().vrrConfig, vrrConfig);
         EXPECT_EQ(modes.front().dpiX, -1);
         EXPECT_EQ(modes.front().dpiY, -1);
 
@@ -266,6 +281,7 @@ TEST_F(HWComposerTest, getModesWithDisplayConfigurations) {
         EXPECT_EQ(modes.front().height, kHeight);
         EXPECT_EQ(modes.front().configGroup, kConfigGroup);
         EXPECT_EQ(modes.front().vsyncPeriod, kVsyncPeriod);
+        EXPECT_EQ(modes.front().vrrConfig, vrrConfig);
         EXPECT_EQ(modes.front().dpiX, kDpi);
         EXPECT_EQ(modes.front().dpiY, kDpi);
     }
@@ -297,6 +313,55 @@ TEST_F(HWComposerTest, onVsyncInvalid) {
     constexpr nsecs_t kTimestamp = 1;
     const auto displayIdOpt = mHwc.onVsync(kInvalidHwcDisplayId, kTimestamp);
     EXPECT_FALSE(displayIdOpt);
+}
+
+TEST_F(HWComposerTest, notifyExpectedPresentTimeout) {
+    constexpr hal::HWDisplayId kHwcDisplayId = 2;
+    expectHotplugConnect(kHwcDisplayId);
+    const auto info = mHwc.onHotplug(kHwcDisplayId, hal::Connection::CONNECTED);
+    ASSERT_TRUE(info);
+
+    auto expectedPresentTime = systemTime() + ms2ns(10);
+    const int32_t frameIntervalNs = static_cast<Fps>(60_Hz).getPeriodNsecs();
+    static constexpr nsecs_t kTimeoutNs = ms2ns(30);
+
+    ASSERT_NO_FATAL_FAILURE(setDisplayData(info->id, /* lastExpectedPresentTimestamp= */ 0));
+
+    {
+        // Very first ExpectedPresent after idle, no previous timestamp
+        EXPECT_CALL(*mHal,
+                    notifyExpectedPresent(kHwcDisplayId, expectedPresentTime, frameIntervalNs))
+                .WillOnce(Return(HalError::NONE));
+        mHwc.notifyExpectedPresentIfRequired(info->id, expectedPresentTime, frameIntervalNs,
+                                             kTimeoutNs);
+    }
+    {
+        // ExpectedPresent is after the timeoutNs
+        expectedPresentTime += ms2ns(50);
+        EXPECT_CALL(*mHal,
+                    notifyExpectedPresent(kHwcDisplayId, expectedPresentTime, frameIntervalNs))
+                .WillOnce(Return(HalError::NONE));
+        mHwc.notifyExpectedPresentIfRequired(info->id, expectedPresentTime, frameIntervalNs,
+                                             kTimeoutNs);
+    }
+    {
+        // ExpectedPresent is after the last reported ExpectedPresent.
+        expectedPresentTime += ms2ns(10);
+        EXPECT_CALL(*mHal, notifyExpectedPresent(kHwcDisplayId, _, _)).Times(0);
+        mHwc.notifyExpectedPresentIfRequired(info->id, expectedPresentTime, frameIntervalNs,
+                                             kTimeoutNs);
+    }
+    {
+        // ExpectedPresent is before the last reported ExpectedPresent but after the timeoutNs,
+        // representing we changed our decision and want to present earlier than previously
+        // reported.
+        expectedPresentTime -= ms2ns(20);
+        EXPECT_CALL(*mHal,
+                    notifyExpectedPresent(kHwcDisplayId, expectedPresentTime, frameIntervalNs))
+                .WillOnce(Return(HalError::NONE));
+        mHwc.notifyExpectedPresentIfRequired(info->id, expectedPresentTime, frameIntervalNs,
+                                             kTimeoutNs);
+    }
 }
 
 struct MockHWC2ComposerCallback final : StrictMock<HWC2::ComposerCallback> {
@@ -423,5 +488,4 @@ TEST_F(HWComposerLayerGenericMetadataTest, forwardsSupportedMetadata) {
     EXPECT_EQ(hal::Error::UNSUPPORTED, result);
 }
 
-} // namespace
 } // namespace android
