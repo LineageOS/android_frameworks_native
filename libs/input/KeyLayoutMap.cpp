@@ -250,7 +250,7 @@ std::vector<int32_t> KeyLayoutMap::findScanCodesForKey(int32_t keyCode) const {
 std::vector<int32_t> KeyLayoutMap::findUsageCodesForKey(int32_t keyCode) const {
     std::vector<int32_t> usageCodes;
     for (const auto& [usageCode, key] : mKeysByUsageCode) {
-        if (keyCode == key.keyCode) {
+        if (keyCode == key.keyCode && !(key.flags & POLICY_FLAG_FALLBACK_USAGE_MAPPING)) {
             usageCodes.push_back(usageCode);
         }
     }
