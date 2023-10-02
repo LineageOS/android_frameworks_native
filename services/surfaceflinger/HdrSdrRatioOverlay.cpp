@@ -96,7 +96,18 @@ sp<GraphicBuffer> HdrSdrRatioOverlay::draw(float currentHdrSdrRatio, SkColor col
     return buffer;
 }
 
-HdrSdrRatioOverlay::HdrSdrRatioOverlay()
+std::unique_ptr<HdrSdrRatioOverlay> HdrSdrRatioOverlay::create() {
+    std::unique_ptr<HdrSdrRatioOverlay> overlay =
+            std::make_unique<HdrSdrRatioOverlay>(ConstructorTag{});
+    if (overlay->initCheck()) {
+        return overlay;
+    }
+
+    ALOGE("%s: Failed to create HdrSdrRatioOverlay", __func__);
+    return {};
+}
+
+HdrSdrRatioOverlay::HdrSdrRatioOverlay(ConstructorTag)
       : mSurfaceControl(
                 SurfaceControlHolder::createSurfaceControlHolder(String8("HdrSdrRatioOverlay"))) {
     if (!mSurfaceControl) {
@@ -107,6 +118,10 @@ HdrSdrRatioOverlay::HdrSdrRatioOverlay()
             .setLayer(mSurfaceControl->get(), INT32_MAX - 2)
             .setTrustedOverlay(mSurfaceControl->get(), true)
             .apply();
+}
+
+bool HdrSdrRatioOverlay::initCheck() const {
+    return mSurfaceControl != nullptr;
 }
 
 void HdrSdrRatioOverlay::changeHdrSdrRatio(float currentHdrSdrRatio) {

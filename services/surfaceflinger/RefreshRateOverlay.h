@@ -37,6 +37,10 @@ class GraphicBuffer;
 class SurfaceFlinger;
 
 class RefreshRateOverlay {
+private:
+    // Effectively making the constructor private, while keeping std::make_unique work
+    struct ConstructorTag {};
+
 public:
     enum class Features {
         Spinner = 1 << 0,
@@ -45,7 +49,7 @@ public:
         SetByHwc = 1 << 3,
     };
 
-    RefreshRateOverlay(FpsRange, ftl::Flags<Features>);
+    static std::unique_ptr<RefreshRateOverlay> create(FpsRange, ftl::Flags<Features>);
 
     void setLayerStack(ui::LayerStack);
     void setViewport(ui::Size);
@@ -54,7 +58,11 @@ public:
     void animate();
     bool isSetByHwc() const { return mFeatures.test(RefreshRateOverlay::Features::SetByHwc); }
 
+    RefreshRateOverlay(ConstructorTag, FpsRange, ftl::Flags<Features>);
+
 private:
+    bool initCheck() const;
+
     using Buffers = std::vector<sp<GraphicBuffer>>;
 
     static Buffers draw(int vsyncRate, int renderFps, SkColor, ui::Transform::RotationFlags,

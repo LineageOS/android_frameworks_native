@@ -25,15 +25,22 @@ class SkCanvas;
 
 namespace android {
 class HdrSdrRatioOverlay {
+private:
+    // Effectively making the constructor private, while keeping std::make_unique work
+    struct ConstructorTag {};
+
 public:
-    HdrSdrRatioOverlay();
+    static std::unique_ptr<HdrSdrRatioOverlay> create();
+
     void setLayerStack(ui::LayerStack);
     void setViewport(ui::Size);
     void animate();
     void changeHdrSdrRatio(float currentRatio);
 
+    HdrSdrRatioOverlay(ConstructorTag);
+
 private:
-    float mCurrentHdrSdrRatio = 1.f;
+    bool initCheck() const;
 
     static sp<GraphicBuffer> draw(float currentHdrSdrRatio, SkColor, ui::Transform::RotationFlags,
                                   sp<GraphicBuffer>& ringBufer);
@@ -41,6 +48,7 @@ private:
 
     const sp<GraphicBuffer> getOrCreateBuffers(float currentHdrSdrRatio);
 
+    float mCurrentHdrSdrRatio = 1.f;
     const std::unique_ptr<SurfaceControlHolder> mSurfaceControl;
 
     size_t mIndex = 0;
