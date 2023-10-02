@@ -16,10 +16,11 @@
 
 #pragma once
 
-#include "android-base/thread_annotations.h"
 #include <condition_variable>
+#include <functional>
 #include <mutex>
 #include <vector>
+#include "android-base/thread_annotations.h"
 
 namespace android {
 
