@@ -30,7 +30,7 @@ parcelable DisplayMode {
     int[] supportedHdrTypes;
 
     // Some modes have peak refresh rate lower than the panel vsync rate.
-    float refreshRate = 0.0f;
+    float peakRefreshRate = 0.0f;
     float vsyncRate = 0.0f;
     long appVsyncOffset = 0;
     long sfVsyncOffset = 0;
