@@ -111,7 +111,7 @@ public:
     };
 
     using FrameRate = scheduler::LayerInfo::FrameRate;
-    using FrameRateCompatibility = scheduler::LayerInfo::FrameRateCompatibility;
+    using FrameRateCompatibility = scheduler::FrameRateCompatibility;
     using FrameRateSelectionStrategy = scheduler::LayerInfo::FrameRateSelectionStrategy;
 
     struct State {
