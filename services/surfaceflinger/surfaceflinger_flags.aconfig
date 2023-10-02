@@ -30,3 +30,11 @@ flag {
   bug: "284845445"
   is_fixed_read_only: true
 }
+
+flag {
+  name: "vrr_small_dirty_detection"
+  namespace: "core_graphics"
+  description: "Controls small dirty detection for VRR"
+  bug: "283055450"
+  is_fixed_read_only: true
+}

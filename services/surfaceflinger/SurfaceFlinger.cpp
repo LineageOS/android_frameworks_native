@@ -4015,7 +4015,7 @@ void SurfaceFlinger::initScheduler(const sp<const DisplayDevice>& display) {
 
     if (sysprop::use_content_detection_for_refresh_rate(false)) {
         features |= Feature::kContentDetection;
-        if (base::GetBoolProperty("debug.sf.enable_small_dirty_detection"s, false)) {
+        if (flags::vrr_small_dirty_detection()) {
             features |= Feature::kSmallDirtyContentDetection;
         }
     }
