@@ -20,10 +20,35 @@
 
 namespace android {
 
+using android::base::Result;
+
 TEST(InputVerifierTest, CreationWithInvalidUtfStringDoesNotCrash) {
     constexpr char bytes[] = {static_cast<char>(0xC0), static_cast<char>(0x80)};
     const std::string name(bytes, sizeof(bytes));
     InputVerifier verifier(name);
+}
+
+TEST(InputVerifierTest, ProcessSourceClassPointer) {
+    InputVerifier verifier("Verify testOnTouchEventScroll");
+
+    std::vector<PointerProperties> properties;
+    properties.push_back({});
+    properties.back().clear();
+    properties.back().id = 0;
+    properties.back().toolType = ToolType::UNKNOWN;
+
+    std::vector<PointerCoords> coords;
+    coords.push_back({});
+    coords.back().clear();
+    coords.back().setAxisValue(AMOTION_EVENT_AXIS_X, 75);
+    coords.back().setAxisValue(AMOTION_EVENT_AXIS_Y, 300);
+
+    const Result<void> result =
+            verifier.processMovement(/*deviceId=*/0, AINPUT_SOURCE_CLASS_POINTER,
+                                     AMOTION_EVENT_ACTION_DOWN,
+                                     /*pointerCount=*/properties.size(), properties.data(),
+                                     coords.data(), /*flags=*/0);
+    ASSERT_TRUE(result.ok());
 }
 
 } // namespace android
