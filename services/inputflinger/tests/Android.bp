@@ -50,6 +50,7 @@ cc_test {
         "HardwareProperties_test.cpp",
         "HardwareStateConverter_test.cpp",
         "InputDeviceMetricsCollector_test.cpp",
+        "InputDeviceMetricsSource_test.cpp",
         "InputMapperTest.cpp",
         "InputProcessor_test.cpp",
         "InputProcessorConverter_test.cpp",
