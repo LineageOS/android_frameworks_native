@@ -366,6 +366,11 @@ void SurfaceFrame::setRenderRate(Fps renderRate) {
     mRenderRate = renderRate;
 }
 
+Fps SurfaceFrame::getRenderRate() const {
+    std::lock_guard<std::mutex> lock(mMutex);
+    return mRenderRate ? *mRenderRate : mDisplayFrameRenderRate;
+}
+
 void SurfaceFrame::setGpuComposition() {
     std::scoped_lock lock(mMutex);
     mGpuComposition = true;
@@ -611,9 +616,11 @@ void SurfaceFrame::classifyJankLocked(int32_t displayFrameJankType, const Fps& r
 }
 
 void SurfaceFrame::onPresent(nsecs_t presentTime, int32_t displayFrameJankType, Fps refreshRate,
-                             nsecs_t displayDeadlineDelta, nsecs_t displayPresentDelta) {
+                             Fps displayFrameRenderRate, nsecs_t displayDeadlineDelta,
+                             nsecs_t displayPresentDelta) {
     std::scoped_lock lock(mMutex);
 
+    mDisplayFrameRenderRate = displayFrameRenderRate;
     mActuals.presentTime = presentTime;
     nsecs_t deadlineDelta = 0;
 
@@ -837,10 +844,11 @@ void FrameTimeline::addSurfaceFrame(std::shared_ptr<SurfaceFrame> surfaceFrame) 
     mCurrentDisplayFrame->addSurfaceFrame(surfaceFrame);
 }
 
-void FrameTimeline::setSfWakeUp(int64_t token, nsecs_t wakeUpTime, Fps refreshRate) {
+void FrameTimeline::setSfWakeUp(int64_t token, nsecs_t wakeUpTime, Fps refreshRate,
+                                Fps renderRate) {
     ATRACE_CALL();
     std::scoped_lock lock(mMutex);
-    mCurrentDisplayFrame->onSfWakeUp(token, refreshRate,
+    mCurrentDisplayFrame->onSfWakeUp(token, refreshRate, renderRate,
                                      mTokenManager.getPredictionsForToken(token), wakeUpTime);
 }
 
@@ -860,11 +868,12 @@ void FrameTimeline::DisplayFrame::addSurfaceFrame(std::shared_ptr<SurfaceFrame> 
     mSurfaceFrames.push_back(surfaceFrame);
 }
 
-void FrameTimeline::DisplayFrame::onSfWakeUp(int64_t token, Fps refreshRate,
+void FrameTimeline::DisplayFrame::onSfWakeUp(int64_t token, Fps refreshRate, Fps renderRate,
                                              std::optional<TimelineItem> predictions,
                                              nsecs_t wakeUpTime) {
     mToken = token;
     mRefreshRate = refreshRate;
+    mRenderRate = renderRate;
     if (!predictions) {
         mPredictionState = PredictionState::Expired;
     } else {
@@ -1026,7 +1035,8 @@ void FrameTimeline::DisplayFrame::onPresent(nsecs_t signalTime, nsecs_t previous
     classifyJank(deadlineDelta, deltaToVsync, previousPresentTime);
 
     for (auto& surfaceFrame : mSurfaceFrames) {
-        surfaceFrame->onPresent(signalTime, mJankType, mRefreshRate, deadlineDelta, deltaToVsync);
+        surfaceFrame->onPresent(signalTime, mJankType, mRefreshRate, mRenderRate, deadlineDelta,
+                                deltaToVsync);
     }
 }
 

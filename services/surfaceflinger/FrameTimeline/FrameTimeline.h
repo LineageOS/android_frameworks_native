@@ -183,6 +183,8 @@ public:
     void setDropTime(nsecs_t dropTime);
     void setPresentState(PresentState presentState, nsecs_t lastLatchTime = 0);
     void setRenderRate(Fps renderRate);
+    // Return the render rate if it exists, otherwise returns the DisplayFrame's render rate.
+    Fps getRenderRate() const;
     void setGpuComposition();
 
     // When a bufferless SurfaceFrame is promoted to a buffer SurfaceFrame, we also have to update
@@ -197,7 +199,8 @@ public:
     // displayRefreshRate, displayDeadlineDelta, and displayPresentDelta are propagated from the
     // display frame.
     void onPresent(nsecs_t presentTime, int32_t displayFrameJankType, Fps refreshRate,
-                   nsecs_t displayDeadlineDelta, nsecs_t displayPresentDelta);
+                   Fps displayFrameRenderRate, nsecs_t displayDeadlineDelta,
+                   nsecs_t displayPresentDelta);
     // All the timestamps are dumped relative to the baseTime
     void dump(std::string& result, const std::string& indent, nsecs_t baseTime) const;
     // Dumps only the layer, token, is buffer, jank metadata, prediction and present states.
@@ -251,6 +254,8 @@ private:
     int32_t mJankType GUARDED_BY(mMutex) = JankType::None;
     // Indicates if this frame was composited by the GPU or not
     bool mGpuComposition GUARDED_BY(mMutex) = false;
+    // Refresh rate for this frame.
+    Fps mDisplayFrameRenderRate GUARDED_BY(mMutex);
     // Rendering rate for this frame.
     std::optional<Fps> mRenderRate GUARDED_BY(mMutex);
     // Enum for the type of present
@@ -298,7 +303,8 @@ public:
 
     // The first function called by SF for the current DisplayFrame. Fetches SF predictions based on
     // the token and sets the actualSfWakeTime for the current DisplayFrame.
-    virtual void setSfWakeUp(int64_t token, nsecs_t wakeupTime, Fps refreshRate) = 0;
+    virtual void setSfWakeUp(int64_t token, nsecs_t wakeupTime, Fps refreshRate,
+                             Fps renderRate) = 0;
 
     // Sets the sfPresentTime and finalizes the current DisplayFrame. Tracks the
     // given present fence until it's signaled, and updates the present timestamps of all presented
@@ -374,8 +380,8 @@ public:
         // and SYSTEM_TIME_MONOTONIC.
         void trace(pid_t surfaceFlingerPid, nsecs_t monoBootOffset) const;
         // Sets the token, vsyncPeriod, predictions and SF start time.
-        void onSfWakeUp(int64_t token, Fps refreshRate, std::optional<TimelineItem> predictions,
-                        nsecs_t wakeUpTime);
+        void onSfWakeUp(int64_t token, Fps refreshRate, Fps renderRate,
+                        std::optional<TimelineItem> predictions, nsecs_t wakeUpTime);
         // Sets the appropriate metadata and classifies the jank.
         void onPresent(nsecs_t signalTime, nsecs_t previousPresentTime);
         // Adds the provided SurfaceFrame to the current display frame.
@@ -437,6 +443,8 @@ public:
         // The refresh rate (vsync period) in nanoseconds as seen by SF during this DisplayFrame's
         // timeline
         Fps mRefreshRate;
+        // The current render rate for this DisplayFrame.
+        Fps mRenderRate;
         // TraceCookieCounter is used to obtain the cookie for sendig trace packets to perfetto.
         // Using a reference here because the counter is owned by FrameTimeline, which outlives
         // DisplayFrame.
@@ -453,7 +461,7 @@ public:
             int32_t layerId, std::string layerName, std::string debugName, bool isBuffer,
             GameMode) override;
     void addSurfaceFrame(std::shared_ptr<frametimeline::SurfaceFrame> surfaceFrame) override;
-    void setSfWakeUp(int64_t token, nsecs_t wakeupTime, Fps refreshRate) override;
+    void setSfWakeUp(int64_t token, nsecs_t wakeupTime, Fps refreshRate, Fps renderRate) override;
     void setSfPresent(nsecs_t sfPresentTime, const std::shared_ptr<FenceTime>& presentFence,
                       const std::shared_ptr<FenceTime>& gpuFence = FenceTime::NO_FENCE) override;
     void parseArgs(const Vector<String16>& args, std::string& result) override;

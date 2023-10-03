@@ -787,8 +787,9 @@ void Layer::transferAvailableJankData(const std::deque<sp<CallbackHandle>>& hand
         if (includeJankData) {
             std::shared_ptr<frametimeline::SurfaceFrame> surfaceFrame =
                     mPendingJankClassifications.front();
-            jankData.emplace_back(
-                    JankData(surfaceFrame->getToken(), surfaceFrame->getJankType().value()));
+            jankData.emplace_back(JankData(surfaceFrame->getToken(),
+                                           surfaceFrame->getJankType().value(),
+                                           surfaceFrame->getRenderRate().getPeriodNsecs()));
         }
         mPendingJankClassifications.pop_front();
     }

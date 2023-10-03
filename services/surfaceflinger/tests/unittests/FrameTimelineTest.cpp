@@ -54,6 +54,8 @@ constexpr int32_t sInputEventId = 5;
 constexpr int32_t sLayerIdOne = 1;
 constexpr int32_t sLayerIdTwo = 2;
 constexpr GameMode sGameMode = GameMode::Unsupported;
+constexpr Fps RR_11 = Fps::fromPeriodNsecs(11);
+constexpr Fps RR_30 = Fps::fromPeriodNsecs(30);
 
 class FrameTimelineTest : public testing::Test {
 public:
@@ -276,7 +278,7 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_droppedFramesNotUpdated) {
                                                        /*isBuffer*/ true, sGameMode);
 
     // Set up the display frame
-    mFrameTimeline->setSfWakeUp(token1, 20, Fps::fromPeriodNsecs(11));
+    mFrameTimeline->setSfWakeUp(token1, 20, RR_11, RR_11);
     surfaceFrame1->setDropTime(12);
     surfaceFrame1->setPresentState(SurfaceFrame::PresentState::Dropped);
     mFrameTimeline->addSurfaceFrame(surfaceFrame1);
@@ -309,7 +311,7 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_presentedFramesUpdated) {
             mFrameTimeline->createSurfaceFrameForToken(ftInfo, sPidOne, sUidOne, sLayerIdTwo,
                                                        sLayerNameTwo, sLayerNameTwo,
                                                        /*isBuffer*/ true, sGameMode);
-    mFrameTimeline->setSfWakeUp(sfToken1, 22, Fps::fromPeriodNsecs(11));
+    mFrameTimeline->setSfWakeUp(sfToken1, 22, RR_11, RR_11);
     surfaceFrame1->setPresentState(SurfaceFrame::PresentState::Presented);
     mFrameTimeline->addSurfaceFrame(surfaceFrame1);
     surfaceFrame2->setPresentState(SurfaceFrame::PresentState::Presented);
@@ -354,7 +356,7 @@ TEST_F(FrameTimelineTest, displayFramesSlidingWindowMovesAfterLimit) {
                 mFrameTimeline->createSurfaceFrameForToken(ftInfo, sPidOne, sUidOne, sLayerIdOne,
                                                            sLayerNameOne, sLayerNameOne,
                                                            /*isBuffer*/ true, sGameMode);
-        mFrameTimeline->setSfWakeUp(sfToken, 22 + frameTimeFactor, Fps::fromPeriodNsecs(11));
+        mFrameTimeline->setSfWakeUp(sfToken, 22 + frameTimeFactor, RR_11, RR_11);
         surfaceFrame->setPresentState(SurfaceFrame::PresentState::Presented);
         mFrameTimeline->addSurfaceFrame(surfaceFrame);
         mFrameTimeline->setSfPresent(27 + frameTimeFactor, presentFence);
@@ -379,7 +381,7 @@ TEST_F(FrameTimelineTest, displayFramesSlidingWindowMovesAfterLimit) {
             mFrameTimeline->createSurfaceFrameForToken(ftInfo, sPidOne, sUidOne, sLayerIdOne,
                                                        sLayerNameOne, sLayerNameOne,
                                                        /*isBuffer*/ true, sGameMode);
-    mFrameTimeline->setSfWakeUp(sfToken, 22 + frameTimeFactor, Fps::fromPeriodNsecs(11));
+    mFrameTimeline->setSfWakeUp(sfToken, 22 + frameTimeFactor, RR_11, RR_11);
     surfaceFrame->setPresentState(SurfaceFrame::PresentState::Presented);
     mFrameTimeline->addSurfaceFrame(surfaceFrame);
     mFrameTimeline->setSfPresent(27 + frameTimeFactor, presentFence);
@@ -422,7 +424,7 @@ TEST_F(FrameTimelineTest, setMaxDisplayFramesSetsSizeProperly) {
                                                            sLayerNameOne, sLayerNameOne,
                                                            /*isBuffer*/ true, sGameMode);
         int64_t sfToken = mTokenManager->generateTokenForPredictions({22, 26, 30});
-        mFrameTimeline->setSfWakeUp(sfToken, 22, Fps::fromPeriodNsecs(11));
+        mFrameTimeline->setSfWakeUp(sfToken, 22, RR_11, RR_11);
         surfaceFrame->setPresentState(SurfaceFrame::PresentState::Presented);
         mFrameTimeline->addSurfaceFrame(surfaceFrame);
         mFrameTimeline->setSfPresent(27, presentFence);
@@ -439,7 +441,7 @@ TEST_F(FrameTimelineTest, setMaxDisplayFramesSetsSizeProperly) {
                                                            sLayerNameOne, sLayerNameOne,
                                                            /*isBuffer*/ true, sGameMode);
         int64_t sfToken = mTokenManager->generateTokenForPredictions({22, 26, 30});
-        mFrameTimeline->setSfWakeUp(sfToken, 22, Fps::fromPeriodNsecs(11));
+        mFrameTimeline->setSfWakeUp(sfToken, 22, RR_11, RR_11);
         surfaceFrame->setPresentState(SurfaceFrame::PresentState::Presented);
         mFrameTimeline->addSurfaceFrame(surfaceFrame);
         mFrameTimeline->setSfPresent(27, presentFence);
@@ -456,7 +458,7 @@ TEST_F(FrameTimelineTest, setMaxDisplayFramesSetsSizeProperly) {
                                                            sLayerNameOne, sLayerNameOne,
                                                            /*isBuffer*/ true, sGameMode);
         int64_t sfToken = mTokenManager->generateTokenForPredictions({22, 26, 30});
-        mFrameTimeline->setSfWakeUp(sfToken, 22, Fps::fromPeriodNsecs(11));
+        mFrameTimeline->setSfWakeUp(sfToken, 22, RR_11, RR_11);
         surfaceFrame->setPresentState(SurfaceFrame::PresentState::Presented);
         mFrameTimeline->addSurfaceFrame(surfaceFrame);
         mFrameTimeline->setSfPresent(27, presentFence);
@@ -465,7 +467,7 @@ TEST_F(FrameTimelineTest, setMaxDisplayFramesSetsSizeProperly) {
 }
 
 TEST_F(FrameTimelineTest, presentFenceSignaled_invalidSignalTime) {
-    Fps refreshRate = Fps::fromPeriodNsecs(11);
+    Fps refreshRate = RR_11;
 
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
     int64_t surfaceFrameToken1 = mTokenManager->generateTokenForPredictions({10, 20, 60});
@@ -478,7 +480,7 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_invalidSignalTime) {
             mFrameTimeline->createSurfaceFrameForToken(ftInfo, sPidOne, sUidOne, sLayerIdOne,
                                                        sLayerNameOne, sLayerNameOne,
                                                        /*isBuffer*/ true, sGameMode);
-    mFrameTimeline->setSfWakeUp(sfToken1, 52, refreshRate);
+    mFrameTimeline->setSfWakeUp(sfToken1, 52, refreshRate, refreshRate);
     surfaceFrame1->setAcquireFenceTime(20);
     surfaceFrame1->setPresentState(SurfaceFrame::PresentState::Presented);
     mFrameTimeline->addSurfaceFrame(surfaceFrame1);
@@ -496,7 +498,7 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_invalidSignalTime) {
 
 // Tests related to TimeStats
 TEST_F(FrameTimelineTest, presentFenceSignaled_doesNotReportForInvalidTokens) {
-    Fps refreshRate = Fps::fromPeriodNsecs(11);
+    Fps refreshRate = RR_11;
     EXPECT_CALL(*mTimeStats, incrementJankyFrames(_)).Times(0);
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
     int64_t surfaceFrameToken1 = -1;
@@ -509,7 +511,7 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_doesNotReportForInvalidTokens) {
             mFrameTimeline->createSurfaceFrameForToken(ftInfo, sPidOne, sUidOne, sLayerIdOne,
                                                        sLayerNameOne, sLayerNameOne,
                                                        /*isBuffer*/ true, sGameMode);
-    mFrameTimeline->setSfWakeUp(sfToken1, 52, refreshRate);
+    mFrameTimeline->setSfWakeUp(sfToken1, 52, refreshRate, refreshRate);
     surfaceFrame1->setAcquireFenceTime(20);
     surfaceFrame1->setPresentState(SurfaceFrame::PresentState::Presented);
     mFrameTimeline->addSurfaceFrame(surfaceFrame1);
@@ -519,7 +521,7 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_doesNotReportForInvalidTokens) {
 }
 
 TEST_F(FrameTimelineTest, presentFenceSignaled_reportsLongSfCpu) {
-    Fps refreshRate = Fps::fromPeriodNsecs(11);
+    Fps refreshRate = RR_11;
     EXPECT_CALL(*mTimeStats,
                 incrementJankyFrames(
                         TimeStats::JankyFramesInfo{refreshRate, std::nullopt, sUidOne,
@@ -537,7 +539,7 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_reportsLongSfCpu) {
             mFrameTimeline->createSurfaceFrameForToken(ftInfo, sPidOne, sUidOne, sLayerIdOne,
                                                        sLayerNameOne, sLayerNameOne,
                                                        /*isBuffer*/ true, sGameMode);
-    mFrameTimeline->setSfWakeUp(sfToken1, 52, refreshRate);
+    mFrameTimeline->setSfWakeUp(sfToken1, 52, refreshRate, refreshRate);
     surfaceFrame1->setAcquireFenceTime(20);
     surfaceFrame1->setPresentState(SurfaceFrame::PresentState::Presented);
     mFrameTimeline->addSurfaceFrame(surfaceFrame1);
@@ -547,7 +549,7 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_reportsLongSfCpu) {
 }
 
 TEST_F(FrameTimelineTest, presentFenceSignaled_reportsLongSfGpu) {
-    Fps refreshRate = Fps::fromPeriodNsecs(11);
+    Fps refreshRate = RR_11;
     EXPECT_CALL(*mTimeStats,
                 incrementJankyFrames(
                         TimeStats::JankyFramesInfo{refreshRate, std::nullopt, sUidOne,
@@ -566,7 +568,7 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_reportsLongSfGpu) {
             mFrameTimeline->createSurfaceFrameForToken(ftInfo, sPidOne, sUidOne, sLayerIdOne,
                                                        sLayerNameOne, sLayerNameOne,
                                                        /*isBuffer*/ true, sGameMode);
-    mFrameTimeline->setSfWakeUp(sfToken1, 52, refreshRate);
+    mFrameTimeline->setSfWakeUp(sfToken1, 52, refreshRate, refreshRate);
     surfaceFrame1->setAcquireFenceTime(20);
     surfaceFrame1->setPresentState(SurfaceFrame::PresentState::Presented);
     mFrameTimeline->addSurfaceFrame(surfaceFrame1);
@@ -577,7 +579,7 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_reportsLongSfGpu) {
 }
 
 TEST_F(FrameTimelineTest, presentFenceSignaled_reportsDisplayMiss) {
-    Fps refreshRate = Fps::fromPeriodNsecs(30);
+    Fps refreshRate = RR_30;
     EXPECT_CALL(*mTimeStats,
                 incrementJankyFrames(TimeStats::JankyFramesInfo{refreshRate, std::nullopt, sUidOne,
                                                                 sLayerNameOne, sGameMode,
@@ -594,7 +596,7 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_reportsDisplayMiss) {
             mFrameTimeline->createSurfaceFrameForToken(ftInfo, sPidOne, sUidOne, sLayerIdOne,
                                                        sLayerNameOne, sLayerNameOne,
                                                        /*isBuffer*/ true, sGameMode);
-    mFrameTimeline->setSfWakeUp(sfToken1, 52, refreshRate);
+    mFrameTimeline->setSfWakeUp(sfToken1, 52, refreshRate, refreshRate);
     surfaceFrame1->setPresentState(SurfaceFrame::PresentState::Presented);
     surfaceFrame1->setAcquireFenceTime(20);
     mFrameTimeline->addSurfaceFrame(surfaceFrame1);
@@ -622,7 +624,7 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_reportsAppMiss) {
                                                        sLayerNameOne, sLayerNameOne,
                                                        /*isBuffer*/ true, sGameMode);
     surfaceFrame1->setAcquireFenceTime(45);
-    mFrameTimeline->setSfWakeUp(sfToken1, 52, refreshRate);
+    mFrameTimeline->setSfWakeUp(sfToken1, 52, refreshRate, refreshRate);
 
     surfaceFrame1->setPresentState(SurfaceFrame::PresentState::Presented);
     mFrameTimeline->addSurfaceFrame(surfaceFrame1);
@@ -651,7 +653,7 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_reportsSfScheduling) {
                                                        sLayerNameOne, sLayerNameOne,
                                                        /*isBuffer*/ true, sGameMode);
     surfaceFrame1->setAcquireFenceTime(50);
-    mFrameTimeline->setSfWakeUp(sfToken1, 52, refreshRate);
+    mFrameTimeline->setSfWakeUp(sfToken1, 52, refreshRate, refreshRate);
 
     surfaceFrame1->setPresentState(SurfaceFrame::PresentState::Presented);
     mFrameTimeline->addSurfaceFrame(surfaceFrame1);
@@ -680,7 +682,7 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_reportsSfPredictionError) {
                                                        sLayerNameOne, sLayerNameOne,
                                                        /*isBuffer*/ true, sGameMode);
     surfaceFrame1->setAcquireFenceTime(40);
-    mFrameTimeline->setSfWakeUp(sfToken1, 52, refreshRate);
+    mFrameTimeline->setSfWakeUp(sfToken1, 52, refreshRate, refreshRate);
 
     surfaceFrame1->setPresentState(SurfaceFrame::PresentState::Presented);
     mFrameTimeline->addSurfaceFrame(surfaceFrame1);
@@ -709,7 +711,7 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_reportsAppBufferStuffing) {
                                                        sLayerNameOne, sLayerNameOne,
                                                        /*isBuffer*/ true, sGameMode);
     surfaceFrame1->setAcquireFenceTime(40);
-    mFrameTimeline->setSfWakeUp(sfToken1, 82, refreshRate);
+    mFrameTimeline->setSfWakeUp(sfToken1, 82, refreshRate, refreshRate);
 
     surfaceFrame1->setPresentState(SurfaceFrame::PresentState::Presented,
                                    /*previousLatchTime*/ 56);
@@ -721,8 +723,8 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_reportsAppBufferStuffing) {
 }
 
 TEST_F(FrameTimelineTest, presentFenceSignaled_reportsAppMissWithRenderRate) {
-    Fps refreshRate = Fps::fromPeriodNsecs(11);
-    Fps renderRate = Fps::fromPeriodNsecs(30);
+    Fps refreshRate = RR_11;
+    Fps renderRate = RR_30;
     EXPECT_CALL(*mTimeStats,
                 incrementJankyFrames(TimeStats::JankyFramesInfo{refreshRate, renderRate, sUidOne,
                                                                 sLayerNameOne, sGameMode,
@@ -740,7 +742,7 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_reportsAppMissWithRenderRate) {
                                                        sLayerNameOne, sLayerNameOne,
                                                        /*isBuffer*/ true, sGameMode);
     surfaceFrame1->setAcquireFenceTime(45);
-    mFrameTimeline->setSfWakeUp(sfToken1, 52, refreshRate);
+    mFrameTimeline->setSfWakeUp(sfToken1, 52, refreshRate, refreshRate);
 
     surfaceFrame1->setPresentState(SurfaceFrame::PresentState::Presented);
     surfaceFrame1->setRenderRate(renderRate);
@@ -752,8 +754,8 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_reportsAppMissWithRenderRate) {
 }
 
 TEST_F(FrameTimelineTest, presentFenceSignaled_displayFramePredictionExpiredPresentsSurfaceFrame) {
-    Fps refreshRate = Fps::fromPeriodNsecs(11);
-    Fps renderRate = Fps::fromPeriodNsecs(30);
+    Fps refreshRate = RR_11;
+    Fps renderRate = RR_30;
 
     EXPECT_CALL(*mTimeStats,
                 incrementJankyFrames(
@@ -775,7 +777,7 @@ TEST_F(FrameTimelineTest, presentFenceSignaled_displayFramePredictionExpiredPres
     surfaceFrame1->setAcquireFenceTime(45);
     // Trigger a prediction expiry
     flushTokens();
-    mFrameTimeline->setSfWakeUp(sfToken1, 52, refreshRate);
+    mFrameTimeline->setSfWakeUp(sfToken1, 52, refreshRate, refreshRate);
 
     surfaceFrame1->setPresentState(SurfaceFrame::PresentState::Presented);
     surfaceFrame1->setRenderRate(renderRate);
@@ -814,7 +816,7 @@ TEST_F(FrameTimelineTest, tracing_noPacketsSentWithoutTraceStart) {
                                                        /*isBuffer*/ true, sGameMode);
 
     // Set up the display frame
-    mFrameTimeline->setSfWakeUp(token1, 20, Fps::fromPeriodNsecs(11));
+    mFrameTimeline->setSfWakeUp(token1, 20, RR_11, RR_11);
     surfaceFrame1->setPresentState(SurfaceFrame::PresentState::Dropped);
     mFrameTimeline->addSurfaceFrame(surfaceFrame1);
     mFrameTimeline->setSfPresent(25, presentFence1);
@@ -844,7 +846,7 @@ TEST_F(FrameTimelineTest, tracing_sanityTest) {
                                                        /*isBuffer*/ true, sGameMode);
 
     // Set up the display frame
-    mFrameTimeline->setSfWakeUp(token2, 20, Fps::fromPeriodNsecs(11));
+    mFrameTimeline->setSfWakeUp(token2, 20, RR_11, RR_11);
     surfaceFrame1->setPresentState(SurfaceFrame::PresentState::Presented);
     mFrameTimeline->addSurfaceFrame(surfaceFrame1);
     mFrameTimeline->setSfPresent(25, presentFence1);
@@ -866,7 +868,7 @@ TEST_F(FrameTimelineTest, traceDisplayFrame_invalidTokenDoesNotEmitTracePacket) 
     tracingSession->StartBlocking();
 
     // Set up the display frame
-    mFrameTimeline->setSfWakeUp(-1, 20, Fps::fromPeriodNsecs(11));
+    mFrameTimeline->setSfWakeUp(-1, 20, RR_11, RR_11);
     mFrameTimeline->setSfPresent(25, presentFence1);
     presentFence1->signalForTest(30);
 
@@ -890,7 +892,7 @@ TEST_F(FrameTimelineTest, traceSurfaceFrame_invalidTokenDoesNotEmitTracePacket) 
                                                        /*isBuffer*/ true, sGameMode);
 
     // Set up the display frame
-    mFrameTimeline->setSfWakeUp(token1, 20, Fps::fromPeriodNsecs(11));
+    mFrameTimeline->setSfWakeUp(token1, 20, RR_11, RR_11);
     surfaceFrame1->setPresentState(SurfaceFrame::PresentState::Dropped);
     mFrameTimeline->addSurfaceFrame(surfaceFrame1);
     mFrameTimeline->setSfPresent(25, presentFence1);
@@ -1068,7 +1070,7 @@ TEST_F(FrameTimelineTest, traceDisplayFrame_emitsValidTracePacket) {
     int64_t displayFrameToken1 = mTokenManager->generateTokenForPredictions({10, 30, 30});
 
     // Set up the display frame
-    mFrameTimeline->setSfWakeUp(displayFrameToken1, 20, Fps::fromPeriodNsecs(11));
+    mFrameTimeline->setSfWakeUp(displayFrameToken1, 20, RR_11, RR_11);
     mFrameTimeline->setSfPresent(26, presentFence1);
     presentFence1->signalForTest(31);
 
@@ -1150,7 +1152,7 @@ TEST_F(FrameTimelineTest, traceDisplayFrame_predictionExpiredDoesNotTraceExpecte
     addEmptySurfaceFrame();
 
     // Set up the display frame
-    mFrameTimeline->setSfWakeUp(displayFrameToken1, 20, Fps::fromPeriodNsecs(11));
+    mFrameTimeline->setSfWakeUp(displayFrameToken1, 20, RR_11, RR_11);
     mFrameTimeline->setSfPresent(26, presentFence1);
     presentFence1->signalForTest(31);
 
@@ -1252,7 +1254,7 @@ TEST_F(FrameTimelineTest, traceSurfaceFrame_emitsValidTracePacket) {
     auto protoPresentedSurfaceFrameActualEnd = createProtoFrameEnd(traceCookie + 4);
 
     // Set up the display frame
-    mFrameTimeline->setSfWakeUp(displayFrameToken1, 20, Fps::fromPeriodNsecs(11));
+    mFrameTimeline->setSfWakeUp(displayFrameToken1, 20, RR_11, RR_11);
     surfaceFrame1->setPresentState(SurfaceFrame::PresentState::Dropped);
     surfaceFrame2->setPresentState(SurfaceFrame::PresentState::Presented);
     mFrameTimeline->addSurfaceFrame(surfaceFrame1);
@@ -1398,7 +1400,7 @@ TEST_F(FrameTimelineTest, traceSurfaceFrame_predictionExpiredIsAppMissedDeadline
     auto protoActualSurfaceFrameEnd = createProtoFrameEnd(traceCookie + 1);
 
     // Set up the display frame
-    mFrameTimeline->setSfWakeUp(displayFrameToken, sfStartTime, Fps::fromPeriodNsecs(11));
+    mFrameTimeline->setSfWakeUp(displayFrameToken, sfStartTime, RR_11, RR_11);
     surfaceFrame1->setPresentState(SurfaceFrame::PresentState::Presented);
     mFrameTimeline->addSurfaceFrame(surfaceFrame1);
     mFrameTimeline->setSfPresent(sfEndTime, presentFence1);
@@ -1475,7 +1477,7 @@ TEST_F(FrameTimelineTest, traceSurfaceFrame_predictionExpiredDroppedFramesTraced
     auto protoActualSurfaceFrameEnd = createProtoFrameEnd(traceCookie + 1);
 
     // Set up the display frame
-    mFrameTimeline->setSfWakeUp(displayFrameToken, sfStartTime, Fps::fromPeriodNsecs(11));
+    mFrameTimeline->setSfWakeUp(displayFrameToken, sfStartTime, RR_11, RR_11);
     surfaceFrame1->setDropTime(sfStartTime);
     surfaceFrame1->setPresentState(SurfaceFrame::PresentState::Dropped);
     mFrameTimeline->addSurfaceFrame(surfaceFrame1);
@@ -1528,7 +1530,7 @@ TEST_F(FrameTimelineTest, jankClassification_presentOnTimeDoesNotClassify) {
             mFrameTimeline->createSurfaceFrameForToken(ftInfo, sPidOne, sUidOne, sLayerIdOne,
                                                        sLayerNameOne, sLayerNameOne,
                                                        /*isBuffer*/ true, sGameMode);
-    mFrameTimeline->setSfWakeUp(sfToken1, 22, Fps::fromPeriodNsecs(11));
+    mFrameTimeline->setSfWakeUp(sfToken1, 22, RR_11, RR_11);
     surfaceFrame->setPresentState(SurfaceFrame::PresentState::Presented);
     mFrameTimeline->addSurfaceFrame(surfaceFrame);
     mFrameTimeline->setSfPresent(26, presentFence1);
@@ -1552,11 +1554,11 @@ TEST_F(FrameTimelineTest, jankClassification_presentOnTimeDoesNotClassify) {
 }
 
 TEST_F(FrameTimelineTest, jankClassification_displayFrameOnTimeFinishEarlyPresent) {
-    Fps vsyncRate = Fps::fromPeriodNsecs(11);
+    Fps vsyncRate = RR_11;
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
     int64_t sfToken1 = mTokenManager->generateTokenForPredictions({22, 30, 40});
     int64_t sfToken2 = mTokenManager->generateTokenForPredictions({52, 60, 70});
-    mFrameTimeline->setSfWakeUp(sfToken1, 22, vsyncRate);
+    mFrameTimeline->setSfWakeUp(sfToken1, 22, vsyncRate, vsyncRate);
     mFrameTimeline->setSfPresent(26, presentFence1);
     auto displayFrame = getDisplayFrame(0);
     presentFence1->signalForTest(30);
@@ -1566,7 +1568,7 @@ TEST_F(FrameTimelineTest, jankClassification_displayFrameOnTimeFinishEarlyPresen
 
     // Trigger a flush by finalizing the next DisplayFrame
     auto presentFence2 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
-    mFrameTimeline->setSfWakeUp(sfToken2, 52, vsyncRate);
+    mFrameTimeline->setSfWakeUp(sfToken2, 52, vsyncRate, vsyncRate);
     mFrameTimeline->setSfPresent(56, presentFence2);
     displayFrame = getDisplayFrame(0);
 
@@ -1591,11 +1593,11 @@ TEST_F(FrameTimelineTest, jankClassification_displayFrameOnTimeFinishEarlyPresen
 }
 
 TEST_F(FrameTimelineTest, jankClassification_displayFrameOnTimeFinishLatePresent) {
-    Fps vsyncRate = Fps::fromPeriodNsecs(11);
+    Fps vsyncRate = RR_11;
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
     int64_t sfToken1 = mTokenManager->generateTokenForPredictions({22, 30, 40});
     int64_t sfToken2 = mTokenManager->generateTokenForPredictions({52, 60, 70});
-    mFrameTimeline->setSfWakeUp(sfToken1, 22, vsyncRate);
+    mFrameTimeline->setSfWakeUp(sfToken1, 22, vsyncRate, vsyncRate);
     mFrameTimeline->setSfPresent(26, presentFence1);
     auto displayFrame = getDisplayFrame(0);
     presentFence1->signalForTest(50);
@@ -1605,7 +1607,7 @@ TEST_F(FrameTimelineTest, jankClassification_displayFrameOnTimeFinishLatePresent
 
     // Trigger a flush by finalizing the next DisplayFrame
     auto presentFence2 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
-    mFrameTimeline->setSfWakeUp(sfToken2, 52, vsyncRate);
+    mFrameTimeline->setSfWakeUp(sfToken2, 52, vsyncRate, vsyncRate);
     mFrameTimeline->setSfPresent(56, presentFence2);
     displayFrame = getDisplayFrame(0);
 
@@ -1633,7 +1635,7 @@ TEST_F(FrameTimelineTest, jankClassification_displayFrameOnTimeFinishLatePresent
 TEST_F(FrameTimelineTest, jankClassification_displayFrameLateFinishEarlyPresent) {
     auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
     int64_t sfToken1 = mTokenManager->generateTokenForPredictions({12, 18, 40});
-    mFrameTimeline->setSfWakeUp(sfToken1, 12, Fps::fromPeriodNsecs(11));
+    mFrameTimeline->setSfWakeUp(sfToken1, 12, RR_11, RR_11);
 
     mFrameTimeline->setSfPresent(22, presentFence1);
     auto displayFrame = getDisplayFrame(0);
@@ -1673,7 +1675,7 @@ TEST_F(FrameTimelineTest, jankClassification_displayFrameLateFinishLatePresent) 
     int64_t sfToken4 = mTokenManager->generateTokenForPredictions({112, 120, 120});
 
     // case 1 - cpu time = 33 - 12 = 21, vsync period = 11
-    mFrameTimeline->setSfWakeUp(sfToken1, 12, Fps::fromPeriodNsecs(11));
+    mFrameTimeline->setSfWakeUp(sfToken1, 12, RR_11, RR_11);
     mFrameTimeline->setSfPresent(33, presentFence1, gpuFence1);
     auto displayFrame0 = getDisplayFrame(0);
     gpuFence1->signalForTest(36);
@@ -1683,7 +1685,7 @@ TEST_F(FrameTimelineTest, jankClassification_displayFrameLateFinishLatePresent) 
     EXPECT_EQ(displayFrame0->getActuals().presentTime, 0);
 
     // case 2 - cpu time = 56 - 52 = 4, vsync period = 30
-    mFrameTimeline->setSfWakeUp(sfToken2, 52, Fps::fromPeriodNsecs(30));
+    mFrameTimeline->setSfWakeUp(sfToken2, 52, RR_30, RR_30);
     mFrameTimeline->setSfPresent(56, presentFence2, gpuFence2);
     auto displayFrame1 = getDisplayFrame(1);
     gpuFence2->signalForTest(76);
@@ -1697,7 +1699,7 @@ TEST_F(FrameTimelineTest, jankClassification_displayFrameLateFinishLatePresent) 
     EXPECT_EQ(displayFrame0->getJankType(), JankType::SurfaceFlingerGpuDeadlineMissed);
 
     // case 3 - cpu time = 86 - 82 = 4, vsync period = 30
-    mFrameTimeline->setSfWakeUp(sfToken3, 106, Fps::fromPeriodNsecs(30));
+    mFrameTimeline->setSfWakeUp(sfToken3, 106, RR_30, RR_30);
     mFrameTimeline->setSfPresent(112, presentFence3, gpuFence3);
     auto displayFrame2 = getDisplayFrame(2);
     gpuFence3->signalForTest(116);
@@ -1711,7 +1713,7 @@ TEST_F(FrameTimelineTest, jankClassification_displayFrameLateFinishLatePresent) 
     EXPECT_EQ(displayFrame1->getJankType(), JankType::SurfaceFlingerGpuDeadlineMissed);
 
     // case 4 - cpu time = 86 - 82 = 4, vsync period = 30
-    mFrameTimeline->setSfWakeUp(sfToken4, 120, Fps::fromPeriodNsecs(30));
+    mFrameTimeline->setSfWakeUp(sfToken4, 120, RR_30, RR_30);
     mFrameTimeline->setSfPresent(140, presentFence4, gpuFence4);
     auto displayFrame3 = getDisplayFrame(3);
     gpuFence4->signalForTest(156);
@@ -1748,7 +1750,7 @@ TEST_F(FrameTimelineTest, jankClassification_surfaceFrameOnTimeFinishEarlyPresen
                                                        sLayerNameOne, sLayerNameOne,
                                                        /*isBuffer*/ true, sGameMode);
     surfaceFrame1->setAcquireFenceTime(16);
-    mFrameTimeline->setSfWakeUp(sfToken1, 22, Fps::fromPeriodNsecs(11));
+    mFrameTimeline->setSfWakeUp(sfToken1, 22, RR_11, RR_11);
     surfaceFrame1->setPresentState(SurfaceFrame::PresentState::Presented);
     mFrameTimeline->addSurfaceFrame(surfaceFrame1);
     mFrameTimeline->setSfPresent(27, presentFence1);
@@ -1771,7 +1773,7 @@ TEST_F(FrameTimelineTest, jankClassification_surfaceFrameOnTimeFinishEarlyPresen
                                                        sLayerNameOne, sLayerNameOne,
                                                        /*isBuffer*/ true, sGameMode);
     surfaceFrame2->setAcquireFenceTime(36);
-    mFrameTimeline->setSfWakeUp(sfToken2, 52, Fps::fromPeriodNsecs(11));
+    mFrameTimeline->setSfWakeUp(sfToken2, 52, RR_11, RR_11);
     surfaceFrame2->setPresentState(SurfaceFrame::PresentState::Presented);
     mFrameTimeline->addSurfaceFrame(surfaceFrame2);
     mFrameTimeline->setSfPresent(57, presentFence2);
@@ -1799,10 +1801,10 @@ TEST_F(FrameTimelineTest, jankClassification_surfaceFrameOnTimeFinishEarlyPresen
     ::testing::Mock::VerifyAndClearExpectations(mTimeStats.get());
 
     EXPECT_CALL(*mTimeStats,
-                incrementJankyFrames(
-                        TimeStats::JankyFramesInfo{Fps::fromPeriodNsecs(11), std::nullopt, sUidOne,
-                                                   sLayerNameOne, sGameMode,
-                                                   JankType::PredictionError, -3, 5, 0}));
+                incrementJankyFrames(TimeStats::JankyFramesInfo{RR_11, std::nullopt, sUidOne,
+                                                                sLayerNameOne, sGameMode,
+                                                                JankType::PredictionError, -3, 5,
+                                                                0}));
 
     addEmptyDisplayFrame();
 
@@ -1834,7 +1836,7 @@ TEST_F(FrameTimelineTest, jankClassification_surfaceFrameOnTimeFinishLatePresent
                                                        sLayerNameOne, sLayerNameOne,
                                                        /*isBuffer*/ true, sGameMode);
     surfaceFrame1->setAcquireFenceTime(16);
-    mFrameTimeline->setSfWakeUp(sfToken1, 22, Fps::fromPeriodNsecs(11));
+    mFrameTimeline->setSfWakeUp(sfToken1, 22, RR_11, RR_11);
     surfaceFrame1->setPresentState(SurfaceFrame::PresentState::Presented);
     mFrameTimeline->addSurfaceFrame(surfaceFrame1);
     mFrameTimeline->setSfPresent(26, presentFence1);
@@ -1857,7 +1859,7 @@ TEST_F(FrameTimelineTest, jankClassification_surfaceFrameOnTimeFinishLatePresent
                                                        sLayerNameOne, sLayerNameOne,
                                                        /*isBuffer*/ true, sGameMode);
     surfaceFrame2->setAcquireFenceTime(36);
-    mFrameTimeline->setSfWakeUp(sfToken2, 52, Fps::fromPeriodNsecs(11));
+    mFrameTimeline->setSfWakeUp(sfToken2, 52, RR_11, RR_11);
     surfaceFrame2->setPresentState(SurfaceFrame::PresentState::Presented);
     mFrameTimeline->addSurfaceFrame(surfaceFrame2);
     mFrameTimeline->setSfPresent(57, presentFence2);
@@ -1885,10 +1887,10 @@ TEST_F(FrameTimelineTest, jankClassification_surfaceFrameOnTimeFinishLatePresent
     ::testing::Mock::VerifyAndClearExpectations(mTimeStats.get());
 
     EXPECT_CALL(*mTimeStats,
-                incrementJankyFrames(
-                        TimeStats::JankyFramesInfo{Fps::fromPeriodNsecs(11), std::nullopt, sUidOne,
-                                                   sLayerNameOne, sGameMode,
-                                                   JankType::PredictionError, -3, 5, 0}));
+                incrementJankyFrames(TimeStats::JankyFramesInfo{RR_11, std::nullopt, sUidOne,
+                                                                sLayerNameOne, sGameMode,
+                                                                JankType::PredictionError, -3, 5,
+                                                                0}));
 
     addEmptyDisplayFrame();
 
@@ -1919,7 +1921,7 @@ TEST_F(FrameTimelineTest, jankClassification_surfaceFrameLateFinishEarlyPresent)
                                                        sLayerNameOne, sLayerNameOne,
                                                        /*isBuffer*/ true, sGameMode);
     surfaceFrame1->setAcquireFenceTime(40);
-    mFrameTimeline->setSfWakeUp(sfToken1, 42, Fps::fromPeriodNsecs(11));
+    mFrameTimeline->setSfWakeUp(sfToken1, 42, RR_11, RR_11);
     surfaceFrame1->setPresentState(SurfaceFrame::PresentState::Presented);
     mFrameTimeline->addSurfaceFrame(surfaceFrame1);
     mFrameTimeline->setSfPresent(46, presentFence1);
@@ -1966,7 +1968,7 @@ TEST_F(FrameTimelineTest, jankClassification_surfaceFrameLateFinishLatePresent) 
                                                        sLayerNameOne, sLayerNameOne,
                                                        /*isBuffer*/ true, sGameMode);
     surfaceFrame1->setAcquireFenceTime(26);
-    mFrameTimeline->setSfWakeUp(sfToken1, 32, Fps::fromPeriodNsecs(11));
+    mFrameTimeline->setSfWakeUp(sfToken1, 32, RR_11, RR_11);
     surfaceFrame1->setPresentState(SurfaceFrame::PresentState::Presented);
     mFrameTimeline->addSurfaceFrame(surfaceFrame1);
     mFrameTimeline->setSfPresent(36, presentFence1);
@@ -1989,7 +1991,7 @@ TEST_F(FrameTimelineTest, jankClassification_surfaceFrameLateFinishLatePresent) 
                                                        sLayerNameOne, sLayerNameOne,
                                                        /*isBuffer*/ true, sGameMode);
     surfaceFrame2->setAcquireFenceTime(40);
-    mFrameTimeline->setSfWakeUp(sfToken2, 43, Fps::fromPeriodNsecs(11));
+    mFrameTimeline->setSfWakeUp(sfToken2, 43, RR_11, RR_11);
     surfaceFrame2->setPresentState(SurfaceFrame::PresentState::Presented);
     mFrameTimeline->addSurfaceFrame(surfaceFrame2);
     mFrameTimeline->setSfPresent(56, presentFence2);
@@ -2047,7 +2049,7 @@ TEST_F(FrameTimelineTest, jankClassification_multiJankBufferStuffingAndAppDeadli
                                                        sLayerNameOne, sLayerNameOne,
                                                        /*isBuffer*/ true, sGameMode);
     surfaceFrame1->setAcquireFenceTime(50);
-    mFrameTimeline->setSfWakeUp(sfToken1, 52, Fps::fromPeriodNsecs(30));
+    mFrameTimeline->setSfWakeUp(sfToken1, 52, RR_30, RR_30);
     surfaceFrame1->setPresentState(SurfaceFrame::PresentState::Presented);
     mFrameTimeline->addSurfaceFrame(surfaceFrame1);
     mFrameTimeline->setSfPresent(56, presentFence1);
@@ -2070,7 +2072,7 @@ TEST_F(FrameTimelineTest, jankClassification_multiJankBufferStuffingAndAppDeadli
                                                        sLayerNameOne, sLayerNameOne,
                                                        /*isBuffer*/ true, sGameMode);
     surfaceFrame2->setAcquireFenceTime(84);
-    mFrameTimeline->setSfWakeUp(sfToken2, 112, Fps::fromPeriodNsecs(30));
+    mFrameTimeline->setSfWakeUp(sfToken2, 112, RR_30, RR_30);
     surfaceFrame2->setPresentState(SurfaceFrame::PresentState::Presented, 54);
     mFrameTimeline->addSurfaceFrame(surfaceFrame2);
     mFrameTimeline->setSfPresent(116, presentFence2);
@@ -2131,7 +2133,7 @@ TEST_F(FrameTimelineTest, jankClassification_appDeadlineAdjustedForBufferStuffin
                                                        sLayerNameOne, sLayerNameOne,
                                                        /*isBuffer*/ true, sGameMode);
     surfaceFrame1->setAcquireFenceTime(50);
-    mFrameTimeline->setSfWakeUp(sfToken1, 52, Fps::fromPeriodNsecs(30));
+    mFrameTimeline->setSfWakeUp(sfToken1, 52, RR_30, RR_30);
     surfaceFrame1->setPresentState(SurfaceFrame::PresentState::Presented);
     mFrameTimeline->addSurfaceFrame(surfaceFrame1);
     mFrameTimeline->setSfPresent(56, presentFence1);
@@ -2154,7 +2156,7 @@ TEST_F(FrameTimelineTest, jankClassification_appDeadlineAdjustedForBufferStuffin
                                                        sLayerNameOne, sLayerNameOne,
                                                        /*isBuffer*/ true, sGameMode);
     surfaceFrame2->setAcquireFenceTime(80);
-    mFrameTimeline->setSfWakeUp(sfToken2, 82, Fps::fromPeriodNsecs(30));
+    mFrameTimeline->setSfWakeUp(sfToken2, 82, RR_30, RR_30);
     // Setting previous latch time to 54, adjusted deadline will be 54 + vsyncTime(30) = 84
     surfaceFrame2->setPresentState(SurfaceFrame::PresentState::Presented, 54);
     mFrameTimeline->addSurfaceFrame(surfaceFrame2);
@@ -2206,7 +2208,7 @@ TEST_F(FrameTimelineTest, jankClassification_displayFrameLateFinishLatePresent_G
     int64_t sfToken2 = mTokenManager->generateTokenForPredictions({52, 60, 60});
 
     // Case 1: cpu time = 33 - 12 = 21, vsync period = 11
-    mFrameTimeline->setSfWakeUp(sfToken1, 12, Fps::fromPeriodNsecs(11));
+    mFrameTimeline->setSfWakeUp(sfToken1, 12, RR_11, RR_11);
     mFrameTimeline->setSfPresent(33, presentFence1, gpuFence1);
     auto displayFrame = getDisplayFrame(0);
     gpuFence1->signalForTest(36);
@@ -2225,7 +2227,7 @@ TEST_F(FrameTimelineTest, jankClassification_displayFrameLateFinishLatePresent_G
     EXPECT_EQ(displayFrame->getJankType(), JankType::SurfaceFlingerGpuDeadlineMissed);
 
     // Case 2: No GPU fence so it will not use GPU composition.
-    mFrameTimeline->setSfWakeUp(sfToken2, 52, Fps::fromPeriodNsecs(30));
+    mFrameTimeline->setSfWakeUp(sfToken2, 52, RR_30, RR_30);
     mFrameTimeline->setSfPresent(66, presentFence2);
     auto displayFrame2 = getDisplayFrame(2); // 2 because of previous empty frame
     presentFence2->signalForTest(90);
@@ -2250,13 +2252,13 @@ TEST_F(FrameTimelineTest, jankClassification_presentFenceError) {
     int64_t sfToken2 = mTokenManager->generateTokenForPredictions({52, 60, 60});
     int64_t sfToken3 = mTokenManager->generateTokenForPredictions({72, 80, 80});
 
-    mFrameTimeline->setSfWakeUp(sfToken1, 22, Fps::fromPeriodNsecs(11));
+    mFrameTimeline->setSfWakeUp(sfToken1, 22, RR_11, RR_11);
     mFrameTimeline->setSfPresent(26, erroneousPresentFence1);
 
-    mFrameTimeline->setSfWakeUp(sfToken2, 52, Fps::fromPeriodNsecs(11));
+    mFrameTimeline->setSfWakeUp(sfToken2, 52, RR_11, RR_11);
     mFrameTimeline->setSfPresent(60, erroneousPresentFence2);
 
-    mFrameTimeline->setSfWakeUp(sfToken3, 72, Fps::fromPeriodNsecs(11));
+    mFrameTimeline->setSfWakeUp(sfToken3, 72, RR_11, RR_11);
     mFrameTimeline->setSfPresent(80, validPresentFence);
 
     erroneousPresentFence2->signalForTest(2);
@@ -2478,5 +2480,45 @@ TEST_F(FrameTimelineTest, getMinTime) {
     presentFence->signalForTest(std::chrono::nanoseconds(50ns).count());
     mFrameTimeline->setSfPresent(50, presentFence);
     ASSERT_EQ(surfaceFrame->getBaseTime(), 50);
+}
+
+TEST_F(FrameTimelineTest, surfaceFrameRenderRateUsingDisplayRate) {
+    auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
+    int64_t token1 = mTokenManager->generateTokenForPredictions({10, 20, 30});
+    FrameTimelineInfo ftInfo;
+    ftInfo.vsyncId = token1;
+    ftInfo.inputEventId = sInputEventId;
+    auto surfaceFrame =
+            mFrameTimeline->createSurfaceFrameForToken(ftInfo, sPidOne, sUidOne, sLayerIdOne,
+                                                       sLayerNameOne, sLayerNameOne,
+                                                       /*isBuffer*/ true, sGameMode);
+
+    mFrameTimeline->setSfWakeUp(token1, 20, RR_30, RR_11);
+    surfaceFrame->setPresentState(SurfaceFrame::PresentState::Presented);
+    mFrameTimeline->addSurfaceFrame(surfaceFrame);
+    presentFence1->signalForTest(std::chrono::nanoseconds(50ns).count());
+    mFrameTimeline->setSfPresent(50, presentFence1);
+
+    EXPECT_EQ(surfaceFrame->getRenderRate().getPeriodNsecs(), 11);
+}
+
+TEST_F(FrameTimelineTest, surfaceFrameRenderRateUsingAppFrameRate) {
+    auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
+    int64_t token1 = mTokenManager->generateTokenForPredictions({10, 20, 30});
+    FrameTimelineInfo ftInfo;
+    ftInfo.vsyncId = token1;
+    ftInfo.inputEventId = sInputEventId;
+    auto surfaceFrame =
+            mFrameTimeline->createSurfaceFrameForToken(ftInfo, sPidOne, sUidOne, sLayerIdOne,
+                                                       sLayerNameOne, sLayerNameOne,
+                                                       /*isBuffer*/ true, sGameMode);
+    surfaceFrame->setRenderRate(RR_30);
+    mFrameTimeline->setSfWakeUp(token1, 20, RR_11, RR_11);
+    surfaceFrame->setPresentState(SurfaceFrame::PresentState::Presented);
+    mFrameTimeline->addSurfaceFrame(surfaceFrame);
+    presentFence1->signalForTest(std::chrono::nanoseconds(50ns).count());
+    mFrameTimeline->setSfPresent(50, presentFence1);
+
+    EXPECT_EQ(surfaceFrame->getRenderRate().getPeriodNsecs(), 30);
 }
 } // namespace android::frametimeline

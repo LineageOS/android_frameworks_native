@@ -111,12 +111,14 @@ JankData::JankData()
 status_t JankData::writeToParcel(Parcel* output) const {
     SAFE_PARCEL(output->writeInt64, frameVsyncId);
     SAFE_PARCEL(output->writeInt32, jankType);
+    SAFE_PARCEL(output->writeInt64, frameIntervalNs);
     return NO_ERROR;
 }
 
 status_t JankData::readFromParcel(const Parcel* input) {
     SAFE_PARCEL(input->readInt64, &frameVsyncId);
     SAFE_PARCEL(input->readInt32, &jankType);
+    SAFE_PARCEL(input->readInt64, &frameIntervalNs);
     return NO_ERROR;
 }
 
