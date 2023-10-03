@@ -6596,6 +6596,7 @@ void InputDispatcher::onFocusChangedLocked(const FocusResolver::FocusChanges& ch
         }
     }
     if (changes.newFocus) {
+        resetNoFocusedWindowTimeoutLocked();
         enqueueFocusEventLocked(changes.newFocus, /*hasFocus=*/true, changes.reason);
     }
 
