@@ -14,14 +14,15 @@
 
 //! libbufferstreams: Reactive Streams for Graphics Buffers
 
+pub mod buffers;
 pub mod publishers;
 mod stream_config;
 pub mod subscribers;
 pub mod subscriptions;
 
+use buffers::Buffer;
 pub use stream_config::*;
 
-use nativewindow::*;
 use std::time::Instant;
 
 /// This function will print Hello World.
@@ -158,8 +159,8 @@ pub type BufferError = anyhow::Error;
 
 /// Struct used to contain the buffer.
 pub struct Frame {
-    /// A handle to the C buffer interface.
-    pub buffer: HardwareBuffer,
+    /// A buffer to be used this frame.
+    pub buffer: Buffer,
     /// The time at which the buffer was dispatched.
     pub present_time: Instant,
     /// A fence used for reading/writing safely.
@@ -172,6 +173,8 @@ mod test {
     use super::*;
 
     use anyhow::anyhow;
+    use buffers::Buffer;
+    use nativewindow::{AHardwareBuffer_Format, AHardwareBuffer_UsageFlags};
     use std::borrow::BorrowMut;
     use std::error::Error;
     use std::ops::Add;
@@ -192,9 +195,11 @@ mod test {
 
     fn make_frame() -> Frame {
         Frame {
-            buffer: STREAM_CONFIG
-                .create_hardware_buffer()
-                .expect("Unable to create hardware buffer for test"),
+            buffer: Buffer::new_unowned(
+                STREAM_CONFIG
+                    .create_hardware_buffer()
+                    .expect("Unable to create hardware buffer for test"),
+            ),
             present_time: Instant::now() + Duration::from_secs(1),
             fence: 0,
         }
