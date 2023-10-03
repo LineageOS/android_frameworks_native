@@ -285,6 +285,16 @@ enum {
     // This policy flag prevents key events from changing touch mode state.
     POLICY_FLAG_GESTURE = 0x00000008,
 
+    // Indicates that key usage mapping represents a fallback mapping.
+    // Fallback mappings cannot be used to definitively determine whether a device
+    // supports a key code. For example, a HID device can report a key press
+    // as a HID usage code if it is not mapped to any linux key code in the kernel.
+    // However, we cannot know which HID usage codes that device supports from
+    // userspace through the evdev. We can use fallback mappings to convert HID
+    // usage codes to Android key codes without needing to know if a device can
+    // actually report the usage code.
+    POLICY_FLAG_FALLBACK_USAGE_MAPPING = 0x00000010,
+
     POLICY_FLAG_RAW_MASK = 0x0000ffff,
 
 #ifdef __linux__
