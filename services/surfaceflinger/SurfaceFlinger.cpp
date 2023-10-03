@@ -7443,7 +7443,9 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
                 }
             }
 
-            if (requestedDataspace == ui::Dataspace::UNKNOWN) {
+            // Screenshots leaving the device should be colorimetric
+            if (requestedDataspace == ui::Dataspace::UNKNOWN &&
+                renderArea->getHintForSeamlessTransition()) {
                 renderIntent = state.renderIntent;
             }
         }
@@ -7487,6 +7489,10 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
             }
         }
 
+        // Screenshots leaving the device must not dim in gamma space.
+        const bool dimInGammaSpaceForEnhancedScreenshots = mDimInGammaSpaceForEnhancedScreenshots &&
+                renderArea->getHintForSeamlessTransition();
+
         std::shared_ptr<ScreenCaptureOutput> output = createScreenCaptureOutput(
                 ScreenCaptureOutputArgs{.compositionEngine = *compositionEngine,
                                         .colorProfile = colorProfile,
@@ -7499,7 +7505,7 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
                                         .regionSampling = regionSampling,
                                         .treat170mAsSrgb = mTreat170mAsSrgb,
                                         .dimInGammaSpaceForEnhancedScreenshots =
-                                                mDimInGammaSpaceForEnhancedScreenshots});
+                                                dimInGammaSpaceForEnhancedScreenshots});
 
         const float colorSaturation = grayscale ? 0 : 1;
         compositionengine::CompositionRefreshArgs refreshArgs{
