@@ -93,6 +93,7 @@ cc_test {
         },
     },
     static_libs: [
+        "libflagtest",
         "libc++fs",
         "libgmock",
     ],
