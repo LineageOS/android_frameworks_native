@@ -76,12 +76,12 @@ void trace(const LayerInfo& info, LayerHistory::LayerVoteType type, int fps) {
     ALOGD("%s: %s @ %d Hz", __FUNCTION__, info.getName().c_str(), fps);
 }
 
-LayerHistory::LayerVoteType getVoteType(LayerInfo::FrameRateCompatibility compatibility,
+LayerHistory::LayerVoteType getVoteType(FrameRateCompatibility compatibility,
                                         bool contentDetectionEnabled) {
     LayerHistory::LayerVoteType voteType;
-    if (!contentDetectionEnabled || compatibility == LayerInfo::FrameRateCompatibility::NoVote) {
+    if (!contentDetectionEnabled || compatibility == FrameRateCompatibility::NoVote) {
         voteType = LayerHistory::LayerVoteType::NoVote;
-    } else if (compatibility == LayerInfo::FrameRateCompatibility::Min) {
+    } else if (compatibility == FrameRateCompatibility::Min) {
         voteType = LayerHistory::LayerVoteType::Min;
     } else {
         voteType = LayerHistory::LayerVoteType::Heuristic;
@@ -141,20 +141,20 @@ void LayerHistory::record(int32_t id, const LayerProps& layerProps, nsecs_t pres
     }
 }
 
-void LayerHistory::setDefaultFrameRateCompatibility(Layer* layer, bool contentDetectionEnabled) {
+void LayerHistory::setDefaultFrameRateCompatibility(int32_t id,
+                                                    FrameRateCompatibility frameRateCompatibility,
+                                                    bool contentDetectionEnabled) {
     std::lock_guard lock(mLock);
-    auto id = layer->getSequence();
 
     auto [found, layerPair] = findLayer(id);
     if (found == LayerStatus::NotFound) {
         // Offscreen layer
-        ALOGV("%s: %s not registered", __func__, layer->getName().c_str());
+        ALOGV("%s: %d not registered", __func__, id);
         return;
     }
 
     const auto& info = layerPair->second;
-    info->setDefaultLayerVote(
-            getVoteType(layer->getDefaultFrameRateCompatibility(), contentDetectionEnabled));
+    info->setDefaultLayerVote(getVoteType(frameRateCompatibility, contentDetectionEnabled));
 }
 
 auto LayerHistory::summarize(const RefreshRateSelector& selector, nsecs_t now) -> Summary {

@@ -166,6 +166,7 @@ public:
     MOCK_METHOD(binder::Status, getOverlaySupport, (gui::OverlayProperties*), (override));
     MOCK_METHOD(binder::Status, getStalledTransactionInfo,
                 (int32_t, std::optional<gui::StalledTransactionInfo>*), (override));
+    MOCK_METHOD(binder::Status, getSchedulingPolicy, (gui::SchedulingPolicy*), (override));
 };
 
 class FakeBnSurfaceComposerClient : public gui::BnSurfaceComposerClient {
@@ -186,6 +187,8 @@ public:
 
     MOCK_METHOD(binder::Status, mirrorDisplay,
                 (int64_t displayId, gui::CreateSurfaceResult* outResult), (override));
+
+    MOCK_METHOD(binder::Status, getSchedulingPolicy, (gui::SchedulingPolicy*), (override));
 };
 
 class FakeDisplayEventDispatcher : public DisplayEventDispatcher {

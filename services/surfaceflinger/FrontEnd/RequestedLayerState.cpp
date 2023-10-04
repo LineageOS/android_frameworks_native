@@ -122,8 +122,7 @@ RequestedLayerState::RequestedLayerState(const LayerCreationArgs& args)
     isTrustedOverlay = false;
     dropInputMode = gui::DropInputMode::NONE;
     dimmingEnabled = true;
-    defaultFrameRateCompatibility =
-            static_cast<int8_t>(scheduler::LayerInfo::FrameRateCompatibility::Default);
+    defaultFrameRateCompatibility = static_cast<int8_t>(scheduler::FrameRateCompatibility::Default);
     frameRateCategory = static_cast<int8_t>(FrameRateCategory::Default);
     frameRateSelectionStrategy =
             static_cast<int8_t>(scheduler::LayerInfo::FrameRateSelectionStrategy::Self);

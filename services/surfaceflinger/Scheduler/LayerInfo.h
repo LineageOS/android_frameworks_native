@@ -28,6 +28,7 @@
 #include <scheduler/Fps.h>
 #include <scheduler/Seamlessness.h>
 
+#include "FrameRateCompatibility.h"
 #include "LayerHistory.h"
 #include "RefreshRateSelector.h"
 
@@ -77,24 +78,6 @@ public:
     };
 
     using RefreshRateVotes = ftl::SmallVector<LayerInfo::LayerVote, 2>;
-
-    // FrameRateCompatibility specifies how we should interpret the frame rate associated with
-    // the layer.
-    enum class FrameRateCompatibility {
-        Default, // Layer didn't specify any specific handling strategy
-
-        Min, // Layer needs the minimum frame rate.
-
-        Exact, // Layer needs the exact frame rate.
-
-        ExactOrMultiple, // Layer needs the exact frame rate (or a multiple of it) to present the
-                         // content properly. Any other value will result in a pull down.
-
-        NoVote, // Layer doesn't have any requirements for the refresh rate and
-                // should not be considered when the display refresh rate is determined.
-
-        ftl_last = NoVote
-    };
 
     enum class FrameRateSelectionStrategy {
         Self,

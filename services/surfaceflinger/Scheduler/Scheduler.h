@@ -232,7 +232,7 @@ public:
     void recordLayerHistory(int32_t id, const LayerProps& layerProps, nsecs_t presentTime,
                             LayerHistory::LayerUpdateType) EXCLUDES(mDisplayLock);
     void setModeChangePending(bool pending);
-    void setDefaultFrameRateCompatibility(Layer*);
+    void setDefaultFrameRateCompatibility(int32_t id, scheduler::FrameRateCompatibility);
     void deregisterLayer(Layer*);
     void onLayerDestroyed(Layer*) EXCLUDES(mChoreographerLock);
 

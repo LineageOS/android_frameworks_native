@@ -398,6 +398,15 @@ void LayerSnapshot::merge(const RequestedLayerState& requested, bool forceUpdate
         geomCrop = requested.crop;
     }
 
+    if (forceUpdate || requested.what & layer_state_t::eDefaultFrameRateCompatibilityChanged) {
+        const auto compatibility =
+                Layer::FrameRate::convertCompatibility(requested.defaultFrameRateCompatibility);
+        if (defaultFrameRateCompatibility != compatibility) {
+            clientChanges |= layer_state_t::eDefaultFrameRateCompatibilityChanged;
+        }
+        defaultFrameRateCompatibility = compatibility;
+    }
+
     if (forceUpdate ||
         requested.what &
                 (layer_state_t::eFlagsChanged | layer_state_t::eBufferChanged |

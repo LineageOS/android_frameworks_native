@@ -19,6 +19,7 @@ package android.gui;
 import android.gui.CreateSurfaceResult;
 import android.gui.FrameStats;
 import android.gui.LayerMetadata;
+import android.gui.SchedulingPolicy;
 
 /** @hide */
 interface ISurfaceComposerClient {
@@ -60,4 +61,6 @@ interface ISurfaceComposerClient {
     CreateSurfaceResult mirrorSurface(IBinder mirrorFromHandle);
 
     CreateSurfaceResult mirrorDisplay(long displayId);
+
+    SchedulingPolicy getSchedulingPolicy();
 }

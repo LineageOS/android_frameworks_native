@@ -428,10 +428,12 @@ void DisplayDevice::enableHdrSdrRatioOverlay(bool enable) {
         return;
     }
 
-    mHdrSdrRatioOverlay = std::make_unique<HdrSdrRatioOverlay>();
-    mHdrSdrRatioOverlay->setLayerStack(getLayerStack());
-    mHdrSdrRatioOverlay->setViewport(getSize());
-    updateHdrSdrRatioOverlayRatio(mHdrSdrRatio);
+    mHdrSdrRatioOverlay = HdrSdrRatioOverlay::create();
+    if (mHdrSdrRatioOverlay) {
+        mHdrSdrRatioOverlay->setLayerStack(getLayerStack());
+        mHdrSdrRatioOverlay->setViewport(getSize());
+        updateHdrSdrRatioOverlayRatio(mHdrSdrRatio);
+    }
 }
 
 void DisplayDevice::updateHdrSdrRatioOverlayRatio(float currentHdrSdrRatio) {
@@ -468,11 +470,13 @@ void DisplayDevice::enableRefreshRateOverlay(bool enable, bool setByHwc, bool sh
 
     // TODO(b/296636258) Update to use the render rate range in VRR mode.
     const auto fpsRange = mRefreshRateSelector->getSupportedRefreshRateRange();
-    mRefreshRateOverlay = std::make_unique<RefreshRateOverlay>(fpsRange, features);
-    mRefreshRateOverlay->setLayerStack(getLayerStack());
-    mRefreshRateOverlay->setViewport(getSize());
-    updateRefreshRateOverlayRate(getActiveMode().modePtr->getVsyncRate(), getActiveMode().fps,
-                                 setByHwc);
+    mRefreshRateOverlay = RefreshRateOverlay::create(fpsRange, features);
+    if (mRefreshRateOverlay) {
+        mRefreshRateOverlay->setLayerStack(getLayerStack());
+        mRefreshRateOverlay->setViewport(getSize());
+        updateRefreshRateOverlayRate(getActiveMode().modePtr->getVsyncRate(), getActiveMode().fps,
+                                     setByHwc);
+    }
 }
 
 void DisplayDevice::updateRefreshRateOverlayRate(Fps vsyncRate, Fps renderFps, bool setByHwc) {

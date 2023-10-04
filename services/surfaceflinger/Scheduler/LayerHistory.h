@@ -29,6 +29,7 @@
 
 #include "EventThread.h"
 
+#include "FrameRateCompatibility.h"
 #include "RefreshRateSelector.h"
 
 namespace android {
@@ -70,7 +71,8 @@ public:
 
     // Updates the default frame rate compatibility which takes effect when the app
     // does not set a preference for refresh rate.
-    void setDefaultFrameRateCompatibility(Layer*, bool contentDetectionEnabled);
+    void setDefaultFrameRateCompatibility(int32_t id, FrameRateCompatibility frameRateCompatibility,
+                                          bool contentDetectionEnabled);
 
     using Summary = std::vector<RefreshRateSelector::LayerRequirement>;
 

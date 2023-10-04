@@ -138,7 +138,20 @@ void RefreshRateOverlay::drawNumber(int number, int left, SkColor color, SkCanva
     SegmentDrawer::drawDigit(number % 10, left, color, canvas);
 }
 
-RefreshRateOverlay::RefreshRateOverlay(FpsRange fpsRange, ftl::Flags<Features> features)
+std::unique_ptr<RefreshRateOverlay> RefreshRateOverlay::create(FpsRange range,
+                                                               ftl::Flags<Features> features) {
+    std::unique_ptr<RefreshRateOverlay> overlay =
+            std::make_unique<RefreshRateOverlay>(ConstructorTag{}, range, features);
+    if (overlay->initCheck()) {
+        return overlay;
+    }
+
+    ALOGE("%s: Failed to create RefreshRateOverlay", __func__);
+    return {};
+}
+
+RefreshRateOverlay::RefreshRateOverlay(ConstructorTag, FpsRange fpsRange,
+                                       ftl::Flags<Features> features)
       : mFpsRange(fpsRange),
         mFeatures(features),
         mSurfaceControl(
@@ -152,6 +165,10 @@ RefreshRateOverlay::RefreshRateOverlay(FpsRange fpsRange, ftl::Flags<Features> f
             .setLayer(mSurfaceControl->get(), INT32_MAX - 2)
             .setTrustedOverlay(mSurfaceControl->get(), true)
             .apply();
+}
+
+bool RefreshRateOverlay::initCheck() const {
+    return mSurfaceControl != nullptr;
 }
 
 auto RefreshRateOverlay::getOrCreateBuffers(Fps vsyncRate, Fps renderFps) -> const Buffers& {

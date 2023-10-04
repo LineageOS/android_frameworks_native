@@ -666,7 +666,7 @@ void LayerSnapshotBuilder::updateFrameRateFromChildSnapshot(LayerSnapshot& snaps
         return;
     }
 
-    using FrameRateCompatibility = scheduler::LayerInfo::FrameRateCompatibility;
+    using FrameRateCompatibility = scheduler::FrameRateCompatibility;
     if (snapshot.frameRate.isValid()) {
         // we already have a valid framerate.
         return;
