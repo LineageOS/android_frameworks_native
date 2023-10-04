@@ -36,6 +36,9 @@
   "hwasan-presubmit": [
     {
       "name": "libscheduler_test"
+    },
+    {
+      "name": "libsurfaceflinger_unittest"
     }
   ]
 }
