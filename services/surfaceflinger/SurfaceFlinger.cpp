@@ -2211,8 +2211,29 @@ void SurfaceFlinger::updateLayerHistory(nsecs_t now) {
             continue;
         }
 
-        if (!snapshot->changes.any(Changes::FrameRate | Changes::Buffer | Changes::Animation) &&
-            (snapshot->clientChanges & layer_state_t::eDefaultFrameRateCompatibilityChanged) == 0) {
+        const bool updateSmallDirty = mScheduler->supportSmallDirtyDetection() &&
+                ((snapshot->clientChanges & layer_state_t::eSurfaceDamageRegionChanged) ||
+                 snapshot->changes.any(Changes::Geometry));
+
+        const bool hasChanges =
+                snapshot->changes.any(Changes::FrameRate | Changes::Buffer | Changes::Animation) ||
+                (snapshot->clientChanges & layer_state_t::eDefaultFrameRateCompatibilityChanged) !=
+                        0;
+
+        if (!updateSmallDirty && !hasChanges) {
+            continue;
+        }
+
+        auto it = mLegacyLayers.find(snapshot->sequence);
+        LOG_ALWAYS_FATAL_IF(it == mLegacyLayers.end(), "Couldn't find layer object for %s",
+                            snapshot->getDebugString().c_str());
+
+        if (updateSmallDirty) {
+            // Update small dirty flag while surface damage region or geometry changed
+            it->second->setIsSmallDirty(snapshot.get());
+        }
+
+        if (!hasChanges) {
             continue;
         }
 
@@ -2222,11 +2243,8 @@ void SurfaceFlinger::updateLayerHistory(nsecs_t now) {
                 .transform = snapshot->geomLayerTransform,
                 .setFrameRateVote = snapshot->frameRate,
                 .frameRateSelectionPriority = snapshot->frameRateSelectionPriority,
+                .isSmallDirty = snapshot->isSmallDirty,
         };
-
-        auto it = mLegacyLayers.find(snapshot->sequence);
-        LOG_ALWAYS_FATAL_IF(it == mLegacyLayers.end(), "Couldnt find layer object for %s",
-                            snapshot->getDebugString().c_str());
 
         if (snapshot->clientChanges & layer_state_t::eDefaultFrameRateCompatibilityChanged) {
             mScheduler->setDefaultFrameRateCompatibility(snapshot->sequence,
@@ -8492,15 +8510,6 @@ void SurfaceFlinger::sample() {
 void SurfaceFlinger::onActiveDisplaySizeChanged(const DisplayDevice& activeDisplay) {
     mScheduler->onActiveDisplayAreaChanged(activeDisplay.getWidth() * activeDisplay.getHeight());
     getRenderEngine().onActiveDisplaySizeChanged(activeDisplay.getSize());
-
-    // Notify layers to update small dirty flag.
-    if (mScheduler->supportSmallDirtyDetection()) {
-        mCurrentState.traverse([&](Layer* layer) {
-            if (layer->getLayerStack() == activeDisplay.getLayerStack()) {
-                layer->setIsSmallDirty();
-            }
-        });
-    }
 }
 
 sp<DisplayDevice> SurfaceFlinger::getActivatableDisplay() const {

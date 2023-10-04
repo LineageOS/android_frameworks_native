@@ -937,7 +937,8 @@ public:
     const sp<SurfaceFlinger> mFlinger;
 
     // Check if the damage region is a small dirty.
-    void setIsSmallDirty();
+    void setIsSmallDirty(const Region& damageRegion, const ui::Transform& layerToDisplayTransform);
+    void setIsSmallDirty(frontend::LayerSnapshot* snapshot);
 
 protected:
     // For unit tests

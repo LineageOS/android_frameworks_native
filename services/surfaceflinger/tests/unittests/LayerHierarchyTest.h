@@ -421,6 +421,17 @@ protected:
         mLifecycleManager.applyTransactions(transactions);
     }
 
+    void setDamageRegion(uint32_t id, const Region& damageRegion) {
+        std::vector<TransactionState> transactions;
+        transactions.emplace_back();
+        transactions.back().states.push_back({});
+
+        transactions.back().states.front().state.what = layer_state_t::eSurfaceDamageRegionChanged;
+        transactions.back().states.front().layerId = id;
+        transactions.back().states.front().state.surfaceDamageRegion = damageRegion;
+        mLifecycleManager.applyTransactions(transactions);
+    }
+
     void setDataspace(uint32_t id, ui::Dataspace dataspace) {
         std::vector<TransactionState> transactions;
         transactions.emplace_back();
@@ -429,6 +440,19 @@ protected:
         transactions.back().states.front().state.what = layer_state_t::eDataspaceChanged;
         transactions.back().states.front().layerId = id;
         transactions.back().states.front().state.dataspace = dataspace;
+        mLifecycleManager.applyTransactions(transactions);
+    }
+
+    void setMatrix(uint32_t id, float dsdx, float dtdx, float dtdy, float dsdy) {
+        layer_state_t::matrix22_t matrix{dsdx, dtdx, dtdy, dsdy};
+
+        std::vector<TransactionState> transactions;
+        transactions.emplace_back();
+        transactions.back().states.push_back({});
+
+        transactions.back().states.front().state.what = layer_state_t::eMatrixChanged;
+        transactions.back().states.front().layerId = id;
+        transactions.back().states.front().state.matrix = matrix;
         mLifecycleManager.applyTransactions(transactions);
     }
 

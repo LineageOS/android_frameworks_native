@@ -3369,7 +3369,7 @@ bool Layer::setSurfaceDamageRegion(const Region& surfaceDamage) {
     mDrawingState.surfaceDamageRegion = surfaceDamage;
     mDrawingState.modified = true;
     setTransactionFlags(eTransactionNeeded);
-    setIsSmallDirty();
+    setIsSmallDirty(surfaceDamage, getTransform());
     return true;
 }
 
@@ -4416,7 +4416,9 @@ void Layer::updateLastLatchTime(nsecs_t latchTime) {
     mLastLatchTime = latchTime;
 }
 
-void Layer::setIsSmallDirty() {
+void Layer::setIsSmallDirty(const Region& damageRegion,
+                            const ui::Transform& layerToDisplayTransform) {
+    mSmallDirty = false;
     if (!mFlinger->mScheduler->supportSmallDirtyDetection()) {
         return;
     }
@@ -4425,15 +4427,24 @@ void Layer::setIsSmallDirty() {
         mWindowType != WindowInfo::Type::BASE_APPLICATION) {
         return;
     }
-    Rect bounds = mDrawingState.surfaceDamageRegion.getBounds();
+
+    Rect bounds = damageRegion.getBounds();
     if (!bounds.isValid()) {
         return;
     }
+
+    // Transform to screen space.
+    bounds = layerToDisplayTransform.transform(bounds);
 
     // If the damage region is a small dirty, this could give the hint for the layer history that
     // it could suppress the heuristic rate when calculating.
     mSmallDirty = mFlinger->mScheduler->isSmallDirtyArea(mOwnerAppId,
                                                          bounds.getWidth() * bounds.getHeight());
+}
+
+void Layer::setIsSmallDirty(frontend::LayerSnapshot* snapshot) {
+    setIsSmallDirty(snapshot->surfaceDamage, snapshot->localTransform);
+    snapshot->isSmallDirty = mSmallDirty;
 }
 
 } // namespace android
