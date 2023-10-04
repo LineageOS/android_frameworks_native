@@ -1456,6 +1456,7 @@ VkResult CreateDevice(VkPhysicalDevice physicalDevice,
     }
 
     data->driver_device = dev;
+    data->driver_physical_device = physicalDevice;
 
     *pDevice = dev;
 
