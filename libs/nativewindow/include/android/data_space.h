@@ -81,11 +81,12 @@ enum ADataSpace {
     STANDARD_UNSPECIFIED = 0 << 16,
 
     /**
+     * <pre>
      * Primaries:       x       y
      *  green           0.300   0.600
      *  blue            0.150   0.060
      *  red             0.640   0.330
-     *  white (D65)     0.3127  0.3290
+     *  white (D65)     0.3127  0.3290</pre>
      *
      * Use the unadjusted KR = 0.2126, KB = 0.0722 luminance interpretation
      * for RGB conversion.
@@ -93,11 +94,12 @@ enum ADataSpace {
     STANDARD_BT709 = 1 << 16,
 
     /**
+     * <pre>
      * Primaries:       x       y
      *  green           0.290   0.600
      *  blue            0.150   0.060
      *  red             0.640   0.330
-     *  white (D65)     0.3127  0.3290
+     *  white (D65)     0.3127  0.3290</pre>
      *
      *  KR = 0.299, KB = 0.114. This adjusts the luminance interpretation
      *  for RGB conversion from the one purely determined by the primaries
@@ -107,11 +109,12 @@ enum ADataSpace {
     STANDARD_BT601_625 = 2 << 16,
 
     /**
+     * <pre>
      * Primaries:       x       y
      *  green           0.290   0.600
      *  blue            0.150   0.060
      *  red             0.640   0.330
-     *  white (D65)     0.3127  0.3290
+     *  white (D65)     0.3127  0.3290</pre>
      *
      * Use the unadjusted KR = 0.222, KB = 0.071 luminance interpretation
      * for RGB conversion.
@@ -119,11 +122,12 @@ enum ADataSpace {
     STANDARD_BT601_625_UNADJUSTED = 3 << 16,
 
     /**
+     * <pre>
      * Primaries:       x       y
      *  green           0.310   0.595
      *  blue            0.155   0.070
      *  red             0.630   0.340
-     *  white (D65)     0.3127  0.3290
+     *  white (D65)     0.3127  0.3290</pre>
      *
      *  KR = 0.299, KB = 0.114. This adjusts the luminance interpretation
      *  for RGB conversion from the one purely determined by the primaries
@@ -133,11 +137,12 @@ enum ADataSpace {
     STANDARD_BT601_525 = 4 << 16,
 
     /**
+     * <pre>
      * Primaries:       x       y
      *  green           0.310   0.595
      *  blue            0.155   0.070
      *  red             0.630   0.340
-     *  white (D65)     0.3127  0.3290
+     *  white (D65)     0.3127  0.3290</pre>
      *
      * Use the unadjusted KR = 0.212, KB = 0.087 luminance interpretation
      * for RGB conversion (as in SMPTE 240M).
@@ -145,11 +150,12 @@ enum ADataSpace {
     STANDARD_BT601_525_UNADJUSTED = 5 << 16,
 
     /**
+     * <pre>
      * Primaries:       x       y
      *  green           0.170   0.797
      *  blue            0.131   0.046
      *  red             0.708   0.292
-     *  white (D65)     0.3127  0.3290
+     *  white (D65)     0.3127  0.3290</pre>
      *
      * Use the unadjusted KR = 0.2627, KB = 0.0593 luminance interpretation
      * for RGB conversion.
@@ -157,11 +163,12 @@ enum ADataSpace {
     STANDARD_BT2020 = 6 << 16,
 
     /**
+     * <pre>
      * Primaries:       x       y
      *  green           0.170   0.797
      *  blue            0.131   0.046
      *  red             0.708   0.292
-     *  white (D65)     0.3127  0.3290
+     *  white (D65)     0.3127  0.3290</pre>
      *
      * Use the unadjusted KR = 0.2627, KB = 0.0593 luminance interpretation
      * for RGB conversion using the linear domain.
@@ -169,11 +176,12 @@ enum ADataSpace {
     STANDARD_BT2020_CONSTANT_LUMINANCE = 7 << 16,
 
     /**
+     * <pre>
      * Primaries:       x      y
      *  green           0.21   0.71
      *  blue            0.14   0.08
      *  red             0.67   0.33
-     *  white (C)       0.310  0.316
+     *  white (C)       0.310  0.316</pre>
      *
      * Use the unadjusted KR = 0.30, KB = 0.11 luminance interpretation
      * for RGB conversion.
@@ -181,11 +189,12 @@ enum ADataSpace {
     STANDARD_BT470M = 8 << 16,
 
     /**
+     * <pre>
      * Primaries:       x       y
      *  green           0.243   0.692
      *  blue            0.145   0.049
      *  red             0.681   0.319
-     *  white (C)       0.310   0.316
+     *  white (C)       0.310   0.316</pre>
      *
      * Use the unadjusted KR = 0.254, KB = 0.068 luminance interpretation
      * for RGB conversion.
@@ -194,21 +203,23 @@ enum ADataSpace {
 
     /**
      * SMPTE EG 432-1 and SMPTE RP 431-2. (DCI-P3)
+     * <pre>
      * Primaries:       x       y
      *  green           0.265   0.690
      *  blue            0.150   0.060
      *  red             0.680   0.320
-     *  white (D65)     0.3127  0.3290
+     *  white (D65)     0.3127  0.3290</pre>
      */
     STANDARD_DCI_P3 = 10 << 16,
 
     /**
      * Adobe RGB
+     * <pre>
      * Primaries:       x       y
      *  green           0.210   0.710
      *  blue            0.150   0.060
      *  red             0.640   0.330
-     *  white (D65)     0.3127  0.3290
+     *  white (D65)     0.3127  0.3290</pre>
      */
     STANDARD_ADOBE_RGB = 11 << 16,
 
@@ -242,83 +253,86 @@ enum ADataSpace {
     TRANSFER_UNSPECIFIED = 0 << 22,
 
     /**
+     * Linear transfer.
+     * <pre>
      * Transfer characteristic curve:
-     *  E = L
-     *      L - luminance of image 0 <= L <= 1 for conventional colorimetry
-     *      E - corresponding electrical signal
+     * E = L
+     *     L - luminance of image 0 <= L <= 1 for conventional colorimetry
+     *     E - corresponding electrical signal</pre>
      */
     TRANSFER_LINEAR = 1 << 22,
 
     /**
+     * sRGB transfer.
+     * <pre>
      * Transfer characteristic curve:
-     *
      * E = 1.055 * L^(1/2.4) - 0.055  for 0.0031308 <= L <= 1
      *   = 12.92 * L                  for 0 <= L < 0.0031308
      *     L - luminance of image 0 <= L <= 1 for conventional colorimetry
-     *     E - corresponding electrical signal
+     *     E - corresponding electrical signal</pre>
      */
     TRANSFER_SRGB = 2 << 22,
 
     /**
-     * BT.601 525, BT.601 625, BT.709, BT.2020
-     *
+     * SMPTE 170M transfer.
+     * <pre>
      * Transfer characteristic curve:
-     *  E = 1.099 * L ^ 0.45 - 0.099  for 0.018 <= L <= 1
-     *    = 4.500 * L                 for 0 <= L < 0.018
-     *      L - luminance of image 0 <= L <= 1 for conventional colorimetry
-     *      E - corresponding electrical signal
+     * E = 1.099 * L ^ 0.45 - 0.099  for 0.018 <= L <= 1
+     *   = 4.500 * L                 for 0 <= L < 0.018
+     *     L - luminance of image 0 <= L <= 1 for conventional colorimetry
+     *     E - corresponding electrical signal</pre>
      */
     TRANSFER_SMPTE_170M = 3 << 22,
 
     /**
-     * Assumed display gamma 2.2.
-     *
+     * Display gamma 2.2.
+     * <pre>
      * Transfer characteristic curve:
-     *  E = L ^ (1/2.2)
-     *      L - luminance of image 0 <= L <= 1 for conventional colorimetry
-     *      E - corresponding electrical signal
+     * E = L ^ (1/2.2)
+     *     L - luminance of image 0 <= L <= 1 for conventional colorimetry
+     *     E - corresponding electrical signal</pre>
      */
     TRANSFER_GAMMA2_2 = 4 << 22,
 
     /**
-     *  display gamma 2.6.
-     *
+     * Display gamma 2.6.
+     * <pre>
      * Transfer characteristic curve:
-     *  E = L ^ (1/2.6)
-     *      L - luminance of image 0 <= L <= 1 for conventional colorimetry
-     *      E - corresponding electrical signal
+     * E = L ^ (1/2.6)
+     *     L - luminance of image 0 <= L <= 1 for conventional colorimetry
+     *     E - corresponding electrical signal</pre>
      */
     TRANSFER_GAMMA2_6 = 5 << 22,
 
     /**
-     *  display gamma 2.8.
-     *
+     * Display gamma 2.8.
+     * <pre>
      * Transfer characteristic curve:
-     *  E = L ^ (1/2.8)
-     *      L - luminance of image 0 <= L <= 1 for conventional colorimetry
-     *      E - corresponding electrical signal
+     * E = L ^ (1/2.8)
+     *     L - luminance of image 0 <= L <= 1 for conventional colorimetry
+     *     E - corresponding electrical signal</pre>
      */
     TRANSFER_GAMMA2_8 = 6 << 22,
 
     /**
-     * SMPTE ST 2084 (Dolby Perceptual Quantizer)
-     *
+     * SMPTE ST 2084 (Dolby Perceptual Quantizer).
+     * <pre>
      * Transfer characteristic curve:
-     *  E = ((c1 + c2 * L^n) / (1 + c3 * L^n)) ^ m
-     *  c1 = c3 - c2 + 1 = 3424 / 4096 = 0.8359375
-     *  c2 = 32 * 2413 / 4096 = 18.8515625
-     *  c3 = 32 * 2392 / 4096 = 18.6875
-     *  m = 128 * 2523 / 4096 = 78.84375
-     *  n = 0.25 * 2610 / 4096 = 0.1593017578125
-     *      L - luminance of image 0 <= L <= 1 for HDR colorimetry.
-     *          L = 1 corresponds to 10000 cd/m2
-     *      E - corresponding electrical signal
+     * E = ((c1 + c2 * L^n) / (1 + c3 * L^n)) ^ m
+     * c1 = c3 - c2 + 1 = 3424 / 4096 = 0.8359375
+     * c2 = 32 * 2413 / 4096 = 18.8515625
+     * c3 = 32 * 2392 / 4096 = 18.6875
+     * m = 128 * 2523 / 4096 = 78.84375
+     * n = 0.25 * 2610 / 4096 = 0.1593017578125
+     *     L - luminance of image 0 <= L <= 1 for HDR colorimetry.
+     *         L = 1 corresponds to 10000 cd/m2
+     *     E - corresponding electrical signal</pre>
      */
     TRANSFER_ST2084 = 7 << 22,
 
     /**
-     * ARIB STD-B67 Hybrid Log Gamma
-     *
+     * ARIB STD-B67 Hybrid Log Gamma.
+     * <pre>
      * Transfer characteristic curve:
      *  E = r * L^0.5                 for 0 <= L <= 1
      *    = a * ln(L - b) + c         for 1 < L
@@ -328,7 +342,7 @@ enum ADataSpace {
      *  r = 0.5
      *      L - luminance of image 0 <= L for HDR colorimetry. L = 1 corresponds
      *          to reference white level of 100 cd/m2
-     *      E - corresponding electrical signal
+     *      E - corresponding electrical signal</pre>
      */
     TRANSFER_HLG = 8 << 22,
 
