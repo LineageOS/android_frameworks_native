@@ -184,6 +184,18 @@ MATCHER_P2(WithCoords, x, y, "MotionEvent with specified coordinates") {
     return receivedX == x && receivedY == y;
 }
 
+MATCHER_P2(WithRawCoords, x, y, "MotionEvent with specified raw coordinates") {
+    if (arg.getPointerCount() != 1) {
+        *result_listener << "Expected 1 pointer, got " << arg.getPointerCount();
+        return false;
+    }
+    const float receivedX = arg.getRawX(/*pointerIndex=*/0);
+    const float receivedY = arg.getRawY(/*pointerIndex=*/0);
+    *result_listener << "expected raw coords (" << x << ", " << y << "), but got (" << receivedX
+                     << ", " << receivedY << ")";
+    return receivedX == x && receivedY == y;
+}
+
 MATCHER_P(WithPointerCount, pointerCount, "MotionEvent with specified number of pointers") {
     *result_listener << "expected pointerCount " << pointerCount << ", but got "
                      << arg.getPointerCount();
@@ -4712,6 +4724,43 @@ TEST_F(InputDispatcherDisplayProjectionTest, SynthesizeDownWithCorrectCoordinate
     mDispatcher->transferTouchFocus(firstWindow->getToken(), secondWindow->getToken());
     firstWindow->consumeMotionEvent(AllOf(WithMotionAction(ACTION_CANCEL), WithCoords(100, 400)));
     secondWindow->consumeMotionEvent(AllOf(WithMotionAction(ACTION_DOWN), WithCoords(-100, -400)));
+}
+
+TEST_F(InputDispatcherDisplayProjectionTest, SynthesizeHoverEnterExitWithCorrectCoordinates) {
+    auto [firstWindow, secondWindow] = setupScaledDisplayScenario();
+
+    // Send hover move to the second window, and ensure it shows up as hover enter.
+    mDispatcher->notifyMotion(generateMotionArgs(ACTION_HOVER_MOVE, AINPUT_SOURCE_STYLUS,
+                                                 ADISPLAY_ID_DEFAULT, {PointF{150, 220}}));
+    secondWindow->consumeMotionEvent(AllOf(WithMotionAction(ACTION_HOVER_ENTER),
+                                           WithCoords(100, 80), WithRawCoords(300, 880)));
+
+    // Touch down at the same location and ensure a hover exit is synthesized.
+    mDispatcher->notifyMotion(generateMotionArgs(ACTION_DOWN, AINPUT_SOURCE_STYLUS,
+                                                 ADISPLAY_ID_DEFAULT, {PointF{150, 220}}));
+    secondWindow->consumeMotionEvent(AllOf(WithMotionAction(ACTION_HOVER_EXIT), WithCoords(100, 80),
+                                           WithRawCoords(300, 880)));
+    secondWindow->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_DOWN), WithCoords(100, 80), WithRawCoords(300, 880)));
+    secondWindow->assertNoEvents();
+    firstWindow->assertNoEvents();
+}
+
+TEST_F(InputDispatcherDisplayProjectionTest, SynthesizeHoverCancelationWithCorrectCoordinates) {
+    auto [firstWindow, secondWindow] = setupScaledDisplayScenario();
+
+    // Send hover enter to second window
+    mDispatcher->notifyMotion(generateMotionArgs(ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS,
+                                                 ADISPLAY_ID_DEFAULT, {PointF{150, 220}}));
+    secondWindow->consumeMotionEvent(AllOf(WithMotionAction(ACTION_HOVER_ENTER),
+                                           WithCoords(100, 80), WithRawCoords(300, 880)));
+
+    mDispatcher->cancelCurrentTouch();
+
+    secondWindow->consumeMotionEvent(AllOf(WithMotionAction(ACTION_HOVER_EXIT), WithCoords(100, 80),
+                                           WithRawCoords(300, 880)));
+    secondWindow->assertNoEvents();
+    firstWindow->assertNoEvents();
 }
 
 /** Ensure consistent behavior of InputDispatcher in all orientations. */
