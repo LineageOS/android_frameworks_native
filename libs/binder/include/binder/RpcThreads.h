@@ -19,6 +19,7 @@
 
 #include <android-base/threads.h>
 
+#include <condition_variable>
 #include <functional>
 #include <memory>
 #include <thread>
