@@ -31,10 +31,13 @@
 #include <gui/test/CallbackUtils.h>
 #include <private/gui/ComposerService.h>
 #include <private/gui/ComposerServiceAIDL.h>
+#include <tests/utils/ScreenshotUtils.h>
 #include <ui/DisplayMode.h>
 #include <ui/DisplayState.h>
 #include <ui/GraphicBuffer.h>
 #include <ui/GraphicTypes.h>
+#include <ui/Rect.h>
+#include <ui/Size.h>
 #include <ui/Transform.h>
 
 #include <gtest/gtest.h>
@@ -197,18 +200,23 @@ protected:
         ALOGD("Display: %dx%d orientation:%d", mDisplayWidth, mDisplayHeight,
               displayState.orientation);
 
+        mRootSurfaceControl = mClient->createSurface(String8("RootTestSurface"), mDisplayWidth,
+                                                     mDisplayHeight, PIXEL_FORMAT_RGBA_8888,
+                                                     ISurfaceComposerClient::eFXSurfaceBufferState,
+                                                     /*parent*/ nullptr);
+
+        t.setLayerStack(mRootSurfaceControl, ui::DEFAULT_LAYER_STACK)
+                .setLayer(mRootSurfaceControl, std::numeric_limits<int32_t>::max())
+                .show(mRootSurfaceControl)
+                .apply();
+
         mSurfaceControl = mClient->createSurface(String8("TestSurface"), mDisplayWidth,
                                                  mDisplayHeight, PIXEL_FORMAT_RGBA_8888,
                                                  ISurfaceComposerClient::eFXSurfaceBufferState,
-                                                 /*parent*/ nullptr);
-        t.setLayerStack(mSurfaceControl, ui::DEFAULT_LAYER_STACK)
-                .setLayer(mSurfaceControl, std::numeric_limits<int32_t>::max())
-                .show(mSurfaceControl)
-                .setDataspace(mSurfaceControl, ui::Dataspace::V0_SRGB)
-                .apply();
+                                                 /*parent*/ mRootSurfaceControl->getHandle());
 
-        mCaptureArgs.displayToken = mDisplayToken;
-        mCaptureArgs.dataspace = ui::Dataspace::V0_SRGB;
+        mCaptureArgs.sourceCrop = Rect(ui::Size(mDisplayWidth, mDisplayHeight));
+        mCaptureArgs.layerHandle = mRootSurfaceControl->getHandle();
     }
 
     void setUpProducer(BLASTBufferQueueHelper& adapter, sp<IGraphicBufferProducer>& producer,
@@ -295,21 +303,6 @@ protected:
         captureBuf->unlock();
     }
 
-    static status_t captureDisplay(DisplayCaptureArgs& captureArgs,
-                                   ScreenCaptureResults& captureResults) {
-        const auto sf = ComposerServiceAIDL::getComposerService();
-        SurfaceComposerClient::Transaction().apply(true);
-
-        const sp<SyncScreenCaptureListener> captureListener = new SyncScreenCaptureListener();
-        binder::Status status = sf->captureDisplay(captureArgs, captureListener);
-        status_t err = gui::aidl_utils::statusTFromBinderStatus(status);
-        if (err != NO_ERROR) {
-            return err;
-        }
-        captureResults = captureListener->waitForResults();
-        return fenceStatus(captureResults.fenceResult);
-    }
-
     void queueBuffer(sp<IGraphicBufferProducer> igbp, uint8_t r, uint8_t g, uint8_t b,
                      nsecs_t presentTimeDelay) {
         int slot;
@@ -342,11 +335,12 @@ protected:
     sp<IBinder> mDisplayToken;
 
     sp<SurfaceControl> mSurfaceControl;
+    sp<SurfaceControl> mRootSurfaceControl;
 
     uint32_t mDisplayWidth;
     uint32_t mDisplayHeight;
 
-    DisplayCaptureArgs mCaptureArgs;
+    LayerCaptureArgs mCaptureArgs;
     ScreenCaptureResults mCaptureResults;
     sp<CountProducerListener> mProducerListener;
 };
@@ -364,7 +358,9 @@ TEST_F(BLASTBufferQueueTest, Update) {
     BLASTBufferQueueHelper adapter(mSurfaceControl, mDisplayWidth, mDisplayHeight);
     sp<SurfaceControl> updateSurface =
             mClient->createSurface(String8("UpdateTest"), mDisplayWidth / 2, mDisplayHeight / 2,
-                                   PIXEL_FORMAT_RGBA_8888);
+                                   PIXEL_FORMAT_RGBA_8888,
+                                   ISurfaceComposerClient::eFXSurfaceBufferState,
+                                   /*parent*/ mRootSurfaceControl->getHandle());
     adapter.update(updateSurface, mDisplayWidth / 2, mDisplayHeight / 2);
     ASSERT_EQ(updateSurface, adapter.getSurfaceControl());
     sp<IGraphicBufferProducer> igbProducer;
@@ -451,7 +447,7 @@ TEST_F(BLASTBufferQueueTest, onFrameAvailable_Apply) {
     Transaction().apply(true /* synchronous */);
 
     // capture screen and verify that it is red
-    ASSERT_EQ(NO_ERROR, captureDisplay(mCaptureArgs, mCaptureResults));
+    ASSERT_EQ(NO_ERROR, ScreenCapture::captureLayers(mCaptureArgs, mCaptureResults));
     ASSERT_NO_FATAL_FAILURE(
             checkScreenCapture(r, g, b, {0, 0, (int32_t)mDisplayWidth, (int32_t)mDisplayHeight}));
 }
@@ -536,7 +532,7 @@ TEST_F(BLASTBufferQueueTest, SetCrop_Item) {
     Transaction().apply(true /* synchronous */);
 
     // capture screen and verify that it is red
-    ASSERT_EQ(NO_ERROR, captureDisplay(mCaptureArgs, mCaptureResults));
+    ASSERT_EQ(NO_ERROR, ScreenCapture::captureLayers(mCaptureArgs, mCaptureResults));
 
     ASSERT_NO_FATAL_FAILURE(
             checkScreenCapture(r, g, b,
@@ -551,16 +547,6 @@ TEST_F(BLASTBufferQueueTest, SetCrop_ScalingModeScaleCrop) {
     int32_t bufferSideLength =
             (mDisplayWidth < mDisplayHeight) ? mDisplayWidth / 2 : mDisplayHeight / 2;
     int32_t finalCropSideLength = bufferSideLength / 2;
-
-    auto bg = mClient->createSurface(String8("BGTest"), 0, 0, PIXEL_FORMAT_RGBA_8888,
-                                     ISurfaceComposerClient::eFXSurfaceEffect);
-    ASSERT_NE(nullptr, bg.get());
-    Transaction t;
-    t.setLayerStack(bg, ui::DEFAULT_LAYER_STACK)
-            .setCrop(bg, Rect(0, 0, mDisplayWidth, mDisplayHeight))
-            .setColor(bg, half3{0, 0, 0})
-            .setLayer(bg, 0)
-            .apply();
 
     BLASTBufferQueueHelper adapter(mSurfaceControl, bufferSideLength, bufferSideLength);
     sp<IGraphicBufferProducer> igbProducer;
@@ -597,7 +583,7 @@ TEST_F(BLASTBufferQueueTest, SetCrop_ScalingModeScaleCrop) {
     Transaction().apply(true /* synchronous */);
 
     // capture screen and verify that it is red
-    ASSERT_EQ(NO_ERROR, captureDisplay(mCaptureArgs, mCaptureResults));
+    ASSERT_EQ(NO_ERROR, ScreenCapture::captureLayers(mCaptureArgs, mCaptureResults));
     ASSERT_NO_FATAL_FAILURE(checkScreenCapture(r, g, b,
                                                {10, 10, (int32_t)bufferSideLength - 10,
                                                 (int32_t)bufferSideLength - 10}));
@@ -608,17 +594,6 @@ TEST_F(BLASTBufferQueueTest, SetCrop_ScalingModeScaleCrop) {
 }
 
 TEST_F(BLASTBufferQueueTest, ScaleCroppedBufferToBufferSize) {
-    // add black background
-    auto bg = mClient->createSurface(String8("BGTest"), 0, 0, PIXEL_FORMAT_RGBA_8888,
-                                     ISurfaceComposerClient::eFXSurfaceEffect);
-    ASSERT_NE(nullptr, bg.get());
-    Transaction t;
-    t.setLayerStack(bg, ui::DEFAULT_LAYER_STACK)
-            .setCrop(bg, Rect(0, 0, mDisplayWidth, mDisplayHeight))
-            .setColor(bg, half3{0, 0, 0})
-            .setLayer(bg, 0)
-            .apply();
-
     Rect windowSize(1000, 1000);
     Rect bufferSize(windowSize);
     Rect bufferCrop(200, 200, 700, 700);
@@ -661,7 +636,7 @@ TEST_F(BLASTBufferQueueTest, ScaleCroppedBufferToBufferSize) {
     // ensure the buffer queue transaction has been committed
     Transaction().apply(true /* synchronous */);
 
-    ASSERT_EQ(NO_ERROR, captureDisplay(mCaptureArgs, mCaptureResults));
+    ASSERT_EQ(NO_ERROR, ScreenCapture::captureLayers(mCaptureArgs, mCaptureResults));
 
     // Verify cropped region is scaled correctly.
     ASSERT_NO_FATAL_FAILURE(checkScreenCapture(255, 0, 0, {10, 10, 490, 490}));
@@ -676,17 +651,6 @@ TEST_F(BLASTBufferQueueTest, ScaleCroppedBufferToBufferSize) {
 }
 
 TEST_F(BLASTBufferQueueTest, ScaleCroppedBufferToWindowSize) {
-    // add black background
-    auto bg = mClient->createSurface(String8("BGTest"), 0, 0, PIXEL_FORMAT_RGBA_8888,
-                                     ISurfaceComposerClient::eFXSurfaceEffect);
-    ASSERT_NE(nullptr, bg.get());
-    Transaction t;
-    t.setLayerStack(bg, ui::DEFAULT_LAYER_STACK)
-            .setCrop(bg, Rect(0, 0, mDisplayWidth, mDisplayHeight))
-            .setColor(bg, half3{0, 0, 0})
-            .setLayer(bg, 0)
-            .apply();
-
     Rect windowSize(1000, 1000);
     Rect bufferSize(500, 500);
     Rect bufferCrop(100, 100, 350, 350);
@@ -729,7 +693,7 @@ TEST_F(BLASTBufferQueueTest, ScaleCroppedBufferToWindowSize) {
     // ensure the buffer queue transaction has been committed
     Transaction().apply(true /* synchronous */);
 
-    ASSERT_EQ(NO_ERROR, captureDisplay(mCaptureArgs, mCaptureResults));
+    ASSERT_EQ(NO_ERROR, ScreenCapture::captureLayers(mCaptureArgs, mCaptureResults));
     // Verify cropped region is scaled correctly.
     ASSERT_NO_FATAL_FAILURE(checkScreenCapture(255, 0, 0, {10, 10, 490, 490}));
     ASSERT_NO_FATAL_FAILURE(checkScreenCapture(0, 255, 0, {10, 510, 490, 990}));
@@ -779,7 +743,7 @@ TEST_F(BLASTBufferQueueTest, ScalingModeChanges) {
         Transaction().apply(true /* synchronous */);
     }
     // capture screen and verify that it is red
-    ASSERT_EQ(NO_ERROR, captureDisplay(mCaptureArgs, mCaptureResults));
+    ASSERT_EQ(NO_ERROR, ScreenCapture::captureLayers(mCaptureArgs, mCaptureResults));
 
     ASSERT_NO_FATAL_FAILURE(
             checkScreenCapture(r, g, b,
@@ -815,7 +779,7 @@ TEST_F(BLASTBufferQueueTest, ScalingModeChanges) {
         Transaction().apply(true /* synchronous */);
     }
     // capture screen and verify that it is red
-    ASSERT_EQ(NO_ERROR, captureDisplay(mCaptureArgs, mCaptureResults));
+    ASSERT_EQ(NO_ERROR, ScreenCapture::captureLayers(mCaptureArgs, mCaptureResults));
     // verify we still scale the buffer to the new size (half the screen height)
     ASSERT_NO_FATAL_FAILURE(
             checkScreenCapture(r, g, b,
@@ -850,12 +814,12 @@ TEST_F(BLASTBufferQueueTest, SyncThenNoSync) {
     transactionCallback.getCallbackData(&callbackData);
 
     // capture screen and verify that it is green
-    ASSERT_EQ(NO_ERROR, captureDisplay(mCaptureArgs, mCaptureResults));
+    ASSERT_EQ(NO_ERROR, ScreenCapture::captureLayers(mCaptureArgs, mCaptureResults));
     ASSERT_NO_FATAL_FAILURE(
             checkScreenCapture(0, 255, 0, {0, 0, (int32_t)mDisplayWidth, (int32_t)mDisplayHeight}));
 
     mProducerListener->waitOnNumberReleased(1);
-    ASSERT_EQ(NO_ERROR, captureDisplay(mCaptureArgs, mCaptureResults));
+    ASSERT_EQ(NO_ERROR, ScreenCapture::captureLayers(mCaptureArgs, mCaptureResults));
     ASSERT_NO_FATAL_FAILURE(
             checkScreenCapture(r, g, b, {0, 0, (int32_t)mDisplayWidth, (int32_t)mDisplayHeight}));
 }
@@ -895,7 +859,7 @@ TEST_F(BLASTBufferQueueTest, MultipleSyncTransactions) {
     transactionCallback.getCallbackData(&callbackData);
 
     // capture screen and verify that it is red
-    ASSERT_EQ(NO_ERROR, captureDisplay(mCaptureArgs, mCaptureResults));
+    ASSERT_EQ(NO_ERROR, ScreenCapture::captureLayers(mCaptureArgs, mCaptureResults));
     ASSERT_NO_FATAL_FAILURE(
             checkScreenCapture(r, g, b, {0, 0, (int32_t)mDisplayWidth, (int32_t)mDisplayHeight}));
 }
@@ -943,7 +907,7 @@ TEST_F(BLASTBufferQueueTest, MultipleSyncTransactionWithNonSync) {
     transactionCallback.getCallbackData(&callbackData);
 
     // capture screen and verify that it is red
-    ASSERT_EQ(NO_ERROR, captureDisplay(mCaptureArgs, mCaptureResults));
+    ASSERT_EQ(NO_ERROR, ScreenCapture::captureLayers(mCaptureArgs, mCaptureResults));
     ASSERT_NO_FATAL_FAILURE(
             checkScreenCapture(r, g, b, {0, 0, (int32_t)mDisplayWidth, (int32_t)mDisplayHeight}));
 }
@@ -993,7 +957,7 @@ TEST_F(BLASTBufferQueueTest, MultipleSyncRunOutOfBuffers) {
     transactionCallback.getCallbackData(&callbackData);
 
     // capture screen and verify that it is red
-    ASSERT_EQ(NO_ERROR, captureDisplay(mCaptureArgs, mCaptureResults));
+    ASSERT_EQ(NO_ERROR, ScreenCapture::captureLayers(mCaptureArgs, mCaptureResults));
     ASSERT_NO_FATAL_FAILURE(
             checkScreenCapture(r, g, b, {0, 0, (int32_t)mDisplayWidth, (int32_t)mDisplayHeight}));
 }
@@ -1051,7 +1015,7 @@ TEST_F(BLASTBufferQueueTest, RunOutOfBuffersWaitingOnSF) {
     transactionCallback.getCallbackData(&callbackData);
 
     // capture screen and verify that it is red
-    ASSERT_EQ(NO_ERROR, captureDisplay(mCaptureArgs, mCaptureResults));
+    ASSERT_EQ(NO_ERROR, ScreenCapture::captureLayers(mCaptureArgs, mCaptureResults));
     ASSERT_NO_FATAL_FAILURE(
             checkScreenCapture(r, g, b, {0, 0, (int32_t)mDisplayWidth, (int32_t)mDisplayHeight}));
 }
@@ -1084,13 +1048,13 @@ TEST_F(BLASTBufferQueueTest, SyncNextTransactionAcquireMultipleBuffers) {
     transactionCallback.getCallbackData(&callbackData);
 
     // capture screen and verify that it is blue
-    ASSERT_EQ(NO_ERROR, captureDisplay(mCaptureArgs, mCaptureResults));
+    ASSERT_EQ(NO_ERROR, ScreenCapture::captureLayers(mCaptureArgs, mCaptureResults));
     ASSERT_NO_FATAL_FAILURE(
             checkScreenCapture(0, 0, 255, {0, 0, (int32_t)mDisplayWidth, (int32_t)mDisplayHeight}));
 
     mProducerListener->waitOnNumberReleased(2);
     // capture screen and verify that it is red
-    ASSERT_EQ(NO_ERROR, captureDisplay(mCaptureArgs, mCaptureResults));
+    ASSERT_EQ(NO_ERROR, ScreenCapture::captureLayers(mCaptureArgs, mCaptureResults));
     ASSERT_NO_FATAL_FAILURE(
             checkScreenCapture(255, 0, 0, {0, 0, (int32_t)mDisplayWidth, (int32_t)mDisplayHeight}));
 }
@@ -1186,7 +1150,7 @@ TEST_F(BLASTBufferQueueTest, SyncNextTransactionDropBuffer) {
 
     CallbackData callbackData;
     transactionCallback.getCallbackData(&callbackData);
-    ASSERT_EQ(NO_ERROR, captureDisplay(mCaptureArgs, mCaptureResults));
+    ASSERT_EQ(NO_ERROR, ScreenCapture::captureLayers(mCaptureArgs, mCaptureResults));
     ASSERT_NO_FATAL_FAILURE(
             checkScreenCapture(r, g, b, {0, 0, (int32_t)mDisplayWidth, (int32_t)mDisplayHeight}));
     sync.apply();
@@ -1205,7 +1169,7 @@ TEST_F(BLASTBufferQueueTest, DISABLED_DisconnectProducerTest) {
                 mClient->createSurface(String8("TestSurface"), mDisplayWidth, mDisplayHeight,
                                        PIXEL_FORMAT_RGBA_8888,
                                        ISurfaceComposerClient::eFXSurfaceBufferState,
-                                       /*parent*/ nullptr);
+                                       /*parent*/ mRootSurfaceControl->getHandle());
         Transaction()
                 .setLayerStack(mSurfaceControl, ui::DEFAULT_LAYER_STACK)
                 .setLayer(mSurfaceControl, std::numeric_limits<int32_t>::max())
@@ -1230,7 +1194,7 @@ TEST_F(BLASTBufferQueueTest, DISABLED_DisconnectProducerTest) {
         CallbackData callbackData;
         transactionCallback.getCallbackData(&callbackData);
         // capture screen and verify that it is red
-        ASSERT_EQ(NO_ERROR, captureDisplay(mCaptureArgs, mCaptureResults));
+        ASSERT_EQ(NO_ERROR, ScreenCapture::captureLayers(mCaptureArgs, mCaptureResults));
         ASSERT_NO_FATAL_FAILURE(
                 checkScreenCapture(255, 0, 0,
                                    {0, 0, (int32_t)mDisplayWidth, (int32_t)mDisplayHeight}));
@@ -1248,7 +1212,7 @@ TEST_F(BLASTBufferQueueTest, DISABLED_UpdateSurfaceControlTest) {
                 mClient->createSurface(String8("TestSurface"), mDisplayWidth, mDisplayHeight,
                                        PIXEL_FORMAT_RGBA_8888,
                                        ISurfaceComposerClient::eFXSurfaceBufferState,
-                                       /*parent*/ nullptr);
+                                       /*parent*/ mRootSurfaceControl->getHandle());
         Transaction()
                 .setLayerStack(mSurfaceControl, ui::DEFAULT_LAYER_STACK)
                 .setLayer(mSurfaceControl, std::numeric_limits<int32_t>::max())
@@ -1273,7 +1237,7 @@ TEST_F(BLASTBufferQueueTest, DISABLED_UpdateSurfaceControlTest) {
         CallbackData callbackData;
         transactionCallback.getCallbackData(&callbackData);
         // capture screen and verify that it is red
-        ASSERT_EQ(NO_ERROR, captureDisplay(mCaptureArgs, mCaptureResults));
+        ASSERT_EQ(NO_ERROR, ScreenCapture::captureLayers(mCaptureArgs, mCaptureResults));
         ASSERT_NO_FATAL_FAILURE(
                 checkScreenCapture(255, 0, 0,
                                    {0, 0, (int32_t)mDisplayWidth, (int32_t)mDisplayHeight}));
@@ -1406,7 +1370,7 @@ public:
         ASSERT_NE(ui::Transform::ROT_INVALID, qbOutput.transformHint);
 
         Transaction().apply(true /* synchronous */);
-        ASSERT_EQ(NO_ERROR, captureDisplay(mCaptureArgs, mCaptureResults));
+        ASSERT_EQ(NO_ERROR, ScreenCapture::captureLayers(mCaptureArgs, mCaptureResults));
 
         switch (tr) {
             case ui::Transform::ROT_0:
