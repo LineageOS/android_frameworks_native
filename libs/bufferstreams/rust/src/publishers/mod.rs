@@ -14,4 +14,7 @@
 
 //! This module provides [BufferSubscriber] implementations and helpers.
 
+mod buffer_pool_publisher;
 pub mod testing;
+
+pub use buffer_pool_publisher::*;
