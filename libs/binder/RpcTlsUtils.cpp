@@ -21,6 +21,8 @@
 
 #include "Utils.h"
 
+#include <limits>
+
 namespace android {
 
 namespace {
