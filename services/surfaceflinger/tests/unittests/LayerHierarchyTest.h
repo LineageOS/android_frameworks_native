@@ -406,6 +406,17 @@ protected:
         mLifecycleManager.applyTransactions(transactions);
     }
 
+    void setShadowRadius(uint32_t id, float shadowRadius) {
+        std::vector<TransactionState> transactions;
+        transactions.emplace_back();
+        transactions.back().states.push_back({});
+
+        transactions.back().states.front().state.what = layer_state_t::eShadowRadiusChanged;
+        transactions.back().states.front().layerId = id;
+        transactions.back().states.front().state.shadowRadius = shadowRadius;
+        mLifecycleManager.applyTransactions(transactions);
+    }
+
     LayerLifecycleManager mLifecycleManager;
 };
 

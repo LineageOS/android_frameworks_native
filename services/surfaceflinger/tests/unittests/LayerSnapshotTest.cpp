@@ -872,4 +872,13 @@ TEST_F(LayerSnapshotTest, setBufferCrop) {
     UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
     EXPECT_EQ(getSnapshot(1)->geomContentCrop, Rect(0, 0, 100, 100));
 }
+
+TEST_F(LayerSnapshotTest, setShadowRadius) {
+    static constexpr float SHADOW_RADIUS = 123.f;
+    setShadowRadius(1, SHADOW_RADIUS);
+    UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
+    EXPECT_EQ(getSnapshot(1)->shadowSettings.length, SHADOW_RADIUS);
+    EXPECT_EQ(getSnapshot(1)->shadowRadius, SHADOW_RADIUS);
+}
+
 } // namespace android::surfaceflinger::frontend
