@@ -6446,6 +6446,8 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, const std::string& comp
                   mMisc2FlagEarlyBootValue == mMisc2FlagLateBootValue ? "stable" : "modified");
     StringAppendF(&result, "VrrConfigFlagValue: %s\n",
                   flagutils::vrrConfigEnabled() ? "true" : "false");
+    StringAppendF(&result, "DontSkipOnEarlyFlagValue: %s\n",
+                  flags::dont_skip_on_early() ? "true" : "false");
 
     getRenderEngine().dump(result);
 
