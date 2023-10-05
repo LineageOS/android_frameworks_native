@@ -967,7 +967,7 @@ ui::Dataspace Output::getBestDataspace(ui::Dataspace* outHdrDataSpace,
             case ui::Dataspace::BT2020_ITU_HLG:
                 bestDataSpace = ui::Dataspace::DISPLAY_P3;
                 // When there's mixed PQ content and HLG content, we set the HDR
-                // data space to be BT2020_PQ and convert HLG to PQ.
+                // data space to be BT2020_HLG and convert PQ to HLG.
                 if (*outHdrDataSpace == ui::Dataspace::UNKNOWN) {
                     *outHdrDataSpace = ui::Dataspace::BT2020_HLG;
                 }
