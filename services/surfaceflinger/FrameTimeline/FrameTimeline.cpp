@@ -109,11 +109,11 @@ std::string jankTypeBitmaskToString(int32_t jankType) {
         jankType &= ~JankType::DisplayHAL;
     }
     if (jankType & JankType::SurfaceFlingerCpuDeadlineMissed) {
-        janks.emplace_back("SurfaceFlinger CPU Deadline Missed");
+        janks.emplace_back("SurfaceFlinger deadline missed (while in HWC)");
         jankType &= ~JankType::SurfaceFlingerCpuDeadlineMissed;
     }
     if (jankType & JankType::SurfaceFlingerGpuDeadlineMissed) {
-        janks.emplace_back("SurfaceFlinger GPU Deadline Missed");
+        janks.emplace_back("SurfaceFlinger deadline missed (while in GPU comp)");
         jankType &= ~JankType::SurfaceFlingerGpuDeadlineMissed;
     }
     if (jankType & JankType::AppDeadlineMissed) {
@@ -289,7 +289,7 @@ nsecs_t getMinTime(PredictionState predictionState, TimelineItem predictions,
         minTime = std::min(minTime, actuals.endTime);
     }
     if (actuals.presentTime != 0) {
-        minTime = std::min(minTime, actuals.endTime);
+        minTime = std::min(minTime, actuals.presentTime);
     }
     return minTime;
 }
@@ -885,13 +885,19 @@ void FrameTimeline::DisplayFrame::setGpuFence(const std::shared_ptr<FenceTime>& 
 
 void FrameTimeline::DisplayFrame::classifyJank(nsecs_t& deadlineDelta, nsecs_t& deltaToVsync,
                                                nsecs_t previousPresentTime) {
-    if (mPredictionState == PredictionState::Expired ||
-        mSurfaceFlingerActuals.presentTime == Fence::SIGNAL_TIME_INVALID) {
+    const bool presentTimeValid =
+            mSurfaceFlingerActuals.presentTime >= mSurfaceFlingerActuals.startTime;
+    if (mPredictionState == PredictionState::Expired || !presentTimeValid) {
         // Cannot do jank classification with expired predictions or invalid signal times. Set the
         // deltas to 0 as both negative and positive deltas are used as real values.
         mJankType = JankType::Unknown;
         deadlineDelta = 0;
         deltaToVsync = 0;
+        if (!presentTimeValid) {
+            mSurfaceFlingerActuals.presentTime = mSurfaceFlingerActuals.endTime;
+            mJankType |= JankType::DisplayHAL;
+        }
+
         return;
     }
 
@@ -986,11 +992,8 @@ void FrameTimeline::DisplayFrame::classifyJank(nsecs_t& deadlineDelta, nsecs_t& 
                                     mJankClassificationThresholds.presentThreshold) {
                     // Classify CPU vs GPU if SF wasn't stuffed or if SF was stuffed but this frame
                     // was presented more than a vsync late.
-                    if (mGpuFence != FenceTime::NO_FENCE &&
-                        mSurfaceFlingerActuals.endTime - mSurfaceFlingerActuals.startTime <
-                                mRefreshRate.getPeriodNsecs()) {
-                        // If SF was in GPU composition and the CPU work finished before the vsync
-                        // period, classify it as GPU deadline missed.
+                    if (mGpuFence != FenceTime::NO_FENCE) {
+                        // If SF was in GPU composition, classify it as GPU deadline missed.
                         mJankType = JankType::SurfaceFlingerGpuDeadlineMissed;
                     } else {
                         mJankType = JankType::SurfaceFlingerCpuDeadlineMissed;
@@ -1094,6 +1097,12 @@ void FrameTimeline::DisplayFrame::traceActuals(pid_t surfaceFlingerPid,
 }
 
 void FrameTimeline::DisplayFrame::trace(pid_t surfaceFlingerPid, nsecs_t monoBootOffset) const {
+    if (mSurfaceFrames.empty()) {
+        // We don't want to trace display frames without any surface frames updates as this cannot
+        // be janky
+        return;
+    }
+
     if (mToken == FrameTimelineInfo::INVALID_VSYNC_ID) {
         // DisplayFrame should not have an invalid token.
         ALOGE("Cannot trace DisplayFrame with invalid token");
@@ -1171,12 +1180,39 @@ float FrameTimeline::computeFps(const std::unordered_set<int32_t>& layerIds) {
             static_cast<float>(totalPresentToPresentWalls);
 }
 
+std::optional<size_t> FrameTimeline::getFirstSignalFenceIndex() const {
+    for (size_t i = 0; i < mPendingPresentFences.size(); i++) {
+        const auto& [fence, _] = mPendingPresentFences[i];
+        if (fence && fence->getSignalTime() != Fence::SIGNAL_TIME_PENDING) {
+            return i;
+        }
+    }
+
+    return {};
+}
+
 void FrameTimeline::flushPendingPresentFences() {
+    const auto firstSignaledFence = getFirstSignalFenceIndex();
+    if (!firstSignaledFence.has_value()) {
+        return;
+    }
+
     // Perfetto is using boottime clock to void drifts when the device goes
     // to suspend.
     const auto monoBootOffset = mUseBootTimeClock
             ? (systemTime(SYSTEM_TIME_BOOTTIME) - systemTime(SYSTEM_TIME_MONOTONIC))
             : 0;
+
+    // Present fences are expected to be signaled in order. Mark all the previous
+    // pending fences as errors.
+    for (size_t i = 0; i < firstSignaledFence.value(); i++) {
+        const auto& pendingPresentFence = *mPendingPresentFences.begin();
+        const nsecs_t signalTime = Fence::SIGNAL_TIME_INVALID;
+        auto& displayFrame = pendingPresentFence.second;
+        displayFrame->onPresent(signalTime, mPreviousPresentTime);
+        displayFrame->trace(mSurfaceFlingerPid, monoBootOffset);
+        mPendingPresentFences.erase(mPendingPresentFences.begin());
+    }
 
     for (size_t i = 0; i < mPendingPresentFences.size(); i++) {
         const auto& pendingPresentFence = mPendingPresentFences[i];
@@ -1184,9 +1220,10 @@ void FrameTimeline::flushPendingPresentFences() {
         if (pendingPresentFence.first && pendingPresentFence.first->isValid()) {
             signalTime = pendingPresentFence.first->getSignalTime();
             if (signalTime == Fence::SIGNAL_TIME_PENDING) {
-                continue;
+                break;
             }
         }
+
         auto& displayFrame = pendingPresentFence.second;
         displayFrame->onPresent(signalTime, mPreviousPresentTime);
         displayFrame->trace(mSurfaceFlingerPid, monoBootOffset);

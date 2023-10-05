@@ -179,11 +179,5 @@ void OneShotTimer::reset() {
     }
 }
 
-std::string OneShotTimer::dump() const {
-    std::ostringstream stream;
-    stream << mInterval.count() << " ms";
-    return stream.str();
-}
-
 } // namespace scheduler
 } // namespace android

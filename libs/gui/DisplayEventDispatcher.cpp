@@ -35,11 +35,15 @@ static const size_t EVENT_BUFFER_SIZE = 100;
 
 static constexpr nsecs_t WAITING_FOR_VSYNC_TIMEOUT = ms2ns(300);
 
-DisplayEventDispatcher::DisplayEventDispatcher(
-        const sp<Looper>& looper, ISurfaceComposer::VsyncSource vsyncSource,
-        ISurfaceComposer::EventRegistrationFlags eventRegistration)
-      : mLooper(looper), mReceiver(vsyncSource, eventRegistration), mWaitingForVsync(false),
-        mLastVsyncCount(0), mLastScheduleVsyncTime(0) {
+DisplayEventDispatcher::DisplayEventDispatcher(const sp<Looper>& looper,
+                                               gui::ISurfaceComposer::VsyncSource vsyncSource,
+                                               EventRegistrationFlags eventRegistration,
+                                               const sp<IBinder>& layerHandle)
+      : mLooper(looper),
+        mReceiver(vsyncSource, eventRegistration, layerHandle),
+        mWaitingForVsync(false),
+        mLastVsyncCount(0),
+        mLastScheduleVsyncTime(0) {
     ALOGV("dispatcher %p ~ Initializing display event dispatcher.", this);
 }
 

@@ -31,6 +31,8 @@ cc_test {
         "PowerHalWrapperAidlTest.cpp",
         "PowerHalWrapperHidlV1_0Test.cpp",
         "PowerHalWrapperHidlV1_1Test.cpp",
+        "PowerHalWrapperHidlV1_2Test.cpp",
+        "PowerHalWrapperHidlV1_3Test.cpp",
         "WorkSourceTest.cpp",
     ],
     cflags: [
@@ -47,7 +49,9 @@ cc_test {
         "libutils",
         "android.hardware.power@1.0",
         "android.hardware.power@1.1",
-        "android.hardware.power-V3-cpp",
+        "android.hardware.power@1.2",
+        "android.hardware.power@1.3",
+        "android.hardware.power-V4-cpp",
     ],
     static_libs: [
         "libgmock",

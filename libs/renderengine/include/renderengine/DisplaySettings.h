@@ -22,10 +22,14 @@
 
 #include <math/mat4.h>
 #include <renderengine/PrintMatrix.h>
+#include <renderengine/BorderRenderInfo.h>
+#include <ui/DisplayId.h>
 #include <ui/GraphicTypes.h>
 #include <ui/Rect.h>
 #include <ui/Region.h>
 #include <ui/Transform.h>
+
+#include <optional>
 
 namespace android {
 namespace renderengine {
@@ -33,6 +37,10 @@ namespace renderengine {
 // DisplaySettings contains the settings that are applicable when drawing all
 // layers for a given display.
 struct DisplaySettings {
+    // A string containing the name of the display, along with its id, if it has
+    // one.
+    std::string namePlusId;
+
     // Rectangle describing the physical display. We will project from the
     // logical clip onto this rectangle.
     Rect physicalDisplay = Rect::INVALID_RECT;
@@ -79,18 +87,21 @@ struct DisplaySettings {
     // Configures the rendering intent of the output display. This is used for tonemapping.
     aidl::android::hardware::graphics::composer3::RenderIntent renderIntent =
             aidl::android::hardware::graphics::composer3::RenderIntent::TONE_MAP_COLORIMETRIC;
+
+    std::vector<renderengine::BorderRenderInfo> borderInfoList;
 };
 
 static inline bool operator==(const DisplaySettings& lhs, const DisplaySettings& rhs) {
-    return lhs.physicalDisplay == rhs.physicalDisplay && lhs.clip == rhs.clip &&
-            lhs.maxLuminance == rhs.maxLuminance &&
+    return lhs.namePlusId == rhs.namePlusId && lhs.physicalDisplay == rhs.physicalDisplay &&
+            lhs.clip == rhs.clip && lhs.maxLuminance == rhs.maxLuminance &&
             lhs.currentLuminanceNits == rhs.currentLuminanceNits &&
             lhs.outputDataspace == rhs.outputDataspace &&
             lhs.colorTransform == rhs.colorTransform &&
             lhs.deviceHandlesColorTransform == rhs.deviceHandlesColorTransform &&
             lhs.orientation == rhs.orientation &&
             lhs.targetLuminanceNits == rhs.targetLuminanceNits &&
-            lhs.dimmingStage == rhs.dimmingStage && lhs.renderIntent == rhs.renderIntent;
+            lhs.dimmingStage == rhs.dimmingStage && lhs.renderIntent == rhs.renderIntent &&
+            lhs.borderInfoList == rhs.borderInfoList;
 }
 
 static const char* orientation_to_string(uint32_t orientation) {
@@ -117,6 +128,7 @@ static const char* orientation_to_string(uint32_t orientation) {
 
 static inline void PrintTo(const DisplaySettings& settings, ::std::ostream* os) {
     *os << "DisplaySettings {";
+    *os << "\n    .display = " << settings.namePlusId;
     *os << "\n    .physicalDisplay = ";
     PrintTo(settings.physicalDisplay, os);
     *os << "\n    .clip = ";

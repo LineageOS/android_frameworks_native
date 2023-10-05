@@ -16,43 +16,75 @@
 
 #include <compositionengine/impl/HwcBufferCache.h>
 
-// TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wconversion"
-
 #include <gui/BufferQueue.h>
 #include <ui/GraphicBuffer.h>
-
-// TODO(b/129481165): remove the #pragma below and fix conversion issues
-#pragma clang diagnostic pop // ignored "-Wconversion"
 
 namespace android::compositionengine::impl {
 
 HwcBufferCache::HwcBufferCache() {
-    std::fill(std::begin(mBuffers), std::end(mBuffers), wp<GraphicBuffer>(nullptr));
+    for (uint32_t i = kMaxLayerBufferCount; i-- > 0;) {
+        mFreeSlots.push(i);
+    }
 }
 
-void HwcBufferCache::getHwcBuffer(int slot, const sp<GraphicBuffer>& buffer, uint32_t* outSlot,
-                                  sp<GraphicBuffer>* outBuffer) {
-    // default is 0
-    if (slot == BufferQueue::INVALID_BUFFER_SLOT || slot < 0 ||
-        slot >= static_cast<int32_t>(kMaxLayerBufferCount)) {
-        *outSlot = 0;
-    } else {
-        *outSlot = static_cast<uint32_t>(slot);
+HwcSlotAndBuffer HwcBufferCache::getHwcSlotAndBuffer(const sp<GraphicBuffer>& buffer) {
+    if (auto i = mCacheByBufferId.find(buffer->getId()); i != mCacheByBufferId.end()) {
+        Cache& cache = i->second;
+        // mark this cache slot as more recently used so it won't get evicted anytime soon
+        cache.lruCounter = mLeastRecentlyUsedCounter++;
+        return {cache.slot, nullptr};
     }
+    return {cache(buffer), buffer};
+}
 
-    auto& currentBuffer = mBuffers[*outSlot];
-    wp<GraphicBuffer> weakCopy(buffer);
-    if (currentBuffer == weakCopy) {
-        // already cached in HWC, skip sending the buffer
-        *outBuffer = nullptr;
-    } else {
-        *outBuffer = buffer;
-
-        // update cache
-        currentBuffer = buffer;
+HwcSlotAndBuffer HwcBufferCache::getOverrideHwcSlotAndBuffer(const sp<GraphicBuffer>& buffer) {
+    if (buffer == mLastOverrideBuffer) {
+        return {kOverrideBufferSlot, nullptr};
     }
+    mLastOverrideBuffer = buffer;
+    return {kOverrideBufferSlot, buffer};
+}
+
+uint32_t HwcBufferCache::uncache(uint64_t bufferId) {
+    if (auto i = mCacheByBufferId.find(bufferId); i != mCacheByBufferId.end()) {
+        uint32_t slot = i->second.slot;
+        mCacheByBufferId.erase(i);
+        mFreeSlots.push(slot);
+        return slot;
+    }
+    if (mLastOverrideBuffer && bufferId == mLastOverrideBuffer->getId()) {
+        mLastOverrideBuffer = nullptr;
+        return kOverrideBufferSlot;
+    }
+    return UINT32_MAX;
+}
+
+uint32_t HwcBufferCache::cache(const sp<GraphicBuffer>& buffer) {
+    Cache cache;
+    cache.slot = getLeastRecentlyUsedSlot();
+    cache.lruCounter = mLeastRecentlyUsedCounter++;
+    cache.buffer = buffer;
+    mCacheByBufferId.emplace(buffer->getId(), cache);
+    return cache.slot;
+}
+
+uint32_t HwcBufferCache::getLeastRecentlyUsedSlot() {
+    if (mFreeSlots.empty()) {
+        assert(!mCacheByBufferId.empty());
+        // evict the least recently used cache entry
+        auto cacheToErase = mCacheByBufferId.begin();
+        for (auto i = cacheToErase; i != mCacheByBufferId.end(); ++i) {
+            if (i->second.lruCounter < cacheToErase->second.lruCounter) {
+                cacheToErase = i;
+            }
+        }
+        uint32_t slot = cacheToErase->second.slot;
+        mCacheByBufferId.erase(cacheToErase);
+        mFreeSlots.push(slot);
+    }
+    uint32_t slot = mFreeSlots.top();
+    mFreeSlots.pop();
+    return slot;
 }
 
 } // namespace android::compositionengine::impl

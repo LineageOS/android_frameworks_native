@@ -62,7 +62,7 @@ protected:
         const ::testing::TestInfo* const test_info =
                 ::testing::UnitTest::GetInstance()->current_test_info();
         CpuConsumerTestParams params = GetParam();
-        ALOGV("** Starting test %s (%d x %d, %d, 0x%x)",
+        ALOGD("** Starting test %s (%d x %d, %d, 0x%x)",
                 test_info->name(),
                 params.width, params.height,
                 params.maxLockedBuffers, params.format);
@@ -582,7 +582,7 @@ TEST_P(CpuConsumerTest, FromCpuManyInQueue) {
     uint32_t stride[numInQueue];
 
     for (int i = 0; i < numInQueue; i++) {
-        ALOGV("Producing frame %d", i);
+        ALOGD("Producing frame %d", i);
         ASSERT_NO_FATAL_FAILURE(produceOneFrame(mANW, params, time[i],
                         &stride[i]));
     }
@@ -590,7 +590,7 @@ TEST_P(CpuConsumerTest, FromCpuManyInQueue) {
     // Consume
 
     for (int i = 0; i < numInQueue; i++) {
-        ALOGV("Consuming frame %d", i);
+        ALOGD("Consuming frame %d", i);
         CpuConsumer::LockedBuffer b;
         err = mCC->lockNextBuffer(&b);
         ASSERT_NO_ERROR(err, "getNextBuffer error: ");
@@ -624,7 +624,7 @@ TEST_P(CpuConsumerTest, FromCpuLockMax) {
     uint32_t stride;
 
     for (int i = 0; i < params.maxLockedBuffers + 1; i++) {
-        ALOGV("Producing frame %d", i);
+        ALOGD("Producing frame %d", i);
         ASSERT_NO_FATAL_FAILURE(produceOneFrame(mANW, params, time,
                         &stride));
     }
@@ -633,7 +633,7 @@ TEST_P(CpuConsumerTest, FromCpuLockMax) {
 
     std::vector<CpuConsumer::LockedBuffer> b(params.maxLockedBuffers);
     for (int i = 0; i < params.maxLockedBuffers; i++) {
-        ALOGV("Locking frame %d", i);
+        ALOGD("Locking frame %d", i);
         err = mCC->lockNextBuffer(&b[i]);
         ASSERT_NO_ERROR(err, "getNextBuffer error: ");
 
@@ -647,16 +647,16 @@ TEST_P(CpuConsumerTest, FromCpuLockMax) {
         checkAnyBuffer(b[i], GetParam().format);
     }
 
-    ALOGV("Locking frame %d (too many)", params.maxLockedBuffers);
+    ALOGD("Locking frame %d (too many)", params.maxLockedBuffers);
     CpuConsumer::LockedBuffer bTooMuch;
     err = mCC->lockNextBuffer(&bTooMuch);
     ASSERT_TRUE(err == NOT_ENOUGH_DATA) << "Allowing too many locks";
 
-    ALOGV("Unlocking frame 0");
+    ALOGD("Unlocking frame 0");
     err = mCC->unlockBuffer(b[0]);
     ASSERT_NO_ERROR(err, "Could not unlock buffer 0: ");
 
-    ALOGV("Locking frame %d (should work now)", params.maxLockedBuffers);
+    ALOGD("Locking frame %d (should work now)", params.maxLockedBuffers);
     err = mCC->lockNextBuffer(&bTooMuch);
     ASSERT_NO_ERROR(err, "Did not allow new lock after unlock");
 
@@ -669,11 +669,11 @@ TEST_P(CpuConsumerTest, FromCpuLockMax) {
 
     checkAnyBuffer(bTooMuch, GetParam().format);
 
-    ALOGV("Unlocking extra buffer");
+    ALOGD("Unlocking extra buffer");
     err = mCC->unlockBuffer(bTooMuch);
     ASSERT_NO_ERROR(err, "Could not unlock extra buffer: ");
 
-    ALOGV("Locking frame %d (no more available)", params.maxLockedBuffers + 1);
+    ALOGD("Locking frame %d (no more available)", params.maxLockedBuffers + 1);
     err = mCC->lockNextBuffer(&b[0]);
     ASSERT_EQ(BAD_VALUE, err) << "Not out of buffers somehow";
 

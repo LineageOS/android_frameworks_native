@@ -30,8 +30,8 @@
 namespace android {
 // ---------------------------------------------------------------------------
 
-BatteryService::BatteryService() : mBatteryStatService(nullptr) {
-}
+BatteryService::BatteryService()
+    : mBatteryStatService(nullptr), mLastWakeupSensorEventReportedMs(0) {}
 
 bool BatteryService::addSensor(uid_t uid, int handle) {
     Mutex::Autolock _l(mActivationsLock);
@@ -71,6 +71,14 @@ void BatteryService::disableSensorImpl(uid_t uid, int handle) {
             mBatteryStatService->noteStopSensor(uid, handle);
             IPCThreadState::self()->restoreCallingIdentity(identity);
         }
+    }
+}
+
+void BatteryService::noteWakeupSensorEventImpl(int64_t elapsedNanos, uid_t uid, int handle) {
+    if (checkService()) {
+        int64_t identity = IPCThreadState::self()->clearCallingIdentity();
+        mBatteryStatService->noteWakeupSensorEvent(elapsedNanos, uid, handle);
+        IPCThreadState::self()->restoreCallingIdentity(identity);
     }
 }
 

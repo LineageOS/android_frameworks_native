@@ -105,6 +105,9 @@ public:
     MOCK_METHOD(bool, hasDisplayIdleTimerCapability, (), (const override));
     MOCK_METHOD(hal::Error, getPhysicalDisplayOrientation, (Hwc2::AidlTransform *),
                 (const override));
+    MOCK_METHOD(hal::Error, getOverlaySupport,
+                (aidl::android::hardware::graphics::composer3::OverlayProperties *),
+                (const override));
 };
 
 class Layer : public HWC2::Layer {

@@ -17,7 +17,8 @@
 #pragma once
 
 #include <cstdint>
-#include <vector>
+#include <stack>
+#include <unordered_map>
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic push
@@ -37,35 +38,76 @@ class GraphicBuffer;
 
 namespace compositionengine::impl {
 
-// With HIDLized hwcomposer HAL, the HAL can maintain a buffer cache for each
-// HWC display and layer.  When updating a display target or a layer buffer,
-// we have the option to send the buffer handle over or to request the HAL to
-// retrieve it from its cache.  The latter is cheaper since it eliminates the
-// overhead to transfer the handle over the trasport layer, and the overhead
-// for the HAL to clone and retain the handle.
-//
-// To be able to find out whether a buffer is already in the HAL's cache, we
-// use HWComposerBufferCache to mirror the cache in SF.
-class HwcBufferCache {
-public:
-    HwcBufferCache();
-    // Given a buffer, return the HWC cache slot and
-    // buffer to be sent to HWC.
-    //
-    // outBuffer is set to buffer when buffer is not in the HWC cache;
-    // otherwise, outBuffer is set to nullptr.
-    void getHwcBuffer(int slot, const sp<GraphicBuffer>& buffer, uint32_t* outSlot,
-                      sp<GraphicBuffer>* outBuffer);
+// The buffer cache returns both a slot and the buffer that should be sent to HWC. In cases
+// where the buffer is already cached, the buffer is a nullptr and will not be sent to HWC as
+// an optimization.
+struct HwcSlotAndBuffer {
+    uint32_t slot;
+    sp<GraphicBuffer> buffer;
+};
 
-    // Special caching slot for the layer caching feature.
-    static const constexpr size_t FLATTENER_CACHING_SLOT = BufferQueue::NUM_BUFFER_SLOTS;
+//
+// Manages the slot assignments for a buffers stored in Composer HAL's cache.
+//
+// Cache slots are an optimization when communicating buffer handles to Composer
+// HAL. When updating a layer's buffer, we can either send a new buffer handle
+// along with it's slot assignment or request the HAL to reuse a buffer handle
+// that we've already sent by using the slot assignment. The latter is cheaper
+// since it eliminates the overhead to transfer the buffer handle over IPC and
+// the overhead for the HAL to clone the handle.
+//
+class HwcBufferCache {
+private:
+    static const constexpr size_t kMaxLayerBufferCount = BufferQueue::NUM_BUFFER_SLOTS;
+
+public:
+    // public for testing
+    // Override buffers don't use the normal cache slots because we don't want them to evict client
+    // buffers from the cache. We add an extra slot at the end for the override buffers.
+    static const constexpr size_t kOverrideBufferSlot = kMaxLayerBufferCount;
+
+    HwcBufferCache();
+
+    //
+    // Given a buffer, return the HWC cache slot and buffer to send to HWC.
+    //
+    // If the buffer is already in the cache, the buffer is null to optimize away sending HWC the
+    // buffer handle.
+    //
+    HwcSlotAndBuffer getHwcSlotAndBuffer(const sp<GraphicBuffer>& buffer);
+    //
+    // Given a buffer, return the HWC cache slot and buffer to send to HWC.
+    //
+    // A special slot number is used for override buffers.
+    //
+    // If the buffer is already in the cache, the buffer is null to optimize away sending HWC the
+    // buffer handle.
+    //
+    HwcSlotAndBuffer getOverrideHwcSlotAndBuffer(const sp<GraphicBuffer>& buffer);
+
+    //
+    // When a client process discards a buffer, it needs to be purged from the HWC cache.
+    //
+    // Returns the slot number of the buffer, or UINT32_MAX if it wasn't found in the cache.
+    //
+    uint32_t uncache(uint64_t graphicBufferId);
 
 private:
-    // an array where the index corresponds to a slot and the value corresponds to a (counter,
-    // buffer) pair. "counter" is a unique value that indicates the last time this slot was updated
-    // or used and allows us to keep track of the least-recently used buffer.
-    static const constexpr size_t kMaxLayerBufferCount = BufferQueue::NUM_BUFFER_SLOTS + 1;
-    wp<GraphicBuffer> mBuffers[kMaxLayerBufferCount];
+    uint32_t cache(const sp<GraphicBuffer>& buffer);
+    uint32_t getLeastRecentlyUsedSlot();
+
+    struct Cache {
+        sp<GraphicBuffer> buffer;
+        uint32_t slot;
+        // Cache entries are evicted according to least-recently-used when more than
+        // kMaxLayerBufferCount unique buffers have been sent to a layer.
+        uint64_t lruCounter;
+    };
+
+    std::unordered_map<uint64_t, Cache> mCacheByBufferId;
+    sp<GraphicBuffer> mLastOverrideBuffer;
+    std::stack<uint32_t> mFreeSlots;
+    uint64_t mLeastRecentlyUsedCounter;
 };
 
 } // namespace compositionengine::impl

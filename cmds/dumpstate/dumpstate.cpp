@@ -74,6 +74,7 @@
 #include <android/hidl/manager/1.0/IServiceManager.h>
 #include <android/os/IIncidentCompanion.h>
 #include <binder/IServiceManager.h>
+#include <cutils/multiuser.h>
 #include <cutils/native_handle.h>
 #include <cutils/properties.h>
 #include <cutils/sockets.h>
@@ -243,6 +244,7 @@ static const std::string DUMP_NETSTATS_PROTO_TASK = "DUMP NETSTATS PROTO";
 static const std::string DUMP_HALS_TASK = "DUMP HALS";
 static const std::string DUMP_BOARD_TASK = "dumpstate_board()";
 static const std::string DUMP_CHECKINS_TASK = "DUMP CHECKINS";
+static const std::string POST_PROCESS_UI_TRACES_TASK = "POST-PROCESS UI TRACES";
 
 namespace android {
 namespace os {
@@ -1072,7 +1074,7 @@ static void DumpNetstatsProto() {
         return;
     }
     RunCommandToFd(fd, "", {"dumpsys", "netstats", "--proto"},
-            CommandOptions::WithTimeout(120).Build());
+            CommandOptions::WithTimeout(5).Build());
     bool empty = 0 == lseek(fd, 0, SEEK_END);
     if (!empty) {
         ds.EnqueueAddZipEntryAndCleanupIfNeeded(kProtoPath + "netstats" + kProtoExt,
@@ -1628,16 +1630,16 @@ static void DumpAppInfos(int out_fd = STDOUT_FILENO) {
 // via the consent they are shown. Ignores other errors that occur while running various
 // commands. The consent checking is currently done around long running tasks, which happen to
 // be distributed fairly evenly throughout the function.
-static Dumpstate::RunStatus dumpstate() {
+Dumpstate::RunStatus Dumpstate::dumpstate() {
     DurationReporter duration_reporter("DUMPSTATE");
 
     // Enqueue slow functions into the thread pool, if the parallel run is enabled.
     std::future<std::string> dump_hals, dump_incident_report, dump_board, dump_checkins,
-            dump_netstats_report;
+            dump_netstats_report, post_process_ui_traces;
     if (ds.dump_pool_) {
         // Pool was shutdown in DumpstateDefaultAfterCritical method in order to
-        // drop root user. Restarts it with two threads for the parallel run.
-        ds.dump_pool_->start(/* thread_counts = */2);
+        // drop root user. Restarts it.
+        ds.dump_pool_->start(/* thread_counts = */3);
 
         dump_hals = ds.dump_pool_->enqueueTaskWithFd(DUMP_HALS_TASK, &DumpHals, _1);
         dump_incident_report = ds.dump_pool_->enqueueTask(
@@ -1647,6 +1649,8 @@ static Dumpstate::RunStatus dumpstate() {
         dump_board = ds.dump_pool_->enqueueTaskWithFd(
             DUMP_BOARD_TASK, &Dumpstate::DumpstateBoard, &ds, _1);
         dump_checkins = ds.dump_pool_->enqueueTaskWithFd(DUMP_CHECKINS_TASK, &DumpCheckins, _1);
+        post_process_ui_traces = ds.dump_pool_->enqueueTask(
+            POST_PROCESS_UI_TRACES_TASK, &Dumpstate::MaybePostProcessUiTraces, &ds);
     }
 
     // Dump various things. Note that anything that takes "long" (i.e. several seconds) should
@@ -1777,11 +1781,6 @@ static Dumpstate::RunStatus dumpstate() {
     DumpFile("BINDER STATS", binder_logs_dir + "/stats");
     DumpFile("BINDER STATE", binder_logs_dir + "/state");
 
-    /* Add window and surface trace files. */
-    if (!PropertiesHelper::IsUserBuild()) {
-        ds.AddDir(WMTRACE_DATA_DIR, false);
-    }
-
     ds.AddDir(SNAPSHOTCTL_LOG_DIR, false);
 
     if (ds.dump_pool_) {
@@ -1860,6 +1859,14 @@ static Dumpstate::RunStatus dumpstate() {
         RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK_AND_LOG(DUMP_INCIDENT_REPORT_TASK,
                 DumpIncidentReport);
     }
+
+    if (ds.dump_pool_) {
+        WaitForTask(std::move(post_process_ui_traces));
+    } else {
+        RUN_SLOW_FUNCTION_AND_LOG(POST_PROCESS_UI_TRACES_TASK, MaybePostProcessUiTraces);
+    }
+
+    MaybeAddUiTracesToZip();
 
     return Dumpstate::RunStatus::OK;
 }
@@ -2664,10 +2671,13 @@ bool Dumpstate::FinishZipFile() {
     return true;
 }
 
-static void SendBroadcast(const std::string& action, const std::vector<std::string>& args) {
+static void SendBroadcast(const std::string& action,
+                          const std::vector<std::string>& args,
+                          int32_t user_id) {
     // clang-format off
-    std::vector<std::string> am = {"/system/bin/cmd", "activity", "broadcast", "--user", "0",
-                    "--receiver-foreground", "--receiver-include-background", "-a", action};
+    std::vector<std::string> am = {"/system/bin/cmd", "activity", "broadcast", "--user",
+                        std::to_string(user_id), "--receiver-foreground",
+                        "--receiver-include-background", "-a", action};
     // clang-format on
 
     am.insert(am.end(), args.begin(), args.end());
@@ -2802,6 +2812,11 @@ static inline const char* ModeToString(Dumpstate::BugreportMode mode) {
     }
 }
 
+static bool IsConsentlessBugreportAllowed(const Dumpstate::DumpOptions& options) {
+    // only BUGREPORT_TELEPHONY does not allow using consentless bugreport
+    return !options.telephony_only;
+}
+
 static void SetOptionsFromMode(Dumpstate::BugreportMode mode, Dumpstate::DumpOptions* options,
                                bool is_screenshot_requested) {
     // Modify com.android.shell.BugreportProgressService#isDefaultScreenshotRequired as well for
@@ -2857,9 +2872,12 @@ static void LogDumpOptions(const Dumpstate::DumpOptions& options) {
 }
 
 void Dumpstate::DumpOptions::Initialize(BugreportMode bugreport_mode,
+                                        int bugreport_flags,
                                         const android::base::unique_fd& bugreport_fd_in,
                                         const android::base::unique_fd& screenshot_fd_in,
                                         bool is_screenshot_requested) {
+    this->use_predumped_ui_data = bugreport_flags & BugreportFlag::BUGREPORT_USE_PREDUMPED_UI_DATA;
+    this->is_consent_deferred = bugreport_flags & BugreportFlag::BUGREPORT_FLAG_DEFER_CONSENT;
     // Duplicate the fds because the passed in fds don't outlive the binder transaction.
     bugreport_fd.reset(fcntl(bugreport_fd_in.get(), F_DUPFD_CLOEXEC, 0));
     screenshot_fd.reset(fcntl(screenshot_fd_in.get(), F_DUPFD_CLOEXEC, 0));
@@ -2942,10 +2960,64 @@ void Dumpstate::Initialize() {
 
 Dumpstate::RunStatus Dumpstate::Run(int32_t calling_uid, const std::string& calling_package) {
     Dumpstate::RunStatus status = RunInternal(calling_uid, calling_package);
-    if (listener_ != nullptr) {
+    HandleRunStatus(status);
+    return status;
+}
+
+Dumpstate::RunStatus Dumpstate::Retrieve(int32_t calling_uid, const std::string& calling_package) {
+    Dumpstate::RunStatus status = RetrieveInternal(calling_uid, calling_package);
+    HandleRunStatus(status);
+    return status;
+}
+
+Dumpstate::RunStatus  Dumpstate::RetrieveInternal(int32_t calling_uid,
+                                                  const std::string& calling_package) {
+  consent_callback_ = new ConsentCallback();
+  const String16 incidentcompanion("incidentcompanion");
+  sp<android::IBinder> ics(
+      defaultServiceManager()->checkService(incidentcompanion));
+  android::String16 package(calling_package.c_str());
+  if (ics != nullptr) {
+    MYLOGD("Checking user consent via incidentcompanion service\n");
+    android::interface_cast<android::os::IIncidentCompanion>(ics)->authorizeReport(
+        calling_uid, package, String16(), String16(),
+        0x1 /* FLAG_CONFIRMATION_DIALOG */, consent_callback_.get());
+  } else {
+    MYLOGD(
+        "Unable to check user consent; incidentcompanion service unavailable\n");
+    return RunStatus::USER_CONSENT_TIMED_OUT;
+  }
+  UserConsentResult consent_result = consent_callback_->getResult();
+  int timeout_ms = 30 * 1000;
+  while (consent_result == UserConsentResult::UNAVAILABLE &&
+      consent_callback_->getElapsedTimeMs() < timeout_ms) {
+    sleep(1);
+    consent_result = consent_callback_->getResult();
+  }
+  if (consent_result == UserConsentResult::DENIED) {
+    return RunStatus::USER_CONSENT_DENIED;
+  }
+  if (consent_result == UserConsentResult::UNAVAILABLE) {
+    MYLOGD("Canceling user consent request via incidentcompanion service\n");
+    android::interface_cast<android::os::IIncidentCompanion>(ics)->cancelAuthorization(
+        consent_callback_.get());
+    return RunStatus::USER_CONSENT_TIMED_OUT;
+  }
+
+  bool copy_succeeded =
+      android::os::CopyFileToFd(path_, options_->bugreport_fd.get());
+  if (copy_succeeded) {
+    android::os::UnlinkAndLogOnError(path_);
+  }
+  return copy_succeeded ? Dumpstate::RunStatus::OK
+                        : Dumpstate::RunStatus::ERROR;
+}
+
+void Dumpstate::HandleRunStatus(Dumpstate::RunStatus status) {
+      if (listener_ != nullptr) {
         switch (status) {
             case Dumpstate::RunStatus::OK:
-                listener_->onFinished();
+                listener_->onFinished(path_.c_str());
                 break;
             case Dumpstate::RunStatus::HELP:
                 break;
@@ -2963,9 +3035,7 @@ Dumpstate::RunStatus Dumpstate::Run(int32_t calling_uid, const std::string& call
                 break;
         }
     }
-    return status;
 }
-
 void Dumpstate::Cancel() {
     CleanupTmpFiles();
     android::os::UnlinkAndLogOnError(log_path_);
@@ -2985,6 +3055,10 @@ void Dumpstate::Cancel() {
     if (zip_entry_tasks_) {
         zip_entry_tasks_->run(/*do_cancel =*/ true);
     }
+}
+
+void Dumpstate::PreDumpUiData() {
+    MaybeSnapshotUiTraces();
 }
 
 /*
@@ -3103,7 +3177,8 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
         };
         // clang-format on
         // Send STARTED broadcast for apps that listen to bugreport generation events
-        SendBroadcast("com.android.internal.intent.action.BUGREPORT_STARTED", am_args);
+        SendBroadcast("com.android.internal.intent.action.BUGREPORT_STARTED",
+                      am_args, multiuser_get_user_id(calling_uid));
         if (options_->progress_updates_to_socket) {
             dprintf(control_socket_fd_, "BEGIN:%s\n", path_.c_str());
         }
@@ -3184,9 +3259,9 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
         // The trace file is added to the zip by MaybeAddSystemTraceToZip().
         MaybeSnapshotSystemTrace();
 
-        // If a winscope trace is running, snapshot it now. It will be pulled into bugreport later
-        // from WMTRACE_DATA_DIR.
-        MaybeSnapshotWinTrace();
+        // Snapshot the UI traces now (if running).
+        // The trace files will be added to bugreport later.
+        MaybeSnapshotUiTraces();
     }
     onUiIntensiveBugreportDumpsFinished(calling_uid);
     MaybeCheckUserConsent(calling_uid, calling_package);
@@ -3217,7 +3292,7 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
 
     // Share the final file with the caller if the user has consented or Shell is the caller.
     Dumpstate::RunStatus status = Dumpstate::RunStatus::OK;
-    if (CalledByApi()) {
+    if (CalledByApi() && !options_->is_consent_deferred) {
         status = CopyBugreportIfUserConsented(calling_uid);
         if (status != Dumpstate::RunStatus::OK &&
             status != Dumpstate::RunStatus::USER_CONSENT_TIMED_OUT) {
@@ -3301,28 +3376,67 @@ void Dumpstate::MaybeSnapshotSystemTrace() {
     // file in the later stages.
 }
 
-void Dumpstate::MaybeSnapshotWinTrace() {
-    // Include the proto logging from WMShell.
-    RunCommand(
-        // Empty name because it's not intended to be classified as a bugreport section.
-        // Actual logging files can be found as "/data/misc/wmtrace/shell_log.winscope"
-        // in the bugreport.
-        "", {"dumpsys", "activity", "service", "SystemUIService",
-             "WMShell", "protolog", "save-for-bugreport"},
-        CommandOptions::WithTimeout(10).Always().DropRoot().RedirectStderr().Build());
+void Dumpstate::MaybeSnapshotUiTraces() {
+    if (PropertiesHelper::IsUserBuild() || options_->use_predumped_ui_data) {
+        return;
+    }
 
-    // Currently WindowManagerService and InputMethodManagerSerivice support WinScope protocol.
-    for (const auto& service : {"window", "input_method"}) {
+    const std::vector<std::vector<std::string>> dumpTracesForBugReportCommands = {
+        {"dumpsys", "activity", "service", "SystemUIService", "WMShell", "protolog",
+         "save-for-bugreport"},
+        {"dumpsys", "activity", "service", "SystemUIService", "WMShell", "transitions", "tracing",
+         "save-for-bugreport"},
+        {"cmd", "input_method", "tracing", "save-for-bugreport"},
+        {"cmd", "window", "tracing", "save-for-bugreport"},
+        {"cmd", "window", "shell", "tracing", "save-for-bugreport"},
+    };
+
+    for (const auto& command : dumpTracesForBugReportCommands) {
         RunCommand(
             // Empty name because it's not intended to be classified as a bugreport section.
             // Actual tracing files can be found in "/data/misc/wmtrace/" in the bugreport.
-            "", {"cmd", service, "tracing", "save-for-bugreport"},
+            "", command,
             CommandOptions::WithTimeout(10).Always().DropRoot().RedirectStderr().Build());
     }
+
+    // This command needs to be run as root
+    static const auto SURFACEFLINGER_COMMAND_SAVE_ALL_TRACES = std::vector<std::string> {
+        "service", "call", "SurfaceFlinger", "1042"
+    };
+    // Empty name because it's not intended to be classified as a bugreport section.
+    // Actual tracing files can be found in "/data/misc/wmtrace/" in the bugreport.
+    RunCommand(
+        "", SURFACEFLINGER_COMMAND_SAVE_ALL_TRACES,
+        CommandOptions::WithTimeout(10).Always().AsRoot().RedirectStderr().Build());
+}
+
+void Dumpstate::MaybePostProcessUiTraces() {
+    if (PropertiesHelper::IsUserBuild()) {
+        return;
+    }
+
+    RunCommand(
+        // Empty name because it's not intended to be classified as a bugreport section.
+        // Actual tracing files can be found in "/data/misc/wmtrace/" in the bugreport.
+        "", {
+            "/system/xbin/su", "system",
+            "/system/bin/layertracegenerator",
+            "/data/misc/wmtrace/transactions_trace.winscope",
+            "/data/misc/wmtrace/layers_trace_from_transactions.winscope"
+        },
+        CommandOptions::WithTimeout(120).Always().RedirectStderr().Build());
+}
+
+void Dumpstate::MaybeAddUiTracesToZip() {
+    if (PropertiesHelper::IsUserBuild()) {
+        return;
+    }
+
+    ds.AddDir(WMTRACE_DATA_DIR, false);
 }
 
 void Dumpstate::onUiIntensiveBugreportDumpsFinished(int32_t calling_uid) {
-    if (calling_uid == AID_SHELL || !CalledByApi()) {
+    if (multiuser_get_app_id(calling_uid) == AID_SHELL || !CalledByApi()) {
         return;
     }
     if (listener_ != nullptr) {
@@ -3333,9 +3447,11 @@ void Dumpstate::onUiIntensiveBugreportDumpsFinished(int32_t calling_uid) {
 }
 
 void Dumpstate::MaybeCheckUserConsent(int32_t calling_uid, const std::string& calling_package) {
-    if (calling_uid == AID_SHELL || !CalledByApi()) {
-        // No need to get consent for shell triggered dumpstates, or not through
-        // bugreporting API (i.e. no fd to copy back).
+    if (multiuser_get_app_id(calling_uid) == AID_SHELL ||
+        !CalledByApi() || options_->is_consent_deferred) {
+        // No need to get consent for shell triggered dumpstates, or not
+        // through bugreporting API (i.e. no fd to copy back), or when consent
+        // is deferred.
         return;
     }
     consent_callback_ = new ConsentCallback();
@@ -3344,9 +3460,12 @@ void Dumpstate::MaybeCheckUserConsent(int32_t calling_uid, const std::string& ca
     android::String16 package(calling_package.c_str());
     if (ics != nullptr) {
         MYLOGD("Checking user consent via incidentcompanion service\n");
+        int flags = 0x1; // IncidentManager.FLAG_CONFIRMATION_DIALOG
+        if (IsConsentlessBugreportAllowed(*options_)) {
+            flags |= 0x2; // IncidentManager.FLAG_ALLOW_CONSENTLESS_BUGREPORT
+        }
         android::interface_cast<android::os::IIncidentCompanion>(ics)->authorizeReport(
-            calling_uid, package, String16(), String16(),
-            0x1 /* FLAG_CONFIRMATION_DIALOG */, consent_callback_.get());
+            calling_uid, package, String16(), String16(), flags, consent_callback_.get());
     } else {
         MYLOGD("Unable to check user consent; incidentcompanion service unavailable\n");
     }
@@ -3415,7 +3534,7 @@ Dumpstate::RunStatus Dumpstate::CopyBugreportIfUserConsented(int32_t calling_uid
     // If the caller has asked to copy the bugreport over to their directory, we need explicit
     // user consent (unless the caller is Shell).
     UserConsentResult consent_result;
-    if (calling_uid == AID_SHELL) {
+    if (multiuser_get_app_id(calling_uid) == AID_SHELL) {
         consent_result = UserConsentResult::APPROVED;
     } else {
         consent_result = consent_callback_->getResult();
@@ -3486,7 +3605,7 @@ Dumpstate::RunStatus Dumpstate::ParseCommandlineAndRun(int argc, char* argv[]) {
         // an app; they are irrelevant here because bugreport is triggered via command line.
         // Update Last ID before calling Run().
         Initialize();
-        status = Run(-1 /* calling_uid */, "" /* calling_package */);
+        status = Run(0 /* calling_uid */, "" /* calling_package */);
     }
     return status;
 }

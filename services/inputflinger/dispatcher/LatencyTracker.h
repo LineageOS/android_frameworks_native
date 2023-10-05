@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _UI_INPUT_INPUTDISPATCHER_LATENCYTRACKER_H
-#define _UI_INPUT_INPUTDISPATCHER_LATENCYTRACKER_H
+#pragma once
 
 #include <map>
 #include <unordered_map>
@@ -56,7 +55,7 @@ public:
     void trackGraphicsLatency(int32_t inputEventId, const sp<IBinder>& connectionToken,
                               std::array<nsecs_t, GraphicsTimeline::SIZE> timeline);
 
-    std::string dump(const char* prefix);
+    std::string dump(const char* prefix) const;
 
 private:
     /**
@@ -81,5 +80,3 @@ private:
 };
 
 } // namespace android::inputdispatcher
-
-#endif // _UI_INPUT_INPUTDISPATCHER_LATENCYTRACKER_H

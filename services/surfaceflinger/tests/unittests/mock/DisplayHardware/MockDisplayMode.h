@@ -33,6 +33,11 @@ inline DisplayModePtr createDisplayMode(
             .build();
 }
 
+inline DisplayModePtr createDisplayMode(PhysicalDisplayId displayId, DisplayModeId modeId,
+                                        Fps refreshRate) {
+    return createDisplayMode(modeId, refreshRate, {}, {}, displayId);
+}
+
 inline DisplayModePtr cloneForDisplay(PhysicalDisplayId displayId, const DisplayModePtr& modePtr) {
     return DisplayMode::Builder(modePtr->getHwcId())
             .setId(modePtr->getId())

@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _UI_INPUT_INPUTDISPATCHER_CONNECTION_H
-#define _UI_INPUT_INPUTDISPATCHER_CONNECTION_H
+#pragma once
 
 #include "InputState.h"
 
@@ -28,10 +27,7 @@ namespace android::inputdispatcher {
 struct DispatchEntry;
 
 /* Manages the dispatch state associated with a single input channel. */
-class Connection : public RefBase {
-protected:
-    virtual ~Connection();
-
+class Connection {
 public:
     enum class Status {
         // Everything is peachy.
@@ -74,5 +70,3 @@ public:
 };
 
 } // namespace android::inputdispatcher
-
-#endif // _UI_INPUT_INPUTDISPATCHER_CONNECTION_H

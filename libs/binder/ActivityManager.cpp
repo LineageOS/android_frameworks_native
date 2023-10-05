@@ -75,11 +75,45 @@ status_t ActivityManager::registerUidObserver(const sp<IUidObserver>& observer,
     return DEAD_OBJECT;
 }
 
+status_t ActivityManager::registerUidObserverForUids(const sp<IUidObserver>& observer,
+                                                     const int32_t event, const int32_t cutpoint,
+                                                     const String16& callingPackage,
+                                                     const int32_t uids[], size_t nUids,
+                                                     /*out*/ sp<IBinder>& observerToken) {
+    sp<IActivityManager> service = getService();
+    if (service != nullptr) {
+        return service->registerUidObserverForUids(observer, event, cutpoint, callingPackage, uids,
+                                                   nUids, observerToken);
+    }
+    // ActivityManagerService appears dead. Return usual error code for dead service.
+    return DEAD_OBJECT;
+}
+
 status_t ActivityManager::unregisterUidObserver(const sp<IUidObserver>& observer)
 {
     sp<IActivityManager> service = getService();
     if (service != nullptr) {
         return service->unregisterUidObserver(observer);
+    }
+    // ActivityManagerService appears dead. Return usual error code for dead service.
+    return DEAD_OBJECT;
+}
+
+status_t ActivityManager::addUidToObserver(const sp<IBinder>& observerToken,
+                                           const String16& callingPackage, int32_t uid) {
+    sp<IActivityManager> service = getService();
+    if (service != nullptr) {
+        return service->addUidToObserver(observerToken, callingPackage, uid);
+    }
+    // ActivityManagerService appears dead. Return usual error code for dead service.
+    return DEAD_OBJECT;
+}
+
+status_t ActivityManager::removeUidFromObserver(const sp<IBinder>& observerToken,
+                                                const String16& callingPackage, int32_t uid) {
+    sp<IActivityManager> service = getService();
+    if (service != nullptr) {
+        return service->removeUidFromObserver(observerToken, callingPackage, uid);
     }
     // ActivityManagerService appears dead. Return usual error code for dead service.
     return DEAD_OBJECT;

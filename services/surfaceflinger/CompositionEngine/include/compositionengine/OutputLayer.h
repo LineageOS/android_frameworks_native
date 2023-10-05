@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include <ui/Transform.h>
 #include <utils/StrongPointer.h>
@@ -81,6 +82,10 @@ public:
     // TODO(lpique): Make this protected once it is only internally called.
     virtual CompositionState& editState() = 0;
 
+    // Clear the cache entries for a set of buffers that SurfaceFlinger no
+    // longer cares about.
+    virtual void uncacheBuffers(const std::vector<uint64_t>& bufferIdsToUncache) = 0;
+
     // Recalculates the state of the output layer from the output-independent
     // layer. If includeGeometry is false, the geometry state can be skipped.
     // internalDisplayRotationFlags must be set to the rotation flags for the
@@ -126,9 +131,9 @@ public:
     // Returns true if the composition settings scale pixels
     virtual bool needsFiltering() const = 0;
 
-    // Returns a composition list to be used by RenderEngine if the layer has been overridden
+    // Returns LayerSettings to be used by RenderEngine if the layer has been overridden
     // during the composition process
-    virtual std::vector<LayerFE::LayerSettings> getOverrideCompositionList() const = 0;
+    virtual std::optional<LayerFE::LayerSettings> getOverrideCompositionSettings() const = 0;
 
     // Debugging
     virtual void dump(std::string& result) const = 0;

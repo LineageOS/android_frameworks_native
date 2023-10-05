@@ -171,6 +171,8 @@ struct WindowInfo : public Parcelable {
                 static_cast<uint32_t>(os::InputConfig::SPY),
         INTERCEPTS_STYLUS =
                 static_cast<uint32_t>(os::InputConfig::INTERCEPTS_STYLUS),
+        CLONE =
+                static_cast<uint32_t>(os::InputConfig::CLONE),
         // clang-format on
     };
 
@@ -234,9 +236,12 @@ struct WindowInfo : public Parcelable {
     Type layoutParamsType = Type::UNKNOWN;
     ftl::Flags<Flag> layoutParamsFlags;
 
-    void setInputConfig(ftl::Flags<InputConfig> config, bool value);
+    // The input token for the window to which focus should be transferred when this input window
+    // can be successfully focused. If null, this input window will not transfer its focus to
+    // any other window.
+    sp<IBinder> focusTransferTarget;
 
-    bool isClone = false;
+    void setInputConfig(ftl::Flags<InputConfig> config, bool value);
 
     void addTouchableRegion(const Rect& region);
 
@@ -272,6 +277,7 @@ public:
     WindowInfoHandle(const WindowInfo& other);
 
     inline const WindowInfo* getInfo() const { return &mInfo; }
+    inline WindowInfo* editInfo() { return &mInfo; }
 
     sp<IBinder> getToken() const;
 

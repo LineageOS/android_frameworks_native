@@ -65,15 +65,15 @@ void CompositionEngine::setHwComposer(std::unique_ptr<HWComposer> hwComposer) {
 }
 
 renderengine::RenderEngine& CompositionEngine::getRenderEngine() const {
-    return *mRenderEngine.get();
+    return *mRenderEngine;
 }
 
-void CompositionEngine::setRenderEngine(std::unique_ptr<renderengine::RenderEngine> renderEngine) {
-    mRenderEngine = std::move(renderEngine);
+void CompositionEngine::setRenderEngine(renderengine::RenderEngine* renderEngine) {
+    mRenderEngine = renderEngine;
 }
 
-TimeStats& CompositionEngine::getTimeStats() const {
-    return *mTimeStats.get();
+TimeStats* CompositionEngine::getTimeStats() const {
+    return mTimeStats.get();
 }
 
 void CompositionEngine::setTimeStats(const std::shared_ptr<TimeStats>& timeStats) {
@@ -105,8 +105,6 @@ void CompositionEngine::present(CompositionRefreshArgs& args) {
         }
     }
 
-    updateLayerStateFromFE(args);
-
     for (const auto& output : args.outputs) {
         output->present(args);
     }
@@ -119,8 +117,6 @@ void CompositionEngine::updateCursorAsync(CompositionRefreshArgs& args) {
     for (const auto& output : args.outputs) {
         for (auto* layer : output->getOutputLayersOrderedByZ()) {
             if (layer->isHardwareCursor()) {
-                // Latch the cursor composition state from each front-end layer.
-                layer->getLayerFE().prepareCompositionState(LayerFE::StateSubset::Cursor);
                 layer->writeCursorPositionToHWC();
             }
         }
@@ -136,12 +132,16 @@ void CompositionEngine::preComposition(CompositionRefreshArgs& args) {
     mRefreshStartTime = systemTime(SYSTEM_TIME_MONOTONIC);
 
     for (auto& layer : args.layers) {
-        if (layer->onPreComposition(mRefreshStartTime)) {
+        if (layer->onPreComposition(mRefreshStartTime, args.updatingOutputGeometryThisFrame)) {
             needsAnotherUpdate = true;
         }
     }
 
     mNeedsAnotherUpdate = needsAnotherUpdate;
+}
+
+FeatureFlags CompositionEngine::getFeatureFlags() const {
+    return {};
 }
 
 void CompositionEngine::dump(std::string&) const {
@@ -150,13 +150,6 @@ void CompositionEngine::dump(std::string&) const {
 
 void CompositionEngine::setNeedsAnotherUpdateForTest(bool value) {
     mNeedsAnotherUpdate = value;
-}
-
-void CompositionEngine::updateLayerStateFromFE(CompositionRefreshArgs& args) {
-    // Update the composition state from each front-end layer
-    for (const auto& output : args.outputs) {
-        output->updateLayerStateFromFE(args);
-    }
 }
 
 } // namespace impl

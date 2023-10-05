@@ -57,17 +57,14 @@ protected:
 
     using Schedule = scheduler::TransactionSchedule;
     using nanos = std::chrono::nanoseconds;
-    const VsyncModulator::VsyncConfig kEarly{SF_OFFSET_EARLY, APP_OFFSET_EARLY,
-                                             nanos(SF_DURATION_LATE), nanos(APP_DURATION_LATE)};
-    const VsyncModulator::VsyncConfig kEarlyGpu{SF_OFFSET_EARLY_GPU, APP_OFFSET_EARLY_GPU,
-                                                nanos(SF_DURATION_EARLY),
-                                                nanos(APP_DURATION_EARLY)};
-    const VsyncModulator::VsyncConfig kLate{SF_OFFSET_LATE, APP_OFFSET_LATE,
-                                            nanos(SF_DURATION_EARLY_GPU),
-                                            nanos(APP_DURATION_EARLY_GPU)};
+    const VsyncConfig kEarly{SF_OFFSET_EARLY, APP_OFFSET_EARLY, nanos(SF_DURATION_LATE),
+                             nanos(APP_DURATION_LATE)};
+    const VsyncConfig kEarlyGpu{SF_OFFSET_EARLY_GPU, APP_OFFSET_EARLY_GPU, nanos(SF_DURATION_EARLY),
+                                nanos(APP_DURATION_EARLY)};
+    const VsyncConfig kLate{SF_OFFSET_LATE, APP_OFFSET_LATE, nanos(SF_DURATION_EARLY_GPU),
+                            nanos(APP_DURATION_EARLY_GPU)};
 
-    const VsyncModulator::VsyncConfigSet mOffsets = {kEarly, kEarlyGpu, kLate,
-                                                     nanos(HWC_MIN_WORK_DURATION)};
+    const VsyncConfigSet mOffsets = {kEarly, kEarlyGpu, kLate, nanos(HWC_MIN_WORK_DURATION)};
     sp<TestableVsyncModulator> mVsyncModulator = sp<TestableVsyncModulator>::make(mOffsets, Now);
 
     void SetUp() override { EXPECT_EQ(kLate, mVsyncModulator->setVsyncConfigSet(mOffsets)); }

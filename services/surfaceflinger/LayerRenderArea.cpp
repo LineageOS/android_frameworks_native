@@ -17,8 +17,8 @@
 #include <ui/GraphicTypes.h>
 #include <ui/Transform.h>
 
-#include "ContainerLayer.h"
 #include "DisplayDevice.h"
+#include "FrontEnd/LayerCreationArgs.h"
 #include "Layer.h"
 #include "LayerRenderArea.h"
 #include "SurfaceFlinger.h"
@@ -31,6 +31,7 @@ void reparentForDrawing(const sp<Layer>& oldParent, const sp<Layer>& newParent,
         // Compute and cache the bounds for the new parent layer.
         newParent->computeBounds(drawingBounds.toFloatRect(), ui::Transform(),
             0.f /* shadowRadius */);
+        newParent->updateSnapshot(true /* updateGeometry */);
         oldParent->setChildrenDrawingParent(newParent);
 };
 
@@ -38,9 +39,13 @@ void reparentForDrawing(const sp<Layer>& oldParent, const sp<Layer>& newParent,
 
 LayerRenderArea::LayerRenderArea(SurfaceFlinger& flinger, sp<Layer> layer, const Rect& crop,
                                  ui::Size reqSize, ui::Dataspace reqDataSpace, bool childrenOnly,
-                                 const Rect& layerStackRect, bool allowSecureLayers)
-      : RenderArea(reqSize, CaptureFill::CLEAR, reqDataSpace, layerStackRect, allowSecureLayers),
+                                 bool allowSecureLayers, const ui::Transform& layerTransform,
+                                 const Rect& layerBufferSize, bool hintForSeamlessTransition)
+      : RenderArea(reqSize, CaptureFill::CLEAR, reqDataSpace, hintForSeamlessTransition,
+                   allowSecureLayers),
         mLayer(std::move(layer)),
+        mLayerTransform(layerTransform),
+        mLayerBufferSize(layerBufferSize),
         mCrop(crop),
         mFlinger(flinger),
         mChildrenOnly(childrenOnly) {}
@@ -49,24 +54,8 @@ const ui::Transform& LayerRenderArea::getTransform() const {
     return mTransform;
 }
 
-Rect LayerRenderArea::getBounds() const {
-    return mLayer->getBufferSize(mLayer->getDrawingState());
-}
-
-int LayerRenderArea::getHeight() const {
-    return mLayer->getBufferSize(mLayer->getDrawingState()).getHeight();
-}
-
-int LayerRenderArea::getWidth() const {
-    return mLayer->getBufferSize(mLayer->getDrawingState()).getWidth();
-}
-
 bool LayerRenderArea::isSecure() const {
     return mAllowSecureLayers;
-}
-
-bool LayerRenderArea::needsFiltering() const {
-    return mNeedsFiltering;
 }
 
 sp<const DisplayDevice> LayerRenderArea::getDisplayDevice() const {
@@ -75,7 +64,8 @@ sp<const DisplayDevice> LayerRenderArea::getDisplayDevice() const {
 
 Rect LayerRenderArea::getSourceCrop() const {
     if (mCrop.isEmpty()) {
-        return getBounds();
+        // TODO this should probably be mBounds instead of just buffer bounds
+        return mLayerBufferSize;
     } else {
         return mCrop;
     }
@@ -84,20 +74,23 @@ Rect LayerRenderArea::getSourceCrop() const {
 void LayerRenderArea::render(std::function<void()> drawLayers) {
     using namespace std::string_literals;
 
-    const Rect sourceCrop = getSourceCrop();
-    // no need to check rotation because there is none
-    mNeedsFiltering = sourceCrop.width() != getReqWidth() || sourceCrop.height() != getReqHeight();
+    if (!mChildrenOnly) {
+        mTransform = mLayerTransform.inverse();
+    }
 
+    if (mFlinger.mLayerLifecycleManagerEnabled) {
+        drawLayers();
+        return;
+    }
     // If layer is offscreen, update mirroring info if it exists
     if (mLayer->isRemovedFromCurrentState()) {
         mLayer->traverse(LayerVector::StateSet::Drawing,
-                         [&](Layer* layer) { layer->updateMirrorInfo(); });
+                         [&](Layer* layer) { layer->updateMirrorInfo({}); });
         mLayer->traverse(LayerVector::StateSet::Drawing,
                          [&](Layer* layer) { layer->updateCloneBufferInfo(); });
     }
 
     if (!mChildrenOnly) {
-        mTransform = mLayer->getTransform().inverse();
         // If the layer is offscreen, compute bounds since we don't compute bounds for offscreen
         // layers in a regular cycles.
         if (mLayer->isRemovedFromCurrentState()) {
@@ -110,11 +103,12 @@ void LayerRenderArea::render(std::function<void()> drawLayers) {
         // layer which has no properties set and which does not draw.
         //  We hold the statelock as the reparent-for-drawing operation modifies the
         //  hierarchy and there could be readers on Binder threads, like dump.
-        sp<ContainerLayer> screenshotParentLayer = mFlinger.getFactory().createContainerLayer(
-                  {&mFlinger, nullptr, "Screenshot Parent"s, 0, LayerMetadata()});
+        auto screenshotParentLayer = mFlinger.getFactory().createEffectLayer(
+                {&mFlinger, nullptr, "Screenshot Parent"s, ISurfaceComposerClient::eNoColorFill,
+                 LayerMetadata()});
         {
             Mutex::Autolock _l(mFlinger.mStateLock);
-            reparentForDrawing(mLayer, screenshotParentLayer, sourceCrop);
+            reparentForDrawing(mLayer, screenshotParentLayer, getSourceCrop());
         }
         drawLayers();
         {
@@ -122,6 +116,8 @@ void LayerRenderArea::render(std::function<void()> drawLayers) {
             mLayer->setChildrenDrawingParent(mLayer);
         }
     }
+    mLayer->updateSnapshot(/*updateGeometry=*/true);
+    mLayer->updateChildrenSnapshots(/*updateGeometry=*/true);
 }
 
 } // namespace android

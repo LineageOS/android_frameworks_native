@@ -33,6 +33,7 @@
 #pragma clang diagnostic pop // ignored "-Wconversion -Wextra"
 
 #include <compositionengine/ProjectionSpace.h>
+#include <renderengine/BorderRenderInfo.h>
 #include <ui/LayerStack.h>
 #include <ui/Rect.h>
 #include <ui/Region.h>
@@ -121,12 +122,9 @@ struct OutputCompositionState {
 
     bool previousDeviceRequestedSuccess = false;
 
+    // Optional.
     // The earliest time to send the present command to the HAL
-    std::chrono::steady_clock::time_point earliestPresentTime;
-
-    // The previous present fence. Used together with earliestPresentTime
-    // to prevent an early presentation of a frame.
-    std::shared_ptr<FenceTime> previousPresentFence;
+    std::optional<std::chrono::steady_clock::time_point> earliestPresentTime;
 
     // The expected time for the next present
     nsecs_t expectedPresentTime{0};
@@ -163,6 +161,8 @@ struct OutputCompositionState {
             CompositionStrategyPredictionState::DISABLED;
 
     bool treat170mAsSrgb = false;
+
+    std::vector<renderengine::BorderRenderInfo> borderInfoList;
 
     uint64_t lastOutputLayerHash = 0;
     uint64_t outputLayerHash = 0;

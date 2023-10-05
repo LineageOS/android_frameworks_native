@@ -14,33 +14,54 @@
  * limitations under the License.
  */
 
-#ifndef _UI_INPUTREADER_INPUT_MAPPER_H
-#define _UI_INPUTREADER_INPUT_MAPPER_H
+#pragma once
 
 #include "EventHub.h"
 #include "InputDevice.h"
 #include "InputListener.h"
 #include "InputReaderContext.h"
+#include "NotifyArgs.h"
 #include "StylusState.h"
 #include "VibrationElement.h"
 
 namespace android {
+/**
+ * This is the factory method that must be used to create any InputMapper
+ */
+template <class T, class... Args>
+std::unique_ptr<T> createInputMapper(InputDeviceContext& deviceContext,
+                                     const InputReaderConfiguration& readerConfig, Args... args) {
+    // Using `new` to access non-public constructors.
+    std::unique_ptr<T> mapper(new T(deviceContext, readerConfig, args...));
+    // We need to reset and configure the mapper to ensure it is ready to process event
+    nsecs_t now = systemTime(SYSTEM_TIME_MONOTONIC);
+    std::list<NotifyArgs> unused = mapper->reset(now);
+    unused += mapper->reconfigure(now, readerConfig, /*changes=*/{});
+    return mapper;
+}
 
 /* An input mapper transforms raw input events into cooked event data.
  * A single input device can have multiple associated input mappers in order to interpret
  * different classes of events.
  *
  * InputMapper lifecycle:
- * - create
- * - configure with 0 changes
+ * - create and configure with 0 changes
  * - reset
- * - process, process, process (may occasionally reconfigure with non-zero changes or reset)
+ * - process, process, process (may occasionally reconfigure or reset)
  * - reset
  * - destroy
  */
 class InputMapper {
 public:
-    explicit InputMapper(InputDeviceContext& deviceContext);
+    /**
+     * Subclasses must either provide a public constructor
+     * or must be-friend the factory method.
+     */
+    template <class T, class... Args>
+    friend std::unique_ptr<T> createInputMapper(InputDeviceContext& deviceContext,
+                                                const InputReaderConfiguration& readerConfig,
+                                                Args... args);
+
     virtual ~InputMapper();
 
     inline int32_t getDeviceId() { return mDeviceContext.getId(); }
@@ -49,28 +70,30 @@ public:
     inline const std::string getDeviceName() const { return mDeviceContext.getName(); }
     inline InputReaderContext* getContext() { return mDeviceContext.getContext(); }
     inline InputReaderPolicyInterface* getPolicy() { return getContext()->getPolicy(); }
-    inline InputListenerInterface& getListener() { return getContext()->getListener(); }
 
     virtual uint32_t getSources() const = 0;
-    virtual void populateDeviceInfo(InputDeviceInfo* deviceInfo);
+    virtual void populateDeviceInfo(InputDeviceInfo& deviceInfo);
     virtual void dump(std::string& dump);
-    virtual void configure(nsecs_t when, const InputReaderConfiguration* config, uint32_t changes);
-    virtual void reset(nsecs_t when);
-    virtual void process(const RawEvent* rawEvent) = 0;
-    virtual void timeoutExpired(nsecs_t when);
+    [[nodiscard]] virtual std::list<NotifyArgs> reconfigure(nsecs_t when,
+                                                            const InputReaderConfiguration& config,
+                                                            ConfigurationChanges changes);
+    [[nodiscard]] virtual std::list<NotifyArgs> reset(nsecs_t when);
+    [[nodiscard]] virtual std::list<NotifyArgs> process(const RawEvent* rawEvent) = 0;
+    [[nodiscard]] virtual std::list<NotifyArgs> timeoutExpired(nsecs_t when);
 
     virtual int32_t getKeyCodeState(uint32_t sourceMask, int32_t keyCode);
     virtual int32_t getScanCodeState(uint32_t sourceMask, int32_t scanCode);
     virtual int32_t getSwitchState(uint32_t sourceMask, int32_t switchCode);
     virtual int32_t getKeyCodeForKeyLocation(int32_t locationKeyCode) const;
 
-    virtual bool markSupportedKeyCodes(uint32_t sourceMask, size_t numCodes,
-                                       const int32_t* keyCodes, uint8_t* outFlags);
-    virtual void vibrate(const VibrationSequence& sequence, ssize_t repeat, int32_t token);
-    virtual void cancelVibrate(int32_t token);
+    virtual bool markSupportedKeyCodes(uint32_t sourceMask, const std::vector<int32_t>& keyCodes,
+                                       uint8_t* outFlags);
+    [[nodiscard]] virtual std::list<NotifyArgs> vibrate(const VibrationSequence& sequence,
+                                                        ssize_t repeat, int32_t token);
+    [[nodiscard]] virtual std::list<NotifyArgs> cancelVibrate(int32_t token);
     virtual bool isVibrating();
     virtual std::vector<int32_t> getVibratorIds();
-    virtual void cancelTouch(nsecs_t when, nsecs_t readTime);
+    [[nodiscard]] virtual std::list<NotifyArgs> cancelTouch(nsecs_t when, nsecs_t readTime);
     virtual bool enableSensor(InputDeviceSensorType sensorType,
                               std::chrono::microseconds samplingPeriod,
                               std::chrono::microseconds maxBatchReportLatency);
@@ -92,13 +115,16 @@ public:
      */
     virtual bool updateMetaState(int32_t keyCode);
 
-    virtual void updateExternalStylusState(const StylusState& state);
+    [[nodiscard]] virtual std::list<NotifyArgs> updateExternalStylusState(const StylusState& state);
 
     virtual std::optional<int32_t> getAssociatedDisplayId() { return std::nullopt; }
     virtual void updateLedState(bool reset) {}
 
 protected:
     InputDeviceContext& mDeviceContext;
+
+    explicit InputMapper(InputDeviceContext& deviceContext,
+                         const InputReaderConfiguration& readerConfig);
 
     status_t getAbsoluteAxisInfo(int32_t axis, RawAbsoluteAxisInfo* axisInfo);
     void bumpGeneration();
@@ -109,5 +135,3 @@ protected:
 };
 
 } // namespace android
-
-#endif // _UI_INPUTREADER_INPUT_MAPPER_H

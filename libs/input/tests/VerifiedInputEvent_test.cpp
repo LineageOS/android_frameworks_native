@@ -23,10 +23,10 @@ namespace android {
 
 static KeyEvent getKeyEventWithFlags(int32_t flags) {
     KeyEvent event;
-    event.initialize(InputEvent::nextId(), 2 /*deviceId*/, AINPUT_SOURCE_GAMEPAD,
+    event.initialize(InputEvent::nextId(), /*deviceId=*/2, AINPUT_SOURCE_GAMEPAD,
                      ADISPLAY_ID_DEFAULT, INVALID_HMAC, AKEY_EVENT_ACTION_DOWN, flags,
-                     AKEYCODE_BUTTON_X, 121 /*scanCode*/, AMETA_ALT_ON, 1 /*repeatCount*/,
-                     1000 /*downTime*/, 2000 /*eventTime*/);
+                     AKEYCODE_BUTTON_X, /*scanCode=*/121, AMETA_ALT_ON, /*repeatCount=*/1,
+                     /*downTime=*/1000, /*eventTime=*/2000);
     return event;
 }
 
@@ -44,12 +44,12 @@ static MotionEvent getMotionEventWithFlags(int32_t flags) {
     ui::Transform transform;
     transform.set({2, 0, 4, 0, 3, 5, 0, 0, 1});
     ui::Transform identity;
-    event.initialize(InputEvent::nextId(), 0 /*deviceId*/, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_DEFAULT,
-                     INVALID_HMAC, AMOTION_EVENT_ACTION_DOWN, 0 /*actionButton*/, flags,
-                     AMOTION_EVENT_EDGE_FLAG_NONE, AMETA_NONE, 0 /*buttonState*/,
-                     MotionClassification::NONE, transform, 0.1 /*xPrecision*/, 0.2 /*yPrecision*/,
-                     280 /*xCursorPosition*/, 540 /*yCursorPosition*/, identity, 100 /*downTime*/,
-                     200 /*eventTime*/, pointerCount, pointerProperties, pointerCoords);
+    event.initialize(InputEvent::nextId(), /*deviceId=*/0, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_DEFAULT,
+                     INVALID_HMAC, AMOTION_EVENT_ACTION_DOWN, /*actionButton=*/0, flags,
+                     AMOTION_EVENT_EDGE_FLAG_NONE, AMETA_NONE, /*buttonState=*/0,
+                     MotionClassification::NONE, transform, /*xPrecision=*/0.1, /*yPrecision=*/0.2,
+                     /*xCursorPosition=*/280, /*yCursorPosition=*/540, identity, /*downTime=*/100,
+                     /*eventTime=*/200, pointerCount, pointerProperties, pointerCoords);
     return event;
 }
 

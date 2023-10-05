@@ -31,7 +31,6 @@ using android::hardware::power::Mode;
 using android::hardware::power::V1_0::Feature;
 using android::hardware::power::V1_0::PowerHint;
 using IPowerV1_1 = android::hardware::power::V1_1::IPower;
-using IPowerV1_0 = android::hardware::power::V1_0::IPower;
 
 using namespace android;
 using namespace android::power;
@@ -39,15 +38,6 @@ using namespace std::chrono_literals;
 using namespace testing;
 
 // -------------------------------------------------------------------------------------------------
-
-class MockIPowerV1_0 : public IPowerV1_0 {
-public:
-    MOCK_METHOD(hardware::Return<void>, setInteractive, (bool interactive), (override));
-    MOCK_METHOD(hardware::Return<void>, powerHint, (PowerHint hint, int32_t data), (override));
-    MOCK_METHOD(hardware::Return<void>, setFeature, (Feature feature, bool activate), (override));
-    MOCK_METHOD(hardware::Return<void>, getPlatformLowPowerStats,
-                (getPlatformLowPowerStats_cb _hidl_cb), (override));
-};
 
 class MockIPowerV1_1 : public IPowerV1_1 {
 public:
@@ -69,23 +59,22 @@ public:
 
 protected:
     std::unique_ptr<HalWrapper> mWrapper = nullptr;
-    sp<StrictMock<MockIPowerV1_0>> mMockHalV1_0 = nullptr;
-    sp<StrictMock<MockIPowerV1_1>> mMockHalV1_1 = nullptr;
+    sp<StrictMock<MockIPowerV1_1>> mMockHal = nullptr;
 };
 
 // -------------------------------------------------------------------------------------------------
 
 void PowerHalWrapperHidlV1_1Test::SetUp() {
-    mMockHalV1_0 = new StrictMock<MockIPowerV1_0>();
-    mMockHalV1_1 = new StrictMock<MockIPowerV1_1>();
-    mWrapper = std::make_unique<HidlHalWrapperV1_1>(mMockHalV1_0, mMockHalV1_1);
+    mMockHal = new StrictMock<MockIPowerV1_1>();
+    mWrapper = std::make_unique<HidlHalWrapperV1_1>(mMockHal);
     ASSERT_NE(mWrapper, nullptr);
+    EXPECT_CALL(*mMockHal.get(), powerHint(_, _)).Times(0);
 }
 
 // -------------------------------------------------------------------------------------------------
 
 TEST_F(PowerHalWrapperHidlV1_1Test, TestSetBoostSuccessful) {
-    EXPECT_CALL(*mMockHalV1_1.get(), powerHintAsync(Eq(PowerHint::INTERACTION), Eq(1000)))
+    EXPECT_CALL(*mMockHal.get(), powerHintAsync(Eq(PowerHint::INTERACTION), Eq(1000)))
             .Times(Exactly(1));
 
     auto result = mWrapper->setBoost(Boost::INTERACTION, 1000);
@@ -93,7 +82,7 @@ TEST_F(PowerHalWrapperHidlV1_1Test, TestSetBoostSuccessful) {
 }
 
 TEST_F(PowerHalWrapperHidlV1_1Test, TestSetBoostFailed) {
-    EXPECT_CALL(*mMockHalV1_1.get(), powerHintAsync(Eq(PowerHint::INTERACTION), Eq(1000)))
+    EXPECT_CALL(*mMockHal.get(), powerHintAsync(Eq(PowerHint::INTERACTION), Eq(1000)))
             .Times(Exactly(1))
             .WillRepeatedly([](PowerHint, int32_t) {
                 return hardware::Return<void>(hardware::Status::fromExceptionCode(-1));
@@ -104,24 +93,31 @@ TEST_F(PowerHalWrapperHidlV1_1Test, TestSetBoostFailed) {
 }
 
 TEST_F(PowerHalWrapperHidlV1_1Test, TestSetBoostUnsupported) {
+    EXPECT_CALL(*mMockHal.get(), powerHintAsync(_, _)).Times(0);
+    EXPECT_CALL(*mMockHal.get(), setInteractive(_)).Times(0);
+    EXPECT_CALL(*mMockHal.get(), setFeature(_, _)).Times(0);
+
     auto result = mWrapper->setBoost(Boost::CAMERA_LAUNCH, 10);
+    ASSERT_TRUE(result.isUnsupported());
+    result = mWrapper->setBoost(Boost::ML_ACC, 10);
+    ASSERT_TRUE(result.isUnsupported());
+    result = mWrapper->setBoost(Boost::DISPLAY_UPDATE_IMMINENT, 10);
     ASSERT_TRUE(result.isUnsupported());
 }
 
 TEST_F(PowerHalWrapperHidlV1_1Test, TestSetMode) {
     {
         InSequence seq;
-        EXPECT_CALL(*mMockHalV1_1.get(), powerHintAsync(Eq(PowerHint::LAUNCH), Eq(1)))
+        EXPECT_CALL(*mMockHal.get(), powerHintAsync(Eq(PowerHint::LAUNCH), Eq(true)))
                 .Times(Exactly(1));
-        EXPECT_CALL(*mMockHalV1_1.get(), powerHintAsync(Eq(PowerHint::LOW_POWER), Eq(0)))
+        EXPECT_CALL(*mMockHal.get(), powerHintAsync(Eq(PowerHint::LOW_POWER), Eq(false)))
                 .Times(Exactly(1));
-        EXPECT_CALL(*mMockHalV1_1.get(),
-                    powerHintAsync(Eq(PowerHint::SUSTAINED_PERFORMANCE), Eq(1)))
+        EXPECT_CALL(*mMockHal.get(), powerHintAsync(Eq(PowerHint::SUSTAINED_PERFORMANCE), Eq(true)))
                 .Times(Exactly(1));
-        EXPECT_CALL(*mMockHalV1_1.get(), powerHintAsync(Eq(PowerHint::VR_MODE), Eq(0)))
+        EXPECT_CALL(*mMockHal.get(), powerHintAsync(Eq(PowerHint::VR_MODE), Eq(false)))
                 .Times(Exactly(1));
-        EXPECT_CALL(*mMockHalV1_0.get(), setInteractive(Eq(true))).Times(Exactly(1));
-        EXPECT_CALL(*mMockHalV1_0.get(),
+        EXPECT_CALL(*mMockHal.get(), setInteractive(Eq(true))).Times(Exactly(1));
+        EXPECT_CALL(*mMockHal.get(),
                     setFeature(Eq(Feature::POWER_FEATURE_DOUBLE_TAP_TO_WAKE), Eq(false)))
                 .Times(Exactly(1));
     }
@@ -141,7 +137,7 @@ TEST_F(PowerHalWrapperHidlV1_1Test, TestSetMode) {
 }
 
 TEST_F(PowerHalWrapperHidlV1_1Test, TestSetModeFailed) {
-    EXPECT_CALL(*mMockHalV1_1.get(), powerHintAsync(Eq(PowerHint::LAUNCH), Eq(1)))
+    EXPECT_CALL(*mMockHal.get(), powerHintAsync(Eq(PowerHint::LAUNCH), Eq(true)))
             .Times(Exactly(1))
             .WillRepeatedly([](PowerHint, int32_t) {
                 return hardware::Return<void>(hardware::Status::fromExceptionCode(-1));
@@ -152,6 +148,16 @@ TEST_F(PowerHalWrapperHidlV1_1Test, TestSetModeFailed) {
 }
 
 TEST_F(PowerHalWrapperHidlV1_1Test, TestSetModeIgnored) {
+    EXPECT_CALL(*mMockHal.get(), powerHintAsync(_, _)).Times(0);
+    EXPECT_CALL(*mMockHal.get(), setInteractive(_)).Times(0);
+    EXPECT_CALL(*mMockHal.get(), setFeature(_, _)).Times(0);
+
     auto result = mWrapper->setMode(Mode::CAMERA_STREAMING_HIGH, true);
+    ASSERT_TRUE(result.isUnsupported());
+    result = mWrapper->setMode(Mode::EXPENSIVE_RENDERING, false);
+    ASSERT_TRUE(result.isUnsupported());
+    result = mWrapper->setMode(Mode::FIXED_PERFORMANCE, true);
+    ASSERT_TRUE(result.isUnsupported());
+    result = mWrapper->setMode(Mode::GAME_LOADING, false);
     ASSERT_TRUE(result.isUnsupported());
 }

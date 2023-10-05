@@ -34,7 +34,7 @@ TEST_F(SetDisplayStateLockedTest, setDisplayStateLockedDoesNothingWithUnknownDis
     // Preconditions
 
     // We have an unknown display token not associated with a known display
-    sp<BBinder> displayToken = new BBinder();
+    sp<BBinder> displayToken = sp<BBinder>::make();
 
     // The requested display state references the unknown display.
     DisplayState state;
@@ -95,7 +95,7 @@ TEST_F(SetDisplayStateLockedTest, setDisplayStateLockedDoesNothingIfSurfaceDidNo
     display.inject();
 
     // There is a surface that can be set.
-    sp<mock::GraphicBufferProducer> surface = new mock::GraphicBufferProducer();
+    sp<mock::GraphicBufferProducer> surface = sp<mock::GraphicBufferProducer>::make();
 
     // The current display state has the surface set
     display.mutableCurrentDisplayState().surface = surface;
@@ -132,7 +132,7 @@ TEST_F(SetDisplayStateLockedTest, setDisplayStateLockedRequestsUpdateIfSurfaceCh
     display.inject();
 
     // There is a surface that can be set.
-    sp<mock::GraphicBufferProducer> surface = new mock::GraphicBufferProducer();
+    sp<mock::GraphicBufferProducer> surface = sp<mock::GraphicBufferProducer>::make();
 
     // The current display state does not have a surface
     display.mutableCurrentDisplayState().surface = nullptr;

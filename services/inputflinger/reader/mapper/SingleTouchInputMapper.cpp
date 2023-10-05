@@ -18,21 +18,23 @@
 
 namespace android {
 
-SingleTouchInputMapper::SingleTouchInputMapper(InputDeviceContext& deviceContext)
-      : TouchInputMapper(deviceContext) {}
+SingleTouchInputMapper::SingleTouchInputMapper(InputDeviceContext& deviceContext,
+                                               const InputReaderConfiguration& readerConfig)
+      : TouchInputMapper(deviceContext, readerConfig) {}
 
 SingleTouchInputMapper::~SingleTouchInputMapper() {}
 
-void SingleTouchInputMapper::reset(nsecs_t when) {
+std::list<NotifyArgs> SingleTouchInputMapper::reset(nsecs_t when) {
     mSingleTouchMotionAccumulator.reset(getDeviceContext());
 
-    TouchInputMapper::reset(when);
+    return TouchInputMapper::reset(when);
 }
 
-void SingleTouchInputMapper::process(const RawEvent* rawEvent) {
-    TouchInputMapper::process(rawEvent);
+std::list<NotifyArgs> SingleTouchInputMapper::process(const RawEvent* rawEvent) {
+    std::list<NotifyArgs> out = TouchInputMapper::process(rawEvent);
 
     mSingleTouchMotionAccumulator.process(rawEvent);
+    return out;
 }
 
 void SingleTouchInputMapper::syncTouch(nsecs_t when, RawState* outState) {
@@ -40,7 +42,7 @@ void SingleTouchInputMapper::syncTouch(nsecs_t when, RawState* outState) {
         outState->rawPointerData.pointerCount = 1;
         outState->rawPointerData.idToIndex[0] = 0;
 
-        bool isHovering = mTouchButtonAccumulator.getToolType() != AMOTION_EVENT_TOOL_TYPE_MOUSE &&
+        bool isHovering = mTouchButtonAccumulator.getToolType() != ToolType::MOUSE &&
                 (mTouchButtonAccumulator.isHovering() ||
                  (mRawPointerAxes.pressure.valid &&
                   mSingleTouchMotionAccumulator.getAbsolutePressure() <= 0));
@@ -60,8 +62,8 @@ void SingleTouchInputMapper::syncTouch(nsecs_t when, RawState* outState) {
         outPointer.tiltX = mSingleTouchMotionAccumulator.getAbsoluteTiltX();
         outPointer.tiltY = mSingleTouchMotionAccumulator.getAbsoluteTiltY();
         outPointer.toolType = mTouchButtonAccumulator.getToolType();
-        if (outPointer.toolType == AMOTION_EVENT_TOOL_TYPE_UNKNOWN) {
-            outPointer.toolType = AMOTION_EVENT_TOOL_TYPE_FINGER;
+        if (outPointer.toolType == ToolType::UNKNOWN) {
+            outPointer.toolType = ToolType::FINGER;
         }
         outPointer.isHovering = isHovering;
     }

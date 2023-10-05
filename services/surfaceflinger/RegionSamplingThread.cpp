@@ -40,6 +40,7 @@
 
 #include "DisplayDevice.h"
 #include "DisplayRenderArea.h"
+#include "FrontEnd/LayerCreationArgs.h"
 #include "Layer.h"
 #include "Scheduler/VsyncController.h"
 #include "SurfaceFlinger.h"
@@ -129,12 +130,12 @@ RegionSamplingThread::~RegionSamplingThread() {
     }
 }
 
-void RegionSamplingThread::addListener(const Rect& samplingArea, const wp<Layer>& stopLayer,
+void RegionSamplingThread::addListener(const Rect& samplingArea, uint32_t stopLayerId,
                                        const sp<IRegionSamplingListener>& listener) {
     sp<IBinder> asBinder = IInterface::asBinder(listener);
-    asBinder->linkToDeath(this);
+    asBinder->linkToDeath(sp<DeathRecipient>::fromExisting(this));
     std::lock_guard lock(mSamplingMutex);
-    mDescriptors.emplace(wp<IBinder>(asBinder), Descriptor{samplingArea, stopLayer, listener});
+    mDescriptors.emplace(wp<IBinder>(asBinder), Descriptor{samplingArea, stopLayerId, listener});
 }
 
 void RegionSamplingThread::removeListener(const sp<IRegionSamplingListener>& listener) {
@@ -276,54 +277,83 @@ void RegionSamplingThread::captureSample() {
 
     const Rect sampledBounds = sampleRegion.bounds();
     constexpr bool kUseIdentityTransform = false;
+    constexpr bool kHintForSeamlessTransition = false;
 
     SurfaceFlinger::RenderAreaFuture renderAreaFuture = ftl::defer([=] {
         return DisplayRenderArea::create(displayWeak, sampledBounds, sampledBounds.getSize(),
-                                         ui::Dataspace::V0_SRGB, kUseIdentityTransform);
+                                         ui::Dataspace::V0_SRGB, kUseIdentityTransform,
+                                         kHintForSeamlessTransition);
     });
 
     std::unordered_set<sp<IRegionSamplingListener>, SpHash<IRegionSamplingListener>> listeners;
 
-    auto traverseLayers = [&](const LayerVector::Visitor& visitor) {
-        bool stopLayerFound = false;
-        auto filterVisitor = [&](Layer* layer) {
-            // We don't want to capture any layers beyond the stop layer
-            if (stopLayerFound) return;
+    auto layerFilterFn = [&](const char* layerName, uint32_t layerId, const Rect& bounds,
+                             const ui::Transform transform, bool& outStopTraversal) -> bool {
+        // Likewise if we just found a stop layer, set the flag and abort
+        for (const auto& [area, stopLayerId, listener] : descriptors) {
+            if (stopLayerId != UNASSIGNED_LAYER_ID && layerId == stopLayerId) {
+                outStopTraversal = true;
+                return false;
+            }
+        }
 
-            // Likewise if we just found a stop layer, set the flag and abort
-            for (const auto& [area, stopLayer, listener] : descriptors) {
-                if (layer == stopLayer.promote().get()) {
-                    stopLayerFound = true;
+        // Compute the layer's position on the screen
+        constexpr bool roundOutwards = true;
+        Rect transformed = transform.transform(bounds, roundOutwards);
+
+        // If this layer doesn't intersect with the larger sampledBounds, skip capturing it
+        Rect ignore;
+        if (!transformed.intersect(sampledBounds, &ignore)) return false;
+
+        // If the layer doesn't intersect a sampling area, skip capturing it
+        bool intersectsAnyArea = false;
+        for (const auto& [area, stopLayer, listener] : descriptors) {
+            if (transformed.intersect(area, &ignore)) {
+                intersectsAnyArea = true;
+                listeners.insert(listener);
+            }
+        }
+        if (!intersectsAnyArea) return false;
+
+        ALOGV("Traversing [%s] [%d, %d, %d, %d]", layerName, bounds.left, bounds.top, bounds.right,
+              bounds.bottom);
+
+        return true;
+    };
+
+    std::function<std::vector<std::pair<Layer*, sp<LayerFE>>>()> getLayerSnapshots;
+    if (mFlinger.mLayerLifecycleManagerEnabled) {
+        auto filterFn = [&](const frontend::LayerSnapshot& snapshot,
+                            bool& outStopTraversal) -> bool {
+            const Rect bounds =
+                    frontend::RequestedLayerState::reduce(Rect(snapshot.geomLayerBounds),
+                                                          snapshot.transparentRegionHint);
+            const ui::Transform transform = snapshot.geomLayerTransform;
+            return layerFilterFn(snapshot.name.c_str(), snapshot.path.id, bounds, transform,
+                                 outStopTraversal);
+        };
+        getLayerSnapshots =
+                mFlinger.getLayerSnapshotsForScreenshots(layerStack, CaptureArgs::UNSET_UID,
+                                                         filterFn);
+    } else {
+        auto traverseLayers = [&](const LayerVector::Visitor& visitor) {
+            bool stopLayerFound = false;
+            auto filterVisitor = [&](Layer* layer) {
+                // We don't want to capture any layers beyond the stop layer
+                if (stopLayerFound) return;
+
+                if (!layerFilterFn(layer->getDebugName(), layer->getSequence(),
+                                   Rect(layer->getBounds()), layer->getTransform(),
+                                   stopLayerFound)) {
                     return;
                 }
-            }
-
-            // Compute the layer's position on the screen
-            const Rect bounds = Rect(layer->getBounds());
-            const ui::Transform transform = layer->getTransform();
-            constexpr bool roundOutwards = true;
-            Rect transformed = transform.transform(bounds, roundOutwards);
-
-            // If this layer doesn't intersect with the larger sampledBounds, skip capturing it
-            Rect ignore;
-            if (!transformed.intersect(sampledBounds, &ignore)) return;
-
-            // If the layer doesn't intersect a sampling area, skip capturing it
-            bool intersectsAnyArea = false;
-            for (const auto& [area, stopLayer, listener] : descriptors) {
-                if (transformed.intersect(area, &ignore)) {
-                    intersectsAnyArea = true;
-                    listeners.insert(listener);
-                }
-            }
-            if (!intersectsAnyArea) return;
-
-            ALOGV("Traversing [%s] [%d, %d, %d, %d]", layer->getDebugName(), bounds.left,
-                  bounds.top, bounds.right, bounds.bottom);
-            visitor(layer);
+                visitor(layer);
+            };
+            mFlinger.traverseLayersInLayerStack(layerStack, CaptureArgs::UNSET_UID, {},
+                                                filterVisitor);
         };
-        mFlinger.traverseLayersInLayerStack(layerStack, CaptureArgs::UNSET_UID, filterVisitor);
-    };
+        getLayerSnapshots = RenderArea::fromTraverseLayersLambda(traverseLayers);
+    }
 
     std::shared_ptr<renderengine::ExternalTexture> buffer = nullptr;
     if (mCachedBuffer && mCachedBuffer->getBuffer()->getWidth() == sampledBounds.getWidth() &&
@@ -333,8 +363,8 @@ void RegionSamplingThread::captureSample() {
         const uint32_t usage =
                 GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_TEXTURE;
         sp<GraphicBuffer> graphicBuffer =
-                new GraphicBuffer(sampledBounds.getWidth(), sampledBounds.getHeight(),
-                                  PIXEL_FORMAT_RGBA_8888, 1, usage, "RegionSamplingThread");
+                sp<GraphicBuffer>::make(sampledBounds.getWidth(), sampledBounds.getHeight(),
+                                        PIXEL_FORMAT_RGBA_8888, 1, usage, "RegionSamplingThread");
         const status_t bufferStatus = graphicBuffer->initCheck();
         LOG_ALWAYS_FATAL_IF(bufferStatus != OK, "captureSample: Buffer failed to allocate: %d",
                             bufferStatus);
@@ -348,7 +378,7 @@ void RegionSamplingThread::captureSample() {
     constexpr bool kGrayscale = false;
 
     if (const auto fenceResult =
-                mFlinger.captureScreenCommon(std::move(renderAreaFuture), traverseLayers, buffer,
+                mFlinger.captureScreenCommon(std::move(renderAreaFuture), getLayerSnapshots, buffer,
                                              kRegionSampling, kGrayscale, nullptr)
                         .get();
         fenceResult.ok()) {

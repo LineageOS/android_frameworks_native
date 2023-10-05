@@ -19,6 +19,8 @@
 #include <limits> // std::numeric_limits
 
 #include <gui/SurfaceComposerClient.h>
+#include <ui/Rotation.h>
+#include "LayerProtoHelper.h"
 
 #include "Tracing/TransactionProtoParser.h"
 
@@ -27,8 +29,7 @@ using namespace android::surfaceflinger;
 namespace android {
 
 TEST(TransactionProtoParserTest, parse) {
-    const sp<IBinder> layerHandle = new BBinder();
-    const sp<IBinder> displayHandle = new BBinder();
+    const sp<IBinder> displayHandle = sp<BBinder>::make();
     TransactionState t1;
     t1.originPid = 1;
     t1.originUid = 2;
@@ -37,7 +38,6 @@ TEST(TransactionProtoParserTest, parse) {
     t1.postTime = 5;
 
     layer_state_t layer;
-    layer.layerId = 6;
     layer.what = std::numeric_limits<uint64_t>::max();
     layer.what &= ~static_cast<uint64_t>(layer_state_t::eBufferChanged);
     layer.x = 7;
@@ -46,14 +46,13 @@ TEST(TransactionProtoParserTest, parse) {
     size_t layerCount = 2;
     t1.states.reserve(layerCount);
     for (uint32_t i = 0; i < layerCount; i++) {
-        ComposerState s;
+        ResolvedComposerState s;
         if (i == 1) {
-            layer.parentSurfaceControlForChild =
-                    new SurfaceControl(SurfaceComposerClient::getDefault(), layerHandle, nullptr,
-                                       42);
+            s.parentId = 42;
         }
+        s.layerId = 6 + i;
         s.state = layer;
-        t1.states.add(s);
+        t1.states.emplace_back(s);
     }
 
     size_t displayCount = 2;
@@ -72,18 +71,10 @@ TEST(TransactionProtoParserTest, parse) {
 
     class TestMapper : public TransactionProtoParser::FlingerDataMapper {
     public:
-        sp<IBinder> layerHandle;
         sp<IBinder> displayHandle;
 
-        TestMapper(sp<IBinder> layerHandle, sp<IBinder> displayHandle)
-              : layerHandle(layerHandle), displayHandle(displayHandle) {}
+        TestMapper(sp<IBinder> displayHandle) : displayHandle(displayHandle) {}
 
-        sp<IBinder> getLayerHandle(int32_t id) const override {
-            return (id == 42) ? layerHandle : nullptr;
-        }
-        int64_t getLayerId(const sp<IBinder>& handle) const override {
-            return (handle == layerHandle) ? 42 : -1;
-        }
         sp<IBinder> getDisplayHandle(int32_t id) const {
             return (id == 43) ? displayHandle : nullptr;
         }
@@ -92,7 +83,7 @@ TEST(TransactionProtoParserTest, parse) {
         }
     };
 
-    TransactionProtoParser parser(std::make_unique<TestMapper>(layerHandle, displayHandle));
+    TransactionProtoParser parser(std::make_unique<TestMapper>(displayHandle));
 
     proto::TransactionState proto = parser.toProto(t1);
     TransactionState t2 = parser.fromProto(proto);
@@ -105,12 +96,56 @@ TEST(TransactionProtoParserTest, parse) {
     ASSERT_EQ(t1.states.size(), t2.states.size());
     ASSERT_EQ(t1.states[0].state.x, t2.states[0].state.x);
     ASSERT_EQ(t1.states[0].state.matrix.dsdx, t2.states[0].state.matrix.dsdx);
-    ASSERT_EQ(t1.states[1].state.parentSurfaceControlForChild->getHandle(),
-              t2.states[1].state.parentSurfaceControlForChild->getHandle());
+    ASSERT_EQ(t1.states[1].layerId, t2.states[1].layerId);
+    ASSERT_EQ(t1.states[1].parentId, t2.states[1].parentId);
 
     ASSERT_EQ(t1.displays.size(), t2.displays.size());
     ASSERT_EQ(t1.displays[1].width, t2.displays[1].width);
     ASSERT_EQ(t1.displays[0].token, t2.displays[0].token);
+}
+
+TEST(TransactionProtoParserTest, parseDisplayInfo) {
+    frontend::DisplayInfo d1;
+    d1.info.displayId = 42;
+    d1.info.logicalWidth = 43;
+    d1.info.logicalHeight = 44;
+    d1.info.transform.set(1, 2, 3, 4);
+    d1.transform = d1.info.transform.inverse();
+    d1.receivesInput = true;
+    d1.isSecure = false;
+    d1.isPrimary = true;
+    d1.isVirtual = false;
+    d1.rotationFlags = ui::Transform::ROT_180;
+    d1.transformHint = ui::Transform::ROT_90;
+
+    const uint32_t layerStack = 2;
+    google::protobuf::RepeatedPtrField<proto::DisplayInfo> displayProtos;
+    auto displayInfoProto = displayProtos.Add();
+    *displayInfoProto = TransactionProtoParser::toProto(d1, layerStack);
+    display::DisplayMap<ui::LayerStack, frontend::DisplayInfo> displayInfos;
+    TransactionProtoParser::fromProto(displayProtos, displayInfos);
+
+    ASSERT_TRUE(displayInfos.contains(ui::LayerStack::fromValue(layerStack)));
+    frontend::DisplayInfo d2 = displayInfos.get(ui::LayerStack::fromValue(layerStack))->get();
+    EXPECT_EQ(d1.info.displayId, d2.info.displayId);
+    EXPECT_EQ(d1.info.logicalWidth, d2.info.logicalWidth);
+    EXPECT_EQ(d1.info.logicalHeight, d2.info.logicalHeight);
+
+    EXPECT_EQ(d1.info.transform.dsdx(), d2.info.transform.dsdx());
+    EXPECT_EQ(d1.info.transform.dsdy(), d2.info.transform.dsdy());
+    EXPECT_EQ(d1.info.transform.dtdx(), d2.info.transform.dtdx());
+    EXPECT_EQ(d1.info.transform.dtdy(), d2.info.transform.dtdy());
+
+    EXPECT_EQ(d1.transform.dsdx(), d2.transform.dsdx());
+    EXPECT_EQ(d1.transform.dsdy(), d2.transform.dsdy());
+    EXPECT_EQ(d1.transform.dtdx(), d2.transform.dtdx());
+    EXPECT_EQ(d1.transform.dtdy(), d2.transform.dtdy());
+
+    EXPECT_EQ(d1.receivesInput, d2.receivesInput);
+    EXPECT_EQ(d1.isSecure, d2.isSecure);
+    EXPECT_EQ(d1.isVirtual, d2.isVirtual);
+    EXPECT_EQ(d1.rotationFlags, d2.rotationFlags);
+    EXPECT_EQ(d1.transformHint, d2.transformHint);
 }
 
 } // namespace android

@@ -32,6 +32,11 @@ namespace android::compositionengine {
 using Layers = std::vector<sp<compositionengine::LayerFE>>;
 using Outputs = std::vector<std::shared_ptr<compositionengine::Output>>;
 
+struct BorderRenderInfo {
+    float width = 0;
+    half4 color;
+    std::vector<int32_t> layerIds;
+};
 /**
  * A parameter object for refreshing a set of outputs
  */
@@ -47,6 +52,9 @@ struct CompositionRefreshArgs {
     // All the layers that have queued updates.
     Layers layersWithQueuedFrames;
 
+    // All graphic buffers that will no longer be used and should be removed from caches.
+    std::vector<uint64_t> bufferIdsToUncache;
+
     // Controls how the color mode is chosen for an output
     OutputColorSetting outputColorSetting{OutputColorSetting::kEnhanced};
 
@@ -58,9 +66,6 @@ struct CompositionRefreshArgs {
 
     // Used to correctly apply an inverse-display buffer transform if applicable
     ui::Transform::RotationFlags internalDisplayRotationFlags{ui::Transform::ROT_0};
-
-    // If true, GPU clocks will be increased when rendering blurs
-    bool blursAreExpensive{false};
 
     // If true, the complete output geometry needs to be recomputed this frame
     bool updatingOutputGeometryThisFrame{false};
@@ -78,18 +83,19 @@ struct CompositionRefreshArgs {
     // If set, causes the dirty regions to flash with the delay
     std::optional<std::chrono::microseconds> devOptFlashDirtyRegionsDelay;
 
-    // The earliest time to send the present command to the HAL
-    std::chrono::steady_clock::time_point earliestPresentTime;
-
-    // The previous present fence. Used together with earliestPresentTime
-    // to prevent an early presentation of a frame.
-    std::shared_ptr<FenceTime> previousPresentFence;
+    // Optional.
+    // The earliest time to send the present command to the HAL.
+    std::optional<std::chrono::steady_clock::time_point> earliestPresentTime;
 
     // The expected time for the next present
     nsecs_t expectedPresentTime{0};
 
     // If set, a frame has been scheduled for that time.
     std::optional<std::chrono::steady_clock::time_point> scheduledFrameTime;
+
+    std::vector<BorderRenderInfo> borderInfoList;
+
+    bool hasTrustedPresentationListener = false;
 };
 
 } // namespace android::compositionengine

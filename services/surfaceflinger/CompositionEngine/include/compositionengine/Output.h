@@ -23,6 +23,7 @@
 #include <type_traits>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
 #include <compositionengine/LayerFE.h>
 #include <renderengine/LayerSettings.h>
@@ -152,6 +153,10 @@ public:
         Region aboveOpaqueLayers;
         // The region of the output which should be considered dirty
         Region dirtyRegion;
+        // The region of the output which is covered by layers, excluding display overlays. This
+        // only has a value if there's something needing it, like when a TrustedPresentationListener
+        // is set
+        std::optional<Region> aboveCoveredLayersExcludingOverlays;
     };
 
     virtual ~Output();
@@ -262,9 +267,6 @@ public:
     // Presents the output, finalizing all composition details
     virtual void present(const CompositionRefreshArgs&) = 0;
 
-    // Latches the front-end layer state for each output layer
-    virtual void updateLayerStateFromFE(const CompositionRefreshArgs&) const = 0;
-
     // Enables predicting composition strategy to run client composition earlier
     virtual void setPredictCompositionStrategy(bool) = 0;
 
@@ -275,6 +277,7 @@ protected:
     virtual void setDisplayColorProfile(std::unique_ptr<DisplayColorProfile>) = 0;
     virtual void setRenderSurface(std::unique_ptr<RenderSurface>) = 0;
 
+    virtual void uncacheBuffers(const std::vector<uint64_t>&) = 0;
     virtual void rebuildLayerStacks(const CompositionRefreshArgs&, LayerFESet&) = 0;
     virtual void collectVisibleLayers(const CompositionRefreshArgs&, CoverageState&) = 0;
     virtual void ensureOutputLayerIfVisible(sp<LayerFE>&, CoverageState&) = 0;
@@ -291,12 +294,11 @@ protected:
     using GpuCompositionResult = compositionengine::impl::GpuCompositionResult;
     // Runs prepare frame in another thread while running client composition using
     // the previous frame's composition strategy.
-    virtual GpuCompositionResult prepareFrameAsync(const CompositionRefreshArgs&) = 0;
+    virtual GpuCompositionResult prepareFrameAsync() = 0;
     virtual void devOptRepaintFlash(const CompositionRefreshArgs&) = 0;
-    virtual void finishFrame(const CompositionRefreshArgs&, GpuCompositionResult&&) = 0;
+    virtual void finishFrame(GpuCompositionResult&&) = 0;
     virtual std::optional<base::unique_fd> composeSurfaces(
-            const Region&, const compositionengine::CompositionRefreshArgs&,
-            std::shared_ptr<renderengine::ExternalTexture>, base::unique_fd&) = 0;
+            const Region&, std::shared_ptr<renderengine::ExternalTexture>, base::unique_fd&) = 0;
     virtual void postFramebuffer() = 0;
     virtual void renderCachedSets(const CompositionRefreshArgs&) = 0;
     virtual bool chooseCompositionStrategy(

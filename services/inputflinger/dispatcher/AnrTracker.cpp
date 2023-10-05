@@ -54,7 +54,7 @@ bool AnrTracker::empty() const {
 }
 
 // If empty() is false, return the time at which the next connection should cause an ANR
-// If empty() is true, return LONG_LONG_MAX
+// If empty() is true, return LLONG_MAX
 nsecs_t AnrTracker::firstTimeout() const {
     if (mAnrTimeouts.empty()) {
         return std::numeric_limits<nsecs_t>::max();

@@ -25,6 +25,7 @@
 #include <string>
 
 #include "FileBlobCache.h"
+#include "MultifileBlobCache.h"
 
 namespace android {
 
@@ -32,6 +33,11 @@ class egl_display_t;
 
 class EGLAPI egl_cache_t {
 public:
+    enum class EGLCacheMode {
+        Monolithic,
+        Multifile,
+    };
+
     // get returns a pointer to the singleton egl_cache_t object.  This
     // singleton object will never be destroyed.
     static egl_cache_t* get();
@@ -64,6 +70,15 @@ public:
     // cache contents from one program invocation to another.
     void setCacheFilename(const char* filename);
 
+    // Allow setting monolithic or multifile modes
+    void setCacheMode(EGLCacheMode cacheMode);
+
+    // Allow the fixed cache limit to be overridden
+    void setCacheLimit(int64_t cacheByteLimit);
+
+    // Return the byte total for cache file(s)
+    size_t getCacheSize();
+
 private:
     // Creation and (the lack of) destruction is handled internally.
     egl_cache_t();
@@ -73,11 +88,17 @@ private:
     egl_cache_t(const egl_cache_t&); // not implemented
     void operator=(const egl_cache_t&); // not implemented
 
+    // Check system properties to determine which blobcache mode should be used
+    void updateMode();
+
     // getBlobCacheLocked returns the BlobCache object being used to store the
     // key/value blob pairs.  If the BlobCache object has not yet been created,
     // this will do so, loading the serialized cache contents from disk if
     // possible.
     BlobCache* getBlobCacheLocked();
+
+    // Get or create the multifile blobcache
+    MultifileBlobCache* getMultifileBlobCacheLocked();
 
     // mInitialized indicates whether the egl_cache_t is in the initialized
     // state.  It is initialized to false at construction time, and gets set to
@@ -91,6 +112,9 @@ private:
     // is initially NULL, and will be initialized by getBlobCacheLocked the
     // first time it's needed.
     std::unique_ptr<FileBlobCache> mBlobCache;
+
+    // The multifile version of blobcache allowing larger contents to be stored
+    std::unique_ptr<MultifileBlobCache> mMultifileBlobCache;
 
     // mFilename is the name of the file for storing cache contents in between
     // program invocations.  It is initialized to an empty string at
@@ -112,6 +136,12 @@ private:
 
     // sCache is the singleton egl_cache_t object.
     static egl_cache_t sCache;
+
+    // Whether to use multiple files to store cache entries
+    bool mMultifileMode;
+
+    // Cache limit
+    size_t mCacheByteLimit;
 };
 
 }; // namespace android

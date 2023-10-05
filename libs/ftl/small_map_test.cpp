@@ -15,12 +15,15 @@
  */
 
 #include <ftl/small_map.h>
+#include <ftl/unit.h>
 #include <gtest/gtest.h>
 
 #include <cctype>
 #include <string>
+#include <string_view>
 
 using namespace std::string_literals;
+using namespace std::string_view_literals;
 
 namespace android::test {
 
@@ -38,7 +41,7 @@ TEST(SmallMap, Example) {
 
   EXPECT_TRUE(map.contains(123));
 
-  EXPECT_EQ(map.get(42, [](const std::string& s) { return s.size(); }), 3u);
+  EXPECT_EQ(map.get(42).transform([](const std::string& s) { return s.size(); }), 3u);
 
   const auto opt = map.get(-1);
   ASSERT_TRUE(opt);
@@ -50,7 +53,7 @@ TEST(SmallMap, Example) {
   map.emplace_or_replace(0, "vanilla", 2u, 3u);
   EXPECT_TRUE(map.dynamic());
 
-  EXPECT_EQ(map, SmallMap(ftl::init::map(-1, "xyz")(0, "nil")(42, "???")(123, "abc")));
+  EXPECT_EQ(map, SmallMap(ftl::init::map(-1, "xyz"sv)(0, "nil"sv)(42, "???"sv)(123, "abc"sv)));
 }
 
 TEST(SmallMap, Construct) {
@@ -70,7 +73,7 @@ TEST(SmallMap, Construct) {
     EXPECT_EQ(map.max_size(), 5u);
     EXPECT_FALSE(map.dynamic());
 
-    EXPECT_EQ(map, SmallMap(ftl::init::map(123, "abc")(456, "def")(789, "ghi")));
+    EXPECT_EQ(map, SmallMap(ftl::init::map(123, "abc"sv)(456, "def"sv)(789, "ghi"sv)));
   }
   {
     // In-place constructor with different types.
@@ -81,7 +84,7 @@ TEST(SmallMap, Construct) {
     EXPECT_EQ(map.max_size(), 5u);
     EXPECT_FALSE(map.dynamic());
 
-    EXPECT_EQ(map, SmallMap(ftl::init::map(42, "???")(123, "abc")(-1, "\0\0\0")));
+    EXPECT_EQ(map, SmallMap(ftl::init::map(42, "???"sv)(123, "abc"sv)(-1, ""sv)));
   }
   {
     // In-place constructor with implicit size.
@@ -92,7 +95,7 @@ TEST(SmallMap, Construct) {
     EXPECT_EQ(map.max_size(), 3u);
     EXPECT_FALSE(map.dynamic());
 
-    EXPECT_EQ(map, SmallMap(ftl::init::map(-1, "\0\0\0")(42, "???")(123, "abc")));
+    EXPECT_EQ(map, SmallMap(ftl::init::map(-1, ""sv)(42, "???"sv)(123, "abc"sv)));
   }
 }
 
@@ -108,7 +111,7 @@ TEST(SmallMap, Assign) {
   {
     // Convertible types; same capacity.
     SmallMap map1 = ftl::init::map<char, std::string>('M', "mega")('G', "giga");
-    const SmallMap map2 = ftl::init::map('T', "tera")('P', "peta");
+    const SmallMap map2 = ftl::init::map('T', "tera"sv)('P', "peta"sv);
 
     map1 = map2;
     EXPECT_EQ(map1, map2);
@@ -147,7 +150,7 @@ TEST(SmallMap, UniqueKeys) {
   }
 }
 
-TEST(SmallMap, Find) {
+TEST(SmallMap, Get) {
   {
     // Constant reference.
     const SmallMap map = ftl::init::map('a', 'A')('b', 'B')('c', 'C');
@@ -172,14 +175,15 @@ TEST(SmallMap, Find) {
     EXPECT_EQ(d, 'D');
   }
   {
-    // Constant unary operation.
+    // Immutable transform operation.
     const SmallMap map = ftl::init::map('a', 'x')('b', 'y')('c', 'z');
-    EXPECT_EQ(map.get('c', [](char c) { return std::toupper(c); }), 'Z');
+    EXPECT_EQ(map.get('c').transform([](char c) { return std::toupper(c); }), 'Z');
   }
   {
-    // Mutable unary operation.
+    // Mutable transform operation.
     SmallMap map = ftl::init::map('a', 'x')('b', 'y')('c', 'z');
-    EXPECT_TRUE(map.get('c', [](char& c) { c = std::toupper(c); }));
+    EXPECT_EQ(map.get('c').transform(ftl::unit_fn([](char& c) { c = std::toupper(c); })),
+              ftl::unit);
 
     EXPECT_EQ(map, SmallMap(ftl::init::map('c', 'Z')('b', 'y')('a', 'x')));
   }
@@ -247,7 +251,7 @@ TEST(SmallMap, TryReplace) {
   }
   {
     // Replacement arguments can refer to the replaced mapping.
-    const auto ref = map.get(2, [](const auto& s) { return s.str[0]; });
+    const auto ref = map.get(2).transform([](const String& s) { return s.str[0]; });
     ASSERT_TRUE(ref);
 
     // Construct std::string from one character.
@@ -292,7 +296,7 @@ TEST(SmallMap, EmplaceOrReplace) {
   }
   {
     // Replacement arguments can refer to the replaced mapping.
-    const auto ref = map.get(2, [](const auto& s) { return s.str[0]; });
+    const auto ref = map.get(2).transform([](const String& s) { return s.str[0]; });
     ASSERT_TRUE(ref);
 
     // Construct std::string from one character.

@@ -23,6 +23,9 @@
 
 namespace android::gui {
 
+static_assert(VsyncEventData::kFrameTimelinesCapacity == 7,
+              "Must update value in DisplayEventReceiver.java#FRAME_TIMELINES_CAPACITY (and here)");
+
 int64_t VsyncEventData::preferredVsyncId() const {
     return frameTimelines[preferredFrameTimelineIndex].vsyncId;
 }
@@ -43,11 +46,15 @@ status_t ParcelableVsyncEventData::readFromParcel(const Parcel* parcel) {
 
     SAFE_PARCEL(parcel->readInt64, &vsync.frameInterval);
 
-    uint64_t uintPreferredFrameTimelineIndex;
-    SAFE_PARCEL(parcel->readUint64, &uintPreferredFrameTimelineIndex);
+    uint32_t uintPreferredFrameTimelineIndex;
+    SAFE_PARCEL(parcel->readUint32, &uintPreferredFrameTimelineIndex);
     vsync.preferredFrameTimelineIndex = static_cast<size_t>(uintPreferredFrameTimelineIndex);
 
-    for (int i = 0; i < VsyncEventData::kFrameTimelinesLength; i++) {
+    uint32_t uintFrameTimelinesLength;
+    SAFE_PARCEL(parcel->readUint32, &uintFrameTimelinesLength);
+    vsync.frameTimelinesLength = static_cast<size_t>(uintFrameTimelinesLength);
+
+    for (size_t i = 0; i < vsync.frameTimelinesLength; i++) {
         SAFE_PARCEL(parcel->readInt64, &vsync.frameTimelines[i].vsyncId);
         SAFE_PARCEL(parcel->readInt64, &vsync.frameTimelines[i].deadlineTimestamp);
         SAFE_PARCEL(parcel->readInt64, &vsync.frameTimelines[i].expectedPresentationTime);
@@ -57,8 +64,9 @@ status_t ParcelableVsyncEventData::readFromParcel(const Parcel* parcel) {
 }
 status_t ParcelableVsyncEventData::writeToParcel(Parcel* parcel) const {
     SAFE_PARCEL(parcel->writeInt64, vsync.frameInterval);
-    SAFE_PARCEL(parcel->writeUint64, vsync.preferredFrameTimelineIndex);
-    for (int i = 0; i < VsyncEventData::kFrameTimelinesLength; i++) {
+    SAFE_PARCEL(parcel->writeUint32, vsync.preferredFrameTimelineIndex);
+    SAFE_PARCEL(parcel->writeUint32, vsync.frameTimelinesLength);
+    for (size_t i = 0; i < vsync.frameTimelinesLength; i++) {
         SAFE_PARCEL(parcel->writeInt64, vsync.frameTimelines[i].vsyncId);
         SAFE_PARCEL(parcel->writeInt64, vsync.frameTimelines[i].deadlineTimestamp);
         SAFE_PARCEL(parcel->writeInt64, vsync.frameTimelines[i].expectedPresentationTime);

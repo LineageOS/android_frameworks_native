@@ -23,6 +23,7 @@
 
 using android::binder::Status;
 using android::hardware::power::IPowerHintSession;
+using android::hardware::power::SessionHint;
 
 using namespace android::hardware::power;
 
@@ -40,6 +41,8 @@ public:
     MOCK_METHOD(std::string, getInterfaceHash, (), (override));
     MOCK_METHOD(Status, updateTargetWorkDuration, (int64_t), (override));
     MOCK_METHOD(Status, reportActualWorkDuration, (const ::std::vector<WorkDuration>&), (override));
+    MOCK_METHOD(Status, sendHint, (SessionHint), (override));
+    MOCK_METHOD(Status, setThreads, (const ::std::vector<int32_t>&), (override));
 };
 
 } // namespace android::Hwc2::mock

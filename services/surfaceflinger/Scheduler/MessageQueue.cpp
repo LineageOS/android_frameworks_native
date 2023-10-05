@@ -17,12 +17,12 @@
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 #include <binder/IPCThreadState.h>
-
+#include <gui/DisplayEventReceiver.h>
 #include <utils/Log.h>
 #include <utils/Timers.h>
 #include <utils/threads.h>
 
-#include <gui/DisplayEventReceiver.h>
+#include <scheduler/interface/ICompositor.h>
 
 #include "EventThread.h"
 #include "FrameTimeline.h"
@@ -30,11 +30,11 @@
 
 namespace android::impl {
 
-void MessageQueue::Handler::dispatchFrame(int64_t vsyncId, nsecs_t expectedVsyncTime) {
+void MessageQueue::Handler::dispatchFrame(VsyncId vsyncId, TimePoint expectedVsyncTime) {
     if (!mFramePending.exchange(true)) {
         mVsyncId = vsyncId;
         mExpectedVsyncTime = expectedVsyncTime;
-        mQueue.mLooper->sendMessage(this, Message());
+        mQueue.mLooper->sendMessage(sp<MessageHandler>::fromExisting(this), Message());
     }
 }
 
@@ -44,16 +44,7 @@ bool MessageQueue::Handler::isFramePending() const {
 
 void MessageQueue::Handler::handleMessage(const Message&) {
     mFramePending.store(false);
-
-    const nsecs_t frameTime = systemTime();
-    auto& compositor = mQueue.mCompositor;
-
-    if (!compositor.commit(frameTime, mVsyncId, mExpectedVsyncTime)) {
-        return;
-    }
-
-    compositor.composite(frameTime, mVsyncId);
-    compositor.sample();
+    mQueue.onFrameSignal(mQueue.mCompositor, mVsyncId, mExpectedVsyncTime);
 }
 
 MessageQueue::MessageQueue(ICompositor& compositor)
@@ -66,77 +57,93 @@ MessageQueue::MessageQueue(ICompositor& compositor, sp<Handler> handler)
         mLooper(sp<Looper>::make(kAllowNonCallbacks)),
         mHandler(std::move(handler)) {}
 
-// TODO(b/169865816): refactor VSyncInjections to use MessageQueue directly
-// and remove the EventThread from MessageQueue
-void MessageQueue::setInjector(sp<EventThreadConnection> connection) {
-    auto& tube = mInjector.tube;
-
-    if (const int fd = tube.getFd(); fd >= 0) {
-        mLooper->removeFd(fd);
-    }
-
-    if (connection) {
-        // The EventThreadConnection is retained when disabling injection, so avoid subsequently
-        // stealing invalid FDs. Note that the stolen FDs are kept open.
-        if (tube.getFd() < 0) {
-            connection->stealReceiveChannel(&tube);
-        } else {
-            ALOGW("Recycling channel for VSYNC injection.");
-        }
-
-        mLooper->addFd(
-                tube.getFd(), 0, Looper::EVENT_INPUT,
-                [](int, int, void* data) {
-                    reinterpret_cast<MessageQueue*>(data)->injectorCallback();
-                    return 1; // Keep registration.
-                },
-                this);
-    }
-
-    std::lock_guard lock(mInjector.mutex);
-    mInjector.connection = std::move(connection);
-}
-
 void MessageQueue::vsyncCallback(nsecs_t vsyncTime, nsecs_t targetWakeupTime, nsecs_t readyTime) {
     ATRACE_CALL();
     // Trace VSYNC-sf
     mVsync.value = (mVsync.value + 1) % 2;
 
+    const auto expectedVsyncTime = TimePoint::fromNs(vsyncTime);
     {
         std::lock_guard lock(mVsync.mutex);
-        mVsync.lastCallbackTime = std::chrono::nanoseconds(vsyncTime);
+        mVsync.lastCallbackTime = expectedVsyncTime;
         mVsync.scheduledFrameTime.reset();
     }
 
-    const auto vsyncId = mVsync.tokenManager->generateTokenForPredictions(
-            {targetWakeupTime, readyTime, vsyncTime});
+    const auto vsyncId = VsyncId{mVsync.tokenManager->generateTokenForPredictions(
+            {targetWakeupTime, readyTime, vsyncTime})};
 
-    mHandler->dispatchFrame(vsyncId, vsyncTime);
+    mHandler->dispatchFrame(vsyncId, expectedVsyncTime);
 }
 
-void MessageQueue::initVsync(scheduler::VSyncDispatch& dispatch,
+void MessageQueue::initVsync(std::shared_ptr<scheduler::VSyncDispatch> dispatch,
                              frametimeline::TokenManager& tokenManager,
                              std::chrono::nanoseconds workDuration) {
-    setDuration(workDuration);
-    mVsync.tokenManager = &tokenManager;
+    std::unique_ptr<scheduler::VSyncCallbackRegistration> oldRegistration;
+    {
+        std::lock_guard lock(mVsync.mutex);
+        mVsync.workDuration = workDuration;
+        mVsync.tokenManager = &tokenManager;
+        oldRegistration = onNewVsyncScheduleLocked(std::move(dispatch));
+    }
+
+    // See comments in onNewVsyncSchedule. Today, oldRegistration should be
+    // empty, but nothing prevents us from calling initVsync multiple times, so
+    // go ahead and destruct it outside the lock for safety.
+    oldRegistration.reset();
+}
+
+void MessageQueue::onNewVsyncSchedule(std::shared_ptr<scheduler::VSyncDispatch> dispatch) {
+    std::unique_ptr<scheduler::VSyncCallbackRegistration> oldRegistration;
+    {
+        std::lock_guard lock(mVsync.mutex);
+        oldRegistration = onNewVsyncScheduleLocked(std::move(dispatch));
+    }
+
+    // The old registration needs to be deleted after releasing mVsync.mutex to
+    // avoid deadlock. This is because the callback may be running on the timer
+    // thread. In that case, timerCallback sets
+    // VSyncDispatchTimerQueueEntry::mRunning to true, then attempts to lock
+    // mVsync.mutex. But if it's already locked, the VSyncCallbackRegistration's
+    // destructor has to wait until VSyncDispatchTimerQueueEntry::mRunning is
+    // set back to false, but it won't be until mVsync.mutex is released.
+    oldRegistration.reset();
+}
+
+std::unique_ptr<scheduler::VSyncCallbackRegistration> MessageQueue::onNewVsyncScheduleLocked(
+        std::shared_ptr<scheduler::VSyncDispatch> dispatch) {
+    const bool reschedule = mVsync.registration &&
+            mVsync.registration->cancel() == scheduler::CancelResult::Cancelled;
+    auto oldRegistration = std::move(mVsync.registration);
     mVsync.registration = std::make_unique<
-            scheduler::VSyncCallbackRegistration>(dispatch,
+            scheduler::VSyncCallbackRegistration>(std::move(dispatch),
                                                   std::bind(&MessageQueue::vsyncCallback, this,
                                                             std::placeholders::_1,
                                                             std::placeholders::_2,
                                                             std::placeholders::_3),
                                                   "sf");
+    if (reschedule) {
+        mVsync.scheduledFrameTime =
+                mVsync.registration->schedule({.workDuration = mVsync.workDuration.get().count(),
+                                               .readyDuration = 0,
+                                               .earliestVsync = mVsync.lastCallbackTime.ns()});
+    }
+    return oldRegistration;
+}
+
+void MessageQueue::destroyVsync() {
+    std::lock_guard lock(mVsync.mutex);
+    mVsync.tokenManager = nullptr;
+    mVsync.registration.reset();
 }
 
 void MessageQueue::setDuration(std::chrono::nanoseconds workDuration) {
     ATRACE_CALL();
     std::lock_guard lock(mVsync.mutex);
     mVsync.workDuration = workDuration;
-    if (mVsync.scheduledFrameTime) {
-        mVsync.scheduledFrameTime = mVsync.registration->schedule(
-                {mVsync.workDuration.get().count(),
-                 /*readyDuration=*/0, mVsync.lastCallbackTime.count()});
-    }
+    mVsync.scheduledFrameTime =
+            mVsync.registration->update({.workDuration = mVsync.workDuration.get().count(),
+                                         .readyDuration = 0,
+                                         .earliestVsync = mVsync.lastCallbackTime.ns()});
 }
 
 void MessageQueue::waitMessage() {
@@ -165,38 +172,31 @@ void MessageQueue::postMessage(sp<MessageHandler>&& handler) {
     mLooper->sendMessage(handler, Message());
 }
 
+void MessageQueue::postMessageDelayed(sp<MessageHandler>&& handler, nsecs_t uptimeDelay) {
+    mLooper->sendMessageDelayed(uptimeDelay, handler, Message());
+}
+
+void MessageQueue::scheduleConfigure() {
+    struct ConfigureHandler : MessageHandler {
+        explicit ConfigureHandler(ICompositor& compositor) : compositor(compositor) {}
+
+        void handleMessage(const Message&) override { compositor.configure(); }
+
+        ICompositor& compositor;
+    };
+
+    // TODO(b/241285876): Batch configure tasks that happen within some duration.
+    postMessage(sp<ConfigureHandler>::make(mCompositor));
+}
+
 void MessageQueue::scheduleFrame() {
     ATRACE_CALL();
-
-    {
-        std::lock_guard lock(mInjector.mutex);
-        if (CC_UNLIKELY(mInjector.connection)) {
-            ALOGD("%s while injecting VSYNC", __FUNCTION__);
-            mInjector.connection->requestNextVsync();
-            return;
-        }
-    }
 
     std::lock_guard lock(mVsync.mutex);
     mVsync.scheduledFrameTime =
             mVsync.registration->schedule({.workDuration = mVsync.workDuration.get().count(),
                                            .readyDuration = 0,
-                                           .earliestVsync = mVsync.lastCallbackTime.count()});
-}
-
-void MessageQueue::injectorCallback() {
-    ssize_t n;
-    DisplayEventReceiver::Event buffer[8];
-    while ((n = DisplayEventReceiver::getEvents(&mInjector.tube, buffer, 8)) > 0) {
-        for (int i = 0; i < n; i++) {
-            if (buffer[i].header.type == DisplayEventReceiver::DISPLAY_EVENT_VSYNC) {
-                auto& vsync = buffer[i].vsync;
-                mHandler->dispatchFrame(vsync.vsyncData.preferredVsyncId(),
-                                        vsync.vsyncData.preferredExpectedPresentationTime());
-                break;
-            }
-        }
-    }
+                                           .earliestVsync = mVsync.lastCallbackTime.ns()});
 }
 
 auto MessageQueue::getScheduledFrameTime() const -> std::optional<Clock::time_point> {

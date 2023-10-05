@@ -42,9 +42,10 @@ class GraphicBufferMapper : public Singleton<GraphicBufferMapper>
 {
 public:
     enum Version {
-        GRALLOC_2,
+        GRALLOC_2 = 2,
         GRALLOC_3,
         GRALLOC_4,
+        GRALLOC_5,
     };
     static void preloadHal();
     static inline GraphicBufferMapper& get() { return getInstance(); }
@@ -54,10 +55,9 @@ public:
 
     // The imported outHandle must be freed with freeBuffer when no longer
     // needed. rawHandle is owned by the caller.
-    status_t importBuffer(buffer_handle_t rawHandle,
-            uint32_t width, uint32_t height, uint32_t layerCount,
-            PixelFormat format, uint64_t usage, uint32_t stride,
-            buffer_handle_t* outHandle);
+    status_t importBuffer(const native_handle_t* rawHandle, uint32_t width, uint32_t height,
+                          uint32_t layerCount, PixelFormat format, uint64_t usage, uint32_t stride,
+                          buffer_handle_t* outHandle);
 
     status_t importBufferNoValidate(const native_handle_t* rawHandle, buffer_handle_t* outHandle);
 
@@ -137,48 +137,6 @@ public:
                              std::optional<std::vector<uint8_t>>* outSmpte2094_10);
     status_t setSmpte2094_10(buffer_handle_t bufferHandle,
                              std::optional<std::vector<uint8_t>> smpte2094_10);
-
-    /**
-     * Gets the default metadata for a gralloc buffer allocated with the given parameters.
-     *
-     * These functions are supported by gralloc 4.0+.
-     */
-    status_t getDefaultPixelFormatFourCC(uint32_t width, uint32_t height, PixelFormat format,
-                                         uint32_t layerCount, uint64_t usage,
-                                         uint32_t* outPixelFormatFourCC);
-    status_t getDefaultPixelFormatModifier(uint32_t width, uint32_t height, PixelFormat format,
-                                           uint32_t layerCount, uint64_t usage,
-                                           uint64_t* outPixelFormatModifier);
-    status_t getDefaultAllocationSize(uint32_t width, uint32_t height, PixelFormat format,
-                                      uint32_t layerCount, uint64_t usage,
-                                      uint64_t* outAllocationSize);
-    status_t getDefaultProtectedContent(uint32_t width, uint32_t height, PixelFormat format,
-                                        uint32_t layerCount, uint64_t usage,
-                                        uint64_t* outProtectedContent);
-    status_t getDefaultCompression(
-            uint32_t width, uint32_t height, PixelFormat format, uint32_t layerCount,
-            uint64_t usage,
-            aidl::android::hardware::graphics::common::ExtendableType* outCompression);
-    status_t getDefaultCompression(uint32_t width, uint32_t height, PixelFormat format,
-                                   uint32_t layerCount, uint64_t usage,
-                                   ui::Compression* outCompression);
-    status_t getDefaultInterlaced(
-            uint32_t width, uint32_t height, PixelFormat format, uint32_t layerCount,
-            uint64_t usage,
-            aidl::android::hardware::graphics::common::ExtendableType* outInterlaced);
-    status_t getDefaultInterlaced(uint32_t width, uint32_t height, PixelFormat format,
-                                  uint32_t layerCount, uint64_t usage,
-                                  ui::Interlaced* outInterlaced);
-    status_t getDefaultChromaSiting(
-            uint32_t width, uint32_t height, PixelFormat format, uint32_t layerCount,
-            uint64_t usage,
-            aidl::android::hardware::graphics::common::ExtendableType* outChromaSiting);
-    status_t getDefaultChromaSiting(uint32_t width, uint32_t height, PixelFormat format,
-                                    uint32_t layerCount, uint64_t usage,
-                                    ui::ChromaSiting* outChromaSiting);
-    status_t getDefaultPlaneLayouts(uint32_t width, uint32_t height, PixelFormat format,
-                                    uint32_t layerCount, uint64_t usage,
-                                    std::vector<ui::PlaneLayout>* outPlaneLayouts);
 
     const GrallocMapper& getGrallocMapper() const {
         return reinterpret_cast<const GrallocMapper&>(*mMapper);

@@ -35,7 +35,9 @@ protected:
         LayerTransactionTest::SetUp();
         ASSERT_EQ(NO_ERROR, mClient->initCheck());
 
-        mMainDisplay = SurfaceComposerClient::getInternalDisplayToken();
+        const auto ids = SurfaceComposerClient::getPhysicalDisplayIds();
+        ASSERT_FALSE(ids.empty());
+        mMainDisplay = SurfaceComposerClient::getPhysicalDisplayToken(ids.front());
         SurfaceComposerClient::getDisplayState(mMainDisplay, &mMainDisplayState);
         SurfaceComposerClient::getActiveDisplayMode(mMainDisplay, &mMainDisplayMode);
 

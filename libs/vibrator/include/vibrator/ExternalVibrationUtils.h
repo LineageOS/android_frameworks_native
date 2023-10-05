@@ -19,8 +19,6 @@
 
 namespace android::os {
 
-// Copied from frameworks/base/core/java/android/os/IExternalVibratorService.aidl
-// The values are checked in ExternalVibration.cpp
 enum class HapticScale {
     MUTE = -100,
     VERY_LOW = -2,

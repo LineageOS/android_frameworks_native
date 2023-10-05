@@ -27,23 +27,13 @@ namespace android {
  */
 class UnwantedInteractionBlockerInterface : public InputListenerInterface {
 public:
-    /* Notifies the input reader policy that some input devices have changed
-     * and provides information about all current input devices.
-     * Important! This call should happen on the same thread as the calls to the
-     * InputListenerInterface methods.
-     * That is, same thread should call 'notifyMotion' and 'notifyInputDevicesChanged' and
-     * 'notifyDeviceReset'. If this architecture changes, we will need to make the implementation
-     * of this interface thread-safe.
-     */
-    virtual void notifyInputDevicesChanged(const std::vector<InputDeviceInfo>& inputDevices) = 0;
-
     /**
      * Dump the state of the interaction blocker.
      * This method may be called on any thread (usually by the input manager on a binder thread).
      */
     virtual void dump(std::string& dump) = 0;
 
-    /* Called by the heatbeat to ensures that the blocker has not deadlocked. */
+    /* Called by the heartbeat to ensures that the blocker has not deadlocked. */
     virtual void monitor() = 0;
 
     UnwantedInteractionBlockerInterface() {}

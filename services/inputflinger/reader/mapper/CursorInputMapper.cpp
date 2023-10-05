@@ -20,6 +20,8 @@
 
 #include "CursorInputMapper.h"
 
+#include <optional>
+
 #include "CursorButtonAccumulator.h"
 #include "CursorScrollAccumulator.h"
 #include "PointerControllerInterface.h"
@@ -66,8 +68,10 @@ void CursorMotionAccumulator::finishSync() {
 
 // --- CursorInputMapper ---
 
-CursorInputMapper::CursorInputMapper(InputDeviceContext& deviceContext)
-      : InputMapper(deviceContext) {}
+CursorInputMapper::CursorInputMapper(InputDeviceContext& deviceContext,
+                                     const InputReaderConfiguration& readerConfig)
+      : InputMapper(deviceContext, readerConfig),
+        mLastEventTime(std::numeric_limits<nsecs_t>::min()) {}
 
 CursorInputMapper::~CursorInputMapper() {
     if (mPointerController != nullptr) {
@@ -79,30 +83,31 @@ uint32_t CursorInputMapper::getSources() const {
     return mSource;
 }
 
-void CursorInputMapper::populateDeviceInfo(InputDeviceInfo* info) {
+void CursorInputMapper::populateDeviceInfo(InputDeviceInfo& info) {
     InputMapper::populateDeviceInfo(info);
 
     if (mParameters.mode == Parameters::Mode::POINTER) {
-        float minX, minY, maxX, maxY;
-        if (mPointerController->getBounds(&minX, &minY, &maxX, &maxY)) {
-            info->addMotionRange(AMOTION_EVENT_AXIS_X, mSource, minX, maxX, 0.0f, 0.0f, 0.0f);
-            info->addMotionRange(AMOTION_EVENT_AXIS_Y, mSource, minY, maxY, 0.0f, 0.0f, 0.0f);
+        if (const auto bounds = mPointerController->getBounds(); bounds) {
+            info.addMotionRange(AMOTION_EVENT_AXIS_X, mSource, bounds->left, bounds->right, 0.0f,
+                                0.0f, 0.0f);
+            info.addMotionRange(AMOTION_EVENT_AXIS_Y, mSource, bounds->top, bounds->bottom, 0.0f,
+                                0.0f, 0.0f);
         }
     } else {
-        info->addMotionRange(AMOTION_EVENT_AXIS_X, mSource, -1.0f, 1.0f, 0.0f, mXScale, 0.0f);
-        info->addMotionRange(AMOTION_EVENT_AXIS_Y, mSource, -1.0f, 1.0f, 0.0f, mYScale, 0.0f);
-        info->addMotionRange(AMOTION_EVENT_AXIS_RELATIVE_X, mSource, -1.0f, 1.0f, 0.0f, mXScale,
-                             0.0f);
-        info->addMotionRange(AMOTION_EVENT_AXIS_RELATIVE_Y, mSource, -1.0f, 1.0f, 0.0f, mYScale,
-                             0.0f);
+        info.addMotionRange(AMOTION_EVENT_AXIS_X, mSource, -1.0f, 1.0f, 0.0f, mXScale, 0.0f);
+        info.addMotionRange(AMOTION_EVENT_AXIS_Y, mSource, -1.0f, 1.0f, 0.0f, mYScale, 0.0f);
+        info.addMotionRange(AMOTION_EVENT_AXIS_RELATIVE_X, mSource, -1.0f, 1.0f, 0.0f, mXScale,
+                            0.0f);
+        info.addMotionRange(AMOTION_EVENT_AXIS_RELATIVE_Y, mSource, -1.0f, 1.0f, 0.0f, mYScale,
+                            0.0f);
     }
-    info->addMotionRange(AMOTION_EVENT_AXIS_PRESSURE, mSource, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f);
+    info.addMotionRange(AMOTION_EVENT_AXIS_PRESSURE, mSource, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f);
 
     if (mCursorScrollAccumulator.haveRelativeVWheel()) {
-        info->addMotionRange(AMOTION_EVENT_AXIS_VSCROLL, mSource, -1.0f, 1.0f, 0.0f, 0.0f, 0.0f);
+        info.addMotionRange(AMOTION_EVENT_AXIS_VSCROLL, mSource, -1.0f, 1.0f, 0.0f, 0.0f, 0.0f);
     }
     if (mCursorScrollAccumulator.haveRelativeHWheel()) {
-        info->addMotionRange(AMOTION_EVENT_AXIS_HSCROLL, mSource, -1.0f, 1.0f, 0.0f, 0.0f, 0.0f);
+        info.addMotionRange(AMOTION_EVENT_AXIS_HSCROLL, mSource, -1.0f, 1.0f, 0.0f, 0.0f, 0.0f);
     }
 }
 
@@ -117,6 +122,10 @@ void CursorInputMapper::dump(std::string& dump) {
                          toString(mCursorScrollAccumulator.haveRelativeVWheel()));
     dump += StringPrintf(INDENT3 "HaveHWheel: %s\n",
                          toString(mCursorScrollAccumulator.haveRelativeHWheel()));
+    dump += StringPrintf(INDENT3 "WheelYVelocityControlParameters: %s",
+                         mWheelYVelocityControl.getParameters().dump().c_str());
+    dump += StringPrintf(INDENT3 "WheelXVelocityControlParameters: %s",
+                         mWheelXVelocityControl.getParameters().dump().c_str());
     dump += StringPrintf(INDENT3 "VWheelScale: %0.3f\n", mVWheelScale);
     dump += StringPrintf(INDENT3 "HWheelScale: %0.3f\n", mHWheelScale);
     dump += StringPrintf(INDENT3 "DisplayId: %s\n", toString(mDisplayId).c_str());
@@ -126,143 +135,56 @@ void CursorInputMapper::dump(std::string& dump) {
     dump += StringPrintf(INDENT3 "DownTime: %" PRId64 "\n", mDownTime);
 }
 
-void CursorInputMapper::configure(nsecs_t when, const InputReaderConfiguration* config,
-                                  uint32_t changes) {
-    InputMapper::configure(when, config, changes);
+std::list<NotifyArgs> CursorInputMapper::reconfigure(nsecs_t when,
+                                                     const InputReaderConfiguration& readerConfig,
+                                                     ConfigurationChanges changes) {
+    std::list<NotifyArgs> out = InputMapper::reconfigure(when, readerConfig, changes);
 
-    if (!changes) { // first time only
-        mCursorScrollAccumulator.configure(getDeviceContext());
-
-        // Configure basic parameters.
-        configureParameters();
-
-        // Configure device mode.
-        switch (mParameters.mode) {
-            case Parameters::Mode::POINTER_RELATIVE:
-                // Should not happen during first time configuration.
-                ALOGE("Cannot start a device in MODE_POINTER_RELATIVE, starting in MODE_POINTER");
-                mParameters.mode = Parameters::Mode::POINTER;
-                [[fallthrough]];
-            case Parameters::Mode::POINTER:
-                mSource = AINPUT_SOURCE_MOUSE;
-                mXPrecision = 1.0f;
-                mYPrecision = 1.0f;
-                mXScale = 1.0f;
-                mYScale = 1.0f;
-                mPointerController = getContext()->getPointerController(getDeviceId());
-                break;
-            case Parameters::Mode::NAVIGATION:
-                mSource = AINPUT_SOURCE_TRACKBALL;
-                mXPrecision = TRACKBALL_MOVEMENT_THRESHOLD;
-                mYPrecision = TRACKBALL_MOVEMENT_THRESHOLD;
-                mXScale = 1.0f / TRACKBALL_MOVEMENT_THRESHOLD;
-                mYScale = 1.0f / TRACKBALL_MOVEMENT_THRESHOLD;
-                break;
-        }
-
-        mVWheelScale = 1.0f;
-        mHWheelScale = 1.0f;
+    if (!changes.any()) { // first time only
+        configureBasicParams();
     }
 
-    const bool configurePointerCapture = mParameters.mode != Parameters::Mode::NAVIGATION &&
-            ((!changes && config->pointerCaptureRequest.enable) ||
-             (changes & InputReaderConfiguration::CHANGE_POINTER_CAPTURE));
+    const bool configurePointerCapture = !changes.any() ||
+            (mParameters.mode != Parameters::Mode::NAVIGATION &&
+             changes.test(InputReaderConfiguration::Change::POINTER_CAPTURE));
     if (configurePointerCapture) {
-        if (config->pointerCaptureRequest.enable) {
-            if (mParameters.mode == Parameters::Mode::POINTER) {
-                mParameters.mode = Parameters::Mode::POINTER_RELATIVE;
-                mSource = AINPUT_SOURCE_MOUSE_RELATIVE;
-                // Keep PointerController around in order to preserve the pointer position.
-                mPointerController->fade(PointerControllerInterface::Transition::IMMEDIATE);
-            } else {
-                ALOGE("Cannot request pointer capture, device is not in MODE_POINTER");
-            }
-        } else {
-            if (mParameters.mode == Parameters::Mode::POINTER_RELATIVE) {
-                mParameters.mode = Parameters::Mode::POINTER;
-                mSource = AINPUT_SOURCE_MOUSE;
-            } else {
-                ALOGE("Cannot release pointer capture, device is not in MODE_POINTER_RELATIVE");
-            }
-        }
-        bumpGeneration();
-        if (changes) {
-            NotifyDeviceResetArgs args(getContext()->getNextId(), when, getDeviceId());
-            getListener().notifyDeviceReset(&args);
-        }
+        configureOnPointerCapture(readerConfig);
+        out.push_back(NotifyDeviceResetArgs(getContext()->getNextId(), when, getDeviceId()));
     }
 
-    if (!changes || (changes & InputReaderConfiguration::CHANGE_POINTER_SPEED) ||
+    if (!changes.any() || changes.test(InputReaderConfiguration::Change::POINTER_SPEED) ||
         configurePointerCapture) {
-        if (mParameters.mode == Parameters::Mode::POINTER_RELATIVE) {
-            // Disable any acceleration or scaling for the pointer when Pointer Capture is enabled.
-            mPointerVelocityControl.setParameters(FLAT_VELOCITY_CONTROL_PARAMS);
-            mWheelXVelocityControl.setParameters(FLAT_VELOCITY_CONTROL_PARAMS);
-            mWheelYVelocityControl.setParameters(FLAT_VELOCITY_CONTROL_PARAMS);
-        } else {
-            mPointerVelocityControl.setParameters(config->pointerVelocityControlParameters);
-            mWheelXVelocityControl.setParameters(config->wheelVelocityControlParameters);
-            mWheelYVelocityControl.setParameters(config->wheelVelocityControlParameters);
-        }
+        configureOnChangePointerSpeed(readerConfig);
     }
 
-    if (!changes || (changes & InputReaderConfiguration::CHANGE_DISPLAY_INFO) ||
+    if (!changes.any() || changes.test(InputReaderConfiguration::Change::DISPLAY_INFO) ||
         configurePointerCapture) {
-        const bool isPointer = mParameters.mode == Parameters::Mode::POINTER;
-
-        mDisplayId = ADISPLAY_ID_NONE;
-        if (auto viewport = mDeviceContext.getAssociatedViewport(); viewport) {
-            // This InputDevice is associated with a viewport.
-            // Only generate events for the associated display.
-            const bool mismatchedPointerDisplay =
-                    isPointer && (viewport->displayId != mPointerController->getDisplayId());
-            mDisplayId = mismatchedPointerDisplay ? std::nullopt
-                                                  : std::make_optional(viewport->displayId);
-        } else if (isPointer) {
-            // The InputDevice is not associated with a viewport, but it controls the mouse pointer.
-            mDisplayId = mPointerController->getDisplayId();
-        }
-
-        mOrientation = DISPLAY_ORIENTATION_0;
-        const bool isOrientedDevice =
-                (mParameters.orientationAware && mParameters.hasAssociatedDisplay);
-        // InputReader works in the un-rotated display coordinate space, so we don't need to do
-        // anything if the device is already orientation-aware. If the device is not
-        // orientation-aware, then we need to apply the inverse rotation of the display so that
-        // when the display rotation is applied later as a part of the per-window transform, we
-        // get the expected screen coordinates. When pointer capture is enabled, we do not apply any
-        // rotations and report values directly from the input device.
-        if (!isOrientedDevice && mDisplayId &&
-            mParameters.mode != Parameters::Mode::POINTER_RELATIVE) {
-            if (auto viewport = config->getDisplayViewportById(*mDisplayId); viewport) {
-                mOrientation = getInverseRotation(viewport->orientation);
-            }
-        }
-
-        bumpGeneration();
+        configureOnChangeDisplayInfo(readerConfig);
     }
+    return out;
 }
 
-void CursorInputMapper::configureParameters() {
-    mParameters.mode = Parameters::Mode::POINTER;
-    String8 cursorModeString;
-    if (getDeviceContext().getConfiguration().tryGetProperty(String8("cursor.mode"),
-                                                             cursorModeString)) {
-        if (cursorModeString == "navigation") {
-            mParameters.mode = Parameters::Mode::NAVIGATION;
-        } else if (cursorModeString != "pointer" && cursorModeString != "default") {
-            ALOGW("Invalid value for cursor.mode: '%s'", cursorModeString.c_str());
+CursorInputMapper::Parameters CursorInputMapper::computeParameters(
+        const InputDeviceContext& deviceContext) {
+    Parameters parameters;
+    parameters.mode = Parameters::Mode::POINTER;
+    const PropertyMap& config = deviceContext.getConfiguration();
+    std::optional<std::string> cursorModeString = config.getString("cursor.mode");
+    if (cursorModeString.has_value()) {
+        if (*cursorModeString == "navigation") {
+            parameters.mode = Parameters::Mode::NAVIGATION;
+        } else if (*cursorModeString != "pointer" && *cursorModeString != "default") {
+            ALOGW("Invalid value for cursor.mode: '%s'", cursorModeString->c_str());
         }
     }
 
-    mParameters.orientationAware = false;
-    getDeviceContext().getConfiguration().tryGetProperty(String8("cursor.orientationAware"),
-                                                         mParameters.orientationAware);
+    parameters.orientationAware = config.getBool("cursor.orientationAware").value_or(false);
 
-    mParameters.hasAssociatedDisplay = false;
-    if (mParameters.mode == Parameters::Mode::POINTER || mParameters.orientationAware) {
-        mParameters.hasAssociatedDisplay = true;
+    parameters.hasAssociatedDisplay = false;
+    if (parameters.mode == Parameters::Mode::POINTER || parameters.orientationAware) {
+        parameters.hasAssociatedDisplay = true;
     }
+    return parameters;
 }
 
 void CursorInputMapper::dumpParameters(std::string& dump) {
@@ -273,9 +195,10 @@ void CursorInputMapper::dumpParameters(std::string& dump) {
     dump += StringPrintf(INDENT4 "OrientationAware: %s\n", toString(mParameters.orientationAware));
 }
 
-void CursorInputMapper::reset(nsecs_t when) {
+std::list<NotifyArgs> CursorInputMapper::reset(nsecs_t when) {
     mButtonState = 0;
     mDownTime = 0;
+    mLastEventTime = std::numeric_limits<nsecs_t>::min();
 
     mPointerVelocityControl.reset();
     mWheelXVelocityControl.reset();
@@ -285,23 +208,31 @@ void CursorInputMapper::reset(nsecs_t when) {
     mCursorMotionAccumulator.reset(getDeviceContext());
     mCursorScrollAccumulator.reset(getDeviceContext());
 
-    InputMapper::reset(when);
+    return InputMapper::reset(when);
 }
 
-void CursorInputMapper::process(const RawEvent* rawEvent) {
+std::list<NotifyArgs> CursorInputMapper::process(const RawEvent* rawEvent) {
+    std::list<NotifyArgs> out;
     mCursorButtonAccumulator.process(rawEvent);
     mCursorMotionAccumulator.process(rawEvent);
     mCursorScrollAccumulator.process(rawEvent);
 
     if (rawEvent->type == EV_SYN && rawEvent->code == SYN_REPORT) {
-        sync(rawEvent->when, rawEvent->readTime);
+        const auto [eventTime, readTime] =
+                applyBluetoothTimestampSmoothening(getDeviceContext().getDeviceIdentifier(),
+                                                   rawEvent->when, rawEvent->readTime,
+                                                   mLastEventTime);
+        out += sync(eventTime, readTime);
+        mLastEventTime = eventTime;
     }
+    return out;
 }
 
-void CursorInputMapper::sync(nsecs_t when, nsecs_t readTime) {
+std::list<NotifyArgs> CursorInputMapper::sync(nsecs_t when, nsecs_t readTime) {
+    std::list<NotifyArgs> out;
     if (!mDisplayId) {
         // Ignore events when there is no target display configured.
-        return;
+        return out;
     }
 
     int32_t lastButtonState = mButtonState;
@@ -335,7 +266,7 @@ void CursorInputMapper::sync(nsecs_t when, nsecs_t readTime) {
     PointerProperties pointerProperties;
     pointerProperties.clear();
     pointerProperties.id = 0;
-    pointerProperties.toolType = AMOTION_EVENT_TOOL_TYPE_MOUSE;
+    pointerProperties.toolType = ToolType::MOUSE;
 
     PointerCoords pointerCoords;
     pointerCoords.clear();
@@ -358,15 +289,10 @@ void CursorInputMapper::sync(nsecs_t when, nsecs_t readTime) {
             if (moved) {
                 mPointerController->move(deltaX, deltaY);
             }
-
-            if (buttonsChanged) {
-                mPointerController->setButtonState(currentButtonState);
-            }
-
             mPointerController->unfade(PointerControllerInterface::Transition::IMMEDIATE);
         }
 
-        mPointerController->getPosition(&xCursorPosition, &yCursorPosition);
+        std::tie(xCursorPosition, yCursorPosition) = mPointerController->getPosition();
 
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_X, xCursorPosition);
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_Y, yCursorPosition);
@@ -392,8 +318,9 @@ void CursorInputMapper::sync(nsecs_t when, nsecs_t readTime) {
     }
 
     // Synthesize key down from buttons if needed.
-    synthesizeButtonKeys(getContext(), AKEY_EVENT_ACTION_DOWN, when, readTime, getDeviceId(),
-                         mSource, *mDisplayId, policyFlags, lastButtonState, currentButtonState);
+    out += synthesizeButtonKeys(getContext(), AKEY_EVENT_ACTION_DOWN, when, readTime, getDeviceId(),
+                                mSource, *mDisplayId, policyFlags, lastButtonState,
+                                currentButtonState);
 
     // Send motion event.
     if (downChanged || moved || scrolled || buttonsChanged) {
@@ -413,40 +340,38 @@ void CursorInputMapper::sync(nsecs_t when, nsecs_t readTime) {
             while (!released.isEmpty()) {
                 int32_t actionButton = BitSet32::valueForBit(released.clearFirstMarkedBit());
                 buttonState &= ~actionButton;
-                NotifyMotionArgs releaseArgs(getContext()->getNextId(), when, readTime,
-                                             getDeviceId(), mSource, *mDisplayId, policyFlags,
-                                             AMOTION_EVENT_ACTION_BUTTON_RELEASE, actionButton, 0,
-                                             metaState, buttonState, MotionClassification::NONE,
-                                             AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties,
-                                             &pointerCoords, mXPrecision, mYPrecision,
-                                             xCursorPosition, yCursorPosition, downTime,
-                                             /* videoFrames */ {});
-                getListener().notifyMotion(&releaseArgs);
+                out.push_back(NotifyMotionArgs(getContext()->getNextId(), when, readTime,
+                                               getDeviceId(), mSource, *mDisplayId, policyFlags,
+                                               AMOTION_EVENT_ACTION_BUTTON_RELEASE, actionButton, 0,
+                                               metaState, buttonState, MotionClassification::NONE,
+                                               AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties,
+                                               &pointerCoords, mXPrecision, mYPrecision,
+                                               xCursorPosition, yCursorPosition, downTime,
+                                               /* videoFrames */ {}));
             }
         }
 
-        NotifyMotionArgs args(getContext()->getNextId(), when, readTime, getDeviceId(), mSource,
-                              *mDisplayId, policyFlags, motionEventAction, 0, 0, metaState,
-                              currentButtonState, MotionClassification::NONE,
-                              AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties, &pointerCoords,
-                              mXPrecision, mYPrecision, xCursorPosition, yCursorPosition, downTime,
-                              /* videoFrames */ {});
-        getListener().notifyMotion(&args);
+        out.push_back(NotifyMotionArgs(getContext()->getNextId(), when, readTime, getDeviceId(),
+                                       mSource, *mDisplayId, policyFlags, motionEventAction, 0, 0,
+                                       metaState, currentButtonState, MotionClassification::NONE,
+                                       AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties,
+                                       &pointerCoords, mXPrecision, mYPrecision, xCursorPosition,
+                                       yCursorPosition, downTime,
+                                       /* videoFrames */ {}));
 
         if (buttonsPressed) {
             BitSet32 pressed(buttonsPressed);
             while (!pressed.isEmpty()) {
                 int32_t actionButton = BitSet32::valueForBit(pressed.clearFirstMarkedBit());
                 buttonState |= actionButton;
-                NotifyMotionArgs pressArgs(getContext()->getNextId(), when, readTime, getDeviceId(),
-                                           mSource, *mDisplayId, policyFlags,
-                                           AMOTION_EVENT_ACTION_BUTTON_PRESS, actionButton, 0,
-                                           metaState, buttonState, MotionClassification::NONE,
-                                           AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties,
-                                           &pointerCoords, mXPrecision, mYPrecision,
-                                           xCursorPosition, yCursorPosition, downTime,
-                                           /* videoFrames */ {});
-                getListener().notifyMotion(&pressArgs);
+                out.push_back(NotifyMotionArgs(getContext()->getNextId(), when, readTime,
+                                               getDeviceId(), mSource, *mDisplayId, policyFlags,
+                                               AMOTION_EVENT_ACTION_BUTTON_PRESS, actionButton, 0,
+                                               metaState, buttonState, MotionClassification::NONE,
+                                               AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties,
+                                               &pointerCoords, mXPrecision, mYPrecision,
+                                               xCursorPosition, yCursorPosition, downTime,
+                                               /* videoFrames */ {}));
             }
         }
 
@@ -454,14 +379,14 @@ void CursorInputMapper::sync(nsecs_t when, nsecs_t readTime) {
 
         // Send hover move after UP to tell the application that the mouse is hovering now.
         if (motionEventAction == AMOTION_EVENT_ACTION_UP && (mSource == AINPUT_SOURCE_MOUSE)) {
-            NotifyMotionArgs hoverArgs(getContext()->getNextId(), when, readTime, getDeviceId(),
-                                       mSource, *mDisplayId, policyFlags,
-                                       AMOTION_EVENT_ACTION_HOVER_MOVE, 0, 0, metaState,
-                                       currentButtonState, MotionClassification::NONE,
-                                       AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties,
-                                       &pointerCoords, mXPrecision, mYPrecision, xCursorPosition,
-                                       yCursorPosition, downTime, /* videoFrames */ {});
-            getListener().notifyMotion(&hoverArgs);
+            out.push_back(NotifyMotionArgs(getContext()->getNextId(), when, readTime, getDeviceId(),
+                                           mSource, *mDisplayId, policyFlags,
+                                           AMOTION_EVENT_ACTION_HOVER_MOVE, 0, 0, metaState,
+                                           currentButtonState, MotionClassification::NONE,
+                                           AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties,
+                                           &pointerCoords, mXPrecision, mYPrecision,
+                                           xCursorPosition, yCursorPosition, downTime,
+                                           /* videoFrames */ {}));
         }
 
         // Send scroll events.
@@ -469,23 +394,25 @@ void CursorInputMapper::sync(nsecs_t when, nsecs_t readTime) {
             pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_VSCROLL, vscroll);
             pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_HSCROLL, hscroll);
 
-            NotifyMotionArgs scrollArgs(getContext()->getNextId(), when, readTime, getDeviceId(),
-                                        mSource, *mDisplayId, policyFlags,
-                                        AMOTION_EVENT_ACTION_SCROLL, 0, 0, metaState,
-                                        currentButtonState, MotionClassification::NONE,
-                                        AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties,
-                                        &pointerCoords, mXPrecision, mYPrecision, xCursorPosition,
-                                        yCursorPosition, downTime, /* videoFrames */ {});
-            getListener().notifyMotion(&scrollArgs);
+            out.push_back(NotifyMotionArgs(getContext()->getNextId(), when, readTime, getDeviceId(),
+                                           mSource, *mDisplayId, policyFlags,
+                                           AMOTION_EVENT_ACTION_SCROLL, 0, 0, metaState,
+                                           currentButtonState, MotionClassification::NONE,
+                                           AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties,
+                                           &pointerCoords, mXPrecision, mYPrecision,
+                                           xCursorPosition, yCursorPosition, downTime,
+                                           /* videoFrames */ {}));
         }
     }
 
     // Synthesize key up from buttons if needed.
-    synthesizeButtonKeys(getContext(), AKEY_EVENT_ACTION_UP, when, readTime, getDeviceId(), mSource,
-                         *mDisplayId, policyFlags, lastButtonState, currentButtonState);
+    out += synthesizeButtonKeys(getContext(), AKEY_EVENT_ACTION_UP, when, readTime, getDeviceId(),
+                                mSource, *mDisplayId, policyFlags, lastButtonState,
+                                currentButtonState);
 
     mCursorMotionAccumulator.finishSync();
     mCursorScrollAccumulator.finishSync();
+    return out;
 }
 
 int32_t CursorInputMapper::getScanCodeState(uint32_t sourceMask, int32_t scanCode) {
@@ -498,6 +425,108 @@ int32_t CursorInputMapper::getScanCodeState(uint32_t sourceMask, int32_t scanCod
 
 std::optional<int32_t> CursorInputMapper::getAssociatedDisplayId() {
     return mDisplayId;
+}
+
+void CursorInputMapper::configureBasicParams() {
+    mCursorScrollAccumulator.configure(getDeviceContext());
+
+    // Configure basic parameters.
+    mParameters = computeParameters(getDeviceContext());
+
+    // Configure device mode.
+    switch (mParameters.mode) {
+        case Parameters::Mode::POINTER_RELATIVE:
+            // Should not happen during first time configuration.
+            ALOGE("Cannot start a device in MODE_POINTER_RELATIVE, starting in MODE_POINTER");
+            mParameters.mode = Parameters::Mode::POINTER;
+            [[fallthrough]];
+        case Parameters::Mode::POINTER:
+            mSource = AINPUT_SOURCE_MOUSE;
+            mXPrecision = 1.0f;
+            mYPrecision = 1.0f;
+            mXScale = 1.0f;
+            mYScale = 1.0f;
+            mPointerController = getContext()->getPointerController(getDeviceId());
+            break;
+        case Parameters::Mode::NAVIGATION:
+            mSource = AINPUT_SOURCE_TRACKBALL;
+            mXPrecision = TRACKBALL_MOVEMENT_THRESHOLD;
+            mYPrecision = TRACKBALL_MOVEMENT_THRESHOLD;
+            mXScale = 1.0f / TRACKBALL_MOVEMENT_THRESHOLD;
+            mYScale = 1.0f / TRACKBALL_MOVEMENT_THRESHOLD;
+            break;
+    }
+
+    mVWheelScale = 1.0f;
+    mHWheelScale = 1.0f;
+}
+
+void CursorInputMapper::configureOnPointerCapture(const InputReaderConfiguration& config) {
+    if (config.pointerCaptureRequest.enable) {
+        if (mParameters.mode == Parameters::Mode::POINTER) {
+            mParameters.mode = Parameters::Mode::POINTER_RELATIVE;
+            mSource = AINPUT_SOURCE_MOUSE_RELATIVE;
+            // Keep PointerController around in order to preserve the pointer position.
+            mPointerController->fade(PointerControllerInterface::Transition::IMMEDIATE);
+        } else {
+            ALOGE("Cannot request pointer capture, device is not in MODE_POINTER");
+        }
+    } else {
+        if (mParameters.mode == Parameters::Mode::POINTER_RELATIVE) {
+            mParameters.mode = Parameters::Mode::POINTER;
+            mSource = AINPUT_SOURCE_MOUSE;
+        } else {
+            ALOGE("Cannot release pointer capture, device is not in MODE_POINTER_RELATIVE");
+        }
+    }
+    bumpGeneration();
+}
+
+void CursorInputMapper::configureOnChangePointerSpeed(const InputReaderConfiguration& config) {
+    if (mParameters.mode == Parameters::Mode::POINTER_RELATIVE) {
+        // Disable any acceleration or scaling for the pointer when Pointer Capture is enabled.
+        mPointerVelocityControl.setParameters(FLAT_VELOCITY_CONTROL_PARAMS);
+        mWheelXVelocityControl.setParameters(FLAT_VELOCITY_CONTROL_PARAMS);
+        mWheelYVelocityControl.setParameters(FLAT_VELOCITY_CONTROL_PARAMS);
+    } else {
+        mPointerVelocityControl.setParameters(config.pointerVelocityControlParameters);
+        mWheelXVelocityControl.setParameters(config.wheelVelocityControlParameters);
+        mWheelYVelocityControl.setParameters(config.wheelVelocityControlParameters);
+    }
+}
+
+void CursorInputMapper::configureOnChangeDisplayInfo(const InputReaderConfiguration& config) {
+    const bool isPointer = mParameters.mode == Parameters::Mode::POINTER;
+
+    mDisplayId = ADISPLAY_ID_NONE;
+    if (auto viewport = mDeviceContext.getAssociatedViewport(); viewport) {
+        // This InputDevice is associated with a viewport.
+        // Only generate events for the associated display.
+        const bool mismatchedPointerDisplay =
+                isPointer && (viewport->displayId != mPointerController->getDisplayId());
+        mDisplayId =
+                mismatchedPointerDisplay ? std::nullopt : std::make_optional(viewport->displayId);
+    } else if (isPointer) {
+        // The InputDevice is not associated with a viewport, but it controls the mouse pointer.
+        mDisplayId = mPointerController->getDisplayId();
+    }
+
+    mOrientation = ui::ROTATION_0;
+    const bool isOrientedDevice =
+            (mParameters.orientationAware && mParameters.hasAssociatedDisplay);
+    // InputReader works in the un-rotated display coordinate space, so we don't need to do
+    // anything if the device is already orientation-aware. If the device is not
+    // orientation-aware, then we need to apply the inverse rotation of the display so that
+    // when the display rotation is applied later as a part of the per-window transform, we
+    // get the expected screen coordinates. When pointer capture is enabled, we do not apply any
+    // rotations and report values directly from the input device.
+    if (!isOrientedDevice && mDisplayId && mParameters.mode != Parameters::Mode::POINTER_RELATIVE) {
+        if (auto viewport = config.getDisplayViewportById(*mDisplayId); viewport) {
+            mOrientation = getInverseRotation(viewport->orientation);
+        }
+    }
+
+    bumpGeneration();
 }
 
 } // namespace android

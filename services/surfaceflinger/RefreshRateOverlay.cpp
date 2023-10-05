@@ -29,7 +29,6 @@
 #include <SkBlendMode.h>
 #include <SkRect.h>
 #include <SkSurface.h>
-#include <gui/SurfaceComposerClient.h>
 #include <gui/SurfaceControl.h>
 
 #undef LOG_TAG
@@ -42,18 +41,9 @@ constexpr int kDigitWidth = 64;
 constexpr int kDigitHeight = 100;
 constexpr int kDigitSpace = 16;
 
-// Layout is digit, space, digit, space, digit, space, spinner.
-constexpr int kBufferWidth = 4 * kDigitWidth + 3 * kDigitSpace;
+constexpr int kMaxDigits = /*displayFps*/ 3 + /*renderFps*/ 3 + /*spinner*/ 1;
+constexpr int kBufferWidth = kMaxDigits * kDigitWidth + (kMaxDigits - 1) * kDigitSpace;
 constexpr int kBufferHeight = kDigitHeight;
-
-SurfaceComposerClient::Transaction createTransaction(const sp<SurfaceControl>& surface) {
-    constexpr float kFrameRate = 0.f;
-    constexpr int8_t kCompatibility = ANATIVEWINDOW_FRAME_RATE_NO_VOTE;
-    constexpr int8_t kSeamlessness = ANATIVEWINDOW_CHANGE_FRAME_RATE_ONLY_IF_SEAMLESS;
-
-    return SurfaceComposerClient::Transaction().setFrameRate(surface, kFrameRate, kCompatibility,
-                                                             kSeamlessness);
-}
 
 } // namespace
 
@@ -121,16 +111,10 @@ void RefreshRateOverlay::SevenSegmentDrawer::drawDigit(int digit, int left, SkCo
         drawSegment(Segment::Bottom, left, color, canvas);
 }
 
-auto RefreshRateOverlay::SevenSegmentDrawer::draw(int number, SkColor color,
+auto RefreshRateOverlay::SevenSegmentDrawer::draw(int displayFps, int renderFps, SkColor color,
                                                   ui::Transform::RotationFlags rotation,
-                                                  bool showSpinner) -> Buffers {
-    if (number < 0 || number > 1000) return {};
-
-    const auto hundreds = number / 100;
-    const auto tens = (number / 10) % 10;
-    const auto ones = number % 10;
-
-    const size_t loopCount = showSpinner ? 6 : 1;
+                                                  ftl::Flags<Features> features) -> Buffers {
+    const size_t loopCount = features.test(Features::Spinner) ? 6 : 1;
 
     Buffers buffers;
     buffers.reserve(loopCount);
@@ -152,13 +136,13 @@ auto RefreshRateOverlay::SevenSegmentDrawer::draw(int number, SkColor color,
             }
         }();
 
-        sp<GraphicBuffer> buffer =
-                new GraphicBuffer(static_cast<uint32_t>(bufferWidth),
-                                  static_cast<uint32_t>(bufferHeight), HAL_PIXEL_FORMAT_RGBA_8888,
-                                  1,
-                                  GRALLOC_USAGE_SW_WRITE_RARELY | GRALLOC_USAGE_HW_COMPOSER |
-                                          GRALLOC_USAGE_HW_TEXTURE,
-                                  "RefreshRateOverlayBuffer");
+        const auto kUsageFlags =
+                static_cast<uint64_t>(GRALLOC_USAGE_SW_WRITE_RARELY | GRALLOC_USAGE_HW_COMPOSER |
+                                      GRALLOC_USAGE_HW_TEXTURE);
+        sp<GraphicBuffer> buffer = sp<GraphicBuffer>::make(static_cast<uint32_t>(bufferWidth),
+                                                           static_cast<uint32_t>(bufferHeight),
+                                                           HAL_PIXEL_FORMAT_RGBA_8888, 1u,
+                                                           kUsageFlags, "RefreshRateOverlayBuffer");
 
         const status_t bufferStatus = buffer->initCheck();
         LOG_ALWAYS_FATAL_IF(bufferStatus != OK, "RefreshRateOverlay: Buffer failed to allocate: %d",
@@ -169,20 +153,9 @@ auto RefreshRateOverlay::SevenSegmentDrawer::draw(int number, SkColor color,
         canvas->setMatrix(canvasTransform);
 
         int left = 0;
-        if (hundreds != 0) {
-            drawDigit(hundreds, left, color, *canvas);
-        }
-        left += kDigitWidth + kDigitSpace;
-
-        if (tens != 0) {
-            drawDigit(tens, left, color, *canvas);
-        }
-        left += kDigitWidth + kDigitSpace;
-
-        drawDigit(ones, left, color, *canvas);
-        left += kDigitWidth + kDigitSpace;
-
-        if (showSpinner) {
+        drawNumber(displayFps, left, color, *canvas);
+        left += 3 * (kDigitWidth + kDigitSpace);
+        if (features.test(Features::Spinner)) {
             switch (i) {
                 case 0:
                     drawSegment(Segment::Upper, left, color, *canvas);
@@ -205,6 +178,13 @@ auto RefreshRateOverlay::SevenSegmentDrawer::draw(int number, SkColor color,
             }
         }
 
+        left += kDigitWidth + kDigitSpace;
+
+        if (features.test(Features::RenderRate)) {
+            drawNumber(renderFps, left, color, *canvas);
+        }
+        left += 3 * (kDigitWidth + kDigitSpace);
+
         void* pixels = nullptr;
         buffer->lock(GRALLOC_USAGE_SW_WRITE_RARELY, reinterpret_cast<void**>(&pixels));
 
@@ -219,6 +199,23 @@ auto RefreshRateOverlay::SevenSegmentDrawer::draw(int number, SkColor color,
     return buffers;
 }
 
+void RefreshRateOverlay::SevenSegmentDrawer::drawNumber(int number, int left, SkColor color,
+                                                        SkCanvas& canvas) {
+    if (number < 0 || number >= 1000) return;
+
+    if (number >= 100) {
+        drawDigit(number / 100, left, color, canvas);
+    }
+    left += kDigitWidth + kDigitSpace;
+
+    if (number >= 10) {
+        drawDigit((number / 10) % 10, left, color, canvas);
+    }
+    left += kDigitWidth + kDigitSpace;
+
+    drawDigit(number % 10, left, color, canvas);
+}
+
 std::unique_ptr<SurfaceControlHolder> createSurfaceControlHolder() {
     sp<SurfaceControl> surfaceControl =
             SurfaceComposerClient::getDefault()
@@ -228,24 +225,27 @@ std::unique_ptr<SurfaceControlHolder> createSurfaceControlHolder() {
     return std::make_unique<SurfaceControlHolder>(std::move(surfaceControl));
 }
 
-RefreshRateOverlay::RefreshRateOverlay(FpsRange fpsRange, bool showSpinner)
-      : mFpsRange(fpsRange),
-        mShowSpinner(showSpinner),
-        mSurfaceControl(createSurfaceControlHolder()) {
+RefreshRateOverlay::RefreshRateOverlay(FpsRange fpsRange, ftl::Flags<Features> features)
+      : mFpsRange(fpsRange), mFeatures(features), mSurfaceControl(createSurfaceControlHolder()) {
     if (!mSurfaceControl) {
         ALOGE("%s: Failed to create buffer state layer", __func__);
         return;
     }
 
-    createTransaction(mSurfaceControl->get())
+    createTransaction()
             .setLayer(mSurfaceControl->get(), INT32_MAX - 2)
             .setTrustedOverlay(mSurfaceControl->get(), true)
             .apply();
 }
 
-auto RefreshRateOverlay::getOrCreateBuffers(Fps fps) -> const Buffers& {
+auto RefreshRateOverlay::getOrCreateBuffers(Fps displayFps, Fps renderFps) -> const Buffers& {
     static const Buffers kNoBuffers;
     if (!mSurfaceControl) return kNoBuffers;
+
+    // avoid caching different render rates if RenderRate is anyway not visible
+    if (!mFeatures.test(Features::RenderRate)) {
+        renderFps = 0_Hz;
+    }
 
     const auto transformHint =
             static_cast<ui::Transform::RotationFlags>(mSurfaceControl->get()->getTransformHint());
@@ -262,21 +262,24 @@ auto RefreshRateOverlay::getOrCreateBuffers(Fps fps) -> const Buffers& {
         }
     }();
 
-    createTransaction(mSurfaceControl->get())
-            .setTransform(mSurfaceControl->get(), transform)
-            .apply();
+    createTransaction().setTransform(mSurfaceControl->get(), transform).apply();
 
-    BufferCache::const_iterator it = mBufferCache.find({fps.getIntValue(), transformHint});
+    BufferCache::const_iterator it =
+            mBufferCache.find({displayFps.getIntValue(), renderFps.getIntValue(), transformHint});
     if (it == mBufferCache.end()) {
-        const int minFps = mFpsRange.min.getIntValue();
+        // HWC minFps is not known by the framework in order
+        // to consider lower rates we set minFps to 0.
+        const int minFps = isSetByHwc() ? 0 : mFpsRange.min.getIntValue();
         const int maxFps = mFpsRange.max.getIntValue();
 
-        // Clamp to the range. The current fps may be outside of this range if the display has
-        // changed its set of supported refresh rates.
-        const int intFps = std::clamp(fps.getIntValue(), minFps, maxFps);
+        // Clamp to the range. The current displayFps may be outside of this range if the display
+        // has changed its set of supported refresh rates.
+        const int displayIntFps = std::clamp(displayFps.getIntValue(), minFps, maxFps);
+        const int renderIntFps = renderFps.getIntValue();
 
         // Ensure non-zero range to avoid division by zero.
-        const float fpsScale = static_cast<float>(intFps - minFps) / std::max(1, maxFps - minFps);
+        const float fpsScale =
+                static_cast<float>(displayIntFps - minFps) / std::max(1, maxFps - minFps);
 
         constexpr SkColor kMinFpsColor = SK_ColorRED;
         constexpr SkColor kMaxFpsColor = SK_ColorGREEN;
@@ -292,8 +295,11 @@ auto RefreshRateOverlay::getOrCreateBuffers(Fps fps) -> const Buffers& {
 
         const SkColor color = colorBase.toSkColor();
 
-        auto buffers = SevenSegmentDrawer::draw(intFps, color, transformHint, mShowSpinner);
-        it = mBufferCache.try_emplace({intFps, transformHint}, std::move(buffers)).first;
+        auto buffers = SevenSegmentDrawer::draw(displayIntFps, renderIntFps, color, transformHint,
+                                                mFeatures);
+        it = mBufferCache
+                     .try_emplace({displayIntFps, renderIntFps, transformHint}, std::move(buffers))
+                     .first;
     }
 
     return it->second;
@@ -303,10 +309,15 @@ void RefreshRateOverlay::setViewport(ui::Size viewport) {
     constexpr int32_t kMaxWidth = 1000;
     const auto width = std::min({kMaxWidth, viewport.width, viewport.height});
     const auto height = 2 * width;
-    Rect frame((3 * width) >> 4, height >> 5);
-    frame.offsetBy(width >> 5, height >> 4);
+    Rect frame((5 * width) >> 4, height >> 5);
 
-    createTransaction(mSurfaceControl->get())
+    if (!mFeatures.test(Features::ShowInMiddle)) {
+        frame.offsetBy(width >> 5, height >> 4);
+    } else {
+        frame.offsetBy(width >> 1, height >> 4);
+    }
+
+    createTransaction()
             .setMatrix(mSurfaceControl->get(), frame.getWidth() / static_cast<float>(kBufferWidth),
                        0, 0, frame.getHeight() / static_cast<float>(kBufferHeight))
             .setPosition(mSurfaceControl->get(), frame.left, frame.top)
@@ -314,22 +325,41 @@ void RefreshRateOverlay::setViewport(ui::Size viewport) {
 }
 
 void RefreshRateOverlay::setLayerStack(ui::LayerStack stack) {
-    createTransaction(mSurfaceControl->get()).setLayerStack(mSurfaceControl->get(), stack).apply();
+    createTransaction().setLayerStack(mSurfaceControl->get(), stack).apply();
 }
 
-void RefreshRateOverlay::changeRefreshRate(Fps fps) {
-    mCurrentFps = fps;
-    const auto buffer = getOrCreateBuffers(fps)[mFrame];
-    createTransaction(mSurfaceControl->get()).setBuffer(mSurfaceControl->get(), buffer).apply();
+void RefreshRateOverlay::changeRefreshRate(Fps displayFps, Fps renderFps) {
+    mDisplayFps = displayFps;
+    mRenderFps = renderFps;
+    const auto buffer = getOrCreateBuffers(displayFps, renderFps)[mFrame];
+    createTransaction().setBuffer(mSurfaceControl->get(), buffer).apply();
 }
 
 void RefreshRateOverlay::animate() {
-    if (!mShowSpinner || !mCurrentFps) return;
+    if (!mFeatures.test(Features::Spinner) || !mDisplayFps) return;
 
-    const auto& buffers = getOrCreateBuffers(*mCurrentFps);
+    const auto& buffers = getOrCreateBuffers(*mDisplayFps, *mRenderFps);
     mFrame = (mFrame + 1) % buffers.size();
     const auto buffer = buffers[mFrame];
-    createTransaction(mSurfaceControl->get()).setBuffer(mSurfaceControl->get(), buffer).apply();
+    createTransaction().setBuffer(mSurfaceControl->get(), buffer).apply();
+}
+
+SurfaceComposerClient::Transaction RefreshRateOverlay::createTransaction() const {
+    constexpr float kFrameRate = 0.f;
+    constexpr int8_t kCompatibility = ANATIVEWINDOW_FRAME_RATE_NO_VOTE;
+    constexpr int8_t kSeamlessness = ANATIVEWINDOW_CHANGE_FRAME_RATE_ONLY_IF_SEAMLESS;
+
+    const sp<SurfaceControl>& surface = mSurfaceControl->get();
+
+    SurfaceComposerClient::Transaction transaction;
+    if (isSetByHwc()) {
+        transaction.setFlags(surface, layer_state_t::eLayerIsRefreshRateIndicator,
+                             layer_state_t::eLayerIsRefreshRateIndicator);
+        // Disable overlay layer caching when refresh rate is updated by the HWC.
+        transaction.setCachingHint(surface, gui::CachingHint::Disabled);
+    }
+    transaction.setFrameRate(surface, kFrameRate, kCompatibility, kSeamlessness);
+    return transaction;
 }
 
 } // namespace android

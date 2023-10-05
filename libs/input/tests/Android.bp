@@ -10,35 +10,62 @@ package {
 
 cc_test {
     name: "libinput_tests",
+    cpp_std: "c++20",
+    host_supported: true,
     srcs: [
         "IdGenerator_test.cpp",
         "InputChannel_test.cpp",
         "InputDevice_test.cpp",
         "InputEvent_test.cpp",
         "InputPublisherAndConsumer_test.cpp",
+        "MotionPredictor_test.cpp",
+        "RingBuffer_test.cpp",
+        "TfLiteMotionPredictor_test.cpp",
+        "TouchResampling_test.cpp",
         "TouchVideoFrame_test.cpp",
         "VelocityTracker_test.cpp",
         "VerifiedInputEvent_test.cpp",
     ],
+    header_libs: [
+        "flatbuffer_headers",
+        "tensorflow_headers",
+    ],
     static_libs: [
+        "libgmock",
         "libgui_window_info_static",
         "libinput",
+        "libtflite_static",
+        "libui-types",
     ],
     cflags: [
         "-Wall",
         "-Wextra",
         "-Werror",
+        "-Wno-unused-parameter",
     ],
+    sanitize: {
+        undefined: true,
+        all_undefined: true,
+        diag: {
+            undefined: true,
+        },
+    },
     shared_libs: [
         "libbase",
         "libbinder",
         "libcutils",
         "liblog",
-        "libui",
+        "libPlatformProperties",
         "libutils",
         "libvintf",
     ],
-    data: ["data/*"],
+    data: [
+        "data/*",
+        ":motion_predictor_model.fb",
+    ],
+    test_options: {
+        unit_test: true,
+    },
     test_suites: ["device-tests"],
 }
 
@@ -59,7 +86,6 @@ cc_library_static {
         "libcutils",
         "libutils",
         "libbinder",
-        "libui",
         "libbase",
     ],
 }

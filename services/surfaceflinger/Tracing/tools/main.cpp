@@ -52,6 +52,7 @@ int main(int argc, char** argv) {
     ;
     ALOGD("Generating %s...", outputLayersTracePath);
     std::cout << "Generating " << outputLayersTracePath << "\n";
+
     if (!LayerTraceGenerator().generate(transactionTraceFile, outputLayersTracePath)) {
         std::cout << "Error: Failed to generate layers trace " << outputLayersTracePath;
         return -1;

@@ -42,7 +42,7 @@ static sp<IBinder> getConnectionToken(FuzzedDataProvider& fdp,
     if (useExistingToken) {
         return tokens[fdp.ConsumeIntegralInRange<size_t>(0ul, tokens.size() - 1)];
     }
-    return new BBinder();
+    return sp<BBinder>::make();
 }
 
 extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size) {
@@ -54,7 +54,7 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size) {
     // Make some pre-defined tokens to ensure that some timelines are complete.
     std::array<sp<IBinder> /*token*/, 10> predefinedTokens;
     for (size_t i = 0; i < predefinedTokens.size(); i++) {
-        predefinedTokens[i] = new BBinder();
+        predefinedTokens[i] = sp<BBinder>::make();
     }
 
     // Randomly invoke LatencyTracker api's until randomness is exhausted.

@@ -20,6 +20,7 @@
 #include <aidl/android/hardware/graphics/common/ChromaSiting.h>
 #include <aidl/android/hardware/graphics/common/Compression.h>
 #include <aidl/android/hardware/graphics/common/Cta861_3.h>
+#include <aidl/android/hardware/graphics/common/Hdr.h>
 #include <aidl/android/hardware/graphics/common/Interlaced.h>
 #include <aidl/android/hardware/graphics/common/PlaneLayout.h>
 #include <aidl/android/hardware/graphics/common/Smpte2086.h>
@@ -42,7 +43,6 @@ namespace ui {
 using android::hardware::graphics::common::V1_1::RenderIntent;
 using android::hardware::graphics::common::V1_2::ColorMode;
 using android::hardware::graphics::common::V1_2::Dataspace;
-using android::hardware::graphics::common::V1_2::Hdr;
 using android::hardware::graphics::common::V1_2::PixelFormat;
 
 /**
@@ -50,6 +50,7 @@ using android::hardware::graphics::common::V1_2::PixelFormat;
  */
 using aidl::android::hardware::graphics::common::BlendMode;
 using aidl::android::hardware::graphics::common::Cta861_3;
+using aidl::android::hardware::graphics::common::Hdr;
 using aidl::android::hardware::graphics::common::PlaneLayout;
 using aidl::android::hardware::graphics::common::Smpte2086;
 

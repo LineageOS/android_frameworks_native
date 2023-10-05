@@ -20,6 +20,7 @@
 
 #include <algorithm>
 
+#include <android/sysprop/InputProperties.sysprop.h>
 #include <ftl/flags.h>
 
 #include "CursorInputMapper.h"
@@ -33,6 +34,7 @@
 #include "SensorInputMapper.h"
 #include "SingleTouchInputMapper.h"
 #include "SwitchInputMapper.h"
+#include "TouchpadInputMapper.h"
 #include "VibratorInputMapper.h"
 
 namespace android {
@@ -63,7 +65,8 @@ bool InputDevice::isEnabled() {
     return enabled;
 }
 
-void InputDevice::setEnabled(bool enabled, nsecs_t when) {
+std::list<NotifyArgs> InputDevice::setEnabled(bool enabled, nsecs_t when) {
+    std::list<NotifyArgs> out;
     if (enabled && mAssociatedDisplayPort && !mAssociatedViewport) {
         ALOGW("Cannot enable input device %s because it is associated with port %" PRIu8 ", "
               "but the corresponding viewport is not found",
@@ -72,7 +75,7 @@ void InputDevice::setEnabled(bool enabled, nsecs_t when) {
     }
 
     if (isEnabled() == enabled) {
-        return;
+        return out;
     }
 
     // When resetting some devices, the driver needs to be queried to ensure that a proper reset is
@@ -80,13 +83,14 @@ void InputDevice::setEnabled(bool enabled, nsecs_t when) {
     // but before disabling the device. See MultiTouchMotionAccumulator::reset for more information.
     if (enabled) {
         for_each_subdevice([](auto& context) { context.enableDevice(); });
-        reset(when);
+        out += reset(when);
     } else {
-        reset(when);
+        out += reset(when);
         for_each_subdevice([](auto& context) { context.disableDevice(); });
     }
     // Must change generation to flag this device as changed
     bumpGeneration();
+    return out;
 }
 
 void InputDevice::dump(std::string& dump, const std::string& eventHubDevStr) {
@@ -142,88 +146,23 @@ void InputDevice::dump(std::string& dump, const std::string& eventHubDevStr) {
     }
 }
 
-void InputDevice::addEventHubDevice(int32_t eventHubId, bool populateMappers) {
+void InputDevice::addEmptyEventHubDevice(int32_t eventHubId) {
     if (mDevices.find(eventHubId) != mDevices.end()) {
         return;
     }
     std::unique_ptr<InputDeviceContext> contextPtr(new InputDeviceContext(*this, eventHubId));
-    ftl::Flags<InputDeviceClass> classes = contextPtr->getDeviceClasses();
     std::vector<std::unique_ptr<InputMapper>> mappers;
 
-    // Check if we should skip population
-    if (!populateMappers) {
-        mDevices.insert({eventHubId, std::make_pair(std::move(contextPtr), std::move(mappers))});
+    mDevices.insert({eventHubId, std::make_pair(std::move(contextPtr), std::move(mappers))});
+}
+
+void InputDevice::addEventHubDevice(int32_t eventHubId,
+                                    const InputReaderConfiguration& readerConfig) {
+    if (mDevices.find(eventHubId) != mDevices.end()) {
         return;
     }
-
-    // Switch-like devices.
-    if (classes.test(InputDeviceClass::SWITCH)) {
-        mappers.push_back(std::make_unique<SwitchInputMapper>(*contextPtr));
-    }
-
-    // Scroll wheel-like devices.
-    if (classes.test(InputDeviceClass::ROTARY_ENCODER)) {
-        mappers.push_back(std::make_unique<RotaryEncoderInputMapper>(*contextPtr));
-    }
-
-    // Vibrator-like devices.
-    if (classes.test(InputDeviceClass::VIBRATOR)) {
-        mappers.push_back(std::make_unique<VibratorInputMapper>(*contextPtr));
-    }
-
-    // Battery-like devices or light-containing devices.
-    // PeripheralController will be created with associated EventHub device.
-    if (classes.test(InputDeviceClass::BATTERY) || classes.test(InputDeviceClass::LIGHT)) {
-        mController = std::make_unique<PeripheralController>(*contextPtr);
-    }
-
-    // Keyboard-like devices.
-    uint32_t keyboardSource = 0;
-    int32_t keyboardType = AINPUT_KEYBOARD_TYPE_NON_ALPHABETIC;
-    if (classes.test(InputDeviceClass::KEYBOARD)) {
-        keyboardSource |= AINPUT_SOURCE_KEYBOARD;
-    }
-    if (classes.test(InputDeviceClass::ALPHAKEY)) {
-        keyboardType = AINPUT_KEYBOARD_TYPE_ALPHABETIC;
-    }
-    if (classes.test(InputDeviceClass::DPAD)) {
-        keyboardSource |= AINPUT_SOURCE_DPAD;
-    }
-    if (classes.test(InputDeviceClass::GAMEPAD)) {
-        keyboardSource |= AINPUT_SOURCE_GAMEPAD;
-    }
-
-    if (keyboardSource != 0) {
-        mappers.push_back(
-                std::make_unique<KeyboardInputMapper>(*contextPtr, keyboardSource, keyboardType));
-    }
-
-    // Cursor-like devices.
-    if (classes.test(InputDeviceClass::CURSOR)) {
-        mappers.push_back(std::make_unique<CursorInputMapper>(*contextPtr));
-    }
-
-    // Touchscreens and touchpad devices.
-    if (classes.test(InputDeviceClass::TOUCH_MT)) {
-        mappers.push_back(std::make_unique<MultiTouchInputMapper>(*contextPtr));
-    } else if (classes.test(InputDeviceClass::TOUCH)) {
-        mappers.push_back(std::make_unique<SingleTouchInputMapper>(*contextPtr));
-    }
-
-    // Joystick-like devices.
-    if (classes.test(InputDeviceClass::JOYSTICK)) {
-        mappers.push_back(std::make_unique<JoystickInputMapper>(*contextPtr));
-    }
-
-    // Motion sensor enabled devices.
-    if (classes.test(InputDeviceClass::SENSOR)) {
-        mappers.push_back(std::make_unique<SensorInputMapper>(*contextPtr));
-    }
-
-    // External stylus-like devices.
-    if (classes.test(InputDeviceClass::EXTERNAL_STYLUS)) {
-        mappers.push_back(std::make_unique<ExternalStylusInputMapper>(*contextPtr));
-    }
+    std::unique_ptr<InputDeviceContext> contextPtr(new InputDeviceContext(*this, eventHubId));
+    std::vector<std::unique_ptr<InputMapper>> mappers = createMappers(*contextPtr, readerConfig);
 
     // insert the context into the devices set
     mDevices.insert({eventHubId, std::make_pair(std::move(contextPtr), std::move(mappers))});
@@ -239,8 +178,10 @@ void InputDevice::removeEventHubDevice(int32_t eventHubId) {
     mDevices.erase(eventHubId);
 }
 
-void InputDevice::configure(nsecs_t when, const InputReaderConfiguration* config,
-                            uint32_t changes) {
+std::list<NotifyArgs> InputDevice::configure(nsecs_t when,
+                                             const InputReaderConfiguration& readerConfig,
+                                             ConfigurationChanges changes) {
+    std::list<NotifyArgs> out;
     mSources = 0;
     mClasses = ftl::Flags<InputDeviceClass>(0);
     mControllerNumber = 0;
@@ -260,17 +201,28 @@ void InputDevice::configure(nsecs_t when, const InputReaderConfiguration* config
     mIsExternal = mClasses.test(InputDeviceClass::EXTERNAL);
     mHasMic = mClasses.test(InputDeviceClass::MIC);
 
-    if (!isIgnored()) {
-        if (!changes) { // first time only
+    using Change = InputReaderConfiguration::Change;
+
+    if (!changes.any() || !isIgnored()) {
+        // Full configuration should happen the first time configure is called
+        // and when the device type is changed. Changing a device type can
+        // affect various other parameters so should result in a
+        // reconfiguration.
+        if (!changes.any() || changes.test(Change::DEVICE_TYPE)) {
             mConfiguration.clear();
             for_each_subdevice([this](InputDeviceContext& context) {
-                PropertyMap configuration;
-                context.getConfiguration(&configuration);
-                mConfiguration.addAll(&configuration);
+                std::optional<PropertyMap> configuration =
+                        getEventHub()->getConfiguration(context.getEventHubId());
+                if (configuration) {
+                    mConfiguration.addAll(&(*configuration));
+                }
             });
+
+            mAssociatedDeviceType =
+                    getValueByKey(readerConfig.deviceTypeAssociations, mIdentifier.location);
         }
 
-        if (!changes || (changes & InputReaderConfiguration::CHANGE_KEYBOARD_LAYOUTS)) {
+        if (!changes.any() || changes.test(Change::KEYBOARD_LAYOUTS)) {
             if (!mClasses.test(InputDeviceClass::VIRTUAL)) {
                 std::shared_ptr<KeyCharacterMap> keyboardLayout =
                         mContext->getPolicy()->getKeyboardLayoutOverlay(mIdentifier);
@@ -287,7 +239,7 @@ void InputDevice::configure(nsecs_t when, const InputReaderConfiguration* config
             }
         }
 
-        if (!changes || (changes & InputReaderConfiguration::CHANGE_DEVICE_ALIAS)) {
+        if (!changes.any() || changes.test(Change::DEVICE_ALIAS)) {
             if (!(mClasses.test(InputDeviceClass::VIRTUAL))) {
                 std::string alias = mContext->getPolicy()->getDeviceAlias(mIdentifier);
                 if (mAlias != alias) {
@@ -297,13 +249,16 @@ void InputDevice::configure(nsecs_t when, const InputReaderConfiguration* config
             }
         }
 
-        if (!changes || (changes & InputReaderConfiguration::CHANGE_ENABLED_STATE)) {
-            auto it = config->disabledDevices.find(mId);
-            bool enabled = it == config->disabledDevices.end();
-            setEnabled(enabled, when);
+        if (changes.test(Change::ENABLED_STATE)) {
+            // Do not execute this code on the first configure, because 'setEnabled' would call
+            // InputMapper::reset, and you can't reset a mapper before it has been configured.
+            // The mappers are configured for the first time at the bottom of this function.
+            auto it = readerConfig.disabledDevices.find(mId);
+            bool enabled = it == readerConfig.disabledDevices.end();
+            out += setEnabled(enabled, when);
         }
 
-        if (!changes || (changes & InputReaderConfiguration::CHANGE_DISPLAY_INFO)) {
+        if (!changes.any() || changes.test(Change::DISPLAY_INFO)) {
             // In most situations, no port or name will be specified.
             mAssociatedDisplayPort = std::nullopt;
             mAssociatedDisplayUniqueId = std::nullopt;
@@ -311,13 +266,14 @@ void InputDevice::configure(nsecs_t when, const InputReaderConfiguration* config
             // Find the display port that corresponds to the current input port.
             const std::string& inputPort = mIdentifier.location;
             if (!inputPort.empty()) {
-                const std::unordered_map<std::string, uint8_t>& ports = config->portAssociations;
+                const std::unordered_map<std::string, uint8_t>& ports =
+                        readerConfig.portAssociations;
                 const auto& displayPort = ports.find(inputPort);
                 if (displayPort != ports.end()) {
                     mAssociatedDisplayPort = std::make_optional(displayPort->second);
                 } else {
                     const std::unordered_map<std::string, std::string>& displayUniqueIds =
-                            config->uniqueIdAssociations;
+                            readerConfig.uniqueIdAssociations;
                     const auto& displayUniqueId = displayUniqueIds.find(inputPort);
                     if (displayUniqueId != displayUniqueIds.end()) {
                         mAssociatedDisplayUniqueId = displayUniqueId->second;
@@ -329,9 +285,11 @@ void InputDevice::configure(nsecs_t when, const InputReaderConfiguration* config
             // "disabledDevices" list. If it is associated with a specific display, and it was not
             // explicitly disabled, then enable/disable the device based on whether we can find the
             // corresponding viewport.
-            bool enabled = (config->disabledDevices.find(mId) == config->disabledDevices.end());
+            bool enabled =
+                    (readerConfig.disabledDevices.find(mId) == readerConfig.disabledDevices.end());
             if (mAssociatedDisplayPort) {
-                mAssociatedViewport = config->getDisplayViewportByPort(*mAssociatedDisplayPort);
+                mAssociatedViewport =
+                        readerConfig.getDisplayViewportByPort(*mAssociatedDisplayPort);
                 if (!mAssociatedViewport) {
                     ALOGW("Input device %s should be associated with display on port %" PRIu8 ", "
                           "but the corresponding viewport is not found.",
@@ -340,7 +298,7 @@ void InputDevice::configure(nsecs_t when, const InputReaderConfiguration* config
                 }
             } else if (mAssociatedDisplayUniqueId != std::nullopt) {
                 mAssociatedViewport =
-                        config->getDisplayViewportByUniqueId(*mAssociatedDisplayUniqueId);
+                        readerConfig.getDisplayViewportByUniqueId(*mAssociatedDisplayUniqueId);
                 if (!mAssociatedViewport) {
                     ALOGW("Input device %s should be associated with display %s but the "
                           "corresponding viewport cannot be found",
@@ -349,86 +307,97 @@ void InputDevice::configure(nsecs_t when, const InputReaderConfiguration* config
                 }
             }
 
-            if (changes) {
+            if (changes.any()) {
                 // For first-time configuration, only allow device to be disabled after mappers have
                 // finished configuring. This is because we need to read some of the properties from
                 // the device's open fd.
-                setEnabled(enabled, when);
+                out += setEnabled(enabled, when);
             }
         }
 
-        for_each_mapper([this, when, config, changes](InputMapper& mapper) {
-            mapper.configure(when, config, changes);
+        for_each_mapper([this, when, &readerConfig, changes, &out](InputMapper& mapper) {
+            out += mapper.reconfigure(when, readerConfig, changes);
             mSources |= mapper.getSources();
         });
 
         // If a device is just plugged but it might be disabled, we need to update some info like
         // axis range of touch from each InputMapper first, then disable it.
-        if (!changes) {
-            setEnabled(config->disabledDevices.find(mId) == config->disabledDevices.end(), when);
+        if (!changes.any()) {
+            out += setEnabled(readerConfig.disabledDevices.find(mId) ==
+                                      readerConfig.disabledDevices.end(),
+                              when);
         }
     }
+    return out;
 }
 
-void InputDevice::reset(nsecs_t when) {
-    for_each_mapper([when](InputMapper& mapper) { mapper.reset(when); });
+std::list<NotifyArgs> InputDevice::reset(nsecs_t when) {
+    std::list<NotifyArgs> out;
+    for_each_mapper([&](InputMapper& mapper) { out += mapper.reset(when); });
 
     mContext->updateGlobalMetaState();
 
-    notifyReset(when);
+    out.push_back(notifyReset(when));
+    return out;
 }
 
-void InputDevice::process(const RawEvent* rawEvents, size_t count) {
+std::list<NotifyArgs> InputDevice::process(const RawEvent* rawEvents, size_t count) {
     // Process all of the events in order for each mapper.
     // We cannot simply ask each mapper to process them in bulk because mappers may
     // have side-effects that must be interleaved.  For example, joystick movement events and
     // gamepad button presses are handled by different mappers but they should be dispatched
     // in the order received.
+    std::list<NotifyArgs> out;
     for (const RawEvent* rawEvent = rawEvents; count != 0; rawEvent++) {
-        if (DEBUG_RAW_EVENTS) {
-            ALOGD("Input event: device=%d type=0x%04x code=0x%04x value=0x%08x when=%" PRId64,
-                  rawEvent->deviceId, rawEvent->type, rawEvent->code, rawEvent->value,
-                  rawEvent->when);
+        if (debugRawEvents()) {
+            const auto [type, code, value] =
+                    InputEventLookup::getLinuxEvdevLabel(rawEvent->type, rawEvent->code,
+                                                         rawEvent->value);
+            ALOGD("Input event: eventHubDevice=%d type=%s code=%s value=%s when=%" PRId64,
+                  rawEvent->deviceId, type.c_str(), code.c_str(), value.c_str(), rawEvent->when);
         }
 
         if (mDropUntilNextSync) {
             if (rawEvent->type == EV_SYN && rawEvent->code == SYN_REPORT) {
                 mDropUntilNextSync = false;
-                if (DEBUG_RAW_EVENTS) {
-                    ALOGD("Recovered from input event buffer overrun.");
-                }
+                ALOGD_IF(debugRawEvents(), "Recovered from input event buffer overrun.");
             } else {
-                if (DEBUG_RAW_EVENTS) {
-                    ALOGD("Dropped input event while waiting for next input sync.");
-                }
+                ALOGD_IF(debugRawEvents(),
+                         "Dropped input event while waiting for next input sync.");
             }
         } else if (rawEvent->type == EV_SYN && rawEvent->code == SYN_DROPPED) {
             ALOGI("Detected input event buffer overrun for device %s.", getName().c_str());
             mDropUntilNextSync = true;
-            reset(rawEvent->when);
+            out += reset(rawEvent->when);
         } else {
-            for_each_mapper_in_subdevice(rawEvent->deviceId, [rawEvent](InputMapper& mapper) {
-                mapper.process(rawEvent);
+            for_each_mapper_in_subdevice(rawEvent->deviceId, [&](InputMapper& mapper) {
+                out += mapper.process(rawEvent);
             });
         }
         --count;
     }
+    return out;
 }
 
-void InputDevice::timeoutExpired(nsecs_t when) {
-    for_each_mapper([when](InputMapper& mapper) { mapper.timeoutExpired(when); });
+std::list<NotifyArgs> InputDevice::timeoutExpired(nsecs_t when) {
+    std::list<NotifyArgs> out;
+    for_each_mapper([&](InputMapper& mapper) { out += mapper.timeoutExpired(when); });
+    return out;
 }
 
-void InputDevice::updateExternalStylusState(const StylusState& state) {
-    for_each_mapper([state](InputMapper& mapper) { mapper.updateExternalStylusState(state); });
+std::list<NotifyArgs> InputDevice::updateExternalStylusState(const StylusState& state) {
+    std::list<NotifyArgs> out;
+    for_each_mapper([&](InputMapper& mapper) { out += mapper.updateExternalStylusState(state); });
+    return out;
 }
 
 InputDeviceInfo InputDevice::getDeviceInfo() {
     InputDeviceInfo outDeviceInfo;
     outDeviceInfo.initialize(mId, mGeneration, mControllerNumber, mIdentifier, mAlias, mIsExternal,
-                             mHasMic);
+                             mHasMic, getAssociatedDisplayId().value_or(ADISPLAY_ID_NONE));
+
     for_each_mapper(
-            [&outDeviceInfo](InputMapper& mapper) { mapper.populateDeviceInfo(&outDeviceInfo); });
+            [&outDeviceInfo](InputMapper& mapper) { mapper.populateDeviceInfo(outDeviceInfo); });
 
     if (mController) {
         mController->populateDeviceInfo(&outDeviceInfo);
@@ -470,12 +439,98 @@ int32_t InputDevice::getState(uint32_t sourceMask, int32_t code, GetStateFunc ge
     return result;
 }
 
-bool InputDevice::markSupportedKeyCodes(uint32_t sourceMask, size_t numCodes,
-                                        const int32_t* keyCodes, uint8_t* outFlags) {
+std::vector<std::unique_ptr<InputMapper>> InputDevice::createMappers(
+        InputDeviceContext& contextPtr, const InputReaderConfiguration& readerConfig) {
+    ftl::Flags<InputDeviceClass> classes = contextPtr.getDeviceClasses();
+    std::vector<std::unique_ptr<InputMapper>> mappers;
+
+    // Switch-like devices.
+    if (classes.test(InputDeviceClass::SWITCH)) {
+        mappers.push_back(createInputMapper<SwitchInputMapper>(contextPtr, readerConfig));
+    }
+
+    // Scroll wheel-like devices.
+    if (classes.test(InputDeviceClass::ROTARY_ENCODER)) {
+        mappers.push_back(createInputMapper<RotaryEncoderInputMapper>(contextPtr, readerConfig));
+    }
+
+    // Vibrator-like devices.
+    if (classes.test(InputDeviceClass::VIBRATOR)) {
+        mappers.push_back(createInputMapper<VibratorInputMapper>(contextPtr, readerConfig));
+    }
+
+    // Battery-like devices or light-containing devices.
+    // PeripheralController will be created with associated EventHub device.
+    if (classes.test(InputDeviceClass::BATTERY) || classes.test(InputDeviceClass::LIGHT)) {
+        mController = std::make_unique<PeripheralController>(contextPtr);
+    }
+
+    // Keyboard-like devices.
+    uint32_t keyboardSource = 0;
+    int32_t keyboardType = AINPUT_KEYBOARD_TYPE_NON_ALPHABETIC;
+    if (classes.test(InputDeviceClass::KEYBOARD)) {
+        keyboardSource |= AINPUT_SOURCE_KEYBOARD;
+    }
+    if (classes.test(InputDeviceClass::ALPHAKEY)) {
+        keyboardType = AINPUT_KEYBOARD_TYPE_ALPHABETIC;
+    }
+    if (classes.test(InputDeviceClass::DPAD)) {
+        keyboardSource |= AINPUT_SOURCE_DPAD;
+    }
+    if (classes.test(InputDeviceClass::GAMEPAD)) {
+        keyboardSource |= AINPUT_SOURCE_GAMEPAD;
+    }
+
+    if (keyboardSource != 0) {
+        mappers.push_back(createInputMapper<KeyboardInputMapper>(contextPtr, readerConfig,
+                                                                 keyboardSource, keyboardType));
+    }
+
+    // Cursor-like devices.
+    if (classes.test(InputDeviceClass::CURSOR)) {
+        mappers.push_back(createInputMapper<CursorInputMapper>(contextPtr, readerConfig));
+    }
+
+    // Touchscreens and touchpad devices.
+    static const bool ENABLE_TOUCHPAD_GESTURES_LIBRARY =
+            sysprop::InputProperties::enable_touchpad_gestures_library().value_or(true);
+    // TODO(b/272518665): Fix the new touchpad stack for Sony DualShock 4 (5c4, 9cc) touchpads, or
+    // at least load this setting from the IDC file.
+    const InputDeviceIdentifier identifier = contextPtr.getDeviceIdentifier();
+    const bool isSonyDualShock4Touchpad = identifier.vendor == 0x054c &&
+            (identifier.product == 0x05c4 || identifier.product == 0x09cc);
+    if (ENABLE_TOUCHPAD_GESTURES_LIBRARY && classes.test(InputDeviceClass::TOUCHPAD) &&
+        classes.test(InputDeviceClass::TOUCH_MT) && !isSonyDualShock4Touchpad) {
+        mappers.push_back(createInputMapper<TouchpadInputMapper>(contextPtr, readerConfig));
+    } else if (classes.test(InputDeviceClass::TOUCH_MT)) {
+        mappers.push_back(std::make_unique<MultiTouchInputMapper>(contextPtr, readerConfig));
+    } else if (classes.test(InputDeviceClass::TOUCH)) {
+        mappers.push_back(std::make_unique<SingleTouchInputMapper>(contextPtr, readerConfig));
+    }
+
+    // Joystick-like devices.
+    if (classes.test(InputDeviceClass::JOYSTICK)) {
+        mappers.push_back(createInputMapper<JoystickInputMapper>(contextPtr, readerConfig));
+    }
+
+    // Motion sensor enabled devices.
+    if (classes.test(InputDeviceClass::SENSOR)) {
+        mappers.push_back(createInputMapper<SensorInputMapper>(contextPtr, readerConfig));
+    }
+
+    // External stylus-like devices.
+    if (classes.test(InputDeviceClass::EXTERNAL_STYLUS)) {
+        mappers.push_back(createInputMapper<ExternalStylusInputMapper>(contextPtr, readerConfig));
+    }
+    return mappers;
+}
+
+bool InputDevice::markSupportedKeyCodes(uint32_t sourceMask, const std::vector<int32_t>& keyCodes,
+                                        uint8_t* outFlags) {
     bool result = false;
-    for_each_mapper([&result, sourceMask, numCodes, keyCodes, outFlags](InputMapper& mapper) {
+    for_each_mapper([&result, sourceMask, keyCodes, outFlags](InputMapper& mapper) {
         if (sourcesMatchMask(mapper.getSources(), sourceMask)) {
-            result |= mapper.markSupportedKeyCodes(sourceMask, numCodes, keyCodes, outFlags);
+            result |= mapper.markSupportedKeyCodes(sourceMask, keyCodes, outFlags);
         }
     });
     return result;
@@ -498,14 +553,17 @@ int32_t InputDevice::getKeyCodeForKeyLocation(int32_t locationKeyCode) const {
     return *result;
 }
 
-void InputDevice::vibrate(const VibrationSequence& sequence, ssize_t repeat, int32_t token) {
-    for_each_mapper([sequence, repeat, token](InputMapper& mapper) {
-        mapper.vibrate(sequence, repeat, token);
-    });
+std::list<NotifyArgs> InputDevice::vibrate(const VibrationSequence& sequence, ssize_t repeat,
+                                           int32_t token) {
+    std::list<NotifyArgs> out;
+    for_each_mapper([&](InputMapper& mapper) { out += mapper.vibrate(sequence, repeat, token); });
+    return out;
 }
 
-void InputDevice::cancelVibrate(int32_t token) {
-    for_each_mapper([token](InputMapper& mapper) { mapper.cancelVibrate(token); });
+std::list<NotifyArgs> InputDevice::cancelVibrate(int32_t token) {
+    std::list<NotifyArgs> out;
+    for_each_mapper([&](InputMapper& mapper) { out += mapper.cancelVibrate(token); });
+    return out;
 }
 
 bool InputDevice::isVibrating() {
@@ -548,8 +606,10 @@ void InputDevice::flushSensor(InputDeviceSensorType sensorType) {
     for_each_mapper([sensorType](InputMapper& mapper) { mapper.flushSensor(sensorType); });
 }
 
-void InputDevice::cancelTouch(nsecs_t when, nsecs_t readTime) {
-    for_each_mapper([when, readTime](InputMapper& mapper) { mapper.cancelTouch(when, readTime); });
+std::list<NotifyArgs> InputDevice::cancelTouch(nsecs_t when, nsecs_t readTime) {
+    std::list<NotifyArgs> out;
+    for_each_mapper([&](InputMapper& mapper) { out += mapper.cancelTouch(when, readTime); });
+    return out;
 }
 
 bool InputDevice::setLightColor(int32_t lightId, int32_t color) {
@@ -584,13 +644,18 @@ void InputDevice::updateMetaState(int32_t keyCode) {
     });
 }
 
+void InputDevice::addKeyRemapping(int32_t fromKeyCode, int32_t toKeyCode) {
+    for_each_subdevice([fromKeyCode, toKeyCode](auto& context) {
+        context.addKeyRemapping(fromKeyCode, toKeyCode);
+    });
+}
+
 void InputDevice::bumpGeneration() {
     mGeneration = mContext->bumpGeneration();
 }
 
-void InputDevice::notifyReset(nsecs_t when) {
-    NotifyDeviceResetArgs args(mContext->getNextId(), when, mId);
-    mContext->getListener().notifyDeviceReset(&args);
+NotifyDeviceResetArgs InputDevice::notifyReset(nsecs_t when) {
+    return NotifyDeviceResetArgs(mContext->getNextId(), when, mId);
 }
 
 std::optional<int32_t> InputDevice::getAssociatedDisplayId() {

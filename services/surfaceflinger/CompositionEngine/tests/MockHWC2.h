@@ -56,6 +56,7 @@ public:
     MOCK_METHOD3(setBuffer,
                  Error(uint32_t, const android::sp<android::GraphicBuffer>&,
                        const android::sp<android::Fence>&));
+    MOCK_METHOD2(setBufferSlotsToClear, Error(const std::vector<uint32_t>&, uint32_t));
     MOCK_METHOD1(setSurfaceDamage, Error(const android::Region&));
     MOCK_METHOD1(setBlendMode, Error(hal::BlendMode));
     MOCK_METHOD1(setColor, Error(aidl::android::hardware::graphics::composer3::Color));

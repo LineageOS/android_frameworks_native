@@ -20,7 +20,7 @@
 #include <string>
 
 #include <compositionengine/DisplaySurface.h>
-#include <compositionengine/impl/HwcBufferCache.h>
+#include <gui/BufferQueue.h>
 #include <gui/ConsumerBase.h>
 #include <gui/IGraphicBufferProducer.h>
 #include <ui/DisplayId.h>
@@ -164,6 +164,10 @@ private:
     sp<IGraphicBufferProducer> mSource[2]; // indexed by SOURCE_*
     uint32_t mDefaultOutputFormat;
 
+    // Buffers that HWC has seen before, indexed by HWC slot number.
+    // NOTE: The BufferQueue slot number is the same as the HWC slot number.
+    uint64_t mHwcBufferIds[BufferQueue::NUM_BUFFER_SLOTS];
+
     //
     // Inter-frame state
     //
@@ -259,8 +263,6 @@ private:
     CompositionType mDebugLastCompositionType = CompositionType::Unknown;
 
     bool mMustRecompose = false;
-
-    compositionengine::impl::HwcBufferCache mHwcBufferCache;
 
     bool mForceHwcCopy;
 };

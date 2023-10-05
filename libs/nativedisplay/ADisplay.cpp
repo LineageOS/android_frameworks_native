@@ -117,15 +117,6 @@ using namespace android::display::impl;
 #define CHECK_NOT_NULL(name) \
     LOG_ALWAYS_FATAL_IF(name == nullptr, "nullptr passed as " #name " argument");
 
-namespace {
-
-sp<IBinder> getToken(ADisplay* display) {
-    DisplayImpl* impl = reinterpret_cast<DisplayImpl*>(display);
-    return SurfaceComposerClient::getPhysicalDisplayToken(impl->id);
-}
-
-} // namespace
-
 namespace android {
 
 int ADisplay_acquirePhysicalDisplays(ADisplay*** outDisplays) {
@@ -136,19 +127,20 @@ int ADisplay_acquirePhysicalDisplays(ADisplay*** outDisplays) {
     }
 
     std::vector<DisplayConfigImpl> modesPerDisplay[size];
+    ui::DisplayConnectionType displayConnectionTypes[size];
     int numModes = 0;
     for (int i = 0; i < size; ++i) {
-        const sp<IBinder> token = SurfaceComposerClient::getPhysicalDisplayToken(ids[i]);
-
         ui::StaticDisplayInfo staticInfo;
-        if (const status_t status = SurfaceComposerClient::getStaticDisplayInfo(token, &staticInfo);
+        if (const status_t status =
+                    SurfaceComposerClient::getStaticDisplayInfo(ids[i].value, &staticInfo);
             status != OK) {
             return status;
         }
+        displayConnectionTypes[i] = staticInfo.connectionType;
 
         ui::DynamicDisplayInfo dynamicInfo;
         if (const status_t status =
-                    SurfaceComposerClient::getDynamicDisplayInfo(token, &dynamicInfo);
+                    SurfaceComposerClient::getDynamicDisplayInfoFromId(ids[i].value, &dynamicInfo);
             status != OK) {
             return status;
         }
@@ -168,8 +160,6 @@ int ADisplay_acquirePhysicalDisplays(ADisplay*** outDisplays) {
         }
     }
 
-    const std::optional<PhysicalDisplayId> internalId =
-            SurfaceComposerClient::getInternalDisplayId();
     ui::Dataspace defaultDataspace;
     ui::PixelFormat defaultPixelFormat;
     ui::Dataspace wcgDataspace;
@@ -201,8 +191,9 @@ int ADisplay_acquirePhysicalDisplays(ADisplay*** outDisplays) {
 
     for (size_t i = 0; i < size; ++i) {
         const PhysicalDisplayId id = ids[i];
-        const ADisplayType type = (internalId == id) ? ADisplayType::DISPLAY_TYPE_INTERNAL
-                                                     : ADisplayType::DISPLAY_TYPE_EXTERNAL;
+        const ADisplayType type = (displayConnectionTypes[i] == ui::DisplayConnectionType::Internal)
+                ? ADisplayType::DISPLAY_TYPE_INTERNAL
+                : ADisplayType::DISPLAY_TYPE_EXTERNAL;
         const std::vector<DisplayConfigImpl>& configs = modesPerDisplay[i];
         memcpy(configData, configs.data(), sizeof(DisplayConfigImpl) * configs.size());
 
@@ -259,14 +250,15 @@ void ADisplay_getPreferredWideColorFormat(ADisplay* display, ADataSpace* outData
 int ADisplay_getCurrentConfig(ADisplay* display, ADisplayConfig** outConfig) {
     CHECK_NOT_NULL(display);
 
-    sp<IBinder> token = getToken(display);
     ui::DynamicDisplayInfo info;
-    if (const auto status = SurfaceComposerClient::getDynamicDisplayInfo(token, &info);
+    DisplayImpl* impl = reinterpret_cast<DisplayImpl*>(display);
+
+    if (const auto status =
+                SurfaceComposerClient::getDynamicDisplayInfoFromId(impl->id.value, &info);
         status != OK) {
         return status;
     }
 
-    DisplayImpl* impl = reinterpret_cast<DisplayImpl*>(display);
     for (size_t i = 0; i < impl->numConfigs; i++) {
         auto* config = impl->configs + i;
         if (config->id == info.activeDisplayModeId) {

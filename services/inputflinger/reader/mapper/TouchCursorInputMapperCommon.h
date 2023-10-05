@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-#ifndef _UI_INPUTREADER_TOUCH_CURSOR_INPUT_MAPPER_COMMON_H
-#define _UI_INPUTREADER_TOUCH_CURSOR_INPUT_MAPPER_COMMON_H
+#pragma once
 
 #include <input/DisplayViewport.h>
 #include <stdint.h>
+#include <ui/Rotation.h>
 
 #include "EventHub.h"
 #include "InputListener.h"
@@ -26,78 +26,30 @@
 
 namespace android {
 
-// --- Static Definitions ---
+ui::Rotation getInverseRotation(ui::Rotation orientation);
 
-static int32_t getInverseRotation(int32_t orientation) {
-    switch (orientation) {
-        case DISPLAY_ORIENTATION_90:
-            return DISPLAY_ORIENTATION_270;
-        case DISPLAY_ORIENTATION_270:
-            return DISPLAY_ORIENTATION_90;
-        default:
-            return orientation;
-    }
-}
-
-static void rotateDelta(int32_t orientation, float* deltaX, float* deltaY) {
-    float temp;
-    switch (orientation) {
-        case DISPLAY_ORIENTATION_90:
-            temp = *deltaX;
-            *deltaX = *deltaY;
-            *deltaY = -temp;
-            break;
-
-        case DISPLAY_ORIENTATION_180:
-            *deltaX = -*deltaX;
-            *deltaY = -*deltaY;
-            break;
-
-        case DISPLAY_ORIENTATION_270:
-            temp = *deltaX;
-            *deltaX = -*deltaY;
-            *deltaY = temp;
-            break;
-
-        default:
-            break;
-    }
-}
+void rotateDelta(ui::Rotation orientation, float* deltaX, float* deltaY);
 
 // Returns true if the pointer should be reported as being down given the specified
 // button states.  This determines whether the event is reported as a touch event.
-static bool isPointerDown(int32_t buttonState) {
-    return buttonState &
-            (AMOTION_EVENT_BUTTON_PRIMARY | AMOTION_EVENT_BUTTON_SECONDARY |
-             AMOTION_EVENT_BUTTON_TERTIARY);
-}
+bool isPointerDown(int32_t buttonState);
 
-static void synthesizeButtonKey(InputReaderContext* context, int32_t action, nsecs_t when,
-                                nsecs_t readTime, int32_t deviceId, uint32_t source,
-                                int32_t displayId, uint32_t policyFlags, int32_t lastButtonState,
-                                int32_t currentButtonState, int32_t buttonState, int32_t keyCode) {
-    if ((action == AKEY_EVENT_ACTION_DOWN && !(lastButtonState & buttonState) &&
-         (currentButtonState & buttonState)) ||
-        (action == AKEY_EVENT_ACTION_UP && (lastButtonState & buttonState) &&
-         !(currentButtonState & buttonState))) {
-        NotifyKeyArgs args(context->getNextId(), when, readTime, deviceId, source, displayId,
-                           policyFlags, action, 0, keyCode, 0, context->getGlobalMetaState(), when);
-        context->getListener().notifyKey(&args);
-    }
-}
+[[nodiscard]] std::list<NotifyArgs> synthesizeButtonKeys(
+        InputReaderContext* context, int32_t action, nsecs_t when, nsecs_t readTime,
+        int32_t deviceId, uint32_t source, int32_t displayId, uint32_t policyFlags,
+        int32_t lastButtonState, int32_t currentButtonState);
 
-static void synthesizeButtonKeys(InputReaderContext* context, int32_t action, nsecs_t when,
-                                 nsecs_t readTime, int32_t deviceId, uint32_t source,
-                                 int32_t displayId, uint32_t policyFlags, int32_t lastButtonState,
-                                 int32_t currentButtonState) {
-    synthesizeButtonKey(context, action, when, readTime, deviceId, source, displayId, policyFlags,
-                        lastButtonState, currentButtonState, AMOTION_EVENT_BUTTON_BACK,
-                        AKEYCODE_BACK);
-    synthesizeButtonKey(context, action, when, readTime, deviceId, source, displayId, policyFlags,
-                        lastButtonState, currentButtonState, AMOTION_EVENT_BUTTON_FORWARD,
-                        AKEYCODE_FORWARD);
-}
+// For devices connected over Bluetooth, although they may produce events at a consistent rate,
+// the events might end up reaching Android in a "batched" manner through the Bluetooth
+// stack, where a few events may be clumped together and processed around the same time.
+// In this case, if the input device or its driver does not send or process the actual event
+// generation timestamps, the event time will set to whenever the kernel received the event.
+// When the timestamp deltas are minuscule for these batched events, any changes in x or y
+// coordinates result in extremely large instantaneous velocities, which can negatively impact
+// user experience. To avoid this, we augment the timestamps so that subsequent event timestamps
+// differ by at least a minimum delta value.
+std::tuple<nsecs_t /*eventTime*/, nsecs_t /*readTime*/> applyBluetoothTimestampSmoothening(
+        const InputDeviceIdentifier& identifier, nsecs_t currentEventTime, nsecs_t readTime,
+        nsecs_t lastEventTime);
 
 } // namespace android
-
-#endif // _UI_INPUTREADER_TOUCH_CURSOR_INPUT_MAPPER_COMMON_H

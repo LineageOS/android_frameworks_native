@@ -41,6 +41,10 @@
 #include "filters/LinearEffect.h"
 #include "filters/StretchShaderFactory.h"
 
+class SkData;
+
+struct SkPoint3;
+
 namespace android {
 namespace renderengine {
 namespace skia {
@@ -48,36 +52,26 @@ namespace skia {
 class SkiaGLRenderEngine : public skia::SkiaRenderEngine {
 public:
     static std::unique_ptr<SkiaGLRenderEngine> create(const RenderEngineCreationArgs& args);
+    ~SkiaGLRenderEngine() override;
+
+    int getContextPriority() override;
+
+protected:
+    // Implementations of abstract SkiaRenderEngine functions specific to
+    // rendering backend
+    virtual SkiaRenderEngine::Contexts createDirectContexts(const GrContextOptions& options);
+    bool supportsProtectedContentImpl() const override;
+    bool useProtectedContextImpl(GrProtected isProtected) override;
+    void waitFence(GrDirectContext* grContext, base::borrowed_fd fenceFd) override;
+    base::unique_fd flushAndSubmit(GrDirectContext* context) override;
+    void appendBackendSpecificInfoToDump(std::string& result) override;
+
+private:
     SkiaGLRenderEngine(const RenderEngineCreationArgs& args, EGLDisplay display, EGLContext ctxt,
                        EGLSurface placeholder, EGLContext protectedContext,
                        EGLSurface protectedPlaceholder);
-    ~SkiaGLRenderEngine() override EXCLUDES(mRenderingMutex);
-
-    std::future<void> primeCache() override;
-    void cleanupPostRender() override;
-    void cleanFramebufferCache() override{};
-    int getContextPriority() override;
-    bool isProtected() const override { return mInProtectedContext; }
-    bool supportsProtectedContent() const override;
-    void useProtectedContext(bool useProtectedContext) override;
-    bool supportsBackgroundBlur() override { return mBlurFilter != nullptr; }
-    void onActiveDisplaySizeChanged(ui::Size size) override;
-    int reportShadersCompiled() override;
-
-protected:
-    void dump(std::string& result) override;
-    size_t getMaxTextureSize() const override;
-    size_t getMaxViewportDims() const override;
-    void mapExternalTextureBuffer(const sp<GraphicBuffer>& buffer, bool isRenderable) override;
-    void unmapExternalTextureBuffer(const sp<GraphicBuffer>& buffer) override;
-    bool canSkipPostRenderCleanup() const override;
-    void drawLayersInternal(const std::shared_ptr<std::promise<RenderEngineResult>>&& resultPromise,
-                            const DisplaySettings& display,
-                            const std::vector<LayerSettings>& layers,
-                            const std::shared_ptr<ExternalTexture>& buffer,
-                            const bool useFramebufferCache, base::unique_fd&& bufferFence) override;
-
-private:
+    bool waitGpuFence(base::borrowed_fd fenceFd);
+    base::unique_fd flush();
     static EGLConfig chooseEglConfig(EGLDisplay display, int format, bool logConfig);
     static EGLContext createEglContext(EGLDisplay display, EGLConfig config,
                                        EGLContext shareContext,
@@ -85,107 +79,14 @@ private:
                                        Protection protection);
     static std::optional<RenderEngine::ContextPriority> createContextPriority(
             const RenderEngineCreationArgs& args);
-    static EGLSurface createPlaceholderEglPbufferSurface(EGLDisplay display, EGLConfig config,
-                                                         int hwcFormat, Protection protection);
-    inline SkRect getSkRect(const FloatRect& layer);
-    inline SkRect getSkRect(const Rect& layer);
-    inline std::pair<SkRRect, SkRRect> getBoundsAndClip(const FloatRect& bounds,
-                                                        const FloatRect& crop,
-                                                        const vec2& cornerRadius);
-    inline bool layerHasBlur(const LayerSettings& layer, bool colorTransformModifiesAlpha);
-    inline SkColor getSkColor(const vec4& color);
-    inline SkM44 getSkM44(const mat4& matrix);
-    inline SkPoint3 getSkPoint3(const vec3& vector);
-    inline GrDirectContext* getActiveGrContext() const;
-
-    base::unique_fd flush();
-    // waitFence attempts to wait in the GPU, and if unable to waits on the CPU instead.
-    void waitFence(base::borrowed_fd fenceFd);
-    bool waitGpuFence(base::borrowed_fd fenceFd);
-
-    void initCanvas(SkCanvas* canvas, const DisplaySettings& display);
-    void drawShadow(SkCanvas* canvas, const SkRRect& casterRRect,
-                    const ShadowSettings& shadowSettings);
-
-    // If requiresLinearEffect is true or the layer has a stretchEffect a new shader is returned.
-    // Otherwise it returns the input shader.
-    struct RuntimeEffectShaderParameters {
-        sk_sp<SkShader> shader;
-        const LayerSettings& layer;
-        const DisplaySettings& display;
-        bool undoPremultipliedAlpha;
-        bool requiresLinearEffect;
-        float layerDimmingRatio;
-    };
-    sk_sp<SkShader> createRuntimeEffectShader(const RuntimeEffectShaderParameters&);
+    static EGLSurface createPlaceholderEglPbufferSurface(
+            EGLDisplay display, EGLConfig config, int hwcFormat, Protection protection);
 
     EGLDisplay mEGLDisplay;
     EGLContext mEGLContext;
     EGLSurface mPlaceholderSurface;
     EGLContext mProtectedEGLContext;
     EGLSurface mProtectedPlaceholderSurface;
-    BlurFilter* mBlurFilter = nullptr;
-
-    const PixelFormat mDefaultPixelFormat;
-    const bool mUseColorManagement;
-
-    // Identifier used or various mappings of layers to various
-    // textures or shaders
-    using GraphicBufferId = uint64_t;
-
-    // Number of external holders of ExternalTexture references, per GraphicBuffer ID.
-    std::unordered_map<GraphicBufferId, int32_t> mGraphicBufferExternalRefs
-            GUARDED_BY(mRenderingMutex);
-    // Cache of GL textures that we'll store per GraphicBuffer ID, shared between GPU contexts.
-    std::unordered_map<GraphicBufferId, std::shared_ptr<AutoBackendTexture::LocalRef>> mTextureCache
-            GUARDED_BY(mRenderingMutex);
-    std::unordered_map<shaders::LinearEffect, sk_sp<SkRuntimeEffect>, shaders::LinearEffectHasher>
-            mRuntimeEffects;
-    AutoBackendTexture::CleanupManager mTextureCleanupMgr GUARDED_BY(mRenderingMutex);
-
-    StretchShaderFactory mStretchShaderFactory;
-    // Mutex guarding rendering operations, so that:
-    // 1. GL operations aren't interleaved, and
-    // 2. Internal state related to rendering that is potentially modified by
-    // multiple threads is guaranteed thread-safe.
-    mutable std::mutex mRenderingMutex;
-
-    sp<Fence> mLastDrawFence;
-
-    // Graphics context used for creating surfaces and submitting commands
-    sk_sp<GrDirectContext> mGrContext;
-    // Same as above, but for protected content (eg. DRM)
-    sk_sp<GrDirectContext> mProtectedGrContext;
-
-    bool mInProtectedContext = false;
-    // Object to capture commands send to Skia.
-    std::unique_ptr<SkiaCapture> mCapture;
-
-    // Implements PersistentCache as a way to monitor what SkSL shaders Skia has
-    // cached.
-    class SkSLCacheMonitor : public GrContextOptions::PersistentCache {
-    public:
-        SkSLCacheMonitor() = default;
-        ~SkSLCacheMonitor() override = default;
-
-        sk_sp<SkData> load(const SkData& key) override;
-
-        void store(const SkData& key, const SkData& data, const SkString& description) override;
-
-        int shadersCachedSinceLastCall() {
-            const int shadersCachedSinceLastCall = mShadersCachedSinceLastCall;
-            mShadersCachedSinceLastCall = 0;
-            return shadersCachedSinceLastCall;
-        }
-
-        int totalShadersCompiled() const { return mTotalShadersCompiled; }
-
-    private:
-        int mShadersCachedSinceLastCall = 0;
-        int mTotalShadersCompiled = 0;
-    };
-
-    SkSLCacheMonitor mSkSLCacheMonitor;
 };
 
 } // namespace skia

@@ -20,24 +20,18 @@
 
 #include <ui/DeviceProductInfo.h>
 #include <ui/Rotation.h>
-#include <utils/Flattenable.h>
 
 namespace android::ui {
 
-enum class DisplayConnectionType { Internal, External };
+enum class DisplayConnectionType { Internal, External, ftl_last = External };
 
 // Immutable information about physical display.
-struct StaticDisplayInfo : LightFlattenable<StaticDisplayInfo> {
+struct StaticDisplayInfo {
     DisplayConnectionType connectionType = DisplayConnectionType::Internal;
     float density = 0.f;
     bool secure = false;
     std::optional<DeviceProductInfo> deviceProductInfo;
     Rotation installOrientation = ROTATION_0;
-
-    bool isFixedSize() const { return false; }
-    size_t getFlattenedSize() const;
-    status_t flatten(void* buffer, size_t size) const;
-    status_t unflatten(void const* buffer, size_t size);
 };
 
 } // namespace android::ui

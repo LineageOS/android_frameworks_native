@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _UI_INPUT_REPORTER_INTERFACE_H
-#define _UI_INPUT_REPORTER_INTERFACE_H
+#pragma once
 
 #include <utils/RefBase.h>
 
@@ -49,5 +48,3 @@ public:
 sp<InputReporterInterface> createInputReporter();
 
 } // namespace android
-
-#endif // _UI_INPUT_REPORTER_INTERFACE_H

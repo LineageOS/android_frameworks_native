@@ -32,7 +32,7 @@ TEST_F(LayerTransactionTest, SetTransformToDisplayInverse_BufferState) {
 
     Transaction().setTransformToDisplayInverse(layer, false).apply();
 
-    ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(layer, Color::GREEN, 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillBufferLayerColor(layer, Color::GREEN, 32, 32));
 
     Transaction().setTransformToDisplayInverse(layer, true).apply();
 }
@@ -80,7 +80,7 @@ TEST_F(LayerTransactionTest, DISABLED_BufferQueueLayerMergeDamageRegionWhenDropp
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", width, height));
     const auto producer = layer->getIGraphicBufferProducer();
-    const sp<IProducerListener> stubListener(new StubProducerListener);
+    const sp<IProducerListener> stubListener(sp<StubProducerListener>::make());
     IGraphicBufferProducer::QueueBufferOutput queueBufferOutput;
     ASSERT_EQ(OK, producer->connect(stubListener, NATIVE_WINDOW_API_CPU, true, &queueBufferOutput));
 
@@ -154,6 +154,36 @@ TEST_F(LayerTransactionTest, DISABLED_BufferQueueLayerMergeDamageRegionWhenDropp
 
     ASSERT_EQ(OK, producer->disconnect(NATIVE_WINDOW_API_CPU));
 }
+
+// b/245052266 - we possible could support blur and a buffer at the same layer but
+// might break existing assumptions at higher level. This test captures the current
+// expectations. A layer drawing a buffer will not support blur.
+TEST_F(LayerTransactionTest, BufferTakesPriorityOverBlur) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillBufferLayerColor(layer, Color::RED, 32, 32));
+    Transaction().setBackgroundBlurRadius(layer, 5).apply();
+    {
+        SCOPED_TRACE("BufferTakesPriorityOverBlur");
+        const Rect rect(0, 0, 32, 32);
+        auto shot = screenshot();
+        shot->expectColor(rect, Color::RED);
+    }
+}
+
+TEST_F(LayerTransactionTest, BufferTakesPriorityOverColor) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillBufferLayerColor(layer, Color::RED, 32, 32));
+    Transaction().setColor(layer, {Color::GREEN.r, Color::GREEN.g, Color::GREEN.b}).apply();
+    {
+        SCOPED_TRACE("BufferTakesPriorityOverColor");
+        const Rect rect(0, 0, 32, 32);
+        auto shot = screenshot();
+        shot->expectColor(rect, Color::RED);
+    }
+}
+
 } // namespace android
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues

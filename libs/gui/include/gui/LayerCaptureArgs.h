@@ -20,14 +20,11 @@
 #include <sys/types.h>
 
 #include <gui/DisplayCaptureArgs.h>
-#include <gui/SpHash.h>
-#include <unordered_set>
 
 namespace android::gui {
 
 struct LayerCaptureArgs : CaptureArgs {
     sp<IBinder> layerHandle;
-    std::unordered_set<sp<IBinder>, SpHash<IBinder>> excludeHandles;
     bool childrenOnly{false};
 
     status_t writeToParcel(Parcel* output) const override;

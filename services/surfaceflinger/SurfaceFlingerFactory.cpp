@@ -26,7 +26,7 @@ namespace android::surfaceflinger {
 sp<SurfaceFlinger> createSurfaceFlinger() {
     static DefaultFactory factory;
 
-    return new SurfaceFlinger(factory);
+    return sp<SurfaceFlinger>::make(factory);
 }
 
 } // namespace android::surfaceflinger

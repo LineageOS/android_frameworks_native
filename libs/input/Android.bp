@@ -26,7 +26,6 @@ package {
 filegroup {
     name: "inputconstants_aidl",
     srcs: [
-        "android/os/BlockUntrustedTouchesMode.aidl",
         "android/os/IInputConstants.aidl",
         "android/os/InputEventInjectionResult.aidl",
         "android/os/InputEventInjectionSync.aidl",
@@ -42,34 +41,53 @@ cc_library {
         "-Wall",
         "-Wextra",
         "-Werror",
+        "-Wno-unused-parameter",
     ],
     srcs: [
         "Input.cpp",
         "InputDevice.cpp",
         "InputEventLabels.cpp",
+        "InputVerifier.cpp",
         "Keyboard.cpp",
         "KeyCharacterMap.cpp",
         "KeyLayoutMap.cpp",
+        "MotionPredictor.cpp",
         "PrintTools.cpp",
         "PropertyMap.cpp",
+        "TfLiteMotionPredictor.cpp",
         "TouchVideoFrame.cpp",
         "VelocityControl.cpp",
         "VelocityTracker.cpp",
+        "VirtualInputDevice.cpp",
         "VirtualKeyMap.cpp",
     ],
 
-    header_libs: ["jni_headers"],
+    header_libs: [
+        "flatbuffer_headers",
+        "jni_headers",
+        "tensorflow_headers",
+    ],
     export_header_lib_headers: ["jni_headers"],
+
+    generated_headers: [
+        "toolbox_input_labels",
+    ],
 
     shared_libs: [
         "libbase",
-        "liblog",
         "libcutils",
+        "liblog",
+        "libPlatformProperties",
         "libvintf",
+    ],
+
+    ldflags: [
+        "-Wl,--exclude-libs=libtflite_static.a",
     ],
 
     static_libs: [
         "libui-types",
+        "libtflite_static",
     ],
 
     export_static_lib_headers: [
@@ -89,7 +107,6 @@ cc_library {
             shared_libs: [
                 "libutils",
                 "libbinder",
-                "libui",
             ],
 
             static_libs: [
@@ -103,12 +120,18 @@ cc_library {
             sanitize: {
                 misc_undefined: ["integer"],
             },
+
+            required: [
+                "motion_predictor_model_prebuilt",
+            ],
         },
         host: {
             shared: {
                 enabled: false,
             },
             include_dirs: [
+                "bionic/libc/kernel/android/uapi/",
+                "bionic/libc/kernel/uapi",
                 "frameworks/native/libs/arect/include",
             ],
         },
@@ -144,6 +167,7 @@ cc_library {
 
 cc_defaults {
     name: "libinput_fuzz_defaults",
+    cpp_std: "c++20",
     host_supported: true,
     shared_libs: [
         "libutils",

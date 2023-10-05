@@ -22,9 +22,9 @@
 
 #include <android-base/stringprintf.h>
 #include <cutils/properties.h>
+#include <gui/TraceUtils.h>
 #include <utils/Log.h>
 #include <utils/Timers.h>
-#include <utils/Trace.h>
 
 #include <algorithm>
 #include <cmath>
@@ -32,6 +32,7 @@
 #include <utility>
 
 #include "../Layer.h"
+#include "EventThread.h"
 #include "LayerInfo.h"
 
 namespace android::scheduler {
@@ -72,6 +73,20 @@ void trace(const LayerInfo& info, LayerHistory::LayerVoteType type, int fps) {
 
     ALOGD("%s: %s @ %d Hz", __FUNCTION__, info.getName().c_str(), fps);
 }
+
+LayerHistory::LayerVoteType getVoteType(LayerInfo::FrameRateCompatibility compatibility,
+                                        bool contentDetectionEnabled) {
+    LayerHistory::LayerVoteType voteType;
+    if (!contentDetectionEnabled || compatibility == LayerInfo::FrameRateCompatibility::NoVote) {
+        voteType = LayerHistory::LayerVoteType::NoVote;
+    } else if (compatibility == LayerInfo::FrameRateCompatibility::Min) {
+        voteType = LayerHistory::LayerVoteType::Min;
+    } else {
+        voteType = LayerHistory::LayerVoteType::Heuristic;
+    }
+    return voteType;
+}
+
 } // namespace
 
 LayerHistory::LayerHistory()
@@ -81,10 +96,12 @@ LayerHistory::LayerHistory()
 
 LayerHistory::~LayerHistory() = default;
 
-void LayerHistory::registerLayer(Layer* layer, LayerVoteType type) {
+void LayerHistory::registerLayer(Layer* layer, bool contentDetectionEnabled) {
     std::lock_guard lock(mLock);
     LOG_ALWAYS_FATAL_IF(findLayer(layer->getSequence()).first != LayerStatus::NotFound,
                         "%s already registered", layer->getName().c_str());
+    LayerVoteType type =
+            getVoteType(layer->getDefaultFrameRateCompatibility(), contentDetectionEnabled);
     auto info = std::make_unique<LayerInfo>(layer->getName(), layer->getOwnerUid(), type);
 
     // The layer can be placed on either map, it is assumed that partitionLayers() will be called
@@ -101,8 +118,44 @@ void LayerHistory::deregisterLayer(Layer* layer) {
     }
 }
 
-void LayerHistory::record(Layer* layer, nsecs_t presentTime, nsecs_t now,
-                          LayerUpdateType updateType) {
+void LayerHistory::record(int32_t id, const LayerProps& layerProps, nsecs_t presentTime,
+                          nsecs_t now, LayerUpdateType updateType) {
+    std::lock_guard lock(mLock);
+    auto [found, layerPair] = findLayer(id);
+    if (found == LayerStatus::NotFound) {
+        // Offscreen layer
+        ALOGV("%s: %d not registered", __func__, id);
+        return;
+    }
+
+    const auto& info = layerPair->second;
+    info->setLastPresentTime(presentTime, now, updateType, mModeChangePending, layerProps);
+
+    // Set frame rate to attached choreographer.
+    // TODO(b/260898223): Change to use layer hierarchy and handle frame rate vote.
+    if (updateType == LayerUpdateType::SetFrameRate) {
+        auto range = mAttachedChoreographers.equal_range(id);
+        auto it = range.first;
+        while (it != range.second) {
+            sp<EventThreadConnection> choreographerConnection = it->second.promote();
+            if (choreographerConnection) {
+                choreographerConnection->frameRate = layerProps.setFrameRateVote.rate;
+                it++;
+            } else {
+                it = mAttachedChoreographers.erase(it);
+            }
+        }
+    }
+
+    // Activate layer if inactive.
+    if (found == LayerStatus::LayerInInactiveMap) {
+        mActiveLayerInfos.insert(
+                {id, std::make_pair(layerPair->first, std::move(layerPair->second))});
+        mInactiveLayerInfos.erase(id);
+    }
+}
+
+void LayerHistory::setDefaultFrameRateCompatibility(Layer* layer, bool contentDetectionEnabled) {
     std::lock_guard lock(mLock);
     auto id = layer->getSequence();
 
@@ -114,25 +167,12 @@ void LayerHistory::record(Layer* layer, nsecs_t presentTime, nsecs_t now,
     }
 
     const auto& info = layerPair->second;
-    const auto layerProps = LayerInfo::LayerProps{
-            .visible = layer->isVisible(),
-            .bounds = layer->getBounds(),
-            .transform = layer->getTransform(),
-            .setFrameRateVote = layer->getFrameRateForLayerTree(),
-            .frameRateSelectionPriority = layer->getFrameRateSelectionPriority(),
-    };
-
-    info->setLastPresentTime(presentTime, now, updateType, mModeChangePending, layerProps);
-
-    // Activate layer if inactive.
-    if (found == LayerStatus::LayerInInactiveMap) {
-        mActiveLayerInfos.insert(
-                {id, std::make_pair(layerPair->first, std::move(layerPair->second))});
-        mInactiveLayerInfos.erase(id);
-    }
+    info->setDefaultLayerVote(
+            getVoteType(layer->getDefaultFrameRateCompatibility(), contentDetectionEnabled));
 }
 
-auto LayerHistory::summarize(const RefreshRateConfigs& configs, nsecs_t now) -> Summary {
+auto LayerHistory::summarize(const RefreshRateSelector& selector, nsecs_t now) -> Summary {
+    ATRACE_CALL();
     Summary summary;
 
     std::lock_guard lock(mLock);
@@ -146,7 +186,8 @@ auto LayerHistory::summarize(const RefreshRateConfigs& configs, nsecs_t now) -> 
         ALOGV("%s has priority: %d %s focused", info->getName().c_str(), frameRateSelectionPriority,
               layerFocused ? "" : "not");
 
-        const auto vote = info->getRefreshRateVote(configs, now);
+        ATRACE_FORMAT("%s", info->getName().c_str());
+        const auto vote = info->getRefreshRateVote(selector, now);
         // Skip NoVote layer as those don't have any requirements
         if (vote.type == LayerVoteType::NoVote) {
             continue;
@@ -160,6 +201,8 @@ auto LayerHistory::summarize(const RefreshRateConfigs& configs, nsecs_t now) -> 
 
         const float layerArea = transformed.getWidth() * transformed.getHeight();
         float weight = mDisplayArea ? layerArea / mDisplayArea : 0.0f;
+        ATRACE_FORMAT_INSTANT("%s %s (%d%)", ftl::enum_string(vote.type).c_str(),
+                              to_string(vote.fps).c_str(), weight * 100);
         summary.push_back({info->getName(), info->getOwnerUid(), vote.type, vote.fps,
                            vote.seamlessness, weight, layerFocused});
 
@@ -172,6 +215,7 @@ auto LayerHistory::summarize(const RefreshRateConfigs& configs, nsecs_t now) -> 
 }
 
 void LayerHistory::partitionLayers(nsecs_t now) {
+    ATRACE_CALL();
     const nsecs_t threshold = getActiveLayerThreshold(now);
 
     // iterate over inactive map
@@ -203,6 +247,8 @@ void LayerHistory::partitionLayers(nsecs_t now) {
                 switch (frameRate.type) {
                     case Layer::FrameRateCompatibility::Default:
                         return LayerVoteType::ExplicitDefault;
+                    case Layer::FrameRateCompatibility::Min:
+                        return LayerVoteType::Min;
                     case Layer::FrameRateCompatibility::ExactOrMultiple:
                         return LayerVoteType::ExplicitExactOrMultiple;
                     case Layer::FrameRateCompatibility::NoVote:
@@ -241,7 +287,7 @@ void LayerHistory::clear() {
 
 std::string LayerHistory::dump() const {
     std::lock_guard lock(mLock);
-    return base::StringPrintf("LayerHistory{size=%zu, active=%zu}",
+    return base::StringPrintf("{size=%zu, active=%zu}",
                               mActiveLayerInfos.size() + mInactiveLayerInfos.size(),
                               mActiveLayerInfos.size());
 }
@@ -253,6 +299,12 @@ float LayerHistory::getLayerFramerate(nsecs_t now, int32_t id) const {
         return layerPair->second->getFps(now).getValue();
     }
     return 0.f;
+}
+
+void LayerHistory::attachChoreographer(int32_t layerId,
+                                       const sp<EventThreadConnection>& choreographerConnection) {
+    std::lock_guard lock(mLock);
+    mAttachedChoreographers.insert({layerId, wp<EventThreadConnection>(choreographerConnection)});
 }
 
 auto LayerHistory::findLayer(int32_t id) -> std::pair<LayerStatus, LayerPair*> {

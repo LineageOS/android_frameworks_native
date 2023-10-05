@@ -126,6 +126,17 @@ public:
      */
     virtual ScheduleResult schedule(CallbackToken token, ScheduleTiming scheduleTiming) = 0;
 
+    /*
+     * Update the timing information for a scheduled callback.
+     * If the callback is not scheduled, then this function does nothing.
+     *
+     * \param [in] token           The callback to schedule.
+     * \param [in] scheduleTiming  The timing information for this schedule call
+     * \return                     The expected callback time if a callback was scheduled.
+     *                             std::nullopt if the callback is not registered.
+     */
+    virtual ScheduleResult update(CallbackToken token, ScheduleTiming scheduleTiming) = 0;
+
     /* Cancels a scheduled callback, if possible.
      *
      * \param [in] token    The callback to cancel.
@@ -144,13 +155,10 @@ protected:
     VSyncDispatch& operator=(const VSyncDispatch&) = delete;
 };
 
-/*
- * Helper class to operate on registered callbacks. It is up to user of the class to ensure
- * that VsyncDispatch lifetime exceeds the lifetime of VSyncCallbackRegistation.
- */
 class VSyncCallbackRegistration {
 public:
-    VSyncCallbackRegistration(VSyncDispatch&, VSyncDispatch::Callback, std::string callbackName);
+    VSyncCallbackRegistration(std::shared_ptr<VSyncDispatch>, VSyncDispatch::Callback,
+                              std::string callbackName);
     ~VSyncCallbackRegistration();
 
     VSyncCallbackRegistration(VSyncCallbackRegistration&&);
@@ -159,13 +167,17 @@ public:
     // See documentation for VSyncDispatch::schedule.
     ScheduleResult schedule(VSyncDispatch::ScheduleTiming scheduleTiming);
 
+    // See documentation for VSyncDispatch::update.
+    ScheduleResult update(VSyncDispatch::ScheduleTiming scheduleTiming);
+
     // See documentation for VSyncDispatch::cancel.
     CancelResult cancel();
 
 private:
-    std::reference_wrapper<VSyncDispatch> mDispatch;
-    VSyncDispatch::CallbackToken mToken;
-    bool mValidToken;
+    friend class VSyncCallbackRegistrationTest;
+
+    std::shared_ptr<VSyncDispatch> mDispatch;
+    std::optional<VSyncDispatch::CallbackToken> mToken;
 };
 
 } // namespace android::scheduler

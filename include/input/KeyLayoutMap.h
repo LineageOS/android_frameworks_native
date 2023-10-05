@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _LIBINPUT_KEY_LAYOUT_MAP_H
-#define _LIBINPUT_KEY_LAYOUT_MAP_H
+#pragma once
 
 #include <android-base/result.h>
 #include <stdint.h>
@@ -79,7 +78,7 @@ public:
     std::optional<AxisInfo> mapAxis(int32_t scanCode) const;
     const std::string getLoadFileName() const;
     // Return pair of sensor type and sensor data index, for the input device abs code
-    base::Result<std::pair<InputDeviceSensorType, int32_t>> mapSensor(int32_t absCode);
+    base::Result<std::pair<InputDeviceSensorType, int32_t>> mapSensor(int32_t absCode) const;
 
     virtual ~KeyLayoutMap();
 
@@ -132,5 +131,3 @@ private:
 };
 
 } // namespace android
-
-#endif // _LIBINPUT_KEY_LAYOUT_MAP_H

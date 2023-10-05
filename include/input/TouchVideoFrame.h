@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-#ifndef _LIBINPUT_TOUCHVIDEOFRAME_H
-#define _LIBINPUT_TOUCHVIDEOFRAME_H
+#pragma once
+
+#include <ui/Rotation.h>
 
 #include <stdint.h>
 #include <sys/time.h>
@@ -59,7 +60,7 @@ public:
      * Rotate the video frame.
      * The rotation value is an enum from ui/Rotation.h
      */
-    void rotate(int32_t orientation);
+    void rotate(ui::Rotation orientation);
 
 private:
     uint32_t mHeight;
@@ -75,5 +76,3 @@ private:
 };
 
 } // namespace android
-
-#endif // _LIBINPUT_TOUCHVIDEOFRAME_H

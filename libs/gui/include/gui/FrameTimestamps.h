@@ -17,6 +17,9 @@
 #ifndef ANDROID_GUI_FRAMETIMESTAMPS_H
 #define ANDROID_GUI_FRAMETIMESTAMPS_H
 
+#include <android/gui/FrameEvent.h>
+
+#include <gui/CompositorTiming.h>
 #include <ui/FenceTime.h>
 #include <utils/Flattenable.h>
 #include <utils/StrongPointer.h>
@@ -31,22 +34,8 @@ namespace android {
 struct FrameEvents;
 class FrameEventHistoryDelta;
 
-
-// Identifiers for all the events that may be recorded or reported.
-enum class FrameEvent {
-    POSTED,
-    REQUESTED_PRESENT,
-    LATCH,
-    ACQUIRE,
-    FIRST_REFRESH_START,
-    LAST_REFRESH_START,
-    GPU_COMPOSITION_DONE,
-    DISPLAY_PRESENT,
-    DEQUEUE_READY,
-    RELEASE,
-    EVENT_COUNT, // Not an actual event.
-};
-
+using gui::CompositorTiming;
+using gui::FrameEvent;
 
 // A collection of timestamps corresponding to a single frame.
 struct FrameEvents {
@@ -94,12 +83,6 @@ struct FrameEvents {
     std::shared_ptr<FenceTime> gpuCompositionDoneFence{FenceTime::NO_FENCE};
     std::shared_ptr<FenceTime> displayPresentFence{FenceTime::NO_FENCE};
     std::shared_ptr<FenceTime> releaseFence{FenceTime::NO_FENCE};
-};
-
-struct CompositorTiming {
-    nsecs_t deadline{0};
-    nsecs_t interval{16666667};
-    nsecs_t presentLatency{16666667};
 };
 
 // A short history of frames that are synchronized between the consumer and

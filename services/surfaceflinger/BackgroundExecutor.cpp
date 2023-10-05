@@ -20,6 +20,7 @@
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 #include <utils/Log.h>
+#include <mutex>
 
 #include "BackgroundExecutor.h"
 
@@ -28,29 +29,19 @@ namespace android {
 ANDROID_SINGLETON_STATIC_INSTANCE(BackgroundExecutor);
 
 BackgroundExecutor::BackgroundExecutor() : Singleton<BackgroundExecutor>() {
+    // mSemaphore must be initialized before any calls to
+    // BackgroundExecutor::sendCallbacks. For this reason, we initialize it
+    // within the constructor instead of within mThread.
+    LOG_ALWAYS_FATAL_IF(sem_init(&mSemaphore, 0, 0), "sem_init failed");
     mThread = std::thread([&]() {
-        LOG_ALWAYS_FATAL_IF(sem_init(&mSemaphore, 0, 0), "sem_init failed");
         while (!mDone) {
             LOG_ALWAYS_FATAL_IF(sem_wait(&mSemaphore), "sem_wait failed (%d)", errno);
-
-            ftl::SmallVector<Work*, 10> workItems;
-
-            Work* work = mWorks.pop();
-            while (work) {
-                workItems.push_back(work);
-                work = mWorks.pop();
+            auto callbacks = mCallbacksQueue.pop();
+            if (!callbacks) {
+                continue;
             }
-
-            // Sequence numbers are guaranteed to be in intended order, as we assume a single
-            // producer and single consumer.
-            std::stable_sort(workItems.begin(), workItems.end(), [](Work* left, Work* right) {
-                return left->sequence < right->sequence;
-            });
-            for (Work* work : workItems) {
-                for (auto& task : work->tasks) {
-                    task();
-                }
-                delete work;
+            for (auto& callback : *callbacks) {
+                callback();
             }
         }
     });
@@ -66,12 +57,21 @@ BackgroundExecutor::~BackgroundExecutor() {
 }
 
 void BackgroundExecutor::sendCallbacks(Callbacks&& tasks) {
-    Work* work = new Work();
-    work->sequence = mSequence;
-    work->tasks = std::move(tasks);
-    mWorks.push(work);
-    mSequence++;
+    mCallbacksQueue.push(std::move(tasks));
     LOG_ALWAYS_FATAL_IF(sem_post(&mSemaphore), "sem_post failed");
+}
+
+void BackgroundExecutor::flushQueue() {
+    std::mutex mutex;
+    std::condition_variable cv;
+    bool flushComplete = false;
+    sendCallbacks({[&]() {
+        std::scoped_lock lock{mutex};
+        flushComplete = true;
+        cv.notify_one();
+    }});
+    std::unique_lock<std::mutex> lock{mutex};
+    cv.wait(lock, [&]() { return flushComplete; });
 }
 
 } // namespace android

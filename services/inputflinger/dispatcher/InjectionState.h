@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _UI_INPUT_INPUTDISPATCHER_INJECTIONSTATE_H
-#define _UI_INPUT_INPUTDISPATCHER_INJECTIONSTATE_H
+#pragma once
 
 #include <stdint.h>
 #include "InputDispatcherInterface.h"
@@ -41,5 +40,3 @@ private:
 
 } // namespace inputdispatcher
 } // namespace android
-
-#endif // _UI_INPUT_INPUTDISPATCHER_INJECTIONSTATE_H

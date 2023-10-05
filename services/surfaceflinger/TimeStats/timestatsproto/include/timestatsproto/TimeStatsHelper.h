@@ -24,6 +24,9 @@
 #include <unordered_map>
 #include <vector>
 
+using android::gui::GameMode;
+using android::gui::LayerMetadata;
+
 namespace android {
 namespace surfaceflinger {
 

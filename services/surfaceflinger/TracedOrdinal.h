@@ -24,16 +24,24 @@
 #include <cutils/compiler.h>
 #include <utils/Trace.h>
 
-namespace std {
-template <class Rep, class Period>
-bool signbit(std::chrono::duration<Rep, Period> v) {
-    return signbit(std::chrono::duration_cast<std::chrono::nanoseconds>(v).count());
-}
-} // namespace std
-
 namespace android {
 
 namespace {
+template <class Rep, class Period>
+bool signbit(std::chrono::duration<Rep, Period> v) {
+    return std::signbit(std::chrono::duration_cast<std::chrono::nanoseconds>(v).count());
+}
+
+template <typename Enum, typename std::enable_if<std::is_enum<Enum>::value>::type* = nullptr>
+bool signbit(Enum e) {
+    return std::signbit(static_cast<typename std::underlying_type<Enum>::type>(e));
+}
+
+template <typename T, typename std::enable_if<!std::is_enum<T>::value>::type* = nullptr>
+bool signbit(T t) {
+    return std::signbit(t);
+}
+
 template <typename T>
 int64_t to_int64(T v) {
     return int64_t(v);
@@ -49,14 +57,12 @@ template <typename T>
 class TracedOrdinal {
 public:
     static_assert(std::is_same<bool, T>() || (std::is_signed<T>() && std::is_integral<T>()) ||
-                          std::is_same<std::chrono::nanoseconds, T>(),
+                          std::is_same<std::chrono::nanoseconds, T>() || std::is_enum<T>(),
                   "Type is not supported. Please test it with systrace before adding "
                   "it to the list.");
 
     TracedOrdinal(std::string name, T initialValue)
-          : mName(std::move(name)),
-            mHasGoneNegative(std::signbit(initialValue)),
-            mData(initialValue) {
+          : mName(std::move(name)), mHasGoneNegative(signbit(initialValue)), mData(initialValue) {
         trace();
     }
 
@@ -66,7 +72,7 @@ public:
 
     TracedOrdinal& operator=(T other) {
         mData = other;
-        mHasGoneNegative = mHasGoneNegative || std::signbit(mData);
+        mHasGoneNegative = mHasGoneNegative || signbit(mData);
         trace();
         return *this;
     }
@@ -81,7 +87,7 @@ private:
             mNameNegative = mName + "Negative";
         }
 
-        if (!std::signbit(mData)) {
+        if (!signbit(mData)) {
             ATRACE_INT64(mName.c_str(), to_int64(mData));
             if (mHasGoneNegative) {
                 ATRACE_INT64(mNameNegative.c_str(), 0);
