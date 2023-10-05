@@ -17,7 +17,9 @@
 #pragma once
 
 #include <array>
+#include <limits>
 #include <map> // for legacy reasons
+#include <optional>
 #include <string>
 #include <type_traits>
 #include <variant>
