@@ -21,6 +21,7 @@
 #include <utils/Mutex.h>
 
 #include <map>
+#include <optional>
 #include <unordered_map>
 #include <variant>
 
