@@ -1453,10 +1453,9 @@ std::atomic<int32_t> FakeWindowHandle::sId{1};
 
 class FakeMonitorReceiver {
 public:
-    FakeMonitorReceiver(const std::unique_ptr<InputDispatcher>& dispatcher, const std::string name,
-                        int32_t displayId) {
+    FakeMonitorReceiver(InputDispatcher& dispatcher, const std::string name, int32_t displayId) {
         base::Result<std::unique_ptr<InputChannel>> channel =
-                dispatcher->createInputMonitor(displayId, name, MONITOR_PID);
+                dispatcher.createInputMonitor(displayId, name, MONITOR_PID);
         mInputReceiver = std::make_unique<FakeInputReceiver>(std::move(*channel), name);
     }
 
@@ -4674,7 +4673,7 @@ TEST_F(InputDispatcherDisplayProjectionTest, CancelMotionWithCorrectCoordinates)
     auto [firstWindow, secondWindow] = setupScaledDisplayScenario();
     // The monitor will always receive events in the logical display's coordinate space, because
     // it does not have a window.
-    FakeMonitorReceiver monitor{mDispatcher, "Monitor", ADISPLAY_ID_DEFAULT};
+    FakeMonitorReceiver monitor{*mDispatcher, "Monitor", ADISPLAY_ID_DEFAULT};
 
     // Send down to the first window.
     mDispatcher->notifyMotion(generateMotionArgs(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN,
@@ -5512,7 +5511,7 @@ TEST_F(InputDispatcherMonitorTest, MonitorTouchIsCanceledWhenForegroundWindowDis
     sp<FakeWindowHandle> window =
             sp<FakeWindowHandle>::make(application, mDispatcher, "Foreground", ADISPLAY_ID_DEFAULT);
 
-    FakeMonitorReceiver monitor = FakeMonitorReceiver(mDispatcher, "M_1", ADISPLAY_ID_DEFAULT);
+    FakeMonitorReceiver monitor = FakeMonitorReceiver(*mDispatcher, "M_1", ADISPLAY_ID_DEFAULT);
 
     mDispatcher->onWindowInfosChanged({{*window->getInfo()}, {}, 0, 0});
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
@@ -5554,7 +5553,7 @@ TEST_F(InputDispatcherMonitorTest, ReceivesMotionEvents) {
                                                              "Fake Window", ADISPLAY_ID_DEFAULT);
     mDispatcher->onWindowInfosChanged({{*window->getInfo()}, {}, 0, 0});
 
-    FakeMonitorReceiver monitor = FakeMonitorReceiver(mDispatcher, "M_1", ADISPLAY_ID_DEFAULT);
+    FakeMonitorReceiver monitor = FakeMonitorReceiver(*mDispatcher, "M_1", ADISPLAY_ID_DEFAULT);
 
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
               injectMotionDown(*mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT))
@@ -5564,7 +5563,7 @@ TEST_F(InputDispatcherMonitorTest, ReceivesMotionEvents) {
 }
 
 TEST_F(InputDispatcherMonitorTest, MonitorCannotPilferPointers) {
-    FakeMonitorReceiver monitor = FakeMonitorReceiver(mDispatcher, "M_1", ADISPLAY_ID_DEFAULT);
+    FakeMonitorReceiver monitor = FakeMonitorReceiver(*mDispatcher, "M_1", ADISPLAY_ID_DEFAULT);
 
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
     sp<FakeWindowHandle> window = sp<FakeWindowHandle>::make(application, mDispatcher,
@@ -5598,7 +5597,7 @@ TEST_F(InputDispatcherMonitorTest, NoWindowTransform) {
     window->setWindowOffset(20, 40);
     window->setWindowTransform(0, 1, -1, 0);
 
-    FakeMonitorReceiver monitor = FakeMonitorReceiver(mDispatcher, "M_1", ADISPLAY_ID_DEFAULT);
+    FakeMonitorReceiver monitor = FakeMonitorReceiver(*mDispatcher, "M_1", ADISPLAY_ID_DEFAULT);
 
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
               injectMotionDown(*mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT))
@@ -5611,7 +5610,7 @@ TEST_F(InputDispatcherMonitorTest, NoWindowTransform) {
 
 TEST_F(InputDispatcherMonitorTest, InjectionFailsWithNoWindow) {
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
-    FakeMonitorReceiver monitor = FakeMonitorReceiver(mDispatcher, "M_1", ADISPLAY_ID_DEFAULT);
+    FakeMonitorReceiver monitor = FakeMonitorReceiver(*mDispatcher, "M_1", ADISPLAY_ID_DEFAULT);
 
     ASSERT_EQ(InputEventInjectionResult::FAILED,
               injectMotionDown(*mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT))
@@ -6501,9 +6500,9 @@ TEST_F(InputDispatcherFocusOnTwoDisplaysTest, SetInputWindow_MultiDisplayFocus) 
 // Test per-display input monitors for motion event.
 TEST_F(InputDispatcherFocusOnTwoDisplaysTest, MonitorMotionEvent_MultiDisplay) {
     FakeMonitorReceiver monitorInPrimary =
-            FakeMonitorReceiver(mDispatcher, "M_1", ADISPLAY_ID_DEFAULT);
+            FakeMonitorReceiver(*mDispatcher, "M_1", ADISPLAY_ID_DEFAULT);
     FakeMonitorReceiver monitorInSecondary =
-            FakeMonitorReceiver(mDispatcher, "M_2", SECOND_DISPLAY_ID);
+            FakeMonitorReceiver(*mDispatcher, "M_2", SECOND_DISPLAY_ID);
 
     // Test touch down on primary display.
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
@@ -6546,9 +6545,9 @@ TEST_F(InputDispatcherFocusOnTwoDisplaysTest, MonitorMotionEvent_MultiDisplay) {
 TEST_F(InputDispatcherFocusOnTwoDisplaysTest, MonitorKeyEvent_MultiDisplay) {
     // Input monitor per display.
     FakeMonitorReceiver monitorInPrimary =
-            FakeMonitorReceiver(mDispatcher, "M_1", ADISPLAY_ID_DEFAULT);
+            FakeMonitorReceiver(*mDispatcher, "M_1", ADISPLAY_ID_DEFAULT);
     FakeMonitorReceiver monitorInSecondary =
-            FakeMonitorReceiver(mDispatcher, "M_2", SECOND_DISPLAY_ID);
+            FakeMonitorReceiver(*mDispatcher, "M_2", SECOND_DISPLAY_ID);
 
     // Test inject a key down.
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED, injectKeyDown(*mDispatcher))
@@ -6584,9 +6583,9 @@ TEST_F(InputDispatcherFocusOnTwoDisplaysTest, CanFocusWindowOnUnfocusedDisplay) 
 
 TEST_F(InputDispatcherFocusOnTwoDisplaysTest, CancelTouch_MultiDisplay) {
     FakeMonitorReceiver monitorInPrimary =
-            FakeMonitorReceiver(mDispatcher, "M_1", ADISPLAY_ID_DEFAULT);
+            FakeMonitorReceiver(*mDispatcher, "M_1", ADISPLAY_ID_DEFAULT);
     FakeMonitorReceiver monitorInSecondary =
-            FakeMonitorReceiver(mDispatcher, "M_2", SECOND_DISPLAY_ID);
+            FakeMonitorReceiver(*mDispatcher, "M_2", SECOND_DISPLAY_ID);
 
     // Test touch down on primary display.
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
@@ -7510,7 +7509,7 @@ TEST_F(InputDispatcherSingleWindowAnr, SpyWindowReceivesEventsDuringAppAnrOnMoti
 TEST_F(InputDispatcherSingleWindowAnr, UnresponsiveMonitorAnr) {
     mDispatcher->setMonitorDispatchingTimeoutForTest(SPY_TIMEOUT);
 
-    FakeMonitorReceiver monitor = FakeMonitorReceiver(mDispatcher, "M_1", ADISPLAY_ID_DEFAULT);
+    FakeMonitorReceiver monitor = FakeMonitorReceiver(*mDispatcher, "M_1", ADISPLAY_ID_DEFAULT);
 
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
               injectMotionDown(*mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
