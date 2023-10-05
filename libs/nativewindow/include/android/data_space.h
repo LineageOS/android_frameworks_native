@@ -456,6 +456,7 @@ enum ADataSpace {
      * Adobe RGB
      *
      * Use full range, gamma 2.2 transfer and Adobe RGB primaries
+     *
      * Note: Application is responsible for gamma encoding the data as
      * a 2.2 gamma encoding is not supported in HW.
      */
@@ -493,7 +494,7 @@ enum ADataSpace {
      *
      * Ultra High-definition television
      *
-     * Use full range, BT.709 transfer and BT2020 standard
+     * Use full range, SMPTE 170M transfer and BT2020 standard
      */
     ADATASPACE_BT2020 = 147193856, // STANDARD_BT2020 | TRANSFER_SMPTE_170M | RANGE_FULL
 
@@ -502,7 +503,7 @@ enum ADataSpace {
      *
      * High-definition television
      *
-     * Use limited range, BT.709 transfer and BT.709 standard.
+     * Use limited range, SMPTE 170M transfer and BT.709 standard.
      */
     ADATASPACE_BT709 = 281083904, // STANDARD_BT709 | TRANSFER_SMPTE_170M | RANGE_LIMITED
 
@@ -512,6 +513,7 @@ enum ADataSpace {
      * Digital Cinema DCI-P3
      *
      * Use full range, gamma 2.6 transfer and D65 DCI-P3 standard
+     *
      * Note: Application is responsible for gamma encoding the data as
      * a 2.6 gamma encoding is not supported in HW.
      */
