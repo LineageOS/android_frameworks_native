@@ -166,6 +166,17 @@ public:
         }
         return reply.readBool();
     }
+
+    virtual void startWatchingModeWithFlags(int32_t op, const String16& packageName,
+        int32_t flags, const sp<IAppOpsCallback>& callback) {
+        Parcel data, reply;
+        data.writeInterfaceToken(IAppOpsService::getInterfaceDescriptor());
+        data.writeInt32(op);
+        data.writeString16(packageName);
+        data.writeInt32(flags);
+        data.writeStrongBinder(IInterface::asBinder(callback));
+        remote()->transact(START_WATCHING_MODE_WITH_FLAGS_TRANSACTION, data, &reply);
+    }
 };
 
 IMPLEMENT_META_INTERFACE(AppOpsService, "com.android.internal.app.IAppOpsService")
