@@ -118,7 +118,7 @@ inline void PrintTo(const LayerInfo& info, ::std::ostream* os) {
         << info.touchableRegionBounds.right << "," << info.touchableRegionBounds.bottom << "}";
 }
 
-struct find_id : std::unary_function<LayerInfo, bool> {
+struct find_id {
     int id;
     find_id(int id) : id(id) {}
     bool operator()(LayerInfo const& m) const { return m.id == id; }
