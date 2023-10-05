@@ -26,8 +26,6 @@
 
 namespace android {
 
-using aidl::android::hardware::graphics::common::HdrConversionCapability;
-using aidl::android::hardware::graphics::common::HdrConversionStrategy;
 using GuiHdrConversionStrategyTag = gui::HdrConversionStrategy::Tag;
 using gui::aidl_utils::statusTFromBinderStatus;
 
@@ -66,17 +64,15 @@ TEST(HdrOutputControlTest, testSetHdrConversionStrategy) {
             sf->getHdrOutputConversionSupport(&hdrOutputConversionSupport);
     ASSERT_EQ(NO_ERROR, statusTFromBinderStatus(getSupportStatus));
 
-    std::vector<HdrConversionStrategy> strategies =
-            {HdrConversionStrategy(std::in_place_index<static_cast<size_t>(
-                                           GuiHdrConversionStrategyTag::passthrough)>),
-             HdrConversionStrategy(std::in_place_index<static_cast<size_t>(
-                                           GuiHdrConversionStrategyTag::autoAllowedHdrTypes)>),
-             HdrConversionStrategy(std::in_place_index<static_cast<size_t>(
-                                           GuiHdrConversionStrategyTag::forceHdrConversion)>)};
+    std::vector<gui::HdrConversionStrategy> strategies = {
+            gui::HdrConversionStrategy::make<GuiHdrConversionStrategyTag::passthrough>(),
+            gui::HdrConversionStrategy::make<GuiHdrConversionStrategyTag::autoAllowedHdrTypes>(),
+            gui::HdrConversionStrategy::make<GuiHdrConversionStrategyTag::forceHdrConversion>(),
+    };
     int32_t outPreferredHdrOutputType = 0;
 
-    for (HdrConversionStrategy strategy : strategies) {
-        binder::Status status = sf->setHdrConversionStrategy(&strategy, &outPreferredHdrOutputType);
+    for (const gui::HdrConversionStrategy& strategy : strategies) {
+        binder::Status status = sf->setHdrConversionStrategy(strategy, &outPreferredHdrOutputType);
 
         if (hdrOutputConversionSupport) {
             ASSERT_EQ(NO_ERROR, statusTFromBinderStatus(status));

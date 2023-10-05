@@ -35,7 +35,20 @@ pub enum SourceClass {
 
 bitflags! {
     /// Source of the input device or input events.
+    #[derive(Debug, PartialEq)]
     pub struct Source: u32 {
+        // Constants from SourceClass, added here for compatibility reasons
+        /// SourceClass::Button
+        const SourceClassButton = SourceClass::Button as u32;
+        /// SourceClass::Pointer
+        const SourceClassPointer = SourceClass::Pointer as u32;
+        /// SourceClass::Navigation
+        const SourceClassNavigation = SourceClass::Navigation as u32;
+        /// SourceClass::Position
+        const SourceClassPosition = SourceClass::Position as u32;
+        /// SourceClass::Joystick
+        const SourceClassJoystick = SourceClass::Joystick as u32;
+
         /// SOURCE_UNKNOWN
         const Unknown = input_bindgen::AINPUT_SOURCE_UNKNOWN;
         /// SOURCE_KEYBOARD
@@ -188,5 +201,16 @@ impl Source {
     pub fn is_from_class(&self, source_class: SourceClass) -> bool {
         let class_bits = source_class as u32;
         self.bits() & class_bits == class_bits
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::input::SourceClass;
+    use crate::Source;
+    #[test]
+    fn convert_source_class_pointer() {
+        let source = Source::from_bits(input_bindgen::AINPUT_SOURCE_CLASS_POINTER).unwrap();
+        assert!(source.is_from_class(SourceClass::Pointer));
     }
 }

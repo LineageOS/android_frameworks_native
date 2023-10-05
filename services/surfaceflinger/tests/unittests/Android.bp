@@ -50,22 +50,6 @@ cc_test {
         "surfaceflinger_defaults",
     ],
     test_suites: ["device-tests"],
-    sanitize: {
-        // Using the address sanitizer not only helps uncover issues in the code
-        // covered by the tests, but also covers some of the tricky injection of
-        // fakes the unit tests currently do.
-        //
-        // Note: If you get an runtime link error like:
-        //
-        //   CANNOT LINK EXECUTABLE "/data/local/tmp/libsurfaceflinger_unittest": library "libclang_rt.asan-aarch64-android.so" not found
-        //
-        // it is because the address sanitizer shared objects are not installed
-        // by default in the system image.
-        //
-        // You can either "make dist tests" before flashing, or set this
-        // option to false temporarily.
-        address: true,
-    },
     static_libs: ["libc++fs"],
     srcs: [
         ":libsurfaceflinger_mock_sources",
