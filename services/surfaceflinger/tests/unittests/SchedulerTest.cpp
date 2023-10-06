@@ -444,6 +444,63 @@ TEST_F(SchedulerTest, chooseDisplayModesMultipleDisplays) {
     }
 }
 
+TEST_F(SchedulerTest, onFrameSignalMultipleDisplays) {
+    mScheduler->registerDisplay(kDisplayId1,
+                                std::make_shared<RefreshRateSelector>(kDisplay1Modes,
+                                                                      kDisplay1Mode60->getId()));
+    mScheduler->registerDisplay(kDisplayId2,
+                                std::make_shared<RefreshRateSelector>(kDisplay2Modes,
+                                                                      kDisplay2Mode60->getId()));
+
+    using VsyncIds = std::vector<std::pair<PhysicalDisplayId, VsyncId>>;
+
+    struct Compositor final : ICompositor {
+        VsyncIds vsyncIds;
+        bool committed = true;
+
+        void configure() override {}
+
+        bool commit(PhysicalDisplayId, const scheduler::FrameTargets& targets) override {
+            vsyncIds.clear();
+
+            for (const auto& [id, target] : targets) {
+                vsyncIds.emplace_back(id, target->vsyncId());
+            }
+
+            return committed;
+        }
+
+        CompositeResultsPerDisplay composite(PhysicalDisplayId,
+                                             const scheduler::FrameTargeters&) override {
+            CompositeResultsPerDisplay results;
+
+            for (const auto& [id, _] : vsyncIds) {
+                results.try_emplace(id,
+                                    CompositeResult{.compositionCoverage =
+                                                            CompositionCoverage::Hwc});
+            }
+
+            return results;
+        }
+
+        void sample() override {}
+    } compositor;
+
+    mScheduler->doFrameSignal(compositor, VsyncId(42));
+
+    const auto makeVsyncIds = [](VsyncId vsyncId) -> VsyncIds {
+        return {{kDisplayId1, vsyncId}, {kDisplayId2, vsyncId}};
+    };
+
+    EXPECT_EQ(makeVsyncIds(VsyncId(42)), compositor.vsyncIds);
+
+    compositor.committed = false;
+    mScheduler->doFrameSignal(compositor, VsyncId(43));
+
+    // FrameTargets should be updated despite the skipped commit.
+    EXPECT_EQ(makeVsyncIds(VsyncId(43)), compositor.vsyncIds);
+}
+
 class AttachedChoreographerTest : public SchedulerTest {
 protected:
     void frameRateTestScenario(Fps layerFps, int8_t frameRateCompatibility, Fps displayFps,

@@ -192,7 +192,8 @@ void Scheduler::onFrameSignal(ICompositor& compositor, VsyncId vsyncId,
     for (const auto& [id, display] : mDisplays) {
         if (id == pacesetterId) continue;
 
-        const FrameTargeter& targeter = *display.targeterPtr;
+        FrameTargeter& targeter = *display.targeterPtr;
+        targeter.beginFrame(beginFrameArgs, *display.schedulePtr);
         targets.try_emplace(id, &targeter.target());
     }
 
@@ -206,8 +207,6 @@ void Scheduler::onFrameSignal(ICompositor& compositor, VsyncId vsyncId,
         if (id == pacesetterId) continue;
 
         FrameTargeter& targeter = *display.targeterPtr;
-        targeter.beginFrame(beginFrameArgs, *display.schedulePtr);
-
         targeters.try_emplace(id, &targeter);
     }
 

@@ -59,6 +59,12 @@ public:
     MOCK_METHOD(void, scheduleFrame, (), (override));
     MOCK_METHOD(void, postMessage, (sp<MessageHandler>&&), (override));
 
+    void doFrameSignal(ICompositor& compositor, VsyncId vsyncId) {
+        ftl::FakeGuard guard1(kMainThreadContext);
+        ftl::FakeGuard guard2(mDisplayLock);
+        Scheduler::onFrameSignal(compositor, vsyncId, TimePoint());
+    }
+
     // Used to inject mock event thread.
     ConnectionHandle createConnection(std::unique_ptr<EventThread> eventThread) {
         return Scheduler::createConnection(std::move(eventThread));
