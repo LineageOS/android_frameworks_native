@@ -31,8 +31,8 @@
 #include <SensorInputMapper.h>
 #include <SingleTouchInputMapper.h>
 #include <SwitchInputMapper.h>
+#include <TestEventMatchers.h>
 #include <TestInputListener.h>
-#include <TestInputListenerMatchers.h>
 #include <TouchInputMapper.h>
 #include <UinputDevice.h>
 #include <VibratorInputMapper.h>

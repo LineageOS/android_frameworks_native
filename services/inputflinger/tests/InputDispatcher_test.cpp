@@ -16,7 +16,7 @@
 
 #include "../dispatcher/InputDispatcher.h"
 #include "../BlockingQueue.h"
-#include "TestInputListenerMatchers.h"
+#include "TestEventMatchers.h"
 
 #include <NotifyArgsBuilders.h>
 #include <android-base/properties.h>
