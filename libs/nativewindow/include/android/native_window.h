@@ -227,6 +227,16 @@ int32_t ANativeWindow_setBuffersDataSpace(ANativeWindow* window, int32_t dataSpa
  */
 int32_t ANativeWindow_getBuffersDataSpace(ANativeWindow* window) __INTRODUCED_IN(28);
 
+/**
+ * Get the default dataspace of the buffers in window as set by the consumer.
+ *
+ * Available since API level 34.
+ *
+ * \return the dataspace of buffers in window, ADATASPACE_UNKNOWN is returned if
+ * dataspace is unknown, or -EINVAL if window is invalid.
+ */
+int32_t ANativeWindow_getBuffersDefaultDataSpace(ANativeWindow* window) __INTRODUCED_IN(34);
+
 /** Compatibility value for ANativeWindow_setFrameRate. */
 enum ANativeWindow_FrameRateCompatibility {
     /**
@@ -303,6 +313,8 @@ enum ANativeWindow_ChangeFrameRateStrategy {
  * You can register for changes in the refresh rate using
  * \a AChoreographer_registerRefreshRateCallback.
  *
+ * See ANativeWindow_clearFrameRate().
+ *
  * Available since API level 31.
  *
  * \param window pointer to an ANativeWindow object.
@@ -331,6 +343,41 @@ enum ANativeWindow_ChangeFrameRateStrategy {
 int32_t ANativeWindow_setFrameRateWithChangeStrategy(ANativeWindow* window, float frameRate,
         int8_t compatibility, int8_t changeFrameRateStrategy)
         __INTRODUCED_IN(31);
+
+/**
+ * Clears the frame rate which is set for this window.
+ *
+ * This is equivalent to calling
+ * ANativeWindow_setFrameRateWithChangeStrategy(window, 0, compatibility, changeFrameRateStrategy).
+ *
+ * Usage of this API won't introduce frame rate throttling,
+ * or affect other aspects of the application's frame production
+ * pipeline. However, because the system may change the display refresh rate,
+ * calls to this function may result in changes to Choreographer callback
+ * timings, and changes to the time interval at which the system releases
+ * buffers back to the application.
+ *
+ * Note that this only has an effect for windows presented on the display. If
+ * this ANativeWindow is consumed by something other than the system compositor,
+ * e.g. a media codec, this call has no effect.
+ *
+ * You can register for changes in the refresh rate using
+ * \a AChoreographer_registerRefreshRateCallback.
+ *
+ * See ANativeWindow_setFrameRateWithChangeStrategy().
+ *
+ * Available since API level 34.
+ *
+ * \param window pointer to an ANativeWindow object.
+ *
+ * \return 0 for success, -EINVAL if the window value is invalid.
+ */
+inline int32_t ANativeWindow_clearFrameRate(ANativeWindow* window)
+        __INTRODUCED_IN(__ANDROID_API_U__) {
+    return ANativeWindow_setFrameRateWithChangeStrategy(window, 0,
+            ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT,
+            ANATIVEWINDOW_CHANGE_FRAME_RATE_ONLY_IF_SEAMLESS);
+}
 
 #ifdef __cplusplus
 }

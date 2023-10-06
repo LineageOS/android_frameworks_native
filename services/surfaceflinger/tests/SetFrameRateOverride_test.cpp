@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
+#include <android/gui/ISurfaceComposer.h>
 #include <gtest/gtest.h>
 #include <gui/DisplayEventReceiver.h>
-#include <gui/ISurfaceComposer.h>
 #include <gui/SurfaceComposerClient.h>
 #include <sys/epoll.h>
 #include <algorithm>
@@ -24,12 +24,14 @@
 namespace android {
 namespace {
 using FrameRateOverride = DisplayEventReceiver::Event::FrameRateOverride;
+using gui::ISurfaceComposer;
 
 class SetFrameRateOverrideTest : public ::testing::Test {
 protected:
     void SetUp() override {
-        const ISurfaceComposer::VsyncSource vsyncSource = ISurfaceComposer::eVsyncSourceApp;
-        const ISurfaceComposer::EventRegistrationFlags eventRegistration = {
+        const ISurfaceComposer::VsyncSource vsyncSource =
+                ISurfaceComposer::VsyncSource::eVsyncSourceApp;
+        const EventRegistrationFlags eventRegistration = {
                 ISurfaceComposer::EventRegistration::frameRateOverride};
 
         mDisplayEventReceiver =

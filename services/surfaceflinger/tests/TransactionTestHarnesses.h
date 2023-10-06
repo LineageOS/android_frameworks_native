@@ -35,7 +35,10 @@ public:
                 return mDelegate->screenshot();
             case RenderPath::VIRTUAL_DISPLAY:
 
-                const auto displayToken = SurfaceComposerClient::getInternalDisplayToken();
+                const auto ids = SurfaceComposerClient::getPhysicalDisplayIds();
+                const auto displayToken = ids.empty()
+                        ? nullptr
+                        : SurfaceComposerClient::getPhysicalDisplayToken(ids.front());
 
                 ui::DisplayState displayState;
                 SurfaceComposerClient::getDisplayState(displayToken, &displayState);
@@ -53,11 +56,11 @@ public:
                 consumer->setConsumerName(String8("Virtual disp consumer"));
                 consumer->setDefaultBufferSize(resolution.getWidth(), resolution.getHeight());
 
-                itemConsumer = new BufferItemConsumer(consumer,
-                                                      // Sample usage bits from screenrecord
-                                                      GRALLOC_USAGE_HW_VIDEO_ENCODER |
-                                                              GRALLOC_USAGE_SW_READ_OFTEN);
-                sp<BufferListener> listener = new BufferListener(this);
+                itemConsumer = sp<BufferItemConsumer>::make(consumer,
+                                                            // Sample usage bits from screenrecord
+                                                            GRALLOC_USAGE_HW_VIDEO_ENCODER |
+                                                                    GRALLOC_USAGE_SW_READ_OFTEN);
+                sp<BufferListener> listener = sp<BufferListener>::make(this);
                 itemConsumer->setFrameAvailableListener(listener);
 
                 vDisplay = SurfaceComposerClient::createDisplay(String8("VirtualDisplay"),

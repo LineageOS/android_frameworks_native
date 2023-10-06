@@ -25,6 +25,9 @@
 #include <ui/Rect.h>
 #include <ui/Region.h>
 #include <ui/Transform.h>
+#include <cstdint>
+#include "FrontEnd/LayerHierarchy.h"
+#include "FrontEnd/LayerSnapshot.h"
 
 namespace android {
 namespace surfaceflinger {
@@ -58,6 +61,44 @@ public:
     static void readFromProto(const ColorTransformProto& colorTransformProto, mat4& matrix);
     static void writeToProto(const android::BlurRegion region, BlurRegion*);
     static void readFromProto(const BlurRegion& proto, android::BlurRegion& outRegion);
+    static void writeSnapshotToProto(LayerProto* outProto,
+                                     const frontend::RequestedLayerState& requestedState,
+                                     const frontend::LayerSnapshot& snapshot, uint32_t traceFlags);
+    static google::protobuf::RepeatedPtrField<DisplayProto> writeDisplayInfoToProto(
+            const display::DisplayMap<ui::LayerStack, frontend::DisplayInfo>& displayInfos);
+};
+
+class LayerProtoFromSnapshotGenerator {
+public:
+    LayerProtoFromSnapshotGenerator(
+            const frontend::LayerSnapshotBuilder& snapshotBuilder,
+            const display::DisplayMap<ui::LayerStack, frontend::DisplayInfo>& displayInfos,
+            const std::unordered_map<uint32_t, sp<Layer>>& legacyLayers, uint32_t traceFlags)
+          : mSnapshotBuilder(snapshotBuilder),
+            mLegacyLayers(legacyLayers),
+            mDisplayInfos(displayInfos),
+            mTraceFlags(traceFlags) {}
+    LayersProto generate(const frontend::LayerHierarchy& root);
+
+private:
+    void writeHierarchyToProto(const frontend::LayerHierarchy& root,
+                               frontend::LayerHierarchy::TraversalPath& path);
+    frontend::LayerSnapshot* getSnapshot(frontend::LayerHierarchy::TraversalPath& path,
+                                         const frontend::RequestedLayerState& layer);
+
+    const frontend::LayerSnapshotBuilder& mSnapshotBuilder;
+    const std::unordered_map<uint32_t, sp<Layer>>& mLegacyLayers;
+    const display::DisplayMap<ui::LayerStack, frontend::DisplayInfo>& mDisplayInfos;
+    uint32_t mTraceFlags;
+    LayersProto mLayersProto;
+    // winscope expects all the layers, so provide a snapshot even if it not currently drawing
+    std::unordered_map<frontend::LayerHierarchy::TraversalPath, frontend::LayerSnapshot,
+                       frontend::LayerHierarchy::TraversalPathHash>
+            mDefaultSnapshots;
+    std::unordered_map<uint32_t /* child unique seq*/, uint32_t /* relative parent unique seq*/>
+            mChildToRelativeParent;
+    std::unordered_map<uint32_t /* child unique seq*/, uint32_t /* parent unique seq*/>
+            mChildToParent;
 };
 
 } // namespace surfaceflinger

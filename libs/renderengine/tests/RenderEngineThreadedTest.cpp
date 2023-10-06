@@ -17,8 +17,10 @@
 #include <cutils/properties.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+#include <hardware/gralloc.h>
 #include <renderengine/impl/ExternalTexture.h>
 #include <renderengine/mock/RenderEngine.h>
+#include <ui/PixelFormat.h>
 #include "../threaded/RenderEngineThreaded.h"
 
 namespace android {
@@ -95,18 +97,6 @@ TEST_F(RenderEngineThreadedTest, getMaxViewportDims_returns0) {
     ASSERT_EQ(dims, result);
 }
 
-TEST_F(RenderEngineThreadedTest, isProtected_returnsFalse) {
-    EXPECT_CALL(*mRenderEngine, isProtected()).WillOnce(Return(false));
-    status_t result = mThreadedRE->isProtected();
-    ASSERT_EQ(false, result);
-}
-
-TEST_F(RenderEngineThreadedTest, isProtected_returnsTrue) {
-    EXPECT_CALL(*mRenderEngine, isProtected()).WillOnce(Return(true));
-    size_t result = mThreadedRE->isProtected();
-    ASSERT_EQ(true, result);
-}
-
 TEST_F(RenderEngineThreadedTest, supportsProtectedContent_returnsFalse) {
     EXPECT_CALL(*mRenderEngine, supportsProtectedContent()).WillOnce(Return(false));
     status_t result = mThreadedRE->supportsProtectedContent();
@@ -117,28 +107,6 @@ TEST_F(RenderEngineThreadedTest, supportsProtectedContent_returnsTrue) {
     EXPECT_CALL(*mRenderEngine, supportsProtectedContent()).WillOnce(Return(true));
     status_t result = mThreadedRE->supportsProtectedContent();
     ASSERT_EQ(true, result);
-}
-
-TEST_F(RenderEngineThreadedTest, useProtectedContext) {
-    EXPECT_CALL(*mRenderEngine, useProtectedContext(true));
-    auto& ipExpect = EXPECT_CALL(*mRenderEngine, isProtected()).WillOnce(Return(false));
-    EXPECT_CALL(*mRenderEngine, supportsProtectedContent()).WillOnce(Return(true));
-    EXPECT_CALL(*mRenderEngine, isProtected()).After(ipExpect).WillOnce(Return(true));
-
-    mThreadedRE->useProtectedContext(true);
-    ASSERT_EQ(true, mThreadedRE->isProtected());
-
-    // call ANY synchronous function to ensure that useProtectedContext has completed.
-    mThreadedRE->getContextPriority();
-    ASSERT_EQ(true, mThreadedRE->isProtected());
-}
-
-TEST_F(RenderEngineThreadedTest, useProtectedContext_quickReject) {
-    EXPECT_CALL(*mRenderEngine, useProtectedContext(false)).Times(0);
-    EXPECT_CALL(*mRenderEngine, isProtected()).WillOnce(Return(false));
-    mThreadedRE->useProtectedContext(false);
-    // call ANY synchronous function to ensure that useProtectedContext has completed.
-    mThreadedRE->getContextPriority();
 }
 
 TEST_F(RenderEngineThreadedTest, PostRenderCleanup_skipped) {
@@ -176,27 +144,86 @@ TEST_F(RenderEngineThreadedTest, drawLayers) {
     std::vector<renderengine::LayerSettings> layers;
     std::shared_ptr<renderengine::ExternalTexture> buffer = std::make_shared<
             renderengine::impl::
-                    ExternalTexture>(new GraphicBuffer(), *mRenderEngine,
+                    ExternalTexture>(sp<GraphicBuffer>::make(), *mRenderEngine,
                                      renderengine::impl::ExternalTexture::Usage::READABLE |
                                              renderengine::impl::ExternalTexture::Usage::WRITEABLE);
 
     base::unique_fd bufferFence;
 
+    EXPECT_CALL(*mRenderEngine, useProtectedContext(false));
     EXPECT_CALL(*mRenderEngine, drawLayersInternal)
-            .WillOnce([&](const std::shared_ptr<std::promise<renderengine::RenderEngineResult>>&&
-                                  resultPromise,
+            .WillOnce([&](const std::shared_ptr<std::promise<FenceResult>>&& resultPromise,
                           const renderengine::DisplaySettings&,
                           const std::vector<renderengine::LayerSettings>&,
                           const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
-                          base::unique_fd&&) -> void {
-                resultPromise->set_value({NO_ERROR, base::unique_fd()});
-            });
+                          base::unique_fd&&) { resultPromise->set_value(Fence::NO_FENCE); });
 
-    std::future<renderengine::RenderEngineResult> result =
+    ftl::Future<FenceResult> future =
             mThreadedRE->drawLayers(settings, layers, buffer, false, std::move(bufferFence));
-    ASSERT_TRUE(result.valid());
-    auto [status, _] = result.get();
-    ASSERT_EQ(NO_ERROR, status);
+    ASSERT_TRUE(future.valid());
+    auto result = future.get();
+    ASSERT_TRUE(result.ok());
+}
+
+TEST_F(RenderEngineThreadedTest, drawLayers_protectedLayer) {
+    renderengine::DisplaySettings settings;
+    auto layerBuffer = sp<GraphicBuffer>::make();
+    layerBuffer->usage |= GRALLOC_USAGE_PROTECTED;
+    renderengine::LayerSettings layer;
+    layer.source.buffer.buffer = std::make_shared<
+            renderengine::impl::ExternalTexture>(std::move(layerBuffer), *mRenderEngine,
+                                                 renderengine::impl::ExternalTexture::Usage::
+                                                         READABLE);
+    std::vector<renderengine::LayerSettings> layers = {std::move(layer)};
+    std::shared_ptr<renderengine::ExternalTexture> buffer = std::make_shared<
+            renderengine::impl::
+                    ExternalTexture>(sp<GraphicBuffer>::make(), *mRenderEngine,
+                                     renderengine::impl::ExternalTexture::Usage::READABLE |
+                                             renderengine::impl::ExternalTexture::Usage::WRITEABLE);
+
+    base::unique_fd bufferFence;
+
+    EXPECT_CALL(*mRenderEngine, useProtectedContext(true));
+    EXPECT_CALL(*mRenderEngine, drawLayersInternal)
+            .WillOnce([&](const std::shared_ptr<std::promise<FenceResult>>&& resultPromise,
+                          const renderengine::DisplaySettings&,
+                          const std::vector<renderengine::LayerSettings>&,
+                          const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
+                          base::unique_fd&&) { resultPromise->set_value(Fence::NO_FENCE); });
+
+    ftl::Future<FenceResult> future =
+            mThreadedRE->drawLayers(settings, layers, buffer, false, std::move(bufferFence));
+    ASSERT_TRUE(future.valid());
+    auto result = future.get();
+    ASSERT_TRUE(result.ok());
+}
+
+TEST_F(RenderEngineThreadedTest, drawLayers_protectedOutputBuffer) {
+    renderengine::DisplaySettings settings;
+    std::vector<renderengine::LayerSettings> layers;
+    auto graphicBuffer = sp<GraphicBuffer>::make();
+    graphicBuffer->usage |= GRALLOC_USAGE_PROTECTED;
+    std::shared_ptr<renderengine::ExternalTexture> buffer = std::make_shared<
+            renderengine::impl::
+                    ExternalTexture>(std::move(graphicBuffer), *mRenderEngine,
+                                     renderengine::impl::ExternalTexture::Usage::READABLE |
+                                             renderengine::impl::ExternalTexture::Usage::WRITEABLE);
+
+    base::unique_fd bufferFence;
+
+    EXPECT_CALL(*mRenderEngine, useProtectedContext(true));
+    EXPECT_CALL(*mRenderEngine, drawLayersInternal)
+            .WillOnce([&](const std::shared_ptr<std::promise<FenceResult>>&& resultPromise,
+                          const renderengine::DisplaySettings&,
+                          const std::vector<renderengine::LayerSettings>&,
+                          const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
+                          base::unique_fd&&) { resultPromise->set_value(Fence::NO_FENCE); });
+
+    ftl::Future<FenceResult> future =
+            mThreadedRE->drawLayers(settings, layers, buffer, false, std::move(bufferFence));
+    ASSERT_TRUE(future.valid());
+    auto result = future.get();
+    ASSERT_TRUE(result.ok());
 }
 
 } // namespace android

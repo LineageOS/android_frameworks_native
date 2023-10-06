@@ -32,12 +32,15 @@
 #include <utils/StrongPointer.h>
 
 #include <aidl/android/hardware/graphics/common/DisplayDecorationSupport.h>
+#include <aidl/android/hardware/graphics/common/HdrConversionCapability.h>
+#include <aidl/android/hardware/graphics/common/HdrConversionStrategy.h>
 #include <aidl/android/hardware/graphics/composer3/Capability.h>
 #include <aidl/android/hardware/graphics/composer3/ClientTargetPropertyWithBrightness.h>
 #include <aidl/android/hardware/graphics/composer3/Color.h>
 #include <aidl/android/hardware/graphics/composer3/Composition.h>
 #include <aidl/android/hardware/graphics/composer3/DisplayCapability.h>
 #include <aidl/android/hardware/graphics/composer3/IComposerCallback.h>
+#include <aidl/android/hardware/graphics/composer3/OverlayProperties.h>
 
 #include <aidl/android/hardware/graphics/common/Transform.h>
 #include <optional>
@@ -65,7 +68,6 @@ using types::V1_0::Transform;
 using types::V1_1::RenderIntent;
 using types::V1_2::ColorMode;
 using types::V1_2::Dataspace;
-using types::V1_2::Hdr;
 using types::V1_2::PixelFormat;
 
 using V2_1::Config;
@@ -83,6 +85,7 @@ using PerFrameMetadata = IComposerClient::PerFrameMetadata;
 using PerFrameMetadataKey = IComposerClient::PerFrameMetadataKey;
 using PerFrameMetadataBlob = IComposerClient::PerFrameMetadataBlob;
 using AidlTransform = ::aidl::android::hardware::graphics::common::Transform;
+using aidl::android::hardware::graphics::common::Hdr;
 
 class Composer {
 public:
@@ -107,12 +110,8 @@ public:
 
     virtual void registerCallback(HWC2::ComposerCallback& callback) = 0;
 
-    // Reset all pending commands in the command buffer. Useful if you want to
-    // skip a frame but have already queued some commands.
-    virtual void resetCommands() = 0;
-
     // Explicitly flush all pending commands in the command buffer.
-    virtual Error executeCommands() = 0;
+    virtual Error executeCommands(Display) = 0;
 
     virtual uint32_t getMaxVirtualDisplayCount() = 0;
     virtual Error createVirtualDisplay(uint32_t width, uint32_t height, PixelFormat*,
@@ -139,7 +138,7 @@ public:
 
     virtual Error getDozeSupport(Display display, bool* outSupport) = 0;
     virtual Error hasDisplayIdleTimerCapability(Display display, bool* outSupport) = 0;
-    virtual Error getHdrCapabilities(Display display, std::vector<Hdr>* outTypes,
+    virtual Error getHdrCapabilities(Display display, std::vector<Hdr>* outHdrTypes,
                                      float* outMaxLuminance, float* outMaxAverageLuminance,
                                      float* outMinLuminance) = 0;
 
@@ -178,6 +177,9 @@ public:
     /* see setClientTarget for the purpose of slot */
     virtual Error setLayerBuffer(Display display, Layer layer, uint32_t slot,
                                  const sp<GraphicBuffer>& buffer, int acquireFence) = 0;
+    virtual Error setLayerBufferSlotsToClear(Display display, Layer layer,
+                                             const std::vector<uint32_t>& slotsToClear,
+                                             uint32_t activeBufferSlot) = 0;
     virtual Error setLayerSurfaceDamage(Display display, Layer layer,
                                         const std::vector<IComposerClient::Rect>& damage) = 0;
     virtual Error setLayerBlendMode(Display display, Layer layer,
@@ -281,6 +283,14 @@ public:
     virtual Error setIdleTimerEnabled(Display displayId, std::chrono::milliseconds timeout) = 0;
     virtual Error getPhysicalDisplayOrientation(Display displayId,
                                                 AidlTransform* outDisplayOrientation) = 0;
+    virtual Error getOverlaySupport(V3_0::OverlayProperties* outProperties) = 0;
+    virtual void onHotplugConnect(Display) = 0;
+    virtual void onHotplugDisconnect(Display) = 0;
+    virtual Error getHdrConversionCapabilities(
+            std::vector<::aidl::android::hardware::graphics::common::HdrConversionCapability>*) = 0;
+    virtual Error setHdrConversionStrategy(
+            ::aidl::android::hardware::graphics::common::HdrConversionStrategy, Hdr*) = 0;
+    virtual Error setRefreshRateChangedCallbackDebugEnabled(Display, bool) = 0;
 };
 
 } // namespace Hwc2

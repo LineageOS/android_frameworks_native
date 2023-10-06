@@ -360,12 +360,12 @@ int AHardwareBuffer_recvHandleFromUnixSocket(int socketFd, AHardwareBuffer** out
         return INVALID_OPERATION;
     }
 
-    GraphicBuffer* gBuffer = new GraphicBuffer();
+    sp<GraphicBuffer> gBuffer(new GraphicBuffer());
     status_t err = gBuffer->unflatten(data, dataLen, fdData, fdCount);
     if (err != NO_ERROR) {
         return err;
     }
-    *outBuffer = AHardwareBuffer_from_GraphicBuffer(gBuffer);
+    *outBuffer = AHardwareBuffer_from_GraphicBuffer(gBuffer.get());
     // Ensure the buffer has a positive ref-count.
     AHardwareBuffer_acquire(*outBuffer);
 
@@ -713,6 +713,14 @@ uint32_t AHardwareBuffer_convertFromPixelFormat(uint32_t hal_format) {
 
 uint32_t AHardwareBuffer_convertToPixelFormat(uint32_t ahardwarebuffer_format) {
     return ahardwarebuffer_format;
+}
+
+int32_t AHardwareBuffer_getDataSpace(AHardwareBuffer* buffer) {
+    GraphicBuffer* gb = AHardwareBuffer_to_GraphicBuffer(buffer);
+    auto& mapper = GraphicBufferMapper::get();
+    ui::Dataspace dataspace = ui::Dataspace::UNKNOWN;
+    mapper.getDataspace(gb->handle, &dataspace);
+    return static_cast<int32_t>(dataspace);
 }
 
 uint64_t AHardwareBuffer_convertToGrallocUsageBits(uint64_t usage) {

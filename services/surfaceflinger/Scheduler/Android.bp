@@ -18,6 +18,7 @@ cc_defaults {
         "libbase",
         "libcutils",
         "liblog",
+        "libui",
         "libutils",
     ],
 }
@@ -39,6 +40,7 @@ cc_library_static {
     name: "libscheduler",
     defaults: ["libscheduler_defaults"],
     srcs: [
+        "src/PresentLatencyTracker.cpp",
         "src/Timer.cpp",
     ],
     local_include_dirs: ["include"],
@@ -50,6 +52,7 @@ cc_test {
     test_suites: ["device-tests"],
     defaults: ["libscheduler_defaults"],
     srcs: [
+        "tests/PresentLatencyTrackerTest.cpp",
         "tests/TimerTest.cpp",
     ],
     static_libs: [

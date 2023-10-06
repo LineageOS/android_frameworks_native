@@ -18,7 +18,9 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
+#include <vector>
 
 #include <compositionengine/LayerFE.h>
 #include <compositionengine/OutputLayer.h>
@@ -43,6 +45,8 @@ public:
 
     void setHwcLayer(std::shared_ptr<HWC2::Layer>) override;
 
+    void uncacheBuffers(const std::vector<uint64_t>& bufferIdsToUncache) override;
+
     void updateCompositionState(bool includeGeometry, bool forceClientComposition,
                                 ui::Transform::RotationFlags) override;
     void writeStateToHWC(bool includeGeometry, bool skipLayer, uint32_t z, bool zIsOverridden,
@@ -57,7 +61,7 @@ public:
     void prepareForDeviceLayerRequests() override;
     void applyDeviceLayerRequest(Hwc2::IComposerClient::LayerRequest request) override;
     bool needsFiltering() const override;
-    std::vector<LayerFE::LayerSettings> getOverrideCompositionList() const override;
+    std::optional<LayerFE::LayerSettings> getOverrideCompositionSettings() const override;
 
     void dump(std::string&) const override;
     virtual FloatRect calculateOutputSourceCrop(uint32_t internalDisplayRotationFlags) const;

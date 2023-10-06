@@ -29,6 +29,7 @@
 #include <cutils/compiler.h>
 #include <cutils/trace.h>
 #include <ftl/enum.h>
+#include <gui/TraceUtils.h>
 
 #undef LOG_TAG
 #define LOG_TAG "LayerInfo"
@@ -43,14 +44,17 @@ LayerInfo::LayerInfo(const std::string& name, uid_t ownerUid,
         mOwnerUid(ownerUid),
         mDefaultVote(defaultVote),
         mLayerVote({defaultVote, Fps()}),
-        mRefreshRateHistory(name) {}
+        mLayerProps(std::make_unique<LayerProps>()),
+        mRefreshRateHistory(name) {
+    ;
+}
 
 void LayerInfo::setLastPresentTime(nsecs_t lastPresentTime, nsecs_t now, LayerUpdateType updateType,
-                                   bool pendingModeChange, LayerProps props) {
+                                   bool pendingModeChange, const LayerProps& props) {
     lastPresentTime = std::max(lastPresentTime, static_cast<nsecs_t>(0));
 
     mLastUpdatedTime = std::max(lastPresentTime, now);
-    mLayerProps = props;
+    *mLayerProps = props;
     switch (updateType) {
         case LayerUpdateType::AnimationTX:
             mLastAnimationTime = std::max(lastPresentTime, now);
@@ -74,14 +78,52 @@ bool LayerInfo::isFrameTimeValid(const FrameTimeData& frameTime) const {
                                           .count();
 }
 
-bool LayerInfo::isFrequent(nsecs_t now) const {
-    using fps_approx_ops::operator>=;
-    // If we know nothing about this layer we consider it as frequent as it might be the start
-    // of an animation.
+LayerInfo::Frequent LayerInfo::isFrequent(nsecs_t now) const {
+    // If we know nothing about this layer (e.g. after touch event),
+    // we consider it as frequent as it might be the start of an animation.
     if (mFrameTimes.size() < kFrequentLayerWindowSize) {
-        return true;
+        return {/* isFrequent */ true, /* clearHistory */ false, /* isConclusive */ true};
     }
-    return getFps(now) >= kMinFpsForFrequentLayer;
+
+    // Non-active layers are also infrequent
+    if (mLastUpdatedTime < getActiveLayerThreshold(now)) {
+        return {/* isFrequent */ false, /* clearHistory */ false, /* isConclusive */ true};
+    }
+
+    // We check whether we can classify this layer as frequent or infrequent:
+    //  - frequent: a layer posted kFrequentLayerWindowSize within
+    //              kMaxPeriodForFrequentLayerNs of each other.
+    // -  infrequent: a layer posted kFrequentLayerWindowSize with longer
+    //                gaps than kFrequentLayerWindowSize.
+    // If we can't determine the layer classification yet, we return the last
+    // classification.
+    bool isFrequent = true;
+    bool isInfrequent = true;
+    const auto n = mFrameTimes.size() - 1;
+    for (size_t i = 0; i < kFrequentLayerWindowSize - 1; i++) {
+        if (mFrameTimes[n - i].queueTime - mFrameTimes[n - i - 1].queueTime <
+            kMaxPeriodForFrequentLayerNs.count()) {
+            isInfrequent = false;
+        } else {
+            isFrequent = false;
+        }
+    }
+
+    if (isFrequent || isInfrequent) {
+        // If the layer was previously inconclusive, we clear
+        // the history as indeterminate layers changed to frequent,
+        // and we should not look at the stale data.
+        return {isFrequent, isFrequent && !mIsFrequencyConclusive, /* isConclusive */ true};
+    }
+
+    // If we can't determine whether the layer is frequent or not, we return
+    // the last known classification and mark the layer frequency as inconclusive.
+    isFrequent = !mLastRefreshRate.infrequent;
+
+    // If the layer was previously tagged as animating, we clear
+    // the history as it is likely the layer just changed its behavior,
+    // and we should not look at stale data.
+    return {isFrequent, isFrequent && mLastRefreshRate.animating, /* isConclusive */ false};
 }
 
 Fps LayerInfo::getFps(nsecs_t now) const {
@@ -187,8 +229,9 @@ std::optional<nsecs_t> LayerInfo::calculateAverageFrameTime() const {
     return static_cast<nsecs_t>(averageFrameTime);
 }
 
-std::optional<Fps> LayerInfo::calculateRefreshRateIfPossible(
-        const RefreshRateConfigs& refreshRateConfigs, nsecs_t now) {
+std::optional<Fps> LayerInfo::calculateRefreshRateIfPossible(const RefreshRateSelector& selector,
+                                                             nsecs_t now) {
+    ATRACE_CALL();
     static constexpr float MARGIN = 1.0f; // 1Hz
     if (!hasEnoughDataForHeuristic()) {
         ALOGV("Not enough data");
@@ -199,7 +242,7 @@ std::optional<Fps> LayerInfo::calculateRefreshRateIfPossible(
         const auto refreshRate = Fps::fromPeriodNsecs(*averageFrameTime);
         const bool refreshRateConsistent = mRefreshRateHistory.add(refreshRate, now);
         if (refreshRateConsistent) {
-            const auto knownRefreshRate = refreshRateConfigs.findClosestKnownFrameRate(refreshRate);
+            const auto knownRefreshRate = selector.findClosestKnownFrameRate(refreshRate);
             using fps_approx_ops::operator!=;
 
             // To avoid oscillation, use the last calculated refresh rate if it is close enough.
@@ -222,35 +265,37 @@ std::optional<Fps> LayerInfo::calculateRefreshRateIfPossible(
                                                : std::nullopt;
 }
 
-LayerInfo::LayerVote LayerInfo::getRefreshRateVote(const RefreshRateConfigs& refreshRateConfigs,
+LayerInfo::LayerVote LayerInfo::getRefreshRateVote(const RefreshRateSelector& selector,
                                                    nsecs_t now) {
+    ATRACE_CALL();
     if (mLayerVote.type != LayerHistory::LayerVoteType::Heuristic) {
         ALOGV("%s voted %d ", mName.c_str(), static_cast<int>(mLayerVote.type));
         return mLayerVote;
     }
 
     if (isAnimating(now)) {
+        ATRACE_FORMAT_INSTANT("animating");
         ALOGV("%s is animating", mName.c_str());
-        mLastRefreshRate.animatingOrInfrequent = true;
+        mLastRefreshRate.animating = true;
         return {LayerHistory::LayerVoteType::Max, Fps()};
     }
 
-    if (!isFrequent(now)) {
+    const LayerInfo::Frequent frequent = isFrequent(now);
+    mIsFrequencyConclusive = frequent.isConclusive;
+    if (!frequent.isFrequent) {
+        ATRACE_FORMAT_INSTANT("infrequent");
         ALOGV("%s is infrequent", mName.c_str());
-        mLastRefreshRate.animatingOrInfrequent = true;
-        // Infrequent layers vote for mininal refresh rate for
+        mLastRefreshRate.infrequent = true;
+        // Infrequent layers vote for minimal refresh rate for
         // battery saving purposes and also to prevent b/135718869.
         return {LayerHistory::LayerVoteType::Min, Fps()};
     }
 
-    // If the layer was previously tagged as animating or infrequent, we clear
-    // the history as it is likely the layer just changed its behavior
-    // and we should not look at stale data
-    if (mLastRefreshRate.animatingOrInfrequent) {
+    if (frequent.clearHistory) {
         clearHistory(now);
     }
 
-    auto refreshRate = calculateRefreshRateIfPossible(refreshRateConfigs, now);
+    auto refreshRate = calculateRefreshRateIfPossible(selector, now);
     if (refreshRate.has_value()) {
         ALOGV("%s calculated refresh rate: %s", mName.c_str(), to_string(*refreshRate).c_str());
         return {LayerHistory::LayerVoteType::Heuristic, refreshRate.value()};
@@ -267,6 +312,26 @@ const char* LayerInfo::getTraceTag(LayerHistory::LayerVoteType type) const {
     }
 
     return mTraceTags.at(type).c_str();
+}
+
+LayerInfo::FrameRate LayerInfo::getSetFrameRateVote() const {
+    return mLayerProps->setFrameRateVote;
+}
+
+bool LayerInfo::isVisible() const {
+    return mLayerProps->visible;
+}
+
+int32_t LayerInfo::getFrameRateSelectionPriority() const {
+    return mLayerProps->frameRateSelectionPriority;
+}
+
+FloatRect LayerInfo::getBounds() const {
+    return mLayerProps->bounds;
+}
+
+ui::Transform LayerInfo::getTransform() const {
+    return mLayerProps->transform;
 }
 
 LayerInfo::RefreshRateHistory::HeuristicTraceTagData

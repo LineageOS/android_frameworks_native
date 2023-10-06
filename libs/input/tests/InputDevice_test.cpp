@@ -65,6 +65,9 @@ protected:
     }
 
     void SetUp() override {
+#if !defined(__ANDROID__)
+        GTEST_SKIP() << "b/253299089 Generic files are currently read directly from device.";
+#endif
         loadKeyLayout("Generic");
         loadKeyCharacterMap("Generic");
     }
@@ -130,7 +133,24 @@ TEST_F(InputDeviceKeyMapTest, keyCharacteMapApplyMultipleOverlaysTest) {
     ASSERT_EQ(*mKeyMap.keyCharacterMap, *frenchOverlaidKeyCharacterMap);
 }
 
+TEST_F(InputDeviceKeyMapTest, keyCharacteMapBadAxisLabel) {
+    std::string klPath = base::GetExecutableDirectory() + "/data/bad_axis_label.kl";
+
+    base::Result<std::shared_ptr<KeyLayoutMap>> ret = KeyLayoutMap::load(klPath);
+    ASSERT_FALSE(ret.ok()) << "Should not be able to load KeyLayout at " << klPath;
+}
+
+TEST_F(InputDeviceKeyMapTest, keyCharacteMapBadLedLabel) {
+    std::string klPath = base::GetExecutableDirectory() + "/data/bad_led_label.kl";
+
+    base::Result<std::shared_ptr<KeyLayoutMap>> ret = KeyLayoutMap::load(klPath);
+    ASSERT_FALSE(ret.ok()) << "Should not be able to load KeyLayout at " << klPath;
+}
+
 TEST(InputDeviceKeyLayoutTest, DoesNotLoadWhenRequiredKernelConfigIsMissing) {
+#if !defined(__ANDROID__)
+    GTEST_SKIP() << "Can't check kernel configs on host";
+#endif
     std::string klPath = base::GetExecutableDirectory() + "/data/kl_with_required_fake_config.kl";
     base::Result<std::shared_ptr<KeyLayoutMap>> ret = KeyLayoutMap::load(klPath);
     ASSERT_FALSE(ret.ok()) << "Should not be able to load KeyLayout at " << klPath;
@@ -139,6 +159,9 @@ TEST(InputDeviceKeyLayoutTest, DoesNotLoadWhenRequiredKernelConfigIsMissing) {
 }
 
 TEST(InputDeviceKeyLayoutTest, LoadsWhenRequiredKernelConfigIsPresent) {
+#if !defined(__ANDROID__)
+    GTEST_SKIP() << "Can't check kernel configs on host";
+#endif
     std::string klPath = base::GetExecutableDirectory() + "/data/kl_with_required_real_config.kl";
     base::Result<std::shared_ptr<KeyLayoutMap>> ret = KeyLayoutMap::load(klPath);
     ASSERT_TRUE(ret.ok()) << "Cannot load KeyLayout at " << klPath;

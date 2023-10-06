@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _LIBINPUT_INPUT_TRANSPORT_H
-#define _LIBINPUT_INPUT_TRANSPORT_H
+#pragma once
 
 #pragma GCC system_header
 
@@ -39,6 +38,7 @@
 #include <binder/IBinder.h>
 #include <binder/Parcelable.h>
 #include <input/Input.h>
+#include <input/InputVerifier.h>
 #include <sys/stat.h>
 #include <ui/Transform.h>
 #include <utils/BitSet.h>
@@ -445,6 +445,7 @@ public:
 
 private:
     std::shared_ptr<InputChannel> mChannel;
+    InputVerifier mInputVerifier;
 };
 
 /*
@@ -452,8 +453,11 @@ private:
  */
 class InputConsumer {
 public:
-    /* Creates a consumer associated with an input channel. */
+    /* Create a consumer associated with an input channel. */
     explicit InputConsumer(const std::shared_ptr<InputChannel>& channel);
+    /* Create a consumer associated with an input channel, override resampling system property */
+    explicit InputConsumer(const std::shared_ptr<InputChannel>& channel,
+                           bool enableTouchResampling);
 
     /* Destroys the consumer and releases its input channel. */
     ~InputConsumer();
@@ -665,11 +669,8 @@ private:
     static void addSample(MotionEvent* event, const InputMessage* msg);
     static bool canAddSample(const Batch& batch, const InputMessage* msg);
     static ssize_t findSampleNoLaterThan(const Batch& batch, nsecs_t time);
-    static bool shouldResampleTool(int32_t toolType);
 
     static bool isTouchResamplingEnabled();
 };
 
 } // namespace android
-
-#endif // _LIBINPUT_INPUT_TRANSPORT_H

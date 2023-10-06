@@ -19,6 +19,8 @@
 
 #include <android-base/thread_annotations.h>
 #include <android/hardware/power/1.1/IPower.h>
+#include <android/hardware/power/1.2/IPower.h>
+#include <android/hardware/power/1.3/IPower.h>
 #include <android/hardware/power/Boost.h>
 #include <android/hardware/power/IPower.h>
 #include <android/hardware/power/IPowerHintSession.h>
@@ -142,8 +144,8 @@ public:
 // Wrapper for the HIDL Power HAL v1.0.
 class HidlHalWrapperV1_0 : public HalWrapper {
 public:
-    explicit HidlHalWrapperV1_0(sp<hardware::power::V1_0::IPower> Hal)
-          : mHandleV1_0(std::move(Hal)) {}
+    explicit HidlHalWrapperV1_0(sp<hardware::power::V1_0::IPower> handleV1_0)
+          : mHandleV1_0(std::move(handleV1_0)) {}
     virtual ~HidlHalWrapperV1_0() = default;
 
     virtual HalResult<void> setBoost(hardware::power::Boost boost, int32_t durationMs) override;
@@ -154,10 +156,10 @@ public:
     virtual HalResult<int64_t> getHintSessionPreferredRate() override;
 
 protected:
-    virtual HalResult<void> sendPowerHint(hardware::power::V1_0::PowerHint hintId, uint32_t data);
+    const sp<hardware::power::V1_0::IPower> mHandleV1_0;
+    virtual HalResult<void> sendPowerHint(hardware::power::V1_3::PowerHint hintId, uint32_t data);
 
 private:
-    sp<hardware::power::V1_0::IPower> mHandleV1_0;
     HalResult<void> setInteractive(bool enabled);
     HalResult<void> setFeature(hardware::power::V1_0::Feature feature, bool enabled);
 };
@@ -165,17 +167,40 @@ private:
 // Wrapper for the HIDL Power HAL v1.1.
 class HidlHalWrapperV1_1 : public HidlHalWrapperV1_0 {
 public:
-    HidlHalWrapperV1_1(sp<hardware::power::V1_0::IPower> handleV1_0,
-                       sp<hardware::power::V1_1::IPower> handleV1_1)
-          : HidlHalWrapperV1_0(std::move(handleV1_0)), mHandleV1_1(std::move(handleV1_1)) {}
+    HidlHalWrapperV1_1(sp<hardware::power::V1_1::IPower> handleV1_1)
+          : HidlHalWrapperV1_0(std::move(handleV1_1)) {}
     virtual ~HidlHalWrapperV1_1() = default;
 
 protected:
-    virtual HalResult<void> sendPowerHint(hardware::power::V1_0::PowerHint hintId,
+    virtual HalResult<void> sendPowerHint(hardware::power::V1_3::PowerHint hintId,
                                           uint32_t data) override;
+};
 
-private:
-    sp<hardware::power::V1_1::IPower> mHandleV1_1;
+// Wrapper for the HIDL Power HAL v1.2.
+class HidlHalWrapperV1_2 : public HidlHalWrapperV1_1 {
+public:
+    virtual HalResult<void> setBoost(hardware::power::Boost boost, int32_t durationMs) override;
+    virtual HalResult<void> setMode(hardware::power::Mode mode, bool enabled) override;
+    HidlHalWrapperV1_2(sp<hardware::power::V1_2::IPower> handleV1_2)
+          : HidlHalWrapperV1_1(std::move(handleV1_2)) {}
+    virtual ~HidlHalWrapperV1_2() = default;
+
+protected:
+    virtual HalResult<void> sendPowerHint(hardware::power::V1_3::PowerHint hintId,
+                                          uint32_t data) override;
+};
+
+// Wrapper for the HIDL Power HAL v1.3.
+class HidlHalWrapperV1_3 : public HidlHalWrapperV1_2 {
+public:
+    virtual HalResult<void> setMode(hardware::power::Mode mode, bool enabled) override;
+    HidlHalWrapperV1_3(sp<hardware::power::V1_3::IPower> handleV1_3)
+          : HidlHalWrapperV1_2(std::move(handleV1_3)) {}
+    virtual ~HidlHalWrapperV1_3() = default;
+
+protected:
+    virtual HalResult<void> sendPowerHint(hardware::power::V1_3::PowerHint hintId,
+                                          uint32_t data) override;
 };
 
 // Wrapper for the AIDL Power HAL.

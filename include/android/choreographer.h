@@ -219,12 +219,16 @@ void AChoreographer_unregisterRefreshRateCallback(AChoreographer* choreographer,
  *
  * Note that this time should \b not be used to advance animation clocks.
  * Instead, see AChoreographerFrameCallbackData_getFrameTimelineExpectedPresentationTimeNanos().
+ *
+ * Available since API level 33.
  */
 int64_t AChoreographerFrameCallbackData_getFrameTimeNanos(
         const AChoreographerFrameCallbackData* data) __INTRODUCED_IN(33);
 
 /**
  * The number of possible frame timelines.
+ *
+ * Available since API level 33.
  */
 size_t AChoreographerFrameCallbackData_getFrameTimelinesLength(
         const AChoreographerFrameCallbackData* data) __INTRODUCED_IN(33);
@@ -233,15 +237,20 @@ size_t AChoreographerFrameCallbackData_getFrameTimelinesLength(
  * Gets the index of the platform-preferred frame timeline.
  * The preferred frame timeline is the default
  * by which the platform scheduled the app, based on the device configuration.
+ *
+ * Available since API level 33.
  */
 size_t AChoreographerFrameCallbackData_getPreferredFrameTimelineIndex(
         const AChoreographerFrameCallbackData* data) __INTRODUCED_IN(33);
 
 /**
  * Gets the token used by the platform to identify the frame timeline at the given \c index.
+ * q
+ * Available since API level 33.
  *
  * \param index index of a frame timeline, in \f( [0, FrameTimelinesLength) \f). See
  * AChoreographerFrameCallbackData_getFrameTimelinesLength()
+ *
  */
 AVsyncId AChoreographerFrameCallbackData_getFrameTimelineVsyncId(
         const AChoreographerFrameCallbackData* data, size_t index) __INTRODUCED_IN(33);
@@ -249,6 +258,8 @@ AVsyncId AChoreographerFrameCallbackData_getFrameTimelineVsyncId(
 /**
  * Gets the time in nanoseconds at which the frame described at the given \c index is expected to
  * be presented. This time should be used to advance any animation clocks.
+ *
+ * Available since API level 33.
  *
  * \param index index of a frame timeline, in \f( [0, FrameTimelinesLength) \f). See
  * AChoreographerFrameCallbackData_getFrameTimelinesLength()
@@ -259,6 +270,8 @@ int64_t AChoreographerFrameCallbackData_getFrameTimelineExpectedPresentationTime
 /**
  * Gets the time in nanoseconds at which the frame described at the given \c index needs to be
  * ready by in order to be presented on time.
+ *
+ * Available since API level 33.
  *
  * \param index index of a frame timeline, in \f( [0, FrameTimelinesLength) \f). See
  * AChoreographerFrameCallbackData_getFrameTimelinesLength()

@@ -66,6 +66,20 @@ filegroup {
     ],
 }
 
+filegroup {
+    name: "android_gui_aidl",
+    srcs: [
+        "android/gui/DisplayInfo.aidl",
+        "android/gui/FocusRequest.aidl",
+        "android/gui/InputApplicationInfo.aidl",
+        "android/gui/IWindowInfosListener.aidl",
+        "android/gui/IWindowInfosPublisher.aidl",
+        "android/gui/IWindowInfosReportedListener.aidl",
+        "android/gui/WindowInfo.aidl",
+        "android/gui/WindowInfosUpdate.aidl",
+    ],
+}
+
 cc_library_static {
     name: "libgui_window_info_static",
     vendor_available: true,
@@ -77,10 +91,13 @@ cc_library_static {
         "android/gui/FocusRequest.aidl",
         "android/gui/InputApplicationInfo.aidl",
         "android/gui/IWindowInfosListener.aidl",
+        "android/gui/IWindowInfosPublisher.aidl",
         "android/gui/IWindowInfosReportedListener.aidl",
+        "android/gui/WindowInfosUpdate.aidl",
         "android/gui/WindowInfo.aidl",
         "DisplayInfo.cpp",
         "WindowInfo.cpp",
+        "WindowInfosUpdate.cpp",
     ],
 
     shared_libs: [
@@ -114,18 +131,36 @@ cc_library_static {
     },
 }
 
-filegroup {
+aidl_library {
+    name: "libgui_aidl_hdrs",
+    hdrs: [
+        "android/gui/DisplayInfo.aidl",
+        "android/gui/FocusRequest.aidl",
+        "android/gui/InputApplicationInfo.aidl",
+        "android/gui/IWindowInfosListener.aidl",
+        "android/gui/IWindowInfosPublisher.aidl",
+        "android/gui/IWindowInfosReportedListener.aidl",
+        "android/gui/WindowInfo.aidl",
+        "android/gui/WindowInfosUpdate.aidl",
+    ],
+}
+
+aidl_library {
     name: "libgui_aidl",
     srcs: ["aidl/**/*.aidl"],
+    strip_import_prefix: "aidl",
+    deps: ["libgui_aidl_hdrs"],
+}
+
+filegroup {
+    name: "libgui_frame_event_aidl",
+    srcs: ["aidl/android/gui/FrameEvent.aidl"],
     path: "aidl/",
 }
 
 cc_library_static {
     name: "libgui_aidl_static",
     vendor_available: true,
-    srcs: [
-        ":libgui_aidl",
-    ],
 
     shared_libs: [
         "libbinder",
@@ -136,16 +171,22 @@ cc_library_static {
         "include",
     ],
 
+    include_dirs: [
+        "frameworks/native/include",
+    ],
+
     export_shared_lib_headers: [
         "libbinder",
     ],
 
     static_libs: [
         "libui-types",
+        "libgui_window_info_static",
     ],
 
     aidl: {
         export_aidl_headers: true,
+        libs: ["libgui_aidl"],
     },
 }
 
@@ -178,22 +219,24 @@ cc_library_shared {
         "BitTube.cpp",
         "BLASTBufferQueue.cpp",
         "BufferItemConsumer.cpp",
+        "Choreographer.cpp",
+        "CompositorTiming.cpp",
         "ConsumerBase.cpp",
         "CpuConsumer.cpp",
         "DebugEGLImageTracker.cpp",
         "DisplayEventDispatcher.cpp",
         "DisplayEventReceiver.cpp",
-        "FrameTimelineInfo.cpp",
+        "FenceMonitor.cpp",
         "GLConsumer.cpp",
         "IConsumerListener.cpp",
         "IGraphicBufferConsumer.cpp",
         "IGraphicBufferProducer.cpp",
         "IProducerListener.cpp",
         "ISurfaceComposer.cpp",
-        "ISurfaceComposerClient.cpp",
         "ITransactionCompletedListener.cpp",
         "LayerDebugInfo.cpp",
         "LayerMetadata.cpp",
+        "LayerStatePermissions.cpp",
         "LayerState.cpp",
         "OccupancyTracker.cpp",
         "StreamSplitter.cpp",
@@ -202,7 +245,6 @@ cc_library_shared {
         "SurfaceControl.cpp",
         "SurfaceComposerClient.cpp",
         "SyncFeatures.cpp",
-        "TransactionTracing.cpp",
         "VsyncEventData.cpp",
         "view/Surface.cpp",
         "WindowInfosListenerReporter.cpp",
@@ -223,6 +265,7 @@ cc_library_shared {
 
     export_header_lib_headers: [
         "libgui_aidl_headers",
+        "jni_headers",
     ],
 
     aidl: {
@@ -230,6 +273,7 @@ cc_library_shared {
     },
 
     header_libs: [
+        "jni_headers",
         "libdvr_headers",
         "libgui_aidl_headers",
         "libpdx_headers",
@@ -240,6 +284,10 @@ cc_library_shared {
     lto: {
         thin: true,
     },
+
+    cflags: [
+        "-Wthread-safety",
+    ],
 }
 
 // Used by media codec services exclusively as a static lib for
@@ -260,10 +308,16 @@ cc_library_static {
     defaults: ["libgui_bufferqueue-defaults"],
 
     srcs: [
+        ":libgui_frame_event_aidl",
         ":inputconstants_aidl",
         ":libgui_bufferqueue_sources",
-        ":libgui_aidl",
     ],
+
+    aidl: {
+        include_dirs: [
+            "frameworks/native/libs/gui",
+        ],
+    },
 }
 
 filegroup {
@@ -294,6 +348,8 @@ filegroup {
 cc_defaults {
     name: "libgui_bufferqueue-defaults",
 
+    defaults: ["android.hardware.graphics.common-ndk_shared"],
+
     cflags: [
         "-Wall",
         "-Werror",
@@ -322,7 +378,6 @@ cc_defaults {
         "android.hardware.graphics.bufferqueue@2.0",
         "android.hardware.graphics.common@1.1",
         "android.hardware.graphics.common@1.2",
-        "android.hardware.graphics.common-V4-ndk",
         "android.hidl.token@1.0-utils",
         "libbase",
         "libcutils",
@@ -381,6 +436,7 @@ cc_library_static {
     ],
 
     srcs: [
+        ":libgui_frame_event_aidl",
         "mock/GraphicBufferConsumer.cpp",
         "mock/GraphicBufferProducer.cpp",
     ],

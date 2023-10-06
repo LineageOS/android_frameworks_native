@@ -270,7 +270,7 @@ private:
 
     // Send a callback when a GraphicBuffer dies.
     //
-    // This is used for BufferStateLayer caching. GraphicBuffers are refcounted per process. When
+    // This is used for layer caching. GraphicBuffers are refcounted per process. When
     // A GraphicBuffer doesn't have any more sp<> in a process, it is destroyed. This causes
     // problems when trying to implicitcly cache across process boundaries. Ideally, both sides
     // of the cache would hold onto wp<> references. When an app dropped its sp<>, the GraphicBuffer

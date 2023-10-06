@@ -18,6 +18,7 @@
 
 #include <cstdint>
 
+#include <android/gui/CachingHint.h>
 #include <gui/HdrMetadata.h>
 #include <math/mat4.h>
 #include <ui/BlurRegion.h>
@@ -163,7 +164,6 @@ struct LayerFECompositionState {
 
     // The buffer and related state
     sp<GraphicBuffer> buffer;
-    int bufferSlot{BufferQueue::INVALID_BUFFER_SLOT};
     sp<Fence> acquireFence = Fence::NO_FENCE;
     Region surfaceDamage;
     uint64_t frameNumber = 0;
@@ -210,6 +210,10 @@ struct LayerFECompositionState {
     // The dimming flag
     bool dimmingEnabled{true};
 
+    float currentHdrSdrRatio = 1.f;
+    float desiredHdrSdrRatio = 1.f;
+
+    gui::CachingHint cachingHint = gui::CachingHint::Enabled;
     virtual ~LayerFECompositionState();
 
     // Debugging

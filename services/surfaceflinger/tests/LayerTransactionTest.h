@@ -23,9 +23,11 @@
 
 #include <cutils/properties.h>
 #include <gtest/gtest.h>
+#include <gui/AidlStatusUtil.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/SurfaceComposerClient.h>
 #include <private/gui/ComposerService.h>
+#include <private/gui/ComposerServiceAIDL.h>
 #include <ui/DisplayMode.h>
 
 #include "BufferGenerator.h"
@@ -39,13 +41,14 @@ using android::hardware::graphics::common::V1_1::BufferUsage;
 class LayerTransactionTest : public ::testing::Test {
 protected:
     void SetUp() override {
-        mClient = new SurfaceComposerClient;
+        mClient = sp<SurfaceComposerClient>::make();
         ASSERT_EQ(NO_ERROR, mClient->initCheck()) << "failed to create SurfaceComposerClient";
 
         ASSERT_NO_FATAL_FAILURE(SetUpDisplay());
 
-        sp<ISurfaceComposer> sf(ComposerService::getComposerService());
-        ASSERT_NO_FATAL_FAILURE(sf->getColorManagement(&mColorManagementUsed));
+        sp<gui::ISurfaceComposer> sf(ComposerServiceAIDL::getComposerService());
+        binder::Status status = sf->getColorManagement(&mColorManagementUsed);
+        ASSERT_NO_FATAL_FAILURE(gui::aidl_utils::statusTFromBinderStatus(status));
 
         mCaptureArgs.displayToken = mDisplay;
     }
@@ -134,13 +137,16 @@ protected:
         postBufferQueueLayerBuffer(layer);
     }
 
-    virtual void fillBufferStateLayerColor(const sp<SurfaceControl>& layer, const Color& color,
-                                           int32_t bufferWidth, int32_t bufferHeight) {
+    virtual void fillBufferLayerColor(const sp<SurfaceControl>& layer, const Color& color,
+                                      int32_t bufferWidth, int32_t bufferHeight) {
         sp<GraphicBuffer> buffer =
-                new GraphicBuffer(bufferWidth, bufferHeight, PIXEL_FORMAT_RGBA_8888, 1,
-                                  BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
-                                          BufferUsage::COMPOSER_OVERLAY | BufferUsage::GPU_TEXTURE,
-                                  "test");
+                sp<GraphicBuffer>::make(static_cast<uint32_t>(bufferWidth),
+                                        static_cast<uint32_t>(bufferHeight), PIXEL_FORMAT_RGBA_8888,
+                                        1u,
+                                        BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
+                                                BufferUsage::COMPOSER_OVERLAY |
+                                                BufferUsage::GPU_TEXTURE,
+                                        "test");
         TransactionUtils::fillGraphicBufferColor(buffer, Rect(0, 0, bufferWidth, bufferHeight),
                                                  color);
         Transaction().setBuffer(layer, buffer).apply();
@@ -153,7 +159,7 @@ protected:
                 fillBufferQueueLayerColor(layer, color, bufferWidth, bufferHeight);
                 break;
             case ISurfaceComposerClient::eFXSurfaceBufferState:
-                fillBufferStateLayerColor(layer, color, bufferWidth, bufferHeight);
+                fillBufferLayerColor(layer, color, bufferWidth, bufferHeight);
                 break;
             default:
                 ASSERT_TRUE(false) << "unsupported layer type: " << mLayerType;
@@ -206,10 +212,13 @@ protected:
                                               const Color& topRight, const Color& bottomLeft,
                                               const Color& bottomRight) {
         sp<GraphicBuffer> buffer =
-                new GraphicBuffer(bufferWidth, bufferHeight, PIXEL_FORMAT_RGBA_8888, 1,
-                                  BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
-                                          BufferUsage::COMPOSER_OVERLAY | BufferUsage::GPU_TEXTURE,
-                                  "test");
+                sp<GraphicBuffer>::make(static_cast<uint32_t>(bufferWidth),
+                                        static_cast<uint32_t>(bufferHeight), PIXEL_FORMAT_RGBA_8888,
+                                        1u,
+                                        BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
+                                                BufferUsage::COMPOSER_OVERLAY |
+                                                BufferUsage::GPU_TEXTURE,
+                                        "test");
 
         ASSERT_TRUE(bufferWidth % 2 == 0 && bufferHeight % 2 == 0);
 
@@ -224,7 +233,7 @@ protected:
                                                  Rect(halfW, halfH, bufferWidth, bufferHeight),
                                                  bottomRight);
 
-        Transaction().setBuffer(layer, buffer).setSize(layer, bufferWidth, bufferHeight).apply();
+        Transaction().setBuffer(layer, buffer).apply();
     }
 
     std::unique_ptr<ScreenCapture> screenshot() {
@@ -280,7 +289,9 @@ protected:
 
 private:
     void SetUpDisplay() {
-        mDisplay = mClient->getInternalDisplayToken();
+        const auto ids = SurfaceComposerClient::getPhysicalDisplayIds();
+        ASSERT_FALSE(ids.empty());
+        mDisplay = SurfaceComposerClient::getPhysicalDisplayToken(ids.front());
         ASSERT_FALSE(mDisplay == nullptr) << "failed to get display";
 
         ui::DisplayMode mode;

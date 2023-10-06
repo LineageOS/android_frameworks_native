@@ -196,12 +196,8 @@ sp<Looper> SensorManager::getLooper() {
 }
 
 ::android::SensorManager& SensorManager::getInternalManager() {
-    std::lock_guard<std::mutex> lock(mInternalManagerMutex);
-    if (mInternalManager == nullptr) {
-        mInternalManager = &::android::SensorManager::getInstanceForPackage(
-                String16(ISensorManager::descriptor));
-    }
-    return *mInternalManager;
+    return ::android::SensorManager::getInstanceForPackage(
+            String16(ISensorManager::descriptor));
 }
 
 Return<void> SensorManager::createEventQueue(

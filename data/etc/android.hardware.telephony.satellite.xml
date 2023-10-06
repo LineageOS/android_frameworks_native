@@ -14,7 +14,7 @@
      limitations under the License.
 -->
 
-<!-- Feature for devices that support Satellite communication via Satellite HAL APIs. -->
+<!-- Feature for devices that support satellite communication via satellite vendor service APIs. -->
 <permissions>
     <feature name="android.hardware.telephony.satellite" />
 </permissions>

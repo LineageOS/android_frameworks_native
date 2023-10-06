@@ -23,7 +23,10 @@ package {
 
 cc_test {
     name: "SurfaceFlinger_test",
-    defaults: ["surfaceflinger_defaults"],
+    defaults: [
+        "android.hardware.graphics.common-ndk_shared",
+        "surfaceflinger_defaults",
+    ],
     test_suites: ["device-tests"],
     srcs: [
         "BootDisplayMode_test.cpp",
@@ -34,11 +37,13 @@ cc_test {
         "DisplayConfigs_test.cpp",
         "DisplayEventReceiver_test.cpp",
         "EffectLayer_test.cpp",
+        "LayerBorder_test.cpp",
         "InvalidHandles_test.cpp",
         "LayerCallback_test.cpp",
         "LayerRenderTypeTransaction_test.cpp",
         "LayerState_test.cpp",
         "LayerTransaction_test.cpp",
+        "LayerTrustedPresentationListener_test.cpp",
         "LayerTypeAndRenderTypeTransaction_test.cpp",
         "LayerTypeTransaction_test.cpp",
         "LayerUpdate_test.cpp",
@@ -52,18 +57,16 @@ cc_test {
         "SetFrameRateOverride_test.cpp",
         "SetGeometry_test.cpp",
         "Stress_test.cpp",
-        "SurfaceInterceptor_test.cpp",
+        "TextureFiltering_test.cpp",
         "VirtualDisplay_test.cpp",
         "WindowInfosListener_test.cpp",
     ],
     data: ["SurfaceFlinger_test.filter"],
     static_libs: [
-        "libtrace_proto",
         "liblayers_proto",
         "android.hardware.graphics.composer@2.1",
     ],
     shared_libs: [
-        "android.hardware.graphics.common-V4-ndk",
         "android.hardware.graphics.common@1.2",
         "libandroid",
         "libbase",
@@ -128,7 +131,6 @@ cc_test {
 }
 
 subdirs = [
-    "fakehwc",
     "hwc2",
     "unittests",
     "utils",

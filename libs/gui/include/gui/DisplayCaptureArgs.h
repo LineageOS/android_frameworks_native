@@ -22,8 +22,11 @@
 #include <binder/IBinder.h>
 #include <binder/Parcel.h>
 #include <binder/Parcelable.h>
+#include <gui/SpHash.h>
 #include <ui/GraphicTypes.h>
 #include <ui/PixelFormat.h>
+#include <ui/Rect.h>
+#include <unordered_set>
 
 namespace android::gui {
 
@@ -38,7 +41,7 @@ struct CaptureArgs : public Parcelable {
     bool captureSecureLayers{false};
     int32_t uid{UNSET_UID};
     // Force capture to be in a color space. If the value is ui::Dataspace::UNKNOWN, the captured
-    // result will be in the display's colorspace.
+    // result will be in a colorspace appropriate for capturing the display contents
     // The display may use non-RGB dataspace (ex. displayP3) that could cause pixel data could be
     // different from SRGB (byte per color), and failed when checking colors in tests.
     // NOTE: In normal cases, we want the screen to be captured in display's colorspace.
@@ -53,6 +56,17 @@ struct CaptureArgs : public Parcelable {
     bool allowProtected = false;
 
     bool grayscale = false;
+
+    std::unordered_set<sp<IBinder>, SpHash<IBinder>> excludeHandles;
+
+    // Hint that the caller will use the screenshot animation as part of a transition animation.
+    // The canonical example would be screen rotation - in such a case any color shift in the
+    // screenshot is a detractor so composition in the display's colorspace is required.
+    // Otherwise, the system may choose a colorspace that is more appropriate for use-cases
+    // such as file encoding or for blending HDR content into an ap's UI, where the display's
+    // exact colorspace is not an appropriate intermediate result.
+    // Note that if the caller is requesting a specific dataspace, this hint does nothing.
+    bool hintForSeamlessTransition = false;
 
     virtual status_t writeToParcel(Parcel* output) const;
     virtual status_t readFromParcel(const Parcel* input);

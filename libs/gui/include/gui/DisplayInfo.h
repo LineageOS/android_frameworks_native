@@ -41,6 +41,8 @@ struct DisplayInfo : public Parcelable {
     status_t writeToParcel(android::Parcel*) const override;
 
     status_t readFromParcel(const android::Parcel*) override;
+
+    void dump(std::string& result, const char* prefix = "") const;
 };
 
 } // namespace android::gui

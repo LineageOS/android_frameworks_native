@@ -69,6 +69,7 @@ cc_defaults {
         "-Wno-unused-result",
         "-Wno-conversion",
         "-Wno-sign-compare",
+        "-Wno-unused-function",
     ],
     fuzz_config: {
         cc: [
@@ -125,5 +126,15 @@ cc_fuzz {
     ],
     srcs: [
         "surfaceflinger_layer_fuzzer.cpp",
+    ],
+}
+
+cc_fuzz {
+    name: "surfaceflinger_frametracer_fuzzer",
+    defaults: [
+        "surfaceflinger_fuzz_defaults",
+    ],
+    srcs: [
+        "surfaceflinger_frametracer_fuzzer.cpp",
     ],
 }

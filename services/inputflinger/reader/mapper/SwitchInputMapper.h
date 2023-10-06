@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef _UI_INPUTREADER_SWITCH_INPUT_MAPPER_H
-#define _UI_INPUTREADER_SWITCH_INPUT_MAPPER_H
+#pragma once
 
 #include "InputMapper.h"
 
@@ -23,11 +22,14 @@ namespace android {
 
 class SwitchInputMapper : public InputMapper {
 public:
-    explicit SwitchInputMapper(InputDeviceContext& deviceContext);
+    template <class T, class... Args>
+    friend std::unique_ptr<T> createInputMapper(InputDeviceContext& deviceContext,
+                                                const InputReaderConfiguration& readerConfig,
+                                                Args... args);
     virtual ~SwitchInputMapper();
 
     virtual uint32_t getSources() const override;
-    virtual void process(const RawEvent* rawEvent) override;
+    [[nodiscard]] std::list<NotifyArgs> process(const RawEvent* rawEvent) override;
 
     virtual int32_t getSwitchState(uint32_t sourceMask, int32_t switchCode) override;
     virtual void dump(std::string& dump) override;
@@ -36,10 +38,10 @@ private:
     uint32_t mSwitchValues;
     uint32_t mUpdatedSwitchMask;
 
+    explicit SwitchInputMapper(InputDeviceContext& deviceContext,
+                               const InputReaderConfiguration& readerConfig);
     void processSwitch(int32_t switchCode, int32_t switchValue);
-    void sync(nsecs_t when);
+    [[nodiscard]] std::list<NotifyArgs> sync(nsecs_t when);
 };
 
 } // namespace android
-
-#endif // _UI_INPUTREADER_SWITCH_INPUT_MAPPER_H

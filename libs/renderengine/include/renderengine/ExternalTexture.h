@@ -46,6 +46,8 @@ public:
     // Retrieves the buffer that is bound to this texture.
     virtual const sp<GraphicBuffer>& getBuffer() const = 0;
 
+    virtual void remapBuffer() = 0;
+
     Rect getBounds() const {
         return {0, 0, static_cast<int32_t>(getWidth()), static_cast<int32_t>(getHeight())};
     }

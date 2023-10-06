@@ -15,6 +15,8 @@
  */
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
+#include "FrontEnd/LayerCreationArgs.h"
+#include "FrontEnd/LayerSnapshot.h"
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wconversion"
 #pragma clang diagnostic ignored "-Wextra"
@@ -247,6 +249,218 @@ void LayerProtoHelper::readFromProto(const BlurRegion& proto, android::BlurRegio
     outRegion.right = proto.right();
     outRegion.bottom = proto.bottom();
 }
+
+LayersProto LayerProtoFromSnapshotGenerator::generate(const frontend::LayerHierarchy& root) {
+    mLayersProto.clear_layers();
+    std::unordered_set<uint64_t> stackIdsToSkip;
+    if ((mTraceFlags & LayerTracing::TRACE_VIRTUAL_DISPLAYS) == 0) {
+        for (const auto& [layerStack, displayInfo] : mDisplayInfos) {
+            if (displayInfo.isVirtual) {
+                stackIdsToSkip.insert(layerStack.id);
+            }
+        }
+    }
+
+    frontend::LayerHierarchy::TraversalPath path = frontend::LayerHierarchy::TraversalPath::ROOT;
+    for (auto& [child, variant] : root.mChildren) {
+        if (variant != frontend::LayerHierarchy::Variant::Attached ||
+            stackIdsToSkip.find(child->getLayer()->layerStack.id) != stackIdsToSkip.end()) {
+            continue;
+        }
+        frontend::LayerHierarchy::ScopedAddToTraversalPath addChildToPath(path,
+                                                                          child->getLayer()->id,
+                                                                          variant);
+        LayerProtoFromSnapshotGenerator::writeHierarchyToProto(*child, path);
+    }
+
+    // fill in relative and parent info
+    for (int i = 0; i < mLayersProto.layers_size(); i++) {
+        auto layerProto = mLayersProto.mutable_layers()->Mutable(i);
+        auto it = mChildToRelativeParent.find(layerProto->id());
+        if (it == mChildToRelativeParent.end()) {
+            layerProto->set_z_order_relative_of(-1);
+        } else {
+            layerProto->set_z_order_relative_of(it->second);
+        }
+        it = mChildToParent.find(layerProto->id());
+        if (it == mChildToParent.end()) {
+            layerProto->set_parent(-1);
+        } else {
+            layerProto->set_parent(it->second);
+        }
+    }
+
+    mDefaultSnapshots.clear();
+    mChildToRelativeParent.clear();
+    return std::move(mLayersProto);
+}
+
+frontend::LayerSnapshot* LayerProtoFromSnapshotGenerator::getSnapshot(
+        frontend::LayerHierarchy::TraversalPath& path, const frontend::RequestedLayerState& layer) {
+    frontend::LayerSnapshot* snapshot = mSnapshotBuilder.getSnapshot(path);
+    if (snapshot) {
+        return snapshot;
+    } else {
+        mDefaultSnapshots[path] = frontend::LayerSnapshot(layer, path);
+        return &mDefaultSnapshots[path];
+    }
+}
+
+void LayerProtoFromSnapshotGenerator::writeHierarchyToProto(
+        const frontend::LayerHierarchy& root, frontend::LayerHierarchy::TraversalPath& path) {
+    using Variant = frontend::LayerHierarchy::Variant;
+    LayerProto* layerProto = mLayersProto.add_layers();
+    const frontend::RequestedLayerState& layer = *root.getLayer();
+    frontend::LayerSnapshot* snapshot = getSnapshot(path, layer);
+    LayerProtoHelper::writeSnapshotToProto(layerProto, layer, *snapshot, mTraceFlags);
+
+    for (const auto& [child, variant] : root.mChildren) {
+        frontend::LayerHierarchy::ScopedAddToTraversalPath addChildToPath(path,
+                                                                          child->getLayer()->id,
+                                                                          variant);
+        frontend::LayerSnapshot* childSnapshot = getSnapshot(path, layer);
+        if (variant == Variant::Attached || variant == Variant::Detached ||
+            variant == Variant::Mirror) {
+            mChildToParent[childSnapshot->uniqueSequence] = snapshot->uniqueSequence;
+            layerProto->add_children(childSnapshot->uniqueSequence);
+        } else if (variant == Variant::Relative) {
+            mChildToRelativeParent[childSnapshot->uniqueSequence] = snapshot->uniqueSequence;
+            layerProto->add_relatives(childSnapshot->uniqueSequence);
+        }
+    }
+
+    if (mTraceFlags & LayerTracing::TRACE_COMPOSITION) {
+        auto it = mLegacyLayers.find(layer.id);
+        if (it != mLegacyLayers.end()) {
+            it->second->writeCompositionStateToProto(layerProto, snapshot->outputFilter.layerStack);
+        }
+    }
+
+    for (const auto& [child, variant] : root.mChildren) {
+        // avoid visiting relative layers twice
+        if (variant == Variant::Detached) {
+            continue;
+        }
+        frontend::LayerHierarchy::ScopedAddToTraversalPath addChildToPath(path,
+                                                                          child->getLayer()->id,
+                                                                          variant);
+        writeHierarchyToProto(*child, path);
+    }
+}
+
+void LayerProtoHelper::writeSnapshotToProto(LayerProto* layerInfo,
+                                            const frontend::RequestedLayerState& requestedState,
+                                            const frontend::LayerSnapshot& snapshot,
+                                            uint32_t traceFlags) {
+    const ui::Transform transform = snapshot.geomLayerTransform;
+    auto buffer = requestedState.externalTexture;
+    if (buffer != nullptr) {
+        LayerProtoHelper::writeToProto(*buffer,
+                                       [&]() { return layerInfo->mutable_active_buffer(); });
+        LayerProtoHelper::writeToProtoDeprecated(ui::Transform(requestedState.bufferTransform),
+                                                 layerInfo->mutable_buffer_transform());
+    }
+    layerInfo->set_invalidate(snapshot.contentDirty);
+    layerInfo->set_is_protected(snapshot.hasProtectedContent);
+    layerInfo->set_dataspace(dataspaceDetails(static_cast<android_dataspace>(snapshot.dataspace)));
+    layerInfo->set_curr_frame(requestedState.bufferData->frameNumber);
+    layerInfo->set_requested_corner_radius(requestedState.cornerRadius);
+    layerInfo->set_corner_radius(
+            (snapshot.roundedCorner.radius.x + snapshot.roundedCorner.radius.y) / 2.0);
+    layerInfo->set_background_blur_radius(snapshot.backgroundBlurRadius);
+    layerInfo->set_is_trusted_overlay(snapshot.isTrustedOverlay);
+    LayerProtoHelper::writeToProtoDeprecated(transform, layerInfo->mutable_transform());
+    LayerProtoHelper::writePositionToProto(transform.tx(), transform.ty(),
+                                           [&]() { return layerInfo->mutable_position(); });
+    LayerProtoHelper::writeToProto(snapshot.geomLayerBounds,
+                                   [&]() { return layerInfo->mutable_bounds(); });
+    LayerProtoHelper::writeToProto(snapshot.surfaceDamage,
+                                   [&]() { return layerInfo->mutable_damage_region(); });
+
+    if (requestedState.hasColorTransform) {
+        LayerProtoHelper::writeToProto(snapshot.colorTransform,
+                                       layerInfo->mutable_color_transform());
+    }
+
+    LayerProtoHelper::writeToProto(snapshot.croppedBufferSize.toFloatRect(),
+                                   [&]() { return layerInfo->mutable_source_bounds(); });
+    LayerProtoHelper::writeToProto(snapshot.transformedBounds,
+                                   [&]() { return layerInfo->mutable_screen_bounds(); });
+    LayerProtoHelper::writeToProto(snapshot.roundedCorner.cropRect,
+                                   [&]() { return layerInfo->mutable_corner_radius_crop(); });
+    layerInfo->set_shadow_radius(snapshot.shadowRadius);
+
+    layerInfo->set_id(snapshot.uniqueSequence);
+    layerInfo->set_original_id(snapshot.sequence);
+    if (!snapshot.path.isClone()) {
+        layerInfo->set_name(requestedState.name);
+    } else {
+        layerInfo->set_name(requestedState.name + "(Mirror)");
+    }
+    layerInfo->set_type("Layer");
+
+    LayerProtoHelper::writeToProto(requestedState.transparentRegion,
+                                   [&]() { return layerInfo->mutable_transparent_region(); });
+
+    layerInfo->set_layer_stack(snapshot.outputFilter.layerStack.id);
+    layerInfo->set_z(requestedState.z);
+
+    ui::Transform requestedTransform = requestedState.getTransform(0);
+    LayerProtoHelper::writePositionToProto(requestedTransform.tx(), requestedTransform.ty(), [&]() {
+        return layerInfo->mutable_requested_position();
+    });
+
+    LayerProtoHelper::writeToProto(requestedState.crop,
+                                   [&]() { return layerInfo->mutable_crop(); });
+
+    layerInfo->set_is_opaque(snapshot.contentOpaque);
+    if (requestedState.externalTexture)
+        layerInfo->set_pixel_format(
+                decodePixelFormat(requestedState.externalTexture->getPixelFormat()));
+    LayerProtoHelper::writeToProto(snapshot.color, [&]() { return layerInfo->mutable_color(); });
+    LayerProtoHelper::writeToProto(requestedState.color,
+                                   [&]() { return layerInfo->mutable_requested_color(); });
+    layerInfo->set_flags(requestedState.flags);
+
+    LayerProtoHelper::writeToProtoDeprecated(requestedTransform,
+                                             layerInfo->mutable_requested_transform());
+
+    layerInfo->set_is_relative_of(requestedState.isRelativeOf);
+
+    layerInfo->set_owner_uid(requestedState.ownerUid);
+
+    if ((traceFlags & LayerTracing::TRACE_INPUT) && snapshot.hasInputInfo()) {
+        LayerProtoHelper::writeToProto(snapshot.inputInfo, {},
+                                       [&]() { return layerInfo->mutable_input_window_info(); });
+    }
+
+    if (traceFlags & LayerTracing::TRACE_EXTRA) {
+        auto protoMap = layerInfo->mutable_metadata();
+        for (const auto& entry : requestedState.metadata.mMap) {
+            (*protoMap)[entry.first] = std::string(entry.second.cbegin(), entry.second.cend());
+        }
+    }
+
+    LayerProtoHelper::writeToProto(requestedState.destinationFrame,
+                                   [&]() { return layerInfo->mutable_destination_frame(); });
+}
+
+google::protobuf::RepeatedPtrField<DisplayProto> LayerProtoHelper::writeDisplayInfoToProto(
+        const display::DisplayMap<ui::LayerStack, frontend::DisplayInfo>& displayInfos) {
+    google::protobuf::RepeatedPtrField<DisplayProto> displays;
+    displays.Reserve(displayInfos.size());
+    for (const auto& [layerStack, displayInfo] : displayInfos) {
+        auto displayProto = displays.Add();
+        displayProto->set_id(displayInfo.info.displayId);
+        displayProto->set_layer_stack(layerStack.id);
+        displayProto->mutable_size()->set_w(displayInfo.info.logicalWidth);
+        displayProto->mutable_size()->set_h(displayInfo.info.logicalHeight);
+        writeTransformToProto(displayInfo.transform, displayProto->mutable_transform());
+        displayProto->set_is_virtual(displayInfo.isVirtual);
+    }
+    return displays;
+}
+
 } // namespace surfaceflinger
 } // namespace android
 

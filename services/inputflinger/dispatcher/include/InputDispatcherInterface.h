@@ -14,13 +14,12 @@
  * limitations under the License.
  */
 
-#ifndef _UI_INPUT_INPUTDISPATCHER_INPUTDISPATCHERINTERFACE_H
-#define _UI_INPUT_INPUTDISPATCHER_INPUTDISPATCHERINTERFACE_H
+#pragma once
 
 #include <InputListener.h>
 #include <android-base/result.h>
 #include <android/gui/FocusRequest.h>
-#include <android/os/BlockUntrustedTouchesMode.h>
+
 #include <android/os/InputEventInjectionResult.h>
 #include <android/os/InputEventInjectionSync.h>
 #include <gui/InputApplication.h>
@@ -126,13 +125,17 @@ public:
 
     /**
      * Set the touch mode state.
-     * Touch mode is a global state that apps may enter / exit based on specific
-     * user interactions with input devices.
-     * If true, the device is in touch mode.
+     * Touch mode is a per display state that apps may enter / exit based on specific user
+     * interactions with input devices. If <code>inTouchMode</code> is set to true, the display
+     * identified by <code>displayId</code> will be changed to touch mode. Performs a permission
+     * check if hasPermission is set to false.
+     *
+     * This method also enqueues a a TouchModeEntry message for dispatching.
      *
      * Returns true when changing touch mode state.
      */
-    virtual bool setInTouchMode(bool inTouchMode, int32_t pid, int32_t uid, bool hasPermission) = 0;
+    virtual bool setInTouchMode(bool inTouchMode, int32_t pid, int32_t uid, bool hasPermission,
+                                int32_t displayId) = 0;
 
     /**
      * Sets the maximum allowed obscuring opacity by UID to propagate touches.
@@ -141,13 +144,6 @@ public:
      * the windows above the touch-consuming window.
      */
     virtual void setMaximumObscuringOpacityForTouch(float opacity) = 0;
-
-    /**
-     * Sets the mode of the block untrusted touches feature.
-     *
-     * TODO(b/169067926): Clean-up feature modes.
-     */
-    virtual void setBlockUntrustedTouchesMode(android::os::BlockUntrustedTouchesMode mode) = 0;
 
     /* Transfers touch focus from one window to another window.
      *
@@ -229,8 +225,12 @@ public:
      * Abort the current touch stream.
      */
     virtual void cancelCurrentTouch() = 0;
+
+    /**
+     * Request that the InputDispatcher's configuration, which can be obtained through the policy,
+     * be updated.
+     */
+    virtual void requestRefreshConfiguration() = 0;
 };
 
 } // namespace android
-
-#endif // _UI_INPUT_INPUTDISPATCHER_INPUTDISPATCHERINTERFACE_H

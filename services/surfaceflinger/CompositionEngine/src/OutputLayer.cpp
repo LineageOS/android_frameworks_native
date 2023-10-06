@@ -340,10 +340,17 @@ void OutputLayer::updateCompositionState(
         state.dimmingRatio = 1.f;
         state.whitePointNits = getOutput().getState().displayBrightnessNits;
     } else {
-        state.dimmingRatio = std::clamp(getOutput().getState().sdrWhitePointNits /
-                                                getOutput().getState().displayBrightnessNits,
-                                        0.f, 1.f);
-        state.whitePointNits = getOutput().getState().sdrWhitePointNits;
+        float layerBrightnessNits = getOutput().getState().sdrWhitePointNits;
+        // RANGE_EXTENDED can "self-promote" to HDR, but is still rendered for a particular
+        // range that we may need to re-adjust to the current display conditions
+        if ((state.dataspace & HAL_DATASPACE_RANGE_MASK) == HAL_DATASPACE_RANGE_EXTENDED &&
+            layerFEState->currentHdrSdrRatio > 1.01f) {
+            layerBrightnessNits *= layerFEState->currentHdrSdrRatio;
+        }
+        state.dimmingRatio =
+                std::clamp(layerBrightnessNits / getOutput().getState().displayBrightnessNits, 0.f,
+                           1.f);
+        state.whitePointNits = layerBrightnessNits;
     }
 
     // These are evaluated every frame as they can potentially change at any
@@ -578,6 +585,7 @@ void OutputLayer::writeOutputIndependentPerFrameStateToHWC(
         case Composition::CURSOR:
         case Composition::DEVICE:
         case Composition::DISPLAY_DECORATION:
+        case Composition::REFRESH_RATE_INDICATOR:
             writeBufferStateToHWC(hwcLayer, outputIndependentState, skipLayer);
             break;
         case Composition::INVALID:
@@ -610,6 +618,40 @@ void OutputLayer::writeSidebandStateToHWC(HWC2::Layer* hwcLayer,
     }
 }
 
+void OutputLayer::uncacheBuffers(const std::vector<uint64_t>& bufferIdsToUncache) {
+    auto& state = editState();
+    // Skip doing this if there is no HWC interface
+    if (!state.hwc) {
+        return;
+    }
+
+    // Uncache the active buffer last so that it's the first buffer to be purged from the cache
+    // next time a buffer is sent to this layer.
+    bool uncacheActiveBuffer = false;
+
+    std::vector<uint32_t> slotsToClear;
+    for (uint64_t bufferId : bufferIdsToUncache) {
+        if (bufferId == state.hwc->activeBufferId) {
+            uncacheActiveBuffer = true;
+        } else {
+            uint32_t slot = state.hwc->hwcBufferCache.uncache(bufferId);
+            if (slot != UINT32_MAX) {
+                slotsToClear.push_back(slot);
+            }
+        }
+    }
+    if (uncacheActiveBuffer) {
+        slotsToClear.push_back(state.hwc->hwcBufferCache.uncache(state.hwc->activeBufferId));
+    }
+
+    hal::Error error =
+            state.hwc->hwcLayer->setBufferSlotsToClear(slotsToClear, state.hwc->activeBufferSlot);
+    if (error != hal::Error::NONE) {
+        ALOGE("[%s] Failed to clear buffer slots: %s (%d)", getLayerFE().getDebugName(),
+              to_string(error).c_str(), static_cast<int32_t>(error));
+    }
+}
+
 void OutputLayer::writeBufferStateToHWC(HWC2::Layer* hwcLayer,
                                         const LayerFECompositionState& outputIndependentState,
                                         bool skipLayer) {
@@ -622,27 +664,37 @@ void OutputLayer::writeBufferStateToHWC(HWC2::Layer* hwcLayer,
               to_string(error).c_str(), static_cast<int32_t>(error));
     }
 
-    sp<GraphicBuffer> buffer = outputIndependentState.buffer;
-    sp<Fence> acquireFence = outputIndependentState.acquireFence;
-    int slot = outputIndependentState.bufferSlot;
-    if (getState().overrideInfo.buffer != nullptr && !skipLayer) {
-        buffer = getState().overrideInfo.buffer->getBuffer();
-        acquireFence = getState().overrideInfo.acquireFence;
-        slot = HwcBufferCache::FLATTENER_CACHING_SLOT;
+    HwcSlotAndBuffer hwcSlotAndBuffer;
+    sp<Fence> hwcFence;
+    {
+        // Editing the state only because we update the HWC buffer cache and active buffer.
+        auto& state = editState();
+        // Override buffers use a special cache slot so that they don't evict client buffers.
+        if (state.overrideInfo.buffer != nullptr && !skipLayer) {
+            hwcSlotAndBuffer = state.hwc->hwcBufferCache.getOverrideHwcSlotAndBuffer(
+                    state.overrideInfo.buffer->getBuffer());
+            hwcFence = state.overrideInfo.acquireFence;
+            // Keep track of the active buffer ID so when it's discarded we uncache it last so its
+            // slot will be used first, allowing the memory to be freed as soon as possible.
+            state.hwc->activeBufferId = state.overrideInfo.buffer->getBuffer()->getId();
+        } else {
+            hwcSlotAndBuffer =
+                    state.hwc->hwcBufferCache.getHwcSlotAndBuffer(outputIndependentState.buffer);
+            hwcFence = outputIndependentState.acquireFence;
+            // Keep track of the active buffer ID so when it's discarded we uncache it last so its
+            // slot will be used first, allowing the memory to be freed as soon as possible.
+            state.hwc->activeBufferId = outputIndependentState.buffer->getId();
+        }
+        // Keep track of the active buffer slot, so we can restore it after clearing other buffer
+        // slots.
+        state.hwc->activeBufferSlot = hwcSlotAndBuffer.slot;
     }
 
-    ALOGV("Writing buffer %p", buffer.get());
-
-    uint32_t hwcSlot = 0;
-    sp<GraphicBuffer> hwcBuffer;
-    // We need access to the output-dependent state for the buffer cache there,
-    // though otherwise the buffer is not output-dependent.
-    editState().hwc->hwcBufferCache.getHwcBuffer(slot, buffer, &hwcSlot, &hwcBuffer);
-
-    if (auto error = hwcLayer->setBuffer(hwcSlot, hwcBuffer, acquireFence);
+    if (auto error = hwcLayer->setBuffer(hwcSlotAndBuffer.slot, hwcSlotAndBuffer.buffer, hwcFence);
         error != hal::Error::NONE) {
-        ALOGE("[%s] Failed to set buffer %p: %s (%d)", getLayerFE().getDebugName(), buffer->handle,
-              to_string(error).c_str(), static_cast<int32_t>(error));
+        ALOGE("[%s] Failed to set buffer %p: %s (%d)", getLayerFE().getDebugName(),
+              hwcSlotAndBuffer.buffer->handle, to_string(error).c_str(),
+              static_cast<int32_t>(error));
     }
 }
 
@@ -729,6 +781,7 @@ void OutputLayer::detectDisallowedCompositionTypeChange(Composition from, Compos
         case Composition::CURSOR:
         case Composition::SIDEBAND:
         case Composition::DISPLAY_DECORATION:
+        case Composition::REFRESH_RATE_INDICATOR:
             result = (to == Composition::CLIENT || to == Composition::DEVICE);
             break;
     }
@@ -787,7 +840,7 @@ bool OutputLayer::needsFiltering() const {
             sourceCrop.getWidth() != displayFrame.getWidth();
 }
 
-std::vector<LayerFE::LayerSettings> OutputLayer::getOverrideCompositionList() const {
+std::optional<LayerFE::LayerSettings> OutputLayer::getOverrideCompositionSettings() const {
     if (getState().overrideInfo.buffer == nullptr) {
         return {};
     }
@@ -816,7 +869,7 @@ std::vector<LayerFE::LayerSettings> OutputLayer::getOverrideCompositionList() co
     settings.alpha = 1.0f;
     settings.whitePointNits = getOutput().getState().sdrWhitePointNits;
 
-    return {static_cast<LayerFE::LayerSettings>(settings)};
+    return settings;
 }
 
 void OutputLayer::dump(std::string& out) const {

@@ -33,16 +33,20 @@ namespace power {
 // -------------------------------------------------------------------------------------------------
 
 std::unique_ptr<HalWrapper> HalConnector::connect() {
-    sp<IPower> halAidl = PowerHalLoader::loadAidl();
-    if (halAidl) {
+    if (sp<IPower> halAidl = PowerHalLoader::loadAidl()) {
         return std::make_unique<AidlHalWrapper>(halAidl);
     }
-    sp<V1_0::IPower> halHidlV1_0 = PowerHalLoader::loadHidlV1_0();
-    sp<V1_1::IPower> halHidlV1_1 = PowerHalLoader::loadHidlV1_1();
-    if (halHidlV1_1) {
-        return std::make_unique<HidlHalWrapperV1_1>(halHidlV1_0, halHidlV1_1);
-    }
-    if (halHidlV1_0) {
+    // If V1_0 isn't defined, none of them are
+    if (sp<V1_0::IPower> halHidlV1_0 = PowerHalLoader::loadHidlV1_0()) {
+        if (sp<V1_3::IPower> halHidlV1_3 = PowerHalLoader::loadHidlV1_3()) {
+            return std::make_unique<HidlHalWrapperV1_3>(halHidlV1_3);
+        }
+        if (sp<V1_2::IPower> halHidlV1_2 = PowerHalLoader::loadHidlV1_2()) {
+            return std::make_unique<HidlHalWrapperV1_2>(halHidlV1_2);
+        }
+        if (sp<V1_1::IPower> halHidlV1_1 = PowerHalLoader::loadHidlV1_1()) {
+            return std::make_unique<HidlHalWrapperV1_1>(halHidlV1_1);
+        }
         return std::make_unique<HidlHalWrapperV1_0>(halHidlV1_0);
     }
     return nullptr;

@@ -20,41 +20,18 @@
 #include "DisplayTransactionTestHelpers.h"
 
 namespace android {
-namespace {
 
 class HotplugTest : public DisplayTransactionTest {};
 
-TEST_F(HotplugTest, enqueuesEventsForDisplayTransaction) {
+TEST_F(HotplugTest, schedulesConfigureToProcessHotplugEvents) {
+    EXPECT_CALL(*mFlinger.scheduler(), scheduleConfigure()).Times(2);
+
     constexpr HWDisplayId hwcDisplayId1 = 456;
-    constexpr HWDisplayId hwcDisplayId2 = 654;
-
-    // --------------------------------------------------------------------
-    // Preconditions
-
-    // Set the main thread id so that the current thread does not appear to be
-    // the main thread.
-    mFlinger.mutableMainThreadId() = std::thread::id();
-
-    // --------------------------------------------------------------------
-    // Call Expectations
-
-    // We expect a scheduled commit for the display transaction.
-    EXPECT_CALL(*mFlinger.scheduler(), scheduleFrame()).Times(1);
-
-    // --------------------------------------------------------------------
-    // Invocation
-
-    // Simulate two hotplug events (a connect and a disconnect)
     mFlinger.onComposerHalHotplug(hwcDisplayId1, Connection::CONNECTED);
+
+    constexpr HWDisplayId hwcDisplayId2 = 654;
     mFlinger.onComposerHalHotplug(hwcDisplayId2, Connection::DISCONNECTED);
 
-    // --------------------------------------------------------------------
-    // Postconditions
-
-    // The display transaction needed flag should be set.
-    EXPECT_TRUE(hasTransactionFlagSet(eDisplayTransactionNeeded));
-
-    // All events should be in the pending event queue.
     const auto& pendingEvents = mFlinger.mutablePendingHotplugEvents();
     ASSERT_EQ(2u, pendingEvents.size());
     EXPECT_EQ(hwcDisplayId1, pendingEvents[0].hwcDisplayId);
@@ -63,49 +40,83 @@ TEST_F(HotplugTest, enqueuesEventsForDisplayTransaction) {
     EXPECT_EQ(Connection::DISCONNECTED, pendingEvents[1].connection);
 }
 
-TEST_F(HotplugTest, processesEnqueuedEventsIfCalledOnMainThread) {
-    constexpr HWDisplayId displayId1 = 456;
-
-    // --------------------------------------------------------------------
-    // Note:
-    // --------------------------------------------------------------------
-    // This test case is a bit tricky. We want to verify that
-    // onComposerHalHotplug() calls processDisplayHotplugEventsLocked(), but we
-    // don't really want to provide coverage for everything the later function
-    // does as there are specific tests for it.
-    // --------------------------------------------------------------------
-
-    // --------------------------------------------------------------------
-    // Preconditions
-
-    // Set the main thread id so that the current thread does appear to be the
-    // main thread.
-    mFlinger.mutableMainThreadId() = std::this_thread::get_id();
-
-    // --------------------------------------------------------------------
-    // Call Expectations
-
-    // We expect a scheduled commit for the display transaction.
+TEST_F(HotplugTest, schedulesFrameToCommitDisplayTransaction) {
+    EXPECT_CALL(*mFlinger.scheduler(), scheduleConfigure()).Times(1);
     EXPECT_CALL(*mFlinger.scheduler(), scheduleFrame()).Times(1);
 
-    // --------------------------------------------------------------------
-    // Invocation
-
-    // Simulate a disconnect on a display id that is not connected. This should
-    // be enqueued by onComposerHalHotplug(), and dequeued by
-    // processDisplayHotplugEventsLocked(), but then ignored as invalid.
+    constexpr HWDisplayId displayId1 = 456;
     mFlinger.onComposerHalHotplug(displayId1, Connection::DISCONNECTED);
+    mFlinger.configure();
 
-    // --------------------------------------------------------------------
-    // Postconditions
-
-    // The display transaction needed flag should be set.
-    EXPECT_TRUE(hasTransactionFlagSet(eDisplayTransactionNeeded));
-
-    // There should be no event queued on return, as it should have been
-    // processed.
+    // The configure stage should consume the hotplug queue and produce a display transaction.
     EXPECT_TRUE(mFlinger.mutablePendingHotplugEvents().empty());
+    EXPECT_TRUE(hasTransactionFlagSet(eDisplayTransactionNeeded));
 }
 
-} // namespace
+TEST_F(HotplugTest, ignoresDuplicateDisconnection) {
+    // Inject a primary display.
+    PrimaryDisplayVariant::injectHwcDisplay(this);
+
+    using ExternalDisplay = ExternalDisplayVariant;
+    ExternalDisplay::setupHwcHotplugCallExpectations(this);
+    ExternalDisplay::setupHwcGetActiveConfigCallExpectations(this);
+
+    // TODO(b/241286146): Remove this unnecessary call.
+    EXPECT_CALL(*mComposer,
+                setVsyncEnabled(ExternalDisplay::HWC_DISPLAY_ID, IComposerClient::Vsync::DISABLE))
+            .WillOnce(Return(Error::NONE));
+
+    // A single commit should be scheduled for both configure calls.
+    EXPECT_CALL(*mFlinger.scheduler(), scheduleFrame()).Times(1);
+
+    ExternalDisplay::injectPendingHotplugEvent(this, Connection::CONNECTED);
+    mFlinger.configure();
+
+    EXPECT_TRUE(hasPhysicalHwcDisplay(ExternalDisplay::HWC_DISPLAY_ID));
+
+    // Disconnecting a display that was already disconnected should be a no-op.
+    ExternalDisplay::injectPendingHotplugEvent(this, Connection::DISCONNECTED);
+    ExternalDisplay::injectPendingHotplugEvent(this, Connection::DISCONNECTED);
+    ExternalDisplay::injectPendingHotplugEvent(this, Connection::DISCONNECTED);
+    mFlinger.configure();
+
+    // The display should be scheduled for removal during the next commit. At this point, it should
+    // still exist but be marked as disconnected.
+    EXPECT_TRUE(hasPhysicalHwcDisplay(ExternalDisplay::HWC_DISPLAY_ID));
+    EXPECT_FALSE(mFlinger.getHwComposer().isConnected(ExternalDisplay::DISPLAY_ID::get()));
+}
+
+TEST_F(HotplugTest, rejectsHotplugIfFailedToLoadDisplayModes) {
+    // Inject a primary display.
+    PrimaryDisplayVariant::injectHwcDisplay(this);
+
+    using ExternalDisplay = ExternalDisplayVariant;
+    constexpr bool kFailedHotplug = true;
+    ExternalDisplay::setupHwcHotplugCallExpectations<kFailedHotplug>(this);
+
+    // Simulate a connect event that fails to load display modes due to HWC already having
+    // disconnected the display but SF yet having to process the queued disconnect event.
+    EXPECT_CALL(*mComposer, getActiveConfig(ExternalDisplay::HWC_DISPLAY_ID, _))
+            .WillRepeatedly(Return(Error::BAD_DISPLAY));
+
+    // TODO(b/241286146): Remove this unnecessary call.
+    EXPECT_CALL(*mComposer,
+                setVsyncEnabled(ExternalDisplay::HWC_DISPLAY_ID, IComposerClient::Vsync::DISABLE))
+            .WillOnce(Return(Error::NONE));
+
+    EXPECT_CALL(*mFlinger.scheduler(), scheduleFrame()).Times(1);
+
+    ExternalDisplay::injectPendingHotplugEvent(this, Connection::CONNECTED);
+    mFlinger.configure();
+
+    // The hotplug should be rejected, so no HWComposer::DisplayData should be created.
+    EXPECT_FALSE(hasPhysicalHwcDisplay(ExternalDisplay::HWC_DISPLAY_ID));
+
+    // Disconnecting a display that does not exist should be a no-op.
+    ExternalDisplay::injectPendingHotplugEvent(this, Connection::DISCONNECTED);
+    mFlinger.configure();
+
+    EXPECT_FALSE(hasPhysicalHwcDisplay(ExternalDisplay::HWC_DISPLAY_ID));
+}
+
 } // namespace android

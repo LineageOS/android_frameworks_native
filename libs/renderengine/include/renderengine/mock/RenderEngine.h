@@ -48,14 +48,13 @@ public:
     MOCK_METHOD0(cleanupPostRender, void());
     MOCK_CONST_METHOD0(canSkipPostRenderCleanup, bool());
     MOCK_METHOD5(drawLayers,
-                 std::future<RenderEngineResult>(const DisplaySettings&,
-                                                 const std::vector<LayerSettings>&,
-                                                 const std::shared_ptr<ExternalTexture>&,
-                                                 const bool, base::unique_fd&&));
+                 ftl::Future<FenceResult>(const DisplaySettings&, const std::vector<LayerSettings>&,
+                                          const std::shared_ptr<ExternalTexture>&, const bool,
+                                          base::unique_fd&&));
     MOCK_METHOD6(drawLayersInternal,
-                 void(const std::shared_ptr<std::promise<RenderEngineResult>>&&,
-                      const DisplaySettings&, const std::vector<LayerSettings>&,
-                      const std::shared_ptr<ExternalTexture>&, const bool, base::unique_fd&&));
+                 void(const std::shared_ptr<std::promise<FenceResult>>&&, const DisplaySettings&,
+                      const std::vector<LayerSettings>&, const std::shared_ptr<ExternalTexture>&,
+                      const bool, base::unique_fd&&));
     MOCK_METHOD0(cleanFramebufferCache, void());
     MOCK_METHOD0(getContextPriority, int());
     MOCK_METHOD0(supportsBackgroundBlur, bool());
@@ -64,7 +63,7 @@ public:
 protected:
     // mock renderengine still needs to implement these, but callers should never need to call them.
     void mapExternalTextureBuffer(const sp<GraphicBuffer>&, bool) {}
-    void unmapExternalTextureBuffer(const sp<GraphicBuffer>&) {}
+    void unmapExternalTextureBuffer(sp<GraphicBuffer>&&) {}
 };
 
 } // namespace mock

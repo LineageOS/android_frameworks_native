@@ -68,12 +68,18 @@ protected:
     int32_t mDeviceId;
 
     virtual void SetUp() override {
+#if !defined(__ANDROID__)
+        GTEST_SKIP() << "It's only possible to interact with uinput on device";
+#endif
         mEventHub = std::make_unique<EventHub>();
         consumeInitialDeviceAddedEvents();
         mKeyboard = createUinputDevice<UinputHomeKey>();
         ASSERT_NO_FATAL_FAILURE(mDeviceId = waitForDeviceCreation());
     }
     virtual void TearDown() override {
+#if !defined(__ANDROID__)
+        return;
+#endif
         mKeyboard.reset();
         waitForDeviceClose(mDeviceId);
         assertNoMoreEvents();
@@ -99,8 +105,6 @@ protected:
 };
 
 std::vector<RawEvent> EventHubTest::getEvents(std::optional<size_t> expectedEvents) {
-    static constexpr size_t EVENT_BUFFER_SIZE = 256;
-    std::array<RawEvent, EVENT_BUFFER_SIZE> eventBuffer;
     std::vector<RawEvent> events;
 
     while (true) {
@@ -108,12 +112,12 @@ std::vector<RawEvent> EventHubTest::getEvents(std::optional<size_t> expectedEven
         if (expectedEvents) {
             timeout = 2s;
         }
-        const size_t count =
-                mEventHub->getEvents(timeout.count(), eventBuffer.data(), eventBuffer.size());
-        if (count == 0) {
+
+        std::vector<RawEvent> newEvents = mEventHub->getEvents(timeout.count());
+        if (newEvents.empty()) {
             break;
         }
-        events.insert(events.end(), eventBuffer.begin(), eventBuffer.begin() + count);
+        events.insert(events.end(), newEvents.begin(), newEvents.end());
         if (expectedEvents && events.size() >= *expectedEvents) {
             break;
         }

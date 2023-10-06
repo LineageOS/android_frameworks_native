@@ -50,6 +50,9 @@ interface IDumpstateListener {
     /* There is currently a bugreport running. The caller should try again later. */
     const int BUGREPORT_ERROR_ANOTHER_REPORT_IN_PROGRESS = 5;
 
+    /* There is no bugreport to retrieve for the given caller. */
+    const int BUGREPORT_ERROR_NO_BUGREPORT_TO_RETRIEVE = 6;
+
     /**
      * Called on an error condition with one of the error codes listed above.
      */
@@ -57,8 +60,10 @@ interface IDumpstateListener {
 
     /**
      * Called when taking bugreport finishes successfully.
+     *
+     * @param bugreportFile The location of the bugreport file
      */
-    oneway void onFinished();
+    oneway void onFinished(@utf8InCpp String bugreportFile);
 
     /**
      * Called when screenshot is taken.

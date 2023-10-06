@@ -16,24 +16,45 @@
 
 #pragma once
 
+#include <bitset>
 #include <map>
 #include <optional>
 #include <set>
 #include <string>
+#include <vector>
 
 namespace android {
 
+template <size_t N>
+std::string bitsetToString(const std::bitset<N>& bitset) {
+    return bitset.to_string();
+}
+
 template <typename T>
-std::string constToString(const T& v) {
+inline std::string constToString(const T& v) {
     return std::to_string(v);
+}
+
+template <>
+inline std::string constToString(const bool& value) {
+    return value ? "true" : "false";
+}
+
+template <>
+inline std::string constToString(const std::vector<bool>::reference& value) {
+    return value ? "true" : "false";
+}
+
+inline std::string constToString(const std::string& s) {
+    return s;
 }
 
 /**
  * Convert an optional type to string.
  */
 template <typename T>
-std::string toString(const std::optional<T>& optional,
-                     std::string (*toString)(const T&) = constToString) {
+inline std::string toString(const std::optional<T>& optional,
+                            std::string (*toString)(const T&) = constToString) {
     return optional ? toString(*optional) : "<not set>";
 }
 
@@ -64,6 +85,19 @@ std::string dumpMap(const std::map<K, V>& map, std::string (*keyToString)(const 
         out += keyToString(k) + ":" + valueToString(v);
     }
     return out;
+}
+
+/**
+ * Convert a vector to a string. The values of the vector should be of a type supported by
+ * constToString.
+ */
+template <typename T>
+std::string dumpVector(std::vector<T> values) {
+    std::string dump = constToString(values[0]);
+    for (size_t i = 1; i < values.size(); i++) {
+        dump += ", " + constToString(values[i]);
+    }
+    return dump;
 }
 
 const char* toString(bool value);

@@ -173,6 +173,7 @@ message SurfaceflingerStatsLayerInfo {
          GAME_MODE_STANDARD = 2;
          GAME_MODE_PERFORMANCE = 3;
          GAME_MODE_BATTERY = 4;
+         GAME_MODE_CUSTOM = 5;
     }
 
     // Game mode that the layer was running at. Used to track user engagement
@@ -288,7 +289,11 @@ message SurfaceflingerStatsLayerInfo {
     // Introduced in Android 12.
     optional FrameTimingHistogram app_deadline_misses = 25;
 
-    // Next ID: 27
+    // Variability histogram of present_to_present timings.
+    // Introduced in Android 14.
+    optional FrameTimingHistogram present_to_present_delta = 27;
+
+    // Next ID: 28
 }
 
 /**

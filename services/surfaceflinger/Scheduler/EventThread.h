@@ -23,6 +23,7 @@
 #include <sys/types.h>
 #include <utils/Errors.h>
 
+#include <scheduler/FrameRateMode.h>
 #include <condition_variable>
 #include <cstdint>
 #include <deque>
@@ -32,6 +33,9 @@
 #include <vector>
 
 #include "DisplayHardware/DisplayMode.h"
+#include "TracedOrdinal.h"
+#include "VSyncDispatch.h"
+#include "VsyncSchedule.h"
 
 // ---------------------------------------------------------------------------
 namespace android {
@@ -63,36 +67,10 @@ enum class VSyncRequest {
     // Subsequent values are periods.
 };
 
-class VSyncSource {
-public:
-    class VSyncData {
-    public:
-        nsecs_t expectedPresentationTime;
-        nsecs_t deadlineTimestamp;
-    };
-
-    class Callback {
-    public:
-        virtual ~Callback() {}
-        virtual void onVSyncEvent(nsecs_t when, VSyncData vsyncData) = 0;
-    };
-
-    virtual ~VSyncSource() {}
-
-    virtual const char* getName() const = 0;
-    virtual void setVSyncEnabled(bool enable) = 0;
-    virtual void setCallback(Callback* callback) = 0;
-    virtual void setDuration(std::chrono::nanoseconds workDuration,
-                             std::chrono::nanoseconds readyDuration) = 0;
-    virtual VSyncData getLatestVSyncData() const = 0;
-
-    virtual void dump(std::string& result) const = 0;
-};
-
 class EventThreadConnection : public gui::BnDisplayEventConnection {
 public:
     EventThreadConnection(EventThread*, uid_t callingUid, ResyncCallback,
-                          ISurfaceComposer::EventRegistrationFlags eventRegistration = {});
+                          EventRegistrationFlags eventRegistration = {});
     virtual ~EventThreadConnection();
 
     virtual status_t postEvent(const DisplayEventReceiver::Event& event);
@@ -107,7 +85,10 @@ public:
 
     VSyncRequest vsyncRequest = VSyncRequest::None;
     const uid_t mOwnerUid;
-    const ISurfaceComposer::EventRegistrationFlags mEventRegistration;
+    const EventRegistrationFlags mEventRegistration;
+
+    /** The frame rate set to the attached choreographer. */
+    Fps frameRate;
 
 private:
     virtual void onFirstRef();
@@ -123,19 +104,15 @@ public:
     virtual ~EventThread();
 
     virtual sp<EventThreadConnection> createEventConnection(
-            ResyncCallback,
-            ISurfaceComposer::EventRegistrationFlags eventRegistration = {}) const = 0;
+            ResyncCallback, EventRegistrationFlags eventRegistration = {}) const = 0;
 
-    // called before the screen is turned off from main thread
-    virtual void onScreenReleased() = 0;
-
-    // called after the screen is turned on from main thread
-    virtual void onScreenAcquired() = 0;
+    // Feed clients with fake VSYNC, e.g. while the display is off.
+    virtual void enableSyntheticVsync(bool) = 0;
 
     virtual void onHotplugReceived(PhysicalDisplayId displayId, bool connected) = 0;
 
     // called when SF changes the active mode and apps needs to be notified about the change
-    virtual void onModeChanged(DisplayModePtr) = 0;
+    virtual void onModeChanged(const scheduler::FrameRateMode&) = 0;
 
     // called when SF updates the Frame Rate Override list
     virtual void onFrameRateOverridesChanged(PhysicalDisplayId displayId,
@@ -156,23 +133,24 @@ public:
 
     // Retrieves the number of event connections tracked by this EventThread.
     virtual size_t getEventThreadConnectionCount() = 0;
+
+    virtual void onNewVsyncSchedule(std::shared_ptr<scheduler::VsyncSchedule>) = 0;
 };
 
 namespace impl {
 
-class EventThread : public android::EventThread, private VSyncSource::Callback {
+class EventThread : public android::EventThread {
 public:
-    using InterceptVSyncsCallback = std::function<void(nsecs_t)>;
     using ThrottleVsyncCallback = std::function<bool(nsecs_t, uid_t)>;
     using GetVsyncPeriodFunction = std::function<nsecs_t(uid_t)>;
 
-    EventThread(std::unique_ptr<VSyncSource>, frametimeline::TokenManager*, InterceptVSyncsCallback,
-                ThrottleVsyncCallback, GetVsyncPeriodFunction);
+    EventThread(const char* name, std::shared_ptr<scheduler::VsyncSchedule>,
+                frametimeline::TokenManager*, ThrottleVsyncCallback, GetVsyncPeriodFunction,
+                std::chrono::nanoseconds workDuration, std::chrono::nanoseconds readyDuration);
     ~EventThread();
 
     sp<EventThreadConnection> createEventConnection(
-            ResyncCallback,
-            ISurfaceComposer::EventRegistrationFlags eventRegistration = {}) const override;
+            ResyncCallback, EventRegistrationFlags eventRegistration = {}) const override;
 
     status_t registerDisplayEventConnection(const sp<EventThreadConnection>& connection) override;
     void setVsyncRate(uint32_t rate, const sp<EventThreadConnection>& connection) override;
@@ -180,15 +158,11 @@ public:
     VsyncEventData getLatestVsyncEventData(
             const sp<EventThreadConnection>& connection) const override;
 
-    // called before the screen is turned off from main thread
-    void onScreenReleased() override;
-
-    // called after the screen is turned on from main thread
-    void onScreenAcquired() override;
+    void enableSyntheticVsync(bool) override;
 
     void onHotplugReceived(PhysicalDisplayId displayId, bool connected) override;
 
-    void onModeChanged(DisplayModePtr) override;
+    void onModeChanged(const scheduler::FrameRateMode&) override;
 
     void onFrameRateOverridesChanged(PhysicalDisplayId displayId,
                                      std::vector<FrameRateOverride> overrides) override;
@@ -199,6 +173,8 @@ public:
                      std::chrono::nanoseconds readyDuration) override;
 
     size_t getEventThreadConnectionCount() override;
+
+    void onNewVsyncSchedule(std::shared_ptr<scheduler::VsyncSchedule>) override EXCLUDES(mMutex);
 
 private:
     friend EventThreadTest;
@@ -215,8 +191,7 @@ private:
     void removeDisplayEventConnectionLocked(const wp<EventThreadConnection>& connection)
             REQUIRES(mMutex);
 
-    // Implements VSyncSource::Callback
-    void onVSyncEvent(nsecs_t timestamp, VSyncSource::VSyncData vsyncData) override;
+    void onVsync(nsecs_t vsyncTime, nsecs_t wakeupTime, nsecs_t readyTime);
 
     int64_t generateToken(nsecs_t timestamp, nsecs_t deadlineTimestamp,
                           nsecs_t expectedPresentationTime) const;
@@ -224,13 +199,24 @@ private:
                                nsecs_t timestamp, nsecs_t preferredExpectedPresentationTime,
                                nsecs_t preferredDeadlineTimestamp) const;
 
-    const std::unique_ptr<VSyncSource> mVSyncSource GUARDED_BY(mMutex);
+    scheduler::VSyncDispatch::Callback createDispatchCallback();
+
+    // Returns the old registration so it can be destructed outside the lock to
+    // avoid deadlock.
+    scheduler::VSyncCallbackRegistration onNewVsyncScheduleInternal(
+            std::shared_ptr<scheduler::VsyncSchedule>) EXCLUDES(mMutex);
+
+    const char* const mThreadName;
+    TracedOrdinal<int> mVsyncTracer;
+    TracedOrdinal<std::chrono::nanoseconds> mWorkDuration GUARDED_BY(mMutex);
+    std::chrono::nanoseconds mReadyDuration GUARDED_BY(mMutex);
+    std::shared_ptr<scheduler::VsyncSchedule> mVsyncSchedule GUARDED_BY(mMutex);
+    TimePoint mLastVsyncCallbackTime GUARDED_BY(mMutex) = TimePoint::now();
+    scheduler::VSyncCallbackRegistration mVsyncRegistration GUARDED_BY(mMutex);
     frametimeline::TokenManager* const mTokenManager;
 
-    const InterceptVSyncsCallback mInterceptVSyncsCallback;
     const ThrottleVsyncCallback mThrottleVsyncCallback;
     const GetVsyncPeriodFunction mGetVsyncPeriodFunction;
-    const char* const mThreadName;
 
     std::thread mThread;
     mutable std::mutex mMutex;

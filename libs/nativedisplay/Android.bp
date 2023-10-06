@@ -53,6 +53,7 @@ cc_library_shared {
     version_script: "libnativedisplay.map.txt",
 
     srcs: [
+        ":libgui_frame_event_aidl",
         "AChoreographer.cpp",
         "ADisplay.cpp",
         "surfacetexture/surface_texture.cpp",

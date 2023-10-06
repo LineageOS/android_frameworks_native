@@ -23,7 +23,9 @@ namespace renderengine {
 namespace mock {
 
 class FakeExternalTexture : public renderengine::ExternalTexture {
-    const sp<GraphicBuffer> mNullBuffer = nullptr;
+    const sp<GraphicBuffer> mEmptyBuffer =
+            sp<GraphicBuffer>::make(1u, 1u, PIXEL_FORMAT_RGBA_8888,
+                                    GRALLOC_USAGE_SW_WRITE_OFTEN | GRALLOC_USAGE_SW_READ_OFTEN);
     uint32_t mWidth;
     uint32_t mHeight;
     uint64_t mId;
@@ -34,7 +36,7 @@ public:
     FakeExternalTexture(uint32_t width, uint32_t height, uint64_t id, PixelFormat pixelFormat,
                         uint64_t usage)
           : mWidth(width), mHeight(height), mId(id), mPixelFormat(pixelFormat), mUsage(usage) {}
-    const sp<GraphicBuffer>& getBuffer() const { return mNullBuffer; }
+    const sp<GraphicBuffer>& getBuffer() const { return mEmptyBuffer; }
     bool hasSameBuffer(const renderengine::ExternalTexture& other) const override {
         return getId() == other.getId();
     }
@@ -43,6 +45,7 @@ public:
     uint64_t getId() const override { return mId; }
     PixelFormat getPixelFormat() const override { return mPixelFormat; }
     uint64_t getUsage() const override { return mUsage; }
+    void remapBuffer() override {}
     ~FakeExternalTexture() = default;
 };
 

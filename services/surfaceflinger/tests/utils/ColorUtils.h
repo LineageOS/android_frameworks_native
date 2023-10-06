@@ -33,6 +33,10 @@ struct Color {
     static const Color WHITE;
     static const Color BLACK;
     static const Color TRANSPARENT;
+
+    half3 toHalf3() { return half3{r / 255.0f, g / 255.0f, b / 255.0f}; }
+
+    half4 toHalf4() { return half4{r / 255.0f, g / 255.0f, b / 255.0f, a / 255.0f}; }
 };
 
 const Color Color::RED{255, 0, 0, 255};
@@ -80,6 +84,14 @@ public:
             }
         }
         color = ret;
+    }
+
+    static half3 toHalf3(const Color& color) {
+        return half3{color.r / 255.0f, color.g / 255.0f, color.b / 255.0f};
+    }
+
+    static half4 toHalf4(const Color& color) {
+        return half4{color.r / 255.0f, color.g / 255.0f, color.b / 255.0f, color.a / 255.0f};
     }
 };
 } // namespace

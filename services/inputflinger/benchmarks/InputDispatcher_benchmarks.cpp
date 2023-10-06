@@ -48,10 +48,8 @@ static nsecs_t now() {
 
 class FakeInputDispatcherPolicy : public InputDispatcherPolicyInterface {
 public:
-    FakeInputDispatcherPolicy() {}
-
-protected:
-    virtual ~FakeInputDispatcherPolicy() {}
+    FakeInputDispatcherPolicy() = default;
+    virtual ~FakeInputDispatcherPolicy() = default;
 
 private:
     void notifyConfigurationChanged(nsecs_t) override {}
@@ -82,26 +80,23 @@ private:
 
     void notifyVibratorState(int32_t deviceId, bool isOn) override {}
 
-    void notifyUntrustedTouch(const std::string& obscuringPackage) override {}
+    InputDispatcherConfiguration getDispatcherConfiguration() override { return mConfig; }
 
-    void getDispatcherConfiguration(InputDispatcherConfiguration* outConfig) override {
-        *outConfig = mConfig;
+    bool filterInputEvent(const InputEvent& inputEvent, uint32_t policyFlags) override {
+        return true; // dispatch event normally
     }
 
-    bool filterInputEvent(const InputEvent* inputEvent, uint32_t policyFlags) override {
-        return true;
-    }
-
-    void interceptKeyBeforeQueueing(const KeyEvent*, uint32_t&) override {}
+    void interceptKeyBeforeQueueing(const KeyEvent&, uint32_t&) override {}
 
     void interceptMotionBeforeQueueing(int32_t, nsecs_t, uint32_t&) override {}
 
-    nsecs_t interceptKeyBeforeDispatching(const sp<IBinder>&, const KeyEvent*, uint32_t) override {
+    nsecs_t interceptKeyBeforeDispatching(const sp<IBinder>&, const KeyEvent&, uint32_t) override {
         return 0;
     }
 
-    bool dispatchUnhandledKey(const sp<IBinder>&, const KeyEvent*, uint32_t, KeyEvent*) override {
-        return false;
+    std::optional<KeyEvent> dispatchUnhandledKey(const sp<IBinder>&, const KeyEvent&,
+                                                 uint32_t) override {
+        return {};
     }
 
     void notifySwitch(nsecs_t, uint32_t, uint32_t, uint32_t) override {}
@@ -143,7 +138,7 @@ public:
                 ALOGE("Waited too long for consumer to produce an event, giving up");
                 break;
             }
-            result = mConsumer->consume(&mEventFactory, true /*consumeBatches*/, -1, &consumeSeq,
+            result = mConsumer->consume(&mEventFactory, /*consumeBatches=*/true, -1, &consumeSeq,
                                         &event);
         }
         if (result != OK) {
@@ -209,7 +204,7 @@ static MotionEvent generateMotionEvent() {
 
     pointerProperties[0].clear();
     pointerProperties[0].id = 0;
-    pointerProperties[0].toolType = AMOTION_EVENT_TOOL_TYPE_FINGER;
+    pointerProperties[0].toolType = ToolType::FINGER;
 
     pointerCoords[0].clear();
     pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_X, 100);
@@ -237,7 +232,7 @@ static NotifyMotionArgs generateMotionArgs() {
 
     pointerProperties[0].clear();
     pointerProperties[0].id = 0;
-    pointerProperties[0].toolType = AMOTION_EVENT_TOOL_TYPE_FINGER;
+    pointerProperties[0].toolType = ToolType::FINGER;
 
     pointerCoords[0].clear();
     pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_X, 100);
@@ -260,14 +255,15 @@ static NotifyMotionArgs generateMotionArgs() {
 
 static void benchmarkNotifyMotion(benchmark::State& state) {
     // Create dispatcher
-    sp<FakeInputDispatcherPolicy> fakePolicy = new FakeInputDispatcherPolicy();
+    FakeInputDispatcherPolicy fakePolicy;
     InputDispatcher dispatcher(fakePolicy);
     dispatcher.setInputDispatchMode(/*enabled*/ true, /*frozen*/ false);
     dispatcher.start();
 
     // Create a window that will receive motion events
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
-    sp<FakeWindowHandle> window = new FakeWindowHandle(application, dispatcher, "Fake Window");
+    sp<FakeWindowHandle> window =
+            sp<FakeWindowHandle>::make(application, dispatcher, "Fake Window");
 
     dispatcher.setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
 
@@ -278,12 +274,12 @@ static void benchmarkNotifyMotion(benchmark::State& state) {
         motionArgs.action = AMOTION_EVENT_ACTION_DOWN;
         motionArgs.downTime = now();
         motionArgs.eventTime = motionArgs.downTime;
-        dispatcher.notifyMotion(&motionArgs);
+        dispatcher.notifyMotion(motionArgs);
 
         // Send ACTION_UP
         motionArgs.action = AMOTION_EVENT_ACTION_UP;
         motionArgs.eventTime = now();
-        dispatcher.notifyMotion(&motionArgs);
+        dispatcher.notifyMotion(motionArgs);
 
         window->consumeEvent();
         window->consumeEvent();
@@ -294,27 +290,28 @@ static void benchmarkNotifyMotion(benchmark::State& state) {
 
 static void benchmarkInjectMotion(benchmark::State& state) {
     // Create dispatcher
-    sp<FakeInputDispatcherPolicy> fakePolicy = new FakeInputDispatcherPolicy();
+    FakeInputDispatcherPolicy fakePolicy;
     InputDispatcher dispatcher(fakePolicy);
     dispatcher.setInputDispatchMode(/*enabled*/ true, /*frozen*/ false);
     dispatcher.start();
 
     // Create a window that will receive motion events
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
-    sp<FakeWindowHandle> window = new FakeWindowHandle(application, dispatcher, "Fake Window");
+    sp<FakeWindowHandle> window =
+            sp<FakeWindowHandle>::make(application, dispatcher, "Fake Window");
 
     dispatcher.setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
 
     for (auto _ : state) {
         MotionEvent event = generateMotionEvent();
         // Send ACTION_DOWN
-        dispatcher.injectInputEvent(&event, {} /*targetUid*/, InputEventInjectionSync::NONE,
+        dispatcher.injectInputEvent(&event, /*targetUid=*/{}, InputEventInjectionSync::NONE,
                                     INJECT_EVENT_TIMEOUT,
                                     POLICY_FLAG_FILTERED | POLICY_FLAG_PASS_TO_USER);
 
         // Send ACTION_UP
         event.setAction(AMOTION_EVENT_ACTION_UP);
-        dispatcher.injectInputEvent(&event, {} /*targetUid*/, InputEventInjectionSync::NONE,
+        dispatcher.injectInputEvent(&event, /*targetUid=*/{}, InputEventInjectionSync::NONE,
                                     INJECT_EVENT_TIMEOUT,
                                     POLICY_FLAG_FILTERED | POLICY_FLAG_PASS_TO_USER);
 
@@ -327,14 +324,15 @@ static void benchmarkInjectMotion(benchmark::State& state) {
 
 static void benchmarkOnWindowInfosChanged(benchmark::State& state) {
     // Create dispatcher
-    sp<FakeInputDispatcherPolicy> fakePolicy = new FakeInputDispatcherPolicy();
+    FakeInputDispatcherPolicy fakePolicy;
     InputDispatcher dispatcher(fakePolicy);
     dispatcher.setInputDispatchMode(/*enabled*/ true, /*frozen*/ false);
     dispatcher.start();
 
     // Create a window
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
-    sp<FakeWindowHandle> window = new FakeWindowHandle(application, dispatcher, "Fake Window");
+    sp<FakeWindowHandle> window =
+            sp<FakeWindowHandle>::make(application, dispatcher, "Fake Window");
 
     std::vector<gui::WindowInfo> windowInfos{*window->getInfo()};
     gui::DisplayInfo info;
@@ -342,8 +340,10 @@ static void benchmarkOnWindowInfosChanged(benchmark::State& state) {
     std::vector<gui::DisplayInfo> displayInfos{info};
 
     for (auto _ : state) {
-        dispatcher.onWindowInfosChanged(windowInfos, displayInfos);
-        dispatcher.onWindowInfosChanged({} /*windowInfos*/, {} /*displayInfos*/);
+        dispatcher.onWindowInfosChanged(
+                {windowInfos, displayInfos, /*vsyncId=*/0, /*timestamp=*/0});
+        dispatcher.onWindowInfosChanged(
+                {/*windowInfos=*/{}, /*displayInfos=*/{}, /*vsyncId=*/{}, /*timestamp=*/0});
     }
     dispatcher.stop();
 }

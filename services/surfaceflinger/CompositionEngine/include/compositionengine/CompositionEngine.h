@@ -18,8 +18,9 @@
 
 #include <TimeStats/TimeStats.h>
 #include <utils/Timers.h>
-
 #include <memory>
+
+#include "Feature.h"
 
 namespace android {
 
@@ -55,9 +56,9 @@ public:
     virtual void setHwComposer(std::unique_ptr<HWComposer>) = 0;
 
     virtual renderengine::RenderEngine& getRenderEngine() const = 0;
-    virtual void setRenderEngine(std::unique_ptr<renderengine::RenderEngine>) = 0;
+    virtual void setRenderEngine(renderengine::RenderEngine*) = 0;
 
-    virtual TimeStats& getTimeStats() const = 0;
+    virtual TimeStats* getTimeStats() const = 0;
     virtual void setTimeStats(const std::shared_ptr<TimeStats>&) = 0;
 
     virtual bool needsAnotherUpdate() const = 0;
@@ -71,6 +72,8 @@ public:
 
     // TODO(b/121291683): These will become private/internal
     virtual void preComposition(CompositionRefreshArgs&) = 0;
+
+    virtual FeatureFlags getFeatureFlags() const = 0;
 
     // Debugging
     virtual void dump(std::string&) const = 0;

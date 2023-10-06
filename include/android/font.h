@@ -31,6 +31,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <sys/cdefs.h>
 
 /******************************************************************
@@ -86,10 +87,11 @@ enum {
     AFONT_WEIGHT_MAX = 1000
 };
 
+struct AFont;
 /**
  * AFont provides information of the single font configuration.
  */
-struct AFont;
+typedef struct AFont AFont;
 
 /**
  * Close an AFont.

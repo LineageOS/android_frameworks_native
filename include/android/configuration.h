@@ -471,10 +471,36 @@ enum {
      */
     ACONFIGURATION_COLOR_MODE = 0x10000,
     /**
+     * Bit mask for
+     * <a href="/guide/topics/resources/providing-resources.html#GrammaticalInflectionQualifier">grammatical gender</a>
+     * configuration.
+     */
+    ACONFIGURATION_GRAMMATICAL_GENDER = 0x20000,
+    /**
      * Constant used to to represent MNC (Mobile Network Code) zero.
      * 0 cannot be used, since it is used to represent an undefined MNC.
      */
     ACONFIGURATION_MNC_ZERO = 0xffff,
+
+    /**
+     * <a href="/guide/topics/resources/providing-resources.html#GrammaticalInflectionQualifier">Grammatical gender</a>: not specified.
+     */
+    ACONFIGURATION_GRAMMATICAL_GENDER_ANY = 0,
+
+    /**
+     * <a href="/guide/topics/resources/providing-resources.html#GrammaticalInflectionQualifier">Grammatical gender</a>: neuter.
+     */
+    ACONFIGURATION_GRAMMATICAL_GENDER_NEUTER = 1,
+
+    /**
+     * <a href="/guide/topics/resources/providing-resources.html#GrammaticalInflectionQualifier">Grammatical gender</a>: feminine.
+     */
+    ACONFIGURATION_GRAMMATICAL_GENDER_FEMININE = 2,
+
+    /**
+     * <a href="/guide/topics/resources/providing-resources.html#GrammaticalInflectionQualifier">Grammatical gender</a>: masculine.
+     */
+    ACONFIGURATION_GRAMMATICAL_GENDER_MASCULINE = 3,
 };
 
 /**
@@ -724,6 +750,24 @@ int32_t AConfiguration_getLayoutDirection(AConfiguration* config) __INTRODUCED_I
  * Available since API level 17.
  */
 void AConfiguration_setLayoutDirection(AConfiguration* config, int32_t value) __INTRODUCED_IN(17);
+
+/**
+ * Return the configuration's grammatical gender, or ACONFIGURATION_GRAMMATICAL_GENDER_ANY if
+ * not set.
+ *
+ * Available since API level 34.
+ */
+int32_t AConfiguration_getGrammaticalGender(AConfiguration* config)
+    __INTRODUCED_IN(__ANDROID_API_U__);
+
+/**
+ * Set the configuration's grammatical gender to one of the
+ * ACONFIGURATION_GRAMMATICAL_GENDER_* constants.
+ *
+ * Available since API level 34.
+ */
+void AConfiguration_setGrammaticalGender(AConfiguration* config, int32_t value)
+    __INTRODUCED_IN(__ANDROID_API_U__);
 
 /**
  * Perform a diff between two configurations.  Returns a bit mask of

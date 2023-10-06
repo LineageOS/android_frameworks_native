@@ -57,6 +57,7 @@ enum class PublicFormat {
     YCBCR_P010 = 0x36,
     DEPTH16 = 0x44363159,
     DEPTH_JPEG = 0x69656963,
+    JPEG_R = 0x1005,
     HEIC = 0x48454946,
 };
 

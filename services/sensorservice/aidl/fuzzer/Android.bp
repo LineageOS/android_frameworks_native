@@ -19,7 +19,7 @@ cc_fuzz {
         "libpermission",
         "android.frameworks.sensorservice-V1-ndk",
         "android.hardware.sensors-V1-convert",
-        "android.hardware.sensors-V1-ndk",
+        "android.hardware.sensors-V2-ndk",
         "android.hardware.common-V2-ndk",
         "libsensor",
         "libfakeservicemanager",
