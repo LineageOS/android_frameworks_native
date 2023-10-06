@@ -451,6 +451,12 @@ public:
 
     /* Returns true if any InputConnection is currently active. */
     virtual bool isInputMethodConnectionActive() = 0;
+
+    /* Gets the viewport of a particular display. The logical bounds of the viewport should be used
+     * as the range of possible values for pointing devices, like mice and touchpads.
+     */
+    virtual std::optional<DisplayViewport> getViewportForPointerDevice(
+            int32_t associatedDisplayId) = 0;
 };
 
 } // namespace android

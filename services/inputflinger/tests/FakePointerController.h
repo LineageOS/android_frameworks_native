@@ -40,6 +40,7 @@ public:
     bool isPointerShown();
 
 private:
+    std::string dump() override { return ""; }
     std::optional<FloatRect> getBounds() const override;
     void move(float deltaX, float deltaY) override;
     void fade(Transition) override;
@@ -52,7 +53,7 @@ private:
     bool mHaveBounds{false};
     float mMinX{0}, mMinY{0}, mMaxX{0}, mMaxY{0};
     float mX{0}, mY{0};
-    int32_t mDisplayId{ADISPLAY_ID_DEFAULT};
+    int32_t mDisplayId{ADISPLAY_ID_NONE};
     bool mIsPointerShown{false};
 
     std::map<int32_t, std::vector<int32_t>> mSpotsByDisplay;

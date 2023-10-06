@@ -38,7 +38,10 @@ public:
      * library, libinputservice, that has the additional dependencies. The PointerController
      * will be mocked when testing PointerChoreographer.
      */
-    virtual std::shared_ptr<PointerControllerInterface> createPointerController() = 0;
+    virtual std::shared_ptr<PointerControllerInterface> createPointerController(
+            PointerControllerInterface::ControllerType type) = 0;
+
+    virtual void notifyPointerDisplayIdChanged(int32_t displayId, const FloatPoint& position) = 0;
 };
 
 } // namespace android
