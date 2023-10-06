@@ -1006,6 +1006,7 @@ void LayerSnapshotBuilder::updateShadows(LayerSnapshot& snapshot, const Requeste
         snapshot.shadowSettings.ambientColor *= snapshot.alpha;
         snapshot.shadowSettings.spotColor *= snapshot.alpha;
     }
+    snapshot.shadowSettings.length = snapshot.shadowRadius;
 }
 
 void LayerSnapshotBuilder::updateInput(LayerSnapshot& snapshot,
