@@ -227,7 +227,7 @@ static base::unique_fd connectToUnixBootstrap(const RpcTransportFd& transportFd)
     std::vector<std::variant<base::unique_fd, base::borrowed_fd>> fds;
     fds.emplace_back(std::move(sockServer));
 
-    if (sendMessageOnSocket(transportFd, &iov, 1, &fds) < 0) {
+    if (binder::os::sendMessageOnSocket(transportFd, &iov, 1, &fds) < 0) {
         int savedErrno = errno;
         LOG(FATAL) << "Failed sendMessageOnSocket: " << strerror(savedErrno);
     }
@@ -1589,7 +1589,7 @@ public:
             int buf;
             iovec iov{&buf, sizeof(buf)};
 
-            if (receiveMessageFromSocket(mFd, &iov, 1, &fds) < 0) {
+            if (binder::os::receiveMessageFromSocket(mFd, &iov, 1, &fds) < 0) {
                 int savedErrno = errno;
                 LOG(FATAL) << "Failed receiveMessage: " << strerror(savedErrno);
             }
