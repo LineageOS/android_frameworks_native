@@ -625,9 +625,9 @@ void Scheduler::onLayerDestroyed(Layer* layer) {
 }
 
 void Scheduler::recordLayerHistory(int32_t id, const LayerProps& layerProps, nsecs_t presentTime,
-                                   LayerHistory::LayerUpdateType updateType) {
+                                   nsecs_t now, LayerHistory::LayerUpdateType updateType) {
     if (pacesetterSelectorPtr()->canSwitch()) {
-        mLayerHistory.record(id, layerProps, presentTime, systemTime(), updateType);
+        mLayerHistory.record(id, layerProps, presentTime, now, updateType);
     }
 }
 

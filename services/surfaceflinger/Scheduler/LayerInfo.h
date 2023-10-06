@@ -62,6 +62,7 @@ class LayerInfo {
     static constexpr size_t kNumSmallDirtyThreshold = 2;
 
     friend class LayerHistoryTest;
+    friend class LayerHistoryIntegrationTest;
     friend class LayerInfoTest;
 
 public:
@@ -264,6 +265,7 @@ private:
 
     private:
         friend class LayerHistoryTest;
+        friend class LayerHistoryIntegrationTest;
 
         // Holds the refresh rate when it was calculated
         struct RefreshRateData {
