@@ -588,10 +588,10 @@ void Output::ensureOutputLayerIfVisible(sp<compositionengine::LayerFE>& layerFE,
     const Rect visibleRect(tr.transform(layerFEState->geomLayerBounds));
     visibleRegion.set(visibleRect);
 
-    if (layerFEState->shadowRadius > 0.0f) {
+    if (layerFEState->shadowSettings.length > 0.0f) {
         // if the layer casts a shadow, offset the layers visible region and
         // calculate the shadow region.
-        const auto inset = static_cast<int32_t>(ceilf(layerFEState->shadowRadius) * -1.0f);
+        const auto inset = static_cast<int32_t>(ceilf(layerFEState->shadowSettings.length) * -1.0f);
         Rect visibleRectWithShadows(visibleRect);
         visibleRectWithShadows.inset(inset, inset, inset, inset);
         visibleRegion.set(visibleRectWithShadows);

@@ -419,7 +419,7 @@ private:
         bool colorMatrixChanged = true;
         mat4 colorMatrix;
 
-        renderengine::ShadowSettings globalShadowSettings;
+        ShadowSettings globalShadowSettings;
 
         void traverse(const LayerVector::Visitor& visitor) const;
         void traverseInZOrder(const LayerVector::Visitor& visitor) const;

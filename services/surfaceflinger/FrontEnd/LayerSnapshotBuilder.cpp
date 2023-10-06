@@ -353,7 +353,7 @@ LayerSnapshot LayerSnapshotBuilder::getRootSnapshot() {
     snapshot.isSecure = false;
     snapshot.color.a = 1.0_hf;
     snapshot.colorTransformIsIdentity = true;
-    snapshot.shadowRadius = 0.f;
+    snapshot.shadowSettings.length = 0.f;
     snapshot.layerMetadata.mMap.clear();
     snapshot.relativeLayerMetadata.mMap.clear();
     snapshot.inputInfo.touchOcclusionMode = gui::TouchOcclusionMode::BLOCK_UNTRUSTED;
@@ -990,9 +990,12 @@ void LayerSnapshotBuilder::updateLayerBounds(LayerSnapshot& snapshot,
 }
 
 void LayerSnapshotBuilder::updateShadows(LayerSnapshot& snapshot, const RequestedLayerState&,
-                                         const renderengine::ShadowSettings& globalShadowSettings) {
-    if (snapshot.shadowRadius > 0.f) {
-        snapshot.shadowSettings = globalShadowSettings;
+                                         const ShadowSettings& globalShadowSettings) {
+    if (snapshot.shadowSettings.length > 0.f) {
+        snapshot.shadowSettings.ambientColor = globalShadowSettings.ambientColor;
+        snapshot.shadowSettings.spotColor = globalShadowSettings.spotColor;
+        snapshot.shadowSettings.lightPos = globalShadowSettings.lightPos;
+        snapshot.shadowSettings.lightRadius = globalShadowSettings.lightRadius;
 
         // Note: this preserves existing behavior of shadowing the entire layer and not cropping
         // it if transparent regions are present. This may not be necessary since shadows are
@@ -1006,7 +1009,6 @@ void LayerSnapshotBuilder::updateShadows(LayerSnapshot& snapshot, const Requeste
         snapshot.shadowSettings.ambientColor *= snapshot.alpha;
         snapshot.shadowSettings.spotColor *= snapshot.alpha;
     }
-    snapshot.shadowSettings.length = snapshot.shadowRadius;
 }
 
 void LayerSnapshotBuilder::updateInput(LayerSnapshot& snapshot,

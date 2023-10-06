@@ -56,7 +56,7 @@ bool LayerTraceGenerator::generate(const perfetto::protos::TransactionTraceFile&
     frontend::LayerSnapshotBuilder snapshotBuilder;
     ui::DisplayMap<ui::LayerStack, frontend::DisplayInfo> displayInfos;
 
-    renderengine::ShadowSettings globalShadowSettings{.ambientColor = {1, 1, 1, 1}};
+    ShadowSettings globalShadowSettings{.ambientColor = {1, 1, 1, 1}};
     char value[PROPERTY_VALUE_MAX];
     property_get("ro.surface_flinger.supports_background_blur", value, "0");
     bool supportsBlur = atoi(value);

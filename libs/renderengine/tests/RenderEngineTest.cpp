@@ -403,7 +403,7 @@ public:
     }
 
     void expectShadowColor(const renderengine::LayerSettings& castingLayer,
-                           const renderengine::ShadowSettings& shadow, const ubyte4& casterColor,
+                           const ShadowSettings& shadow, const ubyte4& casterColor,
                            const ubyte4& backgroundColor) {
         const Rect casterRect(castingLayer.geometry.boundaries);
         Region casterRegion = Region(casterRect);
@@ -443,8 +443,7 @@ public:
                           backgroundColor.a);
     }
 
-    void expectShadowColorWithoutCaster(const FloatRect& casterBounds,
-                                        const renderengine::ShadowSettings& shadow,
+    void expectShadowColorWithoutCaster(const FloatRect& casterBounds, const ShadowSettings& shadow,
                                         const ubyte4& backgroundColor) {
         const float shadowInset = shadow.length * -1.0f;
         const Rect casterRect(casterBounds);
@@ -463,9 +462,9 @@ public:
                           backgroundColor.a);
     }
 
-    static renderengine::ShadowSettings getShadowSettings(const vec2& casterPos, float shadowLength,
-                                                          bool casterIsTranslucent) {
-        renderengine::ShadowSettings shadow;
+    static ShadowSettings getShadowSettings(const vec2& casterPos, float shadowLength,
+                                            bool casterIsTranslucent) {
+        ShadowSettings shadow;
         shadow.ambientColor = {0.0f, 0.0f, 0.0f, 0.039f};
         shadow.spotColor = {0.0f, 0.0f, 0.0f, 0.19f};
         shadow.lightPos = vec3(casterPos.x, casterPos.y, 0);
@@ -602,12 +601,10 @@ public:
     void fillGreenColorBufferThenClearRegion();
 
     template <typename SourceVariant>
-    void drawShadow(const renderengine::LayerSettings& castingLayer,
-                    const renderengine::ShadowSettings& shadow, const ubyte4& casterColor,
-                    const ubyte4& backgroundColor);
+    void drawShadow(const renderengine::LayerSettings& castingLayer, const ShadowSettings& shadow,
+                    const ubyte4& casterColor, const ubyte4& backgroundColor);
 
-    void drawShadowWithoutCaster(const FloatRect& castingBounds,
-                                 const renderengine::ShadowSettings& shadow,
+    void drawShadowWithoutCaster(const FloatRect& castingBounds, const ShadowSettings& shadow,
                                  const ubyte4& backgroundColor);
 
     // Tonemaps grey values from sourceDataspace -> Display P3 and checks that GPU and CPU
@@ -1337,8 +1334,8 @@ void RenderEngineTest::fillBufferWithoutPremultiplyAlpha() {
 
 template <typename SourceVariant>
 void RenderEngineTest::drawShadow(const renderengine::LayerSettings& castingLayer,
-                                  const renderengine::ShadowSettings& shadow,
-                                  const ubyte4& casterColor, const ubyte4& backgroundColor) {
+                                  const ShadowSettings& shadow, const ubyte4& casterColor,
+                                  const ubyte4& backgroundColor) {
     renderengine::DisplaySettings settings;
     settings.outputDataspace = ui::Dataspace::V0_SRGB_LINEAR;
     settings.physicalDisplay = fullscreenRect();
@@ -1374,7 +1371,7 @@ void RenderEngineTest::drawShadow(const renderengine::LayerSettings& castingLaye
 }
 
 void RenderEngineTest::drawShadowWithoutCaster(const FloatRect& castingBounds,
-                                               const renderengine::ShadowSettings& shadow,
+                                               const ShadowSettings& shadow,
                                                const ubyte4& backgroundColor) {
     renderengine::DisplaySettings settings;
     settings.outputDataspace = ui::Dataspace::V0_SRGB_LINEAR;
@@ -2103,9 +2100,8 @@ TEST_P(RenderEngineTest, drawLayers_fillShadow_castsWithoutCasterLayer) {
     const float shadowLength = 5.0f;
     Rect casterBounds(DEFAULT_DISPLAY_WIDTH / 3.0f, DEFAULT_DISPLAY_HEIGHT / 3.0f);
     casterBounds.offsetBy(shadowLength + 1, shadowLength + 1);
-    renderengine::ShadowSettings settings =
-            getShadowSettings(vec2(casterBounds.left, casterBounds.top), shadowLength,
-                              false /* casterIsTranslucent */);
+    ShadowSettings settings = getShadowSettings(vec2(casterBounds.left, casterBounds.top),
+                                                shadowLength, false /* casterIsTranslucent */);
 
     drawShadowWithoutCaster(casterBounds.toFloatRect(), settings, backgroundColor);
     expectShadowColorWithoutCaster(casterBounds.toFloatRect(), settings, backgroundColor);
@@ -2127,9 +2123,8 @@ TEST_P(RenderEngineTest, drawLayers_fillShadow_casterLayerMinSize) {
     renderengine::LayerSettings castingLayer;
     castingLayer.geometry.boundaries = casterBounds.toFloatRect();
     castingLayer.alpha = 1.0f;
-    renderengine::ShadowSettings settings =
-            getShadowSettings(vec2(casterBounds.left, casterBounds.top), shadowLength,
-                              false /* casterIsTranslucent */);
+    ShadowSettings settings = getShadowSettings(vec2(casterBounds.left, casterBounds.top),
+                                                shadowLength, false /* casterIsTranslucent */);
 
     drawShadow<ColorSourceVariant>(castingLayer, settings, casterColor, backgroundColor);
     expectShadowColor(castingLayer, settings, casterColor, backgroundColor);
@@ -2152,9 +2147,8 @@ TEST_P(RenderEngineTest, drawLayers_fillShadow_casterColorLayer) {
     castingLayer.sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR;
     castingLayer.geometry.boundaries = casterBounds.toFloatRect();
     castingLayer.alpha = 1.0f;
-    renderengine::ShadowSettings settings =
-            getShadowSettings(vec2(casterBounds.left, casterBounds.top), shadowLength,
-                              false /* casterIsTranslucent */);
+    ShadowSettings settings = getShadowSettings(vec2(casterBounds.left, casterBounds.top),
+                                                shadowLength, false /* casterIsTranslucent */);
 
     drawShadow<ColorSourceVariant>(castingLayer, settings, casterColor, backgroundColor);
     expectShadowColor(castingLayer, settings, casterColor, backgroundColor);
@@ -2177,9 +2171,8 @@ TEST_P(RenderEngineTest, drawLayers_fillShadow_casterOpaqueBufferLayer) {
     castingLayer.sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR;
     castingLayer.geometry.boundaries = casterBounds.toFloatRect();
     castingLayer.alpha = 1.0f;
-    renderengine::ShadowSettings settings =
-            getShadowSettings(vec2(casterBounds.left, casterBounds.top), shadowLength,
-                              false /* casterIsTranslucent */);
+    ShadowSettings settings = getShadowSettings(vec2(casterBounds.left, casterBounds.top),
+                                                shadowLength, false /* casterIsTranslucent */);
 
     drawShadow<BufferSourceVariant<ForceOpaqueBufferVariant>>(castingLayer, settings, casterColor,
                                                               backgroundColor);
@@ -2204,9 +2197,8 @@ TEST_P(RenderEngineTest, drawLayers_fillShadow_casterWithRoundedCorner) {
     castingLayer.geometry.roundedCornersRadius = {3.0f, 3.0f};
     castingLayer.geometry.roundedCornersCrop = casterBounds.toFloatRect();
     castingLayer.alpha = 1.0f;
-    renderengine::ShadowSettings settings =
-            getShadowSettings(vec2(casterBounds.left, casterBounds.top), shadowLength,
-                              false /* casterIsTranslucent */);
+    ShadowSettings settings = getShadowSettings(vec2(casterBounds.left, casterBounds.top),
+                                                shadowLength, false /* casterIsTranslucent */);
 
     drawShadow<BufferSourceVariant<ForceOpaqueBufferVariant>>(castingLayer, settings, casterColor,
                                                               backgroundColor);
@@ -2227,9 +2219,8 @@ TEST_P(RenderEngineTest, drawLayers_fillShadow_translucentCasterWithAlpha) {
     renderengine::LayerSettings castingLayer;
     castingLayer.geometry.boundaries = casterBounds.toFloatRect();
     castingLayer.alpha = 0.5f;
-    renderengine::ShadowSettings settings =
-            getShadowSettings(vec2(casterBounds.left, casterBounds.top), shadowLength,
-                              true /* casterIsTranslucent */);
+    ShadowSettings settings = getShadowSettings(vec2(casterBounds.left, casterBounds.top),
+                                                shadowLength, true /* casterIsTranslucent */);
 
     drawShadow<BufferSourceVariant<RelaxOpaqueBufferVariant>>(castingLayer, settings, casterColor,
                                                               backgroundColor);

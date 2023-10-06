@@ -859,7 +859,6 @@ TEST_F(LayerSnapshotTest, setShadowRadius) {
     setShadowRadius(1, SHADOW_RADIUS);
     UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
     EXPECT_EQ(getSnapshot(1)->shadowSettings.length, SHADOW_RADIUS);
-    EXPECT_EQ(getSnapshot(1)->shadowRadius, SHADOW_RADIUS);
 }
 
 } // namespace android::surfaceflinger::frontend

@@ -19,6 +19,7 @@
 
 #include <gui/fake/BufferData.h>
 #include <renderengine/mock/FakeExternalTexture.h>
+#include <ui/ShadowSettings.h>
 
 #include "Client.h" // temporarily needed for LayerCreationArgs
 #include "FrontEnd/LayerCreationArgs.h"
@@ -488,7 +489,7 @@ protected:
     DisplayInfos mFrontEndDisplayInfos;
     bool mHasDisplayChanges = false;
 
-    renderengine::ShadowSettings globalShadowSettings;
+    ShadowSettings globalShadowSettings;
 };
 
 } // namespace android::surfaceflinger::frontend

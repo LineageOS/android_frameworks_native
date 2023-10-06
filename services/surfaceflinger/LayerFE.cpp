@@ -310,7 +310,7 @@ void LayerFE::prepareBufferStateClientComposition(
 
 void LayerFE::prepareShadowClientComposition(LayerFE::LayerSettings& caster,
                                              const Rect& layerStackRect) const {
-    renderengine::ShadowSettings state = mSnapshot->shadowSettings;
+    ShadowSettings state = mSnapshot->shadowSettings;
     if (state.length <= 0.f || (state.ambientColor.a <= 0.f && state.spotColor.a <= 0.f)) {
         return;
     }
