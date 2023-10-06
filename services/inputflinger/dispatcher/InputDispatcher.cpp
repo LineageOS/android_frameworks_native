@@ -25,6 +25,7 @@
 #include <android-base/stringprintf.h>
 #include <android/os/IInputConstants.h>
 #include <binder/Binder.h>
+#include <com_android_input_flags.h>
 #include <ftl/enum.h>
 #include <log/log_event_list.h>
 #if defined(__ANDROID__)
@@ -67,6 +68,7 @@ using android::gui::WindowInfo;
 using android::gui::WindowInfoHandle;
 using android::os::InputEventInjectionResult;
 using android::os::InputEventInjectionSync;
+namespace input_flags = com::android::input::flags;
 
 namespace android::inputdispatcher {
 
@@ -670,11 +672,11 @@ std::vector<TouchedWindow> getHoveringWindowsLocked(const TouchState* oldState,
             // This pointer was already sent to the window. Use ACTION_HOVER_MOVE.
             if (CC_UNLIKELY(maskedAction != AMOTION_EVENT_ACTION_HOVER_MOVE)) {
                 android::base::LogSeverity severity = android::base::LogSeverity::FATAL;
-                if (entry.flags & AMOTION_EVENT_FLAG_IS_ACCESSIBILITY_EVENT) {
+                if (!input_flags::a11y_crash_on_inconsistent_event_stream() &&
+                    entry.flags & AMOTION_EVENT_FLAG_IS_ACCESSIBILITY_EVENT) {
                     // The Accessibility injected touch exploration event stream
                     // has known inconsistencies, so log ERROR instead of
                     // crashing the device with FATAL.
-                    // TODO(b/299977100): Move a11y severity back to FATAL.
                     severity = android::base::LogSeverity::ERROR;
                 }
                 LOG(severity) << "Expected ACTION_HOVER_MOVE instead of " << entry.getDescription();

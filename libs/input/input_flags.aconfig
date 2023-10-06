@@ -34,3 +34,10 @@ flag {
   description: "Set to true to enable multi-device input: touch and stylus can be active at the same time, but in different windows"
   bug: "211379801"
 }
+
+flag {
+  name: "a11y_crash_on_inconsistent_event_stream"
+  namespace: "accessibility"
+  description: "Brings back fatal logging for inconsistent event streams originating from accessibility."
+  bug: "299977100"
+}
