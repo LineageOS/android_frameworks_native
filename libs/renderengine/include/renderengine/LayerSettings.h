@@ -28,6 +28,7 @@
 #include <ui/GraphicTypes.h>
 #include <ui/Rect.h>
 #include <ui/Region.h>
+#include <ui/ShadowSettings.h>
 #include <ui/StretchEffect.h>
 #include <ui/Transform.h>
 
@@ -97,36 +98,6 @@ struct PixelSource {
     half3 solidColor = half3(0.0f, 0.0f, 0.0f);
 };
 
-/*
- * Contains the configuration for the shadows drawn by single layer. Shadow follows
- * material design guidelines.
- */
-struct ShadowSettings {
-    // Boundaries of the shadow.
-    FloatRect boundaries = FloatRect();
-
-    // Color to the ambient shadow. The alpha is premultiplied.
-    vec4 ambientColor = vec4();
-
-    // Color to the spot shadow. The alpha is premultiplied. The position of the spot shadow
-    // depends on the light position.
-    vec4 spotColor = vec4();
-
-    // Position of the light source used to cast the spot shadow.
-    vec3 lightPos = vec3();
-
-    // Radius of the spot light source. Smaller radius will have sharper edges,
-    // larger radius will have softer shadows
-    float lightRadius = 0.f;
-
-    // Length of the cast shadow. If length is <= 0.f no shadows will be drawn.
-    float length = 0.f;
-
-    // If true fill in the casting layer is translucent and the shadow needs to fill the bounds.
-    // Otherwise the shadow will only be drawn around the edges of the casting layer.
-    bool casterIsTranslucent = false;
-};
-
 // The settings that RenderEngine requires for correctly rendering a Layer.
 struct LayerSettings {
     // Geometry information
@@ -192,17 +163,6 @@ static inline bool operator==(const Geometry& lhs, const Geometry& rhs) {
 
 static inline bool operator==(const PixelSource& lhs, const PixelSource& rhs) {
     return lhs.buffer == rhs.buffer && lhs.solidColor == rhs.solidColor;
-}
-
-static inline bool operator==(const ShadowSettings& lhs, const ShadowSettings& rhs) {
-    return lhs.boundaries == rhs.boundaries && lhs.ambientColor == rhs.ambientColor &&
-            lhs.spotColor == rhs.spotColor && lhs.lightPos == rhs.lightPos &&
-            lhs.lightRadius == rhs.lightRadius && lhs.length == rhs.length &&
-            lhs.casterIsTranslucent == rhs.casterIsTranslucent;
-}
-
-static inline bool operator!=(const ShadowSettings& lhs, const ShadowSettings& rhs) {
-    return !(operator==(lhs, rhs));
 }
 
 static inline bool operator==(const LayerSettings& lhs, const LayerSettings& rhs) {

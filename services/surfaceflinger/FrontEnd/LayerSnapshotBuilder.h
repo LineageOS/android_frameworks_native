@@ -47,7 +47,7 @@ public:
         const DisplayInfos& displays;
         // Set to true if there were display changes since last update.
         bool displayChanges = false;
-        const renderengine::ShadowSettings& globalShadowSettings;
+        const ShadowSettings& globalShadowSettings;
         bool supportsBlur = true;
         bool forceFullDamage = false;
         std::optional<FloatRect> parentCrop = std::nullopt;
@@ -108,7 +108,7 @@ private:
     void updateLayerBounds(LayerSnapshot& snapshot, const RequestedLayerState& layerState,
                            const LayerSnapshot& parentSnapshot, uint32_t displayRotationFlags);
     static void updateShadows(LayerSnapshot& snapshot, const RequestedLayerState& requested,
-                              const renderengine::ShadowSettings& globalShadowSettings);
+                              const ShadowSettings& globalShadowSettings);
     void updateInput(LayerSnapshot& snapshot, const RequestedLayerState& requested,
                      const LayerSnapshot& parentSnapshot, const LayerHierarchy::TraversalPath& path,
                      const Args& args);

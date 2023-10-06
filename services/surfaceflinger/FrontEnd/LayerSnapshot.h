@@ -69,7 +69,6 @@ struct LayerSnapshot : public compositionengine::LayerFECompositionState {
     RoundedCornerState roundedCorner;
     FloatRect transformedBounds;
     Rect transformedBoundsWithoutTransparentRegion;
-    renderengine::ShadowSettings shadowSettings;
     bool premultipliedAlpha;
     ui::Transform parentTransform;
     Rect bufferSize;

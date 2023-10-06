@@ -1830,7 +1830,7 @@ TEST_F(OutputEnsureOutputLayerIfVisibleTest, coverageAccumulatesWithShadowsTest)
     ui::Transform translate;
     translate.set(50, 50);
     mLayer.layerFEState.geomLayerTransform = translate;
-    mLayer.layerFEState.shadowRadius = 10.0f;
+    mLayer.layerFEState.shadowSettings.length = 10.0f;
 
     mCoverageState.dirtyRegion = Region(Rect(0, 0, 500, 500));
     // half of the layer including the casting shadow is covered and opaque
@@ -1872,7 +1872,7 @@ TEST_F(OutputEnsureOutputLayerIfVisibleTest, shadowRegionOnlyTest) {
     ui::Transform translate;
     translate.set(50, 50);
     mLayer.layerFEState.geomLayerTransform = translate;
-    mLayer.layerFEState.shadowRadius = 10.0f;
+    mLayer.layerFEState.shadowSettings.length = 10.0f;
 
     mCoverageState.dirtyRegion = Region(Rect(0, 0, 500, 500));
     // Casting layer is covered by an opaque region leaving only part of its shadow to be drawn
@@ -1897,7 +1897,7 @@ TEST_F(OutputEnsureOutputLayerIfVisibleTest, takesNotSoEarlyOutifLayerWithShadow
     ui::Transform translate;
     translate.set(50, 50);
     mLayer.layerFEState.geomLayerTransform = translate;
-    mLayer.layerFEState.shadowRadius = 10.0f;
+    mLayer.layerFEState.shadowSettings.length = 10.0f;
 
     mCoverageState.dirtyRegion = Region(Rect(0, 0, 500, 500));
     // Casting layer and its shadows are covered by an opaque region

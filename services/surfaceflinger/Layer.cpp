@@ -572,7 +572,7 @@ void Layer::prepareBasicGeometryCompositionState() {
     snapshot->outputFilter = getOutputFilter();
     snapshot->isVisible = isVisible();
     snapshot->isOpaque = opaque && !usesRoundedCorners && alpha == 1.f;
-    snapshot->shadowRadius = mEffectiveShadowRadius;
+    snapshot->shadowSettings.length = mEffectiveShadowRadius;
 
     snapshot->contentDirty = contentDirty;
     contentDirty = false;

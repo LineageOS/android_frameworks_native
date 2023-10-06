@@ -402,7 +402,7 @@ void LayerProtoHelper::writeSnapshotToProto(perfetto::protos::LayerProto* layerI
                                    [&]() { return layerInfo->mutable_screen_bounds(); });
     LayerProtoHelper::writeToProto(snapshot.roundedCorner.cropRect,
                                    [&]() { return layerInfo->mutable_corner_radius_crop(); });
-    layerInfo->set_shadow_radius(snapshot.shadowRadius);
+    layerInfo->set_shadow_radius(snapshot.shadowSettings.length);
 
     layerInfo->set_id(snapshot.uniqueSequence);
     layerInfo->set_original_id(snapshot.sequence);

@@ -68,7 +68,7 @@ void LayerFECompositionState::dump(std::string& out) const {
     dumpVal(out, "geomLayerBounds", geomLayerBounds);
 
     out.append("      ");
-    dumpVal(out, "shadowRadius", shadowRadius);
+    dumpVal(out, "shadowLength", shadowSettings.length);
 
     out.append("\n      ");
     dumpVal(out, "blend", toString(blendMode), blendMode);
