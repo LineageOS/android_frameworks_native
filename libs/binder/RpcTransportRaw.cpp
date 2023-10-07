@@ -79,7 +79,7 @@ public:
                                         altPoll);
     }
 
-    virtual bool isWaiting() { return mSocket.isInPollingState(); }
+    bool isWaiting() override { return mSocket.isInPollingState(); }
 
 private:
     android::RpcTransportFd mSocket;
@@ -88,7 +88,8 @@ private:
 // RpcTransportCtx with TLS disabled.
 class RpcTransportCtxRaw : public RpcTransportCtx {
 public:
-    std::unique_ptr<RpcTransport> newTransport(android::RpcTransportFd socket, FdTrigger*) const {
+    std::unique_ptr<RpcTransport> newTransport(android::RpcTransportFd socket,
+                                               FdTrigger*) const override {
         return std::make_unique<RpcTransportRaw>(std::move(socket));
     }
     std::vector<uint8_t> getCertificate(RpcCertificateFormat) const override { return {}; }
