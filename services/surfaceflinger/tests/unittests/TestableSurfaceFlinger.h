@@ -604,6 +604,13 @@ public:
         return static_cast<mock::FrameTracer*>(mFlinger->mFrameTracer.get());
     }
 
+    void injectLegacyLayer(sp<Layer> layer) {
+        mFlinger->mLegacyLayers[static_cast<uint32_t>(layer->sequence)] = layer;
+    };
+
+    void releaseLegacyLayer(uint32_t sequence) { mFlinger->mLegacyLayers.erase(sequence); };
+
+    auto updateLayerHistory(nsecs_t now) { return mFlinger->updateLayerHistory(now); };
     /* ------------------------------------------------------------------------
      * Read-write access to private data to set up preconditions and assert
      * post-conditions.
@@ -644,8 +651,8 @@ public:
     }
 
     auto& mutableMinAcquiredBuffers() { return SurfaceFlinger::minAcquiredBuffers; }
-
     auto& mutableLayersPendingRemoval() { return mFlinger->mLayersPendingRemoval; }
+    auto& mutableLayerSnapshotBuilder() { return mFlinger->mLayerSnapshotBuilder; };
 
     auto fromHandle(const sp<IBinder>& handle) { return LayerHandle::getLayer(handle); }
 

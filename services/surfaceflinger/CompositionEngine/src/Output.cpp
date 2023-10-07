@@ -588,10 +588,10 @@ void Output::ensureOutputLayerIfVisible(sp<compositionengine::LayerFE>& layerFE,
     const Rect visibleRect(tr.transform(layerFEState->geomLayerBounds));
     visibleRegion.set(visibleRect);
 
-    if (layerFEState->shadowRadius > 0.0f) {
+    if (layerFEState->shadowSettings.length > 0.0f) {
         // if the layer casts a shadow, offset the layers visible region and
         // calculate the shadow region.
-        const auto inset = static_cast<int32_t>(ceilf(layerFEState->shadowRadius) * -1.0f);
+        const auto inset = static_cast<int32_t>(ceilf(layerFEState->shadowSettings.length) * -1.0f);
         Rect visibleRectWithShadows(visibleRect);
         visibleRectWithShadows.inset(inset, inset, inset, inset);
         visibleRegion.set(visibleRectWithShadows);
@@ -967,7 +967,7 @@ ui::Dataspace Output::getBestDataspace(ui::Dataspace* outHdrDataSpace,
             case ui::Dataspace::BT2020_ITU_HLG:
                 bestDataSpace = ui::Dataspace::DISPLAY_P3;
                 // When there's mixed PQ content and HLG content, we set the HDR
-                // data space to be BT2020_PQ and convert HLG to PQ.
+                // data space to be BT2020_HLG and convert PQ to HLG.
                 if (*outHdrDataSpace == ui::Dataspace::UNKNOWN) {
                     *outHdrDataSpace = ui::Dataspace::BT2020_HLG;
                 }

@@ -908,10 +908,10 @@ public:
     void callReleaseBufferCallback(const sp<ITransactionCompletedListener>& listener,
                                    const sp<GraphicBuffer>& buffer, uint64_t framenumber,
                                    const sp<Fence>& releaseFence);
-    bool setFrameRateForLayerTreeLegacy(FrameRate);
-    bool setFrameRateForLayerTree(FrameRate, const scheduler::LayerProps&);
-    void recordLayerHistoryBufferUpdate(const scheduler::LayerProps&);
-    void recordLayerHistoryAnimationTx(const scheduler::LayerProps&);
+    bool setFrameRateForLayerTreeLegacy(FrameRate, nsecs_t now);
+    bool setFrameRateForLayerTree(FrameRate, const scheduler::LayerProps&, nsecs_t now);
+    void recordLayerHistoryBufferUpdate(const scheduler::LayerProps&, nsecs_t now);
+    void recordLayerHistoryAnimationTx(const scheduler::LayerProps&, nsecs_t now);
     auto getLayerProps() const {
         return scheduler::LayerProps{
                 .visible = isVisible(),

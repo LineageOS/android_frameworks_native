@@ -334,7 +334,7 @@ TEST_F(OutputLayerDisplayFrameTest, outputTransformAffectsDisplayFrame) {
 
 TEST_F(OutputLayerDisplayFrameTest, shadowExpandsDisplayFrame) {
     const int kShadowRadius = 5;
-    mLayerFEState.shadowRadius = kShadowRadius;
+    mLayerFEState.shadowSettings.length = kShadowRadius;
     mLayerFEState.forceClientComposition = true;
 
     mLayerFEState.geomLayerBounds = FloatRect{100.f, 100.f, 200.f, 200.f};
@@ -345,7 +345,7 @@ TEST_F(OutputLayerDisplayFrameTest, shadowExpandsDisplayFrame) {
 
 TEST_F(OutputLayerDisplayFrameTest, shadowExpandsDisplayFrame_onlyIfForcingClientComposition) {
     const int kShadowRadius = 5;
-    mLayerFEState.shadowRadius = kShadowRadius;
+    mLayerFEState.shadowSettings.length = kShadowRadius;
     mLayerFEState.forceClientComposition = false;
 
     mLayerFEState.geomLayerBounds = FloatRect{100.f, 100.f, 200.f, 200.f};

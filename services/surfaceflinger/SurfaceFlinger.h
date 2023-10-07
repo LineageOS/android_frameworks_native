@@ -419,7 +419,7 @@ private:
         bool colorMatrixChanged = true;
         mat4 colorMatrix;
 
-        renderengine::ShadowSettings globalShadowSettings;
+        ShadowSettings globalShadowSettings;
 
         void traverse(const LayerVector::Visitor& visitor) const;
         void traverseInZOrder(const LayerVector::Visitor& visitor) const;
@@ -732,7 +732,7 @@ private:
                                     bool& out) REQUIRES(kMainThreadContext);
     bool updateLayerSnapshots(VsyncId vsyncId, nsecs_t frameTimeNs, bool transactionsFlushed,
                               bool& out) REQUIRES(kMainThreadContext);
-    void updateLayerHistory(const frontend::LayerSnapshot& snapshot);
+    void updateLayerHistory(nsecs_t now);
     frontend::Update flushLifecycleUpdates() REQUIRES(kMainThreadContext);
 
     void updateInputFlinger(VsyncId vsyncId, TimePoint frameTime);

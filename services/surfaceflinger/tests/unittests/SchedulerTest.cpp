@@ -192,7 +192,7 @@ TEST_F(SchedulerTest, chooseRefreshRateForContentIsNoopWhenModeSwitchingIsNotSup
 
     // recordLayerHistory should be a noop
     ASSERT_EQ(0u, mScheduler->getNumActiveLayers());
-    mScheduler->recordLayerHistory(layer->getSequence(), layer->getLayerProps(), 0,
+    mScheduler->recordLayerHistory(layer->getSequence(), layer->getLayerProps(), 0, 0,
                                    LayerHistory::LayerUpdateType::Buffer);
     ASSERT_EQ(0u, mScheduler->getNumActiveLayers());
 
@@ -218,7 +218,7 @@ TEST_F(SchedulerTest, updateDisplayModes) {
                                                                       kDisplay1Mode60->getId()));
 
     ASSERT_EQ(0u, mScheduler->getNumActiveLayers());
-    mScheduler->recordLayerHistory(layer->getSequence(), layer->getLayerProps(), 0,
+    mScheduler->recordLayerHistory(layer->getSequence(), layer->getLayerProps(), 0, 0,
                                    LayerHistory::LayerUpdateType::Buffer);
     ASSERT_EQ(1u, mScheduler->getNumActiveLayers());
 }
@@ -273,7 +273,7 @@ TEST_F(SchedulerTest, chooseRefreshRateForContentSelectsMaxRefreshRate) {
     const sp<MockLayer> layer = sp<MockLayer>::make(mFlinger.flinger());
     EXPECT_CALL(*layer, isVisible()).WillOnce(Return(true));
 
-    mScheduler->recordLayerHistory(layer->getSequence(), layer->getLayerProps(), 0,
+    mScheduler->recordLayerHistory(layer->getSequence(), layer->getLayerProps(), 0, systemTime(),
                                    LayerHistory::LayerUpdateType::Buffer);
 
     constexpr hal::PowerMode kPowerModeOn = hal::PowerMode::ON;
@@ -442,6 +442,63 @@ TEST_F(SchedulerTest, chooseDisplayModesMultipleDisplays) {
         const auto actualChoices = mScheduler->chooseDisplayModes();
         EXPECT_EQ(expectedChoices, actualChoices);
     }
+}
+
+TEST_F(SchedulerTest, onFrameSignalMultipleDisplays) {
+    mScheduler->registerDisplay(kDisplayId1,
+                                std::make_shared<RefreshRateSelector>(kDisplay1Modes,
+                                                                      kDisplay1Mode60->getId()));
+    mScheduler->registerDisplay(kDisplayId2,
+                                std::make_shared<RefreshRateSelector>(kDisplay2Modes,
+                                                                      kDisplay2Mode60->getId()));
+
+    using VsyncIds = std::vector<std::pair<PhysicalDisplayId, VsyncId>>;
+
+    struct Compositor final : ICompositor {
+        VsyncIds vsyncIds;
+        bool committed = true;
+
+        void configure() override {}
+
+        bool commit(PhysicalDisplayId, const scheduler::FrameTargets& targets) override {
+            vsyncIds.clear();
+
+            for (const auto& [id, target] : targets) {
+                vsyncIds.emplace_back(id, target->vsyncId());
+            }
+
+            return committed;
+        }
+
+        CompositeResultsPerDisplay composite(PhysicalDisplayId,
+                                             const scheduler::FrameTargeters&) override {
+            CompositeResultsPerDisplay results;
+
+            for (const auto& [id, _] : vsyncIds) {
+                results.try_emplace(id,
+                                    CompositeResult{.compositionCoverage =
+                                                            CompositionCoverage::Hwc});
+            }
+
+            return results;
+        }
+
+        void sample() override {}
+    } compositor;
+
+    mScheduler->doFrameSignal(compositor, VsyncId(42));
+
+    const auto makeVsyncIds = [](VsyncId vsyncId) -> VsyncIds {
+        return {{kDisplayId1, vsyncId}, {kDisplayId2, vsyncId}};
+    };
+
+    EXPECT_EQ(makeVsyncIds(VsyncId(42)), compositor.vsyncIds);
+
+    compositor.committed = false;
+    mScheduler->doFrameSignal(compositor, VsyncId(43));
+
+    // FrameTargets should be updated despite the skipped commit.
+    EXPECT_EQ(makeVsyncIds(VsyncId(43)), compositor.vsyncIds);
 }
 
 class AttachedChoreographerTest : public SchedulerTest {

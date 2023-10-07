@@ -2203,44 +2203,46 @@ bool SurfaceFlinger::updateLayerSnapshotsLegacy(VsyncId vsyncId, nsecs_t frameTi
     return mustComposite;
 }
 
-void SurfaceFlinger::updateLayerHistory(const frontend::LayerSnapshot& snapshot) {
-    using Changes = frontend::RequestedLayerState::Changes;
-    if (snapshot.path.isClone()) {
-        return;
-    }
+void SurfaceFlinger::updateLayerHistory(nsecs_t now) {
+    for (const auto& snapshot : mLayerSnapshotBuilder.getSnapshots()) {
+        using Changes = frontend::RequestedLayerState::Changes;
+        if (snapshot->path.isClone()) {
+            continue;
+        }
 
-    if (!snapshot.changes.any(Changes::FrameRate | Changes::Buffer | Changes::Animation) &&
-        (snapshot.clientChanges & layer_state_t::eDefaultFrameRateCompatibilityChanged) == 0) {
-        return;
-    }
+        if (!snapshot->changes.any(Changes::FrameRate | Changes::Buffer | Changes::Animation) &&
+            (snapshot->clientChanges & layer_state_t::eDefaultFrameRateCompatibilityChanged) == 0) {
+            continue;
+        }
 
-    const auto layerProps = scheduler::LayerProps{
-            .visible = snapshot.isVisible,
-            .bounds = snapshot.geomLayerBounds,
-            .transform = snapshot.geomLayerTransform,
-            .setFrameRateVote = snapshot.frameRate,
-            .frameRateSelectionPriority = snapshot.frameRateSelectionPriority,
-    };
+        const auto layerProps = scheduler::LayerProps{
+                .visible = snapshot->isVisible,
+                .bounds = snapshot->geomLayerBounds,
+                .transform = snapshot->geomLayerTransform,
+                .setFrameRateVote = snapshot->frameRate,
+                .frameRateSelectionPriority = snapshot->frameRateSelectionPriority,
+        };
 
-    auto it = mLegacyLayers.find(snapshot.sequence);
-    LOG_ALWAYS_FATAL_IF(it == mLegacyLayers.end(), "Couldnt find layer object for %s",
-                        snapshot.getDebugString().c_str());
+        auto it = mLegacyLayers.find(snapshot->sequence);
+        LOG_ALWAYS_FATAL_IF(it == mLegacyLayers.end(), "Couldnt find layer object for %s",
+                            snapshot->getDebugString().c_str());
 
-    if (snapshot.changes.test(Changes::Animation)) {
-        it->second->recordLayerHistoryAnimationTx(layerProps);
-    }
+        if (snapshot->clientChanges & layer_state_t::eDefaultFrameRateCompatibilityChanged) {
+            mScheduler->setDefaultFrameRateCompatibility(snapshot->sequence,
+                                                         snapshot->defaultFrameRateCompatibility);
+        }
 
-    if (snapshot.clientChanges & layer_state_t::eDefaultFrameRateCompatibilityChanged) {
-        mScheduler->setDefaultFrameRateCompatibility(snapshot.sequence,
-                                                     snapshot.defaultFrameRateCompatibility);
-    }
+        if (snapshot->changes.test(Changes::Animation)) {
+            it->second->recordLayerHistoryAnimationTx(layerProps, now);
+        }
 
-    if (snapshot.changes.test(Changes::FrameRate)) {
-        it->second->setFrameRateForLayerTree(snapshot.frameRate, layerProps);
-    }
+        if (snapshot->changes.test(Changes::FrameRate)) {
+            it->second->setFrameRateForLayerTree(snapshot->frameRate, layerProps, now);
+        }
 
-    if (snapshot.changes.test(Changes::Buffer)) {
-        it->second->recordLayerHistoryBufferUpdate(layerProps);
+        if (snapshot->changes.test(Changes::Buffer)) {
+            it->second->recordLayerHistoryBufferUpdate(layerProps, now);
+        }
     }
 }
 
@@ -2379,8 +2381,8 @@ bool SurfaceFlinger::updateLayerSnapshots(VsyncId vsyncId, nsecs_t frameTimeNs,
             mLayersIdsWithQueuedFrames.emplace(it->second->sequence);
         }
 
+        updateLayerHistory(latchTime);
         mLayerSnapshotBuilder.forEachVisibleSnapshot([&](const frontend::LayerSnapshot& snapshot) {
-            updateLayerHistory(snapshot);
             if (mLayersIdsWithQueuedFrames.find(snapshot.path.id) ==
                 mLayersIdsWithQueuedFrames.end())
                 return;
@@ -4832,7 +4834,7 @@ bool SurfaceFlinger::applyTransactionState(const FrameTimelineInfo& frameTimelin
     for (const auto& listener : listenerCallbacks) {
         mTransactionCallbackInvoker.addEmptyTransaction(listener);
     }
-
+    nsecs_t now = systemTime();
     uint32_t clientStateFlags = 0;
     for (auto& resolvedState : states) {
         if (mLegacyFrontEndEnabled) {
@@ -4854,7 +4856,7 @@ bool SurfaceFlinger::applyTransactionState(const FrameTimelineInfo& frameTimelin
                         .setFrameRateVote = layer->getFrameRateForLayerTree(),
                         .frameRateSelectionPriority = layer->getFrameRateSelectionPriority(),
                 };
-                layer->recordLayerHistoryAnimationTx(layerProps);
+                layer->recordLayerHistoryAnimationTx(layerProps, now);
             }
         }
     }

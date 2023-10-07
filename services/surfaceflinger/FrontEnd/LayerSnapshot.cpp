@@ -382,7 +382,6 @@ void LayerSnapshot::merge(const RequestedLayerState& requested, bool forceUpdate
         sidebandStream = requested.sidebandStream;
     }
     if (forceUpdate || requested.what & layer_state_t::eShadowRadiusChanged) {
-        shadowRadius = requested.shadowRadius;
         shadowSettings.length = requested.shadowRadius;
     }
     if (forceUpdate || requested.what & layer_state_t::eFrameRateSelectionPriority) {

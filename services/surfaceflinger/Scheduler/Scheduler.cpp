@@ -192,7 +192,8 @@ void Scheduler::onFrameSignal(ICompositor& compositor, VsyncId vsyncId,
     for (const auto& [id, display] : mDisplays) {
         if (id == pacesetterId) continue;
 
-        const FrameTargeter& targeter = *display.targeterPtr;
+        FrameTargeter& targeter = *display.targeterPtr;
+        targeter.beginFrame(beginFrameArgs, *display.schedulePtr);
         targets.try_emplace(id, &targeter.target());
     }
 
@@ -206,8 +207,6 @@ void Scheduler::onFrameSignal(ICompositor& compositor, VsyncId vsyncId,
         if (id == pacesetterId) continue;
 
         FrameTargeter& targeter = *display.targeterPtr;
-        targeter.beginFrame(beginFrameArgs, *display.schedulePtr);
-
         targeters.try_emplace(id, &targeter);
     }
 
@@ -625,9 +624,9 @@ void Scheduler::onLayerDestroyed(Layer* layer) {
 }
 
 void Scheduler::recordLayerHistory(int32_t id, const LayerProps& layerProps, nsecs_t presentTime,
-                                   LayerHistory::LayerUpdateType updateType) {
+                                   nsecs_t now, LayerHistory::LayerUpdateType updateType) {
     if (pacesetterSelectorPtr()->canSwitch()) {
-        mLayerHistory.record(id, layerProps, presentTime, systemTime(), updateType);
+        mLayerHistory.record(id, layerProps, presentTime, now, updateType);
     }
 }
 

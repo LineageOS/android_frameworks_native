@@ -26,6 +26,7 @@
 #include <ui/LayerStack.h>
 #include <ui/Rect.h>
 #include <ui/Region.h>
+#include <ui/ShadowSettings.h>
 #include <ui/Transform.h>
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
@@ -132,8 +133,7 @@ struct LayerFECompositionState {
     // The bounds of the layer in layer local coordinates
     FloatRect geomLayerBounds;
 
-    // length of the shadow in screen space
-    float shadowRadius{0.f};
+    ShadowSettings shadowSettings;
 
     // List of regions that require blur
     std::vector<BlurRegion> blurRegions;
