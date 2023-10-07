@@ -54,6 +54,11 @@ uint32_t BpBinder::sBinderProxyCountHighWatermark = 2500;
 // Another arbitrary value a binder count needs to drop below before another callback will be called
 uint32_t BpBinder::sBinderProxyCountLowWatermark = 2000;
 
+std::atomic<uint32_t> BpBinder::sBinderProxyCount(0);
+std::atomic<uint32_t> BpBinder::sBinderProxyCountWarned(0);
+
+static constexpr uint32_t kBinderProxyCountWarnInterval = 5000;
+
 // Log any transactions for which the data exceeds this size
 #define LOG_TRANSACTIONS_OVER_SIZE (300 * 1024)
 
@@ -192,6 +197,18 @@ sp<BpBinder> BpBinder::create(int32_t handle) {
             }
         }
         sTrackingMap[trackedUid]++;
+    }
+    uint32_t numProxies = sBinderProxyCount.fetch_add(1, std::memory_order_relaxed);
+    uint32_t numLastWarned = sBinderProxyCountWarned.load(std::memory_order_relaxed);
+    uint32_t numNextWarn = numLastWarned + kBinderProxyCountWarnInterval;
+    if (numProxies >= numNextWarn) {
+        // Multiple threads can get here, make sure only one of them gets to
+        // update the warn counter.
+        if (sBinderProxyCountWarned.compare_exchange_strong(numLastWarned,
+                                                            numNextWarn,
+                                                            std::memory_order_relaxed)) {
+            ALOGW("Unexpectedly many live BinderProxies: %d\n", numProxies);
+        }
     }
     return sp<BpBinder>::make(BinderHandle{handle}, trackedUid);
 }
@@ -604,6 +621,7 @@ BpBinder::~BpBinder() {
             }
         }
     }
+    --sBinderProxyCount;
 
     if (ipc) {
         ipc->expungeHandle(binderHandle(), this);
@@ -686,6 +704,11 @@ uint32_t BpBinder::getBinderProxyCount(uint32_t uid)
         return it->second & COUNTING_VALUE_MASK;
     }
     return 0;
+}
+
+uint32_t BpBinder::getBinderProxyCount()
+{
+    return sBinderProxyCount.load();
 }
 
 void BpBinder::getCountByUid(Vector<uint32_t>& uids, Vector<uint32_t>& counts)
