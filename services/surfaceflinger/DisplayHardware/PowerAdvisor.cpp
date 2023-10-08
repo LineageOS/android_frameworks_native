@@ -251,7 +251,12 @@ void PowerAdvisor::reportActualWorkDuration() {
     actualDuration = std::make_optional(*actualDuration + sTargetSafetyMargin);
     mActualDuration = actualDuration;
     WorkDuration duration;
+    duration.workPeriodStartTimestampNanos = mCommitStartTimes[0].ns();
+    // TODO(b/284324521): Correctly calculate total duration.
     duration.durationNanos = actualDuration->ns();
+    duration.cpuDurationNanos = actualDuration->ns();
+    // TODO(b/284324521): Calculate RenderEngine GPU time.
+    duration.gpuDurationNanos = 0;
     duration.timeStampNanos = TimePoint::now().ns();
     mHintSessionQueue.push_back(duration);
 
