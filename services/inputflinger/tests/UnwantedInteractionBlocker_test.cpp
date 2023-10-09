@@ -23,8 +23,8 @@
 #include <thread>
 #include "ui/events/ozone/evdev/touch_filter/neural_stylus_palm_detection_filter.h"
 
+#include "TestEventMatchers.h"
 #include "TestInputListener.h"
-#include "TestInputListenerMatchers.h"
 
 using ::testing::AllOf;
 

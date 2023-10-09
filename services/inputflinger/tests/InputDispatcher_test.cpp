@@ -16,7 +16,7 @@
 
 #include "../dispatcher/InputDispatcher.h"
 #include "../BlockingQueue.h"
-#include "TestInputListenerMatchers.h"
+#include "TestEventMatchers.h"
 
 #include <NotifyArgsBuilders.h>
 #include <android-base/properties.h>
@@ -136,16 +136,6 @@ static constexpr int expectedWallpaperFlags =
 
 using ReservedInputDeviceId::VIRTUAL_KEYBOARD_ID;
 
-struct PointF {
-    float x;
-    float y;
-    auto operator<=>(const PointF&) const = default;
-};
-
-inline std::string pointFToString(const PointF& p) {
-    return std::string("(") + std::to_string(p.x) + ", " + std::to_string(p.y) + ")";
-}
-
 /**
  * Return a DOWN key event with KEYCODE_A.
  */
@@ -156,64 +146,6 @@ static KeyEvent getTestKeyEvent() {
                      INVALID_HMAC, AKEY_EVENT_ACTION_DOWN, 0, AKEYCODE_A, KEY_A, AMETA_NONE, 0,
                      ARBITRARY_TIME, ARBITRARY_TIME);
     return event;
-}
-
-MATCHER_P(WithDownTime, downTime, "InputEvent with specified downTime") {
-    *result_listener << "expected downTime " << downTime << ", but got " << arg.getDownTime();
-    return arg.getDownTime() == downTime;
-}
-
-MATCHER_P(WithSource, source, "InputEvent with specified source") {
-    *result_listener << "expected source " << inputEventSourceToString(source) << ", but got "
-                     << inputEventSourceToString(arg.getSource());
-    return arg.getSource() == source;
-}
-
-MATCHER_P(WithFlags, flags, "InputEvent with specified flags") {
-    *result_listener << "expected flags " << std::hex << flags << ", but got " << arg.getFlags();
-    return arg.getFlags() == flags;
-}
-
-MATCHER_P2(WithCoords, x, y, "MotionEvent with specified coordinates") {
-    if (arg.getPointerCount() != 1) {
-        *result_listener << "Expected 1 pointer, got " << arg.getPointerCount();
-        return false;
-    }
-    const float receivedX = arg.getX(/*pointerIndex=*/0);
-    const float receivedY = arg.getY(/*pointerIndex=*/0);
-    *result_listener << "expected coords (" << x << ", " << y << "), but got (" << receivedX << ", "
-                     << receivedY << ")";
-    return receivedX == x && receivedY == y;
-}
-
-MATCHER_P2(WithRawCoords, x, y, "MotionEvent with specified raw coordinates") {
-    if (arg.getPointerCount() != 1) {
-        *result_listener << "Expected 1 pointer, got " << arg.getPointerCount();
-        return false;
-    }
-    const float receivedX = arg.getRawX(/*pointerIndex=*/0);
-    const float receivedY = arg.getRawY(/*pointerIndex=*/0);
-    *result_listener << "expected raw coords (" << x << ", " << y << "), but got (" << receivedX
-                     << ", " << receivedY << ")";
-    return receivedX == x && receivedY == y;
-}
-
-MATCHER_P(WithPointerCount, pointerCount, "MotionEvent with specified number of pointers") {
-    *result_listener << "expected pointerCount " << pointerCount << ", but got "
-                     << arg.getPointerCount();
-    return arg.getPointerCount() == pointerCount;
-}
-
-MATCHER_P(WithPointers, pointers, "MotionEvent with specified pointers") {
-    // Build a map for the received pointers, by pointer id
-    std::map<int32_t /*pointerId*/, PointF> actualPointers;
-    for (size_t pointerIndex = 0; pointerIndex < arg.getPointerCount(); pointerIndex++) {
-        const int32_t pointerId = arg.getPointerId(pointerIndex);
-        actualPointers[pointerId] = {arg.getX(pointerIndex), arg.getY(pointerIndex)};
-    }
-    *result_listener << "expected pointers " << dumpMap(pointers, constToString, pointFToString)
-                     << ", but got " << dumpMap(actualPointers, constToString, pointFToString);
-    return pointers == actualPointers;
 }
 
 // --- FakeInputDispatcherPolicy ---
