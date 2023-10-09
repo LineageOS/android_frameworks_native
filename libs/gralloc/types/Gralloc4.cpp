@@ -1307,6 +1307,10 @@ std::string getChromaSitingName(const ExtendableType& chromaSiting) {
             return "SitedInterstitial";
         case ChromaSiting::COSITED_HORIZONTAL:
             return "CositedHorizontal";
+        case ChromaSiting::COSITED_VERTICAL:
+            return "CositedVertical";
+        case ChromaSiting::COSITED_BOTH:
+            return "CositedBoth";
     }
 }
 

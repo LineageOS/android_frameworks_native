@@ -16,6 +16,7 @@
 
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
+#include <aidl/android/hardware/graphics/common/Dataspace.h>
 #include <aidl/android/hardware/graphics/common/PixelFormat.h>
 #include <android/hardware/graphics/common/1.0/types.h>
 #include <android/hardware_buffer.h>
@@ -38,6 +39,7 @@
 #include "driver.h"
 
 using PixelFormat = aidl::android::hardware::graphics::common::PixelFormat;
+using DataSpace = aidl::android::hardware::graphics::common::Dataspace;
 using android::hardware::graphics::common::V1_0::BufferUsage;
 
 namespace vulkan {
@@ -533,61 +535,51 @@ PixelFormat GetNativePixelFormat(VkFormat format) {
     return native_format;
 }
 
-android_dataspace GetNativeDataspace(VkColorSpaceKHR colorspace,
-                                     PixelFormat pixelFormat) {
+DataSpace GetNativeDataspace(VkColorSpaceKHR colorspace,
+                             PixelFormat pixelFormat) {
     switch (colorspace) {
         case VK_COLOR_SPACE_SRGB_NONLINEAR_KHR:
-            return HAL_DATASPACE_V0_SRGB;
+            return DataSpace::SRGB;
         case VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT:
-            return HAL_DATASPACE_DISPLAY_P3;
+            return DataSpace::DISPLAY_P3;
         case VK_COLOR_SPACE_EXTENDED_SRGB_LINEAR_EXT:
-            return HAL_DATASPACE_V0_SCRGB_LINEAR;
+            return DataSpace::SCRGB_LINEAR;
         case VK_COLOR_SPACE_EXTENDED_SRGB_NONLINEAR_EXT:
-            return HAL_DATASPACE_V0_SCRGB;
+            return DataSpace::SCRGB;
         case VK_COLOR_SPACE_DCI_P3_LINEAR_EXT:
-            return HAL_DATASPACE_DCI_P3_LINEAR;
+            return DataSpace::DCI_P3_LINEAR;
         case VK_COLOR_SPACE_DCI_P3_NONLINEAR_EXT:
-            return HAL_DATASPACE_DCI_P3;
+            return DataSpace::DCI_P3;
         case VK_COLOR_SPACE_BT709_LINEAR_EXT:
-            return HAL_DATASPACE_V0_SRGB_LINEAR;
+            return DataSpace::SRGB_LINEAR;
         case VK_COLOR_SPACE_BT709_NONLINEAR_EXT:
-            return HAL_DATASPACE_V0_SRGB;
+            return DataSpace::SRGB;
         case VK_COLOR_SPACE_BT2020_LINEAR_EXT:
             if (pixelFormat == PixelFormat::RGBA_FP16) {
-                return static_cast<android_dataspace>(
-                    HAL_DATASPACE_STANDARD_BT2020 |
-                    HAL_DATASPACE_TRANSFER_LINEAR |
-                    HAL_DATASPACE_RANGE_EXTENDED);
+                return DataSpace::BT2020_LINEAR_EXTENDED;
             } else {
-                return HAL_DATASPACE_BT2020_LINEAR;
+                return DataSpace::BT2020_LINEAR;
             }
         case VK_COLOR_SPACE_HDR10_ST2084_EXT:
-            return static_cast<android_dataspace>(
-                HAL_DATASPACE_STANDARD_BT2020 | HAL_DATASPACE_TRANSFER_ST2084 |
-                HAL_DATASPACE_RANGE_FULL);
+            return DataSpace::BT2020_PQ;
         case VK_COLOR_SPACE_DOLBYVISION_EXT:
-            return static_cast<android_dataspace>(
-                HAL_DATASPACE_STANDARD_BT2020 | HAL_DATASPACE_TRANSFER_ST2084 |
-                HAL_DATASPACE_RANGE_FULL);
+            return DataSpace::BT2020_PQ;
         case VK_COLOR_SPACE_HDR10_HLG_EXT:
-            return static_cast<android_dataspace>(HAL_DATASPACE_BT2020_HLG);
+            return DataSpace::BT2020_HLG;
         case VK_COLOR_SPACE_ADOBERGB_LINEAR_EXT:
-            return static_cast<android_dataspace>(
-                HAL_DATASPACE_STANDARD_ADOBE_RGB |
-                HAL_DATASPACE_TRANSFER_LINEAR | HAL_DATASPACE_RANGE_FULL);
+            return DataSpace::ADOBE_RGB_LINEAR;
         case VK_COLOR_SPACE_ADOBERGB_NONLINEAR_EXT:
-            return HAL_DATASPACE_ADOBE_RGB;
-
+            return DataSpace::ADOBE_RGB;
         // Pass through is intended to allow app to provide data that is passed
         // to the display system without modification.
         case VK_COLOR_SPACE_PASS_THROUGH_EXT:
-            return HAL_DATASPACE_ARBITRARY;
+            return DataSpace::ARBITRARY;
 
         default:
             // This indicates that we don't know about the
             // dataspace specified and we should indicate that
             // it's unsupported
-            return HAL_DATASPACE_UNKNOWN;
+            return DataSpace::UNKNOWN;
     }
 }
 
@@ -1575,9 +1567,9 @@ VkResult CreateSwapchainKHR(VkDevice device,
 
     PixelFormat native_pixel_format =
         GetNativePixelFormat(create_info->imageFormat);
-    android_dataspace native_dataspace =
+    DataSpace native_dataspace =
         GetNativeDataspace(create_info->imageColorSpace, native_pixel_format);
-    if (native_dataspace == HAL_DATASPACE_UNKNOWN) {
+    if (native_dataspace == DataSpace::UNKNOWN) {
         ALOGE(
             "CreateSwapchainKHR(VkSwapchainCreateInfoKHR.imageColorSpace = %d) "
             "failed: Unsupported color space",
@@ -1683,8 +1675,9 @@ VkResult CreateSwapchainKHR(VkDevice device,
     }
 
     /* Respect consumer default dataspace upon HAL_DATASPACE_ARBITRARY. */
-    if (native_dataspace != HAL_DATASPACE_ARBITRARY) {
-        err = native_window_set_buffers_data_space(window, native_dataspace);
+    if (native_dataspace != DataSpace::ARBITRARY) {
+        err = native_window_set_buffers_data_space(
+            window, static_cast<android_dataspace_t>(native_dataspace));
         if (err != android::OK) {
             ALOGE("native_window_set_buffers_data_space(%d) failed: %s (%d)",
                   native_dataspace, strerror(-err), err);
