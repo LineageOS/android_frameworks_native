@@ -59,12 +59,13 @@ int Usage(const char* program) {
     auto basename = Basename(program);
     auto format = R"(dispatch calls to RPC service.
 Usage:
-  %s [-g] <service_name>
+  %s [-g] [-i <ip_address>] <service_name>
     <service_name>: the service to connect to.
   %s [-g] manager
     Runs an RPC-friendly service that redirects calls to servicemanager.
 
   -g: use getService() instead of checkService().
+  -i: use ip_address when setting up the server instead of '127.0.0.1'
 
   If successful, writes port number and a new line character to stdout, and
   blocks until killed.
@@ -74,7 +75,8 @@ Usage:
     return EX_USAGE;
 }
 
-int Dispatch(const char* name, const ServiceRetriever& serviceRetriever) {
+int Dispatch(const char* name, const ServiceRetriever& serviceRetriever,
+             const char* ip_address = kLocalInetAddress) {
     auto sm = defaultServiceManager();
     if (nullptr == sm) {
         LOG(ERROR) << "No servicemanager";
@@ -91,7 +93,7 @@ int Dispatch(const char* name, const ServiceRetriever& serviceRetriever) {
         return EX_SOFTWARE;
     }
     unsigned int port;
-    if (status_t status = rpcServer->setupInetServer(kLocalInetAddress, 0, &port); status != OK) {
+    if (status_t status = rpcServer->setupInetServer(ip_address, 0, &port); status != OK) {
         LOG(ERROR) << "setupInetServer failed: " << statusToString(status);
         return EX_SOFTWARE;
     }
@@ -188,7 +190,8 @@ private:
 // Workaround for b/191059588.
 // TODO(b/191059588): Once we can run RpcServer on single-threaded services,
 //   `servicedispatcher manager` should call Dispatch("manager") directly.
-int wrapServiceManager(const ServiceRetriever& serviceRetriever) {
+int wrapServiceManager(const ServiceRetriever& serviceRetriever,
+                       const char* ip_address = kLocalInetAddress) {
     auto sm = defaultServiceManager();
     if (nullptr == sm) {
         LOG(ERROR) << "No servicemanager";
@@ -212,7 +215,7 @@ int wrapServiceManager(const ServiceRetriever& serviceRetriever) {
     auto rpcServer = RpcServer::make();
     rpcServer->setRootObject(service);
     unsigned int port;
-    if (status_t status = rpcServer->setupInetServer(kLocalInetAddress, 0, &port); status != OK) {
+    if (status_t status = rpcServer->setupInetServer(ip_address, 0, &port); status != OK) {
         LOG(ERROR) << "Unable to set up inet server: " << statusToString(status);
         return EX_SOFTWARE;
     }
@@ -272,10 +275,14 @@ int main(int argc, char* argv[]) {
 
     int opt;
     ServiceRetriever serviceRetriever = &android::IServiceManager::checkService;
-    while (-1 != (opt = getopt(argc, argv, "g"))) {
+    char* ip_address = nullptr;
+    while (-1 != (opt = getopt(argc, argv, "gi:"))) {
         switch (opt) {
             case 'g': {
                 serviceRetriever = &android::IServiceManager::getService;
+            } break;
+            case 'i': {
+                ip_address = optarg;
             } break;
             default: {
                 return Usage(argv[0]);
@@ -291,7 +298,15 @@ int main(int argc, char* argv[]) {
     auto name = argv[optind];
 
     if (name == "manager"sv) {
-        return wrapServiceManager(serviceRetriever);
+        if (ip_address) {
+            return wrapServiceManager(serviceRetriever, ip_address);
+        } else {
+            return wrapServiceManager(serviceRetriever);
+        }
     }
-    return Dispatch(name, serviceRetriever);
+    if (ip_address) {
+        return Dispatch(name, serviceRetriever, ip_address);
+    } else {
+        return Dispatch(name, serviceRetriever);
+    }
 }
