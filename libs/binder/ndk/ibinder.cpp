@@ -21,7 +21,9 @@
 #include <android/binder_status.h>
 #include <binder/IPCThreadState.h>
 #include <binder/IResultReceiver.h>
+#if __has_include(<private/android_filesystem_config.h>)
 #include <private/android_filesystem_config.h>
+#endif
 
 #include "ibinder_internal.h"
 #include "parcel_internal.h"
@@ -229,7 +231,11 @@ status_t ABBinder::onTransact(transaction_code_t code, const Parcel& data, Parce
 
         // Shell commands should only be callable by ADB.
         uid_t uid = AIBinder_getCallingUid();
-        if (uid != AID_ROOT && uid != AID_SHELL) {
+        if (uid != 0 /* root */
+#ifdef AID_SHELL
+            && uid != AID_SHELL
+#endif
+        ) {
             if (resultReceiver != nullptr) {
                 resultReceiver->send(-1);
             }
