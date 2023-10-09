@@ -28,10 +28,13 @@
 #include "VSyncDispatchTimerQueue.h"
 #include "VSyncTracker.h"
 
+#include <com_android_graphics_surfaceflinger_flags.h>
+
 #undef LOG_TAG
 #define LOG_TAG "VSyncDispatch"
 
 namespace android::scheduler {
+using namespace com::android::graphics::surfaceflinger;
 
 using base::StringAppendF;
 
@@ -100,8 +103,14 @@ ScheduleResult VSyncDispatchTimerQueueEntry::schedule(VSyncDispatch::ScheduleTim
             mArmedInfo && (nextVsyncTime > (mArmedInfo->mActualVsyncTime + mMinVsyncDistance));
     bool const wouldSkipAWakeup =
             mArmedInfo && ((nextWakeupTime > (mArmedInfo->mActualWakeupTime + mMinVsyncDistance)));
-    if (wouldSkipAVsyncTarget && wouldSkipAWakeup) {
-        return getExpectedCallbackTime(nextVsyncTime, timing);
+    if (flags::dont_skip_on_early()) {
+        if (wouldSkipAVsyncTarget || wouldSkipAWakeup) {
+            return getExpectedCallbackTime(mArmedInfo->mActualVsyncTime, timing);
+        }
+    } else {
+        if (wouldSkipAVsyncTarget && wouldSkipAWakeup) {
+            return getExpectedCallbackTime(nextVsyncTime, timing);
+        }
     }
 
     nextVsyncTime = adjustVsyncIfNeeded(tracker, nextVsyncTime);
