@@ -398,21 +398,22 @@ enum ADataSpace {
     RANGE_EXTENDED = 3 << 27,
 
     /**
-     * scRGB linear encoding:
+     * scRGB linear encoding
      *
      * The red, green, and blue components are stored in extended sRGB space,
      * but are linear, not gamma-encoded.
-     * The RGB primaries and the white point are the same as BT.709.
      *
      * The values are floating point.
      * A pixel value of 1.0, 1.0, 1.0 corresponds to sRGB white (D65) at 80 nits.
      * Values beyond the range [0.0 - 1.0] would correspond to other colors
      * spaces and/or HDR content.
+     *
+     * Uses extended range, linear transfer and BT.709 standard.
      */
     ADATASPACE_SCRGB_LINEAR = 406913024, // STANDARD_BT709 | TRANSFER_LINEAR | RANGE_EXTENDED
 
     /**
-     * sRGB gamma encoding:
+     * sRGB gamma encoding
      *
      * The red, green and blue components are stored in sRGB space, and
      * converted to linear space when read, using the SRGB transfer function
@@ -422,29 +423,29 @@ enum ADataSpace {
      * The alpha component, if present, is always stored in linear space and
      * is left unmodified when read or written.
      *
-     * Use full range and BT.709 standard.
+     * Uses full range, sRGB transfer BT.709 standard.
      */
     ADATASPACE_SRGB = 142671872, // STANDARD_BT709 | TRANSFER_SRGB | RANGE_FULL
 
     /**
-     * scRGB:
+     * scRGB
      *
      * The red, green, and blue components are stored in extended sRGB space,
      * and gamma-encoded using the SRGB transfer function.
-     * The RGB primaries and the white point are the same as BT.709.
      *
      * The values are floating point.
      * A pixel value of 1.0, 1.0, 1.0 corresponds to sRGB white (D65) at 80 nits.
      * Values beyond the range [0.0 - 1.0] would correspond to other colors
      * spaces and/or HDR content.
+     *
+     * Uses extended range, sRGB transfer and BT.709 standard.
      */
     ADATASPACE_SCRGB = 411107328, // STANDARD_BT709 | TRANSFER_SRGB | RANGE_EXTENDED
 
     /**
      * Display P3
      *
-     * Use same primaries and white-point as DCI-P3
-     * but sRGB transfer function.
+     * Uses full range, sRGB transfer and D65 DCI-P3 standard.
      */
     ADATASPACE_DISPLAY_P3 = 143261696, // STANDARD_DCI_P3 | TRANSFER_SRGB | RANGE_FULL
 
@@ -453,7 +454,7 @@ enum ADataSpace {
      *
      * Ultra High-definition television
      *
-     * Use full range, SMPTE 2084 (PQ) transfer and BT2020 standard
+     * Uses full range, SMPTE 2084 (PQ) transfer and BT2020 standard.
      */
     ADATASPACE_BT2020_PQ = 163971072, // STANDARD_BT2020 | TRANSFER_ST2084 | RANGE_FULL
 
@@ -462,14 +463,14 @@ enum ADataSpace {
      *
      * Ultra High-definition television
      *
-     * Use limited range, SMPTE 2084 (PQ) transfer and BT2020 standard
+     * Uses limited range, SMPTE 2084 (PQ) transfer and BT2020 standard.
      */
     ADATASPACE_BT2020_ITU_PQ = 298188800, // STANDARD_BT2020 | TRANSFER_ST2084 | RANGE_LIMITED
 
     /**
      * Adobe RGB
      *
-     * Use full range, gamma 2.2 transfer and Adobe RGB primaries
+     * Uses full range, gamma 2.2 transfer and Adobe RGB standard.
      *
      * Note: Application is responsible for gamma encoding the data as
      * a 2.2 gamma encoding is not supported in HW.
@@ -479,9 +480,9 @@ enum ADataSpace {
     /**
      * JPEG File Interchange Format (JFIF)
      *
-     * Same model as BT.601-625, but all values (Y, Cb, Cr) range from 0 to 255
+     * Same model as BT.601-625, but all values (Y, Cb, Cr) range from 0 to 255.
      *
-     * Use full range, SMPTE 170M transfer and BT.601_625 standard.
+     * Uses full range, SMPTE 170M transfer and BT.601_625 standard.
      */
     ADATASPACE_JFIF = 146931712, // STANDARD_BT601_625 | TRANSFER_SMPTE_170M | RANGE_FULL
 
@@ -490,7 +491,7 @@ enum ADataSpace {
      *
      * Standard-definition television, 625 Lines (PAL)
      *
-     * Use limited range, SMPTE 170M transfer and BT.601_625 standard.
+     * Uses limited range, SMPTE 170M transfer and BT.601_625 standard.
      */
     ADATASPACE_BT601_625 = 281149440, // STANDARD_BT601_625 | TRANSFER_SMPTE_170M | RANGE_LIMITED
 
@@ -499,7 +500,7 @@ enum ADataSpace {
      *
      * Standard-definition television, 525 Lines (NTSC)
      *
-     * Use limited range, SMPTE 170M transfer and BT.601_525 standard.
+     * Uses limited range, SMPTE 170M transfer and BT.601_525 standard.
      */
     ADATASPACE_BT601_525 = 281280512, // STANDARD_BT601_525 | TRANSFER_SMPTE_170M | RANGE_LIMITED
 
@@ -508,7 +509,7 @@ enum ADataSpace {
      *
      * Ultra High-definition television
      *
-     * Use full range, SMPTE 170M transfer and BT2020 standard
+     * Uses full range, SMPTE 170M transfer and BT2020 standard.
      */
     ADATASPACE_BT2020 = 147193856, // STANDARD_BT2020 | TRANSFER_SMPTE_170M | RANGE_FULL
 
@@ -517,16 +518,16 @@ enum ADataSpace {
      *
      * High-definition television
      *
-     * Use limited range, SMPTE 170M transfer and BT.709 standard.
+     * Uses limited range, SMPTE 170M transfer and BT.709 standard.
      */
     ADATASPACE_BT709 = 281083904, // STANDARD_BT709 | TRANSFER_SMPTE_170M | RANGE_LIMITED
 
     /**
-     * SMPTE EG 432-1 and SMPTE RP 431-2.
+     * SMPTE EG 432-1 and SMPTE RP 431-2
      *
      * Digital Cinema DCI-P3
      *
-     * Use full range, gamma 2.6 transfer and D65 DCI-P3 standard
+     * Uses full range, gamma 2.6 transfer and D65 DCI-P3 standard.
      *
      * Note: Application is responsible for gamma encoding the data as
      * a 2.6 gamma encoding is not supported in HW.
@@ -534,7 +535,7 @@ enum ADataSpace {
     ADATASPACE_DCI_P3 = 155844608, // STANDARD_DCI_P3 | TRANSFER_GAMMA2_6 | RANGE_FULL
 
     /**
-     * sRGB linear encoding:
+     * sRGB linear encoding
      *
      * The red, green, and blue components are stored in sRGB space, but
      * are linear, not gamma-encoded.
@@ -542,32 +543,34 @@ enum ADataSpace {
      *
      * The values are encoded using the full range ([0,255] for 8-bit) for all
      * components.
+     *
+     * Uses full range, linear transfer and BT.709 standard.
      */
     ADATASPACE_SRGB_LINEAR = 138477568, // STANDARD_BT709 | TRANSFER_LINEAR | RANGE_FULL
 
     /**
-     * Hybrid Log Gamma encoding:
+     * Hybrid Log Gamma encoding
      *
-     * Use full range, hybrid log gamma transfer and BT2020 standard.
+     * Uses full range, hybrid log gamma transfer and BT2020 standard.
      */
     ADATASPACE_BT2020_HLG = 168165376, // STANDARD_BT2020 | TRANSFER_HLG | RANGE_FULL
 
     /**
-     * ITU Hybrid Log Gamma encoding:
+     * ITU Hybrid Log Gamma encoding
      *
-     * Use limited range, hybrid log gamma transfer and BT2020 standard.
+     * Uses limited range, hybrid log gamma transfer and BT2020 standard.
      */
     ADATASPACE_BT2020_ITU_HLG = 302383104, // STANDARD_BT2020 | TRANSFER_HLG | RANGE_LIMITED
 
     /**
-     * Depth:
+     * Depth
      *
      * This value is valid with formats HAL_PIXEL_FORMAT_Y16 and HAL_PIXEL_FORMAT_BLOB.
      */
     ADATASPACE_DEPTH = 4096,
 
     /**
-     * ISO 16684-1:2011(E) Dynamic Depth:
+     * ISO 16684-1:2011(E) Dynamic Depth
      *
      * Embedded depth metadata following the dynamic depth specification.
      */
