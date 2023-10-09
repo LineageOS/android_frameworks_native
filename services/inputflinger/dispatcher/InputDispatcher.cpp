@@ -3933,6 +3933,16 @@ void InputDispatcher::synthesizeCancelationEventsForInputChannelLocked(
 
 void InputDispatcher::synthesizeCancelationEventsForConnectionLocked(
         const std::shared_ptr<Connection>& connection, const CancelationOptions& options) {
+    if ((options.mode == CancelationOptions::Mode::CANCEL_POINTER_EVENTS ||
+         options.mode == CancelationOptions::Mode::CANCEL_ALL_EVENTS) &&
+        mDragState && mDragState->dragWindow->getToken() == connection->inputChannel->getToken()) {
+        LOG(INFO) << __func__
+                  << ": Canceling drag and drop because the pointers for the drag window are being "
+                     "canceled.";
+        sendDropWindowCommandLocked(nullptr, /*x=*/0, /*y=*/0);
+        mDragState.reset();
+    }
+
     if (connection->status == Connection::Status::BROKEN) {
         return;
     }
