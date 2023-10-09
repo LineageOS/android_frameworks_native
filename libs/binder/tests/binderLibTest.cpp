@@ -1441,6 +1441,36 @@ TEST_F(BinderLibTest, HangingServices) {
     EXPECT_GE(epochMsAfter, epochMsBefore + delay);
 }
 
+TEST_F(BinderLibTest, BinderProxyCount) {
+    Parcel data, reply;
+    sp<IBinder> server = addServer();
+    ASSERT_NE(server, nullptr);
+
+    uint32_t initialCount = BpBinder::getBinderProxyCount();
+    size_t iterations = 100;
+    {
+        uint32_t count = initialCount;
+        std::vector<sp<IBinder> > proxies;
+        sp<IBinder> proxy;
+        // Create binder proxies and verify the count.
+        for (size_t i = 0; i < iterations; i++) {
+            ASSERT_THAT(server->transact(BINDER_LIB_TEST_CREATE_BINDER_TRANSACTION, data, &reply),
+                        StatusEq(NO_ERROR));
+            proxies.push_back(reply.readStrongBinder());
+            EXPECT_EQ(BpBinder::getBinderProxyCount(), ++count);
+        }
+        // Remove every other one and verify the count.
+        auto it = proxies.begin();
+        for (size_t i = 0; it != proxies.end(); i++) {
+            if (i % 2 == 0) {
+                it = proxies.erase(it);
+                EXPECT_EQ(BpBinder::getBinderProxyCount(), --count);
+            }
+        }
+    }
+    EXPECT_EQ(BpBinder::getBinderProxyCount(), initialCount);
+}
+
 class BinderLibRpcTestBase : public BinderLibTest {
 public:
     void SetUp() override {
