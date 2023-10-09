@@ -42,12 +42,6 @@ filegroup {
     ],
 }
 
-cc_aconfig_library {
-    name: "libsurfaceflingerflags_test",
-    aconfig_declarations: "surfaceflinger_flags",
-    test: true,
-}
-
 cc_test {
     name: "libsurfaceflinger_unittest",
     defaults: [
@@ -174,7 +168,6 @@ cc_defaults {
         "libtimestats_proto",
         "libtonemap",
         "perfetto_trace_protos",
-        "libsurfaceflingerflags_test",
     ],
     shared_libs: [
         "android.hardware.configstore-utils",
