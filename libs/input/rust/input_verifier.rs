@@ -22,6 +22,49 @@ use log::info;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
+fn verify_event(
+    action: MotionAction,
+    pointer_properties: &[RustPointerProperties],
+    flags: &MotionFlags,
+) -> Result<(), String> {
+    let pointer_count = pointer_properties.len();
+    if pointer_count < 1 {
+        return Err(format!("Invalid {} event: no pointers", action));
+    }
+    match action {
+        MotionAction::Down
+        | MotionAction::HoverEnter
+        | MotionAction::HoverExit
+        | MotionAction::HoverMove
+        | MotionAction::Up => {
+            if pointer_count != 1 {
+                return Err(format!(
+                    "Invalid {} event: there are {} pointers in the event",
+                    action, pointer_count
+                ));
+            }
+        }
+
+        MotionAction::Cancel => {
+            if !flags.contains(MotionFlags::CANCELED) {
+                return Err(format!(
+                    "For ACTION_CANCEL, must set FLAG_CANCELED. Received flags: {:#?}",
+                    flags
+                ));
+            }
+        }
+
+        MotionAction::PointerDown { action_index } | MotionAction::PointerUp { action_index } => {
+            if action_index >= pointer_count {
+                return Err(format!("Got {}, but event has {} pointer(s)", action, pointer_count));
+            }
+        }
+
+        _ => {}
+    }
+    Ok(())
+}
+
 /// The InputVerifier is used to validate a stream of input events.
 pub struct InputVerifier {
     name: String,
@@ -71,15 +114,10 @@ impl InputVerifier {
             );
         }
 
+        verify_event(action.into(), pointer_properties, &flags)?;
+
         match action.into() {
             MotionAction::Down => {
-                if pointer_properties.len() != 1 {
-                    return Err(format!(
-                        "{}: Invalid DOWN event: there are {} pointers in the event",
-                        self.name,
-                        pointer_properties.len()
-                    ));
-                }
                 let it = self
                     .touching_pointer_ids_by_device
                     .entry(device_id)
@@ -140,13 +178,6 @@ impl InputVerifier {
                 it.remove(&pointer_id);
             }
             MotionAction::Up => {
-                if pointer_properties.len() != 1 {
-                    return Err(format!(
-                        "{}: Invalid UP event: there are {} pointers in the event",
-                        self.name,
-                        pointer_properties.len()
-                    ));
-                }
                 if !self.touching_pointer_ids_by_device.contains_key(&device_id) {
                     return Err(format!(
                         "{} Received ACTION_UP but no pointers are currently down for device {:?}",
@@ -171,12 +202,6 @@ impl InputVerifier {
                 self.touching_pointer_ids_by_device.remove(&device_id);
             }
             MotionAction::Cancel => {
-                if !flags.contains(MotionFlags::CANCELED) {
-                    return Err(format!(
-                        "{}: For ACTION_CANCEL, must set FLAG_CANCELED",
-                        self.name
-                    ));
-                }
                 if !self.ensure_touching_pointers_match(device_id, pointer_properties) {
                     return Err(format!(
                         "{}: Got ACTION_CANCEL, but the pointers don't match. \
@@ -274,6 +299,26 @@ mod tests {
     use crate::MotionFlags;
     use crate::RustPointerProperties;
     use crate::Source;
+
+    #[test]
+    /**
+     * Send a DOWN event with 2 pointers and ensure that it's marked as invalid.
+     */
+    fn bad_down_event() {
+        let mut verifier = InputVerifier::new("Test", /*should_log*/ true);
+        let pointer_properties =
+            Vec::from([RustPointerProperties { id: 0 }, RustPointerProperties { id: 1 }]);
+        assert!(verifier
+            .process_movement(
+                DeviceId(1),
+                Source::Touchscreen,
+                input_bindgen::AMOTION_EVENT_ACTION_DOWN,
+                &pointer_properties,
+                MotionFlags::empty(),
+            )
+            .is_err());
+    }
+
     #[test]
     fn single_pointer_stream() {
         let mut verifier = InputVerifier::new("Test", /*should_log*/ false);
