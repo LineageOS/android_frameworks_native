@@ -126,8 +126,3 @@ int __android_log_print(int prio [[maybe_unused]], const char* tag, const char* 
 
     return 1;
 }
-
-// TODO(b/285204695): remove once trusty mock doesn't depend on libbase
-extern "C" int __android_log_buf_print(int, int, const char*, const char*, ...) {
-    return -ENOSYS;
-}
