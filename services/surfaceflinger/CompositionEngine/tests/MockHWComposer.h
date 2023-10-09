@@ -148,7 +148,7 @@ public:
                 getOverlaySupport, (), (const, override));
     MOCK_METHOD(status_t, setRefreshRateChangedCallbackDebugEnabled, (PhysicalDisplayId, bool));
     MOCK_METHOD(status_t, notifyExpectedPresentIfRequired,
-                (PhysicalDisplayId, nsecs_t, int32_t, int32_t));
+                (PhysicalDisplayId, Period, TimePoint, Fps, std::optional<Period>));
 };
 
 } // namespace mock
