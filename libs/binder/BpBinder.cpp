@@ -23,7 +23,6 @@
 #include <binder/IResultReceiver.h>
 #include <binder/RpcSession.h>
 #include <binder/Stability.h>
-#include <cutils/compiler.h>
 #include <utils/Log.h>
 
 #include <stdio.h>
@@ -166,7 +165,7 @@ sp<BpBinder> BpBinder::create(int32_t handle) {
         trackedUid = IPCThreadState::self()->getCallingUid();
         AutoMutex _l(sTrackingLock);
         uint32_t trackedValue = sTrackingMap[trackedUid];
-        if (CC_UNLIKELY(trackedValue & LIMIT_REACHED_MASK)) {
+        if (trackedValue & LIMIT_REACHED_MASK) [[unlikely]] {
             if (sBinderProxyThrottleCreate) {
                 return nullptr;
             }
@@ -364,7 +363,7 @@ status_t BpBinder::transact(
             Stability::Level required = privateVendor ? Stability::VENDOR
                 : Stability::getLocalLevel();
 
-            if (CC_UNLIKELY(!Stability::check(stability, required))) {
+            if (!Stability::check(stability, required)) [[unlikely]] {
                 ALOGE("Cannot do a user transaction on a %s binder (%s) in a %s context.",
                       Stability::levelString(stability).c_str(),
                       String8(getInterfaceDescriptor()).c_str(),
@@ -374,7 +373,7 @@ status_t BpBinder::transact(
         }
 
         status_t status;
-        if (CC_UNLIKELY(isRpcBinder())) {
+        if (isRpcBinder()) [[unlikely]] {
             status = rpcSession()->transact(sp<IBinder>::fromExisting(this), code, data, reply,
                                             flags);
         } else {
@@ -589,7 +588,9 @@ BpBinder* BpBinder::remoteBinder()
 }
 
 BpBinder::~BpBinder() {
-    if (CC_UNLIKELY(isRpcBinder())) return;
+    if (isRpcBinder()) [[unlikely]] {
+        return;
+    }
 
     if constexpr (!kEnableKernelIpc) {
         LOG_ALWAYS_FATAL("Binder kernel driver disabled at build time");
@@ -603,14 +604,13 @@ BpBinder::~BpBinder() {
     if (mTrackedUid >= 0) {
         AutoMutex _l(sTrackingLock);
         uint32_t trackedValue = sTrackingMap[mTrackedUid];
-        if (CC_UNLIKELY((trackedValue & COUNTING_VALUE_MASK) == 0)) {
+        if ((trackedValue & COUNTING_VALUE_MASK) == 0) [[unlikely]] {
             ALOGE("Unexpected Binder Proxy tracking decrement in %p handle %d\n", this,
                   binderHandle());
         } else {
-            if (CC_UNLIKELY(
-                (trackedValue & LIMIT_REACHED_MASK) &&
-                ((trackedValue & COUNTING_VALUE_MASK) <= sBinderProxyCountLowWatermark)
-                )) {
+            auto countingValue = trackedValue & COUNTING_VALUE_MASK;
+            if ((trackedValue & LIMIT_REACHED_MASK) &&
+                (countingValue <= sBinderProxyCountLowWatermark)) [[unlikely]] {
                 ALOGI("Limit reached bit reset for uid %d (fewer than %d proxies from uid %d held)",
                       getuid(), sBinderProxyCountLowWatermark, mTrackedUid);
                 sTrackingMap[mTrackedUid] &= ~LIMIT_REACHED_MASK;
@@ -630,7 +630,9 @@ BpBinder::~BpBinder() {
 }
 
 void BpBinder::onFirstRef() {
-    if (CC_UNLIKELY(isRpcBinder())) return;
+    if (isRpcBinder()) [[unlikely]] {
+        return;
+    }
 
     if constexpr (!kEnableKernelIpc) {
         LOG_ALWAYS_FATAL("Binder kernel driver disabled at build time");
@@ -643,7 +645,7 @@ void BpBinder::onFirstRef() {
 }
 
 void BpBinder::onLastStrongRef(const void* /*id*/) {
-    if (CC_UNLIKELY(isRpcBinder())) {
+    if (isRpcBinder()) [[unlikely]] {
         (void)rpcSession()->sendDecStrong(this);
         return;
     }
@@ -684,7 +686,9 @@ void BpBinder::onLastStrongRef(const void* /*id*/) {
 bool BpBinder::onIncStrongAttempted(uint32_t /*flags*/, const void* /*id*/)
 {
     // RPC binder doesn't currently support inc from weak binders
-    if (CC_UNLIKELY(isRpcBinder())) return false;
+    if (isRpcBinder()) [[unlikely]] {
+        return false;
+    }
 
     if constexpr (!kEnableKernelIpc) {
         LOG_ALWAYS_FATAL("Binder kernel driver disabled at build time");
