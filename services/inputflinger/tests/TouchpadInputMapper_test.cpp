@@ -23,7 +23,7 @@
 #include "FakePointerController.h"
 #include "InputMapperTest.h"
 #include "InterfaceMocks.h"
-#include "TestInputListenerMatchers.h"
+#include "TestEventMatchers.h"
 
 #define TAG "TouchpadInputMapper_test"
 

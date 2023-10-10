@@ -27,8 +27,8 @@
 #include "InstrumentedInputReader.h"
 #include "NotifyArgs.h"
 #include "TestConstants.h"
+#include "TestEventMatchers.h"
 #include "TestInputListener.h"
-#include "TestInputListenerMatchers.h"
 #include "include/gestures.h"
 #include "ui/Rotation.h"
 
