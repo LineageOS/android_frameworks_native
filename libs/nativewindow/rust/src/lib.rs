@@ -61,6 +61,7 @@ impl AHardwareBuffer {
     /// program termination.
     ///
     /// Available since API level 26.
+    #[inline]
     pub fn new(
         width: u32,
         height: u32,
