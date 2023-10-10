@@ -16,7 +16,8 @@
 
 #include <memory>
 
-#include <EventHub.h>
+#include <com_android_input_flags.h>
+#include <flag_macros.h>
 #include <gestures/GestureConverter.h>
 #include <gtest/gtest.h>
 #include <gui/constants.h>
@@ -33,6 +34,13 @@
 #include "ui/Rotation.h"
 
 namespace android {
+
+namespace {
+
+const auto TOUCHPAD_PALM_REJECTION =
+        ACONFIG_FLAG(com::android::input::flags, enable_touchpad_typing_palm_rejection);
+
+} // namespace
 
 using testing::AllOf;
 
@@ -1161,7 +1169,8 @@ TEST_F(GestureConverterTest, Click) {
                       WithDisplayId(ADISPLAY_ID_DEFAULT)));
 }
 
-TEST_F(GestureConverterTest, TapWithTapToClickDisabled) {
+TEST_F_WITH_FLAGS(GestureConverterTest, TapWithTapToClickDisabled,
+                  REQUIRES_FLAGS_ENABLED(TOUCHPAD_PALM_REJECTION)) {
     // Tap should be ignored when disabled
     mReader->getContext()->setPreventingTouchpadTaps(true);
 
@@ -1193,7 +1202,8 @@ TEST_F(GestureConverterTest, TapWithTapToClickDisabled) {
     ASSERT_FALSE(mReader->getContext()->isPreventingTouchpadTaps());
 }
 
-TEST_F(GestureConverterTest, ClickWithTapToClickDisabled) {
+TEST_F_WITH_FLAGS(GestureConverterTest, ClickWithTapToClickDisabled,
+                  REQUIRES_FLAGS_ENABLED(TOUCHPAD_PALM_REJECTION)) {
     // Click should still produce button press/release events
     mReader->getContext()->setPreventingTouchpadTaps(true);
 
@@ -1260,7 +1270,8 @@ TEST_F(GestureConverterTest, ClickWithTapToClickDisabled) {
     ASSERT_FALSE(mReader->getContext()->isPreventingTouchpadTaps());
 }
 
-TEST_F(GestureConverterTest, MoveEnablesTapToClick) {
+TEST_F_WITH_FLAGS(GestureConverterTest, MoveEnablesTapToClick,
+                  REQUIRES_FLAGS_ENABLED(TOUCHPAD_PALM_REJECTION)) {
     // initially disable tap-to-click
     mReader->getContext()->setPreventingTouchpadTaps(true);
 

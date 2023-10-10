@@ -41,3 +41,10 @@ flag {
   description: "Brings back fatal logging for inconsistent event streams originating from accessibility."
   bug: "299977100"
 }
+
+flag {
+  name: "enable_touchpad_typing_palm_rejection"
+  namespace: "input"
+  description: "Enable additional palm rejection on touchpad while typing"
+  bug: "301055381"
+}
