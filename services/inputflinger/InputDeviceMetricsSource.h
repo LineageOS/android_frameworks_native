@@ -47,6 +47,8 @@ enum class InputDeviceUsageSource : int32_t {
 
     ftl_first = UNKNOWN,
     ftl_last = TRACKBALL,
+    // Used by latency fuzzer
+    kMaxValue = ftl_last
 };
 
 /** Returns the InputDeviceUsageSource that corresponds to the key event. */

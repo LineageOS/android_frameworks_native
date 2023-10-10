@@ -16,6 +16,7 @@
 
 #define LOG_TAG "LatencyTracker"
 #include "LatencyTracker.h"
+#include "../InputDeviceMetricsSource.h"
 
 #include <inttypes.h>
 
@@ -23,6 +24,7 @@
 #include <android-base/stringprintf.h>
 #include <android/os/IInputConstants.h>
 #include <input/Input.h>
+#include <input/InputDevice.h>
 #include <log/log.h>
 
 using android::base::HwTimeoutMultiplier;
@@ -66,7 +68,8 @@ LatencyTracker::LatencyTracker(InputEventTimelineProcessor* processor)
 }
 
 void LatencyTracker::trackListener(int32_t inputEventId, bool isDown, nsecs_t eventTime,
-                                   nsecs_t readTime) {
+                                   nsecs_t readTime, DeviceId deviceId,
+                                   const std::set<InputDeviceUsageSource>& sources) {
     reportAndPruneMatureRecords(eventTime);
     const auto it = mTimelines.find(inputEventId);
     if (it != mTimelines.end()) {
@@ -78,7 +81,29 @@ void LatencyTracker::trackListener(int32_t inputEventId, bool isDown, nsecs_t ev
         eraseByValue(mEventTimes, inputEventId);
         return;
     }
-    mTimelines.emplace(inputEventId, InputEventTimeline(isDown, eventTime, readTime));
+
+    // Create an InputEventTimeline for the device ID. The vendorId and productId
+    // can be obtained from the InputDeviceIdentifier of the particular device.
+    const InputDeviceIdentifier* identifier = nullptr;
+    for (auto& inputDevice : mInputDevices) {
+        if (deviceId == inputDevice.getId()) {
+            identifier = &inputDevice.getIdentifier();
+            break;
+        }
+    }
+
+    // If no matching ids can be found for the device from among the input devices connected,
+    // the call to trackListener will be dropped.
+    // Note: there generally isn't expected to be a situation where we can't find an InputDeviceInfo
+    // but a possibility of it is handled in case of race conditions
+    if (identifier == nullptr) {
+        ALOGE("Could not find input device identifier. Dropping call to LatencyTracker.");
+        return;
+    }
+
+    mTimelines.emplace(inputEventId,
+                       InputEventTimeline(isDown, eventTime, readTime, identifier->vendor,
+                                          identifier->product, sources));
     mEventTimes.emplace(eventTime, inputEventId);
 }
 
@@ -169,6 +194,10 @@ std::string LatencyTracker::dump(const char* prefix) const {
     return StringPrintf("%sLatencyTracker:\n", prefix) +
             StringPrintf("%s  mTimelines.size() = %zu\n", prefix, mTimelines.size()) +
             StringPrintf("%s  mEventTimes.size() = %zu\n", prefix, mEventTimes.size());
+}
+
+void LatencyTracker::setInputDevices(const std::vector<InputDeviceInfo>& inputDevices) {
+    mInputDevices = inputDevices;
 }
 
 } // namespace android::inputdispatcher

@@ -47,6 +47,8 @@
 #include <queue>
 #include <sstream>
 
+#include "../InputDeviceMetricsSource.h"
+
 #include "Connection.h"
 #include "DebugConfig.h"
 #include "InputDispatcher.h"
@@ -4226,6 +4228,11 @@ std::unique_ptr<MotionEntry> InputDispatcher::splitMotionEvent(
     return splitMotionEntry;
 }
 
+void InputDispatcher::notifyInputDevicesChanged(const NotifyInputDevicesChangedArgs& args) {
+    std::scoped_lock _l(mLock);
+    mLatencyTracker.setInputDevices(args.inputDeviceInfos);
+}
+
 void InputDispatcher::notifyConfigurationChanged(const NotifyConfigurationChangedArgs& args) {
     if (debugInboundEventDetails()) {
         ALOGD("notifyConfigurationChanged - eventTime=%" PRId64, args.eventTime);
@@ -4438,7 +4445,9 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs& args) {
             IdGenerator::getSource(args.id) == IdGenerator::Source::INPUT_READER &&
             !mInputFilterEnabled) {
             const bool isDown = args.action == AMOTION_EVENT_ACTION_DOWN;
-            mLatencyTracker.trackListener(args.id, isDown, args.eventTime, args.readTime);
+            std::set<InputDeviceUsageSource> sources = getUsageSourcesForMotionArgs(args);
+            mLatencyTracker.trackListener(args.id, isDown, args.eventTime, args.readTime,
+                                          args.deviceId, sources);
         }
 
         needWake = enqueueInboundEventLocked(std::move(newEntry));

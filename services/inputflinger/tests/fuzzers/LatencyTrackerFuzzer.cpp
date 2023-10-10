@@ -15,6 +15,9 @@
  */
 
 #include <fuzzer/FuzzedDataProvider.h>
+#include <linux/input.h>
+
+#include "../../InputDeviceMetricsSource.h"
 #include "dispatcher/LatencyTracker.h"
 
 namespace android {
@@ -65,7 +68,11 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size) {
                     int32_t isDown = fdp.ConsumeBool();
                     nsecs_t eventTime = fdp.ConsumeIntegral<nsecs_t>();
                     nsecs_t readTime = fdp.ConsumeIntegral<nsecs_t>();
-                    tracker.trackListener(inputEventId, isDown, eventTime, readTime);
+                    const DeviceId deviceId = fdp.ConsumeIntegral<int32_t>();
+                    std::set<InputDeviceUsageSource> sources = {
+                            fdp.ConsumeEnum<InputDeviceUsageSource>()};
+                    tracker.trackListener(inputEventId, isDown, eventTime, readTime, deviceId,
+                                          sources);
                 },
                 [&]() -> void {
                     int32_t inputEventId = fdp.ConsumeIntegral<int32_t>();
