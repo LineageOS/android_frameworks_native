@@ -23,7 +23,6 @@
 #include <binder/IResultReceiver.h>
 #include <binder/Parcel.h>
 #include <binder/Stability.h>
-#include <cutils/compiler.h>
 #include <utils/KeyedVector.h>
 #include <utils/Log.h>
 #include <utils/Mutex.h>

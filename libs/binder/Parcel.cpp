@@ -41,7 +41,6 @@
 
 #include <android-base/scopeguard.h>
 #include <cutils/ashmem.h>
-#include <cutils/compiler.h>
 #include <utils/Flattenable.h>
 #include <utils/Log.h>
 #include <utils/String16.h>
