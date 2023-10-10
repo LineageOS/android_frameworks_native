@@ -21,8 +21,8 @@ use criterion::*;
 use nativewindow::*;
 
 #[inline]
-fn create_720p_buffer() -> AHardwareBuffer {
-    AHardwareBuffer::new(
+fn create_720p_buffer() -> HardwareBuffer {
+    HardwareBuffer::new(
         1280,
         720,
         1,
