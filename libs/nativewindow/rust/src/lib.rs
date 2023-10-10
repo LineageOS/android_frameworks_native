@@ -16,15 +16,17 @@
 
 extern crate nativewindow_bindgen as ffi;
 
-pub use ffi::{AHardwareBuffer_Format, AHardwareBuffer_UsageFlags};
+pub use ffi::{AHardwareBuffer, AHardwareBuffer_Format, AHardwareBuffer_UsageFlags};
 
-use std::os::raw::c_void;
-use std::ptr;
+use std::fmt::{self, Debug, Formatter};
+use std::mem::ManuallyDrop;
+use std::ptr::{self, NonNull};
 
 /// Wrapper around an opaque C AHardwareBuffer.
-pub struct AHardwareBuffer(*mut ffi::AHardwareBuffer);
+#[derive(PartialEq, Eq)]
+pub struct HardwareBuffer(NonNull<AHardwareBuffer>);
 
-impl AHardwareBuffer {
+impl HardwareBuffer {
     /// Test whether the given format and usage flag combination is allocatable.  If this function
     /// returns true, it means that a buffer with the given description can be allocated on this
     /// implementation, unless resource exhaustion occurs. If this function returns false, it means
@@ -79,13 +81,13 @@ impl AHardwareBuffer {
             rfu0: 0,
             rfu1: 0,
         };
-        let mut buffer = ptr::null_mut();
+        let mut ptr = ptr::null_mut();
         // SAFETY: The returned pointer is valid until we drop/deallocate it. The function may fail
         // and return a status, but we check it later.
-        let status = unsafe { ffi::AHardwareBuffer_allocate(&buffer_desc, &mut buffer) };
+        let status = unsafe { ffi::AHardwareBuffer_allocate(&buffer_desc, &mut ptr) };
 
         if status == 0 {
-            Some(Self(buffer))
+            Some(Self(NonNull::new(ptr).expect("Allocated AHardwareBuffer was null")))
         } else {
             None
         }
@@ -101,9 +103,15 @@ impl AHardwareBuffer {
     ///
     /// This function adopts the pointer but does NOT increment the refcount on the buffer. If the
     /// caller uses the pointer after the created object is dropped it will cause a memory leak.
-    pub unsafe fn take_from_raw(buffer_ptr: *mut c_void) -> Self {
-        assert!(!buffer_ptr.is_null());
-        Self(buffer_ptr as *mut ffi::AHardwareBuffer)
+    pub unsafe fn from_raw(buffer_ptr: NonNull<AHardwareBuffer>) -> Self {
+        Self(buffer_ptr)
+    }
+
+    /// Get the internal |AHardwareBuffer| pointer without decrementing the refcount. This can
+    /// be used to provide a pointer to the AHB for a C/C++ API over the FFI.
+    pub fn into_raw(self) -> NonNull<AHardwareBuffer> {
+        let buffer = ManuallyDrop::new(self);
+        buffer.0
     }
 
     /// Get the system wide unique id for an AHardwareBuffer. This function may panic in extreme
@@ -113,7 +121,7 @@ impl AHardwareBuffer {
     pub fn id(&self) -> u64 {
         let mut out_id = 0;
         // SAFETY: Neither pointers can be null.
-        let status = unsafe { ffi::AHardwareBuffer_getId(self.0, &mut out_id) };
+        let status = unsafe { ffi::AHardwareBuffer_getId(self.0.as_ref(), &mut out_id) };
         assert_eq!(status, 0, "id() failed for AHardwareBuffer with error code: {status}");
 
         out_id
@@ -161,27 +169,55 @@ impl AHardwareBuffer {
             rfu1: 0,
         };
         // SAFETY: neither the buffer nor AHardwareBuffer_Desc pointers will be null.
-        unsafe { ffi::AHardwareBuffer_describe(self.0, &mut buffer_desc) };
+        unsafe { ffi::AHardwareBuffer_describe(self.0.as_ref(), &mut buffer_desc) };
         buffer_desc
     }
 }
 
-impl Drop for AHardwareBuffer {
+impl Drop for HardwareBuffer {
     fn drop(&mut self) {
         // SAFETY: self.0 will never be null. AHardwareBuffers allocated from within Rust will have
         // a refcount of one, and there is a safety warning on taking an AHardwareBuffer from a raw
         // pointer requiring callers to ensure the refcount is managed appropriately.
-        unsafe { ffi::AHardwareBuffer_release(self.0) }
+        unsafe { ffi::AHardwareBuffer_release(self.0.as_ptr()) }
     }
 }
 
+impl Debug for HardwareBuffer {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_struct("HardwareBuffer").field("id", &self.id()).finish()
+    }
+}
+
+impl Clone for HardwareBuffer {
+    fn clone(&self) -> Self {
+        // SAFETY: ptr is guaranteed to be non-null and the acquire can not fail.
+        unsafe { ffi::AHardwareBuffer_acquire(self.0.as_ptr()) };
+        Self(self.0)
+    }
+}
+
+// SAFETY: The underlying *AHardwareBuffers can be moved between threads.
+unsafe impl Send for HardwareBuffer {}
+
+// SAFETY: The underlying *AHardwareBuffers can be used from multiple threads.
+//
+// AHardwareBuffers are backed by C++ GraphicBuffers, which are mostly immutable. The only cases
+// where they are not immutable are:
+//
+//   - reallocation (which is never actually done across the codebase and requires special
+//     privileges/platform code access to do)
+//   - "locking" for reading/writing (which is explicitly allowed to be done across multiple threads
+//     according to the docs on the underlying gralloc calls)
+unsafe impl Sync for HardwareBuffer {}
+
 #[cfg(test)]
-mod ahardwarebuffer_tests {
+mod test {
     use super::*;
 
     #[test]
     fn create_valid_buffer_returns_ok() {
-        let buffer = AHardwareBuffer::new(
+        let buffer = HardwareBuffer::new(
             512,
             512,
             1,
@@ -193,19 +229,12 @@ mod ahardwarebuffer_tests {
 
     #[test]
     fn create_invalid_buffer_returns_err() {
-        let buffer = AHardwareBuffer::new(512, 512, 1, 0, AHardwareBuffer_UsageFlags(0));
+        let buffer = HardwareBuffer::new(512, 512, 1, 0, AHardwareBuffer_UsageFlags(0));
         assert!(buffer.is_none());
     }
 
     #[test]
-    #[should_panic]
-    fn take_from_raw_panics_on_null() {
-        // SAFETY: Passing a null pointer is safe, it should just panic.
-        unsafe { AHardwareBuffer::take_from_raw(ptr::null_mut()) };
-    }
-
-    #[test]
-    fn take_from_raw_allows_getters() {
+    fn from_raw_allows_getters() {
         let buffer_desc = ffi::AHardwareBuffer_Desc {
             width: 1024,
             height: 512,
@@ -225,13 +254,13 @@ mod ahardwarebuffer_tests {
 
         // SAFETY: The pointer must be valid because it was just allocated successfully, and we
         // don't use it after calling this.
-        let buffer = unsafe { AHardwareBuffer::take_from_raw(raw_buffer_ptr as *mut c_void) };
+        let buffer = unsafe { HardwareBuffer::from_raw(NonNull::new(raw_buffer_ptr).unwrap()) };
         assert_eq!(buffer.width(), 1024);
     }
 
     #[test]
     fn basic_getters() {
-        let buffer = AHardwareBuffer::new(
+        let buffer = HardwareBuffer::new(
             1024,
             512,
             1,
@@ -252,7 +281,7 @@ mod ahardwarebuffer_tests {
 
     #[test]
     fn id_getter() {
-        let buffer = AHardwareBuffer::new(
+        let buffer = HardwareBuffer::new(
             1024,
             512,
             1,
@@ -262,5 +291,39 @@ mod ahardwarebuffer_tests {
         .expect("Buffer with some basic parameters was not created successfully");
 
         assert_ne!(0, buffer.id());
+    }
+
+    #[test]
+    fn clone() {
+        let buffer = HardwareBuffer::new(
+            1024,
+            512,
+            1,
+            AHardwareBuffer_Format::AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM,
+            AHardwareBuffer_UsageFlags::AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN,
+        )
+        .expect("Buffer with some basic parameters was not created successfully");
+        let buffer2 = buffer.clone();
+
+        assert_eq!(buffer, buffer2);
+    }
+
+    #[test]
+    fn into_raw() {
+        let buffer = HardwareBuffer::new(
+            1024,
+            512,
+            1,
+            AHardwareBuffer_Format::AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM,
+            AHardwareBuffer_UsageFlags::AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN,
+        )
+        .expect("Buffer with some basic parameters was not created successfully");
+        let buffer2 = buffer.clone();
+
+        let raw_buffer = buffer.into_raw();
+        // SAFETY: This is the same pointer we had before.
+        let remade_buffer = unsafe { HardwareBuffer::from_raw(raw_buffer) };
+
+        assert_eq!(remade_buffer, buffer2);
     }
 }
