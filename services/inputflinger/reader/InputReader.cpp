@@ -1046,6 +1046,14 @@ bool InputReader::ContextImpl::isPreventingTouchpadTaps() {
     return mReader->mPreventingTouchpadTaps;
 }
 
+void InputReader::ContextImpl::setLastKeyDownTimestamp(nsecs_t when) {
+    mReader->mLastKeyDownTimestamp = when;
+}
+
+nsecs_t InputReader::ContextImpl::getLastKeyDownTimestamp() {
+    return mReader->mLastKeyDownTimestamp;
+}
+
 void InputReader::ContextImpl::disableVirtualKeysUntil(nsecs_t time) {
     // lock is already held by the input loop
     mReader->disableVirtualKeysUntilLocked(time);

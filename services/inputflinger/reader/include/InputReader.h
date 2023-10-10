@@ -158,6 +158,9 @@ protected:
         void setPreventingTouchpadTaps(bool prevent) REQUIRES(mReader->mLock)
                 REQUIRES(mLock) override;
         bool isPreventingTouchpadTaps() REQUIRES(mReader->mLock) REQUIRES(mLock) override;
+        void setLastKeyDownTimestamp(nsecs_t when) REQUIRES(mReader->mLock)
+                REQUIRES(mLock) override;
+        nsecs_t getLastKeyDownTimestamp() REQUIRES(mReader->mLock) REQUIRES(mLock) override;
     } mContext;
 
     friend class ContextImpl;
@@ -197,6 +200,9 @@ private:
 
     // true if tap-to-click on touchpad currently disabled
     bool mPreventingTouchpadTaps GUARDED_BY(mLock){false};
+
+    // records timestamp of the last key press on the physical keyboard
+    nsecs_t mLastKeyDownTimestamp GUARDED_BY(mLock){0};
 
     // low-level input event decoding and device management
     [[nodiscard]] std::list<NotifyArgs> processEventsLocked(const RawEvent* rawEvents, size_t count)
