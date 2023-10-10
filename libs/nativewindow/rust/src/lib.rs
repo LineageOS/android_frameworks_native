@@ -199,6 +199,7 @@ mod ahardwarebuffer_tests {
     #[test]
     #[should_panic]
     fn take_from_raw_panics_on_null() {
+        // SAFETY: Passing a null pointer is safe, it should just panic.
         unsafe { AHardwareBuffer::take_from_raw(ptr::null_mut()) };
     }
 
@@ -216,9 +217,13 @@ mod ahardwarebuffer_tests {
         };
         let mut raw_buffer_ptr = ptr::null_mut();
 
+        // SAFETY: The pointers are valid because they come from references, and
+        // `AHardwareBuffer_allocate` doesn't retain them after it returns.
         let status = unsafe { ffi::AHardwareBuffer_allocate(&buffer_desc, &mut raw_buffer_ptr) };
         assert_eq!(status, 0);
 
+        // SAFETY: The pointer must be valid because it was just allocated successfully, and we
+        // don't use it after calling this.
         let buffer = unsafe { AHardwareBuffer::take_from_raw(raw_buffer_ptr as *mut c_void) };
         assert_eq!(buffer.width(), 1024);
     }
