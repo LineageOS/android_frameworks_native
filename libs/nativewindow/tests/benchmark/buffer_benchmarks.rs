@@ -20,20 +20,40 @@
 use criterion::*;
 use nativewindow::*;
 
-fn allocate_deallocate() {
-    let buffer = AHardwareBuffer::new(
+#[inline]
+fn create_720p_buffer() -> AHardwareBuffer {
+    AHardwareBuffer::new(
         1280,
         720,
         1,
         AHardwareBuffer_Format::AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM,
         AHardwareBuffer_UsageFlags::AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN,
     )
-    .unwrap();
-    drop(buffer);
+    .unwrap()
 }
 
 fn criterion_benchmark(c: &mut Criterion) {
-    c.bench_function("allocate_deallocate", |b| b.iter(allocate_deallocate));
+    c.bench_function("allocate_deallocate", |b| {
+        b.iter(|| {
+            let buffer = create_720p_buffer();
+            drop(buffer);
+        })
+    });
+
+    let buffer = create_720p_buffer();
+    c.bench_with_input(BenchmarkId::new("id", "buffer"), &buffer, |b, buffer| {
+        b.iter(|| {
+            buffer.id();
+        })
+    });
+
+    // This benchmark exercises getters that need to fetch data via an
+    // underlying call to AHardwareBuffer_describe.
+    c.bench_with_input(BenchmarkId::new("desc", "buffer"), &buffer, |b, buffer| {
+        b.iter(|| {
+            buffer.width();
+        })
+    });
 }
 
 criterion_group!(benches, criterion_benchmark);
