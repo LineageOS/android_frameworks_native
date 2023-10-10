@@ -32,7 +32,6 @@ cc_test {
         "BootDisplayMode_test.cpp",
         "Binder_test.cpp",
         "BufferGenerator.cpp",
-        "CommonTypes_test.cpp",
         "Credentials_test.cpp",
         "DereferenceSurfaceControl_test.cpp",
         "DisplayConfigs_test.cpp",
