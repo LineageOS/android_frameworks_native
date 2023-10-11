@@ -155,7 +155,10 @@ TEST(BinderStability, NdkForceDowngradeToLocalStability) {
 }
 
 TEST(BinderStability, ForceDowngradeToVendorStability) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     sp<IBinder> serverBinder = android::defaultServiceManager()->getService(kSystemStabilityServer);
+#pragma clang diagnostic pop
     auto server = interface_cast<IBinderStabilityTest>(serverBinder);
 
     ASSERT_NE(nullptr, server.get());
@@ -206,7 +209,10 @@ TEST(BinderStability, ConnectionInfoRequiresManifestEntries) {
     EXPECT_EQ(connectionInfo, std::nullopt);
 }
 TEST(BinderStability, CantCallVendorBinderInSystemContext) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     sp<IBinder> serverBinder = android::defaultServiceManager()->getService(kSystemStabilityServer);
+#pragma clang diagnostic pop
     auto server = interface_cast<IBinderStabilityTest>(serverBinder);
 
     ASSERT_NE(nullptr, server.get());
@@ -310,8 +316,11 @@ static AIBinder_Class* kNdkBadStableBinder =
 extern "C" void AIBinder_markVendorStability(AIBinder* binder); // <- BAD DO NOT COPY
 
 TEST(BinderStability, NdkCantCallVendorBinderInSystemContext) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     SpAIBinder binder = SpAIBinder(AServiceManager_getService(
         String8(kSystemStabilityServer).c_str()));
+#pragma clang diagnostic pop
 
     std::shared_ptr<aidl::IBinderStabilityTest> remoteServer =
         aidl::IBinderStabilityTest::fromBinder(binder);

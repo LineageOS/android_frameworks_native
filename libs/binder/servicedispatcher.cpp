@@ -275,7 +275,10 @@ int main(int argc, char* argv[]) {
     while (-1 != (opt = getopt(argc, argv, "g"))) {
         switch (opt) {
             case 'g': {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
                 serviceRetriever = &android::IServiceManager::getService;
+#pragma clang diagnostic pop
             } break;
             default: {
                 return Usage(argv[0]);

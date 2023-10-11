@@ -605,7 +605,10 @@ private:
     static constexpr const char* getLogTag() { return "SafeInterfaceTest"; }
 
     sp<ISafeInterfaceTest> getRemoteService() {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
         sp<IBinder> binder = defaultServiceManager()->getService(kServiceName);
+#pragma clang diagnostic pop
         sp<ISafeInterfaceTest> iface = interface_cast<ISafeInterfaceTest>(binder);
         EXPECT_TRUE(iface != nullptr);
 

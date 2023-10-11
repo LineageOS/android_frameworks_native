@@ -74,7 +74,10 @@ class FooBar : public BBinder {
 };
 
 TEST(BinderClearBuf, ClearKernelBuffer) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     sp<IBinder> binder = defaultServiceManager()->getService(kServerName);
+#pragma clang diagnostic pop
     ASSERT_NE(nullptr, binder);
 
     std::string replyBuffer;
