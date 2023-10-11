@@ -58,6 +58,7 @@ cc_test {
         "InputReader_test.cpp",
         "InstrumentedInputReader.cpp",
         "LatencyTracker_test.cpp",
+        "MultiTouchMotionAccumulator_test.cpp",
         "NotifyArgs_test.cpp",
         "PointerChoreographer_test.cpp",
         "PreferStylusOverTouch_test.cpp",
