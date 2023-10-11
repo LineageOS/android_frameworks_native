@@ -1065,10 +1065,8 @@ TEST_F(VSyncDispatchTimerQueueTest, updatesVsyncTimeForCloseWakeupTime) {
     EXPECT_THAT(cb.mReadyTime[0], Eq(2000));
 }
 
-// TODO(b/304338314): Set the flag value instead of skipping the test
 TEST_F(VSyncDispatchTimerQueueTest, skipAVsyc) {
-    // SET_FLAG_FOR_TEST(flags::dont_skip_on_early, false);
-    if (flags::dont_skip_on_early()) GTEST_SKIP();
+    SET_FLAG_FOR_TEST(flags::dont_skip_on_early, false);
 
     EXPECT_CALL(mMockClock, alarmAt(_, 500));
     CountingCallback cb(mDispatch);
@@ -1088,10 +1086,8 @@ TEST_F(VSyncDispatchTimerQueueTest, skipAVsyc) {
     ASSERT_THAT(cb.mCalls.size(), Eq(1));
 }
 
-// TODO(b/304338314): Set the flag value instead of skipping the test
 TEST_F(VSyncDispatchTimerQueueTest, dontskipAVsyc) {
-    // SET_FLAG_FOR_TEST(flags::dont_skip_on_early, true);
-    if (!flags::dont_skip_on_early()) GTEST_SKIP();
+    SET_FLAG_FOR_TEST(flags::dont_skip_on_early, true);
 
     EXPECT_CALL(mMockClock, alarmAt(_, 500));
     CountingCallback cb(mDispatch);

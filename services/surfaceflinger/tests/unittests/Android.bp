@@ -45,8 +45,7 @@ filegroup {
 cc_aconfig_library {
     name: "libsurfaceflingerflags_test",
     aconfig_declarations: "surfaceflinger_flags",
-    // TODO(b/304338314): uncomment the below line once the bug is fixed
-    // test: true,
+    test: true,
 }
 
 cc_test {
