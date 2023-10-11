@@ -26,7 +26,6 @@
 
 #include <string_view>
 
-#include <android-base/hex.h>
 #include <android-base/macros.h>
 #include <android-base/scopeguard.h>
 #include <binder/BpBinder.h>
@@ -310,8 +309,7 @@ status_t RpcSession::readId() {
     status = state()->getSessionId(connection.get(), sp<RpcSession>::fromExisting(this), &mId);
     if (status != OK) return status;
 
-    LOG_RPC_DETAIL("RpcSession %p has id %s", this,
-                   base::HexString(mId.data(), mId.size()).c_str());
+    LOG_RPC_DETAIL("RpcSession %p has id %s", this, HexString(mId.data(), mId.size()).c_str());
     return OK;
 }
 
@@ -709,7 +707,7 @@ status_t RpcSession::initAndAddConnection(RpcTransportFd fd, const std::vector<u
                                                 std::nullopt, nullptr);
         if (sendSessionIdStatus != OK) {
             ALOGE("Could not write session ID ('%s') to socket: %s",
-                  base::HexString(sessionId.data(), sessionId.size()).c_str(),
+                  HexString(sessionId.data(), sessionId.size()).c_str(),
                   statusToString(sendSessionIdStatus).c_str());
             return sendSessionIdStatus;
         }
