@@ -24,6 +24,7 @@ cc_fuzz {
         "-DTRUSTY_APP_PORT=\"com.android.trusty.binder.test.service\"",
         "-DTRUSTY_APP_UUID=\"d42f06c5-9dc5-455b-9914-cf094116cfa8\"",
         "-DTRUSTY_APP_FILENAME=\"binder-test-service.syms.elf\"",
+        "-DTRUSTY_APP_MAX_CONNECTIONS=1",
     ],
 }
 
@@ -35,5 +36,30 @@ cc_fuzz {
         "-DTRUSTY_APP_PORT=\"com.android.trusty.binderRpcTestService.V0\"",
         "-DTRUSTY_APP_UUID=\"87e424e5-69d7-4bbd-8b7c-7e24812cbc94\"",
         "-DTRUSTY_APP_FILENAME=\"binderRpcTestService.syms.elf\"",
+        "-DTRUSTY_APP_MAX_CONNECTIONS=1",
+    ],
+}
+
+cc_fuzz {
+    name: "trusty_binder_fuzzer_multi_connection",
+    defaults: ["trusty_fuzzer_defaults"],
+    srcs: [":trusty_tipc_fuzzer"],
+    cflags: [
+        "-DTRUSTY_APP_PORT=\"com.android.trusty.binder.test.service\"",
+        "-DTRUSTY_APP_UUID=\"d42f06c5-9dc5-455b-9914-cf094116cfa8\"",
+        "-DTRUSTY_APP_FILENAME=\"binder-test-service.syms.elf\"",
+        "-DTRUSTY_APP_MAX_CONNECTIONS=10",
+    ],
+}
+
+cc_fuzz {
+    name: "trusty_binder_rpc_fuzzer_multi_connection",
+    defaults: ["trusty_fuzzer_defaults"],
+    srcs: [":trusty_tipc_fuzzer"],
+    cflags: [
+        "-DTRUSTY_APP_PORT=\"com.android.trusty.binderRpcTestService.V0\"",
+        "-DTRUSTY_APP_UUID=\"87e424e5-69d7-4bbd-8b7c-7e24812cbc94\"",
+        "-DTRUSTY_APP_FILENAME=\"binderRpcTestService.syms.elf\"",
+        "-DTRUSTY_APP_MAX_CONNECTIONS=10",
     ],
 }
