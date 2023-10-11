@@ -60,6 +60,7 @@ private:
     void reset() EXCLUDES(mMutex);
     void cleanup() REQUIRES(mMutex);
     void setDebugState(DebugState) EXCLUDES(mMutex);
+    void setCallback(std::function<void()>&&) REQUIRES(mMutex);
 
     int mTimerFd = -1;
 
@@ -71,6 +72,7 @@ private:
     void endDispatch();
 
     mutable std::mutex mMutex;
+
     std::function<void()> mCallback GUARDED_BY(mMutex);
     bool mExpectingCallback GUARDED_BY(mMutex) = false;
     DebugState mDebugState GUARDED_BY(mMutex);
