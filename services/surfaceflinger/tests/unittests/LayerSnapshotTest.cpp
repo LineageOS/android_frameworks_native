@@ -861,4 +861,15 @@ TEST_F(LayerSnapshotTest, setShadowRadius) {
     EXPECT_EQ(getSnapshot(1)->shadowSettings.length, SHADOW_RADIUS);
 }
 
+TEST_F(LayerSnapshotTest, setTrustedOverlayForNonVisibleInput) {
+    hideLayer(1);
+    setTrustedOverlay(1, true);
+    Region touch{Rect{0, 0, 1000, 1000}};
+    setTouchableRegion(1, touch);
+
+    UPDATE_AND_VERIFY(mSnapshotBuilder, {2});
+    EXPECT_TRUE(getSnapshot(1)->inputInfo.inputConfig.test(
+            gui::WindowInfo::InputConfig::TRUSTED_OVERLAY));
+}
+
 } // namespace android::surfaceflinger::frontend
