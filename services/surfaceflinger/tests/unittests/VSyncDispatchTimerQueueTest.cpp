@@ -30,13 +30,17 @@
 
 #include <scheduler/TimeKeeper.h>
 
+#include "FlagUtils.h"
 #include "Scheduler/VSyncDispatchTimerQueue.h"
 #include "Scheduler/VSyncTracker.h"
+
+#include <com_android_graphics_surfaceflinger_flags.h>
 
 using namespace testing;
 using namespace std::literals;
 
 namespace android::scheduler {
+using namespace com::android::graphics::surfaceflinger;
 
 class MockVSyncTracker : public VSyncTracker {
 public:
@@ -1059,6 +1063,52 @@ TEST_F(VSyncDispatchTimerQueueTest, updatesVsyncTimeForCloseWakeupTime) {
     EXPECT_THAT(cb.mWakeupTime[0], Eq(600));
     ASSERT_THAT(cb.mReadyTime.size(), Eq(1));
     EXPECT_THAT(cb.mReadyTime[0], Eq(2000));
+}
+
+// TODO(b/304338314): Set the flag value instead of skipping the test
+TEST_F(VSyncDispatchTimerQueueTest, skipAVsyc) {
+    // SET_FLAG_FOR_TEST(flags::dont_skip_on_early, false);
+    if (flags::dont_skip_on_early()) GTEST_SKIP();
+
+    EXPECT_CALL(mMockClock, alarmAt(_, 500));
+    CountingCallback cb(mDispatch);
+    auto result =
+            mDispatch->schedule(cb,
+                                {.workDuration = 500, .readyDuration = 0, .earliestVsync = 1000});
+    EXPECT_TRUE(result.has_value());
+    EXPECT_EQ(500, *result);
+    mMockClock.advanceBy(300);
+
+    result = mDispatch->schedule(cb,
+                                 {.workDuration = 800, .readyDuration = 0, .earliestVsync = 1000});
+    EXPECT_TRUE(result.has_value());
+    EXPECT_EQ(1200, *result);
+
+    advanceToNextCallback();
+    ASSERT_THAT(cb.mCalls.size(), Eq(1));
+}
+
+// TODO(b/304338314): Set the flag value instead of skipping the test
+TEST_F(VSyncDispatchTimerQueueTest, dontskipAVsyc) {
+    // SET_FLAG_FOR_TEST(flags::dont_skip_on_early, true);
+    if (!flags::dont_skip_on_early()) GTEST_SKIP();
+
+    EXPECT_CALL(mMockClock, alarmAt(_, 500));
+    CountingCallback cb(mDispatch);
+    auto result =
+            mDispatch->schedule(cb,
+                                {.workDuration = 500, .readyDuration = 0, .earliestVsync = 1000});
+    EXPECT_TRUE(result.has_value());
+    EXPECT_EQ(500, *result);
+    mMockClock.advanceBy(300);
+
+    result = mDispatch->schedule(cb,
+                                 {.workDuration = 800, .readyDuration = 0, .earliestVsync = 1000});
+    EXPECT_TRUE(result.has_value());
+    EXPECT_EQ(200, *result);
+
+    advanceToNextCallback();
+    ASSERT_THAT(cb.mCalls.size(), Eq(1));
 }
 
 class VSyncDispatchTimerQueueEntryTest : public testing::Test {

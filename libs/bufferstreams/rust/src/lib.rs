@@ -159,7 +159,7 @@ pub type BufferError = anyhow::Error;
 /// Struct used to contain the buffer.
 pub struct Frame {
     /// A handle to the C buffer interface.
-    pub buffer: AHardwareBuffer,
+    pub buffer: HardwareBuffer,
     /// The time at which the buffer was dispatched.
     pub present_time: Instant,
     /// A fence used for reading/writing safely.

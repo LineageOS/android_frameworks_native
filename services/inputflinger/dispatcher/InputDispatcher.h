@@ -92,7 +92,7 @@ public:
     status_t start() override;
     status_t stop() override;
 
-    void notifyInputDevicesChanged(const NotifyInputDevicesChangedArgs& args) override{};
+    void notifyInputDevicesChanged(const NotifyInputDevicesChangedArgs& args) override;
     void notifyConfigurationChanged(const NotifyConfigurationChangedArgs& args) override;
     void notifyKey(const NotifyKeyArgs& args) override;
     void notifyMotion(const NotifyMotionArgs& args) override;

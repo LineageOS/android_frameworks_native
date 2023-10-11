@@ -31,9 +31,6 @@ cc_defaults {
         "-Wconversion",
         "-DANDROID_UTILS_REF_BASE_DISABLE_IMPLICIT_CONSTRUCTION",
     ],
-    static_libs: [
-        "libsurfaceflingerflags",
-    ],
 }
 
 cc_defaults {

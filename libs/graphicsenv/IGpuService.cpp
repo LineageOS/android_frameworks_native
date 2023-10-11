@@ -64,9 +64,17 @@ public:
     void setTargetStatsArray(const std::string& appPackageName, const uint64_t driverVersionCode,
                              const GpuStatsInfo::Stats stats, const uint64_t* values,
                              const uint32_t valueCount) override {
-        for (uint32_t i = 0; i < valueCount; i++) {
-            setTargetStats(appPackageName, driverVersionCode, stats, values[i]);
-        }
+        Parcel data, reply;
+        data.writeInterfaceToken(IGpuService::getInterfaceDescriptor());
+
+        data.writeUtf8AsUtf16(appPackageName);
+        data.writeUint64(driverVersionCode);
+        data.writeInt32(static_cast<int32_t>(stats));
+        data.writeUint32(valueCount);
+        data.write(values, valueCount * sizeof(uint64_t));
+
+        remote()->transact(BnGpuService::SET_TARGET_STATS_ARRAY, data, &reply,
+                           IBinder::FLAG_ONEWAY);
     }
 
     void setUpdatableDriverPath(const std::string& driverPath) override {
@@ -161,6 +169,31 @@ status_t BnGpuService::onTransact(uint32_t code, const Parcel& data, Parcel* rep
 
             setTargetStats(appPackageName, driverVersionCode,
                            static_cast<GpuStatsInfo::Stats>(stats), value);
+
+            return OK;
+        }
+        case SET_TARGET_STATS_ARRAY: {
+            CHECK_INTERFACE(IGpuService, data, reply);
+
+            std::string appPackageName;
+            if ((status = data.readUtf8FromUtf16(&appPackageName)) != OK) return status;
+
+            uint64_t driverVersionCode;
+            if ((status = data.readUint64(&driverVersionCode)) != OK) return status;
+
+            int32_t stats;
+            if ((status = data.readInt32(&stats)) != OK) return status;
+
+            uint32_t valueCount;
+            if ((status = data.readUint32(&valueCount)) != OK) return status;
+
+            std::vector<uint64_t> values(valueCount);
+            if ((status = data.read(values.data(), valueCount * sizeof(uint64_t))) != OK) {
+                return status;
+            }
+
+            setTargetStatsArray(appPackageName, driverVersionCode,
+                                static_cast<GpuStatsInfo::Stats>(stats), values.data(), valueCount);
 
             return OK;
         }

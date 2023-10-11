@@ -33,9 +33,9 @@ pub struct StreamConfig {
 }
 
 impl StreamConfig {
-    /// Tries to create a new AHardwareBuffer from settings in a [StreamConfig].
-    pub fn create_hardware_buffer(&self) -> Option<AHardwareBuffer> {
-        AHardwareBuffer::new(self.width, self.height, self.layers, self.format, self.usage)
+    /// Tries to create a new HardwareBuffer from settings in a [StreamConfig].
+    pub fn create_hardware_buffer(&self) -> Option<HardwareBuffer> {
+        HardwareBuffer::new(self.width, self.height, self.layers, self.format, self.usage)
     }
 }
 
