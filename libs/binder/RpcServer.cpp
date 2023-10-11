@@ -17,6 +17,7 @@
 #define LOG_TAG "RpcServer"
 
 #include <inttypes.h>
+#include <netinet/tcp.h>
 #include <poll.h>
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -570,6 +571,17 @@ status_t RpcServer::setupSocketServer(const RpcSocketAddress& addr) {
         int savedErrno = errno;
         ALOGE("Could not create socket at %s: %s", addr.toString().c_str(), strerror(savedErrno));
         return -savedErrno;
+    }
+
+    if (addr.addr()->sa_family == AF_INET || addr.addr()->sa_family == AF_INET6) {
+        int noDelay = 1;
+        int result =
+                setsockopt(socket_fd.get(), IPPROTO_TCP, TCP_NODELAY, &noDelay, sizeof(noDelay));
+        if (result < 0) {
+            int savedErrno = errno;
+            ALOGE("Could not set TCP_NODELAY on  %s", strerror(savedErrno));
+            return -savedErrno;
+        }
     }
 
     {
