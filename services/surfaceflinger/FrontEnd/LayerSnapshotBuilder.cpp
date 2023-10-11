@@ -731,6 +731,10 @@ void LayerSnapshotBuilder::updateSnapshot(LayerSnapshot& snapshot, const Args& a
                 : parentSnapshot.outputFilter.layerStack;
     }
 
+    if (forceUpdate || snapshot.clientChanges & layer_state_t::eTrustedOverlayChanged) {
+        snapshot.isTrustedOverlay = parentSnapshot.isTrustedOverlay || requested.isTrustedOverlay;
+    }
+
     if (snapshot.isHiddenByPolicyFromParent &&
         !snapshot.changes.test(RequestedLayerState::Changes::Created)) {
         if (forceUpdate ||
@@ -759,10 +763,6 @@ void LayerSnapshotBuilder::updateSnapshot(LayerSnapshot& snapshot, const Args& a
                 parentSnapshot.isSecure || (requested.flags & layer_state_t::eLayerSecure);
         snapshot.outputFilter.toInternalDisplay = parentSnapshot.outputFilter.toInternalDisplay ||
                 (requested.flags & layer_state_t::eLayerSkipScreenshot);
-    }
-
-    if (forceUpdate || snapshot.clientChanges & layer_state_t::eTrustedOverlayChanged) {
-        snapshot.isTrustedOverlay = parentSnapshot.isTrustedOverlay || requested.isTrustedOverlay;
     }
 
     if (forceUpdate || snapshot.clientChanges & layer_state_t::eStretchChanged) {
