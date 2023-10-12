@@ -133,7 +133,10 @@ class BinderRecordReplayTest : public ::testing::Test {
 public:
     void SetUp() override {
         // get the remote service
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
         auto binder = defaultServiceManager()->getService(kServerName);
+#pragma clang diagnostic pop
         ASSERT_NE(nullptr, binder);
         mInterface = interface_cast<IBinderRecordReplayTest>(binder);
         mBpBinder = binder->remoteBinder();
