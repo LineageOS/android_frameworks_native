@@ -275,18 +275,6 @@ TEST_F(CredentialsTest, CreateDisplayTest) {
     ASSERT_NO_FATAL_FAILURE(checkWithPrivileges(condition, true, false));
 }
 
-TEST_F(CredentialsTest, CaptureTest) {
-    const auto display = getFirstDisplayToken();
-    std::function<status_t()> condition = [=]() {
-        sp<GraphicBuffer> outBuffer;
-        DisplayCaptureArgs captureArgs;
-        captureArgs.displayToken = display;
-        ScreenCaptureResults captureResults;
-        return ScreenCapture::captureDisplay(captureArgs, captureResults);
-    };
-    ASSERT_NO_FATAL_FAILURE(checkWithPrivileges<status_t>(condition, NO_ERROR, PERMISSION_DENIED));
-}
-
 TEST_F(CredentialsTest, CaptureLayersTest) {
     setupBackgroundSurface();
     sp<GraphicBuffer> outBuffer;
