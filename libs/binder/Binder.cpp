@@ -29,7 +29,6 @@
 #include <binder/Parcel.h>
 #include <binder/RecordedTransaction.h>
 #include <binder/RpcServer.h>
-#include <private/android_filesystem_config.h>
 #include <pthread.h>
 #include <utils/misc.h>
 
@@ -44,6 +43,8 @@
 #include "RpcState.h"
 
 namespace android {
+
+constexpr uid_t kUidRoot = 0;
 
 // Service implementations inherit from BBinder and IBinder, and this is frozen
 // in prebuilts.
@@ -300,7 +301,7 @@ status_t BBinder::startRecordingTransactions(const Parcel& data) {
         return INVALID_OPERATION;
     }
     uid_t uid = IPCThreadState::self()->getCallingUid();
-    if (uid != AID_ROOT) {
+    if (uid != kUidRoot) {
         ALOGE("Binder recording not allowed because client %" PRIu32 " is not root", uid);
         return PERMISSION_DENIED;
     }
@@ -330,7 +331,7 @@ status_t BBinder::stopRecordingTransactions() {
         return INVALID_OPERATION;
     }
     uid_t uid = IPCThreadState::self()->getCallingUid();
-    if (uid != AID_ROOT) {
+    if (uid != kUidRoot) {
         ALOGE("Binder recording not allowed because client %" PRIu32 " is not root", uid);
         return PERMISSION_DENIED;
     }
@@ -634,7 +635,7 @@ status_t BBinder::setRpcClientDebug(const Parcel& data) {
         return INVALID_OPERATION;
     }
     uid_t uid = IPCThreadState::self()->getCallingUid();
-    if (uid != AID_ROOT) {
+    if (uid != kUidRoot) {
         ALOGE("%s: not allowed because client %" PRIu32 " is not root", __PRETTY_FUNCTION__, uid);
         return PERMISSION_DENIED;
     }
