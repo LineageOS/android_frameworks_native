@@ -340,7 +340,10 @@ void worker_fx(int num, int no_process, int iterations, int payload_size,
   for (int i = 0; i < server_count; i++) {
     // self service is in-process so just skip
     if (num == i) continue;
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     workers.push_back(serviceMgr->getService(generateServiceName(i)));
+#pragma clang diagnostic pop
   }
 
   // Client for each pair iterates here
