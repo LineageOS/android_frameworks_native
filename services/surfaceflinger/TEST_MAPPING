@@ -40,5 +40,10 @@
     {
       "name": "libsurfaceflinger_unittest"
     }
+  ],
+  "postsubmit": [
+    {
+      "name": "CtsSurfaceControlTestsStaging"
+    }
   ]
 }
