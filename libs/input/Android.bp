@@ -46,6 +46,14 @@ cc_aconfig_library {
     name: "aconfig_input_flags_c_lib",
     aconfig_declarations: "aconfig_input_flags",
     host_supported: true,
+    // Use the test version of the aconfig flag library by default to allow tests to set local
+    // overrides for flags, without having to link against a separate version of libinput or of this
+    // library. Bundling this library directly into libinput prevents us from having to add this
+    // library as a shared lib dependency everywhere where libinput is used.
+    test: true,
+    shared: {
+        enabled: false,
+    },
 }
 
 aidl_interface {
