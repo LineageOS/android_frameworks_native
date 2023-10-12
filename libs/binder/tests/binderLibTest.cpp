@@ -213,7 +213,10 @@ class BinderLibTestEnv : public ::testing::Environment {
 
             sp<IServiceManager> sm = defaultServiceManager();
             //printf("%s: pid %d, get service\n", __func__, m_pid);
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
             m_server = sm->getService(binderLibTestServiceName);
+#pragma clang diagnostic pop
             ASSERT_TRUE(m_server != nullptr);
             //printf("%s: pid %d, get service done\n", __func__, m_pid);
         }
@@ -1107,6 +1110,7 @@ TEST_F(BinderLibTest, WorkSourcePropagatedForAllFollowingBinderCalls)
     status_t ret;
     data.writeInterfaceToken(binderLibTestServiceName);
     ret = m_server->transact(BINDER_LIB_TEST_GET_WORK_SOURCE_TRANSACTION, data, &reply);
+    EXPECT_EQ(NO_ERROR, ret);
 
     Parcel data2, reply2;
     status_t ret2;
@@ -1595,9 +1599,8 @@ public:
         }
         switch (code) {
             case BINDER_LIB_TEST_REGISTER_SERVER: {
-                int32_t id;
                 sp<IBinder> binder;
-                id = data.readInt32();
+                /*id =*/data.readInt32();
                 binder = data.readStrongBinder();
                 if (binder == nullptr) {
                     return BAD_VALUE;
@@ -1993,7 +1996,10 @@ int run_server(int index, int readypipefd, bool usePoll)
         if (index == 0) {
             ret = sm->addService(binderLibTestServiceName, testService);
         } else {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
             sp<IBinder> server = sm->getService(binderLibTestServiceName);
+#pragma clang diagnostic pop
             Parcel data, reply;
             data.writeInt32(index);
             data.writeStrongBinder(testService);
