@@ -341,7 +341,10 @@ TEST(NdkBinder, UnimplementedShell) {
     // libbinder across processes to the NDK service which doesn't implement
     // shell
     static const sp<android::IServiceManager> sm(android::defaultServiceManager());
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     sp<IBinder> testService = sm->getService(String16(IFoo::kSomeInstanceName));
+#pragma clang diagnostic pop
 
     Vector<String16> argsVec;
     EXPECT_EQ(OK, IBinder::shellCommand(testService, STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO,
@@ -384,7 +387,10 @@ TEST(NdkBinder, GetTestServiceStressTest) {
     // checkService on it, since the other process serving it might not be started yet.
     {
         // getService, not waitForService, to take advantage of timeout
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
         auto binder = ndk::SpAIBinder(AServiceManager_getService(IFoo::kSomeInstanceName));
+#pragma clang diagnostic pop
         ASSERT_NE(nullptr, binder.get());
     }
 
@@ -574,7 +580,10 @@ TEST(NdkBinder, DeathRecipient) {
 }
 
 TEST(NdkBinder, RetrieveNonNdkService) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     AIBinder* binder = AServiceManager_getService(kExistingNonNdkService);
+#pragma clang diagnostic pop
     ASSERT_NE(nullptr, binder);
     EXPECT_TRUE(AIBinder_isRemote(binder));
     EXPECT_TRUE(AIBinder_isAlive(binder));
@@ -588,7 +597,10 @@ void OnBinderDeath(void* cookie) {
 }
 
 TEST(NdkBinder, LinkToDeath) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     AIBinder* binder = AServiceManager_getService(kExistingNonNdkService);
+#pragma clang diagnostic pop
     ASSERT_NE(nullptr, binder);
 
     AIBinder_DeathRecipient* recipient = AIBinder_DeathRecipient_new(OnBinderDeath);
@@ -618,7 +630,10 @@ TEST(NdkBinder, SetInheritRt) {
 }
 
 TEST(NdkBinder, SetInheritRtNonLocal) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     AIBinder* binder = AServiceManager_getService(kExistingNonNdkService);
+#pragma clang diagnostic pop
     ASSERT_NE(binder, nullptr);
 
     ASSERT_TRUE(AIBinder_isRemote(binder));
@@ -654,11 +669,14 @@ TEST(NdkBinder, GetServiceInProcess) {
 }
 
 TEST(NdkBinder, EqualityOfRemoteBinderPointer) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     AIBinder* binderA = AServiceManager_getService(kExistingNonNdkService);
     ASSERT_NE(nullptr, binderA);
 
     AIBinder* binderB = AServiceManager_getService(kExistingNonNdkService);
     ASSERT_NE(nullptr, binderB);
+#pragma clang diagnostic pop
 
     EXPECT_EQ(binderA, binderB);
 
@@ -672,7 +690,10 @@ TEST(NdkBinder, ToFromJavaNullptr) {
 }
 
 TEST(NdkBinder, ABpBinderRefCount) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     AIBinder* binder = AServiceManager_getService(kExistingNonNdkService);
+#pragma clang diagnostic pop
     AIBinder_Weak* wBinder = AIBinder_Weak_new(binder);
 
     ASSERT_NE(nullptr, binder);
@@ -695,7 +716,10 @@ TEST(NdkBinder, AddServiceMultipleTimes) {
 }
 
 TEST(NdkBinder, RequestedSidWorks) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     ndk::SpAIBinder binder(AServiceManager_getService(kBinderNdkUnitTestService));
+#pragma clang diagnostic pop
     std::shared_ptr<aidl::IBinderNdkUnitTest> service =
             aidl::IBinderNdkUnitTest::fromBinder(binder);
 
@@ -718,7 +742,10 @@ TEST(NdkBinder, SentAidlBinderCanBeDestroyed) {
 
     std::shared_ptr<MyEmpty> empty = ndk::SharedRefBase::make<MyEmpty>();
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     ndk::SpAIBinder binder(AServiceManager_getService(kBinderNdkUnitTestService));
+#pragma clang diagnostic pop
     std::shared_ptr<aidl::IBinderNdkUnitTest> service =
             aidl::IBinderNdkUnitTest::fromBinder(binder);
 
@@ -741,7 +768,10 @@ TEST(NdkBinder, SentAidlBinderCanBeDestroyed) {
 TEST(NdkBinder, ConvertToPlatformBinder) {
     for (const ndk::SpAIBinder& binder :
          {// remote
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
           ndk::SpAIBinder(AServiceManager_getService(kBinderNdkUnitTestService)),
+#pragma clang diagnostic pop
           // local
           ndk::SharedRefBase::make<MyBinderNdkUnitTest>()->asBinder()}) {
         // convert to platform binder
@@ -774,7 +804,10 @@ TEST(NdkBinder, ConvertToPlatformParcel) {
 TEST(NdkBinder, GetAndVerifyScopedAIBinder_Weak) {
     for (const ndk::SpAIBinder& binder :
          {// remote
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
           ndk::SpAIBinder(AServiceManager_getService(kBinderNdkUnitTestService)),
+#pragma clang diagnostic pop
           // local
           ndk::SharedRefBase::make<MyBinderNdkUnitTest>()->asBinder()}) {
         // get a const ScopedAIBinder_Weak and verify promote
@@ -869,7 +902,10 @@ std::string shellCmdToString(sp<IBinder> unitTestService, const std::vector<cons
 
 TEST(NdkBinder, UseHandleShellCommand) {
     static const sp<android::IServiceManager> sm(android::defaultServiceManager());
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     sp<IBinder> testService = sm->getService(String16(kBinderNdkUnitTestService));
+#pragma clang diagnostic pop
 
     EXPECT_EQ("", shellCmdToString(testService, {}));
     EXPECT_EQ("", shellCmdToString(testService, {"", ""}));
@@ -879,7 +915,10 @@ TEST(NdkBinder, UseHandleShellCommand) {
 
 TEST(NdkBinder, FlaggedServiceAccessible) {
     static const sp<android::IServiceManager> sm(android::defaultServiceManager());
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     sp<IBinder> testService = sm->getService(String16(kBinderNdkUnitTestServiceFlagged));
+#pragma clang diagnostic pop
     ASSERT_NE(nullptr, testService);
 }
 
