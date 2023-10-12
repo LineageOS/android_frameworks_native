@@ -39,6 +39,9 @@
       "options": [
         {
           "include-filter": "android.hardware.input.cts.tests"
+        },
+        {
+          "exclude-annotation": "androidx.test.filters.FlakyTest"
         }
       ]
     },
