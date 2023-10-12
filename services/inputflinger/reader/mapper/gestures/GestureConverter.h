@@ -53,17 +53,20 @@ public:
     void populateMotionRanges(InputDeviceInfo& info) const;
 
     [[nodiscard]] std::list<NotifyArgs> handleGesture(nsecs_t when, nsecs_t readTime,
+                                                      nsecs_t gestureStartTime,
                                                       const Gesture& gesture);
 
 private:
-    [[nodiscard]] NotifyMotionArgs handleMove(nsecs_t when, nsecs_t readTime,
-                                              const Gesture& gesture);
+    [[nodiscard]] std::list<NotifyArgs> handleMove(nsecs_t when, nsecs_t readTime,
+                                                   nsecs_t gestureStartTime,
+                                                   const Gesture& gesture);
     [[nodiscard]] std::list<NotifyArgs> handleButtonsChange(nsecs_t when, nsecs_t readTime,
                                                             const Gesture& gesture);
     [[nodiscard]] std::list<NotifyArgs> releaseAllButtons(nsecs_t when, nsecs_t readTime);
     [[nodiscard]] std::list<NotifyArgs> handleScroll(nsecs_t when, nsecs_t readTime,
                                                      const Gesture& gesture);
     [[nodiscard]] std::list<NotifyArgs> handleFling(nsecs_t when, nsecs_t readTime,
+                                                    nsecs_t gestureStartTime,
                                                     const Gesture& gesture);
     [[nodiscard]] NotifyMotionArgs endScroll(nsecs_t when, nsecs_t readTime);
 
@@ -83,6 +86,7 @@ private:
                                     float yCursorPosition);
 
     void enableTapToClick();
+    bool mIsHoverCancelled{false};
 
     const int32_t mDeviceId;
     InputReaderContext& mReaderContext;
