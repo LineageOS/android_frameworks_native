@@ -436,7 +436,7 @@ impl<I: FromIBinder + ?Sized> Ord for Strong<I> {
 
 impl<I: FromIBinder + ?Sized> PartialOrd for Strong<I> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.0.as_binder().partial_cmp(&other.0.as_binder())
+        Some(self.cmp(other))
     }
 }
 
@@ -483,7 +483,7 @@ impl<I: FromIBinder + ?Sized> Ord for Weak<I> {
 
 impl<I: FromIBinder + ?Sized> PartialOrd for Weak<I> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.weak_binder.partial_cmp(&other.weak_binder)
+        Some(self.cmp(other))
     }
 }
 
