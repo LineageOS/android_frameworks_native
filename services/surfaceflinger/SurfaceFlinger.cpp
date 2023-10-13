@@ -5669,7 +5669,6 @@ void SurfaceFlinger::initializeDisplays() {
     state.id = transactionId;
 
     // reset screen orientation and use primary layer stack
-    Vector<DisplayState> displays;
     DisplayState d;
     d.what = DisplayState::eDisplayProjectionChanged |
              DisplayState::eLayerStackChanged;
