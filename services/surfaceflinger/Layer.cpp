@@ -2941,7 +2941,9 @@ void Layer::onLayerDisplayed(ftl::SharedFuture<FenceResult> futureFenceResult,
         ch->previousReleaseFences.emplace_back(std::move(futureFenceResult));
         ch->name = mName;
     }
-    mPreviouslyPresentedLayerStacks.push_back(layerStack);
+    if (mBufferInfo.mBuffer) {
+        mPreviouslyPresentedLayerStacks.push_back(layerStack);
+    }
 }
 
 void Layer::onSurfaceFrameCreated(
