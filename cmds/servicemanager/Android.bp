@@ -24,7 +24,6 @@ cc_defaults {
 
     shared_libs: [
         "libbase",
-        "libbinder", // also contains servicemanager_interface
         "libvintf",
         "libcutils",
         "liblog",
@@ -33,6 +32,21 @@ cc_defaults {
     ],
 
     target: {
+        android: {
+            shared_libs: [
+                "libbinder",
+                "libutils",
+            ],
+        },
+        host: {
+            static_libs: [
+                "libbinder",
+                "libutils",
+            ],
+        },
+        darwin: {
+            enabled: false,
+        },
         vendor: {
             exclude_shared_libs: ["libvintf"],
         },
