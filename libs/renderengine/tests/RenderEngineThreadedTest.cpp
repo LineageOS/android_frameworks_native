@@ -50,8 +50,8 @@ TEST_F(RenderEngineThreadedTest, dump) {
 }
 
 TEST_F(RenderEngineThreadedTest, primeCache) {
-    EXPECT_CALL(*mRenderEngine, primeCache());
-    mThreadedRE->primeCache();
+    EXPECT_CALL(*mRenderEngine, primeCache(false));
+    mThreadedRE->primeCache(false);
     // need to call ANY synchronous function after primeCache to ensure that primeCache has
     // completed asynchronously before the test completes execution.
     mThreadedRE->getContextPriority();

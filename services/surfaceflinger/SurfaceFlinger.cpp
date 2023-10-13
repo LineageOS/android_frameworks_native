@@ -869,7 +869,9 @@ void SurfaceFlinger::init() FTL_FAKE_GUARD(kMainThreadContext) {
             ALOGW("Can't set SCHED_OTHER for primeCache");
         }
 
-        mRenderEnginePrimeCacheFuture = getRenderEngine().primeCache();
+        bool shouldPrimeUltraHDR =
+                base::GetBoolProperty("ro.surface_flinger.prime_shader_cache.ultrahdr"s, false);
+        mRenderEnginePrimeCacheFuture = getRenderEngine().primeCache(shouldPrimeUltraHDR);
 
         if (setSchedFifo(true) != NO_ERROR) {
             ALOGW("Can't set SCHED_OTHER for primeCache");

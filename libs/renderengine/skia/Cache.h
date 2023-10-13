@@ -22,7 +22,7 @@ class SkiaRenderEngine;
 
 class Cache {
 public:
-    static void primeShaderCache(SkiaRenderEngine*);
+    static void primeShaderCache(SkiaRenderEngine*, bool shouldPrimeUltraHDR);
 
 private:
     Cache() = default;

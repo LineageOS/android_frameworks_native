@@ -129,7 +129,7 @@ void RenderEngineThreaded::waitUntilInitialized() const {
     mInitializedCondition.wait(lock, [=] { return mIsInitialized; });
 }
 
-std::future<void> RenderEngineThreaded::primeCache() {
+std::future<void> RenderEngineThreaded::primeCache(bool shouldPrimeUltraHDR) {
     const auto resultPromise = std::make_shared<std::promise<void>>();
     std::future<void> resultFuture = resultPromise->get_future();
     ATRACE_CALL();
@@ -137,19 +137,20 @@ std::future<void> RenderEngineThreaded::primeCache() {
     // for the futures.
     {
         std::lock_guard lock(mThreadMutex);
-        mFunctionCalls.push([resultPromise](renderengine::RenderEngine& instance) {
-            ATRACE_NAME("REThreaded::primeCache");
-            if (setSchedFifo(false) != NO_ERROR) {
-                ALOGW("Couldn't set SCHED_OTHER for primeCache");
-            }
+        mFunctionCalls.push(
+                [resultPromise, shouldPrimeUltraHDR](renderengine::RenderEngine& instance) {
+                    ATRACE_NAME("REThreaded::primeCache");
+                    if (setSchedFifo(false) != NO_ERROR) {
+                        ALOGW("Couldn't set SCHED_OTHER for primeCache");
+                    }
 
-            instance.primeCache();
-            resultPromise->set_value();
+                    instance.primeCache(shouldPrimeUltraHDR);
+                    resultPromise->set_value();
 
-            if (setSchedFifo(true) != NO_ERROR) {
-                ALOGW("Couldn't set SCHED_FIFO for primeCache");
-            }
-        });
+                    if (setSchedFifo(true) != NO_ERROR) {
+                        ALOGW("Couldn't set SCHED_FIFO for primeCache");
+                    }
+                });
     }
     mCondition.notify_one();
 
