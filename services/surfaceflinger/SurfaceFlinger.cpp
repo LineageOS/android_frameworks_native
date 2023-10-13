@@ -864,9 +864,7 @@ void SurfaceFlinger::init() FTL_FAKE_GUARD(kMainThreadContext) {
 
     mPowerAdvisor->init();
 
-    char primeShaderCache[PROPERTY_VALUE_MAX];
-    property_get("service.sf.prime_shader_cache", primeShaderCache, "1");
-    if (atoi(primeShaderCache)) {
+    if (base::GetBoolProperty("service.sf.prime_shader_cache"s, true)) {
         if (setSchedFifo(false) != NO_ERROR) {
             ALOGW("Can't set SCHED_OTHER for primeCache");
         }
