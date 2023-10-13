@@ -361,6 +361,7 @@ struct layer_state_t {
 
     // Frame rate category to suggest what frame rate range a surface should run.
     int8_t frameRateCategory;
+    bool frameRateCategorySmoothSwitchOnly;
 
     // Strategy of the layer for frame rate selection.
     int8_t frameRateSelectionStrategy;

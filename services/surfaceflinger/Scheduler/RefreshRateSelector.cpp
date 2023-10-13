@@ -494,6 +494,7 @@ auto RefreshRateSelector::getRankedFrameRatesLocked(const std::vector<LayerRequi
     int explicitExact = 0;
     int explicitCategoryVoteLayers = 0;
     int seamedFocusedLayers = 0;
+    int categorySmoothSwitchOnlyLayers = 0;
 
     for (const auto& layer : layers) {
         switch (layer.vote) {
@@ -530,6 +531,9 @@ auto RefreshRateSelector::getRankedFrameRatesLocked(const std::vector<LayerRequi
 
         if (layer.seamlessness == Seamlessness::SeamedAndSeamless && layer.focused) {
             seamedFocusedLayers++;
+        }
+        if (layer.frameRateCategorySmoothSwitchOnly) {
+            categorySmoothSwitchOnlyLayers++;
         }
     }
 
@@ -578,10 +582,17 @@ auto RefreshRateSelector::getRankedFrameRatesLocked(const std::vector<LayerRequi
         return {ranking, kNoSignals};
     }
 
+    const bool smoothSwitchOnly = categorySmoothSwitchOnlyLayers > 0;
+    const DisplayModeId activeModeId = activeMode.getId();
+
     // Only if all layers want Min we should return Min
     if (noVoteLayers + minVoteLayers == layers.size()) {
         ALOGV("All layers Min");
-        const auto ranking = rankFrameRates(activeMode.getGroup(), RefreshRateOrder::Ascending);
+        const auto ranking = rankFrameRates(activeMode.getGroup(), RefreshRateOrder::Ascending,
+                                            std::nullopt, [&](FrameRateMode mode) {
+                                                return !smoothSwitchOnly ||
+                                                        mode.modePtr->getId() == activeModeId;
+                                            });
         ATRACE_FORMAT_INSTANT("%s (All layers Min)",
                               to_string(ranking.front().frameRateMode.fps).c_str());
         return {ranking, kNoSignals};
@@ -621,6 +632,14 @@ auto RefreshRateSelector::getRankedFrameRatesLocked(const std::vector<LayerRequi
             if (layer.seamlessness == Seamlessness::SeamedAndSeamless && !isSeamlessSwitch &&
                 !layer.focused) {
                 ALOGV("%s ignores %s because it's not focused and the switch is going to be seamed."
+                      " Current mode = %s",
+                      formatLayerInfo(layer, weight).c_str(), to_string(*modePtr).c_str(),
+                      to_string(activeMode).c_str());
+                continue;
+            }
+
+            if (smoothSwitchOnly && modePtr->getId() != activeModeId) {
+                ALOGV("%s ignores %s because it's non-VRR and smooth switch only."
                       " Current mode = %s",
                       formatLayerInfo(layer, weight).c_str(), to_string(*modePtr).c_str(),
                       to_string(activeMode).c_str());
@@ -770,6 +789,7 @@ auto RefreshRateSelector::getRankedFrameRatesLocked(const std::vector<LayerRequi
                                   to_string(descending.front().frameRateMode.fps).c_str());
             return {descending, kNoSignals};
         } else {
+            ALOGV("primaryRangeIsSingleRate");
             ATRACE_FORMAT_INSTANT("%s (primaryRangeIsSingleRate)",
                                   to_string(ranking.front().frameRateMode.fps).c_str());
             return {ranking, kNoSignals};
@@ -805,6 +825,7 @@ auto RefreshRateSelector::getRankedFrameRatesLocked(const std::vector<LayerRequi
     // If we never scored any layers, and we don't favor high refresh rates, prefer to stay with the
     // current config
     if (noLayerScore && refreshRateOrder == RefreshRateOrder::Ascending) {
+        ALOGV("preferredDisplayMode");
         const auto ascendingWithPreferred =
                 rankFrameRates(anchorGroup, RefreshRateOrder::Ascending, activeMode.getId());
         ATRACE_FORMAT_INSTANT("%s (preferredDisplayMode)",
@@ -812,6 +833,7 @@ auto RefreshRateSelector::getRankedFrameRatesLocked(const std::vector<LayerRequi
         return {ascendingWithPreferred, kNoSignals};
     }
 
+    ALOGV("%s (scored))", to_string(ranking.front().frameRateMode.fps).c_str());
     ATRACE_FORMAT_INSTANT("%s (scored))", to_string(ranking.front().frameRateMode.fps).c_str());
     return {ranking, kNoSignals};
 }
@@ -1017,7 +1039,8 @@ const DisplayModePtr& RefreshRateSelector::getMaxRefreshRateByPolicyLocked(int a
 
 auto RefreshRateSelector::rankFrameRates(std::optional<int> anchorGroupOpt,
                                          RefreshRateOrder refreshRateOrder,
-                                         std::optional<DisplayModeId> preferredDisplayModeOpt) const
+                                         std::optional<DisplayModeId> preferredDisplayModeOpt,
+                                         const RankFrameRatesPredicate& predicate) const
         -> FrameRateRanking {
     using fps_approx_ops::operator<;
     const char* const whence = __func__;
@@ -1044,7 +1067,8 @@ auto RefreshRateSelector::rankFrameRates(std::optional<int> anchorGroupOpt,
     std::deque<ScoredFrameRate> ranking;
     const auto rankFrameRate = [&](const FrameRateMode& frameRateMode) REQUIRES(mLock) {
         const auto& modePtr = frameRateMode.modePtr;
-        if (anchorGroupOpt && modePtr->getGroup() != anchorGroupOpt) {
+        if ((anchorGroupOpt && modePtr->getGroup() != anchorGroupOpt) ||
+            !predicate(frameRateMode)) {
             return;
         }
 

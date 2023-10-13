@@ -170,8 +170,11 @@ public:
         Fps desiredRefreshRate;
         // If a seamless mode switch is required.
         Seamlessness seamlessness = Seamlessness::Default;
-        // Layer frame rate category. Superseded by desiredRefreshRate.
+        // Layer frame rate category.
         FrameRateCategory frameRateCategory = FrameRateCategory::Default;
+        // Goes together with frame rate category vote. Allow refresh rate changes only
+        // if there would be no jank.
+        bool frameRateCategorySmoothSwitchOnly = false;
         // Layer's weight in the range of [0, 1]. The higher the weight the more impact this layer
         // would have on choosing the refresh rate.
         float weight = 0.0f;
@@ -446,10 +449,15 @@ private:
         ftl_last = Descending
     };
 
-    // Only uses the primary range, not the app request range.
+    typedef std::function<bool(const FrameRateMode)> RankFrameRatesPredicate;
+
+    // Rank the frame rates.
+    // Only modes in the primary range for which `predicate` is `true` will be scored.
+    // Does not use the app requested range.
     FrameRateRanking rankFrameRates(
             std::optional<int> anchorGroupOpt, RefreshRateOrder refreshRateOrder,
-            std::optional<DisplayModeId> preferredDisplayModeOpt = std::nullopt) const
+            std::optional<DisplayModeId> preferredDisplayModeOpt = std::nullopt,
+            const RankFrameRatesPredicate& predicate = [](FrameRateMode) { return true; }) const
             REQUIRES(mLock);
 
     const Policy* getCurrentPolicyLocked() const REQUIRES(mLock);

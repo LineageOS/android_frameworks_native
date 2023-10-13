@@ -85,6 +85,7 @@ layer_state_t::layer_state_t()
         changeFrameRateStrategy(ANATIVEWINDOW_CHANGE_FRAME_RATE_ONLY_IF_SEAMLESS),
         defaultFrameRateCompatibility(ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT),
         frameRateCategory(ANATIVEWINDOW_FRAME_RATE_CATEGORY_DEFAULT),
+        frameRateCategorySmoothSwitchOnly(false),
         frameRateSelectionStrategy(ANATIVEWINDOW_FRAME_RATE_SELECTION_STRATEGY_SELF),
         fixedTransformHint(ui::Transform::ROT_INVALID),
         autoRefresh(false),
@@ -162,6 +163,7 @@ status_t layer_state_t::write(Parcel& output) const
     SAFE_PARCEL(output.writeByte, changeFrameRateStrategy);
     SAFE_PARCEL(output.writeByte, defaultFrameRateCompatibility);
     SAFE_PARCEL(output.writeByte, frameRateCategory);
+    SAFE_PARCEL(output.writeBool, frameRateCategorySmoothSwitchOnly);
     SAFE_PARCEL(output.writeByte, frameRateSelectionStrategy);
     SAFE_PARCEL(output.writeUint32, fixedTransformHint);
     SAFE_PARCEL(output.writeBool, autoRefresh);
@@ -296,6 +298,7 @@ status_t layer_state_t::read(const Parcel& input)
     SAFE_PARCEL(input.readByte, &changeFrameRateStrategy);
     SAFE_PARCEL(input.readByte, &defaultFrameRateCompatibility);
     SAFE_PARCEL(input.readByte, &frameRateCategory);
+    SAFE_PARCEL(input.readBool, &frameRateCategorySmoothSwitchOnly);
     SAFE_PARCEL(input.readByte, &frameRateSelectionStrategy);
     SAFE_PARCEL(input.readUint32, &tmpUint32);
     fixedTransformHint = static_cast<ui::Transform::RotationFlags>(tmpUint32);
@@ -669,6 +672,7 @@ void layer_state_t::merge(const layer_state_t& other) {
     if (other.what & eFrameRateCategoryChanged) {
         what |= eFrameRateCategoryChanged;
         frameRateCategory = other.frameRateCategory;
+        frameRateCategorySmoothSwitchOnly = other.frameRateCategorySmoothSwitchOnly;
     }
     if (other.what & eFrameRateSelectionStrategyChanged) {
         what |= eFrameRateSelectionStrategyChanged;
@@ -784,7 +788,8 @@ uint64_t layer_state_t::diff(const layer_state_t& other) const {
     CHECK_DIFF(diff, eFrameRateSelectionPriority, other, frameRateSelectionPriority);
     CHECK_DIFF3(diff, eFrameRateChanged, other, frameRate, frameRateCompatibility,
                 changeFrameRateStrategy);
-    CHECK_DIFF(diff, eFrameRateCategoryChanged, other, frameRateCategory);
+    CHECK_DIFF2(diff, eFrameRateCategoryChanged, other, frameRateCategory,
+                frameRateCategorySmoothSwitchOnly);
     CHECK_DIFF(diff, eFrameRateSelectionStrategyChanged, other, frameRateSelectionStrategy);
     CHECK_DIFF(diff, eFixedTransformHintChanged, other, fixedTransformHint);
     CHECK_DIFF(diff, eAutoRefreshChanged, other, autoRefresh);

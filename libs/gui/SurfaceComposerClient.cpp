@@ -2098,7 +2098,7 @@ SurfaceComposerClient::Transaction::setDefaultFrameRateCompatibility(const sp<Su
 }
 
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setFrameRateCategory(
-        const sp<SurfaceControl>& sc, int8_t category) {
+        const sp<SurfaceControl>& sc, int8_t category, bool smoothSwitchOnly) {
     layer_state_t* s = getLayerState(sc);
     if (!s) {
         mStatus = BAD_INDEX;
@@ -2106,6 +2106,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setFrame
     }
     s->what |= layer_state_t::eFrameRateCategoryChanged;
     s->frameRateCategory = category;
+    s->frameRateCategorySmoothSwitchOnly = smoothSwitchOnly;
     return *this;
 }
 

@@ -5229,7 +5229,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
     }
     if (what & layer_state_t::eFrameRateCategoryChanged) {
         const FrameRateCategory category = Layer::FrameRate::convertCategory(s.frameRateCategory);
-        if (layer->setFrameRateCategory(category)) {
+        if (layer->setFrameRateCategory(category, s.frameRateCategorySmoothSwitchOnly)) {
             flags |= eTraversalNeeded;
         }
     }

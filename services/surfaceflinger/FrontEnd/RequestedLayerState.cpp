@@ -124,6 +124,7 @@ RequestedLayerState::RequestedLayerState(const LayerCreationArgs& args)
     dimmingEnabled = true;
     defaultFrameRateCompatibility = static_cast<int8_t>(scheduler::FrameRateCompatibility::Default);
     frameRateCategory = static_cast<int8_t>(FrameRateCategory::Default);
+    frameRateCategorySmoothSwitchOnly = false;
     frameRateSelectionStrategy =
             static_cast<int8_t>(scheduler::LayerInfo::FrameRateSelectionStrategy::Self);
     dataspace = ui::Dataspace::V0_SRGB;
