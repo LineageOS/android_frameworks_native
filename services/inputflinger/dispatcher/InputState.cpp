@@ -95,12 +95,14 @@ bool InputState::trackMotion(const MotionEntry& entry, int32_t flags) {
         return true;
     }
 
-    if (!mMotionMementos.empty()) {
-        const MotionMemento& lastMemento = mMotionMementos.back();
-        if (isStylusEvent(lastMemento.source, lastMemento.pointerProperties) &&
-            !isStylusEvent(entry.source, entry.pointerProperties)) {
-            // We already have a stylus stream, and the new event is not from stylus.
-            return false;
+    if (!input_flags::enable_multi_device_same_window_stream()) {
+        if (!mMotionMementos.empty()) {
+            const MotionMemento& lastMemento = mMotionMementos.back();
+            if (isStylusEvent(lastMemento.source, lastMemento.pointerProperties) &&
+                !isStylusEvent(entry.source, entry.pointerProperties)) {
+                // We already have a stylus stream, and the new event is not from stylus.
+                return false;
+            }
         }
     }
 
@@ -345,24 +347,26 @@ bool InputState::shouldCancelPreviousStream(const MotionEntry& motionEntry) cons
         return false;
     }
 
-    if (isStylusEvent(lastMemento.source, lastMemento.pointerProperties)) {
-        // A stylus is already active.
-        if (isStylusEvent(motionEntry.source, motionEntry.pointerProperties) &&
-            actionMasked == AMOTION_EVENT_ACTION_DOWN) {
-            // If this new event is from a different device, then cancel the old
-            // stylus and allow the new stylus to take over, but only if it's going down.
-            // Otherwise, they will start to race each other.
-            return true;
+    if (!input_flags::enable_multi_device_same_window_stream()) {
+        if (isStylusEvent(lastMemento.source, lastMemento.pointerProperties)) {
+            // A stylus is already active.
+            if (isStylusEvent(motionEntry.source, motionEntry.pointerProperties) &&
+                actionMasked == AMOTION_EVENT_ACTION_DOWN) {
+                // If this new event is from a different device, then cancel the old
+                // stylus and allow the new stylus to take over, but only if it's going down.
+                // Otherwise, they will start to race each other.
+                return true;
+            }
+
+            // Keep the current stylus gesture.
+            return false;
         }
 
-        // Keep the current stylus gesture.
-        return false;
-    }
-
-    // Cancel the current gesture if this is a start of a new gesture from a new device.
-    if (actionMasked == AMOTION_EVENT_ACTION_DOWN ||
-        actionMasked == AMOTION_EVENT_ACTION_HOVER_ENTER) {
-        return true;
+        // Cancel the current gesture if this is a start of a new gesture from a new device.
+        if (actionMasked == AMOTION_EVENT_ACTION_DOWN ||
+            actionMasked == AMOTION_EVENT_ACTION_HOVER_ENTER) {
+            return true;
+        }
     }
     // By default, don't cancel any events.
     return false;
