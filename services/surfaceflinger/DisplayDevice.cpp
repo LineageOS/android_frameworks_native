@@ -63,13 +63,14 @@ DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs& args)
         mDisplayToken(args.displayToken),
         mSequenceId(args.sequenceId),
         mCompositionDisplay{args.compositionDisplay},
-        mActiveModeFPSTrace("ActiveModeFPS -" + to_string(getId())),
-        mActiveModeFPSHwcTrace("ActiveModeFPS_HWC -" + to_string(getId())),
-        mRenderFrameRateFPSTrace("RenderRateFPS -" + to_string(getId())),
+        mActiveModeFPSTrace(concatId("ActiveModeFPS")),
+        mActiveModeFPSHwcTrace(concatId("ActiveModeFPS_HWC")),
+        mRenderFrameRateFPSTrace(concatId("RenderRateFPS")),
         mPhysicalOrientation(args.physicalOrientation),
         mIsPrimary(args.isPrimary),
         mRequestedRefreshRate(args.requestedRefreshRate),
-        mRefreshRateSelector(std::move(args.refreshRateSelector)) {
+        mRefreshRateSelector(std::move(args.refreshRateSelector)),
+        mDesiredActiveModeChanged(concatId("DesiredActiveModeChanged"), false) {
     mCompositionDisplay->editState().isSecure = args.isSecure;
     mCompositionDisplay->createRenderSurface(
             compositionengine::RenderSurfaceCreationArgsBuilder()
