@@ -354,14 +354,11 @@ private:
     // Get a reference to window handles by display, return an empty vector if not found.
     const std::vector<sp<android::gui::WindowInfoHandle>>& getWindowHandlesLocked(
             int32_t displayId) const REQUIRES(mLock);
-    sp<android::gui::WindowInfoHandle> getWindowHandleLocked(
-            const sp<IBinder>& windowHandleToken) const REQUIRES(mLock);
     ui::Transform getTransformLocked(int32_t displayId) const REQUIRES(mLock);
 
-    // Same function as above, but faster. Since displayId is provided, this avoids the need
-    // to loop through all displays.
-    sp<android::gui::WindowInfoHandle> getWindowHandleLocked(const sp<IBinder>& windowHandleToken,
-                                                             int displayId) const REQUIRES(mLock);
+    sp<android::gui::WindowInfoHandle> getWindowHandleLocked(
+            const sp<IBinder>& windowHandleToken, std::optional<int32_t> displayId = {}) const
+            REQUIRES(mLock);
     sp<android::gui::WindowInfoHandle> getWindowHandleLocked(
             const sp<android::gui::WindowInfoHandle>& windowHandle) const REQUIRES(mLock);
     std::shared_ptr<InputChannel> getInputChannelLocked(const sp<IBinder>& windowToken) const

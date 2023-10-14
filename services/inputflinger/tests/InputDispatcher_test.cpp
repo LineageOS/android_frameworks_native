@@ -4682,6 +4682,38 @@ TEST_F(InputDispatcherDisplayProjectionTest, SynthesizeHoverEnterExitWithCorrect
     firstWindow->assertNoEvents();
 }
 
+// Same as above, but while the window is being mirrored.
+TEST_F(InputDispatcherDisplayProjectionTest,
+       SynthesizeHoverEnterExitWithCorrectCoordinatesWhenMirrored) {
+    auto [firstWindow, secondWindow] = setupScaledDisplayScenario();
+
+    const std::array<float, 9> matrix = {1.1, 2.2, 3.3, 4.4, 5.5, 6.6, 0.0, 0.0, 1.0};
+    ui::Transform secondDisplayTransform;
+    secondDisplayTransform.set(matrix);
+    addDisplayInfo(SECOND_DISPLAY_ID, secondDisplayTransform);
+
+    sp<FakeWindowHandle> secondWindowClone = secondWindow->clone(SECOND_DISPLAY_ID);
+    secondWindowClone->setWindowTransform(1.1, 2.2, 3.3, 4.4);
+    addWindow(secondWindowClone);
+
+    // Send hover move to the second window, and ensure it shows up as hover enter.
+    mDispatcher->notifyMotion(generateMotionArgs(ACTION_HOVER_MOVE, AINPUT_SOURCE_STYLUS,
+                                                 ADISPLAY_ID_DEFAULT, {PointF{150, 220}}));
+    secondWindow->consumeMotionEvent(AllOf(WithMotionAction(ACTION_HOVER_ENTER),
+                                           WithCoords(100, 80), WithRawCoords(300, 880)));
+
+    // Touch down at the same location and ensure a hover exit is synthesized for the correct
+    // display.
+    mDispatcher->notifyMotion(generateMotionArgs(ACTION_DOWN, AINPUT_SOURCE_STYLUS,
+                                                 ADISPLAY_ID_DEFAULT, {PointF{150, 220}}));
+    secondWindow->consumeMotionEvent(AllOf(WithMotionAction(ACTION_HOVER_EXIT), WithCoords(100, 80),
+                                           WithRawCoords(300, 880)));
+    secondWindow->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_DOWN), WithCoords(100, 80), WithRawCoords(300, 880)));
+    secondWindow->assertNoEvents();
+    firstWindow->assertNoEvents();
+}
+
 TEST_F(InputDispatcherDisplayProjectionTest, SynthesizeHoverCancelationWithCorrectCoordinates) {
     auto [firstWindow, secondWindow] = setupScaledDisplayScenario();
 
@@ -4695,6 +4727,37 @@ TEST_F(InputDispatcherDisplayProjectionTest, SynthesizeHoverCancelationWithCorre
 
     secondWindow->consumeMotionEvent(AllOf(WithMotionAction(ACTION_HOVER_EXIT), WithCoords(100, 80),
                                            WithRawCoords(300, 880)));
+    secondWindow->assertNoEvents();
+    firstWindow->assertNoEvents();
+}
+
+// Same as above, but while the window is being mirrored.
+TEST_F(InputDispatcherDisplayProjectionTest,
+       SynthesizeHoverCancelationWithCorrectCoordinatesWhenMirrored) {
+    auto [firstWindow, secondWindow] = setupScaledDisplayScenario();
+
+    const std::array<float, 9> matrix = {1.1, 2.2, 3.3, 4.4, 5.5, 6.6, 0.0, 0.0, 1.0};
+    ui::Transform secondDisplayTransform;
+    secondDisplayTransform.set(matrix);
+    addDisplayInfo(SECOND_DISPLAY_ID, secondDisplayTransform);
+
+    sp<FakeWindowHandle> secondWindowClone = secondWindow->clone(SECOND_DISPLAY_ID);
+    secondWindowClone->setWindowTransform(1.1, 2.2, 3.3, 4.4);
+    addWindow(secondWindowClone);
+
+    // Send hover enter to second window
+    mDispatcher->notifyMotion(generateMotionArgs(ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS,
+                                                 ADISPLAY_ID_DEFAULT, {PointF{150, 220}}));
+    secondWindow->consumeMotionEvent(AllOf(WithMotionAction(ACTION_HOVER_ENTER),
+                                           WithCoords(100, 80), WithRawCoords(300, 880),
+                                           WithDisplayId(ADISPLAY_ID_DEFAULT)));
+
+    mDispatcher->cancelCurrentTouch();
+
+    // Ensure the cancelation happens with the correct displayId and the correct coordinates.
+    secondWindow->consumeMotionEvent(AllOf(WithMotionAction(ACTION_HOVER_EXIT), WithCoords(100, 80),
+                                           WithRawCoords(300, 880),
+                                           WithDisplayId(ADISPLAY_ID_DEFAULT)));
     secondWindow->assertNoEvents();
     firstWindow->assertNoEvents();
 }

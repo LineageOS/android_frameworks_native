@@ -309,7 +309,8 @@ LayerInfo::RefreshRateVotes LayerInfo::getRefreshRateVote(const RefreshRateSelec
             ALOGV("%s uses frame rate category: %d", mName.c_str(),
                   static_cast<int>(mLayerVote.category));
             votes.push_back({LayerHistory::LayerVoteType::ExplicitCategory, Fps(),
-                             Seamlessness::Default, mLayerVote.category});
+                             Seamlessness::Default, mLayerVote.category,
+                             mLayerVote.categorySmoothSwitchOnly});
         }
 
         if (mLayerVote.fps.isValid() ||

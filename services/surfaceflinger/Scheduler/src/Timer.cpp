@@ -93,8 +93,8 @@ void Timer::cleanup() {
         close(mPipes[kWritePipe]);
         mPipes[kWritePipe] = -1;
     }
-    mExpectingCallback = false;
-    mCallback = {};
+
+    setCallback({});
 }
 
 void Timer::endDispatch() {
@@ -112,8 +112,7 @@ void Timer::alarmAt(std::function<void()> callback, nsecs_t time) {
     static constexpr int ns_per_s =
             std::chrono::duration_cast<std::chrono::nanoseconds>(1s).count();
 
-    mCallback = std::move(callback);
-    mExpectingCallback = true;
+    setCallback(std::move(callback));
 
     struct itimerspec old_timer;
     struct itimerspec new_timer {
@@ -142,6 +141,8 @@ void Timer::alarmCancel() {
     if (timerfd_settime(mTimerFd, 0, &new_timer, &old_timer)) {
         ALOGW("Failed to disarm timerfd");
     }
+
+    setCallback({});
 }
 
 void Timer::threadMain() {
@@ -229,6 +230,11 @@ bool Timer::dispatch() {
 void Timer::setDebugState(DebugState state) {
     std::lock_guard lock(mMutex);
     mDebugState = state;
+}
+
+void Timer::setCallback(std::function<void()>&& callback) {
+    mExpectingCallback = bool(callback);
+    mCallback = std::move(callback);
 }
 
 void Timer::dump(std::string& result) const {

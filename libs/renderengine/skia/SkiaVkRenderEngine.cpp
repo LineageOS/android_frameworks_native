@@ -25,6 +25,7 @@
 #include <GrContextOptions.h>
 #include <vk/GrVkExtensions.h>
 #include <vk/GrVkTypes.h>
+#include <include/gpu/ganesh/vk/GrVkDirectContext.h>
 
 #include <android-base/stringprintf.h>
 #include <gui/TraceUtils.h>
@@ -603,11 +604,11 @@ SkiaRenderEngine::Contexts SkiaVkRenderEngine::createDirectContexts(
     sSetupVulkanInterface();
 
     SkiaRenderEngine::Contexts contexts;
-    contexts.first = GrDirectContext::MakeVulkan(sVulkanInterface.getBackendContext(), options);
+    contexts.first = GrDirectContexts::MakeVulkan(sVulkanInterface.getBackendContext(), options);
     if (supportsProtectedContentImpl()) {
         contexts.second =
-                GrDirectContext::MakeVulkan(sProtectedContentVulkanInterface.getBackendContext(),
-                                            options);
+                GrDirectContexts::MakeVulkan(sProtectedContentVulkanInterface.getBackendContext(),
+                                             options);
     }
 
     return contexts;

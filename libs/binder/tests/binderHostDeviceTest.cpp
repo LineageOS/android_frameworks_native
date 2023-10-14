@@ -135,7 +135,10 @@ TEST_F(HostDeviceTest, CheckService) {
 TEST_F(HostDeviceTest, GetService) {
     auto sm = defaultServiceManager();
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     auto rpcBinder = sm->getService(String16(kServiceName));
+#pragma clang diagnostic pop
     ASSERT_NE(nullptr, rpcBinder);
 
     EXPECT_THAT(rpcBinder->pingBinder(), StatusEq(OK));

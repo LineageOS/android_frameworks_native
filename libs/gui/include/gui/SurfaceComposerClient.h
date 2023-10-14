@@ -686,7 +686,8 @@ public:
         Transaction& setDefaultFrameRateCompatibility(const sp<SurfaceControl>& sc,
                                                       int8_t compatibility);
 
-        Transaction& setFrameRateCategory(const sp<SurfaceControl>& sc, int8_t category);
+        Transaction& setFrameRateCategory(const sp<SurfaceControl>& sc, int8_t category,
+                                          bool smoothSwitchOnly);
 
         Transaction& setFrameRateSelectionStrategy(const sp<SurfaceControl>& sc, int8_t strategy);
 
