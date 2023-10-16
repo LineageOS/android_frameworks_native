@@ -37,22 +37,15 @@ MODULE_SRCS := \
 	$(LIBBINDER_DIR)/Utils.cpp \
 	$(LIBBASE_DIR)/hex.cpp \
 	$(LIBBASE_DIR)/stringprintf.cpp \
-	$(LIBUTILS_DIR)/Errors.cpp \
+	$(LIBUTILS_DIR)/binder/Errors.cpp \
+	$(LIBUTILS_DIR)/binder/RefBase.cpp \
+	$(LIBUTILS_DIR)/binder/SharedBuffer.cpp \
+	$(LIBUTILS_DIR)/binder/String16.cpp \
+	$(LIBUTILS_DIR)/binder/String8.cpp \
+	$(LIBUTILS_DIR)/binder/StrongPointer.cpp \
+	$(LIBUTILS_DIR)/binder/Unicode.cpp \
+	$(LIBUTILS_DIR)/binder/VectorImpl.cpp \
 	$(LIBUTILS_DIR)/misc.cpp \
-	$(LIBUTILS_DIR)/RefBase.cpp \
-	$(LIBUTILS_DIR)/StrongPointer.cpp \
-	$(LIBUTILS_DIR)/Unicode.cpp \
-
-# TODO: remove the following when libbinder supports std::string
-# instead of String16 and String8 for Status and descriptors
-MODULE_SRCS += \
-	$(LIBUTILS_DIR)/SharedBuffer.cpp \
-	$(LIBUTILS_DIR)/String16.cpp \
-	$(LIBUTILS_DIR)/String8.cpp \
-
-# TODO: disable dump() transactions to get rid of Vector
-MODULE_SRCS += \
-	$(LIBUTILS_DIR)/VectorImpl.cpp \
 
 MODULE_DEFINES += \
 	LK_DEBUGLEVEL_NO_ALIASES=1 \
