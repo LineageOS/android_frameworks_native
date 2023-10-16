@@ -69,7 +69,7 @@ RpcSession::~RpcSession() {
 
 sp<RpcSession> RpcSession::make() {
     // Default is without TLS.
-    return make(makeDefaultRpcTransportCtxFactory());
+    return make(binder::os::makeDefaultRpcTransportCtxFactory());
 }
 
 sp<RpcSession> RpcSession::make(std::unique_ptr<RpcTransportCtxFactory> rpcTransportCtxFactory) {
@@ -194,7 +194,7 @@ status_t RpcSession::setupPreconnectedClient(base::unique_fd fd,
             fd = request();
             if (!fd.ok()) return BAD_VALUE;
         }
-        if (auto res = setNonBlocking(fd); !res.ok()) {
+        if (auto res = binder::os::setNonBlocking(fd); !res.ok()) {
             ALOGE("setupPreconnectedClient: %s", res.error().message().c_str());
             return res.error().code() == 0 ? UNKNOWN_ERROR : -res.error().code();
         }
@@ -768,7 +768,7 @@ status_t RpcSession::addOutgoingConnection(std::unique_ptr<RpcTransport> rpcTran
     {
         RpcMutexLockGuard _l(mMutex);
         connection->rpcTransport = std::move(rpcTransport);
-        connection->exclusiveTid = rpcGetThreadId();
+        connection->exclusiveTid = binder::os::GetThreadId();
         mConnections.mOutgoing.push_back(connection);
     }
 
@@ -823,7 +823,7 @@ sp<RpcSession::RpcConnection> RpcSession::assignIncomingConnectionToThisThread(
 
     sp<RpcConnection> session = sp<RpcConnection>::make();
     session->rpcTransport = std::move(rpcTransport);
-    session->exclusiveTid = rpcGetThreadId();
+    session->exclusiveTid = binder::os::GetThreadId();
 
     mConnections.mIncoming.push_back(session);
     mConnections.mMaxIncoming = mConnections.mIncoming.size();
@@ -868,7 +868,7 @@ status_t RpcSession::ExclusiveConnection::find(const sp<RpcSession>& session, Co
     connection->mConnection = nullptr;
     connection->mReentrant = false;
 
-    uint64_t tid = rpcGetThreadId();
+    uint64_t tid = binder::os::GetThreadId();
     RpcMutexUniqueLock _l(session->mMutex);
 
     session->mConnections.mWaitingThreads++;
