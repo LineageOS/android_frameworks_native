@@ -15,7 +15,6 @@
  */
 
 #include <android-base/file.h>
-#include <android-base/hex.h>
 #include <android-base/logging.h>
 
 #include <binder/Binder.h>
@@ -27,7 +26,6 @@
 #include <vector>
 
 using android::Parcel;
-using android::base::HexString;
 using std::vector;
 
 namespace android {
