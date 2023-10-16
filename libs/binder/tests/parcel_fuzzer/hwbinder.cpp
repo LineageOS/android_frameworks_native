@@ -18,12 +18,13 @@
 #include "hwbinder.h"
 #include "util.h"
 
-#include <android-base/hex.h>
 #include <android-base/logging.h>
 #include <hwbinder/Parcel.h>
 
+#include "../../Utils.h"
+
 using ::android::status_t;
-using ::android::base::HexString;
+using ::android::HexString;
 
 // TODO: support scatter-gather types
 

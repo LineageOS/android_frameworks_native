@@ -18,7 +18,6 @@
 
 #include "RpcState.h"
 
-#include <android-base/hex.h>
 #include <android-base/macros.h>
 #include <android-base/scopeguard.h>
 #include <android-base/stringprintf.h>
@@ -363,7 +362,7 @@ status_t RpcState::rpcSend(
     for (int i = 0; i < niovs; i++) {
         LOG_RPC_DETAIL("Sending %s (part %d of %d) on RpcTransport %p: %s",
                        what, i + 1, niovs, connection->rpcTransport.get(),
-                       android::base::HexString(iovs[i].iov_base, iovs[i].iov_len).c_str());
+                       HexString(iovs[i].iov_base, iovs[i].iov_len).c_str());
     }
 
     if (status_t status =
@@ -398,7 +397,7 @@ status_t RpcState::rpcRec(
     for (int i = 0; i < niovs; i++) {
         LOG_RPC_DETAIL("Received %s (part %d of %d) on RpcTransport %p: %s",
                        what, i + 1, niovs, connection->rpcTransport.get(),
-                       android::base::HexString(iovs[i].iov_base, iovs[i].iov_len).c_str());
+                       HexString(iovs[i].iov_base, iovs[i].iov_len).c_str());
     }
     return OK;
 }
