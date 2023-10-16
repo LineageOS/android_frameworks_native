@@ -17,8 +17,6 @@
 
 #include <pthread.h>
 
-#include <android-base/threads.h>
-
 #include <condition_variable>
 #include <functional>
 #include <memory>
@@ -121,10 +119,6 @@ static inline RpcMaybeThread::id get_id() {
 }
 } // namespace rpc_this_thread
 
-static inline uint64_t rpcGetThreadId() {
-    return 0;
-}
-
 static inline void rpcJoinIfSingleThreaded(RpcMaybeThread& t) {
     t.join();
 }
@@ -135,10 +129,6 @@ using RpcMutexLockGuard = std::lock_guard<std::mutex>;
 using RpcConditionVariable = std::condition_variable;
 using RpcMaybeThread = std::thread;
 namespace rpc_this_thread = std::this_thread;
-
-static inline uint64_t rpcGetThreadId() {
-    return base::GetThreadId();
-}
 
 static inline void rpcJoinIfSingleThreaded(RpcMaybeThread&) {}
 #endif // BINDER_RPC_SINGLE_THREADED
