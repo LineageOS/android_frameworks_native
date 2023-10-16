@@ -21,14 +21,15 @@
 #include "parcelables/SingleDataParcelable.h"
 #include "util.h"
 
-#include <android-base/hex.h>
 #include <android/os/IServiceManager.h>
 #include <binder/ParcelableHolder.h>
 #include <binder/PersistableBundle.h>
 #include <binder/Status.h>
 
+#include "../../Utils.h"
+
 using ::android::status_t;
-using ::android::base::HexString;
+using ::android::HexString;
 
 enum ByteEnum : int8_t {};
 enum IntEnum : int32_t {};
