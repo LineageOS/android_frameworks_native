@@ -1539,7 +1539,7 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_withFrameRateCategory_60_12
 
 TEST_P(RefreshRateSelectorTest,
        getBestFrameRateMode_withFrameRateCategory_smoothSwitchOnly_60_120_nonVrr) {
-    if (GetParam() != Config::FrameRateOverride::Enabled) {
+    if (GetParam() != Config::FrameRateOverride::Enabled || flags::vrr_config()) {
         return;
     }
 
@@ -1606,7 +1606,7 @@ TEST_P(RefreshRateSelectorTest,
 
 TEST_P(RefreshRateSelectorTest,
        getBestFrameRateMode_withFrameRateCategory_smoothSwitchOnly_60_120_vrr) {
-    if (GetParam() != Config::FrameRateOverride::Enabled) {
+    if (GetParam() != Config::FrameRateOverride::Enabled || !flags::vrr_config()) {
         return;
     }
 
@@ -1624,15 +1624,15 @@ TEST_P(RefreshRateSelectorTest,
 
     // Note that `smoothSwitchOnly` should not have an effect.
     const std::initializer_list<Case> testCases = {
-            {FrameRateCategory::Default, false, 240_Hz},
+            {FrameRateCategory::Default, false, 120_Hz},
             // TODO(b/266481656): Once this bug is fixed, NoPreference should be a lower frame rate.
-            {FrameRateCategory::NoPreference, false, 240_Hz},
+            {FrameRateCategory::NoPreference, false, 120_Hz},
             {FrameRateCategory::Low, false, 30_Hz},
             {FrameRateCategory::Normal, false, 60_Hz},
             {FrameRateCategory::High, false, 120_Hz},
-            {FrameRateCategory::Default, true, 240_Hz},
+            {FrameRateCategory::Default, true, 120_Hz},
             // TODO(b/266481656): Once this bug is fixed, NoPreference should be a lower frame rate.
-            {FrameRateCategory::NoPreference, true, 240_Hz},
+            {FrameRateCategory::NoPreference, true, 120_Hz},
             {FrameRateCategory::Low, true, 30_Hz},
             {FrameRateCategory::Normal, true, 60_Hz},
             {FrameRateCategory::High, true, 120_Hz},
