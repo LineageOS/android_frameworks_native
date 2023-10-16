@@ -81,6 +81,7 @@ std::string GestureConverter::dump() const {
     out << StringPrintf("Button state: 0x%08x\n", mButtonState);
     out << "Down time: " << mDownTime << "\n";
     out << "Current classification: " << ftl::enum_string(mCurrentClassification) << "\n";
+    out << "Enable Tap Timestamp: " << mWhenToEnableTapToClick << "\n";
     return out.str();
 }
 
@@ -196,8 +197,9 @@ std::list<NotifyArgs> GestureConverter::handleMove(nsecs_t when, nsecs_t readTim
     if (!mIsHoverCancelled) {
         // handleFling calls hoverMove with zero delta on FLING_TAP_DOWN. Don't enable tap to click
         // for this case as subsequent handleButtonsChange may choose to ignore this tap.
-        if (ENABLE_TOUCHPAD_PALM_REJECTION && (std::abs(deltaX) > 0 || std::abs(deltaY) > 0)) {
-            enableTapToClick();
+        if ((ENABLE_TOUCHPAD_PALM_REJECTION || ENABLE_TOUCHPAD_PALM_REJECTION_V2) &&
+            (std::abs(deltaX) > 0 || std::abs(deltaY) > 0)) {
+            enableTapToClick(when);
         }
         mPointerController->setPresentation(PointerControllerInterface::Presentation::POINTER);
         mPointerController->move(deltaX, deltaY);
@@ -241,8 +243,15 @@ std::list<NotifyArgs> GestureConverter::handleButtonsChange(nsecs_t when, nsecs_
     coords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, 0);
     coords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, 0);
 
-    if (ENABLE_TOUCHPAD_PALM_REJECTION && mReaderContext.isPreventingTouchpadTaps()) {
-        enableTapToClick();
+    // V2 palm rejection should override V1
+    if (ENABLE_TOUCHPAD_PALM_REJECTION_V2) {
+        enableTapToClick(when);
+        if (gesture.details.buttons.is_tap && when <= mWhenToEnableTapToClick) {
+            // return early to prevent this tap
+            return out;
+        }
+    } else if (ENABLE_TOUCHPAD_PALM_REJECTION && mReaderContext.isPreventingTouchpadTaps()) {
+        enableTapToClick(when);
         if (gesture.details.buttons.is_tap) {
             // return early to prevent this tap
             return out;
@@ -399,7 +408,7 @@ std::list<NotifyArgs> GestureConverter::handleFling(nsecs_t when, nsecs_t readTi
                 // TODO(b/282023644): Add a signal in libgestures for when a stable contact has been
                 //  initiated with a touchpad.
                 if (!mReaderContext.isPreventingTouchpadTaps()) {
-                    enableTapToClick();
+                    enableTapToClick(when);
                 }
                 return handleMove(when, readTime, gestureStartTime,
                                   Gesture(kGestureMove, gesture.start_time, gesture.end_time,
@@ -630,8 +639,11 @@ NotifyMotionArgs GestureConverter::makeMotionArgs(nsecs_t when, nsecs_t readTime
             /* videoFrames= */ {}};
 }
 
-void GestureConverter::enableTapToClick() {
-    mReaderContext.setPreventingTouchpadTaps(false);
+void GestureConverter::enableTapToClick(nsecs_t when) {
+    if (mReaderContext.isPreventingTouchpadTaps()) {
+        mWhenToEnableTapToClick = when + TAP_ENABLE_DELAY_NANOS.count();
+        mReaderContext.setPreventingTouchpadTaps(false);
+    }
 }
 
 } // namespace android
