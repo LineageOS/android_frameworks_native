@@ -24,7 +24,7 @@
 using android::base::ErrnoError;
 using android::base::Result;
 
-namespace android {
+namespace android::binder::os {
 
 // Linux kernel supports up to 253 (from SCM_MAX_FD) for unix sockets.
 constexpr size_t kMaxFdsPerMsg = 253;
@@ -162,4 +162,4 @@ ssize_t receiveMessageFromSocket(
     return TEMP_FAILURE_RETRY(recvmsg(socket.fd.get(), &msg, MSG_NOSIGNAL));
 }
 
-} // namespace android
+} // namespace android::binder::os
