@@ -23,7 +23,7 @@
 #include <binder/RpcTransport.h>
 #include <utils/Errors.h>
 
-namespace android {
+namespace android::binder::os {
 
 android::base::Result<void> setNonBlocking(android::base::borrowed_fd fd);
 
@@ -41,4 +41,6 @@ ssize_t receiveMessageFromSocket(
         const RpcTransportFd& socket, iovec* iovs, int niovs,
         std::vector<std::variant<base::unique_fd, base::borrowed_fd>>* ancillaryFds);
 
-} // namespace android
+uint64_t GetThreadId();
+
+} // namespace android::binder::os
