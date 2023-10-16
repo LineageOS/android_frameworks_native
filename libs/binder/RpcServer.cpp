@@ -24,7 +24,6 @@
 #include <thread>
 #include <vector>
 
-#include <android-base/hex.h>
 #include <android-base/scopeguard.h>
 #include <binder/Parcel.h>
 #include <binder/RpcServer.h>
@@ -484,7 +483,7 @@ void RpcServer::establishConnection(
                 // don't block if there is some entropy issue
                 if (tries++ > 5) {
                     ALOGE("Cannot find new address: %s",
-                          base::HexString(sessionId.data(), sessionId.size()).c_str());
+                          HexString(sessionId.data(), sessionId.size()).c_str());
                     return;
                 }
 
@@ -536,7 +535,7 @@ void RpcServer::establishConnection(
             auto it = server->mSessions.find(sessionId);
             if (it == server->mSessions.end()) {
                 ALOGE("Cannot add thread, no record of session with ID %s",
-                      base::HexString(sessionId.data(), sessionId.size()).c_str());
+                      HexString(sessionId.data(), sessionId.size()).c_str());
                 return;
             }
             session = it->second;
@@ -610,15 +609,14 @@ status_t RpcServer::setupRawSocketServer(unique_fd socket_fd) {
 void RpcServer::onSessionAllIncomingThreadsEnded(const sp<RpcSession>& session) {
     const std::vector<uint8_t>& id = session->mId;
     LOG_ALWAYS_FATAL_IF(id.empty(), "Server sessions must be initialized with ID");
-    LOG_RPC_DETAIL("Dropping session with address %s",
-                   base::HexString(id.data(), id.size()).c_str());
+    LOG_RPC_DETAIL("Dropping session with address %s", HexString(id.data(), id.size()).c_str());
 
     RpcMutexLockGuard _l(mLock);
     auto it = mSessions.find(id);
     LOG_ALWAYS_FATAL_IF(it == mSessions.end(), "Bad state, unknown session id %s",
-                        base::HexString(id.data(), id.size()).c_str());
+                        HexString(id.data(), id.size()).c_str());
     LOG_ALWAYS_FATAL_IF(it->second != session, "Bad state, session has id mismatch %s",
-                        base::HexString(id.data(), id.size()).c_str());
+                        HexString(id.data(), id.size()).c_str());
     (void)mSessions.erase(it);
 }
 
