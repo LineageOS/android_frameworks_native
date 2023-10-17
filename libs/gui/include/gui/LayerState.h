@@ -277,8 +277,8 @@ struct layer_state_t {
             layer_state_t::eLayerStackChanged;
 
     // Changes that affect the visible region on a display.
-    static constexpr uint64_t VISIBLE_REGION_CHANGES =
-            layer_state_t::GEOMETRY_CHANGES | layer_state_t::HIERARCHY_CHANGES;
+    static constexpr uint64_t VISIBLE_REGION_CHANGES = layer_state_t::GEOMETRY_CHANGES |
+            layer_state_t::HIERARCHY_CHANGES | layer_state_t::eAlphaChanged;
 
     bool hasValidBuffer() const;
     void sanitize(int32_t permissions);
