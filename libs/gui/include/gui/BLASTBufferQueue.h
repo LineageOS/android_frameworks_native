@@ -50,8 +50,8 @@ public:
     void onDisconnect() override EXCLUDES(mMutex);
     void addAndGetFrameTimestamps(const NewFrameEventsEntry* newTimestamps,
                                   FrameEventHistoryDelta* outDelta) override EXCLUDES(mMutex);
-    void updateFrameTimestamps(uint64_t frameNumber, nsecs_t refreshStartTime,
-                               const sp<Fence>& gpuCompositionDoneFence,
+    void updateFrameTimestamps(uint64_t frameNumber, uint64_t previousFrameNumber,
+                               nsecs_t refreshStartTime, const sp<Fence>& gpuCompositionDoneFence,
                                const sp<Fence>& presentFence, const sp<Fence>& prevReleaseFence,
                                CompositorTiming compositorTiming, nsecs_t latchTime,
                                nsecs_t dequeueReadyTime) EXCLUDES(mMutex);

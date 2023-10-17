@@ -25,6 +25,10 @@
 #include <gui/LayerState.h>
 #include <private/gui/ParcelUtils.h>
 
+#include <com_android_graphics_libgui_flags.h>
+
+using namespace com::android::graphics::libgui;
+
 namespace android {
 
 namespace { // Anonymous
@@ -48,6 +52,11 @@ constexpr int32_t kSerializedCallbackTypeOnCompelteWithJankData = 2;
 status_t FrameEventHistoryStats::writeToParcel(Parcel* output) const {
     status_t err = output->writeUint64(frameNumber);
     if (err != NO_ERROR) return err;
+
+    if (flags::frametimestamps_previousrelease()) {
+        err = output->writeUint64(previousFrameNumber);
+        if (err != NO_ERROR) return err;
+    }
 
     if (gpuCompositionDoneFence) {
         err = output->writeBool(true);
@@ -78,6 +87,11 @@ status_t FrameEventHistoryStats::writeToParcel(Parcel* output) const {
 status_t FrameEventHistoryStats::readFromParcel(const Parcel* input) {
     status_t err = input->readUint64(&frameNumber);
     if (err != NO_ERROR) return err;
+
+    if (flags::frametimestamps_previousrelease()) {
+        err = input->readUint64(&previousFrameNumber);
+        if (err != NO_ERROR) return err;
+    }
 
     bool hasFence = false;
     err = input->readBool(&hasFence);
