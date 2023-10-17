@@ -2931,11 +2931,6 @@ void Layer::onLayerDisplayed(ftl::SharedFuture<FenceResult> futureFenceResult,
         }
     }
 
-    // Prevent tracing the same release multiple times.
-    if (mPreviousFrameNumber != mPreviousReleasedFrameNumber) {
-        mPreviousReleasedFrameNumber = mPreviousFrameNumber;
-    }
-
     if (ch != nullptr) {
         ch->previousReleaseCallbackId = mPreviousReleaseCallbackId;
         ch->previousReleaseFences.emplace_back(std::move(futureFenceResult));

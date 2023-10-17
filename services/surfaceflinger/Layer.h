@@ -1235,9 +1235,6 @@ private:
 
     ReleaseCallbackId mPreviousReleaseCallbackId = ReleaseCallbackId::INVALID_ID;
     sp<IBinder> mPreviousReleaseBufferEndpoint;
-    uint64_t mPreviousReleasedFrameNumber = 0;
-
-    uint64_t mPreviousBarrierFrameNumber = 0;
 
     bool mReleasePreviousBuffer = false;
 
