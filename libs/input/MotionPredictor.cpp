@@ -176,12 +176,13 @@ std::unique_ptr<MotionEvent> MotionPredictor::predict(nsecs_t timestamp) {
     int64_t predictionTime = mBuffers->lastTimestamp();
     const int64_t futureTime = timestamp + mPredictionTimestampOffsetNanos;
 
-    for (int i = 0; i < predictedR.size() && predictionTime <= futureTime; ++i) {
+    for (size_t i = 0; i < static_cast<size_t>(predictedR.size()) && predictionTime <= futureTime;
+         ++i) {
         const TfLiteMotionPredictorSample::Point point =
                 convertPrediction(axisFrom, axisTo, predictedR[i], predictedPhi[i]);
         // TODO(b/266747654): Stop predictions if confidence is < some threshold.
 
-        ALOGD_IF(isDebug(), "prediction %d: %f, %f", i, point.x, point.y);
+        ALOGD_IF(isDebug(), "prediction %zu: %f, %f", i, point.x, point.y);
         PointerCoords coords;
         coords.clear();
         coords.setAxisValue(AMOTION_EVENT_AXIS_X, point.x);
