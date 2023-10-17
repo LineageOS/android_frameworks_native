@@ -180,6 +180,7 @@ impl MotionAction {
 
 bitflags! {
     /// MotionEvent flags.
+    #[derive(Debug)]
     pub struct MotionFlags: u32 {
         /// FLAG_CANCELED
         const CANCELED = input_bindgen::AMOTION_EVENT_FLAG_CANCELED as u32;
