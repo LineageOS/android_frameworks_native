@@ -525,4 +525,39 @@ TEST_F(LayerLifecycleManagerTest, roundedCornerChangesSetsVisibilityChangeFlag) 
     mLifecycleManager.commitChanges();
 }
 
+// Even when it does not change visible region, we should mark alpha changes as affecting
+// visible region because HWC impl depends on it. writeOutputIndependentGeometryStateToHWC
+// is only called if we are updating geometry.
+TEST_F(LayerLifecycleManagerTest, alphaChangesAlwaysSetsVisibleRegionFlag) {
+    mLifecycleManager.commitChanges();
+    float startingAlpha = 0.5f;
+    setAlpha(1, startingAlpha);
+
+    // this is expected because layer alpha changes from 1 to 0.5, it may no longer be opaque
+    EXPECT_EQ(mLifecycleManager.getGlobalChanges().string(),
+              ftl::Flags<RequestedLayerState::Changes>(
+                      RequestedLayerState::Changes::Content |
+                      RequestedLayerState::Changes::AffectsChildren |
+                      RequestedLayerState::Changes::VisibleRegion)
+                      .string());
+    EXPECT_EQ(mLifecycleManager.getChangedLayers()[0]->color.a, static_cast<half>(startingAlpha));
+    mLifecycleManager.commitChanges();
+
+    float endingAlpha = 0.2f;
+    setAlpha(1, endingAlpha);
+
+    // this is not expected but we should make sure this behavior does not change
+    EXPECT_EQ(mLifecycleManager.getGlobalChanges().string(),
+              ftl::Flags<RequestedLayerState::Changes>(
+                      RequestedLayerState::Changes::Content |
+                      RequestedLayerState::Changes::AffectsChildren |
+                      RequestedLayerState::Changes::VisibleRegion)
+                      .string());
+    EXPECT_EQ(mLifecycleManager.getChangedLayers()[0]->color.a, static_cast<half>(endingAlpha));
+    mLifecycleManager.commitChanges();
+
+    EXPECT_EQ(mLifecycleManager.getGlobalChanges().string(),
+              ftl::Flags<RequestedLayerState::Changes>().string());
+}
+
 } // namespace android::surfaceflinger::frontend
