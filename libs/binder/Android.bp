@@ -118,7 +118,8 @@ cc_defaults {
     ],
 
     srcs: [
-        "OS.cpp",
+        "OS_android.cpp",
+        "OS_unix_base.cpp",
         "RpcTransportRaw.cpp",
     ],
 
@@ -249,6 +250,7 @@ cc_library_shared {
 
     srcs: [
         // Trusty-specific files
+        "OS_android.cpp",
         "trusty/logging.cpp",
         "trusty/OS.cpp",
         "trusty/RpcServerTrusty.cpp",

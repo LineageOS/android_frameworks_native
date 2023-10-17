@@ -621,7 +621,7 @@ status_t Parcel::appendFrom(const Parcel* parcel, size_t offset, size_t len) {
                 // To match kernel binder behavior, we always dup, even if the
                 // FD was unowned in the source parcel.
                 int newFd = -1;
-                if (status_t status = dupFileDescriptor(oldFd, &newFd); status != OK) {
+                if (status_t status = binder::os::dupFileDescriptor(oldFd, &newFd); status != OK) {
                     ALOGW("Failed to duplicate file descriptor %d: %s", oldFd, strerror(-status));
                 }
                 rpcFields->mFds->emplace_back(base::unique_fd(newFd));
@@ -1513,7 +1513,7 @@ status_t Parcel::writeFileDescriptor(int fd, bool takeOwnership) {
 status_t Parcel::writeDupFileDescriptor(int fd)
 {
     int dupFd;
-    if (status_t err = dupFileDescriptor(fd, &dupFd); err != OK) {
+    if (status_t err = binder::os::dupFileDescriptor(fd, &dupFd); err != OK) {
         return err;
     }
     status_t err = writeFileDescriptor(dupFd, true /*takeOwnership*/);
@@ -1532,7 +1532,7 @@ status_t Parcel::writeParcelFileDescriptor(int fd, bool takeOwnership)
 status_t Parcel::writeDupParcelFileDescriptor(int fd)
 {
     int dupFd;
-    if (status_t err = dupFileDescriptor(fd, &dupFd); err != OK) {
+    if (status_t err = binder::os::dupFileDescriptor(fd, &dupFd); err != OK) {
         return err;
     }
     status_t err = writeParcelFileDescriptor(dupFd, true /*takeOwnership*/);
@@ -2345,7 +2345,7 @@ status_t Parcel::readUniqueFileDescriptor(base::unique_fd* val) const
     }
 
     int dupFd;
-    if (status_t err = dupFileDescriptor(got, &dupFd); err != OK) {
+    if (status_t err = binder::os::dupFileDescriptor(got, &dupFd); err != OK) {
         return BAD_VALUE;
     }
 
@@ -2367,7 +2367,7 @@ status_t Parcel::readUniqueParcelFileDescriptor(base::unique_fd* val) const
     }
 
     int dupFd;
-    if (status_t err = dupFileDescriptor(got, &dupFd); err != OK) {
+    if (status_t err = binder::os::dupFileDescriptor(got, &dupFd); err != OK) {
         return BAD_VALUE;
     }
 

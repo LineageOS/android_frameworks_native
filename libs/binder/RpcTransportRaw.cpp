@@ -59,8 +59,8 @@ public:
             override {
         bool sentFds = false;
         auto send = [&](iovec* iovs, int niovs) -> ssize_t {
-            ssize_t ret =
-                    sendMessageOnSocket(mSocket, iovs, niovs, sentFds ? nullptr : ancillaryFds);
+            ssize_t ret = binder::os::sendMessageOnSocket(mSocket, iovs, niovs,
+                                                          sentFds ? nullptr : ancillaryFds);
             sentFds |= ret > 0;
             return ret;
         };
@@ -73,7 +73,7 @@ public:
             const std::optional<android::base::function_ref<status_t()>>& altPoll,
             std::vector<std::variant<base::unique_fd, base::borrowed_fd>>* ancillaryFds) override {
         auto recv = [&](iovec* iovs, int niovs) -> ssize_t {
-            return receiveMessageFromSocket(mSocket, iovs, niovs, ancillaryFds);
+            return binder::os::receiveMessageFromSocket(mSocket, iovs, niovs, ancillaryFds);
         };
         return interruptableReadOrWrite(mSocket, fdTrigger, iovs, niovs, recv, "recvmsg", POLLIN,
                                         altPoll);
