@@ -2498,7 +2498,8 @@ bool SurfaceFlinger::commit(PhysicalDisplayId pacesetterId,
     {
         mFrameTimeline->setSfWakeUp(ftl::to_underlying(vsyncId),
                                     pacesetterFrameTarget.frameBeginTime().ns(),
-                                    Fps::fromPeriodNsecs(vsyncPeriod.ns()));
+                                    Fps::fromPeriodNsecs(vsyncPeriod.ns()),
+                                    mScheduler->getPacesetterRefreshRate());
 
         const bool flushTransactions = clearTransactionFlags(eTransactionFlushNeeded);
         bool transactionsAreEmpty;

@@ -120,14 +120,17 @@ public:
     status_t readFromParcel(const Parcel* input) override;
 
     JankData();
-    JankData(int64_t frameVsyncId, int32_t jankType)
-          : frameVsyncId(frameVsyncId), jankType(jankType) {}
+    JankData(int64_t frameVsyncId, int32_t jankType, nsecs_t frameIntervalNs)
+          : frameVsyncId(frameVsyncId), jankType(jankType), frameIntervalNs(frameIntervalNs) {}
 
     // Identifier for the frame submitted with Transaction.setFrameTimelineVsyncId
     int64_t frameVsyncId;
 
     // Bitmask of janks that occurred
     int32_t jankType;
+
+    // Expected duration of the frame
+    nsecs_t frameIntervalNs;
 };
 
 class SurfaceStats : public Parcelable {
