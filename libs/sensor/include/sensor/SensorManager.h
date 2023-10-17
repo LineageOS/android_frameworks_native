@@ -65,6 +65,8 @@ public:
     sp<SensorEventQueue> createEventQueue(
         String8 packageName = String8(""), int mode = 0, String16 attributionTag = String16(""));
     bool isDataInjectionEnabled();
+    bool isReplayDataInjectionEnabled();
+    bool isHalBypassReplayDataInjectionEnabled();
     int createDirectChannel(size_t size, int channelType, const native_handle_t *channelData);
     int createDirectChannel(
         int deviceId, size_t size, int channelType, const native_handle_t *channelData);

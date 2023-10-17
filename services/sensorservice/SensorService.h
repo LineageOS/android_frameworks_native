@@ -122,6 +122,11 @@ public:
        // delivered to all requesting apps rather than just the package allowed to inject data.
        // This mode is only allowed to be used on development builds.
        REPLAY_DATA_INJECTION = 3,
+       // Like REPLAY_DATA_INJECTION but injected data is not sent into the HAL. It is stored in a
+       // buffer in SensorDevice and played back to SensorService when SensorDevice::poll() is
+       // called. This is useful for playing back sensor data on the platform without relying on
+       // the HAL to support data injection.
+       HAL_BYPASS_REPLAY_DATA_INJECTION = 4,
 
       // State Transitions supported.
       //     RESTRICTED   <---  NORMAL   ---> DATA_INJECTION/REPLAY_DATA_INJECTION
@@ -389,6 +394,8 @@ private:
             const String8& packageName,
             int requestedMode, const String16& opPackageName, const String16& attributionTag);
     virtual int isDataInjectionEnabled();
+    virtual int isReplayDataInjectionEnabled();
+    virtual int isHalBypassReplayDataInjectionEnabled();
     virtual sp<ISensorEventConnection> createSensorDirectConnection(const String16& opPackageName,
             int deviceId, uint32_t size, int32_t type, int32_t format,
             const native_handle *resource);
@@ -506,6 +513,8 @@ private:
     void capRates();
     // Removes the capped rate on active direct connections (when the mic toggle is flipped to off)
     void uncapRates();
+
+    bool isInjectionMode(int mode);
 
     static inline bool isAudioServerOrSystemServerUid(uid_t uid) {
         return multiuser_get_app_id(uid) == AID_SYSTEM || uid == AID_AUDIOSERVER;
