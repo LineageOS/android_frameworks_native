@@ -1232,7 +1232,7 @@ void SurfaceFlinger::setDesiredActiveMode(display::DisplayModeRequest&& request,
 }
 
 status_t SurfaceFlinger::setActiveModeFromBackdoor(const sp<display::DisplayToken>& displayToken,
-                                                   DisplayModeId modeId) {
+                                                   DisplayModeId modeId, Fps minFps, Fps maxFps) {
     ATRACE_CALL();
 
     if (!displayToken) {
@@ -1265,13 +1265,15 @@ status_t SurfaceFlinger::setActiveModeFromBackdoor(const sp<display::DisplayToke
         }
 
         const Fps fps = *fpsOpt;
+        const FpsRange physical = {fps, fps};
+        const FpsRange render = {minFps.isValid() ? minFps : fps, maxFps.isValid() ? maxFps : fps};
+        const FpsRanges ranges = {physical, render};
 
         // Keep the old switching type.
         const bool allowGroupSwitching =
                 display->refreshRateSelector().getCurrentPolicy().allowGroupSwitching;
 
-        const scheduler::RefreshRateSelector::DisplayManagerPolicy policy{modeId,
-                                                                          {fps, fps},
+        const scheduler::RefreshRateSelector::DisplayManagerPolicy policy{modeId, ranges, ranges,
                                                                           allowGroupSwitching};
 
         return setDesiredDisplayModeSpecsInternal(display, policy);
@@ -6932,6 +6934,12 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 return NO_ERROR;
             }
             case 1035: {
+                // Parameters:
+                // - (required) i32 mode id.
+                // - (optional) i64 display id. Using default display if not provided.
+                // - (optional) f min render rate. Using mode's fps is not provided.
+                // - (optional) f max render rate. Using mode's fps is not provided.
+
                 const int modeId = data.readInt32();
 
                 const auto display = [&]() -> sp<IBinder> {
@@ -6948,8 +6956,21 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                     return nullptr;
                 }();
 
+                const auto getFps = [&] {
+                    float value;
+                    if (data.readFloat(&value) == NO_ERROR) {
+                        return Fps::fromValue(value);
+                    }
+
+                    return Fps();
+                };
+
+                const auto minFps = getFps();
+                const auto maxFps = getFps();
+
                 mDebugDisplayModeSetByBackdoor = false;
-                const status_t result = setActiveModeFromBackdoor(display, DisplayModeId{modeId});
+                const status_t result =
+                        setActiveModeFromBackdoor(display, DisplayModeId{modeId}, minFps, maxFps);
                 mDebugDisplayModeSetByBackdoor = result == NO_ERROR;
                 return result;
             }
