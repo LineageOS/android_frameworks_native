@@ -172,7 +172,6 @@ Layer::Layer(const LayerCreationArgs& args)
     mDrawingState.barrierProducerId = 0;
     mDrawingState.bufferTransform = 0;
     mDrawingState.transformToDisplayInverse = false;
-    mDrawingState.crop.makeInvalid();
     mDrawingState.acquireFence = sp<Fence>::make(-1);
     mDrawingState.acquireFenceTime = std::make_shared<FenceTime>(mDrawingState.acquireFence);
     mDrawingState.dataspace = ui::Dataspace::V0_SRGB;
