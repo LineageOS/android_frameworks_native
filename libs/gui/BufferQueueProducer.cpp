@@ -32,7 +32,7 @@
 #include <gui/BufferItem.h>
 #include <gui/BufferQueueCore.h>
 #include <gui/BufferQueueProducer.h>
-#include <gui/Flags.h>
+
 #include <gui/FrameRateUtils.h>
 #include <gui/GLConsumer.h>
 #include <gui/IConsumerListener.h>
@@ -1753,7 +1753,7 @@ status_t BufferQueueProducer::setAutoPrerotation(bool autoPrerotation) {
     return NO_ERROR;
 }
 
-#if FLAG_BQ_SET_FRAME_RATE
+#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(BQ_SETFRAMERATE)
 status_t BufferQueueProducer::setFrameRate(float frameRate, int8_t compatibility,
                                            int8_t changeFrameRateStrategy) {
     ATRACE_CALL();

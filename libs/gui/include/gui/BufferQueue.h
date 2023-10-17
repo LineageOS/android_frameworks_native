@@ -19,10 +19,12 @@
 
 #include <gui/BufferItem.h>
 #include <gui/BufferQueueDefs.h>
-#include <gui/Flags.h>
+
 #include <gui/IConsumerListener.h>
 #include <gui/IGraphicBufferConsumer.h>
 #include <gui/IGraphicBufferProducer.h>
+
+#include <com_android_graphics_libgui_flags.h>
 
 namespace android {
 
@@ -70,7 +72,7 @@ public:
         void addAndGetFrameTimestamps(
                 const NewFrameEventsEntry* newTimestamps,
                 FrameEventHistoryDelta* outDelta) override;
-#if FLAG_BQ_SET_FRAME_RATE
+#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(BQ_SETFRAMERATE)
         void onSetFrameRate(float frameRate, int8_t compatibility,
                             int8_t changeFrameRateStrategy) override;
 #endif

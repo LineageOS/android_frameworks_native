@@ -19,7 +19,7 @@
 
 #include <gui/BufferItem.h>
 #include <gui/BufferItemConsumer.h>
-#include <gui/Flags.h>
+
 #include <gui/IGraphicBufferProducer.h>
 #include <gui/SurfaceComposerClient.h>
 
@@ -30,6 +30,8 @@
 #include <system/window.h>
 #include <thread>
 #include <queue>
+
+#include <com_android_graphics_libgui_flags.h>
 
 namespace android {
 
@@ -59,7 +61,7 @@ public:
 
 protected:
     void onSidebandStreamChanged() override EXCLUDES(mMutex);
-#if FLAG_BQ_SET_FRAME_RATE
+#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(BQ_SETFRAMERATE)
     void onSetFrameRate(float frameRate, int8_t compatibility,
                         int8_t changeFrameRateStrategy) override;
 #endif

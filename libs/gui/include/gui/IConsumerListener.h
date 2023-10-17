@@ -19,12 +19,12 @@
 #include <binder/IInterface.h>
 #include <binder/SafeInterface.h>
 
-#include <gui/Flags.h>
-
 #include <utils/Errors.h>
 #include <utils/RefBase.h>
 
 #include <cstdint>
+
+#include <com_android_graphics_libgui_flags.h>
 
 namespace android {
 
@@ -93,7 +93,7 @@ public:
     virtual void addAndGetFrameTimestamps(const NewFrameEventsEntry* /*newTimestamps*/,
                                           FrameEventHistoryDelta* /*outDelta*/) {}
 
-#if FLAG_BQ_SET_FRAME_RATE
+#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(BQ_SETFRAMERATE)
     // Notifies the consumer of a setFrameRate call from the producer side.
     virtual void onSetFrameRate(float /*frameRate*/, int8_t /*compatibility*/,
                                 int8_t /*changeFrameRateStrategy*/) {}

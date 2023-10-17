@@ -21,7 +21,7 @@ cc_test {
         "-Wall",
         "-Werror",
         "-Wno-extra",
-        "-DFLAG_BQ_SET_FRAME_RATE=true",
+        "-DCOM_ANDROID_GRAPHICS_LIBGUI_FLAGS_BQ_SETFRAMERATE=true",
     ],
 
     srcs: [
