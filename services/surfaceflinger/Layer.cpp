@@ -206,6 +206,7 @@ Layer::Layer(const surfaceflinger::LayerCreationArgs& args)
 
     mOwnerUid = args.ownerUid;
     mOwnerPid = args.ownerPid;
+    mOwnerAppId = mOwnerUid % PER_USER_RANGE;
 
     mPremultipliedAlpha = !(args.flags & ISurfaceComposerClient::eNonPremultiplied);
     mPotentialCursor = args.flags & ISurfaceComposerClient::eCursorWindow;
@@ -4431,7 +4432,7 @@ void Layer::setIsSmallDirty() {
 
     // If the damage region is a small dirty, this could give the hint for the layer history that
     // it could suppress the heuristic rate when calculating.
-    mSmallDirty = mFlinger->mScheduler->isSmallDirtyArea(mOwnerUid,
+    mSmallDirty = mFlinger->mScheduler->isSmallDirtyArea(mOwnerAppId,
                                                          bounds.getWidth() * bounds.getHeight());
 }
 

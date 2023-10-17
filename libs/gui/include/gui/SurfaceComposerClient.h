@@ -203,15 +203,15 @@ public:
     // by GameManager.
     static status_t setOverrideFrameRate(uid_t uid, float frameRate);
 
-    // Update the small area detection whole uid-threshold mappings by same size uid and threshold
-    // vector.
+    // Update the small area detection whole appId-threshold mappings by same size appId and
+    // threshold vector.
     // Ref:setSmallAreaDetectionThreshold.
-    static status_t updateSmallAreaDetection(std::vector<int32_t>& uids,
+    static status_t updateSmallAreaDetection(std::vector<int32_t>& appIds,
                                              std::vector<float>& thresholds);
 
-    // Sets the small area detection threshold to particular apps (uid). Passing value 0 means
+    // Sets the small area detection threshold to particular apps (appId). Passing value 0 means
     // to disable small area detection to the app.
-    static status_t setSmallAreaDetectionThreshold(uid_t uid, float threshold);
+    static status_t setSmallAreaDetectionThreshold(int32_t appId, float threshold);
 
     // Switches on/off Auto Low Latency Mode on the connected display. This should only be
     // called if the connected display supports Auto Low Latency Mode as reported by

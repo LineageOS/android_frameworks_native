@@ -8340,13 +8340,13 @@ status_t SurfaceFlinger::setOverrideFrameRate(uid_t uid, float frameRate) {
 }
 
 status_t SurfaceFlinger::updateSmallAreaDetection(
-        std::vector<std::pair<uid_t, float>>& uidThresholdMappings) {
-    mScheduler->updateSmallAreaDetection(uidThresholdMappings);
+        std::vector<std::pair<int32_t, float>>& appIdThresholdMappings) {
+    mScheduler->updateSmallAreaDetection(appIdThresholdMappings);
     return NO_ERROR;
 }
 
-status_t SurfaceFlinger::setSmallAreaDetectionThreshold(uid_t uid, float threshold) {
-    mScheduler->setSmallAreaDetectionThreshold(uid, threshold);
+status_t SurfaceFlinger::setSmallAreaDetectionThreshold(int32_t appId, float threshold) {
+    mScheduler->setSmallAreaDetectionThreshold(appId, threshold);
     return NO_ERROR;
 }
 
@@ -9718,18 +9718,18 @@ binder::Status SurfaceComposerAIDL::scheduleCommit() {
     return binder::Status::ok();
 }
 
-binder::Status SurfaceComposerAIDL::updateSmallAreaDetection(const std::vector<int32_t>& uids,
+binder::Status SurfaceComposerAIDL::updateSmallAreaDetection(const std::vector<int32_t>& appIds,
                                                              const std::vector<float>& thresholds) {
     status_t status;
     const int c_uid = IPCThreadState::self()->getCallingUid();
     if (c_uid == AID_ROOT || c_uid == AID_SYSTEM) {
-        if (uids.size() != thresholds.size()) return binderStatusFromStatusT(BAD_VALUE);
+        if (appIds.size() != thresholds.size()) return binderStatusFromStatusT(BAD_VALUE);
 
-        std::vector<std::pair<uid_t, float>> mappings;
-        const size_t size = uids.size();
+        std::vector<std::pair<int32_t, float>> mappings;
+        const size_t size = appIds.size();
         mappings.reserve(size);
         for (int i = 0; i < size; i++) {
-            auto row = std::make_pair(static_cast<uid_t>(uids[i]), thresholds[i]);
+            auto row = std::make_pair(appIds[i], thresholds[i]);
             mappings.push_back(row);
         }
         status = mFlinger->updateSmallAreaDetection(mappings);
@@ -9740,11 +9740,11 @@ binder::Status SurfaceComposerAIDL::updateSmallAreaDetection(const std::vector<i
     return binderStatusFromStatusT(status);
 }
 
-binder::Status SurfaceComposerAIDL::setSmallAreaDetectionThreshold(int32_t uid, float threshold) {
+binder::Status SurfaceComposerAIDL::setSmallAreaDetectionThreshold(int32_t appId, float threshold) {
     status_t status;
     const int c_uid = IPCThreadState::self()->getCallingUid();
     if (c_uid == AID_ROOT || c_uid == AID_SYSTEM) {
-        status = mFlinger->setSmallAreaDetectionThreshold(uid, threshold);
+        status = mFlinger->setSmallAreaDetectionThreshold(appId, threshold);
     } else {
         ALOGE("setSmallAreaDetectionThreshold() permission denied for uid: %d", c_uid);
         status = PERMISSION_DENIED;
