@@ -12,9 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! This module provides [BufferSubscriber] implementations and helpers.
+use super::Buffer;
 
-mod buffer_pool_publisher;
-pub mod testing;
+/// Trait that represents an owner of a buffer that might need to handle events such as a buffer
+/// being dropped.
+pub trait BufferOwner {
+    /// Called when a buffer is dropped.
+    fn on_return(&self, buffer: &Buffer);
+}
 
-pub use buffer_pool_publisher::*;
+pub(super) struct NoBufferOwner;
+
+impl BufferOwner for NoBufferOwner {
+    fn on_return(&self, _buffer: &Buffer) {}
+}

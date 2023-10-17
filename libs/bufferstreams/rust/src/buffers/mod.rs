@@ -12,9 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! This module provides [BufferSubscriber] implementations and helpers.
+//! Module containing Buffers and BufferPools
 
-mod buffer_pool_publisher;
-pub mod testing;
+mod buffer;
+mod buffer_owner;
+mod buffer_pool;
 
-pub use buffer_pool_publisher::*;
+pub use buffer::*;
+pub use buffer_owner::*;
+pub use buffer_pool::*;
