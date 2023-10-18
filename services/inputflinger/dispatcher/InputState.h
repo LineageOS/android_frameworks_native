@@ -97,9 +97,8 @@ private:
         float xCursorPosition;
         float yCursorPosition;
         nsecs_t downTime;
-        uint32_t pointerCount;
-        PointerProperties pointerProperties[MAX_POINTERS];
-        PointerCoords pointerCoords[MAX_POINTERS];
+        std::vector<PointerProperties> pointerProperties;
+        std::vector<PointerCoords> pointerCoords;
         // Track for which pointers the target doesn't know about.
         int32_t firstNewPointerIdx = INVALID_POINTER_INDEX;
         bool hovering;
@@ -107,6 +106,7 @@ private:
 
         void setPointers(const MotionEntry& entry);
         void mergePointerStateTo(MotionMemento& other) const;
+        size_t getPointerCount() const;
     };
 
     const IdGenerator& mIdGenerator; // InputDispatcher owns it so we won't have dangling reference.
