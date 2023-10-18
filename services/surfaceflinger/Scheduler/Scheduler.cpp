@@ -1198,18 +1198,19 @@ void Scheduler::setPreferredRefreshRateForUid(FrameRateOverride frameRateOverrid
 }
 
 void Scheduler::updateSmallAreaDetection(
-        std::vector<std::pair<uid_t, float>>& uidThresholdMappings) {
+        std::vector<std::pair<int32_t, float>>& uidThresholdMappings) {
     mSmallAreaDetectionAllowMappings.update(uidThresholdMappings);
 }
 
-void Scheduler::setSmallAreaDetectionThreshold(uid_t uid, float threshold) {
-    mSmallAreaDetectionAllowMappings.setThesholdForUid(uid, threshold);
+void Scheduler::setSmallAreaDetectionThreshold(int32_t appId, float threshold) {
+    mSmallAreaDetectionAllowMappings.setThesholdForAppId(appId, threshold);
 }
 
-bool Scheduler::isSmallDirtyArea(uid_t uid, uint32_t dirtyArea) {
-    std::optional<float> oThreshold = mSmallAreaDetectionAllowMappings.getThresholdForUid(uid);
-    if (oThreshold) return mLayerHistory.isSmallDirtyArea(dirtyArea, oThreshold.value());
-
+bool Scheduler::isSmallDirtyArea(int32_t appId, uint32_t dirtyArea) {
+    std::optional<float> oThreshold = mSmallAreaDetectionAllowMappings.getThresholdForAppId(appId);
+    if (oThreshold) {
+        return mLayerHistory.isSmallDirtyArea(dirtyArea, oThreshold.value());
+    }
     return false;
 }
 

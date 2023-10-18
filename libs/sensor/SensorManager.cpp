@@ -310,6 +310,22 @@ bool SensorManager::isDataInjectionEnabled() {
     return false;
 }
 
+bool SensorManager::isReplayDataInjectionEnabled() {
+    Mutex::Autolock _l(mLock);
+    if (assertStateLocked() == NO_ERROR) {
+        return mSensorServer->isReplayDataInjectionEnabled();
+    }
+    return false;
+}
+
+bool SensorManager::isHalBypassReplayDataInjectionEnabled() {
+    Mutex::Autolock _l(mLock);
+    if (assertStateLocked() == NO_ERROR) {
+        return mSensorServer->isHalBypassReplayDataInjectionEnabled();
+    }
+    return false;
+}
+
 int SensorManager::createDirectChannel(
         size_t size, int channelType, const native_handle_t *resourceHandle) {
     static constexpr int DEFAULT_DEVICE_ID = 0;

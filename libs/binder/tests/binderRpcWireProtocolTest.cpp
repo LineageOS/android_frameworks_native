@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#include <android-base/hex.h>
 #include <android-base/logging.h>
 #include <android-base/macros.h>
 #include <android-base/properties.h>
@@ -25,6 +24,7 @@
 #include <gtest/gtest.h>
 
 #include "../Debug.h"
+#include "../Utils.h"
 
 namespace android {
 
@@ -176,7 +176,7 @@ static std::string buildRepr(uint32_t version) {
         setParcelForRpc(&p, version);
         kFillFuns[i](&p);
 
-        result += base::HexString(p.data(), p.dataSize());
+        result += HexString(p.data(), p.dataSize());
     }
     return result;
 }

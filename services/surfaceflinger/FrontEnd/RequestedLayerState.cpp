@@ -238,8 +238,7 @@ void RequestedLayerState::merge(const ResolvedComposerState& resolvedComposerSta
     }
     if (what & (layer_state_t::eAlphaChanged)) {
         if (oldAlpha == 0 || color.a == 0) {
-            changes |= RequestedLayerState::Changes::Visibility |
-                    RequestedLayerState::Changes::VisibleRegion;
+            changes |= RequestedLayerState::Changes::Visibility;
         }
     }
 

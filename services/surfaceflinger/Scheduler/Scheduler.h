@@ -293,12 +293,12 @@ public:
 
     void setGameModeRefreshRateForUid(FrameRateOverride);
 
-    void updateSmallAreaDetection(std::vector<std::pair<uid_t, float>>& uidThresholdMappings);
+    void updateSmallAreaDetection(std::vector<std::pair<int32_t, float>>& uidThresholdMappings);
 
-    void setSmallAreaDetectionThreshold(uid_t uid, float threshold);
+    void setSmallAreaDetectionThreshold(int32_t appId, float threshold);
 
     // Returns true if the dirty area is less than threshold.
-    bool isSmallDirtyArea(uid_t uid, uint32_t dirtyArea);
+    bool isSmallDirtyArea(int32_t appId, uint32_t dirtyArea);
 
     // Retrieves the overridden refresh rate for a given uid.
     std::optional<Fps> getFrameRateOverride(uid_t) const EXCLUDES(mDisplayLock);

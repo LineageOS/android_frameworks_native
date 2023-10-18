@@ -43,6 +43,8 @@ enum {
     CREATE_SENSOR_DIRECT_CONNECTION,
     SET_OPERATION_PARAMETER,
     GET_RUNTIME_SENSOR_LIST,
+    ENABLE_REPLAY_DATA_INJECTION,
+    ENABLE_HAL_BYPASS_REPLAY_DATA_INJECTION,
 };
 
 class BpSensorServer : public BpInterface<ISensorServer>
@@ -162,6 +164,20 @@ public:
         return reply.readInt32();
     }
 
+    virtual int isReplayDataInjectionEnabled() {
+        Parcel data, reply;
+        data.writeInterfaceToken(ISensorServer::getInterfaceDescriptor());
+        remote()->transact(ENABLE_REPLAY_DATA_INJECTION, data, &reply);
+        return reply.readInt32();
+    }
+
+    virtual int isHalBypassReplayDataInjectionEnabled() {
+        Parcel data, reply;
+        data.writeInterfaceToken(ISensorServer::getInterfaceDescriptor());
+        remote()->transact(ENABLE_HAL_BYPASS_REPLAY_DATA_INJECTION, data, &reply);
+        return reply.readInt32();
+    }
+
     virtual sp<ISensorEventConnection> createSensorDirectConnection(const String16& opPackageName,
             int deviceId, uint32_t size, int32_t type, int32_t format,
             const native_handle_t *resource) {
@@ -234,6 +250,18 @@ status_t BnSensorServer::onTransact(
         case ENABLE_DATA_INJECTION: {
             CHECK_INTERFACE(ISensorServer, data, reply);
             int32_t ret = isDataInjectionEnabled();
+            reply->writeInt32(static_cast<int32_t>(ret));
+            return NO_ERROR;
+        }
+        case ENABLE_REPLAY_DATA_INJECTION: {
+            CHECK_INTERFACE(ISensorServer, data, reply);
+            int32_t ret = isReplayDataInjectionEnabled();
+            reply->writeInt32(static_cast<int32_t>(ret));
+            return NO_ERROR;
+        }
+        case ENABLE_HAL_BYPASS_REPLAY_DATA_INJECTION: {
+            CHECK_INTERFACE(ISensorServer, data, reply);
+            int32_t ret = isHalBypassReplayDataInjectionEnabled();
             reply->writeInt32(static_cast<int32_t>(ret));
             return NO_ERROR;
         }

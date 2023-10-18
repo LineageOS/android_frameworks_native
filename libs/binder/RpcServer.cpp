@@ -17,6 +17,7 @@
 #define LOG_TAG "RpcServer"
 
 #include <inttypes.h>
+#include <netinet/tcp.h>
 #include <poll.h>
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -24,7 +25,6 @@
 #include <thread>
 #include <vector>
 
-#include <android-base/hex.h>
 #include <android-base/scopeguard.h>
 #include <binder/Parcel.h>
 #include <binder/RpcServer.h>
@@ -57,7 +57,7 @@ RpcServer::~RpcServer() {
 sp<RpcServer> RpcServer::make(std::unique_ptr<RpcTransportCtxFactory> rpcTransportCtxFactory) {
     // Default is without TLS.
     if (rpcTransportCtxFactory == nullptr)
-        rpcTransportCtxFactory = makeDefaultRpcTransportCtxFactory();
+        rpcTransportCtxFactory = binder::os::makeDefaultRpcTransportCtxFactory();
     auto ctx = rpcTransportCtxFactory->newServerCtx();
     if (ctx == nullptr) return nullptr;
     return sp<RpcServer>::make(std::move(ctx));
@@ -216,7 +216,7 @@ status_t RpcServer::recvmsgSocketConnection(const RpcServer& server, RpcTranspor
     iovec iov{&zero, sizeof(zero)};
     std::vector<std::variant<base::unique_fd, base::borrowed_fd>> fds;
 
-    ssize_t num_bytes = receiveMessageFromSocket(server.mServer, &iov, 1, &fds);
+    ssize_t num_bytes = binder::os::receiveMessageFromSocket(server.mServer, &iov, 1, &fds);
     if (num_bytes < 0) {
         int savedErrno = errno;
         ALOGE("Failed recvmsg: %s", strerror(savedErrno));
@@ -231,7 +231,7 @@ status_t RpcServer::recvmsgSocketConnection(const RpcServer& server, RpcTranspor
     }
 
     unique_fd fd(std::move(std::get<unique_fd>(fds.back())));
-    if (auto res = setNonBlocking(fd); !res.ok()) {
+    if (auto res = binder::os::setNonBlocking(fd); !res.ok()) {
         ALOGE("Failed setNonBlocking: %s", res.error().message().c_str());
         return res.error().code() == 0 ? UNKNOWN_ERROR : -res.error().code();
     }
@@ -484,11 +484,11 @@ void RpcServer::establishConnection(
                 // don't block if there is some entropy issue
                 if (tries++ > 5) {
                     ALOGE("Cannot find new address: %s",
-                          base::HexString(sessionId.data(), sessionId.size()).c_str());
+                          HexString(sessionId.data(), sessionId.size()).c_str());
                     return;
                 }
 
-                auto status = getRandomBytes(sessionId.data(), sessionId.size());
+                auto status = binder::os::getRandomBytes(sessionId.data(), sessionId.size());
                 if (status != OK) {
                     ALOGE("Failed to read random session ID: %s", strerror(-status));
                     return;
@@ -536,7 +536,7 @@ void RpcServer::establishConnection(
             auto it = server->mSessions.find(sessionId);
             if (it == server->mSessions.end()) {
                 ALOGE("Cannot add thread, no record of session with ID %s",
-                      base::HexString(sessionId.data(), sessionId.size()).c_str());
+                      HexString(sessionId.data(), sessionId.size()).c_str());
                 return;
             }
             session = it->second;
@@ -570,6 +570,17 @@ status_t RpcServer::setupSocketServer(const RpcSocketAddress& addr) {
         int savedErrno = errno;
         ALOGE("Could not create socket at %s: %s", addr.toString().c_str(), strerror(savedErrno));
         return -savedErrno;
+    }
+
+    if (addr.addr()->sa_family == AF_INET || addr.addr()->sa_family == AF_INET6) {
+        int noDelay = 1;
+        int result =
+                setsockopt(socket_fd.get(), IPPROTO_TCP, TCP_NODELAY, &noDelay, sizeof(noDelay));
+        if (result < 0) {
+            int savedErrno = errno;
+            ALOGE("Could not set TCP_NODELAY on  %s", strerror(savedErrno));
+            return -savedErrno;
+        }
     }
 
     {
@@ -610,15 +621,14 @@ status_t RpcServer::setupRawSocketServer(unique_fd socket_fd) {
 void RpcServer::onSessionAllIncomingThreadsEnded(const sp<RpcSession>& session) {
     const std::vector<uint8_t>& id = session->mId;
     LOG_ALWAYS_FATAL_IF(id.empty(), "Server sessions must be initialized with ID");
-    LOG_RPC_DETAIL("Dropping session with address %s",
-                   base::HexString(id.data(), id.size()).c_str());
+    LOG_RPC_DETAIL("Dropping session with address %s", HexString(id.data(), id.size()).c_str());
 
     RpcMutexLockGuard _l(mLock);
     auto it = mSessions.find(id);
     LOG_ALWAYS_FATAL_IF(it == mSessions.end(), "Bad state, unknown session id %s",
-                        base::HexString(id.data(), id.size()).c_str());
+                        HexString(id.data(), id.size()).c_str());
     LOG_ALWAYS_FATAL_IF(it->second != session, "Bad state, session has id mismatch %s",
-                        base::HexString(id.data(), id.size()).c_str());
+                        HexString(id.data(), id.size()).c_str());
     (void)mSessions.erase(it);
 }
 

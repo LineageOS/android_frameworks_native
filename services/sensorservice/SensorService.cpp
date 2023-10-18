@@ -665,6 +665,10 @@ status_t SensorService::dump(int fd, const Vector<String16>& args) {
                    result.appendFormat(" REPLAY_DATA_INJECTION : %s\n",
                             mAllowListedPackage.c_str());
                    break;
+               case HAL_BYPASS_REPLAY_DATA_INJECTION:
+                   result.appendFormat(" HAL_BYPASS_REPLAY_DATA_INJECTION : %s\n",
+                            mAllowListedPackage.c_str());
+                   break;
                default:
                    result.appendFormat(" UNKNOWN\n");
                    break;
@@ -1529,10 +1533,9 @@ Vector<Sensor> SensorService::getRuntimeSensorList(const String16& opPackageName
 
 sp<ISensorEventConnection> SensorService::createSensorEventConnection(const String8& packageName,
         int requestedMode, const String16& opPackageName, const String16& attributionTag) {
-    // Only 3 modes supported for a SensorEventConnection ... NORMAL, DATA_INJECTION and
-    // REPLAY_DATA_INJECTION.
-    if (requestedMode != NORMAL && requestedMode != DATA_INJECTION &&
-            requestedMode != REPLAY_DATA_INJECTION) {
+    // Only 4 modes supported for a SensorEventConnection ... NORMAL, DATA_INJECTION,
+    // REPLAY_DATA_INJECTION and HAL_BYPASS_REPLAY_DATA_INJECTION
+    if (requestedMode != NORMAL && !isInjectionMode(requestedMode)) {
         return nullptr;
     }
     resetTargetSdkVersionCache(opPackageName);
@@ -1553,9 +1556,9 @@ sp<ISensorEventConnection> SensorService::createSensorEventConnection(const Stri
     String16 connOpPackageName =
             (opPackageName == String16("")) ? String16(connPackageName) : opPackageName;
     sp<SensorEventConnection> result(new SensorEventConnection(this, uid, connPackageName,
-            requestedMode == DATA_INJECTION || requestedMode == REPLAY_DATA_INJECTION,
-            connOpPackageName, attributionTag));
-    if (requestedMode == DATA_INJECTION || requestedMode == REPLAY_DATA_INJECTION) {
+                                                               isInjectionMode(requestedMode),
+                                                               connOpPackageName, attributionTag));
+    if (isInjectionMode(requestedMode)) {
         mConnectionHolder.addEventConnectionIfNotPresent(result);
         // Add the associated file descriptor to the Looper for polling whenever there is data to
         // be injected.
@@ -1566,7 +1569,22 @@ sp<ISensorEventConnection> SensorService::createSensorEventConnection(const Stri
 
 int SensorService::isDataInjectionEnabled() {
     Mutex::Autolock _l(mLock);
-    return (mCurrentOperatingMode == DATA_INJECTION);
+    return mCurrentOperatingMode == DATA_INJECTION;
+}
+
+int SensorService::isReplayDataInjectionEnabled() {
+    Mutex::Autolock _l(mLock);
+    return mCurrentOperatingMode == REPLAY_DATA_INJECTION;
+}
+
+int SensorService::isHalBypassReplayDataInjectionEnabled() {
+    Mutex::Autolock _l(mLock);
+    return mCurrentOperatingMode == HAL_BYPASS_REPLAY_DATA_INJECTION;
+}
+
+bool SensorService::isInjectionMode(int mode) {
+    return (mode == DATA_INJECTION || mode == REPLAY_DATA_INJECTION ||
+            mode == HAL_BYPASS_REPLAY_DATA_INJECTION);
 }
 
 sp<ISensorEventConnection> SensorService::createSensorDirectConnection(
@@ -2332,6 +2350,10 @@ bool SensorService::getTargetOperatingMode(const std::string &inputString, Mode 
       *targetModeOut = REPLAY_DATA_INJECTION;
       return true;
     }
+    if (inputString == std::string("hal_bypass_replay_data_injection")) {
+      *targetModeOut = HAL_BYPASS_REPLAY_DATA_INJECTION;
+      return true;
+    }
     return false;
 }
 
@@ -2357,7 +2379,8 @@ status_t SensorService::changeOperatingMode(const Vector<String16>& args,
             dev.disableAllSensors();
         }
         if (mCurrentOperatingMode == DATA_INJECTION ||
-                mCurrentOperatingMode == REPLAY_DATA_INJECTION) {
+                mCurrentOperatingMode == REPLAY_DATA_INJECTION ||
+                mCurrentOperatingMode == HAL_BYPASS_REPLAY_DATA_INJECTION) {
           resetToNormalModeLocked();
         }
         mAllowListedPackage.clear();
@@ -2373,6 +2396,8 @@ status_t SensorService::changeOperatingMode(const Vector<String16>& args,
         disableAllSensorsLocked(&connLock);
         mAllowListedPackage = String8(args[1]);
         return status_t(NO_ERROR);
+      case HAL_BYPASS_REPLAY_DATA_INJECTION:
+        FALLTHROUGH_INTENDED;
       case REPLAY_DATA_INJECTION:
         if (SensorServiceUtil::isUserBuild()) {
             return INVALID_OPERATION;
@@ -2381,9 +2406,16 @@ status_t SensorService::changeOperatingMode(const Vector<String16>& args,
       case DATA_INJECTION:
         if (mCurrentOperatingMode == NORMAL) {
             dev.disableAllSensors();
-            // Always use DATA_INJECTION here since this value goes to the HAL and the HAL
-            // doesn't have an understanding of replay vs. normal data injection.
-            status_t err = dev.setMode(DATA_INJECTION);
+            status_t err = NO_ERROR;
+            if (targetOperatingMode == HAL_BYPASS_REPLAY_DATA_INJECTION) {
+                // Set SensorDevice to HAL_BYPASS_REPLAY_DATA_INJECTION_MODE. This value is not
+                // injected into the HAL, nor will any events be injected into the HAL
+                err = dev.setMode(HAL_BYPASS_REPLAY_DATA_INJECTION);
+            } else {
+                // Otherwise use DATA_INJECTION here since this value goes to the HAL and the HAL
+                // doesn't have an understanding of replay vs. normal data injection.
+                err = dev.setMode(DATA_INJECTION);
+            }
             if (err == NO_ERROR) {
                 mCurrentOperatingMode = targetOperatingMode;
             }
