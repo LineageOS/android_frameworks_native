@@ -67,7 +67,7 @@ enum DevicePrivateBase : int32_t {
 
 } // anonymous namespace
 
-SensorDevice::SensorDevice() {
+SensorDevice::SensorDevice() : mInHalBypassMode(false) {
     if (!connectHalService()) {
         return;
     }
