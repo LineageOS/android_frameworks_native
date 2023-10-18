@@ -62,7 +62,7 @@ public:
     SkiaRenderEngine(RenderEngineType type, PixelFormat pixelFormat, bool supportsBackgroundBlur);
     ~SkiaRenderEngine() override;
 
-    std::future<void> primeCache() override final;
+    std::future<void> primeCache(bool shouldPrimeUltraHDR) override final;
     void cleanupPostRender() override final;
     bool supportsBackgroundBlur() override final {
         return mBlurFilter != nullptr;

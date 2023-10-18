@@ -3204,7 +3204,7 @@ TEST_P(RenderEngineTest, primeShaderCache) {
     }
     initializeRenderEngine();
 
-    auto fut = mRE->primeCache();
+    auto fut = mRE->primeCache(false);
     if (fut.valid()) {
         fut.wait();
     }
