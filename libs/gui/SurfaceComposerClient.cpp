@@ -59,7 +59,7 @@
 #include <private/gui/ComposerServiceAIDL.h>
 
 // This server size should always be smaller than the server cache size
-#define BUFFER_CACHE_MAX_SIZE 64
+#define BUFFER_CACHE_MAX_SIZE 4096
 
 namespace android {
 
@@ -1027,7 +1027,7 @@ void SurfaceComposerClient::Transaction::clear() {
     mEarlyWakeupEnd = false;
     mDesiredPresentTime = 0;
     mIsAutoTimestamp = true;
-    clearFrameTimelineInfo(mFrameTimelineInfo);
+    mFrameTimelineInfo = {};
     mApplyToken = nullptr;
     mMergedTransactionIds.clear();
 }
@@ -1300,6 +1300,13 @@ sp<IBinder> SurfaceComposerClient::getPhysicalDisplayToken(PhysicalDisplayId dis
             ComposerServiceAIDL::getComposerService()->getPhysicalDisplayToken(displayId.value,
                                                                                &display);
     return status.isOk() ? display : nullptr;
+}
+
+std::optional<gui::StalledTransactionInfo> SurfaceComposerClient::getStalledTransactionInfo(
+        pid_t pid) {
+    std::optional<gui::StalledTransactionInfo> result;
+    ComposerServiceAIDL::getComposerService()->getStalledTransactionInfo(pid, &result);
+    return result;
 }
 
 void SurfaceComposerClient::Transaction::setAnimationTransaction() {
@@ -2279,25 +2286,11 @@ void SurfaceComposerClient::Transaction::mergeFrameTimelineInfo(FrameTimelineInf
     if (t.vsyncId != FrameTimelineInfo::INVALID_VSYNC_ID &&
         other.vsyncId != FrameTimelineInfo::INVALID_VSYNC_ID) {
         if (other.vsyncId > t.vsyncId) {
-            t.vsyncId = other.vsyncId;
-            t.inputEventId = other.inputEventId;
-            t.startTimeNanos = other.startTimeNanos;
-            t.useForRefreshRateSelection = other.useForRefreshRateSelection;
+            t = other;
         }
     } else if (t.vsyncId == FrameTimelineInfo::INVALID_VSYNC_ID) {
-        t.vsyncId = other.vsyncId;
-        t.inputEventId = other.inputEventId;
-        t.startTimeNanos = other.startTimeNanos;
-        t.useForRefreshRateSelection = other.useForRefreshRateSelection;
+        t = other;
     }
-}
-
-// copied from FrameTimelineInfo::clear()
-void SurfaceComposerClient::Transaction::clearFrameTimelineInfo(FrameTimelineInfo& t) {
-    t.vsyncId = FrameTimelineInfo::INVALID_VSYNC_ID;
-    t.inputEventId = os::IInputConstants::INVALID_INPUT_EVENT_ID;
-    t.startTimeNanos = 0;
-    t.useForRefreshRateSelection = false;
 }
 
 SurfaceComposerClient::Transaction&
@@ -2523,38 +2516,41 @@ status_t SurfaceComposerClient::getStaticDisplayInfo(int64_t displayId,
         outInfo->secure = ginfo.secure;
         outInfo->installOrientation = static_cast<ui::Rotation>(ginfo.installOrientation);
 
-        DeviceProductInfo info;
-        std::optional<gui::DeviceProductInfo> dpi = ginfo.deviceProductInfo;
-        gui::DeviceProductInfo::ManufactureOrModelDate& date = dpi->manufactureOrModelDate;
-        info.name = dpi->name;
-        if (dpi->manufacturerPnpId.size() > 0) {
-            // copid from PnpId = std::array<char, 4> in ui/DeviceProductInfo.h
-            constexpr int kMaxPnpIdSize = 4;
-            size_t count = std::max<size_t>(kMaxPnpIdSize, dpi->manufacturerPnpId.size());
-            std::copy_n(dpi->manufacturerPnpId.begin(), count, info.manufacturerPnpId.begin());
-        }
-        if (dpi->relativeAddress.size() > 0) {
-            std::copy(dpi->relativeAddress.begin(), dpi->relativeAddress.end(),
-                      std::back_inserter(info.relativeAddress));
-        }
-        info.productId = dpi->productId;
-        if (date.getTag() == Tag::modelYear) {
-            DeviceProductInfo::ModelYear modelYear;
-            modelYear.year = static_cast<uint32_t>(date.get<Tag::modelYear>().year);
-            info.manufactureOrModelDate = modelYear;
-        } else if (date.getTag() == Tag::manufactureYear) {
-            DeviceProductInfo::ManufactureYear manufactureYear;
-            manufactureYear.year = date.get<Tag::manufactureYear>().modelYear.year;
-            info.manufactureOrModelDate = manufactureYear;
-        } else if (date.getTag() == Tag::manufactureWeekAndYear) {
-            DeviceProductInfo::ManufactureWeekAndYear weekAndYear;
-            weekAndYear.year =
-                    date.get<Tag::manufactureWeekAndYear>().manufactureYear.modelYear.year;
-            weekAndYear.week = date.get<Tag::manufactureWeekAndYear>().week;
-            info.manufactureOrModelDate = weekAndYear;
-        }
+        if (const std::optional<gui::DeviceProductInfo> dpi = ginfo.deviceProductInfo) {
+            DeviceProductInfo info;
+            info.name = dpi->name;
+            if (dpi->manufacturerPnpId.size() > 0) {
+                // copid from PnpId = std::array<char, 4> in ui/DeviceProductInfo.h
+                constexpr int kMaxPnpIdSize = 4;
+                size_t count = std::max<size_t>(kMaxPnpIdSize, dpi->manufacturerPnpId.size());
+                std::copy_n(dpi->manufacturerPnpId.begin(), count, info.manufacturerPnpId.begin());
+            }
+            if (dpi->relativeAddress.size() > 0) {
+                std::copy(dpi->relativeAddress.begin(), dpi->relativeAddress.end(),
+                          std::back_inserter(info.relativeAddress));
+            }
+            info.productId = dpi->productId;
 
-        outInfo->deviceProductInfo = info;
+            const gui::DeviceProductInfo::ManufactureOrModelDate& date =
+                    dpi->manufactureOrModelDate;
+            if (date.getTag() == Tag::modelYear) {
+                DeviceProductInfo::ModelYear modelYear;
+                modelYear.year = static_cast<uint32_t>(date.get<Tag::modelYear>().year);
+                info.manufactureOrModelDate = modelYear;
+            } else if (date.getTag() == Tag::manufactureYear) {
+                DeviceProductInfo::ManufactureYear manufactureYear;
+                manufactureYear.year = date.get<Tag::manufactureYear>().modelYear.year;
+                info.manufactureOrModelDate = manufactureYear;
+            } else if (date.getTag() == Tag::manufactureWeekAndYear) {
+                DeviceProductInfo::ManufactureWeekAndYear weekAndYear;
+                weekAndYear.year =
+                        date.get<Tag::manufactureWeekAndYear>().manufactureYear.modelYear.year;
+                weekAndYear.week = date.get<Tag::manufactureWeekAndYear>().week;
+                info.manufactureOrModelDate = weekAndYear;
+            }
+
+            outInfo->deviceProductInfo = info;
+        }
     }
     return statusTFromBinderStatus(status);
 }
@@ -2751,6 +2747,20 @@ status_t SurfaceComposerClient::getHdrOutputConversionSupport(bool* isSupported)
 status_t SurfaceComposerClient::setOverrideFrameRate(uid_t uid, float frameRate) {
     binder::Status status =
             ComposerServiceAIDL::getComposerService()->setOverrideFrameRate(uid, frameRate);
+    return statusTFromBinderStatus(status);
+}
+
+status_t SurfaceComposerClient::updateSmallAreaDetection(std::vector<int32_t>& uids,
+                                                         std::vector<float>& thresholds) {
+    binder::Status status =
+            ComposerServiceAIDL::getComposerService()->updateSmallAreaDetection(uids, thresholds);
+    return statusTFromBinderStatus(status);
+}
+
+status_t SurfaceComposerClient::setSmallAreaDetectionThreshold(uid_t uid, float threshold) {
+    binder::Status status =
+            ComposerServiceAIDL::getComposerService()->setSmallAreaDetectionThreshold(uid,
+                                                                                      threshold);
     return statusTFromBinderStatus(status);
 }
 

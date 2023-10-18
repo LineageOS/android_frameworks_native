@@ -76,6 +76,7 @@ private:
 
         virtual void dump(std::string& dump) {}
 
+        void configureSuggestedBrightnessLevels();
         std::optional<std::int32_t> getRawLightBrightness(int32_t rawLightId);
         void setRawLightBrightness(int32_t rawLightId, int32_t brightness);
     };
@@ -152,6 +153,8 @@ private:
 
     // Battery map from battery ID to battery
     std::unordered_map<int32_t, std::unique_ptr<Battery>> mBatteries;
+
+    std::set<BrightnessLevel> getPreferredBrightnessLevels(const Light* light) const;
 };
 
 } // namespace android

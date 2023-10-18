@@ -90,8 +90,10 @@ status_t WindowInfo::writeToParcel(android::Parcel* parcel) const {
     }
     parcel->writeInt32(1);
 
-    // Ensure that the size of the flags that we use is 32 bits for writing into the parcel.
+    // Ensure that the size of custom types are what we expect for writing into the parcel.
     static_assert(sizeof(inputConfig) == 4u);
+    static_assert(sizeof(ownerPid.val()) == 4u);
+    static_assert(sizeof(ownerUid.val()) == 4u);
 
     // clang-format off
     status_t status = parcel->writeStrongBinder(token) ?:
@@ -115,8 +117,8 @@ status_t WindowInfo::writeToParcel(android::Parcel* parcel) const {
         parcel->writeFloat(transform.dsdy()) ?:
         parcel->writeFloat(transform.ty()) ?:
         parcel->writeInt32(static_cast<int32_t>(touchOcclusionMode)) ?:
-        parcel->writeInt32(ownerPid) ?:
-        parcel->writeInt32(ownerUid) ?:
+        parcel->writeInt32(ownerPid.val()) ?:
+        parcel->writeInt32(ownerUid.val()) ?:
         parcel->writeUtf8AsUtf16(packageName) ?:
         parcel->writeInt32(inputConfig.get()) ?:
         parcel->writeInt32(displayId) ?:
@@ -147,7 +149,7 @@ status_t WindowInfo::readFromParcel(const android::Parcel* parcel) {
     }
 
     float dsdx, dtdx, tx, dtdy, dsdy, ty;
-    int32_t lpFlags, lpType, touchOcclusionModeInt, inputConfigInt;
+    int32_t lpFlags, lpType, touchOcclusionModeInt, inputConfigInt, ownerPidInt, ownerUidInt;
     sp<IBinder> touchableRegionCropHandleSp;
 
     // clang-format off
@@ -167,8 +169,8 @@ status_t WindowInfo::readFromParcel(const android::Parcel* parcel) {
         parcel->readFloat(&dsdy) ?:
         parcel->readFloat(&ty) ?:
         parcel->readInt32(&touchOcclusionModeInt) ?:
-        parcel->readInt32(&ownerPid) ?:
-        parcel->readInt32(&ownerUid) ?:
+        parcel->readInt32(&ownerPidInt) ?:
+        parcel->readInt32(&ownerUidInt) ?:
         parcel->readUtf8FromUtf16(&packageName) ?:
         parcel->readInt32(&inputConfigInt) ?:
         parcel->readInt32(&displayId) ?:
@@ -190,6 +192,8 @@ status_t WindowInfo::readFromParcel(const android::Parcel* parcel) {
     transform.set({dsdx, dtdx, tx, dtdy, dsdy, ty, 0, 0, 1});
     touchOcclusionMode = static_cast<TouchOcclusionMode>(touchOcclusionModeInt);
     inputConfig = ftl::Flags<InputConfig>(inputConfigInt);
+    ownerPid = Pid{ownerPidInt};
+    ownerUid = Uid{static_cast<uid_t>(ownerUidInt)};
     touchableRegionCropHandle = touchableRegionCropHandleSp;
 
     return OK;

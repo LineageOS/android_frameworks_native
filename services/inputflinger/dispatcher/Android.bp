@@ -94,6 +94,7 @@ cc_defaults {
 
 cc_library_static {
     name: "libinputdispatcher",
+    host_supported: true,
     defaults: [
         "inputflinger_defaults",
         "libinputdispatcher_defaults",

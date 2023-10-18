@@ -27,6 +27,7 @@
 #include "Scheduler/Scheduler.h"
 #include "Scheduler/VSyncTracker.h"
 #include "Scheduler/VsyncController.h"
+#include "Scheduler/VsyncSchedule.h"
 #include "mock/MockVSyncDispatch.h"
 #include "mock/MockVSyncTracker.h"
 #include "mock/MockVsyncController.h"
@@ -80,8 +81,12 @@ public:
                                                    new VsyncSchedule(displayId, std::move(tracker),
                                                                      std::make_shared<
                                                                              mock::VSyncDispatch>(),
-                                                                     std::move(controller))));
+                                                                     std::move(controller),
+                                                                     mockRequestHardwareVsync
+                                                                             .AsStdFunction())));
     }
+
+    testing::MockFunction<void(PhysicalDisplayId, bool)> mockRequestHardwareVsync;
 
     void unregisterDisplay(PhysicalDisplayId displayId) {
         ftl::FakeGuard guard(kMainThreadContext);
@@ -163,11 +168,16 @@ public:
                                           : VsyncSchedule::HwVsyncState::Disabled;
     }
 
+    using Scheduler::onHardwareVsyncRequest;
+
 private:
     // ICompositor overrides:
     void configure() override {}
-    bool commit(TimePoint, VsyncId, TimePoint) override { return false; }
-    void composite(TimePoint, VsyncId) override {}
+    bool commit(PhysicalDisplayId, const scheduler::FrameTargets&) override { return false; }
+    CompositeResultsPerDisplay composite(PhysicalDisplayId,
+                                         const scheduler::FrameTargeters&) override {
+        return {};
+    }
     void sample() override {}
 };
 

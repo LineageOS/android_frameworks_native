@@ -40,11 +40,6 @@ protected:
     }
 
     virtual void SetUp() {
-        const ::testing::TestInfo* const testInfo =
-            ::testing::UnitTest::GetInstance()->current_test_info();
-        ALOGD("Begin test: %s.%s", testInfo->test_case_name(),
-                testInfo->name());
-
         sp<IGraphicBufferProducer> producer;
         sp<IGraphicBufferConsumer> consumer;
         BufferQueue::createBufferQueue(&producer, &consumer);
@@ -96,11 +91,6 @@ protected:
         eglDestroyContext(mEglDisplay, mEglContext);
         eglDestroySurface(mEglDisplay, mEglSurface);
         eglTerminate(mEglDisplay);
-
-        const ::testing::TestInfo* const testInfo =
-            ::testing::UnitTest::GetInstance()->current_test_info();
-        ALOGD("End test:   %s.%s", testInfo->test_case_name(),
-                testInfo->name());
     }
 
     virtual EGLint const* getConfigAttribs() {

@@ -539,9 +539,12 @@ status_t JpegR::getJPEGRInfo(jr_compressed_ptr compressed_jpegr_image, jr_info_p
     return ERROR_JPEGR_INVALID_NULL_PTR;
   }
 
-  jpegr_compressed_struct primary_image, gain_map;
-  JPEGR_CHECK(extractPrimaryImageAndGainMap(compressed_jpegr_image,
-                                            &primary_image, &gain_map));
+  jpegr_compressed_struct primary_image, gainmap_image;
+  status_t status =
+      extractPrimaryImageAndGainMap(compressed_jpegr_image, &primary_image, &gainmap_image);
+  if (status != NO_ERROR && status != ERROR_JPEGR_GAIN_MAP_IMAGE_NOT_FOUND) {
+    return status;
+  }
 
   JpegDecoderHelper jpeg_decoder;
   if (!jpeg_decoder.getCompressedImageParameters(primary_image.data, primary_image.length,
@@ -550,7 +553,7 @@ status_t JpegR::getJPEGRInfo(jr_compressed_ptr compressed_jpegr_image, jr_info_p
     return ERROR_JPEGR_DECODE_ERROR;
   }
 
-  return NO_ERROR;
+  return status;
 }
 
 /* Decode API */
@@ -586,90 +589,34 @@ status_t JpegR::decodeJPEGR(jr_compressed_ptr compressed_jpegr_image,
     return ERROR_JPEGR_INVALID_INPUT_TYPE;
   }
 
-  if (output_format == ULTRAHDR_OUTPUT_SDR) {
-    JpegDecoderHelper jpeg_decoder;
-    if (!jpeg_decoder.decompressImage(compressed_jpegr_image->data, compressed_jpegr_image->length,
-                                      true)) {
-        return ERROR_JPEGR_DECODE_ERROR;
+  jpegr_compressed_struct primary_image, gainmap_image;
+  status_t status =
+      extractPrimaryImageAndGainMap(compressed_jpegr_image, &primary_image, &gainmap_image);
+  if (status != NO_ERROR) {
+    if (output_format != ULTRAHDR_OUTPUT_SDR || status != ERROR_JPEGR_GAIN_MAP_IMAGE_NOT_FOUND) {
+      ALOGE("received invalid compressed jpegr image");
+      return status;
     }
-    jpegr_uncompressed_struct uncompressed_rgba_image;
-    uncompressed_rgba_image.data = jpeg_decoder.getDecompressedImagePtr();
-    uncompressed_rgba_image.width = jpeg_decoder.getDecompressedImageWidth();
-    uncompressed_rgba_image.height = jpeg_decoder.getDecompressedImageHeight();
-    memcpy(dest->data, uncompressed_rgba_image.data,
-           uncompressed_rgba_image.width * uncompressed_rgba_image.height * 4);
-    dest->width = uncompressed_rgba_image.width;
-    dest->height = uncompressed_rgba_image.height;
-
-    if (gain_map == nullptr && exif == nullptr) {
-      return NO_ERROR;
-    }
-
-    if (exif != nullptr) {
-      if (exif->data == nullptr) {
-        return ERROR_JPEGR_INVALID_NULL_PTR;
-      }
-      if (exif->length < jpeg_decoder.getEXIFSize()) {
-        return ERROR_JPEGR_BUFFER_TOO_SMALL;
-      }
-      memcpy(exif->data, jpeg_decoder.getEXIFPtr(), jpeg_decoder.getEXIFSize());
-      exif->length = jpeg_decoder.getEXIFSize();
-    }
-    if (gain_map == nullptr) {
-      return NO_ERROR;
-    }
-  }
-
-  jpegr_compressed_struct compressed_map;
-  JPEGR_CHECK(extractGainMap(compressed_jpegr_image, &compressed_map));
-
-  JpegDecoderHelper gain_map_decoder;
-  if (!gain_map_decoder.decompressImage(compressed_map.data, compressed_map.length)) {
-    return ERROR_JPEGR_DECODE_ERROR;
-  }
-  if ((gain_map_decoder.getDecompressedImageWidth() *
-       gain_map_decoder.getDecompressedImageHeight()) >
-      gain_map_decoder.getDecompressedImageSize()) {
-    return ERROR_JPEGR_CALCULATION_ERROR;
-  }
-
-  if (gain_map != nullptr) {
-    gain_map->width = gain_map_decoder.getDecompressedImageWidth();
-    gain_map->height = gain_map_decoder.getDecompressedImageHeight();
-    int size = gain_map->width * gain_map->height;
-    gain_map->data = malloc(size);
-    memcpy(gain_map->data, gain_map_decoder.getDecompressedImagePtr(), size);
-  }
-
-  ultrahdr_metadata_struct uhdr_metadata;
-  if (!getMetadataFromXMP(static_cast<uint8_t*>(gain_map_decoder.getXMPPtr()),
-                          gain_map_decoder.getXMPSize(), &uhdr_metadata)) {
-    return ERROR_JPEGR_INVALID_METADATA;
-  }
-
-  if (metadata != nullptr) {
-      metadata->version = uhdr_metadata.version;
-      metadata->minContentBoost = uhdr_metadata.minContentBoost;
-      metadata->maxContentBoost = uhdr_metadata.maxContentBoost;
-      metadata->gamma = uhdr_metadata.gamma;
-      metadata->offsetSdr = uhdr_metadata.offsetSdr;
-      metadata->offsetHdr = uhdr_metadata.offsetHdr;
-      metadata->hdrCapacityMin = uhdr_metadata.hdrCapacityMin;
-      metadata->hdrCapacityMax = uhdr_metadata.hdrCapacityMax;
-  }
-
-  if (output_format == ULTRAHDR_OUTPUT_SDR) {
-    return NO_ERROR;
   }
 
   JpegDecoderHelper jpeg_decoder;
-  if (!jpeg_decoder.decompressImage(compressed_jpegr_image->data, compressed_jpegr_image->length)) {
+  if (!jpeg_decoder.decompressImage(primary_image.data, primary_image.length,
+                                    (output_format == ULTRAHDR_OUTPUT_SDR))) {
     return ERROR_JPEGR_DECODE_ERROR;
   }
-  if ((jpeg_decoder.getDecompressedImageWidth() *
-       jpeg_decoder.getDecompressedImageHeight() * 3 / 2) >
-      jpeg_decoder.getDecompressedImageSize()) {
-    return ERROR_JPEGR_CALCULATION_ERROR;
+
+  if (output_format == ULTRAHDR_OUTPUT_SDR) {
+    if ((jpeg_decoder.getDecompressedImageWidth() *
+         jpeg_decoder.getDecompressedImageHeight() * 4) >
+        jpeg_decoder.getDecompressedImageSize()) {
+      return ERROR_JPEGR_CALCULATION_ERROR;
+    }
+  } else {
+    if ((jpeg_decoder.getDecompressedImageWidth() *
+         jpeg_decoder.getDecompressedImageHeight() * 3 / 2) >
+        jpeg_decoder.getDecompressedImageSize()) {
+      return ERROR_JPEGR_CALCULATION_ERROR;
+    }
   }
 
   if (exif != nullptr) {
@@ -683,10 +630,52 @@ status_t JpegR::decodeJPEGR(jr_compressed_ptr compressed_jpegr_image,
     exif->length = jpeg_decoder.getEXIFSize();
   }
 
+  if (output_format == ULTRAHDR_OUTPUT_SDR) {
+    dest->width = jpeg_decoder.getDecompressedImageWidth();
+    dest->height = jpeg_decoder.getDecompressedImageHeight();
+    memcpy(dest->data, jpeg_decoder.getDecompressedImagePtr(), dest->width * dest->height * 4);
+    return NO_ERROR;
+  }
+
+  JpegDecoderHelper gain_map_decoder;
+  if (!gain_map_decoder.decompressImage(gainmap_image.data, gainmap_image.length)) {
+    return ERROR_JPEGR_DECODE_ERROR;
+  }
+  if ((gain_map_decoder.getDecompressedImageWidth() *
+       gain_map_decoder.getDecompressedImageHeight()) >
+      gain_map_decoder.getDecompressedImageSize()) {
+    return ERROR_JPEGR_CALCULATION_ERROR;
+  }
+
   jpegr_uncompressed_struct map;
   map.data = gain_map_decoder.getDecompressedImagePtr();
   map.width = gain_map_decoder.getDecompressedImageWidth();
   map.height = gain_map_decoder.getDecompressedImageHeight();
+
+  if (gain_map != nullptr) {
+    gain_map->width = map.width;
+    gain_map->height = map.height;
+    int size = gain_map->width * gain_map->height;
+    gain_map->data = malloc(size);
+    memcpy(gain_map->data, map.data, size);
+  }
+
+  ultrahdr_metadata_struct uhdr_metadata;
+  if (!getMetadataFromXMP(static_cast<uint8_t*>(gain_map_decoder.getXMPPtr()),
+                          gain_map_decoder.getXMPSize(), &uhdr_metadata)) {
+    return ERROR_JPEGR_INVALID_METADATA;
+  }
+
+  if (metadata != nullptr) {
+    metadata->version = uhdr_metadata.version;
+    metadata->minContentBoost = uhdr_metadata.minContentBoost;
+    metadata->maxContentBoost = uhdr_metadata.maxContentBoost;
+    metadata->gamma = uhdr_metadata.gamma;
+    metadata->offsetSdr = uhdr_metadata.offsetSdr;
+    metadata->offsetHdr = uhdr_metadata.offsetHdr;
+    metadata->hdrCapacityMin = uhdr_metadata.hdrCapacityMin;
+    metadata->hdrCapacityMax = uhdr_metadata.hdrCapacityMax;
+  }
 
   jpegr_uncompressed_struct uncompressed_yuv_420_image;
   uncompressed_yuv_420_image.data = jpeg_decoder.getDecompressedImagePtr();
@@ -1131,12 +1120,8 @@ status_t JpegR::extractPrimaryImageAndGainMap(jr_compressed_ptr compressed_jpegr
 
   const auto& jpeg_info = jpeg_info_builder.GetInfo();
   const auto& image_ranges = jpeg_info.GetImageRanges();
-  if (image_ranges.empty()) {
-    return ERROR_JPEGR_INVALID_INPUT_TYPE;
-  }
 
-  if (image_ranges.size() != 2) {
-    // Must be 2 JPEG Images
+  if (image_ranges.empty()) {
     return ERROR_JPEGR_INVALID_INPUT_TYPE;
   }
 
@@ -1146,23 +1131,23 @@ status_t JpegR::extractPrimaryImageAndGainMap(jr_compressed_ptr compressed_jpegr
     primary_image->length = image_ranges[0].GetLength();
   }
 
+  if (image_ranges.size() == 1) {
+    return ERROR_JPEGR_GAIN_MAP_IMAGE_NOT_FOUND;
+  }
+
   if (gain_map != nullptr) {
     gain_map->data = static_cast<uint8_t*>(compressed_jpegr_image->data) +
                                               image_ranges[1].GetBegin();
     gain_map->length = image_ranges[1].GetLength();
   }
 
-  return NO_ERROR;
-}
-
-
-status_t JpegR::extractGainMap(jr_compressed_ptr compressed_jpegr_image,
-                               jr_compressed_ptr dest) {
-  if (compressed_jpegr_image == nullptr || dest == nullptr) {
-    return ERROR_JPEGR_INVALID_NULL_PTR;
+  // TODO: choose primary image and gain map image carefully
+  if (image_ranges.size() > 2) {
+    ALOGW("Number of jpeg images present %d, primary, gain map images may not be correctly chosen",
+          (int)image_ranges.size());
   }
 
-  return extractPrimaryImageAndGainMap(compressed_jpegr_image, nullptr, dest);
+  return NO_ERROR;
 }
 
 // JPEG/R structure:

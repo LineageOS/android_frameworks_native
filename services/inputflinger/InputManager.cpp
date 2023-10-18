@@ -23,6 +23,7 @@
 #include "InputReaderFactory.h"
 #include "UnwantedInteractionBlocker.h"
 
+#include <android/sysprop/InputProperties.sysprop.h>
 #include <binder/IPCThreadState.h>
 
 #include <log/log.h>
@@ -31,6 +32,9 @@
 #include <private/android_filesystem_config.h>
 
 namespace android {
+
+static const bool ENABLE_INPUT_DEVICE_USAGE_METRICS =
+        sysprop::InputProperties::enable_input_device_usage_metrics().value_or(true);
 
 using gui::FocusRequest;
 
@@ -55,12 +59,22 @@ static int32_t exceptionCodeFromStatusT(status_t status) {
 
 /**
  * The event flow is via the "InputListener" interface, as follows:
- * InputReader -> UnwantedInteractionBlocker -> InputProcessor -> InputDispatcher
+ *   InputReader
+ *     -> UnwantedInteractionBlocker
+ *     -> InputProcessor
+ *     -> InputDeviceMetricsCollector
+ *     -> InputDispatcher
  */
 InputManager::InputManager(const sp<InputReaderPolicyInterface>& readerPolicy,
                            InputDispatcherPolicyInterface& dispatcherPolicy) {
     mDispatcher = createInputDispatcher(dispatcherPolicy);
-    mProcessor = std::make_unique<InputProcessor>(*mDispatcher);
+
+    if (ENABLE_INPUT_DEVICE_USAGE_METRICS) {
+        mCollector = std::make_unique<InputDeviceMetricsCollector>(*mDispatcher);
+    }
+
+    mProcessor = ENABLE_INPUT_DEVICE_USAGE_METRICS ? std::make_unique<InputProcessor>(*mCollector)
+                                                   : std::make_unique<InputProcessor>(*mDispatcher);
     mBlocker = std::make_unique<UnwantedInteractionBlocker>(*mProcessor);
     mReader = createInputReader(readerPolicy, *mBlocker);
 }
@@ -113,6 +127,10 @@ InputProcessorInterface& InputManager::getProcessor() {
     return *mProcessor;
 }
 
+InputDeviceMetricsCollectorInterface& InputManager::getMetricsCollector() {
+    return *mCollector;
+}
+
 InputDispatcherInterface& InputManager::getDispatcher() {
     return *mDispatcher;
 }
@@ -131,6 +149,10 @@ void InputManager::dump(std::string& dump) {
     dump += '\n';
     mProcessor->dump(dump);
     dump += '\n';
+    if (ENABLE_INPUT_DEVICE_USAGE_METRICS) {
+        mCollector->dump(dump);
+        dump += '\n';
+    }
     mDispatcher->dump(dump);
     dump += '\n';
 }

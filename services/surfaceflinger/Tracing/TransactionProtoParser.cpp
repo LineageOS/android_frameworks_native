@@ -195,6 +195,7 @@ proto::LayerState TransactionProtoParser::toProto(
             windowInfoProto->set_layout_params_flags(inputInfo->layoutParamsFlags.get());
             windowInfoProto->set_layout_params_type(
                     static_cast<int32_t>(inputInfo->layoutParamsType));
+            windowInfoProto->set_input_config(inputInfo->inputConfig.get());
             LayerProtoHelper::writeToProto(inputInfo->touchableRegion,
                                            windowInfoProto->mutable_touchable_region());
             windowInfoProto->set_surface_inset(inputInfo->surfaceInset);
@@ -467,11 +468,9 @@ void TransactionProtoParser::fromProto(const proto::LayerState& proto,
                 static_cast<gui::WindowInfo::Type>(windowInfoProto.layout_params_type());
         LayerProtoHelper::readFromProto(windowInfoProto.touchable_region(),
                                         inputInfo.touchableRegion);
+        inputInfo.inputConfig =
+                ftl::Flags<gui::WindowInfo::InputConfig>(windowInfoProto.input_config());
         inputInfo.surfaceInset = windowInfoProto.surface_inset();
-        inputInfo.setInputConfig(gui::WindowInfo::InputConfig::NOT_FOCUSABLE,
-                                 !windowInfoProto.focusable());
-        inputInfo.setInputConfig(gui::WindowInfo::InputConfig::DUPLICATE_TOUCH_TO_WALLPAPER,
-                                 windowInfoProto.has_wallpaper());
         inputInfo.globalScaleFactor = windowInfoProto.global_scale_factor();
         const proto::Transform& transformProto = windowInfoProto.transform();
         inputInfo.transform.set(transformProto.dsdx(), transformProto.dtdx(), transformProto.dtdy(),
@@ -601,7 +600,7 @@ frontend::DisplayInfo TransactionProtoParser::fromProto(const proto::DisplayInfo
 
 void TransactionProtoParser::fromProto(
         const google::protobuf::RepeatedPtrField<proto::DisplayInfo>& proto,
-        display::DisplayMap<ui::LayerStack, frontend::DisplayInfo>& outDisplayInfos) {
+        frontend::DisplayInfos& outDisplayInfos) {
     outDisplayInfos.clear();
     for (const proto::DisplayInfo& displayInfo : proto) {
         outDisplayInfos.emplace_or_replace(ui::LayerStack::fromValue(displayInfo.layer_stack()),

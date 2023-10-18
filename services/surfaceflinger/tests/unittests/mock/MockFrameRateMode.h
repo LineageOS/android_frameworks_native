@@ -19,5 +19,7 @@
 #include <scheduler/FrameRateMode.h>
 
 // Use a C style macro to keep the line numbers printed in gtest
-#define EXPECT_FRAME_RATE_MODE(modePtr, fps, mode) \
-    EXPECT_EQ((scheduler::FrameRateMode{(fps), (modePtr)}), (mode))
+#define EXPECT_FRAME_RATE_MODE(_modePtr, _fps, _mode)                                \
+    EXPECT_EQ((scheduler::FrameRateMode{(_fps), (_modePtr)}), (_mode))               \
+            << "Expected " << (_fps) << " (" << (_modePtr)->getFps() << ") but was " \
+            << (_mode).fps << " (" << (_mode).modePtr->getFps() << ")"

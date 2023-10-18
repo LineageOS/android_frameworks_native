@@ -22,6 +22,7 @@
 
 namespace android {
 
+using std::chrono_literals::operator""ns;
 
 // --- BlockingQueueTest ---
 
@@ -34,6 +35,14 @@ TEST(BlockingQueueTest, Queue_AddAndRemove) {
 
     ASSERT_TRUE(queue.push(1));
     ASSERT_EQ(queue.pop(), 1);
+
+    ASSERT_TRUE(queue.emplace(2));
+    ASSERT_EQ(queue.popWithTimeout(0ns), 2);
+
+    ASSERT_TRUE(queue.push(3));
+    ASSERT_EQ(queue.popWithTimeout(100ns), 3);
+
+    ASSERT_EQ(std::nullopt, queue.popWithTimeout(0ns));
 }
 
 /**
@@ -87,7 +96,7 @@ TEST(BlockingQueueTest, Queue_Erases) {
     queue.push(3);
     queue.push(4);
     // Erase elements 2 and 4
-    queue.erase([](int element) { return element == 2 || element == 4; });
+    queue.erase_if([](int element) { return element == 2 || element == 4; });
     // Should no longer receive elements 2 and 4
     ASSERT_EQ(1, queue.pop());
     ASSERT_EQ(3, queue.pop());
@@ -138,5 +147,9 @@ TEST(BlockingQueueTest, Queue_BlocksWhileWaitingForElements) {
     ASSERT_TRUE(hasReceivedElement);
 }
 
+TEST(BlockingQueueTest, Queue_TimesOut) {
+    BlockingQueue<int> queue;
+    ASSERT_EQ(std::nullopt, queue.popWithTimeout(1ns));
+}
 
 } // namespace android

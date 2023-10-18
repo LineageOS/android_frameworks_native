@@ -35,11 +35,12 @@
 #include <ftl/fake_guard.h>
 #include <ftl/optional.h>
 #include <scheduler/Features.h>
+#include <scheduler/FrameTargeter.h>
 #include <scheduler/Time.h>
 #include <scheduler/VsyncConfig.h>
 #include <ui/DisplayId.h>
+#include <ui/DisplayMap.h>
 
-#include "Display/DisplayMap.h"
 #include "Display/DisplayModeRequest.h"
 #include "EventThread.h"
 #include "FrameRateOverrideMappings.h"
@@ -48,6 +49,7 @@
 #include "MessageQueue.h"
 #include "OneShotTimer.h"
 #include "RefreshRateSelector.h"
+#include "SmallAreaDetectionAllowMappings.h"
 #include "Utils/Dumper.h"
 #include "VsyncModulator.h"
 
@@ -219,7 +221,7 @@ public:
     // otherwise.
     bool addResyncSample(PhysicalDisplayId, nsecs_t timestamp,
                          std::optional<nsecs_t> hwcVsyncPeriod);
-    void addPresentFence(PhysicalDisplayId, std::shared_ptr<FenceTime>) EXCLUDES(mDisplayLock)
+    void addPresentFence(PhysicalDisplayId, std::shared_ptr<FenceTime>)
             REQUIRES(kMainThreadContext);
 
     // Layers are registered on creation, and unregistered when the weak reference expires.
@@ -249,9 +251,18 @@ public:
         return std::const_pointer_cast<VsyncSchedule>(std::as_const(*this).getVsyncSchedule(idOpt));
     }
 
+    TimePoint expectedPresentTimeForPacesetter() const EXCLUDES(mDisplayLock) {
+        std::scoped_lock lock(mDisplayLock);
+        return pacesetterDisplayLocked()
+                .transform([](const Display& display) {
+                    return display.targeterPtr->target().expectedPresentTime();
+                })
+                .value_or(TimePoint());
+    }
+
     // Returns true if a given vsync timestamp is considered valid vsync
     // for a given uid
-    bool isVsyncValid(TimePoint expectedVsyncTimestamp, uid_t uid) const;
+    bool isVsyncValid(TimePoint expectedVsyncTime, uid_t uid) const;
 
     bool isVsyncInPhase(TimePoint expectedVsyncTime, Fps frameRate) const;
 
@@ -279,6 +290,13 @@ public:
 
     void setGameModeRefreshRateForUid(FrameRateOverride);
 
+    void updateSmallAreaDetection(std::vector<std::pair<uid_t, float>>& uidThresholdMappings);
+
+    void setSmallAreaDetectionThreshold(uid_t uid, float threshold);
+
+    // Returns true if the dirty area is less than threshold.
+    bool isSmallDirtyArea(uid_t uid, uint32_t dirtyArea);
+
     // Retrieves the overridden refresh rate for a given uid.
     std::optional<Fps> getFrameRateOverride(uid_t) const EXCLUDES(mDisplayLock);
 
@@ -295,6 +313,11 @@ public:
         return mLayerHistory.getLayerFramerate(now, id);
     }
 
+    // Returns true if the small dirty detection is enabled.
+    bool supportSmallDirtyDetection() const {
+        return mFeatures.test(Feature::kSmallDirtyContentDetection);
+    }
+
 private:
     friend class TestableScheduler;
 
@@ -303,7 +326,8 @@ private:
     enum class TouchState { Inactive, Active };
 
     // impl::MessageQueue overrides:
-    void onFrameSignal(ICompositor&, VsyncId, TimePoint expectedVsyncTime) override;
+    void onFrameSignal(ICompositor&, VsyncId, TimePoint expectedVsyncTime) override
+            REQUIRES(kMainThreadContext, mDisplayLock);
 
     // Create a connection on the given EventThread.
     ConnectionHandle createConnection(std::unique_ptr<EventThread>);
@@ -316,6 +340,9 @@ private:
     void idleTimerCallback(TimerState);
     void touchTimerCallback(TimerState);
     void displayPowerTimerCallback(TimerState);
+
+    // VsyncSchedule delegate.
+    void onHardwareVsyncRequest(PhysicalDisplayId, bool enable);
 
     void resyncToHardwareVsyncLocked(PhysicalDisplayId, bool allowToEnable,
                                      std::optional<Fps> refreshRate = std::nullopt)
@@ -371,7 +398,7 @@ private:
         }
     };
 
-    using DisplayModeChoiceMap = display::PhysicalDisplayMap<PhysicalDisplayId, DisplayModeChoice>;
+    using DisplayModeChoiceMap = ui::PhysicalDisplayMap<PhysicalDisplayId, DisplayModeChoice>;
 
     // See mDisplayLock for thread safety.
     DisplayModeChoiceMap chooseDisplayModes() const
@@ -423,19 +450,32 @@ private:
     // must lock for writes but not reads. See also mPolicyLock for locking order.
     mutable std::mutex mDisplayLock;
 
+    using FrameTargeterPtr = std::unique_ptr<FrameTargeter>;
+
     struct Display {
-        Display(RefreshRateSelectorPtr selectorPtr, VsyncSchedulePtr schedulePtr)
-              : selectorPtr(std::move(selectorPtr)), schedulePtr(std::move(schedulePtr)) {}
+        Display(PhysicalDisplayId displayId, RefreshRateSelectorPtr selectorPtr,
+                VsyncSchedulePtr schedulePtr, FeatureFlags features)
+              : displayId(displayId),
+                selectorPtr(std::move(selectorPtr)),
+                schedulePtr(std::move(schedulePtr)),
+                targeterPtr(std::make_unique<
+                            FrameTargeter>(displayId,
+                                           features.test(Feature::kBackpressureGpuComposition))) {}
+
+        const PhysicalDisplayId displayId;
 
         // Effectively const except in move constructor.
         RefreshRateSelectorPtr selectorPtr;
         VsyncSchedulePtr schedulePtr;
+        FrameTargeterPtr targeterPtr;
+
+        hal::PowerMode powerMode = hal::PowerMode::OFF;
     };
 
     using DisplayRef = std::reference_wrapper<Display>;
     using ConstDisplayRef = std::reference_wrapper<const Display>;
 
-    display::PhysicalDisplayMap<PhysicalDisplayId, Display> mDisplays GUARDED_BY(mDisplayLock)
+    ui::PhysicalDisplayMap<PhysicalDisplayId, Display> mDisplays GUARDED_BY(mDisplayLock)
             GUARDED_BY(kMainThreadContext);
 
     ftl::Optional<PhysicalDisplayId> mPacesetterDisplayId GUARDED_BY(mDisplayLock)
@@ -502,6 +542,7 @@ private:
     static constexpr std::chrono::nanoseconds MAX_VSYNC_APPLIED_TIME = 200ms;
 
     FrameRateOverrideMappings mFrameRateOverrideMappings;
+    SmallAreaDetectionAllowMappings mSmallAreaDetectionAllowMappings;
 };
 
 } // namespace scheduler

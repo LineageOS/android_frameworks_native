@@ -39,6 +39,7 @@ class MockPowerHalController : public power::PowerHalController {
 public:
     MockPowerHalController();
     ~MockPowerHalController() override;
+    MOCK_METHOD(void, init, (), (override));
     MOCK_METHOD(HalResult<void>, setBoost, (Boost, int32_t), (override));
     MOCK_METHOD(HalResult<void>, setMode, (Mode, bool), (override));
     MOCK_METHOD(HalResult<sp<hardware::power::IPowerHintSession>>, createHintSession,
