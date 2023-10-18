@@ -365,7 +365,7 @@ std::unique_ptr<DispatchEntry> createDispatchEntry(
     const MotionEntry& motionEntry = static_cast<const MotionEntry&>(*eventEntry);
 
     std::vector<PointerCoords> pointerCoords;
-    pointerCoords.resize(motionEntry.pointerCount);
+    pointerCoords.resize(motionEntry.getPointerCount());
 
     // Use the first pointer information to normalize all other pointers. This could be any pointer
     // as long as all other pointers are normalized to the same value and the final DispatchEntry
@@ -375,7 +375,7 @@ std::unique_ptr<DispatchEntry> createDispatchEntry(
     ui::Transform inverseFirstTransform = firstPointerTransform.inverse();
 
     // Iterate through all pointers in the event to normalize against the first.
-    for (uint32_t pointerIndex = 0; pointerIndex < motionEntry.pointerCount; pointerIndex++) {
+    for (uint32_t pointerIndex = 0; pointerIndex < motionEntry.getPointerCount(); pointerIndex++) {
         const PointerProperties& pointerProperties = motionEntry.pointerProperties[pointerIndex];
         uint32_t pointerId = uint32_t(pointerProperties.id);
         const ui::Transform& currTransform = inputTarget.pointerTransforms[pointerId];
@@ -399,8 +399,7 @@ std::unique_ptr<DispatchEntry> createDispatchEntry(
                                           motionEntry.edgeFlags, motionEntry.xPrecision,
                                           motionEntry.yPrecision, motionEntry.xCursorPosition,
                                           motionEntry.yCursorPosition, motionEntry.downTime,
-                                          motionEntry.pointerCount, motionEntry.pointerProperties,
-                                          pointerCoords.data());
+                                          motionEntry.pointerProperties, pointerCoords);
 
     if (motionEntry.injectionState) {
         combinedMotionEntry->injectionState = motionEntry.injectionState;
@@ -2000,7 +1999,7 @@ void InputDispatcher::logOutboundMotionDetails(const char* prefix, const MotionE
               entry.metaState, entry.buttonState, entry.edgeFlags, entry.xPrecision,
               entry.yPrecision, entry.downTime);
 
-        for (uint32_t i = 0; i < entry.pointerCount; i++) {
+        for (uint32_t i = 0; i < entry.getPointerCount(); i++) {
             ALOGD("  Pointer %d: id=%d, toolType=%s, "
                   "x=%f, y=%f, pressure=%f, size=%f, "
                   "touchMajor=%f, touchMinor=%f, toolMajor=%f, toolMinor=%f, "
@@ -2514,7 +2513,7 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
         addDragEventLocked(entry);
 
         // Check whether touches should slip outside of the current foreground window.
-        if (maskedAction == AMOTION_EVENT_ACTION_MOVE && entry.pointerCount == 1 &&
+        if (maskedAction == AMOTION_EVENT_ACTION_MOVE && entry.getPointerCount() == 1 &&
             tempTouchState.isSlippery()) {
             const auto [x, y] = resolveTouchedPosition(entry);
             const bool isStylus = isPointerFromStylus(entry, /*pointerIndex=*/0);
@@ -2793,14 +2792,14 @@ void InputDispatcher::addDragEventLocked(const MotionEntry& entry) {
 
     // Find the pointer index by id.
     int32_t pointerIndex = 0;
-    for (; static_cast<uint32_t>(pointerIndex) < entry.pointerCount; pointerIndex++) {
+    for (; static_cast<uint32_t>(pointerIndex) < entry.getPointerCount(); pointerIndex++) {
         const PointerProperties& pointerProperties = entry.pointerProperties[pointerIndex];
         if (pointerProperties.id == mDragState->pointerId) {
             break;
         }
     }
 
-    if (uint32_t(pointerIndex) == entry.pointerCount) {
+    if (uint32_t(pointerIndex) == entry.getPointerCount()) {
         LOG_ALWAYS_FATAL("Should find a valid pointer index by id %d", mDragState->pointerId);
     }
 
@@ -3225,7 +3224,7 @@ void InputDispatcher::prepareDispatchCycleLocked(nsecs_t currentTime,
                             ftl::enum_string(eventEntry->type).c_str());
 
         const MotionEntry& originalMotionEntry = static_cast<const MotionEntry&>(*eventEntry);
-        if (inputTarget.pointerIds.count() != originalMotionEntry.pointerCount) {
+        if (inputTarget.pointerIds.count() != originalMotionEntry.getPointerCount()) {
             if (!inputTarget.firstDownTimeInTarget.has_value()) {
                 logDispatchStateLocked();
                 LOG(FATAL) << "Splitting motion events requires a down time to be set for the "
@@ -3537,14 +3536,14 @@ status_t InputDispatcher::publishMotionEvent(Connection& connection,
     const MotionEntry& motionEntry = static_cast<const MotionEntry&>(eventEntry);
 
     PointerCoords scaledCoords[MAX_POINTERS];
-    const PointerCoords* usingCoords = motionEntry.pointerCoords;
+    const PointerCoords* usingCoords = motionEntry.pointerCoords.data();
 
     // Set the X and Y offset and X and Y scale depending on the input source.
     if ((motionEntry.source & AINPUT_SOURCE_CLASS_POINTER) &&
         !(dispatchEntry.targetFlags.test(InputTarget::Flags::ZERO_COORDS))) {
         float globalScaleFactor = dispatchEntry.globalScaleFactor;
         if (globalScaleFactor != 1.0f) {
-            for (uint32_t i = 0; i < motionEntry.pointerCount; i++) {
+            for (uint32_t i = 0; i < motionEntry.getPointerCount(); i++) {
                 scaledCoords[i] = motionEntry.pointerCoords[i];
                 // Don't apply window scale here since we don't want scale to affect raw
                 // coordinates. The scale will be sent back to the client and applied
@@ -3555,7 +3554,7 @@ status_t InputDispatcher::publishMotionEvent(Connection& connection,
         }
     } else if (dispatchEntry.targetFlags.test(InputTarget::Flags::ZERO_COORDS)) {
         // We don't want the dispatch target to know the coordinates
-        for (uint32_t i = 0; i < motionEntry.pointerCount; i++) {
+        for (uint32_t i = 0; i < motionEntry.getPointerCount(); i++) {
             scaledCoords[i].clear();
         }
         usingCoords = scaledCoords;
@@ -3575,7 +3574,7 @@ status_t InputDispatcher::publishMotionEvent(Connection& connection,
                                 motionEntry.yPrecision, motionEntry.xCursorPosition,
                                 motionEntry.yCursorPosition, dispatchEntry.rawTransform,
                                 motionEntry.downTime, motionEntry.eventTime,
-                                motionEntry.pointerCount, motionEntry.pointerProperties,
+                                motionEntry.getPointerCount(), motionEntry.pointerProperties.data(),
                                 usingCoords);
 }
 
@@ -3991,7 +3990,7 @@ void InputDispatcher::synthesizeCancelationEventsForConnectionLocked(
                         : std::nullopt;
                 if (const auto& window = getWindowHandleLocked(token, targetDisplay); window) {
                     std::bitset<MAX_POINTER_ID + 1> pointerIds;
-                    for (uint32_t pointerIndex = 0; pointerIndex < motionEntry.pointerCount;
+                    for (uint32_t pointerIndex = 0; pointerIndex < motionEntry.getPointerCount();
                          pointerIndex++) {
                         pointerIds.set(motionEntry.pointerProperties[pointerIndex].id);
                     }
@@ -4066,7 +4065,7 @@ void InputDispatcher::synthesizePointerDownEventsForConnectionLocked(
                 const auto& motionEntry = static_cast<const MotionEntry&>(*downEventEntry);
                 if (windowHandle != nullptr) {
                     std::bitset<MAX_POINTER_ID + 1> pointerIds;
-                    for (uint32_t pointerIndex = 0; pointerIndex < motionEntry.pointerCount;
+                    for (uint32_t pointerIndex = 0; pointerIndex < motionEntry.getPointerCount();
                          pointerIndex++) {
                         pointerIds.set(motionEntry.pointerProperties[pointerIndex].id);
                     }
@@ -4127,10 +4126,10 @@ std::unique_ptr<MotionEntry> InputDispatcher::splitMotionEvent(
     ALOG_ASSERT(pointerIds.any());
 
     uint32_t splitPointerIndexMap[MAX_POINTERS];
-    PointerProperties splitPointerProperties[MAX_POINTERS];
-    PointerCoords splitPointerCoords[MAX_POINTERS];
+    std::vector<PointerProperties> splitPointerProperties;
+    std::vector<PointerCoords> splitPointerCoords;
 
-    uint32_t originalPointerCount = originalMotionEntry.pointerCount;
+    uint32_t originalPointerCount = originalMotionEntry.getPointerCount();
     uint32_t splitPointerCount = 0;
 
     for (uint32_t originalPointerIndex = 0; originalPointerIndex < originalPointerCount;
@@ -4140,9 +4139,8 @@ std::unique_ptr<MotionEntry> InputDispatcher::splitMotionEvent(
         uint32_t pointerId = uint32_t(pointerProperties.id);
         if (pointerIds.test(pointerId)) {
             splitPointerIndexMap[splitPointerCount] = originalPointerIndex;
-            splitPointerProperties[splitPointerCount] = pointerProperties;
-            splitPointerCoords[splitPointerCount] =
-                    originalMotionEntry.pointerCoords[originalPointerIndex];
+            splitPointerProperties.push_back(pointerProperties);
+            splitPointerCoords.push_back(originalMotionEntry.pointerCoords[originalPointerIndex]);
             splitPointerCount += 1;
         }
     }
@@ -4217,8 +4215,7 @@ std::unique_ptr<MotionEntry> InputDispatcher::splitMotionEvent(
                                           originalMotionEntry.yPrecision,
                                           originalMotionEntry.xCursorPosition,
                                           originalMotionEntry.yCursorPosition, splitDownTime,
-                                          splitPointerCount, splitPointerProperties,
-                                          splitPointerCoords);
+                                          splitPointerProperties, splitPointerCoords);
 
     if (originalMotionEntry.injectionState) {
         splitMotionEntry->injectionState = originalMotionEntry.injectionState;
@@ -4437,9 +4434,8 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs& args) {
                                               args.buttonState, args.classification, args.edgeFlags,
                                               args.xPrecision, args.yPrecision,
                                               args.xCursorPosition, args.yCursorPosition,
-                                              args.downTime, args.getPointerCount(),
-                                              args.pointerProperties.data(),
-                                              args.pointerCoords.data());
+                                              args.downTime, args.pointerProperties,
+                                              args.pointerCoords);
 
         if (args.id != android::os::IInputConstants::INVALID_INPUT_EVENT_ID &&
             IdGenerator::getSource(args.id) == IdGenerator::Source::INPUT_READER &&
@@ -4653,6 +4649,11 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(const InputEvent* ev
 
             mLock.lock();
             const nsecs_t* sampleEventTimes = motionEvent.getSampleEventTimes();
+            const size_t pointerCount = motionEvent.getPointerCount();
+            const std::vector<PointerProperties>
+                    pointerProperties(motionEvent.getPointerProperties(),
+                                      motionEvent.getPointerProperties() + pointerCount);
+
             const PointerCoords* samplePointerCoords = motionEvent.getSamplePointerCoords();
             std::unique_ptr<MotionEntry> injectedEntry =
                     std::make_unique<MotionEntry>(motionEvent.getId(), *sampleEventTimes,
@@ -4667,33 +4668,28 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(const InputEvent* ev
                                                   motionEvent.getYPrecision(),
                                                   motionEvent.getRawXCursorPosition(),
                                                   motionEvent.getRawYCursorPosition(),
-                                                  motionEvent.getDownTime(),
-                                                  motionEvent.getPointerCount(),
-                                                  motionEvent.getPointerProperties(),
-                                                  samplePointerCoords);
+                                                  motionEvent.getDownTime(), pointerProperties,
+                                                  std::vector<PointerCoords>(samplePointerCoords,
+                                                                             samplePointerCoords +
+                                                                                     pointerCount));
             transformMotionEntryForInjectionLocked(*injectedEntry, motionEvent.getTransform());
             injectedEntries.push(std::move(injectedEntry));
             for (size_t i = motionEvent.getHistorySize(); i > 0; i--) {
                 sampleEventTimes += 1;
                 samplePointerCoords += motionEvent.getPointerCount();
-                std::unique_ptr<MotionEntry> nextInjectedEntry =
-                        std::make_unique<MotionEntry>(motionEvent.getId(), *sampleEventTimes,
-                                                      resolvedDeviceId, motionEvent.getSource(),
-                                                      displayId, policyFlags,
-                                                      motionEvent.getAction(),
-                                                      motionEvent.getActionButton(), flags,
-                                                      motionEvent.getMetaState(),
-                                                      motionEvent.getButtonState(),
-                                                      motionEvent.getClassification(),
-                                                      motionEvent.getEdgeFlags(),
-                                                      motionEvent.getXPrecision(),
-                                                      motionEvent.getYPrecision(),
-                                                      motionEvent.getRawXCursorPosition(),
-                                                      motionEvent.getRawYCursorPosition(),
-                                                      motionEvent.getDownTime(),
-                                                      motionEvent.getPointerCount(),
-                                                      motionEvent.getPointerProperties(),
-                                                      samplePointerCoords);
+                std::unique_ptr<MotionEntry> nextInjectedEntry = std::make_unique<
+                        MotionEntry>(motionEvent.getId(), *sampleEventTimes, resolvedDeviceId,
+                                     motionEvent.getSource(), displayId, policyFlags,
+                                     motionEvent.getAction(), motionEvent.getActionButton(), flags,
+                                     motionEvent.getMetaState(), motionEvent.getButtonState(),
+                                     motionEvent.getClassification(), motionEvent.getEdgeFlags(),
+                                     motionEvent.getXPrecision(), motionEvent.getYPrecision(),
+                                     motionEvent.getRawXCursorPosition(),
+                                     motionEvent.getRawYCursorPosition(), motionEvent.getDownTime(),
+                                     pointerProperties,
+                                     std::vector<PointerCoords>(samplePointerCoords,
+                                                                samplePointerCoords +
+                                                                        pointerCount));
                 transformMotionEntryForInjectionLocked(*nextInjectedEntry,
                                                        motionEvent.getTransform());
                 injectedEntries.push(std::move(nextInjectedEntry));
@@ -4872,7 +4868,7 @@ void InputDispatcher::transformMotionEntryForInjectionLocked(
         entry.xCursorPosition = cursor.x;
         entry.yCursorPosition = cursor.y;
     }
-    for (uint32_t i = 0; i < entry.pointerCount; i++) {
+    for (uint32_t i = 0; i < entry.getPointerCount(); i++) {
         entry.pointerCoords[i] =
                 MotionEvent::calculateTransformedCoords(entry.source, transformToDisplay,
                                                         entry.pointerCoords[i]);

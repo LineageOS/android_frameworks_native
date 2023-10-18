@@ -238,7 +238,7 @@ void InputState::MotionMemento::setPointers(const MotionEntry& entry) {
     pointerProperties.clear();
     pointerCoords.clear();
 
-    for (uint32_t i = 0; i < entry.pointerCount; i++) {
+    for (uint32_t i = 0; i < entry.getPointerCount(); i++) {
         if (MotionEvent::getActionMasked(entry.action) == AMOTION_EVENT_ACTION_POINTER_UP) {
             // In POINTER_UP events, the pointer is leaving. Since the action is not stored,
             // this departing pointer should not be recorded.
@@ -300,9 +300,8 @@ std::vector<std::unique_ptr<EventEntry>> InputState::synthesizeCancelationEvents
                                                       memento.xPrecision, memento.yPrecision,
                                                       memento.xCursorPosition,
                                                       memento.yCursorPosition, memento.downTime,
-                                                      memento.getPointerCount(),
-                                                      memento.pointerProperties.data(),
-                                                      memento.pointerCoords.data()));
+                                                      memento.pointerProperties,
+                                                      memento.pointerCoords));
             } else {
                 std::vector<std::unique_ptr<MotionEntry>> pointerCancelEvents =
                         synthesizeCancelationEventsForPointers(memento, options.pointerIds.value(),
@@ -327,23 +326,22 @@ std::vector<std::unique_ptr<EventEntry>> InputState::synthesizePointerDownEvents
             continue;
         }
 
-        uint32_t pointerCount = 0;
-        PointerProperties pointerProperties[MAX_POINTERS];
-        PointerCoords pointerCoords[MAX_POINTERS];
+        std::vector<PointerProperties> pointerProperties;
+        std::vector<PointerCoords> pointerCoords;
 
         // We will deliver all pointers the target already knows about
         for (uint32_t i = 0; i < static_cast<uint32_t>(memento.firstNewPointerIdx); i++) {
-            pointerProperties[i] = memento.pointerProperties[i];
-            pointerCoords[i] = memento.pointerCoords[i];
-            pointerCount++;
+            pointerProperties.push_back(memento.pointerProperties[i]);
+            pointerCoords.push_back(memento.pointerCoords[i]);
         }
 
         // We will send explicit events for all pointers the target doesn't know about
         for (uint32_t i = static_cast<uint32_t>(memento.firstNewPointerIdx);
              i < memento.getPointerCount(); i++) {
-            pointerProperties[i] = memento.pointerProperties[i];
-            pointerCoords[i] = memento.pointerCoords[i];
-            pointerCount++;
+            pointerProperties.push_back(memento.pointerProperties[i]);
+            pointerCoords.push_back(memento.pointerCoords[i]);
+
+            const size_t pointerCount = pointerProperties.size();
 
             // Down only if the first pointer, pointer down otherwise
             const int32_t action = (pointerCount <= 1)
@@ -360,7 +358,7 @@ std::vector<std::unique_ptr<EventEntry>> InputState::synthesizePointerDownEvents
                                                   AMOTION_EVENT_EDGE_FLAG_NONE, memento.xPrecision,
                                                   memento.yPrecision, memento.xCursorPosition,
                                                   memento.yCursorPosition, memento.downTime,
-                                                  pointerCount, pointerProperties, pointerCoords));
+                                                  pointerProperties, pointerCoords));
         }
 
         memento.firstNewPointerIdx = INVALID_POINTER_INDEX;
@@ -401,9 +399,7 @@ std::vector<std::unique_ptr<MotionEntry>> InputState::synthesizeCancelationEvent
                                               AMOTION_EVENT_EDGE_FLAG_NONE, memento.xPrecision,
                                               memento.yPrecision, memento.xCursorPosition,
                                               memento.yCursorPosition, memento.downTime,
-                                              memento.getPointerCount(),
-                                              memento.pointerProperties.data(),
-                                              memento.pointerCoords.data()));
+                                              memento.pointerProperties, memento.pointerCoords));
     } else {
         // If we aren't canceling all pointers, we need to generate ACTION_POINTER_UP with
         // FLAG_CANCELED for each of the canceled pointers. For each event, we must remove the
@@ -430,8 +426,7 @@ std::vector<std::unique_ptr<MotionEntry>> InputState::synthesizeCancelationEvent
                                                   AMOTION_EVENT_EDGE_FLAG_NONE, memento.xPrecision,
                                                   memento.yPrecision, memento.xCursorPosition,
                                                   memento.yCursorPosition, memento.downTime,
-                                                  pointerCount, pointerProperties.data(),
-                                                  pointerCoords.data()));
+                                                  pointerProperties, pointerCoords));
 
             // Cleanup pointer information
             pointerProperties.erase(pointerProperties.begin() + pointerIdx);
