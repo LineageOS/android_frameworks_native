@@ -18,5 +18,4 @@
     <!-- This should be used to exclude this feature from aosp targets. As aosp configurations
     may or may not have a valid location provider -->
     <unavailable-feature name="android.hardware.location.network" />
-    <unavailable-feature name="android.software.device_id_attestation" />
 </permissions>
