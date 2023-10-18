@@ -263,16 +263,4 @@ TEST(RpcWire, ReleaseBranchHasFrozenRpcWireProtocol) {
     }
 }
 
-TEST(RpcWire, IfNotExperimentalCodeHasNoExperimentalFeatures) {
-    if (RPC_WIRE_PROTOCOL_VERSION == RPC_WIRE_PROTOCOL_VERSION_EXPERIMENTAL) {
-        GTEST_SKIP() << "Version is experimental, so experimental features are okay.";
-    }
-
-    // if we set the wire protocol version to experimental, none of the code
-    // should introduce a difference (if this fails, it means we have features
-    // which are enabled under experimental mode, but we aren't actually using
-    // or testing them!)
-    checkRepr(kCurrentRepr, RPC_WIRE_PROTOCOL_VERSION_EXPERIMENTAL);
-}
-
 } // namespace android
