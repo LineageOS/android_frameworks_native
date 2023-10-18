@@ -3782,34 +3782,26 @@ std::list<NotifyArgs> TouchInputMapper::abortPointerSimple(nsecs_t when, nsecs_t
     return out;
 }
 
-static bool isStylusEvent(uint32_t source, int32_t action, const PointerProperties* properties) {
-    if (!isFromSource(source, AINPUT_SOURCE_STYLUS)) {
-        return false;
-    }
-    const auto actionIndex = action >> AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT;
-    return isStylusToolType(properties[actionIndex].toolType);
-}
-
 NotifyMotionArgs TouchInputMapper::dispatchMotion(
         nsecs_t when, nsecs_t readTime, uint32_t policyFlags, uint32_t source, int32_t action,
         int32_t actionButton, int32_t flags, int32_t metaState, int32_t buttonState,
         int32_t edgeFlags, const PropertiesArray& properties, const CoordsArray& coords,
         const IdToIndexArray& idToIndex, BitSet32 idBits, int32_t changedId, float xPrecision,
         float yPrecision, nsecs_t downTime, MotionClassification classification) {
-    PointerCoords pointerCoords[MAX_POINTERS];
-    PointerProperties pointerProperties[MAX_POINTERS];
+    std::vector<PointerCoords> pointerCoords;
+    std::vector<PointerProperties> pointerProperties;
     uint32_t pointerCount = 0;
     while (!idBits.isEmpty()) {
         uint32_t id = idBits.clearFirstMarkedBit();
         uint32_t index = idToIndex[id];
-        pointerProperties[pointerCount] = properties[index];
-        pointerCoords[pointerCount] = coords[index];
+        pointerProperties.push_back(properties[index]);
+        pointerCoords.push_back(coords[index]);
 
         if (changedId >= 0 && id == uint32_t(changedId)) {
             action |= pointerCount << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT;
         }
 
-        pointerCount += 1;
+        pointerCount++;
     }
 
     ALOG_ASSERT(pointerCount != 0);
@@ -3837,7 +3829,7 @@ NotifyMotionArgs TouchInputMapper::dispatchMotion(
 
     const int32_t displayId = getAssociatedDisplayId().value_or(ADISPLAY_ID_NONE);
     const bool showDirectStylusPointer = mConfig.stylusPointerIconEnabled &&
-            mDeviceMode == DeviceMode::DIRECT && isStylusEvent(source, action, pointerProperties) &&
+            mDeviceMode == DeviceMode::DIRECT && isStylusEvent(source, pointerProperties) &&
             mPointerController && displayId != ADISPLAY_ID_NONE &&
             displayId == mPointerController->getDisplayId();
     if (showDirectStylusPointer) {
@@ -3869,9 +3861,9 @@ NotifyMotionArgs TouchInputMapper::dispatchMotion(
                   [this](TouchVideoFrame& frame) { frame.rotate(this->mInputDeviceOrientation); });
     return NotifyMotionArgs(getContext()->getNextId(), when, readTime, deviceId, source, displayId,
                             policyFlags, action, actionButton, flags, metaState, buttonState,
-                            classification, edgeFlags, pointerCount, pointerProperties,
-                            pointerCoords, xPrecision, yPrecision, xCursorPosition, yCursorPosition,
-                            downTime, std::move(frames));
+                            classification, edgeFlags, pointerCount, pointerProperties.data(),
+                            pointerCoords.data(), xPrecision, yPrecision, xCursorPosition,
+                            yCursorPosition, downTime, std::move(frames));
 }
 
 std::list<NotifyArgs> TouchInputMapper::cancelTouch(nsecs_t when, nsecs_t readTime) {
