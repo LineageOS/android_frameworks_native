@@ -175,16 +175,18 @@ struct MotionEntry : EventEntry {
     float xCursorPosition;
     float yCursorPosition;
     nsecs_t downTime;
-    uint32_t pointerCount;
-    PointerProperties pointerProperties[MAX_POINTERS];
-    PointerCoords pointerCoords[MAX_POINTERS];
+    std::vector<PointerProperties> pointerProperties;
+    std::vector<PointerCoords> pointerCoords;
+
+    size_t getPointerCount() const { return pointerProperties.size(); }
 
     MotionEntry(int32_t id, nsecs_t eventTime, int32_t deviceId, uint32_t source, int32_t displayId,
                 uint32_t policyFlags, int32_t action, int32_t actionButton, int32_t flags,
                 int32_t metaState, int32_t buttonState, MotionClassification classification,
                 int32_t edgeFlags, float xPrecision, float yPrecision, float xCursorPosition,
-                float yCursorPosition, nsecs_t downTime, uint32_t pointerCount,
-                const PointerProperties* pointerProperties, const PointerCoords* pointerCoords);
+                float yCursorPosition, nsecs_t downTime,
+                const std::vector<PointerProperties>& pointerProperties,
+                const std::vector<PointerCoords>& pointerCoords);
     std::string getDescription() const override;
 
     ~MotionEntry() override;
