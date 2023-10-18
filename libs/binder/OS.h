@@ -43,4 +43,6 @@ ssize_t receiveMessageFromSocket(
 
 uint64_t GetThreadId();
 
+bool report_sysprop_change();
+
 } // namespace android::binder::os

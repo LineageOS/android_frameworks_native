@@ -17,6 +17,7 @@
 #include "OS.h"
 
 #include <android-base/threads.h>
+#include <utils/misc.h>
 
 namespace android::binder::os {
 
@@ -26,6 +27,11 @@ uint64_t GetThreadId() {
 #else
     return base::GetThreadId();
 #endif
+}
+
+bool report_sysprop_change() {
+    android::report_sysprop_change();
+    return true;
 }
 
 } // namespace android::binder::os
