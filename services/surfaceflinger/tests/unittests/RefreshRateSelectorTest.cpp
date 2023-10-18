@@ -34,7 +34,6 @@
 #include "mock/DisplayHardware/MockDisplayMode.h"
 #include "mock/MockFrameRateMode.h"
 
-#include "FlagUtils.h"
 #include "libsurfaceflinger_unittest_main.h"
 
 #include <com_android_graphics_surfaceflinger_flags.h>
@@ -1611,7 +1610,6 @@ TEST_P(RefreshRateSelectorTest,
         return;
     }
 
-    SET_FLAG_FOR_TEST(flags::vrr_config, true);
     // VRR compatibility is determined by the presence of a vrr config in the DisplayMode.
     auto selector = createSelector(kVrrModes_60_120, kModeId120);
 
@@ -3488,11 +3486,10 @@ TEST_P(RefreshRateSelectorTest, frameRateOverrideInBlockingZone60_90_NonDivisor)
 
 // VRR tests
 TEST_P(RefreshRateSelectorTest, singleMinMaxRateForVrr) {
-    if (GetParam() != Config::FrameRateOverride::Enabled) {
+    if (GetParam() != Config::FrameRateOverride::Enabled || !flags::vrr_config()) {
         return;
     }
 
-    SET_FLAG_FOR_TEST(flags::vrr_config, true);
     auto selector = createSelector(kVrrMode_120, kModeId120);
     EXPECT_TRUE(selector.supportsFrameRateOverride());
 
@@ -3508,11 +3505,10 @@ TEST_P(RefreshRateSelectorTest, singleMinMaxRateForVrr) {
 }
 
 TEST_P(RefreshRateSelectorTest, renderRateChangesWithPolicyChangeForVrr) {
-    if (GetParam() != Config::FrameRateOverride::Enabled) {
+    if (GetParam() != Config::FrameRateOverride::Enabled || !flags::vrr_config()) {
         return;
     }
 
-    SET_FLAG_FOR_TEST(flags::vrr_config, true);
     auto selector = createSelector(kVrrModes_60_120, kModeId120);
 
     const FpsRange only120 = {120_Hz, 120_Hz};
@@ -3566,11 +3562,10 @@ TEST_P(RefreshRateSelectorTest, renderRateChangesWithPolicyChangeForVrr) {
 }
 
 TEST_P(RefreshRateSelectorTest, modeChangesWithPolicyChangeForVrr) {
-    if (GetParam() != Config::FrameRateOverride::Enabled) {
+    if (GetParam() != Config::FrameRateOverride::Enabled || !flags::vrr_config()) {
         return;
     }
 
-    SET_FLAG_FOR_TEST(flags::vrr_config, true);
     auto selector = createSelector(kVrrModes_60_120, kModeId120);
 
     const FpsRange range120 = {0_Hz, 120_Hz};
@@ -3590,11 +3585,10 @@ TEST_P(RefreshRateSelectorTest, modeChangesWithPolicyChangeForVrr) {
 }
 
 TEST_P(RefreshRateSelectorTest, getFrameRateOverridesForVrr) {
-    if (GetParam() != Config::FrameRateOverride::Enabled) {
+    if (GetParam() != Config::FrameRateOverride::Enabled || !flags::vrr_config()) {
         return;
     }
 
-    SET_FLAG_FOR_TEST(flags::vrr_config, true);
     auto selector = createSelector(kVrrMode_120, kModeId120);
     // TODO(b/297600226) Run at lower than 30 Fps for dVRR
     const std::vector<Fps> desiredRefreshRates = {30_Hz, 34.285_Hz, 40_Hz, 48_Hz,
@@ -3620,11 +3614,10 @@ TEST_P(RefreshRateSelectorTest, getFrameRateOverridesForVrr) {
 }
 
 TEST_P(RefreshRateSelectorTest, renderFrameRatesForVrr) {
-    if (GetParam() != Config::FrameRateOverride::Enabled) {
+    if (GetParam() != Config::FrameRateOverride::Enabled || !flags::vrr_config()) {
         return;
     }
 
-    SET_FLAG_FOR_TEST(flags::vrr_config, true);
     auto selector = createSelector(kVrrMode_120, kModeId120);
     const FpsRange only120 = {120_Hz, 120_Hz};
     const FpsRange range120 = {0_Hz, 120_Hz};
