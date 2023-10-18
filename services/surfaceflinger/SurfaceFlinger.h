@@ -728,8 +728,10 @@ private:
             compositionengine::CompositionRefreshArgs& refreshArgs, bool cursorOnly);
     void moveSnapshotsFromCompositionArgs(compositionengine::CompositionRefreshArgs& refreshArgs,
                                           const std::vector<std::pair<Layer*, LayerFE*>>& layers);
+    // Return true if we must composite this frame
     bool updateLayerSnapshotsLegacy(VsyncId vsyncId, nsecs_t frameTimeNs, bool transactionsFlushed,
                                     bool& out) REQUIRES(kMainThreadContext);
+    // Return true if we must composite this frame
     bool updateLayerSnapshots(VsyncId vsyncId, nsecs_t frameTimeNs, bool transactionsFlushed,
                               bool& out) REQUIRES(kMainThreadContext);
     void updateLayerHistory(nsecs_t now);

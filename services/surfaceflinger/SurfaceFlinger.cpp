@@ -2401,8 +2401,6 @@ bool SurfaceFlinger::updateLayerSnapshots(VsyncId vsyncId, nsecs_t frameTimeNs,
             mLayerLifecycleManager.commitChanges();
         }
 
-        commitTransactions();
-
         // enter boot animation on first buffer latch
         if (CC_UNLIKELY(mBootStage == BootStage::BOOTLOADER && newDataLatched)) {
             ALOGI("Enter boot animation");
@@ -2410,6 +2408,10 @@ bool SurfaceFlinger::updateLayerSnapshots(VsyncId vsyncId, nsecs_t frameTimeNs,
         }
     }
     mustComposite |= (getTransactionFlags() & ~eTransactionFlushNeeded) || newDataLatched;
+    if (mustComposite && !mLegacyFrontEndEnabled) {
+        commitTransactions();
+    }
+
     return mustComposite;
 }
 
