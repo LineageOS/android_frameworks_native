@@ -130,19 +130,19 @@ TEST(TfLiteMotionPredictorTest, ModelInputOutputLength) {
     std::unique_ptr<TfLiteMotionPredictorModel> model = TfLiteMotionPredictorModel::create();
     ASSERT_GT(model->inputLength(), 0u);
 
-    const int inputLength = model->inputLength();
-    ASSERT_EQ(inputLength, model->inputR().size());
-    ASSERT_EQ(inputLength, model->inputPhi().size());
-    ASSERT_EQ(inputLength, model->inputPressure().size());
-    ASSERT_EQ(inputLength, model->inputOrientation().size());
-    ASSERT_EQ(inputLength, model->inputTilt().size());
+    const size_t inputLength = model->inputLength();
+    ASSERT_EQ(inputLength, static_cast<size_t>(model->inputR().size()));
+    ASSERT_EQ(inputLength, static_cast<size_t>(model->inputPhi().size()));
+    ASSERT_EQ(inputLength, static_cast<size_t>(model->inputPressure().size()));
+    ASSERT_EQ(inputLength, static_cast<size_t>(model->inputOrientation().size()));
+    ASSERT_EQ(inputLength, static_cast<size_t>(model->inputTilt().size()));
 
     ASSERT_TRUE(model->invoke());
 
-    const int outputLength = model->outputLength();
-    ASSERT_EQ(outputLength, model->outputR().size());
-    ASSERT_EQ(outputLength, model->outputPhi().size());
-    ASSERT_EQ(outputLength, model->outputPressure().size());
+    const size_t outputLength = model->outputLength();
+    ASSERT_EQ(outputLength, static_cast<size_t>(model->outputR().size()));
+    ASSERT_EQ(outputLength, static_cast<size_t>(model->outputPhi().size()));
+    ASSERT_EQ(outputLength, static_cast<size_t>(model->outputPressure().size()));
 }
 
 TEST(TfLiteMotionPredictorTest, ModelOutput) {
