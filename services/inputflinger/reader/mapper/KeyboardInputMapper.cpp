@@ -242,6 +242,7 @@ std::list<NotifyArgs> KeyboardInputMapper::processKey(nsecs_t when, nsecs_t read
             keyDown.downTime = when;
             mKeyDowns.push_back(keyDown);
         }
+        onKeyDownProcessed();
     } else {
         // Remove key down.
         if (keyDownIndex) {
@@ -417,6 +418,21 @@ std::list<NotifyArgs> KeyboardInputMapper::cancelAllDownKeys(nsecs_t when) {
     mKeyDowns.clear();
     mMetaState = AMETA_NONE;
     return out;
+}
+
+void KeyboardInputMapper::onKeyDownProcessed() {
+    InputReaderContext& context = *getContext();
+    if (context.isPreventingTouchpadTaps()) {
+        // avoid pinging java service unnecessarily
+        return;
+    }
+    // Ignore meta keys or multiple simultaneous down keys as they are likely to be keyboard
+    // shortcuts
+    bool shouldHideCursor = mKeyDowns.size() == 1 && !isMetaKey(mKeyDowns[0].keyCode);
+    if (shouldHideCursor && context.getPolicy()->isInputMethodConnectionActive()) {
+        context.fadePointer();
+        context.setPreventingTouchpadTaps(true);
+    }
 }
 
 } // namespace android

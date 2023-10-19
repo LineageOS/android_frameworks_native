@@ -31,6 +31,8 @@ using android::gui::WindowInfoHandle;
 
 namespace android::inputdispatcher {
 
+namespace {
+
 class FakeWindowHandle : public WindowInfoHandle {
 public:
     FakeWindowHandle(const std::string& name, const sp<IBinder>& token, bool focusable,
@@ -48,6 +50,8 @@ public:
         mInfo.setInputConfig(gui::WindowInfo::InputConfig::NOT_VISIBLE, !visible);
     }
 };
+
+} // namespace
 
 TEST(FocusResolverTest, SetFocusedWindow) {
     sp<IBinder> focusableWindowToken = sp<BBinder>::make();

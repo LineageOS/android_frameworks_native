@@ -61,7 +61,7 @@ struct DozeNotSupportedVariant {
 struct EventThreadBaseSupportedVariant {
     static void setupVsyncNoCallExpectations(DisplayTransactionTest* test) {
         // Expect no change to hardware nor synthetic VSYNC.
-        EXPECT_CALL(test->mFlinger.mockSchedulerCallback(), setVsyncEnabled(_, _)).Times(0);
+        EXPECT_CALL(test->mFlinger.scheduler()->mockRequestHardwareVsync, Call(_, _)).Times(0);
         EXPECT_CALL(*test->mEventThread, enableSyntheticVsync(_)).Times(0);
     }
 };
@@ -79,13 +79,13 @@ struct EventThreadNotSupportedVariant : public EventThreadBaseSupportedVariant {
 struct EventThreadIsSupportedVariant : public EventThreadBaseSupportedVariant {
     static void setupEnableVsyncCallExpectations(DisplayTransactionTest* test) {
         // Expect to enable hardware VSYNC and disable synthetic VSYNC.
-        EXPECT_CALL(test->mFlinger.mockSchedulerCallback(), setVsyncEnabled(_, true)).Times(1);
+        EXPECT_CALL(test->mFlinger.scheduler()->mockRequestHardwareVsync, Call(_, true)).Times(1);
         EXPECT_CALL(*test->mEventThread, enableSyntheticVsync(false)).Times(1);
     }
 
     static void setupDisableVsyncCallExpectations(DisplayTransactionTest* test) {
         // Expect to disable hardware VSYNC and enable synthetic VSYNC.
-        EXPECT_CALL(test->mFlinger.mockSchedulerCallback(), setVsyncEnabled(_, false)).Times(1);
+        EXPECT_CALL(test->mFlinger.scheduler()->mockRequestHardwareVsync, Call(_, false)).Times(1);
         EXPECT_CALL(*test->mEventThread, enableSyntheticVsync(true)).Times(1);
     }
 };

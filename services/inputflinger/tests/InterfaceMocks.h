@@ -49,6 +49,9 @@ public:
 
     MOCK_METHOD(void, updateLedMetaState, (int32_t metaState), (override));
     MOCK_METHOD(int32_t, getLedMetaState, (), (override));
+
+    MOCK_METHOD(void, setPreventingTouchpadTaps, (bool prevent), (override));
+    MOCK_METHOD(bool, isPreventingTouchpadTaps, (), (override));
 };
 
 class MockEventHubInterface : public EventHubInterface {

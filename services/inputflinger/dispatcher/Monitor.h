@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <gui/PidUid.h>
 #include <input/InputTransport.h>
 
 namespace android::inputdispatcher {
@@ -23,9 +24,9 @@ namespace android::inputdispatcher {
 struct Monitor {
     std::shared_ptr<InputChannel> inputChannel; // never null
 
-    int32_t pid;
+    gui::Pid pid;
 
-    explicit Monitor(const std::shared_ptr<InputChannel>& inputChannel, int32_t pid);
+    explicit Monitor(const std::shared_ptr<InputChannel>& inputChannel, gui::Pid pid);
 };
 
 } // namespace android::inputdispatcher

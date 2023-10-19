@@ -74,7 +74,7 @@ public:
     }
     inline bool hasMic() const { return mHasMic; }
 
-    inline bool isIgnored() { return !getMapperCount(); }
+    inline bool isIgnored() { return !getMapperCount() && !mController; }
 
     bool isEnabled();
     [[nodiscard]] std::list<NotifyArgs> setEnabled(bool enabled, nsecs_t when);

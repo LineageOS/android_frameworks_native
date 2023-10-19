@@ -165,13 +165,30 @@ private:
     explicit UinputExternalStylusWithPressure();
 };
 
+// --- UinputKeyboardWithUsage ---
+// A keyboard that supports EV_MSC MSC_SCAN through which it can report HID usage codes.
+
+class UinputKeyboardWithHidUsage : public UinputKeyboard {
+public:
+    static constexpr const char* DEVICE_NAME = "Test Uinput Keyboard With Usage";
+    static constexpr int16_t PRODUCT_ID = 47;
+
+    template <class D, class... Ts>
+    friend std::unique_ptr<D> createUinputDevice(Ts... args);
+
+protected:
+    explicit UinputKeyboardWithHidUsage(std::initializer_list<int> keys);
+
+    void configureDevice(int fd, uinput_user_dev* device) override;
+};
+
 // --- UinputTouchScreen ---
 
 // A multi-touch touchscreen device with specific size that also supports styluses.
 class UinputTouchScreen : public UinputKeyboard {
 public:
     static constexpr const char* DEVICE_NAME = "Test Uinput Touch Screen";
-    static constexpr int16_t PRODUCT_ID = 47;
+    static constexpr int16_t PRODUCT_ID = 48;
 
     static const int32_t RAW_TOUCH_MIN = 0;
     static const int32_t RAW_TOUCH_MAX = 31;
@@ -197,11 +214,12 @@ public:
     const Point getCenterPoint();
 
 protected:
-    explicit UinputTouchScreen(const Rect& size);
+    explicit UinputTouchScreen(const Rect& size, const std::string& physicalPort = "");
 
 private:
     void configureDevice(int fd, uinput_user_dev* device) override;
     const Rect mSize;
+    const std::string mPhysicalPort;
 };
 
 } // namespace android

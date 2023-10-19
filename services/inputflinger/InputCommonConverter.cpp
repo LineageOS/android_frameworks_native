@@ -258,12 +258,12 @@ static_assert(static_cast<common::Axis>(AMOTION_EVENT_AXIS_GENERIC_13) == common
 static_assert(static_cast<common::Axis>(AMOTION_EVENT_AXIS_GENERIC_14) == common::Axis::GENERIC_14);
 static_assert(static_cast<common::Axis>(AMOTION_EVENT_AXIS_GENERIC_15) == common::Axis::GENERIC_15);
 static_assert(static_cast<common::Axis>(AMOTION_EVENT_AXIS_GENERIC_16) == common::Axis::GENERIC_16);
-// TODO(b/251196347): add GESTURE_{X,Y}_OFFSET, GESTURE_SCROLL_{X,Y}_DISTANCE, and
-// GESTURE_PINCH_SCALE_FACTOR.
+// TODO(b/251196347): add GESTURE_{X,Y}_OFFSET, GESTURE_SCROLL_{X,Y}_DISTANCE,
+// GESTURE_PINCH_SCALE_FACTOR, and GESTURE_SWIPE_FINGER_COUNT.
 // If you added a new axis, consider whether this should also be exposed as a HAL axis. Update the
 // static_assert below and add the new axis here, or leave a comment summarizing your decision.
 static_assert(static_cast<common::Axis>(AMOTION_EVENT_MAXIMUM_VALID_AXIS_VALUE) ==
-              static_cast<common::Axis>(AMOTION_EVENT_AXIS_GESTURE_PINCH_SCALE_FACTOR));
+              static_cast<common::Axis>(AMOTION_EVENT_AXIS_GESTURE_SWIPE_FINGER_COUNT));
 
 static common::VideoFrame getHalVideoFrame(const TouchVideoFrame& frame) {
     common::VideoFrame out;
@@ -289,9 +289,9 @@ static std::vector<common::VideoFrame> convertVideoFrames(
 static void getHalPropertiesAndCoords(const NotifyMotionArgs& args,
                                       std::vector<common::PointerProperties>& outPointerProperties,
                                       std::vector<common::PointerCoords>& outPointerCoords) {
-    outPointerProperties.reserve(args.pointerCount);
-    outPointerCoords.reserve(args.pointerCount);
-    for (size_t i = 0; i < args.pointerCount; i++) {
+    outPointerProperties.reserve(args.getPointerCount());
+    outPointerCoords.reserve(args.getPointerCount());
+    for (size_t i = 0; i < args.getPointerCount(); i++) {
         common::PointerProperties properties;
         properties.id = args.pointerProperties[i].id;
         properties.toolType = getToolType(args.pointerProperties[i].toolType);

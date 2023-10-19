@@ -371,10 +371,11 @@ struct HwcDisplayVariant {
     // Called by tests to inject a HWC display setup
     template <bool kInitPowerMode = true>
     static void injectHwcDisplay(DisplayTransactionTest* test) {
-        EXPECT_CALL(*test->mComposer, getDisplayCapabilities(HWC_DISPLAY_ID, _))
-                .WillOnce(DoAll(SetArgPointee<1>(std::vector<DisplayCapability>({})),
-                                Return(Error::NONE)));
         if constexpr (kInitPowerMode) {
+            EXPECT_CALL(*test->mComposer, getDisplayCapabilities(HWC_DISPLAY_ID, _))
+                    .WillOnce(DoAll(SetArgPointee<1>(std::vector<DisplayCapability>({})),
+                                    Return(Error::NONE)));
+
             EXPECT_CALL(*test->mComposer, setPowerMode(HWC_DISPLAY_ID, INIT_POWER_MODE))
                     .WillOnce(Return(Error::NONE));
         }

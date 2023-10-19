@@ -148,8 +148,8 @@ std::string toString(const RefreshRateSelector::PolicyVariant& policy) {
 } // namespace
 
 auto RefreshRateSelector::createFrameRateModes(
-        std::function<bool(const DisplayMode&)>&& filterModes, const FpsRange& renderRange) const
-        -> std::vector<FrameRateMode> {
+        const Policy& policy, std::function<bool(const DisplayMode&)>&& filterModes,
+        const FpsRange& renderRange) const -> std::vector<FrameRateMode> {
     struct Key {
         Fps fps;
         int32_t group;
@@ -202,11 +202,25 @@ auto RefreshRateSelector::createFrameRateModes(
                 ALOGV("%s: including %s (%s)", __func__, to_string(fps).c_str(),
                       to_string(mode->getFps()).c_str());
             } else {
-                // We might need to update the map as we found a lower refresh rate
-                if (isStrictlyLess(mode->getFps(), existingIter->second->second->getFps())) {
+                // If the primary physical range is a single rate, prefer to stay in that rate
+                // even if there is a lower physical refresh rate available. This would cause more
+                // cases to stay within the primary physical range
+                const Fps existingModeFps = existingIter->second->second->getFps();
+                const bool existingModeIsPrimaryRange = policy.primaryRangeIsSingleRate() &&
+                        policy.primaryRanges.physical.includes(existingModeFps);
+                const bool newModeIsPrimaryRange = policy.primaryRangeIsSingleRate() &&
+                        policy.primaryRanges.physical.includes(mode->getFps());
+                if (newModeIsPrimaryRange == existingModeIsPrimaryRange) {
+                    // We might need to update the map as we found a lower refresh rate
+                    if (isStrictlyLess(mode->getFps(), existingModeFps)) {
+                        existingIter->second = it;
+                        ALOGV("%s: changing %s (%s) as we found a lower physical rate", __func__,
+                              to_string(fps).c_str(), to_string(mode->getFps()).c_str());
+                    }
+                } else if (newModeIsPrimaryRange) {
                     existingIter->second = it;
-                    ALOGV("%s: changing %s (%s)", __func__, to_string(fps).c_str(),
-                          to_string(mode->getFps()).c_str());
+                    ALOGV("%s: changing %s (%s) to stay in the primary range", __func__,
+                          to_string(fps).c_str(), to_string(mode->getFps()).c_str());
                 }
             }
         }
@@ -302,6 +316,19 @@ float RefreshRateSelector::calculateNonExactMatchingLayerScoreLocked(const Layer
 
     if (layer.vote == LayerVoteType::ExplicitExactOrMultiple ||
         layer.vote == LayerVoteType::Heuristic) {
+        using fps_approx_ops::operator<;
+        if (refreshRate < 60_Hz) {
+            const bool favorsAtLeast60 =
+                    std::find_if(mFrameRatesThatFavorsAtLeast60.begin(),
+                                 mFrameRatesThatFavorsAtLeast60.end(), [&](Fps fps) {
+                                     using fps_approx_ops::operator==;
+                                     return fps == layer.desiredRefreshRate;
+                                 }) != mFrameRatesThatFavorsAtLeast60.end();
+            if (favorsAtLeast60) {
+                return 0;
+            }
+        }
+
         const float multiplier = refreshRate.getValue() / layer.desiredRefreshRate.getValue();
 
         // We only want to score this layer as a fractional pair if the content is not
@@ -487,10 +514,8 @@ auto RefreshRateSelector::getRankedFrameRatesLocked(const std::vector<LayerRequi
     // If the primary range consists of a single refresh rate then we can only
     // move out the of range if layers explicitly request a different refresh
     // rate.
-    const bool primaryRangeIsSingleRate =
-            isApproxEqual(policy->primaryRanges.physical.min, policy->primaryRanges.physical.max);
-
-    if (!signals.touch && signals.idle && !(primaryRangeIsSingleRate && hasExplicitVoteLayers)) {
+    if (!signals.touch && signals.idle &&
+        !(policy->primaryRangeIsSingleRate() && hasExplicitVoteLayers)) {
         ALOGV("Idle");
         const auto ranking = rankFrameRates(activeMode.getGroup(), RefreshRateOrder::Ascending);
         ATRACE_FORMAT_INSTANT("%s (Idle)", to_string(ranking.front().frameRateMode.fps).c_str());
@@ -564,8 +589,11 @@ auto RefreshRateSelector::getRankedFrameRatesLocked(const std::vector<LayerRequi
                 continue;
             }
 
-            const bool inPrimaryRange = policy->primaryRanges.render.includes(fps);
-            if ((primaryRangeIsSingleRate || !inPrimaryRange) &&
+            const bool inPrimaryPhysicalRange =
+                    policy->primaryRanges.physical.includes(modePtr->getFps());
+            const bool inPrimaryRenderRange = policy->primaryRanges.render.includes(fps);
+            if (((policy->primaryRangeIsSingleRate() && !inPrimaryPhysicalRange) ||
+                 !inPrimaryRenderRange) &&
                 !(layer.focused &&
                   (layer.vote == LayerVoteType::ExplicitDefault ||
                    layer.vote == LayerVoteType::ExplicitExact))) {
@@ -676,7 +704,7 @@ auto RefreshRateSelector::getRankedFrameRatesLocked(const std::vector<LayerRequi
         return score.overallScore == 0;
     });
 
-    if (primaryRangeIsSingleRate) {
+    if (policy->primaryRangeIsSingleRate()) {
         // If we never scored any layers, then choose the rate from the primary
         // range instead of picking a random score from the app range.
         if (noLayerScore) {
@@ -1221,10 +1249,19 @@ void RefreshRateSelector::constructAvailableRefreshRates() {
                     (supportsFrameRateOverride() || ranges.render.includes(mode.getFps()));
         };
 
-        const auto frameRateModes = createFrameRateModes(filterModes, ranges.render);
+        auto frameRateModes = createFrameRateModes(*policy, filterModes, ranges.render);
+        if (frameRateModes.empty()) {
+            ALOGW("No matching frame rate modes for %s range. policy: %s", rangeName,
+                  policy->toString().c_str());
+            // TODO(b/292105422): Ideally DisplayManager should not send render ranges smaller than
+            // the min supported. See b/292047939.
+            //  For not we just ignore the render ranges.
+            frameRateModes = createFrameRateModes(*policy, filterModes, {});
+        }
         LOG_ALWAYS_FATAL_IF(frameRateModes.empty(),
-                            "No matching frame rate modes for %s range. policy: %s", rangeName,
-                            policy->toString().c_str());
+                            "No matching frame rate modes for %s range even after ignoring the "
+                            "render range. policy: %s",
+                            rangeName, policy->toString().c_str());
 
         const auto stringifyModes = [&] {
             std::string str;

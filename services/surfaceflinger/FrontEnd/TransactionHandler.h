@@ -18,6 +18,7 @@
 
 #include <semaphore.h>
 #include <cstdint>
+#include <optional>
 #include <vector>
 
 #include <LocklessQueue.h>
@@ -61,9 +62,18 @@ public:
     std::vector<TransactionState> flushTransactions();
     void addTransactionReadyFilter(TransactionFilter&&);
     void queueTransaction(TransactionState&&);
-    void onTransactionQueueStalled(uint64_t transactionId, sp<ITransactionCompletedListener>&,
-                                   const std::string& reason);
+
+    struct StalledTransactionInfo {
+        pid_t pid;
+        uint32_t layerId;
+        std::string layerName;
+        uint64_t bufferId;
+        uint64_t frameNumber;
+    };
+    void onTransactionQueueStalled(uint64_t transactionId, StalledTransactionInfo);
     void removeFromStalledTransactions(uint64_t transactionId);
+    std::optional<StalledTransactionInfo> getStalledTransactionInfo(pid_t pid);
+    void onLayerDestroyed(uint32_t layerId);
 
 private:
     // For unit tests
@@ -79,7 +89,10 @@ private:
     LocklessQueue<TransactionState> mLocklessTransactionQueue;
     std::atomic<size_t> mPendingTransactionCount = 0;
     ftl::SmallVector<TransactionFilter, 2> mTransactionReadyFilters;
-    std::vector<uint64_t> mStalledTransactions;
+
+    std::mutex mStalledMutex;
+    std::unordered_map<uint64_t /* transactionId */, StalledTransactionInfo> mStalledTransactions
+            GUARDED_BY(mStalledMutex);
 };
 } // namespace surfaceflinger::frontend
 } // namespace android

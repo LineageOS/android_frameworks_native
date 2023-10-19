@@ -105,7 +105,7 @@ protected:
 
     LayerHierarchyBuilder mHierarchyBuilder{{}};
     LayerSnapshotBuilder mSnapshotBuilder;
-    display::DisplayMap<ui::LayerStack, frontend::DisplayInfo> mFrontEndDisplayInfos;
+    DisplayInfos mFrontEndDisplayInfos;
     renderengine::ShadowSettings globalShadowSettings;
     static const std::vector<uint32_t> STARTING_ZORDER;
 };
@@ -228,6 +228,7 @@ TEST_F(LayerSnapshotTest, AlphaInheritedByChildren) {
     setAlpha(1, 0.5);
     setAlpha(122, 0.5);
     UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
+    EXPECT_EQ(getSnapshot(1)->alpha, 0.5f);
     EXPECT_EQ(getSnapshot(12)->alpha, 0.5f);
     EXPECT_EQ(getSnapshot(1221)->alpha, 0.25f);
 }
@@ -236,28 +237,30 @@ TEST_F(LayerSnapshotTest, AlphaInheritedByChildren) {
 TEST_F(LayerSnapshotTest, UpdateClearsPreviousChangeStates) {
     setCrop(1, Rect(1, 2, 3, 4));
     UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
-    EXPECT_TRUE(getSnapshot(1)->changes.get() != 0);
-    EXPECT_TRUE(getSnapshot(11)->changes.get() != 0);
+    EXPECT_TRUE(getSnapshot(1)->changes.test(RequestedLayerState::Changes::Geometry));
+    EXPECT_TRUE(getSnapshot(11)->changes.test(RequestedLayerState::Changes::Geometry));
     setCrop(2, Rect(1, 2, 3, 4));
     UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
-    EXPECT_TRUE(getSnapshot(2)->changes.get() != 0);
-    EXPECT_TRUE(getSnapshot(1)->changes.get() == 0);
-    EXPECT_TRUE(getSnapshot(11)->changes.get() == 0);
+    EXPECT_TRUE(getSnapshot(2)->changes.test(RequestedLayerState::Changes::Geometry));
+    EXPECT_FALSE(getSnapshot(1)->changes.test(RequestedLayerState::Changes::Geometry));
+    EXPECT_FALSE(getSnapshot(11)->changes.test(RequestedLayerState::Changes::Geometry));
 }
 
 TEST_F(LayerSnapshotTest, FastPathClearsPreviousChangeStates) {
     setColor(11, {1._hf, 0._hf, 0._hf});
     UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
-    EXPECT_TRUE(getSnapshot(11)->changes.get() != 0);
-    EXPECT_TRUE(getSnapshot(1)->changes.get() == 0);
+    EXPECT_EQ(getSnapshot(11)->changes, RequestedLayerState::Changes::Content);
+    EXPECT_EQ(getSnapshot(11)->clientChanges, layer_state_t::eColorChanged);
+    EXPECT_EQ(getSnapshot(1)->changes.get(), 0u);
     UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
-    EXPECT_TRUE(getSnapshot(11)->changes.get() == 0);
+    EXPECT_EQ(getSnapshot(11)->changes.get(), 0u);
 }
 
 TEST_F(LayerSnapshotTest, FastPathSetsChangeFlagToContent) {
     setColor(1, {1._hf, 0._hf, 0._hf});
     UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
     EXPECT_EQ(getSnapshot(1)->changes, RequestedLayerState::Changes::Content);
+    EXPECT_EQ(getSnapshot(1)->clientChanges, layer_state_t::eColorChanged);
 }
 
 TEST_F(LayerSnapshotTest, GameMode) {
@@ -270,7 +273,9 @@ TEST_F(LayerSnapshotTest, GameMode) {
     transactions.back().states.front().layerId = 1;
     transactions.back().states.front().state.layerId = static_cast<int32_t>(1);
     mLifecycleManager.applyTransactions(transactions);
+    EXPECT_EQ(mLifecycleManager.getGlobalChanges(), RequestedLayerState::Changes::GameMode);
     UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
+    EXPECT_EQ(getSnapshot(1)->clientChanges, layer_state_t::eMetadataChanged);
     EXPECT_EQ(static_cast<int32_t>(getSnapshot(1)->gameMode), 42);
     EXPECT_EQ(static_cast<int32_t>(getSnapshot(11)->gameMode), 42);
 }
@@ -309,7 +314,7 @@ TEST_F(LayerSnapshotTest, NoLayerVoteForParentWithChildVotes) {
     EXPECT_EQ(getSnapshot(1)->frameRate.type, scheduler::LayerInfo::FrameRateCompatibility::NoVote);
 }
 
-TEST_F(LayerSnapshotTest, canCropTouchableRegion) {
+TEST_F(LayerSnapshotTest, CanCropTouchableRegion) {
     // ROOT
     // ├── 1
     // │   ├── 11

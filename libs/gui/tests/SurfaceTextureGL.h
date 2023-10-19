@@ -17,6 +17,7 @@
 #ifndef ANDROID_SURFACE_TEXTURE_GL_H
 #define ANDROID_SURFACE_TEXTURE_GL_H
 
+#include "Constants.h"
 #include "GLTest.h"
 
 #include "FrameWaiter.h"
@@ -43,6 +44,7 @@ protected:
                 true, false);
         mSTC = new Surface(producer);
         mANW = mSTC;
+        ASSERT_EQ(NO_ERROR, native_window_set_usage(mANW.get(), TEST_PRODUCER_USAGE_BITS));
         mTextureRenderer = new TextureRenderer(TEX_ID, mST);
         ASSERT_NO_FATAL_FAILURE(mTextureRenderer->SetUp());
         mFW = new FrameWaiter;

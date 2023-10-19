@@ -22,7 +22,6 @@
 
 #include "VsyncSchedule.h"
 
-#include "ISchedulerCallback.h"
 #include "Utils/Dumper.h"
 #include "VSyncDispatchTimerQueue.h"
 #include "VSyncPredictor.h"
@@ -54,8 +53,10 @@ private:
     VSyncCallbackRegistration mRegistration;
 };
 
-VsyncSchedule::VsyncSchedule(PhysicalDisplayId id, FeatureFlags features)
+VsyncSchedule::VsyncSchedule(PhysicalDisplayId id, FeatureFlags features,
+                             RequestHardwareVsync requestHardwareVsync)
       : mId(id),
+        mRequestHardwareVsync(std::move(requestHardwareVsync)),
         mTracker(createTracker(id)),
         mDispatch(createDispatch(mTracker)),
         mController(createController(id, *mTracker, features)),
@@ -64,8 +65,9 @@ VsyncSchedule::VsyncSchedule(PhysicalDisplayId id, FeatureFlags features)
                         : nullptr) {}
 
 VsyncSchedule::VsyncSchedule(PhysicalDisplayId id, TrackerPtr tracker, DispatchPtr dispatch,
-                             ControllerPtr controller)
+                             ControllerPtr controller, RequestHardwareVsync requestHardwareVsync)
       : mId(id),
+        mRequestHardwareVsync(std::move(requestHardwareVsync)),
         mTracker(std::move(tracker)),
         mDispatch(std::move(dispatch)),
         mController(std::move(controller)) {}
@@ -135,14 +137,13 @@ VsyncSchedule::ControllerPtr VsyncSchedule::createController(PhysicalDisplayId i
     return reactor;
 }
 
-void VsyncSchedule::startPeriodTransition(ISchedulerCallback& callback, Period period, bool force) {
+void VsyncSchedule::startPeriodTransition(Period period, bool force) {
     std::lock_guard<std::mutex> lock(mHwVsyncLock);
     mController->startPeriodTransition(period.ns(), force);
-    enableHardwareVsyncLocked(callback);
+    enableHardwareVsyncLocked();
 }
 
-bool VsyncSchedule::addResyncSample(ISchedulerCallback& callback, TimePoint timestamp,
-                                    ftl::Optional<Period> hwcVsyncPeriod) {
+bool VsyncSchedule::addResyncSample(TimePoint timestamp, ftl::Optional<Period> hwcVsyncPeriod) {
     bool needsHwVsync = false;
     bool periodFlushed = false;
     {
@@ -154,31 +155,32 @@ bool VsyncSchedule::addResyncSample(ISchedulerCallback& callback, TimePoint time
         }
     }
     if (needsHwVsync) {
-        enableHardwareVsync(callback);
+        enableHardwareVsync();
     } else {
-        disableHardwareVsync(callback, false /* disallow */);
+        constexpr bool kDisallow = false;
+        disableHardwareVsync(kDisallow);
     }
     return periodFlushed;
 }
 
-void VsyncSchedule::enableHardwareVsync(ISchedulerCallback& callback) {
+void VsyncSchedule::enableHardwareVsync() {
     std::lock_guard<std::mutex> lock(mHwVsyncLock);
-    enableHardwareVsyncLocked(callback);
+    enableHardwareVsyncLocked();
 }
 
-void VsyncSchedule::enableHardwareVsyncLocked(ISchedulerCallback& callback) {
+void VsyncSchedule::enableHardwareVsyncLocked() {
     if (mHwVsyncState == HwVsyncState::Disabled) {
         getTracker().resetModel();
-        callback.setVsyncEnabled(mId, true);
+        mRequestHardwareVsync(mId, true);
         mHwVsyncState = HwVsyncState::Enabled;
     }
 }
 
-void VsyncSchedule::disableHardwareVsync(ISchedulerCallback& callback, bool disallow) {
+void VsyncSchedule::disableHardwareVsync(bool disallow) {
     std::lock_guard<std::mutex> lock(mHwVsyncLock);
     switch (mHwVsyncState) {
         case HwVsyncState::Enabled:
-            callback.setVsyncEnabled(mId, false);
+            mRequestHardwareVsync(mId, false);
             [[fallthrough]];
         case HwVsyncState::Disabled:
             mHwVsyncState = disallow ? HwVsyncState::Disallowed : HwVsyncState::Disabled;

@@ -21,6 +21,7 @@
 namespace android {
 class LayerTraceGenerator {
 public:
-    bool generate(const proto::TransactionTraceFile&, const char* outputLayersTracePath);
+    bool generate(const proto::TransactionTraceFile&, const char* outputLayersTracePath,
+                  bool onlyLastEntry);
 };
 } // namespace android

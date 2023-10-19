@@ -58,6 +58,8 @@
 
 #include "EventHub.h"
 
+#include "KeyCodeClassifications.h"
+
 #define INDENT "  "
 #define INDENT2 "    "
 #define INDENT3 "      "
@@ -188,14 +190,6 @@ static std::string sha1(const std::string& in) {
     }
     return out;
 }
-
-/* The set of all Android key codes that correspond to buttons (bit-switches) on a stylus. */
-static constexpr std::array<int32_t, 4> STYLUS_BUTTON_KEYCODES = {
-        AKEYCODE_STYLUS_BUTTON_PRIMARY,
-        AKEYCODE_STYLUS_BUTTON_SECONDARY,
-        AKEYCODE_STYLUS_BUTTON_TERTIARY,
-        AKEYCODE_STYLUS_BUTTON_TAIL,
-};
 
 /**
  * Return true if name matches "v4l-touch*"
@@ -870,6 +864,30 @@ void EventHub::addDeviceInotify() {
                         strerror(errno));
 }
 
+void EventHub::populateDeviceAbsoluteAxisInfo(Device& device) {
+    for (int axis = 0; axis <= ABS_MAX; axis++) {
+        if (!device.absBitmask.test(axis)) {
+            continue;
+        }
+        struct input_absinfo info {};
+        if (ioctl(device.fd, EVIOCGABS(axis), &info)) {
+            ALOGE("Error reading absolute controller %d for device %s fd %d, errno=%d", axis,
+                  device.identifier.name.c_str(), device.fd, errno);
+            continue;
+        }
+        if (info.minimum == info.maximum) {
+            continue;
+        }
+        RawAbsoluteAxisInfo& outAxisInfo = device.rawAbsoluteAxisInfoCache[axis];
+        outAxisInfo.valid = true;
+        outAxisInfo.minValue = info.minimum;
+        outAxisInfo.maxValue = info.maximum;
+        outAxisInfo.flat = info.flat;
+        outAxisInfo.fuzz = info.fuzz;
+        outAxisInfo.resolution = info.resolution;
+    }
+}
+
 InputDeviceIdentifier EventHub::getDeviceIdentifier(int32_t deviceId) const {
     std::scoped_lock _l(mLock);
     Device* device = getDeviceLocked(deviceId);
@@ -900,31 +918,20 @@ std::optional<PropertyMap> EventHub::getConfiguration(int32_t deviceId) const {
 status_t EventHub::getAbsoluteAxisInfo(int32_t deviceId, int axis,
                                        RawAbsoluteAxisInfo* outAxisInfo) const {
     outAxisInfo->clear();
-
-    if (axis >= 0 && axis <= ABS_MAX) {
-        std::scoped_lock _l(mLock);
-
-        Device* device = getDeviceLocked(deviceId);
-        if (device != nullptr && device->hasValidFd() && device->absBitmask.test(axis)) {
-            struct input_absinfo info;
-            if (ioctl(device->fd, EVIOCGABS(axis), &info)) {
-                ALOGW("Error reading absolute controller %d for device %s fd %d, errno=%d", axis,
-                      device->identifier.name.c_str(), device->fd, errno);
-                return -errno;
-            }
-
-            if (info.minimum != info.maximum) {
-                outAxisInfo->valid = true;
-                outAxisInfo->minValue = info.minimum;
-                outAxisInfo->maxValue = info.maximum;
-                outAxisInfo->flat = info.flat;
-                outAxisInfo->fuzz = info.fuzz;
-                outAxisInfo->resolution = info.resolution;
-            }
-            return OK;
-        }
+    if (axis < 0 || axis > ABS_MAX) {
+        return -1;
     }
-    return -1;
+    std::scoped_lock _l(mLock);
+    Device* device = getDeviceLocked(deviceId);
+    if (device == nullptr) {
+        return -1;
+    }
+    auto it = device->rawAbsoluteAxisInfoCache.find(axis);
+    if (it == device->rawAbsoluteAxisInfoCache.end()) {
+        return -1;
+    }
+    *outAxisInfo = it->second;
+    return OK;
 }
 
 bool EventHub::hasRelativeAxis(int32_t deviceId, int axis) const {
@@ -2060,15 +2067,6 @@ void EventHub::scanDevicesLocked() {
 
 // ----------------------------------------------------------------------------
 
-static const int32_t GAMEPAD_KEYCODES[] = {
-        AKEYCODE_BUTTON_A,      AKEYCODE_BUTTON_B,      AKEYCODE_BUTTON_C,    //
-        AKEYCODE_BUTTON_X,      AKEYCODE_BUTTON_Y,      AKEYCODE_BUTTON_Z,    //
-        AKEYCODE_BUTTON_L1,     AKEYCODE_BUTTON_R1,                           //
-        AKEYCODE_BUTTON_L2,     AKEYCODE_BUTTON_R2,                           //
-        AKEYCODE_BUTTON_THUMBL, AKEYCODE_BUTTON_THUMBR,                       //
-        AKEYCODE_BUTTON_START,  AKEYCODE_BUTTON_SELECT, AKEYCODE_BUTTON_MODE, //
-};
-
 status_t EventHub::registerFdForEpoll(int fd) {
     // TODO(b/121395353) - consider adding EPOLLRDHUP
     struct epoll_event eventItem = {};
@@ -2391,31 +2389,24 @@ void EventHub::openDeviceLocked(const std::string& devicePath) {
             device->classes |= InputDeviceClass::ALPHAKEY;
         }
 
-        // See if this device has a DPAD.
-        if (device->hasKeycodeLocked(AKEYCODE_DPAD_UP) &&
-            device->hasKeycodeLocked(AKEYCODE_DPAD_DOWN) &&
-            device->hasKeycodeLocked(AKEYCODE_DPAD_LEFT) &&
-            device->hasKeycodeLocked(AKEYCODE_DPAD_RIGHT) &&
-            device->hasKeycodeLocked(AKEYCODE_DPAD_CENTER)) {
+        // See if this device has a D-pad.
+        if (std::all_of(DPAD_REQUIRED_KEYCODES.begin(), DPAD_REQUIRED_KEYCODES.end(),
+                        [&](int32_t keycode) { return device->hasKeycodeLocked(keycode); })) {
             device->classes |= InputDeviceClass::DPAD;
         }
 
         // See if this device has a gamepad.
-        for (size_t i = 0; i < sizeof(GAMEPAD_KEYCODES) / sizeof(GAMEPAD_KEYCODES[0]); i++) {
-            if (device->hasKeycodeLocked(GAMEPAD_KEYCODES[i])) {
-                device->classes |= InputDeviceClass::GAMEPAD;
-                break;
-            }
+        if (std::any_of(GAMEPAD_KEYCODES.begin(), GAMEPAD_KEYCODES.end(),
+                        [&](int32_t keycode) { return device->hasKeycodeLocked(keycode); })) {
+            device->classes |= InputDeviceClass::GAMEPAD;
         }
 
         // See if this device has any stylus buttons that we would want to fuse with touch data.
-        if (!device->classes.any(InputDeviceClass::TOUCH | InputDeviceClass::TOUCH_MT)) {
-            for (int32_t keycode : STYLUS_BUTTON_KEYCODES) {
-                if (device->hasKeycodeLocked(keycode)) {
-                    device->classes |= InputDeviceClass::EXTERNAL_STYLUS;
-                    break;
-                }
-            }
+        if (!device->classes.any(InputDeviceClass::TOUCH | InputDeviceClass::TOUCH_MT) &&
+            !device->classes.any(InputDeviceClass::ALPHAKEY) &&
+            std::any_of(STYLUS_BUTTON_KEYCODES.begin(), STYLUS_BUTTON_KEYCODES.end(),
+                        [&](int32_t keycode) { return device->hasKeycodeLocked(keycode); })) {
+            device->classes |= InputDeviceClass::EXTERNAL_STYLUS;
         }
     }
 
@@ -2457,6 +2448,9 @@ void EventHub::openDeviceLocked(const std::string& devicePath) {
     }
 
     device->configureFd();
+
+    // read absolute axis info for all available axes for the device
+    populateDeviceAbsoluteAxisInfo(*device);
 
     ALOGI("New device: id=%d, fd=%d, path='%s', name='%s', classes=%s, "
           "configuration='%s', keyLayout='%s', keyCharacterMap='%s', builtinKeyboard=%s, ",

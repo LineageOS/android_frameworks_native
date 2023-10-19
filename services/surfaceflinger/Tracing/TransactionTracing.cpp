@@ -28,6 +28,7 @@
 #include "TransactionTracing.h"
 
 namespace android {
+ANDROID_SINGLETON_STATIC_INSTANCE(android::TransactionTraceWriter)
 
 TransactionTracing::TransactionTracing()
       : mProtoParser(std::make_unique<TransactionProtoParser::FlingerDataMapper>()) {
@@ -56,7 +57,7 @@ TransactionTracing::~TransactionTracing() {
     writeToFile();
 }
 
-status_t TransactionTracing::writeToFile(std::string filename) {
+status_t TransactionTracing::writeToFile(const std::string& filename) {
     std::scoped_lock lock(mTraceLock);
     proto::TransactionTraceFile fileProto = createTraceFileProto();
     addStartingStateToProtoLocked(fileProto);
@@ -92,10 +93,10 @@ void TransactionTracing::addQueuedTransaction(const TransactionState& transactio
     mTransactionQueue.push(state);
 }
 
-void TransactionTracing::addCommittedTransactions(
-        int64_t vsyncId, nsecs_t commitTime, frontend::Update& newUpdate,
-        const display::DisplayMap<ui::LayerStack, frontend::DisplayInfo>& displayInfos,
-        bool displayInfoChanged) {
+void TransactionTracing::addCommittedTransactions(int64_t vsyncId, nsecs_t commitTime,
+                                                  frontend::Update& newUpdate,
+                                                  const frontend::DisplayInfos& displayInfos,
+                                                  bool displayInfoChanged) {
     CommittedUpdates update;
     update.vsyncId = vsyncId;
     update.timestamp = commitTime;
@@ -115,6 +116,7 @@ void TransactionTracing::addCommittedTransactions(
     }
     mPendingUpdates.emplace_back(update);
     tryPushToTracingThread();
+    mLastUpdatedVsyncId = vsyncId;
 }
 
 void TransactionTracing::loop() {
@@ -218,19 +220,29 @@ void TransactionTracing::addEntry(const std::vector<CommittedUpdates>& committed
     mTransactionsAddedToBufferCv.notify_one();
 }
 
-void TransactionTracing::flush(int64_t vsyncId) {
-    while (!mPendingUpdates.empty() || !mPendingDestroyedLayers.empty()) {
-        tryPushToTracingThread();
+void TransactionTracing::flush() {
+    {
+        std::scoped_lock lock(mMainThreadLock);
+        // Collect any pending transactions and wait for transactions to be added to
+        mUpdates.insert(mUpdates.end(), std::make_move_iterator(mPendingUpdates.begin()),
+                        std::make_move_iterator(mPendingUpdates.end()));
+        mPendingUpdates.clear();
+        mDestroyedLayers.insert(mDestroyedLayers.end(), mPendingDestroyedLayers.begin(),
+                                mPendingDestroyedLayers.end());
+        mPendingDestroyedLayers.clear();
+        mTransactionsAvailableCv.notify_one();
     }
     std::unique_lock<std::mutex> lock(mTraceLock);
     base::ScopedLockAssertion assumeLocked(mTraceLock);
-    mTransactionsAddedToBufferCv.wait(lock, [&]() REQUIRES(mTraceLock) {
-        proto::TransactionTraceEntry entry;
-        if (mBuffer.used() > 0) {
-            entry.ParseFromString(mBuffer.back());
-        }
-        return mBuffer.used() > 0 && entry.vsync_id() >= vsyncId;
-    });
+    mTransactionsAddedToBufferCv.wait_for(lock, std::chrono::milliseconds(100),
+                                          [&]() REQUIRES(mTraceLock) {
+                                              proto::TransactionTraceEntry entry;
+                                              if (mBuffer.used() > 0) {
+                                                  entry.ParseFromString(mBuffer.back());
+                                              }
+                                              return mBuffer.used() > 0 &&
+                                                      entry.vsync_id() >= mLastUpdatedVsyncId;
+                                          });
 }
 
 void TransactionTracing::onLayerRemoved(int32_t layerId) {

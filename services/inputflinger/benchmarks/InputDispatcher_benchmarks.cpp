@@ -30,12 +30,14 @@ using android::os::InputEventInjectionSync;
 
 namespace android::inputdispatcher {
 
+namespace {
+
 // An arbitrary device id.
 constexpr int32_t DEVICE_ID = 1;
 
 // The default pid and uid for windows created by the test.
-constexpr int32_t WINDOW_PID = 999;
-constexpr int32_t WINDOW_UID = 1001;
+constexpr gui::Pid WINDOW_PID{999};
+constexpr gui::Uid WINDOW_UID{1001};
 
 static constexpr std::chrono::duration INJECT_EVENT_TIMEOUT = 5s;
 static constexpr std::chrono::nanoseconds DISPATCHING_TIMEOUT = 100ms;
@@ -59,13 +61,13 @@ private:
         ALOGE("There is no focused window for %s", applicationHandle->getName().c_str());
     }
 
-    void notifyWindowUnresponsive(const sp<IBinder>& connectionToken, std::optional<int32_t> pid,
+    void notifyWindowUnresponsive(const sp<IBinder>& connectionToken, std::optional<gui::Pid> pid,
                                   const std::string& reason) override {
         ALOGE("Window is not responding: %s", reason.c_str());
     }
 
     void notifyWindowResponsive(const sp<IBinder>& connectionToken,
-                                std::optional<int32_t> pid) override {}
+                                std::optional<gui::Pid> pid) override {}
 
     void notifyInputChannelBroken(const sp<IBinder>&) override {}
 
@@ -108,6 +110,9 @@ private:
     void setPointerCapture(const PointerCaptureRequest&) override {}
 
     void notifyDropWindow(const sp<IBinder>&, float x, float y) override {}
+
+    void notifyDeviceInteraction(int32_t deviceId, nsecs_t timestamp,
+                                 const std::set<gui::Uid>& uids) override {}
 
     InputDispatcherConfiguration mConfig;
 };
@@ -347,6 +352,8 @@ static void benchmarkOnWindowInfosChanged(benchmark::State& state) {
     }
     dispatcher.stop();
 }
+
+} // namespace
 
 BENCHMARK(benchmarkNotifyMotion);
 BENCHMARK(benchmarkInjectMotion);

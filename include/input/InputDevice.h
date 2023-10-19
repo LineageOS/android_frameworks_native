@@ -18,8 +18,10 @@
 
 #include <android/sensor.h>
 #include <ftl/flags.h>
+#include <ftl/mixins.h>
 #include <input/Input.h>
 #include <input/KeyCharacterMap.h>
+#include <set>
 #include <unordered_map>
 #include <vector>
 
@@ -68,6 +70,9 @@ struct InputDeviceIdentifier {
      * while conforming to the filename limitations.
      */
     std::string getCanonicalName() const;
+
+    bool operator==(const InputDeviceIdentifier&) const = default;
+    bool operator!=(const InputDeviceIdentifier&) const = default;
 };
 
 /* Types of input device sensors. Keep sync with core/java/android/hardware/Sensor.java */
@@ -179,11 +184,24 @@ struct InputDeviceSensorInfo {
     int32_t id;
 };
 
+struct BrightnessLevel : ftl::DefaultConstructible<BrightnessLevel, std::uint8_t>,
+                         ftl::Equatable<BrightnessLevel>,
+                         ftl::Orderable<BrightnessLevel>,
+                         ftl::Addable<BrightnessLevel> {
+    using DefaultConstructible::DefaultConstructible;
+};
+
 struct InputDeviceLightInfo {
     explicit InputDeviceLightInfo(std::string name, int32_t id, InputDeviceLightType type,
                                   ftl::Flags<InputDeviceLightCapability> capabilityFlags,
-                                  int32_t ordinal)
-          : name(name), id(id), type(type), capabilityFlags(capabilityFlags), ordinal(ordinal) {}
+                                  int32_t ordinal,
+                                  std::set<BrightnessLevel> preferredBrightnessLevels)
+          : name(name),
+            id(id),
+            type(type),
+            capabilityFlags(capabilityFlags),
+            ordinal(ordinal),
+            preferredBrightnessLevels(std::move(preferredBrightnessLevels)) {}
     // Name string of the light.
     std::string name;
     // Light id
@@ -194,6 +212,8 @@ struct InputDeviceLightInfo {
     ftl::Flags<InputDeviceLightCapability> capabilityFlags;
     // Ordinal of the light
     int32_t ordinal;
+    // Custom brightness levels for the light
+    std::set<BrightnessLevel> preferredBrightnessLevels;
 };
 
 struct InputDeviceBatteryInfo {
