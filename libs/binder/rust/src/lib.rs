@@ -144,6 +144,7 @@ pub mod binder_impl {
 #[doc(hidden)]
 pub mod unstable_api {
     pub use crate::binder::AsNative;
+    pub use crate::error::status_result;
     pub use crate::proxy::unstable_api::new_spibinder;
     pub use crate::sys::AIBinder;
     pub use crate::sys::AParcel;
