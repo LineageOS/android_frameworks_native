@@ -26,7 +26,9 @@
 #include <vector>
 
 #include <android-base/unique_fd.h>
+#ifndef BINDER_DISABLE_NATIVE_HANDLE
 #include <cutils/native_handle.h>
+#endif
 #include <utils/Errors.h>
 #include <utils/RefBase.h>
 #include <utils/String16.h>
@@ -324,11 +326,13 @@ public:
     template<typename T>
     status_t            writeVectorSize(const std::unique_ptr<std::vector<T>>& val) __attribute__((deprecated("use std::optional version instead")));
 
+#ifndef BINDER_DISABLE_NATIVE_HANDLE
     // Place a native_handle into the parcel (the native_handle's file-
     // descriptors are dup'ed, so it is safe to delete the native_handle
     // when this function returns).
     // Doesn't take ownership of the native_handle.
     status_t            writeNativeHandle(const native_handle* handle);
+#endif
 
     // Place a file descriptor into the parcel.  The given fd must remain
     // valid for the lifetime of the parcel.
@@ -559,13 +563,14 @@ public:
     // response headers rather than doing it by hand.
     int32_t             readExceptionCode() const;
 
+#ifndef BINDER_DISABLE_NATIVE_HANDLE
     // Retrieve native_handle from the parcel. This returns a copy of the
     // parcel's native_handle (the caller takes ownership). The caller
-    // must free the native_handle with native_handle_close() and 
+    // must free the native_handle with native_handle_close() and
     // native_handle_delete().
     native_handle*     readNativeHandle() const;
+#endif
 
-    
     // Retrieve a file descriptor from the parcel.  This returns the raw fd
     // in the parcel, which you do not own -- use dup() to get your own copy.
     int                 readFileDescriptor() const;
