@@ -371,5 +371,9 @@ bool clear_slots_with_set_layer_buffer(bool defaultValue) {
     return SurfaceFlingerProperties::clear_slots_with_set_layer_buffer().value_or(defaultValue);
 }
 
+int32_t game_default_frame_rate_override(int32_t defaultValue) {
+    return SurfaceFlingerProperties::game_default_frame_rate_override().value_or(defaultValue);
+}
+
 } // namespace sysprop
 } // namespace android

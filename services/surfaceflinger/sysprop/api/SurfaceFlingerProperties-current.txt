@@ -65,6 +65,11 @@ props {
     prop_name: "ro.surface_flinger.force_hwc_copy_for_virtual_displays"
   }
   prop {
+    api_name: "game_default_frame_rate_override"
+    type: Integer
+    prop_name: "ro.surface_flinger.game_default_frame_rate_override"
+  }
+  prop {
     api_name: "has_HDR_display"
     prop_name: "ro.surface_flinger.has_HDR_display"
   }
