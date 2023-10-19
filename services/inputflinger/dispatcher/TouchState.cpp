@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <android-base/logging.h>
 #include <android-base/stringprintf.h>
 #include <gui/WindowInfo.h>
 
@@ -29,15 +30,6 @@ namespace android::inputdispatcher {
 
 void TouchState::reset() {
     *this = TouchState();
-}
-
-std::set<int32_t> TouchState::getActiveDeviceIds() const {
-    std::set<int32_t> out;
-    for (const TouchedWindow& w : windows) {
-        std::set<int32_t> deviceIds = w.getActiveDeviceIds();
-        out.insert(deviceIds.begin(), deviceIds.end());
-    }
-    return out;
 }
 
 bool TouchState::hasTouchingPointers(DeviceId deviceId) const {
@@ -65,9 +57,9 @@ void TouchState::removeTouchingPointerFromWindow(
     }
 }
 
-void TouchState::clearHoveringPointers() {
+void TouchState::clearHoveringPointers(DeviceId deviceId) {
     for (TouchedWindow& touchedWindow : windows) {
-        touchedWindow.clearHoveringPointers();
+        touchedWindow.removeAllHoveringPointersForDevice(deviceId);
     }
     clearWindowsWithoutPointers();
 }
@@ -82,9 +74,16 @@ void TouchState::addOrUpdateWindow(const sp<WindowInfoHandle>& windowHandle,
                                    ftl::Flags<InputTarget::Flags> targetFlags, DeviceId deviceId,
                                    std::bitset<MAX_POINTER_ID + 1> touchingPointerIds,
                                    std::optional<nsecs_t> firstDownTimeInTarget) {
+    if (touchingPointerIds.none()) {
+        LOG(FATAL) << __func__ << "No pointers specified for " << windowHandle->getName();
+        return;
+    }
     for (TouchedWindow& touchedWindow : windows) {
         // We do not compare windows by token here because two windows that share the same token
-        // may have a different transform
+        // may have a different transform. They will be combined later when we create InputTargets.
+        // At that point, per-pointer window transform will be considered.
+        // An alternative design choice here would have been to compare here by token, but to
+        // store per-pointer transform.
         if (touchedWindow.windowHandle == windowHandle) {
             touchedWindow.targetFlags |= targetFlags;
             if (targetFlags.test(InputTarget::Flags::DISPATCH_AS_SLIPPERY_EXIT)) {
@@ -237,14 +236,16 @@ const TouchedWindow& TouchState::getTouchedWindow(const sp<WindowInfoHandle>& wi
     return *it;
 }
 
-bool TouchState::isDown() const {
-    return std::any_of(windows.begin(), windows.end(),
-                       [](const TouchedWindow& window) { return window.hasTouchingPointers(); });
+bool TouchState::isDown(DeviceId deviceId) const {
+    return std::any_of(windows.begin(), windows.end(), [&deviceId](const TouchedWindow& window) {
+        return window.hasTouchingPointers(deviceId);
+    });
 }
 
-bool TouchState::hasHoveringPointers() const {
-    return std::any_of(windows.begin(), windows.end(),
-                       [](const TouchedWindow& window) { return window.hasHoveringPointers(); });
+bool TouchState::hasHoveringPointers(DeviceId deviceId) const {
+    return std::any_of(windows.begin(), windows.end(), [&deviceId](const TouchedWindow& window) {
+        return window.hasHoveringPointers(deviceId);
+    });
 }
 
 std::set<sp<WindowInfoHandle>> TouchState::getWindowsWithHoveringPointer(DeviceId deviceId,

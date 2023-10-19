@@ -24,6 +24,19 @@
 
 namespace android::inputdispatcher {
 
+namespace {
+bool isHoverAction(int32_t action) {
+    switch (MotionEvent::getActionMasked(action)) {
+        case AMOTION_EVENT_ACTION_HOVER_ENTER:
+        case AMOTION_EVENT_ACTION_HOVER_MOVE:
+        case AMOTION_EVENT_ACTION_HOVER_EXIT: {
+            return true;
+        }
+    }
+    return false;
+}
+} // namespace
+
 InputState::InputState(const IdGenerator& idGenerator) : mIdGenerator(idGenerator) {}
 
 InputState::~InputState() {}
@@ -89,6 +102,28 @@ bool InputState::trackKey(const KeyEntry& entry, int32_t action, int32_t flags) 
  *  false if the incoming event should be dropped.
  */
 bool InputState::trackMotion(const MotionEntry& entry, int32_t action, int32_t flags) {
+    // Don't track non-pointer events
+    if (!isFromSource(entry.source, AINPUT_SOURCE_CLASS_POINTER)) {
+        // This is a focus-dispatched event; we don't track its state.
+        return true;
+    }
+
+    if (!mMotionMementos.empty()) {
+        const MotionMemento& lastMemento = mMotionMementos.back();
+        if (isStylusEvent(lastMemento.source, lastMemento.pointerProperties) &&
+            !isStylusEvent(entry.source, entry.pointerProperties)) {
+            // We already have a stylus stream, and the new event is not from stylus.
+            if (!lastMemento.hovering) {
+                // If stylus is currently down, reject the new event unconditionally.
+                return false;
+            }
+        }
+        if (!lastMemento.hovering && isHoverAction(action)) {
+            // Reject hovers if already down
+            return false;
+        }
+    }
+
     int32_t actionMasked = action & AMOTION_EVENT_ACTION_MASK;
     switch (actionMasked) {
         case AMOTION_EVENT_ACTION_UP:
@@ -266,6 +301,136 @@ size_t InputState::MotionMemento::getPointerCount() const {
     return pointerProperties.size();
 }
 
+bool InputState::shouldCancelPreviousStream(const MotionEntry& motionEntry,
+                                            int32_t resolvedAction) const {
+    if (!isFromSource(motionEntry.source, AINPUT_SOURCE_CLASS_POINTER)) {
+        // This is a focus-dispatched event that should not affect the previous stream.
+        return false;
+    }
+
+    // New MotionEntry pointer event is coming in.
+
+    // If this is a new gesture, and it's from a different device, then, in general, we will cancel
+    // the current gesture.
+    // However, because stylus should be preferred over touch, we need to treat some cases in a
+    // special way.
+    if (mMotionMementos.empty()) {
+        // There is no ongoing pointer gesture, so there is nothing to cancel
+        return false;
+    }
+
+    const MotionMemento& lastMemento = mMotionMementos.back();
+    const int32_t actionMasked = MotionEvent::getActionMasked(resolvedAction);
+
+    // For compatibility, only one input device can be active at a time in the same window.
+    if (lastMemento.deviceId == motionEntry.deviceId) {
+        // In general, the same device should produce self-consistent streams so nothing needs to
+        // be canceled. But there is one exception:
+        // Sometimes ACTION_DOWN is received without a corresponding HOVER_EXIT. To account for
+        // that, cancel the previous hovering stream
+        if (actionMasked == AMOTION_EVENT_ACTION_DOWN && lastMemento.hovering) {
+            return true;
+        }
+
+        // Use the previous stream cancellation logic to generate all HOVER_EXIT events.
+        // If this hover event was generated as a result of the pointer leaving the window,
+        // the HOVER_EXIT event should have the same coordinates as the previous
+        // HOVER_MOVE event in this stream. Ensure that all HOVER_EXITs have the same
+        // coordinates as the previous event by cancelling the stream here. With this approach, the
+        // HOVER_EXIT event is generated from the previous event.
+        if (actionMasked == AMOTION_EVENT_ACTION_HOVER_EXIT && lastMemento.hovering) {
+            return true;
+        }
+
+        // If the stream changes its source, just cancel the current gesture to be safe. It's
+        // possible that the app isn't handling source changes properly
+        if (motionEntry.source != lastMemento.source) {
+            LOG(INFO) << "Canceling stream: last source was "
+                      << inputEventSourceToString(lastMemento.source) << " and new event is "
+                      << motionEntry;
+            return true;
+        }
+
+        // If the injection is happening into two different displays, the same injected device id
+        // could be going into both. And at this time, if mirroring is active, the same connection
+        // would receive different events from each display. Since the TouchStates are per-display,
+        // it's unlikely that those two streams would be consistent with each other. Therefore,
+        // cancel the previous gesture if the display id changes.
+        if (motionEntry.displayId != lastMemento.displayId) {
+            LOG(INFO) << "Canceling stream: last displayId was "
+                      << inputEventSourceToString(lastMemento.displayId) << " and new event is "
+                      << motionEntry;
+            return true;
+        }
+
+        return false;
+    }
+
+    // We want stylus down to block touch and other source types, but stylus hover should not
+    // have such an effect.
+    if (isHoverAction(motionEntry.action) && !lastMemento.hovering) {
+        // New event is a hover. Keep the current non-hovering gesture instead
+        return false;
+    }
+
+    if (isStylusEvent(lastMemento.source, lastMemento.pointerProperties) && !lastMemento.hovering) {
+        // We have non-hovering stylus already active.
+        if (isStylusEvent(motionEntry.source, motionEntry.pointerProperties) &&
+            actionMasked == AMOTION_EVENT_ACTION_DOWN) {
+            // If this new event is a stylus from a different device going down, then cancel the old
+            // stylus and allow the new stylus to take over
+            return true;
+        }
+
+        // Keep the current stylus gesture.
+        return false;
+    }
+
+    // Cancel the current gesture if this is a start of a new gesture from a new device.
+    if (actionMasked == AMOTION_EVENT_ACTION_DOWN ||
+        actionMasked == AMOTION_EVENT_ACTION_HOVER_ENTER) {
+        return true;
+    }
+    // By default, don't cancel any events.
+    return false;
+}
+
+std::unique_ptr<EventEntry> InputState::cancelConflictingInputStream(const MotionEntry& motionEntry,
+                                                                     int32_t resolvedAction) {
+    if (!shouldCancelPreviousStream(motionEntry, resolvedAction)) {
+        return {};
+    }
+
+    const MotionMemento& memento = mMotionMementos.back();
+
+    // Cancel the last device stream
+    std::unique_ptr<MotionEntry> cancelEntry =
+            createCancelEntryForMemento(memento, motionEntry.eventTime);
+
+    if (!trackMotion(*cancelEntry, cancelEntry->action, cancelEntry->flags)) {
+        LOG(FATAL) << "Generated inconsistent cancel event!";
+    }
+    return cancelEntry;
+}
+
+std::unique_ptr<MotionEntry> InputState::createCancelEntryForMemento(const MotionMemento& memento,
+                                                                     nsecs_t eventTime) const {
+    const int32_t action =
+            memento.hovering ? AMOTION_EVENT_ACTION_HOVER_EXIT : AMOTION_EVENT_ACTION_CANCEL;
+    int32_t flags = memento.flags;
+    if (action == AMOTION_EVENT_ACTION_CANCEL) {
+        flags |= AMOTION_EVENT_FLAG_CANCELED;
+    }
+    return std::make_unique<MotionEntry>(mIdGenerator.nextId(), eventTime, memento.deviceId,
+                                         memento.source, memento.displayId, memento.policyFlags,
+                                         action, /*actionButton=*/0, flags, AMETA_NONE,
+                                         /*buttonState=*/0, MotionClassification::NONE,
+                                         AMOTION_EVENT_EDGE_FLAG_NONE, memento.xPrecision,
+                                         memento.yPrecision, memento.xCursorPosition,
+                                         memento.yCursorPosition, memento.downTime,
+                                         memento.pointerProperties, memento.pointerCoords);
+}
+
 std::vector<std::unique_ptr<EventEntry>> InputState::synthesizeCancelationEvents(
         nsecs_t currentTime, const CancelationOptions& options) {
     std::vector<std::unique_ptr<EventEntry>> events;
@@ -284,24 +449,7 @@ std::vector<std::unique_ptr<EventEntry>> InputState::synthesizeCancelationEvents
     for (const MotionMemento& memento : mMotionMementos) {
         if (shouldCancelMotion(memento, options)) {
             if (options.pointerIds == std::nullopt) {
-                const int32_t action = memento.hovering ? AMOTION_EVENT_ACTION_HOVER_EXIT
-                                                        : AMOTION_EVENT_ACTION_CANCEL;
-                int32_t flags = memento.flags;
-                if (action == AMOTION_EVENT_ACTION_CANCEL) {
-                    flags |= AMOTION_EVENT_FLAG_CANCELED;
-                }
-                events.push_back(
-                        std::make_unique<MotionEntry>(mIdGenerator.nextId(), currentTime,
-                                                      memento.deviceId, memento.source,
-                                                      memento.displayId, memento.policyFlags,
-                                                      action, /*actionButton=*/0, flags, AMETA_NONE,
-                                                      /*buttonState=*/0, MotionClassification::NONE,
-                                                      AMOTION_EVENT_EDGE_FLAG_NONE,
-                                                      memento.xPrecision, memento.yPrecision,
-                                                      memento.xCursorPosition,
-                                                      memento.yCursorPosition, memento.downTime,
-                                                      memento.pointerProperties,
-                                                      memento.pointerCoords));
+                events.push_back(createCancelEntryForMemento(memento, currentTime));
             } else {
                 std::vector<std::unique_ptr<MotionEntry>> pointerCancelEvents =
                         synthesizeCancelationEventsForPointers(memento, options.pointerIds.value(),
