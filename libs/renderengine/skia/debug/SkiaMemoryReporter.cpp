@@ -18,7 +18,6 @@
 
 #include "SkiaMemoryReporter.h"
 
-#include <SkString.h>
 #include <android-base/stringprintf.h>
 #include <log/log_main.h>
 
@@ -142,7 +141,7 @@ void SkiaMemoryReporter::logOutput(std::string& log, bool wrappedResources) {
                 TraceValue traceValue = convertUnits(result->second);
                 const char* entry = (traceValue.count > 1) ? "entries" : "entry";
                 StringAppendF(&log, "  %s: %.2f %s (%d %s)\n", categoryItem->first.c_str(),
-                              traceValue.value, traceValue.units, traceValue.count, entry);
+                              traceValue.value, traceValue.units.c_str(), traceValue.count, entry);
             }
             if (mItemize) {
                 for (const auto& individualItem : resultsMap) {
@@ -153,7 +152,7 @@ void SkiaMemoryReporter::logOutput(std::string& log, bool wrappedResources) {
                         auto result = individualItem.second.find("size");
                         TraceValue size = convertUnits(result->second);
                         StringAppendF(&log, "    %s: size[%.2f %s]", individualItem.first.c_str(),
-                                      size.value, size.units);
+                                      size.value, size.units.c_str());
                         if (!wrappedResources) {
                             for (const auto& itemValues : individualItem.second) {
                                 if (strcmp("size", itemValues.first) == 0) {
@@ -162,10 +161,10 @@ void SkiaMemoryReporter::logOutput(std::string& log, bool wrappedResources) {
                                 TraceValue traceValue = convertUnits(itemValues.second);
                                 if (traceValue.value == 0.0f) {
                                     StringAppendF(&log, " %s[%s]", itemValues.first,
-                                                  traceValue.units);
+                                                  traceValue.units.c_str());
                                 } else {
                                     StringAppendF(&log, " %s[%.2f %s]", itemValues.first,
-                                                  traceValue.value, traceValue.units);
+                                                  traceValue.value, traceValue.units.c_str());
                                 }
                             }
                         }
@@ -184,16 +183,16 @@ void SkiaMemoryReporter::logTotals(std::string& log) {
     TraceValue total = convertUnits(mTotalSize);
     TraceValue purgeable = convertUnits(mPurgeableSize);
     StringAppendF(&log, " %.0f bytes, %.2f %s (%.2f %s is purgeable)\n", mTotalSize.value,
-                  total.value, total.units, purgeable.value, purgeable.units);
+                  total.value, total.units.c_str(), purgeable.value, purgeable.units.c_str());
 }
 
 SkiaMemoryReporter::TraceValue SkiaMemoryReporter::convertUnits(const TraceValue& value) {
     TraceValue output(value);
-    if (SkString("bytes") == SkString(output.units) && output.value >= 1024) {
+    if (SkString("bytes") == output.units && output.value >= 1024) {
         output.value = output.value / 1024.0f;
         output.units = "KB";
     }
-    if (SkString("KB") == SkString(output.units) && output.value >= 1024) {
+    if (SkString("KB") == output.units && output.value >= 1024) {
         output.value = output.value / 1024.0f;
         output.units = "MB";
     }
