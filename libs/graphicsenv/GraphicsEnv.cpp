@@ -530,11 +530,7 @@ bool GraphicsEnv::shouldUseAngle() {
     return mShouldUseAngle;
 }
 
-// Set ANGLE information.
-// If path is "system", it means system ANGLE must be used for the process.
-// If shouldUseNativeDriver is true, it means native GLES drivers must be used for the process.
-// If path is set to nonempty and shouldUseNativeDriver is true, ANGLE will be used regardless.
-void GraphicsEnv::setAngleInfo(const std::string& path, const bool shouldUseNativeDriver,
+void GraphicsEnv::setAngleInfo(const std::string& path, const bool shouldUseSystemAngle,
                                const std::string& packageName,
                                const std::vector<std::string> eglFeatures) {
     if (mShouldUseAngle) {
@@ -551,13 +547,8 @@ void GraphicsEnv::setAngleInfo(const std::string& path, const bool shouldUseNati
     mAnglePath = std::move(path);
     ALOGV("setting app package name to '%s'", packageName.c_str());
     mPackageName = std::move(packageName);
-    if (mAnglePath == "system") {
-        mShouldUseSystemAngle = true;
-    }
-    if (!mAnglePath.empty()) {
-        mShouldUseAngle = true;
-    }
-    mShouldUseNativeDriver = shouldUseNativeDriver;
+    mShouldUseAngle = true;
+    mShouldUseSystemAngle = shouldUseSystemAngle;
 }
 
 std::string& GraphicsEnv::getPackageName() {
@@ -632,10 +623,6 @@ void GraphicsEnv::nativeToggleAngleAsSystemDriver(bool enabled) {
 
 bool GraphicsEnv::shouldUseSystemAngle() {
     return mShouldUseSystemAngle;
-}
-
-bool GraphicsEnv::shouldUseNativeDriver() {
-    return mShouldUseNativeDriver;
 }
 
 /**
