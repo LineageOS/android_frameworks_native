@@ -257,6 +257,10 @@ enum class KeyState {
 
 bool isStylusToolType(ToolType toolType);
 
+struct PointerProperties;
+
+bool isStylusEvent(uint32_t source, const std::vector<PointerProperties>& properties);
+
 /*
  * Flags that flow alongside events in the input dispatch system to help with certain
  * policy decisions such as waking from device sleep.

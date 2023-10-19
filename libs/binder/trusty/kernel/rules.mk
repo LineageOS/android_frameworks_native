@@ -31,6 +31,7 @@ MODULE_SRCS := \
 	$(LIBBINDER_DIR)/FdTrigger.cpp \
 	$(LIBBINDER_DIR)/IInterface.cpp \
 	$(LIBBINDER_DIR)/IResultReceiver.cpp \
+	$(LIBBINDER_DIR)/OS_android.cpp \
 	$(LIBBINDER_DIR)/Parcel.cpp \
 	$(LIBBINDER_DIR)/Stability.cpp \
 	$(LIBBINDER_DIR)/Status.cpp \

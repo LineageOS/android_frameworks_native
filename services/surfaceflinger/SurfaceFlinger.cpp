@@ -869,7 +869,9 @@ void SurfaceFlinger::init() FTL_FAKE_GUARD(kMainThreadContext) {
             ALOGW("Can't set SCHED_OTHER for primeCache");
         }
 
-        mRenderEnginePrimeCacheFuture = getRenderEngine().primeCache();
+        bool shouldPrimeUltraHDR =
+                base::GetBoolProperty("ro.surface_flinger.prime_shader_cache.ultrahdr"s, false);
+        mRenderEnginePrimeCacheFuture = getRenderEngine().primeCache(shouldPrimeUltraHDR);
 
         if (setSchedFifo(true) != NO_ERROR) {
             ALOGW("Can't set SCHED_OTHER for primeCache");
@@ -2399,8 +2401,6 @@ bool SurfaceFlinger::updateLayerSnapshots(VsyncId vsyncId, nsecs_t frameTimeNs,
             mLayerLifecycleManager.commitChanges();
         }
 
-        commitTransactions();
-
         // enter boot animation on first buffer latch
         if (CC_UNLIKELY(mBootStage == BootStage::BOOTLOADER && newDataLatched)) {
             ALOGI("Enter boot animation");
@@ -2408,6 +2408,10 @@ bool SurfaceFlinger::updateLayerSnapshots(VsyncId vsyncId, nsecs_t frameTimeNs,
         }
     }
     mustComposite |= (getTransactionFlags() & ~eTransactionFlushNeeded) || newDataLatched;
+    if (mustComposite && !mLegacyFrontEndEnabled) {
+        commitTransactions();
+    }
+
     return mustComposite;
 }
 
@@ -2498,7 +2502,8 @@ bool SurfaceFlinger::commit(PhysicalDisplayId pacesetterId,
     {
         mFrameTimeline->setSfWakeUp(ftl::to_underlying(vsyncId),
                                     pacesetterFrameTarget.frameBeginTime().ns(),
-                                    Fps::fromPeriodNsecs(vsyncPeriod.ns()));
+                                    Fps::fromPeriodNsecs(vsyncPeriod.ns()),
+                                    mScheduler->getPacesetterRefreshRate());
 
         const bool flushTransactions = clearTransactionFlags(eTransactionFlushNeeded);
         bool transactionsAreEmpty;

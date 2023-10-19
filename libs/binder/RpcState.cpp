@@ -408,10 +408,11 @@ bool RpcState::validateProtocolVersion(uint32_t version) {
         char codename[PROPERTY_VALUE_MAX];
         property_get("ro.build.version.codename", codename, "");
         if (!strcmp(codename, "REL")) {
-            ALOGE("Cannot use experimental RPC binder protocol on a release branch.");
+            ALOGE("Cannot use experimental RPC binder protocol in a release configuration.");
             return false;
         }
 #else
+        // TODO(b/305983144)
         // don't restrict on other platforms, though experimental should
         // only really be used for testing, we don't have a good way to see
         // what is shipping outside of Android

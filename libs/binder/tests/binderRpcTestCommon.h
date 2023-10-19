@@ -70,12 +70,23 @@ static inline std::vector<RpcSecurity> RpcSecurityValues() {
     return {RpcSecurity::RAW, RpcSecurity::TLS};
 }
 
+static inline bool hasExperimentalRpc() {
+#ifdef __ANDROID__
+    return base::GetProperty("ro.build.version.codename", "") != "REL";
+#else
+    // TODO(b/305983144): restrict on other platforms
+    return true;
+#endif
+}
+
 static inline std::vector<uint32_t> testVersions() {
     std::vector<uint32_t> versions;
     for (size_t i = 0; i < RPC_WIRE_PROTOCOL_VERSION_NEXT; i++) {
         versions.push_back(i);
     }
-    versions.push_back(RPC_WIRE_PROTOCOL_VERSION_EXPERIMENTAL);
+    if (hasExperimentalRpc()) {
+        versions.push_back(RPC_WIRE_PROTOCOL_VERSION_EXPERIMENTAL);
+    }
     return versions;
 }
 
