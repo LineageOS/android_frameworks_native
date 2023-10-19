@@ -32,14 +32,6 @@ flag {
 }
 
 flag {
-  name: "vrr_small_dirty_detection"
-  namespace: "core_graphics"
-  description: "Controls small dirty detection for VRR"
-  bug: "283055450"
-  is_fixed_read_only: true
-}
-
-flag {
   name: "dont_skip_on_early"
   namespace: "core_graphics"
   description: "This flag is guarding the behaviour where SurfaceFlinger is trying to opportunistically present a frame when the configuration change from late to early"
@@ -51,5 +43,13 @@ flag {
   namespace: "core_graphics"
   description: "Controls whether to offload present calls to another thread"
   bug: "259132483"
+  is_fixed_read_only: true
+}
+
+flag {
+  name: "enable_small_area_detection"
+  namespace: "core_graphics"
+  description: "Feature flag for SmallAreaDetection"
+  bug: "283055450"
   is_fixed_read_only: true
 }
