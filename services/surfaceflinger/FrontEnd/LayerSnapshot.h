@@ -84,6 +84,7 @@ struct LayerSnapshot : public compositionengine::LayerFECompositionState {
     bool isTrustedOverlay;
     gui::GameMode gameMode;
     scheduler::LayerInfo::FrameRate frameRate;
+    scheduler::LayerInfo::FrameRate inheritedFrameRate;
     scheduler::LayerInfo::FrameRateSelectionStrategy frameRateSelectionStrategy;
     scheduler::FrameRateCompatibility defaultFrameRateCompatibility =
             scheduler::FrameRateCompatibility::Default;
