@@ -16,5 +16,6 @@
 
 #include <android/data_space.h>
 #include <android/hardware_buffer.h>
+#include <android/hardware_buffer_aidl.h>
 #include <android/hdr_metadata.h>
 #include <android/native_window.h>
