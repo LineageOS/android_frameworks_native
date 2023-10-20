@@ -1575,6 +1575,7 @@ void AidlComposer::onHotplugDisconnect(Display display) {
 }
 
 bool AidlComposer::hasMultiThreadedPresentSupport(Display display) {
+    if (!FlagManager::getInstance().multithreaded_present()) return false;
     const auto displayId = translate<int64_t>(display);
     std::vector<AidlDisplayCapability> capabilities;
     const auto status = mAidlComposerClient->getDisplayCapabilities(displayId, &capabilities);
