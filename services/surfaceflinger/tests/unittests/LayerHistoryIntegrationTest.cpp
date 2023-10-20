@@ -866,6 +866,104 @@ TEST_P(LayerHistoryIntegrationTestParameterized, HeuristicLayerWithInfrequentLay
     }
 }
 
+class SmallAreaDetectionTest : public LayerHistoryIntegrationTest {
+protected:
+    static constexpr int32_t DISPLAY_WIDTH = 100;
+    static constexpr int32_t DISPLAY_HEIGHT = 100;
+
+    static constexpr int32_t kAppId1 = 10100;
+    static constexpr int32_t kAppId2 = 10101;
+
+    static constexpr float kThreshold1 = 0.05f;
+    static constexpr float kThreshold2 = 0.07f;
+
+    SmallAreaDetectionTest() : LayerHistoryIntegrationTest() {
+        std::vector<std::pair<int32_t, float>> mappings;
+        mappings.reserve(2);
+        mappings.push_back(std::make_pair(kAppId1, kThreshold1));
+        mappings.push_back(std::make_pair(kAppId2, kThreshold2));
+
+        mFlinger.enableNewFrontEnd();
+
+        mScheduler->onActiveDisplayAreaChanged(DISPLAY_WIDTH * DISPLAY_HEIGHT);
+        mScheduler->updateSmallAreaDetection(mappings);
+    }
+
+    auto createLegacyAndFrontedEndLayer(uint32_t sequence) {
+        std::string layerName = "test layer:" + std::to_string(sequence);
+
+        LayerCreationArgs args = LayerCreationArgs{mFlinger.flinger(),
+                                                   nullptr,
+                                                   layerName,
+                                                   0,
+                                                   {},
+                                                   std::make_optional<uint32_t>(sequence)};
+        args.ownerUid = kAppId1;
+        args.metadata.setInt32(gui::METADATA_WINDOW_TYPE, 2); // APPLICATION
+        const auto layer = sp<Layer>::make(args);
+        mFlinger.injectLegacyLayer(layer);
+        createRootLayer(sequence);
+        return layer;
+    }
+};
+
+TEST_F(SmallAreaDetectionTest, SmallDirtyLayer) {
+    auto layer = createLegacyAndFrontedEndLayer(1);
+
+    nsecs_t time = systemTime();
+
+    EXPECT_EQ(1u, layerCount());
+    EXPECT_EQ(0u, activeLayerCount());
+    EXPECT_EQ(0, frequentLayerCount(time));
+
+    uint32_t sequence = static_cast<uint32_t>(layer->sequence);
+    setBuffer(sequence);
+    setDamageRegion(sequence, Region(Rect(10, 10)));
+    updateLayerSnapshotsAndLayerHistory(time);
+
+    ASSERT_EQ(true, mFlinger.mutableLayerSnapshotBuilder().getSnapshot(1)->isSmallDirty);
+}
+
+TEST_F(SmallAreaDetectionTest, NotSmallDirtyLayer) {
+    auto layer = createLegacyAndFrontedEndLayer(1);
+
+    nsecs_t time = systemTime();
+
+    EXPECT_EQ(1u, layerCount());
+    EXPECT_EQ(0u, activeLayerCount());
+    EXPECT_EQ(0, frequentLayerCount(time));
+
+    uint32_t sequence = static_cast<uint32_t>(layer->sequence);
+    setBuffer(sequence);
+    setDamageRegion(sequence, Region(Rect(50, 50)));
+    updateLayerSnapshotsAndLayerHistory(time);
+
+    ASSERT_EQ(false, mFlinger.mutableLayerSnapshotBuilder().getSnapshot(1)->isSmallDirty);
+}
+
+TEST_F(SmallAreaDetectionTest, smallDirtyLayerWithMatrix) {
+    auto layer = createLegacyAndFrontedEndLayer(1);
+
+    nsecs_t time = systemTime();
+
+    EXPECT_EQ(1u, layerCount());
+    EXPECT_EQ(0u, activeLayerCount());
+    EXPECT_EQ(0, frequentLayerCount(time));
+
+    // Original damage region is a small dirty.
+    uint32_t sequence = static_cast<uint32_t>(layer->sequence);
+    setBuffer(sequence);
+    setDamageRegion(sequence, Region(Rect(20, 20)));
+    updateLayerSnapshotsAndLayerHistory(time);
+    ASSERT_EQ(true, mFlinger.mutableLayerSnapshotBuilder().getSnapshot(1)->isSmallDirty);
+
+    setMatrix(sequence, 2.0f, 0, 0, 2.0f);
+    updateLayerSnapshotsAndLayerHistory(time);
+
+    // Verify if the small dirty is scaled.
+    ASSERT_EQ(false, mFlinger.mutableLayerSnapshotBuilder().getSnapshot(1)->isSmallDirty);
+}
+
 INSTANTIATE_TEST_CASE_P(LeapYearTests, LayerHistoryIntegrationTestParameterized,
                         ::testing::Values(1s, 2s, 3s, 4s, 5s));
 
