@@ -215,8 +215,8 @@ MotionEntry::MotionEntry(int32_t id, nsecs_t eventTime, int32_t deviceId, uint32
                          int32_t buttonState, MotionClassification classification,
                          int32_t edgeFlags, float xPrecision, float yPrecision,
                          float xCursorPosition, float yCursorPosition, nsecs_t downTime,
-                         uint32_t pointerCount, const PointerProperties* pointerProperties,
-                         const PointerCoords* pointerCoords)
+                         const std::vector<PointerProperties>& pointerProperties,
+                         const std::vector<PointerCoords>& pointerCoords)
       : EventEntry(id, Type::MOTION, eventTime, policyFlags),
         deviceId(deviceId),
         source(source),
@@ -233,12 +233,8 @@ MotionEntry::MotionEntry(int32_t id, nsecs_t eventTime, int32_t deviceId, uint32
         xCursorPosition(xCursorPosition),
         yCursorPosition(yCursorPosition),
         downTime(downTime),
-        pointerCount(pointerCount) {
-    for (uint32_t i = 0; i < pointerCount; i++) {
-        this->pointerProperties[i] = pointerProperties[i];
-        this->pointerCoords[i] = pointerCoords[i];
-    }
-}
+        pointerProperties(pointerProperties),
+        pointerCoords(pointerCoords) {}
 
 MotionEntry::~MotionEntry() {}
 
@@ -258,7 +254,7 @@ std::string MotionEntry::getDescription() const {
                         buttonState, motionClassificationToString(classification), edgeFlags,
                         xPrecision, yPrecision, xCursorPosition, yCursorPosition);
 
-    for (uint32_t i = 0; i < pointerCount; i++) {
+    for (uint32_t i = 0; i < getPointerCount(); i++) {
         if (i) {
             msg += ", ";
         }
