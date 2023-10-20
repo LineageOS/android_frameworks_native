@@ -70,8 +70,6 @@ interface IInstalld {
     // Blocks (when block is true) or unblock (when block is false) dexopt.
     // Blocking also invloves cancelling the currently running dexopt.
     void controlDexOptBlocking(boolean block);
-    boolean compileLayouts(@utf8InCpp String apkPath, @utf8InCpp String packageName,
-            @utf8InCpp String outDexFile, int uid);
 
     void rmdex(@utf8InCpp String codePath, @utf8InCpp String instructionSet);
 
