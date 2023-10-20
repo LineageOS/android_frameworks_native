@@ -200,6 +200,7 @@ public:
     FrameRate getSetFrameRateVote() const;
     bool isVisible() const;
     int32_t getFrameRateSelectionPriority() const;
+    bool isFrontBuffered() const;
     FloatRect getBounds() const;
     ui::Transform getTransform() const;
 
@@ -360,6 +361,7 @@ struct LayerProps {
     LayerInfo::FrameRate setFrameRateVote;
     int32_t frameRateSelectionPriority = -1;
     bool isSmallDirty = false;
+    bool isFrontBuffered = false;
 };
 
 } // namespace scheduler

@@ -143,6 +143,7 @@ struct LayerSnapshot : public compositionengine::LayerFECompositionState {
     std::string getIsVisibleReason() const;
     bool hasInputInfo() const;
     FloatRect sourceBounds() const;
+    bool isFrontBuffered() const;
     Hwc2::IComposerClient::BlendMode getBlendMode(const RequestedLayerState& requested) const;
     friend std::ostream& operator<<(std::ostream& os, const LayerSnapshot& obj);
     void merge(const RequestedLayerState& requested, bool forceUpdate, bool displayChanges,

@@ -334,6 +334,14 @@ LayerInfo::RefreshRateVotes LayerInfo::getRefreshRateVote(const RefreshRateSelec
         return votes;
     }
 
+    // Vote for max refresh rate whenever we're front-buffered.
+    if (FlagManager::getInstance().vrr_config() && isFrontBuffered()) {
+        ATRACE_FORMAT_INSTANT("front buffered");
+        ALOGV("%s is front-buffered", mName.c_str());
+        votes.push_back({LayerHistory::LayerVoteType::Max, Fps()});
+        return votes;
+    }
+
     const LayerInfo::Frequent frequent = isFrequent(now);
     mIsFrequencyConclusive = frequent.isConclusive;
     if (!frequent.isFrequent) {
@@ -392,6 +400,10 @@ bool LayerInfo::isVisible() const {
 
 int32_t LayerInfo::getFrameRateSelectionPriority() const {
     return mLayerProps->frameRateSelectionPriority;
+}
+
+bool LayerInfo::isFrontBuffered() const {
+    return mLayerProps->isFrontBuffered;
 }
 
 FloatRect LayerInfo::getBounds() const {

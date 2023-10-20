@@ -332,6 +332,14 @@ FloatRect LayerSnapshot::sourceBounds() const {
     return geomBufferSize.toFloatRect();
 }
 
+bool LayerSnapshot::isFrontBuffered() const {
+    if (!externalTexture) {
+        return false;
+    }
+
+    return externalTexture->getUsage() & AHARDWAREBUFFER_USAGE_FRONT_BUFFER;
+}
+
 Hwc2::IComposerClient::BlendMode LayerSnapshot::getBlendMode(
         const RequestedLayerState& requested) const {
     auto blendMode = Hwc2::IComposerClient::BlendMode::NONE;

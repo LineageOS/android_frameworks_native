@@ -51,6 +51,11 @@ bool isLayerActive(const LayerInfo& info, nsecs_t threshold) {
         return true;
     }
 
+    // Make all front buffered layers active
+    if (FlagManager::getInstance().vrr_config() && info.isFrontBuffered() && info.isVisible()) {
+        return true;
+    }
+
     return info.isVisible() && info.getLastUpdatedTime() >= threshold;
 }
 
