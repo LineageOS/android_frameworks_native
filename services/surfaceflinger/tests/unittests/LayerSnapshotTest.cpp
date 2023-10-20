@@ -282,17 +282,7 @@ TEST_F(LayerSnapshotTest, NoLayerVoteForParentWithChildVotes) {
     // │   └── 13
     // └── 2
 
-    std::vector<TransactionState> transactions;
-    transactions.emplace_back();
-    transactions.back().states.push_back({});
-    transactions.back().states.front().state.what = layer_state_t::eFrameRateChanged;
-    transactions.back().states.front().state.frameRate = 90.0;
-    transactions.back().states.front().state.frameRateCompatibility =
-            ANATIVEWINDOW_FRAME_RATE_EXACT;
-    transactions.back().states.front().state.changeFrameRateStrategy =
-            ANATIVEWINDOW_CHANGE_FRAME_RATE_ALWAYS;
-    transactions.back().states.front().layerId = 11;
-    mLifecycleManager.applyTransactions(transactions);
+    setFrameRate(11, 90.0, ANATIVEWINDOW_FRAME_RATE_EXACT, ANATIVEWINDOW_CHANGE_FRAME_RATE_ALWAYS);
     UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
 
     EXPECT_EQ(getSnapshot(11)->frameRate.vote.rate.getIntValue(), 90);
@@ -301,6 +291,42 @@ TEST_F(LayerSnapshotTest, NoLayerVoteForParentWithChildVotes) {
     EXPECT_EQ(getSnapshot(111)->frameRate.vote.type, scheduler::FrameRateCompatibility::Exact);
     EXPECT_EQ(getSnapshot(1)->frameRate.vote.rate.getIntValue(), 0);
     EXPECT_EQ(getSnapshot(1)->frameRate.vote.type, scheduler::FrameRateCompatibility::NoVote);
+}
+
+TEST_F(LayerSnapshotTest, NoLayerVoteForParentWithChildVotesDoesNotAffectSiblings) {
+    // ROOT
+    // ├── 1 (verify layer has no vote)
+    // │   ├── 11 (frame rate set)
+    // │   │   └── 111
+    // │   ├── 12 (frame rate set)
+    // │   │   ├── 121
+    // │   │   └── 122
+    // │   │       └── 1221
+    // │   └── 13 (verify layer has default vote)
+    // └── 2
+
+    setFrameRate(11, 90.0, ANATIVEWINDOW_FRAME_RATE_EXACT, ANATIVEWINDOW_CHANGE_FRAME_RATE_ALWAYS);
+    setFrameRate(12, 45.0, ANATIVEWINDOW_FRAME_RATE_EXACT, ANATIVEWINDOW_CHANGE_FRAME_RATE_ALWAYS);
+
+    UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
+
+    EXPECT_EQ(getSnapshot(11)->frameRate.vote.rate.getIntValue(), 90);
+    EXPECT_EQ(getSnapshot(11)->frameRate.vote.type, scheduler::FrameRateCompatibility::Exact);
+    EXPECT_EQ(getSnapshot(111)->frameRate.vote.rate.getIntValue(), 90);
+    EXPECT_EQ(getSnapshot(111)->frameRate.vote.type, scheduler::FrameRateCompatibility::Exact);
+    EXPECT_EQ(getSnapshot(12)->frameRate.vote.rate.getIntValue(), 45);
+    EXPECT_EQ(getSnapshot(12)->frameRate.vote.type, scheduler::FrameRateCompatibility::Exact);
+    EXPECT_EQ(getSnapshot(121)->frameRate.vote.rate.getIntValue(), 45);
+    EXPECT_EQ(getSnapshot(121)->frameRate.vote.type, scheduler::FrameRateCompatibility::Exact);
+    EXPECT_EQ(getSnapshot(1221)->frameRate.vote.rate.getIntValue(), 45);
+    EXPECT_EQ(getSnapshot(1221)->frameRate.vote.type, scheduler::FrameRateCompatibility::Exact);
+
+    EXPECT_EQ(getSnapshot(1)->frameRate.vote.rate.getIntValue(), 0);
+    EXPECT_EQ(getSnapshot(1)->frameRate.vote.type, scheduler::FrameRateCompatibility::NoVote);
+    EXPECT_EQ(getSnapshot(13)->frameRate.vote.rate.getIntValue(), 0);
+    EXPECT_EQ(getSnapshot(13)->frameRate.vote.type, scheduler::FrameRateCompatibility::Default);
+    EXPECT_EQ(getSnapshot(2)->frameRate.vote.rate.getIntValue(), 0);
+    EXPECT_EQ(getSnapshot(2)->frameRate.vote.type, scheduler::FrameRateCompatibility::Default);
 }
 
 TEST_F(LayerSnapshotTest, CanCropTouchableRegion) {
