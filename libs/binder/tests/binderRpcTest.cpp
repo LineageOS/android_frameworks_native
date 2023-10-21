@@ -14,7 +14,10 @@
  * limitations under the License.
  */
 
+#ifndef __ANDROID_VENDOR__
+// only used on NDK tests outside of vendor
 #include <aidl/IBinderRpcTest.h>
+#endif
 #include <android-base/stringprintf.h>
 
 #include <chrono>
