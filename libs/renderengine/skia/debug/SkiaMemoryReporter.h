@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <SkString.h>
 #include <SkTraceMemoryDump.h>
 
 #include <string>
@@ -75,7 +76,7 @@ private:
         TraceValue(const char* units, uint64_t value) : units(units), value(value), count(1) {}
         TraceValue(const TraceValue& v) : units(v.units), value(v.value), count(v.count) {}
 
-        const char* units;
+        SkString units;
         float value;
         int count;
     };

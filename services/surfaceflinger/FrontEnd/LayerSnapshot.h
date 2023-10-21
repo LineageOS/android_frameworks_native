@@ -84,6 +84,7 @@ struct LayerSnapshot : public compositionengine::LayerFECompositionState {
     bool isTrustedOverlay;
     gui::GameMode gameMode;
     scheduler::LayerInfo::FrameRate frameRate;
+    scheduler::LayerInfo::FrameRate inheritedFrameRate;
     scheduler::LayerInfo::FrameRateSelectionStrategy frameRateSelectionStrategy;
     scheduler::FrameRateCompatibility defaultFrameRateCompatibility =
             scheduler::FrameRateCompatibility::Default;
@@ -122,6 +123,8 @@ struct LayerSnapshot : public compositionengine::LayerFECompositionState {
         ReachableByRelativeParent
     };
     Reachablilty reachablilty;
+    // True when the surfaceDamage is recognized as a small area update.
+    bool isSmallDirty = false;
 
     static bool isOpaqueFormat(PixelFormat format);
     static bool isTransformValid(const ui::Transform& t);

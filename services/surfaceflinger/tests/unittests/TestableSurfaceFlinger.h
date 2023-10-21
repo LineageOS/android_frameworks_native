@@ -670,6 +670,11 @@ public:
         return mFlinger->initTransactionTraceWriter();
     }
 
+    void enableNewFrontEnd() {
+        mFlinger->mLayerLifecycleManagerEnabled = true;
+        mFlinger->mLegacyFrontEndEnabled = false;
+    }
+
     ~TestableSurfaceFlinger() {
         // All these pointer and container clears help ensure that GMock does
         // not report a leaked object, since the SurfaceFlinger instance may

@@ -40,16 +40,18 @@ using base::StringAppendF;
 
 namespace {
 
-nsecs_t getExpectedCallbackTime(nsecs_t nextVsyncTime,
+nsecs_t getExpectedCallbackTime(nsecs_t now, nsecs_t nextVsyncTime,
                                 const VSyncDispatch::ScheduleTiming& timing) {
-    return nextVsyncTime - timing.readyDuration - timing.workDuration;
+    const auto expectedCallbackTime = nextVsyncTime - timing.readyDuration - timing.workDuration;
+    const auto baseTime = flags::dont_skip_on_early() ? now : expectedCallbackTime;
+    return std::max(baseTime, expectedCallbackTime);
 }
 
 nsecs_t getExpectedCallbackTime(VSyncTracker& tracker, nsecs_t now,
                                 const VSyncDispatch::ScheduleTiming& timing) {
     const auto nextVsyncTime = tracker.nextAnticipatedVSyncTimeFrom(
             std::max(timing.earliestVsync, now + timing.workDuration + timing.readyDuration));
-    return getExpectedCallbackTime(nextVsyncTime, timing);
+    return getExpectedCallbackTime(now, nextVsyncTime, timing);
 }
 
 } // namespace
@@ -105,11 +107,11 @@ ScheduleResult VSyncDispatchTimerQueueEntry::schedule(VSyncDispatch::ScheduleTim
             mArmedInfo && ((nextWakeupTime > (mArmedInfo->mActualWakeupTime + mMinVsyncDistance)));
     if (flags::dont_skip_on_early()) {
         if (wouldSkipAVsyncTarget || wouldSkipAWakeup) {
-            return getExpectedCallbackTime(mArmedInfo->mActualVsyncTime, timing);
+            return getExpectedCallbackTime(now, mArmedInfo->mActualVsyncTime, timing);
         }
     } else {
         if (wouldSkipAVsyncTarget && wouldSkipAWakeup) {
-            return getExpectedCallbackTime(nextVsyncTime, timing);
+            return getExpectedCallbackTime(now, nextVsyncTime, timing);
         }
     }
 
@@ -119,7 +121,7 @@ ScheduleResult VSyncDispatchTimerQueueEntry::schedule(VSyncDispatch::ScheduleTim
     auto const nextReadyTime = nextVsyncTime - timing.readyDuration;
     mScheduleTiming = timing;
     mArmedInfo = {nextWakeupTime, nextVsyncTime, nextReadyTime};
-    return getExpectedCallbackTime(nextVsyncTime, timing);
+    return getExpectedCallbackTime(now, nextVsyncTime, timing);
 }
 
 void VSyncDispatchTimerQueueEntry::addPendingWorkloadUpdate(VSyncDispatch::ScheduleTiming timing) {

@@ -48,6 +48,10 @@ public:
     // and should be skipped.
     bool trackMotion(const MotionEntry& entry, int32_t action, int32_t flags);
 
+    // Create cancel events for the previous stream if the current motionEntry requires it.
+    std::unique_ptr<EventEntry> cancelConflictingInputStream(const MotionEntry& motionEntry,
+                                                             int32_t resolvedAction);
+
     // Synthesizes cancelation events for the current state and resets the tracked state.
     std::vector<std::unique_ptr<EventEntry>> synthesizeCancelationEvents(
             nsecs_t currentTime, const CancelationOptions& options);
@@ -123,6 +127,9 @@ private:
 
     static bool shouldCancelKey(const KeyMemento& memento, const CancelationOptions& options);
     static bool shouldCancelMotion(const MotionMemento& memento, const CancelationOptions& options);
+    bool shouldCancelPreviousStream(const MotionEntry& motionEntry, int32_t resolvedAction) const;
+    std::unique_ptr<MotionEntry> createCancelEntryForMemento(const MotionMemento& memento,
+                                                             nsecs_t eventTime) const;
 
     // Synthesizes pointer cancel events for a particular set of pointers.
     std::vector<std::unique_ptr<MotionEntry>> synthesizeCancelationEventsForPointers(

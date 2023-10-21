@@ -64,8 +64,17 @@ int main(int argc, char** argv) {
 
     if (!LayerTraceGenerator().generate(transactionTraceFile, traceFlags, layerTracing,
                                         generateLastEntryOnly)) {
-        std::cout << "Error: Failed to generate layers trace " << outputLayersTracePath;
+        std::cout << "Error: Failed to generate layers trace " << outputLayersTracePath << "\n";
         return -1;
     }
+
+    // Set output file permissions (-rw-r--r--)
+    outStream.close();
+    const mode_t mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
+    if (chmod(outputLayersTracePath, mode) != 0) {
+        std::cout << "Error: Failed to set permissions of " << outputLayersTracePath << "\n";
+        return -1;
+    }
+
     return 0;
 }

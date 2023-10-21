@@ -45,12 +45,16 @@ bool TouchedWindow::hasHoveringPointers(DeviceId deviceId) const {
     return state.hoveringPointerIds.any();
 }
 
-void TouchedWindow::clearHoveringPointers() {
-    for (auto& [_, state] : mDeviceStates) {
-        state.hoveringPointerIds.reset();
+void TouchedWindow::clearHoveringPointers(DeviceId deviceId) {
+    auto stateIt = mDeviceStates.find(deviceId);
+    if (stateIt == mDeviceStates.end()) {
+        return;
     }
-
-    std::erase_if(mDeviceStates, [](const auto& pair) { return !pair.second.hasPointers(); });
+    DeviceState& state = stateIt->second;
+    state.hoveringPointerIds.reset();
+    if (!state.hasPointers()) {
+        mDeviceStates.erase(stateIt);
+    }
 }
 
 bool TouchedWindow::hasHoveringPointer(DeviceId deviceId, int32_t pointerId) const {

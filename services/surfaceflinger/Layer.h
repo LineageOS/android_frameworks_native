@@ -937,7 +937,8 @@ public:
     const sp<SurfaceFlinger> mFlinger;
 
     // Check if the damage region is a small dirty.
-    void setIsSmallDirty();
+    void setIsSmallDirty(const Region& damageRegion, const ui::Transform& layerToDisplayTransform);
+    void setIsSmallDirty(frontend::LayerSnapshot* snapshot);
 
 protected:
     // For unit tests
@@ -1235,9 +1236,6 @@ private:
 
     ReleaseCallbackId mPreviousReleaseCallbackId = ReleaseCallbackId::INVALID_ID;
     sp<IBinder> mPreviousReleaseBufferEndpoint;
-    uint64_t mPreviousReleasedFrameNumber = 0;
-
-    uint64_t mPreviousBarrierFrameNumber = 0;
 
     bool mReleasePreviousBuffer = false;
 

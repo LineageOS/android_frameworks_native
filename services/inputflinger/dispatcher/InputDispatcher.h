@@ -524,7 +524,7 @@ private:
             nsecs_t currentTime, const EventEntry& entry, nsecs_t* nextWakeupTime,
             android::os::InputEventInjectionResult& outInjectionResult) REQUIRES(mLock);
     std::vector<InputTarget> findTouchedWindowTargetsLocked(
-            nsecs_t currentTime, const MotionEntry& entry, bool* outConflictingPointerActions,
+            nsecs_t currentTime, const MotionEntry& entry,
             android::os::InputEventInjectionResult& outInjectionResult) REQUIRES(mLock);
     std::vector<Monitor> selectResponsiveMonitorsLocked(
             const std::vector<Monitor>& gestureMonitors) const REQUIRES(mLock);
@@ -535,9 +535,13 @@ private:
             std::optional<nsecs_t> firstDownTimeInTarget) const REQUIRES(mLock);
     void addWindowTargetLocked(const sp<android::gui::WindowInfoHandle>& windowHandle,
                                ftl::Flags<InputTarget::Flags> targetFlags,
-                               std::bitset<MAX_POINTER_ID + 1> pointerIds,
                                std::optional<nsecs_t> firstDownTimeInTarget,
                                std::vector<InputTarget>& inputTargets) const REQUIRES(mLock);
+    void addPointerWindowTargetLocked(const sp<android::gui::WindowInfoHandle>& windowHandle,
+                                      ftl::Flags<InputTarget::Flags> targetFlags,
+                                      std::bitset<MAX_POINTER_ID + 1> pointerIds,
+                                      std::optional<nsecs_t> firstDownTimeInTarget,
+                                      std::vector<InputTarget>& inputTargets) const REQUIRES(mLock);
     void addGlobalMonitoringTargetsLocked(std::vector<InputTarget>& inputTargets, int32_t displayId)
             REQUIRES(mLock);
     void pokeUserActivityLocked(const EventEntry& eventEntry) REQUIRES(mLock);

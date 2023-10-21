@@ -684,7 +684,8 @@ private:
     void setDesiredActiveMode(display::DisplayModeRequest&&, bool force = false)
             REQUIRES(mStateLock);
 
-    status_t setActiveModeFromBackdoor(const sp<display::DisplayToken>&, DisplayModeId);
+    status_t setActiveModeFromBackdoor(const sp<display::DisplayToken>&, DisplayModeId, Fps minFps,
+                                       Fps maxFps);
 
     void initiateDisplayModeChanges() REQUIRES(mStateLock, kMainThreadContext);
     void finalizeDisplayModeChange(DisplayDevice&) REQUIRES(mStateLock, kMainThreadContext);
