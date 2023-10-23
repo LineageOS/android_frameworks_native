@@ -189,6 +189,13 @@ flag {
   namespace: "core_graphics"
   description: "This flag is guarding the behaviour where SurfaceFlinger is trying to opportunistically present a frame when the configuration change from late to early"
   bug: "273702768"
+}
+
+flag {
+  name: "protected_if_client"
+  namespace: "core_graphics"
+  description: "Only set the RenderSurface to protected if protected layers are in client composition."
+  bug: "307674749"
   is_fixed_read_only: true
   metadata {
     purpose: PURPOSE_BUGFIX
