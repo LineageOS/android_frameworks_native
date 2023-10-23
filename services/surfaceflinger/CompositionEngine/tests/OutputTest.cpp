@@ -3992,6 +3992,7 @@ struct OutputComposeSurfacesTest_HandlesProtectedContent : public OutputComposeS
         Layer() {
             EXPECT_CALL(*mLayerFE, getCompositionState()).WillRepeatedly(Return(&mLayerFEState));
             EXPECT_CALL(mOutputLayer, getLayerFE()).WillRepeatedly(ReturnRef(*mLayerFE));
+            EXPECT_CALL(mOutputLayer, requiresClientComposition()).WillRepeatedly(Return(true));
         }
 
         StrictMock<mock::OutputLayer> mOutputLayer;
@@ -4968,6 +4969,70 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
     ASSERT_EQ(1u, requests.size());
 
     EXPECT_EQ(mLayers[2].mLayerSettings, requests[0]);
+}
+
+/*
+ * Output::updateProtectedContentState()
+ */
+
+struct OutputUpdateProtectedContentStateTest : public testing::Test {
+    struct OutputPartialMock : public OutputPartialMockBase {
+        // Sets up the helper functions called by the function under test to use
+        // mock implementations.
+        MOCK_CONST_METHOD0(getCompositionEngine, const CompositionEngine&());
+    };
+
+    OutputUpdateProtectedContentStateTest() {
+        mOutput.setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(mRenderSurface));
+        EXPECT_CALL(mOutput, getCompositionEngine()).WillRepeatedly(ReturnRef(mCompositionEngine));
+        EXPECT_CALL(mCompositionEngine, getRenderEngine()).WillRepeatedly(ReturnRef(mRenderEngine));
+        EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(2u));
+        EXPECT_CALL(mOutput, getOutputLayerOrderedByZByIndex(0))
+                .WillRepeatedly(Return(&mLayer1.mOutputLayer));
+        EXPECT_CALL(mOutput, getOutputLayerOrderedByZByIndex(1))
+                .WillRepeatedly(Return(&mLayer2.mOutputLayer));
+    }
+
+    struct Layer {
+        Layer() {
+            EXPECT_CALL(*mLayerFE, getCompositionState()).WillRepeatedly(Return(&mLayerFEState));
+            EXPECT_CALL(mOutputLayer, getLayerFE()).WillRepeatedly(ReturnRef(*mLayerFE));
+        }
+
+        StrictMock<mock::OutputLayer> mOutputLayer;
+        sp<StrictMock<mock::LayerFE>> mLayerFE = sp<StrictMock<mock::LayerFE>>::make();
+        LayerFECompositionState mLayerFEState;
+    };
+
+    mock::RenderSurface* mRenderSurface = new StrictMock<mock::RenderSurface>();
+    StrictMock<OutputPartialMock> mOutput;
+    StrictMock<mock::CompositionEngine> mCompositionEngine;
+    StrictMock<renderengine::mock::RenderEngine> mRenderEngine;
+    Layer mLayer1;
+    Layer mLayer2;
+};
+
+TEST_F(OutputUpdateProtectedContentStateTest, ifProtectedContentLayerComposeByHWC) {
+    mOutput.mState.isSecure = true;
+    mLayer1.mLayerFEState.hasProtectedContent = false;
+    mLayer2.mLayerFEState.hasProtectedContent = true;
+    EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(true));
+    EXPECT_CALL(*mRenderSurface, isProtected).WillOnce(Return(false));
+    EXPECT_CALL(mLayer1.mOutputLayer, requiresClientComposition()).WillRepeatedly(Return(true));
+    EXPECT_CALL(mLayer2.mOutputLayer, requiresClientComposition()).WillRepeatedly(Return(false));
+    mOutput.updateProtectedContentState();
+}
+
+TEST_F(OutputUpdateProtectedContentStateTest, ifProtectedContentLayerComposeByClient) {
+    mOutput.mState.isSecure = true;
+    mLayer1.mLayerFEState.hasProtectedContent = false;
+    mLayer2.mLayerFEState.hasProtectedContent = true;
+    EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(true));
+    EXPECT_CALL(*mRenderSurface, isProtected).WillOnce(Return(false));
+    EXPECT_CALL(*mRenderSurface, setProtected(true));
+    EXPECT_CALL(mLayer1.mOutputLayer, requiresClientComposition()).WillRepeatedly(Return(true));
+    EXPECT_CALL(mLayer2.mOutputLayer, requiresClientComposition()).WillRepeatedly(Return(true));
+    mOutput.updateProtectedContentState();
 }
 
 } // namespace
