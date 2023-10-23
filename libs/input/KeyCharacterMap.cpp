@@ -613,14 +613,14 @@ void KeyCharacterMap::addLockedMetaKey(Vector<KeyEvent>& outEvents,
 }
 
 #ifdef __linux__
-std::shared_ptr<KeyCharacterMap> KeyCharacterMap::readFromParcel(Parcel* parcel) {
+std::unique_ptr<KeyCharacterMap> KeyCharacterMap::readFromParcel(Parcel* parcel) {
     if (parcel == nullptr) {
         ALOGE("%s: Null parcel", __func__);
         return nullptr;
     }
     std::string loadFileName = parcel->readCString();
-    std::shared_ptr<KeyCharacterMap> map =
-            std::shared_ptr<KeyCharacterMap>(new KeyCharacterMap(loadFileName));
+    std::unique_ptr<KeyCharacterMap> map =
+            std::make_unique<KeyCharacterMap>(KeyCharacterMap(loadFileName));
     map->mType = static_cast<KeyCharacterMap::KeyboardType>(parcel->readInt32());
     map->mLayoutOverlayApplied = parcel->readBool();
     size_t numKeys = parcel->readInt32();
