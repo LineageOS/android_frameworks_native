@@ -1378,6 +1378,10 @@ Error HidlComposer::setRefreshRateChangedCallbackDebugEnabled(Display, bool) {
     return Error::UNSUPPORTED;
 }
 
+Error HidlComposer::notifyExpectedPresent(Display, nsecs_t, int32_t) {
+    return Error::UNSUPPORTED;
+}
+
 Error HidlComposer::getClientTargetProperty(
         Display display, ClientTargetPropertyWithBrightness* outClientTargetProperty) {
     IComposerClient::ClientTargetProperty property;

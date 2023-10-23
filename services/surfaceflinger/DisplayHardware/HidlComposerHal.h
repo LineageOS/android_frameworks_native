@@ -348,6 +348,7 @@ public:
     Error setHdrConversionStrategy(aidl::android::hardware::graphics::common::HdrConversionStrategy,
                                    Hdr*) override;
     Error setRefreshRateChangedCallbackDebugEnabled(Display, bool) override;
+    Error notifyExpectedPresent(Display, nsecs_t, int32_t) override;
 
 private:
     class CommandWriter : public CommandWriterBase {
