@@ -2604,7 +2604,7 @@ void SurfaceComposerClient::getDynamicDisplayInfoInternal(gui::DynamicDisplayInf
         outMode.resolution.height = mode.resolution.height;
         outMode.xDpi = mode.xDpi;
         outMode.yDpi = mode.yDpi;
-        outMode.refreshRate = mode.refreshRate;
+        outMode.peakRefreshRate = mode.peakRefreshRate;
         outMode.vsyncRate = mode.vsyncRate;
         outMode.appVsyncOffset = mode.appVsyncOffset;
         outMode.sfVsyncOffset = mode.sfVsyncOffset;

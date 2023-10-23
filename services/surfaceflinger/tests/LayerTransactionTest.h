@@ -299,7 +299,7 @@ private:
         // After a new buffer is queued, SurfaceFlinger is notified and will
         // latch the new buffer on next vsync.  Let's heuristically wait for 3
         // vsyncs.
-        mBufferPostDelay = static_cast<int32_t>(1e6 / mode.refreshRate) * 3;
+        mBufferPostDelay = static_cast<int32_t>(1e6 / mode.peakRefreshRate) * 3;
 
         mBlackBgSurface =
                 createSurface(mClient, "BaseSurface", 0 /* buffer width */, 0 /* buffer height */,
