@@ -1457,12 +1457,6 @@ private:
     void sfdo_setDebugFlash(int delay);
     void sfdo_scheduleComposite();
     void sfdo_scheduleCommit();
-
-    // Trunk-Stable flags
-    bool mMiscFlagValue;
-    bool mConnectedDisplayFlagValue;
-    bool mMisc2FlagEarlyBootValue;
-    bool mMisc2FlagLateBootValue;
 };
 
 class SurfaceComposerAIDL : public gui::BnSurfaceComposer {

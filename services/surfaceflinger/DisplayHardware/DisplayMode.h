@@ -30,8 +30,8 @@
 #include <scheduler/Fps.h>
 
 #include "DisplayHardware/Hal.h"
+#include "FlagManager.h"
 #include "Scheduler/StrongTyping.h"
-#include "Utils/FlagUtils.h"
 
 namespace android {
 
@@ -50,7 +50,6 @@ using DisplayModeId = StrongTyping<ui::DisplayModeId, struct DisplayModeIdTag, C
 
 using DisplayModes = ftl::SmallMap<DisplayModeId, DisplayModePtr, 3>;
 using DisplayModeIterator = DisplayModes::const_iterator;
-using namespace com::android::graphics::surfaceflinger;
 
 class DisplayMode {
 public:
@@ -140,7 +139,7 @@ public:
     // Peak refresh rate represents the highest refresh rate that can be used
     // for the presentation.
     Fps getPeakFps() const {
-        return flagutils::vrrConfigEnabled() && mVrrConfig
+        return FlagManager::getInstance().vrr_config() && mVrrConfig
                 ? Fps::fromPeriodNsecs(mVrrConfig->minFrameIntervalNs)
                 : mVsyncRate;
     }

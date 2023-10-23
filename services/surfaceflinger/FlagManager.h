@@ -39,9 +39,22 @@ public:
     void markBootCompleted();
     void dump(std::string& result) const;
 
+    void setUnitTestMode();
+
+    /// Legacy server flags ///
     bool test_flag() const;
     bool use_adpf_cpu_hint() const;
     bool use_skia_tracing() const;
+
+    /// Trunk stable readonly flags ///
+    bool connected_display() const;
+    bool enable_small_area_detection() const;
+    bool misc1() const;
+    bool vrr_config() const;
+
+    /// Trunk stable server flags ///
+    bool late_boot_misc2() const;
+    bool dont_skip_on_early() const;
 
 protected:
     // overridden for unit tests
@@ -53,7 +66,8 @@ private:
 
     FlagManager(const FlagManager&) = delete;
 
-    std::atomic_bool mBootCompleted;
+    std::atomic_bool mBootCompleted = false;
+    std::atomic_bool mUnitTestMode = false;
 
     static std::unique_ptr<FlagManager> mInstance;
     static std::once_flag mOnce;

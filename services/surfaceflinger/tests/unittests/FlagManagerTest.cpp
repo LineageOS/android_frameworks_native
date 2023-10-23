@@ -18,10 +18,13 @@
 #define LOG_TAG "FlagManagerTest"
 
 #include "FlagManager.h"
+#include "FlagUtils.h"
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <log/log.h>
+
+#include <com_android_graphics_surfaceflinger_flags.h>
 
 namespace android {
 
@@ -58,12 +61,12 @@ TEST_F(FlagManagerTest, isSingleton) {
     EXPECT_EQ(&FlagManager::getInstance(), &FlagManager::getInstance());
 }
 
-TEST_F(FlagManagerTest, creashesIfQueriedBeforeBoot) {
+TEST_F(FlagManagerTest, legacyCreashesIfQueriedBeforeBoot) {
     mFlagManager.markBootIncomplete();
-    EXPECT_DEATH(FlagManager::getInstance().use_adpf_cpu_hint(), "");
+    EXPECT_DEATH(FlagManager::getInstance().test_flag(), "");
 }
 
-TEST_F(FlagManagerTest, returnsOverride) {
+TEST_F(FlagManagerTest, legacyReturnsOverride) {
     EXPECT_CALL(mFlagManager, getBoolProperty).WillOnce(Return(true));
     EXPECT_EQ(true, mFlagManager.test_flag());
 
@@ -71,7 +74,7 @@ TEST_F(FlagManagerTest, returnsOverride) {
     EXPECT_EQ(false, mFlagManager.test_flag());
 }
 
-TEST_F(FlagManagerTest, returnsValue) {
+TEST_F(FlagManagerTest, legacyReturnsValue) {
     EXPECT_CALL(mFlagManager, getBoolProperty).WillRepeatedly(Return(std::nullopt));
 
     EXPECT_CALL(mFlagManager, getServerConfigurableFlag).WillOnce(Return(true));
@@ -79,6 +82,85 @@ TEST_F(FlagManagerTest, returnsValue) {
 
     EXPECT_CALL(mFlagManager, getServerConfigurableFlag).WillOnce(Return(false));
     EXPECT_EQ(false, mFlagManager.test_flag());
+}
+
+TEST_F(FlagManagerTest, creashesIfQueriedBeforeBoot) {
+    mFlagManager.markBootIncomplete();
+    EXPECT_DEATH(FlagManager::getInstance().late_boot_misc2(), "");
+}
+
+TEST_F(FlagManagerTest, returnsOverride) {
+    mFlagManager.setUnitTestMode();
+
+    // Twice, since the first call is to initialize the static variable
+    EXPECT_CALL(mFlagManager, getBoolProperty)
+            .Times((2))
+            .WillOnce(Return(true))
+            .WillOnce(Return(true));
+    EXPECT_EQ(true, mFlagManager.late_boot_misc2());
+
+    EXPECT_CALL(mFlagManager, getBoolProperty).WillOnce(Return(false));
+    EXPECT_EQ(false, mFlagManager.late_boot_misc2());
+}
+
+TEST_F(FlagManagerTest, returnsValue) {
+    mFlagManager.setUnitTestMode();
+
+    EXPECT_CALL(mFlagManager, getBoolProperty).WillRepeatedly(Return(std::nullopt));
+
+    {
+        SET_FLAG_FOR_TEST(com::android::graphics::surfaceflinger::flags::late_boot_misc2, true);
+        EXPECT_EQ(true, mFlagManager.late_boot_misc2());
+    }
+
+    {
+        SET_FLAG_FOR_TEST(com::android::graphics::surfaceflinger::flags::late_boot_misc2, false);
+        EXPECT_EQ(false, mFlagManager.late_boot_misc2());
+    }
+}
+
+TEST_F(FlagManagerTest, readonlyReturnsOverride) {
+    mFlagManager.setUnitTestMode();
+
+    // Twice, since the first call is to initialize the static variable
+    EXPECT_CALL(mFlagManager, getBoolProperty)
+            .Times(2)
+            .WillOnce(Return(true))
+            .WillOnce(Return(true));
+    EXPECT_EQ(true, mFlagManager.misc1());
+
+    EXPECT_CALL(mFlagManager, getBoolProperty).WillOnce(Return(false));
+    EXPECT_EQ(false, mFlagManager.misc1());
+}
+
+TEST_F(FlagManagerTest, readonlyReturnsValue) {
+    mFlagManager.setUnitTestMode();
+
+    EXPECT_CALL(mFlagManager, getBoolProperty).WillRepeatedly(Return(std::nullopt));
+
+    {
+        SET_FLAG_FOR_TEST(com::android::graphics::surfaceflinger::flags::misc1, true);
+        EXPECT_EQ(true, mFlagManager.misc1());
+    }
+
+    {
+        SET_FLAG_FOR_TEST(com::android::graphics::surfaceflinger::flags::misc1, false);
+        EXPECT_EQ(false, mFlagManager.misc1());
+    }
+}
+
+TEST_F(FlagManagerTest, dontSkipOnEarlyIsNotCached) {
+    EXPECT_CALL(mFlagManager, getBoolProperty).WillRepeatedly(Return(std::nullopt));
+
+    const auto initialValue = com::android::graphics::surfaceflinger::flags::dont_skip_on_early();
+
+    com::android::graphics::surfaceflinger::flags::dont_skip_on_early(true);
+    EXPECT_EQ(true, mFlagManager.dont_skip_on_early());
+
+    com::android::graphics::surfaceflinger::flags::dont_skip_on_early(false);
+    EXPECT_EQ(false, mFlagManager.dont_skip_on_early());
+
+    com::android::graphics::surfaceflinger::flags::dont_skip_on_early(initialValue);
 }
 
 } // namespace android

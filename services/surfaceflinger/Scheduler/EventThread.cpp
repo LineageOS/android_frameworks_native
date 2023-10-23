@@ -45,6 +45,7 @@
 
 #include <scheduler/VsyncConfig.h>
 #include "DisplayHardware/DisplayMode.h"
+#include "FlagManager.h"
 #include "FrameTimeline.h"
 #include "VSyncDispatch.h"
 #include "VSyncTracker.h"
@@ -308,7 +309,7 @@ sp<EventThreadConnection> EventThread::createEventConnection(
     auto connection = sp<EventThreadConnection>::make(const_cast<EventThread*>(this),
                                                       IPCThreadState::self()->getCallingUid(),
                                                       eventRegistration);
-    if (flags::misc1()) {
+    if (FlagManager::getInstance().misc1()) {
         const int policy = SCHED_FIFO;
         connection->setMinSchedulerPolicy(policy, sched_get_priority_min(policy));
     }

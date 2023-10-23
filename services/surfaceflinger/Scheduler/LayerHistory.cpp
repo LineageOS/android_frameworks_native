@@ -21,7 +21,6 @@
 #include "LayerHistory.h"
 
 #include <android-base/stringprintf.h>
-#include <com_android_graphics_surfaceflinger_flags.h>
 #include <cutils/properties.h>
 #include <gui/TraceUtils.h>
 #include <utils/Log.h>
@@ -34,16 +33,15 @@
 
 #include "../Layer.h"
 #include "EventThread.h"
+#include "FlagManager.h"
 #include "LayerInfo.h"
 
 namespace android::scheduler {
 
 namespace {
 
-using namespace com::android::graphics::surfaceflinger;
-
 bool isLayerActive(const LayerInfo& info, nsecs_t threshold) {
-    if (flags::misc1() && !info.isVisible()) {
+    if (FlagManager::getInstance().misc1() && !info.isVisible()) {
         return false;
     }
 

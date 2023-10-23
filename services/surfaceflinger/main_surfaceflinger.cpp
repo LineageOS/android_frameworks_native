@@ -34,6 +34,7 @@
 #include <errno.h>
 #include <hidl/LegacySupport.h>
 #include <processgroup/sched_policy.h>
+#include "FlagManager.h"
 #include "SurfaceFlinger.h"
 #include "SurfaceFlingerFactory.h"
 #include "SurfaceFlingerProperties.h"
@@ -149,7 +150,7 @@ int main(int, char**) {
 
     // publish gui::ISurfaceComposer, the new AIDL interface
     sp<SurfaceComposerAIDL> composerAIDL = sp<SurfaceComposerAIDL>::make(flinger);
-    if (flags::misc1()) {
+    if (FlagManager::getInstance().misc1()) {
         composerAIDL->setMinSchedulerPolicy(SCHED_FIFO, newPriority);
     }
     sm->addService(String16("SurfaceFlingerAIDL"), composerAIDL, false,
