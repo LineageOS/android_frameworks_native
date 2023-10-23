@@ -17,15 +17,23 @@
 #pragma once
 
 #include <cstdint>
+#include <mutex>
 #include <optional>
 #include <string>
 
 namespace android {
 // Manages flags for SurfaceFlinger, including default values, system properties, and Mendel
-// experiment configuration values.
+// experiment configuration values. Can be called from any thread.
 class FlagManager {
+private:
+    // Effectively making the constructor private, while allowing std::make_unique to work
+    struct ConstructorTag {};
+
 public:
-    FlagManager() = default;
+    static FlagManager& getInstance();
+
+    FlagManager(ConstructorTag);
+
     virtual ~FlagManager();
     void dump(std::string& result) const;
 
@@ -38,11 +46,16 @@ public:
 private:
     friend class FlagManagerTest;
 
+    FlagManager(const FlagManager&) = delete;
+
     // Wrapper for mocking in test.
     virtual std::string getServerConfigurableFlag(const std::string& experimentFlagName) const;
 
     template <typename T>
     T getValue(const std::string& experimentFlagName, std::optional<T> systemPropertyOpt,
                T defaultValue) const;
+
+    static std::unique_ptr<FlagManager> mInstance;
+    static std::once_flag mOnce;
 };
 } // namespace android

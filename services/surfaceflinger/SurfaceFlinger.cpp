@@ -702,7 +702,7 @@ void SurfaceFlinger::bootFinished() {
 
     mFrameTracer->initialize();
     mFrameTimeline->onBootFinished();
-    getRenderEngine().setEnableTracing(mFlagManager.use_skia_tracing());
+    getRenderEngine().setEnableTracing(FlagManager::getInstance().use_skia_tracing());
 
     // wait patiently for the window manager death
     const String16 name("window");
@@ -731,7 +731,7 @@ void SurfaceFlinger::bootFinished() {
 
         readPersistentProperties();
         mPowerAdvisor->onBootFinished();
-        const bool hintSessionEnabled = mFlagManager.use_adpf_cpu_hint();
+        const bool hintSessionEnabled = FlagManager::getInstance().use_adpf_cpu_hint();
         mPowerAdvisor->enablePowerHintSession(hintSessionEnabled);
         const bool hintSessionUsed = mPowerAdvisor->usePowerHintSession();
         ALOGD("Power hint is %s",
@@ -6562,7 +6562,7 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, const std::string& comp
     /*
      * Dump flag/property manager state
      */
-    mFlagManager.dump(result);
+    FlagManager::getInstance().dump(result);
 
     result.append(mTimeStats->miniDump());
     result.append("\n");

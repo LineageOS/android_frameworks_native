@@ -30,7 +30,20 @@ namespace android {
 static constexpr const char* kExperimentNamespace = "surface_flinger_native_boot";
 static constexpr const int64_t kDemoFlag = -1;
 
+std::unique_ptr<FlagManager> FlagManager::mInstance;
+std::once_flag FlagManager::mOnce;
+
+FlagManager::FlagManager(ConstructorTag) {}
 FlagManager::~FlagManager() = default;
+
+FlagManager& FlagManager::getInstance() {
+    std::call_once(mOnce, [&] {
+        LOG_ALWAYS_FATAL_IF(mInstance, "Instance already created");
+        mInstance = std::make_unique<FlagManager>(ConstructorTag{});
+    });
+
+    return *mInstance;
+}
 
 void FlagManager::dump(std::string& result) const {
     base::StringAppendF(&result, "FlagManager values: \n");
