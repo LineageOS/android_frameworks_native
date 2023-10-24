@@ -646,7 +646,7 @@ status_t InputPublisher::publishMotionEvent(
               "action=%s, actionButton=0x%08x, flags=0x%x, edgeFlags=0x%x, "
               "metaState=0x%x, buttonState=0x%x, classification=%s,"
               "xPrecision=%f, yPrecision=%f, downTime=%" PRId64 ", eventTime=%" PRId64 ", "
-              "pointerCount=%" PRIu32 " \n%s",
+              "pointerCount=%" PRIu32 "\n%s",
               mChannel->getName().c_str(), __func__, seq, eventId, deviceId,
               inputEventSourceToString(source).c_str(), displayId,
               MotionEvent::actionToString(action).c_str(), actionButton, flags, edgeFlags,

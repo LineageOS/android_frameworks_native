@@ -73,6 +73,8 @@ struct TouchState {
     bool isDown(DeviceId deviceId) const;
     bool hasHoveringPointers(DeviceId deviceId) const;
 
+    bool hasActiveStylus() const;
+
     std::set<sp<android::gui::WindowInfoHandle>> getWindowsWithHoveringPointer(
             DeviceId deviceId, int32_t pointerId) const;
     std::string dump() const;

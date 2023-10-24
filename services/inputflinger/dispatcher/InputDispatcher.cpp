@@ -749,6 +749,20 @@ bool shouldSplitTouch(const TouchState& touchState, const MotionEntry& entry) {
     return true;
 }
 
+/**
+ * Return true if stylus is currently down anywhere on the specified display, and false otherwise.
+ */
+bool isStylusActiveInDisplay(
+        int32_t displayId,
+        const std::unordered_map<int32_t /*displayId*/, TouchState>& touchStatesByDisplay) {
+    const auto it = touchStatesByDisplay.find(displayId);
+    if (it == touchStatesByDisplay.end()) {
+        return false;
+    }
+    const TouchState& state = it->second;
+    return state.hasActiveStylus();
+}
+
 } // namespace
 
 // --- InputDispatcher ---
@@ -5048,6 +5062,13 @@ bool InputDispatcher::canWindowReceiveMotionLocked(const sp<WindowInfoHandle>& w
 
     // Drop touch events if requested by input feature
     if (shouldDropInput(motionEntry, window)) {
+        return false;
+    }
+
+    // Ignore touches if stylus is down anywhere on screen
+    if (info.inputConfig.test(WindowInfo::InputConfig::GLOBAL_STYLUS_BLOCKS_TOUCH) &&
+        isStylusActiveInDisplay(info.displayId, mTouchStatesByDisplay)) {
+        LOG(INFO) << "Dropping touch from " << window->getName() << " because stylus is active";
         return false;
     }
 

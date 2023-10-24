@@ -49,6 +49,7 @@ struct TouchedWindow {
     void addTouchingPointers(DeviceId deviceId, const std::vector<PointerProperties>& pointers);
     void removeTouchingPointer(DeviceId deviceId, int32_t pointerId);
     void removeTouchingPointers(DeviceId deviceId, std::bitset<MAX_POINTER_ID + 1> pointers);
+    bool hasActiveStylus() const;
     std::set<DeviceId> getTouchingDeviceIds() const;
 
     // Pilfering pointers
