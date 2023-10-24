@@ -495,3 +495,15 @@ prop {
     access: Readonly
     prop_name: "ro.surface_flinger.clear_slots_with_set_layer_buffer"
 }
+
+# Controls the default frame rate override of game applications. Ideally, game applications set
+# desired frame rate via setFrameRate() API. However, to cover the scenario when the game didn't
+# have a set frame rate, we introduce the default frame rate. The priority of this override is the
+# lowest among setFrameRate() and game intervention override.
+prop {
+    api_name: "game_default_frame_rate_override"
+    type: Integer
+    scope: Public
+    access: Readonly
+    prop_name: "ro.surface_flinger.game_default_frame_rate_override"
+}

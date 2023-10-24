@@ -266,7 +266,7 @@ bool getKernelIdleTimerSyspropConfig(DisplayId displayId) {
 
 bool isAbove4k30(const ui::DisplayMode& outMode) {
     using fps_approx_ops::operator>;
-    Fps refreshRate = Fps::fromValue(outMode.refreshRate);
+    Fps refreshRate = Fps::fromValue(outMode.peakRefreshRate);
     return outMode.resolution.getWidth() >= FOUR_K_WIDTH &&
             outMode.resolution.getHeight() >= FOUR_K_HEIGHT && refreshRate > 30_Hz;
 }
@@ -1046,11 +1046,11 @@ void SurfaceFlinger::getDynamicDisplayInfoInternal(ui::DynamicDisplayInfo*& info
         outMode.yDpi = yDpi;
 
         const auto peakFps = mode->getPeakFps();
-        outMode.refreshRate = peakFps.getValue();
+        outMode.peakRefreshRate = peakFps.getValue();
         outMode.vsyncRate = mode->getVsyncRate().getValue();
 
-        const auto vsyncConfigSet =
-                mVsyncConfiguration->getConfigsForRefreshRate(Fps::fromValue(outMode.refreshRate));
+        const auto vsyncConfigSet = mVsyncConfiguration->getConfigsForRefreshRate(
+                Fps::fromValue(outMode.peakRefreshRate));
         outMode.appVsyncOffset = vsyncConfigSet.late.appOffset;
         outMode.sfVsyncOffset = vsyncConfigSet.late.sfOffset;
         outMode.group = mode->getGroup();
@@ -9221,7 +9221,7 @@ void SurfaceComposerAIDL::getDynamicDisplayInfoInternal(ui::DynamicDisplayInfo& 
         outMode.resolution.height = mode.resolution.height;
         outMode.xDpi = mode.xDpi;
         outMode.yDpi = mode.yDpi;
-        outMode.refreshRate = mode.refreshRate;
+        outMode.peakRefreshRate = mode.peakRefreshRate;
         outMode.vsyncRate = mode.vsyncRate;
         outMode.appVsyncOffset = mode.appVsyncOffset;
         outMode.sfVsyncOffset = mode.sfVsyncOffset;

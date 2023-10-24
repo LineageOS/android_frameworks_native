@@ -75,8 +75,8 @@ TEST_F(RefreshRateRangeTest, setAllConfigs) {
     setSpecs.allowGroupSwitching = false;
     for (size_t i = 0; i < modes.size(); i++) {
         setSpecs.defaultMode = modes[i].id;
-        setSpecs.primaryRanges.physical.min = modes[i].refreshRate;
-        setSpecs.primaryRanges.physical.max = modes[i].refreshRate;
+        setSpecs.primaryRanges.physical.min = modes[i].peakRefreshRate;
+        setSpecs.primaryRanges.physical.max = modes[i].peakRefreshRate;
         setSpecs.primaryRanges.render = setSpecs.primaryRanges.physical;
         setSpecs.appRequestRanges = setSpecs.primaryRanges;
         res = SurfaceComposerClient::setDesiredDisplayModeSpecs(mDisplayToken, setSpecs);

@@ -38,7 +38,7 @@ struct DisplayMode {
     std::vector<ui::Hdr> supportedHdrTypes;
 
     // Some modes have peak refresh rate lower than the panel vsync rate.
-    float refreshRate = 0.f;
+    float peakRefreshRate = 0.f;
     float vsyncRate = 0.f;
     nsecs_t appVsyncOffset = 0;
     nsecs_t sfVsyncOffset = 0;
