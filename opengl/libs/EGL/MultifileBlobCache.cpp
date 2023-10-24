@@ -62,12 +62,14 @@ void freeHotCacheEntry(android::MultifileHotCache& entry) {
 namespace android {
 
 MultifileBlobCache::MultifileBlobCache(size_t maxKeySize, size_t maxValueSize, size_t maxTotalSize,
-                                       const std::string& baseDir)
+                                       size_t maxTotalEntries, const std::string& baseDir)
       : mInitialized(false),
         mMaxKeySize(maxKeySize),
         mMaxValueSize(maxValueSize),
         mMaxTotalSize(maxTotalSize),
+        mMaxTotalEntries(maxTotalEntries),
         mTotalCacheSize(0),
+        mTotalCacheEntries(0),
         mHotCacheLimit(0),
         mHotCacheSize(0),
         mWorkerThreadIdle(true) {
@@ -270,7 +272,7 @@ void MultifileBlobCache::set(const void* key, EGLsizeiANDROID keySize, const voi
     size_t fileSize = sizeof(MultifileHeader) + keySize + valueSize;
 
     // If we're going to be over the cache limit, kick off a trim to clear space
-    if (getTotalSize() + fileSize > mMaxTotalSize) {
+    if (getTotalSize() + fileSize > mMaxTotalSize || getTotalEntries() + 1 > mMaxTotalEntries) {
         ALOGV("SET: Cache is full, calling trimCache to clear space");
         trimCache();
     }
@@ -485,10 +487,12 @@ MultifileEntryStats MultifileBlobCache::getEntryStats(uint32_t entryHash) {
 
 void MultifileBlobCache::increaseTotalCacheSize(size_t fileSize) {
     mTotalCacheSize += fileSize;
+    mTotalCacheEntries++;
 }
 
 void MultifileBlobCache::decreaseTotalCacheSize(size_t fileSize) {
     mTotalCacheSize -= fileSize;
+    mTotalCacheEntries--;
 }
 
 bool MultifileBlobCache::addToHotCache(uint32_t newEntryHash, int newFd, uint8_t* newEntryBuffer,
@@ -557,7 +561,7 @@ bool MultifileBlobCache::removeFromHotCache(uint32_t entryHash) {
     return false;
 }
 
-bool MultifileBlobCache::applyLRU(size_t cacheLimit) {
+bool MultifileBlobCache::applyLRU(size_t cacheSizeLimit, size_t cacheEntryLimit) {
     // Walk through our map of sorted last access times and remove files until under the limit
     for (auto cacheEntryIter = mEntryStats.begin(); cacheEntryIter != mEntryStats.end();) {
         uint32_t entryHash = cacheEntryIter->first;
@@ -590,9 +594,10 @@ bool MultifileBlobCache::applyLRU(size_t cacheLimit) {
 
         // See if it has been reduced enough
         size_t totalCacheSize = getTotalSize();
-        if (totalCacheSize <= cacheLimit) {
+        size_t totalCacheEntries = getTotalEntries();
+        if (totalCacheSize <= cacheSizeLimit && totalCacheEntries <= cacheEntryLimit) {
             // Success
-            ALOGV("LRU: Reduced cache to %zu", totalCacheSize);
+            ALOGV("LRU: Reduced cache to size %zu entries %zu", totalCacheSize, totalCacheEntries);
             return true;
         }
     }
@@ -603,6 +608,7 @@ bool MultifileBlobCache::applyLRU(size_t cacheLimit) {
 
 // When removing files, what fraction of the overall limit should be reached when removing files
 // A divisor of two will decrease the cache to 50%, four to 25% and so on
+// We use the same limit to manage size and entry count
 constexpr uint32_t kCacheLimitDivisor = 2;
 
 // Calculate the cache size and remove old entries until under the limit
@@ -611,8 +617,9 @@ void MultifileBlobCache::trimCache() {
     ALOGV("TRIM: Waiting for work to complete.");
     waitForWorkComplete();
 
-    ALOGV("TRIM: Reducing multifile cache size to %zu", mMaxTotalSize / kCacheLimitDivisor);
-    if (!applyLRU(mMaxTotalSize / kCacheLimitDivisor)) {
+    ALOGV("TRIM: Reducing multifile cache size to %zu, entries %zu",
+          mMaxTotalSize / kCacheLimitDivisor, mMaxTotalEntries / kCacheLimitDivisor);
+    if (!applyLRU(mMaxTotalSize / kCacheLimitDivisor, mMaxTotalEntries / kCacheLimitDivisor)) {
         ALOGE("Error when clearing multifile shader cache");
         return;
     }

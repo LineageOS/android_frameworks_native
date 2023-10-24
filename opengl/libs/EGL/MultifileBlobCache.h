@@ -92,7 +92,7 @@ private:
 class MultifileBlobCache {
 public:
     MultifileBlobCache(size_t maxKeySize, size_t maxValueSize, size_t maxTotalSize,
-                       const std::string& baseDir);
+                       size_t maxTotalEntries, const std::string& baseDir);
     ~MultifileBlobCache();
 
     void set(const void* key, EGLsizeiANDROID keySize, const void* value,
@@ -103,6 +103,7 @@ public:
     void finish();
 
     size_t getTotalSize() const { return mTotalCacheSize; }
+    size_t getTotalEntries() const { return mTotalCacheEntries; }
 
 private:
     void trackEntry(uint32_t entryHash, EGLsizeiANDROID valueSize, size_t fileSize,
@@ -121,7 +122,7 @@ private:
     bool removeFromHotCache(uint32_t entryHash);
 
     void trimCache();
-    bool applyLRU(size_t cacheLimit);
+    bool applyLRU(size_t cacheSizeLimit, size_t cacheEntryLimit);
 
     bool mInitialized;
     std::string mMultifileDirName;
@@ -133,7 +134,9 @@ private:
     size_t mMaxKeySize;
     size_t mMaxValueSize;
     size_t mMaxTotalSize;
+    size_t mMaxTotalEntries;
     size_t mTotalCacheSize;
+    size_t mTotalCacheEntries;
     size_t mHotCacheLimit;
     size_t mHotCacheEntryLimit;
     size_t mHotCacheSize;

@@ -31,13 +31,14 @@ using sp = std::shared_ptr<T>;
 constexpr size_t kMaxKeySize = 2 * 1024;
 constexpr size_t kMaxValueSize = 6 * 1024;
 constexpr size_t kMaxTotalSize = 32 * 1024;
+constexpr size_t kMaxTotalEntries = 64;
 
 class MultifileBlobCacheTest : public ::testing::Test {
 protected:
     virtual void SetUp() {
         mTempFile.reset(new TemporaryFile());
         mMBC.reset(new MultifileBlobCache(kMaxKeySize, kMaxValueSize, kMaxTotalSize,
-                                          &mTempFile->path[0]));
+                                          kMaxTotalEntries, &mTempFile->path[0]));
     }
 
     virtual void TearDown() { mMBC.reset(); }
@@ -211,6 +212,23 @@ TEST_F(MultifileBlobCacheTest, CacheMaxKeyAndValueSizeSucceeds) {
     }
 }
 
+TEST_F(MultifileBlobCacheTest, CacheMaxEntrySucceeds) {
+    // Fill the cache with max entries
+    int i = 0;
+    for (i = 0; i < kMaxTotalEntries; i++) {
+        mMBC->set(std::to_string(i).c_str(), sizeof(i), std::to_string(i).c_str(), sizeof(i));
+    }
+
+    // Ensure it is full
+    ASSERT_EQ(mMBC->getTotalEntries(), kMaxTotalEntries);
+
+    // Add another entry
+    mMBC->set(std::to_string(i).c_str(), sizeof(i), std::to_string(i).c_str(), sizeof(i));
+
+    // Ensure total entries is cut in half + 1
+    ASSERT_EQ(mMBC->getTotalEntries(), kMaxTotalEntries / 2 + 1);
+}
+
 TEST_F(MultifileBlobCacheTest, CacheMinKeyAndValueSizeSucceeds) {
     unsigned char buf[1] = {0xee};
     mMBC->set("x", 1, "y", 1);
@@ -234,8 +252,7 @@ int MultifileBlobCacheTest::getFileDescriptorCount() {
 
 TEST_F(MultifileBlobCacheTest, EnsureFileDescriptorsClosed) {
     // Populate the cache with a bunch of entries
-    size_t kLargeNumberOfEntries = 1024;
-    for (int i = 0; i < kLargeNumberOfEntries; i++) {
+    for (int i = 0; i < kMaxTotalEntries; i++) {
         // printf("Caching: %i", i);
 
         // Use the index as the key and value
@@ -247,27 +264,27 @@ TEST_F(MultifileBlobCacheTest, EnsureFileDescriptorsClosed) {
     }
 
     // Ensure we don't have a bunch of open fds
-    ASSERT_LT(getFileDescriptorCount(), kLargeNumberOfEntries / 2);
+    ASSERT_LT(getFileDescriptorCount(), kMaxTotalEntries / 2);
 
     // Close the cache so everything writes out
     mMBC->finish();
     mMBC.reset();
 
     // Now open it again and ensure we still don't have a bunch of open fds
-    mMBC.reset(
-            new MultifileBlobCache(kMaxKeySize, kMaxValueSize, kMaxTotalSize, &mTempFile->path[0]));
+    mMBC.reset(new MultifileBlobCache(kMaxKeySize, kMaxValueSize, kMaxTotalSize, kMaxTotalEntries,
+                                      &mTempFile->path[0]));
 
     // Check after initialization
-    ASSERT_LT(getFileDescriptorCount(), kLargeNumberOfEntries / 2);
+    ASSERT_LT(getFileDescriptorCount(), kMaxTotalEntries / 2);
 
-    for (int i = 0; i < kLargeNumberOfEntries; i++) {
+    for (int i = 0; i < kMaxTotalEntries; i++) {
         int result = 0;
         ASSERT_EQ(sizeof(i), mMBC->get(&i, sizeof(i), &result, sizeof(result)));
         ASSERT_EQ(i, result);
     }
 
     // And again after we've actually used it
-    ASSERT_LT(getFileDescriptorCount(), kLargeNumberOfEntries / 2);
+    ASSERT_LT(getFileDescriptorCount(), kMaxTotalEntries / 2);
 }
 
 } // namespace android
