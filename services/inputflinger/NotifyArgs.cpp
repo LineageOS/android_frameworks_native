@@ -233,7 +233,7 @@ NotifyPointerCaptureChangedArgs::NotifyPointerCaptureChangedArgs(
 
 // Helper to std::visit with lambdas.
 template <typename... V>
-struct Visitor : V... {};
+struct Visitor : V... { using V::operator()...; };
 // explicit deduction guide (not needed as of C++20)
 template <typename... V>
 Visitor(V...) -> Visitor<V...>;
