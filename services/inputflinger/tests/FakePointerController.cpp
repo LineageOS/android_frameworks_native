@@ -47,6 +47,8 @@ int32_t FakePointerController::getDisplayId() const {
 
 void FakePointerController::setDisplayViewport(const DisplayViewport& viewport) {
     mDisplayId = viewport.displayId;
+    setBounds(viewport.logicalLeft, viewport.logicalTop, viewport.logicalRight - 1,
+              viewport.logicalBottom - 1);
 }
 
 void FakePointerController::assertPosition(float x, float y) {

@@ -27,6 +27,7 @@
 namespace android {
 
 using ControllerType = PointerControllerInterface::ControllerType;
+using testing::AllOf;
 
 namespace {
 
@@ -37,8 +38,11 @@ template <typename... V>
 Visitor(V...) -> Visitor<V...>;
 
 constexpr int32_t DEVICE_ID = 3;
+constexpr int32_t SECOND_DEVICE_ID = DEVICE_ID + 1;
 constexpr int32_t DISPLAY_ID = 5;
 constexpr int32_t ANOTHER_DISPLAY_ID = 10;
+constexpr int32_t DISPLAY_WIDTH = 480;
+constexpr int32_t DISPLAY_HEIGHT = 800;
 
 const auto MOUSE_POINTER = PointerBuilder(/*id=*/0, ToolType::MOUSE)
                                    .axis(AMOTION_EVENT_AXIS_RELATIVE_X, 10)
@@ -60,6 +64,8 @@ static std::vector<DisplayViewport> createViewports(std::vector<int32_t> display
     for (auto displayId : displayIds) {
         DisplayViewport viewport;
         viewport.displayId = displayId;
+        viewport.logicalRight = DISPLAY_WIDTH;
+        viewport.logicalBottom = DISPLAY_HEIGHT;
         viewports.push_back(viewport);
     }
     return viewports;
@@ -115,6 +121,7 @@ private:
         EXPECT_FALSE(mLastCreatedController.has_value())
                 << "More than one PointerController created at a time";
         std::shared_ptr<FakePointerController> pc = std::make_shared<FakePointerController>();
+        EXPECT_FALSE(pc->isPointerShown());
         mLastCreatedController = {type, pc};
         return pc;
     }
@@ -383,6 +390,183 @@ TEST_F(PointerChoreographerTest, WhenDefaultMouseDisplayChangesCallsNotifyPointe
                     .build());
     assertPointerControllerCreated(ControllerType::MOUSE);
     assertPointerDisplayIdNotified(ANOTHER_DISPLAY_ID);
+}
+
+TEST_F(PointerChoreographerTest, MouseMovesPointerAndReturnsNewArgs) {
+    mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID}));
+    mChoreographer.setDefaultMouseDisplayId(DISPLAY_ID);
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE)}});
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
+                    .pointer(MOUSE_POINTER)
+                    .deviceId(DEVICE_ID)
+                    .displayId(ADISPLAY_ID_NONE)
+                    .build());
+    mTestListener.assertNotifyMotionWasCalled(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE));
+    auto pc = assertPointerControllerCreated(ControllerType::MOUSE);
+    ASSERT_EQ(DISPLAY_ID, pc->getDisplayId());
+
+    // Set bounds and initial position of the PointerController.
+    pc->setPosition(100, 200);
+
+    // Make NotifyMotionArgs and notify Choreographer.
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
+                    .pointer(MOUSE_POINTER)
+                    .deviceId(DEVICE_ID)
+                    .displayId(ADISPLAY_ID_NONE)
+                    .build());
+
+    // Check that the PointerController updated the position and the pointer is shown.
+    pc->assertPosition(110, 220);
+    ASSERT_TRUE(pc->isPointerShown());
+
+    // Check that x-y cooridnates, displayId and cursor position are correctly updated.
+    mTestListener.assertNotifyMotionWasCalled(
+            AllOf(WithCoords(110, 220), WithDisplayId(DISPLAY_ID), WithCursorPosition(110, 220)));
+}
+
+TEST_F(PointerChoreographerTest,
+       AssociatedMouseMovesPointerOnAssociatedDisplayAndDoesNotMovePointerOnDefaultDisplay) {
+    // Add two displays and set one to default.
+    mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID, ANOTHER_DISPLAY_ID}));
+    mChoreographer.setDefaultMouseDisplayId(DISPLAY_ID);
+
+    // Add two devices, one unassociated and the other associated with non-default mouse display.
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0,
+             {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE),
+              generateTestDeviceInfo(SECOND_DEVICE_ID, AINPUT_SOURCE_MOUSE, ANOTHER_DISPLAY_ID)}});
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
+                    .pointer(MOUSE_POINTER)
+                    .deviceId(DEVICE_ID)
+                    .displayId(ADISPLAY_ID_NONE)
+                    .build());
+    mTestListener.assertNotifyMotionWasCalled(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE));
+    auto unassociatedMousePc = assertPointerControllerCreated(ControllerType::MOUSE);
+    ASSERT_EQ(DISPLAY_ID, unassociatedMousePc->getDisplayId());
+
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
+                    .pointer(MOUSE_POINTER)
+                    .deviceId(SECOND_DEVICE_ID)
+                    .displayId(ANOTHER_DISPLAY_ID)
+                    .build());
+    mTestListener.assertNotifyMotionWasCalled(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE));
+    auto associatedMousePc = assertPointerControllerCreated(ControllerType::MOUSE);
+    ASSERT_EQ(ANOTHER_DISPLAY_ID, associatedMousePc->getDisplayId());
+
+    // Set bounds and initial position for PointerControllers.
+    unassociatedMousePc->setPosition(100, 200);
+    associatedMousePc->setPosition(300, 400);
+
+    // Make NotifyMotionArgs from the associated mouse and notify Choreographer.
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
+                    .pointer(MOUSE_POINTER)
+                    .deviceId(SECOND_DEVICE_ID)
+                    .displayId(ANOTHER_DISPLAY_ID)
+                    .build());
+
+    // Check the status of the PointerControllers.
+    unassociatedMousePc->assertPosition(100, 200);
+    ASSERT_EQ(DISPLAY_ID, unassociatedMousePc->getDisplayId());
+    associatedMousePc->assertPosition(310, 420);
+    ASSERT_EQ(ANOTHER_DISPLAY_ID, associatedMousePc->getDisplayId());
+    ASSERT_TRUE(associatedMousePc->isPointerShown());
+
+    // Check that x-y cooridnates, displayId and cursor position are correctly updated.
+    mTestListener.assertNotifyMotionWasCalled(
+            AllOf(WithCoords(310, 420), WithDeviceId(SECOND_DEVICE_ID),
+                  WithDisplayId(ANOTHER_DISPLAY_ID), WithCursorPosition(310, 420)));
+}
+
+TEST_F(PointerChoreographerTest, DoesNotMovePointerForMouseRelativeSource) {
+    mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID}));
+    mChoreographer.setDefaultMouseDisplayId(DISPLAY_ID);
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE)}});
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
+                    .pointer(MOUSE_POINTER)
+                    .deviceId(DEVICE_ID)
+                    .displayId(ADISPLAY_ID_NONE)
+                    .build());
+    mTestListener.assertNotifyMotionWasCalled(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE));
+    auto pc = assertPointerControllerCreated(ControllerType::MOUSE);
+    ASSERT_EQ(DISPLAY_ID, pc->getDisplayId());
+
+    // Set bounds and initial position of the PointerController.
+    pc->setPosition(100, 200);
+
+    // Assume that pointer capture is enabled.
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/1,
+             {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE_RELATIVE, ADISPLAY_ID_NONE)}});
+    mChoreographer.notifyPointerCaptureChanged(
+            NotifyPointerCaptureChangedArgs(/*id=*/2, systemTime(SYSTEM_TIME_MONOTONIC),
+                                            PointerCaptureRequest(/*enable=*/true, /*seq=*/0)));
+
+    // Notify motion as if pointer capture is enabled.
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_MOVE, AINPUT_SOURCE_MOUSE_RELATIVE)
+                    .pointer(PointerBuilder(/*id=*/0, ToolType::MOUSE)
+                                     .x(10)
+                                     .y(20)
+                                     .axis(AMOTION_EVENT_AXIS_RELATIVE_X, 10)
+                                     .axis(AMOTION_EVENT_AXIS_RELATIVE_Y, 20))
+                    .deviceId(DEVICE_ID)
+                    .displayId(ADISPLAY_ID_NONE)
+                    .build());
+
+    // Check that there's no update on the PointerController.
+    pc->assertPosition(100, 200);
+    ASSERT_FALSE(pc->isPointerShown());
+
+    // Check x-y cooridnates, displayId and cursor position are not changed.
+    mTestListener.assertNotifyMotionWasCalled(
+            AllOf(WithCoords(10, 20), WithRelativeMotion(10, 20), WithDisplayId(ADISPLAY_ID_NONE),
+                  WithCursorPosition(AMOTION_EVENT_INVALID_CURSOR_POSITION,
+                                     AMOTION_EVENT_INVALID_CURSOR_POSITION)));
+}
+
+TEST_F(PointerChoreographerTest, WhenPointerCaptureEnabledHidesPointer) {
+    mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID}));
+    mChoreographer.setDefaultMouseDisplayId(DISPLAY_ID);
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE)}});
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
+                    .pointer(MOUSE_POINTER)
+                    .deviceId(DEVICE_ID)
+                    .displayId(ADISPLAY_ID_NONE)
+                    .build());
+    mTestListener.assertNotifyMotionWasCalled(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE));
+    auto pc = assertPointerControllerCreated(ControllerType::MOUSE);
+    ASSERT_EQ(DISPLAY_ID, pc->getDisplayId());
+
+    // Set bounds and initial position of the PointerController.
+    pc->setPosition(100, 200);
+
+    // Make NotifyMotionArgs and notify Choreographer.
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
+                    .pointer(MOUSE_POINTER)
+                    .deviceId(DEVICE_ID)
+                    .displayId(ADISPLAY_ID_NONE)
+                    .build());
+
+    // Check that the PointerController updated the position and the pointer is shown.
+    pc->assertPosition(110, 220);
+    ASSERT_TRUE(pc->isPointerShown());
+
+    // Enable pointer capture and check if the PointerController hid the pointer.
+    mChoreographer.notifyPointerCaptureChanged(
+            NotifyPointerCaptureChangedArgs(/*id=*/1, systemTime(SYSTEM_TIME_MONOTONIC),
+                                            PointerCaptureRequest(/*enable=*/true, /*seq=*/0)));
+    ASSERT_FALSE(pc->isPointerShown());
 }
 
 } // namespace android
