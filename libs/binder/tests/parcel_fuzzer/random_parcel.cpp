@@ -66,6 +66,11 @@ void fillRandomParcel(Parcel* p, FuzzedDataProvider&& provider, RandomParcelOpti
                 },
                 // write FD
                 [&]() {
+                    // b/296516864 - Limit number of objects written to a parcel.
+                    if (p->objectsCount() > 100) {
+                        return;
+                    }
+
                     if (options->extraFds.size() > 0 && provider.ConsumeBool()) {
                         const base::unique_fd& fd = options->extraFds.at(
                                 provider.ConsumeIntegralInRange<size_t>(0,
@@ -82,7 +87,6 @@ void fillRandomParcel(Parcel* p, FuzzedDataProvider&& provider, RandomParcelOpti
                         CHECK(OK ==
                               p->writeFileDescriptor(fds.begin()->release(),
                                                      true /*takeOwnership*/));
-
                         options->extraFds.insert(options->extraFds.end(),
                                                  std::make_move_iterator(fds.begin() + 1),
                                                  std::make_move_iterator(fds.end()));
@@ -90,6 +94,11 @@ void fillRandomParcel(Parcel* p, FuzzedDataProvider&& provider, RandomParcelOpti
                 },
                 // write binder
                 [&]() {
+                    // b/296516864 - Limit number of objects written to a parcel.
+                    if (p->objectsCount() > 100) {
+                        return;
+                    }
+
                     sp<IBinder> binder;
                     if (options->extraBinders.size() > 0 && provider.ConsumeBool()) {
                         binder = options->extraBinders.at(
