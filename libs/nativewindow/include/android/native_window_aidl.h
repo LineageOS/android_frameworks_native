@@ -34,6 +34,9 @@
 #include <android/native_window.h>
 #include <sys/cdefs.h>
 
+#include <sstream>
+#include <string>
+
 __BEGIN_DECLS
 
 /**
@@ -80,7 +83,7 @@ namespace aidl::android::hardware {
  * Takes ownership of the ANativeWindow* given to it in reset() and will automatically
  * destroy it in the destructor, similar to a smart pointer container
  */
-class NativeWindow {
+class NativeWindow final {
 public:
     NativeWindow() noexcept {}
     explicit NativeWindow(ANativeWindow* _Nullable window) {
@@ -123,13 +126,27 @@ public:
         }
         mWindow = window;
     }
-    inline ANativeWindow* _Nullable operator-> () const { return mWindow;  }
+
     inline ANativeWindow* _Nullable get() const { return mWindow; }
-    inline explicit operator bool () const { return mWindow != nullptr; }
 
     NativeWindow& operator=(NativeWindow&& other) noexcept {
         mWindow = other.release(); // steal ownership from r-value
         return *this;
+    }
+
+    inline ANativeWindow* _Nullable operator->() const { return mWindow; }
+    inline explicit operator bool() const { return mWindow != nullptr; }
+    inline bool operator==(const NativeWindow& rhs) const { return mWindow == rhs.mWindow; }
+    inline bool operator!=(const NativeWindow& rhs) const { return !(*this == rhs); }
+    inline bool operator<(const NativeWindow& rhs) const { return mWindow < rhs.mWindow; }
+    inline bool operator>(const NativeWindow& rhs) const { return rhs < *this; }
+    inline bool operator>=(const NativeWindow& rhs) const { return !(*this < rhs); }
+    inline bool operator<=(const NativeWindow& rhs) const { return !(*this > rhs); }
+
+    std::string toString() const {
+        std::ostringstream ss;
+        ss << "NativeWindow: " << mWindow;
+        return ss.str();
     }
 
     /**
