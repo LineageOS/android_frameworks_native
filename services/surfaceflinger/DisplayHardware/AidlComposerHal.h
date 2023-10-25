@@ -240,6 +240,8 @@ public:
     Error getHdrConversionCapabilities(std::vector<HdrConversionCapability>*) override;
     Error setHdrConversionStrategy(HdrConversionStrategy, Hdr*) override;
     Error setRefreshRateChangedCallbackDebugEnabled(Display, bool) override;
+    Error notifyExpectedPresent(Display, nsecs_t expectedPresentTime,
+                                int32_t frameIntervalNs) override;
 
 private:
     // Many public functions above simply write a command into the command

@@ -146,7 +146,7 @@ public:
 
 #ifdef __linux__
     /* Reads a key map from a parcel. */
-    static std::shared_ptr<KeyCharacterMap> readFromParcel(Parcel* parcel);
+    static std::unique_ptr<KeyCharacterMap> readFromParcel(Parcel* parcel);
 
     /* Writes a key map to a parcel. */
     void writeToParcel(Parcel* parcel) const;
