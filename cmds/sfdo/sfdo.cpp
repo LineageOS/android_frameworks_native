@@ -16,7 +16,7 @@
 #include <inttypes.h>
 #include <stdint.h>
 #include <any>
-#include <unordered_map>
+#include <map>
 
 #include <cutils/properties.h>
 #include <sys/resource.h>
@@ -29,14 +29,24 @@
 
 using namespace android;
 
-std::unordered_map<std::string, std::any> g_functions;
+std::map<std::string, std::any> g_functions;
 
-const std::unordered_map<std::string, std::string> g_function_details = {
-    {"debugFlash", "[optional(delay)] Perform a debug flash."},
-    {"frameRateIndicator", "[hide | show] displays the framerate in the top left corner."},
-    {"scheduleComposite", "Force composite ahead of next VSYNC."},
-    {"scheduleCommit", "Force commit ahead of next VSYNC."},
-    {"scheduleComposite", "PENDING - if you have a good understanding let me know!"},
+enum class ParseToggleResult {
+    kError,
+    kFalse,
+    kTrue,
+};
+
+const std::map<std::string, std::string> g_function_details = {
+        {"debugFlash", "[optional(delay)] Perform a debug flash."},
+        {"frameRateIndicator", "[hide | show] displays the framerate in the top left corner."},
+        {"scheduleComposite", "Force composite ahead of next VSYNC."},
+        {"scheduleCommit", "Force commit ahead of next VSYNC."},
+        {"scheduleComposite", "PENDING - if you have a good understanding let me know!"},
+        {"forceClientComposition",
+         "[enabled | disabled] When enabled, it disables "
+         "Hardware Overlays, and routes all window composition to the GPU. This can "
+         "help check if there is a bug in HW Composer."},
 };
 
 static void ShowUsage() {
@@ -48,6 +58,25 @@ static void ShowUsage() {
             fdetails = g_function_details.find(fn)->second;
         std::cout << "    " << fn << ": " << fdetails << "\n";
     }
+}
+
+// Returns 1 for positive keywords and 0 for negative keywords.
+// If the string does not match any it will return -1.
+ParseToggleResult parseToggle(const char* str) {
+    const std::unordered_set<std::string> positive{"1",  "true",    "y",   "yes",
+                                                   "on", "enabled", "show"};
+    const std::unordered_set<std::string> negative{"0",   "false",    "n",   "no",
+                                                   "off", "disabled", "hide"};
+
+    const std::string word(str);
+    if (positive.count(word)) {
+        return ParseToggleResult::kTrue;
+    }
+    if (negative.count(word)) {
+        return ParseToggleResult::kFalse;
+    }
+
+    return ParseToggleResult::kError;
 }
 
 int frameRateIndicator(int argc, char** argv) {
@@ -86,6 +115,31 @@ int scheduleCommit([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
     return 0;
 }
 
+int forceClientComposition(int argc, char** argv) {
+    bool enabled = true;
+    // A valid command looks like this:
+    // adb shell sfdo forceClientComposition enabled
+    if (argc >= 3) {
+        const ParseToggleResult toggle = parseToggle(argv[2]);
+        if (toggle == ParseToggleResult::kError) {
+            std::cerr << "Incorrect usage of forceClientComposition. "
+                         "Missing [enabled | disabled].\n";
+            return -1;
+        }
+        if (argc > 3) {
+            std::cerr << "Too many arguments after [enabled | disabled]. "
+                         "Ignoring extra arguments.\n";
+        }
+        enabled = (toggle == ParseToggleResult::kTrue);
+    } else {
+        std::cerr << "Incorrect usage of forceClientComposition. Missing [enabled | disabled].\n";
+        return -1;
+    }
+
+    ComposerServiceAIDL::getComposerService()->forceClientComposition(enabled);
+    return 0;
+}
+
 int main(int argc, char** argv) {
     std::cout << "Execute SurfaceFlinger internal commands.\n";
     std::cout << "sfdo requires to be run with root permissions..\n";
@@ -94,6 +148,7 @@ int main(int argc, char** argv) {
     g_functions["debugFlash"] = debugFlash;
     g_functions["scheduleComposite"] = scheduleComposite;
     g_functions["scheduleCommit"] = scheduleCommit;
+    g_functions["forceClientComposition"] = forceClientComposition;
 
     if (argc > 1 && g_functions.find(argv[1]) != g_functions.end()) {
         std::cout << "Running: " << argv[1] << "\n";

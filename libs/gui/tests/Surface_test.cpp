@@ -999,6 +999,10 @@ public:
 
     binder::Status scheduleCommit() override { return binder::Status::ok(); }
 
+    binder::Status forceClientComposition(bool /*enabled*/) override {
+        return binder::Status::ok();
+    }
+
     binder::Status updateSmallAreaDetection(const std::vector<int32_t>& /*appIds*/,
                                             const std::vector<float>& /*thresholds*/) {
         return binder::Status::ok();
