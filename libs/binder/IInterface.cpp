@@ -15,7 +15,6 @@
  */
 
 #define LOG_TAG "IInterface"
-#include <utils/Log.h>
 #include <binder/IInterface.h>
 
 namespace android {
