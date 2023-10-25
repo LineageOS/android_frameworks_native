@@ -1476,6 +1476,24 @@ TEST_F(InputReaderIntegrationTest, ExternalStylusesButtons) {
             AllOf(UP, WithKeyCode(AKEYCODE_STYLUS_BUTTON_TERTIARY))));
 }
 
+TEST_F(InputReaderIntegrationTest, KeyboardWithStylusButtons) {
+    std::unique_ptr<UinputKeyboard> keyboard =
+            createUinputDevice<UinputKeyboard>("KeyboardWithStylusButtons", /*productId=*/99,
+                                               std::initializer_list<int>{KEY_Q, KEY_W, KEY_E,
+                                                                          KEY_R, KEY_T, KEY_Y,
+                                                                          BTN_STYLUS, BTN_STYLUS2,
+                                                                          BTN_STYLUS3});
+    ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertInputDevicesChanged());
+
+    const auto device = findDeviceByName(keyboard->getName());
+    ASSERT_TRUE(device.has_value());
+
+    // An alphabetical keyboard that reports stylus buttons should not be recognized as a stylus.
+    ASSERT_EQ(AINPUT_SOURCE_KEYBOARD, device->getSources())
+            << "Unexpected source " << inputEventSourceToString(device->getSources()).c_str();
+    ASSERT_EQ(AINPUT_KEYBOARD_TYPE_ALPHABETIC, device->getKeyboardType());
+}
+
 /**
  * The Steam controller sends BTN_GEAR_DOWN and BTN_GEAR_UP for the two "paddle" buttons
  * on the back. In this test, we make sure that BTN_GEAR_DOWN / BTN_WHEEL and BTN_GEAR_UP
