@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "f137b558_1007afda",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 11866
+      },
+      "writtenOn": "2023-10-25T19:35:54Z",
+      "side": 1,
+      "message": "This is a backport from android 13 (https://github.com/LineageOS/android_frameworks_native/commit/88b85e1f9b2fb3cf1ab9da1967e1d454be2d5be0)\n\nhere is a tombstone insert before patch being applied\nhttps://pastebin.com/wiCFT4p0\n\nreproducing it was quite hard as it was random and would happen on tiktok live after prolongued use when screen is being tapped, after the issue we would previously end up in a state where bootanimation is bootlooping until we do hard reboot (caused by sf crash)\n\nafter applying the patch and running \n\nlogcat -b all | grep \"Detected relative layer loop between\"\n\nwe can see \"E Layer   : Detected relative layer loop between ImeContainer#0 and 147da46 com.zhiliaoapp.musically/com.ss.android.ugc.aweme.live.LivePlayActivity#0\" instead of surfaceflinger crashing",
+      "revId": "494a3edbaff22c396cfc8f86d54d24081d3392f7",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
