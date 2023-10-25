@@ -98,7 +98,7 @@ public:
     void addMovement(nsecs_t eventTime, int32_t pointerId, int32_t axis, float position);
 
     // Adds movement information for all pointers in a MotionEvent, including historical samples.
-    void addMovement(const MotionEvent* event);
+    void addMovement(const MotionEvent& event);
 
     // Returns the velocity of the specified pointer id and axis in position units per second.
     // Returns empty optional if there is insufficient movement information for the pointer, or if
