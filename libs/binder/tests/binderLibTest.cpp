@@ -40,6 +40,7 @@
 #include <binder/IServiceManager.h>
 #include <binder/RpcServer.h>
 #include <binder/RpcSession.h>
+#include <utils/Flattenable.h>
 
 #include <linux/sched.h>
 #include <sys/epoll.h>

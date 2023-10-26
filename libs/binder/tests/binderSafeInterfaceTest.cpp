@@ -28,6 +28,7 @@
 #include <gtest/gtest.h>
 #pragma clang diagnostic pop
 
+#include <utils/Flattenable.h>
 #include <utils/LightRefBase.h>
 #include <utils/NativeHandle.h>
 
