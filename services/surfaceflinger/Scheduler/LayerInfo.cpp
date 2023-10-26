@@ -304,19 +304,22 @@ LayerInfo::RefreshRateVotes LayerInfo::getRefreshRateVote(const RefreshRateSelec
 
     if (mLayerVote.type != LayerHistory::LayerVoteType::Heuristic) {
         if (mLayerVote.category != FrameRateCategory::Default) {
-            ATRACE_FORMAT_INSTANT("ExplicitCategory (%s)",
+            const auto voteType = mLayerVote.type == LayerHistory::LayerVoteType::NoVote
+                    ? LayerHistory::LayerVoteType::NoVote
+                    : LayerHistory::LayerVoteType::ExplicitCategory;
+            ATRACE_FORMAT_INSTANT("Vote %s (category=%s)", ftl::enum_string(voteType).c_str(),
                                   ftl::enum_string(mLayerVote.category).c_str());
-            ALOGV("%s uses frame rate category: %d", mName.c_str(),
-                  static_cast<int>(mLayerVote.category));
-            votes.push_back({LayerHistory::LayerVoteType::ExplicitCategory, Fps(),
-                             Seamlessness::Default, mLayerVote.category,
+            ALOGV("%s voted %s with category: %s", mName.c_str(),
+                  ftl::enum_string(voteType).c_str(),
+                  ftl::enum_string(mLayerVote.category).c_str());
+            votes.push_back({voteType, Fps(), Seamlessness::Default, mLayerVote.category,
                              mLayerVote.categorySmoothSwitchOnly});
         }
 
         if (mLayerVote.fps.isValid() ||
             mLayerVote.type != LayerHistory::LayerVoteType::ExplicitDefault) {
             ATRACE_FORMAT_INSTANT("Vote %s", ftl::enum_string(mLayerVote.type).c_str());
-            ALOGV("%s voted %d ", mName.c_str(), static_cast<int>(mLayerVote.type));
+            ALOGV("%s voted %d", mName.c_str(), static_cast<int>(mLayerVote.type));
             votes.push_back(mLayerVote);
         }
 

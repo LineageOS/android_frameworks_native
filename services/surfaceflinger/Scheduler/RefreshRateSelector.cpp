@@ -401,7 +401,6 @@ float RefreshRateSelector::calculateDistanceScoreFromMax(Fps refreshRate) const 
 
 float RefreshRateSelector::calculateLayerScoreLocked(const LayerRequirement& layer, Fps refreshRate,
                                                      bool isSeamlessSwitch) const {
-    ATRACE_CALL();
     // Slightly prefer seamless switches.
     constexpr float kSeamedSwitchPenalty = 0.95f;
     const float seamlessness = isSeamlessSwitch ? 1.0f : kSeamedSwitchPenalty;
