@@ -28,7 +28,6 @@
 
 namespace android {
 static constexpr const char* kExperimentNamespace = "surface_flinger_native_boot";
-static constexpr const int64_t kDemoFlag = -1;
 
 std::unique_ptr<FlagManager> FlagManager::mInstance;
 std::once_flag FlagManager::mOnce;
@@ -36,40 +35,8 @@ std::once_flag FlagManager::mOnce;
 FlagManager::FlagManager(ConstructorTag) {}
 FlagManager::~FlagManager() = default;
 
-FlagManager& FlagManager::getInstance() {
-    std::call_once(mOnce, [&] {
-        LOG_ALWAYS_FATAL_IF(mInstance, "Instance already created");
-        mInstance = std::make_unique<FlagManager>(ConstructorTag{});
-    });
-
-    return *mInstance;
-}
-
-void FlagManager::dump(std::string& result) const {
-    base::StringAppendF(&result, "FlagManager values: \n");
-    base::StringAppendF(&result, "demo_flag: %" PRId64 "\n", demo_flag());
-    base::StringAppendF(&result, "use_adpf_cpu_hint: %s\n", use_adpf_cpu_hint() ? "true" : "false");
-    base::StringAppendF(&result, "use_skia_tracing: %s\n", use_skia_tracing() ? "true" : "false");
-}
-
 namespace {
-template <typename T>
-std::optional<T> doParse(const char* str);
-
-template <>
-[[maybe_unused]] std::optional<int32_t> doParse(const char* str) {
-    int32_t ret;
-    return base::ParseInt(str, &ret) ? std::make_optional(ret) : std::nullopt;
-}
-
-template <>
-[[maybe_unused]] std::optional<int64_t> doParse(const char* str) {
-    int64_t ret;
-    return base::ParseInt(str, &ret) ? std::make_optional(ret) : std::nullopt;
-}
-
-template <>
-[[maybe_unused]] std::optional<bool> doParse(const char* str) {
+std::optional<bool> parseBool(const char* str) {
     base::ParseBoolResult parseResult = base::ParseBool(str);
     switch (parseResult) {
         case base::ParseBoolResult::kTrue:
@@ -80,44 +47,67 @@ template <>
             return std::nullopt;
     }
 }
+
+void dumpFlag(std::string& result, const char* name, std::function<bool()> getter) {
+    base::StringAppendF(&result, "%s: %s\n", name, getter() ? "true" : "false");
+}
+
 } // namespace
 
-std::string FlagManager::getServerConfigurableFlag(const std::string& experimentFlagName) const {
-    return server_configurable_flags::GetServerConfigurableFlag(kExperimentNamespace,
-                                                                experimentFlagName, "");
+const FlagManager& FlagManager::getInstance() {
+    return getMutableInstance();
 }
 
-template int32_t FlagManager::getValue<int32_t>(const std::string&, std::optional<int32_t>,
-                                                int32_t) const;
-template int64_t FlagManager::getValue<int64_t>(const std::string&, std::optional<int64_t>,
-                                                int64_t) const;
-template bool FlagManager::getValue<bool>(const std::string&, std::optional<bool>, bool) const;
-template <typename T>
-T FlagManager::getValue(const std::string& experimentFlagName, std::optional<T> systemPropertyOpt,
-                        T defaultValue) const {
-    // System property takes precedence over the experiment config server value.
-    if (systemPropertyOpt.has_value()) {
-        return *systemPropertyOpt;
+FlagManager& FlagManager::getMutableInstance() {
+    std::call_once(mOnce, [&] {
+        LOG_ALWAYS_FATAL_IF(mInstance, "Instance already created");
+        mInstance = std::make_unique<FlagManager>(ConstructorTag{});
+    });
+
+    return *mInstance;
+}
+
+void FlagManager::markBootCompleted() {
+    mBootCompleted = true;
+}
+
+void FlagManager::dump(std::string& result) const {
+#define DUMP_FLAG(name) dumpFlag(result, #name, std::bind(&FlagManager::name, this));
+
+    base::StringAppendF(&result, "FlagManager values: \n");
+    DUMP_FLAG(use_adpf_cpu_hint);
+    DUMP_FLAG(use_skia_tracing);
+
+#undef DUMP_FLAG
+}
+
+std::optional<bool> FlagManager::getBoolProperty(const char* property) const {
+    return parseBool(base::GetProperty(property, "").c_str());
+}
+
+bool FlagManager::getServerConfigurableFlag(const char* experimentFlagName) const {
+    const auto value = server_configurable_flags::GetServerConfigurableFlag(kExperimentNamespace,
+                                                                            experimentFlagName, "");
+    const auto res = parseBool(value.c_str());
+    return res.has_value() && res.value();
+}
+
+#define FLAG_MANAGER_SERVER_FLAG(name, syspropOverride, serverFlagName)                     \
+    bool FlagManager::name() const {                                                        \
+        LOG_ALWAYS_FATAL_IF(!mBootCompleted,                                                \
+                            "Can't read %s before boot completed as it is server writable", \
+                            __func__);                                                      \
+        const auto debugOverride = getBoolProperty(syspropOverride);                        \
+        if (debugOverride.has_value()) return debugOverride.value();                        \
+        return getServerConfigurableFlag(serverFlagName);                                   \
     }
-    std::string str = getServerConfigurableFlag(experimentFlagName);
-    return str.empty() ? defaultValue : doParse<T>(str.c_str()).value_or(defaultValue);
-}
 
-int64_t FlagManager::demo_flag() const {
-    std::optional<int64_t> sysPropVal = std::nullopt;
-    return getValue("DemoFeature__demo_flag", sysPropVal, kDemoFlag);
-}
+FLAG_MANAGER_SERVER_FLAG(test_flag, "", "")
+FLAG_MANAGER_SERVER_FLAG(use_adpf_cpu_hint, "debug.sf.enable_adpf_cpu_hint",
+                         "AdpfFeature__adpf_cpu_hint")
+FLAG_MANAGER_SERVER_FLAG(use_skia_tracing, PROPERTY_SKIA_ATRACE_ENABLED,
+                         "SkiaTracingFeature__use_skia_tracing")
 
-bool FlagManager::use_adpf_cpu_hint() const {
-    std::optional<bool> sysPropVal =
-            doParse<bool>(base::GetProperty("debug.sf.enable_adpf_cpu_hint", "").c_str());
-    return getValue("AdpfFeature__adpf_cpu_hint", sysPropVal, false);
-}
-
-bool FlagManager::use_skia_tracing() const {
-    std::optional<bool> sysPropVal =
-            doParse<bool>(base::GetProperty(PROPERTY_SKIA_ATRACE_ENABLED, "").c_str());
-    return getValue("SkiaTracingFeature__use_skia_tracing", sysPropVal, false);
-}
+#undef FLAG_MANAGER_SERVER_FLAG
 
 } // namespace android

@@ -30,30 +30,30 @@ private:
     struct ConstructorTag {};
 
 public:
-    static FlagManager& getInstance();
+    static const FlagManager& getInstance();
+    static FlagManager& getMutableInstance();
 
     FlagManager(ConstructorTag);
-
     virtual ~FlagManager();
+
+    void markBootCompleted();
     void dump(std::string& result) const;
 
-    int64_t demo_flag() const;
-
+    bool test_flag() const;
     bool use_adpf_cpu_hint() const;
-
     bool use_skia_tracing() const;
 
+protected:
+    // overridden for unit tests
+    virtual std::optional<bool> getBoolProperty(const char*) const;
+    virtual bool getServerConfigurableFlag(const char*) const;
+
 private:
-    friend class FlagManagerTest;
+    friend class TestableFlagManager;
 
     FlagManager(const FlagManager&) = delete;
 
-    // Wrapper for mocking in test.
-    virtual std::string getServerConfigurableFlag(const std::string& experimentFlagName) const;
-
-    template <typename T>
-    T getValue(const std::string& experimentFlagName, std::optional<T> systemPropertyOpt,
-               T defaultValue) const;
+    std::atomic_bool mBootCompleted;
 
     static std::unique_ptr<FlagManager> mInstance;
     static std::once_flag mOnce;

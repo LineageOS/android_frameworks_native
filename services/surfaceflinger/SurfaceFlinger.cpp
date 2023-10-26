@@ -689,6 +689,7 @@ void SurfaceFlinger::bootFinished() {
         return;
     }
     mBootFinished = true;
+    FlagManager::getMutableInstance().markBootCompleted();
     if (mStartPropertySetThread->join() != NO_ERROR) {
         ALOGE("Join StartPropertySetThread failed!");
     }
