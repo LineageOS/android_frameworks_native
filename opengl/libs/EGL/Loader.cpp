@@ -567,6 +567,7 @@ Loader::driver_t* Loader::attempt_to_load_angle(egl_connection_t* cnx) {
         return nullptr;
     }
 
+    // use ANGLE APK driver
     android::GraphicsEnv::getInstance().setDriverToLoad(android::GpuStatsInfo::Driver::ANGLE);
     driver_t* hnd = nullptr;
 
@@ -635,7 +636,13 @@ Loader::driver_t* Loader::attempt_to_load_updated_driver(egl_connection_t* cnx) 
 Loader::driver_t* Loader::attempt_to_load_system_driver(egl_connection_t* cnx, const char* suffix,
                                                         const bool exact) {
     ATRACE_CALL();
-    android::GraphicsEnv::getInstance().setDriverToLoad(android::GpuStatsInfo::Driver::GL);
+    if (strcmp(suffix, "angle") == 0) {
+        // use system ANGLE driver
+        android::GraphicsEnv::getInstance().setDriverToLoad(android::GpuStatsInfo::Driver::ANGLE);
+    } else {
+        android::GraphicsEnv::getInstance().setDriverToLoad(android::GpuStatsInfo::Driver::GL);
+    }
+
     driver_t* hnd = nullptr;
     void* dso = load_system_driver("GLES", suffix, exact);
     if (dso) {
