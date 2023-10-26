@@ -200,7 +200,7 @@ bool checkCallingPermission(const String16& permission, int32_t* outPid, int32_t
 }
 
 bool checkPermission(const String16& permission, pid_t pid, uid_t uid, bool logPermissionFailure) {
-    static Mutex gPermissionControllerLock;
+    static std::mutex gPermissionControllerLock;
     static sp<IPermissionController> gPermissionController;
 
     sp<IPermissionController> pc;
