@@ -22,10 +22,12 @@
 #define LOG_TAG "LayerHistoryTest"
 
 #include <Layer.h>
+#include <com_android_graphics_surfaceflinger_flags.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <log/log.h>
 
+#include "FlagUtils.h"
 #include "FpsOps.h"
 #include "Scheduler/LayerHistory.h"
 #include "Scheduler/LayerInfo.h"
@@ -148,6 +150,8 @@ protected:
 };
 
 namespace {
+
+using namespace com::android::graphics::surfaceflinger;
 
 TEST_F(LayerHistoryTest, singleLayerNoVoteDefaultCompatibility) {
     const auto layer = createLayer();
@@ -555,6 +559,33 @@ TEST_F(LayerHistoryTest, oneLayerExplicitVoteWithCategory) {
     EXPECT_EQ(FrameRateCategory::High, summarizeLayerHistory(time)[0].frameRateCategory);
 }
 
+TEST_F(LayerHistoryTest, oneLayerExplicitVoteWithCategoryNotVisibleDoesNotVote) {
+    SET_FLAG_FOR_TEST(flags::misc1, true);
+
+    auto layer = createLayer();
+    EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(false));
+    EXPECT_CALL(*layer, getFrameRateForLayerTree())
+            .WillRepeatedly(
+                    Return(Layer::FrameRate(12.34_Hz, Layer::FrameRateCompatibility::Default,
+                                            Seamlessness::OnlySeamless, FrameRateCategory::High)));
+
+    EXPECT_EQ(1, layerCount());
+    EXPECT_EQ(0, activeLayerCount());
+
+    nsecs_t time = systemTime();
+    for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE; i++) {
+        history().record(layer->getSequence(), layer->getLayerProps(), time, time,
+                         LayerHistory::LayerUpdateType::Buffer);
+        time += HI_FPS_PERIOD;
+    }
+
+    // Layer is not visible, so the layer is moved to inactive, infrequent, and it will not have
+    // votes to consider for refresh rate selection.
+    ASSERT_EQ(0, summarizeLayerHistory(time).size());
+    EXPECT_EQ(0, activeLayerCount());
+    EXPECT_EQ(0, frequentLayerCount(time));
+}
+
 TEST_F(LayerHistoryTest, multipleLayers) {
     auto layer1 = createLayer("A");
     auto layer2 = createLayer("B");
@@ -780,6 +811,8 @@ TEST_F(LayerHistoryTest, inactiveLayers) {
 }
 
 TEST_F(LayerHistoryTest, invisibleExplicitLayer) {
+    SET_FLAG_FOR_TEST(flags::misc1, false);
+
     auto explicitVisiblelayer = createLayer();
     auto explicitInvisiblelayer = createLayer();
 
@@ -808,6 +841,39 @@ TEST_F(LayerHistoryTest, invisibleExplicitLayer) {
     EXPECT_EQ(60_Hz, summarizeLayerHistory(time)[0].desiredRefreshRate);
     EXPECT_EQ(2, activeLayerCount());
     EXPECT_EQ(2, frequentLayerCount(time));
+}
+
+TEST_F(LayerHistoryTest, invisibleExplicitLayerDoesNotVote) {
+    SET_FLAG_FOR_TEST(flags::misc1, true);
+
+    auto explicitVisiblelayer = createLayer();
+    auto explicitInvisiblelayer = createLayer();
+
+    EXPECT_CALL(*explicitVisiblelayer, isVisible()).WillRepeatedly(Return(true));
+    EXPECT_CALL(*explicitVisiblelayer, getFrameRateForLayerTree())
+            .WillRepeatedly(Return(
+                    Layer::FrameRate(60_Hz, Layer::FrameRateCompatibility::ExactOrMultiple)));
+
+    EXPECT_CALL(*explicitInvisiblelayer, isVisible()).WillRepeatedly(Return(false));
+    EXPECT_CALL(*explicitInvisiblelayer, getFrameRateForLayerTree())
+            .WillRepeatedly(Return(
+                    Layer::FrameRate(90_Hz, Layer::FrameRateCompatibility::ExactOrMultiple)));
+
+    nsecs_t time = systemTime();
+
+    // Post a buffer to the layers to make them active
+    history().record(explicitVisiblelayer->getSequence(), explicitVisiblelayer->getLayerProps(),
+                     time, time, LayerHistory::LayerUpdateType::Buffer);
+    history().record(explicitInvisiblelayer->getSequence(), explicitInvisiblelayer->getLayerProps(),
+                     time, time, LayerHistory::LayerUpdateType::Buffer);
+
+    EXPECT_EQ(2, layerCount());
+    ASSERT_EQ(1, summarizeLayerHistory(time).size());
+    EXPECT_EQ(LayerHistory::LayerVoteType::ExplicitExactOrMultiple,
+              summarizeLayerHistory(time)[0].vote);
+    EXPECT_EQ(60_Hz, summarizeLayerHistory(time)[0].desiredRefreshRate);
+    EXPECT_EQ(1, activeLayerCount());
+    EXPECT_EQ(1, frequentLayerCount(time));
 }
 
 TEST_F(LayerHistoryTest, infrequentAnimatingLayer) {

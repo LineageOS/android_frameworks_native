@@ -21,6 +21,7 @@
 #include "LayerHistory.h"
 
 #include <android-base/stringprintf.h>
+#include <com_android_graphics_surfaceflinger_flags.h>
 #include <cutils/properties.h>
 #include <gui/TraceUtils.h>
 #include <utils/Log.h>
@@ -39,8 +40,14 @@ namespace android::scheduler {
 
 namespace {
 
+using namespace com::android::graphics::surfaceflinger;
+
 bool isLayerActive(const LayerInfo& info, nsecs_t threshold) {
-    // Layers with an explicit frame rate or frame rate category are always kept active,
+    if (flags::misc1() && !info.isVisible()) {
+        return false;
+    }
+
+    // Layers with an explicit frame rate or frame rate category are kept active,
     // but ignore NoVote.
     if (info.getSetFrameRateVote().isValid() && !info.getSetFrameRateVote().isNoVote()) {
         return true;

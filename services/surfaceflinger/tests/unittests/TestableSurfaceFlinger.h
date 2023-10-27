@@ -271,7 +271,7 @@ public:
         resetScheduler(mScheduler);
     }
 
-    void setupMockScheduler(test::MockSchedulerOptions options = {}) {
+    void setupMockScheduler(surfaceflinger::test::MockSchedulerOptions options = {}) {
         using testing::_;
         using testing::Return;
 

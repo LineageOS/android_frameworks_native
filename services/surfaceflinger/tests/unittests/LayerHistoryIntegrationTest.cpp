@@ -18,12 +18,14 @@
 #define LOG_TAG "LayerHistoryIntegrationTest"
 
 #include <Layer.h>
+#include <com_android_graphics_surfaceflinger_flags.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <log/log.h>
 
 #include <renderengine/mock/FakeExternalTexture.h>
 
+#include "FlagUtils.h"
 #include "FpsOps.h"
 #include "LayerHierarchyTest.h"
 #include "Scheduler/LayerHistory.h"
@@ -36,6 +38,7 @@
 namespace android::scheduler {
 
 using android::mock::createDisplayMode;
+using namespace com::android::graphics::surfaceflinger;
 
 class LayerHistoryIntegrationTest : public surfaceflinger::frontend::LayerSnapshotTestBase {
 protected:
@@ -492,7 +495,9 @@ TEST_F(LayerHistoryIntegrationTest, inactiveLayers) {
     EXPECT_EQ(1, frequentLayerCount(time));
 }
 
-TEST_F(LayerHistoryIntegrationTest, invisibleExplicitLayer) {
+TEST_F(LayerHistoryIntegrationTest, invisibleExplicitLayerIsActive) {
+    SET_FLAG_FOR_TEST(flags::misc1, false);
+
     auto explicitVisiblelayer = createLegacyAndFrontedEndLayer(1);
     auto explicitInvisiblelayer = createLegacyAndFrontedEndLayer(2);
     hideLayer(2);
@@ -513,6 +518,31 @@ TEST_F(LayerHistoryIntegrationTest, invisibleExplicitLayer) {
     EXPECT_EQ(60_Hz, summarizeLayerHistory(time)[0].desiredRefreshRate);
     EXPECT_EQ(2u, activeLayerCount());
     EXPECT_EQ(2, frequentLayerCount(time));
+}
+
+TEST_F(LayerHistoryIntegrationTest, invisibleExplicitLayerIsNotActive) {
+    SET_FLAG_FOR_TEST(flags::misc1, true);
+
+    auto explicitVisiblelayer = createLegacyAndFrontedEndLayer(1);
+    auto explicitInvisiblelayer = createLegacyAndFrontedEndLayer(2);
+    hideLayer(2);
+    setFrameRate(1, 60.0f, ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_FIXED_SOURCE,
+                 ANATIVEWINDOW_CHANGE_FRAME_RATE_ONLY_IF_SEAMLESS);
+    setFrameRate(2, 90.0f, ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_FIXED_SOURCE,
+                 ANATIVEWINDOW_CHANGE_FRAME_RATE_ONLY_IF_SEAMLESS);
+    nsecs_t time = systemTime();
+
+    // Post a buffer to the layers to make them active
+    setBufferWithPresentTime(explicitVisiblelayer, time);
+    setBufferWithPresentTime(explicitInvisiblelayer, time);
+
+    EXPECT_EQ(2u, layerCount());
+    ASSERT_EQ(1u, summarizeLayerHistory(time).size());
+    EXPECT_EQ(LayerHistory::LayerVoteType::ExplicitExactOrMultiple,
+              summarizeLayerHistory(time)[0].vote);
+    EXPECT_EQ(60_Hz, summarizeLayerHistory(time)[0].desiredRefreshRate);
+    EXPECT_EQ(1u, activeLayerCount());
+    EXPECT_EQ(1, frequentLayerCount(time));
 }
 
 TEST_F(LayerHistoryIntegrationTest, infrequentAnimatingLayer) {
