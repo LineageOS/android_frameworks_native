@@ -18,7 +18,6 @@
 // only used on NDK tests outside of vendor
 #include <aidl/IBinderRpcTest.h>
 #endif
-#include <android-base/stringprintf.h>
 
 #include <chrono>
 #include <cstdlib>
@@ -59,12 +58,12 @@ constexpr char kTrustyIpcDevice[] = "/dev/trusty-ipc-dev0";
 
 static std::string WaitStatusToString(int wstatus) {
     if (WIFEXITED(wstatus)) {
-        return base::StringPrintf("exit status %d", WEXITSTATUS(wstatus));
+        return std::format("exit status {}", WEXITSTATUS(wstatus));
     }
     if (WIFSIGNALED(wstatus)) {
-        return base::StringPrintf("term signal %d", WTERMSIG(wstatus));
+        return std::format("term signal {}", WTERMSIG(wstatus));
     }
-    return base::StringPrintf("unexpected state %d", wstatus);
+    return std::format("unexpected state {}", wstatus);
 }
 
 static void debugBacktrace(pid_t pid) {
@@ -260,9 +259,9 @@ std::unique_ptr<ProcessSession> BinderRpc::createRpcTestSocketServerProcessEtc(
     bool noKernel = GetParam().noKernel;
 
     std::string path = android::base::GetExecutableDirectory();
-    auto servicePath = android::base::StringPrintf("%s/binder_rpc_test_service%s%s", path.c_str(),
-                                                   singleThreaded ? "_single_threaded" : "",
-                                                   noKernel ? "_no_kernel" : "");
+    auto servicePath =
+            std::format("{}/binder_rpc_test_service{}{}", path,
+                        singleThreaded ? "_single_threaded" : "", noKernel ? "_no_kernel" : "");
 
     base::unique_fd bootstrapClientFd, socketFd;
 
