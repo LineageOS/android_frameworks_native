@@ -514,6 +514,8 @@ private:
         // Make sure dex2oat is run with background priority.
         dexopt_flags |= DEXOPT_BOOTCOMPLETE | DEXOPT_IDLE_BACKGROUND_JOB;
 
+        parameters_.compilation_reason = "ab-ota";
+
         int res = dexopt(parameters_.apk_path,
                          parameters_.uid,
                          parameters_.pkgName,
