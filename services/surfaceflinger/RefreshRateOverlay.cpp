@@ -17,9 +17,9 @@
 #include <algorithm>
 
 #include "Client.h"
+#include "FlagManager.h"
 #include "Layer.h"
 #include "RefreshRateOverlay.h"
-#include "Utils/FlagUtils.h"
 
 #include <SkSurface.h>
 
@@ -268,7 +268,8 @@ void RefreshRateOverlay::changeRefreshRate(Fps vsyncRate, Fps renderFps) {
 }
 
 void RefreshRateOverlay::changeRenderRate(Fps renderFps) {
-    if (mFeatures.test(Features::RenderRate) && mVsyncRate && flagutils::vrrConfigEnabled()) {
+    if (mFeatures.test(Features::RenderRate) && mVsyncRate &&
+        FlagManager::getInstance().vrr_config()) {
         mRenderFps = renderFps;
         const auto buffer = getOrCreateBuffers(*mVsyncRate, renderFps)[mFrame];
         createTransaction().setBuffer(mSurfaceControl->get(), buffer).apply();
