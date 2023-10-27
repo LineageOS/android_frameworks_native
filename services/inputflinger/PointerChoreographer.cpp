@@ -31,6 +31,14 @@ bool isFromMouse(const NotifyMotionArgs& args) {
             args.pointerProperties[0].toolType == ToolType::MOUSE;
 }
 
+bool isHoverAction(int32_t action) {
+    return action == AMOTION_EVENT_ACTION_HOVER_ENTER ||
+            action == AMOTION_EVENT_ACTION_HOVER_MOVE || action == AMOTION_EVENT_ACTION_HOVER_EXIT;
+}
+
+bool isStylusHoverEvent(const NotifyMotionArgs& args) {
+    return isStylusEvent(args.source, args.pointerProperties) && isHoverAction(args.action);
+}
 } // namespace
 
 // --- PointerChoreographer ---
@@ -41,7 +49,8 @@ PointerChoreographer::PointerChoreographer(InputListenerInterface& listener,
         mPolicy(policy),
         mDefaultMouseDisplayId(ADISPLAY_ID_DEFAULT),
         mNotifiedPointerDisplayId(ADISPLAY_ID_NONE),
-        mShowTouchesEnabled(false) {}
+        mShowTouchesEnabled(false),
+        mStylusPointerIconEnabled(false) {}
 
 void PointerChoreographer::notifyInputDevicesChanged(const NotifyInputDevicesChangedArgs& args) {
     std::scoped_lock _l(mLock);
@@ -70,6 +79,8 @@ NotifyMotionArgs PointerChoreographer::processMotion(const NotifyMotionArgs& arg
 
     if (isFromMouse(args)) {
         return processMouseEventLocked(args);
+    } else if (mStylusPointerIconEnabled && isStylusHoverEvent(args)) {
+        processStylusHoverEventLocked(args);
     } else if (isFromSource(args.source, AINPUT_SOURCE_TOUCHSCREEN)) {
         processTouchscreenAndStylusEventLocked(args);
     }
@@ -155,6 +166,33 @@ void PointerChoreographer::processTouchscreenAndStylusEventLocked(const NotifyMo
     pc.setSpots(coords, idToIndex.cbegin(), idBits, args.displayId);
 }
 
+void PointerChoreographer::processStylusHoverEventLocked(const NotifyMotionArgs& args) {
+    if (args.displayId == ADISPLAY_ID_NONE) {
+        return;
+    }
+
+    if (args.getPointerCount() != 1) {
+        LOG(WARNING) << "Only stylus hover events with a single pointer are currently supported: "
+                     << args.dump();
+    }
+
+    // Get the stylus pointer controller for the device, or create one if it doesn't exist.
+    auto [it, _] =
+            mStylusPointersByDevice.try_emplace(args.deviceId,
+                                                getStylusControllerConstructor(args.displayId));
+
+    PointerControllerInterface& pc = *it->second;
+
+    const float x = args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_X);
+    const float y = args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_Y);
+    pc.setPosition(x, y);
+    if (args.action == AMOTION_EVENT_ACTION_HOVER_EXIT) {
+        pc.fade(PointerControllerInterface::Transition::IMMEDIATE);
+    } else {
+        pc.unfade(PointerControllerInterface::Transition::IMMEDIATE);
+    }
+}
+
 void PointerChoreographer::notifySwitch(const NotifySwitchArgs& args) {
     mNextListener.notify(args);
 }
@@ -181,11 +219,20 @@ void PointerChoreographer::processDeviceReset(const NotifyDeviceResetArgs& args)
         return;
     }
 
-    if (isFromSource(info->getSources(), AINPUT_SOURCE_TOUCHSCREEN) && mShowTouchesEnabled &&
-        info->getAssociatedDisplayId() != ADISPLAY_ID_NONE) {
+    const uint32_t sources = info->getSources();
+    const int32_t displayId = info->getAssociatedDisplayId();
+    if (isFromSource(sources, AINPUT_SOURCE_TOUCHSCREEN) && mShowTouchesEnabled &&
+        displayId != ADISPLAY_ID_NONE) {
         if (const auto it = mTouchPointersByDevice.find(args.deviceId);
             it != mTouchPointersByDevice.end()) {
             it->second->clearSpots();
+        }
+    }
+    if (isFromSource(info->getSources(), AINPUT_SOURCE_STYLUS) && mStylusPointerIconEnabled &&
+        displayId != ADISPLAY_ID_NONE) {
+        if (const auto it = mStylusPointersByDevice.find(args.deviceId);
+            it != mStylusPointersByDevice.end()) {
+            it->second->fade(PointerControllerInterface::Transition::IMMEDIATE);
         }
     }
 }
@@ -206,6 +253,8 @@ void PointerChoreographer::dump(std::string& dump) {
 
     dump += "PointerChoreographer:\n";
     dump += StringPrintf("show touches: %s\n", mShowTouchesEnabled ? "true" : "false");
+    dump += StringPrintf("stylus pointer icon enabled: %s\n",
+                         mStylusPointerIconEnabled ? "true" : "false");
 
     dump += INDENT "MousePointerControllers:\n";
     for (const auto& [displayId, mousePointerController] : mMousePointersByDisplay) {
@@ -215,6 +264,11 @@ void PointerChoreographer::dump(std::string& dump) {
     dump += INDENT "TouchPointerControllers:\n";
     for (const auto& [deviceId, touchPointerController] : mTouchPointersByDevice) {
         std::string pointerControllerDump = addLinePrefix(touchPointerController->dump(), INDENT);
+        dump += INDENT + std::to_string(deviceId) + " : " + pointerControllerDump;
+    }
+    dump += INDENT "StylusPointerControllers:\n";
+    for (const auto& [deviceId, stylusPointerController] : mStylusPointersByDevice) {
+        std::string pointerControllerDump = addLinePrefix(stylusPointerController->dump(), INDENT);
         dump += INDENT + std::to_string(deviceId) + " : " + pointerControllerDump;
     }
     dump += "\n";
@@ -245,6 +299,7 @@ InputDeviceInfo* PointerChoreographer::findInputDeviceLocked(DeviceId deviceId) 
 void PointerChoreographer::updatePointerControllersLocked() {
     std::set<int32_t /*displayId*/> mouseDisplaysToKeep;
     std::set<DeviceId> touchDevicesToKeep;
+    std::set<DeviceId> stylusDevicesToKeep;
 
     // Mark the displayIds or deviceIds of PointerControllers currently needed.
     for (const auto& info : mInputDeviceInfos) {
@@ -258,6 +313,10 @@ void PointerChoreographer::updatePointerControllersLocked() {
         if (isFromSource(sources, AINPUT_SOURCE_TOUCHSCREEN) && mShowTouchesEnabled &&
             info.getAssociatedDisplayId() != ADISPLAY_ID_NONE) {
             touchDevicesToKeep.insert(info.getId());
+        }
+        if (isFromSource(sources, AINPUT_SOURCE_STYLUS) && mStylusPointerIconEnabled &&
+            info.getAssociatedDisplayId() != ADISPLAY_ID_NONE) {
+            stylusDevicesToKeep.insert(info.getId());
         }
     }
 
@@ -275,6 +334,14 @@ void PointerChoreographer::updatePointerControllersLocked() {
         auto& [deviceId, controller] = pair;
         if (touchDevicesToKeep.find(deviceId) == touchDevicesToKeep.end()) {
             controller->clearSpots();
+            return true;
+        }
+        return false;
+    });
+    std::erase_if(mStylusPointersByDevice, [&stylusDevicesToKeep](const auto& pair) {
+        auto& [deviceId, controller] = pair;
+        if (stylusDevicesToKeep.find(deviceId) == stylusDevicesToKeep.end()) {
+            controller->fade(PointerControllerInterface::Transition::IMMEDIATE);
             return true;
         }
         return false;
@@ -314,9 +381,16 @@ void PointerChoreographer::setDefaultMouseDisplayId(int32_t displayId) {
 void PointerChoreographer::setDisplayViewports(const std::vector<DisplayViewport>& viewports) {
     std::scoped_lock _l(mLock);
     for (const auto& viewport : viewports) {
-        if (const auto it = mMousePointersByDisplay.find(viewport.displayId);
+        const int32_t displayId = viewport.displayId;
+        if (const auto it = mMousePointersByDisplay.find(displayId);
             it != mMousePointersByDisplay.end()) {
             it->second->setDisplayViewport(viewport);
+        }
+        for (const auto& [deviceId, stylusPointerController] : mStylusPointersByDevice) {
+            const InputDeviceInfo* info = findInputDeviceLocked(deviceId);
+            if (info && info->getAssociatedDisplayId() == displayId) {
+                stylusPointerController->setDisplayViewport(viewport);
+            }
         }
     }
     mViewports = viewports;
@@ -352,6 +426,15 @@ void PointerChoreographer::setShowTouchesEnabled(bool enabled) {
     updatePointerControllersLocked();
 }
 
+void PointerChoreographer::setStylusPointerIconEnabled(bool enabled) {
+    std::scoped_lock _l(mLock);
+    if (mStylusPointerIconEnabled == enabled) {
+        return;
+    }
+    mStylusPointerIconEnabled = enabled;
+    updatePointerControllersLocked();
+}
+
 PointerChoreographer::ControllerConstructor PointerChoreographer::getMouseControllerConstructor(
         int32_t displayId) {
     std::function<std::shared_ptr<PointerControllerInterface>()> ctor =
@@ -370,6 +453,20 @@ PointerChoreographer::ControllerConstructor PointerChoreographer::getTouchContro
     std::function<std::shared_ptr<PointerControllerInterface>()> ctor = [this]() REQUIRES(mLock) {
         return mPolicy.createPointerController(PointerControllerInterface::ControllerType::TOUCH);
     };
+    return ConstructorDelegate(std::move(ctor));
+}
+
+PointerChoreographer::ControllerConstructor PointerChoreographer::getStylusControllerConstructor(
+        int32_t displayId) {
+    std::function<std::shared_ptr<PointerControllerInterface>()> ctor =
+            [this, displayId]() REQUIRES(mLock) {
+                auto pc = mPolicy.createPointerController(
+                        PointerControllerInterface::ControllerType::STYLUS);
+                if (const auto viewport = findViewportByIdLocked(displayId); viewport) {
+                    pc->setDisplayViewport(*viewport);
+                }
+                return pc;
+            };
     return ConstructorDelegate(std::move(ctor));
 }
 

@@ -65,6 +65,8 @@ public:
         MOUSE,
         // Represents multiple touch spots.
         TOUCH,
+        // Represents a single stylus pointer.
+        STYLUS,
     };
 
     /* Dumps the state of the pointer controller. */

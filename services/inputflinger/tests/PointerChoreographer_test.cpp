@@ -806,4 +806,274 @@ TEST_F(PointerChoreographerTest, WhenTouchDeviceIsResetClearsSpots) {
     ASSERT_TRUE(it == pc->getSpots().end());
 }
 
+TEST_F(PointerChoreographerTest,
+       WhenStylusPointerIconEnabledAndDisabledDoesNotCreatePointerController) {
+    // Disable stylus pointer icon and add a stylus device.
+    mChoreographer.setStylusPointerIconEnabled(false);
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_STYLUS, DISPLAY_ID)}});
+    assertPointerControllerNotCreated();
+
+    // Enable stylus pointer icon. PointerController still should not be created.
+    mChoreographer.setStylusPointerIconEnabled(true);
+    assertPointerControllerNotCreated();
+}
+
+TEST_F(PointerChoreographerTest, WhenStylusHoverEventOccursCreatesPointerController) {
+    // Add a stylus device and enable stylus pointer icon.
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_STYLUS, DISPLAY_ID)}});
+    mChoreographer.setStylusPointerIconEnabled(true);
+    assertPointerControllerNotCreated();
+
+    // Emit hover event. Now PointerController should be created.
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
+                    .pointer(STYLUS_POINTER)
+                    .deviceId(DEVICE_ID)
+                    .displayId(DISPLAY_ID)
+                    .build());
+    assertPointerControllerCreated(ControllerType::STYLUS);
+}
+
+TEST_F(PointerChoreographerTest,
+       WhenStylusPointerIconDisabledAndHoverEventOccursDoesNotCreatePointerController) {
+    // Add a stylus device and disable stylus pointer icon.
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_STYLUS, DISPLAY_ID)}});
+    mChoreographer.setStylusPointerIconEnabled(false);
+    assertPointerControllerNotCreated();
+
+    // Emit hover event. Still, PointerController should not be created.
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
+                    .pointer(STYLUS_POINTER)
+                    .deviceId(DEVICE_ID)
+                    .displayId(DISPLAY_ID)
+                    .build());
+    assertPointerControllerNotCreated();
+}
+
+TEST_F(PointerChoreographerTest, WhenStylusDeviceIsRemovedRemovesPointerController) {
+    // Make sure the PointerController is created.
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_STYLUS, DISPLAY_ID)}});
+    mChoreographer.setStylusPointerIconEnabled(true);
+    assertPointerControllerNotCreated();
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
+                    .pointer(STYLUS_POINTER)
+                    .deviceId(DEVICE_ID)
+                    .displayId(DISPLAY_ID)
+                    .build());
+    auto pc = assertPointerControllerCreated(ControllerType::STYLUS);
+
+    // Remove the device.
+    mChoreographer.notifyInputDevicesChanged({/*id=*/1, {}});
+    assertPointerControllerRemoved(pc);
+}
+
+TEST_F(PointerChoreographerTest, WhenStylusPointerIconDisabledRemovesPointerController) {
+    // Make sure the PointerController is created.
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_STYLUS, DISPLAY_ID)}});
+    mChoreographer.setStylusPointerIconEnabled(true);
+    assertPointerControllerNotCreated();
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
+                    .pointer(STYLUS_POINTER)
+                    .deviceId(DEVICE_ID)
+                    .displayId(DISPLAY_ID)
+                    .build());
+    auto pc = assertPointerControllerCreated(ControllerType::STYLUS);
+
+    // Disable stylus pointer icon.
+    mChoreographer.setStylusPointerIconEnabled(false);
+    assertPointerControllerRemoved(pc);
+}
+
+TEST_F(PointerChoreographerTest, SetsViewportForStylusPointerController) {
+    // Set viewport.
+    mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID}));
+
+    // Make sure the PointerController is created.
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_STYLUS, DISPLAY_ID)}});
+    mChoreographer.setStylusPointerIconEnabled(true);
+    assertPointerControllerNotCreated();
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
+                    .pointer(STYLUS_POINTER)
+                    .deviceId(DEVICE_ID)
+                    .displayId(DISPLAY_ID)
+                    .build());
+    auto pc = assertPointerControllerCreated(ControllerType::STYLUS);
+
+    // Check that displayId is set.
+    ASSERT_EQ(DISPLAY_ID, pc->getDisplayId());
+}
+
+TEST_F(PointerChoreographerTest, WhenViewportIsSetLaterSetsViewportForStylusPointerController) {
+    // Make sure the PointerController is created.
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_STYLUS, DISPLAY_ID)}});
+    mChoreographer.setStylusPointerIconEnabled(true);
+    assertPointerControllerNotCreated();
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
+                    .pointer(STYLUS_POINTER)
+                    .deviceId(DEVICE_ID)
+                    .displayId(DISPLAY_ID)
+                    .build());
+    auto pc = assertPointerControllerCreated(ControllerType::STYLUS);
+
+    // Check that displayId is unset.
+    ASSERT_EQ(ADISPLAY_ID_NONE, pc->getDisplayId());
+
+    // Set viewport.
+    mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID}));
+
+    // Check that displayId is set.
+    ASSERT_EQ(DISPLAY_ID, pc->getDisplayId());
+}
+
+TEST_F(PointerChoreographerTest,
+       WhenViewportDoesNotMatchDoesNotSetViewportForStylusPointerController) {
+    // Make sure the PointerController is created.
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_STYLUS, DISPLAY_ID)}});
+    mChoreographer.setStylusPointerIconEnabled(true);
+    assertPointerControllerNotCreated();
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
+                    .pointer(STYLUS_POINTER)
+                    .deviceId(DEVICE_ID)
+                    .displayId(DISPLAY_ID)
+                    .build());
+    auto pc = assertPointerControllerCreated(ControllerType::STYLUS);
+
+    // Check that displayId is unset.
+    ASSERT_EQ(ADISPLAY_ID_NONE, pc->getDisplayId());
+
+    // Set viewport which does not match the associated display of the stylus.
+    mChoreographer.setDisplayViewports(createViewports({ANOTHER_DISPLAY_ID}));
+
+    // Check that displayId is still unset.
+    ASSERT_EQ(ADISPLAY_ID_NONE, pc->getDisplayId());
+}
+
+TEST_F(PointerChoreographerTest, StylusHoverManipulatesPointer) {
+    mChoreographer.setStylusPointerIconEnabled(true);
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_STYLUS, DISPLAY_ID)}});
+    mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID}));
+
+    // Emit hover enter event. This is for creating PointerController.
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
+                    .pointer(STYLUS_POINTER)
+                    .deviceId(DEVICE_ID)
+                    .displayId(DISPLAY_ID)
+                    .build());
+    auto pc = assertPointerControllerCreated(ControllerType::STYLUS);
+
+    // Emit hover move event. After bounds are set, PointerController will update the position.
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_STYLUS)
+                    .pointer(PointerBuilder(/*id=*/0, ToolType::STYLUS).x(150).y(250))
+                    .deviceId(DEVICE_ID)
+                    .displayId(DISPLAY_ID)
+                    .build());
+    pc->assertPosition(150, 250);
+    ASSERT_TRUE(pc->isPointerShown());
+
+    // Emit hover exit event.
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_EXIT, AINPUT_SOURCE_STYLUS)
+                    .pointer(PointerBuilder(/*id=*/0, ToolType::STYLUS).x(150).y(250))
+                    .deviceId(DEVICE_ID)
+                    .displayId(DISPLAY_ID)
+                    .build());
+    // Check that the pointer is gone.
+    ASSERT_FALSE(pc->isPointerShown());
+}
+
+TEST_F(PointerChoreographerTest, StylusHoverManipulatesPointerForTwoDisplays) {
+    mChoreographer.setStylusPointerIconEnabled(true);
+    // Add two stylus devices associated to different displays.
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0,
+             {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_STYLUS, DISPLAY_ID),
+              generateTestDeviceInfo(SECOND_DEVICE_ID, AINPUT_SOURCE_STYLUS, ANOTHER_DISPLAY_ID)}});
+    mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID, ANOTHER_DISPLAY_ID}));
+
+    // Emit hover event with first device. This is for creating PointerController.
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
+                    .pointer(STYLUS_POINTER)
+                    .deviceId(DEVICE_ID)
+                    .displayId(DISPLAY_ID)
+                    .build());
+    auto firstDisplayPc = assertPointerControllerCreated(ControllerType::STYLUS);
+
+    // Emit hover event with second device. This is for creating PointerController.
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
+                    .pointer(STYLUS_POINTER)
+                    .deviceId(SECOND_DEVICE_ID)
+                    .displayId(ANOTHER_DISPLAY_ID)
+                    .build());
+
+    // There should be another PointerController created.
+    auto secondDisplayPc = assertPointerControllerCreated(ControllerType::STYLUS);
+
+    // Emit hover event with first device.
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_STYLUS)
+                    .pointer(PointerBuilder(/*id=*/0, ToolType::STYLUS).x(150).y(250))
+                    .deviceId(DEVICE_ID)
+                    .displayId(DISPLAY_ID)
+                    .build());
+
+    // Check the pointer of the first device.
+    firstDisplayPc->assertPosition(150, 250);
+    ASSERT_TRUE(firstDisplayPc->isPointerShown());
+
+    // Emit hover event with second device.
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_STYLUS)
+                    .pointer(PointerBuilder(/*id=*/0, ToolType::STYLUS).x(250).y(350))
+                    .deviceId(SECOND_DEVICE_ID)
+                    .displayId(ANOTHER_DISPLAY_ID)
+                    .build());
+
+    // Check the pointer of the second device.
+    secondDisplayPc->assertPosition(250, 350);
+    ASSERT_TRUE(secondDisplayPc->isPointerShown());
+
+    // Check that there's no change on the pointer of the first device.
+    firstDisplayPc->assertPosition(150, 250);
+    ASSERT_TRUE(firstDisplayPc->isPointerShown());
+}
+
+TEST_F(PointerChoreographerTest, WhenStylusDeviceIsResetFadesPointer) {
+    // Make sure the PointerController is created and there is a pointer.
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_STYLUS, DISPLAY_ID)}});
+    mChoreographer.setStylusPointerIconEnabled(true);
+    mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID}));
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
+                    .pointer(STYLUS_POINTER)
+                    .deviceId(DEVICE_ID)
+                    .displayId(DISPLAY_ID)
+                    .build());
+    auto pc = assertPointerControllerCreated(ControllerType::STYLUS);
+    ASSERT_TRUE(pc->isPointerShown());
+
+    // Reset the device and see the pointer disappeared.
+    mChoreographer.notifyDeviceReset(NotifyDeviceResetArgs(/*id=*/1, /*eventTime=*/0, DEVICE_ID));
+    ASSERT_FALSE(pc->isPointerShown());
+}
+
 } // namespace android
