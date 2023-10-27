@@ -756,10 +756,6 @@ bool shouldSplitTouch(const TouchState& touchState, const MotionEntry& entry) {
 // --- InputDispatcher ---
 
 InputDispatcher::InputDispatcher(InputDispatcherPolicyInterface& policy)
-      : InputDispatcher(policy, STALE_EVENT_TIMEOUT) {}
-
-InputDispatcher::InputDispatcher(InputDispatcherPolicyInterface& policy,
-                                 std::chrono::nanoseconds staleEventTimeout)
       : mPolicy(policy),
         mPendingEvent(nullptr),
         mLastDropReason(DropReason::NOT_DROPPED),
@@ -774,7 +770,6 @@ InputDispatcher::InputDispatcher(InputDispatcherPolicyInterface& policy,
         mMaximumObscuringOpacityForTouch(1.0f),
         mFocusedDisplayId(ADISPLAY_ID_DEFAULT),
         mWindowTokenWithPointerCapture(nullptr),
-        mStaleEventTimeout(staleEventTimeout),
         mLatencyAggregator(),
         mLatencyTracker(&mLatencyAggregator) {
     mLooper = sp<Looper>::make(false);
@@ -1131,7 +1126,7 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t* nextWakeupTime) {
 }
 
 bool InputDispatcher::isStaleEvent(nsecs_t currentTime, const EventEntry& entry) {
-    return std::chrono::nanoseconds(currentTime - entry.eventTime) >= mStaleEventTimeout;
+    return mPolicy.isStaleEvent(currentTime, entry.eventTime);
 }
 
 /**

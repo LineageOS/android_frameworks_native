@@ -18,6 +18,7 @@
 
 #include "InputDispatcherConfiguration.h"
 
+#include <android-base/properties.h>
 #include <binder/IBinder.h>
 #include <gui/InputApplication.h>
 #include <input/Input.h>
@@ -117,6 +118,16 @@ public:
 
     /* Poke user activity for an event dispatched to a window. */
     virtual void pokeUserActivity(nsecs_t eventTime, int32_t eventType, int32_t displayId) = 0;
+
+    /*
+     * Return true if the provided event is stale, and false otherwise. Used for determining
+     * whether the dispatcher should drop the event.
+     */
+    virtual bool isStaleEvent(nsecs_t currentTime, nsecs_t eventTime) {
+        static const std::chrono::duration STALE_EVENT_TIMEOUT =
+                std::chrono::seconds(10) * android::base::HwTimeoutMultiplier();
+        return std::chrono::nanoseconds(currentTime - eventTime) >= STALE_EVENT_TIMEOUT;
+    }
 
     /* Notifies the policy that a pointer down event has occurred outside the current focused
      * window.
