@@ -47,6 +47,9 @@ constexpr int32_t DISPLAY_HEIGHT = 800;
 const auto MOUSE_POINTER = PointerBuilder(/*id=*/0, ToolType::MOUSE)
                                    .axis(AMOTION_EVENT_AXIS_RELATIVE_X, 10)
                                    .axis(AMOTION_EVENT_AXIS_RELATIVE_Y, 20);
+const auto FIRST_TOUCH_POINTER = PointerBuilder(/*id=*/0, ToolType::FINGER).x(100).y(200);
+const auto SECOND_TOUCH_POINTER = PointerBuilder(/*id=*/1, ToolType::FINGER).x(200).y(300);
+const auto STYLUS_POINTER = PointerBuilder(/*id=*/0, ToolType::STYLUS).x(100).y(200);
 
 static InputDeviceInfo generateTestDeviceInfo(int32_t deviceId, uint32_t source,
                                               int32_t associatedDisplayId) {
@@ -567,6 +570,240 @@ TEST_F(PointerChoreographerTest, WhenPointerCaptureEnabledHidesPointer) {
             NotifyPointerCaptureChangedArgs(/*id=*/1, systemTime(SYSTEM_TIME_MONOTONIC),
                                             PointerCaptureRequest(/*enable=*/true, /*seq=*/0)));
     ASSERT_FALSE(pc->isPointerShown());
+}
+
+TEST_F(PointerChoreographerTest, WhenShowTouchesEnabledAndDisabledDoesNotCreatePointerController) {
+    // Disable show touches and add a touch device.
+    mChoreographer.setShowTouchesEnabled(false);
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_TOUCHSCREEN, DISPLAY_ID)}});
+    assertPointerControllerNotCreated();
+
+    // Enable show touches. PointerController still should not be created.
+    mChoreographer.setShowTouchesEnabled(true);
+    assertPointerControllerNotCreated();
+}
+
+TEST_F(PointerChoreographerTest, WhenTouchEventOccursCreatesPointerController) {
+    // Add a touch device and enable show touches.
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_TOUCHSCREEN, DISPLAY_ID)}});
+    mChoreographer.setShowTouchesEnabled(true);
+    assertPointerControllerNotCreated();
+
+    // Emit touch event. Now PointerController should be created.
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                    .pointer(FIRST_TOUCH_POINTER)
+                    .deviceId(DEVICE_ID)
+                    .displayId(DISPLAY_ID)
+                    .build());
+    assertPointerControllerCreated(ControllerType::TOUCH);
+}
+
+TEST_F(PointerChoreographerTest,
+       WhenShowTouchesDisabledAndTouchEventOccursDoesNotCreatePointerController) {
+    // Add a touch device and disable show touches.
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_TOUCHSCREEN, DISPLAY_ID)}});
+    mChoreographer.setShowTouchesEnabled(false);
+    assertPointerControllerNotCreated();
+
+    // Emit touch event. Still, PointerController should not be created.
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                    .pointer(FIRST_TOUCH_POINTER)
+                    .deviceId(DEVICE_ID)
+                    .displayId(DISPLAY_ID)
+                    .build());
+    assertPointerControllerNotCreated();
+}
+
+TEST_F(PointerChoreographerTest, WhenTouchDeviceIsRemovedRemovesPointerController) {
+    // Make sure the PointerController is created.
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_TOUCHSCREEN, DISPLAY_ID)}});
+    mChoreographer.setShowTouchesEnabled(true);
+    assertPointerControllerNotCreated();
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                    .pointer(FIRST_TOUCH_POINTER)
+                    .deviceId(DEVICE_ID)
+                    .displayId(DISPLAY_ID)
+                    .build());
+    auto pc = assertPointerControllerCreated(ControllerType::TOUCH);
+
+    // Remove the device.
+    mChoreographer.notifyInputDevicesChanged({/*id=*/1, {}});
+    assertPointerControllerRemoved(pc);
+}
+
+TEST_F(PointerChoreographerTest, WhenShowTouchesDisabledRemovesPointerController) {
+    // Make sure the PointerController is created.
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_TOUCHSCREEN, DISPLAY_ID)}});
+    mChoreographer.setShowTouchesEnabled(true);
+    assertPointerControllerNotCreated();
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                    .pointer(FIRST_TOUCH_POINTER)
+                    .deviceId(DEVICE_ID)
+                    .displayId(DISPLAY_ID)
+                    .build());
+    auto pc = assertPointerControllerCreated(ControllerType::TOUCH);
+
+    // Disable show touches.
+    mChoreographer.setShowTouchesEnabled(false);
+    assertPointerControllerRemoved(pc);
+}
+
+TEST_F(PointerChoreographerTest, TouchSetsSpots) {
+    mChoreographer.setShowTouchesEnabled(true);
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_TOUCHSCREEN, DISPLAY_ID)}});
+
+    // Emit first pointer down.
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                    .pointer(FIRST_TOUCH_POINTER)
+                    .deviceId(DEVICE_ID)
+                    .displayId(DISPLAY_ID)
+                    .build());
+    auto pc = assertPointerControllerCreated(ControllerType::TOUCH);
+    auto it = pc->getSpots().find(DISPLAY_ID);
+    ASSERT_TRUE(it != pc->getSpots().end());
+    ASSERT_EQ(size_t(1), it->second.size());
+
+    // Emit second pointer down.
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_POINTER_DOWN |
+                                      (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+                              AINPUT_SOURCE_TOUCHSCREEN)
+                    .pointer(FIRST_TOUCH_POINTER)
+                    .pointer(SECOND_TOUCH_POINTER)
+                    .deviceId(DEVICE_ID)
+                    .displayId(DISPLAY_ID)
+                    .build());
+    it = pc->getSpots().find(DISPLAY_ID);
+    ASSERT_TRUE(it != pc->getSpots().end());
+    ASSERT_EQ(size_t(2), it->second.size());
+
+    // Emit second pointer up.
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_POINTER_UP |
+                                      (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+                              AINPUT_SOURCE_TOUCHSCREEN)
+                    .pointer(FIRST_TOUCH_POINTER)
+                    .pointer(SECOND_TOUCH_POINTER)
+                    .deviceId(DEVICE_ID)
+                    .displayId(DISPLAY_ID)
+                    .build());
+    it = pc->getSpots().find(DISPLAY_ID);
+    ASSERT_TRUE(it != pc->getSpots().end());
+    ASSERT_EQ(size_t(1), it->second.size());
+
+    // Emit first pointer up.
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_UP, AINPUT_SOURCE_TOUCHSCREEN)
+                    .pointer(FIRST_TOUCH_POINTER)
+                    .deviceId(DEVICE_ID)
+                    .displayId(DISPLAY_ID)
+                    .build());
+    it = pc->getSpots().find(DISPLAY_ID);
+    ASSERT_TRUE(it != pc->getSpots().end());
+    ASSERT_EQ(size_t(0), it->second.size());
+}
+
+TEST_F(PointerChoreographerTest, TouchSetsSpotsForStylusEvent) {
+    mChoreographer.setShowTouchesEnabled(true);
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0,
+             {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_TOUCHSCREEN | AINPUT_SOURCE_STYLUS,
+                                     DISPLAY_ID)}});
+
+    // Emit down event with stylus properties.
+    mChoreographer.notifyMotion(MotionArgsBuilder(AMOTION_EVENT_ACTION_DOWN,
+                                                  AINPUT_SOURCE_TOUCHSCREEN | AINPUT_SOURCE_STYLUS)
+                                        .pointer(STYLUS_POINTER)
+                                        .deviceId(DEVICE_ID)
+                                        .displayId(DISPLAY_ID)
+                                        .build());
+    auto pc = assertPointerControllerCreated(ControllerType::TOUCH);
+    auto it = pc->getSpots().find(DISPLAY_ID);
+    ASSERT_TRUE(it != pc->getSpots().end());
+    ASSERT_EQ(size_t(1), it->second.size());
+}
+
+TEST_F(PointerChoreographerTest, TouchSetsSpotsForTwoDisplays) {
+    mChoreographer.setShowTouchesEnabled(true);
+    // Add two touch devices associated to different displays.
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0,
+             {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_TOUCHSCREEN, DISPLAY_ID),
+              generateTestDeviceInfo(SECOND_DEVICE_ID, AINPUT_SOURCE_TOUCHSCREEN,
+                                     ANOTHER_DISPLAY_ID)}});
+
+    // Emit touch event with first device.
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                    .pointer(FIRST_TOUCH_POINTER)
+                    .deviceId(DEVICE_ID)
+                    .displayId(DISPLAY_ID)
+                    .build());
+    auto firstDisplayPc = assertPointerControllerCreated(ControllerType::TOUCH);
+    auto firstSpotsIt = firstDisplayPc->getSpots().find(DISPLAY_ID);
+    ASSERT_TRUE(firstSpotsIt != firstDisplayPc->getSpots().end());
+    ASSERT_EQ(size_t(1), firstSpotsIt->second.size());
+
+    // Emit touch events with second device.
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                    .pointer(FIRST_TOUCH_POINTER)
+                    .deviceId(SECOND_DEVICE_ID)
+                    .displayId(ANOTHER_DISPLAY_ID)
+                    .build());
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_POINTER_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                    .pointer(FIRST_TOUCH_POINTER)
+                    .pointer(SECOND_TOUCH_POINTER)
+                    .deviceId(SECOND_DEVICE_ID)
+                    .displayId(ANOTHER_DISPLAY_ID)
+                    .build());
+
+    // There should be another PointerController created.
+    auto secondDisplayPc = assertPointerControllerCreated(ControllerType::TOUCH);
+
+    // Check if the spots are set for the second device.
+    auto secondSpotsIt = secondDisplayPc->getSpots().find(ANOTHER_DISPLAY_ID);
+    ASSERT_TRUE(secondSpotsIt != secondDisplayPc->getSpots().end());
+    ASSERT_EQ(size_t(2), secondSpotsIt->second.size());
+
+    // Check if there's no change on the spot of the first device.
+    firstSpotsIt = firstDisplayPc->getSpots().find(DISPLAY_ID);
+    ASSERT_TRUE(firstSpotsIt != firstDisplayPc->getSpots().end());
+    ASSERT_EQ(size_t(1), firstSpotsIt->second.size());
+}
+
+TEST_F(PointerChoreographerTest, WhenTouchDeviceIsResetClearsSpots) {
+    // Make sure the PointerController is created and there is a spot.
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_TOUCHSCREEN, DISPLAY_ID)}});
+    mChoreographer.setShowTouchesEnabled(true);
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                    .pointer(FIRST_TOUCH_POINTER)
+                    .deviceId(DEVICE_ID)
+                    .displayId(DISPLAY_ID)
+                    .build());
+    auto pc = assertPointerControllerCreated(ControllerType::TOUCH);
+    auto it = pc->getSpots().find(DISPLAY_ID);
+    ASSERT_TRUE(it != pc->getSpots().end());
+    ASSERT_EQ(size_t(1), it->second.size());
+
+    // Reset the device and see there's no spot.
+    mChoreographer.notifyDeviceReset(NotifyDeviceResetArgs(/*id=*/1, /*eventTime=*/0, DEVICE_ID));
+    it = pc->getSpots().find(DISPLAY_ID);
+    ASSERT_TRUE(it == pc->getSpots().end());
 }
 
 } // namespace android
