@@ -210,7 +210,9 @@ class Dumpstate {
         BUGREPORT_USE_PREDUMPED_UI_DATA =
           android::os::IDumpstate::BUGREPORT_FLAG_USE_PREDUMPED_UI_DATA,
         BUGREPORT_FLAG_DEFER_CONSENT =
-          android::os::IDumpstate::BUGREPORT_FLAG_DEFER_CONSENT
+          android::os::IDumpstate::BUGREPORT_FLAG_DEFER_CONSENT,
+          BUGREPORT_FLAG_KEEP_BUGREPORT_ON_RETRIEVAL =
+                    android::os::IDumpstate::BUGREPORT_FLAG_KEEP_BUGREPORT_ON_RETRIEVAL
     };
 
     static android::os::dumpstate::CommandOptions DEFAULT_DUMPSYS;
@@ -361,7 +363,8 @@ class Dumpstate {
      *
      * Initialize() dumpstate before calling this method.
      */
-    RunStatus Retrieve(int32_t calling_uid, const std::string& calling_package);
+    RunStatus Retrieve(int32_t calling_uid, const std::string& calling_package,
+                        const bool keep_bugreport_on_retrieval);
 
 
 
@@ -562,7 +565,8 @@ class Dumpstate {
 
   private:
     RunStatus RunInternal(int32_t calling_uid, const std::string& calling_package);
-    RunStatus RetrieveInternal(int32_t calling_uid, const std::string& calling_package);
+    RunStatus RetrieveInternal(int32_t calling_uid, const std::string& calling_package,
+                                const bool keep_bugreport_on_retrieval);
 
     RunStatus DumpstateDefaultAfterCritical();
     RunStatus dumpstate();

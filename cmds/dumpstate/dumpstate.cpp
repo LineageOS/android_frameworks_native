@@ -59,6 +59,7 @@
 #include <vector>
 
 #include <aidl/android/hardware/dumpstate/IDumpstateDevice.h>
+#include <android_app_admin_flags.h>
 #include <android-base/file.h>
 #include <android-base/properties.h>
 #include <android-base/scopeguard.h>
@@ -2977,14 +2978,17 @@ Dumpstate::RunStatus Dumpstate::Run(int32_t calling_uid, const std::string& call
     return status;
 }
 
-Dumpstate::RunStatus Dumpstate::Retrieve(int32_t calling_uid, const std::string& calling_package) {
-    Dumpstate::RunStatus status = RetrieveInternal(calling_uid, calling_package);
+Dumpstate::RunStatus Dumpstate::Retrieve(int32_t calling_uid, const std::string& calling_package,
+                                         const bool keep_bugreport_on_retrieval) {
+    Dumpstate::RunStatus status = RetrieveInternal(calling_uid, calling_package,
+                                                    keep_bugreport_on_retrieval);
     HandleRunStatus(status);
     return status;
 }
 
 Dumpstate::RunStatus  Dumpstate::RetrieveInternal(int32_t calling_uid,
-                                                  const std::string& calling_package) {
+                                                  const std::string& calling_package,
+                                                  const bool keep_bugreport_on_retrieval) {
   consent_callback_ = new ConsentCallback();
   const String16 incidentcompanion("incidentcompanion");
   sp<android::IBinder> ics(
@@ -3019,9 +3023,12 @@ Dumpstate::RunStatus  Dumpstate::RetrieveInternal(int32_t calling_uid,
 
   bool copy_succeeded =
       android::os::CopyFileToFd(path_, options_->bugreport_fd.get());
-  if (copy_succeeded) {
-    android::os::UnlinkAndLogOnError(path_);
+
+  if (copy_succeeded && (!android::app::admin::flags::onboarding_bugreport_v2_enabled()
+                         || !keep_bugreport_on_retrieval)) {
+        android::os::UnlinkAndLogOnError(path_);
   }
+
   return copy_succeeded ? Dumpstate::RunStatus::OK
                         : Dumpstate::RunStatus::ERROR;
 }

@@ -37,6 +37,8 @@ struct DumpstateInfo {
     Dumpstate* ds = nullptr;
     int32_t calling_uid = -1;
     std::string calling_package;
+    int32_t user_id = -1;
+    bool keep_bugreport_on_retrieval = false;
 };
 
 static binder::Status exception(uint32_t code, const std::string& msg,
@@ -60,7 +62,7 @@ static binder::Status exception(uint32_t code, const std::string& msg,
 
 [[noreturn]] static void* dumpstate_thread_retrieve(void* data) {
     std::unique_ptr<DumpstateInfo> ds_info(static_cast<DumpstateInfo*>(data));
-    ds_info->ds->Retrieve(ds_info->calling_uid, ds_info->calling_package);
+    ds_info->ds->Retrieve(ds_info->calling_uid, ds_info->calling_package, ds_info->keep_bugreport_on_retrieval);
     MYLOGD("Finished retrieving a bugreport. Exiting.\n");
     exit(0);
 }
@@ -201,9 +203,10 @@ binder::Status DumpstateService::cancelBugreport(int32_t calling_uid,
 }
 
 binder::Status DumpstateService::retrieveBugreport(
-    int32_t calling_uid, const std::string& calling_package,
+    int32_t calling_uid, const std::string& calling_package, int32_t user_id,
     android::base::unique_fd bugreport_fd,
     const std::string& bugreport_file,
+    const bool keep_bugreport_on_retrieval,
     const sp<IDumpstateListener>& listener) {
 
     ds_ = &(Dumpstate::GetInstance());
@@ -211,6 +214,8 @@ binder::Status DumpstateService::retrieveBugreport(
     ds_info->ds = ds_;
     ds_info->calling_uid = calling_uid;
     ds_info->calling_package = calling_package;
+    ds_info->user_id = user_id;
+    ds_info->keep_bugreport_on_retrieval = keep_bugreport_on_retrieval;
     ds_->listener_ = listener;
     std::unique_ptr<Dumpstate::DumpOptions> options = std::make_unique<Dumpstate::DumpOptions>();
     // Use a /dev/null FD when initializing options since none is provided.
