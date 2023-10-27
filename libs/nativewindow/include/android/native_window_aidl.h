@@ -34,8 +34,11 @@
 #include <android/native_window.h>
 #include <sys/cdefs.h>
 
+// Only required by the AIDL glue helper
+#ifdef __cplusplus
 #include <sstream>
 #include <string>
+#endif // __cplusplus
 
 __BEGIN_DECLS
 
