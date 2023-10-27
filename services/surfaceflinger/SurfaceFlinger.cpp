@@ -103,6 +103,7 @@
 #include <cinttypes>
 #include <cmath>
 #include <cstdint>
+#include <filesystem>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -307,6 +308,19 @@ uint32_t getLayerIdFromSurfaceControl(sp<SurfaceControl> surfaceControl) {
         return UNASSIGNED_LAYER_ID;
     }
     return LayerHandle::getLayerId(surfaceControl->getHandle());
+}
+
+/**
+ * Returns true if the file at path exists and is newer than duration.
+ */
+bool fileNewerThan(const std::string& path, std::chrono::minutes duration) {
+    using Clock = std::filesystem::file_time_type::clock;
+    std::error_code error;
+    std::filesystem::file_time_type updateTime = std::filesystem::last_write_time(path, error);
+    if (error) {
+        return false;
+    }
+    return duration > (Clock::now() - updateTime);
 }
 
 }  // namespace anonymous
@@ -899,7 +913,7 @@ void SurfaceFlinger::initTransactionTraceWriter() {
     TransactionTraceWriter::getInstance().setWriterFunction(
             [&](const std::string& filename, bool overwrite) {
                 auto writeFn = [&]() {
-                    if (!overwrite && access(filename.c_str(), F_OK) == 0) {
+                    if (!overwrite && fileNewerThan(filename, std::chrono::minutes{10})) {
                         ALOGD("TransactionTraceWriter: file=%s already exists", filename.c_str());
                         return;
                     }

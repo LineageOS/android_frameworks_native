@@ -31,6 +31,7 @@ cc_defaults {
     ],
     static_libs: [
         "android.hardware.graphics.composer@2.1-resources",
+        "libc++fs",
         "libgmock",
         "libgui_mocks",
         "libgmock_ndk",

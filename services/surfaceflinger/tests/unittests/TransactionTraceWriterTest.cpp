@@ -45,12 +45,21 @@ protected:
     TestableSurfaceFlinger mFlinger;
 };
 
-TEST_F(TransactionTraceWriterTest, canWriteToFile) {
+// Check that a new file is written if overwrite=true and no file exists.
+TEST_F(TransactionTraceWriterTest, canWriteToFile_overwriteTrue) {
     TransactionTraceWriter::getInstance().invokeForTest(mFilename, /* overwrite */ true);
     EXPECT_EQ(access(mFilename.c_str(), F_OK), 0);
     verifyTraceFile();
 }
 
+// Check that a new file is written if overwrite=false and no file exists.
+TEST_F(TransactionTraceWriterTest, canWriteToFile_overwriteFalse) {
+    TransactionTraceWriter::getInstance().invokeForTest(mFilename, /* overwrite */ false);
+    EXPECT_EQ(access(mFilename.c_str(), F_OK), 0);
+    verifyTraceFile();
+}
+
+// Check that an existing file is overwritten when overwrite=true.
 TEST_F(TransactionTraceWriterTest, canOverwriteFile) {
     std::string testLine = "test";
     {
@@ -61,6 +70,7 @@ TEST_F(TransactionTraceWriterTest, canOverwriteFile) {
     verifyTraceFile();
 }
 
+// Check that an existing file isn't overwritten when it is new and overwrite=false.
 TEST_F(TransactionTraceWriterTest, doNotOverwriteFile) {
     std::string testLine = "test";
     {
@@ -76,4 +86,23 @@ TEST_F(TransactionTraceWriterTest, doNotOverwriteFile) {
         EXPECT_EQ(line, testLine);
     }
 }
+
+// Check that an existing file is overwritten when it is old and overwrite=false.
+TEST_F(TransactionTraceWriterTest, overwriteOldFile) {
+    std::string testLine = "test";
+    {
+        std::ofstream file(mFilename, std::ios::out);
+        file << testLine;
+    }
+
+    // Update file modification time to 15 minutes ago.
+    using Clock = std::filesystem::file_time_type::clock;
+    std::error_code error;
+    std::filesystem::last_write_time(mFilename, Clock::now() - std::chrono::minutes{15}, error);
+    ASSERT_EQ(error.value(), 0);
+
+    TransactionTraceWriter::getInstance().invokeForTest(mFilename, /* overwrite */ false);
+    verifyTraceFile();
+}
+
 } // namespace android
