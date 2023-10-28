@@ -19,9 +19,9 @@
 #include <binder/ProcessState.h>
 
 #include <android-base/result.h>
-#include <android-base/scopeguard.h>
 #include <android-base/strings.h>
 #include <binder/BpBinder.h>
+#include <binder/Functional.h>
 #include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
 #include <binder/Stability.h>
@@ -59,6 +59,8 @@ const char* kDefaultDriver = "/dev/binder";
 // -------------------------------------------------------------------------
 
 namespace android {
+
+using namespace android::binder::impl;
 
 class PoolThread : public Thread
 {
@@ -430,7 +432,7 @@ status_t ProcessState::setThreadPoolMaxThreadCount(size_t maxThreads) {
 
 size_t ProcessState::getThreadPoolMaxTotalThreadCount() const {
     pthread_mutex_lock(&mThreadCountLock);
-    base::ScopeGuard detachGuard = [&]() { pthread_mutex_unlock(&mThreadCountLock); };
+    auto detachGuard = make_scope_guard([&]() { pthread_mutex_unlock(&mThreadCountLock); });
 
     if (mThreadPoolStarted) {
         LOG_ALWAYS_FATAL_IF(mKernelStartedThreads > mMaxThreads + 1,
