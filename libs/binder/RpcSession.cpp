@@ -27,8 +27,8 @@
 #include <string_view>
 
 #include <android-base/macros.h>
-#include <android-base/scopeguard.h>
 #include <binder/BpBinder.h>
+#include <binder/Functional.h>
 #include <binder/Parcel.h>
 #include <binder/RpcServer.h>
 #include <binder/RpcTransportRaw.h>
@@ -52,6 +52,7 @@ extern "C" JavaVM* AndroidRuntimeGetJavaVM();
 
 namespace android {
 
+using namespace android::binder::impl;
 using base::unique_fd;
 
 RpcSession::RpcSession(std::unique_ptr<RpcTransportCtx> ctx) : mCtx(std::move(ctx)) {
@@ -497,7 +498,7 @@ status_t RpcSession::setupClient(const std::function<status_t(const std::vector<
     if (auto status = initShutdownTrigger(); status != OK) return status;
 
     auto oldProtocolVersion = mProtocolVersion;
-    auto cleanup = base::ScopeGuard([&] {
+    auto cleanup = make_scope_guard([&] {
         // if any threads are started, shut them down
         (void)shutdownAndWait(true);
 
@@ -577,7 +578,7 @@ status_t RpcSession::setupClient(const std::function<status_t(const std::vector<
         if (status_t status = connectAndInit(mId, true /*incoming*/); status != OK) return status;
     }
 
-    cleanup.Disable();
+    cleanup.release();
 
     return OK;
 }
