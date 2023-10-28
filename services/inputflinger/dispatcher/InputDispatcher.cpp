@@ -1090,7 +1090,16 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t* nextWakeupTime) {
                 }
             }
             if (dropReason == DropReason::NOT_DROPPED && isStaleEvent(currentTime, *motionEntry)) {
-                dropReason = DropReason::STALE;
+                // The event is stale. However, only drop stale events if there isn't an ongoing
+                // gesture. That would allow us to complete the processing of the current stroke.
+                const auto touchStateIt = mTouchStatesByDisplay.find(motionEntry->displayId);
+                if (touchStateIt != mTouchStatesByDisplay.end()) {
+                    const TouchState& touchState = touchStateIt->second;
+                    if (!touchState.hasTouchingPointers(motionEntry->deviceId) &&
+                        !touchState.hasHoveringPointers(motionEntry->deviceId)) {
+                        dropReason = DropReason::STALE;
+                    }
+                }
             }
             if (dropReason == DropReason::NOT_DROPPED && mNextUnblockedEvent) {
                 dropReason = DropReason::BLOCKED;
