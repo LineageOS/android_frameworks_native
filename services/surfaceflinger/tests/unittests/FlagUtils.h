@@ -16,12 +16,16 @@
 
 #pragma once
 
+#include "FlagManager.h"
+
 #define SET_FLAG_FOR_TEST(name, value) TestFlagSetter _testflag_((name), (name), (value))
 
 namespace android {
 class TestFlagSetter {
 public:
     TestFlagSetter(bool (*getter)(), void((*setter)(bool)), bool flagValue) {
+        FlagManager::getMutableInstance().setUnitTestMode();
+
         const bool initialValue = getter();
         setter(flagValue);
         mResetFlagValue = [=] { setter(initialValue); };

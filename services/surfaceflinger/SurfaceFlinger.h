@@ -1421,8 +1421,6 @@ private:
 
     const sp<WindowInfosListenerInvoker> mWindowInfosListenerInvoker;
 
-    FlagManager mFlagManager;
-
     // returns the framerate of the layer with the given sequence ID
     float getLayerFramerate(nsecs_t now, int32_t id) const {
         return mScheduler->getLayerFramerate(now, id);
@@ -1459,12 +1457,6 @@ private:
     void sfdo_setDebugFlash(int delay);
     void sfdo_scheduleComposite();
     void sfdo_scheduleCommit();
-
-    // Trunk-Stable flags
-    bool mMiscFlagValue;
-    bool mConnectedDisplayFlagValue;
-    bool mMisc2FlagEarlyBootValue;
-    bool mMisc2FlagLateBootValue;
 };
 
 class SurfaceComposerAIDL : public gui::BnSurfaceComposer {

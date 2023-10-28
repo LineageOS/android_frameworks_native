@@ -103,6 +103,7 @@
 #include <cinttypes>
 #include <cmath>
 #include <cstdint>
+#include <filesystem>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -156,14 +157,11 @@
 #include "TimeStats/TimeStats.h"
 #include "TunnelModeEnabledReporter.h"
 #include "Utils/Dumper.h"
-#include "Utils/FlagUtils.h"
 #include "WindowInfosListenerInvoker.h"
 
 #include <aidl/android/hardware/graphics/common/DisplayDecorationSupport.h>
 #include <aidl/android/hardware/graphics/composer3/DisplayCapability.h>
 #include <aidl/android/hardware/graphics/composer3/RenderIntent.h>
-
-#include <com_android_graphics_surfaceflinger_flags.h>
 
 #undef NO_THREAD_SAFETY_ANALYSIS
 #define NO_THREAD_SAFETY_ANALYSIS \
@@ -174,8 +172,6 @@
 #define DOES_CONTAIN_BORDER false
 
 namespace android {
-using namespace com::android::graphics::surfaceflinger;
-
 using namespace std::chrono_literals;
 using namespace std::string_literals;
 using namespace std::string_view_literals;
@@ -307,6 +303,19 @@ uint32_t getLayerIdFromSurfaceControl(sp<SurfaceControl> surfaceControl) {
         return UNASSIGNED_LAYER_ID;
     }
     return LayerHandle::getLayerId(surfaceControl->getHandle());
+}
+
+/**
+ * Returns true if the file at path exists and is newer than duration.
+ */
+bool fileNewerThan(const std::string& path, std::chrono::minutes duration) {
+    using Clock = std::filesystem::file_time_type::clock;
+    std::error_code error;
+    std::filesystem::file_time_type updateTime = std::filesystem::last_write_time(path, error);
+    if (error) {
+        return false;
+    }
+    return duration > (Clock::now() - updateTime);
 }
 
 }  // namespace anonymous
@@ -495,11 +504,6 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
             base::GetBoolProperty("persist.debug.sf.enable_layer_lifecycle_manager"s, true);
     mLegacyFrontEndEnabled = !mLayerLifecycleManagerEnabled ||
             base::GetBoolProperty("persist.debug.sf.enable_legacy_frontend"s, false);
-
-    // Trunk-Stable flags
-    mMiscFlagValue = flags::misc1();
-    mConnectedDisplayFlagValue = flags::connected_display();
-    mMisc2FlagEarlyBootValue = flags::late_boot_misc2();
 }
 
 LatchUnsignaledConfig SurfaceFlinger::getLatchUnsignaledConfig() {
@@ -675,6 +679,7 @@ void SurfaceFlinger::bootFinished() {
         return;
     }
     mBootFinished = true;
+    FlagManager::getMutableInstance().markBootCompleted();
     if (mStartPropertySetThread->join() != NO_ERROR) {
         ALOGE("Join StartPropertySetThread failed!");
     }
@@ -688,7 +693,7 @@ void SurfaceFlinger::bootFinished() {
 
     mFrameTracer->initialize();
     mFrameTimeline->onBootFinished();
-    getRenderEngine().setEnableTracing(mFlagManager.use_skia_tracing());
+    getRenderEngine().setEnableTracing(FlagManager::getInstance().use_skia_tracing());
 
     // wait patiently for the window manager death
     const String16 name("window");
@@ -717,7 +722,7 @@ void SurfaceFlinger::bootFinished() {
 
         readPersistentProperties();
         mPowerAdvisor->onBootFinished();
-        const bool hintSessionEnabled = mFlagManager.use_adpf_cpu_hint();
+        const bool hintSessionEnabled = FlagManager::getInstance().use_adpf_cpu_hint();
         mPowerAdvisor->enablePowerHintSession(hintSessionEnabled);
         const bool hintSessionUsed = mPowerAdvisor->usePowerHintSession();
         ALOGD("Power hint is %s",
@@ -741,10 +746,6 @@ void SurfaceFlinger::bootFinished() {
             enableRefreshRateOverlay(true);
         }
     }));
-
-    LOG_ALWAYS_FATAL_IF(flags::misc1() != mMiscFlagValue, "misc1 flag is not boot stable!");
-
-    mMisc2FlagLateBootValue = flags::late_boot_misc2();
 }
 
 static std::optional<renderengine::RenderEngine::RenderEngineType>
@@ -899,7 +900,7 @@ void SurfaceFlinger::initTransactionTraceWriter() {
     TransactionTraceWriter::getInstance().setWriterFunction(
             [&](const std::string& filename, bool overwrite) {
                 auto writeFn = [&]() {
-                    if (!overwrite && access(filename.c_str(), F_OK) == 0) {
+                    if (!overwrite && fileNewerThan(filename, std::chrono::minutes{10})) {
                         ALOGD("TransactionTraceWriter: file=%s already exists", filename.c_str());
                         return;
                     }
@@ -2087,7 +2088,7 @@ nsecs_t SurfaceFlinger::getVsyncPeriodFromHWC() const {
 
 void SurfaceFlinger::onComposerHalVsync(hal::HWDisplayId hwcDisplayId, int64_t timestamp,
                                         std::optional<hal::VsyncPeriodNanos> vsyncPeriod) {
-    if (mConnectedDisplayFlagValue) {
+    if (FlagManager::getInstance().connected_display()) {
         // use ~0 instead of -1 as AidlComposerHal.cpp passes the param as unsigned int32
         if (mIsHotplugErrViaNegVsync && timestamp < 0 && vsyncPeriod.has_value() &&
             vsyncPeriod.value() == ~0) {
@@ -4051,7 +4052,7 @@ void SurfaceFlinger::initScheduler(const sp<const DisplayDevice>& display) {
 
     if (sysprop::use_content_detection_for_refresh_rate(false)) {
         features |= Feature::kContentDetection;
-        if (flags::enable_small_area_detection()) {
+        if (FlagManager::getInstance().enable_small_area_detection()) {
             features |= Feature::kSmallDirtyContentDetection;
         }
     }
@@ -6461,17 +6462,6 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, const std::string& comp
     result.append("SurfaceFlinger global state:\n");
     colorizer.reset(result);
 
-    StringAppendF(&result, "MiscFlagValue: %s\n", mMiscFlagValue ? "true" : "false");
-    StringAppendF(&result, "ConnectedDisplayFlagValue: %s\n",
-                  mConnectedDisplayFlagValue ? "true" : "false");
-    StringAppendF(&result, "Misc2FlagValue: %s (%s after boot)\n",
-                  mMisc2FlagLateBootValue ? "true" : "false",
-                  mMisc2FlagEarlyBootValue == mMisc2FlagLateBootValue ? "stable" : "modified");
-    StringAppendF(&result, "VrrConfigFlagValue: %s\n",
-                  flagutils::vrrConfigEnabled() ? "true" : "false");
-    StringAppendF(&result, "DontSkipOnEarlyFlagValue: %s\n",
-                  flags::dont_skip_on_early() ? "true" : "false");
-
     getRenderEngine().dump(result);
 
     result.append("ClientCache state:\n");
@@ -6548,7 +6538,7 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, const std::string& comp
     /*
      * Dump flag/property manager state
      */
-    mFlagManager.dump(result);
+    FlagManager::getInstance().dump(result);
 
     result.append(mTimeStats->miniDump());
     result.append("\n");
@@ -7213,7 +7203,7 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
             // Second argument is a delay in ms for triggering the jank. This is useful for working
             // with tools that steal the adb connection. This argument is optional.
             case 1045: {
-                if (flagutils::vrrConfigEnabled()) {
+                if (FlagManager::getInstance().vrr_config()) {
                     float jankAmount = data.readFloat();
                     int32_t jankDelayMs = 0;
                     if (data.readInt32(&jankDelayMs) != NO_ERROR) {
@@ -9064,7 +9054,7 @@ binder::Status SurfaceComposerAIDL::createConnection(sp<gui::ISurfaceComposerCli
     const sp<Client> client = sp<Client>::make(mFlinger);
     if (client->initCheck() == NO_ERROR) {
         *outClient = client;
-        if (flags::misc1()) {
+        if (FlagManager::getInstance().misc1()) {
             const int policy = SCHED_FIFO;
             client->setMinSchedulerPolicy(policy, sched_get_priority_min(policy));
         }

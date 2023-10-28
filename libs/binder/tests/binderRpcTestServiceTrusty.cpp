@@ -16,7 +16,6 @@
 
 #define TLOG_TAG "binderRpcTestService"
 
-#include <android-base/stringprintf.h>
 #include <binder/RpcServerTrusty.h>
 #include <inttypes.h>
 #include <lib/tipc/tipc.h>
@@ -28,7 +27,6 @@
 #include "binderRpcTestCommon.h"
 
 using namespace android;
-using android::base::StringPrintf;
 using binder::Status;
 
 static int gConnectionCounter = 0;

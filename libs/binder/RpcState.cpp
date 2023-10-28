@@ -20,7 +20,6 @@
 
 #include <android-base/macros.h>
 #include <android-base/scopeguard.h>
-#include <android-base/stringprintf.h>
 #include <binder/BpBinder.h>
 #include <binder/IPCThreadState.h>
 #include <binder/RpcServer.h>
@@ -30,6 +29,7 @@
 #include "Utils.h"
 
 #include <random>
+#include <sstream>
 
 #include <inttypes.h>
 
@@ -38,8 +38,6 @@
 #endif
 
 namespace android {
-
-using base::StringPrintf;
 
 #if RPC_FLAKE_PRONE
 void rpcMaybeWaitToFlake() {
@@ -329,8 +327,10 @@ std::string RpcState::BinderNode::toString() const {
         desc = "(not promotable)";
     }
 
-    return StringPrintf("node{%p times sent: %zu times recd: %zu type: %s}",
-                        this->binder.unsafe_get(), this->timesSent, this->timesRecd, desc);
+    std::stringstream ss;
+    ss << "node{" << intptr_t(this->binder.unsafe_get()) << " times sent: " << this->timesSent
+       << " times recd: " << this->timesRecd << " type: " << desc << "}";
+    return ss.str();
 }
 
 RpcState::CommandData::CommandData(size_t size) : mSize(size) {
@@ -1220,10 +1220,11 @@ status_t RpcState::validateParcel(const sp<RpcSession>& session, const Parcel& p
     uint32_t protocolVersion = session->getProtocolVersion().value();
     if (protocolVersion < RPC_WIRE_PROTOCOL_VERSION_RPC_HEADER_FEATURE_EXPLICIT_PARCEL_SIZE &&
         !rpcFields->mObjectPositions.empty()) {
-        *errorMsg = StringPrintf("Parcel has attached objects but the session's protocol version "
-                                 "(%" PRIu32 ") is too old, must be at least %" PRIu32,
-                                 protocolVersion,
-                                 RPC_WIRE_PROTOCOL_VERSION_RPC_HEADER_FEATURE_EXPLICIT_PARCEL_SIZE);
+        std::stringstream ss;
+        ss << "Parcel has attached objects but the session's protocol version (" << protocolVersion
+           << ") is too old, must be at least "
+           << RPC_WIRE_PROTOCOL_VERSION_RPC_HEADER_FEATURE_EXPLICIT_PARCEL_SIZE;
+        *errorMsg = ss.str();
         return BAD_VALUE;
     }
 
@@ -1236,9 +1237,10 @@ status_t RpcState::validateParcel(const sp<RpcSession>& session, const Parcel& p
             case RpcSession::FileDescriptorTransportMode::UNIX: {
                 constexpr size_t kMaxFdsPerMsg = 253;
                 if (rpcFields->mFds->size() > kMaxFdsPerMsg) {
-                    *errorMsg = StringPrintf("Too many file descriptors in Parcel for unix "
-                                             "domain socket: %zu (max is %zu)",
-                                             rpcFields->mFds->size(), kMaxFdsPerMsg);
+                    std::stringstream ss;
+                    ss << "Too many file descriptors in Parcel for unix domain socket: "
+                       << rpcFields->mFds->size() << " (max is " << kMaxFdsPerMsg << ")";
+                    *errorMsg = ss.str();
                     return BAD_VALUE;
                 }
                 break;
@@ -1249,9 +1251,10 @@ status_t RpcState::validateParcel(const sp<RpcSession>& session, const Parcel& p
                 // available on Android
                 constexpr size_t kMaxFdsPerMsg = 8;
                 if (rpcFields->mFds->size() > kMaxFdsPerMsg) {
-                    *errorMsg = StringPrintf("Too many file descriptors in Parcel for Trusty "
-                                             "IPC connection: %zu (max is %zu)",
-                                             rpcFields->mFds->size(), kMaxFdsPerMsg);
+                    std::stringstream ss;
+                    ss << "Too many file descriptors in Parcel for Trusty IPC connection: "
+                       << rpcFields->mFds->size() << " (max is " << kMaxFdsPerMsg << ")";
+                    *errorMsg = ss.str();
                     return BAD_VALUE;
                 }
                 break;

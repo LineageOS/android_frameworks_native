@@ -1,5 +1,5 @@
-/**
- * Copyright 2023 The Android Open Source Project
+/*
+ * Copyright (C) 2023 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,20 +14,16 @@
  * limitations under the License.
  */
 
-#pragma once
+// TODO(b/302723053): remove this header and replace with <format> once b/175635923 is done
+// ETA for this blocker is 2023-10-27~2023-11-10.
+// Also, remember to remove fmtlib's format.cc from trusty makefiles.
 
-#include <android-base/properties.h>
-#include <com_android_graphics_surfaceflinger_flags.h>
-#include <string>
+#if __has_include(<format>)
+#include <format>
+#else
+#include <fmt/format.h>
 
-namespace android::flagutils {
-
-using namespace std::literals::string_literals;
-using namespace com::android::graphics::surfaceflinger;
-
-inline bool vrrConfigEnabled() {
-    static const bool enable_vrr_config =
-            base::GetBoolProperty("debug.sf.enable_vrr_config"s, false);
-    return flags::vrr_config() || enable_vrr_config;
+namespace std {
+using fmt::format;
 }
-} // namespace android::flagutils
+#endif

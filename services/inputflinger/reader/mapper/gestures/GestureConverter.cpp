@@ -20,6 +20,7 @@
 #include <sstream>
 
 #include <android-base/stringprintf.h>
+#include <com_android_input_flags.h>
 #include <ftl/enum.h>
 #include <linux/input-event-codes.h>
 #include <log/log_main.h>
@@ -28,9 +29,13 @@
 #include "TouchCursorInputMapperCommon.h"
 #include "input/Input.h"
 
+namespace input_flags = com::android::input::flags;
+
 namespace android {
 
 namespace {
+
+const bool ENABLE_TOUCHPAD_PALM_REJECTION = input_flags::enable_touchpad_typing_palm_rejection();
 
 uint32_t gesturesButtonToMotionEventButton(uint32_t gesturesButton) {
     switch (gesturesButton) {
@@ -158,7 +163,7 @@ NotifyMotionArgs GestureConverter::handleMove(nsecs_t when, nsecs_t readTime,
                                               const Gesture& gesture) {
     float deltaX = gesture.details.move.dx;
     float deltaY = gesture.details.move.dy;
-    if (std::abs(deltaX) > 0 || std::abs(deltaY) > 0) {
+    if (ENABLE_TOUCHPAD_PALM_REJECTION && (std::abs(deltaX) > 0 || std::abs(deltaY) > 0)) {
         enableTapToClick();
     }
     rotateDelta(mOrientation, &deltaX, &deltaY);
@@ -200,7 +205,7 @@ std::list<NotifyArgs> GestureConverter::handleButtonsChange(nsecs_t when, nsecs_
     coords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, 0);
     coords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, 0);
 
-    if (mReaderContext.isPreventingTouchpadTaps()) {
+    if (ENABLE_TOUCHPAD_PALM_REJECTION && mReaderContext.isPreventingTouchpadTaps()) {
         enableTapToClick();
         if (gesture.details.buttons.is_tap) {
             // return early to prevent this tap

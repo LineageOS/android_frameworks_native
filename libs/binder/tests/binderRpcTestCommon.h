@@ -22,7 +22,6 @@
 #include <BnBinderRpcCallback.h>
 #include <BnBinderRpcSession.h>
 #include <BnBinderRpcTest.h>
-#include <android-base/stringprintf.h>
 #include <binder/Binder.h>
 #include <binder/BpBinder.h>
 #include <binder/IPCThreadState.h>
@@ -58,6 +57,7 @@
 #include "../BuildFlags.h"
 #include "../FdTrigger.h"
 #include "../RpcState.h" // for debugging
+#include "format.h"
 #include "utils/Errors.h"
 
 namespace android {
@@ -91,7 +91,7 @@ static inline std::vector<uint32_t> testVersions() {
 }
 
 static inline std::string trustyIpcPort(uint32_t serverVersion) {
-    return base::StringPrintf("com.android.trusty.binderRpcTestService.V%" PRIu32, serverVersion);
+    return std::format("com.android.trusty.binderRpcTestService.V{}", serverVersion);
 }
 
 enum class SocketType {

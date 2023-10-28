@@ -17,32 +17,59 @@
 #pragma once
 
 #include <cstdint>
+#include <mutex>
 #include <optional>
 #include <string>
 
 namespace android {
 // Manages flags for SurfaceFlinger, including default values, system properties, and Mendel
-// experiment configuration values.
+// experiment configuration values. Can be called from any thread.
 class FlagManager {
+private:
+    // Effectively making the constructor private, while allowing std::make_unique to work
+    struct ConstructorTag {};
+
 public:
-    FlagManager() = default;
+    static const FlagManager& getInstance();
+    static FlagManager& getMutableInstance();
+
+    FlagManager(ConstructorTag);
     virtual ~FlagManager();
+
+    void markBootCompleted();
     void dump(std::string& result) const;
 
-    int64_t demo_flag() const;
+    void setUnitTestMode();
 
+    /// Legacy server flags ///
+    bool test_flag() const;
     bool use_adpf_cpu_hint() const;
-
     bool use_skia_tracing() const;
 
+    /// Trunk stable readonly flags ///
+    bool connected_display() const;
+    bool enable_small_area_detection() const;
+    bool misc1() const;
+    bool vrr_config() const;
+
+    /// Trunk stable server flags ///
+    bool late_boot_misc2() const;
+    bool dont_skip_on_early() const;
+
+protected:
+    // overridden for unit tests
+    virtual std::optional<bool> getBoolProperty(const char*) const;
+    virtual bool getServerConfigurableFlag(const char*) const;
+
 private:
-    friend class FlagManagerTest;
+    friend class TestableFlagManager;
 
-    // Wrapper for mocking in test.
-    virtual std::string getServerConfigurableFlag(const std::string& experimentFlagName) const;
+    FlagManager(const FlagManager&) = delete;
 
-    template <typename T>
-    T getValue(const std::string& experimentFlagName, std::optional<T> systemPropertyOpt,
-               T defaultValue) const;
+    std::atomic_bool mBootCompleted = false;
+    std::atomic_bool mUnitTestMode = false;
+
+    static std::unique_ptr<FlagManager> mInstance;
+    static std::once_flag mOnce;
 };
 } // namespace android

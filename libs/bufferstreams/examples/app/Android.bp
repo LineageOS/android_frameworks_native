@@ -14,14 +14,33 @@
 
 android_app {
     name: "BufferStreamsDemoApp",
-    srcs: ["java/**/*.java"],
+    srcs: ["java/**/*.kt"],
     sdk_version: "current",
 
     jni_uses_platform_apis: true,
     jni_libs: ["libbufferstreamdemoapp"],
     use_embedded_native_libs: true,
+    kotlincflags: [
+        "-opt-in=androidx.compose.material3.ExperimentalMaterial3Api",
+    ],
+
+    resource_dirs: ["res"],
 
     static_libs: [
+        "androidx.activity_activity-compose",
         "androidx.appcompat_appcompat",
+        "androidx.compose.foundation_foundation",
+        "androidx.compose.material3_material3",
+        "androidx.compose.runtime_runtime",
+        "androidx.compose.ui_ui",
+        "androidx.compose.ui_ui-graphics",
+        "androidx.compose.ui_ui-tooling-preview",
+        "androidx.core_core-ktx",
+        "androidx.lifecycle_lifecycle-runtime-ktx",
+        "androidx.navigation_navigation-common-ktx",
+        "androidx.navigation_navigation-compose",
+        "androidx.navigation_navigation-fragment-ktx",
+        "androidx.navigation_navigation-runtime-ktx",
+        "androidx.navigation_navigation-ui-ktx",
     ],
 }

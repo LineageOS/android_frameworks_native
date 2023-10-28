@@ -47,6 +47,7 @@
 
 #include "../Layer.h"
 #include "EventThread.h"
+#include "FlagManager.h"
 #include "FrameRateOverrideMappings.h"
 #include "FrontEnd/LayerHandle.h"
 #include "OneShotTimer.h"
@@ -210,7 +211,7 @@ void Scheduler::onFrameSignal(ICompositor& compositor, VsyncId vsyncId,
         targeters.try_emplace(id, &targeter);
     }
 
-    if (flagutils::vrrConfigEnabled() &&
+    if (FlagManager::getInstance().vrr_config() &&
         CC_UNLIKELY(mPacesetterFrameDurationFractionToSkip > 0.f)) {
         const auto period = pacesetterTargeter.target().expectedFrameDuration();
         const auto skipDuration = Duration::fromNs(

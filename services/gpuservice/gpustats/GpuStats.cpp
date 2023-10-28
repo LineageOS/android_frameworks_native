@@ -163,11 +163,11 @@ void GpuStats::insertDriverStats(const std::string& driverPackageName,
         addLoadingTime(driver, driverLoadingTime, &appInfo);
         appInfo.appPackageName = appPackageName;
         appInfo.driverVersionCode = driverVersionCode;
-        appInfo.angleInUse = driver == GpuStatsInfo::Driver::ANGLE;
+        appInfo.angleInUse = driverPackageName == "angle";
         appInfo.lastAccessTime = std::chrono::system_clock::now();
         mAppStats.insert({appStatsKey, appInfo});
     } else {
-        mAppStats[appStatsKey].angleInUse = driver == GpuStatsInfo::Driver::ANGLE;
+        mAppStats[appStatsKey].angleInUse = driverPackageName == "angle";
         addLoadingTime(driver, driverLoadingTime, &mAppStats[appStatsKey]);
         mAppStats[appStatsKey].lastAccessTime = std::chrono::system_clock::now();
     }

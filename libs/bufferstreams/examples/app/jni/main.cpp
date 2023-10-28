@@ -19,16 +19,16 @@
 extern "C"
 {
     JNIEXPORT jstring JNICALL
-    Java_com_android_graphics_bufferstreamsdemoapp_MainActivity_stringFromJNI(
-            JNIEnv *env,
+    Java_com_android_graphics_bufferstreamsdemoapp_BufferStreamJNI_stringFromJNI(
+            JNIEnv* env,
             jobject /* this */) {
         const char* hello = "Hello from C++";
         return env->NewStringUTF(hello);
     }
 
     JNIEXPORT void JNICALL
-    Java_com_android_graphics_bufferstreamsdemoapp_MainActivity_RunBufferQueue(
-            JNIEnv *env,
+    Java_com_android_graphics_bufferstreamsdemoapp_BufferStreamJNI_testBufferQueueCreation(
+            JNIEnv* /* env */,
             jobject /* this */) {
         android::sp<android::IGraphicBufferProducer> producer;
         android::sp<android::IGraphicBufferConsumer> consumer;

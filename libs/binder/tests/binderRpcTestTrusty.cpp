@@ -16,7 +16,6 @@
 
 #define LOG_TAG "binderRpcTest"
 
-#include <android-base/stringprintf.h>
 #include <binder/RpcTransportTipcTrusty.h>
 #include <trusty-gtest.h>
 #include <trusty_ipc.h>

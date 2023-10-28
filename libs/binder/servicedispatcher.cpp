@@ -22,7 +22,6 @@
 #include <android-base/file.h>
 #include <android-base/logging.h>
 #include <android-base/properties.h>
-#include <android-base/stringprintf.h>
 #include <android/debug/BnAdbCallback.h>
 #include <android/debug/IAdbManager.h>
 #include <android/os/BnServiceManager.h>
@@ -46,7 +45,6 @@ using android::base::LogdLogger;
 using android::base::LogId;
 using android::base::LogSeverity;
 using android::base::StdioLogger;
-using android::base::StringPrintf;
 using std::string_view_literals::operator""sv;
 
 namespace {
@@ -57,11 +55,12 @@ using android::debug::IAdbManager;
 
 int Usage(const char* program) {
     auto basename = Basename(program);
-    auto format = R"(dispatch calls to RPC service.
+    // clang-format off
+    LOG(ERROR) << R"(dispatch calls to RPC service.
 Usage:
-  %s [-g] [-i <ip_address>] <service_name>
+  )" << basename << R"( [-g] [-i <ip_address>] <service_name>
     <service_name>: the service to connect to.
-  %s [-g] manager
+  )" << basename << R"( [-g] manager
     Runs an RPC-friendly service that redirects calls to servicemanager.
 
   -g: use getService() instead of checkService().
@@ -71,7 +70,7 @@ Usage:
   blocks until killed.
   Otherwise, writes error message to stderr and exits with non-zero code.
 )";
-    LOG(ERROR) << StringPrintf(format, basename.c_str(), basename.c_str());
+    // clang-format on
     return EX_USAGE;
 }
 
