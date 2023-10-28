@@ -38,6 +38,9 @@
 #endif
 
 namespace android {
+
+using namespace android::binder::impl;
+
 namespace {
 
 // Implement BIO for socket that ignores SIGPIPE.
@@ -181,10 +184,9 @@ public:
     // |sslError| should be from Ssl::getError().
     // If |sslError| is WANT_READ / WANT_WRITE, poll for POLLIN / POLLOUT respectively. Otherwise
     // return error. Also return error if |fdTrigger| is triggered before or during poll().
-    status_t pollForSslError(
-            const android::RpcTransportFd& fd, int sslError, FdTrigger* fdTrigger,
-            const char* fnString, int additionalEvent,
-            const std::optional<android::base::function_ref<status_t()>>& altPoll) {
+    status_t pollForSslError(const android::RpcTransportFd& fd, int sslError, FdTrigger* fdTrigger,
+                             const char* fnString, int additionalEvent,
+                             const std::optional<SmallFunction<status_t()>>& altPoll) {
         switch (sslError) {
             case SSL_ERROR_WANT_READ:
                 return handlePoll(POLLIN | additionalEvent, fd, fdTrigger, fnString, altPoll);
@@ -200,7 +202,7 @@ private:
 
     status_t handlePoll(int event, const android::RpcTransportFd& fd, FdTrigger* fdTrigger,
                         const char* fnString,
-                        const std::optional<android::base::function_ref<status_t()>>& altPoll) {
+                        const std::optional<SmallFunction<status_t()>>& altPoll) {
         status_t ret;
         if (altPoll) {
             ret = (*altPoll)();
@@ -284,12 +286,12 @@ public:
     status_t pollRead(void) override;
     status_t interruptableWriteFully(
             FdTrigger* fdTrigger, iovec* iovs, int niovs,
-            const std::optional<android::base::function_ref<status_t()>>& altPoll,
+            const std::optional<SmallFunction<status_t()>>& altPoll,
             const std::vector<std::variant<base::unique_fd, base::borrowed_fd>>* ancillaryFds)
             override;
     status_t interruptableReadFully(
             FdTrigger* fdTrigger, iovec* iovs, int niovs,
-            const std::optional<android::base::function_ref<status_t()>>& altPoll,
+            const std::optional<SmallFunction<status_t()>>& altPoll,
             std::vector<std::variant<base::unique_fd, base::borrowed_fd>>* ancillaryFds) override;
 
     bool isWaiting() override { return mSocket.isInPollingState(); };
@@ -320,7 +322,7 @@ status_t RpcTransportTls::pollRead(void) {
 
 status_t RpcTransportTls::interruptableWriteFully(
         FdTrigger* fdTrigger, iovec* iovs, int niovs,
-        const std::optional<android::base::function_ref<status_t()>>& altPoll,
+        const std::optional<SmallFunction<status_t()>>& altPoll,
         const std::vector<std::variant<base::unique_fd, base::borrowed_fd>>* ancillaryFds) {
     (void)ancillaryFds;
 
@@ -366,7 +368,7 @@ status_t RpcTransportTls::interruptableWriteFully(
 
 status_t RpcTransportTls::interruptableReadFully(
         FdTrigger* fdTrigger, iovec* iovs, int niovs,
-        const std::optional<android::base::function_ref<status_t()>>& altPoll,
+        const std::optional<SmallFunction<status_t()>>& altPoll,
         std::vector<std::variant<base::unique_fd, base::borrowed_fd>>* ancillaryFds) {
     (void)ancillaryFds;
 
