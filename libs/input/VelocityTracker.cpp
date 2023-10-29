@@ -275,10 +275,10 @@ void VelocityTracker::addMovement(nsecs_t eventTime, int32_t pointerId, int32_t 
     }
 }
 
-void VelocityTracker::addMovement(const MotionEvent* event) {
+void VelocityTracker::addMovement(const MotionEvent& event) {
     // Stores data about which axes to process based on the incoming motion event.
     std::set<int32_t> axesToProcess;
-    int32_t actionMasked = event->getActionMasked();
+    int32_t actionMasked = event.getActionMasked();
 
     switch (actionMasked) {
         case AMOTION_EVENT_ACTION_DOWN:
@@ -291,7 +291,7 @@ void VelocityTracker::addMovement(const MotionEvent* event) {
             // Start a new movement trace for a pointer that just went down.
             // We do this on down instead of on up because the client may want to query the
             // final velocity for a pointer that just went up.
-            clearPointer(event->getPointerId(event->getActionIndex()));
+            clearPointer(event.getPointerId(event.getActionIndex()));
             axesToProcess.insert(PLANAR_AXES.begin(), PLANAR_AXES.end());
             break;
         }
@@ -300,8 +300,14 @@ void VelocityTracker::addMovement(const MotionEvent* event) {
             axesToProcess.insert(PLANAR_AXES.begin(), PLANAR_AXES.end());
             break;
         case AMOTION_EVENT_ACTION_POINTER_UP:
+            if (event.getFlags() & AMOTION_EVENT_FLAG_CANCELED) {
+                clearPointer(event.getPointerId(event.getActionIndex()));
+                return;
+            }
+            // Continue to ACTION_UP to ensure that the POINTER_STOPPED logic is triggered.
+            [[fallthrough]];
         case AMOTION_EVENT_ACTION_UP: {
-            std::chrono::nanoseconds delaySinceLastEvent(event->getEventTime() - mLastEventTime);
+            std::chrono::nanoseconds delaySinceLastEvent(event.getEventTime() - mLastEventTime);
             if (delaySinceLastEvent > ASSUME_POINTER_STOPPED_TIME) {
                 ALOGD_IF(DEBUG_VELOCITY,
                          "VelocityTracker: stopped for %s, clearing state upon pointer liftoff.",
@@ -325,21 +331,26 @@ void VelocityTracker::addMovement(const MotionEvent* event) {
         case AMOTION_EVENT_ACTION_SCROLL:
             axesToProcess.insert(AMOTION_EVENT_AXIS_SCROLL);
             break;
+        case AMOTION_EVENT_ACTION_CANCEL: {
+            clear();
+            return;
+        }
+
         default:
             // Ignore all other actions.
             return;
     }
 
-    const size_t historySize = event->getHistorySize();
+    const size_t historySize = event.getHistorySize();
     for (size_t h = 0; h <= historySize; h++) {
-        const nsecs_t eventTime = event->getHistoricalEventTime(h);
-        for (size_t i = 0; i < event->getPointerCount(); i++) {
-            if (event->isResampled(i, h)) {
+        const nsecs_t eventTime = event.getHistoricalEventTime(h);
+        for (size_t i = 0; i < event.getPointerCount(); i++) {
+            if (event.isResampled(i, h)) {
                 continue; // skip resampled samples
             }
-            const int32_t pointerId = event->getPointerId(i);
+            const int32_t pointerId = event.getPointerId(i);
             for (int32_t axis : axesToProcess) {
-                const float position = event->getHistoricalAxisValue(axis, i, h);
+                const float position = event.getHistoricalAxisValue(axis, i, h);
                 addMovement(eventTime, pointerId, axis, position);
             }
         }
