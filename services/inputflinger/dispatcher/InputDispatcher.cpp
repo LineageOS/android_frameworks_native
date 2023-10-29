@@ -2864,8 +2864,13 @@ void InputDispatcher::addWindowTargetLocked(const sp<WindowInfoHandle>& windowHa
         it = inputTargets.end() - 1;
     }
 
-    LOG_ALWAYS_FATAL_IF(it->flags != targetFlags);
-    LOG_ALWAYS_FATAL_IF(it->globalScaleFactor != windowInfo->globalScaleFactor);
+    if (it->flags != targetFlags) {
+        LOG(ERROR) << "Flags don't match! targetFlags=" << targetFlags.string() << ", it=" << *it;
+    }
+    if (it->globalScaleFactor != windowInfo->globalScaleFactor) {
+        LOG(ERROR) << "Mismatch! it->globalScaleFactor=" << it->globalScaleFactor
+                   << ", windowInfo->globalScaleFactor=" << windowInfo->globalScaleFactor;
+    }
 }
 
 void InputDispatcher::addPointerWindowTargetLocked(
@@ -2911,10 +2916,12 @@ void InputDispatcher::addPointerWindowTargetLocked(
     }
 
     if (it->flags != targetFlags) {
-        logDispatchStateLocked();
-        LOG(FATAL) << "Flags don't match! targetFlags=" << targetFlags.string() << ", it=" << *it;
+        LOG(ERROR) << "Flags don't match! targetFlags=" << targetFlags.string() << ", it=" << *it;
     }
-    LOG_ALWAYS_FATAL_IF(it->globalScaleFactor != windowInfo->globalScaleFactor);
+    if (it->globalScaleFactor != windowInfo->globalScaleFactor) {
+        LOG(ERROR) << "Mismatch! it->globalScaleFactor=" << it->globalScaleFactor
+                   << ", windowInfo->globalScaleFactor=" << windowInfo->globalScaleFactor;
+    }
 
     it->addPointers(pointerIds, windowInfo->transform);
 }
