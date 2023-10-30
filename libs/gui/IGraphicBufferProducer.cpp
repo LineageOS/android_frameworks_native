@@ -28,7 +28,7 @@
 #include <binder/IInterface.h>
 
 #include <gui/BufferQueueDefs.h>
-#include <gui/Flags.h>
+
 #include <gui/IGraphicBufferProducer.h>
 #include <gui/IProducerListener.h>
 #include <gui/bufferqueue/1.0/H2BGraphicBufferProducer.h>
@@ -763,7 +763,7 @@ public:
         }
         return result;
     }
-#if FLAG_BQ_SET_FRAME_RATE
+#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(BQ_SETFRAMERATE)
     virtual status_t setFrameRate(float frameRate, int8_t compatibility,
                                   int8_t changeFrameRateStrategy) override {
         Parcel data, reply;
@@ -973,7 +973,7 @@ status_t IGraphicBufferProducer::setAutoPrerotation(bool autoPrerotation) {
     return INVALID_OPERATION;
 }
 
-#if FLAG_BQ_SET_FRAME_RATE
+#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(BQ_SETFRAMERATE)
 status_t IGraphicBufferProducer::setFrameRate(float /*frameRate*/, int8_t /*compatibility*/,
                                               int8_t /*changeFrameRateStrategy*/) {
     // No-op for IGBP other than BufferQueue.
@@ -1522,7 +1522,7 @@ status_t BnGraphicBufferProducer::onTransact(
             reply->writeInt32(result);
             return NO_ERROR;
         }
-#if FLAG_BQ_SET_FRAME_RATE
+#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(BQ_SETFRAMERATE)
         case SET_FRAME_RATE: {
             CHECK_INTERFACE(IGraphicBuffer, data, reply);
             float frameRate = data.readFloat();

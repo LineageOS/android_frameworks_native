@@ -14,14 +14,16 @@
  * limitations under the License.
  */
 
-#include <gui/Flags.h>
 #include <gui/FrameRateUtils.h>
 #include <system/window.h>
 #include <utils/Log.h>
 
 #include <cmath>
 
+#include <com_android_graphics_libgui_flags.h>
+
 namespace android {
+using namespace com::android::graphics::libgui;
 // Returns true if the frameRate is valid.
 //
 // @param frameRate the frame rate in Hz
@@ -53,7 +55,7 @@ bool ValidateFrameRate(float frameRate, int8_t compatibility, int8_t changeFrame
             changeFrameRateStrategy != ANATIVEWINDOW_CHANGE_FRAME_RATE_ALWAYS) {
             ALOGE("%s failed - invalid change frame rate strategy value %d", functionName,
                   changeFrameRateStrategy);
-            if (FLAG_BQ_SET_FRAME_RATE) {
+            if (flags::bq_setframerate()) {
                 return false;
             }
         }

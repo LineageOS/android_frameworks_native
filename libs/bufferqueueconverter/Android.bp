@@ -34,5 +34,7 @@ cc_library {
         "libbase",
         "liblog",
     ],
+    static_libs: ["libguiflags"],
     export_include_dirs: ["include"],
+    export_static_lib_headers: ["libguiflags"],
 }

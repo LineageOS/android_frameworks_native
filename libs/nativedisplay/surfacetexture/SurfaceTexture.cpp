@@ -515,7 +515,7 @@ void SurfaceTexture::FrameAvailableListenerProxy::onFrameAvailable(const BufferI
     }
 }
 
-#if FLAG_BQ_SET_FRAME_RATE
+#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(BQ_SETFRAMERATE)
 void SurfaceTexture::onSetFrameRate(float frameRate, int8_t compatibility,
                                     int8_t changeFrameRateStrategy) {
     SFT_LOGV("onSetFrameRate: %.2f", frameRate);

@@ -43,7 +43,7 @@
 
 #include <gui/AidlStatusUtil.h>
 #include <gui/BufferItem.h>
-#include <gui/Flags.h>
+
 #include <gui/IProducerListener.h>
 
 #include <gui/ISurfaceComposer.h>
@@ -2571,7 +2571,7 @@ void Surface::ProducerListenerProxy::onBuffersDiscarded(const std::vector<int32_
 
 status_t Surface::setFrameRate(float frameRate, int8_t compatibility,
                                int8_t changeFrameRateStrategy) {
-#if FLAG_BQ_SET_FRAME_RATE
+#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(BQ_SETFRAMERATE)
     if (flags::bq_setframerate()) {
         status_t err = mGraphicBufferProducer->setFrameRate(frameRate, compatibility,
                                                             changeFrameRateStrategy);

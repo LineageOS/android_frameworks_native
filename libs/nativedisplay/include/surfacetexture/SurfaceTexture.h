@@ -19,7 +19,7 @@
 #include <android/hardware_buffer.h>
 #include <gui/BufferQueueDefs.h>
 #include <gui/ConsumerBase.h>
-#include <gui/Flags.h>
+
 #include <gui/IGraphicBufferProducer.h>
 #include <sys/cdefs.h>
 #include <system/graphics.h>
@@ -352,7 +352,7 @@ protected:
     /**
      * onSetFrameRate Notifies the consumer of a setFrameRate call from the producer side.
      */
-#if FLAG_BQ_SET_FRAME_RATE
+#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(BQ_SETFRAMERATE)
     void onSetFrameRate(float frameRate, int8_t compatibility,
                         int8_t changeFrameRateStrategy) override;
 #endif
