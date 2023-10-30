@@ -527,10 +527,8 @@ void CursorInputMapper::configureOnChangeDisplayInfo(const InputReaderConfigurat
         if (mEnablePointerChoreographer) {
             // Always use DISPLAY_ID_NONE for mouse events.
             // PointerChoreographer will make it target the correct the displayId later.
-            const auto pointerViewport =
-                    getContext()->getPolicy()->getPointerViewportForAssociatedDisplay();
-            mDisplayId = pointerViewport ? std::make_optional(ADISPLAY_ID_NONE) : std::nullopt;
-            resolvedViewport = pointerViewport;
+            resolvedViewport = getContext()->getPolicy()->getPointerViewportForAssociatedDisplay();
+            mDisplayId = resolvedViewport ? std::make_optional(ADISPLAY_ID_NONE) : std::nullopt;
         } else {
             mDisplayId = mPointerController->getDisplayId();
             if (auto v = config.getDisplayViewportById(*mDisplayId); v) {

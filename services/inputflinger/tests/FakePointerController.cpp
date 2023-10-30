@@ -42,13 +42,25 @@ FloatPoint FakePointerController::getPosition() const {
 }
 
 int32_t FakePointerController::getDisplayId() const {
-    return mDisplayId;
+    if (!mDisplayId) {
+        return ADISPLAY_ID_NONE;
+    }
+    return *mDisplayId;
 }
 
 void FakePointerController::setDisplayViewport(const DisplayViewport& viewport) {
     mDisplayId = viewport.displayId;
     setBounds(viewport.logicalLeft, viewport.logicalTop, viewport.logicalRight - 1,
               viewport.logicalBottom - 1);
+}
+
+void FakePointerController::assertViewportSet(int32_t displayId) {
+    ASSERT_TRUE(mDisplayId);
+    ASSERT_EQ(displayId, mDisplayId);
+}
+
+void FakePointerController::assertViewportNotSet() {
+    ASSERT_EQ(std::nullopt, mDisplayId);
 }
 
 void FakePointerController::assertPosition(float x, float y) {

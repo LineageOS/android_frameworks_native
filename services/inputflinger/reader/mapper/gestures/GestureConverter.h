@@ -48,6 +48,8 @@ public:
 
     void setDisplayId(std::optional<int32_t> displayId) { mDisplayId = displayId; }
 
+    void setBoundsInLogicalDisplay(FloatRect bounds) { mBoundsInLogicalDisplay = bounds; }
+
     void populateMotionRanges(InputDeviceInfo& info) const;
 
     [[nodiscard]] std::list<NotifyArgs> handleGesture(nsecs_t when, nsecs_t readTime,
@@ -85,8 +87,10 @@ private:
     const int32_t mDeviceId;
     InputReaderContext& mReaderContext;
     std::shared_ptr<PointerControllerInterface> mPointerController;
+    const bool mEnablePointerChoreographer;
 
     std::optional<int32_t> mDisplayId;
+    FloatRect mBoundsInLogicalDisplay{};
     ui::Rotation mOrientation = ui::ROTATION_0;
     RawAbsoluteAxisInfo mXAxisInfo;
     RawAbsoluteAxisInfo mYAxisInfo;
