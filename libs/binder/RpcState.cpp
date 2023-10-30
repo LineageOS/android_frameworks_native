@@ -359,7 +359,7 @@ RpcState::CommandData::CommandData(size_t size) : mSize(size) {
 status_t RpcState::rpcSend(
         const sp<RpcSession::RpcConnection>& connection, const sp<RpcSession>& session,
         const char* what, iovec* iovs, int niovs,
-        const std::optional<SmallFunction<status_t()>>& altPoll,
+        const std::optional<android::base::function_ref<status_t()>>& altPoll,
         const std::vector<std::variant<base::unique_fd, base::borrowed_fd>>* ancillaryFds) {
     for (int i = 0; i < niovs; i++) {
         LOG_RPC_DETAIL("Sending %s (part %d of %d) on RpcTransport %p: %s",
@@ -604,24 +604,25 @@ status_t RpcState::transactAddress(const sp<RpcSession::RpcConnection>& connecti
             {const_cast<uint8_t*>(data.data()), data.dataSize()},
             objectTableSpan.toIovec(),
     };
-    auto altPoll = [&] {
-        if (waitUs > kWaitLogUs) {
-            ALOGE("Cannot send command, trying to process pending refcounts. Waiting "
-                  "%zuus. Too many oneway calls?",
-                  waitUs);
-        }
+    if (status_t status = rpcSend(
+                connection, session, "transaction", iovs, arraysize(iovs),
+                [&] {
+                    if (waitUs > kWaitLogUs) {
+                        ALOGE("Cannot send command, trying to process pending refcounts. Waiting "
+                              "%zuus. Too many oneway calls?",
+                              waitUs);
+                    }
 
-        if (waitUs > 0) {
-            usleep(waitUs);
-            waitUs = std::min(kWaitMaxUs, waitUs * 2);
-        } else {
-            waitUs = 1;
-        }
+                    if (waitUs > 0) {
+                        usleep(waitUs);
+                        waitUs = std::min(kWaitMaxUs, waitUs * 2);
+                    } else {
+                        waitUs = 1;
+                    }
 
-        return drainCommands(connection, session, CommandType::CONTROL_ONLY);
-    };
-    if (status_t status = rpcSend(connection, session, "transaction", iovs, arraysize(iovs),
-                                  std::ref(altPoll), rpcFields->mFds.get());
+                    return drainCommands(connection, session, CommandType::CONTROL_ONLY);
+                },
+                rpcFields->mFds.get());
         status != OK) {
         // rpcSend calls shutdownAndWait, so all refcounts should be reset. If we ever tolerate
         // errors here, then we may need to undo the binder-sent counts for the transaction as

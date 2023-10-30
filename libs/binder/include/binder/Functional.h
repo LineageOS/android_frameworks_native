@@ -38,13 +38,4 @@ std::unique_ptr<void, std::function<void(void*)>> make_scope_guard(F&& f) {
     return {reinterpret_cast<void*>(true), std::bind(f)};
 }
 
-template <typename T>
-class SmallFunction : public std::function<T> {
-public:
-    template <typename F>
-    SmallFunction(F&& f) : std::function<T>(f) {
-        assert_small_callable<F>();
-    }
-};
-
 } // namespace android::binder::impl
