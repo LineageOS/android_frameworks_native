@@ -783,7 +783,9 @@ TEST_F(VSyncDispatchTimerQueueTest, doesNotMoveCallbackBackwardsAndSkipASchedule
 TEST_F(VSyncDispatchTimerQueueTest, movesCallbackBackwardsAndSkipAScheduledTargetVSync) {
     SET_FLAG_FOR_TEST(flags::dont_skip_on_early, true);
 
-    EXPECT_CALL(mMockClock, alarmAt(_, 500));
+    Sequence seq;
+    EXPECT_CALL(mMockClock, alarmAt(_, 500)).InSequence(seq);
+    EXPECT_CALL(mMockClock, alarmAt(_, 400)).InSequence(seq);
     CountingCallback cb(mDispatch);
     auto result =
             mDispatch->schedule(cb,
@@ -873,7 +875,9 @@ TEST_F(VSyncDispatchTimerQueueTest, scheduleUpdatesDoesNotAffectSchedulingState)
 TEST_F(VSyncDispatchTimerQueueTest, scheduleUpdatesDoesAffectSchedulingState) {
     SET_FLAG_FOR_TEST(flags::dont_skip_on_early, true);
 
-    EXPECT_CALL(mMockClock, alarmAt(_, 600));
+    Sequence seq;
+    EXPECT_CALL(mMockClock, alarmAt(_, 600)).InSequence(seq);
+    EXPECT_CALL(mMockClock, alarmAt(_, 0)).InSequence(seq);
 
     CountingCallback cb(mDispatch);
     auto result =
@@ -1119,6 +1123,7 @@ TEST_F(VSyncDispatchTimerQueueTest, doesNotUpdatesVsyncTimeForCloseWakeupTime) {
 
     Sequence seq;
     EXPECT_CALL(mMockClock, alarmAt(_, 600)).InSequence(seq);
+    EXPECT_CALL(mMockClock, alarmAt(_, 0)).InSequence(seq);
 
     CountingCallback cb(mDispatch);
 
@@ -1132,7 +1137,7 @@ TEST_F(VSyncDispatchTimerQueueTest, doesNotUpdatesVsyncTimeForCloseWakeupTime) {
     ASSERT_THAT(cb.mCalls.size(), Eq(1));
     EXPECT_THAT(cb.mCalls[0], Eq(1000));
     ASSERT_THAT(cb.mWakeupTime.size(), Eq(1));
-    EXPECT_THAT(cb.mWakeupTime[0], Eq(600));
+    EXPECT_THAT(cb.mWakeupTime[0], Eq(0));
     ASSERT_THAT(cb.mReadyTime.size(), Eq(1));
     EXPECT_THAT(cb.mReadyTime[0], Eq(1000));
 }
@@ -1161,7 +1166,9 @@ TEST_F(VSyncDispatchTimerQueueTest, skipAVsyc) {
 TEST_F(VSyncDispatchTimerQueueTest, dontskipAVsyc) {
     SET_FLAG_FOR_TEST(flags::dont_skip_on_early, true);
 
-    EXPECT_CALL(mMockClock, alarmAt(_, 500));
+    Sequence seq;
+    EXPECT_CALL(mMockClock, alarmAt(_, 500)).InSequence(seq);
+    EXPECT_CALL(mMockClock, alarmAt(_, 300)).InSequence(seq);
     CountingCallback cb(mDispatch);
     auto result =
             mDispatch->schedule(cb,
@@ -1177,6 +1184,11 @@ TEST_F(VSyncDispatchTimerQueueTest, dontskipAVsyc) {
 
     advanceToNextCallback();
     ASSERT_THAT(cb.mCalls.size(), Eq(1));
+    EXPECT_THAT(cb.mCalls[0], Eq(1000));
+    ASSERT_THAT(cb.mWakeupTime.size(), Eq(1));
+    EXPECT_THAT(cb.mWakeupTime[0], Eq(300));
+    ASSERT_THAT(cb.mReadyTime.size(), Eq(1));
+    EXPECT_THAT(cb.mReadyTime[0], Eq(1000));
 }
 
 class VSyncDispatchTimerQueueEntryTest : public testing::Test {
