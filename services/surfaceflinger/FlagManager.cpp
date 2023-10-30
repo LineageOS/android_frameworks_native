@@ -102,6 +102,7 @@ void FlagManager::dump(std::string& result) const {
     DUMP_FLAG(misc1);
     DUMP_FLAG(late_boot_misc2);
     DUMP_FLAG(vrr_config);
+    DUMP_FLAG(hotplug2);
 
 #undef DUMP_FLAG
 }
@@ -165,6 +166,7 @@ FLAG_MANAGER_READ_ONLY_FLAG(connected_display, "")
 FLAG_MANAGER_READ_ONLY_FLAG(enable_small_area_detection, "")
 FLAG_MANAGER_READ_ONLY_FLAG(misc1, "")
 FLAG_MANAGER_READ_ONLY_FLAG(vrr_config, "debug.sf.enable_vrr_config")
+FLAG_MANAGER_READ_ONLY_FLAG(hotplug2, "")
 
 /// Trunk stable server flags ///
 FLAG_MANAGER_SERVER_FLAG(late_boot_misc2, "")

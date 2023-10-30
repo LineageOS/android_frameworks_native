@@ -53,3 +53,11 @@ flag {
   bug: "283055450"
   is_fixed_read_only: true
 }
+
+flag {
+  name: "hotplug2"
+  namespace: "core_graphics"
+  description: "Feature flag for using hotplug2 HAL API"
+  bug: "303460805"
+  is_fixed_read_only: true
+}
