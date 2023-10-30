@@ -18,8 +18,8 @@
 
 #include "RpcState.h"
 
-#include <android-base/scopeguard.h>
 #include <binder/BpBinder.h>
+#include <binder/Functional.h>
 #include <binder/IPCThreadState.h>
 #include <binder/RpcServer.h>
 
@@ -37,6 +37,8 @@
 #endif
 
 namespace android {
+
+using namespace android::binder::impl;
 
 #if RPC_FLAKE_PRONE
 void rpcMaybeWaitToFlake() {
@@ -808,11 +810,11 @@ status_t RpcState::processCommand(
         origGuard = kernelBinderState->pushGetCallingSpGuard(&spGuard);
     }
 
-    base::ScopeGuard guardUnguard = [&]() {
+    auto guardUnguard = make_scope_guard([&]() {
         if (kernelBinderState != nullptr) {
             kernelBinderState->restoreGetCallingSpGuard(origGuard);
         }
-    };
+    });
 #endif // BINDER_WITH_KERNEL_IPC
 
     switch (command.command) {
