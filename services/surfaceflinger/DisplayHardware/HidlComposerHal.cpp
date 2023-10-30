@@ -681,8 +681,9 @@ Error HidlComposer::validateDisplay(Display display, nsecs_t /*expectedPresentTi
 }
 
 Error HidlComposer::presentOrValidateDisplay(Display display, nsecs_t /*expectedPresentTime*/,
-                                             uint32_t* outNumTypes, uint32_t* outNumRequests,
-                                             int* outPresentFence, uint32_t* state) {
+                                             int32_t /*frameIntervalNs*/, uint32_t* outNumTypes,
+                                             uint32_t* outNumRequests, int* outPresentFence,
+                                             uint32_t* state) {
     ATRACE_NAME("HwcPresentOrValidateDisplay");
     mWriter.selectDisplay(display);
     mWriter.presentOrvalidateDisplay();

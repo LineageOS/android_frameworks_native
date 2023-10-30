@@ -498,7 +498,7 @@ status_t HWComposer::setClientTarget(HalDisplayId displayId, uint32_t slot,
 status_t HWComposer::getDeviceCompositionChanges(
         HalDisplayId displayId, bool frameUsesClientComposition,
         std::optional<std::chrono::steady_clock::time_point> earliestPresentTime,
-        nsecs_t expectedPresentTime,
+        nsecs_t expectedPresentTime, Fps frameInterval,
         std::optional<android::HWComposer::DeviceRequestedChanges>* outChanges) {
     ATRACE_CALL();
 
@@ -547,8 +547,8 @@ status_t HWComposer::getDeviceCompositionChanges(
     if (canSkipValidate) {
         sp<Fence> outPresentFence;
         uint32_t state = UINT32_MAX;
-        error = hwcDisplay->presentOrValidate(expectedPresentTime, &numTypes, &numRequests,
-                                              &outPresentFence, &state);
+        error = hwcDisplay->presentOrValidate(expectedPresentTime, frameInterval.getPeriodNsecs(),
+                                              &numTypes, &numRequests, &outPresentFence, &state);
         if (!hasChangesError(error)) {
             RETURN_IF_HWC_ERROR_FOR("presentOrValidate", error, displayId, UNKNOWN_ERROR);
         }

@@ -2620,6 +2620,10 @@ CompositeResultsPerDisplay SurfaceFlinger::composite(
                 refreshArgs.outputs.push_back(display->getCompositionDisplay());
             }
         }
+        if (display->getId() == pacesetterId) {
+            // TODO(b/255601557) Update frameInterval per display
+            refreshArgs.frameInterval = display->refreshRateSelector().getActiveMode().fps;
+        }
     }
     mPowerAdvisor->setDisplays(displayIds);
 

@@ -776,8 +776,9 @@ Error AidlComposer::validateDisplay(Display display, nsecs_t expectedPresentTime
 }
 
 Error AidlComposer::presentOrValidateDisplay(Display display, nsecs_t expectedPresentTime,
-                                             uint32_t* outNumTypes, uint32_t* outNumRequests,
-                                             int* outPresentFence, uint32_t* state) {
+                                             int32_t frameIntervalNs, uint32_t* outNumTypes,
+                                             uint32_t* outNumRequests, int* outPresentFence,
+                                             uint32_t* state) {
     const auto displayId = translate<int64_t>(display);
     ATRACE_FORMAT("HwcPresentOrValidateDisplay %" PRId64, displayId);
 
@@ -787,7 +788,8 @@ Error AidlComposer::presentOrValidateDisplay(Display display, nsecs_t expectedPr
     auto reader = getReader(display);
     if (writer && reader) {
         writer->get().presentOrvalidateDisplay(displayId,
-                                               ClockMonotonicTimestamp{expectedPresentTime});
+                                               ClockMonotonicTimestamp{expectedPresentTime},
+                                               frameIntervalNs);
         error = execute(display);
     } else {
         error = Error::BAD_DISPLAY;

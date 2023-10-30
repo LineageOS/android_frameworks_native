@@ -151,6 +151,7 @@ public:
     [[nodiscard]] virtual hal::Error validate(nsecs_t expectedPresentTime, uint32_t* outNumTypes,
                                               uint32_t* outNumRequests) = 0;
     [[nodiscard]] virtual hal::Error presentOrValidate(nsecs_t expectedPresentTime,
+                                                       int32_t frameIntervalNs,
                                                        uint32_t* outNumTypes,
                                                        uint32_t* outNumRequests,
                                                        android::sp<android::Fence>* outPresentFence,
@@ -235,8 +236,8 @@ public:
     hal::Error setVsyncEnabled(hal::Vsync enabled) override;
     hal::Error validate(nsecs_t expectedPresentTime, uint32_t* outNumTypes,
                         uint32_t* outNumRequests) override;
-    hal::Error presentOrValidate(nsecs_t expectedPresentTime, uint32_t* outNumTypes,
-                                 uint32_t* outNumRequests,
+    hal::Error presentOrValidate(nsecs_t expectedPresentTime, int32_t frameIntervalNs,
+                                 uint32_t* outNumTypes, uint32_t* outNumRequests,
                                  android::sp<android::Fence>* outPresentFence,
                                  uint32_t* state) override;
     ftl::Future<hal::Error> setDisplayBrightness(

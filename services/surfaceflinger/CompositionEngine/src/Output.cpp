@@ -836,6 +836,7 @@ void Output::writeCompositionState(const compositionengine::CompositionRefreshAr
 
     editState().earliestPresentTime = refreshArgs.earliestPresentTime;
     editState().expectedPresentTime = refreshArgs.expectedPresentTime;
+    editState().frameInterval = refreshArgs.frameInterval;
     editState().powerCallback = refreshArgs.powerCallback;
 
     compositionengine::OutputLayer* peekThroughLayer = nullptr;

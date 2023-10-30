@@ -127,6 +127,9 @@ struct OutputCompositionState {
     // The expected time for the next present
     nsecs_t expectedPresentTime{0};
 
+    // The frameInterval for the next present
+    Fps frameInterval{};
+
     // Current display brightness
     float displayBrightnessNits{-1.f};
 
