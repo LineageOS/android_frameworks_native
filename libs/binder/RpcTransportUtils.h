@@ -27,7 +27,7 @@ template <typename SendOrReceive>
 status_t interruptableReadOrWrite(
         const android::RpcTransportFd& socket, FdTrigger* fdTrigger, iovec* iovs, int niovs,
         SendOrReceive sendOrReceiveFun, const char* funName, int16_t event,
-        const std::optional<binder::impl::SmallFunction<status_t()>>& altPoll) {
+        const std::optional<android::base::function_ref<status_t()>>& altPoll) {
     MAYBE_WAIT_IN_FLAKE_MODE;
 
     if (niovs < 0) {
