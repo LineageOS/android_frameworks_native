@@ -32,7 +32,6 @@
 
 #include <binder/Binder.h>
 #include <binder/BpBinder.h>
-#include <binder/Functional.h>
 #include <binder/IPCThreadState.h>
 #include <binder/Parcel.h>
 #include <binder/ProcessState.h>
@@ -40,6 +39,7 @@
 #include <binder/Status.h>
 #include <binder/TextOutput.h>
 
+#include <android-base/scopeguard.h>
 #ifndef BINDER_DISABLE_BLOB
 #include <cutils/ashmem.h>
 #endif
@@ -93,8 +93,6 @@ static size_t pad_size(size_t s) {
 #define STRICT_MODE_PENALTY_GATHER (1 << 31)
 
 namespace android {
-
-using namespace android::binder::impl;
 
 // many things compile this into prebuilts on the stack
 #ifdef __LP64__
@@ -588,7 +586,7 @@ status_t Parcel::appendFrom(const Parcel* parcel, size_t offset, size_t len) {
         }
 
         const size_t savedDataPos = mDataPos;
-        auto scopeGuard = make_scope_guard([&]() { mDataPos = savedDataPos; });
+        base::ScopeGuard scopeGuard = [&]() { mDataPos = savedDataPos; };
 
         rpcFields->mObjectPositions.reserve(otherRpcFields->mObjectPositions.size());
         if (otherRpcFields->mFds != nullptr) {
