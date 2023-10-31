@@ -23,7 +23,6 @@
 #include <binder/IResultReceiver.h>
 #include <binder/RpcSession.h>
 #include <binder/Stability.h>
-#include <utils/Log.h>
 
 #include <stdio.h>
 
