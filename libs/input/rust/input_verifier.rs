@@ -118,18 +118,17 @@ impl InputVerifier {
 
         match action.into() {
             MotionAction::Down => {
+                if self.touching_pointer_ids_by_device.contains_key(&device_id) {
+                    return Err(format!(
+                        "{}: Invalid DOWN event - pointers already down for device {:?}: {:?}",
+                        self.name, device_id, self.touching_pointer_ids_by_device
+                    ));
+                }
                 let it = self
                     .touching_pointer_ids_by_device
                     .entry(device_id)
                     .or_insert_with(HashSet::new);
-                let pointer_id = pointer_properties[0].id;
-                if it.contains(&pointer_id) {
-                    return Err(format!(
-                        "{}: Invalid DOWN event - pointers already down for device {:?}: {:?}",
-                        self.name, device_id, it
-                    ));
-                }
-                it.insert(pointer_id);
+                it.insert(pointer_properties[0].id);
             }
             MotionAction::PointerDown { action_index } => {
                 if !self.touching_pointer_ids_by_device.contains_key(&device_id) {
@@ -347,6 +346,56 @@ mod tests {
                 Source::Touchscreen,
                 input_bindgen::AMOTION_EVENT_ACTION_UP,
                 &pointer_properties,
+                MotionFlags::empty(),
+            )
+            .is_ok());
+    }
+
+    #[test]
+    fn two_pointer_stream() {
+        let mut verifier = InputVerifier::new("Test", /*should_log*/ false);
+        let pointer_properties = Vec::from([RustPointerProperties { id: 0 }]);
+        assert!(verifier
+            .process_movement(
+                DeviceId(1),
+                Source::Touchscreen,
+                input_bindgen::AMOTION_EVENT_ACTION_DOWN,
+                &pointer_properties,
+                MotionFlags::empty(),
+            )
+            .is_ok());
+        // POINTER 1 DOWN
+        let two_pointer_properties =
+            Vec::from([RustPointerProperties { id: 0 }, RustPointerProperties { id: 1 }]);
+        assert!(verifier
+            .process_movement(
+                DeviceId(1),
+                Source::Touchscreen,
+                input_bindgen::AMOTION_EVENT_ACTION_POINTER_DOWN
+                    | (1 << input_bindgen::AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+                &two_pointer_properties,
+                MotionFlags::empty(),
+            )
+            .is_ok());
+        // POINTER 0 UP
+        assert!(verifier
+            .process_movement(
+                DeviceId(1),
+                Source::Touchscreen,
+                input_bindgen::AMOTION_EVENT_ACTION_POINTER_UP
+                    | (0 << input_bindgen::AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+                &two_pointer_properties,
+                MotionFlags::empty(),
+            )
+            .is_ok());
+        // ACTION_UP for pointer id=1
+        let pointer_1_properties = Vec::from([RustPointerProperties { id: 1 }]);
+        assert!(verifier
+            .process_movement(
+                DeviceId(1),
+                Source::Touchscreen,
+                input_bindgen::AMOTION_EVENT_ACTION_UP,
+                &pointer_1_properties,
                 MotionFlags::empty(),
             )
             .is_ok());

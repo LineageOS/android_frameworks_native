@@ -1266,9 +1266,7 @@ TEST_F(BufferQueueTest, TestProducerConnectDisconnect) {
 }
 
 TEST_F(BufferQueueTest, TestBqSetFrameRateFlagBuildTimeIsSet) {
-    if (flags::bq_setframerate()) {
-        ASSERT_EQ(true, FLAG_BQ_SET_FRAME_RATE);
-    }
+    ASSERT_EQ(flags::bq_setframerate(), COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(BQ_SETFRAMERATE));
 }
 
 struct BufferItemConsumerSetFrameRateListener : public BufferItemConsumer {

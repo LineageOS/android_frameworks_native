@@ -756,10 +756,6 @@ bool shouldSplitTouch(const TouchState& touchState, const MotionEntry& entry) {
 // --- InputDispatcher ---
 
 InputDispatcher::InputDispatcher(InputDispatcherPolicyInterface& policy)
-      : InputDispatcher(policy, STALE_EVENT_TIMEOUT) {}
-
-InputDispatcher::InputDispatcher(InputDispatcherPolicyInterface& policy,
-                                 std::chrono::nanoseconds staleEventTimeout)
       : mPolicy(policy),
         mPendingEvent(nullptr),
         mLastDropReason(DropReason::NOT_DROPPED),
@@ -774,7 +770,6 @@ InputDispatcher::InputDispatcher(InputDispatcherPolicyInterface& policy,
         mMaximumObscuringOpacityForTouch(1.0f),
         mFocusedDisplayId(ADISPLAY_ID_DEFAULT),
         mWindowTokenWithPointerCapture(nullptr),
-        mStaleEventTimeout(staleEventTimeout),
         mLatencyAggregator(),
         mLatencyTracker(&mLatencyAggregator) {
     mLooper = sp<Looper>::make(false);
@@ -1131,7 +1126,7 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t* nextWakeupTime) {
 }
 
 bool InputDispatcher::isStaleEvent(nsecs_t currentTime, const EventEntry& entry) {
-    return std::chrono::nanoseconds(currentTime - entry.eventTime) >= mStaleEventTimeout;
+    return mPolicy.isStaleEvent(currentTime, entry.eventTime);
 }
 
 /**
@@ -2864,8 +2859,13 @@ void InputDispatcher::addWindowTargetLocked(const sp<WindowInfoHandle>& windowHa
         it = inputTargets.end() - 1;
     }
 
-    LOG_ALWAYS_FATAL_IF(it->flags != targetFlags);
-    LOG_ALWAYS_FATAL_IF(it->globalScaleFactor != windowInfo->globalScaleFactor);
+    if (it->flags != targetFlags) {
+        LOG(ERROR) << "Flags don't match! targetFlags=" << targetFlags.string() << ", it=" << *it;
+    }
+    if (it->globalScaleFactor != windowInfo->globalScaleFactor) {
+        LOG(ERROR) << "Mismatch! it->globalScaleFactor=" << it->globalScaleFactor
+                   << ", windowInfo->globalScaleFactor=" << windowInfo->globalScaleFactor;
+    }
 }
 
 void InputDispatcher::addPointerWindowTargetLocked(
@@ -2911,10 +2911,12 @@ void InputDispatcher::addPointerWindowTargetLocked(
     }
 
     if (it->flags != targetFlags) {
-        logDispatchStateLocked();
-        LOG(FATAL) << "Flags don't match! targetFlags=" << targetFlags.string() << ", it=" << *it;
+        LOG(ERROR) << "Flags don't match! targetFlags=" << targetFlags.string() << ", it=" << *it;
     }
-    LOG_ALWAYS_FATAL_IF(it->globalScaleFactor != windowInfo->globalScaleFactor);
+    if (it->globalScaleFactor != windowInfo->globalScaleFactor) {
+        LOG(ERROR) << "Mismatch! it->globalScaleFactor=" << it->globalScaleFactor
+                   << ", windowInfo->globalScaleFactor=" << windowInfo->globalScaleFactor;
+    }
 
     it->addPointers(pointerIds, windowInfo->transform);
 }
