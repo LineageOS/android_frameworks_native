@@ -30,7 +30,6 @@
 #include <binder/RecordedTransaction.h>
 #include <binder/RpcServer.h>
 #include <pthread.h>
-#include <utils/misc.h>
 
 #include <inttypes.h>
 #include <stdio.h>
