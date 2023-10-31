@@ -22,6 +22,19 @@
 #include <log/log.h>
 #include <utils/Errors.h>
 
+/* TEMP_FAILURE_RETRY is not available on macOS and Trusty. */
+#ifndef TEMP_FAILURE_RETRY
+/* Used to retry syscalls that can return EINTR. */
+#define TEMP_FAILURE_RETRY(exp)                \
+    ({                                         \
+        __typeof__(exp) _rc;                   \
+        do {                                   \
+            _rc = (exp);                       \
+        } while (_rc == -1 && errno == EINTR); \
+        _rc;                                   \
+    })
+#endif
+
 #define TEST_AND_RETURN(value, expr)            \
     do {                                        \
         if (!(expr)) {                          \
