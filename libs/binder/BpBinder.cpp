@@ -38,7 +38,7 @@ namespace android {
 
 // ---------------------------------------------------------------------------
 
-Mutex BpBinder::sTrackingLock;
+RpcMutex BpBinder::sTrackingLock;
 std::unordered_map<int32_t, uint32_t> BpBinder::sTrackingMap;
 std::unordered_map<int32_t, uint32_t> BpBinder::sLastLimitCallbackMap;
 int BpBinder::sNumTrackedUids = 0;
@@ -163,7 +163,7 @@ sp<BpBinder> BpBinder::create(int32_t handle) {
     int32_t trackedUid = -1;
     if (sCountByUidEnabled) {
         trackedUid = IPCThreadState::self()->getCallingUid();
-        AutoMutex _l(sTrackingLock);
+        RpcMutexUniqueLock _l(sTrackingLock);
         uint32_t trackedValue = sTrackingMap[trackedUid];
         if (trackedValue & LIMIT_REACHED_MASK) [[unlikely]] {
             if (sBinderProxyThrottleCreate) {
@@ -276,7 +276,7 @@ std::optional<int32_t> BpBinder::getDebugBinderHandle() const {
 }
 
 bool BpBinder::isDescriptorCached() const {
-    Mutex::Autolock _l(mLock);
+    RpcMutexUniqueLock _l(mLock);
     return mDescriptorCache.c_str() != kDescriptorUninit.c_str();
 }
 
@@ -292,7 +292,7 @@ const String16& BpBinder::getInterfaceDescriptor() const
         status_t err = thiz->transact(INTERFACE_TRANSACTION, data, &reply);
         if (err == NO_ERROR) {
             String16 res(reply.readString16());
-            Mutex::Autolock _l(mLock);
+            RpcMutexUniqueLock _l(mLock);
             // mDescriptorCache could have been assigned while the lock was
             // released.
             if (mDescriptorCache.c_str() == kDescriptorUninit.c_str()) mDescriptorCache = res;
@@ -385,7 +385,7 @@ status_t BpBinder::transact(
             status = IPCThreadState::self()->transact(binderHandle(), code, data, reply, flags);
         }
         if (data.dataSize() > LOG_TRANSACTIONS_OVER_SIZE) {
-            Mutex::Autolock _l(mLock);
+            RpcMutexUniqueLock _l(mLock);
             ALOGW("Large outgoing transaction of %zu bytes, interface descriptor %s, code %d",
                   data.dataSize(), String8(mDescriptorCache).c_str(), code);
         }
@@ -431,7 +431,7 @@ status_t BpBinder::linkToDeath(
                         "linkToDeath(): recipient must be non-NULL");
 
     {
-        AutoMutex _l(mLock);
+        RpcMutexUniqueLock _l(mLock);
 
         if (!mObitsSent) {
             if (!mObituaries) {
@@ -467,7 +467,7 @@ status_t BpBinder::unlinkToDeath(
         return INVALID_OPERATION;
     }
 
-    AutoMutex _l(mLock);
+    RpcMutexUniqueLock _l(mLock);
 
     if (mObitsSent) {
         return DEAD_OBJECT;
@@ -555,30 +555,30 @@ void BpBinder::reportOneDeath(const Obituary& obit)
 
 void* BpBinder::attachObject(const void* objectID, void* object, void* cleanupCookie,
                              object_cleanup_func func) {
-    AutoMutex _l(mLock);
+    RpcMutexUniqueLock _l(mLock);
     ALOGV("Attaching object %p to binder %p (manager=%p)", object, this, &mObjects);
     return mObjects.attach(objectID, object, cleanupCookie, func);
 }
 
 void* BpBinder::findObject(const void* objectID) const
 {
-    AutoMutex _l(mLock);
+    RpcMutexUniqueLock _l(mLock);
     return mObjects.find(objectID);
 }
 
 void* BpBinder::detachObject(const void* objectID) {
-    AutoMutex _l(mLock);
+    RpcMutexUniqueLock _l(mLock);
     return mObjects.detach(objectID);
 }
 
 void BpBinder::withLock(const std::function<void()>& doWithLock) {
-    AutoMutex _l(mLock);
+    RpcMutexUniqueLock _l(mLock);
     doWithLock();
 }
 
 sp<IBinder> BpBinder::lookupOrCreateWeak(const void* objectID, object_make_func make,
                                          const void* makeArgs) {
-    AutoMutex _l(mLock);
+    RpcMutexUniqueLock _l(mLock);
     return mObjects.lookupOrCreateWeak(objectID, make, makeArgs);
 }
 
@@ -602,7 +602,7 @@ BpBinder::~BpBinder() {
     IPCThreadState* ipc = IPCThreadState::self();
 
     if (mTrackedUid >= 0) {
-        AutoMutex _l(sTrackingLock);
+        RpcMutexUniqueLock _l(sTrackingLock);
         uint32_t trackedValue = sTrackingMap[mTrackedUid];
         if ((trackedValue & COUNTING_VALUE_MASK) == 0) [[unlikely]] {
             ALOGE("Unexpected Binder Proxy tracking decrement in %p handle %d\n", this,
@@ -702,7 +702,7 @@ bool BpBinder::onIncStrongAttempted(uint32_t /*flags*/, const void* /*id*/)
 
 uint32_t BpBinder::getBinderProxyCount(uint32_t uid)
 {
-    AutoMutex _l(sTrackingLock);
+    RpcMutexUniqueLock _l(sTrackingLock);
     auto it = sTrackingMap.find(uid);
     if (it != sTrackingMap.end()) {
         return it->second & COUNTING_VALUE_MASK;
@@ -717,7 +717,7 @@ uint32_t BpBinder::getBinderProxyCount()
 
 void BpBinder::getCountByUid(Vector<uint32_t>& uids, Vector<uint32_t>& counts)
 {
-    AutoMutex _l(sTrackingLock);
+    RpcMutexUniqueLock _l(sTrackingLock);
     uids.setCapacity(sTrackingMap.size());
     counts.setCapacity(sTrackingMap.size());
     for (const auto& it : sTrackingMap) {
@@ -731,12 +731,12 @@ void BpBinder::disableCountByUid() { sCountByUidEnabled.store(false); }
 void BpBinder::setCountByUidEnabled(bool enable) { sCountByUidEnabled.store(enable); }
 
 void BpBinder::setLimitCallback(binder_proxy_limit_callback cb) {
-    AutoMutex _l(sTrackingLock);
+    RpcMutexUniqueLock _l(sTrackingLock);
     sLimitCallback = cb;
 }
 
 void BpBinder::setBinderProxyCountWatermarks(int high, int low) {
-    AutoMutex _l(sTrackingLock);
+    RpcMutexUniqueLock _l(sTrackingLock);
     sBinderProxyCountHighWatermark = high;
     sBinderProxyCountLowWatermark = low;
 }
