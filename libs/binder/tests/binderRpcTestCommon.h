@@ -74,8 +74,7 @@ static inline bool hasExperimentalRpc() {
 #ifdef __ANDROID__
     return base::GetProperty("ro.build.version.codename", "") != "REL";
 #else
-    // TODO(b/305983144): restrict on other platforms
-    return true;
+    return false;
 #endif
 }
 
