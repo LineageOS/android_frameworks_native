@@ -17,7 +17,6 @@
 #pragma once
 
 #include <binder/IBinder.h>
-#include <utils/KeyedVector.h>
 #include <utils/String16.h>
 #include <utils/String8.h>
 

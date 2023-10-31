@@ -30,7 +30,6 @@
 #include <binder/RpcServer.h>
 #include <binder/RpcTransportRaw.h>
 #include <log/log.h>
-#include <utils/Compat.h>
 
 #include "BuildFlags.h"
 #include "FdTrigger.h"
