@@ -69,6 +69,16 @@ const bool DEBUG_INJECTION =
         android::base::ShouldLog(android::base::LogSeverity::DEBUG, LOG_TAG "Injection");
 
 /**
+ * Generally, we always log whenever events are dropped. However, to reduce logspam, some messages
+ * are suppressed.
+ * Log additional debug messages about dropped input events with this flag.
+ * Enable this via "adb shell setprop log.tag.InputDispatcherDroppedEventsVerbose DEBUG".
+ * Requires system_server restart via `adb shell stop && adb shell start`.
+ */
+const bool DEBUG_DROPPED_EVENTS_VERBOSE =
+        android::base::ShouldLog(android::base::LogSeverity::DEBUG, LOG_TAG "DroppedEventsVerbose");
+
+/**
  * Log debug messages about input focus tracking.
  * Enable this via "adb shell setprop log.tag.InputDispatcherFocus DEBUG" (requires restart)
  */
