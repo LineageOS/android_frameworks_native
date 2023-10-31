@@ -982,8 +982,8 @@ private:
     /*
      * Compositing
      */
-    void postComposition(PhysicalDisplayId pacesetterId, const scheduler::FrameTargeters&,
-                         nsecs_t presentStartTime) REQUIRES(kMainThreadContext);
+    void onCompositionPresented(PhysicalDisplayId pacesetterId, const scheduler::FrameTargeters&,
+                                nsecs_t presentStartTime) REQUIRES(kMainThreadContext);
 
     /*
      * Display management

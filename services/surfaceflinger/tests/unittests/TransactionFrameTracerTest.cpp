@@ -112,7 +112,7 @@ public:
         EXPECT_CALL(*mFlinger.getFrameTracer(),
                     traceFence(layerId, bufferId, frameNumber, presentFence,
                                FrameTracer::FrameEvent::PRESENT_FENCE, /*startTime*/ 0));
-        layer->onPostComposition(nullptr, glDoneFence, presentFence, compositorTiming);
+        layer->onCompositionPresented(nullptr, glDoneFence, presentFence, compositorTiming);
     }
 };
 

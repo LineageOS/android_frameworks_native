@@ -610,8 +610,8 @@ public:
             mFlinger->flushTransactionQueues(getFuzzedVsyncId(mFdp));
 
             scheduler::FrameTargeter frameTargeter(displayId, mFdp.ConsumeBool());
-            mFlinger->postComposition(displayId, ftl::init::map(displayId, &frameTargeter),
-                                      mFdp.ConsumeIntegral<nsecs_t>());
+            mFlinger->onCompositionPresented(displayId, ftl::init::map(displayId, &frameTargeter),
+                                             mFdp.ConsumeIntegral<nsecs_t>());
         }
 
         mFlinger->setTransactionFlags(mFdp.ConsumeIntegral<uint32_t>());
