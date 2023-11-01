@@ -2040,10 +2040,10 @@ void InputDispatcher::dispatchEventLocked(nsecs_t currentTime,
         if (connection != nullptr) {
             prepareDispatchCycleLocked(currentTime, connection, eventEntry, inputTarget);
         } else {
-            if (DEBUG_FOCUS) {
-                ALOGD("Dropping event delivery to target with channel '%s' because it "
-                      "is no longer registered with the input dispatcher.",
-                      inputTarget.inputChannel->getName().c_str());
+            if (DEBUG_DROPPED_EVENTS_VERBOSE) {
+                LOG(INFO) << "Dropping event delivery to target with channel "
+                          << inputTarget.inputChannel->getName()
+                          << " because it is no longer registered with the input dispatcher.";
             }
         }
     }
@@ -2461,10 +2461,11 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
         // If the pointer is not currently down, then ignore the event.
         if (!tempTouchState.isDown(entry.deviceId) &&
             maskedAction != AMOTION_EVENT_ACTION_HOVER_EXIT) {
-            LOG(INFO) << "Dropping event because the pointer for device " << entry.deviceId
-                      << " is not down or we previously "
-                         "dropped the pointer down event in display "
-                      << displayId << ": " << entry.getDescription();
+            if (DEBUG_DROPPED_EVENTS_VERBOSE) {
+                LOG(INFO) << "Dropping event because the pointer for device " << entry.deviceId
+                          << " is not down or we previously dropped the pointer down event in "
+                          << "display " << displayId << ": " << entry.getDescription();
+            }
             outInjectionResult = InputEventInjectionResult::FAILED;
             return {};
         }
