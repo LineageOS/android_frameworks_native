@@ -22,8 +22,9 @@
 #include <variant>
 #include <vector>
 
-#include <android-base/result.h>
+#include <android-base/macros.h>
 #include <android-base/unique_fd.h>
+#include <utils/Errors.h>
 
 /**
  * Log a lot more information about host-device binder communication, when debugging issues.
@@ -94,6 +95,6 @@ std::ostream& operator<<(std::ostream& os, const CommandResult& res);
 //
 // If the parent process has encountered any errors for system calls, return ExecuteError with
 // the proper errno set.
-android::base::Result<CommandResult> execute(std::vector<std::string> argStringVec,
-                                             const std::function<bool(const CommandResult&)>& end);
+std::optional<CommandResult> execute(std::vector<std::string> argStringVec,
+                                     const std::function<bool(const CommandResult&)>& end);
 } // namespace android

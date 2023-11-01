@@ -17,7 +17,6 @@
 
 #include <memory>
 
-#include <android-base/result.h>
 #include <android-base/unique_fd.h>
 #include <utils/Errors.h>
 
