@@ -392,21 +392,17 @@ std::unique_ptr<DispatchEntry> createDispatchEntry(
     }
 
     std::unique_ptr<MotionEntry> combinedMotionEntry =
-            std::make_unique<MotionEntry>(motionEntry.id, motionEntry.eventTime,
-                                          motionEntry.deviceId, motionEntry.source,
-                                          motionEntry.displayId, motionEntry.policyFlags,
-                                          motionEntry.action, motionEntry.actionButton,
-                                          motionEntry.flags, motionEntry.metaState,
-                                          motionEntry.buttonState, motionEntry.classification,
-                                          motionEntry.edgeFlags, motionEntry.xPrecision,
-                                          motionEntry.yPrecision, motionEntry.xCursorPosition,
-                                          motionEntry.yCursorPosition, motionEntry.downTime,
-                                          motionEntry.pointerProperties, pointerCoords);
-
-    if (motionEntry.injectionState) {
-        combinedMotionEntry->injectionState = motionEntry.injectionState;
-        combinedMotionEntry->injectionState->refCount += 1;
-    }
+            std::make_unique<MotionEntry>(motionEntry.id, motionEntry.injectionState,
+                                          motionEntry.eventTime, motionEntry.deviceId,
+                                          motionEntry.source, motionEntry.displayId,
+                                          motionEntry.policyFlags, motionEntry.action,
+                                          motionEntry.actionButton, motionEntry.flags,
+                                          motionEntry.metaState, motionEntry.buttonState,
+                                          motionEntry.classification, motionEntry.edgeFlags,
+                                          motionEntry.xPrecision, motionEntry.yPrecision,
+                                          motionEntry.xCursorPosition, motionEntry.yCursorPosition,
+                                          motionEntry.downTime, motionEntry.pointerProperties,
+                                          pointerCoords);
 
     std::unique_ptr<DispatchEntry> dispatchEntry =
             std::make_unique<DispatchEntry>(std::move(combinedMotionEntry), inputTargetFlags,
@@ -1492,7 +1488,7 @@ void InputDispatcher::releasePendingEventLocked() {
 }
 
 void InputDispatcher::releaseInboundEventLocked(std::shared_ptr<EventEntry> entry) {
-    InjectionState* injectionState = entry->injectionState;
+    const std::shared_ptr<InjectionState>& injectionState = entry->injectionState;
     if (injectionState && injectionState->injectionResult == InputEventInjectionResult::PENDING) {
         if (DEBUG_DISPATCH_CYCLE) {
             ALOGD("Injected inbound event was dropped.");
@@ -1518,10 +1514,11 @@ std::shared_ptr<KeyEntry> InputDispatcher::synthesizeKeyRepeatLocked(nsecs_t cur
             (POLICY_FLAG_RAW_MASK | POLICY_FLAG_PASS_TO_USER | POLICY_FLAG_TRUSTED);
 
     std::shared_ptr<KeyEntry> newEntry =
-            std::make_unique<KeyEntry>(mIdGenerator.nextId(), currentTime, entry->deviceId,
-                                       entry->source, entry->displayId, policyFlags, entry->action,
-                                       entry->flags, entry->keyCode, entry->scanCode,
-                                       entry->metaState, entry->repeatCount + 1, entry->downTime);
+            std::make_unique<KeyEntry>(mIdGenerator.nextId(), /*injectionState=*/nullptr,
+                                       currentTime, entry->deviceId, entry->source,
+                                       entry->displayId, policyFlags, entry->action, entry->flags,
+                                       entry->keyCode, entry->scanCode, entry->metaState,
+                                       entry->repeatCount + 1, entry->downTime);
 
     newEntry->syntheticRepeat = true;
     mKeyRepeatState.lastKeyEntry = newEntry;
@@ -4247,7 +4244,8 @@ std::unique_ptr<MotionEntry> InputDispatcher::splitMotionEvent(
                                 ").",
                                 originalMotionEntry.id, newId));
     std::unique_ptr<MotionEntry> splitMotionEntry =
-            std::make_unique<MotionEntry>(newId, originalMotionEntry.eventTime,
+            std::make_unique<MotionEntry>(newId, originalMotionEntry.injectionState,
+                                          originalMotionEntry.eventTime,
                                           originalMotionEntry.deviceId, originalMotionEntry.source,
                                           originalMotionEntry.displayId,
                                           originalMotionEntry.policyFlags, action,
@@ -4261,11 +4259,6 @@ std::unique_ptr<MotionEntry> InputDispatcher::splitMotionEvent(
                                           originalMotionEntry.xCursorPosition,
                                           originalMotionEntry.yCursorPosition, splitDownTime,
                                           splitPointerProperties, splitPointerCoords);
-
-    if (originalMotionEntry.injectionState) {
-        splitMotionEntry->injectionState = originalMotionEntry.injectionState;
-        splitMotionEntry->injectionState->refCount += 1;
-    }
 
     return splitMotionEntry;
 }
@@ -4354,9 +4347,10 @@ void InputDispatcher::notifyKey(const NotifyKeyArgs& args) {
         }
 
         std::unique_ptr<KeyEntry> newEntry =
-                std::make_unique<KeyEntry>(args.id, args.eventTime, args.deviceId, args.source,
-                                           args.displayId, policyFlags, args.action, flags, keyCode,
-                                           args.scanCode, metaState, repeatCount, args.downTime);
+                std::make_unique<KeyEntry>(args.id, /*injectionState=*/nullptr, args.eventTime,
+                                           args.deviceId, args.source, args.displayId, policyFlags,
+                                           args.action, flags, keyCode, args.scanCode, metaState,
+                                           repeatCount, args.downTime);
 
         needWake = enqueueInboundEventLocked(std::move(newEntry));
         mLock.unlock();
@@ -4474,14 +4468,14 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs& args) {
 
         // Just enqueue a new motion event.
         std::unique_ptr<MotionEntry> newEntry =
-                std::make_unique<MotionEntry>(args.id, args.eventTime, args.deviceId, args.source,
-                                              args.displayId, policyFlags, args.action,
-                                              args.actionButton, args.flags, args.metaState,
-                                              args.buttonState, args.classification, args.edgeFlags,
-                                              args.xPrecision, args.yPrecision,
-                                              args.xCursorPosition, args.yCursorPosition,
-                                              args.downTime, args.pointerProperties,
-                                              args.pointerCoords);
+                std::make_unique<MotionEntry>(args.id, /*injectionState=*/nullptr, args.eventTime,
+                                              args.deviceId, args.source, args.displayId,
+                                              policyFlags, args.action, args.actionButton,
+                                              args.flags, args.metaState, args.buttonState,
+                                              args.classification, args.edgeFlags, args.xPrecision,
+                                              args.yPrecision, args.xCursorPosition,
+                                              args.yCursorPosition, args.downTime,
+                                              args.pointerProperties, args.pointerCoords);
 
         if (args.id != android::os::IInputConstants::INVALID_INPUT_EVENT_ID &&
             IdGenerator::getSource(args.id) == IdGenerator::Source::INPUT_READER &&
@@ -4628,6 +4622,9 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(const InputEvent* ev
         resolvedDeviceId = event->getDeviceId();
     }
 
+    const bool isAsync = syncMode == InputEventInjectionSync::NONE;
+    auto injectionState = std::make_shared<InjectionState>(targetUid, isAsync);
+
     std::queue<std::unique_ptr<EventEntry>> injectedEntries;
     switch (event->getType()) {
         case InputEventType::KEY: {
@@ -4660,10 +4657,11 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(const InputEvent* ev
 
             mLock.lock();
             std::unique_ptr<KeyEntry> injectedEntry =
-                    std::make_unique<KeyEntry>(incomingKey.getId(), incomingKey.getEventTime(),
-                                               resolvedDeviceId, incomingKey.getSource(),
-                                               incomingKey.getDisplayId(), policyFlags, action,
-                                               flags, keyCode, incomingKey.getScanCode(), metaState,
+                    std::make_unique<KeyEntry>(incomingKey.getId(), injectionState,
+                                               incomingKey.getEventTime(), resolvedDeviceId,
+                                               incomingKey.getSource(), incomingKey.getDisplayId(),
+                                               policyFlags, action, flags, keyCode,
+                                               incomingKey.getScanCode(), metaState,
                                                incomingKey.getRepeatCount(),
                                                incomingKey.getDownTime());
             injectedEntries.push(std::move(injectedEntry));
@@ -4727,9 +4725,10 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(const InputEvent* ev
 
             const PointerCoords* samplePointerCoords = motionEvent.getSamplePointerCoords();
             std::unique_ptr<MotionEntry> injectedEntry =
-                    std::make_unique<MotionEntry>(motionEvent.getId(), *sampleEventTimes,
-                                                  resolvedDeviceId, motionEvent.getSource(),
-                                                  displayId, policyFlags, motionEvent.getAction(),
+                    std::make_unique<MotionEntry>(motionEvent.getId(), injectionState,
+                                                  *sampleEventTimes, resolvedDeviceId,
+                                                  motionEvent.getSource(), displayId, policyFlags,
+                                                  motionEvent.getAction(),
                                                   motionEvent.getActionButton(), flags,
                                                   motionEvent.getMetaState(),
                                                   motionEvent.getButtonState(),
@@ -4749,9 +4748,10 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(const InputEvent* ev
                 sampleEventTimes += 1;
                 samplePointerCoords += motionEvent.getPointerCount();
                 std::unique_ptr<MotionEntry> nextInjectedEntry = std::make_unique<
-                        MotionEntry>(motionEvent.getId(), *sampleEventTimes, resolvedDeviceId,
-                                     motionEvent.getSource(), displayId, policyFlags,
-                                     motionEvent.getAction(), motionEvent.getActionButton(), flags,
+                        MotionEntry>(motionEvent.getId(), injectionState, *sampleEventTimes,
+                                     resolvedDeviceId, motionEvent.getSource(), displayId,
+                                     policyFlags, motionEvent.getAction(),
+                                     motionEvent.getActionButton(), flags,
                                      motionEvent.getMetaState(), motionEvent.getButtonState(),
                                      motionEvent.getClassification(), motionEvent.getEdgeFlags(),
                                      motionEvent.getXPrecision(), motionEvent.getYPrecision(),
@@ -4772,14 +4772,6 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(const InputEvent* ev
             LOG(WARNING) << "Cannot inject " << ftl::enum_string(event->getType()) << " events";
             return InputEventInjectionResult::FAILED;
     }
-
-    InjectionState* injectionState = new InjectionState(targetUid);
-    if (syncMode == InputEventInjectionSync::NONE) {
-        injectionState->injectionIsAsync = true;
-    }
-
-    injectionState->refCount += 1;
-    injectedEntries.back()->injectionState = injectionState;
 
     bool needWake = false;
     while (!injectedEntries.empty()) {
@@ -4843,8 +4835,6 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(const InputEvent* ev
                 }
             }
         }
-
-        injectionState->release();
     } // release lock
 
     if (DEBUG_INJECTION) {
@@ -4890,37 +4880,40 @@ std::unique_ptr<VerifiedInputEvent> InputDispatcher::verifyInputEvent(const Inpu
 
 void InputDispatcher::setInjectionResult(EventEntry& entry,
                                          InputEventInjectionResult injectionResult) {
-    InjectionState* injectionState = entry.injectionState;
-    if (injectionState) {
-        if (DEBUG_INJECTION) {
-            LOG(INFO) << "Setting input event injection result to "
-                      << ftl::enum_string(injectionResult);
-        }
-
-        if (injectionState->injectionIsAsync && !(entry.policyFlags & POLICY_FLAG_FILTERED)) {
-            // Log the outcome since the injector did not wait for the injection result.
-            switch (injectionResult) {
-                case InputEventInjectionResult::SUCCEEDED:
-                    ALOGV("Asynchronous input event injection succeeded.");
-                    break;
-                case InputEventInjectionResult::TARGET_MISMATCH:
-                    ALOGV("Asynchronous input event injection target mismatch.");
-                    break;
-                case InputEventInjectionResult::FAILED:
-                    ALOGW("Asynchronous input event injection failed.");
-                    break;
-                case InputEventInjectionResult::TIMED_OUT:
-                    ALOGW("Asynchronous input event injection timed out.");
-                    break;
-                case InputEventInjectionResult::PENDING:
-                    ALOGE("Setting result to 'PENDING' for asynchronous injection");
-                    break;
-            }
-        }
-
-        injectionState->injectionResult = injectionResult;
-        mInjectionResultAvailable.notify_all();
+    if (!entry.injectionState) {
+        // Not an injected event.
+        return;
     }
+
+    InjectionState& injectionState = *entry.injectionState;
+    if (DEBUG_INJECTION) {
+        LOG(INFO) << "Setting input event injection result to "
+                  << ftl::enum_string(injectionResult);
+    }
+
+    if (injectionState.injectionIsAsync && !(entry.policyFlags & POLICY_FLAG_FILTERED)) {
+        // Log the outcome since the injector did not wait for the injection result.
+        switch (injectionResult) {
+            case InputEventInjectionResult::SUCCEEDED:
+                ALOGV("Asynchronous input event injection succeeded.");
+                break;
+            case InputEventInjectionResult::TARGET_MISMATCH:
+                ALOGV("Asynchronous input event injection target mismatch.");
+                break;
+            case InputEventInjectionResult::FAILED:
+                ALOGW("Asynchronous input event injection failed.");
+                break;
+            case InputEventInjectionResult::TIMED_OUT:
+                ALOGW("Asynchronous input event injection timed out.");
+                break;
+            case InputEventInjectionResult::PENDING:
+                ALOGE("Setting result to 'PENDING' for asynchronous injection");
+                break;
+        }
+    }
+
+    injectionState.injectionResult = injectionResult;
+    mInjectionResultAvailable.notify_all();
 }
 
 void InputDispatcher::transformMotionEntryForInjectionLocked(
@@ -4947,18 +4940,16 @@ void InputDispatcher::transformMotionEntryForInjectionLocked(
 }
 
 void InputDispatcher::incrementPendingForegroundDispatches(EventEntry& entry) {
-    InjectionState* injectionState = entry.injectionState;
-    if (injectionState) {
-        injectionState->pendingForegroundDispatches += 1;
+    if (entry.injectionState) {
+        entry.injectionState->pendingForegroundDispatches += 1;
     }
 }
 
 void InputDispatcher::decrementPendingForegroundDispatches(EventEntry& entry) {
-    InjectionState* injectionState = entry.injectionState;
-    if (injectionState) {
-        injectionState->pendingForegroundDispatches -= 1;
+    if (entry.injectionState) {
+        entry.injectionState->pendingForegroundDispatches -= 1;
 
-        if (injectionState->pendingForegroundDispatches == 0) {
+        if (entry.injectionState->pendingForegroundDispatches == 0) {
             mInjectionSyncFinished.notify_all();
         }
     }
