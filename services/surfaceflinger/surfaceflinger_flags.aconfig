@@ -61,3 +61,12 @@ flag {
   bug: "303460805"
   is_fixed_read_only: true
 }
+
+flag {
+  name: "hdcp_level_hal"
+  namespace: "core_graphics"
+  description: "Feature flag for adding a HAL API to commuicate hdcp levels"
+  bug: "285359126"
+  is_fixed_read_only: true
+}
+
