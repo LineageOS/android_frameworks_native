@@ -30,7 +30,6 @@
 #include <binder/RecordedTransaction.h>
 #include <binder/RpcServer.h>
 #include <pthread.h>
-#include <utils/misc.h>
 
 #include <inttypes.h>
 #include <stdio.h>
@@ -271,7 +270,7 @@ public:
     bool mInheritRt = false;
 
     // for below objects
-    Mutex mLock;
+    RpcMutex mLock;
     std::set<sp<RpcServerLink>> mRpcServerLinks;
     BpBinder::ObjectManager mObjects;
 
@@ -307,7 +306,7 @@ status_t BBinder::startRecordingTransactions(const Parcel& data) {
         return PERMISSION_DENIED;
     }
     Extras* e = getOrCreateExtras();
-    AutoMutex lock(e->mLock);
+    RpcMutexUniqueLock lock(e->mLock);
     if (mRecordingOn) {
         LOG(INFO) << "Could not start Binder recording. Another is already in progress.";
         return INVALID_OPERATION;
@@ -337,7 +336,7 @@ status_t BBinder::stopRecordingTransactions() {
         return PERMISSION_DENIED;
     }
     Extras* e = getOrCreateExtras();
-    AutoMutex lock(e->mLock);
+    RpcMutexUniqueLock lock(e->mLock);
     if (mRecordingOn) {
         e->mRecordingFd.reset();
         mRecordingOn = false;
@@ -405,7 +404,7 @@ status_t BBinder::transact(
 
     if (kEnableKernelIpc && mRecordingOn && code != START_RECORDING_TRANSACTION) [[unlikely]] {
         Extras* e = mExtras.load(std::memory_order_acquire);
-        AutoMutex lock(e->mLock);
+        RpcMutexUniqueLock lock(e->mLock);
         if (mRecordingOn) {
             Parcel emptyReply;
             timespec ts;
@@ -452,7 +451,7 @@ void* BBinder::attachObject(const void* objectID, void* object, void* cleanupCoo
     Extras* e = getOrCreateExtras();
     LOG_ALWAYS_FATAL_IF(!e, "no memory");
 
-    AutoMutex _l(e->mLock);
+    RpcMutexUniqueLock _l(e->mLock);
     return e->mObjects.attach(objectID, object, cleanupCookie, func);
 }
 
@@ -461,7 +460,7 @@ void* BBinder::findObject(const void* objectID) const
     Extras* e = mExtras.load(std::memory_order_acquire);
     if (!e) return nullptr;
 
-    AutoMutex _l(e->mLock);
+    RpcMutexUniqueLock _l(e->mLock);
     return e->mObjects.find(objectID);
 }
 
@@ -469,7 +468,7 @@ void* BBinder::detachObject(const void* objectID) {
     Extras* e = mExtras.load(std::memory_order_acquire);
     if (!e) return nullptr;
 
-    AutoMutex _l(e->mLock);
+    RpcMutexUniqueLock _l(e->mLock);
     return e->mObjects.detach(objectID);
 }
 
@@ -477,7 +476,7 @@ void BBinder::withLock(const std::function<void()>& doWithLock) {
     Extras* e = getOrCreateExtras();
     LOG_ALWAYS_FATAL_IF(!e, "no memory");
 
-    AutoMutex _l(e->mLock);
+    RpcMutexUniqueLock _l(e->mLock);
     doWithLock();
 }
 
@@ -485,7 +484,7 @@ sp<IBinder> BBinder::lookupOrCreateWeak(const void* objectID, object_make_func m
                                         const void* makeArgs) {
     Extras* e = getOrCreateExtras();
     LOG_ALWAYS_FATAL_IF(!e, "no memory");
-    AutoMutex _l(e->mLock);
+    RpcMutexUniqueLock _l(e->mLock);
     return e->mObjects.lookupOrCreateWeak(objectID, make, makeArgs);
 }
 
@@ -692,7 +691,7 @@ status_t BBinder::setRpcClientDebug(android::base::unique_fd socketFd,
     auto weakThis = wp<BBinder>::fromExisting(this);
 
     Extras* e = getOrCreateExtras();
-    AutoMutex _l(e->mLock);
+    RpcMutexUniqueLock _l(e->mLock);
     auto rpcServer = RpcServer::make();
     LOG_ALWAYS_FATAL_IF(rpcServer == nullptr, "RpcServer::make returns null");
     auto link = sp<RpcServerLink>::make(rpcServer, keepAliveBinder, weakThis);
@@ -716,7 +715,7 @@ status_t BBinder::setRpcClientDebug(android::base::unique_fd socketFd,
 void BBinder::removeRpcServerLink(const sp<RpcServerLink>& link) {
     Extras* e = mExtras.load(std::memory_order_acquire);
     if (!e) return;
-    AutoMutex _l(e->mLock);
+    RpcMutexUniqueLock _l(e->mLock);
     (void)e->mRpcServerLinks.erase(link);
 }
 

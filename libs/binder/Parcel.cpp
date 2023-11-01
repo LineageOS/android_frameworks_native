@@ -17,6 +17,7 @@
 #define LOG_TAG "Parcel"
 //#define LOG_NDEBUG 0
 
+#include <endian.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <inttypes.h>
@@ -43,11 +44,8 @@
 #ifndef BINDER_DISABLE_BLOB
 #include <cutils/ashmem.h>
 #endif
-#include <utils/Flattenable.h>
-#include <utils/Log.h>
 #include <utils/String16.h>
 #include <utils/String8.h>
-#include <utils/misc.h>
 
 #include "OS.h"
 #include "RpcState.h"

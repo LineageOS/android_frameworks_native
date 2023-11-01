@@ -17,12 +17,12 @@
 #pragma once
 
 #include <binder/IBinder.h>
-#include <utils/KeyedVector.h>
-#include <utils/Mutex.h>
 #include <utils/String16.h>
 #include <utils/String8.h>
 
 #include <pthread.h>
+
+#include <mutex>
 
 // ---------------------------------------------------------------------------
 namespace android {
@@ -178,7 +178,7 @@ private:
     // Time when thread pool was emptied
     int64_t mStarvationStartTimeMs;
 
-    mutable Mutex mLock; // protects everything below.
+    mutable std::mutex mLock; // protects everything below.
 
     Vector<handle_entry> mHandleToObject;
 

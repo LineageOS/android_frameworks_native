@@ -25,6 +25,7 @@
 #include <binder/ParcelableHolder.h>
 #include <binder/PersistableBundle.h>
 #include <binder/Status.h>
+#include <utils/Flattenable.h>
 
 #include "../../Utils.h"
 

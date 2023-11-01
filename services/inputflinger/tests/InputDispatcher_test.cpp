@@ -2167,6 +2167,69 @@ TEST_F(InputDispatcherTest, TwoPointerCancelInconsistentPolicy) {
 }
 
 /**
+ * Same as the above 'TwoPointerCancelInconsistentPolicy' test, but for hovers.
+ * The policy typically sets POLICY_FLAG_PASS_TO_USER to the events. But when the display is not
+ * interactive, it might stop sending this flag.
+ * We've already ensured the consistency of the touch event in this case, and we should also ensure
+ * the consistency of the hover event in this case.
+ *
+ * Test procedure:
+ * HOVER_ENTER -> HOVER_MOVE -> (stop sending POLICY_FLAG_PASS_TO_USER) -> HOVER_EXIT
+ * HOVER_ENTER -> HOVER_MOVE -> HOVER_EXIT
+ *
+ * We expect to receive two full streams of hover events.
+ */
+TEST_F(InputDispatcherTest, HoverEventInconsistentPolicy) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+
+    sp<FakeWindowHandle> window =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Window", ADISPLAY_ID_DEFAULT);
+    window->setFrame(Rect(0, 0, 300, 300));
+
+    mDispatcher->onWindowInfosChanged({{*window->getInfo()}, {}, 0, 0});
+
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
+                                      .policyFlags(DEFAULT_POLICY_FLAGS)
+                                      .pointer(PointerBuilder(0, ToolType::STYLUS).x(100).y(101))
+                                      .build());
+    window->consumeMotionEvent(WithMotionAction(ACTION_HOVER_ENTER));
+
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_HOVER_MOVE, AINPUT_SOURCE_STYLUS)
+                                      .policyFlags(DEFAULT_POLICY_FLAGS)
+                                      .pointer(PointerBuilder(0, ToolType::STYLUS).x(101).y(102))
+                                      .build());
+    window->consumeMotionEvent(WithMotionAction(ACTION_HOVER_MOVE));
+
+    // Send hover exit without the default policy flags.
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_HOVER_EXIT, AINPUT_SOURCE_STYLUS)
+                                      .policyFlags(0)
+                                      .pointer(PointerBuilder(0, ToolType::STYLUS).x(101).y(102))
+                                      .build());
+
+    window->consumeMotionEvent(WithMotionAction(ACTION_HOVER_EXIT));
+
+    // Send a simple hover event stream, ensure dispatcher not crashed and window can receive
+    // right event.
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
+                                      .policyFlags(DEFAULT_POLICY_FLAGS)
+                                      .pointer(PointerBuilder(0, ToolType::STYLUS).x(200).y(201))
+                                      .build());
+    window->consumeMotionEvent(WithMotionAction(ACTION_HOVER_ENTER));
+
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_HOVER_MOVE, AINPUT_SOURCE_STYLUS)
+                                      .policyFlags(DEFAULT_POLICY_FLAGS)
+                                      .pointer(PointerBuilder(0, ToolType::STYLUS).x(201).y(202))
+                                      .build());
+    window->consumeMotionEvent(WithMotionAction(ACTION_HOVER_MOVE));
+
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_HOVER_EXIT, AINPUT_SOURCE_STYLUS)
+                                      .policyFlags(DEFAULT_POLICY_FLAGS)
+                                      .pointer(PointerBuilder(0, ToolType::STYLUS).x(201).y(202))
+                                      .build());
+    window->consumeMotionEvent(WithMotionAction(ACTION_HOVER_EXIT));
+}
+
+/**
  * Two windows: a window on the left and a window on the right.
  * Mouse is hovered from the right window into the left window.
  * Next, we tap on the left window, where the cursor was last seen.
