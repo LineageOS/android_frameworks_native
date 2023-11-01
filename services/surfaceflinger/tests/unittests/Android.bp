@@ -170,6 +170,7 @@ cc_defaults {
         "librenderengine_mocks",
         "libscheduler",
         "libserviceutils",
+        "libsurfaceflinger_common_test",
         "libtimestats",
         "libtimestats_atoms_proto",
         "libtimestats_proto",

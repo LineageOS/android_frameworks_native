@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "FlagManager.h"
+#include <common/FlagManager.h>
 
 #include <SurfaceFlingerProperties.sysprop.h>
 #include <android-base/parsebool.h>

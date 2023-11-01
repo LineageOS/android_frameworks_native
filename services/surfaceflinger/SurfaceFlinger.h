@@ -63,13 +63,13 @@
 #include <scheduler/interface/ICompositor.h>
 #include <ui/FenceResult.h>
 
+#include <common/FlagManager.h>
 #include "Display/PhysicalDisplay.h"
 #include "DisplayDevice.h"
 #include "DisplayHardware/HWC2.h"
 #include "DisplayHardware/PowerAdvisor.h"
 #include "DisplayIdGenerator.h"
 #include "Effects/Daltonizer.h"
-#include "FlagManager.h"
 #include "FrontEnd/DisplayInfo.h"
 #include "FrontEnd/LayerCreationArgs.h"
 #include "FrontEnd/LayerLifecycleManager.h"
