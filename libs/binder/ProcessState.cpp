@@ -61,6 +61,7 @@ const char* kDefaultDriver = "/dev/binder";
 namespace android {
 
 using namespace android::binder::impl;
+using android::binder::unique_fd;
 
 class PoolThread : public Thread
 {
@@ -514,8 +515,8 @@ String8 ProcessState::getDriverName() {
     return mDriverName;
 }
 
-static base::unique_fd open_driver(const char* driver) {
-    auto fd = base::unique_fd(open(driver, O_RDWR | O_CLOEXEC));
+static unique_fd open_driver(const char* driver) {
+    auto fd = unique_fd(open(driver, O_RDWR | O_CLOEXEC));
     if (!fd.ok()) {
         PLOGE("Opening '%s' failed", driver);
         return {};
@@ -563,7 +564,7 @@ ProcessState::ProcessState(const char* driver)
         mThreadPoolStarted(false),
         mThreadPoolSeq(1),
         mCallRestriction(CallRestriction::NONE) {
-    base::unique_fd opened = open_driver(driver);
+    unique_fd opened = open_driver(driver);
 
     if (opened.ok()) {
         // mmap the binder, providing a chunk of virtual address space to receive transactions.

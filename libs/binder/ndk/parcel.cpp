@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-#include <android-base/unique_fd.h>
 #include <android/binder_parcel.h>
 #include <android/binder_parcel_platform.h>
 #include <binder/Parcel.h>
 #include <binder/ParcelFileDescriptor.h>
+#include <binder/unique_fd.h>
 #include <inttypes.h>
 #include <utils/Unicode.h>
 
@@ -32,7 +32,7 @@ using ::android::IBinder;
 using ::android::Parcel;
 using ::android::sp;
 using ::android::status_t;
-using ::android::base::unique_fd;
+using ::android::binder::unique_fd;
 using ::android::os::ParcelFileDescriptor;
 
 template <typename T>

@@ -15,17 +15,18 @@
  */
 
 #include <android-base/file.h>
-#include <android-base/unique_fd.h>
 #include <binder/Functional.h>
 #include <binder/RecordedTransaction.h>
+#include <binder/unique_fd.h>
+
 #include <inttypes.h>
 #include <sys/mman.h>
 #include <algorithm>
 
 using namespace android::binder::impl;
 using android::Parcel;
-using android::base::borrowed_fd;
-using android::base::unique_fd;
+using android::binder::borrowed_fd;
+using android::binder::unique_fd;
 using android::binder::debug::RecordedTransaction;
 
 #define PADDING8(s) ((8 - (s) % 8) % 8)

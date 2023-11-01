@@ -30,6 +30,8 @@
 namespace android {
 
 using namespace android::binder::impl;
+using android::binder::borrowed_fd;
+using android::binder::unique_fd;
 
 // RpcTransport for Trusty.
 class RpcTransportTipcTrusty : public RpcTransport {
@@ -48,8 +50,7 @@ public:
     status_t interruptableWriteFully(
             FdTrigger* /*fdTrigger*/, iovec* iovs, int niovs,
             const std::optional<SmallFunction<status_t()>>& /*altPoll*/,
-            const std::vector<std::variant<base::unique_fd, base::borrowed_fd>>* ancillaryFds)
-            override {
+            const std::vector<std::variant<unique_fd, borrowed_fd>>* ancillaryFds) override {
         if (niovs < 0) {
             return BAD_VALUE;
         }
@@ -118,7 +119,7 @@ public:
     status_t interruptableReadFully(
             FdTrigger* /*fdTrigger*/, iovec* iovs, int niovs,
             const std::optional<SmallFunction<status_t()>>& /*altPoll*/,
-            std::vector<std::variant<base::unique_fd, base::borrowed_fd>>* ancillaryFds) override {
+            std::vector<std::variant<unique_fd, borrowed_fd>>* ancillaryFds) override {
         if (niovs < 0) {
             return BAD_VALUE;
         }
@@ -170,7 +171,7 @@ public:
                 if (ancillaryFds != nullptr) {
                     ancillaryFds->reserve(ancillaryFds->size() + mMessageInfo.num_handles);
                     for (size_t i = 0; i < mMessageInfo.num_handles; i++) {
-                        ancillaryFds->emplace_back(base::unique_fd(msgHandles[i]));
+                        ancillaryFds->emplace_back(unique_fd(msgHandles[i]));
                     }
 
                     // Clear the saved number of handles so we don't accidentally

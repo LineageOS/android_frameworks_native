@@ -18,13 +18,13 @@
 #include <stddef.h>
 #include <cstdint>
 
-#include <android-base/unique_fd.h>
 #include <binder/RpcTransport.h>
+#include <binder/unique_fd.h>
 #include <utils/Errors.h>
 
 namespace android::binder::os {
 
-status_t setNonBlocking(android::base::borrowed_fd fd);
+status_t setNonBlocking(borrowed_fd fd);
 
 status_t getRandomBytes(uint8_t* data, size_t size);
 
@@ -32,13 +32,11 @@ status_t dupFileDescriptor(int oldFd, int* newFd);
 
 std::unique_ptr<RpcTransportCtxFactory> makeDefaultRpcTransportCtxFactory();
 
-ssize_t sendMessageOnSocket(
-        const RpcTransportFd& socket, iovec* iovs, int niovs,
-        const std::vector<std::variant<base::unique_fd, base::borrowed_fd>>* ancillaryFds);
+ssize_t sendMessageOnSocket(const RpcTransportFd& socket, iovec* iovs, int niovs,
+                            const std::vector<std::variant<unique_fd, borrowed_fd>>* ancillaryFds);
 
-ssize_t receiveMessageFromSocket(
-        const RpcTransportFd& socket, iovec* iovs, int niovs,
-        std::vector<std::variant<base::unique_fd, base::borrowed_fd>>* ancillaryFds);
+ssize_t receiveMessageFromSocket(const RpcTransportFd& socket, iovec* iovs, int niovs,
+                                 std::vector<std::variant<unique_fd, borrowed_fd>>* ancillaryFds);
 
 uint64_t GetThreadId();
 

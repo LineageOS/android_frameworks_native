@@ -23,6 +23,8 @@
 
 #include <private/android_filesystem_config.h>
 
+using android::binder::unique_fd;
+
 namespace android {
 
 void fuzzService(const sp<IBinder>& binder, FuzzedDataProvider&& provider) {
@@ -103,7 +105,7 @@ void fuzzService(const std::vector<sp<IBinder>>& binders, FuzzedDataProvider&& p
                                     retBinders.end());
         auto retFds = reply.debugReadAllFileDescriptors();
         for (size_t i = 0; i < retFds.size(); i++) {
-            options.extraFds.push_back(base::unique_fd(dup(retFds[i])));
+            options.extraFds.push_back(unique_fd(dup(retFds[i])));
         }
     }
 

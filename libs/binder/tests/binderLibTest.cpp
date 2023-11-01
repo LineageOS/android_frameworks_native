@@ -30,7 +30,6 @@
 #include <android-base/properties.h>
 #include <android-base/result-gmock.h>
 #include <android-base/strings.h>
-#include <android-base/unique_fd.h>
 #include <binder/Binder.h>
 #include <binder/BpBinder.h>
 #include <binder/Functional.h>
@@ -39,6 +38,7 @@
 #include <binder/IServiceManager.h>
 #include <binder/RpcServer.h>
 #include <binder/RpcSession.h>
+#include <binder/unique_fd.h>
 #include <utils/Flattenable.h>
 
 #include <linux/sched.h>
@@ -57,6 +57,7 @@ using namespace std::string_literals;
 using namespace std::chrono_literals;
 using android::base::testing::HasValue;
 using android::base::testing::Ok;
+using android::binder::unique_fd;
 using testing::ExplainMatchResult;
 using testing::Matcher;
 using testing::Not;
@@ -847,7 +848,7 @@ TEST_F(BinderLibTest, PassParcelFileDescriptor) {
         writebuf[i] = i;
     }
 
-    android::base::unique_fd read_end, write_end;
+    unique_fd read_end, write_end;
     {
         int pipefd[2];
         ASSERT_EQ(0, pipe2(pipefd, O_NONBLOCK));
@@ -1177,7 +1178,7 @@ TEST_F(BinderLibTest, FileDescriptorRemainsNonBlocking) {
     Parcel reply;
     EXPECT_THAT(server->transact(BINDER_LIB_TEST_GET_NON_BLOCKING_FD, {} /*data*/, &reply),
                 StatusEq(NO_ERROR));
-    base::unique_fd fd;
+    unique_fd fd;
     EXPECT_THAT(reply.readUniqueFileDescriptor(&fd), StatusEq(OK));
 
     const int result = fcntl(fd.get(), F_GETFL);
@@ -1486,7 +1487,7 @@ public:
         BinderLibTest::SetUp();
     }
 
-    std::tuple<android::base::unique_fd, unsigned int> CreateSocket() {
+    std::tuple<unique_fd, unsigned int> CreateSocket() {
         auto rpcServer = RpcServer::make();
         EXPECT_NE(nullptr, rpcServer);
         if (rpcServer == nullptr) return {};
@@ -1553,7 +1554,7 @@ public:
 TEST_P(BinderLibRpcTestP, SetRpcClientDebugNoFd) {
     auto binder = GetService();
     ASSERT_TRUE(binder != nullptr);
-    EXPECT_THAT(binder->setRpcClientDebug(android::base::unique_fd(), sp<BBinder>::make()),
+    EXPECT_THAT(binder->setRpcClientDebug(unique_fd(), sp<BBinder>::make()),
                 Debuggable(StatusEq(BAD_VALUE)));
 }
 
@@ -1823,7 +1824,7 @@ public:
                 int ret;
                 int32_t size;
                 const void *buf;
-                android::base::unique_fd fd;
+                unique_fd fd;
 
                 ret = data.readUniqueParcelFileDescriptor(&fd);
                 if (ret != NO_ERROR) {
@@ -1888,7 +1889,7 @@ public:
                     ALOGE("Could not make socket non-blocking: %s", strerror(errno));
                     return UNKNOWN_ERROR;
                 }
-                base::unique_fd out(sockets[0]);
+                unique_fd out(sockets[0]);
                 status_t writeResult = reply->writeUniqueFileDescriptor(out);
                 if (writeResult != NO_ERROR) {
                     ALOGE("Could not write unique_fd");

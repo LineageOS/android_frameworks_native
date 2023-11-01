@@ -28,6 +28,7 @@
 #include "TrustyStatus.h"
 
 using android::base::unexpected;
+using android::binder::unique_fd;
 
 namespace android {
 
@@ -129,7 +130,7 @@ int RpcServerTrusty::handleConnect(const tipc_port* port, handle_t chan, const u
     if (chanDup < 0) {
         return chanDup;
     }
-    base::unique_fd clientFd(chanDup);
+    unique_fd clientFd(chanDup);
     android::RpcTransportFd transportFd(std::move(clientFd));
 
     std::array<uint8_t, RpcServer::kRpcAddressSize> addr;
