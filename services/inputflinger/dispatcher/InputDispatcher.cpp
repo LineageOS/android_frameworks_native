@@ -6169,7 +6169,7 @@ void InputDispatcher::doDispatchCycleFinishedCommand(nsecs_t finishTime,
                                                      uint32_t seq, bool handled,
                                                      nsecs_t consumeTime) {
     // Handle post-event policy actions.
-    bool restartEvent;
+    std::unique_ptr<KeyEntry> fallbackKeyEntry;
 
     { // Start critical section
         auto dispatchEntryIt =
@@ -6193,15 +6193,9 @@ void InputDispatcher::doDispatchCycleFinishedCommand(nsecs_t finishTime,
         }
 
         if (dispatchEntry.eventEntry->type == EventEntry::Type::KEY) {
-            KeyEntry& keyEntry = static_cast<KeyEntry&>(*(dispatchEntry.eventEntry));
-            restartEvent =
+            const KeyEntry& keyEntry = static_cast<const KeyEntry&>(*(dispatchEntry.eventEntry));
+            fallbackKeyEntry =
                     afterKeyEventLockedInterruptable(connection, dispatchEntry, keyEntry, handled);
-        } else if (dispatchEntry.eventEntry->type == EventEntry::Type::MOTION) {
-            MotionEntry& motionEntry = static_cast<MotionEntry&>(*(dispatchEntry.eventEntry));
-            restartEvent = afterMotionEventLockedInterruptable(connection, dispatchEntry,
-                                                               motionEntry, handled);
-        } else {
-            restartEvent = false;
         }
     } // End critical section: The -LockedInterruptable methods may have released the lock.
 
@@ -6225,12 +6219,13 @@ void InputDispatcher::doDispatchCycleFinishedCommand(nsecs_t finishTime,
             }
         }
         traceWaitQueueLength(*connection);
-        if (restartEvent && connection->status == Connection::Status::NORMAL) {
-            connection->outboundQueue.emplace_front(std::move(dispatchEntry));
-            traceOutboundQueueLength(*connection);
-        } else {
-            releaseDispatchEntry(std::move(dispatchEntry));
+        if (fallbackKeyEntry && connection->status == Connection::Status::NORMAL) {
+            const InputTarget target{.inputChannel = connection->inputChannel,
+                                     .flags = dispatchEntry->targetFlags};
+            enqueueDispatchEntryLocked(connection, std::move(fallbackKeyEntry), target,
+                                       InputTarget::Flags::DISPATCH_AS_IS);
         }
+        releaseDispatchEntry(std::move(dispatchEntry));
     }
 
     // Start the next dispatch cycle for this connection.
@@ -6415,15 +6410,15 @@ void InputDispatcher::processConnectionResponsiveLocked(const Connection& connec
     sendWindowResponsiveCommandLocked(connectionToken, pid);
 }
 
-bool InputDispatcher::afterKeyEventLockedInterruptable(
+std::unique_ptr<KeyEntry> InputDispatcher::afterKeyEventLockedInterruptable(
         const std::shared_ptr<Connection>& connection, DispatchEntry& dispatchEntry,
-        KeyEntry& keyEntry, bool handled) {
+        const KeyEntry& keyEntry, bool handled) {
     if (keyEntry.flags & AKEY_EVENT_FLAG_FALLBACK) {
         if (!handled) {
             // Report the key as unhandled, since the fallback was not handled.
             mReporter->reportUnhandledKey(keyEntry.id);
         }
-        return false;
+        return {};
     }
 
     // Get the fallback key state.
@@ -6483,7 +6478,7 @@ bool InputDispatcher::afterKeyEventLockedInterruptable(
                       "keyCode=%d, action=%d, repeatCount=%d, policyFlags=0x%08x",
                       originalKeyCode, keyEntry.action, keyEntry.repeatCount, keyEntry.policyFlags);
             }
-            return false;
+            return {};
         }
 
         // Dispatch the unhandled key to the policy.
@@ -6508,7 +6503,7 @@ bool InputDispatcher::afterKeyEventLockedInterruptable(
 
         if (connection->status != Connection::Status::NORMAL) {
             connection->inputState.removeFallbackKey(originalKeyCode);
-            return false;
+            return {};
         }
 
         // Latch the fallback keycode for this key on an initial down.
@@ -6569,25 +6564,22 @@ bool InputDispatcher::afterKeyEventLockedInterruptable(
         }
 
         if (fallback) {
-            // Restart the dispatch cycle using the fallback key.
-            keyEntry.eventTime = event.getEventTime();
-            keyEntry.deviceId = event.getDeviceId();
-            keyEntry.source = event.getSource();
-            keyEntry.displayId = event.getDisplayId();
-            keyEntry.flags = event.getFlags() | AKEY_EVENT_FLAG_FALLBACK;
-            keyEntry.keyCode = *fallbackKeyCode;
-            keyEntry.scanCode = event.getScanCode();
-            keyEntry.metaState = event.getMetaState();
-            keyEntry.repeatCount = event.getRepeatCount();
-            keyEntry.downTime = event.getDownTime();
-            keyEntry.syntheticRepeat = false;
-
+            // Return the fallback key that we want dispatched to the channel.
+            std::unique_ptr<KeyEntry> newEntry =
+                    std::make_unique<KeyEntry>(mIdGenerator.nextId(), keyEntry.injectionState,
+                                               event.getEventTime(), event.getDeviceId(),
+                                               event.getSource(), event.getDisplayId(),
+                                               keyEntry.policyFlags, keyEntry.action,
+                                               event.getFlags() | AKEY_EVENT_FLAG_FALLBACK,
+                                               *fallbackKeyCode, event.getScanCode(),
+                                               event.getMetaState(), event.getRepeatCount(),
+                                               event.getDownTime());
             if (DEBUG_OUTBOUND_EVENT_DETAILS) {
                 ALOGD("Unhandled key event: Dispatching fallback key.  "
                       "originalKeyCode=%d, fallbackKeyCode=%d, fallbackMetaState=%08x",
                       originalKeyCode, *fallbackKeyCode, keyEntry.metaState);
             }
-            return true; // restart the event
+            return newEntry;
         } else {
             if (DEBUG_OUTBOUND_EVENT_DETAILS) {
                 ALOGD("Unhandled key event: No fallback key.");
@@ -6597,13 +6589,7 @@ bool InputDispatcher::afterKeyEventLockedInterruptable(
             mReporter->reportUnhandledKey(keyEntry.id);
         }
     }
-    return false;
-}
-
-bool InputDispatcher::afterMotionEventLockedInterruptable(
-        const std::shared_ptr<Connection>& connection, DispatchEntry& dispatchEntry,
-        MotionEntry& motionEntry, bool handled) {
-    return false;
+    return {};
 }
 
 void InputDispatcher::traceInboundQueueLengthLocked() {
