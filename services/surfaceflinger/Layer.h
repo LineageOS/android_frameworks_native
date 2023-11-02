@@ -435,13 +435,10 @@ public:
     void updateCloneBufferInfo();
     uint64_t mPreviousFrameNumber = 0;
 
-    /*
-     * called after composition.
-     * returns true if the layer latched a new buffer this frame.
-     */
-    void onPostComposition(const DisplayDevice*, const std::shared_ptr<FenceTime>& /*glDoneFence*/,
-                           const std::shared_ptr<FenceTime>& /*presentFence*/,
-                           const CompositorTiming&);
+    void onCompositionPresented(const DisplayDevice*,
+                                const std::shared_ptr<FenceTime>& /*glDoneFence*/,
+                                const std::shared_ptr<FenceTime>& /*presentFence*/,
+                                const CompositorTiming&);
 
     // If a buffer was replaced this frame, release the former buffer
     void releasePendingBuffer(nsecs_t /*dequeueReadyTime*/);

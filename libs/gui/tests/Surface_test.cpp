@@ -1341,7 +1341,7 @@ protected:
                 newFrame->mRefreshes[0].mGpuCompositionDone.mFenceTime :
                 FenceTime::NO_FENCE;
         // HWC2 releases the previous buffer after a new latch just before
-        // calling postComposition.
+        // calling onCompositionPresented.
         if (oldFrame != nullptr) {
             mCfeh->addRelease(nOldFrame, oldFrame->kDequeueReadyTime,
                     std::shared_ptr<FenceTime>(oldFrame->mRelease.mFenceTime));

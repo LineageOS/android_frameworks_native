@@ -133,7 +133,7 @@ void LayerFuzzer::invokeBufferStateLayer() {
                             ui::LayerStack::fromValue(mFdp.ConsumeIntegral<uint32_t>()));
 
     layer->releasePendingBuffer(mFdp.ConsumeIntegral<int64_t>());
-    layer->onPostComposition(nullptr, fenceTime, fenceTime, compositorTiming);
+    layer->onCompositionPresented(nullptr, fenceTime, fenceTime, compositorTiming);
 
     layer->setTransform(mFdp.ConsumeIntegral<uint32_t>());
     layer->setTransformToDisplayInverse(mFdp.ConsumeBool());

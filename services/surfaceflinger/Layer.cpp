@@ -4024,10 +4024,10 @@ bool Layer::isVisible() const {
     return getAlpha() > 0.0f || hasBlur();
 }
 
-void Layer::onPostComposition(const DisplayDevice* display,
-                              const std::shared_ptr<FenceTime>& glDoneFence,
-                              const std::shared_ptr<FenceTime>& presentFence,
-                              const CompositorTiming& compositorTiming) {
+void Layer::onCompositionPresented(const DisplayDevice* display,
+                                   const std::shared_ptr<FenceTime>& glDoneFence,
+                                   const std::shared_ptr<FenceTime>& presentFence,
+                                   const CompositorTiming& compositorTiming) {
     // mFrameLatencyNeeded is true when a new frame was latched for the
     // composition.
     if (!mBufferInfo.mFrameLatencyNeeded) return;
