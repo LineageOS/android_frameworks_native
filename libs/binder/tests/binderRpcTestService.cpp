@@ -17,6 +17,7 @@
 #include "binderRpcTestCommon.h"
 
 using namespace android;
+using android::binder::ReadFdToString;
 using android::binder::unique_fd;
 
 class MyBinderRpcTestAndroid : public MyBinderRpcTestBase {
@@ -66,7 +67,7 @@ public:
         std::string acc;
         for (const auto& file : files) {
             std::string result;
-            LOG_ALWAYS_FATAL_IF(!android::base::ReadFdToString(file.get(), &result));
+            LOG_ALWAYS_FATAL_IF(!ReadFdToString(file.get(), &result));
             acc.append(result);
         }
         out->reset(mockFileDescriptor(acc));

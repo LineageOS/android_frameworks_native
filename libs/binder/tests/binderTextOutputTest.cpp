@@ -20,12 +20,13 @@
 #include <limits>
 #include <cstddef>
 
-#include "android-base/file.h"
 #include "android-base/test_utils.h"
 #include <gtest/gtest.h>
 
 #include <binder/Parcel.h>
 #include <binder/TextOutput.h>
+
+#include "../file.h"
 
 static void CheckMessage(CapturedStderr& cap,
                          const char* expected,

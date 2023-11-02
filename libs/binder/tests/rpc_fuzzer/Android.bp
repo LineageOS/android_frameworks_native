@@ -25,13 +25,14 @@ cc_fuzz {
         "libbase",
         "libcutils",
         "liblog",
+        "libbinder_test_utils",
         "libbinder_tls_static",
         "libbinder_tls_test_utils",
         "libssl_fuzz_unsafe",
         "libcrypto_fuzz_unsafe",
     ],
     cflags: [
-        "-DBORINGSSL_UNSAFE_DETERMINISTIC_MODE" // for RAND_reset_for_fuzzing
+        "-DBORINGSSL_UNSAFE_DETERMINISTIC_MODE", // for RAND_reset_for_fuzzing
     ],
     target: {
         android: {
