@@ -32,7 +32,11 @@ cc_fuzz {
     host_supported: true,
 
     fuzz_config: {
-        cc: ["smoreland@google.com"],
+        cc: [
+            "smoreland@google.com",
+            "waghpawan@google.com",
+        ],
+        use_for_presubmit: true,
     },
 
     srcs: [
