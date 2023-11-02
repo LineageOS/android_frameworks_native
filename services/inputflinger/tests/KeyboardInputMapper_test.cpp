@@ -26,6 +26,7 @@
 namespace android {
 
 using testing::_;
+using testing::Args;
 using testing::DoAll;
 using testing::Return;
 using testing::SetArgPointee;
@@ -156,6 +157,20 @@ TEST_F(KeyboardInputMapperUnitTest, MetaKeystrokesWithIMeConnectionDontDisableTo
                                   KEY_FN,        KEY_LEFTCTRL, KEY_RIGHTCTRL, KEY_LEFTMETA,
                                   KEY_RIGHTMETA, KEY_CAPSLOCK, KEY_NUMLOCK,   KEY_SCROLLLOCK};
     testTouchpadTapStateForKeys(metaKeys, /* expectPrevent= */ false);
+}
+
+TEST_F(KeyboardInputMapperUnitTest, KeyPressTimestampRecorded) {
+    nsecs_t when = ARBITRARY_TIME;
+    std::vector<int32_t> keyCodes{KEY_0, KEY_A, KEY_LEFTCTRL, KEY_RIGHTALT, KEY_LEFTSHIFT};
+    EXPECT_CALL(mMockInputReaderContext, setLastKeyDownTimestamp)
+            .With(Args<0>(when))
+            .Times(keyCodes.size());
+    for (int32_t keyCode : keyCodes) {
+        process(when, EV_KEY, keyCode, 1);
+        process(when, EV_SYN, SYN_REPORT, 0);
+        process(when, EV_KEY, keyCode, 0);
+        process(when, EV_SYN, SYN_REPORT, 0);
+    }
 }
 
 } // namespace android

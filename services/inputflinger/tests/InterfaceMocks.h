@@ -77,6 +77,9 @@ public:
     MOCK_METHOD(void, setPreventingTouchpadTaps, (bool prevent), (override));
     MOCK_METHOD(bool, isPreventingTouchpadTaps, (), (override));
 
+    MOCK_METHOD(void, setLastKeyDownTimestamp, (nsecs_t when));
+    MOCK_METHOD(nsecs_t, getLastKeyDownTimestamp, ());
+
 private:
     int32_t mGeneration = 0;
 };

@@ -270,7 +270,7 @@ std::list<NotifyArgs> KeyboardInputMapper::processKey(nsecs_t when, nsecs_t read
             keyDown.flags = flags;
             mKeyDowns.push_back(keyDown);
         }
-        onKeyDownProcessed();
+        onKeyDownProcessed(downTime);
     } else {
         // Remove key down.
         if (keyDownIndex) {
@@ -448,8 +448,9 @@ std::list<NotifyArgs> KeyboardInputMapper::cancelAllDownKeys(nsecs_t when) {
     return out;
 }
 
-void KeyboardInputMapper::onKeyDownProcessed() {
+void KeyboardInputMapper::onKeyDownProcessed(nsecs_t downTime) {
     InputReaderContext& context = *getContext();
+    context.setLastKeyDownTimestamp(downTime);
     if (context.isPreventingTouchpadTaps()) {
         // avoid pinging java service unnecessarily, just fade pointer again if it became visible
         context.fadePointer();
