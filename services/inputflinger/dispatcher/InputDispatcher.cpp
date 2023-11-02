@@ -2040,10 +2040,10 @@ void InputDispatcher::dispatchEventLocked(nsecs_t currentTime,
         if (connection != nullptr) {
             prepareDispatchCycleLocked(currentTime, connection, eventEntry, inputTarget);
         } else {
-            if (DEBUG_FOCUS) {
-                ALOGD("Dropping event delivery to target with channel '%s' because it "
-                      "is no longer registered with the input dispatcher.",
-                      inputTarget.inputChannel->getName().c_str());
+            if (DEBUG_DROPPED_EVENTS_VERBOSE) {
+                LOG(INFO) << "Dropping event delivery to target with channel "
+                          << inputTarget.inputChannel->getName()
+                          << " because it is no longer registered with the input dispatcher.";
             }
         }
     }
@@ -2461,10 +2461,11 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
         // If the pointer is not currently down, then ignore the event.
         if (!tempTouchState.isDown(entry.deviceId) &&
             maskedAction != AMOTION_EVENT_ACTION_HOVER_EXIT) {
-            LOG(INFO) << "Dropping event because the pointer for device " << entry.deviceId
-                      << " is not down or we previously "
-                         "dropped the pointer down event in display "
-                      << displayId << ": " << entry.getDescription();
+            if (DEBUG_DROPPED_EVENTS_VERBOSE) {
+                LOG(INFO) << "Dropping event because the pointer for device " << entry.deviceId
+                          << " is not down or we previously dropped the pointer down event in "
+                          << "display " << displayId << ": " << entry.getDescription();
+            }
             outInjectionResult = InputEventInjectionResult::FAILED;
             return {};
         }
@@ -4550,6 +4551,7 @@ void InputDispatcher::notifySwitch(const NotifySwitchArgs& args) {
 }
 
 void InputDispatcher::notifyDeviceReset(const NotifyDeviceResetArgs& args) {
+    // TODO(b/308677868) Remove device reset from the InputListener interface
     if (debugInboundEventDetails()) {
         ALOGD("notifyDeviceReset - eventTime=%" PRId64 ", deviceId=%d", args.eventTime,
               args.deviceId);
@@ -4691,6 +4693,30 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(const InputEvent* ev
             }
 
             mLock.lock();
+
+            if (policyFlags & POLICY_FLAG_FILTERED) {
+                // The events from InputFilter impersonate real hardware devices. Check these
+                // events for consistency and print an error. An inconsistent event sent from
+                // InputFilter could cause a crash in the later stages of dispatching pipeline.
+                auto [it, _] =
+                        mInputFilterVerifiersByDisplay
+                                .try_emplace(displayId,
+                                             StringPrintf("Injection on %" PRId32, displayId));
+                InputVerifier& verifier = it->second;
+
+                Result<void> result =
+                        verifier.processMovement(resolvedDeviceId, motionEvent.getSource(),
+                                                 motionEvent.getAction(),
+                                                 motionEvent.getPointerCount(),
+                                                 motionEvent.getPointerProperties(),
+                                                 motionEvent.getSamplePointerCoords(), flags);
+                if (!result.ok()) {
+                    logDispatchStateLocked();
+                    LOG(ERROR) << "Inconsistent event: " << motionEvent
+                               << ", reason: " << result.error();
+                }
+            }
+
             const nsecs_t* sampleEventTimes = motionEvent.getSampleEventTimes();
             const size_t pointerCount = motionEvent.getPointerCount();
             const std::vector<PointerProperties>
@@ -6755,6 +6781,7 @@ void InputDispatcher::displayRemoved(int32_t displayId) {
         // Remove the associated touch mode state.
         mTouchModePerDisplay.erase(displayId);
         mVerifiersByDisplay.erase(displayId);
+        mInputFilterVerifiersByDisplay.erase(displayId);
     } // release lock
 
     // Wake up poll loop since it may need to make new input dispatching choices.

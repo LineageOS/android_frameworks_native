@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <android/content/AttributionSourceState.h>
 #include <binder/IAppOpsCallback.h>
 #include <binder/IInterface.h>
 
@@ -27,23 +28,24 @@
 
 namespace android {
 
+using android::content::AttributionSourceState;
+
 // ----------------------------------------------------------------------
 
 class IAppOpsService : public IInterface
 {
 public:
     DECLARE_META_INTERFACE(AppOpsService)
-
-    virtual int32_t checkOperation(int32_t code, int32_t uid, const String16& packageName) = 0;
-    virtual int32_t noteOperation(int32_t code, int32_t uid, const String16& packageName,
-            const std::optional<String16>& attributionTag, bool shouldCollectAsyncNotedOp,
+    virtual int32_t checkOperationWithState(int32_t code,
+            const AttributionSourceState& attributionSourceState) = 0;
+    virtual int32_t noteOperationWithState(int32_t code,
+            const AttributionSourceState& attributionSourceState, bool shouldCollectAsyncNotedOp,
             const String16& message, bool shouldCollectMessage) = 0;
-    virtual int32_t startOperation(const sp<IBinder>& token, int32_t code, int32_t uid,
-            const String16& packageName, const std::optional<String16>& attributionTag,
-            bool startIfModeDefault, bool shouldCollectAsyncNotedOp, const String16& message,
-            bool shouldCollectMessage) = 0;
-    virtual void finishOperation(const sp<IBinder>& token, int32_t code, int32_t uid,
-            const String16& packageName, const std::optional<String16>& attributionTag) = 0;
+    virtual int32_t startOperationWithState(const sp<IBinder>& token, int32_t code,
+            const AttributionSourceState& attributionSourceState, bool startIfModeDefault,
+            bool shouldCollectAsyncNotedOp, const String16& message, bool shouldCollectMessage) = 0;
+    virtual void finishOperationWithState(const sp<IBinder>& token, int32_t code,
+            const AttributionSourceState& attributionSourceState) = 0;
     virtual void startWatchingMode(int32_t op, const String16& packageName,
             const sp<IAppOpsCallback>& callback) = 0;
     virtual void stopWatchingMode(const sp<IAppOpsCallback>& callback) = 0;
@@ -56,10 +58,10 @@ public:
             int32_t flags, const sp<IAppOpsCallback>& callback) = 0;
 
     enum {
-        CHECK_OPERATION_TRANSACTION = IBinder::FIRST_CALL_TRANSACTION,
-        NOTE_OPERATION_TRANSACTION = IBinder::FIRST_CALL_TRANSACTION+1,
-        START_OPERATION_TRANSACTION = IBinder::FIRST_CALL_TRANSACTION+2,
-        FINISH_OPERATION_TRANSACTION = IBinder::FIRST_CALL_TRANSACTION+3,
+        CHECK_OPERATION_WITH_STATE_TRANSACTION = IBinder::FIRST_CALL_TRANSACTION+50,
+        NOTE_OPERATION_WITH_STATE_TRANSACTION = IBinder::FIRST_CALL_TRANSACTION+52,
+        START_OPERATION_WITH_STATE_TRANSACTION = IBinder::FIRST_CALL_TRANSACTION+53,
+        FINISH_OPERATION_WITH_STATE_TRANSACTION = IBinder::FIRST_CALL_TRANSACTION+54,
         START_WATCHING_MODE_TRANSACTION = IBinder::FIRST_CALL_TRANSACTION+4,
         STOP_WATCHING_MODE_TRANSACTION = IBinder::FIRST_CALL_TRANSACTION+5,
         PERMISSION_TO_OP_CODE_TRANSACTION = IBinder::FIRST_CALL_TRANSACTION+6,

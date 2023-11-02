@@ -26,6 +26,8 @@
 
 namespace android {
 
+using android::content::AttributionSourceState;
+
 // ----------------------------------------------------------------------
 
 class BpAppOpsService : public BpInterface<IAppOpsService>
@@ -36,31 +38,30 @@ public:
     {
     }
 
-    virtual int32_t checkOperation(int32_t code, int32_t uid, const String16& packageName) {
+    virtual int32_t checkOperationWithState(int32_t code,
+                const AttributionSourceState &attributionSourceState) {
         Parcel data, reply;
         data.writeInterfaceToken(IAppOpsService::getInterfaceDescriptor());
         data.writeInt32(code);
-        data.writeInt32(uid);
-        data.writeString16(packageName);
-        remote()->transact(CHECK_OPERATION_TRANSACTION, data, &reply);
+        data.writeParcelable(attributionSourceState);
+        remote()->transact(CHECK_OPERATION_WITH_STATE_TRANSACTION, data, &reply);
         // fail on exception
         if (reply.readExceptionCode() != 0) return MODE_ERRORED;
         return reply.readInt32();
     }
 
-    virtual int32_t noteOperation(int32_t code, int32_t uid, const String16& packageName,
-                const std::optional<String16>& attributionTag, bool shouldCollectAsyncNotedOp,
-                const String16& message, bool shouldCollectMessage) {
+    virtual int32_t noteOperationWithState(int32_t code,
+                const AttributionSourceState& attributionSourceState,
+                bool shouldCollectAsyncNotedOp, const String16& message,
+                bool shouldCollectMessage) {
         Parcel data, reply;
         data.writeInterfaceToken(IAppOpsService::getInterfaceDescriptor());
         data.writeInt32(code);
-        data.writeInt32(uid);
-        data.writeString16(packageName);
-        data.writeString16(attributionTag);
+        data.writeParcelable(attributionSourceState);
         data.writeBool(shouldCollectAsyncNotedOp);
         data.writeString16(message);
         data.writeBool(shouldCollectMessage);
-        remote()->transact(NOTE_OPERATION_TRANSACTION, data, &reply);
+        remote()->transact(NOTE_OPERATION_WITH_STATE_TRANSACTION, data, &reply);
         // fail on exception
         if (reply.readExceptionCode() != 0) return MODE_ERRORED;
         // TODO b/184855056: extract to class
@@ -69,22 +70,20 @@ public:
         return reply.readInt32();
     }
 
-    virtual int32_t startOperation(const sp<IBinder>& token, int32_t code, int32_t uid,
-                const String16& packageName, const std::optional<String16>& attributionTag,
-                bool startIfModeDefault, bool shouldCollectAsyncNotedOp, const String16& message,
+    virtual int32_t startOperationWithState(const sp<IBinder>& token, int32_t code,
+                const AttributionSourceState& attributionSourceState, bool startIfModeDefault,
+                bool shouldCollectAsyncNotedOp, const String16& message,
                 bool shouldCollectMessage) {
         Parcel data, reply;
         data.writeInterfaceToken(IAppOpsService::getInterfaceDescriptor());
         data.writeStrongBinder(token);
         data.writeInt32(code);
-        data.writeInt32(uid);
-        data.writeString16(packageName);
-        data.writeString16(attributionTag);
+        data.writeParcelable(attributionSourceState);
         data.writeBool(startIfModeDefault);
         data.writeBool(shouldCollectAsyncNotedOp);
         data.writeString16(message);
         data.writeBool(shouldCollectMessage);
-        remote()->transact(START_OPERATION_TRANSACTION, data, &reply);
+        remote()->transact(START_OPERATION_WITH_STATE_TRANSACTION, data, &reply);
         // fail on exception
         if (reply.readExceptionCode() != 0) return MODE_ERRORED;
         // TODO b/184855056: extract to class
@@ -93,16 +92,14 @@ public:
         return reply.readInt32();
     }
 
-    virtual void finishOperation(const sp<IBinder>& token, int32_t code, int32_t uid,
-            const String16& packageName, const std::optional<String16>& attributionTag) {
+    virtual void finishOperationWithState(const sp<IBinder>& token, int32_t code,
+                const AttributionSourceState& attributionSourceState) {
         Parcel data, reply;
         data.writeInterfaceToken(IAppOpsService::getInterfaceDescriptor());
         data.writeStrongBinder(token);
         data.writeInt32(code);
-        data.writeInt32(uid);
-        data.writeString16(packageName);
-        data.writeString16(attributionTag);
-        remote()->transact(FINISH_OPERATION_TRANSACTION, data, &reply);
+        data.writeParcelable(attributionSourceState);
+        remote()->transact(FINISH_OPERATION_WITH_STATE_TRANSACTION, data, &reply);
     }
 
     virtual void startWatchingMode(int32_t op, const String16& packageName,
@@ -189,59 +186,65 @@ status_t BnAppOpsService::onTransact(
 {
     //printf("AppOpsService received: "); data.print();
     switch(code) {
-        case CHECK_OPERATION_TRANSACTION: {
+        case CHECK_OPERATION_WITH_STATE_TRANSACTION: {
             CHECK_INTERFACE(IAppOpsService, data, reply);
             int32_t code = data.readInt32();
-            int32_t uid = data.readInt32();
-            String16 packageName = data.readString16();
-            int32_t res = checkOperation(code, uid, packageName);
+            AttributionSourceState attributionSourceState;
+            status_t status = data.readParcelable(&attributionSourceState);
+            if (status != NO_ERROR) {
+                return status;
+            }
+            int32_t res = checkOperationWithState(code, attributionSourceState);
             reply->writeNoException();
             reply->writeInt32(res);
             return NO_ERROR;
         } break;
-        case NOTE_OPERATION_TRANSACTION: {
+        case NOTE_OPERATION_WITH_STATE_TRANSACTION: {
             CHECK_INTERFACE(IAppOpsService, data, reply);
             int32_t code = data.readInt32();
-            int32_t uid = data.readInt32();
-            String16 packageName = data.readString16();
-            std::optional<String16> attributionTag;
-            data.readString16(&attributionTag);
+            AttributionSourceState attributionSourceState;
+            status_t status = data.readParcelable(&attributionSourceState);
+            if (status != NO_ERROR) {
+                return status;
+            }
             bool shouldCollectAsyncNotedOp = data.readBool();
             String16 message = data.readString16();
             bool shouldCollectMessage = data.readBool();
-            int32_t res = noteOperation(code, uid, packageName, attributionTag,
+            int32_t res = noteOperationWithState(code, attributionSourceState,
                     shouldCollectAsyncNotedOp, message, shouldCollectMessage);
             reply->writeNoException();
             reply->writeInt32(res);
             return NO_ERROR;
         } break;
-        case START_OPERATION_TRANSACTION: {
+        case START_OPERATION_WITH_STATE_TRANSACTION: {
             CHECK_INTERFACE(IAppOpsService, data, reply);
             sp<IBinder> token = data.readStrongBinder();
             int32_t code = data.readInt32();
-            int32_t uid = data.readInt32();
-            String16 packageName = data.readString16();
-            std::optional<String16> attributionTag;
-            data.readString16(&attributionTag);
+            AttributionSourceState attributionSourceState;
+            status_t status = data.readParcelable(&attributionSourceState);
+            if (status != NO_ERROR) {
+                return status;
+            }
             bool startIfModeDefault = data.readBool();
             bool shouldCollectAsyncNotedOp = data.readBool();
             String16 message = data.readString16();
             bool shouldCollectMessage = data.readBool();
-            int32_t res = startOperation(token, code, uid, packageName, attributionTag,
+            int32_t res = startOperationWithState(token, code, attributionSourceState,
                     startIfModeDefault, shouldCollectAsyncNotedOp, message, shouldCollectMessage);
             reply->writeNoException();
             reply->writeInt32(res);
             return NO_ERROR;
         } break;
-        case FINISH_OPERATION_TRANSACTION: {
+        case FINISH_OPERATION_WITH_STATE_TRANSACTION: {
             CHECK_INTERFACE(IAppOpsService, data, reply);
             sp<IBinder> token = data.readStrongBinder();
             int32_t code = data.readInt32();
-            int32_t uid = data.readInt32();
-            String16 packageName = data.readString16();
-            std::optional<String16> attributionTag;
-            data.readString16(&attributionTag);
-            finishOperation(token, code, uid, packageName, attributionTag);
+            AttributionSourceState attributionSourceState;
+            status_t status = data.readParcelable(&attributionSourceState);
+            if (status != NO_ERROR) {
+                return status;
+            }
+            finishOperationWithState(token, code, attributionSourceState);
             reply->writeNoException();
             return NO_ERROR;
         } break;
