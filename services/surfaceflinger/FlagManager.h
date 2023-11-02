@@ -53,6 +53,7 @@ public:
     bool vrr_config() const;
     bool hotplug2() const;
     bool hdcp_level_hal() const;
+    bool multithreaded_present() const;
 
     /// Trunk stable server flags ///
     bool late_boot_misc2() const;
