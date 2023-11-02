@@ -342,6 +342,8 @@ public:
     //
     ui::Dataspace getDataSpace() const;
 
+    virtual bool isFrontBuffered() const;
+
     virtual sp<LayerFE> getCompositionEngineLayerFE() const;
     virtual sp<LayerFE> copyCompositionEngineLayerFE() const;
     sp<LayerFE> getCompositionEngineLayerFE(const frontend::LayerHierarchy::TraversalPath&);
@@ -915,14 +917,13 @@ public:
     void recordLayerHistoryBufferUpdate(const scheduler::LayerProps&, nsecs_t now);
     void recordLayerHistoryAnimationTx(const scheduler::LayerProps&, nsecs_t now);
     auto getLayerProps() const {
-        return scheduler::LayerProps{
-                .visible = isVisible(),
-                .bounds = getBounds(),
-                .transform = getTransform(),
-                .setFrameRateVote = getFrameRateForLayerTree(),
-                .frameRateSelectionPriority = getFrameRateSelectionPriority(),
-                .isSmallDirty = mSmallDirty,
-        };
+        return scheduler::LayerProps{.visible = isVisible(),
+                                     .bounds = getBounds(),
+                                     .transform = getTransform(),
+                                     .setFrameRateVote = getFrameRateForLayerTree(),
+                                     .frameRateSelectionPriority = getFrameRateSelectionPriority(),
+                                     .isSmallDirty = mSmallDirty,
+                                     .isFrontBuffered = isFrontBuffered()};
     };
     bool hasBuffer() const { return mBufferInfo.mBuffer != nullptr; }
     void setTransformHint(std::optional<ui::Transform::RotationFlags> transformHint) {

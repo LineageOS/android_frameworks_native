@@ -2247,6 +2247,7 @@ void SurfaceFlinger::updateLayerHistory(nsecs_t now) {
                 .setFrameRateVote = snapshot->frameRate,
                 .frameRateSelectionPriority = snapshot->frameRateSelectionPriority,
                 .isSmallDirty = snapshot->isSmallDirty,
+                .isFrontBuffered = snapshot->isFrontBuffered(),
         };
 
         if (snapshot->clientChanges & layer_state_t::eDefaultFrameRateCompatibilityChanged) {
@@ -4880,6 +4881,7 @@ bool SurfaceFlinger::applyTransactionState(const FrameTimelineInfo& frameTimelin
                         .transform = layer->getTransform(),
                         .setFrameRateVote = layer->getFrameRateForLayerTree(),
                         .frameRateSelectionPriority = layer->getFrameRateSelectionPriority(),
+                        .isFrontBuffered = layer->isFrontBuffered(),
                 };
                 layer->recordLayerHistoryAnimationTx(layerProps, now);
             }

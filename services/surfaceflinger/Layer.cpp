@@ -4230,6 +4230,14 @@ ui::Dataspace Layer::getDataSpace() const {
     return hasBufferOrSidebandStream() ? mBufferInfo.mDataspace : mDrawingState.dataspace;
 }
 
+bool Layer::isFrontBuffered() const {
+    if (mBufferInfo.mBuffer == nullptr) {
+        return false;
+    }
+
+    return mBufferInfo.mBuffer->getUsage() & AHARDWAREBUFFER_USAGE_FRONT_BUFFER;
+}
+
 ui::Dataspace Layer::translateDataspace(ui::Dataspace dataspace) {
     ui::Dataspace updatedDataspace = dataspace;
     // translate legacy dataspaces to modern dataspaces

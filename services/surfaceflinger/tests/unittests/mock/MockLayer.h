@@ -37,6 +37,7 @@ public:
     MOCK_CONST_METHOD0(getDefaultFrameRateCompatibility, scheduler::FrameRateCompatibility());
     MOCK_CONST_METHOD0(getOwnerUid, uid_t());
     MOCK_CONST_METHOD0(getDataSpace, ui::Dataspace());
+    MOCK_METHOD(bool, isFrontBuffered, (), (const, override));
 };
 
 } // namespace android::mock
