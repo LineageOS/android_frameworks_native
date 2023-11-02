@@ -17,5 +17,5 @@
 <!-- This is the standard feature indicating that the device passes OpenGL ES
      dEQP tests associated with the most recent level for this Android version. -->
 <permissions>
-    <feature name="android.software.opengles.deqp.level" version="132580097" />
+    <feature name="android.software.opengles.deqp.level" version="132645633" />
 </permissions>
