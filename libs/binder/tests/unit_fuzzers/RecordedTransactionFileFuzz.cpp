@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#include <android-base/macros.h>
 #include <binder/RecordedTransaction.h>
 #include <filesystem>
 
@@ -36,7 +35,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
         intermediateFile = std::tmpfile();
 
         android::base::unique_fd fdForWriting(dup(fileno(intermediateFile)));
-        auto writeStatus ATTRIBUTE_UNUSED = transaction.value().dumpToFile(fdForWriting);
+        auto writeStatus [[maybe_unused]] = transaction.value().dumpToFile(fdForWriting);
 
         std::fclose(intermediateFile);
     }
