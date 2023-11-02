@@ -575,17 +575,23 @@ android_namespace_t* GraphicsEnv::getAngleNamespace() {
         return mAngleNamespace;
     }
 
-    if (mAnglePath.empty() && !mShouldUseSystemAngle) {
-        ALOGV("mAnglePath is empty and not using system ANGLE, abort creating ANGLE namespace");
+    // If ANGLE path is not set, it means ANGLE should not be used for this process;
+    // or if ANGLE path is set and set to use system ANGLE, then a namespace is not needed
+    // because:
+    //     1) if the default OpenGL ES driver is already ANGLE, then the loader will skip;
+    //     2) if the default OpenGL ES driver is native, then there's no symbol conflict;
+    //     3) if there's no OpenGL ES driver is preloaded, then there's no symbol conflict.
+    if (mAnglePath.empty() || mShouldUseSystemAngle) {
+        ALOGV("mAnglePath is empty or use system ANGLE, abort creating ANGLE namespace");
         return nullptr;
     }
 
     // Construct the search paths for system ANGLE.
     const char* const defaultLibraryPaths =
 #if defined(__LP64__)
-            "/vendor/lib64/egl:/system/lib64/egl";
+            "/vendor/lib64/egl:/system/lib64";
 #else
-            "/vendor/lib/egl:/system/lib/egl";
+            "/vendor/lib/egl:/system/lib";
 #endif
 
     // If the application process will run on top of system ANGLE, construct the namespace
