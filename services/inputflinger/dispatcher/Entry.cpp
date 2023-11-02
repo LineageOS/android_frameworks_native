@@ -139,15 +139,15 @@ KeyEntry::KeyEntry(int32_t id, std::shared_ptr<InjectionState> injectionState, n
         source(source),
         displayId(displayId),
         action(action),
-        flags(flags),
         keyCode(keyCode),
         scanCode(scanCode),
         metaState(metaState),
-        repeatCount(repeatCount),
         downTime(downTime),
         syntheticRepeat(false),
         interceptKeyResult(KeyEntry::InterceptKeyResult::UNKNOWN),
-        interceptKeyWakeupTime(0) {
+        interceptKeyWakeupTime(0),
+        flags(flags),
+        repeatCount(repeatCount) {
     EventEntry::injectionState = std::move(injectionState);
 }
 
@@ -276,7 +276,7 @@ std::string SensorEntry::getDescription() const {
 
 volatile int32_t DispatchEntry::sNextSeqAtomic;
 
-DispatchEntry::DispatchEntry(std::shared_ptr<EventEntry> eventEntry,
+DispatchEntry::DispatchEntry(std::shared_ptr<const EventEntry> eventEntry,
                              ftl::Flags<InputTarget::Flags> targetFlags,
                              const ui::Transform& transform, const ui::Transform& rawTransform,
                              float globalScaleFactor)
@@ -291,7 +291,7 @@ DispatchEntry::DispatchEntry(std::shared_ptr<EventEntry> eventEntry,
         resolvedFlags(0) {
     switch (this->eventEntry->type) {
         case EventEntry::Type::KEY: {
-            const KeyEntry& keyEntry = static_cast<KeyEntry&>(*this->eventEntry);
+            const KeyEntry& keyEntry = static_cast<const KeyEntry&>(*this->eventEntry);
             resolvedEventId = keyEntry.id;
             resolvedAction = keyEntry.action;
             resolvedFlags = keyEntry.flags;
@@ -299,7 +299,7 @@ DispatchEntry::DispatchEntry(std::shared_ptr<EventEntry> eventEntry,
             break;
         }
         case EventEntry::Type::MOTION: {
-            const MotionEntry& motionEntry = static_cast<MotionEntry&>(*this->eventEntry);
+            const MotionEntry& motionEntry = static_cast<const MotionEntry&>(*this->eventEntry);
             resolvedEventId = motionEntry.id;
             resolvedAction = motionEntry.action;
             resolvedFlags = motionEntry.flags;

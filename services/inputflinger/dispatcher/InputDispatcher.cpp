@@ -354,7 +354,7 @@ size_t firstMarkedBit(T set) {
 }
 
 std::unique_ptr<DispatchEntry> createDispatchEntry(
-        const InputTarget& inputTarget, std::shared_ptr<EventEntry> eventEntry,
+        const InputTarget& inputTarget, std::shared_ptr<const EventEntry> eventEntry,
         ftl::Flags<InputTarget::Flags> inputTargetFlags) {
     if (inputTarget.useDefaultPointerTransform()) {
         const ui::Transform& transform = inputTarget.getDefaultPointerTransform();
@@ -1031,8 +1031,8 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t* nextWakeupTime) {
         }
 
         case EventEntry::Type::FOCUS: {
-            std::shared_ptr<FocusEntry> typedEntry =
-                    std::static_pointer_cast<FocusEntry>(mPendingEvent);
+            std::shared_ptr<const FocusEntry> typedEntry =
+                    std::static_pointer_cast<const FocusEntry>(mPendingEvent);
             dispatchFocusLocked(currentTime, typedEntry);
             done = true;
             dropReason = DropReason::NOT_DROPPED; // focus events are never dropped
@@ -1040,7 +1040,7 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t* nextWakeupTime) {
         }
 
         case EventEntry::Type::TOUCH_MODE_CHANGED: {
-            const auto typedEntry = std::static_pointer_cast<TouchModeEntry>(mPendingEvent);
+            const auto typedEntry = std::static_pointer_cast<const TouchModeEntry>(mPendingEvent);
             dispatchTouchModeChangeLocked(currentTime, typedEntry);
             done = true;
             dropReason = DropReason::NOT_DROPPED; // touch mode events are never dropped
@@ -1049,22 +1049,23 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t* nextWakeupTime) {
 
         case EventEntry::Type::POINTER_CAPTURE_CHANGED: {
             const auto typedEntry =
-                    std::static_pointer_cast<PointerCaptureChangedEntry>(mPendingEvent);
+                    std::static_pointer_cast<const PointerCaptureChangedEntry>(mPendingEvent);
             dispatchPointerCaptureChangedLocked(currentTime, typedEntry, dropReason);
             done = true;
             break;
         }
 
         case EventEntry::Type::DRAG: {
-            std::shared_ptr<DragEntry> typedEntry =
-                    std::static_pointer_cast<DragEntry>(mPendingEvent);
+            std::shared_ptr<const DragEntry> typedEntry =
+                    std::static_pointer_cast<const DragEntry>(mPendingEvent);
             dispatchDragLocked(currentTime, typedEntry);
             done = true;
             break;
         }
 
         case EventEntry::Type::KEY: {
-            std::shared_ptr<KeyEntry> keyEntry = std::static_pointer_cast<KeyEntry>(mPendingEvent);
+            std::shared_ptr<const KeyEntry> keyEntry =
+                    std::static_pointer_cast<const KeyEntry>(mPendingEvent);
             if (!REMOVE_APP_SWITCH_DROPS) {
                 if (isAppSwitchDue) {
                     if (isAppSwitchKeyEvent(*keyEntry)) {
@@ -1086,8 +1087,8 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t* nextWakeupTime) {
         }
 
         case EventEntry::Type::MOTION: {
-            std::shared_ptr<MotionEntry> motionEntry =
-                    std::static_pointer_cast<MotionEntry>(mPendingEvent);
+            std::shared_ptr<const MotionEntry> motionEntry =
+                    std::static_pointer_cast<const MotionEntry>(mPendingEvent);
             if (!REMOVE_APP_SWITCH_DROPS) {
                 if (dropReason == DropReason::NOT_DROPPED && isAppSwitchDue) {
                     dropReason = DropReason::APP_SWITCH;
@@ -1104,8 +1105,8 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t* nextWakeupTime) {
         }
 
         case EventEntry::Type::SENSOR: {
-            std::shared_ptr<SensorEntry> sensorEntry =
-                    std::static_pointer_cast<SensorEntry>(mPendingEvent);
+            std::shared_ptr<const SensorEntry> sensorEntry =
+                    std::static_pointer_cast<const SensorEntry>(mPendingEvent);
             if (!REMOVE_APP_SWITCH_DROPS) {
                 if (dropReason == DropReason::NOT_DROPPED && isAppSwitchDue) {
                     dropReason = DropReason::APP_SWITCH;
@@ -1200,7 +1201,7 @@ bool InputDispatcher::shouldPruneInboundQueueLocked(const MotionEntry& motionEnt
 bool InputDispatcher::enqueueInboundEventLocked(std::unique_ptr<EventEntry> newEntry) {
     bool needWake = mInboundQueue.empty();
     mInboundQueue.push_back(std::move(newEntry));
-    EventEntry& entry = *(mInboundQueue.back());
+    const EventEntry& entry = *(mInboundQueue.back());
     traceInboundQueueLengthLocked();
 
     switch (entry.type) {
@@ -1233,7 +1234,7 @@ bool InputDispatcher::enqueueInboundEventLocked(std::unique_ptr<EventEntry> newE
             // time for it may have been handled in the policy and could be dropped.
             if (keyEntry.action == AKEY_EVENT_ACTION_UP && mPendingEvent &&
                 mPendingEvent->type == EventEntry::Type::KEY) {
-                KeyEntry& pendingKey = static_cast<KeyEntry&>(*mPendingEvent);
+                const KeyEntry& pendingKey = static_cast<const KeyEntry&>(*mPendingEvent);
                 if (pendingKey.keyCode == keyEntry.keyCode &&
                     pendingKey.interceptKeyResult ==
                             KeyEntry::InterceptKeyResult::TRY_AGAIN_LATER) {
@@ -1248,7 +1249,7 @@ bool InputDispatcher::enqueueInboundEventLocked(std::unique_ptr<EventEntry> newE
         case EventEntry::Type::MOTION: {
             LOG_ALWAYS_FATAL_IF((entry.policyFlags & POLICY_FLAG_TRUSTED) == 0,
                                 "Unexpected untrusted event.");
-            if (shouldPruneInboundQueueLocked(static_cast<MotionEntry&>(entry))) {
+            if (shouldPruneInboundQueueLocked(static_cast<const MotionEntry&>(entry))) {
                 mNextUnblockedEvent = mInboundQueue.back();
                 needWake = true;
             }
@@ -1272,7 +1273,7 @@ bool InputDispatcher::enqueueInboundEventLocked(std::unique_ptr<EventEntry> newE
     return needWake;
 }
 
-void InputDispatcher::addRecentEventLocked(std::shared_ptr<EventEntry> entry) {
+void InputDispatcher::addRecentEventLocked(std::shared_ptr<const EventEntry> entry) {
     // Do not store sensor event in recent queue to avoid flooding the queue.
     if (entry->type != EventEntry::Type::SENSOR) {
         mRecentQueue.push_back(entry);
@@ -1473,7 +1474,7 @@ void InputDispatcher::postCommandLocked(Command&& command) {
 
 void InputDispatcher::drainInboundQueueLocked() {
     while (!mInboundQueue.empty()) {
-        std::shared_ptr<EventEntry> entry = mInboundQueue.front();
+        std::shared_ptr<const EventEntry> entry = mInboundQueue.front();
         mInboundQueue.pop_front();
         releaseInboundEventLocked(entry);
     }
@@ -1487,7 +1488,7 @@ void InputDispatcher::releasePendingEventLocked() {
     }
 }
 
-void InputDispatcher::releaseInboundEventLocked(std::shared_ptr<EventEntry> entry) {
+void InputDispatcher::releaseInboundEventLocked(std::shared_ptr<const EventEntry> entry) {
     const std::shared_ptr<InjectionState>& injectionState = entry->injectionState;
     if (injectionState && injectionState->injectionResult == InputEventInjectionResult::PENDING) {
         if (DEBUG_DISPATCH_CYCLE) {
@@ -1508,7 +1509,7 @@ void InputDispatcher::resetKeyRepeatLocked() {
 }
 
 std::shared_ptr<KeyEntry> InputDispatcher::synthesizeKeyRepeatLocked(nsecs_t currentTime) {
-    std::shared_ptr<KeyEntry> entry = mKeyRepeatState.lastKeyEntry;
+    std::shared_ptr<const KeyEntry> entry = mKeyRepeatState.lastKeyEntry;
 
     uint32_t policyFlags = entry->policyFlags &
             (POLICY_FLAG_RAW_MASK | POLICY_FLAG_PASS_TO_USER | POLICY_FLAG_TRUSTED);
@@ -1582,17 +1583,17 @@ void InputDispatcher::enqueueFocusEventLocked(const sp<IBinder>& windowToken, bo
 
     // This event should go to the front of the queue, but behind all other focus events
     // Find the last focus event, and insert right after it
-    std::deque<std::shared_ptr<EventEntry>>::reverse_iterator it =
-            std::find_if(mInboundQueue.rbegin(), mInboundQueue.rend(),
-                         [](const std::shared_ptr<EventEntry>& event) {
-                             return event->type == EventEntry::Type::FOCUS;
-                         });
+    auto it = std::find_if(mInboundQueue.rbegin(), mInboundQueue.rend(),
+                           [](const std::shared_ptr<const EventEntry>& event) {
+                               return event->type == EventEntry::Type::FOCUS;
+                           });
 
     // Maintain the order of focus events. Insert the entry after all other focus events.
     mInboundQueue.insert(it.base(), std::move(focusEntry));
 }
 
-void InputDispatcher::dispatchFocusLocked(nsecs_t currentTime, std::shared_ptr<FocusEntry> entry) {
+void InputDispatcher::dispatchFocusLocked(nsecs_t currentTime,
+                                          std::shared_ptr<const FocusEntry> entry) {
     std::shared_ptr<InputChannel> channel = getInputChannelLocked(entry->connectionToken);
     if (channel == nullptr) {
         return; // Window has gone away
@@ -1609,7 +1610,7 @@ void InputDispatcher::dispatchFocusLocked(nsecs_t currentTime, std::shared_ptr<F
 }
 
 void InputDispatcher::dispatchPointerCaptureChangedLocked(
-        nsecs_t currentTime, const std::shared_ptr<PointerCaptureChangedEntry>& entry,
+        nsecs_t currentTime, const std::shared_ptr<const PointerCaptureChangedEntry>& entry,
         DropReason& dropReason) {
     dropReason = DropReason::NOT_DROPPED;
 
@@ -1680,8 +1681,8 @@ void InputDispatcher::dispatchPointerCaptureChangedLocked(
     dropReason = DropReason::NOT_DROPPED;
 }
 
-void InputDispatcher::dispatchTouchModeChangeLocked(nsecs_t currentTime,
-                                                    const std::shared_ptr<TouchModeEntry>& entry) {
+void InputDispatcher::dispatchTouchModeChangeLocked(
+        nsecs_t currentTime, const std::shared_ptr<const TouchModeEntry>& entry) {
     const std::vector<sp<WindowInfoHandle>>& windowHandles =
             getWindowHandlesLocked(entry->displayId);
     if (windowHandles.empty()) {
@@ -1716,7 +1717,7 @@ std::vector<InputTarget> InputDispatcher::getInputTargetsFromWindowHandlesLocked
     return inputTargets;
 }
 
-bool InputDispatcher::dispatchKeyLocked(nsecs_t currentTime, std::shared_ptr<KeyEntry> entry,
+bool InputDispatcher::dispatchKeyLocked(nsecs_t currentTime, std::shared_ptr<const KeyEntry> entry,
                                         DropReason* dropReason, nsecs_t* nextWakeupTime) {
     // Preprocessing.
     if (!entry->dispatchInProgress) {
@@ -1850,7 +1851,7 @@ void InputDispatcher::logOutboundKeyDetails(const char* prefix, const KeyEntry& 
 }
 
 void InputDispatcher::dispatchSensorLocked(nsecs_t currentTime,
-                                           const std::shared_ptr<SensorEntry>& entry,
+                                           const std::shared_ptr<const SensorEntry>& entry,
                                            DropReason* dropReason, nsecs_t* nextWakeupTime) {
     if (DEBUG_OUTBOUND_EVENT_DETAILS) {
         ALOGD("notifySensorEvent eventTime=%" PRId64 ", hwTimestamp=%" PRId64 ", deviceId=%d, "
@@ -1879,7 +1880,7 @@ bool InputDispatcher::flushSensor(int deviceId, InputDeviceSensorType sensorType
         std::scoped_lock _l(mLock);
 
         for (auto it = mInboundQueue.begin(); it != mInboundQueue.end(); it++) {
-            std::shared_ptr<EventEntry> entry = *it;
+            std::shared_ptr<const EventEntry> entry = *it;
             if (entry->type == EventEntry::Type::SENSOR) {
                 it = mInboundQueue.erase(it);
                 releaseInboundEventLocked(entry);
@@ -1889,7 +1890,8 @@ bool InputDispatcher::flushSensor(int deviceId, InputDeviceSensorType sensorType
     return true;
 }
 
-bool InputDispatcher::dispatchMotionLocked(nsecs_t currentTime, std::shared_ptr<MotionEntry> entry,
+bool InputDispatcher::dispatchMotionLocked(nsecs_t currentTime,
+                                           std::shared_ptr<const MotionEntry> entry,
                                            DropReason* dropReason, nsecs_t* nextWakeupTime) {
     ATRACE_CALL();
     // Preprocessing.
@@ -1974,7 +1976,8 @@ void InputDispatcher::enqueueDragEventLocked(const sp<WindowInfoHandle>& windowH
     enqueueInboundEventLocked(std::move(dragEntry));
 }
 
-void InputDispatcher::dispatchDragLocked(nsecs_t currentTime, std::shared_ptr<DragEntry> entry) {
+void InputDispatcher::dispatchDragLocked(nsecs_t currentTime,
+                                         std::shared_ptr<const DragEntry> entry) {
     std::shared_ptr<InputChannel> channel = getInputChannelLocked(entry->connectionToken);
     if (channel == nullptr) {
         return; // Window has gone away
@@ -2020,7 +2023,7 @@ void InputDispatcher::logOutboundMotionDetails(const char* prefix, const MotionE
 }
 
 void InputDispatcher::dispatchEventLocked(nsecs_t currentTime,
-                                          std::shared_ptr<EventEntry> eventEntry,
+                                          std::shared_ptr<const EventEntry> eventEntry,
                                           const std::vector<InputTarget>& inputTargets) {
     ATRACE_CALL();
     if (DEBUG_DISPATCH_CYCLE) {
@@ -3214,7 +3217,7 @@ void InputDispatcher::pokeUserActivityLocked(const EventEntry& eventEntry) {
 
 void InputDispatcher::prepareDispatchCycleLocked(nsecs_t currentTime,
                                                  const std::shared_ptr<Connection>& connection,
-                                                 std::shared_ptr<EventEntry> eventEntry,
+                                                 std::shared_ptr<const EventEntry> eventEntry,
                                                  const InputTarget& inputTarget) {
     ATRACE_NAME_IF(ATRACE_ENABLED(),
                    StringPrintf("prepareDispatchCycleLocked(inputChannel=%s, id=0x%" PRIx32 ")",
@@ -3281,7 +3284,7 @@ void InputDispatcher::prepareDispatchCycleLocked(nsecs_t currentTime,
 
 void InputDispatcher::enqueueDispatchEntriesLocked(nsecs_t currentTime,
                                                    const std::shared_ptr<Connection>& connection,
-                                                   std::shared_ptr<EventEntry> eventEntry,
+                                                   std::shared_ptr<const EventEntry> eventEntry,
                                                    const InputTarget& inputTarget) {
     ATRACE_NAME_IF(ATRACE_ENABLED(),
                    StringPrintf("enqueueDispatchEntriesLocked(inputChannel=%s, id=0x%" PRIx32 ")",
@@ -3312,7 +3315,7 @@ void InputDispatcher::enqueueDispatchEntriesLocked(nsecs_t currentTime,
 }
 
 void InputDispatcher::enqueueDispatchEntryLocked(const std::shared_ptr<Connection>& connection,
-                                                 std::shared_ptr<EventEntry> eventEntry,
+                                                 std::shared_ptr<const EventEntry> eventEntry,
                                                  const InputTarget& inputTarget,
                                                  ftl::Flags<InputTarget::Flags> dispatchMode) {
     ftl::Flags<InputTarget::Flags> inputTargetFlags = inputTarget.flags;
@@ -3330,7 +3333,7 @@ void InputDispatcher::enqueueDispatchEntryLocked(const std::shared_ptr<Connectio
 
     // Use the eventEntry from dispatchEntry since the entry may have changed and can now be a
     // different EventEntry than what was passed in.
-    EventEntry& newEntry = *(dispatchEntry->eventEntry);
+    const EventEntry& newEntry = *(dispatchEntry->eventEntry);
     // Apply target flags and update the connection's input state.
     switch (newEntry.type) {
         case EventEntry::Type::KEY: {
@@ -4853,7 +4856,7 @@ std::unique_ptr<VerifiedInputEvent> InputDispatcher::verifyInputEvent(const Inpu
     return result;
 }
 
-void InputDispatcher::setInjectionResult(EventEntry& entry,
+void InputDispatcher::setInjectionResult(const EventEntry& entry,
                                          InputEventInjectionResult injectionResult) {
     if (!entry.injectionState) {
         // Not an injected event.
@@ -4914,13 +4917,13 @@ void InputDispatcher::transformMotionEntryForInjectionLocked(
     }
 }
 
-void InputDispatcher::incrementPendingForegroundDispatches(EventEntry& entry) {
+void InputDispatcher::incrementPendingForegroundDispatches(const EventEntry& entry) {
     if (entry.injectionState) {
         entry.injectionState->pendingForegroundDispatches += 1;
     }
 }
 
-void InputDispatcher::decrementPendingForegroundDispatches(EventEntry& entry) {
+void InputDispatcher::decrementPendingForegroundDispatches(const EventEntry& entry) {
     if (entry.injectionState) {
         entry.injectionState->pendingForegroundDispatches -= 1;
 
@@ -5734,7 +5737,7 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) const {
     // Dump recently dispatched or dropped events from oldest to newest.
     if (!mRecentQueue.empty()) {
         dump += StringPrintf(INDENT "RecentQueue: length=%zu\n", mRecentQueue.size());
-        for (const std::shared_ptr<EventEntry>& entry : mRecentQueue) {
+        for (const std::shared_ptr<const EventEntry>& entry : mRecentQueue) {
             dump += INDENT2;
             dump += entry->getDescription();
             dump += StringPrintf(", age=%" PRId64 "ms\n", ns2ms(currentTime - entry->eventTime));
@@ -5757,7 +5760,7 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) const {
     // Dump inbound events from oldest to newest.
     if (!mInboundQueue.empty()) {
         dump += StringPrintf(INDENT "InboundQueue: length=%zu\n", mInboundQueue.size());
-        for (const std::shared_ptr<EventEntry>& entry : mInboundQueue) {
+        for (const std::shared_ptr<const EventEntry>& entry : mInboundQueue) {
             dump += INDENT2;
             dump += entry->getDescription();
             dump += StringPrintf(", age=%" PRId64 "ms\n", ns2ms(currentTime - entry->eventTime));
@@ -6144,7 +6147,7 @@ void InputDispatcher::doDispatchCycleFinishedCommand(nsecs_t finishTime,
                                                      uint32_t seq, bool handled,
                                                      nsecs_t consumeTime) {
     // Handle post-event policy actions.
-    std::unique_ptr<KeyEntry> fallbackKeyEntry;
+    std::unique_ptr<const KeyEntry> fallbackKeyEntry;
 
     { // Start critical section
         auto dispatchEntryIt =
@@ -6300,7 +6303,7 @@ void InputDispatcher::updateLastAnrStateLocked(const std::string& windowLabel,
 }
 
 void InputDispatcher::doInterceptKeyBeforeDispatchingCommand(const sp<IBinder>& focusedWindowToken,
-                                                             KeyEntry& entry) {
+                                                             const KeyEntry& entry) {
     const KeyEvent event = createKeyEvent(entry);
     nsecs_t delay = 0;
     { // release lock
@@ -6385,7 +6388,7 @@ void InputDispatcher::processConnectionResponsiveLocked(const Connection& connec
     sendWindowResponsiveCommandLocked(connectionToken, pid);
 }
 
-std::unique_ptr<KeyEntry> InputDispatcher::afterKeyEventLockedInterruptable(
+std::unique_ptr<const KeyEntry> InputDispatcher::afterKeyEventLockedInterruptable(
         const std::shared_ptr<Connection>& connection, DispatchEntry& dispatchEntry,
         const KeyEntry& keyEntry, bool handled) {
     if (keyEntry.flags & AKEY_EVENT_FLAG_FALLBACK) {
