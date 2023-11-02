@@ -2593,9 +2593,9 @@ TEST_F(InputDispatcherMultiDeviceTest, StylusDownWithSpyBlocksTouchDown) {
 
 /**
  * One window. Stylus hover on the window. Next, touch from another device goes down. Ensure that
- * touch is not dropped, because stylus hover should be ignored.
+ * touch is dropped, because stylus hover takes precedence.
  */
-TEST_F(InputDispatcherMultiDeviceTest, StylusHoverDoesNotBlockTouchDown) {
+TEST_F(InputDispatcherMultiDeviceTest, StylusHoverBlocksTouchDown) {
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
     sp<FakeWindowHandle> window =
             sp<FakeWindowHandle>::make(application, mDispatcher, "Window", ADISPLAY_ID_DEFAULT);
@@ -2624,34 +2624,29 @@ TEST_F(InputDispatcherMultiDeviceTest, StylusHoverDoesNotBlockTouchDown) {
                                       .pointer(PointerBuilder(0, ToolType::FINGER).x(141).y(146))
                                       .build());
 
-    // Stylus hover is canceled because touch is down
-    window->consumeMotionEvent(AllOf(WithMotionAction(ACTION_HOVER_EXIT),
-                                     WithDeviceId(stylusDeviceId), WithCoords(100, 110)));
-    window->consumeMotionEvent(AllOf(WithMotionAction(ACTION_DOWN), WithDeviceId(touchDeviceId),
-                                     WithCoords(140, 145)));
-    window->consumeMotionEvent(AllOf(WithMotionAction(ACTION_MOVE), WithDeviceId(touchDeviceId),
-                                     WithCoords(141, 146)));
+    // Touch is ignored because stylus is hovering
 
-    // Subsequent stylus movements are ignored
+    // Subsequent stylus movements are delivered correctly
     mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_HOVER_MOVE, AINPUT_SOURCE_STYLUS)
                                       .deviceId(stylusDeviceId)
                                       .pointer(PointerBuilder(0, ToolType::STYLUS).x(101).y(111))
                                       .build());
+    window->consumeMotionEvent(AllOf(WithMotionAction(ACTION_HOVER_MOVE),
+                                     WithDeviceId(stylusDeviceId), WithCoords(101, 111)));
 
-    // but subsequent touches continue to be delivered
+    // and subsequent touches continue to be ignored
     mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN)
                                       .deviceId(touchDeviceId)
                                       .pointer(PointerBuilder(0, ToolType::FINGER).x(142).y(147))
                                       .build());
-    window->consumeMotionEvent(AllOf(WithMotionAction(ACTION_MOVE), WithDeviceId(touchDeviceId),
-                                     WithCoords(142, 147)));
+    window->assertNoEvents();
 }
 
 /**
  * One window. Touch down on the window. Then, stylus hover on the window from another device.
- * Ensure that touch is not canceled, because stylus hover should be dropped.
+ * Ensure that touch is canceled, because stylus hover should take precedence.
  */
-TEST_F(InputDispatcherMultiDeviceTest, TouchIsNotCanceledByStylusHover) {
+TEST_F(InputDispatcherMultiDeviceTest, TouchIsCanceledByStylusHover) {
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
     sp<FakeWindowHandle> window =
             sp<FakeWindowHandle>::make(application, mDispatcher, "Window", ADISPLAY_ID_DEFAULT);
@@ -2683,15 +2678,21 @@ TEST_F(InputDispatcherMultiDeviceTest, TouchIsNotCanceledByStylusHover) {
                                       .deviceId(stylusDeviceId)
                                       .pointer(PointerBuilder(0, ToolType::STYLUS).x(101).y(111))
                                       .build());
-    // Stylus hover movement is dropped
+    // Stylus hover movement causes touch to be canceled
+    window->consumeMotionEvent(AllOf(WithMotionAction(ACTION_CANCEL), WithDeviceId(touchDeviceId),
+                                     WithCoords(141, 146)));
+    window->consumeMotionEvent(AllOf(WithMotionAction(ACTION_HOVER_ENTER),
+                                     WithDeviceId(stylusDeviceId), WithCoords(100, 110)));
+    window->consumeMotionEvent(AllOf(WithMotionAction(ACTION_HOVER_MOVE),
+                                     WithDeviceId(stylusDeviceId), WithCoords(101, 111)));
 
+    // Subsequent touch movements are ignored
     mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN)
                                       .deviceId(touchDeviceId)
                                       .pointer(PointerBuilder(0, ToolType::FINGER).x(142).y(147))
                                       .build());
-    // Subsequent touch movements are delivered correctly
-    window->consumeMotionEvent(AllOf(WithMotionAction(ACTION_MOVE), WithDeviceId(touchDeviceId),
-                                     WithCoords(142, 147)));
+
+    window->assertNoEvents();
 }
 
 /**
@@ -3008,11 +3009,11 @@ TEST_F(InputDispatcherMultiDeviceTest, MultiDeviceWithSpy) {
  * Three windows: a window on the left, a window on the right, and a spy window positioned above
  * both.
  * Check hover in left window and touch down in the right window.
- * At first, spy should receive hover, but the touch down should cancel hovering inside spy.
+ * At first, spy should receive hover. Spy shouldn't receive touch while stylus is hovering.
  * At the same time, left and right should be getting independent streams of hovering and touch,
  * respectively.
  */
-TEST_F(InputDispatcherMultiDeviceTest, MultiDeviceHoverBlockedByTouchWithSpy) {
+TEST_F(InputDispatcherMultiDeviceTest, MultiDeviceHoverBlocksTouchWithSpy) {
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
 
     sp<FakeWindowHandle> spyWindow =
@@ -3052,28 +3053,25 @@ TEST_F(InputDispatcherMultiDeviceTest, MultiDeviceHoverBlockedByTouchWithSpy) {
                                       .pointer(PointerBuilder(0, ToolType::FINGER).x(300).y(100))
                                       .build());
     leftWindow->assertNoEvents();
-    spyWindow->consumeMotionEvent(
-            AllOf(WithMotionAction(ACTION_HOVER_EXIT), WithDeviceId(stylusDeviceId)));
-    spyWindow->consumeMotionEvent(
-            AllOf(WithMotionAction(ACTION_DOWN), WithDeviceId(touchDeviceId)));
+    spyWindow->assertNoEvents();
     rightWindow->consumeMotionEvent(
             AllOf(WithMotionAction(ACTION_DOWN), WithDeviceId(touchDeviceId)));
 
-    // Stylus movements continue. They should be delivered to the left window only.
+    // Stylus movements continue. They should be delivered to the left window and the spy.
     mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_HOVER_MOVE, AINPUT_SOURCE_STYLUS)
                                       .deviceId(stylusDeviceId)
                                       .pointer(PointerBuilder(0, ToolType::STYLUS).x(110).y(110))
                                       .build());
     leftWindow->consumeMotionEvent(
             AllOf(WithMotionAction(ACTION_HOVER_MOVE), WithDeviceId(stylusDeviceId)));
+    spyWindow->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_HOVER_MOVE), WithDeviceId(stylusDeviceId)));
 
-    // Touch movements continue. They should be delivered to the right window and to the spy
+    // Touch movements continue. They should be delivered to the right window only
     mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN)
                                       .deviceId(touchDeviceId)
                                       .pointer(PointerBuilder(0, ToolType::FINGER).x(301).y(101))
                                       .build());
-    spyWindow->consumeMotionEvent(
-            AllOf(WithMotionAction(ACTION_MOVE), WithDeviceId(touchDeviceId)));
     rightWindow->consumeMotionEvent(
             AllOf(WithMotionAction(ACTION_MOVE), WithDeviceId(touchDeviceId)));
 
@@ -3288,7 +3286,7 @@ TEST_F(InputDispatcherMultiDeviceTest, HoverTapAndSplitTouch) {
  * While the touch is down, new hover events from the stylus device should be ignored. After the
  * touch is gone, stylus hovering should start working again.
  */
-TEST_F(InputDispatcherMultiDeviceTest, StylusHoverDroppedWhenTouchTap) {
+TEST_F(InputDispatcherMultiDeviceTest, StylusHoverIgnoresTouchTap) {
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
     sp<FakeWindowHandle> window =
             sp<FakeWindowHandle>::make(application, mDispatcher, "Window", ADISPLAY_ID_DEFAULT);
@@ -3314,10 +3312,7 @@ TEST_F(InputDispatcherMultiDeviceTest, StylusHoverDroppedWhenTouchTap) {
                                         .deviceId(touchDeviceId)
                                         .pointer(PointerBuilder(0, ToolType::FINGER).x(100).y(100))
                                         .build()));
-    // The touch device should cause hover to stop!
-    window->consumeMotionEvent(
-            AllOf(WithMotionAction(ACTION_HOVER_EXIT), WithDeviceId(stylusDeviceId)));
-    window->consumeMotionEvent(AllOf(WithMotionAction(ACTION_DOWN), WithDeviceId(touchDeviceId)));
+    // The touch device should be ignored!
 
     // Continue hovering with stylus.
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
@@ -3327,7 +3322,9 @@ TEST_F(InputDispatcherMultiDeviceTest, StylusHoverDroppedWhenTouchTap) {
                                         .deviceId(stylusDeviceId)
                                         .pointer(PointerBuilder(0, ToolType::STYLUS).x(60).y(60))
                                         .build()));
-    // Hovers are now ignored
+    // Hovers continue to work
+    window->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_HOVER_MOVE), WithDeviceId(stylusDeviceId)));
 
     // Lift up the finger
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
@@ -3337,7 +3334,6 @@ TEST_F(InputDispatcherMultiDeviceTest, StylusHoverDroppedWhenTouchTap) {
                                         .deviceId(touchDeviceId)
                                         .pointer(PointerBuilder(0, ToolType::FINGER).x(100).y(100))
                                         .build()));
-    window->consumeMotionEvent(AllOf(WithMotionAction(ACTION_UP), WithDeviceId(touchDeviceId)));
 
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
               injectMotionEvent(*mDispatcher,
@@ -3346,8 +3342,8 @@ TEST_F(InputDispatcherMultiDeviceTest, StylusHoverDroppedWhenTouchTap) {
                                         .deviceId(stylusDeviceId)
                                         .pointer(PointerBuilder(0, ToolType::STYLUS).x(70).y(70))
                                         .build()));
-    window->consumeMotionEvent(AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER),
-                                     WithDeviceId(stylusDeviceId)));
+    window->consumeMotionEvent(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE), WithDeviceId(stylusDeviceId)));
     window->assertNoEvents();
 }
 
