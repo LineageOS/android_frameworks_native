@@ -494,7 +494,7 @@ static void* load_system_driver(const char* kind, const char* suffix, const bool
     void* dso = nullptr;
 
     // Only use sphal namespace when system ANGLE binaries are not the default drivers.
-    const bool useSphalNamespace = strcmp(suffix, ANGLE_SUFFIX_VALUE) != 0;
+    const bool useSphalNamespace = suffix != nullptr && strcmp(suffix, ANGLE_SUFFIX_VALUE) != 0;
 
     const std::string absolutePath =
             findLibrary(libraryName, useSphalNamespace ? VENDOR_LIB_EGL_DIR : SYSTEM_LIB_PATH,
