@@ -20,7 +20,24 @@
 #include "NotifyArgs.h"
 #include "PointerChoreographerPolicyInterface.h"
 
+#include <android-base/thread_annotations.h>
+#include <type_traits>
+
 namespace android {
+
+/**
+ * A helper class that wraps a factory method that acts as a constructor for the type returned
+ * by the factory method.
+ */
+template <typename Factory>
+struct ConstructorDelegate {
+    constexpr ConstructorDelegate(Factory&& factory) : mFactory(std::move(factory)) {}
+
+    using ConstructedType = std::invoke_result_t<const Factory&>;
+    constexpr operator ConstructedType() const { return mFactory(); }
+
+    Factory mFactory;
+};
 
 /**
  * PointerChoreographer manages the icons shown by the system for input interactions.
@@ -30,6 +47,15 @@ namespace android {
  */
 class PointerChoreographerInterface : public InputListenerInterface {
 public:
+    /**
+     * Set the display that pointers, like the mouse cursor and drawing tablets,
+     * should be drawn on.
+     */
+    virtual void setDefaultMouseDisplayId(int32_t displayId) = 0;
+    virtual void setDisplayViewports(const std::vector<DisplayViewport>& viewports) = 0;
+    virtual std::optional<DisplayViewport> getViewportForPointerDevice(
+            int32_t associatedDisplayId = ADISPLAY_ID_NONE) = 0;
+    virtual FloatPoint getMouseCursorPosition(int32_t displayId) = 0;
     /**
      * This method may be called on any thread (usually by the input manager on a binder thread).
      */
@@ -41,6 +67,12 @@ public:
     explicit PointerChoreographer(InputListenerInterface& listener,
                                   PointerChoreographerPolicyInterface&);
     ~PointerChoreographer() override = default;
+
+    void setDefaultMouseDisplayId(int32_t displayId) override;
+    void setDisplayViewports(const std::vector<DisplayViewport>& viewports) override;
+    std::optional<DisplayViewport> getViewportForPointerDevice(
+            int32_t associatedDisplayId) override;
+    FloatPoint getMouseCursorPosition(int32_t displayId) override;
 
     void notifyInputDevicesChanged(const NotifyInputDevicesChangedArgs& args) override;
     void notifyConfigurationChanged(const NotifyConfigurationChangedArgs& args) override;
@@ -55,7 +87,31 @@ public:
     void dump(std::string& dump) override;
 
 private:
+    void updatePointerControllersLocked() REQUIRES(mLock);
+    void notifyPointerDisplayIdChangedLocked() REQUIRES(mLock);
+    const DisplayViewport* findViewportByIdLocked(int32_t displayId) const REQUIRES(mLock);
+    int32_t getTargetMouseDisplayLocked(int32_t associatedDisplayId) const REQUIRES(mLock);
+
+    NotifyMotionArgs processMotion(const NotifyMotionArgs& args);
+    NotifyMotionArgs processMouseEventLocked(const NotifyMotionArgs& args) REQUIRES(mLock);
+    NotifyMotionArgs processTouchscreenEventLocked(const NotifyMotionArgs& args) REQUIRES(mLock);
+
+    using ControllerConstructor =
+            ConstructorDelegate<std::function<std::shared_ptr<PointerControllerInterface>()>>;
+    ControllerConstructor getMouseControllerConstructor(int32_t displayId) REQUIRES(mLock);
+
+    std::mutex mLock;
+
     InputListenerInterface& mNextListener;
+    PointerChoreographerPolicyInterface& mPolicy;
+
+    std::map<int32_t, std::shared_ptr<PointerControllerInterface>> mMousePointersByDisplay
+            GUARDED_BY(mLock);
+
+    int32_t mDefaultMouseDisplayId GUARDED_BY(mLock);
+    int32_t mNotifiedPointerDisplayId GUARDED_BY(mLock);
+    std::vector<InputDeviceInfo> mInputDeviceInfos GUARDED_BY(mLock);
+    std::vector<DisplayViewport> mViewports GUARDED_BY(mLock);
 };
 
 } // namespace android

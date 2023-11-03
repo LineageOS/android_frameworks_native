@@ -275,6 +275,7 @@ public:
     void clearSpots() override {}
     int32_t getDisplayId() const override { return mFdp->ConsumeIntegral<int32_t>(); }
     void setDisplayViewport(const DisplayViewport& displayViewport) override {}
+    std::string dump() override { return ""; }
 };
 
 class FuzzInputReaderPolicy : public InputReaderPolicyInterface {
@@ -309,6 +310,10 @@ public:
     void setTouchAffineTransformation(const TouchAffineTransformation t) { mTransform = t; }
     void notifyStylusGestureStarted(int32_t, nsecs_t) {}
     bool isInputMethodConnectionActive() override { return mFdp->ConsumeBool(); }
+    std::optional<DisplayViewport> getPointerViewportForAssociatedDisplay(
+            int32_t associatedDisplayId) override {
+        return {};
+    }
 };
 
 class FuzzInputListener : public virtual InputListenerInterface {

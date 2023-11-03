@@ -79,6 +79,8 @@ public:
     void setStylusPointerIconEnabled(bool enabled);
     void setIsInputMethodConnectionActive(bool active);
     bool isInputMethodConnectionActive() override;
+    std::optional<DisplayViewport> getPointerViewportForAssociatedDisplay(
+            int32_t associatedDisplayId) override;
 
 private:
     void getReaderConfiguration(InputReaderConfiguration* outConfig) override;
