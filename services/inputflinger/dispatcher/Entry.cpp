@@ -287,21 +287,15 @@ DispatchEntry::DispatchEntry(std::shared_ptr<const EventEntry> eventEntry,
         rawTransform(rawTransform),
         globalScaleFactor(globalScaleFactor),
         deliveryTime(0),
-        resolvedAction(0),
         resolvedFlags(0) {
     switch (this->eventEntry->type) {
         case EventEntry::Type::KEY: {
             const KeyEntry& keyEntry = static_cast<const KeyEntry&>(*this->eventEntry);
-            resolvedEventId = keyEntry.id;
-            resolvedAction = keyEntry.action;
             resolvedFlags = keyEntry.flags;
-
             break;
         }
         case EventEntry::Type::MOTION: {
             const MotionEntry& motionEntry = static_cast<const MotionEntry&>(*this->eventEntry);
-            resolvedEventId = motionEntry.id;
-            resolvedAction = motionEntry.action;
             resolvedFlags = motionEntry.flags;
             break;
         }
@@ -321,24 +315,9 @@ uint32_t DispatchEntry::nextSeq() {
 }
 
 std::ostream& operator<<(std::ostream& out, const DispatchEntry& entry) {
-    out << "DispatchEntry{resolvedAction=";
-    switch (entry.eventEntry->type) {
-        case EventEntry::Type::KEY: {
-            out << KeyEvent::actionToString(entry.resolvedAction);
-            break;
-        }
-        case EventEntry::Type::MOTION: {
-            out << MotionEvent::actionToString(entry.resolvedAction);
-            break;
-        }
-        default: {
-            out << "<invalid, not a key or a motion>";
-            break;
-        }
-    }
     std::string transform;
     entry.transform.dump(transform, "transform");
-    out << ", resolvedFlags=" << entry.resolvedFlags
+    out << "DispatchEntry{resolvedFlags=" << entry.resolvedFlags
         << ", targetFlags=" << entry.targetFlags.string() << ", transform=" << transform
         << "} original: " << entry.eventEntry->getDescription();
     return out;

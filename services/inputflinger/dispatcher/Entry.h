@@ -220,9 +220,6 @@ struct DispatchEntry {
     // An ANR will be triggered if a response for this entry is not received by timeoutTime
     nsecs_t timeoutTime;
 
-    // Set to the resolved ID, action and flags when the event is enqueued.
-    int32_t resolvedEventId;
-    int32_t resolvedAction;
     int32_t resolvedFlags;
 
     DispatchEntry(std::shared_ptr<const EventEntry> eventEntry,
