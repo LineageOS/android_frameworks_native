@@ -608,8 +608,10 @@ Loader::driver_t* Loader::attempt_to_load_angle(egl_connection_t* cnx) {
 }
 
 void Loader::attempt_to_init_angle_backend(void* dso, egl_connection_t* cnx) {
-    void* pANGLEGetDisplayPlatform = dlsym(dso, "ANGLEGetDisplayPlatform");
-    if (pANGLEGetDisplayPlatform) {
+    cnx->angleGetDisplayPlatformFunc = dlsym(dso, "ANGLEGetDisplayPlatform");
+    cnx->angleResetDisplayPlatformFunc = dlsym(dso, "ANGLEResetDisplayPlatform");
+
+    if (cnx->angleGetDisplayPlatformFunc) {
         ALOGV("ANGLE GLES library loaded");
         cnx->angleLoaded = true;
         android::GraphicsEnv::getInstance().setDriverToLoad(android::GpuStatsInfo::Driver::ANGLE);
