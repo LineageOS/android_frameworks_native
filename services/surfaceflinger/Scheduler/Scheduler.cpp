@@ -1226,12 +1226,27 @@ void Scheduler::onActiveDisplayAreaChanged(uint32_t displayArea) {
     mLayerHistory.setDisplayArea(displayArea);
 }
 
-void Scheduler::setGameModeRefreshRateForUid(FrameRateOverride frameRateOverride) {
+void Scheduler::setGameModeFrameRateForUid(FrameRateOverride frameRateOverride) {
     if (frameRateOverride.frameRateHz > 0.f && frameRateOverride.frameRateHz < 1.f) {
         return;
     }
 
-    mFrameRateOverrideMappings.setGameModeRefreshRateForUid(frameRateOverride);
+    if (FlagManager::getInstance().game_default_frame_rate()) {
+        // update the frame rate override mapping in LayerHistory
+        mLayerHistory.updateGameModeFrameRateOverride(frameRateOverride);
+    } else {
+        mFrameRateOverrideMappings.setGameModeRefreshRateForUid(frameRateOverride);
+    }
+}
+
+void Scheduler::setGameDefaultFrameRateForUid(FrameRateOverride frameRateOverride) {
+    if (!FlagManager::getInstance().game_default_frame_rate() ||
+        (frameRateOverride.frameRateHz > 0.f && frameRateOverride.frameRateHz < 1.f)) {
+        return;
+    }
+
+    // update the frame rate override mapping in LayerHistory
+    mLayerHistory.updateGameDefaultFrameRateOverride(frameRateOverride);
 }
 
 void Scheduler::setPreferredRefreshRateForUid(FrameRateOverride frameRateOverride) {

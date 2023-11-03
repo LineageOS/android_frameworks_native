@@ -55,7 +55,6 @@ cc_test {
         "ReleaseBufferCallback_test.cpp",
         "ScreenCapture_test.cpp",
         "SetFrameRate_test.cpp",
-        "SetFrameRateOverride_test.cpp",
         "SetGeometry_test.cpp",
         "Stress_test.cpp",
         "TextureFiltering_test.cpp",

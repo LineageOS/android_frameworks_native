@@ -607,7 +607,9 @@ private:
     status_t setFrameTimelineInfo(const sp<IGraphicBufferProducer>& surface,
                                   const gui::FrameTimelineInfo& frameTimelineInfo);
 
-    status_t setOverrideFrameRate(uid_t uid, float frameRate);
+    status_t setGameModeFrameRateOverride(uid_t uid, float frameRate);
+
+    status_t setGameDefaultFrameRateOverride(uid_t uid, float frameRate);
 
     status_t updateSmallAreaDetection(std::vector<std::pair<int32_t, float>>& uidThresholdMappings);
 
@@ -1571,7 +1573,8 @@ public:
     binder::Status getDisplayDecorationSupport(
             const sp<IBinder>& displayToken,
             std::optional<gui::DisplayDecorationSupport>* outSupport) override;
-    binder::Status setOverrideFrameRate(int32_t uid, float frameRate) override;
+    binder::Status setGameModeFrameRateOverride(int32_t uid, float frameRate) override;
+    binder::Status setGameDefaultFrameRateOverride(int32_t uid, float frameRate) override;
     binder::Status enableRefreshRateOverlay(bool active) override;
     binder::Status setDebugFlash(int delay) override;
     binder::Status scheduleComposite() override;
