@@ -56,7 +56,8 @@ public:
     [[nodiscard]] const std::optional<unsigned int>& hostPort() const { return mPort; }
 
 private:
-    DISALLOW_COPY_AND_ASSIGN(AdbForwarder);
+    AdbForwarder(const AdbForwarder&) = delete;
+    void operator=(const AdbForwarder&) = delete;
     explicit AdbForwarder(unsigned int port) : mPort(port) {}
     std::optional<unsigned int> mPort;
 };

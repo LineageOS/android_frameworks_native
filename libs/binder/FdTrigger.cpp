@@ -21,10 +21,11 @@
 
 #include <poll.h>
 
-#include <android-base/macros.h>
 #include <android-base/scopeguard.h>
 
 #include "RpcState.h"
+#include "Utils.h"
+
 namespace android {
 
 std::unique_ptr<FdTrigger> FdTrigger::make() {
@@ -77,7 +78,7 @@ status_t FdTrigger::triggerablePoll(const android::RpcTransportFd& transportFd, 
     auto pollingStateGuard =
             android::base::make_scope_guard([&]() { transportFd.setPollingState(false); });
 
-    int ret = TEMP_FAILURE_RETRY(poll(pfd, arraysize(pfd), -1));
+    int ret = TEMP_FAILURE_RETRY(poll(pfd, countof(pfd), -1));
     if (ret < 0) {
         return -errno;
     }

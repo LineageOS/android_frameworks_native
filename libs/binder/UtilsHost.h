@@ -22,7 +22,6 @@
 #include <variant>
 #include <vector>
 
-#include <android-base/macros.h>
 #include <android-base/result.h>
 #include <android-base/unique_fd.h>
 
@@ -67,7 +66,8 @@ struct CommandResult {
     }
 
 private:
-    DISALLOW_COPY_AND_ASSIGN(CommandResult);
+    CommandResult(const CommandResult&) = delete;
+    void operator=(const CommandResult&) = delete;
 };
 
 std::ostream& operator<<(std::ostream& os, const CommandResult& res);
