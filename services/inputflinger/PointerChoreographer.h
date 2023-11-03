@@ -25,6 +25,8 @@
 
 namespace android {
 
+struct SpriteIcon;
+
 /**
  * A helper class that wraps a factory method that acts as a constructor for the type returned
  * by the factory method.
@@ -58,6 +60,9 @@ public:
     virtual FloatPoint getMouseCursorPosition(int32_t displayId) = 0;
     virtual void setShowTouchesEnabled(bool enabled) = 0;
     virtual void setStylusPointerIconEnabled(bool enabled) = 0;
+    virtual bool setPointerIcon(std::variant<std::unique_ptr<SpriteIcon>, PointerIconStyle> icon,
+                                int32_t displayId, DeviceId deviceId) = 0;
+
     /**
      * This method may be called on any thread (usually by the input manager on a binder thread).
      */
@@ -77,6 +82,8 @@ public:
     FloatPoint getMouseCursorPosition(int32_t displayId) override;
     void setShowTouchesEnabled(bool enabled) override;
     void setStylusPointerIconEnabled(bool enabled) override;
+    bool setPointerIcon(std::variant<std::unique_ptr<SpriteIcon>, PointerIconStyle> icon,
+                        int32_t displayId, DeviceId deviceId) override;
 
     void notifyInputDevicesChanged(const NotifyInputDevicesChangedArgs& args) override;
     void notifyConfigurationChanged(const NotifyConfigurationChangedArgs& args) override;

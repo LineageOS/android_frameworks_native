@@ -54,6 +54,16 @@ void FakePointerController::setDisplayViewport(const DisplayViewport& viewport) 
               viewport.logicalBottom - 1);
 }
 
+void FakePointerController::updatePointerIcon(PointerIconStyle iconId) {
+    ASSERT_FALSE(mIconStyle.has_value()) << "Pointer icon was set more than once";
+    mIconStyle = iconId;
+}
+
+void FakePointerController::setCustomPointerIcon(const SpriteIcon& icon) {
+    ASSERT_FALSE(mCustomIconStyle.has_value()) << "Custom pointer icon was set more than once";
+    mCustomIconStyle = icon.style;
+}
+
 void FakePointerController::assertViewportSet(int32_t displayId) {
     ASSERT_TRUE(mDisplayId);
     ASSERT_EQ(displayId, mDisplayId);
@@ -73,6 +83,26 @@ void FakePointerController::assertSpotCount(int32_t displayId, int32_t count) {
     auto it = mSpotsByDisplay.find(displayId);
     ASSERT_TRUE(it != mSpotsByDisplay.end()) << "Spots not found for display " << displayId;
     ASSERT_EQ(static_cast<size_t>(count), it->second.size());
+}
+
+void FakePointerController::assertPointerIconSet(PointerIconStyle iconId) {
+    ASSERT_TRUE(mIconStyle) << "Pointer icon style was not set";
+    ASSERT_EQ(iconId, mIconStyle);
+    mIconStyle.reset();
+}
+
+void FakePointerController::assertPointerIconNotSet() {
+    ASSERT_EQ(std::nullopt, mIconStyle);
+}
+
+void FakePointerController::assertCustomPointerIconSet(PointerIconStyle iconId) {
+    ASSERT_TRUE(mCustomIconStyle) << "Custom pointer icon was not set";
+    ASSERT_EQ(iconId, mCustomIconStyle);
+    mCustomIconStyle.reset();
+}
+
+void FakePointerController::assertCustomPointerIconNotSet() {
+    ASSERT_EQ(std::nullopt, mCustomIconStyle);
 }
 
 bool FakePointerController::isPointerShown() {
