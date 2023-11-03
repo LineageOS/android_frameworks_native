@@ -22,7 +22,6 @@
 #include <binder/BpBinder.h>
 #include <binder/TextOutput.h>
 
-#include <android-base/macros.h>
 #include <cutils/sched_policy.h>
 #include <utils/CallStack.h>
 #include <utils/Log.h>
@@ -395,7 +394,9 @@ void IPCThreadState::restoreGetCallingSpGuard(const SpGuard* guard) {
 }
 
 void IPCThreadState::checkContextIsBinderForUse(const char* use) const {
-    if (LIKELY(mServingStackPointerGuard == nullptr)) return;
+    if (mServingStackPointerGuard == nullptr) [[likely]] {
+        return;
+    }
 
     if (!mServingStackPointer || mServingStackPointerGuard->address < mServingStackPointer) {
         LOG_ALWAYS_FATAL("In context %s, %s does not make sense (binder sp: %p, guard: %p).",
@@ -832,7 +833,7 @@ status_t IPCThreadState::transact(int32_t handle,
     }
 
     if ((flags & TF_ONE_WAY) == 0) {
-        if (UNLIKELY(mCallRestriction != ProcessState::CallRestriction::NONE)) {
+        if (mCallRestriction != ProcessState::CallRestriction::NONE) [[unlikely]] {
             if (mCallRestriction == ProcessState::CallRestriction::ERROR_IF_NOT_ONEWAY) {
                 ALOGE("Process making non-oneway call (code: %u) but is restricted.", code);
                 CallStack::logStack("non-oneway call", CallStack::getCurrent(10).get(),
@@ -842,13 +843,13 @@ status_t IPCThreadState::transact(int32_t handle,
             }
         }
 
-        #if 0
+#if 0
         if (code == 4) { // relayout
             ALOGI(">>>>>> CALLING transaction 4");
         } else {
             ALOGI(">>>>>> CALLING transaction %d", code);
         }
-        #endif
+#endif
         if (reply) {
             err = waitForResponse(reply);
         } else {
