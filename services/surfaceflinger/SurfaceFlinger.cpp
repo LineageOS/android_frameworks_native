@@ -2247,6 +2247,7 @@ void SurfaceFlinger::updateLayerHistory(nsecs_t now) {
                 .setFrameRateVote = snapshot->frameRate,
                 .frameRateSelectionPriority = snapshot->frameRateSelectionPriority,
                 .isSmallDirty = snapshot->isSmallDirty,
+                .isFrontBuffered = snapshot->isFrontBuffered(),
         };
 
         if (snapshot->clientChanges & layer_state_t::eDefaultFrameRateCompatibilityChanged) {
@@ -2747,11 +2748,11 @@ CompositeResultsPerDisplay SurfaceFlinger::composite(
         mPowerAdvisor->reportActualWorkDuration();
     }
 
-    if (mScheduler->onPostComposition(presentTime)) {
+    if (mScheduler->onCompositionPresented(presentTime)) {
         scheduleComposite(FrameHint::kNone);
     }
 
-    postComposition(pacesetterId, frameTargeters, presentTime);
+    onCompositionPresented(pacesetterId, frameTargeters, presentTime);
 
     const bool hadGpuComposited =
             multiDisplayUnion(mCompositionCoverage).test(CompositionCoverage::Gpu);
@@ -2908,9 +2909,9 @@ ui::Rotation SurfaceFlinger::getPhysicalDisplayOrientation(DisplayId displayId,
     return ui::ROTATION_0;
 }
 
-void SurfaceFlinger::postComposition(PhysicalDisplayId pacesetterId,
-                                     const scheduler::FrameTargeters& frameTargeters,
-                                     nsecs_t presentStartTime) {
+void SurfaceFlinger::onCompositionPresented(PhysicalDisplayId pacesetterId,
+                                            const scheduler::FrameTargeters& frameTargeters,
+                                            nsecs_t presentStartTime) {
     ATRACE_CALL();
     ALOGV(__func__);
 
@@ -3004,8 +3005,9 @@ void SurfaceFlinger::postComposition(PhysicalDisplayId pacesetterId,
     mLayersWithBuffersRemoved.clear();
 
     for (const auto& layer: mLayersWithQueuedFrames) {
-        layer->onPostComposition(pacesetterDisplay.get(), pacesetterGpuCompositionDoneFenceTime,
-                                 pacesetterPresentFenceTime, compositorTiming);
+        layer->onCompositionPresented(pacesetterDisplay.get(),
+                                      pacesetterGpuCompositionDoneFenceTime,
+                                      pacesetterPresentFenceTime, compositorTiming);
         layer->releasePendingBuffer(presentTime.ns());
     }
 
@@ -4880,6 +4882,7 @@ bool SurfaceFlinger::applyTransactionState(const FrameTimelineInfo& frameTimelin
                         .transform = layer->getTransform(),
                         .setFrameRateVote = layer->getFrameRateForLayerTree(),
                         .frameRateSelectionPriority = layer->getFrameRateSelectionPriority(),
+                        .isFrontBuffered = layer->isFrontBuffered(),
                 };
                 layer->recordLayerHistoryAnimationTx(layerProps, now);
             }

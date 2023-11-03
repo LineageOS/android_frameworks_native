@@ -52,6 +52,7 @@ protected:
     void setKeyCodeState(KeyState state, std::set<int> keyCodes);
 
     std::list<NotifyArgs> process(int32_t type, int32_t code, int32_t value);
+    std::list<NotifyArgs> process(nsecs_t when, int32_t type, int32_t code, int32_t value);
 
     MockEventHubInterface mMockEventHub;
     std::shared_ptr<FakePointerController> mFakePointerController;

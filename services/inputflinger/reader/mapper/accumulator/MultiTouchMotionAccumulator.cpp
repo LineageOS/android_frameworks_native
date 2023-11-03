@@ -152,6 +152,14 @@ void MultiTouchMotionAccumulator::warnIfNotInUse(const RawEvent& event, const Sl
     }
 }
 
+size_t MultiTouchMotionAccumulator::getActiveSlotsCount() const {
+    if (!mUsingSlotsProtocol) {
+        return mCurrentSlot < 0 ? 0 : mCurrentSlot;
+    }
+    return std::count_if(mSlots.begin(), mSlots.end(),
+                         [](const Slot& slot) { return slot.mInUse; });
+}
+
 // --- MultiTouchMotionAccumulator::Slot ---
 
 ToolType MultiTouchMotionAccumulator::Slot::getToolType() const {

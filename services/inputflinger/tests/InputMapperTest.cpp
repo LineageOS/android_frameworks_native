@@ -80,9 +80,15 @@ void InputMapperUnitTest::setKeyCodeState(KeyState state, std::set<int> keyCodes
 }
 
 std::list<NotifyArgs> InputMapperUnitTest::process(int32_t type, int32_t code, int32_t value) {
+    nsecs_t when = systemTime(SYSTEM_TIME_MONOTONIC);
+    return process(when, type, code, value);
+}
+
+std::list<NotifyArgs> InputMapperUnitTest::process(nsecs_t when, int32_t type, int32_t code,
+                                                   int32_t value) {
     RawEvent event;
-    event.when = systemTime(SYSTEM_TIME_MONOTONIC);
-    event.readTime = event.when;
+    event.when = when;
+    event.readTime = when;
     event.deviceId = mMapper->getDeviceContext().getEventHubId();
     event.type = type;
     event.code = code;

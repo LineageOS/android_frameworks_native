@@ -342,6 +342,8 @@ public:
     //
     ui::Dataspace getDataSpace() const;
 
+    virtual bool isFrontBuffered() const;
+
     virtual sp<LayerFE> getCompositionEngineLayerFE() const;
     virtual sp<LayerFE> copyCompositionEngineLayerFE() const;
     sp<LayerFE> getCompositionEngineLayerFE(const frontend::LayerHierarchy::TraversalPath&);
@@ -433,13 +435,10 @@ public:
     void updateCloneBufferInfo();
     uint64_t mPreviousFrameNumber = 0;
 
-    /*
-     * called after composition.
-     * returns true if the layer latched a new buffer this frame.
-     */
-    void onPostComposition(const DisplayDevice*, const std::shared_ptr<FenceTime>& /*glDoneFence*/,
-                           const std::shared_ptr<FenceTime>& /*presentFence*/,
-                           const CompositorTiming&);
+    void onCompositionPresented(const DisplayDevice*,
+                                const std::shared_ptr<FenceTime>& /*glDoneFence*/,
+                                const std::shared_ptr<FenceTime>& /*presentFence*/,
+                                const CompositorTiming&);
 
     // If a buffer was replaced this frame, release the former buffer
     void releasePendingBuffer(nsecs_t /*dequeueReadyTime*/);
@@ -915,14 +914,13 @@ public:
     void recordLayerHistoryBufferUpdate(const scheduler::LayerProps&, nsecs_t now);
     void recordLayerHistoryAnimationTx(const scheduler::LayerProps&, nsecs_t now);
     auto getLayerProps() const {
-        return scheduler::LayerProps{
-                .visible = isVisible(),
-                .bounds = getBounds(),
-                .transform = getTransform(),
-                .setFrameRateVote = getFrameRateForLayerTree(),
-                .frameRateSelectionPriority = getFrameRateSelectionPriority(),
-                .isSmallDirty = mSmallDirty,
-        };
+        return scheduler::LayerProps{.visible = isVisible(),
+                                     .bounds = getBounds(),
+                                     .transform = getTransform(),
+                                     .setFrameRateVote = getFrameRateForLayerTree(),
+                                     .frameRateSelectionPriority = getFrameRateSelectionPriority(),
+                                     .isSmallDirty = mSmallDirty,
+                                     .isFrontBuffered = isFrontBuffered()};
     };
     bool hasBuffer() const { return mBufferInfo.mBuffer != nullptr; }
     void setTransformHint(std::optional<ui::Transform::RotationFlags> transformHint) {

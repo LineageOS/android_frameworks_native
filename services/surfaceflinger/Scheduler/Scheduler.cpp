@@ -1165,7 +1165,7 @@ void Scheduler::onNewVsyncPeriodChangeTimeline(const hal::VsyncPeriodChangeTimel
     }
 }
 
-bool Scheduler::onPostComposition(nsecs_t presentTime) {
+bool Scheduler::onCompositionPresented(nsecs_t presentTime) {
     std::lock_guard<std::mutex> lock(mVsyncTimelineLock);
     if (mLastVsyncPeriodChangeTimeline && mLastVsyncPeriodChangeTimeline->refreshRequired) {
         if (presentTime < mLastVsyncPeriodChangeTimeline->refreshTimeNanos) {

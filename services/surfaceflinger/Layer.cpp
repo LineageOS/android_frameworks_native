@@ -4024,10 +4024,10 @@ bool Layer::isVisible() const {
     return getAlpha() > 0.0f || hasBlur();
 }
 
-void Layer::onPostComposition(const DisplayDevice* display,
-                              const std::shared_ptr<FenceTime>& glDoneFence,
-                              const std::shared_ptr<FenceTime>& presentFence,
-                              const CompositorTiming& compositorTiming) {
+void Layer::onCompositionPresented(const DisplayDevice* display,
+                                   const std::shared_ptr<FenceTime>& glDoneFence,
+                                   const std::shared_ptr<FenceTime>& presentFence,
+                                   const CompositorTiming& compositorTiming) {
     // mFrameLatencyNeeded is true when a new frame was latched for the
     // composition.
     if (!mBufferInfo.mFrameLatencyNeeded) return;
@@ -4228,6 +4228,14 @@ uint32_t Layer::getBufferTransform() const {
 
 ui::Dataspace Layer::getDataSpace() const {
     return hasBufferOrSidebandStream() ? mBufferInfo.mDataspace : mDrawingState.dataspace;
+}
+
+bool Layer::isFrontBuffered() const {
+    if (mBufferInfo.mBuffer == nullptr) {
+        return false;
+    }
+
+    return mBufferInfo.mBuffer->getUsage() & AHARDWAREBUFFER_USAGE_FRONT_BUFFER;
 }
 
 ui::Dataspace Layer::translateDataspace(ui::Dataspace dataspace) {

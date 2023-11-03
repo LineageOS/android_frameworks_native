@@ -360,6 +360,12 @@ public:
 
     void setPreventingTouchpadTaps(bool prevent) {}
     bool isPreventingTouchpadTaps() { return mFdp->ConsumeBool(); };
+
+    void setLastKeyDownTimestamp(nsecs_t when) { mLastKeyDownTimestamp = when; };
+    nsecs_t getLastKeyDownTimestamp() { return mLastKeyDownTimestamp; };
+
+private:
+    nsecs_t mLastKeyDownTimestamp;
 };
 
 template <class Fdp>

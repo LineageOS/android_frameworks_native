@@ -898,4 +898,24 @@ TEST_F(LayerSnapshotTest, setTrustedOverlayForNonVisibleInput) {
             gui::WindowInfo::InputConfig::TRUSTED_OVERLAY));
 }
 
+TEST_F(LayerSnapshotTest, isFrontBuffered) {
+    setBuffer(1,
+              std::make_shared<renderengine::mock::FakeExternalTexture>(
+                      1U /*width*/, 1U /*height*/, 1ULL /* bufferId */, HAL_PIXEL_FORMAT_RGBA_8888,
+                      GRALLOC_USAGE_HW_TEXTURE | AHARDWAREBUFFER_USAGE_FRONT_BUFFER /*usage*/));
+
+    UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
+    EXPECT_TRUE(getSnapshot(1)->isFrontBuffered());
+
+    setBuffer(1,
+              std::make_shared<
+                      renderengine::mock::FakeExternalTexture>(1U /*width*/, 1U /*height*/,
+                                                               1ULL /* bufferId */,
+                                                               HAL_PIXEL_FORMAT_RGBA_8888,
+                                                               GRALLOC_USAGE_HW_TEXTURE /*usage*/));
+
+    UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
+    EXPECT_FALSE(getSnapshot(1)->isFrontBuffered());
+}
+
 } // namespace android::surfaceflinger::frontend

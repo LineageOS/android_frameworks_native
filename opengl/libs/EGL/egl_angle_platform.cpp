@@ -128,8 +128,8 @@ bool initializeAnglePlatform(EGLDisplay dpy) {
             return false;
         }
     } else {
-        // If we are here, ANGLE is loaded as built-in gl driver in the sphal.
-        so = android_load_sphal_library(kAngleEs2Lib, kAngleDlFlags);
+        // If we are here, ANGLE is loaded as the default OpenGL ES driver.
+        so = dlopen(kAngleEs2Lib, kAngleDlFlags);
         if (so) {
             ALOGD("dlopen (%s) success at %p", kAngleEs2Lib, so);
         } else {

@@ -281,8 +281,8 @@ public:
     // Notifies the scheduler about a refresh rate timeline change.
     void onNewVsyncPeriodChangeTimeline(const hal::VsyncPeriodChangeTimeline& timeline);
 
-    // Notifies the scheduler post composition. Returns if recomposite is needed.
-    bool onPostComposition(nsecs_t presentTime);
+    // Notifies the scheduler once the composition is presented. Returns if recomposite is needed.
+    bool onCompositionPresented(nsecs_t presentTime);
 
     // Notifies the scheduler when the display size has changed. Called from SF's main thread
     void onActiveDisplayAreaChanged(uint32_t displayArea);
