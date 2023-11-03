@@ -16,25 +16,30 @@
 
 package com.android.server.inputflinger;
 
-import com.android.server.inputflinger.IInputFilter;
-import com.android.server.inputflinger.IInputFilter.IInputFilterCallbacks;
+import com.android.server.inputflinger.KeyEvent;
 
 /**
  * A local AIDL interface used as a foreign function interface (ffi) to
- * communicate with the Rust component of inputflinger.
+ * filter input events.
  *
  * NOTE: Since we use this as a local interface, all processing happens on the
  * calling thread.
  */
-interface IInputFlingerRust {
+interface IInputFilter {
 
-   /**
-    * An interface used to get a strong reference to IInputFlingerRust on boot.
-    */
-    interface IInputFlingerRustBootstrapCallback {
-        void onProvideInputFlingerRust(in IInputFlingerRust inputFlingerRust);
+    /** Callbacks for the rust InputFilter to call into C++. */
+    interface IInputFilterCallbacks {
+        /** Sends back a filtered key event */
+        void sendKeyEvent(in KeyEvent event);
     }
 
-    /** Create the rust implementation of InputFilter. */
-    IInputFilter createInputFilter(IInputFilterCallbacks callbacks);
+    /** Returns if InputFilter is enabled */
+    boolean isEnabled();
+
+    /** Notifies if a key event occurred */
+    void notifyKey(in KeyEvent event);
+
+    /** Notifies if any InputDevice list changed and provides the list of connected peripherals */
+    void notifyInputDevicesChanged(in int[] deviceIds);
 }
+

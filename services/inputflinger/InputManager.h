@@ -21,6 +21,7 @@
  */
 
 #include "InputDeviceMetricsCollector.h"
+#include "InputFilter.h"
 #include "InputProcessor.h"
 #include "InputReaderBase.h"
 #include "PointerChoreographer.h"
@@ -40,6 +41,7 @@
 
 using android::os::BnInputFlinger;
 
+using aidl::com::android::server::inputflinger::IInputFilter;
 using aidl::com::android::server::inputflinger::IInputFlingerRust;
 
 namespace android {
@@ -136,6 +138,8 @@ private:
     std::unique_ptr<InputReaderInterface> mReader;
 
     std::unique_ptr<UnwantedInteractionBlockerInterface> mBlocker;
+
+    std::unique_ptr<InputFilterInterface> mInputFilter;
 
     std::unique_ptr<PointerChoreographerInterface> mChoreographer;
 

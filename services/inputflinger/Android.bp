@@ -76,6 +76,7 @@ filegroup {
     srcs: [
         "InputCommonConverter.cpp",
         "InputDeviceMetricsCollector.cpp",
+        "InputFilter.cpp",
         "InputProcessor.cpp",
         "PointerChoreographer.cpp",
         "PreferStylusOverTouchBlocker.cpp",
