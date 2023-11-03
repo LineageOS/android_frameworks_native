@@ -22,7 +22,6 @@
 #include <iostream>
 #include <string>
 
-#include <android-base/macros.h>
 #include <android-base/strings.h>
 
 namespace android {

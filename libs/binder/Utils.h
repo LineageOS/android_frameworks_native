@@ -45,6 +45,17 @@
 
 namespace android {
 
+/**
+ * Get the size of a statically initialized array.
+ *
+ * \param N the array to get the size of.
+ * \return the size of the array.
+ */
+template <typename T, size_t N>
+constexpr size_t countof(T (&)[N]) {
+    return N;
+}
+
 // avoid optimizations
 void zeroMemory(uint8_t* data, size_t size);
 
