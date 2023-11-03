@@ -31,6 +31,7 @@
 #include <scheduler/Time.h>
 
 #include "ThreadContext.h"
+#include "VSyncTracker.h"
 
 namespace android {
 class EventThreadTest;
@@ -56,7 +57,7 @@ class VsyncSchedule final : public IVsyncSource {
 public:
     using RequestHardwareVsync = std::function<void(PhysicalDisplayId, bool enabled)>;
 
-    VsyncSchedule(PhysicalDisplayId, FeatureFlags, RequestHardwareVsync);
+    VsyncSchedule(PhysicalDisplayId, FeatureFlags, RequestHardwareVsync, IVsyncTrackerCallback&);
     ~VsyncSchedule();
 
     // IVsyncSource overrides:
@@ -124,7 +125,7 @@ private:
     friend class android::VsyncScheduleTest;
     friend class android::fuzz::SchedulerFuzzer;
 
-    static TrackerPtr createTracker(PhysicalDisplayId);
+    static TrackerPtr createTracker(PhysicalDisplayId, IVsyncTrackerCallback&);
     static DispatchPtr createDispatch(TrackerPtr);
     static ControllerPtr createController(PhysicalDisplayId, VsyncTracker&, FeatureFlags);
 

@@ -4038,6 +4038,21 @@ void SurfaceFlinger::onChoreographerAttached() {
     }
 }
 
+void SurfaceFlinger::onVsyncGenerated(PhysicalDisplayId displayId, TimePoint expectedPresentTime,
+                                      const scheduler::DisplayModeData& displayModeData,
+                                      Period vsyncPeriod) {
+    const auto status =
+            getHwComposer()
+                    .notifyExpectedPresentIfRequired(displayId, vsyncPeriod, expectedPresentTime,
+                                                     displayModeData.renderRate,
+                                                     displayModeData
+                                                             .notifyExpectedPresentTimeoutOpt);
+    if (status != NO_ERROR) {
+        ALOGE("%s failed to notifyExpectedPresentHint for display %" PRId64, __func__,
+              displayId.value);
+    }
+}
+
 void SurfaceFlinger::initScheduler(const sp<const DisplayDevice>& display) {
     using namespace scheduler;
 
@@ -4076,8 +4091,12 @@ void SurfaceFlinger::initScheduler(const sp<const DisplayDevice>& display) {
 
     mScheduler = std::make_unique<Scheduler>(static_cast<ICompositor&>(*this),
                                              static_cast<ISchedulerCallback&>(*this), features,
-                                             std::move(modulatorPtr));
+                                             std::move(modulatorPtr),
+                                             static_cast<IVsyncTrackerCallback&>(*this));
     mScheduler->registerDisplay(display->getPhysicalId(), display->holdRefreshRateSelector());
+    if (FlagManager::getInstance().vrr_config()) {
+        mScheduler->setRenderRate(display->getPhysicalId(), activeMode.fps);
+    }
     mScheduler->startTimers();
 
     const auto configs = mVsyncConfiguration->getCurrentConfigs();

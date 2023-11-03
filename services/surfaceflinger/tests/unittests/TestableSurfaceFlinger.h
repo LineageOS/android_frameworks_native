@@ -53,6 +53,7 @@
 #include "mock/MockFrameTimeline.h"
 #include "mock/MockFrameTracer.h"
 #include "mock/MockSchedulerCallback.h"
+#include "mock/MockVsyncTrackerCallback.h"
 #include "mock/system/window/MockNativeWindow.h"
 
 #include "Scheduler/VSyncTracker.h"
@@ -204,6 +205,8 @@ public:
 
     enum class SchedulerCallbackImpl { kNoOp, kMock };
 
+    enum class VsyncTrackerCallbackImpl { kNoOp, kMock };
+
     struct DefaultDisplayMode {
         // The ID of the injected RefreshRateSelector and its default display mode.
         PhysicalDisplayId displayId;
@@ -213,13 +216,14 @@ public:
 
     using DisplayModesVariant = std::variant<DefaultDisplayMode, RefreshRateSelectorPtr>;
 
-    void setupScheduler(std::unique_ptr<scheduler::VsyncController> vsyncController,
-                        std::shared_ptr<scheduler::VSyncTracker> vsyncTracker,
-                        std::unique_ptr<EventThread> appEventThread,
-                        std::unique_ptr<EventThread> sfEventThread,
-                        DisplayModesVariant modesVariant,
-                        SchedulerCallbackImpl callbackImpl = SchedulerCallbackImpl::kNoOp,
-                        bool useNiceMock = false) {
+    void setupScheduler(
+            std::unique_ptr<scheduler::VsyncController> vsyncController,
+            std::shared_ptr<scheduler::VSyncTracker> vsyncTracker,
+            std::unique_ptr<EventThread> appEventThread, std::unique_ptr<EventThread> sfEventThread,
+            DisplayModesVariant modesVariant,
+            SchedulerCallbackImpl callbackImpl = SchedulerCallbackImpl::kNoOp,
+            VsyncTrackerCallbackImpl vsyncTrackerCallbackImpl = VsyncTrackerCallbackImpl::kNoOp,
+            bool useNiceMock = false) {
         RefreshRateSelectorPtr selectorPtr = ftl::match(
                 modesVariant,
                 [](DefaultDisplayMode arg) {
@@ -239,10 +243,16 @@ public:
 
         mTokenManager = std::make_unique<frametimeline::impl::TokenManager>();
 
-        using Callback = scheduler::ISchedulerCallback;
-        Callback& callback = callbackImpl == SchedulerCallbackImpl::kNoOp
-                ? static_cast<Callback&>(mNoOpSchedulerCallback)
-                : static_cast<Callback&>(mSchedulerCallback);
+        using ISchedulerCallback = scheduler::ISchedulerCallback;
+        ISchedulerCallback& schedulerCallback = callbackImpl == SchedulerCallbackImpl::kNoOp
+                ? static_cast<ISchedulerCallback&>(mNoOpSchedulerCallback)
+                : static_cast<ISchedulerCallback&>(mSchedulerCallback);
+
+        using VsyncTrackerCallback = scheduler::IVsyncTrackerCallback;
+        VsyncTrackerCallback& vsyncTrackerCallback =
+                vsyncTrackerCallbackImpl == VsyncTrackerCallbackImpl::kNoOp
+                ? static_cast<VsyncTrackerCallback&>(mNoOpVsyncTrackerCallback)
+                : static_cast<VsyncTrackerCallback&>(mVsyncTrackerCallback);
 
         auto modulatorPtr = sp<scheduler::VsyncModulator>::make(
                 mFlinger->mVsyncConfiguration->getCurrentConfigs());
@@ -253,12 +263,14 @@ public:
                                                                         std::move(vsyncTracker),
                                                                         std::move(selectorPtr),
                                                                         std::move(modulatorPtr),
-                                                                        callback);
+                                                                        schedulerCallback,
+                                                                        vsyncTrackerCallback);
         } else {
             mScheduler = new scheduler::TestableScheduler(std::move(vsyncController),
                                                           std::move(vsyncTracker),
                                                           std::move(selectorPtr),
-                                                          std::move(modulatorPtr), callback);
+                                                          std::move(modulatorPtr),
+                                                          schedulerCallback, vsyncTrackerCallback);
         }
 
         mScheduler->initVsync(mScheduler->getVsyncSchedule()->getDispatch(), *mTokenManager, 0ms);
@@ -297,7 +309,8 @@ public:
         EXPECT_CALL(*vsyncTracker, nextAnticipatedVSyncTimeFrom(_)).WillRepeatedly(Return(0));
         setupScheduler(std::move(vsyncController), std::move(vsyncTracker), std::move(eventThread),
                        std::move(sfEventThread), DefaultDisplayMode{options.displayId},
-                       SchedulerCallbackImpl::kNoOp, options.useNiceMock);
+                       SchedulerCallbackImpl::kNoOp, VsyncTrackerCallbackImpl::kNoOp,
+                       options.useNiceMock);
     }
 
     void resetScheduler(scheduler::Scheduler* scheduler) { mFlinger->mScheduler.reset(scheduler); }
@@ -1071,6 +1084,8 @@ private:
     sp<SurfaceFlinger> mFlinger;
     scheduler::mock::SchedulerCallback mSchedulerCallback;
     scheduler::mock::NoOpSchedulerCallback mNoOpSchedulerCallback;
+    scheduler::mock::VsyncTrackerCallback mVsyncTrackerCallback;
+    scheduler::mock::NoOpVsyncTrackerCallback mNoOpVsyncTrackerCallback;
     std::unique_ptr<frametimeline::impl::TokenManager> mTokenManager;
     scheduler::TestableScheduler* mScheduler = nullptr;
     Hwc2::mock::PowerAdvisor mPowerAdvisor;

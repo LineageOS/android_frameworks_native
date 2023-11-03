@@ -54,7 +54,7 @@ public:
     void resetModel() final {}
     bool needsMoreSamples() const final { return false; }
     bool isVSyncInPhase(nsecs_t, Fps) const final { return false; }
-    void setRenderRate(Fps) final {}
+    void setDisplayModeData(const DisplayModeData&) final {}
     void dump(std::string&) const final {}
 
 private:
@@ -92,7 +92,7 @@ public:
     void resetModel() final {}
     bool needsMoreSamples() const final { return false; }
     bool isVSyncInPhase(nsecs_t, Fps) const final { return false; }
-    void setRenderRate(Fps) final {}
+    void setDisplayModeData(const DisplayModeData&) final {}
     void dump(std::string&) const final {}
 
 private:

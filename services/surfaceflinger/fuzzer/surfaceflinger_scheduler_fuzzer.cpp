@@ -178,14 +178,23 @@ void SchedulerFuzzer::fuzzVSyncDispatchTimerQueue() {
     dump<scheduler::VSyncDispatchTimerQueueEntry>(&entry, &mFdp);
 }
 
+struct VsyncTrackerCallback : public scheduler::IVsyncTrackerCallback {
+    void onVsyncGenerated(PhysicalDisplayId, TimePoint, const scheduler::DisplayModeData&,
+                          Period) override {}
+};
+
 void SchedulerFuzzer::fuzzVSyncPredictor() {
     uint16_t now = mFdp.ConsumeIntegral<uint16_t>();
     uint16_t historySize = mFdp.ConsumeIntegralInRange<uint16_t>(1, UINT16_MAX);
     uint16_t minimumSamplesForPrediction = mFdp.ConsumeIntegralInRange<uint16_t>(1, UINT16_MAX);
     nsecs_t idealPeriod = mFdp.ConsumeIntegralInRange<nsecs_t>(1, UINT32_MAX);
-    scheduler::VSyncPredictor tracker{kDisplayId, idealPeriod, historySize,
+    VsyncTrackerCallback callback;
+    scheduler::VSyncPredictor tracker{kDisplayId,
+                                      idealPeriod,
+                                      historySize,
                                       minimumSamplesForPrediction,
-                                      mFdp.ConsumeIntegral<uint32_t>() /*outlierTolerancePercent*/};
+                                      mFdp.ConsumeIntegral<uint32_t>() /*outlierTolerancePercent*/,
+                                      callback};
     uint16_t period = mFdp.ConsumeIntegral<uint16_t>();
     tracker.setPeriod(period);
     for (uint16_t i = 0; i < minimumSamplesForPrediction; ++i) {
