@@ -163,8 +163,11 @@ private:
 
 void DisplayHardwareFuzzer::validateDisplay(Hwc2::AidlComposer* composer, Display display) {
     uint32_t outNumTypes, outNumRequests;
-    composer->validateDisplay(display, mFdp.ConsumeIntegral<nsecs_t>(), &outNumTypes,
-                              &outNumRequests);
+    const auto frameIntervalRange =
+            mFdp.ConsumeIntegralInRange<int32_t>(Fps::fromValue(1).getPeriodNsecs(),
+                                                 Fps::fromValue(120).getPeriodNsecs());
+    composer->validateDisplay(display, mFdp.ConsumeIntegral<nsecs_t>(), frameIntervalRange,
+                              &outNumTypes, &outNumRequests);
 }
 
 void DisplayHardwareFuzzer::presentOrValidateDisplay(Hwc2::AidlComposer* composer,

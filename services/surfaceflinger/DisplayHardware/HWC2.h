@@ -148,8 +148,8 @@ public:
             const android::sp<android::Fence>& releaseFence) = 0;
     [[nodiscard]] virtual hal::Error setPowerMode(hal::PowerMode mode) = 0;
     [[nodiscard]] virtual hal::Error setVsyncEnabled(hal::Vsync enabled) = 0;
-    [[nodiscard]] virtual hal::Error validate(nsecs_t expectedPresentTime, uint32_t* outNumTypes,
-                                              uint32_t* outNumRequests) = 0;
+    [[nodiscard]] virtual hal::Error validate(nsecs_t expectedPresentTime, int32_t frameIntervalNs,
+                                              uint32_t* outNumTypes, uint32_t* outNumRequests) = 0;
     [[nodiscard]] virtual hal::Error presentOrValidate(nsecs_t expectedPresentTime,
                                                        int32_t frameIntervalNs,
                                                        uint32_t* outNumTypes,
@@ -234,7 +234,7 @@ public:
                                const android::sp<android::Fence>& releaseFence) override;
     hal::Error setPowerMode(hal::PowerMode) override;
     hal::Error setVsyncEnabled(hal::Vsync enabled) override;
-    hal::Error validate(nsecs_t expectedPresentTime, uint32_t* outNumTypes,
+    hal::Error validate(nsecs_t expectedPresentTime, int32_t frameIntervalNs, uint32_t* outNumTypes,
                         uint32_t* outNumRequests) override;
     hal::Error presentOrValidate(nsecs_t expectedPresentTime, int32_t frameIntervalNs,
                                  uint32_t* outNumTypes, uint32_t* outNumRequests,

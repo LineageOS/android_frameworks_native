@@ -236,8 +236,8 @@ public:
 
     Error setClientTargetSlotCount(Display display) override;
 
-    Error validateDisplay(Display display, nsecs_t expectedPresentTime, uint32_t* outNumTypes,
-                          uint32_t* outNumRequests) override;
+    Error validateDisplay(Display display, nsecs_t expectedPresentTime, int32_t frameIntervalNs,
+                          uint32_t* outNumTypes, uint32_t* outNumRequests) override;
 
     Error presentOrValidateDisplay(Display display, nsecs_t expectedPresentTime,
                                    int32_t frameIntervalNs, uint32_t* outNumTypes,

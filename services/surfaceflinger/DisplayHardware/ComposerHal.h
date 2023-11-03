@@ -174,7 +174,8 @@ public:
     virtual Error setClientTargetSlotCount(Display display) = 0;
 
     virtual Error validateDisplay(Display display, nsecs_t expectedPresentTime,
-                                  uint32_t* outNumTypes, uint32_t* outNumRequests) = 0;
+                                  int32_t frameIntervalNs, uint32_t* outNumTypes,
+                                  uint32_t* outNumRequests) = 0;
 
     virtual Error presentOrValidateDisplay(Display display, nsecs_t expectedPresentTime,
                                            int32_t frameIntervalNs, uint32_t* outNumTypes,
