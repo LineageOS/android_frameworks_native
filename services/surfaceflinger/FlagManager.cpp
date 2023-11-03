@@ -60,10 +60,6 @@ bool getFlagValue(std::function<bool()> getter, std::optional<bool> overrideValu
     return getter();
 }
 
-void dumpFlag(std::string& result, const char* name, std::function<bool()> getter) {
-    base::StringAppendF(&result, "%s: %s\n", name, getter() ? "true" : "false");
-}
-
 } // namespace
 
 const FlagManager& FlagManager::getInstance() {
@@ -90,23 +86,43 @@ void FlagManager::setUnitTestMode() {
     mBootCompleted = true;
 }
 
+void FlagManager::dumpFlag(std::string& result, bool readonly, const char* name,
+                           std::function<bool()> getter) const {
+    if (readonly || mBootCompleted) {
+        base::StringAppendF(&result, "%s: %s\n", name, getter() ? "true" : "false");
+    } else {
+        base::StringAppendF(&result, "%s: in progress (still booting)\n", name);
+    }
+}
+
 void FlagManager::dump(std::string& result) const {
-#define DUMP_FLAG(name) dumpFlag(result, #name, std::bind(&FlagManager::name, this))
+#define DUMP_FLAG_INTERVAL(name, readonly) \
+    dumpFlag(result, (readonly), #name, std::bind(&FlagManager::name, this))
+#define DUMP_SERVER_FLAG(name) DUMP_FLAG_INTERVAL(name, false)
+#define DUMP_READ_ONLY_FLAG(name) DUMP_FLAG_INTERVAL(name, true)
 
     base::StringAppendF(&result, "FlagManager values: \n");
-    DUMP_FLAG(use_adpf_cpu_hint);
-    DUMP_FLAG(use_skia_tracing);
-    DUMP_FLAG(connected_display);
-    DUMP_FLAG(dont_skip_on_early);
-    DUMP_FLAG(enable_small_area_detection);
-    DUMP_FLAG(misc1);
-    DUMP_FLAG(late_boot_misc2);
-    DUMP_FLAG(vrr_config);
-    DUMP_FLAG(hotplug2);
-    DUMP_FLAG(hdcp_level_hal);
-    DUMP_FLAG(multithreaded_present);
 
-#undef DUMP_FLAG
+    /// Legacy server flags ///
+    DUMP_SERVER_FLAG(use_adpf_cpu_hint);
+    DUMP_SERVER_FLAG(use_skia_tracing);
+
+    /// Trunk stable server flags ///
+    DUMP_SERVER_FLAG(late_boot_misc2);
+    DUMP_SERVER_FLAG(dont_skip_on_early);
+
+    /// Trunk stable readonly flags ///
+    DUMP_READ_ONLY_FLAG(connected_display);
+    DUMP_READ_ONLY_FLAG(enable_small_area_detection);
+    DUMP_READ_ONLY_FLAG(misc1);
+    DUMP_READ_ONLY_FLAG(vrr_config);
+    DUMP_READ_ONLY_FLAG(hotplug2);
+    DUMP_READ_ONLY_FLAG(hdcp_level_hal);
+    DUMP_READ_ONLY_FLAG(multithreaded_present);
+
+#undef DUMP_READ_ONLY_FLAG
+#undef DUMP_SERVER_FLAG
+#undef DUMP_FLAG_INTERVAL
 }
 
 std::optional<bool> FlagManager::getBoolProperty(const char* property) const {
