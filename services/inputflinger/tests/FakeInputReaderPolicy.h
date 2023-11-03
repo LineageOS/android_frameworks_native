@@ -79,7 +79,7 @@ public:
     void setStylusPointerIconEnabled(bool enabled);
     void setIsInputMethodConnectionActive(bool active);
     bool isInputMethodConnectionActive() override;
-    std::optional<DisplayViewport> getViewportForPointerDevice(
+    std::optional<DisplayViewport> getPointerViewportForAssociatedDisplay(
             int32_t associatedDisplayId) override;
 
 private:

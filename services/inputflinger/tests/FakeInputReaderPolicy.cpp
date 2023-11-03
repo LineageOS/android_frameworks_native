@@ -261,7 +261,7 @@ void FakeInputReaderPolicy::notifyStylusGestureStarted(int32_t deviceId, nsecs_t
     mStylusGestureNotified = deviceId;
 }
 
-std::optional<DisplayViewport> FakeInputReaderPolicy::getViewportForPointerDevice(
+std::optional<DisplayViewport> FakeInputReaderPolicy::getPointerViewportForAssociatedDisplay(
         int32_t associatedDisplayId) {
     if (associatedDisplayId == ADISPLAY_ID_NONE) {
         associatedDisplayId = mConfig.defaultPointerDisplayId;

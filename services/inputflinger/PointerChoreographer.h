@@ -21,8 +21,23 @@
 #include "PointerChoreographerPolicyInterface.h"
 
 #include <android-base/thread_annotations.h>
+#include <type_traits>
 
 namespace android {
+
+/**
+ * A helper class that wraps a factory method that acts as a constructor for the type returned
+ * by the factory method.
+ */
+template <typename Factory>
+struct ConstructorDelegate {
+    constexpr ConstructorDelegate(Factory&& factory) : mFactory(std::move(factory)) {}
+
+    using ConstructedType = std::invoke_result_t<const Factory&>;
+    constexpr operator ConstructedType() const { return mFactory(); }
+
+    Factory mFactory;
+};
 
 /**
  * PointerChoreographer manages the icons shown by the system for input interactions.
@@ -80,6 +95,10 @@ private:
     NotifyMotionArgs processMotion(const NotifyMotionArgs& args);
     NotifyMotionArgs processMouseEventLocked(const NotifyMotionArgs& args) REQUIRES(mLock);
     NotifyMotionArgs processTouchscreenEventLocked(const NotifyMotionArgs& args) REQUIRES(mLock);
+
+    using ControllerConstructor =
+            ConstructorDelegate<std::function<std::shared_ptr<PointerControllerInterface>()>>;
+    ControllerConstructor getMouseControllerConstructor(int32_t displayId) REQUIRES(mLock);
 
     std::mutex mLock;
 

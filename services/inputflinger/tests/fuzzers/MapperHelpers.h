@@ -310,7 +310,7 @@ public:
     void setTouchAffineTransformation(const TouchAffineTransformation t) { mTransform = t; }
     void notifyStylusGestureStarted(int32_t, nsecs_t) {}
     bool isInputMethodConnectionActive() override { return mFdp->ConsumeBool(); }
-    std::optional<DisplayViewport> getViewportForPointerDevice(
+    std::optional<DisplayViewport> getPointerViewportForAssociatedDisplay(
             int32_t associatedDisplayId) override {
         return {};
     }

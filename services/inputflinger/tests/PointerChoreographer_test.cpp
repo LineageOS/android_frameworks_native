@@ -38,13 +38,17 @@ constexpr int32_t DEVICE_ID = 3;
 constexpr int32_t DISPLAY_ID = 5;
 constexpr int32_t ANOTHER_DISPLAY_ID = 10;
 
+const auto MOUSE_POINTER = PointerBuilder(/*id=*/0, ToolType::MOUSE)
+                                   .axis(AMOTION_EVENT_AXIS_RELATIVE_X, 10)
+                                   .axis(AMOTION_EVENT_AXIS_RELATIVE_Y, 20);
+
 static InputDeviceInfo generateTestDeviceInfo(int32_t deviceId, uint32_t source,
                                               int32_t associatedDisplayId) {
     InputDeviceIdentifier identifier;
 
     auto info = InputDeviceInfo();
-    info.initialize(deviceId, /*generation*/ 1, /*controllerNumber*/ 1, identifier, "alias",
-                    /*isExternal*/ false, /*hasMic*/ false, associatedDisplayId);
+    info.initialize(deviceId, /*generation=*/1, /*controllerNumber=*/1, identifier, "alias",
+                    /*isExternal=*/false, /*hasMic=*/false, associatedDisplayId);
     info.addSource(source);
     return info;
 }
@@ -161,21 +165,19 @@ TEST_F(PointerChoreographerTest, ForwardsArgsToInnerListener) {
     }
 }
 
-TEST_F(PointerChoreographerTest, WhenMouseIsJustAdded_DoesNotCreatePointerController) {
+TEST_F(PointerChoreographerTest, WhenMouseIsJustAddedDoesNotCreatePointerController) {
     mChoreographer.notifyInputDevicesChanged(
             {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE)}});
     assertPointerControllerNotCreated();
     assertPointerControllerCount(size_t(0));
 }
 
-TEST_F(PointerChoreographerTest, WhenMouseEventOccurs_CreatesPointerController) {
+TEST_F(PointerChoreographerTest, WhenMouseEventOccursCreatesPointerController) {
     mChoreographer.notifyInputDevicesChanged(
             {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE)}});
     mChoreographer.notifyMotion(
             MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(PointerBuilder(/*id=*/0, ToolType::MOUSE)
-                                     .axis(AMOTION_EVENT_AXIS_RELATIVE_X, 10)
-                                     .axis(AMOTION_EVENT_AXIS_RELATIVE_Y, 20))
+                    .pointer(MOUSE_POINTER)
                     .deviceId(DEVICE_ID)
                     .displayId(ADISPLAY_ID_NONE)
                     .build());
@@ -183,14 +185,12 @@ TEST_F(PointerChoreographerTest, WhenMouseEventOccurs_CreatesPointerController) 
     assertPointerControllerCount(size_t(1));
 }
 
-TEST_F(PointerChoreographerTest, WhenMouseIsRemoved_RemovesPointerController) {
+TEST_F(PointerChoreographerTest, WhenMouseIsRemovedRemovesPointerController) {
     mChoreographer.notifyInputDevicesChanged(
             {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE)}});
     mChoreographer.notifyMotion(
             MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(PointerBuilder(/*id=*/0, ToolType::MOUSE)
-                                     .axis(AMOTION_EVENT_AXIS_RELATIVE_X, 10)
-                                     .axis(AMOTION_EVENT_AXIS_RELATIVE_Y, 20))
+                    .pointer(MOUSE_POINTER)
                     .deviceId(DEVICE_ID)
                     .displayId(ADISPLAY_ID_NONE)
                     .build());
@@ -202,7 +202,7 @@ TEST_F(PointerChoreographerTest, WhenMouseIsRemoved_RemovesPointerController) {
     assertPointerControllerCount(size_t(0));
 }
 
-TEST_F(PointerChoreographerTest, WhenKeyboardIsAdded_DoesNotCreatePointerController) {
+TEST_F(PointerChoreographerTest, WhenKeyboardIsAddedDoesNotCreatePointerController) {
     mChoreographer.notifyInputDevicesChanged(
             {/*id=*/0,
              {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_KEYBOARD, ADISPLAY_ID_NONE)}});
@@ -220,9 +220,7 @@ TEST_F(PointerChoreographerTest, SetsViewportForAssociatedMouse) {
             {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, DISPLAY_ID)}});
     mChoreographer.notifyMotion(
             MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(PointerBuilder(/*id=*/0, ToolType::MOUSE)
-                                     .axis(AMOTION_EVENT_AXIS_RELATIVE_X, 10)
-                                     .axis(AMOTION_EVENT_AXIS_RELATIVE_Y, 20))
+                    .pointer(MOUSE_POINTER)
                     .deviceId(DEVICE_ID)
                     .displayId(DISPLAY_ID)
                     .build());
@@ -231,16 +229,14 @@ TEST_F(PointerChoreographerTest, SetsViewportForAssociatedMouse) {
     ASSERT_EQ(DISPLAY_ID, mPointerControllers.back().lock()->getDisplayId());
 }
 
-TEST_F(PointerChoreographerTest, WhenViewportSetLater_SetsViewportForAssociatedMouse) {
+TEST_F(PointerChoreographerTest, WhenViewportSetLaterSetsViewportForAssociatedMouse) {
     // Without viewport information, PointerController will be created by a mouse event
     // but viewport won't be set.
     mChoreographer.notifyInputDevicesChanged(
             {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, DISPLAY_ID)}});
     mChoreographer.notifyMotion(
             MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(PointerBuilder(/*id=*/0, ToolType::MOUSE)
-                                     .axis(AMOTION_EVENT_AXIS_RELATIVE_X, 10)
-                                     .axis(AMOTION_EVENT_AXIS_RELATIVE_Y, 20))
+                    .pointer(MOUSE_POINTER)
                     .deviceId(DEVICE_ID)
                     .displayId(DISPLAY_ID)
                     .build());
@@ -263,9 +259,7 @@ TEST_F(PointerChoreographerTest, SetsDefaultMouseViewportForPointerController) {
             {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE)}});
     mChoreographer.notifyMotion(
             MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(PointerBuilder(/*id=*/0, ToolType::MOUSE)
-                                     .axis(AMOTION_EVENT_AXIS_RELATIVE_X, 10)
-                                     .axis(AMOTION_EVENT_AXIS_RELATIVE_Y, 20))
+                    .pointer(MOUSE_POINTER)
                     .deviceId(DEVICE_ID)
                     .displayId(ADISPLAY_ID_NONE)
                     .build());
@@ -275,7 +269,7 @@ TEST_F(PointerChoreographerTest, SetsDefaultMouseViewportForPointerController) {
 }
 
 TEST_F(PointerChoreographerTest,
-       WhenDefaultMouseDisplayChanges_SetsDefaultMouseViewportForPointerController) {
+       WhenDefaultMouseDisplayChangesSetsDefaultMouseViewportForPointerController) {
     // Set one display as a default mouse display and emit mouse event to create PointerController.
     mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID, ANOTHER_DISPLAY_ID}));
     mChoreographer.setDefaultMouseDisplayId(DISPLAY_ID);
@@ -283,9 +277,7 @@ TEST_F(PointerChoreographerTest,
             {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE)}});
     mChoreographer.notifyMotion(
             MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(PointerBuilder(/*id=*/0, ToolType::MOUSE)
-                                     .axis(AMOTION_EVENT_AXIS_RELATIVE_X, 10)
-                                     .axis(AMOTION_EVENT_AXIS_RELATIVE_Y, 20))
+                    .pointer(MOUSE_POINTER)
                     .deviceId(DEVICE_ID)
                     .displayId(ADISPLAY_ID_NONE)
                     .build());
@@ -301,9 +293,7 @@ TEST_F(PointerChoreographerTest,
     // New PointerController for the new default display will be created by the motion event.
     mChoreographer.notifyMotion(
             MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(PointerBuilder(/*id=*/0, ToolType::MOUSE)
-                                     .axis(AMOTION_EVENT_AXIS_RELATIVE_X, 10)
-                                     .axis(AMOTION_EVENT_AXIS_RELATIVE_Y, 20))
+                    .pointer(MOUSE_POINTER)
                     .deviceId(DEVICE_ID)
                     .displayId(ADISPLAY_ID_NONE)
                     .build());
@@ -319,9 +309,7 @@ TEST_F(PointerChoreographerTest, CallsNotifyPointerDisplayIdChanged) {
             {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE)}});
     mChoreographer.notifyMotion(
             MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(PointerBuilder(/*id=*/0, ToolType::MOUSE)
-                                     .axis(AMOTION_EVENT_AXIS_RELATIVE_X, 10)
-                                     .axis(AMOTION_EVENT_AXIS_RELATIVE_Y, 20))
+                    .pointer(MOUSE_POINTER)
                     .deviceId(DEVICE_ID)
                     .displayId(ADISPLAY_ID_NONE)
                     .build());
@@ -329,15 +317,13 @@ TEST_F(PointerChoreographerTest, CallsNotifyPointerDisplayIdChanged) {
     assertPointerDisplayIdNotified(DISPLAY_ID);
 }
 
-TEST_F(PointerChoreographerTest, WhenViewportIsSetLater_CallsNotifyPointerDisplayIdChanged) {
+TEST_F(PointerChoreographerTest, WhenViewportIsSetLaterCallsNotifyPointerDisplayIdChanged) {
     mChoreographer.setDefaultMouseDisplayId(DISPLAY_ID);
     mChoreographer.notifyInputDevicesChanged(
             {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE)}});
     mChoreographer.notifyMotion(
             MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(PointerBuilder(/*id=*/0, ToolType::MOUSE)
-                                     .axis(AMOTION_EVENT_AXIS_RELATIVE_X, 10)
-                                     .axis(AMOTION_EVENT_AXIS_RELATIVE_Y, 20))
+                    .pointer(MOUSE_POINTER)
                     .deviceId(DEVICE_ID)
                     .displayId(ADISPLAY_ID_NONE)
                     .build());
@@ -347,16 +333,14 @@ TEST_F(PointerChoreographerTest, WhenViewportIsSetLater_CallsNotifyPointerDispla
     assertPointerDisplayIdNotified(DISPLAY_ID);
 }
 
-TEST_F(PointerChoreographerTest, WhenMouseIsRemoved_CallsNotifyPointerDisplayIdChanged) {
+TEST_F(PointerChoreographerTest, WhenMouseIsRemovedCallsNotifyPointerDisplayIdChanged) {
     mChoreographer.setDefaultMouseDisplayId(DISPLAY_ID);
     mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID}));
     mChoreographer.notifyInputDevicesChanged(
             {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE)}});
     mChoreographer.notifyMotion(
             MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(PointerBuilder(/*id=*/0, ToolType::MOUSE)
-                                     .axis(AMOTION_EVENT_AXIS_RELATIVE_X, 10)
-                                     .axis(AMOTION_EVENT_AXIS_RELATIVE_Y, 20))
+                    .pointer(MOUSE_POINTER)
                     .deviceId(DEVICE_ID)
                     .displayId(ADISPLAY_ID_NONE)
                     .build());
@@ -368,8 +352,7 @@ TEST_F(PointerChoreographerTest, WhenMouseIsRemoved_CallsNotifyPointerDisplayIdC
     assertPointerControllerCount(size_t(0));
 }
 
-TEST_F(PointerChoreographerTest,
-       WhenDefaultMouseDisplayChanges_CallsNotifyPointerDisplayIdChanged) {
+TEST_F(PointerChoreographerTest, WhenDefaultMouseDisplayChangesCallsNotifyPointerDisplayIdChanged) {
     // Add two viewports.
     mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID, ANOTHER_DISPLAY_ID}));
 
@@ -379,9 +362,7 @@ TEST_F(PointerChoreographerTest,
             {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE)}});
     mChoreographer.notifyMotion(
             MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(PointerBuilder(/*id=*/0, ToolType::MOUSE)
-                                     .axis(AMOTION_EVENT_AXIS_RELATIVE_X, 10)
-                                     .axis(AMOTION_EVENT_AXIS_RELATIVE_Y, 20))
+                    .pointer(MOUSE_POINTER)
                     .deviceId(DEVICE_ID)
                     .displayId(ADISPLAY_ID_NONE)
                     .build());
@@ -395,9 +376,7 @@ TEST_F(PointerChoreographerTest,
     // After a mouse event, pointer display ID will be notified with new default mouse display.
     mChoreographer.notifyMotion(
             MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(PointerBuilder(/*id=*/0, ToolType::MOUSE)
-                                     .axis(AMOTION_EVENT_AXIS_RELATIVE_X, 10)
-                                     .axis(AMOTION_EVENT_AXIS_RELATIVE_Y, 20))
+                    .pointer(MOUSE_POINTER)
                     .deviceId(DEVICE_ID)
                     .displayId(ADISPLAY_ID_NONE)
                     .build());

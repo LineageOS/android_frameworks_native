@@ -4930,7 +4930,7 @@ protected:
     }
 };
 
-TEST_F(CursorInputMapperTestWithChoreographer, PopulateDeviceInfo_ReturnsRangeFromPolicy) {
+TEST_F(CursorInputMapperTestWithChoreographer, PopulateDeviceInfoReturnsRangeFromPolicy) {
     addConfigurationProperty("cursor.mode", "pointer");
     CursorInputMapper& mapper = constructAndAddMapper<CursorInputMapper>();
 
@@ -4961,7 +4961,7 @@ TEST_F(CursorInputMapperTestWithChoreographer, PopulateDeviceInfo_ReturnsRangeFr
                                               AINPUT_SOURCE_MOUSE, 0.0f, 1.0f, 0.0f, 0.0f));
 }
 
-TEST_F(CursorInputMapperTestWithChoreographer, Process_ShouldHandleAllButtonsWithZeroCoords) {
+TEST_F(CursorInputMapperTestWithChoreographer, ProcessShouldHandleAllButtonsWithZeroCoords) {
     addConfigurationProperty("cursor.mode", "pointer");
     CursorInputMapper& mapper = constructAndAddMapper<CursorInputMapper>();
 
@@ -5218,7 +5218,7 @@ TEST_F(CursorInputMapperTestWithChoreographer, Process_ShouldHandleAllButtonsWit
     ASSERT_EQ(AKEYCODE_FORWARD, keyArgs.keyCode);
 }
 
-TEST_F(CursorInputMapperTestWithChoreographer, Process_WhenModeIsPointer_ShouldKeepZeroCoords) {
+TEST_F(CursorInputMapperTestWithChoreographer, ProcessWhenModeIsPointerShouldKeepZeroCoords) {
     addConfigurationProperty("cursor.mode", "pointer");
     CursorInputMapper& mapper = constructAndAddMapper<CursorInputMapper>();
 
@@ -5242,8 +5242,8 @@ TEST_F(CursorInputMapperTestWithChoreographer, Process_WhenModeIsPointer_ShouldK
 
 TEST_F(CursorInputMapperTestWithChoreographer, PointerCaptureDisablesVelocityProcessing) {
     addConfigurationProperty("cursor.mode", "pointer");
-    const VelocityControlParameters testParams(/*scale=*/5.f, /*low threshold=*/0.f,
-                                               /*high threshold=*/100.f, /*acceleration=*/10.f);
+    const VelocityControlParameters testParams(/*scale=*/5.f, /*lowThreshold=*/0.f,
+                                               /*highThreshold=*/100.f, /*acceleration=*/10.f);
     mFakePolicy->setVelocityControlParams(testParams);
     CursorInputMapper& mapper = constructAndAddMapper<CursorInputMapper>();
 
@@ -5289,7 +5289,7 @@ TEST_F(CursorInputMapperTestWithChoreographer, PointerCaptureDisablesVelocityPro
     ASSERT_EQ(20, relY2);
 }
 
-TEST_F(CursorInputMapperTestWithChoreographer, ConfigureDisplayId_NoAssociatedViewport) {
+TEST_F(CursorInputMapperTestWithChoreographer, ConfigureDisplayIdNoAssociatedViewport) {
     CursorInputMapper& mapper = constructAndAddMapper<CursorInputMapper>();
 
     // Set up the default display.
@@ -5315,7 +5315,7 @@ TEST_F(CursorInputMapperTestWithChoreographer, ConfigureDisplayId_NoAssociatedVi
                   WithCoords(0.0f, 0.0f))));
 }
 
-TEST_F(CursorInputMapperTestWithChoreographer, ConfigureDisplayId_WithAssociatedViewport) {
+TEST_F(CursorInputMapperTestWithChoreographer, ConfigureDisplayIdWithAssociatedViewport) {
     CursorInputMapper& mapper = constructAndAddMapper<CursorInputMapper>();
 
     // Set up the default display.
@@ -5343,7 +5343,7 @@ TEST_F(CursorInputMapperTestWithChoreographer, ConfigureDisplayId_WithAssociated
 }
 
 TEST_F(CursorInputMapperTestWithChoreographer,
-       ConfigureDisplayId_ShouldGenerateEventWithMismatchedPointerDisplay) {
+       ConfigureDisplayIdShouldGenerateEventWithMismatchedPointerDisplay) {
     CursorInputMapper& mapper = constructAndAddMapper<CursorInputMapper>();
 
     // Set up the default display as the display on which the pointer should be shown.

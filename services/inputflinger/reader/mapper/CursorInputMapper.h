@@ -128,6 +128,8 @@ private:
     nsecs_t mDownTime;
     nsecs_t mLastEventTime;
 
+    const bool mEnablePointerChoreographer;
+
     explicit CursorInputMapper(InputDeviceContext& deviceContext,
                                const InputReaderConfiguration& readerConfig);
     void dumpParameters(std::string& dump);

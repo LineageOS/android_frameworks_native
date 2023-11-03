@@ -77,20 +77,17 @@ NotifyMotionArgs PointerChoreographer::processMotion(const NotifyMotionArgs& arg
 
 NotifyMotionArgs PointerChoreographer::processMouseEventLocked(const NotifyMotionArgs& args) {
     if (args.getPointerCount() != 1) {
-        LOG(FATAL) << "Wrong number of pointers " << args.dump();
+        LOG(FATAL) << "Only mouse events with a single pointer are currently supported: "
+                   << args.dump();
     }
 
     const int32_t displayId = getTargetMouseDisplayLocked(args.displayId);
-    auto it = mMousePointersByDisplay.find(displayId);
-    if (it == mMousePointersByDisplay.end()) {
-        it = mMousePointersByDisplay
-                     .insert({displayId,
-                              mPolicy.createPointerController(
-                                      PointerControllerInterface::ControllerType::MOUSE)})
-                     .first;
-        if (const auto viewport = findViewportByIdLocked(displayId); viewport) {
-            it->second->setDisplayViewport(*viewport);
-        }
+
+    // Get the mouse pointer controller for the display, or create one if it doesn't exist.
+    auto [it, emplaced] =
+            mMousePointersByDisplay.try_emplace(displayId,
+                                                getMouseControllerConstructor(displayId));
+    if (emplaced) {
         notifyPointerDisplayIdChangedLocked();
     }
 
@@ -194,9 +191,10 @@ void PointerChoreographer::updatePointerControllersLocked() {
 
     // Remove PointerControllers no longer needed.
     // This has the side-effect of fading pointers or clearing spots before removal.
-    std::erase_if(mMousePointersByDisplay, [&mouseDisplaysToKeep](const auto& item) {
-        if (mouseDisplaysToKeep.find(item.first) == mouseDisplaysToKeep.end()) {
-            item.second->fade(PointerControllerInterface::Transition::IMMEDIATE);
+    std::erase_if(mMousePointersByDisplay, [&mouseDisplaysToKeep](const auto& pair) {
+        auto& [displayId, controller] = pair;
+        if (mouseDisplaysToKeep.find(displayId) == mouseDisplaysToKeep.end()) {
+            controller->fade(PointerControllerInterface::Transition::IMMEDIATE);
             return true;
         }
         return false;
@@ -211,8 +209,12 @@ void PointerChoreographer::notifyPointerDisplayIdChangedLocked() {
     FloatPoint cursorPosition = {0, 0};
     if (const auto it = mMousePointersByDisplay.find(mDefaultMouseDisplayId);
         it != mMousePointersByDisplay.end()) {
-        displayIdToNotify = it->second->getDisplayId();
-        cursorPosition = it->second->getPosition();
+        const auto& pointerController = it->second;
+        // Use the displayId from the pointerController, because it accurately reflects whether
+        // the viewport has been added for that display. Otherwise, we would have to check if
+        // the viewport exists separately.
+        displayIdToNotify = pointerController->getDisplayId();
+        cursorPosition = pointerController->getPosition();
     }
 
     if (mNotifiedPointerDisplayId == displayIdToNotify) {
@@ -232,8 +234,7 @@ void PointerChoreographer::setDefaultMouseDisplayId(int32_t displayId) {
 void PointerChoreographer::setDisplayViewports(const std::vector<DisplayViewport>& viewports) {
     std::scoped_lock _l(mLock);
     for (const auto& viewport : viewports) {
-        int32_t displayId = viewport.displayId;
-        if (const auto it = mMousePointersByDisplay.find(displayId);
+        if (const auto it = mMousePointersByDisplay.find(viewport.displayId);
             it != mMousePointersByDisplay.end()) {
             it->second->setDisplayViewport(viewport);
         }
@@ -260,6 +261,20 @@ FloatPoint PointerChoreographer::getMouseCursorPosition(int32_t displayId) {
         return it->second->getPosition();
     }
     return {AMOTION_EVENT_INVALID_CURSOR_POSITION, AMOTION_EVENT_INVALID_CURSOR_POSITION};
+}
+
+PointerChoreographer::ControllerConstructor PointerChoreographer::getMouseControllerConstructor(
+        int32_t displayId) {
+    std::function<std::shared_ptr<PointerControllerInterface>()> ctor =
+            [this, displayId]() REQUIRES(mLock) {
+                auto pc = mPolicy.createPointerController(
+                        PointerControllerInterface::ControllerType::MOUSE);
+                if (const auto viewport = findViewportByIdLocked(displayId); viewport) {
+                    pc->setDisplayViewport(*viewport);
+                }
+                return pc;
+            };
+    return ConstructorDelegate(std::move(ctor));
 }
 
 } // namespace android
