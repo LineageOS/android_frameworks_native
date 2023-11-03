@@ -26,7 +26,6 @@
 
 #include <string_view>
 
-#include <android-base/macros.h>
 #include <android-base/scopeguard.h>
 #include <binder/BpBinder.h>
 #include <binder/Parcel.h>
@@ -411,7 +410,9 @@ public:
     }
 
 private:
-    DISALLOW_COPY_AND_ASSIGN(JavaThreadAttacher);
+    JavaThreadAttacher(const JavaThreadAttacher&) = delete;
+    void operator=(const JavaThreadAttacher&) = delete;
+
     bool mAttached = false;
 
     static JavaVM* getJavaVM() {

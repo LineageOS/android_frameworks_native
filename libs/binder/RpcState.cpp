@@ -18,7 +18,6 @@
 
 #include "RpcState.h"
 
-#include <android-base/macros.h>
 #include <android-base/scopeguard.h>
 #include <binder/BpBinder.h>
 #include <binder/IPCThreadState.h>
@@ -601,7 +600,7 @@ status_t RpcState::transactAddress(const sp<RpcSession::RpcConnection>& connecti
             objectTableSpan.toIovec(),
     };
     if (status_t status = rpcSend(
-                connection, session, "transaction", iovs, arraysize(iovs),
+                connection, session, "transaction", iovs, countof(iovs),
                 [&] {
                     if (waitUs > kWaitLogUs) {
                         ALOGE("Cannot send command, trying to process pending refcounts. Waiting "
@@ -690,7 +689,7 @@ status_t RpcState::waitForReply(const sp<RpcSession::RpcConnection>& connection,
             {&rpcReply, rpcReplyWireSize},
             {data.data(), data.size()},
     };
-    if (status_t status = rpcRec(connection, session, "reply body", iovs, arraysize(iovs), nullptr);
+    if (status_t status = rpcRec(connection, session, "reply body", iovs, countof(iovs), nullptr);
         status != OK)
         return status;
 
@@ -760,7 +759,7 @@ status_t RpcState::sendDecStrongToTarget(const sp<RpcSession::RpcConnection>& co
             .bodySize = sizeof(RpcDecStrong),
     };
     iovec iovs[]{{&cmd, sizeof(cmd)}, {&body, sizeof(body)}};
-    return rpcSend(connection, session, "dec ref", iovs, arraysize(iovs), std::nullopt);
+    return rpcSend(connection, session, "dec ref", iovs, countof(iovs), std::nullopt);
 }
 
 status_t RpcState::getAndExecuteCommand(const sp<RpcSession::RpcConnection>& connection,
@@ -1143,7 +1142,7 @@ processTransactInternalTailCall:
             {const_cast<uint8_t*>(reply.data()), reply.dataSize()},
             objectTableSpan.toIovec(),
     };
-    return rpcSend(connection, session, "reply", iovs, arraysize(iovs), std::nullopt,
+    return rpcSend(connection, session, "reply", iovs, countof(iovs), std::nullopt,
                    rpcFields->mFds.get());
 }
 

@@ -17,7 +17,6 @@
 #pragma once
 
 #include <android-base/expected.h>
-#include <android-base/macros.h>
 #include <android-base/unique_fd.h>
 #include <binder/IBinder.h>
 #include <binder/RpcServer.h>
@@ -83,7 +82,8 @@ private:
     // Both this class and RpcServer have multiple non-copyable fields,
     // including mPortAcl below which can't be copied because mUuidPtrs
     // holds pointers into it
-    DISALLOW_COPY_AND_ASSIGN(RpcServerTrusty);
+    RpcServerTrusty(const RpcServerTrusty&) = delete;
+    void operator=(const RpcServerTrusty&) = delete;
 
     friend sp<RpcServerTrusty>;
     explicit RpcServerTrusty(std::unique_ptr<RpcTransportCtx> ctx, std::string&& portName,
