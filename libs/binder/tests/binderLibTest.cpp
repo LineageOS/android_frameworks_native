@@ -29,7 +29,6 @@
 
 #include <android-base/properties.h>
 #include <android-base/result-gmock.h>
-#include <android-base/result.h>
 #include <android-base/scopeguard.h>
 #include <android-base/strings.h>
 #include <android-base/unique_fd.h>

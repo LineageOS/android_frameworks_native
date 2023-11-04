@@ -26,9 +26,6 @@
 #include "RpcState.h"
 #include "RpcTransportUtils.h"
 
-using android::base::Error;
-using android::base::Result;
-
 namespace android {
 
 // RpcTransport for writing Trusty IPC clients in Android.

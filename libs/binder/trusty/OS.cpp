@@ -26,13 +26,11 @@
 #include "../OS.h"
 #include "TrustyStatus.h"
 
-using android::base::Result;
-
 namespace android::binder::os {
 
-Result<void> setNonBlocking(android::base::borrowed_fd /*fd*/) {
+status_t setNonBlocking(android::base::borrowed_fd /*fd*/) {
     // Trusty IPC syscalls are all non-blocking by default.
-    return {};
+    return OK;
 }
 
 status_t getRandomBytes(uint8_t* data, size_t size) {
