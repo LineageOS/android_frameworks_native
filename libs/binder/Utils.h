@@ -22,6 +22,9 @@
 #include <log/log.h>
 #include <utils/Errors.h>
 
+#define PLOGE_VA_ARGS(...) , ##__VA_ARGS__
+#define PLOGE(fmt, ...) ALOGE(fmt ": %s" PLOGE_VA_ARGS(__VA_ARGS__), strerror(errno))
+
 /* TEMP_FAILURE_RETRY is not available on macOS and Trusty. */
 #ifndef TEMP_FAILURE_RETRY
 /* Used to retry syscalls that can return EINTR. */
