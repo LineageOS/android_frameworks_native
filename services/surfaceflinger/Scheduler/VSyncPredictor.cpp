@@ -294,8 +294,10 @@ nsecs_t VSyncPredictor::nextAnticipatedVSyncTimeFrom(nsecs_t timePoint) const {
     if (renderRatePhase == 0) {
         const auto vsyncTime = mLastVsyncSequence->vsyncTime;
         if (FlagManager::getInstance().vrr_config() && mDisplayModeDataOpt) {
-            mVsyncTrackerCallback.onVsyncGenerated(mId, TimePoint::fromNs(vsyncTime),
-                                                   *mDisplayModeDataOpt,
+            const auto vsyncTimePoint = TimePoint::fromNs(vsyncTime);
+            ATRACE_FORMAT("%s InPhase vsyncIn %.2fms", __func__,
+                          ticks<std::milli, float>(vsyncTimePoint - TimePoint::now()));
+            mVsyncTrackerCallback.onVsyncGenerated(mId, vsyncTimePoint, *mDisplayModeDataOpt,
                                                    Period::fromNs(mIdealPeriod));
         }
         return vsyncTime;
@@ -306,7 +308,10 @@ nsecs_t VSyncPredictor::nextAnticipatedVSyncTimeFrom(nsecs_t timePoint) const {
     const auto nextAnticipatedVsyncTime =
             nextAnticipatedVSyncTimeFromLocked(approximateNextVsync - slope / 2);
     if (FlagManager::getInstance().vrr_config() && mDisplayModeDataOpt) {
-        mVsyncTrackerCallback.onVsyncGenerated(mId, TimePoint::fromNs(nextAnticipatedVsyncTime),
+        const auto nextAnticipatedVsyncTimePoint = TimePoint::fromNs(nextAnticipatedVsyncTime);
+        ATRACE_FORMAT("%s outOfPhase vsyncIn %.2fms", __func__,
+                      ticks<std::milli, float>(nextAnticipatedVsyncTimePoint - TimePoint::now()));
+        mVsyncTrackerCallback.onVsyncGenerated(mId, nextAnticipatedVsyncTimePoint,
                                                *mDisplayModeDataOpt, Period::fromNs(mIdealPeriod));
     }
     return nextAnticipatedVsyncTime;
