@@ -230,10 +230,7 @@ status_t RpcServer::recvmsgSocketConnection(const RpcServer& server, RpcTranspor
     }
 
     unique_fd fd(std::move(std::get<unique_fd>(fds.back())));
-    if (auto res = binder::os::setNonBlocking(fd); !res.ok()) {
-        ALOGE("Failed setNonBlocking: %s", res.error().message().c_str());
-        return res.error().code() == 0 ? UNKNOWN_ERROR : -res.error().code();
-    }
+    if (status_t res = binder::os::setNonBlocking(fd); res != OK) return res;
 
     *out = RpcTransportFd(std::move(fd));
     return OK;
