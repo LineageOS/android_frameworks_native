@@ -35,12 +35,6 @@
 
 namespace angle {
 
-constexpr char kAngleEs2Lib[] = "libGLESv2_angle.so";
-constexpr int kAngleDlFlags = RTLD_LOCAL | RTLD_NOW;
-
-static GetDisplayPlatformFunc angleGetDisplayPlatform = nullptr;
-static ResetDisplayPlatformFunc angleResetDisplayPlatform = nullptr;
-
 static time_t startTime = time(nullptr);
 
 static const unsigned char* getTraceCategoryEnabledFlag(PlatformMethods* /*platform*/,
@@ -111,50 +105,19 @@ static void assignAnglePlatformMethods(PlatformMethods* platformMethods) {
 }
 
 // Initialize function ptrs for ANGLE PlatformMethods struct, used for systrace
-bool initializeAnglePlatform(EGLDisplay dpy) {
-    // Since we're inside libEGL, use dlsym to lookup fptr for ANGLEGetDisplayPlatform
-    android_namespace_t* ns = android::GraphicsEnv::getInstance().getAngleNamespace();
-    void* so = nullptr;
-    if (ns) {
-        const android_dlextinfo dlextinfo = {
-                .flags = ANDROID_DLEXT_USE_NAMESPACE,
-                .library_namespace = ns,
-        };
-        so = android_dlopen_ext(kAngleEs2Lib, kAngleDlFlags, &dlextinfo);
-        if (so) {
-            ALOGD("dlopen_ext from APK (%s) success at %p", kAngleEs2Lib, so);
-        } else {
-            ALOGE("dlopen_ext(\"%s\") failed: %s", kAngleEs2Lib, dlerror());
-            return false;
-        }
-    } else {
-        // If we are here, ANGLE is loaded as the default OpenGL ES driver.
-        so = dlopen(kAngleEs2Lib, kAngleDlFlags);
-        if (so) {
-            ALOGD("dlopen (%s) success at %p", kAngleEs2Lib, so);
-        } else {
-            ALOGE("%s failed to dlopen %s: %s!", __FUNCTION__, kAngleEs2Lib, dlerror());
-            return false;
-        }
-    }
-
-    angleGetDisplayPlatform =
-            reinterpret_cast<GetDisplayPlatformFunc>(dlsym(so, "ANGLEGetDisplayPlatform"));
-
-    if (!angleGetDisplayPlatform) {
-        ALOGE("dlsym lookup of ANGLEGetDisplayPlatform in libEGL_angle failed!");
-        dlclose(so);
+bool initializeAnglePlatform(EGLDisplay dpy, android::egl_connection_t* const cnx) {
+    if (cnx->angleGetDisplayPlatformFunc == nullptr) {
+        ALOGE("ANGLEGetDisplayPlatform is not initialized!");
         return false;
     }
 
-    angleResetDisplayPlatform =
-            reinterpret_cast<ResetDisplayPlatformFunc>(dlsym(so, "ANGLEResetDisplayPlatform"));
+    GetDisplayPlatformFunc angleGetDisplayPlatform =
+            reinterpret_cast<GetDisplayPlatformFunc>(cnx->angleGetDisplayPlatformFunc);
 
     PlatformMethods* platformMethods = nullptr;
     if (!((angleGetDisplayPlatform)(dpy, g_PlatformMethodNames, g_NumPlatformMethods, nullptr,
                                     &platformMethods))) {
         ALOGE("ANGLEGetDisplayPlatform call failed!");
-        dlclose(so);
         return false;
     }
     if (platformMethods) {
@@ -166,8 +129,10 @@ bool initializeAnglePlatform(EGLDisplay dpy) {
     return true;
 }
 
-void resetAnglePlatform(EGLDisplay dpy) {
-    if (angleResetDisplayPlatform) {
+void resetAnglePlatform(EGLDisplay dpy, android::egl_connection_t* const cnx) {
+    if (cnx->angleResetDisplayPlatformFunc) {
+        ResetDisplayPlatformFunc angleResetDisplayPlatform =
+                reinterpret_cast<ResetDisplayPlatformFunc>(cnx->angleResetDisplayPlatformFunc);
         angleResetDisplayPlatform(dpy);
     }
 }
