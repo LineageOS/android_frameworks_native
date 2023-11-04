@@ -32,7 +32,7 @@ namespace android {
 
 TEST(UtilsHost, ExecuteImmediately) {
     auto result = execute({"echo", "foo"}, nullptr);
-    ASSERT_THAT(result, Ok());
+    ASSERT_TRUE(result.has_value());
     EXPECT_THAT(result->exitCode, Optional(EX_OK));
     EXPECT_EQ(result->stdoutStr, "foo\n");
 }
@@ -58,7 +58,7 @@ TEST(UtilsHost, ExecuteLongRunning) {
         EXPECT_GE(elapsedMs, 1000);
         EXPECT_LT(elapsedMs, 2000);
 
-        ASSERT_THAT(result, Ok());
+        ASSERT_TRUE(result.has_value());
         EXPECT_EQ(std::nullopt, result->exitCode);
         EXPECT_EQ(result->stdoutStr, "foo\n");
     }
@@ -83,7 +83,7 @@ TEST(UtilsHost, ExecuteLongRunning2) {
         EXPECT_GE(elapsedMs, 4000);
         EXPECT_LT(elapsedMs, 6000);
 
-        ASSERT_THAT(result, Ok());
+        ASSERT_TRUE(result.has_value());
         EXPECT_EQ(std::nullopt, result->exitCode);
         EXPECT_EQ(result->stdoutStr, "foo\n");
     }
@@ -104,7 +104,7 @@ TEST(UtilsHost, KillWithSigKill) {
         return false;
     });
 
-    ASSERT_THAT(result, Ok());
+    ASSERT_TRUE(result.has_value());
     EXPECT_EQ(std::nullopt, result->exitCode);
     EXPECT_THAT(result->signal, Optional(SIGKILL));
 }
