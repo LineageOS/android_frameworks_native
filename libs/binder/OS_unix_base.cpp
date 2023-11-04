@@ -15,29 +15,29 @@
  */
 
 #include "OS.h"
+#include "Utils.h"
 
 #include <android-base/file.h>
 #include <binder/RpcTransportRaw.h>
 #include <log/log.h>
 #include <string.h>
 
-using android::base::ErrnoError;
-using android::base::Result;
-
 namespace android::binder::os {
 
 // Linux kernel supports up to 253 (from SCM_MAX_FD) for unix sockets.
 constexpr size_t kMaxFdsPerMsg = 253;
 
-Result<void> setNonBlocking(android::base::borrowed_fd fd) {
+status_t setNonBlocking(android::base::borrowed_fd fd) {
     int flags = TEMP_FAILURE_RETRY(fcntl(fd.get(), F_GETFL));
     if (flags == -1) {
-        return ErrnoError() << "Could not get flags for fd";
+        PLOGE("Failed setNonBlocking: Could not get flags for fd");
+        return -errno;
     }
     if (int ret = TEMP_FAILURE_RETRY(fcntl(fd.get(), F_SETFL, flags | O_NONBLOCK)); ret == -1) {
-        return ErrnoError() << "Could not set non-blocking flag for fd";
+        PLOGE("Failed setNonBlocking: Could not set non-blocking flag for fd");
+        return -errno;
     }
-    return {};
+    return OK;
 }
 
 status_t getRandomBytes(uint8_t* data, size_t size) {

@@ -18,14 +18,13 @@
 #include <stddef.h>
 #include <cstdint>
 
-#include <android-base/result.h>
 #include <android-base/unique_fd.h>
 #include <binder/RpcTransport.h>
 #include <utils/Errors.h>
 
 namespace android::binder::os {
 
-android::base::Result<void> setNonBlocking(android::base::borrowed_fd fd);
+status_t setNonBlocking(android::base::borrowed_fd fd);
 
 status_t getRandomBytes(uint8_t* data, size_t size);
 

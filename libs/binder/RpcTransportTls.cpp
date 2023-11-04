@@ -29,6 +29,8 @@
 #include "RpcState.h"
 #include "Utils.h"
 
+#include <sstream>
+
 #define SHOULD_LOG_TLS_DETAIL false
 
 #if SHOULD_LOG_TLS_DETAIL
