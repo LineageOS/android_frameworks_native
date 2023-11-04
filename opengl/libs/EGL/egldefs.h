@@ -42,7 +42,9 @@ struct egl_connection_t {
             libGles1(nullptr),
             libGles2(nullptr),
             systemDriverUnloaded(false),
-            angleLoaded(false) {
+            angleLoaded(false),
+            angleGetDisplayPlatformFunc(nullptr),
+            angleResetDisplayPlatformFunc(nullptr) {
         const char* const* entries = platform_names;
         EGLFuncPointer* curr = reinterpret_cast<EGLFuncPointer*>(&platform);
         while (*entries) {
@@ -75,6 +77,9 @@ struct egl_connection_t {
 
     bool systemDriverUnloaded;
     bool angleLoaded; // Was ANGLE successfully loaded
+
+    void* angleGetDisplayPlatformFunc;
+    void* angleResetDisplayPlatformFunc;
 };
 
 extern gl_hooks_t gHooks[2];
