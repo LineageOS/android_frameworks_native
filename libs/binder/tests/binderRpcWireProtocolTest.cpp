@@ -15,7 +15,6 @@
  */
 
 #include <android-base/logging.h>
-#include <android-base/macros.h>
 #include <android-base/properties.h>
 #include <android-base/strings.h>
 #include <binder/Parcel.h>

@@ -225,16 +225,19 @@ namespace scheduler {
 class TestableScheduler : public Scheduler, private ICompositor {
 public:
     TestableScheduler(const std::shared_ptr<scheduler::RefreshRateSelector>& selectorPtr,
-                      sp<VsyncModulator> modulatorPtr, ISchedulerCallback& callback)
+                      sp<VsyncModulator> modulatorPtr, ISchedulerCallback& callback,
+                      IVsyncTrackerCallback& vsyncTrackerCallback)
           : TestableScheduler(std::make_unique<android::mock::VsyncController>(),
                               std::make_shared<android::mock::VSyncTracker>(), selectorPtr,
-                              std::move(modulatorPtr), callback) {}
+                              std::move(modulatorPtr), callback, vsyncTrackerCallback) {}
 
     TestableScheduler(std::unique_ptr<VsyncController> controller,
                       VsyncSchedule::TrackerPtr tracker,
                       std::shared_ptr<RefreshRateSelector> selectorPtr,
-                      sp<VsyncModulator> modulatorPtr, ISchedulerCallback& callback)
-          : Scheduler(*this, callback, Feature::kContentDetection, std::move(modulatorPtr)) {
+                      sp<VsyncModulator> modulatorPtr, ISchedulerCallback& callback,
+                      IVsyncTrackerCallback& vsyncTrackerCallback)
+          : Scheduler(*this, callback, Feature::kContentDetection, std::move(modulatorPtr),
+                      vsyncTrackerCallback) {
         const auto displayId = selectorPtr->getActiveMode().modePtr->getPhysicalDisplayId();
         registerDisplayInternal(displayId, std::move(selectorPtr),
                                 std::shared_ptr<VsyncSchedule>(
@@ -400,7 +403,8 @@ public:
 } // namespace surfaceflinger::test
 
 // TODO(b/189053744) : Create a common test/mock library for surfaceflinger
-class TestableSurfaceFlinger final : private scheduler::ISchedulerCallback {
+class TestableSurfaceFlinger final : private scheduler::ISchedulerCallback,
+                                     private scheduler::IVsyncTrackerCallback {
 public:
     using HotplugEvent = SurfaceFlinger::HotplugEvent;
 
@@ -656,6 +660,7 @@ public:
                         std::unique_ptr<EventThread> appEventThread,
                         std::unique_ptr<EventThread> sfEventThread,
                         scheduler::ISchedulerCallback* callback = nullptr,
+                        scheduler::IVsyncTrackerCallback* vsyncTrackerCallback = nullptr,
                         bool hasMultipleModes = false) {
         constexpr DisplayModeId kModeId60{0};
         DisplayModes modes = makeModes(mock::createDisplayMode(kModeId60, 60_Hz));
@@ -678,7 +683,8 @@ public:
 
         mScheduler = new scheduler::TestableScheduler(std::move(vsyncController),
                                                       std::move(vsyncTracker), mRefreshRateSelector,
-                                                      std::move(modulatorPtr), *(callback ?: this));
+                                                      std::move(modulatorPtr), *(callback ?: this),
+                                                      *(vsyncTrackerCallback ?: this));
 
         mFlinger->mAppConnectionHandle = mScheduler->createConnection(std::move(appEventThread));
         mFlinger->mSfConnectionHandle = mScheduler->createConnection(std::move(sfEventThread));
@@ -798,6 +804,10 @@ private:
     void kernelTimerChanged(bool) override {}
     void triggerOnFrameRateOverridesChanged() override {}
     void onChoreographerAttached() override {}
+
+    // IVsyncTrackerCallback overrides
+    void onVsyncGenerated(PhysicalDisplayId, TimePoint, const scheduler::DisplayModeData&,
+                          Period) override {}
 
     surfaceflinger::test::Factory mFactory;
     sp<SurfaceFlinger> mFlinger =

@@ -37,6 +37,7 @@
 #include <UinputDevice.h>
 #include <VibratorInputMapper.h>
 #include <android-base/thread_annotations.h>
+#include <com_android_input_flags.h>
 #include <ftl/enum.h>
 #include <gtest/gtest.h>
 #include <gui/constants.h>
@@ -98,6 +99,8 @@ static constexpr uint32_t STYLUS_FUSION_SOURCE =
 static constexpr nsecs_t MIN_BLUETOOTH_TIMESTAMP_DELTA = ms2ns(4);
 // Maximum smoothing time delta so that we don't generate events too far into the future.
 constexpr static nsecs_t MAX_BLUETOOTH_SMOOTHING_DELTA = ms2ns(32);
+
+namespace input_flags = com::android::input::flags;
 
 template<typename T>
 static inline T min(T a, T b) {
@@ -4097,9 +4100,9 @@ TEST_F(KeyboardInputMapperTest_ExternalDevice, DoNotWakeByDefaultBehavior) {
     ASSERT_EQ(POLICY_FLAG_WAKE, args.policyFlags);
 }
 
-// --- CursorInputMapperTest ---
+// --- CursorInputMapperTestBase ---
 
-class CursorInputMapperTest : public InputMapperTest {
+class CursorInputMapperTestBase : public InputMapperTest {
 protected:
     static const int32_t TRACKBALL_MOVEMENT_THRESHOLD;
 
@@ -4133,11 +4136,11 @@ protected:
     }
 };
 
-const int32_t CursorInputMapperTest::TRACKBALL_MOVEMENT_THRESHOLD = 6;
+const int32_t CursorInputMapperTestBase::TRACKBALL_MOVEMENT_THRESHOLD = 6;
 
-void CursorInputMapperTest::testMotionRotation(CursorInputMapper& mapper, int32_t originalX,
-                                               int32_t originalY, int32_t rotatedX,
-                                               int32_t rotatedY) {
+void CursorInputMapperTestBase::testMotionRotation(CursorInputMapper& mapper, int32_t originalX,
+                                                   int32_t originalY, int32_t rotatedX,
+                                                   int32_t rotatedY) {
     NotifyMotionArgs args;
 
     process(mapper, ARBITRARY_TIME, READ_TIME, EV_REL, REL_X, originalX);
@@ -4150,6 +4153,16 @@ void CursorInputMapperTest::testMotionRotation(CursorInputMapper& mapper, int32_
                                       float(rotatedX) / TRACKBALL_MOVEMENT_THRESHOLD,
                                       float(rotatedY) / TRACKBALL_MOVEMENT_THRESHOLD, 0.0f));
 }
+
+// --- CursorInputMapperTest ---
+
+class CursorInputMapperTest : public CursorInputMapperTestBase {
+protected:
+    void SetUp() override {
+        input_flags::enable_pointer_choreographer(false);
+        CursorInputMapperTestBase::SetUp();
+    }
+};
 
 TEST_F(CursorInputMapperTest, WhenModeIsPointer_GetSources_ReturnsMouse) {
     addConfigurationProperty("cursor.mode", "pointer");
@@ -4180,6 +4193,7 @@ TEST_F(CursorInputMapperTest, WhenModeIsPointer_PopulateDeviceInfo_ReturnsRangeF
 
     // When the bounds are set, then there should be a valid motion range.
     mFakePointerController->setBounds(1, 2, 800 - 1, 480 - 1);
+    configureDevice(InputReaderConfiguration::Change::DISPLAY_INFO);
 
     InputDeviceInfo info2;
     mapper.populateDeviceInfo(info2);
@@ -4906,11 +4920,459 @@ TEST_F(CursorInputMapperTest, ConfigureDisplayId_IgnoresEventsForMismatchedPoint
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
 }
 
-// --- BluetoothCursorInputMapperTest ---
+// --- CursorInputMapperTestWithChoreographer ---
 
-class BluetoothCursorInputMapperTest : public CursorInputMapperTest {
+class CursorInputMapperTestWithChoreographer : public CursorInputMapperTestBase {
 protected:
     void SetUp() override {
+        input_flags::enable_pointer_choreographer(true);
+        CursorInputMapperTestBase::SetUp();
+    }
+};
+
+TEST_F(CursorInputMapperTestWithChoreographer, PopulateDeviceInfoReturnsRangeFromPolicy) {
+    addConfigurationProperty("cursor.mode", "pointer");
+    CursorInputMapper& mapper = constructAndAddMapper<CursorInputMapper>();
+
+    InputDeviceInfo info;
+    mapper.populateDeviceInfo(info);
+
+    // Initially there may not be a valid motion range.
+    ASSERT_EQ(nullptr, info.getMotionRange(AINPUT_MOTION_RANGE_X, AINPUT_SOURCE_MOUSE));
+    ASSERT_EQ(nullptr, info.getMotionRange(AINPUT_MOTION_RANGE_Y, AINPUT_SOURCE_MOUSE));
+    ASSERT_NO_FATAL_FAILURE(assertMotionRange(info, AINPUT_MOTION_RANGE_PRESSURE,
+                                              AINPUT_SOURCE_MOUSE, 0.0f, 1.0f, 0.0f, 0.0f));
+
+    // When the viewport and the default pointer display ID is set, then there should be a valid
+    // motion range.
+    mFakePolicy->setDefaultPointerDisplayId(DISPLAY_ID);
+    mFakePolicy->addDisplayViewport(DISPLAY_ID, DISPLAY_WIDTH, DISPLAY_HEIGHT, ui::ROTATION_0,
+                                    /*isActive=*/true, "local:0", NO_PORT, ViewportType::INTERNAL);
+    configureDevice(InputReaderConfiguration::Change::DISPLAY_INFO);
+
+    InputDeviceInfo info2;
+    mapper.populateDeviceInfo(info2);
+
+    ASSERT_NO_FATAL_FAILURE(assertMotionRange(info2, AINPUT_MOTION_RANGE_X, AINPUT_SOURCE_MOUSE, 0,
+                                              DISPLAY_WIDTH - 1, 0.0f, 0.0f));
+    ASSERT_NO_FATAL_FAILURE(assertMotionRange(info2, AINPUT_MOTION_RANGE_Y, AINPUT_SOURCE_MOUSE, 0,
+                                              DISPLAY_HEIGHT - 1, 0.0f, 0.0f));
+    ASSERT_NO_FATAL_FAILURE(assertMotionRange(info2, AINPUT_MOTION_RANGE_PRESSURE,
+                                              AINPUT_SOURCE_MOUSE, 0.0f, 1.0f, 0.0f, 0.0f));
+}
+
+TEST_F(CursorInputMapperTestWithChoreographer, ProcessShouldHandleAllButtonsWithZeroCoords) {
+    addConfigurationProperty("cursor.mode", "pointer");
+    CursorInputMapper& mapper = constructAndAddMapper<CursorInputMapper>();
+
+    mFakePolicy->setDefaultPointerDisplayId(DISPLAY_ID);
+    prepareDisplay(ui::ROTATION_0);
+
+    mFakePointerController->setBounds(0, 0, 800 - 1, 480 - 1);
+    mFakePointerController->setPosition(100, 200);
+
+    NotifyMotionArgs motionArgs;
+    NotifyKeyArgs keyArgs;
+
+    // press BTN_LEFT, release BTN_LEFT
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, BTN_LEFT, 1);
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_SYN, SYN_REPORT, 0);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_DOWN, motionArgs.action);
+    ASSERT_EQ(AMOTION_EVENT_BUTTON_PRIMARY, motionArgs.buttonState);
+    ASSERT_NO_FATAL_FAILURE(
+            assertCursorPointerCoords(motionArgs.pointerCoords[0], 0.0f, 0.0f, 1.0f));
+
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_BUTTON_PRESS, motionArgs.action);
+    ASSERT_EQ(AMOTION_EVENT_BUTTON_PRIMARY, motionArgs.buttonState);
+    ASSERT_NO_FATAL_FAILURE(
+            assertCursorPointerCoords(motionArgs.pointerCoords[0], 0.0f, 0.0f, 1.0f));
+
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, BTN_LEFT, 0);
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_SYN, SYN_REPORT, 0);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_BUTTON_RELEASE, motionArgs.action);
+    ASSERT_EQ(0, motionArgs.buttonState);
+    ASSERT_NO_FATAL_FAILURE(
+            assertCursorPointerCoords(motionArgs.pointerCoords[0], 0.0f, 0.0f, 0.0f));
+
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_UP, motionArgs.action);
+    ASSERT_EQ(0, motionArgs.buttonState);
+    ASSERT_NO_FATAL_FAILURE(
+            assertCursorPointerCoords(motionArgs.pointerCoords[0], 0.0f, 0.0f, 0.0f));
+
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_HOVER_MOVE, motionArgs.action);
+    ASSERT_EQ(0, motionArgs.buttonState);
+    ASSERT_NO_FATAL_FAILURE(
+            assertCursorPointerCoords(motionArgs.pointerCoords[0], 0.0f, 0.0f, 0.0f));
+
+    // press BTN_RIGHT + BTN_MIDDLE, release BTN_RIGHT, release BTN_MIDDLE
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, BTN_RIGHT, 1);
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, BTN_MIDDLE, 1);
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_SYN, SYN_REPORT, 0);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_DOWN, motionArgs.action);
+    ASSERT_EQ(AMOTION_EVENT_BUTTON_SECONDARY | AMOTION_EVENT_BUTTON_TERTIARY,
+              motionArgs.buttonState);
+    ASSERT_NO_FATAL_FAILURE(
+            assertCursorPointerCoords(motionArgs.pointerCoords[0], 0.0f, 0.0f, 1.0f));
+
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_BUTTON_PRESS, motionArgs.action);
+    ASSERT_EQ(AMOTION_EVENT_BUTTON_TERTIARY, motionArgs.buttonState);
+    ASSERT_NO_FATAL_FAILURE(
+            assertCursorPointerCoords(motionArgs.pointerCoords[0], 0.0f, 0.0f, 1.0f));
+
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_BUTTON_PRESS, motionArgs.action);
+    ASSERT_EQ(AMOTION_EVENT_BUTTON_SECONDARY | AMOTION_EVENT_BUTTON_TERTIARY,
+              motionArgs.buttonState);
+    ASSERT_NO_FATAL_FAILURE(
+            assertCursorPointerCoords(motionArgs.pointerCoords[0], 0.0f, 0.0f, 1.0f));
+
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, BTN_RIGHT, 0);
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_SYN, SYN_REPORT, 0);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_BUTTON_RELEASE, motionArgs.action);
+    ASSERT_EQ(AMOTION_EVENT_BUTTON_TERTIARY, motionArgs.buttonState);
+    ASSERT_NO_FATAL_FAILURE(
+            assertCursorPointerCoords(motionArgs.pointerCoords[0], 0.0f, 0.0f, 1.0f));
+
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_MOVE, motionArgs.action);
+    ASSERT_EQ(AMOTION_EVENT_BUTTON_TERTIARY, motionArgs.buttonState);
+    ASSERT_NO_FATAL_FAILURE(
+            assertCursorPointerCoords(motionArgs.pointerCoords[0], 0.0f, 0.0f, 1.0f));
+
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, BTN_MIDDLE, 0);
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_SYN, SYN_REPORT, 0);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_BUTTON_RELEASE, motionArgs.action);
+    ASSERT_EQ(0, motionArgs.buttonState);
+    ASSERT_NO_FATAL_FAILURE(
+            assertCursorPointerCoords(motionArgs.pointerCoords[0], 0.0f, 0.0f, 0.0f));
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, BTN_MIDDLE, 0);
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_SYN, SYN_REPORT, 0);
+
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(0, motionArgs.buttonState);
+    ASSERT_EQ(AMOTION_EVENT_ACTION_UP, motionArgs.action);
+    ASSERT_NO_FATAL_FAILURE(
+            assertCursorPointerCoords(motionArgs.pointerCoords[0], 0.0f, 0.0f, 0.0f));
+
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(0, motionArgs.buttonState);
+    ASSERT_EQ(AMOTION_EVENT_ACTION_HOVER_MOVE, motionArgs.action);
+    ASSERT_NO_FATAL_FAILURE(
+            assertCursorPointerCoords(motionArgs.pointerCoords[0], 0.0f, 0.0f, 0.0f));
+
+    // press BTN_BACK, release BTN_BACK
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, BTN_BACK, 1);
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_SYN, SYN_REPORT, 0);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&keyArgs));
+    ASSERT_EQ(AKEY_EVENT_ACTION_DOWN, keyArgs.action);
+    ASSERT_EQ(AKEYCODE_BACK, keyArgs.keyCode);
+
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_HOVER_MOVE, motionArgs.action);
+    ASSERT_EQ(AMOTION_EVENT_BUTTON_BACK, motionArgs.buttonState);
+    ASSERT_NO_FATAL_FAILURE(
+            assertCursorPointerCoords(motionArgs.pointerCoords[0], 0.0f, 0.0f, 0.0f));
+
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_BUTTON_PRESS, motionArgs.action);
+    ASSERT_EQ(AMOTION_EVENT_BUTTON_BACK, motionArgs.buttonState);
+    ASSERT_NO_FATAL_FAILURE(
+            assertCursorPointerCoords(motionArgs.pointerCoords[0], 0.0f, 0.0f, 0.0f));
+
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, BTN_BACK, 0);
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_SYN, SYN_REPORT, 0);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_BUTTON_RELEASE, motionArgs.action);
+    ASSERT_EQ(0, motionArgs.buttonState);
+    ASSERT_NO_FATAL_FAILURE(
+            assertCursorPointerCoords(motionArgs.pointerCoords[0], 0.0f, 0.0f, 0.0f));
+
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_HOVER_MOVE, motionArgs.action);
+    ASSERT_EQ(0, motionArgs.buttonState);
+
+    ASSERT_NO_FATAL_FAILURE(
+            assertCursorPointerCoords(motionArgs.pointerCoords[0], 0.0f, 0.0f, 0.0f));
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&keyArgs));
+    ASSERT_EQ(AKEY_EVENT_ACTION_UP, keyArgs.action);
+    ASSERT_EQ(AKEYCODE_BACK, keyArgs.keyCode);
+
+    // press BTN_SIDE, release BTN_SIDE
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, BTN_SIDE, 1);
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_SYN, SYN_REPORT, 0);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&keyArgs));
+    ASSERT_EQ(AKEY_EVENT_ACTION_DOWN, keyArgs.action);
+    ASSERT_EQ(AKEYCODE_BACK, keyArgs.keyCode);
+
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_HOVER_MOVE, motionArgs.action);
+    ASSERT_EQ(AMOTION_EVENT_BUTTON_BACK, motionArgs.buttonState);
+    ASSERT_NO_FATAL_FAILURE(
+            assertCursorPointerCoords(motionArgs.pointerCoords[0], 0.0f, 0.0f, 0.0f));
+
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_BUTTON_PRESS, motionArgs.action);
+    ASSERT_EQ(AMOTION_EVENT_BUTTON_BACK, motionArgs.buttonState);
+    ASSERT_NO_FATAL_FAILURE(
+            assertCursorPointerCoords(motionArgs.pointerCoords[0], 0.0f, 0.0f, 0.0f));
+
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, BTN_SIDE, 0);
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_SYN, SYN_REPORT, 0);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_BUTTON_RELEASE, motionArgs.action);
+    ASSERT_EQ(0, motionArgs.buttonState);
+    ASSERT_NO_FATAL_FAILURE(
+            assertCursorPointerCoords(motionArgs.pointerCoords[0], 0.0f, 0.0f, 0.0f));
+
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_HOVER_MOVE, motionArgs.action);
+    ASSERT_EQ(0, motionArgs.buttonState);
+    ASSERT_NO_FATAL_FAILURE(
+            assertCursorPointerCoords(motionArgs.pointerCoords[0], 0.0f, 0.0f, 0.0f));
+
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&keyArgs));
+    ASSERT_EQ(AKEY_EVENT_ACTION_UP, keyArgs.action);
+    ASSERT_EQ(AKEYCODE_BACK, keyArgs.keyCode);
+
+    // press BTN_FORWARD, release BTN_FORWARD
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, BTN_FORWARD, 1);
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_SYN, SYN_REPORT, 0);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&keyArgs));
+    ASSERT_EQ(AKEY_EVENT_ACTION_DOWN, keyArgs.action);
+    ASSERT_EQ(AKEYCODE_FORWARD, keyArgs.keyCode);
+
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_HOVER_MOVE, motionArgs.action);
+    ASSERT_EQ(AMOTION_EVENT_BUTTON_FORWARD, motionArgs.buttonState);
+    ASSERT_NO_FATAL_FAILURE(
+            assertCursorPointerCoords(motionArgs.pointerCoords[0], 0.0f, 0.0f, 0.0f));
+
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_BUTTON_PRESS, motionArgs.action);
+    ASSERT_EQ(AMOTION_EVENT_BUTTON_FORWARD, motionArgs.buttonState);
+    ASSERT_NO_FATAL_FAILURE(
+            assertCursorPointerCoords(motionArgs.pointerCoords[0], 0.0f, 0.0f, 0.0f));
+
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, BTN_FORWARD, 0);
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_SYN, SYN_REPORT, 0);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_BUTTON_RELEASE, motionArgs.action);
+    ASSERT_EQ(0, motionArgs.buttonState);
+    ASSERT_NO_FATAL_FAILURE(
+            assertCursorPointerCoords(motionArgs.pointerCoords[0], 0.0f, 0.0f, 0.0f));
+
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_HOVER_MOVE, motionArgs.action);
+    ASSERT_EQ(0, motionArgs.buttonState);
+    ASSERT_NO_FATAL_FAILURE(
+            assertCursorPointerCoords(motionArgs.pointerCoords[0], 0.0f, 0.0f, 0.0f));
+
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&keyArgs));
+    ASSERT_EQ(AKEY_EVENT_ACTION_UP, keyArgs.action);
+    ASSERT_EQ(AKEYCODE_FORWARD, keyArgs.keyCode);
+
+    // press BTN_EXTRA, release BTN_EXTRA
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, BTN_EXTRA, 1);
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_SYN, SYN_REPORT, 0);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&keyArgs));
+    ASSERT_EQ(AKEY_EVENT_ACTION_DOWN, keyArgs.action);
+    ASSERT_EQ(AKEYCODE_FORWARD, keyArgs.keyCode);
+
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_HOVER_MOVE, motionArgs.action);
+    ASSERT_EQ(AMOTION_EVENT_BUTTON_FORWARD, motionArgs.buttonState);
+    ASSERT_NO_FATAL_FAILURE(
+            assertCursorPointerCoords(motionArgs.pointerCoords[0], 0.0f, 0.0f, 0.0f));
+
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_BUTTON_PRESS, motionArgs.action);
+    ASSERT_EQ(AMOTION_EVENT_BUTTON_FORWARD, motionArgs.buttonState);
+    ASSERT_NO_FATAL_FAILURE(
+            assertCursorPointerCoords(motionArgs.pointerCoords[0], 0.0f, 0.0f, 0.0f));
+
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, BTN_EXTRA, 0);
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_SYN, SYN_REPORT, 0);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_BUTTON_RELEASE, motionArgs.action);
+    ASSERT_EQ(0, motionArgs.buttonState);
+    ASSERT_NO_FATAL_FAILURE(
+            assertCursorPointerCoords(motionArgs.pointerCoords[0], 0.0f, 0.0f, 0.0f));
+
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_HOVER_MOVE, motionArgs.action);
+    ASSERT_EQ(0, motionArgs.buttonState);
+    ASSERT_NO_FATAL_FAILURE(
+            assertCursorPointerCoords(motionArgs.pointerCoords[0], 0.0f, 0.0f, 0.0f));
+
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&keyArgs));
+    ASSERT_EQ(AKEY_EVENT_ACTION_UP, keyArgs.action);
+    ASSERT_EQ(AKEYCODE_FORWARD, keyArgs.keyCode);
+}
+
+TEST_F(CursorInputMapperTestWithChoreographer, ProcessWhenModeIsPointerShouldKeepZeroCoords) {
+    addConfigurationProperty("cursor.mode", "pointer");
+    CursorInputMapper& mapper = constructAndAddMapper<CursorInputMapper>();
+
+    mFakePolicy->setDefaultPointerDisplayId(DISPLAY_ID);
+    prepareDisplay(ui::ROTATION_0);
+
+    mFakePointerController->setBounds(0, 0, 800 - 1, 480 - 1);
+    mFakePointerController->setPosition(100, 200);
+
+    NotifyMotionArgs args;
+
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_REL, REL_X, 10);
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_REL, REL_Y, 20);
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_SYN, SYN_REPORT, 0);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_EQ(AINPUT_SOURCE_MOUSE, args.source);
+    ASSERT_EQ(AMOTION_EVENT_ACTION_HOVER_MOVE, args.action);
+    ASSERT_NO_FATAL_FAILURE(assertPointerCoords(args.pointerCoords[0], 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                                                0.0f, 0.0f, 0.0f, 0.0f, 0.0f));
+}
+
+TEST_F(CursorInputMapperTestWithChoreographer, PointerCaptureDisablesVelocityProcessing) {
+    addConfigurationProperty("cursor.mode", "pointer");
+    const VelocityControlParameters testParams(/*scale=*/5.f, /*lowThreshold=*/0.f,
+                                               /*highThreshold=*/100.f, /*acceleration=*/10.f);
+    mFakePolicy->setVelocityControlParams(testParams);
+    CursorInputMapper& mapper = constructAndAddMapper<CursorInputMapper>();
+
+    mFakePolicy->setDefaultPointerDisplayId(DISPLAY_ID);
+    prepareDisplay(ui::ROTATION_0);
+
+    NotifyDeviceResetArgs resetArgs;
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled(&resetArgs));
+    ASSERT_EQ(ARBITRARY_TIME, resetArgs.eventTime);
+    ASSERT_EQ(DEVICE_ID, resetArgs.deviceId);
+
+    NotifyMotionArgs args;
+
+    // Move and verify scale is applied.
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_REL, REL_X, 10);
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_REL, REL_Y, 20);
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_SYN, SYN_REPORT, 0);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_EQ(AINPUT_SOURCE_MOUSE, args.source);
+    ASSERT_EQ(AMOTION_EVENT_ACTION_HOVER_MOVE, args.action);
+    const float relX = args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X);
+    const float relY = args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y);
+    ASSERT_GT(relX, 10);
+    ASSERT_GT(relY, 20);
+
+    // Enable Pointer Capture
+    mFakePolicy->setPointerCapture(true);
+    configureDevice(InputReaderConfiguration::Change::POINTER_CAPTURE);
+    NotifyPointerCaptureChangedArgs captureArgs;
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyCaptureWasCalled(&captureArgs));
+    ASSERT_TRUE(captureArgs.request.enable);
+
+    // Move and verify scale is not applied.
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_REL, REL_X, 10);
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_REL, REL_Y, 20);
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_SYN, SYN_REPORT, 0);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_EQ(AINPUT_SOURCE_MOUSE_RELATIVE, args.source);
+    ASSERT_EQ(AMOTION_EVENT_ACTION_MOVE, args.action);
+    const float relX2 = args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X);
+    const float relY2 = args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y);
+    ASSERT_EQ(10, relX2);
+    ASSERT_EQ(20, relY2);
+}
+
+TEST_F(CursorInputMapperTestWithChoreographer, ConfigureDisplayIdNoAssociatedViewport) {
+    CursorInputMapper& mapper = constructAndAddMapper<CursorInputMapper>();
+
+    // Set up the default display.
+    prepareDisplay(ui::ROTATION_90);
+
+    // Set up the secondary display as the display on which the pointer should be shown.
+    // The InputDevice is not associated with any display.
+    prepareSecondaryDisplay();
+    mFakePolicy->setDefaultPointerDisplayId(SECONDARY_DISPLAY_ID);
+    configureDevice(InputReaderConfiguration::Change::DISPLAY_INFO);
+
+    mFakePointerController->setBounds(0, 0, DISPLAY_WIDTH - 1, DISPLAY_HEIGHT - 1);
+    mFakePointerController->setPosition(100, 200);
+
+    // Ensure input events are generated without display ID and coords,
+    // because they will be decided later by PointerChoreographer.
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_REL, REL_X, 10);
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_REL, REL_Y, 20);
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_SYN, SYN_REPORT, 0);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
+                  WithSource(AINPUT_SOURCE_MOUSE), WithDisplayId(ADISPLAY_ID_NONE),
+                  WithCoords(0.0f, 0.0f))));
+}
+
+TEST_F(CursorInputMapperTestWithChoreographer, ConfigureDisplayIdWithAssociatedViewport) {
+    CursorInputMapper& mapper = constructAndAddMapper<CursorInputMapper>();
+
+    // Set up the default display.
+    prepareDisplay(ui::ROTATION_90);
+
+    // Set up the secondary display as the display on which the pointer should be shown,
+    // and associate the InputDevice with the secondary display.
+    prepareSecondaryDisplay();
+    mFakePolicy->setDefaultPointerDisplayId(SECONDARY_DISPLAY_ID);
+    mFakePolicy->addInputUniqueIdAssociation(DEVICE_LOCATION, SECONDARY_DISPLAY_UNIQUE_ID);
+    configureDevice(InputReaderConfiguration::Change::DISPLAY_INFO);
+
+    mFakePointerController->setBounds(0, 0, DISPLAY_WIDTH - 1, DISPLAY_HEIGHT - 1);
+    mFakePointerController->setPosition(100, 200);
+
+    // Ensure input events are generated with associated display ID but not with coords,
+    // because the coords will be decided later by PointerChoreographer.
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_REL, REL_X, 10);
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_REL, REL_Y, 20);
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_SYN, SYN_REPORT, 0);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
+                  WithSource(AINPUT_SOURCE_MOUSE), WithDisplayId(SECONDARY_DISPLAY_ID),
+                  WithCoords(0.0f, 0.0f))));
+}
+
+TEST_F(CursorInputMapperTestWithChoreographer,
+       ConfigureDisplayIdShouldGenerateEventWithMismatchedPointerDisplay) {
+    CursorInputMapper& mapper = constructAndAddMapper<CursorInputMapper>();
+
+    // Set up the default display as the display on which the pointer should be shown.
+    prepareDisplay(ui::ROTATION_90);
+    mFakePolicy->setDefaultPointerDisplayId(DISPLAY_ID);
+
+    // Associate the InputDevice with the secondary display.
+    prepareSecondaryDisplay();
+    mFakePolicy->addInputUniqueIdAssociation(DEVICE_LOCATION, SECONDARY_DISPLAY_UNIQUE_ID);
+    configureDevice(InputReaderConfiguration::Change::DISPLAY_INFO);
+
+    // With PointerChoreographer enabled, there could be a PointerController for the associated
+    // display even if it is different from the pointer display. So the mapper should generate an
+    // event.
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_REL, REL_X, 10);
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_REL, REL_Y, 20);
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_SYN, SYN_REPORT, 0);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
+                  WithSource(AINPUT_SOURCE_MOUSE), WithDisplayId(SECONDARY_DISPLAY_ID),
+                  WithCoords(0.0f, 0.0f))));
+}
+
+// --- BluetoothCursorInputMapperTest ---
+
+class BluetoothCursorInputMapperTest : public CursorInputMapperTestBase {
+protected:
+    void SetUp() override {
+        input_flags::enable_pointer_choreographer(false);
         InputMapperTest::SetUp(DEVICE_CLASSES | InputDeviceClass::EXTERNAL, BUS_BLUETOOTH);
 
         mFakePointerController = std::make_shared<FakePointerController>();
@@ -4985,6 +5447,122 @@ TEST_F(BluetoothCursorInputMapperTest, TimestampSmootheningIsCapped) {
 TEST_F(BluetoothCursorInputMapperTest, TimestampSmootheningNotUsed) {
     addConfigurationProperty("cursor.mode", "pointer");
     CursorInputMapper& mapper = constructAndAddMapper<CursorInputMapper>();
+
+    nsecs_t kernelEventTime = ARBITRARY_TIME;
+    nsecs_t expectedEventTime = ARBITRARY_TIME;
+    process(mapper, kernelEventTime, READ_TIME, EV_REL, REL_X, 1);
+    process(mapper, kernelEventTime, READ_TIME, EV_SYN, SYN_REPORT, 0);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
+                  WithEventTime(expectedEventTime))));
+
+    // If the next event has a timestamp that is sufficiently spaced out so that Bluetooth timestamp
+    // smoothening is not needed, its timestamp is not affected.
+    kernelEventTime += MAX_BLUETOOTH_SMOOTHING_DELTA + ms2ns(1);
+    expectedEventTime = kernelEventTime;
+
+    process(mapper, kernelEventTime, READ_TIME, EV_REL, REL_X, 1);
+    process(mapper, kernelEventTime, READ_TIME, EV_SYN, SYN_REPORT, 0);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
+                  WithEventTime(expectedEventTime))));
+}
+
+// --- BluetoothCursorInputMapperTestWithChoreographer ---
+
+class BluetoothCursorInputMapperTestWithChoreographer : public CursorInputMapperTestBase {
+protected:
+    void SetUp() override {
+        input_flags::enable_pointer_choreographer(true);
+        InputMapperTest::SetUp(DEVICE_CLASSES | InputDeviceClass::EXTERNAL, BUS_BLUETOOTH);
+
+        mFakePointerController = std::make_shared<FakePointerController>();
+        mFakePolicy->setPointerController(mFakePointerController);
+    }
+};
+
+TEST_F(BluetoothCursorInputMapperTestWithChoreographer, TimestampSmoothening) {
+    addConfigurationProperty("cursor.mode", "pointer");
+    CursorInputMapper& mapper = constructAndAddMapper<CursorInputMapper>();
+
+    // Set up the default display.
+    prepareDisplay(ui::ROTATION_0);
+    mFakePolicy->setDefaultPointerDisplayId(DISPLAY_ID);
+    configureDevice(InputReaderConfiguration::Change::DISPLAY_INFO);
+
+    nsecs_t kernelEventTime = ARBITRARY_TIME;
+    nsecs_t expectedEventTime = ARBITRARY_TIME;
+    process(mapper, kernelEventTime, READ_TIME, EV_REL, REL_X, 1);
+    process(mapper, kernelEventTime, READ_TIME, EV_SYN, SYN_REPORT, 0);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
+                  WithEventTime(expectedEventTime))));
+
+    // Process several events that come in quick succession, according to their timestamps.
+    for (int i = 0; i < 3; i++) {
+        constexpr static nsecs_t delta = ms2ns(1);
+        static_assert(delta < MIN_BLUETOOTH_TIMESTAMP_DELTA);
+        kernelEventTime += delta;
+        expectedEventTime += MIN_BLUETOOTH_TIMESTAMP_DELTA;
+
+        process(mapper, kernelEventTime, READ_TIME, EV_REL, REL_X, 1);
+        process(mapper, kernelEventTime, READ_TIME, EV_SYN, SYN_REPORT, 0);
+        ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
+                      WithEventTime(expectedEventTime))));
+    }
+}
+
+TEST_F(BluetoothCursorInputMapperTestWithChoreographer, TimestampSmootheningIsCapped) {
+    addConfigurationProperty("cursor.mode", "pointer");
+    CursorInputMapper& mapper = constructAndAddMapper<CursorInputMapper>();
+
+    // Set up the default display.
+    prepareDisplay(ui::ROTATION_0);
+    mFakePolicy->setDefaultPointerDisplayId(DISPLAY_ID);
+    configureDevice(InputReaderConfiguration::Change::DISPLAY_INFO);
+
+    nsecs_t expectedEventTime = ARBITRARY_TIME;
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_REL, REL_X, 1);
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_SYN, SYN_REPORT, 0);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
+                  WithEventTime(expectedEventTime))));
+
+    // Process several events with the same timestamp from the kernel.
+    // Ensure that we do not generate events too far into the future.
+    constexpr static int32_t numEvents =
+            MAX_BLUETOOTH_SMOOTHING_DELTA / MIN_BLUETOOTH_TIMESTAMP_DELTA;
+    for (int i = 0; i < numEvents; i++) {
+        expectedEventTime += MIN_BLUETOOTH_TIMESTAMP_DELTA;
+
+        process(mapper, ARBITRARY_TIME, READ_TIME, EV_REL, REL_X, 1);
+        process(mapper, ARBITRARY_TIME, READ_TIME, EV_SYN, SYN_REPORT, 0);
+        ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
+                      WithEventTime(expectedEventTime))));
+    }
+
+    // By processing more events with the same timestamp, we should not generate events with a
+    // timestamp that is more than the specified max time delta from the timestamp at its injection.
+    const nsecs_t cappedEventTime = ARBITRARY_TIME + MAX_BLUETOOTH_SMOOTHING_DELTA;
+    for (int i = 0; i < 3; i++) {
+        process(mapper, ARBITRARY_TIME, READ_TIME, EV_REL, REL_X, 1);
+        process(mapper, ARBITRARY_TIME, READ_TIME, EV_SYN, SYN_REPORT, 0);
+        ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
+                      WithEventTime(cappedEventTime))));
+    }
+}
+
+TEST_F(BluetoothCursorInputMapperTestWithChoreographer, TimestampSmootheningNotUsed) {
+    addConfigurationProperty("cursor.mode", "pointer");
+    CursorInputMapper& mapper = constructAndAddMapper<CursorInputMapper>();
+
+    // Set up the default display.
+    prepareDisplay(ui::ROTATION_0);
+    mFakePolicy->setDefaultPointerDisplayId(DISPLAY_ID);
+    configureDevice(InputReaderConfiguration::Change::DISPLAY_INFO);
 
     nsecs_t kernelEventTime = ARBITRARY_TIME;
     nsecs_t expectedEventTime = ARBITRARY_TIME;

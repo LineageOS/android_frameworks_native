@@ -102,7 +102,8 @@ class Scheduler : public IEventThreadCallback, android::impl::MessageQueue {
     using Impl = android::impl::MessageQueue;
 
 public:
-    Scheduler(ICompositor&, ISchedulerCallback&, FeatureFlags, sp<VsyncModulator>);
+    Scheduler(ICompositor&, ISchedulerCallback&, FeatureFlags, sp<VsyncModulator>,
+              IVsyncTrackerCallback&);
     virtual ~Scheduler();
 
     void startTimers();
@@ -429,6 +430,9 @@ private:
     Period getVsyncPeriod(uid_t) override EXCLUDES(mDisplayLock);
     void resync() override EXCLUDES(mDisplayLock);
 
+    std::optional<Period> getNotifyExpectedPresentTimeout(const FrameRateMode&)
+            REQUIRES(mDisplayLock);
+
     // Stores EventThread associated with a given VSyncSource, and an initial EventThreadConnection.
     struct Connection {
         sp<EventThreadConnection> connection;
@@ -461,6 +465,8 @@ private:
     float mPacesetterFrameDurationFractionToSkip GUARDED_BY(kMainThreadContext) = 0.f;
 
     ISchedulerCallback& mSchedulerCallback;
+
+    IVsyncTrackerCallback& mVsyncTrackerCallback;
 
     // mDisplayLock may be locked while under mPolicyLock.
     mutable std::mutex mPolicyLock;

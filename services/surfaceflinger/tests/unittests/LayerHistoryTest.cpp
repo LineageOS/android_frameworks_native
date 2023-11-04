@@ -144,7 +144,9 @@ protected:
 
     mock::SchedulerCallback mSchedulerCallback;
 
-    TestableScheduler* mScheduler = new TestableScheduler(mSelector, mSchedulerCallback);
+    mock::VsyncTrackerCallback mVsyncTrackerCallback;
+    TestableScheduler* mScheduler =
+            new TestableScheduler(mSelector, mSchedulerCallback, mVsyncTrackerCallback);
 
     TestableSurfaceFlinger mFlinger;
 };

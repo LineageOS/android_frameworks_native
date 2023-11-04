@@ -38,7 +38,16 @@ public:
      * library, libinputservice, that has the additional dependencies. The PointerController
      * will be mocked when testing PointerChoreographer.
      */
-    virtual std::shared_ptr<PointerControllerInterface> createPointerController() = 0;
+    virtual std::shared_ptr<PointerControllerInterface> createPointerController(
+            PointerControllerInterface::ControllerType type) = 0;
+
+    /**
+     * Notifies the policy that the default pointer displayId has changed. PointerChoreographer is
+     * the single source of truth for all pointers on screen.
+     * @param displayId The updated display on which the mouse cursor is shown
+     * @param position The new position of the mouse cursor on the logical display
+     */
+    virtual void notifyPointerDisplayIdChanged(int32_t displayId, const FloatPoint& position) = 0;
 };
 
 } // namespace android

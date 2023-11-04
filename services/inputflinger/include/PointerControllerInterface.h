@@ -52,6 +52,22 @@ protected:
     virtual ~PointerControllerInterface() { }
 
 public:
+    /**
+     * Enum used to differentiate various types of PointerControllers for the transition to
+     * using PointerChoreographer.
+     *
+     * TODO(b/293587049): Refactor the PointerController class into different controller types.
+     */
+    enum class ControllerType {
+        // The PointerController that is responsible for drawing all icons.
+        LEGACY,
+        // Represents a single mouse pointer.
+        MOUSE,
+    };
+
+    /* Dumps the state of the pointer controller. */
+    virtual std::string dump() = 0;
+
     /* Gets the bounds of the region that the pointer can traverse.
      * Returns true if the bounds are available. */
     virtual std::optional<FloatRect> getBounds() const = 0;

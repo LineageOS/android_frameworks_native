@@ -100,7 +100,7 @@ public:
         return true;
     }
 
-    void setRenderRate(Fps) override {}
+    void setDisplayModeData(const scheduler::DisplayModeData&) override {}
 
     nsecs_t nextVSyncTime(nsecs_t timePoint) const {
         if (timePoint % mPeriod == 0) {

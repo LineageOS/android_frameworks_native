@@ -67,6 +67,7 @@ static const char* PERSIST_DRIVER_SUFFIX_PROPERTY = "persist.graphics.egl";
 static const char* RO_DRIVER_SUFFIX_PROPERTY = "ro.hardware.egl";
 static const char* RO_BOARD_PLATFORM_PROPERTY = "ro.board.platform";
 static const char* ANGLE_SUFFIX_VALUE = "angle";
+static const char* VENDOR_ANGLE_BUILD = "ro.gfx.angle.supported";
 
 static const char* HAL_SUBNAME_KEY_PROPERTIES[3] = {
         PERSIST_DRIVER_SUFFIX_PROPERTY,
@@ -493,8 +494,10 @@ static void* load_system_driver(const char* kind, const char* suffix, const bool
 
     void* dso = nullptr;
 
+    const bool AngleInVendor = property_get_bool(VENDOR_ANGLE_BUILD, false);
+    const bool isSuffixAngle = suffix != nullptr && strcmp(suffix, ANGLE_SUFFIX_VALUE) == 0;
     // Only use sphal namespace when system ANGLE binaries are not the default drivers.
-    const bool useSphalNamespace = strcmp(suffix, ANGLE_SUFFIX_VALUE) != 0;
+    const bool useSphalNamespace =  !isSuffixAngle || AngleInVendor;
 
     const std::string absolutePath =
             findLibrary(libraryName, useSphalNamespace ? VENDOR_LIB_EGL_DIR : SYSTEM_LIB_PATH,

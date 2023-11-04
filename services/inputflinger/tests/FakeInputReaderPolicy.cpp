@@ -261,4 +261,17 @@ void FakeInputReaderPolicy::notifyStylusGestureStarted(int32_t deviceId, nsecs_t
     mStylusGestureNotified = deviceId;
 }
 
+std::optional<DisplayViewport> FakeInputReaderPolicy::getPointerViewportForAssociatedDisplay(
+        int32_t associatedDisplayId) {
+    if (associatedDisplayId == ADISPLAY_ID_NONE) {
+        associatedDisplayId = mConfig.defaultPointerDisplayId;
+    }
+    for (auto& viewport : mViewports) {
+        if (viewport.displayId == associatedDisplayId) {
+            return std::make_optional(viewport);
+        }
+    }
+    return std::nullopt;
+}
+
 } // namespace android

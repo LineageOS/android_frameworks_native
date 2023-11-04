@@ -35,6 +35,7 @@
 #include <gui/TraceUtils.h>
 #include <utils/Log.h>
 
+#include "FlagManager.h"
 #include "RefreshRateSelector.h"
 #include "VSyncPredictor.h"
 
@@ -47,12 +48,14 @@ static auto constexpr kMaxPercent = 100u;
 VSyncPredictor::~VSyncPredictor() = default;
 
 VSyncPredictor::VSyncPredictor(PhysicalDisplayId id, nsecs_t idealPeriod, size_t historySize,
-                               size_t minimumSamplesForPrediction, uint32_t outlierTolerancePercent)
+                               size_t minimumSamplesForPrediction, uint32_t outlierTolerancePercent,
+                               IVsyncTrackerCallback& callback)
       : mId(id),
         mTraceOn(property_get_bool("debug.sf.vsp_trace", false)),
         kHistorySize(historySize),
         kMinimumSamplesForPrediction(minimumSamplesForPrediction),
         kOutlierTolerancePercent(std::min(outlierTolerancePercent, kMaxPercent)),
+        mVsyncTrackerCallback(callback),
         mIdealPeriod(idealPeriod) {
     resetModel();
 }
@@ -275,11 +278,11 @@ nsecs_t VSyncPredictor::nextAnticipatedVSyncTimeFrom(nsecs_t timePoint) const {
     mLastVsyncSequence = getVsyncSequenceLocked(timePoint);
 
     const auto renderRatePhase = [&]() REQUIRES(mMutex) -> int {
-        if (!mRenderRate) return 0;
+        if (!mDisplayModeDataOpt) return 0;
 
         const auto divisor =
                 RefreshRateSelector::getFrameRateDivisor(Fps::fromPeriodNsecs(mIdealPeriod),
-                                                         *mRenderRate);
+                                                         mDisplayModeDataOpt->renderRate);
         if (divisor <= 1) return 0;
 
         const int mod = mLastVsyncSequence->seq % divisor;
@@ -289,12 +292,29 @@ nsecs_t VSyncPredictor::nextAnticipatedVSyncTimeFrom(nsecs_t timePoint) const {
     }();
 
     if (renderRatePhase == 0) {
-        return mLastVsyncSequence->vsyncTime;
+        const auto vsyncTime = mLastVsyncSequence->vsyncTime;
+        if (FlagManager::getInstance().vrr_config() && mDisplayModeDataOpt) {
+            const auto vsyncTimePoint = TimePoint::fromNs(vsyncTime);
+            ATRACE_FORMAT("%s InPhase vsyncIn %.2fms", __func__,
+                          ticks<std::milli, float>(vsyncTimePoint - TimePoint::now()));
+            mVsyncTrackerCallback.onVsyncGenerated(mId, vsyncTimePoint, *mDisplayModeDataOpt,
+                                                   Period::fromNs(mIdealPeriod));
+        }
+        return vsyncTime;
     }
 
     auto const [slope, intercept] = getVSyncPredictionModelLocked();
     const auto approximateNextVsync = mLastVsyncSequence->vsyncTime + slope * renderRatePhase;
-    return nextAnticipatedVSyncTimeFromLocked(approximateNextVsync - slope / 2);
+    const auto nextAnticipatedVsyncTime =
+            nextAnticipatedVSyncTimeFromLocked(approximateNextVsync - slope / 2);
+    if (FlagManager::getInstance().vrr_config() && mDisplayModeDataOpt) {
+        const auto nextAnticipatedVsyncTimePoint = TimePoint::fromNs(nextAnticipatedVsyncTime);
+        ATRACE_FORMAT("%s outOfPhase vsyncIn %.2fms", __func__,
+                      ticks<std::milli, float>(nextAnticipatedVsyncTimePoint - TimePoint::now()));
+        mVsyncTrackerCallback.onVsyncGenerated(mId, nextAnticipatedVsyncTimePoint,
+                                               *mDisplayModeDataOpt, Period::fromNs(mIdealPeriod));
+    }
+    return nextAnticipatedVsyncTime;
 }
 
 /*
@@ -332,10 +352,14 @@ bool VSyncPredictor::isVSyncInPhaseLocked(nsecs_t timePoint, unsigned divisor) c
     return vsyncSequence.seq % divisor == 0;
 }
 
-void VSyncPredictor::setRenderRate(Fps fps) {
-    ALOGV("%s %s: %s", __func__, to_string(mId).c_str(), to_string(fps).c_str());
+void VSyncPredictor::setDisplayModeData(const DisplayModeData& displayModeData) {
+    ALOGV("%s %s: RenderRate %s notifyExpectedPresentTimeout %s", __func__, to_string(mId).c_str(),
+          to_string(displayModeData.renderRate).c_str(),
+          displayModeData.notifyExpectedPresentTimeoutOpt
+                  ? std::to_string(displayModeData.notifyExpectedPresentTimeoutOpt->ns()).c_str()
+                  : "N/A");
     std::lock_guard lock(mMutex);
-    mRenderRate = fps;
+    mDisplayModeDataOpt = displayModeData;
 }
 
 VSyncPredictor::Model VSyncPredictor::getVSyncPredictionModel() const {
@@ -358,6 +382,7 @@ void VSyncPredictor::setPeriod(nsecs_t period) {
         mRateMap.erase(mRateMap.begin());
     }
 
+    // TODO(b/308610306) mIdealPeriod to be updated with setDisplayModeData
     mIdealPeriod = period;
     if (mRateMap.find(period) == mRateMap.end()) {
         mRateMap[mIdealPeriod] = {period, 0};

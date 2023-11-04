@@ -23,7 +23,9 @@
 #define LOG_TAG "LibSurfaceFlingerUnittests"
 #define LOG_NDEBUG 0
 
+#include "FlagUtils.h"
 #include "Scheduler/VSyncPredictor.h"
+#include "mock/MockVsyncTrackerCallback.h"
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -31,8 +33,11 @@
 #include <chrono>
 #include <utility>
 
+#include <com_android_graphics_surfaceflinger_flags.h>
+
 using namespace testing;
 using namespace std::literals;
+using namespace com::android::graphics::surfaceflinger;
 
 namespace android::scheduler {
 
@@ -52,13 +57,18 @@ constexpr PhysicalDisplayId DEFAULT_DISPLAY_ID = PhysicalDisplayId::fromPort(42u
 struct VSyncPredictorTest : testing::Test {
     nsecs_t mNow = 0;
     nsecs_t mPeriod = 1000;
+    scheduler::mock::VsyncTrackerCallback mVsyncTrackerCallback;
     static constexpr size_t kHistorySize = 10;
     static constexpr size_t kMinimumSamplesForPrediction = 6;
     static constexpr size_t kOutlierTolerancePercent = 25;
     static constexpr nsecs_t mMaxRoundingError = 100;
 
-    VSyncPredictor tracker{DEFAULT_DISPLAY_ID, mPeriod, kHistorySize, kMinimumSamplesForPrediction,
-                           kOutlierTolerancePercent};
+    VSyncPredictor tracker{DEFAULT_DISPLAY_ID,
+                           mPeriod,
+                           kHistorySize,
+                           kMinimumSamplesForPrediction,
+                           kOutlierTolerancePercent,
+                           mVsyncTrackerCallback};
 };
 
 TEST_F(VSyncPredictorTest, reportsAnticipatedPeriod) {
@@ -378,8 +388,12 @@ TEST_F(VSyncPredictorTest, doesNotPredictBeforeTimePointWithHigherIntercept) {
 
 // See b/151146131
 TEST_F(VSyncPredictorTest, hasEnoughPrecision) {
-    VSyncPredictor tracker{DEFAULT_DISPLAY_ID, mPeriod, 20, kMinimumSamplesForPrediction,
-                           kOutlierTolerancePercent};
+    VSyncPredictor tracker{DEFAULT_DISPLAY_ID,
+                           mPeriod,
+                           20,
+                           kMinimumSamplesForPrediction,
+                           kOutlierTolerancePercent,
+                           mVsyncTrackerCallback};
     std::vector<nsecs_t> const simulatedVsyncs{840873348817, 840890049444, 840906762675,
                                                840923581635, 840940161584, 840956868096,
                                                840973702473, 840990256277, 841007116851,
@@ -566,7 +580,7 @@ TEST_F(VSyncPredictorTest, setRenderRateIsRespected) {
         tracker.addVsyncTimestamp(mNow);
     }
 
-    tracker.setRenderRate(Fps::fromPeriodNsecs(3 * mPeriod));
+    tracker.setDisplayModeData({.renderRate = Fps::fromPeriodNsecs(3 * mPeriod)});
 
     EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow), Eq(mNow + mPeriod));
     EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 100), Eq(mNow + mPeriod));
@@ -588,12 +602,12 @@ TEST_F(VSyncPredictorTest, setRenderRateOfDivisorIsInPhase) {
 
     const auto refreshRate = Fps::fromPeriodNsecs(mPeriod);
 
-    tracker.setRenderRate(refreshRate / 4);
+    tracker.setDisplayModeData({.renderRate = refreshRate / 4});
     EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow), Eq(mNow + 3 * mPeriod));
     EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 3 * mPeriod), Eq(mNow + 7 * mPeriod));
     EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 7 * mPeriod), Eq(mNow + 11 * mPeriod));
 
-    tracker.setRenderRate(refreshRate / 2);
+    tracker.setDisplayModeData({.renderRate = refreshRate / 2});
     EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow), Eq(mNow + 1 * mPeriod));
     EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 1 * mPeriod), Eq(mNow + 3 * mPeriod));
     EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 3 * mPeriod), Eq(mNow + 5 * mPeriod));
@@ -601,7 +615,7 @@ TEST_F(VSyncPredictorTest, setRenderRateOfDivisorIsInPhase) {
     EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 7 * mPeriod), Eq(mNow + 9 * mPeriod));
     EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 9 * mPeriod), Eq(mNow + 11 * mPeriod));
 
-    tracker.setRenderRate(refreshRate / 6);
+    tracker.setDisplayModeData({.renderRate = refreshRate / 6});
     EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow), Eq(mNow + 1 * mPeriod));
     EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 1 * mPeriod), Eq(mNow + 7 * mPeriod));
 }
@@ -615,7 +629,7 @@ TEST_F(VSyncPredictorTest, setRenderRateIsIgnoredIfNotDivisor) {
         tracker.addVsyncTimestamp(mNow);
     }
 
-    tracker.setRenderRate(Fps::fromPeriodNsecs(3.5f * mPeriod));
+    tracker.setDisplayModeData({.renderRate = Fps::fromPeriodNsecs(3.5f * mPeriod)});
 
     EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow), Eq(mNow + mPeriod));
     EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 100), Eq(mNow + mPeriod));
@@ -624,6 +638,39 @@ TEST_F(VSyncPredictorTest, setRenderRateIsIgnoredIfNotDivisor) {
     EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 3100), Eq(mNow + 4 * mPeriod));
     EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 4100), Eq(mNow + 5 * mPeriod));
     EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 5100), Eq(mNow + 6 * mPeriod));
+}
+
+TEST_F(VSyncPredictorTest, vsyncTrackerCallback) {
+    SET_FLAG_FOR_TEST(flags::vrr_config, true);
+    const auto refreshRate = Fps::fromPeriodNsecs(mPeriod);
+    DisplayModeData displayModeData =
+            DisplayModeData{.renderRate = refreshRate,
+                            .notifyExpectedPresentTimeoutOpt = Period::fromNs(30)};
+    tracker.setDisplayModeData(displayModeData);
+    auto last = mNow;
+    for (auto i = 0u; i < kMinimumSamplesForPrediction; i++) {
+        EXPECT_CALL(mVsyncTrackerCallback,
+                    onVsyncGenerated(DEFAULT_DISPLAY_ID, TimePoint::fromNs(last + mPeriod),
+                                     displayModeData, Period::fromNs(mPeriod)))
+                .Times(1);
+        EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow), Eq(last + mPeriod));
+        mNow += mPeriod;
+        last = mNow;
+        tracker.addVsyncTimestamp(mNow);
+    }
+
+    displayModeData = DisplayModeData{.renderRate = refreshRate / 2,
+                                      .notifyExpectedPresentTimeoutOpt = Period::fromNs(30)};
+    tracker.setDisplayModeData(displayModeData);
+    {
+        // out of render rate phase
+        EXPECT_CALL(mVsyncTrackerCallback,
+                    onVsyncGenerated(DEFAULT_DISPLAY_ID, TimePoint::fromNs(mNow + 3 * mPeriod),
+                                     displayModeData, Period::fromNs(mPeriod)))
+                .Times(1);
+        EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 1 * mPeriod),
+                    Eq(mNow + 3 * mPeriod));
+    }
 }
 
 } // namespace android::scheduler
