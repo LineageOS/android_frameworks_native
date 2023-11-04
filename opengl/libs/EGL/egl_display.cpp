@@ -168,7 +168,7 @@ static EGLDisplay getPlatformDisplayAngle(EGLNativeDisplayType display, egl_conn
         if (dpy == EGL_NO_DISPLAY) {
             ALOGE("eglGetPlatformDisplay failed!");
         } else {
-            if (!angle::initializeAnglePlatform(dpy)) {
+            if (!angle::initializeAnglePlatform(dpy, cnx)) {
                 ALOGE("initializeAnglePlatform failed!");
             }
         }
@@ -433,7 +433,7 @@ EGLBoolean egl_display_t::terminate() {
         if (cnx->dso && disp.state == egl_display_t::INITIALIZED) {
             // If we're using ANGLE reset any custom DisplayPlatform
             if (cnx->angleLoaded) {
-                angle::resetAnglePlatform(disp.dpy);
+                angle::resetAnglePlatform(disp.dpy, cnx);
             }
             if (cnx->egl.eglTerminate(disp.dpy) == EGL_FALSE) {
                 ALOGW("eglTerminate(%p) failed (%s)", disp.dpy,
