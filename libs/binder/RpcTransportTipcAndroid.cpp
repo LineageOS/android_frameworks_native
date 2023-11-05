@@ -26,6 +26,8 @@
 #include "RpcState.h"
 #include "RpcTransportUtils.h"
 
+using namespace android::binder::impl;
+
 namespace android {
 
 // RpcTransport for writing Trusty IPC clients in Android.
@@ -72,7 +74,7 @@ public:
 
     status_t interruptableWriteFully(
             FdTrigger* fdTrigger, iovec* iovs, int niovs,
-            const std::optional<android::base::function_ref<status_t()>>& altPoll,
+            const std::optional<SmallFunction<status_t()>>& altPoll,
             const std::vector<std::variant<base::unique_fd, base::borrowed_fd>>* ancillaryFds)
             override {
         auto writeFn = [&](iovec* iovs, size_t niovs) -> ssize_t {
@@ -90,7 +92,7 @@ public:
 
     status_t interruptableReadFully(
             FdTrigger* fdTrigger, iovec* iovs, int niovs,
-            const std::optional<android::base::function_ref<status_t()>>& altPoll,
+            const std::optional<SmallFunction<status_t()>>& altPoll,
             std::vector<std::variant<base::unique_fd, base::borrowed_fd>>* /*ancillaryFds*/)
             override {
         auto readFn = [&](iovec* iovs, size_t niovs) -> ssize_t {
