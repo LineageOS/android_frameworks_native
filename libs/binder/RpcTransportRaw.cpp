@@ -29,6 +29,8 @@
 
 namespace android {
 
+using namespace android::binder::impl;
+
 // RpcTransport with TLS disabled.
 class RpcTransportRaw : public RpcTransport {
 public:
@@ -54,7 +56,7 @@ public:
 
     status_t interruptableWriteFully(
             FdTrigger* fdTrigger, iovec* iovs, int niovs,
-            const std::optional<android::base::function_ref<status_t()>>& altPoll,
+            const std::optional<SmallFunction<status_t()>>& altPoll,
             const std::vector<std::variant<base::unique_fd, base::borrowed_fd>>* ancillaryFds)
             override {
         bool sentFds = false;
@@ -70,7 +72,7 @@ public:
 
     status_t interruptableReadFully(
             FdTrigger* fdTrigger, iovec* iovs, int niovs,
-            const std::optional<android::base::function_ref<status_t()>>& altPoll,
+            const std::optional<SmallFunction<status_t()>>& altPoll,
             std::vector<std::variant<base::unique_fd, base::borrowed_fd>>* ancillaryFds) override {
         auto recv = [&](iovec* iovs, int niovs) -> ssize_t {
             return binder::os::receiveMessageFromSocket(mSocket, iovs, niovs, ancillaryFds);
