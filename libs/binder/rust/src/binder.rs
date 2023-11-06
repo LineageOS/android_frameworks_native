@@ -21,6 +21,7 @@ use crate::parcel::{BorrowedParcel, Parcel};
 use crate::proxy::{DeathRecipient, SpIBinder, WpIBinder};
 use crate::sys;
 
+use downcast_rs::{impl_downcast, DowncastSync};
 use std::borrow::Borrow;
 use std::cmp::Ordering;
 use std::convert::TryFrom;
@@ -51,7 +52,7 @@ pub type TransactionFlags = u32;
 /// interfaces) must implement this trait.
 ///
 /// This is equivalent `IInterface` in C++.
-pub trait Interface: Send + Sync {
+pub trait Interface: Send + Sync + DowncastSync {
     /// Convert this binder object into a generic [`SpIBinder`] reference.
     fn as_binder(&self) -> SpIBinder {
         panic!("This object was not a Binder object and cannot be converted into an SpIBinder.")
@@ -65,6 +66,8 @@ pub trait Interface: Send + Sync {
         Ok(())
     }
 }
+
+impl_downcast!(sync Interface);
 
 /// Implemented by sync interfaces to specify what the associated async interface is.
 /// Generic to handle the fact that async interfaces are generic over a thread pool.
@@ -143,7 +146,7 @@ impl TryFrom<i32> for Stability {
 /// When using the AIDL backend, users need only implement the high-level AIDL-defined
 /// interface. The AIDL compiler then generates a container struct that wraps
 /// the user-defined service and implements `Remotable`.
-pub trait Remotable: Send + Sync {
+pub trait Remotable: Send + Sync + 'static {
     /// The Binder interface descriptor string.
     ///
     /// This string is a unique identifier for a Binder interface, and should be
@@ -893,6 +896,23 @@ macro_rules! declare_binder_interface {
                 $crate::binder_impl::IBinderInternal::set_requesting_sid(&mut binder, features.set_requesting_sid);
                 $crate::Strong::new(Box::new(binder))
             }
+
+            /// Tries to downcast the interface to another type.
+            /// When receiving this object from a binder call, make sure that the object received is
+            /// a binder native object and that is of the right type for the Downcast:
+            ///
+            /// let binder = received_object.as_binder();
+            /// if !binder.is_remote() {
+            ///     let binder_native: Binder<BnFoo> = binder.try_into()?;
+            ///     let original_object = binder_native.downcast_binder::<MyFoo>();
+            ///     // Check that returned type is not None before using it
+            /// }
+            ///
+            /// Handle the error cases instead of just calling `unwrap` or `expect` to prevent a
+            /// malicious caller to mount a Denial of Service attack.
+            pub fn downcast_binder<T: $interface>(&self) -> Option<&T> {
+                self.0.as_any().downcast_ref::<T>()
+            }
         }
 
         impl $crate::binder_impl::Remotable for $native {
@@ -1004,7 +1024,7 @@ macro_rules! declare_binder_interface {
 
         $(
         // Async interface trait implementations.
-        impl<P: $crate::BinderAsyncPool> $crate::FromIBinder for dyn $async_interface<P> {
+        impl<P: $crate::BinderAsyncPool + 'static> $crate::FromIBinder for dyn $async_interface<P> {
             fn try_from(mut ibinder: $crate::SpIBinder) -> std::result::Result<$crate::Strong<dyn $async_interface<P>>, $crate::StatusCode> {
                 use $crate::binder_impl::AssociateClass;
 
@@ -1030,27 +1050,27 @@ macro_rules! declare_binder_interface {
             }
         }
 
-        impl<P: $crate::BinderAsyncPool> $crate::binder_impl::Serialize for dyn $async_interface<P> + '_ {
+        impl<P: $crate::BinderAsyncPool + 'static> $crate::binder_impl::Serialize for dyn $async_interface<P> + '_ {
             fn serialize(&self, parcel: &mut $crate::binder_impl::BorrowedParcel<'_>) -> std::result::Result<(), $crate::StatusCode> {
                 let binder = $crate::Interface::as_binder(self);
                 parcel.write(&binder)
             }
         }
 
-        impl<P: $crate::BinderAsyncPool> $crate::binder_impl::SerializeOption for dyn $async_interface<P> + '_ {
+        impl<P: $crate::BinderAsyncPool + 'static> $crate::binder_impl::SerializeOption for dyn $async_interface<P> + '_ {
             fn serialize_option(this: Option<&Self>, parcel: &mut $crate::binder_impl::BorrowedParcel<'_>) -> std::result::Result<(), $crate::StatusCode> {
                 parcel.write(&this.map($crate::Interface::as_binder))
             }
         }
 
-        impl<P: $crate::BinderAsyncPool> std::fmt::Debug for dyn $async_interface<P> + '_ {
+        impl<P: $crate::BinderAsyncPool + 'static> std::fmt::Debug for dyn $async_interface<P> + '_ {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 f.pad(stringify!($async_interface))
             }
         }
 
         /// Convert a &dyn $async_interface to Strong<dyn $async_interface>
-        impl<P: $crate::BinderAsyncPool> std::borrow::ToOwned for dyn $async_interface<P> {
+        impl<P: $crate::BinderAsyncPool + 'static> std::borrow::ToOwned for dyn $async_interface<P> {
             type Owned = $crate::Strong<dyn $async_interface<P>>;
             fn to_owned(&self) -> Self::Owned {
                 self.as_binder().into_interface()
@@ -1058,11 +1078,11 @@ macro_rules! declare_binder_interface {
             }
         }
 
-        impl<P: $crate::BinderAsyncPool> $crate::binder_impl::ToAsyncInterface<P> for dyn $interface {
+        impl<P: $crate::BinderAsyncPool + 'static> $crate::binder_impl::ToAsyncInterface<P> for dyn $interface {
             type Target = dyn $async_interface<P>;
         }
 
-        impl<P: $crate::BinderAsyncPool> $crate::binder_impl::ToSyncInterface for dyn $async_interface<P> {
+        impl<P: $crate::BinderAsyncPool + 'static> $crate::binder_impl::ToSyncInterface for dyn $async_interface<P> {
             type Target = dyn $interface;
         }
         )?
