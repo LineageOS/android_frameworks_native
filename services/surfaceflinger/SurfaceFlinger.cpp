@@ -5987,7 +5987,9 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args, bool asProto) {
                                 });
 
                         out << "\nLayer Hierarchy\n"
-                            << mLayerHierarchyBuilder.getHierarchy() << "\n\n";
+                            << mLayerHierarchyBuilder.getHierarchy()
+                            << "\nOffscreen Hierarchy\n"
+                            << mLayerHierarchyBuilder.getOffscreenHierarchy() << "\n\n";
                         compositionLayers = out.str();
                         dumpHwcLayersMinidump(compositionLayers);
                     }
@@ -6267,7 +6269,9 @@ void SurfaceFlinger::dumpFrontEnd(std::string& result) {
                         });
 
                 out << "\nLayer Hierarchy\n"
-                    << mLayerHierarchyBuilder.getHierarchy().dump() << "\n\n";
+                    << mLayerHierarchyBuilder.getHierarchy().dump()
+                    << "\nOffscreen Hierarchy\n"
+                    << mLayerHierarchyBuilder.getOffscreenHierarchy().dump() << "\n\n";
                 result.append(out.str());
             })
             .get();
