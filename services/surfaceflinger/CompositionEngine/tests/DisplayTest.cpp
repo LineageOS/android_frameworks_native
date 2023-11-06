@@ -867,7 +867,7 @@ TEST_F(DisplayApplyLayerRequestsToLayersTest, applyClientTargetRequests) {
 }
 
 /*
- * Display::presentAndGetFrameFences()
+ * Display::presentFrame()
  */
 
 using DisplayPresentAndGetFrameFencesTest = DisplayWithLayersTestCommon;
@@ -876,7 +876,7 @@ TEST_F(DisplayPresentAndGetFrameFencesTest, returnsNoFencesOnGpuDisplay) {
     auto args = getDisplayCreationArgsForGpuVirtualDisplay();
     auto gpuDisplay{impl::createDisplay(mCompositionEngine, args)};
 
-    auto result = gpuDisplay->presentAndGetFrameFences();
+    auto result = gpuDisplay->presentFrame();
 
     ASSERT_TRUE(result.presentFence.get());
     EXPECT_FALSE(result.presentFence->isValid());
@@ -900,7 +900,7 @@ TEST_F(DisplayPresentAndGetFrameFencesTest, returnsPresentAndLayerFences) {
             .WillOnce(Return(layer2Fence));
     EXPECT_CALL(mHwComposer, clearReleaseFences(HalDisplayId(DEFAULT_DISPLAY_ID))).Times(1);
 
-    auto result = mDisplay->presentAndGetFrameFences();
+    auto result = mDisplay->presentFrame();
 
     EXPECT_EQ(presentFence, result.presentFence);
 
@@ -1060,7 +1060,7 @@ struct DisplayFunctionalTest : public testing::Test {
     }
 };
 
-TEST_F(DisplayFunctionalTest, postFramebufferCriticalCallsAreOrdered) {
+TEST_F(DisplayFunctionalTest, presentFrameAndReleaseLayersCriticalCallsAreOrdered) {
     InSequence seq;
 
     mDisplay->editState().isEnabled = true;
@@ -1068,7 +1068,7 @@ TEST_F(DisplayFunctionalTest, postFramebufferCriticalCallsAreOrdered) {
     EXPECT_CALL(mHwComposer, presentAndGetReleaseFences(_, _));
     EXPECT_CALL(*mDisplaySurface, onFrameCommitted());
 
-    mDisplay->postFramebuffer();
+    mDisplay->presentFrameAndReleaseLayers();
 }
 
 } // namespace
