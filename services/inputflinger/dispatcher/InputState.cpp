@@ -421,9 +421,10 @@ std::unique_ptr<MotionEntry> InputState::createCancelEntryForMemento(const Motio
     if (action == AMOTION_EVENT_ACTION_CANCEL) {
         flags |= AMOTION_EVENT_FLAG_CANCELED;
     }
-    return std::make_unique<MotionEntry>(mIdGenerator.nextId(), eventTime, memento.deviceId,
-                                         memento.source, memento.displayId, memento.policyFlags,
-                                         action, /*actionButton=*/0, flags, AMETA_NONE,
+    return std::make_unique<MotionEntry>(mIdGenerator.nextId(), /*injectionState=*/nullptr,
+                                         eventTime, memento.deviceId, memento.source,
+                                         memento.displayId, memento.policyFlags, action,
+                                         /*actionButton=*/0, flags, AMETA_NONE,
                                          /*buttonState=*/0, MotionClassification::NONE,
                                          AMOTION_EVENT_EDGE_FLAG_NONE, memento.xPrecision,
                                          memento.yPrecision, memento.xCursorPosition,
@@ -437,9 +438,10 @@ std::vector<std::unique_ptr<EventEntry>> InputState::synthesizeCancelationEvents
     for (KeyMemento& memento : mKeyMementos) {
         if (shouldCancelKey(memento, options)) {
             events.push_back(
-                    std::make_unique<KeyEntry>(mIdGenerator.nextId(), currentTime, memento.deviceId,
-                                               memento.source, memento.displayId,
-                                               memento.policyFlags, AKEY_EVENT_ACTION_UP,
+                    std::make_unique<KeyEntry>(mIdGenerator.nextId(), /*injectionState=*/nullptr,
+                                               currentTime, memento.deviceId, memento.source,
+                                               memento.displayId, memento.policyFlags,
+                                               AKEY_EVENT_ACTION_UP,
                                                memento.flags | AKEY_EVENT_FLAG_CANCELED,
                                                memento.keyCode, memento.scanCode, memento.metaState,
                                                /*repeatCount=*/0, memento.downTime));
@@ -498,8 +500,8 @@ std::vector<std::unique_ptr<EventEntry>> InputState::synthesizePointerDownEvents
                             | (i << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
 
             events.push_back(
-                    std::make_unique<MotionEntry>(mIdGenerator.nextId(), currentTime,
-                                                  memento.deviceId, memento.source,
+                    std::make_unique<MotionEntry>(mIdGenerator.nextId(), /*injectionState=*/nullptr,
+                                                  currentTime, memento.deviceId, memento.source,
                                                   memento.displayId, memento.policyFlags, action,
                                                   /*actionButton=*/0, memento.flags, AMETA_NONE,
                                                   /*buttonState=*/0, MotionClassification::NONE,
@@ -539,11 +541,11 @@ std::vector<std::unique_ptr<MotionEntry>> InputState::synthesizeCancelationEvent
             flags |= AMOTION_EVENT_FLAG_CANCELED;
         }
         events.push_back(
-                std::make_unique<MotionEntry>(mIdGenerator.nextId(), currentTime, memento.deviceId,
-                                              memento.source, memento.displayId,
-                                              memento.policyFlags, action, /*actionButton=*/0,
-                                              flags, AMETA_NONE, /*buttonState=*/0,
-                                              MotionClassification::NONE,
+                std::make_unique<MotionEntry>(mIdGenerator.nextId(), /*injectionState=*/nullptr,
+                                              currentTime, memento.deviceId, memento.source,
+                                              memento.displayId, memento.policyFlags, action,
+                                              /*actionButton=*/0, flags, AMETA_NONE,
+                                              /*buttonState=*/0, MotionClassification::NONE,
                                               AMOTION_EVENT_EDGE_FLAG_NONE, memento.xPrecision,
                                               memento.yPrecision, memento.xCursorPosition,
                                               memento.yCursorPosition, memento.downTime,
@@ -564,8 +566,8 @@ std::vector<std::unique_ptr<MotionEntry>> InputState::synthesizeCancelationEvent
                                                      : AMOTION_EVENT_ACTION_POINTER_UP |
                             (pointerIdx << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
             events.push_back(
-                    std::make_unique<MotionEntry>(mIdGenerator.nextId(), currentTime,
-                                                  memento.deviceId, memento.source,
+                    std::make_unique<MotionEntry>(mIdGenerator.nextId(), /*injectionState=*/nullptr,
+                                                  currentTime, memento.deviceId, memento.source,
                                                   memento.displayId, memento.policyFlags, action,
                                                   /*actionButton=*/0,
                                                   memento.flags | AMOTION_EVENT_FLAG_CANCELED,

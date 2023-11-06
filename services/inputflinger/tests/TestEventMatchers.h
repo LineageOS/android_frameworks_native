@@ -464,9 +464,32 @@ inline WithPointersMatcher WithPointers(
     return WithPointersMatcher(pointers);
 }
 
-MATCHER_P(WithKeyCode, keyCode, "KeyEvent with specified key code") {
-    *result_listener << "expected key code " << keyCode << ", but got " << arg.keyCode;
-    return arg.keyCode == keyCode;
+/// Key code
+class WithKeyCodeMatcher {
+public:
+    using is_gtest_matcher = void;
+    explicit WithKeyCodeMatcher(int32_t keyCode) : mKeyCode(keyCode) {}
+
+    bool MatchAndExplain(const NotifyKeyArgs& args, std::ostream*) const {
+        return mKeyCode == args.keyCode;
+    }
+
+    bool MatchAndExplain(const KeyEvent& event, std::ostream*) const {
+        return mKeyCode == event.getKeyCode();
+    }
+
+    void DescribeTo(std::ostream* os) const {
+        *os << "with key code " << KeyEvent::getLabel(mKeyCode);
+    }
+
+    void DescribeNegationTo(std::ostream* os) const { *os << "wrong key code"; }
+
+private:
+    const int32_t mKeyCode;
+};
+
+inline WithKeyCodeMatcher WithKeyCode(int32_t keyCode) {
+    return WithKeyCodeMatcher(keyCode);
 }
 
 MATCHER_P(WithRepeatCount, repeatCount, "KeyEvent with specified repeat count") {
