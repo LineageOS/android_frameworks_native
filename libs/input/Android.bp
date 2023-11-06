@@ -37,14 +37,14 @@ filegroup {
 // flags
 /////////////////////////////////////////////////
 aconfig_declarations {
-    name: "aconfig_input_flags",
+    name: "com.android.input.flags-aconfig",
     package: "com.android.input.flags",
     srcs: ["input_flags.aconfig"],
 }
 
 cc_aconfig_library {
-    name: "aconfig_input_flags_c_lib",
-    aconfig_declarations: "aconfig_input_flags",
+    name: "com.android.input.flags-aconfig-cc",
+    aconfig_declarations: "com.android.input.flags-aconfig",
     host_supported: true,
     // Use the test version of the aconfig flag library by default to allow tests to set local
     // overrides for flags, without having to link against a separate version of libinput or of this
@@ -242,7 +242,7 @@ cc_library {
     ],
 
     whole_static_libs: [
-        "aconfig_input_flags_c_lib",
+        "com.android.input.flags-aconfig-cc",
         "libinput_rust_ffi",
     ],
 
