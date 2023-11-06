@@ -32,15 +32,15 @@ using namespace android;
 std::unordered_map<std::string, std::any> g_functions;
 
 const std::unordered_map<std::string, std::string> g_function_details = {
-    {"DebugFlash", "[optional(delay)] Perform a debug flash."},
-    {"FrameRateIndicator", "[hide | show] displays the framerate in the top left corner."},
+    {"debugFlash", "[optional(delay)] Perform a debug flash."},
+    {"frameRateIndicator", "[hide | show] displays the framerate in the top left corner."},
     {"scheduleComposite", "Force composite ahead of next VSYNC."},
     {"scheduleCommit", "Force commit ahead of next VSYNC."},
     {"scheduleComposite", "PENDING - if you have a good understanding let me know!"},
 };
 
 static void ShowUsage() {
-    std::cout << "usage: sfdo [help, FrameRateIndicator show, DebugFlash enabled, ...]\n\n";
+    std::cout << "usage: sfdo [help, frameRateIndicator show, debugFlash enabled, ...]\n\n";
     for (const auto& sf : g_functions) {
         const std::string fn = sf.first;
         std::string fdetails = "TODO";
@@ -50,7 +50,7 @@ static void ShowUsage() {
     }
 }
 
-int FrameRateIndicator([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
+int frameRateIndicator(int argc, char** argv) {
     bool hide = false, show = false;
     if (argc == 3) {
         show = strcmp(argv[2], "show") == 0;
@@ -60,13 +60,13 @@ int FrameRateIndicator([[maybe_unused]] int argc, [[maybe_unused]] char** argv) 
     if (show || hide) {
         ComposerServiceAIDL::getComposerService()->enableRefreshRateOverlay(show);
     } else {
-        std::cerr << "Incorrect usage of FrameRateIndicator. Missing [hide | show].\n";
+        std::cerr << "Incorrect usage of frameRateIndicator. Missing [hide | show].\n";
         return -1;
     }
     return 0;
 }
 
-int DebugFlash([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
+int debugFlash(int argc, char** argv) {
     int delay = 0;
     if (argc == 3) {
         delay = atoi(argv[2]) == 0;
@@ -90,8 +90,8 @@ int main(int argc, char** argv) {
     std::cout << "Execute SurfaceFlinger internal commands.\n";
     std::cout << "sfdo requires to be run with root permissions..\n";
 
-    g_functions["FrameRateIndicator"] = FrameRateIndicator;
-    g_functions["DebugFlash"] = DebugFlash;
+    g_functions["frameRateIndicator"] = frameRateIndicator;
+    g_functions["debugFlash"] = debugFlash;
     g_functions["scheduleComposite"] = scheduleComposite;
     g_functions["scheduleCommit"] = scheduleCommit;
 
