@@ -28,6 +28,8 @@ namespace android {
 
 using ControllerType = PointerControllerInterface::ControllerType;
 
+namespace {
+
 // Helpers to std::visit with lambdas.
 template <typename... V>
 struct Visitor : V... {};
@@ -63,47 +65,37 @@ static std::vector<DisplayViewport> createViewports(std::vector<int32_t> display
     return viewports;
 }
 
+} // namespace
+
 // --- PointerChoreographerTest ---
 
 class PointerChoreographerTest : public testing::Test, public PointerChoreographerPolicyInterface {
 protected:
     TestInputListener mTestListener;
     PointerChoreographer mChoreographer{mTestListener, *this};
-    std::list<std::weak_ptr<FakePointerController>> mPointerControllers{};
 
-    std::shared_ptr<PointerControllerInterface> createPointerController(ControllerType type) {
-        mLastCreatedControllerType = type;
-        std::shared_ptr<FakePointerController> pc = std::make_shared<FakePointerController>();
-        mPointerControllers.emplace_back(pc);
-        return pc;
+    std::shared_ptr<FakePointerController> assertPointerControllerCreated(
+            ControllerType expectedType) {
+        EXPECT_TRUE(mLastCreatedController) << "No PointerController was created";
+        auto [type, controller] = std::move(*mLastCreatedController);
+        EXPECT_EQ(expectedType, type);
+        mLastCreatedController.reset();
+        return controller;
     }
 
-    void notifyPointerDisplayIdChanged(int32_t displayId, const FloatPoint& position) {
-        mPointerDisplayIdNotified = displayId;
-    }
+    void assertPointerControllerNotCreated() { ASSERT_EQ(std::nullopt, mLastCreatedController); }
 
-    void assertPointerControllerCreated(ControllerType type) {
-        ASSERT_EQ(type, mLastCreatedControllerType);
-        mLastCreatedControllerType.reset();
-    }
-
-    void assertPointerControllerNotCreated() {
-        ASSERT_EQ(std::nullopt, mLastCreatedControllerType);
-    }
-
-    void assertPointerControllerCount(size_t count) {
-        // At first, erase ones which aren't used anymore.
-        auto it = mPointerControllers.begin();
-        while (it != mPointerControllers.end()) {
-            auto pc = it->lock();
-            if (!pc) {
-                it = mPointerControllers.erase(it);
-                continue;
-            }
-            it++;
-        }
-
-        ASSERT_EQ(count, mPointerControllers.size());
+    void assertPointerControllerRemoved(const std::shared_ptr<FakePointerController>& pc) {
+        // Ensure that the code under test is not holding onto this PointerController.
+        // While the policy initially creates the PointerControllers, the PointerChoreographer is
+        // expected to manage their lifecycles. Although we may not want to strictly enforce how
+        // the object is managed, in this case, we need to have a way of ensuring that the
+        // corresponding graphical resources have been released by the PointerController, and the
+        // simplest way of checking for that is to just make sure that the PointerControllers
+        // themselves are released by Choreographer when no longer in use. This check is ensuring
+        // that the reference retained by the test is the last one.
+        ASSERT_EQ(1, pc.use_count()) << "Expected PointerChoreographer to release all references "
+                                        "to this PointerController";
     }
 
     void assertPointerDisplayIdNotified(int32_t displayId) {
@@ -114,8 +106,22 @@ protected:
     void assertPointerDisplayIdNotNotified() { ASSERT_EQ(std::nullopt, mPointerDisplayIdNotified); }
 
 private:
-    std::optional<ControllerType> mLastCreatedControllerType;
+    std::optional<std::pair<ControllerType, std::shared_ptr<FakePointerController>>>
+            mLastCreatedController;
     std::optional<int32_t> mPointerDisplayIdNotified;
+
+    std::shared_ptr<PointerControllerInterface> createPointerController(
+            ControllerType type) override {
+        EXPECT_FALSE(mLastCreatedController.has_value())
+                << "More than one PointerController created at a time";
+        std::shared_ptr<FakePointerController> pc = std::make_shared<FakePointerController>();
+        mLastCreatedController = {type, pc};
+        return pc;
+    }
+
+    void notifyPointerDisplayIdChanged(int32_t displayId, const FloatPoint& position) override {
+        mPointerDisplayIdNotified = displayId;
+    }
 };
 
 TEST_F(PointerChoreographerTest, ForwardsArgsToInnerListener) {
@@ -169,7 +175,6 @@ TEST_F(PointerChoreographerTest, WhenMouseIsJustAddedDoesNotCreatePointerControl
     mChoreographer.notifyInputDevicesChanged(
             {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE)}});
     assertPointerControllerNotCreated();
-    assertPointerControllerCount(size_t(0));
 }
 
 TEST_F(PointerChoreographerTest, WhenMouseEventOccursCreatesPointerController) {
@@ -182,7 +187,6 @@ TEST_F(PointerChoreographerTest, WhenMouseEventOccursCreatesPointerController) {
                     .displayId(ADISPLAY_ID_NONE)
                     .build());
     assertPointerControllerCreated(ControllerType::MOUSE);
-    assertPointerControllerCount(size_t(1));
 }
 
 TEST_F(PointerChoreographerTest, WhenMouseIsRemovedRemovesPointerController) {
@@ -194,12 +198,11 @@ TEST_F(PointerChoreographerTest, WhenMouseIsRemovedRemovesPointerController) {
                     .deviceId(DEVICE_ID)
                     .displayId(ADISPLAY_ID_NONE)
                     .build());
-    assertPointerControllerCreated(ControllerType::MOUSE);
-    assertPointerControllerCount(size_t(1));
+    auto pc = assertPointerControllerCreated(ControllerType::MOUSE);
 
     // Remove the mouse.
     mChoreographer.notifyInputDevicesChanged({/*id=*/1, {}});
-    assertPointerControllerCount(size_t(0));
+    assertPointerControllerRemoved(pc);
 }
 
 TEST_F(PointerChoreographerTest, WhenKeyboardIsAddedDoesNotCreatePointerController) {
@@ -210,23 +213,21 @@ TEST_F(PointerChoreographerTest, WhenKeyboardIsAddedDoesNotCreatePointerControll
 }
 
 TEST_F(PointerChoreographerTest, SetsViewportForAssociatedMouse) {
-    // Just adding a viewport should not create a PointerController.
+    // Just adding a viewport or device should not create a PointerController.
     mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID}));
-    assertPointerControllerCount(size_t(0));
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, DISPLAY_ID)}});
     assertPointerControllerNotCreated();
 
     // After the mouse emits event, PointerController will be created and viewport will be set.
-    mChoreographer.notifyInputDevicesChanged(
-            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, DISPLAY_ID)}});
     mChoreographer.notifyMotion(
             MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
                     .pointer(MOUSE_POINTER)
                     .deviceId(DEVICE_ID)
                     .displayId(DISPLAY_ID)
                     .build());
-    assertPointerControllerCount(size_t(1));
-    assertPointerControllerCreated(ControllerType::MOUSE);
-    ASSERT_EQ(DISPLAY_ID, mPointerControllers.back().lock()->getDisplayId());
+    auto pc = assertPointerControllerCreated(ControllerType::MOUSE);
+    ASSERT_EQ(DISPLAY_ID, pc->getDisplayId());
 }
 
 TEST_F(PointerChoreographerTest, WhenViewportSetLaterSetsViewportForAssociatedMouse) {
@@ -240,13 +241,12 @@ TEST_F(PointerChoreographerTest, WhenViewportSetLaterSetsViewportForAssociatedMo
                     .deviceId(DEVICE_ID)
                     .displayId(DISPLAY_ID)
                     .build());
-    assertPointerControllerCount(size_t(1));
-    assertPointerControllerCreated(ControllerType::MOUSE);
-    ASSERT_EQ(ADISPLAY_ID_NONE, mPointerControllers.back().lock()->getDisplayId());
+    auto pc = assertPointerControllerCreated(ControllerType::MOUSE);
+    ASSERT_EQ(ADISPLAY_ID_NONE, pc->getDisplayId());
 
     // After Choreographer gets viewport, PointerController should also have viewport.
     mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID}));
-    ASSERT_EQ(DISPLAY_ID, mPointerControllers.back().lock()->getDisplayId());
+    ASSERT_EQ(DISPLAY_ID, pc->getDisplayId());
 }
 
 TEST_F(PointerChoreographerTest, SetsDefaultMouseViewportForPointerController) {
@@ -263,9 +263,8 @@ TEST_F(PointerChoreographerTest, SetsDefaultMouseViewportForPointerController) {
                     .deviceId(DEVICE_ID)
                     .displayId(ADISPLAY_ID_NONE)
                     .build());
-    assertPointerControllerCount(size_t(1));
-    assertPointerControllerCreated(ControllerType::MOUSE);
-    ASSERT_EQ(DISPLAY_ID, mPointerControllers.back().lock()->getDisplayId());
+    auto pc = assertPointerControllerCreated(ControllerType::MOUSE);
+    ASSERT_EQ(DISPLAY_ID, pc->getDisplayId());
 }
 
 TEST_F(PointerChoreographerTest,
@@ -281,14 +280,13 @@ TEST_F(PointerChoreographerTest,
                     .deviceId(DEVICE_ID)
                     .displayId(ADISPLAY_ID_NONE)
                     .build());
-    assertPointerControllerCount(size_t(1));
-    assertPointerControllerCreated(ControllerType::MOUSE);
-    ASSERT_EQ(DISPLAY_ID, mPointerControllers.back().lock()->getDisplayId());
+    auto firstDisplayPc = assertPointerControllerCreated(ControllerType::MOUSE);
+    ASSERT_EQ(DISPLAY_ID, firstDisplayPc->getDisplayId());
 
     // Change default mouse display. Existing PointerController should be removed.
     mChoreographer.setDefaultMouseDisplayId(ANOTHER_DISPLAY_ID);
+    assertPointerControllerRemoved(firstDisplayPc);
     assertPointerControllerNotCreated();
-    assertPointerControllerCount(size_t(0));
 
     // New PointerController for the new default display will be created by the motion event.
     mChoreographer.notifyMotion(
@@ -297,9 +295,8 @@ TEST_F(PointerChoreographerTest,
                     .deviceId(DEVICE_ID)
                     .displayId(ADISPLAY_ID_NONE)
                     .build());
-    assertPointerControllerCreated(ControllerType::MOUSE);
-    assertPointerControllerCount(size_t(1));
-    ASSERT_EQ(ANOTHER_DISPLAY_ID, mPointerControllers.back().lock()->getDisplayId());
+    auto secondDisplayPc = assertPointerControllerCreated(ControllerType::MOUSE);
+    ASSERT_EQ(ANOTHER_DISPLAY_ID, secondDisplayPc->getDisplayId());
 }
 
 TEST_F(PointerChoreographerTest, CallsNotifyPointerDisplayIdChanged) {
@@ -313,6 +310,7 @@ TEST_F(PointerChoreographerTest, CallsNotifyPointerDisplayIdChanged) {
                     .deviceId(DEVICE_ID)
                     .displayId(ADISPLAY_ID_NONE)
                     .build());
+    assertPointerControllerCreated(ControllerType::MOUSE);
 
     assertPointerDisplayIdNotified(DISPLAY_ID);
 }
@@ -327,6 +325,7 @@ TEST_F(PointerChoreographerTest, WhenViewportIsSetLaterCallsNotifyPointerDisplay
                     .deviceId(DEVICE_ID)
                     .displayId(ADISPLAY_ID_NONE)
                     .build());
+    assertPointerControllerCreated(ControllerType::MOUSE);
     assertPointerDisplayIdNotNotified();
 
     mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID}));
@@ -344,12 +343,12 @@ TEST_F(PointerChoreographerTest, WhenMouseIsRemovedCallsNotifyPointerDisplayIdCh
                     .deviceId(DEVICE_ID)
                     .displayId(ADISPLAY_ID_NONE)
                     .build());
+    auto pc = assertPointerControllerCreated(ControllerType::MOUSE);
     assertPointerDisplayIdNotified(DISPLAY_ID);
-    assertPointerControllerCount(size_t(1));
 
     mChoreographer.notifyInputDevicesChanged({/*id=*/1, {}});
     assertPointerDisplayIdNotified(ADISPLAY_ID_NONE);
-    assertPointerControllerCount(size_t(0));
+    assertPointerControllerRemoved(pc);
 }
 
 TEST_F(PointerChoreographerTest, WhenDefaultMouseDisplayChangesCallsNotifyPointerDisplayIdChanged) {
@@ -366,12 +365,14 @@ TEST_F(PointerChoreographerTest, WhenDefaultMouseDisplayChangesCallsNotifyPointe
                     .deviceId(DEVICE_ID)
                     .displayId(ADISPLAY_ID_NONE)
                     .build());
+    auto firstDisplayPc = assertPointerControllerCreated(ControllerType::MOUSE);
     assertPointerDisplayIdNotified(DISPLAY_ID);
 
     // Set another viewport as a default mouse display ID. ADISPLAY_ID_NONE will be notified
     // before a mouse event.
     mChoreographer.setDefaultMouseDisplayId(ANOTHER_DISPLAY_ID);
     assertPointerDisplayIdNotified(ADISPLAY_ID_NONE);
+    assertPointerControllerRemoved(firstDisplayPc);
 
     // After a mouse event, pointer display ID will be notified with new default mouse display.
     mChoreographer.notifyMotion(
@@ -380,6 +381,7 @@ TEST_F(PointerChoreographerTest, WhenDefaultMouseDisplayChangesCallsNotifyPointe
                     .deviceId(DEVICE_ID)
                     .displayId(ADISPLAY_ID_NONE)
                     .build());
+    assertPointerControllerCreated(ControllerType::MOUSE);
     assertPointerDisplayIdNotified(ANOTHER_DISPLAY_ID);
 }
 
