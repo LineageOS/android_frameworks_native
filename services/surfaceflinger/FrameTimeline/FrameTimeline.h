@@ -378,7 +378,8 @@ public:
         // Emits a packet for perfetto tracing. The function body will be executed only if tracing
         // is enabled. monoBootOffset is the difference between SYSTEM_TIME_BOOTTIME
         // and SYSTEM_TIME_MONOTONIC.
-        void trace(pid_t surfaceFlingerPid, nsecs_t monoBootOffset) const;
+        void trace(pid_t surfaceFlingerPid, nsecs_t monoBootOffset,
+                   nsecs_t previousActualPresentTime) const;
         // Sets the token, vsyncPeriod, predictions and SF start time.
         void onSfWakeUp(int64_t token, Fps refreshRate, Fps renderRate,
                         std::optional<TimelineItem> predictions, nsecs_t wakeUpTime);
@@ -411,6 +412,8 @@ public:
         void dump(std::string& result, nsecs_t baseTime) const;
         void tracePredictions(pid_t surfaceFlingerPid, nsecs_t monoBootOffset) const;
         void traceActuals(pid_t surfaceFlingerPid, nsecs_t monoBootOffset) const;
+        void addSkippedFrame(pid_t surfaceFlingerPid, nsecs_t monoBootOffset,
+                             nsecs_t previousActualPresentTime) const;
         void classifyJank(nsecs_t& deadlineDelta, nsecs_t& deltaToVsync,
                           nsecs_t previousPresentTime);
 
