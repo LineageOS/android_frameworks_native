@@ -822,9 +822,12 @@ void Dumpstate::PrintHeader() const {
     RunCommandToFd(STDOUT_FILENO, "", {"uptime", "-p"},
                    CommandOptions::WithTimeout(1).Always().Build());
     printf("Bugreport format version: %s\n", version_.c_str());
-    printf("Dumpstate info: id=%d pid=%d dry_run=%d parallel_run=%d args=%s bugreport_mode=%s\n",
-           id_, pid_, PropertiesHelper::IsDryRun(), PropertiesHelper::IsParallelRun(),
-           options_->args.c_str(), options_->bugreport_mode_string.c_str());
+    printf(
+        "Dumpstate info: id=%d pid=%d dry_run=%d parallel_run=%d strict_run=%d args=%s "
+        "bugreport_mode=%s\n",
+        id_, pid_, PropertiesHelper::IsDryRun(), PropertiesHelper::IsParallelRun(),
+        PropertiesHelper::IsStrictRun(), options_->args.c_str(),
+        options_->bugreport_mode_string.c_str());
     printf("\n");
 }
 
@@ -1046,7 +1049,8 @@ static void DumpIncidentReport() {
         MYLOGE("Could not open %s to dump incident report.\n", path.c_str());
         return;
     }
-    RunCommandToFd(fd, "", {"incident", "-u"}, CommandOptions::WithTimeout(20).Build());
+    RunCommandToFd(fd, "", {"incident", "-u"},
+                   CommandOptions::WithTimeout(PropertiesHelper::IsStrictRun() ? 20 : 120).Build());
     bool empty = 0 == lseek(fd, 0, SEEK_END);
     if (!empty) {
         // Use a different name from "incident.proto"
@@ -3125,6 +3129,12 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
 
     if (PropertiesHelper::IsDryRun()) {
         MYLOGI("Running on dry-run mode (to disable it, call 'setprop dumpstate.dry_run false')\n");
+    }
+
+    if (PropertiesHelper::IsStrictRun()) {
+        MYLOGI(
+            "Running on strict-run mode, which has shorter timeouts "
+            "(to disable, call 'setprop dumpstate.strict_run false')\n");
     }
 
     MYLOGI("dumpstate info: id=%d, args='%s', bugreport_mode= %s bugreport format version: %s\n",

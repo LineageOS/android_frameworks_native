@@ -37,6 +37,7 @@ std::shared_ptr<ScreenCaptureOutput> createScreenCaptureOutput(ScreenCaptureOutp
     output->setRenderSurface(std::make_unique<ScreenCaptureRenderSurface>(std::move(args.buffer)));
     output->setDisplayBrightness(args.sdrWhitePointNits, args.displayBrightnessNits);
     output->editState().clientTargetBrightness = args.targetBrightness;
+    output->editState().treat170mAsSrgb = args.treat170mAsSrgb;
 
     output->setDisplayColorProfile(std::make_unique<compositionengine::impl::DisplayColorProfile>(
             compositionengine::DisplayColorProfileCreationArgsBuilder()
