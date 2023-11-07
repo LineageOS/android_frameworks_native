@@ -1151,6 +1151,76 @@ TEST_F(BufferQueueTest, TestBufferReplacedInQueueBuffer) {
     ASSERT_EQ(true, output.bufferReplaced);
 }
 
+struct BufferDetachedListener : public BnProducerListener {
+public:
+    BufferDetachedListener() = default;
+    virtual ~BufferDetachedListener() = default;
+
+    virtual void onBufferReleased() {}
+    virtual bool needsReleaseNotify() { return true; }
+    virtual void onBufferDetached(int slot) {
+        mDetachedSlots.push_back(slot);
+    }
+    const std::vector<int>& getDetachedSlots() const { return mDetachedSlots; }
+private:
+    std::vector<int> mDetachedSlots;
+};
+
+TEST_F(BufferQueueTest, TestConsumerDetachProducerListener) {
+    createBufferQueue();
+    sp<MockConsumer> mc(new MockConsumer);
+    ASSERT_EQ(OK, mConsumer->consumerConnect(mc, true));
+    IGraphicBufferProducer::QueueBufferOutput output;
+    sp<BufferDetachedListener> pl(new BufferDetachedListener);
+    ASSERT_EQ(OK, mProducer->connect(pl, NATIVE_WINDOW_API_CPU, true, &output));
+    ASSERT_EQ(OK, mProducer->setDequeueTimeout(0));
+    ASSERT_EQ(OK, mConsumer->setMaxAcquiredBufferCount(1));
+
+    sp<Fence> fence = Fence::NO_FENCE;
+    sp<GraphicBuffer> buffer = nullptr;
+    IGraphicBufferProducer::QueueBufferInput input(0ull, true,
+        HAL_DATASPACE_UNKNOWN, Rect::INVALID_RECT,
+        NATIVE_WINDOW_SCALING_MODE_FREEZE, 0, Fence::NO_FENCE);
+
+    int slots[2] = {};
+    status_t result = OK;
+    ASSERT_EQ(OK, mProducer->setMaxDequeuedBufferCount(2));
+
+    result = mProducer->dequeueBuffer(&slots[0], &fence, 0, 0, 0,
+                                      GRALLOC_USAGE_SW_READ_RARELY, nullptr, nullptr);
+    ASSERT_EQ(IGraphicBufferProducer::BUFFER_NEEDS_REALLOCATION, result);
+    ASSERT_EQ(OK, mProducer->requestBuffer(slots[0], &buffer));
+
+    result = mProducer->dequeueBuffer(&slots[1], &fence, 0, 0, 0,
+                                      GRALLOC_USAGE_SW_READ_RARELY, nullptr, nullptr);
+    ASSERT_EQ(IGraphicBufferProducer::BUFFER_NEEDS_REALLOCATION, result);
+    ASSERT_EQ(OK, mProducer->requestBuffer(slots[1], &buffer));
+
+    // Queue & detach one from two dequeued buffes.
+    ASSERT_EQ(OK, mProducer->queueBuffer(slots[1], input, &output));
+    BufferItem item{};
+    ASSERT_EQ(OK, mConsumer->acquireBuffer(&item, 0));
+    ASSERT_EQ(OK, mConsumer->detachBuffer(item.mSlot));
+
+    // Check whether the slot from IProducerListener is same to the detached slot.
+    ASSERT_EQ(pl->getDetachedSlots().size(), 1);
+    ASSERT_EQ(pl->getDetachedSlots()[0], slots[1]);
+
+    // Dequeue another buffer.
+    int slot;
+    result = mProducer->dequeueBuffer(&slot, &fence, 0, 0, 0,
+                                      GRALLOC_USAGE_SW_READ_RARELY, nullptr, nullptr);
+    ASSERT_EQ(IGraphicBufferProducer::BUFFER_NEEDS_REALLOCATION, result);
+    ASSERT_EQ(OK, mProducer->requestBuffer(slot, &buffer));
+
+    // Dequeue should fail here, since we dequeued 3 buffers and one buffer was
+    // detached from consumer(Two buffers are dequeued, and the current max
+    // dequeued buffer count is two).
+    result = mProducer->dequeueBuffer(&slot, &fence, 0, 0, 0,
+                                      GRALLOC_USAGE_SW_READ_RARELY, nullptr, nullptr);
+    ASSERT_TRUE(result == WOULD_BLOCK || result == TIMED_OUT || result == INVALID_OPERATION);
+}
+
 TEST_F(BufferQueueTest, TestStaleBufferHandleSentAfterDisconnect) {
     createBufferQueue();
     sp<MockConsumer> mc(new MockConsumer);
