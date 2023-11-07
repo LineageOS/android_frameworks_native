@@ -160,4 +160,90 @@ private:
     std::vector<PointerBuilder> mPointers;
 };
 
+class KeyEventBuilder {
+public:
+    KeyEventBuilder(int32_t action, int32_t source) {
+        mAction = action;
+        mSource = source;
+        mEventTime = systemTime(SYSTEM_TIME_MONOTONIC);
+        mDownTime = mEventTime;
+    }
+
+    KeyEventBuilder(const KeyEvent& event) {
+        mAction = event.getAction();
+        mDeviceId = event.getDeviceId();
+        mSource = event.getSource();
+        mDownTime = event.getDownTime();
+        mEventTime = event.getEventTime();
+        mDisplayId = event.getDisplayId();
+        mFlags = event.getFlags();
+        mKeyCode = event.getKeyCode();
+        mScanCode = event.getScanCode();
+        mMetaState = event.getMetaState();
+        mRepeatCount = event.getRepeatCount();
+    }
+
+    KeyEventBuilder& deviceId(int32_t deviceId) {
+        mDeviceId = deviceId;
+        return *this;
+    }
+
+    KeyEventBuilder& downTime(nsecs_t downTime) {
+        mDownTime = downTime;
+        return *this;
+    }
+
+    KeyEventBuilder& eventTime(nsecs_t eventTime) {
+        mEventTime = eventTime;
+        return *this;
+    }
+
+    KeyEventBuilder& displayId(int32_t displayId) {
+        mDisplayId = displayId;
+        return *this;
+    }
+
+    KeyEventBuilder& policyFlags(int32_t policyFlags) {
+        mPolicyFlags = policyFlags;
+        return *this;
+    }
+
+    KeyEventBuilder& addFlag(uint32_t flags) {
+        mFlags |= flags;
+        return *this;
+    }
+
+    KeyEventBuilder& keyCode(int32_t keyCode) {
+        mKeyCode = keyCode;
+        return *this;
+    }
+
+    KeyEventBuilder& repeatCount(int32_t repeatCount) {
+        mRepeatCount = repeatCount;
+        return *this;
+    }
+
+    KeyEvent build() const {
+        KeyEvent event{};
+        event.initialize(InputEvent::nextId(), mDeviceId, mSource, mDisplayId, INVALID_HMAC,
+                         mAction, mFlags, mKeyCode, mScanCode, mMetaState, mRepeatCount, mDownTime,
+                         mEventTime);
+        return event;
+    }
+
+private:
+    int32_t mAction;
+    int32_t mDeviceId = DEFAULT_DEVICE_ID;
+    uint32_t mSource;
+    nsecs_t mDownTime;
+    nsecs_t mEventTime;
+    int32_t mDisplayId{ADISPLAY_ID_DEFAULT};
+    uint32_t mPolicyFlags = DEFAULT_POLICY_FLAGS;
+    int32_t mFlags{0};
+    int32_t mKeyCode{AKEYCODE_UNKNOWN};
+    int32_t mScanCode{0};
+    int32_t mMetaState{AMETA_NONE};
+    int32_t mRepeatCount{0};
+};
+
 } // namespace android

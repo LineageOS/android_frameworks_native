@@ -660,12 +660,10 @@ private:
     void updateLastAnrStateLocked(const std::string& windowLabel, const std::string& reason)
             REQUIRES(mLock);
     std::map<int32_t /*displayId*/, InputVerifier> mVerifiersByDisplay;
-    bool afterKeyEventLockedInterruptable(const std::shared_ptr<Connection>& connection,
-                                          DispatchEntry& dispatchEntry, KeyEntry& keyEntry,
-                                          bool handled) REQUIRES(mLock);
-    bool afterMotionEventLockedInterruptable(const std::shared_ptr<Connection>& connection,
-                                             DispatchEntry& dispatchEntry, MotionEntry& motionEntry,
-                                             bool handled) REQUIRES(mLock);
+    // Returns a fallback KeyEntry that should be sent to the connection, if required.
+    std::unique_ptr<KeyEntry> afterKeyEventLockedInterruptable(
+            const std::shared_ptr<Connection>& connection, DispatchEntry& dispatchEntry,
+            const KeyEntry& keyEntry, bool handled) REQUIRES(mLock);
 
     // Find touched state and touched window by token.
     std::tuple<TouchState*, TouchedWindow*, int32_t /*displayId*/>
