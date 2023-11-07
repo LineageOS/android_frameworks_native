@@ -35,6 +35,7 @@
 #include <trusty/tipc.h>
 #endif // BINDER_RPC_TO_TRUSTY_TEST
 
+#include "../Utils.h"
 #include "binderRpcTestCommon.h"
 #include "binderRpcTestFixture.h"
 
@@ -1197,7 +1198,7 @@ bool testSupportVsockLoopback() {
                     {.fd = serverFd.get(), .events = POLLIN, .revents = 0},
                     {.fd = connectFd.get(), .events = POLLOUT, .revents = 0},
             };
-            ret = TEMP_FAILURE_RETRY(poll(pfd, arraysize(pfd), -1));
+            ret = TEMP_FAILURE_RETRY(poll(pfd, countof(pfd), -1));
             LOG_ALWAYS_FATAL_IF(ret < 0, "Error polling: %s", strerror(errno));
 
             if (pfd[0].revents & POLLIN) {
