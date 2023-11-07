@@ -102,7 +102,7 @@ public:
     std::optional<base::unique_fd> composeSurfaces(const Region&,
                                                    std::shared_ptr<renderengine::ExternalTexture>,
                                                    base::unique_fd&) override;
-    void postFramebuffer() override;
+    void presentFrameAndReleaseLayers() override;
     void renderCachedSets(const CompositionRefreshArgs&) override;
     void cacheClientCompositionRequests(uint32_t) override;
     bool canPredictCompositionStrategy(const CompositionRefreshArgs&) override;
@@ -133,7 +133,7 @@ protected:
     };
     void applyCompositionStrategy(const std::optional<DeviceRequestedChanges>&) override{};
     bool getSkipColorTransform() const override;
-    compositionengine::Output::FrameFences presentAndGetFrameFences() override;
+    compositionengine::Output::FrameFences presentFrame() override;
     virtual renderengine::DisplaySettings generateClientCompositionDisplaySettings() const;
     std::vector<LayerFE::LayerSettings> generateClientCompositionRequests(
             bool supportsProtectedContent, ui::Dataspace outputDataspace,
