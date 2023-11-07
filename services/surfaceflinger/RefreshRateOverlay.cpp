@@ -268,8 +268,7 @@ void RefreshRateOverlay::changeRefreshRate(Fps vsyncRate, Fps renderFps) {
 }
 
 void RefreshRateOverlay::changeRenderRate(Fps renderFps) {
-    if (mFeatures.test(Features::RenderRate) && mVsyncRate &&
-        FlagManager::getInstance().vrr_config()) {
+    if (mFeatures.test(Features::RenderRate) && mVsyncRate && FlagManager::getInstance().misc1()) {
         mRenderFps = renderFps;
         const auto buffer = getOrCreateBuffers(*mVsyncRate, renderFps)[mFrame];
         createTransaction().setBuffer(mSurfaceControl->get(), buffer).apply();
