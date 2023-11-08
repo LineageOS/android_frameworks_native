@@ -57,6 +57,12 @@ void FakePointerController::assertPosition(float x, float y) {
     ASSERT_NEAR(y, actualY, 1);
 }
 
+void FakePointerController::assertSpotCount(int32_t displayId, int32_t count) {
+    auto it = mSpotsByDisplay.find(displayId);
+    ASSERT_TRUE(it != mSpotsByDisplay.end()) << "Spots not found for display " << displayId;
+    ASSERT_EQ(static_cast<size_t>(count), it->second.size());
+}
+
 bool FakePointerController::isPointerShown() {
     return mIsPointerShown;
 }

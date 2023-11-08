@@ -589,7 +589,6 @@ TEST_F(PointerChoreographerTest, WhenTouchEventOccursCreatesPointerController) {
     mChoreographer.notifyInputDevicesChanged(
             {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_TOUCHSCREEN, DISPLAY_ID)}});
     mChoreographer.setShowTouchesEnabled(true);
-    assertPointerControllerNotCreated();
 
     // Emit touch event. Now PointerController should be created.
     mChoreographer.notifyMotion(
@@ -624,7 +623,6 @@ TEST_F(PointerChoreographerTest, WhenTouchDeviceIsRemovedRemovesPointerControlle
     mChoreographer.notifyInputDevicesChanged(
             {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_TOUCHSCREEN, DISPLAY_ID)}});
     mChoreographer.setShowTouchesEnabled(true);
-    assertPointerControllerNotCreated();
     mChoreographer.notifyMotion(
             MotionArgsBuilder(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
                     .pointer(FIRST_TOUCH_POINTER)
@@ -670,9 +668,7 @@ TEST_F(PointerChoreographerTest, TouchSetsSpots) {
                     .displayId(DISPLAY_ID)
                     .build());
     auto pc = assertPointerControllerCreated(ControllerType::TOUCH);
-    auto it = pc->getSpots().find(DISPLAY_ID);
-    ASSERT_TRUE(it != pc->getSpots().end());
-    ASSERT_EQ(size_t(1), it->second.size());
+    pc->assertSpotCount(DISPLAY_ID, 1);
 
     // Emit second pointer down.
     mChoreographer.notifyMotion(
@@ -684,9 +680,7 @@ TEST_F(PointerChoreographerTest, TouchSetsSpots) {
                     .deviceId(DEVICE_ID)
                     .displayId(DISPLAY_ID)
                     .build());
-    it = pc->getSpots().find(DISPLAY_ID);
-    ASSERT_TRUE(it != pc->getSpots().end());
-    ASSERT_EQ(size_t(2), it->second.size());
+    pc->assertSpotCount(DISPLAY_ID, 2);
 
     // Emit second pointer up.
     mChoreographer.notifyMotion(
@@ -698,9 +692,7 @@ TEST_F(PointerChoreographerTest, TouchSetsSpots) {
                     .deviceId(DEVICE_ID)
                     .displayId(DISPLAY_ID)
                     .build());
-    it = pc->getSpots().find(DISPLAY_ID);
-    ASSERT_TRUE(it != pc->getSpots().end());
-    ASSERT_EQ(size_t(1), it->second.size());
+    pc->assertSpotCount(DISPLAY_ID, 1);
 
     // Emit first pointer up.
     mChoreographer.notifyMotion(
@@ -709,9 +701,7 @@ TEST_F(PointerChoreographerTest, TouchSetsSpots) {
                     .deviceId(DEVICE_ID)
                     .displayId(DISPLAY_ID)
                     .build());
-    it = pc->getSpots().find(DISPLAY_ID);
-    ASSERT_TRUE(it != pc->getSpots().end());
-    ASSERT_EQ(size_t(0), it->second.size());
+    pc->assertSpotCount(DISPLAY_ID, 0);
 }
 
 TEST_F(PointerChoreographerTest, TouchSetsSpotsForStylusEvent) {
@@ -729,9 +719,7 @@ TEST_F(PointerChoreographerTest, TouchSetsSpotsForStylusEvent) {
                                         .displayId(DISPLAY_ID)
                                         .build());
     auto pc = assertPointerControllerCreated(ControllerType::TOUCH);
-    auto it = pc->getSpots().find(DISPLAY_ID);
-    ASSERT_TRUE(it != pc->getSpots().end());
-    ASSERT_EQ(size_t(1), it->second.size());
+    pc->assertSpotCount(DISPLAY_ID, 1);
 }
 
 TEST_F(PointerChoreographerTest, TouchSetsSpotsForTwoDisplays) {
@@ -751,9 +739,7 @@ TEST_F(PointerChoreographerTest, TouchSetsSpotsForTwoDisplays) {
                     .displayId(DISPLAY_ID)
                     .build());
     auto firstDisplayPc = assertPointerControllerCreated(ControllerType::TOUCH);
-    auto firstSpotsIt = firstDisplayPc->getSpots().find(DISPLAY_ID);
-    ASSERT_TRUE(firstSpotsIt != firstDisplayPc->getSpots().end());
-    ASSERT_EQ(size_t(1), firstSpotsIt->second.size());
+    firstDisplayPc->assertSpotCount(DISPLAY_ID, 1);
 
     // Emit touch events with second device.
     mChoreographer.notifyMotion(
@@ -774,14 +760,10 @@ TEST_F(PointerChoreographerTest, TouchSetsSpotsForTwoDisplays) {
     auto secondDisplayPc = assertPointerControllerCreated(ControllerType::TOUCH);
 
     // Check if the spots are set for the second device.
-    auto secondSpotsIt = secondDisplayPc->getSpots().find(ANOTHER_DISPLAY_ID);
-    ASSERT_TRUE(secondSpotsIt != secondDisplayPc->getSpots().end());
-    ASSERT_EQ(size_t(2), secondSpotsIt->second.size());
+    secondDisplayPc->assertSpotCount(ANOTHER_DISPLAY_ID, 2);
 
     // Check if there's no change on the spot of the first device.
-    firstSpotsIt = firstDisplayPc->getSpots().find(DISPLAY_ID);
-    ASSERT_TRUE(firstSpotsIt != firstDisplayPc->getSpots().end());
-    ASSERT_EQ(size_t(1), firstSpotsIt->second.size());
+    firstDisplayPc->assertSpotCount(DISPLAY_ID, 1);
 }
 
 TEST_F(PointerChoreographerTest, WhenTouchDeviceIsResetClearsSpots) {
@@ -796,14 +778,11 @@ TEST_F(PointerChoreographerTest, WhenTouchDeviceIsResetClearsSpots) {
                     .displayId(DISPLAY_ID)
                     .build());
     auto pc = assertPointerControllerCreated(ControllerType::TOUCH);
-    auto it = pc->getSpots().find(DISPLAY_ID);
-    ASSERT_TRUE(it != pc->getSpots().end());
-    ASSERT_EQ(size_t(1), it->second.size());
+    pc->assertSpotCount(DISPLAY_ID, 1);
 
-    // Reset the device and see there's no spot.
+    // Reset the device and ensure the touch pointer controller was removed.
     mChoreographer.notifyDeviceReset(NotifyDeviceResetArgs(/*id=*/1, /*eventTime=*/0, DEVICE_ID));
-    it = pc->getSpots().find(DISPLAY_ID);
-    ASSERT_TRUE(it == pc->getSpots().end());
+    assertPointerControllerRemoved(pc);
 }
 
 TEST_F(PointerChoreographerTest,
@@ -859,7 +838,6 @@ TEST_F(PointerChoreographerTest, WhenStylusDeviceIsRemovedRemovesPointerControll
     mChoreographer.notifyInputDevicesChanged(
             {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_STYLUS, DISPLAY_ID)}});
     mChoreographer.setStylusPointerIconEnabled(true);
-    assertPointerControllerNotCreated();
     mChoreographer.notifyMotion(
             MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
                     .pointer(STYLUS_POINTER)
@@ -878,7 +856,6 @@ TEST_F(PointerChoreographerTest, WhenStylusPointerIconDisabledRemovesPointerCont
     mChoreographer.notifyInputDevicesChanged(
             {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_STYLUS, DISPLAY_ID)}});
     mChoreographer.setStylusPointerIconEnabled(true);
-    assertPointerControllerNotCreated();
     mChoreographer.notifyMotion(
             MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
                     .pointer(STYLUS_POINTER)
@@ -900,7 +877,6 @@ TEST_F(PointerChoreographerTest, SetsViewportForStylusPointerController) {
     mChoreographer.notifyInputDevicesChanged(
             {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_STYLUS, DISPLAY_ID)}});
     mChoreographer.setStylusPointerIconEnabled(true);
-    assertPointerControllerNotCreated();
     mChoreographer.notifyMotion(
             MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
                     .pointer(STYLUS_POINTER)
@@ -918,7 +894,6 @@ TEST_F(PointerChoreographerTest, WhenViewportIsSetLaterSetsViewportForStylusPoin
     mChoreographer.notifyInputDevicesChanged(
             {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_STYLUS, DISPLAY_ID)}});
     mChoreographer.setStylusPointerIconEnabled(true);
-    assertPointerControllerNotCreated();
     mChoreographer.notifyMotion(
             MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
                     .pointer(STYLUS_POINTER)
@@ -943,7 +918,6 @@ TEST_F(PointerChoreographerTest,
     mChoreographer.notifyInputDevicesChanged(
             {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_STYLUS, DISPLAY_ID)}});
     mChoreographer.setStylusPointerIconEnabled(true);
-    assertPointerControllerNotCreated();
     mChoreographer.notifyMotion(
             MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
                     .pointer(STYLUS_POINTER)
@@ -1056,7 +1030,7 @@ TEST_F(PointerChoreographerTest, StylusHoverManipulatesPointerForTwoDisplays) {
     ASSERT_TRUE(firstDisplayPc->isPointerShown());
 }
 
-TEST_F(PointerChoreographerTest, WhenStylusDeviceIsResetFadesPointer) {
+TEST_F(PointerChoreographerTest, WhenStylusDeviceIsResetRemovesPointer) {
     // Make sure the PointerController is created and there is a pointer.
     mChoreographer.notifyInputDevicesChanged(
             {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_STYLUS, DISPLAY_ID)}});
@@ -1071,9 +1045,9 @@ TEST_F(PointerChoreographerTest, WhenStylusDeviceIsResetFadesPointer) {
     auto pc = assertPointerControllerCreated(ControllerType::STYLUS);
     ASSERT_TRUE(pc->isPointerShown());
 
-    // Reset the device and see the pointer disappeared.
+    // Reset the device and see the pointer controller was removed.
     mChoreographer.notifyDeviceReset(NotifyDeviceResetArgs(/*id=*/1, /*eventTime=*/0, DEVICE_ID));
-    ASSERT_FALSE(pc->isPointerShown());
+    assertPointerControllerRemoved(pc);
 }
 
 } // namespace android

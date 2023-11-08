@@ -105,8 +105,8 @@ private:
 
     using ControllerConstructor =
             ConstructorDelegate<std::function<std::shared_ptr<PointerControllerInterface>()>>;
+    ControllerConstructor mTouchControllerConstructor GUARDED_BY(mLock);
     ControllerConstructor getMouseControllerConstructor(int32_t displayId) REQUIRES(mLock);
-    ControllerConstructor getTouchControllerConstructor() REQUIRES(mLock);
     ControllerConstructor getStylusControllerConstructor(int32_t displayId) REQUIRES(mLock);
 
     std::mutex mLock;
