@@ -182,6 +182,8 @@ public:
     // layer can go back to whatever vote it had before the app voted for it.
     void setDefaultLayerVote(LayerHistory::LayerVoteType type) { mDefaultVote = type; }
 
+    void setProperties(const LayerProps&);
+
     // Resets the layer vote to its default.
     void resetLayerVote() {
         mLayerVote = {mDefaultVote, Fps(), Seamlessness::Default, FrameRateCategory::Default};

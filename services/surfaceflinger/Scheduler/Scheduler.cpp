@@ -654,6 +654,10 @@ void Scheduler::setDefaultFrameRateCompatibility(
                                                    mFeatures.test(Feature::kContentDetection));
 }
 
+void Scheduler::setLayerProperties(int32_t id, const android::scheduler::LayerProps& properties) {
+    mLayerHistory.setLayerProperties(id, properties);
+}
+
 void Scheduler::chooseRefreshRateForContent(
         const surfaceflinger::frontend::LayerHierarchy* hierarchy,
         bool updateAttachedChoreographer) {

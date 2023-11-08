@@ -2219,7 +2219,8 @@ void SurfaceFlinger::updateLayerHistory(nsecs_t now) {
                  snapshot->changes.any(Changes::Geometry));
 
         const bool hasChanges =
-                snapshot->changes.any(Changes::FrameRate | Changes::Buffer | Changes::Animation) ||
+                snapshot->changes.any(Changes::FrameRate | Changes::Buffer | Changes::Animation |
+                                      Changes::Geometry | Changes::Visibility) ||
                 (snapshot->clientChanges & layer_state_t::eDefaultFrameRateCompatibilityChanged) !=
                         0;
 
@@ -2249,6 +2250,10 @@ void SurfaceFlinger::updateLayerHistory(nsecs_t now) {
                 .isSmallDirty = snapshot->isSmallDirty,
                 .isFrontBuffered = snapshot->isFrontBuffered(),
         };
+
+        if (snapshot->changes.any(Changes::Geometry | Changes::Visibility)) {
+            mScheduler->setLayerProperties(snapshot->sequence, layerProps);
+        }
 
         if (snapshot->clientChanges & layer_state_t::eDefaultFrameRateCompatibilityChanged) {
             mScheduler->setDefaultFrameRateCompatibility(snapshot->sequence,
