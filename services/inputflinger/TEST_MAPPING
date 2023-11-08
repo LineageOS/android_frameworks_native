@@ -148,7 +148,7 @@
       ]
     }
   ],
-  "hwasan-postsubmit": [
+  "postsubmit": [
     {
       "name": "CtsWindowManagerDeviceWindow",
       "options": [
@@ -281,6 +281,9 @@
           "include-filter": "android.security.cts.Poc19_03#testPocBug_115739809"
         }
       ]
+    },
+    {
+      "name": "CtsInputHostTestCases"
     }
   ]
 }

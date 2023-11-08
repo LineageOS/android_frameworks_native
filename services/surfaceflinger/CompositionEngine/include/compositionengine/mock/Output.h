@@ -118,9 +118,9 @@ public:
                                                 base::unique_fd&));
     MOCK_CONST_METHOD0(getSkipColorTransform, bool());
 
-    MOCK_METHOD0(postFramebuffer, void());
+    MOCK_METHOD0(presentFrameAndReleaseLayers, void());
     MOCK_METHOD1(renderCachedSets, void(const CompositionRefreshArgs&));
-    MOCK_METHOD0(presentAndGetFrameFences, compositionengine::Output::FrameFences());
+    MOCK_METHOD0(presentFrame, compositionengine::Output::FrameFences());
 
     MOCK_METHOD3(generateClientCompositionRequests,
                  std::vector<LayerFE::LayerSettings>(bool, ui::Dataspace, std::vector<compositionengine::LayerFE*>&));

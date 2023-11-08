@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-
 #include "gmock/gmock-spec-builders.h"
 #include "mock/MockTimeStats.h"
 #undef LOG_TAG
@@ -1057,6 +1056,94 @@ void validateTraceEvent(const ProtoActualSurfaceFrameStart& received,
 void validateTraceEvent(const ProtoFrameEnd& received, const ProtoFrameEnd& source) {
     ASSERT_TRUE(received.has_cookie());
     EXPECT_EQ(received.cookie(), source.cookie());
+}
+
+TEST_F(FrameTimelineTest, traceDisplayFrameSkipped) {
+    // setup 2 display frames
+    // DF 1: [22,40] -> [5, 40]
+    // DF  : [36, 70] (Skipped one, added by the trace)
+    // DF 2: [82, 100] -> SF [25, 70]
+    auto tracingSession = getTracingSessionForTest();
+    tracingSession->StartBlocking();
+    int64_t sfToken1 = mTokenManager->generateTokenForPredictions({22, 30, 40});
+    int64_t sfToken2 = mTokenManager->generateTokenForPredictions({82, 90, 100});
+    int64_t surfaceFrameToken1 = mTokenManager->generateTokenForPredictions({5, 16, 40});
+    int64_t surfaceFrameToken2 = mTokenManager->generateTokenForPredictions({25, 36, 70});
+    auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
+
+    int64_t traceCookie = snoopCurrentTraceCookie();
+
+    // set up 1st display frame
+    FrameTimelineInfo ftInfo1;
+    ftInfo1.vsyncId = surfaceFrameToken1;
+    ftInfo1.inputEventId = sInputEventId;
+    auto surfaceFrame1 =
+            mFrameTimeline->createSurfaceFrameForToken(ftInfo1, sPidOne, sUidOne, sLayerIdOne,
+                                                       sLayerNameOne, sLayerNameOne,
+                                                       /*isBuffer*/ true, sGameMode);
+    surfaceFrame1->setAcquireFenceTime(16);
+    mFrameTimeline->setSfWakeUp(sfToken1, 22, RR_11, RR_30);
+    surfaceFrame1->setPresentState(SurfaceFrame::PresentState::Presented);
+    mFrameTimeline->addSurfaceFrame(surfaceFrame1);
+    mFrameTimeline->setSfPresent(30, presentFence1);
+    presentFence1->signalForTest(40);
+
+    // Trigger a flush by finalizing the next DisplayFrame
+    auto presentFence2 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
+    FrameTimelineInfo ftInfo2;
+    ftInfo2.vsyncId = surfaceFrameToken2;
+    ftInfo2.inputEventId = sInputEventId;
+    auto surfaceFrame2 =
+            mFrameTimeline->createSurfaceFrameForToken(ftInfo2, sPidOne, sUidOne, sLayerIdOne,
+                                                       sLayerNameOne, sLayerNameOne,
+                                                       /*isBuffer*/ true, sGameMode);
+
+    // set up 2nd display frame
+    surfaceFrame2->setAcquireFenceTime(36);
+    mFrameTimeline->setSfWakeUp(sfToken2, 82, RR_11, RR_30);
+    surfaceFrame2->setPresentState(SurfaceFrame::PresentState::Presented);
+    mFrameTimeline->addSurfaceFrame(surfaceFrame2);
+    mFrameTimeline->setSfPresent(90, presentFence2);
+    presentFence2->signalForTest(100);
+
+    // the token of skipped Display Frame
+    auto protoSkippedActualDisplayFrameStart =
+            createProtoActualDisplayFrameStart(traceCookie + 9, 0, kSurfaceFlingerPid,
+                                               FrameTimelineEvent::PRESENT_DROPPED, true, false,
+                                               FrameTimelineEvent::JANK_DROPPED,
+                                               FrameTimelineEvent::PREDICTION_VALID);
+    auto protoSkippedActualDisplayFrameEnd = createProtoFrameEnd(traceCookie + 9);
+
+    // Trigger a flush by finalizing the next DisplayFrame
+    addEmptyDisplayFrame();
+    flushTrace();
+    tracingSession->StopBlocking();
+
+    auto packets = readFrameTimelinePacketsBlocking(tracingSession.get());
+    // 8 Valid Display Frames + 8 Valid Surface Frames + 2 Skipped Display Frames
+    EXPECT_EQ(packets.size(), 18u);
+
+    // Packet - 16: Actual skipped Display Frame Start
+    // the timestamp should be equal to the 2nd expected surface frame's end time
+    const auto& packet16 = packets[16];
+    ASSERT_TRUE(packet16.has_timestamp());
+    EXPECT_EQ(packet16.timestamp(), 36u);
+    ASSERT_TRUE(packet16.has_frame_timeline_event());
+
+    const auto& event16 = packet16.frame_timeline_event();
+    const auto& actualSkippedDisplayFrameStart = event16.actual_display_frame_start();
+    validateTraceEvent(actualSkippedDisplayFrameStart, protoSkippedActualDisplayFrameStart);
+
+    // Packet - 17: Actual skipped Display Frame End
+    // the timestamp should be equal to the 2nd expected surface frame's present time
+    const auto& packet17 = packets[17];
+    ASSERT_TRUE(packet17.has_timestamp());
+    EXPECT_EQ(packet17.timestamp(), 70u);
+    ASSERT_TRUE(packet17.has_frame_timeline_event());
+
+    const auto& event17 = packet17.frame_timeline_event();
+    const auto& actualSkippedDisplayFrameEnd = event17.frame_end();
+    validateTraceEvent(actualSkippedDisplayFrameEnd, protoSkippedActualDisplayFrameEnd);
 }
 
 TEST_F(FrameTimelineTest, traceDisplayFrame_emitsValidTracePacket) {

@@ -2007,7 +2007,7 @@ struct OutputPresentTest : public testing::Test {
         MOCK_METHOD0(prepareFrameAsync, GpuCompositionResult());
         MOCK_METHOD1(devOptRepaintFlash, void(const compositionengine::CompositionRefreshArgs&));
         MOCK_METHOD1(finishFrame, void(GpuCompositionResult&&));
-        MOCK_METHOD0(postFramebuffer, void());
+        MOCK_METHOD0(presentFrameAndReleaseLayers, void());
         MOCK_METHOD1(renderCachedSets, void(const compositionengine::CompositionRefreshArgs&));
         MOCK_METHOD1(canPredictCompositionStrategy, bool(const CompositionRefreshArgs&));
     };
@@ -2029,7 +2029,7 @@ TEST_F(OutputPresentTest, justInvokesChildFunctionsInSequence) {
     EXPECT_CALL(mOutput, prepareFrame());
     EXPECT_CALL(mOutput, devOptRepaintFlash(Ref(args)));
     EXPECT_CALL(mOutput, finishFrame(_));
-    EXPECT_CALL(mOutput, postFramebuffer());
+    EXPECT_CALL(mOutput, presentFrameAndReleaseLayers());
     EXPECT_CALL(mOutput, renderCachedSets(Ref(args)));
 
     mOutput.present(args);
@@ -2049,7 +2049,7 @@ TEST_F(OutputPresentTest, predictingCompositionStrategyInvokesPrepareFrameAsync)
     EXPECT_CALL(mOutput, prepareFrameAsync());
     EXPECT_CALL(mOutput, devOptRepaintFlash(Ref(args)));
     EXPECT_CALL(mOutput, finishFrame(_));
-    EXPECT_CALL(mOutput, postFramebuffer());
+    EXPECT_CALL(mOutput, presentFrameAndReleaseLayers());
     EXPECT_CALL(mOutput, renderCachedSets(Ref(args)));
 
     mOutput.present(args);
@@ -2895,7 +2895,7 @@ struct OutputDevOptRepaintFlashTest : public testing::Test {
                      std::optional<base::unique_fd>(const Region&,
                                                     std::shared_ptr<renderengine::ExternalTexture>,
                                                     base::unique_fd&));
-        MOCK_METHOD0(postFramebuffer, void());
+        MOCK_METHOD0(presentFrameAndReleaseLayers, void());
         MOCK_METHOD0(prepareFrame, void());
         MOCK_METHOD0(updateProtectedContentState, void());
         MOCK_METHOD2(dequeueRenderBuffer,
@@ -2932,7 +2932,7 @@ TEST_F(OutputDevOptRepaintFlashTest, postsAndPreparesANewFrameIfNotEnabled) {
     mOutput.mState.isEnabled = false;
 
     InSequence seq;
-    EXPECT_CALL(mOutput, postFramebuffer());
+    EXPECT_CALL(mOutput, presentFrameAndReleaseLayers());
     EXPECT_CALL(mOutput, prepareFrame());
 
     mOutput.devOptRepaintFlash(mRefreshArgs);
@@ -2944,7 +2944,7 @@ TEST_F(OutputDevOptRepaintFlashTest, postsAndPreparesANewFrameIfEnabled) {
 
     InSequence seq;
     EXPECT_CALL(mOutput, getDirtyRegion()).WillOnce(Return(kEmptyRegion));
-    EXPECT_CALL(mOutput, postFramebuffer());
+    EXPECT_CALL(mOutput, presentFrameAndReleaseLayers());
     EXPECT_CALL(mOutput, prepareFrame());
 
     mOutput.devOptRepaintFlash(mRefreshArgs);
@@ -2960,7 +2960,7 @@ TEST_F(OutputDevOptRepaintFlashTest, alsoComposesSurfacesAndQueuesABufferIfDirty
     EXPECT_CALL(mOutput, dequeueRenderBuffer(_, _));
     EXPECT_CALL(mOutput, composeSurfaces(RegionEq(kNotEmptyRegion), _, _));
     EXPECT_CALL(*mRenderSurface, queueBuffer(_));
-    EXPECT_CALL(mOutput, postFramebuffer());
+    EXPECT_CALL(mOutput, presentFrameAndReleaseLayers());
     EXPECT_CALL(mOutput, prepareFrame());
 
     mOutput.devOptRepaintFlash(mRefreshArgs);
@@ -2978,7 +2978,7 @@ struct OutputFinishFrameTest : public testing::Test {
                      std::optional<base::unique_fd>(const Region&,
                                                     std::shared_ptr<renderengine::ExternalTexture>,
                                                     base::unique_fd&));
-        MOCK_METHOD0(postFramebuffer, void());
+        MOCK_METHOD0(presentFrameAndReleaseLayers, void());
         MOCK_METHOD0(updateProtectedContentState, void());
         MOCK_METHOD2(dequeueRenderBuffer,
                      bool(base::unique_fd*, std::shared_ptr<renderengine::ExternalTexture>*));
@@ -3057,14 +3057,14 @@ TEST_F(OutputFinishFrameTest, predictionFailedAndBufferIsReused) {
 }
 
 /*
- * Output::postFramebuffer()
+ * Output::presentFrameAndReleaseLayers()
  */
 
 struct OutputPostFramebufferTest : public testing::Test {
     struct OutputPartialMock : public OutputPartialMockBase {
         // Sets up the helper functions called by the function under test to use
         // mock implementations.
-        MOCK_METHOD0(presentAndGetFrameFences, compositionengine::Output::FrameFences());
+        MOCK_METHOD0(presentFrame, compositionengine::Output::FrameFences());
     };
 
     struct Layer {
@@ -3104,7 +3104,7 @@ struct OutputPostFramebufferTest : public testing::Test {
 TEST_F(OutputPostFramebufferTest, ifNotEnabledDoesNothing) {
     mOutput.mState.isEnabled = false;
 
-    mOutput.postFramebuffer();
+    mOutput.presentFrameAndReleaseLayers();
 }
 
 TEST_F(OutputPostFramebufferTest, ifEnabledMustFlipThenPresentThenSendPresentCompleted) {
@@ -3119,10 +3119,10 @@ TEST_F(OutputPostFramebufferTest, ifEnabledMustFlipThenPresentThenSendPresentCom
     // setup below are satisfied in the specific order.
     InSequence seq;
 
-    EXPECT_CALL(mOutput, presentAndGetFrameFences()).WillOnce(Return(frameFences));
+    EXPECT_CALL(mOutput, presentFrame()).WillOnce(Return(frameFences));
     EXPECT_CALL(*mRenderSurface, onPresentDisplayCompleted());
 
-    mOutput.postFramebuffer();
+    mOutput.presentFrameAndReleaseLayers();
 }
 
 TEST_F(OutputPostFramebufferTest, releaseFencesAreSentToLayerFE) {
@@ -3141,7 +3141,7 @@ TEST_F(OutputPostFramebufferTest, releaseFencesAreSentToLayerFE) {
     frameFences.layerFences.emplace(&mLayer2.hwc2Layer, layer2Fence);
     frameFences.layerFences.emplace(&mLayer3.hwc2Layer, layer3Fence);
 
-    EXPECT_CALL(mOutput, presentAndGetFrameFences()).WillOnce(Return(frameFences));
+    EXPECT_CALL(mOutput, presentFrame()).WillOnce(Return(frameFences));
     EXPECT_CALL(*mRenderSurface, onPresentDisplayCompleted());
 
     // Compare the pointers values of each fence to make sure the correct ones
@@ -3164,7 +3164,7 @@ TEST_F(OutputPostFramebufferTest, releaseFencesAreSentToLayerFE) {
                 EXPECT_EQ(FenceResult(layer3Fence), futureFenceResult.get());
             });
 
-    mOutput.postFramebuffer();
+    mOutput.presentFrameAndReleaseLayers();
 }
 
 TEST_F(OutputPostFramebufferTest, releaseFencesIncludeClientTargetAcquireFence) {
@@ -3177,7 +3177,7 @@ TEST_F(OutputPostFramebufferTest, releaseFencesIncludeClientTargetAcquireFence) 
     frameFences.layerFences.emplace(&mLayer2.hwc2Layer, sp<Fence>::make());
     frameFences.layerFences.emplace(&mLayer3.hwc2Layer, sp<Fence>::make());
 
-    EXPECT_CALL(mOutput, presentAndGetFrameFences()).WillOnce(Return(frameFences));
+    EXPECT_CALL(mOutput, presentFrame()).WillOnce(Return(frameFences));
     EXPECT_CALL(*mRenderSurface, onPresentDisplayCompleted());
 
     // Fence::merge is called, and since none of the fences are actually valid,
@@ -3187,7 +3187,7 @@ TEST_F(OutputPostFramebufferTest, releaseFencesIncludeClientTargetAcquireFence) 
     EXPECT_CALL(*mLayer2.layerFE, onLayerDisplayed).WillOnce(Return());
     EXPECT_CALL(*mLayer3.layerFE, onLayerDisplayed).WillOnce(Return());
 
-    mOutput.postFramebuffer();
+    mOutput.presentFrameAndReleaseLayers();
 }
 
 TEST_F(OutputPostFramebufferTest, releasedLayersSentPresentFence) {
@@ -3212,7 +3212,7 @@ TEST_F(OutputPostFramebufferTest, releasedLayersSentPresentFence) {
     Output::FrameFences frameFences;
     frameFences.presentFence = presentFence;
 
-    EXPECT_CALL(mOutput, presentAndGetFrameFences()).WillOnce(Return(frameFences));
+    EXPECT_CALL(mOutput, presentFrame()).WillOnce(Return(frameFences));
     EXPECT_CALL(*mRenderSurface, onPresentDisplayCompleted());
 
     // Each released layer should be given the presentFence.
@@ -3232,7 +3232,7 @@ TEST_F(OutputPostFramebufferTest, releasedLayersSentPresentFence) {
                 EXPECT_EQ(FenceResult(presentFence), futureFenceResult.get());
             });
 
-    mOutput.postFramebuffer();
+    mOutput.presentFrameAndReleaseLayers();
 
     // After the call the list of released layers should have been cleared.
     EXPECT_TRUE(mOutput.getReleasedLayersForTest().empty());
