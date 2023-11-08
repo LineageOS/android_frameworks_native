@@ -19,6 +19,7 @@
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 #include "AidlComposerHal.h"
+#include "FlagManager.h"
 
 #include <SurfaceFlingerProperties.h>
 #include <android-base/file.h>
@@ -281,7 +282,7 @@ bool AidlComposer::isSupported(OptionalFeature feature) const {
 }
 
 bool AidlComposer::getDisplayConfigurationsSupported() const {
-    return mComposerInterfaceVersion >= 3;
+    return mComposerInterfaceVersion >= 3 && FlagManager::getInstance().vrr_config();
 }
 
 std::vector<Capability> AidlComposer::getCapabilities() {
