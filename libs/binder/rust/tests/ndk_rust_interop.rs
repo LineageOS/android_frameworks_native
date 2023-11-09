@@ -58,7 +58,7 @@ pub unsafe extern "C" fn rust_call_ndk(service_name: *const c_char) -> c_int {
     let wrong_service: Result<binder::Strong<dyn IBinderRustNdkInteropTestOther>, StatusCode> =
         binder::get_interface(service_name);
     match wrong_service {
-        Err(e) if e == StatusCode::BAD_TYPE => {}
+        Err(StatusCode::BAD_TYPE) => {}
         Err(e) => {
             eprintln!("Trying to use a service via the wrong interface errored with unexpected error {:?}", e);
             return e as c_int;

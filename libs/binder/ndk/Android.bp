@@ -60,6 +60,7 @@ cc_library {
         "libbinder.cpp",
         "parcel.cpp",
         "parcel_jni.cpp",
+        "persistable_bundle.cpp",
         "process.cpp",
         "stability.cpp",
         "status.cpp",
