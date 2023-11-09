@@ -4547,7 +4547,6 @@ void InputDispatcher::notifySwitch(const NotifySwitchArgs& args) {
 }
 
 void InputDispatcher::notifyDeviceReset(const NotifyDeviceResetArgs& args) {
-    // TODO(b/308677868) Remove device reset from the InputListener interface
     if (debugInboundEventDetails()) {
         ALOGD("notifyDeviceReset - eventTime=%" PRId64 ", deviceId=%d", args.eventTime,
               args.deviceId);
@@ -4693,30 +4692,6 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(const InputEvent* ev
             }
 
             mLock.lock();
-
-            if (policyFlags & POLICY_FLAG_FILTERED) {
-                // The events from InputFilter impersonate real hardware devices. Check these
-                // events for consistency and print an error. An inconsistent event sent from
-                // InputFilter could cause a crash in the later stages of dispatching pipeline.
-                auto [it, _] =
-                        mInputFilterVerifiersByDisplay
-                                .try_emplace(displayId,
-                                             StringPrintf("Injection on %" PRId32, displayId));
-                InputVerifier& verifier = it->second;
-
-                Result<void> result =
-                        verifier.processMovement(resolvedDeviceId, motionEvent.getSource(),
-                                                 motionEvent.getAction(),
-                                                 motionEvent.getPointerCount(),
-                                                 motionEvent.getPointerProperties(),
-                                                 motionEvent.getSamplePointerCoords(), flags);
-                if (!result.ok()) {
-                    logDispatchStateLocked();
-                    LOG(ERROR) << "Inconsistent event: " << motionEvent
-                               << ", reason: " << result.error();
-                }
-            }
-
             const nsecs_t* sampleEventTimes = motionEvent.getSampleEventTimes();
             const size_t pointerCount = motionEvent.getPointerCount();
             const std::vector<PointerProperties>
@@ -6760,7 +6735,6 @@ void InputDispatcher::displayRemoved(int32_t displayId) {
         // Remove the associated touch mode state.
         mTouchModePerDisplay.erase(displayId);
         mVerifiersByDisplay.erase(displayId);
-        mInputFilterVerifiersByDisplay.erase(displayId);
     } // release lock
 
     // Wake up poll loop since it may need to make new input dispatching choices.
