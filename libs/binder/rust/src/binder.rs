@@ -27,7 +27,7 @@ use std::cmp::Ordering;
 use std::convert::TryFrom;
 use std::ffi::{c_void, CStr, CString};
 use std::fmt;
-use std::fs::File;
+use std::io::Write;
 use std::marker::PhantomData;
 use std::ops::Deref;
 use std::os::raw::c_char;
@@ -62,7 +62,7 @@ pub trait Interface: Send + Sync + DowncastSync {
     ///
     /// This handler is a no-op by default and should be implemented for each
     /// Binder service struct that wishes to respond to dump transactions.
-    fn dump(&self, _file: &File, _args: &[&CStr]) -> Result<()> {
+    fn dump(&self, _writer: &mut dyn Write, _args: &[&CStr]) -> Result<()> {
         Ok(())
     }
 }
@@ -165,7 +165,7 @@ pub trait Remotable: Send + Sync + 'static {
 
     /// Handle a request to invoke the dump transaction on this
     /// object.
-    fn on_dump(&self, file: &File, args: &[&CStr]) -> Result<()>;
+    fn on_dump(&self, file: &mut dyn Write, args: &[&CStr]) -> Result<()>;
 
     /// Retrieve the class of this remote object.
     ///
@@ -934,8 +934,8 @@ macro_rules! declare_binder_interface {
                 }
             }
 
-            fn on_dump(&self, file: &std::fs::File, args: &[&std::ffi::CStr]) -> std::result::Result<(), $crate::StatusCode> {
-                self.0.dump(file, args)
+            fn on_dump(&self, writer: &mut dyn std::io::Write, args: &[&std::ffi::CStr]) -> std::result::Result<(), $crate::StatusCode> {
+                self.0.dump(writer, args)
             }
 
             fn get_class() -> $crate::binder_impl::InterfaceClass {
