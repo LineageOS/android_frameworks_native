@@ -76,9 +76,9 @@ public:
                 (override));
     MOCK_METHOD(hal::Error, setPowerMode, (hal::PowerMode), (override));
     MOCK_METHOD(hal::Error, setVsyncEnabled, (hal::Vsync), (override));
-    MOCK_METHOD(hal::Error, validate, (nsecs_t, uint32_t *, uint32_t *), (override));
+    MOCK_METHOD(hal::Error, validate, (nsecs_t, int32_t, uint32_t*, uint32_t*), (override));
     MOCK_METHOD(hal::Error, presentOrValidate,
-                (nsecs_t, uint32_t *, uint32_t *, android::sp<android::Fence> *, uint32_t *),
+                (nsecs_t, int32_t, uint32_t*, uint32_t*, android::sp<android::Fence>*, uint32_t*),
                 (override));
     MOCK_METHOD(ftl::Future<hal::Error>, setDisplayBrightness,
                 (float, float, const Hwc2::Composer::DisplayBrightnessOptions &), (override));

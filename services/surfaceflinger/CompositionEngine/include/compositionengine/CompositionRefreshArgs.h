@@ -96,6 +96,9 @@ struct CompositionRefreshArgs {
     // The expected time for the next present
     nsecs_t expectedPresentTime{0};
 
+    // The frameInterval for the next present
+    Fps frameInterval{};
+
     // If set, a frame has been scheduled for that time.
     std::optional<std::chrono::steady_clock::time_point> scheduledFrameTime;
 
