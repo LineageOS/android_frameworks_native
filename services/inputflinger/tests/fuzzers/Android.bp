@@ -167,3 +167,17 @@ cc_fuzz {
         "LatencyTrackerFuzzer.cpp",
     ],
 }
+
+cc_fuzz {
+    name: "inputflinger_input_dispatcher_fuzzer",
+    defaults: [
+        "inputflinger_fuzz_defaults",
+        "libinputdispatcher_defaults",
+    ],
+    shared_libs: [
+        "libinputreporter",
+    ],
+    srcs: [
+        "InputDispatcherFuzzer.cpp",
+    ],
+}
