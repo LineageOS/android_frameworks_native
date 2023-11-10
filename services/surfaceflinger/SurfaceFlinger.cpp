@@ -8422,7 +8422,8 @@ status_t SurfaceFlinger::setSmallAreaDetectionThreshold(int32_t appId, float thr
 void SurfaceFlinger::enableRefreshRateOverlay(bool enable) {
     bool setByHwc = getHwComposer().hasCapability(Capability::REFRESH_RATE_CHANGED_CALLBACK_DEBUG);
     for (const auto& [id, display] : mPhysicalDisplays) {
-        if (display.snapshot().connectionType() == ui::DisplayConnectionType::Internal) {
+        if (display.snapshot().connectionType() == ui::DisplayConnectionType::Internal ||
+            FlagManager::getInstance().refresh_rate_overlay_on_external_display()) {
             if (const auto device = getDisplayDeviceLocked(id)) {
                 const auto enableOverlay = [&](const bool setByHwc) FTL_FAKE_GUARD(
                                                    kMainThreadContext) {
