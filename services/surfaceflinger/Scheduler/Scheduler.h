@@ -234,6 +234,7 @@ public:
                             nsecs_t now, LayerHistory::LayerUpdateType) EXCLUDES(mDisplayLock);
     void setModeChangePending(bool pending);
     void setDefaultFrameRateCompatibility(int32_t id, scheduler::FrameRateCompatibility);
+    void setLayerProperties(int32_t id, const LayerProps&);
     void deregisterLayer(Layer*);
     void onLayerDestroyed(Layer*) EXCLUDES(mChoreographerLock);
 
