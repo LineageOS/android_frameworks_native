@@ -21,7 +21,9 @@
 #include <android-base/properties.h>
 #include <binder/IBinder.h>
 #include <gui/InputApplication.h>
+#include <gui/PidUid.h>
 #include <input/Input.h>
+#include <input/InputDevice.h>
 #include <utils/RefBase.h>
 #include <set>
 
@@ -146,7 +148,7 @@ public:
     virtual void notifyDropWindow(const sp<IBinder>& token, float x, float y) = 0;
 
     /* Notifies the policy that there was an input device interaction with apps. */
-    virtual void notifyDeviceInteraction(int32_t deviceId, nsecs_t timestamp,
+    virtual void notifyDeviceInteraction(DeviceId deviceId, nsecs_t timestamp,
                                          const std::set<gui::Uid>& uids) = 0;
 };
 

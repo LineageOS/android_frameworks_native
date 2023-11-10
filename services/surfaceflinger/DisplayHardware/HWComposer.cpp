@@ -545,7 +545,7 @@ status_t HWComposer::getDeviceCompositionChanges(
     }
 
     if (canSkipValidate) {
-        sp<Fence> outPresentFence;
+        sp<Fence> outPresentFence = Fence::NO_FENCE;
         uint32_t state = UINT32_MAX;
         error = hwcDisplay->presentOrValidate(expectedPresentTime, &numTypes, &numRequests,
                                               &outPresentFence, &state);

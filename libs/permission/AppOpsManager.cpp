@@ -31,9 +31,6 @@
 
 namespace android {
 
-using ::android::String16;
-using ::android::String8;
-
 static const sp<IBinder>& getClientId() {
     static pthread_mutex_t gClientIdMutex = PTHREAD_MUTEX_INITIALIZER;
     static sp<IBinder> gClientId;
@@ -44,11 +41,6 @@ static const sp<IBinder>& getClientId() {
     }
     pthread_mutex_unlock(&gClientIdMutex);
     return gClientId;
-}
-
-
-static std::string getString(const String16& stringToConvert) {
-  return std::string(String8(stringToConvert).c_str());
 }
 
 AppOpsManager::AppOpsManager()
@@ -86,14 +78,9 @@ sp<IAppOpsService> AppOpsManager::getService()
 int32_t AppOpsManager::checkOp(int32_t op, int32_t uid, const String16& callingPackage)
 {
     sp<IAppOpsService> service = getService();
-    if (service == nullptr) {
-        return AppOpsManager::MODE_IGNORED;
-    }
-    AttributionSourceState attributionSourceState;
-    attributionSourceState.uid = uid;
-    attributionSourceState.packageName = getString(callingPackage);
-
-    return service->checkOperationWithState(op, attributionSourceState);
+    return service != nullptr
+            ? service->checkOperation(op, uid, callingPackage)
+            : AppOpsManager::MODE_IGNORED;
 }
 
 int32_t AppOpsManager::checkAudioOpNoThrow(int32_t op, int32_t usage, int32_t uid,
@@ -112,18 +99,12 @@ int32_t AppOpsManager::noteOp(int32_t op, int32_t uid, const String16& callingPa
 int32_t AppOpsManager::noteOp(int32_t op, int32_t uid, const String16& callingPackage,
         const std::optional<String16>& attributionTag, const String16& message) {
     sp<IAppOpsService> service = getService();
-    if (service == nullptr) {
-        return AppOpsManager::MODE_IGNORED;
-    }
-    AttributionSourceState attributionSourceState;
-    attributionSourceState.uid = uid;
-    attributionSourceState.packageName = getString(callingPackage);
-    if (attributionTag.has_value()) {
-        attributionSourceState.attributionTag = getString(attributionTag.value());
-    }
+    int32_t mode = service != nullptr
+            ? service->noteOperation(op, uid, callingPackage, attributionTag,
+                    shouldCollectNotes(op), message, uid == AID_SYSTEM)
+            : AppOpsManager::MODE_IGNORED;
 
-    return service->noteOperationWithState(op, attributionSourceState,
-            shouldCollectNotes(op), message, uid == AID_SYSTEM);
+    return mode;
 }
 
 int32_t AppOpsManager::startOpNoThrow(int32_t op, int32_t uid, const String16& callingPackage,
@@ -136,18 +117,13 @@ int32_t AppOpsManager::startOpNoThrow(int32_t op, int32_t uid, const String16& c
         bool startIfModeDefault, const std::optional<String16>& attributionTag,
         const String16& message) {
     sp<IAppOpsService> service = getService();
-    if (service == nullptr) {
-        return AppOpsManager::MODE_IGNORED;
-    }
-    AttributionSourceState attributionSourceState;
-    attributionSourceState.uid = uid;
-    attributionSourceState.packageName = getString(callingPackage);
-    if (attributionTag.has_value()) {
-        attributionSourceState.attributionTag = getString(attributionTag.value());
-    }
+    int32_t mode = service != nullptr
+            ? service->startOperation(getClientId(), op, uid, callingPackage,
+                    attributionTag, startIfModeDefault, shouldCollectNotes(op), message,
+                    uid == AID_SYSTEM)
+            : AppOpsManager::MODE_IGNORED;
 
-    return service->startOperationWithState(getClientId(), op, attributionSourceState,
-            startIfModeDefault,shouldCollectNotes(op), message, uid == AID_SYSTEM);
+    return mode;
 }
 
 void AppOpsManager::finishOp(int32_t op, int32_t uid, const String16& callingPackage) {
@@ -157,16 +133,9 @@ void AppOpsManager::finishOp(int32_t op, int32_t uid, const String16& callingPac
 void AppOpsManager::finishOp(int32_t op, int32_t uid, const String16& callingPackage,
         const std::optional<String16>& attributionTag) {
     sp<IAppOpsService> service = getService();
-    if (service == nullptr) {
-        return;
+    if (service != nullptr) {
+        service->finishOperation(getClientId(), op, uid, callingPackage, attributionTag);
     }
-    AttributionSourceState attributionSourceState;
-    attributionSourceState.uid = uid;
-    attributionSourceState.packageName = getString(callingPackage);
-    if (attributionTag.has_value()) {
-        attributionSourceState.attributionTag = getString(attributionTag.value());
-    }
-    service->finishOperationWithState(getClientId(), op, attributionSourceState);
 }
 
 void AppOpsManager::startWatchingMode(int32_t op, const String16& packageName,

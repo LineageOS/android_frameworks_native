@@ -16,6 +16,7 @@
 
 #include "../dispatcher/InputDispatcher.h"
 #include "../BlockingQueue.h"
+#include "FakeApplicationHandle.h"
 #include "TestEventMatchers.h"
 
 #include <NotifyArgsBuilders.h>
@@ -851,29 +852,10 @@ static const std::chrono::duration DISPATCHING_TIMEOUT = std::chrono::millisecon
         android::os::IInputConstants::UNMULTIPLIED_DEFAULT_DISPATCHING_TIMEOUT_MILLIS *
         android::base::HwTimeoutMultiplier());
 
-class FakeApplicationHandle : public InputApplicationHandle {
-public:
-    FakeApplicationHandle() {
-        mInfo.name = "Fake Application";
-        mInfo.token = sp<BBinder>::make();
-        mInfo.dispatchingTimeoutMillis =
-                std::chrono::duration_cast<std::chrono::milliseconds>(DISPATCHING_TIMEOUT).count();
-    }
-    virtual ~FakeApplicationHandle() {}
-
-    virtual bool updateInfo() override { return true; }
-
-    void setDispatchingTimeout(std::chrono::milliseconds timeout) {
-        mInfo.dispatchingTimeoutMillis = timeout.count();
-    }
-};
-
 class FakeInputReceiver {
 public:
     explicit FakeInputReceiver(std::unique_ptr<InputChannel> clientChannel, const std::string name)
-          : mName(name) {
-        mConsumer = std::make_unique<InputConsumer>(std::move(clientChannel));
-    }
+          : mConsumer(std::move(clientChannel)), mName(name) {}
 
     InputEvent* consume(std::chrono::milliseconds timeout, bool handled = false) {
         InputEvent* event;
@@ -897,8 +879,8 @@ public:
         std::chrono::time_point start = std::chrono::steady_clock::now();
         status_t status = WOULD_BLOCK;
         while (status == WOULD_BLOCK) {
-            status = mConsumer->consume(&mEventFactory, /*consumeBatches=*/true, -1, &consumeSeq,
-                                        &event);
+            status = mConsumer.consume(&mEventFactory, /*consumeBatches=*/true, -1, &consumeSeq,
+                                       &event);
             std::chrono::duration elapsed = std::chrono::steady_clock::now() - start;
             if (elapsed > timeout) {
                 break;
@@ -928,12 +910,12 @@ public:
      * To be used together with "receiveEvent" to complete the consumption of an event.
      */
     void finishEvent(uint32_t consumeSeq, bool handled = true) {
-        const status_t status = mConsumer->sendFinishedSignal(consumeSeq, handled);
+        const status_t status = mConsumer.sendFinishedSignal(consumeSeq, handled);
         ASSERT_EQ(OK, status) << mName.c_str() << ": consumer sendFinishedSignal should return OK.";
     }
 
     void sendTimeline(int32_t inputEventId, std::array<nsecs_t, GraphicsTimeline::SIZE> timeline) {
-        const status_t status = mConsumer->sendTimeline(inputEventId, timeline);
+        const status_t status = mConsumer.sendTimeline(inputEventId, timeline);
         ASSERT_EQ(OK, status);
     }
 
@@ -1091,12 +1073,12 @@ public:
                << ": should not have received any events, so consume() should return NULL";
     }
 
-    sp<IBinder> getToken() { return mConsumer->getChannel()->getConnectionToken(); }
+    sp<IBinder> getToken() { return mConsumer.getChannel()->getConnectionToken(); }
 
-    int getChannelFd() { return mConsumer->getChannel()->getFd().get(); }
+    int getChannelFd() { return mConsumer.getChannel()->getFd().get(); }
 
-protected:
-    std::unique_ptr<InputConsumer> mConsumer;
+private:
+    InputConsumer mConsumer;
     PreallocatedInputEventFactory mEventFactory;
 
     std::string mName;
@@ -1436,42 +1418,39 @@ std::atomic<int32_t> FakeWindowHandle::sId{1};
 
 class FakeMonitorReceiver {
 public:
-    FakeMonitorReceiver(InputDispatcher& dispatcher, const std::string name, int32_t displayId) {
-        base::Result<std::unique_ptr<InputChannel>> channel =
-                dispatcher.createInputMonitor(displayId, name, MONITOR_PID);
-        mInputReceiver = std::make_unique<FakeInputReceiver>(std::move(*channel), name);
-    }
+    FakeMonitorReceiver(InputDispatcher& dispatcher, const std::string name, int32_t displayId)
+          : mInputReceiver(*dispatcher.createInputMonitor(displayId, name, MONITOR_PID), name) {}
 
-    sp<IBinder> getToken() { return mInputReceiver->getToken(); }
+    sp<IBinder> getToken() { return mInputReceiver.getToken(); }
 
     void consumeKeyDown(int32_t expectedDisplayId, int32_t expectedFlags = 0) {
-        mInputReceiver->consumeEvent(InputEventType::KEY, AKEY_EVENT_ACTION_DOWN, expectedDisplayId,
-                                     expectedFlags);
+        mInputReceiver.consumeEvent(InputEventType::KEY, AKEY_EVENT_ACTION_DOWN, expectedDisplayId,
+                                    expectedFlags);
     }
 
     std::optional<int32_t> receiveEvent() {
-        return mInputReceiver->receiveEvent(CONSUME_TIMEOUT_EVENT_EXPECTED);
+        return mInputReceiver.receiveEvent(CONSUME_TIMEOUT_EVENT_EXPECTED);
     }
 
-    void finishEvent(uint32_t consumeSeq) { return mInputReceiver->finishEvent(consumeSeq); }
+    void finishEvent(uint32_t consumeSeq) { return mInputReceiver.finishEvent(consumeSeq); }
 
     void consumeMotionDown(int32_t expectedDisplayId, int32_t expectedFlags = 0) {
-        mInputReceiver->consumeEvent(InputEventType::MOTION, AMOTION_EVENT_ACTION_DOWN,
-                                     expectedDisplayId, expectedFlags);
+        mInputReceiver.consumeEvent(InputEventType::MOTION, AMOTION_EVENT_ACTION_DOWN,
+                                    expectedDisplayId, expectedFlags);
     }
 
     void consumeMotionMove(int32_t expectedDisplayId, int32_t expectedFlags = 0) {
-        mInputReceiver->consumeEvent(InputEventType::MOTION, AMOTION_EVENT_ACTION_MOVE,
-                                     expectedDisplayId, expectedFlags);
+        mInputReceiver.consumeEvent(InputEventType::MOTION, AMOTION_EVENT_ACTION_MOVE,
+                                    expectedDisplayId, expectedFlags);
     }
 
     void consumeMotionUp(int32_t expectedDisplayId, int32_t expectedFlags = 0) {
-        mInputReceiver->consumeEvent(InputEventType::MOTION, AMOTION_EVENT_ACTION_UP,
-                                     expectedDisplayId, expectedFlags);
+        mInputReceiver.consumeEvent(InputEventType::MOTION, AMOTION_EVENT_ACTION_UP,
+                                    expectedDisplayId, expectedFlags);
     }
 
     void consumeMotionCancel(int32_t expectedDisplayId, int32_t expectedFlags = 0) {
-        mInputReceiver->consumeMotionEvent(
+        mInputReceiver.consumeMotionEvent(
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_CANCEL),
                       WithDisplayId(expectedDisplayId),
                       WithFlags(expectedFlags | AMOTION_EVENT_FLAG_CANCELED)));
@@ -1480,20 +1459,20 @@ public:
     void consumeMotionPointerDown(int32_t pointerIdx) {
         int32_t action = AMOTION_EVENT_ACTION_POINTER_DOWN |
                 (pointerIdx << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
-        mInputReceiver->consumeEvent(InputEventType::MOTION, action, ADISPLAY_ID_DEFAULT,
-                                     /*expectedFlags=*/0);
+        mInputReceiver.consumeEvent(InputEventType::MOTION, action, ADISPLAY_ID_DEFAULT,
+                                    /*expectedFlags=*/0);
     }
 
     void consumeMotionEvent(const ::testing::Matcher<MotionEvent>& matcher) {
-        mInputReceiver->consumeMotionEvent(matcher);
+        mInputReceiver.consumeMotionEvent(matcher);
     }
 
-    MotionEvent* consumeMotion() { return mInputReceiver->consumeMotion(); }
+    MotionEvent* consumeMotion() { return mInputReceiver.consumeMotion(); }
 
-    void assertNoEvents() { mInputReceiver->assertNoEvents(); }
+    void assertNoEvents() { mInputReceiver.assertNoEvents(); }
 
 private:
-    std::unique_ptr<FakeInputReceiver> mInputReceiver;
+    FakeInputReceiver mInputReceiver;
 };
 
 static InputEventInjectionResult injectKey(
