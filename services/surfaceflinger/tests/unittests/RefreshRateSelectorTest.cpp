@@ -1568,7 +1568,7 @@ TEST_P(RefreshRateSelectorTest,
             // These layers cannot change mode due to smoothSwitchOnly, and will definitely use
             // active mode (120Hz).
             {FrameRateCategory::NoPreference, true, 120_Hz, kModeId120},
-            {FrameRateCategory::Low, true, 40_Hz, kModeId120},
+            {FrameRateCategory::Low, true, 120_Hz, kModeId120},
             {FrameRateCategory::Normal, true, 40_Hz, kModeId120},
             {FrameRateCategory::High, true, 120_Hz, kModeId120},
     };
