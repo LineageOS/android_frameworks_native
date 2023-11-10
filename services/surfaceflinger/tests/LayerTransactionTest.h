@@ -47,7 +47,6 @@ protected:
         ASSERT_NO_FATAL_FAILURE(SetUpDisplay());
 
         sp<gui::ISurfaceComposer> sf(ComposerServiceAIDL::getComposerService());
-        mCaptureArgs.displayToken = mDisplay;
     }
 
     virtual void TearDown() {
@@ -279,8 +278,6 @@ protected:
     const int32_t mLayerZBase = std::numeric_limits<int32_t>::max() - 256;
 
     sp<SurfaceControl> mBlackBgSurface;
-
-    DisplayCaptureArgs mCaptureArgs;
     ScreenCaptureResults mCaptureResults;
 
 private:
