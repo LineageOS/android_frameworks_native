@@ -115,11 +115,15 @@ void FrameTracerFuzzer::process() {
     std::vector<int32_t> layerIds =
             generateLayerIds(mFdp.ConsumeIntegralInRange<size_t>(kMinLayerIds, kMaxLayerIds));
 
+    std::unique_ptr<perfetto::TracingSession> tracingSession;
     while (mFdp.remaining_bytes()) {
         auto invokeFrametracerAPI = mFdp.PickValueInArray<const std::function<void()>>({
                 [&]() { mFrameTracer->registerDataSource(); },
                 [&]() {
-                    auto tracingSession = getTracingSessionForTest();
+                    if (tracingSession) {
+                        tracingSession->StopBlocking();
+                    }
+                    tracingSession = getTracingSessionForTest();
                     tracingSession->StartBlocking();
                 },
                 [&]() { traceTimestamp(layerIds, layerIds.size()); },
