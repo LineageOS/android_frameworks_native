@@ -56,6 +56,8 @@ public:
     virtual std::optional<DisplayViewport> getViewportForPointerDevice(
             int32_t associatedDisplayId = ADISPLAY_ID_NONE) = 0;
     virtual FloatPoint getMouseCursorPosition(int32_t displayId) = 0;
+    virtual void setShowTouchesEnabled(bool enabled) = 0;
+    virtual void setStylusPointerIconEnabled(bool enabled) = 0;
     /**
      * This method may be called on any thread (usually by the input manager on a binder thread).
      */
@@ -73,6 +75,8 @@ public:
     std::optional<DisplayViewport> getViewportForPointerDevice(
             int32_t associatedDisplayId) override;
     FloatPoint getMouseCursorPosition(int32_t displayId) override;
+    void setShowTouchesEnabled(bool enabled) override;
+    void setStylusPointerIconEnabled(bool enabled) override;
 
     void notifyInputDevicesChanged(const NotifyInputDevicesChangedArgs& args) override;
     void notifyConfigurationChanged(const NotifyConfigurationChangedArgs& args) override;
@@ -91,14 +95,19 @@ private:
     void notifyPointerDisplayIdChangedLocked() REQUIRES(mLock);
     const DisplayViewport* findViewportByIdLocked(int32_t displayId) const REQUIRES(mLock);
     int32_t getTargetMouseDisplayLocked(int32_t associatedDisplayId) const REQUIRES(mLock);
+    InputDeviceInfo* findInputDeviceLocked(DeviceId deviceId) REQUIRES(mLock);
 
     NotifyMotionArgs processMotion(const NotifyMotionArgs& args);
     NotifyMotionArgs processMouseEventLocked(const NotifyMotionArgs& args) REQUIRES(mLock);
-    NotifyMotionArgs processTouchscreenEventLocked(const NotifyMotionArgs& args) REQUIRES(mLock);
+    void processTouchscreenAndStylusEventLocked(const NotifyMotionArgs& args) REQUIRES(mLock);
+    void processStylusHoverEventLocked(const NotifyMotionArgs& args) REQUIRES(mLock);
+    void processDeviceReset(const NotifyDeviceResetArgs& args);
 
     using ControllerConstructor =
             ConstructorDelegate<std::function<std::shared_ptr<PointerControllerInterface>()>>;
+    ControllerConstructor mTouchControllerConstructor GUARDED_BY(mLock);
     ControllerConstructor getMouseControllerConstructor(int32_t displayId) REQUIRES(mLock);
+    ControllerConstructor getStylusControllerConstructor(int32_t displayId) REQUIRES(mLock);
 
     std::mutex mLock;
 
@@ -107,11 +116,17 @@ private:
 
     std::map<int32_t, std::shared_ptr<PointerControllerInterface>> mMousePointersByDisplay
             GUARDED_BY(mLock);
+    std::map<DeviceId, std::shared_ptr<PointerControllerInterface>> mTouchPointersByDevice
+            GUARDED_BY(mLock);
+    std::map<DeviceId, std::shared_ptr<PointerControllerInterface>> mStylusPointersByDevice
+            GUARDED_BY(mLock);
 
     int32_t mDefaultMouseDisplayId GUARDED_BY(mLock);
     int32_t mNotifiedPointerDisplayId GUARDED_BY(mLock);
     std::vector<InputDeviceInfo> mInputDeviceInfos GUARDED_BY(mLock);
     std::vector<DisplayViewport> mViewports GUARDED_BY(mLock);
+    bool mShowTouchesEnabled GUARDED_BY(mLock);
+    bool mStylusPointerIconEnabled GUARDED_BY(mLock);
 };
 
 } // namespace android

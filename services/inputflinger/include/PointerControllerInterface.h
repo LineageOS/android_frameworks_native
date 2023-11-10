@@ -48,8 +48,8 @@ struct FloatPoint {
  */
 class PointerControllerInterface {
 protected:
-    PointerControllerInterface() { }
-    virtual ~PointerControllerInterface() { }
+    PointerControllerInterface() {}
+    virtual ~PointerControllerInterface() {}
 
 public:
     /**
@@ -63,6 +63,10 @@ public:
         LEGACY,
         // Represents a single mouse pointer.
         MOUSE,
+        // Represents multiple touch spots.
+        TOUCH,
+        // Represents a single stylus pointer.
+        STYLUS,
     };
 
     /* Dumps the state of the pointer controller. */
@@ -121,7 +125,7 @@ public:
      * pressed (not hovering).
      */
     virtual void setSpots(const PointerCoords* spotCoords, const uint32_t* spotIdToIndex,
-            BitSet32 spotIdBits, int32_t displayId) = 0;
+                          BitSet32 spotIdBits, int32_t displayId) = 0;
 
     /* Removes all spots. */
     virtual void clearSpots() = 0;

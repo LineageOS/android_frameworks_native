@@ -47,12 +47,20 @@ int32_t FakePointerController::getDisplayId() const {
 
 void FakePointerController::setDisplayViewport(const DisplayViewport& viewport) {
     mDisplayId = viewport.displayId;
+    setBounds(viewport.logicalLeft, viewport.logicalTop, viewport.logicalRight - 1,
+              viewport.logicalBottom - 1);
 }
 
 void FakePointerController::assertPosition(float x, float y) {
     const auto [actualX, actualY] = getPosition();
     ASSERT_NEAR(x, actualX, 1);
     ASSERT_NEAR(y, actualY, 1);
+}
+
+void FakePointerController::assertSpotCount(int32_t displayId, int32_t count) {
+    auto it = mSpotsByDisplay.find(displayId);
+    ASSERT_TRUE(it != mSpotsByDisplay.end()) << "Spots not found for display " << displayId;
+    ASSERT_EQ(static_cast<size_t>(count), it->second.size());
 }
 
 bool FakePointerController::isPointerShown() {
