@@ -30,12 +30,6 @@ constexpr int32_t kMinRange = 0;
 constexpr int32_t kConfigDuration = 500;
 constexpr int32_t kBufferSize = 1024;
 constexpr int32_t kTimeOffset = 100000;
-constexpr perfetto::BackendType backendTypes[] = {
-        perfetto::kUnspecifiedBackend,
-        perfetto::kInProcessBackend,
-        perfetto::kSystemBackend,
-        perfetto::kCustomBackend,
-};
 
 class FrameTracerFuzzer {
 public:
@@ -71,8 +65,7 @@ std::unique_ptr<perfetto::TracingSession> FrameTracerFuzzer::getTracingSessionFo
     auto* dsCfg = cfg.add_data_sources()->mutable_config();
     dsCfg->set_name(android::FrameTracer::kFrameTracerDataSource);
 
-    auto tracingSession =
-            perfetto::Tracing::NewTrace(mFdp.PickValueInArray<perfetto::BackendType>(backendTypes));
+    auto tracingSession = perfetto::Tracing::NewTrace(perfetto::kInProcessBackend);
     tracingSession->Setup(cfg);
     return tracingSession;
 }
