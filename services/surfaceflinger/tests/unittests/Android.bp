@@ -45,7 +45,7 @@ filegroup {
 cc_aconfig_library {
     name: "libsurfaceflingerflags_test",
     aconfig_declarations: "surfaceflinger_flags",
-    test: true,
+    mode: "test",
 }
 
 cc_test {
