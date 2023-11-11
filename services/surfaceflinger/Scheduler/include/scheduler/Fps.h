@@ -83,7 +83,7 @@ struct FpsRanges {
 };
 
 // The frame rate category of a Layer.
-enum class FrameRateCategory {
+enum class FrameRateCategory : int32_t {
     Default,
     NoPreference,
     Low,

@@ -73,7 +73,7 @@ public:
     // does not set a preference for refresh rate.
     void setDefaultFrameRateCompatibility(int32_t id, FrameRateCompatibility frameRateCompatibility,
                                           bool contentDetectionEnabled);
-
+    void setLayerProperties(int32_t id, const LayerProps&);
     using Summary = std::vector<RefreshRateSelector::LayerRequirement>;
 
     // Rebuilds sets of active/inactive layers, and accumulates stats for active layers.

@@ -37,6 +37,7 @@ public:
     void setDisplayViewport(const DisplayViewport& viewport) override;
 
     void assertPosition(float x, float y);
+    void assertSpotCount(int32_t displayId, int32_t count);
     bool isPointerShown();
 
 private:

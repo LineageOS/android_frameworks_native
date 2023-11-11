@@ -223,9 +223,6 @@ TEST_F(FlattenerTest, flattenLayers_ActiveLayersAreNotFlattened) {
 }
 
 TEST_F(FlattenerTest, flattenLayers_ActiveLayersWithLowFpsAreFlattened) {
-    mTestLayers[0]->layerFECompositionState.fps = Flattener::kFpsActiveThreshold / 2;
-    mTestLayers[1]->layerFECompositionState.fps = Flattener::kFpsActiveThreshold;
-
     auto& layerState1 = mTestLayers[0]->layerState;
     auto& layerState2 = mTestLayers[1]->layerState;
 
@@ -235,6 +232,10 @@ TEST_F(FlattenerTest, flattenLayers_ActiveLayersWithLowFpsAreFlattened) {
     };
 
     initializeFlattener(layers);
+
+    mTestLayers[0]->layerFECompositionState.fps = Flattener::kFpsActiveThreshold / 2;
+    mTestLayers[1]->layerFECompositionState.fps = Flattener::kFpsActiveThreshold;
+
     expectAllLayersFlattened(layers);
 }
 

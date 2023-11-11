@@ -49,6 +49,7 @@ public:
     /// Trunk stable server flags ///
     bool late_boot_misc2() const;
     bool dont_skip_on_early() const;
+    bool refresh_rate_overlay_on_external_display() const;
 
     /// Trunk stable readonly flags ///
     bool connected_display() const;

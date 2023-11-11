@@ -163,16 +163,22 @@ private:
 
 void DisplayHardwareFuzzer::validateDisplay(Hwc2::AidlComposer* composer, Display display) {
     uint32_t outNumTypes, outNumRequests;
-    composer->validateDisplay(display, mFdp.ConsumeIntegral<nsecs_t>(), &outNumTypes,
-                              &outNumRequests);
+    const auto frameIntervalRange =
+            mFdp.ConsumeIntegralInRange<int32_t>(Fps::fromValue(1).getPeriodNsecs(),
+                                                 Fps::fromValue(120).getPeriodNsecs());
+    composer->validateDisplay(display, mFdp.ConsumeIntegral<nsecs_t>(), frameIntervalRange,
+                              &outNumTypes, &outNumRequests);
 }
 
 void DisplayHardwareFuzzer::presentOrValidateDisplay(Hwc2::AidlComposer* composer,
                                                      Display display) {
     int32_t outPresentFence;
     uint32_t outNumTypes, outNumRequests, state;
-    composer->presentOrValidateDisplay(display, mFdp.ConsumeIntegral<nsecs_t>(), &outNumTypes,
-                                       &outNumRequests, &outPresentFence, &state);
+    const auto frameIntervalRange =
+            mFdp.ConsumeIntegralInRange<int32_t>(Fps::fromValue(1).getPeriodNsecs(),
+                                                 Fps::fromValue(120).getPeriodNsecs());
+    composer->presentOrValidateDisplay(display, mFdp.ConsumeIntegral<nsecs_t>(), frameIntervalRange,
+                                       &outNumTypes, &outNumRequests, &outPresentFence, &state);
 }
 
 void DisplayHardwareFuzzer::setOutputBuffer(Hwc2::AidlComposer* composer, Display display) {
@@ -223,7 +229,10 @@ void DisplayHardwareFuzzer::getDeviceCompositionChanges(HalDisplayId halDisplayI
     mHwc.getDeviceCompositionChanges(halDisplayID,
                                      mFdp.ConsumeBool() /*frameUsesClientComposition*/,
                                      std::chrono::steady_clock::now(),
-                                     mFdp.ConsumeIntegral<nsecs_t>(), &outChanges);
+                                     mFdp.ConsumeIntegral<nsecs_t>(),
+                                     Fps::fromValue(
+                                             mFdp.ConsumeFloatingPointInRange<float>(1.f, 120.f)),
+                                     &outChanges);
 }
 
 void DisplayHardwareFuzzer::getDisplayedContentSamplingAttributes(HalDisplayId halDisplayID) {

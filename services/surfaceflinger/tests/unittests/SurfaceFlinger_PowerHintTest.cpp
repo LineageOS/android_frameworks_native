@@ -103,7 +103,7 @@ TEST_F(SurfaceFlingerPowerHintTest, sendDurationsIncludingHwcWaitTime) {
     EXPECT_CALL(*mDisplaySurface,
                 prepareFrame(compositionengine::DisplaySurface::CompositionType::Hwc))
             .Times(1);
-    EXPECT_CALL(*mComposer, presentOrValidateDisplay(HWC_DISPLAY, _, _, _, _, _)).WillOnce([] {
+    EXPECT_CALL(*mComposer, presentOrValidateDisplay(HWC_DISPLAY, _, _, _, _, _, _)).WillOnce([] {
         constexpr Duration kMockHwcRunTime = 20ms;
         std::this_thread::sleep_for(kMockHwcRunTime);
         return hardware::graphics::composer::V2_1::Error::NONE;
@@ -124,7 +124,7 @@ TEST_F(SurfaceFlingerPowerHintTest, inactiveOnDisplayDoze) {
     EXPECT_CALL(*mDisplaySurface,
                 prepareFrame(compositionengine::DisplaySurface::CompositionType::Hwc))
             .Times(1);
-    EXPECT_CALL(*mComposer, presentOrValidateDisplay(HWC_DISPLAY, _, _, _, _, _)).WillOnce([] {
+    EXPECT_CALL(*mComposer, presentOrValidateDisplay(HWC_DISPLAY, _, _, _, _, _, _)).WillOnce([] {
         constexpr Duration kMockHwcRunTime = 20ms;
         std::this_thread::sleep_for(kMockHwcRunTime);
         return hardware::graphics::composer::V2_1::Error::NONE;

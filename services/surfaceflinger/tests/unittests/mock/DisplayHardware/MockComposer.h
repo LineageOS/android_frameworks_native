@@ -95,9 +95,9 @@ public:
     MOCK_METHOD2(setPowerMode, Error(Display, IComposerClient::PowerMode));
     MOCK_METHOD2(setVsyncEnabled, Error(Display, IComposerClient::Vsync));
     MOCK_METHOD1(setClientTargetSlotCount, Error(Display));
-    MOCK_METHOD4(validateDisplay, Error(Display, nsecs_t, uint32_t*, uint32_t*));
-    MOCK_METHOD6(presentOrValidateDisplay,
-                 Error(Display, nsecs_t, uint32_t*, uint32_t*, int*, uint32_t*));
+    MOCK_METHOD(Error, validateDisplay, (Display, nsecs_t, int32_t, uint32_t*, uint32_t*));
+    MOCK_METHOD(Error, presentOrValidateDisplay,
+                (Display, nsecs_t, int32_t, uint32_t*, uint32_t*, int*, uint32_t*));
     MOCK_METHOD4(setCursorPosition, Error(Display, Layer, int32_t, int32_t));
     MOCK_METHOD5(setLayerBuffer, Error(Display, Layer, uint32_t, const sp<GraphicBuffer>&, int));
     MOCK_METHOD4(setLayerBufferSlotsToClear,

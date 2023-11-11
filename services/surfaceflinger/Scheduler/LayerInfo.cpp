@@ -75,6 +75,10 @@ void LayerInfo::setLastPresentTime(nsecs_t lastPresentTime, nsecs_t now, LayerUp
     }
 }
 
+void LayerInfo::setProperties(const android::scheduler::LayerProps& properties) {
+    *mLayerProps = properties;
+}
+
 bool LayerInfo::isFrameTimeValid(const FrameTimeData& frameTime) const {
     return frameTime.queueTime >= std::chrono::duration_cast<std::chrono::nanoseconds>(
                                           mFrameTimeValidSince.time_since_epoch())

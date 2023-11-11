@@ -2219,7 +2219,8 @@ void SurfaceFlinger::updateLayerHistory(nsecs_t now) {
                  snapshot->changes.any(Changes::Geometry));
 
         const bool hasChanges =
-                snapshot->changes.any(Changes::FrameRate | Changes::Buffer | Changes::Animation) ||
+                snapshot->changes.any(Changes::FrameRate | Changes::Buffer | Changes::Animation |
+                                      Changes::Geometry | Changes::Visibility) ||
                 (snapshot->clientChanges & layer_state_t::eDefaultFrameRateCompatibilityChanged) !=
                         0;
 
@@ -2249,6 +2250,10 @@ void SurfaceFlinger::updateLayerHistory(nsecs_t now) {
                 .isSmallDirty = snapshot->isSmallDirty,
                 .isFrontBuffered = snapshot->isFrontBuffered(),
         };
+
+        if (snapshot->changes.any(Changes::Geometry | Changes::Visibility)) {
+            mScheduler->setLayerProperties(snapshot->sequence, layerProps);
+        }
 
         if (snapshot->clientChanges & layer_state_t::eDefaultFrameRateCompatibilityChanged) {
             mScheduler->setDefaultFrameRateCompatibility(snapshot->sequence,
@@ -2620,6 +2625,10 @@ CompositeResultsPerDisplay SurfaceFlinger::composite(
                 mScheduler->isVsyncInPhase(pacesetterTarget.frameBeginTime(), refreshRate)) {
                 refreshArgs.outputs.push_back(display->getCompositionDisplay());
             }
+        }
+        if (display->getId() == pacesetterId) {
+            // TODO(b/255601557) Update frameInterval per display
+            refreshArgs.frameInterval = display->refreshRateSelector().getActiveMode().fps;
         }
     }
     mPowerAdvisor->setDisplays(displayIds);
@@ -8413,7 +8422,8 @@ status_t SurfaceFlinger::setSmallAreaDetectionThreshold(int32_t appId, float thr
 void SurfaceFlinger::enableRefreshRateOverlay(bool enable) {
     bool setByHwc = getHwComposer().hasCapability(Capability::REFRESH_RATE_CHANGED_CALLBACK_DEBUG);
     for (const auto& [id, display] : mPhysicalDisplays) {
-        if (display.snapshot().connectionType() == ui::DisplayConnectionType::Internal) {
+        if (display.snapshot().connectionType() == ui::DisplayConnectionType::Internal ||
+            FlagManager::getInstance().refresh_rate_overlay_on_external_display()) {
             if (const auto device = getDisplayDeviceLocked(id)) {
                 const auto enableOverlay = [&](const bool setByHwc) FTL_FAKE_GUARD(
                                                    kMainThreadContext) {

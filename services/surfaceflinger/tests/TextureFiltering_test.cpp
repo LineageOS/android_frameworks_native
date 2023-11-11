@@ -80,29 +80,22 @@ protected:
     sp<SurfaceControl> mParent;
     sp<SurfaceControl> mLayer;
     std::unique_ptr<ScreenCapture> mCapture;
+    gui::LayerCaptureArgs captureArgs;
 };
 
 TEST_F(TextureFilteringTest, NoFiltering) {
-    gui::DisplayCaptureArgs captureArgs;
-    captureArgs.displayToken = mDisplay;
-    captureArgs.width = 100;
-    captureArgs.height = 100;
-    captureArgs.sourceCrop = Rect{100, 100};
-    ScreenCapture::captureDisplay(&mCapture, captureArgs);
+    captureArgs.sourceCrop = Rect{0, 0, 100, 100};
+    captureArgs.layerHandle = mParent->getHandle();
+    ScreenCapture::captureLayers(&mCapture, captureArgs);
 
     mCapture->expectColor(Rect{0, 0, 50, 100}, Color::RED);
     mCapture->expectColor(Rect{50, 0, 100, 100}, Color::BLUE);
 }
 
 TEST_F(TextureFilteringTest, BufferCropNoFiltering) {
-    Transaction().setBufferCrop(mLayer, Rect{0, 0, 100, 100}).apply();
-
-    gui::DisplayCaptureArgs captureArgs;
-    captureArgs.displayToken = mDisplay;
-    captureArgs.width = 100;
-    captureArgs.height = 100;
     captureArgs.sourceCrop = Rect{0, 0, 100, 100};
-    ScreenCapture::captureDisplay(&mCapture, captureArgs);
+    captureArgs.layerHandle = mParent->getHandle();
+    ScreenCapture::captureLayers(&mCapture, captureArgs);
 
     mCapture->expectColor(Rect{0, 0, 50, 100}, Color::RED);
     mCapture->expectColor(Rect{50, 0, 100, 100}, Color::BLUE);
@@ -112,24 +105,20 @@ TEST_F(TextureFilteringTest, BufferCropNoFiltering) {
 TEST_F(TextureFilteringTest, BufferCropIsFiltered) {
     Transaction().setBufferCrop(mLayer, Rect{25, 25, 75, 75}).apply();
 
-    gui::DisplayCaptureArgs captureArgs;
-    captureArgs.displayToken = mDisplay;
-    captureArgs.width = 100;
-    captureArgs.height = 100;
     captureArgs.sourceCrop = Rect{0, 0, 100, 100};
-    ScreenCapture::captureDisplay(&mCapture, captureArgs);
+    captureArgs.layerHandle = mParent->getHandle();
+    ScreenCapture::captureLayers(&mCapture, captureArgs);
 
     expectFiltered({0, 0, 50, 100}, {50, 0, 100, 100});
 }
 
 // Expect filtering because the output source crop is stretched to the output buffer's size.
 TEST_F(TextureFilteringTest, OutputSourceCropIsFiltered) {
-    gui::DisplayCaptureArgs captureArgs;
-    captureArgs.displayToken = mDisplay;
-    captureArgs.width = 100;
-    captureArgs.height = 100;
+    captureArgs.frameScaleX = 2;
+    captureArgs.frameScaleY = 2;
     captureArgs.sourceCrop = Rect{25, 25, 75, 75};
-    ScreenCapture::captureDisplay(&mCapture, captureArgs);
+    captureArgs.layerHandle = mParent->getHandle();
+    ScreenCapture::captureLayers(&mCapture, captureArgs);
 
     expectFiltered({0, 0, 50, 100}, {50, 0, 100, 100});
 }
@@ -138,20 +127,17 @@ TEST_F(TextureFilteringTest, OutputSourceCropIsFiltered) {
 // buffer's size.
 TEST_F(TextureFilteringTest, LayerCropOutputSourceCropIsFiltered) {
     Transaction().setCrop(mLayer, Rect{25, 25, 75, 75}).apply();
-
-    gui::DisplayCaptureArgs captureArgs;
-    captureArgs.displayToken = mDisplay;
-    captureArgs.width = 100;
-    captureArgs.height = 100;
+    captureArgs.frameScaleX = 2;
+    captureArgs.frameScaleY = 2;
     captureArgs.sourceCrop = Rect{25, 25, 75, 75};
-    ScreenCapture::captureDisplay(&mCapture, captureArgs);
+    captureArgs.layerHandle = mParent->getHandle();
+    ScreenCapture::captureLayers(&mCapture, captureArgs);
 
     expectFiltered({0, 0, 50, 100}, {50, 0, 100, 100});
 }
 
 // Expect filtering because the layer is scaled up.
 TEST_F(TextureFilteringTest, LayerCaptureWithScalingIsFiltered) {
-    LayerCaptureArgs captureArgs;
     captureArgs.layerHandle = mLayer->getHandle();
     captureArgs.frameScaleX = 2;
     captureArgs.frameScaleY = 2;
@@ -162,7 +148,6 @@ TEST_F(TextureFilteringTest, LayerCaptureWithScalingIsFiltered) {
 
 // Expect no filtering because the output buffer's size matches the source crop.
 TEST_F(TextureFilteringTest, LayerCaptureOutputSourceCropNoFiltering) {
-    LayerCaptureArgs captureArgs;
     captureArgs.layerHandle = mLayer->getHandle();
     captureArgs.sourceCrop = Rect{25, 25, 75, 75};
     ScreenCapture::captureLayers(&mCapture, captureArgs);
@@ -176,7 +161,6 @@ TEST_F(TextureFilteringTest, LayerCaptureOutputSourceCropNoFiltering) {
 TEST_F(TextureFilteringTest, LayerCaptureWithCropNoFiltering) {
     Transaction().setCrop(mLayer, Rect{10, 10, 90, 90}).apply();
 
-    LayerCaptureArgs captureArgs;
     captureArgs.layerHandle = mLayer->getHandle();
     captureArgs.sourceCrop = Rect{25, 25, 75, 75};
     ScreenCapture::captureLayers(&mCapture, captureArgs);
@@ -187,12 +171,9 @@ TEST_F(TextureFilteringTest, LayerCaptureWithCropNoFiltering) {
 
 // Expect no filtering because the output source crop and output buffer are the same size.
 TEST_F(TextureFilteringTest, OutputSourceCropDisplayFrameMatchNoFiltering) {
-    gui::DisplayCaptureArgs captureArgs;
-    captureArgs.displayToken = mDisplay;
-    captureArgs.width = 50;
-    captureArgs.height = 50;
+    captureArgs.layerHandle = mLayer->getHandle();
     captureArgs.sourceCrop = Rect{25, 25, 75, 75};
-    ScreenCapture::captureDisplay(&mCapture, captureArgs);
+    ScreenCapture::captureLayers(&mCapture, captureArgs);
 
     mCapture->expectColor(Rect{0, 0, 25, 50}, Color::RED);
     mCapture->expectColor(Rect{25, 0, 50, 50}, Color::BLUE);
@@ -202,9 +183,8 @@ TEST_F(TextureFilteringTest, OutputSourceCropDisplayFrameMatchNoFiltering) {
 TEST_F(TextureFilteringTest, LayerCropDisplayFrameMatchNoFiltering) {
     Transaction().setCrop(mLayer, Rect{25, 25, 75, 75}).apply();
 
-    gui::DisplayCaptureArgs captureArgs;
-    captureArgs.displayToken = mDisplay;
-    ScreenCapture::captureDisplay(&mCapture, captureArgs);
+    captureArgs.layerHandle = mLayer->getHandle();
+    ScreenCapture::captureLayers(&mCapture, captureArgs);
 
     mCapture->expectColor(Rect{25, 25, 50, 75}, Color::RED);
     mCapture->expectColor(Rect{50, 25, 75, 75}, Color::BLUE);
@@ -214,9 +194,8 @@ TEST_F(TextureFilteringTest, LayerCropDisplayFrameMatchNoFiltering) {
 TEST_F(TextureFilteringTest, ParentCropNoFiltering) {
     Transaction().setCrop(mParent, Rect{25, 25, 75, 75}).apply();
 
-    gui::DisplayCaptureArgs captureArgs;
-    captureArgs.displayToken = mDisplay;
-    ScreenCapture::captureDisplay(&mCapture, captureArgs);
+    captureArgs.layerHandle = mLayer->getHandle();
+    ScreenCapture::captureLayers(&mCapture, captureArgs);
 
     mCapture->expectColor(Rect{25, 25, 50, 75}, Color::RED);
     mCapture->expectColor(Rect{50, 25, 75, 75}, Color::BLUE);
@@ -226,7 +205,6 @@ TEST_F(TextureFilteringTest, ParentCropNoFiltering) {
 TEST_F(TextureFilteringTest, ParentHasTransformNoFiltering) {
     Transaction().setPosition(mParent, 100, 100).apply();
 
-    LayerCaptureArgs captureArgs;
     captureArgs.layerHandle = mParent->getHandle();
     captureArgs.sourceCrop = Rect{0, 0, 100, 100};
     ScreenCapture::captureLayers(&mCapture, captureArgs);

@@ -174,11 +174,13 @@ public:
     virtual Error setClientTargetSlotCount(Display display) = 0;
 
     virtual Error validateDisplay(Display display, nsecs_t expectedPresentTime,
-                                  uint32_t* outNumTypes, uint32_t* outNumRequests) = 0;
+                                  int32_t frameIntervalNs, uint32_t* outNumTypes,
+                                  uint32_t* outNumRequests) = 0;
 
     virtual Error presentOrValidateDisplay(Display display, nsecs_t expectedPresentTime,
-                                           uint32_t* outNumTypes, uint32_t* outNumRequests,
-                                           int* outPresentFence, uint32_t* state) = 0;
+                                           int32_t frameIntervalNs, uint32_t* outNumTypes,
+                                           uint32_t* outNumRequests, int* outPresentFence,
+                                           uint32_t* state) = 0;
 
     virtual Error setCursorPosition(Display display, Layer layer, int32_t x, int32_t y) = 0;
     /* see setClientTarget for the purpose of slot */
