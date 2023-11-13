@@ -1358,7 +1358,11 @@ private:
 };
 
 TEST(BinderRpc, Java) {
-#if !defined(__ANDROID__)
+    bool expectDebuggable = false;
+#if defined(__ANDROID__)
+    expectDebuggable = android::base::GetBoolProperty("ro.debuggable", false) &&
+            android::base::GetProperty("ro.build.type", "") != "user";
+#else
     GTEST_SKIP() << "This test is only run on Android. Though it can technically run on host on"
                     "createRpcDelegateServiceManager() with a device attached, such test belongs "
                     "to binderHostDeviceTest. Hence, just disable this test on host.";
@@ -1386,8 +1390,7 @@ TEST(BinderRpc, Java) {
     auto keepAlive = sp<BBinder>::make();
     auto setRpcClientDebugStatus = binder->setRpcClientDebug(std::move(socket), keepAlive);
 
-    if (!android::base::GetBoolProperty("ro.debuggable", false) ||
-        android::base::GetProperty("ro.build.type", "") == "user") {
+    if (!expectDebuggable) {
         ASSERT_EQ(INVALID_OPERATION, setRpcClientDebugStatus)
                 << "setRpcClientDebug should return INVALID_OPERATION on non-debuggable or user "
                    "builds, but get "
