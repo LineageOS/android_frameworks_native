@@ -183,8 +183,12 @@ int LoadDriver(android_namespace_t* library_namespace,
                 .library_namespace = library_namespace,
             };
             so = android_dlopen_ext(lib_name.c_str(), LIB_DL_FLAGS, &dlextinfo);
-            ALOGE("Could not load %s from updatable gfx driver namespace: %s.",
-                  lib_name.c_str(), dlerror());
+            if (!so) {
+                ALOGE(
+                    "Could not load %s from updatable gfx driver namespace: "
+                    "%s.",
+                    lib_name.c_str(), dlerror());
+            }
         } else {
             // load built-in driver
             so = android_load_sphal_library(lib_name.c_str(), LIB_DL_FLAGS);
