@@ -24,7 +24,6 @@ LIBUTILS_DIR := system/core/libutils
 FMTLIB_DIR := external/fmtlib
 
 MODULE_SRCS := \
-	$(LOCAL_DIR)/../logging.cpp \
 	$(LOCAL_DIR)/../TrustyStatus.cpp \
 	$(LIBBINDER_DIR)/Binder.cpp \
 	$(LIBBINDER_DIR)/BpBinder.cpp \
