@@ -65,7 +65,7 @@ public:
         std::string acc;
         for (const auto& file : files) {
             std::string result;
-            CHECK(android::base::ReadFdToString(file.get(), &result));
+            LOG_ALWAYS_FATAL_IF(!android::base::ReadFdToString(file.get(), &result));
             acc.append(result);
         }
         out->reset(mockFileDescriptor(acc));
@@ -98,7 +98,7 @@ public:
 };
 
 int main(int argc, char* argv[]) {
-    android::base::InitLogging(argv, android::base::StderrLogger, android::base::DefaultAborter);
+    __android_log_set_logger(__android_log_stderr_logger);
 
     LOG_ALWAYS_FATAL_IF(argc != 3, "Invalid number of arguments: %d", argc);
     base::unique_fd writeEnd(atoi(argv[1]));
@@ -118,7 +118,7 @@ int main(int argc, char* argv[]) {
     auto certVerifier = std::make_shared<RpcCertificateVerifierSimple>();
     sp<RpcServer> server = RpcServer::make(newTlsFactory(rpcSecurity, certVerifier));
 
-    CHECK(server->setProtocolVersion(serverConfig.serverVersion));
+    LOG_ALWAYS_FATAL_IF(!server->setProtocolVersion(serverConfig.serverVersion));
     server->setMaxThreads(serverConfig.numThreads);
     server->setSupportedFileDescriptorTransportModes(serverSupportedFileDescriptorTransportModes);
 
@@ -129,22 +129,25 @@ int main(int argc, char* argv[]) {
         case SocketType::PRECONNECTED:
             [[fallthrough]];
         case SocketType::UNIX:
-            CHECK_EQ(OK, server->setupUnixDomainServer(serverConfig.addr.c_str()))
-                    << serverConfig.addr;
+            LOG_ALWAYS_FATAL_IF(OK != server->setupUnixDomainServer(serverConfig.addr.c_str()),
+                                "%s", serverConfig.addr.c_str());
             break;
         case SocketType::UNIX_BOOTSTRAP:
-            CHECK_EQ(OK, server->setupUnixDomainSocketBootstrapServer(std::move(socketFd)));
+            LOG_ALWAYS_FATAL_IF(OK !=
+                                server->setupUnixDomainSocketBootstrapServer(std::move(socketFd)));
             break;
         case SocketType::UNIX_RAW:
-            CHECK_EQ(OK, server->setupRawSocketServer(std::move(socketFd)));
+            LOG_ALWAYS_FATAL_IF(OK != server->setupRawSocketServer(std::move(socketFd)));
             break;
         case SocketType::VSOCK:
-            CHECK_EQ(OK, server->setupVsockServer(VMADDR_CID_LOCAL, serverConfig.vsockPort))
-                    << "Need `sudo modprobe vsock_loopback`?";
+            LOG_ALWAYS_FATAL_IF(OK !=
+                                        server->setupVsockServer(VMADDR_CID_LOCAL,
+                                                                 serverConfig.vsockPort),
+                                "Need `sudo modprobe vsock_loopback`?");
             break;
         case SocketType::INET: {
-            CHECK_EQ(OK, server->setupInetServer(kLocalInetAddress, 0, &outPort));
-            CHECK_NE(0, outPort);
+            LOG_ALWAYS_FATAL_IF(OK != server->setupInetServer(kLocalInetAddress, 0, &outPort));
+            LOG_ALWAYS_FATAL_IF(0 == outPort);
             break;
         }
         default:
@@ -159,21 +162,21 @@ int main(int argc, char* argv[]) {
 
     if (rpcSecurity == RpcSecurity::TLS) {
         for (const auto& clientCert : clientInfo.certs) {
-            CHECK_EQ(OK,
-                     certVerifier->addTrustedPeerCertificate(RpcCertificateFormat::PEM,
-                                                             clientCert.data));
+            LOG_ALWAYS_FATAL_IF(OK !=
+                                certVerifier->addTrustedPeerCertificate(RpcCertificateFormat::PEM,
+                                                                        clientCert.data));
         }
     }
 
     server->setPerSessionRootObject([&](wp<RpcSession> session, const void* addrPtr, size_t len) {
         {
             sp<RpcSession> spSession = session.promote();
-            CHECK_NE(nullptr, spSession.get());
+            LOG_ALWAYS_FATAL_IF(nullptr == spSession.get());
         }
 
         // UNIX sockets with abstract addresses return
         // sizeof(sa_family_t)==2 in addrlen
-        CHECK_GE(len, sizeof(sa_family_t));
+        LOG_ALWAYS_FATAL_IF(len < sizeof(sa_family_t));
         const sockaddr* addr = reinterpret_cast<const sockaddr*>(addrPtr);
         sp<MyBinderRpcTestAndroid> service = sp<MyBinderRpcTestAndroid>::make();
         switch (addr->sa_family) {
@@ -181,15 +184,15 @@ int main(int argc, char* argv[]) {
                 // nothing to save
                 break;
             case AF_VSOCK:
-                CHECK_EQ(len, sizeof(sockaddr_vm));
+                LOG_ALWAYS_FATAL_IF(len != sizeof(sockaddr_vm));
                 service->port = reinterpret_cast<const sockaddr_vm*>(addr)->svm_port;
                 break;
             case AF_INET:
-                CHECK_EQ(len, sizeof(sockaddr_in));
+                LOG_ALWAYS_FATAL_IF(len != sizeof(sockaddr_in));
                 service->port = ntohs(reinterpret_cast<const sockaddr_in*>(addr)->sin_port);
                 break;
             case AF_INET6:
-                CHECK_EQ(len, sizeof(sockaddr_in));
+                LOG_ALWAYS_FATAL_IF(len != sizeof(sockaddr_in));
                 service->port = ntohs(reinterpret_cast<const sockaddr_in6*>(addr)->sin6_port);
                 break;
             default:
