@@ -18,6 +18,7 @@
 
 #include "MultifileBlobCache.h"
 
+#include <android-base/properties.h>
 #include <dirent.h>
 #include <fcntl.h>
 #include <inttypes.h>
@@ -64,6 +65,7 @@ namespace android {
 MultifileBlobCache::MultifileBlobCache(size_t maxKeySize, size_t maxValueSize, size_t maxTotalSize,
                                        size_t maxTotalEntries, const std::string& baseDir)
       : mInitialized(false),
+        mCacheVersion(0),
         mMaxKeySize(maxKeySize),
         mMaxValueSize(maxValueSize),
         mMaxTotalSize(maxTotalSize),
@@ -76,6 +78,26 @@ MultifileBlobCache::MultifileBlobCache(size_t maxKeySize, size_t maxValueSize, s
     if (baseDir.empty()) {
         ALOGV("INIT: no baseDir provided in MultifileBlobCache constructor, returning early.");
         return;
+    }
+
+    // Set the cache version, override if debug value set
+    mCacheVersion = kMultifileBlobCacheVersion;
+    int debugCacheVersion = base::GetIntProperty("debug.egl.blobcache.cache_version", -1);
+    if (debugCacheVersion >= 0) {
+        ALOGV("INIT: Using %u as cacheVersion instead of %u", debugCacheVersion, mCacheVersion);
+        mCacheVersion = debugCacheVersion;
+    }
+
+    // Set the platform build ID, override if debug value set
+    mBuildId = base::GetProperty("ro.build.id", "");
+    std::string debugBuildId = base::GetProperty("debug.egl.blobcache.build_id", "");
+    if (!debugBuildId.empty()) {
+        ALOGV("INIT: Using %s as buildId instead of %s", debugBuildId.c_str(), mBuildId.c_str());
+        if (debugBuildId.length() > PROP_VALUE_MAX) {
+            ALOGV("INIT: debugBuildId is too long (%zu), reduce it to %u", debugBuildId.length(),
+                  PROP_VALUE_MAX);
+        }
+        mBuildId = debugBuildId;
     }
 
     // Establish the name of our multifile directory
@@ -95,14 +117,30 @@ MultifileBlobCache::MultifileBlobCache(size_t maxKeySize, size_t maxValueSize, s
     mTaskThread = std::thread(&MultifileBlobCache::processTasks, this);
 
     // See if the dir exists, and initialize using its contents
+    bool statusGood = false;
+
+    // Check that our cacheVersion and buildId match
     struct stat st;
     if (stat(mMultifileDirName.c_str(), &st) == 0) {
+        if (checkStatus(mMultifileDirName.c_str())) {
+            statusGood = true;
+        } else {
+            ALOGV("INIT: Cache status has changed, clearing the cache");
+            if (!clearCache()) {
+                ALOGE("INIT: Unable to clear cache");
+                return;
+            }
+        }
+    }
+
+    if (statusGood) {
         // Read all the files and gather details, then preload their contents
         DIR* dir;
         struct dirent* entry;
         if ((dir = opendir(mMultifileDirName.c_str())) != nullptr) {
             while ((entry = readdir(dir)) != nullptr) {
-                if (entry->d_name == "."s || entry->d_name == ".."s) {
+                if (entry->d_name == "."s || entry->d_name == ".."s ||
+                    strcmp(entry->d_name, kMultifileBlobCacheStatusFile) == 0) {
                     continue;
                 }
 
@@ -125,7 +163,8 @@ MultifileBlobCache::MultifileBlobCache(size_t maxKeySize, size_t maxValueSize, s
                 if (st.st_size <= 0 || st.st_atime <= 0) {
                     ALOGE("INIT: Entry %u has invalid stats! Removing.", entryHash);
                     if (remove(fullPath.c_str()) != 0) {
-                        ALOGE("Error removing %s: %s", fullPath.c_str(), std::strerror(errno));
+                        ALOGE("INIT: Error removing %s: %s", fullPath.c_str(),
+                              std::strerror(errno));
                     }
                     continue;
                 }
@@ -142,7 +181,7 @@ MultifileBlobCache::MultifileBlobCache(size_t maxKeySize, size_t maxValueSize, s
                 MultifileHeader header;
                 size_t result = read(fd, static_cast<void*>(&header), sizeof(MultifileHeader));
                 if (result != sizeof(MultifileHeader)) {
-                    ALOGE("Error reading MultifileHeader from cache entry (%s): %s",
+                    ALOGE("INIT: Error reading MultifileHeader from cache entry (%s): %s",
                           fullPath.c_str(), std::strerror(errno));
                     close(fd);
                     return;
@@ -152,7 +191,8 @@ MultifileBlobCache::MultifileBlobCache(size_t maxKeySize, size_t maxValueSize, s
                 if (header.magic != kMultifileMagic) {
                     ALOGE("INIT: Entry %u has bad magic (%u)! Removing.", entryHash, header.magic);
                     if (remove(fullPath.c_str()) != 0) {
-                        ALOGE("Error removing %s: %s", fullPath.c_str(), std::strerror(errno));
+                        ALOGE("INIT: Error removing %s: %s", fullPath.c_str(),
+                              std::strerror(errno));
                     }
                     close(fd);
                     continue;
@@ -177,7 +217,7 @@ MultifileBlobCache::MultifileBlobCache(size_t maxKeySize, size_t maxValueSize, s
                 if (header.crc !=
                     crc32c(mappedEntry + sizeof(MultifileHeader),
                            fileSize - sizeof(MultifileHeader))) {
-                    ALOGE("INIT: Entry %u failed CRC check! Removing.", entryHash);
+                    ALOGV("INIT: Entry %u failed CRC check! Removing.", entryHash);
                     if (remove(fullPath.c_str()) != 0) {
                         ALOGE("Error removing %s: %s", fullPath.c_str(), std::strerror(errno));
                     }
@@ -186,11 +226,12 @@ MultifileBlobCache::MultifileBlobCache(size_t maxKeySize, size_t maxValueSize, s
 
                 // If the cache entry is damaged or no good, remove it
                 if (header.keySize <= 0 || header.valueSize <= 0) {
-                    ALOGE("INIT: Entry %u has a bad header keySize (%lu) or valueSize (%lu), "
+                    ALOGV("INIT: Entry %u has a bad header keySize (%lu) or valueSize (%lu), "
                           "removing.",
                           entryHash, header.keySize, header.valueSize);
                     if (remove(fullPath.c_str()) != 0) {
-                        ALOGE("Error removing %s: %s", fullPath.c_str(), std::strerror(errno));
+                        ALOGE("INIT: Error removing %s: %s", fullPath.c_str(),
+                              std::strerror(errno));
                     }
                     continue;
                 }
@@ -228,9 +269,17 @@ MultifileBlobCache::MultifileBlobCache(size_t maxKeySize, size_t maxValueSize, s
         // If the multifile directory does not exist, create it and start from scratch
         if (mkdir(mMultifileDirName.c_str(), 0755) != 0 && (errno != EEXIST)) {
             ALOGE("Unable to create directory (%s), errno (%i)", mMultifileDirName.c_str(), errno);
+            return;
+        }
+
+        // Create new status file
+        if (!createStatus(mMultifileDirName.c_str())) {
+            ALOGE("INIT: Failed to create status file!");
+            return;
         }
     }
 
+    ALOGV("INIT: Multifile BlobCache initialization succeeded");
     mInitialized = true;
 }
 
@@ -471,6 +520,112 @@ void MultifileBlobCache::finish() {
     }
 }
 
+bool MultifileBlobCache::createStatus(const std::string& baseDir) {
+    // Populate the status struct
+    struct MultifileStatus status;
+    memset(&status, 0, sizeof(status));
+    status.magic = kMultifileMagic;
+    status.cacheVersion = mCacheVersion;
+
+    // Copy the buildId string in, up to our allocated space
+    strncpy(status.buildId, mBuildId.c_str(),
+            mBuildId.length() > PROP_VALUE_MAX ? PROP_VALUE_MAX : mBuildId.length());
+
+    // Finally update the crc, using cacheVersion and everything the follows
+    status.crc =
+            crc32c(reinterpret_cast<uint8_t*>(&status) + offsetof(MultifileStatus, cacheVersion),
+                   sizeof(status) - offsetof(MultifileStatus, cacheVersion));
+
+    // Create the status file
+    std::string cacheStatus = baseDir + "/" + kMultifileBlobCacheStatusFile;
+    int fd = open(cacheStatus.c_str(), O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+    if (fd == -1) {
+        ALOGE("STATUS(CREATE): Unable to create status file: %s, error: %s", cacheStatus.c_str(),
+              std::strerror(errno));
+        return false;
+    }
+
+    // Write the buffer contents to disk
+    ssize_t result = write(fd, &status, sizeof(status));
+    close(fd);
+    if (result != sizeof(status)) {
+        ALOGE("STATUS(CREATE): Error writing cache status file: %s, error %s", cacheStatus.c_str(),
+              std::strerror(errno));
+        return false;
+    }
+
+    ALOGV("STATUS(CREATE): Created status file: %s", cacheStatus.c_str());
+    return true;
+}
+
+bool MultifileBlobCache::checkStatus(const std::string& baseDir) {
+    std::string cacheStatus = baseDir + "/" + kMultifileBlobCacheStatusFile;
+
+    // Does status exist
+    struct stat st;
+    if (stat(cacheStatus.c_str(), &st) != 0) {
+        ALOGV("STATUS(CHECK): Status file (%s) missing", cacheStatus.c_str());
+        return false;
+    }
+
+    // If the status entry is damaged or no good, remove it
+    if (st.st_size <= 0 || st.st_atime <= 0) {
+        ALOGE("STATUS(CHECK): Cache status has invalid stats!");
+        return false;
+    }
+
+    // Open the file so we can read its header
+    int fd = open(cacheStatus.c_str(), O_RDONLY);
+    if (fd == -1) {
+        ALOGE("STATUS(CHECK): Cache error - failed to open cacheStatus: %s, error: %s",
+              cacheStatus.c_str(), std::strerror(errno));
+        return false;
+    }
+
+    // Read in the status header
+    MultifileStatus status;
+    size_t result = read(fd, static_cast<void*>(&status), sizeof(MultifileStatus));
+    close(fd);
+    if (result != sizeof(MultifileStatus)) {
+        ALOGE("STATUS(CHECK): Error reading cache status (%s): %s", cacheStatus.c_str(),
+              std::strerror(errno));
+        return false;
+    }
+
+    // Verify header magic
+    if (status.magic != kMultifileMagic) {
+        ALOGE("STATUS(CHECK): Cache status has bad magic (%u)!", status.magic);
+        return false;
+    }
+
+    // Ensure we have a good CRC
+    if (status.crc !=
+        crc32c(reinterpret_cast<uint8_t*>(&status) + offsetof(MultifileStatus, cacheVersion),
+               sizeof(status) - offsetof(MultifileStatus, cacheVersion))) {
+        ALOGE("STATUS(CHECK): Cache status failed CRC check!");
+        return false;
+    }
+
+    // Check cacheVersion
+    if (status.cacheVersion != mCacheVersion) {
+        ALOGV("STATUS(CHECK): Cache version has changed! old(%u) new(%u)", status.cacheVersion,
+              mCacheVersion);
+        return false;
+    }
+
+    // Check buildId
+    if (strcmp(status.buildId, mBuildId.c_str()) != 0) {
+        ALOGV("STATUS(CHECK): BuildId has changed! old(%s) new(%s)", status.buildId,
+              mBuildId.c_str());
+        return false;
+    }
+
+    // All checks passed!
+    ALOGV("STATUS(CHECK): Status file is good! cacheVersion(%u), buildId(%s) file(%s)",
+          status.cacheVersion, status.buildId, cacheStatus.c_str());
+    return true;
+}
+
 void MultifileBlobCache::trackEntry(uint32_t entryHash, EGLsizeiANDROID valueSize, size_t fileSize,
                                     time_t accessTime) {
     mEntries.insert(entryHash);
@@ -604,6 +759,40 @@ bool MultifileBlobCache::applyLRU(size_t cacheSizeLimit, size_t cacheEntryLimit)
 
     ALOGV("LRU: Cache is empty");
     return false;
+}
+
+// Clear the cache by removing all entries and deleting the directory
+bool MultifileBlobCache::clearCache() {
+    DIR* dir;
+    struct dirent* entry;
+    dir = opendir(mMultifileDirName.c_str());
+    if (dir == nullptr) {
+        ALOGE("CLEAR: Unable to open multifile dir: %s", mMultifileDirName.c_str());
+        return false;
+    }
+
+    // Delete all entries and the status file
+    while ((entry = readdir(dir)) != nullptr) {
+        if (entry->d_name == "."s || entry->d_name == ".."s) {
+            continue;
+        }
+
+        std::string entryName = entry->d_name;
+        std::string fullPath = mMultifileDirName + "/" + entryName;
+        if (remove(fullPath.c_str()) != 0) {
+            ALOGE("CLEAR: Error removing %s: %s", fullPath.c_str(), std::strerror(errno));
+            return false;
+        }
+    }
+
+    // Delete the directory
+    if (remove(mMultifileDirName.c_str()) != 0) {
+        ALOGE("CLEAR: Error removing %s: %s", mMultifileDirName.c_str(), std::strerror(errno));
+        return false;
+    }
+
+    ALOGV("CLEAR: Cleared the multifile blobcache");
+    return true;
 }
 
 // When removing files, what fraction of the overall limit should be reached when removing files
