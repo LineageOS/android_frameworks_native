@@ -363,9 +363,9 @@ void FenceToFenceTimeMap::signalAllForTest(
 }
 
 void FenceToFenceTimeMap::garbageCollectLocked() {
-    for (auto& it : mMap) {
+    for (auto it = mMap.begin(); it != mMap.end();) {
         // Erase all expired weak pointers from the vector.
-        auto& vect = it.second;
+        auto& vect = it->second;
         vect.erase(
                 std::remove_if(vect.begin(), vect.end(),
                         [](const std::weak_ptr<FenceTime>& ft) {
@@ -375,7 +375,9 @@ void FenceToFenceTimeMap::garbageCollectLocked() {
 
         // Also erase the map entry if the vector is now empty.
         if (vect.empty()) {
-            mMap.erase(it.first);
+            it = mMap.erase(it);
+        } else {
+            it++;
         }
     }
 }
