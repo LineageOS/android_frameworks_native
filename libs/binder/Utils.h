@@ -22,8 +22,16 @@
 #include <log/log.h>
 #include <utils/Errors.h>
 
-#define PLOGE_VA_ARGS(...) , ##__VA_ARGS__
-#define PLOGE(fmt, ...) ALOGE(fmt ": %s" PLOGE_VA_ARGS(__VA_ARGS__), strerror(errno))
+#define PLOGE(fmt, ...)                                                     \
+    do {                                                                    \
+        auto savedErrno = errno;                                            \
+        ALOGE(fmt ": %s" __VA_OPT__(, ) __VA_ARGS__, strerror(savedErrno)); \
+    } while (0)
+#define PLOGF(fmt, ...)                                                                \
+    do {                                                                               \
+        auto savedErrno = errno;                                                       \
+        LOG_ALWAYS_FATAL(fmt ": %s" __VA_OPT__(, ) __VA_ARGS__, strerror(savedErrno)); \
+    } while (0)
 
 /* TEMP_FAILURE_RETRY is not available on macOS and Trusty. */
 #ifndef TEMP_FAILURE_RETRY
