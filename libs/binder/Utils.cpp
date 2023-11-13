@@ -16,7 +16,6 @@
 
 #include "Utils.h"
 
-#include <android-base/logging.h>
 #include <string.h>
 
 namespace android {
@@ -26,7 +25,7 @@ void zeroMemory(uint8_t* data, size_t size) {
 }
 
 std::string HexString(const void* bytes, size_t len) {
-    CHECK(bytes != nullptr || len == 0) << bytes << " " << len;
+    LOG_ALWAYS_FATAL_IF(len > 0 && bytes == nullptr, "%p %zu", bytes, len);
 
     // b/132916539: Doing this the 'C way', std::setfill triggers ubsan implicit conversion
     const uint8_t* bytes8 = static_cast<const uint8_t*>(bytes);
