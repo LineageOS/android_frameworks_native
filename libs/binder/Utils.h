@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#pragma once
+
 #include <stddef.h>
 #include <sys/uio.h>
 #include <cstdint>
