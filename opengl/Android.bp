@@ -72,6 +72,10 @@ cc_library_headers {
     llndk: {
         llndk_headers: true,
     },
+    apex_available: [
+        "//apex_available:platform",
+        "com.android.virt",
+    ],
 }
 
 subdirs = [
