@@ -287,8 +287,10 @@ std::unique_ptr<ProcessSession> BinderRpc::createRpcTestSocketServerProcessEtc(
 
                 auto writeFd = std::to_string(writeEnd.get());
                 auto readFd = std::to_string(readEnd.get());
-                execl(servicePath.c_str(), servicePath.c_str(), writeFd.c_str(), readFd.c_str(),
-                      NULL);
+                auto status = execl(servicePath.c_str(), servicePath.c_str(), writeFd.c_str(),
+                                    readFd.c_str(), NULL);
+                PLOGF("execl('%s', _, %s, %s) should not return at all, but it returned %d",
+                      servicePath.c_str(), writeFd.c_str(), readFd.c_str(), status);
             }));
 
     BinderRpcTestServerConfig serverConfig;
