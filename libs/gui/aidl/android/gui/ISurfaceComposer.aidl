@@ -16,6 +16,7 @@
 
 package android.gui;
 
+import android.gui.CaptureArgs;
 import android.gui.Color;
 import android.gui.CompositionPreference;
 import android.gui.ContentSamplingAttributes;
@@ -238,7 +239,8 @@ interface ISurfaceComposer {
      * Capture the specified screen. This requires the READ_FRAME_BUFFER
      * permission.
      */
-    oneway void captureDisplayById(long displayId, IScreenCaptureListener listener);
+    oneway void captureDisplayById(long displayId, in CaptureArgs args,
+            IScreenCaptureListener listener);
 
     /**
      * Capture a subtree of the layer hierarchy, potentially ignoring the root node.
