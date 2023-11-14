@@ -36,7 +36,7 @@ class HdrCapabilities;
 namespace compositionengine {
 
 /**
- * Encapsulates all the state and functionality for how colors should be
+ * Encapsulates all the states and functionality for how colors should be
  * transformed for a display
  */
 class DisplayColorProfile {

@@ -61,7 +61,7 @@ struct GpuCompositionResult;
 } // namespace impl
 
 /**
- * Encapsulates all the state involved with composing layers for an output
+ * Encapsulates all the states involved with composing layers for an output
  */
 class Output {
 public:
