@@ -1485,10 +1485,33 @@ static VkResult getProducerUsage(const VkDevice& device,
         return VK_SUCCESS;
     }
 
+    // Look through the create_info pNext chain passed to createSwapchainKHR
+    // for an image compression control struct.
+    // if one is found AND the appropriate extensions are enabled, create a
+    // VkImageCompressionControlEXT structure to pass on to GetPhysicalDeviceImageFormatProperties2
+    void* compression_control_pNext = nullptr;
+    VkImageCompressionControlEXT image_compression = {};
+    const VkSwapchainCreateInfoKHR* create_infos = create_info;
+    while (create_infos->pNext) {
+        create_infos = reinterpret_cast<const VkSwapchainCreateInfoKHR*>(create_infos->pNext);
+        switch (create_infos->sType) {
+            case VK_STRUCTURE_TYPE_IMAGE_COMPRESSION_CONTROL_EXT: {
+                const VkImageCompressionControlEXT* compression_infos =
+                    reinterpret_cast<const VkImageCompressionControlEXT*>(create_infos);
+                image_compression = *compression_infos;
+                image_compression.pNext = nullptr;
+                compression_control_pNext = &image_compression;
+            } break;
+            default:
+                // Ignore all other info structs
+                break;
+        }
+    }
+
     // call GetPhysicalDeviceImageFormatProperties2KHR
     VkPhysicalDeviceExternalImageFormatInfo external_image_format_info = {
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_IMAGE_FORMAT_INFO,
-        .pNext = nullptr,
+        .pNext = compression_control_pNext,
         .handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID,
     };
 
