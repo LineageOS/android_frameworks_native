@@ -45,9 +45,9 @@
 #include <memory>
 #include <numeric>
 
+#include <common/FlagManager.h>
 #include "../Layer.h"
 #include "EventThread.h"
-#include "FlagManager.h"
 #include "FrameRateOverrideMappings.h"
 #include "FrontEnd/LayerHandle.h"
 #include "OneShotTimer.h"
