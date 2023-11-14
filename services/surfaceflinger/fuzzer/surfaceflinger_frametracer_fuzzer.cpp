@@ -30,12 +30,6 @@ constexpr int32_t kMinRange = 0;
 constexpr int32_t kConfigDuration = 500;
 constexpr int32_t kBufferSize = 1024;
 constexpr int32_t kTimeOffset = 100000;
-constexpr perfetto::BackendType backendTypes[] = {
-        perfetto::kUnspecifiedBackend,
-        perfetto::kInProcessBackend,
-        perfetto::kSystemBackend,
-        perfetto::kCustomBackend,
-};
 
 class FrameTracerFuzzer {
 public:
@@ -71,8 +65,7 @@ std::unique_ptr<perfetto::TracingSession> FrameTracerFuzzer::getTracingSessionFo
     auto* dsCfg = cfg.add_data_sources()->mutable_config();
     dsCfg->set_name(android::FrameTracer::kFrameTracerDataSource);
 
-    auto tracingSession =
-            perfetto::Tracing::NewTrace(mFdp.PickValueInArray<perfetto::BackendType>(backendTypes));
+    auto tracingSession = perfetto::Tracing::NewTrace(perfetto::kInProcessBackend);
     tracingSession->Setup(cfg);
     return tracingSession;
 }
@@ -115,11 +108,15 @@ void FrameTracerFuzzer::process() {
     std::vector<int32_t> layerIds =
             generateLayerIds(mFdp.ConsumeIntegralInRange<size_t>(kMinLayerIds, kMaxLayerIds));
 
+    std::unique_ptr<perfetto::TracingSession> tracingSession;
     while (mFdp.remaining_bytes()) {
         auto invokeFrametracerAPI = mFdp.PickValueInArray<const std::function<void()>>({
                 [&]() { mFrameTracer->registerDataSource(); },
                 [&]() {
-                    auto tracingSession = getTracingSessionForTest();
+                    if (tracingSession) {
+                        tracingSession->StopBlocking();
+                    }
+                    tracingSession = getTracingSessionForTest();
                     tracingSession->StartBlocking();
                 },
                 [&]() { traceTimestamp(layerIds, layerIds.size()); },
