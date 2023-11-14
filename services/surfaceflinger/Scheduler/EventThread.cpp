@@ -43,9 +43,9 @@
 #include <utils/Errors.h>
 #include <utils/Trace.h>
 
+#include <common/FlagManager.h>
 #include <scheduler/VsyncConfig.h>
 #include "DisplayHardware/DisplayMode.h"
-#include "FlagManager.h"
 #include "FrameTimeline.h"
 #include "VSyncDispatch.h"
 #include "VSyncTracker.h"

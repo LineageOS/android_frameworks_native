@@ -29,13 +29,13 @@
 
 #include <android-base/logging.h>
 #include <android-base/stringprintf.h>
+#include <common/FlagManager.h>
 #include <cutils/compiler.h>
 #include <cutils/properties.h>
 #include <ftl/concat.h>
 #include <gui/TraceUtils.h>
 #include <utils/Log.h>
 
-#include "FlagManager.h"
 #include "RefreshRateSelector.h"
 #include "VSyncPredictor.h"
 

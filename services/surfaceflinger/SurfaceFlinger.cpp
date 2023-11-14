@@ -113,6 +113,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include <common/FlagManager.h>
 #include <gui/LayerStatePermissions.h>
 #include <gui/SchedulingPolicy.h>
 #include <ui/DisplayIdentification.h>
@@ -129,7 +130,6 @@
 #include "DisplayHardware/VirtualDisplaySurface.h"
 #include "DisplayRenderArea.h"
 #include "Effects/Daltonizer.h"
-#include "FlagManager.h"
 #include "FpsReporter.h"
 #include "FrameTimeline/FrameTimeline.h"
 #include "FrameTracer/FrameTracer.h"

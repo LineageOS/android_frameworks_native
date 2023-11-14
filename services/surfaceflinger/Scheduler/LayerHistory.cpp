@@ -31,9 +31,9 @@
 #include <string>
 #include <utility>
 
+#include <common/FlagManager.h>
 #include "../Layer.h"
 #include "EventThread.h"
-#include "FlagManager.h"
 #include "LayerInfo.h"
 
 namespace android::scheduler {

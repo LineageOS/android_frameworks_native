@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include "FlagManager.h"
+#include <common/FlagManager.h>
 
 #define SET_FLAG_FOR_TEST(name, value) TestFlagSetter _testflag_((name), (name), (value))
 
