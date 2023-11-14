@@ -63,10 +63,7 @@ cc_defaults {
 cc_library {
     name: "libcompositionengine",
     defaults: ["libcompositionengine_defaults"],
-    static_libs: [
-        "libsurfaceflinger_common",
-        "libsurfaceflingerflags",
-    ],
+    static_libs: ["libsurfaceflingerflags"],
     srcs: [
         "src/planner/CachedSet.cpp",
         "src/planner/Flattener.cpp",
@@ -111,7 +108,6 @@ cc_library {
         "libgtest",
         "libgmock",
         "libcompositionengine",
-        "libsurfaceflinger_common_test",
         "libsurfaceflingerflags_test",
     ],
     local_include_dirs: ["include"],
@@ -147,7 +143,6 @@ cc_test {
         "librenderengine_mocks",
         "libgmock",
         "libgtest",
-        "libsurfaceflinger_common_test",
         "libsurfaceflingerflags_test",
     ],
     // For some reason, libvulkan isn't picked up from librenderengine
