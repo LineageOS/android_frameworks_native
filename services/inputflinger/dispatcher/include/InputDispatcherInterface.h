@@ -221,7 +221,8 @@ public:
     /*
      * Updates key repeat configuration timeout and delay.
      */
-    virtual void setKeyRepeatConfiguration(nsecs_t timeout, nsecs_t delay) = 0;
+    virtual void setKeyRepeatConfiguration(std::chrono::nanoseconds timeout,
+                                           std::chrono::nanoseconds delay) = 0;
 };
 
 } // namespace android

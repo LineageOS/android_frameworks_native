@@ -6748,8 +6748,8 @@ TEST_F(InputDispatcherFallbackKeyTest, CanceledKeyCancelsFallback) {
 
 class InputDispatcherKeyRepeatTest : public InputDispatcherTest {
 protected:
-    static constexpr nsecs_t KEY_REPEAT_TIMEOUT = 40 * 1000000; // 40 ms
-    static constexpr nsecs_t KEY_REPEAT_DELAY = 40 * 1000000;   // 40 ms
+    static constexpr std::chrono::nanoseconds KEY_REPEAT_TIMEOUT = 40ms;
+    static constexpr std::chrono::nanoseconds KEY_REPEAT_DELAY = 40ms;
 
     std::shared_ptr<FakeApplicationHandle> mApp;
     sp<FakeWindowHandle> mWindow;
@@ -8131,7 +8131,8 @@ TEST_F(InputDispatcherSingleWindowAnr,
     // Injection is async, so it will succeed
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
               injectKey(*mDispatcher, AKEY_EVENT_ACTION_DOWN, /*repeatCount=*/0,
-                        ADISPLAY_ID_DEFAULT, InputEventInjectionSync::NONE));
+                        ADISPLAY_ID_DEFAULT, InputEventInjectionSync::NONE, INJECT_EVENT_TIMEOUT,
+                        /*allowKeyRepeat=*/false));
     // At this point, key is still pending, and should not be sent to the application yet.
     // Make sure the `assertNoEvents` check doesn't take too long. It uses
     // CONSUME_TIMEOUT_NO_EVENT_EXPECTED under the hood.

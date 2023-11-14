@@ -243,6 +243,9 @@ phony {
         "Bug-115739809",
         "StructLayout_test",
 
+        // jni
+        "libservices.core",
+
         // rust targets
         "libinput_rust_test",
 
