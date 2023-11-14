@@ -136,6 +136,7 @@ using frontend::RoundedCornerState;
 using gui::GameMode;
 using gui::LayerMetadata;
 using gui::WindowInfo;
+using ui::Size;
 
 using PresentState = frametimeline::SurfaceFrame::PresentState;
 
@@ -2590,6 +2591,9 @@ WindowInfo Layer::fillInputInfo(const InputDisplayArgs& displayArgs) {
             info.touchableRegion = info.touchableRegion.intersect(rect);
         }
     }
+
+    Rect bufferSize = getBufferSize(getDrawingState());
+    info.contentSize = Size(bufferSize.width(), bufferSize.height());
 
     return info;
 }

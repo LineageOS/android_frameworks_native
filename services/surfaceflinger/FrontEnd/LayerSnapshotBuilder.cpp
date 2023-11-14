@@ -739,6 +739,7 @@ void LayerSnapshotBuilder::updateSnapshot(LayerSnapshot& snapshot, const Args& a
         !snapshot.changes.test(RequestedLayerState::Changes::Created)) {
         if (forceUpdate ||
             snapshot.changes.any(RequestedLayerState::Changes::Geometry |
+                                 RequestedLayerState::Changes::BufferSize |
                                  RequestedLayerState::Changes::Input)) {
             updateInput(snapshot, requested, parentSnapshot, path, args);
         }
@@ -1094,6 +1095,8 @@ void LayerSnapshotBuilder::updateInput(LayerSnapshot& snapshot,
     if (snapshot.isTrustedOverlay) {
         snapshot.inputInfo.inputConfig |= gui::WindowInfo::InputConfig::TRUSTED_OVERLAY;
     }
+
+    snapshot.inputInfo.contentSize = snapshot.croppedBufferSize.getSize();
 
     // If the layer is a clone, we need to crop the input region to cloned root to prevent
     // touches from going outside the cloned area.
