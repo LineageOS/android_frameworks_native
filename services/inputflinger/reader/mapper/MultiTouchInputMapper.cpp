@@ -131,7 +131,7 @@ void MultiTouchInputMapper::syncTouch(nsecs_t when, RawState* outState) {
                 bumpGeneration();
             }
         }
-        if (shouldSimulateStylusWithTouch() && outPointer.toolType == ToolType::FINGER) {
+        if (mShouldSimulateStylusWithTouch && outPointer.toolType == ToolType::FINGER) {
             outPointer.toolType = ToolType::STYLUS;
         }
 
@@ -177,6 +177,18 @@ void MultiTouchInputMapper::syncTouch(nsecs_t when, RawState* outState) {
     mMultiTouchMotionAccumulator.finishSync();
 }
 
+std::list<NotifyArgs> MultiTouchInputMapper::reconfigure(nsecs_t when,
+                                                         const InputReaderConfiguration& config,
+                                                         ConfigurationChanges changes) {
+    const bool simulateStylusWithTouch =
+            sysprop::InputProperties::simulate_stylus_with_touch().value_or(false);
+    if (simulateStylusWithTouch != mShouldSimulateStylusWithTouch) {
+        mShouldSimulateStylusWithTouch = simulateStylusWithTouch;
+        bumpGeneration();
+    }
+    return TouchInputMapper::reconfigure(when, config, changes);
+}
+
 void MultiTouchInputMapper::configureRawPointerAxes() {
     TouchInputMapper::configureRawPointerAxes();
 
@@ -211,14 +223,7 @@ void MultiTouchInputMapper::configureRawPointerAxes() {
 
 bool MultiTouchInputMapper::hasStylus() const {
     return mStylusMtToolSeen || mTouchButtonAccumulator.hasStylus() ||
-            shouldSimulateStylusWithTouch();
-}
-
-bool MultiTouchInputMapper::shouldSimulateStylusWithTouch() const {
-    static const bool SIMULATE_STYLUS_WITH_TOUCH =
-            sysprop::InputProperties::simulate_stylus_with_touch().value_or(false);
-    return SIMULATE_STYLUS_WITH_TOUCH &&
-            mParameters.deviceType == Parameters::DeviceType::TOUCH_SCREEN;
+            mShouldSimulateStylusWithTouch;
 }
 
 } // namespace android
