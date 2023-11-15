@@ -514,6 +514,13 @@ interface ISurfaceComposer {
     void scheduleCommit();
 
     /**
+     * Force all window composition to the GPU (i.e. disable Hardware Overlays).
+     * This can help check if there is a bug in HW Composer.
+     * Requires root or android.permission.HARDWARE_TEST
+     */
+    void forceClientComposition(boolean enabled);
+
+    /**
      * Gets priority of the RenderEngine in SurfaceFlinger.
      */
     int getGpuContextPriority();
