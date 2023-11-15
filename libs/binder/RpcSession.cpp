@@ -208,7 +208,7 @@ status_t RpcSession::addNullDebuggingClient() {
 
     unique_fd serverFd(TEMP_FAILURE_RETRY(open("/dev/null", O_WRONLY | O_CLOEXEC)));
 
-    if (serverFd == -1) {
+    if (!serverFd.ok()) {
         int savedErrno = errno;
         ALOGE("Could not connect to /dev/null: %s", strerror(savedErrno));
         return -savedErrno;
@@ -594,7 +594,7 @@ status_t RpcSession::setupOneSocketConnection(const RpcSocketAddress& addr,
 
         unique_fd serverFd(TEMP_FAILURE_RETRY(
                 socket(addr.addr()->sa_family, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0)));
-        if (serverFd == -1) {
+        if (!serverFd.ok()) {
             int savedErrno = errno;
             ALOGE("Could not create socket at %s: %s", addr.toString().c_str(),
                   strerror(savedErrno));
