@@ -6927,11 +6927,12 @@ sp<WindowInfoHandle> InputDispatcher::findWallpaperWindowBelow(
     return nullptr;
 }
 
-void InputDispatcher::setKeyRepeatConfiguration(nsecs_t timeout, nsecs_t delay) {
+void InputDispatcher::setKeyRepeatConfiguration(std::chrono::nanoseconds timeout,
+                                                std::chrono::nanoseconds delay) {
     std::scoped_lock _l(mLock);
 
-    mConfig.keyRepeatTimeout = timeout;
-    mConfig.keyRepeatDelay = delay;
+    mConfig.keyRepeatTimeout = timeout.count();
+    mConfig.keyRepeatDelay = delay.count();
 }
 
 } // namespace android::inputdispatcher
