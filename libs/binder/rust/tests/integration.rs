@@ -26,7 +26,7 @@ use binder::binder_impl::{
 
 use std::convert::{TryFrom, TryInto};
 use std::ffi::CStr;
-use std::fs::File;
+use std::io::Write;
 use std::sync::Mutex;
 
 /// Name of service runner.
@@ -118,7 +118,7 @@ impl TryFrom<u32> for TestTransactionCode {
 }
 
 impl Interface for TestService {
-    fn dump(&self, _file: &File, args: &[&CStr]) -> Result<(), StatusCode> {
+    fn dump(&self, _writer: &mut dyn Write, args: &[&CStr]) -> Result<(), StatusCode> {
         let mut dump_args = self.dump_args.lock().unwrap();
         dump_args.extend(args.iter().map(|s| s.to_str().unwrap().to_owned()));
         Ok(())
