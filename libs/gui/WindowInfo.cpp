@@ -66,8 +66,9 @@ bool WindowInfo::overlaps(const WindowInfo* other) const {
 bool WindowInfo::operator==(const WindowInfo& info) const {
     return info.token == token && info.id == id && info.name == name &&
             info.dispatchingTimeout == dispatchingTimeout && info.frame == frame &&
-            info.surfaceInset == surfaceInset && info.globalScaleFactor == globalScaleFactor &&
-            info.transform == transform && info.touchableRegion.hasSameRects(touchableRegion) &&
+            info.contentSize == contentSize && info.surfaceInset == surfaceInset &&
+            info.globalScaleFactor == globalScaleFactor && info.transform == transform &&
+            info.touchableRegion.hasSameRects(touchableRegion) &&
             info.touchOcclusionMode == touchOcclusionMode && info.ownerPid == ownerPid &&
             info.ownerUid == ownerUid && info.packageName == packageName &&
             info.inputConfig == inputConfig && info.displayId == displayId &&
@@ -101,6 +102,8 @@ status_t WindowInfo::writeToParcel(android::Parcel* parcel) const {
         parcel->writeInt32(
                 static_cast<std::underlying_type_t<WindowInfo::Type>>(layoutParamsType)) ?:
         parcel->write(frame) ?:
+        parcel->writeInt32(contentSize.width) ?:
+        parcel->writeInt32(contentSize.height) ?:
         parcel->writeInt32(surfaceInset) ?:
         parcel->writeFloat(globalScaleFactor) ?:
         parcel->writeFloat(alpha) ?:
@@ -150,6 +153,8 @@ status_t WindowInfo::readFromParcel(const android::Parcel* parcel) {
     status = parcel->readInt32(&lpFlags) ?:
         parcel->readInt32(&lpType) ?:
         parcel->read(frame) ?:
+        parcel->readInt32(&contentSize.width) ?:
+        parcel->readInt32(&contentSize.height) ?:
         parcel->readInt32(&surfaceInset) ?:
         parcel->readFloat(&globalScaleFactor) ?:
         parcel->readFloat(&alpha) ?:

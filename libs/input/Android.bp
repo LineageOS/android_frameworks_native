@@ -50,7 +50,7 @@ cc_aconfig_library {
     // overrides for flags, without having to link against a separate version of libinput or of this
     // library. Bundling this library directly into libinput prevents us from having to add this
     // library as a shared lib dependency everywhere where libinput is used.
-    test: true,
+    mode: "test",
     shared: {
         enabled: false,
     },

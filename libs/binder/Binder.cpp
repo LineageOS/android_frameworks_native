@@ -19,7 +19,6 @@
 #include <atomic>
 #include <set>
 
-#include <android-base/logging.h>
 #include <android-base/unique_fd.h>
 #include <binder/BpBinder.h>
 #include <binder/IInterface.h>
@@ -308,7 +307,7 @@ status_t BBinder::startRecordingTransactions(const Parcel& data) {
     Extras* e = getOrCreateExtras();
     RpcMutexUniqueLock lock(e->mLock);
     if (mRecordingOn) {
-        LOG(INFO) << "Could not start Binder recording. Another is already in progress.";
+        ALOGI("Could not start Binder recording. Another is already in progress.");
         return INVALID_OPERATION;
     } else {
         status_t readStatus = data.readUniqueFileDescriptor(&(e->mRecordingFd));
@@ -316,7 +315,7 @@ status_t BBinder::startRecordingTransactions(const Parcel& data) {
             return readStatus;
         }
         mRecordingOn = true;
-        LOG(INFO) << "Started Binder recording.";
+        ALOGI("Started Binder recording.");
         return NO_ERROR;
     }
 }
@@ -340,10 +339,10 @@ status_t BBinder::stopRecordingTransactions() {
     if (mRecordingOn) {
         e->mRecordingFd.reset();
         mRecordingOn = false;
-        LOG(INFO) << "Stopped Binder recording.";
+        ALOGI("Stopped Binder recording.");
         return NO_ERROR;
     } else {
-        LOG(INFO) << "Could not stop Binder recording. One is not in progress.";
+        ALOGI("Could not stop Binder recording. One is not in progress.");
         return INVALID_OPERATION;
     }
 }
@@ -377,11 +376,11 @@ status_t BBinder::transact(
             err = stopRecordingTransactions();
             break;
         case EXTENSION_TRANSACTION:
-            CHECK(reply != nullptr);
+            LOG_ALWAYS_FATAL_IF(reply == nullptr, "reply == nullptr");
             err = reply->writeStrongBinder(getExtension());
             break;
         case DEBUG_PID_TRANSACTION:
-            CHECK(reply != nullptr);
+            LOG_ALWAYS_FATAL_IF(reply == nullptr, "reply == nullptr");
             err = reply->writeInt32(getDebugPid());
             break;
         case SET_RPC_CLIENT_TRANSACTION: {
@@ -414,10 +413,10 @@ status_t BBinder::transact(
                                 reply ? *reply : emptyReply, err);
             if (transaction) {
                 if (status_t err = transaction->dumpToFile(e->mRecordingFd); err != NO_ERROR) {
-                    LOG(INFO) << "Failed to dump RecordedTransaction to file with error " << err;
+                    ALOGI("Failed to dump RecordedTransaction to file with error %d", err);
                 }
             } else {
-                LOG(INFO) << "Failed to create RecordedTransaction object.";
+                ALOGI("Failed to create RecordedTransaction object.");
             }
         }
     }
@@ -705,7 +704,7 @@ status_t BBinder::setRpcClientDebug(android::base::unique_fd socketFd,
         return status;
     }
     rpcServer->setMaxThreads(binderThreadPoolMaxCount);
-    LOG(INFO) << "RpcBinder: Started Binder debug on " << getInterfaceDescriptor();
+    ALOGI("RpcBinder: Started Binder debug on %s", String8(getInterfaceDescriptor()).c_str());
     rpcServer->start();
     e->mRpcServerLinks.emplace(link);
     LOG_RPC_DETAIL("%s(fd=%d) successful", __PRETTY_FUNCTION__, socketFdForPrint);
@@ -723,20 +722,20 @@ BBinder::~BBinder()
 {
     if (!wasParceled()) {
         if (getExtension()) {
-             ALOGW("Binder %p destroyed with extension attached before being parceled.", this);
+            ALOGW("Binder %p destroyed with extension attached before being parceled.", this);
         }
         if (isRequestingSid()) {
-             ALOGW("Binder %p destroyed when requesting SID before being parceled.", this);
+            ALOGW("Binder %p destroyed when requesting SID before being parceled.", this);
         }
         if (isInheritRt()) {
-             ALOGW("Binder %p destroyed after setInheritRt before being parceled.", this);
+            ALOGW("Binder %p destroyed after setInheritRt before being parceled.", this);
         }
 #ifdef __linux__
         if (getMinSchedulerPolicy() != SCHED_NORMAL) {
-             ALOGW("Binder %p destroyed after setMinSchedulerPolicy before being parceled.", this);
+            ALOGW("Binder %p destroyed after setMinSchedulerPolicy before being parceled.", this);
         }
         if (getMinSchedulerPriority() != 0) {
-             ALOGW("Binder %p destroyed after setMinSchedulerPolicy before being parceled.", this);
+            ALOGW("Binder %p destroyed after setMinSchedulerPolicy before being parceled.", this);
         }
 #endif // __linux__
     }
@@ -752,7 +751,7 @@ status_t BBinder::onTransact(
 {
     switch (code) {
         case INTERFACE_TRANSACTION:
-            CHECK(reply != nullptr);
+            LOG_ALWAYS_FATAL_IF(reply == nullptr, "reply == nullptr");
             reply->writeString16(getInterfaceDescriptor());
             return NO_ERROR;
 

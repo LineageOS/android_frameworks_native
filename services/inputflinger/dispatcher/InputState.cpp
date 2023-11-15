@@ -24,19 +24,6 @@
 
 namespace android::inputdispatcher {
 
-namespace {
-bool isHoverAction(int32_t action) {
-    switch (MotionEvent::getActionMasked(action)) {
-        case AMOTION_EVENT_ACTION_HOVER_ENTER:
-        case AMOTION_EVENT_ACTION_HOVER_MOVE:
-        case AMOTION_EVENT_ACTION_HOVER_EXIT: {
-            return true;
-        }
-    }
-    return false;
-}
-} // namespace
-
 InputState::InputState(const IdGenerator& idGenerator) : mIdGenerator(idGenerator) {}
 
 InputState::~InputState() {}
@@ -113,13 +100,6 @@ bool InputState::trackMotion(const MotionEntry& entry, int32_t action, int32_t f
         if (isStylusEvent(lastMemento.source, lastMemento.pointerProperties) &&
             !isStylusEvent(entry.source, entry.pointerProperties)) {
             // We already have a stylus stream, and the new event is not from stylus.
-            if (!lastMemento.hovering) {
-                // If stylus is currently down, reject the new event unconditionally.
-                return false;
-            }
-        }
-        if (!lastMemento.hovering && isHoverAction(action)) {
-            // Reject hovers if already down
             return false;
         }
     }
@@ -366,19 +346,13 @@ bool InputState::shouldCancelPreviousStream(const MotionEntry& motionEntry,
         return false;
     }
 
-    // We want stylus down to block touch and other source types, but stylus hover should not
-    // have such an effect.
-    if (isHoverAction(motionEntry.action) && !lastMemento.hovering) {
-        // New event is a hover. Keep the current non-hovering gesture instead
-        return false;
-    }
-
-    if (isStylusEvent(lastMemento.source, lastMemento.pointerProperties) && !lastMemento.hovering) {
-        // We have non-hovering stylus already active.
+    if (isStylusEvent(lastMemento.source, lastMemento.pointerProperties)) {
+        // A stylus is already active.
         if (isStylusEvent(motionEntry.source, motionEntry.pointerProperties) &&
             actionMasked == AMOTION_EVENT_ACTION_DOWN) {
-            // If this new event is a stylus from a different device going down, then cancel the old
-            // stylus and allow the new stylus to take over
+            // If this new event is from a different device, then cancel the old
+            // stylus and allow the new stylus to take over, but only if it's going down.
+            // Otherwise, they will start to race each other.
             return true;
         }
 

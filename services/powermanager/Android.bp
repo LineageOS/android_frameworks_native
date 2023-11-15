@@ -19,6 +19,7 @@ cc_library_shared {
         "PowerHalWrapper.cpp",
         "PowerSaveState.cpp",
         "Temperature.cpp",
+        "WorkDuration.cpp",
         "WorkSource.cpp",
         ":libpowermanager_aidl",
     ],

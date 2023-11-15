@@ -87,8 +87,8 @@ public:
                                      android::base::borrowed_fd /* readEnd */)>& f) {
         android::base::unique_fd childWriteEnd;
         android::base::unique_fd childReadEnd;
-        CHECK(android::base::Pipe(&mReadEnd, &childWriteEnd, 0)) << strerror(errno);
-        CHECK(android::base::Pipe(&childReadEnd, &mWriteEnd, 0)) << strerror(errno);
+        if (!android::base::Pipe(&mReadEnd, &childWriteEnd, 0)) PLOGF("child write pipe failed");
+        if (!android::base::Pipe(&childReadEnd, &mWriteEnd, 0)) PLOGF("child read pipe failed");
         if (0 == (mPid = fork())) {
             // racey: assume parent doesn't crash before this is set
             prctl(PR_SET_PDEATHSIG, SIGHUP);
@@ -146,8 +146,10 @@ static base::unique_fd initUnixSocket(std::string addr) {
     auto socket_addr = UnixSocketAddress(addr.c_str());
     base::unique_fd fd(
             TEMP_FAILURE_RETRY(socket(socket_addr.addr()->sa_family, SOCK_STREAM, AF_UNIX)));
-    CHECK(fd.ok());
-    CHECK_EQ(0, TEMP_FAILURE_RETRY(bind(fd.get(), socket_addr.addr(), socket_addr.addrSize())));
+    if (!fd.ok()) PLOGF("initUnixSocket failed to create socket");
+    if (0 != TEMP_FAILURE_RETRY(bind(fd.get(), socket_addr.addr(), socket_addr.addrSize()))) {
+        PLOGF("initUnixSocket failed to bind");
+    }
     return fd;
 }
 
@@ -205,14 +207,12 @@ public:
 static base::unique_fd connectTo(const RpcSocketAddress& addr) {
     base::unique_fd serverFd(
             TEMP_FAILURE_RETRY(socket(addr.addr()->sa_family, SOCK_STREAM | SOCK_CLOEXEC, 0)));
-    int savedErrno = errno;
-    CHECK(serverFd.ok()) << "Could not create socket " << addr.toString() << ": "
-                         << strerror(savedErrno);
+    if (!serverFd.ok()) {
+        PLOGF("Could not create socket %s", addr.toString().c_str());
+    }
 
     if (0 != TEMP_FAILURE_RETRY(connect(serverFd.get(), addr.addr(), addr.addrSize()))) {
-        int savedErrno = errno;
-        LOG(FATAL) << "Could not connect to socket " << addr.toString() << ": "
-                   << strerror(savedErrno);
+        PLOGF("Could not connect to socket %s", addr.toString().c_str());
     }
     return serverFd;
 }
@@ -221,8 +221,7 @@ static base::unique_fd connectTo(const RpcSocketAddress& addr) {
 static base::unique_fd connectToUnixBootstrap(const RpcTransportFd& transportFd) {
     base::unique_fd sockClient, sockServer;
     if (!base::Socketpair(SOCK_STREAM, &sockClient, &sockServer)) {
-        int savedErrno = errno;
-        LOG(FATAL) << "Failed socketpair(): " << strerror(savedErrno);
+        PLOGF("Failed socketpair()");
     }
 
     int zero = 0;
@@ -231,8 +230,7 @@ static base::unique_fd connectToUnixBootstrap(const RpcTransportFd& transportFd)
     fds.emplace_back(std::move(sockServer));
 
     if (binder::os::sendMessageOnSocket(transportFd, &iov, 1, &fds) < 0) {
-        int savedErrno = errno;
-        LOG(FATAL) << "Failed sendMessageOnSocket: " << strerror(savedErrno);
+        PLOGF("Failed sendMessageOnSocket");
     }
     return std::move(sockClient);
 }
@@ -246,10 +244,12 @@ std::unique_ptr<RpcTransportCtxFactory> BinderRpc::newFactory(RpcSecurity rpcSec
 // threads.
 std::unique_ptr<ProcessSession> BinderRpc::createRpcTestSocketServerProcessEtc(
         const BinderRpcOptions& options) {
-    CHECK_GE(options.numSessions, 1) << "Must have at least one session to a server";
+    LOG_ALWAYS_FATAL_IF(options.numSessions < 1, "Must have at least one session to a server");
 
     if (options.numIncomingConnectionsBySession.size() != 0) {
-        CHECK_EQ(options.numIncomingConnectionsBySession.size(), options.numSessions);
+        LOG_ALWAYS_FATAL_IF(options.numIncomingConnectionsBySession.size() != options.numSessions,
+                            "%s: %zu != %zu", __func__,
+                            options.numIncomingConnectionsBySession.size(), options.numSessions);
     }
 
     SocketType socketType = GetParam().type;
@@ -274,8 +274,7 @@ std::unique_ptr<ProcessSession> BinderRpc::createRpcTestSocketServerProcessEtc(
         // Do not set O_CLOEXEC, bootstrapServerFd needs to survive fork/exec.
         // This is because we cannot pass ParcelFileDescriptor over a pipe.
         if (!base::Socketpair(SOCK_STREAM, &bootstrapClientFd, &socketFd)) {
-            int savedErrno = errno;
-            LOG(FATAL) << "Failed socketpair(): " << strerror(savedErrno);
+            PLOGF("Failed socketpair()");
         }
     }
 
@@ -288,8 +287,10 @@ std::unique_ptr<ProcessSession> BinderRpc::createRpcTestSocketServerProcessEtc(
 
                 auto writeFd = std::to_string(writeEnd.get());
                 auto readFd = std::to_string(readEnd.get());
-                execl(servicePath.c_str(), servicePath.c_str(), writeFd.c_str(), readFd.c_str(),
-                      NULL);
+                auto status = execl(servicePath.c_str(), servicePath.c_str(), writeFd.c_str(),
+                                    readFd.c_str(), NULL);
+                PLOGF("execl('%s', _, %s, %s) should not return at all, but it returned %d",
+                      servicePath.c_str(), writeFd.c_str(), readFd.c_str(), status);
             }));
 
     BinderRpcTestServerConfig serverConfig;
@@ -334,16 +335,16 @@ std::unique_ptr<ProcessSession> BinderRpc::createRpcTestSocketServerProcessEtc(
         }
         writeToFd(ret->host.writeEnd(), clientInfo);
 
-        CHECK_LE(serverInfo.port, std::numeric_limits<unsigned int>::max());
+        LOG_ALWAYS_FATAL_IF(serverInfo.port > std::numeric_limits<unsigned int>::max());
         if (socketType == SocketType::INET) {
-            CHECK_NE(0, serverInfo.port);
+            LOG_ALWAYS_FATAL_IF(0 == serverInfo.port);
         }
 
         if (rpcSecurity == RpcSecurity::TLS) {
             const auto& serverCert = serverInfo.cert.data;
-            CHECK_EQ(OK,
-                     certVerifier->addTrustedPeerCertificate(RpcCertificateFormat::PEM,
-                                                             serverCert));
+            LOG_ALWAYS_FATAL_IF(
+                    OK !=
+                    certVerifier->addTrustedPeerCertificate(RpcCertificateFormat::PEM, serverCert));
         }
     }
 
@@ -356,7 +357,7 @@ std::unique_ptr<ProcessSession> BinderRpc::createRpcTestSocketServerProcessEtc(
                 ? options.numIncomingConnectionsBySession.at(i)
                 : 0;
 
-        CHECK(session->setProtocolVersion(clientVersion));
+        LOG_ALWAYS_FATAL_IF(!session->setProtocolVersion(clientVersion));
         session->setMaxIncomingThreads(numIncoming);
         session->setMaxOutgoingConnections(options.numOutgoingConnections);
         session->setFileDescriptorTransportMode(options.clientFileDescriptorTransportMode);
@@ -408,7 +409,7 @@ std::unique_ptr<ProcessSession> BinderRpc::createRpcTestSocketServerProcessEtc(
             ret->sessions.clear();
             break;
         }
-        CHECK_EQ(status, OK) << "Could not connect: " << statusToString(status);
+        LOG_ALWAYS_FATAL_IF(status != OK, "Could not connect: %s", statusToString(status).c_str());
         ret->sessions.push_back({session, session->getRootObject()});
     }
     return ret;
@@ -589,12 +590,12 @@ TEST_P(BinderRpc, OnewayCallQueueingWithFds) {
     android::os::ParcelFileDescriptor fdA;
     EXPECT_OK(proc.rootIface->blockingRecvFd(&fdA));
     std::string result;
-    CHECK(android::base::ReadFdToString(fdA.get(), &result));
+    ASSERT_TRUE(android::base::ReadFdToString(fdA.get(), &result));
     EXPECT_EQ(result, "a");
 
     android::os::ParcelFileDescriptor fdB;
     EXPECT_OK(proc.rootIface->blockingRecvFd(&fdB));
-    CHECK(android::base::ReadFdToString(fdB.get(), &result));
+    ASSERT_TRUE(android::base::ReadFdToString(fdB.get(), &result));
     EXPECT_EQ(result, "b");
 
     saturateThreadPool(kNumServerThreads, proc.rootIface);
@@ -951,8 +952,8 @@ TEST_P(BinderRpc, ReceiveFile) {
     ASSERT_TRUE(status.isOk()) << status;
 
     std::string result;
-    CHECK(android::base::ReadFdToString(out.get(), &result));
-    EXPECT_EQ(result, "hello");
+    ASSERT_TRUE(android::base::ReadFdToString(out.get(), &result));
+    ASSERT_EQ(result, "hello");
 }
 
 TEST_P(BinderRpc, SendFiles) {
@@ -981,7 +982,7 @@ TEST_P(BinderRpc, SendFiles) {
     ASSERT_TRUE(status.isOk()) << status;
 
     std::string result;
-    CHECK(android::base::ReadFdToString(out.get(), &result));
+    EXPECT_TRUE(android::base::ReadFdToString(out.get(), &result));
     EXPECT_EQ(result, "123abcd");
 }
 
@@ -1006,7 +1007,7 @@ TEST_P(BinderRpc, SendMaxFiles) {
     ASSERT_TRUE(status.isOk()) << status;
 
     std::string result;
-    CHECK(android::base::ReadFdToString(out.get(), &result));
+    EXPECT_TRUE(android::base::ReadFdToString(out.get(), &result));
     EXPECT_EQ(result, std::string(253, 'a'));
 }
 
@@ -1359,7 +1360,11 @@ private:
 };
 
 TEST(BinderRpc, Java) {
-#if !defined(__ANDROID__)
+    bool expectDebuggable = false;
+#if defined(__ANDROID__)
+    expectDebuggable = android::base::GetBoolProperty("ro.debuggable", false) &&
+            android::base::GetProperty("ro.build.type", "") != "user";
+#else
     GTEST_SKIP() << "This test is only run on Android. Though it can technically run on host on"
                     "createRpcDelegateServiceManager() with a device attached, such test belongs "
                     "to binderHostDeviceTest. Hence, just disable this test on host.";
@@ -1387,8 +1392,7 @@ TEST(BinderRpc, Java) {
     auto keepAlive = sp<BBinder>::make();
     auto setRpcClientDebugStatus = binder->setRpcClientDebug(std::move(socket), keepAlive);
 
-    if (!android::base::GetBoolProperty("ro.debuggable", false) ||
-        android::base::GetProperty("ro.build.type", "") == "user") {
+    if (!expectDebuggable) {
         ASSERT_EQ(INVALID_OPERATION, setRpcClientDebugStatus)
                 << "setRpcClientDebug should return INVALID_OPERATION on non-debuggable or user "
                    "builds, but get "
@@ -1593,12 +1597,10 @@ public:
             iovec iov{&buf, sizeof(buf)};
 
             if (binder::os::receiveMessageFromSocket(mFd, &iov, 1, &fds) < 0) {
-                int savedErrno = errno;
-                LOG(FATAL) << "Failed receiveMessage: " << strerror(savedErrno);
+                PLOGF("Failed receiveMessage");
             }
-            if (fds.size() != 1) {
-                LOG(FATAL) << "Expected one FD from receiveMessage(), got " << fds.size();
-            }
+            LOG_ALWAYS_FATAL_IF(fds.size() != 1, "Expected one FD from receiveMessage(), got %zu",
+                                fds.size());
             return std::move(std::get<base::unique_fd>(fds[0]));
         }
 
@@ -2083,7 +2085,7 @@ INSTANTIATE_TEST_CASE_P(
 
 int main(int argc, char** argv) {
     ::testing::InitGoogleTest(&argc, argv);
-    android::base::InitLogging(argv, android::base::StderrLogger, android::base::DefaultAborter);
+    __android_log_set_logger(__android_log_stderr_logger);
 
     return RUN_ALL_TESTS();
 }
