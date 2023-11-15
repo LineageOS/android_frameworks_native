@@ -1487,7 +1487,7 @@ FpsRange RefreshRateSelector::getFrameRateCategoryRange(FrameRateCategory catego
         case FrameRateCategory::Normal:
             return FpsRange{60_Hz, 90_Hz};
         case FrameRateCategory::Low:
-            return FpsRange{30_Hz, 60_Hz};
+            return FpsRange{30_Hz, 30_Hz};
         case FrameRateCategory::NoPreference:
         case FrameRateCategory::Default:
             LOG_ALWAYS_FATAL("Should not get fps range for frame rate category: %s",
