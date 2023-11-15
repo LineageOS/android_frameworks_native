@@ -1326,6 +1326,9 @@ void InputDispatcher::dropInboundEventLocked(const EventEntry& entry, DropReason
     switch (entry.type) {
         case EventEntry::Type::KEY: {
             CancelationOptions options(CancelationOptions::Mode::CANCEL_NON_POINTER_EVENTS, reason);
+            const KeyEntry& keyEntry = static_cast<const KeyEntry&>(entry);
+            options.displayId = keyEntry.displayId;
+            options.deviceId = keyEntry.deviceId;
             synthesizeCancelationEventsForAllConnectionsLocked(options);
             break;
         }
@@ -1333,10 +1336,14 @@ void InputDispatcher::dropInboundEventLocked(const EventEntry& entry, DropReason
             const MotionEntry& motionEntry = static_cast<const MotionEntry&>(entry);
             if (motionEntry.source & AINPUT_SOURCE_CLASS_POINTER) {
                 CancelationOptions options(CancelationOptions::Mode::CANCEL_POINTER_EVENTS, reason);
+                options.displayId = motionEntry.displayId;
+                options.deviceId = motionEntry.deviceId;
                 synthesizeCancelationEventsForAllConnectionsLocked(options);
             } else {
                 CancelationOptions options(CancelationOptions::Mode::CANCEL_NON_POINTER_EVENTS,
                                            reason);
+                options.displayId = motionEntry.displayId;
+                options.deviceId = motionEntry.deviceId;
                 synthesizeCancelationEventsForAllConnectionsLocked(options);
             }
             break;
