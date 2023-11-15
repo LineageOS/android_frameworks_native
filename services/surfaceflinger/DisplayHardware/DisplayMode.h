@@ -29,8 +29,8 @@
 
 #include <scheduler/Fps.h>
 
+#include <common/FlagManager.h>
 #include "DisplayHardware/Hal.h"
-#include "FlagManager.h"
 #include "Scheduler/StrongTyping.h"
 
 namespace android {

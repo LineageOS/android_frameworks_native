@@ -16,8 +16,8 @@
 
 #include <algorithm>
 
+#include <common/FlagManager.h>
 #include "Client.h"
-#include "FlagManager.h"
 #include "Layer.h"
 #include "RefreshRateOverlay.h"
 

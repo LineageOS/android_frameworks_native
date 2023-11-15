@@ -19,12 +19,12 @@
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 #include "AidlComposerHal.h"
-#include "FlagManager.h"
 
 #include <SurfaceFlingerProperties.h>
 #include <android-base/file.h>
 #include <android/binder_ibinder_platform.h>
 #include <android/binder_manager.h>
+#include <common/FlagManager.h>
 #include <gui/TraceUtils.h>
 #include <log/log.h>
 #include <utils/Trace.h>

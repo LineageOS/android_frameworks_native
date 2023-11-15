@@ -29,12 +29,12 @@
 #include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
 #include <binder/ProcessState.h>
+#include <common/FlagManager.h>
 #include <configstore/Utils.h>
 #include <displayservice/DisplayService.h>
 #include <errno.h>
 #include <hidl/LegacySupport.h>
 #include <processgroup/sched_policy.h>
-#include "FlagManager.h"
 #include "SurfaceFlinger.h"
 #include "SurfaceFlingerFactory.h"
 #include "SurfaceFlingerProperties.h"

@@ -39,6 +39,7 @@ cc_defaults {
         "libgtest_ndk_c++",
         "libgmock_main_ndk",
         "librenderengine_mocks",
+        "libsurfaceflinger_common",
         "perfetto_trace_protos",
         "libcompositionengine_mocks",
         "perfetto_trace_protos",
