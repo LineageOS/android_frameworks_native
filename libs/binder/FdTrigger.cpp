@@ -53,7 +53,7 @@ bool FdTrigger::isTriggered() {
 #ifdef BINDER_RPC_SINGLE_THREADED
     return mTriggered;
 #else
-    return mWrite == -1;
+    return !mWrite.ok();
 #endif
 }
 
