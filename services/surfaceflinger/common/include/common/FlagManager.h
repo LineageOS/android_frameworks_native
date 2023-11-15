@@ -60,6 +60,7 @@ public:
     bool hdcp_level_hal() const;
     bool multithreaded_present() const;
     bool add_sf_skipped_frames_to_trace() const;
+    bool use_known_refresh_rate_for_fps_consistency() const;
 
 protected:
     // overridden for unit tests
