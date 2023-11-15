@@ -168,7 +168,7 @@ void RpcServer::setConnectionFilter(std::function<bool(const void*, size_t)>&& f
 
 void RpcServer::setServerSocketModifier(std::function<void(base::borrowed_fd)>&& modifier) {
     RpcMutexLockGuard _l(mLock);
-    LOG_ALWAYS_FATAL_IF(mServer.fd != -1, "Already started");
+    LOG_ALWAYS_FATAL_IF(mServer.fd.ok(), "Already started");
     mServerSocketModifier = std::move(modifier);
 }
 
@@ -200,7 +200,7 @@ void RpcServer::start() {
 status_t RpcServer::acceptSocketConnection(const RpcServer& server, RpcTransportFd* out) {
     RpcTransportFd clientSocket(unique_fd(TEMP_FAILURE_RETRY(
             accept4(server.mServer.fd.get(), nullptr, nullptr, SOCK_CLOEXEC | SOCK_NONBLOCK))));
-    if (clientSocket.fd < 0) {
+    if (!clientSocket.fd.ok()) {
         int savedErrno = errno;
         ALOGE("Could not accept4 socket: %s", strerror(savedErrno));
         return -savedErrno;
