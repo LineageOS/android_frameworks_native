@@ -28,6 +28,7 @@ namespace android {
 constexpr size_t kMaxKeySize = 2 * 1024;
 constexpr size_t kMaxValueSize = 6 * 1024;
 constexpr size_t kMaxTotalSize = 32 * 1024;
+constexpr size_t kMaxTotalEntries = 64;
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     // To fuzz this, we're going to create a key/value pair from data
@@ -79,8 +80,8 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     std::unique_ptr<MultifileBlobCache> mbc;
 
     tempFile.reset(new TemporaryFile());
-    mbc.reset(
-            new MultifileBlobCache(kMaxKeySize, kMaxValueSize, kMaxTotalSize, &tempFile->path[0]));
+    mbc.reset(new MultifileBlobCache(kMaxKeySize, kMaxValueSize, kMaxTotalSize, kMaxTotalEntries,
+                                     &tempFile->path[0]));
     // With remaining data, select different paths below
     int loopCount = 1;
     uint8_t bumpCount = 0;
@@ -131,8 +132,8 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     // Place the maxKey/maxValue twice
     // The first will fit, the second will trigger hot cache trimming
     tempFile.reset(new TemporaryFile());
-    mbc.reset(
-            new MultifileBlobCache(kMaxKeySize, kMaxValueSize, kMaxTotalSize, &tempFile->path[0]));
+    mbc.reset(new MultifileBlobCache(kMaxKeySize, kMaxValueSize, kMaxTotalSize, kMaxTotalEntries,
+                                     &tempFile->path[0]));
     uint8_t* buffer = new uint8_t[kMaxValueSize];
     mbc->set(maxKey1.data(), kMaxKeySize, maxValue1.data(), kMaxValueSize);
     mbc->set(maxKey2.data(), kMaxKeySize, maxValue2.data(), kMaxValueSize);
@@ -145,7 +146,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     // overflow
     tempFile.reset(new TemporaryFile());
     mbc.reset(new MultifileBlobCache(kMaxKeySize, kMaxValueSize, 2 * (kMaxKeySize + kMaxValueSize),
-                                     &tempFile->path[0]));
+                                     kMaxTotalEntries, &tempFile->path[0]));
     mbc->set(maxKey1.data(), kMaxKeySize, maxValue1.data(), kMaxValueSize);
     mbc->set(maxKey2.data(), kMaxKeySize, maxValue2.data(), kMaxValueSize);
     mbc->get(maxKey1.data(), kMaxKeySize, buffer, kMaxValueSize);

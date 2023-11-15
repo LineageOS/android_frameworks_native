@@ -114,25 +114,26 @@ std::string EGLCacheTest::getCachefileName() {
     struct stat info;
     if (stat(multifileDirName.c_str(), &info) == 0) {
         // Ensure we only have one file to manage
-        int realFileCount = 0;
+        int entryFileCount = 0;
 
-        // We have a multifile dir. Return the only real file in it.
+        // We have a multifile dir. Return the only entry file in it.
         DIR* dir;
         struct dirent* entry;
         if ((dir = opendir(multifileDirName.c_str())) != nullptr) {
             while ((entry = readdir(dir)) != nullptr) {
-                if (entry->d_name == "."s || entry->d_name == ".."s) {
+                if (entry->d_name == "."s || entry->d_name == ".."s ||
+                    strcmp(entry->d_name, kMultifileBlobCacheStatusFile) == 0) {
                     continue;
                 }
                 cachefileName = multifileDirName + "/" + entry->d_name;
-                realFileCount++;
+                entryFileCount++;
             }
         } else {
             printf("Unable to open %s, error: %s\n",
                    multifileDirName.c_str(), std::strerror(errno));
         }
 
-        if (realFileCount != 1) {
+        if (entryFileCount != 1) {
             // If there was more than one real file in the directory, this
             // violates test assumptions
             cachefileName = "";
