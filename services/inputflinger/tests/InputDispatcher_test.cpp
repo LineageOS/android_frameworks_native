@@ -7742,12 +7742,15 @@ protected:
     static constexpr PointF WINDOW_LOCATION = {20, 20};
 
     void tapOnWindow() {
-        ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
-                  injectMotionDown(*mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
-                                   WINDOW_LOCATION));
-        ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
-                  injectMotionUp(*mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
-                                 WINDOW_LOCATION));
+        const auto touchingPointer = PointerBuilder(/*id=*/0, ToolType::FINGER)
+                                             .x(WINDOW_LOCATION.x)
+                                             .y(WINDOW_LOCATION.y);
+        mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                                          .pointer(touchingPointer)
+                                          .build());
+        mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_UP, AINPUT_SOURCE_TOUCHSCREEN)
+                                          .pointer(touchingPointer)
+                                          .build());
     }
 
     sp<FakeWindowHandle> addSpyWindow() {
@@ -8184,11 +8187,10 @@ TEST_F(InputDispatcherSingleWindowAnr,
     std::optional<uint32_t> upSequenceNum = mWindow->receiveEvent();
     ASSERT_TRUE(upSequenceNum);
     // Don't finish the events yet, and send a key
-    // Injection is async, so it will succeed
-    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
-              injectKey(*mDispatcher, AKEY_EVENT_ACTION_DOWN, /*repeatCount=*/0,
-                        ADISPLAY_ID_DEFAULT, InputEventInjectionSync::NONE, INJECT_EVENT_TIMEOUT,
-                        /*allowKeyRepeat=*/false));
+    mDispatcher->notifyKey(
+            KeyArgsBuilder(AKEY_EVENT_ACTION_DOWN, AINPUT_SOURCE_KEYBOARD)
+                    .policyFlags(DEFAULT_POLICY_FLAGS | POLICY_FLAG_DISABLE_KEY_REPEAT)
+                    .build());
     // At this point, key is still pending, and should not be sent to the application yet.
     // Make sure the `assertNoEvents` check doesn't take too long. It uses
     // CONSUME_TIMEOUT_NO_EVENT_EXPECTED under the hood.
@@ -8197,12 +8199,12 @@ TEST_F(InputDispatcherSingleWindowAnr,
 
     // Now tap down again. It should cause the pending key to go to the focused window right away.
     tapOnWindow();
-    mWindow->consumeKeyDown(ADISPLAY_ID_DEFAULT); // it doesn't matter that we haven't ack'd
-    // the other events yet. We can finish events in any order.
+    mWindow->consumeKeyEvent(WithKeyAction(AKEY_EVENT_ACTION_DOWN)); // it doesn't matter that we
+    // haven't ack'd the other events yet. We can finish events in any order.
     mWindow->finishEvent(*downSequenceNum); // first tap's ACTION_DOWN
     mWindow->finishEvent(*upSequenceNum);   // first tap's ACTION_UP
-    mWindow->consumeMotionDown();
-    mWindow->consumeMotionUp();
+    mWindow->consumeMotionEvent(WithMotionAction(ACTION_DOWN));
+    mWindow->consumeMotionEvent(WithMotionAction(ACTION_UP));
     mWindow->assertNoEvents();
 }
 
