@@ -67,6 +67,7 @@ GpuService::GpuService()
     mGpuWorkAsyncInitThread = std::make_unique<std::thread>([this]() {
         mGpuWork->initialize();
     });
+    property_set("persist.graphics.egl", "");
 };
 
 GpuService::~GpuService() {
