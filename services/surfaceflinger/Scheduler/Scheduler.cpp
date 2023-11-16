@@ -118,7 +118,7 @@ void Scheduler::setPacesetterDisplay(std::optional<PhysicalDisplayId> pacesetter
 
 void Scheduler::registerDisplay(PhysicalDisplayId displayId, RefreshRateSelectorPtr selectorPtr) {
     auto schedulePtr = std::make_shared<VsyncSchedule>(
-            displayId, mFeatures,
+            selectorPtr->getActiveMode().modePtr, mFeatures,
             [this](PhysicalDisplayId id, bool enable) { onHardwareVsyncRequest(id, enable); },
             mVsyncTrackerCallback);
 
@@ -503,7 +503,7 @@ void Scheduler::resyncAllToHardwareVsync(bool allowToEnable) {
 }
 
 void Scheduler::resyncToHardwareVsyncLocked(PhysicalDisplayId id, bool allowToEnable,
-                                            std::optional<Fps> refreshRate) {
+                                            DisplayModePtr modePtr) {
     const auto displayOpt = mDisplays.get(id);
     if (!displayOpt) {
         ALOGW("%s: Invalid display %s!", __func__, to_string(id).c_str());
@@ -512,12 +512,12 @@ void Scheduler::resyncToHardwareVsyncLocked(PhysicalDisplayId id, bool allowToEn
     const Display& display = *displayOpt;
 
     if (display.schedulePtr->isHardwareVsyncAllowed(allowToEnable)) {
-        if (!refreshRate) {
-            refreshRate = display.selectorPtr->getActiveMode().modePtr->getVsyncRate();
+        if (!modePtr) {
+            modePtr = display.selectorPtr->getActiveMode().modePtr.get();
         }
-        if (refreshRate->isValid()) {
+        if (modePtr->getVsyncRate().isValid()) {
             constexpr bool kForce = false;
-            display.schedulePtr->startPeriodTransition(refreshRate->getPeriod(), kForce);
+            display.schedulePtr->onDisplayModeChanged(ftl::as_non_null(modePtr), kForce);
         }
     }
 }
@@ -563,19 +563,7 @@ void Scheduler::setRenderRate(PhysicalDisplayId id, Fps renderFrameRate) {
     ALOGV("%s %s (%s)", __func__, to_string(mode.fps).c_str(),
           to_string(mode.modePtr->getVsyncRate()).c_str());
 
-    display.schedulePtr->getTracker().setDisplayModeData(
-            {.renderRate = renderFrameRate,
-             .notifyExpectedPresentTimeoutOpt = getNotifyExpectedPresentTimeout(mode)});
-}
-
-std::optional<Period> Scheduler::getNotifyExpectedPresentTimeout(const FrameRateMode& mode) {
-    if (mode.modePtr->getVrrConfig() && mode.modePtr->getVrrConfig()->notifyExpectedPresentConfig) {
-        return Period::fromNs(
-                mode.modePtr->getVrrConfig()
-                        ->notifyExpectedPresentConfig->notifyExpectedPresentTimeoutNs);
-    } else {
-        return std::nullopt;
-    }
+    display.schedulePtr->getTracker().setRenderRate(renderFrameRate);
 }
 
 void Scheduler::resync() {
@@ -913,9 +901,9 @@ std::shared_ptr<VsyncSchedule> Scheduler::promotePacesetterDisplayLocked(
 
         newVsyncSchedulePtr = pacesetter.schedulePtr;
 
-        const Fps refreshRate = pacesetter.selectorPtr->getActiveMode().modePtr->getVsyncRate();
         constexpr bool kForce = true;
-        newVsyncSchedulePtr->startPeriodTransition(refreshRate.getPeriod(), kForce);
+        newVsyncSchedulePtr->onDisplayModeChanged(pacesetter.selectorPtr->getActiveMode().modePtr,
+                                                  kForce);
     }
     return newVsyncSchedulePtr;
 }

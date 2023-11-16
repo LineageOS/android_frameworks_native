@@ -23,13 +23,10 @@
 namespace android::scheduler::mock {
 
 struct VsyncTrackerCallback final : IVsyncTrackerCallback {
-    MOCK_METHOD(void, onVsyncGenerated,
-                (PhysicalDisplayId, TimePoint, const scheduler::DisplayModeData&, Period),
-                (override));
+    MOCK_METHOD(void, onVsyncGenerated, (TimePoint, ftl::NonNull<DisplayModePtr>, Fps), (override));
 };
 
 struct NoOpVsyncTrackerCallback final : IVsyncTrackerCallback {
-    void onVsyncGenerated(PhysicalDisplayId, TimePoint, const scheduler::DisplayModeData&,
-                          Period) override{};
+    void onVsyncGenerated(TimePoint, ftl::NonNull<DisplayModePtr>, Fps) override{};
 };
 } // namespace android::scheduler::mock

@@ -27,6 +27,7 @@
 
 #include <scheduler/TimeKeeper.h>
 
+#include "VSyncTracker.h"
 #include "VsyncController.h"
 
 namespace android::scheduler {
@@ -45,7 +46,7 @@ public:
     bool addPresentFence(std::shared_ptr<FenceTime>) final;
     void setIgnorePresentFences(bool ignore) final;
 
-    void startPeriodTransition(nsecs_t period, bool force) final;
+    void onDisplayModeChanged(ftl::NonNull<DisplayModePtr>, bool force) final;
 
     bool addHwVsyncTimestamp(nsecs_t timestamp, std::optional<nsecs_t> hwcVsyncPeriod,
                              bool* periodFlushed) final;
@@ -57,7 +58,7 @@ public:
 private:
     void setIgnorePresentFencesInternal(bool ignore) REQUIRES(mMutex);
     void updateIgnorePresentFencesInternal() REQUIRES(mMutex);
-    void startPeriodTransitionInternal(nsecs_t newPeriod) REQUIRES(mMutex);
+    void startPeriodTransitionInternal(ftl::NonNull<DisplayModePtr>) REQUIRES(mMutex);
     void endPeriodTransition() REQUIRES(mMutex);
     bool periodConfirmed(nsecs_t vsync_timestamp, std::optional<nsecs_t> hwcVsyncPeriod)
             REQUIRES(mMutex);
@@ -74,7 +75,7 @@ private:
 
     bool mMoreSamplesNeeded GUARDED_BY(mMutex) = false;
     bool mPeriodConfirmationInProgress GUARDED_BY(mMutex) = false;
-    std::optional<nsecs_t> mPeriodTransitioningTo GUARDED_BY(mMutex);
+    DisplayModePtr mModePtrTransitioningTo GUARDED_BY(mMutex);
     std::optional<nsecs_t> mLastHwVsync GUARDED_BY(mMutex);
 
     hal::PowerMode mDisplayPowerMode GUARDED_BY(mMutex) = hal::PowerMode::ON;

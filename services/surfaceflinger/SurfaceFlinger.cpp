@@ -1202,7 +1202,7 @@ void SurfaceFlinger::setDesiredMode(display::DisplayModeRequest&& request, bool 
             // Start receiving vsync samples now, so that we can detect a period
             // switch.
             mScheduler->resyncToHardwareVsync(displayId, true /* allowToEnable */,
-                                              mode.modePtr->getVsyncRate());
+                                              mode.modePtr.get());
 
             // As we called to set period, we will call to onRefreshRateChangeCompleted once
             // VsyncController model is locked.
@@ -1332,10 +1332,9 @@ void SurfaceFlinger::applyActiveMode(const sp<DisplayDevice>& display) {
     const auto desiredModeOpt = display->getDesiredMode();
     const auto& modeOpt = desiredModeOpt->modeOpt;
     const auto displayId = modeOpt->modePtr->getPhysicalDisplayId();
-    const auto vsyncRate = modeOpt->modePtr->getVsyncRate();
     const auto renderFps = modeOpt->fps;
     dropModeRequest(display);
-    mScheduler->resyncToHardwareVsync(displayId, true /* allowToEnable */, vsyncRate);
+    mScheduler->resyncToHardwareVsync(displayId, true /* allowToEnable */, modeOpt->modePtr.get());
     mScheduler->setRenderRate(displayId, renderFps);
 
     if (displayId == mActiveDisplayId) {
@@ -4035,15 +4034,23 @@ void SurfaceFlinger::onChoreographerAttached() {
     }
 }
 
-void SurfaceFlinger::onVsyncGenerated(PhysicalDisplayId displayId, TimePoint expectedPresentTime,
-                                      const scheduler::DisplayModeData& displayModeData,
-                                      Period vsyncPeriod) {
-    const auto status =
-            getHwComposer()
-                    .notifyExpectedPresentIfRequired(displayId, vsyncPeriod, expectedPresentTime,
-                                                     displayModeData.renderRate,
-                                                     displayModeData
-                                                             .notifyExpectedPresentTimeoutOpt);
+void SurfaceFlinger::onVsyncGenerated(TimePoint expectedPresentTime,
+                                      ftl::NonNull<DisplayModePtr> modePtr, Fps renderRate) {
+    const auto vsyncPeriod = modePtr->getVsyncRate().getPeriod();
+    const auto timeout = [&]() -> std::optional<Period> {
+        const auto vrrConfig = modePtr->getVrrConfig();
+        if (!vrrConfig) return std::nullopt;
+
+        const auto notifyExpectedPresentConfig =
+                modePtr->getVrrConfig()->notifyExpectedPresentConfig;
+        if (!notifyExpectedPresentConfig) return std::nullopt;
+        return Period::fromNs(notifyExpectedPresentConfig->notifyExpectedPresentTimeoutNs);
+    }();
+
+    const auto displayId = modePtr->getPhysicalDisplayId();
+    const auto status = getHwComposer().notifyExpectedPresentIfRequired(displayId, vsyncPeriod,
+                                                                        expectedPresentTime,
+                                                                        renderRate, timeout);
     if (status != NO_ERROR) {
         ALOGE("%s failed to notifyExpectedPresentHint for display %" PRId64, __func__,
               displayId.value);
@@ -5765,7 +5772,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
 
     display->setPowerMode(mode);
 
-    const auto refreshRate = display->refreshRateSelector().getActiveMode().modePtr->getVsyncRate();
+    const auto activeMode = display->refreshRateSelector().getActiveMode().modePtr;
     if (!currentModeOpt || *currentModeOpt == hal::PowerMode::OFF) {
         // Turn on the display
 
@@ -5802,7 +5809,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
             mScheduler->enableSyntheticVsync(false);
 
             constexpr bool kAllowToEnable = true;
-            mScheduler->resyncToHardwareVsync(displayId, kAllowToEnable, refreshRate);
+            mScheduler->resyncToHardwareVsync(displayId, kAllowToEnable, activeMode.get());
         }
 
         mVisibleRegionsDirty = true;
@@ -5844,7 +5851,8 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
             mVisibleRegionsDirty = true;
             scheduleRepaint();
             mScheduler->enableSyntheticVsync(false);
-            mScheduler->resyncToHardwareVsync(displayId, true /* allowToEnable */, refreshRate);
+            mScheduler->resyncToHardwareVsync(displayId, true /* allowToEnable */,
+                                              activeMode.get());
         }
     } else if (mode == hal::PowerMode::DOZE_SUSPEND) {
         // Leave display going to doze
