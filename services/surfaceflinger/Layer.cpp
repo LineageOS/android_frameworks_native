@@ -3635,7 +3635,7 @@ void Layer::gatherBufferInfo() {
             // to upsert RenderEngine's caches. Put in a special workaround to be backwards
             // compatible with old vendors, with a ticking clock.
             static const int32_t kVendorVersion =
-                    base::GetIntProperty("ro.vndk.version", __ANDROID_API_FUTURE__);
+                    base::GetIntProperty("ro.board.api_level", __ANDROID_API_FUTURE__);
             if (const auto format =
                         static_cast<aidl::android::hardware::graphics::common::PixelFormat>(
                                 mBufferInfo.mBuffer->getPixelFormat());
