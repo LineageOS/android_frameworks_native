@@ -1305,6 +1305,8 @@ TEST_F_WITH_FLAGS(GestureConverterTest, MoveEnablesTapToClick,
     ASSERT_FALSE(mReader->getContext()->isPreventingTouchpadTaps());
 }
 
+// TODO(b/311416205): De-duplicate the test cases after the refactoring is complete and the flagging
+//   logic can be removed.
 class GestureConverterTestWithChoreographer : public GestureConverterTestBase {
 protected:
     void SetUp() override {

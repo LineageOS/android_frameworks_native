@@ -4922,6 +4922,8 @@ TEST_F(CursorInputMapperTest, ConfigureDisplayId_IgnoresEventsForMismatchedPoint
 
 // --- CursorInputMapperTestWithChoreographer ---
 
+// TODO(b/311416205): De-duplicate the test cases after the refactoring is complete and the flagging
+//   logic can be removed.
 class CursorInputMapperTestWithChoreographer : public CursorInputMapperTestBase {
 protected:
     void SetUp() override {
