@@ -166,6 +166,7 @@ Layer::Layer(const surfaceflinger::LayerCreationArgs& args)
     mDrawingState.sequence = 0;
     mDrawingState.transform.set(0, 0);
     mDrawingState.frameNumber = 0;
+    mDrawingState.previousFrameNumber = 0;
     mDrawingState.barrierFrameNumber = 0;
     mDrawingState.producerId = 0;
     mDrawingState.barrierProducerId = 0;
@@ -2935,7 +2936,6 @@ void Layer::onLayerDisplayed(ftl::SharedFuture<FenceResult> futureFenceResult,
             break;
         }
     }
-
     if (ch != nullptr) {
         ch->previousReleaseCallbackId = mPreviousReleaseCallbackId;
         ch->previousReleaseFences.emplace_back(std::move(futureFenceResult));
@@ -2943,6 +2943,10 @@ void Layer::onLayerDisplayed(ftl::SharedFuture<FenceResult> futureFenceResult,
     }
     if (mBufferInfo.mBuffer) {
         mPreviouslyPresentedLayerStacks.push_back(layerStack);
+    }
+
+    if (mDrawingState.frameNumber > 0) {
+        mDrawingState.previousFrameNumber = mDrawingState.frameNumber;
     }
 }
 
@@ -3148,6 +3152,7 @@ void Layer::releasePreviousBuffer() {
 void Layer::resetDrawingStateBufferInfo() {
     mDrawingState.producerId = 0;
     mDrawingState.frameNumber = 0;
+    mDrawingState.previousFrameNumber = 0;
     mDrawingState.releaseBufferListener = nullptr;
     mDrawingState.buffer = nullptr;
     mDrawingState.acquireFence = sp<Fence>::make(-1);
@@ -3424,6 +3429,7 @@ bool Layer::setTransactionCompletedListeners(const std::vector<sp<CallbackHandle
             // If this transaction set an acquire fence on this layer, set its acquire time
             handle->acquireTimeOrFence = mCallbackHandleAcquireTimeOrFence;
             handle->frameNumber = mDrawingState.frameNumber;
+            handle->previousFrameNumber = mDrawingState.previousFrameNumber;
 
             // Store so latched time and release fence can be set
             mDrawingState.callbackHandles.push_back(handle);

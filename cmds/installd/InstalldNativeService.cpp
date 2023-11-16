@@ -471,6 +471,49 @@ status_t InstalldNativeService::dump(int fd, const Vector<String16>& /* args */)
     return NO_ERROR;
 }
 
+constexpr const char kXattrRestoreconInProgress[] = "user.restorecon_in_progress";
+
+static std::string lgetfilecon(const std::string& path) {
+    char* context;
+    if (::lgetfilecon(path.c_str(), &context) < 0) {
+        PLOG(ERROR) << "Failed to lgetfilecon for " << path;
+        return {};
+    }
+    std::string result{context};
+    free(context);
+    return result;
+}
+
+static bool getRestoreconInProgress(const std::string& path) {
+    bool inProgress = false;
+    if (getxattr(path.c_str(), kXattrRestoreconInProgress, &inProgress, sizeof(inProgress)) !=
+        sizeof(inProgress)) {
+        if (errno != ENODATA) {
+            PLOG(ERROR) << "Failed to check in-progress restorecon for " << path;
+        }
+        return false;
+    }
+    return inProgress;
+}
+
+struct RestoreconInProgress {
+    explicit RestoreconInProgress(const std::string& path) : mPath(path) {
+        bool inProgress = true;
+        if (setxattr(mPath.c_str(), kXattrRestoreconInProgress, &inProgress, sizeof(inProgress),
+                     0) != 0) {
+            PLOG(ERROR) << "Failed to set in-progress restorecon for " << path;
+        }
+    }
+    ~RestoreconInProgress() {
+        if (removexattr(mPath.c_str(), kXattrRestoreconInProgress) < 0) {
+            PLOG(ERROR) << "Failed to clear in-progress restorecon for " << mPath;
+        }
+    }
+
+private:
+    const std::string& mPath;
+};
+
 /**
  * Perform restorecon of the given path, but only perform recursive restorecon
  * if the label of that top-level file actually changed.  This can save us
@@ -479,56 +522,56 @@ status_t InstalldNativeService::dump(int fd, const Vector<String16>& /* args */)
 static int restorecon_app_data_lazy(const std::string& path, const std::string& seInfo, uid_t uid,
         bool existing) {
     ScopedTrace tracer("restorecon-lazy");
-    int res = 0;
-    char* before = nullptr;
-    char* after = nullptr;
     if (!existing) {
         ScopedTrace tracer("new-path");
         if (selinux_android_restorecon_pkgdir(path.c_str(), seInfo.c_str(), uid,
                 SELINUX_ANDROID_RESTORECON_RECURSE) < 0) {
             PLOG(ERROR) << "Failed recursive restorecon for " << path;
-            goto fail;
+            return -1;
         }
-        return res;
+        return 0;
     }
 
-    // Note that SELINUX_ANDROID_RESTORECON_DATADATA flag is set by
-    // libselinux. Not needed here.
-    if (lgetfilecon(path.c_str(), &before) < 0) {
-        PLOG(ERROR) << "Failed before getfilecon for " << path;
-        goto fail;
-    }
-    if (selinux_android_restorecon_pkgdir(path.c_str(), seInfo.c_str(), uid, 0) < 0) {
-        PLOG(ERROR) << "Failed top-level restorecon for " << path;
-        goto fail;
-    }
-    if (lgetfilecon(path.c_str(), &after) < 0) {
-        PLOG(ERROR) << "Failed after getfilecon for " << path;
-        goto fail;
+    // Note that SELINUX_ANDROID_RESTORECON_DATADATA flag is set by libselinux. Not needed here.
+
+    // Check to see if there was an interrupted operation.
+    bool inProgress = getRestoreconInProgress(path);
+    std::string before, after;
+    if (!inProgress) {
+        if (before = lgetfilecon(path); before.empty()) {
+            PLOG(ERROR) << "Failed before getfilecon for " << path;
+            return -1;
+        }
+        if (selinux_android_restorecon_pkgdir(path.c_str(), seInfo.c_str(), uid, 0) < 0) {
+            PLOG(ERROR) << "Failed top-level restorecon for " << path;
+            return -1;
+        }
+        if (after = lgetfilecon(path); after.empty()) {
+            PLOG(ERROR) << "Failed after getfilecon for " << path;
+            return -1;
+        }
     }
 
     // If the initial top-level restorecon above changed the label, then go
     // back and restorecon everything recursively
-    if (strcmp(before, after)) {
+    if (inProgress || before != after) {
         ScopedTrace tracer("label-change");
         if (existing) {
             LOG(DEBUG) << "Detected label change from " << before << " to " << after << " at "
                     << path << "; running recursive restorecon";
         }
+
+        // Temporary mark the folder as "in-progress" to resume in case of reboot/other failure.
+        RestoreconInProgress fence(path);
+
         if (selinux_android_restorecon_pkgdir(path.c_str(), seInfo.c_str(), uid,
                 SELINUX_ANDROID_RESTORECON_RECURSE) < 0) {
             PLOG(ERROR) << "Failed recursive restorecon for " << path;
-            goto fail;
+            return -1;
         }
     }
 
-    goto done;
-fail:
-    res = -1;
-done:
-    free(before);
-    free(after);
-    return res;
+    return 0;
 }
 static bool internal_storage_has_project_id() {
     // The following path is populated in setFirstBoot, so if this file is present
@@ -3283,7 +3326,7 @@ binder::Status InstalldNativeService::linkNativeLibraryDirectory(
     }
 
     char *con = nullptr;
-    if (lgetfilecon(pkgdir, &con) < 0) {
+    if (::lgetfilecon(pkgdir, &con) < 0) {
         return error("Failed to lgetfilecon " + _pkgdir);
     }
 

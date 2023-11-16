@@ -30,6 +30,7 @@
 #include <gmock/gmock.h>
 #pragma clang diagnostic pop
 
+#include <common/FlagManager.h>
 #include <gui/LayerMetadata.h>
 #include <log/log.h>
 #include <chrono>
@@ -38,7 +39,6 @@
 #include "DisplayHardware/HWComposer.h"
 #include "DisplayHardware/Hal.h"
 #include "DisplayIdentificationTestHelpers.h"
-#include "FlagManager.h"
 #include "FlagUtils.h"
 #include "mock/DisplayHardware/MockComposer.h"
 #include "mock/DisplayHardware/MockHWC2.h"

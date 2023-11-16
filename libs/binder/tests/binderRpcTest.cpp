@@ -1159,7 +1159,7 @@ bool testSupportVsockLoopback() {
         return false;
     }
 
-    LOG_ALWAYS_FATAL_IF(serverFd == -1, "Could not create socket: %s", strerror(errno));
+    LOG_ALWAYS_FATAL_IF(!serverFd.ok(), "Could not create socket: %s", strerror(errno));
 
     sockaddr_vm serverAddr{
             .svm_family = AF_VSOCK,
@@ -1181,7 +1181,7 @@ bool testSupportVsockLoopback() {
     // and they return ETIMEDOUT after that.
     android::base::unique_fd connectFd(
             TEMP_FAILURE_RETRY(socket(AF_VSOCK, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0)));
-    LOG_ALWAYS_FATAL_IF(connectFd == -1, "Could not create socket for port %u: %s", vsockPort,
+    LOG_ALWAYS_FATAL_IF(!connectFd.ok(), "Could not create socket for port %u: %s", vsockPort,
                         strerror(errno));
 
     bool success = false;

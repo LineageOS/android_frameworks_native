@@ -138,6 +138,7 @@ public:
         ui::Dataspace dataspace;
 
         uint64_t frameNumber;
+        uint64_t previousFrameNumber;
         // high watermark framenumber to use to check for barriers to protect ourselves
         // from out of order transactions
         uint64_t barrierFrameNumber;

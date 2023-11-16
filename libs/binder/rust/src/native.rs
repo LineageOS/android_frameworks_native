@@ -25,6 +25,7 @@ use crate::sys;
 use std::convert::TryFrom;
 use std::ffi::{c_void, CStr, CString};
 use std::fs::File;
+use std::io::Write;
 use std::mem::ManuallyDrop;
 use std::ops::Deref;
 use std::os::raw::c_char;
@@ -341,7 +342,7 @@ impl<T: Remotable> InterfaceClassMethods for Binder<T> {
         }
         // Safety: Our caller promised that fd is a file descriptor. We don't
         // own this file descriptor, so we need to be careful not to drop it.
-        let file = unsafe { ManuallyDrop::new(File::from_raw_fd(fd)) };
+        let mut file = unsafe { ManuallyDrop::new(File::from_raw_fd(fd)) };
 
         if args.is_null() && num_args != 0 {
             return StatusCode::UNEXPECTED_NULL as status_t;
@@ -366,7 +367,7 @@ impl<T: Remotable> InterfaceClassMethods for Binder<T> {
         // Safety: Our caller promised that the binder has a `T` pointer in its
         // user data.
         let binder: &T = unsafe { &*(object as *const T) };
-        let res = binder.on_dump(&file, &args);
+        let res = binder.on_dump(&mut *file, &args);
 
         match res {
             Ok(()) => 0,
@@ -569,7 +570,7 @@ impl Remotable for () {
         Ok(())
     }
 
-    fn on_dump(&self, _file: &File, _args: &[&CStr]) -> Result<()> {
+    fn on_dump(&self, _writer: &mut dyn Write, _args: &[&CStr]) -> Result<()> {
         Ok(())
     }
 
