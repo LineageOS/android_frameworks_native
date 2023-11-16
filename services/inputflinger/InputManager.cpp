@@ -42,6 +42,7 @@ const bool ENABLE_INPUT_DEVICE_USAGE_METRICS =
         sysprop::InputProperties::enable_input_device_usage_metrics().value_or(true);
 
 const bool ENABLE_POINTER_CHOREOGRAPHER = input_flags::enable_pointer_choreographer();
+const bool ENABLE_INPUT_FILTER_RUST = input_flags::enable_input_filter_rust_impl();
 
 int32_t exceptionCodeFromStatusT(status_t status) {
     switch (status) {
@@ -118,6 +119,7 @@ std::shared_ptr<IInputFlingerRust> createInputFlingerRust() {
  * The event flow is via the "InputListener" interface, as follows:
  *   InputReader
  *     -> UnwantedInteractionBlocker
+ *     -> InputFilter
  *     -> PointerChoreographer
  *     -> InputProcessor
  *     -> InputDeviceMetricsCollector
@@ -131,6 +133,12 @@ InputManager::InputManager(const sp<InputReaderPolicyInterface>& readerPolicy,
     mDispatcher = createInputDispatcher(dispatcherPolicy);
     mTracingStages.emplace_back(
             std::make_unique<TracedInputListener>("InputDispatcher", *mDispatcher));
+
+    if (ENABLE_INPUT_FILTER_RUST) {
+        mInputFilter = std::make_unique<InputFilter>(*mTracingStages.back(), *mInputFlingerRust);
+        mTracingStages.emplace_back(
+                std::make_unique<TracedInputListener>("InputFilter", *mInputFilter));
+    }
 
     if (ENABLE_INPUT_DEVICE_USAGE_METRICS) {
         mCollector = std::make_unique<InputDeviceMetricsCollector>(*mTracingStages.back());

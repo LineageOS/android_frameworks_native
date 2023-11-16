@@ -19,13 +19,19 @@
 //! We use cxxbridge to create IInputFlingerRust - the Rust component of inputflinger - and
 //! pass it back to C++ as a local AIDL interface.
 
+mod input_filter;
+
+use crate::input_filter::InputFilter;
 use binder::{
-    unstable_api::{AIBinder, new_spibinder,},
+    unstable_api::{new_spibinder, AIBinder},
     BinderFeatures, Interface, StatusCode, Strong,
 };
-use com_android_server_inputflinger::aidl::com::android::server::inputflinger::IInputFlingerRust::{
-    BnInputFlingerRust, IInputFlingerRust,
-    IInputFlingerRustBootstrapCallback::IInputFlingerRustBootstrapCallback,
+use com_android_server_inputflinger::aidl::com::android::server::inputflinger::{
+    IInputFilter::{BnInputFilter, IInputFilter, IInputFilterCallbacks::IInputFilterCallbacks},
+    IInputFlingerRust::{
+        BnInputFlingerRust, IInputFlingerRust,
+        IInputFlingerRustBootstrapCallback::IInputFlingerRustBootstrapCallback,
+    },
 };
 use log::debug;
 
@@ -71,8 +77,8 @@ unsafe fn create_inputflinger_rust(callback: *mut ffi::IInputFlingerRustBootstra
     // SAFETY: Our caller guaranteed that `callback` is a valid pointer to an `AIBinder` and its
     // reference count has been incremented..
     let Some(callback) = (unsafe { new_spibinder(callback) }) else {
-            panic!("Failed to get SpAIBinder from raw callback pointer");
-        };
+        panic!("Failed to get SpAIBinder from raw callback pointer");
+    };
 
     let callback: Result<Strong<dyn IInputFlingerRustBootstrapCallback>, StatusCode> =
         callback.into_interface();
@@ -93,7 +99,19 @@ struct InputFlingerRust {}
 
 impl Interface for InputFlingerRust {}
 
-impl IInputFlingerRust for InputFlingerRust {}
+impl IInputFlingerRust for InputFlingerRust {
+    fn createInputFilter(
+        &self,
+        callbacks: &Strong<dyn IInputFilterCallbacks>,
+    ) -> binder::Result<Strong<dyn IInputFilter>> {
+        debug!("Creating InputFilter");
+        let filter = BnInputFilter::new_binder(
+            InputFilter::new(callbacks.clone()),
+            BinderFeatures::default(),
+        );
+        Result::Ok(filter)
+    }
+}
 
 impl Drop for InputFlingerRust {
     fn drop(&mut self) {
