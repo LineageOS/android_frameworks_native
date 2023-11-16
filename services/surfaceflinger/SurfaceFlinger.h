@@ -531,7 +531,7 @@ private:
             const sp<IBinder>& layerHandle = nullptr);
 
     void captureDisplay(const DisplayCaptureArgs&, const sp<IScreenCaptureListener>&);
-    void captureDisplay(DisplayId, const sp<IScreenCaptureListener>&);
+    void captureDisplay(DisplayId, const CaptureArgs&, const sp<IScreenCaptureListener>&);
     void captureLayers(const LayerCaptureArgs&, const sp<IScreenCaptureListener>&);
 
     status_t getDisplayStats(const sp<IBinder>& displayToken, DisplayStatInfo* stats);
@@ -1508,7 +1508,8 @@ public:
     binder::Status setGameContentType(const sp<IBinder>& display, bool on) override;
     binder::Status captureDisplay(const DisplayCaptureArgs&,
                                   const sp<IScreenCaptureListener>&) override;
-    binder::Status captureDisplayById(int64_t, const sp<IScreenCaptureListener>&) override;
+    binder::Status captureDisplayById(int64_t, const CaptureArgs&,
+                                      const sp<IScreenCaptureListener>&) override;
     binder::Status captureLayers(const LayerCaptureArgs&,
                                  const sp<IScreenCaptureListener>&) override;
 

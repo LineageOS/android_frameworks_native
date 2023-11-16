@@ -7579,7 +7579,7 @@ void SurfaceFlinger::captureDisplay(const DisplayCaptureArgs& args,
                         args.allowProtected, args.grayscale, captureListener);
 }
 
-void SurfaceFlinger::captureDisplay(DisplayId displayId,
+void SurfaceFlinger::captureDisplay(DisplayId displayId, const CaptureArgs& args,
                                     const sp<IScreenCaptureListener>& captureListener) {
     ui::LayerStack layerStack;
     wp<const DisplayDevice> displayWeak;
@@ -7598,10 +7598,23 @@ void SurfaceFlinger::captureDisplay(DisplayId displayId,
         size = display->getLayerStackSpaceRect().getSize();
     }
 
+    size.width *= args.frameScaleX;
+    size.height *= args.frameScaleY;
+
+    // We could query a real value for this but it'll be a long, long time until we support
+    // displays that need upwards of 1GB per buffer so...
+    constexpr auto kMaxTextureSize = 16384;
+    if (size.width <= 0 || size.height <= 0 || size.width >= kMaxTextureSize ||
+        size.height >= kMaxTextureSize) {
+        ALOGE("capture display resolved to invalid size %d x %d", size.width, size.height);
+        invokeScreenCaptureError(BAD_VALUE, captureListener);
+        return;
+    }
+
     RenderAreaFuture renderAreaFuture = ftl::defer([=] {
-        return DisplayRenderArea::create(displayWeak, Rect(), size, ui::Dataspace::UNKNOWN,
+        return DisplayRenderArea::create(displayWeak, Rect(), size, args.dataspace,
                                          false /* useIdentityTransform */,
-                                         false /* hintForSeamlessTransition */,
+                                         args.hintForSeamlessTransition,
                                          false /* captureSecureLayers */);
     });
 
@@ -7625,8 +7638,8 @@ void SurfaceFlinger::captureDisplay(DisplayId displayId,
     constexpr bool kAllowProtected = false;
     constexpr bool kGrayscale = false;
 
-    captureScreenCommon(std::move(renderAreaFuture), getLayerSnapshots, size,
-                        ui::PixelFormat::RGBA_8888, kAllowProtected, kGrayscale, captureListener);
+    captureScreenCommon(std::move(renderAreaFuture), getLayerSnapshots, size, args.pixelFormat,
+                        kAllowProtected, kGrayscale, captureListener);
 }
 
 void SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
@@ -9425,13 +9438,14 @@ binder::Status SurfaceComposerAIDL::captureDisplay(
 }
 
 binder::Status SurfaceComposerAIDL::captureDisplayById(
-        int64_t displayId, const sp<IScreenCaptureListener>& captureListener) {
+        int64_t displayId, const CaptureArgs& args,
+        const sp<IScreenCaptureListener>& captureListener) {
     // status_t status;
     IPCThreadState* ipc = IPCThreadState::self();
     const int uid = ipc->getCallingUid();
     if (uid == AID_ROOT || uid == AID_GRAPHICS || uid == AID_SYSTEM || uid == AID_SHELL) {
         std::optional<DisplayId> id = DisplayId::fromValue(static_cast<uint64_t>(displayId));
-        mFlinger->captureDisplay(*id, captureListener);
+        mFlinger->captureDisplay(*id, args, captureListener);
     } else {
         invokeScreenCaptureError(PERMISSION_DENIED, captureListener);
     }

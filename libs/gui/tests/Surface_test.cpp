@@ -786,7 +786,8 @@ public:
         return binder::Status::ok();
     }
 
-    binder::Status captureDisplayById(int64_t, const sp<IScreenCaptureListener>&) override {
+    binder::Status captureDisplayById(int64_t, const gui::CaptureArgs&,
+                                      const sp<IScreenCaptureListener>&) override {
         return binder::Status::ok();
     }
 

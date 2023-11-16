@@ -100,8 +100,8 @@ public:
     MOCK_METHOD(binder::Status, setGameContentType, (const sp<IBinder>&, bool), (override));
     MOCK_METHOD(binder::Status, captureDisplay,
                 (const DisplayCaptureArgs&, const sp<IScreenCaptureListener>&), (override));
-    MOCK_METHOD(binder::Status, captureDisplayById, (int64_t, const sp<IScreenCaptureListener>&),
-                (override));
+    MOCK_METHOD(binder::Status, captureDisplayById,
+                (int64_t, const gui::CaptureArgs&, const sp<IScreenCaptureListener>&), (override));
     MOCK_METHOD(binder::Status, captureLayers,
                 (const LayerCaptureArgs&, const sp<IScreenCaptureListener>&), (override));
     MOCK_METHOD(binder::Status, clearAnimationFrameStats, (), (override));
