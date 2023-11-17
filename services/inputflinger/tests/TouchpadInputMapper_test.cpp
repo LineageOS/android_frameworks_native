@@ -176,6 +176,8 @@ protected:
     }
 };
 
+// TODO(b/311416205): De-duplicate the test cases after the refactoring is complete and the flagging
+//   logic can be removed.
 /**
  * Start moving the finger and then click the left touchpad button. Check whether HOVER_EXIT is
  * generated when hovering stops. Currently, it is not.
