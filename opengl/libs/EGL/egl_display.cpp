@@ -64,11 +64,6 @@ bool findExtension(const char* exts, const char* name, size_t nameLen) {
     return false;
 }
 
-bool needsAndroidPEglMitigation() {
-    static const int32_t vndk_version = base::GetIntProperty("ro.vndk.version", -1);
-    return vndk_version <= 28;
-}
-
 int egl_get_init_count(EGLDisplay dpy) {
     egl_display_t* eglDisplay = egl_display_t::get(dpy);
     return eglDisplay ? eglDisplay->getRefsCount() : 0;
@@ -365,14 +360,6 @@ EGLBoolean egl_display_t::initialize(EGLint* major, EGLint* minor) {
             if (len) {
                 // NOTE: we could avoid the copy if we had strnstr.
                 const std::string ext(start, len);
-                // Mitigation for Android P vendor partitions: Adreno 530 driver shipped on
-                // some Android P vendor partitions this extension under the draft KHR name,
-                // but during Khronos review it was decided to demote it to EXT.
-                if (needsAndroidPEglMitigation() && ext == "EGL_EXT_image_gl_colorspace" &&
-                    findExtension(disp.queryString.extensions, "EGL_KHR_image_gl_colorspace")) {
-                    mExtensionString.append("EGL_EXT_image_gl_colorspace ");
-                }
-
                 if (findExtension(disp.queryString.extensions, ext.c_str(), len)) {
                     mExtensionString.append(ext + " ");
                 }
