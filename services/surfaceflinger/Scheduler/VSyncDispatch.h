@@ -35,7 +35,7 @@ enum class CancelResult { Cancelled, TooLate, Error };
  */
 class VSyncDispatch {
 public:
-    using CallbackToken = StrongTyping<size_t, class CallbackTokenTag, Compare, Hash>;
+    using CallbackToken = StrongTyping<size_t, class CallbackTokenTag, Compare>;
 
     virtual ~VSyncDispatch();
 
