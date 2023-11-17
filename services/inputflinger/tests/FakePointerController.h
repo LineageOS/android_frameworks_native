@@ -36,6 +36,8 @@ public:
     int32_t getDisplayId() const override;
     void setDisplayViewport(const DisplayViewport& viewport) override;
 
+    void assertViewportSet(int32_t displayId);
+    void assertViewportNotSet();
     void assertPosition(float x, float y);
     void assertSpotCount(int32_t displayId, int32_t count);
     bool isPointerShown();
@@ -54,7 +56,7 @@ private:
     bool mHaveBounds{false};
     float mMinX{0}, mMinY{0}, mMaxX{0}, mMaxY{0};
     float mX{0}, mY{0};
-    int32_t mDisplayId{ADISPLAY_ID_NONE};
+    std::optional<int32_t> mDisplayId;
     bool mIsPointerShown{false};
 
     std::map<int32_t, std::vector<int32_t>> mSpotsByDisplay;

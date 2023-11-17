@@ -246,7 +246,8 @@ TouchpadInputMapper::TouchpadInputMapper(InputDeviceContext& deviceContext,
         mStateConverter(deviceContext, mMotionAccumulator),
         mGestureConverter(*getContext(), deviceContext, getDeviceId()),
         mCapturedEventConverter(*getContext(), deviceContext, mMotionAccumulator, getDeviceId()),
-        mMetricsId(metricsIdFromInputDeviceIdentifier(deviceContext.getDeviceIdentifier())) {
+        mMetricsId(metricsIdFromInputDeviceIdentifier(deviceContext.getDeviceIdentifier())),
+        mEnablePointerChoreographer(input_flags::enable_pointer_choreographer()) {
     RawAbsoluteAxisInfo slotAxisInfo;
     deviceContext.getAbsoluteAxisInfo(ABS_MT_SLOT, &slotAxisInfo);
     if (!slotAxisInfo.valid || slotAxisInfo.maxValue <= 0) {
@@ -331,31 +332,56 @@ std::list<NotifyArgs> TouchpadInputMapper::reconfigure(nsecs_t when,
 
     if (!changes.any() || changes.test(InputReaderConfiguration::Change::DISPLAY_INFO)) {
         mDisplayId = ADISPLAY_ID_NONE;
-        if (auto viewport = mDeviceContext.getAssociatedViewport(); viewport) {
+        std::optional<DisplayViewport> resolvedViewport;
+        std::optional<FloatRect> boundsInLogicalDisplay;
+        if (auto assocViewport = mDeviceContext.getAssociatedViewport(); assocViewport) {
             // This InputDevice is associated with a viewport.
             // Only generate events for the associated display.
-            const bool mismatchedPointerDisplay =
-                    (viewport->displayId != mPointerController->getDisplayId());
-            if (mismatchedPointerDisplay) {
-                ALOGW("Touchpad \"%s\" associated viewport display does not match pointer "
-                      "controller",
-                      mDeviceContext.getName().c_str());
+            mDisplayId = assocViewport->displayId;
+            resolvedViewport = *assocViewport;
+            if (!mEnablePointerChoreographer) {
+                const bool mismatchedPointerDisplay =
+                        (assocViewport->displayId != mPointerController->getDisplayId());
+                if (mismatchedPointerDisplay) {
+                    ALOGW("Touchpad \"%s\" associated viewport display does not match pointer "
+                          "controller",
+                          mDeviceContext.getName().c_str());
+                    mDisplayId.reset();
+                }
             }
-            mDisplayId = mismatchedPointerDisplay ? std::nullopt
-                                                  : std::make_optional(viewport->displayId);
         } else {
             // The InputDevice is not associated with a viewport, but it controls the mouse pointer.
-            mDisplayId = mPointerController->getDisplayId();
-        }
-
-        ui::Rotation orientation = ui::ROTATION_0;
-        if (mDisplayId.has_value()) {
-            if (auto viewport = config.getDisplayViewportById(*mDisplayId); viewport) {
-                orientation = getInverseRotation(viewport->orientation);
+            if (mEnablePointerChoreographer) {
+                // Always use DISPLAY_ID_NONE for touchpad events.
+                // PointerChoreographer will make it target the correct the displayId later.
+                resolvedViewport =
+                        getContext()->getPolicy()->getPointerViewportForAssociatedDisplay();
+                mDisplayId = resolvedViewport ? std::make_optional(ADISPLAY_ID_NONE) : std::nullopt;
+            } else {
+                mDisplayId = mPointerController->getDisplayId();
+                if (auto v = config.getDisplayViewportById(*mDisplayId); v) {
+                    resolvedViewport = *v;
+                }
+                if (auto bounds = mPointerController->getBounds(); bounds) {
+                    boundsInLogicalDisplay = *bounds;
+                }
             }
         }
+
         mGestureConverter.setDisplayId(mDisplayId);
-        mGestureConverter.setOrientation(orientation);
+        mGestureConverter.setOrientation(resolvedViewport
+                                                 ? getInverseRotation(resolvedViewport->orientation)
+                                                 : ui::ROTATION_0);
+
+        if (!boundsInLogicalDisplay) {
+            boundsInLogicalDisplay = resolvedViewport
+                    ? FloatRect{static_cast<float>(resolvedViewport->logicalLeft),
+                                static_cast<float>(resolvedViewport->logicalTop),
+                                static_cast<float>(resolvedViewport->logicalRight - 1),
+                                static_cast<float>(resolvedViewport->logicalBottom - 1)}
+                    : FloatRect{0, 0, 0, 0};
+        }
+        mGestureConverter.setBoundsInLogicalDisplay(*boundsInLogicalDisplay);
     }
     if (!changes.any() || changes.test(InputReaderConfiguration::Change::TOUCHPAD_SETTINGS)) {
         mPropertyProvider.getProperty("Use Custom Touchpad Pointer Accel Curve")
