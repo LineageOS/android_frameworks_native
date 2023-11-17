@@ -492,6 +492,71 @@ inline WithKeyCodeMatcher WithKeyCode(int32_t keyCode) {
     return WithKeyCodeMatcher(keyCode);
 }
 
+/// EventId
+class WithEventIdMatcher {
+public:
+    using is_gtest_matcher = void;
+    explicit WithEventIdMatcher(int32_t eventId) : mEventId(eventId) {}
+
+    bool MatchAndExplain(const NotifyMotionArgs& args, std::ostream*) const {
+        return mEventId == args.id;
+    }
+
+    bool MatchAndExplain(const NotifyKeyArgs& args, std::ostream*) const {
+        return mEventId == args.id;
+    }
+
+    bool MatchAndExplain(const InputEvent& event, std::ostream*) const {
+        return mEventId == event.getId();
+    }
+
+    void DescribeTo(std::ostream* os) const { *os << "with eventId 0x" << std::hex << mEventId; }
+
+    void DescribeNegationTo(std::ostream* os) const {
+        *os << "with eventId not equal to 0x" << std::hex << mEventId;
+    }
+
+private:
+    const int32_t mEventId;
+};
+
+inline WithEventIdMatcher WithEventId(int32_t eventId) {
+    return WithEventIdMatcher(eventId);
+}
+
+/// EventIdSource
+class WithEventIdSourceMatcher {
+public:
+    using is_gtest_matcher = void;
+    explicit WithEventIdSourceMatcher(IdGenerator::Source eventIdSource)
+          : mEventIdSource(eventIdSource) {}
+
+    bool MatchAndExplain(const NotifyMotionArgs& args, std::ostream*) const {
+        return mEventIdSource == IdGenerator::getSource(args.id);
+    }
+
+    bool MatchAndExplain(const NotifyKeyArgs& args, std::ostream*) const {
+        return mEventIdSource == IdGenerator::getSource(args.id);
+    }
+
+    bool MatchAndExplain(const InputEvent& event, std::ostream*) const {
+        return mEventIdSource == IdGenerator::getSource(event.getId());
+    }
+
+    void DescribeTo(std::ostream* os) const {
+        *os << "with eventId from source 0x" << std::hex << ftl::to_underlying(mEventIdSource);
+    }
+
+    void DescribeNegationTo(std::ostream* os) const { *os << "wrong event from source"; }
+
+private:
+    const IdGenerator::Source mEventIdSource;
+};
+
+inline WithEventIdSourceMatcher WithEventIdSource(IdGenerator::Source eventIdSource) {
+    return WithEventIdSourceMatcher(eventIdSource);
+}
+
 MATCHER_P(WithRepeatCount, repeatCount, "KeyEvent with specified repeat count") {
     return arg.getRepeatCount() == repeatCount;
 }
