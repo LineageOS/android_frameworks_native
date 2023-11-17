@@ -18,20 +18,16 @@ class DisplayDevice;
 // physical render area.
 class RenderArea {
 public:
-    using RotationFlags = ui::Transform::RotationFlags;
-
     enum class CaptureFill {CLEAR, OPAQUE};
 
     static float getCaptureFillValue(CaptureFill captureFill);
 
     RenderArea(ui::Size reqSize, CaptureFill captureFill, ui::Dataspace reqDataSpace,
-               bool hintForSeamlessTransition, bool allowSecureLayers = false,
-               RotationFlags rotation = ui::Transform::ROT_0)
+               bool hintForSeamlessTransition, bool allowSecureLayers = false)
           : mAllowSecureLayers(allowSecureLayers),
             mReqSize(reqSize),
             mReqDataSpace(reqDataSpace),
             mCaptureFill(captureFill),
-            mRotationFlags(rotation),
             mHintForSeamlessTransition(hintForSeamlessTransition) {}
 
     static std::function<std::vector<std::pair<Layer*, sp<LayerFE>>>()> fromTraverseLayersLambda(
@@ -72,9 +68,6 @@ public:
     // on the display).
     virtual Rect getSourceCrop() const = 0;
 
-    // Returns the rotation of the source crop and the layers.
-    RotationFlags getRotationFlags() const { return mRotationFlags; }
-
     // Returns the size of the physical render area.
     int getReqWidth() const { return mReqSize.width; }
     int getReqHeight() const { return mReqSize.height; }
@@ -103,7 +96,6 @@ private:
     const ui::Size mReqSize;
     const ui::Dataspace mReqDataSpace;
     const CaptureFill mCaptureFill;
-    const RotationFlags mRotationFlags;
     const bool mHintForSeamlessTransition;
 };
 

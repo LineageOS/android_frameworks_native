@@ -7559,8 +7559,7 @@ void SurfaceFlinger::captureDisplay(const DisplayCaptureArgs& args,
 
     RenderAreaFuture renderAreaFuture = ftl::defer([=] {
         return DisplayRenderArea::create(displayWeak, args.sourceCrop, reqSize, args.dataspace,
-                                         args.useIdentityTransform, args.hintForSeamlessTransition,
-                                         args.captureSecureLayers);
+                                         args.hintForSeamlessTransition, args.captureSecureLayers);
     });
 
     GetLayerSnapshotsFunction getLayerSnapshots;
@@ -7613,7 +7612,6 @@ void SurfaceFlinger::captureDisplay(DisplayId displayId, const CaptureArgs& args
 
     RenderAreaFuture renderAreaFuture = ftl::defer([=] {
         return DisplayRenderArea::create(displayWeak, Rect(), size, args.dataspace,
-                                         false /* useIdentityTransform */,
                                          args.hintForSeamlessTransition,
                                          false /* captureSecureLayers */);
     });
