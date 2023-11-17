@@ -59,6 +59,7 @@ public:
     bool hotplug2() const;
     bool hdcp_level_hal() const;
     bool multithreaded_present() const;
+    bool add_sf_skipped_frames_to_trace() const;
 
 protected:
     // overridden for unit tests

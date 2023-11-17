@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include "FlagUtils.h"
+#include "com_android_graphics_surfaceflinger_flags.h"
 #include "gmock/gmock-spec-builders.h"
 #include "mock/MockTimeStats.h"
 #undef LOG_TAG
@@ -1059,6 +1061,9 @@ void validateTraceEvent(const ProtoFrameEnd& received, const ProtoFrameEnd& sour
 }
 
 TEST_F(FrameTimelineTest, traceDisplayFrameSkipped) {
+    SET_FLAG_FOR_TEST(com::android::graphics::surfaceflinger::flags::add_sf_skipped_frames_to_trace,
+                      true);
+
     // setup 2 display frames
     // DF 1: [22,40] -> [5, 40]
     // DF  : [36, 70] (Skipped one, added by the trace)
