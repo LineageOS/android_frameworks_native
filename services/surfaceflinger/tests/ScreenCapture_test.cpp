@@ -154,6 +154,133 @@ TEST_F(ScreenCaptureTest, CaptureChildSetParentFlagsSecureEUidSystem) {
     sc.expectColor(Rect(0, 0, 10, 10), Color::BLUE);
 }
 
+/**
+ * If a parent layer sets the secure flag, but the screenshot requests is for the child hierarchy,
+ * we need to ensure the secure flag is respected from the parent even though the parent isn't
+ * in the captured sub-hierarchy
+ */
+TEST_F(ScreenCaptureTest, CaptureChildRespectsParentSecureFlag) {
+    Rect size(0, 0, 100, 100);
+    Transaction().hide(mBGSurfaceControl).hide(mFGSurfaceControl).apply();
+    sp<SurfaceControl> parentLayer;
+    ASSERT_NO_FATAL_FAILURE(parentLayer = createLayer("parent-test", 0, 0,
+                                                      ISurfaceComposerClient::eHidden,
+                                                      mRootSurfaceControl.get()));
+
+    sp<SurfaceControl> childLayer;
+    ASSERT_NO_FATAL_FAILURE(childLayer = createLayer("child-test", 0, 0,
+                                                     ISurfaceComposerClient::eFXSurfaceBufferState,
+                                                     parentLayer.get()));
+    ASSERT_NO_FATAL_FAILURE(
+            fillBufferLayerColor(childLayer, Color::GREEN, size.width(), size.height()));
+
+    // hide the parent layer to ensure secure flag is passed down to child when screenshotting
+    Transaction().setLayer(parentLayer, INT32_MAX).show(childLayer).apply(true);
+    Transaction()
+            .setFlags(parentLayer, layer_state_t::eLayerSecure, layer_state_t::eLayerSecure)
+            .apply();
+    LayerCaptureArgs captureArgs;
+    captureArgs.layerHandle = childLayer->getHandle();
+    captureArgs.sourceCrop = size;
+    captureArgs.captureSecureLayers = false;
+    {
+        SCOPED_TRACE("parent hidden");
+        ASSERT_EQ(NO_ERROR, ScreenCapture::captureLayers(captureArgs, mCaptureResults));
+        ASSERT_TRUE(mCaptureResults.capturedSecureLayers);
+        ScreenCapture sc(mCaptureResults.buffer, mCaptureResults.capturedHdrLayers);
+        sc.expectColor(size, Color::BLACK);
+    }
+
+    captureArgs.captureSecureLayers = true;
+    {
+        SCOPED_TRACE("capture secure parent not visible");
+        ASSERT_EQ(NO_ERROR, ScreenCapture::captureLayers(captureArgs, mCaptureResults));
+        ASSERT_TRUE(mCaptureResults.capturedSecureLayers);
+        ScreenCapture sc(mCaptureResults.buffer, mCaptureResults.capturedHdrLayers);
+        sc.expectColor(size, Color::GREEN);
+    }
+
+    Transaction().show(parentLayer).apply();
+    captureArgs.captureSecureLayers = false;
+    {
+        SCOPED_TRACE("parent visible");
+        ASSERT_EQ(NO_ERROR, ScreenCapture::captureLayers(captureArgs, mCaptureResults));
+        ASSERT_TRUE(mCaptureResults.capturedSecureLayers);
+        ScreenCapture sc(mCaptureResults.buffer, mCaptureResults.capturedHdrLayers);
+        sc.expectColor(size, Color::BLACK);
+    }
+
+    captureArgs.captureSecureLayers = true;
+    {
+        SCOPED_TRACE("capture secure parent visible");
+        ASSERT_EQ(NO_ERROR, ScreenCapture::captureLayers(captureArgs, mCaptureResults));
+        ASSERT_TRUE(mCaptureResults.capturedSecureLayers);
+        ScreenCapture sc(mCaptureResults.buffer, mCaptureResults.capturedHdrLayers);
+        sc.expectColor(size, Color::GREEN);
+    }
+}
+
+TEST_F(ScreenCaptureTest, CaptureOffscreenChildRespectsParentSecureFlag) {
+    Rect size(0, 0, 100, 100);
+    Transaction().hide(mBGSurfaceControl).hide(mFGSurfaceControl).apply();
+    // Parent layer should be offscreen.
+    sp<SurfaceControl> parentLayer;
+    ASSERT_NO_FATAL_FAILURE(
+            parentLayer = createLayer("parent-test", 0, 0, ISurfaceComposerClient::eHidden));
+
+    sp<SurfaceControl> childLayer;
+    ASSERT_NO_FATAL_FAILURE(childLayer = createLayer("child-test", 0, 0,
+                                                     ISurfaceComposerClient::eFXSurfaceBufferState,
+                                                     parentLayer.get()));
+    ASSERT_NO_FATAL_FAILURE(
+            fillBufferLayerColor(childLayer, Color::GREEN, size.width(), size.height()));
+
+    // hide the parent layer to ensure secure flag is passed down to child when screenshotting
+    Transaction().setLayer(parentLayer, INT32_MAX).show(childLayer).apply(true);
+    Transaction()
+            .setFlags(parentLayer, layer_state_t::eLayerSecure, layer_state_t::eLayerSecure)
+            .apply();
+    LayerCaptureArgs captureArgs;
+    captureArgs.layerHandle = childLayer->getHandle();
+    captureArgs.sourceCrop = size;
+    captureArgs.captureSecureLayers = false;
+    {
+        SCOPED_TRACE("parent hidden");
+        ASSERT_EQ(NO_ERROR, ScreenCapture::captureLayers(captureArgs, mCaptureResults));
+        ASSERT_TRUE(mCaptureResults.capturedSecureLayers);
+        ScreenCapture sc(mCaptureResults.buffer, mCaptureResults.capturedHdrLayers);
+        sc.expectColor(size, Color::BLACK);
+    }
+
+    captureArgs.captureSecureLayers = true;
+    {
+        SCOPED_TRACE("capture secure parent not visible");
+        ASSERT_EQ(NO_ERROR, ScreenCapture::captureLayers(captureArgs, mCaptureResults));
+        ASSERT_TRUE(mCaptureResults.capturedSecureLayers);
+        ScreenCapture sc(mCaptureResults.buffer, mCaptureResults.capturedHdrLayers);
+        sc.expectColor(size, Color::GREEN);
+    }
+
+    Transaction().show(parentLayer).apply();
+    captureArgs.captureSecureLayers = false;
+    {
+        SCOPED_TRACE("parent visible");
+        ASSERT_EQ(NO_ERROR, ScreenCapture::captureLayers(captureArgs, mCaptureResults));
+        ASSERT_TRUE(mCaptureResults.capturedSecureLayers);
+        ScreenCapture sc(mCaptureResults.buffer, mCaptureResults.capturedHdrLayers);
+        sc.expectColor(size, Color::BLACK);
+    }
+
+    captureArgs.captureSecureLayers = true;
+    {
+        SCOPED_TRACE("capture secure parent visible");
+        ASSERT_EQ(NO_ERROR, ScreenCapture::captureLayers(captureArgs, mCaptureResults));
+        ASSERT_TRUE(mCaptureResults.capturedSecureLayers);
+        ScreenCapture sc(mCaptureResults.buffer, mCaptureResults.capturedHdrLayers);
+        sc.expectColor(size, Color::GREEN);
+    }
+}
+
 TEST_F(ScreenCaptureTest, CaptureSingleLayer) {
     LayerCaptureArgs captureArgs;
     captureArgs.layerHandle = mBGSurfaceControl->getHandle();
