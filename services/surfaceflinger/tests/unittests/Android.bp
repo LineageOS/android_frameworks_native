@@ -129,7 +129,6 @@ cc_test {
         "TransactionTraceWriterTest.cpp",
         "TransactionTracingTest.cpp",
         "TunnelModeEnabledReporterTest.cpp",
-        "StrongTypingTest.cpp",
         "VSyncCallbackRegistrationTest.cpp",
         "VSyncDispatchTimerQueueTest.cpp",
         "VSyncDispatchRealtimeTest.cpp",

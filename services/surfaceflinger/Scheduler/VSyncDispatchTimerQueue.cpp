@@ -352,7 +352,7 @@ VSyncDispatchTimerQueue::CallbackToken VSyncDispatchTimerQueue::registerCallback
         Callback callback, std::string callbackName) {
     std::lock_guard lock(mMutex);
     return mCallbacks
-            .try_emplace(CallbackToken{++mCallbackToken},
+            .try_emplace(++mCallbackToken,
                          std::make_shared<VSyncDispatchTimerQueueEntry>(std::move(callbackName),
                                                                         std::move(callback),
                                                                         mMinVsyncDistance))
