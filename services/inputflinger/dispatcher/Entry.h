@@ -50,7 +50,7 @@ struct EventEntry {
     uint32_t policyFlags;
     std::shared_ptr<InjectionState> injectionState;
 
-    bool dispatchInProgress; // initially false, set to true while dispatching
+    mutable bool dispatchInProgress; // initially false, set to true while dispatching
 
     /**
      * Injected keys are events from an external (probably untrusted) application
@@ -72,6 +72,8 @@ struct EventEntry {
     virtual std::string getDescription() const = 0;
 
     EventEntry(int32_t id, Type type, nsecs_t eventTime, uint32_t policyFlags);
+    EventEntry(const EventEntry&) = delete;
+    EventEntry& operator=(const EventEntry&) = delete;
     virtual ~EventEntry() = default;
 };
 
@@ -119,11 +121,9 @@ struct KeyEntry : EventEntry {
     uint32_t source;
     int32_t displayId;
     int32_t action;
-    int32_t flags;
     int32_t keyCode;
     int32_t scanCode;
     int32_t metaState;
-    int32_t repeatCount;
     nsecs_t downTime;
 
     bool syntheticRepeat; // set to true for synthetic key repeats
@@ -134,8 +134,11 @@ struct KeyEntry : EventEntry {
         CONTINUE,
         TRY_AGAIN_LATER,
     };
-    InterceptKeyResult interceptKeyResult; // set based on the interception result
-    nsecs_t interceptKeyWakeupTime;        // used with INTERCEPT_KEY_RESULT_TRY_AGAIN_LATER
+    // These are special fields that may need to be modified while the event is being dispatched.
+    mutable InterceptKeyResult interceptKeyResult; // set based on the interception result
+    mutable nsecs_t interceptKeyWakeupTime;        // used with INTERCEPT_KEY_RESULT_TRY_AGAIN_LATER
+    mutable int32_t flags;
+    mutable int32_t repeatCount;
 
     KeyEntry(int32_t id, std::shared_ptr<InjectionState> injectionState, nsecs_t eventTime,
              int32_t deviceId, uint32_t source, int32_t displayId, uint32_t policyFlags,
@@ -206,7 +209,7 @@ struct TouchModeEntry : EventEntry {
 struct DispatchEntry {
     const uint32_t seq; // unique sequence number, never 0
 
-    std::shared_ptr<EventEntry> eventEntry; // the event to dispatch
+    std::shared_ptr<const EventEntry> eventEntry; // the event to dispatch
     const ftl::Flags<InputTarget::Flags> targetFlags;
     ui::Transform transform;
     ui::Transform rawTransform;
@@ -217,12 +220,9 @@ struct DispatchEntry {
     // An ANR will be triggered if a response for this entry is not received by timeoutTime
     nsecs_t timeoutTime;
 
-    // Set to the resolved ID, action and flags when the event is enqueued.
-    int32_t resolvedEventId;
-    int32_t resolvedAction;
     int32_t resolvedFlags;
 
-    DispatchEntry(std::shared_ptr<EventEntry> eventEntry,
+    DispatchEntry(std::shared_ptr<const EventEntry> eventEntry,
                   ftl::Flags<InputTarget::Flags> targetFlags, const ui::Transform& transform,
                   const ui::Transform& rawTransform, float globalScaleFactor);
     DispatchEntry(const DispatchEntry&) = delete;

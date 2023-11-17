@@ -41,16 +41,15 @@ public:
     // Records tracking information for a key event that has just been published.
     // Returns true if the event should be delivered, false if it is inconsistent
     // and should be skipped.
-    bool trackKey(const KeyEntry& entry, int32_t action, int32_t flags);
+    bool trackKey(const KeyEntry& entry, int32_t flags);
 
     // Records tracking information for a motion event that has just been published.
     // Returns true if the event should be delivered, false if it is inconsistent
     // and should be skipped.
-    bool trackMotion(const MotionEntry& entry, int32_t action, int32_t flags);
+    bool trackMotion(const MotionEntry& entry, int32_t flags);
 
     // Create cancel events for the previous stream if the current motionEntry requires it.
-    std::unique_ptr<EventEntry> cancelConflictingInputStream(const MotionEntry& motionEntry,
-                                                             int32_t resolvedAction);
+    std::unique_ptr<EventEntry> cancelConflictingInputStream(const MotionEntry& motionEntry);
 
     // Synthesizes cancelation events for the current state and resets the tracked state.
     std::vector<std::unique_ptr<EventEntry>> synthesizeCancelationEvents(
@@ -127,7 +126,7 @@ private:
 
     static bool shouldCancelKey(const KeyMemento& memento, const CancelationOptions& options);
     static bool shouldCancelMotion(const MotionMemento& memento, const CancelationOptions& options);
-    bool shouldCancelPreviousStream(const MotionEntry& motionEntry, int32_t resolvedAction) const;
+    bool shouldCancelPreviousStream(const MotionEntry& motionEntry) const;
     std::unique_ptr<MotionEntry> createCancelEntryForMemento(const MotionMemento& memento,
                                                              nsecs_t eventTime) const;
 
