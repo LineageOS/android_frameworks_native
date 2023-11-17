@@ -209,10 +209,7 @@ impl InputVerifier {
 
         match action.into() {
             MotionAction::Down => {
-                let it = self
-                    .touching_pointer_ids_by_device
-                    .entry(device_id)
-                    .or_insert_with(HashSet::new);
+                let it = self.touching_pointer_ids_by_device.entry(device_id).or_default();
                 let pointer_id = pointer_properties[0].id;
                 if it.contains(&pointer_id) {
                     return Err(format!(
