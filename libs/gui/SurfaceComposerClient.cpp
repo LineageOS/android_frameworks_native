@@ -3122,12 +3122,12 @@ status_t ScreenshotClient::captureDisplay(const DisplayCaptureArgs& captureArgs,
     return statusTFromBinderStatus(status);
 }
 
-status_t ScreenshotClient::captureDisplay(DisplayId displayId,
+status_t ScreenshotClient::captureDisplay(DisplayId displayId, const gui::CaptureArgs& captureArgs,
                                           const sp<IScreenCaptureListener>& captureListener) {
     sp<gui::ISurfaceComposer> s(ComposerServiceAIDL::getComposerService());
     if (s == nullptr) return NO_INIT;
 
-    binder::Status status = s->captureDisplayById(displayId.value, captureListener);
+    binder::Status status = s->captureDisplayById(displayId.value, captureArgs, captureListener);
     return statusTFromBinderStatus(status);
 }
 

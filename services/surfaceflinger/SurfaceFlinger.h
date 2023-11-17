@@ -531,7 +531,7 @@ private:
             const sp<IBinder>& layerHandle = nullptr);
 
     void captureDisplay(const DisplayCaptureArgs&, const sp<IScreenCaptureListener>&);
-    void captureDisplay(DisplayId, const sp<IScreenCaptureListener>&);
+    void captureDisplay(DisplayId, const CaptureArgs&, const sp<IScreenCaptureListener>&);
     void captureLayers(const LayerCaptureArgs&, const sp<IScreenCaptureListener>&);
 
     status_t getDisplayStats(const sp<IBinder>& displayToken, DisplayStatInfo* stats);
@@ -1462,6 +1462,7 @@ private:
     void sfdo_setDebugFlash(int delay);
     void sfdo_scheduleComposite();
     void sfdo_scheduleCommit();
+    void sfdo_forceClientComposition(bool enabled);
 };
 
 class SurfaceComposerAIDL : public gui::BnSurfaceComposer {
@@ -1507,7 +1508,8 @@ public:
     binder::Status setGameContentType(const sp<IBinder>& display, bool on) override;
     binder::Status captureDisplay(const DisplayCaptureArgs&,
                                   const sp<IScreenCaptureListener>&) override;
-    binder::Status captureDisplayById(int64_t, const sp<IScreenCaptureListener>&) override;
+    binder::Status captureDisplayById(int64_t, const CaptureArgs&,
+                                      const sp<IScreenCaptureListener>&) override;
     binder::Status captureLayers(const LayerCaptureArgs&,
                                  const sp<IScreenCaptureListener>&) override;
 
@@ -1572,6 +1574,7 @@ public:
     binder::Status setDebugFlash(int delay) override;
     binder::Status scheduleComposite() override;
     binder::Status scheduleCommit() override;
+    binder::Status forceClientComposition(bool enabled) override;
     binder::Status updateSmallAreaDetection(const std::vector<int32_t>& appIds,
                                             const std::vector<float>& thresholds) override;
     binder::Status setSmallAreaDetectionThreshold(int32_t appId, float threshold) override;

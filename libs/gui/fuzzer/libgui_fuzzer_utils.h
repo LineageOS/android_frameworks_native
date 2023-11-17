@@ -100,8 +100,8 @@ public:
     MOCK_METHOD(binder::Status, setGameContentType, (const sp<IBinder>&, bool), (override));
     MOCK_METHOD(binder::Status, captureDisplay,
                 (const DisplayCaptureArgs&, const sp<IScreenCaptureListener>&), (override));
-    MOCK_METHOD(binder::Status, captureDisplayById, (int64_t, const sp<IScreenCaptureListener>&),
-                (override));
+    MOCK_METHOD(binder::Status, captureDisplayById,
+                (int64_t, const gui::CaptureArgs&, const sp<IScreenCaptureListener>&), (override));
     MOCK_METHOD(binder::Status, captureLayers,
                 (const LayerCaptureArgs&, const sp<IScreenCaptureListener>&), (override));
     MOCK_METHOD(binder::Status, clearAnimationFrameStats, (), (override));
@@ -154,6 +154,7 @@ public:
     MOCK_METHOD(binder::Status, setDebugFlash, (int), (override));
     MOCK_METHOD(binder::Status, scheduleComposite, (), (override));
     MOCK_METHOD(binder::Status, scheduleCommit, (), (override));
+    MOCK_METHOD(binder::Status, forceClientComposition, (bool), (override));
     MOCK_METHOD(binder::Status, updateSmallAreaDetection,
                 (const std::vector<int32_t>&, const std::vector<float>&), (override));
     MOCK_METHOD(binder::Status, setSmallAreaDetectionThreshold, (int32_t, float), (override));

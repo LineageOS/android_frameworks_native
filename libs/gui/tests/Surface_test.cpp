@@ -786,7 +786,8 @@ public:
         return binder::Status::ok();
     }
 
-    binder::Status captureDisplayById(int64_t, const sp<IScreenCaptureListener>&) override {
+    binder::Status captureDisplayById(int64_t, const gui::CaptureArgs&,
+                                      const sp<IScreenCaptureListener>&) override {
         return binder::Status::ok();
     }
 
@@ -933,6 +934,10 @@ public:
     binder::Status scheduleComposite() override { return binder::Status::ok(); }
 
     binder::Status scheduleCommit() override { return binder::Status::ok(); }
+
+    binder::Status forceClientComposition(bool /*enabled*/) override {
+        return binder::Status::ok();
+    }
 
     binder::Status updateSmallAreaDetection(const std::vector<int32_t>& /*appIds*/,
                                             const std::vector<float>& /*thresholds*/) {

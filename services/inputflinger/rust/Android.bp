@@ -31,8 +31,8 @@ genrule {
     out: ["inputflinger_bootstrap.rs.h"],
 }
 
-rust_ffi_static {
-    name: "libinputflinger_rs",
+rust_defaults {
+    name: "libinputflinger_rs_defaults",
     crate_name: "inputflinger",
     srcs: ["lib.rs"],
     rustlibs: [
@@ -43,6 +43,24 @@ rust_ffi_static {
         "liblogger",
     ],
     host_supported: true,
+}
+
+rust_ffi_static {
+    name: "libinputflinger_rs",
+    defaults: ["libinputflinger_rs_defaults"],
+}
+
+rust_test {
+    name: "libinputflinger_rs_test",
+    defaults: ["libinputflinger_rs_defaults"],
+    test_options: {
+        unit_test: true,
+    },
+    test_suites: ["device_tests"],
+    sanitize: {
+        address: true,
+        hwaddress: true,
+    },
 }
 
 cc_library_headers {

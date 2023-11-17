@@ -62,3 +62,10 @@ flag {
   description: "Disable touch rejection when the stylus hovers the screen"
   bug: "301216095"
 }
+
+flag {
+  name: "enable_input_filter_rust_impl"
+  namespace: "input"
+  description: "Enable input filter rust implementation"
+  bug: "294546335"
+}
