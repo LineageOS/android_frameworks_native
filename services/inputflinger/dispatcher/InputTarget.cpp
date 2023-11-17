@@ -95,6 +95,7 @@ std::ostream& operator<<(std::ostream& out, const InputTarget& target) {
     } else {
         out << "<null>";
     }
+    out << ", dispatchMode=" << ftl::enum_string(target.dispatchMode).c_str();
     out << ", targetFlags=" << target.flags.string();
     out << ", pointers=" << target.getPointerInfoString();
     out << "}";

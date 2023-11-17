@@ -44,6 +44,7 @@ struct TouchState {
     void removeTouchingPointerFromWindow(DeviceId deviceId, int32_t pointerId,
                                          const sp<android::gui::WindowInfoHandle>& windowHandle);
     void addOrUpdateWindow(const sp<android::gui::WindowInfoHandle>& windowHandle,
+                           InputTarget::DispatchMode dispatchMode,
                            ftl::Flags<InputTarget::Flags> targetFlags, DeviceId deviceId,
                            std::bitset<MAX_POINTER_ID + 1> touchingPointerIds,
                            std::optional<nsecs_t> firstDownTimeInTarget = std::nullopt);
@@ -54,7 +55,6 @@ struct TouchState {
 
     void removeAllPointersForDevice(DeviceId deviceId);
     void removeWindowByToken(const sp<IBinder>& token);
-    void filterNonAsIsTouchWindows();
 
     // Cancel pointers for current set of windows except the window with particular binder token.
     void cancelPointersForWindowsExcept(DeviceId deviceId,
