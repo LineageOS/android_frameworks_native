@@ -111,8 +111,6 @@ void CompositionEngine::present(CompositionRefreshArgs& args) {
 }
 
 void CompositionEngine::updateCursorAsync(CompositionRefreshArgs& args) {
-    std::unordered_map<compositionengine::LayerFE*, compositionengine::LayerFECompositionState*>
-            uniqueVisibleLayers;
 
     for (const auto& output : args.outputs) {
         for (auto* layer : output->getOutputLayersOrderedByZ()) {
