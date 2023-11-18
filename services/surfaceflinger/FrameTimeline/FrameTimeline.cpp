@@ -21,6 +21,7 @@
 #include "FrameTimeline.h"
 
 #include <android-base/stringprintf.h>
+#include <common/FlagManager.h>
 #include <utils/Log.h>
 #include <utils/Trace.h>
 
@@ -1200,7 +1201,9 @@ void FrameTimeline::DisplayFrame::trace(pid_t surfaceFlingerPid, nsecs_t monoBoo
         surfaceFrame->trace(mToken, monoBootOffset);
     }
 
-    addSkippedFrame(surfaceFlingerPid, monoBootOffset, previousActualPresentTime);
+    if (FlagManager::getInstance().add_sf_skipped_frames_to_trace()) {
+        addSkippedFrame(surfaceFlingerPid, monoBootOffset, previousActualPresentTime);
+    }
 }
 
 float FrameTimeline::computeFps(const std::unordered_set<int32_t>& layerIds) {
