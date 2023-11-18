@@ -55,6 +55,7 @@ protected:
     std::list<NotifyArgs> process(nsecs_t when, int32_t type, int32_t code, int32_t value);
 
     MockEventHubInterface mMockEventHub;
+    sp<FakeInputReaderPolicy> mFakePolicy;
     std::shared_ptr<FakePointerController> mFakePointerController;
     MockInputReaderContext mMockInputReaderContext;
     std::unique_ptr<InputDevice> mDevice;

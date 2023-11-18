@@ -124,10 +124,7 @@ impl InputVerifier {
                         self.name, device_id, self.touching_pointer_ids_by_device
                     ));
                 }
-                let it = self
-                    .touching_pointer_ids_by_device
-                    .entry(device_id)
-                    .or_insert_with(HashSet::new);
+                let it = self.touching_pointer_ids_by_device.entry(device_id).or_default();
                 it.insert(pointer_properties[0].id);
             }
             MotionAction::PointerDown { action_index } => {
@@ -224,19 +221,13 @@ impl InputVerifier {
                         self.name, device_id, self.hovering_pointer_ids_by_device
                     ));
                 }
-                let it = self
-                    .hovering_pointer_ids_by_device
-                    .entry(device_id)
-                    .or_insert_with(HashSet::new);
+                let it = self.hovering_pointer_ids_by_device.entry(device_id).or_default();
                 it.insert(pointer_properties[0].id);
             }
             MotionAction::HoverMove => {
                 // For compatibility reasons, we allow HOVER_MOVE without a prior HOVER_ENTER.
                 // If there was no prior HOVER_ENTER, just start a new hovering pointer.
-                let it = self
-                    .hovering_pointer_ids_by_device
-                    .entry(device_id)
-                    .or_insert_with(HashSet::new);
+                let it = self.hovering_pointer_ids_by_device.entry(device_id).or_default();
                 it.insert(pointer_properties[0].id);
             }
             MotionAction::HoverExit => {

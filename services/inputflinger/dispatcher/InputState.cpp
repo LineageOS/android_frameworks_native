@@ -38,8 +38,8 @@ bool InputState::isHovering(DeviceId deviceId, uint32_t source, int32_t displayI
     return false;
 }
 
-bool InputState::trackKey(const KeyEntry& entry, int32_t action, int32_t flags) {
-    switch (action) {
+bool InputState::trackKey(const KeyEntry& entry, int32_t flags) {
+    switch (entry.action) {
         case AKEY_EVENT_ACTION_UP: {
             if (entry.flags & AKEY_EVENT_FLAG_FALLBACK) {
                 std::erase_if(mFallbackKeys,
@@ -88,7 +88,7 @@ bool InputState::trackKey(const KeyEntry& entry, int32_t action, int32_t flags) 
  *  true if the incoming event was correctly tracked,
  *  false if the incoming event should be dropped.
  */
-bool InputState::trackMotion(const MotionEntry& entry, int32_t action, int32_t flags) {
+bool InputState::trackMotion(const MotionEntry& entry, int32_t flags) {
     // Don't track non-pointer events
     if (!isFromSource(entry.source, AINPUT_SOURCE_CLASS_POINTER)) {
         // This is a focus-dispatched event; we don't track its state.
@@ -104,7 +104,7 @@ bool InputState::trackMotion(const MotionEntry& entry, int32_t action, int32_t f
         }
     }
 
-    int32_t actionMasked = action & AMOTION_EVENT_ACTION_MASK;
+    int32_t actionMasked = entry.action & AMOTION_EVENT_ACTION_MASK;
     switch (actionMasked) {
         case AMOTION_EVENT_ACTION_UP:
         case AMOTION_EVENT_ACTION_CANCEL: {
@@ -281,8 +281,7 @@ size_t InputState::MotionMemento::getPointerCount() const {
     return pointerProperties.size();
 }
 
-bool InputState::shouldCancelPreviousStream(const MotionEntry& motionEntry,
-                                            int32_t resolvedAction) const {
+bool InputState::shouldCancelPreviousStream(const MotionEntry& motionEntry) const {
     if (!isFromSource(motionEntry.source, AINPUT_SOURCE_CLASS_POINTER)) {
         // This is a focus-dispatched event that should not affect the previous stream.
         return false;
@@ -300,7 +299,7 @@ bool InputState::shouldCancelPreviousStream(const MotionEntry& motionEntry,
     }
 
     const MotionMemento& lastMemento = mMotionMementos.back();
-    const int32_t actionMasked = MotionEvent::getActionMasked(resolvedAction);
+    const int32_t actionMasked = MotionEvent::getActionMasked(motionEntry.action);
 
     // For compatibility, only one input device can be active at a time in the same window.
     if (lastMemento.deviceId == motionEntry.deviceId) {
@@ -369,9 +368,9 @@ bool InputState::shouldCancelPreviousStream(const MotionEntry& motionEntry,
     return false;
 }
 
-std::unique_ptr<EventEntry> InputState::cancelConflictingInputStream(const MotionEntry& motionEntry,
-                                                                     int32_t resolvedAction) {
-    if (!shouldCancelPreviousStream(motionEntry, resolvedAction)) {
+std::unique_ptr<EventEntry> InputState::cancelConflictingInputStream(
+        const MotionEntry& motionEntry) {
+    if (!shouldCancelPreviousStream(motionEntry)) {
         return {};
     }
 
@@ -381,7 +380,7 @@ std::unique_ptr<EventEntry> InputState::cancelConflictingInputStream(const Motio
     std::unique_ptr<MotionEntry> cancelEntry =
             createCancelEntryForMemento(memento, motionEntry.eventTime);
 
-    if (!trackMotion(*cancelEntry, cancelEntry->action, cancelEntry->flags)) {
+    if (!trackMotion(*cancelEntry, cancelEntry->flags)) {
         LOG(FATAL) << "Generated inconsistent cancel event!";
     }
     return cancelEntry;

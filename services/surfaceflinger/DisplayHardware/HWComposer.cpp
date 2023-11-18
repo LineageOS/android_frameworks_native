@@ -540,8 +540,9 @@ status_t HWComposer::getDeviceCompositionChanges(
     displayData.validateWasSkipped = false;
     {
         std::scoped_lock lock{displayData.expectedPresentLock};
-        displayData.lastExpectedPresentTimestamp = TimePoint::fromNs(expectedPresentTime);
-        // TODO(b/296636176) Update displayData.lastFrameInterval for present display commands
+        if (expectedPresentTime > displayData.lastExpectedPresentTimestamp.ns()) {
+            displayData.lastExpectedPresentTimestamp = TimePoint::fromNs(expectedPresentTime);
+        }
     }
 
     if (canSkipValidate) {
@@ -964,6 +965,11 @@ status_t HWComposer::notifyExpectedPresentIfRequired(PhysicalDisplayId displayId
         const bool expectedPresentWithinTimeout =
                 isExpectedPresentWithinTimeout(expectedPresentTime, lastExpectedPresentTimestamp,
                                                timeoutOpt, threshold);
+
+        using fps_approx_ops::operator!=;
+        if (frameIntervalIsOnCadence && frameInterval != lastFrameInterval) {
+            displayData.lastExpectedPresentTimestamp = expectedPresentTime;
+        }
 
         if (expectedPresentWithinTimeout && frameIntervalIsOnCadence) {
             return NO_ERROR;

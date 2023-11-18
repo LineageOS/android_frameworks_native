@@ -31,6 +31,11 @@ bool isFromMouse(const NotifyMotionArgs& args) {
             args.pointerProperties[0].toolType == ToolType::MOUSE;
 }
 
+bool isFromTouchpad(const NotifyMotionArgs& args) {
+    return isFromSource(args.source, AINPUT_SOURCE_MOUSE) &&
+            args.pointerProperties[0].toolType == ToolType::FINGER;
+}
+
 bool isHoverAction(int32_t action) {
     return action == AMOTION_EVENT_ACTION_HOVER_ENTER ||
             action == AMOTION_EVENT_ACTION_HOVER_MOVE || action == AMOTION_EVENT_ACTION_HOVER_EXIT;
@@ -83,6 +88,8 @@ NotifyMotionArgs PointerChoreographer::processMotion(const NotifyMotionArgs& arg
 
     if (isFromMouse(args)) {
         return processMouseEventLocked(args);
+    } else if (isFromTouchpad(args)) {
+        return processTouchpadEventLocked(args);
     } else if (mStylusPointerIconEnabled && isStylusHoverEvent(args)) {
         processStylusHoverEventLocked(args);
     } else if (isFromSource(args.source, AINPUT_SOURCE_TOUCHSCREEN)) {
@@ -97,17 +104,7 @@ NotifyMotionArgs PointerChoreographer::processMouseEventLocked(const NotifyMotio
                    << args.dump();
     }
 
-    const int32_t displayId = getTargetMouseDisplayLocked(args.displayId);
-
-    // Get the mouse pointer controller for the display, or create one if it doesn't exist.
-    auto [it, emplaced] =
-            mMousePointersByDisplay.try_emplace(displayId,
-                                                getMouseControllerConstructor(displayId));
-    if (emplaced) {
-        notifyPointerDisplayIdChangedLocked();
-    }
-
-    PointerControllerInterface& pc = *it->second;
+    auto [displayId, pc] = getDisplayIdAndMouseControllerLocked(args.displayId);
 
     const float deltaX = args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X);
     const float deltaY = args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y);
@@ -121,6 +118,40 @@ NotifyMotionArgs PointerChoreographer::processMouseEventLocked(const NotifyMotio
     newArgs.xCursorPosition = x;
     newArgs.yCursorPosition = y;
     newArgs.displayId = displayId;
+    return newArgs;
+}
+
+NotifyMotionArgs PointerChoreographer::processTouchpadEventLocked(const NotifyMotionArgs& args) {
+    auto [displayId, pc] = getDisplayIdAndMouseControllerLocked(args.displayId);
+
+    NotifyMotionArgs newArgs(args);
+    newArgs.displayId = displayId;
+    if (args.getPointerCount() == 1 && args.classification == MotionClassification::NONE) {
+        // This is a movement of the mouse pointer.
+        const float deltaX = args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X);
+        const float deltaY = args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y);
+        pc.move(deltaX, deltaY);
+        pc.unfade(PointerControllerInterface::Transition::IMMEDIATE);
+
+        const auto [x, y] = pc.getPosition();
+        newArgs.pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_X, x);
+        newArgs.pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_Y, y);
+        newArgs.xCursorPosition = x;
+        newArgs.yCursorPosition = y;
+    } else {
+        // This is a trackpad gesture with fake finger(s) that should not move the mouse pointer.
+        pc.unfade(PointerControllerInterface::Transition::IMMEDIATE);
+
+        const auto [x, y] = pc.getPosition();
+        for (uint32_t i = 0; i < newArgs.getPointerCount(); i++) {
+            newArgs.pointerCoords[i].setAxisValue(AMOTION_EVENT_AXIS_X,
+                                                  args.pointerCoords[i].getX() + x);
+            newArgs.pointerCoords[i].setAxisValue(AMOTION_EVENT_AXIS_Y,
+                                                  args.pointerCoords[i].getY() + y);
+        }
+        newArgs.xCursorPosition = x;
+        newArgs.yCursorPosition = y;
+    }
     return newArgs;
 }
 
@@ -268,6 +299,21 @@ const DisplayViewport* PointerChoreographer::findViewportByIdLocked(int32_t disp
 
 int32_t PointerChoreographer::getTargetMouseDisplayLocked(int32_t associatedDisplayId) const {
     return associatedDisplayId == ADISPLAY_ID_NONE ? mDefaultMouseDisplayId : associatedDisplayId;
+}
+
+std::pair<int32_t, PointerControllerInterface&>
+PointerChoreographer::getDisplayIdAndMouseControllerLocked(int32_t associatedDisplayId) {
+    const int32_t displayId = getTargetMouseDisplayLocked(associatedDisplayId);
+
+    // Get the mouse pointer controller for the display, or create one if it doesn't exist.
+    auto [it, emplaced] =
+            mMousePointersByDisplay.try_emplace(displayId,
+                                                getMouseControllerConstructor(displayId));
+    if (emplaced) {
+        notifyPointerDisplayIdChangedLocked();
+    }
+
+    return {displayId, *it->second};
 }
 
 InputDeviceInfo* PointerChoreographer::findInputDeviceLocked(DeviceId deviceId) {

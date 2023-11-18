@@ -28,9 +28,12 @@ void InputMapperUnitTest::SetUp() {
     mFakePointerController = std::make_shared<FakePointerController>();
     mFakePointerController->setBounds(0, 0, 800 - 1, 480 - 1);
     mFakePointerController->setPosition(INITIAL_CURSOR_X, INITIAL_CURSOR_Y);
+    mFakePolicy = sp<FakeInputReaderPolicy>::make();
 
     EXPECT_CALL(mMockInputReaderContext, getPointerController(DEVICE_ID))
             .WillRepeatedly(Return(mFakePointerController));
+
+    EXPECT_CALL(mMockInputReaderContext, getPolicy()).WillRepeatedly(Return(mFakePolicy.get()));
 
     EXPECT_CALL(mMockInputReaderContext, getEventHub()).WillRepeatedly(Return(&mMockEventHub));
     InputDeviceIdentifier identifier;
