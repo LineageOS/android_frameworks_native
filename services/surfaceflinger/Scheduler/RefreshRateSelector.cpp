@@ -36,7 +36,6 @@
 #include <scheduler/FrameRateMode.h>
 #include <utils/Trace.h>
 
-#include "../SurfaceFlingerProperties.h"
 #include "RefreshRateSelector.h"
 
 #include <com_android_graphics_surfaceflinger_flags.h>
@@ -971,12 +970,12 @@ auto RefreshRateSelector::getFrameRateOverrides(const std::vector<LayerRequireme
 }
 
 ftl::Optional<FrameRateMode> RefreshRateSelector::onKernelTimerChanged(
-        std::optional<DisplayModeId> desiredActiveModeId, bool timerExpired) const {
+        ftl::Optional<DisplayModeId> desiredModeIdOpt, bool timerExpired) const {
     std::lock_guard lock(mLock);
 
     const auto current = [&]() REQUIRES(mLock) -> FrameRateMode {
-        if (desiredActiveModeId) {
-            const auto& modePtr = mDisplayModes.get(*desiredActiveModeId)->get();
+        if (desiredModeIdOpt) {
+            const auto& modePtr = mDisplayModes.get(*desiredModeIdOpt)->get();
             return FrameRateMode{modePtr->getPeakFps(), ftl::as_non_null(modePtr)};
         }
 
