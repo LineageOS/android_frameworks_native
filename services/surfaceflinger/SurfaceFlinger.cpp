@@ -1397,11 +1397,7 @@ void SurfaceFlinger::initiateDisplayModeChanges() {
         constraints.seamlessRequired = false;
         hal::VsyncPeriodChangeTimeline outTimeline;
 
-        const auto status = display->initiateModeChange(*desiredModeOpt, constraints, &outTimeline);
-        if (status != NO_ERROR) {
-            // initiateModeChange may fail if a hotplug event is just about
-            // to be sent. We just log the error in this case.
-            ALOGW("initiateModeChange failed: %d", status);
+        if (!display->initiateModeChange(*desiredModeOpt, constraints, outTimeline)) {
             continue;
         }
 

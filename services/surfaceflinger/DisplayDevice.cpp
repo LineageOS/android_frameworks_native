@@ -217,9 +217,9 @@ void DisplayDevice::setActiveMode(DisplayModeId modeId, Fps vsyncRate, Fps rende
     updateRefreshRateOverlayRate(vsyncRate, renderFps);
 }
 
-status_t DisplayDevice::initiateModeChange(const ActiveModeInfo& info,
-                                           const hal::VsyncPeriodChangeConstraints& constraints,
-                                           hal::VsyncPeriodChangeTimeline* outTimeline) {
+bool DisplayDevice::initiateModeChange(const ActiveModeInfo& info,
+                                       const hal::VsyncPeriodChangeConstraints& constraints,
+                                       hal::VsyncPeriodChangeTimeline& outTimeline) {
     if (!info.modeOpt || info.modeOpt->modePtr->getPhysicalDisplayId() != getPhysicalId()) {
         ALOGE("Trying to initiate a mode change to invalid mode %s on display %s",
               info.modeOpt ? std::to_string(info.modeOpt->modePtr->getId().value()).c_str()
@@ -230,11 +230,15 @@ status_t DisplayDevice::initiateModeChange(const ActiveModeInfo& info,
     mPendingMode = info;
     mIsModeSetPending = true;
 
-    const auto& pendingMode = *info.modeOpt->modePtr;
-    ATRACE_INT(mPendingModeFpsTrace.c_str(), pendingMode.getVsyncRate().getIntValue());
+    const auto& mode = *info.modeOpt->modePtr;
 
-    return mHwComposer.setActiveModeWithConstraints(getPhysicalId(), pendingMode.getHwcId(),
-                                                    constraints, outTimeline);
+    if (mHwComposer.setActiveModeWithConstraints(getPhysicalId(), mode.getHwcId(), constraints,
+                                                 &outTimeline) != OK) {
+        return false;
+    }
+
+    ATRACE_INT(mPendingModeFpsTrace.c_str(), mode.getVsyncRate().getIntValue());
+    return true;
 }
 
 void DisplayDevice::finalizeModeChange(DisplayModeId modeId, Fps vsyncRate, Fps renderFps) {

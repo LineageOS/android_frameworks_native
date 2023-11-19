@@ -103,13 +103,12 @@ TEST_F(InitiateModeChangeTest, initiateModeChange) REQUIRES(kMainThreadContext) 
     EXPECT_FRAME_RATE_MODE(kMode90, 90_Hz, *mDisplay->getDesiredMode()->modeOpt);
     EXPECT_EQ(Event::None, mDisplay->getDesiredMode()->event);
 
-    hal::VsyncPeriodChangeConstraints constraints{
+    const hal::VsyncPeriodChangeConstraints constraints{
             .desiredTimeNanos = systemTime(),
             .seamlessRequired = false,
     };
     hal::VsyncPeriodChangeTimeline timeline;
-    EXPECT_EQ(OK,
-              mDisplay->initiateModeChange(*mDisplay->getDesiredMode(), constraints, &timeline));
+    EXPECT_TRUE(mDisplay->initiateModeChange(*mDisplay->getDesiredMode(), constraints, timeline));
     EXPECT_FRAME_RATE_MODE(kMode90, 90_Hz, *mDisplay->getPendingMode().modeOpt);
     EXPECT_EQ(Event::None, mDisplay->getPendingMode().event);
 
@@ -130,13 +129,12 @@ TEST_F(InitiateModeChangeTest, initiateDisplayModeSwitch) FTL_FAKE_GUARD(kMainTh
     EXPECT_FRAME_RATE_MODE(kMode90, 90_Hz, *mDisplay->getDesiredMode()->modeOpt);
     EXPECT_EQ(Event::None, mDisplay->getDesiredMode()->event);
 
-    hal::VsyncPeriodChangeConstraints constraints{
+    const hal::VsyncPeriodChangeConstraints constraints{
             .desiredTimeNanos = systemTime(),
             .seamlessRequired = false,
     };
     hal::VsyncPeriodChangeTimeline timeline;
-    EXPECT_EQ(OK,
-              mDisplay->initiateModeChange(*mDisplay->getDesiredMode(), constraints, &timeline));
+    EXPECT_TRUE(mDisplay->initiateModeChange(*mDisplay->getDesiredMode(), constraints, timeline));
     EXPECT_FRAME_RATE_MODE(kMode90, 90_Hz, *mDisplay->getPendingMode().modeOpt);
     EXPECT_EQ(Event::None, mDisplay->getPendingMode().event);
 
@@ -149,8 +147,7 @@ TEST_F(InitiateModeChangeTest, initiateDisplayModeSwitch) FTL_FAKE_GUARD(kMainTh
     EXPECT_FRAME_RATE_MODE(kMode90, 90_Hz, *mDisplay->getPendingMode().modeOpt);
     EXPECT_EQ(Event::None, mDisplay->getPendingMode().event);
 
-    EXPECT_EQ(OK,
-              mDisplay->initiateModeChange(*mDisplay->getDesiredMode(), constraints, &timeline));
+    EXPECT_TRUE(mDisplay->initiateModeChange(*mDisplay->getDesiredMode(), constraints, timeline));
     EXPECT_FRAME_RATE_MODE(kMode120, 120_Hz, *mDisplay->getPendingMode().modeOpt);
     EXPECT_EQ(Event::None, mDisplay->getPendingMode().event);
 
