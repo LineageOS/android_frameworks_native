@@ -71,6 +71,14 @@ flag {
 }
 
 flag {
+  name: "add_sf_skipped_frames_to_trace"
+  namespace: "core_graphics"
+  description: "Add SurfaceFlinger dropped Frames to frame timeline"
+  bug: "273701290"
+  is_fixed_read_only: true
+}
+
+flag {
   name: "refresh_rate_overlay_on_external_display"
   namespace: "core_graphics"
   description: "enable refresh rate indicator on the external display"

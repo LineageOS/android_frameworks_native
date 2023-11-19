@@ -120,6 +120,7 @@ void FlagManager::dump(std::string& result) const {
     DUMP_READ_ONLY_FLAG(hotplug2);
     DUMP_READ_ONLY_FLAG(hdcp_level_hal);
     DUMP_READ_ONLY_FLAG(multithreaded_present);
+    DUMP_READ_ONLY_FLAG(add_sf_skipped_frames_to_trace);
 
 #undef DUMP_READ_ONLY_FLAG
 #undef DUMP_SERVER_FLAG
@@ -188,6 +189,7 @@ FLAG_MANAGER_READ_ONLY_FLAG(vrr_config, "debug.sf.enable_vrr_config")
 FLAG_MANAGER_READ_ONLY_FLAG(hotplug2, "")
 FLAG_MANAGER_READ_ONLY_FLAG(hdcp_level_hal, "")
 FLAG_MANAGER_READ_ONLY_FLAG(multithreaded_present, "debug.sf.multithreaded_present")
+FLAG_MANAGER_READ_ONLY_FLAG(add_sf_skipped_frames_to_trace, "")
 
 /// Trunk stable server flags ///
 FLAG_MANAGER_SERVER_FLAG(late_boot_misc2, "")
