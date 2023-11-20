@@ -60,27 +60,6 @@ __BEGIN_DECLS
 
 struct APerformanceHintManager;
 struct APerformanceHintSession;
-struct AWorkDuration;
-
-/**
- * {@link AWorkDuration} is an opaque type that represents the breakdown of the
- * actual workload duration in each component internally.
- *
- * A new {@link AWorkDuration} can be obtained using
- * {@link AWorkDuration_create()}, when the client finishes using
- * {@link AWorkDuration}, {@link AWorkDuration_release()} must be
- * called to destroy and free up the resources associated with
- * {@link AWorkDuration}.
- *
- * This file provides a set of functions to allow clients to set the measured
- * work duration of each component on {@link AWorkDuration}.
- *
- * - AWorkDuration_setWorkPeriodStartTimestampNanos()
- * - AWorkDuration_setActualTotalDurationNanos()
- * - AWorkDuration_setActualCpuDurationNanos()
- * - AWorkDuration_setActualGpuDurationNanos()
- */
-typedef struct AWorkDuration AWorkDuration;
 
 /**
  * An opaque type representing a handle to a performance hint manager.
@@ -123,7 +102,7 @@ typedef struct APerformanceHintSession APerformanceHintSession;
   *
   * @return APerformanceHintManager instance on success, nullptr on failure.
   */
-APerformanceHintManager* _Nullable APerformanceHint_getManager() __INTRODUCED_IN(__ANDROID_API_T__);
+APerformanceHintManager* APerformanceHint_getManager() __INTRODUCED_IN(__ANDROID_API_T__);
 
 /**
  * Creates a session for the given set of threads and sets their initial target work
@@ -137,9 +116,9 @@ APerformanceHintManager* _Nullable APerformanceHint_getManager() __INTRODUCED_IN
  *     This must be positive if using the work duration API, or 0 otherwise.
  * @return APerformanceHintManager instance on success, nullptr on failure.
  */
-APerformanceHintSession* _Nullable APerformanceHint_createSession(
-        APerformanceHintManager* _Nonnull manager,
-        const int32_t* _Nonnull threadIds, size_t size,
+APerformanceHintSession* APerformanceHint_createSession(
+        APerformanceHintManager* manager,
+        const int32_t* threadIds, size_t size,
         int64_t initialTargetWorkDurationNanos) __INTRODUCED_IN(__ANDROID_API_T__);
 
 /**
@@ -149,7 +128,7 @@ APerformanceHintSession* _Nullable APerformanceHint_createSession(
  * @return the preferred update rate supported by device software.
  */
 int64_t APerformanceHint_getPreferredUpdateRateNanos(
-        APerformanceHintManager* _Nonnull manager) __INTRODUCED_IN(__ANDROID_API_T__);
+        APerformanceHintManager* manager) __INTRODUCED_IN(__ANDROID_API_T__);
 
 /**
  * Updates this session's target duration for each cycle of work.
@@ -161,7 +140,7 @@ int64_t APerformanceHint_getPreferredUpdateRateNanos(
  *         EPIPE if communication with the system service has failed.
  */
 int APerformanceHint_updateTargetWorkDuration(
-        APerformanceHintSession* _Nonnull session,
+        APerformanceHintSession* session,
         int64_t targetDurationNanos) __INTRODUCED_IN(__ANDROID_API_T__);
 
 /**
@@ -178,7 +157,7 @@ int APerformanceHint_updateTargetWorkDuration(
  *         EPIPE if communication with the system service has failed.
  */
 int APerformanceHint_reportActualWorkDuration(
-        APerformanceHintSession* _Nonnull session,
+        APerformanceHintSession* session,
         int64_t actualDurationNanos) __INTRODUCED_IN(__ANDROID_API_T__);
 
 /**
@@ -188,7 +167,7 @@ int APerformanceHint_reportActualWorkDuration(
  * @param session The performance hint session instance to release.
  */
 void APerformanceHint_closeSession(
-        APerformanceHintSession* _Nonnull session) __INTRODUCED_IN(__ANDROID_API_T__);
+        APerformanceHintSession* session) __INTRODUCED_IN(__ANDROID_API_T__);
 
 /**
  * Set a list of threads to the performance hint session. This operation will replace
@@ -205,8 +184,8 @@ void APerformanceHint_closeSession(
  *         EPERM if any thread id doesn't belong to the application.
  */
 int APerformanceHint_setThreads(
-        APerformanceHintSession* _Nonnull session,
-        const pid_t* _Nonnull threadIds,
+        APerformanceHintSession* session,
+        const pid_t* threadIds,
         size_t size) __INTRODUCED_IN(__ANDROID_API_U__);
 
 /**
@@ -219,89 +198,8 @@ int APerformanceHint_setThreads(
  *         EPIPE if communication with the system service has failed.
  */
 int APerformanceHint_setPreferPowerEfficiency(
-        APerformanceHintSession* _Nonnull session,
+        APerformanceHintSession* session,
         bool enabled) __INTRODUCED_IN(__ANDROID_API_V__);
-
-/**
- * Reports the durations for the last cycle of work.
- *
- * The system will attempt to adjust the scheduling and performance of the
- * threads within the thread group to bring the actual duration close to the target duration.
- *
- * @param session The {@link APerformanceHintSession} instance to update.
- * @param workDuration The {@link AWorkDuration} structure of times the thread group took to
- *     complete its last task in nanoseconds breaking down into different components.
- *
- *     The work period start timestamp, actual total duration and actual CPU duration must be
- *     positive.
- *
- *     The actual GPU duration must be non-negative. If the actual GPU duration is 0, it means
- *     the actual GPU duration is not measured.
- *
- * @return 0 on success.
- *         EINVAL if session is nullptr or any duration is an invalid number.
- *         EPIPE if communication with the system service has failed.
- */
-int APerformanceHint_reportActualWorkDuration2(
-        APerformanceHintSession* _Nonnull session,
-        AWorkDuration* _Nonnull workDuration) __INTRODUCED_IN(__ANDROID_API_V__);
-
-/**
- * Creates a new AWorkDuration. When the client finishes using {@link AWorkDuration}, it should
- * call {@link AWorkDuration_release()} to destroy {@link AWorkDuration} and release all resources
- * associated with it.
- *
- * @return AWorkDuration on success and nullptr otherwise.
- */
-AWorkDuration* _Nonnull AWorkDuration_create() __INTRODUCED_IN(__ANDROID_API_V__);
-
-/**
- * Destroys {@link AWorkDuration} and free all resources associated to it.
- *
- * @param aWorkDuration The {@link AWorkDuration} created by calling {@link AWorkDuration_create()}
- */
-void AWorkDuration_release(AWorkDuration* _Nonnull WorkDuration) __INTRODUCED_IN(__ANDROID_API_V__);
-
-/**
- * Sets the work period start timestamp in nanoseconds.
- *
- * @param aWorkDuration The {@link AWorkDuration} created by calling {@link AWorkDuration_create()}
- * @param workPeriodStartTimestampNanos The work period start timestamp in nanoseconds based on
- *        CLOCK_MONOTONIC about when the work starts, the timestamp must be positive.
- */
-void AWorkDuration_setWorkPeriodStartTimestampNanos(AWorkDuration* _Nonnull aWorkDuration,
-        int64_t workPeriodStartTimestampNanos) __INTRODUCED_IN(__ANDROID_API_V__);
-
-/**
- * Sets the actual total work duration in nanoseconds.
- *
- * @param aWorkDuration The {@link AWorkDuration} created by calling {@link AWorkDuration_create()}
- * @param actualTotalDurationNanos The actual total work duration in nanoseconds, the number must be
- *        positive.
- */
-void AWorkDuration_setActualTotalDurationNanos(AWorkDuration* _Nonnull aWorkDuration,
-        int64_t actualTotalDurationNanos) __INTRODUCED_IN(__ANDROID_API_V__);
-
-/**
- * Sets the actual CPU work duration in nanoseconds.
- *
- * @param aWorkDuration The {@link AWorkDuration} created by calling {@link AWorkDuration_create()}
- * @param actualCpuDurationNanos The actual CPU work duration in nanoseconds, the number must be
- *        positive.
- */
-void AWorkDuration_setActualCpuDurationNanos(AWorkDuration* _Nonnull aWorkDuration,
-        int64_t actualCpuDurationNanos) __INTRODUCED_IN(__ANDROID_API_V__);
-
-/**
- * Sets the actual GPU work duration in nanoseconds.
- *
- * @param aWorkDuration The {@link AWorkDuration} created by calling {@link AWorkDuration_create()}.
- * @param actualGpuDurationNanos The actual GPU work duration in nanoseconds, the number must be
- *        non-negative. If the actual GPU duration is 0, it means the actual GPU duration is
- *        measured.
- */
-void AWorkDuration_setActualGpuDurationNanos(AWorkDuration* _Nonnull aWorkDuration,
-        int64_t actualGpuDurationNanos) __INTRODUCED_IN(__ANDROID_API_V__);
 
 __END_DECLS
 
