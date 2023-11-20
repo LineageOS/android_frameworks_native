@@ -119,8 +119,8 @@ public:
                   "The preferred way to add interfaces is to define "   \
                   "an .aidl file to auto-generate the interface. If "   \
                   "an interface must be manually written, add its "     \
-                  "name to the whitelist.");                            \
-    DO_NOT_DIRECTLY_USE_ME_IMPLEMENT_META_INTERFACE(INTERFACE, NAME)    \
+                  "name to the allowlist.");                            \
+    DO_NOT_DIRECTLY_USE_ME_IMPLEMENT_META_INTERFACE(INTERFACE, NAME)
 
 #else
 
@@ -305,10 +305,10 @@ constexpr bool equals(const char* a, const char* b) {
   return equals(a + 1, b + 1);
 }
 
-constexpr bool inList(const char* a, const char* const* whitelist) {
-  if (*whitelist == nullptr) return false;
-  if (equals(a, *whitelist)) return true;
-  return inList(a, whitelist + 1);
+constexpr bool inList(const char* a, const char* const* allowlist) {
+  if (*allowlist == nullptr) return false;
+  if (equals(a, *allowlist)) return true;
+  return inList(a, allowlist + 1);
 }
 
 constexpr bool allowedManualInterface(const char* name) {
