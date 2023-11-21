@@ -97,6 +97,8 @@ static size_t pad_size(size_t s) {
 namespace android {
 
 using namespace android::binder::impl;
+using binder::borrowed_fd;
+using binder::unique_fd;
 
 // many things compile this into prebuilts on the stack
 #ifdef __LP64__
@@ -211,7 +213,7 @@ static void release_object(const sp<ProcessState>& proc, const flat_binder_objec
 }
 #endif // BINDER_WITH_KERNEL_IPC
 
-static int toRawFd(const std::variant<base::unique_fd, base::borrowed_fd>& v) {
+static int toRawFd(const std::variant<unique_fd, borrowed_fd>& v) {
     return std::visit([](const auto& fd) { return fd.get(); }, v);
 }
 
@@ -667,7 +669,7 @@ status_t Parcel::appendFrom(const Parcel* parcel, size_t offset, size_t len) {
                 if (status_t status = binder::os::dupFileDescriptor(oldFd, &newFd); status != OK) {
                     ALOGW("Failed to duplicate file descriptor %d: %s", oldFd, strerror(-status));
                 }
-                rpcFields->mFds->emplace_back(base::unique_fd(newFd));
+                rpcFields->mFds->emplace_back(unique_fd(newFd));
                 // Fixup the index in the data.
                 mDataPos = newDataPos + 4;
                 if (status_t status = writeInt32(rpcFields->mFds->size() - 1); status != OK) {
@@ -1247,9 +1249,16 @@ status_t Parcel::writeUtf8VectorAsUtf16Vector(
                         const std::unique_ptr<std::vector<std::unique_ptr<std::string>>>& val) { return writeData(val); }
 status_t Parcel::writeUtf8VectorAsUtf16Vector(const std::vector<std::string>& val) { return writeData(val); }
 
-status_t Parcel::writeUniqueFileDescriptorVector(const std::vector<base::unique_fd>& val) { return writeData(val); }
-status_t Parcel::writeUniqueFileDescriptorVector(const std::optional<std::vector<base::unique_fd>>& val) { return writeData(val); }
-status_t Parcel::writeUniqueFileDescriptorVector(const std::unique_ptr<std::vector<base::unique_fd>>& val) { return writeData(val); }
+status_t Parcel::writeUniqueFileDescriptorVector(const std::vector<unique_fd>& val) {
+    return writeData(val);
+}
+status_t Parcel::writeUniqueFileDescriptorVector(const std::optional<std::vector<unique_fd>>& val) {
+    return writeData(val);
+}
+status_t Parcel::writeUniqueFileDescriptorVector(
+        const std::unique_ptr<std::vector<unique_fd>>& val) {
+    return writeData(val);
+}
 
 status_t Parcel::writeStrongBinderVector(const std::vector<sp<IBinder>>& val) { return writeData(val); }
 status_t Parcel::writeStrongBinderVector(const std::optional<std::vector<sp<IBinder>>>& val) { return writeData(val); }
@@ -1302,9 +1311,16 @@ status_t Parcel::readUtf8VectorFromUtf16Vector(
         std::unique_ptr<std::vector<std::unique_ptr<std::string>>>* val) const { return readData(val); }
 status_t Parcel::readUtf8VectorFromUtf16Vector(std::vector<std::string>* val) const { return readData(val); }
 
-status_t Parcel::readUniqueFileDescriptorVector(std::optional<std::vector<base::unique_fd>>* val) const { return readData(val); }
-status_t Parcel::readUniqueFileDescriptorVector(std::unique_ptr<std::vector<base::unique_fd>>* val) const { return readData(val); }
-status_t Parcel::readUniqueFileDescriptorVector(std::vector<base::unique_fd>* val) const { return readData(val); }
+status_t Parcel::readUniqueFileDescriptorVector(std::optional<std::vector<unique_fd>>* val) const {
+    return readData(val);
+}
+status_t Parcel::readUniqueFileDescriptorVector(
+        std::unique_ptr<std::vector<unique_fd>>* val) const {
+    return readData(val);
+}
+status_t Parcel::readUniqueFileDescriptorVector(std::vector<unique_fd>* val) const {
+    return readData(val);
+}
 
 status_t Parcel::readStrongBinderVector(std::optional<std::vector<sp<IBinder>>>* val) const { return readData(val); }
 status_t Parcel::readStrongBinderVector(std::unique_ptr<std::vector<sp<IBinder>>>* val) const { return readData(val); }
@@ -1504,11 +1520,11 @@ status_t Parcel::writeNativeHandle(const native_handle* handle)
 
 status_t Parcel::writeFileDescriptor(int fd, bool takeOwnership) {
     if (auto* rpcFields = maybeRpcFields()) {
-        std::variant<base::unique_fd, base::borrowed_fd> fdVariant;
+        std::variant<unique_fd, borrowed_fd> fdVariant;
         if (takeOwnership) {
-            fdVariant = base::unique_fd(fd);
+            fdVariant = unique_fd(fd);
         } else {
-            fdVariant = base::borrowed_fd(fd);
+            fdVariant = borrowed_fd(fd);
         }
         if (!mAllowFds) {
             return FDS_NOT_ALLOWED;
@@ -1587,7 +1603,7 @@ status_t Parcel::writeDupParcelFileDescriptor(int fd)
     return err;
 }
 
-status_t Parcel::writeUniqueFileDescriptor(const base::unique_fd& fd) {
+status_t Parcel::writeUniqueFileDescriptor(const unique_fd& fd) {
     return writeDupFileDescriptor(fd.get());
 }
 
@@ -2390,8 +2406,7 @@ int Parcel::readParcelFileDescriptor() const {
     return fd;
 }
 
-status_t Parcel::readUniqueFileDescriptor(base::unique_fd* val) const
-{
+status_t Parcel::readUniqueFileDescriptor(unique_fd* val) const {
     int got = readFileDescriptor();
 
     if (got == BAD_TYPE) {
@@ -2412,8 +2427,7 @@ status_t Parcel::readUniqueFileDescriptor(base::unique_fd* val) const
     return OK;
 }
 
-status_t Parcel::readUniqueParcelFileDescriptor(base::unique_fd* val) const
-{
+status_t Parcel::readUniqueParcelFileDescriptor(unique_fd* val) const {
     int got = readParcelFileDescriptor();
 
     if (got == BAD_TYPE) {
@@ -2710,8 +2724,7 @@ void Parcel::ipcSetDataReference(const uint8_t* data, size_t dataSize, const bin
 status_t Parcel::rpcSetDataReference(
         const sp<RpcSession>& session, const uint8_t* data, size_t dataSize,
         const uint32_t* objectTable, size_t objectTableSize,
-        std::vector<std::variant<base::unique_fd, base::borrowed_fd>>&& ancillaryFds,
-        release_func relFunc) {
+        std::vector<std::variant<unique_fd, borrowed_fd>>&& ancillaryFds, release_func relFunc) {
     // this code uses 'mOwner == nullptr' to understand whether it owns memory
     LOG_ALWAYS_FATAL_IF(relFunc == nullptr, "must provide cleanup function");
 
