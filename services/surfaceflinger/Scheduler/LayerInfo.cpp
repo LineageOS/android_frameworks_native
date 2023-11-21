@@ -530,6 +530,8 @@ LayerInfo::FrameRateSelectionStrategy LayerInfo::convertFrameRateSelectionStrate
             return FrameRateSelectionStrategy::Self;
         case ANATIVEWINDOW_FRAME_RATE_SELECTION_STRATEGY_OVERRIDE_CHILDREN:
             return FrameRateSelectionStrategy::OverrideChildren;
+        case ANATIVEWINDOW_FRAME_RATE_SELECTION_STRATEGY_DO_NOT_PROPAGATE:
+            return FrameRateSelectionStrategy::DoNotPropagate;
         default:
             LOG_ALWAYS_FATAL("Invalid frame rate selection strategy value %d", strategy);
             return FrameRateSelectionStrategy::Self;

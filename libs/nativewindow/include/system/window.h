@@ -1103,7 +1103,12 @@ enum {
 enum {
     /**
      * Default value. The layer uses its own frame rate specifications, assuming it has any
-     * specifications, instead of its parent's.
+     * specifications, instead of its parent's. If it does not have its own frame rate
+     * specifications, it will try to use its parent's.
+     *
+     * However, FRAME_RATE_SELECTION_STRATEGY_OVERRIDE_CHILDREN on an ancestor layer
+     * supersedes this behavior, meaning that this layer will inherit the frame rate specifications
+     * of that ancestor layer.
      */
     ANATIVEWINDOW_FRAME_RATE_SELECTION_STRATEGY_SELF = 0,
 
@@ -1114,6 +1119,14 @@ enum {
      * behavior for itself.
      */
     ANATIVEWINDOW_FRAME_RATE_SELECTION_STRATEGY_OVERRIDE_CHILDREN = 1,
+
+    /**
+     * The layer's frame rate specifications will never propagate to its descendant
+     * layers.
+     * FRAME_RATE_SELECTION_STRATEGY_OVERRIDE_CHILDREN on an ancestor layer supersedes
+     * this behavior.
+     */
+    ANATIVEWINDOW_FRAME_RATE_SELECTION_STRATEGY_DO_NOT_PROPAGATE = 2,
 };
 
 static inline int native_window_set_frame_rate(struct ANativeWindow* window, float frameRate,

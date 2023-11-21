@@ -83,8 +83,9 @@ public:
     enum class FrameRateSelectionStrategy {
         Self,
         OverrideChildren,
+        DoNotPropagate,
 
-        ftl_last = OverrideChildren
+        ftl_last = DoNotPropagate
     };
 
     // Encapsulates the frame rate specifications of the layer. This information will be used
