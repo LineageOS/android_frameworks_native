@@ -22,6 +22,8 @@
 
 #include "binderRpcTestFixture.h"
 
+using android::binder::unique_fd;
+
 namespace android {
 
 // Destructors need to be defined, even if pure virtual
@@ -74,7 +76,7 @@ std::unique_ptr<ProcessSession> BinderRpc::createRpcTestSocketServerProcessEtc(
             auto port = trustyIpcPort(serverVersion);
             int rc = connect(port.c_str(), IPC_CONNECT_WAIT_FOR_PORT);
             LOG_ALWAYS_FATAL_IF(rc < 0, "Failed to connect to service: %d", rc);
-            return base::unique_fd(rc);
+            return unique_fd(rc);
         });
         if (options.allowConnectFailure && status != OK) {
             ret->sessions.clear();

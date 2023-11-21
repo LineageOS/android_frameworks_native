@@ -25,7 +25,7 @@
 #include <variant>
 #include <vector>
 
-#include <android-base/unique_fd.h>
+#include <binder/unique_fd.h>
 #ifndef BINDER_DISABLE_NATIVE_HANDLE
 #include <cutils/native_handle.h>
 #endif
@@ -354,17 +354,16 @@ public:
     // Place a file descriptor into the parcel.  This will not affect the
     // semantics of the smart file descriptor. A new descriptor will be
     // created, and will be closed when the parcel is destroyed.
-    status_t            writeUniqueFileDescriptor(
-                            const base::unique_fd& fd);
+    status_t writeUniqueFileDescriptor(const binder::unique_fd& fd);
 
     // Place a vector of file desciptors into the parcel. Each descriptor is
     // dup'd as in writeDupFileDescriptor
-    status_t            writeUniqueFileDescriptorVector(
-                            const std::optional<std::vector<base::unique_fd>>& val);
-    status_t            writeUniqueFileDescriptorVector(
-                            const std::unique_ptr<std::vector<base::unique_fd>>& val) __attribute__((deprecated("use std::optional version instead")));
-    status_t            writeUniqueFileDescriptorVector(
-                            const std::vector<base::unique_fd>& val);
+    status_t writeUniqueFileDescriptorVector(
+            const std::optional<std::vector<binder::unique_fd>>& val);
+    status_t writeUniqueFileDescriptorVector(
+            const std::unique_ptr<std::vector<binder::unique_fd>>& val)
+            __attribute__((deprecated("use std::optional version instead")));
+    status_t writeUniqueFileDescriptorVector(const std::vector<binder::unique_fd>& val);
 
     // Writes a blob to the parcel.
     // If the blob is small, then it is stored in-place, otherwise it is
@@ -579,20 +578,17 @@ public:
     int                 readParcelFileDescriptor() const;
 
     // Retrieve a smart file descriptor from the parcel.
-    status_t            readUniqueFileDescriptor(
-                            base::unique_fd* val) const;
+    status_t readUniqueFileDescriptor(binder::unique_fd* val) const;
 
     // Retrieve a Java "parcel file descriptor" from the parcel.
-    status_t            readUniqueParcelFileDescriptor(base::unique_fd* val) const;
-
+    status_t readUniqueParcelFileDescriptor(binder::unique_fd* val) const;
 
     // Retrieve a vector of smart file descriptors from the parcel.
-    status_t            readUniqueFileDescriptorVector(
-                            std::optional<std::vector<base::unique_fd>>* val) const;
-    status_t            readUniqueFileDescriptorVector(
-                            std::unique_ptr<std::vector<base::unique_fd>>* val) const __attribute__((deprecated("use std::optional version instead")));
-    status_t            readUniqueFileDescriptorVector(
-                            std::vector<base::unique_fd>* val) const;
+    status_t readUniqueFileDescriptorVector(
+            std::optional<std::vector<binder::unique_fd>>* val) const;
+    status_t readUniqueFileDescriptorVector(std::unique_ptr<std::vector<binder::unique_fd>>* val)
+            const __attribute__((deprecated("use std::optional version instead")));
+    status_t readUniqueFileDescriptorVector(std::vector<binder::unique_fd>* val) const;
 
     // Reads a blob from the parcel.
     // The caller should call release() on the blob after reading its contents.
@@ -629,7 +625,7 @@ private:
     status_t rpcSetDataReference(
             const sp<RpcSession>& session, const uint8_t* data, size_t dataSize,
             const uint32_t* objectTable, size_t objectTableSize,
-            std::vector<std::variant<base::unique_fd, base::borrowed_fd>>&& ancillaryFds,
+            std::vector<std::variant<binder::unique_fd, binder::borrowed_fd>>&& ancillaryFds,
             release_func relFunc);
 
     status_t            finishWrite(size_t len);
@@ -706,7 +702,7 @@ private:
     // 5) Nullable objects contained in std::optional, std::unique_ptr, or std::shared_ptr.
     //
     // And active objects from the Android ecosystem such as:
-    // 6) File descriptors, base::unique_fd (kernel object handles)
+    // 6) File descriptors, unique_fd (kernel object handles)
     // 7) Binder objects, sp<IBinder> (active Android RPC handles)
     //
     // Objects from (1) through (5) serialize into the mData buffer.
@@ -957,9 +953,7 @@ private:
         return writeUtf8AsUtf16(t);
     }
 
-    status_t writeData(const base::unique_fd& t) {
-        return writeUniqueFileDescriptor(t);
-    }
+    status_t writeData(const binder::unique_fd& t) { return writeUniqueFileDescriptor(t); }
 
     status_t writeData(const Parcelable& t) {  // std::is_base_of_v<Parcelable, T>
         // implemented here. writeParcelable() calls this.
@@ -1106,9 +1100,7 @@ private:
         return readUtf8FromUtf16(t);
     }
 
-    status_t readData(base::unique_fd* t) const {
-        return readUniqueFileDescriptor(t);
-    }
+    status_t readData(binder::unique_fd* t) const { return readUniqueFileDescriptor(t); }
 
     status_t readData(Parcelable* t) const { // std::is_base_of_v<Parcelable, T>
         // implemented here. readParcelable() calls this.
@@ -1328,7 +1320,7 @@ private:
         // same order as `mObjectPositions`.
         //
         // Boxed to save space. Lazy allocated.
-        std::unique_ptr<std::vector<std::variant<base::unique_fd, base::borrowed_fd>>> mFds;
+        std::unique_ptr<std::vector<std::variant<binder::unique_fd, binder::borrowed_fd>>> mFds;
     };
     std::variant<KernelFields, RpcFields> mVariantFields;
 

@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include <android-base/unique_fd.h>
+#include <binder/unique_fd.h>
 #include <utils/Errors.h>
 #include <utils/RefBase.h>
 #include <utils/String16.h>
@@ -175,7 +175,7 @@ public:
      *
      * On death of @a keepAliveBinder, the RpcServer shuts down.
      */
-    [[nodiscard]] status_t setRpcClientDebug(android::base::unique_fd socketFd,
+    [[nodiscard]] status_t setRpcClientDebug(binder::unique_fd socketFd,
                                              const sp<IBinder>& keepAliveBinder);
 
     // NOLINTNEXTLINE(google-default-arguments)

@@ -17,6 +17,7 @@
 #include "binderRpcTestCommon.h"
 
 using namespace android;
+using android::binder::unique_fd;
 
 class MyBinderRpcTestAndroid : public MyBinderRpcTestBase {
 public:
@@ -72,10 +73,10 @@ public:
         return Status::ok();
     }
 
-    HandoffChannel<android::base::unique_fd> mFdChannel;
+    HandoffChannel<unique_fd> mFdChannel;
 
     Status blockingSendFdOneway(const android::os::ParcelFileDescriptor& fd) override {
-        mFdChannel.write(android::base::unique_fd(fcntl(fd.get(), F_DUPFD_CLOEXEC, 0)));
+        mFdChannel.write(unique_fd(fcntl(fd.get(), F_DUPFD_CLOEXEC, 0)));
         return Status::ok();
     }
 
@@ -101,8 +102,8 @@ int main(int argc, char* argv[]) {
     __android_log_set_logger(__android_log_stderr_logger);
 
     LOG_ALWAYS_FATAL_IF(argc != 3, "Invalid number of arguments: %d", argc);
-    base::unique_fd writeEnd(atoi(argv[1]));
-    base::unique_fd readEnd(atoi(argv[2]));
+    unique_fd writeEnd(atoi(argv[1]));
+    unique_fd readEnd(atoi(argv[2]));
 
     auto serverConfig = readFromFd<BinderRpcTestServerConfig>(readEnd);
     auto socketType = static_cast<SocketType>(serverConfig.socketType);
@@ -123,7 +124,7 @@ int main(int argc, char* argv[]) {
     server->setSupportedFileDescriptorTransportModes(serverSupportedFileDescriptorTransportModes);
 
     unsigned int outPort = 0;
-    base::unique_fd socketFd(serverConfig.socketFd);
+    unique_fd socketFd(serverConfig.socketFd);
 
     switch (socketType) {
         case SocketType::PRECONNECTED:
