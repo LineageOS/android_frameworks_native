@@ -16,26 +16,22 @@
 
 package com.android.server.inputflinger;
 
-import android.hardware.input.common.Source;
-import com.android.server.inputflinger.KeyEventAction;
+/** Different Key event actions */
+enum KeyEventAction {
+    /** The key has been pressed down. */
+    DOWN = 0,
 
-/**
- * Analogous to Android's native KeyEvent / NotifyKeyArgs.
- * Stores the basic information about Key events.
- */
-@RustDerive(Copy=true, Clone=true, Eq=true, PartialEq=true)
-parcelable KeyEvent {
-    int id;
-    int deviceId;
-    long downTime;
-    long readTime;
-    long eventTime;
-    Source source;
-    int displayId;
-    int policyFlags;
-    KeyEventAction action;
-    int flags;
-    int keyCode;
-    int scanCode;
-    int metaState;
+    /** The key has been released. */
+    UP = 1,
+
+    /**
+     * Multiple duplicate key events have occurred in a row, or a
+     * complex string is being delivered.  The repeat_count property
+     * of the key event contains the number of times the given key
+     * code should be executed.
+     *
+     * NOTE: This is deprecated and should never be used. This just
+     * for consistency with KeyEvent actions defined in NotifyKeyArgs.
+     */
+    MULTIPLE = 2
 }
