@@ -18,6 +18,7 @@
 #include <log/log.h>
 
 #include <poll.h>
+#include <sys/socket.h>
 
 #include <openssl/bn.h>
 #include <openssl/ssl.h>
@@ -42,6 +43,8 @@
 namespace android {
 
 using namespace android::binder::impl;
+using android::binder::borrowed_fd;
+using android::binder::unique_fd;
 
 namespace {
 
@@ -56,7 +59,7 @@ int socketFree(BIO* bio) {
     return 1;
 }
 int socketRead(BIO* bio, char* buf, int size) {
-    android::base::borrowed_fd fd(static_cast<int>(reinterpret_cast<intptr_t>(BIO_get_data(bio))));
+    borrowed_fd fd(static_cast<int>(reinterpret_cast<intptr_t>(BIO_get_data(bio))));
     int ret = TEMP_FAILURE_RETRY(::recv(fd.get(), buf, size, MSG_NOSIGNAL));
     BIO_clear_retry_flags(bio);
     if (errno == EAGAIN || errno == EWOULDBLOCK) {
@@ -66,7 +69,7 @@ int socketRead(BIO* bio, char* buf, int size) {
 }
 
 int socketWrite(BIO* bio, const char* buf, int size) {
-    android::base::borrowed_fd fd(static_cast<int>(reinterpret_cast<intptr_t>(BIO_get_data(bio))));
+    borrowed_fd fd(static_cast<int>(reinterpret_cast<intptr_t>(BIO_get_data(bio))));
     int ret = TEMP_FAILURE_RETRY(::send(fd.get(), buf, size, MSG_NOSIGNAL));
     BIO_clear_retry_flags(bio);
     if (errno == EAGAIN || errno == EWOULDBLOCK) {
@@ -76,13 +79,13 @@ int socketWrite(BIO* bio, const char* buf, int size) {
 }
 
 long socketCtrl(BIO* bio, int cmd, long num, void*) { // NOLINT
-    android::base::borrowed_fd fd(static_cast<int>(reinterpret_cast<intptr_t>(BIO_get_data(bio))));
+    borrowed_fd fd(static_cast<int>(reinterpret_cast<intptr_t>(BIO_get_data(bio))));
     if (cmd == BIO_CTRL_FLUSH) return 1;
     LOG_ALWAYS_FATAL("sockCtrl(fd=%d, %d, %ld)", fd.get(), cmd, num);
     return 0;
 }
 
-bssl::UniquePtr<BIO> newSocketBio(android::base::borrowed_fd fd) {
+bssl::UniquePtr<BIO> newSocketBio(borrowed_fd fd) {
     static const BIO_METHOD* gMethods = ([] {
         auto methods = BIO_meth_new(BIO_get_new_index(), "socket_no_signal");
         LOG_ALWAYS_FATAL_IF(0 == BIO_meth_set_write(methods, socketWrite), "BIO_meth_set_write");
@@ -289,12 +292,11 @@ public:
     status_t interruptableWriteFully(
             FdTrigger* fdTrigger, iovec* iovs, int niovs,
             const std::optional<SmallFunction<status_t()>>& altPoll,
-            const std::vector<std::variant<base::unique_fd, base::borrowed_fd>>* ancillaryFds)
-            override;
+            const std::vector<std::variant<unique_fd, borrowed_fd>>* ancillaryFds) override;
     status_t interruptableReadFully(
             FdTrigger* fdTrigger, iovec* iovs, int niovs,
             const std::optional<SmallFunction<status_t()>>& altPoll,
-            std::vector<std::variant<base::unique_fd, base::borrowed_fd>>* ancillaryFds) override;
+            std::vector<std::variant<unique_fd, borrowed_fd>>* ancillaryFds) override;
 
     bool isWaiting() override { return mSocket.isInPollingState(); };
 
@@ -325,7 +327,7 @@ status_t RpcTransportTls::pollRead(void) {
 status_t RpcTransportTls::interruptableWriteFully(
         FdTrigger* fdTrigger, iovec* iovs, int niovs,
         const std::optional<SmallFunction<status_t()>>& altPoll,
-        const std::vector<std::variant<base::unique_fd, base::borrowed_fd>>* ancillaryFds) {
+        const std::vector<std::variant<unique_fd, borrowed_fd>>* ancillaryFds) {
     (void)ancillaryFds;
 
     MAYBE_WAIT_IN_FLAKE_MODE;
@@ -371,7 +373,7 @@ status_t RpcTransportTls::interruptableWriteFully(
 status_t RpcTransportTls::interruptableReadFully(
         FdTrigger* fdTrigger, iovec* iovs, int niovs,
         const std::optional<SmallFunction<status_t()>>& altPoll,
-        std::vector<std::variant<base::unique_fd, base::borrowed_fd>>* ancillaryFds) {
+        std::vector<std::variant<unique_fd, borrowed_fd>>* ancillaryFds) {
     (void)ancillaryFds;
 
     MAYBE_WAIT_IN_FLAKE_MODE;

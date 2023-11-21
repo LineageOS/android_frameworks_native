@@ -23,7 +23,7 @@
 
 namespace android {
 
-using base::unique_fd;
+using binder::unique_fd;
 
 std::vector<unique_fd> getRandomFds(FuzzedDataProvider* provider) {
     const char* fdType;
