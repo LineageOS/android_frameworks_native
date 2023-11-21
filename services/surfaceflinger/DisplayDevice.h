@@ -223,9 +223,8 @@ public:
 
     void setActiveMode(DisplayModeId, Fps vsyncRate, Fps renderFps);
 
-    status_t initiateModeChange(const ActiveModeInfo&,
-                                const hal::VsyncPeriodChangeConstraints& constraints,
-                                hal::VsyncPeriodChangeTimeline* outTimeline)
+    bool initiateModeChange(const ActiveModeInfo&, const hal::VsyncPeriodChangeConstraints&,
+                            hal::VsyncPeriodChangeTimeline& outTimeline)
             REQUIRES(kMainThreadContext);
 
     void finalizeModeChange(DisplayModeId, Fps vsyncRate, Fps renderFps)

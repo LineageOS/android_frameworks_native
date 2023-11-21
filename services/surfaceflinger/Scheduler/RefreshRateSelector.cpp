@@ -973,14 +973,18 @@ ftl::Optional<FrameRateMode> RefreshRateSelector::onKernelTimerChanged(
         ftl::Optional<DisplayModeId> desiredModeIdOpt, bool timerExpired) const {
     std::lock_guard lock(mLock);
 
-    const auto current = [&]() REQUIRES(mLock) -> FrameRateMode {
-        if (desiredModeIdOpt) {
-            const auto& modePtr = mDisplayModes.get(*desiredModeIdOpt)->get();
-            return FrameRateMode{modePtr->getPeakFps(), ftl::as_non_null(modePtr)};
-        }
-
-        return getActiveModeLocked();
-    }();
+    const auto current =
+            desiredModeIdOpt
+                    .and_then([this](DisplayModeId modeId)
+                                      REQUIRES(mLock) { return mDisplayModes.get(modeId); })
+                    .transform([](const DisplayModePtr& modePtr) {
+                        return FrameRateMode{modePtr->getPeakFps(), ftl::as_non_null(modePtr)};
+                    })
+                    .or_else([this] {
+                        ftl::FakeGuard guard(mLock);
+                        return std::make_optional(getActiveModeLocked());
+                    })
+                    .value();
 
     const DisplayModePtr& min = mMinRefreshRateModeIt->second;
     if (current.modePtr->getId() == min->getId()) {
