@@ -17,9 +17,9 @@
 #include <sysexits.h>
 #include <unistd.h>
 
+#include <filesystem>
 #include <iostream>
 
-#include <android-base/file.h>
 #include <android-base/logging.h>
 #include <android-base/properties.h>
 #include <android/debug/BnAdbCallback.h>
@@ -30,6 +30,8 @@
 #include <binder/ProcessState.h>
 #include <binder/RpcServer.h>
 
+#include "file.h"
+
 using android::BBinder;
 using android::defaultServiceManager;
 using android::OK;
@@ -38,7 +40,6 @@ using android::sp;
 using android::status_t;
 using android::statusToString;
 using android::String16;
-using android::base::Basename;
 using android::base::GetBoolProperty;
 using android::base::InitLogging;
 using android::base::LogdLogger;
@@ -53,8 +54,8 @@ const char* kLocalInetAddress = "127.0.0.1";
 using ServiceRetriever = decltype(&android::IServiceManager::checkService);
 using android::debug::IAdbManager;
 
-int Usage(const char* program) {
-    auto basename = Basename(program);
+int Usage(std::filesystem::path program) {
+    auto basename = program.filename();
     // clang-format off
     LOG(ERROR) << R"(dispatch calls to RPC service.
 Usage:
@@ -253,7 +254,8 @@ public:
         mLogdLogger(id, severity, tag, file, line, message);
         if (severity >= LogSeverity::WARNING) {
             std::cout << std::flush;
-            std::cerr << Basename(getprogname()) << ": " << message << std::endl;
+            auto progname = std::filesystem::path(getprogname()).filename();
+            std::cerr << progname << ": " << message << std::endl;
         }
     }
 
