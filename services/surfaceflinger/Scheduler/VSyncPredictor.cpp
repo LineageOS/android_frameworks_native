@@ -114,6 +114,10 @@ Period VSyncPredictor::minFramePeriod() const {
     }
 
     std::lock_guard lock(mMutex);
+    return minFramePeriodLocked();
+}
+
+Period VSyncPredictor::minFramePeriodLocked() const {
     const auto idealPeakRefreshPeriod = mDisplayModePtr->getPeakFps().getPeriodNsecs();
     const auto numPeriods = static_cast<int>(std::round(static_cast<float>(idealPeakRefreshPeriod) /
                                                         static_cast<float>(idealPeriod())));
@@ -297,14 +301,19 @@ nsecs_t VSyncPredictor::nextAnticipatedVSyncTimeFrom(nsecs_t timePoint) const {
 
     const auto renderRatePhase = [&]() REQUIRES(mMutex) -> int {
         if (!mRenderRateOpt) return 0;
-
         const auto divisor =
                 RefreshRateSelector::getFrameRateDivisor(Fps::fromPeriodNsecs(idealPeriod()),
                                                          *mRenderRateOpt);
         if (divisor <= 1) return 0;
 
-        const int mod = mLastVsyncSequence->seq % divisor;
+        int mod = mLastVsyncSequence->seq % divisor;
         if (mod == 0) return 0;
+
+        // This is actually a bug fix, but guarded with vrr_config since we found it with this
+        // config
+        if (FlagManager::getInstance().vrr_config()) {
+            if (mod < 0) mod += divisor;
+        }
 
         return divisor - mod;
     }();
@@ -404,6 +413,95 @@ void VSyncPredictor::setDisplayModePtr(ftl::NonNull<DisplayModePtr> modePtr) {
     }
 
     clearTimestamps();
+}
+
+void VSyncPredictor::ensureMinFrameDurationIsKept(TimePoint expectedPresentTime,
+                                                  TimePoint lastConfirmedPresentTime) {
+    const auto currentPeriod = mRateMap.find(idealPeriod())->second.slope;
+    const auto threshold = currentPeriod / 2;
+    const auto minFramePeriod = minFramePeriodLocked().ns();
+
+    auto prev = lastConfirmedPresentTime.ns();
+    for (auto& current : mPastExpectedPresentTimes) {
+        if (CC_UNLIKELY(mTraceOn)) {
+            ATRACE_FORMAT_INSTANT("current %.2f past last signaled fence",
+                                  static_cast<float>(current.ns() - lastConfirmedPresentTime.ns()) /
+                                          1e6f);
+        }
+
+        const auto minPeriodViolation = current.ns() - prev + threshold < minFramePeriod;
+        if (minPeriodViolation) {
+            ATRACE_NAME("minPeriodViolation");
+            current = TimePoint::fromNs(prev + minFramePeriod);
+            prev = current.ns();
+        } else {
+            break;
+        }
+    }
+
+    if (!mPastExpectedPresentTimes.empty()) {
+        const auto phase = Duration(mPastExpectedPresentTimes.back() - expectedPresentTime);
+        if (phase > 0ns) {
+            if (mLastVsyncSequence) {
+                mLastVsyncSequence->vsyncTime += phase.ns();
+            }
+        }
+    }
+}
+
+void VSyncPredictor::onFrameBegin(TimePoint expectedPresentTime,
+                                  TimePoint lastConfirmedPresentTime) {
+    ATRACE_CALL();
+    std::lock_guard lock(mMutex);
+
+    if (!mDisplayModePtr->getVrrConfig()) return;
+
+    if (CC_UNLIKELY(mTraceOn)) {
+        ATRACE_FORMAT_INSTANT("vsync is %.2f past last signaled fence",
+                              static_cast<float>(expectedPresentTime.ns() -
+                                                 lastConfirmedPresentTime.ns()) /
+                                      1e6f);
+    }
+    mPastExpectedPresentTimes.push_back(expectedPresentTime);
+
+    const auto currentPeriod = mRateMap.find(idealPeriod())->second.slope;
+    const auto threshold = currentPeriod / 2;
+
+    const auto minFramePeriod = minFramePeriodLocked().ns();
+    while (!mPastExpectedPresentTimes.empty()) {
+        const auto front = mPastExpectedPresentTimes.front().ns();
+        const bool frontIsLastConfirmed =
+                std::abs(front - lastConfirmedPresentTime.ns()) < threshold;
+        const bool frontIsBeforeConfirmed =
+                front < lastConfirmedPresentTime.ns() - minFramePeriod + threshold;
+        if (frontIsLastConfirmed || frontIsBeforeConfirmed) {
+            if (CC_UNLIKELY(mTraceOn)) {
+                ATRACE_FORMAT_INSTANT("Discarding old vsync - %.2f before last signaled fence",
+                                      static_cast<float>(lastConfirmedPresentTime.ns() -
+                                                         mPastExpectedPresentTimes.front().ns()) /
+                                              1e6f);
+            }
+            mPastExpectedPresentTimes.pop_front();
+        } else {
+            break;
+        }
+    }
+
+    ensureMinFrameDurationIsKept(expectedPresentTime, lastConfirmedPresentTime);
+}
+
+void VSyncPredictor::onFrameMissed(TimePoint expectedPresentTime) {
+    ATRACE_CALL();
+
+    std::lock_guard lock(mMutex);
+    if (!mDisplayModePtr->getVrrConfig()) return;
+
+    // We don't know when the frame is going to be presented, so we assume it missed one vsync
+    const auto currentPeriod = mRateMap.find(idealPeriod())->second.slope;
+    const auto lastConfirmedPresentTime =
+            TimePoint::fromNs(expectedPresentTime.ns() + currentPeriod);
+
+    ensureMinFrameDurationIsKept(expectedPresentTime, lastConfirmedPresentTime);
 }
 
 VSyncPredictor::Model VSyncPredictor::getVSyncPredictionModel() const {
