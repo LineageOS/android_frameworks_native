@@ -5837,7 +5837,7 @@ Result<std::unique_ptr<InputChannel>> InputDispatcher::createInputChannel(const 
     { // acquire lock
         std::scoped_lock _l(mLock);
         const sp<IBinder>& token = serverChannel->getConnectionToken();
-        int fd = serverChannel->getFd();
+        auto&& fd = serverChannel->getFd();
         std::shared_ptr<Connection> connection =
                 std::make_shared<Connection>(std::move(serverChannel), /*monitor=*/false,
                                              mIdGenerator);
@@ -5850,7 +5850,7 @@ Result<std::unique_ptr<InputChannel>> InputDispatcher::createInputChannel(const 
         std::function<int(int events)> callback = std::bind(&InputDispatcher::handleReceiveCallback,
                                                             this, std::placeholders::_1, token);
 
-        mLooper->addFd(fd, 0, ALOOPER_EVENT_INPUT, sp<LooperEventCallback>::make(callback),
+        mLooper->addFd(fd.get(), 0, ALOOPER_EVENT_INPUT, sp<LooperEventCallback>::make(callback),
                        nullptr);
     } // release lock
 
@@ -5880,7 +5880,7 @@ Result<std::unique_ptr<InputChannel>> InputDispatcher::createInputMonitor(int32_
         std::shared_ptr<Connection> connection =
                 std::make_shared<Connection>(serverChannel, /*monitor=*/true, mIdGenerator);
         const sp<IBinder>& token = serverChannel->getConnectionToken();
-        const int fd = serverChannel->getFd();
+        auto&& fd = serverChannel->getFd();
 
         if (mConnectionsByToken.find(token) != mConnectionsByToken.end()) {
             ALOGE("Created a new connection, but the token %p is already known", token.get());
@@ -5891,7 +5891,7 @@ Result<std::unique_ptr<InputChannel>> InputDispatcher::createInputMonitor(int32_
 
         mGlobalMonitorsByDisplay[displayId].emplace_back(serverChannel, pid);
 
-        mLooper->addFd(fd, 0, ALOOPER_EVENT_INPUT, sp<LooperEventCallback>::make(callback),
+        mLooper->addFd(fd.get(), 0, ALOOPER_EVENT_INPUT, sp<LooperEventCallback>::make(callback),
                        nullptr);
     }
 
@@ -5930,7 +5930,7 @@ status_t InputDispatcher::removeInputChannelLocked(const sp<IBinder>& connection
         removeMonitorChannelLocked(connectionToken);
     }
 
-    mLooper->removeFd(connection->inputChannel->getFd());
+    mLooper->removeFd(connection->inputChannel->getFd().get());
 
     nsecs_t currentTime = now();
     abortBrokenDispatchCycleLocked(currentTime, connection, notify);
