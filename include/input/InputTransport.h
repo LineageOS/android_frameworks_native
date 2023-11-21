@@ -240,7 +240,7 @@ public:
                                                 android::base::unique_fd fd, sp<IBinder> token);
     InputChannel() = default;
     InputChannel(const InputChannel& other)
-          : mName(other.mName), mFd(::dup(other.mFd)), mToken(other.mToken){};
+          : mName(other.mName), mFd(other.dupFd()), mToken(other.mToken){};
     InputChannel(const std::string name, android::base::unique_fd fd, sp<IBinder> token);
     ~InputChannel() override;
     /**
@@ -310,7 +310,7 @@ public:
         if (fstat(mFd.get(), &lhs) != 0) {
             return false;
         }
-        if (fstat(inputChannel.getFd(), &rhs) != 0) {
+        if (fstat(inputChannel.getFd().get(), &rhs) != 0) {
             return false;
         }
         // If file descriptors are pointing to same inode they are duplicated fds.
@@ -322,7 +322,7 @@ private:
     base::unique_fd dupFd() const;
 
     std::string mName;
-    android::base::unique_fd mFd;
+    base::unique_fd mFd;
 
     sp<IBinder> mToken;
 };
