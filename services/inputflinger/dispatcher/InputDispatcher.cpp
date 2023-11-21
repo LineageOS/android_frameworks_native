@@ -2305,6 +2305,13 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
     }
 
     if (isHoverAction) {
+        if (wasDown) {
+            // Started hovering, but the device is already down: reject the hover event
+            LOG(ERROR) << "Got hover event " << entry.getDescription()
+                       << " but the device is already down " << oldState->dump();
+            outInjectionResult = InputEventInjectionResult::FAILED;
+            return {};
+        }
         // For hover actions, we will treat 'tempTouchState' as a new state, so let's erase
         // all of the existing hovering pointers and recompute.
         tempTouchState.clearHoveringPointers(entry.deviceId);
@@ -2687,15 +2694,7 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
     }
 
     // Update final pieces of touch state if the injector had permission.
-    if (isHoverAction) {
-        if (oldState && oldState->isDown(entry.deviceId)) {
-            // Started hovering, but the device is already down: reject the hover event
-            LOG(ERROR) << "Got hover event " << entry.getDescription()
-                       << " but the device is already down " << oldState->dump();
-            outInjectionResult = InputEventInjectionResult::FAILED;
-            return {};
-        }
-    } else if (maskedAction == AMOTION_EVENT_ACTION_UP) {
+    if (maskedAction == AMOTION_EVENT_ACTION_UP) {
         // Pointer went up.
         tempTouchState.removeTouchingPointer(entry.deviceId, entry.pointerProperties[0].id);
     } else if (maskedAction == AMOTION_EVENT_ACTION_CANCEL) {

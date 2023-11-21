@@ -20,6 +20,7 @@
 #include "TestEventMatchers.h"
 
 #include <NotifyArgsBuilders.h>
+#include <android-base/logging.h>
 #include <android-base/properties.h>
 #include <android-base/silent_death_test.h>
 #include <android-base/stringprintf.h>
@@ -53,6 +54,7 @@ namespace android::inputdispatcher {
 
 using namespace ftl::flag_operators;
 using testing::AllOf;
+using testing::Not;
 
 namespace {
 
@@ -1319,10 +1321,13 @@ public:
         mInputReceiver->consumeCaptureEvent(hasCapture);
     }
 
-    void consumeMotionEvent(const ::testing::Matcher<MotionEvent>& matcher) {
+    const MotionEvent& consumeMotionEvent(const ::testing::Matcher<MotionEvent>& matcher) {
         MotionEvent* motionEvent = consumeMotion();
-        ASSERT_NE(nullptr, motionEvent) << "Did not get a motion event, but expected " << matcher;
-        ASSERT_THAT(*motionEvent, matcher);
+        if (nullptr == motionEvent) {
+            LOG(FATAL) << "Did not get a motion event, but expected " << matcher;
+        }
+        EXPECT_THAT(*motionEvent, matcher);
+        return *motionEvent;
     }
 
     void consumeEvent(InputEventType expectedEventType, int32_t expectedAction,
@@ -6537,6 +6542,55 @@ TEST_F(InputDispatcherTest, NotifiesDeviceInteractionsWithKeys) {
     ASSERT_NO_FATAL_FAILURE(window->consumeKeyUp(ADISPLAY_ID_DEFAULT));
     mDispatcher->waitForIdle();
     ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertNotifyDeviceInteractionWasNotCalled());
+}
+
+TEST_F(InputDispatcherTest, HoverEnterExitSynthesisUsesNewEventId) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+
+    sp<FakeWindowHandle> left = sp<FakeWindowHandle>::make(application, mDispatcher, "Left Window",
+                                                           ADISPLAY_ID_DEFAULT);
+    left->setFrame(Rect(0, 0, 100, 100));
+    sp<FakeWindowHandle> right = sp<FakeWindowHandle>::make(application, mDispatcher,
+                                                            "Right Window", ADISPLAY_ID_DEFAULT);
+    right->setFrame(Rect(100, 0, 200, 100));
+    sp<FakeWindowHandle> spy =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Spy Window", ADISPLAY_ID_DEFAULT);
+    spy->setFrame(Rect(0, 0, 200, 100));
+    spy->setTrustedOverlay(true);
+    spy->setSpy(true);
+
+    mDispatcher->onWindowInfosChanged(
+            {{*spy->getInfo(), *left->getInfo(), *right->getInfo()}, {}, 0, 0});
+
+    // Send hover move to the left window, and ensure hover enter is synthesized with a new eventId.
+    NotifyMotionArgs notifyArgs = generateMotionArgs(ACTION_HOVER_MOVE, AINPUT_SOURCE_STYLUS,
+                                                     ADISPLAY_ID_DEFAULT, {PointF{50, 50}});
+    mDispatcher->notifyMotion(notifyArgs);
+
+    const MotionEvent& leftEnter = left->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_HOVER_ENTER), Not(WithEventId(notifyArgs.id)),
+                  WithEventIdSource(IdGenerator::Source::INPUT_DISPATCHER)));
+
+    spy->consumeMotionEvent(AllOf(WithMotionAction(ACTION_HOVER_ENTER),
+                                  Not(WithEventId(notifyArgs.id)),
+                                  Not(WithEventId(leftEnter.getId())),
+                                  WithEventIdSource(IdGenerator::Source::INPUT_DISPATCHER)));
+
+    // Send move to the right window, and ensure hover exit and enter are synthesized with new ids.
+    notifyArgs = generateMotionArgs(ACTION_HOVER_MOVE, AINPUT_SOURCE_STYLUS, ADISPLAY_ID_DEFAULT,
+                                    {PointF{150, 50}});
+    mDispatcher->notifyMotion(notifyArgs);
+
+    const MotionEvent& leftExit = left->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_HOVER_EXIT), Not(WithEventId(notifyArgs.id)),
+                  WithEventIdSource(IdGenerator::Source::INPUT_DISPATCHER)));
+
+    right->consumeMotionEvent(AllOf(WithMotionAction(ACTION_HOVER_ENTER),
+                                    Not(WithEventId(notifyArgs.id)),
+                                    Not(WithEventId(leftExit.getId())),
+                                    WithEventIdSource(IdGenerator::Source::INPUT_DISPATCHER)));
+
+    spy->consumeMotionEvent(AllOf(WithMotionAction(ACTION_HOVER_MOVE), WithEventId(notifyArgs.id)));
 }
 
 class InputDispatcherFallbackKeyTest : public InputDispatcherTest {
