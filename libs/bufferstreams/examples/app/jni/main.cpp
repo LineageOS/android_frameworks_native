@@ -13,25 +13,41 @@
 // limitations under the License.
 
 #include <jni.h>
+#include <string>
 
 #include <gui/BufferQueue.h>
 
-extern "C"
-{
-    JNIEXPORT jstring JNICALL
-    Java_com_android_graphics_bufferstreamsdemoapp_BufferStreamJNI_stringFromJNI(
-            JNIEnv* env,
-            jobject /* this */) {
-        const char* hello = "Hello from C++";
-        return env->NewStringUTF(hello);
-    }
+void log(JNIEnv* env, std::string l) {
+    jclass clazz = env->FindClass("com/android/graphics/bufferstreamsdemoapp/LogOutput");
+    jmethodID getInstance = env->GetStaticMethodID(clazz, "getInstance",
+        "()Lcom/android/graphics/bufferstreamsdemoapp/LogOutput;");
+    jmethodID addLog = env->GetMethodID(clazz, "addLog", "(Ljava/lang/String;)V");
+    jobject dmg = env->CallStaticObjectMethod(clazz, getInstance);
 
-    JNIEXPORT void JNICALL
-    Java_com_android_graphics_bufferstreamsdemoapp_BufferStreamJNI_testBufferQueueCreation(
-            JNIEnv* /* env */,
-            jobject /* this */) {
-        android::sp<android::IGraphicBufferProducer> producer;
-        android::sp<android::IGraphicBufferConsumer> consumer;
-        android::BufferQueue::createBufferQueue(&producer, &consumer);
-    }
+    jstring jlog = env->NewStringUTF(l.c_str());
+    env->CallVoidMethod(dmg, addLog, jlog);
+}
+
+extern "C" {
+
+JNIEXPORT jstring JNICALL
+Java_com_android_graphics_bufferstreamsdemoapp_BufferStreamJNI_stringFromJNI(JNIEnv* env,
+                                                                             jobject /* this */) {
+    const char* hello = "Hello from C++";
+    return env->NewStringUTF(hello);
+}
+
+JNIEXPORT void JNICALL
+Java_com_android_graphics_bufferstreamsdemoapp_BufferStreamJNI_testBufferQueueCreation(
+        JNIEnv* env, jobject /* thiz */) {
+
+    log(env, "Calling testBufferQueueCreation.");
+    android::sp<android::IGraphicBufferProducer> producer;
+    log(env, "Created producer.");
+    android::sp<android::IGraphicBufferConsumer> consumer;
+    log(env, "Created consumer.");
+    android::BufferQueue::createBufferQueue(&producer, &consumer);
+    log(env, "Created BufferQueue successfully.");
+    log(env, "Done!");
+}
 }
