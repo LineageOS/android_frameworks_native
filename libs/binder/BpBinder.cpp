@@ -27,8 +27,7 @@
 #include <stdio.h>
 
 #include "BuildFlags.h"
-
-#include <android-base/file.h>
+#include "file.h"
 
 //#undef ALOGV
 //#define ALOGV(...) fprintf(stderr, __VA_ARGS__)
