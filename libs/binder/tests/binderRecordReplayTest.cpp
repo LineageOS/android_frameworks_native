@@ -15,7 +15,6 @@
  */
 
 #include <BnBinderRecordReplayTest.h>
-#include <android-base/file.h>
 #include <android-base/logging.h>
 #include <binder/Binder.h>
 #include <binder/BpBinder.h>
@@ -33,6 +32,7 @@
 
 #include <sys/prctl.h>
 
+#include "../file.h"
 #include "parcelables/SingleDataParcelable.h"
 
 using namespace android;

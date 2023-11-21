@@ -92,6 +92,7 @@ cc_defaults {
         "TextOutput.cpp",
         "Trace.cpp",
         "Utils.cpp",
+        "file.cpp",
     ],
 
     shared_libs: [
@@ -652,5 +653,8 @@ cc_binary {
         "liblog",
         "libutils",
         "android.debug_aidl-cpp",
+    ],
+    static_libs: [
+        "libc++fs",
     ],
 }

@@ -16,6 +16,7 @@
 
 #include "serialization.hpp"
 #include "../../FdUtils.h"
+#include "../../tests/FileUtils.h"
 
 #include <android/binder_ibinder_platform.h>
 #include <android/binder_libbinder.h>
@@ -27,7 +28,6 @@
 #include <gtest/gtest.h>
 #include <utils/Errors.h>
 #include <utils/String16.h>
-#include "android-base/file.h"
 
 #include <cmath>
 #include <cstdint>

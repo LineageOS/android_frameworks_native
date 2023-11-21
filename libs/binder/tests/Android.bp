@@ -172,6 +172,30 @@ cc_library_static {
     ],
 }
 
+cc_library_static {
+    name: "libbinder_test_utils",
+    host_supported: true,
+    vendor_available: true,
+    target: {
+        darwin: {
+            enabled: false,
+        },
+    },
+    defaults: [
+        "binder_test_defaults",
+    ],
+    shared_libs: [
+        "libbase",
+        "liblog",
+    ],
+    srcs: [
+        "FileUtils.cpp",
+    ],
+    visibility: [
+        ":__subpackages__",
+    ],
+}
+
 cc_defaults {
     name: "binderRpcTest_common_defaults",
     host_supported: true,
@@ -185,6 +209,7 @@ cc_defaults {
     ],
 
     static_libs: [
+        "libbinder_test_utils",
         "libbinder_tls_static",
         "libbinder_tls_test_utils",
         "binderRpcTestIface-cpp",
