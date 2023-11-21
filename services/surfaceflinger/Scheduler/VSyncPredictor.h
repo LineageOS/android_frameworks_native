@@ -46,6 +46,7 @@ public:
     bool addVsyncTimestamp(nsecs_t timestamp) final EXCLUDES(mMutex);
     nsecs_t nextAnticipatedVSyncTimeFrom(nsecs_t timePoint) const final EXCLUDES(mMutex);
     nsecs_t currentPeriod() const final EXCLUDES(mMutex);
+    Period minFramePeriod() const final EXCLUDES(mMutex);
     void resetModel() final EXCLUDES(mMutex);
 
     /* Query if the model is in need of more samples to make a prediction.

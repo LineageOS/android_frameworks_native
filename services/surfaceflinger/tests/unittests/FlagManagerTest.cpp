@@ -18,7 +18,7 @@
 #define LOG_TAG "FlagManagerTest"
 
 #include <common/FlagManager.h>
-#include "FlagUtils.h"
+#include <common/test/FlagUtils.h>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>

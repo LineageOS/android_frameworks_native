@@ -23,7 +23,7 @@
 #define LOG_TAG "LibSurfaceFlingerUnittests"
 #define LOG_NDEBUG 0
 
-#include "FlagUtils.h"
+#include <common/test/FlagUtils.h>
 #include "Scheduler/VSyncPredictor.h"
 #include "mock/DisplayHardware/MockDisplayMode.h"
 #include "mock/MockVsyncTrackerCallback.h"

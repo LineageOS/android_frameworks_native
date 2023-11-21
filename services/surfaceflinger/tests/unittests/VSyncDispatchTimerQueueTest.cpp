@@ -30,7 +30,7 @@
 
 #include <scheduler/TimeKeeper.h>
 
-#include "FlagUtils.h"
+#include <common/test/FlagUtils.h>
 #include "Scheduler/VSyncDispatchTimerQueue.h"
 #include "Scheduler/VSyncTracker.h"
 #include "mock/MockVSyncTracker.h"
