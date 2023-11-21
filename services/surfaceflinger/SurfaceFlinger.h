@@ -686,8 +686,7 @@ private:
     // Show hdr sdr ratio overlay
     bool mHdrSdrRatioOverlay = false;
 
-    void setDesiredActiveMode(display::DisplayModeRequest&&, bool force = false)
-            REQUIRES(mStateLock);
+    void setDesiredMode(display::DisplayModeRequest&&, bool force = false) REQUIRES(mStateLock);
 
     status_t setActiveModeFromBackdoor(const sp<display::DisplayToken>&, DisplayModeId, Fps minFps,
                                        Fps maxFps);
@@ -695,9 +694,10 @@ private:
     void initiateDisplayModeChanges() REQUIRES(mStateLock, kMainThreadContext);
     void finalizeDisplayModeChange(DisplayDevice&) REQUIRES(mStateLock, kMainThreadContext);
 
-    void clearDesiredActiveModeState(const sp<DisplayDevice>&) REQUIRES(mStateLock);
-    // Called when active mode is no longer is progress
-    void desiredActiveModeChangeDone(const sp<DisplayDevice>&) REQUIRES(mStateLock);
+    // TODO(b/241285191): Replace DisplayDevice with DisplayModeRequest, and move to Scheduler.
+    void dropModeRequest(const sp<DisplayDevice>&) REQUIRES(mStateLock);
+    void applyActiveMode(const sp<DisplayDevice>&) REQUIRES(mStateLock);
+
     // Called on the main thread in response to setPowerMode()
     void setPowerModeInternal(const sp<DisplayDevice>& display, hal::PowerMode mode)
             REQUIRES(mStateLock, kMainThreadContext);

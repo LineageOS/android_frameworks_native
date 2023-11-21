@@ -16,9 +16,6 @@
 
 #pragma once
 
-#include <algorithm>
-#include <numeric>
-#include <set>
 #include <type_traits>
 #include <utility>
 #include <variant>
@@ -258,9 +255,8 @@ public:
                 mMaxRefreshRateModeIt->second->getPeakFps()};
     }
 
-    ftl::Optional<FrameRateMode> onKernelTimerChanged(
-            std::optional<DisplayModeId> desiredActiveModeId, bool timerExpired) const
-            EXCLUDES(mLock);
+    ftl::Optional<FrameRateMode> onKernelTimerChanged(ftl::Optional<DisplayModeId> desiredModeIdOpt,
+                                                      bool timerExpired) const EXCLUDES(mLock);
 
     void setActiveMode(DisplayModeId, Fps renderFrameRate) EXCLUDES(mLock);
 
