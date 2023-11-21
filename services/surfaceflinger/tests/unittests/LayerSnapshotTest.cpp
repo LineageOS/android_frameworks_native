@@ -1055,4 +1055,23 @@ TEST_F(LayerSnapshotTest, isFrontBuffered) {
     EXPECT_FALSE(getSnapshot(1)->isFrontBuffered());
 }
 
+TEST_F(LayerSnapshotTest, setSecureRootSnapshot) {
+    setFlags(1, layer_state_t::eLayerSecure, layer_state_t::eLayerSecure);
+    LayerSnapshotBuilder::Args args{.root = mHierarchyBuilder.getHierarchy(),
+                                    .layerLifecycleManager = mLifecycleManager,
+                                    .includeMetadata = false,
+                                    .displays = mFrontEndDisplayInfos,
+                                    .displayChanges = false,
+                                    .globalShadowSettings = globalShadowSettings,
+                                    .supportsBlur = true,
+                                    .supportedLayerGenericMetadata = {},
+                                    .genericLayerMetadataKeyMap = {}};
+    args.rootSnapshot.isSecure = true;
+    update(mSnapshotBuilder, args);
+
+    EXPECT_TRUE(getSnapshot(1)->isSecure);
+    // Ensure child is also marked as secure
+    EXPECT_TRUE(getSnapshot(11)->isSecure);
+}
+
 } // namespace android::surfaceflinger::frontend

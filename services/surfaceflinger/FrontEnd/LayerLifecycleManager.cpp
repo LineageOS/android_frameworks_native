@@ -433,4 +433,15 @@ void LayerLifecycleManager::updateDisplayMirrorLayers(RequestedLayerState& rootL
     }
 }
 
+bool LayerLifecycleManager::isLayerSecure(uint32_t layerId) const {
+    if (layerId == UNASSIGNED_LAYER_ID) {
+        return false;
+    }
+
+    if (getLayerFromId(layerId)->flags & layer_state_t::eLayerSecure) {
+        return true;
+    }
+    return isLayerSecure(getLayerFromId(layerId)->parentId);
+}
+
 } // namespace android::surfaceflinger::frontend
