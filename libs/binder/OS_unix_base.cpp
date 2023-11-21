@@ -16,12 +16,14 @@
 
 #include "OS.h"
 #include "Utils.h"
+#include "file.h"
 
-#include <android-base/file.h>
 #include <binder/RpcTransportRaw.h>
 #include <log/log.h>
 #include <string.h>
 #include <sys/socket.h>
+
+using android::binder::ReadFully;
 
 namespace android::binder::os {
 
