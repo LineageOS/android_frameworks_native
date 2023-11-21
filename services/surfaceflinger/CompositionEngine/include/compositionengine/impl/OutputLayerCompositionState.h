@@ -90,7 +90,7 @@ struct OutputLayerCompositionState {
     // The source crop for this layer on this output
     FloatRect sourceCrop;
 
-    // The buffer transform to use for this layer o on this output.
+    // The buffer transform to use for this layer on this output.
     Hwc2::Transform bufferTransform{static_cast<Hwc2::Transform>(0)};
 
     // The dataspace for this layer
