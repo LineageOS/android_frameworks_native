@@ -29,8 +29,8 @@ using android::sp;
 using android::status_t;
 using android::String16;
 using android::String8;
-using android::base::unique_fd;
 using android::binder::Status;
+using android::binder::unique_fd;
 
 TEST(Parcel, NonNullTerminatedString8) {
     String8 kTestString = String8("test-is-good");

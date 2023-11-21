@@ -74,7 +74,7 @@ static const std::vector<std::function<void(FuzzedDataProvider*, const sp<BBinde
                                   bbinder->getDebugPid();
                               },
                               [](FuzzedDataProvider*, const sp<BBinder>& bbinder) -> void {
-                                  (void)bbinder->setRpcClientDebug(android::base::unique_fd(),
+                                  (void)bbinder->setRpcClientDebug(binder::unique_fd(),
                                                                    sp<BBinder>::make());
                               }};
 

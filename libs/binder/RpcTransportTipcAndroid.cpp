@@ -27,6 +27,8 @@
 #include "RpcTransportUtils.h"
 
 using namespace android::binder::impl;
+using android::binder::borrowed_fd;
+using android::binder::unique_fd;
 
 namespace android {
 
@@ -75,8 +77,7 @@ public:
     status_t interruptableWriteFully(
             FdTrigger* fdTrigger, iovec* iovs, int niovs,
             const std::optional<SmallFunction<status_t()>>& altPoll,
-            const std::vector<std::variant<base::unique_fd, base::borrowed_fd>>* ancillaryFds)
-            override {
+            const std::vector<std::variant<unique_fd, borrowed_fd>>* ancillaryFds) override {
         auto writeFn = [&](iovec* iovs, size_t niovs) -> ssize_t {
             // TODO: send ancillaryFds. For now, we just abort if anyone tries
             // to send any.
@@ -93,8 +94,7 @@ public:
     status_t interruptableReadFully(
             FdTrigger* fdTrigger, iovec* iovs, int niovs,
             const std::optional<SmallFunction<status_t()>>& altPoll,
-            std::vector<std::variant<base::unique_fd, base::borrowed_fd>>* /*ancillaryFds*/)
-            override {
+            std::vector<std::variant<unique_fd, borrowed_fd>>* /*ancillaryFds*/) override {
         auto readFn = [&](iovec* iovs, size_t niovs) -> ssize_t {
             // Fill the read buffer at most once per readFn call, then try to
             // return as much of it as possible. If the input iovecs are spread
