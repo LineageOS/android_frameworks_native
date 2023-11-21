@@ -280,6 +280,19 @@ int32_t jankTypeBitmaskToProto(int32_t jankType) {
     return protoJank;
 }
 
+FrameTimelineEvent::JankSeverityType toProto(JankSeverityType jankSeverityType) {
+    switch (jankSeverityType) {
+        case JankSeverityType::Unknown:
+            return FrameTimelineEvent::SEVERITY_UNKNOWN;
+        case JankSeverityType::None:
+            return FrameTimelineEvent::SEVERITY_NONE;
+        case JankSeverityType::Partial:
+            return FrameTimelineEvent::SEVERITY_PARTIAL;
+        case JankSeverityType::Full:
+            return FrameTimelineEvent::SEVERITY_FULL;
+    }
+}
+
 // Returns the smallest timestamp from the set of predictions and actuals.
 nsecs_t getMinTime(PredictionState predictionState, TimelineItem predictions,
                    TimelineItem actuals) {
@@ -387,6 +400,15 @@ std::optional<int32_t> SurfaceFrame::getJankType() const {
         return std::nullopt;
     }
     return mJankType;
+}
+
+std::optional<JankSeverityType> SurfaceFrame::getJankSeverityType() const {
+    std::scoped_lock lock(mMutex);
+    if (mActuals.presentTime == 0) {
+        // Frame hasn't been presented yet.
+        return std::nullopt;
+    }
+    return mJankSeverityType;
 }
 
 nsecs_t SurfaceFrame::getBaseTime() const {
@@ -505,10 +527,11 @@ std::string SurfaceFrame::miniDump() const {
 }
 
 void SurfaceFrame::classifyJankLocked(int32_t displayFrameJankType, const Fps& refreshRate,
-                                      nsecs_t& deadlineDelta) {
+                                      Fps displayFrameRenderRate, nsecs_t& deadlineDelta) {
     if (mActuals.presentTime == Fence::SIGNAL_TIME_INVALID) {
         // Cannot do any classification for invalid present time.
         mJankType = JankType::Unknown;
+        mJankSeverityType = JankSeverityType::Unknown;
         deadlineDelta = -1;
         return;
     }
@@ -519,6 +542,7 @@ void SurfaceFrame::classifyJankLocked(int32_t displayFrameJankType, const Fps& r
         // reasonable app, so prediction expire would mean a huge scheduling delay.
         mJankType = mPresentState != PresentState::Presented ? JankType::Dropped
                                                              : JankType::AppDeadlineMissed;
+        mJankSeverityType = JankSeverityType::Unknown;
         deadlineDelta = -1;
         return;
     }
@@ -543,6 +567,11 @@ void SurfaceFrame::classifyJankLocked(int32_t displayFrameJankType, const Fps& r
     if (std::abs(presentDelta) > mJankClassificationThresholds.presentThreshold) {
         mFramePresentMetadata = presentDelta > 0 ? FramePresentMetadata::LatePresent
                                                  : FramePresentMetadata::EarlyPresent;
+        // Jank that is missing by less than the render rate period is classified as partial jank,
+        // otherwise it is a full jank.
+        mJankSeverityType = std::abs(presentDelta) < displayFrameRenderRate.getPeriodNsecs()
+                ? JankSeverityType::Partial
+                : JankSeverityType::Full;
     } else {
         mFramePresentMetadata = FramePresentMetadata::OnTimePresent;
     }
@@ -613,6 +642,7 @@ void SurfaceFrame::classifyJankLocked(int32_t displayFrameJankType, const Fps& r
         mJankType = JankType::Dropped;
         // Since frame was not presented, lets drop any present value
         mActuals.presentTime = 0;
+        mJankSeverityType = JankSeverityType::Unknown;
     }
 }
 
@@ -625,7 +655,7 @@ void SurfaceFrame::onPresent(nsecs_t presentTime, int32_t displayFrameJankType, 
     mActuals.presentTime = presentTime;
     nsecs_t deadlineDelta = 0;
 
-    classifyJankLocked(displayFrameJankType, refreshRate, deadlineDelta);
+    classifyJankLocked(displayFrameJankType, refreshRate, displayFrameRenderRate, deadlineDelta);
 
     if (mPredictionState != PredictionState::None) {
         // Only update janky frames if the app used vsync predictions
@@ -718,6 +748,7 @@ void SurfaceFrame::traceActuals(int64_t displayFrameToken, nsecs_t monoBootOffse
         actualSurfaceFrameStartEvent->set_jank_type(jankTypeBitmaskToProto(mJankType));
         actualSurfaceFrameStartEvent->set_prediction_type(toProto(mPredictionState));
         actualSurfaceFrameStartEvent->set_is_buffer(mIsBuffer);
+        actualSurfaceFrameStartEvent->set_jank_severity_type(toProto(mJankSeverityType));
     });
 
     // Actual timeline end
@@ -910,6 +941,7 @@ void FrameTimeline::DisplayFrame::classifyJank(nsecs_t& deadlineDelta, nsecs_t& 
         // Cannot do jank classification with expired predictions or invalid signal times. Set the
         // deltas to 0 as both negative and positive deltas are used as real values.
         mJankType = JankType::Unknown;
+        mJankSeverityType = JankSeverityType::Unknown;
         deadlineDelta = 0;
         deltaToVsync = 0;
         if (!presentTimeValid) {
@@ -941,6 +973,11 @@ void FrameTimeline::DisplayFrame::classifyJank(nsecs_t& deadlineDelta, nsecs_t& 
     if (std::abs(presentDelta) > mJankClassificationThresholds.presentThreshold) {
         mFramePresentMetadata = presentDelta > 0 ? FramePresentMetadata::LatePresent
                                                  : FramePresentMetadata::EarlyPresent;
+        // Jank that is missing by less than the render rate period is classified as partial jank,
+        // otherwise it is a full jank.
+        mJankSeverityType = std::abs(presentDelta) < mRenderRate.getPeriodNsecs()
+                ? JankSeverityType::Partial
+                : JankSeverityType::Full;
     } else {
         mFramePresentMetadata = FramePresentMetadata::OnTimePresent;
     }
@@ -1119,6 +1156,7 @@ void FrameTimeline::DisplayFrame::addSkippedFrame(pid_t surfaceFlingerPid, nsecs
             actualDisplayFrameStartEvent->set_prediction_type(toProto(PredictionState::Valid));
             actualDisplayFrameStartEvent->set_present_type(FrameTimelineEvent::PRESENT_DROPPED);
             actualDisplayFrameStartEvent->set_jank_type(jankTypeBitmaskToProto(JankType::Dropped));
+            actualDisplayFrameStartEvent->set_jank_severity_type(toProto(JankSeverityType::None));
         });
 
         // Actual timeline end
@@ -1160,6 +1198,7 @@ void FrameTimeline::DisplayFrame::traceActuals(pid_t surfaceFlingerPid,
         actualDisplayFrameStartEvent->set_gpu_composition(mGpuFence != FenceTime::NO_FENCE);
         actualDisplayFrameStartEvent->set_jank_type(jankTypeBitmaskToProto(mJankType));
         actualDisplayFrameStartEvent->set_prediction_type(toProto(mPredictionState));
+        actualDisplayFrameStartEvent->set_jank_severity_type(toProto(mJankSeverityType));
     });
 
     // Actual timeline end
