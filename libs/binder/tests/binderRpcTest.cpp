@@ -43,6 +43,8 @@
 using namespace std::chrono_literals;
 using namespace std::placeholders;
 using android::binder::borrowed_fd;
+using android::binder::GetExecutableDirectory;
+using android::binder::ReadFdToString;
 using android::binder::unique_fd;
 using testing::AssertionFailure;
 using testing::AssertionResult;
@@ -260,7 +262,7 @@ std::unique_ptr<ProcessSession> BinderRpc::createRpcTestSocketServerProcessEtc(
     bool singleThreaded = GetParam().singleThreaded;
     bool noKernel = GetParam().noKernel;
 
-    std::string path = android::base::GetExecutableDirectory();
+    std::string path = GetExecutableDirectory();
     auto servicePath =
             std::format("{}/binder_rpc_test_service{}{}", path,
                         singleThreaded ? "_single_threaded" : "", noKernel ? "_no_kernel" : "");
@@ -591,12 +593,12 @@ TEST_P(BinderRpc, OnewayCallQueueingWithFds) {
     android::os::ParcelFileDescriptor fdA;
     EXPECT_OK(proc.rootIface->blockingRecvFd(&fdA));
     std::string result;
-    ASSERT_TRUE(android::base::ReadFdToString(fdA.get(), &result));
+    ASSERT_TRUE(ReadFdToString(fdA.get(), &result));
     EXPECT_EQ(result, "a");
 
     android::os::ParcelFileDescriptor fdB;
     EXPECT_OK(proc.rootIface->blockingRecvFd(&fdB));
-    ASSERT_TRUE(android::base::ReadFdToString(fdB.get(), &result));
+    ASSERT_TRUE(ReadFdToString(fdB.get(), &result));
     EXPECT_EQ(result, "b");
 
     saturateThreadPool(kNumServerThreads, proc.rootIface);
@@ -953,7 +955,7 @@ TEST_P(BinderRpc, ReceiveFile) {
     ASSERT_TRUE(status.isOk()) << status;
 
     std::string result;
-    ASSERT_TRUE(android::base::ReadFdToString(out.get(), &result));
+    ASSERT_TRUE(ReadFdToString(out.get(), &result));
     ASSERT_EQ(result, "hello");
 }
 
@@ -983,7 +985,7 @@ TEST_P(BinderRpc, SendFiles) {
     ASSERT_TRUE(status.isOk()) << status;
 
     std::string result;
-    EXPECT_TRUE(android::base::ReadFdToString(out.get(), &result));
+    EXPECT_TRUE(ReadFdToString(out.get(), &result));
     EXPECT_EQ(result, "123abcd");
 }
 
@@ -1008,7 +1010,7 @@ TEST_P(BinderRpc, SendMaxFiles) {
     ASSERT_TRUE(status.isOk()) << status;
 
     std::string result;
-    EXPECT_TRUE(android::base::ReadFdToString(out.get(), &result));
+    EXPECT_TRUE(ReadFdToString(out.get(), &result));
     EXPECT_EQ(result, std::string(253, 'a'));
 }
 

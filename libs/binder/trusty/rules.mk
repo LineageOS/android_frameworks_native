@@ -43,6 +43,7 @@ MODULE_SRCS := \
 	$(LIBBINDER_DIR)/Stability.cpp \
 	$(LIBBINDER_DIR)/Status.cpp \
 	$(LIBBINDER_DIR)/Utils.cpp \
+	$(LIBBINDER_DIR)/file.cpp \
 	$(LIBBASE_DIR)/hex.cpp \
 	$(LIBBASE_DIR)/stringprintf.cpp \
 	$(LIBUTILS_DIR)/binder/Errors.cpp \
