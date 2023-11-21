@@ -23,7 +23,7 @@
 #include <vector>
 
 #include <android-base/macros.h>
-#include <android-base/unique_fd.h>
+#include <binder/unique_fd.h>
 #include <utils/Errors.h>
 
 /**
@@ -46,8 +46,8 @@ struct CommandResult {
     std::string stdoutStr;
     std::string stderrStr;
 
-    android::base::unique_fd outPipe;
-    android::base::unique_fd errPipe;
+    binder::unique_fd outPipe;
+    binder::unique_fd errPipe;
 
     CommandResult() = default;
     CommandResult(CommandResult&& other) noexcept { (*this) = std::move(other); }

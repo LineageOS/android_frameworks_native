@@ -16,10 +16,10 @@
 
 #include <binder_rpc_unstable.hpp>
 
-#include <android-base/unique_fd.h>
 #include <android/binder_libbinder.h>
 #include <binder/RpcServer.h>
 #include <binder/RpcSession.h>
+#include <binder/unique_fd.h>
 #include <cutils/sockets.h>
 #include <linux/vm_sockets.h>
 
@@ -29,7 +29,7 @@ using android::RpcSession;
 using android::sp;
 using android::status_t;
 using android::statusToString;
-using android::base::unique_fd;
+using android::binder::unique_fd;
 
 // Opaque handle for RpcServer.
 struct ARpcServer {};
