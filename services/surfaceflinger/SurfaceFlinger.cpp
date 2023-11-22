@@ -8948,7 +8948,10 @@ SurfaceFlinger::getLayerSnapshotsForScreenshots(uint32_t rootLayerId, uint32_t u
                      .genericLayerMetadataKeyMap = getGenericLayerMetadataKeyMap(),
                      .skipRoundCornersWhenProtected =
                              !getRenderEngine().supportsProtectedContent()};
-        args.rootSnapshot.isSecure = mLayerLifecycleManager.isLayerSecure(rootLayerId);
+        // The layer may not exist if it was just created and a screenshot was requested immediately
+        // after. In this case, the hierarchy will be empty so we will not render any layers.
+        args.rootSnapshot.isSecure = mLayerLifecycleManager.getLayerFromId(rootLayerId) &&
+                mLayerLifecycleManager.isLayerSecure(rootLayerId);
         mLayerSnapshotBuilder.update(args);
 
         auto getLayerSnapshotsFn =
