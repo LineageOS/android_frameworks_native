@@ -89,18 +89,53 @@ TEST_F(FlagManagerTest, creashesIfQueriedBeforeBoot) {
     EXPECT_DEATH(FlagManager::getInstance().late_boot_misc2(), "");
 }
 
-TEST_F(FlagManagerTest, returnsOverride) {
+TEST_F(FlagManagerTest, returnsOverrideTrue) {
+    mFlagManager.markBootCompleted();
+
+    SET_FLAG_FOR_TEST(com::android::graphics::surfaceflinger::flags::late_boot_misc2, false);
+
+    // This is stored in a static variable, so this test depends on the fact
+    // that this flag has not been read in this process.
+    EXPECT_CALL(mFlagManager, getBoolProperty).WillOnce(Return(true));
+    EXPECT_TRUE(mFlagManager.late_boot_misc2());
+
+    // Further calls will not result in further calls to getBoolProperty.
+    EXPECT_TRUE(mFlagManager.late_boot_misc2());
+}
+
+TEST_F(FlagManagerTest, returnsOverrideReadonly) {
+    SET_FLAG_FOR_TEST(com::android::graphics::surfaceflinger::flags::add_sf_skipped_frames_to_trace,
+                      false);
+
+    // This is stored in a static variable, so this test depends on the fact
+    // that this flag has not been read in this process.
+    EXPECT_CALL(mFlagManager, getBoolProperty).WillOnce(Return(true));
+    EXPECT_TRUE(mFlagManager.add_sf_skipped_frames_to_trace());
+}
+
+TEST_F(FlagManagerTest, returnsOverrideFalse) {
+    mFlagManager.markBootCompleted();
+
+    SET_FLAG_FOR_TEST(com::android::graphics::surfaceflinger::flags::
+                              refresh_rate_overlay_on_external_display,
+                      true);
+
+    // This is stored in a static variable, so this test depends on the fact
+    // that this flag has not been read in this process.
+    EXPECT_CALL(mFlagManager, getBoolProperty).WillOnce(Return(false));
+    EXPECT_FALSE(mFlagManager.refresh_rate_overlay_on_external_display());
+}
+
+TEST_F(FlagManagerTest, ignoresOverrideInUnitTestMode) {
     mFlagManager.setUnitTestMode();
 
-    // Twice, since the first call is to initialize the static variable
-    EXPECT_CALL(mFlagManager, getBoolProperty)
-            .Times((2))
-            .WillOnce(Return(true))
-            .WillOnce(Return(true));
-    EXPECT_EQ(true, mFlagManager.late_boot_misc2());
+    SET_FLAG_FOR_TEST(com::android::graphics::surfaceflinger::flags::multithreaded_present, true);
 
-    EXPECT_CALL(mFlagManager, getBoolProperty).WillOnce(Return(false));
-    EXPECT_EQ(false, mFlagManager.late_boot_misc2());
+    // If this has not been called in this process, it will be called.
+    // Regardless, the result is ignored.
+    EXPECT_CALL(mFlagManager, getBoolProperty).WillRepeatedly(Return(false));
+
+    EXPECT_EQ(true, mFlagManager.multithreaded_present());
 }
 
 TEST_F(FlagManagerTest, returnsValue) {
@@ -117,20 +152,6 @@ TEST_F(FlagManagerTest, returnsValue) {
         SET_FLAG_FOR_TEST(com::android::graphics::surfaceflinger::flags::late_boot_misc2, false);
         EXPECT_EQ(false, mFlagManager.late_boot_misc2());
     }
-}
-
-TEST_F(FlagManagerTest, readonlyReturnsOverride) {
-    mFlagManager.setUnitTestMode();
-
-    // Twice, since the first call is to initialize the static variable
-    EXPECT_CALL(mFlagManager, getBoolProperty)
-            .Times(2)
-            .WillOnce(Return(true))
-            .WillOnce(Return(true));
-    EXPECT_EQ(true, mFlagManager.misc1());
-
-    EXPECT_CALL(mFlagManager, getBoolProperty).WillOnce(Return(false));
-    EXPECT_EQ(false, mFlagManager.misc1());
 }
 
 TEST_F(FlagManagerTest, readonlyReturnsValue) {
