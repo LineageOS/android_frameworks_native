@@ -110,6 +110,10 @@ public:
 
     void setRenderRate(Fps) override {}
 
+    void onFrameBegin(TimePoint, TimePoint) override {}
+
+    void onFrameMissed(TimePoint) override {}
+
     void dump(std::string& /* result */) const override {}
 
 protected:

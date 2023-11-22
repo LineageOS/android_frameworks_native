@@ -44,6 +44,7 @@ using NotifyExpectedPresentConfig =
         ::aidl::android::hardware::graphics::composer3::VrrConfig::NotifyExpectedPresentConfig;
 
 using android::mock::createDisplayMode;
+using android::mock::createDisplayModeBuilder;
 using android::mock::createVrrDisplayMode;
 
 namespace android::scheduler {
@@ -696,6 +697,38 @@ TEST_F(VSyncPredictorTest, vsyncTrackerCallback) {
         EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 1 * mPeriod),
                     Eq(mNow + 3 * mPeriod));
     }
+}
+
+TEST_F(VSyncPredictorTest, adjustsVrrTimeline) {
+    SET_FLAG_FOR_TEST(flags::vrr_config, true);
+
+    const int32_t kGroup = 0;
+    const auto kResolution = ui::Size(1920, 1080);
+    const auto refreshRate = Fps::fromPeriodNsecs(500);
+    const auto minFrameRate = Fps::fromPeriodNsecs(1000);
+    hal::VrrConfig vrrConfig;
+    vrrConfig.minFrameIntervalNs = minFrameRate.getPeriodNsecs();
+    const ftl::NonNull<DisplayModePtr> kMode =
+            ftl::as_non_null(createDisplayModeBuilder(DisplayModeId(0), refreshRate, kGroup,
+                                                      kResolution, DEFAULT_DISPLAY_ID)
+                                     .setVrrConfig(std::move(vrrConfig))
+                                     .build());
+
+    VSyncPredictor vrrTracker{kMode, kHistorySize, kMinimumSamplesForPrediction,
+                              kOutlierTolerancePercent, mVsyncTrackerCallback};
+
+    vrrTracker.setRenderRate(minFrameRate);
+    vrrTracker.addVsyncTimestamp(0);
+    EXPECT_EQ(1000, vrrTracker.nextAnticipatedVSyncTimeFrom(700));
+    EXPECT_EQ(2000, vrrTracker.nextAnticipatedVSyncTimeFrom(1300));
+
+    vrrTracker.onFrameBegin(TimePoint::fromNs(2000), TimePoint::fromNs(1500));
+    EXPECT_EQ(1500, vrrTracker.nextAnticipatedVSyncTimeFrom(1300));
+    EXPECT_EQ(2500, vrrTracker.nextAnticipatedVSyncTimeFrom(2300));
+
+    vrrTracker.onFrameMissed(TimePoint::fromNs(2500));
+    EXPECT_EQ(3000, vrrTracker.nextAnticipatedVSyncTimeFrom(2300));
+    EXPECT_EQ(4000, vrrTracker.nextAnticipatedVSyncTimeFrom(3300));
 }
 
 } // namespace android::scheduler
