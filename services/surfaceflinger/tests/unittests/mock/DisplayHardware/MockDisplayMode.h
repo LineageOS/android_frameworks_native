@@ -52,6 +52,7 @@ inline DisplayModePtr createVrrDisplayMode(
             .setVrrConfig(std::move(vrrConfig))
             .build();
 }
+
 inline DisplayModePtr cloneForDisplay(PhysicalDisplayId displayId, const DisplayModePtr& modePtr) {
     return DisplayMode::Builder(modePtr->getHwcId())
             .setId(modePtr->getId())

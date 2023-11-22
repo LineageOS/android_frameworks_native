@@ -806,8 +806,7 @@ private:
     void onChoreographerAttached() override {}
 
     // IVsyncTrackerCallback overrides
-    void onVsyncGenerated(PhysicalDisplayId, TimePoint, const scheduler::DisplayModeData&,
-                          Period) override {}
+    void onVsyncGenerated(TimePoint, ftl::NonNull<DisplayModePtr>, Fps) override {}
 
     surfaceflinger::test::Factory mFactory;
     sp<SurfaceFlinger> mFlinger =

@@ -90,8 +90,6 @@ public:
 
     nsecs_t currentPeriod() const override { return 1; }
 
-    void setPeriod(nsecs_t /* period */) override {}
-
     void resetModel() override {}
 
     bool needsMoreSamples() const override { return true; }
@@ -100,7 +98,7 @@ public:
         return true;
     }
 
-    void setDisplayModeData(const scheduler::DisplayModeData&) override {}
+    void setDisplayModePtr(ftl::NonNull<DisplayModePtr>) override {}
 
     nsecs_t nextVSyncTime(nsecs_t timePoint) const {
         if (timePoint % mPeriod == 0) {
@@ -108,6 +106,8 @@ public:
         }
         return (timePoint - (timePoint % mPeriod) + mPeriod);
     }
+
+    void setRenderRate(Fps) override {}
 
     void dump(std::string& /* result */) const override {}
 

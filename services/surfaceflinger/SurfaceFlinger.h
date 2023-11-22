@@ -658,8 +658,8 @@ private:
     void notifyCpuLoadUp() override;
 
     // IVsyncTrackerCallback overrides
-    void onVsyncGenerated(PhysicalDisplayId, TimePoint expectedPresentTime,
-                          const scheduler::DisplayModeData&, Period vsyncPeriod) override;
+    void onVsyncGenerated(TimePoint expectedPresentTime, ftl::NonNull<DisplayModePtr>,
+                          Fps renderRate) override;
 
     // Toggles the kernel idle timer on or off depending the policy decisions around refresh rates.
     void toggleKernelIdleTimer() REQUIRES(mStateLock);
