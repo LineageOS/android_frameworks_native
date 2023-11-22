@@ -1718,9 +1718,17 @@ void Layer::miniDump(std::string& result, const frontend::LayerSnapshot& snapsho
     StringAppendF(&result, "%6.1f %6.1f %6.1f %6.1f | ", crop.left, crop.top, crop.right,
                   crop.bottom);
     const auto frameRate = snapshot.frameRate;
+    std::string frameRateStr;
+    if (frameRate.vote.rate.isValid()) {
+        StringAppendF(&frameRateStr, "%.2f", frameRate.vote.rate.getValue());
+    }
     if (frameRate.vote.rate.isValid() || frameRate.vote.type != FrameRateCompatibility::Default) {
-        StringAppendF(&result, "%s %15s %17s", to_string(frameRate.vote.rate).c_str(),
+        StringAppendF(&result, "%6s %15s %17s", frameRateStr.c_str(),
                       ftl::enum_string(frameRate.vote.type).c_str(),
+                      ftl::enum_string(frameRate.vote.seamlessness).c_str());
+    } else if (frameRate.category != FrameRateCategory::Default) {
+        StringAppendF(&result, "%6s %15s %17s", frameRateStr.c_str(),
+                      (std::string("Cat::") + ftl::enum_string(frameRate.category)).c_str(),
                       ftl::enum_string(frameRate.vote.seamlessness).c_str());
     } else {
         result.append(41, ' ');
