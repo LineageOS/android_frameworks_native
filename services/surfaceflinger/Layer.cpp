@@ -193,7 +193,7 @@ Layer::Layer(const surfaceflinger::LayerCreationArgs& args)
     mDrawingState.dropInputMode = gui::DropInputMode::NONE;
     mDrawingState.dimmingEnabled = true;
     mDrawingState.defaultFrameRateCompatibility = FrameRateCompatibility::Default;
-    mDrawingState.frameRateSelectionStrategy = FrameRateSelectionStrategy::Self;
+    mDrawingState.frameRateSelectionStrategy = FrameRateSelectionStrategy::Propagate;
 
     if (args.flags & ISurfaceComposerClient::eNoColorFill) {
         // Set an invalid color so there is no color fill.

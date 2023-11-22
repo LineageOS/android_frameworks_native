@@ -1179,8 +1179,7 @@ private:
     }
 
     bool shouldPropagateFrameRate() const {
-        return getDrawingState().frameRateSelectionStrategy !=
-                FrameRateSelectionStrategy::DoNotPropagate;
+        return getDrawingState().frameRateSelectionStrategy != FrameRateSelectionStrategy::Self;
     }
 
     // Cached properties computed from drawing state

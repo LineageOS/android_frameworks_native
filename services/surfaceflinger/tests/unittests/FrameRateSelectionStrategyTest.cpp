@@ -117,10 +117,10 @@ TEST_P(FrameRateSelectionStrategyTest, SetChildOverrideChildren) {
     child2->setFrameRateSelectionStrategy(FrameRateSelectionStrategy::OverrideChildren);
     commitTransaction();
     EXPECT_EQ(FRAME_RATE_TREE, parent->getFrameRateForLayerTree());
-    EXPECT_EQ(FrameRateSelectionStrategy::Self,
+    EXPECT_EQ(FrameRateSelectionStrategy::Propagate,
               parent->getDrawingState().frameRateSelectionStrategy);
     EXPECT_EQ(FRAME_RATE_TREE, child1->getFrameRateForLayerTree());
-    EXPECT_EQ(FrameRateSelectionStrategy::Self,
+    EXPECT_EQ(FrameRateSelectionStrategy::Propagate,
               child1->getDrawingState().frameRateSelectionStrategy);
     EXPECT_EQ(FRAME_RATE_VOTE1, child2->getFrameRateForLayerTree());
     EXPECT_EQ(FrameRateSelectionStrategy::OverrideChildren,
@@ -151,24 +151,24 @@ TEST_P(FrameRateSelectionStrategyTest, SetParentOverrideChildren) {
     EXPECT_EQ(FrameRateSelectionStrategy::OverrideChildren,
               layer2->getDrawingState().frameRateSelectionStrategy);
     EXPECT_EQ(FRAME_RATE_VOTE1, layer3->getFrameRateForLayerTree());
-    EXPECT_EQ(FrameRateSelectionStrategy::Self,
+    EXPECT_EQ(FrameRateSelectionStrategy::Propagate,
               layer3->getDrawingState().frameRateSelectionStrategy);
 
-    layer1->setFrameRateSelectionStrategy(FrameRateSelectionStrategy::Self);
+    layer1->setFrameRateSelectionStrategy(FrameRateSelectionStrategy::Propagate);
     commitTransaction();
 
     EXPECT_EQ(FRAME_RATE_VOTE1, layer1->getFrameRateForLayerTree());
-    EXPECT_EQ(FrameRateSelectionStrategy::Self,
+    EXPECT_EQ(FrameRateSelectionStrategy::Propagate,
               layer1->getDrawingState().frameRateSelectionStrategy);
     EXPECT_EQ(FRAME_RATE_VOTE2, layer2->getFrameRateForLayerTree());
     EXPECT_EQ(FrameRateSelectionStrategy::OverrideChildren,
               layer2->getDrawingState().frameRateSelectionStrategy);
     EXPECT_EQ(FRAME_RATE_VOTE2, layer3->getFrameRateForLayerTree());
-    EXPECT_EQ(FrameRateSelectionStrategy::Self,
+    EXPECT_EQ(FrameRateSelectionStrategy::Propagate,
               layer3->getDrawingState().frameRateSelectionStrategy);
 }
 
-TEST_P(FrameRateSelectionStrategyTest, OverrideChildrenAndDoNotPropagate) {
+TEST_P(FrameRateSelectionStrategyTest, OverrideChildrenAndSelf) {
     EXPECT_CALL(*mFlinger.scheduler(), scheduleFrame()).Times(1);
 
     const auto& layerFactory = GetParam();
@@ -180,17 +180,17 @@ TEST_P(FrameRateSelectionStrategyTest, OverrideChildrenAndDoNotPropagate) {
 
     layer1->setFrameRate(FRAME_RATE_VOTE1.vote);
     layer2->setFrameRate(FRAME_RATE_VOTE2.vote);
-    layer2->setFrameRateSelectionStrategy(FrameRateSelectionStrategy::DoNotPropagate);
+    layer2->setFrameRateSelectionStrategy(FrameRateSelectionStrategy::Self);
     commitTransaction();
 
     EXPECT_EQ(FRAME_RATE_VOTE1, layer1->getFrameRateForLayerTree());
-    EXPECT_EQ(FrameRateSelectionStrategy::Self,
+    EXPECT_EQ(FrameRateSelectionStrategy::Propagate,
               layer1->getDrawingState().frameRateSelectionStrategy);
     EXPECT_EQ(FRAME_RATE_VOTE2, layer2->getFrameRateForLayerTree());
-    EXPECT_EQ(FrameRateSelectionStrategy::DoNotPropagate,
+    EXPECT_EQ(FrameRateSelectionStrategy::Self,
               layer2->getDrawingState().frameRateSelectionStrategy);
     EXPECT_EQ(FRAME_RATE_DEFAULT, layer3->getFrameRateForLayerTree());
-    EXPECT_EQ(FrameRateSelectionStrategy::Self,
+    EXPECT_EQ(FrameRateSelectionStrategy::Propagate,
               layer3->getDrawingState().frameRateSelectionStrategy);
 
     layer1->setFrameRateSelectionStrategy(FrameRateSelectionStrategy::OverrideChildren);
@@ -200,10 +200,10 @@ TEST_P(FrameRateSelectionStrategyTest, OverrideChildrenAndDoNotPropagate) {
     EXPECT_EQ(FrameRateSelectionStrategy::OverrideChildren,
               layer1->getDrawingState().frameRateSelectionStrategy);
     EXPECT_EQ(FRAME_RATE_VOTE1, layer2->getFrameRateForLayerTree());
-    EXPECT_EQ(FrameRateSelectionStrategy::DoNotPropagate,
+    EXPECT_EQ(FrameRateSelectionStrategy::Self,
               layer2->getDrawingState().frameRateSelectionStrategy);
     EXPECT_EQ(FRAME_RATE_VOTE1, layer3->getFrameRateForLayerTree());
-    EXPECT_EQ(FrameRateSelectionStrategy::Self,
+    EXPECT_EQ(FrameRateSelectionStrategy::Propagate,
               layer3->getDrawingState().frameRateSelectionStrategy);
 
     layer1->setFrameRate(FRAME_RATE_DEFAULT.vote);
@@ -213,10 +213,10 @@ TEST_P(FrameRateSelectionStrategyTest, OverrideChildrenAndDoNotPropagate) {
     EXPECT_EQ(FrameRateSelectionStrategy::OverrideChildren,
               layer1->getDrawingState().frameRateSelectionStrategy);
     EXPECT_EQ(FRAME_RATE_VOTE2, layer2->getFrameRateForLayerTree());
-    EXPECT_EQ(FrameRateSelectionStrategy::DoNotPropagate,
+    EXPECT_EQ(FrameRateSelectionStrategy::Self,
               layer2->getDrawingState().frameRateSelectionStrategy);
     EXPECT_EQ(FRAME_RATE_VOTE2, layer3->getFrameRateForLayerTree());
-    EXPECT_EQ(FrameRateSelectionStrategy::Self,
+    EXPECT_EQ(FrameRateSelectionStrategy::Propagate,
               layer3->getDrawingState().frameRateSelectionStrategy);
 }
 

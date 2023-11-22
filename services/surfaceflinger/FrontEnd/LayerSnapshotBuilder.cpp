@@ -817,7 +817,7 @@ void LayerSnapshotBuilder::updateSnapshot(LayerSnapshot& snapshot, const Args& a
         const bool shouldOverrideChildren = parentSnapshot.frameRateSelectionStrategy ==
                 scheduler::LayerInfo::FrameRateSelectionStrategy::OverrideChildren;
         const bool propagationAllowed = parentSnapshot.frameRateSelectionStrategy !=
-                scheduler::LayerInfo::FrameRateSelectionStrategy::DoNotPropagate;
+                scheduler::LayerInfo::FrameRateSelectionStrategy::Self;
         if ((!requested.requestedFrameRate.isValid() && propagationAllowed) ||
             shouldOverrideChildren) {
             snapshot.inheritedFrameRate = parentSnapshot.inheritedFrameRate;
