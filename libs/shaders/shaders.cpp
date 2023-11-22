@@ -168,8 +168,8 @@ void generateOOTF(ui::Dataspace inputDataspace, ui::Dataspace outputDataspace,
 void generateOETF(std::string& shader) {
     // Only support gamma 2.2 for now
     shader.append(R"(
-        float OETF(float3 linear) {
-            return sign(linear) * pow(abs(linear), (1.0 / 2.2));
+        float3 OETF(float3 linear) {
+            return sign(linear) * pow(abs(linear), float3(1.0 / 2.2));
         }
     )");
 }

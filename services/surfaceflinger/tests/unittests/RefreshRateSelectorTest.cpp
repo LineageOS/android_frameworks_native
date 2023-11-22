@@ -3042,5 +3042,84 @@ TEST_P(RefreshRateSelectorTest, frameRateNotInRange) {
     EXPECT_FRAME_RATE_MODE(kMode60, 60_Hz, selector.getBestScoredFrameRate(layers).frameRateMode);
 }
 
+TEST_P(RefreshRateSelectorTest, frameRateIsLowerThanMinSupported) {
+    if (GetParam() != Config::FrameRateOverride::Enabled) {
+        return;
+    }
+
+    auto selector = createSelector(kModes_60_90, kModeId60);
+
+    constexpr Fps kMin = RefreshRateSelector::kMinSupportedFrameRate;
+    constexpr FpsRanges kLowerThanMin = {{60_Hz, 90_Hz}, {kMin / 2, kMin / 2}};
+
+    EXPECT_EQ(SetPolicyResult::Changed,
+              selector.setDisplayManagerPolicy(
+                      {DisplayModeId(kModeId60), kLowerThanMin, kLowerThanMin}));
+}
+
+// b/296079213
+TEST_P(RefreshRateSelectorTest, frameRateOverrideInBlockingZone60_120) {
+    auto selector = createSelector(kModes_60_120, kModeId120);
+
+    const FpsRange only120 = {120_Hz, 120_Hz};
+    const FpsRange allRange = {0_Hz, 120_Hz};
+    EXPECT_EQ(SetPolicyResult::Changed,
+              selector.setDisplayManagerPolicy(
+                      {kModeId120, {only120, allRange}, {allRange, allRange}}));
+
+    std::vector<LayerRequirement> layers = {{.weight = 1.f}};
+    layers[0].name = "30Hz ExplicitExactOrMultiple";
+    layers[0].desiredRefreshRate = 30_Hz;
+    layers[0].vote = LayerVoteType::ExplicitExactOrMultiple;
+
+    if (GetParam() != Config::FrameRateOverride::Enabled) {
+        EXPECT_FRAME_RATE_MODE(kMode120, 120_Hz,
+                               selector.getBestScoredFrameRate(layers).frameRateMode);
+    } else {
+        EXPECT_FRAME_RATE_MODE(kMode120, 30_Hz,
+                               selector.getBestScoredFrameRate(layers).frameRateMode);
+    }
+}
+
+TEST_P(RefreshRateSelectorTest, frameRateOverrideInBlockingZone60_90) {
+    auto selector = createSelector(kModes_60_90, kModeId90);
+
+    const FpsRange only90 = {90_Hz, 90_Hz};
+    const FpsRange allRange = {0_Hz, 90_Hz};
+    EXPECT_EQ(SetPolicyResult::Changed,
+              selector.setDisplayManagerPolicy(
+                      {kModeId90, {only90, allRange}, {allRange, allRange}}));
+
+    std::vector<LayerRequirement> layers = {{.weight = 1.f}};
+    layers[0].name = "30Hz ExplicitExactOrMultiple";
+    layers[0].desiredRefreshRate = 30_Hz;
+    layers[0].vote = LayerVoteType::ExplicitExactOrMultiple;
+
+    if (GetParam() != Config::FrameRateOverride::Enabled) {
+        EXPECT_FRAME_RATE_MODE(kMode90, 90_Hz,
+                               selector.getBestScoredFrameRate(layers).frameRateMode);
+    } else {
+        EXPECT_FRAME_RATE_MODE(kMode90, 30_Hz,
+                               selector.getBestScoredFrameRate(layers).frameRateMode);
+    }
+}
+
+TEST_P(RefreshRateSelectorTest, frameRateOverrideInBlockingZone60_90_NonDivisor) {
+    auto selector = createSelector(kModes_60_90, kModeId90);
+
+    const FpsRange only90 = {90_Hz, 90_Hz};
+    const FpsRange allRange = {0_Hz, 90_Hz};
+    EXPECT_EQ(SetPolicyResult::Changed,
+              selector.setDisplayManagerPolicy(
+                      {kModeId90, {only90, allRange}, {allRange, allRange}}));
+
+    std::vector<LayerRequirement> layers = {{.weight = 1.f}};
+    layers[0].name = "60Hz ExplicitExactOrMultiple";
+    layers[0].desiredRefreshRate = 60_Hz;
+    layers[0].vote = LayerVoteType::ExplicitExactOrMultiple;
+
+    EXPECT_FRAME_RATE_MODE(kMode90, 90_Hz, selector.getBestScoredFrameRate(layers).frameRateMode);
+}
+
 } // namespace
 } // namespace android::scheduler

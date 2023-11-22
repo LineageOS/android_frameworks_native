@@ -36,6 +36,7 @@ struct ScreenCaptureOutputArgs {
     // Counterintuitively, when targetBrightness > 1.0 then dim the scene.
     float targetBrightness;
     bool regionSampling;
+    bool treat170mAsSrgb;
 };
 
 // ScreenCaptureOutput is used to compose a set of layers into a preallocated buffer.
