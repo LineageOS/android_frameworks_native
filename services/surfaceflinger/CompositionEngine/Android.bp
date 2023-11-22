@@ -91,6 +91,9 @@ cc_library {
     ],
     local_include_dirs: ["include"],
     export_include_dirs: ["include"],
+    shared_libs: [
+        "server_configurable_flags",
+    ],
 }
 
 cc_library {
@@ -113,6 +116,9 @@ cc_library {
         "libcompositionengine",
         "libsurfaceflinger_common_test",
         "libsurfaceflingerflags_test",
+    ],
+    shared_libs: [
+        "server_configurable_flags",
     ],
     local_include_dirs: ["include"],
     export_include_dirs: ["include"],
@@ -150,10 +156,11 @@ cc_test {
         "libsurfaceflinger_common_test",
         "libsurfaceflingerflags_test",
     ],
-    // For some reason, libvulkan isn't picked up from librenderengine
-    // Probably ASAN related?
     shared_libs: [
+        // For some reason, libvulkan isn't picked up from librenderengine
+        // Probably ASAN related?
         "libvulkan",
+        "server_configurable_flags",
     ],
     sanitize: {
         hwaddress: true,

@@ -427,7 +427,8 @@ void Output::prepare(const compositionengine::CompositionRefreshArgs& refreshArg
     uncacheBuffers(refreshArgs.bufferIdsToUncache);
 }
 
-void Output::present(const compositionengine::CompositionRefreshArgs& refreshArgs) {
+ftl::Future<std::monostate> Output::present(
+        const compositionengine::CompositionRefreshArgs& refreshArgs) {
     ATRACE_FORMAT("%s for %s", __func__, mNamePlusId.c_str());
     ALOGV(__FUNCTION__);
 
@@ -448,8 +449,26 @@ void Output::present(const compositionengine::CompositionRefreshArgs& refreshArg
 
     devOptRepaintFlash(refreshArgs);
     finishFrame(std::move(result));
-    presentFrameAndReleaseLayers();
+    ftl::Future<std::monostate> future;
+    if (mOffloadPresent) {
+        future = presentFrameAndReleaseLayersAsync();
+
+        // Only offload for this frame. The next frame will determine whether it
+        // needs to be offloaded. Leave the HwcAsyncWorker in place. For one thing,
+        // it is currently presenting. Further, it may be needed next frame, and
+        // we don't want to churn.
+        mOffloadPresent = false;
+    } else {
+        presentFrameAndReleaseLayers();
+        future = ftl::yield<std::monostate>({});
+    }
     renderCachedSets(refreshArgs);
+    return future;
+}
+
+void Output::offloadPresentNextFrame() {
+    mOffloadPresent = true;
+    updateHwcAsyncWorker();
 }
 
 void Output::uncacheBuffers(std::vector<uint64_t> const& bufferIdsToUncache) {
@@ -1084,6 +1103,14 @@ void Output::prepareFrame() {
     finishPrepareFrame();
 }
 
+ftl::Future<std::monostate> Output::presentFrameAndReleaseLayersAsync() {
+    return ftl::Future<bool>(std::move(mHwComposerAsyncWorker->send([&]() {
+               presentFrameAndReleaseLayers();
+               return true;
+           })))
+            .then([](bool) { return std::monostate{}; });
+}
+
 std::future<bool> Output::chooseCompositionStrategyAsync(
         std::optional<android::HWComposer::DeviceRequestedChanges>* changes) {
     return mHwComposerAsyncWorker->send(
@@ -1600,8 +1627,15 @@ compositionengine::Output::FrameFences Output::presentFrame() {
 }
 
 void Output::setPredictCompositionStrategy(bool predict) {
-    if (predict) {
-        mHwComposerAsyncWorker = std::make_unique<HwcAsyncWorker>();
+    mPredictCompositionStrategy = predict;
+    updateHwcAsyncWorker();
+}
+
+void Output::updateHwcAsyncWorker() {
+    if (mPredictCompositionStrategy || mOffloadPresent) {
+        if (!mHwComposerAsyncWorker) {
+            mHwComposerAsyncWorker = std::make_unique<HwcAsyncWorker>();
+        }
     } else {
         mHwComposerAsyncWorker.reset(nullptr);
     }
@@ -1616,7 +1650,7 @@ bool Output::canPredictCompositionStrategy(const CompositionRefreshArgs& refresh
     uint64_t outputLayerHash = getState().outputLayerHash;
     editState().lastOutputLayerHash = outputLayerHash;
 
-    if (!getState().isEnabled || !mHwComposerAsyncWorker) {
+    if (!getState().isEnabled || !mPredictCompositionStrategy) {
         ALOGV("canPredictCompositionStrategy disabled");
         return false;
     }

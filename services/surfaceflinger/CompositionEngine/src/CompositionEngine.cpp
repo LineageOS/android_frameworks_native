@@ -20,6 +20,7 @@
 #include <compositionengine/OutputLayer.h>
 #include <compositionengine/impl/CompositionEngine.h>
 #include <compositionengine/impl/Display.h>
+#include <ui/DisplayMap.h>
 
 #include <renderengine/RenderEngine.h>
 #include <utils/Trace.h>
@@ -88,6 +89,33 @@ nsecs_t CompositionEngine::getLastFrameRefreshTimestamp() const {
     return mRefreshStartTime;
 }
 
+namespace {
+int numDisplaysWithOffloadPresentSupport(const CompositionRefreshArgs& args) {
+    if (!FlagManager::getInstance().multithreaded_present() || args.outputs.size() < 2) {
+        return 0;
+    }
+
+    int numEligibleDisplays = 0;
+    // Only run present in multiple threads if all HWC-enabled displays
+    // being refreshed support it.
+    if (!std::all_of(args.outputs.begin(), args.outputs.end(),
+                     [&numEligibleDisplays](const auto& output) {
+                         if (!ftl::Optional(output->getDisplayId())
+                                      .and_then(HalDisplayId::tryCast)) {
+                             // Not HWC-enabled, so it is always
+                             // client-composited.
+                             return true;
+                         }
+                         const bool support = output->supportsOffloadPresent();
+                         numEligibleDisplays += static_cast<int>(support);
+                         return support;
+                     })) {
+        return 0;
+    }
+    return numEligibleDisplays;
+}
+} // namespace
+
 void CompositionEngine::present(CompositionRefreshArgs& args) {
     ATRACE_CALL();
     ALOGV(__FUNCTION__);
@@ -105,8 +133,36 @@ void CompositionEngine::present(CompositionRefreshArgs& args) {
         }
     }
 
+    // Offloading the HWC call for `present` allows us to simultaneously call it
+    // on multiple displays. This is desirable because these calls block and can
+    // be slow.
+    if (const int numEligibleDisplays = numDisplaysWithOffloadPresentSupport(args);
+        numEligibleDisplays > 1) {
+        // Leave the last eligible display on the main thread, which will
+        // allow it to run concurrently without an extra thread hop.
+        int numToOffload = numEligibleDisplays - 1;
+        for (auto& output : args.outputs) {
+            if (output->supportsOffloadPresent()) {
+                output->offloadPresentNextFrame();
+                if (--numToOffload == 0) {
+                    break;
+                }
+            }
+        }
+    }
+
+    ui::DisplayVector<ftl::Future<std::monostate>> presentFutures;
     for (const auto& output : args.outputs) {
-        output->present(args);
+        presentFutures.push_back(output->present(args));
+    }
+
+    {
+        ATRACE_NAME("Waiting on HWC");
+        for (auto& future : presentFutures) {
+            // TODO(b/185536303): Call ftl::Future::wait() once it exists, since
+            // we do not need the return value of get().
+            future.get();
+        }
     }
 }
 

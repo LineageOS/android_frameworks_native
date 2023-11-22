@@ -62,6 +62,7 @@ public:
     compositionengine::Output::FrameFences presentFrame() override;
     void setExpensiveRenderingExpected(bool) override;
     void finishFrame(GpuCompositionResult&&) override;
+    bool supportsOffloadPresent() const override;
 
     // compositionengine::Display overrides
     DisplayId getId() const override;

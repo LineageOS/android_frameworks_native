@@ -80,7 +80,9 @@ public:
     void setReleasedLayers(ReleasedLayers&&) override;
 
     void prepare(const CompositionRefreshArgs&, LayerFESet&) override;
-    void present(const CompositionRefreshArgs&) override;
+    ftl::Future<std::monostate> present(const CompositionRefreshArgs&) override;
+    bool supportsOffloadPresent() const override { return false; }
+    void offloadPresentNextFrame() override;
 
     void uncacheBuffers(const std::vector<uint64_t>& bufferIdsToUncache) override;
     void rebuildLayerStacks(const CompositionRefreshArgs&, LayerFESet&) override;
@@ -121,6 +123,7 @@ public:
     virtual std::future<bool> chooseCompositionStrategyAsync(
             std::optional<android::HWComposer::DeviceRequestedChanges>*);
     virtual void resetCompositionStrategy();
+    virtual ftl::Future<std::monostate> presentFrameAndReleaseLayersAsync();
 
 protected:
     std::unique_ptr<compositionengine::OutputLayer> createOutputLayer(const sp<LayerFE>&) const;
@@ -164,6 +167,7 @@ private:
     ui::Dataspace getBestDataspace(ui::Dataspace*, bool*) const;
     compositionengine::Output::ColorProfile pickColorProfile(
             const compositionengine::CompositionRefreshArgs&) const;
+    void updateHwcAsyncWorker();
 
     std::string mName;
     std::string mNamePlusId;
@@ -176,6 +180,9 @@ private:
     std::unique_ptr<ClientCompositionRequestCache> mClientCompositionRequestCache;
     std::unique_ptr<planner::Planner> mPlanner;
     std::unique_ptr<HwcAsyncWorker> mHwComposerAsyncWorker;
+
+    bool mPredictCompositionStrategy = false;
+    bool mOffloadPresent = false;
 
     // Whether the content must be recomposed this frame.
     bool mMustRecompose = false;
