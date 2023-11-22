@@ -26,6 +26,7 @@
 #include <log/log.h>
 #include <ui/Size.h>
 
+#include <common/test/FlagUtils.h>
 #include <scheduler/Fps.h>
 #include <scheduler/FrameRateMode.h>
 #include "DisplayHardware/HWC2.h"
@@ -34,7 +35,6 @@
 #include "mock/DisplayHardware/MockDisplayMode.h"
 #include "mock/MockFrameRateMode.h"
 
-#include "FlagUtils.h"
 #include "libsurfaceflinger_unittest_main.h"
 
 #include <com_android_graphics_surfaceflinger_flags.h>

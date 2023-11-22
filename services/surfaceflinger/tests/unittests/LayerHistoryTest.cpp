@@ -27,7 +27,7 @@
 #include <gtest/gtest.h>
 #include <log/log.h>
 
-#include "FlagUtils.h"
+#include <common/test/FlagUtils.h>
 #include "FpsOps.h"
 #include "Scheduler/LayerHistory.h"
 #include "Scheduler/LayerInfo.h"

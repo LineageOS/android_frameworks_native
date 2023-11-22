@@ -30,6 +30,7 @@ public:
     MOCK_METHOD(bool, addVsyncTimestamp, (nsecs_t), (override));
     MOCK_METHOD(nsecs_t, nextAnticipatedVSyncTimeFrom, (nsecs_t), (const, override));
     MOCK_METHOD(nsecs_t, currentPeriod, (), (const, override));
+    MOCK_METHOD(Period, minFramePeriod, (), (const, override));
     MOCK_METHOD(void, resetModel, (), (override));
     MOCK_METHOD(bool, needsMoreSamples, (), (const, override));
     MOCK_METHOD(bool, isVSyncInPhase, (nsecs_t, Fps), (const, override));

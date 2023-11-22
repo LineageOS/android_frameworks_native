@@ -25,7 +25,7 @@
 
 #include <renderengine/mock/FakeExternalTexture.h>
 
-#include "FlagUtils.h"
+#include <common/test/FlagUtils.h>
 #include "FpsOps.h"
 #include "LayerHierarchyTest.h"
 #include "Scheduler/LayerHistory.h"

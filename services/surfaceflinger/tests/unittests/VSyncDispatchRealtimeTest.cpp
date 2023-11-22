@@ -49,6 +49,7 @@ public:
     }
 
     nsecs_t currentPeriod() const final { return mPeriod; }
+    Period minFramePeriod() const final { return Period::fromNs(currentPeriod()); }
 
     void resetModel() final {}
     bool needsMoreSamples() const final { return false; }
@@ -87,6 +88,8 @@ public:
         std::lock_guard lock(mMutex);
         return mPeriod;
     }
+
+    Period minFramePeriod() const final { return Period::fromNs(currentPeriod()); }
 
     void resetModel() final {}
     bool needsMoreSamples() const final { return false; }

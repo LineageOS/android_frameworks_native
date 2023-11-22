@@ -89,6 +89,7 @@ public:
     nsecs_t nextAnticipatedVSyncTimeFrom(nsecs_t /* timePoint */) const override { return 1; }
 
     nsecs_t currentPeriod() const override { return 1; }
+    Period minFramePeriod() const override { return Period::fromNs(currentPeriod()); }
 
     void resetModel() override {}
 

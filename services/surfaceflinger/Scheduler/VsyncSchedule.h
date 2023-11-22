@@ -64,6 +64,7 @@ public:
     // IVsyncSource overrides:
     Period period() const override;
     TimePoint vsyncDeadlineAfter(TimePoint) const override;
+    Period minFramePeriod() const override;
 
     // Inform the schedule that the display mode changed the schedule needs to recalibrate
     // itself to the new vsync period. The schedule will end the period transition internally.

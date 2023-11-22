@@ -68,6 +68,11 @@ public:
      */
     virtual nsecs_t currentPeriod() const = 0;
 
+    /*
+     * The minimal period frames can be displayed.
+     */
+    virtual Period minFramePeriod() const = 0;
+
     /* Inform the tracker that the samples it has are not accurate for prediction. */
     virtual void resetModel() = 0;
 

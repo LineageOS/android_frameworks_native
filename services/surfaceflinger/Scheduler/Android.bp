@@ -62,5 +62,9 @@ cc_test {
         "libgmock",
         "libgtest",
         "libscheduler",
+        "libsurfaceflingerflags_test",
+    ],
+    shared_libs: [
+        "server_configurable_flags",
     ],
 }

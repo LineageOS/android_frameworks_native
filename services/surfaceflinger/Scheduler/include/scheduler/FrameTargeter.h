@@ -50,11 +50,11 @@ public:
     TimePoint expectedPresentTime() const { return mExpectedPresentTime; }
 
     // The time of the VSYNC that preceded this frame. See `presentFenceForPastVsync` for details.
-    TimePoint pastVsyncTime(Period vsyncPeriod) const;
+    TimePoint pastVsyncTime(Period minFramePeriod) const;
 
     // Equivalent to `pastVsyncTime` unless running N VSYNCs ahead.
-    TimePoint previousFrameVsyncTime(Period vsyncPeriod) const {
-        return mExpectedPresentTime - vsyncPeriod;
+    TimePoint previousFrameVsyncTime(Period minFramePeriod) const {
+        return mExpectedPresentTime - minFramePeriod;
     }
 
     // The present fence for the frame that had targeted the most recent VSYNC before this frame.
@@ -62,14 +62,14 @@ public:
     // VSYNC of at least one previous frame has not yet passed. In other words, this is NOT the
     // `presentFenceForPreviousFrame` if running N VSYNCs ahead, but the one that should have been
     // signaled by now (unless that frame missed).
-    const FenceTimePtr& presentFenceForPastVsync(Period vsyncPeriod) const;
+    const FenceTimePtr& presentFenceForPastVsync(Period minFramePeriod) const;
 
     // Equivalent to `presentFenceForPastVsync` unless running N VSYNCs ahead.
     const FenceTimePtr& presentFenceForPreviousFrame() const {
         return mPresentFences.front().fenceTime;
     }
 
-    bool wouldPresentEarly(Period vsyncPeriod) const;
+    bool wouldPresentEarly(Period minFramePeriod) const;
 
     bool isFramePending() const { return mFramePending; }
     bool didMissFrame() const { return mFrameMissed; }
@@ -96,9 +96,9 @@ protected:
 
 private:
     template <int N>
-    inline bool targetsVsyncsAhead(Period vsyncPeriod) const {
+    inline bool targetsVsyncsAhead(Period minFramePeriod) const {
         static_assert(N > 1);
-        return expectedFrameDuration() > (N - 1) * vsyncPeriod;
+        return expectedFrameDuration() > (N - 1) * minFramePeriod;
     }
 };
 

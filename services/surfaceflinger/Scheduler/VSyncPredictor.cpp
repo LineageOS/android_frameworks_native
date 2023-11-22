@@ -108,6 +108,19 @@ nsecs_t VSyncPredictor::currentPeriod() const {
     return mRateMap.find(idealPeriod())->second.slope;
 }
 
+Period VSyncPredictor::minFramePeriod() const {
+    if (!FlagManager::getInstance().vrr_config()) {
+        return Period::fromNs(currentPeriod());
+    }
+
+    std::lock_guard lock(mMutex);
+    const auto idealPeakRefreshPeriod = mDisplayModePtr->getPeakFps().getPeriodNsecs();
+    const auto numPeriods = static_cast<int>(std::round(static_cast<float>(idealPeakRefreshPeriod) /
+                                                        static_cast<float>(idealPeriod())));
+    const auto slope = mRateMap.find(idealPeriod())->second.slope;
+    return Period::fromNs(slope * numPeriods);
+}
+
 bool VSyncPredictor::addVsyncTimestamp(nsecs_t timestamp) {
     std::lock_guard lock(mMutex);
 
