@@ -457,26 +457,51 @@ TEST_F(SchedulerTest, onFrameSignalMultipleDisplays) {
     using VsyncIds = std::vector<std::pair<PhysicalDisplayId, VsyncId>>;
 
     struct Compositor final : ICompositor {
-        VsyncIds vsyncIds;
+        explicit Compositor(TestableScheduler& scheduler) : scheduler(scheduler) {}
+
+        TestableScheduler& scheduler;
+
+        struct {
+            PhysicalDisplayId commit;
+            PhysicalDisplayId composite;
+        } pacesetterIds;
+
+        struct {
+            VsyncIds commit;
+            VsyncIds composite;
+        } vsyncIds;
+
         bool committed = true;
+        bool changePacesetter = false;
 
         void configure() override {}
 
-        bool commit(PhysicalDisplayId, const scheduler::FrameTargets& targets) override {
-            vsyncIds.clear();
+        bool commit(PhysicalDisplayId pacesetterId,
+                    const scheduler::FrameTargets& targets) override {
+            pacesetterIds.commit = pacesetterId;
+
+            vsyncIds.commit.clear();
+            vsyncIds.composite.clear();
 
             for (const auto& [id, target] : targets) {
-                vsyncIds.emplace_back(id, target->vsyncId());
+                vsyncIds.commit.emplace_back(id, target->vsyncId());
+            }
+
+            if (changePacesetter) {
+                scheduler.setPacesetterDisplay(kDisplayId2);
             }
 
             return committed;
         }
 
-        CompositeResultsPerDisplay composite(PhysicalDisplayId,
-                                             const scheduler::FrameTargeters&) override {
+        CompositeResultsPerDisplay composite(PhysicalDisplayId pacesetterId,
+                                             const scheduler::FrameTargeters& targeters) override {
+            pacesetterIds.composite = pacesetterId;
+
             CompositeResultsPerDisplay results;
 
-            for (const auto& [id, _] : vsyncIds) {
+            for (const auto& [id, targeter] : targeters) {
+                vsyncIds.composite.emplace_back(id, targeter->target().vsyncId());
                 results.try_emplace(id,
                                     CompositeResult{.compositionCoverage =
                                                             CompositionCoverage::Hwc});
@@ -486,21 +511,41 @@ TEST_F(SchedulerTest, onFrameSignalMultipleDisplays) {
         }
 
         void sample() override {}
-    } compositor;
+    } compositor(*mScheduler);
 
     mScheduler->doFrameSignal(compositor, VsyncId(42));
 
-    const auto makeVsyncIds = [](VsyncId vsyncId) -> VsyncIds {
-        return {{kDisplayId1, vsyncId}, {kDisplayId2, vsyncId}};
+    const auto makeVsyncIds = [](VsyncId vsyncId, bool swap = false) -> VsyncIds {
+        if (swap) {
+            return {{kDisplayId2, vsyncId}, {kDisplayId1, vsyncId}};
+        } else {
+            return {{kDisplayId1, vsyncId}, {kDisplayId2, vsyncId}};
+        }
     };
 
-    EXPECT_EQ(makeVsyncIds(VsyncId(42)), compositor.vsyncIds);
+    EXPECT_EQ(kDisplayId1, compositor.pacesetterIds.commit);
+    EXPECT_EQ(kDisplayId1, compositor.pacesetterIds.composite);
+    EXPECT_EQ(makeVsyncIds(VsyncId(42)), compositor.vsyncIds.commit);
+    EXPECT_EQ(makeVsyncIds(VsyncId(42)), compositor.vsyncIds.composite);
 
+    // FrameTargets should be updated despite the skipped commit.
     compositor.committed = false;
     mScheduler->doFrameSignal(compositor, VsyncId(43));
 
-    // FrameTargets should be updated despite the skipped commit.
-    EXPECT_EQ(makeVsyncIds(VsyncId(43)), compositor.vsyncIds);
+    EXPECT_EQ(kDisplayId1, compositor.pacesetterIds.commit);
+    EXPECT_EQ(kDisplayId1, compositor.pacesetterIds.composite);
+    EXPECT_EQ(makeVsyncIds(VsyncId(43)), compositor.vsyncIds.commit);
+    EXPECT_TRUE(compositor.vsyncIds.composite.empty());
+
+    // The pacesetter may change during commit.
+    compositor.committed = true;
+    compositor.changePacesetter = true;
+    mScheduler->doFrameSignal(compositor, VsyncId(44));
+
+    EXPECT_EQ(kDisplayId1, compositor.pacesetterIds.commit);
+    EXPECT_EQ(kDisplayId2, compositor.pacesetterIds.composite);
+    EXPECT_EQ(makeVsyncIds(VsyncId(44)), compositor.vsyncIds.commit);
+    EXPECT_EQ(makeVsyncIds(VsyncId(44), true), compositor.vsyncIds.composite);
 }
 
 class AttachedChoreographerTest : public SchedulerTest {
