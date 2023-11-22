@@ -98,7 +98,6 @@ RequestedLayerState::RequestedLayerState(const LayerCreationArgs& args)
     z = 0;
     layerStack = ui::DEFAULT_LAYER_STACK;
     transformToDisplayInverse = false;
-    dataspace = ui::Dataspace::UNKNOWN;
     desiredHdrSdrRatio = 1.f;
     currentHdrSdrRatio = 1.f;
     dataspaceRequested = false;

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 The Android Open Source Project
+ * Copyright (C) 2023 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,17 +16,26 @@
 
 #pragma once
 
+#ifndef BINDER_NO_LIBBASE
+
+#include <android-base/file.h>
+
+namespace android::binder {
+using android::base::ReadFully;
+using android::base::WriteFully;
+} // namespace android::binder
+
+#else // BINDER_NO_LIBBASE
+
 #include <binder/unique_fd.h>
-#include <fuzzer/FuzzedDataProvider.h>
 
-#include <vector>
+#include <string_view>
 
-namespace android {
+namespace android::binder {
 
-// always valid or aborts
-// get a random FD for use in fuzzing, of a few different specific types
-//
-// may return multiple FDs (e.g. pipe), but will always return at least one
-std::vector<binder::unique_fd> getRandomFds(FuzzedDataProvider* provider);
+bool ReadFully(borrowed_fd fd, void* data, size_t byte_count);
+bool WriteFully(borrowed_fd fd, const void* data, size_t byte_count);
 
-} // namespace android
+} // namespace android::binder
+
+#endif // BINDER_NO_LIBBASE

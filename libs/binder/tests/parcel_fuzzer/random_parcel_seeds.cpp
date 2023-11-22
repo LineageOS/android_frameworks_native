@@ -14,14 +14,16 @@
  * limitations under the License.
  */
 
-#include <android-base/file.h>
 #include <android-base/logging.h>
 
 #include <binder/RecordedTransaction.h>
 
 #include <fuzzseeds/random_parcel_seeds.h>
 
-using android::base::WriteFully;
+#include "../../file.h"
+
+using android::binder::borrowed_fd;
+using android::binder::WriteFully;
 
 namespace android {
 namespace impl {
@@ -64,7 +66,7 @@ void writeReversedBuffer(std::vector<uint8_t>& integralBuffer, T val) {
 
 } // namespace impl
 
-void generateSeedsFromRecording(base::borrowed_fd fd,
+void generateSeedsFromRecording(borrowed_fd fd,
                                 const binder::debug::RecordedTransaction& transaction) {
     // Write Reserved bytes for future use
     std::vector<uint8_t> reservedBytes(8);

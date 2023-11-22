@@ -1052,12 +1052,10 @@ public:
         }
         if (event->getType() == InputEventType::KEY) {
             KeyEvent& keyEvent = static_cast<KeyEvent&>(*event);
-            ADD_FAILURE() << "Received key event "
-                          << KeyEvent::actionToString(keyEvent.getAction());
+            ADD_FAILURE() << "Received key event " << keyEvent;
         } else if (event->getType() == InputEventType::MOTION) {
             MotionEvent& motionEvent = static_cast<MotionEvent&>(*event);
-            ADD_FAILURE() << "Received motion event "
-                          << MotionEvent::actionToString(motionEvent.getAction());
+            ADD_FAILURE() << "Received motion event " << motionEvent;
         } else if (event->getType() == InputEventType::FOCUS) {
             FocusEvent& focusEvent = static_cast<FocusEvent&>(*event);
             ADD_FAILURE() << "Received focus event, hasFocus = "
@@ -1784,8 +1782,10 @@ TEST_F(InputDispatcherTest, WhenForegroundWindowDisappears_WallpaperTouchIsCance
     mDispatcher->onWindowInfosChanged(
             {{*foregroundWindow->getInfo(), *wallpaperWindow->getInfo()}, {}, 0, 0});
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
-              injectMotionDown(*mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
-                               {100, 200}))
+              injectMotionEvent(*mDispatcher,
+                                MotionEventBuilder(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                                        .pointer(PointerBuilder(0, ToolType::FINGER).x(100).y(200))
+                                        .build()))
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
 
     // Both foreground window and its wallpaper should receive the touch down
@@ -1793,11 +1793,13 @@ TEST_F(InputDispatcherTest, WhenForegroundWindowDisappears_WallpaperTouchIsCance
     wallpaperWindow->consumeMotionDown(ADISPLAY_ID_DEFAULT, expectedWallpaperFlags);
 
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
-              injectMotionEvent(*mDispatcher, AMOTION_EVENT_ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN,
-                                ADISPLAY_ID_DEFAULT, {110, 200}))
+              injectMotionEvent(*mDispatcher,
+                                MotionEventBuilder(ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN)
+                                        .pointer(PointerBuilder(0, ToolType::FINGER).x(110).y(200))
+                                        .build()))
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
 
-    foregroundWindow->consumeMotionMove();
+    foregroundWindow->consumeMotionEvent(WithMotionAction(ACTION_MOVE));
     wallpaperWindow->consumeMotionMove(ADISPLAY_ID_DEFAULT, expectedWallpaperFlags);
 
     // Now the foreground window goes away, but the wallpaper stays
@@ -10014,6 +10016,7 @@ TEST_F(InputDispatcherDropInputFeatureTest, WindowDropsInput) {
                                                  AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT));
     mDispatcher->notifyMotion(generateMotionArgs(AMOTION_EVENT_ACTION_UP, AINPUT_SOURCE_TOUCHSCREEN,
                                                  ADISPLAY_ID_DEFAULT));
+    mDispatcher->waitForIdle();
     window->assertNoEvents();
 
     // With the flag cleared, the window should get input

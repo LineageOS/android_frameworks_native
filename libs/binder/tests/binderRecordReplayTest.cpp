@@ -15,15 +15,14 @@
  */
 
 #include <BnBinderRecordReplayTest.h>
-#include <android-base/file.h>
 #include <android-base/logging.h>
-#include <android-base/unique_fd.h>
 #include <binder/Binder.h>
 #include <binder/BpBinder.h>
 #include <binder/IBinder.h>
 #include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
 #include <binder/RecordedTransaction.h>
+#include <binder/unique_fd.h>
 
 #include <fuzzbinder/libbinder_driver.h>
 #include <fuzzer/FuzzedDataProvider.h>
@@ -33,11 +32,14 @@
 
 #include <sys/prctl.h>
 
+#include "../file.h"
 #include "parcelables/SingleDataParcelable.h"
 
 using namespace android;
 using android::generateSeedsFromRecording;
+using android::binder::borrowed_fd;
 using android::binder::Status;
+using android::binder::unique_fd;
 using android::binder::debug::RecordedTransaction;
 using parcelables::SingleDataParcelable;
 
@@ -91,7 +93,7 @@ public:
     GENERATE_GETTER_SETTER(SingleDataParcelableArray, std::vector<SingleDataParcelable>);
 };
 
-std::vector<uint8_t> retrieveData(base::borrowed_fd fd) {
+std::vector<uint8_t> retrieveData(borrowed_fd fd) {
     struct stat fdStat;
     EXPECT_TRUE(fstat(fd.get(), &fdStat) != -1);
     EXPECT_TRUE(fdStat.st_size != 0);
@@ -103,8 +105,8 @@ std::vector<uint8_t> retrieveData(base::borrowed_fd fd) {
 }
 
 void replayFuzzService(const sp<BpBinder>& binder, const RecordedTransaction& transaction) {
-    base::unique_fd seedFd(open("/data/local/tmp/replayFuzzService",
-                                O_RDWR | O_CREAT | O_CLOEXEC | O_TRUNC, 0666));
+    unique_fd seedFd(open("/data/local/tmp/replayFuzzService",
+                          O_RDWR | O_CREAT | O_CLOEXEC | O_TRUNC, 0666));
     ASSERT_TRUE(seedFd.ok());
 
     // generate corpus from this transaction.
@@ -148,8 +150,8 @@ public:
                       Status (IBinderRecordReplayTest::*get)(U*), U changedValue) {
         auto replayFunctions = {&replayBinder, &replayFuzzService};
         for (auto replayFunc : replayFunctions) {
-            base::unique_fd fd(open("/data/local/tmp/binderRecordReplayTest.rec",
-                                    O_RDWR | O_CREAT | O_CLOEXEC, 0666));
+            unique_fd fd(open("/data/local/tmp/binderRecordReplayTest.rec",
+                              O_RDWR | O_CREAT | O_CLOEXEC, 0666));
             ASSERT_TRUE(fd.ok());
 
             // record a transaction

@@ -8958,6 +8958,7 @@ SurfaceFlinger::getLayerSnapshotsForScreenshots(uint32_t rootLayerId, uint32_t u
                      .genericLayerMetadataKeyMap = getGenericLayerMetadataKeyMap(),
                      .skipRoundCornersWhenProtected =
                              !getRenderEngine().supportsProtectedContent()};
+        args.rootSnapshot.isSecure = mLayerLifecycleManager.isLayerSecure(rootLayerId);
         mLayerSnapshotBuilder.update(args);
 
         auto getLayerSnapshotsFn =

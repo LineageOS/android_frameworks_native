@@ -51,7 +51,8 @@ extern "C" JavaVM* AndroidRuntimeGetJavaVM();
 namespace android {
 
 using namespace android::binder::impl;
-using base::unique_fd;
+using android::binder::borrowed_fd;
+using android::binder::unique_fd;
 
 RpcSession::RpcSession(std::unique_ptr<RpcTransportCtx> ctx) : mCtx(std::move(ctx)) {
     LOG_RPC_DETAIL("RpcSession created %p", this);
@@ -157,7 +158,7 @@ status_t RpcSession::setupUnixDomainSocketBootstrapClient(unique_fd bootstrapFd)
 
         int zero = 0;
         iovec iov{&zero, sizeof(zero)};
-        std::vector<std::variant<base::unique_fd, base::borrowed_fd>> fds;
+        std::vector<std::variant<unique_fd, borrowed_fd>> fds;
         fds.push_back(std::move(serverFd));
 
         status_t status = mBootstrapTransport->interruptableWriteFully(mShutdownTrigger.get(), &iov,
@@ -186,8 +187,7 @@ status_t RpcSession::setupInetClient(const char* addr, unsigned int port) {
     return NAME_NOT_FOUND;
 }
 
-status_t RpcSession::setupPreconnectedClient(base::unique_fd fd,
-                                             std::function<unique_fd()>&& request) {
+status_t RpcSession::setupPreconnectedClient(unique_fd fd, std::function<unique_fd()>&& request) {
     return setupClient([&](const std::vector<uint8_t>& sessionId, bool incoming) -> status_t {
         if (!fd.ok()) {
             fd = request();

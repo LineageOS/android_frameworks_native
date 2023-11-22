@@ -39,6 +39,8 @@
 namespace android {
 
 using namespace android::binder::impl;
+using android::binder::borrowed_fd;
+using android::binder::unique_fd;
 
 #if RPC_FLAKE_PRONE
 void rpcMaybeWaitToFlake() {
@@ -355,11 +357,10 @@ RpcState::CommandData::CommandData(size_t size) : mSize(size) {
     mData.reset(new (std::nothrow) uint8_t[size]);
 }
 
-status_t RpcState::rpcSend(
-        const sp<RpcSession::RpcConnection>& connection, const sp<RpcSession>& session,
-        const char* what, iovec* iovs, int niovs,
-        const std::optional<SmallFunction<status_t()>>& altPoll,
-        const std::vector<std::variant<base::unique_fd, base::borrowed_fd>>* ancillaryFds) {
+status_t RpcState::rpcSend(const sp<RpcSession::RpcConnection>& connection,
+                           const sp<RpcSession>& session, const char* what, iovec* iovs, int niovs,
+                           const std::optional<SmallFunction<status_t()>>& altPoll,
+                           const std::vector<std::variant<unique_fd, borrowed_fd>>* ancillaryFds) {
     for (int i = 0; i < niovs; i++) {
         LOG_RPC_DETAIL("Sending %s (part %d of %d) on RpcTransport %p: %s",
                        what, i + 1, niovs, connection->rpcTransport.get(),
@@ -380,10 +381,9 @@ status_t RpcState::rpcSend(
     return OK;
 }
 
-status_t RpcState::rpcRec(
-        const sp<RpcSession::RpcConnection>& connection, const sp<RpcSession>& session,
-        const char* what, iovec* iovs, int niovs,
-        std::vector<std::variant<base::unique_fd, base::borrowed_fd>>* ancillaryFds) {
+status_t RpcState::rpcRec(const sp<RpcSession::RpcConnection>& connection,
+                          const sp<RpcSession>& session, const char* what, iovec* iovs, int niovs,
+                          std::vector<std::variant<unique_fd, borrowed_fd>>* ancillaryFds) {
     if (status_t status =
                 connection->rpcTransport->interruptableReadFully(session->mShutdownTrigger.get(),
                                                                  iovs, niovs, std::nullopt,
@@ -649,7 +649,7 @@ static void cleanup_reply_data(const uint8_t* data, size_t dataSize, const binde
 
 status_t RpcState::waitForReply(const sp<RpcSession::RpcConnection>& connection,
                                 const sp<RpcSession>& session, Parcel* reply) {
-    std::vector<std::variant<base::unique_fd, base::borrowed_fd>> ancillaryFds;
+    std::vector<std::variant<unique_fd, borrowed_fd>> ancillaryFds;
     RpcWireHeader command;
     while (true) {
         iovec iov{&command, sizeof(command)};
@@ -767,7 +767,7 @@ status_t RpcState::getAndExecuteCommand(const sp<RpcSession::RpcConnection>& con
                                         const sp<RpcSession>& session, CommandType type) {
     LOG_RPC_DETAIL("getAndExecuteCommand on RpcTransport %p", connection->rpcTransport.get());
 
-    std::vector<std::variant<base::unique_fd, base::borrowed_fd>> ancillaryFds;
+    std::vector<std::variant<unique_fd, borrowed_fd>> ancillaryFds;
     RpcWireHeader command;
     iovec iov{&command, sizeof(command)};
     if (status_t status =
@@ -796,7 +796,7 @@ status_t RpcState::drainCommands(const sp<RpcSession::RpcConnection>& connection
 status_t RpcState::processCommand(
         const sp<RpcSession::RpcConnection>& connection, const sp<RpcSession>& session,
         const RpcWireHeader& command, CommandType type,
-        std::vector<std::variant<base::unique_fd, base::borrowed_fd>>&& ancillaryFds) {
+        std::vector<std::variant<unique_fd, borrowed_fd>>&& ancillaryFds) {
 #ifdef BINDER_WITH_KERNEL_IPC
     IPCThreadState* kernelBinderState = IPCThreadState::selfOrNull();
     IPCThreadState::SpGuard spGuard{
@@ -836,7 +836,7 @@ status_t RpcState::processCommand(
 status_t RpcState::processTransact(
         const sp<RpcSession::RpcConnection>& connection, const sp<RpcSession>& session,
         const RpcWireHeader& command,
-        std::vector<std::variant<base::unique_fd, base::borrowed_fd>>&& ancillaryFds) {
+        std::vector<std::variant<unique_fd, borrowed_fd>>&& ancillaryFds) {
     LOG_ALWAYS_FATAL_IF(command.command != RPC_COMMAND_TRANSACT, "command: %d", command.command);
 
     CommandData transactionData(command.bodySize);
@@ -863,7 +863,7 @@ static void do_nothing_to_transact_data(const uint8_t* data, size_t dataSize,
 status_t RpcState::processTransactInternal(
         const sp<RpcSession::RpcConnection>& connection, const sp<RpcSession>& session,
         CommandData transactionData,
-        std::vector<std::variant<base::unique_fd, base::borrowed_fd>>&& ancillaryFds) {
+        std::vector<std::variant<unique_fd, borrowed_fd>>&& ancillaryFds) {
     // for 'recursive' calls to this, we have already read and processed the
     // binder from the transaction data and taken reference counts into account,
     // so it is cached here.

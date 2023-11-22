@@ -446,7 +446,7 @@ status_t InputChannel::sendMessage(const InputMessage* msg) {
     msg->getSanitizedCopy(&cleanMsg);
     ssize_t nWrite;
     do {
-        nWrite = ::send(getFd(), &cleanMsg, msgLength, MSG_DONTWAIT | MSG_NOSIGNAL);
+        nWrite = ::send(getFd().get(), &cleanMsg, msgLength, MSG_DONTWAIT | MSG_NOSIGNAL);
     } while (nWrite == -1 && errno == EINTR);
 
     if (nWrite < 0) {
@@ -478,7 +478,7 @@ status_t InputChannel::sendMessage(const InputMessage* msg) {
 status_t InputChannel::receiveMessage(InputMessage* msg) {
     ssize_t nRead;
     do {
-        nRead = ::recv(getFd(), msg, sizeof(InputMessage), MSG_DONTWAIT);
+        nRead = ::recv(getFd().get(), msg, sizeof(InputMessage), MSG_DONTWAIT);
     } while (nRead == -1 && errno == EINTR);
 
     if (nRead < 0) {
@@ -551,7 +551,7 @@ sp<IBinder> InputChannel::getConnectionToken() const {
 }
 
 base::unique_fd InputChannel::dupFd() const {
-    android::base::unique_fd newFd(::dup(getFd()));
+    base::unique_fd newFd(::dup(getFd().get()));
     if (!newFd.ok()) {
         ALOGE("Could not duplicate fd %i for channel %s: %s", getFd().get(), getName().c_str(),
               strerror(errno));

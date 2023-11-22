@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-#include <android-base/file.h>
+#include "../../../../file.h"
+
 #include <android-base/logging.h>
 
 #include <binder/Binder.h>
@@ -40,6 +41,6 @@ void writeReversedBuffer(std::vector<std::byte>& integralBuffer, T min, T max, T
 template <typename T>
 void writeReversedBuffer(std::vector<std::byte>& integralBuffer, T val);
 } // namespace impl
-void generateSeedsFromRecording(base::borrowed_fd fd,
+void generateSeedsFromRecording(binder::borrowed_fd fd,
                                 const binder::debug::RecordedTransaction& transaction);
 } // namespace android

@@ -22,6 +22,7 @@
 #include "fuzzer/FuzzedDataProvider.h"
 
 using android::fillRandomParcel;
+using android::binder::unique_fd;
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     FuzzedDataProvider provider = FuzzedDataProvider(data, size);
@@ -53,7 +54,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
 
     if (transaction.has_value()) {
         std::FILE* intermediateFile = std::tmpfile();
-        android::base::unique_fd fdForWriting(dup(fileno(intermediateFile)));
+        unique_fd fdForWriting(dup(fileno(intermediateFile)));
         auto writeStatus [[maybe_unused]] = transaction.value().dumpToFile(fdForWriting);
 
         std::fclose(intermediateFile);

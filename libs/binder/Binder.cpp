@@ -19,7 +19,6 @@
 #include <atomic>
 #include <set>
 
-#include <android-base/unique_fd.h>
 #include <binder/BpBinder.h>
 #include <binder/IInterface.h>
 #include <binder/IPCThreadState.h>
@@ -28,6 +27,7 @@
 #include <binder/Parcel.h>
 #include <binder/RecordedTransaction.h>
 #include <binder/RpcServer.h>
+#include <binder/unique_fd.h>
 #include <pthread.h>
 
 #include <inttypes.h>
@@ -42,6 +42,8 @@
 #include "RpcState.h"
 
 namespace android {
+
+using android::binder::unique_fd;
 
 constexpr uid_t kUidRoot = 0;
 
@@ -167,8 +169,7 @@ status_t IBinder::getDebugPid(pid_t* out) {
     return OK;
 }
 
-status_t IBinder::setRpcClientDebug(android::base::unique_fd socketFd,
-                                    const sp<IBinder>& keepAliveBinder) {
+status_t IBinder::setRpcClientDebug(unique_fd socketFd, const sp<IBinder>& keepAliveBinder) {
     if (!kEnableRpcDevServers) {
         ALOGW("setRpcClientDebug disallowed because RPC is not enabled");
         return INVALID_OPERATION;
@@ -273,7 +274,7 @@ public:
     std::set<sp<RpcServerLink>> mRpcServerLinks;
     BpBinder::ObjectManager mObjects;
 
-    android::base::unique_fd mRecordingFd;
+    unique_fd mRecordingFd;
 };
 
 // ---------------------------------------------------------------------------
@@ -640,7 +641,7 @@ status_t BBinder::setRpcClientDebug(const Parcel& data) {
     }
     status_t status;
     bool hasSocketFd;
-    android::base::unique_fd clientFd;
+    unique_fd clientFd;
 
     if (status = data.readBool(&hasSocketFd); status != OK) return status;
     if (hasSocketFd) {
@@ -652,8 +653,7 @@ status_t BBinder::setRpcClientDebug(const Parcel& data) {
     return setRpcClientDebug(std::move(clientFd), keepAliveBinder);
 }
 
-status_t BBinder::setRpcClientDebug(android::base::unique_fd socketFd,
-                                    const sp<IBinder>& keepAliveBinder) {
+status_t BBinder::setRpcClientDebug(unique_fd socketFd, const sp<IBinder>& keepAliveBinder) {
     if (!kEnableRpcDevServers) {
         ALOGW("%s: disallowed because RPC is not enabled", __PRETTY_FUNCTION__);
         return INVALID_OPERATION;

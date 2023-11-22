@@ -14,11 +14,12 @@
  * limitations under the License.
  */
 
+#include "../../file.h"
+
 #include <fuzzer/FuzzedDataProvider.h>
 
 #include <binder/Parcel.h>
 #include <binder/TextOutput.h>
-#include "android-base/file.h"
 #include "android-base/test_utils.h"
 
 #include <fcntl.h>

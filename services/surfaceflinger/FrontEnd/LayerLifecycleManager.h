@@ -80,6 +80,7 @@ public:
     const std::vector<RequestedLayerState*>& getChangedLayers() const;
     const ftl::Flags<RequestedLayerState::Changes> getGlobalChanges() const;
     const RequestedLayerState* getLayerFromId(uint32_t) const;
+    bool isLayerSecure(uint32_t) const;
 
 private:
     friend class LayerLifecycleManagerTest;

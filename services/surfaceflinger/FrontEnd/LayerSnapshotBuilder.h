@@ -33,6 +33,9 @@ namespace android::surfaceflinger::frontend {
 // The builder also uses a fast path to update
 // snapshots when there are only buffer updates.
 class LayerSnapshotBuilder {
+private:
+    static LayerSnapshot getRootSnapshot();
+
 public:
     enum class ForceUpdateFlags {
         NONE,
@@ -55,6 +58,7 @@ public:
         const std::unordered_map<std::string, bool>& supportedLayerGenericMetadata;
         const std::unordered_map<std::string, uint32_t>& genericLayerMetadataKeyMap;
         bool skipRoundCornersWhenProtected = false;
+        LayerSnapshot rootSnapshot = getRootSnapshot();
     };
     LayerSnapshotBuilder();
 
@@ -87,7 +91,6 @@ public:
 
 private:
     friend class LayerSnapshotTest;
-    static LayerSnapshot getRootSnapshot();
 
     // return true if we were able to successfully update the snapshots via
     // the fast path.
@@ -130,7 +133,6 @@ private:
     std::unordered_set<LayerHierarchy::TraversalPath, LayerHierarchy::TraversalPathHash>
             mNeedsTouchableRegionCrop;
     std::vector<std::unique_ptr<LayerSnapshot>> mSnapshots;
-    LayerSnapshot mRootSnapshot;
     bool mResortSnapshots = false;
     int mNumInterestingSnapshots = 0;
 };

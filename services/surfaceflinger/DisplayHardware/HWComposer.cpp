@@ -945,6 +945,10 @@ status_t HWComposer::notifyExpectedPresentIfRequired(PhysicalDisplayId displayId
                                                      std::optional<Period> timeoutOpt) {
     RETURN_IF_INVALID_DISPLAY(displayId, BAD_INDEX);
     auto& displayData = mDisplayData[displayId];
+    if (!displayData.hwcDisplay) {
+        // Display setup has not completed yet
+        return BAD_INDEX;
+    }
     {
         std::scoped_lock lock{displayData.expectedPresentLock};
         const auto lastExpectedPresentTimestamp = displayData.lastExpectedPresentTimestamp;
