@@ -20,11 +20,14 @@
 #include <compositionengine/mock/LayerFE.h>
 #include <compositionengine/mock/Output.h>
 #include <compositionengine/mock/OutputLayer.h>
+#include <ftl/future.h>
 #include <gtest/gtest.h>
 #include <renderengine/mock/RenderEngine.h>
 
 #include "MockHWComposer.h"
 #include "TimeStats/TimeStats.h"
+
+#include <variant>
 
 namespace android::compositionengine {
 namespace {
@@ -107,10 +110,19 @@ TEST_F(CompositionEnginePresentTest, worksAsExpected) {
     EXPECT_CALL(*mOutput2, prepare(Ref(mRefreshArgs), _));
     EXPECT_CALL(*mOutput3, prepare(Ref(mRefreshArgs), _));
 
+    if (FlagManager::getInstance().multithreaded_present()) {
+        EXPECT_CALL(*mOutput1, getDisplayId()).WillOnce(Return(std::nullopt));
+        EXPECT_CALL(*mOutput2, getDisplayId()).WillOnce(Return(std::nullopt));
+        EXPECT_CALL(*mOutput3, getDisplayId()).WillOnce(Return(std::nullopt));
+    }
+
     // The last step is to actually present each output.
-    EXPECT_CALL(*mOutput1, present(Ref(mRefreshArgs)));
-    EXPECT_CALL(*mOutput2, present(Ref(mRefreshArgs)));
-    EXPECT_CALL(*mOutput3, present(Ref(mRefreshArgs)));
+    EXPECT_CALL(*mOutput1, present(Ref(mRefreshArgs)))
+            .WillOnce(Return(ftl::yield<std::monostate>({})));
+    EXPECT_CALL(*mOutput2, present(Ref(mRefreshArgs)))
+            .WillOnce(Return(ftl::yield<std::monostate>({})));
+    EXPECT_CALL(*mOutput3, present(Ref(mRefreshArgs)))
+            .WillOnce(Return(ftl::yield<std::monostate>({})));
 
     mRefreshArgs.outputs = {mOutput1, mOutput2, mOutput3};
     mEngine.present(mRefreshArgs);

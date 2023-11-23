@@ -63,14 +63,14 @@ DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs& args)
         mDisplayToken(args.displayToken),
         mSequenceId(args.sequenceId),
         mCompositionDisplay{args.compositionDisplay},
-        mActiveModeFPSTrace(concatId("ActiveModeFPS")),
-        mActiveModeFPSHwcTrace(concatId("ActiveModeFPS_HWC")),
-        mRenderFrameRateFPSTrace(concatId("RenderRateFPS")),
+        mPendingModeFpsTrace(concatId("PendingModeFps")),
+        mActiveModeFpsTrace(concatId("ActiveModeFps")),
+        mRenderRateFpsTrace(concatId("RenderRateFps")),
         mPhysicalOrientation(args.physicalOrientation),
         mIsPrimary(args.isPrimary),
         mRequestedRefreshRate(args.requestedRefreshRate),
         mRefreshRateSelector(std::move(args.refreshRateSelector)),
-        mDesiredActiveModeChanged(concatId("DesiredActiveModeChanged"), false) {
+        mDesiredModeChanged(concatId("DesiredModeChanged"), false) {
     mCompositionDisplay->editState().isSecure = args.isSecure;
     mCompositionDisplay->createRenderSurface(
             compositionengine::RenderSurfaceCreationArgsBuilder()
@@ -210,16 +210,16 @@ bool DisplayDevice::isPoweredOn() const {
 }
 
 void DisplayDevice::setActiveMode(DisplayModeId modeId, Fps vsyncRate, Fps renderFps) {
-    ATRACE_INT(mActiveModeFPSTrace.c_str(), vsyncRate.getIntValue());
-    ATRACE_INT(mRenderFrameRateFPSTrace.c_str(), renderFps.getIntValue());
+    ATRACE_INT(mActiveModeFpsTrace.c_str(), vsyncRate.getIntValue());
+    ATRACE_INT(mRenderRateFpsTrace.c_str(), renderFps.getIntValue());
 
     mRefreshRateSelector->setActiveMode(modeId, renderFps);
     updateRefreshRateOverlayRate(vsyncRate, renderFps);
 }
 
-status_t DisplayDevice::initiateModeChange(const ActiveModeInfo& info,
-                                           const hal::VsyncPeriodChangeConstraints& constraints,
-                                           hal::VsyncPeriodChangeTimeline* outTimeline) {
+bool DisplayDevice::initiateModeChange(const ActiveModeInfo& info,
+                                       const hal::VsyncPeriodChangeConstraints& constraints,
+                                       hal::VsyncPeriodChangeTimeline& outTimeline) {
     if (!info.modeOpt || info.modeOpt->modePtr->getPhysicalDisplayId() != getPhysicalId()) {
         ALOGE("Trying to initiate a mode change to invalid mode %s on display %s",
               info.modeOpt ? std::to_string(info.modeOpt->modePtr->getId().value()).c_str()
@@ -227,14 +227,18 @@ status_t DisplayDevice::initiateModeChange(const ActiveModeInfo& info,
               to_string(getId()).c_str());
         return BAD_VALUE;
     }
-    mUpcomingActiveMode = info;
+    mPendingMode = info;
     mIsModeSetPending = true;
 
-    const auto& pendingMode = *info.modeOpt->modePtr;
-    ATRACE_INT(mActiveModeFPSHwcTrace.c_str(), pendingMode.getVsyncRate().getIntValue());
+    const auto& mode = *info.modeOpt->modePtr;
 
-    return mHwComposer.setActiveModeWithConstraints(getPhysicalId(), pendingMode.getHwcId(),
-                                                    constraints, outTimeline);
+    if (mHwComposer.setActiveModeWithConstraints(getPhysicalId(), mode.getHwcId(), constraints,
+                                                 &outTimeline) != OK) {
+        return false;
+    }
+
+    ATRACE_INT(mPendingModeFpsTrace.c_str(), mode.getVsyncRate().getIntValue());
+    return true;
 }
 
 void DisplayDevice::finalizeModeChange(DisplayModeId modeId, Fps vsyncRate, Fps renderFps) {
@@ -524,8 +528,7 @@ void DisplayDevice::animateOverlay() {
     }
 }
 
-auto DisplayDevice::setDesiredActiveMode(const ActiveModeInfo& info, bool force)
-        -> DesiredActiveModeAction {
+auto DisplayDevice::setDesiredMode(const ActiveModeInfo& info, bool force) -> DesiredModeAction {
     ATRACE_CALL();
 
     LOG_ALWAYS_FATAL_IF(!info.modeOpt, "desired mode not provided");
@@ -534,49 +537,50 @@ auto DisplayDevice::setDesiredActiveMode(const ActiveModeInfo& info, bool force)
 
     ALOGV("%s(%s)", __func__, to_string(*info.modeOpt->modePtr).c_str());
 
-    std::scoped_lock lock(mActiveModeLock);
-    if (mDesiredActiveModeChanged) {
-        // If a mode change is pending, just cache the latest request in mDesiredActiveMode
-        const auto prevConfig = mDesiredActiveMode.event;
-        mDesiredActiveMode = info;
-        mDesiredActiveMode.event = mDesiredActiveMode.event | prevConfig;
-        return DesiredActiveModeAction::None;
+    std::scoped_lock lock(mDesiredModeLock);
+    if (mDesiredModeChanged) {
+        // A mode transition was already scheduled, so just override the desired mode.
+        const auto event = mDesiredMode.event;
+        mDesiredMode = info;
+        mDesiredMode.event = mDesiredMode.event | event;
+        return DesiredModeAction::None;
     }
 
     const auto& desiredMode = *info.modeOpt->modePtr;
 
-    // Check if we are already at the desired mode
-    const auto currentMode = refreshRateSelector().getActiveMode();
-    if (!force && currentMode.modePtr->getId() == desiredMode.getId()) {
-        if (currentMode == info.modeOpt) {
-            return DesiredActiveModeAction::None;
+    // If the desired mode is already active...
+    const auto activeMode = refreshRateSelector().getActiveMode();
+    if (!force && activeMode.modePtr->getId() == desiredMode.getId()) {
+        if (activeMode == info.modeOpt) {
+            return DesiredModeAction::None;
         }
 
+        // ...but the render rate changed:
         setActiveMode(desiredMode.getId(), desiredMode.getVsyncRate(), info.modeOpt->fps);
-        return DesiredActiveModeAction::InitiateRenderRateSwitch;
+        return DesiredModeAction::InitiateRenderRateSwitch;
     }
 
-    // Set the render frame rate to the current physical refresh rate to schedule the next
+    // Set the render frame rate to the active physical refresh rate to schedule the next
     // frame as soon as possible.
-    setActiveMode(currentMode.modePtr->getId(), currentMode.modePtr->getVsyncRate(),
-                  currentMode.modePtr->getVsyncRate());
+    setActiveMode(activeMode.modePtr->getId(), activeMode.modePtr->getVsyncRate(),
+                  activeMode.modePtr->getVsyncRate());
 
     // Initiate a mode change.
-    mDesiredActiveModeChanged = true;
-    mDesiredActiveMode = info;
-    return DesiredActiveModeAction::InitiateDisplayModeSwitch;
+    mDesiredModeChanged = true;
+    mDesiredMode = info;
+    return DesiredModeAction::InitiateDisplayModeSwitch;
 }
 
-std::optional<DisplayDevice::ActiveModeInfo> DisplayDevice::getDesiredActiveMode() const {
-    std::scoped_lock lock(mActiveModeLock);
-    if (mDesiredActiveModeChanged) return mDesiredActiveMode;
+auto DisplayDevice::getDesiredMode() const -> ftl::Optional<ActiveModeInfo> {
+    std::scoped_lock lock(mDesiredModeLock);
+    if (mDesiredModeChanged) return mDesiredMode;
     return std::nullopt;
 }
 
-void DisplayDevice::clearDesiredActiveModeState() {
-    std::scoped_lock lock(mActiveModeLock);
-    mDesiredActiveMode.event = scheduler::DisplayModeEvent::None;
-    mDesiredActiveModeChanged = false;
+void DisplayDevice::clearDesiredMode() {
+    std::scoped_lock lock(mDesiredModeLock);
+    mDesiredMode.event = scheduler::DisplayModeEvent::None;
+    mDesiredModeChanged = false;
 }
 
 void DisplayDevice::adjustRefreshRate(Fps pacesetterDisplayRefreshRate) {

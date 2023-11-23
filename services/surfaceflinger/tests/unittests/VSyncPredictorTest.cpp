@@ -23,8 +23,9 @@
 #define LOG_TAG "LibSurfaceFlingerUnittests"
 #define LOG_NDEBUG 0
 
-#include "FlagUtils.h"
+#include <common/test/FlagUtils.h>
 #include "Scheduler/VSyncPredictor.h"
+#include "mock/DisplayHardware/MockDisplayMode.h"
 #include "mock/MockVsyncTrackerCallback.h"
 
 #include <gmock/gmock.h>
@@ -39,10 +40,22 @@ using namespace testing;
 using namespace std::literals;
 using namespace com::android::graphics::surfaceflinger;
 
+using NotifyExpectedPresentConfig =
+        ::aidl::android::hardware::graphics::composer3::VrrConfig::NotifyExpectedPresentConfig;
+
+using android::mock::createDisplayMode;
+using android::mock::createVrrDisplayMode;
+
 namespace android::scheduler {
 
+namespace {
 MATCHER_P2(IsCloseTo, value, tolerance, "is within tolerance") {
     return arg <= value + tolerance && arg >= value - tolerance;
+}
+
+MATCHER_P(FpsMatcher, value, "equals") {
+    using fps_approx_ops::operator==;
+    return arg == value;
 }
 
 std::vector<nsecs_t> generateVsyncTimestamps(size_t count, nsecs_t period, nsecs_t bias) {
@@ -54,21 +67,27 @@ std::vector<nsecs_t> generateVsyncTimestamps(size_t count, nsecs_t period, nsecs
 
 constexpr PhysicalDisplayId DEFAULT_DISPLAY_ID = PhysicalDisplayId::fromPort(42u);
 
+ftl::NonNull<DisplayModePtr> displayMode(nsecs_t period) {
+    const int32_t kGroup = 0;
+    const auto kResolution = ui::Size(1920, 1080);
+    const auto refreshRate = Fps::fromPeriodNsecs(period);
+    return ftl::as_non_null(createDisplayMode(DisplayModeId(0), refreshRate, kGroup, kResolution,
+                                              DEFAULT_DISPLAY_ID));
+}
+} // namespace
+
 struct VSyncPredictorTest : testing::Test {
     nsecs_t mNow = 0;
     nsecs_t mPeriod = 1000;
+    ftl::NonNull<DisplayModePtr> mMode = displayMode(mPeriod);
     scheduler::mock::VsyncTrackerCallback mVsyncTrackerCallback;
     static constexpr size_t kHistorySize = 10;
     static constexpr size_t kMinimumSamplesForPrediction = 6;
     static constexpr size_t kOutlierTolerancePercent = 25;
     static constexpr nsecs_t mMaxRoundingError = 100;
 
-    VSyncPredictor tracker{DEFAULT_DISPLAY_ID,
-                           mPeriod,
-                           kHistorySize,
-                           kMinimumSamplesForPrediction,
-                           kOutlierTolerancePercent,
-                           mVsyncTrackerCallback};
+    VSyncPredictor tracker{mMode, kHistorySize, kMinimumSamplesForPrediction,
+                           kOutlierTolerancePercent, mVsyncTrackerCallback};
 };
 
 TEST_F(VSyncPredictorTest, reportsAnticipatedPeriod) {
@@ -78,7 +97,7 @@ TEST_F(VSyncPredictorTest, reportsAnticipatedPeriod) {
     EXPECT_THAT(model.intercept, Eq(0));
 
     auto const changedPeriod = 2000;
-    tracker.setPeriod(changedPeriod);
+    tracker.setDisplayModePtr(displayMode(changedPeriod));
     model = tracker.getVSyncPredictionModel();
     EXPECT_THAT(model.slope, Eq(changedPeriod));
     EXPECT_THAT(model.intercept, Eq(0));
@@ -99,7 +118,7 @@ TEST_F(VSyncPredictorTest, reportsSamplesNeededAfterExplicitRateChange) {
     EXPECT_FALSE(tracker.needsMoreSamples());
 
     auto const changedPeriod = mPeriod * 2;
-    tracker.setPeriod(changedPeriod);
+    tracker.setDisplayModePtr(displayMode(changedPeriod));
     EXPECT_TRUE(tracker.needsMoreSamples());
 
     for (auto i = 0u; i < kMinimumSamplesForPrediction; i++) {
@@ -133,7 +152,7 @@ TEST_F(VSyncPredictorTest, uponNotifiedOfInaccuracyUsesSynthetic) {
     }
 
     EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow), Eq(mNow + slightlyLessPeriod));
-    tracker.setPeriod(changedPeriod);
+    tracker.setDisplayModePtr(displayMode(changedPeriod));
     EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow), Eq(mNow + changedPeriod));
 }
 
@@ -179,7 +198,7 @@ TEST_F(VSyncPredictorTest, adaptsToFenceTimelines_60hzHighVariance) {
     auto constexpr expectedPeriod = 16639242;
     auto constexpr expectedIntercept = 1049341;
 
-    tracker.setPeriod(idealPeriod);
+    tracker.setDisplayModePtr(displayMode(idealPeriod));
     for (auto const& timestamp : simulatedVsyncs) {
         tracker.addVsyncTimestamp(timestamp);
     }
@@ -198,7 +217,7 @@ TEST_F(VSyncPredictorTest, adaptsToFenceTimelines_90hzLowVariance) {
     auto expectedPeriod = 11089413;
     auto expectedIntercept = 94421;
 
-    tracker.setPeriod(idealPeriod);
+    tracker.setDisplayModePtr(displayMode(idealPeriod));
     for (auto const& timestamp : simulatedVsyncs) {
         tracker.addVsyncTimestamp(timestamp);
     }
@@ -225,7 +244,7 @@ TEST_F(VSyncPredictorTest, adaptsToFenceTimelinesDiscontinuous_22hzLowVariance) 
     auto expectedPeriod = 45450152;
     auto expectedIntercept = 469647;
 
-    tracker.setPeriod(idealPeriod);
+    tracker.setDisplayModePtr(displayMode(idealPeriod));
     for (auto const& timestamp : simulatedVsyncs) {
         tracker.addVsyncTimestamp(timestamp);
     }
@@ -251,7 +270,7 @@ TEST_F(VSyncPredictorTest, againstOutliersDiscontinuous_500hzLowVariance) {
     auto expectedPeriod = 1999892;
     auto expectedIntercept = 86342;
 
-    tracker.setPeriod(idealPeriod);
+    tracker.setDisplayModePtr(displayMode(idealPeriod));
     for (auto const& timestamp : simulatedVsyncs) {
         tracker.addVsyncTimestamp(timestamp);
     }
@@ -271,7 +290,7 @@ TEST_F(VSyncPredictorTest, handlesVsyncChange) {
     auto const simulatedVsyncsSlow =
             generateVsyncTimestamps(kMinimumSamplesForPrediction, slowPeriod, slowTimeBase);
 
-    tracker.setPeriod(fastPeriod);
+    tracker.setDisplayModePtr(displayMode(fastPeriod));
     for (auto const& timestamp : simulatedVsyncsFast) {
         tracker.addVsyncTimestamp(timestamp);
     }
@@ -281,7 +300,7 @@ TEST_F(VSyncPredictorTest, handlesVsyncChange) {
     EXPECT_THAT(model.slope, IsCloseTo(fastPeriod, mMaxRoundingError));
     EXPECT_THAT(model.intercept, IsCloseTo(0, mMaxRoundingError));
 
-    tracker.setPeriod(slowPeriod);
+    tracker.setDisplayModePtr(displayMode(slowPeriod));
     for (auto const& timestamp : simulatedVsyncsSlow) {
         tracker.addVsyncTimestamp(timestamp);
     }
@@ -305,7 +324,7 @@ TEST_F(VSyncPredictorTest, willBeAccurateUsingPriorResultsForRate) {
             generateVsyncTimestamps(kMinimumSamplesForPrediction, fastPeriod2, fastTimeBase);
 
     auto idealPeriod = 100000;
-    tracker.setPeriod(idealPeriod);
+    tracker.setDisplayModePtr(displayMode(idealPeriod));
     for (auto const& timestamp : simulatedVsyncsFast) {
         tracker.addVsyncTimestamp(timestamp);
     }
@@ -313,14 +332,14 @@ TEST_F(VSyncPredictorTest, willBeAccurateUsingPriorResultsForRate) {
     EXPECT_THAT(model.slope, Eq(fastPeriod));
     EXPECT_THAT(model.intercept, Eq(0));
 
-    tracker.setPeriod(slowPeriod);
+    tracker.setDisplayModePtr(displayMode(slowPeriod));
     for (auto const& timestamp : simulatedVsyncsSlow) {
         tracker.addVsyncTimestamp(timestamp);
     }
 
     // we had a model for 100ns mPeriod before, use that until the new samples are
     // sufficiently built up
-    tracker.setPeriod(idealPeriod);
+    tracker.setDisplayModePtr(displayMode(idealPeriod));
     model = tracker.getVSyncPredictionModel();
     EXPECT_THAT(model.slope, Eq(fastPeriod));
     EXPECT_THAT(model.intercept, Eq(0));
@@ -369,7 +388,7 @@ TEST_F(VSyncPredictorTest, doesNotPredictBeforeTimePointWithHigherIntercept) {
     auto const expectedPeriod = 11113919;
     auto const expectedIntercept = -1195945;
 
-    tracker.setPeriod(idealPeriod);
+    tracker.setDisplayModePtr(displayMode(idealPeriod));
     for (auto const& timestamp : simulatedVsyncs) {
         tracker.addVsyncTimestamp(timestamp);
     }
@@ -388,11 +407,8 @@ TEST_F(VSyncPredictorTest, doesNotPredictBeforeTimePointWithHigherIntercept) {
 
 // See b/151146131
 TEST_F(VSyncPredictorTest, hasEnoughPrecision) {
-    VSyncPredictor tracker{DEFAULT_DISPLAY_ID,
-                           mPeriod,
-                           20,
-                           kMinimumSamplesForPrediction,
-                           kOutlierTolerancePercent,
+    const auto mode = displayMode(mPeriod);
+    VSyncPredictor tracker{mode, 20, kMinimumSamplesForPrediction, kOutlierTolerancePercent,
                            mVsyncTrackerCallback};
     std::vector<nsecs_t> const simulatedVsyncs{840873348817, 840890049444, 840906762675,
                                                840923581635, 840940161584, 840956868096,
@@ -407,7 +423,7 @@ TEST_F(VSyncPredictorTest, hasEnoughPrecision) {
     auto const expectedPeriod = 16698426;
     auto const expectedIntercept = 58055;
 
-    tracker.setPeriod(idealPeriod);
+    tracker.setDisplayModePtr(displayMode(idealPeriod));
     for (auto const& timestamp : simulatedVsyncs) {
         tracker.addVsyncTimestamp(timestamp);
     }
@@ -420,7 +436,7 @@ TEST_F(VSyncPredictorTest, hasEnoughPrecision) {
 TEST_F(VSyncPredictorTest, resetsWhenInstructed) {
     auto const idealPeriod = 10000;
     auto const realPeriod = 10500;
-    tracker.setPeriod(idealPeriod);
+    tracker.setDisplayModePtr(displayMode(idealPeriod));
     for (auto i = 0; i < kMinimumSamplesForPrediction; i++) {
         tracker.addVsyncTimestamp(i * realPeriod);
     }
@@ -562,7 +578,7 @@ TEST_F(VSyncPredictorTest, robustToDuplicateTimestamps_60hzRealTraceData) {
     auto constexpr expectedPeriod = 16'644'742;
     auto constexpr expectedIntercept = 125'626;
 
-    tracker.setPeriod(idealPeriod);
+    tracker.setDisplayModePtr(displayMode(idealPeriod));
     for (auto const& timestamp : simulatedVsyncs) {
         tracker.addVsyncTimestamp(timestamp);
     }
@@ -580,7 +596,7 @@ TEST_F(VSyncPredictorTest, setRenderRateIsRespected) {
         tracker.addVsyncTimestamp(mNow);
     }
 
-    tracker.setDisplayModeData({.renderRate = Fps::fromPeriodNsecs(3 * mPeriod)});
+    tracker.setRenderRate(Fps::fromPeriodNsecs(3 * mPeriod));
 
     EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow), Eq(mNow + mPeriod));
     EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 100), Eq(mNow + mPeriod));
@@ -602,12 +618,12 @@ TEST_F(VSyncPredictorTest, setRenderRateOfDivisorIsInPhase) {
 
     const auto refreshRate = Fps::fromPeriodNsecs(mPeriod);
 
-    tracker.setDisplayModeData({.renderRate = refreshRate / 4});
+    tracker.setRenderRate(refreshRate / 4);
     EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow), Eq(mNow + 3 * mPeriod));
     EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 3 * mPeriod), Eq(mNow + 7 * mPeriod));
     EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 7 * mPeriod), Eq(mNow + 11 * mPeriod));
 
-    tracker.setDisplayModeData({.renderRate = refreshRate / 2});
+    tracker.setRenderRate(refreshRate / 2);
     EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow), Eq(mNow + 1 * mPeriod));
     EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 1 * mPeriod), Eq(mNow + 3 * mPeriod));
     EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 3 * mPeriod), Eq(mNow + 5 * mPeriod));
@@ -615,7 +631,7 @@ TEST_F(VSyncPredictorTest, setRenderRateOfDivisorIsInPhase) {
     EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 7 * mPeriod), Eq(mNow + 9 * mPeriod));
     EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 9 * mPeriod), Eq(mNow + 11 * mPeriod));
 
-    tracker.setDisplayModeData({.renderRate = refreshRate / 6});
+    tracker.setRenderRate(refreshRate / 6);
     EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow), Eq(mNow + 1 * mPeriod));
     EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 1 * mPeriod), Eq(mNow + 7 * mPeriod));
 }
@@ -629,7 +645,7 @@ TEST_F(VSyncPredictorTest, setRenderRateIsIgnoredIfNotDivisor) {
         tracker.addVsyncTimestamp(mNow);
     }
 
-    tracker.setDisplayModeData({.renderRate = Fps::fromPeriodNsecs(3.5f * mPeriod)});
+    tracker.setRenderRate(Fps::fromPeriodNsecs(3.5f * mPeriod));
 
     EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow), Eq(mNow + mPeriod));
     EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 100), Eq(mNow + mPeriod));
@@ -642,16 +658,27 @@ TEST_F(VSyncPredictorTest, setRenderRateIsIgnoredIfNotDivisor) {
 
 TEST_F(VSyncPredictorTest, vsyncTrackerCallback) {
     SET_FLAG_FOR_TEST(flags::vrr_config, true);
+
     const auto refreshRate = Fps::fromPeriodNsecs(mPeriod);
-    DisplayModeData displayModeData =
-            DisplayModeData{.renderRate = refreshRate,
-                            .notifyExpectedPresentTimeoutOpt = Period::fromNs(30)};
-    tracker.setDisplayModeData(displayModeData);
+    NotifyExpectedPresentConfig notifyExpectedPresentConfig;
+    notifyExpectedPresentConfig.notifyExpectedPresentTimeoutNs = Period::fromNs(30).ns();
+
+    hal::VrrConfig vrrConfig;
+    vrrConfig.notifyExpectedPresentConfig = notifyExpectedPresentConfig;
+    vrrConfig.minFrameIntervalNs = refreshRate.getPeriodNsecs();
+
+    const int32_t kGroup = 0;
+    const auto kResolution = ui::Size(1920, 1080);
+    const auto mode =
+            ftl::as_non_null(createVrrDisplayMode(DisplayModeId(0), refreshRate, vrrConfig, kGroup,
+                                                  kResolution, DEFAULT_DISPLAY_ID));
+
+    tracker.setDisplayModePtr(mode);
     auto last = mNow;
     for (auto i = 0u; i < kMinimumSamplesForPrediction; i++) {
         EXPECT_CALL(mVsyncTrackerCallback,
-                    onVsyncGenerated(DEFAULT_DISPLAY_ID, TimePoint::fromNs(last + mPeriod),
-                                     displayModeData, Period::fromNs(mPeriod)))
+                    onVsyncGenerated(TimePoint::fromNs(last + mPeriod), mode,
+                                     FpsMatcher(refreshRate)))
                 .Times(1);
         EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow), Eq(last + mPeriod));
         mNow += mPeriod;
@@ -659,14 +686,12 @@ TEST_F(VSyncPredictorTest, vsyncTrackerCallback) {
         tracker.addVsyncTimestamp(mNow);
     }
 
-    displayModeData = DisplayModeData{.renderRate = refreshRate / 2,
-                                      .notifyExpectedPresentTimeoutOpt = Period::fromNs(30)};
-    tracker.setDisplayModeData(displayModeData);
+    tracker.setRenderRate(refreshRate / 2);
     {
         // out of render rate phase
         EXPECT_CALL(mVsyncTrackerCallback,
-                    onVsyncGenerated(DEFAULT_DISPLAY_ID, TimePoint::fromNs(mNow + 3 * mPeriod),
-                                     displayModeData, Period::fromNs(mPeriod)))
+                    onVsyncGenerated(TimePoint::fromNs(mNow + 3 * mPeriod), mode,
+                                     FpsMatcher(refreshRate / 2)))
                 .Times(1);
         EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 1 * mPeriod),
                     Eq(mNow + 3 * mPeriod));

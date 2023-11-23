@@ -35,6 +35,7 @@
 
 #include <cmath>
 #include <cstdint>
+#include <variant>
 
 #include "CallOrderStateMachineHelper.h"
 #include "MockHWC2.h"
@@ -54,6 +55,7 @@ using testing::InSequence;
 using testing::Invoke;
 using testing::IsEmpty;
 using testing::Mock;
+using testing::NiceMock;
 using testing::Pointee;
 using testing::Property;
 using testing::Ref;
@@ -4898,6 +4900,55 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
     ASSERT_EQ(1u, requests.size());
 
     EXPECT_EQ(mLayers[2].mLayerSettings, requests[0]);
+}
+
+struct OutputPresentFrameAndReleaseLayersAsyncTest : public ::testing::Test {
+    // Piggy-back on OutputPrepareFrameAsyncTest's version to avoid some boilerplate.
+    struct OutputPartialMock : public OutputPrepareFrameAsyncTest::OutputPartialMock {
+        // Set up the helper functions called by the function under test to use
+        // mock implementations.
+        MOCK_METHOD0(presentFrameAndReleaseLayers, void());
+        MOCK_METHOD0(presentFrameAndReleaseLayersAsync, ftl::Future<std::monostate>());
+    };
+    OutputPresentFrameAndReleaseLayersAsyncTest() {
+        mOutput->setDisplayColorProfileForTest(
+                std::unique_ptr<DisplayColorProfile>(mDisplayColorProfile));
+        mOutput->setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(mRenderSurface));
+        mOutput->setCompositionEnabled(true);
+        mRefreshArgs.outputs = {mOutput};
+    }
+
+    mock::DisplayColorProfile* mDisplayColorProfile = new NiceMock<mock::DisplayColorProfile>();
+    mock::RenderSurface* mRenderSurface = new NiceMock<mock::RenderSurface>();
+    std::shared_ptr<OutputPartialMock> mOutput{std::make_shared<NiceMock<OutputPartialMock>>()};
+    CompositionRefreshArgs mRefreshArgs;
+};
+
+TEST_F(OutputPresentFrameAndReleaseLayersAsyncTest, notCalledWhenNotRequested) {
+    EXPECT_CALL(*mOutput, presentFrameAndReleaseLayersAsync()).Times(0);
+    EXPECT_CALL(*mOutput, presentFrameAndReleaseLayers()).Times(1);
+
+    mOutput->present(mRefreshArgs);
+}
+
+TEST_F(OutputPresentFrameAndReleaseLayersAsyncTest, calledWhenRequested) {
+    EXPECT_CALL(*mOutput, presentFrameAndReleaseLayersAsync())
+            .WillOnce(Return(ftl::yield<std::monostate>({})));
+    EXPECT_CALL(*mOutput, presentFrameAndReleaseLayers()).Times(0);
+
+    mOutput->offloadPresentNextFrame();
+    mOutput->present(mRefreshArgs);
+}
+
+TEST_F(OutputPresentFrameAndReleaseLayersAsyncTest, calledForOneFrame) {
+    ::testing::InSequence inseq;
+    EXPECT_CALL(*mOutput, presentFrameAndReleaseLayersAsync())
+            .WillOnce(Return(ftl::yield<std::monostate>({})));
+    EXPECT_CALL(*mOutput, presentFrameAndReleaseLayers()).Times(1);
+
+    mOutput->offloadPresentNextFrame();
+    mOutput->present(mRefreshArgs);
+    mOutput->present(mRefreshArgs);
 }
 
 } // namespace

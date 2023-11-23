@@ -30,9 +30,10 @@
 
 #include <scheduler/TimeKeeper.h>
 
-#include "FlagUtils.h"
+#include <common/test/FlagUtils.h>
 #include "Scheduler/VSyncDispatchTimerQueue.h"
 #include "Scheduler/VSyncTracker.h"
+#include "mock/MockVSyncTracker.h"
 
 #include <com_android_graphics_surfaceflinger_flags.h>
 
@@ -42,7 +43,7 @@ using namespace std::literals;
 namespace android::scheduler {
 using namespace com::android::graphics::surfaceflinger;
 
-class MockVSyncTracker : public VSyncTracker {
+class MockVSyncTracker : public mock::VSyncTracker {
 public:
     MockVSyncTracker(nsecs_t period) : mPeriod{period} {
         ON_CALL(*this, nextAnticipatedVSyncTimeFrom(_))
@@ -51,16 +52,6 @@ public:
         ON_CALL(*this, currentPeriod())
                 .WillByDefault(Invoke(this, &MockVSyncTracker::getCurrentPeriod));
     }
-
-    MOCK_METHOD1(addVsyncTimestamp, bool(nsecs_t));
-    MOCK_CONST_METHOD1(nextAnticipatedVSyncTimeFrom, nsecs_t(nsecs_t));
-    MOCK_CONST_METHOD0(currentPeriod, nsecs_t());
-    MOCK_METHOD1(setPeriod, void(nsecs_t));
-    MOCK_METHOD0(resetModel, void());
-    MOCK_CONST_METHOD0(needsMoreSamples, bool());
-    MOCK_CONST_METHOD2(isVSyncInPhase, bool(nsecs_t, Fps));
-    MOCK_METHOD(void, setDisplayModeData, (const DisplayModeData&), (override));
-    MOCK_CONST_METHOD1(dump, void(std::string&));
 
     nsecs_t nextVSyncTime(nsecs_t timePoint) const {
         if (timePoint % mPeriod == 0) {

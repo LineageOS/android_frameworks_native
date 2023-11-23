@@ -17,7 +17,6 @@
 #pragma once
 
 #include <memory>
-#include <optional>
 #include <string>
 #include <unordered_map>
 
@@ -25,6 +24,7 @@
 #include <android/native_window.h>
 #include <binder/IBinder.h>
 #include <ftl/concat.h>
+#include <ftl/optional.h>
 #include <gui/LayerState.h>
 #include <math/mat4.h>
 #include <renderengine/RenderEngine.h>
@@ -51,6 +51,7 @@
 #include "ThreadContext.h"
 #include "TracedOrdinal.h"
 #include "Utils/Dumper.h"
+
 namespace android {
 
 class Fence;
@@ -205,19 +206,15 @@ public:
         }
     };
 
-    enum class DesiredActiveModeAction {
-        None,
-        InitiateDisplayModeSwitch,
-        InitiateRenderRateSwitch
-    };
-    DesiredActiveModeAction setDesiredActiveMode(const ActiveModeInfo&, bool force = false)
-            EXCLUDES(mActiveModeLock);
-    std::optional<ActiveModeInfo> getDesiredActiveMode() const EXCLUDES(mActiveModeLock);
-    void clearDesiredActiveModeState() EXCLUDES(mActiveModeLock);
-    ActiveModeInfo getUpcomingActiveMode() const REQUIRES(kMainThreadContext) {
-        return mUpcomingActiveMode;
-    }
+    enum class DesiredModeAction { None, InitiateDisplayModeSwitch, InitiateRenderRateSwitch };
 
+    DesiredModeAction setDesiredMode(const ActiveModeInfo&, bool force = false)
+            EXCLUDES(mDesiredModeLock);
+
+    ftl::Optional<ActiveModeInfo> getDesiredMode() const EXCLUDES(mDesiredModeLock);
+    void clearDesiredMode() EXCLUDES(mDesiredModeLock);
+
+    ActiveModeInfo getPendingMode() const REQUIRES(kMainThreadContext) { return mPendingMode; }
     bool isModeSetPending() const REQUIRES(kMainThreadContext) { return mIsModeSetPending; }
 
     scheduler::FrameRateMode getActiveMode() const REQUIRES(kMainThreadContext) {
@@ -226,9 +223,8 @@ public:
 
     void setActiveMode(DisplayModeId, Fps vsyncRate, Fps renderFps);
 
-    status_t initiateModeChange(const ActiveModeInfo&,
-                                const hal::VsyncPeriodChangeConstraints& constraints,
-                                hal::VsyncPeriodChangeTimeline* outTimeline)
+    bool initiateModeChange(const ActiveModeInfo&, const hal::VsyncPeriodChangeConstraints&,
+                            hal::VsyncPeriodChangeTimeline& outTimeline)
             REQUIRES(kMainThreadContext);
 
     void finalizeModeChange(DisplayModeId, Fps vsyncRate, Fps renderFps)
@@ -282,9 +278,9 @@ private:
     const std::shared_ptr<compositionengine::Display> mCompositionDisplay;
 
     std::string mDisplayName;
-    std::string mActiveModeFPSTrace;
-    std::string mActiveModeFPSHwcTrace;
-    std::string mRenderFrameRateFPSTrace;
+    std::string mPendingModeFpsTrace;
+    std::string mActiveModeFpsTrace;
+    std::string mRenderRateFpsTrace;
 
     const ui::Rotation mPhysicalOrientation;
     ui::Rotation mOrientation = ui::ROTATION_0;
@@ -319,11 +315,11 @@ private:
     // This parameter is only used for hdr/sdr ratio overlay
     float mHdrSdrRatio = 1.0f;
 
-    mutable std::mutex mActiveModeLock;
-    ActiveModeInfo mDesiredActiveMode GUARDED_BY(mActiveModeLock);
-    TracedOrdinal<bool> mDesiredActiveModeChanged GUARDED_BY(mActiveModeLock);
+    mutable std::mutex mDesiredModeLock;
+    ActiveModeInfo mDesiredMode GUARDED_BY(mDesiredModeLock);
+    TracedOrdinal<bool> mDesiredModeChanged GUARDED_BY(mDesiredModeLock);
 
-    ActiveModeInfo mUpcomingActiveMode GUARDED_BY(kMainThreadContext);
+    ActiveModeInfo mPendingMode GUARDED_BY(kMainThreadContext);
     bool mIsModeSetPending GUARDED_BY(kMainThreadContext) = false;
 };
 

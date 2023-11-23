@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "FlagUtils.h"
+#include <common/test/FlagUtils.h>
 #include "com_android_graphics_surfaceflinger_flags.h"
 #include "gmock/gmock-spec-builders.h"
 #include "mock/MockTimeStats.h"

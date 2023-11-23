@@ -36,7 +36,6 @@
 #include <scheduler/FrameRateMode.h>
 #include <utils/Trace.h>
 
-#include "../SurfaceFlingerProperties.h"
 #include "RefreshRateSelector.h"
 
 #include <com_android_graphics_surfaceflinger_flags.h>
@@ -971,17 +970,21 @@ auto RefreshRateSelector::getFrameRateOverrides(const std::vector<LayerRequireme
 }
 
 ftl::Optional<FrameRateMode> RefreshRateSelector::onKernelTimerChanged(
-        std::optional<DisplayModeId> desiredActiveModeId, bool timerExpired) const {
+        ftl::Optional<DisplayModeId> desiredModeIdOpt, bool timerExpired) const {
     std::lock_guard lock(mLock);
 
-    const auto current = [&]() REQUIRES(mLock) -> FrameRateMode {
-        if (desiredActiveModeId) {
-            const auto& modePtr = mDisplayModes.get(*desiredActiveModeId)->get();
-            return FrameRateMode{modePtr->getPeakFps(), ftl::as_non_null(modePtr)};
-        }
-
-        return getActiveModeLocked();
-    }();
+    const auto current =
+            desiredModeIdOpt
+                    .and_then([this](DisplayModeId modeId)
+                                      REQUIRES(mLock) { return mDisplayModes.get(modeId); })
+                    .transform([](const DisplayModePtr& modePtr) {
+                        return FrameRateMode{modePtr->getPeakFps(), ftl::as_non_null(modePtr)};
+                    })
+                    .or_else([this] {
+                        ftl::FakeGuard guard(mLock);
+                        return std::make_optional(getActiveModeLocked());
+                    })
+                    .value();
 
     const DisplayModePtr& min = mMinRefreshRateModeIt->second;
     if (current.modePtr->getId() == min->getId()) {

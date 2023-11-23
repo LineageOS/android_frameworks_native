@@ -35,11 +35,11 @@
 #include <log/log.h>
 #include <chrono>
 
+#include <common/test/FlagUtils.h>
 #include "DisplayHardware/DisplayMode.h"
 #include "DisplayHardware/HWComposer.h"
 #include "DisplayHardware/Hal.h"
 #include "DisplayIdentificationTestHelpers.h"
-#include "FlagUtils.h"
 #include "mock/DisplayHardware/MockComposer.h"
 #include "mock/DisplayHardware/MockHWC2.h"
 

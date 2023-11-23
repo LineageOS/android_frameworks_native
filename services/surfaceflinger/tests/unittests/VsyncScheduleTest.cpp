@@ -25,10 +25,12 @@
 #include <scheduler/Fps.h>
 #include "Scheduler/VsyncSchedule.h"
 #include "ThreadContext.h"
+#include "mock/DisplayHardware/MockDisplayMode.h"
 #include "mock/MockVSyncDispatch.h"
 #include "mock/MockVSyncTracker.h"
 #include "mock/MockVsyncController.h"
 
+using android::mock::createDisplayMode;
 using testing::_;
 
 namespace android {
@@ -157,35 +159,35 @@ TEST_F(VsyncScheduleTest, StartPeriodTransition) {
     // allowed.
     ASSERT_TRUE(mVsyncSchedule->isHardwareVsyncAllowed(true /* makeAllowed */));
 
-    const Period period = (60_Hz).getPeriod();
+    const auto mode = ftl::as_non_null(createDisplayMode(DisplayModeId(0), 60_Hz));
 
     EXPECT_CALL(mRequestHardwareVsync, Call(kDisplayId, true));
-    EXPECT_CALL(getController(), startPeriodTransition(period.ns(), false));
+    EXPECT_CALL(getController(), onDisplayModeChanged(mode, false));
 
-    mVsyncSchedule->startPeriodTransition(period, false);
+    mVsyncSchedule->onDisplayModeChanged(mode, false);
 }
 
 TEST_F(VsyncScheduleTest, StartPeriodTransitionAlreadyEnabled) {
     ASSERT_TRUE(mVsyncSchedule->isHardwareVsyncAllowed(true /* makeAllowed */));
     mVsyncSchedule->enableHardwareVsync();
 
-    const Period period = (60_Hz).getPeriod();
+    const auto mode = ftl::as_non_null(createDisplayMode(DisplayModeId(0), 60_Hz));
 
     EXPECT_CALL(mRequestHardwareVsync, Call(_, _)).Times(0);
-    EXPECT_CALL(getController(), startPeriodTransition(period.ns(), false));
+    EXPECT_CALL(getController(), onDisplayModeChanged(mode, false));
 
-    mVsyncSchedule->startPeriodTransition(period, false);
+    mVsyncSchedule->onDisplayModeChanged(mode, false);
 }
 
 TEST_F(VsyncScheduleTest, StartPeriodTransitionForce) {
     ASSERT_TRUE(mVsyncSchedule->isHardwareVsyncAllowed(true /* makeAllowed */));
 
-    const Period period = (60_Hz).getPeriod();
+    const auto mode = ftl::as_non_null(createDisplayMode(DisplayModeId(0), 60_Hz));
 
     EXPECT_CALL(mRequestHardwareVsync, Call(kDisplayId, true));
-    EXPECT_CALL(getController(), startPeriodTransition(period.ns(), true));
+    EXPECT_CALL(getController(), onDisplayModeChanged(mode, true));
 
-    mVsyncSchedule->startPeriodTransition(period, true);
+    mVsyncSchedule->onDisplayModeChanged(mode, true);
 }
 
 TEST_F(VsyncScheduleTest, AddResyncSampleDisallowed) {

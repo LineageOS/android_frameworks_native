@@ -20,25 +20,16 @@
 #include <utils/Timers.h>
 
 #include <scheduler/Fps.h>
+#include <scheduler/FrameRateMode.h>
 
 #include "VSyncDispatch.h"
 
 namespace android::scheduler {
 
-struct DisplayModeData {
-    Fps renderRate;
-    std::optional<Period> notifyExpectedPresentTimeoutOpt;
-
-    bool operator==(const DisplayModeData& other) const {
-        return isApproxEqual(renderRate, other.renderRate) &&
-                notifyExpectedPresentTimeoutOpt == other.notifyExpectedPresentTimeoutOpt;
-    }
-};
-
 struct IVsyncTrackerCallback {
     virtual ~IVsyncTrackerCallback() = default;
-    virtual void onVsyncGenerated(PhysicalDisplayId, TimePoint expectedPresentTime,
-                                  const DisplayModeData&, Period vsyncPeriod) = 0;
+    virtual void onVsyncGenerated(TimePoint expectedPresentTime, ftl::NonNull<DisplayModePtr>,
+                                  Fps renderRate) = 0;
 };
 
 /*
@@ -78,11 +69,9 @@ public:
     virtual nsecs_t currentPeriod() const = 0;
 
     /*
-     * Inform the tracker that the period is changing and the tracker needs to recalibrate itself.
-     *
-     * \param [in] period   The period that the system is changing into.
+     * The minimal period frames can be displayed.
      */
-    virtual void setPeriod(nsecs_t period) = 0;
+    virtual Period minFramePeriod() const = 0;
 
     /* Inform the tracker that the samples it has are not accurate for prediction. */
     virtual void resetModel() = 0;
@@ -98,20 +87,25 @@ public:
     virtual bool isVSyncInPhase(nsecs_t timePoint, Fps frameRate) const = 0;
 
     /*
-     * Sets the metadata about the currently active display mode such as VRR
-     * timeout period, vsyncPeriod and framework property such as render rate.
-     * If the render rate is not a divisor of the period, the render rate is
-     * ignored until the period changes.
+     * Sets the active mode of the display which includes the vsync period and other VRR attributes.
+     * This will inform the tracker that the period is changing and the tracker needs to recalibrate
+     * itself.
+     *
+     * \param [in] DisplayModePtr The display mode the tracker will use.
+     */
+    virtual void setDisplayModePtr(ftl::NonNull<DisplayModePtr>) = 0;
+
+    /*
+     * Sets a render rate on the tracker. If the render rate is not a divisor
+     * of the period, the render rate is ignored until the period changes.
      * The tracker will continue to track the vsync timeline and expect it
      * to match the current period, however, nextAnticipatedVSyncTimeFrom will
      * return vsyncs according to the render rate set. Setting a render rate is useful
      * when a display is running at 120Hz but the render frame rate is 60Hz.
-     * When IVsyncTrackerCallback::onVsyncGenerated callback is made we will pass along
-     * the vsyncPeriod, render rate and timeoutNs.
      *
-     * \param [in] DisplayModeData The DisplayModeData the tracker will use.
+     * \param [in] Fps   The render rate the tracker should operate at.
      */
-    virtual void setDisplayModeData(const DisplayModeData&) = 0;
+    virtual void setRenderRate(Fps) = 0;
 
     virtual void dump(std::string& result) const = 0;
 

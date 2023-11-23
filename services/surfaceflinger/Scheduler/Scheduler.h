@@ -210,13 +210,12 @@ public:
     // If allowToEnable is true, then hardware vsync will be turned on.
     // Otherwise, if hardware vsync is not already enabled then this method will
     // no-op.
-    // If refreshRate is nullopt, use the existing refresh rate of the display.
+    // If modePtr is nullopt, use the active display mode.
     void resyncToHardwareVsync(PhysicalDisplayId id, bool allowToEnable,
-                               std::optional<Fps> refreshRate = std::nullopt)
-            EXCLUDES(mDisplayLock) {
+                               DisplayModePtr modePtr = nullptr) EXCLUDES(mDisplayLock) {
         std::scoped_lock lock(mDisplayLock);
         ftl::FakeGuard guard(kMainThreadContext);
-        resyncToHardwareVsyncLocked(id, allowToEnable, refreshRate);
+        resyncToHardwareVsyncLocked(id, allowToEnable, modePtr);
     }
     void forceNextResync() { mLastResyncTime = 0; }
 
@@ -354,7 +353,7 @@ private:
     void onHardwareVsyncRequest(PhysicalDisplayId, bool enable);
 
     void resyncToHardwareVsyncLocked(PhysicalDisplayId, bool allowToEnable,
-                                     std::optional<Fps> refreshRate = std::nullopt)
+                                     DisplayModePtr modePtr = nullptr)
             REQUIRES(kMainThreadContext, mDisplayLock);
     void resyncAllToHardwareVsync(bool allowToEnable) EXCLUDES(mDisplayLock);
     void setVsyncConfig(const VsyncConfig&, Period vsyncPeriod);
@@ -430,9 +429,6 @@ private:
     bool throttleVsync(TimePoint, uid_t) override;
     Period getVsyncPeriod(uid_t) override EXCLUDES(mDisplayLock);
     void resync() override EXCLUDES(mDisplayLock);
-
-    std::optional<Period> getNotifyExpectedPresentTimeout(const FrameRateMode&)
-            REQUIRES(mDisplayLock);
 
     // Stores EventThread associated with a given VSyncSource, and an initial EventThreadConnection.
     struct Connection {

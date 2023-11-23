@@ -49,12 +49,13 @@ public:
     }
 
     nsecs_t currentPeriod() const final { return mPeriod; }
+    Period minFramePeriod() const final { return Period::fromNs(currentPeriod()); }
 
-    void setPeriod(nsecs_t) final {}
     void resetModel() final {}
     bool needsMoreSamples() const final { return false; }
     bool isVSyncInPhase(nsecs_t, Fps) const final { return false; }
-    void setDisplayModeData(const DisplayModeData&) final {}
+    void setDisplayModePtr(ftl::NonNull<DisplayModePtr>) final {}
+    void setRenderRate(Fps) final {}
     void dump(std::string&) const final {}
 
 private:
@@ -88,11 +89,13 @@ public:
         return mPeriod;
     }
 
-    void setPeriod(nsecs_t) final {}
+    Period minFramePeriod() const final { return Period::fromNs(currentPeriod()); }
+
     void resetModel() final {}
     bool needsMoreSamples() const final { return false; }
     bool isVSyncInPhase(nsecs_t, Fps) const final { return false; }
-    void setDisplayModeData(const DisplayModeData&) final {}
+    void setDisplayModePtr(ftl::NonNull<DisplayModePtr>) final {}
+    void setRenderRate(Fps) final {}
     void dump(std::string&) const final {}
 
 private:

@@ -56,6 +56,9 @@ public:
         EXPECT_CALL(*vsyncTracker, currentPeriod())
                 .WillRepeatedly(Return(
                         TestableSurfaceFlinger::FakeHwcDisplayInjector::DEFAULT_VSYNC_PERIOD));
+        EXPECT_CALL(*vsyncTracker, minFramePeriod())
+                .WillRepeatedly(Return(Period::fromNs(
+                        TestableSurfaceFlinger::FakeHwcDisplayInjector::DEFAULT_VSYNC_PERIOD)));
 
         mDisplay = PrimaryDisplayVariant::makeFakeExistingDisplayInjector(this)
                            .setRefreshRateSelector(std::move(selectorPtr))
@@ -138,6 +141,9 @@ void DisplayModeSwitchingTest::setupScheduler(
     EXPECT_CALL(*vsyncTracker, currentPeriod())
             .WillRepeatedly(
                     Return(TestableSurfaceFlinger::FakeHwcDisplayInjector::DEFAULT_VSYNC_PERIOD));
+    EXPECT_CALL(*vsyncTracker, minFramePeriod())
+            .WillRepeatedly(Return(Period::fromNs(
+                    TestableSurfaceFlinger::FakeHwcDisplayInjector::DEFAULT_VSYNC_PERIOD)));
     EXPECT_CALL(*vsyncTracker, nextAnticipatedVSyncTimeFrom(_)).WillRepeatedly(Return(0));
     mFlinger.setupScheduler(std::move(vsyncController), std::move(vsyncTracker),
                             std::move(eventThread), std::move(sfEventThread),
@@ -145,11 +151,11 @@ void DisplayModeSwitchingTest::setupScheduler(
                             TestableSurfaceFlinger::SchedulerCallbackImpl::kNoOp);
 }
 
-TEST_F(DisplayModeSwitchingTest, changeRefreshRate_OnActiveDisplay_WithRefreshRequired) {
+TEST_F(DisplayModeSwitchingTest, changeRefreshRateOnActiveDisplayWithRefreshRequired) {
     ftl::FakeGuard guard(kMainThreadContext);
 
-    ASSERT_FALSE(mDisplay->getDesiredActiveMode().has_value());
-    ASSERT_EQ(mDisplay->getActiveMode().modePtr->getId(), kModeId60);
+    EXPECT_FALSE(mDisplay->getDesiredMode());
+    EXPECT_EQ(mDisplay->getActiveMode().modePtr->getId(), kModeId60);
 
     mFlinger.onActiveDisplayChanged(nullptr, *mDisplay);
 
@@ -157,9 +163,9 @@ TEST_F(DisplayModeSwitchingTest, changeRefreshRate_OnActiveDisplay_WithRefreshRe
                                         mock::createDisplayModeSpecs(kModeId90.value(), false, 0,
                                                                      120));
 
-    ASSERT_TRUE(mDisplay->getDesiredActiveMode().has_value());
-    ASSERT_EQ(mDisplay->getDesiredActiveMode()->modeOpt->modePtr->getId(), kModeId90);
-    ASSERT_EQ(mDisplay->getActiveMode().modePtr->getId(), kModeId60);
+    ASSERT_TRUE(mDisplay->getDesiredMode());
+    EXPECT_EQ(mDisplay->getDesiredMode()->modeOpt->modePtr->getId(), kModeId90);
+    EXPECT_EQ(mDisplay->getActiveMode().modePtr->getId(), kModeId60);
 
     // Verify that next commit will call setActiveConfigWithConstraints in HWC
     const VsyncPeriodChangeTimeline timeline{.refreshRequired = true};
@@ -171,8 +177,9 @@ TEST_F(DisplayModeSwitchingTest, changeRefreshRate_OnActiveDisplay_WithRefreshRe
     mFlinger.commit();
 
     Mock::VerifyAndClearExpectations(mComposer);
-    ASSERT_TRUE(mDisplay->getDesiredActiveMode().has_value());
-    ASSERT_EQ(mDisplay->getActiveMode().modePtr->getId(), kModeId60);
+
+    EXPECT_TRUE(mDisplay->getDesiredMode());
+    EXPECT_EQ(mDisplay->getActiveMode().modePtr->getId(), kModeId60);
 
     // Verify that the next commit will complete the mode change and send
     // a onModeChanged event to the framework.
@@ -182,14 +189,14 @@ TEST_F(DisplayModeSwitchingTest, changeRefreshRate_OnActiveDisplay_WithRefreshRe
     mFlinger.commit();
     Mock::VerifyAndClearExpectations(mAppEventThread);
 
-    ASSERT_FALSE(mDisplay->getDesiredActiveMode().has_value());
-    ASSERT_EQ(mDisplay->getActiveMode().modePtr->getId(), kModeId90);
+    EXPECT_FALSE(mDisplay->getDesiredMode());
+    EXPECT_EQ(mDisplay->getActiveMode().modePtr->getId(), kModeId90);
 }
 
-TEST_F(DisplayModeSwitchingTest, changeRefreshRate_OnActiveDisplay_WithoutRefreshRequired) {
+TEST_F(DisplayModeSwitchingTest, changeRefreshRateOnActiveDisplayWithoutRefreshRequired) {
     ftl::FakeGuard guard(kMainThreadContext);
 
-    ASSERT_FALSE(mDisplay->getDesiredActiveMode().has_value());
+    EXPECT_FALSE(mDisplay->getDesiredMode());
 
     mFlinger.onActiveDisplayChanged(nullptr, *mDisplay);
 
@@ -197,9 +204,9 @@ TEST_F(DisplayModeSwitchingTest, changeRefreshRate_OnActiveDisplay_WithoutRefres
                                         mock::createDisplayModeSpecs(kModeId90.value(), true, 0,
                                                                      120));
 
-    ASSERT_TRUE(mDisplay->getDesiredActiveMode().has_value());
-    ASSERT_EQ(mDisplay->getDesiredActiveMode()->modeOpt->modePtr->getId(), kModeId90);
-    ASSERT_EQ(mDisplay->getActiveMode().modePtr->getId(), kModeId60);
+    ASSERT_TRUE(mDisplay->getDesiredMode());
+    EXPECT_EQ(mDisplay->getDesiredMode()->modeOpt->modePtr->getId(), kModeId90);
+    EXPECT_EQ(mDisplay->getActiveMode().modePtr->getId(), kModeId60);
 
     // Verify that next commit will call setActiveConfigWithConstraints in HWC
     // and complete the mode change.
@@ -214,8 +221,8 @@ TEST_F(DisplayModeSwitchingTest, changeRefreshRate_OnActiveDisplay_WithoutRefres
 
     mFlinger.commit();
 
-    ASSERT_FALSE(mDisplay->getDesiredActiveMode().has_value());
-    ASSERT_EQ(mDisplay->getActiveMode().modePtr->getId(), kModeId90);
+    EXPECT_FALSE(mDisplay->getDesiredMode());
+    EXPECT_EQ(mDisplay->getActiveMode().modePtr->getId(), kModeId90);
 }
 
 TEST_F(DisplayModeSwitchingTest, twoConsecutiveSetDesiredDisplayModeSpecs) {
@@ -224,8 +231,8 @@ TEST_F(DisplayModeSwitchingTest, twoConsecutiveSetDesiredDisplayModeSpecs) {
     // Test that if we call setDesiredDisplayModeSpecs while a previous mode change
     // is still being processed the later call will be respected.
 
-    ASSERT_FALSE(mDisplay->getDesiredActiveMode().has_value());
-    ASSERT_EQ(mDisplay->getActiveMode().modePtr->getId(), kModeId60);
+    EXPECT_FALSE(mDisplay->getDesiredMode());
+    EXPECT_EQ(mDisplay->getActiveMode().modePtr->getId(), kModeId60);
 
     mFlinger.onActiveDisplayChanged(nullptr, *mDisplay);
 
@@ -245,8 +252,8 @@ TEST_F(DisplayModeSwitchingTest, twoConsecutiveSetDesiredDisplayModeSpecs) {
                                         mock::createDisplayModeSpecs(kModeId120.value(), false, 0,
                                                                      180));
 
-    ASSERT_TRUE(mDisplay->getDesiredActiveMode().has_value());
-    ASSERT_EQ(mDisplay->getDesiredActiveMode()->modeOpt->modePtr->getId(), kModeId120);
+    ASSERT_TRUE(mDisplay->getDesiredMode());
+    EXPECT_EQ(mDisplay->getDesiredMode()->modeOpt->modePtr->getId(), kModeId120);
 
     EXPECT_CALL(*mComposer,
                 setActiveConfigWithConstraints(PrimaryDisplayVariant::HWC_DISPLAY_ID,
@@ -255,20 +262,20 @@ TEST_F(DisplayModeSwitchingTest, twoConsecutiveSetDesiredDisplayModeSpecs) {
 
     mFlinger.commit();
 
-    ASSERT_TRUE(mDisplay->getDesiredActiveMode().has_value());
-    ASSERT_EQ(mDisplay->getDesiredActiveMode()->modeOpt->modePtr->getId(), kModeId120);
+    ASSERT_TRUE(mDisplay->getDesiredMode());
+    EXPECT_EQ(mDisplay->getDesiredMode()->modeOpt->modePtr->getId(), kModeId120);
 
     mFlinger.commit();
 
-    ASSERT_FALSE(mDisplay->getDesiredActiveMode().has_value());
-    ASSERT_EQ(mDisplay->getActiveMode().modePtr->getId(), kModeId120);
+    EXPECT_FALSE(mDisplay->getDesiredMode());
+    EXPECT_EQ(mDisplay->getActiveMode().modePtr->getId(), kModeId120);
 }
 
-TEST_F(DisplayModeSwitchingTest, changeResolution_OnActiveDisplay_WithoutRefreshRequired) {
+TEST_F(DisplayModeSwitchingTest, changeResolutionOnActiveDisplayWithoutRefreshRequired) {
     ftl::FakeGuard guard(kMainThreadContext);
 
-    ASSERT_FALSE(mDisplay->getDesiredActiveMode().has_value());
-    ASSERT_EQ(mDisplay->getActiveMode().modePtr->getId(), kModeId60);
+    EXPECT_FALSE(mDisplay->getDesiredMode());
+    EXPECT_EQ(mDisplay->getActiveMode().modePtr->getId(), kModeId60);
 
     mFlinger.onActiveDisplayChanged(nullptr, *mDisplay);
 
@@ -276,9 +283,9 @@ TEST_F(DisplayModeSwitchingTest, changeResolution_OnActiveDisplay_WithoutRefresh
                                         mock::createDisplayModeSpecs(kModeId90_4K.value(), false, 0,
                                                                      120));
 
-    ASSERT_TRUE(mDisplay->getDesiredActiveMode().has_value());
-    ASSERT_EQ(mDisplay->getDesiredActiveMode()->modeOpt->modePtr->getId(), kModeId90_4K);
-    ASSERT_EQ(mDisplay->getActiveMode().modePtr->getId(), kModeId60);
+    ASSERT_TRUE(mDisplay->getDesiredMode());
+    EXPECT_EQ(mDisplay->getDesiredMode()->modeOpt->modePtr->getId(), kModeId90_4K);
+    EXPECT_EQ(mDisplay->getActiveMode().modePtr->getId(), kModeId60);
 
     // Verify that next commit will call setActiveConfigWithConstraints in HWC
     // and complete the mode change.
@@ -312,18 +319,18 @@ TEST_F(DisplayModeSwitchingTest, changeResolution_OnActiveDisplay_WithoutRefresh
     // so we need to update with the new instance.
     mDisplay = mFlinger.getDisplay(displayToken);
 
-    ASSERT_FALSE(mDisplay->getDesiredActiveMode().has_value());
-    ASSERT_EQ(mDisplay->getActiveMode().modePtr->getId(), kModeId90_4K);
+    EXPECT_FALSE(mDisplay->getDesiredMode());
+    EXPECT_EQ(mDisplay->getActiveMode().modePtr->getId(), kModeId90_4K);
 }
 
 MATCHER_P2(ModeSwitchingTo, flinger, modeId, "") {
-    if (!arg->getDesiredActiveMode()) {
-        *result_listener << "No desired active mode";
+    if (!arg->getDesiredMode()) {
+        *result_listener << "No desired mode";
         return false;
     }
 
-    if (arg->getDesiredActiveMode()->modeOpt->modePtr->getId() != modeId) {
-        *result_listener << "Unexpected desired active mode " << modeId;
+    if (arg->getDesiredMode()->modeOpt->modePtr->getId() != modeId) {
+        *result_listener << "Unexpected desired mode " << modeId;
         return false;
     }
 
@@ -336,9 +343,8 @@ MATCHER_P2(ModeSwitchingTo, flinger, modeId, "") {
 }
 
 MATCHER_P(ModeSettledTo, modeId, "") {
-    if (const auto desiredOpt = arg->getDesiredActiveMode()) {
-        *result_listener << "Unsettled desired active mode "
-                         << desiredOpt->modeOpt->modePtr->getId();
+    if (const auto desiredOpt = arg->getDesiredMode()) {
+        *result_listener << "Unsettled desired mode " << desiredOpt->modeOpt->modePtr->getId();
         return false;
     }
 

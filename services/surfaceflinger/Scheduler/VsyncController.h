@@ -22,6 +22,7 @@
 
 #include <DisplayHardware/HWComposer.h>
 #include <DisplayHardware/Hal.h>
+#include <scheduler/FrameRateMode.h>
 #include <ui/FenceTime.h>
 #include <utils/Mutex.h>
 #include <utils/RefBase.h>
@@ -59,13 +60,14 @@ public:
                                      bool* periodFlushed) = 0;
 
     /*
-     * Inform the controller that the period is changing and the controller needs to recalibrate
-     * itself. The controller will end the period transition internally.
+     * Inform the controller that the display mode is changing and the controller needs to
+     * recalibrate itself to the new vsync period. The controller will end the period transition
+     * internally.
      *
-     * \param [in] period   The period that the system is changing into.
+     * \param [in] DisplayModePtr  The new mode the display is changing to.
      * \param [in] force    True to recalibrate even if period matches the existing period.
      */
-    virtual void startPeriodTransition(nsecs_t period, bool force) = 0;
+    virtual void onDisplayModeChanged(ftl::NonNull<DisplayModePtr>, bool force) = 0;
 
     /*
      * Tells the tracker to stop using present fences to get a vsync signal.

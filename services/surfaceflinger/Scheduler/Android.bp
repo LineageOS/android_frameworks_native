@@ -21,6 +21,7 @@ cc_defaults {
         "libui",
         "libutils",
     ],
+    static_libs: ["libsurfaceflinger_common"],
 }
 
 cc_library_headers {
@@ -61,5 +62,9 @@ cc_test {
         "libgmock",
         "libgtest",
         "libscheduler",
+        "libsurfaceflingerflags_test",
+    ],
+    shared_libs: [
+        "server_configurable_flags",
     ],
 }

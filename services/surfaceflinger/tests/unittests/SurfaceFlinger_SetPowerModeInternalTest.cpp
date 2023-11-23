@@ -25,6 +25,11 @@
 namespace android {
 namespace {
 
+MATCHER_P(DisplayModeFps, value, "equals") {
+    using fps_approx_ops::operator==;
+    return arg->getVsyncRate() == value;
+}
+
 // Used when we simulate a display that supports doze.
 template <typename Display>
 struct DozeIsSupportedVariant {
@@ -94,7 +99,8 @@ struct DispSyncIsSupportedVariant {
     static void setupResetModelCallExpectations(DisplayTransactionTest* test) {
         auto vsyncSchedule = test->mFlinger.scheduler()->getVsyncSchedule();
         EXPECT_CALL(static_cast<mock::VsyncController&>(vsyncSchedule->getController()),
-                    startPeriodTransition(DEFAULT_VSYNC_PERIOD, false))
+                    onDisplayModeChanged(DisplayModeFps(Fps::fromPeriodNsecs(DEFAULT_VSYNC_PERIOD)),
+                                         false))
                 .Times(1);
         EXPECT_CALL(static_cast<mock::VSyncTracker&>(vsyncSchedule->getTracker()), resetModel())
                 .Times(1);
