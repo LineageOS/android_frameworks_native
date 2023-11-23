@@ -3980,16 +3980,6 @@ void InputDispatcher::synthesizeCancelationEventsForInputChannelLocked(
 
 void InputDispatcher::synthesizeCancelationEventsForConnectionLocked(
         const std::shared_ptr<Connection>& connection, const CancelationOptions& options) {
-    if ((options.mode == CancelationOptions::Mode::CANCEL_POINTER_EVENTS ||
-         options.mode == CancelationOptions::Mode::CANCEL_ALL_EVENTS) &&
-        mDragState && mDragState->dragWindow->getToken() == connection->inputChannel->getToken()) {
-        LOG(INFO) << __func__
-                  << ": Canceling drag and drop because the pointers for the drag window are being "
-                     "canceled.";
-        sendDropWindowCommandLocked(nullptr, /*x=*/0, /*y=*/0);
-        mDragState.reset();
-    }
-
     if (connection->status == Connection::Status::BROKEN) {
         return;
     }
@@ -4002,6 +3992,7 @@ void InputDispatcher::synthesizeCancelationEventsForConnectionLocked(
     if (cancelationEvents.empty()) {
         return;
     }
+
     if (DEBUG_OUTBOUND_EVENT_DETAILS) {
         ALOGD("channel '%s' ~ Synthesized %zu cancelation events to bring channel back in sync "
               "with reality: %s, mode=%s.",
@@ -4049,6 +4040,14 @@ void InputDispatcher::synthesizeCancelationEventsForConnectionLocked(
                     for (uint32_t pointerIndex = 0; pointerIndex < motionEntry.getPointerCount();
                          pointerIndex++) {
                         pointerIds.set(motionEntry.pointerProperties[pointerIndex].id);
+                    }
+                    if (mDragState && mDragState->dragWindow->getToken() == token &&
+                        pointerIds.test(mDragState->pointerId)) {
+                        LOG(INFO) << __func__
+                                  << ": Canceling drag and drop because the pointers for the drag "
+                                     "window are being canceled.";
+                        sendDropWindowCommandLocked(nullptr, /*x=*/0, /*y=*/0);
+                        mDragState.reset();
                     }
                     addPointerWindowTargetLocked(window, InputTarget::Flags::DISPATCH_AS_IS,
                                                  pointerIds, motionEntry.downTime, targets);
