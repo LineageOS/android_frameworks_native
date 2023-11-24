@@ -181,32 +181,33 @@ void Scheduler::onFrameSignal(ICompositor& compositor, VsyncId vsyncId,
              .expectedVsyncTime = expectedVsyncTime,
              .sfWorkDuration = mVsyncModulator->getVsyncConfig().sfWorkDuration};
 
-    LOG_ALWAYS_FATAL_IF(!mPacesetterDisplayId);
-    const auto pacesetterId = *mPacesetterDisplayId;
-    const auto pacesetterOpt = mDisplays.get(pacesetterId);
+    ftl::NonNull<const Display*> pacesetterPtr = pacesetterPtrLocked();
+    pacesetterPtr->targeterPtr->beginFrame(beginFrameArgs, *pacesetterPtr->schedulePtr);
 
-    FrameTargeter& pacesetterTargeter = *pacesetterOpt->get().targeterPtr;
-    pacesetterTargeter.beginFrame(beginFrameArgs, *pacesetterOpt->get().schedulePtr);
+    {
+        FrameTargets targets;
+        targets.try_emplace(pacesetterPtr->displayId, &pacesetterPtr->targeterPtr->target());
 
-    FrameTargets targets;
-    targets.try_emplace(pacesetterId, &pacesetterTargeter.target());
+        for (const auto& [id, display] : mDisplays) {
+            if (id == pacesetterPtr->displayId) continue;
 
-    for (const auto& [id, display] : mDisplays) {
-        if (id == pacesetterId) continue;
+            FrameTargeter& targeter = *display.targeterPtr;
+            targeter.beginFrame(beginFrameArgs, *display.schedulePtr);
+            targets.try_emplace(id, &targeter.target());
+        }
 
-        FrameTargeter& targeter = *display.targeterPtr;
-        targeter.beginFrame(beginFrameArgs, *display.schedulePtr);
-        targets.try_emplace(id, &targeter.target());
+        if (!compositor.commit(pacesetterPtr->displayId, targets)) return;
     }
 
-    if (!compositor.commit(pacesetterId, targets)) return;
+    // The pacesetter may have changed or been registered anew during commit.
+    pacesetterPtr = pacesetterPtrLocked();
 
     // TODO(b/256196556): Choose the frontrunner display.
     FrameTargeters targeters;
-    targeters.try_emplace(pacesetterId, &pacesetterTargeter);
+    targeters.try_emplace(pacesetterPtr->displayId, pacesetterPtr->targeterPtr.get());
 
     for (auto& [id, display] : mDisplays) {
-        if (id == pacesetterId) continue;
+        if (id == pacesetterPtr->displayId) continue;
 
         FrameTargeter& targeter = *display.targeterPtr;
         targeters.try_emplace(id, &targeter);
@@ -214,7 +215,7 @@ void Scheduler::onFrameSignal(ICompositor& compositor, VsyncId vsyncId,
 
     if (FlagManager::getInstance().vrr_config() &&
         CC_UNLIKELY(mPacesetterFrameDurationFractionToSkip > 0.f)) {
-        const auto period = pacesetterTargeter.target().expectedFrameDuration();
+        const auto period = pacesetterPtr->targeterPtr->target().expectedFrameDuration();
         const auto skipDuration = Duration::fromNs(
                 static_cast<nsecs_t>(period.ns() * mPacesetterFrameDurationFractionToSkip));
         ATRACE_FORMAT("Injecting jank for %f%% of the frame (%" PRId64 " ns)",
@@ -224,19 +225,18 @@ void Scheduler::onFrameSignal(ICompositor& compositor, VsyncId vsyncId,
     }
 
     if (FlagManager::getInstance().vrr_config()) {
-        const auto minFramePeriod = pacesetterOpt->get().schedulePtr->minFramePeriod();
+        const auto minFramePeriod = pacesetterPtr->schedulePtr->minFramePeriod();
         const auto presentFenceForPastVsync =
-                pacesetterTargeter.target().presentFenceForPastVsync(minFramePeriod);
+                pacesetterPtr->targeterPtr->target().presentFenceForPastVsync(minFramePeriod);
         const auto lastConfirmedPresentTime = presentFenceForPastVsync->getSignalTime();
         if (lastConfirmedPresentTime != Fence::SIGNAL_TIME_PENDING &&
             lastConfirmedPresentTime != Fence::SIGNAL_TIME_INVALID) {
-            pacesetterOpt->get()
-                    .schedulePtr->getTracker()
+            pacesetterPtr->schedulePtr->getTracker()
                     .onFrameBegin(expectedVsyncTime, TimePoint::fromNs(lastConfirmedPresentTime));
         }
     }
 
-    const auto resultsPerDisplay = compositor.composite(pacesetterId, targeters);
+    const auto resultsPerDisplay = compositor.composite(pacesetterPtr->displayId, targeters);
     compositor.sample();
 
     for (const auto& [id, targeter] : targeters) {
