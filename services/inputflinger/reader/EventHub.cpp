@@ -1072,6 +1072,22 @@ status_t EventHub::getAbsoluteAxisValue(int32_t deviceId, int32_t axis, int32_t*
     return -1;
 }
 
+base::Result<std::vector<int32_t>> EventHub::getMtSlotValues(int32_t deviceId, int32_t axis,
+                                                             size_t slotCount) const {
+    std::scoped_lock _l(mLock);
+    const Device* device = getDeviceLocked(deviceId);
+    if (device == nullptr || !device->hasValidFd() || !device->absBitmask.test(axis)) {
+        return base::ResultError("device problem or axis not supported", NAME_NOT_FOUND);
+    }
+    std::vector<int32_t> outValues(slotCount + 1);
+    outValues[0] = axis;
+    const size_t bufferSize = outValues.size() * sizeof(int32_t);
+    if (ioctl(device->fd, EVIOCGMTSLOTS(bufferSize), outValues.data()) != OK) {
+        return base::ErrnoError();
+    }
+    return std::move(outValues);
+}
+
 bool EventHub::markSupportedKeyCodes(int32_t deviceId, const std::vector<int32_t>& keyCodes,
                                      uint8_t* outFlags) const {
     std::scoped_lock _l(mLock);

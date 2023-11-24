@@ -102,6 +102,9 @@ public:
 
     MOCK_METHOD(status_t, getAbsoluteAxisValue, (int32_t deviceId, int32_t axis, int32_t* outValue),
                 (const, override));
+    MOCK_METHOD(base::Result<std::vector<int32_t>>, getMtSlotValues,
+                (int32_t deviceId, int32_t axis, size_t slotCount), (const, override));
+
     MOCK_METHOD(int32_t, getKeyCodeForKeyLocation, (int32_t deviceId, int32_t locationKeyCode),
                 (const, override));
     MOCK_METHOD(bool, markSupportedKeyCodes,

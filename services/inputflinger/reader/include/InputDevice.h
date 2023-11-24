@@ -349,6 +349,10 @@ public:
     inline status_t getAbsoluteAxisValue(int32_t code, int32_t* outValue) const {
         return mEventHub->getAbsoluteAxisValue(mId, code, outValue);
     }
+    inline base::Result<std::vector<int32_t>> getMtSlotValues(int32_t axis,
+                                                              size_t slotCount) const {
+        return mEventHub->getMtSlotValues(mId, axis, slotCount);
+    }
     inline bool markSupportedKeyCodes(const std::vector<int32_t>& keyCodes,
                                       uint8_t* outFlags) const {
         return mEventHub->markSupportedKeyCodes(mId, keyCodes, outFlags);

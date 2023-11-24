@@ -359,6 +359,7 @@ std::list<NotifyArgs> InputDevice::process(const RawEvent* rawEvents, size_t cou
 
         if (mDropUntilNextSync) {
             if (rawEvent->type == EV_SYN && rawEvent->code == SYN_REPORT) {
+                out += reset(rawEvent->when);
                 mDropUntilNextSync = false;
                 ALOGD_IF(debugRawEvents(), "Recovered from input event buffer overrun.");
             } else {
@@ -368,7 +369,6 @@ std::list<NotifyArgs> InputDevice::process(const RawEvent* rawEvents, size_t cou
         } else if (rawEvent->type == EV_SYN && rawEvent->code == SYN_DROPPED) {
             ALOGI("Detected input event buffer overrun for device %s.", getName().c_str());
             mDropUntilNextSync = true;
-            out += reset(rawEvent->when);
         } else {
             for_each_mapper_in_subdevice(rawEvent->deviceId, [&](InputMapper& mapper) {
                 out += mapper.process(rawEvent);
