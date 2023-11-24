@@ -107,6 +107,11 @@ public:
      */
     virtual void setRenderRate(Fps) = 0;
 
+    virtual void onFrameBegin(TimePoint expectedPresentTime,
+                              TimePoint lastConfirmedPresentTime) = 0;
+
+    virtual void onFrameMissed(TimePoint expectedPresentTime) = 0;
+
     virtual void dump(std::string& result) const = 0;
 
 protected:

@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <deque>
 #include <mutex>
 #include <unordered_map>
 #include <vector>
@@ -67,6 +68,10 @@ public:
 
     void setRenderRate(Fps) final EXCLUDES(mMutex);
 
+    void onFrameBegin(TimePoint expectedPresentTime, TimePoint lastConfirmedPresentTime) final
+            EXCLUDES(mMutex);
+    void onFrameMissed(TimePoint expectedPresentTime) final EXCLUDES(mMutex);
+
     void dump(std::string& result) const final EXCLUDES(mMutex);
 
 private:
@@ -84,6 +89,8 @@ private:
     Model getVSyncPredictionModelLocked() const REQUIRES(mMutex);
     nsecs_t nextAnticipatedVSyncTimeFromLocked(nsecs_t timePoint) const REQUIRES(mMutex);
     bool isVSyncInPhaseLocked(nsecs_t timePoint, unsigned divisor) const REQUIRES(mMutex);
+    Period minFramePeriodLocked() const REQUIRES(mMutex);
+    void ensureMinFrameDurationIsKept(TimePoint, TimePoint) REQUIRES(mMutex);
 
     struct VsyncSequence {
         nsecs_t vsyncTime;
@@ -111,6 +118,8 @@ private:
     std::optional<Fps> mRenderRateOpt GUARDED_BY(mMutex);
 
     mutable std::optional<VsyncSequence> mLastVsyncSequence GUARDED_BY(mMutex);
+
+    std::deque<TimePoint> mPastExpectedPresentTimes GUARDED_BY(mMutex);
 };
 
 } // namespace android::scheduler

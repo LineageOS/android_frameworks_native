@@ -9660,6 +9660,50 @@ TEST_F(InputDispatcherDragTests, DragAndDrop) {
     mSecondWindow->assertNoEvents();
 }
 
+TEST_F(InputDispatcherDragTests, DragAndDropNotCancelledIfSomeOtherPointerIsPilfered) {
+    startDrag();
+
+    // No cancel event after drag start
+    mSpyWindow->assertNoEvents();
+
+    const MotionEvent secondFingerDownEvent =
+            MotionEventBuilder(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                    .eventTime(systemTime(SYSTEM_TIME_MONOTONIC))
+                    .pointer(PointerBuilder(/*id=*/0, ToolType::FINGER).x(50).y(50))
+                    .pointer(PointerBuilder(/*id=*/1, ToolType::FINGER).x(60).y(60))
+                    .build();
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionEvent(*mDispatcher, secondFingerDownEvent, INJECT_EVENT_TIMEOUT,
+                                InputEventInjectionSync::WAIT_FOR_RESULT))
+            << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
+
+    // Receives cancel for first pointer after next pointer down
+    mSpyWindow->consumeMotionEvent(WithMotionAction(ACTION_CANCEL));
+    mSpyWindow->consumeMotionEvent(WithMotionAction(ACTION_DOWN));
+    mDragWindow->consumeMotionEvent(WithMotionAction(ACTION_MOVE));
+
+    mSpyWindow->assertNoEvents();
+
+    // Spy window calls pilfer pointers
+    EXPECT_EQ(OK, mDispatcher->pilferPointers(mSpyWindow->getToken()));
+    mDragWindow->assertNoEvents();
+
+    const MotionEvent firstFingerMoveEvent =
+            MotionEventBuilder(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                    .eventTime(systemTime(SYSTEM_TIME_MONOTONIC))
+                    .pointer(PointerBuilder(/*id=*/0, ToolType::FINGER).x(60).y(60))
+                    .pointer(PointerBuilder(/*id=*/1, ToolType::FINGER).x(60).y(60))
+                    .build();
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionEvent(*mDispatcher, secondFingerDownEvent, INJECT_EVENT_TIMEOUT,
+                                InputEventInjectionSync::WAIT_FOR_RESULT))
+            << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
+
+    // Drag window should still receive the new event
+    mDragWindow->consumeMotionEvent(WithMotionAction(ACTION_MOVE));
+    mDragWindow->assertNoEvents();
+}
+
 TEST_F(InputDispatcherDragTests, StylusDragAndDrop) {
     startDrag(true, AINPUT_SOURCE_STYLUS);
 
@@ -9995,6 +10039,19 @@ TEST_F(InputDispatcherDragTests, DragAndDropFinishedWhenCancelCurrentTouch) {
                              {50, 50}))
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
     ASSERT_NO_FATAL_FAILURE(mWindow->consumeMotionUp());
+}
+
+TEST_F(InputDispatcherDragTests, NoDragAndDropWithHoveringPointer) {
+    // Start hovering over the window.
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+              injectMotionEvent(*mDispatcher, ACTION_HOVER_ENTER, AINPUT_SOURCE_MOUSE,
+                                ADISPLAY_ID_DEFAULT, {50, 50}));
+
+    ASSERT_NO_FATAL_FAILURE(mWindow->consumeMotionEvent(WithMotionAction(ACTION_HOVER_ENTER)));
+    ASSERT_NO_FATAL_FAILURE(mSpyWindow->consumeMotionEvent(WithMotionAction(ACTION_HOVER_ENTER)));
+
+    ASSERT_FALSE(startDrag(/*sendDown=*/false))
+            << "Drag and drop should not work with a hovering pointer";
 }
 
 class InputDispatcherDropInputFeatureTest : public InputDispatcherTest {};
@@ -10894,6 +10951,25 @@ TEST_F(InputDispatcherPilferPointersTest, MultiDevicePilfer) {
     spy->assertNoEvents();
     leftWindow->assertNoEvents();
     rightWindow->assertNoEvents();
+}
+
+TEST_F(InputDispatcherPilferPointersTest, NoPilferingWithHoveringPointers) {
+    auto window = createForeground();
+    auto spy = createSpy();
+    mDispatcher->onWindowInfosChanged({{*spy->getInfo(), *window->getInfo()}, {}, 0, 0});
+
+    mDispatcher->notifyMotion(
+            MotionArgsBuilder(ACTION_HOVER_ENTER, AINPUT_SOURCE_MOUSE)
+                    .deviceId(1)
+                    .pointer(PointerBuilder(/*id=*/0, ToolType::MOUSE).x(100).y(200))
+                    .build());
+    window->consumeMotionEvent(WithMotionAction(ACTION_HOVER_ENTER));
+    spy->consumeMotionEvent(WithMotionAction(ACTION_HOVER_ENTER));
+
+    // Pilfer pointers from the spy window should fail.
+    EXPECT_NE(OK, mDispatcher->pilferPointers(spy->getToken()));
+    spy->assertNoEvents();
+    window->assertNoEvents();
 }
 
 class InputDispatcherStylusInterceptorTest : public InputDispatcherTest {

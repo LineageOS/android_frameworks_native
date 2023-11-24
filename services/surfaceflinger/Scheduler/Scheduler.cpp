@@ -223,6 +223,19 @@ void Scheduler::onFrameSignal(ICompositor& compositor, VsyncId vsyncId,
         mPacesetterFrameDurationFractionToSkip = 0.f;
     }
 
+    if (FlagManager::getInstance().vrr_config()) {
+        const auto minFramePeriod = pacesetterOpt->get().schedulePtr->minFramePeriod();
+        const auto presentFenceForPastVsync =
+                pacesetterTargeter.target().presentFenceForPastVsync(minFramePeriod);
+        const auto lastConfirmedPresentTime = presentFenceForPastVsync->getSignalTime();
+        if (lastConfirmedPresentTime != Fence::SIGNAL_TIME_PENDING &&
+            lastConfirmedPresentTime != Fence::SIGNAL_TIME_INVALID) {
+            pacesetterOpt->get()
+                    .schedulePtr->getTracker()
+                    .onFrameBegin(expectedVsyncTime, TimePoint::fromNs(lastConfirmedPresentTime));
+        }
+    }
+
     const auto resultsPerDisplay = compositor.composite(pacesetterId, targeters);
     compositor.sample();
 

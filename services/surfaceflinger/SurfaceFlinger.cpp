@@ -2476,6 +2476,10 @@ bool SurfaceFlinger::commit(PhysicalDisplayId pacesetterId,
 
     if (pacesetterFrameTarget.isFramePending()) {
         if (mBackpressureGpuComposition || pacesetterFrameTarget.didMissHwcFrame()) {
+            if (FlagManager::getInstance().vrr_config()) {
+                mScheduler->getVsyncSchedule()->getTracker().onFrameMissed(
+                        pacesetterFrameTarget.expectedPresentTime());
+            }
             scheduleCommit(FrameHint::kNone);
             return false;
         }
