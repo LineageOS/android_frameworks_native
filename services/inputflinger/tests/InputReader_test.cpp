@@ -2904,13 +2904,11 @@ TEST_F(InputDeviceTest, KernelBufferOverflowResetsMappers) {
     mapper.assertProcessWasCalled();
 
     // Simulate a kernel buffer overflow, which generates a SYN_DROPPED event.
-    // This should reset the mapper.
     event.type = EV_SYN;
     event.code = SYN_DROPPED;
     event.value = 0;
     unused = mDevice->process(&event, /*count=*/1);
     mapper.assertProcessWasNotCalled();
-    mapper.assertResetWasCalled();
 
     // All events until the next SYN_REPORT should be dropped.
     event.type = EV_KEY;
@@ -2920,11 +2918,13 @@ TEST_F(InputDeviceTest, KernelBufferOverflowResetsMappers) {
     mapper.assertProcessWasNotCalled();
 
     // We get the SYN_REPORT event now, which is not forwarded to mappers.
+    // This should reset the mapper.
     event.type = EV_SYN;
     event.code = SYN_REPORT;
     event.value = 0;
     unused = mDevice->process(&event, /*count=*/1);
     mapper.assertProcessWasNotCalled();
+    mapper.assertResetWasCalled();
 
     // The mapper receives events normally now.
     event.type = EV_KEY;
@@ -9796,15 +9796,16 @@ TEST_F(MultiTouchInputMapperTest, Process_MultiTouch_WithInvalidTrackingId) {
     ASSERT_EQ(uint32_t(1), motionArgs.getPointerCount());
 }
 
-TEST_F(MultiTouchInputMapperTest, Reset_PreservesLastTouchState) {
+TEST_F(MultiTouchInputMapperTest, Reset_RepopulatesMultiTouchState) {
     addConfigurationProperty("touch.deviceType", "touchScreen");
     prepareDisplay(ui::ROTATION_0);
     prepareAxes(POSITION | ID | SLOT | PRESSURE);
     MultiTouchInputMapper& mapper = constructAndAddMapper<MultiTouchInputMapper>();
 
     // First finger down.
+    constexpr int32_t x1 = 100, y1 = 200, x2 = 300, y2 = 400;
     processId(mapper, FIRST_TRACKING_ID);
-    processPosition(mapper, 100, 200);
+    processPosition(mapper, x1, y1);
     processPressure(mapper, RAW_PRESSURE_MAX);
     processSync(mapper);
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
@@ -9813,14 +9814,32 @@ TEST_F(MultiTouchInputMapperTest, Reset_PreservesLastTouchState) {
     // Second finger down.
     processSlot(mapper, SECOND_SLOT);
     processId(mapper, SECOND_TRACKING_ID);
-    processPosition(mapper, 300, 400);
+    processPosition(mapper, x2, y2);
     processPressure(mapper, RAW_PRESSURE_MAX);
     processSync(mapper);
     ASSERT_NO_FATAL_FAILURE(
             mFakeListener->assertNotifyMotionWasCalled(WithMotionAction(ACTION_POINTER_1_DOWN)));
 
+    // Set MT Slot state to be repopulated for the required slots
+    std::vector<int32_t> mtSlotValues(RAW_SLOT_MAX + 1, -1);
+    mtSlotValues[0] = FIRST_TRACKING_ID;
+    mtSlotValues[1] = SECOND_TRACKING_ID;
+    mFakeEventHub->setMtSlotValues(EVENTHUB_ID, ABS_MT_TRACKING_ID, mtSlotValues);
+
+    mtSlotValues[0] = x1;
+    mtSlotValues[1] = x2;
+    mFakeEventHub->setMtSlotValues(EVENTHUB_ID, ABS_MT_POSITION_X, mtSlotValues);
+
+    mtSlotValues[0] = y1;
+    mtSlotValues[1] = y2;
+    mFakeEventHub->setMtSlotValues(EVENTHUB_ID, ABS_MT_POSITION_Y, mtSlotValues);
+
+    mtSlotValues[0] = RAW_PRESSURE_MAX;
+    mtSlotValues[1] = RAW_PRESSURE_MAX;
+    mFakeEventHub->setMtSlotValues(EVENTHUB_ID, ABS_MT_PRESSURE, mtSlotValues);
+
     // Reset the mapper. When the mapper is reset, we expect the current multi-touch state to be
-    // preserved. Resetting should cancel the ongoing gesture.
+    // repopulated. Resetting should cancel the ongoing gesture.
     resetMapper(mapper, ARBITRARY_TIME);
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
             WithMotionAction(AMOTION_EVENT_ACTION_CANCEL)));
