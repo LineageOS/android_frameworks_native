@@ -33,6 +33,7 @@
 #pragma clang diagnostic pop // ignored "-Wconversion -Wextra"
 
 #include <ftl/fake_guard.h>
+#include <ftl/non_null.h>
 #include <ftl/optional.h>
 #include <scheduler/Features.h>
 #include <scheduler/FrameTargeter.h>
@@ -516,13 +517,17 @@ private:
                                                      });
     }
 
+    // The pacesetter must exist as a precondition.
+    ftl::NonNull<const Display*> pacesetterPtrLocked() const REQUIRES(mDisplayLock) {
+        return ftl::as_non_null(&pacesetterDisplayLocked()->get());
+    }
+
     RefreshRateSelectorPtr pacesetterSelectorPtr() const EXCLUDES(mDisplayLock) {
         std::scoped_lock lock(mDisplayLock);
         return pacesetterSelectorPtrLocked();
     }
 
     RefreshRateSelectorPtr pacesetterSelectorPtrLocked() const REQUIRES(mDisplayLock) {
-        ftl::FakeGuard guard(kMainThreadContext);
         return pacesetterDisplayLocked()
                 .transform([](const Display& display) { return display.selectorPtr; })
                 .or_else([] { return std::optional<RefreshRateSelectorPtr>(nullptr); })
