@@ -1178,6 +1178,10 @@ private:
                 FrameRateSelectionStrategy::OverrideChildren;
     }
 
+    bool shouldPropagateFrameRate() const {
+        return getDrawingState().frameRateSelectionStrategy != FrameRateSelectionStrategy::Self;
+    }
+
     // Cached properties computed from drawing state
     // Effective transform taking into account parent transforms and any parent scaling, which is
     // a transform from the current layer coordinate space to display(screen) coordinate space.
