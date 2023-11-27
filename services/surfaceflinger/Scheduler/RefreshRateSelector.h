@@ -39,13 +39,6 @@ namespace android::scheduler {
 
 using namespace std::chrono_literals;
 
-enum class DisplayModeEvent : unsigned { None = 0b0, Changed = 0b1 };
-
-inline DisplayModeEvent operator|(DisplayModeEvent lhs, DisplayModeEvent rhs) {
-    using T = std::underlying_type_t<DisplayModeEvent>;
-    return static_cast<DisplayModeEvent>(static_cast<T>(lhs) | static_cast<T>(rhs));
-}
-
 using FrameRateOverride = DisplayEventReceiver::Event::FrameRateOverride;
 
 // Selects the refresh rate of a display by ranking its `DisplayModes` in accordance with
