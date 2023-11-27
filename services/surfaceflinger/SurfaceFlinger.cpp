@@ -2619,10 +2619,6 @@ CompositeResultsPerDisplay SurfaceFlinger::composite(
                 refreshArgs.outputs.push_back(display->getCompositionDisplay());
             }
         }
-        if (display->getId() == pacesetterId) {
-            // TODO(b/255601557) Update frameInterval per display
-            refreshArgs.frameInterval = display->refreshRateSelector().getActiveMode().fps;
-        }
     }
     mPowerAdvisor->setDisplays(displayIds);
 
@@ -2687,8 +2683,11 @@ CompositeResultsPerDisplay SurfaceFlinger::composite(
                 pacesetterTarget.previousFrameVsyncTime(minFramePeriod) - hwcMinWorkDuration;
     }
 
+    const TimePoint expectedPresentTime = pacesetterTarget.expectedPresentTime();
+    // TODO(b/255601557) Update frameInterval per display
+    refreshArgs.frameInterval = mScheduler->getNextFrameInterval(pacesetterId, expectedPresentTime);
     refreshArgs.scheduledFrameTime = mScheduler->getScheduledFrameTime();
-    refreshArgs.expectedPresentTime = pacesetterTarget.expectedPresentTime().ns();
+    refreshArgs.expectedPresentTime = expectedPresentTime.ns();
     refreshArgs.hasTrustedPresentationListener = mNumTrustedPresentationListeners > 0;
 
     // Store the present time just before calling to the composition engine so we could notify

@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <common/test/FlagUtils.h>
 #include <ftl/fake_guard.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -23,6 +24,7 @@
 
 #include "Scheduler/EventThread.h"
 #include "Scheduler/RefreshRateSelector.h"
+#include "Scheduler/VSyncPredictor.h"
 #include "TestableScheduler.h"
 #include "TestableSurfaceFlinger.h"
 #include "mock/DisplayHardware/MockDisplayMode.h"
@@ -32,11 +34,15 @@
 
 #include <FrontEnd/LayerHierarchy.h>
 
+#include <com_android_graphics_surfaceflinger_flags.h>
 #include "FpsOps.h"
+
+using namespace com::android::graphics::surfaceflinger;
 
 namespace android::scheduler {
 
 using android::mock::createDisplayMode;
+using android::mock::createVrrDisplayMode;
 
 using testing::_;
 using testing::Return;
@@ -546,6 +552,60 @@ TEST_F(SchedulerTest, onFrameSignalMultipleDisplays) {
     EXPECT_EQ(kDisplayId2, compositor.pacesetterIds.composite);
     EXPECT_EQ(makeVsyncIds(VsyncId(44)), compositor.vsyncIds.commit);
     EXPECT_EQ(makeVsyncIds(VsyncId(44), true), compositor.vsyncIds.composite);
+}
+
+TEST_F(SchedulerTest, nextFrameIntervalTest) {
+    SET_FLAG_FOR_TEST(flags::vrr_config, true);
+
+    static constexpr size_t kHistorySize = 10;
+    static constexpr size_t kMinimumSamplesForPrediction = 6;
+    static constexpr size_t kOutlierTolerancePercent = 25;
+    const auto refreshRate = Fps::fromPeriodNsecs(500);
+    auto frameRate = Fps::fromPeriodNsecs(1000);
+
+    const ftl::NonNull<DisplayModePtr> kMode = ftl::as_non_null(
+            createVrrDisplayMode(DisplayModeId(0), refreshRate,
+                                 hal::VrrConfig{.minFrameIntervalNs = static_cast<int32_t>(
+                                                        frameRate.getPeriodNsecs())}));
+    std::shared_ptr<VSyncPredictor> vrrTracker =
+            std::make_shared<VSyncPredictor>(kMode, kHistorySize, kMinimumSamplesForPrediction,
+                                             kOutlierTolerancePercent, mVsyncTrackerCallback);
+    std::shared_ptr<RefreshRateSelector> vrrSelectorPtr =
+            std::make_shared<RefreshRateSelector>(makeModes(kMode), kMode->getId());
+    TestableScheduler scheduler{std::make_unique<android::mock::VsyncController>(),
+                                vrrTracker,
+                                vrrSelectorPtr,
+                                sp<VsyncModulator>::make(VsyncConfigSet{}),
+                                mSchedulerCallback,
+                                mVsyncTrackerCallback};
+
+    scheduler.registerDisplay(kMode->getPhysicalDisplayId(), vrrSelectorPtr, vrrTracker);
+    vrrSelectorPtr->setActiveMode(kMode->getId(), frameRate);
+    scheduler.setRenderRate(kMode->getPhysicalDisplayId(), frameRate);
+    vrrTracker->addVsyncTimestamp(0);
+
+    // Next frame at refresh rate as no previous frame
+    EXPECT_EQ(refreshRate,
+              scheduler.getNextFrameInterval(kMode->getPhysicalDisplayId(), TimePoint::fromNs(0)));
+
+    EXPECT_EQ(Fps::fromPeriodNsecs(1000),
+              scheduler.getNextFrameInterval(kMode->getPhysicalDisplayId(),
+                                             TimePoint::fromNs(500)));
+    EXPECT_EQ(Fps::fromPeriodNsecs(1000),
+              scheduler.getNextFrameInterval(kMode->getPhysicalDisplayId(),
+                                             TimePoint::fromNs(1500)));
+
+    // Change render rate
+    frameRate = Fps::fromPeriodNsecs(2000);
+    vrrSelectorPtr->setActiveMode(kMode->getId(), frameRate);
+    scheduler.setRenderRate(kMode->getPhysicalDisplayId(), frameRate);
+
+    EXPECT_EQ(Fps::fromPeriodNsecs(2000),
+              scheduler.getNextFrameInterval(kMode->getPhysicalDisplayId(),
+                                             TimePoint::fromNs(2500)));
+    EXPECT_EQ(Fps::fromPeriodNsecs(2000),
+              scheduler.getNextFrameInterval(kMode->getPhysicalDisplayId(),
+                                             TimePoint::fromNs(4500)));
 }
 
 class AttachedChoreographerTest : public SchedulerTest {
