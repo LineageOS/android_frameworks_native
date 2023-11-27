@@ -90,29 +90,37 @@ nsecs_t CompositionEngine::getLastFrameRefreshTimestamp() const {
 }
 
 namespace {
-int numDisplaysWithOffloadPresentSupport(const CompositionRefreshArgs& args) {
-    if (!FlagManager::getInstance().multithreaded_present() || args.outputs.size() < 2) {
-        return 0;
+void offloadOutputs(Outputs& outputs) {
+    if (!FlagManager::getInstance().multithreaded_present() || outputs.size() < 2) {
+        return;
     }
 
-    int numEligibleDisplays = 0;
-    // Only run present in multiple threads if all HWC-enabled displays
-    // being refreshed support it.
-    if (!std::all_of(args.outputs.begin(), args.outputs.end(),
-                     [&numEligibleDisplays](const auto& output) {
-                         if (!ftl::Optional(output->getDisplayId())
-                                      .and_then(HalDisplayId::tryCast)) {
-                             // Not HWC-enabled, so it is always
-                             // client-composited.
-                             return true;
-                         }
-                         const bool support = output->supportsOffloadPresent();
-                         numEligibleDisplays += static_cast<int>(support);
-                         return support;
-                     })) {
-        return 0;
+    ui::PhysicalDisplayVector<compositionengine::Output*> outputsToOffload;
+    for (const auto& output : outputs) {
+        if (!ftl::Optional(output->getDisplayId()).and_then(HalDisplayId::tryCast)) {
+            // Not HWC-enabled, so it is always client-composited. No need to offload.
+            continue;
+        }
+
+        // Only run present in multiple threads if all HWC-enabled displays
+        // being refreshed support it.
+        if (!output->supportsOffloadPresent()) {
+            return;
+        }
+        outputsToOffload.push_back(output.get());
     }
-    return numEligibleDisplays;
+
+    if (outputsToOffload.size() < 2) {
+        return;
+    }
+
+    // Leave the last eligible display on the main thread, which will
+    // allow it to run concurrently without an extra thread hop.
+    outputsToOffload.pop_back();
+
+    for (compositionengine::Output* output : outputsToOffload) {
+        output->offloadPresentNextFrame();
+    }
 }
 } // namespace
 
@@ -136,20 +144,7 @@ void CompositionEngine::present(CompositionRefreshArgs& args) {
     // Offloading the HWC call for `present` allows us to simultaneously call it
     // on multiple displays. This is desirable because these calls block and can
     // be slow.
-    if (const int numEligibleDisplays = numDisplaysWithOffloadPresentSupport(args);
-        numEligibleDisplays > 1) {
-        // Leave the last eligible display on the main thread, which will
-        // allow it to run concurrently without an extra thread hop.
-        int numToOffload = numEligibleDisplays - 1;
-        for (auto& output : args.outputs) {
-            if (output->supportsOffloadPresent()) {
-                output->offloadPresentNextFrame();
-                if (--numToOffload == 0) {
-                    break;
-                }
-            }
-        }
-    }
+    offloadOutputs(args.outputs);
 
     ui::DisplayVector<ftl::Future<std::monostate>> presentFutures;
     for (const auto& output : args.outputs) {
