@@ -115,6 +115,15 @@ public:
         Scheduler::setPacesetterDisplay(displayId);
     }
 
+    std::optional<hal::PowerMode> getDisplayPowerMode(PhysicalDisplayId id) {
+        ftl::FakeGuard guard1(kMainThreadContext);
+        ftl::FakeGuard guard2(mDisplayLock);
+        return mDisplays.get(id).transform(
+                [](const Display& display) { return display.powerMode; });
+    }
+
+    using Scheduler::resyncAllToHardwareVsync;
+
     auto& mutableAppConnectionHandle() { return mAppConnectionHandle; }
     auto& mutableLayerHistory() { return mLayerHistory; }
     auto& mutableAttachedChoreographers() { return mAttachedChoreographers; }
