@@ -193,7 +193,7 @@ Layer::Layer(const surfaceflinger::LayerCreationArgs& args)
     mDrawingState.dropInputMode = gui::DropInputMode::NONE;
     mDrawingState.dimmingEnabled = true;
     mDrawingState.defaultFrameRateCompatibility = FrameRateCompatibility::Default;
-    mDrawingState.frameRateSelectionStrategy = FrameRateSelectionStrategy::Self;
+    mDrawingState.frameRateSelectionStrategy = FrameRateSelectionStrategy::Propagate;
 
     if (args.flags & ISurfaceComposerClient::eNoColorFill) {
         // Set an invalid color so there is no color fill.
@@ -1273,14 +1273,15 @@ bool Layer::propagateFrameRateForLayerTree(FrameRate parentFrameRate, bool overr
     auto now = systemTime();
     *transactionNeeded |= setFrameRateForLayerTreeLegacy(frameRate, now);
 
-    // The frame rate is propagated to the children
+    // The frame rate is propagated to the children by default, but some properties may override it.
     bool childrenHaveFrameRate = false;
+    const bool overrideChildrenFrameRate = overrideChildren || shouldOverrideChildrenFrameRate();
+    const bool canPropagateFrameRate = shouldPropagateFrameRate() || overrideChildrenFrameRate;
     for (const sp<Layer>& child : mCurrentChildren) {
         childrenHaveFrameRate |=
-                child->propagateFrameRateForLayerTree(frameRate,
-                                                      overrideChildren ||
-                                                              shouldOverrideChildrenFrameRate(),
-                                                      transactionNeeded);
+                child->propagateFrameRateForLayerTree(canPropagateFrameRate ? frameRate
+                                                                            : FrameRate(),
+                                                      overrideChildrenFrameRate, transactionNeeded);
     }
 
     // If we don't have a valid frame rate specification, but the children do, we set this

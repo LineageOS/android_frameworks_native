@@ -81,10 +81,11 @@ public:
     using RefreshRateVotes = ftl::SmallVector<LayerInfo::LayerVote, 2>;
 
     enum class FrameRateSelectionStrategy {
-        Self,
+        Propagate,
         OverrideChildren,
+        Self,
 
-        ftl_last = OverrideChildren
+        ftl_last = Self
     };
 
     // Encapsulates the frame rate specifications of the layer. This information will be used

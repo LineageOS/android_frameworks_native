@@ -814,9 +814,12 @@ void LayerSnapshotBuilder::updateSnapshot(LayerSnapshot& snapshot, const Args& a
                 RequestedLayerState::Changes::Hierarchy) ||
         snapshot.changes.any(RequestedLayerState::Changes::FrameRate |
                              RequestedLayerState::Changes::Hierarchy)) {
-        bool shouldOverrideChildren = parentSnapshot.frameRateSelectionStrategy ==
+        const bool shouldOverrideChildren = parentSnapshot.frameRateSelectionStrategy ==
                 scheduler::LayerInfo::FrameRateSelectionStrategy::OverrideChildren;
-        if (!requested.requestedFrameRate.isValid() || shouldOverrideChildren) {
+        const bool propagationAllowed = parentSnapshot.frameRateSelectionStrategy !=
+                scheduler::LayerInfo::FrameRateSelectionStrategy::Self;
+        if ((!requested.requestedFrameRate.isValid() && propagationAllowed) ||
+            shouldOverrideChildren) {
             snapshot.inheritedFrameRate = parentSnapshot.inheritedFrameRate;
         } else {
             snapshot.inheritedFrameRate = requested.requestedFrameRate;
@@ -828,12 +831,15 @@ void LayerSnapshotBuilder::updateSnapshot(LayerSnapshot& snapshot, const Args& a
     }
 
     if (forceUpdate || snapshot.clientChanges & layer_state_t::eFrameRateSelectionStrategyChanged) {
-        const auto strategy = scheduler::LayerInfo::convertFrameRateSelectionStrategy(
-                requested.frameRateSelectionStrategy);
-        snapshot.frameRateSelectionStrategy =
-                strategy == scheduler::LayerInfo::FrameRateSelectionStrategy::Self
-                ? parentSnapshot.frameRateSelectionStrategy
-                : strategy;
+        if (parentSnapshot.frameRateSelectionStrategy ==
+            scheduler::LayerInfo::FrameRateSelectionStrategy::OverrideChildren) {
+            snapshot.frameRateSelectionStrategy =
+                    scheduler::LayerInfo::FrameRateSelectionStrategy::OverrideChildren;
+        } else {
+            const auto strategy = scheduler::LayerInfo::convertFrameRateSelectionStrategy(
+                    requested.frameRateSelectionStrategy);
+            snapshot.frameRateSelectionStrategy = strategy;
+        }
     }
 
     if (forceUpdate || snapshot.clientChanges & layer_state_t::eFrameRateSelectionPriority) {

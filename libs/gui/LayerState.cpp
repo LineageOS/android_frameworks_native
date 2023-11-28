@@ -86,7 +86,7 @@ layer_state_t::layer_state_t()
         defaultFrameRateCompatibility(ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT),
         frameRateCategory(ANATIVEWINDOW_FRAME_RATE_CATEGORY_DEFAULT),
         frameRateCategorySmoothSwitchOnly(false),
-        frameRateSelectionStrategy(ANATIVEWINDOW_FRAME_RATE_SELECTION_STRATEGY_SELF),
+        frameRateSelectionStrategy(ANATIVEWINDOW_FRAME_RATE_SELECTION_STRATEGY_PROPAGATE),
         fixedTransformHint(ui::Transform::ROT_INVALID),
         autoRefresh(false),
         isTrustedOverlay(false),
