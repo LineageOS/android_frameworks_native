@@ -423,10 +423,10 @@ cc_defaults {
         "libhidlbase",
         "liblog",
         "libnativewindow",
+        "libselinux",
         "libsync",
         "libui",
         "libutils",
-        "libvndksupport",
     ],
 
     static_libs: [
