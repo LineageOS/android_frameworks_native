@@ -72,6 +72,7 @@ DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs& args)
         mRefreshRateSelector(std::move(args.refreshRateSelector)),
         mHasDesiredModeTrace(concatId("HasDesiredMode"), false) {
     mCompositionDisplay->editState().isSecure = args.isSecure;
+    mCompositionDisplay->editState().isProtected = args.isProtected;
     mCompositionDisplay->createRenderSurface(
             compositionengine::RenderSurfaceCreationArgsBuilder()
                     .setDisplayWidth(ANativeWindow_getWidth(args.nativeWindow.get()))

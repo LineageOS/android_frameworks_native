@@ -38,6 +38,7 @@ struct ScreenCaptureOutputArgs {
     bool regionSampling;
     bool treat170mAsSrgb;
     bool dimInGammaSpaceForEnhancedScreenshots;
+    bool isProtected = false;
 };
 
 // ScreenCaptureOutput is used to compose a set of layers into a preallocated buffer.

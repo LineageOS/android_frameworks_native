@@ -332,6 +332,7 @@ struct DisplayDeviceState {
     uint32_t height = 0;
     std::string displayName;
     bool isSecure = false;
+    bool isProtected = false;
     // Refer to DisplayDevice::mRequestedRefreshRate, for virtual display only
     Fps requestedRefreshRate;
 
@@ -353,6 +354,7 @@ struct DisplayDeviceCreationArgs {
 
     int32_t sequenceId{0};
     bool isSecure{false};
+    bool isProtected{false};
     sp<ANativeWindow> nativeWindow;
     sp<compositionengine::DisplaySurface> displaySurface;
     ui::Rotation physicalOrientation{ui::ROTATION_0};

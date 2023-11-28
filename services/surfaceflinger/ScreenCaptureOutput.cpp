@@ -32,6 +32,7 @@ std::shared_ptr<ScreenCaptureOutput> createScreenCaptureOutput(ScreenCaptureOutp
             bool>(args.compositionEngine, args.renderArea, args.colorProfile, args.regionSampling,
                   args.dimInGammaSpaceForEnhancedScreenshots);
     output->editState().isSecure = args.renderArea.isSecure();
+    output->editState().isProtected = args.isProtected;
     output->setCompositionEnabled(true);
     output->setLayerFilter({args.layerStack});
     output->setRenderSurface(std::make_unique<ScreenCaptureRenderSurface>(std::move(args.buffer)));

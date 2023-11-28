@@ -57,6 +57,7 @@ void Display::setConfiguration(const compositionengine::DisplayCreationArgs& arg
     mId = args.id;
     mPowerAdvisor = args.powerAdvisor;
     editState().isSecure = args.isSecure;
+    editState().isProtected = args.isProtected;
     editState().displaySpace.setBounds(args.pixels);
     setName(args.name);
 }
