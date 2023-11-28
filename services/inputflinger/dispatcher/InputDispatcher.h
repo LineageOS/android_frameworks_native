@@ -148,6 +148,9 @@ public:
     void setKeyRepeatConfiguration(std::chrono::nanoseconds timeout,
                                    std::chrono::nanoseconds delay) override;
 
+    bool isPointerInWindow(const sp<IBinder>& token, int32_t displayId, DeviceId deviceId,
+                           int32_t pointerId) override;
+
 private:
     enum class DropReason {
         NOT_DROPPED,
