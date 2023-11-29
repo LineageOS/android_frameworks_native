@@ -608,6 +608,85 @@ TEST_F(SchedulerTest, nextFrameIntervalTest) {
                                              TimePoint::fromNs(4500)));
 }
 
+TEST_F(SchedulerTest, resyncAllToHardwareVsync) FTL_FAKE_GUARD(kMainThreadContext) {
+    // resyncAllToHardwareVsync will result in requesting hardware VSYNC on both displays, since
+    // they are both on.
+    EXPECT_CALL(mScheduler->mockRequestHardwareVsync, Call(kDisplayId1, true)).Times(1);
+    EXPECT_CALL(mScheduler->mockRequestHardwareVsync, Call(kDisplayId2, true)).Times(1);
+
+    mScheduler->registerDisplay(kDisplayId2,
+                                std::make_shared<RefreshRateSelector>(kDisplay2Modes,
+                                                                      kDisplay2Mode60->getId()));
+    mScheduler->setDisplayPowerMode(kDisplayId1, hal::PowerMode::ON);
+    mScheduler->setDisplayPowerMode(kDisplayId2, hal::PowerMode::ON);
+
+    static constexpr bool kDisallow = true;
+    mScheduler->disableHardwareVsync(kDisplayId1, kDisallow);
+    mScheduler->disableHardwareVsync(kDisplayId2, kDisallow);
+
+    static constexpr bool kAllowToEnable = true;
+    mScheduler->resyncAllToHardwareVsync(kAllowToEnable);
+}
+
+TEST_F(SchedulerTest, resyncAllDoNotAllow) FTL_FAKE_GUARD(kMainThreadContext) {
+    // Without setting allowToEnable to true, resyncAllToHardwareVsync does not
+    // result in requesting hardware VSYNC.
+    EXPECT_CALL(mScheduler->mockRequestHardwareVsync, Call(kDisplayId1, _)).Times(0);
+
+    mScheduler->setDisplayPowerMode(kDisplayId1, hal::PowerMode::ON);
+
+    static constexpr bool kDisallow = true;
+    mScheduler->disableHardwareVsync(kDisplayId1, kDisallow);
+
+    static constexpr bool kAllowToEnable = false;
+    mScheduler->resyncAllToHardwareVsync(kAllowToEnable);
+}
+
+TEST_F(SchedulerTest, resyncAllSkipsOffDisplays) FTL_FAKE_GUARD(kMainThreadContext) {
+    SET_FLAG_FOR_TEST(flags::multithreaded_present, true);
+
+    // resyncAllToHardwareVsync will result in requesting hardware VSYNC on display 1, which is on,
+    // but not on display 2, which is off.
+    EXPECT_CALL(mScheduler->mockRequestHardwareVsync, Call(kDisplayId1, true)).Times(1);
+    EXPECT_CALL(mScheduler->mockRequestHardwareVsync, Call(kDisplayId2, _)).Times(0);
+
+    mScheduler->setDisplayPowerMode(kDisplayId1, hal::PowerMode::ON);
+
+    mScheduler->registerDisplay(kDisplayId2,
+                                std::make_shared<RefreshRateSelector>(kDisplay2Modes,
+                                                                      kDisplay2Mode60->getId()));
+    ASSERT_EQ(hal::PowerMode::OFF, mScheduler->getDisplayPowerMode(kDisplayId2));
+
+    static constexpr bool kDisallow = true;
+    mScheduler->disableHardwareVsync(kDisplayId1, kDisallow);
+    mScheduler->disableHardwareVsync(kDisplayId2, kDisallow);
+
+    static constexpr bool kAllowToEnable = true;
+    mScheduler->resyncAllToHardwareVsync(kAllowToEnable);
+}
+
+TEST_F(SchedulerTest, resyncAllLegacyAppliesToOffDisplays) FTL_FAKE_GUARD(kMainThreadContext) {
+    SET_FLAG_FOR_TEST(flags::multithreaded_present, false);
+
+    // In the legacy code, prior to the flag, resync applied to OFF displays.
+    EXPECT_CALL(mScheduler->mockRequestHardwareVsync, Call(kDisplayId1, true)).Times(1);
+    EXPECT_CALL(mScheduler->mockRequestHardwareVsync, Call(kDisplayId2, true)).Times(1);
+
+    mScheduler->setDisplayPowerMode(kDisplayId1, hal::PowerMode::ON);
+
+    mScheduler->registerDisplay(kDisplayId2,
+                                std::make_shared<RefreshRateSelector>(kDisplay2Modes,
+                                                                      kDisplay2Mode60->getId()));
+    ASSERT_EQ(hal::PowerMode::OFF, mScheduler->getDisplayPowerMode(kDisplayId2));
+
+    static constexpr bool kDisallow = true;
+    mScheduler->disableHardwareVsync(kDisplayId1, kDisallow);
+    mScheduler->disableHardwareVsync(kDisplayId2, kDisallow);
+
+    static constexpr bool kAllowToEnable = true;
+    mScheduler->resyncAllToHardwareVsync(kAllowToEnable);
+}
+
 class AttachedChoreographerTest : public SchedulerTest {
 protected:
     void frameRateTestScenario(Fps layerFps, int8_t frameRateCompatibility, Fps displayFps,
