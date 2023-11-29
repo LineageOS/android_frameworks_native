@@ -78,6 +78,7 @@ using AidlDisplayConnectionType =
 
 using AidlColorTransform = aidl::android::hardware::graphics::common::ColorTransform;
 using AidlDataspace = aidl::android::hardware::graphics::common::Dataspace;
+using AidlDisplayHotplugEvent = aidl::android::hardware::graphics::common::DisplayHotplugEvent;
 using AidlFRect = aidl::android::hardware::graphics::common::FRect;
 using AidlRect = aidl::android::hardware::graphics::common::Rect;
 using AidlTransform = aidl::android::hardware::graphics::common::Transform;
@@ -174,9 +175,9 @@ public:
     AidlIComposerCallbackWrapper(HWC2::ComposerCallback& callback) : mCallback(callback) {}
 
     ::ndk::ScopedAStatus onHotplug(int64_t in_display, bool in_connected) override {
-        const auto connection = in_connected ? V2_4::IComposerCallback::Connection::CONNECTED
-                                             : V2_4::IComposerCallback::Connection::DISCONNECTED;
-        mCallback.onComposerHalHotplug(translate<Display>(in_display), connection);
+        const auto event = in_connected ? AidlDisplayHotplugEvent::CONNECTED
+                                        : AidlDisplayHotplugEvent::DISCONNECTED;
+        mCallback.onComposerHalHotplugEvent(translate<Display>(in_display), event);
         return ::ndk::ScopedAStatus::ok();
     }
 
@@ -213,6 +214,12 @@ public:
     ::ndk::ScopedAStatus onRefreshRateChangedDebug(
             const RefreshRateChangedDebugData& refreshRateChangedDebugData) override {
         mCallback.onRefreshRateChangedDebug(refreshRateChangedDebugData);
+        return ::ndk::ScopedAStatus::ok();
+    }
+
+    ::ndk::ScopedAStatus onHotplugEvent(int64_t in_display,
+                                        AidlDisplayHotplugEvent event) override {
+        mCallback.onComposerHalHotplugEvent(translate<Display>(in_display), event);
         return ::ndk::ScopedAStatus::ok();
     }
 

@@ -41,6 +41,7 @@ class SurfaceComposerClient;
 
 namespace android::hardware::graphics::composer::hal {
 
+using aidl::android::hardware::graphics::common::DisplayHotplugEvent;
 using aidl::android::hardware::graphics::composer3::RefreshRateChangedDebugData;
 using ::android::hardware::Return;
 using ::android::hardware::Void;
@@ -52,7 +53,9 @@ public:
           : mCallback(callback), mVsyncSwitchingSupported(vsyncSwitchingSupported) {}
 
     Return<void> onHotplug(HWDisplayId display, Connection connection) override {
-        mCallback->onComposerHalHotplug(display, connection);
+        const auto event = connection == Connection::CONNECTED ? DisplayHotplugEvent::CONNECTED
+                                                               : DisplayHotplugEvent::DISCONNECTED;
+        mCallback->onComposerHalHotplugEvent(display, event);
         return Void();
     }
 
@@ -94,7 +97,7 @@ private:
 
 struct TestHWC2ComposerCallback : public HWC2::ComposerCallback {
     virtual ~TestHWC2ComposerCallback() = default;
-    void onComposerHalHotplug(HWDisplayId, Connection){};
+    void onComposerHalHotplugEvent(HWDisplayId, DisplayHotplugEvent) {}
     void onComposerHalRefresh(HWDisplayId) {}
     void onComposerHalVsync(HWDisplayId, int64_t, std::optional<VsyncPeriodNanos>) {}
     void onComposerHalVsyncPeriodTimingChanged(HWDisplayId, const VsyncPeriodChangeTimeline&) {}

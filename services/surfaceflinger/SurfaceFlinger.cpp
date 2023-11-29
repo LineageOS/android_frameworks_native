@@ -2101,15 +2101,28 @@ void SurfaceFlinger::onComposerHalVsync(hal::HWDisplayId hwcDisplayId, int64_t t
     }
 }
 
-void SurfaceFlinger::onComposerHalHotplug(hal::HWDisplayId hwcDisplayId,
-                                          hal::Connection connection) {
-    {
-        std::lock_guard<std::mutex> lock(mHotplugMutex);
-        mPendingHotplugEvents.push_back(HotplugEvent{hwcDisplayId, connection});
+void SurfaceFlinger::onComposerHalHotplugEvent(hal::HWDisplayId hwcDisplayId,
+                                               DisplayHotplugEvent event) {
+    if (event == DisplayHotplugEvent::CONNECTED || event == DisplayHotplugEvent::DISCONNECTED) {
+        hal::Connection connection = (event == DisplayHotplugEvent::CONNECTED)
+                ? hal::Connection::CONNECTED
+                : hal::Connection::DISCONNECTED;
+        {
+            std::lock_guard<std::mutex> lock(mHotplugMutex);
+            mPendingHotplugEvents.push_back(HotplugEvent{hwcDisplayId, connection});
+        }
+
+        if (mScheduler) {
+            mScheduler->scheduleConfigure();
+        }
+
+        return;
     }
 
-    if (mScheduler) {
-        mScheduler->scheduleConfigure();
+    if (FlagManager::getInstance().hotplug2()) {
+        ALOGD("SurfaceFlinger got hotplug event=%d", static_cast<int32_t>(event));
+        // TODO(b/311403559): use enum type instead of int
+        mScheduler->onHotplugConnectionError(mAppConnectionHandle, static_cast<int32_t>(event));
     }
 }
 
@@ -7057,7 +7070,7 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 const hal::HWDisplayId hwcId =
                         (Mutex::Autolock(mStateLock), getHwComposer().getPrimaryHwcDisplayId());
 
-                onComposerHalHotplug(hwcId, hal::Connection::CONNECTED);
+                onComposerHalHotplugEvent(hwcId, DisplayHotplugEvent::CONNECTED);
                 return NO_ERROR;
             }
             // Modify the max number of display frames stored within FrameTimeline
