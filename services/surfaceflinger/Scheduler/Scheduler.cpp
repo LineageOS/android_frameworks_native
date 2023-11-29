@@ -579,6 +579,24 @@ void Scheduler::setRenderRate(PhysicalDisplayId id, Fps renderFrameRate) {
     display.schedulePtr->getTracker().setRenderRate(renderFrameRate);
 }
 
+Fps Scheduler::getNextFrameInterval(PhysicalDisplayId id,
+                                    TimePoint currentExpectedPresentTime) const {
+    std::scoped_lock lock(mDisplayLock);
+    ftl::FakeGuard guard(kMainThreadContext);
+
+    const auto displayOpt = mDisplays.get(id);
+    if (!displayOpt) {
+        ALOGW("%s: Invalid display %s!", __func__, to_string(id).c_str());
+        return Fps{};
+    }
+    const Display& display = *displayOpt;
+    const nsecs_t threshold =
+            display.selectorPtr->getActiveMode().modePtr->getVsyncRate().getPeriodNsecs() / 2;
+    const nsecs_t nextVsyncTime = display.schedulePtr->getTracker().nextAnticipatedVSyncTimeFrom(
+            currentExpectedPresentTime.ns() + threshold);
+    return Fps::fromPeriodNsecs(nextVsyncTime - currentExpectedPresentTime.ns());
+}
+
 void Scheduler::resync() {
     static constexpr nsecs_t kIgnoreDelay = ms2ns(750);
 

@@ -276,13 +276,11 @@ void RegionSamplingThread::captureSample() {
     }
 
     const Rect sampledBounds = sampleRegion.bounds();
-    constexpr bool kUseIdentityTransform = false;
     constexpr bool kHintForSeamlessTransition = false;
 
     SurfaceFlinger::RenderAreaFuture renderAreaFuture = ftl::defer([=] {
         return DisplayRenderArea::create(displayWeak, sampledBounds, sampledBounds.getSize(),
-                                         ui::Dataspace::V0_SRGB, kUseIdentityTransform,
-                                         kHintForSeamlessTransition);
+                                         ui::Dataspace::V0_SRGB, kHintForSeamlessTransition);
     });
 
     std::unordered_set<sp<IRegionSamplingListener>, SpHash<IRegionSamplingListener>> listeners;

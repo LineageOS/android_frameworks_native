@@ -78,10 +78,11 @@ public:
 
     auto refreshRateSelector() { return pacesetterSelectorPtr(); }
 
-    void registerDisplay(PhysicalDisplayId displayId, RefreshRateSelectorPtr selectorPtr) {
+    void registerDisplay(
+            PhysicalDisplayId displayId, RefreshRateSelectorPtr selectorPtr,
+            std::shared_ptr<VSyncTracker> vsyncTracker = std::make_shared<mock::VSyncTracker>()) {
         registerDisplay(displayId, std::move(selectorPtr),
-                        std::make_unique<mock::VsyncController>(),
-                        std::make_shared<mock::VSyncTracker>());
+                        std::make_unique<mock::VsyncController>(), vsyncTracker);
     }
 
     void registerDisplay(PhysicalDisplayId displayId, RefreshRateSelectorPtr selectorPtr,

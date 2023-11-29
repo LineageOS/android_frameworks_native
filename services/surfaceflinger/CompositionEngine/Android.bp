@@ -127,6 +127,10 @@ cc_library {
 cc_test {
     name: "libcompositionengine_test",
     test_suites: ["device-tests"],
+    include_dirs: [
+        "frameworks/native/services/surfaceflinger/common/include",
+        "frameworks/native/services/surfaceflinger/tests/unittests",
+    ],
     defaults: ["libcompositionengine_defaults"],
     srcs: [
         "tests/planner/CachedSetTest.cpp",

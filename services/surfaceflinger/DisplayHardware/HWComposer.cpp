@@ -545,6 +545,7 @@ status_t HWComposer::getDeviceCompositionChanges(
         }
     }
 
+    ATRACE_FORMAT("NextFrameInterval %d_Hz", frameInterval.getIntValue());
     if (canSkipValidate) {
         sp<Fence> outPresentFence = Fence::NO_FENCE;
         uint32_t state = UINT32_MAX;
