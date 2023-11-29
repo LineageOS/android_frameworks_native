@@ -44,8 +44,8 @@ TEST_F(SmallAreaDetectionAllowMappingsTest, testUpdate) {
     ASSERT_EQ(mMappings.getThresholdForAppId(kAppId2).value(), kThreshold2);
 }
 
-TEST_F(SmallAreaDetectionAllowMappingsTest, testSetThesholdForAppId) {
-    mMappings.setThesholdForAppId(kAppId1, kThreshold1);
+TEST_F(SmallAreaDetectionAllowMappingsTest, testSetThresholdForAppId) {
+    mMappings.setThresholdForAppId(kAppId1, kThreshold1);
     ASSERT_EQ(mMappings.getThresholdForAppId(kAppId1), kThreshold1);
 }
 

@@ -28,7 +28,7 @@ class SmallAreaDetectionAllowMappings {
 
 public:
     void update(std::vector<std::pair<int32_t, float>>& appIdThresholdMappings);
-    void setThesholdForAppId(int32_t appId, float threshold) EXCLUDES(mLock);
+    void setThresholdForAppId(int32_t appId, float threshold) EXCLUDES(mLock);
     std::optional<float> getThresholdForAppId(int32_t uid) EXCLUDES(mLock);
 
 private:
