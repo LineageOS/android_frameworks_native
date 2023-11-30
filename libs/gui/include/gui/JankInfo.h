@@ -18,7 +18,7 @@
 
 namespace android {
 
-// Jank information tracked by SurfaceFlinger(SF) for perfetto tracing and telemetry.
+// Jank type tracked by SurfaceFlinger(SF) for Perfetto tracing and telemetry.
 enum JankType {
     // No Jank
     None = 0x0,
@@ -48,6 +48,18 @@ enum JankType {
     SurfaceFlingerStuffing = 0x100,
     // Frame was dropped, as a newer frame was ready and replaced this frame.
     Dropped = 0x200,
+};
+
+// Jank severity type tracked by SurfaceFlinger(SF) for Perfetto tracing and telemetry.
+enum class JankSeverityType {
+    // Unknown: not enough information to classify the severity of a jank
+    Unknown = 0,
+    // None: no jank
+    None = 1,
+    // Partial: jank caused by missing the deadline by less than the app's frame interval
+    Partial = 2,
+    // Full: jank caused by missing the deadline by more than the app's frame interval
+    Full = 3,
 };
 
 } // namespace android

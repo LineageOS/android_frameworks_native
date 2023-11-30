@@ -168,6 +168,7 @@ public:
     // Returns std::nullopt if the frame hasn't been classified yet.
     // Used by both SF and FrameTimeline.
     std::optional<int32_t> getJankType() const;
+    std::optional<JankSeverityType> getJankSeverityType() const;
 
     // Functions called by SF
     int64_t getToken() const { return mToken; };
@@ -232,7 +233,7 @@ private:
     void tracePredictions(int64_t displayFrameToken, nsecs_t monoBootOffset) const;
     void traceActuals(int64_t displayFrameToken, nsecs_t monoBootOffset) const;
     void classifyJankLocked(int32_t displayFrameJankType, const Fps& refreshRate,
-                            nsecs_t& deadlineDelta) REQUIRES(mMutex);
+                            Fps displayFrameRenderRate, nsecs_t& deadlineDelta) REQUIRES(mMutex);
 
     const int64_t mToken;
     const int32_t mInputEventId;
@@ -252,6 +253,8 @@ private:
     mutable std::mutex mMutex;
     // Bitmask for the type of jank
     int32_t mJankType GUARDED_BY(mMutex) = JankType::None;
+    // Enum for the severity of jank
+    JankSeverityType mJankSeverityType GUARDED_BY(mMutex) = JankSeverityType::None;
     // Indicates if this frame was composited by the GPU or not
     bool mGpuComposition GUARDED_BY(mMutex) = false;
     // Refresh rate for this frame.
@@ -404,6 +407,7 @@ public:
         FramePresentMetadata getFramePresentMetadata() const { return mFramePresentMetadata; };
         FrameReadyMetadata getFrameReadyMetadata() const { return mFrameReadyMetadata; };
         int32_t getJankType() const { return mJankType; }
+        JankSeverityType getJankSeverityType() const { return mJankSeverityType; }
         const std::vector<std::shared_ptr<SurfaceFrame>>& getSurfaceFrames() const {
             return mSurfaceFrames;
         }
@@ -435,6 +439,8 @@ public:
         PredictionState mPredictionState = PredictionState::None;
         // Bitmask for the type of jank
         int32_t mJankType = JankType::None;
+        // Enum for the severity of jank
+        JankSeverityType mJankSeverityType = JankSeverityType::None;
         // A valid gpu fence indicates that the DisplayFrame was composited by the GPU
         std::shared_ptr<FenceTime> mGpuFence = FenceTime::NO_FENCE;
         // Enum for the type of present
