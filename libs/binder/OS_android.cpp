@@ -17,6 +17,7 @@
 #include "OS.h"
 
 #include <android-base/threads.h>
+#include <cutils/trace.h>
 #include <utils/misc.h>
 
 namespace android::binder::os {
@@ -32,6 +33,14 @@ uint64_t GetThreadId() {
 bool report_sysprop_change() {
     android::report_sysprop_change();
     return true;
+}
+
+void trace_begin(uint64_t tag, const char* name) {
+    atrace_begin(tag, name);
+}
+
+void trace_end(uint64_t tag) {
+    atrace_end(tag);
 }
 
 } // namespace android::binder::os
