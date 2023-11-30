@@ -31,6 +31,18 @@ using android::binder::unique_fd;
 
 namespace android::binder::os {
 
+void trace_begin(uint64_t, const char*) {}
+
+void trace_end(uint64_t) {}
+
+uint64_t GetThreadId() {
+    return 0;
+}
+
+bool report_sysprop_change() {
+    return false;
+}
+
 status_t setNonBlocking(borrowed_fd /*fd*/) {
     // Trusty IPC syscalls are all non-blocking by default.
     return OK;

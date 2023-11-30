@@ -24,13 +24,13 @@ LIBUTILS_DIR := system/core/libutils
 FMTLIB_DIR := external/fmtlib
 
 MODULE_SRCS := \
+	$(LOCAL_DIR)/../OS.cpp \
 	$(LOCAL_DIR)/../TrustyStatus.cpp \
 	$(LIBBINDER_DIR)/Binder.cpp \
 	$(LIBBINDER_DIR)/BpBinder.cpp \
 	$(LIBBINDER_DIR)/FdTrigger.cpp \
 	$(LIBBINDER_DIR)/IInterface.cpp \
 	$(LIBBINDER_DIR)/IResultReceiver.cpp \
-	$(LIBBINDER_DIR)/OS_android.cpp \
 	$(LIBBINDER_DIR)/Parcel.cpp \
 	$(LIBBINDER_DIR)/Stability.cpp \
 	$(LIBBINDER_DIR)/Status.cpp \

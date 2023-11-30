@@ -90,7 +90,6 @@ cc_defaults {
         "Stability.cpp",
         "Status.cpp",
         "TextOutput.cpp",
-        "Trace.cpp",
         "Utils.cpp",
         "file.cpp",
     ],
@@ -251,7 +250,6 @@ cc_library_shared {
 
     srcs: [
         // Trusty-specific files
-        "OS_android.cpp",
         "trusty/OS.cpp",
         "trusty/RpcServerTrusty.cpp",
         "trusty/RpcTransportTipcTrusty.cpp",
