@@ -1243,7 +1243,7 @@ static void DumpPacketStats() {
 
 static void DumpIpAddrAndRules() {
     /* The following have a tendency to get wedged when wifi drivers/fw goes belly-up. */
-    RunCommand("NETWORK INTERFACES", {"ip", "link"});
+    RunCommand("NETWORK INTERFACES", {"ip", "-s", "link"});
     RunCommand("IPv4 ADDRESSES", {"ip", "-4", "addr", "show"});
     RunCommand("IPv6 ADDRESSES", {"ip", "-6", "addr", "show"});
     RunCommand("IP RULES", {"ip", "rule", "show"});

@@ -466,8 +466,8 @@ public:
         mFlinger->commitTransactionsLocked(transactionFlags);
     }
 
-    void onComposerHalHotplug(hal::HWDisplayId hwcDisplayId, hal::Connection connection) {
-        mFlinger->onComposerHalHotplug(hwcDisplayId, connection);
+    void onComposerHalHotplugEvent(hal::HWDisplayId hwcDisplayId, DisplayHotplugEvent event) {
+        mFlinger->onComposerHalHotplugEvent(hwcDisplayId, event);
     }
 
     auto setDisplayStateLocked(const DisplayState& s) {
