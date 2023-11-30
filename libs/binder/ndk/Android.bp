@@ -139,6 +139,7 @@ cc_library {
         "performance*",
         "portability*",
     ],
+    afdo: true,
 }
 
 cc_library_headers {
