@@ -332,6 +332,15 @@ float RefreshRateSelector::calculateNonExactMatchingLayerScoreLocked(const Layer
         return calculateNonExactMatchingDefaultLayerScoreLocked(displayPeriod, layerPeriod);
     }
 
+    if (layer.vote == LayerVoteType::ExplicitGte) {
+        using fps_approx_ops::operator>=;
+        if (refreshRate >= layer.desiredRefreshRate) {
+            return 1.0f;
+        } else {
+            return calculateDistanceScoreLocked(layer.desiredRefreshRate, refreshRate);
+        }
+    }
+
     if (layer.vote == LayerVoteType::ExplicitExactOrMultiple ||
         layer.vote == LayerVoteType::Heuristic) {
         using fps_approx_ops::operator<;
@@ -390,11 +399,18 @@ float RefreshRateSelector::calculateNonExactMatchingLayerScoreLocked(const Layer
     return 0;
 }
 
-float RefreshRateSelector::calculateDistanceScoreFromMax(Fps refreshRate) const {
-    const auto& maxFps = mAppRequestFrameRates.back().fps;
-    const float ratio = refreshRate.getValue() / maxFps.getValue();
-    // Use ratio^2 to get a lower score the more we get further from peak
+float RefreshRateSelector::calculateDistanceScoreLocked(Fps referenceRate, Fps refreshRate) const {
+    using fps_approx_ops::operator>=;
+    const float ratio = referenceRate >= refreshRate
+            ? refreshRate.getValue() / referenceRate.getValue()
+            : referenceRate.getValue() / refreshRate.getValue();
+    // Use ratio^2 to get a lower score the more we get further from the reference rate.
     return ratio * ratio;
+}
+
+float RefreshRateSelector::calculateDistanceScoreFromMaxLocked(Fps refreshRate) const {
+    const auto& maxFps = mAppRequestFrameRates.back().fps;
+    return calculateDistanceScoreLocked(maxFps, refreshRate);
 }
 
 float RefreshRateSelector::calculateLayerScoreLocked(const LayerRequirement& layer, Fps refreshRate,
@@ -421,7 +437,7 @@ float RefreshRateSelector::calculateLayerScoreLocked(const LayerRequirement& lay
 
     // If the layer wants Max, give higher score to the higher refresh rate
     if (layer.vote == LayerVoteType::Max) {
-        return calculateDistanceScoreFromMax(refreshRate);
+        return calculateDistanceScoreFromMaxLocked(refreshRate);
     }
 
     if (layer.vote == LayerVoteType::ExplicitExact) {
@@ -489,6 +505,7 @@ auto RefreshRateSelector::getRankedFrameRatesLocked(const std::vector<LayerRequi
     int explicitDefaultVoteLayers = 0;
     int explicitExactOrMultipleVoteLayers = 0;
     int explicitExact = 0;
+    int explicitGteLayers = 0;
     int explicitCategoryVoteLayers = 0;
     int seamedFocusedLayers = 0;
     int categorySmoothSwitchOnlyLayers = 0;
@@ -513,6 +530,9 @@ auto RefreshRateSelector::getRankedFrameRatesLocked(const std::vector<LayerRequi
             case LayerVoteType::ExplicitExact:
                 explicitExact++;
                 break;
+            case LayerVoteType::ExplicitGte:
+                explicitGteLayers++;
+                break;
             case LayerVoteType::ExplicitCategory:
                 explicitCategoryVoteLayers++;
                 if (layer.frameRateCategory == FrameRateCategory::NoPreference) {
@@ -535,7 +555,7 @@ auto RefreshRateSelector::getRankedFrameRatesLocked(const std::vector<LayerRequi
     }
 
     const bool hasExplicitVoteLayers = explicitDefaultVoteLayers > 0 ||
-            explicitExactOrMultipleVoteLayers > 0 || explicitExact > 0 ||
+            explicitExactOrMultipleVoteLayers > 0 || explicitExact > 0 || explicitGteLayers > 0 ||
             explicitCategoryVoteLayers > 0;
 
     const Policy* policy = getCurrentPolicyLocked();
@@ -688,6 +708,7 @@ auto RefreshRateSelector::getRankedFrameRatesLocked(const std::vector<LayerRequi
                     case LayerVoteType::Max:
                     case LayerVoteType::ExplicitDefault:
                     case LayerVoteType::ExplicitExact:
+                    case LayerVoteType::ExplicitGte:
                     case LayerVoteType::ExplicitCategory:
                         return false;
                 }
@@ -1081,7 +1102,7 @@ auto RefreshRateSelector::rankFrameRates(std::optional<int> anchorGroupOpt,
             return;
         }
 
-        float score = calculateDistanceScoreFromMax(frameRateMode.fps);
+        float score = calculateDistanceScoreFromMaxLocked(frameRateMode.fps);
 
         if (ascending) {
             score = 1.0f / score;
