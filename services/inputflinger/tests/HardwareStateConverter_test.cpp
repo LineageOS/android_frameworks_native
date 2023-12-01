@@ -18,6 +18,8 @@
 #include <memory>
 
 #include <EventHub.h>
+#include <com_android_input_flags.h>
+#include <flag_macros.h>
 #include <gtest/gtest.h>
 #include <linux/input-event-codes.h>
 #include <utils/StrongPointer.h>
@@ -30,6 +32,13 @@
 #include "TestInputListener.h"
 
 namespace android {
+
+namespace {
+
+const auto REPORT_PALMS =
+        ACONFIG_FLAG(com::android::input::flags, report_palms_to_gestures_library);
+
+} // namespace
 
 class HardwareStateConverterTest : public testing::Test {
 public:
@@ -192,7 +201,8 @@ TEST_F(HardwareStateConverterTest, TwoFingers) {
     EXPECT_EQ(0u, finger2.flags);
 }
 
-TEST_F(HardwareStateConverterTest, OnePalm) {
+TEST_F_WITH_FLAGS(HardwareStateConverterTest, OnePalmDisableReportPalms,
+                  REQUIRES_FLAGS_DISABLED(REPORT_PALMS)) {
     processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_SLOT, 0);
     processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_PALM);
     processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_TRACKING_ID, 123);
@@ -207,7 +217,25 @@ TEST_F(HardwareStateConverterTest, OnePalm) {
     EXPECT_EQ(0, schs->state.finger_cnt);
 }
 
-TEST_F(HardwareStateConverterTest, OneFingerTurningIntoAPalm) {
+TEST_F_WITH_FLAGS(HardwareStateConverterTest, OnePalmEnableReportPalms,
+                  REQUIRES_FLAGS_ENABLED(REPORT_PALMS)) {
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_SLOT, 0);
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_PALM);
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_TRACKING_ID, 123);
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_POSITION_X, 50);
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_POSITION_Y, 100);
+
+    processAxis(ARBITRARY_TIME, EV_KEY, BTN_TOUCH, 1);
+    processAxis(ARBITRARY_TIME, EV_KEY, BTN_TOOL_FINGER, 1);
+    std::optional<SelfContainedHardwareState> schs = processSync(ARBITRARY_TIME);
+    ASSERT_TRUE(schs.has_value());
+    EXPECT_EQ(1, schs->state.touch_cnt);
+    EXPECT_EQ(1, schs->state.finger_cnt);
+    EXPECT_EQ(FingerState::ToolType::kPalm, schs->state.fingers[0].tool_type);
+}
+
+TEST_F_WITH_FLAGS(HardwareStateConverterTest, OneFingerTurningIntoAPalmDisableReportPalms,
+                  REQUIRES_FLAGS_DISABLED(REPORT_PALMS)) {
     processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_SLOT, 0);
     processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_FINGER);
     processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_TRACKING_ID, 123);
@@ -247,6 +275,56 @@ TEST_F(HardwareStateConverterTest, OneFingerTurningIntoAPalm) {
     EXPECT_EQ(1, schs->state.touch_cnt);
     ASSERT_EQ(1, schs->state.finger_cnt);
     const FingerState& newFinger = schs->state.fingers[0];
+    EXPECT_EQ(123, newFinger.tracking_id);
+    EXPECT_NEAR(55, newFinger.position_x, EPSILON);
+    EXPECT_NEAR(95, newFinger.position_y, EPSILON);
+}
+
+TEST_F_WITH_FLAGS(HardwareStateConverterTest, OneFingerTurningIntoAPalmEnableReportPalms,
+                  REQUIRES_FLAGS_ENABLED(REPORT_PALMS)) {
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_SLOT, 0);
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_FINGER);
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_TRACKING_ID, 123);
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_POSITION_X, 50);
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_POSITION_Y, 100);
+
+    processAxis(ARBITRARY_TIME, EV_KEY, BTN_TOUCH, 1);
+    processAxis(ARBITRARY_TIME, EV_KEY, BTN_TOOL_FINGER, 1);
+
+    std::optional<SelfContainedHardwareState> schs = processSync(ARBITRARY_TIME);
+    ASSERT_TRUE(schs.has_value());
+    EXPECT_EQ(1, schs->state.touch_cnt);
+    EXPECT_EQ(1, schs->state.finger_cnt);
+    EXPECT_EQ(FingerState::ToolType::kFinger, schs->state.fingers[0].tool_type);
+
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_PALM);
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_POSITION_X, 51);
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_POSITION_Y, 99);
+
+    schs = processSync(ARBITRARY_TIME);
+    ASSERT_TRUE(schs.has_value());
+    EXPECT_EQ(1, schs->state.touch_cnt);
+    ASSERT_EQ(1, schs->state.finger_cnt);
+    EXPECT_EQ(FingerState::ToolType::kPalm, schs->state.fingers[0].tool_type);
+
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_POSITION_X, 53);
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_POSITION_Y, 97);
+
+    schs = processSync(ARBITRARY_TIME);
+    ASSERT_TRUE(schs.has_value());
+    EXPECT_EQ(1, schs->state.touch_cnt);
+    EXPECT_EQ(1, schs->state.finger_cnt);
+    EXPECT_EQ(FingerState::ToolType::kPalm, schs->state.fingers[0].tool_type);
+
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_FINGER);
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_POSITION_X, 55);
+    processAxis(ARBITRARY_TIME, EV_ABS, ABS_MT_POSITION_Y, 95);
+    schs = processSync(ARBITRARY_TIME);
+    ASSERT_TRUE(schs.has_value());
+    EXPECT_EQ(1, schs->state.touch_cnt);
+    ASSERT_EQ(1, schs->state.finger_cnt);
+    const FingerState& newFinger = schs->state.fingers[0];
+    EXPECT_EQ(FingerState::ToolType::kFinger, newFinger.tool_type);
     EXPECT_EQ(123, newFinger.tracking_id);
     EXPECT_NEAR(55, newFinger.position_x, EPSILON);
     EXPECT_NEAR(95, newFinger.position_y, EPSILON);

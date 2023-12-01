@@ -43,6 +43,13 @@ flag {
 }
 
 flag {
+  name: "report_palms_to_gestures_library"
+  namespace: "input"
+  description: "Report touches marked as palm by firmware to gestures library"
+  bug: "302505955"
+}
+
+flag {
   name: "enable_touchpad_typing_palm_rejection"
   namespace: "input"
   description: "Enable additional palm rejection on touchpad while typing"
