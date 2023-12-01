@@ -2682,11 +2682,10 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
 
     outInjectionResult = InputEventInjectionResult::SUCCEEDED;
 
+    // Now that we have generated all of the input targets for this event, reset the dispatch
+    // mode for all touched window to AS_IS.
     for (TouchedWindow& touchedWindow : tempTouchState.windows) {
-        // Targets that we entered in a slippery way will now become AS-IS targets
-        if (touchedWindow.dispatchMode == InputTarget::DispatchMode::SLIPPERY_ENTER) {
-            touchedWindow.dispatchMode = InputTarget::DispatchMode::AS_IS;
-        }
+        touchedWindow.dispatchMode = InputTarget::DispatchMode::AS_IS;
     }
 
     // Update final pieces of touch state if the injector had permission.
