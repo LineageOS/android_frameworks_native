@@ -92,3 +92,11 @@ flag {
   bug: "299201319"
   is_fixed_read_only: true
 }
+
+flag {
+  name: "cache_if_source_crop_layer_only_moved"
+  namespace: "core_graphics"
+  description: "do not flatten layers if source crop is only moved"
+  bug: "305718400"
+  is_fixed_read_only: true
+}

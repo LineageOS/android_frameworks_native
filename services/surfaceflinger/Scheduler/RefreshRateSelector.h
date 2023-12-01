@@ -149,6 +149,7 @@ public:
                                  // ExactOrMultiple compatibility
         ExplicitExact,           // Specific refresh rate that was provided by the app with
                                  // Exact compatibility
+        ExplicitGte,             // Greater than or equal to frame rate provided by the app
         ExplicitCategory,        // Specific frame rate category was provided by the app
 
         ftl_last = ExplicitCategory
@@ -460,7 +461,11 @@ private:
     bool isPolicyValidLocked(const Policy& policy) const REQUIRES(mLock);
 
     // Returns the refresh rate score as a ratio to max refresh rate, which has a score of 1.
-    float calculateDistanceScoreFromMax(Fps refreshRate) const REQUIRES(mLock);
+    float calculateDistanceScoreFromMaxLocked(Fps refreshRate) const REQUIRES(mLock);
+
+    // Returns the refresh rate score based on its distance from the reference rate.
+    float calculateDistanceScoreLocked(Fps referenceRate, Fps refreshRate) const REQUIRES(mLock);
+
     // calculates a score for a layer. Used to determine the display refresh rate
     // and the frame rate override for certains applications.
     float calculateLayerScoreLocked(const LayerRequirement&, Fps refreshRate,

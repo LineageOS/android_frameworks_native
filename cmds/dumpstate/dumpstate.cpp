@@ -1035,8 +1035,6 @@ static void DoLogcat() {
         CommandOptions::WithTimeoutInMs(timeout_ms).Build(), true /* verbose_duration */);
     DoRadioLogcat();
 
-    RunCommand("LOG STATISTICS", {"logcat", "-b", "all", "-S"});
-
     /* kernels must set CONFIG_PSTORE_PMSG, slice up pstore with device tree */
     RunCommand("LAST LOGCAT", {"logcat", "-L", "-b", "all", "-v", "threadtime", "-v", "printable",
                                "-v", "uid", "-d", "*:v"});

@@ -278,6 +278,8 @@ void LayerHistory::partitionLayers(nsecs_t now) {
                         return LayerVoteType::NoVote;
                     case Layer::FrameRateCompatibility::Exact:
                         return LayerVoteType::ExplicitExact;
+                    case Layer::FrameRateCompatibility::Gte:
+                        return LayerVoteType::ExplicitGte;
                 }
             }();
 
