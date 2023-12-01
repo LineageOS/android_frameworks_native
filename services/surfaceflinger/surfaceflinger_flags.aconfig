@@ -98,5 +98,12 @@ flag {
   namespace: "core_graphics"
   description: "do not flatten layers if source crop is only moved"
   bug: "305718400"
+}
+
+flag {
+  name: "enable_fro_dependent_features"
+  namespace: "core_graphics"
+  description: "enable frame rate override dependent features by default"
+  bug: "314217419"
   is_fixed_read_only: true
 }
