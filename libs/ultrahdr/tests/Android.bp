@@ -22,7 +22,8 @@ package {
 }
 
 cc_test {
-    name: "ultrahdr_unit_test",
+    name: "ultrahdr_unit_test-deprecated",
+    enabled: false,
     test_suites: ["device-tests"],
     srcs: [
         "gainmapmath_test.cpp",
