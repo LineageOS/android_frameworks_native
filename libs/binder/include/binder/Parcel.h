@@ -55,6 +55,9 @@ class String8;
 class TextOutput;
 namespace binder {
 class Status;
+namespace debug {
+class RecordedTransaction;
+}
 }
 
 class Parcel {
@@ -1443,6 +1446,9 @@ private:
     // TODO(b/202029388): Remove 'getBlobAshmemSize' once no prebuilts reference
     // this
     size_t getBlobAshmemSize() const;
+
+    // Needed so that we can save object metadata to the disk
+    friend class android::binder::debug::RecordedTransaction;
 };
 
 // ---------------------------------------------------------------------------

@@ -21,56 +21,52 @@
 #include <binder/IInterface.h>
 #include <binder/IServiceManager.h>
 
+size_t kRandomInterfaceLength = 50;
 namespace android {
 
-class RandomBinder : public BBinder {
-public:
-    RandomBinder(const String16& descriptor, std::vector<uint8_t>&& bytes)
-          : mDescriptor(descriptor),
-            mBytes(std::move(bytes)),
-            mProvider(mBytes.data(), mBytes.size()) {}
-    const String16& getInterfaceDescriptor() const override { return mDescriptor; }
+RandomBinder::RandomBinder(const String16& descriptor, std::vector<uint8_t>&& bytes)
+      : mDescriptor(descriptor),
+        mBytes(std::move(bytes)),
+        mProvider(mBytes.data(), mBytes.size()) {}
 
-    status_t onTransact(uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags) override {
-        (void)code;
-        (void)data;
-        (void)reply;
-        (void)flags; // note - for maximum coverage even ignore if oneway
+const String16& RandomBinder::getInterfaceDescriptor() const {
+    return mDescriptor;
+}
 
-        if (mProvider.ConsumeBool()) {
-            return mProvider.ConsumeIntegral<status_t>();
-        }
+status_t RandomBinder::onTransact(uint32_t code, const Parcel& data, Parcel* reply,
+                                  uint32_t flags) {
+    (void)code;
+    (void)data;
+    (void)reply;
+    (void)flags; // note - for maximum coverage even ignore if oneway
 
-        if (reply == nullptr) return OK;
-
-        // TODO: things we could do to increase state space
-        // - also pull FDs and binders from 'data'
-        //     (optionally combine these into random parcel 'options')
-        // - also pull FDs and binders from random parcel 'options'
-        RandomParcelOptions options;
-
-        // random output
-        std::vector<uint8_t> subData = mProvider.ConsumeBytes<uint8_t>(
-                mProvider.ConsumeIntegralInRange<size_t>(0, mProvider.remaining_bytes()));
-        fillRandomParcel(reply, FuzzedDataProvider(subData.data(), subData.size()), &options);
-
-        return OK;
+    if (mProvider.ConsumeBool()) {
+        return mProvider.ConsumeIntegral<status_t>();
     }
 
-private:
-    String16 mDescriptor;
+    if (reply == nullptr) return OK;
 
-    // note may not all be used
-    std::vector<uint8_t> mBytes;
-    FuzzedDataProvider mProvider;
-};
+    // TODO: things we could do to increase state space
+    // - also pull FDs and binders from 'data'
+    //     (optionally combine these into random parcel 'options')
+    // - also pull FDs and binders from random parcel 'options'
+    RandomParcelOptions options;
+
+    // random output
+    std::vector<uint8_t> subData = mProvider.ConsumeBytes<uint8_t>(
+            mProvider.ConsumeIntegralInRange<size_t>(0, mProvider.remaining_bytes()));
+    fillRandomParcel(reply, FuzzedDataProvider(subData.data(), subData.size()), &options);
+
+    return OK;
+}
 
 sp<IBinder> getRandomBinder(FuzzedDataProvider* provider) {
     auto makeFunc = provider->PickValueInArray<const std::function<sp<IBinder>()>>({
             [&]() {
                 // descriptor is the length of a class name, e.g.
                 // "some.package.Foo"
-                std::string str = provider->ConsumeRandomLengthString(100 /*max length*/);
+                std::string str =
+                        provider->ConsumeRandomLengthString(kRandomInterfaceLength /*max length*/);
 
                 // arbitrarily consume remaining data to create a binder that can return
                 // random results - coverage guided fuzzer should ensure all of the remaining

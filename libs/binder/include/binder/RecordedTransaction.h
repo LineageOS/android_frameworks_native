@@ -50,6 +50,7 @@ public:
     uint32_t getVersion() const;
     const Parcel& getDataParcel() const;
     const Parcel& getReplyParcel() const;
+    const std::vector<uint64_t>& getObjectOffsets() const;
 
 private:
     RecordedTransaction() = default;
@@ -75,10 +76,11 @@ private:
     struct MovableData { // movable
         TransactionHeader mHeader;
         std::string mInterfaceName;
+        std::vector<uint64_t> mSentObjectData; /* Object Offsets */
     };
     MovableData mData;
-    Parcel mSent;
-    Parcel mReply;
+    Parcel mSentDataOnly;
+    Parcel mReplyDataOnly;
 };
 
 } // namespace binder::debug

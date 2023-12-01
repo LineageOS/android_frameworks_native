@@ -73,7 +73,7 @@ void fillRandomParcel(Parcel* p, FuzzedDataProvider&& provider, RandomParcelOpti
                         return;
                     }
 
-                    if (options->extraFds.size() > 0 && provider.ConsumeBool()) {
+                    if (provider.ConsumeBool() && options->extraFds.size() > 0) {
                         const unique_fd& fd = options->extraFds.at(
                                 provider.ConsumeIntegralInRange<size_t>(0,
                                                                         options->extraFds.size() -
@@ -102,7 +102,7 @@ void fillRandomParcel(Parcel* p, FuzzedDataProvider&& provider, RandomParcelOpti
                     }
 
                     sp<IBinder> binder;
-                    if (options->extraBinders.size() > 0 && provider.ConsumeBool()) {
+                    if (provider.ConsumeBool() && options->extraBinders.size() > 0) {
                         binder = options->extraBinders.at(
                                 provider.ConsumeIntegralInRange<size_t>(0,
                                                                         options->extraBinders
