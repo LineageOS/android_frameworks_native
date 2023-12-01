@@ -21,7 +21,8 @@ package {
 }
 
 cc_library {
-    name: "libultrahdr",
+    name: "libultrahdr-deprecated",
+    enabled: false,
     host_supported: true,
     vendor_available: true,
     export_include_dirs: ["include"],
@@ -46,7 +47,8 @@ cc_library {
 }
 
 cc_library {
-    name: "libjpegencoder",
+    name: "libjpegencoder-deprecated",
+    enabled: false,
     host_supported: true,
     vendor_available: true,
 
@@ -64,7 +66,8 @@ cc_library {
 }
 
 cc_library {
-    name: "libjpegdecoder",
+    name: "libjpegdecoder-deprecated",
+    enabled: false,
     host_supported: true,
     vendor_available: true,
 
