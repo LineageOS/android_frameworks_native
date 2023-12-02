@@ -417,6 +417,8 @@ std::ostream& operator<<(std::ostream& out, const RequestedLayerState& obj) {
     if (!obj.handleAlive) out << " handleNotAlive";
     if (obj.requestedFrameRate.isValid())
         out << " requestedFrameRate: {" << obj.requestedFrameRate << "}";
+    if (obj.dropInputMode != gui::DropInputMode::NONE)
+        out << " dropInputMode=" << static_cast<uint32_t>(obj.dropInputMode);
     return out;
 }
 
