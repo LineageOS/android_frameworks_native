@@ -165,7 +165,7 @@ TEST_F(DisplayModeSwitchingTest, changeRefreshRateOnActiveDisplayWithRefreshRequ
                                                                      120));
 
     ASSERT_TRUE(mDisplay->getDesiredMode());
-    EXPECT_EQ(mDisplay->getDesiredMode()->modeOpt->modePtr->getId(), kModeId90);
+    EXPECT_EQ(mDisplay->getDesiredMode()->mode.modePtr->getId(), kModeId90);
     EXPECT_EQ(mDisplay->getActiveMode().modePtr->getId(), kModeId60);
 
     // Verify that next commit will call setActiveConfigWithConstraints in HWC
@@ -206,7 +206,7 @@ TEST_F(DisplayModeSwitchingTest, changeRefreshRateOnActiveDisplayWithoutRefreshR
                                                                      120));
 
     ASSERT_TRUE(mDisplay->getDesiredMode());
-    EXPECT_EQ(mDisplay->getDesiredMode()->modeOpt->modePtr->getId(), kModeId90);
+    EXPECT_EQ(mDisplay->getDesiredMode()->mode.modePtr->getId(), kModeId90);
     EXPECT_EQ(mDisplay->getActiveMode().modePtr->getId(), kModeId60);
 
     // Verify that next commit will call setActiveConfigWithConstraints in HWC
@@ -254,7 +254,7 @@ TEST_F(DisplayModeSwitchingTest, twoConsecutiveSetDesiredDisplayModeSpecs) {
                                                                      180));
 
     ASSERT_TRUE(mDisplay->getDesiredMode());
-    EXPECT_EQ(mDisplay->getDesiredMode()->modeOpt->modePtr->getId(), kModeId120);
+    EXPECT_EQ(mDisplay->getDesiredMode()->mode.modePtr->getId(), kModeId120);
 
     EXPECT_CALL(*mComposer,
                 setActiveConfigWithConstraints(PrimaryDisplayVariant::HWC_DISPLAY_ID,
@@ -264,7 +264,7 @@ TEST_F(DisplayModeSwitchingTest, twoConsecutiveSetDesiredDisplayModeSpecs) {
     mFlinger.commit();
 
     ASSERT_TRUE(mDisplay->getDesiredMode());
-    EXPECT_EQ(mDisplay->getDesiredMode()->modeOpt->modePtr->getId(), kModeId120);
+    EXPECT_EQ(mDisplay->getDesiredMode()->mode.modePtr->getId(), kModeId120);
 
     mFlinger.commit();
 
@@ -285,7 +285,7 @@ TEST_F(DisplayModeSwitchingTest, changeResolutionOnActiveDisplayWithoutRefreshRe
                                                                      120));
 
     ASSERT_TRUE(mDisplay->getDesiredMode());
-    EXPECT_EQ(mDisplay->getDesiredMode()->modeOpt->modePtr->getId(), kModeId90_4K);
+    EXPECT_EQ(mDisplay->getDesiredMode()->mode.modePtr->getId(), kModeId90_4K);
     EXPECT_EQ(mDisplay->getActiveMode().modePtr->getId(), kModeId60);
 
     // Verify that next commit will call setActiveConfigWithConstraints in HWC
@@ -330,7 +330,7 @@ MATCHER_P2(ModeSwitchingTo, flinger, modeId, "") {
         return false;
     }
 
-    if (arg->getDesiredMode()->modeOpt->modePtr->getId() != modeId) {
+    if (arg->getDesiredMode()->mode.modePtr->getId() != modeId) {
         *result_listener << "Unexpected desired mode " << modeId;
         return false;
     }
@@ -345,7 +345,7 @@ MATCHER_P2(ModeSwitchingTo, flinger, modeId, "") {
 
 MATCHER_P(ModeSettledTo, modeId, "") {
     if (const auto desiredOpt = arg->getDesiredMode()) {
-        *result_listener << "Unsettled desired mode " << desiredOpt->modeOpt->modePtr->getId();
+        *result_listener << "Unsettled desired mode " << desiredOpt->mode.modePtr->getId();
         return false;
     }
 

@@ -518,14 +518,16 @@ status_t Gralloc5Mapper::validateBufferSize(buffer_handle_t bufferHandle, uint32
         }
     }
     {
-        auto value =
-                getStandardMetadata<StandardMetadataType::PIXEL_FORMAT_REQUESTED>(mMapper,
-                                                                                  bufferHandle);
-        if (static_cast<::aidl::android::hardware::graphics::common::PixelFormat>(format) !=
-            value) {
-            ALOGW("Format didn't match, expected %d got %s", format,
-                  value.has_value() ? toString(*value).c_str() : "<null>");
-            return BAD_VALUE;
+        auto expected = static_cast<APixelFormat>(format);
+        if (expected != APixelFormat::IMPLEMENTATION_DEFINED) {
+            auto value =
+                    getStandardMetadata<StandardMetadataType::PIXEL_FORMAT_REQUESTED>(mMapper,
+                                                                                      bufferHandle);
+            if (expected != value) {
+                ALOGW("Format didn't match, expected %d got %s", format,
+                      value.has_value() ? toString(*value).c_str() : "<null>");
+                return BAD_VALUE;
+            }
         }
     }
     {

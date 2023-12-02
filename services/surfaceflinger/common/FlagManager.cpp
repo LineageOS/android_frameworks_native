@@ -123,6 +123,7 @@ void FlagManager::dump(std::string& result) const {
     DUMP_READ_ONLY_FLAG(add_sf_skipped_frames_to_trace);
     DUMP_READ_ONLY_FLAG(use_known_refresh_rate_for_fps_consistency);
     DUMP_READ_ONLY_FLAG(cache_if_source_crop_layer_only_moved);
+    DUMP_READ_ONLY_FLAG(enable_fro_dependent_features);
 
 #undef DUMP_READ_ONLY_FLAG
 #undef DUMP_SERVER_FLAG
@@ -195,6 +196,7 @@ FLAG_MANAGER_READ_ONLY_FLAG(add_sf_skipped_frames_to_trace, "")
 FLAG_MANAGER_READ_ONLY_FLAG(use_known_refresh_rate_for_fps_consistency, "")
 FLAG_MANAGER_READ_ONLY_FLAG(cache_if_source_crop_layer_only_moved,
                             "debug.sf.cache_source_crop_only_moved")
+FLAG_MANAGER_READ_ONLY_FLAG(enable_fro_dependent_features, "")
 
 /// Trunk stable server flags ///
 FLAG_MANAGER_SERVER_FLAG(late_boot_misc2, "")

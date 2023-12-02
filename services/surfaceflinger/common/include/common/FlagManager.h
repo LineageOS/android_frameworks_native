@@ -62,6 +62,7 @@ public:
     bool add_sf_skipped_frames_to_trace() const;
     bool use_known_refresh_rate_for_fps_consistency() const;
     bool cache_if_source_crop_layer_only_moved() const;
+    bool enable_fro_dependent_features() const;
 
 protected:
     // overridden for unit tests
