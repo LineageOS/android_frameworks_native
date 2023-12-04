@@ -450,12 +450,13 @@ bool PointerChoreographer::setPointerIcon(
         DeviceId deviceId) {
     std::scoped_lock _l(mLock);
     if (deviceId < 0) {
-        ALOGW("Invalid device id %d. Cannot set pointer icon.", deviceId);
+        LOG(WARNING) << "Invalid device id " << deviceId << ". Cannot set pointer icon.";
         return false;
     }
     const InputDeviceInfo* info = findInputDeviceLocked(deviceId);
     if (!info) {
-        ALOGW("No input device info found for id %d. Cannot set pointer icon.", deviceId);
+        LOG(WARNING) << "No input device info found for id " << deviceId
+                     << ". Cannot set pointer icon.";
         return false;
     }
     const uint32_t sources = info->getSources();
@@ -485,12 +486,13 @@ bool PointerChoreographer::setPointerIcon(
                 mousePointerIt->second->updatePointerIcon(std::get<PointerIconStyle>(icon));
             }
         } else {
-            ALOGW("No mouse pointer controller found for display %d, device %d.", displayId,
-                  deviceId);
+            LOG(WARNING) << "No mouse pointer controller found for display " << displayId
+                         << ", device " << deviceId << ".";
             return false;
         }
     } else {
-        ALOGW("Cannot set pointer icon for display %d, device %d.", displayId, deviceId);
+        LOG(WARNING) << "Cannot set pointer icon for display " << displayId << ", device "
+                     << deviceId << ".";
         return false;
     }
     return true;

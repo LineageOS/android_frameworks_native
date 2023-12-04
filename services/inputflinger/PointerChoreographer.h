@@ -60,6 +60,11 @@ public:
     virtual FloatPoint getMouseCursorPosition(int32_t displayId) = 0;
     virtual void setShowTouchesEnabled(bool enabled) = 0;
     virtual void setStylusPointerIconEnabled(bool enabled) = 0;
+    /**
+     * Set the icon that is shown for the given pointer. The request may fail in some cases, such
+     * as if the device or display was removed, or if the cursor was moved to a different display.
+     * Returns true if the icon was changed successfully, false otherwise.
+     */
     virtual bool setPointerIcon(std::variant<std::unique_ptr<SpriteIcon>, PointerIconStyle> icon,
                                 int32_t displayId, DeviceId deviceId) = 0;
 
