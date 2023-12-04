@@ -24,13 +24,10 @@ use crate::sys;
 
 use std::convert::TryFrom;
 use std::ffi::{c_void, CStr, CString};
-use std::fs::File;
 use std::io::Write;
 use std::mem::ManuallyDrop;
 use std::ops::Deref;
 use std::os::raw::c_char;
-use std::os::unix::io::FromRawFd;
-use std::slice;
 use std::sync::Mutex;
 
 /// Rust wrapper around Binder remotable objects.
@@ -331,6 +328,7 @@ impl<T: Remotable> InterfaceClassMethods for Binder<T> {
     /// contains a `T` pointer in its user data. fd should be a non-owned file
     /// descriptor, and args must be an array of null-terminated string
     /// pointers with length num_args.
+    #[cfg(not(target_os = "trusty"))]
     unsafe extern "C" fn on_dump(
         binder: *mut sys::AIBinder,
         fd: i32,
@@ -340,9 +338,10 @@ impl<T: Remotable> InterfaceClassMethods for Binder<T> {
         if fd < 0 {
             return StatusCode::UNEXPECTED_NULL as status_t;
         }
+        use std::os::fd::FromRawFd;
         // Safety: Our caller promised that fd is a file descriptor. We don't
         // own this file descriptor, so we need to be careful not to drop it.
-        let mut file = unsafe { ManuallyDrop::new(File::from_raw_fd(fd)) };
+        let mut file = unsafe { ManuallyDrop::new(std::fs::File::from_raw_fd(fd)) };
 
         if args.is_null() && num_args != 0 {
             return StatusCode::UNEXPECTED_NULL as status_t;
@@ -354,7 +353,7 @@ impl<T: Remotable> InterfaceClassMethods for Binder<T> {
             // Safety: Our caller promised that `args` is an array of
             // null-terminated string pointers with length `num_args`.
             unsafe {
-                slice::from_raw_parts(args, num_args as usize)
+                std::slice::from_raw_parts(args, num_args as usize)
                     .iter()
                     .map(|s| CStr::from_ptr(*s))
                     .collect()
@@ -373,6 +372,19 @@ impl<T: Remotable> InterfaceClassMethods for Binder<T> {
             Ok(()) => 0,
             Err(e) => e as status_t,
         }
+    }
+
+    /// Called to handle the `dump` transaction.
+    #[cfg(target_os = "trusty")]
+    unsafe extern "C" fn on_dump(
+        _binder: *mut sys::AIBinder,
+        _fd: i32,
+        _args: *mut *const c_char,
+        _num_args: u32,
+    ) -> status_t {
+        // This operation is not supported on Trusty right now
+        // because we do not have a uniform way of writing to handles
+        StatusCode::INVALID_OPERATION as status_t
     }
 }
 
