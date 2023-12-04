@@ -478,6 +478,17 @@ protected:
         mLifecycleManager.applyTransactions(transactions);
     }
 
+    void setDropInputMode(uint32_t id, gui::DropInputMode dropInputMode) {
+        std::vector<TransactionState> transactions;
+        transactions.emplace_back();
+        transactions.back().states.push_back({});
+
+        transactions.back().states.front().state.what = layer_state_t::eDropInputModeChanged;
+        transactions.back().states.front().layerId = id;
+        transactions.back().states.front().state.dropInputMode = dropInputMode;
+        mLifecycleManager.applyTransactions(transactions);
+    }
+
     LayerLifecycleManager mLifecycleManager;
 };
 

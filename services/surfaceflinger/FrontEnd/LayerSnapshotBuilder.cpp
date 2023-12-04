@@ -708,7 +708,7 @@ void LayerSnapshotBuilder::updateSnapshot(LayerSnapshot& snapshot, const Args& a
     ftl::Flags<RequestedLayerState::Changes> parentChanges = parentSnapshot.changes &
             (RequestedLayerState::Changes::Hierarchy | RequestedLayerState::Changes::Geometry |
              RequestedLayerState::Changes::Visibility | RequestedLayerState::Changes::Metadata |
-             RequestedLayerState::Changes::AffectsChildren |
+             RequestedLayerState::Changes::AffectsChildren | RequestedLayerState::Changes::Input |
              RequestedLayerState::Changes::FrameRate | RequestedLayerState::Changes::GameMode);
     snapshot.changes |= parentChanges;
     if (args.displayChanges) snapshot.changes |= RequestedLayerState::Changes::Geometry;
@@ -1041,6 +1041,19 @@ void LayerSnapshotBuilder::updateInput(LayerSnapshot& snapshot,
 
     snapshot.inputInfo.id = static_cast<int32_t>(snapshot.uniqueSequence);
     snapshot.inputInfo.displayId = static_cast<int32_t>(snapshot.outputFilter.layerStack.id);
+    snapshot.inputInfo.touchOcclusionMode = requested.hasInputInfo()
+            ? requested.windowInfoHandle->getInfo()->touchOcclusionMode
+            : parentSnapshot.inputInfo.touchOcclusionMode;
+    if (requested.dropInputMode == gui::DropInputMode::ALL ||
+        parentSnapshot.dropInputMode == gui::DropInputMode::ALL) {
+        snapshot.dropInputMode = gui::DropInputMode::ALL;
+    } else if (requested.dropInputMode == gui::DropInputMode::OBSCURED ||
+               parentSnapshot.dropInputMode == gui::DropInputMode::OBSCURED) {
+        snapshot.dropInputMode = gui::DropInputMode::OBSCURED;
+    } else {
+        snapshot.dropInputMode = gui::DropInputMode::NONE;
+    }
+
     updateVisibility(snapshot, snapshot.isVisible);
     if (!needsInputInfo(snapshot, requested)) {
         return;
@@ -1064,18 +1077,6 @@ void LayerSnapshotBuilder::updateInput(LayerSnapshot& snapshot,
     }
 
     snapshot.inputInfo.alpha = snapshot.color.a;
-    snapshot.inputInfo.touchOcclusionMode = requested.hasInputInfo()
-            ? requested.windowInfoHandle->getInfo()->touchOcclusionMode
-            : parentSnapshot.inputInfo.touchOcclusionMode;
-    if (requested.dropInputMode == gui::DropInputMode::ALL ||
-        parentSnapshot.dropInputMode == gui::DropInputMode::ALL) {
-        snapshot.dropInputMode = gui::DropInputMode::ALL;
-    } else if (requested.dropInputMode == gui::DropInputMode::OBSCURED ||
-               parentSnapshot.dropInputMode == gui::DropInputMode::OBSCURED) {
-        snapshot.dropInputMode = gui::DropInputMode::OBSCURED;
-    } else {
-        snapshot.dropInputMode = gui::DropInputMode::NONE;
-    }
 
     handleDropInputMode(snapshot, parentSnapshot);
 
