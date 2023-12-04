@@ -249,10 +249,13 @@ void LayerFE::prepareBufferStateClientComposition(
     layerSettings.frameNumber = mSnapshot->frameNumber;
     layerSettings.bufferId = mSnapshot->externalTexture->getId();
 
+    const bool useFiltering = targetSettings.needsFiltering ||
+                              mSnapshot->geomLayerTransform.needsBilinearFiltering();
+
     // Query the texture matrix given our current filtering mode.
     float textureMatrix[16];
     getDrawingTransformMatrix(layerSettings.source.buffer.buffer, mSnapshot->geomContentCrop,
-                              mSnapshot->geomBufferTransform, targetSettings.needsFiltering,
+                              mSnapshot->geomBufferTransform, useFiltering,
                               textureMatrix);
 
     if (mSnapshot->geomBufferUsesDisplayInverseTransform) {
@@ -303,7 +306,7 @@ void LayerFE::prepareBufferStateClientComposition(
             mat4::translate(vec4(translateX, translateY, 0.f, 1.f)) *
             mat4::scale(vec4(scaleWidth, scaleHeight, 1.0f, 1.0f));
 
-    layerSettings.source.buffer.useTextureFiltering = targetSettings.needsFiltering;
+    layerSettings.source.buffer.useTextureFiltering = useFiltering;
     layerSettings.source.buffer.textureTransform =
             mat4(static_cast<const float*>(textureMatrix)) * tr;
 
