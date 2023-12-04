@@ -99,25 +99,42 @@ TEST_F(ScreenCaptureTest, SetFlagsSecureEUidSystem) {
         ASSERT_EQ(PERMISSION_DENIED, ScreenCapture::captureLayers(mCaptureArgs, mCaptureResults));
     }
 
-    UIDFaker f(AID_SYSTEM);
-
-    // By default the system can capture screenshots with secure layers but they
-    // will be blacked out
-    ASSERT_EQ(NO_ERROR, ScreenCapture::captureLayers(mCaptureArgs, mCaptureResults));
-
     {
-        SCOPED_TRACE("as system");
-        auto shot = screenshot();
-        shot->expectColor(Rect(0, 0, 32, 32), Color::BLACK);
+        UIDFaker f(AID_SYSTEM);
+
+        // By default the system can capture screenshots with secure layers but they
+        // will be blacked out
+        ASSERT_EQ(NO_ERROR, ScreenCapture::captureLayers(mCaptureArgs, mCaptureResults));
+
+        {
+            SCOPED_TRACE("as system");
+            auto shot = screenshot();
+            shot->expectColor(Rect(0, 0, 32, 32), Color::BLACK);
+        }
+
+        mCaptureArgs.captureSecureLayers = true;
+        // AID_SYSTEM is allowed to capture secure content.
+        ASSERT_EQ(NO_ERROR, ScreenCapture::captureLayers(mCaptureArgs, mCaptureResults));
+        ASSERT_TRUE(mCaptureResults.capturedSecureLayers);
+        ScreenCapture sc(mCaptureResults.buffer, mCaptureResults.capturedHdrLayers);
+        sc.expectColor(Rect(0, 0, 32, 32), Color::RED);
     }
 
-    // Here we pass captureSecureLayers = true and since we are AID_SYSTEM we should be able
-    // to receive them...we are expected to take care with the results.
-    mCaptureArgs.captureSecureLayers = true;
-    ASSERT_EQ(NO_ERROR, ScreenCapture::captureLayers(mCaptureArgs, mCaptureResults));
-    ASSERT_TRUE(mCaptureResults.capturedSecureLayers);
-    ScreenCapture sc(mCaptureResults.buffer, mCaptureResults.capturedHdrLayers);
-    sc.expectColor(Rect(0, 0, 32, 32), Color::RED);
+    {
+        // Attempt secure screenshot from shell since it doesn't have CAPTURE_BLACKOUT_CONTENT
+        // permission, but is allowed normal screenshots.
+        UIDFaker faker(AID_SHELL);
+        ASSERT_EQ(PERMISSION_DENIED, ScreenCapture::captureLayers(mCaptureArgs, mCaptureResults));
+    }
+
+    // Remove flag secure from the layer.
+    Transaction().setFlags(layer, 0, layer_state_t::eLayerSecure).apply(true);
+    {
+        // Assert that screenshot fails without CAPTURE_BLACKOUT_CONTENT when requesting
+        // captureSecureLayers even if there are no actual secure layers on screen.
+        UIDFaker faker(AID_SHELL);
+        ASSERT_EQ(PERMISSION_DENIED, ScreenCapture::captureLayers(mCaptureArgs, mCaptureResults));
+    }
 }
 
 TEST_F(ScreenCaptureTest, CaptureChildSetParentFlagsSecureEUidSystem) {
