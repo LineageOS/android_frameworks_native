@@ -30,8 +30,8 @@ use std::fmt;
 use std::io::Write;
 use std::marker::PhantomData;
 use std::ops::Deref;
+use std::os::fd::AsRawFd;
 use std::os::raw::c_char;
-use std::os::unix::io::AsRawFd;
 use std::ptr;
 
 /// Binder action to perform.
