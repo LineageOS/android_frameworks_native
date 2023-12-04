@@ -20,7 +20,6 @@
 #include <android/binder_parcel.h>
 #include <android/native_window.h>
 #include <binder/Parcel.h>
-#include <gui/IGraphicBufferProducer.h>
 #include <gui/Surface.h>
 #include <gui/view/Surface.h>
 #include <system/window.h>
