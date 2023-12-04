@@ -101,6 +101,9 @@ void offloadOutputs(Outputs& outputs) {
             // Not HWC-enabled, so it is always client-composited. No need to offload.
             continue;
         }
+        if (!output->getState().isEnabled) {
+            continue;
+        }
 
         // Only run present in multiple threads if all HWC-enabled displays
         // being refreshed support it.

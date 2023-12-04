@@ -288,6 +288,8 @@ struct CompositionEngineOffloadTest : public testing::Test {
     static constexpr GpuVirtualDisplayId kGpuVirtualDisplayId{789u};
     static constexpr HalVirtualDisplayId kHalVirtualDisplayId{456u};
 
+    std::array<impl::OutputCompositionState, 4> mOutputStates;
+
     void SetUp() override {
         EXPECT_CALL(*mDisplay1, getDisplayId)
                 .WillRepeatedly(Return(std::make_optional<DisplayId>(kDisplayId1)));
@@ -297,6 +299,16 @@ struct CompositionEngineOffloadTest : public testing::Test {
                 .WillRepeatedly(Return(std::make_optional<DisplayId>(kGpuVirtualDisplayId)));
         EXPECT_CALL(*mHalVirtualDisplay, getDisplayId)
                 .WillRepeatedly(Return(std::make_optional<DisplayId>(kHalVirtualDisplayId)));
+
+        // Most tests will depend on the outputs being enabled.
+        for (auto& state : mOutputStates) {
+            state.isEnabled = true;
+        }
+
+        EXPECT_CALL(*mDisplay1, getState).WillRepeatedly(ReturnRef(mOutputStates[0]));
+        EXPECT_CALL(*mDisplay2, getState).WillRepeatedly(ReturnRef(mOutputStates[1]));
+        EXPECT_CALL(*mVirtualDisplay, getState).WillRepeatedly(ReturnRef(mOutputStates[2]));
+        EXPECT_CALL(*mHalVirtualDisplay, getState).WillRepeatedly(ReturnRef(mOutputStates[3]));
     }
 
     void setOutputs(std::initializer_list<std::shared_ptr<mock::Output>> outputs) {
@@ -429,6 +441,44 @@ TEST_F(CompositionEngineOffloadTest, ordering) {
 
     SET_FLAG_FOR_TEST(flags::multithreaded_present, true);
     setOutputs({mVirtualDisplay, mHalVirtualDisplay, mDisplay1, mDisplay2});
+
+    mEngine.present(mRefreshArgs);
+}
+
+TEST_F(CompositionEngineOffloadTest, dependsOnEnabled) {
+    // Disable mDisplay2.
+    mOutputStates[1].isEnabled = false;
+    EXPECT_CALL(*mDisplay1, supportsOffloadPresent).WillOnce(Return(true));
+
+    // This is not actually called, because it is not enabled, but this distinguishes
+    // from the case where it did not return true.
+    EXPECT_CALL(*mDisplay2, supportsOffloadPresent).WillRepeatedly(Return(true));
+
+    EXPECT_CALL(*mDisplay1, offloadPresentNextFrame).Times(0);
+    EXPECT_CALL(*mDisplay2, offloadPresentNextFrame).Times(0);
+
+    SET_FLAG_FOR_TEST(flags::multithreaded_present, true);
+    setOutputs({mDisplay1, mDisplay2});
+
+    mEngine.present(mRefreshArgs);
+}
+
+TEST_F(CompositionEngineOffloadTest, disabledDisplaysDoNotPreventOthersFromOffloading) {
+    // Disable mDisplay2.
+    mOutputStates[1].isEnabled = false;
+    EXPECT_CALL(*mDisplay1, supportsOffloadPresent).WillOnce(Return(true));
+
+    // This is not actually called, because it is not enabled, but this distinguishes
+    // from the case where it did not return true.
+    EXPECT_CALL(*mDisplay2, supportsOffloadPresent).WillRepeatedly(Return(true));
+    EXPECT_CALL(*mHalVirtualDisplay, supportsOffloadPresent).WillOnce(Return(true));
+
+    EXPECT_CALL(*mDisplay1, offloadPresentNextFrame).Times(1);
+    EXPECT_CALL(*mDisplay2, offloadPresentNextFrame).Times(0);
+    EXPECT_CALL(*mHalVirtualDisplay, offloadPresentNextFrame).Times(0);
+
+    SET_FLAG_FOR_TEST(flags::multithreaded_present, true);
+    setOutputs({mDisplay1, mDisplay2, mHalVirtualDisplay});
 
     mEngine.present(mRefreshArgs);
 }
