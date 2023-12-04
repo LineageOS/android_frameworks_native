@@ -4320,6 +4320,12 @@ TEST_F(InputDispatcherTest, ActionOutsideForOwnedWindowHasValidCoordinates) {
     // Therefore, we should offset them by (100, 100) relative to the screen's top left corner.
     outsideWindow->consumeMotionEvent(
             AllOf(WithMotionAction(ACTION_OUTSIDE), WithCoords(-50, -50)));
+
+    // Ensure outsideWindow doesn't get any more events for the gesture.
+    mDispatcher->notifyMotion(generateMotionArgs(ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN,
+                                                 ADISPLAY_ID_DEFAULT, {PointF{51, 51}}));
+    window->consumeMotionMove();
+    outsideWindow->assertNoEvents();
 }
 
 /**

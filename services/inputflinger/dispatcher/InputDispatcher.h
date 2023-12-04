@@ -528,13 +528,15 @@ private:
 
     std::optional<InputTarget> createInputTargetLocked(
             const sp<android::gui::WindowInfoHandle>& windowHandle,
-            ftl::Flags<InputTarget::Flags> targetFlags,
+            InputTarget::DispatchMode dispatchMode, ftl::Flags<InputTarget::Flags> targetFlags,
             std::optional<nsecs_t> firstDownTimeInTarget) const REQUIRES(mLock);
     void addWindowTargetLocked(const sp<android::gui::WindowInfoHandle>& windowHandle,
+                               InputTarget::DispatchMode dispatchMode,
                                ftl::Flags<InputTarget::Flags> targetFlags,
                                std::optional<nsecs_t> firstDownTimeInTarget,
                                std::vector<InputTarget>& inputTargets) const REQUIRES(mLock);
     void addPointerWindowTargetLocked(const sp<android::gui::WindowInfoHandle>& windowHandle,
+                                      InputTarget::DispatchMode dispatchMode,
                                       ftl::Flags<InputTarget::Flags> targetFlags,
                                       std::bitset<MAX_POINTER_ID + 1> pointerIds,
                                       std::optional<nsecs_t> firstDownTimeInTarget,
@@ -580,14 +582,12 @@ private:
                                     const std::shared_ptr<Connection>& connection,
                                     std::shared_ptr<const EventEntry>,
                                     const InputTarget& inputTarget) REQUIRES(mLock);
-    void enqueueDispatchEntriesLocked(nsecs_t currentTime,
-                                      const std::shared_ptr<Connection>& connection,
-                                      std::shared_ptr<const EventEntry>,
-                                      const InputTarget& inputTarget) REQUIRES(mLock);
+    void enqueueDispatchEntryAndStartDispatchCycleLocked(
+            nsecs_t currentTime, const std::shared_ptr<Connection>& connection,
+            std::shared_ptr<const EventEntry>, const InputTarget& inputTarget) REQUIRES(mLock);
     void enqueueDispatchEntryLocked(const std::shared_ptr<Connection>& connection,
                                     std::shared_ptr<const EventEntry>,
-                                    const InputTarget& inputTarget,
-                                    ftl::Flags<InputTarget::Flags> dispatchMode) REQUIRES(mLock);
+                                    const InputTarget& inputTarget) REQUIRES(mLock);
     status_t publishMotionEvent(Connection& connection, DispatchEntry& dispatchEntry) const;
     void startDispatchCycleLocked(nsecs_t currentTime,
                                   const std::shared_ptr<Connection>& connection) REQUIRES(mLock);
