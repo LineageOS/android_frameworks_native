@@ -3264,7 +3264,7 @@ bool Layer::setBuffer(std::shared_ptr<renderengine::ExternalTexture>& buffer,
 
     // If the layer had been updated a TextureView, this would make sure the present time could be
     // same to TextureView update when it's a small dirty, and get the correct heuristic rate.
-    if (mFlinger->mScheduler->supportSmallDirtyDetection()) {
+    if (mFlinger->mScheduler->supportSmallDirtyDetection(mOwnerAppId)) {
         if (mDrawingState.useVsyncIdForRefreshRateSelection) {
             mUsedVsyncIdForRefreshRateSelection = true;
         }
@@ -3297,7 +3297,7 @@ void Layer::recordLayerHistoryBufferUpdate(const scheduler::LayerProps& layerPro
             }
         }
 
-        if (!mFlinger->mScheduler->supportSmallDirtyDetection()) {
+        if (!mFlinger->mScheduler->supportSmallDirtyDetection(mOwnerAppId)) {
             return static_cast<nsecs_t>(0);
         }
 
@@ -4440,7 +4440,7 @@ void Layer::updateLastLatchTime(nsecs_t latchTime) {
 void Layer::setIsSmallDirty(const Region& damageRegion,
                             const ui::Transform& layerToDisplayTransform) {
     mSmallDirty = false;
-    if (!mFlinger->mScheduler->supportSmallDirtyDetection()) {
+    if (!mFlinger->mScheduler->supportSmallDirtyDetection(mOwnerAppId)) {
         return;
     }
 

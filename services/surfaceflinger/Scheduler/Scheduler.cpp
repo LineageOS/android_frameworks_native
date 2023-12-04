@@ -1248,7 +1248,7 @@ void Scheduler::updateSmallAreaDetection(
 }
 
 void Scheduler::setSmallAreaDetectionThreshold(int32_t appId, float threshold) {
-    mSmallAreaDetectionAllowMappings.setThesholdForAppId(appId, threshold);
+    mSmallAreaDetectionAllowMappings.setThresholdForAppId(appId, threshold);
 }
 
 bool Scheduler::isSmallDirtyArea(int32_t appId, uint32_t dirtyArea) {
