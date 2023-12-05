@@ -97,7 +97,7 @@ public:
         const bool isSecure;
 
         // If set to true, the target buffer has protected content support.
-        const bool supportsProtectedContent;
+        const bool isProtected;
 
         // Viewport of the target being rendered to. This is used to determine
         // the shadow light position.
@@ -167,8 +167,7 @@ using LayerFESet = std::unordered_set<sp<LayerFE>, LayerFESpHash>;
 static inline bool operator==(const LayerFE::ClientCompositionTargetSettings& lhs,
                               const LayerFE::ClientCompositionTargetSettings& rhs) {
     return lhs.clip.hasSameRects(rhs.clip) && lhs.needsFiltering == rhs.needsFiltering &&
-            lhs.isSecure == rhs.isSecure &&
-            lhs.supportsProtectedContent == rhs.supportsProtectedContent &&
+            lhs.isSecure == rhs.isSecure && lhs.isProtected == rhs.isProtected &&
             lhs.viewport == rhs.viewport && lhs.dataspace == rhs.dataspace &&
             lhs.realContentIsVisible == rhs.realContentIsVisible &&
             lhs.clearContent == rhs.clearContent;
@@ -189,7 +188,7 @@ static inline void PrintTo(const LayerFE::ClientCompositionTargetSettings& setti
     PrintTo(settings.clip, os);
     *os << "\n    .needsFiltering = " << settings.needsFiltering;
     *os << "\n    .isSecure = " << settings.isSecure;
-    *os << "\n    .supportsProtectedContent = " << settings.supportsProtectedContent;
+    *os << "\n    .isProtected = " << settings.isProtected;
     *os << "\n    .viewport = ";
     PrintTo(settings.viewport, os);
     *os << "\n    .dataspace = ";

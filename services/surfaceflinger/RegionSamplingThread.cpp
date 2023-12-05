@@ -374,10 +374,11 @@ void RegionSamplingThread::captureSample() {
 
     constexpr bool kRegionSampling = true;
     constexpr bool kGrayscale = false;
+    constexpr bool kIsProtected = false;
 
     if (const auto fenceResult =
                 mFlinger.captureScreenCommon(std::move(renderAreaFuture), getLayerSnapshots, buffer,
-                                             kRegionSampling, kGrayscale, nullptr)
+                                             kRegionSampling, kGrayscale, kIsProtected, nullptr)
                         .get();
         fenceResult.ok()) {
         fenceResult.value()->waitForever(LOG_TAG);
