@@ -220,7 +220,7 @@ cc_library {
         "libPlatformProperties",
         "libtinyxml2",
         "libutils",
-        "libvintf",
+        "libz", // needed by libkernelconfigs
         "server_configurable_flags",
     ],
 
@@ -239,6 +239,7 @@ cc_library {
         "libgui_window_info_static",
         "libui-types",
         "libtflite_static",
+        "libkernelconfigs",
     ],
 
     whole_static_libs: [
