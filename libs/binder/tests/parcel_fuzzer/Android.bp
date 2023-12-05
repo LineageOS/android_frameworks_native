@@ -16,6 +16,9 @@ aidl_interface {
         "parcelables/SingleDataParcelable.aidl",
         "parcelables/GenericDataParcelable.aidl",
     ],
+    flags: [
+        "-Werror",
+    ],
     backend: {
         java: {
             enabled: true,
