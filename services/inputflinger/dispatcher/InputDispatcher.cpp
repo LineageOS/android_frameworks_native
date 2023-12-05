@@ -6924,4 +6924,21 @@ void InputDispatcher::setKeyRepeatConfiguration(std::chrono::nanoseconds timeout
     mConfig.keyRepeatDelay = delay.count();
 }
 
+bool InputDispatcher::isPointerInWindow(const sp<android::IBinder>& token, int32_t displayId,
+                                        DeviceId deviceId, int32_t pointerId) {
+    std::scoped_lock _l(mLock);
+    auto touchStateIt = mTouchStatesByDisplay.find(displayId);
+    if (touchStateIt == mTouchStatesByDisplay.end()) {
+        return false;
+    }
+    for (const TouchedWindow& window : touchStateIt->second.windows) {
+        if (window.windowHandle->getToken() == token &&
+            (window.hasTouchingPointer(deviceId, pointerId) ||
+             window.hasHoveringPointer(deviceId, pointerId))) {
+            return true;
+        }
+    }
+    return false;
+}
+
 } // namespace android::inputdispatcher

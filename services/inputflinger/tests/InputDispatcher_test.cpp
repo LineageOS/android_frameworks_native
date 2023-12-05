@@ -11254,4 +11254,243 @@ TEST_F(InputDispatcherTargetedInjectionTest, CannotGenerateActionOutsideToOtherU
     randosWindow->assertNoEvents();
 }
 
+using InputDispatcherPointerInWindowTest = InputDispatcherTest;
+
+TEST_F(InputDispatcherPointerInWindowTest, PointerInWindowWhenHovering) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+
+    sp<FakeWindowHandle> left = sp<FakeWindowHandle>::make(application, mDispatcher, "Left Window",
+                                                           ADISPLAY_ID_DEFAULT);
+    left->setFrame(Rect(0, 0, 100, 100));
+    sp<FakeWindowHandle> right = sp<FakeWindowHandle>::make(application, mDispatcher,
+                                                            "Right Window", ADISPLAY_ID_DEFAULT);
+    right->setFrame(Rect(100, 0, 200, 100));
+    sp<FakeWindowHandle> spy =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Spy Window", ADISPLAY_ID_DEFAULT);
+    spy->setFrame(Rect(0, 0, 200, 100));
+    spy->setTrustedOverlay(true);
+    spy->setSpy(true);
+
+    mDispatcher->onWindowInfosChanged(
+            {{*spy->getInfo(), *left->getInfo(), *right->getInfo()}, {}, 0, 0});
+
+    // Hover into the left window.
+    mDispatcher->notifyMotion(
+            MotionArgsBuilder(ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
+                    .pointer(PointerBuilder(/*id=*/0, ToolType::STYLUS).x(50).y(50))
+                    .build());
+
+    left->consumeMotionEvent(WithMotionAction(ACTION_HOVER_ENTER));
+    spy->consumeMotionEvent(WithMotionAction(ACTION_HOVER_ENTER));
+
+    ASSERT_TRUE(mDispatcher->isPointerInWindow(left->getToken(), ADISPLAY_ID_DEFAULT, DEVICE_ID,
+                                               /*pointerId=*/0));
+    ASSERT_TRUE(mDispatcher->isPointerInWindow(spy->getToken(), ADISPLAY_ID_DEFAULT, DEVICE_ID,
+                                               /*pointerId=*/0));
+    ASSERT_FALSE(mDispatcher->isPointerInWindow(right->getToken(), ADISPLAY_ID_DEFAULT, DEVICE_ID,
+                                                /*pointerId=*/0));
+
+    // Hover move to the right window.
+    mDispatcher->notifyMotion(
+            MotionArgsBuilder(ACTION_HOVER_MOVE, AINPUT_SOURCE_STYLUS)
+                    .pointer(PointerBuilder(/*id=*/0, ToolType::STYLUS).x(150).y(50))
+                    .build());
+
+    left->consumeMotionEvent(WithMotionAction(ACTION_HOVER_EXIT));
+    right->consumeMotionEvent(WithMotionAction(ACTION_HOVER_ENTER));
+    spy->consumeMotionEvent(WithMotionAction(ACTION_HOVER_MOVE));
+
+    ASSERT_FALSE(mDispatcher->isPointerInWindow(left->getToken(), ADISPLAY_ID_DEFAULT, DEVICE_ID,
+                                                /*pointerId=*/0));
+    ASSERT_TRUE(mDispatcher->isPointerInWindow(spy->getToken(), ADISPLAY_ID_DEFAULT, DEVICE_ID,
+                                               /*pointerId=*/0));
+    ASSERT_TRUE(mDispatcher->isPointerInWindow(right->getToken(), ADISPLAY_ID_DEFAULT, DEVICE_ID,
+                                               /*pointerId=*/0));
+
+    // Stop hovering.
+    mDispatcher->notifyMotion(
+            MotionArgsBuilder(ACTION_HOVER_EXIT, AINPUT_SOURCE_STYLUS)
+                    .pointer(PointerBuilder(/*id=*/0, ToolType::STYLUS).x(150).y(50))
+                    .build());
+
+    right->consumeMotionEvent(WithMotionAction(ACTION_HOVER_EXIT));
+    spy->consumeMotionEvent(WithMotionAction(ACTION_HOVER_EXIT));
+
+    ASSERT_FALSE(mDispatcher->isPointerInWindow(left->getToken(), ADISPLAY_ID_DEFAULT, DEVICE_ID,
+                                                /*pointerId=*/0));
+    ASSERT_FALSE(mDispatcher->isPointerInWindow(spy->getToken(), ADISPLAY_ID_DEFAULT, DEVICE_ID,
+                                                /*pointerId=*/0));
+    ASSERT_FALSE(mDispatcher->isPointerInWindow(right->getToken(), ADISPLAY_ID_DEFAULT, DEVICE_ID,
+                                                /*pointerId=*/0));
+}
+
+TEST_F(InputDispatcherPointerInWindowTest, PointerInWindowWithSplitTouch) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+
+    sp<FakeWindowHandle> left = sp<FakeWindowHandle>::make(application, mDispatcher, "Left Window",
+                                                           ADISPLAY_ID_DEFAULT);
+    left->setFrame(Rect(0, 0, 100, 100));
+    sp<FakeWindowHandle> right = sp<FakeWindowHandle>::make(application, mDispatcher,
+                                                            "Right Window", ADISPLAY_ID_DEFAULT);
+    right->setFrame(Rect(100, 0, 200, 100));
+    sp<FakeWindowHandle> spy =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Spy Window", ADISPLAY_ID_DEFAULT);
+    spy->setFrame(Rect(0, 0, 200, 100));
+    spy->setTrustedOverlay(true);
+    spy->setSpy(true);
+
+    mDispatcher->onWindowInfosChanged(
+            {{*spy->getInfo(), *left->getInfo(), *right->getInfo()}, {}, 0, 0});
+
+    // First pointer down on left window.
+    mDispatcher->notifyMotion(
+            MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                    .pointer(PointerBuilder(/*id=*/0, ToolType::FINGER).x(50).y(50))
+                    .build());
+
+    left->consumeMotionDown();
+    spy->consumeMotionDown();
+
+    ASSERT_TRUE(mDispatcher->isPointerInWindow(left->getToken(), ADISPLAY_ID_DEFAULT, DEVICE_ID,
+                                               /*pointerId=*/0));
+    ASSERT_TRUE(mDispatcher->isPointerInWindow(spy->getToken(), ADISPLAY_ID_DEFAULT, DEVICE_ID,
+                                               /*pointerId=*/0));
+    ASSERT_FALSE(mDispatcher->isPointerInWindow(right->getToken(), ADISPLAY_ID_DEFAULT, DEVICE_ID,
+                                                /*pointerId=*/0));
+
+    // Second pointer down on right window.
+    mDispatcher->notifyMotion(
+            MotionArgsBuilder(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                    .pointer(PointerBuilder(/*id=*/0, ToolType::FINGER).x(50).y(50))
+                    .pointer(PointerBuilder(/*id=*/1, ToolType::FINGER).x(150).y(50))
+                    .build());
+
+    left->consumeMotionMove();
+    right->consumeMotionDown();
+    spy->consumeMotionEvent(WithMotionAction(POINTER_1_DOWN));
+
+    ASSERT_TRUE(mDispatcher->isPointerInWindow(left->getToken(), ADISPLAY_ID_DEFAULT, DEVICE_ID,
+                                               /*pointerId=*/0));
+    ASSERT_TRUE(mDispatcher->isPointerInWindow(spy->getToken(), ADISPLAY_ID_DEFAULT, DEVICE_ID,
+                                               /*pointerId=*/0));
+    ASSERT_FALSE(mDispatcher->isPointerInWindow(right->getToken(), ADISPLAY_ID_DEFAULT, DEVICE_ID,
+                                                /*pointerId=*/0));
+    ASSERT_FALSE(mDispatcher->isPointerInWindow(left->getToken(), ADISPLAY_ID_DEFAULT, DEVICE_ID,
+                                                /*pointerId=*/1));
+    ASSERT_TRUE(mDispatcher->isPointerInWindow(spy->getToken(), ADISPLAY_ID_DEFAULT, DEVICE_ID,
+                                               /*pointerId=*/1));
+    ASSERT_TRUE(mDispatcher->isPointerInWindow(right->getToken(), ADISPLAY_ID_DEFAULT, DEVICE_ID,
+                                               /*pointerId=*/1));
+
+    // Second pointer up.
+    mDispatcher->notifyMotion(
+            MotionArgsBuilder(POINTER_1_UP, AINPUT_SOURCE_TOUCHSCREEN)
+                    .pointer(PointerBuilder(/*id=*/0, ToolType::FINGER).x(50).y(50))
+                    .pointer(PointerBuilder(/*id=*/1, ToolType::FINGER).x(150).y(50))
+                    .build());
+
+    left->consumeMotionMove();
+    right->consumeMotionUp();
+    spy->consumeMotionEvent(WithMotionAction(POINTER_1_UP));
+
+    ASSERT_TRUE(mDispatcher->isPointerInWindow(left->getToken(), ADISPLAY_ID_DEFAULT, DEVICE_ID,
+                                               /*pointerId=*/0));
+    ASSERT_TRUE(mDispatcher->isPointerInWindow(spy->getToken(), ADISPLAY_ID_DEFAULT, DEVICE_ID,
+                                               /*pointerId=*/0));
+    ASSERT_FALSE(mDispatcher->isPointerInWindow(right->getToken(), ADISPLAY_ID_DEFAULT, DEVICE_ID,
+                                                /*pointerId=*/0));
+    ASSERT_FALSE(mDispatcher->isPointerInWindow(left->getToken(), ADISPLAY_ID_DEFAULT, DEVICE_ID,
+                                                /*pointerId=*/1));
+    ASSERT_FALSE(mDispatcher->isPointerInWindow(spy->getToken(), ADISPLAY_ID_DEFAULT, DEVICE_ID,
+                                                /*pointerId=*/1));
+    ASSERT_FALSE(mDispatcher->isPointerInWindow(right->getToken(), ADISPLAY_ID_DEFAULT, DEVICE_ID,
+                                                /*pointerId=*/1));
+
+    // First pointer up.
+    mDispatcher->notifyMotion(
+            MotionArgsBuilder(ACTION_UP, AINPUT_SOURCE_TOUCHSCREEN)
+                    .pointer(PointerBuilder(/*id=*/0, ToolType::FINGER).x(50).y(50))
+                    .build());
+
+    left->consumeMotionUp();
+    spy->consumeMotionUp();
+
+    ASSERT_FALSE(mDispatcher->isPointerInWindow(left->getToken(), ADISPLAY_ID_DEFAULT, DEVICE_ID,
+                                                /*pointerId=*/0));
+    ASSERT_FALSE(mDispatcher->isPointerInWindow(spy->getToken(), ADISPLAY_ID_DEFAULT, DEVICE_ID,
+                                                /*pointerId=*/0));
+    ASSERT_FALSE(mDispatcher->isPointerInWindow(right->getToken(), ADISPLAY_ID_DEFAULT, DEVICE_ID,
+                                                /*pointerId=*/0));
+}
+
+TEST_F(InputDispatcherPointerInWindowTest, MultipleDevicesControllingOneMouse) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+
+    sp<FakeWindowHandle> left = sp<FakeWindowHandle>::make(application, mDispatcher, "Left Window",
+                                                           ADISPLAY_ID_DEFAULT);
+    left->setFrame(Rect(0, 0, 100, 100));
+    sp<FakeWindowHandle> right = sp<FakeWindowHandle>::make(application, mDispatcher,
+                                                            "Right Window", ADISPLAY_ID_DEFAULT);
+    right->setFrame(Rect(100, 0, 200, 100));
+
+    mDispatcher->onWindowInfosChanged({{*left->getInfo(), *right->getInfo()}, {}, 0, 0});
+
+    ASSERT_FALSE(mDispatcher->isPointerInWindow(left->getToken(), ADISPLAY_ID_DEFAULT, DEVICE_ID,
+                                                /*pointerId=*/0));
+    ASSERT_FALSE(mDispatcher->isPointerInWindow(right->getToken(), ADISPLAY_ID_DEFAULT, DEVICE_ID,
+                                                /*pointerId=*/0));
+
+    // Hover move into the window.
+    mDispatcher->notifyMotion(
+            MotionArgsBuilder(ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
+                    .pointer(PointerBuilder(/*id=*/0, ToolType::MOUSE).x(50).y(50))
+                    .rawXCursorPosition(50)
+                    .rawYCursorPosition(50)
+                    .deviceId(DEVICE_ID)
+                    .build());
+
+    left->consumeMotionEvent(WithMotionAction(ACTION_HOVER_ENTER));
+
+    ASSERT_TRUE(mDispatcher->isPointerInWindow(left->getToken(), ADISPLAY_ID_DEFAULT, DEVICE_ID,
+                                               /*pointerId=*/0));
+
+    // Move the mouse with another device. This cancels the hovering pointer from the first device.
+    mDispatcher->notifyMotion(
+            MotionArgsBuilder(ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
+                    .pointer(PointerBuilder(/*id=*/0, ToolType::MOUSE).x(51).y(50))
+                    .rawXCursorPosition(51)
+                    .rawYCursorPosition(50)
+                    .deviceId(SECOND_DEVICE_ID)
+                    .build());
+
+    left->consumeMotionEvent(WithMotionAction(ACTION_HOVER_EXIT));
+    left->consumeMotionEvent(WithMotionAction(ACTION_HOVER_ENTER));
+
+    // TODO(b/313689709): InputDispatcher's touch state is not updated, even though the window gets
+    // a HOVER_EXIT from the first device.
+    ASSERT_TRUE(mDispatcher->isPointerInWindow(left->getToken(), ADISPLAY_ID_DEFAULT, DEVICE_ID,
+                                               /*pointerId=*/0));
+    ASSERT_TRUE(mDispatcher->isPointerInWindow(left->getToken(), ADISPLAY_ID_DEFAULT,
+                                               SECOND_DEVICE_ID,
+                                               /*pointerId=*/0));
+
+    // Move the mouse outside the window. Document the current behavior, where the window does not
+    // receive HOVER_EXIT even though the mouse left the window.
+    mDispatcher->notifyMotion(
+            MotionArgsBuilder(ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
+                    .pointer(PointerBuilder(/*id=*/0, ToolType::MOUSE).x(150).y(50))
+                    .rawXCursorPosition(150)
+                    .rawYCursorPosition(50)
+                    .deviceId(SECOND_DEVICE_ID)
+                    .build());
+
+    left->consumeMotionEvent(WithMotionAction(ACTION_HOVER_EXIT));
+    right->consumeMotionEvent(WithMotionAction(ACTION_HOVER_ENTER));
+    ASSERT_TRUE(mDispatcher->isPointerInWindow(left->getToken(), ADISPLAY_ID_DEFAULT, DEVICE_ID,
+                                               /*pointerId=*/0));
+    ASSERT_FALSE(mDispatcher->isPointerInWindow(left->getToken(), ADISPLAY_ID_DEFAULT,
+                                                SECOND_DEVICE_ID,
+                                                /*pointerId=*/0));
+}
+
 } // namespace android::inputdispatcher

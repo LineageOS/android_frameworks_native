@@ -445,6 +445,59 @@ void PointerChoreographer::setStylusPointerIconEnabled(bool enabled) {
     updatePointerControllersLocked();
 }
 
+bool PointerChoreographer::setPointerIcon(
+        std::variant<std::unique_ptr<SpriteIcon>, PointerIconStyle> icon, int32_t displayId,
+        DeviceId deviceId) {
+    std::scoped_lock _l(mLock);
+    if (deviceId < 0) {
+        LOG(WARNING) << "Invalid device id " << deviceId << ". Cannot set pointer icon.";
+        return false;
+    }
+    const InputDeviceInfo* info = findInputDeviceLocked(deviceId);
+    if (!info) {
+        LOG(WARNING) << "No input device info found for id " << deviceId
+                     << ". Cannot set pointer icon.";
+        return false;
+    }
+    const uint32_t sources = info->getSources();
+    const auto stylusPointerIt = mStylusPointersByDevice.find(deviceId);
+
+    if (isFromSource(sources, AINPUT_SOURCE_STYLUS) &&
+        stylusPointerIt != mStylusPointersByDevice.end()) {
+        if (std::holds_alternative<std::unique_ptr<SpriteIcon>>(icon)) {
+            if (std::get<std::unique_ptr<SpriteIcon>>(icon) == nullptr) {
+                LOG(FATAL) << "SpriteIcon should not be null";
+            }
+            stylusPointerIt->second->setCustomPointerIcon(
+                    *std::get<std::unique_ptr<SpriteIcon>>(icon));
+        } else {
+            stylusPointerIt->second->updatePointerIcon(std::get<PointerIconStyle>(icon));
+        }
+    } else if (isFromSource(sources, AINPUT_SOURCE_MOUSE)) {
+        if (const auto mousePointerIt = mMousePointersByDisplay.find(displayId);
+            mousePointerIt != mMousePointersByDisplay.end()) {
+            if (std::holds_alternative<std::unique_ptr<SpriteIcon>>(icon)) {
+                if (std::get<std::unique_ptr<SpriteIcon>>(icon) == nullptr) {
+                    LOG(FATAL) << "SpriteIcon should not be null";
+                }
+                mousePointerIt->second->setCustomPointerIcon(
+                        *std::get<std::unique_ptr<SpriteIcon>>(icon));
+            } else {
+                mousePointerIt->second->updatePointerIcon(std::get<PointerIconStyle>(icon));
+            }
+        } else {
+            LOG(WARNING) << "No mouse pointer controller found for display " << displayId
+                         << ", device " << deviceId << ".";
+            return false;
+        }
+    } else {
+        LOG(WARNING) << "Cannot set pointer icon for display " << displayId << ", device "
+                     << deviceId << ".";
+        return false;
+    }
+    return true;
+}
+
 PointerChoreographer::ControllerConstructor PointerChoreographer::getMouseControllerConstructor(
         int32_t displayId) {
     std::function<std::shared_ptr<PointerControllerInterface>()> ctor =

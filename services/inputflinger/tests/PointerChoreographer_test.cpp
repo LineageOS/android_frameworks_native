@@ -1511,4 +1511,278 @@ TEST_F(PointerChoreographerTest, WhenPointerCaptureEnabledTouchpadHidesPointer) 
     ASSERT_FALSE(pc->isPointerShown());
 }
 
+TEST_F(PointerChoreographerTest, SetsPointerIconForMouse) {
+    // Make sure there is a PointerController.
+    mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID}));
+    mChoreographer.setDefaultMouseDisplayId(DISPLAY_ID);
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE)}});
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
+                    .pointer(MOUSE_POINTER)
+                    .deviceId(DEVICE_ID)
+                    .displayId(ADISPLAY_ID_NONE)
+                    .build());
+    auto pc = assertPointerControllerCreated(ControllerType::MOUSE);
+    pc->assertPointerIconNotSet();
+
+    // Set pointer icon for the device.
+    ASSERT_TRUE(mChoreographer.setPointerIcon(PointerIconStyle::TYPE_TEXT, DISPLAY_ID, DEVICE_ID));
+    pc->assertPointerIconSet(PointerIconStyle::TYPE_TEXT);
+}
+
+TEST_F(PointerChoreographerTest, DoesNotSetMousePointerIconForWrongDisplayId) {
+    // Make sure there is a PointerController.
+    mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID}));
+    mChoreographer.setDefaultMouseDisplayId(DISPLAY_ID);
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE)}});
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
+                    .pointer(MOUSE_POINTER)
+                    .deviceId(DEVICE_ID)
+                    .displayId(ADISPLAY_ID_NONE)
+                    .build());
+    auto pc = assertPointerControllerCreated(ControllerType::MOUSE);
+    pc->assertPointerIconNotSet();
+
+    // Set pointer icon for wrong display id. This should be ignored.
+    ASSERT_FALSE(mChoreographer.setPointerIcon(PointerIconStyle::TYPE_TEXT, ANOTHER_DISPLAY_ID,
+                                               SECOND_DEVICE_ID));
+    pc->assertPointerIconNotSet();
+}
+
+TEST_F(PointerChoreographerTest, DoesNotSetPointerIconForWrongDeviceId) {
+    // Make sure there is a PointerController.
+    mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID}));
+    mChoreographer.setDefaultMouseDisplayId(DISPLAY_ID);
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE)}});
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
+                    .pointer(MOUSE_POINTER)
+                    .deviceId(DEVICE_ID)
+                    .displayId(ADISPLAY_ID_NONE)
+                    .build());
+    auto pc = assertPointerControllerCreated(ControllerType::MOUSE);
+    pc->assertPointerIconNotSet();
+
+    // Set pointer icon for wrong device id. This should be ignored.
+    ASSERT_FALSE(mChoreographer.setPointerIcon(PointerIconStyle::TYPE_TEXT, DISPLAY_ID,
+                                               SECOND_DEVICE_ID));
+    pc->assertPointerIconNotSet();
+}
+
+TEST_F(PointerChoreographerTest, DoesNotSetPointerIconForDeviceWithoutPointerController) {
+    // Add two devices, one with a PointerController and the other without PointerController.
+    mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID}));
+    mChoreographer.setDefaultMouseDisplayId(DISPLAY_ID);
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0,
+             {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE),
+              generateTestDeviceInfo(SECOND_DEVICE_ID, AINPUT_SOURCE_MOUSE, ANOTHER_DISPLAY_ID)}});
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
+                    .pointer(MOUSE_POINTER)
+                    .deviceId(DEVICE_ID)
+                    .displayId(ADISPLAY_ID_NONE)
+                    .build());
+    auto pc = assertPointerControllerCreated(ControllerType::MOUSE);
+    pc->assertPointerIconNotSet();
+
+    // Set pointer icon for the device without PointerController. This should be ignored.
+    ASSERT_FALSE(mChoreographer.setPointerIcon(PointerIconStyle::TYPE_TEXT, ANOTHER_DISPLAY_ID,
+                                               SECOND_DEVICE_ID));
+    pc->assertPointerIconNotSet();
+}
+
+TEST_F(PointerChoreographerTest, SetsCustomPointerIconForMouse) {
+    // Make sure there is a PointerController.
+    mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID}));
+    mChoreographer.setDefaultMouseDisplayId(DISPLAY_ID);
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE)}});
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
+                    .pointer(MOUSE_POINTER)
+                    .deviceId(DEVICE_ID)
+                    .displayId(ADISPLAY_ID_NONE)
+                    .build());
+    auto pc = assertPointerControllerCreated(ControllerType::MOUSE);
+    pc->assertCustomPointerIconNotSet();
+
+    // Set custom pointer icon for the device.
+    ASSERT_TRUE(mChoreographer.setPointerIcon(std::make_unique<SpriteIcon>(
+                                                      PointerIconStyle::TYPE_CUSTOM),
+                                              DISPLAY_ID, DEVICE_ID));
+    pc->assertCustomPointerIconSet(PointerIconStyle::TYPE_CUSTOM);
+
+    // Set custom pointer icon for wrong device id. This should be ignored.
+    ASSERT_FALSE(mChoreographer.setPointerIcon(std::make_unique<SpriteIcon>(
+                                                       PointerIconStyle::TYPE_CUSTOM),
+                                               DISPLAY_ID, SECOND_DEVICE_ID));
+    pc->assertCustomPointerIconNotSet();
+}
+
+TEST_F(PointerChoreographerTest, SetsPointerIconForMouseOnTwoDisplays) {
+    // Make sure there are two PointerControllers on different displays.
+    mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID, ANOTHER_DISPLAY_ID}));
+    mChoreographer.setDefaultMouseDisplayId(DISPLAY_ID);
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0,
+             {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE),
+              generateTestDeviceInfo(SECOND_DEVICE_ID, AINPUT_SOURCE_MOUSE, ANOTHER_DISPLAY_ID)}});
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
+                    .pointer(MOUSE_POINTER)
+                    .deviceId(DEVICE_ID)
+                    .displayId(ADISPLAY_ID_NONE)
+                    .build());
+    auto firstMousePc = assertPointerControllerCreated(ControllerType::MOUSE);
+    ASSERT_EQ(DISPLAY_ID, firstMousePc->getDisplayId());
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
+                    .pointer(MOUSE_POINTER)
+                    .deviceId(SECOND_DEVICE_ID)
+                    .displayId(ANOTHER_DISPLAY_ID)
+                    .build());
+    auto secondMousePc = assertPointerControllerCreated(ControllerType::MOUSE);
+    ASSERT_EQ(ANOTHER_DISPLAY_ID, secondMousePc->getDisplayId());
+
+    // Set pointer icon for one mouse.
+    ASSERT_TRUE(mChoreographer.setPointerIcon(PointerIconStyle::TYPE_TEXT, DISPLAY_ID, DEVICE_ID));
+    firstMousePc->assertPointerIconSet(PointerIconStyle::TYPE_TEXT);
+    secondMousePc->assertPointerIconNotSet();
+
+    // Set pointer icon for another mouse.
+    ASSERT_TRUE(mChoreographer.setPointerIcon(PointerIconStyle::TYPE_TEXT, ANOTHER_DISPLAY_ID,
+                                              SECOND_DEVICE_ID));
+    secondMousePc->assertPointerIconSet(PointerIconStyle::TYPE_TEXT);
+    firstMousePc->assertPointerIconNotSet();
+}
+
+TEST_F(PointerChoreographerTest, SetsPointerIconForStylus) {
+    // Make sure there is a PointerController.
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_STYLUS, DISPLAY_ID)}});
+    mChoreographer.setStylusPointerIconEnabled(true);
+    mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID}));
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
+                    .pointer(STYLUS_POINTER)
+                    .deviceId(DEVICE_ID)
+                    .displayId(DISPLAY_ID)
+                    .build());
+    auto pc = assertPointerControllerCreated(ControllerType::STYLUS);
+    pc->assertPointerIconNotSet();
+
+    // Set pointer icon for the device.
+    ASSERT_TRUE(mChoreographer.setPointerIcon(PointerIconStyle::TYPE_TEXT, DISPLAY_ID, DEVICE_ID));
+    pc->assertPointerIconSet(PointerIconStyle::TYPE_TEXT);
+
+    // Set pointer icon for wrong device id. This should be ignored.
+    ASSERT_FALSE(mChoreographer.setPointerIcon(PointerIconStyle::TYPE_TEXT, DISPLAY_ID,
+                                               SECOND_DEVICE_ID));
+    pc->assertPointerIconNotSet();
+}
+
+TEST_F(PointerChoreographerTest, SetsCustomPointerIconForStylus) {
+    // Make sure there is a PointerController.
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_STYLUS, DISPLAY_ID)}});
+    mChoreographer.setStylusPointerIconEnabled(true);
+    mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID}));
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
+                    .pointer(STYLUS_POINTER)
+                    .deviceId(DEVICE_ID)
+                    .displayId(DISPLAY_ID)
+                    .build());
+    auto pc = assertPointerControllerCreated(ControllerType::STYLUS);
+    pc->assertCustomPointerIconNotSet();
+
+    // Set custom pointer icon for the device.
+    ASSERT_TRUE(mChoreographer.setPointerIcon(std::make_unique<SpriteIcon>(
+                                                      PointerIconStyle::TYPE_CUSTOM),
+                                              DISPLAY_ID, DEVICE_ID));
+    pc->assertCustomPointerIconSet(PointerIconStyle::TYPE_CUSTOM);
+
+    // Set custom pointer icon for wrong device id. This should be ignored.
+    ASSERT_FALSE(mChoreographer.setPointerIcon(std::make_unique<SpriteIcon>(
+                                                       PointerIconStyle::TYPE_CUSTOM),
+                                               DISPLAY_ID, SECOND_DEVICE_ID));
+    pc->assertCustomPointerIconNotSet();
+}
+
+TEST_F(PointerChoreographerTest, SetsPointerIconForTwoStyluses) {
+    // Make sure there are two StylusPointerControllers. They can be on a same display.
+    mChoreographer.setStylusPointerIconEnabled(true);
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0,
+             {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_STYLUS, DISPLAY_ID),
+              generateTestDeviceInfo(SECOND_DEVICE_ID, AINPUT_SOURCE_STYLUS, DISPLAY_ID)}});
+    mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID}));
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
+                    .pointer(STYLUS_POINTER)
+                    .deviceId(DEVICE_ID)
+                    .displayId(DISPLAY_ID)
+                    .build());
+    auto firstStylusPc = assertPointerControllerCreated(ControllerType::STYLUS);
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
+                    .pointer(STYLUS_POINTER)
+                    .deviceId(SECOND_DEVICE_ID)
+                    .displayId(DISPLAY_ID)
+                    .build());
+    auto secondStylusPc = assertPointerControllerCreated(ControllerType::STYLUS);
+
+    // Set pointer icon for one stylus.
+    ASSERT_TRUE(mChoreographer.setPointerIcon(PointerIconStyle::TYPE_TEXT, DISPLAY_ID, DEVICE_ID));
+    firstStylusPc->assertPointerIconSet(PointerIconStyle::TYPE_TEXT);
+    secondStylusPc->assertPointerIconNotSet();
+
+    // Set pointer icon for another stylus.
+    ASSERT_TRUE(mChoreographer.setPointerIcon(PointerIconStyle::TYPE_TEXT, DISPLAY_ID,
+                                              SECOND_DEVICE_ID));
+    secondStylusPc->assertPointerIconSet(PointerIconStyle::TYPE_TEXT);
+    firstStylusPc->assertPointerIconNotSet();
+}
+
+TEST_F(PointerChoreographerTest, SetsPointerIconForMouseAndStylus) {
+    // Make sure there are PointerControllers for a mouse and a stylus.
+    mChoreographer.setStylusPointerIconEnabled(true);
+    mChoreographer.setDefaultMouseDisplayId(DISPLAY_ID);
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0,
+             {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE),
+              generateTestDeviceInfo(SECOND_DEVICE_ID, AINPUT_SOURCE_STYLUS, DISPLAY_ID)}});
+    mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID}));
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
+                    .pointer(MOUSE_POINTER)
+                    .deviceId(DEVICE_ID)
+                    .displayId(ADISPLAY_ID_NONE)
+                    .build());
+    auto mousePc = assertPointerControllerCreated(ControllerType::MOUSE);
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
+                    .pointer(STYLUS_POINTER)
+                    .deviceId(SECOND_DEVICE_ID)
+                    .displayId(DISPLAY_ID)
+                    .build());
+    auto stylusPc = assertPointerControllerCreated(ControllerType::STYLUS);
+
+    // Set pointer icon for the mouse.
+    ASSERT_TRUE(mChoreographer.setPointerIcon(PointerIconStyle::TYPE_TEXT, DISPLAY_ID, DEVICE_ID));
+    mousePc->assertPointerIconSet(PointerIconStyle::TYPE_TEXT);
+    stylusPc->assertPointerIconNotSet();
+
+    // Set pointer icon for the stylus.
+    ASSERT_TRUE(mChoreographer.setPointerIcon(PointerIconStyle::TYPE_TEXT, DISPLAY_ID,
+                                              SECOND_DEVICE_ID));
+    stylusPc->assertPointerIconSet(PointerIconStyle::TYPE_TEXT);
+    mousePc->assertPointerIconNotSet();
+}
+
 } // namespace android
