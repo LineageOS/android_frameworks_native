@@ -40,6 +40,7 @@
 #include <fstream>
 #include <functional>
 #include <regex>
+#include <thread>
 #include <unordered_set>
 
 #include <android-base/file.h>
@@ -555,19 +556,33 @@ static int restorecon_app_data_lazy(const std::string& path, const std::string& 
     // If the initial top-level restorecon above changed the label, then go
     // back and restorecon everything recursively
     if (inProgress || before != after) {
-        ScopedTrace tracer("label-change");
         if (existing) {
             LOG(DEBUG) << "Detected label change from " << before << " to " << after << " at "
-                    << path << "; running recursive restorecon";
+                       << path << "; running recursive restorecon";
         }
 
-        // Temporary mark the folder as "in-progress" to resume in case of reboot/other failure.
-        RestoreconInProgress fence(path);
+        auto restorecon = [path, seInfo, uid]() {
+            ScopedTrace tracer("label-change");
 
-        if (selinux_android_restorecon_pkgdir(path.c_str(), seInfo.c_str(), uid,
-                SELINUX_ANDROID_RESTORECON_RECURSE) < 0) {
-            PLOG(ERROR) << "Failed recursive restorecon for " << path;
-            return -1;
+            // Temporary mark the folder as "in-progress" to resume in case of reboot/other failure.
+            RestoreconInProgress fence(path);
+
+            if (selinux_android_restorecon_pkgdir(path.c_str(), seInfo.c_str(), uid,
+                                                  SELINUX_ANDROID_RESTORECON_RECURSE) < 0) {
+                PLOG(ERROR) << "Failed recursive restorecon for " << path;
+                return -1;
+            }
+            return 0;
+        };
+        if (inProgress) {
+            // The previous restorecon was interrupted. It's either crashed (unlikely), or the phone
+            // was rebooted. Possibly because it took too much time. This time let's move it to a
+            // separate thread - so it won't block the rest of the OS.
+            std::thread(restorecon).detach();
+        } else {
+            if (int result = restorecon(); result) {
+                return result;
+            }
         }
     }
 
