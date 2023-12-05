@@ -323,9 +323,10 @@ public:
 
     bool updateFrameRateOverrides(GlobalSignals, Fps displayRefreshRate) EXCLUDES(mPolicyLock);
 
-    // Returns true if the small dirty detection is enabled.
-    bool supportSmallDirtyDetection() const {
-        return mFeatures.test(Feature::kSmallDirtyContentDetection);
+    // Returns true if the small dirty detection is enabled for the appId.
+    bool supportSmallDirtyDetection(int32_t appId) {
+        return mFeatures.test(Feature::kSmallDirtyContentDetection) &&
+                mSmallAreaDetectionAllowMappings.getThresholdForAppId(appId).has_value();
     }
 
     // Injects a delay that is a fraction of the predicted frame duration for the next frame.

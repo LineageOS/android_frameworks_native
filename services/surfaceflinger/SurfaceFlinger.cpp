@@ -2217,7 +2217,7 @@ void SurfaceFlinger::updateLayerHistory(nsecs_t now) {
             continue;
         }
 
-        const bool updateSmallDirty = mScheduler->supportSmallDirtyDetection() &&
+        const bool updateSmallDirty = FlagManager::getInstance().enable_small_area_detection() &&
                 ((snapshot->clientChanges & layer_state_t::eSurfaceDamageRegionChanged) ||
                  snapshot->changes.any(Changes::Geometry));
 

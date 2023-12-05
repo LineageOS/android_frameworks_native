@@ -1162,4 +1162,25 @@ TEST_F(LayerSnapshotTest, setSecureRootSnapshot) {
     EXPECT_TRUE(getSnapshot(11)->isSecure);
 }
 
+// b/314350323
+TEST_F(LayerSnapshotTest, propagateDropInputMode) {
+    setDropInputMode(1, gui::DropInputMode::ALL);
+    LayerSnapshotBuilder::Args args{.root = mHierarchyBuilder.getHierarchy(),
+                                    .layerLifecycleManager = mLifecycleManager,
+                                    .includeMetadata = false,
+                                    .displays = mFrontEndDisplayInfos,
+                                    .displayChanges = false,
+                                    .globalShadowSettings = globalShadowSettings,
+                                    .supportsBlur = true,
+                                    .supportedLayerGenericMetadata = {},
+                                    .genericLayerMetadataKeyMap = {}};
+    args.rootSnapshot.isSecure = true;
+    update(mSnapshotBuilder, args);
+
+    EXPECT_EQ(getSnapshot(1)->dropInputMode, gui::DropInputMode::ALL);
+    // Ensure child also has the correct drop input mode regardless of whether either layer has
+    // an input channel
+    EXPECT_EQ(getSnapshot(11)->dropInputMode, gui::DropInputMode::ALL);
+}
+
 } // namespace android::surfaceflinger::frontend

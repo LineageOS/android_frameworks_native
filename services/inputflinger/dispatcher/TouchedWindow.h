@@ -31,6 +31,7 @@ namespace inputdispatcher {
 // Focus tracking for touch.
 struct TouchedWindow {
     sp<gui::WindowInfoHandle> windowHandle;
+    InputTarget::DispatchMode dispatchMode = InputTarget::DispatchMode::AS_IS;
     ftl::Flags<InputTarget::Flags> targetFlags;
 
     // Hovering
