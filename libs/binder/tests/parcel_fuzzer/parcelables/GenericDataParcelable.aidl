@@ -17,7 +17,7 @@ package parcelables;
 
 parcelable GenericDataParcelable {
     enum JustSomeEnum {
-        SOME_ENUMERATOR,
+        ONE_ENUMERATOR,
         ANOTHER_ENUMERATOR,
         MAYBE_ONE_MORE_ENUMERATOR,
     }
