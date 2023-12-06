@@ -165,6 +165,8 @@ public:
                  TraceCookieCounter* traceCookieCounter, bool isBuffer, GameMode);
     ~SurfaceFrame() = default;
 
+    bool isSelfJanky() const;
+
     // Returns std::nullopt if the frame hasn't been classified yet.
     // Used by both SF and FrameTimeline.
     std::optional<int32_t> getJankType() const;
@@ -381,8 +383,8 @@ public:
         // Emits a packet for perfetto tracing. The function body will be executed only if tracing
         // is enabled. monoBootOffset is the difference between SYSTEM_TIME_BOOTTIME
         // and SYSTEM_TIME_MONOTONIC.
-        void trace(pid_t surfaceFlingerPid, nsecs_t monoBootOffset,
-                   nsecs_t previousActualPresentTime) const;
+        nsecs_t trace(pid_t surfaceFlingerPid, nsecs_t monoBootOffset,
+                      nsecs_t previousPredictionPresentTime) const;
         // Sets the token, vsyncPeriod, predictions and SF start time.
         void onSfWakeUp(int64_t token, Fps refreshRate, Fps renderRate,
                         std::optional<TimelineItem> predictions, nsecs_t wakeUpTime);
@@ -508,7 +510,8 @@ private:
     uint32_t mMaxDisplayFrames;
     std::shared_ptr<TimeStats> mTimeStats;
     const pid_t mSurfaceFlingerPid;
-    nsecs_t mPreviousPresentTime = 0;
+    nsecs_t mPreviousActualPresentTime = 0;
+    nsecs_t mPreviousPredictionPresentTime = 0;
     const JankClassificationThresholds mJankClassificationThresholds;
     static constexpr uint32_t kDefaultMaxDisplayFrames = 64;
     // The initial container size for the vector<SurfaceFrames> inside display frame. Although
