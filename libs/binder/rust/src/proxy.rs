@@ -32,8 +32,8 @@ use std::convert::TryInto;
 use std::ffi::{c_void, CStr, CString};
 use std::fmt;
 use std::mem;
+use std::os::fd::AsRawFd;
 use std::os::raw::c_char;
-use std::os::unix::io::AsRawFd;
 use std::ptr;
 use std::sync::Arc;
 

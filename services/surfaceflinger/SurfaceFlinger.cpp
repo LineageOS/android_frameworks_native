@@ -5821,12 +5821,15 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
         }
 
         getHwComposer().setPowerMode(displayId, mode);
-        if (displayId == mActiveDisplayId && mode != hal::PowerMode::DOZE_SUSPEND) {
+        if (mode != hal::PowerMode::DOZE_SUSPEND &&
+            (displayId == mActiveDisplayId || FlagManager::getInstance().multithreaded_present())) {
             const bool enable =
                     mScheduler->getVsyncSchedule(displayId)->getPendingHardwareVsyncState();
             requestHardwareVsync(displayId, enable);
 
-            mScheduler->enableSyntheticVsync(false);
+            if (displayId == mActiveDisplayId) {
+                mScheduler->enableSyntheticVsync(false);
+            }
 
             constexpr bool kAllowToEnable = true;
             mScheduler->resyncToHardwareVsync(displayId, kAllowToEnable, activeMode.get());
@@ -5835,8 +5838,8 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
         mVisibleRegionsDirty = true;
         scheduleComposite(FrameHint::kActive);
     } else if (mode == hal::PowerMode::OFF) {
+        const bool currentModeNotDozeSuspend = (*currentModeOpt != hal::PowerMode::DOZE_SUSPEND);
         // Turn off the display
-
         if (displayId == mActiveDisplayId) {
             if (const auto display = getActivatableDisplay()) {
                 onActiveDisplayChangedLocked(activeDisplay.get(), *display);
@@ -5850,14 +5853,24 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
                           strerror(errno));
                 }
 
-                if (*currentModeOpt != hal::PowerMode::DOZE_SUSPEND) {
-                    mScheduler->disableHardwareVsync(displayId, true);
+                if (currentModeNotDozeSuspend) {
+                    if (!FlagManager::getInstance().multithreaded_present()) {
+                        mScheduler->disableHardwareVsync(displayId, true);
+                    }
                     mScheduler->enableSyntheticVsync();
                 }
             }
         }
+        if (currentModeNotDozeSuspend && FlagManager::getInstance().multithreaded_present()) {
+            constexpr bool kDisallow = true;
+            mScheduler->disableHardwareVsync(displayId, kDisallow);
+        }
 
-        // Disable VSYNC before turning off the display.
+        // We must disable VSYNC *before* turning off the display. The call to
+        // disableHardwareVsync, above, schedules a task to turn it off after
+        // this method returns. But by that point, the display is OFF, so the
+        // call just updates the pending state, without actually disabling
+        // VSYNC.
         requestHardwareVsync(displayId, false);
         getHwComposer().setPowerMode(displayId, mode);
 
@@ -5866,18 +5879,24 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
     } else if (mode == hal::PowerMode::DOZE || mode == hal::PowerMode::ON) {
         // Update display while dozing
         getHwComposer().setPowerMode(displayId, mode);
-        if (displayId == mActiveDisplayId && *currentModeOpt == hal::PowerMode::DOZE_SUSPEND) {
-            ALOGI("Force repainting for DOZE_SUSPEND -> DOZE or ON.");
-            mVisibleRegionsDirty = true;
-            scheduleRepaint();
-            mScheduler->enableSyntheticVsync(false);
-            mScheduler->resyncToHardwareVsync(displayId, true /* allowToEnable */,
-                                              activeMode.get());
+        if (*currentModeOpt == hal::PowerMode::DOZE_SUSPEND &&
+            (displayId == mActiveDisplayId || FlagManager::getInstance().multithreaded_present())) {
+            if (displayId == mActiveDisplayId) {
+                ALOGI("Force repainting for DOZE_SUSPEND -> DOZE or ON.");
+                mVisibleRegionsDirty = true;
+                scheduleRepaint();
+                mScheduler->enableSyntheticVsync(false);
+            }
+            constexpr bool kAllowToEnable = true;
+            mScheduler->resyncToHardwareVsync(displayId, kAllowToEnable, activeMode.get());
         }
     } else if (mode == hal::PowerMode::DOZE_SUSPEND) {
         // Leave display going to doze
+        if (displayId == mActiveDisplayId || FlagManager::getInstance().multithreaded_present()) {
+            constexpr bool kDisallow = true;
+            mScheduler->disableHardwareVsync(displayId, kDisallow);
+        }
         if (displayId == mActiveDisplayId) {
-            mScheduler->disableHardwareVsync(displayId, true);
             mScheduler->enableSyntheticVsync();
         }
         getHwComposer().setPowerMode(displayId, mode);
@@ -7543,6 +7562,12 @@ void SurfaceFlinger::captureDisplay(const DisplayCaptureArgs& args,
         return;
     }
 
+    if (args.captureSecureLayers && !hasCaptureBlackoutContentPermission()) {
+        ALOGE("Attempting to capture secure layers without CAPTURE_BLACKOUT_CONTENT");
+        invokeScreenCaptureError(PERMISSION_DENIED, captureListener);
+        return;
+    }
+
     wp<const DisplayDevice> displayWeak;
     ui::LayerStack layerStack;
     ui::Size reqSize(args.width, args.height);
@@ -7673,8 +7698,11 @@ void SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
     std::unordered_set<uint32_t> excludeLayerIds;
     ui::Dataspace dataspace = args.dataspace;
 
-    // Call this before holding mStateLock to avoid any deadlocking.
-    bool canCaptureBlackoutContent = hasCaptureBlackoutContentPermission();
+    if (args.captureSecureLayers && !hasCaptureBlackoutContentPermission()) {
+        ALOGE("Attempting to capture secure layers without CAPTURE_BLACKOUT_CONTENT");
+        invokeScreenCaptureError(PERMISSION_DENIED, captureListener);
+        return;
+    }
 
     {
         Mutex::Autolock lock(mStateLock);
@@ -7683,13 +7711,6 @@ void SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
         if (parent == nullptr) {
             ALOGE("captureLayers called with an invalid or removed parent");
             invokeScreenCaptureError(NAME_NOT_FOUND, captureListener);
-            return;
-        }
-
-        if (!canCaptureBlackoutContent &&
-            parent->getDrawingState().flags & layer_state_t::eLayerSecure) {
-            ALOGW("Attempting to capture secure layer: PERMISSION_DENIED");
-            invokeScreenCaptureError(PERMISSION_DENIED, captureListener);
             return;
         }
 
@@ -7870,8 +7891,6 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::captureScreenCommon(
         bool grayscale, const sp<IScreenCaptureListener>& captureListener) {
     ATRACE_CALL();
 
-    bool canCaptureBlackoutContent = hasCaptureBlackoutContentPermission();
-
     auto future = mScheduler->schedule(
             [=, renderAreaFuture = std::move(renderAreaFuture)]() FTL_FAKE_GUARD(
                     kMainThreadContext) mutable -> ftl::SharedFuture<FenceResult> {
@@ -7889,8 +7908,7 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::captureScreenCommon(
                 ftl::SharedFuture<FenceResult> renderFuture;
                 renderArea->render([&]() FTL_FAKE_GUARD(kMainThreadContext) {
                     renderFuture = renderScreenImpl(renderArea, getLayerSnapshots, buffer,
-                                                    canCaptureBlackoutContent, regionSampling,
-                                                    grayscale, captureResults);
+                                                    regionSampling, grayscale, captureResults);
                 });
 
                 if (captureListener) {
@@ -7917,9 +7935,8 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::captureScreenCommon(
 
 ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
         std::shared_ptr<const RenderArea> renderArea, GetLayerSnapshotsFunction getLayerSnapshots,
-        const std::shared_ptr<renderengine::ExternalTexture>& buffer,
-        bool canCaptureBlackoutContent, bool regionSampling, bool grayscale,
-        ScreenCaptureResults& captureResults) {
+        const std::shared_ptr<renderengine::ExternalTexture>& buffer, bool regionSampling,
+        bool grayscale, ScreenCaptureResults& captureResults) {
     ATRACE_CALL();
 
     auto layers = getLayerSnapshots();
@@ -7932,14 +7949,6 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
                 renderArea->getTransform() * layerFE->mSnapshot->geomLayerTransform;
         layerFE->mSnapshot->geomInverseLayerTransform =
                 layerFE->mSnapshot->geomLayerTransform.inverse();
-    }
-
-    // We allow the system server to take screenshots of secure layers for
-    // use in situations like the Screen-rotation animation and place
-    // the impetus on WindowManager to not persist them.
-    if (captureResults.capturedSecureLayers && !canCaptureBlackoutContent) {
-        ALOGW("FB is protected: PERMISSION_DENIED");
-        return ftl::yield<FenceResult>(base::unexpected(PERMISSION_DENIED)).share();
     }
 
     auto capturedBuffer = buffer;

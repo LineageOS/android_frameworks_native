@@ -24,6 +24,10 @@
 
 namespace android {
 
+struct SpriteIcon {
+    PointerIconStyle style;
+};
+
 class FakePointerController : public PointerControllerInterface {
 public:
     virtual ~FakePointerController() {}
@@ -35,11 +39,17 @@ public:
     FloatPoint getPosition() const override;
     int32_t getDisplayId() const override;
     void setDisplayViewport(const DisplayViewport& viewport) override;
+    void updatePointerIcon(PointerIconStyle iconId) override;
+    void setCustomPointerIcon(const SpriteIcon& icon) override;
 
     void assertViewportSet(int32_t displayId);
     void assertViewportNotSet();
     void assertPosition(float x, float y);
     void assertSpotCount(int32_t displayId, int32_t count);
+    void assertPointerIconSet(PointerIconStyle iconId);
+    void assertPointerIconNotSet();
+    void assertCustomPointerIconSet(PointerIconStyle iconId);
+    void assertCustomPointerIconNotSet();
     bool isPointerShown();
 
 private:
@@ -58,6 +68,8 @@ private:
     float mX{0}, mY{0};
     std::optional<int32_t> mDisplayId;
     bool mIsPointerShown{false};
+    std::optional<PointerIconStyle> mIconStyle;
+    std::optional<PointerIconStyle> mCustomIconStyle;
 
     std::map<int32_t, std::vector<int32_t>> mSpotsByDisplay;
 };
