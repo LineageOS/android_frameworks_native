@@ -76,3 +76,10 @@ flag {
   description: "Enable input filter rust implementation"
   bug: "294546335"
 }
+
+flag {
+  name: "override_key_behavior_permission_apis"
+  namespace: "input"
+  description: "enable override key behavior permission APIs"
+  bug: "309018874"
+}
