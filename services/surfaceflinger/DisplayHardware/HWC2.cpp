@@ -446,12 +446,13 @@ Error Display::setActiveConfigWithConstraints(hal::HWConfigId configId,
 }
 
 Error Display::setClientTarget(uint32_t slot, const sp<GraphicBuffer>& target,
-        const sp<Fence>& acquireFence, Dataspace dataspace)
-{
+                               const sp<Fence>& acquireFence, Dataspace dataspace,
+                               float hdrSdrRatio) {
     // TODO: Properly encode client target surface damage
     int32_t fenceFd = acquireFence->dup();
-    auto intError = mComposer.setClientTarget(mId, slot, target,
-            fenceFd, dataspace, std::vector<Hwc2::IComposerClient::Rect>());
+    auto intError =
+            mComposer.setClientTarget(mId, slot, target, fenceFd, dataspace,
+                                      std::vector<Hwc2::IComposerClient::Rect>(), hdrSdrRatio);
     return static_cast<Error>(intError);
 }
 

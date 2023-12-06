@@ -1176,7 +1176,7 @@ void Output::devOptRepaintFlash(const compositionengine::CompositionRefreshArgs&
             updateProtectedContentState();
             dequeueRenderBuffer(&bufferFence, &buffer);
             static_cast<void>(composeSurfaces(dirtyRegion, buffer, bufferFence));
-            mRenderSurface->queueBuffer(base::unique_fd());
+            mRenderSurface->queueBuffer(base::unique_fd(), getHdrSdrRatio(buffer));
         }
     }
 
@@ -1224,7 +1224,7 @@ void Output::finishFrame(GpuCompositionResult&& result) {
                 std::make_unique<FenceTime>(sp<Fence>::make(dup(optReadyFence->get()))));
     }
     // swap buffers (presentation)
-    mRenderSurface->queueBuffer(std::move(*optReadyFence));
+    mRenderSurface->queueBuffer(std::move(*optReadyFence), getHdrSdrRatio(buffer));
 }
 
 void Output::updateProtectedContentState() {
@@ -1298,7 +1298,7 @@ std::optional<base::unique_fd> Output::composeSurfaces(
     ALOGV("hasClientComposition");
 
     renderengine::DisplaySettings clientCompositionDisplay =
-            generateClientCompositionDisplaySettings();
+            generateClientCompositionDisplaySettings(tex);
 
     // Generate the client composition requests for the layers on this output.
     auto& renderEngine = getCompositionEngine().getRenderEngine();
@@ -1379,7 +1379,8 @@ std::optional<base::unique_fd> Output::composeSurfaces(
     return base::unique_fd(fence->dup());
 }
 
-renderengine::DisplaySettings Output::generateClientCompositionDisplaySettings() const {
+renderengine::DisplaySettings Output::generateClientCompositionDisplaySettings(
+        const std::shared_ptr<renderengine::ExternalTexture>& buffer) const {
     const auto& outputState = getState();
 
     renderengine::DisplaySettings clientCompositionDisplay;
@@ -1399,8 +1400,10 @@ renderengine::DisplaySettings Output::generateClientCompositionDisplaySettings()
             : mDisplayColorProfile->getHdrCapabilities().getDesiredMaxLuminance();
     clientCompositionDisplay.maxLuminance =
             mDisplayColorProfile->getHdrCapabilities().getDesiredMaxLuminance();
-    clientCompositionDisplay.targetLuminanceNits =
-            outputState.clientTargetBrightness * outputState.displayBrightnessNits;
+
+    float hdrSdrRatioMultiplier = 1.0f / getHdrSdrRatio(buffer);
+    clientCompositionDisplay.targetLuminanceNits = outputState.clientTargetBrightness *
+            outputState.displayBrightnessNits * hdrSdrRatioMultiplier;
     clientCompositionDisplay.dimmingStage = outputState.clientTargetDimmingStage;
     clientCompositionDisplay.renderIntent =
             static_cast<aidl::android::hardware::graphics::composer3::RenderIntent>(
@@ -1713,6 +1716,26 @@ void Output::finishPrepareFrame() {
 
 bool Output::mustRecompose() const {
     return mMustRecompose;
+}
+
+float Output::getHdrSdrRatio(const std::shared_ptr<renderengine::ExternalTexture>& buffer) const {
+    if (buffer == nullptr) {
+        return 1.0f;
+    }
+
+    if (!FlagManager::getInstance().fp16_client_target()) {
+        return 1.0f;
+    }
+
+    if (getState().displayBrightnessNits < 0.0f || getState().sdrWhitePointNits <= 0.0f ||
+        buffer->getPixelFormat() != PIXEL_FORMAT_RGBA_FP16 ||
+        (static_cast<int32_t>(getState().dataspace) &
+         static_cast<int32_t>(ui::Dataspace::RANGE_MASK)) !=
+                static_cast<int32_t>(ui::Dataspace::RANGE_EXTENDED)) {
+        return 1.0f;
+    }
+
+    return getState().displayBrightnessNits / getState().sdrWhitePointNits;
 }
 
 } // namespace impl

@@ -666,7 +666,8 @@ Error AidlComposer::setActiveConfig(Display display, Config config) {
 
 Error AidlComposer::setClientTarget(Display display, uint32_t slot, const sp<GraphicBuffer>& target,
                                     int acquireFence, Dataspace dataspace,
-                                    const std::vector<IComposerClient::Rect>& damage) {
+                                    const std::vector<IComposerClient::Rect>& damage,
+                                    float hdrSdrRatio) {
     const native_handle_t* handle = nullptr;
     if (target.get()) {
         handle = target->getNativeBuffer()->handle;
@@ -679,7 +680,7 @@ Error AidlComposer::setClientTarget(Display display, uint32_t slot, const sp<Gra
                 .setClientTarget(translate<int64_t>(display), slot, handle, acquireFence,
                                  translate<aidl::android::hardware::graphics::common::Dataspace>(
                                          dataspace),
-                                 translate<AidlRect>(damage));
+                                 translate<AidlRect>(damage), hdrSdrRatio);
     } else {
         error = Error::BAD_DISPLAY;
     }

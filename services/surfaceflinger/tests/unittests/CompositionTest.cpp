@@ -315,7 +315,7 @@ struct BaseDisplayVariant {
         EXPECT_CALL(*test->mComposer, getReleaseFences(HWC_DISPLAY, _, _)).Times(1);
 
         EXPECT_CALL(*test->mDisplaySurface, onFrameCommitted()).Times(1);
-        EXPECT_CALL(*test->mDisplaySurface, advanceFrame()).Times(1);
+        EXPECT_CALL(*test->mDisplaySurface, advanceFrame(_)).Times(1);
 
         Case::CompositionType::setupHwcSetCallExpectations(test);
         Case::CompositionType::setupHwcGetCallExpectations(test);

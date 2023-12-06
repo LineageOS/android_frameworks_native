@@ -608,7 +608,8 @@ Error HidlComposer::setActiveConfig(Display display, Config config) {
 
 Error HidlComposer::setClientTarget(Display display, uint32_t slot, const sp<GraphicBuffer>& target,
                                     int acquireFence, Dataspace dataspace,
-                                    const std::vector<IComposerClient::Rect>& damage) {
+                                    const std::vector<IComposerClient::Rect>& damage,
+                                    float /*hdrSdrRatio*/) {
     mWriter.selectDisplay(display);
 
     const native_handle_t* handle = nullptr;

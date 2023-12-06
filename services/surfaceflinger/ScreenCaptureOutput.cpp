@@ -75,10 +75,10 @@ void ScreenCaptureOutput::updateColorProfile(const compositionengine::Compositio
     outputState.renderIntent = mColorProfile.renderIntent;
 }
 
-renderengine::DisplaySettings ScreenCaptureOutput::generateClientCompositionDisplaySettings()
-        const {
+renderengine::DisplaySettings ScreenCaptureOutput::generateClientCompositionDisplaySettings(
+        const std::shared_ptr<renderengine::ExternalTexture>& buffer) const {
     auto clientCompositionDisplay =
-            compositionengine::impl::Output::generateClientCompositionDisplaySettings();
+            compositionengine::impl::Output::generateClientCompositionDisplaySettings(buffer);
     clientCompositionDisplay.clip = mRenderArea.getSourceCrop();
 
     auto renderIntent = static_cast<ui::RenderIntent>(clientCompositionDisplay.renderIntent);

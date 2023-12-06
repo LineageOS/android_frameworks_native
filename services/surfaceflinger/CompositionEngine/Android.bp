@@ -37,6 +37,7 @@ cc_defaults {
         "libSurfaceFlingerProp",
         "libui",
         "libutils",
+        "server_configurable_flags",
     ],
     static_libs: [
         "liblayers_proto",
@@ -60,13 +61,8 @@ cc_defaults {
     ],
 }
 
-cc_library {
-    name: "libcompositionengine",
-    defaults: ["libcompositionengine_defaults"],
-    static_libs: [
-        "libsurfaceflinger_common",
-        "libsurfaceflingerflags",
-    ],
+filegroup {
+    name: "libcompositionengine_sources",
     srcs: [
         "src/planner/CachedSet.cpp",
         "src/planner/Flattener.cpp",
@@ -88,6 +84,18 @@ cc_library {
         "src/OutputLayer.cpp",
         "src/OutputLayerCompositionState.cpp",
         "src/RenderSurface.cpp",
+    ],
+}
+
+cc_library {
+    name: "libcompositionengine",
+    defaults: ["libcompositionengine_defaults"],
+    static_libs: [
+        "libsurfaceflinger_common",
+        "libsurfaceflingerflags",
+    ],
+    srcs: [
+        ":libcompositionengine_sources",
     ],
     local_include_dirs: ["include"],
     export_include_dirs: ["include"],
@@ -133,6 +141,7 @@ cc_test {
     ],
     defaults: ["libcompositionengine_defaults"],
     srcs: [
+        ":libcompositionengine_sources",
         "tests/planner/CachedSetTest.cpp",
         "tests/planner/FlattenerTest.cpp",
         "tests/planner/LayerStateTest.cpp",
@@ -151,7 +160,6 @@ cc_test {
         "tests/RenderSurfaceTest.cpp",
     ],
     static_libs: [
-        "libcompositionengine",
         "libcompositionengine_mocks",
         "libgui_mocks",
         "librenderengine_mocks",
