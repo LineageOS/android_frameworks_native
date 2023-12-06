@@ -18,6 +18,5 @@
 
 int main(int argc, char **argv) {
     using namespace ::android::lshal;
-    // Background pthreads from timeout() are destroyed upon returning from main().
     return Lshal{}.main(Arg{argc, argv});
 }
