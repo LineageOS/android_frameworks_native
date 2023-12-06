@@ -26,6 +26,41 @@
 
 namespace android::gui {
 
+namespace {
+
+std::ostream& operator<<(std::ostream& out, const sp<IBinder>& binder) {
+    if (binder == nullptr) {
+        out << "<null>";
+    } else {
+        out << binder.get();
+    }
+    return out;
+}
+
+std::ostream& operator<<(std::ostream& out, const Region& region) {
+    if (region.isEmpty()) {
+        out << "<empty>";
+        return out;
+    }
+
+    bool first = true;
+    Region::const_iterator cur = region.begin();
+    Region::const_iterator const tail = region.end();
+    while (cur != tail) {
+        if (first) {
+            first = false;
+        } else {
+            out << "|";
+        }
+        out << "[" << cur->left << "," << cur->top << "][" << cur->right << "," << cur->bottom
+            << "]";
+        cur++;
+    }
+    return out;
+}
+
+} // namespace
+
 void WindowInfo::setInputConfig(ftl::Flags<InputConfig> config, bool value) {
     if (value) {
         inputConfig |= config;
@@ -222,4 +257,24 @@ sp<IBinder> WindowInfoHandle::getToken() const {
 void WindowInfoHandle::updateFrom(sp<WindowInfoHandle> handle) {
     mInfo = handle->mInfo;
 }
+
+std::ostream& operator<<(std::ostream& out, const WindowInfoHandle& window) {
+    const WindowInfo& info = *window.getInfo();
+    std::string transform;
+    info.transform.dump(transform, "transform", "    ");
+    out << "name=" << info.name << ", id=" << info.id << ", displayId=" << info.displayId
+        << ", inputConfig=" << info.inputConfig.string() << ", alpha=" << info.alpha << ", frame=["
+        << info.frame.left << "," << info.frame.top << "][" << info.frame.right << ","
+        << info.frame.bottom << "], globalScale=" << info.globalScaleFactor
+        << ", applicationInfo.name=" << info.applicationInfo.name
+        << ", applicationInfo.token=" << info.applicationInfo.token
+        << ", touchableRegion=" << info.touchableRegion << ", ownerPid=" << info.ownerPid.toString()
+        << ", ownerUid=" << info.ownerUid.toString() << ", dispatchingTimeout="
+        << std::chrono::duration_cast<std::chrono::milliseconds>(info.dispatchingTimeout).count()
+        << "ms, token=" << info.token.get()
+        << ", touchOcclusionMode=" << ftl::enum_string(info.touchOcclusionMode) << "\n"
+        << transform;
+    return out;
+}
+
 } // namespace android::gui
