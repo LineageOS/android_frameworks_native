@@ -724,10 +724,12 @@ void SurfaceFlinger::bootFinished() {
         }
 
         readPersistentProperties();
-        mPowerAdvisor->onBootFinished();
         const bool hintSessionEnabled = FlagManager::getInstance().use_adpf_cpu_hint();
         mPowerAdvisor->enablePowerHintSession(hintSessionEnabled);
         const bool hintSessionUsed = mPowerAdvisor->usePowerHintSession();
+        // Ordering is important here, as onBootFinished signals to PowerAdvisor that concurrency
+        // is safe because its variables are initialized.
+        mPowerAdvisor->onBootFinished();
         ALOGD("Power hint is %s",
               hintSessionUsed ? "supported" : (hintSessionEnabled ? "unsupported" : "disabled"));
         if (hintSessionUsed) {
@@ -737,7 +739,7 @@ void SurfaceFlinger::bootFinished() {
             if (renderEngineTid.has_value()) {
                 tidList.emplace_back(*renderEngineTid);
             }
-            if (!mPowerAdvisor->startPowerHintSession(tidList)) {
+            if (!mPowerAdvisor->startPowerHintSession(std::move(tidList))) {
                 ALOGW("Cannot start power hint session");
             }
         }
