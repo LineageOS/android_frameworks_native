@@ -143,7 +143,7 @@ TEST_F(HWComposerTest, getModesWithLegacyDisplayConfigs) {
     const auto info = mHwc.onHotplug(kHwcDisplayId, hal::Connection::CONNECTED);
     ASSERT_TRUE(info);
 
-    EXPECT_CALL(*mHal, getDisplayConfigurationsSupported()).WillRepeatedly(Return(false));
+    EXPECT_CALL(*mHal, isVrrSupported()).WillRepeatedly(Return(false));
 
     {
         EXPECT_CALL(*mHal, getDisplayConfigs(kHwcDisplayId, _))
@@ -235,7 +235,7 @@ TEST_F(HWComposerTest, getModesWithDisplayConfigurations_VRR_OFF) {
     const auto info = mHwc.onHotplug(kHwcDisplayId, hal::Connection::CONNECTED);
     ASSERT_TRUE(info);
 
-    EXPECT_CALL(*mHal, getDisplayConfigurationsSupported()).WillRepeatedly(Return(false));
+    EXPECT_CALL(*mHal, isVrrSupported()).WillRepeatedly(Return(false));
 
     {
         EXPECT_CALL(*mHal, getDisplayConfigs(kHwcDisplayId, _))
@@ -324,7 +324,7 @@ TEST_F(HWComposerTest, getModesWithDisplayConfigurations_VRR_ON) {
     const auto info = mHwc.onHotplug(kHwcDisplayId, hal::Connection::CONNECTED);
     ASSERT_TRUE(info);
 
-    EXPECT_CALL(*mHal, getDisplayConfigurationsSupported()).WillRepeatedly(Return(true));
+    EXPECT_CALL(*mHal, isVrrSupported()).WillRepeatedly(Return(true));
 
     {
         EXPECT_CALL(*mHal, getDisplayConfigurations(kHwcDisplayId, _, _))

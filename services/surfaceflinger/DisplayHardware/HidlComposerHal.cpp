@@ -276,8 +276,8 @@ bool HidlComposer::isSupported(OptionalFeature feature) const {
     }
 }
 
-bool HidlComposer::getDisplayConfigurationsSupported() const {
-    // getDisplayConfigurations is not supported on the HIDL composer.
+bool HidlComposer::isVrrSupported() const {
+    // VRR is not supported on the HIDL composer.
     return false;
 };
 

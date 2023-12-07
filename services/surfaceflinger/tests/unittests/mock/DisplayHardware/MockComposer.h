@@ -51,7 +51,7 @@ public:
     ~Composer() override;
 
     MOCK_METHOD(bool, isSupported, (OptionalFeature), (const, override));
-    MOCK_METHOD(bool, getDisplayConfigurationsSupported, (), (const, override));
+    MOCK_METHOD(bool, isVrrSupported, (), (const, override));
     MOCK_METHOD0(getCapabilities,
                  std::vector<aidl::android::hardware::graphics::composer3::Capability>());
     MOCK_METHOD0(dumpDebugInfo, std::string());

@@ -105,7 +105,7 @@ public:
     };
 
     virtual bool isSupported(OptionalFeature) const = 0;
-    virtual bool getDisplayConfigurationsSupported() const = 0;
+    virtual bool isVrrSupported() const = 0;
 
     virtual std::vector<aidl::android::hardware::graphics::composer3::Capability>
     getCapabilities() = 0;
