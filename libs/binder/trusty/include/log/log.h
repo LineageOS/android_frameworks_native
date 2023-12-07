@@ -120,9 +120,3 @@ static inline void __ignore_va_args__(...) {}
     do {                                                                 \
         TLOGE("android_errorWriteLog: tag:%x subTag:%s\n", tag, subTag); \
     } while (0)
-
-// Override the definition of __assert from binder_status.h
-#ifndef __BIONIC__
-#undef __assert
-#define __assert(file, line, str) LOG_ALWAYS_FATAL("%s:%d: %s", file, line, str)
-#endif // __BIONIC__
