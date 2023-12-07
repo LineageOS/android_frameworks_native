@@ -25,8 +25,9 @@ namespace android::os {
 
 WorkDuration::WorkDuration(int64_t startTimestampNanos, int64_t totalDurationNanos,
                            int64_t cpuDurationNanos, int64_t gpuDurationNanos)
-      : workPeriodStartTimestampNanos(startTimestampNanos),
+      : timestampNanos(0),
         actualTotalDurationNanos(totalDurationNanos),
+        workPeriodStartTimestampNanos(startTimestampNanos),
         actualCpuDurationNanos(cpuDurationNanos),
         actualGpuDurationNanos(gpuDurationNanos) {}
 
