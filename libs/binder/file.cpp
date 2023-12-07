@@ -18,6 +18,8 @@
 
 #ifdef BINDER_NO_LIBBASE
 
+#include "Utils.h"
+
 #include <stdint.h>
 
 // clang-format off
