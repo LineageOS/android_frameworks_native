@@ -1176,7 +1176,7 @@ void Output::devOptRepaintFlash(const compositionengine::CompositionRefreshArgs&
             updateProtectedContentState();
             dequeueRenderBuffer(&bufferFence, &buffer);
             static_cast<void>(composeSurfaces(dirtyRegion, buffer, bufferFence));
-            mRenderSurface->queueBuffer(base::unique_fd());
+            mRenderSurface->queueBuffer(base::unique_fd(), getHdrSdrRatio(buffer));
         }
     }
 
@@ -1224,7 +1224,7 @@ void Output::finishFrame(GpuCompositionResult&& result) {
                 std::make_unique<FenceTime>(sp<Fence>::make(dup(optReadyFence->get()))));
     }
     // swap buffers (presentation)
-    mRenderSurface->queueBuffer(std::move(*optReadyFence));
+    mRenderSurface->queueBuffer(std::move(*optReadyFence), getHdrSdrRatio(buffer));
 }
 
 void Output::updateProtectedContentState() {
@@ -1232,10 +1232,18 @@ void Output::updateProtectedContentState() {
     auto& renderEngine = getCompositionEngine().getRenderEngine();
     const bool supportsProtectedContent = renderEngine.supportsProtectedContent();
 
-    // If we the display is secure, protected content support is enabled, and at
-    // least one layer has protected content, we need to use a secure back
-    // buffer.
-    if (outputState.isSecure && supportsProtectedContent) {
+    bool isProtected;
+    if (FlagManager::getInstance().display_protected()) {
+        isProtected = outputState.isProtected;
+    } else {
+        isProtected = outputState.isSecure;
+    }
+
+    // We need to set the render surface as protected (DRM) if all the following conditions are met:
+    // 1. The display is protected (in legacy, check if the display is secure)
+    // 2. Protected content is supported
+    // 3. At least one layer has protected content.
+    if (isProtected && supportsProtectedContent) {
         auto layers = getOutputLayersOrderedByZ();
         bool needsProtected = std::any_of(layers.begin(), layers.end(), [](auto* layer) {
             return layer->getLayerFE().getCompositionState()->hasProtectedContent;
@@ -1290,7 +1298,7 @@ std::optional<base::unique_fd> Output::composeSurfaces(
     ALOGV("hasClientComposition");
 
     renderengine::DisplaySettings clientCompositionDisplay =
-            generateClientCompositionDisplaySettings();
+            generateClientCompositionDisplaySettings(tex);
 
     // Generate the client composition requests for the layers on this output.
     auto& renderEngine = getCompositionEngine().getRenderEngine();
@@ -1371,7 +1379,8 @@ std::optional<base::unique_fd> Output::composeSurfaces(
     return base::unique_fd(fence->dup());
 }
 
-renderengine::DisplaySettings Output::generateClientCompositionDisplaySettings() const {
+renderengine::DisplaySettings Output::generateClientCompositionDisplaySettings(
+        const std::shared_ptr<renderengine::ExternalTexture>& buffer) const {
     const auto& outputState = getState();
 
     renderengine::DisplaySettings clientCompositionDisplay;
@@ -1391,8 +1400,10 @@ renderengine::DisplaySettings Output::generateClientCompositionDisplaySettings()
             : mDisplayColorProfile->getHdrCapabilities().getDesiredMaxLuminance();
     clientCompositionDisplay.maxLuminance =
             mDisplayColorProfile->getHdrCapabilities().getDesiredMaxLuminance();
-    clientCompositionDisplay.targetLuminanceNits =
-            outputState.clientTargetBrightness * outputState.displayBrightnessNits;
+
+    float hdrSdrRatioMultiplier = 1.0f / getHdrSdrRatio(buffer);
+    clientCompositionDisplay.targetLuminanceNits = outputState.clientTargetBrightness *
+            outputState.displayBrightnessNits * hdrSdrRatioMultiplier;
     clientCompositionDisplay.dimmingStage = outputState.clientTargetDimmingStage;
     clientCompositionDisplay.renderIntent =
             static_cast<aidl::android::hardware::graphics::composer3::RenderIntent>(
@@ -1475,12 +1486,16 @@ std::vector<LayerFE::LayerSettings> Output::generateClientCompositionRequests(
                                              BlurRegionsOnly
                                    : LayerFE::ClientCompositionTargetSettings::BlurSetting::
                                              Enabled);
+                bool isProtected = supportsProtectedContent;
+                if (FlagManager::getInstance().display_protected()) {
+                    isProtected = outputState.isProtected && supportsProtectedContent;
+                }
                 compositionengine::LayerFE::ClientCompositionTargetSettings
                         targetSettings{.clip = clip,
                                        .needsFiltering = layer->needsFiltering() ||
                                                outputState.needsFiltering,
                                        .isSecure = outputState.isSecure,
-                                       .supportsProtectedContent = supportsProtectedContent,
+                                       .isProtected = isProtected,
                                        .viewport = outputState.layerStackSpace.getContent(),
                                        .dataspace = outputDataspace,
                                        .realContentIsVisible = realContentIsVisible,
@@ -1701,6 +1716,26 @@ void Output::finishPrepareFrame() {
 
 bool Output::mustRecompose() const {
     return mMustRecompose;
+}
+
+float Output::getHdrSdrRatio(const std::shared_ptr<renderengine::ExternalTexture>& buffer) const {
+    if (buffer == nullptr) {
+        return 1.0f;
+    }
+
+    if (!FlagManager::getInstance().fp16_client_target()) {
+        return 1.0f;
+    }
+
+    if (getState().displayBrightnessNits < 0.0f || getState().sdrWhitePointNits <= 0.0f ||
+        buffer->getPixelFormat() != PIXEL_FORMAT_RGBA_FP16 ||
+        (static_cast<int32_t>(getState().dataspace) &
+         static_cast<int32_t>(ui::Dataspace::RANGE_MASK)) !=
+                static_cast<int32_t>(ui::Dataspace::RANGE_EXTENDED)) {
+        return 1.0f;
+    }
+
+    return getState().displayBrightnessNits / getState().sdrWhitePointNits;
 }
 
 } // namespace impl

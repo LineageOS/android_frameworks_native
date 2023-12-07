@@ -565,6 +565,9 @@ sp<IBinder> SurfaceFlinger::createDisplay(const String8& displayName, bool secur
     // Display ID is assigned when virtual display is allocated by HWC.
     DisplayDeviceState state;
     state.isSecure = secure;
+    // Set display as protected when marked as secure to ensure no behavior change
+    // TODO (b/314820005): separate as a different arg when creating the display.
+    state.isProtected = secure;
     state.displayName = displayName;
     state.requestedRefreshRate = Fps::fromValue(requestedRefreshRate);
     mCurrentState.displays.add(token, state);
@@ -721,10 +724,12 @@ void SurfaceFlinger::bootFinished() {
         }
 
         readPersistentProperties();
-        mPowerAdvisor->onBootFinished();
         const bool hintSessionEnabled = FlagManager::getInstance().use_adpf_cpu_hint();
         mPowerAdvisor->enablePowerHintSession(hintSessionEnabled);
         const bool hintSessionUsed = mPowerAdvisor->usePowerHintSession();
+        // Ordering is important here, as onBootFinished signals to PowerAdvisor that concurrency
+        // is safe because its variables are initialized.
+        mPowerAdvisor->onBootFinished();
         ALOGD("Power hint is %s",
               hintSessionUsed ? "supported" : (hintSessionEnabled ? "unsupported" : "disabled"));
         if (hintSessionUsed) {
@@ -734,7 +739,7 @@ void SurfaceFlinger::bootFinished() {
             if (renderEngineTid.has_value()) {
                 tidList.emplace_back(*renderEngineTid);
             }
-            if (!mPowerAdvisor->startPowerHintSession(tidList)) {
+            if (!mPowerAdvisor->startPowerHintSession(std::move(tidList))) {
                 ALOGW("Cannot start power hint session");
             }
         }
@@ -3381,6 +3386,7 @@ const char* SurfaceFlinger::processHotplug(PhysicalDisplayId displayId,
                       .hwcDisplayId = hwcDisplayId,
                       .activeMode = std::move(activeMode)};
     state.isSecure = true; // All physical displays are currently considered secure.
+    state.isProtected = true;
     state.displayName = std::move(info.name);
 
     mCurrentState.displays.add(token, state);
@@ -3412,6 +3418,7 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
                                            displayToken, compositionDisplay);
     creationArgs.sequenceId = state.sequenceId;
     creationArgs.isSecure = state.isSecure;
+    creationArgs.isProtected = state.isProtected;
     creationArgs.displaySurface = displaySurface;
     creationArgs.hasWideColorGamut = false;
     creationArgs.supportedPerFrameMetadata = 0;
@@ -3543,6 +3550,7 @@ void SurfaceFlinger::processDisplayAdded(const wp<IBinder>& displayToken,
 
     builder.setPixels(resolution);
     builder.setIsSecure(state.isSecure);
+    builder.setIsProtected(state.isProtected);
     builder.setPowerAdvisor(mPowerAdvisor.get());
     builder.setName(state.displayName);
     auto compositionDisplay = getCompositionEngine().createDisplay(builder.build());
@@ -7856,12 +7864,11 @@ void SurfaceFlinger::captureScreenCommon(RenderAreaFuture renderAreaFuture,
                                     })
                                     .get();
     }
-
+    const bool isProtected = hasProtectedLayer && allowProtected && supportsProtected;
     const uint32_t usage = GRALLOC_USAGE_HW_COMPOSER | GRALLOC_USAGE_HW_RENDER |
             GRALLOC_USAGE_HW_TEXTURE |
-            (hasProtectedLayer && allowProtected && supportsProtected
-                     ? GRALLOC_USAGE_PROTECTED
-                     : GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN);
+            (isProtected ? GRALLOC_USAGE_PROTECTED
+                         : GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN);
     sp<GraphicBuffer> buffer =
             getFactory().createGraphicBuffer(bufferSize.getWidth(), bufferSize.getHeight(),
                                              static_cast<android_pixel_format>(reqPixelFormat),
@@ -7881,14 +7888,15 @@ void SurfaceFlinger::captureScreenCommon(RenderAreaFuture renderAreaFuture,
                                                  renderengine::impl::ExternalTexture::Usage::
                                                          WRITEABLE);
     auto fence = captureScreenCommon(std::move(renderAreaFuture), getLayerSnapshots, texture,
-                                     false /* regionSampling */, grayscale, captureListener);
+                                     false /* regionSampling */, grayscale, isProtected,
+                                     captureListener);
     fence.get();
 }
 
 ftl::SharedFuture<FenceResult> SurfaceFlinger::captureScreenCommon(
         RenderAreaFuture renderAreaFuture, GetLayerSnapshotsFunction getLayerSnapshots,
         const std::shared_ptr<renderengine::ExternalTexture>& buffer, bool regionSampling,
-        bool grayscale, const sp<IScreenCaptureListener>& captureListener) {
+        bool grayscale, bool isProtected, const sp<IScreenCaptureListener>& captureListener) {
     ATRACE_CALL();
 
     auto future = mScheduler->schedule(
@@ -7907,8 +7915,9 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::captureScreenCommon(
 
                 ftl::SharedFuture<FenceResult> renderFuture;
                 renderArea->render([&]() FTL_FAKE_GUARD(kMainThreadContext) {
-                    renderFuture = renderScreenImpl(renderArea, getLayerSnapshots, buffer,
-                                                    regionSampling, grayscale, captureResults);
+                    renderFuture =
+                            renderScreenImpl(renderArea, getLayerSnapshots, buffer, regionSampling,
+                                             grayscale, isProtected, captureResults);
                 });
 
                 if (captureListener) {
@@ -7936,7 +7945,7 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::captureScreenCommon(
 ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
         std::shared_ptr<const RenderArea> renderArea, GetLayerSnapshotsFunction getLayerSnapshots,
         const std::shared_ptr<renderengine::ExternalTexture>& buffer, bool regionSampling,
-        bool grayscale, ScreenCaptureResults& captureResults) {
+        bool grayscale, bool isProtected, ScreenCaptureResults& captureResults) {
     ATRACE_CALL();
 
     auto layers = getLayerSnapshots();
@@ -8031,9 +8040,9 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
     };
 
     auto present = [this, buffer = capturedBuffer, dataspace = captureResults.capturedDataspace,
-                    sdrWhitePointNits, displayBrightnessNits, grayscale, layerFEs = copyLayerFEs(),
-                    layerStack, regionSampling, renderArea = std::move(renderArea),
-                    renderIntent]() -> FenceResult {
+                    sdrWhitePointNits, displayBrightnessNits, grayscale, isProtected,
+                    layerFEs = copyLayerFEs(), layerStack, regionSampling,
+                    renderArea = std::move(renderArea), renderIntent]() -> FenceResult {
         std::unique_ptr<compositionengine::CompositionEngine> compositionEngine =
                 mFactory.createCompositionEngine();
         compositionEngine->setRenderEngine(mRenderEngine.get());
@@ -8067,7 +8076,8 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
                                         .regionSampling = regionSampling,
                                         .treat170mAsSrgb = mTreat170mAsSrgb,
                                         .dimInGammaSpaceForEnhancedScreenshots =
-                                                dimInGammaSpaceForEnhancedScreenshots});
+                                                dimInGammaSpaceForEnhancedScreenshots,
+                                        .isProtected = isProtected});
 
         const float colorSaturation = grayscale ? 0 : 1;
         compositionengine::CompositionRefreshArgs refreshArgs{

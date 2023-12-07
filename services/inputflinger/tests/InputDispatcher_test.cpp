@@ -3413,6 +3413,44 @@ TEST_F(InputDispatcherTest, StylusHoverAndDownNoInputChannel) {
 }
 
 /**
+ * A stale stylus HOVER_EXIT event is injected. Since it's a stale event, it should generally be
+ * rejected. But since we already have an ongoing gesture, this event should be processed.
+ * This prevents inconsistent events being handled inside the dispatcher.
+ */
+TEST_F(InputDispatcherTest, StaleStylusHoverGestureIsComplete) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+
+    sp<FakeWindowHandle> window =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Window", ADISPLAY_ID_DEFAULT);
+    window->setFrame(Rect(0, 0, 200, 200));
+
+    mDispatcher->onWindowInfosChanged({{*window->getInfo()}, {}, 0, 0});
+
+    // Start hovering with stylus
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
+                                      .pointer(PointerBuilder(0, ToolType::STYLUS).x(50).y(50))
+                                      .build());
+    window->consumeMotionEvent(WithMotionAction(ACTION_HOVER_ENTER));
+
+    NotifyMotionArgs hoverExit = MotionArgsBuilder(ACTION_HOVER_EXIT, AINPUT_SOURCE_STYLUS)
+                                         .pointer(PointerBuilder(0, ToolType::STYLUS).x(50).y(50))
+                                         .build();
+    // Make this 'hoverExit' event stale
+    mFakePolicy->setStaleEventTimeout(100ms);
+    std::this_thread::sleep_for(100ms);
+
+    // It shouldn't be dropped by the dispatcher, even though it's stale.
+    mDispatcher->notifyMotion(hoverExit);
+    window->consumeMotionEvent(WithMotionAction(ACTION_HOVER_EXIT));
+
+    // Stylus starts hovering again! There should be no crash.
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
+                                      .pointer(PointerBuilder(0, ToolType::STYLUS).x(51).y(51))
+                                      .build());
+    window->consumeMotionEvent(WithMotionAction(ACTION_HOVER_ENTER));
+}
+
+/**
  * Start hovering with a mouse, and then tap with a touch device. Pilfer the touch stream.
  * Next, click with the mouse device. Both windows (spy and regular) should receive the new mouse
  * ACTION_DOWN event because that's a new gesture, and pilfering should no longer be active.

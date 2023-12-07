@@ -32,6 +32,7 @@ std::shared_ptr<ScreenCaptureOutput> createScreenCaptureOutput(ScreenCaptureOutp
             bool>(args.compositionEngine, args.renderArea, args.colorProfile, args.regionSampling,
                   args.dimInGammaSpaceForEnhancedScreenshots);
     output->editState().isSecure = args.renderArea.isSecure();
+    output->editState().isProtected = args.isProtected;
     output->setCompositionEnabled(true);
     output->setLayerFilter({args.layerStack});
     output->setRenderSurface(std::make_unique<ScreenCaptureRenderSurface>(std::move(args.buffer)));
@@ -74,10 +75,10 @@ void ScreenCaptureOutput::updateColorProfile(const compositionengine::Compositio
     outputState.renderIntent = mColorProfile.renderIntent;
 }
 
-renderengine::DisplaySettings ScreenCaptureOutput::generateClientCompositionDisplaySettings()
-        const {
+renderengine::DisplaySettings ScreenCaptureOutput::generateClientCompositionDisplaySettings(
+        const std::shared_ptr<renderengine::ExternalTexture>& buffer) const {
     auto clientCompositionDisplay =
-            compositionengine::impl::Output::generateClientCompositionDisplaySettings();
+            compositionengine::impl::Output::generateClientCompositionDisplaySettings(buffer);
     clientCompositionDisplay.clip = mRenderArea.getSourceCrop();
 
     auto renderIntent = static_cast<ui::RenderIntent>(clientCompositionDisplay.renderIntent);

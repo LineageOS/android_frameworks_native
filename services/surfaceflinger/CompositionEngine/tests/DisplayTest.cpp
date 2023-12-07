@@ -936,7 +936,7 @@ TEST_F(DisplayFinishFrameTest, doesNotSkipCompositionIfNotDirtyOnHwcDisplay) {
     mDisplay->setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(renderSurface));
 
     // We expect no calls to queueBuffer if composition was skipped.
-    EXPECT_CALL(*renderSurface, queueBuffer(_)).Times(1);
+    EXPECT_CALL(*renderSurface, queueBuffer(_, _)).Times(1);
 
     // Expect a call to signal no expensive rendering since there is no client composition.
     EXPECT_CALL(mPowerAdvisor, setExpensiveRenderingExpected(DEFAULT_DISPLAY_ID, false));
@@ -957,7 +957,7 @@ TEST_F(DisplayFinishFrameTest, skipsCompositionIfNotDirty) {
     gpuDisplay->setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(renderSurface));
 
     // We expect no calls to queueBuffer if composition was skipped.
-    EXPECT_CALL(*renderSurface, queueBuffer(_)).Times(0);
+    EXPECT_CALL(*renderSurface, queueBuffer(_, _)).Times(0);
     EXPECT_CALL(*renderSurface, beginFrame(false));
 
     gpuDisplay->editState().isEnabled = true;
@@ -978,7 +978,7 @@ TEST_F(DisplayFinishFrameTest, skipsCompositionIfEmpty) {
     gpuDisplay->setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(renderSurface));
 
     // We expect no calls to queueBuffer if composition was skipped.
-    EXPECT_CALL(*renderSurface, queueBuffer(_)).Times(0);
+    EXPECT_CALL(*renderSurface, queueBuffer(_, _)).Times(0);
     EXPECT_CALL(*renderSurface, beginFrame(false));
 
     gpuDisplay->editState().isEnabled = true;
@@ -999,7 +999,7 @@ TEST_F(DisplayFinishFrameTest, performsCompositionIfDirtyAndNotEmpty) {
     gpuDisplay->setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(renderSurface));
 
     // We expect a single call to queueBuffer when composition is not skipped.
-    EXPECT_CALL(*renderSurface, queueBuffer(_)).Times(1);
+    EXPECT_CALL(*renderSurface, queueBuffer(_, _)).Times(1);
     EXPECT_CALL(*renderSurface, beginFrame(true));
 
     gpuDisplay->editState().isEnabled = true;

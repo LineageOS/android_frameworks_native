@@ -90,7 +90,6 @@ flag {
   namespace: "core_graphics"
   description: "Whether to use the closest known refresh rate to determine the fps consistency."
   bug: "299201319"
-  is_fixed_read_only: true
 }
 
 flag {
@@ -98,6 +97,7 @@ flag {
   namespace: "core_graphics"
   description: "do not flatten layers if source crop is only moved"
   bug: "305718400"
+  is_fixed_read_only: true
 }
 
 flag {
@@ -105,5 +105,21 @@ flag {
   namespace: "core_graphics"
   description: "enable frame rate override dependent features by default"
   bug: "314217419"
+  is_fixed_read_only: true
+}
+
+flag {
+  name: "display_protected"
+  namespace: "core_graphics"
+  description: "Introduce protected displays to specify whether they should render protected content"
+  bug: "301647974"
+  is_fixed_read_only: true
+}
+
+flag {
+  name: "fp16_client_target"
+  namespace: "core_graphics"
+  description: "Controls whether we render to fp16 client targets"
+  bug: "236745178"
   is_fixed_read_only: true
 }

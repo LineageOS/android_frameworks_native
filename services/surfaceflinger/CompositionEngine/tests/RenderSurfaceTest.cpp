@@ -263,9 +263,9 @@ TEST_F(RenderSurfaceTest, queueBufferHandlesNoClientComposition) {
     state.flipClientTarget = false;
 
     EXPECT_CALL(mDisplay, getState()).WillOnce(ReturnRef(state));
-    EXPECT_CALL(*mDisplaySurface, advanceFrame()).Times(1);
+    EXPECT_CALL(*mDisplaySurface, advanceFrame(0.5f)).Times(1);
 
-    mSurface.queueBuffer(base::unique_fd());
+    mSurface.queueBuffer(base::unique_fd(), 0.5f);
 
     EXPECT_EQ(buffer.get(), mSurface.mutableTextureForTest().get());
 }
@@ -283,9 +283,9 @@ TEST_F(RenderSurfaceTest, queueBufferHandlesClientComposition) {
     EXPECT_CALL(mDisplay, getState()).WillOnce(ReturnRef(state));
     EXPECT_CALL(*mNativeWindow, queueBuffer(buffer->getBuffer()->getNativeBuffer(), -1))
             .WillOnce(Return(NO_ERROR));
-    EXPECT_CALL(*mDisplaySurface, advanceFrame()).Times(1);
+    EXPECT_CALL(*mDisplaySurface, advanceFrame(0.5f)).Times(1);
 
-    mSurface.queueBuffer(base::unique_fd());
+    mSurface.queueBuffer(base::unique_fd(), 0.5f);
 
     EXPECT_EQ(nullptr, mSurface.mutableTextureForTest().get());
 }
@@ -303,9 +303,9 @@ TEST_F(RenderSurfaceTest, queueBufferHandlesFlipClientTargetRequest) {
     EXPECT_CALL(mDisplay, getState()).WillOnce(ReturnRef(state));
     EXPECT_CALL(*mNativeWindow, queueBuffer(buffer->getBuffer()->getNativeBuffer(), -1))
             .WillOnce(Return(NO_ERROR));
-    EXPECT_CALL(*mDisplaySurface, advanceFrame()).Times(1);
+    EXPECT_CALL(*mDisplaySurface, advanceFrame(0.5f)).Times(1);
 
-    mSurface.queueBuffer(base::unique_fd());
+    mSurface.queueBuffer(base::unique_fd(), 0.5f);
 
     EXPECT_EQ(nullptr, mSurface.mutableTextureForTest().get());
 }
@@ -323,9 +323,9 @@ TEST_F(RenderSurfaceTest, queueBufferHandlesFlipClientTargetRequestWithNoBufferY
                     DoAll(SetArgPointee<0>(buffer.get()), SetArgPointee<1>(-1), Return(NO_ERROR)));
     EXPECT_CALL(*mNativeWindow, queueBuffer(buffer->getNativeBuffer(), -1))
             .WillOnce(Return(NO_ERROR));
-    EXPECT_CALL(*mDisplaySurface, advanceFrame()).Times(1);
+    EXPECT_CALL(*mDisplaySurface, advanceFrame(0.5f)).Times(1);
 
-    mSurface.queueBuffer(base::unique_fd());
+    mSurface.queueBuffer(base::unique_fd(), 0.5f);
 
     EXPECT_EQ(nullptr, mSurface.mutableTextureForTest().get());
 }
@@ -345,9 +345,9 @@ TEST_F(RenderSurfaceTest, queueBufferHandlesNativeWindowQueueBufferFailureOnVirt
     EXPECT_CALL(mDisplay, isVirtual()).WillOnce(Return(true));
     EXPECT_CALL(*mNativeWindow, cancelBuffer(buffer->getBuffer()->getNativeBuffer(), -1))
             .WillOnce(Return(NO_ERROR));
-    EXPECT_CALL(*mDisplaySurface, advanceFrame()).Times(1);
+    EXPECT_CALL(*mDisplaySurface, advanceFrame(0.5f)).Times(1);
 
-    mSurface.queueBuffer(base::unique_fd());
+    mSurface.queueBuffer(base::unique_fd(), 0.5f);
 
     EXPECT_EQ(nullptr, mSurface.mutableTextureForTest().get());
 }

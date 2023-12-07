@@ -53,6 +53,9 @@ struct OutputCompositionState {
     // If false, this output is not considered secure
     bool isSecure{false};
 
+    // If false, this output is not considered protected
+    bool isProtected{false};
+
     // If true, the current frame on this output uses client composition
     bool usesClientComposition{false};
 

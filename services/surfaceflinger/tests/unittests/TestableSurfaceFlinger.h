@@ -498,7 +498,8 @@ public:
         return FTL_FAKE_GUARD(kMainThreadContext,
                               mFlinger->renderScreenImpl(std::move(renderArea), traverseLayers,
                                                          buffer, regionSampling,
-                                                         false /* grayscale */, captureResults));
+                                                         false /* grayscale */,
+                                                         false /* isProtected */, captureResults));
     }
 
     auto traverseLayersInLayerStack(ui::LayerStack layerStack, int32_t uid,
