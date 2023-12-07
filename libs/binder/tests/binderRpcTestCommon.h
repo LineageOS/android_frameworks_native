@@ -393,7 +393,7 @@ public:
         }
 
         if (delayed) {
-            RpcMaybeThread([=]() {
+            RpcMaybeThread([=, this]() {
                 ALOGE("Executing delayed callback: '%s'", value.c_str());
                 Status status = doCallback(callback, oneway, false, value);
                 ALOGE("Delayed callback status: '%s'", status.toString8().c_str());
