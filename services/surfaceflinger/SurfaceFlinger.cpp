@@ -4362,7 +4362,8 @@ status_t SurfaceFlinger::addClientLayer(LayerCreationArgs& args, const sp<IBinde
                     int sampleSize = (layer->getChildrenCount() / 100) + 1;
                     layer->traverseChildren([&](Layer* layer) {
                         if (rand() % sampleSize == 0) {
-                            ALOGE("Child Layer: %s", layer->getName().c_str());
+                            ALOGE("Child Layer: %s%s", layer->getName().c_str(),
+                                  (layer->isHandleAlive() ? "handleAlive" : ""));
                         }
                     });
                 }
