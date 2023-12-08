@@ -21,6 +21,8 @@
  * NOTE: Make sure this file doesn't include  anything from <gl/ > or <gl2/ >
  */
 
+#include <android-base/stringprintf.h>
+#include <android-base/strings.h>
 #include <android-base/thread_annotations.h>
 #include <android/gui/BnSurfaceComposer.h>
 #include <android/gui/DisplayStatInfo.h>
@@ -77,6 +79,7 @@
 #include "FrontEnd/LayerSnapshotBuilder.h"
 #include "FrontEnd/TransactionHandler.h"
 #include "LayerVector.h"
+#include "MutexUtils.h"
 #include "Scheduler/ISchedulerCallback.h"
 #include "Scheduler/RefreshRateSelector.h"
 #include "Scheduler/RefreshRateStats.h"
@@ -478,22 +481,46 @@ private:
         return std::bind(std::forward<F>(dump), _3);
     }
 
+    Dumper lockedDumper(Dumper dump) {
+        return [this, dump](const DumpArgs& args, bool asProto, std::string& result) -> void {
+            TimedLock lock(mStateLock, s2ns(1), __func__);
+            if (!lock.locked()) {
+                base::StringAppendF(&result, "Dumping without lock after timeout: %s (%d)\n",
+                                    strerror(-lock.status), lock.status);
+            }
+            dump(args, asProto, result);
+        };
+    }
+
     template <typename F, std::enable_if_t<std::is_member_function_pointer_v<F>>* = nullptr>
     Dumper dumper(F dump) {
         using namespace std::placeholders;
-        return std::bind(dump, this, _3);
+        return lockedDumper(std::bind(dump, this, _3));
     }
 
     template <typename F>
     Dumper argsDumper(F dump) {
         using namespace std::placeholders;
-        return std::bind(dump, this, _1, _3);
+        return lockedDumper(std::bind(dump, this, _1, _3));
     }
 
     template <typename F>
     Dumper protoDumper(F dump) {
         using namespace std::placeholders;
-        return std::bind(dump, this, _1, _2, _3);
+        return lockedDumper(std::bind(dump, this, _1, _2, _3));
+    }
+
+    template <typename F, std::enable_if_t<std::is_member_function_pointer_v<F>>* = nullptr>
+    Dumper mainThreadDumper(F dump) {
+        using namespace std::placeholders;
+        Dumper dumper = std::bind(dump, this, _3);
+        return [this, dumper](const DumpArgs& args, bool asProto, std::string& result) -> void {
+            mScheduler
+                    ->schedule(
+                            [&args, asProto, &result, dumper]() FTL_FAKE_GUARD(kMainThreadContext)
+                                    FTL_FAKE_GUARD(mStateLock) { dumper(args, asProto, result); })
+                    .get();
+        };
     }
 
     // Maximum allowed number of display frames that can be set through backdoor
@@ -1080,8 +1107,8 @@ private:
     /*
      * Debugging & dumpsys
      */
-    void dumpAllLocked(const DumpArgs& args, const std::string& compositionLayers,
-                       std::string& result) const REQUIRES(mStateLock);
+    void dumpAll(const DumpArgs& args, const std::string& compositionLayers,
+                 std::string& result) const EXCLUDES(mStateLock);
     void dumpHwcLayersMinidump(std::string& result) const REQUIRES(mStateLock, kMainThreadContext);
     void dumpHwcLayersMinidumpLockedLegacy(std::string& result) const REQUIRES(mStateLock);
 
@@ -1103,7 +1130,8 @@ private:
     void dumpRawDisplayIdentificationData(const DumpArgs&, std::string& result) const;
     void dumpWideColorInfo(std::string& result) const REQUIRES(mStateLock);
     void dumpHdrInfo(std::string& result) const REQUIRES(mStateLock);
-    void dumpFrontEnd(std::string& result);
+    void dumpFrontEnd(std::string& result) REQUIRES(kMainThreadContext);
+    void dumpVisibleFrontEnd(std::string& result) REQUIRES(mStateLock, kMainThreadContext);
 
     perfetto::protos::LayersProto dumpDrawingStateProto(uint32_t traceFlags) const;
     void dumpOffscreenLayersProto(perfetto::protos::LayersProto& layersProto,
