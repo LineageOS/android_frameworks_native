@@ -25,7 +25,10 @@ MODULE_CRATE_NAME := binder_rpc_test_service
 MODULE_LIBRARY_DEPS += \
 	$(LIBBINDER_DIR)/trusty/rust \
 	$(LIBBINDER_DIR)/trusty/rust/rpcbinder \
+	$(LIBBINDER_DIR)/trusty/rust/binder_rpc_server \
 	$(LOCAL_DIR)/../aidl \
+	$(LOCAL_DIR)/../binder_rpc_test_session \
+	$(LOCAL_DIR)/.. \
 	trusty/user/base/lib/tipc/rust \
 
 MANIFEST := $(LOCAL_DIR)/manifest.json
