@@ -24,3 +24,6 @@
 #define TLOGW(fmt, ...) printf(fmt, ##__VA_ARGS__)
 #define TLOGE(fmt, ...) printf(fmt, ##__VA_ARGS__)
 #define TLOGC(fmt, ...) printf(fmt, ##__VA_ARGS__)
+
+#define _tlog(fmt, ...) printf(fmt, ##__VA_ARGS__)
+#define _vtlog(fmt, args) vprintf(fmt, args)
