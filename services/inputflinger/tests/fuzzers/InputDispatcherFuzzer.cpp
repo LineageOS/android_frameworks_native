@@ -41,14 +41,16 @@ static constexpr int32_t MAX_RANDOM_WINDOWS = 4;
 class NotifyStreamProvider {
 public:
     NotifyStreamProvider(FuzzedDataProvider& fdp)
-          : mFdp(fdp), mIdGenerator(IdGenerator::Source::OTHER), mVerifier("Fuzz verifier") {}
+          : mFdp(fdp), mIdGenerator(IdGenerator::Source::OTHER) {}
 
     std::optional<NotifyMotionArgs> nextMotion() {
         NotifyMotionArgs args = generateFuzzedMotionArgs(mIdGenerator, mFdp, MAX_RANDOM_DISPLAYS);
+        auto [it, _] = mVerifiers.emplace(args.displayId, "Fuzz Verifier");
+        InputVerifier& verifier = it->second;
         const Result<void> result =
-                mVerifier.processMovement(args.deviceId, args.source, args.action,
-                                          args.getPointerCount(), args.pointerProperties.data(),
-                                          args.pointerCoords.data(), args.flags);
+                verifier.processMovement(args.deviceId, args.source, args.action,
+                                         args.getPointerCount(), args.pointerProperties.data(),
+                                         args.pointerCoords.data(), args.flags);
         if (result.ok()) {
             return args;
         }
@@ -60,7 +62,7 @@ private:
 
     IdGenerator mIdGenerator;
 
-    InputVerifier mVerifier;
+    std::map<int32_t /*displayId*/, InputVerifier> mVerifiers;
 };
 
 } // namespace

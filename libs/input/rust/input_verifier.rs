@@ -272,6 +272,10 @@ impl InputVerifier {
             return false;
         };
 
+        if pointers.len() != pointer_properties.len() {
+            return false;
+        }
+
         for pointer_property in pointer_properties.iter() {
             let pointer_id = pointer_property.id;
             if !pointers.contains(&pointer_id) {
@@ -591,5 +595,44 @@ mod tests {
                 MotionFlags::empty(),
             )
             .is_ok());
+    }
+
+    // Send a MOVE event with incorrect number of pointers (one of the pointers is missing).
+    #[test]
+    fn move_with_wrong_number_of_pointers() {
+        let mut verifier = InputVerifier::new("Test", /*should_log*/ false);
+        let pointer_properties = Vec::from([RustPointerProperties { id: 0 }]);
+        assert!(verifier
+            .process_movement(
+                DeviceId(1),
+                Source::Touchscreen,
+                input_bindgen::AMOTION_EVENT_ACTION_DOWN,
+                &pointer_properties,
+                MotionFlags::empty(),
+            )
+            .is_ok());
+        // POINTER 1 DOWN
+        let two_pointer_properties =
+            Vec::from([RustPointerProperties { id: 0 }, RustPointerProperties { id: 1 }]);
+        assert!(verifier
+            .process_movement(
+                DeviceId(1),
+                Source::Touchscreen,
+                input_bindgen::AMOTION_EVENT_ACTION_POINTER_DOWN
+                    | (1 << input_bindgen::AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+                &two_pointer_properties,
+                MotionFlags::empty(),
+            )
+            .is_ok());
+        // MOVE event with 1 pointer missing (the pointer with id = 1). It should be rejected
+        assert!(verifier
+            .process_movement(
+                DeviceId(1),
+                Source::Touchscreen,
+                input_bindgen::AMOTION_EVENT_ACTION_MOVE,
+                &pointer_properties,
+                MotionFlags::empty(),
+            )
+            .is_err());
     }
 }

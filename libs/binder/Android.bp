@@ -106,6 +106,17 @@ cc_defaults {
     header_libs: [
         "libbinder_headers",
     ],
+
+    cflags: [
+        "-Wextra",
+        "-Wextra-semi",
+        "-Werror",
+        "-Wzero-as-null-pointer-constant",
+        "-Wreorder-init-list",
+        "-Wunused-const-variable",
+        "-DANDROID_BASE_UNIQUE_FD_DISABLE_IMPLICIT_CONVERSION",
+        "-DANDROID_UTILS_REF_BASE_DISABLE_IMPLICIT_CONSTRUCTION",
+    ],
 }
 
 cc_defaults {
@@ -135,15 +146,6 @@ cc_defaults {
         export_aidl_headers: true,
     },
 
-    cflags: [
-        "-Wextra",
-        "-Wextra-semi",
-        "-Werror",
-        "-Wzero-as-null-pointer-constant",
-        "-Wreorder-init-list",
-        "-DANDROID_BASE_UNIQUE_FD_DISABLE_IMPLICIT_CONVERSION",
-        "-DANDROID_UTILS_REF_BASE_DISABLE_IMPLICIT_CONSTRUCTION",
-    ],
     product_variables: {
         debuggable: {
             cflags: [
@@ -220,6 +222,10 @@ cc_defaults {
 
     cflags: [
         "-DBINDER_RPC_SINGLE_THREADED",
+        "-DBINDER_ENABLE_LIBLOG_ASSERT",
+        "-DBINDER_DISABLE_NATIVE_HANDLE",
+        "-DBINDER_DISABLE_BLOB",
+        "-DBINDER_NO_LIBBASE",
         // Trusty libbinder uses vendor stability for its binders
         "-D__ANDROID_VNDK__",
         "-U__ANDROID__",

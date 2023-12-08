@@ -114,7 +114,7 @@ static std::atomic<size_t> gParcelGlobalAllocSize;
 constexpr size_t kMaxFds = 1024;
 
 // Maximum size of a blob to transfer in-place.
-static const size_t BLOB_INPLACE_LIMIT = 16 * 1024;
+[[maybe_unused]] static const size_t BLOB_INPLACE_LIMIT = 16 * 1024;
 
 #if defined(__BIONIC__)
 static void FdTag(int fd, const void* old_addr, const void* new_addr) {
@@ -886,6 +886,9 @@ void Parcel::updateWorkSourceRequestHeaderPosition() const {
 }
 
 #ifdef BINDER_WITH_KERNEL_IPC
+
+#if defined(__ANDROID__)
+
 #if defined(__ANDROID_VNDK__)
 constexpr int32_t kHeader = B_PACK_CHARS('V', 'N', 'D', 'R');
 #elif defined(__ANDROID_RECOVERY__)
@@ -893,6 +896,14 @@ constexpr int32_t kHeader = B_PACK_CHARS('R', 'E', 'C', 'O');
 #else
 constexpr int32_t kHeader = B_PACK_CHARS('S', 'Y', 'S', 'T');
 #endif
+
+#else // ANDROID not defined
+
+// If kernel binder is used in new environments, we need to make sure it's separated
+// out and has a separate header.
+constexpr int32_t kHeader = B_PACK_CHARS('U', 'N', 'K', 'N');
+#endif
+
 #endif // BINDER_WITH_KERNEL_IPC
 
 // Write RPC headers.  (previously just the interface token)

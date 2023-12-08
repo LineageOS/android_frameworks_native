@@ -228,6 +228,9 @@ void InputManager::monitor() {
     mReader->monitor();
     mBlocker->monitor();
     mProcessor->monitor();
+    if (ENABLE_INPUT_DEVICE_USAGE_METRICS) {
+        mCollector->monitor();
+    }
     mDispatcher->monitor();
 }
 
