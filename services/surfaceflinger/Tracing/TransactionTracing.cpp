@@ -438,6 +438,7 @@ TransactionTracing::createStartingStateProtoLocked() {
     for (auto& [layerStack, displayInfo] : mStartingDisplayInfos) {
         entryProto.mutable_displays()->Add(mProtoParser.toProto(displayInfo, layerStack.id));
     }
+    entryProto.set_displays_changed(true);
 
     return entryProto;
 }
