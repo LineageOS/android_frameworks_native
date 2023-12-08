@@ -67,7 +67,7 @@ void OutputCompositionState::dump(std::string& out) const {
     out.append("\n   ");
 
     out.append("\n   ");
-    dumpVal(out, "treate170mAsSrgb", treat170mAsSrgb);
+    dumpVal(out, "treat170mAsSrgb", treat170mAsSrgb);
 
     out.append("\n");
     for (const auto& borderRenderInfo : borderInfoList) {

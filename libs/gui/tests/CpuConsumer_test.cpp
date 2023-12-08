@@ -62,7 +62,7 @@ protected:
         const ::testing::TestInfo* const test_info =
                 ::testing::UnitTest::GetInstance()->current_test_info();
         CpuConsumerTestParams params = GetParam();
-        ALOGD("** Starting test %s (%d x %d, %d, 0x%x)",
+        ALOGD("** Starting parameterized test %s (%d x %d, %d, 0x%x)",
                 test_info->name(),
                 params.width, params.height,
                 params.maxLockedBuffers, params.format);

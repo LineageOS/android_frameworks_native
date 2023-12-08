@@ -142,6 +142,8 @@ private:
     std::atomic<nsecs_t> mSignalTime{Fence::SIGNAL_TIME_INVALID};
 };
 
+using FenceTimePtr = std::shared_ptr<FenceTime>;
+
 // A queue of FenceTimes that are expected to signal in FIFO order.
 // Only maintains a queue of weak pointers so it doesn't keep references
 // to Fences on its own.
@@ -190,8 +192,15 @@ private:
 // before the new one is added.
 class FenceToFenceTimeMap {
 public:
-    // Create a new FenceTime with that wraps the provided Fence.
-    std::shared_ptr<FenceTime> createFenceTimeForTest(const sp<Fence>& fence);
+    using FencePair = std::pair<sp<Fence>, FenceTimePtr>;
+
+    FencePair makePendingFenceForTest() {
+        const auto fence = sp<Fence>::make();
+        return {fence, createFenceTimeForTest(fence)};
+    }
+
+    // Create a new FenceTime that wraps the provided Fence.
+    FenceTimePtr createFenceTimeForTest(const sp<Fence>&);
 
     // Signals all FenceTimes created through this class that are wrappers
     // around |fence|.
@@ -205,7 +214,6 @@ private:
     std::unordered_map<Fence*, std::vector<std::weak_ptr<FenceTime>>> mMap;
 };
 
-
-}; // namespace android
+} // namespace android
 
 #endif // ANDROID_FENCE_TIME_H

@@ -1460,13 +1460,15 @@ VkResult CreateDevice(VkPhysicalDevice physicalDevice,
     if ((wrapper.GetHalExtensions()[ProcHook::ANDROID_native_buffer]) &&
         !data->driver.GetSwapchainGrallocUsageANDROID &&
         !data->driver.GetSwapchainGrallocUsage2ANDROID &&
-        !data->driver.GetSwapchainGrallocUsage3ANDROID) {
+        !data->driver.GetSwapchainGrallocUsage3ANDROID &&
+        !data->driver.GetSwapchainGrallocUsage4ANDROID) {
         ALOGE(
             "Driver's implementation of ANDROID_native_buffer is broken;"
             " must expose at least one of "
             "vkGetSwapchainGrallocUsageANDROID or "
             "vkGetSwapchainGrallocUsage2ANDROID or "
-            "vkGetSwapchainGrallocUsage3ANDROID");
+            "vkGetSwapchainGrallocUsage3ANDROID or "
+            "vkGetSwapchainGrallocUsage4ANDROID");
 
         data->driver.DestroyDevice(dev, pAllocator);
         FreeDeviceData(data, data_allocator);

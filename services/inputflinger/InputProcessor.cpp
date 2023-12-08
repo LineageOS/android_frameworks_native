@@ -322,7 +322,7 @@ void MotionClassifier::reset() {
 void MotionClassifier::reset(const NotifyDeviceResetArgs& args) {
     int32_t deviceId = args.deviceId;
     // Clear the pending events right away, to avoid unnecessary work done by the HAL.
-    mEvents.erase([deviceId](const ClassifierEvent& event) {
+    mEvents.erase_if([deviceId](const ClassifierEvent& event) {
         std::optional<int32_t> eventDeviceId = event.getDeviceId();
         return eventDeviceId && (*eventDeviceId == deviceId);
     });

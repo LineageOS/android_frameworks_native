@@ -26,9 +26,9 @@
 using namespace android;
 
 int main(int argc, char** argv) {
-    if (argc > 3) {
+    if (argc > 4) {
         std::cout << "Usage: " << argv[0]
-                  << " [transaction-trace-path] [output-layers-trace-path]\n";
+                  << " [transaction-trace-path] [output-layers-trace-path] [--last-entry-only]\n";
         return -1;
     }
 
@@ -48,12 +48,16 @@ int main(int argc, char** argv) {
     }
 
     const char* outputLayersTracePath =
-            (argc == 3) ? argv[2] : "/data/misc/wmtrace/layers_trace.winscope";
-    ;
+            (argc >= 3) ? argv[2] : "/data/misc/wmtrace/layers_trace.winscope";
+
+    const bool generateLastEntryOnly =
+            argc >= 4 && std::string_view(argv[3]) == "--last-entry-only";
+
     ALOGD("Generating %s...", outputLayersTracePath);
     std::cout << "Generating " << outputLayersTracePath << "\n";
 
-    if (!LayerTraceGenerator().generate(transactionTraceFile, outputLayersTracePath)) {
+    if (!LayerTraceGenerator().generate(transactionTraceFile, outputLayersTracePath,
+                                        generateLastEntryOnly)) {
         std::cout << "Error: Failed to generate layers trace " << outputLayersTracePath;
         return -1;
     }

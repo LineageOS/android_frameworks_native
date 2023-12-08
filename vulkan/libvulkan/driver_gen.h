@@ -128,6 +128,7 @@ struct DeviceDriverTable {
     PFN_vkGetSwapchainGrallocUsageANDROID GetSwapchainGrallocUsageANDROID;
     PFN_vkGetSwapchainGrallocUsage2ANDROID GetSwapchainGrallocUsage2ANDROID;
     PFN_vkGetSwapchainGrallocUsage3ANDROID GetSwapchainGrallocUsage3ANDROID;
+    PFN_vkGetSwapchainGrallocUsage4ANDROID GetSwapchainGrallocUsage4ANDROID;
     PFN_vkAcquireImageANDROID AcquireImageANDROID;
     PFN_vkQueueSignalReleaseImageANDROID QueueSignalReleaseImageANDROID;
     // clang-format on

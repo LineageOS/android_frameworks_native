@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023 The Android Open Source Project
+ * Copyright 2023 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,13 +16,25 @@
 
 #pragma once
 
+#include <android-base/result.h>
 #include <input/Input.h>
-#include <map>
+#include "rust/cxx.h"
 
 namespace android {
 
+namespace input {
+namespace verifier {
+struct InputVerifier;
+}
+} // namespace input
+
 /*
  * Crash if the provided touch stream is inconsistent.
+ * This class is a pass-through to the rust implementation of InputVerifier.
+ * The rust class could also be used directly, but it would be less convenient.
+ * We can't directly invoke the rust methods on a rust object. So, there's no way to do:
+ * mVerifier.process_movement(...).
+ * This C++ class makes it a bit easier to use.
  *
  * TODO(b/211379801): Add support for hover events:
  * - No hover move without enter
@@ -34,16 +46,13 @@ class InputVerifier {
 public:
     InputVerifier(const std::string& name);
 
-    void processMovement(int32_t deviceId, int32_t action, uint32_t pointerCount,
-                         const PointerProperties* pointerProperties,
-                         const PointerCoords* pointerCoords, int32_t flags);
+    android::base::Result<void> processMovement(int32_t deviceId, int32_t action,
+                                                uint32_t pointerCount,
+                                                const PointerProperties* pointerProperties,
+                                                const PointerCoords* pointerCoords, int32_t flags);
 
 private:
-    const std::string mName;
-    std::map<int32_t /*deviceId*/, std::bitset<MAX_POINTER_ID + 1>> mTouchingPointerIdsByDevice;
-    void ensureTouchingPointersMatch(int32_t deviceId, uint32_t pointerCount,
-                                     const PointerProperties* pointerProperties,
-                                     const char* action) const;
+    rust::Box<android::input::verifier::InputVerifier> mVerifier;
 };
 
 } // namespace android

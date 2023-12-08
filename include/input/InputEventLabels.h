@@ -40,7 +40,16 @@ struct EvdevEventLabel {
 //   then you must add it to InputEventLabels.cpp.
 
 class InputEventLookup {
+    /**
+     * This class is not purely static, but uses a singleton pattern in order to delay the
+     * initialization of the maps that it contains. If it were purely static, the maps could be
+     * created early, and would cause sanitizers to report memory leaks.
+     */
 public:
+    InputEventLookup(InputEventLookup& other) = delete;
+
+    void operator=(const InputEventLookup&) = delete;
+
     static std::optional<int> lookupValueByLabel(const std::unordered_map<std::string, int>& map,
                                                  const char* literal);
 
@@ -61,17 +70,24 @@ public:
     static EvdevEventLabel getLinuxEvdevLabel(int32_t type, int32_t code, int32_t value);
 
 private:
-    static const std::unordered_map<std::string, int> KEYCODES;
+    InputEventLookup();
 
-    static const std::vector<InputEventLabel> KEY_NAMES;
+    static const InputEventLookup& get() {
+        static InputEventLookup sLookup;
+        return sLookup;
+    }
 
-    static const std::unordered_map<std::string, int> AXES;
+    const std::unordered_map<std::string, int> KEYCODES;
 
-    static const std::vector<InputEventLabel> AXES_NAMES;
+    const std::vector<InputEventLabel> KEY_NAMES;
 
-    static const std::unordered_map<std::string, int> LEDS;
+    const std::unordered_map<std::string, int> AXES;
 
-    static const std::unordered_map<std::string, int> FLAGS;
+    const std::vector<InputEventLabel> AXES_NAMES;
+
+    const std::unordered_map<std::string, int> LEDS;
+
+    const std::unordered_map<std::string, int> FLAGS;
 };
 
 } // namespace android

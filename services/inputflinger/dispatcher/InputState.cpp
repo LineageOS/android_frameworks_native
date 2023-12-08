@@ -93,11 +93,7 @@ bool InputState::trackMotion(const MotionEntry& entry, int32_t action, int32_t f
                 mMotionMementos.erase(mMotionMementos.begin() + index);
                 return true;
             }
-            if (DEBUG_OUTBOUND_EVENT_DETAILS) {
-                ALOGD("Dropping inconsistent motion up or cancel event: deviceId=%d, source=%08x, "
-                      "displayId=%" PRId32 ", actionMasked=%d",
-                      entry.deviceId, entry.source, entry.displayId, actionMasked);
-            }
+
             return false;
         }
 
@@ -150,11 +146,7 @@ bool InputState::trackMotion(const MotionEntry& entry, int32_t action, int32_t f
                     return true;
                 }
             }
-            if (DEBUG_OUTBOUND_EVENT_DETAILS) {
-                ALOGD("Dropping inconsistent motion pointer up/down or move event: "
-                      "deviceId=%d, source=%08x, displayId=%" PRId32 ", actionMasked=%d",
-                      entry.deviceId, entry.source, entry.displayId, actionMasked);
-            }
+
             return false;
         }
 
@@ -164,11 +156,7 @@ bool InputState::trackMotion(const MotionEntry& entry, int32_t action, int32_t f
                 mMotionMementos.erase(mMotionMementos.begin() + index);
                 return true;
             }
-            if (DEBUG_OUTBOUND_EVENT_DETAILS) {
-                ALOGD("Dropping inconsistent motion hover exit event: deviceId=%d, source=%08x, "
-                      "displayId=%" PRId32,
-                      entry.deviceId, entry.source, entry.displayId);
-            }
+
             return false;
         }
 

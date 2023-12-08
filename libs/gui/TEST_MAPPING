@@ -4,10 +4,58 @@
       "path": "frameworks/native/libs/nativewindow"
     }
   ],
-  "postsubmit": [
+  "presubmit": [
     {
-      // TODO(257123981): move this to presubmit after dealing with existing breakages.
-      "name": "libgui_test"
+      "name": "libgui_test",
+      "options": [
+        // TODO(b/277604286): Failing on Cuttlefish.
+        {
+          "exclude-filter": "MultiTextureConsumerTest#EGLImageTargetWorks"
+        },
+
+        // TODO(b/285011590): Failing on Cuttlefish.
+        {
+          "exclude-filter": "SurfaceTest#GetHdrSupport"
+        },
+        {
+          "exclude-filter": "SurfaceTest#GetWideColorSupport"
+        },
+
+        // TODO(b/285006554): Failing on Cuttlefish.
+        {
+          "exclude-filter": "SurfaceTextureGLTest#InvalidWidthOrHeightFails"
+        },
+
+        // TODO(b/277347351): Known test data issues, failing across devices.
+        {
+          "exclude-filter": "SurfaceTextureGLTest#TexturingFromCpuFilledYV12BufferNpot"
+        },
+        {
+          "exclude-filter": "SurfaceTextureGLTest#TexturingFromCpuFilledYV12BufferPow2"
+        },
+        {
+          "exclude-filter": "SurfaceTextureGLTest#TexturingFromCpuFilledYV12BufferWithCrop"
+        },
+        {
+          "exclude-filter": "SurfaceTextureGLTest#TexturingFromCpuFilledYV12BuffersRepeatedly"
+        },
+
+        // TODO(b/285041169): Hanging on Cuttlefish.
+        {
+          "exclude-filter": "SurfaceTextureGLThreadToGLTest#UpdateTexImageBeforeFrameFinishedCompletes"
+        },
+        {
+          "exclude-filter": "SurfaceTextureGLThreadToGLTest#RepeatedUpdateTexImageBeforeFrameFinishedCompletes"
+        },
+        {
+          "exclude-filter": "SurfaceTextureGLThreadToGLTest#RepeatedUpdateTexImageAfterFrameFinishedCompletes"
+        },
+
+        // TODO(b/285041070): Failing on Cuttlefish.
+        {
+          "exclude-filter": "SurfaceTextureGLToGLTest#EglDestroySurfaceUnrefsBuffers"
+        }
+      ]
     }
   ]
 }

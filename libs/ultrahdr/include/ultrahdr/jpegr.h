@@ -348,16 +348,6 @@ private:
     status_t extractPrimaryImageAndGainMap(jr_compressed_ptr compressed_jpegr_image,
                                            jr_compressed_ptr primary_image,
                                            jr_compressed_ptr gain_map);
-    /*
-     * This method is called in the decoding pipeline. It will read XMP metadata to find the start
-     * position of the compressed gain map, and will extract the compressed gain map.
-     *
-     * @param compressed_jpegr_image compressed JPEGR image
-     * @param dest destination of compressed gain map
-     * @return NO_ERROR if calculation succeeds, error code if error occurs.
-     */
-    status_t extractGainMap(jr_compressed_ptr compressed_jpegr_image,
-                            jr_compressed_ptr dest);
 
     /*
      * This method is called in the encoding pipeline. It will take the standard 8-bit JPEG image,

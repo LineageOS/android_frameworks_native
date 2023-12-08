@@ -33,6 +33,138 @@ filegroup {
     ],
 }
 
+aidl_interface {
+    name: "inputconstants",
+    host_supported: true,
+    vendor_available: true,
+    unstable: true,
+    srcs: [
+        ":inputconstants_aidl",
+    ],
+
+    backend: {
+        rust: {
+            enabled: true,
+        },
+    },
+}
+
+rust_bindgen {
+    name: "libinput_bindgen",
+    host_supported: true,
+    crate_name: "input_bindgen",
+    visibility: ["//frameworks/native/services/inputflinger"],
+    wrapper_src: "InputWrapper.hpp",
+
+    include_dirs: [
+        "frameworks/native/include",
+    ],
+
+    source_stem: "bindings",
+
+    bindgen_flags: [
+        "--verbose",
+        "--allowlist-var=AMOTION_EVENT_FLAG_CANCELED",
+        "--allowlist-var=AMOTION_EVENT_ACTION_CANCEL",
+        "--allowlist-var=AMOTION_EVENT_ACTION_UP",
+        "--allowlist-var=AMOTION_EVENT_ACTION_POINTER_DOWN",
+        "--allowlist-var=AMOTION_EVENT_ACTION_DOWN",
+        "--allowlist-var=AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT",
+        "--allowlist-var=MAX_POINTER_ID",
+    ],
+
+    static_libs: [
+        "inputconstants-cpp",
+        "libui-types",
+    ],
+    shared_libs: ["libc++"],
+    header_libs: [
+        "native_headers",
+        "jni_headers",
+        "flatbuffer_headers",
+    ],
+}
+
+// Contains methods to help access C++ code from rust
+cc_library_static {
+    name: "libinput_from_rust_to_cpp",
+    cpp_std: "c++20",
+    host_supported: true,
+    cflags: [
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+    ],
+    srcs: [
+        "FromRustToCpp.cpp",
+    ],
+
+    generated_headers: [
+        "cxx-bridge-header",
+    ],
+    generated_sources: ["libinput_cxx_bridge_code"],
+
+    shared_libs: [
+        "libbase",
+    ],
+}
+
+genrule {
+    name: "libinput_cxx_bridge_code",
+    tools: ["cxxbridge"],
+    cmd: "$(location cxxbridge) $(in) >> $(out)",
+    srcs: ["input_verifier.rs"],
+    out: ["inputverifier_generated.cpp"],
+}
+
+genrule {
+    name: "libinput_cxx_bridge_header",
+    tools: ["cxxbridge"],
+    cmd: "$(location cxxbridge) $(in) --header >> $(out)",
+    srcs: ["input_verifier.rs"],
+    out: ["input_verifier.rs.h"],
+}
+
+rust_defaults {
+    name: "libinput_rust_defaults",
+    srcs: ["input_verifier.rs"],
+    host_supported: true,
+    rustlibs: [
+        "libbitflags",
+        "libcxx",
+        "libinput_bindgen",
+        "liblogger",
+        "liblog_rust",
+        "inputconstants-rust",
+    ],
+
+    shared_libs: [
+        "libbase",
+        "liblog",
+    ],
+}
+
+rust_ffi_static {
+    name: "libinput_rust",
+    crate_name: "input",
+    defaults: ["libinput_rust_defaults"],
+}
+
+rust_test {
+    name: "libinput_rust_test",
+    defaults: ["libinput_rust_defaults"],
+    whole_static_libs: [
+        "libinput_from_rust_to_cpp",
+    ],
+    test_options: {
+        unit_test: true,
+    },
+    test_suites: ["device_tests"],
+    sanitize: {
+        hwaddress: true,
+    },
+}
+
 cc_library {
     name: "libinput",
     cpp_std: "c++20",
@@ -44,6 +176,7 @@ cc_library {
         "-Wno-unused-parameter",
     ],
     srcs: [
+        "FromRustToCpp.cpp",
         "Input.cpp",
         "InputDevice.cpp",
         "InputEventLabels.cpp",
@@ -52,6 +185,7 @@ cc_library {
         "KeyCharacterMap.cpp",
         "KeyLayoutMap.cpp",
         "MotionPredictor.cpp",
+        "MotionPredictorMetricsManager.cpp",
         "PrintTools.cpp",
         "PropertyMap.cpp",
         "TfLiteMotionPredictor.cpp",
@@ -65,19 +199,28 @@ cc_library {
     header_libs: [
         "flatbuffer_headers",
         "jni_headers",
+        "libeigen",
         "tensorflow_headers",
     ],
-    export_header_lib_headers: ["jni_headers"],
+    export_header_lib_headers: [
+        "jni_headers",
+        "libeigen",
+    ],
 
     generated_headers: [
+        "cxx-bridge-header",
+        "libinput_cxx_bridge_header",
         "toolbox_input_labels",
     ],
+
+    generated_sources: ["libinput_cxx_bridge_code"],
 
     shared_libs: [
         "libbase",
         "libcutils",
         "liblog",
         "libPlatformProperties",
+        "libtinyxml2",
         "libvintf",
     ],
 
@@ -85,13 +228,29 @@ cc_library {
         "-Wl,--exclude-libs=libtflite_static.a",
     ],
 
+    sanitize: {
+        undefined: true,
+        all_undefined: true,
+        misc_undefined: ["integer"],
+    },
+
     static_libs: [
+        "inputconstants-cpp",
         "libui-types",
         "libtflite_static",
     ],
 
+    whole_static_libs: [
+        "libinput_rust",
+    ],
+
     export_static_lib_headers: [
         "libui-types",
+    ],
+
+    export_generated_headers: [
+        "cxx-bridge-header",
+        "libinput_cxx_bridge_header",
     ],
 
     target: {
@@ -99,7 +258,6 @@ cc_library {
             srcs: [
                 "InputTransport.cpp",
                 "android/os/IInputFlinger.aidl",
-                ":inputconstants_aidl",
             ],
 
             export_shared_lib_headers: ["libbinder"],
@@ -107,6 +265,10 @@ cc_library {
             shared_libs: [
                 "libutils",
                 "libbinder",
+                // Stats logging library and its dependencies.
+                "libstatslog_libinput",
+                "libstatsbootstrap",
+                "android.os.statsbootstrap_aidl-cpp",
             ],
 
             static_libs: [
@@ -117,12 +279,9 @@ cc_library {
                 "libgui_window_info_static",
             ],
 
-            sanitize: {
-                misc_undefined: ["integer"],
-            },
-
             required: [
                 "motion_predictor_model_prebuilt",
+                "motion_predictor_model_config",
             ],
         },
         host: {
@@ -138,12 +297,8 @@ cc_library {
         host_linux: {
             srcs: [
                 "InputTransport.cpp",
-                "android/os/IInputConstants.aidl",
-                "android/os/IInputFlinger.aidl",
-                "android/os/InputConfig.aidl",
             ],
             static_libs: [
-                "libhostgraphics",
                 "libgui_window_info_static",
             ],
             shared_libs: [
@@ -163,6 +318,43 @@ cc_library {
             "frameworks/native/libs/gui",
         ],
     },
+}
+
+// Use bootstrap version of stats logging library.
+// libinput is a bootstrap process (starts early in the boot process), and thus can't use the normal
+// `libstatslog` because that requires `libstatssocket`, which is only available later in the boot.
+cc_library {
+    name: "libstatslog_libinput",
+    generated_sources: ["statslog_libinput.cpp"],
+    generated_headers: ["statslog_libinput.h"],
+    export_generated_headers: ["statslog_libinput.h"],
+    shared_libs: [
+        "libbinder",
+        "libstatsbootstrap",
+        "libutils",
+        "android.os.statsbootstrap_aidl-cpp",
+    ],
+}
+
+genrule {
+    name: "statslog_libinput.h",
+    tools: ["stats-log-api-gen"],
+    cmd: "$(location stats-log-api-gen) --header $(genDir)/statslog_libinput.h --module libinput" +
+        " --namespace android,stats,libinput --bootstrap",
+    out: [
+        "statslog_libinput.h",
+    ],
+}
+
+genrule {
+    name: "statslog_libinput.cpp",
+    tools: ["stats-log-api-gen"],
+    cmd: "$(location stats-log-api-gen) --cpp $(genDir)/statslog_libinput.cpp --module libinput" +
+        " --namespace android,stats,libinput --importHeader statslog_libinput.h" +
+        " --bootstrap",
+    out: [
+        "statslog_libinput.cpp",
+    ],
 }
 
 cc_defaults {

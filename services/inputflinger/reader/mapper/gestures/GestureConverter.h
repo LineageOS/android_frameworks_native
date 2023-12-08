@@ -78,6 +78,8 @@ private:
                                     const PointerCoords* pointerCoords, float xCursorPosition,
                                     float yCursorPosition);
 
+    void enableTapToClick();
+
     const int32_t mDeviceId;
     InputReaderContext& mReaderContext;
     std::shared_ptr<PointerControllerInterface> mPointerController;

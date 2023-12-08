@@ -19,6 +19,7 @@
 #pragma clang diagnostic ignored "-Wconversion"
 
 #include <private/android_filesystem_config.h>
+#include <ui/DisplayState.h>
 
 #include "LayerTransactionTest.h"
 
@@ -32,11 +33,11 @@ protected:
 
         const auto ids = SurfaceComposerClient::getPhysicalDisplayIds();
         ASSERT_FALSE(ids.empty());
-        const auto display = SurfaceComposerClient::getPhysicalDisplayToken(ids.front());
-        ASSERT_FALSE(display == nullptr);
+        mDisplayToken = SurfaceComposerClient::getPhysicalDisplayToken(ids.front());
+        ASSERT_FALSE(mDisplayToken == nullptr);
 
         ui::DisplayMode mode;
-        ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayMode(display, &mode));
+        ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayMode(mDisplayToken, &mode));
         const ui::Size& resolution = mode.resolution;
 
         mDisplaySize = resolution;
@@ -57,7 +58,7 @@ protected:
         TransactionUtils::fillSurfaceRGBA8(mFGSurfaceControl, 195, 63, 63);
 
         asTransaction([&](Transaction& t) {
-            t.setDisplayLayerStack(display, ui::DEFAULT_LAYER_STACK);
+            t.setDisplayLayerStack(mDisplayToken, ui::DEFAULT_LAYER_STACK);
 
             t.setLayer(mBGSurfaceControl, INT32_MAX - 2).show(mBGSurfaceControl);
 
@@ -71,11 +72,18 @@ protected:
         LayerTransactionTest::TearDown();
         mBGSurfaceControl = 0;
         mFGSurfaceControl = 0;
+
+        // Restore display rotation
+        asTransaction([&](Transaction& t) {
+            Rect displayBounds{mDisplaySize};
+            t.setDisplayProjection(mDisplayToken, ui::ROTATION_0, displayBounds, displayBounds);
+        });
     }
 
     sp<SurfaceControl> mBGSurfaceControl;
     sp<SurfaceControl> mFGSurfaceControl;
     std::unique_ptr<ScreenCapture> mCapture;
+    sp<IBinder> mDisplayToken;
     ui::Size mDisplaySize;
 };
 
@@ -868,6 +876,42 @@ TEST_F(ScreenCaptureTest, CaptureOffscreen) {
     ScreenCapture::captureLayers(&mCapture, captureArgs);
     mCapture->expectSize(32, 32);
     mCapture->expectColor(Rect(0, 0, 32, 32), Color::RED);
+}
+
+TEST_F(ScreenCaptureTest, CaptureDisplayWith90DegRotation) {
+    asTransaction([&](Transaction& t) {
+        Rect newDisplayBounds{mDisplaySize.height, mDisplaySize.width};
+        t.setDisplayProjection(mDisplayToken, ui::ROTATION_90, newDisplayBounds, newDisplayBounds);
+    });
+
+    DisplayCaptureArgs displayCaptureArgs;
+    displayCaptureArgs.displayToken = mDisplayToken;
+    displayCaptureArgs.width = mDisplaySize.width;
+    displayCaptureArgs.height = mDisplaySize.height;
+    displayCaptureArgs.useIdentityTransform = true;
+    ScreenCapture::captureDisplay(&mCapture, displayCaptureArgs);
+
+    mCapture->expectBGColor(0, 0);
+    mCapture->expectFGColor(mDisplaySize.width - 65, 65);
+}
+
+TEST_F(ScreenCaptureTest, CaptureDisplayWith270DegRotation) {
+    asTransaction([&](Transaction& t) {
+        Rect newDisplayBounds{mDisplaySize.height, mDisplaySize.width};
+        t.setDisplayProjection(mDisplayToken, ui::ROTATION_270, newDisplayBounds, newDisplayBounds);
+    });
+
+    DisplayCaptureArgs displayCaptureArgs;
+    displayCaptureArgs.displayToken = mDisplayToken;
+    displayCaptureArgs.width = mDisplaySize.width;
+    displayCaptureArgs.height = mDisplaySize.height;
+    displayCaptureArgs.useIdentityTransform = true;
+    ScreenCapture::captureDisplay(&mCapture, displayCaptureArgs);
+
+    std::this_thread::sleep_for(std::chrono::seconds{5});
+
+    mCapture->expectBGColor(mDisplayWidth - 1, mDisplaySize.height - 1);
+    mCapture->expectFGColor(65, mDisplaySize.height - 65);
 }
 
 TEST_F(ScreenCaptureTest, CaptureNonHdrLayer) {

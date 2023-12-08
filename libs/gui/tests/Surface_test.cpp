@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "Constants.h"
 #include "MockConsumer.h"
 
 #include <gtest/gtest.h>
@@ -148,6 +149,7 @@ protected:
                 /*listener*/listener));
         const int BUFFER_COUNT = 4 + extraDiscardedBuffers;
         ASSERT_EQ(NO_ERROR, native_window_set_buffer_count(window.get(), BUFFER_COUNT));
+        ASSERT_EQ(NO_ERROR, native_window_set_usage(window.get(), TEST_PRODUCER_USAGE_BITS));
 
         ANativeWindowBuffer* buffers[BUFFER_COUNT];
         // Dequeue first to allocate a number of buffers
@@ -530,7 +532,8 @@ TEST_F(SurfaceTest, DynamicSetBufferCount) {
 
     ASSERT_EQ(NO_ERROR, native_window_api_connect(window.get(),
             NATIVE_WINDOW_API_CPU));
-    native_window_set_buffer_count(window.get(), 4);
+    ASSERT_EQ(NO_ERROR, native_window_set_buffer_count(window.get(), 4));
+    ASSERT_EQ(NO_ERROR, native_window_set_usage(window.get(), TEST_PRODUCER_USAGE_BITS));
 
     int fence;
     ANativeWindowBuffer* buffer;
@@ -560,6 +563,7 @@ TEST_F(SurfaceTest, GetAndFlushRemovedBuffers) {
             /*reportBufferRemoval*/true));
     const int BUFFER_COUNT = 4;
     ASSERT_EQ(NO_ERROR, native_window_set_buffer_count(window.get(), BUFFER_COUNT));
+    ASSERT_EQ(NO_ERROR, native_window_set_usage(window.get(), TEST_PRODUCER_USAGE_BITS));
 
     sp<GraphicBuffer> detachedBuffer;
     sp<Fence> outFence;
@@ -989,6 +993,15 @@ public:
         return binder::Status::ok();
     }
 
+    binder::Status updateSmallAreaDetection(const std::vector<int32_t>& /*uids*/,
+                                            const std::vector<float>& /*thresholds*/) {
+        return binder::Status::ok();
+    }
+
+    binder::Status setSmallAreaDetectionThreshold(int32_t /*uid*/, float /*threshold*/) {
+        return binder::Status::ok();
+    }
+
     binder::Status getGpuContextPriority(int32_t* /*outPriority*/) override {
         return binder::Status::ok();
     }
@@ -1009,6 +1022,11 @@ public:
     }
 
     binder::Status getOverlaySupport(gui::OverlayProperties* /*properties*/) override {
+        return binder::Status::ok();
+    }
+
+    binder::Status getStalledTransactionInfo(
+            int32_t /*pid*/, std::optional<gui::StalledTransactionInfo>* /*result*/) override {
         return binder::Status::ok();
     }
 
@@ -1203,7 +1221,8 @@ protected:
 
         ASSERT_EQ(NO_ERROR, native_window_api_connect(mWindow.get(),
                 NATIVE_WINDOW_API_CPU));
-        native_window_set_buffer_count(mWindow.get(), 4);
+        ASSERT_EQ(NO_ERROR, native_window_set_buffer_count(mWindow.get(), 4));
+        ASSERT_EQ(NO_ERROR, native_window_set_usage(mWindow.get(), TEST_PRODUCER_USAGE_BITS));
     }
 
     void disableFrameTimestamps() {
@@ -2069,8 +2088,9 @@ TEST_F(SurfaceTest, DequeueWithConsumerDrivenSize) {
 
     sp<Surface> surface = new Surface(producer);
     sp<ANativeWindow> window(surface);
-    native_window_api_connect(window.get(), NATIVE_WINDOW_API_CPU);
-    native_window_set_buffers_dimensions(window.get(), 0, 0);
+    ASSERT_EQ(NO_ERROR, native_window_api_connect(window.get(), NATIVE_WINDOW_API_CPU));
+    ASSERT_EQ(NO_ERROR, native_window_set_buffers_dimensions(window.get(), 0, 0));
+    ASSERT_EQ(NO_ERROR, native_window_set_usage(window.get(), TEST_PRODUCER_USAGE_BITS));
 
     int fence;
     ANativeWindowBuffer* buffer;
@@ -2122,6 +2142,7 @@ TEST_F(SurfaceTest, DequeueWithConsumerDrivenSize) {
     native_window_api_connect(window.get(), NATIVE_WINDOW_API_CPU);
     consumer->setTransformHint(NATIVE_WINDOW_TRANSFORM_ROT_270);
     native_window_set_buffers_dimensions(window.get(), 0, 0);
+    native_window_set_usage(window.get(), TEST_PRODUCER_USAGE_BITS);
     ASSERT_EQ(NO_ERROR, window->dequeueBuffer(window.get(), &buffer, &fence));
     EXPECT_EQ(10, buffer->width);
     EXPECT_EQ(20, buffer->height);

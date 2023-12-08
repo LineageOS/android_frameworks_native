@@ -62,6 +62,9 @@ public:
 
     virtual void updateLedMetaState(int32_t metaState) = 0;
     virtual int32_t getLedMetaState() = 0;
+
+    virtual void setPreventingTouchpadTaps(bool prevent) = 0;
+    virtual bool isPreventingTouchpadTaps() = 0;
 };
 
 } // namespace android

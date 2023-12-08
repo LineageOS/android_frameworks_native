@@ -352,7 +352,7 @@ std::ostream& operator<<(std::ostream& out, const DispatchEntry& entry) {
     entry.transform.dump(transform, "transform");
     out << ", resolvedFlags=" << entry.resolvedFlags
         << ", targetFlags=" << entry.targetFlags.string() << ", transform=" << transform
-        << "} original =" << entry.eventEntry->getDescription();
+        << "} original: " << entry.eventEntry->getDescription();
     return out;
 }
 

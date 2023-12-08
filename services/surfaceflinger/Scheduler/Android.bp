@@ -40,6 +40,7 @@ cc_library_static {
     name: "libscheduler",
     defaults: ["libscheduler_defaults"],
     srcs: [
+        "src/FrameTargeter.cpp",
         "src/PresentLatencyTracker.cpp",
         "src/Timer.cpp",
     ],
@@ -52,6 +53,7 @@ cc_test {
     test_suites: ["device-tests"],
     defaults: ["libscheduler_defaults"],
     srcs: [
+        "tests/FrameTargeterTest.cpp",
         "tests/PresentLatencyTrackerTest.cpp",
         "tests/TimerTest.cpp",
     ],

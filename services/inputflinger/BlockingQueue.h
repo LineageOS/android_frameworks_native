@@ -18,14 +18,16 @@
 
 #include <condition_variable>
 #include <functional>
+#include <list>
 #include <mutex>
-#include <vector>
+#include <optional>
 #include "android-base/thread_annotations.h"
 
 namespace android {
 
 /**
- * A FIFO queue that stores up to <i>capacity</i> objects.
+ * A thread-safe FIFO queue. This list-backed queue stores up to <i>capacity</i> objects if
+ * a capacity is provided at construction, and is otherwise unbounded.
  * Objects can always be added. Objects are added immediately.
  * If the queue is full, new objects cannot be added.
  *
@@ -34,18 +36,35 @@ namespace android {
 template <class T>
 class BlockingQueue {
 public:
-    BlockingQueue(size_t capacity) : mCapacity(capacity) {
-        mQueue.reserve(mCapacity);
-    };
+    explicit BlockingQueue() = default;
+
+    explicit BlockingQueue(size_t capacity) : mCapacity(capacity){};
 
     /**
      * Retrieve and remove the oldest object.
-     * Blocks execution while queue is empty.
+     * Blocks execution indefinitely while queue is empty.
      */
     T pop() {
         std::unique_lock lock(mLock);
         android::base::ScopedLockAssertion assumeLock(mLock);
         mHasElements.wait(lock, [this]() REQUIRES(mLock) { return !this->mQueue.empty(); });
+        T t = std::move(mQueue.front());
+        mQueue.erase(mQueue.begin());
+        return t;
+    };
+
+    /**
+     * Retrieve and remove the oldest object.
+     * Blocks execution for the given duration while queue is empty, and returns std::nullopt
+     * if the queue was empty for the entire duration.
+     */
+    std::optional<T> popWithTimeout(std::chrono::nanoseconds duration) {
+        std::unique_lock lock(mLock);
+        android::base::ScopedLockAssertion assumeLock(mLock);
+        if (!mHasElements.wait_for(lock, duration,
+                                   [this]() REQUIRES(mLock) { return !this->mQueue.empty(); })) {
+            return {};
+        }
         T t = std::move(mQueue.front());
         mQueue.erase(mQueue.begin());
         return t;
@@ -58,20 +77,39 @@ public:
      * Return false if the queue is full.
      */
     bool push(T&& t) {
-        {
+        { // acquire lock
             std::scoped_lock lock(mLock);
-            if (mQueue.size() == mCapacity) {
+            if (mCapacity && mQueue.size() == mCapacity) {
                 return false;
             }
             mQueue.push_back(std::move(t));
-        }
+        } // release lock
         mHasElements.notify_one();
         return true;
     };
 
-    void erase(const std::function<bool(const T&)>& lambda) {
+    /**
+     * Construct a new object into the queue.
+     * Does not block.
+     * Return true if an element was successfully added.
+     * Return false if the queue is full.
+     */
+    template <class... Args>
+    bool emplace(Args&&... args) {
+        { // acquire lock
+            std::scoped_lock lock(mLock);
+            if (mCapacity && mQueue.size() == mCapacity) {
+                return false;
+            }
+            mQueue.emplace_back(args...);
+        } // release lock
+        mHasElements.notify_one();
+        return true;
+    };
+
+    void erase_if(const std::function<bool(const T&)>& pred) {
         std::scoped_lock lock(mLock);
-        std::erase_if(mQueue, [&lambda](const auto& t) { return lambda(t); });
+        std::erase_if(mQueue, pred);
     }
 
     /**
@@ -94,7 +132,7 @@ public:
     }
 
 private:
-    const size_t mCapacity;
+    const std::optional<size_t> mCapacity;
     /**
      * Used to signal that mQueue is non-empty.
      */
@@ -103,7 +141,7 @@ private:
      * Lock for accessing and waiting on elements.
      */
     std::mutex mLock;
-    std::vector<T> mQueue GUARDED_BY(mLock);
+    std::list<T> mQueue GUARDED_BY(mLock);
 };
 
 } // namespace android

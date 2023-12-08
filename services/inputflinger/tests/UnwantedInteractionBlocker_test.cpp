@@ -138,9 +138,10 @@ TEST(DeviceInfoConversionTest, TabletDeviceTest) {
 
 static void assertArgs(const NotifyMotionArgs& args, int32_t action,
                        const std::vector<std::pair<int32_t /*pointerId*/, PointerData>>& pointers) {
-    ASSERT_EQ(action, args.action);
-    ASSERT_EQ(pointers.size(), args.pointerCount);
-    for (size_t i = 0; i < args.pointerCount; i++) {
+    ASSERT_EQ(action, args.action)
+            << "Expected " << MotionEvent::actionToString(action) << " but got " << args.action;
+    ASSERT_EQ(pointers.size(), args.getPointerCount());
+    for (size_t i = 0; i < args.getPointerCount(); i++) {
         const auto& [pointerId, pointerData] = pointers[i];
         ASSERT_EQ(pointerId, args.pointerProperties[i].id);
         ASSERT_EQ(pointerData.x, args.pointerCoords[i].getX());
@@ -196,7 +197,7 @@ TEST(RemovePointerIdsTest, RemoveAllPointersDuringMove) {
                                                AMOTION_EVENT_ACTION_MOVE, {{1, 2, 3}, {4, 5, 6}});
 
     NotifyMotionArgs noPointers = removePointerIds(args, {0, 1});
-    ASSERT_EQ(0u, noPointers.pointerCount);
+    ASSERT_EQ(0u, noPointers.getPointerCount());
 }
 
 /**
@@ -771,7 +772,7 @@ TEST_F(PalmRejectorTest, TwoPointersAreCanceled) {
     ASSERT_EQ(POINTER_0_UP, argsList[0].action);
     ASSERT_EQ(FLAG_CANCELED, argsList[0].flags);
     ASSERT_EQ(MOVE, argsList[1].action);
-    ASSERT_EQ(1u, argsList[1].pointerCount);
+    ASSERT_EQ(1u, argsList[1].getPointerCount());
     ASSERT_EQ(0, argsList[1].flags);
 
     mPalmRejector->processMotion(
@@ -958,7 +959,7 @@ TEST_F(PalmRejectorFakeFilterTest, OneOfTwoPointersIsCanceled) {
                                {{1433.0, 751.0, 43.0}, {1072.0, 766.0, 13.0}}));
     ASSERT_EQ(1u, argsList.size());
     ASSERT_EQ(MOVE, argsList[0].action);
-    ASSERT_EQ(1u, argsList[0].pointerCount);
+    ASSERT_EQ(1u, argsList[0].getPointerCount());
     ASSERT_EQ(1433, argsList[0].pointerCoords[0].getX());
     ASSERT_EQ(751, argsList[0].pointerCoords[0].getY());
 }
@@ -986,7 +987,7 @@ TEST_F(PalmRejectorFakeFilterTest, NewDownEventAfterCancel) {
     ASSERT_EQ(1u, argsList.size());
     // Cancel all
     ASSERT_EQ(CANCEL, argsList[0].action);
-    ASSERT_EQ(2u, argsList[0].pointerCount);
+    ASSERT_EQ(2u, argsList[0].getPointerCount());
     ASSERT_EQ(FLAG_CANCELED, argsList[0].flags);
 
     // Future move events are ignored
@@ -1001,7 +1002,7 @@ TEST_F(PalmRejectorFakeFilterTest, NewDownEventAfterCancel) {
                                {{1433.0, 751.0, 43.0}, {1072.0, 766.0, 13.0}, {1000, 700, 10}}));
     ASSERT_EQ(1u, argsList.size());
     ASSERT_EQ(DOWN, argsList[0].action);
-    ASSERT_EQ(1u, argsList[0].pointerCount);
+    ASSERT_EQ(1u, argsList[0].getPointerCount());
     ASSERT_EQ(2, argsList[0].pointerProperties[0].id);
 }
 

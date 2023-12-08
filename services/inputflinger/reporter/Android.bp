@@ -37,6 +37,7 @@ filegroup {
 cc_defaults {
     name: "libinputreporter_defaults",
     srcs: [":libinputreporter_sources"],
+    host_supported: true,
     shared_libs: [
         "liblog",
         "libutils",

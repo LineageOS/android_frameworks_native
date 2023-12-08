@@ -157,6 +157,7 @@ private:
         bool requiresLinearEffect;
         float layerDimmingRatio;
         const ui::Dataspace outputDataSpace;
+        const ui::Dataspace fakeOutputDataspace;
     };
     sk_sp<SkShader> createRuntimeEffectShader(const RuntimeEffectShaderParameters&);
 

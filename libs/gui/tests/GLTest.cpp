@@ -29,10 +29,6 @@ static int abs(int value) {
 }
 
 void GLTest::SetUp() {
-    const ::testing::TestInfo* const testInfo =
-        ::testing::UnitTest::GetInstance()->current_test_info();
-    ALOGD("Begin test: %s.%s", testInfo->test_case_name(), testInfo->name());
-
     mEglDisplay = eglGetDisplay(EGL_DEFAULT_DISPLAY);
     ASSERT_EQ(EGL_SUCCESS, eglGetError());
     ASSERT_NE(EGL_NO_DISPLAY, mEglDisplay);
@@ -132,10 +128,6 @@ void GLTest::TearDown() {
         eglTerminate(mEglDisplay);
     }
     ASSERT_EQ(EGL_SUCCESS, eglGetError());
-
-    const ::testing::TestInfo* const testInfo =
-        ::testing::UnitTest::GetInstance()->current_test_info();
-    ALOGD("End test:   %s.%s", testInfo->test_case_name(), testInfo->name());
 }
 
 EGLint const* GLTest::getConfigAttribs() {

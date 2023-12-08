@@ -16,7 +16,7 @@
 
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 #undef LOG_TAG
-#define LOG_TAG "LayerHierarchy"
+#define LOG_TAG "SurfaceFlinger"
 
 #include "LayerHierarchy.h"
 #include "LayerLog.h"

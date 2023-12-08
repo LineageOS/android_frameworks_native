@@ -36,6 +36,7 @@ cc_test {
     ],
     shared_libs: [
         "libnativewindow",
+        "libbase",
     ],
     static_libs: [
         "libmath",

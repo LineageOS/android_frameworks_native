@@ -23,6 +23,8 @@
 #include <gtest/gtest.h>
 #include <input/Input.h>
 
+#include "TestConstants.h"
+
 namespace android {
 
 MATCHER_P(WithMotionAction, action, "MotionEvent with specified action") {
@@ -69,8 +71,8 @@ MATCHER_P(WithKeyCode, keyCode, "KeyEvent with specified key code") {
 }
 
 MATCHER_P(WithPointerCount, count, "MotionEvent with specified number of pointers") {
-    *result_listener << "expected " << count << " pointer(s), but got " << arg.pointerCount;
-    return arg.pointerCount == count;
+    *result_listener << "expected " << count << " pointer(s), but got " << arg.getPointerCount();
+    return arg.getPointerCount() == count;
 }
 
 MATCHER_P2(WithPointerId, index, id, "MotionEvent with specified pointer ID for pointer index") {
@@ -134,6 +136,15 @@ MATCHER_P2(WithGesturePinchScaleFactor, factor, epsilon,
     *result_listener << "expected gesture scale factor " << factor << " within " << epsilon
                      << " but got " << argScaleFactor;
     return fabs(argScaleFactor - factor) <= epsilon;
+}
+
+MATCHER_P(WithGestureSwipeFingerCount, count,
+          "InputEvent with specified touchpad swipe finger count") {
+    const auto argFingerCount =
+            arg.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_GESTURE_SWIPE_FINGER_COUNT);
+    *result_listener << "expected gesture swipe finger count " << count << " but got "
+                     << argFingerCount;
+    return fabs(argFingerCount - count) <= EPSILON;
 }
 
 MATCHER_P(WithPressure, pressure, "InputEvent with specified pressure") {

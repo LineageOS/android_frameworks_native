@@ -155,6 +155,9 @@ protected:
         int32_t getNextId() NO_THREAD_SAFETY_ANALYSIS override;
         void updateLedMetaState(int32_t metaState) REQUIRES(mReader->mLock) override;
         int32_t getLedMetaState() REQUIRES(mReader->mLock) REQUIRES(mLock) override;
+        void setPreventingTouchpadTaps(bool prevent) REQUIRES(mReader->mLock)
+                REQUIRES(mLock) override;
+        bool isPreventingTouchpadTaps() REQUIRES(mReader->mLock) REQUIRES(mLock) override;
     } mContext;
 
     friend class ContextImpl;
@@ -171,7 +174,14 @@ private:
     // in parallel to passing it to the InputReader.
     std::shared_ptr<EventHubInterface> mEventHub;
     sp<InputReaderPolicyInterface> mPolicy;
-    QueuedInputListener mQueuedListener;
+
+    // The next stage that should receive the events generated inside InputReader.
+    InputListenerInterface& mNextListener;
+    // As various events are generated inside InputReader, they are stored inside this list. The
+    // list can only be accessed with the lock, so the events inside it are well-ordered.
+    // Once the reader is done working, these events will be swapped into a temporary storage and
+    // sent to the 'mNextListener' without holding the lock.
+    std::list<NotifyArgs> mPendingArgs GUARDED_BY(mLock);
 
     InputReaderConfiguration mConfig GUARDED_BY(mLock);
 
@@ -184,6 +194,9 @@ private:
     // EventHubIds contained in the input device from the input device instance.
     std::unordered_map<std::shared_ptr<InputDevice>, std::vector<int32_t> /*eventHubId*/>
             mDeviceToEventHubIdsMap GUARDED_BY(mLock);
+
+    // true if tap-to-click on touchpad currently disabled
+    bool mPreventingTouchpadTaps GUARDED_BY(mLock){false};
 
     // low-level input event decoding and device management
     [[nodiscard]] std::list<NotifyArgs> processEventsLocked(const RawEvent* rawEvents, size_t count)
@@ -235,8 +248,6 @@ private:
 
     ConfigurationChanges mConfigurationChangesToRefresh GUARDED_BY(mLock);
     void refreshConfigurationLocked(ConfigurationChanges changes) REQUIRES(mLock);
-
-    void notifyAll(std::list<NotifyArgs>&& argsList);
 
     PointerCaptureRequest mCurrentPointerCaptureRequest GUARDED_BY(mLock);
 

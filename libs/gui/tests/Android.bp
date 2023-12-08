@@ -21,6 +21,7 @@ cc_test {
     ],
 
     srcs: [
+        "LibGuiMain.cpp", // Custom gtest entrypoint
         "BLASTBufferQueue_test.cpp",
         "BufferItemConsumer_test.cpp",
         "BufferQueue_test.cpp",

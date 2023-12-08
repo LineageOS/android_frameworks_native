@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <android-base/properties.h>
 #include <gtest/gtest.h>
 #include <gui/SurfaceComposerClient.h>
 #include <private/android_filesystem_config.h>
@@ -21,7 +22,8 @@
 #include <future>
 
 namespace android {
-using Transaction = SurfaceComposerClient::Transaction;
+
+using base::HwTimeoutMultiplier;
 using gui::DisplayInfo;
 using gui::WindowInfo;
 
@@ -36,7 +38,8 @@ public:
         auto listener = sp<WindowInfosListener>::make(std::move(predicate), promise);
         mClient->addWindowInfosListener(listener);
         auto future = promise.get_future();
-        bool satisfied = future.wait_for(std::chrono::seconds{1}) == std::future_status::ready;
+        bool satisfied = future.wait_for(std::chrono::seconds{5 * HwTimeoutMultiplier()}) ==
+                std::future_status::ready;
         mClient->removeWindowInfosListener(listener);
         return satisfied;
     }
