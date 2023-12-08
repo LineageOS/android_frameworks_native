@@ -2,6 +2,7 @@ LIBNATIVEWINDOW {
   global:
     AHardwareBuffer_acquire;
     AHardwareBuffer_allocate;
+    AHardwareBuffer_allocate2; # llndk # systemapi
     AHardwareBuffer_createFromHandle; # llndk # systemapi
     AHardwareBuffer_describe;
     AHardwareBuffer_getId; # introduced=31
@@ -16,6 +17,8 @@ LIBNATIVEWINDOW {
     AHardwareBuffer_unlock;
     AHardwareBuffer_readFromParcel; # introduced=34
     AHardwareBuffer_writeToParcel; # introduced=34
+    AHardwareBuffer_getDataSpace; # llndk # systemapi
+    AHardwareBuffer_setDataSpace; # llndk # systemapi
     ANativeWindowBuffer_getHardwareBuffer; # llndk
     ANativeWindow_OemStorageGet; # llndk
     ANativeWindow_OemStorageSet; # llndk

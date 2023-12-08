@@ -23,6 +23,7 @@
 #include <ui/PixelFormat.h>
 #include <ui/Rect.h>
 #include <utils/StrongPointer.h>
+#include "GraphicBufferAllocator.h"
 
 #include <string>
 
@@ -218,9 +219,13 @@ public:
      */
     virtual status_t allocate(std::string requestorName, uint32_t width, uint32_t height,
                               PixelFormat format, uint32_t layerCount, uint64_t usage,
-                              uint32_t bufferCount, uint32_t* outStride,
-                              buffer_handle_t* outBufferHandles,
+                              uint32_t* outStride, buffer_handle_t* outBufferHandles,
                               bool importBuffers = true) const = 0;
+
+    virtual GraphicBufferAllocator::AllocationResult allocate(
+            const GraphicBufferAllocator::AllocationRequest&) const {
+        return GraphicBufferAllocator::AllocationResult(UNKNOWN_TRANSACTION);
+    }
 };
 
 } // namespace android
