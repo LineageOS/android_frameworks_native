@@ -2235,8 +2235,9 @@ void SurfaceFlinger::updateLayerHistory(nsecs_t now) {
         }
 
         auto it = mLegacyLayers.find(snapshot->sequence);
-        LOG_ALWAYS_FATAL_IF(it == mLegacyLayers.end(), "Couldn't find layer object for %s",
-                            snapshot->getDebugString().c_str());
+        LLOG_ALWAYS_FATAL_WITH_TRACE_IF(it == mLegacyLayers.end(),
+                                        "Couldn't find layer object for %s",
+                                        snapshot->getDebugString().c_str());
 
         if (updateSmallDirty) {
             // Update small dirty flag while surface damage region or geometry changed
@@ -2389,8 +2390,9 @@ bool SurfaceFlinger::updateLayerSnapshots(VsyncId vsyncId, nsecs_t frameTimeNs,
             const bool willReleaseBufferOnLatch = layer->willReleaseBufferOnLatch();
 
             auto it = mLegacyLayers.find(layer->id);
-            LOG_ALWAYS_FATAL_IF(it == mLegacyLayers.end(), "Couldnt find layer object for %s",
-                                layer->getDebugString().c_str());
+            LLOG_ALWAYS_FATAL_WITH_TRACE_IF(it == mLegacyLayers.end(),
+                                            "Couldnt find layer object for %s",
+                                            layer->getDebugString().c_str());
             if (!layer->hasReadyFrame() && !willReleaseBufferOnLatch) {
                 if (!it->second->hasBuffer()) {
                     // The last latch time is used to classify a missed frame as buffer stuffing
@@ -3089,9 +3091,9 @@ void SurfaceFlinger::onCompositionPresented(PhysicalDisplayId pacesetterId,
                         [&, compositionDisplay = compositionDisplay](
                                 std::unique_ptr<frontend::LayerSnapshot>& snapshot) {
                             auto it = mLegacyLayers.find(snapshot->sequence);
-                            LOG_ALWAYS_FATAL_IF(it == mLegacyLayers.end(),
-                                                "Couldnt find layer object for %s",
-                                                snapshot->getDebugString().c_str());
+                            LLOG_ALWAYS_FATAL_WITH_TRACE_IF(it == mLegacyLayers.end(),
+                                                            "Couldnt find layer object for %s",
+                                                            snapshot->getDebugString().c_str());
                             auto& legacyLayer = it->second;
                             sp<LayerFE> layerFe =
                                     legacyLayer->getCompositionEngineLayerFE(snapshot->path);
@@ -6459,8 +6461,9 @@ void SurfaceFlinger::dumpHwcLayersMinidump(std::string& result) const {
                 return;
             }
             auto it = mLegacyLayers.find(snapshot.sequence);
-            LOG_ALWAYS_FATAL_IF(it == mLegacyLayers.end(), "Couldnt find layer object for %s",
-                                snapshot.getDebugString().c_str());
+            LLOG_ALWAYS_FATAL_WITH_TRACE_IF(it == mLegacyLayers.end(),
+                                            "Couldnt find layer object for %s",
+                                            snapshot.getDebugString().c_str());
             it->second->miniDump(result, snapshot, ref);
         });
         result.append("\n");
@@ -8843,9 +8846,9 @@ std::vector<std::pair<Layer*, LayerFE*>> SurfaceFlinger::moveSnapshotsToComposit
                     }
 
                     auto it = mLegacyLayers.find(snapshot->sequence);
-                    LOG_ALWAYS_FATAL_IF(it == mLegacyLayers.end(),
-                                        "Couldnt find layer object for %s",
-                                        snapshot->getDebugString().c_str());
+                    LLOG_ALWAYS_FATAL_WITH_TRACE_IF(it == mLegacyLayers.end(),
+                                                    "Couldnt find layer object for %s",
+                                                    snapshot->getDebugString().c_str());
                     auto& legacyLayer = it->second;
                     sp<LayerFE> layerFE = legacyLayer->getCompositionEngineLayerFE(snapshot->path);
                     snapshot->fps = getLayerFramerate(currentTime, snapshot->sequence);
@@ -8914,9 +8917,9 @@ SurfaceFlinger::getLayerSnapshotsForScreenshots(
                     }
 
                     auto it = mLegacyLayers.find(snapshot->sequence);
-                    LOG_ALWAYS_FATAL_IF(it == mLegacyLayers.end(),
-                                        "Couldnt find layer object for %s",
-                                        snapshot->getDebugString().c_str());
+                    LLOG_ALWAYS_FATAL_WITH_TRACE_IF(it == mLegacyLayers.end(),
+                                                    "Couldnt find layer object for %s",
+                                                    snapshot->getDebugString().c_str());
                     Layer* legacyLayer = (it == mLegacyLayers.end()) ? nullptr : it->second.get();
                     sp<LayerFE> layerFE = getFactory().createLayerFE(snapshot->name);
                     layerFE->mSnapshot = std::make_unique<frontend::LayerSnapshot>(*snapshot);
