@@ -20,6 +20,7 @@ MODULE := $(LOCAL_DIR)
 LIBBINDER_DIR := frameworks/native/libs/binder
 # TODO(b/302723053): remove libbase after aidl prebuilt gets updated to December release
 LIBBASE_DIR := system/libbase
+LIBLOG_STUB_DIR := $(LIBBINDER_DIR)/liblog_stub
 LIBUTILS_BINDER_DIR := system/core/libutils/binder
 FMTLIB_DIR := external/fmtlib
 
@@ -54,6 +55,7 @@ MODULE_SRCS := \
 
 MODULE_EXPORT_INCLUDES += \
 	$(LOCAL_DIR)/include \
+	$(LIBLOG_STUB_DIR)/include \
 	$(LIBBINDER_DIR)/include \
 	$(LIBBASE_DIR)/include \
 	$(LIBUTILS_BINDER_DIR)/include \

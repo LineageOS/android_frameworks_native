@@ -22,9 +22,13 @@
 #endif
 
 #include <binder/RpcTransportTipcTrusty.h>
+#include <log/log.h>
+#include <trusty_log.h>
 
 #include "../OS.h"
 #include "TrustyStatus.h"
+
+#include <cstdarg>
 
 using android::binder::borrowed_fd;
 using android::binder::unique_fd;
@@ -87,3 +91,43 @@ ssize_t receiveMessageFromSocket(
 }
 
 } // namespace android::binder::os
+
+int __android_log_print(int prio [[maybe_unused]], const char* tag, const char* fmt, ...) {
+#ifdef TRUSTY_USERSPACE
+#define trusty_tlog _tlog
+#define trusty_vtlog _vtlog
+#else
+    // mapping taken from kernel trusty_log.h (TLOGx)
+    int kernelLogLevel;
+    if (prio <= ANDROID_LOG_DEBUG) {
+        kernelLogLevel = LK_DEBUGLEVEL_ALWAYS;
+    } else if (prio == ANDROID_LOG_INFO) {
+        kernelLogLevel = LK_DEBUGLEVEL_SPEW;
+    } else if (prio == ANDROID_LOG_WARN) {
+        kernelLogLevel = LK_DEBUGLEVEL_INFO;
+    } else if (prio == ANDROID_LOG_ERROR) {
+        kernelLogLevel = LK_DEBUGLEVEL_CRITICAL;
+    } else { /* prio >= ANDROID_LOG_FATAL */
+        kernelLogLevel = LK_DEBUGLEVEL_CRITICAL;
+    }
+#if LK_DEBUGLEVEL_NO_ALIASES
+    auto LK_DEBUGLEVEL_kernelLogLevel = kernelLogLevel;
+#endif
+
+#define trusty_tlog(...) _tlog(kernelLogLevel, __VA_ARGS__)
+#define trusty_vtlog(...) _vtlog(kernelLogLevel, __VA_ARGS__)
+#endif
+
+    va_list args;
+    va_start(args, fmt);
+    trusty_tlog((tag[0] == '\0') ? "libbinder" : "libbinder-");
+    trusty_vtlog(fmt, args);
+    va_end(args);
+
+    return 1;
+}
+
+// TODO(b/285204695): remove once trusty mock doesn't depend on libbase
+extern "C" int __android_log_buf_print(int, int, const char*, const char*, ...) {
+    return -ENOSYS;
+}
