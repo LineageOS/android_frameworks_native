@@ -10,18 +10,18 @@ class BufferStreamJNI {
      * A native method that is implemented by the 'bufferstreamsdemoapp' native library, which is
      * packaged with this application.
      */
-    external fun stringFromJNI()
-    external fun testBufferQueueCreation()
+    external fun stringFromJNI(): String;
+    external fun testBufferQueueCreation();
 
     companion object {
-        fun companion_stringFromJNI() {
+        fun companion_stringFromJNI(): String {
             val instance = BufferStreamJNI()
-            instance.stringFromJNI()
+            return instance.stringFromJNI()
         }
 
         fun companion_testBufferQueueCreation() {
             val instance = BufferStreamJNI()
-            instance.testBufferQueueCreation()
+            return instance.testBufferQueueCreation()
         }
     }
 }
