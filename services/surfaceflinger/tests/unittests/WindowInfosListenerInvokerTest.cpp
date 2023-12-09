@@ -245,4 +245,42 @@ TEST_F(WindowInfosListenerInvokerTest, noListeners) {
     EXPECT_EQ(callCount, 1);
 }
 
+// Test that WindowInfosListenerInvoker#removeWindowInfosListener acks any unacked messages for
+// the removed listener.
+TEST_F(WindowInfosListenerInvokerTest, removeListenerAcks) {
+    // Don't ack in this listener to ensure there's an unacked message when the listener is later
+    // removed.
+    gui::WindowInfosListenerInfo listenerToBeRemovedInfo;
+    auto listenerToBeRemoved = sp<Listener>::make([](const gui::WindowInfosUpdate&) {});
+    mInvoker->addWindowInfosListener(listenerToBeRemoved, &listenerToBeRemovedInfo);
+
+    std::mutex mutex;
+    std::condition_variable cv;
+    int callCount = 0;
+    gui::WindowInfosListenerInfo listenerInfo;
+    mInvoker->addWindowInfosListener(sp<Listener>::make([&](const gui::WindowInfosUpdate& update) {
+                                         std::scoped_lock lock{mutex};
+                                         callCount++;
+                                         cv.notify_one();
+                                         listenerInfo.windowInfosPublisher
+                                                 ->ackWindowInfosReceived(update.vsyncId,
+                                                                          listenerInfo.listenerId);
+                                     }),
+                                     &listenerInfo);
+
+    BackgroundExecutor::getInstance().sendCallbacks(
+            {[&]() { mInvoker->windowInfosChanged({}, {}, false); }});
+    mInvoker->removeWindowInfosListener(listenerToBeRemoved);
+    BackgroundExecutor::getInstance().sendCallbacks(
+            {[&]() { mInvoker->windowInfosChanged({}, {}, false); }});
+
+    // Verify that the second listener is called twice. If unacked messages aren't removed when the
+    // first listener is removed, this will fail.
+    {
+        std::unique_lock lock{mutex};
+        cv.wait(lock, [&]() { return callCount == 2; });
+    }
+    EXPECT_EQ(callCount, 2);
+}
+
 } // namespace android

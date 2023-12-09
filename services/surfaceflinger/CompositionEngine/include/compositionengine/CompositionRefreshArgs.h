@@ -37,6 +37,15 @@ struct BorderRenderInfo {
     half4 color;
     std::vector<int32_t> layerIds;
 };
+
+// Interface of composition engine power hint callback.
+struct ICEPowerCallback {
+    virtual void notifyCpuLoadUp() = 0;
+
+protected:
+    ~ICEPowerCallback() = default;
+};
+
 /**
  * A parameter object for refreshing a set of outputs
  */
@@ -96,6 +105,8 @@ struct CompositionRefreshArgs {
     std::vector<BorderRenderInfo> borderInfoList;
 
     bool hasTrustedPresentationListener = false;
+
+    ICEPowerCallback* powerCallback = nullptr;
 };
 
 } // namespace android::compositionengine

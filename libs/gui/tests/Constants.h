@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 The Android Open Source Project
+ * Copyright 2023 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,14 +16,7 @@
 
 #pragma once
 
-#include <ui/GraphicTypes.h>
+#include <hardware/gralloc.h>
 
-namespace android {
-
-inline bool isHdrDataspace(ui::Dataspace dataspace) {
-    const auto transfer = dataspace & HAL_DATASPACE_TRANSFER_MASK;
-
-    return transfer == HAL_DATASPACE_TRANSFER_ST2084 || transfer == HAL_DATASPACE_TRANSFER_HLG;
-}
-
-} // namespace android
+// Arbitrary non-zero usage flag.
+constexpr uint64_t TEST_PRODUCER_USAGE_BITS = GRALLOC_USAGE_SW_READ_RARELY;

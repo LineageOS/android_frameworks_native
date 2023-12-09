@@ -162,6 +162,9 @@ void CachedSet::render(renderengine::RenderEngine& renderEngine, TexturePool& te
                        const OutputCompositionState& outputState,
                        bool deviceHandlesColorTransform) {
     ATRACE_CALL();
+    if (outputState.powerCallback) {
+        outputState.powerCallback->notifyCpuLoadUp();
+    }
     const Rect& viewport = outputState.layerStackSpace.getContent();
     const ui::Dataspace& outputDataspace = outputState.dataspace;
     const ui::Transform::RotationFlags orientation =
@@ -177,18 +180,19 @@ void CachedSet::render(renderengine::RenderEngine& renderEngine, TexturePool& te
             .targetLuminanceNits = outputState.displayBrightnessNits,
     };
 
-    LayerFE::ClientCompositionTargetSettings targetSettings{
-            .clip = Region(viewport),
-            .needsFiltering = false,
-            .isSecure = outputState.isSecure,
-            .supportsProtectedContent = false,
-            .viewport = viewport,
-            .dataspace = outputDataspace,
-            .realContentIsVisible = true,
-            .clearContent = false,
-            .blurSetting = LayerFE::ClientCompositionTargetSettings::BlurSetting::Enabled,
-            .whitePointNits = outputState.displayBrightnessNits,
-    };
+    LayerFE::ClientCompositionTargetSettings
+            targetSettings{.clip = Region(viewport),
+                           .needsFiltering = false,
+                           .isSecure = outputState.isSecure,
+                           .supportsProtectedContent = false,
+                           .viewport = viewport,
+                           .dataspace = outputDataspace,
+                           .realContentIsVisible = true,
+                           .clearContent = false,
+                           .blurSetting =
+                                   LayerFE::ClientCompositionTargetSettings::BlurSetting::Enabled,
+                           .whitePointNits = outputState.displayBrightnessNits,
+                           .treat170mAsSrgb = outputState.treat170mAsSrgb};
 
     std::vector<renderengine::LayerSettings> layerSettings;
     renderengine::LayerSettings highlight;

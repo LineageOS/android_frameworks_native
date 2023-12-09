@@ -56,29 +56,33 @@ void WindowInfosListenerInvoker::removeWindowInfosListener(
         ATRACE_NAME("WindowInfosListenerInvoker::removeWindowInfosListener");
         sp<IBinder> asBinder = IInterface::asBinder(listener);
         asBinder->unlinkToDeath(sp<DeathRecipient>::fromExisting(this));
-        mWindowInfosListeners.erase(asBinder);
+        eraseListenerAndAckMessages(asBinder);
     }});
 }
 
 void WindowInfosListenerInvoker::binderDied(const wp<IBinder>& who) {
     BackgroundExecutor::getInstance().sendCallbacks({[this, who]() {
         ATRACE_NAME("WindowInfosListenerInvoker::binderDied");
-        auto it = mWindowInfosListeners.find(who);
-        int64_t listenerId = it->second.first;
-        mWindowInfosListeners.erase(who);
-
-        std::vector<int64_t> vsyncIds;
-        for (auto& [vsyncId, state] : mUnackedState) {
-            if (std::find(state.unackedListenerIds.begin(), state.unackedListenerIds.end(),
-                          listenerId) != state.unackedListenerIds.end()) {
-                vsyncIds.push_back(vsyncId);
-            }
-        }
-
-        for (int64_t vsyncId : vsyncIds) {
-            ackWindowInfosReceived(vsyncId, listenerId);
-        }
+        eraseListenerAndAckMessages(who);
     }});
+}
+
+void WindowInfosListenerInvoker::eraseListenerAndAckMessages(const wp<IBinder>& binder) {
+    auto it = mWindowInfosListeners.find(binder);
+    int64_t listenerId = it->second.first;
+    mWindowInfosListeners.erase(binder);
+
+    std::vector<int64_t> vsyncIds;
+    for (auto& [vsyncId, state] : mUnackedState) {
+        if (std::find(state.unackedListenerIds.begin(), state.unackedListenerIds.end(),
+                      listenerId) != state.unackedListenerIds.end()) {
+            vsyncIds.push_back(vsyncId);
+        }
+    }
+
+    for (int64_t vsyncId : vsyncIds) {
+        ackWindowInfosReceived(vsyncId, listenerId);
+    }
 }
 
 void WindowInfosListenerInvoker::windowInfosChanged(

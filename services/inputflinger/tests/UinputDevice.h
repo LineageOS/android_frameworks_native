@@ -214,11 +214,12 @@ public:
     const Point getCenterPoint();
 
 protected:
-    explicit UinputTouchScreen(const Rect& size);
+    explicit UinputTouchScreen(const Rect& size, const std::string& physicalPort = "");
 
 private:
     void configureDevice(int fd, uinput_user_dev* device) override;
     const Rect mSize;
+    const std::string mPhysicalPort;
 };
 
 } // namespace android

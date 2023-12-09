@@ -959,6 +959,77 @@ TEST_F(LayerHistoryTest, heuristicLayerNotOscillating) {
     recordFramesAndExpect(layer, time, 27.1_Hz, 30_Hz, PRESENT_TIME_HISTORY_SIZE);
 }
 
+TEST_F(LayerHistoryTest, smallDirtyLayer) {
+    auto layer = createLayer();
+
+    EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
+    EXPECT_CALL(*layer, getFrameRateForLayerTree()).WillRepeatedly(Return(Layer::FrameRate()));
+
+    nsecs_t time = systemTime();
+
+    EXPECT_EQ(1, layerCount());
+    EXPECT_EQ(0, activeLayerCount());
+    EXPECT_EQ(0, frequentLayerCount(time));
+
+    LayerHistory::Summary summary;
+
+    // layer is active but infrequent.
+    for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE; i++) {
+        auto props = layer->getLayerProps();
+        if (i % 3 == 0) {
+            props.isSmallDirty = false;
+        } else {
+            props.isSmallDirty = true;
+        }
+
+        history().record(layer->getSequence(), props, time, time,
+                         LayerHistory::LayerUpdateType::Buffer);
+        time += HI_FPS_PERIOD;
+        summary = summarizeLayerHistory(time);
+    }
+
+    ASSERT_EQ(1, summary.size());
+    ASSERT_EQ(LayerHistory::LayerVoteType::Heuristic, summary[0].vote);
+    EXPECT_GE(HI_FPS, summary[0].desiredRefreshRate);
+}
+
+TEST_F(LayerHistoryTest, smallDirtyInMultiLayer) {
+    auto layer1 = createLayer("UI");
+    auto layer2 = createLayer("Video");
+
+    EXPECT_CALL(*layer1, isVisible()).WillRepeatedly(Return(true));
+    EXPECT_CALL(*layer1, getFrameRateForLayerTree()).WillRepeatedly(Return(Layer::FrameRate()));
+
+    EXPECT_CALL(*layer2, isVisible()).WillRepeatedly(Return(true));
+    EXPECT_CALL(*layer2, getFrameRateForLayerTree())
+            .WillRepeatedly(
+                    Return(Layer::FrameRate(30_Hz, Layer::FrameRateCompatibility::Default)));
+
+    nsecs_t time = systemTime();
+
+    EXPECT_EQ(2, layerCount());
+    EXPECT_EQ(0, activeLayerCount());
+    EXPECT_EQ(0, frequentLayerCount(time));
+
+    LayerHistory::Summary summary;
+
+    // layer1 is updating small dirty.
+    for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE + FREQUENT_LAYER_WINDOW_SIZE + 1; i++) {
+        auto props = layer1->getLayerProps();
+        props.isSmallDirty = true;
+        history().record(layer1->getSequence(), props, 0 /*presentTime*/, time,
+                         LayerHistory::LayerUpdateType::Buffer);
+        history().record(layer2->getSequence(), layer2->getLayerProps(), time, time,
+                         LayerHistory::LayerUpdateType::Buffer);
+        time += HI_FPS_PERIOD;
+        summary = summarizeLayerHistory(time);
+    }
+
+    ASSERT_EQ(1, summary.size());
+    ASSERT_EQ(LayerHistory::LayerVoteType::ExplicitDefault, summary[0].vote);
+    ASSERT_EQ(30_Hz, summary[0].desiredRefreshRate);
+}
+
 class LayerHistoryTestParameterized : public LayerHistoryTest,
                                       public testing::WithParamInterface<std::chrono::nanoseconds> {
 };

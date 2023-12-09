@@ -39,7 +39,7 @@ public:
     /* Dumps the state of the input dispatcher.
      *
      * This method may be called on any thread (usually by the input manager). */
-    virtual void dump(std::string& dump) = 0;
+    virtual void dump(std::string& dump) const = 0;
 
     /* Called by the heatbeat to ensures that the dispatcher has not deadlocked. */
     virtual void monitor() = 0;
@@ -50,7 +50,7 @@ public:
      * Return true if the dispatcher is idle.
      * Return false if the timeout waiting for the dispatcher to become idle has expired.
      */
-    virtual bool waitForIdle() = 0;
+    virtual bool waitForIdle() const = 0;
 
     /* Make the dispatcher start processing events.
      *
@@ -76,7 +76,7 @@ public:
      * perform all necessary permission checks prior to injecting events.
      */
     virtual android::os::InputEventInjectionResult injectInputEvent(
-            const InputEvent* event, std::optional<int32_t> targetUid,
+            const InputEvent* event, std::optional<gui::Uid> targetUid,
             android::os::InputEventInjectionSync syncMode, std::chrono::milliseconds timeout,
             uint32_t policyFlags) = 0;
 
@@ -134,7 +134,7 @@ public:
      *
      * Returns true when changing touch mode state.
      */
-    virtual bool setInTouchMode(bool inTouchMode, int32_t pid, int32_t uid, bool hasPermission,
+    virtual bool setInTouchMode(bool inTouchMode, gui::Pid pid, gui::Uid uid, bool hasPermission,
                                 int32_t displayId) = 0;
 
     /**
@@ -182,7 +182,7 @@ public:
      */
     virtual base::Result<std::unique_ptr<InputChannel>> createInputMonitor(int32_t displayId,
                                                                            const std::string& name,
-                                                                           int32_t pid) = 0;
+                                                                           gui::Pid pid) = 0;
 
     /* Removes input channels that will no longer receive input events.
      *

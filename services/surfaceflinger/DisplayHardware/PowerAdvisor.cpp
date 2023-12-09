@@ -138,6 +138,21 @@ void PowerAdvisor::setExpensiveRenderingExpected(DisplayId displayId, bool expec
     }
 }
 
+void PowerAdvisor::notifyCpuLoadUp() {
+    // Only start sending this notification once the system has booted so we don't introduce an
+    // early-boot dependency on Power HAL
+    if (!mBootFinished.load()) {
+        return;
+    }
+    if (usePowerHintSession() && ensurePowerHintSessionRunning()) {
+        std::lock_guard lock(mHintSessionMutex);
+        auto ret = mHintSession->sendHint(SessionHint::CPU_LOAD_UP);
+        if (!ret.isOk()) {
+            mHintSessionRunning = false;
+        }
+    }
+}
+
 void PowerAdvisor::notifyDisplayUpdateImminentAndCpuReset() {
     // Only start sending this notification once the system has booted so we don't introduce an
     // early-boot dependency on Power HAL

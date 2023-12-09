@@ -16,8 +16,10 @@
 
 #include <locale>
 #include <regex>
-#include <set>
+#include <sstream>
+#include <string>
 
+#include <android/sysprop/InputProperties.sysprop.h>
 #include <ftl/enum.h>
 
 #include "../Macros.h"
@@ -43,6 +45,10 @@ static inline int32_t getBlue(int32_t color) {
 
 static inline int32_t toArgb(int32_t brightness, int32_t red, int32_t green, int32_t blue) {
     return (brightness & 0xff) << 24 | (red & 0xff) << 16 | (green & 0xff) << 8 | (blue & 0xff);
+}
+
+static inline bool isKeyboardBacklightCustomLevelsEnabled() {
+    return sysprop::InputProperties::enable_keyboard_backlight_custom_levels().value_or(true);
 }
 
 /**
@@ -272,9 +278,41 @@ void PeripheralController::populateDeviceInfo(InputDeviceInfo* deviceInfo) {
     for (const auto& [lightId, light] : mLights) {
         // Input device light doesn't support ordinal, always pass 1.
         InputDeviceLightInfo lightInfo(light->name, light->id, light->type, light->capabilityFlags,
-                                       /*ordinal=*/1);
+                                       /*ordinal=*/1, getPreferredBrightnessLevels(light.get()));
         deviceInfo->addLightInfo(lightInfo);
     }
+}
+
+// TODO(b/281822656): Move to constructor and add as a parameter to avoid parsing repeatedly.
+// Need to change lifecycle of Peripheral controller so that Input device configuration map is
+// available at construction time before moving this logic to constructor.
+std::set<BrightnessLevel> PeripheralController::getPreferredBrightnessLevels(
+        const Light* light) const {
+    std::set<BrightnessLevel> levels;
+    if (!isKeyboardBacklightCustomLevelsEnabled() ||
+        light->type != InputDeviceLightType::KEYBOARD_BACKLIGHT) {
+        return levels;
+    }
+    std::optional<std::string> keyboardBacklightLevels =
+            mDeviceContext.getConfiguration().getString("keyboard.backlight.brightnessLevels");
+    if (!keyboardBacklightLevels) {
+        return levels;
+    }
+    std::stringstream ss(*keyboardBacklightLevels);
+    while (ss.good()) {
+        std::string substr;
+        std::getline(ss, substr, ',');
+        char* end;
+        int32_t value = static_cast<int32_t>(strtol(substr.c_str(), &end, 10));
+        if (*end != '\0' || value < 0 || value > 255) {
+            ALOGE("Error parsing keyboard backlight brightness levels, provided levels = %s",
+                  keyboardBacklightLevels->c_str());
+            levels.clear();
+            break;
+        }
+        levels.insert(BrightnessLevel(value));
+    }
+    return levels;
 }
 
 void PeripheralController::dump(std::string& dump) {
@@ -550,5 +588,4 @@ std::optional<int32_t> PeripheralController::getLightPlayerId(int32_t lightId) {
 int32_t PeripheralController::getEventHubId() const {
     return getDeviceContext().getEventHubId();
 }
-
 } // namespace android

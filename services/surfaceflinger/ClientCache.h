@@ -29,7 +29,9 @@
 #include <set>
 #include <unordered_map>
 
-#define BUFFER_CACHE_MAX_SIZE 64
+// 4096 is based on 64 buffers * 64 layers. Once this limit is reached, the least recently used
+// buffer is uncached before the new buffer is cached.
+#define BUFFER_CACHE_MAX_SIZE 4096
 
 namespace android {
 

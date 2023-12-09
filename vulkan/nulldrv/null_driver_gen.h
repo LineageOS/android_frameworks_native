@@ -210,6 +210,7 @@ VKAPI_ATTR void GetDescriptorSetLayoutSupport(VkDevice device, const VkDescripto
 VKAPI_ATTR VkResult GetSwapchainGrallocUsageANDROID(VkDevice device, VkFormat format, VkImageUsageFlags imageUsage, int* grallocUsage);
 VKAPI_ATTR VkResult GetSwapchainGrallocUsage2ANDROID(VkDevice device, VkFormat format, VkImageUsageFlags imageUsage, VkSwapchainImageUsageFlagsANDROID swapchainImageUsage, uint64_t* grallocConsumerUsage, uint64_t* grallocProducerUsage);
 VKAPI_ATTR VkResult GetSwapchainGrallocUsage3ANDROID(VkDevice device, const VkGrallocUsageInfoANDROID* grallocUsageInfo, uint64_t* grallocUsage);
+VKAPI_ATTR VkResult GetSwapchainGrallocUsage4ANDROID(VkDevice device, const VkGrallocUsageInfo2ANDROID* grallocUsageInfo, uint64_t* grallocUsage);
 VKAPI_ATTR VkResult AcquireImageANDROID(VkDevice device, VkImage image, int nativeFenceFd, VkSemaphore semaphore, VkFence fence);
 VKAPI_ATTR VkResult QueueSignalReleaseImageANDROID(VkQueue queue, uint32_t waitSemaphoreCount, const VkSemaphore* pWaitSemaphores, VkImage image, int* pNativeFenceFd);
 VKAPI_ATTR VkResult CreateRenderPass2(VkDevice device, const VkRenderPassCreateInfo2* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkRenderPass* pRenderPass);

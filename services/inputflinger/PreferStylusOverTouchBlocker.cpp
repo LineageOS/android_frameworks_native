@@ -22,7 +22,7 @@ namespace android {
 static std::pair<bool, bool> checkToolType(const NotifyMotionArgs& args) {
     bool hasStylus = false;
     bool hasTouch = false;
-    for (size_t i = 0; i < args.pointerCount; i++) {
+    for (size_t i = 0; i < args.getPointerCount(); i++) {
         // Make sure we are canceling stylus pointers
         const ToolType toolType = args.pointerProperties[i].toolType;
         if (isStylusToolType(toolType)) {

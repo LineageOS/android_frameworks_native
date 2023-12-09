@@ -418,6 +418,9 @@ status_t BufferQueueProducer::dequeueBuffer(int* outSlot, sp<android::Fence>* ou
     EGLSyncKHR eglFence = EGL_NO_SYNC_KHR;
     bool attachedByConsumer = false;
 
+    sp<IConsumerListener> listener;
+    bool callOnFrameDequeued = false;
+    uint64_t bufferId = 0; // Only used if callOnFrameDequeued == true
     { // Autolock scope
         std::unique_lock<std::mutex> lock(mCore->mMutex);
 
@@ -561,10 +564,11 @@ status_t BufferQueueProducer::dequeueBuffer(int* outSlot, sp<android::Fence>* ou
         }
 
         if (!(returnFlags & BUFFER_NEEDS_REALLOCATION)) {
-            if (mCore->mConsumerListener != nullptr) {
-                mCore->mConsumerListener->onFrameDequeued(mSlots[*outSlot].mGraphicBuffer->getId());
-            }
+            callOnFrameDequeued = true;
+            bufferId = mSlots[*outSlot].mGraphicBuffer->getId();
         }
+
+        listener = mCore->mConsumerListener;
     } // Autolock scope
 
     if (returnFlags & BUFFER_NEEDS_REALLOCATION) {
@@ -581,10 +585,8 @@ status_t BufferQueueProducer::dequeueBuffer(int* outSlot, sp<android::Fence>* ou
             if (error == NO_ERROR && !mCore->mIsAbandoned) {
                 graphicBuffer->setGenerationNumber(mCore->mGenerationNumber);
                 mSlots[*outSlot].mGraphicBuffer = graphicBuffer;
-                if (mCore->mConsumerListener != nullptr) {
-                    mCore->mConsumerListener->onFrameDequeued(
-                            mSlots[*outSlot].mGraphicBuffer->getId());
-                }
+                callOnFrameDequeued = true;
+                bufferId = mSlots[*outSlot].mGraphicBuffer->getId();
             }
 
             mCore->mIsAllocating = false;
@@ -606,6 +608,10 @@ status_t BufferQueueProducer::dequeueBuffer(int* outSlot, sp<android::Fence>* ou
 
             VALIDATE_CONSISTENCY();
         } // Autolock scope
+    }
+
+    if (listener != nullptr && callOnFrameDequeued) {
+        listener->onFrameDequeued(bufferId);
     }
 
     if (attachedByConsumer) {
@@ -647,6 +653,8 @@ status_t BufferQueueProducer::detachBuffer(int slot) {
     BQ_LOGV("detachBuffer: slot %d", slot);
 
     sp<IConsumerListener> listener;
+    bool callOnFrameDetached = false;
+    uint64_t bufferId = 0; // Only used if callOnFrameDetached is true
     {
         std::lock_guard<std::mutex> lock(mCore->mMutex);
 
@@ -684,8 +692,9 @@ status_t BufferQueueProducer::detachBuffer(int slot) {
 
         listener = mCore->mConsumerListener;
         auto gb = mSlots[slot].mGraphicBuffer;
-        if (listener != nullptr && gb != nullptr) {
-            listener->onFrameDetached(gb->getId());
+        if (gb != nullptr) {
+            callOnFrameDetached = true;
+            bufferId = gb->getId();
         }
         mSlots[slot].mBufferState.detachProducer();
         mCore->mActiveBuffers.erase(slot);
@@ -693,6 +702,10 @@ status_t BufferQueueProducer::detachBuffer(int slot) {
         mCore->clearBufferSlotLocked(slot);
         mCore->mDequeueCondition.notify_all();
         VALIDATE_CONSISTENCY();
+    }
+
+    if (listener != nullptr && callOnFrameDetached) {
+        listener->onFrameDetached(bufferId);
     }
 
     if (listener != nullptr) {
@@ -1104,57 +1117,70 @@ status_t BufferQueueProducer::queueBuffer(int slot,
 status_t BufferQueueProducer::cancelBuffer(int slot, const sp<Fence>& fence) {
     ATRACE_CALL();
     BQ_LOGV("cancelBuffer: slot %d", slot);
-    std::lock_guard<std::mutex> lock(mCore->mMutex);
 
-    if (mCore->mIsAbandoned) {
-        BQ_LOGE("cancelBuffer: BufferQueue has been abandoned");
-        return NO_INIT;
+    sp<IConsumerListener> listener;
+    bool callOnFrameCancelled = false;
+    uint64_t bufferId = 0; // Only used if callOnFrameCancelled == true
+    {
+        std::lock_guard<std::mutex> lock(mCore->mMutex);
+
+        if (mCore->mIsAbandoned) {
+            BQ_LOGE("cancelBuffer: BufferQueue has been abandoned");
+            return NO_INIT;
+        }
+
+        if (mCore->mConnectedApi == BufferQueueCore::NO_CONNECTED_API) {
+            BQ_LOGE("cancelBuffer: BufferQueue has no connected producer");
+            return NO_INIT;
+        }
+
+        if (mCore->mSharedBufferMode) {
+            BQ_LOGE("cancelBuffer: cannot cancel a buffer in shared buffer mode");
+            return BAD_VALUE;
+        }
+
+        if (slot < 0 || slot >= BufferQueueDefs::NUM_BUFFER_SLOTS) {
+            BQ_LOGE("cancelBuffer: slot index %d out of range [0, %d)", slot,
+                    BufferQueueDefs::NUM_BUFFER_SLOTS);
+            return BAD_VALUE;
+        } else if (!mSlots[slot].mBufferState.isDequeued()) {
+            BQ_LOGE("cancelBuffer: slot %d is not owned by the producer "
+                    "(state = %s)",
+                    slot, mSlots[slot].mBufferState.string());
+            return BAD_VALUE;
+        } else if (fence == nullptr) {
+            BQ_LOGE("cancelBuffer: fence is NULL");
+            return BAD_VALUE;
+        }
+
+        mSlots[slot].mBufferState.cancel();
+
+        // After leaving shared buffer mode, the shared buffer will still be around.
+        // Mark it as no longer shared if this operation causes it to be free.
+        if (!mCore->mSharedBufferMode && mSlots[slot].mBufferState.isFree()) {
+            mSlots[slot].mBufferState.mShared = false;
+        }
+
+        // Don't put the shared buffer on the free list.
+        if (!mSlots[slot].mBufferState.isShared()) {
+            mCore->mActiveBuffers.erase(slot);
+            mCore->mFreeBuffers.push_back(slot);
+        }
+
+        auto gb = mSlots[slot].mGraphicBuffer;
+        if (gb != nullptr) {
+            callOnFrameCancelled = true;
+            bufferId = gb->getId();
+        }
+        mSlots[slot].mFence = fence;
+        mCore->mDequeueCondition.notify_all();
+        listener = mCore->mConsumerListener;
+        VALIDATE_CONSISTENCY();
     }
 
-    if (mCore->mConnectedApi == BufferQueueCore::NO_CONNECTED_API) {
-        BQ_LOGE("cancelBuffer: BufferQueue has no connected producer");
-        return NO_INIT;
+    if (listener != nullptr && callOnFrameCancelled) {
+        listener->onFrameCancelled(bufferId);
     }
-
-    if (mCore->mSharedBufferMode) {
-        BQ_LOGE("cancelBuffer: cannot cancel a buffer in shared buffer mode");
-        return BAD_VALUE;
-    }
-
-    if (slot < 0 || slot >= BufferQueueDefs::NUM_BUFFER_SLOTS) {
-        BQ_LOGE("cancelBuffer: slot index %d out of range [0, %d)",
-                slot, BufferQueueDefs::NUM_BUFFER_SLOTS);
-        return BAD_VALUE;
-    } else if (!mSlots[slot].mBufferState.isDequeued()) {
-        BQ_LOGE("cancelBuffer: slot %d is not owned by the producer "
-                "(state = %s)", slot, mSlots[slot].mBufferState.string());
-        return BAD_VALUE;
-    } else if (fence == nullptr) {
-        BQ_LOGE("cancelBuffer: fence is NULL");
-        return BAD_VALUE;
-    }
-
-    mSlots[slot].mBufferState.cancel();
-
-    // After leaving shared buffer mode, the shared buffer will still be around.
-    // Mark it as no longer shared if this operation causes it to be free.
-    if (!mCore->mSharedBufferMode && mSlots[slot].mBufferState.isFree()) {
-        mSlots[slot].mBufferState.mShared = false;
-    }
-
-    // Don't put the shared buffer on the free list.
-    if (!mSlots[slot].mBufferState.isShared()) {
-        mCore->mActiveBuffers.erase(slot);
-        mCore->mFreeBuffers.push_back(slot);
-    }
-
-    auto gb = mSlots[slot].mGraphicBuffer;
-    if (mCore->mConsumerListener != nullptr && gb != nullptr) {
-        mCore->mConsumerListener->onFrameCancelled(gb->getId());
-    }
-    mSlots[slot].mFence = fence;
-    mCore->mDequeueCondition.notify_all();
-    VALIDATE_CONSISTENCY();
 
     return NO_ERROR;
 }

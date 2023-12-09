@@ -21,9 +21,9 @@
 
 #include <binder/IBinder.h>
 #include <ui/DisplayId.h>
+#include <ui/DisplayMap.h>
 #include <utils/StrongPointer.h>
 
-#include "DisplayMap.h"
 #include "DisplaySnapshot.h"
 
 namespace android::display {
@@ -66,7 +66,7 @@ private:
     DisplaySnapshot mSnapshot;
 };
 
-using PhysicalDisplays = PhysicalDisplayMap<PhysicalDisplayId, PhysicalDisplay>;
+using PhysicalDisplays = ui::PhysicalDisplayMap<PhysicalDisplayId, PhysicalDisplay>;
 
 // Combinator for ftl::Optional<PhysicalDisplayId>::and_then.
 constexpr auto getPhysicalDisplay(const PhysicalDisplays& displays) {

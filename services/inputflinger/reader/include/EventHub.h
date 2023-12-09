@@ -615,6 +615,7 @@ private:
         std::unique_ptr<PropertyMap> configuration;
         std::unique_ptr<VirtualKeyMap> virtualKeyMap;
         KeyMap keyMap;
+        std::unordered_map<int /*axis*/, RawAbsoluteAxisInfo> rawAbsoluteAxisInfoCache;
 
         bool ffEffectPlaying;
         int16_t ffEffectId; // initially -1
@@ -716,6 +717,13 @@ private:
 
     void addDeviceInputInotify();
     void addDeviceInotify();
+
+    /**
+     * AbsoluteAxisInfo remains unchanged for the lifetime of the device, hence
+     * we can read and store it with device
+     * @param device target device
+     */
+    static void populateDeviceAbsoluteAxisInfo(Device& device);
 
     // Protect all internal state.
     mutable std::mutex mLock;

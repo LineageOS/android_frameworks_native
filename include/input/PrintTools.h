@@ -27,6 +27,9 @@ namespace android {
 
 template <size_t N>
 std::string bitsetToString(const std::bitset<N>& bitset) {
+    if (bitset.none()) {
+        return "<none>";
+    }
     return bitset.to_string();
 }
 
@@ -85,6 +88,20 @@ std::string dumpMap(const std::map<K, V>& map, std::string (*keyToString)(const 
         out += keyToString(k) + ":" + valueToString(v);
     }
     return out;
+}
+
+/**
+ * Convert map keys to string. The keys of the map should be integral type.
+ */
+template <typename K, typename V>
+std::string dumpMapKeys(const std::map<K, V>& map,
+                        std::string (*keyToString)(const K&) = constToString) {
+    std::string out;
+    for (const auto& [k, _] : map) {
+        out += out.empty() ? "{" : ", ";
+        out += keyToString(k);
+    }
+    return out.empty() ? "{}" : (out + "}");
 }
 
 /**

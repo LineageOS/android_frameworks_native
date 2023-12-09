@@ -45,6 +45,7 @@ public:
         INT2 = 8,
         LEGACY = 9,
         MAX = LEGACY,
+        ftl_last = LEGACY,
     };
 
     struct Estimator {
@@ -94,8 +95,6 @@ public:
     // If strategy is not provided, uses the default strategy for the platform.
     // TODO(b/32830165): support axis-specific strategies.
     VelocityTracker(const Strategy strategy = Strategy::DEFAULT);
-
-    ~VelocityTracker();
 
     /** Return true if the axis is supported for velocity tracking, false otherwise. */
     static bool isAxisSupported(int32_t axis);

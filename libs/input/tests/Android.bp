@@ -18,7 +18,9 @@ cc_test {
         "InputDevice_test.cpp",
         "InputEvent_test.cpp",
         "InputPublisherAndConsumer_test.cpp",
+        "InputVerifier_test.cpp",
         "MotionPredictor_test.cpp",
+        "MotionPredictorMetricsManager_test.cpp",
         "RingBuffer_test.cpp",
         "TfLiteMotionPredictor_test.cpp",
         "TouchResampling_test.cpp",
@@ -44,6 +46,7 @@ cc_test {
         "-Wno-unused-parameter",
     ],
     sanitize: {
+        hwaddress: true,
         undefined: true,
         all_undefined: true,
         diag: {
@@ -56,17 +59,33 @@ cc_test {
         "libcutils",
         "liblog",
         "libPlatformProperties",
+        "libtinyxml2",
         "libutils",
         "libvintf",
     ],
     data: [
         "data/*",
-        ":motion_predictor_model.fb",
+        ":motion_predictor_model",
     ],
     test_options: {
         unit_test: true,
     },
     test_suites: ["device-tests"],
+    target: {
+        host: {
+            sanitize: {
+                address: true,
+            },
+        },
+        android: {
+            static_libs: [
+                // Stats logging library and its dependencies.
+                "libstatslog_libinput",
+                "libstatsbootstrap",
+                "android.os.statsbootstrap_aidl-cpp",
+            ],
+        },
+    },
 }
 
 // NOTE: This is a compile time test, and does not need to be

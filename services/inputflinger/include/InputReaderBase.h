@@ -447,6 +447,9 @@ public:
             const std::string& inputDeviceDescriptor, ui::Rotation surfaceRotation) = 0;
     /* Notifies the input reader policy that a stylus gesture has started. */
     virtual void notifyStylusGestureStarted(int32_t deviceId, nsecs_t eventTime) = 0;
+
+    /* Returns true if any InputConnection is currently active. */
+    virtual bool isInputMethodConnectionActive() = 0;
 };
 
 } // namespace android

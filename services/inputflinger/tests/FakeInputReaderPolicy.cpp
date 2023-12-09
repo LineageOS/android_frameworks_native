@@ -209,6 +209,14 @@ void FakeInputReaderPolicy::setStylusPointerIconEnabled(bool enabled) {
     mConfig.stylusPointerIconEnabled = enabled;
 }
 
+void FakeInputReaderPolicy::setIsInputMethodConnectionActive(bool active) {
+    mIsInputMethodConnectionActive = active;
+}
+
+bool FakeInputReaderPolicy::isInputMethodConnectionActive() {
+    return mIsInputMethodConnectionActive;
+}
+
 void FakeInputReaderPolicy::getReaderConfiguration(InputReaderConfiguration* outConfig) {
     *outConfig = mConfig;
 }

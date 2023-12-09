@@ -171,10 +171,11 @@ void UinputKeyboardWithHidUsage::configureDevice(int fd, uinput_user_dev* device
 
 // --- UinputTouchScreen ---
 
-UinputTouchScreen::UinputTouchScreen(const Rect& size)
+UinputTouchScreen::UinputTouchScreen(const Rect& size, const std::string& physicalPort)
       : UinputKeyboard(DEVICE_NAME, PRODUCT_ID,
                        {BTN_TOUCH, BTN_TOOL_PEN, BTN_STYLUS, BTN_STYLUS2, BTN_STYLUS3}),
-        mSize(size) {}
+        mSize(size),
+        mPhysicalPort(physicalPort) {}
 
 void UinputTouchScreen::configureDevice(int fd, uinput_user_dev* device) {
     UinputKeyboard::configureDevice(fd, device);
@@ -189,6 +190,9 @@ void UinputTouchScreen::configureDevice(int fd, uinput_user_dev* device) {
     ioctl(fd, UI_SET_ABSBIT, ABS_MT_TRACKING_ID);
     ioctl(fd, UI_SET_ABSBIT, ABS_MT_TOOL_TYPE);
     ioctl(fd, UI_SET_PROPBIT, INPUT_PROP_DIRECT);
+    if (!mPhysicalPort.empty()) {
+        ioctl(fd, UI_SET_PHYS, mPhysicalPort.c_str());
+    }
 
     device->absmin[ABS_MT_SLOT] = RAW_SLOT_MIN;
     device->absmax[ABS_MT_SLOT] = RAW_SLOT_MAX;

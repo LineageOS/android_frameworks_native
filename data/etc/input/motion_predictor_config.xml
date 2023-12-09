@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright (C) 2023 The Android Open Source Project
+
+     Licensed under the Apache License, Version 2.0 (the "License");
+     you may not use this file except in compliance with the License.
+     You may obtain a copy of the License at
+
+          http://www.apache.org/licenses/LICENSE-2.0
+
+     Unless required by applicable law or agreed to in writing, software
+     distributed under the License is distributed on an "AS IS" BASIS,
+     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+     See the License for the specific language governing permissions and
+     limitations under the License.
+-->
+<motion-predictor>
+  <!-- The time interval (ns) between the model's predictions. -->
+  <prediction-interval>4166666</prediction-interval>  <!-- 4.167 ms = ~240 Hz -->
+  <!-- The noise floor (px) for predicted distances.
+
+       As the model is trained stochastically, there is some expected minimum
+       variability in its output. This can be a UX issue when the input device
+       is moving slowly and the variability is large relative to the magnitude
+       of the motion. In these cases, it is better to inhibit the prediction,
+       rather than show noisy predictions (and there is little benefit to
+       prediction anyway).
+
+       The value for this parameter should at least be close to the maximum
+       predicted distance when the input device is held stationary (i.e. the
+       expected minimum variability), and perhaps a little larger to capture
+       the UX issue mentioned above.
+  -->
+  <distance-noise-floor>0.2</distance-noise-floor>
+</motion-predictor>
+

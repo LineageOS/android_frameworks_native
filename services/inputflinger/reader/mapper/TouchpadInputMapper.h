@@ -18,6 +18,7 @@
 
 #include <list>
 #include <memory>
+#include <set>
 #include <vector>
 
 #include <PointerControllerInterface.h>
@@ -58,10 +59,16 @@ public:
 
     void consumeGesture(const Gesture* gesture);
 
+    // A subset of InputDeviceIdentifier used for logging metrics, to avoid storing a copy of the
+    // strings in that bigger struct.
+    using MetricsIdentifier = std::tuple<uint16_t /*busId*/, uint16_t /*vendorId*/,
+                                         uint16_t /*productId*/, uint16_t /*version*/>;
+
 private:
     void resetGestureInterpreter(nsecs_t when);
     explicit TouchpadInputMapper(InputDeviceContext& deviceContext,
                                  const InputReaderConfiguration& readerConfig);
+    void updatePalmDetectionMetrics();
     [[nodiscard]] std::list<NotifyArgs> sendHardwareState(nsecs_t when, nsecs_t readTime,
                                                           SelfContainedHardwareState schs);
     [[nodiscard]] std::list<NotifyArgs> processGestures(nsecs_t when, nsecs_t readTime);
@@ -86,6 +93,15 @@ private:
     bool mProcessing = false;
     bool mResettingInterpreter = false;
     std::vector<Gesture> mGesturesToProcess;
+
+    static MetricsIdentifier metricsIdFromInputDeviceIdentifier(const InputDeviceIdentifier& id) {
+        return std::make_tuple(id.bus, id.vendor, id.product, id.version);
+    }
+    const MetricsIdentifier mMetricsId;
+    // Tracking IDs for touches on the pad in the last evdev frame.
+    std::set<int32_t> mLastFrameTrackingIds;
+    // Tracking IDs for touches that have at some point been reported as palms by the touchpad.
+    std::set<int32_t> mPalmTrackingIds;
 };
 
 } // namespace android
