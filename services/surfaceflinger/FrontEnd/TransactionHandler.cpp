@@ -16,7 +16,7 @@
 
 // #define LOG_NDEBUG 0
 #undef LOG_TAG
-#define LOG_TAG "TransactionHandler"
+#define LOG_TAG "SurfaceFlinger"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 #include <cutils/trace.h>
@@ -186,21 +186,36 @@ bool TransactionHandler::hasPendingTransactions() {
 }
 
 void TransactionHandler::onTransactionQueueStalled(uint64_t transactionId,
-                                                   sp<ITransactionCompletedListener>& listener,
-                                                   const std::string& reason) {
-    if (std::find(mStalledTransactions.begin(), mStalledTransactions.end(), transactionId) !=
-        mStalledTransactions.end()) {
-        return;
-    }
-
-    mStalledTransactions.push_back(transactionId);
-    listener->onTransactionQueueStalled(String8(reason.c_str()));
+                                                   StalledTransactionInfo stalledTransactionInfo) {
+    std::lock_guard lock{mStalledMutex};
+    mStalledTransactions.emplace(transactionId, std::move(stalledTransactionInfo));
 }
 
-void TransactionHandler::removeFromStalledTransactions(uint64_t id) {
-    auto it = std::find(mStalledTransactions.begin(), mStalledTransactions.end(), id);
-    if (it != mStalledTransactions.end()) {
-        mStalledTransactions.erase(it);
+void TransactionHandler::removeFromStalledTransactions(uint64_t transactionId) {
+    std::lock_guard lock{mStalledMutex};
+    mStalledTransactions.erase(transactionId);
+}
+
+std::optional<TransactionHandler::StalledTransactionInfo>
+TransactionHandler::getStalledTransactionInfo(pid_t pid) {
+    std::lock_guard lock{mStalledMutex};
+    for (auto [_, stalledTransactionInfo] : mStalledTransactions) {
+        if (pid == stalledTransactionInfo.pid) {
+            return stalledTransactionInfo;
+        }
+    }
+    return std::nullopt;
+}
+
+void TransactionHandler::onLayerDestroyed(uint32_t layerId) {
+    std::lock_guard lock{mStalledMutex};
+    for (auto it = mStalledTransactions.begin(); it != mStalledTransactions.end();) {
+        if (it->second.layerId == layerId) {
+            it = mStalledTransactions.erase(it);
+        } else {
+            it++;
+        }
     }
 }
+
 } // namespace android::surfaceflinger::frontend

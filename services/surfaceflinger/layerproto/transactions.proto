@@ -256,13 +256,14 @@ message LayerState {
         int32 layout_params_type = 2;
         RegionProto touchable_region = 3;
         int32 surface_inset = 4;
-        bool focusable = 5;
-        bool has_wallpaper = 6;
+        bool focusable = 5; // unused
+        bool has_wallpaper = 6; // unused
         float global_scale_factor = 7;
         uint32 crop_layer_id = 8;
         bool replace_touchable_region_with_crop = 9;
         RectProto touchable_region_crop = 10;
         Transform transform = 11;
+        uint32 input_config = 12;
     }
     WindowInfo window_info_handle = 27;
     float bg_color_alpha = 28;

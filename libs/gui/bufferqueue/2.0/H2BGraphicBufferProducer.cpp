@@ -437,6 +437,10 @@ String8 H2BGraphicBufferProducer::getConsumerName() const {
             [&bName](hidl_string const& name) {
                 bName = name.c_str();
             });
+    if (!transResult.isOk()) {
+        LOG(ERROR) << "getConsumerName: corrupted transaction.";
+        return String8("TransactFailed");
+    }
     return bName;
 }
 

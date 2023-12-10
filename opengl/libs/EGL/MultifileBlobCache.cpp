@@ -48,9 +48,8 @@ namespace {
 void freeHotCacheEntry(android::MultifileHotCache& entry) {
     if (entry.entryFd != -1) {
         // If we have an fd, then this entry was added to hot cache via INIT or GET
-        // We need to unmap and close the entry
+        // We need to unmap the entry
         munmap(entry.entryBuffer, entry.entrySize);
-        close(entry.entryFd);
     } else {
         // Otherwise, this was added to hot cache during SET, so it was never mapped
         // and fd was only on the deferred thread.
@@ -143,6 +142,7 @@ MultifileBlobCache::MultifileBlobCache(size_t maxKeySize, size_t maxValueSize, s
                 if (result != sizeof(MultifileHeader)) {
                     ALOGE("Error reading MultifileHeader from cache entry (%s): %s",
                           fullPath.c_str(), std::strerror(errno));
+                    close(fd);
                     return;
                 }
 
@@ -152,6 +152,7 @@ MultifileBlobCache::MultifileBlobCache(size_t maxKeySize, size_t maxValueSize, s
                     if (remove(fullPath.c_str()) != 0) {
                         ALOGE("Error removing %s: %s", fullPath.c_str(), std::strerror(errno));
                     }
+                    close(fd);
                     continue;
                 }
 
@@ -161,6 +162,10 @@ MultifileBlobCache::MultifileBlobCache(size_t maxKeySize, size_t maxValueSize, s
                 // Memory map the file
                 uint8_t* mappedEntry = reinterpret_cast<uint8_t*>(
                         mmap(nullptr, fileSize, PROT_READ, MAP_PRIVATE, fd, 0));
+
+                // We can close the file now and the mmap will remain
+                close(fd);
+
                 if (mappedEntry == MAP_FAILED) {
                     ALOGE("Failed to mmap cacheEntry, error: %s", std::strerror(errno));
                     return;
@@ -206,13 +211,11 @@ MultifileBlobCache::MultifileBlobCache(size_t maxKeySize, size_t maxValueSize, s
                     if (!addToHotCache(entryHash, fd, mappedEntry, fileSize)) {
                         ALOGE("INIT Failed to add %u to hot cache", entryHash);
                         munmap(mappedEntry, fileSize);
-                        close(fd);
                         return;
                     }
                 } else {
                     // If we're not keeping it in hot cache, unmap it now
                     munmap(mappedEntry, fileSize);
-                    close(fd);
                 }
             }
             closedir(dir);
@@ -401,9 +404,12 @@ EGLsizeiANDROID MultifileBlobCache::get(const void* key, EGLsizeiANDROID keySize
         // Memory map the file
         cacheEntry =
                 reinterpret_cast<uint8_t*>(mmap(nullptr, fileSize, PROT_READ, MAP_PRIVATE, fd, 0));
+
+        // We can close the file now and the mmap will remain
+        close(fd);
+
         if (cacheEntry == MAP_FAILED) {
             ALOGE("Failed to mmap cacheEntry, error: %s", std::strerror(errno));
-            close(fd);
             return 0;
         }
 

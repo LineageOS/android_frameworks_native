@@ -20,7 +20,7 @@
 
 namespace android::inputdispatcher {
 
-InjectionState::InjectionState(const std::optional<int32_t>& targetUid)
+InjectionState::InjectionState(const std::optional<gui::Uid>& targetUid)
       : refCount(1),
         targetUid(targetUid),
         injectionResult(android::os::InputEventInjectionResult::PENDING),

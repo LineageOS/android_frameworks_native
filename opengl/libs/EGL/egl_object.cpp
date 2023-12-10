@@ -84,7 +84,7 @@ void egl_surface_t::disconnect() {
     if (win != nullptr && connected) {
         // NOTE: When using Vulkan backend, the Vulkan runtime makes all the
         // native_window_* calls, so don't do them here.
-        if (!cnx->useAngle) {
+        if (!cnx->angleLoaded) {
             native_window_set_buffers_format(win, 0);
             if (native_window_api_disconnect(win, NATIVE_WINDOW_API_EGL)) {
                 ALOGW("EGLNativeWindowType %p disconnect failed", win);

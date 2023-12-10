@@ -58,9 +58,9 @@
 #include <src/core/SkTraceEventCommon.h>
 #include <sync/sync.h>
 #include <ui/BlurRegion.h>
-#include <ui/DataspaceUtils.h>
 #include <ui/DebugUtils.h>
 #include <ui/GraphicBuffer.h>
+#include <ui/HdrRenderTypeUtils.h>
 #include <utils/Trace.h>
 
 #include <cmath>
@@ -507,7 +507,8 @@ sk_sp<SkShader> SkiaRenderEngine::createRuntimeEffectShader(
         auto effect =
                 shaders::LinearEffect{.inputDataspace = parameters.layer.sourceDataspace,
                                       .outputDataspace = parameters.outputDataSpace,
-                                      .undoPremultipliedAlpha = parameters.undoPremultipliedAlpha};
+                                      .undoPremultipliedAlpha = parameters.undoPremultipliedAlpha,
+                                      .fakeOutputDataspace = parameters.fakeOutputDataspace};
 
         auto effectIter = mRuntimeEffects.find(effect);
         sk_sp<SkRuntimeEffect> runtimeEffect = nullptr;
@@ -662,6 +663,8 @@ void SkiaRenderEngine::drawLayersInternal(
     validateOutputBufferUsage(buffer->getBuffer());
 
     auto grContext = getActiveGrContext();
+    LOG_ALWAYS_FATAL_IF(grContext->abandoned(), "GrContext is abandoned/device lost at start of %s",
+                        __func__);
 
     // any AutoBackendTexture deletions will now be deferred until cleanupPostRender is called
     DeferTextureCleanup dtc(mTextureCleanupMgr);
@@ -708,7 +711,9 @@ void SkiaRenderEngine::drawLayersInternal(
     SkCanvas* canvas = dstCanvas;
     SkiaCapture::OffscreenState offscreenCaptureState;
     const LayerSettings* blurCompositionLayer = nullptr;
-    if (mBlurFilter) {
+
+    // TODO (b/270314344): Enable blurs in protected context.
+    if (mBlurFilter && !mInProtectedContext) {
         bool requiresCompositionLayer = false;
         for (const auto& layer : layers) {
             // if the layer doesn't have blur or it is not visible then continue
@@ -802,7 +807,8 @@ void SkiaRenderEngine::drawLayersInternal(
         const auto [bounds, roundRectClip] =
                 getBoundsAndClip(layer.geometry.boundaries, layer.geometry.roundedCornersCrop,
                                  layer.geometry.roundedCornersRadius);
-        if (mBlurFilter && layerHasBlur(layer, ctModifiesAlpha)) {
+        // TODO (b/270314344): Enable blurs in protected context.
+        if (mBlurFilter && layerHasBlur(layer, ctModifiesAlpha) && !mInProtectedContext) {
             std::unordered_map<uint32_t, sk_sp<SkImage>> cachedBlurs;
 
             // if multiple layers have blur, then we need to take a snapshot now because
@@ -898,12 +904,14 @@ void SkiaRenderEngine::drawLayersInternal(
                 (display.outputDataspace & ui::Dataspace::TRANSFER_MASK) ==
                         static_cast<int32_t>(ui::Dataspace::TRANSFER_SRGB);
 
-        const ui::Dataspace runtimeEffectDataspace = !dimInLinearSpace && isExtendedHdr
+        const bool useFakeOutputDataspaceForRuntimeEffect = !dimInLinearSpace && isExtendedHdr;
+
+        const ui::Dataspace fakeDataspace = useFakeOutputDataspaceForRuntimeEffect
                 ? static_cast<ui::Dataspace>(
                           (display.outputDataspace & ui::Dataspace::STANDARD_MASK) |
                           ui::Dataspace::TRANSFER_GAMMA2_2 |
                           (display.outputDataspace & ui::Dataspace::RANGE_MASK))
-                : display.outputDataspace;
+                : ui::Dataspace::UNKNOWN;
 
         // If the input dataspace is range extended, the output dataspace transfer is sRGB
         // and dimmingStage is GAMMA_OETF, dim in linear space instead, and
@@ -1010,7 +1018,8 @@ void SkiaRenderEngine::drawLayersInternal(
                                                   .layerDimmingRatio = dimInLinearSpace
                                                           ? layerDimmingRatio
                                                           : 1.f,
-                                                  .outputDataSpace = runtimeEffectDataspace}));
+                                                  .outputDataSpace = display.outputDataspace,
+                                                  .fakeOutputDataspace = fakeDataspace}));
 
             // Turn on dithering when dimming beyond this (arbitrary) threshold...
             static constexpr float kDimmingThreshold = 0.2f;
@@ -1018,7 +1027,10 @@ void SkiaRenderEngine::drawLayersInternal(
             // Most HDR standards require at least 10-bits of color depth for source content, so we
             // can just extract the transfer function rather than dig into precise gralloc layout.
             // Furthermore, we can assume that the only 8-bit target we support is RGBA8888.
-            const bool requiresDownsample = isHdrDataspace(layer.sourceDataspace) &&
+            const bool requiresDownsample =
+                    getHdrRenderType(layer.sourceDataspace,
+                                     std::optional<ui::PixelFormat>(static_cast<ui::PixelFormat>(
+                                             buffer->getPixelFormat()))) != HdrRenderType::SDR &&
                     buffer->getPixelFormat() == PIXEL_FORMAT_RGBA_8888;
             if (layerDimmingRatio <= kDimmingThreshold || requiresDownsample) {
                 paint.setDither(true);
@@ -1074,7 +1086,8 @@ void SkiaRenderEngine::drawLayersInternal(
                                                   .undoPremultipliedAlpha = false,
                                                   .requiresLinearEffect = requiresLinearEffect,
                                                   .layerDimmingRatio = layerDimmingRatio,
-                                                  .outputDataSpace = runtimeEffectDataspace}));
+                                                  .outputDataSpace = display.outputDataspace,
+                                                  .fakeOutputDataspace = fakeDataspace}));
         }
 
         if (layer.disableBlending) {

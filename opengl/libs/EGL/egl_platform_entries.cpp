@@ -49,6 +49,7 @@
 #include "egl_trace.h"
 
 using namespace android;
+using PixelFormat = aidl::android::hardware::graphics::common::PixelFormat;
 
 // ----------------------------------------------------------------------------
 
@@ -406,7 +407,7 @@ EGLBoolean eglGetConfigAttribImpl(EGLDisplay dpy, EGLConfig config, EGLint attri
 // ----------------------------------------------------------------------------
 
 // Translates EGL color spaces to Android data spaces.
-static android_dataspace dataSpaceFromEGLColorSpace(EGLint colorspace) {
+static android_dataspace dataSpaceFromEGLColorSpace(EGLint colorspace, PixelFormat pixelFormat) {
     if (colorspace == EGL_GL_COLORSPACE_LINEAR_KHR) {
         return HAL_DATASPACE_UNKNOWN;
     } else if (colorspace == EGL_GL_COLORSPACE_SRGB_KHR) {
@@ -424,7 +425,13 @@ static android_dataspace dataSpaceFromEGLColorSpace(EGLint colorspace) {
     } else if (colorspace == EGL_GL_COLORSPACE_BT2020_HLG_EXT) {
         return static_cast<android_dataspace>(HAL_DATASPACE_BT2020_HLG);
     } else if (colorspace == EGL_GL_COLORSPACE_BT2020_LINEAR_EXT) {
-        return HAL_DATASPACE_BT2020_LINEAR;
+        if (pixelFormat == PixelFormat::RGBA_FP16) {
+            return static_cast<android_dataspace>(HAL_DATASPACE_STANDARD_BT2020 |
+                                                  HAL_DATASPACE_TRANSFER_LINEAR |
+                                                  HAL_DATASPACE_RANGE_EXTENDED);
+        } else {
+            return HAL_DATASPACE_BT2020_LINEAR;
+        }
     } else if (colorspace == EGL_GL_COLORSPACE_BT2020_PQ_EXT) {
         return HAL_DATASPACE_BT2020_PQ;
     }
@@ -573,8 +580,6 @@ void convertAttribs(const EGLAttrib* attribList, std::vector<EGLint>& newList) {
     newList.push_back(EGL_NONE);
 }
 
-using PixelFormat = aidl::android::hardware::graphics::common::PixelFormat;
-
 // Gets the native pixel format corrsponding to the passed EGLConfig.
 void getNativePixelFormat(EGLDisplay dpy, egl_connection_t* cnx, EGLConfig config,
                           PixelFormat* format) {
@@ -680,7 +685,7 @@ EGLSurface eglCreateWindowSurfaceTmpl(egl_display_t* dp, egl_connection_t* cnx, 
 
     // NOTE: When using Vulkan backend, the Vulkan runtime makes all the
     // native_window_* calls, so don't do them here.
-    if (!cnx->useAngle) {
+    if (!cnx->angleLoaded) {
         int result = native_window_api_connect(window, NATIVE_WINDOW_API_EGL);
         if (result < 0) {
             ALOGE("eglCreateWindowSurface: native_window_api_connect (win=%p) "
@@ -699,14 +704,14 @@ EGLSurface eglCreateWindowSurfaceTmpl(egl_display_t* dp, egl_connection_t* cnx, 
     std::vector<AttrType> strippedAttribList;
     if (!processAttributes<AttrType>(dp, window, attrib_list, &colorSpace, &strippedAttribList)) {
         ALOGE("error invalid colorspace: %d", colorSpace);
-        if (!cnx->useAngle) {
+        if (!cnx->angleLoaded) {
             native_window_api_disconnect(window, NATIVE_WINDOW_API_EGL);
         }
         return EGL_NO_SURFACE;
     }
     attrib_list = strippedAttribList.data();
 
-    if (!cnx->useAngle) {
+    if (!cnx->angleLoaded) {
         int err = native_window_set_buffers_format(window, static_cast<int>(format));
         if (err != 0) {
             ALOGE("error setting native window pixel format: %s (%d)", strerror(-err), err);
@@ -714,7 +719,7 @@ EGLSurface eglCreateWindowSurfaceTmpl(egl_display_t* dp, egl_connection_t* cnx, 
             return setError(EGL_BAD_NATIVE_WINDOW, EGL_NO_SURFACE);
         }
 
-        android_dataspace dataSpace = dataSpaceFromEGLColorSpace(colorSpace);
+        android_dataspace dataSpace = dataSpaceFromEGLColorSpace(colorSpace, format);
         // Set dataSpace even if it could be HAL_DATASPACE_UNKNOWN.
         // HAL_DATASPACE_UNKNOWN is the default value, but it may have changed
         // at this point.
@@ -738,7 +743,7 @@ EGLSurface eglCreateWindowSurfaceTmpl(egl_display_t* dp, egl_connection_t* cnx, 
     }
 
     // EGLSurface creation failed
-    if (!cnx->useAngle) {
+    if (!cnx->angleLoaded) {
         native_window_set_buffers_format(window, 0);
         native_window_api_disconnect(window, NATIVE_WINDOW_API_EGL);
     }
@@ -1349,7 +1354,7 @@ EGLBoolean eglSwapBuffersWithDamageKHRImpl(EGLDisplay dpy, EGLSurface draw, EGLi
         }
     }
 
-    if (!s->cnx->useAngle) {
+    if (!s->cnx->angleLoaded) {
         if (!sendSurfaceMetadata(s)) {
             native_window_api_disconnect(s->getNativeWindow(), NATIVE_WINDOW_API_EGL);
             return setError(EGL_BAD_NATIVE_WINDOW, (EGLBoolean)EGL_FALSE);
@@ -1374,7 +1379,7 @@ EGLBoolean eglSwapBuffersWithDamageKHRImpl(EGLDisplay dpy, EGLSurface draw, EGLi
         androidRect.bottom = y;
         androidRects.push_back(androidRect);
     }
-    if (!s->cnx->useAngle) {
+    if (!s->cnx->angleLoaded) {
         native_window_set_surface_damage(s->getNativeWindow(), androidRects.data(),
                                          androidRects.size());
     }
@@ -1465,7 +1470,7 @@ EGLBoolean eglSurfaceAttribImpl(EGLDisplay dpy, EGLSurface surface, EGLint attri
         int err = native_window_set_auto_refresh(s->getNativeWindow(), value != 0);
         if (err != 0) {
             return setError(EGL_BAD_SURFACE, (EGLBoolean)EGL_FALSE);
-        } else if (!s->cnx->useAngle) {
+        } else if (!s->cnx->angleLoaded) {
             return EGL_TRUE;
         } // else if ANGLE, fall through to the call to the driver (i.e. ANGLE) below
     }
@@ -1479,7 +1484,7 @@ EGLBoolean eglSurfaceAttribImpl(EGLDisplay dpy, EGLSurface surface, EGLint attri
         int err = native_window_enable_frame_timestamps(s->getNativeWindow(), value != 0);
         if (err != 0) {
             return setError(EGL_BAD_SURFACE, (EGLBoolean)EGL_FALSE);
-        } else if (!s->cnx->useAngle) {
+        } else if (!s->cnx->angleLoaded) {
             return EGL_TRUE;
         } // else if ANGLE, fall through to the call to the driver (i.e. ANGLE) below
     }

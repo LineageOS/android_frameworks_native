@@ -57,7 +57,7 @@ private:
     driver_t* attempt_to_load_system_driver(egl_connection_t* cnx, const char* suffix, const bool exact);
     void unload_system_driver(egl_connection_t* cnx);
     void initialize_api(void* dso, egl_connection_t* cnx, uint32_t mask);
-    void init_angle_backend(void* dso, egl_connection_t* cnx);
+    void attempt_to_init_angle_backend(void* dso, egl_connection_t* cnx);
 
     static __attribute__((noinline)) void init_api(void* dso, const char* const* api,
                                                    const char* const* ref_api,

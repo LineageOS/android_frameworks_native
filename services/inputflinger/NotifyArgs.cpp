@@ -83,7 +83,6 @@ NotifyMotionArgs::NotifyMotionArgs(
         buttonState(buttonState),
         classification(classification),
         edgeFlags(edgeFlags),
-        pointerCount(pointerCount),
         xPrecision(xPrecision),
         yPrecision(yPrecision),
         xCursorPosition(xCursorPosition),
@@ -92,36 +91,8 @@ NotifyMotionArgs::NotifyMotionArgs(
         readTime(readTime),
         videoFrames(videoFrames) {
     for (uint32_t i = 0; i < pointerCount; i++) {
-        this->pointerProperties[i].copyFrom(pointerProperties[i]);
-        this->pointerCoords[i].copyFrom(pointerCoords[i]);
-    }
-}
-
-NotifyMotionArgs::NotifyMotionArgs(const NotifyMotionArgs& other)
-      : id(other.id),
-        eventTime(other.eventTime),
-        deviceId(other.deviceId),
-        source(other.source),
-        displayId(other.displayId),
-        policyFlags(other.policyFlags),
-        action(other.action),
-        actionButton(other.actionButton),
-        flags(other.flags),
-        metaState(other.metaState),
-        buttonState(other.buttonState),
-        classification(other.classification),
-        edgeFlags(other.edgeFlags),
-        pointerCount(other.pointerCount),
-        xPrecision(other.xPrecision),
-        yPrecision(other.yPrecision),
-        xCursorPosition(other.xCursorPosition),
-        yCursorPosition(other.yCursorPosition),
-        downTime(other.downTime),
-        readTime(other.readTime),
-        videoFrames(other.videoFrames) {
-    for (uint32_t i = 0; i < pointerCount; i++) {
-        pointerProperties[i].copyFrom(other.pointerProperties[i]);
-        pointerCoords[i].copyFrom(other.pointerCoords[i]);
+        this->pointerProperties.push_back(pointerProperties[i]);
+        this->pointerCoords.push_back(pointerCoords[i]);
     }
 }
 
@@ -130,35 +101,22 @@ static inline bool isCursorPositionEqual(float lhs, float rhs) {
 }
 
 bool NotifyMotionArgs::operator==(const NotifyMotionArgs& rhs) const {
-    bool equal = id == rhs.id && eventTime == rhs.eventTime && readTime == rhs.readTime &&
+    return id == rhs.id && eventTime == rhs.eventTime && readTime == rhs.readTime &&
             deviceId == rhs.deviceId && source == rhs.source && displayId == rhs.displayId &&
             policyFlags == rhs.policyFlags && action == rhs.action &&
             actionButton == rhs.actionButton && flags == rhs.flags && metaState == rhs.metaState &&
             buttonState == rhs.buttonState && classification == rhs.classification &&
-            edgeFlags == rhs.edgeFlags &&
-            pointerCount == rhs.pointerCount
-            // PointerProperties and PointerCoords are compared separately below
-            && xPrecision == rhs.xPrecision && yPrecision == rhs.yPrecision &&
+            edgeFlags == rhs.edgeFlags && pointerProperties == rhs.pointerProperties &&
+            pointerCoords == rhs.pointerCoords && xPrecision == rhs.xPrecision &&
+            yPrecision == rhs.yPrecision &&
             isCursorPositionEqual(xCursorPosition, rhs.xCursorPosition) &&
             isCursorPositionEqual(yCursorPosition, rhs.yCursorPosition) &&
             downTime == rhs.downTime && videoFrames == rhs.videoFrames;
-    if (!equal) {
-        return false;
-    }
-
-    for (size_t i = 0; i < pointerCount; i++) {
-        equal = pointerProperties[i] == rhs.pointerProperties[i] &&
-                pointerCoords[i] == rhs.pointerCoords[i];
-        if (!equal) {
-            return false;
-        }
-    }
-    return true;
 }
 
 std::string NotifyMotionArgs::dump() const {
     std::string coords;
-    for (uint32_t i = 0; i < pointerCount; i++) {
+    for (uint32_t i = 0; i < getPointerCount(); i++) {
         if (!coords.empty()) {
             coords += ", ";
         }
@@ -181,11 +139,10 @@ std::string NotifyMotionArgs::dump() const {
         coords += "}";
     }
     return StringPrintf("NotifyMotionArgs(id=%" PRId32 ", eventTime=%" PRId64 ", deviceId=%" PRId32
-                        ", source=%s, action=%s, pointerCount=%" PRIu32
-                        " pointers=%s, flags=0x%08x)",
+                        ", source=%s, action=%s, pointerCount=%zu pointers=%s, flags=0x%08x)",
                         id, eventTime, deviceId, inputEventSourceToString(source).c_str(),
-                        MotionEvent::actionToString(action).c_str(), pointerCount, coords.c_str(),
-                        flags);
+                        MotionEvent::actionToString(action).c_str(), getPointerCount(),
+                        coords.c_str(), flags);
 }
 
 // --- NotifySwitchArgs ---

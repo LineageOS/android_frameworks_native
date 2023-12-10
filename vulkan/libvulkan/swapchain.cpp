@@ -532,7 +532,8 @@ android::PixelFormat GetNativePixelFormat(VkFormat format) {
     return native_format;
 }
 
-android_dataspace GetNativeDataspace(VkColorSpaceKHR colorspace) {
+android_dataspace GetNativeDataspace(VkColorSpaceKHR colorspace,
+                                     android::PixelFormat pixelFormat) {
     switch (colorspace) {
         case VK_COLOR_SPACE_SRGB_NONLINEAR_KHR:
             return HAL_DATASPACE_V0_SRGB;
@@ -551,7 +552,14 @@ android_dataspace GetNativeDataspace(VkColorSpaceKHR colorspace) {
         case VK_COLOR_SPACE_BT709_NONLINEAR_EXT:
             return HAL_DATASPACE_V0_SRGB;
         case VK_COLOR_SPACE_BT2020_LINEAR_EXT:
-            return HAL_DATASPACE_BT2020_LINEAR;
+            if (pixelFormat == HAL_PIXEL_FORMAT_RGBA_FP16) {
+                return static_cast<android_dataspace>(
+                    HAL_DATASPACE_STANDARD_BT2020 |
+                    HAL_DATASPACE_TRANSFER_LINEAR |
+                    HAL_DATASPACE_RANGE_EXTENDED);
+            } else {
+                return HAL_DATASPACE_BT2020_LINEAR;
+            }
         case VK_COLOR_SPACE_HDR10_ST2084_EXT:
             return static_cast<android_dataspace>(
                 HAL_DATASPACE_STANDARD_BT2020 | HAL_DATASPACE_TRANSFER_ST2084 |
@@ -561,9 +569,7 @@ android_dataspace GetNativeDataspace(VkColorSpaceKHR colorspace) {
                 HAL_DATASPACE_STANDARD_BT2020 | HAL_DATASPACE_TRANSFER_ST2084 |
                 HAL_DATASPACE_RANGE_FULL);
         case VK_COLOR_SPACE_HDR10_HLG_EXT:
-            return static_cast<android_dataspace>(
-                HAL_DATASPACE_STANDARD_BT2020 | HAL_DATASPACE_TRANSFER_HLG |
-                HAL_DATASPACE_RANGE_FULL);
+            return static_cast<android_dataspace>(HAL_DATASPACE_BT2020_HLG);
         case VK_COLOR_SPACE_ADOBERGB_LINEAR_EXT:
             return static_cast<android_dataspace>(
                 HAL_DATASPACE_STANDARD_ADOBE_RGB |
@@ -1112,12 +1118,17 @@ VkResult GetPhysicalDeviceSurfaceFormats2KHR(
                             VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_FORMAT_INFO_2;
                         imageFormatInfo.format =
                             pSurfaceFormats[i].surfaceFormat.format;
+                        imageFormatInfo.type = VK_IMAGE_TYPE_2D;
+                        imageFormatInfo.usage =
+                            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
                         imageFormatInfo.pNext = nullptr;
 
                         VkImageCompressionControlEXT compressionControl = {};
                         compressionControl.sType =
                             VK_STRUCTURE_TYPE_IMAGE_COMPRESSION_CONTROL_EXT;
                         compressionControl.pNext = imageFormatInfo.pNext;
+                        compressionControl.flags =
+                            VK_IMAGE_COMPRESSION_FIXED_RATE_DEFAULT_EXT;
 
                         imageFormatInfo.pNext = &compressionControl;
 
@@ -1359,7 +1370,7 @@ VkResult CreateSwapchainKHR(VkDevice device,
     android::PixelFormat native_pixel_format =
         GetNativePixelFormat(create_info->imageFormat);
     android_dataspace native_dataspace =
-        GetNativeDataspace(create_info->imageColorSpace);
+        GetNativeDataspace(create_info->imageColorSpace, native_pixel_format);
     if (native_dataspace == HAL_DATASPACE_UNKNOWN) {
         ALOGE(
             "CreateSwapchainKHR(VkSwapchainCreateInfoKHR.imageColorSpace = %d) "
@@ -1564,7 +1575,47 @@ VkResult CreateSwapchainKHR(VkDevice device,
     void* usage_info_pNext = nullptr;
     VkImageCompressionControlEXT image_compression = {};
     uint64_t native_usage = 0;
-    if (dispatch.GetSwapchainGrallocUsage3ANDROID) {
+    if (dispatch.GetSwapchainGrallocUsage4ANDROID) {
+        ATRACE_BEGIN("GetSwapchainGrallocUsage4ANDROID");
+        VkGrallocUsageInfo2ANDROID gralloc_usage_info = {};
+        gralloc_usage_info.sType =
+            VK_STRUCTURE_TYPE_GRALLOC_USAGE_INFO_2_ANDROID;
+        gralloc_usage_info.format = create_info->imageFormat;
+        gralloc_usage_info.imageUsage = create_info->imageUsage;
+        gralloc_usage_info.swapchainImageUsage = swapchain_image_usage;
+
+        // Look through the pNext chain for an image compression control struct
+        // if one is found AND the appropriate extensions are enabled,
+        // append it to be the gralloc usage pNext chain
+        const VkSwapchainCreateInfoKHR* create_infos = create_info;
+        while (create_infos->pNext) {
+            create_infos = reinterpret_cast<const VkSwapchainCreateInfoKHR*>(
+                create_infos->pNext);
+            switch (create_infos->sType) {
+                case VK_STRUCTURE_TYPE_IMAGE_COMPRESSION_CONTROL_EXT: {
+                    const VkImageCompressionControlEXT* compression_infos =
+                        reinterpret_cast<const VkImageCompressionControlEXT*>(
+                            create_infos);
+                    image_compression = *compression_infos;
+                    image_compression.pNext = nullptr;
+                    usage_info_pNext = &image_compression;
+                } break;
+
+                default:
+                    // Ignore all other info structs
+                    break;
+            }
+        }
+        gralloc_usage_info.pNext = usage_info_pNext;
+
+        result = dispatch.GetSwapchainGrallocUsage4ANDROID(
+            device, &gralloc_usage_info, &native_usage);
+        ATRACE_END();
+        if (result != VK_SUCCESS) {
+            ALOGE("vkGetSwapchainGrallocUsage4ANDROID failed: %d", result);
+            return VK_ERROR_SURFACE_LOST_KHR;
+        }
+    } else if (dispatch.GetSwapchainGrallocUsage3ANDROID) {
         ATRACE_BEGIN("GetSwapchainGrallocUsage3ANDROID");
         VkGrallocUsageInfoANDROID gralloc_usage_info = {};
         gralloc_usage_info.sType = VK_STRUCTURE_TYPE_GRALLOC_USAGE_INFO_ANDROID;

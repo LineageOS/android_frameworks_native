@@ -86,14 +86,38 @@ void AutoBackendTexture::releaseImageProc(SkImage::ReleaseContext releaseContext
 
 void logFatalTexture(const char* msg, const GrBackendTexture& tex, ui::Dataspace dataspace,
                      SkColorType colorType) {
-    GrGLTextureInfo textureInfo;
-    bool retrievedTextureInfo = tex.getGLTextureInfo(&textureInfo);
-    LOG_ALWAYS_FATAL("%s isTextureValid:%d dataspace:%d"
-                     "\n\tGrBackendTexture: (%i x %i) hasMipmaps: %i isProtected: %i texType: %i"
-                     "\n\t\tGrGLTextureInfo: success: %i fTarget: %u fFormat: %u colorType %i",
-                     msg, tex.isValid(), dataspace, tex.width(), tex.height(), tex.hasMipmaps(),
-                     tex.isProtected(), static_cast<int>(tex.textureType()), retrievedTextureInfo,
-                     textureInfo.fTarget, textureInfo.fFormat, colorType);
+    switch (tex.backend()) {
+        case GrBackendApi::kOpenGL: {
+            GrGLTextureInfo textureInfo;
+            bool retrievedTextureInfo = tex.getGLTextureInfo(&textureInfo);
+            LOG_ALWAYS_FATAL("%s isTextureValid:%d dataspace:%d"
+                             "\n\tGrBackendTexture: (%i x %i) hasMipmaps: %i isProtected: %i "
+                             "texType: %i\n\t\tGrGLTextureInfo: success: %i fTarget: %u fFormat: %u"
+                             " colorType %i",
+                             msg, tex.isValid(), dataspace, tex.width(), tex.height(),
+                             tex.hasMipmaps(), tex.isProtected(),
+                             static_cast<int>(tex.textureType()), retrievedTextureInfo,
+                             textureInfo.fTarget, textureInfo.fFormat, colorType);
+            break;
+        }
+        case GrBackendApi::kVulkan: {
+            GrVkImageInfo imageInfo;
+            bool retrievedImageInfo = tex.getVkImageInfo(&imageInfo);
+            LOG_ALWAYS_FATAL("%s isTextureValid:%d dataspace:%d"
+                             "\n\tGrBackendTexture: (%i x %i) hasMipmaps: %i isProtected: %i "
+                             "texType: %i\n\t\tVkImageInfo: success: %i fFormat: %i "
+                             "fSampleCount: %u fLevelCount: %u colorType %i",
+                             msg, tex.isValid(), dataspace, tex.width(), tex.height(),
+                             tex.hasMipmaps(), tex.isProtected(),
+                             static_cast<int>(tex.textureType()), retrievedImageInfo,
+                             imageInfo.fFormat, imageInfo.fSampleCount, imageInfo.fLevelCount,
+                             colorType);
+            break;
+        }
+        default:
+            LOG_ALWAYS_FATAL("%s Unexpected backend %u", msg, static_cast<unsigned>(tex.backend()));
+            break;
+    }
 }
 
 sk_sp<SkImage> AutoBackendTexture::makeImage(ui::Dataspace dataspace, SkAlphaType alphaType,

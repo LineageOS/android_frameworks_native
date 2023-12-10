@@ -763,6 +763,17 @@ void CreateInfoWrapper::FilterExtension(const char* name) {
             continue;
         }
 
+        // Ignore duplicate extensions (see: b/288929054)
+        bool duplicate_entry = false;
+        for (uint32_t j = 0; j < filter.name_count; j++) {
+            if (strcmp(name, filter.names[j]) == 0) {
+                duplicate_entry = true;
+                break;
+            }
+        }
+        if (duplicate_entry == true)
+            continue;
+
         filter.names[filter.name_count++] = name;
         if (ext_bit != ProcHook::EXTENSION_UNKNOWN) {
             if (ext_bit == ProcHook::ANDROID_native_buffer)
@@ -1422,13 +1433,15 @@ VkResult CreateDevice(VkPhysicalDevice physicalDevice,
     if ((wrapper.GetHalExtensions()[ProcHook::ANDROID_native_buffer]) &&
         !data->driver.GetSwapchainGrallocUsageANDROID &&
         !data->driver.GetSwapchainGrallocUsage2ANDROID &&
-        !data->driver.GetSwapchainGrallocUsage3ANDROID) {
+        !data->driver.GetSwapchainGrallocUsage3ANDROID &&
+        !data->driver.GetSwapchainGrallocUsage4ANDROID) {
         ALOGE(
             "Driver's implementation of ANDROID_native_buffer is broken;"
             " must expose at least one of "
             "vkGetSwapchainGrallocUsageANDROID or "
             "vkGetSwapchainGrallocUsage2ANDROID or "
-            "vkGetSwapchainGrallocUsage3ANDROID");
+            "vkGetSwapchainGrallocUsage3ANDROID or "
+            "vkGetSwapchainGrallocUsage4ANDROID");
 
         data->driver.DestroyDevice(dev, pAllocator);
         FreeDeviceData(data, data_allocator);

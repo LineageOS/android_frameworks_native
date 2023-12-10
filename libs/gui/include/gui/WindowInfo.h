@@ -21,6 +21,8 @@
 #include <binder/Parcel.h>
 #include <binder/Parcelable.h>
 #include <ftl/flags.h>
+#include <ftl/mixins.h>
+#include <gui/PidUid.h>
 #include <gui/constants.h>
 #include <ui/Rect.h>
 #include <ui/Region.h>
@@ -223,8 +225,8 @@ struct WindowInfo : public Parcelable {
     Region touchableRegion;
 
     TouchOcclusionMode touchOcclusionMode = TouchOcclusionMode::BLOCK_UNTRUSTED;
-    int32_t ownerPid = -1;
-    int32_t ownerUid = -1;
+    Pid ownerPid = Pid::INVALID;
+    Uid ownerUid = Uid::INVALID;
     std::string packageName;
     ftl::Flags<InputConfig> inputConfig;
     int32_t displayId = ADISPLAY_ID_NONE;

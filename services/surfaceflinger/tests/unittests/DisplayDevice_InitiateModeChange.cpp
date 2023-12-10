@@ -78,7 +78,7 @@ TEST_F(InitiateModeChangeTest, setDesiredActiveMode_setNewMode) {
               mDisplay->setDesiredActiveMode(
                       {scheduler::FrameRateMode{90_Hz, kMode90}, Event::None}));
     ASSERT_NE(std::nullopt, mDisplay->getDesiredActiveMode());
-    EXPECT_FRAME_RATE_MODE(kMode90, 90_Hz, mDisplay->getDesiredActiveMode()->modeOpt);
+    EXPECT_FRAME_RATE_MODE(kMode90, 90_Hz, *mDisplay->getDesiredActiveMode()->modeOpt);
     EXPECT_EQ(Event::None, mDisplay->getDesiredActiveMode()->event);
 
     // Setting another mode should be cached but return None
@@ -86,7 +86,7 @@ TEST_F(InitiateModeChangeTest, setDesiredActiveMode_setNewMode) {
               mDisplay->setDesiredActiveMode(
                       {scheduler::FrameRateMode{120_Hz, kMode120}, Event::None}));
     ASSERT_NE(std::nullopt, mDisplay->getDesiredActiveMode());
-    EXPECT_FRAME_RATE_MODE(kMode120, 120_Hz, mDisplay->getDesiredActiveMode()->modeOpt);
+    EXPECT_FRAME_RATE_MODE(kMode120, 120_Hz, *mDisplay->getDesiredActiveMode()->modeOpt);
     EXPECT_EQ(Event::None, mDisplay->getDesiredActiveMode()->event);
 }
 
@@ -105,7 +105,7 @@ TEST_F(InitiateModeChangeTest, initiateModeChange) NO_THREAD_SAFETY_ANALYSIS {
               mDisplay->setDesiredActiveMode(
                       {scheduler::FrameRateMode{90_Hz, kMode90}, Event::None}));
     ASSERT_NE(std::nullopt, mDisplay->getDesiredActiveMode());
-    EXPECT_FRAME_RATE_MODE(kMode90, 90_Hz, mDisplay->getDesiredActiveMode()->modeOpt);
+    EXPECT_FRAME_RATE_MODE(kMode90, 90_Hz, *mDisplay->getDesiredActiveMode()->modeOpt);
     EXPECT_EQ(Event::None, mDisplay->getDesiredActiveMode()->event);
 
     hal::VsyncPeriodChangeConstraints constraints{
@@ -136,7 +136,7 @@ NO_THREAD_SAFETY_ANALYSIS {
               mDisplay->setDesiredActiveMode(
                       {scheduler::FrameRateMode{90_Hz, kMode90}, Event::None}));
     ASSERT_NE(std::nullopt, mDisplay->getDesiredActiveMode());
-    EXPECT_FRAME_RATE_MODE(kMode90, 90_Hz, mDisplay->getDesiredActiveMode()->modeOpt);
+    EXPECT_FRAME_RATE_MODE(kMode90, 90_Hz, *mDisplay->getDesiredActiveMode()->modeOpt);
     EXPECT_EQ(Event::None, mDisplay->getDesiredActiveMode()->event);
 
     hal::VsyncPeriodChangeConstraints constraints{
@@ -154,7 +154,7 @@ NO_THREAD_SAFETY_ANALYSIS {
               mDisplay->setDesiredActiveMode(
                       {scheduler::FrameRateMode{120_Hz, kMode120}, Event::None}));
     ASSERT_NE(std::nullopt, mDisplay->getDesiredActiveMode());
-    EXPECT_FRAME_RATE_MODE(kMode120, 120_Hz, mDisplay->getDesiredActiveMode()->modeOpt);
+    EXPECT_FRAME_RATE_MODE(kMode120, 120_Hz, *mDisplay->getDesiredActiveMode()->modeOpt);
     EXPECT_EQ(Event::None, mDisplay->getDesiredActiveMode()->event);
 
     EXPECT_FRAME_RATE_MODE(kMode90, 90_Hz, *mDisplay->getUpcomingActiveMode().modeOpt);

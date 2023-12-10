@@ -50,10 +50,10 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include <system/graphics-base-v1.0.h>
-#include <ui/DataspaceUtils.h>
 #include <ui/DebugUtils.h>
 #include <ui/FloatRect.h>
 #include <ui/GraphicBuffer.h>
+#include <ui/HdrRenderTypeUtils.h>
 #include <ui/PixelFormat.h>
 #include <ui/Rect.h>
 #include <ui/Transform.h>
@@ -1349,6 +1349,8 @@ void Layer::setFrameTimelineVsyncForBufferTransaction(const FrameTimelineInfo& i
         mDrawingState.bufferSurfaceFrameTX =
                 createSurfaceFrameForBuffer(info, postTime, mTransactionName);
     }
+
+    setFrameTimelineVsyncForSkippedFrames(info, postTime, mTransactionName);
 }
 
 void Layer::setFrameTimelineVsyncForBufferlessTransaction(const FrameTimelineInfo& info,
@@ -1380,11 +1382,13 @@ void Layer::setFrameTimelineVsyncForBufferlessTransaction(const FrameTimelineInf
             it->second = createSurfaceFrameForTransaction(info, postTime);
         }
     }
+
+    setFrameTimelineVsyncForSkippedFrames(info, postTime, mTransactionName);
 }
 
 void Layer::addSurfaceFrameDroppedForBuffer(
-        std::shared_ptr<frametimeline::SurfaceFrame>& surfaceFrame) {
-    surfaceFrame->setDropTime(systemTime());
+        std::shared_ptr<frametimeline::SurfaceFrame>& surfaceFrame, nsecs_t dropTime) {
+    surfaceFrame->setDropTime(dropTime);
     surfaceFrame->setPresentState(PresentState::Dropped);
     mFlinger->mFrameTimeline->addSurfaceFrame(surfaceFrame);
 }
@@ -1432,6 +1436,32 @@ std::shared_ptr<frametimeline::SurfaceFrame> Layer::createSurfaceFrameForBuffer(
     }
     onSurfaceFrameCreated(surfaceFrame);
     return surfaceFrame;
+}
+
+void Layer::setFrameTimelineVsyncForSkippedFrames(const FrameTimelineInfo& info, nsecs_t postTime,
+                                                  std::string debugName) {
+    if (info.skippedFrameVsyncId == FrameTimelineInfo::INVALID_VSYNC_ID) {
+        return;
+    }
+
+    FrameTimelineInfo skippedFrameTimelineInfo = info;
+    skippedFrameTimelineInfo.vsyncId = info.skippedFrameVsyncId;
+
+    auto surfaceFrame =
+            mFlinger->mFrameTimeline->createSurfaceFrameForToken(skippedFrameTimelineInfo,
+                                                                 mOwnerPid, mOwnerUid,
+                                                                 getSequence(), mName, debugName,
+                                                                 /*isBuffer*/ false, getGameMode());
+    surfaceFrame->setActualStartTime(skippedFrameTimelineInfo.skippedFrameStartTimeNanos);
+    // For Transactions, the post time is considered to be both queue and acquire fence time.
+    surfaceFrame->setActualQueueTime(postTime);
+    surfaceFrame->setAcquireFenceTime(postTime);
+    const auto fps = mFlinger->mScheduler->getFrameRateOverride(getOwnerUid());
+    if (fps) {
+        surfaceFrame->setRenderRate(*fps);
+    }
+    onSurfaceFrameCreated(surfaceFrame);
+    addSurfaceFrameDroppedForBuffer(surfaceFrame, postTime);
 }
 
 bool Layer::setFrameRateForLayerTreeLegacy(FrameRate frameRate) {
@@ -2422,8 +2452,8 @@ void Layer::handleDropInputMode(gui::WindowInfo& info) const {
 WindowInfo Layer::fillInputInfo(const InputDisplayArgs& displayArgs) {
     if (!hasInputInfo()) {
         mDrawingState.inputInfo.name = getName();
-        mDrawingState.inputInfo.ownerUid = mOwnerUid;
-        mDrawingState.inputInfo.ownerPid = mOwnerPid;
+        mDrawingState.inputInfo.ownerUid = gui::Uid{mOwnerUid};
+        mDrawingState.inputInfo.ownerPid = gui::Pid{mOwnerPid};
         mDrawingState.inputInfo.inputConfig |= WindowInfo::InputConfig::NO_INPUT_CHANNEL;
         mDrawingState.inputInfo.displayId = getLayerStack().id;
     }
@@ -3067,7 +3097,7 @@ bool Layer::setBuffer(std::shared_ptr<renderengine::ExternalTexture>& buffer,
             decrementPendingBufferCount();
             if (mDrawingState.bufferSurfaceFrameTX != nullptr &&
                 mDrawingState.bufferSurfaceFrameTX->getPresentState() != PresentState::Presented) {
-                addSurfaceFrameDroppedForBuffer(mDrawingState.bufferSurfaceFrameTX);
+                addSurfaceFrameDroppedForBuffer(mDrawingState.bufferSurfaceFrameTX, systemTime());
                 mDrawingState.bufferSurfaceFrameTX.reset();
             }
         } else if (EARLY_RELEASE_ENABLED && mLastClientCompositionFence != nullptr) {
@@ -3095,6 +3125,16 @@ bool Layer::setBuffer(std::shared_ptr<renderengine::ExternalTexture>& buffer,
         return true;
     }
 
+    if ((mDrawingState.producerId > bufferData.producerId) ||
+        ((mDrawingState.producerId == bufferData.producerId) &&
+         (mDrawingState.frameNumber > frameNumber))) {
+        ALOGE("Out of order buffers detected for %s producedId=%d frameNumber=%" PRIu64
+              " -> producedId=%d frameNumber=%" PRIu64,
+              getDebugName(), mDrawingState.producerId, mDrawingState.frameNumber,
+              bufferData.producerId, frameNumber);
+        TransactionTraceWriter::getInstance().invoke("out_of_order_buffers_", /*overwrite=*/false);
+    }
+
     mDrawingState.producerId = bufferData.producerId;
     mDrawingState.barrierProducerId =
             std::max(mDrawingState.producerId, mDrawingState.barrierProducerId);
@@ -3102,7 +3142,6 @@ bool Layer::setBuffer(std::shared_ptr<renderengine::ExternalTexture>& buffer,
     mDrawingState.barrierFrameNumber =
             std::max(mDrawingState.frameNumber, mDrawingState.barrierFrameNumber);
 
-    // TODO(b/277265947) log and flush transaction trace when we detect out of order updates
     mDrawingState.releaseBufferListener = bufferData.releaseBufferListener;
     mDrawingState.buffer = std::move(buffer);
     mDrawingState.acquireFence = bufferData.flags.test(BufferData::BufferDataChange::fenceChanged)
@@ -3139,6 +3178,14 @@ bool Layer::setBuffer(std::shared_ptr<renderengine::ExternalTexture>& buffer,
     }
 
     mDrawingState.releaseBufferEndpoint = bufferData.releaseBufferEndpoint;
+
+    // If the layer had been updated a TextureView, this would make sure the present time could be
+    // same to TextureView update when it's a small dirty, and get the correct heuristic rate.
+    if (mFlinger->mScheduler->supportSmallDirtyDetection()) {
+        if (mDrawingState.useVsyncIdForRefreshRateSelection) {
+            mUsedVsyncIdForRefreshRateSelection = true;
+        }
+    }
     return true;
 }
 
@@ -3161,7 +3208,35 @@ void Layer::recordLayerHistoryBufferUpdate(const scheduler::LayerProps& layerPro
                             mDrawingState.latchedVsyncId);
             if (prediction.has_value()) {
                 ATRACE_FORMAT_INSTANT("predictedPresentTime");
+                mMaxTimeForUseVsyncId = prediction->presentTime +
+                        scheduler::LayerHistory::kMaxPeriodForHistory.count();
                 return prediction->presentTime;
+            }
+        }
+
+        if (!mFlinger->mScheduler->supportSmallDirtyDetection()) {
+            return static_cast<nsecs_t>(0);
+        }
+
+        // If the layer is not an application and didn't set an explicit rate or desiredPresentTime,
+        // return "0" to tell the layer history that it will use the max refresh rate without
+        // calculating the adaptive rate.
+        if (mWindowType != WindowInfo::Type::APPLICATION &&
+            mWindowType != WindowInfo::Type::BASE_APPLICATION) {
+            return static_cast<nsecs_t>(0);
+        }
+
+        // Return the valid present time only when the layer potentially updated a TextureView so
+        // LayerHistory could heuristically calculate the rate if the UI is continually updating.
+        if (mUsedVsyncIdForRefreshRateSelection) {
+            const auto prediction =
+                    mFlinger->mFrameTimeline->getTokenManager()->getPredictionsForToken(
+                            mDrawingState.latchedVsyncId);
+            if (prediction.has_value()) {
+                if (mMaxTimeForUseVsyncId >= prediction->presentTime) {
+                    return prediction->presentTime;
+                }
+                mUsedVsyncIdForRefreshRateSelection = false;
             }
         }
 
@@ -3224,6 +3299,7 @@ bool Layer::setSurfaceDamageRegion(const Region& surfaceDamage) {
     mDrawingState.surfaceDamageRegion = surfaceDamage;
     mDrawingState.modified = true;
     setTransactionFlags(eTransactionNeeded);
+    setIsSmallDirty();
     return true;
 }
 
@@ -3599,7 +3675,7 @@ std::pair<FloatRect, bool> Layer::getInputBounds(bool fillParentBounds) const {
     return {inputBounds, inputBoundsValid};
 }
 
-bool Layer::simpleBufferUpdate(const layer_state_t& s) const {
+bool Layer::isSimpleBufferUpdate(const layer_state_t& s) const {
     const uint64_t requiredFlags = layer_state_t::eBufferChanged;
 
     const uint64_t deniedFlags = layer_state_t::eProducerDisconnect | layer_state_t::eLayerChanged |
@@ -3608,51 +3684,42 @@ bool Layer::simpleBufferUpdate(const layer_state_t& s) const {
             layer_state_t::eLayerStackChanged | layer_state_t::eAutoRefreshChanged |
             layer_state_t::eReparent;
 
-    const uint64_t allowedFlags = layer_state_t::eHasListenerCallbacksChanged |
-            layer_state_t::eFrameRateSelectionPriority | layer_state_t::eFrameRateChanged |
-            layer_state_t::eSurfaceDamageRegionChanged | layer_state_t::eApiChanged |
-            layer_state_t::eMetadataChanged | layer_state_t::eDropInputModeChanged |
-            layer_state_t::eInputInfoChanged;
-
     if ((s.what & requiredFlags) != requiredFlags) {
-        ALOGV("%s: false [missing required flags 0x%" PRIx64 "]", __func__,
-              (s.what | requiredFlags) & ~s.what);
+        ATRACE_FORMAT_INSTANT("%s: false [missing required flags 0x%" PRIx64 "]", __func__,
+                              (s.what | requiredFlags) & ~s.what);
         return false;
     }
 
     if (s.what & deniedFlags) {
-        ALOGV("%s: false [has denied flags 0x%" PRIx64 "]", __func__, s.what & deniedFlags);
+        ATRACE_FORMAT_INSTANT("%s: false [has denied flags 0x%" PRIx64 "]", __func__,
+                              s.what & deniedFlags);
         return false;
-    }
-
-    if (s.what & allowedFlags) {
-        ALOGV("%s: [has allowed flags 0x%" PRIx64 "]", __func__, s.what & allowedFlags);
     }
 
     if (s.what & layer_state_t::ePositionChanged) {
         if (mRequestedTransform.tx() != s.x || mRequestedTransform.ty() != s.y) {
-            ALOGV("%s: false [ePositionChanged changed]", __func__);
+            ATRACE_FORMAT_INSTANT("%s: false [ePositionChanged changed]", __func__);
             return false;
         }
     }
 
     if (s.what & layer_state_t::eAlphaChanged) {
         if (mDrawingState.color.a != s.color.a) {
-            ALOGV("%s: false [eAlphaChanged changed]", __func__);
+            ATRACE_FORMAT_INSTANT("%s: false [eAlphaChanged changed]", __func__);
             return false;
         }
     }
 
     if (s.what & layer_state_t::eColorTransformChanged) {
         if (mDrawingState.colorTransform != s.colorTransform) {
-            ALOGV("%s: false [eColorTransformChanged changed]", __func__);
+            ATRACE_FORMAT_INSTANT("%s: false [eColorTransformChanged changed]", __func__);
             return false;
         }
     }
 
     if (s.what & layer_state_t::eBackgroundColorChanged) {
         if (mDrawingState.bgColorLayer || s.bgColor.a != 0) {
-            ALOGV("%s: false [eBackgroundColorChanged changed]", __func__);
+            ATRACE_FORMAT_INSTANT("%s: false [eBackgroundColorChanged changed]", __func__);
             return false;
         }
     }
@@ -3662,91 +3729,92 @@ bool Layer::simpleBufferUpdate(const layer_state_t& s) const {
             mRequestedTransform.dtdy() != s.matrix.dtdy ||
             mRequestedTransform.dtdx() != s.matrix.dtdx ||
             mRequestedTransform.dsdy() != s.matrix.dsdy) {
-            ALOGV("%s: false [eMatrixChanged changed]", __func__);
+            ATRACE_FORMAT_INSTANT("%s: false [eMatrixChanged changed]", __func__);
             return false;
         }
     }
 
     if (s.what & layer_state_t::eCornerRadiusChanged) {
         if (mDrawingState.cornerRadius != s.cornerRadius) {
-            ALOGV("%s: false [eCornerRadiusChanged changed]", __func__);
+            ATRACE_FORMAT_INSTANT("%s: false [eCornerRadiusChanged changed]", __func__);
             return false;
         }
     }
 
     if (s.what & layer_state_t::eBackgroundBlurRadiusChanged) {
         if (mDrawingState.backgroundBlurRadius != static_cast<int>(s.backgroundBlurRadius)) {
-            ALOGV("%s: false [eBackgroundBlurRadiusChanged changed]", __func__);
+            ATRACE_FORMAT_INSTANT("%s: false [eBackgroundBlurRadiusChanged changed]", __func__);
             return false;
         }
     }
 
     if (s.what & layer_state_t::eBufferTransformChanged) {
         if (mDrawingState.bufferTransform != s.bufferTransform) {
-            ALOGV("%s: false [eBufferTransformChanged changed]", __func__);
+            ATRACE_FORMAT_INSTANT("%s: false [eBufferTransformChanged changed]", __func__);
             return false;
         }
     }
 
     if (s.what & layer_state_t::eTransformToDisplayInverseChanged) {
         if (mDrawingState.transformToDisplayInverse != s.transformToDisplayInverse) {
-            ALOGV("%s: false [eTransformToDisplayInverseChanged changed]", __func__);
+            ATRACE_FORMAT_INSTANT("%s: false [eTransformToDisplayInverseChanged changed]",
+                                  __func__);
             return false;
         }
     }
 
     if (s.what & layer_state_t::eCropChanged) {
         if (mDrawingState.crop != s.crop) {
-            ALOGV("%s: false [eCropChanged changed]", __func__);
+            ATRACE_FORMAT_INSTANT("%s: false [eCropChanged changed]", __func__);
             return false;
         }
     }
 
     if (s.what & layer_state_t::eDataspaceChanged) {
         if (mDrawingState.dataspace != s.dataspace) {
-            ALOGV("%s: false [eDataspaceChanged changed]", __func__);
+            ATRACE_FORMAT_INSTANT("%s: false [eDataspaceChanged changed]", __func__);
             return false;
         }
     }
 
     if (s.what & layer_state_t::eHdrMetadataChanged) {
         if (mDrawingState.hdrMetadata != s.hdrMetadata) {
-            ALOGV("%s: false [eHdrMetadataChanged changed]", __func__);
+            ATRACE_FORMAT_INSTANT("%s: false [eHdrMetadataChanged changed]", __func__);
             return false;
         }
     }
 
     if (s.what & layer_state_t::eSidebandStreamChanged) {
         if (mDrawingState.sidebandStream != s.sidebandStream) {
-            ALOGV("%s: false [eSidebandStreamChanged changed]", __func__);
+            ATRACE_FORMAT_INSTANT("%s: false [eSidebandStreamChanged changed]", __func__);
             return false;
         }
     }
 
     if (s.what & layer_state_t::eColorSpaceAgnosticChanged) {
         if (mDrawingState.colorSpaceAgnostic != s.colorSpaceAgnostic) {
-            ALOGV("%s: false [eColorSpaceAgnosticChanged changed]", __func__);
+            ATRACE_FORMAT_INSTANT("%s: false [eColorSpaceAgnosticChanged changed]", __func__);
             return false;
         }
     }
 
     if (s.what & layer_state_t::eShadowRadiusChanged) {
         if (mDrawingState.shadowRadius != s.shadowRadius) {
-            ALOGV("%s: false [eShadowRadiusChanged changed]", __func__);
+            ATRACE_FORMAT_INSTANT("%s: false [eShadowRadiusChanged changed]", __func__);
             return false;
         }
     }
 
     if (s.what & layer_state_t::eFixedTransformHintChanged) {
         if (mDrawingState.fixedTransformHint != s.fixedTransformHint) {
-            ALOGV("%s: false [eFixedTransformHintChanged changed]", __func__);
+            ATRACE_FORMAT_INSTANT("%s: false [eFixedTransformHintChanged changed]", __func__);
             return false;
         }
     }
 
     if (s.what & layer_state_t::eTrustedOverlayChanged) {
         if (mDrawingState.isTrustedOverlay != s.isTrustedOverlay) {
-            ALOGV("%s: false [eTrustedOverlayChanged changed]", __func__);
+            ATRACE_FORMAT_INSTANT("%s: false [eTrustedOverlayChanged changed]", __func__);
             return false;
         }
     }
@@ -3755,28 +3823,28 @@ bool Layer::simpleBufferUpdate(const layer_state_t& s) const {
         StretchEffect temp = s.stretchEffect;
         temp.sanitize();
         if (mDrawingState.stretchEffect != temp) {
-            ALOGV("%s: false [eStretchChanged changed]", __func__);
+            ATRACE_FORMAT_INSTANT("%s: false [eStretchChanged changed]", __func__);
             return false;
         }
     }
 
     if (s.what & layer_state_t::eBufferCropChanged) {
         if (mDrawingState.bufferCrop != s.bufferCrop) {
-            ALOGV("%s: false [eBufferCropChanged changed]", __func__);
+            ATRACE_FORMAT_INSTANT("%s: false [eBufferCropChanged changed]", __func__);
             return false;
         }
     }
 
     if (s.what & layer_state_t::eDestinationFrameChanged) {
         if (mDrawingState.destinationFrame != s.destinationFrame) {
-            ALOGV("%s: false [eDestinationFrameChanged changed]", __func__);
+            ATRACE_FORMAT_INSTANT("%s: false [eDestinationFrameChanged changed]", __func__);
             return false;
         }
     }
 
     if (s.what & layer_state_t::eDimmingEnabledChanged) {
         if (mDrawingState.dimmingEnabled != s.dimmingEnabled) {
-            ALOGV("%s: false [eDimmingEnabledChanged changed]", __func__);
+            ATRACE_FORMAT_INSTANT("%s: false [eDimmingEnabledChanged changed]", __func__);
             return false;
         }
     }
@@ -3784,12 +3852,11 @@ bool Layer::simpleBufferUpdate(const layer_state_t& s) const {
     if (s.what & layer_state_t::eExtendedRangeBrightnessChanged) {
         if (mDrawingState.currentHdrSdrRatio != s.currentHdrSdrRatio ||
             mDrawingState.desiredHdrSdrRatio != s.desiredHdrSdrRatio) {
-            ALOGV("%s: false [eExtendedRangeBrightnessChanged changed]", __func__);
+            ATRACE_FORMAT_INSTANT("%s: false [eExtendedRangeBrightnessChanged changed]", __func__);
             return false;
         }
     }
 
-    ALOGV("%s: true", __func__);
     return true;
 }
 
@@ -4278,6 +4345,26 @@ bool Layer::setTrustedPresentationInfo(TrustedPresentationThresholds const& thre
 
 void Layer::updateLastLatchTime(nsecs_t latchTime) {
     mLastLatchTime = latchTime;
+}
+
+void Layer::setIsSmallDirty() {
+    if (!mFlinger->mScheduler->supportSmallDirtyDetection()) {
+        return;
+    }
+
+    if (mWindowType != WindowInfo::Type::APPLICATION &&
+        mWindowType != WindowInfo::Type::BASE_APPLICATION) {
+        return;
+    }
+    Rect bounds = mDrawingState.surfaceDamageRegion.getBounds();
+    if (!bounds.isValid()) {
+        return;
+    }
+
+    // If the damage region is a small dirty, this could give the hint for the layer history that
+    // it could suppress the heuristic rate when calculating.
+    mSmallDirty = mFlinger->mScheduler->isSmallDirtyArea(mOwnerUid,
+                                                         bounds.getWidth() * bounds.getHeight());
 }
 
 // ---------------------------------------------------------------------------

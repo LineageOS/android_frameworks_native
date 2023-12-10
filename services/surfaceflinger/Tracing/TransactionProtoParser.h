@@ -18,9 +18,8 @@
 #include <gui/fake/BufferData.h>
 #include <layerproto/TransactionProto.h>
 #include <utils/RefBase.h>
-#include "Display/DisplayMap.h"
-#include "FrontEnd/DisplayInfo.h"
 
+#include "FrontEnd/DisplayInfo.h"
 #include "FrontEnd/LayerCreationArgs.h"
 #include "TransactionState.h"
 
@@ -56,9 +55,8 @@ public:
     void fromProto(const proto::LayerCreationArgs&, LayerCreationArgs& outArgs);
     std::unique_ptr<FlingerDataMapper> mMapper;
     static frontend::DisplayInfo fromProto(const proto::DisplayInfo&);
-    static void fromProto(
-            const google::protobuf::RepeatedPtrField<proto::DisplayInfo>&,
-            display::DisplayMap<ui::LayerStack, frontend::DisplayInfo>& outDisplayInfos);
+    static void fromProto(const google::protobuf::RepeatedPtrField<proto::DisplayInfo>&,
+                          frontend::DisplayInfos& outDisplayInfos);
 
 private:
     proto::DisplayState toProto(const DisplayState&);

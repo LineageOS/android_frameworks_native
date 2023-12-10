@@ -37,4 +37,10 @@ parcelable FrameTimelineInfo {
     // Whether this vsyncId should be used to heuristically select the display refresh rate
     // TODO(b/281695725): Clean this up once TextureView use setFrameRate API
     boolean useForRefreshRateSelection = false;
+
+    // The VsyncId of a frame that was not drawn and squashed into this frame.
+    long skippedFrameVsyncId = INVALID_VSYNC_ID;
+
+    // The start time of a frame that was not drawn and squashed into this frame.
+    long skippedFrameStartTimeNanos = 0;
 }

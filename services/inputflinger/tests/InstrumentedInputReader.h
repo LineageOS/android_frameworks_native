@@ -103,12 +103,16 @@ protected:
             mExternalStylusDevices = devices;
         }
 
+        void setPreventingTouchpadTaps(bool prevent) override { mPreventingTouchpadTaps = prevent; }
+        bool isPreventingTouchpadTaps() override { return mPreventingTouchpadTaps; }
+
     private:
         int32_t mGlobalMetaState;
         bool mUpdateGlobalMetaStateWasCalled;
         int32_t mGeneration;
         std::optional<nsecs_t> mRequestedTimeout;
         std::vector<InputDeviceInfo> mExternalStylusDevices;
+        bool mPreventingTouchpadTaps{false};
     } mFakeContext;
 
     friend class InputReaderTest;

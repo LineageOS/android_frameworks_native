@@ -785,8 +785,8 @@ public:
     void setFrameTimelineVsyncForBufferlessTransaction(const FrameTimelineInfo& info,
                                                        nsecs_t postTime);
 
-    void addSurfaceFrameDroppedForBuffer(
-            std::shared_ptr<frametimeline::SurfaceFrame>& surfaceFrame);
+    void addSurfaceFrameDroppedForBuffer(std::shared_ptr<frametimeline::SurfaceFrame>& surfaceFrame,
+                                         nsecs_t dropTime);
     void addSurfaceFramePresentedForBuffer(
             std::shared_ptr<frametimeline::SurfaceFrame>& surfaceFrame, nsecs_t acquireFenceTime,
             nsecs_t currentLatchTime);
@@ -795,6 +795,8 @@ public:
             const FrameTimelineInfo& info, nsecs_t postTime);
     std::shared_ptr<frametimeline::SurfaceFrame> createSurfaceFrameForBuffer(
             const FrameTimelineInfo& info, nsecs_t queueTime, std::string debugName);
+    void setFrameTimelineVsyncForSkippedFrames(const FrameTimelineInfo& info, nsecs_t postTime,
+                                               std::string debugName);
 
     bool setTrustedPresentationInfo(TrustedPresentationThresholds const& thresholds,
                                     TrustedPresentationListener const& listener);
@@ -840,6 +842,14 @@ public:
     mutable bool contentDirty{false};
     Region surfaceDamageRegion;
 
+    // True when the surfaceDamageRegion is recognized as a small area update.
+    bool mSmallDirty{false};
+    // Used to check if mUsedVsyncIdForRefreshRateSelection should be expired when it stop updating.
+    nsecs_t mMaxTimeForUseVsyncId = 0;
+    // True when DrawState.useVsyncIdForRefreshRateSelection previously set to true during updating
+    // buffer.
+    bool mUsedVsyncIdForRefreshRateSelection{false};
+
     // Layer serial number.  This gives layers an explicit ordering, so we
     // have a stable sort order when their layer stack and Z-order are
     // the same.
@@ -866,7 +876,7 @@ public:
     std::string getPendingBufferCounterName() { return mBlastTransactionName; }
     bool updateGeometry();
 
-    bool simpleBufferUpdate(const layer_state_t&) const;
+    bool isSimpleBufferUpdate(const layer_state_t& s) const;
 
     static bool isOpaqueFormat(PixelFormat format);
 
@@ -902,6 +912,7 @@ public:
                 .transform = getTransform(),
                 .setFrameRateVote = getFrameRateForLayerTree(),
                 .frameRateSelectionPriority = getFrameRateSelectionPriority(),
+                .isSmallDirty = mSmallDirty,
         };
     };
     bool hasBuffer() const { return mBufferInfo.mBuffer != nullptr; }
@@ -914,6 +925,9 @@ public:
     std::vector<ui::LayerStack> mPreviouslyPresentedLayerStacks;
     // Exposed so SurfaceFlinger can assert that it's held
     const sp<SurfaceFlinger> mFlinger;
+
+    // Check if the damage region is a small dirty.
+    void setIsSmallDirty();
 
 protected:
     // For unit tests

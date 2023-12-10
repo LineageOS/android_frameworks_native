@@ -404,7 +404,8 @@ namespace android {
     DEFINE_AXIS(GESTURE_Y_OFFSET), \
     DEFINE_AXIS(GESTURE_SCROLL_X_DISTANCE), \
     DEFINE_AXIS(GESTURE_SCROLL_Y_DISTANCE), \
-    DEFINE_AXIS(GESTURE_PINCH_SCALE_FACTOR)
+    DEFINE_AXIS(GESTURE_PINCH_SCALE_FACTOR), \
+    DEFINE_AXIS(GESTURE_SWIPE_FINGER_COUNT)
 
 // NOTE: If you add new LEDs here, you must also add them to Input.h
 #define LEDS_SEQUENCE \
@@ -433,17 +434,14 @@ namespace android {
 // clang-format on
 
 // --- InputEventLookup ---
-const std::unordered_map<std::string, int> InputEventLookup::KEYCODES = {KEYCODES_SEQUENCE};
 
-const std::vector<InputEventLabel> InputEventLookup::KEY_NAMES = {KEYCODES_SEQUENCE};
-
-const std::unordered_map<std::string, int> InputEventLookup::AXES = {AXES_SEQUENCE};
-
-const std::vector<InputEventLabel> InputEventLookup::AXES_NAMES = {AXES_SEQUENCE};
-
-const std::unordered_map<std::string, int> InputEventLookup::LEDS = {LEDS_SEQUENCE};
-
-const std::unordered_map<std::string, int> InputEventLookup::FLAGS = {FLAGS_SEQUENCE};
+InputEventLookup::InputEventLookup()
+      : KEYCODES({KEYCODES_SEQUENCE}),
+        KEY_NAMES({KEYCODES_SEQUENCE}),
+        AXES({AXES_SEQUENCE}),
+        AXES_NAMES({AXES_SEQUENCE}),
+        LEDS({LEDS_SEQUENCE}),
+        FLAGS({FLAGS_SEQUENCE}) {}
 
 std::optional<int> InputEventLookup::lookupValueByLabel(
         const std::unordered_map<std::string, int>& map, const char* literal) {
@@ -461,30 +459,36 @@ const char* InputEventLookup::lookupLabelByValue(const std::vector<InputEventLab
 }
 
 std::optional<int> InputEventLookup::getKeyCodeByLabel(const char* label) {
-    return lookupValueByLabel(KEYCODES, label);
+    const auto& self = get();
+    return self.lookupValueByLabel(self.KEYCODES, label);
 }
 
 const char* InputEventLookup::getLabelByKeyCode(int32_t keyCode) {
-    if (keyCode >= 0 && static_cast<size_t>(keyCode) < KEYCODES.size()) {
-        return lookupLabelByValue(KEY_NAMES, keyCode);
+    const auto& self = get();
+    if (keyCode >= 0 && static_cast<size_t>(keyCode) < self.KEYCODES.size()) {
+        return get().lookupLabelByValue(self.KEY_NAMES, keyCode);
     }
     return nullptr;
 }
 
 std::optional<int> InputEventLookup::getKeyFlagByLabel(const char* label) {
-    return lookupValueByLabel(FLAGS, label);
+    const auto& self = get();
+    return lookupValueByLabel(self.FLAGS, label);
 }
 
 std::optional<int> InputEventLookup::getAxisByLabel(const char* label) {
-    return lookupValueByLabel(AXES, label);
+    const auto& self = get();
+    return lookupValueByLabel(self.AXES, label);
 }
 
 const char* InputEventLookup::getAxisLabel(int32_t axisId) {
-    return lookupLabelByValue(AXES_NAMES, axisId);
+    const auto& self = get();
+    return lookupLabelByValue(self.AXES_NAMES, axisId);
 }
 
 std::optional<int> InputEventLookup::getLedByLabel(const char* label) {
-    return lookupValueByLabel(LEDS, label);
+    const auto& self = get();
+    return lookupValueByLabel(self.LEDS, label);
 }
 
 namespace {

@@ -22,6 +22,7 @@
 #include <gui/InputApplication.h>
 #include <input/Input.h>
 #include <utils/RefBase.h>
+#include <set>
 
 namespace android {
 
@@ -53,7 +54,7 @@ public:
      * pid of the owner. The string reason contains information about the input event that we
      * haven't received a response for.
      */
-    virtual void notifyWindowUnresponsive(const sp<IBinder>& token, std::optional<int32_t> pid,
+    virtual void notifyWindowUnresponsive(const sp<IBinder>& token, std::optional<gui::Pid> pid,
                                           const std::string& reason) = 0;
 
     /* Notifies the system that a window just became responsive. This is only called after the
@@ -61,7 +62,7 @@ public:
      * no longer should be shown to the user. The window is eligible to cause a new ANR in the
      * future.
      */
-    virtual void notifyWindowResponsive(const sp<IBinder>& token, std::optional<int32_t> pid) = 0;
+    virtual void notifyWindowResponsive(const sp<IBinder>& token, std::optional<gui::Pid> pid) = 0;
 
     /* Notifies the system that an input channel is unrecoverably broken. */
     virtual void notifyInputChannelBroken(const sp<IBinder>& token) = 0;
@@ -136,6 +137,10 @@ public:
 
     /* Notifies the policy that the drag window has moved over to another window */
     virtual void notifyDropWindow(const sp<IBinder>& token, float x, float y) = 0;
+
+    /* Notifies the policy that there was an input device interaction with apps. */
+    virtual void notifyDeviceInteraction(int32_t deviceId, nsecs_t timestamp,
+                                         const std::set<gui::Uid>& uids) = 0;
 };
 
 } // namespace android

@@ -16,7 +16,6 @@
 
 #pragma once
 
-#include "Display/DisplayMap.h"
 #include "FrontEnd/DisplayInfo.h"
 #include "FrontEnd/LayerLifecycleManager.h"
 #include "LayerHierarchy.h"
@@ -45,7 +44,7 @@ public:
         const LayerLifecycleManager& layerLifecycleManager;
         ForceUpdateFlags forceUpdate = ForceUpdateFlags::NONE;
         bool includeMetadata = false;
-        const display::DisplayMap<ui::LayerStack, frontend::DisplayInfo>& displays;
+        const DisplayInfos& displays;
         // Set to true if there were display changes since last update.
         bool displayChanges = false;
         const renderengine::ShadowSettings& globalShadowSettings;
@@ -97,7 +96,7 @@ private:
 
     const LayerSnapshot& updateSnapshotsInHierarchy(const Args&, const LayerHierarchy& hierarchy,
                                                     LayerHierarchy::TraversalPath& traversalPath,
-                                                    const LayerSnapshot& parentSnapshot);
+                                                    const LayerSnapshot& parentSnapshot, int depth);
     void updateSnapshot(LayerSnapshot&, const Args&, const RequestedLayerState&,
                         const LayerSnapshot& parentSnapshot, const LayerHierarchy::TraversalPath&);
     static void updateRelativeState(LayerSnapshot& snapshot, const LayerSnapshot& parentSnapshot,
@@ -123,7 +122,9 @@ private:
 
     std::unordered_map<LayerHierarchy::TraversalPath, LayerSnapshot*,
                        LayerHierarchy::TraversalPathHash>
-            mIdToSnapshot;
+            mPathToSnapshot;
+    std::multimap<uint32_t, LayerSnapshot*> mIdToSnapshots;
+
     // Track snapshots that needs touchable region crop from other snapshots
     std::unordered_set<LayerHierarchy::TraversalPath, LayerHierarchy::TraversalPathHash>
             mNeedsTouchableRegionCrop;

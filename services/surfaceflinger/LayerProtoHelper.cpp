@@ -178,6 +178,7 @@ void LayerProtoHelper::writeToProto(
 
     InputWindowInfoProto* proto = getInputWindowInfoProto();
     proto->set_layout_params_flags(inputInfo.layoutParamsFlags.get());
+    proto->set_input_config(inputInfo.inputConfig.get());
     using U = std::underlying_type_t<WindowInfo::Type>;
     // TODO(b/129481165): This static assert can be safely removed once conversion warnings
     // are re-enabled.
@@ -427,7 +428,7 @@ void LayerProtoHelper::writeSnapshotToProto(LayerProto* layerInfo,
 
     layerInfo->set_is_relative_of(requestedState.isRelativeOf);
 
-    layerInfo->set_owner_uid(requestedState.ownerUid);
+    layerInfo->set_owner_uid(requestedState.ownerUid.val());
 
     if ((traceFlags & LayerTracing::TRACE_INPUT) && snapshot.hasInputInfo()) {
         LayerProtoHelper::writeToProto(snapshot.inputInfo, {},
@@ -446,7 +447,7 @@ void LayerProtoHelper::writeSnapshotToProto(LayerProto* layerInfo,
 }
 
 google::protobuf::RepeatedPtrField<DisplayProto> LayerProtoHelper::writeDisplayInfoToProto(
-        const display::DisplayMap<ui::LayerStack, frontend::DisplayInfo>& displayInfos) {
+        const frontend::DisplayInfos& displayInfos) {
     google::protobuf::RepeatedPtrField<DisplayProto> displays;
     displays.Reserve(displayInfos.size());
     for (const auto& [layerStack, displayInfo] : displayInfos) {

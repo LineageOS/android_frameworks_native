@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 #include <DisplayHardware/Hal.h>
 #include <android-base/stringprintf.h>
 #include <compositionengine/DisplayColorProfile.h>
@@ -26,7 +25,7 @@
 #include <cstdint>
 #include "system/graphics-base-v1.0.h"
 
-#include <ui/DataspaceUtils.h>
+#include <ui/HdrRenderTypeUtils.h>
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic push
@@ -331,10 +330,18 @@ void OutputLayer::updateCompositionState(
                 (state.dataspace & HAL_DATASPACE_RANGE_MASK) | HAL_DATASPACE_TRANSFER_SRGB);
     }
 
+    auto pixelFormat = layerFEState->buffer ? std::make_optional(static_cast<ui::PixelFormat>(
+                                                      layerFEState->buffer->getPixelFormat()))
+                                            : std::nullopt;
+
+    // get HdrRenderType after the dataspace gets changed.
+    auto hdrRenderType =
+            getHdrRenderType(state.dataspace, pixelFormat, layerFEState->desiredHdrSdrRatio);
+
     // For hdr content, treat the white point as the display brightness - HDR content should not be
     // boosted or dimmed.
     // If the layer explicitly requests to disable dimming, then don't dim either.
-    if (isHdrDataspace(state.dataspace) ||
+    if (hdrRenderType == HdrRenderType::GENERIC_HDR ||
         getOutput().getState().displayBrightnessNits == getOutput().getState().sdrWhitePointNits ||
         getOutput().getState().displayBrightnessNits == 0.f || !layerFEState->dimmingEnabled) {
         state.dimmingRatio = 1.f;
@@ -343,8 +350,7 @@ void OutputLayer::updateCompositionState(
         float layerBrightnessNits = getOutput().getState().sdrWhitePointNits;
         // RANGE_EXTENDED can "self-promote" to HDR, but is still rendered for a particular
         // range that we may need to re-adjust to the current display conditions
-        if ((state.dataspace & HAL_DATASPACE_RANGE_MASK) == HAL_DATASPACE_RANGE_EXTENDED &&
-            layerFEState->currentHdrSdrRatio > 1.01f) {
+        if (hdrRenderType == HdrRenderType::DISPLAY_HDR) {
             layerBrightnessNits *= layerFEState->currentHdrSdrRatio;
         }
         state.dimmingRatio =

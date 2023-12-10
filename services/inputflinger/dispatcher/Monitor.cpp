@@ -19,7 +19,7 @@
 namespace android::inputdispatcher {
 
 // --- Monitor ---
-Monitor::Monitor(const std::shared_ptr<InputChannel>& inputChannel, int32_t pid)
+Monitor::Monitor(const std::shared_ptr<InputChannel>& inputChannel, gui::Pid pid)
       : inputChannel(inputChannel), pid(pid) {}
 
 } // namespace android::inputdispatcher
