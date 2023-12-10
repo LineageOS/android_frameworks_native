@@ -60,9 +60,11 @@ TfLiteMotionPredictorSample::Point convertPrediction(
 // --- MotionPredictor ---
 
 MotionPredictor::MotionPredictor(nsecs_t predictionTimestampOffsetNanos,
-                                 std::function<bool()> checkMotionPredictionEnabled)
+                                 std::function<bool()> checkMotionPredictionEnabled,
+                                 ReportAtomFunction reportAtomFunction)
       : mPredictionTimestampOffsetNanos(predictionTimestampOffsetNanos),
-        mCheckMotionPredictionEnabled(std::move(checkMotionPredictionEnabled)) {}
+        mCheckMotionPredictionEnabled(std::move(checkMotionPredictionEnabled)),
+        mReportAtomFunction(reportAtomFunction) {}
 
 android::base::Result<void> MotionPredictor::record(const MotionEvent& event) {
     if (mLastEvent && mLastEvent->getDeviceId() != event.getDeviceId()) {
@@ -89,6 +91,13 @@ android::base::Result<void> MotionPredictor::record(const MotionEvent& event) {
     if (!mBuffers) {
         mBuffers = std::make_unique<TfLiteMotionPredictorBuffers>(mModel->inputLength());
     }
+
+    // Pass input event to the MetricsManager.
+    if (!mMetricsManager) {
+        mMetricsManager.emplace(mModel->config().predictionInterval, mModel->outputLength(),
+                                mReportAtomFunction);
+    }
+    mMetricsManager->onRecord(event);
 
     const int32_t action = event.getActionMasked();
     if (action == AMOTION_EVENT_ACTION_UP || action == AMOTION_EVENT_ACTION_CANCEL) {
@@ -134,12 +143,6 @@ android::base::Result<void> MotionPredictor::record(const MotionEvent& event) {
         mLastEvent = MotionEvent();
     }
     mLastEvent->copyFrom(&event, /*keepHistory=*/false);
-
-    // Pass input event to the MetricsManager.
-    if (!mMetricsManager) {
-        mMetricsManager.emplace(mModel->config().predictionInterval, mModel->outputLength());
-    }
-    mMetricsManager->onRecord(event);
 
     return {};
 }

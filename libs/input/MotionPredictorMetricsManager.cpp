@@ -46,13 +46,36 @@ inline constexpr float PATH_LENGTH_EPSILON = 0.001;
 
 } // namespace
 
-MotionPredictorMetricsManager::MotionPredictorMetricsManager(nsecs_t predictionInterval,
-                                                             size_t maxNumPredictions)
+void MotionPredictorMetricsManager::defaultReportAtomFunction(
+        const MotionPredictorMetricsManager::AtomFields& atomFields) {
+    // Call stats_write logging function only on Android targets (not supported on host).
+#ifdef __ANDROID__
+    android::stats::libinput::
+            stats_write(android::stats::libinput::STYLUS_PREDICTION_METRICS_REPORTED,
+                            /*stylus_vendor_id=*/0,
+                            /*stylus_product_id=*/0,
+                            atomFields.deltaTimeBucketMilliseconds,
+                            atomFields.alongTrajectoryErrorMeanMillipixels,
+                            atomFields.alongTrajectoryErrorStdMillipixels,
+                            atomFields.offTrajectoryRmseMillipixels,
+                            atomFields.pressureRmseMilliunits,
+                            atomFields.highVelocityAlongTrajectoryRmse,
+                            atomFields.highVelocityOffTrajectoryRmse,
+                            atomFields.scaleInvariantAlongTrajectoryRmse,
+                            atomFields.scaleInvariantOffTrajectoryRmse);
+#endif
+}
+
+MotionPredictorMetricsManager::MotionPredictorMetricsManager(
+        nsecs_t predictionInterval,
+        size_t maxNumPredictions,
+        ReportAtomFunction reportAtomFunction)
       : mPredictionInterval(predictionInterval),
         mMaxNumPredictions(maxNumPredictions),
         mRecentGroundTruthPoints(maxNumPredictions + 1),
         mAggregatedMetrics(maxNumPredictions),
-        mAtomFields(maxNumPredictions) {}
+        mAtomFields(maxNumPredictions),
+        mReportAtomFunction(reportAtomFunction ? reportAtomFunction : defaultReportAtomFunction) {}
 
 void MotionPredictorMetricsManager::onRecord(const MotionEvent& inputEvent) {
     // Convert MotionEvent to GroundTruthPoint.
@@ -81,8 +104,8 @@ void MotionPredictorMetricsManager::onRecord(const MotionEvent& inputEvent) {
             if (mRecentGroundTruthPoints.size() >= 2) {
                 computeAtomFields();
                 reportMetrics();
-                break;
             }
+            break;
         }
     }
 }
@@ -345,28 +368,10 @@ void MotionPredictorMetricsManager::computeAtomFields() {
 }
 
 void MotionPredictorMetricsManager::reportMetrics() {
-    // Report one atom for each time bucket.
+    LOG_ALWAYS_FATAL_IF(!mReportAtomFunction);
+    // Report one atom for each prediction time bucket.
     for (size_t i = 0; i < mAtomFields.size(); ++i) {
-        // Call stats_write logging function only on Android targets (not supported on host).
-#ifdef __ANDROID__
-        android::stats::libinput::
-                stats_write(android::stats::libinput::STYLUS_PREDICTION_METRICS_REPORTED,
-                            /*stylus_vendor_id=*/0,
-                            /*stylus_product_id=*/0, mAtomFields[i].deltaTimeBucketMilliseconds,
-                            mAtomFields[i].alongTrajectoryErrorMeanMillipixels,
-                            mAtomFields[i].alongTrajectoryErrorStdMillipixels,
-                            mAtomFields[i].offTrajectoryRmseMillipixels,
-                            mAtomFields[i].pressureRmseMilliunits,
-                            mAtomFields[i].highVelocityAlongTrajectoryRmse,
-                            mAtomFields[i].highVelocityOffTrajectoryRmse,
-                            mAtomFields[i].scaleInvariantAlongTrajectoryRmse,
-                            mAtomFields[i].scaleInvariantOffTrajectoryRmse);
-#endif
-    }
-
-    // Set mock atom fields, if available.
-    if (mMockLoggedAtomFields != nullptr) {
-        *mMockLoggedAtomFields = mAtomFields;
+        mReportAtomFunction(mAtomFields[i]);
     }
 }
 
