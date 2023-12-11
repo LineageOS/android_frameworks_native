@@ -20,6 +20,7 @@
 #include <map>
 #include <optional>
 #include <set>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -31,6 +32,13 @@ std::string bitsetToString(const std::bitset<N>& bitset) {
         return "<none>";
     }
     return bitset.to_string();
+}
+
+template <class T>
+std::string streamableToString(const T& streamable) {
+    std::stringstream out;
+    out << streamable;
+    return out.str();
 }
 
 template <typename T>

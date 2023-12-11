@@ -315,4 +315,7 @@ protected:
 
     WindowInfo mInfo;
 };
+
+std::ostream& operator<<(std::ostream& out, const WindowInfoHandle& window);
+
 } // namespace android::gui
