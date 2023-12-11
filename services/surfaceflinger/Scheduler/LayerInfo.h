@@ -175,7 +175,8 @@ public:
                             bool pendingModeChange, const LayerProps& props);
 
     // Sets an explicit layer vote. This usually comes directly from the application via
-    // ANativeWindow_setFrameRate API
+    // ANativeWindow_setFrameRate API. This is also used by Game Default Frame Rate and
+    // Game Mode Intervention Frame Rate.
     void setLayerVote(LayerVote vote) { mLayerVote = vote; }
 
     // Sets the default layer vote. This will be the layer vote after calling to resetLayerVote().

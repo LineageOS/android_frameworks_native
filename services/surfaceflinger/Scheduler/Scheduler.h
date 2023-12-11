@@ -293,7 +293,17 @@ public:
     // FrameRateOverride.refreshRateHz == 0 means no preference.
     void setPreferredRefreshRateForUid(FrameRateOverride);
 
-    void setGameModeRefreshRateForUid(FrameRateOverride);
+    // Stores the frame rate override that a game should run at set by game interventions.
+    // FrameRateOverride.refreshRateHz == 0 means no preference.
+    void setGameModeFrameRateForUid(FrameRateOverride) EXCLUDES(mDisplayLock);
+
+    // Stores the frame rate override that a game should run rat set by default game frame rate.
+    // FrameRateOverride.refreshRateHz == 0 means no preference, game default game frame rate is not
+    // enabled.
+    //
+    // "ro.surface_flinger.game_default_frame_rate_override" sets the frame rate value,
+    // "persist.graphics.game_default_frame_rate.enabled" controls whether this feature is enabled.
+    void setGameDefaultFrameRateForUid(FrameRateOverride) EXCLUDES(mDisplayLock);
 
     void updateSmallAreaDetection(std::vector<std::pair<int32_t, float>>& uidThresholdMappings);
 

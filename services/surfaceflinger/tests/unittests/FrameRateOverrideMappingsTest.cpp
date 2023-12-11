@@ -17,6 +17,8 @@
 #undef LOG_TAG
 #define LOG_TAG "FrameRateOverrideMappingsTest"
 
+#include <com_android_graphics_surfaceflinger_flags.h>
+#include <common/test/FlagUtils.h>
 #include <gtest/gtest.h>
 #include <unordered_map>
 
@@ -34,6 +36,8 @@ protected:
 };
 
 namespace {
+using namespace com::android::graphics::surfaceflinger;
+
 TEST_F(FrameRateOverrideMappingsTest, testUpdateFrameRateOverridesByContent) {
     mFrameRateOverrideByContent.clear();
     mFrameRateOverrideByContent.emplace(0, 30.0_Hz);
@@ -59,6 +63,8 @@ TEST_F(FrameRateOverrideMappingsTest, testUpdateFrameRateOverridesByContent) {
 }
 
 TEST_F(FrameRateOverrideMappingsTest, testSetGameModeRefreshRateForUid) {
+    SET_FLAG_FOR_TEST(flags::game_default_frame_rate, false);
+
     mFrameRateOverrideMappings.setGameModeRefreshRateForUid({1, 30.0f});
     mFrameRateOverrideMappings.setGameModeRefreshRateForUid({2, 90.0f});
 
@@ -95,6 +101,7 @@ TEST_F(FrameRateOverrideMappingsTest, testSetPreferredRefreshRateForUid) {
 }
 
 TEST_F(FrameRateOverrideMappingsTest, testGetFrameRateOverrideForUidMixed) {
+    SET_FLAG_FOR_TEST(flags::game_default_frame_rate, false);
     mFrameRateOverrideByContent.clear();
     mFrameRateOverrideByContent.emplace(0, 30.0_Hz);
     mFrameRateOverrideByContent.emplace(1, 60.0_Hz);
@@ -111,7 +118,6 @@ TEST_F(FrameRateOverrideMappingsTest, testGetFrameRateOverrideForUidMixed) {
     ASSERT_EQ(allFrameRateOverrides,
               mFrameRateOverrideMappings.getAllFrameRateOverrides(
                       /*supportsFrameRateOverrideByContent*/ true));
-
     mFrameRateOverrideMappings.setGameModeRefreshRateForUid({1, 30.0f});
     mFrameRateOverrideMappings.setGameModeRefreshRateForUid({2, 90.0f});
     mFrameRateOverrideMappings.setGameModeRefreshRateForUid({4, 120.0f});

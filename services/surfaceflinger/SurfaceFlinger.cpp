@@ -8416,14 +8416,22 @@ const std::unordered_map<std::string, uint32_t>& SurfaceFlinger::getGenericLayer
     return genericLayerMetadataKeyMap;
 }
 
-status_t SurfaceFlinger::setOverrideFrameRate(uid_t uid, float frameRate) {
+status_t SurfaceFlinger::setGameModeFrameRateOverride(uid_t uid, float frameRate) {
     PhysicalDisplayId displayId = [&]() {
         Mutex::Autolock lock(mStateLock);
         return getDefaultDisplayDeviceLocked()->getPhysicalId();
     }();
 
-    mScheduler->setGameModeRefreshRateForUid(FrameRateOverride{static_cast<uid_t>(uid), frameRate});
+    mScheduler->setGameModeFrameRateForUid(FrameRateOverride{static_cast<uid_t>(uid), frameRate});
     mScheduler->onFrameRateOverridesChanged(mAppConnectionHandle, displayId);
+    return NO_ERROR;
+}
+
+status_t SurfaceFlinger::setGameDefaultFrameRateOverride(uid_t uid, float frameRate) {
+    if (FlagManager::getInstance().game_default_frame_rate()) {
+        mScheduler->setGameDefaultFrameRateForUid(
+                FrameRateOverride{static_cast<uid_t>(uid), frameRate});
+    }
     return NO_ERROR;
 }
 
@@ -9776,13 +9784,25 @@ binder::Status SurfaceComposerAIDL::getDisplayDecorationSupport(
     return binder::Status::ok();
 }
 
-binder::Status SurfaceComposerAIDL::setOverrideFrameRate(int32_t uid, float frameRate) {
+binder::Status SurfaceComposerAIDL::setGameModeFrameRateOverride(int32_t uid, float frameRate) {
     status_t status;
     const int c_uid = IPCThreadState::self()->getCallingUid();
     if (c_uid == AID_ROOT || c_uid == AID_SYSTEM) {
-        status = mFlinger->setOverrideFrameRate(uid, frameRate);
+        status = mFlinger->setGameModeFrameRateOverride(uid, frameRate);
     } else {
-        ALOGE("setOverrideFrameRate() permission denied for uid: %d", c_uid);
+        ALOGE("setGameModeFrameRateOverride() permission denied for uid: %d", c_uid);
+        status = PERMISSION_DENIED;
+    }
+    return binderStatusFromStatusT(status);
+}
+
+binder::Status SurfaceComposerAIDL::setGameDefaultFrameRateOverride(int32_t uid, float frameRate) {
+    status_t status;
+    const int c_uid = IPCThreadState::self()->getCallingUid();
+    if (c_uid == AID_ROOT || c_uid == AID_SYSTEM) {
+        status = mFlinger->setGameDefaultFrameRateOverride(uid, frameRate);
+    } else {
+        ALOGE("setGameDefaultFrameRateOverride() permission denied for uid: %d", c_uid);
         status = PERMISSION_DENIED;
     }
     return binderStatusFromStatusT(status);

@@ -17,6 +17,7 @@
 #pragma once
 
 #include <gmock/gmock.h>
+#include <optional>
 
 namespace android::mock {
 
@@ -27,6 +28,13 @@ public:
         EXPECT_CALL(*this, getDefaultFrameRateCompatibility())
                 .WillOnce(testing::Return(scheduler::FrameRateCompatibility::Default));
     }
+
+    MockLayer(SurfaceFlinger* flinger, std::string name, std::optional<uint32_t> uid)
+          : Layer(LayerCreationArgs(flinger, nullptr, std::move(name), 0, {}, uid)) {
+        EXPECT_CALL(*this, getDefaultFrameRateCompatibility())
+                .WillOnce(testing::Return(scheduler::FrameRateCompatibility::Default));
+    }
+
     explicit MockLayer(SurfaceFlinger* flinger) : MockLayer(flinger, "TestLayer") {}
 
     MOCK_CONST_METHOD0(getType, const char*());
