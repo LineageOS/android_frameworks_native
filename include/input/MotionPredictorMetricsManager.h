@@ -18,7 +18,6 @@
 #include <cstdint>
 #include <functional>
 #include <limits>
-#include <optional>
 #include <vector>
 
 #include <input/Input.h> // for MotionEvent
@@ -37,15 +36,33 @@ namespace android {
  *
  * This class stores AggregatedStrokeMetrics, updating them as new MotionEvents are passed in. When
  * onRecord receives an UP or CANCEL event, this indicates the end of the stroke, and the final
- * AtomFields are computed and reported to the stats library.
+ * AtomFields are computed and reported to the stats library. The number of atoms reported is equal
+ * to the value of `maxNumPredictions` passed to the constructor. Each atom corresponds to one
+ * "prediction time bucket" — the amount of time into the future being predicted.
  *
  * If mMockLoggedAtomFields is set, the batch of AtomFields that are reported to the stats library
  * for one stroke are also stored in mMockLoggedAtomFields at the time they're reported.
  */
 class MotionPredictorMetricsManager {
 public:
-    // Note: the MetricsManager assumes that the input interval equals the prediction interval.
-    MotionPredictorMetricsManager(nsecs_t predictionInterval, size_t maxNumPredictions);
+    struct AtomFields;
+
+    using ReportAtomFunction = std::function<void(const AtomFields&)>;
+
+    static void defaultReportAtomFunction(const AtomFields& atomFields);
+
+    // Parameters:
+    //  • predictionInterval: the time interval between successive prediction target timestamps.
+    //    Note: the MetricsManager assumes that the input interval equals the prediction interval.
+    //  • maxNumPredictions: the maximum number of distinct target timestamps the prediction model
+    //    will generate predictions for. The MetricsManager reports this many atoms per stroke.
+    //  • [Optional] reportAtomFunction: the function that will be called to report metrics. If
+    //    omitted (or if an empty function is given), the `stats_write(…)` function from the Android
+    //    stats library will be used.
+    MotionPredictorMetricsManager(
+            nsecs_t predictionInterval,
+            size_t maxNumPredictions,
+            ReportAtomFunction reportAtomFunction = defaultReportAtomFunction);
 
     // This method should be called once for each call to MotionPredictor::record, receiving the
     // forwarded MotionEvent argument.
@@ -121,7 +138,7 @@ public:
     // magnitude makes it unobtainable in practice.)
     static const int NO_DATA_SENTINEL = std::numeric_limits<int32_t>::min();
 
-    // Final metrics reported in the atom.
+    // Final metric values reported in the atom.
     struct AtomFields {
         int deltaTimeBucketMilliseconds = 0;
 
@@ -139,15 +156,6 @@ public:
         int scaleInvariantAlongTrajectoryRmse = NO_DATA_SENTINEL; // millipixels
         int scaleInvariantOffTrajectoryRmse = NO_DATA_SENTINEL;   // millipixels
     };
-
-    // Allow tests to pass in a mock AtomFields pointer.
-    //
-    // When metrics are reported to the stats library on stroke end, they will also be written to
-    // mockLoggedAtomFields, overwriting existing data. The size of mockLoggedAtomFields will equal
-    // the number of calls to stats_write for that stroke.
-    void setMockLoggedAtomFields(std::vector<AtomFields>* mockLoggedAtomFields) {
-        mMockLoggedAtomFields = mockLoggedAtomFields;
-    }
 
 private:
     // The interval between consecutive predictions' target timestamps. We assume that the input
@@ -172,11 +180,7 @@ private:
     std::vector<AggregatedStrokeMetrics> mAggregatedMetrics;
     std::vector<AtomFields> mAtomFields;
 
-    // Non-owning pointer to the location of mock AtomFields. If present, will be filled with the
-    // values reported to stats_write on each batch of reported metrics.
-    //
-    // This pointer must remain valid as long as the MotionPredictorMetricsManager exists.
-    std::vector<AtomFields>* mMockLoggedAtomFields = nullptr;
+    const ReportAtomFunction mReportAtomFunction;
 
     // Helper methods for the implementation of onRecord and onPredict.
 
@@ -196,10 +200,7 @@ private:
     // Computes the atom fields to mAtomFields from the values in mAggregatedMetrics.
     void computeAtomFields();
 
-    // Reports the metrics given by the current data in mAtomFields:
-    //  • If on an Android device, reports the metrics to stats_write.
-    //  • If mMockLoggedAtomFields is present, it will be overwritten with logged metrics, with one
-    //    AtomFields element per call to stats_write.
+    // Reports the current data in mAtomFields by calling mReportAtomFunction.
     void reportMetrics();
 };
 

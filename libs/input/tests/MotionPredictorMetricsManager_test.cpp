@@ -39,6 +39,7 @@ using ::testing::Matches;
 using GroundTruthPoint = MotionPredictorMetricsManager::GroundTruthPoint;
 using PredictionPoint = MotionPredictorMetricsManager::PredictionPoint;
 using AtomFields = MotionPredictorMetricsManager::AtomFields;
+using ReportAtomFunction = MotionPredictorMetricsManager::ReportAtomFunction;
 
 inline constexpr int NANOS_PER_MILLIS = 1'000'000;
 
@@ -664,9 +665,16 @@ TEST(ErrorComputationHelperTest, ComputePressureRmsesSimpleTest) {
 
 // --- MotionPredictorMetricsManager tests. ---
 
-// Helper function that instantiates a MetricsManager with the given mock logged AtomFields. Takes
-// vectors of ground truth and prediction points of the same length, and passes these points to the
-// MetricsManager. The format of these vectors is expected to be:
+// Creates a mock atom reporting function that appends the reported atom to the given vector.
+ReportAtomFunction createMockReportAtomFunction(std::vector<AtomFields>& reportedAtomFields) {
+    return [&reportedAtomFields](const AtomFields& atomFields) -> void {
+        reportedAtomFields.push_back(atomFields);
+    };
+}
+
+// Helper function that instantiates a MetricsManager that reports metrics to outReportedAtomFields.
+// Takes vectors of ground truth and prediction points of the same length, and passes these points
+// to the MetricsManager. The format of these vectors is expected to be:
 //  • groundTruthPoints: chronologically-ordered ground truth points, with at least 2 elements.
 //  • predictionPoints: the first index points to a vector of predictions corresponding to the
 //    source ground truth point with the same index.
@@ -678,15 +686,16 @@ TEST(ErrorComputationHelperTest, ComputePressureRmsesSimpleTest) {
 //       prediction sets (that is, excluding the first and last). Thus, groundTruthPoints and
 //       predictionPoints should have size at least TEST_MAX_NUM_PREDICTIONS + 2.
 //
-// The passed-in outAtomFields will contain the logged AtomFields when the function returns.
+// When the function returns, outReportedAtomFields will contain the reported AtomFields.
 //
 // This function returns void so that it can use test assertions.
 void runMetricsManager(const std::vector<GroundTruthPoint>& groundTruthPoints,
                        const std::vector<std::vector<PredictionPoint>>& predictionPoints,
-                       std::vector<AtomFields>& outAtomFields) {
+                       std::vector<AtomFields>& outReportedAtomFields) {
     MotionPredictorMetricsManager metricsManager(TEST_PREDICTION_INTERVAL_NANOS,
-                                                 TEST_MAX_NUM_PREDICTIONS);
-    metricsManager.setMockLoggedAtomFields(&outAtomFields);
+                                                 TEST_MAX_NUM_PREDICTIONS,
+                                                 createMockReportAtomFunction(
+                                                         outReportedAtomFields));
 
     // Validate structure of groundTruthPoints and predictionPoints.
     ASSERT_EQ(predictionPoints.size(), groundTruthPoints.size());
@@ -712,18 +721,18 @@ void runMetricsManager(const std::vector<GroundTruthPoint>& groundTruthPoints,
 //  • Input: no prediction data.
 //  • Expectation: no metrics should be logged.
 TEST(MotionPredictorMetricsManagerTest, NoPredictions) {
-    std::vector<AtomFields> mockLoggedAtomFields;
+    std::vector<AtomFields> reportedAtomFields;
     MotionPredictorMetricsManager metricsManager(TEST_PREDICTION_INTERVAL_NANOS,
-                                                 TEST_MAX_NUM_PREDICTIONS);
-    metricsManager.setMockLoggedAtomFields(&mockLoggedAtomFields);
+                                                 TEST_MAX_NUM_PREDICTIONS,
+                                                 createMockReportAtomFunction(reportedAtomFields));
 
     metricsManager.onRecord(makeMotionEvent(
             GroundTruthPoint{{.position = Eigen::Vector2f(0, 0), .pressure = 0}, .timestamp = 0}));
     metricsManager.onRecord(makeLiftMotionEvent());
 
-    // Check that mockLoggedAtomFields is still empty (as it was initialized empty), ensuring that
+    // Check that reportedAtomFields is still empty (as it was initialized empty), ensuring that
     // no metrics were logged.
-    EXPECT_EQ(0u, mockLoggedAtomFields.size());
+    EXPECT_EQ(0u, reportedAtomFields.size());
 }
 
 // Perfect predictions test:
@@ -744,14 +753,14 @@ TEST(MotionPredictorMetricsManagerTest, ConstantGroundTruthPerfectPredictions) {
         groundTruthPoint.timestamp += TEST_PREDICTION_INTERVAL_NANOS;
     }
 
-    std::vector<AtomFields> atomFields;
-    runMetricsManager(groundTruthPoints, predictionPoints, atomFields);
+    std::vector<AtomFields> reportedAtomFields;
+    runMetricsManager(groundTruthPoints, predictionPoints, reportedAtomFields);
 
-    ASSERT_EQ(TEST_MAX_NUM_PREDICTIONS, atomFields.size());
+    ASSERT_EQ(TEST_MAX_NUM_PREDICTIONS, reportedAtomFields.size());
     // Check that errors are all zero, or NO_DATA_SENTINEL for unreported metrics.
-    for (size_t i = 0; i < atomFields.size(); ++i) {
+    for (size_t i = 0; i < reportedAtomFields.size(); ++i) {
         SCOPED_TRACE(testing::Message() << "i = " << i);
-        const AtomFields& atom = atomFields[i];
+        const AtomFields& atom = reportedAtomFields[i];
         const nsecs_t deltaTimeBucketNanos = TEST_PREDICTION_INTERVAL_NANOS * (i + 1);
         EXPECT_EQ(deltaTimeBucketNanos / NANOS_PER_MILLIS, atom.deltaTimeBucketMilliseconds);
         // General errors: reported for every time bucket.
@@ -764,7 +773,7 @@ TEST(MotionPredictorMetricsManagerTest, ConstantGroundTruthPerfectPredictions) {
         EXPECT_EQ(NO_DATA_SENTINEL, atom.highVelocityAlongTrajectoryRmse);
         EXPECT_EQ(NO_DATA_SENTINEL, atom.highVelocityOffTrajectoryRmse);
         // Scale-invariant errors: reported only for the last time bucket.
-        if (i + 1 == atomFields.size()) {
+        if (i + 1 == reportedAtomFields.size()) {
             EXPECT_EQ(0, atom.scaleInvariantAlongTrajectoryRmse);
             EXPECT_EQ(0, atom.scaleInvariantOffTrajectoryRmse);
         } else {
@@ -801,14 +810,14 @@ TEST(MotionPredictorMetricsManagerTest, QuadraticPressureLinearPredictions) {
             computePressureRmses(groundTruthPoints, predictionPoints);
 
     // Run test.
-    std::vector<AtomFields> atomFields;
-    runMetricsManager(groundTruthPoints, predictionPoints, atomFields);
+    std::vector<AtomFields> reportedAtomFields;
+    runMetricsManager(groundTruthPoints, predictionPoints, reportedAtomFields);
 
     // Check logged metrics match expectations.
-    ASSERT_EQ(TEST_MAX_NUM_PREDICTIONS, atomFields.size());
-    for (size_t i = 0; i < atomFields.size(); ++i) {
+    ASSERT_EQ(TEST_MAX_NUM_PREDICTIONS, reportedAtomFields.size());
+    for (size_t i = 0; i < reportedAtomFields.size(); ++i) {
         SCOPED_TRACE(testing::Message() << "i = " << i);
-        const AtomFields& atom = atomFields[i];
+        const AtomFields& atom = reportedAtomFields[i];
         // Check time bucket delta matches expectation based on index and prediction interval.
         const nsecs_t deltaTimeBucketNanos = TEST_PREDICTION_INTERVAL_NANOS * (i + 1);
         EXPECT_EQ(deltaTimeBucketNanos / NANOS_PER_MILLIS, atom.deltaTimeBucketMilliseconds);
@@ -845,14 +854,14 @@ TEST(MotionPredictorMetricsManagerTest, QuadraticPositionLinearPredictionsGenera
             computeGeneralPositionErrors(groundTruthPoints, predictionPoints);
 
     // Run test.
-    std::vector<AtomFields> atomFields;
-    runMetricsManager(groundTruthPoints, predictionPoints, atomFields);
+    std::vector<AtomFields> reportedAtomFields;
+    runMetricsManager(groundTruthPoints, predictionPoints, reportedAtomFields);
 
     // Check logged metrics match expectations.
-    ASSERT_EQ(TEST_MAX_NUM_PREDICTIONS, atomFields.size());
-    for (size_t i = 0; i < atomFields.size(); ++i) {
+    ASSERT_EQ(TEST_MAX_NUM_PREDICTIONS, reportedAtomFields.size());
+    for (size_t i = 0; i < reportedAtomFields.size(); ++i) {
         SCOPED_TRACE(testing::Message() << "i = " << i);
-        const AtomFields& atom = atomFields[i];
+        const AtomFields& atom = reportedAtomFields[i];
         // Check time bucket delta matches expectation based on index and prediction interval.
         const nsecs_t deltaTimeBucketNanos = TEST_PREDICTION_INTERVAL_NANOS * (i + 1);
         EXPECT_EQ(deltaTimeBucketNanos / NANOS_PER_MILLIS, atom.deltaTimeBucketMilliseconds);
@@ -896,14 +905,14 @@ TEST(MotionPredictorMetricsManagerTest, CounterclockwiseOctagonGroundTruthLinear
             computeGeneralPositionErrors(groundTruthPoints, predictionPoints);
 
     // Run test.
-    std::vector<AtomFields> atomFields;
-    runMetricsManager(groundTruthPoints, predictionPoints, atomFields);
+    std::vector<AtomFields> reportedAtomFields;
+    runMetricsManager(groundTruthPoints, predictionPoints, reportedAtomFields);
 
     // Check logged metrics match expectations.
-    ASSERT_EQ(TEST_MAX_NUM_PREDICTIONS, atomFields.size());
-    for (size_t i = 0; i < atomFields.size(); ++i) {
+    ASSERT_EQ(TEST_MAX_NUM_PREDICTIONS, reportedAtomFields.size());
+    for (size_t i = 0; i < reportedAtomFields.size(); ++i) {
         SCOPED_TRACE(testing::Message() << "i = " << i);
-        const AtomFields& atom = atomFields[i];
+        const AtomFields& atom = reportedAtomFields[i];
         const nsecs_t deltaTimeBucketNanos = TEST_PREDICTION_INTERVAL_NANOS * (i + 1);
         EXPECT_EQ(deltaTimeBucketNanos / NANOS_PER_MILLIS, atom.deltaTimeBucketMilliseconds);
 
@@ -926,7 +935,7 @@ TEST(MotionPredictorMetricsManagerTest, CounterclockwiseOctagonGroundTruthLinear
         // to general errors (where reported).
         //
         // As above, use absolute value for RMSE, since it must be non-negative.
-        if (i + 2 >= atomFields.size()) {
+        if (i + 2 >= reportedAtomFields.size()) {
             EXPECT_NEAR(static_cast<int>(
                                 1000 * std::abs(generalPositionErrors[i].alongTrajectoryErrorMean)),
                         atom.highVelocityAlongTrajectoryRmse, 1);
@@ -946,7 +955,7 @@ TEST(MotionPredictorMetricsManagerTest, CounterclockwiseOctagonGroundTruthLinear
         // to scale-invariant errors by dividing by `strokeVelocty * TEST_MAX_NUM_PREDICTIONS`.
         //
         // As above, use absolute value for RMSE, since it must be non-negative.
-        if (i + 1 == atomFields.size()) {
+        if (i + 1 == reportedAtomFields.size()) {
             const float pathLength = strokeVelocity * TEST_MAX_NUM_PREDICTIONS;
             std::vector<float> alongTrajectoryAbsoluteErrors;
             std::vector<float> offTrajectoryAbsoluteErrors;
