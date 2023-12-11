@@ -73,8 +73,18 @@ class BaseFuture<Self, T, std::future> {
     return std::get<Impl>(self()).get();
   }
 
+  template <class Rep, class Period>
+  std::future_status wait_for(const std::chrono::duration<Rep, Period>& timeout_duration) const {
+    if (std::holds_alternative<T>(self())) {
+      return std::future_status::ready;
+    }
+
+    return std::get<Impl>(self()).wait_for(timeout_duration);
+  }
+
  private:
   auto& self() { return static_cast<Self&>(*this).future_; }
+  const auto& self() const { return static_cast<const Self&>(*this).future_; }
 };
 
 template <typename Self, typename T>
@@ -88,6 +98,15 @@ class BaseFuture<Self, T, std::shared_future> {
     }
 
     return std::get<Impl>(self()).get();
+  }
+
+  template <class Rep, class Period>
+  std::future_status wait_for(const std::chrono::duration<Rep, Period>& timeout_duration) const {
+    if (std::holds_alternative<T>(self())) {
+      return std::future_status::ready;
+    }
+
+    return std::get<Impl>(self()).wait_for(timeout_duration);
   }
 
  private:
