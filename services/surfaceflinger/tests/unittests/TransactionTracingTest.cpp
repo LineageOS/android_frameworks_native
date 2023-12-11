@@ -214,6 +214,7 @@ TEST_F(TransactionTracingLayerHandlingTest, addStartingState) {
     EXPECT_EQ(proto.entry(0).transactions(0).layer_changes(0).z(), 42);
     EXPECT_EQ(proto.entry(0).transactions(0).layer_changes(1).layer_id(), mChildLayerId);
     EXPECT_EQ(proto.entry(0).transactions(0).layer_changes(1).z(), 43);
+    EXPECT_TRUE(proto.entry(0).displays_changed());
 }
 
 TEST_F(TransactionTracingLayerHandlingTest, updateStartingState) {
@@ -224,6 +225,7 @@ TEST_F(TransactionTracingLayerHandlingTest, updateStartingState) {
     perfetto::protos::TransactionTraceFile proto = writeToProto();
     // verify starting states are updated correctly
     EXPECT_EQ(proto.entry(0).transactions(0).layer_changes(0).z(), 41);
+    EXPECT_TRUE(proto.entry(0).displays_changed());
 }
 
 TEST_F(TransactionTracingLayerHandlingTest, removeStartingState) {
@@ -235,6 +237,7 @@ TEST_F(TransactionTracingLayerHandlingTest, removeStartingState) {
     // verify the child layer has been removed from the trace
     EXPECT_EQ(proto.entry(0).transactions(0).layer_changes().size(), 1);
     EXPECT_EQ(proto.entry(0).transactions(0).layer_changes(0).layer_id(), mParentLayerId);
+    EXPECT_TRUE(proto.entry(0).displays_changed());
 }
 
 TEST_F(TransactionTracingLayerHandlingTest, startingStateSurvivesBufferFlush) {
@@ -254,6 +257,7 @@ TEST_F(TransactionTracingLayerHandlingTest, startingStateSurvivesBufferFlush) {
     // verify we still have the parent layer state
     EXPECT_EQ(proto.entry(0).transactions(0).layer_changes().size(), 1);
     EXPECT_EQ(proto.entry(0).transactions(0).layer_changes(0).layer_id(), mParentLayerId);
+    EXPECT_TRUE(proto.entry(0).displays_changed());
 }
 
 class TransactionTracingMirrorLayerTest : public TransactionTracingTest {
