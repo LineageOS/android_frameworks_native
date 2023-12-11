@@ -327,14 +327,23 @@ void PointerChoreographer::updatePointerControllersLocked() {
     std::set<DeviceId> touchDevicesToKeep;
     std::set<DeviceId> stylusDevicesToKeep;
 
-    // Mark the displayIds or deviceIds of PointerControllers currently needed.
+    // Mark the displayIds or deviceIds of PointerControllers currently needed, and create
+    // new PointerControllers if necessary.
     for (const auto& info : mInputDeviceInfos) {
         const uint32_t sources = info.getSources();
         if (isFromSource(sources, AINPUT_SOURCE_MOUSE) ||
             isFromSource(sources, AINPUT_SOURCE_MOUSE_RELATIVE)) {
-            const int32_t resolvedDisplayId =
-                    getTargetMouseDisplayLocked(info.getAssociatedDisplayId());
-            mouseDisplaysToKeep.insert(resolvedDisplayId);
+            const int32_t displayId = getTargetMouseDisplayLocked(info.getAssociatedDisplayId());
+            mouseDisplaysToKeep.insert(displayId);
+            // For mice, show the cursor immediately when the device is first connected or
+            // when it moves to a new display.
+            auto [mousePointerIt, isNewMousePointer] =
+                    mMousePointersByDisplay.try_emplace(displayId,
+                                                        getMouseControllerConstructor(displayId));
+            auto [_, isNewMouseDevice] = mMouseDevices.emplace(info.getId());
+            if (isNewMouseDevice || isNewMousePointer) {
+                mousePointerIt->second->unfade(PointerControllerInterface::Transition::IMMEDIATE);
+            }
         }
         if (isFromSource(sources, AINPUT_SOURCE_TOUCHSCREEN) && mShowTouchesEnabled &&
             info.getAssociatedDisplayId() != ADISPLAY_ID_NONE) {
@@ -355,6 +364,11 @@ void PointerChoreographer::updatePointerControllersLocked() {
     });
     std::erase_if(mStylusPointersByDevice, [&stylusDevicesToKeep](const auto& pair) {
         return stylusDevicesToKeep.find(pair.first) == stylusDevicesToKeep.end();
+    });
+    std::erase_if(mMouseDevices, [&](DeviceId id) REQUIRES(mLock) {
+        return std::find_if(mInputDeviceInfos.begin(), mInputDeviceInfos.end(),
+                            [id](const auto& info) { return info.getId() == id; }) ==
+                mInputDeviceInfos.end();
     });
 
     // Notify the policy if there's a change on the pointer display ID.
