@@ -160,15 +160,13 @@ bool FlagManager::getServerConfigurableFlag(const char* experimentFlagName) cons
                                 "Can't read %s before boot completed as it is server writable", \
                                 __func__);                                                      \
         }                                                                                       \
-        static std::optional<bool> debugOverride = getBoolProperty(syspropOverride);            \
-        static bool value = getFlagValue([] { return flags::name(); }, debugOverride);          \
+        static const std::optional<bool> debugOverride = getBoolProperty(syspropOverride);      \
+        static const bool value = getFlagValue([] { return flags::name(); }, debugOverride);    \
         if (mUnitTestMode) {                                                                    \
             /*                                                                                  \
-             * When testing, we don't want to rely on the cached values stored in the static    \
-             * variables.                                                                       \
+             * When testing, we don't want to rely on the cached `value` or the debugOverride.  \
              */                                                                                 \
-            debugOverride = getBoolProperty(syspropOverride);                                   \
-            value = getFlagValue([] { return flags::name(); }, debugOverride);                  \
+            return flags::name();                                                               \
         }                                                                                       \
         return value;                                                                           \
     }
