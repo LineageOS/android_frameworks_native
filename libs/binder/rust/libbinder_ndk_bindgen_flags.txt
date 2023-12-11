@@ -8,4 +8,17 @@
 --allowlist-type=AIBinder_DeathRecipient
 --allowlist-type=AParcel
 --allowlist-type=binder_status_t
+--blocklist-function="vprintf"
+--blocklist-function="strtold"
+--blocklist-function="_vtlog"
+--blocklist-function="vscanf"
+--blocklist-function="vfprintf_worker"
+--blocklist-function="vsprintf"
+--blocklist-function="vsnprintf"
+--blocklist-function="vsnprintf_filtered"
+--blocklist-function="vfscanf"
+--blocklist-function="vsscanf"
+--blocklist-function="vdprintf"
+--blocklist-function="vasprintf"
+--blocklist-function="strtold_l"
 --allowlist-function=.*
