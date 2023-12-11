@@ -27,6 +27,7 @@ use com_android_server_inputflinger::aidl::com::android::server::inputflinger::{
 };
 
 use crate::bounce_keys_filter::BounceKeysFilter;
+use crate::sticky_keys_filter::StickyKeysFilter;
 use log::{error, info};
 use std::sync::{Arc, Mutex, RwLock};
 
@@ -91,6 +92,14 @@ impl IInputFilter for InputFilter {
         let mut state = self.state.lock().unwrap();
         let mut first_filter: Box<dyn Filter + Send + Sync> =
             Box::new(BaseFilter::new(self.callbacks.clone()));
+        if config.stickyKeysEnabled {
+            first_filter = Box::new(StickyKeysFilter::new(
+                first_filter,
+                ModifierStateListener::new(self.callbacks.clone()),
+            ));
+            state.enabled = true;
+            info!("Sticky keys filter is installed");
+        }
         if config.bounceKeysThresholdNs > 0 {
             first_filter =
                 Box::new(BounceKeysFilter::new(first_filter, config.bounceKeysThresholdNs));
@@ -125,34 +134,43 @@ impl Filter for BaseFilter {
     }
 }
 
+pub struct ModifierStateListener {
+    callbacks: Arc<RwLock<Strong<dyn IInputFilterCallbacks>>>,
+}
+
+impl ModifierStateListener {
+    /// Create a new InputFilter instance.
+    pub fn new(callbacks: Arc<RwLock<Strong<dyn IInputFilterCallbacks>>>) -> ModifierStateListener {
+        Self { callbacks }
+    }
+
+    pub fn modifier_state_changed(&self, modifier_state: u32, locked_modifier_state: u32) {
+        let _ = self
+            .callbacks
+            .read()
+            .unwrap()
+            .onModifierStateChanged(modifier_state as i32, locked_modifier_state as i32);
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::input_filter::{test_filter::TestFilter, Filter, InputFilter};
+    use crate::input_filter::{
+        test_callbacks::TestCallbacks, test_filter::TestFilter, InputFilter,
+    };
     use android_hardware_input_common::aidl::android::hardware::input::common::Source::Source;
-    use binder::{Interface, Strong};
+    use binder::Strong;
     use com_android_server_inputflinger::aidl::com::android::server::inputflinger::{
         DeviceInfo::DeviceInfo, IInputFilter::IInputFilter,
-        IInputFilter::IInputFilterCallbacks::IInputFilterCallbacks,
         InputFilterConfiguration::InputFilterConfiguration, KeyEvent::KeyEvent,
         KeyEventAction::KeyEventAction,
     };
     use std::sync::{Arc, RwLock};
 
-    struct FakeCallbacks {}
-
-    impl Interface for FakeCallbacks {}
-
-    impl IInputFilterCallbacks for FakeCallbacks {
-        fn sendKeyEvent(&self, _event: &KeyEvent) -> binder::Result<()> {
-            Result::Ok(())
-        }
-    }
-
     #[test]
     fn test_not_enabled_with_default_filter() {
-        let fake_callbacks: Strong<dyn IInputFilterCallbacks> =
-            Strong::new(Box::new(FakeCallbacks {}));
-        let input_filter = InputFilter::new(fake_callbacks);
+        let test_callbacks = TestCallbacks::new();
+        let input_filter = InputFilter::new(Strong::new(Box::new(test_callbacks)));
         let result = input_filter.isEnabled();
         assert!(result.is_ok());
         assert!(!result.unwrap());
@@ -160,17 +178,21 @@ mod tests {
 
     #[test]
     fn test_notify_key_with_no_filters() {
-        let fake_callbacks: Strong<dyn IInputFilterCallbacks> =
-            Strong::new(Box::new(FakeCallbacks {}));
-        let input_filter = InputFilter::new(fake_callbacks);
+        let test_callbacks = TestCallbacks::new();
+        let input_filter = InputFilter::new(Strong::new(Box::new(test_callbacks.clone())));
         let event = create_key_event();
         assert!(input_filter.notifyKey(&event).is_ok());
+        assert_eq!(test_callbacks.last_event().unwrap(), event);
     }
 
     #[test]
     fn test_notify_key_with_filter() {
         let test_filter = TestFilter::new();
-        let input_filter = create_input_filter(Box::new(test_filter.clone()));
+        let test_callbacks = TestCallbacks::new();
+        let input_filter = InputFilter::create_input_filter(
+            Box::new(test_filter.clone()),
+            Arc::new(RwLock::new(Strong::new(Box::new(test_callbacks)))),
+        );
         let event = create_key_event();
         assert!(input_filter.notifyKey(&event).is_ok());
         assert_eq!(test_filter.last_event().unwrap(), event);
@@ -179,7 +201,11 @@ mod tests {
     #[test]
     fn test_notify_devices_changed() {
         let test_filter = TestFilter::new();
-        let input_filter = create_input_filter(Box::new(test_filter.clone()));
+        let test_callbacks = TestCallbacks::new();
+        let input_filter = InputFilter::create_input_filter(
+            Box::new(test_filter.clone()),
+            Arc::new(RwLock::new(Strong::new(Box::new(test_callbacks)))),
+        );
         assert!(input_filter
             .notifyInputDevicesChanged(&[DeviceInfo { deviceId: 0, external: true }])
             .is_ok());
@@ -188,21 +214,30 @@ mod tests {
 
     #[test]
     fn test_notify_configuration_changed_enabled_bounce_keys() {
-        let fake_callbacks: Strong<dyn IInputFilterCallbacks> =
-            Strong::new(Box::new(FakeCallbacks {}));
-        let input_filter = InputFilter::new(fake_callbacks);
-        let result = input_filter
-            .notifyConfigurationChanged(&InputFilterConfiguration { bounceKeysThresholdNs: 100 });
+        let test_callbacks = TestCallbacks::new();
+        let input_filter = InputFilter::new(Strong::new(Box::new(test_callbacks)));
+        let result = input_filter.notifyConfigurationChanged(&InputFilterConfiguration {
+            bounceKeysThresholdNs: 100,
+            stickyKeysEnabled: false,
+        });
         assert!(result.is_ok());
         let result = input_filter.isEnabled();
         assert!(result.is_ok());
         assert!(result.unwrap());
     }
 
-    fn create_input_filter(filter: Box<dyn Filter + Send + Sync>) -> InputFilter {
-        let fake_callbacks: Strong<dyn IInputFilterCallbacks> =
-            Strong::new(Box::new(FakeCallbacks {}));
-        InputFilter::create_input_filter(filter, Arc::new(RwLock::new(fake_callbacks)))
+    #[test]
+    fn test_notify_configuration_changed_enabled_sticky_keys() {
+        let test_callbacks = TestCallbacks::new();
+        let input_filter = InputFilter::new(Strong::new(Box::new(test_callbacks)));
+        let result = input_filter.notifyConfigurationChanged(&InputFilterConfiguration {
+            bounceKeysThresholdNs: 0,
+            stickyKeysEnabled: true,
+        });
+        assert!(result.is_ok());
+        let result = input_filter.isEnabled();
+        assert!(result.is_ok());
+        assert!(result.unwrap());
     }
 
     fn create_key_event() -> KeyEvent {
@@ -269,6 +304,72 @@ pub mod test_filter {
         }
         fn notify_devices_changed(&mut self, _device_infos: &[DeviceInfo]) {
             self.inner().is_device_changed_called = true;
+        }
+    }
+}
+
+#[cfg(test)]
+pub mod test_callbacks {
+    use binder::Interface;
+    use com_android_server_inputflinger::aidl::com::android::server::inputflinger::{
+        IInputFilter::IInputFilterCallbacks::IInputFilterCallbacks, KeyEvent::KeyEvent,
+    };
+    use std::sync::{Arc, RwLock, RwLockWriteGuard};
+
+    #[derive(Default)]
+    struct TestCallbacksInner {
+        last_modifier_state: u32,
+        last_locked_modifier_state: u32,
+        last_event: Option<KeyEvent>,
+    }
+
+    #[derive(Default, Clone)]
+    pub struct TestCallbacks(Arc<RwLock<TestCallbacksInner>>);
+
+    impl Interface for TestCallbacks {}
+
+    impl TestCallbacks {
+        pub fn new() -> Self {
+            Default::default()
+        }
+
+        fn inner(&self) -> RwLockWriteGuard<'_, TestCallbacksInner> {
+            self.0.write().unwrap()
+        }
+
+        pub fn last_event(&self) -> Option<KeyEvent> {
+            self.0.read().unwrap().last_event
+        }
+
+        pub fn clear(&mut self) {
+            self.inner().last_event = None;
+            self.inner().last_modifier_state = 0;
+            self.inner().last_locked_modifier_state = 0;
+        }
+
+        pub fn get_last_modifier_state(&self) -> u32 {
+            self.0.read().unwrap().last_modifier_state
+        }
+
+        pub fn get_last_locked_modifier_state(&self) -> u32 {
+            self.0.read().unwrap().last_locked_modifier_state
+        }
+    }
+
+    impl IInputFilterCallbacks for TestCallbacks {
+        fn sendKeyEvent(&self, event: &KeyEvent) -> binder::Result<()> {
+            self.inner().last_event = Some(*event);
+            Result::Ok(())
+        }
+
+        fn onModifierStateChanged(
+            &self,
+            modifier_state: i32,
+            locked_modifier_state: i32,
+        ) -> std::result::Result<(), binder::Status> {
+            self.inner().last_modifier_state = modifier_state as u32;
+            self.inner().last_locked_modifier_state = locked_modifier_state as u32;
+            Result::Ok(())
         }
     }
 }

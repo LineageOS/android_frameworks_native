@@ -21,6 +21,7 @@
 
 mod bounce_keys_filter;
 mod input_filter;
+mod sticky_keys_filter;
 
 use crate::input_filter::InputFilter;
 use binder::{

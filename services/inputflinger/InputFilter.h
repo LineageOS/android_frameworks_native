@@ -18,6 +18,7 @@
 
 #include <aidl/com/android/server/inputflinger/IInputFlingerRust.h>
 #include <utils/Mutex.h>
+#include "InputFilterCallbacks.h"
 #include "InputListener.h"
 #include "NotifyArgs.h"
 
@@ -33,6 +34,7 @@ public:
      */
     virtual void dump(std::string& dump) = 0;
     virtual void setAccessibilityBounceKeysThreshold(nsecs_t threshold) = 0;
+    virtual void setAccessibilityStickyKeysEnabled(bool enabled) = 0;
 };
 
 class InputFilter : public InputFilterInterface {
@@ -56,11 +58,12 @@ public:
     void notifyDeviceReset(const NotifyDeviceResetArgs& args) override;
     void notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs& args) override;
     void setAccessibilityBounceKeysThreshold(nsecs_t threshold) override;
+    void setAccessibilityStickyKeysEnabled(bool enabled) override;
     void dump(std::string& dump) override;
 
 private:
     InputListenerInterface& mNextListener;
-    std::shared_ptr<IInputFilterCallbacks> mCallbacks;
+    std::shared_ptr<InputFilterCallbacks> mCallbacks;
     std::shared_ptr<IInputFilter> mInputFilterRust;
     mutable std::mutex mLock;
     InputFilterConfiguration mConfig GUARDED_BY(mLock);

@@ -33,6 +33,9 @@ interface IInputFilter {
     interface IInputFilterCallbacks {
         /** Sends back a filtered key event */
         void sendKeyEvent(in KeyEvent event);
+
+        /** Sends back modifier state */
+        void onModifierStateChanged(int modifierState, int lockedModifierState);
     }
 
     /** Returns if InputFilter is enabled */
