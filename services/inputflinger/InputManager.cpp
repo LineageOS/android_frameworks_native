@@ -224,6 +224,10 @@ InputDispatcherInterface& InputManager::getDispatcher() {
     return *mDispatcher;
 }
 
+InputFilterInterface& InputManager::getInputFilter() {
+    return *mInputFilter;
+}
+
 void InputManager::monitor() {
     mReader->monitor();
     mBlocker->monitor();

@@ -102,6 +102,9 @@ public:
     /* Gets the input dispatcher. */
     virtual InputDispatcherInterface& getDispatcher() = 0;
 
+    /* Gets the input filter */
+    virtual InputFilterInterface& getInputFilter() = 0;
+
     /* Check that the input stages have not deadlocked. */
     virtual void monitor() = 0;
 
@@ -126,6 +129,7 @@ public:
     InputProcessorInterface& getProcessor() override;
     InputDeviceMetricsCollectorInterface& getMetricsCollector() override;
     InputDispatcherInterface& getDispatcher() override;
+    InputFilterInterface& getInputFilter() override;
     void monitor() override;
     void dump(std::string& dump) override;
 

@@ -17,6 +17,9 @@ aidl_interface {
     srcs: ["**/*.aidl"],
     unstable: true,
     host_supported: true,
+    imports: [
+        "android.hardware.input.common-V1",
+    ],
     backend: {
         cpp: {
             enabled: false,

@@ -17,6 +17,7 @@
 #pragma once
 
 #include <aidl/com/android/server/inputflinger/IInputFlingerRust.h>
+#include <utils/Mutex.h>
 #include "InputListener.h"
 #include "NotifyArgs.h"
 
@@ -31,6 +32,7 @@ public:
      * This method may be called on any thread (usually by the input manager on a binder thread).
      */
     virtual void dump(std::string& dump) = 0;
+    virtual void setAccessibilityBounceKeysThreshold(nsecs_t threshold) = 0;
 };
 
 class InputFilter : public InputFilterInterface {
@@ -39,6 +41,8 @@ public:
     using IInputFilter = aidl::com::android::server::inputflinger::IInputFilter;
     using IInputFilterCallbacks =
             aidl::com::android::server::inputflinger::IInputFilter::IInputFilterCallbacks;
+    using InputFilterConfiguration =
+            aidl::com::android::server::inputflinger::InputFilterConfiguration;
 
     explicit InputFilter(InputListenerInterface& listener, IInputFlingerRust&);
     ~InputFilter() override = default;
@@ -51,12 +55,15 @@ public:
     void notifyVibratorState(const NotifyVibratorStateArgs& args) override;
     void notifyDeviceReset(const NotifyDeviceResetArgs& args) override;
     void notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs& args) override;
+    void setAccessibilityBounceKeysThreshold(nsecs_t threshold) override;
     void dump(std::string& dump) override;
 
 private:
     InputListenerInterface& mNextListener;
     std::shared_ptr<IInputFilterCallbacks> mCallbacks;
     std::shared_ptr<IInputFilter> mInputFilterRust;
+    mutable std::mutex mLock;
+    InputFilterConfiguration mConfig GUARDED_BY(mLock);
 
     bool isFilterEnabled();
 };
