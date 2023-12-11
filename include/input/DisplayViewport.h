@@ -130,9 +130,9 @@ struct DisplayViewport {
                             "isActive=[%d]",
                             ftl::enum_string(type).c_str(), displayId, uniqueId.c_str(),
                             physicalPort ? ftl::to_string(*physicalPort).c_str() : "<none>",
-                            orientation, logicalLeft, logicalTop, logicalRight, logicalBottom,
-                            physicalLeft, physicalTop, physicalRight, physicalBottom, deviceWidth,
-                            deviceHeight, isActive);
+                            static_cast<int>(orientation), logicalLeft, logicalTop, logicalRight,
+                            logicalBottom, physicalLeft, physicalTop, physicalRight, physicalBottom,
+                            deviceWidth, deviceHeight, isActive);
     }
 };
 
