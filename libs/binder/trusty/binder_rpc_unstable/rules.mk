@@ -18,21 +18,15 @@ LIBBINDER_DIR := $(LOCAL_DIR)/../..
 
 MODULE := $(LOCAL_DIR)
 
-MODULE_SRCS := $(LIBBINDER_DIR)/rust/src/lib.rs
+MODULE_SRCS := \
+	$(LIBBINDER_DIR)/libbinder_rpc_unstable.cpp \
 
-MODULE_CRATE_NAME := binder
+MODULE_EXPORT_INCLUDES += \
+	$(LIBBINDER_DIR)/include_rpc_unstable \
 
 MODULE_LIBRARY_DEPS += \
 	$(LIBBINDER_DIR)/trusty \
 	$(LIBBINDER_DIR)/trusty/ndk \
-	$(LIBBINDER_DIR)/trusty/rust/binder_ndk_sys \
-	$(LIBBINDER_DIR)/trusty/rust/binder_rpc_unstable_bindgen \
-	external/rust/crates/downcast-rs \
-	trusty/user/base/lib/trusty-sys \
-
-# Trusty does not have `ProcessState`, so there are a few
-# doc links in `IBinder` that are still broken.
-MODULE_RUSTFLAGS += \
-	--allow rustdoc::broken-intra-doc-links \
+	trusty/user/base/lib/libstdc++-trusty \
 
 include make/library.mk
