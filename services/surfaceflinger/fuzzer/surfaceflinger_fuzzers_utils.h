@@ -224,20 +224,13 @@ namespace scheduler {
 
 class TestableScheduler : public Scheduler, private ICompositor {
 public:
-    TestableScheduler(const std::shared_ptr<scheduler::RefreshRateSelector>& selectorPtr,
-                      sp<VsyncModulator> modulatorPtr, ISchedulerCallback& callback,
-                      IVsyncTrackerCallback& vsyncTrackerCallback)
-          : TestableScheduler(std::make_unique<android::mock::VsyncController>(),
-                              std::make_shared<android::mock::VSyncTracker>(), selectorPtr,
-                              std::move(modulatorPtr), callback, vsyncTrackerCallback) {}
-
     TestableScheduler(std::unique_ptr<VsyncController> controller,
                       VsyncSchedule::TrackerPtr tracker,
                       std::shared_ptr<RefreshRateSelector> selectorPtr,
-                      sp<VsyncModulator> modulatorPtr, ISchedulerCallback& callback,
-                      IVsyncTrackerCallback& vsyncTrackerCallback)
-          : Scheduler(*this, callback, Feature::kContentDetection, std::move(modulatorPtr),
-                      vsyncTrackerCallback) {
+                      surfaceflinger::Factory& factory, TimeStats& timeStats,
+                      ISchedulerCallback& callback, IVsyncTrackerCallback& vsyncTrackerCallback)
+          : Scheduler(*this, callback, Feature::kContentDetection, factory,
+                      selectorPtr->getActiveMode().fps, timeStats, vsyncTrackerCallback) {
         const auto displayId = selectorPtr->getActiveMode().modePtr->getPhysicalDisplayId();
         registerDisplayInternal(displayId, std::move(selectorPtr),
                                 std::shared_ptr<VsyncSchedule>(
@@ -671,19 +664,11 @@ public:
         }
 
         mRefreshRateSelector = std::make_shared<scheduler::RefreshRateSelector>(modes, kModeId60);
-        const auto fps = mRefreshRateSelector->getActiveMode().modePtr->getVsyncRate();
-        mFlinger->mVsyncConfiguration = mFactory.createVsyncConfiguration(fps);
-
-        mFlinger->mRefreshRateStats =
-                std::make_unique<scheduler::RefreshRateStats>(*mFlinger->mTimeStats, fps,
-                                                              hal::PowerMode::OFF);
-
-        auto modulatorPtr = sp<scheduler::VsyncModulator>::make(
-                mFlinger->mVsyncConfiguration->getCurrentConfigs());
 
         mScheduler = new scheduler::TestableScheduler(std::move(vsyncController),
                                                       std::move(vsyncTracker), mRefreshRateSelector,
-                                                      std::move(modulatorPtr), *(callback ?: this),
+                                                      mFactory, *mFlinger->mTimeStats,
+                                                      *(callback ?: this),
                                                       *(vsyncTrackerCallback ?: this));
 
         mFlinger->mAppConnectionHandle = mScheduler->createConnection(std::move(appEventThread));

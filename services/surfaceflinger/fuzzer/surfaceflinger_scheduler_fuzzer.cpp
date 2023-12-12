@@ -24,6 +24,7 @@
 
 #include "Scheduler/OneShotTimer.h"
 #include "Scheduler/RefreshRateSelector.h"
+#include "Scheduler/RefreshRateStats.h"
 #include "Scheduler/VSyncDispatchTimerQueue.h"
 #include "Scheduler/VSyncPredictor.h"
 #include "Scheduler/VSyncReactor.h"
