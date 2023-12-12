@@ -126,10 +126,6 @@ inline nsecs_t now() {
     return systemTime(SYSTEM_TIME_MONOTONIC);
 }
 
-bool isEmpty(const std::stringstream& ss) {
-    return ss.rdbuf()->in_avail() == 0;
-}
-
 inline const std::string binderToString(const sp<IBinder>& binder) {
     if (binder == nullptr) {
         return "<null>";
@@ -5129,7 +5125,7 @@ void InputDispatcher::setInputWindowsLocked(
         for (const sp<WindowInfoHandle>& iwh : windowInfoHandles) {
             windowList += iwh->getName() + " ";
         }
-        ALOGD("setInputWindows displayId=%" PRId32 " %s", displayId, windowList.c_str());
+        LOG(INFO) << "setInputWindows displayId=" << displayId << " " << windowList;
     }
 
     // Check preconditions for new input windows
@@ -5687,33 +5683,8 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) const {
             if (!windowHandles.empty()) {
                 dump += INDENT2 "Windows:\n";
                 for (size_t i = 0; i < windowHandles.size(); i++) {
-                    const sp<WindowInfoHandle>& windowHandle = windowHandles[i];
-                    const WindowInfo* windowInfo = windowHandle->getInfo();
-
-                    dump += StringPrintf(INDENT3 "%zu: name='%s', id=%" PRId32 ", displayId=%d, "
-                                                 "inputConfig=%s, alpha=%.2f, "
-                                                 "frame=[%d,%d][%d,%d], globalScale=%f, "
-                                                 "applicationInfo.name=%s, "
-                                                 "applicationInfo.token=%s, "
-                                                 "touchableRegion=",
-                                         i, windowInfo->name.c_str(), windowInfo->id,
-                                         windowInfo->displayId,
-                                         windowInfo->inputConfig.string().c_str(),
-                                         windowInfo->alpha, windowInfo->frame.left,
-                                         windowInfo->frame.top, windowInfo->frame.right,
-                                         windowInfo->frame.bottom, windowInfo->globalScaleFactor,
-                                         windowInfo->applicationInfo.name.c_str(),
-                                         binderToString(windowInfo->applicationInfo.token).c_str());
-                    dump += dumpRegion(windowInfo->touchableRegion);
-                    dump += StringPrintf(", ownerPid=%s, ownerUid=%s, dispatchingTimeout=%" PRId64
-                                         "ms, hasToken=%s, "
-                                         "touchOcclusionMode=%s\n",
-                                         windowInfo->ownerPid.toString().c_str(),
-                                         windowInfo->ownerUid.toString().c_str(),
-                                         millis(windowInfo->dispatchingTimeout),
-                                         binderToString(windowInfo->token).c_str(),
-                                         toString(windowInfo->touchOcclusionMode).c_str());
-                    windowInfo->transform.dump(dump, "transform", INDENT4);
+                    dump += StringPrintf(INDENT3 "%zu: %s", i,
+                                         streamableToString(*windowHandles[i]).c_str());
                 }
             } else {
                 dump += INDENT2 "Windows: <none>\n";
@@ -5802,11 +5773,10 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) const {
             } else {
                 dump += INDENT3 "WaitQueue: <empty>\n";
             }
-            std::stringstream inputStateDump;
-            inputStateDump << connection->inputState;
-            if (!isEmpty(inputStateDump)) {
+            std::string inputStateDump = streamableToString(connection->inputState);
+            if (!inputStateDump.empty()) {
                 dump += INDENT3 "InputState: ";
-                dump += inputStateDump.str() + "\n";
+                dump += inputStateDump + "\n";
             }
         }
     } else {

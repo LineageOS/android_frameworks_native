@@ -19,6 +19,7 @@
 //! We use cxxbridge to create IInputFlingerRust - the Rust component of inputflinger - and
 //! pass it back to C++ as a local AIDL interface.
 
+mod bounce_keys_filter;
 mod input_filter;
 
 use crate::input_filter::InputFilter;

@@ -477,10 +477,21 @@ interface ISurfaceComposer {
 
     /**
      * Set the override frame rate for a specified uid by GameManagerService.
+     * This override is controlled by game mode interventions.
+     * Passing the frame rate and uid to SurfaceFlinger to update the override mapping
+     * in the LayerHistory.
+     */
+    void setGameModeFrameRateOverride(int uid, float frameRate);
+
+    /**
+     * Set the override frame rate for a specified uid by GameManagerService.
+     * This override is controlled by game default frame rate sysprop:
+     * "ro.surface_flinger.game_default_frame_rate_override" holding the override value,
+     * "persisit.graphics.game_default_frame_rate.enabled" to determine if it's enabled.
      * Passing the frame rate and uid to SurfaceFlinger to update the override mapping
      * in the scheduler.
      */
-    void setOverrideFrameRate(int uid, float frameRate);
+    void setGameDefaultFrameRateOverride(int uid, float frameRate);
 
     oneway void updateSmallAreaDetection(in int[] appIds, in float[] thresholds);
 

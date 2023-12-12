@@ -126,6 +126,7 @@ void FlagManager::dump(std::string& result) const {
     DUMP_READ_ONLY_FLAG(enable_fro_dependent_features);
     DUMP_READ_ONLY_FLAG(display_protected);
     DUMP_READ_ONLY_FLAG(fp16_client_target);
+    DUMP_READ_ONLY_FLAG(game_default_frame_rate);
 
 #undef DUMP_READ_ONLY_FLAG
 #undef DUMP_SERVER_FLAG
@@ -160,15 +161,13 @@ bool FlagManager::getServerConfigurableFlag(const char* experimentFlagName) cons
                                 "Can't read %s before boot completed as it is server writable", \
                                 __func__);                                                      \
         }                                                                                       \
-        static std::optional<bool> debugOverride = getBoolProperty(syspropOverride);            \
-        static bool value = getFlagValue([] { return flags::name(); }, debugOverride);          \
+        static const std::optional<bool> debugOverride = getBoolProperty(syspropOverride);      \
+        static const bool value = getFlagValue([] { return flags::name(); }, debugOverride);    \
         if (mUnitTestMode) {                                                                    \
             /*                                                                                  \
-             * When testing, we don't want to rely on the cached values stored in the static    \
-             * variables.                                                                       \
+             * When testing, we don't want to rely on the cached `value` or the debugOverride.  \
              */                                                                                 \
-            debugOverride = getBoolProperty(syspropOverride);                                   \
-            value = getFlagValue([] { return flags::name(); }, debugOverride);                  \
+            return flags::name();                                                               \
         }                                                                                       \
         return value;                                                                           \
     }
@@ -201,6 +200,7 @@ FLAG_MANAGER_READ_ONLY_FLAG(cache_if_source_crop_layer_only_moved,
 FLAG_MANAGER_READ_ONLY_FLAG(enable_fro_dependent_features, "")
 FLAG_MANAGER_READ_ONLY_FLAG(display_protected, "")
 FLAG_MANAGER_READ_ONLY_FLAG(fp16_client_target, "debug.sf.fp16_client_target")
+FLAG_MANAGER_READ_ONLY_FLAG(game_default_frame_rate, "")
 
 /// Trunk stable server flags ///
 FLAG_MANAGER_SERVER_FLAG(late_boot_misc2, "")

@@ -16,26 +16,10 @@
 
 package com.android.server.inputflinger;
 
-import android.hardware.input.common.Source;
-import com.android.server.inputflinger.KeyEventAction;
-
 /**
- * Analogous to Android's native KeyEvent / NotifyKeyArgs.
- * Stores the basic information about Key events.
+ * Contains data for the current Input filter configuration
  */
-@RustDerive(Copy=true, Clone=true, Eq=true, PartialEq=true)
-parcelable KeyEvent {
-    int id;
-    int deviceId;
-    long downTime;
-    long readTime;
-    long eventTime;
-    Source source;
-    int displayId;
-    int policyFlags;
-    KeyEventAction action;
-    int flags;
-    int keyCode;
-    int scanCode;
-    int metaState;
+parcelable InputFilterConfiguration {
+    // Threshold value for Bounce keys filter (check bounce_keys_filter.rs)
+    long bounceKeysThresholdNs;
 }

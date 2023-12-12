@@ -16,6 +16,8 @@
 
 package com.android.server.inputflinger;
 
+import com.android.server.inputflinger.DeviceInfo;
+import com.android.server.inputflinger.InputFilterConfiguration;
 import com.android.server.inputflinger.KeyEvent;
 
 /**
@@ -40,6 +42,9 @@ interface IInputFilter {
     void notifyKey(in KeyEvent event);
 
     /** Notifies if any InputDevice list changed and provides the list of connected peripherals */
-    void notifyInputDevicesChanged(in int[] deviceIds);
+    void notifyInputDevicesChanged(in DeviceInfo[] deviceInfos);
+
+    /** Notifies when configuration changes */
+    void notifyConfigurationChanged(in InputFilterConfiguration config);
 }
 

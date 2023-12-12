@@ -16,26 +16,11 @@
 
 package com.android.server.inputflinger;
 
-import android.hardware.input.common.Source;
-import com.android.server.inputflinger.KeyEventAction;
-
 /**
- * Analogous to Android's native KeyEvent / NotifyKeyArgs.
- * Stores the basic information about Key events.
+ * Analogous to Android's InputDeviceInfo
+ * Stores the basic information connected input devices.
  */
-@RustDerive(Copy=true, Clone=true, Eq=true, PartialEq=true)
-parcelable KeyEvent {
-    int id;
+parcelable DeviceInfo {
     int deviceId;
-    long downTime;
-    long readTime;
-    long eventTime;
-    Source source;
-    int displayId;
-    int policyFlags;
-    KeyEventAction action;
-    int flags;
-    int keyCode;
-    int scanCode;
-    int metaState;
+    boolean external;
 }
