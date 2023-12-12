@@ -17,11 +17,8 @@
 use binder::unstable_api::new_spibinder;
 use binder::{FromIBinder, SpIBinder, StatusCode, Strong};
 use foreign_types::{foreign_type, ForeignType, ForeignTypeRef};
-use std::ffi::CString;
-use std::os::{
-    raw::{c_int, c_void},
-    unix::io::{AsRawFd, BorrowedFd, RawFd},
-};
+use std::os::fd::RawFd;
+use std::os::raw::{c_int, c_void};
 
 pub use binder_rpc_unstable_bindgen::ARpcSession_FileDescriptorTransportMode as FileDescriptorTransportMode;
 
@@ -87,6 +84,7 @@ impl RpcSessionRef {
     }
 
     /// Connects to an RPC Binder server over vsock for a particular interface.
+    #[cfg(not(target_os = "trusty"))]
     pub fn setup_vsock_client<T: FromIBinder + ?Sized>(
         &self,
         cid: u32,
@@ -106,11 +104,12 @@ impl RpcSessionRef {
 
     /// Connects to an RPC Binder server over a names Unix Domain Socket for
     /// a particular interface.
+    #[cfg(not(target_os = "trusty"))]
     pub fn setup_unix_domain_client<T: FromIBinder + ?Sized>(
         &self,
         socket_name: &str,
     ) -> Result<Strong<T>, StatusCode> {
-        let socket_name = match CString::new(socket_name) {
+        let socket_name = match std::ffi::CString::new(socket_name) {
             Ok(s) => s,
             Err(e) => {
                 log::error!("Cannot convert {} to CString. Error: {:?}", socket_name, e);
@@ -131,10 +130,12 @@ impl RpcSessionRef {
 
     /// Connects to an RPC Binder server over a bootstrap Unix Domain Socket
     /// for a particular interface.
+    #[cfg(not(target_os = "trusty"))]
     pub fn setup_unix_domain_bootstrap_client<T: FromIBinder + ?Sized>(
         &self,
-        bootstrap_fd: BorrowedFd,
+        bootstrap_fd: std::os::fd::BorrowedFd,
     ) -> Result<Strong<T>, StatusCode> {
+        use std::os::fd::AsRawFd;
         // SAFETY: ARpcSession_setupUnixDomainBootstrapClient does not take
         // ownership of bootstrap_fd. The returned AIBinder has correct
         // reference count, and the ownership can safely be taken by new_spibinder.
@@ -148,12 +149,13 @@ impl RpcSessionRef {
     }
 
     /// Connects to an RPC Binder server over inet socket at the given address and port.
+    #[cfg(not(target_os = "trusty"))]
     pub fn setup_inet_client<T: FromIBinder + ?Sized>(
         &self,
         address: &str,
         port: u32,
     ) -> Result<Strong<T>, StatusCode> {
-        let address = match CString::new(address) {
+        let address = match std::ffi::CString::new(address) {
             Ok(s) => s,
             Err(e) => {
                 log::error!("Cannot convert {} to CString. Error: {:?}", address, e);
@@ -171,6 +173,22 @@ impl RpcSessionRef {
             ))
         };
         Self::get_interface(service)
+    }
+
+    #[cfg(target_os = "trusty")]
+    pub fn setup_trusty_client<T: FromIBinder + ?Sized>(
+        &self,
+        port: &std::ffi::CStr,
+    ) -> Result<Strong<T>, StatusCode> {
+        self.setup_preconnected_client(|| {
+            let h = tipc::Handle::connect(port)
+                .expect("Failed to connect to service port {SERVICE_PORT}");
+
+            // Do not close the handle at the end of the scope
+            let fd = h.as_raw_fd();
+            core::mem::forget(h);
+            Some(fd)
+        })
     }
 
     /// Connects to an RPC Binder server, using the given callback to get (and
