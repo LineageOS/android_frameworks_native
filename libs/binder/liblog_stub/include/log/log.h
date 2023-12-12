@@ -35,15 +35,19 @@ constexpr bool __android_log_stub_is_loggable(android_LogPriority priority) {
     return ANDROID_LOG_STUB_MIN_PRIORITY <= priority;
 }
 
-int __android_log_print(int prio, const char* tag, const char* fmt, ...)
-        __attribute__((format(printf, 3, 4)))
 #ifdef ANDROID_LOG_STUB_WEAK_PRINT
-        __attribute__((weak))
+#define __ANDROID_LOG_STUB_IS_PRINT_PRESENT __android_log_print
+#define __ANDROID_LOG_STUB_PRINT_ATTR __attribute__((weak))
+#else
+#define __ANDROID_LOG_STUB_IS_PRINT_PRESENT true
+#define __ANDROID_LOG_STUB_PRINT_ATTR
 #endif
-        ;
+
+int __android_log_print(int prio, const char* tag, const char* fmt, ...)
+        __attribute__((format(printf, 3, 4))) __ANDROID_LOG_STUB_PRINT_ATTR;
 
 #define IF_ALOG(priority, tag) \
-    if (__android_log_stub_is_loggable(ANDROID_##priority) && __android_log_print)
+    if (__android_log_stub_is_loggable(ANDROID_##priority) && __ANDROID_LOG_STUB_IS_PRINT_PRESENT)
 #define IF_ALOGV() IF_ALOG(LOG_VERBOSE, LOG_TAG)
 #define IF_ALOGD() IF_ALOG(LOG_DEBUG, LOG_TAG)
 #define IF_ALOGI() IF_ALOG(LOG_INFO, LOG_TAG)
