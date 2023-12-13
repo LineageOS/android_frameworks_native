@@ -41,6 +41,7 @@ public:
     void setDisplayViewport(const DisplayViewport& viewport) override;
     void updatePointerIcon(PointerIconStyle iconId) override;
     void setCustomPointerIcon(const SpriteIcon& icon) override;
+    void fade(Transition) override;
 
     void assertViewportSet(int32_t displayId);
     void assertViewportNotSet();
@@ -56,7 +57,6 @@ private:
     std::string dump() override { return ""; }
     std::optional<FloatRect> getBounds() const override;
     void move(float deltaX, float deltaY) override;
-    void fade(Transition) override;
     void unfade(Transition) override;
     void setPresentation(Presentation) override {}
     void setSpots(const PointerCoords*, const uint32_t*, BitSet32 spotIdBits,

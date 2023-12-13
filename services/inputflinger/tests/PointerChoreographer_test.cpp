@@ -17,6 +17,7 @@
 #include "../PointerChoreographer.h"
 
 #include <gtest/gtest.h>
+#include <deque>
 #include <vector>
 
 #include "FakePointerController.h"
@@ -88,14 +89,14 @@ protected:
 
     std::shared_ptr<FakePointerController> assertPointerControllerCreated(
             ControllerType expectedType) {
-        EXPECT_TRUE(mLastCreatedController) << "No PointerController was created";
-        auto [type, controller] = std::move(*mLastCreatedController);
+        EXPECT_FALSE(mCreatedControllers.empty()) << "No PointerController was created";
+        auto [type, controller] = std::move(mCreatedControllers.front());
         EXPECT_EQ(expectedType, type);
-        mLastCreatedController.reset();
+        mCreatedControllers.pop_front();
         return controller;
     }
 
-    void assertPointerControllerNotCreated() { ASSERT_EQ(std::nullopt, mLastCreatedController); }
+    void assertPointerControllerNotCreated() { ASSERT_TRUE(mCreatedControllers.empty()); }
 
     void assertPointerControllerRemoved(const std::shared_ptr<FakePointerController>& pc) {
         // Ensure that the code under test is not holding onto this PointerController.
@@ -110,6 +111,12 @@ protected:
                                         "to this PointerController";
     }
 
+    void assertPointerControllerNotRemoved(const std::shared_ptr<FakePointerController>& pc) {
+        // See assertPointerControllerRemoved above.
+        ASSERT_GT(pc.use_count(), 1) << "Expected PointerChoreographer to hold at least one "
+                                        "reference to this PointerController";
+    }
+
     void assertPointerDisplayIdNotified(int32_t displayId) {
         ASSERT_EQ(displayId, mPointerDisplayIdNotified);
         mPointerDisplayIdNotified.reset();
@@ -118,17 +125,15 @@ protected:
     void assertPointerDisplayIdNotNotified() { ASSERT_EQ(std::nullopt, mPointerDisplayIdNotified); }
 
 private:
-    std::optional<std::pair<ControllerType, std::shared_ptr<FakePointerController>>>
-            mLastCreatedController;
+    std::deque<std::pair<ControllerType, std::shared_ptr<FakePointerController>>>
+            mCreatedControllers;
     std::optional<int32_t> mPointerDisplayIdNotified;
 
     std::shared_ptr<PointerControllerInterface> createPointerController(
             ControllerType type) override {
-        EXPECT_FALSE(mLastCreatedController.has_value())
-                << "More than one PointerController created at a time";
         std::shared_ptr<FakePointerController> pc = std::make_shared<FakePointerController>();
         EXPECT_FALSE(pc->isPointerShown());
-        mLastCreatedController = {type, pc};
+        mCreatedControllers.emplace_back(type, pc);
         return pc;
     }
 
@@ -184,33 +189,15 @@ TEST_F(PointerChoreographerTest, ForwardsArgsToInnerListener) {
     }
 }
 
-TEST_F(PointerChoreographerTest, WhenMouseIsJustAddedDoesNotCreatePointerController) {
+TEST_F(PointerChoreographerTest, WhenMouseIsAddedCreatesPointerController) {
     mChoreographer.notifyInputDevicesChanged(
             {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE)}});
-    assertPointerControllerNotCreated();
-}
-
-TEST_F(PointerChoreographerTest, WhenMouseEventOccursCreatesPointerController) {
-    mChoreographer.notifyInputDevicesChanged(
-            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE)}});
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(MOUSE_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(ADISPLAY_ID_NONE)
-                    .build());
     assertPointerControllerCreated(ControllerType::MOUSE);
 }
 
 TEST_F(PointerChoreographerTest, WhenMouseIsRemovedRemovesPointerController) {
     mChoreographer.notifyInputDevicesChanged(
             {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE)}});
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(MOUSE_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(ADISPLAY_ID_NONE)
-                    .build());
     auto pc = assertPointerControllerCreated(ControllerType::MOUSE);
 
     // Remove the mouse.
@@ -226,34 +213,20 @@ TEST_F(PointerChoreographerTest, WhenKeyboardIsAddedDoesNotCreatePointerControll
 }
 
 TEST_F(PointerChoreographerTest, SetsViewportForAssociatedMouse) {
-    // Just adding a viewport or device should not create a PointerController.
+    // Just adding a viewport or device should create a PointerController.
     mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID}));
     mChoreographer.notifyInputDevicesChanged(
             {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, DISPLAY_ID)}});
-    assertPointerControllerNotCreated();
 
-    // After the mouse emits event, PointerController will be created and viewport will be set.
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(MOUSE_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(DISPLAY_ID)
-                    .build());
     auto pc = assertPointerControllerCreated(ControllerType::MOUSE);
     pc->assertViewportSet(DISPLAY_ID);
+    ASSERT_TRUE(pc->isPointerShown());
 }
 
 TEST_F(PointerChoreographerTest, WhenViewportSetLaterSetsViewportForAssociatedMouse) {
-    // Without viewport information, PointerController will be created by a mouse event
-    // but viewport won't be set.
+    // Without viewport information, PointerController will be created but viewport won't be set.
     mChoreographer.notifyInputDevicesChanged(
             {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, DISPLAY_ID)}});
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(MOUSE_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(DISPLAY_ID)
-                    .build());
     auto pc = assertPointerControllerCreated(ControllerType::MOUSE);
     pc->assertViewportNotSet();
 
@@ -270,14 +243,9 @@ TEST_F(PointerChoreographerTest, SetsDefaultMouseViewportForPointerController) {
     // the PointerController.
     mChoreographer.notifyInputDevicesChanged(
             {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE)}});
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(MOUSE_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(ADISPLAY_ID_NONE)
-                    .build());
     auto pc = assertPointerControllerCreated(ControllerType::MOUSE);
     pc->assertViewportSet(DISPLAY_ID);
+    ASSERT_TRUE(pc->isPointerShown());
 }
 
 TEST_F(PointerChoreographerTest,
@@ -287,29 +255,18 @@ TEST_F(PointerChoreographerTest,
     mChoreographer.setDefaultMouseDisplayId(DISPLAY_ID);
     mChoreographer.notifyInputDevicesChanged(
             {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE)}});
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(MOUSE_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(ADISPLAY_ID_NONE)
-                    .build());
     auto firstDisplayPc = assertPointerControllerCreated(ControllerType::MOUSE);
     firstDisplayPc->assertViewportSet(DISPLAY_ID);
+    ASSERT_TRUE(firstDisplayPc->isPointerShown());
 
-    // Change default mouse display. Existing PointerController should be removed.
+    // Change default mouse display. Existing PointerController should be removed and a new one
+    // should be created.
     mChoreographer.setDefaultMouseDisplayId(ANOTHER_DISPLAY_ID);
     assertPointerControllerRemoved(firstDisplayPc);
-    assertPointerControllerNotCreated();
 
-    // New PointerController for the new default display will be created by the motion event.
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(MOUSE_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(ADISPLAY_ID_NONE)
-                    .build());
     auto secondDisplayPc = assertPointerControllerCreated(ControllerType::MOUSE);
     secondDisplayPc->assertViewportSet(ANOTHER_DISPLAY_ID);
+    ASSERT_TRUE(secondDisplayPc->isPointerShown());
 }
 
 TEST_F(PointerChoreographerTest, CallsNotifyPointerDisplayIdChanged) {
@@ -317,12 +274,6 @@ TEST_F(PointerChoreographerTest, CallsNotifyPointerDisplayIdChanged) {
     mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID}));
     mChoreographer.notifyInputDevicesChanged(
             {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE)}});
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(MOUSE_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(ADISPLAY_ID_NONE)
-                    .build());
     assertPointerControllerCreated(ControllerType::MOUSE);
 
     assertPointerDisplayIdNotified(DISPLAY_ID);
@@ -332,12 +283,6 @@ TEST_F(PointerChoreographerTest, WhenViewportIsSetLaterCallsNotifyPointerDisplay
     mChoreographer.setDefaultMouseDisplayId(DISPLAY_ID);
     mChoreographer.notifyInputDevicesChanged(
             {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE)}});
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(MOUSE_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(ADISPLAY_ID_NONE)
-                    .build());
     assertPointerControllerCreated(ControllerType::MOUSE);
     assertPointerDisplayIdNotNotified();
 
@@ -350,12 +295,6 @@ TEST_F(PointerChoreographerTest, WhenMouseIsRemovedCallsNotifyPointerDisplayIdCh
     mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID}));
     mChoreographer.notifyInputDevicesChanged(
             {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE)}});
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(MOUSE_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(ADISPLAY_ID_NONE)
-                    .build());
     auto pc = assertPointerControllerCreated(ControllerType::MOUSE);
     assertPointerDisplayIdNotified(DISPLAY_ID);
 
@@ -372,28 +311,13 @@ TEST_F(PointerChoreographerTest, WhenDefaultMouseDisplayChangesCallsNotifyPointe
     mChoreographer.setDefaultMouseDisplayId(DISPLAY_ID);
     mChoreographer.notifyInputDevicesChanged(
             {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE)}});
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(MOUSE_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(ADISPLAY_ID_NONE)
-                    .build());
     auto firstDisplayPc = assertPointerControllerCreated(ControllerType::MOUSE);
     assertPointerDisplayIdNotified(DISPLAY_ID);
 
-    // Set another viewport as a default mouse display ID. ADISPLAY_ID_NONE will be notified
-    // before a mouse event.
+    // Set another viewport as a default mouse display ID. The mouse is moved to the other display.
     mChoreographer.setDefaultMouseDisplayId(ANOTHER_DISPLAY_ID);
-    assertPointerDisplayIdNotified(ADISPLAY_ID_NONE);
     assertPointerControllerRemoved(firstDisplayPc);
 
-    // After a mouse event, pointer display ID will be notified with new default mouse display.
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(MOUSE_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(ADISPLAY_ID_NONE)
-                    .build());
     assertPointerControllerCreated(ControllerType::MOUSE);
     assertPointerDisplayIdNotified(ANOTHER_DISPLAY_ID);
 }
@@ -403,13 +327,6 @@ TEST_F(PointerChoreographerTest, MouseMovesPointerAndReturnsNewArgs) {
     mChoreographer.setDefaultMouseDisplayId(DISPLAY_ID);
     mChoreographer.notifyInputDevicesChanged(
             {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE)}});
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(MOUSE_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(ADISPLAY_ID_NONE)
-                    .build());
-    mTestListener.assertNotifyMotionWasCalled(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE));
     auto pc = assertPointerControllerCreated(ControllerType::MOUSE);
     ASSERT_EQ(DISPLAY_ID, pc->getDisplayId());
 
@@ -428,7 +345,7 @@ TEST_F(PointerChoreographerTest, MouseMovesPointerAndReturnsNewArgs) {
     pc->assertPosition(110, 220);
     ASSERT_TRUE(pc->isPointerShown());
 
-    // Check that x-y cooridnates, displayId and cursor position are correctly updated.
+    // Check that x-y coordinates, displayId and cursor position are correctly updated.
     mTestListener.assertNotifyMotionWasCalled(
             AllOf(WithCoords(110, 220), WithDisplayId(DISPLAY_ID), WithCursorPosition(110, 220)));
 }
@@ -444,23 +361,8 @@ TEST_F(PointerChoreographerTest,
             {/*id=*/0,
              {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE),
               generateTestDeviceInfo(SECOND_DEVICE_ID, AINPUT_SOURCE_MOUSE, ANOTHER_DISPLAY_ID)}});
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(MOUSE_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(ADISPLAY_ID_NONE)
-                    .build());
-    mTestListener.assertNotifyMotionWasCalled(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE));
     auto unassociatedMousePc = assertPointerControllerCreated(ControllerType::MOUSE);
     ASSERT_EQ(DISPLAY_ID, unassociatedMousePc->getDisplayId());
-
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(MOUSE_POINTER)
-                    .deviceId(SECOND_DEVICE_ID)
-                    .displayId(ANOTHER_DISPLAY_ID)
-                    .build());
-    mTestListener.assertNotifyMotionWasCalled(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE));
     auto associatedMousePc = assertPointerControllerCreated(ControllerType::MOUSE);
     ASSERT_EQ(ANOTHER_DISPLAY_ID, associatedMousePc->getDisplayId());
 
@@ -483,7 +385,7 @@ TEST_F(PointerChoreographerTest,
     ASSERT_EQ(ANOTHER_DISPLAY_ID, associatedMousePc->getDisplayId());
     ASSERT_TRUE(associatedMousePc->isPointerShown());
 
-    // Check that x-y cooridnates, displayId and cursor position are correctly updated.
+    // Check that x-y coordinates, displayId and cursor position are correctly updated.
     mTestListener.assertNotifyMotionWasCalled(
             AllOf(WithCoords(310, 420), WithDeviceId(SECOND_DEVICE_ID),
                   WithDisplayId(ANOTHER_DISPLAY_ID), WithCursorPosition(310, 420)));
@@ -494,13 +396,6 @@ TEST_F(PointerChoreographerTest, DoesNotMovePointerForMouseRelativeSource) {
     mChoreographer.setDefaultMouseDisplayId(DISPLAY_ID);
     mChoreographer.notifyInputDevicesChanged(
             {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE)}});
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(MOUSE_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(ADISPLAY_ID_NONE)
-                    .build());
-    mTestListener.assertNotifyMotionWasCalled(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE));
     auto pc = assertPointerControllerCreated(ControllerType::MOUSE);
     ASSERT_EQ(DISPLAY_ID, pc->getDisplayId());
 
@@ -531,7 +426,7 @@ TEST_F(PointerChoreographerTest, DoesNotMovePointerForMouseRelativeSource) {
     pc->assertPosition(100, 200);
     ASSERT_FALSE(pc->isPointerShown());
 
-    // Check x-y cooridnates, displayId and cursor position are not changed.
+    // Check x-y coordinates, displayId and cursor position are not changed.
     mTestListener.assertNotifyMotionWasCalled(
             AllOf(WithCoords(10, 20), WithRelativeMotion(10, 20), WithDisplayId(ADISPLAY_ID_NONE),
                   WithCursorPosition(AMOTION_EVENT_INVALID_CURSOR_POSITION,
@@ -543,13 +438,6 @@ TEST_F(PointerChoreographerTest, WhenPointerCaptureEnabledHidesPointer) {
     mChoreographer.setDefaultMouseDisplayId(DISPLAY_ID);
     mChoreographer.notifyInputDevicesChanged(
             {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE)}});
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(MOUSE_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(ADISPLAY_ID_NONE)
-                    .build());
-    mTestListener.assertNotifyMotionWasCalled(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE));
     auto pc = assertPointerControllerCreated(ControllerType::MOUSE);
     ASSERT_EQ(DISPLAY_ID, pc->getDisplayId());
     ASSERT_TRUE(pc->isPointerShown());
@@ -558,6 +446,65 @@ TEST_F(PointerChoreographerTest, WhenPointerCaptureEnabledHidesPointer) {
     mChoreographer.notifyPointerCaptureChanged(
             NotifyPointerCaptureChangedArgs(/*id=*/1, systemTime(SYSTEM_TIME_MONOTONIC),
                                             PointerCaptureRequest(/*enable=*/true, /*seq=*/0)));
+    ASSERT_FALSE(pc->isPointerShown());
+}
+
+TEST_F(PointerChoreographerTest, MultipleMiceConnectionAndRemoval) {
+    mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID}));
+    mChoreographer.setDefaultMouseDisplayId(DISPLAY_ID);
+
+    // A mouse is connected, and the pointer is shown.
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE)}});
+
+    auto pc = assertPointerControllerCreated(ControllerType::MOUSE);
+    ASSERT_TRUE(pc->isPointerShown());
+
+    pc->fade(PointerControllerInterface::Transition::IMMEDIATE);
+
+    // Add a second mouse is added, the pointer is shown again.
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0,
+             {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE),
+              generateTestDeviceInfo(SECOND_DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE)}});
+    ASSERT_TRUE(pc->isPointerShown());
+
+    // One of the mice is removed, and it does not cause the mouse pointer to fade, because
+    // we have one more mouse connected.
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0,
+             {generateTestDeviceInfo(SECOND_DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE)}});
+    assertPointerControllerNotRemoved(pc);
+    ASSERT_TRUE(pc->isPointerShown());
+
+    // The final mouse is removed. The pointer is removed.
+    mChoreographer.notifyInputDevicesChanged({/*id=*/0, {}});
+    assertPointerControllerRemoved(pc);
+}
+
+TEST_F(PointerChoreographerTest, UnrelatedChangeDoesNotUnfadePointer) {
+    mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID}));
+    mChoreographer.setDefaultMouseDisplayId(DISPLAY_ID);
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE)}});
+
+    auto pc = assertPointerControllerCreated(ControllerType::MOUSE);
+    ASSERT_TRUE(pc->isPointerShown());
+
+    pc->fade(PointerControllerInterface::Transition::IMMEDIATE);
+
+    // Adding a touchscreen device does not unfade the mouse pointer.
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0,
+             {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE),
+              generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_TOUCHSCREEN | AINPUT_SOURCE_STYLUS,
+                                     DISPLAY_ID)}});
+
+    ASSERT_FALSE(pc->isPointerShown());
+
+    // Show touches setting change does not unfade the mouse pointer.
+    mChoreographer.setShowTouchesEnabled(true);
+
     ASSERT_FALSE(pc->isPointerShown());
 }
 
@@ -1038,25 +985,11 @@ TEST_F(PointerChoreographerTest, WhenStylusDeviceIsResetRemovesPointer) {
     assertPointerControllerRemoved(pc);
 }
 
-TEST_F(PointerChoreographerTest, WhenTouchpadIsJustAddedDoesNotCreatePointerController) {
+TEST_F(PointerChoreographerTest, WhenTouchpadIsAddedCreatesPointerController) {
     mChoreographer.notifyInputDevicesChanged(
             {/*id=*/0,
              {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE | AINPUT_SOURCE_TOUCHPAD,
                                      ADISPLAY_ID_NONE)}});
-    assertPointerControllerNotCreated();
-}
-
-TEST_F(PointerChoreographerTest, WhenTouchpadEventOccursCreatesPointerController) {
-    mChoreographer.notifyInputDevicesChanged(
-            {/*id=*/0,
-             {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE | AINPUT_SOURCE_TOUCHPAD,
-                                     ADISPLAY_ID_NONE)}});
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(TOUCHPAD_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(ADISPLAY_ID_NONE)
-                    .build());
     assertPointerControllerCreated(ControllerType::MOUSE);
 }
 
@@ -1065,12 +998,6 @@ TEST_F(PointerChoreographerTest, WhenTouchpadIsRemovedRemovesPointerController) 
             {/*id=*/0,
              {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE | AINPUT_SOURCE_TOUCHPAD,
                                      ADISPLAY_ID_NONE)}});
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(TOUCHPAD_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(ADISPLAY_ID_NONE)
-                    .build());
     auto pc = assertPointerControllerCreated(ControllerType::MOUSE);
 
     // Remove the touchpad.
@@ -1085,15 +1012,6 @@ TEST_F(PointerChoreographerTest, SetsViewportForAssociatedTouchpad) {
             {/*id=*/0,
              {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE | AINPUT_SOURCE_TOUCHPAD,
                                      DISPLAY_ID)}});
-    assertPointerControllerNotCreated();
-
-    // After the touchpad emits event, PointerController will be created and viewport will be set.
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(TOUCHPAD_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(DISPLAY_ID)
-                    .build());
     auto pc = assertPointerControllerCreated(ControllerType::MOUSE);
     pc->assertViewportSet(DISPLAY_ID);
 }
@@ -1105,12 +1023,6 @@ TEST_F(PointerChoreographerTest, WhenViewportSetLaterSetsViewportForAssociatedTo
             {/*id=*/0,
              {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE | AINPUT_SOURCE_TOUCHPAD,
                                      DISPLAY_ID)}});
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(TOUCHPAD_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(DISPLAY_ID)
-                    .build());
     auto pc = assertPointerControllerCreated(ControllerType::MOUSE);
     pc->assertViewportNotSet();
 
@@ -1127,32 +1039,19 @@ TEST_F(PointerChoreographerTest, SetsDefaultTouchpadViewportForPointerController
     // the PointerController.
     mChoreographer.notifyInputDevicesChanged(
             {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE)}});
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(TOUCHPAD_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(ADISPLAY_ID_NONE)
-                    .build());
     auto pc = assertPointerControllerCreated(ControllerType::MOUSE);
     pc->assertViewportSet(DISPLAY_ID);
 }
 
 TEST_F(PointerChoreographerTest,
        WhenDefaultTouchpadDisplayChangesSetsDefaultTouchpadViewportForPointerController) {
-    // Set one display as a default touchpad display and emit touchpad event to create
-    // PointerController.
+    // Set one display as a default touchpad display and create PointerController.
     mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID, ANOTHER_DISPLAY_ID}));
     mChoreographer.setDefaultMouseDisplayId(DISPLAY_ID);
     mChoreographer.notifyInputDevicesChanged(
             {/*id=*/0,
              {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE | AINPUT_SOURCE_TOUCHPAD,
                                      ADISPLAY_ID_NONE)}});
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(TOUCHPAD_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(ADISPLAY_ID_NONE)
-                    .build());
     auto firstDisplayPc = assertPointerControllerCreated(ControllerType::MOUSE);
     firstDisplayPc->assertViewportSet(DISPLAY_ID);
 
@@ -1160,13 +1059,6 @@ TEST_F(PointerChoreographerTest,
     mChoreographer.setDefaultMouseDisplayId(ANOTHER_DISPLAY_ID);
     assertPointerControllerRemoved(firstDisplayPc);
 
-    // New PointerController for the new default display will be created by the motion event.
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(TOUCHPAD_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(ADISPLAY_ID_NONE)
-                    .build());
     auto secondDisplayPc = assertPointerControllerCreated(ControllerType::MOUSE);
     secondDisplayPc->assertViewportSet(ANOTHER_DISPLAY_ID);
 }
@@ -1178,12 +1070,6 @@ TEST_F(PointerChoreographerTest, TouchpadCallsNotifyPointerDisplayIdChanged) {
             {/*id=*/0,
              {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE | AINPUT_SOURCE_TOUCHPAD,
                                      ADISPLAY_ID_NONE)}});
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(TOUCHPAD_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(ADISPLAY_ID_NONE)
-                    .build());
     assertPointerControllerCreated(ControllerType::MOUSE);
 
     assertPointerDisplayIdNotified(DISPLAY_ID);
@@ -1195,12 +1081,6 @@ TEST_F(PointerChoreographerTest, WhenViewportIsSetLaterTouchpadCallsNotifyPointe
             {/*id=*/0,
              {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE | AINPUT_SOURCE_TOUCHPAD,
                                      ADISPLAY_ID_NONE)}});
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(TOUCHPAD_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(ADISPLAY_ID_NONE)
-                    .build());
     assertPointerControllerCreated(ControllerType::MOUSE);
     assertPointerDisplayIdNotNotified();
 
@@ -1215,12 +1095,6 @@ TEST_F(PointerChoreographerTest, WhenTouchpadIsRemovedCallsNotifyPointerDisplayI
             {/*id=*/0,
              {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE | AINPUT_SOURCE_TOUCHPAD,
                                      ADISPLAY_ID_NONE)}});
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(TOUCHPAD_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(ADISPLAY_ID_NONE)
-                    .build());
     auto pc = assertPointerControllerCreated(ControllerType::MOUSE);
     assertPointerDisplayIdNotified(DISPLAY_ID);
 
@@ -1240,28 +1114,14 @@ TEST_F(PointerChoreographerTest,
             {/*id=*/0,
              {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE | AINPUT_SOURCE_TOUCHPAD,
                                      ADISPLAY_ID_NONE)}});
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(TOUCHPAD_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(ADISPLAY_ID_NONE)
-                    .build());
     auto firstDisplayPc = assertPointerControllerCreated(ControllerType::MOUSE);
     assertPointerDisplayIdNotified(DISPLAY_ID);
 
     // Set another viewport as a default mouse display ID. ADISPLAY_ID_NONE will be notified
     // before a touchpad event.
     mChoreographer.setDefaultMouseDisplayId(ANOTHER_DISPLAY_ID);
-    assertPointerDisplayIdNotified(ADISPLAY_ID_NONE);
     assertPointerControllerRemoved(firstDisplayPc);
 
-    // After a touchpad event, pointer display ID will be notified with new default mouse display.
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(TOUCHPAD_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(ADISPLAY_ID_NONE)
-                    .build());
     assertPointerControllerCreated(ControllerType::MOUSE);
     assertPointerDisplayIdNotified(ANOTHER_DISPLAY_ID);
 }
@@ -1273,13 +1133,6 @@ TEST_F(PointerChoreographerTest, TouchpadMovesPointerAndReturnsNewArgs) {
             {/*id=*/0,
              {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE | AINPUT_SOURCE_TOUCHPAD,
                                      ADISPLAY_ID_NONE)}});
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(TOUCHPAD_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(ADISPLAY_ID_NONE)
-                    .build());
-    mTestListener.assertNotifyMotionWasCalled(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE));
     auto pc = assertPointerControllerCreated(ControllerType::MOUSE);
     ASSERT_EQ(DISPLAY_ID, pc->getDisplayId());
 
@@ -1298,7 +1151,7 @@ TEST_F(PointerChoreographerTest, TouchpadMovesPointerAndReturnsNewArgs) {
     pc->assertPosition(110, 220);
     ASSERT_TRUE(pc->isPointerShown());
 
-    // Check that x-y cooridnates, displayId and cursor position are correctly updated.
+    // Check that x-y coordinates, displayId and cursor position are correctly updated.
     mTestListener.assertNotifyMotionWasCalled(
             AllOf(WithCoords(110, 220), WithDisplayId(DISPLAY_ID), WithCursorPosition(110, 220)));
 }
@@ -1310,13 +1163,6 @@ TEST_F(PointerChoreographerTest, TouchpadAddsPointerPositionToTheCoords) {
             {/*id=*/0,
              {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE | AINPUT_SOURCE_TOUCHPAD,
                                      ADISPLAY_ID_NONE)}});
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(TOUCHPAD_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(ADISPLAY_ID_NONE)
-                    .build());
-    mTestListener.assertNotifyMotionWasCalled(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE));
     auto pc = assertPointerControllerCreated(ControllerType::MOUSE);
     ASSERT_EQ(DISPLAY_ID, pc->getDisplayId());
 
@@ -1398,23 +1244,8 @@ TEST_F(PointerChoreographerTest,
                                      ADISPLAY_ID_NONE),
               generateTestDeviceInfo(SECOND_DEVICE_ID, AINPUT_SOURCE_MOUSE | AINPUT_SOURCE_TOUCHPAD,
                                      ANOTHER_DISPLAY_ID)}});
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(TOUCHPAD_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(ADISPLAY_ID_NONE)
-                    .build());
-    mTestListener.assertNotifyMotionWasCalled(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE));
     auto unassociatedMousePc = assertPointerControllerCreated(ControllerType::MOUSE);
     ASSERT_EQ(DISPLAY_ID, unassociatedMousePc->getDisplayId());
-
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(TOUCHPAD_POINTER)
-                    .deviceId(SECOND_DEVICE_ID)
-                    .displayId(ANOTHER_DISPLAY_ID)
-                    .build());
-    mTestListener.assertNotifyMotionWasCalled(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE));
     auto associatedMousePc = assertPointerControllerCreated(ControllerType::MOUSE);
     ASSERT_EQ(ANOTHER_DISPLAY_ID, associatedMousePc->getDisplayId());
 
@@ -1437,7 +1268,7 @@ TEST_F(PointerChoreographerTest,
     ASSERT_EQ(ANOTHER_DISPLAY_ID, associatedMousePc->getDisplayId());
     ASSERT_TRUE(associatedMousePc->isPointerShown());
 
-    // Check that x-y cooridnates, displayId and cursor position are correctly updated.
+    // Check that x-y coordinates, displayId and cursor position are correctly updated.
     mTestListener.assertNotifyMotionWasCalled(
             AllOf(WithCoords(310, 420), WithDeviceId(SECOND_DEVICE_ID),
                   WithDisplayId(ANOTHER_DISPLAY_ID), WithCursorPosition(310, 420)));
@@ -1450,13 +1281,6 @@ TEST_F(PointerChoreographerTest, DoesNotMovePointerForTouchpadSource) {
             {/*id=*/0,
              {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE | AINPUT_SOURCE_TOUCHPAD,
                                      ADISPLAY_ID_NONE)}});
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(TOUCHPAD_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(ADISPLAY_ID_NONE)
-                    .build());
-    mTestListener.assertNotifyMotionWasCalled(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE));
     auto pc = assertPointerControllerCreated(ControllerType::MOUSE);
     ASSERT_EQ(DISPLAY_ID, pc->getDisplayId());
 
@@ -1479,7 +1303,7 @@ TEST_F(PointerChoreographerTest, DoesNotMovePointerForTouchpadSource) {
     pc->assertPosition(200, 300);
     ASSERT_FALSE(pc->isPointerShown());
 
-    // Check x-y cooridnates, displayId and cursor position are not changed.
+    // Check x-y coordinates, displayId and cursor position are not changed.
     mTestListener.assertNotifyMotionWasCalled(
             AllOf(WithCoords(100, 200), WithDisplayId(ADISPLAY_ID_NONE),
                   WithCursorPosition(AMOTION_EVENT_INVALID_CURSOR_POSITION,
@@ -1493,13 +1317,6 @@ TEST_F(PointerChoreographerTest, WhenPointerCaptureEnabledTouchpadHidesPointer) 
             {/*id=*/0,
              {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE | AINPUT_SOURCE_TOUCHPAD,
                                      ADISPLAY_ID_NONE)}});
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(TOUCHPAD_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(ADISPLAY_ID_NONE)
-                    .build());
-    mTestListener.assertNotifyMotionWasCalled(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE));
     auto pc = assertPointerControllerCreated(ControllerType::MOUSE);
     ASSERT_EQ(DISPLAY_ID, pc->getDisplayId());
     ASSERT_TRUE(pc->isPointerShown());
@@ -1517,12 +1334,6 @@ TEST_F(PointerChoreographerTest, SetsPointerIconForMouse) {
     mChoreographer.setDefaultMouseDisplayId(DISPLAY_ID);
     mChoreographer.notifyInputDevicesChanged(
             {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE)}});
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(MOUSE_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(ADISPLAY_ID_NONE)
-                    .build());
     auto pc = assertPointerControllerCreated(ControllerType::MOUSE);
     pc->assertPointerIconNotSet();
 
@@ -1537,12 +1348,6 @@ TEST_F(PointerChoreographerTest, DoesNotSetMousePointerIconForWrongDisplayId) {
     mChoreographer.setDefaultMouseDisplayId(DISPLAY_ID);
     mChoreographer.notifyInputDevicesChanged(
             {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE)}});
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(MOUSE_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(ADISPLAY_ID_NONE)
-                    .build());
     auto pc = assertPointerControllerCreated(ControllerType::MOUSE);
     pc->assertPointerIconNotSet();
 
@@ -1558,40 +1363,11 @@ TEST_F(PointerChoreographerTest, DoesNotSetPointerIconForWrongDeviceId) {
     mChoreographer.setDefaultMouseDisplayId(DISPLAY_ID);
     mChoreographer.notifyInputDevicesChanged(
             {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE)}});
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(MOUSE_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(ADISPLAY_ID_NONE)
-                    .build());
     auto pc = assertPointerControllerCreated(ControllerType::MOUSE);
     pc->assertPointerIconNotSet();
 
     // Set pointer icon for wrong device id. This should be ignored.
     ASSERT_FALSE(mChoreographer.setPointerIcon(PointerIconStyle::TYPE_TEXT, DISPLAY_ID,
-                                               SECOND_DEVICE_ID));
-    pc->assertPointerIconNotSet();
-}
-
-TEST_F(PointerChoreographerTest, DoesNotSetPointerIconForDeviceWithoutPointerController) {
-    // Add two devices, one with a PointerController and the other without PointerController.
-    mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID}));
-    mChoreographer.setDefaultMouseDisplayId(DISPLAY_ID);
-    mChoreographer.notifyInputDevicesChanged(
-            {/*id=*/0,
-             {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE),
-              generateTestDeviceInfo(SECOND_DEVICE_ID, AINPUT_SOURCE_MOUSE, ANOTHER_DISPLAY_ID)}});
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(MOUSE_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(ADISPLAY_ID_NONE)
-                    .build());
-    auto pc = assertPointerControllerCreated(ControllerType::MOUSE);
-    pc->assertPointerIconNotSet();
-
-    // Set pointer icon for the device without PointerController. This should be ignored.
-    ASSERT_FALSE(mChoreographer.setPointerIcon(PointerIconStyle::TYPE_TEXT, ANOTHER_DISPLAY_ID,
                                                SECOND_DEVICE_ID));
     pc->assertPointerIconNotSet();
 }
@@ -1602,12 +1378,6 @@ TEST_F(PointerChoreographerTest, SetsCustomPointerIconForMouse) {
     mChoreographer.setDefaultMouseDisplayId(DISPLAY_ID);
     mChoreographer.notifyInputDevicesChanged(
             {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE)}});
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(MOUSE_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(ADISPLAY_ID_NONE)
-                    .build());
     auto pc = assertPointerControllerCreated(ControllerType::MOUSE);
     pc->assertCustomPointerIconNotSet();
 
@@ -1632,20 +1402,8 @@ TEST_F(PointerChoreographerTest, SetsPointerIconForMouseOnTwoDisplays) {
             {/*id=*/0,
              {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE),
               generateTestDeviceInfo(SECOND_DEVICE_ID, AINPUT_SOURCE_MOUSE, ANOTHER_DISPLAY_ID)}});
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(MOUSE_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(ADISPLAY_ID_NONE)
-                    .build());
     auto firstMousePc = assertPointerControllerCreated(ControllerType::MOUSE);
     ASSERT_EQ(DISPLAY_ID, firstMousePc->getDisplayId());
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
-                    .pointer(MOUSE_POINTER)
-                    .deviceId(SECOND_DEVICE_ID)
-                    .displayId(ANOTHER_DISPLAY_ID)
-                    .build());
     auto secondMousePc = assertPointerControllerCreated(ControllerType::MOUSE);
     ASSERT_EQ(ANOTHER_DISPLAY_ID, secondMousePc->getDisplayId());
 

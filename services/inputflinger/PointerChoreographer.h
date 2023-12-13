@@ -139,6 +139,7 @@ private:
     int32_t mDefaultMouseDisplayId GUARDED_BY(mLock);
     int32_t mNotifiedPointerDisplayId GUARDED_BY(mLock);
     std::vector<InputDeviceInfo> mInputDeviceInfos GUARDED_BY(mLock);
+    std::set<DeviceId> mMouseDevices GUARDED_BY(mLock);
     std::vector<DisplayViewport> mViewports GUARDED_BY(mLock);
     bool mShowTouchesEnabled GUARDED_BY(mLock);
     bool mStylusPointerIconEnabled GUARDED_BY(mLock);
