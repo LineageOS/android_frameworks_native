@@ -88,6 +88,7 @@ bool VSyncPredictor::validate(nsecs_t timestamp) const {
             (timestamp - aValidTimestamp) % idealPeriod() * kMaxPercent / idealPeriod();
     if (percent >= kOutlierTolerancePercent &&
         percent <= (kMaxPercent - kOutlierTolerancePercent)) {
+        ATRACE_FORMAT_INSTANT("timestamp is not aligned with model");
         return false;
     }
 
@@ -98,6 +99,7 @@ bool VSyncPredictor::validate(nsecs_t timestamp) const {
     const auto distancePercent = std::abs(*iter - timestamp) * kMaxPercent / idealPeriod();
     if (distancePercent < kOutlierTolerancePercent) {
         // duplicate timestamp
+        ATRACE_FORMAT_INSTANT("duplicate timestamp");
         return false;
     }
     return true;
@@ -126,6 +128,8 @@ Period VSyncPredictor::minFramePeriodLocked() const {
 }
 
 bool VSyncPredictor::addVsyncTimestamp(nsecs_t timestamp) {
+    ATRACE_CALL();
+
     std::lock_guard lock(mMutex);
 
     if (!validate(timestamp)) {
@@ -144,6 +148,8 @@ bool VSyncPredictor::addVsyncTimestamp(nsecs_t timestamp) {
         } else {
             mKnownTimestamp = timestamp;
         }
+        ATRACE_FORMAT_INSTANT("timestamp rejected. mKnownTimestamp was %.2fms ago",
+            (systemTime() - *mKnownTimestamp) / 1e6f);
         return false;
     }
 
@@ -515,6 +521,8 @@ VSyncPredictor::Model VSyncPredictor::getVSyncPredictionModelLocked() const {
 }
 
 void VSyncPredictor::clearTimestamps() {
+    ATRACE_CALL();
+
     if (!mTimestamps.empty()) {
         auto const maxRb = *std::max_element(mTimestamps.begin(), mTimestamps.end());
         if (mKnownTimestamp) {

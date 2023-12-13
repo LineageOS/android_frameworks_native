@@ -53,6 +53,8 @@ VSyncReactor::VSyncReactor(PhysicalDisplayId id, std::unique_ptr<Clock> clock,
 VSyncReactor::~VSyncReactor() = default;
 
 bool VSyncReactor::addPresentFence(std::shared_ptr<FenceTime> fence) {
+    ATRACE_CALL();
+
     if (!fence) {
         return false;
     }
@@ -64,6 +66,8 @@ bool VSyncReactor::addPresentFence(std::shared_ptr<FenceTime> fence) {
 
     std::lock_guard lock(mMutex);
     if (mExternalIgnoreFences || mInternalIgnoreFences) {
+        ATRACE_FORMAT_INSTANT("mExternalIgnoreFences=%d mInternalIgnoreFences=%d",
+            mExternalIgnoreFences, mInternalIgnoreFences);
         return true;
     }
 
