@@ -291,7 +291,7 @@ bool AidlComposer::isSupported(OptionalFeature feature) const {
     }
 }
 
-bool AidlComposer::getDisplayConfigurationsSupported() const {
+bool AidlComposer::isVrrSupported() const {
     return mComposerInterfaceVersion >= 3 && FlagManager::getInstance().vrr_config();
 }
 

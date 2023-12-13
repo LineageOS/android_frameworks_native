@@ -321,7 +321,7 @@ std::vector<HWComposer::HWCDisplayMode> HWComposer::getModes(PhysicalDisplayId d
 
     const auto hwcDisplayId = mDisplayData.at(displayId).hwcDisplay->getId();
 
-    if (mComposer->getDisplayConfigurationsSupported()) {
+    if (mComposer->isVrrSupported()) {
         return getModesFromDisplayConfigurations(hwcDisplayId, maxFrameIntervalNs);
     }
 
