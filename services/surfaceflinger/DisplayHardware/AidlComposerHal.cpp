@@ -271,7 +271,10 @@ AidlComposer::AidlComposer(const std::string& serviceName) {
             }
         }
     }
-
+    if (getLayerLifecycleBatchCommand()) {
+        mEnableLayerCommandBatchingFlag =
+                FlagManager::getInstance().enable_layer_command_batching();
+    }
     ALOGI("Loaded AIDL composer3 HAL service");
 }
 
@@ -288,7 +291,7 @@ bool AidlComposer::isSupported(OptionalFeature feature) const {
     }
 }
 
-bool AidlComposer::getDisplayConfigurationsSupported() const {
+bool AidlComposer::isVrrSupported() const {
     return mComposerInterfaceVersion >= 3 && FlagManager::getInstance().vrr_config();
 }
 
@@ -407,25 +410,58 @@ Error AidlComposer::acceptDisplayChanges(Display display) {
 
 Error AidlComposer::createLayer(Display display, Layer* outLayer) {
     int64_t layer;
-    const auto status = mAidlComposerClient->createLayer(translate<int64_t>(display),
-                                                         kMaxLayerBufferCount, &layer);
-    if (!status.isOk()) {
-        ALOGE("createLayer failed %s", status.getDescription().c_str());
-        return static_cast<Error>(status.getServiceSpecificError());
+    Error error = Error::NONE;
+    if (!mEnableLayerCommandBatchingFlag) {
+        const auto status = mAidlComposerClient->createLayer(translate<int64_t>(display),
+                                                             kMaxLayerBufferCount, &layer);
+        if (!status.isOk()) {
+            ALOGE("createLayer failed %s", status.getDescription().c_str());
+            return static_cast<Error>(status.getServiceSpecificError());
+        }
+    } else {
+        // generate a unique layerID. map in AidlComposer with <SF_layerID, HWC_layerID>
+        // Add this as a new displayCommand in execute command.
+        // return the SF generated layerID instead of calling HWC
+        layer = mLayerID++;
+        mMutex.lock_shared();
+        if (auto writer = getWriter(display)) {
+            writer->get().setLayerLifecycleBatchCommandType(translate<int64_t>(display),
+                                                            translate<int64_t>(layer),
+                                                            LayerLifecycleBatchCommandType::CREATE);
+            writer->get().setNewBufferSlotCount(translate<int64_t>(display),
+                                                translate<int64_t>(layer), kMaxLayerBufferCount);
+        } else {
+            error = Error::BAD_DISPLAY;
+        }
+        mMutex.unlock_shared();
     }
-
     *outLayer = translate<Layer>(layer);
-    return Error::NONE;
+    return error;
 }
 
 Error AidlComposer::destroyLayer(Display display, Layer layer) {
-    const auto status = mAidlComposerClient->destroyLayer(translate<int64_t>(display),
-                                                          translate<int64_t>(layer));
-    if (!status.isOk()) {
-        ALOGE("destroyLayer failed %s", status.getDescription().c_str());
-        return static_cast<Error>(status.getServiceSpecificError());
+    Error error = Error::NONE;
+    if (!mEnableLayerCommandBatchingFlag) {
+        const auto status = mAidlComposerClient->destroyLayer(translate<int64_t>(display),
+                                                              translate<int64_t>(layer));
+        if (!status.isOk()) {
+            ALOGE("destroyLayer failed %s", status.getDescription().c_str());
+            return static_cast<Error>(status.getServiceSpecificError());
+        }
+    } else {
+        mMutex.lock_shared();
+        if (auto writer = getWriter(display)) {
+            writer->get()
+                    .setLayerLifecycleBatchCommandType(translate<int64_t>(display),
+                                                       translate<int64_t>(layer),
+                                                       LayerLifecycleBatchCommandType::DESTROY);
+        } else {
+            error = Error::BAD_DISPLAY;
+        }
+        mMutex.unlock_shared();
     }
-    return Error::NONE;
+
+    return error;
 }
 
 Error AidlComposer::getActiveConfig(Display display, Config* outConfig) {
@@ -589,6 +625,13 @@ Error AidlComposer::getHdrCapabilities(Display display, std::vector<Hdr>* outTyp
     *outMaxAverageLuminance = capabilities.maxAverageLuminance;
     *outMinLuminance = capabilities.minLuminance;
     return Error::NONE;
+}
+
+bool AidlComposer::getLayerLifecycleBatchCommand() {
+    std::vector<Capability> capabilities = getCapabilities();
+    bool hasCapability = std::find(capabilities.begin(), capabilities.end(),
+                                   Capability::LAYER_LIFECYCLE_BATCH_COMMAND) != capabilities.end();
+    return hasCapability;
 }
 
 Error AidlComposer::getOverlaySupport(AidlOverlayProperties* outProperties) {

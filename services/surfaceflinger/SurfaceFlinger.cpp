@@ -2160,19 +2160,16 @@ void SurfaceFlinger::onComposerHalVsyncIdle(hal::HWDisplayId) {
 void SurfaceFlinger::onRefreshRateChangedDebug(const RefreshRateChangedDebugData& data) {
     ATRACE_CALL();
     if (const auto displayId = getHwComposer().toPhysicalDisplayId(data.display); displayId) {
-        const Fps fps = Fps::fromPeriodNsecs(data.vsyncPeriodNanos);
-        ATRACE_FORMAT("%s Fps %d", __func__, fps.getIntValue());
+        const char* const whence = __func__;
         static_cast<void>(mScheduler->schedule([=]() FTL_FAKE_GUARD(mStateLock) {
-            {
-                {
-                    const auto display = getDisplayDeviceLocked(*displayId);
-                    FTL_FAKE_GUARD(kMainThreadContext,
-                                   display->updateRefreshRateOverlayRate(fps,
-                                                                         display->getActiveMode()
-                                                                                 .fps,
-                                                                         /* setByHwc */ true));
-                }
-            }
+            const Fps fps = Fps::fromPeriodNsecs(getHwComposer().getComposer()->isVrrSupported()
+                                                         ? data.refreshPeriodNanos
+                                                         : data.vsyncPeriodNanos);
+            ATRACE_FORMAT("%s Fps %d", whence, fps.getIntValue());
+            const auto display = getDisplayDeviceLocked(*displayId);
+            FTL_FAKE_GUARD(kMainThreadContext,
+                           display->updateRefreshRateOverlayRate(fps, display->getActiveMode().fps,
+                                                                 /* setByHwc */ true));
         }));
     }
 }

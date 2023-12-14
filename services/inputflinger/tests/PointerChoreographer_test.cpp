@@ -34,7 +34,9 @@ namespace {
 
 // Helpers to std::visit with lambdas.
 template <typename... V>
-struct Visitor : V... {};
+struct Visitor : V... {
+    using V::operator()...;
+};
 template <typename... V>
 Visitor(V...) -> Visitor<V...>;
 

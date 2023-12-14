@@ -127,7 +127,7 @@ void FlagManager::dump(std::string& result) const {
     DUMP_READ_ONLY_FLAG(display_protected);
     DUMP_READ_ONLY_FLAG(fp16_client_target);
     DUMP_READ_ONLY_FLAG(game_default_frame_rate);
-
+    DUMP_READ_ONLY_FLAG(enable_layer_command_batching);
 #undef DUMP_READ_ONLY_FLAG
 #undef DUMP_SERVER_FLAG
 #undef DUMP_FLAG_INTERVAL
@@ -201,6 +201,7 @@ FLAG_MANAGER_READ_ONLY_FLAG(enable_fro_dependent_features, "")
 FLAG_MANAGER_READ_ONLY_FLAG(display_protected, "")
 FLAG_MANAGER_READ_ONLY_FLAG(fp16_client_target, "debug.sf.fp16_client_target")
 FLAG_MANAGER_READ_ONLY_FLAG(game_default_frame_rate, "")
+FLAG_MANAGER_READ_ONLY_FLAG(enable_layer_command_batching, "")
 
 /// Trunk stable server flags ///
 FLAG_MANAGER_SERVER_FLAG(late_boot_misc2, "")

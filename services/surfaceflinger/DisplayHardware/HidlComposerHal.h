@@ -167,7 +167,7 @@ public:
     ~HidlComposer() override;
 
     bool isSupported(OptionalFeature) const;
-    bool getDisplayConfigurationsSupported() const;
+    bool isVrrSupported() const;
 
     std::vector<aidl::android::hardware::graphics::composer3::Capability> getCapabilities()
             override;
