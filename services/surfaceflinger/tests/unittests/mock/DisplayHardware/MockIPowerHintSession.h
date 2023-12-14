@@ -18,10 +18,15 @@
 
 #include "binder/Status.h"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
 #include <aidl/android/hardware/power/IPower.h>
+#pragma clang diagnostic pop
+
 #include <gmock/gmock.h>
 
 using aidl::android::hardware::power::IPowerHintSession;
+using aidl::android::hardware::power::SessionConfig;
 using aidl::android::hardware::power::SessionHint;
 using aidl::android::hardware::power::SessionMode;
 using android::binder::Status;
@@ -47,6 +52,7 @@ public:
     MOCK_METHOD(ndk::ScopedAStatus, sendHint, (SessionHint), (override));
     MOCK_METHOD(ndk::ScopedAStatus, setThreads, (const ::std::vector<int32_t>&), (override));
     MOCK_METHOD(ndk::ScopedAStatus, setMode, (SessionMode, bool), (override));
+    MOCK_METHOD(ndk::ScopedAStatus, getSessionConfig, (SessionConfig * _aidl_return), (override));
 };
 
 } // namespace android::Hwc2::mock

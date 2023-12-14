@@ -25,9 +25,14 @@
 #include <ui/FenceTime.h>
 #include <utils/Mutex.h>
 
+// FMQ library in IPower does questionable conversions
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
 #include <aidl/android/hardware/power/IPower.h>
-#include <compositionengine/impl/OutputCompositionState.h>
 #include <powermanager/PowerHalController.h>
+#pragma clang diagnostic pop
+
+#include <compositionengine/impl/OutputCompositionState.h>
 #include <scheduler/Time.h>
 #include <ui/DisplayIdentification.h>
 #include "../Scheduler/OneShotTimer.h"
