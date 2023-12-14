@@ -9692,7 +9692,7 @@ TEST_F(InputDispatcherDragTests, DragAndDropNotCancelledIfSomeOtherPointerIsPilf
 
     // Receives cancel for first pointer after next pointer down
     mSpyWindow->consumeMotionEvent(WithMotionAction(ACTION_CANCEL));
-    mSpyWindow->consumeMotionEvent(WithMotionAction(ACTION_DOWN));
+    mSpyWindow->consumeMotionEvent(AllOf(WithMotionAction(ACTION_DOWN), WithPointerIds({1})));
     mDragWindow->consumeMotionEvent(WithMotionAction(ACTION_MOVE));
 
     mSpyWindow->assertNoEvents();

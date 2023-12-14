@@ -379,6 +379,11 @@ std::ostream& operator<<(std::ostream& out, const KeyEvent& event) {
     return out;
 }
 
+std::ostream& operator<<(std::ostream& out, const PointerProperties& properties) {
+    out << "Pointer(id=" << properties.id << ", " << ftl::enum_string(properties.toolType) << ")";
+    return out;
+}
+
 // --- PointerCoords ---
 
 float PointerCoords::getAxisValue(int32_t axis) const {

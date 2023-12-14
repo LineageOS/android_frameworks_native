@@ -515,6 +515,8 @@ struct PointerProperties {
     PointerProperties& operator=(const PointerProperties&) = default;
 };
 
+std::ostream& operator<<(std::ostream& out, const PointerProperties& properties);
+
 // TODO(b/211379801) : Use a strong type from ftl/mixins.h instead
 using DeviceId = int32_t;
 
