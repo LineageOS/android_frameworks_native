@@ -390,6 +390,12 @@ uid_t AIBinder_getCallingUid() __INTRODUCED_IN(29);
  * calling process dies and is replaced with another process with elevated permissions and the same
  * PID.
  *
+ * Warning: oneway transactions do not receive PID. Even if you expect
+ * a transaction to be synchronous, a misbehaving client could send it
+ * as a synchronous call and result in a 0 PID here. Additionally, if
+ * there is a race and the calling process dies, the PID may still be
+ * 0 for a synchronous call.
+ *
  * Available since API level 29.
  *
  * \return calling pid or the current process's PID if this thread isn't processing a transaction.
