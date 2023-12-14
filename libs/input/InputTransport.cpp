@@ -10,6 +10,7 @@
 #include <fcntl.h>
 #include <inttypes.h>
 #include <math.h>
+#include <poll.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -515,6 +516,22 @@ status_t InputChannel::receiveMessage(InputMessage* msg) {
         ATRACE_NAME(message.c_str());
     }
     return OK;
+}
+
+bool InputChannel::probablyHasInput() const {
+    struct pollfd pfds = {.fd = mFd, .events = POLLIN};
+    if (::poll(&pfds, /*nfds=*/1, /*timeout=*/0) <= 0) {
+        // This can be a false negative because EAGAIN and ENOMEM are not handled. The latter should
+        // be extremely rare. The EAGAIN is also unlikely because it happens only when the signal
+        // arrives while the syscall is executed, and the syscall is quick. Hitting EAGAIN too often
+        // would be a sign of having too many signals, which is a bigger performance problem. A
+        // common tradition is to repeat the syscall on each EAGAIN, but it is not necessary here.
+        // In other words, the missing one liner is replaced by a multiline explanation.
+        return false;
+    }
+    // From poll(2): The bits returned in |revents| can include any of those specified in |events|,
+    // or one of the values POLLERR, POLLHUP, or POLLNVAL.
+    return (pfds.revents & POLLIN) != 0;
 }
 
 std::unique_ptr<InputChannel> InputChannel::dup() const {
@@ -1404,6 +1421,10 @@ int32_t InputConsumer::getPendingBatchSource() const {
     const Batch& batch = mBatches[0];
     const InputMessage& head = batch.samples[0];
     return head.body.motion.source;
+}
+
+bool InputConsumer::probablyHasInput() const {
+    return hasPendingBatch() || mChannel->probablyHasInput();
 }
 
 ssize_t InputConsumer::findBatch(int32_t deviceId, int32_t source) const {
