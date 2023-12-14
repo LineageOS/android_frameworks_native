@@ -640,7 +640,8 @@ void Scheduler::addPresentFence(PhysicalDisplayId id, std::shared_ptr<FenceTime>
     if (!scheduleOpt) return;
     const auto& schedule = scheduleOpt->get();
 
-    if (const bool needMoreSignals = schedule->getController().addPresentFence(std::move(fence))) {
+    const bool needMoreSignals = schedule->getController().addPresentFence(std::move(fence));
+    if (needMoreSignals) {
         schedule->enableHardwareVsync();
     } else {
         constexpr bool kDisallow = false;
