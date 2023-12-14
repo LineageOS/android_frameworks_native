@@ -106,6 +106,7 @@ cc_test {
         "SurfaceFlinger_HdrOutputControlTest.cpp",
         "SurfaceFlinger_HotplugTest.cpp",
         "SurfaceFlinger_InitializeDisplaysTest.cpp",
+        "SurfaceFlinger_NotifyExpectedPresentTest.cpp",
         "SurfaceFlinger_NotifyPowerBoostTest.cpp",
         "SurfaceFlinger_PowerHintTest.cpp",
         "SurfaceFlinger_SetDisplayStateTest.cpp",

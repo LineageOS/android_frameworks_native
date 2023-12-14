@@ -318,6 +318,53 @@ bool fileNewerThan(const std::string& path, std::chrono::minutes duration) {
     return duration > (Clock::now() - updateTime);
 }
 
+bool isFrameIntervalOnCadence(TimePoint expectedPresentTime, TimePoint lastExpectedPresentTimestamp,
+                              Fps lastFrameInterval, Period timeout, Duration threshold) {
+    if (lastFrameInterval.getPeriodNsecs() == 0) {
+        return false;
+    }
+
+    const auto expectedPresentTimeDeltaNs =
+            expectedPresentTime.ns() - lastExpectedPresentTimestamp.ns();
+
+    if (expectedPresentTimeDeltaNs > timeout.ns()) {
+        return false;
+    }
+
+    const auto expectedPresentPeriods = static_cast<nsecs_t>(
+            std::round(static_cast<float>(expectedPresentTimeDeltaNs) /
+                       static_cast<float>(lastFrameInterval.getPeriodNsecs())));
+    const auto calculatedPeriodsOutNs = lastFrameInterval.getPeriodNsecs() * expectedPresentPeriods;
+    const auto calculatedExpectedPresentTimeNs =
+            lastExpectedPresentTimestamp.ns() + calculatedPeriodsOutNs;
+    const auto presentTimeDelta =
+            std::abs(expectedPresentTime.ns() - calculatedExpectedPresentTimeNs);
+    return presentTimeDelta < threshold.ns();
+}
+
+bool isExpectedPresentWithinTimeout(TimePoint expectedPresentTime,
+                                    TimePoint lastExpectedPresentTimestamp,
+                                    std::optional<Period> timeoutOpt, Duration threshold) {
+    if (!timeoutOpt) {
+        // Always within timeout if timeoutOpt is absent and don't send hint
+        // for the timeout
+        return true;
+    }
+
+    if (timeoutOpt->ns() == 0) {
+        // Always outside timeout if timeoutOpt is 0 and always send
+        // the hint for the timeout.
+        return false;
+    }
+
+    if (expectedPresentTime.ns() < lastExpectedPresentTimestamp.ns() + timeoutOpt->ns()) {
+        return true;
+    }
+
+    // Check if within the threshold as it can be just outside the timeout
+    return std::abs(expectedPresentTime.ns() -
+                    (lastExpectedPresentTimestamp.ns() + timeoutOpt->ns())) < threshold.ns();
+}
 }  // namespace anonymous
 
 // ---------------------------------------------------------------------------
@@ -2707,7 +2754,18 @@ CompositeResultsPerDisplay SurfaceFlinger::composite(
     refreshArgs.scheduledFrameTime = mScheduler->getScheduledFrameTime();
     refreshArgs.expectedPresentTime = expectedPresentTime.ns();
     refreshArgs.hasTrustedPresentationListener = mNumTrustedPresentationListeners > 0;
-
+    {
+        auto& notifyExpectedPresentData = mNotifyExpectedPresentMap[pacesetterId];
+        auto lastExpectedPresentTimestamp = TimePoint::fromNs(
+                notifyExpectedPresentData.lastExpectedPresentTimestamp.load().ns());
+        if (expectedPresentTime > lastExpectedPresentTimestamp) {
+            // If the values are not same, then hint is sent with newer value.
+            // And because composition always follows the notifyExpectedPresentIfRequired, we can
+            // skip updating the lastExpectedPresentTimestamp in this case.
+            notifyExpectedPresentData.lastExpectedPresentTimestamp
+                    .compare_exchange_weak(lastExpectedPresentTimestamp, expectedPresentTime);
+        }
+    }
     // Store the present time just before calling to the composition engine so we could notify
     // the scheduler.
     const auto presentTime = systemTime();
@@ -4061,7 +4119,7 @@ void SurfaceFlinger::onChoreographerAttached() {
 void SurfaceFlinger::onVsyncGenerated(TimePoint expectedPresentTime,
                                       ftl::NonNull<DisplayModePtr> modePtr, Fps renderRate) {
     const auto vsyncPeriod = modePtr->getVsyncRate().getPeriod();
-    const auto timeout = [&]() -> std::optional<Period> {
+    const auto timeoutOpt = [&]() -> std::optional<Period> {
         const auto vrrConfig = modePtr->getVrrConfig();
         if (!vrrConfig) return std::nullopt;
 
@@ -4071,14 +4129,54 @@ void SurfaceFlinger::onVsyncGenerated(TimePoint expectedPresentTime,
         return Period::fromNs(notifyExpectedPresentConfig->notifyExpectedPresentTimeoutNs);
     }();
 
-    const auto displayId = modePtr->getPhysicalDisplayId();
-    const auto status = getHwComposer().notifyExpectedPresentIfRequired(displayId, vsyncPeriod,
-                                                                        expectedPresentTime,
-                                                                        renderRate, timeout);
-    if (status != NO_ERROR) {
-        ALOGE("%s failed to notifyExpectedPresentHint for display %" PRId64, __func__,
-              displayId.value);
+    notifyExpectedPresentIfRequired(modePtr->getPhysicalDisplayId(), vsyncPeriod,
+                                    expectedPresentTime, renderRate, timeoutOpt);
+}
+
+void SurfaceFlinger::notifyExpectedPresentIfRequired(PhysicalDisplayId displayId,
+                                                     Period vsyncPeriod,
+                                                     TimePoint expectedPresentTime,
+                                                     Fps frameInterval,
+                                                     std::optional<Period> timeoutOpt) {
+    {
+        auto& data = mNotifyExpectedPresentMap[displayId];
+        const auto lastExpectedPresentTimestamp = data.lastExpectedPresentTimestamp.load();
+        const auto lastFrameInterval = data.lastFrameInterval;
+        data.lastFrameInterval = frameInterval;
+        const auto threshold = Duration::fromNs(vsyncPeriod.ns() / 2);
+
+        const constexpr nsecs_t kOneSecondNs =
+                std::chrono::duration_cast<std::chrono::nanoseconds>(1s).count();
+        const auto timeout = Period::fromNs(timeoutOpt && timeoutOpt->ns() > 0 ? timeoutOpt->ns()
+                                                                               : kOneSecondNs);
+        const bool frameIntervalIsOnCadence =
+                isFrameIntervalOnCadence(expectedPresentTime, lastExpectedPresentTimestamp,
+                                         lastFrameInterval, timeout, threshold);
+
+        const bool expectedPresentWithinTimeout =
+                isExpectedPresentWithinTimeout(expectedPresentTime, lastExpectedPresentTimestamp,
+                                               timeoutOpt, threshold);
+
+        using fps_approx_ops::operator!=;
+        if (frameIntervalIsOnCadence && frameInterval != lastFrameInterval) {
+            data.lastExpectedPresentTimestamp = expectedPresentTime;
+        }
+
+        if (expectedPresentWithinTimeout && frameIntervalIsOnCadence) {
+            return;
+        }
+        data.lastExpectedPresentTimestamp = expectedPresentTime;
     }
+
+    const char* const whence = __func__;
+    static_cast<void>(mScheduler->schedule([=, this]() FTL_FAKE_GUARD(kMainThreadContext) {
+        const auto status = getHwComposer().notifyExpectedPresent(displayId, expectedPresentTime,
+                                                                  frameInterval);
+        if (status != NO_ERROR) {
+            ALOGE("%s failed to notifyExpectedPresentHint for display %" PRId64, whence,
+                  displayId.value);
+        }
+    }));
 }
 
 void SurfaceFlinger::initScheduler(const sp<const DisplayDevice>& display) {

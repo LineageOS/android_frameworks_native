@@ -1490,6 +1490,19 @@ private:
     // Map of displayid to mirrorRoot
     ftl::SmallMap<int64_t, sp<SurfaceControl>, 3> mMirrorMapForDebug;
 
+    // NotifyExpectedPresentHint
+    struct NotifyExpectedPresentData {
+        // lastExpectedPresentTimestamp is read and write from multiple threads such as
+        // main thread, EventThread, MessageQueue. And is atomic for that reason.
+        std::atomic<TimePoint> lastExpectedPresentTimestamp{};
+        Fps lastFrameInterval{};
+    };
+    std::unordered_map<PhysicalDisplayId, NotifyExpectedPresentData> mNotifyExpectedPresentMap;
+
+    void notifyExpectedPresentIfRequired(PhysicalDisplayId, Period vsyncPeriod,
+                                         TimePoint expectedPresentTime, Fps frameInterval,
+                                         std::optional<Period> timeoutOpt);
+
     void sfdo_enableRefreshRateOverlay(bool active);
     void sfdo_setDebugFlash(int delay);
     void sfdo_scheduleComposite();
