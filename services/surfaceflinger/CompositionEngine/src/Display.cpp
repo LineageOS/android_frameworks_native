@@ -250,7 +250,6 @@ bool Display::chooseCompositionStrategy(
     }
 
     // Get any composition changes requested by the HWC device, and apply them.
-    std::optional<android::HWComposer::DeviceRequestedChanges> changes;
     auto& hwc = getCompositionEngine().getHwComposer();
     const bool requiresClientComposition = anyLayersRequireClientComposition();
 
