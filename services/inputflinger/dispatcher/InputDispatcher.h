@@ -32,6 +32,8 @@
 #include "Monitor.h"
 #include "TouchState.h"
 #include "TouchedWindow.h"
+#include "trace/InputTracerInterface.h"
+#include "trace/InputTracingBackendInterface.h"
 
 #include <attestation/HmacKeyManager.h>
 #include <gui/InputApplication.h>
@@ -82,6 +84,9 @@ public:
     static constexpr bool kDefaultInTouchMode = true;
 
     explicit InputDispatcher(InputDispatcherPolicyInterface& policy);
+    // Constructor used for testing.
+    explicit InputDispatcher(InputDispatcherPolicyInterface&,
+                             std::unique_ptr<trace::InputTracingBackendInterface>);
     ~InputDispatcher() override;
 
     void dump(std::string& dump) const override;
@@ -171,6 +176,9 @@ private:
 
     std::condition_variable mDispatcherIsAlive;
     mutable std::condition_variable mDispatcherEnteredIdle;
+
+    // Input event tracer. The tracer will only exist on builds where input tracing is allowed.
+    std::unique_ptr<trace::InputTracerInterface> mTracer GUARDED_BY(mLock);
 
     sp<Looper> mLooper;
 

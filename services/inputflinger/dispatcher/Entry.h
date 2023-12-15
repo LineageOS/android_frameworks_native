@@ -18,6 +18,7 @@
 
 #include "InjectionState.h"
 #include "InputTarget.h"
+#include "trace/EventTrackerInterface.h"
 
 #include <gui/InputApplication.h>
 #include <input/Input.h>
@@ -125,6 +126,7 @@ struct KeyEntry : EventEntry {
     int32_t scanCode;
     int32_t metaState;
     nsecs_t downTime;
+    std::unique_ptr<trace::EventTrackerInterface> traceTracker;
 
     bool syntheticRepeat; // set to true for synthetic key repeats
 
@@ -147,6 +149,8 @@ struct KeyEntry : EventEntry {
     std::string getDescription() const override;
 };
 
+std::ostream& operator<<(std::ostream& out, const KeyEntry& motionEntry);
+
 struct MotionEntry : EventEntry {
     int32_t deviceId;
     uint32_t source;
@@ -165,6 +169,7 @@ struct MotionEntry : EventEntry {
     nsecs_t downTime;
     std::vector<PointerProperties> pointerProperties;
     std::vector<PointerCoords> pointerCoords;
+    std::unique_ptr<trace::EventTrackerInterface> traceTracker;
 
     size_t getPointerCount() const { return pointerProperties.size(); }
 

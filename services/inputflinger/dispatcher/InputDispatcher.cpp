@@ -78,6 +78,14 @@ static const bool REMOVE_APP_SWITCH_DROPS = true;
 namespace android::inputdispatcher {
 
 namespace {
+
+template <class Entry>
+void ensureEventTraced(const Entry& entry) {
+    if (!entry.traceTracker) {
+        LOG(FATAL) << "Expected event entry to be traced, but it wasn't: " << entry;
+    }
+}
+
 // Temporarily releases a held mutex for the lifetime of the instance.
 // Named to match std::scoped_lock
 class scoped_unlock {
@@ -783,6 +791,10 @@ Result<void> validateWindowInfosUpdate(const gui::WindowInfosUpdate& update) {
 // --- InputDispatcher ---
 
 InputDispatcher::InputDispatcher(InputDispatcherPolicyInterface& policy)
+      : InputDispatcher(policy, nullptr) {}
+
+InputDispatcher::InputDispatcher(InputDispatcherPolicyInterface& policy,
+                                 std::unique_ptr<trace::InputTracingBackendInterface> traceBackend)
       : mPolicy(policy),
         mPendingEvent(nullptr),
         mLastDropReason(DropReason::NOT_DROPPED),
@@ -807,6 +819,10 @@ InputDispatcher::InputDispatcher(InputDispatcherPolicyInterface& policy)
     SurfaceComposerClient::getDefault()->addWindowInfosListener(mWindowInfoListener);
 #endif
     mKeyRepeatState.lastKeyEntry = nullptr;
+
+    if (traceBackend) {
+        // TODO: Create input tracer instance.
+    }
 }
 
 InputDispatcher::~InputDispatcher() {
@@ -1108,6 +1124,10 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t& nextWakeupTime) {
                 dropReason = DropReason::BLOCKED;
             }
             done = dispatchKeyLocked(currentTime, keyEntry, &dropReason, nextWakeupTime);
+            if (done && mTracer) {
+                ensureEventTraced(*keyEntry);
+                mTracer->eventProcessingComplete(*keyEntry->traceTracker);
+            }
             break;
         }
 
@@ -1138,6 +1158,10 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t& nextWakeupTime) {
                 }
             }
             done = dispatchMotionLocked(currentTime, motionEntry, &dropReason, nextWakeupTime);
+            if (done && mTracer) {
+                ensureEventTraced(*motionEntry);
+                mTracer->eventProcessingComplete(*motionEntry->traceTracker);
+            }
             break;
         }
 
@@ -1249,6 +1273,9 @@ bool InputDispatcher::enqueueInboundEventLocked(std::unique_ptr<EventEntry> newE
             // If the application takes too long to catch up then we drop all events preceding
             // the app switch key.
             const KeyEntry& keyEntry = static_cast<const KeyEntry&>(entry);
+            if (mTracer) {
+                ensureEventTraced(keyEntry);
+            }
 
             if (!REMOVE_APP_SWITCH_DROPS) {
                 if (isAppSwitchKeyEvent(keyEntry)) {
@@ -1286,7 +1313,11 @@ bool InputDispatcher::enqueueInboundEventLocked(std::unique_ptr<EventEntry> newE
         case EventEntry::Type::MOTION: {
             LOG_ALWAYS_FATAL_IF((entry.policyFlags & POLICY_FLAG_TRUSTED) == 0,
                                 "Unexpected untrusted event.");
-            if (shouldPruneInboundQueueLocked(static_cast<const MotionEntry&>(entry))) {
+            const auto& motionEntry = static_cast<const MotionEntry&>(entry);
+            if (mTracer) {
+                ensureEventTraced(motionEntry);
+            }
+            if (shouldPruneInboundQueueLocked(motionEntry)) {
                 mNextUnblockedEvent = mInboundQueue.back();
                 needWake = true;
             }
@@ -1567,6 +1598,10 @@ std::shared_ptr<KeyEntry> InputDispatcher::synthesizeKeyRepeatLocked(nsecs_t cur
                                        entry->repeatCount + 1, entry->downTime);
 
     newEntry->syntheticRepeat = true;
+    if (mTracer) {
+        newEntry->traceTracker = mTracer->traceInboundEvent(*newEntry);
+    }
+
     mKeyRepeatState.lastKeyEntry = newEntry;
     mKeyRepeatState.nextRepeatTime = currentTime + mConfig.keyRepeatDelay;
     return newEntry;
@@ -1873,6 +1908,13 @@ bool InputDispatcher::dispatchKeyLocked(nsecs_t currentTime, std::shared_ptr<con
     // Add monitor channels from event's or focused display.
     addGlobalMonitoringTargetsLocked(inputTargets, getTargetDisplayId(*entry));
 
+    if (mTracer) {
+        ensureEventTraced(*entry);
+        for (const auto& target : inputTargets) {
+            mTracer->dispatchToTargetHint(*entry->traceTracker, target);
+        }
+    }
+
     // Dispatch the key.
     dispatchEventLocked(currentTime, entry, inputTargets);
     return true;
@@ -1997,6 +2039,13 @@ bool InputDispatcher::dispatchMotionLocked(nsecs_t currentTime,
 
     // Add monitor channels from event's or focused display.
     addGlobalMonitoringTargetsLocked(inputTargets, getTargetDisplayId(*entry));
+
+    if (mTracer) {
+        ensureEventTraced(*entry);
+        for (const auto& target : inputTargets) {
+            mTracer->dispatchToTargetHint(*entry->traceTracker, target);
+        }
+    }
 
     // Dispatch the motion.
     dispatchEventLocked(currentTime, entry, inputTargets);
@@ -3635,6 +3684,7 @@ status_t InputDispatcher::publishMotionEvent(Connection& connection,
     PointerCoords scaledCoords[MAX_POINTERS];
     const PointerCoords* usingCoords = motionEntry.pointerCoords.data();
 
+    // TODO(b/316355518): Do not modify coords before dispatch.
     // Set the X and Y offset and X and Y scale depending on the input source.
     if ((motionEntry.source & AINPUT_SOURCE_CLASS_POINTER) &&
         !(dispatchEntry.targetFlags.test(InputTarget::Flags::ZERO_COORDS))) {
@@ -3710,6 +3760,9 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
                                                   keyEntry.keyCode, keyEntry.scanCode,
                                                   keyEntry.metaState, keyEntry.repeatCount,
                                                   keyEntry.downTime, keyEntry.eventTime);
+                if (mTracer) {
+                    mTracer->traceEventDispatch(*dispatchEntry, keyEntry.traceTracker.get());
+                }
                 break;
             }
 
@@ -3718,7 +3771,11 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
                     LOG(INFO) << "Publishing " << *dispatchEntry << " to "
                               << connection->getInputChannelName();
                 }
+                const MotionEntry& motionEntry = static_cast<const MotionEntry&>(eventEntry);
                 status = publishMotionEvent(*connection, *dispatchEntry);
+                if (mTracer) {
+                    mTracer->traceEventDispatch(*dispatchEntry, motionEntry.traceTracker.get());
+                }
                 break;
             }
 
@@ -4400,6 +4457,9 @@ void InputDispatcher::notifyKey(const NotifyKeyArgs& args) {
                                            args.deviceId, args.source, args.displayId, policyFlags,
                                            args.action, flags, keyCode, args.scanCode, metaState,
                                            repeatCount, args.downTime);
+        if (mTracer) {
+            newEntry->traceTracker = mTracer->traceInboundEvent(*newEntry);
+        }
 
         needWake = enqueueInboundEventLocked(std::move(newEntry));
         mLock.unlock();
@@ -4526,6 +4586,9 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs& args) {
                                               args.yPrecision, args.xCursorPosition,
                                               args.yCursorPosition, args.downTime,
                                               args.pointerProperties, args.pointerCoords);
+        if (mTracer) {
+            newEntry->traceTracker = mTracer->traceInboundEvent(*newEntry);
+        }
 
         if (args.id != android::os::IInputConstants::INVALID_INPUT_EVENT_ID &&
             IdGenerator::getSource(args.id) == IdGenerator::Source::INPUT_READER &&
@@ -4713,6 +4776,9 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(const InputEvent* ev
                                                incomingKey.getScanCode(), metaState,
                                                incomingKey.getRepeatCount(),
                                                incomingKey.getDownTime());
+            if (mTracer) {
+                injectedEntry->traceTracker = mTracer->traceInboundEvent(*injectedEntry);
+            }
             injectedEntries.push(std::move(injectedEntry));
             break;
         }
@@ -4770,6 +4836,9 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(const InputEvent* ev
                                                                              samplePointerCoords +
                                                                                      pointerCount));
             transformMotionEntryForInjectionLocked(*injectedEntry, motionEvent.getTransform());
+            if (mTracer) {
+                injectedEntry->traceTracker = mTracer->traceInboundEvent(*injectedEntry);
+            }
             injectedEntries.push(std::move(injectedEntry));
             for (size_t i = motionEvent.getHistorySize(); i > 0; i--) {
                 sampleEventTimes += 1;
@@ -5869,6 +5938,8 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) const {
                          ns2ms(mConfig.keyRepeatTimeout));
     dump += mLatencyTracker.dump(INDENT2);
     dump += mLatencyAggregator.dump(INDENT2);
+    dump += INDENT "InputTracer: ";
+    dump += mTracer == nullptr ? "Disabled" : "Enabled";
 }
 
 void InputDispatcher::dumpMonitors(std::string& dump, const std::vector<Monitor>& monitors) const {
