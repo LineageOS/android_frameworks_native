@@ -572,7 +572,8 @@ private:
         /** We simply reconstruct NotifySwitchArgs in policy because InputDispatcher is
          * essentially a passthrough for notifySwitch.
          */
-        mLastNotifySwitch = NotifySwitchArgs(/*id=*/1, when, policyFlags, switchValues, switchMask);
+        mLastNotifySwitch =
+                NotifySwitchArgs(InputEvent::nextId(), when, policyFlags, switchValues, switchMask);
     }
 
     void pokeUserActivity(nsecs_t, int32_t, int32_t) override {
@@ -836,7 +837,8 @@ TEST_F(InputDispatcherTest, NotifyConfigurationChanged_CallsPolicy) {
 }
 
 TEST_F(InputDispatcherTest, NotifySwitch_CallsPolicy) {
-    NotifySwitchArgs args(/*id=*/10, /*eventTime=*/20, /*policyFlags=*/0, /*switchValues=*/1,
+    NotifySwitchArgs args(InputEvent::nextId(), /*eventTime=*/20, /*policyFlags=*/0,
+                          /*switchValues=*/1,
                           /*switchMask=*/2);
     mDispatcher->notifySwitch(args);
 
@@ -1221,31 +1223,27 @@ public:
 
     void setWindowOffset(float offsetX, float offsetY) { mInfo.transform.set(offsetX, offsetY); }
 
-    KeyEvent* consumeKey(bool handled = true) {
-        InputEvent* event = consume(CONSUME_TIMEOUT_EVENT_EXPECTED, handled);
-        if (event == nullptr) {
-            ADD_FAILURE() << "Consume failed : no event";
-            return nullptr;
+    const KeyEvent& consumeKey(bool handled = true) {
+        const InputEvent& event = consume(CONSUME_TIMEOUT_EVENT_EXPECTED, handled);
+        if (event.getType() != InputEventType::KEY) {
+            LOG(FATAL) << "Instead of key event, got " << event;
         }
-        if (event->getType() != InputEventType::KEY) {
-            ADD_FAILURE() << "Instead of key event, got " << *event;
-            return nullptr;
-        }
-        return static_cast<KeyEvent*>(event);
+        return static_cast<const KeyEvent&>(event);
     }
 
     void consumeKeyEvent(const ::testing::Matcher<KeyEvent>& matcher) {
-        KeyEvent* keyEvent = consumeKey();
-        ASSERT_NE(nullptr, keyEvent) << "Did not get a key event, but expected " << matcher;
-        ASSERT_THAT(*keyEvent, matcher);
+        const KeyEvent& keyEvent = consumeKey();
+        ASSERT_THAT(keyEvent, matcher);
     }
 
     void consumeKeyDown(int32_t expectedDisplayId, int32_t expectedFlags = 0) {
-        consumeEvent(InputEventType::KEY, AKEY_EVENT_ACTION_DOWN, expectedDisplayId, expectedFlags);
+        consumeKeyEvent(AllOf(WithKeyAction(ACTION_DOWN), WithDisplayId(expectedDisplayId),
+                              WithFlags(expectedFlags)));
     }
 
     void consumeKeyUp(int32_t expectedDisplayId, int32_t expectedFlags = 0) {
-        consumeEvent(InputEventType::KEY, AKEY_EVENT_ACTION_UP, expectedDisplayId, expectedFlags);
+        consumeKeyEvent(AllOf(WithKeyAction(ACTION_UP), WithDisplayId(expectedDisplayId),
+                              WithFlags(expectedFlags)));
     }
 
     void consumeMotionCancel(int32_t expectedDisplayId = ADISPLAY_ID_DEFAULT,
@@ -1267,44 +1265,46 @@ public:
 
     void consumeAnyMotionDown(std::optional<int32_t> expectedDisplayId = std::nullopt,
                               std::optional<int32_t> expectedFlags = std::nullopt) {
-        consumeEvent(InputEventType::MOTION, AMOTION_EVENT_ACTION_DOWN, expectedDisplayId,
-                     expectedFlags);
+        consumeMotionEvent(
+                AllOf(WithMotionAction(ACTION_DOWN),
+                      testing::Conditional(expectedDisplayId.has_value(),
+                                           WithDisplayId(*expectedDisplayId), testing::_),
+                      testing::Conditional(expectedFlags.has_value(), WithFlags(*expectedFlags),
+                                           testing::_)));
     }
 
     void consumeMotionPointerDown(int32_t pointerIdx,
                                   int32_t expectedDisplayId = ADISPLAY_ID_DEFAULT,
                                   int32_t expectedFlags = 0) {
-        int32_t action = AMOTION_EVENT_ACTION_POINTER_DOWN |
+        const int32_t action = AMOTION_EVENT_ACTION_POINTER_DOWN |
                 (pointerIdx << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
-        consumeEvent(InputEventType::MOTION, action, expectedDisplayId, expectedFlags);
+        consumeMotionEvent(AllOf(WithMotionAction(action), WithDisplayId(expectedDisplayId),
+                                 WithFlags(expectedFlags)));
     }
 
     void consumeMotionPointerUp(int32_t pointerIdx, int32_t expectedDisplayId = ADISPLAY_ID_DEFAULT,
                                 int32_t expectedFlags = 0) {
-        int32_t action = AMOTION_EVENT_ACTION_POINTER_UP |
+        const int32_t action = AMOTION_EVENT_ACTION_POINTER_UP |
                 (pointerIdx << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
-        consumeEvent(InputEventType::MOTION, action, expectedDisplayId, expectedFlags);
+        consumeMotionEvent(AllOf(WithMotionAction(action), WithDisplayId(expectedDisplayId),
+                                 WithFlags(expectedFlags)));
     }
 
     void consumeMotionUp(int32_t expectedDisplayId = ADISPLAY_ID_DEFAULT,
                          int32_t expectedFlags = 0) {
-        consumeEvent(InputEventType::MOTION, AMOTION_EVENT_ACTION_UP, expectedDisplayId,
-                     expectedFlags);
+        consumeMotionEvent(AllOf(WithMotionAction(ACTION_UP), WithDisplayId(expectedDisplayId),
+                                 WithFlags(expectedFlags)));
     }
 
     void consumeMotionOutside(int32_t expectedDisplayId = ADISPLAY_ID_DEFAULT,
                               int32_t expectedFlags = 0) {
-        consumeEvent(InputEventType::MOTION, AMOTION_EVENT_ACTION_OUTSIDE, expectedDisplayId,
-                     expectedFlags);
+        consumeMotionEvent(AllOf(WithMotionAction(AMOTION_EVENT_ACTION_OUTSIDE),
+                                 WithDisplayId(expectedDisplayId), WithFlags(expectedFlags)));
     }
 
-    void consumeMotionOutsideWithZeroedCoords(int32_t expectedDisplayId = ADISPLAY_ID_DEFAULT,
-                                              int32_t expectedFlags = 0) {
-        MotionEvent* motionEvent = consumeMotion();
-        ASSERT_NE(nullptr, motionEvent);
-        EXPECT_EQ(AMOTION_EVENT_ACTION_OUTSIDE, motionEvent->getActionMasked());
-        EXPECT_EQ(0.f, motionEvent->getRawPointerCoords(0)->getX());
-        EXPECT_EQ(0.f, motionEvent->getRawPointerCoords(0)->getY());
+    void consumeMotionOutsideWithZeroedCoords() {
+        consumeMotionEvent(
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_OUTSIDE), WithRawCoords(0, 0)));
     }
 
     void consumeFocusEvent(bool hasFocus, bool inTouchMode = true) {
@@ -1319,21 +1319,15 @@ public:
         mInputReceiver->consumeCaptureEvent(hasCapture);
     }
 
-    const MotionEvent& consumeMotionEvent(const ::testing::Matcher<MotionEvent>& matcher) {
-        MotionEvent* motionEvent = consumeMotion();
-        if (nullptr == motionEvent) {
-            LOG(FATAL) << "Did not get a motion event, but expected " << matcher;
+    const MotionEvent& consumeMotionEvent(
+            const ::testing::Matcher<MotionEvent>& matcher = testing::_) {
+        const InputEvent& event = consume(CONSUME_TIMEOUT_EVENT_EXPECTED);
+        if (event.getType() != InputEventType::MOTION) {
+            LOG(FATAL) << "Instead of motion event, got " << event;
         }
-        EXPECT_THAT(*motionEvent, matcher);
-        return *motionEvent;
-    }
-
-    void consumeEvent(InputEventType expectedEventType, int32_t expectedAction,
-                      std::optional<int32_t> expectedDisplayId,
-                      std::optional<int32_t> expectedFlags) {
-        ASSERT_NE(mInputReceiver, nullptr) << "Invalid consume event on window with no receiver";
-        mInputReceiver->consumeEvent(expectedEventType, expectedAction, expectedDisplayId,
-                                     expectedFlags);
+        const auto& motionEvent = static_cast<const MotionEvent&>(event);
+        EXPECT_THAT(motionEvent, matcher);
+        return motionEvent;
     }
 
     void consumeDragEvent(bool isExiting, float x, float y) {
@@ -1362,26 +1356,6 @@ public:
     void sendTimeline(int32_t inputEventId, std::array<nsecs_t, GraphicsTimeline::SIZE> timeline) {
         ASSERT_NE(mInputReceiver, nullptr) << "Invalid receive event on window with no receiver";
         mInputReceiver->sendTimeline(inputEventId, timeline);
-    }
-
-    InputEvent* consume(std::chrono::milliseconds timeout, bool handled = true) {
-        if (mInputReceiver == nullptr) {
-            return nullptr;
-        }
-        return mInputReceiver->consume(timeout, handled);
-    }
-
-    MotionEvent* consumeMotion() {
-        InputEvent* event = consume(CONSUME_TIMEOUT_EVENT_EXPECTED);
-        if (event == nullptr) {
-            ADD_FAILURE() << "Consume failed : no event";
-            return nullptr;
-        }
-        if (event->getType() != InputEventType::MOTION) {
-            ADD_FAILURE() << "Instead of motion event, got " << *event;
-            return nullptr;
-        }
-        return static_cast<MotionEvent*>(event);
     }
 
     void assertNoEvents() {
@@ -1415,6 +1389,17 @@ private:
     std::shared_ptr<FakeInputReceiver> mInputReceiver;
     static std::atomic<int32_t> sId; // each window gets a unique id, like in surfaceflinger
     friend class sp<FakeWindowHandle>;
+
+    const InputEvent& consume(std::chrono::milliseconds timeout, bool handled = true) {
+        if (mInputReceiver == nullptr) {
+            LOG(FATAL) << "Cannot consume event from a window with no input event receiver";
+        }
+        InputEvent* event = mInputReceiver->consume(timeout, handled);
+        if (event == nullptr) {
+            LOG(FATAL) << "Consume failed: no event";
+        }
+        return *event;
+    }
 };
 
 std::atomic<int32_t> FakeWindowHandle::sId{1};
@@ -1579,9 +1564,9 @@ static InputEventInjectionResult injectMotionUp(InputDispatcher& dispatcher, int
 static NotifyKeyArgs generateKeyArgs(int32_t action, int32_t displayId = ADISPLAY_ID_NONE) {
     nsecs_t currentTime = systemTime(SYSTEM_TIME_MONOTONIC);
     // Define a valid key event.
-    NotifyKeyArgs args(/*id=*/0, currentTime, /*readTime=*/0, DEVICE_ID, AINPUT_SOURCE_KEYBOARD,
-                       displayId, POLICY_FLAG_PASS_TO_USER, action, /*flags=*/0, AKEYCODE_A, KEY_A,
-                       AMETA_NONE, currentTime);
+    NotifyKeyArgs args(InputEvent::nextId(), currentTime, /*readTime=*/0, DEVICE_ID,
+                       AINPUT_SOURCE_KEYBOARD, displayId, POLICY_FLAG_PASS_TO_USER, action,
+                       /*flags=*/0, AKEYCODE_A, KEY_A, AMETA_NONE, currentTime);
 
     return args;
 }
@@ -1590,9 +1575,9 @@ static NotifyKeyArgs generateSystemShortcutArgs(int32_t action,
                                                 int32_t displayId = ADISPLAY_ID_NONE) {
     nsecs_t currentTime = systemTime(SYSTEM_TIME_MONOTONIC);
     // Define a valid key event.
-    NotifyKeyArgs args(/*id=*/0, currentTime, /*readTime=*/0, DEVICE_ID, AINPUT_SOURCE_KEYBOARD,
-                       displayId, 0, action, /*flags=*/0, AKEYCODE_C, KEY_C, AMETA_META_ON,
-                       currentTime);
+    NotifyKeyArgs args(InputEvent::nextId(), currentTime, /*readTime=*/0, DEVICE_ID,
+                       AINPUT_SOURCE_KEYBOARD, displayId, 0, action, /*flags=*/0, AKEYCODE_C, KEY_C,
+                       AMETA_META_ON, currentTime);
 
     return args;
 }
@@ -1601,9 +1586,9 @@ static NotifyKeyArgs generateAssistantKeyArgs(int32_t action,
                                               int32_t displayId = ADISPLAY_ID_NONE) {
     nsecs_t currentTime = systemTime(SYSTEM_TIME_MONOTONIC);
     // Define a valid key event.
-    NotifyKeyArgs args(/*id=*/0, currentTime, /*readTime=*/0, DEVICE_ID, AINPUT_SOURCE_KEYBOARD,
-                       displayId, 0, action, /*flags=*/0, AKEYCODE_ASSIST, KEY_ASSISTANT,
-                       AMETA_NONE, currentTime);
+    NotifyKeyArgs args(InputEvent::nextId(), currentTime, /*readTime=*/0, DEVICE_ID,
+                       AINPUT_SOURCE_KEYBOARD, displayId, 0, action, /*flags=*/0, AKEYCODE_ASSIST,
+                       KEY_ASSISTANT, AMETA_NONE, currentTime);
 
     return args;
 }
@@ -1631,9 +1616,9 @@ static NotifyKeyArgs generateAssistantKeyArgs(int32_t action,
 
     nsecs_t currentTime = systemTime(SYSTEM_TIME_MONOTONIC);
     // Define a valid motion event.
-    NotifyMotionArgs args(/*id=*/0, currentTime, /*readTime=*/0, DEVICE_ID, source, displayId,
-                          POLICY_FLAG_PASS_TO_USER, action, /*actionButton=*/0, /*flags=*/0,
-                          AMETA_NONE, /*buttonState=*/0, MotionClassification::NONE,
+    NotifyMotionArgs args(InputEvent::nextId(), currentTime, /*readTime=*/0, DEVICE_ID, source,
+                          displayId, POLICY_FLAG_PASS_TO_USER, action, /*actionButton=*/0,
+                          /*flags=*/0, AMETA_NONE, /*buttonState=*/0, MotionClassification::NONE,
                           AMOTION_EVENT_EDGE_FLAG_NONE, pointerCount, pointerProperties,
                           pointerCoords, /*xPrecision=*/0, /*yPrecision=*/0,
                           AMOTION_EVENT_INVALID_CURSOR_POSITION,
@@ -1652,7 +1637,8 @@ static NotifyMotionArgs generateMotionArgs(int32_t action, int32_t source, int32
 
 static NotifyPointerCaptureChangedArgs generatePointerCaptureChangedArgs(
         const PointerCaptureRequest& request) {
-    return NotifyPointerCaptureChangedArgs(/*id=*/0, systemTime(SYSTEM_TIME_MONOTONIC), request);
+    return NotifyPointerCaptureChangedArgs(InputEvent::nextId(), systemTime(SYSTEM_TIME_MONOTONIC),
+                                           request);
 }
 
 } // namespace
@@ -3625,20 +3611,18 @@ TEST_F(InputDispatcherTest, SplitTouchesSendCorrectActionDownTime) {
 
     mDispatcher->waitForIdle();
 
-    MotionEvent* motionEvent1 = window1->consumeMotion();
-    ASSERT_NE(motionEvent1, nullptr);
+    const MotionEvent& motionEvent1 = window1->consumeMotionEvent();
     window2->assertNoEvents();
-    nsecs_t downTimeForWindow1 = motionEvent1->getDownTime();
-    ASSERT_EQ(motionEvent1->getDownTime(), motionEvent1->getEventTime());
+    nsecs_t downTimeForWindow1 = motionEvent1.getDownTime();
+    ASSERT_EQ(motionEvent1.getDownTime(), motionEvent1.getEventTime());
 
     // Now touch down on the window with another pointer
     mDispatcher->notifyMotion(generateTouchArgs(POINTER_1_DOWN, {{50, 50}, {150, 50}}));
     mDispatcher->waitForIdle();
-    MotionEvent* motionEvent2 = window2->consumeMotion();
-    ASSERT_NE(motionEvent2, nullptr);
-    nsecs_t downTimeForWindow2 = motionEvent2->getDownTime();
+    const MotionEvent& motionEvent2 = window2->consumeMotionEvent();
+    nsecs_t downTimeForWindow2 = motionEvent2.getDownTime();
     ASSERT_NE(downTimeForWindow1, downTimeForWindow2);
-    ASSERT_EQ(motionEvent2->getDownTime(), motionEvent2->getEventTime());
+    ASSERT_EQ(motionEvent2.getDownTime(), motionEvent2.getEventTime());
 
     // Now move the pointer on the second window
     mDispatcher->notifyMotion(generateTouchArgs(AMOTION_EVENT_ACTION_MOVE, {{50, 50}, {151, 51}}));
@@ -4233,8 +4217,7 @@ TEST_F(InputDispatcherTest, NotifyDeviceReset_CancelsKeyStream) {
     // When device reset happens, that key stream should be terminated with FLAG_CANCELED
     // on the app side.
     mDispatcher->notifyDeviceReset({/*id=*/10, /*eventTime=*/20, DEVICE_ID});
-    window->consumeEvent(InputEventType::KEY, AKEY_EVENT_ACTION_UP, ADISPLAY_ID_DEFAULT,
-                         AKEY_EVENT_FLAG_CANCELED);
+    window->consumeKeyUp(ADISPLAY_ID_DEFAULT, AKEY_EVENT_FLAG_CANCELED);
 }
 
 TEST_F(InputDispatcherTest, NotifyDeviceReset_CancelsMotionStream) {
@@ -4473,12 +4456,12 @@ TEST_F(InputDispatcherTest, NonSplitTouchableWindowReceivesMultiTouch) {
                                 InputEventInjectionSync::WAIT_FOR_RESULT))
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
 
-    const MotionEvent* event = window->consumeMotion();
-    EXPECT_EQ(POINTER_1_DOWN, event->getAction());
-    EXPECT_EQ(70, event->getX(0));  // 50 + 20
-    EXPECT_EQ(90, event->getY(0));  // 50 + 40
-    EXPECT_EQ(-10, event->getX(1)); // -30 + 20
-    EXPECT_EQ(-10, event->getY(1)); // -50 + 40
+    const MotionEvent& event = window->consumeMotionEvent();
+    EXPECT_EQ(POINTER_1_DOWN, event.getAction());
+    EXPECT_EQ(70, event.getX(0));  // 50 + 20
+    EXPECT_EQ(90, event.getY(0));  // 50 + 40
+    EXPECT_EQ(-10, event.getX(1)); // -30 + 20
+    EXPECT_EQ(-10, event.getY(1)); // -50 + 40
 }
 
 /**
@@ -4744,15 +4727,15 @@ TEST_F(InputDispatcherTest, WhenMultiDisplayWindowSameToken_DispatchCancelToTarg
     EXPECT_EQ(OK, mDispatcher->pilferPointers(spyWindowDefaultDisplay->getToken()));
 
     // windowDefaultDisplay gets cancel
-    MotionEvent* event = windowDefaultDisplay->consumeMotion();
-    EXPECT_EQ(AMOTION_EVENT_ACTION_CANCEL, event->getAction());
+    const MotionEvent& event = windowDefaultDisplay->consumeMotionEvent();
+    EXPECT_EQ(AMOTION_EVENT_ACTION_CANCEL, event.getAction());
 
     // The cancel event is sent to windowDefaultDisplay of the ADISPLAY_ID_DEFAULT display, so the
     // coordinates of the cancel are converted by windowDefaultDisplay's transform, the x and y
     // coordinates are both 100, otherwise if the cancel event is sent to windowSecondDisplay of
     // SECOND_DISPLAY_ID, the x and y coordinates are 200
-    EXPECT_EQ(100, event->getX(0));
-    EXPECT_EQ(100, event->getY(0));
+    EXPECT_EQ(100, event.getX(0));
+    EXPECT_EQ(100, event.getY(0));
 }
 
 /**
@@ -4882,19 +4865,18 @@ TEST_F(InputDispatcherDisplayProjectionTest, WindowGetsEventsInCorrectCoordinate
                                                  {PointF{150, 220}}));
 
     firstWindow->assertNoEvents();
-    const MotionEvent* event = secondWindow->consumeMotion();
-    ASSERT_NE(nullptr, event);
-    EXPECT_EQ(AMOTION_EVENT_ACTION_DOWN, event->getAction());
+    const MotionEvent& event = secondWindow->consumeMotionEvent();
+    EXPECT_EQ(AMOTION_EVENT_ACTION_DOWN, event.getAction());
 
     // Ensure that the events from the "getRaw" API are in logical display coordinates.
-    EXPECT_EQ(300, event->getRawX(0));
-    EXPECT_EQ(880, event->getRawY(0));
+    EXPECT_EQ(300, event.getRawX(0));
+    EXPECT_EQ(880, event.getRawY(0));
 
     // Ensure that the x and y values are in the window's coordinate space.
     // The left-top of the second window is at (100, 200) in display space, which is (200, 800) in
     // the logical display space. This will be the origin of the window space.
-    EXPECT_EQ(100, event->getX(0));
-    EXPECT_EQ(80, event->getY(0));
+    EXPECT_EQ(100, event.getX(0));
+    EXPECT_EQ(80, event.getY(0));
 }
 
 TEST_F(InputDispatcherDisplayProjectionTest, CancelMotionWithCorrectCoordinates) {
@@ -5968,8 +5950,7 @@ TEST_F(InputDispatcherTest, TestMoveEvent) {
                                              motionArgs.pointerCoords[0].getX() - 10);
 
     mDispatcher->notifyMotion(motionArgs);
-    window->consumeEvent(InputEventType::MOTION, AMOTION_EVENT_ACTION_MOVE, ADISPLAY_ID_DEFAULT,
-                         /*expectedFlags=*/0);
+    window->consumeMotionMove(ADISPLAY_ID_DEFAULT, /*expectedFlags=*/0);
 }
 
 /**
@@ -6039,10 +6020,9 @@ TEST_F(InputDispatcherTest, VerifyInputEvent_KeyEvent) {
     const NotifyKeyArgs keyArgs = generateKeyArgs(AKEY_EVENT_ACTION_DOWN);
     mDispatcher->notifyKey(keyArgs);
 
-    KeyEvent* event = window->consumeKey();
-    ASSERT_NE(event, nullptr);
+    const KeyEvent& event = window->consumeKey();
 
-    std::unique_ptr<VerifiedInputEvent> verified = mDispatcher->verifyInputEvent(*event);
+    std::unique_ptr<VerifiedInputEvent> verified = mDispatcher->verifyInputEvent(event);
     ASSERT_NE(verified, nullptr);
     ASSERT_EQ(verified->type, VerifiedInputEvent::Type::KEY);
 
@@ -6083,10 +6063,9 @@ TEST_F(InputDispatcherTest, VerifyInputEvent_MotionEvent) {
                                ADISPLAY_ID_DEFAULT);
     mDispatcher->notifyMotion(motionArgs);
 
-    MotionEvent* event = window->consumeMotion();
-    ASSERT_NE(event, nullptr);
+    const MotionEvent& event = window->consumeMotionEvent();
 
-    std::unique_ptr<VerifiedInputEvent> verified = mDispatcher->verifyInputEvent(*event);
+    std::unique_ptr<VerifiedInputEvent> verified = mDispatcher->verifyInputEvent(event);
     ASSERT_NE(verified, nullptr);
     ASSERT_EQ(verified->type, VerifiedInputEvent::Type::MOTION);
 
@@ -6664,9 +6643,8 @@ protected:
     }
 
     void consumeKey(bool handled, const ::testing::Matcher<KeyEvent>& matcher) {
-        KeyEvent* event = mWindow->consumeKey(handled);
-        ASSERT_NE(event, nullptr) << "Did not receive key event";
-        ASSERT_THAT(*event, matcher);
+        const KeyEvent& event = mWindow->consumeKey(handled);
+        ASSERT_THAT(event, matcher);
     }
 };
 
@@ -6897,7 +6875,7 @@ protected:
         mDispatcher->notifyKey(keyArgs);
 
         // Window should receive key down event.
-        mWindow->consumeEvent(InputEventType::KEY, AKEY_EVENT_ACTION_UP, ADISPLAY_ID_DEFAULT,
+        mWindow->consumeKeyUp(ADISPLAY_ID_DEFAULT,
                               /*expectedFlags=*/0);
     }
 };
@@ -6967,10 +6945,9 @@ TEST_F(InputDispatcherKeyRepeatTest, FocusedWindow_RepeatKeyEventsUseEventIdFrom
     GTEST_SKIP() << "Flaky test (b/270393106)";
     sendAndConsumeKeyDown(/*deviceId=*/1);
     for (int32_t repeatCount = 1; repeatCount <= 10; ++repeatCount) {
-        KeyEvent* repeatEvent = mWindow->consumeKey();
-        ASSERT_NE(nullptr, repeatEvent) << "Didn't receive event with repeat count " << repeatCount;
+        const KeyEvent& repeatEvent = mWindow->consumeKey();
         EXPECT_EQ(IdGenerator::Source::INPUT_DISPATCHER,
-                  IdGenerator::getSource(repeatEvent->getId()));
+                  IdGenerator::getSource(repeatEvent.getId()));
     }
 }
 
@@ -6980,9 +6957,8 @@ TEST_F(InputDispatcherKeyRepeatTest, FocusedWindow_RepeatKeyEventsUseUniqueEvent
 
     std::unordered_set<int32_t> idSet;
     for (int32_t repeatCount = 1; repeatCount <= 10; ++repeatCount) {
-        KeyEvent* repeatEvent = mWindow->consumeKey();
-        ASSERT_NE(nullptr, repeatEvent) << "Didn't receive event with repeat count " << repeatCount;
-        int32_t id = repeatEvent->getId();
+        const KeyEvent& repeatEvent = mWindow->consumeKey();
+        int32_t id = repeatEvent.getId();
         EXPECT_EQ(idSet.end(), idSet.find(id));
         idSet.insert(id);
     }
@@ -7071,8 +7047,7 @@ TEST_F(InputDispatcherFocusOnTwoDisplaysTest, SetInputWindow_MultiDisplayFocus) 
     mDispatcher->onWindowInfosChanged({{*windowInPrimary->getInfo()}, {}, 0, 0});
 
     // Old focus should receive a cancel event.
-    windowInSecondary->consumeEvent(InputEventType::KEY, AKEY_EVENT_ACTION_UP, ADISPLAY_ID_NONE,
-                                    AKEY_EVENT_FLAG_CANCELED);
+    windowInSecondary->consumeKeyUp(ADISPLAY_ID_NONE, AKEY_EVENT_FLAG_CANCELED);
 
     // Test inject a key down, should timeout because of no target window.
     ASSERT_NO_FATAL_FAILURE(assertInjectedKeyTimesOut(*mDispatcher));
@@ -7550,24 +7525,21 @@ protected:
     void consumeMotionEvent(const sp<FakeWindowHandle>& window, int32_t expectedAction,
                             const std::vector<PointF>& points) {
         const std::string name = window->getName();
-        MotionEvent* motionEvent = window->consumeMotion();
+        const MotionEvent& motionEvent =
+                window->consumeMotionEvent(WithMotionAction(expectedAction));
 
-        ASSERT_NE(nullptr, motionEvent)
-                << name.c_str() << ": consumer should have returned non-NULL event.";
-
-        ASSERT_THAT(*motionEvent, WithMotionAction(expectedAction));
-        ASSERT_EQ(points.size(), motionEvent->getPointerCount());
+        ASSERT_EQ(points.size(), motionEvent.getPointerCount());
 
         for (size_t i = 0; i < points.size(); i++) {
             float expectedX = points[i].x;
             float expectedY = points[i].y;
 
-            EXPECT_EQ(expectedX, motionEvent->getX(i))
+            EXPECT_EQ(expectedX, motionEvent.getX(i))
                     << "expected " << expectedX << " for x[" << i << "] coord of " << name.c_str()
-                    << ", got " << motionEvent->getX(i);
-            EXPECT_EQ(expectedY, motionEvent->getY(i))
+                    << ", got " << motionEvent.getX(i);
+            EXPECT_EQ(expectedY, motionEvent.getY(i))
                     << "expected " << expectedY << " for y[" << i << "] coord of " << name.c_str()
-                    << ", got " << motionEvent->getY(i);
+                    << ", got " << motionEvent.getY(i);
         }
     }
 
@@ -8380,8 +8352,7 @@ TEST_F(InputDispatcherMultiWindowAnr, TwoWindows_BothUnresponsive) {
                                         .build()));
     mFocusedWindow->consumeMotionDown();
     mFocusedWindow->consumeMotionUp();
-    mUnfocusedWindow->consumeEvent(InputEventType::MOTION, AMOTION_EVENT_ACTION_OUTSIDE,
-                                   ADISPLAY_ID_DEFAULT, /*flags=*/0);
+    mUnfocusedWindow->consumeMotionOutside(ADISPLAY_ID_DEFAULT, /*flags=*/0);
     // We consumed all events, so no ANR
     ASSERT_TRUE(mDispatcher->waitForIdle());
     mFakePolicy->assertNotifyAnrWasNotCalled();
@@ -8457,8 +8428,7 @@ TEST_F(InputDispatcherMultiWindowAnr, TwoWindows_BothUnresponsiveWithSameTimeout
 // At the same time, FLAG_WATCH_OUTSIDE_TOUCH targets should not receive any events.
 TEST_F(InputDispatcherMultiWindowAnr, DuringAnr_SecondTapIsIgnored) {
     tapOnFocusedWindow();
-    mUnfocusedWindow->consumeEvent(InputEventType::MOTION, AMOTION_EVENT_ACTION_OUTSIDE,
-                                   ADISPLAY_ID_DEFAULT, /*flags=*/0);
+    mUnfocusedWindow->consumeMotionOutside(ADISPLAY_ID_DEFAULT, /*flags=*/0);
     // Receive the events, but don't respond
     std::optional<uint32_t> downEventSequenceNum = mFocusedWindow->receiveEvent(); // ACTION_DOWN
     ASSERT_TRUE(downEventSequenceNum);
@@ -8590,8 +8560,7 @@ TEST_F(InputDispatcherMultiWindowAnr, SplitTouch_SingleWindowAnr) {
     mDispatcher->notifyMotion(generateMotionArgs(AMOTION_EVENT_ACTION_DOWN,
                                                  AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
                                                  {FOCUSED_WINDOW_LOCATION}));
-    mUnfocusedWindow->consumeEvent(InputEventType::MOTION, AMOTION_EVENT_ACTION_OUTSIDE,
-                                   ADISPLAY_ID_DEFAULT, /*flags=*/0);
+    mUnfocusedWindow->consumeMotionOutside(ADISPLAY_ID_DEFAULT, /*flags=*/0);
 
     // Touch Window 2
     mDispatcher->notifyMotion(
@@ -9930,8 +9899,7 @@ TEST_F(InputDispatcherDragTests, DragAndDropWhenMultiDisplays) {
                                         .displayId(SECOND_DISPLAY_ID)
                                         .pointer(PointerBuilder(0, ToolType::FINGER).x(100).y(100))
                                         .build()));
-    windowInSecondary->consumeEvent(InputEventType::MOTION, AMOTION_EVENT_ACTION_DOWN,
-                                    SECOND_DISPLAY_ID, /*expectedFlag=*/0);
+    windowInSecondary->consumeMotionDown(SECOND_DISPLAY_ID, /*expectedFlag=*/0);
     // Update window again.
     mDispatcher->onWindowInfosChanged(
             {{*mDragWindow->getInfo(), *mSpyWindow->getInfo(), *mWindow->getInfo(),
