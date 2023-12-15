@@ -2135,7 +2135,6 @@ bool InputDispatcher::shouldWaitToSendKeyLocked(nsecs_t currentTime,
 sp<WindowInfoHandle> InputDispatcher::findFocusedWindowTargetLocked(
         nsecs_t currentTime, const EventEntry& entry, nsecs_t* nextWakeupTime,
         InputEventInjectionResult& outInjectionResult) {
-    std::string reason;
     outInjectionResult = InputEventInjectionResult::FAILED; // Default result
 
     int32_t displayId = getTargetDisplayId(entry);
