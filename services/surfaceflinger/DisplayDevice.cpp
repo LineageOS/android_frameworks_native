@@ -222,7 +222,6 @@ bool DisplayDevice::initiateModeChange(display::DisplayModeRequest&& desiredMode
                                        const hal::VsyncPeriodChangeConstraints& constraints,
                                        hal::VsyncPeriodChangeTimeline& outTimeline) {
     mPendingModeOpt = std::move(desiredMode);
-    mIsModeSetPending = true;
 
     const auto& mode = *mPendingModeOpt->mode.modePtr;
 
@@ -235,9 +234,22 @@ bool DisplayDevice::initiateModeChange(display::DisplayModeRequest&& desiredMode
     return true;
 }
 
-void DisplayDevice::finalizeModeChange(DisplayModeId modeId, Fps vsyncRate, Fps renderFps) {
-    setActiveMode(modeId, vsyncRate, renderFps);
-    mIsModeSetPending = false;
+auto DisplayDevice::finalizeModeChange() -> ModeChange {
+    if (!mPendingModeOpt) return NoModeChange{"No pending mode"};
+
+    auto pendingMode = *std::exchange(mPendingModeOpt, std::nullopt);
+    auto& pendingModePtr = pendingMode.mode.modePtr;
+
+    if (!mRefreshRateSelector->displayModes().contains(pendingModePtr->getId())) {
+        return NoModeChange{"Unknown pending mode"};
+    }
+
+    if (getActiveMode().modePtr->getResolution() != pendingModePtr->getResolution()) {
+        return ResolutionChange{std::move(pendingMode)};
+    }
+
+    setActiveMode(pendingModePtr->getId(), pendingModePtr->getVsyncRate(), pendingMode.mode.fps);
+    return RefreshRateChange{std::move(pendingMode)};
 }
 
 nsecs_t DisplayDevice::getVsyncPeriodFromHWC() const {
@@ -571,10 +583,14 @@ auto DisplayDevice::getDesiredMode() const -> DisplayModeRequestOpt {
     return mDesiredModeOpt;
 }
 
-void DisplayDevice::clearDesiredMode() {
-    std::scoped_lock lock(mDesiredModeLock);
-    mDesiredModeOpt.reset();
-    mHasDesiredModeTrace = false;
+auto DisplayDevice::takeDesiredMode() -> DisplayModeRequestOpt {
+    DisplayModeRequestOpt desiredModeOpt;
+    {
+        std::scoped_lock lock(mDesiredModeLock);
+        std::swap(mDesiredModeOpt, desiredModeOpt);
+        mHasDesiredModeTrace = false;
+    }
+    return desiredModeOpt;
 }
 
 void DisplayDevice::adjustRefreshRate(Fps pacesetterDisplayRefreshRate) {
