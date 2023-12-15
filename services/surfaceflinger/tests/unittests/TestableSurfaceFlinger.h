@@ -695,6 +695,21 @@ public:
         mFlinger->mLegacyFrontEndEnabled = false;
     }
 
+    void notifyExpectedPresentIfRequired(PhysicalDisplayId displayId, Period vsyncPeriod,
+                                         TimePoint expectedPresentTime, Fps frameInterval,
+                                         std::optional<Period> timeoutOpt) {
+        mFlinger->notifyExpectedPresentIfRequired(displayId, vsyncPeriod, expectedPresentTime,
+                                                  frameInterval, timeoutOpt);
+    }
+
+    void setNotifyExpectedPresentData(PhysicalDisplayId displayId,
+                                      TimePoint lastExpectedPresentTimestamp,
+                                      Fps lastFrameInterval) {
+        auto& displayData = mFlinger->mNotifyExpectedPresentMap[displayId];
+        displayData.lastExpectedPresentTimestamp = lastExpectedPresentTimestamp;
+        displayData.lastFrameInterval = lastFrameInterval;
+    }
+
     ~TestableSurfaceFlinger() {
         // All these pointer and container clears help ensure that GMock does
         // not report a leaked object, since the SurfaceFlinger instance may

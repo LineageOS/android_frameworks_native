@@ -15,6 +15,7 @@
  */
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
+#include <chrono>
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wconversion"
 
@@ -77,59 +78,6 @@ using aidl::android::hardware::graphics::common::HdrConversionStrategy;
 using aidl::android::hardware::graphics::composer3::Capability;
 using aidl::android::hardware::graphics::composer3::DisplayCapability;
 namespace hal = android::hardware::graphics::composer::hal;
-
-namespace {
-bool isFrameIntervalOnCadence(android::TimePoint expectedPresentTime,
-                              android::TimePoint lastExpectedPresentTimestamp,
-                              android::Fps lastFrameInterval, android::Period timeout,
-                              android::Duration threshold) {
-    if (lastFrameInterval.getPeriodNsecs() == 0) {
-        return false;
-    }
-
-    const auto expectedPresentTimeDeltaNs =
-            expectedPresentTime.ns() - lastExpectedPresentTimestamp.ns();
-
-    if (expectedPresentTimeDeltaNs > timeout.ns()) {
-        return false;
-    }
-
-    const auto expectedPresentPeriods = static_cast<nsecs_t>(
-            std::round(static_cast<float>(expectedPresentTimeDeltaNs) /
-                       static_cast<float>(lastFrameInterval.getPeriodNsecs())));
-    const auto calculatedPeriodsOutNs = lastFrameInterval.getPeriodNsecs() * expectedPresentPeriods;
-    const auto calculatedExpectedPresentTimeNs =
-            lastExpectedPresentTimestamp.ns() + calculatedPeriodsOutNs;
-    const auto presentTimeDelta =
-            std::abs(expectedPresentTime.ns() - calculatedExpectedPresentTimeNs);
-    return presentTimeDelta < threshold.ns();
-}
-
-bool isExpectedPresentWithinTimeout(android::TimePoint expectedPresentTime,
-                                    android::TimePoint lastExpectedPresentTimestamp,
-                                    std::optional<android::Period> timeoutOpt,
-                                    android::Duration threshold) {
-    if (!timeoutOpt) {
-        // Always within timeout if timeoutOpt is absent and don't send hint
-        // for the timeout
-        return true;
-    }
-
-    if (timeoutOpt->ns() == 0) {
-        // Always outside timeout if timeoutOpt is 0 and always send
-        // the hint for the timeout.
-        return false;
-    }
-
-    if (expectedPresentTime.ns() < lastExpectedPresentTimestamp.ns() + timeoutOpt->ns()) {
-        return true;
-    }
-
-    // Check if within the threshold as it can be just outside the timeout
-    return std::abs(expectedPresentTime.ns() -
-                    (lastExpectedPresentTimestamp.ns() + timeoutOpt->ns())) < threshold.ns();
-}
-} // namespace
 
 namespace android {
 
@@ -538,13 +486,6 @@ status_t HWComposer::getDeviceCompositionChanges(
     }();
 
     displayData.validateWasSkipped = false;
-    {
-        std::scoped_lock lock{displayData.expectedPresentLock};
-        if (expectedPresentTime > displayData.lastExpectedPresentTimestamp.ns()) {
-            displayData.lastExpectedPresentTimestamp = TimePoint::fromNs(expectedPresentTime);
-        }
-    }
-
     ATRACE_FORMAT("NextFrameInterval %d_Hz", frameInterval.getIntValue());
     if (canSkipValidate) {
         sp<Fence> outPresentFence = Fence::NO_FENCE;
@@ -939,55 +880,15 @@ status_t HWComposer::setRefreshRateChangedCallbackDebugEnabled(PhysicalDisplayId
     return NO_ERROR;
 }
 
-status_t HWComposer::notifyExpectedPresentIfRequired(PhysicalDisplayId displayId,
-                                                     Period vsyncPeriod,
-                                                     TimePoint expectedPresentTime,
-                                                     Fps frameInterval,
-                                                     std::optional<Period> timeoutOpt) {
+status_t HWComposer::notifyExpectedPresent(PhysicalDisplayId displayId,
+                                           TimePoint expectedPresentTime, Fps frameInterval) {
     RETURN_IF_INVALID_DISPLAY(displayId, BAD_INDEX);
-    auto& displayData = mDisplayData[displayId];
-    if (!displayData.hwcDisplay) {
-        // Display setup has not completed yet
-        return BAD_INDEX;
-    }
-    {
-        std::scoped_lock lock{displayData.expectedPresentLock};
-        const auto lastExpectedPresentTimestamp = displayData.lastExpectedPresentTimestamp;
-        const auto lastFrameInterval = displayData.lastFrameInterval;
-        displayData.lastFrameInterval = frameInterval;
-        const auto threshold = Duration::fromNs(vsyncPeriod.ns() / 2);
-
-        const constexpr nsecs_t kOneSecondNs =
-                std::chrono::duration_cast<std::chrono::nanoseconds>(1s).count();
-        const bool frameIntervalIsOnCadence =
-                isFrameIntervalOnCadence(expectedPresentTime, lastExpectedPresentTimestamp,
-                                         lastFrameInterval,
-                                         Period::fromNs(timeoutOpt && timeoutOpt->ns() > 0
-                                                                ? timeoutOpt->ns()
-                                                                : kOneSecondNs),
-                                         threshold);
-
-        const bool expectedPresentWithinTimeout =
-                isExpectedPresentWithinTimeout(expectedPresentTime, lastExpectedPresentTimestamp,
-                                               timeoutOpt, threshold);
-
-        using fps_approx_ops::operator!=;
-        if (frameIntervalIsOnCadence && frameInterval != lastFrameInterval) {
-            displayData.lastExpectedPresentTimestamp = expectedPresentTime;
-        }
-
-        if (expectedPresentWithinTimeout && frameIntervalIsOnCadence) {
-            return NO_ERROR;
-        }
-
-        displayData.lastExpectedPresentTimestamp = expectedPresentTime;
-    }
-    ATRACE_FORMAT("%s ExpectedPresentTime %" PRId64 " frameIntervalNs %d", __func__,
-                  expectedPresentTime, frameInterval.getPeriodNsecs());
-    const auto error = mComposer->notifyExpectedPresent(displayData.hwcDisplay->getId(),
+    ATRACE_FORMAT("%s ExpectedPresentTime in %.2fms frameInterval %.2fms", __func__,
+                  ticks<std::milli, float>(expectedPresentTime - TimePoint::now()),
+                  ticks<std::milli, float>(Duration::fromNs(frameInterval.getPeriodNsecs())));
+    const auto error = mComposer->notifyExpectedPresent(mDisplayData[displayId].hwcDisplay->getId(),
                                                         expectedPresentTime.ns(),
                                                         frameInterval.getPeriodNsecs());
-
     if (error != hal::Error::NONE) {
         ALOGE("Error in notifyExpectedPresent call %s", to_string(error).c_str());
         return INVALID_OPERATION;

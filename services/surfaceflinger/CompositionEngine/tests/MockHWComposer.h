@@ -148,8 +148,7 @@ public:
     MOCK_METHOD(const aidl::android::hardware::graphics::composer3::OverlayProperties&,
                 getOverlaySupport, (), (const, override));
     MOCK_METHOD(status_t, setRefreshRateChangedCallbackDebugEnabled, (PhysicalDisplayId, bool));
-    MOCK_METHOD(status_t, notifyExpectedPresentIfRequired,
-                (PhysicalDisplayId, Period, TimePoint, Fps, std::optional<Period>));
+    MOCK_METHOD(status_t, notifyExpectedPresent, (PhysicalDisplayId, TimePoint, Fps));
 };
 
 } // namespace mock

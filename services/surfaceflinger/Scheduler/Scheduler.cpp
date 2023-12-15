@@ -630,6 +630,7 @@ bool Scheduler::addResyncSample(PhysicalDisplayId id, nsecs_t timestamp,
 }
 
 void Scheduler::addPresentFence(PhysicalDisplayId id, std::shared_ptr<FenceTime> fence) {
+    ATRACE_NAME(ftl::Concat(__func__, ' ', id.value).c_str());
     const auto scheduleOpt =
             (ftl::FakeGuard(mDisplayLock), mDisplays.get(id)).and_then([](const Display& display) {
                 return display.powerMode == hal::PowerMode::OFF
@@ -640,7 +641,8 @@ void Scheduler::addPresentFence(PhysicalDisplayId id, std::shared_ptr<FenceTime>
     if (!scheduleOpt) return;
     const auto& schedule = scheduleOpt->get();
 
-    if (const bool needMoreSignals = schedule->getController().addPresentFence(std::move(fence))) {
+    const bool needMoreSignals = schedule->getController().addPresentFence(std::move(fence));
+    if (needMoreSignals) {
         schedule->enableHardwareVsync();
     } else {
         constexpr bool kDisallow = false;

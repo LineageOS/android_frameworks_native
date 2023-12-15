@@ -303,10 +303,8 @@ public:
             aidl::android::hardware::graphics::common::HdrConversionStrategy,
             aidl::android::hardware::graphics::common::Hdr*) = 0;
     virtual status_t setRefreshRateChangedCallbackDebugEnabled(PhysicalDisplayId, bool enabled) = 0;
-    virtual status_t notifyExpectedPresentIfRequired(PhysicalDisplayId, Period vsyncPeriod,
-                                                     TimePoint expectedPresentTime,
-                                                     Fps frameInterval,
-                                                     std::optional<Period> timeoutOpt) = 0;
+    virtual status_t notifyExpectedPresent(PhysicalDisplayId, TimePoint expectedPresentTime,
+                                           Fps frameInterval) = 0;
 };
 
 static inline bool operator==(const android::HWComposer::DeviceRequestedChanges& lhs,
@@ -466,9 +464,8 @@ public:
             aidl::android::hardware::graphics::common::HdrConversionStrategy,
             aidl::android::hardware::graphics::common::Hdr*) override;
     status_t setRefreshRateChangedCallbackDebugEnabled(PhysicalDisplayId, bool enabled) override;
-    status_t notifyExpectedPresentIfRequired(PhysicalDisplayId, Period vsyncPeriod,
-                                             TimePoint expectedPresentTime, Fps frameInterval,
-                                             std::optional<Period> timeoutOpt) override;
+    status_t notifyExpectedPresent(PhysicalDisplayId, TimePoint expectedPresentTime,
+                                   Fps frameInterval) override;
 
     // for debugging ----------------------------------------------------------
     void dump(std::string& out) const override;
@@ -494,18 +491,12 @@ public:
 private:
     // For unit tests
     friend TestableSurfaceFlinger;
-    friend HWComposerTest;
 
     struct DisplayData {
         std::unique_ptr<HWC2::Display> hwcDisplay;
 
         sp<Fence> lastPresentFence = Fence::NO_FENCE; // signals when the last set op retires
         nsecs_t lastPresentTimestamp = 0;
-
-        std::mutex expectedPresentLock;
-        TimePoint lastExpectedPresentTimestamp GUARDED_BY(expectedPresentLock) =
-                TimePoint::fromNs(0);
-        Fps lastFrameInterval GUARDED_BY(expectedPresentLock) = Fps::fromValue(0);
 
         std::unordered_map<HWC2::Layer*, sp<Fence>> releaseFences;
 
