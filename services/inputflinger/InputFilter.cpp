@@ -44,31 +44,9 @@ AidlKeyEvent notifyKeyArgsToKeyEvent(const NotifyKeyArgs& args) {
     return event;
 }
 
-NotifyKeyArgs keyEventToNotifyKeyArgs(const AidlKeyEvent& event) {
-    return NotifyKeyArgs(event.id, event.eventTime, event.readTime, event.deviceId,
-                         static_cast<uint32_t>(event.source), event.displayId, event.policyFlags,
-                         static_cast<int32_t>(event.action), event.flags, event.keyCode,
-                         event.scanCode, event.metaState, event.downTime);
-}
-
-namespace {
-
-class RustCallbacks : public IInputFilter::BnInputFilterCallbacks {
-public:
-    RustCallbacks(InputListenerInterface& nextListener) : mNextListener(nextListener) {}
-    ndk::ScopedAStatus sendKeyEvent(const AidlKeyEvent& event) override {
-        mNextListener.notifyKey(keyEventToNotifyKeyArgs(event));
-        return ndk::ScopedAStatus::ok();
-    }
-
-private:
-    InputListenerInterface& mNextListener;
-};
-
-} // namespace
-
 InputFilter::InputFilter(InputListenerInterface& listener, IInputFlingerRust& rust)
-      : mNextListener(listener), mCallbacks(ndk::SharedRefBase::make<RustCallbacks>(listener)) {
+      : mNextListener(listener),
+        mCallbacks(ndk::SharedRefBase::make<InputFilterCallbacks>(listener)) {
     LOG_ALWAYS_FATAL_IF(!rust.createInputFilter(mCallbacks, &mInputFilterRust).isOk());
     LOG_ALWAYS_FATAL_IF(!mInputFilterRust);
 }
@@ -92,11 +70,11 @@ void InputFilter::notifyConfigurationChanged(const NotifyConfigurationChangedArg
 }
 
 void InputFilter::notifyKey(const NotifyKeyArgs& args) {
-    if (!isFilterEnabled()) {
-        mNextListener.notifyKey(args);
+    if (isFilterEnabled()) {
+        LOG_ALWAYS_FATAL_IF(!mInputFilterRust->notifyKey(notifyKeyArgsToKeyEvent(args)).isOk());
         return;
     }
-    LOG_ALWAYS_FATAL_IF(!mInputFilterRust->notifyKey(notifyKeyArgsToKeyEvent(args)).isOk());
+    mNextListener.notifyKey(args);
 }
 
 void InputFilter::notifyMotion(const NotifyMotionArgs& args) {
@@ -134,6 +112,15 @@ void InputFilter::setAccessibilityBounceKeysThreshold(nsecs_t threshold) {
 
     if (mConfig.bounceKeysThresholdNs != threshold) {
         mConfig.bounceKeysThresholdNs = threshold;
+        LOG_ALWAYS_FATAL_IF(!mInputFilterRust->notifyConfigurationChanged(mConfig).isOk());
+    }
+}
+
+void InputFilter::setAccessibilityStickyKeysEnabled(bool enabled) {
+    std::scoped_lock _l(mLock);
+
+    if (mConfig.stickyKeysEnabled != enabled) {
+        mConfig.stickyKeysEnabled = enabled;
         LOG_ALWAYS_FATAL_IF(!mInputFilterRust->notifyConfigurationChanged(mConfig).isOk());
     }
 }
