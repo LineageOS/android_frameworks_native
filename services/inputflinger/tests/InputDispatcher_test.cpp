@@ -665,7 +665,7 @@ protected:
 
     void SetUp() override {
         mFakePolicy = std::make_unique<FakeInputDispatcherPolicy>();
-        mDispatcher = std::make_unique<InputDispatcher>(*mFakePolicy);
+        mDispatcher = std::make_unique<InputDispatcher>(*mFakePolicy, nullptr);
 
         mDispatcher->setInputDispatchMode(/*enabled=*/true, /*frozen=*/false);
         // Start InputDispatcher thread
@@ -7090,12 +7090,9 @@ protected:
     sp<FakeWindowHandle> mWindow;
 
     virtual void SetUp() override {
-        mFakePolicy = std::make_unique<FakeInputDispatcherPolicy>();
-        mDispatcher = std::make_unique<InputDispatcher>(*mFakePolicy);
-        mDispatcher->setInputDispatchMode(/*enabled=*/true, /*frozen=*/false);
-        mDispatcher->setKeyRepeatConfiguration(KEY_REPEAT_TIMEOUT, KEY_REPEAT_DELAY);
-        ASSERT_EQ(OK, mDispatcher->start());
+        InputDispatcherTest::SetUp();
 
+        mDispatcher->setKeyRepeatConfiguration(KEY_REPEAT_TIMEOUT, KEY_REPEAT_DELAY);
         setUpWindow();
     }
 

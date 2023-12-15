@@ -51,6 +51,8 @@
 #include "Connection.h"
 #include "DebugConfig.h"
 #include "InputDispatcher.h"
+#include "trace/InputTracer.h"
+#include "trace/InputTracingPerfettoBackend.h"
 
 #define INDENT "  "
 #define INDENT2 "    "
@@ -74,6 +76,14 @@ namespace input_flags = com::android::input::flags;
 namespace android::inputdispatcher {
 
 namespace {
+
+// Input tracing is only available on debuggable builds (userdebug and eng) when the feature
+// flag is enabled. When the flag is changed, tracing will only be available after reboot.
+bool isInputTracingEnabled() {
+    static const std::string buildType = base::GetProperty("ro.build.type", "user");
+    static const bool isUserdebugOrEng = buildType == "userdebug" || buildType == "eng";
+    return input_flags::enable_input_event_tracing() && isUserdebugOrEng;
+}
 
 template <class Entry>
 void ensureEventTraced(const Entry& entry) {
@@ -804,7 +814,9 @@ int32_t getUserActivityEventType(const EventEntry& eventEntry) {
 // --- InputDispatcher ---
 
 InputDispatcher::InputDispatcher(InputDispatcherPolicyInterface& policy)
-      : InputDispatcher(policy, nullptr) {}
+      : InputDispatcher(policy,
+                        isInputTracingEnabled() ? std::make_unique<trace::impl::PerfettoBackend>()
+                                                : nullptr) {}
 
 InputDispatcher::InputDispatcher(InputDispatcherPolicyInterface& policy,
                                  std::unique_ptr<trace::InputTracingBackendInterface> traceBackend)
@@ -833,7 +845,7 @@ InputDispatcher::InputDispatcher(InputDispatcherPolicyInterface& policy,
     mKeyRepeatState.lastKeyEntry = nullptr;
 
     if (traceBackend) {
-        // TODO: Create input tracer instance.
+        mTracer = std::make_unique<trace::impl::InputTracer>(std::move(traceBackend));
     }
 
     mLastUserActivityTimes.fill(0);
