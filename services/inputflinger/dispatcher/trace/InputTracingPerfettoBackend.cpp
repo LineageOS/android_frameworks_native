@@ -81,8 +81,14 @@ void PerfettoBackend::traceKeyEvent(const TracedKeyEvent& event) const {
     });
 }
 
-void PerfettoBackend::traceWindowDispatch(const WindowDispatchArgs&) const {
-    // TODO(b/210460522): Implement.
+void PerfettoBackend::traceWindowDispatch(const WindowDispatchArgs& dispatchArgs) const {
+    InputEventDataSource::Trace([&](InputEventDataSource::TraceContext ctx) {
+        auto tracePacket = ctx.NewTracePacket();
+        auto* inputEventProto = tracePacket->set_android_input_event();
+        auto* dispatchEventProto = inputEventProto->set_dispatcher_window_dispatch_event();
+        AndroidInputEventProtoConverter::toProtoWindowDispatchEvent(dispatchArgs,
+                                                                    *dispatchEventProto);
+    });
 }
 
 } // namespace android::inputdispatcher::trace::impl

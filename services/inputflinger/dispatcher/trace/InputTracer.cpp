@@ -19,6 +19,7 @@
 #include "InputTracer.h"
 
 #include <android-base/logging.h>
+#include <utils/AndroidThreads.h>
 
 namespace android::inputdispatcher::trace::impl {
 
@@ -112,43 +113,86 @@ void InputTracer::eventProcessingComplete(const EventTrackerInterface& cookie) {
 }
 
 void InputTracer::traceEventDispatch(const DispatchEntry& dispatchEntry,
-                                     const EventTrackerInterface* cookie) {}
+                                     const EventTrackerInterface* cookie) {
+    {
+        std::scoped_lock lock(mLock);
+        const EventEntry& entry = *dispatchEntry.eventEntry;
+
+        TracedEvent traced;
+        if (entry.type == EventEntry::Type::MOTION) {
+            const auto& motion = static_cast<const MotionEntry&>(entry);
+            traced = createTracedEvent(motion);
+        } else if (entry.type == EventEntry::Type::KEY) {
+            const auto& key = static_cast<const KeyEntry&>(entry);
+            traced = createTracedEvent(key);
+        } else {
+            LOG(FATAL) << "Cannot trace EventEntry of type: " << ftl::enum_string(entry.type);
+        }
+
+        if (!cookie) {
+            // This event was not tracked as an inbound event, so trace it now.
+            mTraceQueue.emplace_back(traced);
+        }
+
+        // The vsyncId only has meaning if the event is targeting a window.
+        const int32_t windowId = dispatchEntry.windowId.value_or(0);
+        const int32_t vsyncId = dispatchEntry.windowId.has_value() ? dispatchEntry.vsyncId : 0;
+
+        mDispatchTraceQueue.emplace_back(std::move(traced), dispatchEntry.deliveryTime,
+                                         dispatchEntry.resolvedFlags, dispatchEntry.targetUid,
+                                         vsyncId, windowId, dispatchEntry.transform,
+                                         dispatchEntry.rawTransform);
+    } // release lock
+
+    mThreadWakeCondition.notify_all();
+}
 
 std::optional<InputTracer::EventState>& InputTracer::getState(const EventTrackerInterface& cookie) {
     return static_cast<const EventTrackerImpl&>(cookie).mLockedState;
 }
 
 void InputTracer::threadLoop() {
+    androidSetThreadName("InputTracer");
+
     while (true) {
         std::vector<const EventState> eventsToTrace;
+        std::vector<const WindowDispatchArgs> dispatchEventsToTrace;
         {
             std::unique_lock lock(mLock);
             base::ScopedLockAssertion assumeLocked(mLock);
             if (mThreadExit) {
                 return;
             }
-            if (mTraceQueue.empty()) {
+            if (mTraceQueue.empty() && mDispatchTraceQueue.empty()) {
                 // Wait indefinitely until the thread is awoken.
                 mThreadWakeCondition.wait(lock);
             }
 
             mTraceQueue.swap(eventsToTrace);
+            mDispatchTraceQueue.swap(dispatchEventsToTrace);
         } // release lock
 
         // Trace the events into the backend without holding the lock to reduce the amount of
         // work performed in the critical section.
-        writeEventsToBackend(eventsToTrace);
+        writeEventsToBackend(eventsToTrace, dispatchEventsToTrace);
         eventsToTrace.clear();
+        dispatchEventsToTrace.clear();
     }
 }
 
-void InputTracer::writeEventsToBackend(const std::vector<const EventState>& events) {
+void InputTracer::writeEventsToBackend(
+        const std::vector<const EventState>& events,
+        const std::vector<const WindowDispatchArgs>& dispatchEvents) {
     for (const auto& event : events) {
         if (auto* motion = std::get_if<TracedMotionEvent>(&event.event); motion != nullptr) {
             mBackend->traceMotionEvent(*motion);
         } else {
             mBackend->traceKeyEvent(std::get<TracedKeyEvent>(event.event));
         }
+    }
+
+    for (const auto& dispatchArgs : dispatchEvents) {
+        mBackend->traceWindowDispatch(dispatchArgs);
     }
 }
 

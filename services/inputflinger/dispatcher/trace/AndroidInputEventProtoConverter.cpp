@@ -71,4 +71,39 @@ void AndroidInputEventProtoConverter::toProtoKeyEvent(const TracedKeyEvent& even
     outProto.set_policy_flags(event.policyFlags);
 }
 
+void AndroidInputEventProtoConverter::toProtoWindowDispatchEvent(
+        const InputTracingBackendInterface::WindowDispatchArgs& args,
+        proto::AndroidWindowInputDispatchEvent& outProto) {
+    std::visit([&](auto entry) { outProto.set_event_id(entry.id); }, args.eventEntry);
+    outProto.set_vsync_id(args.vsyncId);
+    outProto.set_window_id(args.windowId);
+    outProto.set_resolved_flags(args.resolvedFlags);
+
+    if (auto* motion = std::get_if<TracedMotionEvent>(&args.eventEntry); motion != nullptr) {
+        for (size_t i = 0; i < motion->pointerProperties.size(); i++) {
+            auto* pointerProto = outProto.add_dispatched_pointer();
+            pointerProto->set_pointer_id(motion->pointerProperties[i].id);
+            const auto rawXY =
+                    MotionEvent::calculateTransformedXY(motion->source, args.rawTransform,
+                                                        motion->pointerCoords[i].getXYValue());
+            pointerProto->set_x_in_display(rawXY.x);
+            pointerProto->set_y_in_display(rawXY.y);
+
+            const auto& coords = motion->pointerCoords[i];
+            const auto coordsInWindow =
+                    MotionEvent::calculateTransformedCoords(motion->source, args.transform, coords);
+            auto bits = BitSet64(coords.bits);
+            for (int32_t axisIndex = 0; !bits.isEmpty(); axisIndex++) {
+                const uint32_t axis = bits.clearFirstMarkedBit();
+                const float axisValueInWindow = coordsInWindow.values[axisIndex];
+                if (coords.values[axisIndex] != axisValueInWindow) {
+                    auto* axisEntry = pointerProto->add_axis_value_in_window();
+                    axisEntry->set_axis(axis);
+                    axisEntry->set_value(axisValueInWindow);
+                }
+            }
+        }
+    }
+}
+
 } // namespace android::inputdispatcher::trace

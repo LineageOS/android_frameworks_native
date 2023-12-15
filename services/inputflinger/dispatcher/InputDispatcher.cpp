@@ -35,6 +35,7 @@
 #include <input/PrintTools.h>
 #include <input/TraceTools.h>
 #include <openssl/mem.h>
+#include <private/android_filesystem_config.h>
 #include <unistd.h>
 #include <utils/Trace.h>
 
@@ -369,14 +370,22 @@ size_t firstMarkedBit(T set) {
     return i;
 }
 
-std::unique_ptr<DispatchEntry> createDispatchEntry(
-        const InputTarget& inputTarget, std::shared_ptr<const EventEntry> eventEntry,
-        ftl::Flags<InputTarget::Flags> inputTargetFlags) {
+std::unique_ptr<DispatchEntry> createDispatchEntry(const InputTarget& inputTarget,
+                                                   std::shared_ptr<const EventEntry> eventEntry,
+                                                   ftl::Flags<InputTarget::Flags> inputTargetFlags,
+                                                   int64_t vsyncId) {
+    const sp<WindowInfoHandle> win = inputTarget.windowHandle;
+    const std::optional<int32_t> windowId =
+            win ? std::make_optional(win->getInfo()->id) : std::nullopt;
+    // Assume the only targets that are not associated with a window are global monitors, and use
+    // the system UID for global monitors for tracing purposes.
+    const gui::Uid uid = win ? win->getInfo()->ownerUid : gui::Uid(AID_SYSTEM);
     if (inputTarget.useDefaultPointerTransform()) {
         const ui::Transform& transform = inputTarget.getDefaultPointerTransform();
         return std::make_unique<DispatchEntry>(eventEntry, inputTargetFlags, transform,
                                                inputTarget.displayTransform,
-                                               inputTarget.globalScaleFactor);
+                                               inputTarget.globalScaleFactor, uid, vsyncId,
+                                               windowId);
     }
 
     ALOG_ASSERT(eventEntry->type == EventEntry::Type::MOTION);
@@ -423,7 +432,7 @@ std::unique_ptr<DispatchEntry> createDispatchEntry(
     std::unique_ptr<DispatchEntry> dispatchEntry =
             std::make_unique<DispatchEntry>(std::move(combinedMotionEntry), inputTargetFlags,
                                             firstPointerTransform, inputTarget.displayTransform,
-                                            inputTarget.globalScaleFactor);
+                                            inputTarget.globalScaleFactor, uid, vsyncId, windowId);
     return dispatchEntry;
 }
 
@@ -3345,10 +3354,11 @@ void InputDispatcher::enqueueDispatchEntryAndStartDispatchCycleLocked(
 void InputDispatcher::enqueueDispatchEntryLocked(const std::shared_ptr<Connection>& connection,
                                                  std::shared_ptr<const EventEntry> eventEntry,
                                                  const InputTarget& inputTarget) {
+    // TODO(b/210460522): Verify all targets excluding global monitors are associated with a window.
     // This is a new event.
     // Enqueue a new dispatch entry onto the outbound queue for this connection.
     std::unique_ptr<DispatchEntry> dispatchEntry =
-            createDispatchEntry(inputTarget, eventEntry, inputTarget.flags);
+            createDispatchEntry(inputTarget, eventEntry, inputTarget.flags, mWindowInfosVsyncId);
 
     // Use the eventEntry from dispatchEntry since the entry may have changed and can now be a
     // different EventEntry than what was passed in.
@@ -3467,7 +3477,7 @@ void InputDispatcher::enqueueDispatchEntryLocked(const std::shared_ptr<Connectio
                           << cancelEvent->getDescription();
                 std::unique_ptr<DispatchEntry> cancelDispatchEntry =
                         createDispatchEntry(inputTarget, std::move(cancelEvent),
-                                            ftl::Flags<InputTarget::Flags>());
+                                            ftl::Flags<InputTarget::Flags>(), mWindowInfosVsyncId);
 
                 // Send these cancel events to the queue before sending the event from the new
                 // device.

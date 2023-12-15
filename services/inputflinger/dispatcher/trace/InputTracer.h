@@ -68,6 +68,8 @@ private:
         //  dispatch target UIDs.
     };
     std::vector<const EventState> mTraceQueue GUARDED_BY(mLock);
+    using WindowDispatchArgs = InputTracingBackendInterface::WindowDispatchArgs;
+    std::vector<const WindowDispatchArgs> mDispatchTraceQueue GUARDED_BY(mLock);
 
     // Provides thread-safe access to the state from an event tracker cookie.
     std::optional<EventState>& getState(const EventTrackerInterface&) REQUIRES(mLock);
@@ -90,7 +92,8 @@ private:
     };
 
     void threadLoop();
-    void writeEventsToBackend(const std::vector<const EventState>& events);
+    void writeEventsToBackend(const std::vector<const EventState>& events,
+                              const std::vector<const WindowDispatchArgs>& dispatchEvents);
 };
 
 } // namespace android::inputdispatcher::trace::impl

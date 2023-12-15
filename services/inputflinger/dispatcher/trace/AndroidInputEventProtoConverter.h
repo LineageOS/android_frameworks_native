@@ -32,6 +32,8 @@ public:
     static void toProtoMotionEvent(const TracedMotionEvent& event,
                                    proto::AndroidMotionEvent& outProto);
     static void toProtoKeyEvent(const TracedKeyEvent& event, proto::AndroidKeyEvent& outProto);
+    static void toProtoWindowDispatchEvent(const InputTracingBackendInterface::WindowDispatchArgs&,
+                                           proto::AndroidWindowInputDispatchEvent& outProto);
 };
 
 } // namespace android::inputdispatcher::trace
