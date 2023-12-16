@@ -72,7 +72,8 @@ using android::os::InputEventInjectionResult;
 using android::os::InputEventInjectionSync;
 namespace input_flags = com::android::input::flags;
 
-static const bool REMOVE_APP_SWITCH_DROPS = input_flags::remove_app_switch_drops();
+// TODO(b/312714754): remove the corresponding code, as well.
+static const bool REMOVE_APP_SWITCH_DROPS = true;
 
 namespace android::inputdispatcher {
 
