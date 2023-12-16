@@ -258,7 +258,9 @@ cc_defaults {
         "-DBINDER_DISABLE_NATIVE_HANDLE",
         "-DBINDER_DISABLE_BLOB",
         "-DBINDER_NO_LIBBASE",
+        // TODO: switch to "vendor: true" rather than copying this
         // Trusty libbinder uses vendor stability for its binders
+        "-D__ANDROID_VENDOR__",
         "-D__ANDROID_VNDK__",
         "-U__ANDROID__",
         "-D__TRUSTY__",
