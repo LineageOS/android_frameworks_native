@@ -52,7 +52,7 @@ bool LayerTraceGenerator::generate(const perfetto::protos::TransactionTraceFile&
 
     // frontend
     frontend::LayerLifecycleManager lifecycleManager;
-    frontend::LayerHierarchyBuilder hierarchyBuilder{{}};
+    frontend::LayerHierarchyBuilder hierarchyBuilder;
     frontend::LayerSnapshotBuilder snapshotBuilder;
     ui::DisplayMap<ui::LayerStack, frontend::DisplayInfo> displayInfos;
 
@@ -119,12 +119,10 @@ bool LayerTraceGenerator::generate(const perfetto::protos::TransactionTraceFile&
         lifecycleManager.applyTransactions(transactions, /*ignoreUnknownHandles=*/true);
         lifecycleManager.onHandlesDestroyed(destroyedHandles, /*ignoreUnknownHandles=*/true);
 
-        if (lifecycleManager.getGlobalChanges().test(
-                    frontend::RequestedLayerState::Changes::Hierarchy)) {
-            hierarchyBuilder.update(lifecycleManager.getLayers(),
-                                    lifecycleManager.getDestroyedLayers());
-        }
+        // update hierarchy
+        hierarchyBuilder.update(lifecycleManager);
 
+        // update snapshots
         frontend::LayerSnapshotBuilder::Args args{.root = hierarchyBuilder.getHierarchy(),
                                                   .layerLifecycleManager = lifecycleManager,
                                                   .displays = displayInfos,
