@@ -433,6 +433,10 @@ VulkanInterface initVulkanInterface(bool protectedContent = false) {
     // Looks like this would slow things down and we can't depend on it on all platforms
     interface.physicalDeviceFeatures2->features.robustBufferAccess = VK_FALSE;
 
+    if (protectedContent && !interface.protectedMemoryFeatures->protectedMemory) {
+        BAIL("Protected memory not supported");
+    }
+
     float queuePriorities[1] = {0.0f};
     void* queueNextPtr = nullptr;
 

@@ -41,14 +41,16 @@ static constexpr int32_t MAX_RANDOM_WINDOWS = 4;
 class NotifyStreamProvider {
 public:
     NotifyStreamProvider(FuzzedDataProvider& fdp)
-          : mFdp(fdp), mIdGenerator(IdGenerator::Source::OTHER), mVerifier("Fuzz verifier") {}
+          : mFdp(fdp), mIdGenerator(IdGenerator::Source::OTHER) {}
 
     std::optional<NotifyMotionArgs> nextMotion() {
         NotifyMotionArgs args = generateFuzzedMotionArgs(mIdGenerator, mFdp, MAX_RANDOM_DISPLAYS);
+        auto [it, _] = mVerifiers.emplace(args.displayId, "Fuzz Verifier");
+        InputVerifier& verifier = it->second;
         const Result<void> result =
-                mVerifier.processMovement(args.deviceId, args.source, args.action,
-                                          args.getPointerCount(), args.pointerProperties.data(),
-                                          args.pointerCoords.data(), args.flags);
+                verifier.processMovement(args.deviceId, args.source, args.action,
+                                         args.getPointerCount(), args.pointerProperties.data(),
+                                         args.pointerCoords.data(), args.flags);
         if (result.ok()) {
             return args;
         }
@@ -60,8 +62,29 @@ private:
 
     IdGenerator mIdGenerator;
 
-    InputVerifier mVerifier;
+    std::map<int32_t /*displayId*/, InputVerifier> mVerifiers;
 };
+
+void scrambleWindow(FuzzedDataProvider& fdp, FakeWindowHandle& window) {
+    const int32_t left = fdp.ConsumeIntegralInRange<int32_t>(0, 100);
+    const int32_t top = fdp.ConsumeIntegralInRange<int32_t>(0, 100);
+    const int32_t width = fdp.ConsumeIntegralInRange<int32_t>(0, 100);
+    const int32_t height = fdp.ConsumeIntegralInRange<int32_t>(0, 100);
+
+    window.setFrame(Rect(left, top, left + width, top + height));
+    window.setSlippery(fdp.ConsumeBool());
+    window.setDupTouchToWallpaper(fdp.ConsumeBool());
+    window.setIsWallpaper(fdp.ConsumeBool());
+    window.setVisible(fdp.ConsumeBool());
+    window.setPreventSplitting(fdp.ConsumeBool());
+    const bool isTrustedOverlay = fdp.ConsumeBool();
+    window.setTrustedOverlay(isTrustedOverlay);
+    if (isTrustedOverlay) {
+        window.setSpy(fdp.ConsumeBool());
+    } else {
+        window.setSpy(false);
+    }
+}
 
 } // namespace
 
@@ -71,17 +94,9 @@ sp<FakeWindowHandle> generateFuzzedWindow(FuzzedDataProvider& fdp, InputDispatch
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
     std::string windowName = android::base::StringPrintf("Win") + std::to_string(windowNumber++);
     sp<FakeWindowHandle> window =
-            sp<FakeWindowHandle>::make(application, dispatcher, "Fake", displayId);
+            sp<FakeWindowHandle>::make(application, dispatcher, windowName, displayId);
 
-    const int32_t left = fdp.ConsumeIntegralInRange<int32_t>(0, 100);
-    const int32_t top = fdp.ConsumeIntegralInRange<int32_t>(0, 100);
-    const int32_t width = fdp.ConsumeIntegralInRange<int32_t>(0, 100);
-    const int32_t height = fdp.ConsumeIntegralInRange<int32_t>(0, 100);
-
-    window->setFrame(Rect(left, top, left + width, top + height));
-    window->setSlippery(fdp.ConsumeBool());
-    window->setDupTouchToWallpaper(fdp.ConsumeBool());
-    window->setTrustedOverlay(fdp.ConsumeBool());
+    scrambleWindow(fdp, *window);
     return window;
 }
 
@@ -111,7 +126,14 @@ void randomizeWindows(
                     windowsPerDisplay.erase(displayId);
                 }
             },
-            // Could also clone a window, change flags, reposition, etc...
+            // Change flags or move some of the existing windows
+            [&]() -> void {
+                for (auto& window : windows) {
+                    if (fdp.ConsumeBool()) {
+                        scrambleWindow(fdp, *window);
+                    }
+                }
+            },
     })();
 }
 

@@ -106,6 +106,26 @@ GraphicBuffer::GraphicBuffer(const native_handle_t* inHandle, HandleWrapMethod m
                                 inUsage, inStride);
 }
 
+GraphicBuffer::GraphicBuffer(const GraphicBufferAllocator::AllocationRequest& request)
+      : GraphicBuffer() {
+    GraphicBufferAllocator& allocator = GraphicBufferAllocator::get();
+    auto result = allocator.allocate(request);
+    mInitCheck = result.status;
+    if (result.status == NO_ERROR) {
+        handle = result.handle;
+        stride = result.stride;
+
+        mBufferMapper.getTransportSize(handle, &mTransportNumFds, &mTransportNumInts);
+
+        width = static_cast<int>(request.width);
+        height = static_cast<int>(request.height);
+        format = request.format;
+        layerCount = request.layerCount;
+        usage = request.usage;
+        usage_deprecated = int(usage);
+    }
+}
+
 GraphicBuffer::~GraphicBuffer()
 {
     ATRACE_CALL();
@@ -141,6 +161,10 @@ ANativeWindowBuffer* GraphicBuffer::getNativeBuffer() const
 {
     return static_cast<ANativeWindowBuffer*>(
             const_cast<GraphicBuffer*>(this));
+}
+
+status_t GraphicBuffer::getDataspace(ui::Dataspace* outDataspace) const {
+    return mBufferMapper.getDataspace(handle, outDataspace);
 }
 
 status_t GraphicBuffer::reallocate(uint32_t inWidth, uint32_t inHeight,

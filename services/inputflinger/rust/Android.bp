@@ -38,6 +38,7 @@ rust_defaults {
     rustlibs: [
         "libcxx",
         "com.android.server.inputflinger-rust",
+        "android.hardware.input.common-V1-rust",
         "libbinder_rs",
         "liblog_rust",
         "liblogger",

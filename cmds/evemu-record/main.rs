@@ -26,7 +26,7 @@ use std::io;
 use std::io::{BufRead, Write};
 use std::path::PathBuf;
 
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use nix::sys::time::TimeVal;
 
 mod evdev;
@@ -39,6 +39,19 @@ struct Args {
     device: Option<PathBuf>,
     /// The file to save the recording to. Defaults to standard output.
     output_file: Option<PathBuf>,
+
+    /// The base time that timestamps should be relative to (Android-specific extension)
+    #[arg(long, value_enum, default_value_t = TimestampBase::FirstEvent)]
+    timestamp_base: TimestampBase,
+}
+
+#[derive(Clone, Debug, ValueEnum)]
+enum TimestampBase {
+    /// The first event received from the device.
+    FirstEvent,
+
+    /// The time when the system booted.
+    Boot,
 }
 
 fn get_choice(max: u32) -> u32 {
@@ -149,7 +162,11 @@ fn print_device_description(
     Ok(())
 }
 
-fn print_events(device: &evdev::Device, output: &mut impl Write) -> Result<(), Box<dyn Error>> {
+fn print_events(
+    device: &evdev::Device,
+    output: &mut impl Write,
+    timestamp_base: TimestampBase,
+) -> Result<(), Box<dyn Error>> {
     fn print_event(output: &mut impl Write, event: &evdev::InputEvent) -> Result<(), io::Error> {
         // TODO(b/302297266): Translate events into human-readable names and add those as comments.
         writeln!(
@@ -164,12 +181,15 @@ fn print_events(device: &evdev::Device, output: &mut impl Write) -> Result<(), B
         Ok(())
     }
     let event = device.read_event()?;
-    // Due to a bug in the C implementation of evemu-play [0] that has since become part of the API,
-    // the timestamp of the first event in a recording shouldn't be exactly 0.0 seconds, so offset
-    // it by 1µs.
-    //
-    // [0]: https://gitlab.freedesktop.org/libevdev/evemu/-/commit/eba96a4d2be7260b5843e65c4b99c8b06a1f4c9d
-    let start_time = event.time - TimeVal::new(0, 1);
+    let start_time = match timestamp_base {
+        // Due to a bug in the C implementation of evemu-play [0] that has since become part of the
+        // API, the timestamp of the first event in a recording shouldn't be exactly 0.0 seconds,
+        // so offset it by 1µs.
+        //
+        // [0]: https://gitlab.freedesktop.org/libevdev/evemu/-/commit/eba96a4d2be7260b5843e65c4b99c8b06a1f4c9d
+        TimestampBase::FirstEvent => event.time - TimeVal::new(0, 1),
+        TimestampBase::Boot => TimeVal::new(0, 0),
+    };
     print_event(output, &event.offset_time_by(start_time))?;
     loop {
         let event = device.read_event()?;
@@ -188,6 +208,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         None => Box::new(io::stdout().lock()),
     };
     print_device_description(&device, &mut output)?;
-    print_events(&device, &mut output)?;
+    print_events(&device, &mut output, args.timestamp_base)?;
     Ok(())
 }

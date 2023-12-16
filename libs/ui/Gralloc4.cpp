@@ -468,8 +468,8 @@ status_t Gralloc4Mapper::isSupported(uint32_t width, uint32_t height, PixelForma
                                      uint32_t layerCount, uint64_t usage,
                                      bool* outSupported) const {
     IMapper::BufferDescriptorInfo descriptorInfo;
-    if (auto error = sBufferDescriptorInfo("isSupported", width, height, format, layerCount, usage,
-                                           &descriptorInfo) != OK) {
+    if (sBufferDescriptorInfo("isSupported", width, height, format, layerCount, usage,
+                              &descriptorInfo) != OK) {
         // Usage isn't known to the HAL or otherwise failed validation.
         *outSupported = false;
         return OK;
@@ -1069,7 +1069,7 @@ std::string Gralloc4Allocator::dumpDebugInfo(bool less) const {
 
 status_t Gralloc4Allocator::allocate(std::string requestorName, uint32_t width, uint32_t height,
                                      android::PixelFormat format, uint32_t layerCount,
-                                     uint64_t usage, uint32_t bufferCount, uint32_t* outStride,
+                                     uint64_t usage, uint32_t* outStride,
                                      buffer_handle_t* outBufferHandles, bool importBuffers) const {
     IMapper::BufferDescriptorInfo descriptorInfo;
     if (auto error = sBufferDescriptorInfo(requestorName, width, height, format, layerCount, usage,
@@ -1083,6 +1083,8 @@ status_t Gralloc4Allocator::allocate(std::string requestorName, uint32_t width, 
     if (error != NO_ERROR) {
         return error;
     }
+
+    constexpr auto bufferCount = 1;
 
     if (mAidlAllocator) {
         AllocationResult result;

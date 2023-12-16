@@ -31,6 +31,7 @@ namespace inputdispatcher {
 // Focus tracking for touch.
 struct TouchedWindow {
     sp<gui::WindowInfoHandle> windowHandle;
+    InputTarget::DispatchMode dispatchMode = InputTarget::DispatchMode::AS_IS;
     ftl::Flags<InputTarget::Flags> targetFlags;
 
     // Hovering
@@ -48,15 +49,7 @@ struct TouchedWindow {
     void addTouchingPointers(DeviceId deviceId, std::bitset<MAX_POINTER_ID + 1> pointers);
     void removeTouchingPointer(DeviceId deviceId, int32_t pointerId);
     void removeTouchingPointers(DeviceId deviceId, std::bitset<MAX_POINTER_ID + 1> pointers);
-    /**
-     * Get the currently active touching device id. If there isn't exactly 1 touching device, return
-     * nullopt.
-     */
     std::set<DeviceId> getTouchingDeviceIds() const;
-    /**
-     * The ids of devices that are currently touching or hovering.
-     */
-    std::set<DeviceId> getActiveDeviceIds() const;
 
     // Pilfering pointers
     bool hasPilferingPointers(DeviceId deviceId) const;

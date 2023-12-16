@@ -132,8 +132,8 @@ void logFatalTexture(const char* msg, const GrBackendTexture& tex, ui::Dataspace
                              "\n\tGrBackendTexture: (%i x %i) hasMipmaps: %i isProtected: %i "
                              "texType: %i\n\t\tGrGLTextureInfo: success: %i fTarget: %u fFormat: %u"
                              " colorType %i",
-                             msg, tex.isValid(), dataspace, tex.width(), tex.height(),
-                             tex.hasMipmaps(), tex.isProtected(),
+                             msg, tex.isValid(), static_cast<int32_t>(dataspace), tex.width(),
+                             tex.height(), tex.hasMipmaps(), tex.isProtected(),
                              static_cast<int>(tex.textureType()), retrievedTextureInfo,
                              textureInfo.fTarget, textureInfo.fFormat, colorType);
             break;

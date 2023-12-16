@@ -19,6 +19,7 @@
 
 #include <ui/Gralloc5.h>
 
+#include <aidl/android/hardware/graphics/allocator/AllocationError.h>
 #include <aidlcommonsupport/NativeHandle.h>
 #include <android/binder_manager.h>
 #include <android/hardware/graphics/mapper/utils/IMapperMetadataTypes.h>
@@ -215,55 +216,75 @@ std::string Gralloc5Allocator::dumpDebugInfo(bool less) const {
 
 status_t Gralloc5Allocator::allocate(std::string requestorName, uint32_t width, uint32_t height,
                                      android::PixelFormat format, uint32_t layerCount,
-                                     uint64_t usage, uint32_t bufferCount, uint32_t *outStride,
-                                     buffer_handle_t *outBufferHandles, bool importBuffers) const {
-    auto descriptorInfo = makeDescriptor(requestorName, width, height, format, layerCount, usage);
+                                     uint64_t usage, uint32_t* outStride,
+                                     buffer_handle_t* outBufferHandles, bool importBuffers) const {
+    auto result = allocate(GraphicBufferAllocator::AllocationRequest{
+            .importBuffer = importBuffers,
+            .width = width,
+            .height = height,
+            .format = format,
+            .layerCount = layerCount,
+            .usage = usage,
+            .requestorName = requestorName,
+    });
+
+    *outStride = result.stride;
+    outBufferHandles[0] = result.handle;
+    return result.status;
+}
+
+GraphicBufferAllocator::AllocationResult Gralloc5Allocator::allocate(
+        const GraphicBufferAllocator::AllocationRequest& request) const {
+    auto descriptorInfo = makeDescriptor(request.requestorName, request.width, request.height,
+                                         request.format, request.layerCount, request.usage);
     if (!descriptorInfo) {
-        return BAD_VALUE;
+        return GraphicBufferAllocator::AllocationResult{BAD_VALUE};
+    }
+
+    descriptorInfo->additionalOptions.reserve(request.extras.size());
+    for (const auto& option : request.extras) {
+        ExtendableType type;
+        type.name = option.name;
+        type.value = option.value;
+        descriptorInfo->additionalOptions.push_back(std::move(type));
     }
 
     AllocationResult result;
-    auto status = mAllocator->allocate2(*descriptorInfo, bufferCount, &result);
+    auto status = mAllocator->allocate2(*descriptorInfo, 1, &result);
     if (!status.isOk()) {
         auto error = status.getExceptionCode();
         if (error == EX_SERVICE_SPECIFIC) {
-            error = status.getServiceSpecificError();
+            switch (static_cast<AllocationError>(status.getServiceSpecificError())) {
+                case AllocationError::BAD_DESCRIPTOR:
+                    error = BAD_VALUE;
+                    break;
+                case AllocationError::NO_RESOURCES:
+                    error = NO_MEMORY;
+                    break;
+                default:
+                    error = UNKNOWN_ERROR;
+                    break;
+            }
         }
-        if (error == OK) {
-            error = UNKNOWN_ERROR;
-        }
-        return error;
+        return GraphicBufferAllocator::AllocationResult{error};
     }
 
-    if (importBuffers) {
-        for (uint32_t i = 0; i < bufferCount; i++) {
-            auto handle = makeFromAidl(result.buffers[i]);
-            auto error = mMapper.importBuffer(handle, &outBufferHandles[i]);
-            native_handle_delete(handle);
-            if (error != NO_ERROR) {
-                for (uint32_t j = 0; j < i; j++) {
-                    mMapper.freeBuffer(outBufferHandles[j]);
-                    outBufferHandles[j] = nullptr;
-                }
-                return error;
-            }
+    GraphicBufferAllocator::AllocationResult ret{OK};
+    if (request.importBuffer) {
+        auto handle = makeFromAidl(result.buffers[0]);
+        auto error = mMapper.importBuffer(handle, &ret.handle);
+        native_handle_delete(handle);
+        if (error != NO_ERROR) {
+            return GraphicBufferAllocator::AllocationResult{error};
         }
     } else {
-        for (uint32_t i = 0; i < bufferCount; i++) {
-            outBufferHandles[i] = dupFromAidl(result.buffers[i]);
-            if (!outBufferHandles[i]) {
-                for (uint32_t j = 0; j < i; j++) {
-                    auto buffer = const_cast<native_handle_t *>(outBufferHandles[j]);
-                    native_handle_close(buffer);
-                    native_handle_delete(buffer);
-                    outBufferHandles[j] = nullptr;
-                }
-                return NO_MEMORY;
-            }
+        ret.handle = dupFromAidl(result.buffers[0]);
+        if (!ret.handle) {
+            return GraphicBufferAllocator::AllocationResult{NO_MEMORY};
         }
     }
 
-    *outStride = result.stride;
+    ret.stride = result.stride;
 
     // Release all the resources held by AllocationResult (specifically any remaining FDs)
     result = {};
@@ -272,7 +293,7 @@ status_t Gralloc5Allocator::allocate(std::string requestorName, uint32_t width, 
     // is marked apex_available (b/214400477) and libbinder isn't (which of course is correct)
     // IPCThreadState::self()->flushCommands();
 
-    return OK;
+    return ret;
 }
 
 void Gralloc5Mapper::preload() {
@@ -518,14 +539,16 @@ status_t Gralloc5Mapper::validateBufferSize(buffer_handle_t bufferHandle, uint32
         }
     }
     {
-        auto value =
-                getStandardMetadata<StandardMetadataType::PIXEL_FORMAT_REQUESTED>(mMapper,
-                                                                                  bufferHandle);
-        if (static_cast<::aidl::android::hardware::graphics::common::PixelFormat>(format) !=
-            value) {
-            ALOGW("Format didn't match, expected %d got %s", format,
-                  value.has_value() ? toString(*value).c_str() : "<null>");
-            return BAD_VALUE;
+        auto expected = static_cast<APixelFormat>(format);
+        if (expected != APixelFormat::IMPLEMENTATION_DEFINED) {
+            auto value =
+                    getStandardMetadata<StandardMetadataType::PIXEL_FORMAT_REQUESTED>(mMapper,
+                                                                                      bufferHandle);
+            if (expected != value) {
+                ALOGW("Format didn't match, expected %d got %s", format,
+                      value.has_value() ? toString(*value).c_str() : "<null>");
+                return BAD_VALUE;
+            }
         }
     }
     {

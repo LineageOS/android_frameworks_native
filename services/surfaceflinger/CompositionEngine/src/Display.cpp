@@ -57,6 +57,7 @@ void Display::setConfiguration(const compositionengine::DisplayCreationArgs& arg
     mId = args.id;
     mPowerAdvisor = args.powerAdvisor;
     editState().isSecure = args.isSecure;
+    editState().isProtected = args.isProtected;
     editState().displaySpace.setBounds(args.pixels);
     setName(args.name);
 }
@@ -245,7 +246,6 @@ bool Display::chooseCompositionStrategy(
     }
 
     // Get any composition changes requested by the HWC device, and apply them.
-    std::optional<android::HWComposer::DeviceRequestedChanges> changes;
     auto& hwc = getCompositionEngine().getHwComposer();
     const bool requiresClientComposition = anyLayersRequireClientComposition();
 
@@ -428,6 +428,15 @@ void Display::finishFrame(GpuCompositionResult&& result) {
     }
 
     impl::Output::finishFrame(std::move(result));
+}
+
+bool Display::supportsOffloadPresent() const {
+    if (const auto halDisplayId = HalDisplayId::tryCast(mId)) {
+        const auto& hwc = getCompositionEngine().getHwComposer();
+        return hwc.hasDisplayCapability(*halDisplayId, DisplayCapability::MULTI_THREADED_PRESENT);
+    }
+
+    return false;
 }
 
 } // namespace android::compositionengine::impl

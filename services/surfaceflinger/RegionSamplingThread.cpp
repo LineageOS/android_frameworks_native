@@ -276,13 +276,11 @@ void RegionSamplingThread::captureSample() {
     }
 
     const Rect sampledBounds = sampleRegion.bounds();
-    constexpr bool kUseIdentityTransform = false;
     constexpr bool kHintForSeamlessTransition = false;
 
     SurfaceFlinger::RenderAreaFuture renderAreaFuture = ftl::defer([=] {
         return DisplayRenderArea::create(displayWeak, sampledBounds, sampledBounds.getSize(),
-                                         ui::Dataspace::V0_SRGB, kUseIdentityTransform,
-                                         kHintForSeamlessTransition);
+                                         ui::Dataspace::V0_SRGB, kHintForSeamlessTransition);
     });
 
     std::unordered_set<sp<IRegionSamplingListener>, SpHash<IRegionSamplingListener>> listeners;
@@ -376,10 +374,11 @@ void RegionSamplingThread::captureSample() {
 
     constexpr bool kRegionSampling = true;
     constexpr bool kGrayscale = false;
+    constexpr bool kIsProtected = false;
 
     if (const auto fenceResult =
                 mFlinger.captureScreenCommon(std::move(renderAreaFuture), getLayerSnapshots, buffer,
-                                             kRegionSampling, kGrayscale, nullptr)
+                                             kRegionSampling, kGrayscale, kIsProtected, nullptr)
                         .get();
         fenceResult.ok()) {
         fenceResult.value()->waitForever(LOG_TAG);

@@ -26,6 +26,7 @@
 #include <vector>
 
 #include <compositionengine/LayerFE.h>
+#include <ftl/future.h>
 #include <renderengine/LayerSettings.h>
 #include <ui/Fence.h>
 #include <ui/FenceTime.h>
@@ -61,7 +62,7 @@ struct GpuCompositionResult;
 } // namespace impl
 
 /**
- * Encapsulates all the state involved with composing layers for an output
+ * Encapsulates all the states involved with composing layers for an output
  */
 class Output {
 public:
@@ -263,8 +264,15 @@ public:
     // Prepare the output, updating the OutputLayers used in the output
     virtual void prepare(const CompositionRefreshArgs&, LayerFESet&) = 0;
 
-    // Presents the output, finalizing all composition details
-    virtual void present(const CompositionRefreshArgs&) = 0;
+    // Presents the output, finalizing all composition details. This may happen
+    // asynchronously, in which case the returned future must be waited upon.
+    virtual ftl::Future<std::monostate> present(const CompositionRefreshArgs&) = 0;
+
+    // Whether this output can be presented from another thread.
+    virtual bool supportsOffloadPresent() const = 0;
+
+    // Make the next call to `present` run asynchronously.
+    virtual void offloadPresentNextFrame() = 0;
 
     // Enables predicting composition strategy to run client composition earlier
     virtual void setPredictCompositionStrategy(bool) = 0;

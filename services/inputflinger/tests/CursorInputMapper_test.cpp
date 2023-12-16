@@ -17,6 +17,7 @@
 #include "CursorInputMapper.h"
 
 #include <android-base/logging.h>
+#include <com_android_input_flags.h>
 #include <gtest/gtest.h>
 
 #include "FakePointerController.h"
@@ -38,6 +39,12 @@ constexpr auto BUTTON_PRESS = AMOTION_EVENT_ACTION_BUTTON_PRESS;
 constexpr auto BUTTON_RELEASE = AMOTION_EVENT_ACTION_BUTTON_RELEASE;
 constexpr auto HOVER_MOVE = AMOTION_EVENT_ACTION_HOVER_MOVE;
 constexpr auto INVALID_CURSOR_POSITION = AMOTION_EVENT_INVALID_CURSOR_POSITION;
+constexpr int32_t DISPLAY_ID = 0;
+constexpr int32_t DISPLAY_WIDTH = 480;
+constexpr int32_t DISPLAY_HEIGHT = 800;
+constexpr std::optional<uint8_t> NO_PORT = std::nullopt; // no physical port is specified
+
+namespace input_flags = com::android::input::flags;
 
 /**
  * Unit tests for CursorInputMapper.
@@ -59,6 +66,11 @@ protected:
                 .WillRepeatedly(Return(false));
         EXPECT_CALL(mMockEventHub, hasRelativeAxis(EVENTHUB_ID, REL_HWHEEL))
                 .WillRepeatedly(Return(false));
+
+        mFakePolicy->setDefaultPointerDisplayId(DISPLAY_ID);
+        mFakePolicy->addDisplayViewport(DISPLAY_ID, DISPLAY_WIDTH, DISPLAY_HEIGHT, ui::ROTATION_0,
+                                        /*isActive=*/true, "local:0", NO_PORT,
+                                        ViewportType::INTERNAL);
 
         mMapper = createInputMapper<CursorInputMapper>(*mDeviceContext, mReaderConfiguration);
     }
@@ -139,6 +151,7 @@ TEST_F(CursorInputMapperUnitTest, ProcessPointerCapture) {
                 ElementsAre(VariantWith<NotifyMotionArgs>(
                         AllOf(WithMotionAction(ACTION_MOVE),
                               WithSource(AINPUT_SOURCE_MOUSE_RELATIVE), WithCoords(10.0f, 20.0f),
+                              WithRelativeMotion(10.0f, 20.0f),
                               WithCursorPosition(INVALID_CURSOR_POSITION,
                                                  INVALID_CURSOR_POSITION)))));
 
@@ -178,12 +191,17 @@ TEST_F(CursorInputMapperUnitTest, ProcessPointerCapture) {
     ASSERT_THAT(args,
                 ElementsAre(VariantWith<NotifyMotionArgs>(
                         AllOf(WithMotionAction(ACTION_MOVE),
-                              WithSource(AINPUT_SOURCE_MOUSE_RELATIVE),
-                              WithCoords(30.0f, 40.0f)))));
+                              WithSource(AINPUT_SOURCE_MOUSE_RELATIVE), WithCoords(30.0f, 40.0f),
+                              WithRelativeMotion(30.0f, 40.0f)))));
 
     // Disable pointer capture. Afterwards, events should be generated the usual way.
     setPointerCapture(false);
-
+    const auto expectedCoords = input_flags::enable_pointer_choreographer()
+            ? WithCoords(0, 0)
+            : WithCoords(INITIAL_CURSOR_X + 10.0f, INITIAL_CURSOR_Y + 20.0f);
+    const auto expectedCursorPosition = input_flags::enable_pointer_choreographer()
+            ? WithCursorPosition(INVALID_CURSOR_POSITION, INVALID_CURSOR_POSITION)
+            : WithCursorPosition(INITIAL_CURSOR_X + 10.0f, INITIAL_CURSOR_Y + 20.0f);
     args.clear();
     args += process(EV_REL, REL_X, 10);
     args += process(EV_REL, REL_Y, 20);
@@ -191,9 +209,8 @@ TEST_F(CursorInputMapperUnitTest, ProcessPointerCapture) {
     ASSERT_THAT(args,
                 ElementsAre(VariantWith<NotifyMotionArgs>(
                         AllOf(WithMotionAction(HOVER_MOVE), WithSource(AINPUT_SOURCE_MOUSE),
-                              WithCoords(INITIAL_CURSOR_X + 10.0f, INITIAL_CURSOR_Y + 20.0f),
-                              WithCursorPosition(INITIAL_CURSOR_X + 10.0f,
-                                                 INITIAL_CURSOR_Y + 20.0f)))));
+                              expectedCoords, expectedCursorPosition,
+                              WithRelativeMotion(10.0f, 20.0f)))));
 }
 
 } // namespace android

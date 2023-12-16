@@ -1057,7 +1057,12 @@ enum {
     /**
      * This surface will vote for the minimum refresh rate.
      */
-    ANATIVEWINDOW_FRAME_RATE_MIN
+    ANATIVEWINDOW_FRAME_RATE_MIN,
+
+    /**
+     * The surface requests a frame rate that is greater than or equal to `frameRate`.
+     */
+    ANATIVEWINDOW_FRAME_RATE_GTE
 };
 
 /*
@@ -1103,17 +1108,34 @@ enum {
 enum {
     /**
      * Default value. The layer uses its own frame rate specifications, assuming it has any
-     * specifications, instead of its parent's.
+     * specifications, instead of its parent's. If it does not have its own frame rate
+     * specifications, it will try to use its parent's. It will propagate its specifications to any
+     * descendants that do not have their own.
+     *
+     * However, FRAME_RATE_SELECTION_STRATEGY_OVERRIDE_CHILDREN on an ancestor layer
+     * supersedes this behavior, meaning that this layer will inherit frame rate specifications
+     * regardless of whether it has its own.
      */
-    ANATIVEWINDOW_FRAME_RATE_SELECTION_STRATEGY_SELF = 0,
+    ANATIVEWINDOW_FRAME_RATE_SELECTION_STRATEGY_PROPAGATE = 0,
 
     /**
      * The layer's frame rate specifications will propagate to and override those of its descendant
      * layers.
-     * The layer with this strategy has the ANATIVEWINDOW_FRAME_RATE_SELECTION_STRATEGY_SELF
-     * behavior for itself.
+     *
+     * The layer itself has the FRAME_RATE_SELECTION_STRATEGY_PROPAGATE behavior.
+     * Thus, ancestor layer that also has the strategy
+     * FRAME_RATE_SELECTION_STRATEGY_OVERRIDE_CHILDREN will override this layer's
+     * frame rate specifications.
      */
     ANATIVEWINDOW_FRAME_RATE_SELECTION_STRATEGY_OVERRIDE_CHILDREN = 1,
+
+    /**
+     * The layer's frame rate specifications will not propagate to its descendant
+     * layers, even if the descendant layer has no frame rate specifications.
+     * However, FRAME_RATE_SELECTION_STRATEGY_OVERRIDE_CHILDREN on an ancestor
+     * layer supersedes this behavior.
+     */
+    ANATIVEWINDOW_FRAME_RATE_SELECTION_STRATEGY_SELF = 2,
 };
 
 static inline int native_window_set_frame_rate(struct ANativeWindow* window, float frameRate,

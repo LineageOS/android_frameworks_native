@@ -184,7 +184,7 @@ void CachedSet::render(renderengine::RenderEngine& renderEngine, TexturePool& te
             targetSettings{.clip = Region(viewport),
                            .needsFiltering = false,
                            .isSecure = outputState.isSecure,
-                           .supportsProtectedContent = false,
+                           .isProtected = false,
                            .viewport = viewport,
                            .dataspace = outputDataspace,
                            .realContentIsVisible = true,

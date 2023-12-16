@@ -15,11 +15,11 @@
  */
 #pragma once
 
-#include <android-base/unique_fd.h>
 #include <binder/IBinder.h>
 #include <binder/RpcSession.h>
 #include <binder/RpcThreads.h>
 #include <binder/RpcTransport.h>
+#include <binder/unique_fd.h>
 #include <utils/Errors.h>
 #include <utils/RefBase.h>
 
@@ -59,7 +59,7 @@ public:
      * to RpcSession::setupUnixDomainSocketBootstrapClient. Multiple client
      * session can be created from the client end of the pair.
      */
-    [[nodiscard]] status_t setupUnixDomainSocketBootstrapServer(base::unique_fd serverFd);
+    [[nodiscard]] status_t setupUnixDomainSocketBootstrapServer(binder::unique_fd serverFd);
 
     /**
      * This represents a session for responses, e.g.:
@@ -79,7 +79,7 @@ public:
      * This method is used in the libbinder_rpc_unstable API
      * RunInitUnixDomainRpcServer().
      */
-    [[nodiscard]] status_t setupRawSocketServer(base::unique_fd socket_fd);
+    [[nodiscard]] status_t setupRawSocketServer(binder::unique_fd socket_fd);
 
     /**
      * Creates an RPC server binding to the given CID at the given port.
@@ -111,13 +111,13 @@ public:
     /**
      * If hasServer(), return the server FD. Otherwise return invalid FD.
      */
-    [[nodiscard]] base::unique_fd releaseServer();
+    [[nodiscard]] binder::unique_fd releaseServer();
 
     /**
      * Set up server using an external FD previously set up by releaseServer().
      * Return false if there's already a server.
      */
-    [[nodiscard]] status_t setupExternalServer(base::unique_fd serverFd);
+    [[nodiscard]] status_t setupExternalServer(binder::unique_fd serverFd);
 
     /**
      * This must be called before adding a client session. This corresponds
@@ -193,7 +193,7 @@ public:
      *
      * The only argument is a successfully created file descriptor, not bound to an address yet.
      */
-    void setServerSocketModifier(std::function<void(base::borrowed_fd)>&& modifier);
+    void setServerSocketModifier(std::function<void(binder::borrowed_fd)>&& modifier);
 
     /**
      * See RpcTransportCtx::getCertificate
@@ -249,7 +249,7 @@ private:
     void onSessionIncomingThreadEnded() override;
 
     status_t setupExternalServer(
-            base::unique_fd serverFd,
+            binder::unique_fd serverFd,
             std::function<status_t(const RpcServer&, RpcTransportFd*)>&& acceptFn);
 
     static constexpr size_t kRpcAddressSize = 128;
@@ -279,7 +279,7 @@ private:
     wp<IBinder> mRootObjectWeak;
     std::function<sp<IBinder>(wp<RpcSession>, const void*, size_t)> mRootObjectFactory;
     std::function<bool(const void*, size_t)> mConnectionFilter;
-    std::function<void(base::borrowed_fd)> mServerSocketModifier;
+    std::function<void(binder::borrowed_fd)> mServerSocketModifier;
     std::map<std::vector<uint8_t>, sp<RpcSession>> mSessions;
     std::unique_ptr<FdTrigger> mShutdownTrigger;
     RpcConditionVariable mShutdownCv;

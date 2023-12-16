@@ -29,7 +29,7 @@ void SmallAreaDetectionAllowMappings::update(
     }
 }
 
-void SmallAreaDetectionAllowMappings::setThesholdForAppId(int32_t appId, float threshold) {
+void SmallAreaDetectionAllowMappings::setThresholdForAppId(int32_t appId, float threshold) {
     if (!isValidThreshold(threshold)) return;
 
     std::lock_guard lock(mLock);

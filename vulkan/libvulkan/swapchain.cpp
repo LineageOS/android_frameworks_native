@@ -1970,6 +1970,8 @@ VkResult CreateSwapchainKHR(VkDevice device,
                 &image_native_buffer.usage2.producer,
                 &image_native_buffer.usage2.consumer);
             image_native_buffer.usage3 = img.buffer->usage;
+            image_native_buffer.ahb =
+                ANativeWindowBuffer_getHardwareBuffer(img.buffer.get());
             image_create.pNext = &image_native_buffer;
 
             ATRACE_BEGIN("CreateImage");
@@ -2146,7 +2148,12 @@ VkResult AcquireNextImageKHR(VkDevice device,
                     .stride = buffer->stride,
                     .format = buffer->format,
                     .usage = int(buffer->usage),
+                    .usage3 = buffer->usage,
+                    .ahb = ANativeWindowBuffer_getHardwareBuffer(buffer),
                 };
+                android_convertGralloc0To1Usage(int(buffer->usage),
+                                                &nb.usage2.producer,
+                                                &nb.usage2.consumer);
                 VkBindImageMemoryInfo bimi = {
                     .sType = VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_INFO,
                     .pNext = &nb,
@@ -2692,7 +2699,12 @@ static void InterceptBindImageMemory2(
             .stride = buffer->stride,
             .format = buffer->format,
             .usage = int(buffer->usage),
+            .usage3 = buffer->usage,
+            .ahb = ANativeWindowBuffer_getHardwareBuffer(buffer),
         };
+        android_convertGralloc0To1Usage(int(buffer->usage),
+                                        &native_buffer.usage2.producer,
+                                        &native_buffer.usage2.consumer);
         // Reserve enough space to avoid letting re-allocation invalidate the
         // addresses of the elements inside.
         out_native_buffers->reserve(bind_info_count);

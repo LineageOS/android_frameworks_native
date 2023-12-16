@@ -194,7 +194,6 @@ void CompositionTest::captureScreenComposition() {
     LayerCase::setupForScreenCapture(this);
 
     const Rect sourceCrop(0, 0, DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT);
-    constexpr bool forSystem = true;
     constexpr bool regionSampling = false;
 
     auto renderArea = DisplayRenderArea::create(mDisplay, sourceCrop, sourceCrop.getSize(),
@@ -216,7 +215,7 @@ void CompositionTest::captureScreenComposition() {
                                                                       usage);
 
     auto future = mFlinger.renderScreenImpl(std::move(renderArea), getLayerSnapshots,
-                                            mCaptureScreenBuffer, forSystem, regionSampling);
+                                            mCaptureScreenBuffer, regionSampling);
     ASSERT_TRUE(future.valid());
     const auto fenceResult = future.get();
 
@@ -316,7 +315,7 @@ struct BaseDisplayVariant {
         EXPECT_CALL(*test->mComposer, getReleaseFences(HWC_DISPLAY, _, _)).Times(1);
 
         EXPECT_CALL(*test->mDisplaySurface, onFrameCommitted()).Times(1);
-        EXPECT_CALL(*test->mDisplaySurface, advanceFrame()).Times(1);
+        EXPECT_CALL(*test->mDisplaySurface, advanceFrame(_)).Times(1);
 
         Case::CompositionType::setupHwcSetCallExpectations(test);
         Case::CompositionType::setupHwcGetCallExpectations(test);

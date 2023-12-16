@@ -128,18 +128,12 @@ void TouchedWindow::removeTouchingPointers(DeviceId deviceId,
 
 std::set<DeviceId> TouchedWindow::getTouchingDeviceIds() const {
     std::set<DeviceId> deviceIds;
-    for (const auto& [deviceId, _] : mDeviceStates) {
-        deviceIds.insert(deviceId);
+    for (const auto& [deviceId, deviceState] : mDeviceStates) {
+        if (deviceState.touchingPointerIds.any()) {
+            deviceIds.insert(deviceId);
+        }
     }
     return deviceIds;
-}
-
-std::set<DeviceId> TouchedWindow::getActiveDeviceIds() const {
-    std::set<DeviceId> out;
-    for (const auto& [deviceId, _] : mDeviceStates) {
-        out.emplace(deviceId);
-    }
-    return out;
 }
 
 bool TouchedWindow::hasPilferingPointers(DeviceId deviceId) const {

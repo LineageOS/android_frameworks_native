@@ -1035,8 +1035,6 @@ static void DoLogcat() {
         CommandOptions::WithTimeoutInMs(timeout_ms).Build(), true /* verbose_duration */);
     DoRadioLogcat();
 
-    RunCommand("LOG STATISTICS", {"logcat", "-b", "all", "-S"});
-
     /* kernels must set CONFIG_PSTORE_PMSG, slice up pstore with device tree */
     RunCommand("LAST LOGCAT", {"logcat", "-L", "-b", "all", "-v", "threadtime", "-v", "printable",
                                "-v", "uid", "-d", "*:v"});
@@ -1243,7 +1241,7 @@ static void DumpPacketStats() {
 
 static void DumpIpAddrAndRules() {
     /* The following have a tendency to get wedged when wifi drivers/fw goes belly-up. */
-    RunCommand("NETWORK INTERFACES", {"ip", "link"});
+    RunCommand("NETWORK INTERFACES", {"ip", "-s", "link"});
     RunCommand("IPv4 ADDRESSES", {"ip", "-4", "addr", "show"});
     RunCommand("IPv6 ADDRESSES", {"ip", "-6", "addr", "show"});
     RunCommand("IP RULES", {"ip", "rule", "show"});
@@ -1526,7 +1524,7 @@ static void DumpExternalFragmentationInfo() {
 }
 
 static void DumpstateLimitedOnly() {
-    // Trimmed-down version of dumpstate to only include a whitelisted
+    // Trimmed-down version of dumpstate to only include a allowlisted
     // set of logs (system log, event log, and system server / system app
     // crashes, and networking logs). See b/136273873 and b/138459828
     // for context.

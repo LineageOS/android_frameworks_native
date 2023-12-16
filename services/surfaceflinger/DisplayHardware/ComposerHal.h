@@ -105,7 +105,7 @@ public:
     };
 
     virtual bool isSupported(OptionalFeature) const = 0;
-    virtual bool getDisplayConfigurationsSupported() const = 0;
+    virtual bool isVrrSupported() const = 0;
 
     virtual std::vector<aidl::android::hardware::graphics::composer3::Capability>
     getCapabilities() = 0;
@@ -163,7 +163,8 @@ public:
      */
     virtual Error setClientTarget(Display display, uint32_t slot, const sp<GraphicBuffer>& target,
                                   int acquireFence, Dataspace dataspace,
-                                  const std::vector<IComposerClient::Rect>& damage) = 0;
+                                  const std::vector<IComposerClient::Rect>& damage,
+                                  float hdrSdrRatio) = 0;
     virtual Error setColorMode(Display display, ColorMode mode, RenderIntent renderIntent) = 0;
     virtual Error setColorTransform(Display display, const float* matrix) = 0;
     virtual Error setOutputBuffer(Display display, const native_handle_t* buffer,

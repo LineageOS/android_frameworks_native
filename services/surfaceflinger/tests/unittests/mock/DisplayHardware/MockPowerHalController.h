@@ -19,7 +19,10 @@
 #include <gmock/gmock.h>
 #include <scheduler/Time.h>
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
 #include <powermanager/PowerHalController.h>
+#pragma clang diagnostic pop
 
 namespace android {
 namespace hardware {

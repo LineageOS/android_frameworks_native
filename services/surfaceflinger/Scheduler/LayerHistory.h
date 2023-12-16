@@ -43,6 +43,7 @@ struct LayerProps;
 
 class LayerHistory {
 public:
+    using FrameRateOverride = DisplayEventReceiver::Event::FrameRateOverride;
     using LayerVoteType = RefreshRateSelector::LayerVoteType;
     static constexpr std::chrono::nanoseconds kMaxPeriodForHistory = 1s;
 
@@ -88,6 +89,15 @@ public:
     float getLayerFramerate(nsecs_t now, int32_t id) const;
 
     bool isSmallDirtyArea(uint32_t dirtyArea, float threshold) const;
+
+    // Updates the frame rate override set by game mode intervention
+    void updateGameModeFrameRateOverride(FrameRateOverride frameRateOverride) EXCLUDES(mLock);
+
+    // Updates the frame rate override set by game default frame rate
+    void updateGameDefaultFrameRateOverride(FrameRateOverride frameRateOverride) EXCLUDES(mLock);
+
+    std::pair<Fps, Fps> getGameFrameRateOverride(uid_t uid) const EXCLUDES(mLock);
+    std::pair<Fps, Fps> getGameFrameRateOverrideLocked(uid_t uid) const REQUIRES(mLock);
 
 private:
     friend class LayerHistoryTest;
@@ -137,6 +147,13 @@ private:
 
     // Whether a mode change is in progress or not
     std::atomic<bool> mModeChangePending = false;
+
+    // A list to look up the game frame rate overrides
+    // Each entry includes:
+    // 1. the uid of the app
+    // 2. a pair of game mode intervention frame frame and game default frame rate override
+    // set to 0.0 if there is no such override
+    std::map<uid_t, std::pair<Fps, Fps>> mGameFrameRateOverride GUARDED_BY(mLock);
 };
 
 } // namespace scheduler

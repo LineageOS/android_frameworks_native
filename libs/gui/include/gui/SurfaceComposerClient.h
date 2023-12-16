@@ -201,7 +201,13 @@ public:
 
     // Sets the frame rate of a particular app (uid). This is currently called
     // by GameManager.
-    static status_t setOverrideFrameRate(uid_t uid, float frameRate);
+    static status_t setGameModeFrameRateOverride(uid_t uid, float frameRate);
+
+    // Sets the frame rate of a particular app (uid). This is currently called
+    // by GameManager and controlled by two sysprops:
+    // "ro.surface_flinger.game_default_frame_rate_override" holding the override value,
+    // "persisit.graphics.game_default_frame_rate.enabled" to determine if it's enabled.
+    static status_t setGameDefaultFrameRateOverride(uid_t uid, float frameRate);
 
     // Update the small area detection whole appId-threshold mappings by same size appId and
     // threshold vector.

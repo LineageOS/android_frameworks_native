@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+#include "serialization.hpp"
+#include "../../FdUtils.h"
+#include "../../tests/FileUtils.h"
+
 #include <android/binder_ibinder_platform.h>
 #include <android/binder_libbinder.h>
 #include <binder/IServiceManager.h>
@@ -24,8 +28,6 @@
 #include <gtest/gtest.h>
 #include <utils/Errors.h>
 #include <utils/String16.h>
-#include "android-base/file.h"
-#include "serialization.hpp"
 
 #include <cmath>
 #include <cstdint>
@@ -34,7 +36,7 @@
 
 using namespace std;
 using namespace android;
-using android::base::unique_fd;
+using android::binder::unique_fd;
 using android::os::ParcelFileDescriptor;
 
 // defined in Rust
@@ -349,7 +351,7 @@ TEST_F(SerializationTest, SerializeString) {
 
 TEST_F(SerializationTest, SerializeFileDescriptor) {
     unique_fd out_file, in_file;
-    ASSERT_TRUE(base::Pipe(&out_file, &in_file));
+    ASSERT_TRUE(binder::Pipe(&out_file, &in_file));
 
     vector<ParcelFileDescriptor> file_descriptors;
     file_descriptors.push_back(ParcelFileDescriptor(std::move(out_file)));

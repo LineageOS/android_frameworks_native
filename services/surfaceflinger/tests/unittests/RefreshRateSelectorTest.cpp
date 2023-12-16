@@ -26,6 +26,7 @@
 #include <log/log.h>
 #include <ui/Size.h>
 
+#include <common/test/FlagUtils.h>
 #include <scheduler/Fps.h>
 #include <scheduler/FrameRateMode.h>
 #include "DisplayHardware/HWC2.h"
@@ -34,7 +35,6 @@
 #include "mock/DisplayHardware/MockDisplayMode.h"
 #include "mock/MockFrameRateMode.h"
 
-#include "FlagUtils.h"
 #include "libsurfaceflinger_unittest_main.h"
 
 #include <com_android_graphics_surfaceflinger_flags.h>
@@ -1148,6 +1148,75 @@ TEST_P(RefreshRateSelectorTest, scrollWhileWatching60fps_60_90) {
     lr2.desiredRefreshRate = 90_Hz;
     lr2.name = "90Hz Heuristic";
     EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers).modePtr);
+}
+
+TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_ExplicitGte) {
+    auto selector = createSelector(makeModes(kMode30, kMode60, kMode90, kMode120), kModeId120);
+
+    std::vector<LayerRequirement> layers = {{.weight = 1.f}, {.weight = 1.f}};
+    auto& lr1 = layers[0];
+    auto& lr2 = layers[1];
+
+    lr1.vote = LayerVoteType::ExplicitGte;
+    lr1.desiredRefreshRate = 60_Hz;
+    lr1.name = "60Hz ExplicitGte";
+    lr2.vote = LayerVoteType::NoVote;
+    lr2.name = "NoVote";
+    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers).modePtr);
+
+    lr1.vote = LayerVoteType::ExplicitGte;
+    lr1.desiredRefreshRate = 25_Hz;
+    lr1.name = "25Hz ExplicitGte";
+    lr2.vote = LayerVoteType::NoVote;
+    lr2.name = "NoVote";
+    EXPECT_EQ(kMode30, selector.getBestFrameRateMode(layers).modePtr);
+
+    lr1.vote = LayerVoteType::ExplicitGte;
+    lr1.desiredRefreshRate = 91_Hz;
+    lr1.name = "91Hz ExplicitGte";
+    lr2.vote = LayerVoteType::NoVote;
+    lr2.name = "NoVote";
+    EXPECT_EQ(kMode120, selector.getBestFrameRateMode(layers).modePtr);
+
+    lr1.vote = LayerVoteType::ExplicitGte;
+    lr1.desiredRefreshRate = 60_Hz;
+    lr1.name = "60Hz ExplicitGte";
+    lr2.vote = LayerVoteType::ExplicitDefault;
+    lr2.desiredRefreshRate = 30_Hz;
+    lr2.name = "30Hz ExplicitDefault";
+    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers).modePtr);
+
+    lr1.vote = LayerVoteType::ExplicitGte;
+    lr1.desiredRefreshRate = 60_Hz;
+    lr1.name = "60Hz ExplicitGte";
+    lr2.vote = LayerVoteType::ExplicitExactOrMultiple;
+    lr2.desiredRefreshRate = 30_Hz;
+    lr2.name = "30Hz ExplicitExactOrMultiple";
+    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers).modePtr);
+
+    lr1.vote = LayerVoteType::ExplicitGte;
+    lr1.desiredRefreshRate = 60_Hz;
+    lr1.name = "60Hz ExplicitGte";
+    lr2.vote = LayerVoteType::ExplicitExactOrMultiple;
+    lr2.desiredRefreshRate = 60_Hz;
+    lr2.name = "60Hz ExplicitExactOrMultiple";
+    EXPECT_EQ(kMode60, selector.getBestFrameRateMode(layers).modePtr);
+
+    lr1.vote = LayerVoteType::ExplicitGte;
+    lr1.desiredRefreshRate = 60_Hz;
+    lr1.name = "60Hz ExplicitGte";
+    lr2.vote = LayerVoteType::ExplicitExactOrMultiple;
+    lr2.desiredRefreshRate = 90_Hz;
+    lr2.name = "90Hz ExplicitExactOrMultiple";
+    EXPECT_EQ(kMode90, selector.getBestFrameRateMode(layers).modePtr);
+
+    lr1.vote = LayerVoteType::ExplicitGte;
+    lr1.desiredRefreshRate = 60_Hz;
+    lr1.name = "60Hz ExplicitGte";
+    lr2.vote = LayerVoteType::ExplicitExactOrMultiple;
+    lr2.desiredRefreshRate = 120_Hz;
+    lr2.name = "120Hz ExplicitExactOrMultiple";
+    EXPECT_EQ(kMode120, selector.getBestFrameRateMode(layers).modePtr);
 }
 
 TEST_P(RefreshRateSelectorTest, getMaxRefreshRatesByPolicy) {

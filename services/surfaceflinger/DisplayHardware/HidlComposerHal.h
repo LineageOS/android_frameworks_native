@@ -167,7 +167,7 @@ public:
     ~HidlComposer() override;
 
     bool isSupported(OptionalFeature) const;
-    bool getDisplayConfigurationsSupported() const;
+    bool isVrrSupported() const;
 
     std::vector<aidl::android::hardware::graphics::composer3::Capability> getCapabilities()
             override;
@@ -226,7 +226,8 @@ public:
      */
     Error setClientTarget(Display display, uint32_t slot, const sp<GraphicBuffer>& target,
                           int acquireFence, Dataspace dataspace,
-                          const std::vector<IComposerClient::Rect>& damage) override;
+                          const std::vector<IComposerClient::Rect>& damage,
+                          float hdrSdrRatio) override;
     Error setColorMode(Display display, ColorMode mode, RenderIntent renderIntent) override;
     Error setColorTransform(Display display, const float* matrix) override;
     Error setOutputBuffer(Display display, const native_handle_t* buffer,

@@ -15,6 +15,7 @@
  */
 
 #include <android-base/stringprintf.h>
+#include <com_android_graphics_surfaceflinger_flags.h>
 #include <compositionengine/LayerFECompositionState.h>
 #include <compositionengine/impl/Output.h>
 #include <compositionengine/impl/OutputCompositionState.h>
@@ -35,13 +36,18 @@
 
 #include <cmath>
 #include <cstdint>
+#include <variant>
 
+#include <common/FlagManager.h>
+#include <common/test/FlagUtils.h>
 #include "CallOrderStateMachineHelper.h"
 #include "MockHWC2.h"
 #include "RegionMatcher.h"
 
 namespace android::compositionengine {
 namespace {
+
+using namespace com::android::graphics::surfaceflinger;
 
 using testing::_;
 using testing::ByMove;
@@ -54,6 +60,7 @@ using testing::InSequence;
 using testing::Invoke;
 using testing::IsEmpty;
 using testing::Mock;
+using testing::NiceMock;
 using testing::Pointee;
 using testing::Property;
 using testing::Ref;
@@ -2959,7 +2966,7 @@ TEST_F(OutputDevOptRepaintFlashTest, alsoComposesSurfacesAndQueuesABufferIfDirty
     EXPECT_CALL(mOutput, updateProtectedContentState());
     EXPECT_CALL(mOutput, dequeueRenderBuffer(_, _));
     EXPECT_CALL(mOutput, composeSurfaces(RegionEq(kNotEmptyRegion), _, _));
-    EXPECT_CALL(*mRenderSurface, queueBuffer(_));
+    EXPECT_CALL(*mRenderSurface, queueBuffer(_, 1.f));
     EXPECT_CALL(mOutput, presentFrameAndReleaseLayers());
     EXPECT_CALL(mOutput, prepareFrame());
 
@@ -2988,11 +2995,15 @@ struct OutputFinishFrameTest : public testing::Test {
         mOutput.setDisplayColorProfileForTest(
                 std::unique_ptr<DisplayColorProfile>(mDisplayColorProfile));
         mOutput.setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(mRenderSurface));
+        EXPECT_CALL(mOutput, getCompositionEngine()).WillRepeatedly(ReturnRef(mCompositionEngine));
+        EXPECT_CALL(mCompositionEngine, getRenderEngine()).WillRepeatedly(ReturnRef(mRenderEngine));
     }
 
     StrictMock<OutputPartialMock> mOutput;
     mock::DisplayColorProfile* mDisplayColorProfile = new StrictMock<mock::DisplayColorProfile>();
     mock::RenderSurface* mRenderSurface = new StrictMock<mock::RenderSurface>();
+    StrictMock<mock::CompositionEngine> mCompositionEngine;
+    StrictMock<renderengine::mock::RenderEngine> mRenderEngine;
 };
 
 TEST_F(OutputFinishFrameTest, ifNotEnabledDoesNothing) {
@@ -3020,7 +3031,34 @@ TEST_F(OutputFinishFrameTest, queuesBufferIfComposeSurfacesReturnsAFence) {
     EXPECT_CALL(mOutput, dequeueRenderBuffer(_, _)).WillOnce(Return(true));
     EXPECT_CALL(mOutput, composeSurfaces(RegionEq(Region::INVALID_REGION), _, _))
             .WillOnce(Return(ByMove(base::unique_fd())));
-    EXPECT_CALL(*mRenderSurface, queueBuffer(_));
+    EXPECT_CALL(*mRenderSurface, queueBuffer(_, 1.f));
+
+    impl::GpuCompositionResult result;
+    mOutput.finishFrame(std::move(result));
+}
+
+TEST_F(OutputFinishFrameTest, queuesBufferWithHdrSdrRatio) {
+    SET_FLAG_FOR_TEST(flags::fp16_client_target, true);
+    mOutput.mState.isEnabled = true;
+
+    InSequence seq;
+    auto texture = std::make_shared<
+            renderengine::impl::
+                    ExternalTexture>(sp<GraphicBuffer>::make(1u, 1u, PIXEL_FORMAT_RGBA_FP16,
+                                                             GRALLOC_USAGE_SW_WRITE_OFTEN |
+                                                                     GRALLOC_USAGE_SW_READ_OFTEN),
+                                     mRenderEngine,
+                                     renderengine::impl::ExternalTexture::Usage::READABLE |
+                                             renderengine::impl::ExternalTexture::Usage::WRITEABLE);
+    mOutput.mState.displayBrightnessNits = 400.f;
+    mOutput.mState.sdrWhitePointNits = 200.f;
+    mOutput.mState.dataspace = ui::Dataspace::V0_SCRGB;
+    EXPECT_CALL(mOutput, updateProtectedContentState());
+    EXPECT_CALL(mOutput, dequeueRenderBuffer(_, _))
+            .WillOnce(DoAll(SetArgPointee<1>(texture), Return(true)));
+    EXPECT_CALL(mOutput, composeSurfaces(RegionEq(Region::INVALID_REGION), _, _))
+            .WillOnce(Return(ByMove(base::unique_fd())));
+    EXPECT_CALL(*mRenderSurface, queueBuffer(_, 2.f));
 
     impl::GpuCompositionResult result;
     mOutput.finishFrame(std::move(result));
@@ -3030,7 +3068,7 @@ TEST_F(OutputFinishFrameTest, predictionSucceeded) {
     mOutput.mState.isEnabled = true;
     mOutput.mState.strategyPrediction = CompositionStrategyPredictionState::SUCCESS;
     InSequence seq;
-    EXPECT_CALL(*mRenderSurface, queueBuffer(_));
+    EXPECT_CALL(*mRenderSurface, queueBuffer(_, 1.f));
 
     impl::GpuCompositionResult result;
     mOutput.finishFrame(std::move(result));
@@ -3052,7 +3090,7 @@ TEST_F(OutputFinishFrameTest, predictionFailedAndBufferIsReused) {
                 composeSurfaces(RegionEq(Region::INVALID_REGION), result.buffer,
                                 Eq(ByRef(result.fence))))
             .WillOnce(Return(ByMove(base::unique_fd())));
-    EXPECT_CALL(*mRenderSurface, queueBuffer(_));
+    EXPECT_CALL(*mRenderSurface, queueBuffer(_, 1.f));
     mOutput.finishFrame(std::move(result));
 }
 
@@ -3322,6 +3360,7 @@ struct OutputComposeSurfacesTest : public testing::Test {
     static constexpr float kDefaultAvgLuminance = 0.7f;
     static constexpr float kDefaultMinLuminance = 0.1f;
     static constexpr float kDisplayLuminance = 400.f;
+    static constexpr float kWhitePointLuminance = 300.f;
     static constexpr float kClientTargetLuminanceNits = 200.f;
     static constexpr float kClientTargetBrightness = 0.5f;
 
@@ -3632,7 +3671,7 @@ struct OutputComposeSurfacesTest_UsesExpectedDisplaySettings : public OutputComp
     OutputComposeSurfacesTest_UsesExpectedDisplaySettings() {
         EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(false));
         EXPECT_CALL(mRenderEngine, isProtected()).WillRepeatedly(Return(false));
-        EXPECT_CALL(mOutput, generateClientCompositionRequests(_, kDefaultOutputDataspace, _))
+        EXPECT_CALL(mOutput, generateClientCompositionRequests(_, _, _))
                 .WillRepeatedly(Return(std::vector<LayerFE::LayerSettings>{}));
         EXPECT_CALL(mOutput, appendRegionFlashRequests(RegionEq(kDebugRegion), _))
                 .WillRepeatedly(Return());
@@ -3659,6 +3698,14 @@ struct OutputComposeSurfacesTest_UsesExpectedDisplaySettings : public OutputComp
           : public CallOrderStateMachineHelper<TestType, OutputWithDisplayBrightnessNits> {
         auto withDisplayBrightnessNits(float nits) {
             getInstance()->mOutput.mState.displayBrightnessNits = nits;
+            return nextState<OutputWithSdrWhitePointNits>();
+        }
+    };
+
+    struct OutputWithSdrWhitePointNits
+          : public CallOrderStateMachineHelper<TestType, OutputWithSdrWhitePointNits> {
+        auto withSdrWhitePointNits(float nits) {
+            getInstance()->mOutput.mState.sdrWhitePointNits = nits;
             return nextState<OutputWithDimmingStage>();
         }
     };
@@ -3688,6 +3735,35 @@ struct OutputComposeSurfacesTest_UsesExpectedDisplaySettings : public OutputComp
             // May be called zero or one times.
             EXPECT_CALL(getInstance()->mOutput, getSkipColorTransform())
                     .WillRepeatedly(Return(skip));
+            return nextState<PixelFormatState>();
+        }
+    };
+
+    struct PixelFormatState : public CallOrderStateMachineHelper<TestType, PixelFormatState> {
+        auto withPixelFormat(std::optional<PixelFormat> format) {
+            // May be called zero or one times.
+            if (format) {
+                auto outputBuffer = std::make_shared<
+                        renderengine::impl::
+                                ExternalTexture>(sp<GraphicBuffer>::
+                                                         make(1u, 1u, *format,
+                                                              GRALLOC_USAGE_SW_WRITE_OFTEN |
+                                                                      GRALLOC_USAGE_SW_READ_OFTEN),
+                                                 getInstance()->mRenderEngine,
+                                                 renderengine::impl::ExternalTexture::Usage::
+                                                                 READABLE |
+                                                         renderengine::impl::ExternalTexture::
+                                                                 Usage::WRITEABLE);
+                EXPECT_CALL(*getInstance()->mRenderSurface, dequeueBuffer(_))
+                        .WillRepeatedly(Return(outputBuffer));
+            }
+            return nextState<DataspaceState>();
+        }
+    };
+
+    struct DataspaceState : public CallOrderStateMachineHelper<TestType, DataspaceState> {
+        auto withDataspace(ui::Dataspace dataspace) {
+            getInstance()->mOutput.mState.dataspace = dataspace;
             return nextState<ExpectDisplaySettingsState>();
         }
     };
@@ -3709,10 +3785,13 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forHdrMixedComposi
     verify().ifMixedCompositionIs(true)
             .andIfUsesHdr(true)
             .withDisplayBrightnessNits(kDisplayLuminance)
+            .withSdrWhitePointNits(kWhitePointLuminance)
             .withDimmingStage(aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR)
             .withRenderIntent(
                     aidl::android::hardware::graphics::composer3::RenderIntent::COLORIMETRIC)
             .andIfSkipColorTransform(false)
+            .withPixelFormat(std::nullopt)
+            .withDataspace(kDefaultOutputDataspace)
             .thenExpectDisplaySettingsUsed(
                     {.physicalDisplay = kDefaultOutputDestinationClip,
                      .clip = kDefaultOutputViewport,
@@ -3736,10 +3815,13 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings,
     verify().ifMixedCompositionIs(true)
             .andIfUsesHdr(true)
             .withDisplayBrightnessNits(kDisplayLuminance)
+            .withSdrWhitePointNits(kWhitePointLuminance)
             .withDimmingStage(aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR)
             .withRenderIntent(
                     aidl::android::hardware::graphics::composer3::RenderIntent::COLORIMETRIC)
             .andIfSkipColorTransform(false)
+            .withPixelFormat(std::nullopt)
+            .withDataspace(kDefaultOutputDataspace)
             .thenExpectDisplaySettingsUsed(
                     {.physicalDisplay = kDefaultOutputDestinationClip,
                      .clip = kDefaultOutputViewport,
@@ -3763,11 +3845,14 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings,
     verify().ifMixedCompositionIs(true)
             .andIfUsesHdr(true)
             .withDisplayBrightnessNits(kDisplayLuminance)
+            .withSdrWhitePointNits(kWhitePointLuminance)
             .withDimmingStage(
                     aidl::android::hardware::graphics::composer3::DimmingStage::GAMMA_OETF)
             .withRenderIntent(
                     aidl::android::hardware::graphics::composer3::RenderIntent::COLORIMETRIC)
             .andIfSkipColorTransform(false)
+            .withPixelFormat(std::nullopt)
+            .withDataspace(kDefaultOutputDataspace)
             .thenExpectDisplaySettingsUsed(
                     {.physicalDisplay = kDefaultOutputDestinationClip,
                      .clip = kDefaultOutputViewport,
@@ -3791,9 +3876,12 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings,
     verify().ifMixedCompositionIs(true)
             .andIfUsesHdr(true)
             .withDisplayBrightnessNits(kDisplayLuminance)
+            .withSdrWhitePointNits(kWhitePointLuminance)
             .withDimmingStage(aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR)
             .withRenderIntent(aidl::android::hardware::graphics::composer3::RenderIntent::ENHANCE)
             .andIfSkipColorTransform(false)
+            .withPixelFormat(std::nullopt)
+            .withDataspace(kDefaultOutputDataspace)
             .thenExpectDisplaySettingsUsed(
                     {.physicalDisplay = kDefaultOutputDestinationClip,
                      .clip = kDefaultOutputViewport,
@@ -3816,10 +3904,13 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forNonHdrMixedComp
     verify().ifMixedCompositionIs(true)
             .andIfUsesHdr(false)
             .withDisplayBrightnessNits(kDisplayLuminance)
+            .withSdrWhitePointNits(kWhitePointLuminance)
             .withDimmingStage(aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR)
             .withRenderIntent(
                     aidl::android::hardware::graphics::composer3::RenderIntent::COLORIMETRIC)
             .andIfSkipColorTransform(false)
+            .withPixelFormat(std::nullopt)
+            .withDataspace(kDefaultOutputDataspace)
             .thenExpectDisplaySettingsUsed(
                     {.physicalDisplay = kDefaultOutputDestinationClip,
                      .clip = kDefaultOutputViewport,
@@ -3842,10 +3933,13 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forHdrOnlyClientCo
     verify().ifMixedCompositionIs(false)
             .andIfUsesHdr(true)
             .withDisplayBrightnessNits(kDisplayLuminance)
+            .withSdrWhitePointNits(kWhitePointLuminance)
             .withDimmingStage(aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR)
             .withRenderIntent(
                     aidl::android::hardware::graphics::composer3::RenderIntent::COLORIMETRIC)
             .andIfSkipColorTransform(false)
+            .withPixelFormat(std::nullopt)
+            .withDataspace(kDefaultOutputDataspace)
             .thenExpectDisplaySettingsUsed(
                     {.physicalDisplay = kDefaultOutputDestinationClip,
                      .clip = kDefaultOutputViewport,
@@ -3868,10 +3962,13 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forNonHdrOnlyClien
     verify().ifMixedCompositionIs(false)
             .andIfUsesHdr(false)
             .withDisplayBrightnessNits(kDisplayLuminance)
+            .withSdrWhitePointNits(kWhitePointLuminance)
             .withDimmingStage(aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR)
             .withRenderIntent(
                     aidl::android::hardware::graphics::composer3::RenderIntent::COLORIMETRIC)
             .andIfSkipColorTransform(false)
+            .withPixelFormat(std::nullopt)
+            .withDataspace(kDefaultOutputDataspace)
             .thenExpectDisplaySettingsUsed(
                     {.physicalDisplay = kDefaultOutputDestinationClip,
                      .clip = kDefaultOutputViewport,
@@ -3895,10 +3992,13 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings,
     verify().ifMixedCompositionIs(false)
             .andIfUsesHdr(true)
             .withDisplayBrightnessNits(kDisplayLuminance)
+            .withSdrWhitePointNits(kWhitePointLuminance)
             .withDimmingStage(aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR)
             .withRenderIntent(
                     aidl::android::hardware::graphics::composer3::RenderIntent::COLORIMETRIC)
             .andIfSkipColorTransform(true)
+            .withPixelFormat(std::nullopt)
+            .withDataspace(kDefaultOutputDataspace)
             .thenExpectDisplaySettingsUsed(
                     {.physicalDisplay = kDefaultOutputDestinationClip,
                      .clip = kDefaultOutputViewport,
@@ -3909,6 +4009,38 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings,
                      .deviceHandlesColorTransform = true,
                      .orientation = kDefaultOutputOrientationFlags,
                      .targetLuminanceNits = kClientTargetLuminanceNits,
+                     .dimmingStage =
+                             aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR,
+                     .renderIntent = aidl::android::hardware::graphics::composer3::RenderIntent::
+                             COLORIMETRIC})
+            .execute()
+            .expectAFenceWasReturned();
+}
+
+TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings,
+       usesExpectedDisplaySettingsWithFp16Buffer) {
+    SET_FLAG_FOR_TEST(flags::fp16_client_target, true);
+    ALOGE("alecmouri: %d", flags::fp16_client_target());
+    verify().ifMixedCompositionIs(false)
+            .andIfUsesHdr(true)
+            .withDisplayBrightnessNits(kDisplayLuminance)
+            .withSdrWhitePointNits(kWhitePointLuminance)
+            .withDimmingStage(aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR)
+            .withRenderIntent(
+                    aidl::android::hardware::graphics::composer3::RenderIntent::COLORIMETRIC)
+            .andIfSkipColorTransform(true)
+            .withPixelFormat(PIXEL_FORMAT_RGBA_FP16)
+            .withDataspace(ui::Dataspace::V0_SCRGB)
+            .thenExpectDisplaySettingsUsed(
+                    {.physicalDisplay = kDefaultOutputDestinationClip,
+                     .clip = kDefaultOutputViewport,
+                     .maxLuminance = kDefaultMaxLuminance,
+                     .currentLuminanceNits = kDisplayLuminance,
+                     .outputDataspace = ui::Dataspace::V0_SCRGB,
+                     .colorTransform = kDefaultColorTransformMat,
+                     .deviceHandlesColorTransform = true,
+                     .orientation = kDefaultOutputOrientationFlags,
+                     .targetLuminanceNits = kClientTargetLuminanceNits * 0.75f,
                      .dimmingStage =
                              aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR,
                      .renderIntent = aidl::android::hardware::graphics::composer3::RenderIntent::
@@ -3962,7 +4094,11 @@ struct OutputComposeSurfacesTest_HandlesProtectedContent : public OutputComposeS
 };
 
 TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifNoProtectedContentLayers) {
-    mOutput.mState.isSecure = true;
+    if (FlagManager::getInstance().display_protected()) {
+        mOutput.mState.isProtected = true;
+    } else {
+        mOutput.mState.isSecure = true;
+    }
     mLayer2.mLayerFEState.hasProtectedContent = false;
     EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(true));
     EXPECT_CALL(*mRenderSurface, isProtected).WillOnce(Return(true));
@@ -3976,7 +4112,11 @@ TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifNoProtectedContentLa
 }
 
 TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifNotEnabled) {
-    mOutput.mState.isSecure = true;
+    if (FlagManager::getInstance().display_protected()) {
+        mOutput.mState.isProtected = true;
+    } else {
+        mOutput.mState.isSecure = true;
+    }
     mLayer2.mLayerFEState.hasProtectedContent = true;
     EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(true));
 
@@ -3998,7 +4138,11 @@ TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifNotEnabled) {
 }
 
 TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifAlreadyEnabledEverywhere) {
-    mOutput.mState.isSecure = true;
+    if (FlagManager::getInstance().display_protected()) {
+        mOutput.mState.isProtected = true;
+    } else {
+        mOutput.mState.isSecure = true;
+    }
     mLayer2.mLayerFEState.hasProtectedContent = true;
     EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(true));
     EXPECT_CALL(*mRenderSurface, isProtected).WillOnce(Return(true));
@@ -4011,7 +4155,11 @@ TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifAlreadyEnabledEveryw
 }
 
 TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifAlreadyEnabledInRenderSurface) {
-    mOutput.mState.isSecure = true;
+    if (FlagManager::getInstance().display_protected()) {
+        mOutput.mState.isProtected = true;
+    } else {
+        mOutput.mState.isSecure = true;
+    }
     mLayer2.mLayerFEState.hasProtectedContent = true;
     EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(true));
     EXPECT_CALL(*mRenderSurface, isProtected).WillOnce(Return(true));
@@ -4090,6 +4238,7 @@ struct GenerateClientCompositionRequestsTest : public testing::Test {
 
     GenerateClientCompositionRequestsTest() {
         mOutput.mState.needsFiltering = false;
+        mOutput.mState.isProtected = true;
 
         mOutput.setDisplayColorProfileForTest(
                 std::unique_ptr<DisplayColorProfile>(mDisplayColorProfile));
@@ -4114,6 +4263,7 @@ struct GenerateClientCompositionRequestsTest_ThreeLayers
         mOutput.mState.displaySpace.setOrientation(kDisplayOrientation);
         mOutput.mState.needsFiltering = false;
         mOutput.mState.isSecure = false;
+        mOutput.mState.isProtected = true;
 
         for (size_t i = 0; i < mLayers.size(); i++) {
             mLayers[i].mOutputLayerState.clearClientTarget = false;
@@ -4576,7 +4726,7 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             Region(kDisplayFrame),
             false, /* needs filtering */
             false, /* secure */
-            true,  /* supports protected content */
+            true,  /* isProtected */
             kDisplayViewport,
             kDisplayDataspace,
             true /* realContentIsVisible */,
@@ -4589,7 +4739,7 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             Region(kDisplayFrame),
             false, /* needs filtering */
             false, /* secure */
-            true,  /* supports protected content */
+            true,  /* isProtected */
             kDisplayViewport,
             kDisplayDataspace,
             true /* realContentIsVisible */,
@@ -4602,7 +4752,7 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             Region(kDisplayFrame),
             false, /* needs filtering */
             false, /* secure */
-            true,  /* supports protected content */
+            true,  /* isProtected */
             kDisplayViewport,
             kDisplayDataspace,
             true /* realContentIsVisible */,
@@ -4780,7 +4930,7 @@ TEST_F(GenerateClientCompositionRequestsTest, handlesLandscapeModeSplitScreenReq
             Region(Rect(0, 0, 1000, 1000)),
             false, /* needs filtering */
             true,  /* secure */
-            true,  /* supports protected content */
+            true,  /* isProtected */
             kPortraitViewport,
             kOutputDataspace,
             true /* realContentIsVisible */,
@@ -4799,7 +4949,7 @@ TEST_F(GenerateClientCompositionRequestsTest, handlesLandscapeModeSplitScreenReq
             Region(Rect(1000, 0, 2000, 1000)),
             false, /* needs filtering */
             true,  /* secure */
-            true,  /* supports protected content */
+            true,  /* isProtected */
             kPortraitViewport,
             kOutputDataspace,
             true /* realContentIsVisible */,
@@ -4898,6 +5048,55 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
     ASSERT_EQ(1u, requests.size());
 
     EXPECT_EQ(mLayers[2].mLayerSettings, requests[0]);
+}
+
+struct OutputPresentFrameAndReleaseLayersAsyncTest : public ::testing::Test {
+    // Piggy-back on OutputPrepareFrameAsyncTest's version to avoid some boilerplate.
+    struct OutputPartialMock : public OutputPrepareFrameAsyncTest::OutputPartialMock {
+        // Set up the helper functions called by the function under test to use
+        // mock implementations.
+        MOCK_METHOD0(presentFrameAndReleaseLayers, void());
+        MOCK_METHOD0(presentFrameAndReleaseLayersAsync, ftl::Future<std::monostate>());
+    };
+    OutputPresentFrameAndReleaseLayersAsyncTest() {
+        mOutput->setDisplayColorProfileForTest(
+                std::unique_ptr<DisplayColorProfile>(mDisplayColorProfile));
+        mOutput->setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(mRenderSurface));
+        mOutput->setCompositionEnabled(true);
+        mRefreshArgs.outputs = {mOutput};
+    }
+
+    mock::DisplayColorProfile* mDisplayColorProfile = new NiceMock<mock::DisplayColorProfile>();
+    mock::RenderSurface* mRenderSurface = new NiceMock<mock::RenderSurface>();
+    std::shared_ptr<OutputPartialMock> mOutput{std::make_shared<NiceMock<OutputPartialMock>>()};
+    CompositionRefreshArgs mRefreshArgs;
+};
+
+TEST_F(OutputPresentFrameAndReleaseLayersAsyncTest, notCalledWhenNotRequested) {
+    EXPECT_CALL(*mOutput, presentFrameAndReleaseLayersAsync()).Times(0);
+    EXPECT_CALL(*mOutput, presentFrameAndReleaseLayers()).Times(1);
+
+    mOutput->present(mRefreshArgs);
+}
+
+TEST_F(OutputPresentFrameAndReleaseLayersAsyncTest, calledWhenRequested) {
+    EXPECT_CALL(*mOutput, presentFrameAndReleaseLayersAsync())
+            .WillOnce(Return(ftl::yield<std::monostate>({})));
+    EXPECT_CALL(*mOutput, presentFrameAndReleaseLayers()).Times(0);
+
+    mOutput->offloadPresentNextFrame();
+    mOutput->present(mRefreshArgs);
+}
+
+TEST_F(OutputPresentFrameAndReleaseLayersAsyncTest, calledForOneFrame) {
+    ::testing::InSequence inseq;
+    EXPECT_CALL(*mOutput, presentFrameAndReleaseLayersAsync())
+            .WillOnce(Return(ftl::yield<std::monostate>({})));
+    EXPECT_CALL(*mOutput, presentFrameAndReleaseLayers()).Times(1);
+
+    mOutput->offloadPresentNextFrame();
+    mOutput->present(mRefreshArgs);
+    mOutput->present(mRefreshArgs);
 }
 
 } // namespace

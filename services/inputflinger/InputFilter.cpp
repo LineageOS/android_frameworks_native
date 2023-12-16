@@ -22,16 +22,19 @@ namespace android {
 
 using aidl::com::android::server::inputflinger::IInputFilter;
 using AidlKeyEvent = aidl::com::android::server::inputflinger::KeyEvent;
+using aidl::com::android::server::inputflinger::KeyEventAction;
+using AidlDeviceInfo = aidl::com::android::server::inputflinger::DeviceInfo;
+using aidl::android::hardware::input::common::Source;
 
 AidlKeyEvent notifyKeyArgsToKeyEvent(const NotifyKeyArgs& args) {
     AidlKeyEvent event;
     event.id = args.id;
     event.eventTime = args.eventTime;
     event.deviceId = args.deviceId;
-    event.source = args.source;
+    event.source = static_cast<Source>(args.source);
     event.displayId = args.displayId;
     event.policyFlags = args.policyFlags;
-    event.action = args.action;
+    event.action = static_cast<KeyEventAction>(args.action);
     event.flags = args.flags;
     event.keyCode = args.keyCode;
     event.scanCode = args.scanCode;
@@ -41,41 +44,23 @@ AidlKeyEvent notifyKeyArgsToKeyEvent(const NotifyKeyArgs& args) {
     return event;
 }
 
-NotifyKeyArgs keyEventToNotifyKeyArgs(const AidlKeyEvent& event) {
-    return NotifyKeyArgs(event.id, event.eventTime, event.readTime, event.deviceId, event.source,
-                         event.displayId, event.policyFlags, event.action, event.flags,
-                         event.keyCode, event.scanCode, event.metaState, event.downTime);
-}
-
-namespace {
-
-class RustCallbacks : public IInputFilter::BnInputFilterCallbacks {
-public:
-    RustCallbacks(InputListenerInterface& nextListener) : mNextListener(nextListener) {}
-    ndk::ScopedAStatus sendKeyEvent(const AidlKeyEvent& event) override {
-        mNextListener.notifyKey(keyEventToNotifyKeyArgs(event));
-        return ndk::ScopedAStatus::ok();
-    }
-
-private:
-    InputListenerInterface& mNextListener;
-};
-
-} // namespace
-
 InputFilter::InputFilter(InputListenerInterface& listener, IInputFlingerRust& rust)
-      : mNextListener(listener), mCallbacks(ndk::SharedRefBase::make<RustCallbacks>(listener)) {
+      : mNextListener(listener),
+        mCallbacks(ndk::SharedRefBase::make<InputFilterCallbacks>(listener)) {
     LOG_ALWAYS_FATAL_IF(!rust.createInputFilter(mCallbacks, &mInputFilterRust).isOk());
     LOG_ALWAYS_FATAL_IF(!mInputFilterRust);
 }
 
 void InputFilter::notifyInputDevicesChanged(const NotifyInputDevicesChangedArgs& args) {
     if (isFilterEnabled()) {
-        std::vector<int32_t> deviceIds;
+        std::vector<AidlDeviceInfo> deviceInfos;
         for (auto info : args.inputDeviceInfos) {
-            deviceIds.push_back(info.getId());
+            AidlDeviceInfo aidlInfo;
+            aidlInfo.deviceId = info.getId();
+            aidlInfo.external = info.isExternal();
+            deviceInfos.push_back(aidlInfo);
         }
-        LOG_ALWAYS_FATAL_IF(!mInputFilterRust->notifyInputDevicesChanged(deviceIds).isOk());
+        LOG_ALWAYS_FATAL_IF(!mInputFilterRust->notifyInputDevicesChanged(deviceInfos).isOk());
     }
     mNextListener.notify(args);
 }
@@ -85,11 +70,11 @@ void InputFilter::notifyConfigurationChanged(const NotifyConfigurationChangedArg
 }
 
 void InputFilter::notifyKey(const NotifyKeyArgs& args) {
-    if (!isFilterEnabled()) {
-        mNextListener.notifyKey(args);
+    if (isFilterEnabled()) {
+        LOG_ALWAYS_FATAL_IF(!mInputFilterRust->notifyKey(notifyKeyArgsToKeyEvent(args)).isOk());
         return;
     }
-    LOG_ALWAYS_FATAL_IF(!mInputFilterRust->notifyKey(notifyKeyArgsToKeyEvent(args)).isOk());
+    mNextListener.notifyKey(args);
 }
 
 void InputFilter::notifyMotion(const NotifyMotionArgs& args) {
@@ -120,6 +105,24 @@ bool InputFilter::isFilterEnabled() {
     bool result;
     LOG_ALWAYS_FATAL_IF(!mInputFilterRust->isEnabled(&result).isOk());
     return result;
+}
+
+void InputFilter::setAccessibilityBounceKeysThreshold(nsecs_t threshold) {
+    std::scoped_lock _l(mLock);
+
+    if (mConfig.bounceKeysThresholdNs != threshold) {
+        mConfig.bounceKeysThresholdNs = threshold;
+        LOG_ALWAYS_FATAL_IF(!mInputFilterRust->notifyConfigurationChanged(mConfig).isOk());
+    }
+}
+
+void InputFilter::setAccessibilityStickyKeysEnabled(bool enabled) {
+    std::scoped_lock _l(mLock);
+
+    if (mConfig.stickyKeysEnabled != enabled) {
+        mConfig.stickyKeysEnabled = enabled;
+        LOG_ALWAYS_FATAL_IF(!mInputFilterRust->notifyConfigurationChanged(mConfig).isOk());
+    }
 }
 
 void InputFilter::dump(std::string& dump) {

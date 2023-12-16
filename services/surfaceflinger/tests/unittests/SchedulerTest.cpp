@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <common/test/FlagUtils.h>
 #include <ftl/fake_guard.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -23,6 +24,7 @@
 
 #include "Scheduler/EventThread.h"
 #include "Scheduler/RefreshRateSelector.h"
+#include "Scheduler/VSyncPredictor.h"
 #include "TestableScheduler.h"
 #include "TestableSurfaceFlinger.h"
 #include "mock/DisplayHardware/MockDisplayMode.h"
@@ -32,11 +34,15 @@
 
 #include <FrontEnd/LayerHierarchy.h>
 
+#include <com_android_graphics_surfaceflinger_flags.h>
 #include "FpsOps.h"
+
+using namespace com::android::graphics::surfaceflinger;
 
 namespace android::scheduler {
 
 using android::mock::createDisplayMode;
+using android::mock::createVrrDisplayMode;
 
 using testing::_;
 using testing::Return;
@@ -457,26 +463,51 @@ TEST_F(SchedulerTest, onFrameSignalMultipleDisplays) {
     using VsyncIds = std::vector<std::pair<PhysicalDisplayId, VsyncId>>;
 
     struct Compositor final : ICompositor {
-        VsyncIds vsyncIds;
+        explicit Compositor(TestableScheduler& scheduler) : scheduler(scheduler) {}
+
+        TestableScheduler& scheduler;
+
+        struct {
+            PhysicalDisplayId commit;
+            PhysicalDisplayId composite;
+        } pacesetterIds;
+
+        struct {
+            VsyncIds commit;
+            VsyncIds composite;
+        } vsyncIds;
+
         bool committed = true;
+        bool changePacesetter = false;
 
         void configure() override {}
 
-        bool commit(PhysicalDisplayId, const scheduler::FrameTargets& targets) override {
-            vsyncIds.clear();
+        bool commit(PhysicalDisplayId pacesetterId,
+                    const scheduler::FrameTargets& targets) override {
+            pacesetterIds.commit = pacesetterId;
+
+            vsyncIds.commit.clear();
+            vsyncIds.composite.clear();
 
             for (const auto& [id, target] : targets) {
-                vsyncIds.emplace_back(id, target->vsyncId());
+                vsyncIds.commit.emplace_back(id, target->vsyncId());
+            }
+
+            if (changePacesetter) {
+                scheduler.setPacesetterDisplay(kDisplayId2);
             }
 
             return committed;
         }
 
-        CompositeResultsPerDisplay composite(PhysicalDisplayId,
-                                             const scheduler::FrameTargeters&) override {
+        CompositeResultsPerDisplay composite(PhysicalDisplayId pacesetterId,
+                                             const scheduler::FrameTargeters& targeters) override {
+            pacesetterIds.composite = pacesetterId;
+
             CompositeResultsPerDisplay results;
 
-            for (const auto& [id, _] : vsyncIds) {
+            for (const auto& [id, targeter] : targeters) {
+                vsyncIds.composite.emplace_back(id, targeter->target().vsyncId());
                 results.try_emplace(id,
                                     CompositeResult{.compositionCoverage =
                                                             CompositionCoverage::Hwc});
@@ -486,21 +517,174 @@ TEST_F(SchedulerTest, onFrameSignalMultipleDisplays) {
         }
 
         void sample() override {}
-    } compositor;
+    } compositor(*mScheduler);
 
     mScheduler->doFrameSignal(compositor, VsyncId(42));
 
-    const auto makeVsyncIds = [](VsyncId vsyncId) -> VsyncIds {
-        return {{kDisplayId1, vsyncId}, {kDisplayId2, vsyncId}};
+    const auto makeVsyncIds = [](VsyncId vsyncId, bool swap = false) -> VsyncIds {
+        if (swap) {
+            return {{kDisplayId2, vsyncId}, {kDisplayId1, vsyncId}};
+        } else {
+            return {{kDisplayId1, vsyncId}, {kDisplayId2, vsyncId}};
+        }
     };
 
-    EXPECT_EQ(makeVsyncIds(VsyncId(42)), compositor.vsyncIds);
+    EXPECT_EQ(kDisplayId1, compositor.pacesetterIds.commit);
+    EXPECT_EQ(kDisplayId1, compositor.pacesetterIds.composite);
+    EXPECT_EQ(makeVsyncIds(VsyncId(42)), compositor.vsyncIds.commit);
+    EXPECT_EQ(makeVsyncIds(VsyncId(42)), compositor.vsyncIds.composite);
 
+    // FrameTargets should be updated despite the skipped commit.
     compositor.committed = false;
     mScheduler->doFrameSignal(compositor, VsyncId(43));
 
-    // FrameTargets should be updated despite the skipped commit.
-    EXPECT_EQ(makeVsyncIds(VsyncId(43)), compositor.vsyncIds);
+    EXPECT_EQ(kDisplayId1, compositor.pacesetterIds.commit);
+    EXPECT_EQ(kDisplayId1, compositor.pacesetterIds.composite);
+    EXPECT_EQ(makeVsyncIds(VsyncId(43)), compositor.vsyncIds.commit);
+    EXPECT_TRUE(compositor.vsyncIds.composite.empty());
+
+    // The pacesetter may change during commit.
+    compositor.committed = true;
+    compositor.changePacesetter = true;
+    mScheduler->doFrameSignal(compositor, VsyncId(44));
+
+    EXPECT_EQ(kDisplayId1, compositor.pacesetterIds.commit);
+    EXPECT_EQ(kDisplayId2, compositor.pacesetterIds.composite);
+    EXPECT_EQ(makeVsyncIds(VsyncId(44)), compositor.vsyncIds.commit);
+    EXPECT_EQ(makeVsyncIds(VsyncId(44), true), compositor.vsyncIds.composite);
+}
+
+TEST_F(SchedulerTest, nextFrameIntervalTest) {
+    SET_FLAG_FOR_TEST(flags::vrr_config, true);
+
+    static constexpr size_t kHistorySize = 10;
+    static constexpr size_t kMinimumSamplesForPrediction = 6;
+    static constexpr size_t kOutlierTolerancePercent = 25;
+    const auto refreshRate = Fps::fromPeriodNsecs(500);
+    auto frameRate = Fps::fromPeriodNsecs(1000);
+
+    const ftl::NonNull<DisplayModePtr> kMode = ftl::as_non_null(
+            createVrrDisplayMode(DisplayModeId(0), refreshRate,
+                                 hal::VrrConfig{.minFrameIntervalNs = static_cast<int32_t>(
+                                                        frameRate.getPeriodNsecs())}));
+    std::shared_ptr<VSyncPredictor> vrrTracker =
+            std::make_shared<VSyncPredictor>(kMode, kHistorySize, kMinimumSamplesForPrediction,
+                                             kOutlierTolerancePercent, mVsyncTrackerCallback);
+    std::shared_ptr<RefreshRateSelector> vrrSelectorPtr =
+            std::make_shared<RefreshRateSelector>(makeModes(kMode), kMode->getId());
+    TestableScheduler scheduler{std::make_unique<android::mock::VsyncController>(),
+                                vrrTracker,
+                                vrrSelectorPtr,
+                                sp<VsyncModulator>::make(VsyncConfigSet{}),
+                                mSchedulerCallback,
+                                mVsyncTrackerCallback};
+
+    scheduler.registerDisplay(kMode->getPhysicalDisplayId(), vrrSelectorPtr, vrrTracker);
+    vrrSelectorPtr->setActiveMode(kMode->getId(), frameRate);
+    scheduler.setRenderRate(kMode->getPhysicalDisplayId(), frameRate);
+    vrrTracker->addVsyncTimestamp(0);
+
+    // Next frame at refresh rate as no previous frame
+    EXPECT_EQ(refreshRate,
+              scheduler.getNextFrameInterval(kMode->getPhysicalDisplayId(), TimePoint::fromNs(0)));
+
+    EXPECT_EQ(Fps::fromPeriodNsecs(1000),
+              scheduler.getNextFrameInterval(kMode->getPhysicalDisplayId(),
+                                             TimePoint::fromNs(500)));
+    EXPECT_EQ(Fps::fromPeriodNsecs(1000),
+              scheduler.getNextFrameInterval(kMode->getPhysicalDisplayId(),
+                                             TimePoint::fromNs(1500)));
+
+    // Change render rate
+    frameRate = Fps::fromPeriodNsecs(2000);
+    vrrSelectorPtr->setActiveMode(kMode->getId(), frameRate);
+    scheduler.setRenderRate(kMode->getPhysicalDisplayId(), frameRate);
+
+    EXPECT_EQ(Fps::fromPeriodNsecs(2000),
+              scheduler.getNextFrameInterval(kMode->getPhysicalDisplayId(),
+                                             TimePoint::fromNs(2500)));
+    EXPECT_EQ(Fps::fromPeriodNsecs(2000),
+              scheduler.getNextFrameInterval(kMode->getPhysicalDisplayId(),
+                                             TimePoint::fromNs(4500)));
+}
+
+TEST_F(SchedulerTest, resyncAllToHardwareVsync) FTL_FAKE_GUARD(kMainThreadContext) {
+    // resyncAllToHardwareVsync will result in requesting hardware VSYNC on both displays, since
+    // they are both on.
+    EXPECT_CALL(mScheduler->mockRequestHardwareVsync, Call(kDisplayId1, true)).Times(1);
+    EXPECT_CALL(mScheduler->mockRequestHardwareVsync, Call(kDisplayId2, true)).Times(1);
+
+    mScheduler->registerDisplay(kDisplayId2,
+                                std::make_shared<RefreshRateSelector>(kDisplay2Modes,
+                                                                      kDisplay2Mode60->getId()));
+    mScheduler->setDisplayPowerMode(kDisplayId1, hal::PowerMode::ON);
+    mScheduler->setDisplayPowerMode(kDisplayId2, hal::PowerMode::ON);
+
+    static constexpr bool kDisallow = true;
+    mScheduler->disableHardwareVsync(kDisplayId1, kDisallow);
+    mScheduler->disableHardwareVsync(kDisplayId2, kDisallow);
+
+    static constexpr bool kAllowToEnable = true;
+    mScheduler->resyncAllToHardwareVsync(kAllowToEnable);
+}
+
+TEST_F(SchedulerTest, resyncAllDoNotAllow) FTL_FAKE_GUARD(kMainThreadContext) {
+    // Without setting allowToEnable to true, resyncAllToHardwareVsync does not
+    // result in requesting hardware VSYNC.
+    EXPECT_CALL(mScheduler->mockRequestHardwareVsync, Call(kDisplayId1, _)).Times(0);
+
+    mScheduler->setDisplayPowerMode(kDisplayId1, hal::PowerMode::ON);
+
+    static constexpr bool kDisallow = true;
+    mScheduler->disableHardwareVsync(kDisplayId1, kDisallow);
+
+    static constexpr bool kAllowToEnable = false;
+    mScheduler->resyncAllToHardwareVsync(kAllowToEnable);
+}
+
+TEST_F(SchedulerTest, resyncAllSkipsOffDisplays) FTL_FAKE_GUARD(kMainThreadContext) {
+    SET_FLAG_FOR_TEST(flags::multithreaded_present, true);
+
+    // resyncAllToHardwareVsync will result in requesting hardware VSYNC on display 1, which is on,
+    // but not on display 2, which is off.
+    EXPECT_CALL(mScheduler->mockRequestHardwareVsync, Call(kDisplayId1, true)).Times(1);
+    EXPECT_CALL(mScheduler->mockRequestHardwareVsync, Call(kDisplayId2, _)).Times(0);
+
+    mScheduler->setDisplayPowerMode(kDisplayId1, hal::PowerMode::ON);
+
+    mScheduler->registerDisplay(kDisplayId2,
+                                std::make_shared<RefreshRateSelector>(kDisplay2Modes,
+                                                                      kDisplay2Mode60->getId()));
+    ASSERT_EQ(hal::PowerMode::OFF, mScheduler->getDisplayPowerMode(kDisplayId2));
+
+    static constexpr bool kDisallow = true;
+    mScheduler->disableHardwareVsync(kDisplayId1, kDisallow);
+    mScheduler->disableHardwareVsync(kDisplayId2, kDisallow);
+
+    static constexpr bool kAllowToEnable = true;
+    mScheduler->resyncAllToHardwareVsync(kAllowToEnable);
+}
+
+TEST_F(SchedulerTest, resyncAllLegacyAppliesToOffDisplays) FTL_FAKE_GUARD(kMainThreadContext) {
+    SET_FLAG_FOR_TEST(flags::multithreaded_present, false);
+
+    // In the legacy code, prior to the flag, resync applied to OFF displays.
+    EXPECT_CALL(mScheduler->mockRequestHardwareVsync, Call(kDisplayId1, true)).Times(1);
+    EXPECT_CALL(mScheduler->mockRequestHardwareVsync, Call(kDisplayId2, true)).Times(1);
+
+    mScheduler->setDisplayPowerMode(kDisplayId1, hal::PowerMode::ON);
+
+    mScheduler->registerDisplay(kDisplayId2,
+                                std::make_shared<RefreshRateSelector>(kDisplay2Modes,
+                                                                      kDisplay2Mode60->getId()));
+    ASSERT_EQ(hal::PowerMode::OFF, mScheduler->getDisplayPowerMode(kDisplayId2));
+
+    static constexpr bool kDisallow = true;
+    mScheduler->disableHardwareVsync(kDisplayId1, kDisallow);
+    mScheduler->disableHardwareVsync(kDisplayId2, kDisallow);
+
+    static constexpr bool kAllowToEnable = true;
+    mScheduler->resyncAllToHardwareVsync(kAllowToEnable);
 }
 
 class AttachedChoreographerTest : public SchedulerTest {

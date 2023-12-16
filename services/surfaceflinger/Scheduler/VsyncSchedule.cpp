@@ -16,7 +16,10 @@
 
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
+#include <common/FlagManager.h>
+
 #include <ftl/fake_guard.h>
+#include <gui/TraceUtils.h>
 #include <scheduler/Fps.h>
 #include <scheduler/Timer.h>
 
@@ -53,14 +56,14 @@ private:
     VSyncCallbackRegistration mRegistration;
 };
 
-VsyncSchedule::VsyncSchedule(PhysicalDisplayId id, FeatureFlags features,
+VsyncSchedule::VsyncSchedule(ftl::NonNull<DisplayModePtr> modePtr, FeatureFlags features,
                              RequestHardwareVsync requestHardwareVsync,
                              IVsyncTrackerCallback& callback)
-      : mId(id),
+      : mId(modePtr->getPhysicalDisplayId()),
         mRequestHardwareVsync(std::move(requestHardwareVsync)),
-        mTracker(createTracker(id, callback)),
+        mTracker(createTracker(modePtr, callback)),
         mDispatch(createDispatch(mTracker)),
-        mController(createController(id, *mTracker, features)),
+        mController(createController(modePtr->getPhysicalDisplayId(), *mTracker, features)),
         mTracer(features.test(Feature::kTracePredictedVsync)
                         ? std::make_unique<PredictedVsyncTracer>(mDispatch)
                         : nullptr) {}
@@ -77,6 +80,13 @@ VsyncSchedule::~VsyncSchedule() = default;
 
 Period VsyncSchedule::period() const {
     return Period::fromNs(mTracker->currentPeriod());
+}
+
+Period VsyncSchedule::minFramePeriod() const {
+    if (FlagManager::getInstance().vrr_config()) {
+        return mTracker->minFramePeriod();
+    }
+    return period();
 }
 
 TimePoint VsyncSchedule::vsyncDeadlineAfter(TimePoint timePoint) const {
@@ -101,17 +111,15 @@ void VsyncSchedule::dump(std::string& out) const {
     mDispatch->dump(out);
 }
 
-VsyncSchedule::TrackerPtr VsyncSchedule::createTracker(PhysicalDisplayId id,
+VsyncSchedule::TrackerPtr VsyncSchedule::createTracker(ftl::NonNull<DisplayModePtr> modePtr,
                                                        IVsyncTrackerCallback& callback) {
     // TODO(b/144707443): Tune constants.
-    constexpr nsecs_t kInitialPeriod = (60_Hz).getPeriodNsecs();
     constexpr size_t kHistorySize = 20;
     constexpr size_t kMinSamplesForPrediction = 6;
     constexpr uint32_t kDiscardOutlierPercent = 20;
 
-    return std::make_unique<VSyncPredictor>(id, kInitialPeriod, kHistorySize,
-                                            kMinSamplesForPrediction, kDiscardOutlierPercent,
-                                            callback);
+    return std::make_unique<VSyncPredictor>(modePtr, kHistorySize, kMinSamplesForPrediction,
+                                            kDiscardOutlierPercent, callback);
 }
 
 VsyncSchedule::DispatchPtr VsyncSchedule::createDispatch(TrackerPtr tracker) {
@@ -140,9 +148,9 @@ VsyncSchedule::ControllerPtr VsyncSchedule::createController(PhysicalDisplayId i
     return reactor;
 }
 
-void VsyncSchedule::startPeriodTransition(Period period, bool force) {
+void VsyncSchedule::onDisplayModeChanged(ftl::NonNull<DisplayModePtr> modePtr, bool force) {
     std::lock_guard<std::mutex> lock(mHwVsyncLock);
-    mController->startPeriodTransition(period.ns(), force);
+    mController->onDisplayModeChanged(modePtr, force);
     enableHardwareVsyncLocked();
 }
 
@@ -172,6 +180,7 @@ void VsyncSchedule::enableHardwareVsync() {
 }
 
 void VsyncSchedule::enableHardwareVsyncLocked() {
+    ATRACE_CALL();
     if (mHwVsyncState == HwVsyncState::Disabled) {
         getTracker().resetModel();
         mRequestHardwareVsync(mId, true);
@@ -180,6 +189,7 @@ void VsyncSchedule::enableHardwareVsyncLocked() {
 }
 
 void VsyncSchedule::disableHardwareVsync(bool disallow) {
+    ATRACE_CALL();
     std::lock_guard<std::mutex> lock(mHwVsyncLock);
     switch (mHwVsyncState) {
         case HwVsyncState::Enabled:

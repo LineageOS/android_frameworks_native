@@ -14,18 +14,20 @@
  * limitations under the License.
  */
 
-#include <android-base/file.h>
+#include "../../FileUtils.h"
+
 #include <android-base/logging.h>
-#include <android-base/unique_fd.h>
 #include <binder/RecordedTransaction.h>
+#include <binder/unique_fd.h>
 
 #include <fuzzseeds/random_parcel_seeds.h>
 
 #include <sys/prctl.h>
+#include <sys/stat.h>
 
 using android::generateSeedsFromRecording;
 using android::status_t;
-using android::base::unique_fd;
+using android::binder::unique_fd;
 using android::binder::debug::RecordedTransaction;
 
 status_t generateCorpus(const char* recordingPath, const char* corpusDir) {
@@ -49,7 +51,7 @@ status_t generateCorpus(const char* recordingPath, const char* corpusDir) {
         std::string filePath = std::string(corpusDir) + std::string("transaction_") +
                 std::to_string(transactionNumber);
         constexpr int openFlags = O_WRONLY | O_CREAT | O_BINARY | O_CLOEXEC;
-        android::base::unique_fd corpusFd(open(filePath.c_str(), openFlags, 0666));
+        unique_fd corpusFd(open(filePath.c_str(), openFlags, 0666));
         if (!corpusFd.ok()) {
             std::cerr << "Failed to open fd. Path " << filePath
                       << " with error: " << strerror(errno) << std::endl;

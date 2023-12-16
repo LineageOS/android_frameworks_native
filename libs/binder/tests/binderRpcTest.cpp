@@ -25,6 +25,7 @@
 #include <thread>
 #include <type_traits>
 
+#include <dirent.h>
 #include <dlfcn.h>
 #include <poll.h>
 #include <sys/prctl.h>
@@ -41,6 +42,10 @@
 
 using namespace std::chrono_literals;
 using namespace std::placeholders;
+using android::binder::borrowed_fd;
+using android::binder::GetExecutableDirectory;
+using android::binder::ReadFdToString;
+using android::binder::unique_fd;
 using testing::AssertionFailure;
 using testing::AssertionResult;
 using testing::AssertionSuccess;
@@ -83,12 +88,11 @@ public:
         mPid = other.mPid;
         other.mPid = 0;
     }
-    Process(const std::function<void(android::base::borrowed_fd /* writeEnd */,
-                                     android::base::borrowed_fd /* readEnd */)>& f) {
-        android::base::unique_fd childWriteEnd;
-        android::base::unique_fd childReadEnd;
-        if (!android::base::Pipe(&mReadEnd, &childWriteEnd, 0)) PLOGF("child write pipe failed");
-        if (!android::base::Pipe(&childReadEnd, &mWriteEnd, 0)) PLOGF("child read pipe failed");
+    Process(const std::function<void(borrowed_fd /* writeEnd */, borrowed_fd /* readEnd */)>& f) {
+        unique_fd childWriteEnd;
+        unique_fd childReadEnd;
+        if (!binder::Pipe(&mReadEnd, &childWriteEnd, 0)) PLOGF("child write pipe failed");
+        if (!binder::Pipe(&childReadEnd, &mWriteEnd, 0)) PLOGF("child read pipe failed");
         if (0 == (mPid = fork())) {
             // racey: assume parent doesn't crash before this is set
             prctl(PR_SET_PDEATHSIG, SIGHUP);
@@ -110,8 +114,8 @@ public:
             }
         }
     }
-    android::base::borrowed_fd readEnd() { return mReadEnd; }
-    android::base::borrowed_fd writeEnd() { return mWriteEnd; }
+    borrowed_fd readEnd() { return mReadEnd; }
+    borrowed_fd writeEnd() { return mWriteEnd; }
 
     void setCustomExitStatusCheck(std::function<void(int wstatus)> f) {
         mCustomExitStatusCheck = std::move(f);
@@ -125,8 +129,8 @@ public:
 private:
     std::function<void(int wstatus)> mCustomExitStatusCheck;
     pid_t mPid = 0;
-    android::base::unique_fd mReadEnd;
-    android::base::unique_fd mWriteEnd;
+    unique_fd mReadEnd;
+    unique_fd mWriteEnd;
 };
 
 static std::string allocateSocketAddress() {
@@ -142,10 +146,9 @@ static unsigned int allocateVsockPort() {
     return vsockPort++;
 }
 
-static base::unique_fd initUnixSocket(std::string addr) {
+static unique_fd initUnixSocket(std::string addr) {
     auto socket_addr = UnixSocketAddress(addr.c_str());
-    base::unique_fd fd(
-            TEMP_FAILURE_RETRY(socket(socket_addr.addr()->sa_family, SOCK_STREAM, AF_UNIX)));
+    unique_fd fd(TEMP_FAILURE_RETRY(socket(socket_addr.addr()->sa_family, SOCK_STREAM, AF_UNIX)));
     if (!fd.ok()) PLOGF("initUnixSocket failed to create socket");
     if (0 != TEMP_FAILURE_RETRY(bind(fd.get(), socket_addr.addr(), socket_addr.addrSize()))) {
         PLOGF("initUnixSocket failed to bind");
@@ -204,8 +207,8 @@ public:
     void terminate() override { host.terminate(); }
 };
 
-static base::unique_fd connectTo(const RpcSocketAddress& addr) {
-    base::unique_fd serverFd(
+static unique_fd connectTo(const RpcSocketAddress& addr) {
+    unique_fd serverFd(
             TEMP_FAILURE_RETRY(socket(addr.addr()->sa_family, SOCK_STREAM | SOCK_CLOEXEC, 0)));
     if (!serverFd.ok()) {
         PLOGF("Could not create socket %s", addr.toString().c_str());
@@ -218,15 +221,15 @@ static base::unique_fd connectTo(const RpcSocketAddress& addr) {
 }
 
 #ifndef BINDER_RPC_TO_TRUSTY_TEST
-static base::unique_fd connectToUnixBootstrap(const RpcTransportFd& transportFd) {
-    base::unique_fd sockClient, sockServer;
-    if (!base::Socketpair(SOCK_STREAM, &sockClient, &sockServer)) {
+static unique_fd connectToUnixBootstrap(const RpcTransportFd& transportFd) {
+    unique_fd sockClient, sockServer;
+    if (!binder::Socketpair(SOCK_STREAM, &sockClient, &sockServer)) {
         PLOGF("Failed socketpair()");
     }
 
     int zero = 0;
     iovec iov{&zero, sizeof(zero)};
-    std::vector<std::variant<base::unique_fd, base::borrowed_fd>> fds;
+    std::vector<std::variant<unique_fd, borrowed_fd>> fds;
     fds.emplace_back(std::move(sockServer));
 
     if (binder::os::sendMessageOnSocket(transportFd, &iov, 1, &fds) < 0) {
@@ -259,12 +262,12 @@ std::unique_ptr<ProcessSession> BinderRpc::createRpcTestSocketServerProcessEtc(
     bool singleThreaded = GetParam().singleThreaded;
     bool noKernel = GetParam().noKernel;
 
-    std::string path = android::base::GetExecutableDirectory();
+    std::string path = GetExecutableDirectory();
     auto servicePath =
             std::format("{}/binder_rpc_test_service{}{}", path,
                         singleThreaded ? "_single_threaded" : "", noKernel ? "_no_kernel" : "");
 
-    base::unique_fd bootstrapClientFd, socketFd;
+    unique_fd bootstrapClientFd, socketFd;
 
     auto addr = allocateSocketAddress();
     // Initializes the socket before the fork/exec.
@@ -273,13 +276,13 @@ std::unique_ptr<ProcessSession> BinderRpc::createRpcTestSocketServerProcessEtc(
     } else if (socketType == SocketType::UNIX_BOOTSTRAP) {
         // Do not set O_CLOEXEC, bootstrapServerFd needs to survive fork/exec.
         // This is because we cannot pass ParcelFileDescriptor over a pipe.
-        if (!base::Socketpair(SOCK_STREAM, &bootstrapClientFd, &socketFd)) {
+        if (!binder::Socketpair(SOCK_STREAM, &bootstrapClientFd, &socketFd)) {
             PLOGF("Failed socketpair()");
         }
     }
 
     auto ret = std::make_unique<LinuxProcessSession>(
-            Process([=](android::base::borrowed_fd writeEnd, android::base::borrowed_fd readEnd) {
+            Process([=](borrowed_fd writeEnd, borrowed_fd readEnd) {
                 if (socketType == SocketType::TIPC) {
                     // Trusty has a single persistent service
                     return;
@@ -374,7 +377,7 @@ std::unique_ptr<ProcessSession> BinderRpc::createRpcTestSocketServerProcessEtc(
                 break;
             case SocketType::UNIX_BOOTSTRAP:
                 status = session->setupUnixDomainSocketBootstrapClient(
-                        base::unique_fd(dup(bootstrapClientFd.get())));
+                        unique_fd(dup(bootstrapClientFd.get())));
                 break;
             case SocketType::VSOCK:
                 status = session->setupVsockClient(VMADDR_CID_LOCAL, serverConfig.vsockPort);
@@ -391,14 +394,14 @@ std::unique_ptr<ProcessSession> BinderRpc::createRpcTestSocketServerProcessEtc(
                         // in case the service is slow to start
                         int tipcFd = tipc_connect(kTrustyIpcDevice, port.c_str());
                         if (tipcFd >= 0) {
-                            return android::base::unique_fd(tipcFd);
+                            return unique_fd(tipcFd);
                         }
                         usleep(50000);
                     }
-                    return android::base::unique_fd();
+                    return unique_fd();
 #else
                     LOG_ALWAYS_FATAL("Tried to connect to Trusty outside of vendor");
-                    return android::base::unique_fd();
+                    return unique_fd();
 #endif
                 });
                 break;
@@ -590,12 +593,12 @@ TEST_P(BinderRpc, OnewayCallQueueingWithFds) {
     android::os::ParcelFileDescriptor fdA;
     EXPECT_OK(proc.rootIface->blockingRecvFd(&fdA));
     std::string result;
-    ASSERT_TRUE(android::base::ReadFdToString(fdA.get(), &result));
+    ASSERT_TRUE(ReadFdToString(fdA.get(), &result));
     EXPECT_EQ(result, "a");
 
     android::os::ParcelFileDescriptor fdB;
     EXPECT_OK(proc.rootIface->blockingRecvFd(&fdB));
-    ASSERT_TRUE(android::base::ReadFdToString(fdB.get(), &result));
+    ASSERT_TRUE(ReadFdToString(fdB.get(), &result));
     EXPECT_EQ(result, "b");
 
     saturateThreadPool(kNumServerThreads, proc.rootIface);
@@ -952,7 +955,7 @@ TEST_P(BinderRpc, ReceiveFile) {
     ASSERT_TRUE(status.isOk()) << status;
 
     std::string result;
-    ASSERT_TRUE(android::base::ReadFdToString(out.get(), &result));
+    ASSERT_TRUE(ReadFdToString(out.get(), &result));
     ASSERT_EQ(result, "hello");
 }
 
@@ -982,7 +985,7 @@ TEST_P(BinderRpc, SendFiles) {
     ASSERT_TRUE(status.isOk()) << status;
 
     std::string result;
-    EXPECT_TRUE(android::base::ReadFdToString(out.get(), &result));
+    EXPECT_TRUE(ReadFdToString(out.get(), &result));
     EXPECT_EQ(result, "123abcd");
 }
 
@@ -1007,7 +1010,7 @@ TEST_P(BinderRpc, SendMaxFiles) {
     ASSERT_TRUE(status.isOk()) << status;
 
     std::string result;
-    EXPECT_TRUE(android::base::ReadFdToString(out.get(), &result));
+    EXPECT_TRUE(ReadFdToString(out.get(), &result));
     EXPECT_EQ(result, std::string(253, 'a'));
 }
 
@@ -1152,7 +1155,7 @@ bool testSupportVsockLoopback() {
     // We don't need to enable TLS to know if vsock is supported.
     unsigned int vsockPort = allocateVsockPort();
 
-    android::base::unique_fd serverFd(
+    unique_fd serverFd(
             TEMP_FAILURE_RETRY(socket(AF_VSOCK, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0)));
 
     if (errno == EAFNOSUPPORT) {
@@ -1179,7 +1182,7 @@ bool testSupportVsockLoopback() {
     // to see if the kernel supports it. It's safe to use a blocking
     // connect because vsock sockets have a 2 second connection timeout,
     // and they return ETIMEDOUT after that.
-    android::base::unique_fd connectFd(
+    unique_fd connectFd(
             TEMP_FAILURE_RETRY(socket(AF_VSOCK, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0)));
     LOG_ALWAYS_FATAL_IF(!connectFd.ok(), "Could not create socket for port %u: %s", vsockPort,
                         strerror(errno));
@@ -1193,7 +1196,7 @@ bool testSupportVsockLoopback() {
     ret = TEMP_FAILURE_RETRY(connect(connectFd.get(), reinterpret_cast<sockaddr*>(&connectAddr),
                                      sizeof(connectAddr)));
     if (ret != 0 && (errno == EAGAIN || errno == EINPROGRESS)) {
-        android::base::unique_fd acceptFd;
+        unique_fd acceptFd;
         while (true) {
             pollfd pfd[]{
                     {.fd = serverFd.get(), .events = POLLIN, .revents = 0},
@@ -1423,14 +1426,14 @@ public:
 };
 
 TEST_P(BinderRpcServerOnly, SetExternalServerTest) {
-    base::unique_fd sink(TEMP_FAILURE_RETRY(open("/dev/null", O_RDWR)));
+    unique_fd sink(TEMP_FAILURE_RETRY(open("/dev/null", O_RDWR)));
     int sinkFd = sink.get();
     auto server = RpcServer::make(newTlsFactory(std::get<0>(GetParam())));
     ASSERT_TRUE(server->setProtocolVersion(std::get<1>(GetParam())));
     ASSERT_FALSE(server->hasServer());
     ASSERT_EQ(OK, server->setupExternalServer(std::move(sink)));
     ASSERT_TRUE(server->hasServer());
-    base::unique_fd retrieved = server->releaseServer();
+    unique_fd retrieved = server->releaseServer();
     ASSERT_FALSE(server->hasServer());
     ASSERT_EQ(sinkFd, retrieved.get());
 }
@@ -1476,12 +1479,12 @@ public:
     // in the client half of the tests.
     using Param =
             std::tuple<SocketType, RpcSecurity, std::optional<RpcCertificateFormat>, uint32_t>;
-    using ConnectToServer = std::function<base::unique_fd()>;
+    using ConnectToServer = std::function<unique_fd()>;
 
     // A server that handles client socket connections.
     class Server {
     public:
-        using AcceptConnection = std::function<base::unique_fd(Server*)>;
+        using AcceptConnection = std::function<unique_fd(Server*)>;
 
         explicit Server() {}
         Server(Server&&) = default;
@@ -1510,8 +1513,8 @@ public:
                     };
                 } break;
                 case SocketType::UNIX_BOOTSTRAP: {
-                    base::unique_fd bootstrapFdClient, bootstrapFdServer;
-                    if (!base::Socketpair(SOCK_STREAM, &bootstrapFdClient, &bootstrapFdServer)) {
+                    unique_fd bootstrapFdClient, bootstrapFdServer;
+                    if (!binder::Socketpair(SOCK_STREAM, &bootstrapFdClient, &bootstrapFdServer)) {
                         return AssertionFailure() << "Socketpair() failed";
                     }
                     auto status = rpcServer->setupUnixDomainSocketBootstrapServer(
@@ -1554,7 +1557,7 @@ public:
                     mConnectToServer = [port] {
                         const char* addr = kLocalInetAddress;
                         auto aiStart = InetSocketAddress::getAddrInfo(addr, port);
-                        if (aiStart == nullptr) return base::unique_fd{};
+                        if (aiStart == nullptr) return unique_fd{};
                         for (auto ai = aiStart.get(); ai != nullptr; ai = ai->ai_next) {
                             auto fd = connectTo(
                                     InetSocketAddress(ai->ai_addr, ai->ai_addrlen, addr, port));
@@ -1562,7 +1565,7 @@ public:
                         }
                         ALOGE("None of the socket address resolved for %s:%u can be connected",
                               addr, port);
-                        return base::unique_fd{};
+                        return unique_fd{};
                     };
                 } break;
                 case SocketType::TIPC: {
@@ -1586,13 +1589,13 @@ public:
             mThread = std::make_unique<std::thread>(&Server::run, this);
         }
 
-        base::unique_fd acceptServerConnection() {
-            return base::unique_fd(TEMP_FAILURE_RETRY(
+        unique_fd acceptServerConnection() {
+            return unique_fd(TEMP_FAILURE_RETRY(
                     accept4(mFd.fd.get(), nullptr, nullptr, SOCK_CLOEXEC | SOCK_NONBLOCK)));
         }
 
-        base::unique_fd recvmsgServerConnection() {
-            std::vector<std::variant<base::unique_fd, base::borrowed_fd>> fds;
+        unique_fd recvmsgServerConnection() {
+            std::vector<std::variant<unique_fd, borrowed_fd>> fds;
             int buf;
             iovec iov{&buf, sizeof(buf)};
 
@@ -1601,7 +1604,7 @@ public:
             }
             LOG_ALWAYS_FATAL_IF(fds.size() != 1, "Expected one FD from receiveMessage(), got %zu",
                                 fds.size());
-            return std::move(std::get<base::unique_fd>(fds[0]));
+            return std::move(std::get<unique_fd>(fds[0]));
         }
 
         void run() {
@@ -1609,13 +1612,13 @@ public:
 
             std::vector<std::thread> threads;
             while (OK == mFdTrigger->triggerablePoll(mFd, POLLIN)) {
-                base::unique_fd acceptedFd = mAcceptConnection(this);
+                unique_fd acceptedFd = mAcceptConnection(this);
                 threads.emplace_back(&Server::handleOne, this, std::move(acceptedFd));
             }
 
             for (auto& thread : threads) thread.join();
         }
-        void handleOne(android::base::unique_fd acceptedFd) {
+        void handleOne(unique_fd acceptedFd) {
             ASSERT_TRUE(acceptedFd.ok());
             RpcTransportFd transportFd(std::move(acceptedFd));
             auto serverTransport = mCtx->newTransport(std::move(transportFd), mFdTrigger.get());

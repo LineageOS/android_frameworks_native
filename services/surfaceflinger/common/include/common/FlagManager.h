@@ -60,6 +60,13 @@ public:
     bool hdcp_level_hal() const;
     bool multithreaded_present() const;
     bool add_sf_skipped_frames_to_trace() const;
+    bool use_known_refresh_rate_for_fps_consistency() const;
+    bool cache_if_source_crop_layer_only_moved() const;
+    bool enable_fro_dependent_features() const;
+    bool display_protected() const;
+    bool fp16_client_target() const;
+    bool game_default_frame_rate() const;
+    bool enable_layer_command_batching() const;
 
 protected:
     // overridden for unit tests

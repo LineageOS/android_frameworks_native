@@ -27,11 +27,11 @@
 #include "../RpcState.h"
 #include "TrustyStatus.h"
 
-using android::base::unexpected;
+using android::binder::unique_fd;
 
 namespace android {
 
-android::base::expected<sp<RpcServerTrusty>, int> RpcServerTrusty::make(
+sp<RpcServerTrusty> RpcServerTrusty::make(
         tipc_hset* handleSet, std::string&& portName, std::shared_ptr<const PortAcl>&& portAcl,
         size_t msgMaxSize, std::unique_ptr<RpcTransportCtxFactory> rpcTransportCtxFactory) {
     // Default is without TLS.
@@ -39,18 +39,21 @@ android::base::expected<sp<RpcServerTrusty>, int> RpcServerTrusty::make(
         rpcTransportCtxFactory = RpcTransportCtxFactoryTipcTrusty::make();
     auto ctx = rpcTransportCtxFactory->newServerCtx();
     if (ctx == nullptr) {
-        return unexpected(ERR_NO_MEMORY);
+        ALOGE("Failed to create RpcServerTrusty: can't create server context");
+        return nullptr;
     }
 
     auto srv = sp<RpcServerTrusty>::make(std::move(ctx), std::move(portName), std::move(portAcl),
                                          msgMaxSize);
     if (srv == nullptr) {
-        return unexpected(ERR_NO_MEMORY);
+        ALOGE("Failed to create RpcServerTrusty: can't create server object");
+        return nullptr;
     }
 
     int rc = tipc_add_service(handleSet, &srv->mTipcPort, 1, 0, &kTipcOps);
     if (rc != NO_ERROR) {
-        return unexpected(rc);
+        ALOGE("Failed to create RpcServerTrusty: can't add service: %d", rc);
+        return nullptr;
     }
     return srv;
 }
@@ -129,7 +132,7 @@ int RpcServerTrusty::handleConnect(const tipc_port* port, handle_t chan, const u
     if (chanDup < 0) {
         return chanDup;
     }
-    base::unique_fd clientFd(chanDup);
+    unique_fd clientFd(chanDup);
     android::RpcTransportFd transportFd(std::move(clientFd));
 
     std::array<uint8_t, RpcServer::kRpcAddressSize> addr;

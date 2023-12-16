@@ -18,9 +18,10 @@ LOCAL_DIR := $(GET_LOCAL_DIR)
 MODULE := $(LOCAL_DIR)
 
 LIBBINDER_DIR := frameworks/native/libs/binder
+# TODO(b/302723053): remove libbase after aidl prebuilt gets updated to December release
 LIBBASE_DIR := system/libbase
-LIBCUTILS_DIR := system/core/libcutils
-LIBUTILS_DIR := system/core/libutils
+LIBLOG_STUB_DIR := $(LIBBINDER_DIR)/liblog_stub
+LIBUTILS_BINDER_DIR := system/core/libutils/binder
 FMTLIB_DIR := external/fmtlib
 
 MODULE_SRCS := \
@@ -34,7 +35,6 @@ MODULE_SRCS := \
 	$(LIBBINDER_DIR)/FdTrigger.cpp \
 	$(LIBBINDER_DIR)/IInterface.cpp \
 	$(LIBBINDER_DIR)/IResultReceiver.cpp \
-	$(LIBBINDER_DIR)/OS_android.cpp \
 	$(LIBBINDER_DIR)/Parcel.cpp \
 	$(LIBBINDER_DIR)/ParcelFileDescriptor.cpp \
 	$(LIBBINDER_DIR)/RpcServer.cpp \
@@ -43,24 +43,22 @@ MODULE_SRCS := \
 	$(LIBBINDER_DIR)/Stability.cpp \
 	$(LIBBINDER_DIR)/Status.cpp \
 	$(LIBBINDER_DIR)/Utils.cpp \
-	$(LIBBASE_DIR)/hex.cpp \
-	$(LIBBASE_DIR)/stringprintf.cpp \
-	$(LIBUTILS_DIR)/binder/Errors.cpp \
-	$(LIBUTILS_DIR)/binder/RefBase.cpp \
-	$(LIBUTILS_DIR)/binder/SharedBuffer.cpp \
-	$(LIBUTILS_DIR)/binder/String16.cpp \
-	$(LIBUTILS_DIR)/binder/String8.cpp \
-	$(LIBUTILS_DIR)/binder/StrongPointer.cpp \
-	$(LIBUTILS_DIR)/binder/Unicode.cpp \
-	$(LIBUTILS_DIR)/binder/VectorImpl.cpp \
-	$(LIBUTILS_DIR)/misc.cpp \
+	$(LIBBINDER_DIR)/file.cpp \
+	$(LIBUTILS_BINDER_DIR)/Errors.cpp \
+	$(LIBUTILS_BINDER_DIR)/RefBase.cpp \
+	$(LIBUTILS_BINDER_DIR)/SharedBuffer.cpp \
+	$(LIBUTILS_BINDER_DIR)/String16.cpp \
+	$(LIBUTILS_BINDER_DIR)/String8.cpp \
+	$(LIBUTILS_BINDER_DIR)/StrongPointer.cpp \
+	$(LIBUTILS_BINDER_DIR)/Unicode.cpp \
+	$(LIBUTILS_BINDER_DIR)/VectorImpl.cpp \
 
 MODULE_EXPORT_INCLUDES += \
 	$(LOCAL_DIR)/include \
+	$(LIBLOG_STUB_DIR)/include \
 	$(LIBBINDER_DIR)/include \
 	$(LIBBASE_DIR)/include \
-	$(LIBCUTILS_DIR)/include \
-	$(LIBUTILS_DIR)/include \
+	$(LIBUTILS_BINDER_DIR)/include \
 	$(FMTLIB_DIR)/include \
 
 # The android/binder_to_string.h header is shared between libbinder and
@@ -70,6 +68,10 @@ MODULE_EXPORT_INCLUDES += \
 
 MODULE_EXPORT_COMPILEFLAGS += \
 	-DBINDER_RPC_SINGLE_THREADED \
+	-DBINDER_ENABLE_LIBLOG_ASSERT \
+	-DBINDER_DISABLE_NATIVE_HANDLE \
+	-DBINDER_DISABLE_BLOB \
+	-DBINDER_NO_LIBBASE \
 	-D__ANDROID_VNDK__ \
 
 # libbinder has some deprecated declarations that we want to produce warnings

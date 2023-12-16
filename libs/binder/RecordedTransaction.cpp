@@ -14,18 +14,23 @@
  * limitations under the License.
  */
 
-#include <android-base/file.h>
-#include <android-base/unique_fd.h>
+#include "file.h"
+
 #include <binder/Functional.h>
 #include <binder/RecordedTransaction.h>
+#include <binder/unique_fd.h>
+
 #include <inttypes.h>
 #include <sys/mman.h>
+#include <sys/stat.h>
 #include <algorithm>
 
 using namespace android::binder::impl;
 using android::Parcel;
-using android::base::borrowed_fd;
-using android::base::unique_fd;
+using android::binder::borrowed_fd;
+using android::binder::ReadFully;
+using android::binder::unique_fd;
+using android::binder::WriteFully;
 using android::binder::debug::RecordedTransaction;
 
 #define PADDING8(s) ((8 - (s) % 8) % 8)
@@ -182,7 +187,7 @@ std::optional<RecordedTransaction> RecordedTransaction::fromFile(const unique_fd
             return std::nullopt;
         }
 
-        if (!android::base::ReadFully(fd, &chunk, sizeof(ChunkDescriptor))) {
+        if (!ReadFully(fd, &chunk, sizeof(ChunkDescriptor))) {
             ALOGE("Failed to read ChunkDescriptor from fd %d. %s", fd.get(), strerror(errno));
             return std::nullopt;
         }
@@ -317,7 +322,7 @@ android::status_t RecordedTransaction::writeChunk(borrowed_fd fd, uint32_t chunk
     buffer.insert(buffer.end(), checksumBytes, checksumBytes + sizeof(transaction_checksum_t));
 
     // Write buffer to file
-    if (!android::base::WriteFully(fd, buffer.data(), buffer.size())) {
+    if (!WriteFully(fd, buffer.data(), buffer.size())) {
         ALOGE("Failed to write chunk fd %d", fd.get());
         return UNKNOWN_ERROR;
     }

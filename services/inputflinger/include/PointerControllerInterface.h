@@ -22,6 +22,8 @@
 
 namespace android {
 
+struct SpriteIcon;
+
 struct FloatPoint {
     float x;
     float y;
@@ -135,6 +137,12 @@ public:
 
     /* Sets the associated display of this pointer. Pointer should show on that display. */
     virtual void setDisplayViewport(const DisplayViewport& displayViewport) = 0;
+
+    /* Sets the pointer icon type for mice or styluses. */
+    virtual void updatePointerIcon(PointerIconStyle iconId) = 0;
+
+    /* Sets the custom pointer icon for mice or styluses. */
+    virtual void setCustomPointerIcon(const SpriteIcon& icon) = 0;
 };
 
 } // namespace android

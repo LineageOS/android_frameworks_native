@@ -193,7 +193,7 @@ Layer::Layer(const surfaceflinger::LayerCreationArgs& args)
     mDrawingState.dropInputMode = gui::DropInputMode::NONE;
     mDrawingState.dimmingEnabled = true;
     mDrawingState.defaultFrameRateCompatibility = FrameRateCompatibility::Default;
-    mDrawingState.frameRateSelectionStrategy = FrameRateSelectionStrategy::Self;
+    mDrawingState.frameRateSelectionStrategy = FrameRateSelectionStrategy::Propagate;
 
     if (args.flags & ISurfaceComposerClient::eNoColorFill) {
         // Set an invalid color so there is no color fill.
@@ -1273,14 +1273,15 @@ bool Layer::propagateFrameRateForLayerTree(FrameRate parentFrameRate, bool overr
     auto now = systemTime();
     *transactionNeeded |= setFrameRateForLayerTreeLegacy(frameRate, now);
 
-    // The frame rate is propagated to the children
+    // The frame rate is propagated to the children by default, but some properties may override it.
     bool childrenHaveFrameRate = false;
+    const bool overrideChildrenFrameRate = overrideChildren || shouldOverrideChildrenFrameRate();
+    const bool canPropagateFrameRate = shouldPropagateFrameRate() || overrideChildrenFrameRate;
     for (const sp<Layer>& child : mCurrentChildren) {
         childrenHaveFrameRate |=
-                child->propagateFrameRateForLayerTree(frameRate,
-                                                      overrideChildren ||
-                                                              shouldOverrideChildrenFrameRate(),
-                                                      transactionNeeded);
+                child->propagateFrameRateForLayerTree(canPropagateFrameRate ? frameRate
+                                                                            : FrameRate(),
+                                                      overrideChildrenFrameRate, transactionNeeded);
     }
 
     // If we don't have a valid frame rate specification, but the children do, we set this
@@ -1718,9 +1719,17 @@ void Layer::miniDump(std::string& result, const frontend::LayerSnapshot& snapsho
     StringAppendF(&result, "%6.1f %6.1f %6.1f %6.1f | ", crop.left, crop.top, crop.right,
                   crop.bottom);
     const auto frameRate = snapshot.frameRate;
+    std::string frameRateStr;
+    if (frameRate.vote.rate.isValid()) {
+        StringAppendF(&frameRateStr, "%.2f", frameRate.vote.rate.getValue());
+    }
     if (frameRate.vote.rate.isValid() || frameRate.vote.type != FrameRateCompatibility::Default) {
-        StringAppendF(&result, "%s %15s %17s", to_string(frameRate.vote.rate).c_str(),
+        StringAppendF(&result, "%6s %15s %17s", frameRateStr.c_str(),
                       ftl::enum_string(frameRate.vote.type).c_str(),
+                      ftl::enum_string(frameRate.vote.seamlessness).c_str());
+    } else if (frameRate.category != FrameRateCategory::Default) {
+        StringAppendF(&result, "%6s %15s %17s", frameRateStr.c_str(),
+                      (std::string("Cat::") + ftl::enum_string(frameRate.category)).c_str(),
                       ftl::enum_string(frameRate.vote.seamlessness).c_str());
     } else {
         result.append(41, ' ');
@@ -2678,6 +2687,7 @@ Region Layer::getVisibleRegion(const DisplayDevice* display) const {
 }
 
 void Layer::setInitialValuesForClone(const sp<Layer>& clonedFrom, uint32_t mirrorRootId) {
+    if (mFlinger->mLayerLifecycleManagerEnabled) return;
     mSnapshot->path.id = clonedFrom->getSequence();
     mSnapshot->path.mirrorRootIds.emplace_back(mirrorRootId);
 
@@ -3255,7 +3265,7 @@ bool Layer::setBuffer(std::shared_ptr<renderengine::ExternalTexture>& buffer,
 
     // If the layer had been updated a TextureView, this would make sure the present time could be
     // same to TextureView update when it's a small dirty, and get the correct heuristic rate.
-    if (mFlinger->mScheduler->supportSmallDirtyDetection()) {
+    if (mFlinger->mScheduler->supportSmallDirtyDetection(mOwnerAppId)) {
         if (mDrawingState.useVsyncIdForRefreshRateSelection) {
             mUsedVsyncIdForRefreshRateSelection = true;
         }
@@ -3288,7 +3298,7 @@ void Layer::recordLayerHistoryBufferUpdate(const scheduler::LayerProps& layerPro
             }
         }
 
-        if (!mFlinger->mScheduler->supportSmallDirtyDetection()) {
+        if (!mFlinger->mScheduler->supportSmallDirtyDetection(mOwnerAppId)) {
             return static_cast<nsecs_t>(0);
         }
 
@@ -4326,7 +4336,6 @@ void Layer::updateSnapshot(bool updateGeometry) {
         prepareBasicGeometryCompositionState();
         prepareGeometryCompositionState();
         snapshot->roundedCorner = getRoundedCornerState();
-        snapshot->stretchEffect = getStretchEffect();
         snapshot->transformedBounds = mScreenBounds;
         if (mEffectiveShadowRadius > 0.f) {
             snapshot->shadowSettings = mFlinger->mDrawingState.globalShadowSettings;
@@ -4432,7 +4441,7 @@ void Layer::updateLastLatchTime(nsecs_t latchTime) {
 void Layer::setIsSmallDirty(const Region& damageRegion,
                             const ui::Transform& layerToDisplayTransform) {
     mSmallDirty = false;
-    if (!mFlinger->mScheduler->supportSmallDirtyDetection()) {
+    if (!mFlinger->mScheduler->supportSmallDirtyDetection(mOwnerAppId)) {
         return;
     }
 

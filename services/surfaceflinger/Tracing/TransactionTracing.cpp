@@ -16,12 +16,10 @@
 
 #undef LOG_TAG
 #define LOG_TAG "TransactionTracing"
-#define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 #include <android-base/stringprintf.h>
 #include <log/log.h>
 #include <utils/SystemClock.h>
-#include <utils/Trace.h>
 
 #include "Client.h"
 #include "FrontEnd/LayerCreationArgs.h"
@@ -230,7 +228,6 @@ void TransactionTracing::loop() {
 
 void TransactionTracing::addEntry(const std::vector<CommittedUpdates>& committedUpdates,
                                   const std::vector<uint32_t>& destroyedLayers) {
-    ATRACE_CALL();
     std::scoped_lock lock(mTraceLock);
     std::vector<std::string> removedEntries;
     perfetto::protos::TransactionTraceEntry entryProto;
@@ -441,6 +438,7 @@ TransactionTracing::createStartingStateProtoLocked() {
     for (auto& [layerStack, displayInfo] : mStartingDisplayInfos) {
         entryProto.mutable_displays()->Add(mProtoParser.toProto(displayInfo, layerStack.id));
     }
+    entryProto.set_displays_changed(true);
 
     return entryProto;
 }

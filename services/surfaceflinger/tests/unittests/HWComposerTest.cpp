@@ -35,11 +35,11 @@
 #include <log/log.h>
 #include <chrono>
 
+#include <common/test/FlagUtils.h>
 #include "DisplayHardware/DisplayMode.h"
 #include "DisplayHardware/HWComposer.h"
 #include "DisplayHardware/Hal.h"
 #include "DisplayIdentificationTestHelpers.h"
-#include "FlagUtils.h"
 #include "mock/DisplayHardware/MockComposer.h"
 #include "mock/DisplayHardware/MockHWC2.h"
 
@@ -57,6 +57,7 @@ using namespace std::chrono_literals;
 
 using Hwc2::Config;
 
+using ::aidl::android::hardware::graphics::common::DisplayHotplugEvent;
 using ::aidl::android::hardware::graphics::composer3::RefreshRateChangedDebugData;
 using hal::IComposerClient;
 using ::testing::_;
@@ -80,15 +81,6 @@ struct HWComposerTest : testing::Test {
         EXPECT_CALL(*mHal, setClientTargetSlotCount(_));
         EXPECT_CALL(*mHal, setVsyncEnabled(hwcDisplayId, Hwc2::IComposerClient::Vsync::DISABLE));
         EXPECT_CALL(*mHal, onHotplugConnect(hwcDisplayId));
-    }
-
-    void setDisplayData(HalDisplayId displayId, TimePoint lastExpectedPresentTimestamp,
-                        Fps lastFrameInterval) {
-        ASSERT_TRUE(mHwc.mDisplayData.find(displayId) != mHwc.mDisplayData.end());
-        auto& displayData = mHwc.mDisplayData.at(displayId);
-        std::scoped_lock lock{displayData.expectedPresentLock};
-        displayData.lastExpectedPresentTimestamp = lastExpectedPresentTimestamp;
-        displayData.lastFrameInterval = lastFrameInterval;
     }
 };
 
@@ -142,7 +134,7 @@ TEST_F(HWComposerTest, getModesWithLegacyDisplayConfigs) {
     const auto info = mHwc.onHotplug(kHwcDisplayId, hal::Connection::CONNECTED);
     ASSERT_TRUE(info);
 
-    EXPECT_CALL(*mHal, getDisplayConfigurationsSupported()).WillRepeatedly(Return(false));
+    EXPECT_CALL(*mHal, isVrrSupported()).WillRepeatedly(Return(false));
 
     {
         EXPECT_CALL(*mHal, getDisplayConfigs(kHwcDisplayId, _))
@@ -234,7 +226,7 @@ TEST_F(HWComposerTest, getModesWithDisplayConfigurations_VRR_OFF) {
     const auto info = mHwc.onHotplug(kHwcDisplayId, hal::Connection::CONNECTED);
     ASSERT_TRUE(info);
 
-    EXPECT_CALL(*mHal, getDisplayConfigurationsSupported()).WillRepeatedly(Return(false));
+    EXPECT_CALL(*mHal, isVrrSupported()).WillRepeatedly(Return(false));
 
     {
         EXPECT_CALL(*mHal, getDisplayConfigs(kHwcDisplayId, _))
@@ -323,7 +315,7 @@ TEST_F(HWComposerTest, getModesWithDisplayConfigurations_VRR_ON) {
     const auto info = mHwc.onHotplug(kHwcDisplayId, hal::Connection::CONNECTED);
     ASSERT_TRUE(info);
 
-    EXPECT_CALL(*mHal, getDisplayConfigurationsSupported()).WillRepeatedly(Return(true));
+    EXPECT_CALL(*mHal, isVrrSupported()).WillRepeatedly(Return(true));
 
     {
         EXPECT_CALL(*mHal, getDisplayConfigurations(kHwcDisplayId, _, _))
@@ -416,146 +408,9 @@ TEST_F(HWComposerTest, onVsyncInvalid) {
     EXPECT_FALSE(displayIdOpt);
 }
 
-TEST_F(HWComposerTest, notifyExpectedPresentTimeout) {
-    constexpr hal::HWDisplayId kHwcDisplayId = 2;
-    expectHotplugConnect(kHwcDisplayId);
-    const auto info = mHwc.onHotplug(kHwcDisplayId, hal::Connection::CONNECTED);
-    ASSERT_TRUE(info);
-
-    auto expectedPresentTime = systemTime() + ms2ns(10);
-    static constexpr Fps Fps60Hz = 60_Hz;
-    static constexpr int32_t kFrameInterval5HzNs = static_cast<Fps>(5_Hz).getPeriodNsecs();
-    static constexpr int32_t kFrameInterval60HzNs = Fps60Hz.getPeriodNsecs();
-    static constexpr int32_t kFrameInterval120HzNs = static_cast<Fps>(120_Hz).getPeriodNsecs();
-    static constexpr Period kVsyncPeriod =
-            Period::fromNs(static_cast<Fps>(240_Hz).getPeriodNsecs());
-    static constexpr Period kTimeoutNs = Period::fromNs(kFrameInterval5HzNs);
-    static constexpr auto kLastExpectedPresentTimestamp = TimePoint::fromNs(0);
-
-    ASSERT_NO_FATAL_FAILURE(setDisplayData(info->id, kLastExpectedPresentTimestamp, Fps60Hz));
-
-    {
-        // Very first ExpectedPresent after idle, no previous timestamp
-        EXPECT_CALL(*mHal,
-                    notifyExpectedPresent(kHwcDisplayId, expectedPresentTime, kFrameInterval60HzNs))
-                .WillOnce(Return(HalError::NONE));
-        mHwc.notifyExpectedPresentIfRequired(info->id, kVsyncPeriod,
-                                             TimePoint::fromNs(expectedPresentTime), Fps60Hz,
-                                             kTimeoutNs);
-    }
-    {
-        // Absent timeoutNs
-        expectedPresentTime += 2 * kFrameInterval5HzNs;
-        EXPECT_CALL(*mHal, notifyExpectedPresent(kHwcDisplayId, _, _)).Times(0);
-        mHwc.notifyExpectedPresentIfRequired(info->id, kVsyncPeriod,
-                                             TimePoint::fromNs(expectedPresentTime), Fps60Hz,
-                                             /*timeoutOpt*/ std::nullopt);
-    }
-    {
-        // Timeout is 0
-        expectedPresentTime += kFrameInterval60HzNs;
-        EXPECT_CALL(*mHal,
-                    notifyExpectedPresent(kHwcDisplayId, expectedPresentTime, kFrameInterval60HzNs))
-                .WillOnce(Return(HalError::NONE));
-        mHwc.notifyExpectedPresentIfRequired(info->id, kVsyncPeriod,
-                                             TimePoint::fromNs(expectedPresentTime), Fps60Hz,
-                                             Period::fromNs(0));
-    }
-    {
-        // ExpectedPresent is after the timeoutNs
-        expectedPresentTime += 2 * kFrameInterval5HzNs;
-        EXPECT_CALL(*mHal,
-                    notifyExpectedPresent(kHwcDisplayId, expectedPresentTime, kFrameInterval60HzNs))
-                .WillOnce(Return(HalError::NONE));
-        mHwc.notifyExpectedPresentIfRequired(info->id, kVsyncPeriod,
-                                             TimePoint::fromNs(expectedPresentTime), Fps60Hz,
-                                             kTimeoutNs);
-    }
-    {
-        // ExpectedPresent has not changed
-        EXPECT_CALL(*mHal, notifyExpectedPresent(kHwcDisplayId, _, _)).Times(0);
-        mHwc.notifyExpectedPresentIfRequired(info->id, kVsyncPeriod,
-                                             TimePoint::fromNs(expectedPresentTime), Fps60Hz,
-                                             kTimeoutNs);
-    }
-    {
-        // ExpectedPresent is after the last reported ExpectedPresent.
-        expectedPresentTime += kFrameInterval60HzNs;
-        EXPECT_CALL(*mHal, notifyExpectedPresent(kHwcDisplayId, _, _)).Times(0);
-        mHwc.notifyExpectedPresentIfRequired(info->id, kVsyncPeriod,
-                                             TimePoint::fromNs(expectedPresentTime), Fps60Hz,
-                                             kTimeoutNs);
-    }
-    {
-        // ExpectedPresent is before the last reported ExpectedPresent but after the timeoutNs,
-        // representing we changed our decision and want to present earlier than previously
-        // reported.
-        expectedPresentTime -= kFrameInterval120HzNs;
-        EXPECT_CALL(*mHal,
-                    notifyExpectedPresent(kHwcDisplayId, expectedPresentTime, kFrameInterval60HzNs))
-                .WillOnce(Return(HalError::NONE));
-        mHwc.notifyExpectedPresentIfRequired(info->id, kVsyncPeriod,
-                                             TimePoint::fromNs(expectedPresentTime), Fps60Hz,
-                                             kTimeoutNs);
-    }
-}
-
-TEST_F(HWComposerTest, notifyExpectedPresentRenderRateChanged) {
-    constexpr hal::HWDisplayId kHwcDisplayId = 2;
-    expectHotplugConnect(kHwcDisplayId);
-    const auto info = mHwc.onHotplug(kHwcDisplayId, hal::Connection::CONNECTED);
-    ASSERT_TRUE(info);
-
-    const auto now = systemTime();
-    auto expectedPresentTime = now;
-    static constexpr Period kTimeoutNs = Period::fromNs(static_cast<Fps>(1_Hz).getPeriodNsecs());
-
-    ASSERT_NO_FATAL_FAILURE(setDisplayData(info->id, TimePoint::fromNs(now), Fps::fromValue(0)));
-    static constexpr int32_t kFrameIntervalNs120Hz = static_cast<Fps>(120_Hz).getPeriodNsecs();
-    static constexpr int32_t kFrameIntervalNs96Hz = static_cast<Fps>(96_Hz).getPeriodNsecs();
-    static constexpr int32_t kFrameIntervalNs80Hz = static_cast<Fps>(80_Hz).getPeriodNsecs();
-    static constexpr int32_t kFrameIntervalNs60Hz = static_cast<Fps>(60_Hz).getPeriodNsecs();
-    static constexpr int32_t kFrameIntervalNs40Hz = static_cast<Fps>(40_Hz).getPeriodNsecs();
-    static constexpr int32_t kFrameIntervalNs30Hz = static_cast<Fps>(30_Hz).getPeriodNsecs();
-    static constexpr int32_t kFrameIntervalNs24Hz = static_cast<Fps>(24_Hz).getPeriodNsecs();
-    static constexpr int32_t kFrameIntervalNs20Hz = static_cast<Fps>(20_Hz).getPeriodNsecs();
-    static constexpr Period kVsyncPeriod =
-            Period::fromNs(static_cast<Fps>(240_Hz).getPeriodNsecs());
-
-    struct FrameRateIntervalTestData {
-        int32_t frameIntervalNs;
-        bool callExpectedPresent;
-    };
-    const std::vector<FrameRateIntervalTestData> frameIntervals = {
-            {kFrameIntervalNs60Hz, true},  {kFrameIntervalNs96Hz, true},
-            {kFrameIntervalNs80Hz, true},  {kFrameIntervalNs120Hz, true},
-            {kFrameIntervalNs80Hz, true},  {kFrameIntervalNs60Hz, true},
-            {kFrameIntervalNs60Hz, false}, {kFrameIntervalNs30Hz, false},
-            {kFrameIntervalNs24Hz, true},  {kFrameIntervalNs40Hz, true},
-            {kFrameIntervalNs20Hz, false}, {kFrameIntervalNs60Hz, true},
-            {kFrameIntervalNs20Hz, false}, {kFrameIntervalNs120Hz, true},
-    };
-
-    for (const auto& [frameIntervalNs, callExpectedPresent] : frameIntervals) {
-        {
-            expectedPresentTime += frameIntervalNs;
-            if (callExpectedPresent) {
-                EXPECT_CALL(*mHal,
-                            notifyExpectedPresent(kHwcDisplayId, expectedPresentTime,
-                                                  frameIntervalNs))
-                        .WillOnce(Return(HalError::NONE));
-            } else {
-                EXPECT_CALL(*mHal, notifyExpectedPresent(kHwcDisplayId, _, _)).Times(0);
-            }
-            mHwc.notifyExpectedPresentIfRequired(info->id, kVsyncPeriod,
-                                                 TimePoint::fromNs(expectedPresentTime),
-                                                 Fps::fromPeriodNsecs(frameIntervalNs), kTimeoutNs);
-        }
-    }
-}
-
 struct MockHWC2ComposerCallback final : StrictMock<HWC2::ComposerCallback> {
-    MOCK_METHOD2(onComposerHalHotplug, void(hal::HWDisplayId, hal::Connection));
+    MOCK_METHOD(void, onComposerHalHotplugEvent, (hal::HWDisplayId, DisplayHotplugEvent),
+                (override));
     MOCK_METHOD1(onComposerHalRefresh, void(hal::HWDisplayId));
     MOCK_METHOD3(onComposerHalVsync,
                  void(hal::HWDisplayId, int64_t timestamp, std::optional<hal::VsyncPeriodNanos>));

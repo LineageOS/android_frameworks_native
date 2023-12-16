@@ -27,8 +27,8 @@
 
 #include <stdint.h>
 
-struct AHardwareBuffer;
-struct AHardwareBuffer_Desc;
+#include <vndk/hardware_buffer.h>
+
 struct ANativeWindowBuffer;
 
 namespace android {
@@ -45,11 +45,6 @@ uint32_t AHardwareBuffer_convertFromPixelFormat(uint32_t format);
 
 // convert HAL format to AHardwareBuffer format (note: this is a no-op)
 uint32_t AHardwareBuffer_convertToPixelFormat(uint32_t format);
-
-// retrieves a dataspace from the AHardwareBuffer metadata, if the device
-// support gralloc metadata. Returns UNKNOWN if gralloc metadata is not
-// supported.
-int32_t AHardwareBuffer_getDataSpace(AHardwareBuffer* buffer);
 
 // convert AHardwareBuffer usage bits to HAL usage bits (note: this is a no-op)
 uint64_t AHardwareBuffer_convertFromGrallocUsageBits(uint64_t usage);

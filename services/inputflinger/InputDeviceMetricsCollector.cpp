@@ -125,58 +125,84 @@ InputDeviceMetricsCollector::InputDeviceMetricsCollector(InputListenerInterface&
 
 void InputDeviceMetricsCollector::notifyInputDevicesChanged(
         const NotifyInputDevicesChangedArgs& args) {
-    reportCompletedSessions();
-    onInputDevicesChanged(args.inputDeviceInfos);
+    {
+        std::scoped_lock lock(mLock);
+        reportCompletedSessions();
+        onInputDevicesChanged(args.inputDeviceInfos);
+    }
     mNextListener.notify(args);
 }
 
 void InputDeviceMetricsCollector::notifyConfigurationChanged(
         const NotifyConfigurationChangedArgs& args) {
-    reportCompletedSessions();
+    {
+        std::scoped_lock lock(mLock);
+        reportCompletedSessions();
+    }
     mNextListener.notify(args);
 }
 
 void InputDeviceMetricsCollector::notifyKey(const NotifyKeyArgs& args) {
-    reportCompletedSessions();
-    const SourceProvider getSources = [&args](const MetricsDeviceInfo& info) {
-        return std::set{getUsageSourceForKeyArgs(info.keyboardType, args)};
-    };
-    onInputDeviceUsage(DeviceId{args.deviceId}, nanoseconds(args.eventTime), getSources);
-
+    {
+        std::scoped_lock lock(mLock);
+        reportCompletedSessions();
+        const SourceProvider getSources = [&args](const MetricsDeviceInfo& info) {
+            return std::set{getUsageSourceForKeyArgs(info.keyboardType, args)};
+        };
+        onInputDeviceUsage(DeviceId{args.deviceId}, nanoseconds(args.eventTime), getSources);
+    }
     mNextListener.notify(args);
 }
 
 void InputDeviceMetricsCollector::notifyMotion(const NotifyMotionArgs& args) {
-    reportCompletedSessions();
-    onInputDeviceUsage(DeviceId{args.deviceId}, nanoseconds(args.eventTime),
-                       [&args](const auto&) { return getUsageSourcesForMotionArgs(args); });
+    {
+        std::scoped_lock lock(mLock);
+        reportCompletedSessions();
+        onInputDeviceUsage(DeviceId{args.deviceId}, nanoseconds(args.eventTime),
+                           [&args](const auto&) { return getUsageSourcesForMotionArgs(args); });
+    }
 
     mNextListener.notify(args);
 }
 
 void InputDeviceMetricsCollector::notifySwitch(const NotifySwitchArgs& args) {
-    reportCompletedSessions();
+    {
+        std::scoped_lock lock(mLock);
+        reportCompletedSessions();
+    }
     mNextListener.notify(args);
 }
 
 void InputDeviceMetricsCollector::notifySensor(const NotifySensorArgs& args) {
-    reportCompletedSessions();
+    {
+        std::scoped_lock lock(mLock);
+        reportCompletedSessions();
+    }
     mNextListener.notify(args);
 }
 
 void InputDeviceMetricsCollector::notifyVibratorState(const NotifyVibratorStateArgs& args) {
-    reportCompletedSessions();
+    {
+        std::scoped_lock lock(mLock);
+        reportCompletedSessions();
+    }
     mNextListener.notify(args);
 }
 
 void InputDeviceMetricsCollector::notifyDeviceReset(const NotifyDeviceResetArgs& args) {
-    reportCompletedSessions();
+    {
+        std::scoped_lock lock(mLock);
+        reportCompletedSessions();
+    }
     mNextListener.notify(args);
 }
 
 void InputDeviceMetricsCollector::notifyPointerCaptureChanged(
         const NotifyPointerCaptureChangedArgs& args) {
-    reportCompletedSessions();
+    {
+        std::scoped_lock lock(mLock);
+        reportCompletedSessions();
+    }
     mNextListener.notify(args);
 }
 
@@ -185,15 +211,21 @@ void InputDeviceMetricsCollector::notifyDeviceInteraction(int32_t deviceId, nsec
     if (isIgnoredInputDeviceId(deviceId)) {
         return;
     }
+    std::scoped_lock lock(mLock);
     mInteractionsQueue.push(DeviceId{deviceId}, timestamp, uids);
 }
 
 void InputDeviceMetricsCollector::dump(std::string& dump) {
+    std::scoped_lock lock(mLock);
     dump += "InputDeviceMetricsCollector:\n";
 
     dump += "  Logged device IDs: " + dumpMapKeys(mLoggedDeviceInfos, &toString) + "\n";
     dump += "  Devices with active usage sessions: " +
             dumpMapKeys(mActiveUsageSessions, &toString) + "\n";
+}
+
+void InputDeviceMetricsCollector::monitor() {
+    std::scoped_lock lock(mLock);
 }
 
 void InputDeviceMetricsCollector::onInputDevicesChanged(const std::vector<InputDeviceInfo>& infos) {

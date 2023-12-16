@@ -306,6 +306,9 @@ public:
         EXPECT_CALL(*vsyncTracker, nextAnticipatedVSyncTimeFrom(_)).WillRepeatedly(Return(0));
         EXPECT_CALL(*vsyncTracker, currentPeriod())
                 .WillRepeatedly(Return(FakeHwcDisplayInjector::DEFAULT_VSYNC_PERIOD));
+        EXPECT_CALL(*vsyncTracker, minFramePeriod())
+                .WillRepeatedly(
+                        Return(Period::fromNs(FakeHwcDisplayInjector::DEFAULT_VSYNC_PERIOD)));
         EXPECT_CALL(*vsyncTracker, nextAnticipatedVSyncTimeFrom(_)).WillRepeatedly(Return(0));
         setupScheduler(std::move(vsyncController), std::move(vsyncTracker), std::move(eventThread),
                        std::move(sfEventThread), DefaultDisplayMode{options.displayId},
@@ -463,8 +466,8 @@ public:
         mFlinger->commitTransactionsLocked(transactionFlags);
     }
 
-    void onComposerHalHotplug(hal::HWDisplayId hwcDisplayId, hal::Connection connection) {
-        mFlinger->onComposerHalHotplug(hwcDisplayId, connection);
+    void onComposerHalHotplugEvent(hal::HWDisplayId hwcDisplayId, DisplayHotplugEvent event) {
+        mFlinger->onComposerHalHotplugEvent(hwcDisplayId, event);
     }
 
     auto setDisplayStateLocked(const DisplayState& s) {
@@ -481,6 +484,10 @@ public:
         return mFlinger->setDisplayBrightness(display, brightness);
     }
 
+    static const auto& getPendingMode(const sp<DisplayDevice>& display) {
+        return display->mPendingModeOpt;
+    }
+
     // Allow reading display state without locking, as if called on the SF main thread.
     auto setPowerModeInternal(const sp<DisplayDevice>& display,
                               hal::PowerMode mode) NO_THREAD_SAFETY_ANALYSIS {
@@ -490,12 +497,13 @@ public:
     auto renderScreenImpl(std::shared_ptr<const RenderArea> renderArea,
                           SurfaceFlinger::GetLayerSnapshotsFunction traverseLayers,
                           const std::shared_ptr<renderengine::ExternalTexture>& buffer,
-                          bool forSystem, bool regionSampling) {
+                          bool regionSampling) {
         ScreenCaptureResults captureResults;
         return FTL_FAKE_GUARD(kMainThreadContext,
                               mFlinger->renderScreenImpl(std::move(renderArea), traverseLayers,
-                                                         buffer, forSystem, regionSampling,
-                                                         false /* grayscale */, captureResults));
+                                                         buffer, regionSampling,
+                                                         false /* grayscale */,
+                                                         false /* isProtected */, captureResults));
     }
 
     auto traverseLayersInLayerStack(ui::LayerStack layerStack, int32_t uid,
@@ -689,6 +697,21 @@ public:
     void enableNewFrontEnd() {
         mFlinger->mLayerLifecycleManagerEnabled = true;
         mFlinger->mLegacyFrontEndEnabled = false;
+    }
+
+    void notifyExpectedPresentIfRequired(PhysicalDisplayId displayId, Period vsyncPeriod,
+                                         TimePoint expectedPresentTime, Fps frameInterval,
+                                         std::optional<Period> timeoutOpt) {
+        mFlinger->notifyExpectedPresentIfRequired(displayId, vsyncPeriod, expectedPresentTime,
+                                                  frameInterval, timeoutOpt);
+    }
+
+    void setNotifyExpectedPresentData(PhysicalDisplayId displayId,
+                                      TimePoint lastExpectedPresentTimestamp,
+                                      Fps lastFrameInterval) {
+        auto& displayData = mFlinger->mNotifyExpectedPresentMap[displayId];
+        displayData.lastExpectedPresentTimestamp = lastExpectedPresentTimestamp;
+        displayData.lastFrameInterval = lastFrameInterval;
     }
 
     ~TestableSurfaceFlinger() {

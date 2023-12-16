@@ -16,9 +16,6 @@
 
 #pragma once
 
-#include <algorithm>
-#include <numeric>
-#include <set>
 #include <type_traits>
 #include <utility>
 #include <variant>
@@ -41,13 +38,6 @@
 namespace android::scheduler {
 
 using namespace std::chrono_literals;
-
-enum class DisplayModeEvent : unsigned { None = 0b0, Changed = 0b1 };
-
-inline DisplayModeEvent operator|(DisplayModeEvent lhs, DisplayModeEvent rhs) {
-    using T = std::underlying_type_t<DisplayModeEvent>;
-    return static_cast<DisplayModeEvent>(static_cast<T>(lhs) | static_cast<T>(rhs));
-}
 
 using FrameRateOverride = DisplayEventReceiver::Event::FrameRateOverride;
 
@@ -152,6 +142,7 @@ public:
                                  // ExactOrMultiple compatibility
         ExplicitExact,           // Specific refresh rate that was provided by the app with
                                  // Exact compatibility
+        ExplicitGte,             // Greater than or equal to frame rate provided by the app
         ExplicitCategory,        // Specific frame rate category was provided by the app
 
         ftl_last = ExplicitCategory
@@ -258,9 +249,8 @@ public:
                 mMaxRefreshRateModeIt->second->getPeakFps()};
     }
 
-    ftl::Optional<FrameRateMode> onKernelTimerChanged(
-            std::optional<DisplayModeId> desiredActiveModeId, bool timerExpired) const
-            EXCLUDES(mLock);
+    ftl::Optional<FrameRateMode> onKernelTimerChanged(ftl::Optional<DisplayModeId> desiredModeIdOpt,
+                                                      bool timerExpired) const EXCLUDES(mLock);
 
     void setActiveMode(DisplayModeId, Fps renderFrameRate) EXCLUDES(mLock);
 
@@ -464,7 +454,11 @@ private:
     bool isPolicyValidLocked(const Policy& policy) const REQUIRES(mLock);
 
     // Returns the refresh rate score as a ratio to max refresh rate, which has a score of 1.
-    float calculateDistanceScoreFromMax(Fps refreshRate) const REQUIRES(mLock);
+    float calculateDistanceScoreFromMaxLocked(Fps refreshRate) const REQUIRES(mLock);
+
+    // Returns the refresh rate score based on its distance from the reference rate.
+    float calculateDistanceScoreLocked(Fps referenceRate, Fps refreshRate) const REQUIRES(mLock);
+
     // calculates a score for a layer. Used to determine the display refresh rate
     // and the frame rate override for certains applications.
     float calculateLayerScoreLocked(const LayerRequirement&, Fps refreshRate,

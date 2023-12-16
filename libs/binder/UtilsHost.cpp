@@ -25,9 +25,12 @@
 
 #include <log/log.h>
 
+#include "FdUtils.h"
 #include "Utils.h"
 
 namespace android {
+
+using android::binder::unique_fd;
 
 CommandResult::~CommandResult() {
     if (!pid.has_value()) return;
@@ -83,13 +86,13 @@ std::optional<CommandResult> execute(std::vector<std::string> argStringVec,
     argv.push_back(nullptr);
 
     CommandResult ret;
-    android::base::unique_fd outWrite;
-    if (!android::base::Pipe(&ret.outPipe, &outWrite)) {
+    unique_fd outWrite;
+    if (!binder::Pipe(&ret.outPipe, &outWrite)) {
         PLOGE("pipe() for outPipe");
         return {};
     }
-    android::base::unique_fd errWrite;
-    if (!android::base::Pipe(&ret.errPipe, &errWrite)) {
+    unique_fd errWrite;
+    if (!binder::Pipe(&ret.errPipe, &errWrite)) {
         PLOGE("pipe() for errPipe");
         return {};
     }
@@ -120,7 +123,7 @@ std::optional<CommandResult> execute(std::vector<std::string> argStringVec,
     errWrite.reset();
     ret.pid = pid;
 
-    auto handlePoll = [](android::base::unique_fd* fd, const pollfd* pfd, std::string* s) {
+    auto handlePoll = [](unique_fd* fd, const pollfd* pfd, std::string* s) {
         if (!fd->ok()) return true;
         if (pfd->revents & POLLIN) {
             char buf[1024];

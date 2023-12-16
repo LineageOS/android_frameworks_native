@@ -38,6 +38,7 @@
 #include "Hal.h"
 
 #include <aidl/android/hardware/graphics/common/DisplayDecorationSupport.h>
+#include <aidl/android/hardware/graphics/common/DisplayHotplugEvent.h>
 #include <aidl/android/hardware/graphics/composer3/Capability.h>
 #include <aidl/android/hardware/graphics/composer3/ClientTargetPropertyWithBrightness.h>
 #include <aidl/android/hardware/graphics/composer3/Color.h>
@@ -64,15 +65,16 @@ class Layer;
 
 namespace hal = android::hardware::graphics::composer::hal;
 
+using aidl::android::hardware::graphics::common::DisplayHotplugEvent;
 using aidl::android::hardware::graphics::composer3::RefreshRateChangedDebugData;
 
 // Implement this interface to receive hardware composer events.
 //
 // These callback functions will generally be called on a hwbinder thread, but
-// when first registering the callback the onComposerHalHotplug() function will
-// immediately be called on the thread calling registerCallback().
+// when first registering the callback the onComposerHalHotplugEvent() function
+// will immediately be called on the thread calling registerCallback().
 struct ComposerCallback {
-    virtual void onComposerHalHotplug(hal::HWDisplayId, hal::Connection) = 0;
+    virtual void onComposerHalHotplugEvent(hal::HWDisplayId, DisplayHotplugEvent) = 0;
     virtual void onComposerHalRefresh(hal::HWDisplayId) = 0;
     virtual void onComposerHalVsync(hal::HWDisplayId, nsecs_t timestamp,
                                     std::optional<hal::VsyncPeriodNanos>) = 0;
@@ -139,7 +141,8 @@ public:
     [[nodiscard]] virtual hal::Error present(android::sp<android::Fence>* outPresentFence) = 0;
     [[nodiscard]] virtual hal::Error setClientTarget(
             uint32_t slot, const android::sp<android::GraphicBuffer>& target,
-            const android::sp<android::Fence>& acquireFence, hal::Dataspace dataspace) = 0;
+            const android::sp<android::Fence>& acquireFence, hal::Dataspace dataspace,
+            float hdrSdrRatio) = 0;
     [[nodiscard]] virtual hal::Error setColorMode(hal::ColorMode mode,
                                                   hal::RenderIntent renderIntent) = 0;
     [[nodiscard]] virtual hal::Error setColorTransform(const android::mat4& matrix) = 0;
@@ -227,7 +230,7 @@ public:
     hal::Error present(android::sp<android::Fence>* outPresentFence) override;
     hal::Error setClientTarget(uint32_t slot, const android::sp<android::GraphicBuffer>& target,
                                const android::sp<android::Fence>& acquireFence,
-                               hal::Dataspace dataspace) override;
+                               hal::Dataspace dataspace, float hdrSdrRatio) override;
     hal::Error setColorMode(hal::ColorMode, hal::RenderIntent) override;
     hal::Error setColorTransform(const android::mat4& matrix) override;
     hal::Error setOutputBuffer(const android::sp<android::GraphicBuffer>&,

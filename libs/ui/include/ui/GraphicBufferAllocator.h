@@ -22,6 +22,7 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 
 #include <cutils/native_handle.h>
 
@@ -41,6 +42,35 @@ class GraphicBufferAllocator : public Singleton<GraphicBufferAllocator>
 {
 public:
     static inline GraphicBufferAllocator& get() { return getInstance(); }
+
+    struct AdditionalOptions {
+        const char* name;
+        int64_t value;
+    };
+
+    struct AllocationRequest {
+        bool importBuffer;
+        uint32_t width;
+        uint32_t height;
+        PixelFormat format;
+        uint32_t layerCount;
+        uint64_t usage;
+        std::string requestorName;
+        std::vector<AdditionalOptions> extras;
+    };
+
+    struct AllocationResult {
+        status_t status;
+        buffer_handle_t handle = nullptr;
+        uint32_t stride = 0;
+
+        explicit AllocationResult(status_t status) : status(status) {}
+
+        explicit AllocationResult(buffer_handle_t handle, uint32_t stride)
+              : status(OK), handle(handle), stride(stride) {}
+    };
+
+    AllocationResult allocate(const AllocationRequest&);
 
     /**
      * Allocates and imports a gralloc buffer.

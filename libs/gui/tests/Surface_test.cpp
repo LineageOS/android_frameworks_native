@@ -921,7 +921,11 @@ public:
         return binder::Status::ok();
     }
 
-    binder::Status setOverrideFrameRate(int32_t /*uid*/, float /*frameRate*/) override {
+    binder::Status setGameModeFrameRateOverride(int32_t /*uid*/, float /*frameRate*/) override {
+        return binder::Status::ok();
+    }
+
+    binder::Status setGameDefaultFrameRateOverride(int32_t /*uid*/, float /*frameRate*/) override {
         return binder::Status::ok();
     }
 

@@ -24,9 +24,9 @@
 #include <binder/IBinder.h>
 #include <binder/Parcelable.h>
 
-namespace android {
+#include <gui/IGraphicBufferProducer.h>
 
-class IGraphicBufferProducer;
+namespace android {
 
 namespace view {
 

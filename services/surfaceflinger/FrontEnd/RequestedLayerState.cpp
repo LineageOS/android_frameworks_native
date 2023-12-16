@@ -98,7 +98,6 @@ RequestedLayerState::RequestedLayerState(const LayerCreationArgs& args)
     z = 0;
     layerStack = ui::DEFAULT_LAYER_STACK;
     transformToDisplayInverse = false;
-    dataspace = ui::Dataspace::UNKNOWN;
     desiredHdrSdrRatio = 1.f;
     currentHdrSdrRatio = 1.f;
     dataspaceRequested = false;
@@ -126,7 +125,7 @@ RequestedLayerState::RequestedLayerState(const LayerCreationArgs& args)
     frameRateCategory = static_cast<int8_t>(FrameRateCategory::Default);
     frameRateCategorySmoothSwitchOnly = false;
     frameRateSelectionStrategy =
-            static_cast<int8_t>(scheduler::LayerInfo::FrameRateSelectionStrategy::Self);
+            static_cast<int8_t>(scheduler::LayerInfo::FrameRateSelectionStrategy::Propagate);
     dataspace = ui::Dataspace::V0_SRGB;
     gameMode = gui::GameMode::Unsupported;
     requestedFrameRate = {};
@@ -418,6 +417,8 @@ std::ostream& operator<<(std::ostream& out, const RequestedLayerState& obj) {
     if (!obj.handleAlive) out << " handleNotAlive";
     if (obj.requestedFrameRate.isValid())
         out << " requestedFrameRate: {" << obj.requestedFrameRate << "}";
+    if (obj.dropInputMode != gui::DropInputMode::NONE)
+        out << " dropInputMode=" << static_cast<uint32_t>(obj.dropInputMode);
     return out;
 }
 

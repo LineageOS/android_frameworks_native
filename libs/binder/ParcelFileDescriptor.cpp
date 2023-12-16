@@ -19,9 +19,11 @@
 namespace android {
 namespace os {
 
+using android::binder::unique_fd;
+
 ParcelFileDescriptor::ParcelFileDescriptor() = default;
 
-ParcelFileDescriptor::ParcelFileDescriptor(android::base::unique_fd fd) : mFd(std::move(fd)) {}
+ParcelFileDescriptor::ParcelFileDescriptor(unique_fd fd) : mFd(std::move(fd)) {}
 
 ParcelFileDescriptor::~ParcelFileDescriptor() = default;
 

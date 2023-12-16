@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022 The Android Open Source Project
+ * Copyright 2023 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,19 +14,14 @@
  * limitations under the License.
  */
 
-#include <binder/Trace.h>
-#include <cutils/trace.h>
+package com.android.server.inputflinger;
 
-namespace android {
-namespace binder {
-
-void atrace_begin(uint64_t tag, const char* name) {
-    ::atrace_begin(tag, name);
+/**
+ * Contains data for the current Input filter configuration
+ */
+parcelable InputFilterConfiguration {
+    // Threshold value for Bounce keys filter (check bounce_keys_filter.rs)
+    long bounceKeysThresholdNs;
+    // If sticky keys filter is enabled
+    boolean stickyKeysEnabled;
 }
-
-void atrace_end(uint64_t tag) {
-    ::atrace_end(tag);
-}
-
-} // namespace binder
-} // namespace android

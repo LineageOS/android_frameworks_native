@@ -275,6 +275,8 @@ public:
     void clearSpots() override {}
     int32_t getDisplayId() const override { return mFdp->ConsumeIntegral<int32_t>(); }
     void setDisplayViewport(const DisplayViewport& displayViewport) override {}
+    void updatePointerIcon(PointerIconStyle iconId) override {}
+    void setCustomPointerIcon(const SpriteIcon& icon) override {}
     std::string dump() override { return ""; }
 };
 

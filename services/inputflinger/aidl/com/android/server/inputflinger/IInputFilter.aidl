@@ -16,6 +16,8 @@
 
 package com.android.server.inputflinger;
 
+import com.android.server.inputflinger.DeviceInfo;
+import com.android.server.inputflinger.InputFilterConfiguration;
 import com.android.server.inputflinger.KeyEvent;
 
 /**
@@ -31,6 +33,9 @@ interface IInputFilter {
     interface IInputFilterCallbacks {
         /** Sends back a filtered key event */
         void sendKeyEvent(in KeyEvent event);
+
+        /** Sends back modifier state */
+        void onModifierStateChanged(int modifierState, int lockedModifierState);
     }
 
     /** Returns if InputFilter is enabled */
@@ -40,6 +45,9 @@ interface IInputFilter {
     void notifyKey(in KeyEvent event);
 
     /** Notifies if any InputDevice list changed and provides the list of connected peripherals */
-    void notifyInputDevicesChanged(in int[] deviceIds);
+    void notifyInputDevicesChanged(in DeviceInfo[] deviceInfos);
+
+    /** Notifies when configuration changes */
+    void notifyConfigurationChanged(in InputFilterConfiguration config);
 }
 

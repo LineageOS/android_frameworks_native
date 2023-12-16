@@ -149,7 +149,8 @@ public:
                 (const gui::Color&, const gui::Color&, float, float, float), (override));
     MOCK_METHOD(binder::Status, getDisplayDecorationSupport,
                 (const sp<IBinder>&, std::optional<gui::DisplayDecorationSupport>*), (override));
-    MOCK_METHOD(binder::Status, setOverrideFrameRate, (int32_t, float), (override));
+    MOCK_METHOD(binder::Status, setGameModeFrameRateOverride, (int32_t, float), (override));
+    MOCK_METHOD(binder::Status, setGameDefaultFrameRateOverride, (int32_t, float), (override));
     MOCK_METHOD(binder::Status, enableRefreshRateOverlay, (bool), (override));
     MOCK_METHOD(binder::Status, setDebugFlash, (int), (override));
     MOCK_METHOD(binder::Status, scheduleComposite, (), (override));

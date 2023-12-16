@@ -17,9 +17,11 @@
 #include "OS.h"
 
 #include <android-base/threads.h>
+#include <cutils/trace.h>
 #include <utils/misc.h>
 
-namespace android::binder::os {
+namespace android::binder {
+namespace os {
 
 uint64_t GetThreadId() {
 #ifdef BINDER_RPC_SINGLE_THREADED
@@ -34,4 +36,24 @@ bool report_sysprop_change() {
     return true;
 }
 
-} // namespace android::binder::os
+void trace_begin(uint64_t tag, const char* name) {
+    atrace_begin(tag, name);
+}
+
+void trace_end(uint64_t tag) {
+    atrace_end(tag);
+}
+
+} // namespace os
+
+// Legacy trace symbol. To be removed once all of downstream rebuilds.
+void atrace_begin(uint64_t tag, const char* name) {
+    os::trace_begin(tag, name);
+}
+
+// Legacy trace symbol. To be removed once all of downstream rebuilds.
+void atrace_end(uint64_t tag) {
+    os::trace_end(tag);
+}
+
+} // namespace android::binder

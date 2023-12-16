@@ -31,17 +31,19 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.android.graphics.bufferstreamsdemoapp.ui.theme.JetpackTheme
+import java.util.*
 
 class MainActivity : ComponentActivity() {
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
         setContent {
             JetpackTheme {
                 Surface(
-                        modifier = Modifier.fillMaxSize(),
-                        color = MaterialTheme.colorScheme.background
-                ) { BufferDemosApp() }
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background) {
+                        BufferDemosApp()
+                    }
             }
         }
     }
@@ -67,38 +69,32 @@ fun BufferDemosApp() {
     val backStackEntry by navController.currentBackStackEntryAsState()
     // Get the name of the current screen
     val currentScreen =
-            BufferDemoScreen.findByRoute(
-                    backStackEntry?.destination?.route ?: BufferDemoScreen.Start.route
-            )
+        BufferDemoScreen.findByRoute(
+            backStackEntry?.destination?.route ?: BufferDemoScreen.Start.route)
 
     Scaffold(
-            topBar = {
-                BufferDemosAppBar(
-                        currentScreen = currentScreen,
-                        canNavigateBack = navController.previousBackStackEntry != null,
-                        navigateUp = { navController.navigateUp() }
-                )
-            }
-    ) {
-        NavHost(
+        topBar = {
+            BufferDemosAppBar(
+                currentScreen = currentScreen,
+                canNavigateBack = navController.previousBackStackEntry != null,
+                navigateUp = { navController.navigateUp() })
+        }) {
+            NavHost(
                 navController = navController,
                 startDestination = BufferDemoScreen.Start.route,
-                modifier = Modifier.padding(10.dp)
-        ) {
-            composable(route = BufferDemoScreen.Start.route) {
-                DemoList(
-                        onButtonClicked = {
-                            navController.navigate(it)
-                        },
-                )
-            }
-            composable(route = BufferDemoScreen.Demo1.route) {
-                DemoScreen1(modifier = Modifier.fillMaxHeight().padding(top = 100.dp))
-            }
-            composable(route = BufferDemoScreen.Demo2.route) { DemoScreen2() }
-            composable(route = BufferDemoScreen.Demo3.route) { DemoScreen3() }
+                modifier = Modifier.padding(10.dp)) {
+                    composable(route = BufferDemoScreen.Start.route) {
+                        DemoList(
+                            onButtonClicked = { navController.navigate(it) },
+                        )
+                    }
+                    composable(route = BufferDemoScreen.Demo1.route) {
+                        DemoScreen1(modifier = Modifier.fillMaxHeight().padding(top = 100.dp))
+                    }
+                    composable(route = BufferDemoScreen.Demo2.route) { DemoScreen2() }
+                    composable(route = BufferDemoScreen.Demo3.route) { DemoScreen3() }
+                }
         }
-    }
 }
 
 @Composable
@@ -107,25 +103,25 @@ fun DemoList(onButtonClicked: (String) -> Unit) {
 
     Column(modifier = modifier, verticalArrangement = Arrangement.SpaceBetween) {
         Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Spacer(modifier = Modifier.height(100.dp))
-            Text(text = "Buffer Demos", style = MaterialTheme.typography.titleLarge)
-            Spacer(modifier = Modifier.height(8.dp))
-        }
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Spacer(modifier = Modifier.height(100.dp))
+                Text(text = "Buffer Demos", style = MaterialTheme.typography.titleLarge)
+                Spacer(modifier = Modifier.height(8.dp))
+            }
         Row(modifier = Modifier.weight(2f, false)) {
             Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                for (item in BufferDemoScreen.values()) {
-                    if (item.route != BufferDemoScreen.Start.route)
-                        SelectDemoButton(name = stringResource(item.title), onClick = { onButtonClicked(item.route) })
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    for (item in BufferDemoScreen.values()) {
+                        if (item.route != BufferDemoScreen.Start.route)
+                            SelectDemoButton(
+                                name = stringResource(item.title),
+                                onClick = { onButtonClicked(item.route) })
+                    }
                 }
-            }
         }
     }
 }

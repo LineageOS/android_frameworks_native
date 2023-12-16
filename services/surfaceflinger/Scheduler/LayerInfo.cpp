@@ -276,17 +276,16 @@ std::optional<Fps> LayerInfo::calculateRefreshRateIfPossible(const RefreshRateSe
 
     if (const auto averageFrameTime = calculateAverageFrameTime()) {
         const auto refreshRate = Fps::fromPeriodNsecs(*averageFrameTime);
-        const bool refreshRateConsistent = mRefreshRateHistory.add(refreshRate, now);
-        if (refreshRateConsistent) {
-            const auto knownRefreshRate = selector.findClosestKnownFrameRate(refreshRate);
+        const auto closestKnownRefreshRate = mRefreshRateHistory.add(refreshRate, now, selector);
+        if (closestKnownRefreshRate.isValid()) {
             using fps_approx_ops::operator!=;
 
             // To avoid oscillation, use the last calculated refresh rate if it is close enough.
             if (std::abs(mLastRefreshRate.calculated.getValue() - refreshRate.getValue()) >
                         MARGIN &&
-                mLastRefreshRate.reported != knownRefreshRate) {
+                mLastRefreshRate.reported != closestKnownRefreshRate) {
                 mLastRefreshRate.calculated = refreshRate;
-                mLastRefreshRate.reported = knownRefreshRate;
+                mLastRefreshRate.reported = closestKnownRefreshRate;
             }
 
             ALOGV("%s %s rounded to nearest known frame rate %s", mName.c_str(),
@@ -432,7 +431,8 @@ void LayerInfo::RefreshRateHistory::clear() {
     mRefreshRates.clear();
 }
 
-bool LayerInfo::RefreshRateHistory::add(Fps refreshRate, nsecs_t now) {
+Fps LayerInfo::RefreshRateHistory::add(Fps refreshRate, nsecs_t now,
+                                       const RefreshRateSelector& selector) {
     mRefreshRates.push_back({refreshRate, now});
     while (mRefreshRates.size() >= HISTORY_SIZE ||
            now - mRefreshRates.front().timestamp > HISTORY_DURATION.count()) {
@@ -447,11 +447,11 @@ bool LayerInfo::RefreshRateHistory::add(Fps refreshRate, nsecs_t now) {
         ATRACE_INT(mHeuristicTraceTagData->average.c_str(), refreshRate.getIntValue());
     }
 
-    return isConsistent();
+    return selectRefreshRate(selector);
 }
 
-bool LayerInfo::RefreshRateHistory::isConsistent() const {
-    if (mRefreshRates.empty()) return true;
+Fps LayerInfo::RefreshRateHistory::selectRefreshRate(const RefreshRateSelector& selector) const {
+    if (mRefreshRates.empty()) return Fps();
 
     const auto [min, max] =
             std::minmax_element(mRefreshRates.begin(), mRefreshRates.end(),
@@ -459,8 +459,19 @@ bool LayerInfo::RefreshRateHistory::isConsistent() const {
                                     return isStrictlyLess(lhs.refreshRate, rhs.refreshRate);
                                 });
 
-    const bool consistent =
-            max->refreshRate.getValue() - min->refreshRate.getValue() < MARGIN_CONSISTENT_FPS;
+    const auto maxClosestRate = selector.findClosestKnownFrameRate(max->refreshRate);
+    const bool consistent = [&](Fps maxFps, Fps minFps) {
+        if (FlagManager::getInstance().use_known_refresh_rate_for_fps_consistency()) {
+            if (maxFps.getValue() - minFps.getValue() <
+                MARGIN_CONSISTENT_FPS_FOR_CLOSEST_REFRESH_RATE) {
+                const auto minClosestRate = selector.findClosestKnownFrameRate(minFps);
+                using fps_approx_ops::operator==;
+                return maxClosestRate == minClosestRate;
+            }
+            return false;
+        }
+        return maxFps.getValue() - minFps.getValue() < MARGIN_CONSISTENT_FPS;
+    }(max->refreshRate, min->refreshRate);
 
     if (CC_UNLIKELY(sTraceEnabled)) {
         if (!mHeuristicTraceTagData.has_value()) {
@@ -472,7 +483,7 @@ bool LayerInfo::RefreshRateHistory::isConsistent() const {
         ATRACE_INT(mHeuristicTraceTagData->consistent.c_str(), consistent);
     }
 
-    return consistent;
+    return consistent ? maxClosestRate : Fps();
 }
 
 FrameRateCompatibility LayerInfo::FrameRate::convertCompatibility(int8_t compatibility) {
@@ -485,6 +496,8 @@ FrameRateCompatibility LayerInfo::FrameRate::convertCompatibility(int8_t compati
             return FrameRateCompatibility::Exact;
         case ANATIVEWINDOW_FRAME_RATE_MIN:
             return FrameRateCompatibility::Min;
+        case ANATIVEWINDOW_FRAME_RATE_GTE:
+            return FrameRateCompatibility::Gte;
         case ANATIVEWINDOW_FRAME_RATE_NO_VOTE:
             return FrameRateCompatibility::NoVote;
         default:
@@ -526,10 +539,12 @@ FrameRateCategory LayerInfo::FrameRate::convertCategory(int8_t category) {
 LayerInfo::FrameRateSelectionStrategy LayerInfo::convertFrameRateSelectionStrategy(
         int8_t strategy) {
     switch (strategy) {
-        case ANATIVEWINDOW_FRAME_RATE_SELECTION_STRATEGY_SELF:
-            return FrameRateSelectionStrategy::Self;
+        case ANATIVEWINDOW_FRAME_RATE_SELECTION_STRATEGY_PROPAGATE:
+            return FrameRateSelectionStrategy::Propagate;
         case ANATIVEWINDOW_FRAME_RATE_SELECTION_STRATEGY_OVERRIDE_CHILDREN:
             return FrameRateSelectionStrategy::OverrideChildren;
+        case ANATIVEWINDOW_FRAME_RATE_SELECTION_STRATEGY_SELF:
+            return FrameRateSelectionStrategy::Self;
         default:
             LOG_ALWAYS_FATAL("Invalid frame rate selection strategy value %d", strategy);
             return FrameRateSelectionStrategy::Self;

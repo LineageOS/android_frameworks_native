@@ -77,6 +77,7 @@ filegroup {
         "InputCommonConverter.cpp",
         "InputDeviceMetricsCollector.cpp",
         "InputFilter.cpp",
+        "InputFilterCallbacks.cpp",
         "InputProcessor.cpp",
         "PointerChoreographer.cpp",
         "PreferStylusOverTouchBlocker.cpp",

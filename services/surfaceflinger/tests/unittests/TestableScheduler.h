@@ -78,10 +78,11 @@ public:
 
     auto refreshRateSelector() { return pacesetterSelectorPtr(); }
 
-    void registerDisplay(PhysicalDisplayId displayId, RefreshRateSelectorPtr selectorPtr) {
+    void registerDisplay(
+            PhysicalDisplayId displayId, RefreshRateSelectorPtr selectorPtr,
+            std::shared_ptr<VSyncTracker> vsyncTracker = std::make_shared<mock::VSyncTracker>()) {
         registerDisplay(displayId, std::move(selectorPtr),
-                        std::make_unique<mock::VsyncController>(),
-                        std::make_shared<mock::VSyncTracker>());
+                        std::make_unique<mock::VsyncController>(), vsyncTracker);
     }
 
     void registerDisplay(PhysicalDisplayId displayId, RefreshRateSelectorPtr selectorPtr,
@@ -113,6 +114,15 @@ public:
         ftl::FakeGuard guard(kMainThreadContext);
         Scheduler::setPacesetterDisplay(displayId);
     }
+
+    std::optional<hal::PowerMode> getDisplayPowerMode(PhysicalDisplayId id) {
+        ftl::FakeGuard guard1(kMainThreadContext);
+        ftl::FakeGuard guard2(mDisplayLock);
+        return mDisplays.get(id).transform(
+                [](const Display& display) { return display.powerMode; });
+    }
+
+    using Scheduler::resyncAllToHardwareVsync;
 
     auto& mutableAppConnectionHandle() { return mAppConnectionHandle; }
     auto& mutableLayerHistory() { return mLayerHistory; }

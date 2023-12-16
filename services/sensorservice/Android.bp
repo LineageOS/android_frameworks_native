@@ -7,6 +7,18 @@ package {
     default_applicable_licenses: ["frameworks_native_license"],
 }
 
+aconfig_declarations {
+    name: "sensorservice_flags",
+    package: "com.android.frameworks.sensorservice.flags",
+    srcs: ["senserservice_flags.aconfig"],
+}
+
+cc_aconfig_library {
+    name: "sensorservice_flags_c_lib",
+    aconfig_declarations: "dynamic_sensors_flags",
+    host_supported: true,
+}
+
 cc_library {
     name: "libsensorservice",
 

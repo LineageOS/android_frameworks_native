@@ -232,6 +232,11 @@ public:
         mResetWasCalled = false;
     }
 
+    void assertResetWasNotCalled() {
+        std::scoped_lock lock(mLock);
+        ASSERT_FALSE(mResetWasCalled) << "Expected reset to not have been called.";
+    }
+
     void assertProcessWasCalled(RawEvent* outLastEvent = nullptr) {
         std::unique_lock<std::mutex> lock(mLock);
         base::ScopedLockAssertion assumeLocked(mLock);
@@ -246,6 +251,11 @@ public:
             *outLastEvent = mLastEvent;
         }
         mProcessWasCalled = false;
+    }
+
+    void assertProcessWasNotCalled() {
+        std::scoped_lock lock(mLock);
+        ASSERT_FALSE(mProcessWasCalled) << "Expected process to not have been called.";
     }
 
     void setKeyCodeState(int32_t keyCode, int32_t state) {
@@ -2870,6 +2880,60 @@ TEST_F(InputDeviceTest, GetBluetoothAddress) {
     const auto& address = mReader->getBluetoothAddress(DEVICE_ID);
     ASSERT_TRUE(address);
     ASSERT_EQ(DEVICE_BLUETOOTH_ADDRESS, *address);
+}
+
+TEST_F(InputDeviceTest, KernelBufferOverflowResetsMappers) {
+    mFakePolicy->clearViewports();
+    FakeInputMapper& mapper =
+            mDevice->addMapper<FakeInputMapper>(EVENTHUB_ID, mFakePolicy->getReaderConfiguration(),
+                                                AINPUT_SOURCE_KEYBOARD);
+    std::list<NotifyArgs> unused =
+            mDevice->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(),
+                               /*changes=*/{});
+
+    mapper.assertConfigureWasCalled();
+    mapper.assertResetWasNotCalled();
+
+    RawEvent event{.deviceId = EVENTHUB_ID,
+                   .readTime = ARBITRARY_TIME,
+                   .when = ARBITRARY_TIME,
+                   .type = EV_SYN,
+                   .code = SYN_REPORT,
+                   .value = 0};
+
+    // Events are processed normally.
+    unused = mDevice->process(&event, /*count=*/1);
+    mapper.assertProcessWasCalled();
+
+    // Simulate a kernel buffer overflow, which generates a SYN_DROPPED event.
+    // This should reset the mapper.
+    event.type = EV_SYN;
+    event.code = SYN_DROPPED;
+    event.value = 0;
+    unused = mDevice->process(&event, /*count=*/1);
+    mapper.assertProcessWasNotCalled();
+    mapper.assertResetWasCalled();
+
+    // All events until the next SYN_REPORT should be dropped.
+    event.type = EV_KEY;
+    event.code = KEY_A;
+    event.value = 1;
+    unused = mDevice->process(&event, /*count=*/1);
+    mapper.assertProcessWasNotCalled();
+
+    // We get the SYN_REPORT event now, which is not forwarded to mappers.
+    event.type = EV_SYN;
+    event.code = SYN_REPORT;
+    event.value = 0;
+    unused = mDevice->process(&event, /*count=*/1);
+    mapper.assertProcessWasNotCalled();
+
+    // The mapper receives events normally now.
+    event.type = EV_KEY;
+    event.code = KEY_B;
+    event.value = 1;
+    unused = mDevice->process(&event, /*count=*/1);
+    mapper.assertProcessWasCalled();
 }
 
 // --- SwitchInputMapperTest ---
@@ -10907,7 +10971,7 @@ TEST_F(MultiTouchInputMapperTest, Process_MultiTouch_WithInvalidTrackingId) {
     ASSERT_EQ(uint32_t(1), motionArgs.getPointerCount());
 }
 
-TEST_F(MultiTouchInputMapperTest, Reset_PreservesLastTouchState) {
+TEST_F(MultiTouchInputMapperTest, ResetClearsTouchState) {
     addConfigurationProperty("touch.deviceType", "touchScreen");
     prepareDisplay(ui::ROTATION_0);
     prepareAxes(POSITION | ID | SLOT | PRESSURE);
@@ -10930,25 +10994,36 @@ TEST_F(MultiTouchInputMapperTest, Reset_PreservesLastTouchState) {
     ASSERT_NO_FATAL_FAILURE(
             mFakeListener->assertNotifyMotionWasCalled(WithMotionAction(ACTION_POINTER_1_DOWN)));
 
-    // Reset the mapper. When the mapper is reset, we expect the current multi-touch state to be
-    // preserved. Resetting should cancel the ongoing gesture.
+    // Reset the mapper. When the mapper is reset, the touch state is also cleared.
     resetMapper(mapper, ARBITRARY_TIME);
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
             WithMotionAction(AMOTION_EVENT_ACTION_CANCEL)));
 
-    // Send a sync to simulate an empty touch frame where nothing changes. The mapper should use
-    // the existing touch state to generate a down event.
+    // Move the second slot pointer, and ensure there are no events, because the touch state was
+    // cleared and no slots should be in use.
     processPosition(mapper, 301, 302);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
+
+    // Release both fingers.
+    processId(mapper, INVALID_TRACKING_ID);
+    processSlot(mapper, FIRST_SLOT);
+    processId(mapper, INVALID_TRACKING_ID);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
+
+    // Start a new gesture, and ensure we get a DOWN event for it.
+    processId(mapper, FIRST_TRACKING_ID);
+    processPosition(mapper, 200, 300);
+    processPressure(mapper, RAW_PRESSURE_MAX);
     processSync(mapper);
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
             AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN), WithPressure(1.f))));
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
-            AllOf(WithMotionAction(ACTION_POINTER_1_DOWN), WithPressure(1.f))));
 
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
 }
 
-TEST_F(MultiTouchInputMapperTest, Reset_PreservesLastTouchState_NoPointersDown) {
+TEST_F(MultiTouchInputMapperTest, ResetClearsTouchStateWithNoPointersDown) {
     addConfigurationProperty("touch.deviceType", "touchScreen");
     prepareDisplay(ui::ROTATION_0);
     prepareAxes(POSITION | ID | SLOT | PRESSURE);
@@ -11074,6 +11149,66 @@ TEST_F(MultiTouchInputMapperTest, Process_WhenConfigDisabled_ShouldNotShowDirect
                   WithToolType(ToolType::STYLUS),
                   WithPointerCoords(0, toDisplayX(100), toDisplayY(200)))));
     ASSERT_FALSE(fakePointerController->isPointerShown());
+}
+
+TEST_F(MultiTouchInputMapperTest, SimulateKernelBufferOverflow) {
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareDisplay(ui::ROTATION_0);
+    prepareAxes(POSITION | ID | SLOT | PRESSURE);
+    MultiTouchInputMapper& mapper = constructAndAddMapper<MultiTouchInputMapper>();
+
+    // First finger down.
+    processId(mapper, FIRST_TRACKING_ID);
+    processPosition(mapper, 100, 200);
+    processPressure(mapper, RAW_PRESSURE_MAX);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            WithMotionAction(AMOTION_EVENT_ACTION_DOWN)));
+
+    // Assume the kernel buffer overflows, and we get a SYN_DROPPED event.
+    // This will reset the mapper, and thus also reset the touch state.
+    process(mapper, ARBITRARY_TIME, READ_TIME, EV_SYN, SYN_DROPPED, 0);
+    resetMapper(mapper, ARBITRARY_TIME);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            WithMotionAction(AMOTION_EVENT_ACTION_CANCEL)));
+
+    // Since the touch state was reset, it doesn't know which slots are active, so any movements
+    // are ignored.
+    processPosition(mapper, 101, 201);
+    processSync(mapper);
+
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
+
+    // Second finger goes down. This is the first active finger, so we get a DOWN event.
+    processSlot(mapper, SECOND_SLOT);
+    processId(mapper, SECOND_TRACKING_ID);
+    processPosition(mapper, 400, 500);
+    processPressure(mapper, RAW_PRESSURE_MAX);
+    processSync(mapper);
+
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            WithMotionAction(AMOTION_EVENT_ACTION_DOWN)));
+
+    // First slot is still ignored, only the second one is active.
+    processSlot(mapper, FIRST_SLOT);
+    processPosition(mapper, 102, 202);
+    processSlot(mapper, SECOND_SLOT);
+    processPosition(mapper, 401, 501);
+    processSync(mapper);
+
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
+            WithMotionAction(AMOTION_EVENT_ACTION_MOVE)));
+
+    // Both slots up, so we get the UP event for the active pointer.
+    processSlot(mapper, FIRST_SLOT);
+    processId(mapper, INVALID_TRACKING_ID);
+    processSlot(mapper, SECOND_SLOT);
+    processId(mapper, INVALID_TRACKING_ID);
+    processSync(mapper);
+
+    ASSERT_NO_FATAL_FAILURE(
+            mFakeListener->assertNotifyMotionWasCalled(WithMotionAction(AMOTION_EVENT_ACTION_UP)));
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasNotCalled());
 }
 
 // --- MultiTouchInputMapperTest_ExternalDevice ---

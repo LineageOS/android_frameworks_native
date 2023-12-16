@@ -86,7 +86,7 @@ layer_state_t::layer_state_t()
         defaultFrameRateCompatibility(ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT),
         frameRateCategory(ANATIVEWINDOW_FRAME_RATE_CATEGORY_DEFAULT),
         frameRateCategorySmoothSwitchOnly(false),
-        frameRateSelectionStrategy(ANATIVEWINDOW_FRAME_RATE_SELECTION_STRATEGY_SELF),
+        frameRateSelectionStrategy(ANATIVEWINDOW_FRAME_RATE_SELECTION_STRATEGY_PROPAGATE),
         fixedTransformHint(ui::Transform::ROT_INVALID),
         autoRefresh(false),
         isTrustedOverlay(false),
@@ -930,7 +930,6 @@ status_t DisplayCaptureArgs::writeToParcel(Parcel* output) const {
     SAFE_PARCEL(output->writeStrongBinder, displayToken);
     SAFE_PARCEL(output->writeUint32, width);
     SAFE_PARCEL(output->writeUint32, height);
-    SAFE_PARCEL(output->writeBool, useIdentityTransform);
     return NO_ERROR;
 }
 
@@ -940,7 +939,6 @@ status_t DisplayCaptureArgs::readFromParcel(const Parcel* input) {
     SAFE_PARCEL(input->readStrongBinder, &displayToken);
     SAFE_PARCEL(input->readUint32, &width);
     SAFE_PARCEL(input->readUint32, &height);
-    SAFE_PARCEL(input->readBool, &useIdentityTransform);
     return NO_ERROR;
 }
 
