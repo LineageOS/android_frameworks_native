@@ -40,9 +40,24 @@
 namespace android {
 using namespace ftl::flag_operators;
 
+namespace {
+class ScopedTraceDisabler {
+public:
+    ScopedTraceDisabler() { TransactionTraceWriter::getInstance().disable(); }
+    ~ScopedTraceDisabler() { TransactionTraceWriter::getInstance().enable(); }
+};
+} // namespace
+
 bool LayerTraceGenerator::generate(const perfetto::protos::TransactionTraceFile& traceFile,
                                    std::uint32_t traceFlags, LayerTracing& layerTracing,
                                    bool onlyLastEntry) {
+    // We are generating the layers trace by replaying back a set of transactions. If the
+    // transactions have unexpected states, we may generate a transaction trace to debug
+    // the unexpected state. This is silly. So we disable it by poking the
+    // TransactionTraceWriter. This is really a hack since we should manage our depenecies a
+    // little better.
+    ScopedTraceDisabler fatalErrorTraceDisabler;
+
     if (traceFile.entry_size() == 0) {
         ALOGD("Trace file is empty");
         return false;

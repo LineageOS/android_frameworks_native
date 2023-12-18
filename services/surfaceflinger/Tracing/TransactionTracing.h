@@ -218,6 +218,13 @@ class TransactionTraceWriter : public Singleton<TransactionTraceWriter> {
     friend class Singleton<TransactionTracing>;
     std::function<void(const std::string& prefix, bool overwrite)> mWriterFunction =
             [](const std::string&, bool) {};
+    std::atomic<bool> mEnabled{true};
+
+    void doInvoke(const std::string& filename, bool overwrite) {
+        if (mEnabled) {
+            mWriterFunction(filename, overwrite);
+        }
+    };
 
 public:
     void setWriterFunction(
@@ -225,12 +232,15 @@ public:
         mWriterFunction = std::move(function);
     }
     void invoke(const std::string& prefix, bool overwrite) {
-        mWriterFunction(TransactionTracing::getFilePath(prefix), overwrite);
+        doInvoke(TransactionTracing::getFilePath(prefix), overwrite);
     }
     /* pass in a complete file path for testing */
     void invokeForTest(const std::string& filename, bool overwrite) {
-        mWriterFunction(filename, overwrite);
+        doInvoke(filename, overwrite);
     }
+    /* hacky way to avoid generating traces when converting transaction trace to layers trace. */
+    void disable() { mEnabled.store(false); }
+    void enable() { mEnabled.store(true); }
 };
 
 } // namespace android
