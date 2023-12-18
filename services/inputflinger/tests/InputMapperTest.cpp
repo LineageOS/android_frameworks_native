@@ -25,7 +25,7 @@ namespace android {
 
 using testing::Return;
 
-void InputMapperUnitTest::SetUp() {
+void InputMapperUnitTest::SetUpWithBus(int bus) {
     mFakePointerController = std::make_shared<FakePointerController>();
     mFakePointerController->setBounds(0, 0, 800 - 1, 480 - 1);
     mFakePointerController->setPosition(INITIAL_CURSOR_X, INITIAL_CURSOR_Y);
@@ -40,9 +40,12 @@ void InputMapperUnitTest::SetUp() {
 
     mIdentifier.name = "device";
     mIdentifier.location = "USB1";
-    mIdentifier.bus = 0;
+    mIdentifier.bus = bus;
     EXPECT_CALL(mMockEventHub, getDeviceIdentifier(EVENTHUB_ID))
             .WillRepeatedly(Return(mIdentifier));
+    EXPECT_CALL(mMockEventHub, getConfiguration(EVENTHUB_ID)).WillRepeatedly([&](int32_t) {
+        return mPropertyMap;
+    });
 }
 
 void InputMapperUnitTest::createDevice() {
@@ -222,8 +225,8 @@ std::list<NotifyArgs> InputMapperTest::handleTimeout(InputMapper& mapper, nsecs_
     return generatedArgs;
 }
 
-void InputMapperTest::assertMotionRange(const InputDeviceInfo& info, int32_t axis, uint32_t source,
-                                        float min, float max, float flat, float fuzz) {
+void assertMotionRange(const InputDeviceInfo& info, int32_t axis, uint32_t source, float min,
+                       float max, float flat, float fuzz) {
     const InputDeviceInfo::MotionRange* range = info.getMotionRange(axis, source);
     ASSERT_TRUE(range != nullptr) << "Axis: " << axis << " Source: " << source;
     ASSERT_EQ(axis, range->axis) << "Axis: " << axis << " Source: " << source;
@@ -234,11 +237,9 @@ void InputMapperTest::assertMotionRange(const InputDeviceInfo& info, int32_t axi
     ASSERT_NEAR(fuzz, range->fuzz, EPSILON) << "Axis: " << axis << " Source: " << source;
 }
 
-void InputMapperTest::assertPointerCoords(const PointerCoords& coords, float x, float y,
-                                          float pressure, float size, float touchMajor,
-                                          float touchMinor, float toolMajor, float toolMinor,
-                                          float orientation, float distance,
-                                          float scaledAxisEpsilon) {
+void assertPointerCoords(const PointerCoords& coords, float x, float y, float pressure, float size,
+                         float touchMajor, float touchMinor, float toolMajor, float toolMinor,
+                         float orientation, float distance, float scaledAxisEpsilon) {
     ASSERT_NEAR(x, coords.getAxisValue(AMOTION_EVENT_AXIS_X), scaledAxisEpsilon);
     ASSERT_NEAR(y, coords.getAxisValue(AMOTION_EVENT_AXIS_Y), scaledAxisEpsilon);
     ASSERT_NEAR(pressure, coords.getAxisValue(AMOTION_EVENT_AXIS_PRESSURE), EPSILON);

@@ -32,6 +32,7 @@
 #include "InterfaceMocks.h"
 #include "TestConstants.h"
 #include "TestInputListener.h"
+#include "input/PropertyMap.h"
 
 namespace android {
 
@@ -41,7 +42,8 @@ protected:
     static constexpr int32_t DEVICE_ID = END_RESERVED_ID + 1000;
     static constexpr float INITIAL_CURSOR_X = 400;
     static constexpr float INITIAL_CURSOR_Y = 240;
-    virtual void SetUp() override;
+    virtual void SetUp() override { SetUpWithBus(0); }
+    virtual void SetUpWithBus(int bus);
 
     /**
      * Initializes mDevice and mDeviceContext. When this happens, mDevice takes a copy of
@@ -72,6 +74,7 @@ protected:
     InputReaderConfiguration mReaderConfiguration;
     // The mapper should be created by the subclasses.
     std::unique_ptr<InputMapper> mMapper;
+    PropertyMap mPropertyMap;
 };
 
 /**
@@ -138,13 +141,13 @@ protected:
     void resetMapper(InputMapper& mapper, nsecs_t when);
 
     std::list<NotifyArgs> handleTimeout(InputMapper& mapper, nsecs_t when);
-
-    static void assertMotionRange(const InputDeviceInfo& info, int32_t axis, uint32_t source,
-                                  float min, float max, float flat, float fuzz);
-    static void assertPointerCoords(const PointerCoords& coords, float x, float y, float pressure,
-                                    float size, float touchMajor, float touchMinor, float toolMajor,
-                                    float toolMinor, float orientation, float distance,
-                                    float scaledAxisEpsilon = 1.f);
 };
+
+void assertMotionRange(const InputDeviceInfo& info, int32_t axis, uint32_t source, float min,
+                       float max, float flat, float fuzz);
+
+void assertPointerCoords(const PointerCoords& coords, float x, float y, float pressure, float size,
+                         float touchMajor, float touchMinor, float toolMajor, float toolMinor,
+                         float orientation, float distance, float scaledAxisEpsilon = 1.f);
 
 } // namespace android

@@ -48,7 +48,7 @@ namespace android {
 class MockInputReaderContext : public InputReaderContext {
 public:
     MOCK_METHOD(void, updateGlobalMetaState, (), (override));
-    int32_t getGlobalMetaState() override { return 0; };
+    MOCK_METHOD(int32_t, getGlobalMetaState, (), (override));
 
     MOCK_METHOD(void, disableVirtualKeysUntil, (nsecs_t time), (override));
     MOCK_METHOD(bool, shouldDropVirtualKey, (nsecs_t now, int32_t keyCode, int32_t scanCode),
