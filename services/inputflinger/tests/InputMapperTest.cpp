@@ -19,6 +19,7 @@
 #include <InputReaderBase.h>
 #include <gtest/gtest.h>
 #include <ui/Rotation.h>
+#include <utils/Timers.h>
 
 namespace android {
 
@@ -36,15 +37,21 @@ void InputMapperUnitTest::SetUp() {
     EXPECT_CALL(mMockInputReaderContext, getPolicy()).WillRepeatedly(Return(mFakePolicy.get()));
 
     EXPECT_CALL(mMockInputReaderContext, getEventHub()).WillRepeatedly(Return(&mMockEventHub));
-    InputDeviceIdentifier identifier;
-    identifier.name = "device";
-    identifier.location = "USB1";
-    identifier.bus = 0;
 
-    EXPECT_CALL(mMockEventHub, getDeviceIdentifier(EVENTHUB_ID)).WillRepeatedly(Return(identifier));
+    mIdentifier.name = "device";
+    mIdentifier.location = "USB1";
+    mIdentifier.bus = 0;
+    EXPECT_CALL(mMockEventHub, getDeviceIdentifier(EVENTHUB_ID))
+            .WillRepeatedly(Return(mIdentifier));
+}
+
+void InputMapperUnitTest::createDevice() {
     mDevice = std::make_unique<InputDevice>(&mMockInputReaderContext, DEVICE_ID,
-                                            /*generation=*/2, identifier);
+                                            /*generation=*/2, mIdentifier);
+    mDevice->addEmptyEventHubDevice(EVENTHUB_ID);
     mDeviceContext = std::make_unique<InputDeviceContext>(*mDevice, EVENTHUB_ID);
+    std::list<NotifyArgs> _ =
+            mDevice->configure(systemTime(), mReaderConfiguration, /*changes=*/{});
 }
 
 void InputMapperUnitTest::setupAxis(int axis, bool valid, int32_t min, int32_t max,

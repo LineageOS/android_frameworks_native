@@ -57,6 +57,7 @@ class CursorInputMapperUnitTest : public InputMapperUnitTest {
 protected:
     void SetUp() override {
         InputMapperUnitTest::SetUp();
+        createDevice();
 
         // Current scan code state - all keys are UP by default
         setScanCodeState(KeyState::UP,

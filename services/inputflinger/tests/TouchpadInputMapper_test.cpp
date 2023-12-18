@@ -107,6 +107,7 @@ protected:
                     *outValue = 0;
                     return OK;
                 });
+        createDevice();
         mMapper = createInputMapper<TouchpadInputMapper>(*mDeviceContext, mReaderConfiguration);
     }
 };

@@ -43,6 +43,13 @@ protected:
     static constexpr float INITIAL_CURSOR_Y = 240;
     virtual void SetUp() override;
 
+    /**
+     * Initializes mDevice and mDeviceContext. When this happens, mDevice takes a copy of
+     * mPropertyMap, so tests that need to set configuration properties should do so before calling
+     * this. Others will most likely want to call it in their SetUp method.
+     */
+    void createDevice();
+
     void setupAxis(int axis, bool valid, int32_t min, int32_t max, int32_t resolution);
 
     void expectScanCodes(bool present, std::set<int> scanCodes);
@@ -54,6 +61,7 @@ protected:
     std::list<NotifyArgs> process(int32_t type, int32_t code, int32_t value);
     std::list<NotifyArgs> process(nsecs_t when, int32_t type, int32_t code, int32_t value);
 
+    InputDeviceIdentifier mIdentifier;
     MockEventHubInterface mMockEventHub;
     sp<FakeInputReaderPolicy> mFakePolicy;
     std::shared_ptr<FakePointerController> mFakePointerController;
