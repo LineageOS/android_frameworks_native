@@ -45,7 +45,8 @@ protected:
 
 // reparenting tests
 TEST_F(LayerHierarchyTest, addLayer) {
-    LayerHierarchyBuilder hierarchyBuilder(mLifecycleManager.getLayers());
+    LayerHierarchyBuilder hierarchyBuilder;
+    hierarchyBuilder.update(mLifecycleManager);
     std::vector<uint32_t> expectedTraversalPath = {1, 11, 111, 12, 121, 122, 1221, 13, 2};
     EXPECT_EQ(getTraversalPath(hierarchyBuilder.getHierarchy()), expectedTraversalPath);
     EXPECT_EQ(getTraversalPathInZOrder(hierarchyBuilder.getHierarchy()), expectedTraversalPath);
@@ -64,7 +65,8 @@ TEST_F(LayerHierarchyTest, addLayer) {
 }
 
 TEST_F(LayerHierarchyTest, reparentLayer) {
-    LayerHierarchyBuilder hierarchyBuilder(mLifecycleManager.getLayers());
+    LayerHierarchyBuilder hierarchyBuilder;
+    hierarchyBuilder.update(mLifecycleManager);
     reparentLayer(2, 11);
     reparentLayer(111, 12);
     reparentLayer(1221, 1);
@@ -79,7 +81,8 @@ TEST_F(LayerHierarchyTest, reparentLayer) {
 }
 
 TEST_F(LayerHierarchyTest, reparentLayerToNull) {
-    LayerHierarchyBuilder hierarchyBuilder(mLifecycleManager.getLayers());
+    LayerHierarchyBuilder hierarchyBuilder;
+    hierarchyBuilder.update(mLifecycleManager);
 
     reparentLayer(2, UNASSIGNED_LAYER_ID);
     reparentLayer(11, UNASSIGNED_LAYER_ID);
@@ -96,7 +99,8 @@ TEST_F(LayerHierarchyTest, reparentLayerToNull) {
 }
 
 TEST_F(LayerHierarchyTest, reparentLayerToNullAndDestroyHandles) {
-    LayerHierarchyBuilder hierarchyBuilder(mLifecycleManager.getLayers());
+    LayerHierarchyBuilder hierarchyBuilder;
+    hierarchyBuilder.update(mLifecycleManager);
     reparentLayer(2, UNASSIGNED_LAYER_ID);
     reparentLayer(11, UNASSIGNED_LAYER_ID);
     reparentLayer(1221, UNASSIGNED_LAYER_ID);
@@ -115,7 +119,8 @@ TEST_F(LayerHierarchyTest, reparentLayerToNullAndDestroyHandles) {
 }
 
 TEST_F(LayerHierarchyTest, destroyHandleThenDestroyParentLayer) {
-    LayerHierarchyBuilder hierarchyBuilder(mLifecycleManager.getLayers());
+    LayerHierarchyBuilder hierarchyBuilder;
+    hierarchyBuilder.update(mLifecycleManager);
     destroyLayerHandle(111);
     UPDATE_AND_VERIFY(hierarchyBuilder);
 
@@ -139,7 +144,8 @@ TEST_F(LayerHierarchyTest, destroyHandleThenDestroyParentLayer) {
 }
 
 TEST_F(LayerHierarchyTest, layerSurvivesTemporaryReparentToNull) {
-    LayerHierarchyBuilder hierarchyBuilder(mLifecycleManager.getLayers());
+    LayerHierarchyBuilder hierarchyBuilder;
+    hierarchyBuilder.update(mLifecycleManager);
     reparentLayer(11, UNASSIGNED_LAYER_ID);
     reparentLayer(11, 1);
 
@@ -154,7 +160,8 @@ TEST_F(LayerHierarchyTest, layerSurvivesTemporaryReparentToNull) {
 
 // offscreen tests
 TEST_F(LayerHierarchyTest, layerMovesOnscreen) {
-    LayerHierarchyBuilder hierarchyBuilder(mLifecycleManager.getLayers());
+    LayerHierarchyBuilder hierarchyBuilder;
+    hierarchyBuilder.update(mLifecycleManager);
 
     reparentLayer(11, UNASSIGNED_LAYER_ID);
     UPDATE_AND_VERIFY(hierarchyBuilder);
@@ -170,7 +177,8 @@ TEST_F(LayerHierarchyTest, layerMovesOnscreen) {
 }
 
 TEST_F(LayerHierarchyTest, addLayerToOffscreenParent) {
-    LayerHierarchyBuilder hierarchyBuilder(mLifecycleManager.getLayers());
+    LayerHierarchyBuilder hierarchyBuilder;
+    hierarchyBuilder.update(mLifecycleManager);
 
     reparentLayer(11, UNASSIGNED_LAYER_ID);
     UPDATE_AND_VERIFY(hierarchyBuilder);
@@ -187,7 +195,8 @@ TEST_F(LayerHierarchyTest, addLayerToOffscreenParent) {
 
 // rel-z tests
 TEST_F(LayerHierarchyTest, setRelativeParent) {
-    LayerHierarchyBuilder hierarchyBuilder(mLifecycleManager.getLayers());
+    LayerHierarchyBuilder hierarchyBuilder;
+    hierarchyBuilder.update(mLifecycleManager);
     reparentRelativeLayer(11, 2);
     UPDATE_AND_VERIFY(hierarchyBuilder);
 
@@ -200,7 +209,8 @@ TEST_F(LayerHierarchyTest, setRelativeParent) {
 }
 
 TEST_F(LayerHierarchyTest, reparentFromRelativeParentWithSetLayer) {
-    LayerHierarchyBuilder hierarchyBuilder(mLifecycleManager.getLayers());
+    LayerHierarchyBuilder hierarchyBuilder;
+    hierarchyBuilder.update(mLifecycleManager);
     reparentRelativeLayer(11, 2);
     UPDATE_AND_VERIFY(hierarchyBuilder);
 
@@ -216,7 +226,8 @@ TEST_F(LayerHierarchyTest, reparentFromRelativeParentWithSetLayer) {
 }
 
 TEST_F(LayerHierarchyTest, reparentToRelativeParent) {
-    LayerHierarchyBuilder hierarchyBuilder(mLifecycleManager.getLayers());
+    LayerHierarchyBuilder hierarchyBuilder;
+    hierarchyBuilder.update(mLifecycleManager);
     reparentRelativeLayer(11, 2);
     UPDATE_AND_VERIFY(hierarchyBuilder);
 
@@ -231,7 +242,8 @@ TEST_F(LayerHierarchyTest, reparentToRelativeParent) {
 }
 
 TEST_F(LayerHierarchyTest, setParentAsRelativeParent) {
-    LayerHierarchyBuilder hierarchyBuilder(mLifecycleManager.getLayers());
+    LayerHierarchyBuilder hierarchyBuilder;
+    hierarchyBuilder.update(mLifecycleManager);
     reparentLayer(11, 2);
     UPDATE_AND_VERIFY(hierarchyBuilder);
 
@@ -246,7 +258,8 @@ TEST_F(LayerHierarchyTest, setParentAsRelativeParent) {
 }
 
 TEST_F(LayerHierarchyTest, relativeChildMovesOffscreenIsNotTraversable) {
-    LayerHierarchyBuilder hierarchyBuilder(mLifecycleManager.getLayers());
+    LayerHierarchyBuilder hierarchyBuilder;
+    hierarchyBuilder.update(mLifecycleManager);
     reparentRelativeLayer(11, 2);
     UPDATE_AND_VERIFY(hierarchyBuilder);
 
@@ -262,7 +275,8 @@ TEST_F(LayerHierarchyTest, relativeChildMovesOffscreenIsNotTraversable) {
 }
 
 TEST_F(LayerHierarchyTest, reparentRelativeLayer) {
-    LayerHierarchyBuilder hierarchyBuilder(mLifecycleManager.getLayers());
+    LayerHierarchyBuilder hierarchyBuilder;
+    hierarchyBuilder.update(mLifecycleManager);
     reparentRelativeLayer(11, 2);
     UPDATE_AND_VERIFY(hierarchyBuilder);
 
@@ -294,7 +308,8 @@ TEST_F(LayerHierarchyTest, reparentRelativeLayer) {
 
 // mirror tests
 TEST_F(LayerHierarchyTest, canTraverseMirrorLayer) {
-    LayerHierarchyBuilder hierarchyBuilder(mLifecycleManager.getLayers());
+    LayerHierarchyBuilder hierarchyBuilder;
+    hierarchyBuilder.update(mLifecycleManager);
 
     mirrorLayer(/*layer*/ 14, /*parent*/ 1, /*layerToMirror*/ 11);
     UPDATE_AND_VERIFY(hierarchyBuilder);
@@ -308,7 +323,8 @@ TEST_F(LayerHierarchyTest, canTraverseMirrorLayer) {
 }
 
 TEST_F(LayerHierarchyTest, canMirrorOffscreenLayer) {
-    LayerHierarchyBuilder hierarchyBuilder(mLifecycleManager.getLayers());
+    LayerHierarchyBuilder hierarchyBuilder;
+    hierarchyBuilder.update(mLifecycleManager);
 
     reparentLayer(11, UNASSIGNED_LAYER_ID);
     mirrorLayer(/*layer*/ 14, /*parent*/ 1, /*layerToMirror*/ 11);
@@ -324,7 +340,8 @@ TEST_F(LayerHierarchyTest, canMirrorOffscreenLayer) {
 TEST_F(LayerHierarchyTest, newChildLayerIsUpdatedInMirrorHierarchy) {
     mirrorLayer(/*layer*/ 14, /*parent*/ 1, /*layerToMirror*/ 11);
     mLifecycleManager.commitChanges();
-    LayerHierarchyBuilder hierarchyBuilder(mLifecycleManager.getLayers());
+    LayerHierarchyBuilder hierarchyBuilder;
+    hierarchyBuilder.update(mLifecycleManager);
 
     createLayer(1111, 111);
     createLayer(112, 11);
@@ -340,7 +357,8 @@ TEST_F(LayerHierarchyTest, newChildLayerIsUpdatedInMirrorHierarchy) {
 
 // mirror & relatives tests
 TEST_F(LayerHierarchyTest, mirrorWithRelativeOutsideMirrorHierarchy) {
-    LayerHierarchyBuilder hierarchyBuilder(mLifecycleManager.getLayers());
+    LayerHierarchyBuilder hierarchyBuilder;
+    hierarchyBuilder.update(mLifecycleManager);
     reparentRelativeLayer(111, 12);
     mirrorLayer(/*layer*/ 14, /*parent*/ 1, /*layerToMirror*/ 11);
 
@@ -371,7 +389,8 @@ TEST_F(LayerHierarchyTest, mirrorWithRelativeOutsideMirrorHierarchy) {
 }
 
 TEST_F(LayerHierarchyTest, mirrorWithRelativeInsideMirrorHierarchy) {
-    LayerHierarchyBuilder hierarchyBuilder(mLifecycleManager.getLayers());
+    LayerHierarchyBuilder hierarchyBuilder;
+    hierarchyBuilder.update(mLifecycleManager);
     reparentRelativeLayer(1221, 12);
     mirrorLayer(/*layer*/ 14, /*parent*/ 1, /*layerToMirror*/ 12);
 
@@ -401,7 +420,8 @@ TEST_F(LayerHierarchyTest, mirrorWithRelativeInsideMirrorHierarchy) {
 }
 
 TEST_F(LayerHierarchyTest, childMovesOffscreenWhenRelativeParentDies) {
-    LayerHierarchyBuilder hierarchyBuilder(mLifecycleManager.getLayers());
+    LayerHierarchyBuilder hierarchyBuilder;
+    hierarchyBuilder.update(mLifecycleManager);
 
     reparentRelativeLayer(11, 2);
     reparentLayer(2, UNASSIGNED_LAYER_ID);
@@ -427,7 +447,8 @@ TEST_F(LayerHierarchyTest, childMovesOffscreenWhenRelativeParentDies) {
 }
 
 TEST_F(LayerHierarchyTest, offscreenLayerCannotBeRelativeToOnscreenLayer) {
-    LayerHierarchyBuilder hierarchyBuilder(mLifecycleManager.getLayers());
+    LayerHierarchyBuilder hierarchyBuilder;
+    hierarchyBuilder.update(mLifecycleManager);
     reparentRelativeLayer(1221, 2);
     UPDATE_AND_VERIFY(hierarchyBuilder);
 
@@ -462,7 +483,8 @@ TEST_F(LayerHierarchyTest, offscreenLayerCannotBeRelativeToOnscreenLayer) {
 }
 
 TEST_F(LayerHierarchyTest, backgroundLayersAreBehindParentLayer) {
-    LayerHierarchyBuilder hierarchyBuilder(mLifecycleManager.getLayers());
+    LayerHierarchyBuilder hierarchyBuilder;
+    hierarchyBuilder.update(mLifecycleManager);
 
     updateBackgroundColor(1, 0.5);
     UPDATE_AND_VERIFY(hierarchyBuilder);
@@ -485,7 +507,8 @@ TEST_F(LayerHierarchyTest, ParentBecomesTheChild) {
     createLayer(11, 1);
     reparentLayer(1, 11);
     mLifecycleManager.commitChanges();
-    LayerHierarchyBuilder hierarchyBuilder(mLifecycleManager.getLayers());
+    LayerHierarchyBuilder hierarchyBuilder;
+    hierarchyBuilder.update(mLifecycleManager);
 
     std::vector<uint32_t> expectedTraversalPath = {};
     EXPECT_EQ(getTraversalPath(hierarchyBuilder.getHierarchy()), expectedTraversalPath);
@@ -502,17 +525,11 @@ TEST_F(LayerHierarchyTest, RelativeLoops) {
     createLayer(11, 1);
     reparentRelativeLayer(11, 2);
     reparentRelativeLayer(2, 11);
-    mLifecycleManager.commitChanges();
-    LayerHierarchyBuilder hierarchyBuilder(mLifecycleManager.getLayers());
-
-    // fix loop
-    uint32_t invalidRelativeRoot;
-    bool hasRelZLoop = hierarchyBuilder.getHierarchy().hasRelZLoop(invalidRelativeRoot);
-    EXPECT_TRUE(hasRelZLoop);
-    mLifecycleManager.fixRelativeZLoop(invalidRelativeRoot);
-    hierarchyBuilder.update(mLifecycleManager.getLayers(), mLifecycleManager.getDestroyedLayers());
-    EXPECT_EQ(invalidRelativeRoot, 11u);
-    EXPECT_FALSE(hierarchyBuilder.getHierarchy().hasRelZLoop(invalidRelativeRoot));
+    LayerHierarchyBuilder hierarchyBuilder;
+    // this call is expected to fix the loop!
+    hierarchyBuilder.update(mLifecycleManager);
+    uint32_t unused;
+    EXPECT_FALSE(hierarchyBuilder.getHierarchy().hasRelZLoop(unused));
 
     std::vector<uint32_t> expectedTraversalPath = {1, 11, 2, 2};
     EXPECT_EQ(getTraversalPath(hierarchyBuilder.getHierarchy()), expectedTraversalPath);
@@ -534,16 +551,11 @@ TEST_F(LayerHierarchyTest, IndirectRelativeLoops) {
     createLayer(221, 22);
     reparentRelativeLayer(22, 111);
     reparentRelativeLayer(11, 221);
-    mLifecycleManager.commitChanges();
-    LayerHierarchyBuilder hierarchyBuilder(mLifecycleManager.getLayers());
-
-    // fix loop
-    uint32_t invalidRelativeRoot;
-    bool hasRelZLoop = hierarchyBuilder.getHierarchy().hasRelZLoop(invalidRelativeRoot);
-    EXPECT_TRUE(hasRelZLoop);
-    mLifecycleManager.fixRelativeZLoop(invalidRelativeRoot);
-    hierarchyBuilder.update(mLifecycleManager.getLayers(), mLifecycleManager.getDestroyedLayers());
-    EXPECT_FALSE(hierarchyBuilder.getHierarchy().hasRelZLoop(invalidRelativeRoot));
+    LayerHierarchyBuilder hierarchyBuilder;
+    // this call is expected to fix the loop!
+    hierarchyBuilder.update(mLifecycleManager);
+    uint32_t unused;
+    EXPECT_FALSE(hierarchyBuilder.getHierarchy().hasRelZLoop(unused));
 
     std::vector<uint32_t> expectedTraversalPath = {1, 11, 111, 22, 221, 2, 21, 22, 221};
     EXPECT_EQ(getTraversalPath(hierarchyBuilder.getHierarchy()), expectedTraversalPath);
@@ -554,7 +566,8 @@ TEST_F(LayerHierarchyTest, IndirectRelativeLoops) {
 }
 
 TEST_F(LayerHierarchyTest, ReparentRootLayerToNull) {
-    LayerHierarchyBuilder hierarchyBuilder(mLifecycleManager.getLayers());
+    LayerHierarchyBuilder hierarchyBuilder;
+    hierarchyBuilder.update(mLifecycleManager);
     reparentLayer(1, UNASSIGNED_LAYER_ID);
     UPDATE_AND_VERIFY(hierarchyBuilder);
 
@@ -568,7 +581,8 @@ TEST_F(LayerHierarchyTest, ReparentRootLayerToNull) {
 TEST_F(LayerHierarchyTest, AddRemoveLayerInSameTransaction) {
     // remove default hierarchy
     mLifecycleManager = LayerLifecycleManager();
-    LayerHierarchyBuilder hierarchyBuilder(mLifecycleManager.getLayers());
+    LayerHierarchyBuilder hierarchyBuilder;
+    hierarchyBuilder.update(mLifecycleManager);
     createRootLayer(1);
     destroyLayerHandle(1);
     UPDATE_AND_VERIFY(hierarchyBuilder);
@@ -582,7 +596,8 @@ TEST_F(LayerHierarchyTest, AddRemoveLayerInSameTransaction) {
 // traversal path test
 TEST_F(LayerHierarchyTest, traversalPathId) {
     setZ(122, -1);
-    LayerHierarchyBuilder hierarchyBuilder(mLifecycleManager.getLayers());
+    LayerHierarchyBuilder hierarchyBuilder;
+    hierarchyBuilder.update(mLifecycleManager);
     auto checkTraversalPathIdVisitor =
             [](const LayerHierarchy& hierarchy,
                const LayerHierarchy::TraversalPath& traversalPath) -> bool {
@@ -605,7 +620,8 @@ TEST_F(LayerHierarchyTest, zorderRespectsLayerSequenceId) {
     createLayer(53, 5);
 
     mLifecycleManager.commitChanges();
-    LayerHierarchyBuilder hierarchyBuilder(mLifecycleManager.getLayers());
+    LayerHierarchyBuilder hierarchyBuilder;
+    hierarchyBuilder.update(mLifecycleManager);
     UPDATE_AND_VERIFY(hierarchyBuilder);
     std::vector<uint32_t> expectedTraversalPath = {1, 11, 2, 4, 5, 51, 53};
     EXPECT_EQ(getTraversalPath(hierarchyBuilder.getHierarchy()), expectedTraversalPath);
@@ -639,7 +655,8 @@ TEST_F(LayerHierarchyTest, zorderRespectsLayerZ) {
     setZ(13, 1);
 
     mLifecycleManager.commitChanges();
-    LayerHierarchyBuilder hierarchyBuilder(mLifecycleManager.getLayers());
+    LayerHierarchyBuilder hierarchyBuilder;
+    hierarchyBuilder.update(mLifecycleManager);
     UPDATE_AND_VERIFY(hierarchyBuilder);
     std::vector<uint32_t> expectedTraversalPath = {1, 11, 13, 12};
     EXPECT_EQ(getTraversalPath(hierarchyBuilder.getHierarchy()), expectedTraversalPath);
@@ -661,7 +678,8 @@ TEST_F(LayerHierarchyTest, zorderRespectsLayerStack) {
     setLayerStack(2, 10);
 
     mLifecycleManager.commitChanges();
-    LayerHierarchyBuilder hierarchyBuilder(mLifecycleManager.getLayers());
+    LayerHierarchyBuilder hierarchyBuilder;
+    hierarchyBuilder.update(mLifecycleManager);
     UPDATE_AND_VERIFY(hierarchyBuilder);
     std::vector<uint32_t> expectedTraversalPath = {2, 21, 1, 11};
     EXPECT_EQ(getTraversalPath(hierarchyBuilder.getHierarchy()), expectedTraversalPath);
@@ -672,7 +690,8 @@ TEST_F(LayerHierarchyTest, zorderRespectsLayerStack) {
 }
 
 TEST_F(LayerHierarchyTest, canMirrorDisplay) {
-    LayerHierarchyBuilder hierarchyBuilder(mLifecycleManager.getLayers());
+    LayerHierarchyBuilder hierarchyBuilder;
+    hierarchyBuilder.update(mLifecycleManager);
     setFlags(12, layer_state_t::eLayerSkipScreenshot, layer_state_t::eLayerSkipScreenshot);
     createDisplayMirrorLayer(3, ui::LayerStack::fromValue(0));
     setLayerStack(3, 1);
@@ -687,7 +706,8 @@ TEST_F(LayerHierarchyTest, canMirrorDisplay) {
 }
 
 TEST_F(LayerHierarchyTest, mirrorNonExistingDisplay) {
-    LayerHierarchyBuilder hierarchyBuilder(mLifecycleManager.getLayers());
+    LayerHierarchyBuilder hierarchyBuilder;
+    hierarchyBuilder.update(mLifecycleManager);
     setFlags(12, layer_state_t::eLayerSkipScreenshot, layer_state_t::eLayerSkipScreenshot);
     createDisplayMirrorLayer(3, ui::LayerStack::fromValue(5));
     setLayerStack(3, 1);
@@ -701,7 +721,8 @@ TEST_F(LayerHierarchyTest, mirrorNonExistingDisplay) {
 }
 
 TEST_F(LayerHierarchyTest, newRootLayerIsMirrored) {
-    LayerHierarchyBuilder hierarchyBuilder(mLifecycleManager.getLayers());
+    LayerHierarchyBuilder hierarchyBuilder;
+    hierarchyBuilder.update(mLifecycleManager);
     setFlags(12, layer_state_t::eLayerSkipScreenshot, layer_state_t::eLayerSkipScreenshot);
     createDisplayMirrorLayer(3, ui::LayerStack::fromValue(0));
     setLayerStack(3, 1);
@@ -719,7 +740,8 @@ TEST_F(LayerHierarchyTest, newRootLayerIsMirrored) {
 }
 
 TEST_F(LayerHierarchyTest, removedRootLayerIsNoLongerMirrored) {
-    LayerHierarchyBuilder hierarchyBuilder(mLifecycleManager.getLayers());
+    LayerHierarchyBuilder hierarchyBuilder;
+    hierarchyBuilder.update(mLifecycleManager);
     setFlags(12, layer_state_t::eLayerSkipScreenshot, layer_state_t::eLayerSkipScreenshot);
     createDisplayMirrorLayer(3, ui::LayerStack::fromValue(0));
     setLayerStack(3, 1);
@@ -737,7 +759,8 @@ TEST_F(LayerHierarchyTest, removedRootLayerIsNoLongerMirrored) {
 }
 
 TEST_F(LayerHierarchyTest, canMirrorDisplayWithMirrors) {
-    LayerHierarchyBuilder hierarchyBuilder(mLifecycleManager.getLayers());
+    LayerHierarchyBuilder hierarchyBuilder;
+    hierarchyBuilder.update(mLifecycleManager);
     reparentLayer(12, UNASSIGNED_LAYER_ID);
     mirrorLayer(/*layer*/ 14, /*parent*/ 1, /*layerToMirror*/ 11);
     UPDATE_AND_VERIFY(hierarchyBuilder);

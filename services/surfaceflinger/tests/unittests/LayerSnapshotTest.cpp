@@ -58,8 +58,7 @@ protected:
 
     void update(LayerSnapshotBuilder& actualBuilder, LayerSnapshotBuilder::Args& args) {
         if (mLifecycleManager.getGlobalChanges().test(RequestedLayerState::Changes::Hierarchy)) {
-            mHierarchyBuilder.update(mLifecycleManager.getLayers(),
-                                     mLifecycleManager.getDestroyedLayers());
+            mHierarchyBuilder.update(mLifecycleManager);
         }
         args.root = mHierarchyBuilder.getHierarchy();
         actualBuilder.update(args);

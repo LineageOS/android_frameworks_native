@@ -98,7 +98,7 @@ protected:
     mock::VsyncTrackerCallback mVsyncTrackerCallback;
     TestableScheduler* mScheduler =
             new TestableScheduler{mSelector, mSchedulerCallback, mVsyncTrackerCallback};
-    surfaceflinger::frontend::LayerHierarchyBuilder mLayerHierarchyBuilder{{}};
+    surfaceflinger::frontend::LayerHierarchyBuilder mLayerHierarchyBuilder;
 
     ConnectionHandle mConnectionHandle;
     MockEventThread* mEventThread;

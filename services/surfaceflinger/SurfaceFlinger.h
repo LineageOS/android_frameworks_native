@@ -1469,7 +1469,7 @@ private:
     bool mLegacyFrontEndEnabled = true;
 
     frontend::LayerLifecycleManager mLayerLifecycleManager;
-    frontend::LayerHierarchyBuilder mLayerHierarchyBuilder{{}};
+    frontend::LayerHierarchyBuilder mLayerHierarchyBuilder;
     frontend::LayerSnapshotBuilder mLayerSnapshotBuilder;
 
     std::vector<std::pair<uint32_t, std::string>> mDestroyedHandles;
