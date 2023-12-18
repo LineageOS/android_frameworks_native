@@ -38,42 +38,9 @@
 #include <private/gui/BufferQueueThreadState.h>
 #if !defined(__ANDROID_VNDK__) && !defined(NO_BINDER)
 #include <binder/PermissionCache.h>
-#include <selinux/android.h>
-#include <selinux/selinux.h>
 #endif
 
 #include <system/window.h>
-
-namespace {
-#if !defined(__ANDROID_VNDK__) && !defined(NO_BINDER)
-int selinux_log_suppress_callback(int, const char*, ...) { // NOLINT
-    // DO NOTHING
-    return 0;
-}
-
-bool hasAccessToPermissionService() {
-    char* ctx;
-
-    if (getcon(&ctx) == -1) {
-        // Failed to get current selinux context
-        return false;
-    }
-
-    union selinux_callback cb;
-
-    cb.func_log = selinux_log_suppress_callback;
-    selinux_set_callback(SELINUX_CB_LOG, cb);
-
-    bool hasAccess = selinux_check_access(ctx, "u:object_r:permission_service:s0",
-                                          "service_manager", "find", NULL) == 0;
-    freecon(ctx);
-    cb.func_log = hasAccess ? selinux_log_callback : selinux_vendor_log_callback;
-    selinux_set_callback(SELINUX_CB_LOG, cb);
-
-    return hasAccess;
-}
-#endif
-} // namespace
 
 namespace android {
 
@@ -843,18 +810,14 @@ status_t BufferQueueConsumer::dumpState(const String8& prefix, String8* outResul
     const uid_t uid = BufferQueueThreadState::getCallingUid();
 #if !defined(__ANDROID_VNDK__) && !defined(NO_BINDER)
     // permission check can't be done for vendors as vendors have no access to
-    // the PermissionController. We need to do a runtime check as well, since
-    // the system variant of libgui can be loaded in a vendor process. For eg:
-    // if a HAL uses an llndk library that depends on libgui (libmediandk etc).
-    if (hasAccessToPermissionService()) {
-        const pid_t pid = BufferQueueThreadState::getCallingPid();
-        if ((uid != shellUid) &&
-            !PermissionCache::checkPermission(String16("android.permission.DUMP"), pid, uid)) {
-            outResult->appendFormat("Permission Denial: can't dump BufferQueueConsumer "
-                                    "from pid=%d, uid=%d\n",
-                                    pid, uid);
-            denied = true;
-        }
+    // the PermissionController.
+    const pid_t pid = BufferQueueThreadState::getCallingPid();
+    if ((uid != shellUid) &&
+        !PermissionCache::checkPermission(String16("android.permission.DUMP"), pid, uid)) {
+        outResult->appendFormat("Permission Denial: can't dump BufferQueueConsumer "
+                                "from pid=%d, uid=%d\n",
+                                pid, uid);
+        denied = true;
     }
 #else
     if (uid != shellUid) {
