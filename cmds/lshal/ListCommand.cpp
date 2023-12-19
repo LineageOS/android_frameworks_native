@@ -44,6 +44,7 @@
 #include "Timeout.h"
 #include "utils.h"
 
+using ::android::hardware::hidl_array;
 using ::android::hardware::hidl_string;
 using ::android::hardware::hidl_vec;
 using ::android::hidl::base::V1_0::DebugInfo;
@@ -523,25 +524,32 @@ Status ListCommand::fetchAllLibraries(const sp<IServiceManager> &manager) {
     using namespace ::android::hidl::manager::V1_0;
     using namespace ::android::hidl::base::V1_0;
     using std::literals::chrono_literals::operator""s;
-    auto ret = timeoutIPC(10s, manager, &IServiceManager::debugDump, [&] (const auto &infos) {
-        std::map<std::string, TableEntry> entries;
+
+    // The lambda function may be executed asynchrounously because it is passed to timeoutIPC,
+    // even though the interface function call is synchronous.
+    // However, there's no need to lock because if ret.isOk(), the background thread has
+    // already ended, so it is safe to dereference entries.
+    auto entries = std::make_shared<std::map<std::string, TableEntry>>();
+    auto ret = timeoutIPC(10s, manager, &IServiceManager::debugDump, [entries](const auto& infos) {
         for (const auto &info : infos) {
             std::string interfaceName = std::string{info.interfaceName.c_str()} + "/" +
                     std::string{info.instanceName.c_str()};
-            entries.emplace(interfaceName, TableEntry{
-                .interfaceName = interfaceName,
-                .transport = vintf::Transport::PASSTHROUGH,
-                .clientPids = info.clientPids,
-            }).first->second.arch |= fromBaseArchitecture(info.arch);
-        }
-        for (auto &&pair : entries) {
-            putEntry(HalType::PASSTHROUGH_LIBRARIES, std::move(pair.second));
+            entries->emplace(interfaceName,
+                             TableEntry{
+                                     .interfaceName = interfaceName,
+                                     .transport = vintf::Transport::PASSTHROUGH,
+                                     .clientPids = info.clientPids,
+                             })
+                    .first->second.arch |= fromBaseArchitecture(info.arch);
         }
     });
     if (!ret.isOk()) {
         err() << "Error: Failed to call list on getPassthroughServiceManager(): "
              << ret.description() << std::endl;
         return DUMP_ALL_LIBS_ERROR;
+    }
+    for (auto&& pair : *entries) {
+        putEntry(HalType::PASSTHROUGH_LIBRARIES, std::move(pair.second));
     }
     return OK;
 }
@@ -553,26 +561,34 @@ Status ListCommand::fetchPassthrough(const sp<IServiceManager> &manager) {
     using namespace ::android::hardware::details;
     using namespace ::android::hidl::manager::V1_0;
     using namespace ::android::hidl::base::V1_0;
-    auto ret = timeoutIPC(manager, &IServiceManager::debugDump, [&] (const auto &infos) {
+
+    // The lambda function may be executed asynchrounously because it is passed to timeoutIPC,
+    // even though the interface function call is synchronous.
+    // However, there's no need to lock because if ret.isOk(), the background thread has
+    // already ended, so it is safe to dereference entries.
+    auto entries = std::make_shared<std::vector<TableEntry>>();
+    auto ret = timeoutIPC(manager, &IServiceManager::debugDump, [entries](const auto& infos) {
         for (const auto &info : infos) {
             if (info.clientPids.size() <= 0) {
                 continue;
             }
-            putEntry(HalType::PASSTHROUGH_CLIENTS, {
-                .interfaceName =
-                        std::string{info.interfaceName.c_str()} + "/" +
-                        std::string{info.instanceName.c_str()},
-                .transport = vintf::Transport::PASSTHROUGH,
-                .serverPid = info.clientPids.size() == 1 ? info.clientPids[0] : NO_PID,
-                .clientPids = info.clientPids,
-                .arch = fromBaseArchitecture(info.arch)
-            });
+            entries->emplace_back(
+                    TableEntry{.interfaceName = std::string{info.interfaceName.c_str()} + "/" +
+                                       std::string{info.instanceName.c_str()},
+                               .transport = vintf::Transport::PASSTHROUGH,
+                               .serverPid =
+                                       info.clientPids.size() == 1 ? info.clientPids[0] : NO_PID,
+                               .clientPids = info.clientPids,
+                               .arch = fromBaseArchitecture(info.arch)});
         }
     });
     if (!ret.isOk()) {
         err() << "Error: Failed to call debugDump on defaultServiceManager(): "
              << ret.description() << std::endl;
         return DUMP_PASSTHROUGH_ERROR;
+    }
+    for (auto&& entry : *entries) {
+        putEntry(HalType::PASSTHROUGH_CLIENTS, std::move(entry));
     }
     return OK;
 }
@@ -583,11 +599,14 @@ Status ListCommand::fetchBinderized(const sp<IServiceManager> &manager) {
     if (!shouldFetchHalType(HalType::BINDERIZED_SERVICES)) { return OK; }
 
     const vintf::Transport mode = vintf::Transport::HWBINDER;
-    hidl_vec<hidl_string> fqInstanceNames;
-    // copying out for timeoutIPC
-    auto listRet = timeoutIPC(manager, &IServiceManager::list, [&] (const auto &names) {
-        fqInstanceNames = names;
-    });
+
+    // The lambda function may be executed asynchrounously because it is passed to timeoutIPC,
+    // even though the interface function call is synchronous.
+    // However, there's no need to lock because if listRet.isOk(), the background thread has
+    // already ended, so it is safe to dereference fqInstanceNames.
+    auto fqInstanceNames = std::make_shared<hidl_vec<hidl_string>>();
+    auto listRet = timeoutIPC(manager, &IServiceManager::list,
+                              [fqInstanceNames](const auto& names) { *fqInstanceNames = names; });
     if (!listRet.isOk()) {
         err() << "Error: Failed to list services for " << mode << ": "
              << listRet.description() << std::endl;
@@ -596,7 +615,7 @@ Status ListCommand::fetchBinderized(const sp<IServiceManager> &manager) {
 
     Status status = OK;
     std::map<std::string, TableEntry> allTableEntries;
-    for (const auto &fqInstanceName : fqInstanceNames) {
+    for (const auto& fqInstanceName : *fqInstanceNames) {
         // create entry and default assign all fields.
         TableEntry& entry = allTableEntries[fqInstanceName];
         entry.interfaceName = fqInstanceName;
@@ -637,30 +656,33 @@ Status ListCommand::fetchBinderizedEntry(const sp<IServiceManager> &manager,
 
     // getDebugInfo
     do {
-        DebugInfo debugInfo;
-        auto debugRet = timeoutIPC(service, &IBase::getDebugInfo, [&] (const auto &received) {
-            debugInfo = received;
-        });
+        // The lambda function may be executed asynchrounously because it is passed to timeoutIPC,
+        // even though the interface function call is synchronous.
+        // However, there's no need to lock because if debugRet.isOk(), the background thread has
+        // already ended, so it is safe to dereference debugInfo.
+        auto debugInfo = std::make_shared<DebugInfo>();
+        auto debugRet = timeoutIPC(service, &IBase::getDebugInfo,
+                                   [debugInfo](const auto& received) { *debugInfo = received; });
         if (!debugRet.isOk()) {
             handleError(TRANSACTION_ERROR,
                         "debugging information cannot be retrieved: " + debugRet.description());
             break; // skip getPidInfo
         }
 
-        entry->serverPid = debugInfo.pid;
-        entry->serverObjectAddress = debugInfo.ptr;
-        entry->arch = fromBaseArchitecture(debugInfo.arch);
+        entry->serverPid = debugInfo->pid;
+        entry->serverObjectAddress = debugInfo->ptr;
+        entry->arch = fromBaseArchitecture(debugInfo->arch);
 
-        if (debugInfo.pid != NO_PID) {
-            const BinderPidInfo* pidInfo = getPidInfoCached(debugInfo.pid);
+        if (debugInfo->pid != NO_PID) {
+            const BinderPidInfo* pidInfo = getPidInfoCached(debugInfo->pid);
             if (pidInfo == nullptr) {
                 handleError(IO_ERROR,
-                            "no information for PID " + std::to_string(debugInfo.pid) +
-                            ", are you root?");
+                            "no information for PID " + std::to_string(debugInfo->pid) +
+                                    ", are you root?");
                 break;
             }
-            if (debugInfo.ptr != NO_PTR) {
-                auto it = pidInfo->refPids.find(debugInfo.ptr);
+            if (debugInfo->ptr != NO_PTR) {
+                auto it = pidInfo->refPids.find(debugInfo->ptr);
                 if (it != pidInfo->refPids.end()) {
                     entry->clientPids = it->second;
                 }
@@ -672,38 +694,45 @@ Status ListCommand::fetchBinderizedEntry(const sp<IServiceManager> &manager,
 
     // hash
     do {
-        ssize_t hashIndex = -1;
-        auto ifaceChainRet = timeoutIPC(service, &IBase::interfaceChain, [&] (const auto& c) {
-            for (size_t i = 0; i < c.size(); ++i) {
-                if (serviceName == c[i]) {
-                    hashIndex = static_cast<ssize_t>(i);
-                    break;
-                }
-            }
-        });
+        // The lambda function may be executed asynchrounously because it is passed to timeoutIPC,
+        // even though the interface function call is synchronous.
+        auto hashIndexStore = std::make_shared<ssize_t>(-1);
+        auto ifaceChainRet = timeoutIPC(service, &IBase::interfaceChain,
+                                        [hashIndexStore, serviceName](const auto& c) {
+                                            for (size_t i = 0; i < c.size(); ++i) {
+                                                if (serviceName == c[i]) {
+                                                    *hashIndexStore = static_cast<ssize_t>(i);
+                                                    break;
+                                                }
+                                            }
+                                        });
         if (!ifaceChainRet.isOk()) {
             handleError(TRANSACTION_ERROR,
                         "interfaceChain fails: " + ifaceChainRet.description());
             break; // skip getHashChain
         }
+        // if ifaceChainRet.isOk(), the background thread has already ended, so it is safe to
+        // dereference hashIndex without any locking.
+        auto hashIndex = *hashIndexStore;
         if (hashIndex < 0) {
             handleError(BAD_IMPL, "Interface name does not exist in interfaceChain.");
             break; // skip getHashChain
         }
-        auto hashRet = timeoutIPC(service, &IBase::getHashChain, [&] (const auto& hashChain) {
-            if (static_cast<size_t>(hashIndex) >= hashChain.size()) {
-                handleError(BAD_IMPL,
-                            "interfaceChain indicates position " + std::to_string(hashIndex) +
-                            " but getHashChain returns " + std::to_string(hashChain.size()) +
-                            " hashes");
-                return;
-            }
-
-            auto&& hashArray = hashChain[hashIndex];
-            entry->hash = android::base::HexString(hashArray.data(), hashArray.size());
-        });
+        // See comments about hashIndex above.
+        auto hashChain = std::make_shared<hidl_vec<hidl_array<uint8_t, 32>>>();
+        auto hashRet = timeoutIPC(service, &IBase::getHashChain,
+                                  [hashChain](const auto& ret) { *hashChain = std::move(ret); });
         if (!hashRet.isOk()) {
             handleError(TRANSACTION_ERROR, "getHashChain failed: " + hashRet.description());
+        }
+        if (static_cast<size_t>(hashIndex) >= hashChain->size()) {
+            handleError(BAD_IMPL,
+                        "interfaceChain indicates position " + std::to_string(hashIndex) +
+                                " but getHashChain returns " + std::to_string(hashChain->size()) +
+                                " hashes");
+        } else {
+            auto&& hashArray = (*hashChain)[hashIndex];
+            entry->hash = android::base::HexString(hashArray.data(), hashArray.size());
         }
     } while (0);
     if (status == OK) {
