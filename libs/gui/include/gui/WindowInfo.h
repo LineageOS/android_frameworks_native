@@ -176,6 +176,8 @@ struct WindowInfo : public Parcelable {
                 static_cast<uint32_t>(os::InputConfig::INTERCEPTS_STYLUS),
         CLONE =
                 static_cast<uint32_t>(os::InputConfig::CLONE),
+        GLOBAL_STYLUS_BLOCKS_TOUCH =
+                static_cast<uint32_t>(os::InputConfig::GLOBAL_STYLUS_BLOCKS_TOUCH),
         // clang-format on
     };
 

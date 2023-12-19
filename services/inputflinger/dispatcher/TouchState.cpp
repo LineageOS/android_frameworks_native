@@ -234,6 +234,11 @@ bool TouchState::hasHoveringPointers(DeviceId deviceId) const {
     });
 }
 
+bool TouchState::hasActiveStylus() const {
+    return std::any_of(windows.begin(), windows.end(),
+                       [](const TouchedWindow& window) { return window.hasActiveStylus(); });
+}
+
 std::set<sp<WindowInfoHandle>> TouchState::getWindowsWithHoveringPointer(DeviceId deviceId,
                                                                          int32_t pointerId) const {
     std::set<sp<WindowInfoHandle>> out;

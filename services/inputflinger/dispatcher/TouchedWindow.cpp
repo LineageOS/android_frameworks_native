@@ -162,6 +162,22 @@ void TouchedWindow::removeTouchingPointers(DeviceId deviceId,
     }
 }
 
+bool TouchedWindow::hasActiveStylus() const {
+    for (const auto& [_, state] : mDeviceStates) {
+        for (const PointerProperties& properties : state.touchingPointers) {
+            if (properties.toolType == ToolType::STYLUS) {
+                return true;
+            }
+        }
+        for (const PointerProperties& properties : state.hoveringPointers) {
+            if (properties.toolType == ToolType::STYLUS) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 std::set<DeviceId> TouchedWindow::getTouchingDeviceIds() const {
     std::set<DeviceId> deviceIds;
     for (const auto& [deviceId, deviceState] : mDeviceStates) {
