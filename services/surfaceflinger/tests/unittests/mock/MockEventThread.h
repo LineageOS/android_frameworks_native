@@ -59,6 +59,9 @@ public:
     MOCK_METHOD(void, requestLatestConfig, (const sp<android::EventThreadConnection>&));
     MOCK_METHOD(void, pauseVsyncCallback, (bool));
     MOCK_METHOD(void, onNewVsyncSchedule, (std::shared_ptr<scheduler::VsyncSchedule>), (override));
+    MOCK_METHOD(void, onHdcpLevelsChanged,
+                (PhysicalDisplayId displayId, int32_t connectedLevel, int32_t maxLevel),
+                (override));
 };
 
 } // namespace android::mock

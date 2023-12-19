@@ -365,6 +365,10 @@ bool DisplayDevice::isSecure() const {
     return mCompositionDisplay->isSecure();
 }
 
+void DisplayDevice::setSecure(bool secure) {
+    mCompositionDisplay->setSecure(secure);
+}
+
 const Rect DisplayDevice::getBounds() const {
     return mCompositionDisplay->getState().displaySpace.getBoundsAsRect();
 }

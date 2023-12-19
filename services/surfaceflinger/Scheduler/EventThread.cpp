@@ -100,6 +100,11 @@ std::string toString(const DisplayEventReceiver::Event& event) {
         case DisplayEventReceiver::DISPLAY_EVENT_MODE_CHANGE:
             return StringPrintf("ModeChanged{displayId=%s, modeId=%u}",
                                 to_string(event.header.displayId).c_str(), event.modeChange.modeId);
+        case DisplayEventReceiver::DISPLAY_EVENT_HDCP_LEVELS_CHANGE:
+            return StringPrintf("HdcpLevelsChange{displayId=%s, connectedLevel=%d, maxLevel=%d}",
+                                to_string(event.header.displayId).c_str(),
+                                event.hdcpLevelsChange.connectedLevel,
+                                event.hdcpLevelsChange.maxLevel);
         default:
             return "Event{}";
     }
@@ -168,6 +173,20 @@ DisplayEventReceiver::Event makeFrameRateOverrideFlushEvent(PhysicalDisplayId di
                     .displayId = displayId,
                     .timestamp = systemTime(),
             }};
+}
+
+DisplayEventReceiver::Event makeHdcpLevelsChange(PhysicalDisplayId displayId,
+                                                 int32_t connectedLevel, int32_t maxLevel) {
+    return DisplayEventReceiver::Event{
+            .header =
+                    DisplayEventReceiver::Event::Header{
+                            .type = DisplayEventReceiver::DISPLAY_EVENT_HDCP_LEVELS_CHANGE,
+                            .displayId = displayId,
+                            .timestamp = systemTime(),
+                    },
+            .hdcpLevelsChange.connectedLevel = connectedLevel,
+            .hdcpLevelsChange.maxLevel = maxLevel,
+    };
 }
 
 } // namespace
@@ -439,6 +458,14 @@ void EventThread::onFrameRateOverridesChanged(PhysicalDisplayId displayId,
     }
     mPendingEvents.push_back(makeFrameRateOverrideFlushEvent(displayId));
 
+    mCondition.notify_all();
+}
+
+void EventThread::onHdcpLevelsChanged(PhysicalDisplayId displayId, int32_t connectedLevel,
+                                      int32_t maxLevel) {
+    std::lock_guard<std::mutex> lock(mMutex);
+
+    mPendingEvents.push_back(makeHdcpLevelsChange(displayId, connectedLevel, maxLevel));
     mCondition.notify_all();
 }
 

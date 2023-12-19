@@ -173,6 +173,8 @@ public:
     void onFrameRateOverridesChanged(ConnectionHandle, PhysicalDisplayId)
             EXCLUDES(mConnectionsLock);
 
+    void onHdcpLevelsChanged(ConnectionHandle, PhysicalDisplayId, int32_t, int32_t);
+
     // Modifies work duration in the event thread.
     void setDuration(ConnectionHandle, std::chrono::nanoseconds workDuration,
                      std::chrono::nanoseconds readyDuration);
