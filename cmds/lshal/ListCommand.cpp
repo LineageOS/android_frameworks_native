@@ -523,26 +523,27 @@ Status ListCommand::fetchAllLibraries(const sp<IServiceManager> &manager) {
     using namespace ::android::hardware;
     using namespace ::android::hidl::manager::V1_0;
     using namespace ::android::hidl::base::V1_0;
-    using std::literals::chrono_literals::operator""s;
 
     // The lambda function may be executed asynchrounously because it is passed to timeoutIPC,
     // even though the interface function call is synchronous.
     // However, there's no need to lock because if ret.isOk(), the background thread has
     // already ended, so it is safe to dereference entries.
     auto entries = std::make_shared<std::map<std::string, TableEntry>>();
-    auto ret = timeoutIPC(10s, manager, &IServiceManager::debugDump, [entries](const auto& infos) {
-        for (const auto &info : infos) {
-            std::string interfaceName = std::string{info.interfaceName.c_str()} + "/" +
-                    std::string{info.instanceName.c_str()};
-            entries->emplace(interfaceName,
-                             TableEntry{
-                                     .interfaceName = interfaceName,
-                                     .transport = vintf::Transport::PASSTHROUGH,
-                                     .clientPids = info.clientPids,
-                             })
-                    .first->second.arch |= fromBaseArchitecture(info.arch);
-        }
-    });
+    auto ret =
+            timeoutIPC(mLshal.getDebugDumpWait(), manager, &IServiceManager::debugDump,
+                       [entries](const auto& infos) {
+                           for (const auto& info : infos) {
+                               std::string interfaceName = std::string{info.interfaceName.c_str()} +
+                                       "/" + std::string{info.instanceName.c_str()};
+                               entries->emplace(interfaceName,
+                                                TableEntry{
+                                                        .interfaceName = interfaceName,
+                                                        .transport = vintf::Transport::PASSTHROUGH,
+                                                        .clientPids = info.clientPids,
+                                                })
+                                       .first->second.arch |= fromBaseArchitecture(info.arch);
+                           }
+                       });
     if (!ret.isOk()) {
         err() << "Error: Failed to call list on getPassthroughServiceManager(): "
              << ret.description() << std::endl;
@@ -567,21 +568,26 @@ Status ListCommand::fetchPassthrough(const sp<IServiceManager> &manager) {
     // However, there's no need to lock because if ret.isOk(), the background thread has
     // already ended, so it is safe to dereference entries.
     auto entries = std::make_shared<std::vector<TableEntry>>();
-    auto ret = timeoutIPC(manager, &IServiceManager::debugDump, [entries](const auto& infos) {
-        for (const auto &info : infos) {
-            if (info.clientPids.size() <= 0) {
-                continue;
-            }
-            entries->emplace_back(
-                    TableEntry{.interfaceName = std::string{info.interfaceName.c_str()} + "/" +
-                                       std::string{info.instanceName.c_str()},
-                               .transport = vintf::Transport::PASSTHROUGH,
-                               .serverPid =
-                                       info.clientPids.size() == 1 ? info.clientPids[0] : NO_PID,
-                               .clientPids = info.clientPids,
-                               .arch = fromBaseArchitecture(info.arch)});
-        }
-    });
+    auto ret =
+            timeoutIPC(mLshal.getIpcCallWait(), manager, &IServiceManager::debugDump,
+                       [entries](const auto& infos) {
+                           for (const auto& info : infos) {
+                               if (info.clientPids.size() <= 0) {
+                                   continue;
+                               }
+                               entries->emplace_back(
+                                       TableEntry{.interfaceName =
+                                                          std::string{info.interfaceName.c_str()} +
+                                                          "/" +
+                                                          std::string{info.instanceName.c_str()},
+                                                  .transport = vintf::Transport::PASSTHROUGH,
+                                                  .serverPid = info.clientPids.size() == 1
+                                                          ? info.clientPids[0]
+                                                          : NO_PID,
+                                                  .clientPids = info.clientPids,
+                                                  .arch = fromBaseArchitecture(info.arch)});
+                           }
+                       });
     if (!ret.isOk()) {
         err() << "Error: Failed to call debugDump on defaultServiceManager(): "
              << ret.description() << std::endl;
@@ -605,7 +611,7 @@ Status ListCommand::fetchBinderized(const sp<IServiceManager> &manager) {
     // However, there's no need to lock because if listRet.isOk(), the background thread has
     // already ended, so it is safe to dereference fqInstanceNames.
     auto fqInstanceNames = std::make_shared<hidl_vec<hidl_string>>();
-    auto listRet = timeoutIPC(manager, &IServiceManager::list,
+    auto listRet = timeoutIPC(mLshal.getIpcCallWait(), manager, &IServiceManager::list,
                               [fqInstanceNames](const auto& names) { *fqInstanceNames = names; });
     if (!listRet.isOk()) {
         err() << "Error: Failed to list services for " << mode << ": "
@@ -642,7 +648,8 @@ Status ListCommand::fetchBinderizedEntry(const sp<IServiceManager> &manager,
     const auto pair = splitFirst(entry->interfaceName, '/');
     const auto &serviceName = pair.first;
     const auto &instanceName = pair.second;
-    auto getRet = timeoutIPC(manager, &IServiceManager::get, serviceName, instanceName);
+    auto getRet = timeoutIPC(mLshal.getIpcCallWait(), manager, &IServiceManager::get, serviceName,
+                             instanceName);
     if (!getRet.isOk()) {
         handleError(TRANSACTION_ERROR,
                     "cannot be fetched from service manager:" + getRet.description());
@@ -661,7 +668,7 @@ Status ListCommand::fetchBinderizedEntry(const sp<IServiceManager> &manager,
         // However, there's no need to lock because if debugRet.isOk(), the background thread has
         // already ended, so it is safe to dereference debugInfo.
         auto debugInfo = std::make_shared<DebugInfo>();
-        auto debugRet = timeoutIPC(service, &IBase::getDebugInfo,
+        auto debugRet = timeoutIPC(mLshal.getIpcCallWait(), service, &IBase::getDebugInfo,
                                    [debugInfo](const auto& received) { *debugInfo = received; });
         if (!debugRet.isOk()) {
             handleError(TRANSACTION_ERROR,
@@ -697,7 +704,7 @@ Status ListCommand::fetchBinderizedEntry(const sp<IServiceManager> &manager,
         // The lambda function may be executed asynchrounously because it is passed to timeoutIPC,
         // even though the interface function call is synchronous.
         auto hashIndexStore = std::make_shared<ssize_t>(-1);
-        auto ifaceChainRet = timeoutIPC(service, &IBase::interfaceChain,
+        auto ifaceChainRet = timeoutIPC(mLshal.getIpcCallWait(), service, &IBase::interfaceChain,
                                         [hashIndexStore, serviceName](const auto& c) {
                                             for (size_t i = 0; i < c.size(); ++i) {
                                                 if (serviceName == c[i]) {
@@ -720,7 +727,7 @@ Status ListCommand::fetchBinderizedEntry(const sp<IServiceManager> &manager,
         }
         // See comments about hashIndex above.
         auto hashChain = std::make_shared<hidl_vec<hidl_array<uint8_t, 32>>>();
-        auto hashRet = timeoutIPC(service, &IBase::getHashChain,
+        auto hashRet = timeoutIPC(mLshal.getIpcCallWait(), service, &IBase::getHashChain,
                                   [hashChain](const auto& ret) { *hashChain = std::move(ret); });
         if (!hashRet.isOk()) {
             handleError(TRANSACTION_ERROR, "getHashChain failed: " + hashRet.description());
