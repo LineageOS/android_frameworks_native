@@ -22,7 +22,6 @@ LIBBINDER_DIR := frameworks/native/libs/binder
 LIBBASE_DIR := system/libbase
 LIBLOG_STUB_DIR := $(LIBBINDER_DIR)/liblog_stub
 LIBUTILS_BINDER_DIR := system/core/libutils/binder
-FMTLIB_DIR := external/fmtlib
 
 MODULE_SRCS := \
 	$(LOCAL_DIR)/OS.cpp \
@@ -59,7 +58,6 @@ MODULE_EXPORT_INCLUDES += \
 	$(LIBBINDER_DIR)/include \
 	$(LIBBASE_DIR)/include \
 	$(LIBUTILS_BINDER_DIR)/include \
-	$(FMTLIB_DIR)/include \
 
 # The android/binder_to_string.h header is shared between libbinder and
 # libbinder_ndk and included by auto-generated AIDL C++ files

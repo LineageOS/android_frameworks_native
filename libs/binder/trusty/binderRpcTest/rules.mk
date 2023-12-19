@@ -21,7 +21,6 @@ MODULE := $(LOCAL_DIR)
 MANIFEST := $(LOCAL_DIR)/manifest.json
 
 MODULE_SRCS += \
-	$(FMTLIB_DIR)/src/format.cc \
 	$(LIBBINDER_TESTS_DIR)/binderRpcUniversalTests.cpp \
 	$(LIBBINDER_TESTS_DIR)/binderRpcTestCommon.cpp \
 	$(LIBBINDER_TESTS_DIR)/binderRpcTestTrusty.cpp \
