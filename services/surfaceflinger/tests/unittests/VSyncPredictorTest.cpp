@@ -720,15 +720,17 @@ TEST_F(VSyncPredictorTest, adjustsVrrTimeline) {
     vrrTracker.setRenderRate(minFrameRate);
     vrrTracker.addVsyncTimestamp(0);
     EXPECT_EQ(1000, vrrTracker.nextAnticipatedVSyncTimeFrom(700));
-    EXPECT_EQ(2000, vrrTracker.nextAnticipatedVSyncTimeFrom(1300));
+    EXPECT_EQ(2000, vrrTracker.nextAnticipatedVSyncTimeFrom(1000));
 
     vrrTracker.onFrameBegin(TimePoint::fromNs(2000), TimePoint::fromNs(1500));
-    EXPECT_EQ(1500, vrrTracker.nextAnticipatedVSyncTimeFrom(1300));
-    EXPECT_EQ(2500, vrrTracker.nextAnticipatedVSyncTimeFrom(2300));
+    EXPECT_EQ(3500, vrrTracker.nextAnticipatedVSyncTimeFrom(2000, 2000));
+    EXPECT_EQ(4500, vrrTracker.nextAnticipatedVSyncTimeFrom(3500, 3500));
 
-    vrrTracker.onFrameMissed(TimePoint::fromNs(2500));
-    EXPECT_EQ(3000, vrrTracker.nextAnticipatedVSyncTimeFrom(2300));
-    EXPECT_EQ(4000, vrrTracker.nextAnticipatedVSyncTimeFrom(3300));
+    // Miss when starting 4500 and expect the next vsync will be at 5000 (next one)
+    vrrTracker.onFrameBegin(TimePoint::fromNs(3500), TimePoint::fromNs(2500));
+    vrrTracker.onFrameMissed(TimePoint::fromNs(4500));
+    EXPECT_EQ(5000, vrrTracker.nextAnticipatedVSyncTimeFrom(4500, 4500));
+    EXPECT_EQ(6000, vrrTracker.nextAnticipatedVSyncTimeFrom(5000, 5000));
 }
 
 } // namespace android::scheduler

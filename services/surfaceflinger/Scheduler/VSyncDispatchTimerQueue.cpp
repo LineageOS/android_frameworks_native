@@ -45,8 +45,11 @@ nsecs_t getExpectedCallbackTime(nsecs_t nextVsyncTime,
 
 nsecs_t getExpectedCallbackTime(VSyncTracker& tracker, nsecs_t now,
                                 const VSyncDispatch::ScheduleTiming& timing) {
-    const auto nextVsyncTime = tracker.nextAnticipatedVSyncTimeFrom(
-            std::max(timing.earliestVsync, now + timing.workDuration + timing.readyDuration));
+    const auto nextVsyncTime =
+            tracker.nextAnticipatedVSyncTimeFrom(std::max(timing.lastVsync,
+                                                          now + timing.workDuration +
+                                                                  timing.readyDuration),
+                                                 timing.lastVsync);
     return getExpectedCallbackTime(nextVsyncTime, timing);
 }
 
@@ -93,8 +96,11 @@ std::optional<nsecs_t> VSyncDispatchTimerQueueEntry::targetVsync() const {
 
 ScheduleResult VSyncDispatchTimerQueueEntry::schedule(VSyncDispatch::ScheduleTiming timing,
                                                       VSyncTracker& tracker, nsecs_t now) {
-    auto nextVsyncTime = tracker.nextAnticipatedVSyncTimeFrom(
-            std::max(timing.earliestVsync, now + timing.workDuration + timing.readyDuration));
+    auto nextVsyncTime =
+            tracker.nextAnticipatedVSyncTimeFrom(std::max(timing.lastVsync,
+                                                          now + timing.workDuration +
+                                                                  timing.readyDuration),
+                                                 timing.lastVsync);
     auto nextWakeupTime = nextVsyncTime - timing.workDuration - timing.readyDuration;
 
     bool const wouldSkipAVsyncTarget =
@@ -139,11 +145,13 @@ nsecs_t VSyncDispatchTimerQueueEntry::adjustVsyncIfNeeded(VSyncTracker& tracker,
     bool const nextVsyncTooClose = mLastDispatchTime &&
             (nextVsyncTime - *mLastDispatchTime + mMinVsyncDistance) <= currentPeriod;
     if (alreadyDispatchedForVsync) {
-        return tracker.nextAnticipatedVSyncTimeFrom(*mLastDispatchTime + mMinVsyncDistance);
+        return tracker.nextAnticipatedVSyncTimeFrom(*mLastDispatchTime + mMinVsyncDistance,
+                                                    *mLastDispatchTime);
     }
 
     if (nextVsyncTooClose) {
-        return tracker.nextAnticipatedVSyncTimeFrom(*mLastDispatchTime + currentPeriod);
+        return tracker.nextAnticipatedVSyncTimeFrom(*mLastDispatchTime + currentPeriod,
+                                                    *mLastDispatchTime + currentPeriod);
     }
 
     return nextVsyncTime;
@@ -160,11 +168,12 @@ void VSyncDispatchTimerQueueEntry::update(VSyncTracker& tracker, nsecs_t now) {
     }
 
     const auto earliestReadyBy = now + mScheduleTiming.workDuration + mScheduleTiming.readyDuration;
-    const auto earliestVsync = std::max(earliestReadyBy, mScheduleTiming.earliestVsync);
+    const auto earliestVsync = std::max(earliestReadyBy, mScheduleTiming.lastVsync);
 
     const auto nextVsyncTime =
             adjustVsyncIfNeeded(tracker, /*nextVsyncTime*/
-                                tracker.nextAnticipatedVSyncTimeFrom(earliestVsync));
+                                tracker.nextAnticipatedVSyncTimeFrom(earliestVsync,
+                                                                     mScheduleTiming.lastVsync));
     const auto nextReadyTime = nextVsyncTime - mScheduleTiming.readyDuration;
     const auto nextWakeupTime = nextReadyTime - mScheduleTiming.workDuration;
 
@@ -214,10 +223,10 @@ void VSyncDispatchTimerQueueEntry::dump(std::string& result) const {
     StringAppendF(&result, "\t\t%s: %s %s\n", mName.c_str(),
                   mRunning ? "(in callback function)" : "", armedInfo.c_str());
     StringAppendF(&result,
-                  "\t\t\tworkDuration: %.2fms readyDuration: %.2fms earliestVsync: %.2fms relative "
+                  "\t\t\tworkDuration: %.2fms readyDuration: %.2fms lastVsync: %.2fms relative "
                   "to now\n",
                   mScheduleTiming.workDuration / 1e6f, mScheduleTiming.readyDuration / 1e6f,
-                  (mScheduleTiming.earliestVsync - systemTime()) / 1e6f);
+                  (mScheduleTiming.lastVsync - systemTime()) / 1e6f);
 
     if (mLastDispatchTime) {
         StringAppendF(&result, "\t\t\tmLastDispatchTime: %.2fms ago\n",

@@ -53,7 +53,7 @@ public:
         auto vsyncController = std::make_unique<mock::VsyncController>();
         auto vsyncTracker = std::make_shared<mock::VSyncTracker>();
 
-        EXPECT_CALL(*vsyncTracker, nextAnticipatedVSyncTimeFrom(_)).WillRepeatedly(Return(0));
+        EXPECT_CALL(*vsyncTracker, nextAnticipatedVSyncTimeFrom(_, _)).WillRepeatedly(Return(0));
         EXPECT_CALL(*vsyncTracker, currentPeriod())
                 .WillRepeatedly(Return(
                         TestableSurfaceFlinger::FakeHwcDisplayInjector::DEFAULT_VSYNC_PERIOD));
@@ -138,14 +138,14 @@ void DisplayModeSwitchingTest::setupScheduler(
     auto vsyncController = std::make_unique<mock::VsyncController>();
     auto vsyncTracker = std::make_shared<mock::VSyncTracker>();
 
-    EXPECT_CALL(*vsyncTracker, nextAnticipatedVSyncTimeFrom(_)).WillRepeatedly(Return(0));
+    EXPECT_CALL(*vsyncTracker, nextAnticipatedVSyncTimeFrom(_, _)).WillRepeatedly(Return(0));
     EXPECT_CALL(*vsyncTracker, currentPeriod())
             .WillRepeatedly(
                     Return(TestableSurfaceFlinger::FakeHwcDisplayInjector::DEFAULT_VSYNC_PERIOD));
     EXPECT_CALL(*vsyncTracker, minFramePeriod())
             .WillRepeatedly(Return(Period::fromNs(
                     TestableSurfaceFlinger::FakeHwcDisplayInjector::DEFAULT_VSYNC_PERIOD)));
-    EXPECT_CALL(*vsyncTracker, nextAnticipatedVSyncTimeFrom(_)).WillRepeatedly(Return(0));
+    EXPECT_CALL(*vsyncTracker, nextAnticipatedVSyncTimeFrom(_, _)).WillRepeatedly(Return(0));
     mFlinger.setupScheduler(std::move(vsyncController), std::move(vsyncTracker),
                             std::move(eventThread), std::move(sfEventThread),
                             std::move(selectorPtr),
