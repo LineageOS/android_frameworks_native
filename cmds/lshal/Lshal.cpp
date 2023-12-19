@@ -250,5 +250,17 @@ const sp<IServiceManager> &Lshal::passthroughManager() const {
     return mPassthroughManager;
 }
 
+void Lshal::setWaitTimeForTest(std::chrono::milliseconds ipcCallWait,
+                               std::chrono::milliseconds debugDumpWait) {
+    mIpcCallWait = ipcCallWait;
+    mDebugDumpWait = debugDumpWait;
+}
+std::chrono::milliseconds Lshal::getIpcCallWait() const {
+    return mIpcCallWait;
+}
+std::chrono::milliseconds Lshal::getDebugDumpWait() const {
+    return mDebugDumpWait;
+}
+
 }  // namespace lshal
 }  // namespace android
