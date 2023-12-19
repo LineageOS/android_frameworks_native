@@ -25,6 +25,7 @@
 
 #include <android-base/logging.h>
 #include <android/util/ProtoOutputStream.h>
+#include <com_android_frameworks_sensorservice_flags.h>
 #include <cutils/atomic.h>
 #include <frameworks/base/core/proto/android/service/sensor_service.proto.h>
 #include <hardware/sensors-base.h>
@@ -42,6 +43,7 @@
 
 using namespace android::hardware::sensors;
 using android::util::ProtoOutputStream;
+namespace sensorservice_flags = com::android::frameworks::sensorservice::flags;
 
 namespace android {
 // ---------------------------------------------------------------------------
@@ -416,8 +418,15 @@ void SensorDevice::onDynamicSensorsConnected(const std::vector<sensor_t>& dynami
 }
 
 void SensorDevice::onDynamicSensorsDisconnected(
-        const std::vector<int32_t>& /* dynamicSensorHandlesRemoved */) {
-    // TODO: Currently dynamic sensors do not seem to be removed
+        const std::vector<int32_t>& dynamicSensorHandlesRemoved) {
+    if (sensorservice_flags::sensor_device_on_dynamic_sensor_disconnected()) {
+        for (auto handle : dynamicSensorHandlesRemoved) {
+            auto it = mConnectedDynamicSensors.find(handle);
+            if (it != mConnectedDynamicSensors.end()) {
+                mConnectedDynamicSensors.erase(it);
+            }
+        }
+    }
 }
 
 void SensorDevice::writeWakeLockHandled(uint32_t count) {
@@ -483,12 +492,16 @@ status_t SensorDevice::activateLocked(void* ident, int handle, int enabled) {
     } else {
         ALOGD_IF(DEBUG_CONNECTIONS, "disable index=%zd", info.batchParams.indexOfKey(ident));
 
-        // If a connected dynamic sensor is deactivated, remove it from the
-        // dictionary.
+        // TODO(b/316958439): Remove these line after
+        // sensor_device_on_dynamic_sensor_disconnected is ramped up. Bounded
+        // here since this function is coupled with
+        // dynamic_sensors_hal_disconnect_dynamic_sensor flag. If a connected
+        // dynamic sensor is deactivated, remove it from the dictionary.
         auto it = mConnectedDynamicSensors.find(handle);
         if (it != mConnectedDynamicSensors.end()) {
-            mConnectedDynamicSensors.erase(it);
+          mConnectedDynamicSensors.erase(it);
         }
+        // End of TODO(b/316958439)
 
         if (info.removeBatchParamsForIdent(ident) >= 0) {
             if (info.numActiveClients() == 0) {
