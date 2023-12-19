@@ -28,7 +28,8 @@ public:
     ~VSyncTracker() override;
 
     MOCK_METHOD(bool, addVsyncTimestamp, (nsecs_t), (override));
-    MOCK_METHOD(nsecs_t, nextAnticipatedVSyncTimeFrom, (nsecs_t), (const, override));
+    MOCK_METHOD(nsecs_t, nextAnticipatedVSyncTimeFrom, (nsecs_t, std::optional<nsecs_t>),
+                (const, override));
     MOCK_METHOD(nsecs_t, currentPeriod, (), (const, override));
     MOCK_METHOD(Period, minFramePeriod, (), (const, override));
     MOCK_METHOD(void, resetModel, (), (override));

@@ -125,7 +125,7 @@ std::unique_ptr<scheduler::VSyncCallbackRegistration> MessageQueue::onNewVsyncSc
         mVsync.scheduledFrameTime =
                 mVsync.registration->schedule({.workDuration = mVsync.workDuration.get().count(),
                                                .readyDuration = 0,
-                                               .earliestVsync = mVsync.lastCallbackTime.ns()});
+                                               .lastVsync = mVsync.lastCallbackTime.ns()});
     }
     return oldRegistration;
 }
@@ -143,7 +143,7 @@ void MessageQueue::setDuration(std::chrono::nanoseconds workDuration) {
     mVsync.scheduledFrameTime =
             mVsync.registration->update({.workDuration = mVsync.workDuration.get().count(),
                                          .readyDuration = 0,
-                                         .earliestVsync = mVsync.lastCallbackTime.ns()});
+                                         .lastVsync = mVsync.lastCallbackTime.ns()});
 }
 
 void MessageQueue::waitMessage() {
@@ -196,7 +196,7 @@ void MessageQueue::scheduleFrame() {
     mVsync.scheduledFrameTime =
             mVsync.registration->schedule({.workDuration = mVsync.workDuration.get().count(),
                                            .readyDuration = 0,
-                                           .earliestVsync = mVsync.lastCallbackTime.ns()});
+                                           .lastVsync = mVsync.lastCallbackTime.ns()});
 }
 
 auto MessageQueue::getScheduledFrameTime() const -> std::optional<Clock::time_point> {

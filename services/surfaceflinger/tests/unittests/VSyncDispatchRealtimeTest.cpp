@@ -64,7 +64,7 @@ class FixedRateIdealStubTracker : public StubTracker {
 public:
     FixedRateIdealStubTracker() : StubTracker{toNs(3ms)} {}
 
-    nsecs_t nextAnticipatedVSyncTimeFrom(nsecs_t timePoint) const final {
+    nsecs_t nextAnticipatedVSyncTimeFrom(nsecs_t timePoint, std::optional<nsecs_t>) const final {
         auto const floor = timePoint % mPeriod;
         if (floor == 0) {
             return timePoint;
@@ -77,7 +77,7 @@ class VRRStubTracker : public StubTracker {
 public:
     VRRStubTracker(nsecs_t period) : StubTracker(period) {}
 
-    nsecs_t nextAnticipatedVSyncTimeFrom(nsecs_t time_point) const final {
+    nsecs_t nextAnticipatedVSyncTimeFrom(nsecs_t time_point, std::optional<nsecs_t>) const final {
         std::lock_guard lock(mMutex);
         auto const normalized_to_base = time_point - mBase;
         auto const floor = (normalized_to_base) % mPeriod;
@@ -117,7 +117,7 @@ public:
         mCallback.schedule(
                 {.workDuration = mWorkload,
                  .readyDuration = mReadyDuration,
-                 .earliestVsync = systemTime(SYSTEM_TIME_MONOTONIC) + mWorkload + mReadyDuration});
+                 .lastVsync = systemTime(SYSTEM_TIME_MONOTONIC) + mWorkload + mReadyDuration});
 
         for (auto i = 0u; i < iterations - 1; i++) {
             std::unique_lock lock(mMutex);
@@ -130,7 +130,7 @@ public:
 
             mCallback.schedule({.workDuration = mWorkload,
                                 .readyDuration = mReadyDuration,
-                                .earliestVsync = last + mWorkload + mReadyDuration});
+                                .lastVsync = last + mWorkload + mReadyDuration});
         }
 
         // wait for the last callback.

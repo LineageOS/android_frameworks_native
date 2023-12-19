@@ -46,7 +46,7 @@ TEST_F(InitializeDisplaysTest, commitsPrimaryDisplay) {
 
     EXPECT_CALL(static_cast<mock::VSyncTracker&>(
                         mFlinger.scheduler()->getVsyncSchedule()->getTracker()),
-                nextAnticipatedVSyncTimeFrom(_))
+                nextAnticipatedVSyncTimeFrom(_, _))
             .WillRepeatedly(Return(0));
 
     // --------------------------------------------------------------------
