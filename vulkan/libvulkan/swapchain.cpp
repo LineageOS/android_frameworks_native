@@ -1762,6 +1762,8 @@ VkResult CreateSwapchainKHR(VkDevice device,
     }
 
     int query_value;
+    // TODO: Now that we are calling into GPDSC2 directly, this query may be redundant
+    //       the call to std::max(min_buffer_count, num_images) may be redundant as well
     err = window->query(window, NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS,
                         &query_value);
     if (err != android::OK || query_value < 0) {
@@ -1778,12 +1780,33 @@ VkResult CreateSwapchainKHR(VkDevice device,
     // with extra images (which they can't actually use!).
     const uint32_t min_buffer_count = min_undequeued_buffers + 1;
 
-    uint32_t num_images;
-    if (create_info->presentMode  == VK_PRESENT_MODE_MAILBOX_KHR) {
-        num_images = std::max(3u, create_info->minImageCount);
-    } else {
-        num_images = create_info->minImageCount;
-    }
+    // Call into GPDSC2 to get the minimum and maximum allowable buffer count for the surface of
+    // interest. This step is only necessary if the app requests a number of images
+    // (create_info->minImageCount) that is less or more than the surface capabilities.
+    // An app should be calling GPDSC2 and using those values to set create_info, but in the
+    // event that the app has hard-coded image counts an error can occur
+    VkSurfacePresentModeEXT present_mode = {
+        VK_STRUCTURE_TYPE_SURFACE_PRESENT_MODE_EXT,
+        nullptr,
+        create_info->presentMode
+    };
+    VkPhysicalDeviceSurfaceInfo2KHR surface_info2 = {
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SURFACE_INFO_2_KHR,
+        &present_mode,
+        create_info->surface
+    };
+    VkSurfaceCapabilities2KHR surface_capabilities2 = {
+        VK_STRUCTURE_TYPE_SURFACE_CAPABILITIES_2_KHR,
+        nullptr,
+        {},
+    };
+    result = GetPhysicalDeviceSurfaceCapabilities2KHR(GetData(device).driver_physical_device,
+            &surface_info2, &surface_capabilities2);
+
+    uint32_t num_images = create_info->minImageCount;
+    num_images = std::clamp(num_images,
+            surface_capabilities2.surfaceCapabilities.minImageCount,
+            surface_capabilities2.surfaceCapabilities.maxImageCount);
 
     const uint32_t buffer_count = std::max(min_buffer_count, num_images);
     err = native_window_set_buffer_count(window, buffer_count);
