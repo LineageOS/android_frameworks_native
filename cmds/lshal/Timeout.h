@@ -27,8 +27,6 @@
 namespace android {
 namespace lshal {
 
-static constexpr std::chrono::milliseconds IPC_CALL_WAIT{500};
-
 class BackgroundTaskState {
 public:
     explicit BackgroundTaskState(std::function<void(void)> &&func)
@@ -95,13 +93,6 @@ timeoutIPC(std::chrono::duration<R, P> wait, const sp<I> &interfaceObject, Funct
     }
     return ret;
 }
-
-template<class Function, class I, class... Args>
-typename std::result_of<Function(I *, Args...)>::type
-timeoutIPC(const sp<I> &interfaceObject, Function &&func, Args &&... args) {
-    return timeoutIPC(IPC_CALL_WAIT, interfaceObject, func, args...);
-}
-
 
 }  // namespace lshal
 }  // namespace android
