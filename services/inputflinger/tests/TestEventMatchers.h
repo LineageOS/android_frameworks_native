@@ -464,6 +464,53 @@ inline WithPointersMatcher WithPointers(
     return WithPointersMatcher(pointers);
 }
 
+/// Pointer ids matcher
+class WithPointerIdsMatcher {
+public:
+    using is_gtest_matcher = void;
+    explicit WithPointerIdsMatcher(std::set<int32_t> pointerIds) : mPointerIds(pointerIds) {}
+
+    bool MatchAndExplain(const MotionEvent& event, std::ostream* os) const {
+        std::set<int32_t> actualPointerIds;
+        for (size_t pointerIndex = 0; pointerIndex < event.getPointerCount(); pointerIndex++) {
+            const PointerProperties* properties = event.getPointerProperties(pointerIndex);
+            actualPointerIds.insert(properties->id);
+        }
+
+        if (mPointerIds != actualPointerIds) {
+            *os << "expected pointer ids " << dumpSet(mPointerIds) << ", but got "
+                << dumpSet(actualPointerIds);
+            return false;
+        }
+        return true;
+    }
+
+    bool MatchAndExplain(const NotifyMotionArgs& event, std::ostream* os) const {
+        std::set<int32_t> actualPointerIds;
+        for (const PointerProperties& properties : event.pointerProperties) {
+            actualPointerIds.insert(properties.id);
+        }
+
+        if (mPointerIds != actualPointerIds) {
+            *os << "expected pointer ids " << dumpSet(mPointerIds) << ", but got "
+                << dumpSet(actualPointerIds);
+            return false;
+        }
+        return true;
+    }
+
+    void DescribeTo(std::ostream* os) const { *os << "with pointer ids " << dumpSet(mPointerIds); }
+
+    void DescribeNegationTo(std::ostream* os) const { *os << "wrong pointer ids"; }
+
+private:
+    const std::set<int32_t> mPointerIds;
+};
+
+inline WithPointerIdsMatcher WithPointerIds(const std::set<int32_t /*id*/>& pointerIds) {
+    return WithPointerIdsMatcher(pointerIds);
+}
+
 /// Key code
 class WithKeyCodeMatcher {
 public:
