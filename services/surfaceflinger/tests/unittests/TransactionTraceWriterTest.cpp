@@ -105,4 +105,16 @@ TEST_F(TransactionTraceWriterTest, overwriteOldFile) {
     verifyTraceFile();
 }
 
+// Check we cannot write to file if the trace write is disabled.
+TEST_F(TransactionTraceWriterTest, canDisableTraceWriter) {
+    TransactionTraceWriter::getInstance().disable();
+    TransactionTraceWriter::getInstance().invokeForTest(mFilename, /* overwrite */ true);
+    EXPECT_NE(access(mFilename.c_str(), F_OK), 0);
+
+    TransactionTraceWriter::getInstance().enable();
+    TransactionTraceWriter::getInstance().invokeForTest(mFilename, /* overwrite */ true);
+    EXPECT_EQ(access(mFilename.c_str(), F_OK), 0);
+    verifyTraceFile();
+}
+
 } // namespace android

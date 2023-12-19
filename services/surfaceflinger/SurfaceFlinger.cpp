@@ -2363,11 +2363,7 @@ bool SurfaceFlinger::updateLayerSnapshots(VsyncId vsyncId, nsecs_t frameTimeNs,
                 mLegacyLayers[layer->sequence] = layer;
             }
         }
-        if (mLayerLifecycleManager.getGlobalChanges().test(Changes::Hierarchy)) {
-            ATRACE_NAME("LayerHierarchyBuilder:update");
-            mLayerHierarchyBuilder.update(mLayerLifecycleManager.getLayers(),
-                                          mLayerLifecycleManager.getDestroyedLayers());
-        }
+        mLayerHierarchyBuilder.update(mLayerLifecycleManager);
     }
 
     bool mustComposite = false;

@@ -56,7 +56,7 @@ protected:
     LayerHistoryIntegrationTest() : LayerSnapshotTestBase() {
         mFlinger.resetScheduler(mScheduler);
         mLifecycleManager = {};
-        mHierarchyBuilder = {{}};
+        mHierarchyBuilder = {};
     }
 
     void updateLayerSnapshotsAndLayerHistory(nsecs_t now) {
