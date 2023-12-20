@@ -662,7 +662,7 @@ TEST_F(VSyncPredictorTest, vsyncTrackerCallback) {
 
     const auto refreshRate = Fps::fromPeriodNsecs(mPeriod);
     NotifyExpectedPresentConfig notifyExpectedPresentConfig;
-    notifyExpectedPresentConfig.notifyExpectedPresentTimeoutNs = Period::fromNs(30).ns();
+    notifyExpectedPresentConfig.timeoutNs = Period::fromNs(30).ns();
 
     hal::VrrConfig vrrConfig;
     vrrConfig.notifyExpectedPresentConfig = notifyExpectedPresentConfig;
