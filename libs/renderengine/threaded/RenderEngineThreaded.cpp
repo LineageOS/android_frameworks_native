@@ -127,8 +127,10 @@ void RenderEngineThreaded::threadMain(CreateInstanceFactory factory) NO_THREAD_S
 }
 
 void RenderEngineThreaded::waitUntilInitialized() const {
-    std::unique_lock<std::mutex> lock(mInitializedMutex);
-    mInitializedCondition.wait(lock, [=] { return mIsInitialized; });
+    if (!mIsInitialized) {
+        std::unique_lock<std::mutex> lock(mInitializedMutex);
+        mInitializedCondition.wait(lock, [this] { return mIsInitialized.load(); });
+    }
 }
 
 std::future<void> RenderEngineThreaded::primeCache() {
