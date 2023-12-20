@@ -34,6 +34,13 @@
 
 namespace android {
 
+using std::chrono_literals::operator""ms;
+/**
+ * This duration is decided based on internal team testing, it may be updated after testing with
+ * larger groups
+ */
+constexpr std::chrono::nanoseconds TAP_ENABLE_DELAY_NANOS = 400ms;
+
 // Converts Gesture structs from the gestures library into NotifyArgs and the appropriate
 // PointerController calls.
 class GestureConverter {
@@ -53,17 +60,20 @@ public:
     void populateMotionRanges(InputDeviceInfo& info) const;
 
     [[nodiscard]] std::list<NotifyArgs> handleGesture(nsecs_t when, nsecs_t readTime,
+                                                      nsecs_t gestureStartTime,
                                                       const Gesture& gesture);
 
 private:
-    [[nodiscard]] NotifyMotionArgs handleMove(nsecs_t when, nsecs_t readTime,
-                                              const Gesture& gesture);
+    [[nodiscard]] std::list<NotifyArgs> handleMove(nsecs_t when, nsecs_t readTime,
+                                                   nsecs_t gestureStartTime,
+                                                   const Gesture& gesture);
     [[nodiscard]] std::list<NotifyArgs> handleButtonsChange(nsecs_t when, nsecs_t readTime,
                                                             const Gesture& gesture);
     [[nodiscard]] std::list<NotifyArgs> releaseAllButtons(nsecs_t when, nsecs_t readTime);
     [[nodiscard]] std::list<NotifyArgs> handleScroll(nsecs_t when, nsecs_t readTime,
                                                      const Gesture& gesture);
     [[nodiscard]] std::list<NotifyArgs> handleFling(nsecs_t when, nsecs_t readTime,
+                                                    nsecs_t gestureStartTime,
                                                     const Gesture& gesture);
     [[nodiscard]] NotifyMotionArgs endScroll(nsecs_t when, nsecs_t readTime);
 
@@ -82,7 +92,9 @@ private:
                                     const PointerCoords* pointerCoords, float xCursorPosition,
                                     float yCursorPosition);
 
-    void enableTapToClick();
+    void enableTapToClick(nsecs_t when);
+    bool mIsHoverCancelled{false};
+    nsecs_t mWhenToEnableTapToClick{0};
 
     const int32_t mDeviceId;
     InputReaderContext& mReaderContext;

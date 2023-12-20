@@ -113,6 +113,8 @@ private:
     // ADISPLAY_ID_NONE to target the focused display. If there is no display target (i.e.
     // std::nullopt), all events will be ignored.
     std::optional<int32_t> mDisplayId;
+
+    nsecs_t mGestureStartTime{0};
 };
 
 } // namespace android

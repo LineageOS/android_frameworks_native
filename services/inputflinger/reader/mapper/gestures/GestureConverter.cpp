@@ -35,7 +35,13 @@ namespace android {
 
 namespace {
 
+// This will disable the tap to click while the user is typing on a physical keyboard
 const bool ENABLE_TOUCHPAD_PALM_REJECTION = input_flags::enable_touchpad_typing_palm_rejection();
+
+// In addition to v1, v2 will also cancel ongoing move gestures while typing and add delay in
+// re-enabling the tap to click.
+const bool ENABLE_TOUCHPAD_PALM_REJECTION_V2 =
+        input_flags::enable_v2_touchpad_typing_palm_rejection();
 
 uint32_t gesturesButtonToMotionEventButton(uint32_t gesturesButton) {
     switch (gesturesButton) {
@@ -75,6 +81,7 @@ std::string GestureConverter::dump() const {
     out << StringPrintf("Button state: 0x%08x\n", mButtonState);
     out << "Down time: " << mDownTime << "\n";
     out << "Current classification: " << ftl::enum_string(mCurrentClassification) << "\n";
+    out << "Enable Tap Timestamp: " << mWhenToEnableTapToClick << "\n";
     return out.str();
 }
 
@@ -131,6 +138,7 @@ void GestureConverter::populateMotionRanges(InputDeviceInfo& info) const {
 }
 
 std::list<NotifyArgs> GestureConverter::handleGesture(nsecs_t when, nsecs_t readTime,
+                                                      nsecs_t gestureStartTime,
                                                       const Gesture& gesture) {
     if (!mDisplayId) {
         // Ignore gestures when there is no target display configured.
@@ -139,13 +147,13 @@ std::list<NotifyArgs> GestureConverter::handleGesture(nsecs_t when, nsecs_t read
 
     switch (gesture.type) {
         case kGestureTypeMove:
-            return {handleMove(when, readTime, gesture)};
+            return handleMove(when, readTime, gestureStartTime, gesture);
         case kGestureTypeButtonsChange:
             return handleButtonsChange(when, readTime, gesture);
         case kGestureTypeScroll:
             return handleScroll(when, readTime, gesture);
         case kGestureTypeFling:
-            return handleFling(when, readTime, gesture);
+            return handleFling(when, readTime, gestureStartTime, gesture);
         case kGestureTypeSwipe:
             return handleMultiFingerSwipe(when, readTime, 3, gesture.details.swipe.dx,
                                           gesture.details.swipe.dy);
@@ -162,18 +170,41 @@ std::list<NotifyArgs> GestureConverter::handleGesture(nsecs_t when, nsecs_t read
     }
 }
 
-NotifyMotionArgs GestureConverter::handleMove(nsecs_t when, nsecs_t readTime,
-                                              const Gesture& gesture) {
+std::list<NotifyArgs> GestureConverter::handleMove(nsecs_t when, nsecs_t readTime,
+                                                   nsecs_t gestureStartTime,
+                                                   const Gesture& gesture) {
     float deltaX = gesture.details.move.dx;
     float deltaY = gesture.details.move.dy;
-    if (ENABLE_TOUCHPAD_PALM_REJECTION && (std::abs(deltaX) > 0 || std::abs(deltaY) > 0)) {
-        enableTapToClick();
+    if (ENABLE_TOUCHPAD_PALM_REJECTION_V2) {
+        bool wasHoverCancelled = mIsHoverCancelled;
+        // Gesture will be cancelled if it started before the user started typing and
+        // there is a active IME connection.
+        mIsHoverCancelled = gestureStartTime <= mReaderContext.getLastKeyDownTimestamp() &&
+                mReaderContext.getPolicy()->isInputMethodConnectionActive();
+
+        if (!wasHoverCancelled && mIsHoverCancelled) {
+            // This is the first event of the cancelled gesture, we won't return because we need to
+            // generate a HOVER_EXIT event
+            mPointerController->fade(PointerControllerInterface::Transition::GRADUAL);
+        } else if (mIsHoverCancelled) {
+            return {};
+        }
     }
+
     rotateDelta(mOrientation, &deltaX, &deltaY);
 
-    mPointerController->setPresentation(PointerControllerInterface::Presentation::POINTER);
-    mPointerController->move(deltaX, deltaY);
-    mPointerController->unfade(PointerControllerInterface::Transition::IMMEDIATE);
+    // Update the cursor, and enable tap to click if the gesture is not cancelled
+    if (!mIsHoverCancelled) {
+        // handleFling calls hoverMove with zero delta on FLING_TAP_DOWN. Don't enable tap to click
+        // for this case as subsequent handleButtonsChange may choose to ignore this tap.
+        if ((ENABLE_TOUCHPAD_PALM_REJECTION || ENABLE_TOUCHPAD_PALM_REJECTION_V2) &&
+            (std::abs(deltaX) > 0 || std::abs(deltaY) > 0)) {
+            enableTapToClick(when);
+        }
+        mPointerController->setPresentation(PointerControllerInterface::Presentation::POINTER);
+        mPointerController->move(deltaX, deltaY);
+        mPointerController->unfade(PointerControllerInterface::Transition::IMMEDIATE);
+    }
 
     const auto [xCursorPosition, yCursorPosition] =
             mEnablePointerChoreographer ? FloatPoint{0, 0} : mPointerController->getPosition();
@@ -187,10 +218,12 @@ NotifyMotionArgs GestureConverter::handleMove(nsecs_t when, nsecs_t readTime,
     const bool down = isPointerDown(mButtonState);
     coords.setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, down ? 1.0f : 0.0f);
 
-    const int32_t action = down ? AMOTION_EVENT_ACTION_MOVE : AMOTION_EVENT_ACTION_HOVER_MOVE;
-    return makeMotionArgs(when, readTime, action, /* actionButton= */ 0, mButtonState,
-                          /* pointerCount= */ 1, mFingerProps.data(), &coords, xCursorPosition,
-                          yCursorPosition);
+    const int32_t action = mIsHoverCancelled
+            ? AMOTION_EVENT_ACTION_HOVER_EXIT
+            : (down ? AMOTION_EVENT_ACTION_MOVE : AMOTION_EVENT_ACTION_HOVER_MOVE);
+    return {makeMotionArgs(when, readTime, action, /* actionButton= */ 0, mButtonState,
+                           /* pointerCount= */ 1, mFingerProps.data(), &coords, xCursorPosition,
+                           yCursorPosition)};
 }
 
 std::list<NotifyArgs> GestureConverter::handleButtonsChange(nsecs_t when, nsecs_t readTime,
@@ -210,8 +243,15 @@ std::list<NotifyArgs> GestureConverter::handleButtonsChange(nsecs_t when, nsecs_
     coords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, 0);
     coords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, 0);
 
-    if (ENABLE_TOUCHPAD_PALM_REJECTION && mReaderContext.isPreventingTouchpadTaps()) {
-        enableTapToClick();
+    // V2 palm rejection should override V1
+    if (ENABLE_TOUCHPAD_PALM_REJECTION_V2) {
+        enableTapToClick(when);
+        if (gesture.details.buttons.is_tap && when <= mWhenToEnableTapToClick) {
+            // return early to prevent this tap
+            return out;
+        }
+    } else if (ENABLE_TOUCHPAD_PALM_REJECTION && mReaderContext.isPreventingTouchpadTaps()) {
+        enableTapToClick(when);
         if (gesture.details.buttons.is_tap) {
             // return early to prevent this tap
             return out;
@@ -348,6 +388,7 @@ std::list<NotifyArgs> GestureConverter::handleScroll(nsecs_t when, nsecs_t readT
 }
 
 std::list<NotifyArgs> GestureConverter::handleFling(nsecs_t when, nsecs_t readTime,
+                                                    nsecs_t gestureStartTime,
                                                     const Gesture& gesture) {
     switch (gesture.details.fling.fling_state) {
         case GESTURES_FLING_START:
@@ -367,12 +408,12 @@ std::list<NotifyArgs> GestureConverter::handleFling(nsecs_t when, nsecs_t readTi
                 // TODO(b/282023644): Add a signal in libgestures for when a stable contact has been
                 //  initiated with a touchpad.
                 if (!mReaderContext.isPreventingTouchpadTaps()) {
-                    enableTapToClick();
+                    enableTapToClick(when);
                 }
-                return {handleMove(when, readTime,
-                                   Gesture(kGestureMove, gesture.start_time, gesture.end_time,
-                                           /*dx=*/0.f,
-                                           /*dy=*/0.f))};
+                return handleMove(when, readTime, gestureStartTime,
+                                  Gesture(kGestureMove, gesture.start_time, gesture.end_time,
+                                          /*dx=*/0.f,
+                                          /*dy=*/0.f));
             }
             break;
         default:
@@ -598,8 +639,11 @@ NotifyMotionArgs GestureConverter::makeMotionArgs(nsecs_t when, nsecs_t readTime
             /* videoFrames= */ {}};
 }
 
-void GestureConverter::enableTapToClick() {
-    mReaderContext.setPreventingTouchpadTaps(false);
+void GestureConverter::enableTapToClick(nsecs_t when) {
+    if (mReaderContext.isPreventingTouchpadTaps()) {
+        mWhenToEnableTapToClick = when + TAP_ENABLE_DELAY_NANOS.count();
+        mReaderContext.setPreventingTouchpadTaps(false);
+    }
 }
 
 } // namespace android
