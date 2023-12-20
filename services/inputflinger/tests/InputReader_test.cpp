@@ -2894,9 +2894,9 @@ TEST_F(InputDeviceTest, KernelBufferOverflowResetsMappers) {
     mapper.assertConfigureWasCalled();
     mapper.assertResetWasNotCalled();
 
-    RawEvent event{.deviceId = EVENTHUB_ID,
+    RawEvent event{.when = ARBITRARY_TIME,
                    .readTime = ARBITRARY_TIME,
-                   .when = ARBITRARY_TIME,
+                   .deviceId = EVENTHUB_ID,
                    .type = EV_SYN,
                    .code = SYN_REPORT,
                    .value = 0};

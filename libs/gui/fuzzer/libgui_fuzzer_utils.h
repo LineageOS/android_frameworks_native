@@ -207,6 +207,7 @@ public:
     MOCK_METHOD2(dispatchNullEvent, void(nsecs_t, PhysicalDisplayId));
     MOCK_METHOD3(dispatchFrameRateOverrides,
                  void(nsecs_t, PhysicalDisplayId, std::vector<FrameRateOverride>));
+    MOCK_METHOD3(dispatchHdcpLevelsChanged, void(PhysicalDisplayId, int32_t, int32_t));
 };
 
 } // namespace android

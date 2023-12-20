@@ -690,14 +690,15 @@ private:
     void slipWallpaperTouch(ftl::Flags<InputTarget::Flags> targetFlags,
                             const sp<android::gui::WindowInfoHandle>& oldWindowHandle,
                             const sp<android::gui::WindowInfoHandle>& newWindowHandle,
-                            TouchState& state, int32_t deviceId, int32_t pointerId,
+                            TouchState& state, int32_t deviceId,
+                            const PointerProperties& pointerProperties,
                             std::vector<InputTarget>& targets) const REQUIRES(mLock);
     void transferWallpaperTouch(ftl::Flags<InputTarget::Flags> oldTargetFlags,
                                 ftl::Flags<InputTarget::Flags> newTargetFlags,
                                 const sp<android::gui::WindowInfoHandle> fromWindowHandle,
                                 const sp<android::gui::WindowInfoHandle> toWindowHandle,
                                 TouchState& state, int32_t deviceId,
-                                std::bitset<MAX_POINTER_ID + 1> pointerIds) REQUIRES(mLock);
+                                const std::vector<PointerProperties>& pointers) REQUIRES(mLock);
 
     sp<android::gui::WindowInfoHandle> findWallpaperWindowBelow(
             const sp<android::gui::WindowInfoHandle>& windowHandle) const REQUIRES(mLock);

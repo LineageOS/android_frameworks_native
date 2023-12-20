@@ -552,6 +552,12 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
             base::GetBoolProperty("persist.debug.sf.enable_layer_lifecycle_manager"s, true);
     mLegacyFrontEndEnabled = !mLayerLifecycleManagerEnabled ||
             base::GetBoolProperty("persist.debug.sf.enable_legacy_frontend"s, false);
+
+    // These are set by the HWC implementation to indicate that they will use the workarounds.
+    mIsHotplugErrViaNegVsync =
+            base::GetBoolProperty("debug.sf.hwc_hotplug_error_via_neg_vsync"s, false);
+
+    mIsHdcpViaNegVsync = base::GetBoolProperty("debug.sf.hwc_hdcp_via_neg_vsync"s, false);
 }
 
 LatchUnsignaledConfig SurfaceFlinger::getLatchUnsignaledConfig() {
@@ -2121,13 +2127,26 @@ nsecs_t SurfaceFlinger::getVsyncPeriodFromHWC() const {
 
 void SurfaceFlinger::onComposerHalVsync(hal::HWDisplayId hwcDisplayId, int64_t timestamp,
                                         std::optional<hal::VsyncPeriodNanos> vsyncPeriod) {
-    if (FlagManager::getInstance().connected_display()) {
+    if (FlagManager::getInstance().connected_display() && timestamp < 0 &&
+        vsyncPeriod.has_value()) {
         // use ~0 instead of -1 as AidlComposerHal.cpp passes the param as unsigned int32
-        if (mIsHotplugErrViaNegVsync && timestamp < 0 && vsyncPeriod.has_value() &&
-            vsyncPeriod.value() == ~0) {
-            int hotplugErrorCode = static_cast<int32_t>(-timestamp);
-            ALOGD("SurfaceFlinger got hotplugErrorCode=%d", hotplugErrorCode);
+        if (mIsHotplugErrViaNegVsync && vsyncPeriod.value() == ~0) {
+            const int32_t hotplugErrorCode = static_cast<int32_t>(-timestamp);
+            ALOGD("SurfaceFlinger got hotplugErrorCode=%d for display %" PRIu64, hotplugErrorCode,
+                  hwcDisplayId);
             mScheduler->onHotplugConnectionError(mAppConnectionHandle, hotplugErrorCode);
+            return;
+        }
+
+        if (mIsHdcpViaNegVsync && vsyncPeriod.value() == ~1) {
+            const int32_t value = static_cast<int32_t>(-timestamp);
+            // one byte is good enough to encode android.hardware.drm.HdcpLevel
+            const int32_t maxLevel = (value >> 8) & 0xFF;
+            const int32_t connectedLevel = value & 0xFF;
+            ALOGD("SurfaceFlinger got HDCP level changed: connected=%d, max=%d for "
+                  "display=%" PRIu64,
+                  connectedLevel, maxLevel, hwcDisplayId);
+            updateHdcpLevels(hwcDisplayId, connectedLevel, maxLevel);
             return;
         }
     }
@@ -3419,9 +3438,10 @@ const char* SurfaceFlinger::processHotplug(PhysicalDisplayId displayId,
     }
 
     const sp<IBinder> token = sp<BBinder>::make();
+    const ui::DisplayConnectionType connectionType =
+            getHwComposer().getDisplayConnectionType(displayId);
 
-    mPhysicalDisplays.try_emplace(displayId, token, displayId,
-                                  getHwComposer().getDisplayConnectionType(displayId),
+    mPhysicalDisplays.try_emplace(displayId, token, displayId, connectionType,
                                   std::move(displayModes), std::move(colorModes),
                                   std::move(info.deviceProductInfo));
 
@@ -3429,7 +3449,7 @@ const char* SurfaceFlinger::processHotplug(PhysicalDisplayId displayId,
     state.physical = {.id = displayId,
                       .hwcDisplayId = hwcDisplayId,
                       .activeMode = std::move(activeMode)};
-    state.isSecure = true; // All physical displays are currently considered secure.
+    state.isSecure = connectionType == ui::DisplayConnectionType::Internal;
     state.isProtected = true;
     state.displayName = std::move(info.name);
 
@@ -4235,9 +4255,6 @@ void SurfaceFlinger::initScheduler(const sp<const DisplayDevice>& display) {
             sp<RegionSamplingThread>::make(*this,
                                            RegionSamplingThread::EnvironmentTimingTunables());
     mFpsReporter = sp<FpsReporter>::make(*mFrameTimeline, *this);
-
-    mIsHotplugErrViaNegVsync =
-            base::GetBoolProperty("debug.sf.hwc_hotplug_error_via_neg_vsync"s, false);
 }
 
 void SurfaceFlinger::updatePhaseConfiguration(Fps refreshRate) {
@@ -8737,6 +8754,40 @@ status_t SurfaceFlinger::getStalledTransactionInfo(
         int pid, std::optional<TransactionHandler::StalledTransactionInfo>& result) {
     result = mTransactionHandler.getStalledTransactionInfo(pid);
     return NO_ERROR;
+}
+
+void SurfaceFlinger::updateHdcpLevels(hal::HWDisplayId hwcDisplayId, int32_t connectedLevel,
+                                      int32_t maxLevel) {
+    if (!FlagManager::getInstance().connected_display()) {
+        return;
+    }
+
+    Mutex::Autolock lock(mStateLock);
+
+    const auto idOpt = getHwComposer().toPhysicalDisplayId(hwcDisplayId);
+    if (!idOpt) {
+        ALOGE("No display found for HDCP level changed event: connected=%d, max=%d for "
+              "display=%" PRIu64,
+              connectedLevel, maxLevel, hwcDisplayId);
+        return;
+    }
+
+    const bool isInternalDisplay =
+            mPhysicalDisplays.get(*idOpt).transform(&PhysicalDisplay::isInternal).value_or(false);
+    if (isInternalDisplay) {
+        ALOGW("Unexpected HDCP level changed for internal display: connected=%d, max=%d for "
+              "display=%" PRIu64,
+              connectedLevel, maxLevel, hwcDisplayId);
+        return;
+    }
+
+    static_cast<void>(mScheduler->schedule([this, displayId = *idOpt, connectedLevel, maxLevel]() {
+        if (const auto display = FTL_FAKE_GUARD(mStateLock, getDisplayDeviceLocked(displayId))) {
+            Mutex::Autolock lock(mStateLock);
+            display->setSecure(connectedLevel >= 2 /* HDCP_V1 */);
+        }
+        mScheduler->onHdcpLevelsChanged(mAppConnectionHandle, displayId, connectedLevel, maxLevel);
+    }));
 }
 
 std::shared_ptr<renderengine::ExternalTexture> SurfaceFlinger::getExternalTextureFromBufferData(

@@ -412,6 +412,17 @@ void Scheduler::onFrameRateOverridesChanged(ConnectionHandle handle, PhysicalDis
     thread->onFrameRateOverridesChanged(displayId, std::move(overrides));
 }
 
+void Scheduler::onHdcpLevelsChanged(ConnectionHandle handle, PhysicalDisplayId displayId,
+                                    int32_t connectedLevel, int32_t maxLevel) {
+    android::EventThread* thread;
+    {
+        std::lock_guard<std::mutex> lock(mConnectionsLock);
+        RETURN_IF_INVALID_HANDLE(handle);
+        thread = mConnections[handle].thread.get();
+    }
+    thread->onHdcpLevelsChanged(displayId, connectedLevel, maxLevel);
+}
+
 void Scheduler::onPrimaryDisplayModeChanged(ConnectionHandle handle, const FrameRateMode& mode) {
     {
         std::lock_guard<std::mutex> lock(mPolicyLock);

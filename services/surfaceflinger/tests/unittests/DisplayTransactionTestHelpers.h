@@ -481,14 +481,17 @@ constexpr uint32_t GRALLOC_USAGE_PHYSICAL_DISPLAY =
 
 constexpr int PHYSICAL_DISPLAY_FLAGS = 0x1;
 
-template <typename PhysicalDisplay, int width, int height>
+template <typename PhysicalDisplay, int width, int height,
+          Secure secure = (PhysicalDisplay::CONNECTION_TYPE == ui::DisplayConnectionType::Internal)
+                  ? Secure::TRUE
+                  : Secure::FALSE>
 struct PhysicalDisplayVariant
-      : DisplayVariant<PhysicalDisplayIdType<PhysicalDisplay>, width, height, Async::FALSE,
-                       Secure::TRUE, PhysicalDisplay::PRIMARY, GRALLOC_USAGE_PHYSICAL_DISPLAY,
+      : DisplayVariant<PhysicalDisplayIdType<PhysicalDisplay>, width, height, Async::FALSE, secure,
+                       PhysicalDisplay::PRIMARY, GRALLOC_USAGE_PHYSICAL_DISPLAY,
                        PHYSICAL_DISPLAY_FLAGS>,
         HwcDisplayVariant<PhysicalDisplay::HWC_DISPLAY_ID, DisplayType::PHYSICAL,
                           DisplayVariant<PhysicalDisplayIdType<PhysicalDisplay>, width, height,
-                                         Async::FALSE, Secure::TRUE, PhysicalDisplay::PRIMARY,
+                                         Async::FALSE, secure, PhysicalDisplay::PRIMARY,
                                          GRALLOC_USAGE_PHYSICAL_DISPLAY, PHYSICAL_DISPLAY_FLAGS>,
                           PhysicalDisplay> {};
 
@@ -515,6 +518,7 @@ struct SecondaryDisplay {
 };
 
 struct TertiaryDisplay {
+    static constexpr auto CONNECTION_TYPE = ui::DisplayConnectionType::External;
     static constexpr Primary PRIMARY = Primary::FALSE;
     static constexpr uint8_t PORT = 253;
     static constexpr HWDisplayId HWC_DISPLAY_ID = 1003;

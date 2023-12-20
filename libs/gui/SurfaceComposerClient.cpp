@@ -3117,7 +3117,6 @@ status_t SurfaceComposerClient::removeWindowInfosListener(
             ->removeWindowInfosListener(windowInfosListener,
                                         ComposerServiceAIDL::getComposerService());
 }
-
 // ----------------------------------------------------------------------------
 
 status_t ScreenshotClient::captureDisplay(const DisplayCaptureArgs& captureArgs,

@@ -1184,6 +1184,11 @@ public:
         mInfo.setInputConfig(WindowInfo::InputConfig::DISABLE_USER_ACTIVITY, disableUserActivity);
     }
 
+    void setGlobalStylusBlocksTouch(bool shouldGlobalStylusBlockTouch) {
+        mInfo.setInputConfig(WindowInfo::InputConfig::GLOBAL_STYLUS_BLOCKS_TOUCH,
+                             shouldGlobalStylusBlockTouch);
+    }
+
     void setAlpha(float alpha) { mInfo.alpha = alpha; }
 
     void setTouchOcclusionMode(TouchOcclusionMode mode) { mInfo.touchOcclusionMode = mode; }
@@ -3338,6 +3343,150 @@ TEST_F(InputDispatcherMultiDeviceTest, StylusHoverIgnoresTouchTap) {
     window->consumeMotionEvent(
             AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE), WithDeviceId(stylusDeviceId)));
     window->assertNoEvents();
+}
+
+/**
+ * If stylus is down anywhere on the screen, then touches should not be delivered to windows that
+ * have InputConfig::GLOBAL_STYLUS_BLOCKS_TOUCH.
+ *
+ * Two windows: one on the left and one on the right.
+ * The window on the right has GLOBAL_STYLUS_BLOCKS_TOUCH config.
+ * Stylus down on the left window, and then touch down on the right window.
+ * Check that the right window doesn't get touches while the stylus is down on the left window.
+ */
+TEST_F(InputDispatcherMultiDeviceTest, GlobalStylusDownBlocksTouch) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> leftWindow =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Left window",
+                                       ADISPLAY_ID_DEFAULT);
+    leftWindow->setFrame(Rect(0, 0, 100, 100));
+
+    sp<FakeWindowHandle> sbtRightWindow =
+            sp<FakeWindowHandle>::make(application, mDispatcher,
+                                       "Stylus blocks touch (right) window", ADISPLAY_ID_DEFAULT);
+    sbtRightWindow->setFrame(Rect(100, 100, 200, 200));
+    sbtRightWindow->setGlobalStylusBlocksTouch(true);
+
+    mDispatcher->onWindowInfosChanged(
+            {{*leftWindow->getInfo(), *sbtRightWindow->getInfo()}, {}, 0, 0});
+
+    const int32_t stylusDeviceId = 5;
+    const int32_t touchDeviceId = 4;
+
+    // Stylus down in the left window
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_STYLUS)
+                                      .pointer(PointerBuilder(0, ToolType::STYLUS).x(50).y(52))
+                                      .deviceId(stylusDeviceId)
+                                      .build());
+    leftWindow->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_DOWN), WithDeviceId(stylusDeviceId)));
+
+    // Finger tap on the right window
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(150).y(151))
+                                      .deviceId(touchDeviceId)
+                                      .build());
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_UP, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(150).y(151))
+                                      .deviceId(touchDeviceId)
+                                      .build());
+
+    // The touch should be blocked, because stylus is down somewhere else on screen!
+    sbtRightWindow->assertNoEvents();
+
+    // Continue stylus motion, and ensure it's not impacted.
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_MOVE, AINPUT_SOURCE_STYLUS)
+                                      .pointer(PointerBuilder(0, ToolType::STYLUS).x(51).y(53))
+                                      .deviceId(stylusDeviceId)
+                                      .build());
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_UP, AINPUT_SOURCE_STYLUS)
+                                      .pointer(PointerBuilder(0, ToolType::STYLUS).x(51).y(53))
+                                      .deviceId(stylusDeviceId)
+                                      .build());
+    leftWindow->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_MOVE), WithDeviceId(stylusDeviceId)));
+    leftWindow->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_UP), WithDeviceId(stylusDeviceId)));
+
+    // Now that the stylus gesture is done, touches should be getting delivered correctly.
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(151).y(153))
+                                      .deviceId(touchDeviceId)
+                                      .build());
+    sbtRightWindow->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_DOWN), WithDeviceId(touchDeviceId)));
+}
+
+/**
+ * If stylus is hovering anywhere on the screen, then touches should not be delivered to windows
+ * that have InputConfig::GLOBAL_STYLUS_BLOCKS_TOUCH.
+ *
+ * Two windows: one on the left and one on the right.
+ * The window on the right has GLOBAL_STYLUS_BLOCKS_TOUCH config.
+ * Stylus hover on the left window, and then touch down on the right window.
+ * Check that the right window doesn't get touches while the stylus is hovering on the left window.
+ */
+TEST_F(InputDispatcherMultiDeviceTest, GlobalStylusHoverBlocksTouch) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> leftWindow =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Left window",
+                                       ADISPLAY_ID_DEFAULT);
+    leftWindow->setFrame(Rect(0, 0, 100, 100));
+
+    sp<FakeWindowHandle> sbtRightWindow =
+            sp<FakeWindowHandle>::make(application, mDispatcher,
+                                       "Stylus blocks touch (right) window", ADISPLAY_ID_DEFAULT);
+    sbtRightWindow->setFrame(Rect(100, 100, 200, 200));
+    sbtRightWindow->setGlobalStylusBlocksTouch(true);
+
+    mDispatcher->onWindowInfosChanged(
+            {{*leftWindow->getInfo(), *sbtRightWindow->getInfo()}, {}, 0, 0});
+
+    const int32_t stylusDeviceId = 5;
+    const int32_t touchDeviceId = 4;
+
+    // Stylus hover in the left window
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
+                                      .pointer(PointerBuilder(0, ToolType::STYLUS).x(50).y(52))
+                                      .deviceId(stylusDeviceId)
+                                      .build());
+    leftWindow->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_HOVER_ENTER), WithDeviceId(stylusDeviceId)));
+
+    // Finger tap on the right window
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(150).y(151))
+                                      .deviceId(touchDeviceId)
+                                      .build());
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_UP, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(150).y(151))
+                                      .deviceId(touchDeviceId)
+                                      .build());
+
+    // The touch should be blocked, because stylus is hovering somewhere else on screen!
+    sbtRightWindow->assertNoEvents();
+
+    // Continue stylus motion, and ensure it's not impacted.
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_HOVER_MOVE, AINPUT_SOURCE_STYLUS)
+                                      .pointer(PointerBuilder(0, ToolType::STYLUS).x(51).y(53))
+                                      .deviceId(stylusDeviceId)
+                                      .build());
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_HOVER_EXIT, AINPUT_SOURCE_STYLUS)
+                                      .pointer(PointerBuilder(0, ToolType::STYLUS).x(51).y(53))
+                                      .deviceId(stylusDeviceId)
+                                      .build());
+    leftWindow->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_HOVER_MOVE), WithDeviceId(stylusDeviceId)));
+    leftWindow->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_HOVER_EXIT), WithDeviceId(stylusDeviceId)));
+
+    // Now that the stylus gesture is done, touches should be getting delivered correctly.
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(151).y(153))
+                                      .deviceId(touchDeviceId)
+                                      .build());
+    sbtRightWindow->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_DOWN), WithDeviceId(touchDeviceId)));
 }
 
 /**
@@ -9692,7 +9841,7 @@ TEST_F(InputDispatcherDragTests, DragAndDropNotCancelledIfSomeOtherPointerIsPilf
 
     // Receives cancel for first pointer after next pointer down
     mSpyWindow->consumeMotionEvent(WithMotionAction(ACTION_CANCEL));
-    mSpyWindow->consumeMotionEvent(WithMotionAction(ACTION_DOWN));
+    mSpyWindow->consumeMotionEvent(AllOf(WithMotionAction(ACTION_DOWN), WithPointerIds({1})));
     mDragWindow->consumeMotionEvent(WithMotionAction(ACTION_MOVE));
 
     mSpyWindow->assertNoEvents();
@@ -9702,13 +9851,13 @@ TEST_F(InputDispatcherDragTests, DragAndDropNotCancelledIfSomeOtherPointerIsPilf
     mDragWindow->assertNoEvents();
 
     const MotionEvent firstFingerMoveEvent =
-            MotionEventBuilder(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+            MotionEventBuilder(ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN)
                     .eventTime(systemTime(SYSTEM_TIME_MONOTONIC))
                     .pointer(PointerBuilder(/*id=*/0, ToolType::FINGER).x(60).y(60))
                     .pointer(PointerBuilder(/*id=*/1, ToolType::FINGER).x(60).y(60))
                     .build();
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
-              injectMotionEvent(*mDispatcher, secondFingerDownEvent, INJECT_EVENT_TIMEOUT,
+              injectMotionEvent(*mDispatcher, firstFingerMoveEvent, INJECT_EVENT_TIMEOUT,
                                 InputEventInjectionSync::WAIT_FOR_RESULT))
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
 

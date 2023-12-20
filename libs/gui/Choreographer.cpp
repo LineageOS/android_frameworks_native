@@ -344,6 +344,10 @@ void Choreographer::dispatchNullEvent(nsecs_t, PhysicalDisplayId) {
     handleRefreshRateUpdates();
 }
 
+void Choreographer::dispatchHdcpLevelsChanged(PhysicalDisplayId, int32_t, int32_t) {
+    LOG_ALWAYS_FATAL("dispatchHdcpLevelsChanged was called but was never registered");
+}
+
 void Choreographer::handleMessage(const Message& message) {
     switch (message.what) {
         case MSG_SCHEDULE_CALLBACKS:

@@ -74,6 +74,10 @@ bool Display::isSecure() const {
     return getState().isSecure;
 }
 
+void Display::setSecure(bool secure) {
+    editState().isSecure = secure;
+}
+
 bool Display::isVirtual() const {
     return VirtualDisplayId::tryCast(mId).has_value();
 }
