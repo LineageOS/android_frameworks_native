@@ -165,8 +165,7 @@ Error Display::getChangedCompositionTypes(std::unordered_map<HWC2::Layer*, Compo
     auto intError = mComposer.getChangedCompositionTypes(
             mId, &layerIds, &types);
     uint32_t numElements = layerIds.size();
-    auto error = static_cast<Error>(intError);
-    error = static_cast<Error>(intError);
+    const auto error = static_cast<Error>(intError);
     if (error != Error::NONE) {
         return error;
     }
