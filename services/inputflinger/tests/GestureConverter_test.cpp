@@ -47,6 +47,8 @@ const auto TOUCHPAD_PALM_REJECTION_V2 =
 } // namespace
 
 using testing::AllOf;
+using testing::ElementsAre;
+using testing::VariantWith;
 
 class GestureConverterTestBase : public testing::Test {
 protected:
@@ -111,13 +113,12 @@ TEST_F(GestureConverterTest, Move) {
     Gesture moveGesture(kGestureMove, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, -5, 10);
     std::list<NotifyArgs> args =
             converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, moveGesture);
-    ASSERT_EQ(1u, args.size());
-
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
-                      WithCoords(POINTER_X - 5, POINTER_Y + 10), WithRelativeMotion(-5, 10),
-                      WithToolType(ToolType::FINGER), WithButtonState(0), WithPressure(0.0f),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
+                              WithCoords(POINTER_X - 5, POINTER_Y + 10), WithRelativeMotion(-5, 10),
+                              WithToolType(ToolType::FINGER), WithButtonState(0),
+                              WithPressure(0.0f), WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 
     ASSERT_NO_FATAL_FAILURE(mFakePointerController->assertPosition(POINTER_X - 5, POINTER_Y + 10));
 }
@@ -131,13 +132,12 @@ TEST_F(GestureConverterTest, Move_Rotated) {
     Gesture moveGesture(kGestureMove, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, -5, 10);
     std::list<NotifyArgs> args =
             converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, moveGesture);
-    ASSERT_EQ(1u, args.size());
-
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
-                      WithCoords(POINTER_X + 10, POINTER_Y + 5), WithRelativeMotion(10, 5),
-                      WithToolType(ToolType::FINGER), WithButtonState(0), WithPressure(0.0f),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
+                              WithCoords(POINTER_X + 10, POINTER_Y + 5), WithRelativeMotion(10, 5),
+                              WithToolType(ToolType::FINGER), WithButtonState(0),
+                              WithPressure(0.0f), WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 
     ASSERT_NO_FATAL_FAILURE(mFakePointerController->assertPosition(POINTER_X + 10, POINTER_Y + 5));
 }
@@ -155,64 +155,65 @@ TEST_F(GestureConverterTest, ButtonsChange) {
             converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, downGesture);
     ASSERT_EQ(3u, args.size());
 
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
-                      WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY |
-                                      AMOTION_EVENT_BUTTON_SECONDARY),
-                      WithCoords(POINTER_X, POINTER_Y), WithToolType(ToolType::FINGER),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS),
-                      WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY),
-                      WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY),
-                      WithCoords(POINTER_X, POINTER_Y), WithToolType(ToolType::FINGER),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS),
-                      WithActionButton(AMOTION_EVENT_BUTTON_SECONDARY),
-                      WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY |
-                                      AMOTION_EVENT_BUTTON_SECONDARY),
-                      WithCoords(POINTER_X, POINTER_Y), WithToolType(ToolType::FINGER),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
+                                          WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY |
+                                                          AMOTION_EVENT_BUTTON_SECONDARY),
+                                          WithCoords(POINTER_X, POINTER_Y),
+                                          WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS),
+                                          WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY),
+                                          WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY),
+                                          WithCoords(POINTER_X, POINTER_Y),
+                                          WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS),
+                                          WithActionButton(AMOTION_EVENT_BUTTON_SECONDARY),
+                                          WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY |
+                                                          AMOTION_EVENT_BUTTON_SECONDARY),
+                                          WithCoords(POINTER_X, POINTER_Y),
+                                          WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 
     // Then release the left button
     Gesture leftUpGesture(kGestureButtonsChange, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                           /* down= */ GESTURES_BUTTON_NONE, /* up= */ GESTURES_BUTTON_LEFT,
                           /* is_tap= */ false);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, leftUpGesture);
-    ASSERT_EQ(1u, args.size());
-
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
-                      WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY),
-                      WithButtonState(AMOTION_EVENT_BUTTON_SECONDARY),
-                      WithCoords(POINTER_X, POINTER_Y), WithToolType(ToolType::FINGER),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
+                              WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY),
+                              WithButtonState(AMOTION_EVENT_BUTTON_SECONDARY),
+                              WithCoords(POINTER_X, POINTER_Y), WithToolType(ToolType::FINGER),
+                              WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 
     // Finally release the right button
     Gesture rightUpGesture(kGestureButtonsChange, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                            /* down= */ GESTURES_BUTTON_NONE, /* up= */ GESTURES_BUTTON_RIGHT,
                            /* is_tap= */ false);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, rightUpGesture);
-    ASSERT_EQ(3u, args.size());
-
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
-                      WithActionButton(AMOTION_EVENT_BUTTON_SECONDARY), WithButtonState(0),
-                      WithCoords(POINTER_X, POINTER_Y), WithToolType(ToolType::FINGER),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP), WithButtonState(0),
-                      WithCoords(POINTER_X, POINTER_Y), WithToolType(ToolType::FINGER),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE), WithButtonState(0),
-                      WithCoords(POINTER_X, POINTER_Y), WithToolType(ToolType::FINGER),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
+                                          WithActionButton(AMOTION_EVENT_BUTTON_SECONDARY),
+                                          WithButtonState(0), WithCoords(POINTER_X, POINTER_Y),
+                                          WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
+                                          WithButtonState(0), WithCoords(POINTER_X, POINTER_Y),
+                                          WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
+                                          WithButtonState(0), WithCoords(POINTER_X, POINTER_Y),
+                                          WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 }
 
 TEST_F(GestureConverterTest, DragWithButton) {
@@ -226,31 +227,31 @@ TEST_F(GestureConverterTest, DragWithButton) {
                         /* is_tap= */ false);
     std::list<NotifyArgs> args =
             converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, downGesture);
-    ASSERT_EQ(2u, args.size());
-
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
-                      WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY),
-                      WithCoords(POINTER_X, POINTER_Y), WithToolType(ToolType::FINGER),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS),
-                      WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY),
-                      WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY),
-                      WithCoords(POINTER_X, POINTER_Y), WithToolType(ToolType::FINGER),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
+                                          WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY),
+                                          WithCoords(POINTER_X, POINTER_Y),
+                                          WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS),
+                                          WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY),
+                                          WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY),
+                                          WithCoords(POINTER_X, POINTER_Y),
+                                          WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 
     // Move
     Gesture moveGesture(kGestureMove, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, -5, 10);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, moveGesture);
-    ASSERT_EQ(1u, args.size());
-
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
-                      WithCoords(POINTER_X - 5, POINTER_Y + 10), WithRelativeMotion(-5, 10),
-                      WithToolType(ToolType::FINGER), WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY),
-                      WithPressure(1.0f), WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
+                              WithCoords(POINTER_X - 5, POINTER_Y + 10), WithRelativeMotion(-5, 10),
+                              WithToolType(ToolType::FINGER),
+                              WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY), WithPressure(1.0f),
+                              WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 
     ASSERT_NO_FATAL_FAILURE(mFakePointerController->assertPosition(POINTER_X - 5, POINTER_Y + 10));
 
@@ -259,23 +260,26 @@ TEST_F(GestureConverterTest, DragWithButton) {
                       /* down= */ GESTURES_BUTTON_NONE, /* up= */ GESTURES_BUTTON_LEFT,
                       /* is_tap= */ false);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, upGesture);
-    ASSERT_EQ(3u, args.size());
-
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
-                      WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY), WithButtonState(0),
-                      WithCoords(POINTER_X - 5, POINTER_Y + 10), WithToolType(ToolType::FINGER),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP), WithButtonState(0),
-                      WithCoords(POINTER_X - 5, POINTER_Y + 10), WithToolType(ToolType::FINGER),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE), WithButtonState(0),
-                      WithCoords(POINTER_X - 5, POINTER_Y + 10), WithToolType(ToolType::FINGER),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
+                                          WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY),
+                                          WithButtonState(0),
+                                          WithCoords(POINTER_X - 5, POINTER_Y + 10),
+                                          WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
+                                          WithButtonState(0),
+                                          WithCoords(POINTER_X - 5, POINTER_Y + 10),
+                                          WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
+                                          WithButtonState(0),
+                                          WithCoords(POINTER_X - 5, POINTER_Y + 10),
+                                          WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 }
 
 TEST_F(GestureConverterTest, Scroll) {
@@ -287,49 +291,50 @@ TEST_F(GestureConverterTest, Scroll) {
     Gesture startGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, -10);
     std::list<NotifyArgs> args =
             converter.handleGesture(downTime, READ_TIME, ARBITRARY_TIME, startGesture);
-    ASSERT_EQ(2u, args.size());
-
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN), WithCoords(POINTER_X, POINTER_Y),
-                      WithGestureScrollDistance(0, 0, EPSILON),
-                      WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
-                      WithToolType(ToolType::FINGER), WithDownTime(downTime),
-                      WithFlags(AMOTION_EVENT_FLAG_IS_GENERATED_GESTURE),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
-                      WithCoords(POINTER_X, POINTER_Y - 10),
-                      WithGestureScrollDistance(0, 10, EPSILON),
-                      WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
-                      WithToolType(ToolType::FINGER),
-                      WithFlags(AMOTION_EVENT_FLAG_IS_GENERATED_GESTURE),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
+                                          WithCoords(POINTER_X, POINTER_Y),
+                                          WithGestureScrollDistance(0, 0, EPSILON),
+                                          WithMotionClassification(
+                                                  MotionClassification::TWO_FINGER_SWIPE),
+                                          WithToolType(ToolType::FINGER), WithDownTime(downTime),
+                                          WithFlags(AMOTION_EVENT_FLAG_IS_GENERATED_GESTURE),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
+                                          WithCoords(POINTER_X, POINTER_Y - 10),
+                                          WithGestureScrollDistance(0, 10, EPSILON),
+                                          WithMotionClassification(
+                                                  MotionClassification::TWO_FINGER_SWIPE),
+                                          WithToolType(ToolType::FINGER),
+                                          WithFlags(AMOTION_EVENT_FLAG_IS_GENERATED_GESTURE),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 
     Gesture continueGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, -5);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, continueGesture);
-    ASSERT_EQ(1u, args.size());
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
-                      WithCoords(POINTER_X, POINTER_Y - 15),
-                      WithGestureScrollDistance(0, 5, EPSILON),
-                      WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
-                      WithToolType(ToolType::FINGER),
-                      WithFlags(AMOTION_EVENT_FLAG_IS_GENERATED_GESTURE),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
+                              WithCoords(POINTER_X, POINTER_Y - 15),
+                              WithGestureScrollDistance(0, 5, EPSILON),
+                              WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
+                              WithToolType(ToolType::FINGER),
+                              WithFlags(AMOTION_EVENT_FLAG_IS_GENERATED_GESTURE),
+                              WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 
     Gesture flingGesture(kGestureFling, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 1, 1,
                          GESTURES_FLING_START);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, flingGesture);
-    ASSERT_EQ(1u, args.size());
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
-                      WithCoords(POINTER_X, POINTER_Y - 15),
-                      WithGestureScrollDistance(0, 0, EPSILON),
-                      WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
-                      WithToolType(ToolType::FINGER),
-                      WithFlags(AMOTION_EVENT_FLAG_IS_GENERATED_GESTURE),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
+                              WithCoords(POINTER_X, POINTER_Y - 15),
+                              WithGestureScrollDistance(0, 0, EPSILON),
+                              WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
+                              WithToolType(ToolType::FINGER),
+                              WithFlags(AMOTION_EVENT_FLAG_IS_GENERATED_GESTURE),
+                              WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 }
 
 TEST_F(GestureConverterTest, Scroll_Rotated) {
@@ -342,42 +347,45 @@ TEST_F(GestureConverterTest, Scroll_Rotated) {
     Gesture startGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, -10);
     std::list<NotifyArgs> args =
             converter.handleGesture(downTime, READ_TIME, ARBITRARY_TIME, startGesture);
-    ASSERT_EQ(2u, args.size());
-
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN), WithCoords(POINTER_X, POINTER_Y),
-                      WithGestureScrollDistance(0, 0, EPSILON),
-                      WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
-                      WithToolType(ToolType::FINGER), WithDownTime(downTime),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
-                      WithCoords(POINTER_X - 10, POINTER_Y),
-                      WithGestureScrollDistance(0, 10, EPSILON),
-                      WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
-                      WithToolType(ToolType::FINGER), WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
+                                          WithCoords(POINTER_X, POINTER_Y),
+                                          WithGestureScrollDistance(0, 0, EPSILON),
+                                          WithMotionClassification(
+                                                  MotionClassification::TWO_FINGER_SWIPE),
+                                          WithToolType(ToolType::FINGER), WithDownTime(downTime),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
+                                          WithCoords(POINTER_X - 10, POINTER_Y),
+                                          WithGestureScrollDistance(0, 10, EPSILON),
+                                          WithMotionClassification(
+                                                  MotionClassification::TWO_FINGER_SWIPE),
+                                          WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 
     Gesture continueGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, -5);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, continueGesture);
-    ASSERT_EQ(1u, args.size());
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
-                      WithCoords(POINTER_X - 15, POINTER_Y),
-                      WithGestureScrollDistance(0, 5, EPSILON),
-                      WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
-                      WithToolType(ToolType::FINGER), WithDisplayId(ADISPLAY_ID_DEFAULT)));
-
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
+                              WithCoords(POINTER_X - 15, POINTER_Y),
+                              WithGestureScrollDistance(0, 5, EPSILON),
+                              WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
+                              WithToolType(ToolType::FINGER),
+                              WithDisplayId(ADISPLAY_ID_DEFAULT)))));
     Gesture flingGesture(kGestureFling, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 1, 1,
                          GESTURES_FLING_START);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, flingGesture);
-    ASSERT_EQ(1u, args.size());
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
-                      WithCoords(POINTER_X - 15, POINTER_Y),
-                      WithGestureScrollDistance(0, 0, EPSILON),
-                      WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
-                      WithToolType(ToolType::FINGER), WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
+                              WithCoords(POINTER_X - 15, POINTER_Y),
+                              WithGestureScrollDistance(0, 0, EPSILON),
+                              WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
+                              WithToolType(ToolType::FINGER),
+                              WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 }
 
 TEST_F(GestureConverterTest, Scroll_ClearsClassificationAfterGesture) {
@@ -398,10 +406,10 @@ TEST_F(GestureConverterTest, Scroll_ClearsClassificationAfterGesture) {
 
     Gesture moveGesture(kGestureMove, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, -5, 10);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, moveGesture);
-    ASSERT_EQ(1u, args.size());
-    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionClassification(MotionClassification::NONE),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithMotionClassification(MotionClassification::NONE),
+                              WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 }
 
 TEST_F(GestureConverterTest, Scroll_ClearsScrollDistanceAfterGesture) {
@@ -446,8 +454,9 @@ TEST_F(GestureConverterTest, ThreeFingerSwipe_ClearsClassificationAfterGesture) 
                         /*dy=*/10);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, moveGesture);
     ASSERT_EQ(1u, args.size());
-    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                WithMotionClassification(MotionClassification::NONE));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                        WithMotionClassification(MotionClassification::NONE))));
 }
 
 TEST_F(GestureConverterTest, ThreeFingerSwipe_ClearsGestureAxesAfterGesture) {
@@ -554,29 +563,35 @@ TEST_F(GestureConverterTest, ThreeFingerSwipe_Vertical) {
 
     Gesture liftGesture(kGestureSwipeLift, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, liftGesture);
-    ASSERT_EQ(3u, args.size());
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_POINTER_UP |
-                                       2 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
-                      WithGestureOffset(0, 0, EPSILON), WithGestureSwipeFingerCount(3),
-                      WithMotionClassification(MotionClassification::MULTI_FINGER_SWIPE),
-                      WithPointerCount(3u), WithToolType(ToolType::FINGER),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_POINTER_UP |
-                                       1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
-                      WithGestureOffset(0, 0, EPSILON), WithGestureSwipeFingerCount(3),
-                      WithMotionClassification(MotionClassification::MULTI_FINGER_SWIPE),
-                      WithPointerCount(2u), WithToolType(ToolType::FINGER),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP), WithGestureOffset(0, 0, EPSILON),
-                      WithGestureSwipeFingerCount(3),
-                      WithMotionClassification(MotionClassification::MULTI_FINGER_SWIPE),
-                      WithPointerCount(1u), WithToolType(ToolType::FINGER),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(
+                                                  AMOTION_EVENT_ACTION_POINTER_UP |
+                                                  2 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+                                          WithGestureOffset(0, 0, EPSILON),
+                                          WithGestureSwipeFingerCount(3),
+                                          WithMotionClassification(
+                                                  MotionClassification::MULTI_FINGER_SWIPE),
+                                          WithPointerCount(3u), WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(
+                                                  AMOTION_EVENT_ACTION_POINTER_UP |
+                                                  1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+                                          WithGestureOffset(0, 0, EPSILON),
+                                          WithGestureSwipeFingerCount(3),
+                                          WithMotionClassification(
+                                                  MotionClassification::MULTI_FINGER_SWIPE),
+                                          WithPointerCount(2u), WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
+                                          WithGestureOffset(0, 0, EPSILON),
+                                          WithGestureSwipeFingerCount(3),
+                                          WithMotionClassification(
+                                                  MotionClassification::MULTI_FINGER_SWIPE),
+                                          WithPointerCount(1u), WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 }
 
 TEST_F(GestureConverterTest, ThreeFingerSwipe_Rotated) {
@@ -646,22 +661,23 @@ TEST_F(GestureConverterTest, ThreeFingerSwipe_Rotated) {
 
     Gesture liftGesture(kGestureSwipeLift, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, liftGesture);
-    ASSERT_EQ(3u, args.size());
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_POINTER_UP |
-                                       2 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
-                      WithGestureOffset(0, 0, EPSILON), WithPointerCount(3u),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_POINTER_UP |
-                                       1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
-                      WithGestureOffset(0, 0, EPSILON), WithPointerCount(2u),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP), WithGestureOffset(0, 0, EPSILON),
-                      WithPointerCount(1u), WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(
+                                                  AMOTION_EVENT_ACTION_POINTER_UP |
+                                                  2 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+                                          WithGestureOffset(0, 0, EPSILON), WithPointerCount(3u),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(
+                                                  AMOTION_EVENT_ACTION_POINTER_UP |
+                                                  1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+                                          WithGestureOffset(0, 0, EPSILON), WithPointerCount(2u),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
+                                          WithGestureOffset(0, 0, EPSILON), WithPointerCount(1u),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 }
 
 TEST_F(GestureConverterTest, FourFingerSwipe_Horizontal) {
@@ -755,37 +771,45 @@ TEST_F(GestureConverterTest, FourFingerSwipe_Horizontal) {
 
     Gesture liftGesture(kGestureSwipeLift, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, liftGesture);
-    ASSERT_EQ(4u, args.size());
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_POINTER_UP |
-                                       3 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
-                      WithGestureOffset(0, 0, EPSILON), WithGestureSwipeFingerCount(4),
-                      WithMotionClassification(MotionClassification::MULTI_FINGER_SWIPE),
-                      WithPointerCount(4u), WithToolType(ToolType::FINGER),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_POINTER_UP |
-                                       2 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
-                      WithGestureOffset(0, 0, EPSILON), WithGestureSwipeFingerCount(4),
-                      WithMotionClassification(MotionClassification::MULTI_FINGER_SWIPE),
-                      WithPointerCount(3u), WithToolType(ToolType::FINGER),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_POINTER_UP |
-                                       1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
-                      WithGestureOffset(0, 0, EPSILON), WithGestureSwipeFingerCount(4),
-                      WithMotionClassification(MotionClassification::MULTI_FINGER_SWIPE),
-                      WithPointerCount(2u), WithToolType(ToolType::FINGER),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP), WithGestureOffset(0, 0, EPSILON),
-                      WithGestureSwipeFingerCount(4),
-                      WithMotionClassification(MotionClassification::MULTI_FINGER_SWIPE),
-                      WithPointerCount(1u), WithToolType(ToolType::FINGER),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(
+                                                  AMOTION_EVENT_ACTION_POINTER_UP |
+                                                  3 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+                                          WithGestureOffset(0, 0, EPSILON),
+                                          WithGestureSwipeFingerCount(4),
+                                          WithMotionClassification(
+                                                  MotionClassification::MULTI_FINGER_SWIPE),
+                                          WithPointerCount(4u), WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(
+                                                  AMOTION_EVENT_ACTION_POINTER_UP |
+                                                  2 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+                                          WithGestureOffset(0, 0, EPSILON),
+                                          WithGestureSwipeFingerCount(4),
+                                          WithMotionClassification(
+                                                  MotionClassification::MULTI_FINGER_SWIPE),
+                                          WithPointerCount(3u), WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(
+                                                  AMOTION_EVENT_ACTION_POINTER_UP |
+                                                  1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+                                          WithGestureOffset(0, 0, EPSILON),
+                                          WithGestureSwipeFingerCount(4),
+                                          WithMotionClassification(
+                                                  MotionClassification::MULTI_FINGER_SWIPE),
+                                          WithPointerCount(2u), WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
+                                          WithGestureOffset(0, 0, EPSILON),
+                                          WithGestureSwipeFingerCount(4),
+                                          WithMotionClassification(
+                                                  MotionClassification::MULTI_FINGER_SWIPE),
+                                          WithPointerCount(1u), WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 }
 
 TEST_F(GestureConverterTest, Pinch_Inwards) {
@@ -797,50 +821,55 @@ TEST_F(GestureConverterTest, Pinch_Inwards) {
                          GESTURES_ZOOM_START);
     std::list<NotifyArgs> args =
             converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, startGesture);
-    ASSERT_EQ(2u, args.size());
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
-                      WithMotionClassification(MotionClassification::PINCH),
-                      WithGesturePinchScaleFactor(1.0f, EPSILON),
-                      WithCoords(POINTER_X - 100, POINTER_Y), WithPointerCount(1u),
-                      WithToolType(ToolType::FINGER), WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_POINTER_DOWN |
-                                       1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
-                      WithMotionClassification(MotionClassification::PINCH),
-                      WithGesturePinchScaleFactor(1.0f, EPSILON),
-                      WithPointerCoords(1, POINTER_X + 100, POINTER_Y), WithPointerCount(2u),
-                      WithToolType(ToolType::FINGER), WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
+                                          WithMotionClassification(MotionClassification::PINCH),
+                                          WithGesturePinchScaleFactor(1.0f, EPSILON),
+                                          WithCoords(POINTER_X - 100, POINTER_Y),
+                                          WithPointerCount(1u), WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(
+                                                  AMOTION_EVENT_ACTION_POINTER_DOWN |
+                                                  1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+                                          WithMotionClassification(MotionClassification::PINCH),
+                                          WithGesturePinchScaleFactor(1.0f, EPSILON),
+                                          WithPointerCoords(1, POINTER_X + 100, POINTER_Y),
+                                          WithPointerCount(2u), WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 
     Gesture updateGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                           /* dz= */ 0.8, GESTURES_ZOOM_UPDATE);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, updateGesture);
-    ASSERT_EQ(1u, args.size());
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
-                      WithMotionClassification(MotionClassification::PINCH),
-                      WithGesturePinchScaleFactor(0.8f, EPSILON),
-                      WithPointerCoords(0, POINTER_X - 80, POINTER_Y),
-                      WithPointerCoords(1, POINTER_X + 80, POINTER_Y), WithPointerCount(2u),
-                      WithToolType(ToolType::FINGER), WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
+                              WithMotionClassification(MotionClassification::PINCH),
+                              WithGesturePinchScaleFactor(0.8f, EPSILON),
+                              WithPointerCoords(0, POINTER_X - 80, POINTER_Y),
+                              WithPointerCoords(1, POINTER_X + 80, POINTER_Y), WithPointerCount(2u),
+                              WithToolType(ToolType::FINGER),
+                              WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 
     Gesture endGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /* dz= */ 1,
                        GESTURES_ZOOM_END);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, endGesture);
-    ASSERT_EQ(2u, args.size());
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_POINTER_UP |
-                                       1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
-                      WithMotionClassification(MotionClassification::PINCH),
-                      WithGesturePinchScaleFactor(1.0f, EPSILON), WithPointerCount(2u),
-                      WithToolType(ToolType::FINGER), WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
-                      WithMotionClassification(MotionClassification::PINCH),
-                      WithGesturePinchScaleFactor(1.0f, EPSILON), WithPointerCount(1u),
-                      WithToolType(ToolType::FINGER), WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(
+                                                  AMOTION_EVENT_ACTION_POINTER_UP |
+                                                  1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+                                          WithMotionClassification(MotionClassification::PINCH),
+                                          WithGesturePinchScaleFactor(1.0f, EPSILON),
+                                          WithPointerCount(2u), WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
+                                          WithMotionClassification(MotionClassification::PINCH),
+                                          WithGesturePinchScaleFactor(1.0f, EPSILON),
+                                          WithPointerCount(1u), WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 }
 
 TEST_F(GestureConverterTest, Pinch_Outwards) {
@@ -852,50 +881,55 @@ TEST_F(GestureConverterTest, Pinch_Outwards) {
                          GESTURES_ZOOM_START);
     std::list<NotifyArgs> args =
             converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, startGesture);
-    ASSERT_EQ(2u, args.size());
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
-                      WithMotionClassification(MotionClassification::PINCH),
-                      WithGesturePinchScaleFactor(1.0f, EPSILON),
-                      WithCoords(POINTER_X - 100, POINTER_Y), WithPointerCount(1u),
-                      WithToolType(ToolType::FINGER), WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_POINTER_DOWN |
-                                       1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
-                      WithMotionClassification(MotionClassification::PINCH),
-                      WithGesturePinchScaleFactor(1.0f, EPSILON),
-                      WithPointerCoords(1, POINTER_X + 100, POINTER_Y), WithPointerCount(2u),
-                      WithToolType(ToolType::FINGER), WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
+                                          WithMotionClassification(MotionClassification::PINCH),
+                                          WithGesturePinchScaleFactor(1.0f, EPSILON),
+                                          WithCoords(POINTER_X - 100, POINTER_Y),
+                                          WithPointerCount(1u), WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(
+                                                  AMOTION_EVENT_ACTION_POINTER_DOWN |
+                                                  1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+                                          WithMotionClassification(MotionClassification::PINCH),
+                                          WithGesturePinchScaleFactor(1.0f, EPSILON),
+                                          WithPointerCoords(1, POINTER_X + 100, POINTER_Y),
+                                          WithPointerCount(2u), WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 
     Gesture updateGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                           /* dz= */ 1.2, GESTURES_ZOOM_UPDATE);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, updateGesture);
-    ASSERT_EQ(1u, args.size());
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
-                      WithMotionClassification(MotionClassification::PINCH),
-                      WithGesturePinchScaleFactor(1.2f, EPSILON),
-                      WithPointerCoords(0, POINTER_X - 120, POINTER_Y),
-                      WithPointerCoords(1, POINTER_X + 120, POINTER_Y), WithPointerCount(2u),
-                      WithToolType(ToolType::FINGER), WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
+                              WithMotionClassification(MotionClassification::PINCH),
+                              WithGesturePinchScaleFactor(1.2f, EPSILON),
+                              WithPointerCoords(0, POINTER_X - 120, POINTER_Y),
+                              WithPointerCoords(1, POINTER_X + 120, POINTER_Y),
+                              WithPointerCount(2u), WithToolType(ToolType::FINGER),
+                              WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 
     Gesture endGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /* dz= */ 1,
                        GESTURES_ZOOM_END);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, endGesture);
-    ASSERT_EQ(2u, args.size());
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_POINTER_UP |
-                                       1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
-                      WithMotionClassification(MotionClassification::PINCH),
-                      WithGesturePinchScaleFactor(1.0f, EPSILON), WithPointerCount(2u),
-                      WithToolType(ToolType::FINGER), WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
-                      WithMotionClassification(MotionClassification::PINCH),
-                      WithGesturePinchScaleFactor(1.0f, EPSILON), WithPointerCount(1u),
-                      WithToolType(ToolType::FINGER), WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(
+                                                  AMOTION_EVENT_ACTION_POINTER_UP |
+                                                  1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+                                          WithMotionClassification(MotionClassification::PINCH),
+                                          WithGesturePinchScaleFactor(1.0f, EPSILON),
+                                          WithPointerCount(2u), WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
+                                          WithMotionClassification(MotionClassification::PINCH),
+                                          WithGesturePinchScaleFactor(1.0f, EPSILON),
+                                          WithPointerCount(1u), WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 }
 
 TEST_F(GestureConverterTest, Pinch_ClearsClassificationAfterGesture) {
@@ -918,9 +952,9 @@ TEST_F(GestureConverterTest, Pinch_ClearsClassificationAfterGesture) {
 
     Gesture moveGesture(kGestureMove, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, -5, 10);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, moveGesture);
-    ASSERT_EQ(1u, args.size());
-    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                WithMotionClassification(MotionClassification::NONE));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                        WithMotionClassification(MotionClassification::NONE))));
 }
 
 TEST_F(GestureConverterTest, Pinch_ClearsScaleFactorAfterGesture) {
@@ -961,25 +995,25 @@ TEST_F(GestureConverterTest, ResetWithButtonPressed) {
     (void)converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, downGesture);
 
     std::list<NotifyArgs> args = converter.reset(ARBITRARY_TIME);
-    ASSERT_EQ(3u, args.size());
-
-    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
-                      WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY),
-                      WithButtonState(AMOTION_EVENT_BUTTON_SECONDARY),
-                      WithCoords(POINTER_X, POINTER_Y), WithToolType(ToolType::FINGER),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
-                      WithActionButton(AMOTION_EVENT_BUTTON_SECONDARY), WithButtonState(0),
-                      WithCoords(POINTER_X, POINTER_Y), WithToolType(ToolType::FINGER),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP), WithButtonState(0),
-                      WithCoords(POINTER_X, POINTER_Y), WithToolType(ToolType::FINGER),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
+                                          WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY),
+                                          WithButtonState(AMOTION_EVENT_BUTTON_SECONDARY),
+                                          WithCoords(POINTER_X, POINTER_Y),
+                                          WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
+                                          WithActionButton(AMOTION_EVENT_BUTTON_SECONDARY),
+                                          WithButtonState(0), WithCoords(POINTER_X, POINTER_Y),
+                                          WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
+                                          WithButtonState(0), WithCoords(POINTER_X, POINTER_Y),
+                                          WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 }
 
 TEST_F(GestureConverterTest, ResetDuringScroll) {
@@ -991,15 +1025,15 @@ TEST_F(GestureConverterTest, ResetDuringScroll) {
     (void)converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, startGesture);
 
     std::list<NotifyArgs> args = converter.reset(ARBITRARY_TIME);
-    ASSERT_EQ(1u, args.size());
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
-                      WithCoords(POINTER_X, POINTER_Y - 10),
-                      WithGestureScrollDistance(0, 0, EPSILON),
-                      WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
-                      WithToolType(ToolType::FINGER),
-                      WithFlags(AMOTION_EVENT_FLAG_IS_GENERATED_GESTURE),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
+                              WithCoords(POINTER_X, POINTER_Y - 10),
+                              WithGestureScrollDistance(0, 0, EPSILON),
+                              WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
+                              WithToolType(ToolType::FINGER),
+                              WithFlags(AMOTION_EVENT_FLAG_IS_GENERATED_GESTURE),
+                              WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 }
 
 TEST_F(GestureConverterTest, ResetDuringThreeFingerSwipe) {
@@ -1012,28 +1046,32 @@ TEST_F(GestureConverterTest, ResetDuringThreeFingerSwipe) {
     (void)converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, startGesture);
 
     std::list<NotifyArgs> args = converter.reset(ARBITRARY_TIME);
-    ASSERT_EQ(3u, args.size());
-    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_POINTER_UP |
-                                       2 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
-                      WithGestureOffset(0, 0, EPSILON),
-                      WithMotionClassification(MotionClassification::MULTI_FINGER_SWIPE),
-                      WithPointerCount(3u), WithToolType(ToolType::FINGER),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_POINTER_UP |
-                                       1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
-                      WithGestureOffset(0, 0, EPSILON),
-                      WithMotionClassification(MotionClassification::MULTI_FINGER_SWIPE),
-                      WithPointerCount(2u), WithToolType(ToolType::FINGER),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP), WithGestureOffset(0, 0, EPSILON),
-                      WithMotionClassification(MotionClassification::MULTI_FINGER_SWIPE),
-                      WithPointerCount(1u), WithToolType(ToolType::FINGER),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(
+                                                  AMOTION_EVENT_ACTION_POINTER_UP |
+                                                  2 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+                                          WithGestureOffset(0, 0, EPSILON),
+                                          WithMotionClassification(
+                                                  MotionClassification::MULTI_FINGER_SWIPE),
+                                          WithPointerCount(3u), WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(
+                                                  AMOTION_EVENT_ACTION_POINTER_UP |
+                                                  1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+                                          WithGestureOffset(0, 0, EPSILON),
+                                          WithMotionClassification(
+                                                  MotionClassification::MULTI_FINGER_SWIPE),
+                                          WithPointerCount(2u), WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
+                                          WithGestureOffset(0, 0, EPSILON),
+                                          WithMotionClassification(
+                                                  MotionClassification::MULTI_FINGER_SWIPE),
+                                          WithPointerCount(1u), WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 }
 
 TEST_F(GestureConverterTest, ResetDuringPinch) {
@@ -1046,19 +1084,21 @@ TEST_F(GestureConverterTest, ResetDuringPinch) {
     (void)converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, startGesture);
 
     std::list<NotifyArgs> args = converter.reset(ARBITRARY_TIME);
-    ASSERT_EQ(2u, args.size());
-    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_POINTER_UP |
-                                       1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
-                      WithMotionClassification(MotionClassification::PINCH),
-                      WithGesturePinchScaleFactor(1.0f, EPSILON), WithPointerCount(2u),
-                      WithToolType(ToolType::FINGER), WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
-                      WithMotionClassification(MotionClassification::PINCH),
-                      WithGesturePinchScaleFactor(1.0f, EPSILON), WithPointerCount(1u),
-                      WithToolType(ToolType::FINGER), WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(
+                                                  AMOTION_EVENT_ACTION_POINTER_UP |
+                                                  1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+                                          WithMotionClassification(MotionClassification::PINCH),
+                                          WithGesturePinchScaleFactor(1.0f, EPSILON),
+                                          WithPointerCount(2u), WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
+                                          WithMotionClassification(MotionClassification::PINCH),
+                                          WithGesturePinchScaleFactor(1.0f, EPSILON),
+                                          WithPointerCount(1u), WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 }
 
 TEST_F(GestureConverterTest, FlingTapDown) {
@@ -1092,50 +1132,54 @@ TEST_F(GestureConverterTest, Tap) {
     std::list<NotifyArgs> args =
             converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, flingGesture);
 
-    ASSERT_EQ(1u, args.size());
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
-                      WithCoords(POINTER_X, POINTER_Y), WithRelativeMotion(0, 0),
-                      WithToolType(ToolType::FINGER), WithButtonState(0), WithPressure(0.0f),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
+                              WithCoords(POINTER_X, POINTER_Y), WithRelativeMotion(0, 0),
+                              WithToolType(ToolType::FINGER), WithButtonState(0),
+                              WithPressure(0.0f), WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 
     Gesture tapGesture(kGestureButtonsChange, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                        /* down= */ GESTURES_BUTTON_LEFT,
                        /* up= */ GESTURES_BUTTON_LEFT, /* is_tap= */ true);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, tapGesture);
 
-    ASSERT_EQ(5u, args.size());
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN), WithCoords(POINTER_X, POINTER_Y),
-                      WithRelativeMotion(0.f, 0.f), WithToolType(ToolType::FINGER),
-                      WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY), WithPressure(1.0f),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS),
-                      WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY),
-                      WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY),
-                      WithCoords(POINTER_X, POINTER_Y), WithRelativeMotion(0.f, 0.f),
-                      WithToolType(ToolType::FINGER), WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY),
-                      WithPressure(1.0f), WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
-                      WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY), WithButtonState(0),
-                      WithCoords(POINTER_X, POINTER_Y), WithRelativeMotion(0.f, 0.f),
-                      WithToolType(ToolType::FINGER), WithButtonState(0), WithPressure(1.0f),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP), WithCoords(POINTER_X, POINTER_Y),
-                      WithRelativeMotion(0.f, 0.f), WithToolType(ToolType::FINGER),
-                      WithButtonState(0), WithPressure(0.0f), WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
-                      WithCoords(POINTER_X, POINTER_Y), WithRelativeMotion(0, 0),
-                      WithToolType(ToolType::FINGER), WithButtonState(0), WithPressure(0.0f),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
+                                          WithCoords(POINTER_X, POINTER_Y),
+                                          WithRelativeMotion(0.f, 0.f),
+                                          WithToolType(ToolType::FINGER),
+                                          WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY),
+                                          WithPressure(1.0f), WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS),
+                                          WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY),
+                                          WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY),
+                                          WithCoords(POINTER_X, POINTER_Y),
+                                          WithRelativeMotion(0.f, 0.f),
+                                          WithToolType(ToolType::FINGER),
+                                          WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY),
+                                          WithPressure(1.0f), WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
+                                          WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY),
+                                          WithButtonState(0), WithCoords(POINTER_X, POINTER_Y),
+                                          WithRelativeMotion(0.f, 0.f),
+                                          WithToolType(ToolType::FINGER), WithButtonState(0),
+                                          WithPressure(1.0f), WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
+                                          WithCoords(POINTER_X, POINTER_Y),
+                                          WithRelativeMotion(0.f, 0.f),
+                                          WithToolType(ToolType::FINGER), WithButtonState(0),
+                                          WithPressure(0.0f), WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
+                                          WithCoords(POINTER_X, POINTER_Y),
+                                          WithRelativeMotion(0, 0), WithToolType(ToolType::FINGER),
+                                          WithButtonState(0), WithPressure(0.0f),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 }
 
 TEST_F(GestureConverterTest, Click) {
@@ -1149,56 +1193,61 @@ TEST_F(GestureConverterTest, Click) {
     std::list<NotifyArgs> args =
             converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, flingGesture);
 
-    ASSERT_EQ(1u, args.size());
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
-                      WithCoords(POINTER_X, POINTER_Y), WithRelativeMotion(0, 0),
-                      WithToolType(ToolType::FINGER), WithButtonState(0), WithPressure(0.0f),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
+                              WithCoords(POINTER_X, POINTER_Y), WithRelativeMotion(0, 0),
+                              WithToolType(ToolType::FINGER), WithButtonState(0),
+                              WithPressure(0.0f), WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 
     Gesture buttonDownGesture(kGestureButtonsChange, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                               /* down= */ GESTURES_BUTTON_LEFT,
                               /* up= */ GESTURES_BUTTON_NONE, /* is_tap= */ false);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, buttonDownGesture);
 
-    ASSERT_EQ(2u, args.size());
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN), WithCoords(POINTER_X, POINTER_Y),
-                      WithRelativeMotion(0.f, 0.f), WithToolType(ToolType::FINGER),
-                      WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY), WithPressure(1.0f),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS),
-                      WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY),
-                      WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY),
-                      WithCoords(POINTER_X, POINTER_Y), WithRelativeMotion(0.f, 0.f),
-                      WithToolType(ToolType::FINGER), WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY),
-                      WithPressure(1.0f), WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
+                                          WithCoords(POINTER_X, POINTER_Y),
+                                          WithRelativeMotion(0.f, 0.f),
+                                          WithToolType(ToolType::FINGER),
+                                          WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY),
+                                          WithPressure(1.0f), WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS),
+                                          WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY),
+                                          WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY),
+                                          WithCoords(POINTER_X, POINTER_Y),
+                                          WithRelativeMotion(0.f, 0.f),
+                                          WithToolType(ToolType::FINGER),
+                                          WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY),
+                                          WithPressure(1.0f),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 
     Gesture buttonUpGesture(kGestureButtonsChange, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                             /* down= */ GESTURES_BUTTON_NONE,
                             /* up= */ GESTURES_BUTTON_LEFT, /* is_tap= */ false);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, buttonUpGesture);
-
-    ASSERT_EQ(3u, args.size());
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
-                      WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY), WithButtonState(0),
-                      WithCoords(POINTER_X, POINTER_Y), WithRelativeMotion(0.f, 0.f),
-                      WithToolType(ToolType::FINGER), WithButtonState(0), WithPressure(1.0f),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP), WithCoords(POINTER_X, POINTER_Y),
-                      WithRelativeMotion(0.f, 0.f), WithToolType(ToolType::FINGER),
-                      WithButtonState(0), WithPressure(0.0f), WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
-                      WithCoords(POINTER_X, POINTER_Y), WithRelativeMotion(0, 0),
-                      WithToolType(ToolType::FINGER), WithButtonState(0), WithPressure(0.0f),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
+                                          WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY),
+                                          WithButtonState(0), WithCoords(POINTER_X, POINTER_Y),
+                                          WithRelativeMotion(0.f, 0.f),
+                                          WithToolType(ToolType::FINGER), WithButtonState(0),
+                                          WithPressure(1.0f), WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
+                                          WithCoords(POINTER_X, POINTER_Y),
+                                          WithRelativeMotion(0.f, 0.f),
+                                          WithToolType(ToolType::FINGER), WithButtonState(0),
+                                          WithPressure(0.0f), WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
+                                          WithCoords(POINTER_X, POINTER_Y),
+                                          WithRelativeMotion(0, 0), WithToolType(ToolType::FINGER),
+                                          WithButtonState(0), WithPressure(0.0f),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 }
 
 TEST_F_WITH_FLAGS(GestureConverterTest, TapWithTapToClickDisabled,
@@ -1218,12 +1267,12 @@ TEST_F_WITH_FLAGS(GestureConverterTest, TapWithTapToClickDisabled,
     std::list<NotifyArgs> args =
             converter.handleGesture(currentTime, currentTime, currentTime, flingGesture);
 
-    ASSERT_EQ(1u, args.size());
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
-                      WithCoords(POINTER_X, POINTER_Y), WithRelativeMotion(0, 0),
-                      WithToolType(ToolType::FINGER), WithButtonState(0), WithPressure(0.0f),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
+                              WithCoords(POINTER_X, POINTER_Y), WithRelativeMotion(0, 0),
+                              WithToolType(ToolType::FINGER), WithButtonState(0),
+                              WithPressure(0.0f), WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 
     Gesture tapGesture(kGestureButtonsChange, currentTime, currentTime,
                        /* down= */ GESTURES_BUTTON_LEFT,
@@ -1342,56 +1391,61 @@ TEST_F_WITH_FLAGS(GestureConverterTest, ClickWithTapToClickDisabled,
     std::list<NotifyArgs> args =
             converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, flingGesture);
 
-    ASSERT_EQ(1u, args.size());
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
-                      WithCoords(POINTER_X, POINTER_Y), WithRelativeMotion(0, 0),
-                      WithToolType(ToolType::FINGER), WithButtonState(0), WithPressure(0.0f),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
+                              WithCoords(POINTER_X, POINTER_Y), WithRelativeMotion(0, 0),
+                              WithToolType(ToolType::FINGER), WithButtonState(0),
+                              WithPressure(0.0f), WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 
     Gesture buttonDownGesture(kGestureButtonsChange, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                               /* down= */ GESTURES_BUTTON_LEFT,
                               /* up= */ GESTURES_BUTTON_NONE, /* is_tap= */ false);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, buttonDownGesture);
-    ASSERT_EQ(2u, args.size());
-
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN), WithCoords(POINTER_X, POINTER_Y),
-                      WithRelativeMotion(0.f, 0.f), WithToolType(ToolType::FINGER),
-                      WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY), WithPressure(1.0f),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS),
-                      WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY),
-                      WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY),
-                      WithCoords(POINTER_X, POINTER_Y), WithRelativeMotion(0.f, 0.f),
-                      WithToolType(ToolType::FINGER), WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY),
-                      WithPressure(1.0f), WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
+                                          WithCoords(POINTER_X, POINTER_Y),
+                                          WithRelativeMotion(0.f, 0.f),
+                                          WithToolType(ToolType::FINGER),
+                                          WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY),
+                                          WithPressure(1.0f), WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS),
+                                          WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY),
+                                          WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY),
+                                          WithCoords(POINTER_X, POINTER_Y),
+                                          WithRelativeMotion(0.f, 0.f),
+                                          WithToolType(ToolType::FINGER),
+                                          WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY),
+                                          WithPressure(1.0f),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 
     Gesture buttonUpGesture(kGestureButtonsChange, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                             /* down= */ GESTURES_BUTTON_NONE,
                             /* up= */ GESTURES_BUTTON_LEFT, /* is_tap= */ false);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, buttonUpGesture);
 
-    ASSERT_EQ(3u, args.size());
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
-                      WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY), WithButtonState(0),
-                      WithCoords(POINTER_X, POINTER_Y), WithRelativeMotion(0.f, 0.f),
-                      WithToolType(ToolType::FINGER), WithButtonState(0), WithPressure(1.0f),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP), WithCoords(POINTER_X, POINTER_Y),
-                      WithRelativeMotion(0.f, 0.f), WithToolType(ToolType::FINGER),
-                      WithButtonState(0), WithPressure(0.0f), WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
-                      WithCoords(POINTER_X, POINTER_Y), WithRelativeMotion(0, 0),
-                      WithToolType(ToolType::FINGER), WithButtonState(0), WithPressure(0.0f),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
+                                          WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY),
+                                          WithButtonState(0), WithCoords(POINTER_X, POINTER_Y),
+                                          WithRelativeMotion(0.f, 0.f),
+                                          WithToolType(ToolType::FINGER), WithButtonState(0),
+                                          WithPressure(1.0f), WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
+                                          WithCoords(POINTER_X, POINTER_Y),
+                                          WithRelativeMotion(0.f, 0.f),
+                                          WithToolType(ToolType::FINGER), WithButtonState(0),
+                                          WithPressure(0.0f), WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
+                                          WithCoords(POINTER_X, POINTER_Y),
+                                          WithRelativeMotion(0, 0), WithToolType(ToolType::FINGER),
+                                          WithButtonState(0), WithPressure(0.0f),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 
     // Future taps should be re-enabled
     ASSERT_FALSE(mReader->getContext()->isPreventingTouchpadTaps());
@@ -1409,13 +1463,12 @@ TEST_F_WITH_FLAGS(GestureConverterTest, MoveEnablesTapToClick,
     Gesture moveGesture(kGestureMove, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, -5, 10);
     std::list<NotifyArgs> args =
             converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, moveGesture);
-    ASSERT_EQ(1u, args.size());
-
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
-                      WithCoords(POINTER_X - 5, POINTER_Y + 10), WithRelativeMotion(-5, 10),
-                      WithToolType(ToolType::FINGER), WithButtonState(0), WithPressure(0.0f),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
+                              WithCoords(POINTER_X - 5, POINTER_Y + 10), WithRelativeMotion(-5, 10),
+                              WithToolType(ToolType::FINGER), WithButtonState(0),
+                              WithPressure(0.0f), WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 
     ASSERT_NO_FATAL_FAILURE(mFakePointerController->assertPosition(POINTER_X - 5, POINTER_Y + 10));
 
@@ -1434,9 +1487,9 @@ TEST_F_WITH_FLAGS(GestureConverterTest, KeypressCancelsHoverMove,
     Gesture moveGesture(kGestureMove, gestureStartTime, gestureStartTime, -5, 10);
     std::list<NotifyArgs> args =
             converter.handleGesture(gestureStartTime, READ_TIME, gestureStartTime, moveGesture);
-    ASSERT_EQ(1u, args.size());
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                        WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE))));
 
     // Key presses with IME connection should cancel ongoing move gesture
     nsecs_t currentTime = gestureStartTime + 100;
@@ -1444,9 +1497,9 @@ TEST_F_WITH_FLAGS(GestureConverterTest, KeypressCancelsHoverMove,
     mReader->getContext()->setLastKeyDownTimestamp(currentTime);
     moveGesture = Gesture(kGestureMove, currentTime, currentTime, -5, 10);
     args = converter.handleGesture(currentTime, READ_TIME, gestureStartTime, moveGesture);
-    ASSERT_EQ(1u, args.size());
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                WithMotionAction(AMOTION_EVENT_ACTION_HOVER_EXIT));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                        WithMotionAction(AMOTION_EVENT_ACTION_HOVER_EXIT))));
 
     // any updates in existing move gesture should be ignored
     moveGesture = Gesture(kGestureMove, currentTime, currentTime, -5, 10);
@@ -1457,9 +1510,9 @@ TEST_F_WITH_FLAGS(GestureConverterTest, KeypressCancelsHoverMove,
     currentTime += 100;
     moveGesture = Gesture(kGestureMove, currentTime, currentTime, -5, 10);
     args = converter.handleGesture(currentTime, READ_TIME, currentTime, moveGesture);
-    ASSERT_EQ(1u, args.size());
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                        WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE))));
 }
 
 // TODO(b/311416205): De-duplicate the test cases after the refactoring is complete and the flagging
@@ -1480,12 +1533,12 @@ TEST_F(GestureConverterTestWithChoreographer, Move) {
     Gesture moveGesture(kGestureMove, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, -5, 10);
     std::list<NotifyArgs> args =
             converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, moveGesture);
-    ASSERT_EQ(1u, args.size());
-
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE), WithCoords(0, 0),
-                      WithRelativeMotion(-5, 10), WithToolType(ToolType::FINGER),
-                      WithButtonState(0), WithPressure(0.0f), WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE), WithCoords(0, 0),
+                              WithRelativeMotion(-5, 10), WithToolType(ToolType::FINGER),
+                              WithButtonState(0), WithPressure(0.0f),
+                              WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 }
 
 TEST_F(GestureConverterTestWithChoreographer, Move_Rotated) {
@@ -1497,12 +1550,12 @@ TEST_F(GestureConverterTestWithChoreographer, Move_Rotated) {
     Gesture moveGesture(kGestureMove, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, -5, 10);
     std::list<NotifyArgs> args =
             converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, moveGesture);
-    ASSERT_EQ(1u, args.size());
-
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE), WithCoords(0, 0),
-                      WithRelativeMotion(10, 5), WithToolType(ToolType::FINGER), WithButtonState(0),
-                      WithPressure(0.0f), WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE), WithCoords(0, 0),
+                              WithRelativeMotion(10, 5), WithToolType(ToolType::FINGER),
+                              WithButtonState(0), WithPressure(0.0f),
+                              WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 }
 
 TEST_F(GestureConverterTestWithChoreographer, ButtonsChange) {
@@ -1516,64 +1569,62 @@ TEST_F(GestureConverterTestWithChoreographer, ButtonsChange) {
                         /* up= */ GESTURES_BUTTON_NONE, /* is_tap= */ false);
     std::list<NotifyArgs> args =
             converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, downGesture);
-    ASSERT_EQ(3u, args.size());
-
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
-                      WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY |
-                                      AMOTION_EVENT_BUTTON_SECONDARY),
-                      WithCoords(0, 0), WithToolType(ToolType::FINGER),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS),
-                      WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY),
-                      WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY), WithCoords(0, 0),
-                      WithToolType(ToolType::FINGER), WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS),
-                      WithActionButton(AMOTION_EVENT_BUTTON_SECONDARY),
-                      WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY |
-                                      AMOTION_EVENT_BUTTON_SECONDARY),
-                      WithCoords(0, 0), WithToolType(ToolType::FINGER),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
+                                          WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY |
+                                                          AMOTION_EVENT_BUTTON_SECONDARY),
+                                          WithCoords(0, 0), WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS),
+                                          WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY),
+                                          WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY),
+                                          WithCoords(0, 0), WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS),
+                                          WithActionButton(AMOTION_EVENT_BUTTON_SECONDARY),
+                                          WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY |
+                                                          AMOTION_EVENT_BUTTON_SECONDARY),
+                                          WithCoords(0, 0), WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 
     // Then release the left button
     Gesture leftUpGesture(kGestureButtonsChange, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                           /* down= */ GESTURES_BUTTON_NONE, /* up= */ GESTURES_BUTTON_LEFT,
                           /* is_tap= */ false);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, leftUpGesture);
-    ASSERT_EQ(1u, args.size());
-
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
-                      WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY),
-                      WithButtonState(AMOTION_EVENT_BUTTON_SECONDARY), WithCoords(0, 0),
-                      WithToolType(ToolType::FINGER), WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
+                              WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY),
+                              WithButtonState(AMOTION_EVENT_BUTTON_SECONDARY), WithCoords(0, 0),
+                              WithToolType(ToolType::FINGER),
+                              WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 
     // Finally release the right button
     Gesture rightUpGesture(kGestureButtonsChange, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                            /* down= */ GESTURES_BUTTON_NONE, /* up= */ GESTURES_BUTTON_RIGHT,
                            /* is_tap= */ false);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, rightUpGesture);
-    ASSERT_EQ(3u, args.size());
-
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
-                      WithActionButton(AMOTION_EVENT_BUTTON_SECONDARY), WithButtonState(0),
-                      WithCoords(0, 0), WithToolType(ToolType::FINGER),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP), WithButtonState(0),
-                      WithCoords(0, 0), WithToolType(ToolType::FINGER),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE), WithButtonState(0),
-                      WithCoords(0, 0), WithToolType(ToolType::FINGER),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
+                                          WithActionButton(AMOTION_EVENT_BUTTON_SECONDARY),
+                                          WithButtonState(0), WithCoords(0, 0),
+                                          WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
+                                          WithButtonState(0), WithCoords(0, 0),
+                                          WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
+                                          WithButtonState(0), WithCoords(0, 0),
+                                          WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 }
 
 TEST_F(GestureConverterTestWithChoreographer, DragWithButton) {
@@ -1587,52 +1638,51 @@ TEST_F(GestureConverterTestWithChoreographer, DragWithButton) {
                         /* is_tap= */ false);
     std::list<NotifyArgs> args =
             converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, downGesture);
-    ASSERT_EQ(2u, args.size());
-
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
-                      WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY), WithCoords(0, 0),
-                      WithToolType(ToolType::FINGER), WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS),
-                      WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY),
-                      WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY), WithCoords(0, 0),
-                      WithToolType(ToolType::FINGER), WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
+                                          WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY),
+                                          WithCoords(0, 0), WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS),
+                                          WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY),
+                                          WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY),
+                                          WithCoords(0, 0), WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 
     // Move
     Gesture moveGesture(kGestureMove, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, -5, 10);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, moveGesture);
-    ASSERT_EQ(1u, args.size());
-
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE), WithCoords(0, 0),
-                      WithRelativeMotion(-5, 10), WithToolType(ToolType::FINGER),
-                      WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY), WithPressure(1.0f),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE), WithCoords(0, 0),
+                              WithRelativeMotion(-5, 10), WithToolType(ToolType::FINGER),
+                              WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY), WithPressure(1.0f),
+                              WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 
     // Release the button
     Gesture upGesture(kGestureButtonsChange, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                       /* down= */ GESTURES_BUTTON_NONE, /* up= */ GESTURES_BUTTON_LEFT,
                       /* is_tap= */ false);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, upGesture);
-    ASSERT_EQ(3u, args.size());
-
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
-                      WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY), WithButtonState(0),
-                      WithCoords(0, 0), WithToolType(ToolType::FINGER),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP), WithButtonState(0),
-                      WithCoords(0, 0), WithToolType(ToolType::FINGER),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE), WithButtonState(0),
-                      WithCoords(0, 0), WithToolType(ToolType::FINGER),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
+                                          WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY),
+                                          WithButtonState(0), WithCoords(0, 0),
+                                          WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
+                                          WithButtonState(0), WithCoords(0, 0),
+                                          WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
+                                          WithButtonState(0), WithCoords(0, 0),
+                                          WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 }
 
 TEST_F(GestureConverterTestWithChoreographer, Scroll) {
@@ -1644,46 +1694,48 @@ TEST_F(GestureConverterTestWithChoreographer, Scroll) {
     Gesture startGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, -10);
     std::list<NotifyArgs> args =
             converter.handleGesture(downTime, READ_TIME, ARBITRARY_TIME, startGesture);
-    ASSERT_EQ(2u, args.size());
-
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN), WithCoords(0, 0),
-                      WithGestureScrollDistance(0, 0, EPSILON),
-                      WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
-                      WithToolType(ToolType::FINGER), WithDownTime(downTime),
-                      WithFlags(AMOTION_EVENT_FLAG_IS_GENERATED_GESTURE),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE), WithCoords(0, -10),
-                      WithGestureScrollDistance(0, 10, EPSILON),
-                      WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
-                      WithToolType(ToolType::FINGER),
-                      WithFlags(AMOTION_EVENT_FLAG_IS_GENERATED_GESTURE),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
+                                          WithCoords(0, 0),
+                                          WithGestureScrollDistance(0, 0, EPSILON),
+                                          WithMotionClassification(
+                                                  MotionClassification::TWO_FINGER_SWIPE),
+                                          WithToolType(ToolType::FINGER), WithDownTime(downTime),
+                                          WithFlags(AMOTION_EVENT_FLAG_IS_GENERATED_GESTURE),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
+                                          WithCoords(0, -10),
+                                          WithGestureScrollDistance(0, 10, EPSILON),
+                                          WithMotionClassification(
+                                                  MotionClassification::TWO_FINGER_SWIPE),
+                                          WithToolType(ToolType::FINGER),
+                                          WithFlags(AMOTION_EVENT_FLAG_IS_GENERATED_GESTURE),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 
     Gesture continueGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, -5);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, continueGesture);
-    ASSERT_EQ(1u, args.size());
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE), WithCoords(0, -15),
-                      WithGestureScrollDistance(0, 5, EPSILON),
-                      WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
-                      WithToolType(ToolType::FINGER),
-                      WithFlags(AMOTION_EVENT_FLAG_IS_GENERATED_GESTURE),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE), WithCoords(0, -15),
+                              WithGestureScrollDistance(0, 5, EPSILON),
+                              WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
+                              WithToolType(ToolType::FINGER),
+                              WithFlags(AMOTION_EVENT_FLAG_IS_GENERATED_GESTURE),
+                              WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 
     Gesture flingGesture(kGestureFling, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 1, 1,
                          GESTURES_FLING_START);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, flingGesture);
-    ASSERT_EQ(1u, args.size());
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP), WithCoords(0, 0 - 15),
-                      WithGestureScrollDistance(0, 0, EPSILON),
-                      WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
-                      WithToolType(ToolType::FINGER),
-                      WithFlags(AMOTION_EVENT_FLAG_IS_GENERATED_GESTURE),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP), WithCoords(0, 0 - 15),
+                              WithGestureScrollDistance(0, 0, EPSILON),
+                              WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
+                              WithToolType(ToolType::FINGER),
+                              WithFlags(AMOTION_EVENT_FLAG_IS_GENERATED_GESTURE),
+                              WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 }
 
 TEST_F(GestureConverterTestWithChoreographer, Scroll_Rotated) {
@@ -1696,39 +1748,44 @@ TEST_F(GestureConverterTestWithChoreographer, Scroll_Rotated) {
     Gesture startGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, -10);
     std::list<NotifyArgs> args =
             converter.handleGesture(downTime, READ_TIME, ARBITRARY_TIME, startGesture);
-    ASSERT_EQ(2u, args.size());
-
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN), WithCoords(0, 0),
-                      WithGestureScrollDistance(0, 0, EPSILON),
-                      WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
-                      WithToolType(ToolType::FINGER), WithDownTime(downTime),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE), WithCoords(-10, 0),
-                      WithGestureScrollDistance(0, 10, EPSILON),
-                      WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
-                      WithToolType(ToolType::FINGER), WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
+                                          WithCoords(0, 0),
+                                          WithGestureScrollDistance(0, 0, EPSILON),
+                                          WithMotionClassification(
+                                                  MotionClassification::TWO_FINGER_SWIPE),
+                                          WithToolType(ToolType::FINGER), WithDownTime(downTime),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
+                                          WithCoords(-10, 0),
+                                          WithGestureScrollDistance(0, 10, EPSILON),
+                                          WithMotionClassification(
+                                                  MotionClassification::TWO_FINGER_SWIPE),
+                                          WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 
     Gesture continueGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, -5);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, continueGesture);
-    ASSERT_EQ(1u, args.size());
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE), WithCoords(-15, 0),
-                      WithGestureScrollDistance(0, 5, EPSILON),
-                      WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
-                      WithToolType(ToolType::FINGER), WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE), WithCoords(-15, 0),
+                              WithGestureScrollDistance(0, 5, EPSILON),
+                              WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
+                              WithToolType(ToolType::FINGER),
+                              WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 
     Gesture flingGesture(kGestureFling, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 1, 1,
                          GESTURES_FLING_START);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, flingGesture);
-    ASSERT_EQ(1u, args.size());
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP), WithCoords(-15, 0),
-                      WithGestureScrollDistance(0, 0, EPSILON),
-                      WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
-                      WithToolType(ToolType::FINGER), WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP), WithCoords(-15, 0),
+                              WithGestureScrollDistance(0, 0, EPSILON),
+                              WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
+                              WithToolType(ToolType::FINGER),
+                              WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 }
 
 TEST_F(GestureConverterTestWithChoreographer, Scroll_ClearsClassificationAfterGesture) {
@@ -1749,10 +1806,10 @@ TEST_F(GestureConverterTestWithChoreographer, Scroll_ClearsClassificationAfterGe
 
     Gesture moveGesture(kGestureMove, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, -5, 10);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, moveGesture);
-    ASSERT_EQ(1u, args.size());
-    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionClassification(MotionClassification::NONE),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithMotionClassification(MotionClassification::NONE),
+                              WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 }
 
 TEST_F(GestureConverterTestWithChoreographer, Scroll_ClearsScrollDistanceAfterGesture) {
@@ -1796,9 +1853,9 @@ TEST_F(GestureConverterTestWithChoreographer, ThreeFingerSwipe_ClearsClassificat
     Gesture moveGesture(kGestureMove, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /*dx=*/-5,
                         /*dy=*/10);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, moveGesture);
-    ASSERT_EQ(1u, args.size());
-    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                WithMotionClassification(MotionClassification::NONE));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                        WithMotionClassification(MotionClassification::NONE))));
 }
 
 TEST_F(GestureConverterTestWithChoreographer, ThreeFingerSwipe_ClearsGestureAxesAfterGesture) {
@@ -1905,29 +1962,35 @@ TEST_F(GestureConverterTestWithChoreographer, ThreeFingerSwipe_Vertical) {
 
     Gesture liftGesture(kGestureSwipeLift, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, liftGesture);
-    ASSERT_EQ(3u, args.size());
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_POINTER_UP |
-                                       2 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
-                      WithGestureOffset(0, 0, EPSILON), WithGestureSwipeFingerCount(3),
-                      WithMotionClassification(MotionClassification::MULTI_FINGER_SWIPE),
-                      WithPointerCount(3u), WithToolType(ToolType::FINGER),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_POINTER_UP |
-                                       1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
-                      WithGestureOffset(0, 0, EPSILON), WithGestureSwipeFingerCount(3),
-                      WithMotionClassification(MotionClassification::MULTI_FINGER_SWIPE),
-                      WithPointerCount(2u), WithToolType(ToolType::FINGER),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP), WithGestureOffset(0, 0, EPSILON),
-                      WithGestureSwipeFingerCount(3),
-                      WithMotionClassification(MotionClassification::MULTI_FINGER_SWIPE),
-                      WithPointerCount(1u), WithToolType(ToolType::FINGER),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(
+                                                  AMOTION_EVENT_ACTION_POINTER_UP |
+                                                  2 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+                                          WithGestureOffset(0, 0, EPSILON),
+                                          WithGestureSwipeFingerCount(3),
+                                          WithMotionClassification(
+                                                  MotionClassification::MULTI_FINGER_SWIPE),
+                                          WithPointerCount(3u), WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(
+                                                  AMOTION_EVENT_ACTION_POINTER_UP |
+                                                  1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+                                          WithGestureOffset(0, 0, EPSILON),
+                                          WithGestureSwipeFingerCount(3),
+                                          WithMotionClassification(
+                                                  MotionClassification::MULTI_FINGER_SWIPE),
+                                          WithPointerCount(2u), WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
+                                          WithGestureOffset(0, 0, EPSILON),
+                                          WithGestureSwipeFingerCount(3),
+                                          WithMotionClassification(
+                                                  MotionClassification::MULTI_FINGER_SWIPE),
+                                          WithPointerCount(1u), WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 }
 
 TEST_F(GestureConverterTestWithChoreographer, ThreeFingerSwipe_Rotated) {
@@ -1997,22 +2060,23 @@ TEST_F(GestureConverterTestWithChoreographer, ThreeFingerSwipe_Rotated) {
 
     Gesture liftGesture(kGestureSwipeLift, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, liftGesture);
-    ASSERT_EQ(3u, args.size());
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_POINTER_UP |
-                                       2 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
-                      WithGestureOffset(0, 0, EPSILON), WithPointerCount(3u),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_POINTER_UP |
-                                       1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
-                      WithGestureOffset(0, 0, EPSILON), WithPointerCount(2u),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP), WithGestureOffset(0, 0, EPSILON),
-                      WithPointerCount(1u), WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(
+                                                  AMOTION_EVENT_ACTION_POINTER_UP |
+                                                  2 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+                                          WithGestureOffset(0, 0, EPSILON), WithPointerCount(3u),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(
+                                                  AMOTION_EVENT_ACTION_POINTER_UP |
+                                                  1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+                                          WithGestureOffset(0, 0, EPSILON), WithPointerCount(2u),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
+                                          WithGestureOffset(0, 0, EPSILON), WithPointerCount(1u),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 }
 
 TEST_F(GestureConverterTestWithChoreographer, FourFingerSwipe_Horizontal) {
@@ -2106,37 +2170,45 @@ TEST_F(GestureConverterTestWithChoreographer, FourFingerSwipe_Horizontal) {
 
     Gesture liftGesture(kGestureSwipeLift, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, liftGesture);
-    ASSERT_EQ(4u, args.size());
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_POINTER_UP |
-                                       3 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
-                      WithGestureOffset(0, 0, EPSILON), WithGestureSwipeFingerCount(4),
-                      WithMotionClassification(MotionClassification::MULTI_FINGER_SWIPE),
-                      WithPointerCount(4u), WithToolType(ToolType::FINGER),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_POINTER_UP |
-                                       2 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
-                      WithGestureOffset(0, 0, EPSILON), WithGestureSwipeFingerCount(4),
-                      WithMotionClassification(MotionClassification::MULTI_FINGER_SWIPE),
-                      WithPointerCount(3u), WithToolType(ToolType::FINGER),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_POINTER_UP |
-                                       1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
-                      WithGestureOffset(0, 0, EPSILON), WithGestureSwipeFingerCount(4),
-                      WithMotionClassification(MotionClassification::MULTI_FINGER_SWIPE),
-                      WithPointerCount(2u), WithToolType(ToolType::FINGER),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP), WithGestureOffset(0, 0, EPSILON),
-                      WithGestureSwipeFingerCount(4),
-                      WithMotionClassification(MotionClassification::MULTI_FINGER_SWIPE),
-                      WithPointerCount(1u), WithToolType(ToolType::FINGER),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(
+                                                  AMOTION_EVENT_ACTION_POINTER_UP |
+                                                  3 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+                                          WithGestureOffset(0, 0, EPSILON),
+                                          WithGestureSwipeFingerCount(4),
+                                          WithMotionClassification(
+                                                  MotionClassification::MULTI_FINGER_SWIPE),
+                                          WithPointerCount(4u), WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(
+                                                  AMOTION_EVENT_ACTION_POINTER_UP |
+                                                  2 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+                                          WithGestureOffset(0, 0, EPSILON),
+                                          WithGestureSwipeFingerCount(4),
+                                          WithMotionClassification(
+                                                  MotionClassification::MULTI_FINGER_SWIPE),
+                                          WithPointerCount(3u), WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(
+                                                  AMOTION_EVENT_ACTION_POINTER_UP |
+                                                  1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+                                          WithGestureOffset(0, 0, EPSILON),
+                                          WithGestureSwipeFingerCount(4),
+                                          WithMotionClassification(
+                                                  MotionClassification::MULTI_FINGER_SWIPE),
+                                          WithPointerCount(2u), WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
+                                          WithGestureOffset(0, 0, EPSILON),
+                                          WithGestureSwipeFingerCount(4),
+                                          WithMotionClassification(
+                                                  MotionClassification::MULTI_FINGER_SWIPE),
+                                          WithPointerCount(1u), WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 }
 
 TEST_F(GestureConverterTestWithChoreographer, Pinch_Inwards) {
@@ -2148,49 +2220,54 @@ TEST_F(GestureConverterTestWithChoreographer, Pinch_Inwards) {
                          GESTURES_ZOOM_START);
     std::list<NotifyArgs> args =
             converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, startGesture);
-    ASSERT_EQ(2u, args.size());
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
-                      WithMotionClassification(MotionClassification::PINCH),
-                      WithGesturePinchScaleFactor(1.0f, EPSILON), WithCoords(-100, 0),
-                      WithPointerCount(1u), WithToolType(ToolType::FINGER),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_POINTER_DOWN |
-                                       1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
-                      WithMotionClassification(MotionClassification::PINCH),
-                      WithGesturePinchScaleFactor(1.0f, EPSILON), WithPointerCoords(1, 100, 0),
-                      WithPointerCount(2u), WithToolType(ToolType::FINGER),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
+                                          WithMotionClassification(MotionClassification::PINCH),
+                                          WithGesturePinchScaleFactor(1.0f, EPSILON),
+                                          WithCoords(-100, 0), WithPointerCount(1u),
+                                          WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(
+                                                  AMOTION_EVENT_ACTION_POINTER_DOWN |
+                                                  1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+                                          WithMotionClassification(MotionClassification::PINCH),
+                                          WithGesturePinchScaleFactor(1.0f, EPSILON),
+                                          WithPointerCoords(1, 100, 0), WithPointerCount(2u),
+                                          WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 
     Gesture updateGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                           /* dz= */ 0.8, GESTURES_ZOOM_UPDATE);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, updateGesture);
-    ASSERT_EQ(1u, args.size());
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
-                      WithMotionClassification(MotionClassification::PINCH),
-                      WithGesturePinchScaleFactor(0.8f, EPSILON), WithPointerCoords(0, -80, 0),
-                      WithPointerCoords(1, 80, 0), WithPointerCount(2u),
-                      WithToolType(ToolType::FINGER), WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
+                              WithMotionClassification(MotionClassification::PINCH),
+                              WithGesturePinchScaleFactor(0.8f, EPSILON),
+                              WithPointerCoords(0, -80, 0), WithPointerCoords(1, 80, 0),
+                              WithPointerCount(2u), WithToolType(ToolType::FINGER),
+                              WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 
     Gesture endGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /* dz= */ 1,
                        GESTURES_ZOOM_END);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, endGesture);
-    ASSERT_EQ(2u, args.size());
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_POINTER_UP |
-                                       1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
-                      WithMotionClassification(MotionClassification::PINCH),
-                      WithGesturePinchScaleFactor(1.0f, EPSILON), WithPointerCount(2u),
-                      WithToolType(ToolType::FINGER), WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
-                      WithMotionClassification(MotionClassification::PINCH),
-                      WithGesturePinchScaleFactor(1.0f, EPSILON), WithPointerCount(1u),
-                      WithToolType(ToolType::FINGER), WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(
+                                                  AMOTION_EVENT_ACTION_POINTER_UP |
+                                                  1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+                                          WithMotionClassification(MotionClassification::PINCH),
+                                          WithGesturePinchScaleFactor(1.0f, EPSILON),
+                                          WithPointerCount(2u), WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
+                                          WithMotionClassification(MotionClassification::PINCH),
+                                          WithGesturePinchScaleFactor(1.0f, EPSILON),
+                                          WithPointerCount(1u), WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 }
 
 TEST_F(GestureConverterTestWithChoreographer, Pinch_Outwards) {
@@ -2202,49 +2279,54 @@ TEST_F(GestureConverterTestWithChoreographer, Pinch_Outwards) {
                          GESTURES_ZOOM_START);
     std::list<NotifyArgs> args =
             converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, startGesture);
-    ASSERT_EQ(2u, args.size());
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
-                      WithMotionClassification(MotionClassification::PINCH),
-                      WithGesturePinchScaleFactor(1.0f, EPSILON), WithCoords(-100, 0),
-                      WithPointerCount(1u), WithToolType(ToolType::FINGER),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_POINTER_DOWN |
-                                       1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
-                      WithMotionClassification(MotionClassification::PINCH),
-                      WithGesturePinchScaleFactor(1.0f, EPSILON), WithPointerCoords(1, 100, 0),
-                      WithPointerCount(2u), WithToolType(ToolType::FINGER),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
+                                          WithMotionClassification(MotionClassification::PINCH),
+                                          WithGesturePinchScaleFactor(1.0f, EPSILON),
+                                          WithCoords(-100, 0), WithPointerCount(1u),
+                                          WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(
+                                                  AMOTION_EVENT_ACTION_POINTER_DOWN |
+                                                  1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+                                          WithMotionClassification(MotionClassification::PINCH),
+                                          WithGesturePinchScaleFactor(1.0f, EPSILON),
+                                          WithPointerCoords(1, 100, 0), WithPointerCount(2u),
+                                          WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 
     Gesture updateGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                           /* dz= */ 1.1, GESTURES_ZOOM_UPDATE);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, updateGesture);
-    ASSERT_EQ(1u, args.size());
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
-                      WithMotionClassification(MotionClassification::PINCH),
-                      WithGesturePinchScaleFactor(1.1f, EPSILON), WithPointerCoords(0, -110, 0),
-                      WithPointerCoords(1, 110, 0), WithPointerCount(2u),
-                      WithToolType(ToolType::FINGER), WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
+                              WithMotionClassification(MotionClassification::PINCH),
+                              WithGesturePinchScaleFactor(1.1f, EPSILON),
+                              WithPointerCoords(0, -110, 0), WithPointerCoords(1, 110, 0),
+                              WithPointerCount(2u), WithToolType(ToolType::FINGER),
+                              WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 
     Gesture endGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /* dz= */ 1,
                        GESTURES_ZOOM_END);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, endGesture);
-    ASSERT_EQ(2u, args.size());
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_POINTER_UP |
-                                       1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
-                      WithMotionClassification(MotionClassification::PINCH),
-                      WithGesturePinchScaleFactor(1.0f, EPSILON), WithPointerCount(2u),
-                      WithToolType(ToolType::FINGER), WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
-                      WithMotionClassification(MotionClassification::PINCH),
-                      WithGesturePinchScaleFactor(1.0f, EPSILON), WithPointerCount(1u),
-                      WithToolType(ToolType::FINGER), WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(
+                                                  AMOTION_EVENT_ACTION_POINTER_UP |
+                                                  1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+                                          WithMotionClassification(MotionClassification::PINCH),
+                                          WithGesturePinchScaleFactor(1.0f, EPSILON),
+                                          WithPointerCount(2u), WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
+                                          WithMotionClassification(MotionClassification::PINCH),
+                                          WithGesturePinchScaleFactor(1.0f, EPSILON),
+                                          WithPointerCount(1u), WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 }
 
 TEST_F(GestureConverterTestWithChoreographer, Pinch_ClearsClassificationAfterGesture) {
@@ -2267,9 +2349,9 @@ TEST_F(GestureConverterTestWithChoreographer, Pinch_ClearsClassificationAfterGes
 
     Gesture moveGesture(kGestureMove, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, -5, 10);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, moveGesture);
-    ASSERT_EQ(1u, args.size());
-    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                WithMotionClassification(MotionClassification::NONE));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                        WithMotionClassification(MotionClassification::NONE))));
 }
 
 TEST_F(GestureConverterTestWithChoreographer, Pinch_ClearsScaleFactorAfterGesture) {
@@ -2310,24 +2392,24 @@ TEST_F(GestureConverterTestWithChoreographer, ResetWithButtonPressed) {
     (void)converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, downGesture);
 
     std::list<NotifyArgs> args = converter.reset(ARBITRARY_TIME);
-    ASSERT_EQ(3u, args.size());
-
-    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
-                      WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY),
-                      WithButtonState(AMOTION_EVENT_BUTTON_SECONDARY), WithCoords(0, 0),
-                      WithToolType(ToolType::FINGER), WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
-                      WithActionButton(AMOTION_EVENT_BUTTON_SECONDARY), WithButtonState(0),
-                      WithCoords(0, 0), WithToolType(ToolType::FINGER),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP), WithButtonState(0),
-                      WithCoords(0, 0), WithToolType(ToolType::FINGER),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
+                                          WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY),
+                                          WithButtonState(AMOTION_EVENT_BUTTON_SECONDARY),
+                                          WithCoords(0, 0), WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
+                                          WithActionButton(AMOTION_EVENT_BUTTON_SECONDARY),
+                                          WithButtonState(0), WithCoords(0, 0),
+                                          WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
+                                          WithButtonState(0), WithCoords(0, 0),
+                                          WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 }
 
 TEST_F(GestureConverterTestWithChoreographer, ResetDuringScroll) {
@@ -2339,14 +2421,14 @@ TEST_F(GestureConverterTestWithChoreographer, ResetDuringScroll) {
     (void)converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, startGesture);
 
     std::list<NotifyArgs> args = converter.reset(ARBITRARY_TIME);
-    ASSERT_EQ(1u, args.size());
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP), WithCoords(0, -10),
-                      WithGestureScrollDistance(0, 0, EPSILON),
-                      WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
-                      WithToolType(ToolType::FINGER),
-                      WithFlags(AMOTION_EVENT_FLAG_IS_GENERATED_GESTURE),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP), WithCoords(0, -10),
+                              WithGestureScrollDistance(0, 0, EPSILON),
+                              WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
+                              WithToolType(ToolType::FINGER),
+                              WithFlags(AMOTION_EVENT_FLAG_IS_GENERATED_GESTURE),
+                              WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 }
 
 TEST_F(GestureConverterTestWithChoreographer, ResetDuringThreeFingerSwipe) {
@@ -2359,28 +2441,32 @@ TEST_F(GestureConverterTestWithChoreographer, ResetDuringThreeFingerSwipe) {
     (void)converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, startGesture);
 
     std::list<NotifyArgs> args = converter.reset(ARBITRARY_TIME);
-    ASSERT_EQ(3u, args.size());
-    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_POINTER_UP |
-                                       2 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
-                      WithGestureOffset(0, 0, EPSILON),
-                      WithMotionClassification(MotionClassification::MULTI_FINGER_SWIPE),
-                      WithPointerCount(3u), WithToolType(ToolType::FINGER),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_POINTER_UP |
-                                       1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
-                      WithGestureOffset(0, 0, EPSILON),
-                      WithMotionClassification(MotionClassification::MULTI_FINGER_SWIPE),
-                      WithPointerCount(2u), WithToolType(ToolType::FINGER),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP), WithGestureOffset(0, 0, EPSILON),
-                      WithMotionClassification(MotionClassification::MULTI_FINGER_SWIPE),
-                      WithPointerCount(1u), WithToolType(ToolType::FINGER),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(
+                                                  AMOTION_EVENT_ACTION_POINTER_UP |
+                                                  2 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+                                          WithGestureOffset(0, 0, EPSILON),
+                                          WithMotionClassification(
+                                                  MotionClassification::MULTI_FINGER_SWIPE),
+                                          WithPointerCount(3u), WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(
+                                                  AMOTION_EVENT_ACTION_POINTER_UP |
+                                                  1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+                                          WithGestureOffset(0, 0, EPSILON),
+                                          WithMotionClassification(
+                                                  MotionClassification::MULTI_FINGER_SWIPE),
+                                          WithPointerCount(2u), WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
+                                          WithGestureOffset(0, 0, EPSILON),
+                                          WithMotionClassification(
+                                                  MotionClassification::MULTI_FINGER_SWIPE),
+                                          WithPointerCount(1u), WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 }
 
 TEST_F(GestureConverterTestWithChoreographer, ResetDuringPinch) {
@@ -2393,19 +2479,21 @@ TEST_F(GestureConverterTestWithChoreographer, ResetDuringPinch) {
     (void)converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, startGesture);
 
     std::list<NotifyArgs> args = converter.reset(ARBITRARY_TIME);
-    ASSERT_EQ(2u, args.size());
-    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_POINTER_UP |
-                                       1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
-                      WithMotionClassification(MotionClassification::PINCH),
-                      WithGesturePinchScaleFactor(1.0f, EPSILON), WithPointerCount(2u),
-                      WithToolType(ToolType::FINGER), WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
-                      WithMotionClassification(MotionClassification::PINCH),
-                      WithGesturePinchScaleFactor(1.0f, EPSILON), WithPointerCount(1u),
-                      WithToolType(ToolType::FINGER), WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(
+                                                  AMOTION_EVENT_ACTION_POINTER_UP |
+                                                  1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
+                                          WithMotionClassification(MotionClassification::PINCH),
+                                          WithGesturePinchScaleFactor(1.0f, EPSILON),
+                                          WithPointerCount(2u), WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
+                                          WithMotionClassification(MotionClassification::PINCH),
+                                          WithGesturePinchScaleFactor(1.0f, EPSILON),
+                                          WithPointerCount(1u), WithToolType(ToolType::FINGER),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 }
 
 TEST_F(GestureConverterTestWithChoreographer, FlingTapDown) {
@@ -2435,48 +2523,51 @@ TEST_F(GestureConverterTestWithChoreographer, Tap) {
     std::list<NotifyArgs> args =
             converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, flingGesture);
 
-    ASSERT_EQ(1u, args.size());
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE), WithCoords(0, 0),
-                      WithRelativeMotion(0, 0), WithToolType(ToolType::FINGER), WithButtonState(0),
-                      WithPressure(0.0f), WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE), WithCoords(0, 0),
+                              WithRelativeMotion(0, 0), WithToolType(ToolType::FINGER),
+                              WithButtonState(0), WithPressure(0.0f),
+                              WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 
     Gesture tapGesture(kGestureButtonsChange, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                        /* down= */ GESTURES_BUTTON_LEFT,
                        /* up= */ GESTURES_BUTTON_LEFT, /* is_tap= */ true);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, tapGesture);
 
-    ASSERT_EQ(5u, args.size());
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN), WithCoords(0, 0),
-                      WithRelativeMotion(0.f, 0.f), WithToolType(ToolType::FINGER),
-                      WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY), WithPressure(1.0f),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS),
-                      WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY),
-                      WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY), WithCoords(0, 0),
-                      WithRelativeMotion(0.f, 0.f), WithToolType(ToolType::FINGER),
-                      WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY), WithPressure(1.0f),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
-                      WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY), WithButtonState(0),
-                      WithCoords(0, 0), WithRelativeMotion(0.f, 0.f),
-                      WithToolType(ToolType::FINGER), WithButtonState(0), WithPressure(1.0f),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP), WithCoords(0, 0),
-                      WithRelativeMotion(0.f, 0.f), WithToolType(ToolType::FINGER),
-                      WithButtonState(0), WithPressure(0.0f), WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE), WithCoords(0, 0),
-                      WithRelativeMotion(0, 0), WithToolType(ToolType::FINGER), WithButtonState(0),
-                      WithPressure(0.0f), WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
+                                          WithCoords(0, 0), WithRelativeMotion(0.f, 0.f),
+                                          WithToolType(ToolType::FINGER),
+                                          WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY),
+                                          WithPressure(1.0f), WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS),
+                                          WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY),
+                                          WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY),
+                                          WithCoords(0, 0), WithRelativeMotion(0.f, 0.f),
+                                          WithToolType(ToolType::FINGER),
+                                          WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY),
+                                          WithPressure(1.0f), WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
+                                          WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY),
+                                          WithButtonState(0), WithCoords(0, 0),
+                                          WithRelativeMotion(0.f, 0.f),
+                                          WithToolType(ToolType::FINGER), WithButtonState(0),
+                                          WithPressure(1.0f), WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
+                                          WithCoords(0, 0), WithRelativeMotion(0.f, 0.f),
+                                          WithToolType(ToolType::FINGER), WithButtonState(0),
+                                          WithPressure(0.0f), WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
+                                          WithCoords(0, 0), WithRelativeMotion(0, 0),
+                                          WithToolType(ToolType::FINGER), WithButtonState(0),
+                                          WithPressure(0.0f),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 }
 
 TEST_F(GestureConverterTestWithChoreographer, Click) {
@@ -2501,43 +2592,47 @@ TEST_F(GestureConverterTestWithChoreographer, Click) {
                               /* up= */ GESTURES_BUTTON_NONE, /* is_tap= */ false);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, buttonDownGesture);
 
-    ASSERT_EQ(2u, args.size());
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN), WithCoords(0, 0),
-                      WithRelativeMotion(0.f, 0.f), WithToolType(ToolType::FINGER),
-                      WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY), WithPressure(1.0f),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS),
-                      WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY),
-                      WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY), WithCoords(0, 0),
-                      WithRelativeMotion(0.f, 0.f), WithToolType(ToolType::FINGER),
-                      WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY), WithPressure(1.0f),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
+                                          WithCoords(0, 0), WithRelativeMotion(0.f, 0.f),
+                                          WithToolType(ToolType::FINGER),
+                                          WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY),
+                                          WithPressure(1.0f), WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS),
+                                          WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY),
+                                          WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY),
+                                          WithCoords(0, 0), WithRelativeMotion(0.f, 0.f),
+                                          WithToolType(ToolType::FINGER),
+                                          WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY),
+                                          WithPressure(1.0f),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 
     Gesture buttonUpGesture(kGestureButtonsChange, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                             /* down= */ GESTURES_BUTTON_NONE,
                             /* up= */ GESTURES_BUTTON_LEFT, /* is_tap= */ false);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, buttonUpGesture);
 
-    ASSERT_EQ(3u, args.size());
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
-                      WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY), WithButtonState(0),
-                      WithCoords(0, 0), WithRelativeMotion(0.f, 0.f),
-                      WithToolType(ToolType::FINGER), WithButtonState(0), WithPressure(1.0f),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP), WithCoords(0, 0),
-                      WithRelativeMotion(0.f, 0.f), WithToolType(ToolType::FINGER),
-                      WithButtonState(0), WithPressure(0.0f), WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE), WithCoords(0, 0),
-                      WithRelativeMotion(0, 0), WithToolType(ToolType::FINGER), WithButtonState(0),
-                      WithPressure(0.0f), WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
+                                          WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY),
+                                          WithButtonState(0), WithCoords(0, 0),
+                                          WithRelativeMotion(0.f, 0.f),
+                                          WithToolType(ToolType::FINGER), WithButtonState(0),
+                                          WithPressure(1.0f), WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
+                                          WithCoords(0, 0), WithRelativeMotion(0.f, 0.f),
+                                          WithToolType(ToolType::FINGER), WithButtonState(0),
+                                          WithPressure(0.0f), WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
+                                          WithCoords(0, 0), WithRelativeMotion(0, 0),
+                                          WithToolType(ToolType::FINGER), WithButtonState(0),
+                                          WithPressure(0.0f),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 }
 
 TEST_F_WITH_FLAGS(GestureConverterTestWithChoreographer, TapWithTapToClickDisabled,
@@ -2557,11 +2652,12 @@ TEST_F_WITH_FLAGS(GestureConverterTestWithChoreographer, TapWithTapToClickDisabl
     std::list<NotifyArgs> args =
             converter.handleGesture(currentTime, currentTime, currentTime, flingGesture);
 
-    ASSERT_EQ(1u, args.size());
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE), WithCoords(0, 0),
-                      WithRelativeMotion(0, 0), WithToolType(ToolType::FINGER), WithButtonState(0),
-                      WithPressure(0.0f), WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE), WithCoords(0, 0),
+                              WithRelativeMotion(0, 0), WithToolType(ToolType::FINGER),
+                              WithButtonState(0), WithPressure(0.0f),
+                              WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 
     Gesture tapGesture(kGestureButtonsChange, currentTime, currentTime,
                        /* down= */ GESTURES_BUTTON_LEFT,
@@ -2679,54 +2775,59 @@ TEST_F_WITH_FLAGS(GestureConverterTestWithChoreographer, ClickWithTapToClickDisa
     std::list<NotifyArgs> args =
             converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, flingGesture);
 
-    ASSERT_EQ(1u, args.size());
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE), WithCoords(0, 0),
-                      WithRelativeMotion(0, 0), WithToolType(ToolType::FINGER), WithButtonState(0),
-                      WithPressure(0.0f), WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE), WithCoords(0, 0),
+                              WithRelativeMotion(0, 0), WithToolType(ToolType::FINGER),
+                              WithButtonState(0), WithPressure(0.0f),
+                              WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 
     Gesture buttonDownGesture(kGestureButtonsChange, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                               /* down= */ GESTURES_BUTTON_LEFT,
                               /* up= */ GESTURES_BUTTON_NONE, /* is_tap= */ false);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, buttonDownGesture);
-    ASSERT_EQ(2u, args.size());
 
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN), WithCoords(0, 0),
-                      WithRelativeMotion(0.f, 0.f), WithToolType(ToolType::FINGER),
-                      WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY), WithPressure(1.0f),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS),
-                      WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY),
-                      WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY), WithCoords(0, 0),
-                      WithRelativeMotion(0.f, 0.f), WithToolType(ToolType::FINGER),
-                      WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY), WithPressure(1.0f),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
+                                          WithCoords(0, 0), WithRelativeMotion(0.f, 0.f),
+                                          WithToolType(ToolType::FINGER),
+                                          WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY),
+                                          WithPressure(1.0f), WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS),
+                                          WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY),
+                                          WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY),
+                                          WithCoords(0, 0), WithRelativeMotion(0.f, 0.f),
+                                          WithToolType(ToolType::FINGER),
+                                          WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY),
+                                          WithPressure(1.0f),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 
     Gesture buttonUpGesture(kGestureButtonsChange, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                             /* down= */ GESTURES_BUTTON_NONE,
                             /* up= */ GESTURES_BUTTON_LEFT, /* is_tap= */ false);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, buttonUpGesture);
 
-    ASSERT_EQ(3u, args.size());
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
-                      WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY), WithButtonState(0),
-                      WithCoords(0, 0), WithRelativeMotion(0.f, 0.f),
-                      WithToolType(ToolType::FINGER), WithButtonState(0), WithPressure(1.0f),
-                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP), WithCoords(0, 0),
-                      WithRelativeMotion(0.f, 0.f), WithToolType(ToolType::FINGER),
-                      WithButtonState(0), WithPressure(0.0f), WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE), WithCoords(0, 0),
-                      WithRelativeMotion(0, 0), WithToolType(ToolType::FINGER), WithButtonState(0),
-                      WithPressure(0.0f), WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
+                                          WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY),
+                                          WithButtonState(0), WithCoords(0, 0),
+                                          WithRelativeMotion(0.f, 0.f),
+                                          WithToolType(ToolType::FINGER), WithButtonState(0),
+                                          WithPressure(1.0f), WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
+                                          WithCoords(0, 0), WithRelativeMotion(0.f, 0.f),
+                                          WithToolType(ToolType::FINGER), WithButtonState(0),
+                                          WithPressure(0.0f), WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
+                                          WithCoords(0, 0), WithRelativeMotion(0, 0),
+                                          WithToolType(ToolType::FINGER), WithButtonState(0),
+                                          WithPressure(0.0f),
+                                          WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 
     // Future taps should be re-enabled
     ASSERT_FALSE(mReader->getContext()->isPreventingTouchpadTaps());
@@ -2744,12 +2845,13 @@ TEST_F_WITH_FLAGS(GestureConverterTestWithChoreographer, MoveEnablesTapToClick,
     Gesture moveGesture(kGestureMove, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, -5, 10);
     std::list<NotifyArgs> args =
             converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, moveGesture);
-    ASSERT_EQ(1u, args.size());
 
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE), WithCoords(0, 0),
-                      WithRelativeMotion(-5, 10), WithToolType(ToolType::FINGER),
-                      WithButtonState(0), WithPressure(0.0f), WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE), WithCoords(0, 0),
+                              WithRelativeMotion(-5, 10), WithToolType(ToolType::FINGER),
+                              WithButtonState(0), WithPressure(0.0f),
+                              WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 
     // Future taps should be re-enabled
     ASSERT_FALSE(mReader->getContext()->isPreventingTouchpadTaps());
@@ -2766,9 +2868,9 @@ TEST_F_WITH_FLAGS(GestureConverterTestWithChoreographer, KeypressCancelsHoverMov
     Gesture moveGesture(kGestureMove, gestureStartTime, gestureStartTime, -5, 10);
     std::list<NotifyArgs> args =
             converter.handleGesture(gestureStartTime, READ_TIME, gestureStartTime, moveGesture);
-    ASSERT_EQ(1u, args.size());
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                        WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE))));
 
     // Key presses with IME connection should cancel ongoing move gesture
     nsecs_t currentTime = gestureStartTime + 100;
@@ -2776,9 +2878,9 @@ TEST_F_WITH_FLAGS(GestureConverterTestWithChoreographer, KeypressCancelsHoverMov
     mReader->getContext()->setLastKeyDownTimestamp(currentTime);
     moveGesture = Gesture(kGestureMove, currentTime, currentTime, -5, 10);
     args = converter.handleGesture(currentTime, READ_TIME, gestureStartTime, moveGesture);
-    ASSERT_EQ(1u, args.size());
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                WithMotionAction(AMOTION_EVENT_ACTION_HOVER_EXIT));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                        WithMotionAction(AMOTION_EVENT_ACTION_HOVER_EXIT))));
 
     // any updates in existing move gesture should be ignored
     moveGesture = Gesture(kGestureMove, currentTime, currentTime, -5, 10);
@@ -2789,9 +2891,9 @@ TEST_F_WITH_FLAGS(GestureConverterTestWithChoreographer, KeypressCancelsHoverMov
     currentTime += 100;
     moveGesture = Gesture(kGestureMove, currentTime, currentTime, -5, 10);
     args = converter.handleGesture(currentTime, READ_TIME, currentTime, moveGesture);
-    ASSERT_EQ(1u, args.size());
-    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
-                WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE));
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                        WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE))));
 }
 
 } // namespace android
