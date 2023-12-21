@@ -116,8 +116,6 @@ std::list<NotifyArgs> GestureConverter::reset(nsecs_t when) {
 void GestureConverter::populateMotionRanges(InputDeviceInfo& info) const {
     info.addMotionRange(AMOTION_EVENT_AXIS_PRESSURE, SOURCE, 0.0f, 1.0f, 0, 0, 0);
 
-    // TODO(b/259547750): set this using the raw axis ranges from the touchpad when pointer capture
-    // is enabled.
     if (!mBoundsInLogicalDisplay.isEmpty()) {
         info.addMotionRange(AMOTION_EVENT_AXIS_X, SOURCE, mBoundsInLogicalDisplay.left,
                             mBoundsInLogicalDisplay.right, 0, 0, 0);
