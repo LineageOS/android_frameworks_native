@@ -330,10 +330,8 @@ TEST_F(HWComposerTest, getModesWithDisplayConfigurations_VRR_ON) {
         const hal::VrrConfig vrrConfig =
                 hal::VrrConfig{.minFrameIntervalNs = static_cast<Fps>(120_Hz).getPeriodNsecs(),
                                .notifyExpectedPresentConfig = hal::VrrConfig::
-                                       NotifyExpectedPresentConfig{.notifyExpectedPresentHeadsUpNs =
-                                                                           ms2ns(30),
-                                                                   .notifyExpectedPresentTimeoutNs =
-                                                                           ms2ns(30)}};
+                                       NotifyExpectedPresentConfig{.headsUpNs = ms2ns(30),
+                                                                   .timeoutNs = ms2ns(30)}};
         hal::DisplayConfiguration displayConfiguration{.configId = kConfigId,
                                                        .width = kWidth,
                                                        .height = kHeight,

@@ -405,7 +405,7 @@ void VSyncPredictor::setDisplayModePtr(ftl::NonNull<DisplayModePtr> modePtr) {
             : std::nullopt;
     ALOGV("%s %s: DisplayMode %s notifyExpectedPresentTimeout %s", __func__, to_string(mId).c_str(),
           to_string(*modePtr).c_str(),
-          timeout ? std::to_string(timeout->notifyExpectedPresentTimeoutNs).c_str() : "N/A");
+          timeout ? std::to_string(timeout->timeoutNs).c_str() : "N/A");
     std::lock_guard lock(mMutex);
 
     mDisplayModePtr = modePtr;
