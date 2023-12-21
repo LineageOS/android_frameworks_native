@@ -95,10 +95,8 @@ private:
 
     NotifyMotionArgs makeMotionArgs(nsecs_t when, nsecs_t readTime, int32_t action,
                                     int32_t actionButton, int32_t buttonState,
-                                    uint32_t pointerCount,
-                                    const PointerProperties* pointerProperties,
-                                    const PointerCoords* pointerCoords, float xCursorPosition,
-                                    float yCursorPosition);
+                                    uint32_t pointerCount, const PointerCoords* pointerCoords,
+                                    float xCursorPosition, float yCursorPosition);
 
     void enableTapToClick(nsecs_t when);
     bool mIsHoverCancelled{false};

@@ -226,8 +226,8 @@ std::list<NotifyArgs> GestureConverter::handleMove(nsecs_t when, nsecs_t readTim
 
     const int32_t action = down ? AMOTION_EVENT_ACTION_MOVE : AMOTION_EVENT_ACTION_HOVER_MOVE;
     out.push_back(makeMotionArgs(when, readTime, action, /*actionButton=*/0, mButtonState,
-                                 /*pointerCount=*/1, mFingerProps.data(), &coords,
-                                 newXCursorPosition, newYCursorPosition));
+                                 /*pointerCount=*/1, &coords, newXCursorPosition,
+                                 newYCursorPosition));
     return out;
 }
 
@@ -277,8 +277,8 @@ std::list<NotifyArgs> GestureConverter::handleButtonsChange(nsecs_t when, nsecs_
             newButtonState |= actionButton;
             pressEvents.push_back(makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_BUTTON_PRESS,
                                                  actionButton, newButtonState,
-                                                 /* pointerCount= */ 1, mFingerProps.data(),
-                                                 &coords, xCursorPosition, yCursorPosition));
+                                                 /*pointerCount=*/1, &coords, xCursorPosition,
+                                                 yCursorPosition));
         }
     }
     if (!isPointerDown(mButtonState) && isPointerDown(newButtonState)) {
@@ -286,8 +286,7 @@ std::list<NotifyArgs> GestureConverter::handleButtonsChange(nsecs_t when, nsecs_
         out += exitHover(when, readTime, xCursorPosition, yCursorPosition);
         out.push_back(makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_DOWN,
                                      /* actionButton= */ 0, newButtonState, /* pointerCount= */ 1,
-                                     mFingerProps.data(), &coords, xCursorPosition,
-                                     yCursorPosition));
+                                     &coords, xCursorPosition, yCursorPosition));
     }
     out.splice(out.end(), pressEvents);
 
@@ -303,15 +302,14 @@ std::list<NotifyArgs> GestureConverter::handleButtonsChange(nsecs_t when, nsecs_
             newButtonState &= ~actionButton;
             out.push_back(makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_BUTTON_RELEASE,
                                          actionButton, newButtonState, /* pointerCount= */ 1,
-                                         mFingerProps.data(), &coords, xCursorPosition,
-                                         yCursorPosition));
+                                         &coords, xCursorPosition, yCursorPosition));
         }
     }
     if (isPointerDown(mButtonState) && !isPointerDown(newButtonState)) {
         coords.setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, 0.0f);
         out.push_back(makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_UP, /* actionButton= */ 0,
-                                     newButtonState, /* pointerCount= */ 1, mFingerProps.data(),
-                                     &coords, xCursorPosition, yCursorPosition));
+                                     newButtonState, /* pointerCount= */ 1, &coords,
+                                     xCursorPosition, yCursorPosition));
         mButtonState = newButtonState;
         out += enterHover(when, readTime, xCursorPosition, yCursorPosition);
     }
@@ -338,17 +336,16 @@ std::list<NotifyArgs> GestureConverter::releaseAllButtons(nsecs_t when, nsecs_t 
         if (mButtonState & button) {
             newButtonState &= ~button;
             out.push_back(makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_BUTTON_RELEASE,
-                                         button, newButtonState, /*pointerCount=*/1,
-                                         mFingerProps.data(), &coords, xCursorPosition,
-                                         yCursorPosition));
+                                         button, newButtonState, /*pointerCount=*/1, &coords,
+                                         xCursorPosition, yCursorPosition));
         }
     }
     mButtonState = 0;
     if (pointerDown) {
         coords.setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, 0.0f);
         out.push_back(makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_UP, /*actionButton=*/0,
-                                     mButtonState, /*pointerCount=*/1, mFingerProps.data(), &coords,
-                                     xCursorPosition, yCursorPosition));
+                                     mButtonState, /*pointerCount=*/1, &coords, xCursorPosition,
+                                     yCursorPosition));
         out += enterHover(when, readTime, xCursorPosition, yCursorPosition);
     }
     return out;
@@ -370,8 +367,8 @@ std::list<NotifyArgs> GestureConverter::handleScroll(nsecs_t when, nsecs_t readT
         mDownTime = when;
         NotifyMotionArgs args =
                 makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_DOWN, /* actionButton= */ 0,
-                               mButtonState, /* pointerCount= */ 1, mFingerProps.data(),
-                               mFakeFingerCoords.data(), xCursorPosition, yCursorPosition);
+                               mButtonState, /* pointerCount= */ 1, mFakeFingerCoords.data(),
+                               xCursorPosition, yCursorPosition);
         args.flags |= AMOTION_EVENT_FLAG_IS_GENERATED_GESTURE;
         out.push_back(args);
     }
@@ -386,8 +383,8 @@ std::list<NotifyArgs> GestureConverter::handleScroll(nsecs_t when, nsecs_t readT
     coords.setAxisValue(AMOTION_EVENT_AXIS_GESTURE_SCROLL_Y_DISTANCE, -gesture.details.scroll.dy);
     NotifyMotionArgs args =
             makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_MOVE, /* actionButton= */ 0,
-                           mButtonState, /* pointerCount= */ 1, mFingerProps.data(),
-                           mFakeFingerCoords.data(), xCursorPosition, yCursorPosition);
+                           mButtonState, /* pointerCount= */ 1, mFakeFingerCoords.data(),
+                           xCursorPosition, yCursorPosition);
     args.flags |= AMOTION_EVENT_FLAG_IS_GENERATED_GESTURE;
     out.push_back(args);
     return out;
@@ -434,8 +431,8 @@ std::list<NotifyArgs> GestureConverter::endScroll(nsecs_t when, nsecs_t readTime
     mFakeFingerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_GESTURE_SCROLL_Y_DISTANCE, 0);
     NotifyMotionArgs args =
             makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_UP, /* actionButton= */ 0,
-                           mButtonState, /* pointerCount= */ 1, mFingerProps.data(),
-                           mFakeFingerCoords.data(), xCursorPosition, yCursorPosition);
+                           mButtonState, /* pointerCount= */ 1, mFakeFingerCoords.data(),
+                           xCursorPosition, yCursorPosition);
     args.flags |= AMOTION_EVENT_FLAG_IS_GENERATED_GESTURE;
     out.push_back(args);
     mCurrentClassification = MotionClassification::NONE;
@@ -479,16 +476,14 @@ std::list<NotifyArgs> GestureConverter::endScroll(nsecs_t when, nsecs_t readTime
                                           fingerCount);
         out.push_back(makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_DOWN,
                                      /* actionButton= */ 0, mButtonState, /* pointerCount= */ 1,
-                                     mFingerProps.data(), mFakeFingerCoords.data(), xCursorPosition,
-                                     yCursorPosition));
+                                     mFakeFingerCoords.data(), xCursorPosition, yCursorPosition));
         for (size_t i = 1; i < mSwipeFingerCount; i++) {
             out.push_back(makeMotionArgs(when, readTime,
                                          AMOTION_EVENT_ACTION_POINTER_DOWN |
                                                  (i << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
                                          /* actionButton= */ 0, mButtonState,
-                                         /* pointerCount= */ i + 1, mFingerProps.data(),
-                                         mFakeFingerCoords.data(), xCursorPosition,
-                                         yCursorPosition));
+                                         /* pointerCount= */ i + 1, mFakeFingerCoords.data(),
+                                         xCursorPosition, yCursorPosition));
         }
     }
     float rotatedDeltaX = dx, rotatedDeltaY = -dy;
@@ -506,8 +501,7 @@ std::list<NotifyArgs> GestureConverter::endScroll(nsecs_t when, nsecs_t readTime
     mFakeFingerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_GESTURE_Y_OFFSET, yOffset);
     out.push_back(makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_MOVE, /* actionButton= */ 0,
                                  mButtonState, /* pointerCount= */ mSwipeFingerCount,
-                                 mFingerProps.data(), mFakeFingerCoords.data(), xCursorPosition,
-                                 yCursorPosition));
+                                 mFakeFingerCoords.data(), xCursorPosition, yCursorPosition));
     return out;
 }
 
@@ -527,13 +521,11 @@ std::list<NotifyArgs> GestureConverter::endScroll(nsecs_t when, nsecs_t readTime
                                      AMOTION_EVENT_ACTION_POINTER_UP |
                                              ((i - 1) << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT),
                                      /* actionButton= */ 0, mButtonState, /* pointerCount= */ i,
-                                     mFingerProps.data(), mFakeFingerCoords.data(), xCursorPosition,
-                                     yCursorPosition));
+                                     mFakeFingerCoords.data(), xCursorPosition, yCursorPosition));
     }
     out.push_back(makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_UP,
                                  /* actionButton= */ 0, mButtonState, /* pointerCount= */ 1,
-                                 mFingerProps.data(), mFakeFingerCoords.data(), xCursorPosition,
-                                 yCursorPosition));
+                                 mFakeFingerCoords.data(), xCursorPosition, yCursorPosition));
     mFakeFingerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_GESTURE_SWIPE_FINGER_COUNT, 0);
     mCurrentClassification = MotionClassification::NONE;
     out += enterHover(when, readTime, xCursorPosition, yCursorPosition);
@@ -573,14 +565,12 @@ std::list<NotifyArgs> GestureConverter::endScroll(nsecs_t when, nsecs_t readTime
         mDownTime = when;
         out.push_back(makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_DOWN,
                                      /* actionButton= */ 0, mButtonState, /* pointerCount= */ 1,
-                                     mFingerProps.data(), mFakeFingerCoords.data(), xCursorPosition,
-                                     yCursorPosition));
+                                     mFakeFingerCoords.data(), xCursorPosition, yCursorPosition));
         out.push_back(makeMotionArgs(when, readTime,
                                      AMOTION_EVENT_ACTION_POINTER_DOWN |
                                              1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT,
                                      /* actionButton= */ 0, mButtonState, /* pointerCount= */ 2,
-                                     mFingerProps.data(), mFakeFingerCoords.data(), xCursorPosition,
-                                     yCursorPosition));
+                                     mFakeFingerCoords.data(), xCursorPosition, yCursorPosition));
         return out;
     }
 
@@ -598,8 +588,8 @@ std::list<NotifyArgs> GestureConverter::endScroll(nsecs_t when, nsecs_t readTime
                                       xCursorPosition + mPinchFingerSeparation / 2);
     mFakeFingerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_Y, yCursorPosition);
     return {makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_MOVE, /*actionButton=*/0,
-                           mButtonState, /*pointerCount=*/2, mFingerProps.data(),
-                           mFakeFingerCoords.data(), xCursorPosition, yCursorPosition)};
+                           mButtonState, /*pointerCount=*/2, mFakeFingerCoords.data(),
+                           xCursorPosition, yCursorPosition)};
 }
 
 std::list<NotifyArgs> GestureConverter::endPinch(nsecs_t when, nsecs_t readTime) {
@@ -612,11 +602,10 @@ std::list<NotifyArgs> GestureConverter::endPinch(nsecs_t when, nsecs_t readTime)
                                  AMOTION_EVENT_ACTION_POINTER_UP |
                                          1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT,
                                  /*actionButton=*/0, mButtonState, /*pointerCount=*/2,
-                                 mFingerProps.data(), mFakeFingerCoords.data(), xCursorPosition,
-                                 yCursorPosition));
-    out.push_back(makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_UP, /*actionButton=*/0,
-                                 mButtonState, /*pointerCount=*/1, mFingerProps.data(),
                                  mFakeFingerCoords.data(), xCursorPosition, yCursorPosition));
+    out.push_back(makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_UP, /*actionButton=*/0,
+                                 mButtonState, /*pointerCount=*/1, mFakeFingerCoords.data(),
+                                 xCursorPosition, yCursorPosition));
     mFakeFingerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_GESTURE_PINCH_SCALE_FACTOR, 0);
     mCurrentClassification = MotionClassification::NONE;
     out += enterHover(when, readTime, xCursorPosition, yCursorPosition);
@@ -654,14 +643,12 @@ NotifyMotionArgs GestureConverter::makeHoverEvent(nsecs_t when, nsecs_t readTime
     coords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, 0);
     coords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, 0);
     return makeMotionArgs(when, readTime, action, /*actionButton=*/0, mButtonState,
-                          /*pointerCount=*/1, mFingerProps.data(), &coords, xCursorPosition,
-                          yCursorPosition);
+                          /*pointerCount=*/1, &coords, xCursorPosition, yCursorPosition);
 }
 
 NotifyMotionArgs GestureConverter::makeMotionArgs(nsecs_t when, nsecs_t readTime, int32_t action,
                                                   int32_t actionButton, int32_t buttonState,
                                                   uint32_t pointerCount,
-                                                  const PointerProperties* pointerProperties,
                                                   const PointerCoords* pointerCoords,
                                                   float xCursorPosition, float yCursorPosition) {
     return {mReaderContext.getNextId(),
@@ -679,7 +666,7 @@ NotifyMotionArgs GestureConverter::makeMotionArgs(nsecs_t when, nsecs_t readTime
             mCurrentClassification,
             AMOTION_EVENT_EDGE_FLAG_NONE,
             pointerCount,
-            pointerProperties,
+            mFingerProps.data(),
             pointerCoords,
             /* xPrecision= */ 1.0f,
             /* yPrecision= */ 1.0f,
