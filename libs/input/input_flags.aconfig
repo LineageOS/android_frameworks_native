@@ -52,7 +52,14 @@ flag {
 flag {
   name: "enable_touchpad_typing_palm_rejection"
   namespace: "input"
-  description: "Enable additional palm rejection on touchpad while typing"
+  description: "Enabling additional touchpad palm rejection will disable the tap to click while the user is typing on a physical keyboard"
+  bug: "301055381"
+}
+
+flag {
+  name: "enable_v2_touchpad_typing_palm_rejection"
+  namespace: "input"
+  description: "In addition to touchpad palm rejection v1, v2 will also cancel ongoing move gestures while typing and add delay in re-enabling the tap to click."
   bug: "301055381"
 }
 

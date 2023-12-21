@@ -320,7 +320,7 @@ void EventThread::setDuration(std::chrono::nanoseconds workDuration,
 
     mVsyncRegistration.update({.workDuration = mWorkDuration.get().count(),
                                .readyDuration = mReadyDuration.count(),
-                               .earliestVsync = mLastVsyncCallbackTime.ns()});
+                               .lastVsync = mLastVsyncCallbackTime.ns()});
 }
 
 sp<EventThreadConnection> EventThread::createEventConnection(
@@ -528,7 +528,7 @@ void EventThread::threadMain(std::unique_lock<std::mutex>& lock) {
             const auto scheduleResult =
                     mVsyncRegistration.schedule({.workDuration = mWorkDuration.get().count(),
                                                  .readyDuration = mReadyDuration.count(),
-                                                 .earliestVsync = mLastVsyncCallbackTime.ns()});
+                                                 .lastVsync = mLastVsyncCallbackTime.ns()});
             LOG_ALWAYS_FATAL_IF(!scheduleResult, "Error scheduling callback");
         } else {
             mVsyncRegistration.cancel();
@@ -784,7 +784,7 @@ scheduler::VSyncCallbackRegistration EventThread::onNewVsyncScheduleInternal(
     if (reschedule) {
         mVsyncRegistration.schedule({.workDuration = mWorkDuration.get().count(),
                                      .readyDuration = mReadyDuration.count(),
-                                     .earliestVsync = mLastVsyncCallbackTime.ns()});
+                                     .lastVsync = mLastVsyncCallbackTime.ns()});
     }
     return oldRegistration;
 }

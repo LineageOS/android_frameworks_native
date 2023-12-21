@@ -86,7 +86,10 @@ public:
 
     bool addVsyncTimestamp(nsecs_t /* timestamp */) override { return true; }
 
-    nsecs_t nextAnticipatedVSyncTimeFrom(nsecs_t /* timePoint */) const override { return 1; }
+    nsecs_t nextAnticipatedVSyncTimeFrom(nsecs_t /* timePoint */,
+                                         std::optional<nsecs_t>) const override {
+        return 1;
+    }
 
     nsecs_t currentPeriod() const override { return 1; }
     Period minFramePeriod() const override { return Period::fromNs(currentPeriod()); }

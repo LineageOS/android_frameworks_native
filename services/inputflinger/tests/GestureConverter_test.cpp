@@ -41,6 +41,8 @@ namespace {
 
 const auto TOUCHPAD_PALM_REJECTION =
         ACONFIG_FLAG(input_flags, enable_touchpad_typing_palm_rejection);
+const auto TOUCHPAD_PALM_REJECTION_V2 =
+        ACONFIG_FLAG(input_flags, enable_v2_touchpad_typing_palm_rejection);
 
 } // namespace
 
@@ -107,7 +109,8 @@ TEST_F(GestureConverterTest, Move) {
     converter.setDisplayId(ADISPLAY_ID_DEFAULT);
 
     Gesture moveGesture(kGestureMove, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, -5, 10);
-    std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, moveGesture);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, moveGesture);
     ASSERT_EQ(1u, args.size());
 
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
@@ -126,7 +129,8 @@ TEST_F(GestureConverterTest, Move_Rotated) {
     converter.setDisplayId(ADISPLAY_ID_DEFAULT);
 
     Gesture moveGesture(kGestureMove, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, -5, 10);
-    std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, moveGesture);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, moveGesture);
     ASSERT_EQ(1u, args.size());
 
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
@@ -147,7 +151,8 @@ TEST_F(GestureConverterTest, ButtonsChange) {
     Gesture downGesture(kGestureButtonsChange, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                         /* down= */ GESTURES_BUTTON_LEFT | GESTURES_BUTTON_RIGHT,
                         /* up= */ GESTURES_BUTTON_NONE, /* is_tap= */ false);
-    std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, downGesture);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, downGesture);
     ASSERT_EQ(3u, args.size());
 
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
@@ -176,7 +181,7 @@ TEST_F(GestureConverterTest, ButtonsChange) {
     Gesture leftUpGesture(kGestureButtonsChange, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                           /* down= */ GESTURES_BUTTON_NONE, /* up= */ GESTURES_BUTTON_LEFT,
                           /* is_tap= */ false);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, leftUpGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, leftUpGesture);
     ASSERT_EQ(1u, args.size());
 
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
@@ -190,7 +195,7 @@ TEST_F(GestureConverterTest, ButtonsChange) {
     Gesture rightUpGesture(kGestureButtonsChange, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                            /* down= */ GESTURES_BUTTON_NONE, /* up= */ GESTURES_BUTTON_RIGHT,
                            /* is_tap= */ false);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, rightUpGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, rightUpGesture);
     ASSERT_EQ(3u, args.size());
 
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
@@ -219,7 +224,8 @@ TEST_F(GestureConverterTest, DragWithButton) {
     Gesture downGesture(kGestureButtonsChange, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                         /* down= */ GESTURES_BUTTON_LEFT, /* up= */ GESTURES_BUTTON_NONE,
                         /* is_tap= */ false);
-    std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, downGesture);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, downGesture);
     ASSERT_EQ(2u, args.size());
 
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
@@ -237,7 +243,7 @@ TEST_F(GestureConverterTest, DragWithButton) {
 
     // Move
     Gesture moveGesture(kGestureMove, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, -5, 10);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, moveGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, moveGesture);
     ASSERT_EQ(1u, args.size());
 
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
@@ -252,7 +258,7 @@ TEST_F(GestureConverterTest, DragWithButton) {
     Gesture upGesture(kGestureButtonsChange, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                       /* down= */ GESTURES_BUTTON_NONE, /* up= */ GESTURES_BUTTON_LEFT,
                       /* is_tap= */ false);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, upGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, upGesture);
     ASSERT_EQ(3u, args.size());
 
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
@@ -279,7 +285,8 @@ TEST_F(GestureConverterTest, Scroll) {
     converter.setDisplayId(ADISPLAY_ID_DEFAULT);
 
     Gesture startGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, -10);
-    std::list<NotifyArgs> args = converter.handleGesture(downTime, READ_TIME, startGesture);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(downTime, READ_TIME, ARBITRARY_TIME, startGesture);
     ASSERT_EQ(2u, args.size());
 
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
@@ -300,7 +307,7 @@ TEST_F(GestureConverterTest, Scroll) {
                       WithDisplayId(ADISPLAY_ID_DEFAULT)));
 
     Gesture continueGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, -5);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, continueGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, continueGesture);
     ASSERT_EQ(1u, args.size());
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
@@ -313,7 +320,7 @@ TEST_F(GestureConverterTest, Scroll) {
 
     Gesture flingGesture(kGestureFling, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 1, 1,
                          GESTURES_FLING_START);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, flingGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, flingGesture);
     ASSERT_EQ(1u, args.size());
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
@@ -333,7 +340,8 @@ TEST_F(GestureConverterTest, Scroll_Rotated) {
     converter.setDisplayId(ADISPLAY_ID_DEFAULT);
 
     Gesture startGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, -10);
-    std::list<NotifyArgs> args = converter.handleGesture(downTime, READ_TIME, startGesture);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(downTime, READ_TIME, ARBITRARY_TIME, startGesture);
     ASSERT_EQ(2u, args.size());
 
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
@@ -351,7 +359,7 @@ TEST_F(GestureConverterTest, Scroll_Rotated) {
                       WithToolType(ToolType::FINGER), WithDisplayId(ADISPLAY_ID_DEFAULT)));
 
     Gesture continueGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, -5);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, continueGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, continueGesture);
     ASSERT_EQ(1u, args.size());
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
@@ -362,7 +370,7 @@ TEST_F(GestureConverterTest, Scroll_Rotated) {
 
     Gesture flingGesture(kGestureFling, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 1, 1,
                          GESTURES_FLING_START);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, flingGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, flingGesture);
     ASSERT_EQ(1u, args.size());
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
@@ -378,17 +386,18 @@ TEST_F(GestureConverterTest, Scroll_ClearsClassificationAfterGesture) {
     converter.setDisplayId(ADISPLAY_ID_DEFAULT);
 
     Gesture startGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, -10);
-    std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, startGesture);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, startGesture);
 
     Gesture continueGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, -5);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, continueGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, continueGesture);
 
     Gesture flingGesture(kGestureFling, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 1, 1,
                          GESTURES_FLING_START);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, flingGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, flingGesture);
 
     Gesture moveGesture(kGestureMove, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, -5, 10);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, moveGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, moveGesture);
     ASSERT_EQ(1u, args.size());
     EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionClassification(MotionClassification::NONE),
@@ -401,20 +410,21 @@ TEST_F(GestureConverterTest, Scroll_ClearsScrollDistanceAfterGesture) {
     converter.setDisplayId(ADISPLAY_ID_DEFAULT);
 
     Gesture startGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, -10);
-    std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, startGesture);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, startGesture);
 
     Gesture continueGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, -5);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, continueGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, continueGesture);
 
     Gesture flingGesture(kGestureFling, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 1, 1,
                          GESTURES_FLING_START);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, flingGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, flingGesture);
 
     // Move gestures don't use the fake finger array, so to test that gesture axes are cleared we
     // need to use another gesture type, like pinch.
     Gesture pinchGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /*dz=*/1,
                          GESTURES_ZOOM_START);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, pinchGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, pinchGesture);
     ASSERT_FALSE(args.empty());
     EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()), WithGestureScrollDistance(0, 0, EPSILON));
 }
@@ -426,14 +436,15 @@ TEST_F(GestureConverterTest, ThreeFingerSwipe_ClearsClassificationAfterGesture) 
 
     Gesture startGesture(kGestureSwipe, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /*dx=*/0,
                          /*dy=*/0);
-    std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, startGesture);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, startGesture);
 
     Gesture liftGesture(kGestureSwipeLift, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, liftGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, liftGesture);
 
     Gesture moveGesture(kGestureMove, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /*dx=*/-5,
                         /*dy=*/10);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, moveGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, moveGesture);
     ASSERT_EQ(1u, args.size());
     EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 WithMotionClassification(MotionClassification::NONE));
@@ -446,16 +457,17 @@ TEST_F(GestureConverterTest, ThreeFingerSwipe_ClearsGestureAxesAfterGesture) {
 
     Gesture startGesture(kGestureSwipe, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /*dx=*/5,
                          /*dy=*/5);
-    std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, startGesture);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, startGesture);
 
     Gesture liftGesture(kGestureSwipeLift, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, liftGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, liftGesture);
 
     // Move gestures don't use the fake finger array, so to test that gesture axes are cleared we
     // need to use another gesture type, like pinch.
     Gesture pinchGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /*dz=*/1,
                          GESTURES_ZOOM_START);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, pinchGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, pinchGesture);
     ASSERT_FALSE(args.empty());
     EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithGestureOffset(0, 0, EPSILON), WithGestureSwipeFingerCount(0)));
@@ -472,7 +484,8 @@ TEST_F(GestureConverterTest, ThreeFingerSwipe_Vertical) {
 
     Gesture startGesture(kGestureSwipe, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /* dx= */ 0,
                          /* dy= */ 10);
-    std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, startGesture);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, startGesture);
     ASSERT_EQ(4u, args.size());
 
     // Three fake fingers should be created. We don't actually care where they are, so long as they
@@ -523,7 +536,7 @@ TEST_F(GestureConverterTest, ThreeFingerSwipe_Vertical) {
 
     Gesture continueGesture(kGestureSwipe, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                             /* dx= */ 0, /* dy= */ 5);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, continueGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, continueGesture);
     ASSERT_EQ(1u, args.size());
     arg = std::get<NotifyMotionArgs>(args.front());
     ASSERT_THAT(arg,
@@ -540,7 +553,7 @@ TEST_F(GestureConverterTest, ThreeFingerSwipe_Vertical) {
     EXPECT_EQ(arg.pointerCoords[2].getY(), finger2Start.getY() - 15);
 
     Gesture liftGesture(kGestureSwipeLift, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, liftGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, liftGesture);
     ASSERT_EQ(3u, args.size());
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_POINTER_UP |
@@ -574,7 +587,8 @@ TEST_F(GestureConverterTest, ThreeFingerSwipe_Rotated) {
 
     Gesture startGesture(kGestureSwipe, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /* dx= */ 0,
                          /* dy= */ 10);
-    std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, startGesture);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, startGesture);
     ASSERT_EQ(4u, args.size());
 
     // Three fake fingers should be created. We don't actually care where they are, so long as they
@@ -616,7 +630,7 @@ TEST_F(GestureConverterTest, ThreeFingerSwipe_Rotated) {
 
     Gesture continueGesture(kGestureSwipe, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                             /* dx= */ 0, /* dy= */ 5);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, continueGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, continueGesture);
     ASSERT_EQ(1u, args.size());
     arg = std::get<NotifyMotionArgs>(args.front());
     ASSERT_THAT(arg,
@@ -631,7 +645,7 @@ TEST_F(GestureConverterTest, ThreeFingerSwipe_Rotated) {
     EXPECT_EQ(arg.pointerCoords[2].getY(), finger2Start.getY());
 
     Gesture liftGesture(kGestureSwipeLift, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, liftGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, liftGesture);
     ASSERT_EQ(3u, args.size());
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_POINTER_UP |
@@ -657,7 +671,8 @@ TEST_F(GestureConverterTest, FourFingerSwipe_Horizontal) {
 
     Gesture startGesture(kGestureFourFingerSwipe, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                          /* dx= */ 10, /* dy= */ 0);
-    std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, startGesture);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, startGesture);
     ASSERT_EQ(5u, args.size());
 
     // Four fake fingers should be created. We don't actually care where they are, so long as they
@@ -720,7 +735,7 @@ TEST_F(GestureConverterTest, FourFingerSwipe_Horizontal) {
 
     Gesture continueGesture(kGestureFourFingerSwipe, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                             /* dx= */ 5, /* dy= */ 0);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, continueGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, continueGesture);
     ASSERT_EQ(1u, args.size());
     arg = std::get<NotifyMotionArgs>(args.front());
     ASSERT_THAT(arg,
@@ -739,7 +754,7 @@ TEST_F(GestureConverterTest, FourFingerSwipe_Horizontal) {
     EXPECT_EQ(arg.pointerCoords[3].getY(), finger3Start.getY());
 
     Gesture liftGesture(kGestureSwipeLift, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, liftGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, liftGesture);
     ASSERT_EQ(4u, args.size());
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_POINTER_UP |
@@ -780,7 +795,8 @@ TEST_F(GestureConverterTest, Pinch_Inwards) {
 
     Gesture startGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /* dz= */ 1,
                          GESTURES_ZOOM_START);
-    std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, startGesture);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, startGesture);
     ASSERT_EQ(2u, args.size());
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
@@ -799,7 +815,7 @@ TEST_F(GestureConverterTest, Pinch_Inwards) {
 
     Gesture updateGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                           /* dz= */ 0.8, GESTURES_ZOOM_UPDATE);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, updateGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, updateGesture);
     ASSERT_EQ(1u, args.size());
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
@@ -811,7 +827,7 @@ TEST_F(GestureConverterTest, Pinch_Inwards) {
 
     Gesture endGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /* dz= */ 1,
                        GESTURES_ZOOM_END);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, endGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, endGesture);
     ASSERT_EQ(2u, args.size());
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_POINTER_UP |
@@ -834,7 +850,8 @@ TEST_F(GestureConverterTest, Pinch_Outwards) {
 
     Gesture startGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /* dz= */ 1,
                          GESTURES_ZOOM_START);
-    std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, startGesture);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, startGesture);
     ASSERT_EQ(2u, args.size());
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
@@ -853,7 +870,7 @@ TEST_F(GestureConverterTest, Pinch_Outwards) {
 
     Gesture updateGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                           /* dz= */ 1.2, GESTURES_ZOOM_UPDATE);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, updateGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, updateGesture);
     ASSERT_EQ(1u, args.size());
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
@@ -865,7 +882,7 @@ TEST_F(GestureConverterTest, Pinch_Outwards) {
 
     Gesture endGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /* dz= */ 1,
                        GESTURES_ZOOM_END);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, endGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, endGesture);
     ASSERT_EQ(2u, args.size());
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_POINTER_UP |
@@ -888,18 +905,19 @@ TEST_F(GestureConverterTest, Pinch_ClearsClassificationAfterGesture) {
 
     Gesture startGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /*dz=*/1,
                          GESTURES_ZOOM_START);
-    std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, startGesture);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, startGesture);
 
     Gesture updateGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                           /*dz=*/1.2, GESTURES_ZOOM_UPDATE);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, updateGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, updateGesture);
 
     Gesture endGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /*dz=*/1,
                        GESTURES_ZOOM_END);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, endGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, endGesture);
 
     Gesture moveGesture(kGestureMove, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, -5, 10);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, moveGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, moveGesture);
     ASSERT_EQ(1u, args.size());
     EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 WithMotionClassification(MotionClassification::NONE));
@@ -912,21 +930,22 @@ TEST_F(GestureConverterTest, Pinch_ClearsScaleFactorAfterGesture) {
 
     Gesture startGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /*dz=*/1,
                          GESTURES_ZOOM_START);
-    std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, startGesture);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, startGesture);
 
     Gesture updateGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                           /*dz=*/1.2, GESTURES_ZOOM_UPDATE);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, updateGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, updateGesture);
 
     Gesture endGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /*dz=*/1,
                        GESTURES_ZOOM_END);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, endGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, endGesture);
 
     // Move gestures don't use the fake finger array, so to test that gesture axes are cleared we
     // need to use another gesture type, like scroll.
     Gesture scrollGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /*dx=*/1,
                           /*dy=*/0);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, scrollGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, scrollGesture);
     ASSERT_FALSE(args.empty());
     EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()), WithGesturePinchScaleFactor(0, EPSILON));
 }
@@ -939,7 +958,7 @@ TEST_F(GestureConverterTest, ResetWithButtonPressed) {
     Gesture downGesture(kGestureButtonsChange, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                         /*down=*/GESTURES_BUTTON_LEFT | GESTURES_BUTTON_RIGHT,
                         /*up=*/GESTURES_BUTTON_NONE, /*is_tap=*/false);
-    (void)converter.handleGesture(ARBITRARY_TIME, READ_TIME, downGesture);
+    (void)converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, downGesture);
 
     std::list<NotifyArgs> args = converter.reset(ARBITRARY_TIME);
     ASSERT_EQ(3u, args.size());
@@ -969,7 +988,7 @@ TEST_F(GestureConverterTest, ResetDuringScroll) {
     converter.setDisplayId(ADISPLAY_ID_DEFAULT);
 
     Gesture startGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, -10);
-    (void)converter.handleGesture(ARBITRARY_TIME, READ_TIME, startGesture);
+    (void)converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, startGesture);
 
     std::list<NotifyArgs> args = converter.reset(ARBITRARY_TIME);
     ASSERT_EQ(1u, args.size());
@@ -990,7 +1009,7 @@ TEST_F(GestureConverterTest, ResetDuringThreeFingerSwipe) {
 
     Gesture startGesture(kGestureSwipe, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /*dx=*/0,
                          /*dy=*/10);
-    (void)converter.handleGesture(ARBITRARY_TIME, READ_TIME, startGesture);
+    (void)converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, startGesture);
 
     std::list<NotifyArgs> args = converter.reset(ARBITRARY_TIME);
     ASSERT_EQ(3u, args.size());
@@ -1024,7 +1043,7 @@ TEST_F(GestureConverterTest, ResetDuringPinch) {
 
     Gesture startGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /*dz=*/1,
                          GESTURES_ZOOM_START);
-    (void)converter.handleGesture(ARBITRARY_TIME, READ_TIME, startGesture);
+    (void)converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, startGesture);
 
     std::list<NotifyArgs> args = converter.reset(ARBITRARY_TIME);
     ASSERT_EQ(2u, args.size());
@@ -1049,7 +1068,8 @@ TEST_F(GestureConverterTest, FlingTapDown) {
 
     Gesture tapDownGesture(kGestureFling, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                            /*vx=*/0.f, /*vy=*/0.f, GESTURES_FLING_TAP_DOWN);
-    std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, tapDownGesture);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, tapDownGesture);
 
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
@@ -1069,7 +1089,8 @@ TEST_F(GestureConverterTest, Tap) {
 
     Gesture flingGesture(kGestureFling, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /* vx= */ 0,
                          /* vy= */ 0, GESTURES_FLING_TAP_DOWN);
-    std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, flingGesture);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, flingGesture);
 
     ASSERT_EQ(1u, args.size());
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
@@ -1081,7 +1102,7 @@ TEST_F(GestureConverterTest, Tap) {
     Gesture tapGesture(kGestureButtonsChange, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                        /* down= */ GESTURES_BUTTON_LEFT,
                        /* up= */ GESTURES_BUTTON_LEFT, /* is_tap= */ true);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, tapGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, tapGesture);
 
     ASSERT_EQ(5u, args.size());
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
@@ -1125,7 +1146,8 @@ TEST_F(GestureConverterTest, Click) {
 
     Gesture flingGesture(kGestureFling, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /* vx= */ 0,
                          /* vy= */ 0, GESTURES_FLING_TAP_DOWN);
-    std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, flingGesture);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, flingGesture);
 
     ASSERT_EQ(1u, args.size());
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
@@ -1137,7 +1159,7 @@ TEST_F(GestureConverterTest, Click) {
     Gesture buttonDownGesture(kGestureButtonsChange, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                               /* down= */ GESTURES_BUTTON_LEFT,
                               /* up= */ GESTURES_BUTTON_NONE, /* is_tap= */ false);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, buttonDownGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, buttonDownGesture);
 
     ASSERT_EQ(2u, args.size());
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
@@ -1157,7 +1179,7 @@ TEST_F(GestureConverterTest, Click) {
     Gesture buttonUpGesture(kGestureButtonsChange, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                             /* down= */ GESTURES_BUTTON_NONE,
                             /* up= */ GESTURES_BUTTON_LEFT, /* is_tap= */ false);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, buttonUpGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, buttonUpGesture);
 
     ASSERT_EQ(3u, args.size());
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
@@ -1180,7 +1202,10 @@ TEST_F(GestureConverterTest, Click) {
 }
 
 TEST_F_WITH_FLAGS(GestureConverterTest, TapWithTapToClickDisabled,
-                  REQUIRES_FLAGS_ENABLED(TOUCHPAD_PALM_REJECTION)) {
+                  REQUIRES_FLAGS_ENABLED(TOUCHPAD_PALM_REJECTION),
+                  REQUIRES_FLAGS_DISABLED(TOUCHPAD_PALM_REJECTION_V2)) {
+    nsecs_t currentTime = ARBITRARY_GESTURE_TIME;
+
     // Tap should be ignored when disabled
     mReader->getContext()->setPreventingTouchpadTaps(true);
 
@@ -1188,9 +1213,10 @@ TEST_F_WITH_FLAGS(GestureConverterTest, TapWithTapToClickDisabled,
     GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
     converter.setDisplayId(ADISPLAY_ID_DEFAULT);
 
-    Gesture flingGesture(kGestureFling, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /* vx= */ 0,
+    Gesture flingGesture(kGestureFling, currentTime, currentTime, /* vx= */ 0,
                          /* vy= */ 0, GESTURES_FLING_TAP_DOWN);
-    std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, flingGesture);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(currentTime, currentTime, currentTime, flingGesture);
 
     ASSERT_EQ(1u, args.size());
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
@@ -1198,18 +1224,108 @@ TEST_F_WITH_FLAGS(GestureConverterTest, TapWithTapToClickDisabled,
                       WithCoords(POINTER_X, POINTER_Y), WithRelativeMotion(0, 0),
                       WithToolType(ToolType::FINGER), WithButtonState(0), WithPressure(0.0f),
                       WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
 
-    Gesture tapGesture(kGestureButtonsChange, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
+    Gesture tapGesture(kGestureButtonsChange, currentTime, currentTime,
                        /* down= */ GESTURES_BUTTON_LEFT,
                        /* up= */ GESTURES_BUTTON_LEFT, /* is_tap= */ true);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, tapGesture);
+    args = converter.handleGesture(currentTime, currentTime, currentTime, tapGesture);
 
     // no events should be generated
     ASSERT_EQ(0u, args.size());
 
     // Future taps should be re-enabled
     ASSERT_FALSE(mReader->getContext()->isPreventingTouchpadTaps());
+}
+
+TEST_F_WITH_FLAGS(GestureConverterTest, TapWithTapToClickDisabledWithDelay,
+                  REQUIRES_FLAGS_ENABLED(TOUCHPAD_PALM_REJECTION_V2)) {
+    nsecs_t currentTime = ARBITRARY_GESTURE_TIME;
+
+    // Tap should be ignored when disabled
+    mReader->getContext()->setPreventingTouchpadTaps(true);
+
+    InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
+    GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
+    converter.setDisplayId(ADISPLAY_ID_DEFAULT);
+
+    Gesture flingGesture(kGestureFling, currentTime, currentTime, /* vx= */ 0,
+                         /* vy= */ 0, GESTURES_FLING_TAP_DOWN);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(currentTime, currentTime, currentTime, flingGesture);
+
+    ASSERT_EQ(1u, args.size());
+    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
+                      WithCoords(POINTER_X, POINTER_Y), WithRelativeMotion(0, 0),
+                      WithToolType(ToolType::FINGER), WithButtonState(0), WithPressure(0.0f),
+                      WithDisplayId(ADISPLAY_ID_DEFAULT)));
+
+    Gesture tapGesture(kGestureButtonsChange, currentTime, currentTime,
+                       /* down= */ GESTURES_BUTTON_LEFT,
+                       /* up= */ GESTURES_BUTTON_LEFT, /* is_tap= */ true);
+    args = converter.handleGesture(currentTime, currentTime, currentTime, tapGesture);
+
+    // no events should be generated
+    ASSERT_EQ(0u, args.size());
+
+    // Future taps should be re-enabled
+    ASSERT_FALSE(mReader->getContext()->isPreventingTouchpadTaps());
+
+    // taps before the threshold should still be ignored
+    currentTime += TAP_ENABLE_DELAY_NANOS.count();
+    flingGesture = Gesture(kGestureFling, currentTime, currentTime, /* vx= */ 0,
+                           /* vy= */ 0, GESTURES_FLING_TAP_DOWN);
+    args = converter.handleGesture(currentTime, currentTime, currentTime, flingGesture);
+
+    ASSERT_EQ(1u, args.size());
+    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE), WithRelativeMotion(0, 0)));
+
+    tapGesture = Gesture(kGestureButtonsChange, currentTime, currentTime,
+                         /* down= */ GESTURES_BUTTON_LEFT,
+                         /* up= */ GESTURES_BUTTON_LEFT, /* is_tap= */ true);
+    args = converter.handleGesture(currentTime, currentTime, currentTime, tapGesture);
+
+    // no events should be generated
+    ASSERT_EQ(0u, args.size());
+
+    // taps after the threshold should be recognised
+    currentTime += 1;
+    flingGesture = Gesture(kGestureFling, currentTime, currentTime, /* vx= */ 0,
+                           /* vy= */ 0, GESTURES_FLING_TAP_DOWN);
+    args = converter.handleGesture(currentTime, currentTime, currentTime, flingGesture);
+
+    ASSERT_EQ(1u, args.size());
+    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE), WithRelativeMotion(0, 0)));
+
+    tapGesture = Gesture(kGestureButtonsChange, currentTime, currentTime,
+                         /* down= */ GESTURES_BUTTON_LEFT,
+                         /* up= */ GESTURES_BUTTON_LEFT, /* is_tap= */ true);
+    args = converter.handleGesture(currentTime, currentTime, currentTime, tapGesture);
+
+    ASSERT_EQ(5u, args.size());
+    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN), WithRelativeMotion(0.f, 0.f),
+                      WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY)));
+    args.pop_front();
+    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS),
+                      WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY), WithButtonState(1),
+                      WithRelativeMotion(0.f, 0.f)));
+    args.pop_front();
+    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
+                      WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY), WithButtonState(0),
+                      WithRelativeMotion(0.f, 0.f)));
+    args.pop_front();
+    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP), WithRelativeMotion(0.f, 0.f),
+                      WithButtonState(0)));
+    args.pop_front();
+    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE), WithRelativeMotion(0, 0),
+                      WithButtonState(0)));
 }
 
 TEST_F_WITH_FLAGS(GestureConverterTest, ClickWithTapToClickDisabled,
@@ -1223,7 +1339,8 @@ TEST_F_WITH_FLAGS(GestureConverterTest, ClickWithTapToClickDisabled,
 
     Gesture flingGesture(kGestureFling, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /* vx= */ 0,
                          /* vy= */ 0, GESTURES_FLING_TAP_DOWN);
-    std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, flingGesture);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, flingGesture);
 
     ASSERT_EQ(1u, args.size());
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
@@ -1235,7 +1352,7 @@ TEST_F_WITH_FLAGS(GestureConverterTest, ClickWithTapToClickDisabled,
     Gesture buttonDownGesture(kGestureButtonsChange, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                               /* down= */ GESTURES_BUTTON_LEFT,
                               /* up= */ GESTURES_BUTTON_NONE, /* is_tap= */ false);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, buttonDownGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, buttonDownGesture);
     ASSERT_EQ(2u, args.size());
 
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
@@ -1255,7 +1372,7 @@ TEST_F_WITH_FLAGS(GestureConverterTest, ClickWithTapToClickDisabled,
     Gesture buttonUpGesture(kGestureButtonsChange, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                             /* down= */ GESTURES_BUTTON_NONE,
                             /* up= */ GESTURES_BUTTON_LEFT, /* is_tap= */ false);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, buttonUpGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, buttonUpGesture);
 
     ASSERT_EQ(3u, args.size());
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
@@ -1290,7 +1407,8 @@ TEST_F_WITH_FLAGS(GestureConverterTest, MoveEnablesTapToClick,
     converter.setDisplayId(ADISPLAY_ID_DEFAULT);
 
     Gesture moveGesture(kGestureMove, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, -5, 10);
-    std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, moveGesture);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, moveGesture);
     ASSERT_EQ(1u, args.size());
 
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
@@ -1303,6 +1421,45 @@ TEST_F_WITH_FLAGS(GestureConverterTest, MoveEnablesTapToClick,
 
     // Future taps should be re-enabled
     ASSERT_FALSE(mReader->getContext()->isPreventingTouchpadTaps());
+}
+
+TEST_F_WITH_FLAGS(GestureConverterTest, KeypressCancelsHoverMove,
+                  REQUIRES_FLAGS_ENABLED(TOUCHPAD_PALM_REJECTION_V2)) {
+    const nsecs_t gestureStartTime = 1000;
+    InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
+    GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
+    converter.setDisplayId(ADISPLAY_ID_DEFAULT);
+
+    // Start a move gesture at gestureStartTime
+    Gesture moveGesture(kGestureMove, gestureStartTime, gestureStartTime, -5, 10);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(gestureStartTime, READ_TIME, gestureStartTime, moveGesture);
+    ASSERT_EQ(1u, args.size());
+    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE));
+
+    // Key presses with IME connection should cancel ongoing move gesture
+    nsecs_t currentTime = gestureStartTime + 100;
+    mFakePolicy->setIsInputMethodConnectionActive(true);
+    mReader->getContext()->setLastKeyDownTimestamp(currentTime);
+    moveGesture = Gesture(kGestureMove, currentTime, currentTime, -5, 10);
+    args = converter.handleGesture(currentTime, READ_TIME, gestureStartTime, moveGesture);
+    ASSERT_EQ(1u, args.size());
+    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                WithMotionAction(AMOTION_EVENT_ACTION_HOVER_EXIT));
+
+    // any updates in existing move gesture should be ignored
+    moveGesture = Gesture(kGestureMove, currentTime, currentTime, -5, 10);
+    args = converter.handleGesture(currentTime, READ_TIME, gestureStartTime, moveGesture);
+    ASSERT_EQ(0u, args.size());
+
+    // New gesture should not be affected
+    currentTime += 100;
+    moveGesture = Gesture(kGestureMove, currentTime, currentTime, -5, 10);
+    args = converter.handleGesture(currentTime, READ_TIME, currentTime, moveGesture);
+    ASSERT_EQ(1u, args.size());
+    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE));
 }
 
 // TODO(b/311416205): De-duplicate the test cases after the refactoring is complete and the flagging
@@ -1321,7 +1478,8 @@ TEST_F(GestureConverterTestWithChoreographer, Move) {
     converter.setDisplayId(ADISPLAY_ID_DEFAULT);
 
     Gesture moveGesture(kGestureMove, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, -5, 10);
-    std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, moveGesture);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, moveGesture);
     ASSERT_EQ(1u, args.size());
 
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
@@ -1337,7 +1495,8 @@ TEST_F(GestureConverterTestWithChoreographer, Move_Rotated) {
     converter.setDisplayId(ADISPLAY_ID_DEFAULT);
 
     Gesture moveGesture(kGestureMove, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, -5, 10);
-    std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, moveGesture);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, moveGesture);
     ASSERT_EQ(1u, args.size());
 
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
@@ -1355,7 +1514,8 @@ TEST_F(GestureConverterTestWithChoreographer, ButtonsChange) {
     Gesture downGesture(kGestureButtonsChange, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                         /* down= */ GESTURES_BUTTON_LEFT | GESTURES_BUTTON_RIGHT,
                         /* up= */ GESTURES_BUTTON_NONE, /* is_tap= */ false);
-    std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, downGesture);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, downGesture);
     ASSERT_EQ(3u, args.size());
 
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
@@ -1383,7 +1543,7 @@ TEST_F(GestureConverterTestWithChoreographer, ButtonsChange) {
     Gesture leftUpGesture(kGestureButtonsChange, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                           /* down= */ GESTURES_BUTTON_NONE, /* up= */ GESTURES_BUTTON_LEFT,
                           /* is_tap= */ false);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, leftUpGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, leftUpGesture);
     ASSERT_EQ(1u, args.size());
 
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
@@ -1396,7 +1556,7 @@ TEST_F(GestureConverterTestWithChoreographer, ButtonsChange) {
     Gesture rightUpGesture(kGestureButtonsChange, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                            /* down= */ GESTURES_BUTTON_NONE, /* up= */ GESTURES_BUTTON_RIGHT,
                            /* is_tap= */ false);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, rightUpGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, rightUpGesture);
     ASSERT_EQ(3u, args.size());
 
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
@@ -1425,7 +1585,8 @@ TEST_F(GestureConverterTestWithChoreographer, DragWithButton) {
     Gesture downGesture(kGestureButtonsChange, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                         /* down= */ GESTURES_BUTTON_LEFT, /* up= */ GESTURES_BUTTON_NONE,
                         /* is_tap= */ false);
-    std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, downGesture);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, downGesture);
     ASSERT_EQ(2u, args.size());
 
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
@@ -1441,7 +1602,7 @@ TEST_F(GestureConverterTestWithChoreographer, DragWithButton) {
 
     // Move
     Gesture moveGesture(kGestureMove, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, -5, 10);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, moveGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, moveGesture);
     ASSERT_EQ(1u, args.size());
 
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
@@ -1454,7 +1615,7 @@ TEST_F(GestureConverterTestWithChoreographer, DragWithButton) {
     Gesture upGesture(kGestureButtonsChange, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                       /* down= */ GESTURES_BUTTON_NONE, /* up= */ GESTURES_BUTTON_LEFT,
                       /* is_tap= */ false);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, upGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, upGesture);
     ASSERT_EQ(3u, args.size());
 
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
@@ -1481,7 +1642,8 @@ TEST_F(GestureConverterTestWithChoreographer, Scroll) {
     converter.setDisplayId(ADISPLAY_ID_DEFAULT);
 
     Gesture startGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, -10);
-    std::list<NotifyArgs> args = converter.handleGesture(downTime, READ_TIME, startGesture);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(downTime, READ_TIME, ARBITRARY_TIME, startGesture);
     ASSERT_EQ(2u, args.size());
 
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
@@ -1501,7 +1663,7 @@ TEST_F(GestureConverterTestWithChoreographer, Scroll) {
                       WithDisplayId(ADISPLAY_ID_DEFAULT)));
 
     Gesture continueGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, -5);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, continueGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, continueGesture);
     ASSERT_EQ(1u, args.size());
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE), WithCoords(0, -15),
@@ -1513,7 +1675,7 @@ TEST_F(GestureConverterTestWithChoreographer, Scroll) {
 
     Gesture flingGesture(kGestureFling, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 1, 1,
                          GESTURES_FLING_START);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, flingGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, flingGesture);
     ASSERT_EQ(1u, args.size());
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP), WithCoords(0, 0 - 15),
@@ -1532,7 +1694,8 @@ TEST_F(GestureConverterTestWithChoreographer, Scroll_Rotated) {
     converter.setDisplayId(ADISPLAY_ID_DEFAULT);
 
     Gesture startGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, -10);
-    std::list<NotifyArgs> args = converter.handleGesture(downTime, READ_TIME, startGesture);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(downTime, READ_TIME, ARBITRARY_TIME, startGesture);
     ASSERT_EQ(2u, args.size());
 
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
@@ -1549,7 +1712,7 @@ TEST_F(GestureConverterTestWithChoreographer, Scroll_Rotated) {
                       WithToolType(ToolType::FINGER), WithDisplayId(ADISPLAY_ID_DEFAULT)));
 
     Gesture continueGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, -5);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, continueGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, continueGesture);
     ASSERT_EQ(1u, args.size());
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE), WithCoords(-15, 0),
@@ -1559,7 +1722,7 @@ TEST_F(GestureConverterTestWithChoreographer, Scroll_Rotated) {
 
     Gesture flingGesture(kGestureFling, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 1, 1,
                          GESTURES_FLING_START);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, flingGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, flingGesture);
     ASSERT_EQ(1u, args.size());
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP), WithCoords(-15, 0),
@@ -1574,17 +1737,18 @@ TEST_F(GestureConverterTestWithChoreographer, Scroll_ClearsClassificationAfterGe
     converter.setDisplayId(ADISPLAY_ID_DEFAULT);
 
     Gesture startGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, -10);
-    std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, startGesture);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, startGesture);
 
     Gesture continueGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, -5);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, continueGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, continueGesture);
 
     Gesture flingGesture(kGestureFling, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 1, 1,
                          GESTURES_FLING_START);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, flingGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, flingGesture);
 
     Gesture moveGesture(kGestureMove, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, -5, 10);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, moveGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, moveGesture);
     ASSERT_EQ(1u, args.size());
     EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionClassification(MotionClassification::NONE),
@@ -1597,20 +1761,21 @@ TEST_F(GestureConverterTestWithChoreographer, Scroll_ClearsScrollDistanceAfterGe
     converter.setDisplayId(ADISPLAY_ID_DEFAULT);
 
     Gesture startGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, -10);
-    std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, startGesture);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, startGesture);
 
     Gesture continueGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, -5);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, continueGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, continueGesture);
 
     Gesture flingGesture(kGestureFling, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 1, 1,
                          GESTURES_FLING_START);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, flingGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, flingGesture);
 
     // Move gestures don't use the fake finger array, so to test that gesture axes are cleared we
     // need to use another gesture type, like pinch.
     Gesture pinchGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /*dz=*/1,
                          GESTURES_ZOOM_START);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, pinchGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, pinchGesture);
     ASSERT_FALSE(args.empty());
     EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()), WithGestureScrollDistance(0, 0, EPSILON));
 }
@@ -1622,14 +1787,15 @@ TEST_F(GestureConverterTestWithChoreographer, ThreeFingerSwipe_ClearsClassificat
 
     Gesture startGesture(kGestureSwipe, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /*dx=*/0,
                          /*dy=*/0);
-    std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, startGesture);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, startGesture);
 
     Gesture liftGesture(kGestureSwipeLift, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, liftGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, liftGesture);
 
     Gesture moveGesture(kGestureMove, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /*dx=*/-5,
                         /*dy=*/10);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, moveGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, moveGesture);
     ASSERT_EQ(1u, args.size());
     EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 WithMotionClassification(MotionClassification::NONE));
@@ -1642,16 +1808,17 @@ TEST_F(GestureConverterTestWithChoreographer, ThreeFingerSwipe_ClearsGestureAxes
 
     Gesture startGesture(kGestureSwipe, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /*dx=*/5,
                          /*dy=*/5);
-    std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, startGesture);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, startGesture);
 
     Gesture liftGesture(kGestureSwipeLift, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, liftGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, liftGesture);
 
     // Move gestures don't use the fake finger array, so to test that gesture axes are cleared we
     // need to use another gesture type, like pinch.
     Gesture pinchGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /*dz=*/1,
                          GESTURES_ZOOM_START);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, pinchGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, pinchGesture);
     ASSERT_FALSE(args.empty());
     EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithGestureOffset(0, 0, EPSILON), WithGestureSwipeFingerCount(0)));
@@ -1668,7 +1835,8 @@ TEST_F(GestureConverterTestWithChoreographer, ThreeFingerSwipe_Vertical) {
 
     Gesture startGesture(kGestureSwipe, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /* dx= */ 0,
                          /* dy= */ 10);
-    std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, startGesture);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, startGesture);
     ASSERT_EQ(4u, args.size());
 
     // Three fake fingers should be created. We don't actually care where they are, so long as they
@@ -1719,7 +1887,7 @@ TEST_F(GestureConverterTestWithChoreographer, ThreeFingerSwipe_Vertical) {
 
     Gesture continueGesture(kGestureSwipe, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                             /* dx= */ 0, /* dy= */ 5);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, continueGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, continueGesture);
     ASSERT_EQ(1u, args.size());
     arg = std::get<NotifyMotionArgs>(args.front());
     ASSERT_THAT(arg,
@@ -1736,7 +1904,7 @@ TEST_F(GestureConverterTestWithChoreographer, ThreeFingerSwipe_Vertical) {
     EXPECT_EQ(arg.pointerCoords[2].getY(), finger2Start.getY() - 15);
 
     Gesture liftGesture(kGestureSwipeLift, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, liftGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, liftGesture);
     ASSERT_EQ(3u, args.size());
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_POINTER_UP |
@@ -1770,7 +1938,8 @@ TEST_F(GestureConverterTestWithChoreographer, ThreeFingerSwipe_Rotated) {
 
     Gesture startGesture(kGestureSwipe, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /* dx= */ 0,
                          /* dy= */ 10);
-    std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, startGesture);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, startGesture);
     ASSERT_EQ(4u, args.size());
 
     // Three fake fingers should be created. We don't actually care where they are, so long as they
@@ -1812,7 +1981,7 @@ TEST_F(GestureConverterTestWithChoreographer, ThreeFingerSwipe_Rotated) {
 
     Gesture continueGesture(kGestureSwipe, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                             /* dx= */ 0, /* dy= */ 5);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, continueGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, continueGesture);
     ASSERT_EQ(1u, args.size());
     arg = std::get<NotifyMotionArgs>(args.front());
     ASSERT_THAT(arg,
@@ -1827,7 +1996,7 @@ TEST_F(GestureConverterTestWithChoreographer, ThreeFingerSwipe_Rotated) {
     EXPECT_EQ(arg.pointerCoords[2].getY(), finger2Start.getY());
 
     Gesture liftGesture(kGestureSwipeLift, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, liftGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, liftGesture);
     ASSERT_EQ(3u, args.size());
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_POINTER_UP |
@@ -1853,7 +2022,8 @@ TEST_F(GestureConverterTestWithChoreographer, FourFingerSwipe_Horizontal) {
 
     Gesture startGesture(kGestureFourFingerSwipe, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                          /* dx= */ 10, /* dy= */ 0);
-    std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, startGesture);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, startGesture);
     ASSERT_EQ(5u, args.size());
 
     // Four fake fingers should be created. We don't actually care where they are, so long as they
@@ -1916,7 +2086,7 @@ TEST_F(GestureConverterTestWithChoreographer, FourFingerSwipe_Horizontal) {
 
     Gesture continueGesture(kGestureFourFingerSwipe, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                             /* dx= */ 5, /* dy= */ 0);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, continueGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, continueGesture);
     ASSERT_EQ(1u, args.size());
     arg = std::get<NotifyMotionArgs>(args.front());
     ASSERT_THAT(arg,
@@ -1935,7 +2105,7 @@ TEST_F(GestureConverterTestWithChoreographer, FourFingerSwipe_Horizontal) {
     EXPECT_EQ(arg.pointerCoords[3].getY(), finger3Start.getY());
 
     Gesture liftGesture(kGestureSwipeLift, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, liftGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, liftGesture);
     ASSERT_EQ(4u, args.size());
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_POINTER_UP |
@@ -1976,7 +2146,8 @@ TEST_F(GestureConverterTestWithChoreographer, Pinch_Inwards) {
 
     Gesture startGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /* dz= */ 1,
                          GESTURES_ZOOM_START);
-    std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, startGesture);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, startGesture);
     ASSERT_EQ(2u, args.size());
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
@@ -1995,7 +2166,7 @@ TEST_F(GestureConverterTestWithChoreographer, Pinch_Inwards) {
 
     Gesture updateGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                           /* dz= */ 0.8, GESTURES_ZOOM_UPDATE);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, updateGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, updateGesture);
     ASSERT_EQ(1u, args.size());
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
@@ -2006,7 +2177,7 @@ TEST_F(GestureConverterTestWithChoreographer, Pinch_Inwards) {
 
     Gesture endGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /* dz= */ 1,
                        GESTURES_ZOOM_END);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, endGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, endGesture);
     ASSERT_EQ(2u, args.size());
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_POINTER_UP |
@@ -2029,7 +2200,8 @@ TEST_F(GestureConverterTestWithChoreographer, Pinch_Outwards) {
 
     Gesture startGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /* dz= */ 1,
                          GESTURES_ZOOM_START);
-    std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, startGesture);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, startGesture);
     ASSERT_EQ(2u, args.size());
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
@@ -2048,7 +2220,7 @@ TEST_F(GestureConverterTestWithChoreographer, Pinch_Outwards) {
 
     Gesture updateGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                           /* dz= */ 1.1, GESTURES_ZOOM_UPDATE);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, updateGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, updateGesture);
     ASSERT_EQ(1u, args.size());
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
@@ -2059,7 +2231,7 @@ TEST_F(GestureConverterTestWithChoreographer, Pinch_Outwards) {
 
     Gesture endGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /* dz= */ 1,
                        GESTURES_ZOOM_END);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, endGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, endGesture);
     ASSERT_EQ(2u, args.size());
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_POINTER_UP |
@@ -2082,18 +2254,19 @@ TEST_F(GestureConverterTestWithChoreographer, Pinch_ClearsClassificationAfterGes
 
     Gesture startGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /*dz=*/1,
                          GESTURES_ZOOM_START);
-    std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, startGesture);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, startGesture);
 
     Gesture updateGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                           /*dz=*/1.2, GESTURES_ZOOM_UPDATE);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, updateGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, updateGesture);
 
     Gesture endGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /*dz=*/1,
                        GESTURES_ZOOM_END);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, endGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, endGesture);
 
     Gesture moveGesture(kGestureMove, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, -5, 10);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, moveGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, moveGesture);
     ASSERT_EQ(1u, args.size());
     EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 WithMotionClassification(MotionClassification::NONE));
@@ -2106,21 +2279,22 @@ TEST_F(GestureConverterTestWithChoreographer, Pinch_ClearsScaleFactorAfterGestur
 
     Gesture startGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /*dz=*/1,
                          GESTURES_ZOOM_START);
-    std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, startGesture);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, startGesture);
 
     Gesture updateGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                           /*dz=*/1.2, GESTURES_ZOOM_UPDATE);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, updateGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, updateGesture);
 
     Gesture endGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /*dz=*/1,
                        GESTURES_ZOOM_END);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, endGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, endGesture);
 
     // Move gestures don't use the fake finger array, so to test that gesture axes are cleared we
     // need to use another gesture type, like scroll.
     Gesture scrollGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /*dx=*/1,
                           /*dy=*/0);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, scrollGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, scrollGesture);
     ASSERT_FALSE(args.empty());
     EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()), WithGesturePinchScaleFactor(0, EPSILON));
 }
@@ -2133,7 +2307,7 @@ TEST_F(GestureConverterTestWithChoreographer, ResetWithButtonPressed) {
     Gesture downGesture(kGestureButtonsChange, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                         /*down=*/GESTURES_BUTTON_LEFT | GESTURES_BUTTON_RIGHT,
                         /*up=*/GESTURES_BUTTON_NONE, /*is_tap=*/false);
-    (void)converter.handleGesture(ARBITRARY_TIME, READ_TIME, downGesture);
+    (void)converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, downGesture);
 
     std::list<NotifyArgs> args = converter.reset(ARBITRARY_TIME);
     ASSERT_EQ(3u, args.size());
@@ -2162,7 +2336,7 @@ TEST_F(GestureConverterTestWithChoreographer, ResetDuringScroll) {
     converter.setDisplayId(ADISPLAY_ID_DEFAULT);
 
     Gesture startGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, -10);
-    (void)converter.handleGesture(ARBITRARY_TIME, READ_TIME, startGesture);
+    (void)converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, startGesture);
 
     std::list<NotifyArgs> args = converter.reset(ARBITRARY_TIME);
     ASSERT_EQ(1u, args.size());
@@ -2182,7 +2356,7 @@ TEST_F(GestureConverterTestWithChoreographer, ResetDuringThreeFingerSwipe) {
 
     Gesture startGesture(kGestureSwipe, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /*dx=*/0,
                          /*dy=*/10);
-    (void)converter.handleGesture(ARBITRARY_TIME, READ_TIME, startGesture);
+    (void)converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, startGesture);
 
     std::list<NotifyArgs> args = converter.reset(ARBITRARY_TIME);
     ASSERT_EQ(3u, args.size());
@@ -2216,7 +2390,7 @@ TEST_F(GestureConverterTestWithChoreographer, ResetDuringPinch) {
 
     Gesture startGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /*dz=*/1,
                          GESTURES_ZOOM_START);
-    (void)converter.handleGesture(ARBITRARY_TIME, READ_TIME, startGesture);
+    (void)converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, startGesture);
 
     std::list<NotifyArgs> args = converter.reset(ARBITRARY_TIME);
     ASSERT_EQ(2u, args.size());
@@ -2241,7 +2415,8 @@ TEST_F(GestureConverterTestWithChoreographer, FlingTapDown) {
 
     Gesture tapDownGesture(kGestureFling, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                            /*vx=*/0.f, /*vy=*/0.f, GESTURES_FLING_TAP_DOWN);
-    std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, tapDownGesture);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, tapDownGesture);
 
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE), WithCoords(0, 0),
@@ -2257,7 +2432,8 @@ TEST_F(GestureConverterTestWithChoreographer, Tap) {
 
     Gesture flingGesture(kGestureFling, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /* vx= */ 0,
                          /* vy= */ 0, GESTURES_FLING_TAP_DOWN);
-    std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, flingGesture);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, flingGesture);
 
     ASSERT_EQ(1u, args.size());
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
@@ -2268,7 +2444,7 @@ TEST_F(GestureConverterTestWithChoreographer, Tap) {
     Gesture tapGesture(kGestureButtonsChange, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                        /* down= */ GESTURES_BUTTON_LEFT,
                        /* up= */ GESTURES_BUTTON_LEFT, /* is_tap= */ true);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, tapGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, tapGesture);
 
     ASSERT_EQ(5u, args.size());
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
@@ -2311,7 +2487,8 @@ TEST_F(GestureConverterTestWithChoreographer, Click) {
 
     Gesture flingGesture(kGestureFling, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /* vx= */ 0,
                          /* vy= */ 0, GESTURES_FLING_TAP_DOWN);
-    std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, flingGesture);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, flingGesture);
 
     ASSERT_EQ(1u, args.size());
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
@@ -2322,7 +2499,7 @@ TEST_F(GestureConverterTestWithChoreographer, Click) {
     Gesture buttonDownGesture(kGestureButtonsChange, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                               /* down= */ GESTURES_BUTTON_LEFT,
                               /* up= */ GESTURES_BUTTON_NONE, /* is_tap= */ false);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, buttonDownGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, buttonDownGesture);
 
     ASSERT_EQ(2u, args.size());
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
@@ -2342,7 +2519,7 @@ TEST_F(GestureConverterTestWithChoreographer, Click) {
     Gesture buttonUpGesture(kGestureButtonsChange, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                             /* down= */ GESTURES_BUTTON_NONE,
                             /* up= */ GESTURES_BUTTON_LEFT, /* is_tap= */ false);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, buttonUpGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, buttonUpGesture);
 
     ASSERT_EQ(3u, args.size());
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
@@ -2364,7 +2541,10 @@ TEST_F(GestureConverterTestWithChoreographer, Click) {
 }
 
 TEST_F_WITH_FLAGS(GestureConverterTestWithChoreographer, TapWithTapToClickDisabled,
-                  REQUIRES_FLAGS_ENABLED(TOUCHPAD_PALM_REJECTION)) {
+                  REQUIRES_FLAGS_ENABLED(TOUCHPAD_PALM_REJECTION),
+                  REQUIRES_FLAGS_DISABLED(TOUCHPAD_PALM_REJECTION_V2)) {
+    nsecs_t currentTime = ARBITRARY_GESTURE_TIME;
+
     // Tap should be ignored when disabled
     mReader->getContext()->setPreventingTouchpadTaps(true);
 
@@ -2372,27 +2552,117 @@ TEST_F_WITH_FLAGS(GestureConverterTestWithChoreographer, TapWithTapToClickDisabl
     GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
     converter.setDisplayId(ADISPLAY_ID_DEFAULT);
 
-    Gesture flingGesture(kGestureFling, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /* vx= */ 0,
+    Gesture flingGesture(kGestureFling, currentTime, currentTime, /* vx= */ 0,
                          /* vy= */ 0, GESTURES_FLING_TAP_DOWN);
-    std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, flingGesture);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(currentTime, currentTime, currentTime, flingGesture);
 
     ASSERT_EQ(1u, args.size());
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE), WithCoords(0, 0),
                       WithRelativeMotion(0, 0), WithToolType(ToolType::FINGER), WithButtonState(0),
                       WithPressure(0.0f), WithDisplayId(ADISPLAY_ID_DEFAULT)));
-    args.pop_front();
 
-    Gesture tapGesture(kGestureButtonsChange, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
+    Gesture tapGesture(kGestureButtonsChange, currentTime, currentTime,
                        /* down= */ GESTURES_BUTTON_LEFT,
                        /* up= */ GESTURES_BUTTON_LEFT, /* is_tap= */ true);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, tapGesture);
+    args = converter.handleGesture(currentTime, currentTime, currentTime, tapGesture);
 
     // no events should be generated
     ASSERT_EQ(0u, args.size());
 
     // Future taps should be re-enabled
     ASSERT_FALSE(mReader->getContext()->isPreventingTouchpadTaps());
+}
+
+TEST_F_WITH_FLAGS(GestureConverterTestWithChoreographer, TapWithTapToClickDisabledWithDelay,
+                  REQUIRES_FLAGS_ENABLED(TOUCHPAD_PALM_REJECTION_V2)) {
+    nsecs_t currentTime = ARBITRARY_GESTURE_TIME;
+
+    // Tap should be ignored when disabled
+    mReader->getContext()->setPreventingTouchpadTaps(true);
+
+    InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
+    GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
+    converter.setDisplayId(ADISPLAY_ID_DEFAULT);
+
+    Gesture flingGesture(kGestureFling, currentTime, currentTime, /* vx= */ 0,
+                         /* vy= */ 0, GESTURES_FLING_TAP_DOWN);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(currentTime, currentTime, currentTime, flingGesture);
+
+    ASSERT_EQ(1u, args.size());
+    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE), WithCoords(0, 0),
+                      WithRelativeMotion(0, 0), WithToolType(ToolType::FINGER), WithButtonState(0),
+                      WithPressure(0.0f), WithDisplayId(ADISPLAY_ID_DEFAULT)));
+
+    Gesture tapGesture(kGestureButtonsChange, currentTime, currentTime,
+                       /* down= */ GESTURES_BUTTON_LEFT,
+                       /* up= */ GESTURES_BUTTON_LEFT, /* is_tap= */ true);
+    args = converter.handleGesture(currentTime, currentTime, currentTime, tapGesture);
+
+    // no events should be generated
+    ASSERT_EQ(0u, args.size());
+
+    // Future taps should be re-enabled
+    ASSERT_FALSE(mReader->getContext()->isPreventingTouchpadTaps());
+
+    // taps before the threshold should still be ignored
+    currentTime += TAP_ENABLE_DELAY_NANOS.count();
+    flingGesture = Gesture(kGestureFling, currentTime, currentTime, /* vx= */ 0,
+                           /* vy= */ 0, GESTURES_FLING_TAP_DOWN);
+    args = converter.handleGesture(currentTime, currentTime, currentTime, flingGesture);
+
+    ASSERT_EQ(1u, args.size());
+    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE), WithRelativeMotion(0, 0)));
+
+    tapGesture = Gesture(kGestureButtonsChange, currentTime, currentTime,
+                         /* down= */ GESTURES_BUTTON_LEFT,
+                         /* up= */ GESTURES_BUTTON_LEFT, /* is_tap= */ true);
+    args = converter.handleGesture(currentTime, currentTime, currentTime, tapGesture);
+
+    // no events should be generated
+    ASSERT_EQ(0u, args.size());
+
+    // taps after the threshold should be recognised
+    currentTime += 1;
+    flingGesture = Gesture(kGestureFling, currentTime, currentTime, /* vx= */ 0,
+                           /* vy= */ 0, GESTURES_FLING_TAP_DOWN);
+    args = converter.handleGesture(currentTime, currentTime, currentTime, flingGesture);
+
+    ASSERT_EQ(1u, args.size());
+    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE), WithRelativeMotion(0, 0)));
+
+    tapGesture = Gesture(kGestureButtonsChange, currentTime, currentTime,
+                         /* down= */ GESTURES_BUTTON_LEFT,
+                         /* up= */ GESTURES_BUTTON_LEFT, /* is_tap= */ true);
+    args = converter.handleGesture(currentTime, currentTime, currentTime, tapGesture);
+
+    ASSERT_EQ(5u, args.size());
+    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN), WithRelativeMotion(0.f, 0.f),
+                      WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY)));
+    args.pop_front();
+    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_PRESS),
+                      WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY), WithButtonState(1),
+                      WithRelativeMotion(0.f, 0.f)));
+    args.pop_front();
+    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_BUTTON_RELEASE),
+                      WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY), WithButtonState(0),
+                      WithRelativeMotion(0.f, 0.f)));
+    args.pop_front();
+    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP), WithRelativeMotion(0.f, 0.f),
+                      WithButtonState(0)));
+    args.pop_front();
+    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE), WithRelativeMotion(0, 0),
+                      WithButtonState(0)));
 }
 
 TEST_F_WITH_FLAGS(GestureConverterTestWithChoreographer, ClickWithTapToClickDisabled,
@@ -2406,7 +2676,8 @@ TEST_F_WITH_FLAGS(GestureConverterTestWithChoreographer, ClickWithTapToClickDisa
 
     Gesture flingGesture(kGestureFling, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /* vx= */ 0,
                          /* vy= */ 0, GESTURES_FLING_TAP_DOWN);
-    std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, flingGesture);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, flingGesture);
 
     ASSERT_EQ(1u, args.size());
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
@@ -2417,7 +2688,7 @@ TEST_F_WITH_FLAGS(GestureConverterTestWithChoreographer, ClickWithTapToClickDisa
     Gesture buttonDownGesture(kGestureButtonsChange, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                               /* down= */ GESTURES_BUTTON_LEFT,
                               /* up= */ GESTURES_BUTTON_NONE, /* is_tap= */ false);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, buttonDownGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, buttonDownGesture);
     ASSERT_EQ(2u, args.size());
 
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
@@ -2437,7 +2708,7 @@ TEST_F_WITH_FLAGS(GestureConverterTestWithChoreographer, ClickWithTapToClickDisa
     Gesture buttonUpGesture(kGestureButtonsChange, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                             /* down= */ GESTURES_BUTTON_NONE,
                             /* up= */ GESTURES_BUTTON_LEFT, /* is_tap= */ false);
-    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, buttonUpGesture);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, buttonUpGesture);
 
     ASSERT_EQ(3u, args.size());
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
@@ -2471,7 +2742,8 @@ TEST_F_WITH_FLAGS(GestureConverterTestWithChoreographer, MoveEnablesTapToClick,
     converter.setDisplayId(ADISPLAY_ID_DEFAULT);
 
     Gesture moveGesture(kGestureMove, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, -5, 10);
-    std::list<NotifyArgs> args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, moveGesture);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, moveGesture);
     ASSERT_EQ(1u, args.size());
 
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
@@ -2481,6 +2753,45 @@ TEST_F_WITH_FLAGS(GestureConverterTestWithChoreographer, MoveEnablesTapToClick,
 
     // Future taps should be re-enabled
     ASSERT_FALSE(mReader->getContext()->isPreventingTouchpadTaps());
+}
+
+TEST_F_WITH_FLAGS(GestureConverterTestWithChoreographer, KeypressCancelsHoverMove,
+                  REQUIRES_FLAGS_ENABLED(TOUCHPAD_PALM_REJECTION_V2)) {
+    const nsecs_t gestureStartTime = 1000;
+    InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
+    GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
+    converter.setDisplayId(ADISPLAY_ID_DEFAULT);
+
+    // Start a move gesture at gestureStartTime
+    Gesture moveGesture(kGestureMove, gestureStartTime, gestureStartTime, -5, 10);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(gestureStartTime, READ_TIME, gestureStartTime, moveGesture);
+    ASSERT_EQ(1u, args.size());
+    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE));
+
+    // Key presses with IME connection should cancel ongoing move gesture
+    nsecs_t currentTime = gestureStartTime + 100;
+    mFakePolicy->setIsInputMethodConnectionActive(true);
+    mReader->getContext()->setLastKeyDownTimestamp(currentTime);
+    moveGesture = Gesture(kGestureMove, currentTime, currentTime, -5, 10);
+    args = converter.handleGesture(currentTime, READ_TIME, gestureStartTime, moveGesture);
+    ASSERT_EQ(1u, args.size());
+    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                WithMotionAction(AMOTION_EVENT_ACTION_HOVER_EXIT));
+
+    // any updates in existing move gesture should be ignored
+    moveGesture = Gesture(kGestureMove, currentTime, currentTime, -5, 10);
+    args = converter.handleGesture(currentTime, READ_TIME, gestureStartTime, moveGesture);
+    ASSERT_EQ(0u, args.size());
+
+    // New gesture should not be affected
+    currentTime += 100;
+    moveGesture = Gesture(kGestureMove, currentTime, currentTime, -5, 10);
+    args = converter.handleGesture(currentTime, READ_TIME, currentTime, moveGesture);
+    ASSERT_EQ(1u, args.size());
+    ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
+                WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE));
 }
 
 } // namespace android

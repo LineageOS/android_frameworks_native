@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <chrono>
 #include <iostream>
 #include <string>
 
@@ -58,6 +59,11 @@ public:
 
     void forEachCommand(const std::function<void(const Command* c)>& f) const;
 
+    void setWaitTimeForTest(std::chrono::milliseconds ipcCallWait,
+                            std::chrono::milliseconds debugDumpWait);
+    std::chrono::milliseconds getIpcCallWait() const;
+    std::chrono::milliseconds getDebugDumpWait() const;
+
 private:
     Status parseArgs(const Arg &arg);
 
@@ -69,6 +75,9 @@ private:
     sp<hidl::manager::V1_0::IServiceManager> mPassthroughManager;
 
     std::vector<std::unique_ptr<Command>> mRegisteredCommands;
+
+    std::chrono::milliseconds mIpcCallWait{500};
+    std::chrono::milliseconds mDebugDumpWait{10000};
 
     DISALLOW_COPY_AND_ASSIGN(Lshal);
 };

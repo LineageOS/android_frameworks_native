@@ -471,7 +471,7 @@ TEST_F(EventThreadTest, getLatestVsyncEventData) {
 
     mock::VSyncTracker& mockTracker =
             *static_cast<mock::VSyncTracker*>(&mVsyncSchedule->getTracker());
-    EXPECT_CALL(mockTracker, nextAnticipatedVSyncTimeFrom(_))
+    EXPECT_CALL(mockTracker, nextAnticipatedVSyncTimeFrom(_, _))
             .WillOnce(Return(preferredExpectedPresentationTime));
 
     VsyncEventData vsyncEventData = mThread->getLatestVsyncEventData(mConnection);

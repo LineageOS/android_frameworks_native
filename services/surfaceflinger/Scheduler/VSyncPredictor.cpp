@@ -253,7 +253,7 @@ bool VSyncPredictor::addVsyncTimestamp(nsecs_t timestamp) {
 }
 
 auto VSyncPredictor::getVsyncSequenceLocked(nsecs_t timestamp) const -> VsyncSequence {
-    const auto vsync = nextAnticipatedVSyncTimeFromLocked(timestamp);
+    const auto vsync = snapToVsync(timestamp);
     if (!mLastVsyncSequence) return {vsync, 0};
 
     const auto [slope, _] = getVSyncPredictionModelLocked();
@@ -263,7 +263,7 @@ auto VSyncPredictor::getVsyncSequenceLocked(nsecs_t timestamp) const -> VsyncSeq
     return {vsync, vsyncSequence};
 }
 
-nsecs_t VSyncPredictor::nextAnticipatedVSyncTimeFromLocked(nsecs_t timePoint) const {
+nsecs_t VSyncPredictor::snapToVsync(nsecs_t timePoint) const {
     auto const [slope, intercept] = getVSyncPredictionModelLocked();
 
     if (mTimestamps.empty()) {
@@ -299,9 +299,29 @@ nsecs_t VSyncPredictor::nextAnticipatedVSyncTimeFromLocked(nsecs_t timePoint) co
     return prediction;
 }
 
-nsecs_t VSyncPredictor::nextAnticipatedVSyncTimeFrom(nsecs_t timePoint) const {
+nsecs_t VSyncPredictor::nextAnticipatedVSyncTimeFrom(nsecs_t timePoint,
+                                                     std::optional<nsecs_t> lastVsyncOpt) const {
+    ATRACE_CALL();
     std::lock_guard lock(mMutex);
+    const auto currentPeriod = mRateMap.find(idealPeriod())->second.slope;
+    const auto threshold = currentPeriod / 2;
+    const auto minFramePeriod = minFramePeriodLocked().ns();
+    const auto lastFrameMissed =
+            lastVsyncOpt && std::abs(*lastVsyncOpt - mLastMissedVsync.ns()) < threshold;
+    const nsecs_t baseTime =
+            FlagManager::getInstance().vrr_config() && !lastFrameMissed && lastVsyncOpt
+            ? std::max(timePoint, *lastVsyncOpt + minFramePeriod - threshold)
+            : timePoint;
+    const auto vsyncTime = snapToVsyncAlignedWithRenderRate(baseTime);
+    if (FlagManager::getInstance().vrr_config()) {
+        const auto vsyncTimePoint = TimePoint::fromNs(vsyncTime);
+        const Fps renderRate = mRenderRateOpt ? *mRenderRateOpt : mDisplayModePtr->getPeakFps();
+        mVsyncTrackerCallback.onVsyncGenerated(vsyncTimePoint, mDisplayModePtr, renderRate);
+    }
+    return vsyncTime;
+}
 
+nsecs_t VSyncPredictor::snapToVsyncAlignedWithRenderRate(nsecs_t timePoint) const {
     // update the mLastVsyncSequence for reference point
     mLastVsyncSequence = getVsyncSequenceLocked(timePoint);
 
@@ -325,30 +345,12 @@ nsecs_t VSyncPredictor::nextAnticipatedVSyncTimeFrom(nsecs_t timePoint) const {
     }();
 
     if (renderRatePhase == 0) {
-        const auto vsyncTime = mLastVsyncSequence->vsyncTime;
-        if (FlagManager::getInstance().vrr_config()) {
-            const auto vsyncTimePoint = TimePoint::fromNs(vsyncTime);
-            ATRACE_FORMAT("%s InPhase vsyncIn %.2fms", __func__,
-                          ticks<std::milli, float>(vsyncTimePoint - TimePoint::now()));
-            const Fps renderRate = mRenderRateOpt ? *mRenderRateOpt : mDisplayModePtr->getPeakFps();
-            mVsyncTrackerCallback.onVsyncGenerated(vsyncTimePoint, mDisplayModePtr, renderRate);
-        }
-        return vsyncTime;
+        return mLastVsyncSequence->vsyncTime;
     }
 
     auto const [slope, intercept] = getVSyncPredictionModelLocked();
     const auto approximateNextVsync = mLastVsyncSequence->vsyncTime + slope * renderRatePhase;
-    const auto nextAnticipatedVsyncTime =
-            nextAnticipatedVSyncTimeFromLocked(approximateNextVsync - slope / 2);
-    if (FlagManager::getInstance().vrr_config()) {
-        const auto nextAnticipatedVsyncTimePoint = TimePoint::fromNs(nextAnticipatedVsyncTime);
-        ATRACE_FORMAT("%s outOfPhase vsyncIn %.2fms", __func__,
-                      ticks<std::milli, float>(nextAnticipatedVsyncTimePoint - TimePoint::now()));
-        const Fps renderRate = mRenderRateOpt ? *mRenderRateOpt : mDisplayModePtr->getPeakFps();
-        mVsyncTrackerCallback.onVsyncGenerated(nextAnticipatedVsyncTimePoint, mDisplayModePtr,
-                                               renderRate);
-    }
-    return nextAnticipatedVsyncTime;
+    return snapToVsync(approximateNextVsync - slope / 2);
 }
 
 /*
@@ -451,6 +453,7 @@ void VSyncPredictor::ensureMinFrameDurationIsKept(TimePoint expectedPresentTime,
             if (mLastVsyncSequence) {
                 mLastVsyncSequence->vsyncTime += phase.ns();
             }
+            mPastExpectedPresentTimes.clear();
         }
     }
 }
@@ -468,23 +471,17 @@ void VSyncPredictor::onFrameBegin(TimePoint expectedPresentTime,
                                                  lastConfirmedPresentTime.ns()) /
                                       1e6f);
     }
-    mPastExpectedPresentTimes.push_back(expectedPresentTime);
-
     const auto currentPeriod = mRateMap.find(idealPeriod())->second.slope;
     const auto threshold = currentPeriod / 2;
+    mPastExpectedPresentTimes.push_back(expectedPresentTime);
 
-    const auto minFramePeriod = minFramePeriodLocked().ns();
     while (!mPastExpectedPresentTimes.empty()) {
         const auto front = mPastExpectedPresentTimes.front().ns();
-        const bool frontIsLastConfirmed =
-                std::abs(front - lastConfirmedPresentTime.ns()) < threshold;
-        const bool frontIsBeforeConfirmed =
-                front < lastConfirmedPresentTime.ns() - minFramePeriod + threshold;
-        if (frontIsLastConfirmed || frontIsBeforeConfirmed) {
+        const bool frontIsBeforeConfirmed = front < lastConfirmedPresentTime.ns() + threshold;
+        if (frontIsBeforeConfirmed) {
             if (CC_UNLIKELY(mTraceOn)) {
                 ATRACE_FORMAT_INSTANT("Discarding old vsync - %.2f before last signaled fence",
-                                      static_cast<float>(lastConfirmedPresentTime.ns() -
-                                                         mPastExpectedPresentTimes.front().ns()) /
+                                      static_cast<float>(lastConfirmedPresentTime.ns() - front) /
                                               1e6f);
             }
             mPastExpectedPresentTimes.pop_front();
@@ -508,6 +505,7 @@ void VSyncPredictor::onFrameMissed(TimePoint expectedPresentTime) {
             TimePoint::fromNs(expectedPresentTime.ns() + currentPeriod);
 
     ensureMinFrameDurationIsKept(expectedPresentTime, lastConfirmedPresentTime);
+    mLastMissedVsync = expectedPresentTime;
 }
 
 VSyncPredictor::Model VSyncPredictor::getVSyncPredictionModel() const {

@@ -449,6 +449,9 @@ std::list<NotifyArgs> TouchpadInputMapper::process(const RawEvent* rawEvent) {
     if (mPointerCaptured) {
         return mCapturedEventConverter.process(*rawEvent);
     }
+    if (mMotionAccumulator.getActiveSlotsCount() == 0) {
+        mGestureStartTime = rawEvent->when;
+    }
     std::optional<SelfContainedHardwareState> state = mStateConverter.processRawEvent(rawEvent);
     if (state) {
         updatePalmDetectionMetrics();
@@ -514,7 +517,7 @@ std::list<NotifyArgs> TouchpadInputMapper::processGestures(nsecs_t when, nsecs_t
     if (mDisplayId) {
         MetricsAccumulator& metricsAccumulator = MetricsAccumulator::getInstance();
         for (Gesture& gesture : mGesturesToProcess) {
-            out += mGestureConverter.handleGesture(when, readTime, gesture);
+            out += mGestureConverter.handleGesture(when, readTime, mGestureStartTime, gesture);
             metricsAccumulator.processGesture(mMetricsId, gesture);
         }
     }

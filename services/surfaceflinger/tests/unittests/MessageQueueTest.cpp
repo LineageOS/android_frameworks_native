@@ -91,7 +91,7 @@ namespace {
 TEST_F(MessageQueueTest, commit) {
     const auto timing = scheduler::VSyncDispatch::ScheduleTiming{.workDuration = kDuration.ns(),
                                                                  .readyDuration = 0,
-                                                                 .earliestVsync = 0};
+                                                                 .lastVsync = 0};
     EXPECT_FALSE(mEventQueue.getScheduledFrameTime());
 
     EXPECT_CALL(*mVSyncDispatch, schedule(mCallbackToken, timing)).WillOnce(Return(1234));
@@ -105,7 +105,7 @@ TEST_F(MessageQueueTest, commitTwice) {
     InSequence s;
     const auto timing = scheduler::VSyncDispatch::ScheduleTiming{.workDuration = kDuration.ns(),
                                                                  .readyDuration = 0,
-                                                                 .earliestVsync = 0};
+                                                                 .lastVsync = 0};
 
     EXPECT_CALL(*mVSyncDispatch, schedule(mCallbackToken, timing)).WillOnce(Return(1234));
     EXPECT_NO_FATAL_FAILURE(mEventQueue.scheduleFrame());
@@ -124,7 +124,7 @@ TEST_F(MessageQueueTest, commitTwiceWithCallback) {
     InSequence s;
     const auto timing = scheduler::VSyncDispatch::ScheduleTiming{.workDuration = kDuration.ns(),
                                                                  .readyDuration = 0,
-                                                                 .earliestVsync = 0};
+                                                                 .lastVsync = 0};
 
     EXPECT_CALL(*mVSyncDispatch, schedule(mCallbackToken, timing)).WillOnce(Return(1234));
     EXPECT_NO_FATAL_FAILURE(mEventQueue.scheduleFrame());
@@ -151,7 +151,7 @@ TEST_F(MessageQueueTest, commitTwiceWithCallback) {
     const auto timingAfterCallback =
             scheduler::VSyncDispatch::ScheduleTiming{.workDuration = kDuration.ns(),
                                                      .readyDuration = 0,
-                                                     .earliestVsync = kPresentTime.ns()};
+                                                     .lastVsync = kPresentTime.ns()};
 
     EXPECT_CALL(*mVSyncDispatch, schedule(mCallbackToken, timingAfterCallback)).WillOnce(Return(0));
     EXPECT_NO_FATAL_FAILURE(mEventQueue.scheduleFrame());
@@ -163,7 +163,7 @@ TEST_F(MessageQueueTest, commitWithDurationChange) {
     const auto timing =
             scheduler::VSyncDispatch::ScheduleTiming{.workDuration = kDifferentDuration.ns(),
                                                      .readyDuration = 0,
-                                                     .earliestVsync = 0};
+                                                     .lastVsync = 0};
 
     EXPECT_CALL(*mVSyncDispatch, schedule(mCallbackToken, timing)).WillOnce(Return(0));
     EXPECT_NO_FATAL_FAILURE(mEventQueue.scheduleFrame());

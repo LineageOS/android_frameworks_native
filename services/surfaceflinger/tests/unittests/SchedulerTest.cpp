@@ -584,17 +584,17 @@ TEST_F(SchedulerTest, nextFrameIntervalTest) {
     scheduler.setRenderRate(kMode->getPhysicalDisplayId(), frameRate);
     vrrTracker->addVsyncTimestamp(0);
 
-    // Next frame at refresh rate as no previous frame
-    EXPECT_EQ(refreshRate,
-              scheduler.getNextFrameInterval(kMode->getPhysicalDisplayId(), TimePoint::fromNs(0)));
-
     EXPECT_EQ(Fps::fromPeriodNsecs(1000),
               scheduler.getNextFrameInterval(kMode->getPhysicalDisplayId(),
-                                             TimePoint::fromNs(500)));
+                                             TimePoint::fromNs(1000)));
     EXPECT_EQ(Fps::fromPeriodNsecs(1000),
               scheduler.getNextFrameInterval(kMode->getPhysicalDisplayId(),
-                                             TimePoint::fromNs(1500)));
+                                             TimePoint::fromNs(2000)));
 
+    // Not crossing the min frame period
+    EXPECT_EQ(Fps::fromPeriodNsecs(1500),
+              scheduler.getNextFrameInterval(kMode->getPhysicalDisplayId(),
+                                             TimePoint::fromNs(2500)));
     // Change render rate
     frameRate = Fps::fromPeriodNsecs(2000);
     vrrSelectorPtr->setActiveMode(kMode->getId(), frameRate);
@@ -602,10 +602,10 @@ TEST_F(SchedulerTest, nextFrameIntervalTest) {
 
     EXPECT_EQ(Fps::fromPeriodNsecs(2000),
               scheduler.getNextFrameInterval(kMode->getPhysicalDisplayId(),
-                                             TimePoint::fromNs(2500)));
+                                             TimePoint::fromNs(2000)));
     EXPECT_EQ(Fps::fromPeriodNsecs(2000),
               scheduler.getNextFrameInterval(kMode->getPhysicalDisplayId(),
-                                             TimePoint::fromNs(4500)));
+                                             TimePoint::fromNs(4000)));
 }
 
 TEST_F(SchedulerTest, resyncAllToHardwareVsync) FTL_FAKE_GUARD(kMainThreadContext) {

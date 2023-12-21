@@ -56,7 +56,7 @@ bool isSameStack(const std::vector<const LayerState*>& incomingLayers,
         }
 
         // Do not unflatten if source crop is only moved.
-        if (FlagManager::getInstance().cache_if_source_crop_layer_only_moved() &&
+        if (FlagManager::getInstance().cache_when_source_crop_layer_only_moved() &&
             incomingLayers[i]->isSourceCropSizeEqual(*(existingLayers[i])) &&
             incomingLayers[i]->getDifferingFields(*(existingLayers[i])) ==
                     LayerStateField::SourceCrop) {

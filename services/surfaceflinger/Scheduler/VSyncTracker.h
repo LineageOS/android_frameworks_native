@@ -57,9 +57,13 @@ public:
      * is updated.
      *
      * \param [in] timePoint    The point in time after which to estimate a vsync event.
+     * \param [in] lastVsyncOpt The last vsync time used by the client. If provided, the tracker
+     *                          should use that as a reference point when generating the new vsync
+     *                          and avoid crossing the minimal frame period of a VRR display.
      * \return                  A prediction of the timestamp of a vsync event.
      */
-    virtual nsecs_t nextAnticipatedVSyncTimeFrom(nsecs_t timePoint) const = 0;
+    virtual nsecs_t nextAnticipatedVSyncTimeFrom(
+            nsecs_t timePoint, std::optional<nsecs_t> lastVsyncOpt = {}) const = 0;
 
     /*
      * The current period of the vsync signal.

@@ -134,13 +134,13 @@ void SchedulerFuzzer::fuzzCallbackToken(scheduler::VSyncDispatchTimerQueue* disp
                 dispatch->schedule(tmp,
                                    {.workDuration = mFdp.ConsumeIntegral<nsecs_t>(),
                                     .readyDuration = mFdp.ConsumeIntegral<nsecs_t>(),
-                                    .earliestVsync = mFdp.ConsumeIntegral<nsecs_t>()});
+                                    .lastVsync = mFdp.ConsumeIntegral<nsecs_t>()});
             },
             "o.o");
     dispatch->schedule(tmp,
                        {.workDuration = mFdp.ConsumeIntegral<nsecs_t>(),
                         .readyDuration = mFdp.ConsumeIntegral<nsecs_t>(),
-                        .earliestVsync = mFdp.ConsumeIntegral<nsecs_t>()});
+                        .lastVsync = mFdp.ConsumeIntegral<nsecs_t>()});
     dispatch->unregisterCallback(tmp);
     dispatch->cancel(tmp);
 }
@@ -162,20 +162,20 @@ void SchedulerFuzzer::fuzzVSyncDispatchTimerQueue() {
     entry.update(*stubTracker, 0);
     entry.schedule({.workDuration = mFdp.ConsumeIntegral<nsecs_t>(),
                     .readyDuration = mFdp.ConsumeIntegral<nsecs_t>(),
-                    .earliestVsync = mFdp.ConsumeIntegral<nsecs_t>()},
+                    .lastVsync = mFdp.ConsumeIntegral<nsecs_t>()},
                    *stubTracker, 0);
     entry.disarm();
     entry.ensureNotRunning();
     entry.schedule({.workDuration = mFdp.ConsumeIntegral<nsecs_t>(),
                     .readyDuration = mFdp.ConsumeIntegral<nsecs_t>(),
-                    .earliestVsync = mFdp.ConsumeIntegral<nsecs_t>()},
+                    .lastVsync = mFdp.ConsumeIntegral<nsecs_t>()},
                    *stubTracker, 0);
     auto const wakeup = entry.wakeupTime();
     auto const ready = entry.readyTime();
     entry.callback(entry.executing(), *wakeup, *ready);
     entry.addPendingWorkloadUpdate({.workDuration = mFdp.ConsumeIntegral<nsecs_t>(),
                                     .readyDuration = mFdp.ConsumeIntegral<nsecs_t>(),
-                                    .earliestVsync = mFdp.ConsumeIntegral<nsecs_t>()});
+                                    .lastVsync = mFdp.ConsumeIntegral<nsecs_t>()});
     dump<scheduler::VSyncDispatchTimerQueueEntry>(&entry, &mFdp);
 }
 
