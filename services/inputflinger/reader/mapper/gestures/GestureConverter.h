@@ -75,7 +75,7 @@ private:
     [[nodiscard]] std::list<NotifyArgs> handleFling(nsecs_t when, nsecs_t readTime,
                                                     nsecs_t gestureStartTime,
                                                     const Gesture& gesture);
-    [[nodiscard]] NotifyMotionArgs endScroll(nsecs_t when, nsecs_t readTime);
+    [[nodiscard]] std::list<NotifyArgs> endScroll(nsecs_t when, nsecs_t readTime);
 
     [[nodiscard]] std::list<NotifyArgs> handleMultiFingerSwipe(nsecs_t when, nsecs_t readTime,
                                                                uint32_t fingerCount, float dx,
@@ -84,6 +84,14 @@ private:
     [[nodiscard]] std::list<NotifyArgs> handlePinch(nsecs_t when, nsecs_t readTime,
                                                     const Gesture& gesture);
     [[nodiscard]] std::list<NotifyArgs> endPinch(nsecs_t when, nsecs_t readTime);
+
+    [[nodiscard]] std::list<NotifyArgs> enterHover(nsecs_t when, nsecs_t readTime,
+                                                   float xCursorPosition, float yCursorPosition);
+    [[nodiscard]] std::list<NotifyArgs> exitHover(nsecs_t when, nsecs_t readTime,
+                                                  float xCursorPosition, float yCursorPosition);
+
+    NotifyMotionArgs makeHoverEvent(nsecs_t when, nsecs_t readTime, int32_t action,
+                                    float xCursorPosition, float yCursorPosition);
 
     NotifyMotionArgs makeMotionArgs(nsecs_t when, nsecs_t readTime, int32_t action,
                                     int32_t actionButton, int32_t buttonState,
@@ -111,6 +119,9 @@ private:
     // button values (AMOTION_EVENT_BUTTON_...).
     uint32_t mButtonState = 0;
     nsecs_t mDownTime = 0;
+    // Whether we are currently in a hover state (i.e. a HOVER_ENTER event has been sent without a
+    // matching HOVER_EXIT).
+    bool mIsHovering = false;
 
     MotionClassification mCurrentClassification = MotionClassification::NONE;
     // Only used when mCurrentClassification is MULTI_FINGER_SWIPE.
