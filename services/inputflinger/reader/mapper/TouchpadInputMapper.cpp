@@ -21,9 +21,11 @@
 #include <iterator>
 #include <limits>
 #include <map>
+#include <mutex>
 #include <optional>
 
 #include <android-base/stringprintf.h>
+#include <android-base/thread_annotations.h>
 #include <android/input.h>
 #include <com_android_input_flags.h>
 #include <ftl/enum.h>
@@ -156,13 +158,20 @@ public:
         return sAccumulator;
     }
 
-    void recordFinger(const TouchpadInputMapper::MetricsIdentifier& id) { mCounters[id].fingers++; }
+    void recordFinger(const TouchpadInputMapper::MetricsIdentifier& id) {
+        std::scoped_lock lock(mLock);
+        mCounters[id].fingers++;
+    }
 
-    void recordPalm(const TouchpadInputMapper::MetricsIdentifier& id) { mCounters[id].palms++; }
+    void recordPalm(const TouchpadInputMapper::MetricsIdentifier& id) {
+        std::scoped_lock lock(mLock);
+        mCounters[id].palms++;
+    }
 
     // Checks whether a Gesture struct is for the end of a gesture that we log metrics for, and
     // records it if so.
     void processGesture(const TouchpadInputMapper::MetricsIdentifier& id, const Gesture& gesture) {
+        std::scoped_lock lock(mLock);
         switch (gesture.type) {
             case kGestureTypeFling:
                 if (gesture.details.fling.fling_state == GESTURES_FLING_START) {
@@ -200,15 +209,20 @@ private:
                                                                  void* cookie) {
         LOG_ALWAYS_FATAL_IF(atomTag != android::util::TOUCHPAD_USAGE);
         MetricsAccumulator& accumulator = MetricsAccumulator::getInstance();
-        accumulator.produceAtoms(outEventList);
-        accumulator.resetCounters();
+        accumulator.produceAtomsAndReset(*outEventList);
         return AStatsManager_PULL_SUCCESS;
     }
 
-    void produceAtoms(AStatsEventList* outEventList) const {
+    void produceAtomsAndReset(AStatsEventList& outEventList) {
+        std::scoped_lock lock(mLock);
+        produceAtomsLocked(outEventList);
+        resetCountersLocked();
+    }
+
+    void produceAtomsLocked(AStatsEventList& outEventList) const REQUIRES(mLock) {
         for (auto& [id, counters] : mCounters) {
             auto [busId, vendorId, productId, versionId] = id;
-            addAStatsEvent(outEventList, android::util::TOUCHPAD_USAGE, vendorId, productId,
+            addAStatsEvent(&outEventList, android::util::TOUCHPAD_USAGE, vendorId, productId,
                            versionId, linuxBusToInputDeviceBusEnum(busId, /*isUsi=*/false),
                            counters.fingers, counters.palms, counters.twoFingerSwipeGestures,
                            counters.threeFingerSwipeGestures, counters.fourFingerSwipeGestures,
@@ -216,7 +230,7 @@ private:
         }
     }
 
-    void resetCounters() { mCounters.clear(); }
+    void resetCountersLocked() REQUIRES(mLock) { mCounters.clear(); }
 
     // Stores the counters for a specific touchpad model. Fields have the same meanings as those of
     // the TouchpadUsage atom; see that definition for detailed documentation.
@@ -232,7 +246,10 @@ private:
 
     // Metrics are aggregated by device model and version, so if two devices of the same model and
     // version are connected at once, they will have the same counters.
-    std::map<TouchpadInputMapper::MetricsIdentifier, Counters> mCounters;
+    std::map<TouchpadInputMapper::MetricsIdentifier, Counters> mCounters GUARDED_BY(mLock);
+
+    // Metrics are pulled by a binder thread, so we need to guard them with a mutex.
+    mutable std::mutex mLock;
 };
 
 } // namespace
