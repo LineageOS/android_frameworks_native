@@ -83,7 +83,6 @@ public:
         LOG_ALWAYS_FATAL_IF(index < 0 || index >= mSlots.size(), "Invalid index: %zu", index);
         return mSlots[index];
     }
-    void reset(const InputDeviceContext& deviceContext);
 
 private:
     int32_t mCurrentSlot;
