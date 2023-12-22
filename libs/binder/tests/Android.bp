@@ -836,6 +836,7 @@ cc_defaults {
         ],
         // Adds bugs to hotlist "AIDL fuzzers bugs" on buganizer
         hotlists: ["4637097"],
+        use_for_presubmit: true,
     },
 }
 
