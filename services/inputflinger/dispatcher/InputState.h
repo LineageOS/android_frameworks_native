@@ -48,6 +48,15 @@ public:
     // and should be skipped.
     bool trackMotion(const MotionEntry& entry, int32_t flags);
 
+    /**
+     * Return the PointerProperties and the PointerCoords for the last event, if found. Return
+     * std::nullopt if not found. We should not return std::vector<PointerCoords> in isolation,
+     * because the pointers can technically be stored in the vector in any order, so the
+     * PointerProperties are needed to specify the order in which the pointer coords are stored.
+     */
+    std::optional<std::pair<std::vector<PointerProperties>, std::vector<PointerCoords>>>
+    getPointersOfLastEvent(const MotionEntry& entry, bool hovering) const;
+
     // Create cancel events for the previous stream if the current motionEntry requires it.
     std::unique_ptr<EventEntry> cancelConflictingInputStream(const MotionEntry& motionEntry);
 

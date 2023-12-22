@@ -195,6 +195,16 @@ bool InputState::trackMotion(const MotionEntry& entry, int32_t flags) {
     }
 }
 
+std::optional<std::pair<std::vector<PointerProperties>, std::vector<PointerCoords>>>
+InputState::getPointersOfLastEvent(const MotionEntry& entry, bool hovering) const {
+    ssize_t index = findMotionMemento(entry, hovering);
+    if (index == -1) {
+        return std::nullopt;
+    }
+    return std::make_pair(mMotionMementos[index].pointerProperties,
+                          mMotionMementos[index].pointerCoords);
+}
+
 ssize_t InputState::findKeyMemento(const KeyEntry& entry) const {
     for (size_t i = 0; i < mKeyMementos.size(); i++) {
         const KeyMemento& memento = mKeyMementos[i];
@@ -308,16 +318,6 @@ bool InputState::shouldCancelPreviousStream(const MotionEntry& motionEntry) cons
         // Sometimes ACTION_DOWN is received without a corresponding HOVER_EXIT. To account for
         // that, cancel the previous hovering stream
         if (actionMasked == AMOTION_EVENT_ACTION_DOWN && lastMemento.hovering) {
-            return true;
-        }
-
-        // Use the previous stream cancellation logic to generate all HOVER_EXIT events.
-        // If this hover event was generated as a result of the pointer leaving the window,
-        // the HOVER_EXIT event should have the same coordinates as the previous
-        // HOVER_MOVE event in this stream. Ensure that all HOVER_EXITs have the same
-        // coordinates as the previous event by cancelling the stream here. With this approach, the
-        // HOVER_EXIT event is generated from the previous event.
-        if (actionMasked == AMOTION_EVENT_ACTION_HOVER_EXIT && lastMemento.hovering) {
             return true;
         }
 
