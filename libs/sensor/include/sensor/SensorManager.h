@@ -58,6 +58,7 @@ public:
     ~SensorManager();
 
     ssize_t getSensorList(Sensor const* const** list);
+    ssize_t getDefaultDeviceSensorList(Vector<Sensor> & list);
     ssize_t getDynamicSensorList(Vector<Sensor>& list);
     ssize_t getDynamicSensorList(Sensor const* const** list);
     ssize_t getRuntimeSensorList(int deviceId, Vector<Sensor>& list);
