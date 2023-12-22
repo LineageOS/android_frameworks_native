@@ -30,6 +30,9 @@ MODULE_LIBRARY_DEPS += \
 	external/rust/crates/downcast-rs \
 	trusty/user/base/lib/trusty-sys \
 
+MODULE_RUSTFLAGS += \
+	--cfg 'android_vendor' \
+
 # Trusty does not have `ProcessState`, so there are a few
 # doc links in `IBinder` that are still broken.
 MODULE_RUSTFLAGS += \
