@@ -61,11 +61,11 @@ struct WorkDuration : AWorkDuration, android::Parcelable {
         return os;
     }
 
-    int64_t workPeriodStartTimestampNanos;
+    int64_t timestampNanos;
     int64_t actualTotalDurationNanos;
+    int64_t workPeriodStartTimestampNanos;
     int64_t actualCpuDurationNanos;
     int64_t actualGpuDurationNanos;
-    int64_t timestampNanos;
 };
 
 } // namespace android::os
