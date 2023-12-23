@@ -4449,7 +4449,8 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs& args) {
     policyFlags |= POLICY_FLAG_TRUSTED;
 
     android::base::Timer t;
-    mPolicy.interceptMotionBeforeQueueing(args.displayId, args.eventTime, policyFlags);
+    mPolicy.interceptMotionBeforeQueueing(args.displayId, args.source, args.action, args.eventTime,
+                                          policyFlags);
     if (t.duration() > SLOW_INTERCEPTION_THRESHOLD) {
         ALOGW("Excessive delay in interceptMotionBeforeQueueing; took %s ms",
               std::to_string(t.duration().count()).c_str());
@@ -4710,7 +4711,9 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(const InputEvent* ev
             if (!(policyFlags & POLICY_FLAG_FILTERED)) {
                 nsecs_t eventTime = motionEvent.getEventTime();
                 android::base::Timer t;
-                mPolicy.interceptMotionBeforeQueueing(displayId, eventTime, /*byref*/ policyFlags);
+                mPolicy.interceptMotionBeforeQueueing(displayId, motionEvent.getSource(),
+                                                      motionEvent.getAction(), eventTime,
+                                                      /*byref*/ policyFlags);
                 if (t.duration() > SLOW_INTERCEPTION_THRESHOLD) {
                     ALOGW("Excessive delay in interceptMotionBeforeQueueing; took %s ms",
                           std::to_string(t.duration().count()).c_str());

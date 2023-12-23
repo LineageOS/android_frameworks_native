@@ -63,7 +63,7 @@ private:
 
     void interceptKeyBeforeQueueing(const KeyEvent&, uint32_t&) override {}
 
-    void interceptMotionBeforeQueueing(int32_t, nsecs_t, uint32_t&) override {}
+    void interceptMotionBeforeQueueing(int32_t, uint32_t, int32_t, nsecs_t, uint32_t&) override {}
 
     nsecs_t interceptKeyBeforeDispatching(const sp<IBinder>&, const KeyEvent&, uint32_t) override {
         return 0;
