@@ -491,6 +491,7 @@ public:
 private:
     // For unit tests
     friend TestableSurfaceFlinger;
+    friend HWComposerTest;
 
     struct DisplayData {
         std::unique_ptr<HWC2::Display> hwcDisplay;
@@ -542,6 +543,7 @@ private:
 
     const size_t mMaxVirtualDisplayDimension;
     const bool mUpdateDeviceProductInfoOnHotplugReconnect;
+    bool mEnableVrrTimeout;
 };
 
 } // namespace impl

@@ -21,6 +21,7 @@
 #undef LOG_TAG
 #define LOG_TAG "LibSurfaceFlingerUnittests"
 
+#include <optional>
 #include <vector>
 
 // StrictMock<T> derives from T and is not marked final, so the destructor of T is expected to be
@@ -82,6 +83,8 @@ struct HWComposerTest : testing::Test {
         EXPECT_CALL(*mHal, setVsyncEnabled(hwcDisplayId, Hwc2::IComposerClient::Vsync::DISABLE));
         EXPECT_CALL(*mHal, onHotplugConnect(hwcDisplayId));
     }
+
+    void setVrrTimeoutHint(bool status) { mHwc.mEnableVrrTimeout = status; }
 };
 
 TEST_F(HWComposerTest, isHeadless) {
@@ -323,6 +326,7 @@ TEST_F(HWComposerTest, getModesWithDisplayConfigurations_VRR_ON) {
         EXPECT_TRUE(mHwc.getModes(info->id, kMaxFrameIntervalNs).empty());
     }
     {
+        setVrrTimeoutHint(true);
         constexpr int32_t kWidth = 480;
         constexpr int32_t kHeight = 720;
         constexpr int32_t kConfigGroup = 1;
@@ -330,10 +334,8 @@ TEST_F(HWComposerTest, getModesWithDisplayConfigurations_VRR_ON) {
         const hal::VrrConfig vrrConfig =
                 hal::VrrConfig{.minFrameIntervalNs = static_cast<Fps>(120_Hz).getPeriodNsecs(),
                                .notifyExpectedPresentConfig = hal::VrrConfig::
-                                       NotifyExpectedPresentConfig{.notifyExpectedPresentHeadsUpNs =
-                                                                           ms2ns(30),
-                                                                   .notifyExpectedPresentTimeoutNs =
-                                                                           ms2ns(30)}};
+                                       NotifyExpectedPresentConfig{.headsUpNs = ms2ns(30),
+                                                                   .timeoutNs = ms2ns(30)}};
         hal::DisplayConfiguration displayConfiguration{.configId = kConfigId,
                                                        .width = kWidth,
                                                        .height = kHeight,
@@ -363,9 +365,9 @@ TEST_F(HWComposerTest, getModesWithDisplayConfigurations_VRR_ON) {
         displayConfiguration.dpi = {kDpi, kDpi};
 
         EXPECT_CALL(*mHal, getDisplayConfigurations(kHwcDisplayId, _, _))
-                .WillOnce(DoAll(SetArgPointee<2>(std::vector<hal::DisplayConfiguration>{
-                                        displayConfiguration}),
-                                Return(HalError::NONE)));
+                .WillRepeatedly(DoAll(SetArgPointee<2>(std::vector<hal::DisplayConfiguration>{
+                                              displayConfiguration}),
+                                      Return(HalError::NONE)));
 
         modes = mHwc.getModes(info->id, kMaxFrameIntervalNs);
         EXPECT_EQ(modes.size(), size_t{1});
@@ -377,6 +379,10 @@ TEST_F(HWComposerTest, getModesWithDisplayConfigurations_VRR_ON) {
         EXPECT_EQ(modes.front().vrrConfig, vrrConfig);
         EXPECT_EQ(modes.front().dpiX, kDpi);
         EXPECT_EQ(modes.front().dpiY, kDpi);
+
+        setVrrTimeoutHint(false);
+        modes = mHwc.getModes(info->id, kMaxFrameIntervalNs);
+        EXPECT_EQ(modes.front().vrrConfig->notifyExpectedPresentConfig, std::nullopt);
     }
 }
 

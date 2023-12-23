@@ -3389,27 +3389,40 @@ void InputDispatcher::enqueueDispatchEntryLocked(const std::shared_ptr<Connectio
 
                 dispatchEntry->resolvedFlags = resolvedFlags;
                 if (resolvedAction != motionEntry.action) {
+                    std::optional<std::vector<PointerProperties>> usingProperties;
+                    std::optional<std::vector<PointerCoords>> usingCoords;
+                    if (resolvedAction == AMOTION_EVENT_ACTION_HOVER_EXIT ||
+                        resolvedAction == AMOTION_EVENT_ACTION_CANCEL) {
+                        // This is a HOVER_EXIT or an ACTION_CANCEL event that was synthesized by
+                        // the dispatcher, and therefore the coordinates of this event are currently
+                        // incorrect. These events should use the coordinates of the last dispatched
+                        // ACTION_MOVE or HOVER_MOVE. We need to query InputState to get this data.
+                        const bool hovering = resolvedAction == AMOTION_EVENT_ACTION_HOVER_EXIT;
+                        std::optional<std::pair<std::vector<PointerProperties>,
+                                                std::vector<PointerCoords>>>
+                                pointerInfo =
+                                        connection->inputState.getPointersOfLastEvent(motionEntry,
+                                                                                      hovering);
+                        if (pointerInfo) {
+                            usingProperties = pointerInfo->first;
+                            usingCoords = pointerInfo->second;
+                        }
+                    }
                     // Generate a new MotionEntry with a new eventId using the resolved action and
                     // flags.
-                    resolvedMotion =
-                            std::make_shared<MotionEntry>(mIdGenerator.nextId(),
-                                                          motionEntry.injectionState,
-                                                          motionEntry.eventTime,
-                                                          motionEntry.deviceId, motionEntry.source,
-                                                          motionEntry.displayId,
-                                                          motionEntry.policyFlags, resolvedAction,
-                                                          motionEntry.actionButton, resolvedFlags,
-                                                          motionEntry.metaState,
-                                                          motionEntry.buttonState,
-                                                          motionEntry.classification,
-                                                          motionEntry.edgeFlags,
-                                                          motionEntry.xPrecision,
-                                                          motionEntry.yPrecision,
-                                                          motionEntry.xCursorPosition,
-                                                          motionEntry.yCursorPosition,
-                                                          motionEntry.downTime,
-                                                          motionEntry.pointerProperties,
-                                                          motionEntry.pointerCoords);
+                    resolvedMotion = std::make_shared<
+                            MotionEntry>(mIdGenerator.nextId(), motionEntry.injectionState,
+                                         motionEntry.eventTime, motionEntry.deviceId,
+                                         motionEntry.source, motionEntry.displayId,
+                                         motionEntry.policyFlags, resolvedAction,
+                                         motionEntry.actionButton, resolvedFlags,
+                                         motionEntry.metaState, motionEntry.buttonState,
+                                         motionEntry.classification, motionEntry.edgeFlags,
+                                         motionEntry.xPrecision, motionEntry.yPrecision,
+                                         motionEntry.xCursorPosition, motionEntry.yCursorPosition,
+                                         motionEntry.downTime,
+                                         usingProperties.value_or(motionEntry.pointerProperties),
+                                         usingCoords.value_or(motionEntry.pointerCoords));
                     if (ATRACE_ENABLED()) {
                         std::string message = StringPrintf("Transmute MotionEvent(id=0x%" PRIx32
                                                            ") to MotionEvent(id=0x%" PRIx32 ").",

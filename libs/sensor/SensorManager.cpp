@@ -248,6 +248,22 @@ ssize_t SensorManager::getSensorList(Sensor const* const** list) {
     return static_cast<ssize_t>(mSensors.size());
 }
 
+ssize_t SensorManager::getDefaultDeviceSensorList(Vector<Sensor> & list) {
+    Mutex::Autolock _l(mLock);
+    status_t err = assertStateLocked();
+    if (err < 0) {
+        return static_cast<ssize_t>(err);
+    }
+
+    if (mDeviceId == DEVICE_ID_DEFAULT) {
+        list = mSensors;
+    } else {
+        list = mSensorServer->getSensorList(mOpPackageName);
+    }
+
+    return static_cast<ssize_t>(list.size());
+}
+
 ssize_t SensorManager::getDynamicSensorList(Vector<Sensor> & dynamicSensors) {
     Mutex::Autolock _l(mLock);
     status_t err = assertStateLocked();

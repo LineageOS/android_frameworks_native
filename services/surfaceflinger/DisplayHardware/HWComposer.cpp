@@ -77,6 +77,8 @@ using aidl::android::hardware::graphics::common::HdrConversionCapability;
 using aidl::android::hardware::graphics::common::HdrConversionStrategy;
 using aidl::android::hardware::graphics::composer3::Capability;
 using aidl::android::hardware::graphics::composer3::DisplayCapability;
+using aidl::android::hardware::graphics::composer3::VrrConfig;
+using namespace std::string_literals;
 namespace hal = android::hardware::graphics::composer::hal;
 
 namespace android {
@@ -89,7 +91,8 @@ HWComposer::HWComposer(std::unique_ptr<Hwc2::Composer> composer)
       : mComposer(std::move(composer)),
         mMaxVirtualDisplayDimension(static_cast<size_t>(sysprop::max_virtual_display_dimension(0))),
         mUpdateDeviceProductInfoOnHotplugReconnect(
-                sysprop::update_device_product_info_on_hotplug_reconnect(false)) {}
+                sysprop::update_device_product_info_on_hotplug_reconnect(false)),
+        mEnableVrrTimeout(base::GetBoolProperty("debug.sf.vrr_timeout_hint_enabled"s, false)) {}
 
 HWComposer::HWComposer(const std::string& composerServiceName)
       : HWComposer(Hwc2::Composer::create(composerServiceName)) {}
@@ -297,6 +300,10 @@ std::vector<HWComposer::HWCDisplayMode> HWComposer::getModesFromDisplayConfigura
         if (config.dpi) {
             hwcMode.dpiX = config.dpi->x;
             hwcMode.dpiY = config.dpi->y;
+        }
+
+        if (!mEnableVrrTimeout) {
+            hwcMode.vrrConfig->notifyExpectedPresentConfig = {};
         }
 
         modes.push_back(hwcMode);
