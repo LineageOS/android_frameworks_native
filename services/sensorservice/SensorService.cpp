@@ -2537,6 +2537,16 @@ bool SensorService::canAccessSensor(const Sensor& sensor, const char* operation,
             canAccess = true;
         }
     } else {
+        if (sensor.getRequiredPermission() == "android.permission.OTHER_SENSORS") {
+            if (IPCThreadState::self()->getCallingUid() < AID_APP_START) {
+                // System processes do not expect that sensors that are protected by OTHER_SENSORS
+                // on GrapheneOS require a permission.
+                //
+                // The lack of this check led to crashes of the closed-source gpsd daemon.
+                return true;
+            }
+        }
+
         int targetSdkVersion = getTargetSdkVersion(opPackageName);
         if (targetSdkVersion > 0 && targetSdkVersion <= __ANDROID_API_P__ &&
             (sensor.getType() == SENSOR_TYPE_STEP_COUNTER ||
