@@ -727,9 +727,9 @@ private:
     void initiateDisplayModeChanges() REQUIRES(mStateLock, kMainThreadContext);
     void finalizeDisplayModeChange(DisplayDevice&) REQUIRES(mStateLock, kMainThreadContext);
 
-    // TODO(b/241285191): Move to Scheduler.
-    void dropModeRequest(display::DisplayModeRequest&&) REQUIRES(mStateLock);
-    void applyActiveMode(display::DisplayModeRequest&&) REQUIRES(mStateLock);
+    // TODO(b/241285191): Replace DisplayDevice with DisplayModeRequest, and move to Scheduler.
+    void dropModeRequest(const sp<DisplayDevice>&) REQUIRES(mStateLock);
+    void applyActiveMode(const sp<DisplayDevice>&) REQUIRES(mStateLock);
 
     // Called on the main thread in response to setPowerMode()
     void setPowerModeInternal(const sp<DisplayDevice>& display, hal::PowerMode mode)
