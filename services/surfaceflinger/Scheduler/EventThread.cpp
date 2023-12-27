@@ -584,6 +584,9 @@ bool EventThread::shouldConsumeEvent(const DisplayEventReceiver::Event& event,
         case DisplayEventReceiver::DISPLAY_EVENT_HOTPLUG:
             return true;
 
+        case DisplayEventReceiver::DISPLAY_EVENT_HDCP_LEVELS_CHANGE:
+            return true;
+
         case DisplayEventReceiver::DISPLAY_EVENT_MODE_CHANGE: {
             return connection->mEventRegistration.test(
                     gui::ISurfaceComposer::EventRegistration::modeChanged);

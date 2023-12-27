@@ -55,6 +55,9 @@ constexpr PhysicalDisplayId DISPLAY_ID_64BIT =
 
 constexpr std::chrono::duration VSYNC_PERIOD(16ms);
 
+constexpr int HDCP_V1 = 2;
+constexpr int HDCP_V2 = 3;
+
 } // namespace
 
 class EventThreadTest : public testing::Test, public IEventThreadCallback {
@@ -831,6 +834,19 @@ TEST_F(EventThreadTest, requestNextVsyncWithThrottleVsyncDoesntPostVSync) {
     // yet
     onVSyncEvent(456, 123, 0);
     expectVSyncCallbackScheduleReceived(true);
+}
+
+TEST_F(EventThreadTest, postHcpLevelsChanged) {
+    setupEventThread();
+
+    mThread->onHdcpLevelsChanged(EXTERNAL_DISPLAY_ID, HDCP_V1, HDCP_V2);
+    auto args = mConnectionEventCallRecorder.waitForCall();
+    ASSERT_TRUE(args.has_value());
+    const auto& event = std::get<0>(args.value());
+    EXPECT_EQ(DisplayEventReceiver::DISPLAY_EVENT_HDCP_LEVELS_CHANGE, event.header.type);
+    EXPECT_EQ(EXTERNAL_DISPLAY_ID, event.header.displayId);
+    EXPECT_EQ(HDCP_V1, event.hdcpLevelsChange.connectedLevel);
+    EXPECT_EQ(HDCP_V2, event.hdcpLevelsChange.maxLevel);
 }
 
 } // namespace
