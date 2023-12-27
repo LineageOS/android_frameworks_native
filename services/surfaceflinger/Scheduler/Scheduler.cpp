@@ -560,7 +560,7 @@ void Scheduler::onHardwareVsyncRequest(PhysicalDisplayId id, bool enabled) {
 
     // On main thread to serialize reads/writes of pending hardware VSYNC state.
     static_cast<void>(
-            schedule([=]() FTL_FAKE_GUARD(mDisplayLock) FTL_FAKE_GUARD(kMainThreadContext) {
+            schedule([=, this]() FTL_FAKE_GUARD(mDisplayLock) FTL_FAKE_GUARD(kMainThreadContext) {
                 ATRACE_NAME(ftl::Concat(whence, ' ', id.value, ' ', enabled).c_str());
 
                 if (const auto displayOpt = mDisplays.get(id)) {
