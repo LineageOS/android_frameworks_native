@@ -52,15 +52,15 @@ InputFilter::InputFilter(InputListenerInterface& listener, IInputFlingerRust& ru
 }
 
 void InputFilter::notifyInputDevicesChanged(const NotifyInputDevicesChangedArgs& args) {
+    mDeviceInfos.clear();
+    mDeviceInfos.reserve(args.inputDeviceInfos.size());
+    for (auto info : args.inputDeviceInfos) {
+        AidlDeviceInfo& aidlInfo = mDeviceInfos.emplace_back();
+        aidlInfo.deviceId = info.getId();
+        aidlInfo.external = info.isExternal();
+    }
     if (isFilterEnabled()) {
-        std::vector<AidlDeviceInfo> deviceInfos;
-        for (auto info : args.inputDeviceInfos) {
-            AidlDeviceInfo aidlInfo;
-            aidlInfo.deviceId = info.getId();
-            aidlInfo.external = info.isExternal();
-            deviceInfos.push_back(aidlInfo);
-        }
-        LOG_ALWAYS_FATAL_IF(!mInputFilterRust->notifyInputDevicesChanged(deviceInfos).isOk());
+        LOG_ALWAYS_FATAL_IF(!mInputFilterRust->notifyInputDevicesChanged(mDeviceInfos).isOk());
     }
     mNextListener.notify(args);
 }
@@ -74,7 +74,7 @@ void InputFilter::notifyKey(const NotifyKeyArgs& args) {
         LOG_ALWAYS_FATAL_IF(!mInputFilterRust->notifyKey(notifyKeyArgsToKeyEvent(args)).isOk());
         return;
     }
-    mNextListener.notifyKey(args);
+    mNextListener.notify(args);
 }
 
 void InputFilter::notifyMotion(const NotifyMotionArgs& args) {
@@ -112,7 +112,7 @@ void InputFilter::setAccessibilityBounceKeysThreshold(nsecs_t threshold) {
 
     if (mConfig.bounceKeysThresholdNs != threshold) {
         mConfig.bounceKeysThresholdNs = threshold;
-        LOG_ALWAYS_FATAL_IF(!mInputFilterRust->notifyConfigurationChanged(mConfig).isOk());
+        notifyConfigurationChangedLocked();
     }
 }
 
@@ -121,7 +121,14 @@ void InputFilter::setAccessibilityStickyKeysEnabled(bool enabled) {
 
     if (mConfig.stickyKeysEnabled != enabled) {
         mConfig.stickyKeysEnabled = enabled;
-        LOG_ALWAYS_FATAL_IF(!mInputFilterRust->notifyConfigurationChanged(mConfig).isOk());
+        notifyConfigurationChangedLocked();
+    }
+}
+
+void InputFilter::notifyConfigurationChangedLocked() {
+    LOG_ALWAYS_FATAL_IF(!mInputFilterRust->notifyConfigurationChanged(mConfig).isOk());
+    if (isFilterEnabled()) {
+        LOG_ALWAYS_FATAL_IF(!mInputFilterRust->notifyInputDevicesChanged(mDeviceInfos).isOk());
     }
 }
 
