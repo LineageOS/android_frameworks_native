@@ -8809,6 +8809,104 @@ TEST_F(InputDispatcherMultiWindowAnr, FocusedWindowWithoutSetFocusedApplication_
     ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertNotifyAnrWasNotCalled());
 }
 
+/**
+ * If we are pruning input queue, we should never drop pointer events. Otherwise, we risk having
+ * an inconsistent event stream inside the dispatcher. In this test, we make sure that the
+ * dispatcher doesn't prune pointer events incorrectly.
+ *
+ * This test reproduces a crash in InputDispatcher.
+ * To reproduce the crash, we need to simulate the conditions for "pruning input queue" to occur.
+ *
+ * Keep the currently focused application (mApplication), and have no focused window.
+ * We set up two additional windows:
+ * 1) The navigation bar window. This simulates the system "NavigationBar", which is used in the
+ * 3-button navigation mode. This window injects a BACK button when it's touched. 2) The application
+ * window. This window is not focusable, but is touchable.
+ *
+ * We first touch the navigation bar, which causes it to inject a key. Since there's no focused
+ * window, the dispatcher doesn't process this key, and all other events inside dispatcher are now
+ * blocked. The dispatcher is waiting for 'mApplication' to add a focused window.
+ *
+ * Now, we touch "Another window". This window is owned by a different application than
+ * 'mApplication'. This causes the dispatcher to stop waiting for 'mApplication' to add a focused
+ * window. Now, the "pruning input queue" behaviour should kick in, and the dispatcher should start
+ * dropping the events from its queue. Ensure that no crash occurs.
+ *
+ * In this test, we are setting long timeouts to prevent ANRs and events dropped due to being stale.
+ * This does not affect the test running time.
+ */
+TEST_F(InputDispatcherMultiWindowAnr, PruningInputQueueShouldNotDropPointerEvents) {
+    std::shared_ptr<FakeApplicationHandle> systemUiApplication =
+            std::make_shared<FakeApplicationHandle>();
+    systemUiApplication->setDispatchingTimeout(3000ms);
+    mFakePolicy->setStaleEventTimeout(3000ms);
+    sp<FakeWindowHandle> navigationBar =
+            sp<FakeWindowHandle>::make(systemUiApplication, mDispatcher, "NavigationBar",
+                                       ADISPLAY_ID_DEFAULT);
+    navigationBar->setFocusable(false);
+    navigationBar->setWatchOutsideTouch(true);
+    navigationBar->setFrame(Rect(0, 0, 100, 100));
+
+    mApplication->setDispatchingTimeout(3000ms);
+    // 'mApplication' is already focused, but we call it again here to make it explicit.
+    mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, mApplication);
+
+    std::shared_ptr<FakeApplicationHandle> anotherApplication =
+            std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> appWindow =
+            sp<FakeWindowHandle>::make(anotherApplication, mDispatcher, "Another window",
+                                       ADISPLAY_ID_DEFAULT);
+    appWindow->setFocusable(false);
+    appWindow->setFrame(Rect(100, 100, 200, 200));
+
+    mDispatcher->onWindowInfosChanged(
+            {{*navigationBar->getInfo(), *appWindow->getInfo()}, {}, 0, 0});
+    // 'mFocusedWindow' is no longer in the dispatcher window list, and therefore loses focus
+    mFocusedWindow->consumeFocusEvent(false);
+
+    // Touch down the navigation bar. It consumes the touch and injects a key into the dispatcher
+    // in response.
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(50).y(50))
+                                      .build());
+    navigationBar->consumeMotionEvent(WithMotionAction(ACTION_DOWN));
+
+    // Key will not be sent anywhere because we have no focused window. It will remain pending.
+    // Pretend we are injecting KEYCODE_BACK, but it doesn't actually matter what key it is.
+    InputEventInjectionResult result =
+            injectKey(*mDispatcher, AKEY_EVENT_ACTION_DOWN, /*repeatCount=*/0, ADISPLAY_ID_DEFAULT,
+                      InputEventInjectionSync::NONE, /*injectionTimeout=*/100ms,
+                      /*allowKeyRepeat=*/false);
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED, result);
+
+    // Finish the gesture - lift up finger and inject ACTION_UP key event
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_UP, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(50).y(50))
+                                      .build());
+    result = injectKey(*mDispatcher, AKEY_EVENT_ACTION_UP, /*repeatCount=*/0, ADISPLAY_ID_DEFAULT,
+                       InputEventInjectionSync::NONE, /*injectionTimeout=*/100ms,
+                       /*allowKeyRepeat=*/false);
+    ASSERT_EQ(InputEventInjectionResult::SUCCEEDED, result);
+    // The key that was injected is blocking the dispatcher, so the navigation bar shouldn't be
+    // getting any events yet.
+    navigationBar->assertNoEvents();
+
+    // Now touch "Another window". This touch is going to a different application than the one we
+    // are waiting for (which is 'mApplication').
+    // This should cause the dispatcher to drop the pending focus-dispatched events (like the key
+    // trying to be injected) and to continue processing the rest of the events in the original
+    // order.
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(150).y(150))
+                                      .build());
+    navigationBar->consumeMotionEvent(WithMotionAction(ACTION_UP));
+    navigationBar->consumeMotionEvent(WithMotionAction(ACTION_OUTSIDE));
+    appWindow->consumeMotionEvent(WithMotionAction(ACTION_DOWN));
+
+    appWindow->assertNoEvents();
+    navigationBar->assertNoEvents();
+}
+
 // These tests ensure we cannot send touch events to a window that's positioned behind a window
 // that has feature NO_INPUT_CHANNEL.
 // Layout:

@@ -1121,7 +1121,10 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t* nextWakeupTime) {
                 }
             }
             if (dropReason == DropReason::NOT_DROPPED && mNextUnblockedEvent) {
-                dropReason = DropReason::BLOCKED;
+                if (!isFromSource(motionEntry->source, AINPUT_SOURCE_CLASS_POINTER)) {
+                    // Only drop events that are focus-dispatched.
+                    dropReason = DropReason::BLOCKED;
+                }
             }
             done = dispatchMotionLocked(currentTime, motionEntry, &dropReason, nextWakeupTime);
             break;
@@ -1392,8 +1395,9 @@ void InputDispatcher::dropInboundEventLocked(const EventEntry& entry, DropReason
             reason = "inbound event was dropped because of pending overdue app switch";
             break;
         case DropReason::BLOCKED:
-            ALOGI("Dropped event because the current application is not responding and the user "
-                  "has started interacting with a different application.");
+            LOG(INFO) << "Dropping because the current application is not responding and the user "
+                         "has started interacting with a different application: "
+                      << entry.getDescription();
             reason = "inbound event was dropped because the current application is not responding "
                      "and the user has started interacting with a different application";
             break;
