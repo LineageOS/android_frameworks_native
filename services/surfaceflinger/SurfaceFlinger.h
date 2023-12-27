@@ -82,7 +82,6 @@
 #include "MutexUtils.h"
 #include "Scheduler/ISchedulerCallback.h"
 #include "Scheduler/RefreshRateSelector.h"
-#include "Scheduler/RefreshRateStats.h"
 #include "Scheduler/Scheduler.h"
 #include "SurfaceFlingerFactory.h"
 #include "ThreadContext.h"
@@ -785,9 +784,6 @@ private:
 
     void initScheduler(const sp<const DisplayDevice>&) REQUIRES(kMainThreadContext, mStateLock);
 
-    void resetPhaseConfiguration(Fps) REQUIRES(mStateLock, kMainThreadContext);
-    void updatePhaseConfiguration(Fps) REQUIRES(mStateLock);
-
     /*
      * Transactions
      */
@@ -1374,10 +1370,6 @@ private:
     scheduler::ConnectionHandle mAppConnectionHandle;
     scheduler::ConnectionHandle mSfConnectionHandle;
 
-    // Stores phase offsets configured per refresh rate.
-    std::unique_ptr<scheduler::VsyncConfiguration> mVsyncConfiguration;
-
-    std::unique_ptr<scheduler::RefreshRateStats> mRefreshRateStats;
     scheduler::PresentLatencyTracker mPresentLatencyTracker GUARDED_BY(kMainThreadContext);
 
     bool mLumaSampling = true;

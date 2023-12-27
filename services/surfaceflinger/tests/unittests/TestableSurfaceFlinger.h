@@ -216,6 +216,10 @@ public:
 
     using DisplayModesVariant = std::variant<DefaultDisplayMode, RefreshRateSelectorPtr>;
 
+    surfaceflinger::Factory& getFactory() { return mFactory; }
+
+    TimeStats& getTimeStats() { return *mFlinger->mTimeStats; }
+
     void setupScheduler(
             std::unique_ptr<scheduler::VsyncController> vsyncController,
             std::shared_ptr<scheduler::VSyncTracker> vsyncTracker,
@@ -234,13 +238,6 @@ public:
                 },
                 [](RefreshRateSelectorPtr selectorPtr) { return selectorPtr; });
 
-        const auto fps = selectorPtr->getActiveMode().fps;
-        mFlinger->mVsyncConfiguration = mFactory.createVsyncConfiguration(fps);
-
-        mFlinger->mRefreshRateStats =
-                std::make_unique<scheduler::RefreshRateStats>(*mFlinger->mTimeStats, fps,
-                                                              hal::PowerMode::OFF);
-
         mTokenManager = std::make_unique<frametimeline::impl::TokenManager>();
 
         using ISchedulerCallback = scheduler::ISchedulerCallback;
@@ -254,23 +251,21 @@ public:
                 ? static_cast<VsyncTrackerCallback&>(mNoOpVsyncTrackerCallback)
                 : static_cast<VsyncTrackerCallback&>(mVsyncTrackerCallback);
 
-        auto modulatorPtr = sp<scheduler::VsyncModulator>::make(
-                mFlinger->mVsyncConfiguration->getCurrentConfigs());
-
         if (useNiceMock) {
             mScheduler =
                     new testing::NiceMock<scheduler::TestableScheduler>(std::move(vsyncController),
                                                                         std::move(vsyncTracker),
                                                                         std::move(selectorPtr),
-                                                                        std::move(modulatorPtr),
+                                                                        mFactory,
+                                                                        *mFlinger->mTimeStats,
                                                                         schedulerCallback,
                                                                         vsyncTrackerCallback);
         } else {
             mScheduler = new scheduler::TestableScheduler(std::move(vsyncController),
                                                           std::move(vsyncTracker),
-                                                          std::move(selectorPtr),
-                                                          std::move(modulatorPtr),
-                                                          schedulerCallback, vsyncTrackerCallback);
+                                                          std::move(selectorPtr), mFactory,
+                                                          *mFlinger->mTimeStats, schedulerCallback,
+                                                          vsyncTrackerCallback);
         }
 
         mScheduler->initVsync(mScheduler->getVsyncSchedule()->getDispatch(), *mTokenManager, 0ms);

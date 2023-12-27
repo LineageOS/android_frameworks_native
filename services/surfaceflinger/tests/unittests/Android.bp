@@ -118,6 +118,7 @@ cc_test {
         "RefreshRateSelectorTest.cpp",
         "RefreshRateStatsTest.cpp",
         "RegionSamplingTest.cpp",
+        "TestableScheduler.cpp",
         "TimeStatsTest.cpp",
         "FrameTracerTest.cpp",
         "TransactionApplicationTest.cpp",

@@ -35,6 +35,8 @@ public:
 
     void eol() { mOut += '\n'; }
 
+    std::string& out() { return mOut; }
+
     void dump(std::string_view name, std::string_view value = {}) {
         using namespace std::string_view_literals;
 

@@ -65,9 +65,9 @@ protected:
                                                   DisplayModeId(0));
     mock::SchedulerCallback mSchedulerCallback;
     mock::VsyncTrackerCallback mVsyncTrackerCallback;
-    TestableScheduler* mScheduler =
-            new TestableScheduler(mSelector, mSchedulerCallback, mVsyncTrackerCallback);
     TestableSurfaceFlinger mFlinger;
+    TestableScheduler* mScheduler =
+            new TestableScheduler(mSelector, mFlinger, mSchedulerCallback, mVsyncTrackerCallback);
 };
 
 namespace {

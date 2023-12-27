@@ -32,25 +32,27 @@
 #include "mock/MockVSyncTracker.h"
 #include "mock/MockVsyncController.h"
 
+namespace android {
+class TestableSurfaceFlinger;
+} // namespace android
+
 namespace android::scheduler {
 
 class TestableScheduler : public Scheduler, private ICompositor {
 public:
-    TestableScheduler(RefreshRateSelectorPtr selectorPtr, ISchedulerCallback& callback,
-                      IVsyncTrackerCallback& vsyncTrackerCallback)
-          : TestableScheduler(std::make_unique<mock::VsyncController>(),
-                              std::make_shared<mock::VSyncTracker>(), std::move(selectorPtr),
-                              sp<VsyncModulator>::make(VsyncConfigSet{}), callback,
-                              vsyncTrackerCallback) {}
+    TestableScheduler(RefreshRateSelectorPtr selectorPtr,
+                      TestableSurfaceFlinger& testableSurfaceFlinger, ISchedulerCallback& callback,
+                      IVsyncTrackerCallback& vsyncTrackerCallback);
 
     TestableScheduler(std::unique_ptr<VsyncController> controller,
                       std::shared_ptr<VSyncTracker> tracker, RefreshRateSelectorPtr selectorPtr,
-                      sp<VsyncModulator> modulatorPtr, ISchedulerCallback& schedulerCallback,
+                      surfaceflinger::Factory& factory, TimeStats& timeStats,
+                      ISchedulerCallback& schedulerCallback,
                       IVsyncTrackerCallback& vsyncTrackerCallback)
           : Scheduler(*this, schedulerCallback,
                       (FeatureFlags)Feature::kContentDetection |
                               Feature::kSmallDirtyContentDetection,
-                      std::move(modulatorPtr), vsyncTrackerCallback) {
+                      factory, selectorPtr->getActiveMode().fps, timeStats, vsyncTrackerCallback) {
         const auto displayId = selectorPtr->getActiveMode().modePtr->getPhysicalDisplayId();
         registerDisplay(displayId, std::move(selectorPtr), std::move(controller),
                         std::move(tracker));
