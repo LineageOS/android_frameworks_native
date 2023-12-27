@@ -1058,7 +1058,10 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t* nextWakeupTime) {
                 dropReason = DropReason::STALE;
             }
             if (dropReason == DropReason::NOT_DROPPED && mNextUnblockedEvent) {
-                dropReason = DropReason::BLOCKED;
+                if (!isFromSource(motionEntry->source, AINPUT_SOURCE_CLASS_POINTER)) {
+                    // Only drop events that are focus-dispatched.
+                    dropReason = DropReason::BLOCKED;
+                }
             }
             done = dispatchMotionLocked(currentTime, motionEntry, &dropReason, nextWakeupTime);
             break;
