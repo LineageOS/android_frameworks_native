@@ -121,11 +121,6 @@ constexpr nsecs_t SLOW_EVENT_PROCESSING_WARNING_TIMEOUT = 2000 * 1000000LL; // 2
 // Log a warning when an interception call takes longer than this to process.
 constexpr std::chrono::milliseconds SLOW_INTERCEPTION_THRESHOLD = 50ms;
 
-// Additional key latency in case a connection is still processing some motion events.
-// This will help with the case when a user touched a button that opens a new window,
-// and gives us the chance to dispatch the key to this new window.
-constexpr std::chrono::nanoseconds KEY_WAITING_FOR_EVENTS_TIMEOUT = 500ms;
-
 // Number of recent events to keep for debugging purposes.
 constexpr size_t RECENT_QUEUE_MAX_SIZE = 10;
 
@@ -1192,7 +1187,7 @@ bool InputDispatcher::isStaleEvent(nsecs_t currentTime, const EventEntry& entry)
  * Return true if the events preceding this incoming motion event should be dropped
  * Return false otherwise (the default behaviour)
  */
-bool InputDispatcher::shouldPruneInboundQueueLocked(const MotionEntry& motionEntry) {
+bool InputDispatcher::shouldPruneInboundQueueLocked(const MotionEntry& motionEntry) const {
     const bool isPointerDownEvent = motionEntry.action == AMOTION_EVENT_ACTION_DOWN &&
             isFromSource(motionEntry.source, AINPUT_SOURCE_CLASS_POINTER);
 
@@ -1234,16 +1229,6 @@ bool InputDispatcher::shouldPruneInboundQueueLocked(const MotionEntry& motionEnt
         }
     }
 
-    // Prevent getting stuck: if we have a pending key event, and some motion events that have not
-    // yet been processed by some connections, the dispatcher will wait for these motion
-    // events to be processed before dispatching the key event. This is because these motion events
-    // may cause a new window to be launched, which the user might expect to receive focus.
-    // To prevent waiting forever for such events, just send the key to the currently focused window
-    if (isPointerDownEvent && mKeyIsWaitingForEventsTimeout) {
-        ALOGD("Received a new pointer down event, stop waiting for events to process and "
-              "just send the pending key event to the focused window.");
-        mKeyIsWaitingForEventsTimeout = now();
-    }
     return false;
 }
 
@@ -1290,6 +1275,20 @@ bool InputDispatcher::enqueueInboundEventLocked(std::unique_ptr<EventEntry> newE
             if (shouldPruneInboundQueueLocked(motionEntry)) {
                 mNextUnblockedEvent = mInboundQueue.back();
                 needWake = true;
+            }
+
+            const bool isPointerDownEvent = motionEntry.action == AMOTION_EVENT_ACTION_DOWN &&
+                    isFromSource(motionEntry.source, AINPUT_SOURCE_CLASS_POINTER);
+            if (isPointerDownEvent && mKeyIsWaitingForEventsTimeout) {
+                // Prevent waiting too long for unprocessed events: if we have a pending key event,
+                // and some other events have not yet been processed, the dispatcher will wait for
+                // these events to be processed before dispatching the key event. This is because
+                // the unprocessed events may cause the focus to change (for example, by launching a
+                // new window or tapping a different window). To prevent waiting too long, we force
+                // the key to be sent to the currently focused window when a new tap comes in.
+                ALOGD("Received a new pointer down event, stop waiting for events to process and "
+                      "just send the pending key event to the currently focused window.");
+                mKeyIsWaitingForEventsTimeout = now();
             }
             break;
         }
@@ -2137,7 +2136,8 @@ bool InputDispatcher::shouldWaitToSendKeyLocked(nsecs_t currentTime,
         // Start the timer
         // Wait to send key because there are unprocessed events that may cause focus to change
         mKeyIsWaitingForEventsTimeout = currentTime +
-                std::chrono::duration_cast<std::chrono::nanoseconds>(KEY_WAITING_FOR_EVENTS_TIMEOUT)
+                std::chrono::duration_cast<std::chrono::nanoseconds>(
+                        mPolicy.getKeyWaitingForEventsTimeout())
                         .count();
         return true;
     }
@@ -4879,7 +4879,7 @@ std::unique_ptr<VerifiedInputEvent> InputDispatcher::verifyInputEvent(const Inpu
             break;
         }
         default: {
-            ALOGE("Cannot verify events of type %" PRId32, event.getType());
+            LOG(ERROR) << "Cannot verify events of type " << ftl::enum_string(event.getType());
             return nullptr;
         }
     }
