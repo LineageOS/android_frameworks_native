@@ -835,7 +835,7 @@ void InputDispatcher::dispatchOnce() {
         // Run a dispatch loop if there are no pending commands.
         // The dispatch loop might enqueue commands to run afterwards.
         if (!haveCommandsLocked()) {
-            dispatchOnceInnerLocked(&nextWakeupTime);
+            dispatchOnceInnerLocked(/*byref*/ nextWakeupTime);
         }
 
         // Run all pending commands if there are any.
@@ -942,7 +942,7 @@ std::chrono::nanoseconds InputDispatcher::getDispatchingTimeoutLocked(
     return DEFAULT_INPUT_DISPATCHING_TIMEOUT;
 }
 
-void InputDispatcher::dispatchOnceInnerLocked(nsecs_t* nextWakeupTime) {
+void InputDispatcher::dispatchOnceInnerLocked(nsecs_t& nextWakeupTime) {
     nsecs_t currentTime = now();
 
     // Reset the key repeat timer whenever normal dispatch is suspended while the
@@ -966,9 +966,7 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t* nextWakeupTime) {
     bool isAppSwitchDue;
     if (!REMOVE_APP_SWITCH_DROPS) {
         isAppSwitchDue = mAppSwitchDueTime <= currentTime;
-        if (mAppSwitchDueTime < *nextWakeupTime) {
-            *nextWakeupTime = mAppSwitchDueTime;
-        }
+        nextWakeupTime = std::min(nextWakeupTime, mAppSwitchDueTime);
     }
 
     // Ready to start a new event.
@@ -989,9 +987,7 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t* nextWakeupTime) {
                 if (currentTime >= mKeyRepeatState.nextRepeatTime) {
                     mPendingEvent = synthesizeKeyRepeatLocked(currentTime);
                 } else {
-                    if (mKeyRepeatState.nextRepeatTime < *nextWakeupTime) {
-                        *nextWakeupTime = mKeyRepeatState.nextRepeatTime;
-                    }
+                    nextWakeupTime = std::min(nextWakeupTime, mKeyRepeatState.nextRepeatTime);
                 }
             }
 
@@ -1157,7 +1153,7 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t* nextWakeupTime) {
         mLastDropReason = dropReason;
 
         releasePendingEventLocked();
-        *nextWakeupTime = LLONG_MIN; // force next poll to wake up immediately
+        nextWakeupTime = LLONG_MIN; // force next poll to wake up immediately
     }
 }
 
@@ -1749,7 +1745,7 @@ std::vector<InputTarget> InputDispatcher::getInputTargetsFromWindowHandlesLocked
 }
 
 bool InputDispatcher::dispatchKeyLocked(nsecs_t currentTime, std::shared_ptr<const KeyEntry> entry,
-                                        DropReason* dropReason, nsecs_t* nextWakeupTime) {
+                                        DropReason* dropReason, nsecs_t& nextWakeupTime) {
     // Preprocessing.
     if (!entry->dispatchInProgress) {
         if (entry->repeatCount == 0 && entry->action == AKEY_EVENT_ACTION_DOWN &&
@@ -1800,9 +1796,7 @@ bool InputDispatcher::dispatchKeyLocked(nsecs_t currentTime, std::shared_ptr<con
     // Handle case where the policy asked us to try again later last time.
     if (entry->interceptKeyResult == KeyEntry::InterceptKeyResult::TRY_AGAIN_LATER) {
         if (currentTime < entry->interceptKeyWakeupTime) {
-            if (entry->interceptKeyWakeupTime < *nextWakeupTime) {
-                *nextWakeupTime = entry->interceptKeyWakeupTime;
-            }
+            nextWakeupTime = std::min(nextWakeupTime, entry->interceptKeyWakeupTime);
             return false; // wait until next wakeup
         }
         entry->interceptKeyResult = KeyEntry::InterceptKeyResult::UNKNOWN;
@@ -1882,7 +1876,7 @@ void InputDispatcher::logOutboundKeyDetails(const char* prefix, const KeyEntry& 
 
 void InputDispatcher::dispatchSensorLocked(nsecs_t currentTime,
                                            const std::shared_ptr<const SensorEntry>& entry,
-                                           DropReason* dropReason, nsecs_t* nextWakeupTime) {
+                                           DropReason* dropReason, nsecs_t& nextWakeupTime) {
     if (DEBUG_OUTBOUND_EVENT_DETAILS) {
         ALOGD("notifySensorEvent eventTime=%" PRId64 ", hwTimestamp=%" PRId64 ", deviceId=%d, "
               "source=0x%x, sensorType=%s",
@@ -1922,7 +1916,7 @@ bool InputDispatcher::flushSensor(int deviceId, InputDeviceSensorType sensorType
 
 bool InputDispatcher::dispatchMotionLocked(nsecs_t currentTime,
                                            std::shared_ptr<const MotionEntry> entry,
-                                           DropReason* dropReason, nsecs_t* nextWakeupTime) {
+                                           DropReason* dropReason, nsecs_t& nextWakeupTime) {
     ATRACE_CALL();
     // Preprocessing.
     if (!entry->dispatchInProgress) {
@@ -2167,7 +2161,7 @@ bool InputDispatcher::shouldWaitToSendKeyLocked(nsecs_t currentTime,
 }
 
 sp<WindowInfoHandle> InputDispatcher::findFocusedWindowTargetLocked(
-        nsecs_t currentTime, const EventEntry& entry, nsecs_t* nextWakeupTime,
+        nsecs_t currentTime, const EventEntry& entry, nsecs_t& nextWakeupTime,
         InputEventInjectionResult& outInjectionResult) {
     outInjectionResult = InputEventInjectionResult::FAILED; // Default result
 
@@ -2206,7 +2200,7 @@ sp<WindowInfoHandle> InputDispatcher::findFocusedWindowTargetLocked(
             ALOGW("Waiting because no window has focus but %s may eventually add a "
                   "window when it finishes starting up. Will wait for %" PRId64 "ms",
                   mAwaitedFocusedApplication->getName().c_str(), millis(timeout));
-            *nextWakeupTime = *mNoFocusedWindowTimeoutTime;
+            nextWakeupTime = std::min(nextWakeupTime, *mNoFocusedWindowTimeoutTime);
             outInjectionResult = InputEventInjectionResult::PENDING;
             return nullptr;
         } else if (currentTime > *mNoFocusedWindowTimeoutTime) {
@@ -2251,7 +2245,7 @@ sp<WindowInfoHandle> InputDispatcher::findFocusedWindowTargetLocked(
     // prior input events.
     if (entry.type == EventEntry::Type::KEY) {
         if (shouldWaitToSendKeyLocked(currentTime, focusedWindowHandle->getName().c_str())) {
-            *nextWakeupTime = *mKeyIsWaitingForEventsTimeout;
+            nextWakeupTime = std::min(nextWakeupTime, *mKeyIsWaitingForEventsTimeout);
             outInjectionResult = InputEventInjectionResult::PENDING;
             return nullptr;
         }

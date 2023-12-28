@@ -209,7 +209,7 @@ private:
     // This method should only be called on the input dispatcher's own thread.
     void dispatchOnce();
 
-    void dispatchOnceInnerLocked(nsecs_t* nextWakeupTime) REQUIRES(mLock);
+    void dispatchOnceInnerLocked(nsecs_t& nextWakeupTime) REQUIRES(mLock);
 
     // Enqueues an inbound event.  Returns true if mLooper->wake() should be called.
     bool enqueueInboundEventLocked(std::unique_ptr<EventEntry> entry) REQUIRES(mLock);
@@ -435,9 +435,9 @@ private:
     bool dispatchDeviceResetLocked(nsecs_t currentTime, const DeviceResetEntry& entry)
             REQUIRES(mLock);
     bool dispatchKeyLocked(nsecs_t currentTime, std::shared_ptr<const KeyEntry> entry,
-                           DropReason* dropReason, nsecs_t* nextWakeupTime) REQUIRES(mLock);
+                           DropReason* dropReason, nsecs_t& nextWakeupTime) REQUIRES(mLock);
     bool dispatchMotionLocked(nsecs_t currentTime, std::shared_ptr<const MotionEntry> entry,
-                              DropReason* dropReason, nsecs_t* nextWakeupTime) REQUIRES(mLock);
+                              DropReason* dropReason, nsecs_t& nextWakeupTime) REQUIRES(mLock);
     void dispatchFocusLocked(nsecs_t currentTime, std::shared_ptr<const FocusEntry> entry)
             REQUIRES(mLock);
     void dispatchPointerCaptureChangedLocked(
@@ -449,7 +449,7 @@ private:
     void dispatchEventLocked(nsecs_t currentTime, std::shared_ptr<const EventEntry> entry,
                              const std::vector<InputTarget>& inputTargets) REQUIRES(mLock);
     void dispatchSensorLocked(nsecs_t currentTime, const std::shared_ptr<const SensorEntry>& entry,
-                              DropReason* dropReason, nsecs_t* nextWakeupTime) REQUIRES(mLock);
+                              DropReason* dropReason, nsecs_t& nextWakeupTime) REQUIRES(mLock);
     void dispatchDragLocked(nsecs_t currentTime, std::shared_ptr<const DragEntry> entry)
             REQUIRES(mLock);
     void logOutboundKeyDetails(const char* prefix, const KeyEntry& entry);
@@ -521,7 +521,7 @@ private:
 
     int32_t getTargetDisplayId(const EventEntry& entry);
     sp<android::gui::WindowInfoHandle> findFocusedWindowTargetLocked(
-            nsecs_t currentTime, const EventEntry& entry, nsecs_t* nextWakeupTime,
+            nsecs_t currentTime, const EventEntry& entry, nsecs_t& nextWakeupTime,
             android::os::InputEventInjectionResult& outInjectionResult) REQUIRES(mLock);
     std::vector<InputTarget> findTouchedWindowTargetsLocked(
             nsecs_t currentTime, const MotionEntry& entry,
