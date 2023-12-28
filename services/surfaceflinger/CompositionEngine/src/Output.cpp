@@ -28,8 +28,11 @@
 #include <compositionengine/impl/OutputLayer.h>
 #include <compositionengine/impl/OutputLayerCompositionState.h>
 #include <compositionengine/impl/planner/Planner.h>
+#include <ftl/algorithm.h>
 #include <ftl/future.h>
 #include <gui/TraceUtils.h>
+#include <scheduler/FrameTargeter.h>
+#include <scheduler/Time.h>
 
 #include <optional>
 #include <thread>
@@ -429,7 +432,28 @@ void Output::prepare(const compositionengine::CompositionRefreshArgs& refreshArg
 
 ftl::Future<std::monostate> Output::present(
         const compositionengine::CompositionRefreshArgs& refreshArgs) {
-    ATRACE_FORMAT("%s for %s", __func__, mNamePlusId.c_str());
+    const auto stringifyExpectedPresentTime = [this, &refreshArgs]() -> std::string {
+        return ftl::Optional(getDisplayId())
+                .and_then(PhysicalDisplayId::tryCast)
+                .and_then([&refreshArgs](PhysicalDisplayId id) {
+                    return refreshArgs.frameTargets.get(id);
+                })
+                .transform([](const auto& frameTargetPtr) {
+                    return frameTargetPtr.get()->expectedPresentTime();
+                })
+                .transform([](TimePoint expectedPresentTime) {
+                    return base::StringPrintf(" vsyncIn %.2fms",
+                                              ticks<std::milli, float>(expectedPresentTime -
+                                                                       TimePoint::now()));
+                })
+                .or_else([] {
+                    // There is no vsync for this output.
+                    return std::make_optional(std::string());
+                })
+                .value();
+    };
+    ATRACE_FORMAT("%s for %s%s", __func__, mNamePlusId.c_str(),
+                  stringifyExpectedPresentTime().c_str());
     ALOGV(__FUNCTION__);
 
     updateColorProfile(refreshArgs);
@@ -853,8 +877,14 @@ void Output::writeCompositionState(const compositionengine::CompositionRefreshAr
         return;
     }
 
-    editState().earliestPresentTime = refreshArgs.earliestPresentTime;
-    editState().expectedPresentTime = refreshArgs.expectedPresentTime;
+    if (auto frameTargetPtrOpt = ftl::Optional(getDisplayId())
+                                         .and_then(PhysicalDisplayId::tryCast)
+                                         .and_then([&refreshArgs](PhysicalDisplayId id) {
+                                             return refreshArgs.frameTargets.get(id);
+                                         })) {
+        editState().earliestPresentTime = frameTargetPtrOpt->get()->earliestPresentTime();
+        editState().expectedPresentTime = frameTargetPtrOpt->get()->expectedPresentTime().ns();
+    }
     editState().frameInterval = refreshArgs.frameInterval;
     editState().powerCallback = refreshArgs.powerCallback;
 
