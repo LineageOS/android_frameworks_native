@@ -45,6 +45,7 @@ public:
             aidl::com::android::server::inputflinger::IInputFilter::IInputFilterCallbacks;
     using InputFilterConfiguration =
             aidl::com::android::server::inputflinger::InputFilterConfiguration;
+    using AidlDeviceInfo = aidl::com::android::server::inputflinger::DeviceInfo;
 
     explicit InputFilter(InputListenerInterface& listener, IInputFlingerRust&);
     ~InputFilter() override = default;
@@ -65,10 +66,14 @@ private:
     InputListenerInterface& mNextListener;
     std::shared_ptr<InputFilterCallbacks> mCallbacks;
     std::shared_ptr<IInputFilter> mInputFilterRust;
+    // Keep track of connected peripherals, so that if filters are enabled later, we can pass that
+    // info to the filters
+    std::vector<AidlDeviceInfo> mDeviceInfos;
     mutable std::mutex mLock;
     InputFilterConfiguration mConfig GUARDED_BY(mLock);
 
     bool isFilterEnabled();
+    void notifyConfigurationChangedLocked() REQUIRES(mLock);
 };
 
 } // namespace android

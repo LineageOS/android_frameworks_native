@@ -96,15 +96,14 @@ protected:
 
     mock::SchedulerCallback mSchedulerCallback;
     mock::VsyncTrackerCallback mVsyncTrackerCallback;
+    TestableSurfaceFlinger mFlinger;
     TestableScheduler* mScheduler =
-            new TestableScheduler{mSelector, mSchedulerCallback, mVsyncTrackerCallback};
+            new TestableScheduler{mSelector, mFlinger, mSchedulerCallback, mVsyncTrackerCallback};
     surfaceflinger::frontend::LayerHierarchyBuilder mLayerHierarchyBuilder;
 
     ConnectionHandle mConnectionHandle;
     MockEventThread* mEventThread;
     sp<MockEventThreadConnection> mEventThreadConnection;
-
-    TestableSurfaceFlinger mFlinger;
 };
 
 SchedulerTest::SchedulerTest() {
@@ -575,7 +574,8 @@ TEST_F(SchedulerTest, nextFrameIntervalTest) {
     TestableScheduler scheduler{std::make_unique<android::mock::VsyncController>(),
                                 vrrTracker,
                                 vrrSelectorPtr,
-                                sp<VsyncModulator>::make(VsyncConfigSet{}),
+                                mFlinger.getFactory(),
+                                mFlinger.getTimeStats(),
                                 mSchedulerCallback,
                                 mVsyncTrackerCallback};
 
