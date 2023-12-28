@@ -386,13 +386,14 @@ public:
         LOG_ALWAYS_FATAL_IF(!displayIdOpt);
         const auto displayId = *displayIdOpt;
 
-        constexpr bool kBackpressureGpuComposition = true;
-        scheduler::FrameTargeter frameTargeter(displayId, kBackpressureGpuComposition);
+        scheduler::FrameTargeter frameTargeter(displayId,
+                                               scheduler::Feature::kBackpressureGpuComposition);
 
         frameTargeter.beginFrame({.frameBeginTime = frameTime,
                                   .vsyncId = vsyncId,
                                   .expectedVsyncTime = expectedVsyncTime,
-                                  .sfWorkDuration = 10ms},
+                                  .sfWorkDuration = 10ms,
+                                  .hwcMinWorkDuration = 10ms},
                                  *mScheduler->getVsyncSchedule());
 
         scheduler::FrameTargets targets;

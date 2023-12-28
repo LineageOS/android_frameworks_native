@@ -44,12 +44,18 @@ struct VsyncSource final : IVsyncSource {
 
 } // namespace
 
-class FrameTargeterTest : public testing::Test {
+class FrameTargeterTestBase : public testing::Test {
 public:
+    FrameTargeterTestBase(FeatureFlags flags) : mTargeter(PhysicalDisplayId::fromPort(13), flags) {}
+
     const auto& target() const { return mTargeter.target(); }
 
+    bool wouldPresentEarly(Period minFramePeriod) const {
+        return target().wouldPresentEarly(minFramePeriod);
+    }
+
     struct Frame {
-        Frame(FrameTargeterTest* testPtr, VsyncId vsyncId, TimePoint& frameBeginTime,
+        Frame(FrameTargeterTestBase* testPtr, VsyncId vsyncId, TimePoint& frameBeginTime,
               Duration frameDuration, Fps refreshRate, Fps peakRefreshRate,
               FrameTargeter::IsFencePendingFuncPtr isFencePendingFuncPtr = Frame::fenceSignaled,
               const ftl::Optional<VsyncSource>& vsyncSourceOpt = std::nullopt)
@@ -61,7 +67,8 @@ public:
                                                      .vsyncId = vsyncId,
                                                      .expectedVsyncTime =
                                                              frameBeginTime + frameDuration,
-                                                     .sfWorkDuration = 10ms};
+                                                     .sfWorkDuration = 10ms,
+                                                     .hwcMinWorkDuration = kHwcMinWorkDuration};
 
             testPtr->mTargeter.beginFrame(args,
                                           vsyncSourceOpt
@@ -93,7 +100,7 @@ public:
         static bool fencePending(const FenceTimePtr&, int) { return true; }
         static bool fenceSignaled(const FenceTimePtr&, int) { return false; }
 
-        FrameTargeterTest* const testPtr;
+        FrameTargeterTestBase* const testPtr;
 
         TimePoint& frameBeginTime;
         const Period period;
@@ -102,11 +109,24 @@ public:
         bool ended = false;
     };
 
+    static constexpr Duration kHwcMinWorkDuration = std::chrono::nanoseconds(5ns);
+
 private:
     FenceToFenceTimeMap mFenceMap;
 
-    static constexpr bool kBackpressureGpuComposition = true;
-    FrameTargeter mTargeter{PhysicalDisplayId::fromPort(13), kBackpressureGpuComposition};
+    FrameTargeter mTargeter;
+};
+
+class FrameTargeterTest : public FrameTargeterTestBase {
+public:
+    FrameTargeterTest() : FrameTargeterTestBase(Feature::kBackpressureGpuComposition) {}
+};
+
+class FrameTargeterWithExpectedPresentSupportTest : public FrameTargeterTestBase {
+public:
+    FrameTargeterWithExpectedPresentSupportTest()
+          : FrameTargeterTestBase(FeatureFlags(Feature::kBackpressureGpuComposition) |
+                                  Feature::kExpectedPresentTime) {}
 };
 
 TEST_F(FrameTargeterTest, targetsFrames) {
@@ -208,7 +228,7 @@ TEST_F(FrameTargeterTest, recallsPastVsyncTwoVsyncsAheadVrr) {
 TEST_F(FrameTargeterTest, doesNotDetectEarlyPresentIfNoFence) {
     constexpr Period kPeriod = (60_Hz).getPeriod();
     EXPECT_EQ(target().presentFenceForPastVsync(kPeriod), FenceTime::NO_FENCE);
-    EXPECT_FALSE(target().wouldPresentEarly(kPeriod));
+    EXPECT_FALSE(wouldPresentEarly(kPeriod));
 }
 
 TEST_F(FrameTargeterTest, detectsEarlyPresent) {
@@ -220,7 +240,8 @@ TEST_F(FrameTargeterTest, detectsEarlyPresent) {
     // The target is not early while past present fences are pending.
     for (int n = 3; n-- > 0;) {
         const Frame frame(this, vsyncId++, frameBeginTime, 10ms, kRefreshRate, kRefreshRate);
-        EXPECT_FALSE(target().wouldPresentEarly(kPeriod));
+        EXPECT_FALSE(wouldPresentEarly(kPeriod));
+        EXPECT_FALSE(target().earliestPresentTime());
     }
 
     // The target is early if the past present fence was signaled.
@@ -228,7 +249,41 @@ TEST_F(FrameTargeterTest, detectsEarlyPresent) {
     const auto fence = frame.end();
     fence->signalForTest(frameBeginTime.ns());
 
-    EXPECT_TRUE(target().wouldPresentEarly(kPeriod));
+    Frame finalFrame(this, vsyncId++, frameBeginTime, 10ms, kRefreshRate, kRefreshRate);
+
+    // `finalFrame` would present early, so it has an earliest present time.
+    EXPECT_TRUE(wouldPresentEarly(kPeriod));
+    ASSERT_NE(std::nullopt, target().earliestPresentTime());
+    EXPECT_EQ(*target().earliestPresentTime(),
+              target().expectedPresentTime() - kPeriod - kHwcMinWorkDuration);
+}
+
+// Same as `detectsEarlyPresent`, above, but verifies that we do not set an earliest present time
+// when there is expected present time support.
+TEST_F(FrameTargeterWithExpectedPresentSupportTest, detectsEarlyPresent) {
+    VsyncId vsyncId{333};
+    TimePoint frameBeginTime(3000ms);
+    constexpr Fps kRefreshRate = 60_Hz;
+    constexpr Period kPeriod = kRefreshRate.getPeriod();
+
+    // The target is not early while past present fences are pending.
+    for (int n = 3; n-- > 0;) {
+        const Frame frame(this, vsyncId++, frameBeginTime, 10ms, kRefreshRate, kRefreshRate);
+        EXPECT_FALSE(wouldPresentEarly(kPeriod));
+        EXPECT_FALSE(target().earliestPresentTime());
+    }
+
+    // The target is early if the past present fence was signaled.
+    Frame frame(this, vsyncId++, frameBeginTime, 10ms, kRefreshRate, kRefreshRate);
+    const auto fence = frame.end();
+    fence->signalForTest(frameBeginTime.ns());
+
+    Frame finalFrame(this, vsyncId++, frameBeginTime, 10ms, kRefreshRate, kRefreshRate);
+
+    // `finalFrame` would present early, but we have expected present time support, so it has no
+    // earliest present time.
+    EXPECT_TRUE(wouldPresentEarly(kPeriod));
+    ASSERT_EQ(std::nullopt, target().earliestPresentTime());
 }
 
 TEST_F(FrameTargeterTest, detectsEarlyPresentTwoVsyncsAhead) {
@@ -240,7 +295,8 @@ TEST_F(FrameTargeterTest, detectsEarlyPresentTwoVsyncsAhead) {
     // The target is not early while past present fences are pending.
     for (int n = 3; n-- > 0;) {
         const Frame frame(this, vsyncId++, frameBeginTime, 10ms, kRefreshRate, kRefreshRate);
-        EXPECT_FALSE(target().wouldPresentEarly(kPeriod));
+        EXPECT_FALSE(wouldPresentEarly(kPeriod));
+        EXPECT_FALSE(target().earliestPresentTime());
     }
 
     Frame frame(this, vsyncId++, frameBeginTime, 10ms, kRefreshRate, kRefreshRate);
@@ -248,12 +304,18 @@ TEST_F(FrameTargeterTest, detectsEarlyPresentTwoVsyncsAhead) {
     fence->signalForTest(frameBeginTime.ns());
 
     // The target is two VSYNCs ahead, so the past present fence is still pending.
-    EXPECT_FALSE(target().wouldPresentEarly(kPeriod));
+    EXPECT_FALSE(wouldPresentEarly(kPeriod));
+    EXPECT_FALSE(target().earliestPresentTime());
 
     { const Frame frame(this, vsyncId++, frameBeginTime, 10ms, kRefreshRate, kRefreshRate); }
 
+    Frame finalFrame(this, vsyncId++, frameBeginTime, 10ms, kRefreshRate, kRefreshRate);
+
     // The target is early if the past present fence was signaled.
-    EXPECT_TRUE(target().wouldPresentEarly(kPeriod));
+    EXPECT_TRUE(wouldPresentEarly(kPeriod));
+    ASSERT_NE(std::nullopt, target().earliestPresentTime());
+    EXPECT_EQ(*target().earliestPresentTime(),
+              target().expectedPresentTime() - kPeriod - kHwcMinWorkDuration);
 }
 
 TEST_F(FrameTargeterTest, detectsEarlyPresentThreeVsyncsAhead) {
@@ -264,7 +326,10 @@ TEST_F(FrameTargeterTest, detectsEarlyPresentThreeVsyncsAhead) {
     const Frame frame(this, VsyncId{555}, frameBeginTime, 16ms, kRefreshRate, kRefreshRate);
 
     // The target is more than two VSYNCs ahead, but present fences are not tracked that far back.
-    EXPECT_TRUE(target().wouldPresentEarly(kPeriod));
+    EXPECT_TRUE(wouldPresentEarly(kPeriod));
+    EXPECT_TRUE(target().earliestPresentTime());
+    EXPECT_EQ(*target().earliestPresentTime(),
+              target().expectedPresentTime() - kPeriod - kHwcMinWorkDuration);
 }
 
 TEST_F(FrameTargeterTest, detectsMissedFrames) {

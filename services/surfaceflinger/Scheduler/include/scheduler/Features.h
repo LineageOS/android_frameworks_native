@@ -29,6 +29,7 @@ enum class Feature : std::uint8_t {
     kTracePredictedVsync = 1 << 3,
     kBackpressureGpuComposition = 1 << 4,
     kSmallDirtyContentDetection = 1 << 5,
+    kExpectedPresentTime = 1 << 6,
 };
 
 using FeatureFlags = ftl::Flags<Feature>;
