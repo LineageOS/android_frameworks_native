@@ -426,7 +426,15 @@ void SchedulerFuzzer::fuzzPresentLatencyTracker() {
 }
 
 void SchedulerFuzzer::fuzzFrameTargeter() {
-    scheduler::FrameTargeter frameTargeter(kDisplayId, mFdp.ConsumeBool());
+    scheduler::FeatureFlags flags;
+    if (mFdp.ConsumeBool()) {
+        flags |= scheduler::Feature::kBackpressureGpuComposition;
+    }
+    if (mFdp.ConsumeBool()) {
+        flags |= scheduler::Feature::kExpectedPresentTime;
+    }
+
+    scheduler::FrameTargeter frameTargeter(kDisplayId, flags);
 
     const struct VsyncSource final : scheduler::IVsyncSource {
         explicit VsyncSource(FuzzedDataProvider& fuzzer) : fuzzer(fuzzer) {}
@@ -442,7 +450,8 @@ void SchedulerFuzzer::fuzzFrameTargeter() {
         frameTargeter.beginFrame({.frameBeginTime = getFuzzedTimePoint(mFdp),
                                   .vsyncId = getFuzzedVsyncId(mFdp),
                                   .expectedVsyncTime = getFuzzedTimePoint(mFdp),
-                                  .sfWorkDuration = getFuzzedDuration(mFdp)},
+                                  .sfWorkDuration = getFuzzedDuration(mFdp),
+                                  .hwcMinWorkDuration = getFuzzedDuration(mFdp)},
                                  vsyncSource);
 
         frameTargeter.setPresentFence(makeFakeFence());

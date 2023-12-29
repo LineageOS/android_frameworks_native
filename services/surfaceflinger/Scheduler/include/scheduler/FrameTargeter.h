@@ -19,11 +19,13 @@
 #include <array>
 #include <atomic>
 #include <memory>
+#include <optional>
 
 #include <ui/DisplayId.h>
 #include <ui/Fence.h>
 #include <ui/FenceTime.h>
 
+#include <scheduler/Features.h>
 #include <scheduler/Time.h>
 #include <scheduler/VsyncId.h>
 #include <scheduler/interface/CompositeResult.h>
@@ -49,13 +51,10 @@ public:
 
     TimePoint expectedPresentTime() const { return mExpectedPresentTime; }
 
+    std::optional<TimePoint> earliestPresentTime() const { return mEarliestPresentTime; }
+
     // The time of the VSYNC that preceded this frame. See `presentFenceForPastVsync` for details.
     TimePoint pastVsyncTime(Period minFramePeriod) const;
-
-    // Equivalent to `pastVsyncTime` unless running N VSYNCs ahead.
-    TimePoint previousFrameVsyncTime(Period minFramePeriod) const {
-        return mExpectedPresentTime - minFramePeriod;
-    }
 
     // The present fence for the frame that had targeted the most recent VSYNC before this frame.
     // If the target VSYNC for any given frame is more than `vsyncPeriod` in the future, then the
@@ -69,8 +68,6 @@ public:
         return mPresentFences.front().fenceTime;
     }
 
-    bool wouldPresentEarly(Period minFramePeriod) const;
-
     bool isFramePending() const { return mFramePending; }
     bool didMissFrame() const { return mFrameMissed; }
     bool didMissHwcFrame() const { return mHwcFrameMissed && !mGpuFrameMissed; }
@@ -79,9 +76,17 @@ protected:
     explicit FrameTarget(const std::string& displayLabel);
     ~FrameTarget() = default;
 
+    bool wouldPresentEarly(Period minFramePeriod) const;
+
+    // Equivalent to `pastVsyncTime` unless running N VSYNCs ahead.
+    TimePoint previousFrameVsyncTime(Period minFramePeriod) const {
+        return mExpectedPresentTime - minFramePeriod;
+    }
+
     VsyncId mVsyncId;
     TimePoint mFrameBeginTime;
     TimePoint mExpectedPresentTime;
+    std::optional<TimePoint> mEarliestPresentTime;
 
     TracedOrdinal<bool> mFramePending;
     TracedOrdinal<bool> mFrameMissed;
@@ -95,6 +100,8 @@ protected:
     std::array<FenceWithFenceTime, 2> mPresentFences;
 
 private:
+    friend class FrameTargeterTestBase;
+
     template <int N>
     inline bool targetsVsyncsAhead(Period minFramePeriod) const {
         static_assert(N > 1);
@@ -105,9 +112,10 @@ private:
 // Computes a display's per-frame metrics about past/upcoming targeting of present deadlines.
 class FrameTargeter final : private FrameTarget {
 public:
-    FrameTargeter(PhysicalDisplayId displayId, bool backpressureGpuComposition)
+    FrameTargeter(PhysicalDisplayId displayId, FeatureFlags flags)
           : FrameTarget(to_string(displayId)),
-            mBackpressureGpuComposition(backpressureGpuComposition) {}
+            mBackpressureGpuComposition(flags.test(Feature::kBackpressureGpuComposition)),
+            mSupportsExpectedPresentTime(flags.test(Feature::kExpectedPresentTime)) {}
 
     const FrameTarget& target() const { return *this; }
 
@@ -116,9 +124,13 @@ public:
         VsyncId vsyncId;
         TimePoint expectedVsyncTime;
         Duration sfWorkDuration;
+        Duration hwcMinWorkDuration;
     };
 
     void beginFrame(const BeginFrameArgs&, const IVsyncSource&);
+
+    std::optional<TimePoint> computeEarliestPresentTime(Period minFramePeriod,
+                                                        Duration hwcMinWorkDuration);
 
     // TODO(b/241285191): Merge with FrameTargeter::endFrame.
     FenceTimePtr setPresentFence(sp<Fence>);
@@ -128,7 +140,7 @@ public:
     void dump(utils::Dumper&) const;
 
 private:
-    friend class FrameTargeterTest;
+    friend class FrameTargeterTestBase;
 
     // For tests.
     using IsFencePendingFuncPtr = bool (*)(const FenceTimePtr&, int graceTimeMs);
@@ -138,6 +150,7 @@ private:
     static bool isFencePending(const FenceTimePtr&, int graceTimeMs);
 
     const bool mBackpressureGpuComposition;
+    const bool mSupportsExpectedPresentTime;
 
     TimePoint mScheduledPresentTime;
     CompositionCoverageFlags mCompositionCoverage;

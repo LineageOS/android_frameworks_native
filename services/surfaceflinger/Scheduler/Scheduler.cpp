@@ -190,9 +190,9 @@ void Scheduler::onFrameSignal(ICompositor& compositor, VsyncId vsyncId,
     const FrameTargeter::BeginFrameArgs beginFrameArgs =
             {.frameBeginTime = SchedulerClock::now(),
              .vsyncId = vsyncId,
-             // TODO(b/255601557): Calculate per display.
              .expectedVsyncTime = expectedVsyncTime,
-             .sfWorkDuration = mVsyncModulator->getVsyncConfig().sfWorkDuration};
+             .sfWorkDuration = mVsyncModulator->getVsyncConfig().sfWorkDuration,
+             .hwcMinWorkDuration = mVsyncConfiguration->getCurrentConfigs().hwcMinWorkDuration};
 
     ftl::NonNull<const Display*> pacesetterPtr = pacesetterPtrLocked();
     pacesetterPtr->targeterPtr->beginFrame(beginFrameArgs, *pacesetterPtr->schedulePtr);
@@ -201,11 +201,20 @@ void Scheduler::onFrameSignal(ICompositor& compositor, VsyncId vsyncId,
         FrameTargets targets;
         targets.try_emplace(pacesetterPtr->displayId, &pacesetterPtr->targeterPtr->target());
 
+        // TODO (b/256196556): Followers should use the next VSYNC after the frontrunner, not the
+        // pacesetter.
+        // Update expectedVsyncTime, which may have been adjusted by beginFrame.
+        expectedVsyncTime = pacesetterPtr->targeterPtr->target().expectedPresentTime();
+
         for (const auto& [id, display] : mDisplays) {
             if (id == pacesetterPtr->displayId) continue;
 
+            auto followerBeginFrameArgs = beginFrameArgs;
+            followerBeginFrameArgs.expectedVsyncTime =
+                    display.schedulePtr->vsyncDeadlineAfter(expectedVsyncTime);
+
             FrameTargeter& targeter = *display.targeterPtr;
-            targeter.beginFrame(beginFrameArgs, *display.schedulePtr);
+            targeter.beginFrame(followerBeginFrameArgs, *display.schedulePtr);
             targets.try_emplace(id, &targeter.target());
         }
 
@@ -584,7 +593,7 @@ void Scheduler::onHardwareVsyncRequest(PhysicalDisplayId id, bool enabled) {
 
     // On main thread to serialize reads/writes of pending hardware VSYNC state.
     static_cast<void>(
-            schedule([=]() FTL_FAKE_GUARD(mDisplayLock) FTL_FAKE_GUARD(kMainThreadContext) {
+            schedule([=, this]() FTL_FAKE_GUARD(mDisplayLock) FTL_FAKE_GUARD(kMainThreadContext) {
                 ATRACE_NAME(ftl::Concat(whence, ' ', id.value, ' ', enabled).c_str());
 
                 if (const auto displayOpt = mDisplays.get(id)) {

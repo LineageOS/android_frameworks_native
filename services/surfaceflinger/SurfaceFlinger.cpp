@@ -2681,6 +2681,8 @@ CompositeResultsPerDisplay SurfaceFlinger::composite(
         if (const auto display = getCompositionDisplayLocked(id)) {
             refreshArgs.outputs.push_back(display);
         }
+
+        refreshArgs.frameTargets.try_emplace(id, &targeter->target());
     }
 
     std::vector<DisplayId> displayIds;
@@ -2749,24 +2751,10 @@ CompositeResultsPerDisplay SurfaceFlinger::composite(
         refreshArgs.devOptFlashDirtyRegionsDelay = std::chrono::milliseconds(mDebugFlashDelay);
     }
 
-    const Period minFramePeriod = mScheduler->getVsyncSchedule()->minFramePeriod();
-
-    if (!getHwComposer().getComposer()->isSupported(
-                Hwc2::Composer::OptionalFeature::ExpectedPresentTime) &&
-        pacesetterTarget.wouldPresentEarly(minFramePeriod)) {
-        const auto hwcMinWorkDuration =
-                mScheduler->getVsyncConfiguration().getCurrentConfigs().hwcMinWorkDuration;
-
-        // TODO(b/255601557): Calculate and pass per-display values for each FrameTarget.
-        refreshArgs.earliestPresentTime =
-                pacesetterTarget.previousFrameVsyncTime(minFramePeriod) - hwcMinWorkDuration;
-    }
-
     const TimePoint expectedPresentTime = pacesetterTarget.expectedPresentTime();
     // TODO(b/255601557) Update frameInterval per display
     refreshArgs.frameInterval = mScheduler->getNextFrameInterval(pacesetterId, expectedPresentTime);
     refreshArgs.scheduledFrameTime = mScheduler->getScheduledFrameTime();
-    refreshArgs.expectedPresentTime = expectedPresentTime.ns();
     refreshArgs.hasTrustedPresentationListener = mNumTrustedPresentationListeners > 0;
     {
         auto& notifyExpectedPresentData = mNotifyExpectedPresentMap[pacesetterId];
@@ -4217,6 +4205,10 @@ void SurfaceFlinger::initScheduler(const sp<const DisplayDevice>& display) {
     }
     if (mBackpressureGpuComposition) {
         features |= Feature::kBackpressureGpuComposition;
+    }
+    if (getHwComposer().getComposer()->isSupported(
+                Hwc2::Composer::OptionalFeature::ExpectedPresentTime)) {
+        features |= Feature::kExpectedPresentTime;
     }
 
     mScheduler = std::make_unique<Scheduler>(static_cast<ICompositor&>(*this),

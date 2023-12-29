@@ -606,7 +606,14 @@ public:
             mFlinger->commitTransactions();
             mFlinger->flushTransactionQueues(getFuzzedVsyncId(mFdp));
 
-            scheduler::FrameTargeter frameTargeter(displayId, mFdp.ConsumeBool());
+            scheduler::FeatureFlags flags;
+            if (mFdp.ConsumeBool()) {
+                flags |= scheduler::Feature::kBackpressureGpuComposition;
+            }
+            if (mFdp.ConsumeBool()) {
+                flags |= scheduler::Feature::kExpectedPresentTime;
+            }
+            scheduler::FrameTargeter frameTargeter(displayId, flags);
             mFlinger->onCompositionPresented(displayId, ftl::init::map(displayId, &frameTargeter),
                                              mFdp.ConsumeIntegral<nsecs_t>());
         }

@@ -31,11 +31,7 @@ namespace aidl::android::os {
  */
 class PersistableBundle {
    public:
-    PersistableBundle() noexcept {
-        if (__builtin_available(android __ANDROID_API_V__, *)) {
-            mPBundle = APersistableBundle_new();
-        }
-    }
+    PersistableBundle() noexcept : mPBundle(APersistableBundle_new()) {}
     // takes ownership of the APersistableBundle*
     PersistableBundle(APersistableBundle* _Nonnull bundle) noexcept : mPBundle(bundle) {}
     // takes ownership of the APersistableBundle*
@@ -331,32 +327,20 @@ class PersistableBundle {
     }
 
     bool getBooleanVector(const std::string& key, std::vector<bool>* _Nonnull vec) {
-        if (__builtin_available(android __ANDROID_API_V__, *)) {
-            return getVecInternal<bool>(&APersistableBundle_getBooleanVector, mPBundle, key.c_str(),
-                                        vec);
-        }
-        return false;
+        return getVecInternal<bool>(&APersistableBundle_getBooleanVector, mPBundle, key.c_str(),
+                                    vec);
     }
     bool getIntVector(const std::string& key, std::vector<int32_t>* _Nonnull vec) {
-        if (__builtin_available(android __ANDROID_API_V__, *)) {
-            return getVecInternal<int32_t>(&APersistableBundle_getIntVector, mPBundle, key.c_str(),
+        return getVecInternal<int32_t>(&APersistableBundle_getIntVector, mPBundle, key.c_str(),
                                        vec);
-        }
-        return false;
     }
     bool getLongVector(const std::string& key, std::vector<int64_t>* _Nonnull vec) {
-        if (__builtin_available(android __ANDROID_API_V__, *)) {
-            return getVecInternal<int64_t>(&APersistableBundle_getLongVector, mPBundle, key.c_str(),
+        return getVecInternal<int64_t>(&APersistableBundle_getLongVector, mPBundle, key.c_str(),
                                        vec);
-        }
-        return false;
     }
     bool getDoubleVector(const std::string& key, std::vector<double>* _Nonnull vec) {
-        if (__builtin_available(android __ANDROID_API_V__, *)) {
-            return getVecInternal<double>(&APersistableBundle_getDoubleVector, mPBundle, key.c_str(),
+        return getVecInternal<double>(&APersistableBundle_getDoubleVector, mPBundle, key.c_str(),
                                       vec);
-        }
-        return false;
     }
 
     // Takes ownership of and frees the char** and its elements.
@@ -377,17 +361,15 @@ class PersistableBundle {
     }
 
     bool getStringVector(const std::string& key, std::vector<std::string>* _Nonnull vec) {
-        if (__builtin_available(android __ANDROID_API_V__, *)) {
-            int32_t bytes = APersistableBundle_getStringVector(mPBundle, key.c_str(), nullptr, 0,
-                                                            &stringAllocator, nullptr);
-            if (bytes > 0) {
-                char** strings = (char**)malloc(bytes);
-                if (strings) {
-                    bytes = APersistableBundle_getStringVector(mPBundle, key.c_str(), strings, bytes,
-                                                            &stringAllocator, nullptr);
-                    *vec = moveStringsInternal<std::vector<std::string>>(strings, bytes);
-                    return true;
-                }
+        int32_t bytes = APersistableBundle_getStringVector(mPBundle, key.c_str(), nullptr, 0,
+                                                           &stringAllocator, nullptr);
+        if (bytes > 0) {
+            char** strings = (char**)malloc(bytes);
+            if (strings) {
+                bytes = APersistableBundle_getStringVector(mPBundle, key.c_str(), strings, bytes,
+                                                           &stringAllocator, nullptr);
+                *vec = moveStringsInternal<std::vector<std::string>>(strings, bytes);
+                return true;
             }
         }
         return false;
