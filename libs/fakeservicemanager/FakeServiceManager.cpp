@@ -122,9 +122,19 @@ std::vector<IServiceManager::ServiceDebugInfo> FakeServiceManager::getServiceDeb
 }
 
 void FakeServiceManager::clear() {
-    std::lock_guard<std::mutex> l(mMutex);
+    std::map<String16, sp<IBinder>> backup;
 
-    mNameToService.clear();
+    {
+      std::lock_guard<std::mutex> l(mMutex);
+      backup = mNameToService;
+      mNameToService.clear();
+    }
+
+    // destructors may access FSM, so avoid recursive lock
+    backup.clear(); // explicit
+
+    // TODO: destructors may have added more services here - may want
+    // to check this or abort
 }
 }  // namespace android
 
