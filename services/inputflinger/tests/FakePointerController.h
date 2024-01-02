@@ -33,6 +33,7 @@ public:
     virtual ~FakePointerController() {}
 
     void setBounds(float minX, float minY, float maxX, float maxY);
+    void clearBounds();
     const std::map<int32_t, std::vector<int32_t>>& getSpots();
 
     void setPosition(float x, float y) override;

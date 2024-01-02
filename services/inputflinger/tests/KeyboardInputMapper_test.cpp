@@ -55,6 +55,7 @@ protected:
 
     void SetUp() override {
         InputMapperUnitTest::SetUp();
+        createDevice();
 
         // set key-codes expected in tests
         for (const auto& [scanCode, outKeycode] : mKeyCodeMap) {
