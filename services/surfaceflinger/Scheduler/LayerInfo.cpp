@@ -62,6 +62,10 @@ void LayerInfo::setLastPresentTime(nsecs_t lastPresentTime, nsecs_t now, LayerUp
             mLastAnimationTime = std::max(lastPresentTime, now);
             break;
         case LayerUpdateType::SetFrameRate:
+            if (FlagManager::getInstance().vrr_config()) {
+                break;
+            }
+            FALLTHROUGH_INTENDED;
         case LayerUpdateType::Buffer:
             FrameTimeData frameTime = {.presentTime = lastPresentTime,
                                        .queueTime = mLastUpdatedTime,
