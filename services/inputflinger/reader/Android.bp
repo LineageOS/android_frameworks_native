@@ -86,6 +86,7 @@ cc_defaults {
         "liblog",
         "libPlatformProperties",
         "libstatslog",
+        "libstatspull",
         "libutils",
     ],
     static_libs: [
@@ -99,15 +100,9 @@ cc_defaults {
         "libinputreader_headers",
     ],
     target: {
-        android: {
-            shared_libs: [
-                "libstatspull",
-            ],
-        },
         host: {
             static_libs: [
                 "libbinder",
-                "libstatspull",
             ],
         },
     },
