@@ -1607,6 +1607,82 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_withFrameRateCategory_60_12
     }
 }
 
+TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_withFrameRateCategory_HighHint) {
+    auto selector = createSelector(makeModes(kMode24, kMode30, kMode60, kMode120), kModeId60);
+
+    std::vector<LayerRequirement> layers = {{.weight = 1.f}, {.weight = 1.f}};
+    auto& lr1 = layers[0];
+    auto& lr2 = layers[1];
+
+    lr1.vote = LayerVoteType::ExplicitCategory;
+    lr1.frameRateCategory = FrameRateCategory::HighHint;
+    lr1.name = "ExplicitCategory HighHint";
+    lr2.vote = LayerVoteType::NoVote;
+    lr2.name = "NoVote";
+    auto actualFrameRateMode = selector.getBestFrameRateMode(layers);
+    // Gets touch boost
+    EXPECT_EQ(120_Hz, actualFrameRateMode.fps);
+    EXPECT_EQ(kModeId120, actualFrameRateMode.modePtr->getId());
+
+    lr1.vote = LayerVoteType::ExplicitCategory;
+    lr1.frameRateCategory = FrameRateCategory::HighHint;
+    lr1.name = "ExplicitCategory HighHint";
+    lr2.vote = LayerVoteType::ExplicitDefault;
+    lr2.desiredRefreshRate = 30_Hz;
+    lr2.name = "30Hz ExplicitDefault";
+    actualFrameRateMode = selector.getBestFrameRateMode(layers);
+    EXPECT_EQ(30_Hz, actualFrameRateMode.fps);
+    EXPECT_EQ(kModeId30, actualFrameRateMode.modePtr->getId());
+
+    lr1.vote = LayerVoteType::ExplicitCategory;
+    lr1.frameRateCategory = FrameRateCategory::HighHint;
+    lr1.name = "ExplicitCategory HighHint";
+    lr2.vote = LayerVoteType::ExplicitCategory;
+    lr2.frameRateCategory = FrameRateCategory::HighHint;
+    lr2.name = "ExplicitCategory HighHint#2";
+    actualFrameRateMode = selector.getBestFrameRateMode(layers);
+    // Gets touch boost
+    EXPECT_EQ(120_Hz, actualFrameRateMode.fps);
+    EXPECT_EQ(kModeId120, actualFrameRateMode.modePtr->getId());
+
+    lr1.vote = LayerVoteType::ExplicitCategory;
+    lr1.frameRateCategory = FrameRateCategory::HighHint;
+    lr1.name = "ExplicitCategory HighHint";
+    lr2.vote = LayerVoteType::ExplicitCategory;
+    lr2.frameRateCategory = FrameRateCategory::Low;
+    lr2.name = "ExplicitCategory Low";
+    actualFrameRateMode = selector.getBestFrameRateMode(layers);
+    EXPECT_EQ(30_Hz, actualFrameRateMode.fps);
+    EXPECT_EQ(kModeId30, actualFrameRateMode.modePtr->getId());
+
+    lr1.vote = LayerVoteType::ExplicitCategory;
+    lr1.frameRateCategory = FrameRateCategory::HighHint;
+    lr1.name = "ExplicitCategory HighHint";
+    lr2.vote = LayerVoteType::ExplicitExactOrMultiple;
+    lr2.desiredRefreshRate = 30_Hz;
+    lr2.name = "30Hz ExplicitExactOrMultiple";
+    actualFrameRateMode = selector.getBestFrameRateMode(layers);
+    // Gets touch boost
+    EXPECT_EQ(120_Hz, actualFrameRateMode.fps);
+    EXPECT_EQ(kModeId120, actualFrameRateMode.modePtr->getId());
+
+    lr1.vote = LayerVoteType::ExplicitCategory;
+    lr1.frameRateCategory = FrameRateCategory::HighHint;
+    lr1.name = "ExplicitCategory HighHint";
+    lr2.vote = LayerVoteType::ExplicitExact;
+    lr2.desiredRefreshRate = 30_Hz;
+    lr2.name = "30Hz ExplicitExact";
+    actualFrameRateMode = selector.getBestFrameRateMode(layers);
+    if (selector.supportsAppFrameRateOverrideByContent()) {
+        // Gets touch boost
+        EXPECT_EQ(120_Hz, actualFrameRateMode.fps);
+        EXPECT_EQ(kModeId120, actualFrameRateMode.modePtr->getId());
+    } else {
+        EXPECT_EQ(30_Hz, actualFrameRateMode.fps);
+        EXPECT_EQ(kModeId30, actualFrameRateMode.modePtr->getId());
+    }
+}
+
 TEST_P(RefreshRateSelectorTest,
        getBestFrameRateMode_withFrameRateCategory_smoothSwitchOnly_60_120_nonVrr) {
     if (GetParam() != Config::FrameRateOverride::Enabled) {
