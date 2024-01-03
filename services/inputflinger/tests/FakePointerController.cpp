@@ -28,6 +28,10 @@ void FakePointerController::setBounds(float minX, float minY, float maxX, float 
     mMaxY = maxY;
 }
 
+void FakePointerController::clearBounds() {
+    mHaveBounds = false;
+}
+
 const std::map<int32_t, std::vector<int32_t>>& FakePointerController::getSpots() {
     return mSpotsByDisplay;
 }
