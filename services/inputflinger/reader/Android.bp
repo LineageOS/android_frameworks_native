@@ -82,6 +82,7 @@ cc_defaults {
         "liblog",
         "libPlatformProperties",
         "libstatslog",
+        "libstatspull",
         "libutils",
     ],
     static_libs: [
