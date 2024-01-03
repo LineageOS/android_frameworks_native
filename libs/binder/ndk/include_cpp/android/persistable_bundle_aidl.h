@@ -57,7 +57,7 @@ class PersistableBundle {
         if (__builtin_available(android __ANDROID_API_V__, *)) {
             return APersistableBundle_readFromParcel(parcel, &mPBundle);
         } else {
-            return STATUS_FAILED_TRANSACTION;
+            return STATUS_INVALID_OPERATION;
         }
     }
 
@@ -68,7 +68,7 @@ class PersistableBundle {
         if (__builtin_available(android __ANDROID_API_V__, *)) {
             return APersistableBundle_writeToParcel(mPBundle, parcel);
         } else {
-            return STATUS_FAILED_TRANSACTION;
+            return STATUS_INVALID_OPERATION;
         }
     }
 
