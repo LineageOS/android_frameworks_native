@@ -106,7 +106,7 @@ public:
         if (__builtin_available(android __ANDROID_API_U__, *)) {
             return ANativeWindow_readFromParcel(parcel, &mWindow);
         } else {
-            return STATUS_FAILED_TRANSACTION;
+            return STATUS_INVALID_OPERATION;
         }
     }
 
@@ -117,7 +117,7 @@ public:
         if (__builtin_available(android __ANDROID_API_U__, *)) {
             return ANativeWindow_writeToParcel(mWindow, parcel);
         } else {
-            return STATUS_FAILED_TRANSACTION;
+            return STATUS_INVALID_OPERATION;
         }
     }
 
