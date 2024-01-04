@@ -81,8 +81,7 @@ TEST_F(InputChannelTest, OpenInputChannelPair_ReturnsAPairOfConnectedChannels) {
             << "client channel should have suffixed name";
 
     // Server->Client communication
-    InputMessage serverMsg;
-    memset(&serverMsg, 0, sizeof(InputMessage));
+    InputMessage serverMsg = {};
     serverMsg.header.type = InputMessage::Type::KEY;
     serverMsg.body.key.action = AKEY_EVENT_ACTION_DOWN;
     EXPECT_EQ(OK, serverChannel->sendMessage(&serverMsg))
@@ -97,8 +96,7 @@ TEST_F(InputChannelTest, OpenInputChannelPair_ReturnsAPairOfConnectedChannels) {
             << "client channel should receive the correct message from server channel";
 
     // Client->Server communication
-    InputMessage clientReply;
-    memset(&clientReply, 0, sizeof(InputMessage));
+    InputMessage clientReply = {};
     clientReply.header.type = InputMessage::Type::FINISHED;
     clientReply.header.seq = 0x11223344;
     clientReply.body.finished.handled = true;
@@ -114,6 +112,48 @@ TEST_F(InputChannelTest, OpenInputChannelPair_ReturnsAPairOfConnectedChannels) {
             << "server channel should receive the correct message from client channel";
     EXPECT_EQ(clientReply.body.finished.handled, serverReply.body.finished.handled)
             << "server channel should receive the correct message from client channel";
+}
+
+TEST_F(InputChannelTest, ProbablyHasInput) {
+    std::unique_ptr<InputChannel> senderChannel, receiverChannel;
+
+    // Open a pair of channels.
+    status_t result =
+            InputChannel::openInputChannelPair("channel name", senderChannel, receiverChannel);
+    ASSERT_EQ(OK, result) << "should have successfully opened a channel pair";
+
+    ASSERT_FALSE(receiverChannel->probablyHasInput());
+
+    // Send one message.
+    InputMessage serverMsg = {};
+    serverMsg.header.type = InputMessage::Type::KEY;
+    serverMsg.body.key.action = AKEY_EVENT_ACTION_DOWN;
+    EXPECT_EQ(OK, senderChannel->sendMessage(&serverMsg))
+            << "server channel should be able to send message to client channel";
+
+    // Verify input is available.
+    bool hasInput = false;
+    do {
+        // The probablyHasInput() can return false positive under rare circumstances uncontrollable
+        // by the tests. Re-request the availability in this case. Returning |false| for a long
+        // time is not intended, and would cause a test timeout.
+        hasInput = receiverChannel->probablyHasInput();
+    } while (!hasInput);
+    EXPECT_TRUE(hasInput)
+            << "client channel should observe that message is available before receiving it";
+
+    // Receive (consume) the message.
+    InputMessage clientMsg;
+    EXPECT_EQ(OK, receiverChannel->receiveMessage(&clientMsg))
+            << "client channel should be able to receive message from server channel";
+    EXPECT_EQ(serverMsg.header.type, clientMsg.header.type)
+            << "client channel should receive the correct message from server channel";
+    EXPECT_EQ(serverMsg.body.key.action, clientMsg.body.key.action)
+            << "client channel should receive the correct message from server channel";
+
+    // Verify input is not available.
+    EXPECT_FALSE(receiverChannel->probablyHasInput())
+            << "client should not observe any more messages after receiving the single one";
 }
 
 TEST_F(InputChannelTest, ReceiveSignal_WhenNoSignalPresent_ReturnsAnError) {
