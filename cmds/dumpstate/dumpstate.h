@@ -567,7 +567,8 @@ class Dumpstate {
     RunStatus dumpstate();
 
     void MaybeTakeEarlyScreenshot();
-    void MaybeSnapshotSystemTrace();
+    std::future<std::string> MaybeSnapshotSystemTraceAsync();
+    void MaybeWaitForSnapshotSystemTrace(std::future<std::string> task);
     void MaybeSnapshotUiTraces();
     void MaybeAddUiTracesToZip();
 

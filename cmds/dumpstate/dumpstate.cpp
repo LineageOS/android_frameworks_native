@@ -246,7 +246,7 @@ static const std::string DUMP_NETSTATS_PROTO_TASK = "DUMP NETSTATS PROTO";
 static const std::string DUMP_HALS_TASK = "DUMP HALS";
 static const std::string DUMP_BOARD_TASK = "dumpstate_board()";
 static const std::string DUMP_CHECKINS_TASK = "DUMP CHECKINS";
-static const std::string POST_PROCESS_UI_TRACES_TASK = "POST-PROCESS UI TRACES";
+static const std::string SERIALIZE_PERFETTO_TRACE_TASK = "SERIALIZE PERFETTO TRACE";
 
 namespace android {
 namespace os {
@@ -1086,11 +1086,11 @@ static void DumpNetstatsProto() {
 
 static void MaybeAddSystemTraceToZip() {
     // This function copies into the .zip the system trace that was snapshotted
-    // by the early call to MaybeSnapshotSystemTrace(), if any background
+    // by the early call to MaybeSnapshotSystemTraceAsync(), if any background
     // tracing was happening.
     bool system_trace_exists = access(SYSTEM_TRACE_SNAPSHOT, F_OK) == 0;
     if (!system_trace_exists) {
-        // No background trace was happening at the time MaybeSnapshotSystemTrace() was invoked.
+        // No background trace was happening at the time MaybeSnapshotSystemTraceAsync() was invoked
         if (!PropertiesHelper::IsUserBuild()) {
             MYLOGI(
                 "No system traces found. Check for previously uploaded traces by looking for "
@@ -1641,7 +1641,7 @@ Dumpstate::RunStatus Dumpstate::dumpstate() {
 
     // Enqueue slow functions into the thread pool, if the parallel run is enabled.
     std::future<std::string> dump_hals, dump_incident_report, dump_board, dump_checkins,
-            dump_netstats_report, post_process_ui_traces;
+        dump_netstats_report;
     if (ds.dump_pool_) {
         // Pool was shutdown in DumpstateDefaultAfterCritical method in order to
         // drop root user. Restarts it.
@@ -3077,8 +3077,9 @@ void Dumpstate::Cancel() {
 }
 
 void Dumpstate::PreDumpUiData() {
-    MaybeSnapshotSystemTrace();
+    auto snapshot_system_trace = MaybeSnapshotSystemTraceAsync();
     MaybeSnapshotUiTraces();
+    MaybeWaitForSnapshotSystemTrace(std::move(snapshot_system_trace));
 }
 
 /*
@@ -3264,13 +3265,15 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
     // duration is logged into MYLOG instead.
     PrintHeader();
 
+    std::future<std::string> snapshot_system_trace;
+
     bool is_dumpstate_restricted =
         options_->telephony_only || options_->wifi_only || options_->limited_only;
     if (!is_dumpstate_restricted) {
         // Snapshot the system trace now (if running) to avoid that dumpstate's
         // own activity pushes out interesting data from the trace ring buffer.
         // The trace file is added to the zip by MaybeAddSystemTraceToZip().
-        MaybeSnapshotSystemTrace();
+        snapshot_system_trace = MaybeSnapshotSystemTraceAsync();
 
         // Invoke critical dumpsys to preserve system state, before doing anything else.
         RunDumpsysCritical();
@@ -3281,6 +3284,7 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
     }
 
     MaybeTakeEarlyScreenshot();
+    MaybeWaitForSnapshotSystemTrace(std::move(snapshot_system_trace));
     onUiIntensiveBugreportDumpsFinished(calling_uid);
     MaybeCheckUserConsent(calling_uid, calling_package);
     if (options_->telephony_only) {
@@ -3376,31 +3380,59 @@ void Dumpstate::MaybeTakeEarlyScreenshot() {
     TakeScreenshot();
 }
 
-void Dumpstate::MaybeSnapshotSystemTrace() {
+std::future<std::string> Dumpstate::MaybeSnapshotSystemTraceAsync() {
     // When capturing traces via bugreport handler (BH), this function will be invoked twice:
     // 1) When BH invokes IDumpstate::PreDumpUiData()
     // 2) When BH invokes IDumpstate::startBugreport(flags = BUGREPORT_USE_PREDUMPED_UI_DATA)
     // In this case we don't want to re-invoke perfetto in step 2.
     // In all other standard invocation states, this function is invoked once
     // without the flag BUGREPORT_USE_PREDUMPED_UI_DATA.
+    // This function must run asynchronously to avoid delaying MaybeTakeEarlyScreenshot() in the
+    // standard invocation states (b/316110955).
     if (options_->use_predumped_ui_data) {
-        return;
+        return {};
+    }
+
+    // Create temporary file for the command's output
+    std::string outPath = ds.bugreport_internal_dir_ + "/tmp_serialize_perfetto_trace";
+    auto outFd = android::base::unique_fd(TEMP_FAILURE_RETRY(
+        open(outPath.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC | O_NOFOLLOW,
+             S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)));
+    if (outFd < 0) {
+        MYLOGE("Could not open %s to serialize perfetto trace.\n", outPath.c_str());
+        return {};
     }
 
     // If a stale file exists already, remove it.
     unlink(SYSTEM_TRACE_SNAPSHOT);
 
-    // If a background system trace is happening and is marked as "suitable for
-    // bugreport" (i.e. bugreport_score > 0 in the trace config), this command
-    // will stop it and serialize into SYSTEM_TRACE_SNAPSHOT. In the (likely)
-    // case that no trace is ongoing, this command is a no-op.
-    // Note: this should not be enqueued as we need to freeze the trace before
-    // dumpstate starts. Otherwise the trace ring buffers will contain mostly
-    // the dumpstate's own activity which is irrelevant.
-    RunCommand("SERIALIZE PERFETTO TRACE", {"perfetto", "--save-for-bugreport"},
-               CommandOptions::WithTimeout(10).DropRoot().CloseAllFileDescriptorsOnExec().Build());
-    // MaybeAddSystemTraceToZip() will take care of copying the trace in the zip
-    // file in the later stages.
+    MYLOGI("Launching async '%s'", SERIALIZE_PERFETTO_TRACE_TASK.c_str())
+    return std::async(
+        std::launch::async, [this, outPath = std::move(outPath), outFd = std::move(outFd)] {
+            // If a background system trace is happening and is marked as "suitable for
+            // bugreport" (i.e. bugreport_score > 0 in the trace config), this command
+            // will stop it and serialize into SYSTEM_TRACE_SNAPSHOT. In the (likely)
+            // case that no trace is ongoing, this command is a no-op.
+            // Note: this should not be enqueued as we need to freeze the trace before
+            // dumpstate starts. Otherwise the trace ring buffers will contain mostly
+            // the dumpstate's own activity which is irrelevant.
+            RunCommand(
+                SERIALIZE_PERFETTO_TRACE_TASK, {"perfetto", "--save-for-bugreport"},
+                CommandOptions::WithTimeout(10).DropRoot().CloseAllFileDescriptorsOnExec().Build(),
+                false, outFd);
+            // MaybeAddSystemTraceToZip() will take care of copying the trace in the zip
+            // file in the later stages.
+
+            return outPath;
+        });
+}
+
+void Dumpstate::MaybeWaitForSnapshotSystemTrace(std::future<std::string> task) {
+    if (!task.valid()) {
+        return;
+    }
+
+    WaitForTask(std::move(task), SERIALIZE_PERFETTO_TRACE_TASK, STDOUT_FILENO);
 }
 
 void Dumpstate::MaybeSnapshotUiTraces() {
