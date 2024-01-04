@@ -37,6 +37,8 @@ constexpr auto ACTION_UP = AMOTION_EVENT_ACTION_UP;
 constexpr auto BUTTON_PRESS = AMOTION_EVENT_ACTION_BUTTON_PRESS;
 constexpr auto BUTTON_RELEASE = AMOTION_EVENT_ACTION_BUTTON_RELEASE;
 constexpr auto HOVER_MOVE = AMOTION_EVENT_ACTION_HOVER_MOVE;
+constexpr auto HOVER_ENTER = AMOTION_EVENT_ACTION_HOVER_ENTER;
+constexpr auto HOVER_EXIT = AMOTION_EVENT_ACTION_HOVER_EXIT;
 constexpr int32_t DISPLAY_ID = 0;
 constexpr int32_t DISPLAY_WIDTH = 480;
 constexpr int32_t DISPLAY_HEIGHT = 800;
@@ -151,12 +153,14 @@ TEST_F(TouchpadInputMapperTest, HoverAndLeftButtonPress) {
     setScanCodeState(KeyState::UP, {BTN_LEFT});
     args += process(EV_SYN, SYN_REPORT, 0);
     ASSERT_THAT(args,
-                ElementsAre(VariantWith<NotifyMotionArgs>(WithMotionAction(HOVER_MOVE)),
+                ElementsAre(VariantWith<NotifyMotionArgs>(WithMotionAction(HOVER_ENTER)),
+                            VariantWith<NotifyMotionArgs>(WithMotionAction(HOVER_MOVE)),
+                            VariantWith<NotifyMotionArgs>(WithMotionAction(HOVER_EXIT)),
                             VariantWith<NotifyMotionArgs>(WithMotionAction(ACTION_DOWN)),
                             VariantWith<NotifyMotionArgs>(WithMotionAction(BUTTON_PRESS)),
                             VariantWith<NotifyMotionArgs>(WithMotionAction(BUTTON_RELEASE)),
                             VariantWith<NotifyMotionArgs>(WithMotionAction(ACTION_UP)),
-                            VariantWith<NotifyMotionArgs>(WithMotionAction(HOVER_MOVE))));
+                            VariantWith<NotifyMotionArgs>(WithMotionAction(HOVER_ENTER))));
 
     // Liftoff
     args.clear();
@@ -218,12 +222,14 @@ TEST_F(TouchpadInputMapperTestWithChoreographer, HoverAndLeftButtonPress) {
     setScanCodeState(KeyState::UP, {BTN_LEFT});
     args += process(EV_SYN, SYN_REPORT, 0);
     ASSERT_THAT(args,
-                ElementsAre(VariantWith<NotifyMotionArgs>(WithMotionAction(HOVER_MOVE)),
+                ElementsAre(VariantWith<NotifyMotionArgs>(WithMotionAction(HOVER_ENTER)),
+                            VariantWith<NotifyMotionArgs>(WithMotionAction(HOVER_MOVE)),
+                            VariantWith<NotifyMotionArgs>(WithMotionAction(HOVER_EXIT)),
                             VariantWith<NotifyMotionArgs>(WithMotionAction(ACTION_DOWN)),
                             VariantWith<NotifyMotionArgs>(WithMotionAction(BUTTON_PRESS)),
                             VariantWith<NotifyMotionArgs>(WithMotionAction(BUTTON_RELEASE)),
                             VariantWith<NotifyMotionArgs>(WithMotionAction(ACTION_UP)),
-                            VariantWith<NotifyMotionArgs>(WithMotionAction(HOVER_MOVE))));
+                            VariantWith<NotifyMotionArgs>(WithMotionAction(HOVER_ENTER))));
 
     // Liftoff
     args.clear();
