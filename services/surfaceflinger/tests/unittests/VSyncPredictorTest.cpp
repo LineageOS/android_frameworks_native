@@ -32,6 +32,7 @@
 #include <gtest/gtest.h>
 #include <algorithm>
 #include <chrono>
+#include <optional>
 #include <utility>
 
 #include <com_android_graphics_surfaceflinger_flags.h>
@@ -731,6 +732,27 @@ TEST_F(VSyncPredictorTest, adjustsVrrTimeline) {
     vrrTracker.onFrameMissed(TimePoint::fromNs(4500));
     EXPECT_EQ(5000, vrrTracker.nextAnticipatedVSyncTimeFrom(4500, 4500));
     EXPECT_EQ(6000, vrrTracker.nextAnticipatedVSyncTimeFrom(5000, 5000));
+}
+
+TEST_F(VSyncPredictorTest, absentVrrConfigNoVsyncTrackerCallback) {
+    SET_FLAG_FOR_TEST(flags::vrr_config, true);
+    const auto refreshRate = Fps::fromPeriodNsecs(mPeriod);
+    const std::optional<hal::VrrConfig> vrrConfigOpt = std::nullopt;
+    constexpr int32_t kGroup = 0;
+    constexpr auto kResolution = ui::Size(1920, 1080);
+    const auto mode =
+            ftl::as_non_null(createVrrDisplayMode(DisplayModeId(0), refreshRate, vrrConfigOpt,
+                                                  kGroup, kResolution, DEFAULT_DISPLAY_ID));
+    tracker.setDisplayModePtr(mode);
+
+    auto last = mNow;
+    for (auto i = 0u; i < kMinimumSamplesForPrediction; i++) {
+        EXPECT_CALL(mVsyncTrackerCallback, onVsyncGenerated(_, _, _)).Times(0);
+        EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow), Eq(last + mPeriod));
+        mNow += mPeriod;
+        last = mNow;
+        tracker.addVsyncTimestamp(mNow);
+    }
 }
 
 } // namespace android::scheduler

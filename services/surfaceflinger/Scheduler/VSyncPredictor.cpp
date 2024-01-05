@@ -313,7 +313,7 @@ nsecs_t VSyncPredictor::nextAnticipatedVSyncTimeFrom(nsecs_t timePoint,
             ? std::max(timePoint, *lastVsyncOpt + minFramePeriod - threshold)
             : timePoint;
     const auto vsyncTime = snapToVsyncAlignedWithRenderRate(baseTime);
-    if (FlagManager::getInstance().vrr_config()) {
+    if (FlagManager::getInstance().vrr_config() && mDisplayModePtr->getVrrConfig()) {
         const auto vsyncTimePoint = TimePoint::fromNs(vsyncTime);
         const Fps renderRate = mRenderRateOpt ? *mRenderRateOpt : mDisplayModePtr->getPeakFps();
         mVsyncTrackerCallback.onVsyncGenerated(vsyncTimePoint, mDisplayModePtr, renderRate);
