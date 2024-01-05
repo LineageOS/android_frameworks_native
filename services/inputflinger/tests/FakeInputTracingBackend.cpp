@@ -37,6 +37,30 @@ inline auto getId(const trace::TracedEvent& v) {
     return std::visit([](const auto& event) { return event.id; }, v);
 }
 
+MotionEvent toInputEvent(
+        const trace::TracedMotionEvent& e,
+        const trace::InputTracingBackendInterface::WindowDispatchArgs& dispatchArgs,
+        const std::array<uint8_t, 32>& hmac) {
+    MotionEvent traced;
+    traced.initialize(e.id, e.deviceId, e.source, e.displayId, hmac, e.action, e.actionButton,
+                      dispatchArgs.resolvedFlags, e.edgeFlags, e.metaState, e.buttonState,
+                      e.classification, dispatchArgs.transform, e.xPrecision, e.yPrecision,
+                      e.xCursorPosition, e.yCursorPosition, dispatchArgs.rawTransform, e.downTime,
+                      e.eventTime, e.pointerProperties.size(), e.pointerProperties.data(),
+                      e.pointerCoords.data());
+    return traced;
+}
+
+KeyEvent toInputEvent(const trace::TracedKeyEvent& e,
+                      const trace::InputTracingBackendInterface::WindowDispatchArgs& dispatchArgs,
+                      const std::array<uint8_t, 32>& hmac) {
+    KeyEvent traced;
+    traced.initialize(e.id, e.deviceId, e.source, e.displayId, hmac, e.action,
+                      dispatchArgs.resolvedFlags, e.keyCode, e.scanCode, e.metaState, e.repeatCount,
+                      e.downTime, e.eventTime);
+    return traced;
+}
+
 } // namespace
 
 // --- VerifyingTrace ---
@@ -55,6 +79,7 @@ void VerifyingTrace::verifyExpectedEventsTraced() {
     std::unique_lock lock(mLock);
     base::ScopedLockAssertion assumeLocked(mLock);
 
+    // Poll for all expected events to be traced, and keep track of the latest poll result.
     base::Result<void> result;
     mEventTracedCondition.wait_for(lock, TRACE_TIMEOUT, [&]() REQUIRES(mLock) {
         for (const auto& [expectedEvent, windowId] : mExpectedEvents) {
@@ -101,12 +126,39 @@ base::Result<void> VerifyingTrace::verifyEventTraced(const Event& expectedEvent,
                          });
     if (tracedDispatchesIt == mTracedWindowDispatches.end()) {
         msg << "Expected dispatch of event with ID 0x" << std::hex << expectedEvent.getId()
-            << " to window with ID 0x" << expectedWindowId << " to be traced, but it was not."
-            << "\nExpected event: " << expectedEvent;
+            << " to window with ID 0x" << expectedWindowId << " to be traced, but it was not.\n"
+            << "Expected event: " << expectedEvent;
         return error(msg);
     }
 
-    return {};
+    // Verify that the traced event matches the expected event exactly.
+    return std::visit(
+            [&](const auto& traced) -> base::Result<void> {
+                Event tracedEvent;
+                using T = std::decay_t<decltype(traced)>;
+                if constexpr (std::is_same_v<Event, MotionEvent> &&
+                              std::is_same_v<T, trace::TracedMotionEvent>) {
+                    tracedEvent =
+                            toInputEvent(traced, *tracedDispatchesIt, expectedEvent.getHmac());
+                } else if constexpr (std::is_same_v<Event, KeyEvent> &&
+                                     std::is_same_v<T, trace::TracedKeyEvent>) {
+                    tracedEvent =
+                            toInputEvent(traced, *tracedDispatchesIt, expectedEvent.getHmac());
+                } else {
+                    msg << "Received the wrong event type!\n"
+                        << "Expected event: " << expectedEvent;
+                    return error(msg);
+                }
+
+                const auto result = testing::internal::CmpHelperEQ("expectedEvent", "tracedEvent",
+                                                                   expectedEvent, tracedEvent);
+                if (!result) {
+                    msg << result.failure_message();
+                    return error(msg);
+                }
+                return {};
+            },
+            tracedEventsIt->second);
 }
 
 // --- FakeInputTracingBackend ---
@@ -114,7 +166,7 @@ base::Result<void> VerifyingTrace::verifyEventTraced(const Event& expectedEvent,
 void FakeInputTracingBackend::traceKeyEvent(const trace::TracedKeyEvent& event) const {
     {
         std::scoped_lock lock(mTrace->mLock);
-        mTrace->mTracedEvents.emplace(event.id);
+        mTrace->mTracedEvents.emplace(event.id, event);
     }
     mTrace->mEventTracedCondition.notify_all();
 }
@@ -122,7 +174,7 @@ void FakeInputTracingBackend::traceKeyEvent(const trace::TracedKeyEvent& event) 
 void FakeInputTracingBackend::traceMotionEvent(const trace::TracedMotionEvent& event) const {
     {
         std::scoped_lock lock(mTrace->mLock);
-        mTrace->mTracedEvents.emplace(event.id);
+        mTrace->mTracedEvents.emplace(event.id, event);
     }
     mTrace->mEventTracedCondition.notify_all();
 }
