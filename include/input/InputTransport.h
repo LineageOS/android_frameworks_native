@@ -283,6 +283,13 @@ public:
      */
     status_t receiveMessage(InputMessage* msg);
 
+    /* Tells whether there is a message in the channel available to be received.
+     *
+     * This is only a performance hint and may return false negative results. Clients should not
+     * rely on availability of the message based on the return value.
+     */
+    bool probablyHasInput() const;
+
     /* Return a new object that has a duplicate of this channel's fd. */
     std::unique_ptr<InputChannel> dup() const;
 
@@ -517,6 +524,13 @@ public:
      * whether consume() should be called again later on with consumeBatches == true.
      */
     int32_t getPendingBatchSource() const;
+
+    /* Returns true when there is *likely* a pending batch or a pending event in the channel.
+     *
+     * This is only a performance hint and may return false negative results. Clients should not
+     * rely on availability of the message based on the return value.
+     */
+    bool probablyHasInput() const;
 
     std::string dump() const;
 

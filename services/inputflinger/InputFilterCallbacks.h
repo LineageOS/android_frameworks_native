@@ -20,6 +20,7 @@
 #include <android/binder_auto_utils.h>
 #include <utils/Mutex.h>
 #include <mutex>
+#include "InputFilterPolicyInterface.h"
 #include "InputListener.h"
 #include "NotifyArgs.h"
 
@@ -33,7 +34,8 @@ using AidlKeyEvent = aidl::com::android::server::inputflinger::KeyEvent;
 
 class InputFilterCallbacks : public IInputFilter::BnInputFilterCallbacks {
 public:
-    explicit InputFilterCallbacks(InputListenerInterface& listener);
+    explicit InputFilterCallbacks(InputListenerInterface& listener,
+                                  InputFilterPolicyInterface& policy);
     ~InputFilterCallbacks() override = default;
 
     uint32_t getModifierState();
@@ -41,6 +43,7 @@ public:
 
 private:
     InputListenerInterface& mNextListener;
+    InputFilterPolicyInterface& mPolicy;
     mutable std::mutex mLock;
     struct StickyModifierState {
         uint32_t modifierState;

@@ -29,8 +29,9 @@ NotifyKeyArgs keyEventToNotifyKeyArgs(const AidlKeyEvent& event) {
                          event.scanCode, event.metaState, event.downTime);
 }
 
-InputFilterCallbacks::InputFilterCallbacks(InputListenerInterface& listener)
-      : mNextListener(listener) {}
+InputFilterCallbacks::InputFilterCallbacks(InputListenerInterface& listener,
+                                           InputFilterPolicyInterface& policy)
+      : mNextListener(listener), mPolicy(policy) {}
 
 ndk::ScopedAStatus InputFilterCallbacks::sendKeyEvent(const AidlKeyEvent& event) {
     mNextListener.notifyKey(keyEventToNotifyKeyArgs(event));
@@ -42,6 +43,7 @@ ndk::ScopedAStatus InputFilterCallbacks::onModifierStateChanged(int32_t modifier
     std::scoped_lock _l(mLock);
     mStickyModifierState.modifierState = modifierState;
     mStickyModifierState.lockedModifierState = lockedModifierState;
+    mPolicy.notifyStickyModifierStateChanged(modifierState, lockedModifierState);
     ALOGI("Sticky keys modifier state changed: modifierState=%d, lockedModifierState=%d",
           modifierState, lockedModifierState);
     return ndk::ScopedAStatus::ok();

@@ -532,6 +532,8 @@ FrameRateCategory LayerInfo::FrameRate::convertCategory(int8_t category) {
             return FrameRateCategory::Low;
         case ANATIVEWINDOW_FRAME_RATE_CATEGORY_NORMAL:
             return FrameRateCategory::Normal;
+        case ANATIVEWINDOW_FRAME_RATE_CATEGORY_HIGH_HINT:
+            return FrameRateCategory::HighHint;
         case ANATIVEWINDOW_FRAME_RATE_CATEGORY_HIGH:
             return FrameRateCategory::High;
         default:

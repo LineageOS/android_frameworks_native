@@ -650,7 +650,7 @@ TEST_F(LayerSnapshotTest, frameRateWithCategory) {
     // │   └── 13
     // └── 2
     setFrameRate(11, 244.f, 0, 0);
-    setFrameRateCategory(122, 3 /* Normal */);
+    setFrameRateCategory(122, ANATIVEWINDOW_FRAME_RATE_CATEGORY_NORMAL);
 
     UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
     // verify parent 1 gets no vote
@@ -845,7 +845,7 @@ TEST_F(LayerSnapshotTest, frameRateSelectionStrategyWithCategory) {
     // │   │       └── 1221
     // │   └── 13
     // └── 2
-    setFrameRateCategory(12, 4 /* high */);
+    setFrameRateCategory(12, ANATIVEWINDOW_FRAME_RATE_CATEGORY_HIGH);
     setFrameRate(122, 123.f, 0, 0);
     setFrameRateSelectionStrategy(12, 1 /* OverrideChildren */);
 
@@ -887,7 +887,7 @@ TEST_F(LayerSnapshotTest, frameRateSelectionStrategyWithCategory) {
     // │   │       └── 1221
     // │   └── 13
     // └── 2
-    setFrameRateCategory(12, 0 /* default */);
+    setFrameRateCategory(12, ANATIVEWINDOW_FRAME_RATE_CATEGORY_DEFAULT);
     setFrameRateSelectionStrategy(12, 0 /* Default */);
     UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
     // verify parent 1 gets no vote

@@ -145,15 +145,18 @@ private:
 };
 
 TEST_F(PointerChoreographerTest, ForwardsArgsToInnerListener) {
-    const std::vector<NotifyArgs> allArgs{NotifyInputDevicesChangedArgs{},
-                                          NotifyConfigurationChangedArgs{},
-                                          NotifyKeyArgs{},
-                                          NotifyMotionArgs{},
-                                          NotifySensorArgs{},
-                                          NotifySwitchArgs{},
-                                          NotifyDeviceResetArgs{},
-                                          NotifyPointerCaptureChangedArgs{},
-                                          NotifyVibratorStateArgs{}};
+    const std::vector<NotifyArgs>
+            allArgs{NotifyInputDevicesChangedArgs{},
+                    NotifyConfigurationChangedArgs{},
+                    KeyArgsBuilder(AKEY_EVENT_ACTION_DOWN, AINPUT_SOURCE_KEYBOARD).build(),
+                    MotionArgsBuilder(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                            .pointer(FIRST_TOUCH_POINTER)
+                            .build(),
+                    NotifySensorArgs{},
+                    NotifySwitchArgs{},
+                    NotifyDeviceResetArgs{},
+                    NotifyPointerCaptureChangedArgs{},
+                    NotifyVibratorStateArgs{}};
 
     for (auto notifyArgs : allArgs) {
         mChoreographer.notify(notifyArgs);

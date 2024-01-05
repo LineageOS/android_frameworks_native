@@ -1095,10 +1095,19 @@ enum {
     ANATIVEWINDOW_FRAME_RATE_CATEGORY_NORMAL = 3,
 
     /**
+     * Indicates that, as a result of a user interaction, an animation is likely to start.
+     * This category is a signal that a user interaction heuristic determined the need of a
+     * high refresh rate, and is not an explicit request from the app.
+     * As opposed to FRAME_RATE_CATEGORY_HIGH, this vote may be ignored in favor of
+     * more explicit votes.
+     */
+    ANATIVEWINDOW_FRAME_RATE_CATEGORY_HIGH_HINT = 4,
+
+    /**
      * Indicates a frame rate suitable for animations that require a high frame rate, which may
      * increase smoothness but may also increase power usage.
      */
-    ANATIVEWINDOW_FRAME_RATE_CATEGORY_HIGH = 4
+    ANATIVEWINDOW_FRAME_RATE_CATEGORY_HIGH = 5
 };
 
 /*

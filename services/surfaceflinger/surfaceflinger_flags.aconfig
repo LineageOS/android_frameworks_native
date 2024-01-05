@@ -98,6 +98,7 @@ flag {
   namespace: "core_graphics"
   description: "Whether to use the closest known refresh rate to determine the fps consistency."
   bug: "299201319"
+  is_fixed_read_only: true
 }
 
 # This flag is broken.
