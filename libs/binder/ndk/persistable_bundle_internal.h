@@ -61,7 +61,7 @@ int32_t getStringsInternal(const T& strings, char* _Nullable* _Nullable buffer,
     int32_t numAvailable = bufferSizeBytes / sizeof(char*);
     int32_t numFill = numAvailable < num ? numAvailable : num;
     if (!stringAllocator) {
-        return -1;
+        return APERSISTABLEBUNDLE_ALLOCATOR_FAILED;
     }
 
     if (numFill > 0 && buffer) {
@@ -70,7 +70,7 @@ int32_t getStringsInternal(const T& strings, char* _Nullable* _Nullable buffer,
             android::String8 tmp8 = android::String8(val);
             buffer[i] = stringAllocator(tmp8.bytes() + 1, context);
             if (buffer[i] == nullptr) {
-                return -1;
+                return APERSISTABLEBUNDLE_ALLOCATOR_FAILED;
             }
             strncpy(buffer[i], tmp8.c_str(), tmp8.bytes() + 1);
             i++;
