@@ -204,10 +204,7 @@ void worker_fx(int num,
     for (int i = 0; i < server_count; i++) {
         if (num == i)
             continue;
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-        workers.push_back(serviceMgr->getService(generateServiceName(i)));
-#pragma clang diagnostic pop
+        workers.push_back(serviceMgr->waitForService(generateServiceName(i)));
     }
 
     // Run the benchmark if client
@@ -340,8 +337,7 @@ int main(int argc, char *argv[])
     int payload_size = 0;
     bool cs_pair = false;
     bool training_round = false;
-    (void)argc;
-    (void)argv;
+    int max_time_us;
 
     // Parse arguments.
     for (int i = 1; i < argc; i++) {
@@ -351,7 +347,7 @@ int main(int argc, char *argv[])
             cout << "\t-m N    : Specify expected max latency in microseconds." << endl;
             cout << "\t-p      : Split workers into client/server pairs." << endl;
             cout << "\t-s N    : Specify payload size." << endl;
-            cout << "\t-t N    : Run training round." << endl;
+            cout << "\t-t      : Run training round." << endl;
             cout << "\t-w N    : Specify total number of workers." << endl;
             return 0;
         }
@@ -368,29 +364,33 @@ int main(int argc, char *argv[])
         if (string(argv[i]) == "-s") {
             payload_size = atoi(argv[i+1]);
             i++;
+            continue;
         }
         if (string(argv[i]) == "-p") {
             // client/server pairs instead of spreading
             // requests to all workers. If true, half
             // the workers become clients and half servers
             cs_pair = true;
+            continue;
         }
         if (string(argv[i]) == "-t") {
             // Run one training round before actually collecting data
             // to get an approximation of max latency.
             training_round = true;
+            continue;
         }
         if (string(argv[i]) == "-m") {
             // Caller specified the max latency in microseconds.
             // No need to run training round in this case.
-            if (atoi(argv[i+1]) > 0) {
-                max_time_bucket = strtoull(argv[i+1], (char **)nullptr, 10) * 1000;
-                time_per_bucket = max_time_bucket / num_buckets;
-                i++;
-            } else {
+            max_time_us = atoi(argv[i+1]);
+            if (max_time_us <= 0) {
                 cout << "Max latency -m must be positive." << endl;
                 exit(EXIT_FAILURE);
             }
+            max_time_bucket = max_time_us * 1000ull;
+            time_per_bucket = max_time_bucket / num_buckets;
+            i++;
+            continue;
         }
     }
 
