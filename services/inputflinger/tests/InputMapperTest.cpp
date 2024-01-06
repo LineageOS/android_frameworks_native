@@ -21,8 +21,11 @@
 #include <ui/Rotation.h>
 #include <utils/Timers.h>
 
+#include "NotifyArgs.h"
+
 namespace android {
 
+using testing::_;
 using testing::Return;
 
 void InputMapperUnitTest::SetUpWithBus(int bus) {
@@ -53,13 +56,14 @@ void InputMapperUnitTest::createDevice() {
                                             /*generation=*/2, mIdentifier);
     mDevice->addEmptyEventHubDevice(EVENTHUB_ID);
     mDeviceContext = std::make_unique<InputDeviceContext>(*mDevice, EVENTHUB_ID);
-    std::list<NotifyArgs> _ =
+    std::list<NotifyArgs> args =
             mDevice->configure(systemTime(), mReaderConfiguration, /*changes=*/{});
+    ASSERT_THAT(args, testing::ElementsAre(testing::VariantWith<NotifyDeviceResetArgs>(_)));
 }
 
 void InputMapperUnitTest::setupAxis(int axis, bool valid, int32_t min, int32_t max,
                                     int32_t resolution) {
-    EXPECT_CALL(mMockEventHub, getAbsoluteAxisInfo(EVENTHUB_ID, axis, testing::_))
+    EXPECT_CALL(mMockEventHub, getAbsoluteAxisInfo(EVENTHUB_ID, axis, _))
             .WillRepeatedly([=](int32_t, int32_t, RawAbsoluteAxisInfo* outAxisInfo) {
                 outAxisInfo->valid = valid;
                 outAxisInfo->minValue = min;
