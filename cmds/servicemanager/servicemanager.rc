@@ -11,5 +11,5 @@ service servicemanager /system/bin/servicemanager
     onrestart class_restart --only-enabled main
     onrestart class_restart --only-enabled hal
     onrestart class_restart --only-enabled early_hal
-    task_profiles ServiceCapacityLow
+    task_profiles ProcessCapacityHigh
     shutdown critical
