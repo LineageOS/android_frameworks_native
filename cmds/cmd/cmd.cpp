@@ -95,7 +95,7 @@ public:
             flags = O_RDWR;
             checkRead = checkWrite = true;
         } else {
-            mErrorLog << "Invalid mode requested: " << mode.c_str() << endl;
+            mErrorLog << "Invalid mode requested: " << mode << endl;
             return -EINVAL;
         }
         int fd = open(fullPath.c_str(), flags, S_IRWXU|S_IRWXG);
