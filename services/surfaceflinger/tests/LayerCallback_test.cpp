@@ -1295,4 +1295,74 @@ TEST_F(LayerCallbackTest, SetNullBufferOnLayerWithoutBuffer) {
     }
 }
 
+TEST_F(LayerCallbackTest, OccludedLayerHasReleaseCallback) {
+    sp<SurfaceControl> layer1, layer2;
+    ASSERT_NO_FATAL_FAILURE(layer1 = createLayerWithBuffer());
+    ASSERT_NO_FATAL_FAILURE(layer2 = createLayerWithBuffer());
+
+    Transaction transaction1, transaction2;
+    CallbackHelper callback1a, callback1b, callback2a, callback2b;
+    int err = fillTransaction(transaction1, &callback1a, layer1);
+    if (err) {
+        GTEST_SUCCEED() << "test not supported";
+        return;
+    }
+    err = fillTransaction(transaction2, &callback2a, layer2);
+    if (err) {
+        GTEST_SUCCEED() << "test not supported";
+        return;
+    }
+
+    ui::Size bufferSize = getBufferSize();
+
+    // Occlude layer1 with layer2
+    TransactionUtils::setFrame(transaction1, layer1,
+                               Rect(0, 0, bufferSize.width, bufferSize.height), Rect(0, 0, 32, 32));
+    TransactionUtils::setFrame(transaction2, layer2,
+                               Rect(0, 0, bufferSize.width, bufferSize.height), Rect(0, 0, 32, 32));
+    transaction1.apply();
+    transaction2.apply();
+
+    ExpectedResult expected1a, expected1b, expected2a, expected2b;
+    expected1a.addSurface(ExpectedResult::Transaction::PRESENTED, {layer1},
+                          ExpectedResult::Buffer::ACQUIRED,
+                          ExpectedResult::PreviousBuffer::NOT_RELEASED);
+
+    expected2a.addSurface(ExpectedResult::Transaction::PRESENTED, {layer2},
+                          ExpectedResult::Buffer::ACQUIRED,
+                          ExpectedResult::PreviousBuffer::NOT_RELEASED);
+
+    EXPECT_NO_FATAL_FAILURE(waitForCallback(callback1a, expected1a, true));
+    EXPECT_NO_FATAL_FAILURE(waitForCallback(callback2a, expected2a, true));
+
+    // Submit new buffers so previous buffers can be released
+    err = fillTransaction(transaction1, &callback1b, layer1);
+    if (err) {
+        GTEST_SUCCEED() << "test not supported";
+        return;
+    }
+    err = fillTransaction(transaction2, &callback2b, layer2);
+    if (err) {
+        GTEST_SUCCEED() << "test not supported";
+        return;
+    }
+
+    TransactionUtils::setFrame(transaction1, layer1,
+                               Rect(0, 0, bufferSize.width, bufferSize.height), Rect(0, 0, 32, 32));
+    TransactionUtils::setFrame(transaction2, layer2,
+                               Rect(0, 0, bufferSize.width, bufferSize.height), Rect(0, 0, 32, 32));
+    transaction1.apply();
+    transaction2.apply();
+
+    expected1b.addSurface(ExpectedResult::Transaction::PRESENTED, {layer1},
+                          ExpectedResult::Buffer::ACQUIRED,
+                          ExpectedResult::PreviousBuffer::RELEASED);
+
+    expected2b.addSurface(ExpectedResult::Transaction::PRESENTED, {layer2},
+                          ExpectedResult::Buffer::ACQUIRED,
+                          ExpectedResult::PreviousBuffer::RELEASED);
+
+    EXPECT_NO_FATAL_FAILURE(waitForCallback(callback1b, expected1b, true));
+    EXPECT_NO_FATAL_FAILURE(waitForCallback(callback2b, expected2b, true));
+}
 } // namespace android

@@ -28,6 +28,7 @@
 
 #include "MockHWComposer.h"
 #include "TimeStats/TimeStats.h"
+#include "gmock/gmock.h"
 
 #include <variant>
 
@@ -90,14 +91,16 @@ struct CompositionEnginePresentTest : public CompositionEngineTest {
         // These are the overridable functions CompositionEngine::present() may
         // call, and have separate test coverage.
         MOCK_METHOD1(preComposition, void(CompositionRefreshArgs&));
+        MOCK_METHOD1(postComposition, void(CompositionRefreshArgs&));
     };
 
     StrictMock<CompositionEnginePartialMock> mEngine;
 };
 
 TEST_F(CompositionEnginePresentTest, worksWithEmptyRequest) {
-    // present() always calls preComposition()
+    // present() always calls preComposition() and postComposition()
     EXPECT_CALL(mEngine, preComposition(Ref(mRefreshArgs)));
+    EXPECT_CALL(mEngine, postComposition(Ref(mRefreshArgs)));
 
     mEngine.present(mRefreshArgs);
 }
@@ -125,6 +128,9 @@ TEST_F(CompositionEnginePresentTest, worksAsExpected) {
             .WillOnce(Return(ftl::yield<std::monostate>({})));
     EXPECT_CALL(*mOutput3, present(Ref(mRefreshArgs)))
             .WillOnce(Return(ftl::yield<std::monostate>({})));
+
+    // present() always calls postComposition()
+    EXPECT_CALL(mEngine, postComposition(Ref(mRefreshArgs)));
 
     mRefreshArgs.outputs = {mOutput1, mOutput2, mOutput3};
     mEngine.present(mRefreshArgs);
@@ -481,5 +487,29 @@ TEST_F(CompositionEngineOffloadTest, disabledDisplaysDoNotPreventOthersFromOfflo
     mEngine.present(mRefreshArgs);
 }
 
+struct CompositionEnginePostCompositionTest : public CompositionEngineTest {
+    sp<StrictMock<mock::LayerFE>> mLayer1FE = sp<StrictMock<mock::LayerFE>>::make();
+    sp<StrictMock<mock::LayerFE>> mLayer2FE = sp<StrictMock<mock::LayerFE>>::make();
+    sp<StrictMock<mock::LayerFE>> mLayer3FE = sp<StrictMock<mock::LayerFE>>::make();
+};
+
+TEST_F(CompositionEnginePostCompositionTest, postCompositionReleasesAllFences) {
+    SET_FLAG_FOR_TEST(com::android::graphics::surfaceflinger::flags::ce_fence_promise, true);
+    ASSERT_TRUE(FlagManager::getInstance().ce_fence_promise());
+
+    EXPECT_CALL(*mLayer1FE, getReleaseFencePromiseStatus)
+            .WillOnce(Return(LayerFE::ReleaseFencePromiseStatus::FULFILLED));
+    EXPECT_CALL(*mLayer2FE, getReleaseFencePromiseStatus)
+            .WillOnce(Return(LayerFE::ReleaseFencePromiseStatus::FULFILLED));
+    EXPECT_CALL(*mLayer3FE, getReleaseFencePromiseStatus)
+            .WillOnce(Return(LayerFE::ReleaseFencePromiseStatus::INITIALIZED));
+    mRefreshArgs.layers = {mLayer1FE, mLayer2FE, mLayer3FE};
+
+    EXPECT_CALL(*mLayer1FE, setReleaseFence(_)).Times(0);
+    EXPECT_CALL(*mLayer2FE, setReleaseFence(_)).Times(0);
+    EXPECT_CALL(*mLayer3FE, setReleaseFence(_)).Times(1);
+
+    mEngine.postComposition(mRefreshArgs);
+}
 } // namespace
 } // namespace android::compositionengine

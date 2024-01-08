@@ -136,6 +136,7 @@ void FlagManager::dump(std::string& result) const {
     DUMP_READ_ONLY_FLAG(restore_blur_step);
     DUMP_READ_ONLY_FLAG(dont_skip_on_early_ro);
     DUMP_READ_ONLY_FLAG(protected_if_client);
+    DUMP_READ_ONLY_FLAG(ce_fence_promise);
 #undef DUMP_READ_ONLY_FLAG
 #undef DUMP_SERVER_FLAG
 #undef DUMP_FLAG_INTERVAL
@@ -220,6 +221,7 @@ FLAG_MANAGER_READ_ONLY_FLAG(renderable_buffer_usage, "")
 FLAG_MANAGER_READ_ONLY_FLAG(restore_blur_step, "debug.renderengine.restore_blur_step")
 FLAG_MANAGER_READ_ONLY_FLAG(dont_skip_on_early_ro, "")
 FLAG_MANAGER_READ_ONLY_FLAG(protected_if_client, "")
+FLAG_MANAGER_READ_ONLY_FLAG(ce_fence_promise, "");
 
 /// Trunk stable server flags ///
 FLAG_MANAGER_SERVER_FLAG(refresh_rate_overlay_on_external_display, "")

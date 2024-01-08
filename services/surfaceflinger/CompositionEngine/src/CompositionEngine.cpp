@@ -162,6 +162,7 @@ void CompositionEngine::present(CompositionRefreshArgs& args) {
             future.get();
         }
     }
+    postComposition(args);
 }
 
 void CompositionEngine::updateCursorAsync(CompositionRefreshArgs& args) {
@@ -190,6 +191,34 @@ void CompositionEngine::preComposition(CompositionRefreshArgs& args) {
     }
 
     mNeedsAnotherUpdate = needsAnotherUpdate;
+}
+
+// If a buffer is latched but the layer is not presented, such as when
+// obscured by another layer, the previous buffer needs to be released. We find
+// these buffers and fire a NO_FENCE to release it. This ensures that all
+// promises for buffer releases are fulfilled at the end of composition.
+void CompositionEngine::postComposition(CompositionRefreshArgs& args) {
+    if (FlagManager::getInstance().ce_fence_promise()) {
+        ATRACE_CALL();
+        ALOGV(__FUNCTION__);
+
+        for (auto& layerFE : args.layers) {
+            if (layerFE->getReleaseFencePromiseStatus() ==
+                LayerFE::ReleaseFencePromiseStatus::INITIALIZED) {
+                layerFE->setReleaseFence(Fence::NO_FENCE);
+            }
+        }
+
+        // List of layersWithQueuedFrames does not necessarily overlap with
+        // list of layers, so those layersWithQueuedFrames also need any
+        // unfulfilled promises to be resolved for completeness.
+        for (auto& layerFE : args.layersWithQueuedFrames) {
+            if (layerFE->getReleaseFencePromiseStatus() ==
+                LayerFE::ReleaseFencePromiseStatus::INITIALIZED) {
+                layerFE->setReleaseFence(Fence::NO_FENCE);
+            }
+        }
+    }
 }
 
 FeatureFlags CompositionEngine::getFeatureFlags() const {

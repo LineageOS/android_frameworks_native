@@ -16,9 +16,11 @@
 #ifndef ANDROID_TRANSACTION_TEST_HARNESSES
 #define ANDROID_TRANSACTION_TEST_HARNESSES
 
+#include <common/FlagManager.h>
 #include <ui/DisplayState.h>
 
 #include "LayerTransactionTest.h"
+#include "ui/LayerStack.h"
 
 namespace android {
 
@@ -36,9 +38,10 @@ public:
             case RenderPath::VIRTUAL_DISPLAY:
 
                 const auto ids = SurfaceComposerClient::getPhysicalDisplayIds();
+                const PhysicalDisplayId displayId = ids.front();
                 const auto displayToken = ids.empty()
                         ? nullptr
-                        : SurfaceComposerClient::getPhysicalDisplayToken(ids.front());
+                        : SurfaceComposerClient::getPhysicalDisplayToken(displayId);
 
                 ui::DisplayState displayState;
                 SurfaceComposerClient::getDisplayState(displayToken, &displayState);
@@ -66,11 +69,21 @@ public:
                 vDisplay = SurfaceComposerClient::createDisplay(String8("VirtualDisplay"),
                                                                 false /*secure*/);
 
+                constexpr ui::LayerStack layerStack{
+                        848472}; // ASCII for TTH (TransactionTestHarnesses)
+                sp<SurfaceControl> mirrorSc =
+                        SurfaceComposerClient::getDefault()->mirrorDisplay(displayId);
+
                 SurfaceComposerClient::Transaction t;
                 t.setDisplaySurface(vDisplay, producer);
-                t.setDisplayLayerStack(vDisplay, ui::DEFAULT_LAYER_STACK);
                 t.setDisplayProjection(vDisplay, displayState.orientation,
                                        Rect(displayState.layerStackSpaceRect), Rect(resolution));
+                if (FlagManager::getInstance().ce_fence_promise()) {
+                    t.setDisplayLayerStack(vDisplay, layerStack);
+                    t.setLayerStack(mirrorSc, layerStack);
+                } else {
+                    t.setDisplayLayerStack(vDisplay, ui::DEFAULT_LAYER_STACK);
+                }
                 t.apply();
                 SurfaceComposerClient::Transaction().apply(true);
 
@@ -85,6 +98,15 @@ public:
                 constexpr bool kContainsHdr = false;
                 auto sc = std::make_unique<ScreenCapture>(item.mGraphicBuffer, kContainsHdr);
                 itemConsumer->releaseBuffer(item);
+
+                // Possible race condition with destroying virtual displays, in which
+                // CompositionEngine::present may attempt to be called on the same
+                // display multiple times. The layerStack is set to invalid here so
+                // that the display is ignored if that scenario occurs.
+                if (FlagManager::getInstance().ce_fence_promise()) {
+                    t.setLayerStack(mirrorSc, ui::INVALID_LAYER_STACK);
+                    t.apply(true);
+                }
                 SurfaceComposerClient::destroyDisplay(vDisplay);
                 return sc;
         }
