@@ -126,7 +126,20 @@ struct InputReaderConfiguration {
     // The suggested display ID to show the cursor.
     int32_t defaultPointerDisplayId;
 
+    // The mouse pointer speed, as a number from -7 (slowest) to 7 (fastest).
+    //
+    // Currently only used when the enable_new_mouse_pointer_ballistics flag is enabled.
+    int32_t mousePointerSpeed;
+
+    // Whether to apply an acceleration curve to pointer movements from mice.
+    //
+    // Currently only used when the enable_new_mouse_pointer_ballistics flag is enabled.
+    bool mousePointerAccelerationEnabled;
+
     // Velocity control parameters for mouse pointer movements.
+    //
+    // If the enable_new_mouse_pointer_ballistics flag is enabled, these are ignored and the values
+    // of mousePointerSpeed and mousePointerAccelerationEnabled used instead.
     VelocityControlParameters pointerVelocityControlParameters;
 
     // Velocity control parameters for mouse wheel movements.
@@ -229,6 +242,8 @@ struct InputReaderConfiguration {
 
     InputReaderConfiguration()
           : virtualKeyQuietTime(0),
+            mousePointerSpeed(0),
+            mousePointerAccelerationEnabled(true),
             pointerVelocityControlParameters(1.0f, 500.0f, 3000.0f,
                                              static_cast<float>(
                                                      android::os::IInputConstants::

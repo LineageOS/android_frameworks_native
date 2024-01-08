@@ -29,6 +29,7 @@
 #include <android/input.h>
 #include <com_android_input_flags.h>
 #include <ftl/enum.h>
+#include <input/AccelerationCurve.h>
 #include <input/PrintTools.h>
 #include <linux/input-event-codes.h>
 #include <log/log_main.h>
@@ -55,27 +56,10 @@ const bool DEBUG_TOUCHPAD_GESTURES =
         __android_log_is_loggable(ANDROID_LOG_DEBUG, "TouchpadInputMapperGestures",
                                   ANDROID_LOG_INFO);
 
-// Describes a segment of the acceleration curve.
-struct CurveSegment {
-    // The maximum pointer speed which this segment should apply. The last segment in a curve should
-    // always set this to infinity.
-    double maxPointerSpeedMmPerS;
-    double slope;
-    double intercept;
-};
-
-const std::vector<CurveSegment> segments = {
-        {32.002, 3.19, 0},
-        {52.83, 4.79, -51.254},
-        {119.124, 7.28, -182.737},
-        {std::numeric_limits<double>::infinity(), 15.04, -1107.556},
-};
-
-const std::vector<double> sensitivityFactors = {1,  2,  4,  6,  7,  8,  9, 10,
-                                                11, 12, 13, 14, 16, 18, 20};
-
 std::vector<double> createAccelerationCurveForSensitivity(int32_t sensitivity,
                                                           size_t propertySize) {
+    std::vector<AccelerationCurveSegment> segments =
+            createAccelerationCurveForPointerSensitivity(sensitivity);
     LOG_ALWAYS_FATAL_IF(propertySize < 4 * segments.size());
     std::vector<double> output(propertySize, 0);
 
@@ -85,31 +69,23 @@ std::vector<double> createAccelerationCurveForSensitivity(int32_t sensitivity,
     //
     // (a, b, and c are also called sqr_, mul_, and int_ in the Gestures library code.)
     //
-    // We are trying to implement the following function, where slope and intercept are the
-    // parameters specified in the `segments` array above:
-    //     gain(input_speed_mm) =
-    //             0.64 * (sensitivityFactor / 10) * (slope + intercept / input_speed_mm)
+    // createAccelerationCurveForPointerSensitivity gives us parameters for a function of the form:
+    //     gain(input_speed_mm) = baseGain + reciprocal / input_speed_mm
     // Where "gain" is a multiplier applied to the input speed to produce the output speed:
     //     output_speed(input_speed_mm) = input_speed_mm * gain(input_speed_mm)
     //
     // To put our function in the library's form, we substitute it into the function above:
-    //     output_speed(input_speed_mm) =
-    //             input_speed_mm * (0.64 * (sensitivityFactor / 10) *
-    //             (slope + 25.4 * intercept / input_speed_mm))
-    // then expand the brackets so that input_speed_mm cancels out for the intercept term:
-    //     gain(input_speed_mm) =
-    //             0.64 * (sensitivityFactor / 10) * slope * input_speed_mm +
-    //             0.64 * (sensitivityFactor / 10) * intercept
+    //     output_speed(input_speed_mm) = input_speed_mm * (baseGain + reciprocal / input_speed_mm)
+    // then expand the brackets so that input_speed_mm cancels out for the reciprocal term:
+    //     gain(input_speed_mm) = baseGain * input_speed_mm + reciprocal
     //
     // This gives us the following parameters for the Gestures library function form:
     //     a = 0
-    //     b = 0.64 * (sensitivityFactor / 10) * slope
-    //     c = 0.64 * (sensitivityFactor / 10) * intercept
-
-    double commonFactor = 0.64 * sensitivityFactors[sensitivity + 7] / 10;
+    //     b = baseGain
+    //     c = reciprocal
 
     size_t i = 0;
-    for (CurveSegment seg : segments) {
+    for (AccelerationCurveSegment seg : segments) {
         // The library's curve format consists of four doubles per segment:
         // * maximum pointer speed for the segment (mm/s)
         // * multiplier for the x² term (a.k.a. "a" or "sqr")
@@ -118,8 +94,8 @@ std::vector<double> createAccelerationCurveForSensitivity(int32_t sensitivity,
         // (see struct CurveSegment in the library's AccelFilterInterpreter)
         output[i + 0] = seg.maxPointerSpeedMmPerS;
         output[i + 1] = 0;
-        output[i + 2] = commonFactor * seg.slope;
-        output[i + 3] = commonFactor * seg.intercept;
+        output[i + 2] = seg.baseGain;
+        output[i + 3] = seg.reciprocal;
         i += 4;
     }
 

@@ -97,3 +97,10 @@ flag {
   description: "Remove pointer event tracking in WM after the Pointer Icon Refactor"
   bug: "315321016"
 }
+
+flag {
+  name: "enable_new_mouse_pointer_ballistics"
+  namespace: "input"
+  description: "Change the acceleration curves for mouse pointer movements to match the touchpad ones"
+  bug: "315313622"
+}

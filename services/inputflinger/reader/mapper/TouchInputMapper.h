@@ -708,9 +708,9 @@ private:
     } mPointerSimple;
 
     // The pointer and scroll velocity controls.
-    VelocityControl mPointerVelocityControl;
-    VelocityControl mWheelXVelocityControl;
-    VelocityControl mWheelYVelocityControl;
+    SimpleVelocityControl mPointerVelocityControl;
+    SimpleVelocityControl mWheelXVelocityControl;
+    SimpleVelocityControl mWheelYVelocityControl;
 
     std::optional<DisplayViewport> findViewport();
 
