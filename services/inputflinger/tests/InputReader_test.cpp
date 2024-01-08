@@ -1352,6 +1352,9 @@ protected:
 
     std::shared_ptr<FakePointerController> mFakePointerController;
 
+    constexpr static auto EVENT_HAPPENED_TIMEOUT = 2000ms;
+    constexpr static auto EVENT_DID_NOT_HAPPEN_TIMEOUT = 30ms;
+
     void SetUp() override {
 #if !defined(__ANDROID__)
         GTEST_SKIP();
@@ -1383,8 +1386,8 @@ protected:
     }
 
     void setupInputReader() {
-        mTestListener = std::make_unique<TestInputListener>(/*eventHappenedTimeout=*/2000ms,
-                                                            /*eventDidNotHappenTimeout=*/30ms);
+        mTestListener = std::make_unique<TestInputListener>(EVENT_HAPPENED_TIMEOUT,
+                                                            EVENT_DID_NOT_HAPPEN_TIMEOUT);
 
         mReader = std::make_unique<InputReader>(std::make_shared<EventHub>(), mFakePolicy,
                                                 *mTestListener);
@@ -2415,17 +2418,29 @@ TEST_F(ExternalStylusIntegrationTest, FusedExternalStylusPressureNotReported) {
     mDevice->sendTrackingId(FIRST_TRACKING_ID);
     mDevice->sendToolType(MT_TOOL_FINGER);
     mDevice->sendDown(centerPoint);
-    auto waitUntil = std::chrono::system_clock::now() +
-            std::chrono::milliseconds(ns2ms(EXTERNAL_STYLUS_DATA_TIMEOUT));
+    const auto syncTime = std::chrono::system_clock::now();
+    // After 72 ms, the event *will* be generated. If we wait the full 72 ms to check that NO event
+    // is generated in that period, there will be a race condition between the event being generated
+    // and the test's wait timeout expiring. Thus, we wait for a shorter duration in the test, which
+    // will reduce the liklihood of the race condition occurring.
+    const auto waitUntilTimeForNoEvent =
+            syncTime + std::chrono::milliseconds(ns2ms(EXTERNAL_STYLUS_DATA_TIMEOUT / 2));
     mDevice->sendSync();
-    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasNotCalled(waitUntil));
+    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasNotCalled(waitUntilTimeForNoEvent));
 
     // Since the external stylus did not report a pressure value within the timeout,
     // it shows up as a finger pointer.
-    ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyMotionWasCalled(
-            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
-                  WithSource(AINPUT_SOURCE_TOUCHSCREEN | AINPUT_SOURCE_STYLUS),
-                  WithToolType(ToolType::FINGER), WithDeviceId(touchscreenId), WithPressure(1.f))));
+    const auto waitUntilTimeForEvent = syncTime +
+            std::chrono::milliseconds(ns2ms(EXTERNAL_STYLUS_DATA_TIMEOUT)) + EVENT_HAPPENED_TIMEOUT;
+    ASSERT_NO_FATAL_FAILURE(
+            mTestListener->assertNotifyMotionWasCalled(AllOf(WithMotionAction(
+                                                                     AMOTION_EVENT_ACTION_DOWN),
+                                                             WithSource(AINPUT_SOURCE_TOUCHSCREEN |
+                                                                        AINPUT_SOURCE_STYLUS),
+                                                             WithToolType(ToolType::FINGER),
+                                                             WithDeviceId(touchscreenId),
+                                                             WithPressure(1.f)),
+                                                       waitUntilTimeForEvent));
 
     // Change the pressure on the external stylus. Since the pressure was not present at the start
     // of the gesture, it is ignored for now.
