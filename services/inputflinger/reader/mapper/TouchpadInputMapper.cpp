@@ -399,6 +399,8 @@ std::list<NotifyArgs> TouchpadInputMapper::reconfigure(nsecs_t when,
                     : FloatRect{0, 0, 0, 0};
         }
         mGestureConverter.setBoundsInLogicalDisplay(*boundsInLogicalDisplay);
+
+        bumpGeneration();
     }
     if (!changes.any() || changes.test(InputReaderConfiguration::Change::TOUCHPAD_SETTINGS)) {
         mPropertyProvider.getProperty("Use Custom Touchpad Pointer Accel Curve")
