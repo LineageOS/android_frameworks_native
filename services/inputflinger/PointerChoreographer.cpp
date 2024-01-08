@@ -222,6 +222,7 @@ void PointerChoreographer::processStylusHoverEventLocked(const NotifyMotionArgs&
     pc.setPosition(x, y);
     if (args.action == AMOTION_EVENT_ACTION_HOVER_EXIT) {
         pc.fade(PointerControllerInterface::Transition::IMMEDIATE);
+        pc.updatePointerIcon(PointerIconStyle::TYPE_NOT_SPECIFIED);
     } else {
         pc.unfade(PointerControllerInterface::Transition::IMMEDIATE);
     }
