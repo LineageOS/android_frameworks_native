@@ -810,14 +810,20 @@ void EventHub::Device::trackInputEvent(const struct input_event& event) {
         case EV_SYN: {
             switch (event.code) {
                 case SYN_REPORT:
-                    currentFrameDropped = false;
+                    if (currentFrameDropped) {
+                        // To recover after a SYN_DROPPED, we need to query the state of the device
+                        // to synchronize our device state with the kernel's to account for the
+                        // dropped events on receiving the next SYN_REPORT.
+                        // Note we don't drop the SYN_REPORT at this point but it is used by the
+                        // InputDevice to reset and repopulate mapper state
+                        readDeviceState();
+                        currentFrameDropped = false;
+                    }
                     break;
                 case SYN_DROPPED:
                     // When we receive SYN_DROPPED, all events in the current frame should be
-                    // dropped. We query the state of the device to synchronize our device state
-                    // with the kernel's to account for the dropped events.
+                    // dropped up to and including next SYN_REPORT
                     currentFrameDropped = true;
-                    readDeviceState();
                     break;
                 default:
                     break;
