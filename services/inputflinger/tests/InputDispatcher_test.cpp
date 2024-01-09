@@ -1680,6 +1680,24 @@ TEST_F(InputDispatcherTest, SetInputWindow_SingleWindowTouch) {
     window->consumeMotionDown(ADISPLAY_ID_DEFAULT);
 }
 
+using InputDispatcherDeathTest = InputDispatcherTest;
+
+/**
+ * When 'onWindowInfosChanged' arguments contain a duplicate entry for the same window, dispatcher
+ * should crash.
+ */
+TEST_F(InputDispatcherDeathTest, DuplicateWindowInfosAbortDispatcher) {
+    testing::GTEST_FLAG(death_test_style) = "threadsafe";
+    ScopedSilentDeath _silentDeath;
+
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> window = sp<FakeWindowHandle>::make(application, mDispatcher,
+                                                             "Fake Window", ADISPLAY_ID_DEFAULT);
+    ASSERT_DEATH(mDispatcher->onWindowInfosChanged(
+                         {{*window->getInfo(), *window->getInfo()}, {}, 0, 0}),
+                 "Incorrect WindowInfosUpdate provided");
+}
+
 TEST_F(InputDispatcherTest, WhenDisplayNotSpecified_InjectMotionToDefaultDisplay) {
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
     sp<FakeWindowHandle> window = sp<FakeWindowHandle>::make(application, mDispatcher,

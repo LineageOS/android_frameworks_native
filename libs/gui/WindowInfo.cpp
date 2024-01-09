@@ -258,8 +258,7 @@ void WindowInfoHandle::updateFrom(sp<WindowInfoHandle> handle) {
     mInfo = handle->mInfo;
 }
 
-std::ostream& operator<<(std::ostream& out, const WindowInfoHandle& window) {
-    const WindowInfo& info = *window.getInfo();
+std::ostream& operator<<(std::ostream& out, const WindowInfo& info) {
     std::string transform;
     info.transform.dump(transform, "transform", "    ");
     out << "name=" << info.name << ", id=" << info.id << ", displayId=" << info.displayId
@@ -274,6 +273,12 @@ std::ostream& operator<<(std::ostream& out, const WindowInfoHandle& window) {
         << "ms, token=" << info.token.get()
         << ", touchOcclusionMode=" << ftl::enum_string(info.touchOcclusionMode) << "\n"
         << transform;
+    return out;
+}
+
+std::ostream& operator<<(std::ostream& out, const WindowInfoHandle& window) {
+    const WindowInfo& info = *window.getInfo();
+    out << info;
     return out;
 }
 

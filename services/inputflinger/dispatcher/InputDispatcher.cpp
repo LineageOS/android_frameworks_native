@@ -763,6 +763,21 @@ bool isStylusActiveInDisplay(
     return state.hasActiveStylus();
 }
 
+Result<void> validateWindowInfosUpdate(const gui::WindowInfosUpdate& update) {
+    struct HashFunction {
+        size_t operator()(const WindowInfo& info) const { return info.id; }
+    };
+
+    std::unordered_set<WindowInfo, HashFunction> windowSet;
+    for (const WindowInfo& info : update.windowInfos) {
+        const auto [_, inserted] = windowSet.insert(info);
+        if (!inserted) {
+            return Error() << "Duplicate entry for " << info;
+        }
+    }
+    return {};
+}
+
 } // namespace
 
 // --- InputDispatcher ---
@@ -6762,6 +6777,15 @@ void InputDispatcher::displayRemoved(int32_t displayId) {
 }
 
 void InputDispatcher::onWindowInfosChanged(const gui::WindowInfosUpdate& update) {
+    if (auto result = validateWindowInfosUpdate(update); !result.ok()) {
+        {
+            // acquire lock
+            std::scoped_lock _l(mLock);
+            logDispatchStateLocked();
+        }
+        LOG_ALWAYS_FATAL("Incorrect WindowInfosUpdate provided: %s",
+                         result.error().message().c_str());
+    };
     // The listener sends the windows as a flattened array. Separate the windows by display for
     // more convenient parsing.
     std::unordered_map<int32_t, std::vector<sp<WindowInfoHandle>>> handlesPerDisplay;
