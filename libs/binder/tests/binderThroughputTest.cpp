@@ -352,16 +352,28 @@ int main(int argc, char *argv[])
             return 0;
         }
         if (string(argv[i]) == "-w") {
+            if (i + 1 == argc) {
+                cout << "-w requires an argument\n" << endl;
+                exit(EXIT_FAILURE);
+            }
             workers = atoi(argv[i+1]);
             i++;
             continue;
         }
         if (string(argv[i]) == "-i") {
+            if (i + 1 == argc) {
+                cout << "-i requires an argument\n" << endl;
+                exit(EXIT_FAILURE);
+            }
             iterations = atoi(argv[i+1]);
             i++;
             continue;
         }
         if (string(argv[i]) == "-s") {
+            if (i + 1 == argc) {
+                cout << "-s requires an argument\n" << endl;
+                exit(EXIT_FAILURE);
+            }
             payload_size = atoi(argv[i+1]);
             i++;
             continue;
@@ -380,6 +392,10 @@ int main(int argc, char *argv[])
             continue;
         }
         if (string(argv[i]) == "-m") {
+            if (i + 1 == argc) {
+                cout << "-m requires an argument\n" << endl;
+                exit(EXIT_FAILURE);
+            }
             // Caller specified the max latency in microseconds.
             // No need to run training round in this case.
             max_time_us = atoi(argv[i+1]);
