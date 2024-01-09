@@ -1217,8 +1217,8 @@ void LayerSnapshotBuilder::updateTouchableRegionCrop(const Args& args) {
             Rect inputBoundsInDisplaySpace =
                     getInputBoundsInDisplaySpace(*cropLayerSnapshot, inputBounds,
                                                  displayInfo.transform);
-            snapshot->inputInfo.touchableRegion = snapshot->inputInfo.touchableRegion.intersect(
-                    displayInfo.transform.transform(inputBoundsInDisplaySpace));
+            snapshot->inputInfo.touchableRegion =
+                    snapshot->inputInfo.touchableRegion.intersect(inputBoundsInDisplaySpace);
         }
 
         // If the layer is a clone, we need to crop the input region to cloned root to prevent
