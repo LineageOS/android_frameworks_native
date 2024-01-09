@@ -4002,7 +4002,7 @@ void InputDispatcher::synthesizeCancelationEventsForInputChannelLocked(
 
 void InputDispatcher::synthesizeCancelationEventsForConnectionLocked(
         const std::shared_ptr<Connection>& connection, const CancelationOptions& options) {
-    if (connection->status == Connection::Status::BROKEN) {
+    if (connection->status != Connection::Status::NORMAL) {
         return;
     }
 
