@@ -18,6 +18,24 @@
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     },
     {
+      "unresolved": false,
+      "key": {
+        "uuid": "de6045d1_bc041bc0",
+        "filename": "services/inputflinger/reader/mapper/KeyboardInputMapper.cpp",
+        "patchSetId": 6
+      },
+      "lineNbr": 35,
+      "author": {
+        "id": 4550
+      },
+      "writtenOn": "2024-01-09T21:01:04Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "1fbcc00d_5bc0a7d1",
+      "revId": "4944b089c3064612eddd77176b0b923fcd2e6dc6",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
       "unresolved": true,
       "key": {
         "uuid": "ff961dcc_4f212932",
@@ -31,6 +49,24 @@
       "writtenOn": "2024-01-09T18:24:16Z",
       "side": 1,
       "message": "100 chars",
+      "revId": "4944b089c3064612eddd77176b0b923fcd2e6dc6",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "c28d9c85_a3bb5a47",
+        "filename": "services/inputflinger/reader/mapper/KeyboardInputMapper.cpp",
+        "patchSetId": 6
+      },
+      "lineNbr": 40,
+      "author": {
+        "id": 4550
+      },
+      "writtenOn": "2024-01-09T21:01:04Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "ff961dcc_4f212932",
       "revId": "4944b089c3064612eddd77176b0b923fcd2e6dc6",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
