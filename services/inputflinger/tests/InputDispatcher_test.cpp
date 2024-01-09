@@ -1093,9 +1093,10 @@ public:
 
     FakeWindowHandle(const std::shared_ptr<InputApplicationHandle>& inputApplicationHandle,
                      const std::unique_ptr<InputDispatcher>& dispatcher, const std::string name,
-                     int32_t displayId, std::optional<sp<IBinder>> token = std::nullopt)
+                     int32_t displayId, bool createInputChannel = true)
           : mName(name) {
-        if (token == std::nullopt) {
+        sp<IBinder> token;
+        if (createInputChannel) {
             base::Result<std::unique_ptr<InputChannel>> channel =
                     dispatcher->createInputChannel(name);
             token = (*channel)->getConnectionToken();
@@ -1105,7 +1106,7 @@ public:
         inputApplicationHandle->updateInfo();
         mInfo.applicationInfo = *inputApplicationHandle->getInfo();
 
-        mInfo.token = *token;
+        mInfo.token = token;
         mInfo.id = sId++;
         mInfo.name = name;
         mInfo.dispatchingTimeout = DISPATCHING_TIMEOUT;
@@ -2370,7 +2371,7 @@ TEST_F(InputDispatcherTest, HoverWhileWindowAppears) {
     sp<FakeWindowHandle> obscuringWindow =
             sp<FakeWindowHandle>::make(application, mDispatcher, "Obscuring window",
                                        ADISPLAY_ID_DEFAULT,
-                                       /*token=*/std::make_optional<sp<IBinder>>(nullptr));
+                                       /*createInputChannel=*/false);
     obscuringWindow->setFrame(Rect(0, 0, 200, 200));
     obscuringWindow->setTouchOcclusionMode(TouchOcclusionMode::BLOCK_UNTRUSTED);
     obscuringWindow->setOwnerInfo(SECONDARY_WINDOW_PID, SECONDARY_WINDOW_UID);
@@ -2419,7 +2420,7 @@ TEST_F(InputDispatcherTest, HoverMoveWhileWindowAppears) {
     sp<FakeWindowHandle> obscuringWindow =
             sp<FakeWindowHandle>::make(application, mDispatcher, "Obscuring window",
                                        ADISPLAY_ID_DEFAULT,
-                                       /*token=*/std::make_optional<sp<IBinder>>(nullptr));
+                                       /*createInputChannel=*/false);
     obscuringWindow->setFrame(Rect(0, 0, 200, 200));
     obscuringWindow->setTouchOcclusionMode(TouchOcclusionMode::BLOCK_UNTRUSTED);
     obscuringWindow->setOwnerInfo(SECONDARY_WINDOW_PID, SECONDARY_WINDOW_UID);
@@ -7742,8 +7743,7 @@ class InputDispatcherMultiWindowSameTokenTests : public InputDispatcherTest {
                                               ADISPLAY_ID_DEFAULT);
         mWindow1->setFrame(Rect(0, 0, 100, 100));
 
-        mWindow2 = sp<FakeWindowHandle>::make(application, mDispatcher, "Fake Window 2",
-                                              ADISPLAY_ID_DEFAULT, mWindow1->getToken());
+        mWindow2 = mWindow1->clone(ADISPLAY_ID_DEFAULT);
         mWindow2->setFrame(Rect(100, 100, 200, 200));
 
         mDispatcher->onWindowInfosChanged({{*mWindow1->getInfo(), *mWindow2->getInfo()}, {}, 0, 0});
@@ -9010,7 +9010,7 @@ class InputDispatcherMultiWindowOcclusionTests : public InputDispatcherTest {
         mNoInputWindow =
                 sp<FakeWindowHandle>::make(mApplication, mDispatcher,
                                            "Window without input channel", ADISPLAY_ID_DEFAULT,
-                                           /*token=*/std::make_optional<sp<IBinder>>(nullptr));
+                                           /*createInputChannel=*/false);
         mNoInputWindow->setNoInputChannel(true);
         mNoInputWindow->setFrame(Rect(0, 0, 100, 100));
         // It's perfectly valid for this window to not have an associated input channel
@@ -9078,8 +9078,7 @@ protected:
         InputDispatcherTest::SetUp();
         mApp = std::make_shared<FakeApplicationHandle>();
         mWindow = sp<FakeWindowHandle>::make(mApp, mDispatcher, "TestWindow", ADISPLAY_ID_DEFAULT);
-        mMirror = sp<FakeWindowHandle>::make(mApp, mDispatcher, "TestWindowMirror",
-                                             ADISPLAY_ID_DEFAULT, mWindow->getToken());
+        mMirror = mWindow->clone(ADISPLAY_ID_DEFAULT);
         mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, mApp);
         mWindow->setFocusable(true);
         mMirror->setFocusable(true);
