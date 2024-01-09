@@ -123,7 +123,8 @@ typedef struct APerformanceHintSession APerformanceHintSession;
   *
   * @return APerformanceHintManager instance on success, nullptr on failure.
   */
-APerformanceHintManager* _Nullable APerformanceHint_getManager() __INTRODUCED_IN(__ANDROID_API_T__);
+APerformanceHintManager* _Nullable APerformanceHint_getManager()
+                         __INTRODUCED_IN(__ANDROID_API_T__);
 
 /**
  * Creates a session for the given set of threads and sets their initial target work
@@ -260,7 +261,8 @@ AWorkDuration* _Nonnull AWorkDuration_create() __INTRODUCED_IN(__ANDROID_API_V__
  *
  * @param aWorkDuration The {@link AWorkDuration} created by calling {@link AWorkDuration_create()}
  */
-void AWorkDuration_release(AWorkDuration* _Nonnull WorkDuration) __INTRODUCED_IN(__ANDROID_API_V__);
+void AWorkDuration_release(AWorkDuration* _Nonnull aWorkDuration)
+     __INTRODUCED_IN(__ANDROID_API_V__);
 
 /**
  * Sets the work period start timestamp in nanoseconds.
