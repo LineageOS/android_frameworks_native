@@ -269,6 +269,8 @@ struct WindowInfo : public Parcelable {
     status_t readFromParcel(const android::Parcel* parcel) override;
 };
 
+std::ostream& operator<<(std::ostream& out, const WindowInfo& window);
+
 /*
  * Handle for a window that can receive input.
  *
