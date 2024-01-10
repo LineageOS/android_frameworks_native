@@ -150,3 +150,19 @@ flag {
   bug: "286084594"
   is_fixed_read_only: true
 }
+
+flag {
+  name: "vulkan_renderengine"
+  namespace: "core_graphics"
+  description: "Use Vulkan backend in RenderEngine prior to switching to Graphite."
+  bug: "293371537"
+  is_fixed_read_only: true
+}
+
+flag {
+  name: "graphite_renderengine"
+  namespace: "core_graphics"
+  description: "Use Skia's Graphite Vulkan backend in RenderEngine."
+  bug: "293371537"
+  is_fixed_read_only: true
+}

@@ -1093,9 +1093,10 @@ public:
 
     FakeWindowHandle(const std::shared_ptr<InputApplicationHandle>& inputApplicationHandle,
                      const std::unique_ptr<InputDispatcher>& dispatcher, const std::string name,
-                     int32_t displayId, std::optional<sp<IBinder>> token = std::nullopt)
+                     int32_t displayId, bool createInputChannel = true)
           : mName(name) {
-        if (token == std::nullopt) {
+        sp<IBinder> token;
+        if (createInputChannel) {
             base::Result<std::unique_ptr<InputChannel>> channel =
                     dispatcher->createInputChannel(name);
             token = (*channel)->getConnectionToken();
@@ -1105,7 +1106,7 @@ public:
         inputApplicationHandle->updateInfo();
         mInfo.applicationInfo = *inputApplicationHandle->getInfo();
 
-        mInfo.token = *token;
+        mInfo.token = token;
         mInfo.id = sId++;
         mInfo.name = name;
         mInfo.dispatchingTimeout = DISPATCHING_TIMEOUT;
@@ -2370,7 +2371,7 @@ TEST_F(InputDispatcherTest, HoverWhileWindowAppears) {
     sp<FakeWindowHandle> obscuringWindow =
             sp<FakeWindowHandle>::make(application, mDispatcher, "Obscuring window",
                                        ADISPLAY_ID_DEFAULT,
-                                       /*token=*/std::make_optional<sp<IBinder>>(nullptr));
+                                       /*createInputChannel=*/false);
     obscuringWindow->setFrame(Rect(0, 0, 200, 200));
     obscuringWindow->setTouchOcclusionMode(TouchOcclusionMode::BLOCK_UNTRUSTED);
     obscuringWindow->setOwnerInfo(SECONDARY_WINDOW_PID, SECONDARY_WINDOW_UID);
@@ -2419,7 +2420,7 @@ TEST_F(InputDispatcherTest, HoverMoveWhileWindowAppears) {
     sp<FakeWindowHandle> obscuringWindow =
             sp<FakeWindowHandle>::make(application, mDispatcher, "Obscuring window",
                                        ADISPLAY_ID_DEFAULT,
-                                       /*token=*/std::make_optional<sp<IBinder>>(nullptr));
+                                       /*createInputChannel=*/false);
     obscuringWindow->setFrame(Rect(0, 0, 200, 200));
     obscuringWindow->setTouchOcclusionMode(TouchOcclusionMode::BLOCK_UNTRUSTED);
     obscuringWindow->setOwnerInfo(SECONDARY_WINDOW_PID, SECONDARY_WINDOW_UID);
@@ -7332,6 +7333,94 @@ TEST_F(InputDispatcherFocusOnTwoDisplaysTest, CancelTouch_MultiDisplay) {
     monitorInSecondary.assertNoEvents();
 }
 
+/**
+ * Send a key to the primary display and to the secondary display.
+ * Then cause the key on the primary display to be canceled by sending in a stale key.
+ * Ensure that the key on the primary display is canceled, and that the key on the secondary display
+ * does not get canceled.
+ */
+TEST_F(InputDispatcherFocusOnTwoDisplaysTest, WhenDropKeyEvent_OnlyCancelCorrespondingKeyGesture) {
+    // Send a key down on primary display
+    mDispatcher->notifyKey(
+            KeyArgsBuilder(AKEY_EVENT_ACTION_DOWN, AINPUT_SOURCE_KEYBOARD)
+                    .displayId(ADISPLAY_ID_DEFAULT)
+                    .policyFlags(DEFAULT_POLICY_FLAGS | POLICY_FLAG_DISABLE_KEY_REPEAT)
+                    .build());
+    windowInPrimary->consumeKeyEvent(
+            AllOf(WithKeyAction(AKEY_EVENT_ACTION_DOWN), WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    windowInSecondary->assertNoEvents();
+
+    // Send a key down on second display
+    mDispatcher->notifyKey(
+            KeyArgsBuilder(AKEY_EVENT_ACTION_DOWN, AINPUT_SOURCE_KEYBOARD)
+                    .displayId(SECOND_DISPLAY_ID)
+                    .policyFlags(DEFAULT_POLICY_FLAGS | POLICY_FLAG_DISABLE_KEY_REPEAT)
+                    .build());
+    windowInSecondary->consumeKeyEvent(
+            AllOf(WithKeyAction(AKEY_EVENT_ACTION_DOWN), WithDisplayId(SECOND_DISPLAY_ID)));
+    windowInPrimary->assertNoEvents();
+
+    // Send a valid key up event on primary display that will be dropped because it is stale
+    NotifyKeyArgs staleKeyUp =
+            KeyArgsBuilder(AKEY_EVENT_ACTION_UP, AINPUT_SOURCE_KEYBOARD)
+                    .displayId(ADISPLAY_ID_DEFAULT)
+                    .policyFlags(DEFAULT_POLICY_FLAGS | POLICY_FLAG_DISABLE_KEY_REPEAT)
+                    .build();
+    static constexpr std::chrono::duration STALE_EVENT_TIMEOUT = 10ms;
+    mFakePolicy->setStaleEventTimeout(STALE_EVENT_TIMEOUT);
+    std::this_thread::sleep_for(STALE_EVENT_TIMEOUT);
+    mDispatcher->notifyKey(staleKeyUp);
+
+    // Only the key gesture corresponding to the dropped event should receive the cancel event.
+    // Therefore, windowInPrimary should get the cancel event and windowInSecondary should not
+    // receive any events.
+    windowInPrimary->consumeKeyEvent(AllOf(WithKeyAction(AKEY_EVENT_ACTION_UP),
+                                           WithDisplayId(ADISPLAY_ID_DEFAULT),
+                                           WithFlags(AKEY_EVENT_FLAG_CANCELED)));
+    windowInSecondary->assertNoEvents();
+}
+
+/**
+ * Similar to 'WhenDropKeyEvent_OnlyCancelCorrespondingKeyGesture' but for motion events.
+ */
+TEST_F(InputDispatcherFocusOnTwoDisplaysTest, WhenDropMotionEvent_OnlyCancelCorrespondingGesture) {
+    // Send touch down on primary display.
+    mDispatcher->notifyMotion(
+            MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                    .pointer(PointerBuilder(/*id=*/0, ToolType::FINGER).x(100).y(200))
+                    .displayId(ADISPLAY_ID_DEFAULT)
+                    .build());
+    windowInPrimary->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_DOWN), WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    windowInSecondary->assertNoEvents();
+
+    // Send touch down on second display.
+    mDispatcher->notifyMotion(
+            MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                    .pointer(PointerBuilder(/*id=*/0, ToolType::FINGER).x(100).y(200))
+                    .displayId(SECOND_DISPLAY_ID)
+                    .build());
+    windowInPrimary->assertNoEvents();
+    windowInSecondary->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_DOWN), WithDisplayId(SECOND_DISPLAY_ID)));
+
+    // inject a valid MotionEvent on primary display that will be stale when it arrives.
+    NotifyMotionArgs staleMotionUp =
+            MotionArgsBuilder(ACTION_UP, AINPUT_SOURCE_TOUCHSCREEN)
+                    .displayId(ADISPLAY_ID_DEFAULT)
+                    .pointer(PointerBuilder(/*id=*/0, ToolType::FINGER).x(100).y(200))
+                    .build();
+    static constexpr std::chrono::duration STALE_EVENT_TIMEOUT = 10ms;
+    mFakePolicy->setStaleEventTimeout(STALE_EVENT_TIMEOUT);
+    std::this_thread::sleep_for(STALE_EVENT_TIMEOUT);
+    mDispatcher->notifyMotion(staleMotionUp);
+
+    // For stale motion events, we let the gesture to complete. This behaviour is different from key
+    // events, where we would cancel the current keys instead.
+    windowInPrimary->consumeMotionEvent(WithMotionAction(ACTION_UP));
+    windowInSecondary->assertNoEvents();
+}
+
 class InputFilterTest : public InputDispatcherTest {
 protected:
     void testNotifyMotion(int32_t displayId, bool expectToBeFiltered,
@@ -7654,8 +7743,7 @@ class InputDispatcherMultiWindowSameTokenTests : public InputDispatcherTest {
                                               ADISPLAY_ID_DEFAULT);
         mWindow1->setFrame(Rect(0, 0, 100, 100));
 
-        mWindow2 = sp<FakeWindowHandle>::make(application, mDispatcher, "Fake Window 2",
-                                              ADISPLAY_ID_DEFAULT, mWindow1->getToken());
+        mWindow2 = mWindow1->clone(ADISPLAY_ID_DEFAULT);
         mWindow2->setFrame(Rect(100, 100, 200, 200));
 
         mDispatcher->onWindowInfosChanged({{*mWindow1->getInfo(), *mWindow2->getInfo()}, {}, 0, 0});
@@ -8922,7 +9010,7 @@ class InputDispatcherMultiWindowOcclusionTests : public InputDispatcherTest {
         mNoInputWindow =
                 sp<FakeWindowHandle>::make(mApplication, mDispatcher,
                                            "Window without input channel", ADISPLAY_ID_DEFAULT,
-                                           /*token=*/std::make_optional<sp<IBinder>>(nullptr));
+                                           /*createInputChannel=*/false);
         mNoInputWindow->setNoInputChannel(true);
         mNoInputWindow->setFrame(Rect(0, 0, 100, 100));
         // It's perfectly valid for this window to not have an associated input channel
@@ -8990,8 +9078,7 @@ protected:
         InputDispatcherTest::SetUp();
         mApp = std::make_shared<FakeApplicationHandle>();
         mWindow = sp<FakeWindowHandle>::make(mApp, mDispatcher, "TestWindow", ADISPLAY_ID_DEFAULT);
-        mMirror = sp<FakeWindowHandle>::make(mApp, mDispatcher, "TestWindowMirror",
-                                             ADISPLAY_ID_DEFAULT, mWindow->getToken());
+        mMirror = mWindow->clone(ADISPLAY_ID_DEFAULT);
         mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, mApp);
         mWindow->setFocusable(true);
         mMirror->setFocusable(true);

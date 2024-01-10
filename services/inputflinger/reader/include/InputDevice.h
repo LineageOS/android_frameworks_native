@@ -280,7 +280,7 @@ private:
 class InputDeviceContext {
 public:
     InputDeviceContext(InputDevice& device, int32_t eventHubId);
-    ~InputDeviceContext();
+    virtual ~InputDeviceContext();
 
     inline InputReaderContext* getContext() { return mContext; }
     inline int32_t getId() { return mDeviceId; }
@@ -450,7 +450,7 @@ public:
     inline std::optional<std::string> getDeviceTypeAssociation() const {
         return mDevice.getDeviceTypeAssociation();
     }
-    inline std::optional<DisplayViewport> getAssociatedViewport() const {
+    virtual std::optional<DisplayViewport> getAssociatedViewport() const {
         return mDevice.getAssociatedViewport();
     }
     [[nodiscard]] inline std::list<NotifyArgs> cancelTouch(nsecs_t when, nsecs_t readTime) {
