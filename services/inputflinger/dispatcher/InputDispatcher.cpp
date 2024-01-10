@@ -3856,8 +3856,7 @@ void InputDispatcher::finishDispatchCycleLocked(nsecs_t currentTime,
               connection->getInputChannelName().c_str(), seq, toString(handled));
     }
 
-    if (connection->status == Connection::Status::BROKEN ||
-        connection->status == Connection::Status::ZOMBIE) {
+    if (connection->status != Connection::Status::NORMAL) {
         return;
     }
 
@@ -4130,7 +4129,7 @@ void InputDispatcher::synthesizeCancelationEventsForConnectionLocked(
 void InputDispatcher::synthesizePointerDownEventsForConnectionLocked(
         const nsecs_t downTime, const std::shared_ptr<Connection>& connection,
         ftl::Flags<InputTarget::Flags> targetFlags) {
-    if (connection->status == Connection::Status::BROKEN) {
+    if (connection->status != Connection::Status::NORMAL) {
         return;
     }
 
