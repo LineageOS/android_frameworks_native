@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+#include <chrono>
+#include <future>
+#include <mutex>
+#include "android/hidl/base/1.0/IBase.h"
 #define LOG_TAG "Lshal"
 #include <android-base/logging.h>
 
@@ -35,6 +39,8 @@
 #define NELEMS(array)   static_cast<int>(sizeof(array) / sizeof(array[0]))
 
 using namespace testing;
+
+using std::chrono_literals::operator""ms;
 
 using ::android::hidl::base::V1_0::DebugInfo;
 using ::android::hidl::base::V1_0::IBase;
@@ -934,12 +940,9 @@ TEST_F(ListTest, DumpDebug) {
         return hardware::Void();
     }));
     EXPECT_CALL(*serviceManager, get(_, _))
-            .WillRepeatedly(
-                    Invoke([&](const hidl_string&, const hidl_string& instance) -> sp<IBase> {
-                        int id = getIdFromInstanceName(instance);
-                        if (id > inheritanceLevel) return nullptr;
-                        return sp<IBase>(service);
-                    }));
+            .WillRepeatedly(Invoke([&](const hidl_string&, const hidl_string&) -> sp<IBase> {
+                return sp<IBase>(service);
+            }));
 
     const std::string expected = "[fake description 0]\n"
                                  "Interface\n"
@@ -955,6 +958,110 @@ TEST_F(ListTest, DumpDebug) {
     EXPECT_EQ(0u, mockList->main(createArg({"lshal", "--types=b", "-id"})));
     EXPECT_EQ(expected, out.str());
     EXPECT_EQ("", err.str());
+}
+
+// In SlowService, everything goes slooooooow. Each IPC call will wait for
+// the specified time before calling the callback function or returning.
+class SlowService : public IBase {
+public:
+    explicit SlowService(std::chrono::milliseconds wait) : mWait(wait) {}
+    android::hardware::Return<void> interfaceDescriptor(interfaceDescriptor_cb cb) override {
+        std::this_thread::sleep_for(mWait);
+        cb(getInterfaceName(1));
+        storeHistory("interfaceDescriptor");
+        return hardware::Void();
+    }
+    android::hardware::Return<void> interfaceChain(interfaceChain_cb cb) override {
+        std::this_thread::sleep_for(mWait);
+        std::vector<hidl_string> ret;
+        ret.push_back(getInterfaceName(1));
+        ret.push_back(IBase::descriptor);
+        cb(ret);
+        storeHistory("interfaceChain");
+        return hardware::Void();
+    }
+    android::hardware::Return<void> getHashChain(getHashChain_cb cb) override {
+        std::this_thread::sleep_for(mWait);
+        std::vector<hidl_hash> ret;
+        ret.push_back(getHashFromId(0));
+        ret.push_back(getHashFromId(0xff));
+        cb(ret);
+        storeHistory("getHashChain");
+        return hardware::Void();
+    }
+    android::hardware::Return<void> debug(const hidl_handle&,
+                                          const hidl_vec<hidl_string>&) override {
+        std::this_thread::sleep_for(mWait);
+        storeHistory("debug");
+        return Void();
+    }
+
+    template <class R, class P, class Pred>
+    bool waitForHistory(std::chrono::duration<R, P> wait, Pred predicate) {
+        std::unique_lock<std::mutex> lock(mLock);
+        return mCv.wait_for(lock, wait, [&]() { return predicate(mCallHistory); });
+    }
+
+private:
+    void storeHistory(std::string hist) {
+        {
+            std::lock_guard<std::mutex> lock(mLock);
+            mCallHistory.emplace_back(std::move(hist));
+        }
+        mCv.notify_all();
+    }
+
+    const std::chrono::milliseconds mWait;
+    std::mutex mLock;
+    std::condition_variable mCv;
+    // List of functions that have finished being called on this interface.
+    std::vector<std::string> mCallHistory;
+};
+
+class TimeoutTest : public ListTest {
+public:
+    void setMockServiceManager(sp<IBase> service) {
+        EXPECT_CALL(*serviceManager, list(_))
+                .WillRepeatedly(Invoke([&](IServiceManager::list_cb cb) {
+                    std::vector<hidl_string> ret;
+                    ret.push_back(getInterfaceName(1) + "/default");
+                    cb(ret);
+                    return hardware::Void();
+                }));
+        EXPECT_CALL(*serviceManager, get(_, _))
+                .WillRepeatedly(Invoke([&](const hidl_string&, const hidl_string&) -> sp<IBase> {
+                    return service;
+                }));
+    }
+};
+
+TEST_F(TimeoutTest, BackgroundThreadIsKept) {
+    auto lshalIpcTimeout = 100ms;
+    auto serviceIpcTimeout = 200ms;
+    lshal->setWaitTimeForTest(lshalIpcTimeout, lshalIpcTimeout);
+    sp<SlowService> service = new SlowService(serviceIpcTimeout);
+    setMockServiceManager(service);
+
+    optind = 1; // mimic Lshal::parseArg()
+    EXPECT_NE(0u, mockList->main(createArg({"lshal", "--types=b", "-i", "--neat"})));
+    EXPECT_THAT(err.str(), HasSubstr("Skipping \"a.h.foo1@1.0::IFoo/default\""));
+    EXPECT_TRUE(service->waitForHistory(serviceIpcTimeout * 5, [](const auto& hist) {
+        return hist.size() == 1 && hist[0] == "interfaceChain";
+    })) << "The background thread should continue after the main thread moves on, but it is killed";
+}
+
+TEST_F(TimeoutTest, BackgroundThreadDoesNotBlockMainThread) {
+    auto lshalIpcTimeout = 100ms;
+    auto serviceIpcTimeout = 2000ms;
+    auto start = std::chrono::system_clock::now();
+    lshal->setWaitTimeForTest(lshalIpcTimeout, lshalIpcTimeout);
+    sp<SlowService> service = new SlowService(serviceIpcTimeout);
+    setMockServiceManager(service);
+
+    optind = 1; // mimic Lshal::parseArg()
+    EXPECT_NE(0u, mockList->main(createArg({"lshal", "--types=b", "-i", "--neat"})));
+    EXPECT_LE(std::chrono::system_clock::now(), start + 5 * lshalIpcTimeout)
+            << "The main thread should not be blocked by the background task";
 }
 
 class ListVintfTest : public ListTest {
@@ -1079,5 +1186,6 @@ TEST_F(HelpTest, UnknownOptionHelp2) {
 
 int main(int argc, char **argv) {
     ::testing::InitGoogleMock(&argc, argv);
-    return RUN_ALL_TESTS();
+    // Use _exit() to force terminate background threads in Timeout.h
+    _exit(RUN_ALL_TESTS());
 }
