@@ -30,7 +30,7 @@ namespace lshal {
 // has returned, especially if deadline has been reached. Hence, care must be taken when passing
 // data between the background thread and the main thread. See b/311143089.
 template<class R, class P, class Function, class I, class... Args>
-typename std::result_of<Function(I *, Args...)>::type
+typename std::invoke_result<Function, I *, Args...>::type
 timeoutIPC(std::chrono::duration<R, P> wait, const sp<I> &interfaceObject, Function &&func,
            Args &&... args) {
     using ::android::hardware::Status;
