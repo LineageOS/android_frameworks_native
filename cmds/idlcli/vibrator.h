@@ -74,7 +74,7 @@ inline auto getService<android::hardware::vibrator::V1_3::IVibrator>(std::string
 }
 
 template <typename I>
-using shared_ptr = std::result_of_t<decltype(getService<I>)&(std::string)>;
+using shared_ptr = std::invoke_result_t<decltype(getService<I>)&, std::string>;
 
 template <typename I>
 class HalWrapper {
