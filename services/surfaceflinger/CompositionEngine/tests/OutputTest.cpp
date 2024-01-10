@@ -3403,7 +3403,6 @@ struct OutputComposeSurfacesTest : public testing::Test {
     static const mat4 kDefaultColorTransformMat;
 
     static const Region kDebugRegion;
-    static const compositionengine::CompositionRefreshArgs kDefaultRefreshArgs;
     static const HdrCapabilities kHdrCapabilities;
 
     StrictMock<mock::CompositionEngine> mCompositionEngine;
@@ -3426,7 +3425,6 @@ const Rect OutputComposeSurfacesTest::kDefaultOutputFrame{1001, 1002, 1003, 1004
 const Rect OutputComposeSurfacesTest::kDefaultOutputViewport{1005, 1006, 1007, 1008};
 const Rect OutputComposeSurfacesTest::kDefaultOutputDestinationClip{1013, 1014, 1015, 1016};
 const mat4 OutputComposeSurfacesTest::kDefaultColorTransformMat{mat4() * 0.5f};
-const compositionengine::CompositionRefreshArgs OutputComposeSurfacesTest::kDefaultRefreshArgs;
 const Region OutputComposeSurfacesTest::kDebugRegion{Rect{100, 101, 102, 103}};
 
 const HdrCapabilities OutputComposeSurfacesTest::
