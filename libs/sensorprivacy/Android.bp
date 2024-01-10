@@ -57,6 +57,7 @@ cc_library_shared {
 filegroup {
     name: "libsensorprivacy_aidl",
     srcs: [
+        "aidl/android/hardware/CameraPrivacyAllowlistEntry.aidl",
         "aidl/android/hardware/ISensorPrivacyListener.aidl",
         "aidl/android/hardware/ISensorPrivacyManager.aidl",
     ],
