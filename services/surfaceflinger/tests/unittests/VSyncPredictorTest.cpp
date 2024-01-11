@@ -26,7 +26,6 @@
 #include <common/test/FlagUtils.h>
 #include "Scheduler/VSyncPredictor.h"
 #include "mock/DisplayHardware/MockDisplayMode.h"
-#include "mock/MockVsyncTrackerCallback.h"
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -82,14 +81,13 @@ struct VSyncPredictorTest : testing::Test {
     nsecs_t mNow = 0;
     nsecs_t mPeriod = 1000;
     ftl::NonNull<DisplayModePtr> mMode = displayMode(mPeriod);
-    scheduler::mock::VsyncTrackerCallback mVsyncTrackerCallback;
     static constexpr size_t kHistorySize = 10;
     static constexpr size_t kMinimumSamplesForPrediction = 6;
     static constexpr size_t kOutlierTolerancePercent = 25;
     static constexpr nsecs_t mMaxRoundingError = 100;
 
     VSyncPredictor tracker{mMode, kHistorySize, kMinimumSamplesForPrediction,
-                           kOutlierTolerancePercent, mVsyncTrackerCallback};
+                           kOutlierTolerancePercent};
 };
 
 TEST_F(VSyncPredictorTest, reportsAnticipatedPeriod) {
@@ -410,8 +408,7 @@ TEST_F(VSyncPredictorTest, doesNotPredictBeforeTimePointWithHigherIntercept) {
 // See b/151146131
 TEST_F(VSyncPredictorTest, hasEnoughPrecision) {
     const auto mode = displayMode(mPeriod);
-    VSyncPredictor tracker{mode, 20, kMinimumSamplesForPrediction, kOutlierTolerancePercent,
-                           mVsyncTrackerCallback};
+    VSyncPredictor tracker{mode, 20, kMinimumSamplesForPrediction, kOutlierTolerancePercent};
     std::vector<nsecs_t> const simulatedVsyncs{840873348817, 840890049444, 840906762675,
                                                840923581635, 840940161584, 840956868096,
                                                840973702473, 840990256277, 841007116851,
@@ -658,48 +655,6 @@ TEST_F(VSyncPredictorTest, setRenderRateIsIgnoredIfNotDivisor) {
     EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 5100), Eq(mNow + 6 * mPeriod));
 }
 
-TEST_F(VSyncPredictorTest, vsyncTrackerCallback) {
-    SET_FLAG_FOR_TEST(flags::vrr_config, true);
-
-    const auto refreshRate = Fps::fromPeriodNsecs(mPeriod);
-    NotifyExpectedPresentConfig notifyExpectedPresentConfig;
-    notifyExpectedPresentConfig.timeoutNs = Period::fromNs(30).ns();
-
-    hal::VrrConfig vrrConfig;
-    vrrConfig.notifyExpectedPresentConfig = notifyExpectedPresentConfig;
-    vrrConfig.minFrameIntervalNs = refreshRate.getPeriodNsecs();
-
-    const int32_t kGroup = 0;
-    const auto kResolution = ui::Size(1920, 1080);
-    const auto mode =
-            ftl::as_non_null(createVrrDisplayMode(DisplayModeId(0), refreshRate, vrrConfig, kGroup,
-                                                  kResolution, DEFAULT_DISPLAY_ID));
-
-    tracker.setDisplayModePtr(mode);
-    auto last = mNow;
-    for (auto i = 0u; i < kMinimumSamplesForPrediction; i++) {
-        EXPECT_CALL(mVsyncTrackerCallback,
-                    onVsyncGenerated(TimePoint::fromNs(last + mPeriod), mode,
-                                     FpsMatcher(refreshRate)))
-                .Times(1);
-        EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow), Eq(last + mPeriod));
-        mNow += mPeriod;
-        last = mNow;
-        tracker.addVsyncTimestamp(mNow);
-    }
-
-    tracker.setRenderRate(refreshRate / 2);
-    {
-        // out of render rate phase
-        EXPECT_CALL(mVsyncTrackerCallback,
-                    onVsyncGenerated(TimePoint::fromNs(mNow + 3 * mPeriod), mode,
-                                     FpsMatcher(refreshRate / 2)))
-                .Times(1);
-        EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 1 * mPeriod),
-                    Eq(mNow + 3 * mPeriod));
-    }
-}
-
 TEST_F(VSyncPredictorTest, adjustsVrrTimeline) {
     SET_FLAG_FOR_TEST(flags::vrr_config, true);
 
@@ -716,7 +671,7 @@ TEST_F(VSyncPredictorTest, adjustsVrrTimeline) {
                                      .build());
 
     VSyncPredictor vrrTracker{kMode, kHistorySize, kMinimumSamplesForPrediction,
-                              kOutlierTolerancePercent, mVsyncTrackerCallback};
+                              kOutlierTolerancePercent};
 
     vrrTracker.setRenderRate(minFrameRate);
     vrrTracker.addVsyncTimestamp(0);
@@ -733,28 +688,6 @@ TEST_F(VSyncPredictorTest, adjustsVrrTimeline) {
     EXPECT_EQ(5000, vrrTracker.nextAnticipatedVSyncTimeFrom(4500, 4500));
     EXPECT_EQ(6000, vrrTracker.nextAnticipatedVSyncTimeFrom(5000, 5000));
 }
-
-TEST_F(VSyncPredictorTest, absentVrrConfigNoVsyncTrackerCallback) {
-    SET_FLAG_FOR_TEST(flags::vrr_config, true);
-    const auto refreshRate = Fps::fromPeriodNsecs(mPeriod);
-    const std::optional<hal::VrrConfig> vrrConfigOpt = std::nullopt;
-    constexpr int32_t kGroup = 0;
-    constexpr auto kResolution = ui::Size(1920, 1080);
-    const auto mode =
-            ftl::as_non_null(createVrrDisplayMode(DisplayModeId(0), refreshRate, vrrConfigOpt,
-                                                  kGroup, kResolution, DEFAULT_DISPLAY_ID));
-    tracker.setDisplayModePtr(mode);
-
-    auto last = mNow;
-    for (auto i = 0u; i < kMinimumSamplesForPrediction; i++) {
-        EXPECT_CALL(mVsyncTrackerCallback, onVsyncGenerated(_, _, _)).Times(0);
-        EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow), Eq(last + mPeriod));
-        mNow += mPeriod;
-        last = mNow;
-        tracker.addVsyncTimestamp(mNow);
-    }
-}
-
 } // namespace android::scheduler
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues

@@ -26,12 +26,6 @@
 
 namespace android::scheduler {
 
-struct IVsyncTrackerCallback {
-    virtual ~IVsyncTrackerCallback() = default;
-    virtual void onVsyncGenerated(TimePoint expectedPresentTime, ftl::NonNull<DisplayModePtr>,
-                                  Fps renderRate) = 0;
-};
-
 /*
  * VSyncTracker is an interface for providing estimates on future Vsync signal times based on
  * historical vsync timing data.

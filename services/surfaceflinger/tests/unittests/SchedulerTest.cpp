@@ -95,10 +95,8 @@ protected:
                                                   kDisplay1Mode60->getId());
 
     mock::SchedulerCallback mSchedulerCallback;
-    mock::VsyncTrackerCallback mVsyncTrackerCallback;
     TestableSurfaceFlinger mFlinger;
-    TestableScheduler* mScheduler =
-            new TestableScheduler{mSelector, mFlinger, mSchedulerCallback, mVsyncTrackerCallback};
+    TestableScheduler* mScheduler = new TestableScheduler{mSelector, mFlinger, mSchedulerCallback};
     surfaceflinger::frontend::LayerHierarchyBuilder mLayerHierarchyBuilder;
 
     ConnectionHandle mConnectionHandle;
@@ -516,6 +514,7 @@ TEST_F(SchedulerTest, onFrameSignalMultipleDisplays) {
         }
 
         void sample() override {}
+        void sendNotifyExpectedPresentHint(PhysicalDisplayId) override {}
     } compositor(*mScheduler);
 
     mScheduler->doFrameSignal(compositor, VsyncId(42));
@@ -568,7 +567,7 @@ TEST_F(SchedulerTest, nextFrameIntervalTest) {
                                                         frameRate.getPeriodNsecs())}));
     std::shared_ptr<VSyncPredictor> vrrTracker =
             std::make_shared<VSyncPredictor>(kMode, kHistorySize, kMinimumSamplesForPrediction,
-                                             kOutlierTolerancePercent, mVsyncTrackerCallback);
+                                             kOutlierTolerancePercent);
     std::shared_ptr<RefreshRateSelector> vrrSelectorPtr =
             std::make_shared<RefreshRateSelector>(makeModes(kMode), kMode->getId());
     TestableScheduler scheduler{std::make_unique<android::mock::VsyncController>(),
@@ -576,8 +575,7 @@ TEST_F(SchedulerTest, nextFrameIntervalTest) {
                                 vrrSelectorPtr,
                                 mFlinger.getFactory(),
                                 mFlinger.getTimeStats(),
-                                mSchedulerCallback,
-                                mVsyncTrackerCallback};
+                                mSchedulerCallback};
 
     scheduler.registerDisplay(kMode->getPhysicalDisplayId(), vrrSelectorPtr, vrrTracker);
     vrrSelectorPtr->setActiveMode(kMode->getId(), frameRate);

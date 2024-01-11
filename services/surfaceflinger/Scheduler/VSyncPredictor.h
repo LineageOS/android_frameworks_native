@@ -37,11 +37,9 @@ public:
      * \param [in] minimumSamplesForPrediction The minimum number of samples to collect before
      * predicting. \param [in] outlierTolerancePercent a number 0 to 100 that will be used to filter
      * samples that fall outlierTolerancePercent from an anticipated vsync event.
-     * \param [in] IVsyncTrackerCallback The callback for the VSyncTracker.
      */
     VSyncPredictor(ftl::NonNull<DisplayModePtr> modePtr, size_t historySize,
-                   size_t minimumSamplesForPrediction, uint32_t outlierTolerancePercent,
-                   IVsyncTrackerCallback&);
+                   size_t minimumSamplesForPrediction, uint32_t outlierTolerancePercent);
     ~VSyncPredictor();
 
     bool addVsyncTimestamp(nsecs_t timestamp) final EXCLUDES(mMutex);
@@ -106,7 +104,6 @@ private:
     size_t const kHistorySize;
     size_t const kMinimumSamplesForPrediction;
     size_t const kOutlierTolerancePercent;
-    IVsyncTrackerCallback& mVsyncTrackerCallback;
     std::mutex mutable mMutex;
 
     std::optional<nsecs_t> mKnownTimestamp GUARDED_BY(mMutex);

@@ -142,6 +142,7 @@ struct IEventThreadCallback {
     virtual bool throttleVsync(TimePoint, uid_t) = 0;
     virtual Period getVsyncPeriod(uid_t) = 0;
     virtual void resync() = 0;
+    virtual void onExpectedPresentTimePosted(TimePoint) = 0;
 };
 
 namespace impl {

@@ -85,6 +85,7 @@ protected:
     bool throttleVsync(TimePoint, uid_t) override;
     Period getVsyncPeriod(uid_t) override;
     void resync() override;
+    void onExpectedPresentTimePosted(TimePoint) override;
 
     void setupEventThread();
     sp<MockEventThreadConnection> createConnection(ConnectionEventRecorder& recorder,
@@ -107,6 +108,7 @@ protected:
                                                       int32_t expectedConfigId,
                                                       nsecs_t expectedVsyncPeriod);
     void expectThrottleVsyncReceived(nsecs_t expectedTimestamp, uid_t);
+    void expectOnExpectedPresentTimePosted(nsecs_t expectedPresentTime);
     void expectUidFrameRateMappingEventReceivedByConnection(PhysicalDisplayId expectedDisplayId,
                                                             std::vector<FrameRateOverride>);
 
@@ -131,6 +133,7 @@ protected:
             mVSyncCallbackUnregisterRecorder;
     AsyncCallRecorder<void (*)()> mResyncCallRecorder;
     AsyncCallRecorder<void (*)(nsecs_t, uid_t)> mThrottleVsyncCallRecorder;
+    AsyncCallRecorder<void (*)(nsecs_t)> mOnExpectedPresentTimePostedRecorder;
     ConnectionEventRecorder mConnectionEventCallRecorder{0};
     ConnectionEventRecorder mThrottledConnectionEventCallRecorder{0};
 
@@ -190,6 +193,10 @@ void EventThreadTest::resync() {
     mResyncCallRecorder.recordCall();
 }
 
+void EventThreadTest::onExpectedPresentTimePosted(TimePoint expectedPresentTime) {
+    mOnExpectedPresentTimePostedRecorder.recordCall(expectedPresentTime.ns());
+}
+
 void EventThreadTest::setupEventThread() {
     mTokenManager = std::make_unique<frametimeline::impl::TokenManager>();
     mThread = std::make_unique<impl::EventThread>("EventThreadTest", mVsyncSchedule,
@@ -242,6 +249,12 @@ void EventThreadTest::expectThrottleVsyncReceived(nsecs_t expectedTimestamp, uid
     ASSERT_TRUE(args.has_value());
     EXPECT_EQ(expectedTimestamp, std::get<0>(args.value()));
     EXPECT_EQ(uid, std::get<1>(args.value()));
+}
+
+void EventThreadTest::expectOnExpectedPresentTimePosted(nsecs_t expectedPresentTime) {
+    auto args = mOnExpectedPresentTimePostedRecorder.waitForCall();
+    ASSERT_TRUE(args.has_value());
+    EXPECT_EQ(expectedPresentTime, std::get<0>(args.value()));
 }
 
 void EventThreadTest::expectVsyncEventReceivedByConnection(
@@ -410,6 +423,7 @@ TEST_F(EventThreadTest, requestNextVsyncPostsASingleVSyncEventToTheConnection) {
     onVSyncEvent(123, 456, 789);
     expectThrottleVsyncReceived(456, mConnectionUid);
     expectVsyncEventReceivedByConnection(123, 1u);
+    expectOnExpectedPresentTimePosted(456);
 
     // EventThread is requesting one more callback due to VsyncRequest::SingleSuppressCallback
     expectVSyncCallbackScheduleReceived(true);
@@ -562,16 +576,19 @@ TEST_F(EventThreadTest, setVsyncRateOnePostsAllEventsToThatConnection) {
     onVSyncEvent(123, 456, 789);
     expectThrottleVsyncReceived(456, mConnectionUid);
     expectVsyncEventReceivedByConnection(123, 1u);
+    expectOnExpectedPresentTimePosted(456);
 
     // A second event should go to the same places.
     onVSyncEvent(456, 123, 0);
     expectThrottleVsyncReceived(123, mConnectionUid);
     expectVsyncEventReceivedByConnection(456, 2u);
+    expectOnExpectedPresentTimePosted(123);
 
     // A third event should go to the same places.
     onVSyncEvent(789, 777, 111);
     expectThrottleVsyncReceived(777, mConnectionUid);
     expectVsyncEventReceivedByConnection(789, 3u);
+    expectOnExpectedPresentTimePosted(777);
 }
 
 TEST_F(EventThreadTest, setVsyncRateTwoPostsEveryOtherEventToThatConnection) {

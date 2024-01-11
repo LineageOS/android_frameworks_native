@@ -21,11 +21,10 @@ namespace android::scheduler {
 
 TestableScheduler::TestableScheduler(RefreshRateSelectorPtr selectorPtr,
                                      TestableSurfaceFlinger& testableSurfaceFlinger,
-                                     ISchedulerCallback& callback,
-                                     IVsyncTrackerCallback& vsyncTrackerCallback)
+                                     ISchedulerCallback& callback)
       : TestableScheduler(std::make_unique<android::mock::VsyncController>(),
                           std::make_shared<android::mock::VSyncTracker>(), std::move(selectorPtr),
                           testableSurfaceFlinger.getFactory(),
-                          testableSurfaceFlinger.getTimeStats(), callback, vsyncTrackerCallback) {}
+                          testableSurfaceFlinger.getTimeStats(), callback) {}
 
 } // namespace android::scheduler
