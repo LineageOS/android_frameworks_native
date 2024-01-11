@@ -111,7 +111,7 @@ typedef struct AThermalManager AThermalManager;
  * It's passed the updated thermal status as parameter, as well as the
  * pointer provided by the client that registered a callback.
  */
-typedef void (*AThermal_StatusCallback)(void* data, AThermalStatus status);
+typedef void (*AThermal_StatusCallback)(void* _Nullable data, AThermalStatus status);
 
 /**
   * Acquire an instance of the thermal manager. This must be freed using
@@ -121,7 +121,7 @@ typedef void (*AThermal_StatusCallback)(void* data, AThermalStatus status);
   *
   * @return manager instance on success, nullptr on failure.
   */
-AThermalManager* AThermal_acquireManager() __INTRODUCED_IN(30);
+AThermalManager* _Nonnull AThermal_acquireManager() __INTRODUCED_IN(30);
 
 /**
  * Release the thermal manager pointer acquired via
@@ -131,7 +131,7 @@ AThermalManager* AThermal_acquireManager() __INTRODUCED_IN(30);
  *
  * @param manager The manager to be released.
  */
-void AThermal_releaseManager(AThermalManager *manager) __INTRODUCED_IN(30);
+void AThermal_releaseManager(AThermalManager* _Nonnull manager) __INTRODUCED_IN(30);
 
 /**
   * Gets the current thermal status.
@@ -143,7 +143,8 @@ void AThermal_releaseManager(AThermalManager *manager) __INTRODUCED_IN(30);
   *
   * @return current thermal status, ATHERMAL_STATUS_ERROR on failure.
   */
-AThermalStatus AThermal_getCurrentThermalStatus(AThermalManager *manager) __INTRODUCED_IN(30);
+AThermalStatus
+AThermal_getCurrentThermalStatus(AThermalManager* _Nonnull manager) __INTRODUCED_IN(30);
 
 /**
  * Register the thermal status listener for thermal status change.
@@ -160,8 +161,9 @@ AThermalStatus AThermal_getCurrentThermalStatus(AThermalManager *manager) __INTR
  *         EPERM if the required permission is not held.
  *         EPIPE if communication with the system service has failed.
  */
-int AThermal_registerThermalStatusListener(AThermalManager *manager,
-        AThermal_StatusCallback callback, void *data) __INTRODUCED_IN(30);
+int AThermal_registerThermalStatusListener(AThermalManager* _Nonnull manager,
+                                           AThermal_StatusCallback _Nullable callback,
+                                           void* _Nullable data) __INTRODUCED_IN(30);
 
 /**
  * Unregister the thermal status listener previously resgistered.
@@ -178,8 +180,9 @@ int AThermal_registerThermalStatusListener(AThermalManager *manager,
  *         EPERM if the required permission is not held.
  *         EPIPE if communication with the system service has failed.
  */
-int AThermal_unregisterThermalStatusListener(AThermalManager *manager,
-        AThermal_StatusCallback callback, void *data) __INTRODUCED_IN(30);
+int AThermal_unregisterThermalStatusListener(AThermalManager* _Nonnull manager,
+                                             AThermal_StatusCallback _Nullable callback,
+                                             void* _Nullable data) __INTRODUCED_IN(30);
 
 /**
  * Provides an estimate of how much thermal headroom the device currently has before
@@ -219,8 +222,8 @@ int AThermal_unregisterThermalStatusListener(AThermalManager *manager,
  *         as described above. Returns NaN if the device does not support this functionality or
  *         if this function is called significantly faster than once per second.
   */
-float AThermal_getThermalHeadroom(AThermalManager *manager,
-        int forecastSeconds) __INTRODUCED_IN(31);
+float AThermal_getThermalHeadroom(AThermalManager* _Nonnull manager,
+                                  int forecastSeconds) __INTRODUCED_IN(31);
 
 /**
  * This struct defines an instance of headroom threshold value and its status.
@@ -282,9 +285,10 @@ struct AThermalHeadroomThreshold {
  *         EPIPE if communication with the system service has failed.
  *         ENOSYS if the feature is disabled by the current system.
  */
-int AThermal_getThermalHeadroomThresholds(AThermalManager* manager,
-                                          const AThermalHeadroomThreshold ** outThresholds,
-                                          size_t* size) __INTRODUCED_IN(35);
+int AThermal_getThermalHeadroomThresholds(AThermalManager* _Nonnull manager,
+                                          const AThermalHeadroomThreshold* _Nonnull
+                                          * _Nullable outThresholds,
+                                          size_t* _Nonnull size) __INTRODUCED_IN(35);
 
 #ifdef __cplusplus
 }
