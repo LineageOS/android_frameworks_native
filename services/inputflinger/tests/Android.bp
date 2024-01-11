@@ -68,6 +68,7 @@ cc_test {
         "TimerProvider_test.cpp",
         "TestInputListener.cpp",
         "TouchpadInputMapper_test.cpp",
+        "MultiTouchInputMapper_test.cpp",
         "KeyboardInputMapper_test.cpp",
         "UinputDevice.cpp",
         "UnwantedInteractionBlocker_test.cpp",
