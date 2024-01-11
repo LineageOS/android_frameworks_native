@@ -13,7 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+#pragma once
+
 #include <android/binder_parcel.h>
+#include <stdbool.h>
+#include <stdint.h>
 #include <sys/cdefs.h>
 #include <sys/types.h>
 
@@ -31,14 +36,30 @@ __BEGIN_DECLS
 struct APersistableBundle;
 typedef struct APersistableBundle APersistableBundle;
 
+enum {
+    /**
+     * This can be returned from functions that need to distinguish between an empty
+     * value and a non-existent key.
+     */
+    APERSISTABLEBUNDLE_KEY_NOT_FOUND = -1,
+
+    /**
+     * This can be returned from functions that take a APersistableBundle_stringAllocator.
+     * This means the allocator has failed and returned a nullptr.
+     */
+    APERSISTABLEBUNDLE_ALLOCATOR_FAILED = -2,
+};
+
 /**
  * This is a user supplied allocator that allocates a buffer for the
- * APersistableBundle APIs to fill in with a string.
+ * APersistableBundle APIs to fill in with a UTF-8 string.
+ * The caller that supplies this function is responsible for freeing the
+ * returned data.
  *
  * \param the required size in bytes for the allocated buffer
- * \param  void* _Nullable context if needed by the callback
+ * \param context pointer if needed by the callback
  *
- * \return allocated buffer of sizeBytes. Null if allocation failed.
+ * \return allocated buffer of sizeBytes for a UTF-8 string. Null if allocation failed.
  */
 typedef char* _Nullable (*_Nonnull APersistableBundle_stringAllocator)(int32_t sizeBytes,
                                                                        void* _Nullable context);
@@ -54,10 +75,12 @@ APersistableBundle* _Nullable APersistableBundle_new() __INTRODUCED_IN(__ANDROID
 
 /**
  * Create a new APersistableBundle based off an existing APersistableBundle.
+ * This is a deep copy, so the new APersistableBundle has its own values from
+ * copying the original underlying PersistableBundle.
  *
  * Available since API level __ANDROID_API_V__.
  *
- * \param bundle to duplicate
+ * \param pBundle to duplicate
  *
  * \return Pointer to a new APersistableBundle
  */
@@ -68,11 +91,11 @@ APersistableBundle* _Nullable APersistableBundle_dup(const APersistableBundle* _
  * Delete an APersistableBundle. This must always be called when finished using
  * the object.
  *
- * \param bundle to delete
+ * \param pBundle to delete. No-op if null.
  *
  * Available since API level __ANDROID_API_V__.
  */
-void APersistableBundle_delete(APersistableBundle* _Nonnull pBundle)
+void APersistableBundle_delete(APersistableBundle* _Nullable pBundle)
         __INTRODUCED_IN(__ANDROID_API_V__);
 
 /**
@@ -80,8 +103,8 @@ void APersistableBundle_delete(APersistableBundle* _Nonnull pBundle)
  *
  * Available since API level __ANDROID_API_V__.
  *
- * \param lhs bundle to compare agains the other param
- * \param rhs bundle to compare agains the other param
+ * \param lhs bundle to compare against the other param
+ * \param rhs bundle to compare against the other param
  *
  * \return true when equal, false when not
  */
@@ -134,11 +157,11 @@ binder_status_t APersistableBundle_writeToParcel(const APersistableBundle* _Nonn
  *
  * Available since API level __ANDROID_API_V__.
  *
- * \param bundle to get the size of (number of mappings)
+ * \param pBundle to get the size of (number of mappings)
  *
  * \return number of mappings in the object
  */
-int32_t APersistableBundle_size(APersistableBundle* _Nonnull pBundle)
+int32_t APersistableBundle_size(const APersistableBundle* _Nonnull pBundle)
         __INTRODUCED_IN(__ANDROID_API_V__);
 
 /**
@@ -146,8 +169,8 @@ int32_t APersistableBundle_size(APersistableBundle* _Nonnull pBundle)
  *
  * Available since API level __ANDROID_API_V__.
  *
- * \param bundle to operate on
- * \param key for the mapping to erase
+ * \param pBundle to operate on
+ * \param key for the mapping in UTF-8 to erase
  *
  * \return number of entries erased. Either 0 or 1.
  */
@@ -158,8 +181,8 @@ int32_t APersistableBundle_erase(APersistableBundle* _Nonnull pBundle, const cha
  * Put a boolean associated with the provided key.
  * New values with the same key will overwrite existing values.
  *
- * \param bundle to operate on
- * \param key for the mapping
+ * \param pBundle to operate on
+ * \param key for the mapping in UTF-8
  * \param value to put for the mapping
  *
  * Available since API level __ANDROID_API_V__.
@@ -171,9 +194,9 @@ void APersistableBundle_putBoolean(APersistableBundle* _Nonnull pBundle, const c
  * Put an int32_t associated with the provided key.
  * New values with the same key will overwrite existing values.
  *
- * \param bundle to operate on
- * \param key for the mapping
- * \param value to put for the mapping
+ * \param pBundle to operate on
+ * \param key for the mapping in UTF-8
+ * \param val value to put for the mapping
  *
  * Available since API level __ANDROID_API_V__.
  */
@@ -184,9 +207,9 @@ void APersistableBundle_putInt(APersistableBundle* _Nonnull pBundle, const char*
  * Put an int64_t associated with the provided key.
  * New values with the same key will overwrite existing values.
  *
- * \param bundle to operate on
- * \param key for the mapping
- * \param value to put for the mapping
+ * \param pBundle to operate on
+ * \param key for the mapping in UTF-8
+ * \param val value to put for the mapping
  *
  * Available since API level __ANDROID_API_V__.
  */
@@ -197,9 +220,9 @@ void APersistableBundle_putLong(APersistableBundle* _Nonnull pBundle, const char
  * Put a double associated with the provided key.
  * New values with the same key will overwrite existing values.
  *
- * \param bundle to operate on
- * \param key for the mapping
- * \param value to put for the mapping
+ * \param pBundle to operate on
+ * \param key for the mapping in UTF-8
+ * \param val value to put for the mapping
  *
  * Available since API level __ANDROID_API_V__.
  */
@@ -209,10 +232,11 @@ void APersistableBundle_putDouble(APersistableBundle* _Nonnull pBundle, const ch
 /**
  * Put a string associated with the provided key.
  * New values with the same key will overwrite existing values.
+ * The value is copied.
  *
- * \param bundle to operate on
- * \param key for the mapping
- * \param value to put for the mapping
+ * \param pBundle to operate on
+ * \param key for the mapping in UTF-8
+ * \param vec vector to put for the mapping
  *
  * Available since API level __ANDROID_API_V__.
  */
@@ -222,11 +246,12 @@ void APersistableBundle_putString(APersistableBundle* _Nonnull pBundle, const ch
 /**
  * Put a boolean vector associated with the provided key.
  * New values with the same key will overwrite existing values.
+ * The values are copied.
  *
- * \param bundle to operate on
- * \param key for the mapping
- * \param value to put for the mapping
- * \param size in number of elements in the vector
+ * \param pBundle to operate on
+ * \param key for the mapping in UTF-8
+ * \param vec vector to put for the mapping
+ * \param num number of elements in the vector
  *
  * Available since API level __ANDROID_API_V__.
  */
@@ -237,11 +262,12 @@ void APersistableBundle_putBooleanVector(APersistableBundle* _Nonnull pBundle,
 /**
  * Put an int32_t vector associated with the provided key.
  * New values with the same key will overwrite existing values.
+ * The values are copied.
  *
- * \param bundle to operate on
- * \param key for the mapping
- * \param value to put for the mapping
- * \param size in number of elements in the vector
+ * \param pBundle to operate on
+ * \param key for the mapping in UTF-8
+ * \param vec vector to put for the mapping
+ * \param num number of elements in the vector
  *
  * Available since API level __ANDROID_API_V__.
  */
@@ -252,11 +278,12 @@ void APersistableBundle_putIntVector(APersistableBundle* _Nonnull pBundle, const
 /**
  * Put an int64_t vector associated with the provided key.
  * New values with the same key will overwrite existing values.
+ * The values are copied.
  *
- * \param bundle to operate on
- * \param key for the mapping
- * \param value to put for the mapping
- * \param size in number of elements in the vector
+ * \param pBundle to operate on
+ * \param key for the mapping in UTF-8
+ * \param vec vector to put for the mapping
+ * \param num number of elements in the vector
  *
  * Available since API level __ANDROID_API_V__.
  */
@@ -267,11 +294,12 @@ void APersistableBundle_putLongVector(APersistableBundle* _Nonnull pBundle,
 /**
  * Put a double vector associated with the provided key.
  * New values with the same key will overwrite existing values.
+ * The values are copied.
  *
- * \param bundle to operate on
- * \param key for the mapping
- * \param value to put for the mapping
- * \param size in number of elements in the vector
+ * \param pBundle to operate on
+ * \param key for the mapping in UTF-8
+ * \param vec vector to put for the mapping
+ * \param num number of elements in the vector
  *
  * Available since API level __ANDROID_API_V__.
  */
@@ -282,11 +310,12 @@ void APersistableBundle_putDoubleVector(APersistableBundle* _Nonnull pBundle,
 /**
  * Put a string vector associated with the provided key.
  * New values with the same key will overwrite existing values.
+ * The values are copied.
  *
- * \param bundle to operate on
- * \param key for the mapping
- * \param value to put for the mapping
- * \param size in number of elements in the vector
+ * \param pBundle to operate on
+ * \param key for the mapping in UTF-8
+ * \param vec vector to put for the mapping
+ * \param num number of elements in the vector
  *
  * Available since API level __ANDROID_API_V__.
  */
@@ -298,10 +327,11 @@ void APersistableBundle_putStringVector(APersistableBundle* _Nonnull pBundle,
 /**
  * Put an APersistableBundle associated with the provided key.
  * New values with the same key will overwrite existing values.
+ * The value is deep-copied.
  *
- * \param bundle to operate on
- * \param key for the mapping
- * \param value to put for the mapping
+ * \param pBundle to operate on
+ * \param key for the mapping in UTF-8
+ * \param val value to put for the mapping
  *
  * Available since API level __ANDROID_API_V__.
  */
@@ -315,9 +345,9 @@ void APersistableBundle_putPersistableBundle(APersistableBundle* _Nonnull pBundl
  *
  * Available since API level __ANDROID_API_V__.
  *
- * \param bundle to operate on
- * \param key for the mapping
- * \param nonnull pointer to write the value to
+ * \param pBundle to operate on
+ * \param key for the mapping in UTF-8
+ * \param val pointer to write the value to
  *
  * \return true if a value exists for the provided key
  */
@@ -330,9 +360,9 @@ bool APersistableBundle_getBoolean(const APersistableBundle* _Nonnull pBundle,
  *
  * Available since API level __ANDROID_API_V__.
  *
- * \param bundle to operate on
- * \param key for the mapping
- * \param nonnull pointer to write the value to
+ * \param pBundle to operate on
+ * \param key for the mapping in UTF-8
+ * \param val pointer to write the value to
  *
  * \return true if a value exists for the provided key
  */
@@ -344,9 +374,9 @@ bool APersistableBundle_getInt(const APersistableBundle* _Nonnull pBundle, const
  *
  * Available since API level __ANDROID_API_V__.
  *
- * \param bundle to operate on
- * \param key for the mapping
- * \param nonnull pointer to write the value to
+ * \param pBundle to operate on
+ * \param key for the mapping in UTF-8
+ * \param val pointer to write the value to
  *
  * \return true if a value exists for the provided key
  */
@@ -359,9 +389,9 @@ bool APersistableBundle_getLong(const APersistableBundle* _Nonnull pBundle,
  *
  * Available since API level __ANDROID_API_V__.
  *
- * \param bundle to operate on
- * \param key for the mapping
- * \param nonnull pointer to write the value to
+ * \param pBundle to operate on
+ * \param key for the mapping in UTF-8
+ * \param val pointer to write the value to
  *
  * \return true if a value exists for the provided key
  */
@@ -371,17 +401,19 @@ bool APersistableBundle_getDouble(const APersistableBundle* _Nonnull pBundle,
 
 /**
  * Get a string associated with the provided key.
+ * The caller is responsible for freeing the returned data.
  *
  * Available since API level __ANDROID_API_V__.
  *
- * \param bundle to operate on
- * \param key for the mapping
- * \param nonnull pointer to write the value to
- * \param function pointer to the string dup allocator
+ * \param pBundle to operate on
+ * \param key for the mapping in UTF-8
+ * \param val pointer to write the value to in UTF-8
+ * \param stringAllocator function pointer to the string allocator
+ * \param context pointer that will be passed to the stringAllocator
  *
- * \return size of string associated with the provided key on success
- *         0 if no string exists for the provided key
- *         -1 if the provided allocator fails and returns false
+ * \return size of string in bytes associated with the provided key on success
+ *         APERSISTABLEBUNDLE_KEY_NOT_FOUND if the key was not found
+ *         APERSISTABLEBUNDLE_ALLOCATOR_FAILED if the provided allocator fails
  */
 int32_t APersistableBundle_getString(const APersistableBundle* _Nonnull pBundle,
                                      const char* _Nonnull key, char* _Nullable* _Nonnull val,
@@ -393,7 +425,7 @@ int32_t APersistableBundle_getString(const APersistableBundle* _Nonnull pBundle,
  * provided pre-allocated buffer from the user.
  *
  * This function returns the size in bytes of stored vector.
- * The supplied buffer will be filled in based on the smaller of the suplied
+ * The supplied buffer will be filled in based on the smaller of the supplied
  * bufferSizeBytes or the actual size of the stored data.
  * If the buffer is null or if the supplied bufferSizeBytes is smaller than the
  * actual stored data, then not all of the stored data will be returned.
@@ -401,13 +433,14 @@ int32_t APersistableBundle_getString(const APersistableBundle* _Nonnull pBundle,
  * Users can call this function with null buffer and 0 bufferSizeBytes to get
  * the required size of the buffer to use on a subsequent call.
  *
- * \param bundle to operate on
- * \param key for the mapping
- * \param nonnull pointer to a pre-allocated buffer to write the values to
- * \param size of the pre-allocated buffer
+ * \param pBundle to operate on
+ * \param key for the mapping in UTF-8
+ * \param buffer pointer to a pre-allocated buffer to write the values to
+ * \param bufferSizeBytes size of the pre-allocated buffer
  *
  * \return size of the stored vector in bytes. This is the required size of the
  * pre-allocated user supplied buffer if all of the stored contents are desired.
+ *         APERSISTABLEBUNDLE_KEY_NOT_FOUND if the key was not found
  */
 int32_t APersistableBundle_getBooleanVector(const APersistableBundle* _Nonnull pBundle,
                                             const char* _Nonnull key, bool* _Nullable buffer,
@@ -419,7 +452,7 @@ int32_t APersistableBundle_getBooleanVector(const APersistableBundle* _Nonnull p
  * provided pre-allocated buffer from the user.
  *
  * This function returns the size in bytes of stored vector.
- * The supplied buffer will be filled in based on the smaller of the suplied
+ * The supplied buffer will be filled in based on the smaller of the supplied
  * bufferSizeBytes or the actual size of the stored data.
  * If the buffer is null or if the supplied bufferSizeBytes is smaller than the
  * actual stored data, then not all of the stored data will be returned.
@@ -427,13 +460,14 @@ int32_t APersistableBundle_getBooleanVector(const APersistableBundle* _Nonnull p
  * Users can call this function with null buffer and 0 bufferSizeBytes to get
  * the required size of the buffer to use on a subsequent call.
  *
- * \param bundle to operate on
- * \param key for the mapping
- * \param nonnull pointer to a pre-allocated buffer to write the values to
- * \param size of the pre-allocated buffer
+ * \param pBundle to operate on
+ * \param key for the mapping in UTF-8
+ * \param buffer pointer to a pre-allocated buffer to write the values to
+ * \param bufferSizeBytes size of the pre-allocated buffer
  *
  * \return size of the stored vector in bytes. This is the required size of the
  * pre-allocated user supplied buffer if all of the stored contents are desired.
+ *         APERSISTABLEBUNDLE_KEY_NOT_FOUND if the key was not found
  */
 int32_t APersistableBundle_getIntVector(const APersistableBundle* _Nonnull pBundle,
                                         const char* _Nonnull key, int32_t* _Nullable buffer,
@@ -444,7 +478,7 @@ int32_t APersistableBundle_getIntVector(const APersistableBundle* _Nonnull pBund
  * provided pre-allocated buffer from the user.
  *
  * This function returns the size in bytes of stored vector.
- * The supplied buffer will be filled in based on the smaller of the suplied
+ * The supplied buffer will be filled in based on the smaller of the supplied
  * bufferSizeBytes or the actual size of the stored data.
  * If the buffer is null or if the supplied bufferSizeBytes is smaller than the
  * actual stored data, then not all of the stored data will be returned.
@@ -452,13 +486,14 @@ int32_t APersistableBundle_getIntVector(const APersistableBundle* _Nonnull pBund
  * Users can call this function with null buffer and 0 bufferSizeBytes to get
  * the required size of the buffer to use on a subsequent call.
  *
- * \param bundle to operate on
- * \param key for the mapping
- * \param nonnull pointer to a pre-allocated buffer to write the values to
- * \param size of the pre-allocated buffer
+ * \param pBundle to operate on
+ * \param key for the mapping in UTF-8
+ * \param buffer pointer to a pre-allocated buffer to write the values to
+ * \param bufferSizeBytes size of the pre-allocated buffer
  *
  * \return size of the stored vector in bytes. This is the required size of the
  * pre-allocated user supplied buffer if all of the stored contents are desired.
+ *         APERSISTABLEBUNDLE_KEY_NOT_FOUND if the key was not found
  */
 int32_t APersistableBundle_getLongVector(const APersistableBundle* _Nonnull pBundle,
                                          const char* _Nonnull key, int64_t* _Nullable buffer,
@@ -470,7 +505,7 @@ int32_t APersistableBundle_getLongVector(const APersistableBundle* _Nonnull pBun
  * provided pre-allocated buffer from the user.
  *
  * This function returns the size in bytes of stored vector.
- * The supplied buffer will be filled in based on the smaller of the suplied
+ * The supplied buffer will be filled in based on the smaller of the supplied
  * bufferSizeBytes or the actual size of the stored data.
  * If the buffer is null or if the supplied bufferSizeBytes is smaller than the
  * actual stored data, then not all of the stored data will be returned.
@@ -478,13 +513,14 @@ int32_t APersistableBundle_getLongVector(const APersistableBundle* _Nonnull pBun
  * Users can call this function with null buffer and 0 bufferSizeBytes to get
  * the required size of the buffer to use on a subsequent call.
  *
- * \param bundle to operate on
- * \param key for the mapping
- * \param nonnull pointer to a pre-allocated buffer to write the values to
- * \param size of the pre-allocated buffer
+ * \param pBundle to operate on
+ * \param key for the mapping in UTF-8
+ * \param buffer pointer to a pre-allocated buffer to write the values to
+ * \param bufferSizeBytes size of the pre-allocated buffer
  *
  * \return size of the stored vector in bytes. This is the required size of the
  * pre-allocated user supplied buffer if all of the stored contents are desired.
+ *         APERSISTABLEBUNDLE_KEY_NOT_FOUND if the key was not found
  */
 int32_t APersistableBundle_getDoubleVector(const APersistableBundle* _Nonnull pBundle,
                                            const char* _Nonnull key, double* _Nullable buffer,
@@ -496,9 +532,10 @@ int32_t APersistableBundle_getDoubleVector(const APersistableBundle* _Nonnull pB
  * provided pre-allocated buffer from the user. The user must provide an
  * APersistableBundle_stringAllocator for the individual strings to be
  * allocated.
+ * The caller is responsible for freeing the returned data.
  *
  * This function returns the size in bytes of stored vector.
- * The supplied buffer will be filled in based on the smaller of the suplied
+ * The supplied buffer will be filled in based on the smaller of the supplied
  * bufferSizeBytes or the actual size of the stored data.
  * If the buffer is null or if the supplied bufferSizeBytes is smaller than the
  * actual stored data, then not all of the stored data will be returned.
@@ -506,17 +543,18 @@ int32_t APersistableBundle_getDoubleVector(const APersistableBundle* _Nonnull pB
  * Users can call this function with null buffer and 0 bufferSizeBytes to get
  * the required size of the buffer to use on a subsequent call.
  *
- * \param bundle to operate on
- * \param key for the mapping
- * \param nonnull pointer to a pre-allocated buffer to write the values to
- * \param size of the pre-allocated buffer
- * \param function pointer to the string dup allocator
+ * \param pBundle to operate on
+ * \param key for the mapping in UTF-8
+ * \param buffer pointer to a pre-allocated buffer to write the string pointers to
+ * \param bufferSizeBytes size of the pre-allocated buffer
+ * \param stringAllocator function pointer to the string allocator
+ * \param context pointer that will be passed to the stringAllocator
  *
  * \return size of the stored vector in bytes. This is the required size of the
  * pre-allocated user supplied buffer if all of the stored contents are desired.
  *         0 if no string vector exists for the provided key
- *         -1 if the user supplied APersistableBundle_stringAllocator returns
- *         false
+ *         APERSISTABLEBUNDLE_KEY_NOT_FOUND if the key was not found
+ *         APERSISTABLEBUNDLE_ALLOCATOR_FAILED if the provided allocator fails
  */
 int32_t APersistableBundle_getStringVector(const APersistableBundle* _Nonnull pBundle,
                                            const char* _Nonnull key,
@@ -531,9 +569,9 @@ int32_t APersistableBundle_getStringVector(const APersistableBundle* _Nonnull pB
  *
  * Available since API level __ANDROID_API_V__.
  *
- * \param bundle to operate on
- * \param key for the mapping
- * \param nonnull pointer to an APersistableBundle pointer to write to point to
+ * \param pBundle to operate on
+ * \param key for the mapping in UTF-8
+ * \param val pointer to an APersistableBundle pointer to write to point to
  * a new copy of the stored APersistableBundle. The caller takes ownership of
  * the new APersistableBundle and must be deleted with
  * APersistableBundle_delete.
@@ -550,9 +588,10 @@ bool APersistableBundle_getPersistableBundle(const APersistableBundle* _Nonnull 
  * provided pre-allocated buffer from the user. The user must provide an
  * APersistableBundle_stringAllocator for the individual strings to be
  * allocated.
+ * The caller is responsible for freeing the returned data.
  *
  * This function returns the size in bytes required to fit the fill list of keys.
- * The supplied buffer will be filled in based on the smaller of the suplied
+ * The supplied buffer will be filled in based on the smaller of the supplied
  * bufferSizeBytes or the actual size of the stored data.
  * If the buffer is null or if the supplied bufferSizeBytes is smaller than the
  * actual stored data, then not all of the stored data will be returned.
@@ -560,16 +599,15 @@ bool APersistableBundle_getPersistableBundle(const APersistableBundle* _Nonnull 
  * Users can call this function with null buffer and 0 bufferSizeBytes to get
  * the required size of the buffer to use on a subsequent call.
  *
- * \param bundle to operate on
- * \param nonnull pointer to a pre-allocated buffer to write the values to
- * \param size of the pre-allocated buffer
- * \param function pointer to the string dup allocator
+ * \param pBundle to operate on
+ * \param outKeys pointer to a pre-allocated buffer to write the UTF-8 keys to
+ * \param bufferSizeBytes size of the pre-allocated buffer
+ * \param stringAllocator function pointer to the string allocator
+ * \param context pointer that will be passed to the stringAllocator
  *
  * \return size of the buffer of keys in bytes. This is the required size of the
  * pre-allocated user supplied buffer if all of the stored contents are desired.
- *         0 if no string vector exists for the provided key
- *         -1 if the user supplied APersistableBundle_stringAllocator returns
- *         false
+ *         APERSISTABLEBUNDLE_ALLOCATOR_FAILED if the provided allocator fails
  */
 int32_t APersistableBundle_getBooleanKeys(const APersistableBundle* _Nonnull pBundle,
                                           char* _Nullable* _Nullable outKeys,
@@ -583,9 +621,10 @@ int32_t APersistableBundle_getBooleanKeys(const APersistableBundle* _Nonnull pBu
  * provided pre-allocated buffer from the user. The user must provide an
  * APersistableBundle_stringAllocator for the individual strings to be
  * allocated.
+ * The caller is responsible for freeing the returned data.
  *
  * This function returns the size in bytes required to fit the fill list of keys.
- * The supplied buffer will be filled in based on the smaller of the suplied
+ * The supplied buffer will be filled in based on the smaller of the supplied
  * bufferSizeBytes or the actual size of the stored data.
  * If the buffer is null or if the supplied bufferSizeBytes is smaller than the
  * actual stored data, then not all of the stored data will be returned.
@@ -593,16 +632,15 @@ int32_t APersistableBundle_getBooleanKeys(const APersistableBundle* _Nonnull pBu
  * Users can call this function with null buffer and 0 bufferSizeBytes to get
  * the required size of the buffer to use on a subsequent call.
  *
- * \param bundle to operate on
- * \param nonnull pointer to a pre-allocated buffer to write the values to
- * \param size of the pre-allocated buffer
- * \param function pointer to the string dup allocator
+ * \param pBundle to operate on
+ * \param outKeys pointer to a pre-allocated buffer to write the UTF-8 keys to
+ * \param bufferSizeBytes size of the pre-allocated buffer
+ * \param stringAllocator function pointer to the string allocator
+ * \param context pointer that will be passed to the stringAllocator
  *
  * \return size of the buffer of keys in bytes. This is the required size of the
  * pre-allocated user supplied buffer if all of the stored contents are desired.
- *         0 if no string vector exists for the provided key
- *         -1 if the user supplied APersistableBundle_stringAllocator returns
- *         false
+ *         APERSISTABLEBUNDLE_ALLOCATOR_FAILED if the provided allocator fails
  */
 int32_t APersistableBundle_getIntKeys(const APersistableBundle* _Nonnull pBundle,
                                       char* _Nullable* _Nullable outKeys, int32_t bufferSizeBytes,
@@ -614,9 +652,10 @@ int32_t APersistableBundle_getIntKeys(const APersistableBundle* _Nonnull pBundle
  * provided pre-allocated buffer from the user. The user must provide an
  * APersistableBundle_stringAllocator for the individual strings to be
  * allocated.
+ * The caller is responsible for freeing the returned data.
  *
  * This function returns the size in bytes required to fit the fill list of keys.
- * The supplied buffer will be filled in based on the smaller of the suplied
+ * The supplied buffer will be filled in based on the smaller of the supplied
  * bufferSizeBytes or the actual size of the stored data.
  * If the buffer is null or if the supplied bufferSizeBytes is smaller than the
  * actual stored data, then not all of the stored data will be returned.
@@ -624,16 +663,15 @@ int32_t APersistableBundle_getIntKeys(const APersistableBundle* _Nonnull pBundle
  * Users can call this function with null buffer and 0 bufferSizeBytes to get
  * the required size of the buffer to use on a subsequent call.
  *
- * \param bundle to operate on
- * \param nonnull pointer to a pre-allocated buffer to write the values to
- * \param size of the pre-allocated buffer
- * \param function pointer to the string dup allocator
+ * \param pBundle to operate on
+ * \param outKeys pointer to a pre-allocated buffer to write the UTF-8 keys to
+ * \param bufferSizeBytes size of the pre-allocated buffer
+ * \param stringAllocator function pointer to the string allocator
+ * \param context pointer that will be passed to the stringAllocator
  *
  * \return size of the buffer of keys in bytes. This is the required size of the
  * pre-allocated user supplied buffer if all of the stored contents are desired.
- *         0 if no string vector exists for the provided key
- *         -1 if the user supplied APersistableBundle_stringAllocator returns
- *         false
+ *         APERSISTABLEBUNDLE_ALLOCATOR_FAILED if the provided allocator fails
  */
 int32_t APersistableBundle_getLongKeys(const APersistableBundle* _Nonnull pBundle,
                                        char* _Nullable* _Nullable outKeys, int32_t bufferSizeBytes,
@@ -645,9 +683,10 @@ int32_t APersistableBundle_getLongKeys(const APersistableBundle* _Nonnull pBundl
  * provided pre-allocated buffer from the user. The user must provide an
  * APersistableBundle_stringAllocator for the individual strings to be
  * allocated.
+ * The caller is responsible for freeing the returned data.
  *
  * This function returns the size in bytes required to fit the fill list of keys.
- * The supplied buffer will be filled in based on the smaller of the suplied
+ * The supplied buffer will be filled in based on the smaller of the supplied
  * bufferSizeBytes or the actual size of the stored data.
  * If the buffer is null or if the supplied bufferSizeBytes is smaller than the
  * actual stored data, then not all of the stored data will be returned.
@@ -655,16 +694,15 @@ int32_t APersistableBundle_getLongKeys(const APersistableBundle* _Nonnull pBundl
  * Users can call this function with null buffer and 0 bufferSizeBytes to get
  * the required size of the buffer to use on a subsequent call.
  *
- * \param bundle to operate on
- * \param nonnull pointer to a pre-allocated buffer to write the values to
- * \param size of the pre-allocated buffer
- * \param function pointer to the string dup allocator
+ * \param pBundle to operate on
+ * \param outKeys pointer to a pre-allocated buffer to write the UTF-8 keys to
+ * \param bufferSizeBytes size of the pre-allocated buffer
+ * \param stringAllocator function pointer to the string allocator
+ * \param context pointer that will be passed to the stringAllocator
  *
  * \return size of the buffer of keys in bytes. This is the required size of the
  * pre-allocated user supplied buffer if all of the stored contents are desired.
- *         0 if no string vector exists for the provided key
- *         -1 if the user supplied APersistableBundle_stringAllocator returns
- *         false
+ *         APERSISTABLEBUNDLE_ALLOCATOR_FAILED if the provided allocator fails
  */
 int32_t APersistableBundle_getDoubleKeys(const APersistableBundle* _Nonnull pBundle,
                                          char* _Nullable* _Nullable outKeys,
@@ -678,9 +716,10 @@ int32_t APersistableBundle_getDoubleKeys(const APersistableBundle* _Nonnull pBun
  * provided pre-allocated buffer from the user. The user must provide an
  * APersistableBundle_stringAllocator for the individual strings to be
  * allocated.
+ * The caller is responsible for freeing the returned data.
  *
  * This function returns the size in bytes required to fit the fill list of keys.
- * The supplied buffer will be filled in based on the smaller of the suplied
+ * The supplied buffer will be filled in based on the smaller of the supplied
  * bufferSizeBytes or the actual size of the stored data.
  * If the buffer is null or if the supplied bufferSizeBytes is smaller than the
  * actual stored data, then not all of the stored data will be returned.
@@ -688,16 +727,15 @@ int32_t APersistableBundle_getDoubleKeys(const APersistableBundle* _Nonnull pBun
  * Users can call this function with null buffer and 0 bufferSizeBytes to get
  * the required size of the buffer to use on a subsequent call.
  *
- * \param bundle to operate on
- * \param nonnull pointer to a pre-allocated buffer to write the values to
- * \param size of the pre-allocated buffer
- * \param function pointer to the string dup allocator
+ * \param pBundle to operate on
+ * \param outKeys pointer to a pre-allocated buffer to write the UTF-8 keys to
+ * \param bufferSizeBytes size of the pre-allocated buffer
+ * \param stringAllocator function pointer to the string allocator
+ * \param context pointer that will be passed to the stringAllocator
  *
  * \return size of the buffer of keys in bytes. This is the required size of the
  * pre-allocated user supplied buffer if all of the stored contents are desired.
- *         0 if no string vector exists for the provided key
- *         -1 if the user supplied APersistableBundle_stringAllocator returns
- *         false
+ *         APERSISTABLEBUNDLE_ALLOCATOR_FAILED if the provided allocator fails
  */
 int32_t APersistableBundle_getStringKeys(const APersistableBundle* _Nonnull pBundle,
                                          char* _Nullable* _Nullable outKeys,
@@ -711,9 +749,10 @@ int32_t APersistableBundle_getStringKeys(const APersistableBundle* _Nonnull pBun
  * provided pre-allocated buffer from the user. The user must provide an
  * APersistableBundle_stringAllocator for the individual strings to be
  * allocated.
+ * The caller is responsible for freeing the returned data.
  *
  * This function returns the size in bytes required to fit the fill list of keys.
- * The supplied buffer will be filled in based on the smaller of the suplied
+ * The supplied buffer will be filled in based on the smaller of the supplied
  * bufferSizeBytes or the actual size of the stored data.
  * If the buffer is null or if the supplied bufferSizeBytes is smaller than the
  * actual stored data, then not all of the stored data will be returned.
@@ -721,16 +760,15 @@ int32_t APersistableBundle_getStringKeys(const APersistableBundle* _Nonnull pBun
  * Users can call this function with null buffer and 0 bufferSizeBytes to get
  * the required size of the buffer to use on a subsequent call.
  *
- * \param bundle to operate on
- * \param nonnull pointer to a pre-allocated buffer to write the values to
- * \param size of the pre-allocated buffer
- * \param function pointer to the string dup allocator
+ * \param pBundle to operate on
+ * \param outKeys pointer to a pre-allocated buffer to write the UTF-8 keys to
+ * \param bufferSizeBytes size of the pre-allocated buffer
+ * \param stringAllocator function pointer to the string allocator
+ * \param context pointer that will be passed to the stringAllocator
  *
  * \return size of the buffer of keys in bytes. This is the required size of the
  * pre-allocated user supplied buffer if all of the stored contents are desired.
- *         0 if no string vector exists for the provided key
- *         -1 if the user supplied APersistableBundle_stringAllocator returns
- *         false
+ *         APERSISTABLEBUNDLE_ALLOCATOR_FAILED if the provided allocator fails
  */
 int32_t APersistableBundle_getBooleanVectorKeys(const APersistableBundle* _Nonnull pBundle,
                                                 char* _Nullable* _Nullable outKeys,
@@ -744,9 +782,10 @@ int32_t APersistableBundle_getBooleanVectorKeys(const APersistableBundle* _Nonnu
  * provided pre-allocated buffer from the user. The user must provide an
  * APersistableBundle_stringAllocator for the individual strings to be
  * allocated.
+ * The caller is responsible for freeing the returned data.
  *
  * This function returns the size in bytes required to fit the fill list of keys.
- * The supplied buffer will be filled in based on the smaller of the suplied
+ * The supplied buffer will be filled in based on the smaller of the supplied
  * bufferSizeBytes or the actual size of the stored data.
  * If the buffer is null or if the supplied bufferSizeBytes is smaller than the
  * actual stored data, then not all of the stored data will be returned.
@@ -754,16 +793,15 @@ int32_t APersistableBundle_getBooleanVectorKeys(const APersistableBundle* _Nonnu
  * Users can call this function with null buffer and 0 bufferSizeBytes to get
  * the required size of the buffer to use on a subsequent call.
  *
- * \param bundle to operate on
- * \param nonnull pointer to a pre-allocated buffer to write the values to
- * \param size of the pre-allocated buffer
- * \param function pointer to the string dup allocator
+ * \param pBundle to operate on
+ * \param outKeys pointer to a pre-allocated buffer to write the UTF-8 keys to
+ * \param bufferSizeBytes size of the pre-allocated buffer
+ * \param stringAllocator function pointer to the string allocator
+ * \param context pointer that will be passed to the stringAllocator
  *
  * \return size of the buffer of keys in bytes. This is the required size of the
  * pre-allocated user supplied buffer if all of the stored contents are desired.
- *         0 if no string vector exists for the provided key
- *         -1 if the user supplied APersistableBundle_stringAllocator returns
- *         false
+ *         APERSISTABLEBUNDLE_ALLOCATOR_FAILED if the provided allocator fails
  */
 int32_t APersistableBundle_getIntVectorKeys(const APersistableBundle* _Nonnull pBundle,
                                             char* _Nullable* _Nullable outKeys,
@@ -777,9 +815,10 @@ int32_t APersistableBundle_getIntVectorKeys(const APersistableBundle* _Nonnull p
  * provided pre-allocated buffer from the user. The user must provide an
  * APersistableBundle_stringAllocator for the individual strings to be
  * allocated.
+ * The caller is responsible for freeing the returned data.
  *
  * This function returns the size in bytes required to fit the fill list of keys.
- * The supplied buffer will be filled in based on the smaller of the suplied
+ * The supplied buffer will be filled in based on the smaller of the supplied
  * bufferSizeBytes or the actual size of the stored data.
  * If the buffer is null or if the supplied bufferSizeBytes is smaller than the
  * actual stored data, then not all of the stored data will be returned.
@@ -787,16 +826,15 @@ int32_t APersistableBundle_getIntVectorKeys(const APersistableBundle* _Nonnull p
  * Users can call this function with null buffer and 0 bufferSizeBytes to get
  * the required size of the buffer to use on a subsequent call.
  *
- * \param bundle to operate on
- * \param nonnull pointer to a pre-allocated buffer to write the values to
- * \param size of the pre-allocated buffer
- * \param function pointer to the string dup allocator
+ * \param pBundle to operate on
+ * \param outKeys pointer to a pre-allocated buffer to write the UTF-8 keys to
+ * \param bufferSizeBytes size of the pre-allocated buffer
+ * \param stringAllocator function pointer to the string allocator
+ * \param context pointer that will be passed to the stringAllocator
  *
  * \return size of the buffer of keys in bytes. This is the required size of the
  * pre-allocated user supplied buffer if all of the stored contents are desired.
- *         0 if no string vector exists for the provided key
- *         -1 if the user supplied APersistableBundle_stringAllocator returns
- *         false
+ *         APERSISTABLEBUNDLE_ALLOCATOR_FAILED if the provided allocator fails
  */
 int32_t APersistableBundle_getLongVectorKeys(const APersistableBundle* _Nonnull pBundle,
                                              char* _Nullable* _Nullable outKeys,
@@ -810,9 +848,10 @@ int32_t APersistableBundle_getLongVectorKeys(const APersistableBundle* _Nonnull 
  * provided pre-allocated buffer from the user. The user must provide an
  * APersistableBundle_stringAllocator for the individual strings to be
  * allocated.
+ * The caller is responsible for freeing the returned data.
  *
  * This function returns the size in bytes required to fit the fill list of keys.
- * The supplied buffer will be filled in based on the smaller of the suplied
+ * The supplied buffer will be filled in based on the smaller of the supplied
  * bufferSizeBytes or the actual size of the stored data.
  * If the buffer is null or if the supplied bufferSizeBytes is smaller than the
  * actual stored data, then not all of the stored data will be returned.
@@ -820,16 +859,14 @@ int32_t APersistableBundle_getLongVectorKeys(const APersistableBundle* _Nonnull 
  * Users can call this function with null buffer and 0 bufferSizeBytes to get
  * the required size of the buffer to use on a subsequent call.
  *
- * \param bundle to operate on
- * \param nonnull pointer to a pre-allocated buffer to write the values to
- * \param size of the pre-allocated buffer
- * \param function pointer to the string dup allocator
+ * \param pBundle to operate on
+ * \param outKeys pointer to a pre-allocated buffer to write the UTF-8 keys to
+ * \param bufferSizeBytes size of the pre-allocated buffer
+ * \param stringAllocator function pointer to the string allocator
+ * \param context pointer that will be passed to the stringAllocator
  *
  * \return size of the buffer of keys in bytes. This is the required size of the
  * pre-allocated user supplied buffer if all of the stored contents are desired.
- *         0 if no string vector exists for the provided key
- *         -1 if the user supplied APersistableBundle_stringAllocator returns
- *         false
  */
 int32_t APersistableBundle_getDoubleVectorKeys(const APersistableBundle* _Nonnull pBundle,
                                                char* _Nullable* _Nullable outKeys,
@@ -843,9 +880,10 @@ int32_t APersistableBundle_getDoubleVectorKeys(const APersistableBundle* _Nonnul
  * provided pre-allocated buffer from the user. The user must provide an
  * APersistableBundle_stringAllocator for the individual strings to be
  * allocated.
+ * The caller is responsible for freeing the returned data.
  *
  * This function returns the size in bytes required to fit the fill list of keys.
- * The supplied buffer will be filled in based on the smaller of the suplied
+ * The supplied buffer will be filled in based on the smaller of the supplied
  * bufferSizeBytes or the actual size of the stored data.
  * If the buffer is null or if the supplied bufferSizeBytes is smaller than the
  * actual stored data, then not all of the stored data will be returned.
@@ -853,15 +891,14 @@ int32_t APersistableBundle_getDoubleVectorKeys(const APersistableBundle* _Nonnul
  * Users can call this function with null buffer and 0 bufferSizeBytes to get
  * the required size of the buffer to use on a subsequent call.
  *
- * \param bundle to operate on
- * \param nonnull pointer to a pre-allocated buffer to write the values to
- * \param size of the pre-allocated buffer
- * \param function pointer to the string dup allocator
+ * \param pBundle to operate on
+ * \param outKeys pointer to a pre-allocated buffer to write the UTF-8 keys to
+ * \param bufferSizeBytes size of the pre-allocated buffer
+ * \param stringAllocator function pointer to the string allocator
+ * \param context pointer that will be passed to the stringAllocator
  *
  * \return size of the buffer of keys in bytes. This is the required size of the
  * pre-allocated user supplied buffer if all of the stored contents are desired.
- *         0 if no string vector exists for the provided key
- *         -1 if the user supplied APersistableBundle_stringAllocator returns
  *         false
  */
 int32_t APersistableBundle_getStringVectorKeys(const APersistableBundle* _Nonnull pBundle,
@@ -876,9 +913,10 @@ int32_t APersistableBundle_getStringVectorKeys(const APersistableBundle* _Nonnul
  * provided pre-allocated buffer from the user. The user must provide an
  * APersistableBundle_stringAllocator for the individual strings to be
  * allocated.
+ * The caller is responsible for freeing the returned data in bytes.
  *
  * This function returns the size in bytes required to fit the fill list of keys.
- * The supplied buffer will be filled in based on the smaller of the suplied
+ * The supplied buffer will be filled in based on the smaller of the supplied
  * bufferSizeBytes or the actual size of the stored data.
  * If the buffer is null or if the supplied bufferSizeBytes is smaller than the
  * actual stored data, then not all of the stored data will be returned.
@@ -886,16 +924,15 @@ int32_t APersistableBundle_getStringVectorKeys(const APersistableBundle* _Nonnul
  * Users can call this function with null buffer and 0 bufferSizeBytes to get
  * the required size of the buffer to use on a subsequent call.
  *
- * \param bundle to operate on
- * \param nonnull pointer to a pre-allocated buffer to write the values to
- * \param size of the pre-allocated buffer
- * \param function pointer to the string dup allocator
+ * \param pBundle to operate on
+ * \param outKeys pointer to a pre-allocated buffer to write the UTF-8 keys to
+ * \param bufferSizeBytes size of the pre-allocated buffer
+ * \param stringAllocator function pointer to the string allocator
+ * \param context pointer that will be passed to the stringAllocator
  *
  * \return size of the buffer of keys in bytes. This is the required size of the
  * pre-allocated user supplied buffer if all of the stored contents are desired.
- *         0 if no string vector exists for the provided key
- *         -1 if the user supplied APersistableBundle_stringAllocator returns
- *         false
+ *         APERSISTABLEBUNDLE_ALLOCATOR_FAILED if the provided allocator fails
  */
 int32_t APersistableBundle_getPersistableBundleKeys(
         const APersistableBundle* _Nonnull pBundle, char* _Nullable* _Nullable outKeys,
