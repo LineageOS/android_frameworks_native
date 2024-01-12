@@ -77,7 +77,7 @@ AutoBackendTexture::AutoBackendTexture(GrDirectContext* context, AHardwareBuffer
                                                                  backendFormat,
                                                                  isOutputBuffer);
     } else {
-        LOG_ALWAYS_FATAL("Unexpected backend %d", backend);
+        LOG_ALWAYS_FATAL("Unexpected backend %u", static_cast<unsigned>(backend));
     }
 
     mColorType = GrAHardwareBufferUtils::GetSkColorTypeFromBufferFormat(desc.format);
@@ -145,8 +145,8 @@ void logFatalTexture(const char* msg, const GrBackendTexture& tex, ui::Dataspace
                              "\n\tGrBackendTexture: (%i x %i) hasMipmaps: %i isProtected: %i "
                              "texType: %i\n\t\tVkImageInfo: success: %i fFormat: %i "
                              "fSampleCount: %u fLevelCount: %u colorType %i",
-                             msg, tex.isValid(), dataspace, tex.width(), tex.height(),
-                             tex.hasMipmaps(), tex.isProtected(),
+                             msg, tex.isValid(), static_cast<int32_t>(dataspace), tex.width(),
+                             tex.height(), tex.hasMipmaps(), tex.isProtected(),
                              static_cast<int>(tex.textureType()), retrievedImageInfo,
                              imageInfo.fFormat, imageInfo.fSampleCount, imageInfo.fLevelCount,
                              colorType);
