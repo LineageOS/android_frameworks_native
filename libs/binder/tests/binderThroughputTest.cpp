@@ -220,29 +220,34 @@ void worker_fx(int num,
         workers.push_back(serviceMgr->waitForService(generateServiceName(i)));
     }
 
-    // Run the benchmark if client
+    p.signal();
+    p.wait();
+
     ProcResults results(iterations);
-
     chrono::time_point<chrono::high_resolution_clock> start, end;
-    for (int i = 0; (!cs_pair || num >= server_count) && i < iterations; i++) {
-        Parcel data, reply;
-        int target = cs_pair ? num % server_count : rand() % workers.size();
-        int sz = payload_size;
 
-        while (sz >= sizeof(uint32_t)) {
-            data.writeInt32(0);
-            sz -= sizeof(uint32_t);
-        }
-        start = chrono::high_resolution_clock::now();
-        status_t ret = workers[target]->transact(BINDER_NOP, data, &reply);
-        end = chrono::high_resolution_clock::now();
+    // Skip the benchmark if server of a cs_pair.
+    if (!(cs_pair && num < server_count)) {
+        for (int i = 0; i < iterations; i++) {
+            Parcel data, reply;
+            int target = cs_pair ? num % server_count : rand() % workers.size();
+            int sz = payload_size;
 
-        uint64_t cur_time = uint64_t(chrono::duration_cast<chrono::nanoseconds>(end - start).count());
-        results.add_time(cur_time);
+            while (sz >= sizeof(uint32_t)) {
+                data.writeInt32(0);
+                sz -= sizeof(uint32_t);
+            }
+            start = chrono::high_resolution_clock::now();
+            status_t ret = workers[target]->transact(BINDER_NOP, data, &reply);
+            end = chrono::high_resolution_clock::now();
 
-        if (ret != NO_ERROR) {
-           cout << "thread " << num << " failed " << ret << "i : " << i << endl;
-           exit(EXIT_FAILURE);
+            uint64_t cur_time = uint64_t(chrono::duration_cast<chrono::nanoseconds>(end - start).count());
+            results.add_time(cur_time);
+
+            if (ret != NO_ERROR) {
+               cout << "thread " << num << " failed " << ret << "i : " << i << endl;
+               exit(EXIT_FAILURE);
+            }
         }
     }
 
@@ -300,8 +305,15 @@ void run_main(int iterations,
         pipes.push_back(make_worker(i, iterations, workers, payload_size, cs_pair));
     }
     wait_all(pipes);
+    // All workers have now been spawned and added themselves to service
+    // manager. Signal each worker to obtain a handle to the server workers from
+    // servicemanager.
+    signal_all(pipes);
+    // Wait for each worker to finish obtaining a handle to all server workers
+    // from servicemanager.
+    wait_all(pipes);
 
-    // Run the workers and wait for completion.
+    // Run the benchmark and wait for completion.
     chrono::time_point<chrono::high_resolution_clock> start, end;
     cout << "waiting for workers to complete" << endl;
     start = chrono::high_resolution_clock::now();
