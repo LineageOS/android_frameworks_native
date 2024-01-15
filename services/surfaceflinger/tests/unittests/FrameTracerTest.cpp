@@ -179,23 +179,35 @@ TEST_F(FrameTracerTest, canTraceAfterAddingLayer) {
         tracingSession->StopBlocking();
 
         auto packets = readGraphicsFramePacketsBlocking(tracingSession.get());
-        EXPECT_EQ(packets.size(), 1);
+        ASSERT_EQ(packets.size(), 2);
 
-        const auto& packet = packets[0];
-        ASSERT_TRUE(packet.has_timestamp());
-        EXPECT_EQ(packet.timestamp(), timestamp);
-        ASSERT_TRUE(packet.has_graphics_frame_event());
-        const auto& frame_event = packet.graphics_frame_event();
-        ASSERT_TRUE(frame_event.has_buffer_event());
-        const auto& buffer_event = frame_event.buffer_event();
-        ASSERT_TRUE(buffer_event.has_buffer_id());
-        EXPECT_EQ(buffer_event.buffer_id(), bufferID);
-        ASSERT_TRUE(buffer_event.has_frame_number());
-        EXPECT_EQ(buffer_event.frame_number(), frameNumber);
-        ASSERT_TRUE(buffer_event.has_type());
-        EXPECT_EQ(buffer_event.type(), perfetto::protos::GraphicsFrameEvent_BufferEventType(type));
-        ASSERT_TRUE(buffer_event.has_duration_ns());
-        EXPECT_EQ(buffer_event.duration_ns(), duration);
+        const auto& packet1 = packets[0];
+        ASSERT_TRUE(packet1.has_timestamp());
+        EXPECT_EQ(packet1.timestamp(), timestamp);
+        ASSERT_TRUE(packet1.has_graphics_frame_event());
+        const auto& frame_event1 = packet1.graphics_frame_event();
+        ASSERT_TRUE(frame_event1.has_buffer_event());
+        const auto& buffer_event1 = frame_event1.buffer_event();
+        ASSERT_TRUE(buffer_event1.has_buffer_id());
+        EXPECT_EQ(buffer_event1.buffer_id(), bufferID);
+        ASSERT_TRUE(buffer_event1.has_frame_number());
+        EXPECT_EQ(buffer_event1.frame_number(), frameNumber);
+        ASSERT_TRUE(buffer_event1.has_type());
+        EXPECT_EQ(buffer_event1.type(), perfetto::protos::GraphicsFrameEvent_BufferEventType(type));
+        ASSERT_TRUE(buffer_event1.has_duration_ns());
+        EXPECT_EQ(buffer_event1.duration_ns(), duration);
+
+        const auto& packet2 = packets[1];
+        ASSERT_TRUE(packet2.has_timestamp());
+        EXPECT_EQ(packet2.timestamp(), 0);
+        ASSERT_TRUE(packet2.has_graphics_frame_event());
+        const auto& frame_event2 = packet2.graphics_frame_event();
+        ASSERT_TRUE(frame_event2.has_buffer_event());
+        const auto& buffer_event2 = frame_event2.buffer_event();
+        ASSERT_TRUE(buffer_event2.has_type());
+        EXPECT_EQ(buffer_event2.type(),
+                  perfetto::protos::GraphicsFrameEvent_BufferEventType(
+                          FrameTracer::FrameEvent::UNSPECIFIED));
     }
 }
 
@@ -219,7 +231,18 @@ TEST_F(FrameTracerTest, traceFenceTriggersOnNextTraceAfterFenceFired) {
         tracingSession->StopBlocking();
 
         auto packets = readGraphicsFramePacketsBlocking(tracingSession.get());
-        EXPECT_EQ(packets.size(), 0);
+        ASSERT_EQ(packets.size(), 1);
+        const auto& packet = packets[0];
+        ASSERT_TRUE(packet.has_timestamp());
+        EXPECT_EQ(packet.timestamp(), 0);
+        ASSERT_TRUE(packet.has_graphics_frame_event());
+        const auto& frame_event = packet.graphics_frame_event();
+        ASSERT_TRUE(frame_event.has_buffer_event());
+        const auto& buffer_event = frame_event.buffer_event();
+        ASSERT_TRUE(buffer_event.has_type());
+        EXPECT_EQ(buffer_event.type(),
+                  perfetto::protos::GraphicsFrameEvent_BufferEventType(
+                          FrameTracer::FrameEvent::UNSPECIFIED));
     }
 
     {
@@ -235,22 +258,56 @@ TEST_F(FrameTracerTest, traceFenceTriggersOnNextTraceAfterFenceFired) {
         tracingSession->StopBlocking();
 
         auto packets = readGraphicsFramePacketsBlocking(tracingSession.get());
-        EXPECT_EQ(packets.size(), 2); // Two packets because of the extra trace made above.
+        ASSERT_EQ(packets.size(), 3);
 
-        const auto& packet = packets[1];
-        ASSERT_TRUE(packet.has_timestamp());
-        EXPECT_EQ(packet.timestamp(), timestamp);
-        ASSERT_TRUE(packet.has_graphics_frame_event());
-        const auto& frame_event = packet.graphics_frame_event();
-        ASSERT_TRUE(frame_event.has_buffer_event());
-        const auto& buffer_event = frame_event.buffer_event();
-        ASSERT_TRUE(buffer_event.has_buffer_id());
-        EXPECT_EQ(buffer_event.buffer_id(), bufferID);
-        ASSERT_TRUE(buffer_event.has_frame_number());
-        EXPECT_EQ(buffer_event.frame_number(), frameNumber);
-        ASSERT_TRUE(buffer_event.has_type());
-        EXPECT_EQ(buffer_event.type(), perfetto::protos::GraphicsFrameEvent_BufferEventType(type));
-        EXPECT_FALSE(buffer_event.has_duration_ns());
+        const auto& packet1 = packets[0];
+        ASSERT_TRUE(packet1.has_timestamp());
+        EXPECT_EQ(packet1.timestamp(), timestamp);
+        ASSERT_TRUE(packet1.has_graphics_frame_event());
+        const auto& frame_event1 = packet1.graphics_frame_event();
+        ASSERT_TRUE(frame_event1.has_buffer_event());
+        const auto& buffer_event1 = frame_event1.buffer_event();
+        ASSERT_TRUE(buffer_event1.has_buffer_id());
+        EXPECT_EQ(buffer_event1.buffer_id(), bufferID);
+        ASSERT_TRUE(buffer_event1.has_frame_number());
+        EXPECT_EQ(buffer_event1.frame_number(), frameNumber);
+        ASSERT_TRUE(buffer_event1.has_type());
+        EXPECT_EQ(buffer_event1.type(),
+                  perfetto::protos::GraphicsFrameEvent::BufferEventType(type));
+        EXPECT_FALSE(buffer_event1.has_duration_ns());
+
+        const auto& packet2 = packets[1];
+        ASSERT_TRUE(packet2.has_timestamp());
+        EXPECT_EQ(packet2.timestamp(), timestamp);
+        ASSERT_TRUE(packet2.has_graphics_frame_event());
+        const auto& frame_event2 = packet2.graphics_frame_event();
+        ASSERT_TRUE(frame_event2.has_buffer_event());
+        const auto& buffer_event2 = frame_event2.buffer_event();
+        ASSERT_TRUE(buffer_event2.has_buffer_id());
+        EXPECT_EQ(buffer_event2.buffer_id(), bufferID);
+        ASSERT_TRUE(buffer_event2.has_frame_number());
+        EXPECT_EQ(buffer_event2.frame_number(), frameNumber);
+        ASSERT_TRUE(buffer_event2.has_type());
+        EXPECT_EQ(buffer_event2.type(),
+                  perfetto::protos::GraphicsFrameEvent::BufferEventType(type));
+        EXPECT_FALSE(buffer_event2.has_duration_ns());
+
+        const auto& packet3 = packets[2];
+        ASSERT_TRUE(packet3.has_timestamp());
+        EXPECT_EQ(packet3.timestamp(), 0);
+        ASSERT_TRUE(packet3.has_graphics_frame_event());
+        const auto& frame_event3 = packet3.graphics_frame_event();
+        ASSERT_TRUE(frame_event3.has_buffer_event());
+        const auto& buffer_event3 = frame_event3.buffer_event();
+        ASSERT_TRUE(buffer_event3.has_buffer_id());
+        EXPECT_EQ(buffer_event3.buffer_id(), bufferID);
+        ASSERT_TRUE(buffer_event3.has_frame_number());
+        EXPECT_EQ(buffer_event3.frame_number(), 0);
+        ASSERT_TRUE(buffer_event3.has_type());
+        EXPECT_EQ(buffer_event3.type(),
+                  perfetto::protos::GraphicsFrameEvent::BufferEventType(
+                          FrameTracer::FrameEvent::UNSPECIFIED));
+        EXPECT_FALSE(buffer_event3.has_duration_ns());
     }
 }
 
@@ -285,7 +342,7 @@ TEST_F(FrameTracerTest, traceFenceWithStartTimeAfterSignalTime_ShouldHaveNoDurat
     tracingSession->StopBlocking();
 
     auto packets = readGraphicsFramePacketsBlocking(tracingSession.get());
-    EXPECT_EQ(packets.size(), 2);
+    ASSERT_EQ(packets.size(), 3);
 
     const auto& packet1 = packets[0];
     ASSERT_TRUE(packet1.has_timestamp());
@@ -293,6 +350,8 @@ TEST_F(FrameTracerTest, traceFenceWithStartTimeAfterSignalTime_ShouldHaveNoDurat
     ASSERT_TRUE(packet1.has_graphics_frame_event());
     ASSERT_TRUE(packet1.graphics_frame_event().has_buffer_event());
     ASSERT_FALSE(packet1.graphics_frame_event().buffer_event().has_duration_ns());
+    EXPECT_EQ(packet1.graphics_frame_event().buffer_event().type(),
+              perfetto::protos::GraphicsFrameEvent::BufferEventType(type));
 
     const auto& packet2 = packets[1];
     ASSERT_TRUE(packet2.has_timestamp());
@@ -300,6 +359,17 @@ TEST_F(FrameTracerTest, traceFenceWithStartTimeAfterSignalTime_ShouldHaveNoDurat
     ASSERT_TRUE(packet2.has_graphics_frame_event());
     ASSERT_TRUE(packet2.graphics_frame_event().has_buffer_event());
     ASSERT_FALSE(packet2.graphics_frame_event().buffer_event().has_duration_ns());
+    EXPECT_EQ(packet2.graphics_frame_event().buffer_event().type(),
+              perfetto::protos::GraphicsFrameEvent::BufferEventType(type));
+
+    const auto& packet3 = packets[2];
+    ASSERT_TRUE(packet3.has_timestamp());
+    EXPECT_EQ(packet3.timestamp(), 0);
+    ASSERT_TRUE(packet3.has_graphics_frame_event());
+    ASSERT_TRUE(packet3.graphics_frame_event().has_buffer_event());
+    EXPECT_EQ(packet3.graphics_frame_event().buffer_event().type(),
+              perfetto::protos::GraphicsFrameEvent::BufferEventType(
+                      FrameTracer::FrameEvent::UNSPECIFIED));
 }
 
 TEST_F(FrameTracerTest, traceFenceOlderThanDeadline_ShouldBeIgnored) {
@@ -322,7 +392,15 @@ TEST_F(FrameTracerTest, traceFenceOlderThanDeadline_ShouldBeIgnored) {
     tracingSession->StopBlocking();
 
     auto packets = readGraphicsFramePacketsBlocking(tracingSession.get());
-    EXPECT_EQ(packets.size(), 0);
+    ASSERT_EQ(packets.size(), 1);
+    const auto& packet = packets[0];
+    ASSERT_TRUE(packet.has_timestamp());
+    EXPECT_EQ(packet.timestamp(), 0);
+    ASSERT_TRUE(packet.has_graphics_frame_event());
+    ASSERT_TRUE(packet.graphics_frame_event().has_buffer_event());
+    EXPECT_EQ(packet.graphics_frame_event().buffer_event().type(),
+              perfetto::protos::GraphicsFrameEvent::BufferEventType(
+                      FrameTracer::FrameEvent::UNSPECIFIED));
 }
 
 TEST_F(FrameTracerTest, traceFenceWithValidStartTime_ShouldHaveCorrectDuration) {
@@ -357,7 +435,7 @@ TEST_F(FrameTracerTest, traceFenceWithValidStartTime_ShouldHaveCorrectDuration) 
     tracingSession->StopBlocking();
 
     auto packets = readGraphicsFramePacketsBlocking(tracingSession.get());
-    EXPECT_EQ(packets.size(), 2);
+    ASSERT_EQ(packets.size(), 3);
 
     const auto& packet1 = packets[0];
     ASSERT_TRUE(packet1.has_timestamp());
@@ -367,6 +445,7 @@ TEST_F(FrameTracerTest, traceFenceWithValidStartTime_ShouldHaveCorrectDuration) 
     ASSERT_TRUE(packet1.graphics_frame_event().buffer_event().has_duration_ns());
     const auto& buffer_event1 = packet1.graphics_frame_event().buffer_event();
     EXPECT_EQ(buffer_event1.duration_ns(), duration);
+    EXPECT_EQ(buffer_event1.type(), perfetto::protos::GraphicsFrameEvent::BufferEventType(type));
 
     const auto& packet2 = packets[1];
     ASSERT_TRUE(packet2.has_timestamp());
@@ -376,6 +455,17 @@ TEST_F(FrameTracerTest, traceFenceWithValidStartTime_ShouldHaveCorrectDuration) 
     ASSERT_TRUE(packet2.graphics_frame_event().buffer_event().has_duration_ns());
     const auto& buffer_event2 = packet2.graphics_frame_event().buffer_event();
     EXPECT_EQ(buffer_event2.duration_ns(), duration);
+    EXPECT_EQ(buffer_event2.type(), perfetto::protos::GraphicsFrameEvent::BufferEventType(type));
+
+    const auto& packet3 = packets[2];
+    ASSERT_TRUE(packet3.has_timestamp());
+    EXPECT_EQ(packet3.timestamp(), 0);
+    ASSERT_TRUE(packet3.has_graphics_frame_event());
+    ASSERT_TRUE(packet3.graphics_frame_event().has_buffer_event());
+    const auto& buffer_event3 = packet3.graphics_frame_event().buffer_event();
+    EXPECT_EQ(buffer_event3.type(),
+              perfetto::protos::GraphicsFrameEvent::BufferEventType(
+                      FrameTracer::FrameEvent::UNSPECIFIED));
 }
 
 } // namespace
