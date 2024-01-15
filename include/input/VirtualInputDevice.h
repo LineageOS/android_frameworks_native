@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023 The Android Open Source Project
+ * Copyright 2023 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -64,6 +64,8 @@ public:
 
 class VirtualMouse : public VirtualInputDevice {
 public:
+    // Expose to share with VirtualStylus.
+    static const std::map<int, UinputAction> BUTTON_ACTION_MAPPING;
     VirtualMouse(android::base::unique_fd fd);
     virtual ~VirtualMouse() override;
     bool writeButtonEvent(int32_t androidButtonCode, int32_t androidAction,
@@ -74,12 +76,13 @@ public:
                           std::chrono::nanoseconds eventTime);
 
 private:
-    static const std::map<int, UinputAction> BUTTON_ACTION_MAPPING;
     static const std::map<int, int> BUTTON_CODE_MAPPING;
 };
 
 class VirtualTouchscreen : public VirtualInputDevice {
 public:
+    // Expose to share with VirtualStylus.
+    static const std::map<int, UinputAction> TOUCH_ACTION_MAPPING;
     VirtualTouchscreen(android::base::unique_fd fd);
     virtual ~VirtualTouchscreen() override;
     // TODO(b/259554911): changing float parameters to int32_t.
@@ -88,9 +91,7 @@ public:
                          std::chrono::nanoseconds eventTime);
 
 private:
-    static const std::map<int, UinputAction> TOUCH_ACTION_MAPPING;
     static const std::map<int, int> TOOL_TYPE_MAPPING;
-
     /* The set of active touch pointers on this device.
      * We only allow pointer id to go up to MAX_POINTERS because the maximum slots of virtual
      * touchscreen is set up with MAX_POINTERS. Note that in other cases Android allows pointer id
@@ -101,4 +102,24 @@ private:
     bool handleTouchDown(int32_t pointerId, std::chrono::nanoseconds eventTime);
     bool handleTouchUp(int32_t pointerId, std::chrono::nanoseconds eventTime);
 };
+
+class VirtualStylus : public VirtualInputDevice {
+public:
+    VirtualStylus(android::base::unique_fd fd);
+    ~VirtualStylus() override;
+    bool writeMotionEvent(int32_t toolType, int32_t action, int32_t locationX, int32_t locationY,
+                          int32_t pressure, int32_t tiltX, int32_t tiltY,
+                          std::chrono::nanoseconds eventTime);
+    bool writeButtonEvent(int32_t androidButtonCode, int32_t androidAction,
+                          std::chrono::nanoseconds eventTime);
+
+private:
+    static const std::map<int, int> TOOL_TYPE_MAPPING;
+    static const std::map<int, int> BUTTON_CODE_MAPPING;
+    // True if the stylus is touching or hovering on the screen.
+    bool mIsStylusDown;
+    bool handleStylusDown(uint16_t tool, std::chrono::nanoseconds eventTime);
+    bool handleStylusUp(uint16_t tool, std::chrono::nanoseconds eventTime);
+};
+
 } // namespace android
