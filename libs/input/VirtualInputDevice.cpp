@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023 The Android Open Source Project
+ * Copyright 2023 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -39,7 +39,9 @@ static bool isDebug() {
 }
 
 namespace android {
+
 VirtualInputDevice::VirtualInputDevice(unique_fd fd) : mFd(std::move(fd)) {}
+
 VirtualInputDevice::~VirtualInputDevice() {
     ioctl(mFd, UI_DEV_DESTROY);
 }
@@ -56,7 +58,7 @@ bool VirtualInputDevice::writeInputEvent(uint16_t type, uint16_t code, int32_t v
     return TEMP_FAILURE_RETRY(write(mFd, &ev, sizeof(struct input_event))) == sizeof(ev);
 }
 
-/** Utility method to write keyboard key events or mouse button events. */
+/** Utility method to write keyboard key events or mouse/stylus button events. */
 bool VirtualInputDevice::writeEvKeyEvent(int32_t androidCode, int32_t androidAction,
                                          const std::map<int, int>& evKeyCodeMapping,
                                          const std::map<int, UinputAction>& actionMapping,
@@ -68,13 +70,17 @@ bool VirtualInputDevice::writeEvKeyEvent(int32_t androidCode, int32_t androidAct
     }
     auto actionIterator = actionMapping.find(androidAction);
     if (actionIterator == actionMapping.end()) {
+        ALOGE("Unsupported native action for android action %d", androidAction);
         return false;
     }
-    if (!writeInputEvent(EV_KEY, static_cast<uint16_t>(evKeyCodeIterator->second),
-                         static_cast<int32_t>(actionIterator->second), eventTime)) {
+    int32_t action = static_cast<int32_t>(actionIterator->second);
+    uint16_t evKeyCode = static_cast<uint16_t>(evKeyCodeIterator->second);
+    if (!writeInputEvent(EV_KEY, evKeyCode, action, eventTime)) {
+        ALOGE("Failed to write native action %d and EV keycode %u.", action, evKeyCode);
         return false;
     }
     if (!writeInputEvent(EV_SYN, SYN_REPORT, 0, eventTime)) {
+        ALOGE("Failed to write SYN_REPORT for EV_KEY event.");
         return false;
     }
     return true;
@@ -85,6 +91,7 @@ const std::map<int, UinputAction> VirtualKeyboard::KEY_ACTION_MAPPING = {
         {AKEY_EVENT_ACTION_DOWN, UinputAction::PRESS},
         {AKEY_EVENT_ACTION_UP, UinputAction::RELEASE},
 };
+
 // Keycode mapping from https://source.android.com/devices/input/keyboard-devices
 const std::map<int, int> VirtualKeyboard::KEY_CODE_MAPPING = {
         {AKEYCODE_0, KEY_0},
@@ -195,7 +202,9 @@ const std::map<int, int> VirtualKeyboard::KEY_CODE_MAPPING = {
         {AKEYCODE_NUMPAD_COMMA, KEY_KPCOMMA},
         {AKEYCODE_LANGUAGE_SWITCH, KEY_LANGUAGE},
 };
+
 VirtualKeyboard::VirtualKeyboard(unique_fd fd) : VirtualInputDevice(std::move(fd)) {}
+
 VirtualKeyboard::~VirtualKeyboard() {}
 
 bool VirtualKeyboard::writeKeyEvent(int32_t androidKeyCode, int32_t androidAction,
@@ -275,6 +284,7 @@ const std::map<int, UinputAction> VirtualTouchscreen::TOUCH_ACTION_MAPPING = {
         {AMOTION_EVENT_ACTION_MOVE, UinputAction::MOVE},
         {AMOTION_EVENT_ACTION_CANCEL, UinputAction::CANCEL},
 };
+
 // Tool type mapping from https://source.android.com/devices/input/touch-devices
 const std::map<int, int> VirtualTouchscreen::TOOL_TYPE_MAPPING = {
         {AMOTION_EVENT_TOOL_TYPE_FINGER, MT_TOOL_FINGER},
@@ -390,6 +400,112 @@ bool VirtualTouchscreen::handleTouchDown(int32_t pointerId, std::chrono::nanosec
     if (!writeInputEvent(EV_ABS, ABS_MT_TRACKING_ID, static_cast<int32_t>(pointerId), eventTime)) {
         return false;
     }
+    return true;
+}
+
+// --- VirtualStylus ---
+const std::map<int, int> VirtualStylus::TOOL_TYPE_MAPPING = {
+        {AMOTION_EVENT_TOOL_TYPE_STYLUS, BTN_TOOL_PEN},
+        {AMOTION_EVENT_TOOL_TYPE_ERASER, BTN_TOOL_RUBBER},
+};
+
+// Button code mapping from https://source.android.com/devices/input/touch-devices
+const std::map<int, int> VirtualStylus::BUTTON_CODE_MAPPING = {
+        {AMOTION_EVENT_BUTTON_STYLUS_PRIMARY, BTN_STYLUS},
+        {AMOTION_EVENT_BUTTON_STYLUS_SECONDARY, BTN_STYLUS2},
+};
+
+VirtualStylus::VirtualStylus(unique_fd fd)
+      : VirtualInputDevice(std::move(fd)), mIsStylusDown(false) {}
+
+VirtualStylus::~VirtualStylus() {}
+
+bool VirtualStylus::writeMotionEvent(int32_t toolType, int32_t action, int32_t locationX,
+                                     int32_t locationY, int32_t pressure, int32_t tiltX,
+                                     int32_t tiltY, std::chrono::nanoseconds eventTime) {
+    auto actionIterator = VirtualTouchscreen::TOUCH_ACTION_MAPPING.find(action);
+    if (actionIterator == VirtualTouchscreen::TOUCH_ACTION_MAPPING.end()) {
+        ALOGE("Unsupported action passed for stylus: %d.", action);
+        return false;
+    }
+    UinputAction uinputAction = actionIterator->second;
+    auto toolTypeIterator = TOOL_TYPE_MAPPING.find(toolType);
+    if (toolTypeIterator == TOOL_TYPE_MAPPING.end()) {
+        ALOGE("Unsupported tool type passed for stylus: %d.", toolType);
+        return false;
+    }
+    uint16_t tool = static_cast<uint16_t>(toolTypeIterator->second);
+    if (uinputAction == UinputAction::PRESS && !handleStylusDown(tool, eventTime)) {
+        return false;
+    }
+    if (!mIsStylusDown) {
+        ALOGE("Action UP or MOVE received with no prior action DOWN for stylus %d.", mFd.get());
+        return false;
+    }
+    if (uinputAction == UinputAction::RELEASE && !handleStylusUp(tool, eventTime)) {
+        return false;
+    }
+    if (!writeInputEvent(EV_ABS, ABS_X, locationX, eventTime)) {
+        ALOGE("Unsupported x-axis location passed for stylus: %d.", locationX);
+        return false;
+    }
+    if (!writeInputEvent(EV_ABS, ABS_Y, locationY, eventTime)) {
+        ALOGE("Unsupported y-axis location passed for stylus: %d.", locationY);
+        return false;
+    }
+    if (!writeInputEvent(EV_ABS, ABS_TILT_X, tiltX, eventTime)) {
+        ALOGE("Unsupported x-axis tilt passed for stylus: %d.", tiltX);
+        return false;
+    }
+    if (!writeInputEvent(EV_ABS, ABS_TILT_Y, tiltY, eventTime)) {
+        ALOGE("Unsupported y-axis tilt passed for stylus: %d.", tiltY);
+        return false;
+    }
+    if (!writeInputEvent(EV_ABS, ABS_PRESSURE, pressure, eventTime)) {
+        ALOGE("Unsupported pressure passed for stylus: %d.", pressure);
+        return false;
+    }
+    if (!writeInputEvent(EV_SYN, SYN_REPORT, 0, eventTime)) {
+        ALOGE("Failed to write SYN_REPORT for stylus motion event.");
+        return false;
+    }
+    return true;
+}
+
+bool VirtualStylus::writeButtonEvent(int32_t androidButtonCode, int32_t androidAction,
+                                     std::chrono::nanoseconds eventTime) {
+    return writeEvKeyEvent(androidButtonCode, androidAction, BUTTON_CODE_MAPPING,
+                           VirtualMouse::BUTTON_ACTION_MAPPING, eventTime);
+}
+
+bool VirtualStylus::handleStylusDown(uint16_t tool, std::chrono::nanoseconds eventTime) {
+    if (mIsStylusDown) {
+        ALOGE("Repetitive action DOWN event received for a stylus that is already down.");
+        return false;
+    }
+    if (!writeInputEvent(EV_KEY, tool, static_cast<int32_t>(UinputAction::PRESS), eventTime)) {
+        ALOGE("Failed to write EV_KEY for stylus tool type: %u.", tool);
+        return false;
+    }
+    if (!writeInputEvent(EV_KEY, BTN_TOUCH, static_cast<int32_t>(UinputAction::PRESS), eventTime)) {
+        ALOGE("Failed to write BTN_TOUCH for stylus press.");
+        return false;
+    }
+    mIsStylusDown = true;
+    return true;
+}
+
+bool VirtualStylus::handleStylusUp(uint16_t tool, std::chrono::nanoseconds eventTime) {
+    if (!writeInputEvent(EV_KEY, tool, static_cast<int32_t>(UinputAction::RELEASE), eventTime)) {
+        ALOGE("Failed to write EV_KEY for stylus tool type: %u.", tool);
+        return false;
+    }
+    if (!writeInputEvent(EV_KEY, BTN_TOUCH, static_cast<int32_t>(UinputAction::RELEASE),
+                         eventTime)) {
+        ALOGE("Failed to write BTN_TOUCH for stylus release.");
+        return false;
+    }
+    mIsStylusDown = false;
     return true;
 }
 
