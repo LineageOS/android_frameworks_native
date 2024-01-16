@@ -84,6 +84,8 @@ cc_defaults {
         "libprotobuf-cpp-lite",
         "libstatslog",
         "libutils",
+        "libstatspull",
+        "libstatssocket",
         "server_configurable_flags",
     ],
     static_libs: [
@@ -96,15 +98,11 @@ cc_defaults {
             shared_libs: [
                 "libgui",
                 "libinput",
-                "libstatspull",
-                "libstatssocket",
             ],
         },
         host: {
             static_libs: [
                 "libinput",
-                "libstatspull",
-                "libstatssocket",
             ],
             include_dirs: [
                 "bionic/libc/kernel/android/uapi/",
