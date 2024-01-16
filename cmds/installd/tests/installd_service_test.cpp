@@ -548,8 +548,7 @@ protected:
         unique_fd ufd(open(path.c_str(), open_mode));
         EXPECT_GE(ufd.get(), 0) << "open failed: " << strerror(errno);
         ParcelFileDescriptor rfd(std::move(ufd));
-        return service->createFsveritySetupAuthToken(std::move(rfd), kTestAppId, kTestUserId,
-                                                     _aidl_return);
+        return service->createFsveritySetupAuthToken(std::move(rfd), kTestAppId, _aidl_return);
     }
 };
 
