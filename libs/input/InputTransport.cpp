@@ -521,17 +521,33 @@ status_t InputChannel::receiveMessage(InputMessage* msg) {
 bool InputChannel::probablyHasInput() const {
     struct pollfd pfds = {.fd = mFd, .events = POLLIN};
     if (::poll(&pfds, /*nfds=*/1, /*timeout=*/0) <= 0) {
-        // This can be a false negative because EAGAIN and ENOMEM are not handled. The latter should
-        // be extremely rare. The EAGAIN is also unlikely because it happens only when the signal
-        // arrives while the syscall is executed, and the syscall is quick. Hitting EAGAIN too often
+        // This can be a false negative because EINTR and ENOMEM are not handled. The latter should
+        // be extremely rare. The EINTR is also unlikely because it happens only when the signal
+        // arrives while the syscall is executed, and the syscall is quick. Hitting EINTR too often
         // would be a sign of having too many signals, which is a bigger performance problem. A
-        // common tradition is to repeat the syscall on each EAGAIN, but it is not necessary here.
+        // common tradition is to repeat the syscall on each EINTR, but it is not necessary here.
         // In other words, the missing one liner is replaced by a multiline explanation.
         return false;
     }
     // From poll(2): The bits returned in |revents| can include any of those specified in |events|,
     // or one of the values POLLERR, POLLHUP, or POLLNVAL.
     return (pfds.revents & POLLIN) != 0;
+}
+
+void InputChannel::waitForMessage(std::chrono::milliseconds timeout) const {
+    if (timeout < 0ms) {
+        LOG(FATAL) << "Timeout cannot be negative, received " << timeout.count();
+    }
+    struct pollfd pfds = {.fd = mFd, .events = POLLIN};
+    int ret;
+    std::chrono::time_point<std::chrono::steady_clock> stopTime =
+            std::chrono::steady_clock::now() + timeout;
+    std::chrono::milliseconds remaining = timeout;
+    do {
+        ret = ::poll(&pfds, /*nfds=*/1, /*timeout=*/remaining.count());
+        remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
+                stopTime - std::chrono::steady_clock::now());
+    } while (ret == -1 && errno == EINTR && remaining > 0ms);
 }
 
 std::unique_ptr<InputChannel> InputChannel::dup() const {
