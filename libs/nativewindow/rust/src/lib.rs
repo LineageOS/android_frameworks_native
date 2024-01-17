@@ -100,18 +100,33 @@ impl HardwareBuffer {
         }
     }
 
-    /// Adopts the raw pointer and wraps it in a Rust AHardwareBuffer.
-    ///
-    /// # Errors
-    ///
-    /// Will panic if buffer_ptr is null.
+    /// Adopts the given raw pointer and wraps it in a Rust HardwareBuffer.
     ///
     /// # Safety
     ///
-    /// This function adopts the pointer but does NOT increment the refcount on the buffer. If the
-    /// caller uses the pointer after the created object is dropped it will cause a memory leak.
+    /// This function takes ownership of the pointer and does NOT increment the refcount on the
+    /// buffer. If the caller uses the pointer after the created object is dropped it will cause
+    /// undefined behaviour. If the caller wants to continue using the pointer after calling this
+    /// then use [`clone_from_raw`](Self::clone_from_raw) instead.
     pub unsafe fn from_raw(buffer_ptr: NonNull<AHardwareBuffer>) -> Self {
         Self(buffer_ptr)
+    }
+
+    /// Creates a new Rust HardwareBuffer to wrap the given AHardwareBuffer without taking ownership
+    /// of it.
+    ///
+    /// Unlike [`from_raw`](Self::from_raw) this method will increment the refcount on the buffer.
+    /// This means that the caller can continue to use the raw buffer it passed in, and must call
+    /// [`AHardwareBuffer_release`](ffi::AHardwareBuffer_release) when it is finished with it to
+    /// avoid a memory leak.
+    ///
+    /// # Safety
+    ///
+    /// The buffer pointer must point to a valid `AHardwareBuffer`.
+    pub unsafe fn clone_from_raw(buffer: NonNull<AHardwareBuffer>) -> Self {
+        // SAFETY: The caller guarantees that the AHardwareBuffer pointer is valid.
+        unsafe { ffi::AHardwareBuffer_acquire(buffer.as_ptr()) };
+        Self(buffer)
     }
 
     /// Get the internal |AHardwareBuffer| pointer without decrementing the refcount. This can
