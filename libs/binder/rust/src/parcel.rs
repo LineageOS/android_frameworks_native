@@ -34,7 +34,7 @@ mod parcelable_holder;
 pub use self::file_descriptor::ParcelFileDescriptor;
 pub use self::parcelable::{
     Deserialize, DeserializeArray, DeserializeOption, Parcelable, Serialize, SerializeArray,
-    SerializeOption, NON_NULL_PARCELABLE_FLAG, NULL_PARCELABLE_FLAG,
+    SerializeOption, UnstructuredParcelable, NON_NULL_PARCELABLE_FLAG, NULL_PARCELABLE_FLAG,
 };
 pub use self::parcelable_holder::{ParcelableHolder, ParcelableMetadata};
 

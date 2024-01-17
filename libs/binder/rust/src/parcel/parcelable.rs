@@ -27,7 +27,7 @@ use std::os::raw::c_char;
 use std::ptr;
 use std::slice;
 
-/// Super-trait for Binder parcelables.
+/// Super-trait for structured Binder parcelables, i.e. those generated from AIDL.
 ///
 /// This trait is equivalent `android::Parcelable` in C++,
 /// and defines a common interface that all parcelables need
@@ -48,6 +48,35 @@ pub trait Parcelable {
     /// preferred over this function, since the former also
     /// parse the additional header.
     fn read_from_parcel(&mut self, parcel: &BorrowedParcel<'_>) -> Result<()>;
+}
+
+/// Super-trait for unstructured Binder parcelables, i.e. those implemented manually.
+///
+/// These differ from structured parcelables in that they may not have a reasonable default value
+/// and so aren't required to implement `Default`.
+pub trait UnstructuredParcelable: Sized {
+    /// Internal serialization function for parcelables.
+    ///
+    /// This method is mainly for internal use. `Serialize::serialize` and its variants are
+    /// generally preferred over calling this function, since the former also prepend a header.
+    fn write_to_parcel(&self, parcel: &mut BorrowedParcel<'_>) -> Result<()>;
+
+    /// Internal deserialization function for parcelables.
+    ///
+    /// This method is mainly for internal use. `Deserialize::deserialize` and its variants are
+    /// generally preferred over calling this function, since the former also parse the additional
+    /// header.
+    fn from_parcel(parcel: &BorrowedParcel<'_>) -> Result<Self>;
+
+    /// Internal deserialization function for parcelables.
+    ///
+    /// This method is mainly for internal use. `Deserialize::deserialize_from` and its variants are
+    /// generally preferred over calling this function, since the former also parse the additional
+    /// header.
+    fn read_from_parcel(&mut self, parcel: &BorrowedParcel<'_>) -> Result<()> {
+        *self = Self::from_parcel(parcel)?;
+        Ok(())
+    }
 }
 
 /// A struct whose instances can be written to a [`crate::parcel::Parcel`].
@@ -996,6 +1025,125 @@ macro_rules! impl_deserialize_for_parcelable {
                 } else {
                     use $crate::Parcelable;
                     this.get_or_insert_with(Self::default).read_from_parcel(parcel)
+                }
+            }
+        }
+    };
+}
+
+/// Implements `Serialize` trait and friends for an unstructured parcelable.
+///
+/// The target type must implement the `UnstructuredParcelable` trait.
+#[macro_export]
+macro_rules! impl_serialize_for_unstructured_parcelable {
+    ($parcelable:ident) => {
+        $crate::impl_serialize_for_unstructured_parcelable!($parcelable < >);
+    };
+    ($parcelable:ident < $( $param:ident ),* , >) => {
+        $crate::impl_serialize_for_unstructured_parcelable!($parcelable < $($param),* >);
+    };
+    ($parcelable:ident < $( $param:ident ),* > ) => {
+        impl < $($param),* > $crate::binder_impl::Serialize for $parcelable < $($param),* > {
+            fn serialize(
+                &self,
+                parcel: &mut $crate::binder_impl::BorrowedParcel<'_>,
+            ) -> std::result::Result<(), $crate::StatusCode> {
+                <Self as $crate::binder_impl::SerializeOption>::serialize_option(Some(self), parcel)
+            }
+        }
+
+        impl < $($param),* > $crate::binder_impl::SerializeArray for $parcelable < $($param),* > {}
+
+        impl < $($param),* > $crate::binder_impl::SerializeOption for $parcelable < $($param),* > {
+            fn serialize_option(
+                this: Option<&Self>,
+                parcel: &mut $crate::binder_impl::BorrowedParcel<'_>,
+            ) -> std::result::Result<(), $crate::StatusCode> {
+                if let Some(this) = this {
+                    use $crate::binder_impl::UnstructuredParcelable;
+                    parcel.write(&$crate::binder_impl::NON_NULL_PARCELABLE_FLAG)?;
+                    this.write_to_parcel(parcel)
+                } else {
+                    parcel.write(&$crate::binder_impl::NULL_PARCELABLE_FLAG)
+                }
+            }
+        }
+    };
+}
+
+/// Implement `Deserialize` trait and friends for an unstructured parcelable
+///
+/// The target type must implement the `UnstructuredParcelable` trait.
+#[macro_export]
+macro_rules! impl_deserialize_for_unstructured_parcelable {
+    ($parcelable:ident) => {
+        $crate::impl_deserialize_for_unstructured_parcelable!($parcelable < >);
+    };
+    ($parcelable:ident < $( $param:ident ),* , >) => {
+        $crate::impl_deserialize_for_unstructured_parcelable!($parcelable < $($param),* >);
+    };
+    ($parcelable:ident < $( $param:ident ),* > ) => {
+        impl < $($param: Default),* > $crate::binder_impl::Deserialize for $parcelable < $($param),* > {
+            type UninitType = Option<Self>;
+            fn uninit() -> Self::UninitType { None }
+            fn from_init(value: Self) -> Self::UninitType { Some(value) }
+            fn deserialize(
+                parcel: &$crate::binder_impl::BorrowedParcel<'_>,
+            ) -> std::result::Result<Self, $crate::StatusCode> {
+                $crate::binder_impl::DeserializeOption::deserialize_option(parcel)
+                    .transpose()
+                    .unwrap_or(Err($crate::StatusCode::UNEXPECTED_NULL))
+            }
+            fn deserialize_from(
+                &mut self,
+                parcel: &$crate::binder_impl::BorrowedParcel<'_>,
+            ) -> std::result::Result<(), $crate::StatusCode> {
+                let status: i32 = parcel.read()?;
+                if status == $crate::binder_impl::NULL_PARCELABLE_FLAG {
+                    Err($crate::StatusCode::UNEXPECTED_NULL)
+                } else {
+                    use $crate::binder_impl::UnstructuredParcelable;
+                    self.read_from_parcel(parcel)
+                }
+            }
+        }
+
+        impl < $($param: Default),* > $crate::binder_impl::DeserializeArray for $parcelable < $($param),* > {}
+
+        impl < $($param: Default),* > $crate::binder_impl::DeserializeOption for $parcelable < $($param),* > {
+            fn deserialize_option(
+                parcel: &$crate::binder_impl::BorrowedParcel<'_>,
+            ) -> std::result::Result<Option<Self>, $crate::StatusCode> {
+                let present: i32 = parcel.read()?;
+                match present {
+                    $crate::binder_impl::NULL_PARCELABLE_FLAG => Ok(None),
+                    $crate::binder_impl::NON_NULL_PARCELABLE_FLAG => {
+                        use $crate::binder_impl::UnstructuredParcelable;
+                        Ok(Some(Self::from_parcel(parcel)?))
+                    }
+                    _ => Err(StatusCode::BAD_VALUE),
+                }
+            }
+            fn deserialize_option_from(
+                this: &mut Option<Self>,
+                parcel: &$crate::binder_impl::BorrowedParcel<'_>,
+            ) -> std::result::Result<(), $crate::StatusCode> {
+                let present: i32 = parcel.read()?;
+                match present {
+                    $crate::binder_impl::NULL_PARCELABLE_FLAG => {
+                        *this = None;
+                        Ok(())
+                    }
+                    $crate::binder_impl::NON_NULL_PARCELABLE_FLAG => {
+                        use $crate::binder_impl::UnstructuredParcelable;
+                        if let Some(this) = this {
+                            this.read_from_parcel(parcel)?;
+                        } else {
+                            *this = Some(Self::from_parcel(parcel)?);
+                        }
+                        Ok(())
+                    }
+                    _ => Err(StatusCode::BAD_VALUE),
                 }
             }
         }
