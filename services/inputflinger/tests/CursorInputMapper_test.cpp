@@ -193,6 +193,7 @@ class CursorInputMapperUnitTest : public CursorInputMapperUnitTestBase {
 protected:
     void SetUp() override {
         input_flags::enable_pointer_choreographer(false);
+        input_flags::enable_new_mouse_pointer_ballistics(false);
         CursorInputMapperUnitTestBase::SetUp();
     }
 };
@@ -954,6 +955,7 @@ class CursorInputMapperUnitTestWithChoreographer : public CursorInputMapperUnitT
 protected:
     void SetUp() override {
         input_flags::enable_pointer_choreographer(true);
+        input_flags::enable_new_mouse_pointer_ballistics(false);
         CursorInputMapperUnitTestBase::SetUp();
     }
 };
@@ -1278,6 +1280,48 @@ TEST_F(CursorInputMapperUnitTestWithChoreographer, ConfigureDisplayIdNoAssociate
                         AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
                               WithSource(AINPUT_SOURCE_MOUSE), WithDisplayId(ADISPLAY_ID_NONE),
                               WithCoords(0.0f, 0.0f)))));
+}
+
+// TODO(b/320433834): De-duplicate the test cases once the flag is removed.
+class CursorInputMapperUnitTestWithNewBallistics : public CursorInputMapperUnitTestBase {
+protected:
+    void SetUp() override {
+        input_flags::enable_pointer_choreographer(true);
+        input_flags::enable_new_mouse_pointer_ballistics(true);
+        CursorInputMapperUnitTestBase::SetUp();
+    }
+};
+
+TEST_F(CursorInputMapperUnitTestWithNewBallistics, PointerCaptureDisablesVelocityProcessing) {
+    mPropertyMap.addProperty("cursor.mode", "pointer");
+    createMapper();
+
+    NotifyMotionArgs motionArgs;
+    std::list<NotifyArgs> args;
+
+    // Move and verify scale is applied.
+    args += process(ARBITRARY_TIME, EV_REL, REL_X, 10);
+    args += process(ARBITRARY_TIME, EV_REL, REL_Y, 20);
+    args += process(ARBITRARY_TIME, EV_SYN, SYN_REPORT, 0);
+    motionArgs = std::get<NotifyMotionArgs>(args.front());
+    const float relX = motionArgs.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X);
+    const float relY = motionArgs.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y);
+    ASSERT_GT(relX, 10);
+    ASSERT_GT(relY, 20);
+    args.clear();
+
+    // Enable Pointer Capture
+    setPointerCapture(true);
+
+    // Move and verify scale is not applied.
+    args += process(ARBITRARY_TIME, EV_REL, REL_X, 10);
+    args += process(ARBITRARY_TIME, EV_REL, REL_Y, 20);
+    args += process(ARBITRARY_TIME, EV_SYN, SYN_REPORT, 0);
+    motionArgs = std::get<NotifyMotionArgs>(args.front());
+    const float relX2 = motionArgs.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X);
+    const float relY2 = motionArgs.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y);
+    ASSERT_EQ(10, relX2);
+    ASSERT_EQ(20, relY2);
 }
 
 namespace {
