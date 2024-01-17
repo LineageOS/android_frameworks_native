@@ -213,6 +213,15 @@ TEST_F(LayerTransactionTest, CommitCallbackCalledOnce) {
     ASSERT_EQ(callCount, 1);
 }
 
+TEST_F(LayerTransactionTest, AddRemoveLayers) {
+    for (int i = 0; i < 100; i++) {
+        sp<SurfaceControl> layer;
+        ASSERT_NO_FATAL_FAILURE(
+                layer = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceBufferState));
+        layer.clear();
+    }
+}
+
 } // namespace android
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
