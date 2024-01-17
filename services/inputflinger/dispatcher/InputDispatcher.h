@@ -155,7 +155,6 @@ private:
     enum class DropReason {
         NOT_DROPPED,
         POLICY,
-        APP_SWITCH,
         DISABLED,
         BLOCKED,
         STALE,
@@ -227,14 +226,6 @@ private:
 
     // Adds an event to a queue of recent events for debugging purposes.
     void addRecentEventLocked(std::shared_ptr<const EventEntry> entry) REQUIRES(mLock);
-
-    // App switch latency optimization.
-    bool mAppSwitchSawKeyDown GUARDED_BY(mLock);
-    nsecs_t mAppSwitchDueTime GUARDED_BY(mLock);
-
-    bool isAppSwitchKeyEvent(const KeyEntry& keyEntry);
-    bool isAppSwitchPendingLocked() const REQUIRES(mLock);
-    void resetPendingAppSwitchLocked(bool handled) REQUIRES(mLock);
 
     // Blocked event latency optimization.  Drops old events when the user intends
     // to transfer focus to a new application.
