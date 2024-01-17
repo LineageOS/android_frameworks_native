@@ -19,10 +19,8 @@ extern crate nativewindow_bindgen as ffi;
 pub use ffi::{AHardwareBuffer_Format, AHardwareBuffer_UsageFlags};
 
 use binder::{
-    binder_impl::{
-        BorrowedParcel, Deserialize, DeserializeArray, DeserializeOption, Serialize,
-        SerializeArray, SerializeOption, NON_NULL_PARCELABLE_FLAG, NULL_PARCELABLE_FLAG,
-    },
+    binder_impl::{BorrowedParcel, UnstructuredParcelable},
+    impl_deserialize_for_unstructured_parcelable, impl_serialize_for_unstructured_parcelable,
     unstable_api::{status_result, AsNative},
     StatusCode,
 };
@@ -210,81 +208,40 @@ impl Clone for HardwareBuffer {
     }
 }
 
-impl Serialize for HardwareBuffer {
-    fn serialize(&self, parcel: &mut BorrowedParcel) -> Result<(), StatusCode> {
-        SerializeOption::serialize_option(Some(self), parcel)
+impl UnstructuredParcelable for HardwareBuffer {
+    fn write_to_parcel(&self, parcel: &mut BorrowedParcel) -> Result<(), StatusCode> {
+        let status =
+        // SAFETY: The AHardwareBuffer pointer we pass is guaranteed to be non-null and valid
+        // because it must have been allocated by `AHardwareBuffer_allocate`,
+        // `AHardwareBuffer_readFromParcel` or the caller of `from_raw` and we have not yet
+        // released it.
+            unsafe { AHardwareBuffer_writeToParcel(self.0.as_ptr(), parcel.as_native_mut()) };
+        status_result(status)
+    }
+
+    fn from_parcel(parcel: &BorrowedParcel) -> Result<Self, StatusCode> {
+        let mut buffer = null_mut();
+
+        let status =
+        // SAFETY: Both pointers must be valid because they are obtained from references.
+        // `AHardwareBuffer_readFromParcel` doesn't store them or do anything else special
+        // with them. If it returns success then it will have allocated a new
+        // `AHardwareBuffer` and incremented the reference count, so we can use it until we
+        // release it.
+            unsafe { AHardwareBuffer_readFromParcel(parcel.as_native(), &mut buffer) };
+
+        status_result(status)?;
+
+        Ok(Self(
+            NonNull::new(buffer).expect(
+                "AHardwareBuffer_readFromParcel returned success but didn't allocate buffer",
+            ),
+        ))
     }
 }
 
-impl SerializeOption for HardwareBuffer {
-    fn serialize_option(
-        this: Option<&Self>,
-        parcel: &mut BorrowedParcel,
-    ) -> Result<(), StatusCode> {
-        if let Some(this) = this {
-            parcel.write(&NON_NULL_PARCELABLE_FLAG)?;
-
-            let status =
-            // SAFETY: The AHardwareBuffer pointer we pass is guaranteed to be non-null and valid
-            // because it must have been allocated by `AHardwareBuffer_allocate`,
-            // `AHardwareBuffer_readFromParcel` or the caller of `from_raw` and we have not yet
-            // released it.
-                unsafe { AHardwareBuffer_writeToParcel(this.0.as_ptr(), parcel.as_native_mut()) };
-            status_result(status)
-        } else {
-            parcel.write(&NULL_PARCELABLE_FLAG)
-        }
-    }
-}
-
-impl Deserialize for HardwareBuffer {
-    type UninitType = Option<Self>;
-
-    fn uninit() -> Option<Self> {
-        None
-    }
-
-    fn from_init(value: Self) -> Option<Self> {
-        Some(value)
-    }
-
-    fn deserialize(parcel: &BorrowedParcel) -> Result<Self, StatusCode> {
-        DeserializeOption::deserialize_option(parcel)
-            .transpose()
-            .unwrap_or(Err(StatusCode::UNEXPECTED_NULL))
-    }
-}
-
-impl DeserializeOption for HardwareBuffer {
-    fn deserialize_option(parcel: &BorrowedParcel) -> Result<Option<Self>, StatusCode> {
-        let present: i32 = parcel.read()?;
-        match present {
-            NULL_PARCELABLE_FLAG => Ok(None),
-            NON_NULL_PARCELABLE_FLAG => {
-                let mut buffer = null_mut();
-
-                let status =
-                // SAFETY: Both pointers must be valid because they are obtained from references.
-                // `AHardwareBuffer_readFromParcel` doesn't store them or do anything else special
-                // with them. If it returns success then it will have allocated a new
-                // `AHardwareBuffer` and incremented the reference count, so we can use it until we
-                // release it.
-                    unsafe { AHardwareBuffer_readFromParcel(parcel.as_native(), &mut buffer) };
-
-                status_result(status)?;
-
-                Ok(Some(Self(NonNull::new(buffer).expect(
-                    "AHardwareBuffer_readFromParcel returned success but didn't allocate buffer",
-                ))))
-            }
-            _ => Err(StatusCode::BAD_VALUE),
-        }
-    }
-}
-
-impl SerializeArray for HardwareBuffer {}
-
-impl DeserializeArray for HardwareBuffer {}
+impl_deserialize_for_unstructured_parcelable!(HardwareBuffer);
+impl_serialize_for_unstructured_parcelable!(HardwareBuffer);
 
 // SAFETY: The underlying *AHardwareBuffers can be moved between threads.
 unsafe impl Send for HardwareBuffer {}
