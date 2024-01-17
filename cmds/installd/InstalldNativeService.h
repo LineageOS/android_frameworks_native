@@ -44,8 +44,7 @@ public:
     public:
         FsveritySetupAuthToken() : mStatFromAuthFd() {}
 
-        binder::Status authenticate(const android::os::ParcelFileDescriptor& authFd, int32_t appUid,
-                                    int32_t userId);
+        binder::Status authenticate(const android::os::ParcelFileDescriptor& authFd, int32_t uid);
         bool isSameStat(const struct stat& st) const;
 
     private:
@@ -210,7 +209,7 @@ public:
                                      int32_t* _aidl_return);
 
     binder::Status createFsveritySetupAuthToken(const android::os::ParcelFileDescriptor& authFd,
-                                                int32_t appUid, int32_t userId,
+                                                int32_t uid,
                                                 android::sp<IFsveritySetupAuthToken>* _aidl_return);
     binder::Status enableFsverity(const android::sp<IFsveritySetupAuthToken>& authToken,
                                   const std::string& filePath, const std::string& packageName,
