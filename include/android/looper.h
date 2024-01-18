@@ -26,8 +26,16 @@
 #ifndef ANDROID_LOOPER_H
 #define ANDROID_LOOPER_H
 
+#include <sys/cdefs.h>
+
 #ifdef __cplusplus
 extern "C" {
+#endif
+
+// This file may also be built on glibc or on Windows/MacOS libc's, so
+// deprecated definitions are provided.
+#if !defined(__REMOVED_IN)
+#define __REMOVED_IN(__api_level) __attribute__((__deprecated__))
 #endif
 
 struct ALooper;
