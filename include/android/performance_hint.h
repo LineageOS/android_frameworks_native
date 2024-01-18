@@ -240,7 +240,7 @@ int APerformanceHint_setPreferPowerEfficiency(
  *     the actual GPU duration is not measured.
  *
  * @return 0 on success.
- *         EINVAL if session is nullptr or any duration is an invalid number.
+ *         EINVAL if any duration is an invalid number.
  *         EPIPE if communication with the system service has failed.
  */
 int APerformanceHint_reportActualWorkDuration2(
@@ -269,7 +269,7 @@ void AWorkDuration_release(AWorkDuration* _Nonnull aWorkDuration)
  *
  * @param aWorkDuration The {@link AWorkDuration} created by calling {@link AWorkDuration_create()}
  * @param workPeriodStartTimestampNanos The work period start timestamp in nanoseconds based on
- *        CLOCK_MONOTONIC about when the work starts, the timestamp must be positive.
+ *        CLOCK_MONOTONIC about when the work starts. This timestamp must be greater than zero.
  */
 void AWorkDuration_setWorkPeriodStartTimestampNanos(AWorkDuration* _Nonnull aWorkDuration,
         int64_t workPeriodStartTimestampNanos) __INTRODUCED_IN(__ANDROID_API_V__);
@@ -278,8 +278,8 @@ void AWorkDuration_setWorkPeriodStartTimestampNanos(AWorkDuration* _Nonnull aWor
  * Sets the actual total work duration in nanoseconds.
  *
  * @param aWorkDuration The {@link AWorkDuration} created by calling {@link AWorkDuration_create()}
- * @param actualTotalDurationNanos The actual total work duration in nanoseconds, the number must be
- *        positive.
+ * @param actualTotalDurationNanos The actual total work duration in nanoseconds. This number must
+ *        be greater than zero.
  */
 void AWorkDuration_setActualTotalDurationNanos(AWorkDuration* _Nonnull aWorkDuration,
         int64_t actualTotalDurationNanos) __INTRODUCED_IN(__ANDROID_API_V__);
@@ -288,8 +288,8 @@ void AWorkDuration_setActualTotalDurationNanos(AWorkDuration* _Nonnull aWorkDura
  * Sets the actual CPU work duration in nanoseconds.
  *
  * @param aWorkDuration The {@link AWorkDuration} created by calling {@link AWorkDuration_create()}
- * @param actualCpuDurationNanos The actual CPU work duration in nanoseconds, the number must be
- *        positive.
+ * @param actualCpuDurationNanos The actual CPU work duration in nanoseconds. This number must be
+ *        greater than zero.
  */
 void AWorkDuration_setActualCpuDurationNanos(AWorkDuration* _Nonnull aWorkDuration,
         int64_t actualCpuDurationNanos) __INTRODUCED_IN(__ANDROID_API_V__);
