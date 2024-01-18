@@ -35,7 +35,6 @@
 #include <input/PrintTools.h>
 #include <input/TraceTools.h>
 #include <openssl/mem.h>
-#include <powermanager/PowerManager.h>
 #include <unistd.h>
 #include <utils/Trace.h>
 
@@ -99,6 +98,9 @@ private:
 const std::chrono::duration DEFAULT_INPUT_DISPATCHING_TIMEOUT = std::chrono::milliseconds(
         android::os::IInputConstants::UNMULTIPLIED_DEFAULT_DISPATCHING_TIMEOUT_MILLIS *
         HwTimeoutMultiplier());
+
+// The default minimum time gap between two user activity poke events.
+const std::chrono::milliseconds DEFAULT_USER_ACTIVITY_POKE_INTERVAL = 100ms;
 
 const std::chrono::duration STALE_EVENT_TIMEOUT = std::chrono::seconds(10) * HwTimeoutMultiplier();
 
@@ -778,6 +780,25 @@ Result<void> validateWindowInfosUpdate(const gui::WindowInfosUpdate& update) {
     return {};
 }
 
+int32_t getUserActivityEventType(const EventEntry& eventEntry) {
+    switch (eventEntry.type) {
+        case EventEntry::Type::KEY: {
+            return USER_ACTIVITY_EVENT_BUTTON;
+        }
+        case EventEntry::Type::MOTION: {
+            const MotionEntry& motionEntry = static_cast<const MotionEntry&>(eventEntry);
+            if (MotionEvent::isTouchEvent(motionEntry.source, motionEntry.action)) {
+                return USER_ACTIVITY_EVENT_TOUCH;
+            }
+            return USER_ACTIVITY_EVENT_OTHER;
+        }
+        default: {
+            LOG_ALWAYS_FATAL("%s events are not user activity",
+                             ftl::enum_string(eventEntry.type).c_str());
+        }
+    }
+}
+
 } // namespace
 
 // --- InputDispatcher ---
@@ -791,6 +812,7 @@ InputDispatcher::InputDispatcher(InputDispatcherPolicyInterface& policy,
         mPendingEvent(nullptr),
         mLastDropReason(DropReason::NOT_DROPPED),
         mIdGenerator(IdGenerator::Source::INPUT_DISPATCHER),
+        mMinTimeBetweenUserActivityPokes(DEFAULT_USER_ACTIVITY_POKE_INTERVAL),
         mNextUnblockedEvent(nullptr),
         mMonitorDispatchingTimeout(DEFAULT_INPUT_DISPATCHING_TIMEOUT),
         mDispatchEnabled(false),
@@ -813,6 +835,8 @@ InputDispatcher::InputDispatcher(InputDispatcherPolicyInterface& policy,
     if (traceBackend) {
         // TODO: Create input tracer instance.
     }
+
+    mLastUserActivityTimes.fill(0);
 }
 
 InputDispatcher::~InputDispatcher() {
@@ -3140,6 +3164,21 @@ void InputDispatcher::pokeUserActivityLocked(const EventEntry& eventEntry) {
         // Not poking user activity if the event type does not represent a user activity
         return;
     }
+
+    const int32_t eventType = getUserActivityEventType(eventEntry);
+    if (input_flags::rate_limit_user_activity_poke_in_dispatcher()) {
+        // Note that we're directly getting the time diff between the current event and the previous
+        // event. This is assuming that the first user event always happens at a timestamp that is
+        // greater than `mMinTimeBetweenUserActivityPokes` (otherwise, the first user event will
+        // wrongly be dropped). In real life, `mMinTimeBetweenUserActivityPokes` is a much smaller
+        // value than the potential first user activity event time, so this is ok.
+        std::chrono::nanoseconds timeSinceLastEvent =
+                std::chrono::nanoseconds(eventEntry.eventTime - mLastUserActivityTimes[eventType]);
+        if (timeSinceLastEvent < mMinTimeBetweenUserActivityPokes) {
+            return;
+        }
+    }
+
     int32_t displayId = getTargetDisplayId(eventEntry);
     sp<WindowInfoHandle> focusedWindowHandle = getFocusedWindowHandleLocked(displayId);
     const WindowInfo* windowDisablingUserActivityInfo = nullptr;
@@ -3150,7 +3189,6 @@ void InputDispatcher::pokeUserActivityLocked(const EventEntry& eventEntry) {
         }
     }
 
-    int32_t eventType = USER_ACTIVITY_EVENT_OTHER;
     switch (eventEntry.type) {
         case EventEntry::Type::MOTION: {
             const MotionEntry& motionEntry = static_cast<const MotionEntry&>(eventEntry);
@@ -3163,9 +3201,6 @@ void InputDispatcher::pokeUserActivityLocked(const EventEntry& eventEntry) {
                           windowDisablingUserActivityInfo->name.c_str());
                 }
                 return;
-            }
-            if (MotionEvent::isTouchEvent(motionEntry.source, motionEntry.action)) {
-                eventType = USER_ACTIVITY_EVENT_TOUCH;
             }
             break;
         }
@@ -3190,7 +3225,6 @@ void InputDispatcher::pokeUserActivityLocked(const EventEntry& eventEntry) {
                 return;
             }
 
-            eventType = USER_ACTIVITY_EVENT_BUTTON;
             break;
         }
         default: {
@@ -3200,6 +3234,7 @@ void InputDispatcher::pokeUserActivityLocked(const EventEntry& eventEntry) {
         }
     }
 
+    mLastUserActivityTimes[eventType] = eventEntry.eventTime;
     auto command = [this, eventTime = eventEntry.eventTime, eventType, displayId]()
                            REQUIRES(mLock) {
                                scoped_unlock unlock(mLock);
@@ -5290,6 +5325,14 @@ void InputDispatcher::setFocusedApplicationLocked(
     // No matter what the old focused application was, stop waiting on it because it is
     // no longer focused.
     resetNoFocusedWindowTimeoutLocked();
+}
+
+void InputDispatcher::setMinTimeBetweenUserActivityPokes(std::chrono::milliseconds interval) {
+    if (interval.count() < 0) {
+        LOG_ALWAYS_FATAL("Minimum time between user activity pokes should be >= 0");
+    }
+    std::scoped_lock _l(mLock);
+    mMinTimeBetweenUserActivityPokes = interval;
 }
 
 /**

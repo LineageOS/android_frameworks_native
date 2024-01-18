@@ -41,6 +41,7 @@
 #include <input/Input.h>
 #include <input/InputTransport.h>
 #include <limits.h>
+#include <powermanager/PowerManager.h>
 #include <stddef.h>
 #include <unistd.h>
 #include <utils/BitSet.h>
@@ -116,6 +117,7 @@ public:
             int32_t displayId,
             const std::shared_ptr<InputApplicationHandle>& inputApplicationHandle) override;
     void setFocusedDisplay(int32_t displayId) override;
+    void setMinTimeBetweenUserActivityPokes(std::chrono::milliseconds interval) override;
     void setInputDispatchMode(bool enabled, bool frozen) override;
     void setInputFilterEnabled(bool enabled) override;
     bool setInTouchMode(bool inTouchMode, gui::Pid pid, gui::Uid uid, bool hasPermission,
@@ -210,6 +212,11 @@ private:
     const IdGenerator mIdGenerator GUARDED_BY(mLock);
 
     int64_t mWindowInfosVsyncId GUARDED_BY(mLock);
+
+    std::chrono::milliseconds mMinTimeBetweenUserActivityPokes GUARDED_BY(mLock);
+
+    /** Stores the latest user-activity poke event times per user activity types. */
+    std::array<nsecs_t, USER_ACTIVITY_EVENT_LAST + 1> mLastUserActivityTimes GUARDED_BY(mLock);
 
     // With each iteration, InputDispatcher nominally processes one queued event,
     // a timeout, or a response from an input consumer.
