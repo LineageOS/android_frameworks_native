@@ -342,12 +342,23 @@ status_t Surface::getFrameTimestamps(uint64_t frameNumber,
 
     getFrameTimestamp(outRequestedPresentTime, events->requestedPresentTime);
     getFrameTimestamp(outLatchTime, events->latchTime);
-    getFrameTimestamp(outFirstRefreshStartTime, events->firstRefreshStartTime);
+
+    nsecs_t firstRefreshStartTime = NATIVE_WINDOW_TIMESTAMP_INVALID;
+    getFrameTimestamp(&firstRefreshStartTime, events->firstRefreshStartTime);
+    if (outFirstRefreshStartTime) {
+        *outFirstRefreshStartTime = firstRefreshStartTime;
+    }
+
     getFrameTimestamp(outLastRefreshStartTime, events->lastRefreshStartTime);
     getFrameTimestamp(outDequeueReadyTime, events->dequeueReadyTime);
 
-    getFrameTimestampFence(outAcquireTime, events->acquireFence,
+    nsecs_t acquireTime = NATIVE_WINDOW_TIMESTAMP_INVALID;
+    getFrameTimestampFence(&acquireTime, events->acquireFence,
             events->hasAcquireInfo());
+    if (outAcquireTime != nullptr) {
+        *outAcquireTime = acquireTime;
+    }
+
     getFrameTimestampFence(outGpuCompositionDoneTime,
             events->gpuCompositionDoneFence,
             events->hasGpuCompositionDoneInfo());
@@ -355,6 +366,16 @@ status_t Surface::getFrameTimestamps(uint64_t frameNumber,
             events->hasDisplayPresentInfo());
     getFrameTimestampFence(outReleaseTime, events->releaseFence,
             events->hasReleaseInfo());
+
+    // Fix up the GPU completion fence at this layer -- eglGetFrameTimestampsANDROID() expects
+    // that EGL_FIRST_COMPOSITION_GPU_FINISHED_TIME_ANDROID > EGL_RENDERING_COMPLETE_TIME_ANDROID.
+    // This is typically true, but SurfaceFlinger may opt to cache prior GPU composition results,
+    // which breaks that assumption, so zero out GPU composition time.
+    if (outGpuCompositionDoneTime != nullptr
+            && *outGpuCompositionDoneTime > 0 && (acquireTime > 0 || firstRefreshStartTime > 0)
+            && *outGpuCompositionDoneTime <= std::max(acquireTime, firstRefreshStartTime)) {
+        *outGpuCompositionDoneTime = 0;
+    }
 
     return NO_ERROR;
 }

@@ -867,6 +867,9 @@ status_t InputConsumer::consume(InputEventFactoryInterface* factory, bool consum
                         mConsumeTimes.emplace(mMsg.header.seq, systemTime(SYSTEM_TIME_MONOTONIC));
                 LOG_ALWAYS_FATAL_IF(!inserted, "Already have a consume time for seq=%" PRIu32,
                                     mMsg.header.seq);
+
+                // Trace the event processing timeline - event was just read from the socket
+                ATRACE_ASYNC_BEGIN("InputConsumer processing", /*cookie=*/mMsg.header.seq);
             }
             if (result) {
                 // Consume the next batched event unless batches are being held for later.
@@ -1405,6 +1408,9 @@ status_t InputConsumer::sendUnchainedFinishedSignal(uint32_t seq, bool handled) 
         // message anymore. If the socket write did not succeed, we will try again and will still
         // need consume time.
         popConsumeTime(seq);
+
+        // Trace the event processing timeline - event was just finished
+        ATRACE_ASYNC_END("InputConsumer processing", /*cookie=*/seq);
     }
     return result;
 }

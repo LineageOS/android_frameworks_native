@@ -136,8 +136,8 @@ pub mod binder_impl {
     pub use crate::native::Binder;
     pub use crate::parcel::{
         BorrowedParcel, Deserialize, DeserializeArray, DeserializeOption, Parcel,
-        ParcelableMetadata, Serialize, SerializeArray, SerializeOption, NON_NULL_PARCELABLE_FLAG,
-        NULL_PARCELABLE_FLAG,
+        ParcelableMetadata, Serialize, SerializeArray, SerializeOption, UnstructuredParcelable,
+        NON_NULL_PARCELABLE_FLAG, NULL_PARCELABLE_FLAG,
     };
     pub use crate::proxy::{AssociateClass, Proxy};
 }
