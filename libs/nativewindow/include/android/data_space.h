@@ -29,6 +29,7 @@
 #define ANDROID_DATA_SPACE_H
 
 #include <inttypes.h>
+#include <stdint.h>
 
 #include <sys/cdefs.h>
 
@@ -37,7 +38,7 @@ __BEGIN_DECLS
 /**
  * ADataSpace.
  */
-enum ADataSpace {
+enum ADataSpace : int32_t {
     /**
      * Default-assumption data space, when not explicitly specified.
      *
