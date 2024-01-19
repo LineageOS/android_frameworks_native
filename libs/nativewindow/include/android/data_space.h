@@ -29,6 +29,7 @@
 #define ANDROID_DATA_SPACE_H
 
 #include <inttypes.h>
+#include <stdint.h>
 
 #include <sys/cdefs.h>
 
