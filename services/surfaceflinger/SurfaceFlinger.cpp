@@ -1235,8 +1235,10 @@ status_t SurfaceFlinger::getDisplayStats(const sp<IBinder>& displayToken,
     return NO_ERROR;
 }
 
-void SurfaceFlinger::setDesiredMode(display::DisplayModeRequest&& request, bool force) {
-    const auto displayId = request.mode.modePtr->getPhysicalDisplayId();
+void SurfaceFlinger::setDesiredMode(display::DisplayModeRequest&& desiredMode) {
+    const auto mode = desiredMode.mode;
+    const auto displayId = mode.modePtr->getPhysicalDisplayId();
+
     ATRACE_NAME(ftl::Concat(__func__, ' ', displayId.value).c_str());
 
     const auto display = getDisplayDeviceLocked(displayId);
@@ -1245,10 +1247,9 @@ void SurfaceFlinger::setDesiredMode(display::DisplayModeRequest&& request, bool 
         return;
     }
 
-    const auto mode = request.mode;
-    const bool emitEvent = request.emitEvent;
+    const bool emitEvent = desiredMode.emitEvent;
 
-    switch (display->setDesiredMode(std::move(request), force)) {
+    switch (display->setDesiredMode(std::move(desiredMode))) {
         case DisplayDevice::DesiredModeAction::InitiateDisplayModeSwitch:
             // DisplayDevice::setDesiredMode updated the render rate, so inform Scheduler.
             mScheduler->setRenderRate(displayId,
@@ -1434,7 +1435,8 @@ void SurfaceFlinger::initiateDisplayModeChanges() {
               to_string(displayModePtrOpt->get()->getVsyncRate()).c_str(),
               to_string(display->getId()).c_str());
 
-        if (display->getActiveMode() == desiredModeOpt->mode) {
+        if ((!FlagManager::getInstance().connected_display() || !desiredModeOpt->force) &&
+            display->getActiveMode() == desiredModeOpt->mode) {
             applyActiveMode(display);
             continue;
         }
@@ -2449,6 +2451,13 @@ bool SurfaceFlinger::updateLayerSnapshots(VsyncId vsyncId, nsecs_t frameTimeNs,
             const bool willReleaseBufferOnLatch = layer->willReleaseBufferOnLatch();
 
             auto it = mLegacyLayers.find(layer->id);
+            if (it == mLegacyLayers.end() &&
+                layer->changes.test(frontend::RequestedLayerState::Changes::Destroyed)) {
+                // Layer handle was created and immediately destroyed. It was destroyed before it
+                // was added to the map.
+                continue;
+            }
+
             LLOG_ALWAYS_FATAL_WITH_TRACE_IF(it == mLegacyLayers.end(),
                                             "Couldnt find layer object for %s",
                                             layer->getDebugString().c_str());
@@ -3293,13 +3302,87 @@ std::pair<DisplayModes, DisplayModePtr> SurfaceFlinger::loadDisplayModes(
     std::vector<HWComposer::HWCDisplayMode> hwcModes;
     std::optional<hal::HWDisplayId> activeModeHwcId;
 
+    const bool isExternalDisplay = FlagManager::getInstance().connected_display() &&
+            getHwComposer().getDisplayConnectionType(displayId) ==
+                    ui::DisplayConnectionType::External;
+
     int attempt = 0;
     constexpr int kMaxAttempts = 3;
     do {
         hwcModes = getHwComposer().getModes(displayId,
                                             scheduler::RefreshRateSelector::kMinSupportedFrameRate
                                                     .getPeriodNsecs());
+
         activeModeHwcId = getHwComposer().getActiveMode(displayId);
+
+        if (isExternalDisplay) {
+            constexpr nsecs_t k59HzVsyncPeriod = 16949153;
+            constexpr nsecs_t k60HzVsyncPeriod = 16666667;
+
+            // DM sets the initial mode for an external display to 1080p@60, but
+            // this comes after SF creates its own state (including the
+            // DisplayDevice). For now, pick the same mode in order to avoid
+            // inconsistent state and unnecessary mode switching.
+            // TODO (b/318534874): Let DM decide the initial mode.
+            //
+            // Try to find 1920x1080 @ 60 Hz
+            if (const auto iter = std::find_if(hwcModes.begin(), hwcModes.end(),
+                                               [](const auto& mode) {
+                                                   return mode.width == 1920 &&
+                                                           mode.height == 1080 &&
+                                                           mode.vsyncPeriod == k60HzVsyncPeriod;
+                                               });
+                iter != hwcModes.end()) {
+                activeModeHwcId = iter->hwcId;
+                break;
+            }
+
+            // Try to find 1920x1080 @ 59-60 Hz
+            if (const auto iter = std::find_if(hwcModes.begin(), hwcModes.end(),
+                                               [](const auto& mode) {
+                                                   return mode.width == 1920 &&
+                                                           mode.height == 1080 &&
+                                                           mode.vsyncPeriod >= k60HzVsyncPeriod &&
+                                                           mode.vsyncPeriod <= k59HzVsyncPeriod;
+                                               });
+                iter != hwcModes.end()) {
+                activeModeHwcId = iter->hwcId;
+                break;
+            }
+
+            // The display does not support 1080p@60, and this is the last attempt to pick a display
+            // mode. Prefer 60 Hz if available, with the closest resolution to 1080p.
+            if (attempt + 1 == kMaxAttempts) {
+                std::vector<HWComposer::HWCDisplayMode> hwcModeOpts;
+
+                for (const auto& mode : hwcModes) {
+                    if (mode.width <= 1920 && mode.height <= 1080 &&
+                        mode.vsyncPeriod >= k60HzVsyncPeriod &&
+                        mode.vsyncPeriod <= k59HzVsyncPeriod) {
+                        hwcModeOpts.push_back(mode);
+                    }
+                }
+
+                if (const auto iter = std::max_element(hwcModeOpts.begin(), hwcModeOpts.end(),
+                                                       [](const auto& a, const auto& b) {
+                                                           const auto aSize = a.width * a.height;
+                                                           const auto bSize = b.width * b.height;
+                                                           if (aSize < bSize)
+                                                               return true;
+                                                           else if (aSize == bSize)
+                                                               return a.vsyncPeriod > b.vsyncPeriod;
+                                                           else
+                                                               return false;
+                                                       });
+                    iter != hwcModeOpts.end()) {
+                    activeModeHwcId = iter->hwcId;
+                    break;
+                }
+
+                // hwcModeOpts was empty, use hwcModes[0] as the last resort
+                activeModeHwcId = hwcModes[0].hwcId;
+            }
+        }
 
         const auto isActiveMode = [activeModeHwcId](const HWComposer::HWCDisplayMode& mode) {
             return mode.hwcId == activeModeHwcId;
@@ -3360,6 +3443,10 @@ std::pair<DisplayModes, DisplayModePtr> SurfaceFlinger::loadDisplayModes(
                 return pair.second->getHwcId() == activeModeHwcId;
             })->second;
 
+    if (isExternalDisplay) {
+        ALOGI("External display %s initial mode: {%s}", to_string(displayId).c_str(),
+              to_string(*activeMode).c_str());
+    }
     return {modes, activeMode};
 }
 
@@ -3666,6 +3753,27 @@ void SurfaceFlinger::processDisplayAdded(const wp<IBinder>& displayToken,
     }
 
     mDisplays.try_emplace(displayToken, std::move(display));
+
+    // For an external display, loadDisplayModes already selected the same mode
+    // as DM, but SF still needs to be updated to match.
+    // TODO (b/318534874): Let DM decide the initial mode.
+    if (const auto& physical = state.physical;
+        mScheduler && physical && FlagManager::getInstance().connected_display()) {
+        const bool isInternalDisplay = mPhysicalDisplays.get(physical->id)
+                                               .transform(&PhysicalDisplay::isInternal)
+                                               .value_or(false);
+
+        if (!isInternalDisplay) {
+            auto activeModePtr = physical->activeMode;
+            const auto fps = activeModePtr->getPeakFps();
+
+            setDesiredMode(
+                    {.mode = scheduler::FrameRateMode{fps,
+                                                      ftl::as_non_null(std::move(activeModePtr))},
+                     .emitEvent = false,
+                     .force = true});
+        }
+    }
 }
 
 void SurfaceFlinger::processDisplayRemoved(const wp<IBinder>& displayToken) {
@@ -8334,7 +8442,7 @@ status_t SurfaceFlinger::applyRefreshRateSelectorPolicy(
         return INVALID_OPERATION;
     }
 
-    setDesiredMode({std::move(preferredMode), .emitEvent = true}, force);
+    setDesiredMode({std::move(preferredMode), .emitEvent = true, .force = force});
 
     // Update the frameRateOverride list as the display render rate might have changed
     if (mScheduler->updateFrameRateOverrides(scheduler::GlobalSignals{}, preferredFps)) {

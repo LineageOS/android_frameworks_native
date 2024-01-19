@@ -27,6 +27,9 @@ struct DisplayModeRequest {
 
     // Whether to emit DisplayEventReceiver::DISPLAY_EVENT_MODE_CHANGE.
     bool emitEvent = false;
+
+    // Whether to force the request to be applied, even if the mode is unchanged.
+    bool force = false;
 };
 
 inline bool operator==(const DisplayModeRequest& lhs, const DisplayModeRequest& rhs) {
