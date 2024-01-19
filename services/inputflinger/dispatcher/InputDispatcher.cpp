@@ -72,9 +72,6 @@ using android::os::InputEventInjectionResult;
 using android::os::InputEventInjectionSync;
 namespace input_flags = com::android::input::flags;
 
-// TODO(b/312714754): remove the corresponding code, as well.
-static const bool REMOVE_APP_SWITCH_DROPS = true;
-
 namespace android::inputdispatcher {
 
 namespace {
@@ -94,11 +91,6 @@ private:
 const std::chrono::duration DEFAULT_INPUT_DISPATCHING_TIMEOUT = std::chrono::milliseconds(
         android::os::IInputConstants::UNMULTIPLIED_DEFAULT_DISPATCHING_TIMEOUT_MILLIS *
         HwTimeoutMultiplier());
-
-// Amount of time to allow for all pending events to be processed when an app switch
-// key is on the way.  This is used to preempt input dispatch and drop input events
-// when an application takes too long to respond and the user has pressed an app switch key.
-constexpr nsecs_t APP_SWITCH_TIMEOUT = 500 * 1000000LL; // 0.5sec
 
 const std::chrono::duration STALE_EVENT_TIMEOUT = std::chrono::seconds(10) * HwTimeoutMultiplier();
 
@@ -787,8 +779,6 @@ InputDispatcher::InputDispatcher(InputDispatcherPolicyInterface& policy)
         mPendingEvent(nullptr),
         mLastDropReason(DropReason::NOT_DROPPED),
         mIdGenerator(IdGenerator::Source::INPUT_DISPATCHER),
-        mAppSwitchSawKeyDown(false),
-        mAppSwitchDueTime(LLONG_MAX),
         mNextUnblockedEvent(nullptr),
         mMonitorDispatchingTimeout(DEFAULT_INPUT_DISPATCHING_TIMEOUT),
         mDispatchEnabled(false),
@@ -975,28 +965,10 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t& nextWakeupTime) {
         return;
     }
 
-    // Optimize latency of app switches.
-    // Essentially we start a short timeout when an app switch key (HOME / ENDCALL) has
-    // been pressed.  When it expires, we preempt dispatch and drop all other pending events.
-    bool isAppSwitchDue;
-    if (!REMOVE_APP_SWITCH_DROPS) {
-        isAppSwitchDue = mAppSwitchDueTime <= currentTime;
-        nextWakeupTime = std::min(nextWakeupTime, mAppSwitchDueTime);
-    }
-
     // Ready to start a new event.
     // If we don't already have a pending event, go grab one.
     if (!mPendingEvent) {
         if (mInboundQueue.empty()) {
-            if (!REMOVE_APP_SWITCH_DROPS) {
-                if (isAppSwitchDue) {
-                    // The inbound queue is empty so the app switch key we were waiting
-                    // for will never arrive.  Stop waiting for it.
-                    resetPendingAppSwitchLocked(false);
-                    isAppSwitchDue = false;
-                }
-            }
-
             // Synthesize a key repeat if appropriate.
             if (mKeyRepeatState.lastKeyEntry) {
                 if (currentTime >= mKeyRepeatState.nextRepeatTime) {
@@ -1091,16 +1063,6 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t& nextWakeupTime) {
         case EventEntry::Type::KEY: {
             std::shared_ptr<const KeyEntry> keyEntry =
                     std::static_pointer_cast<const KeyEntry>(mPendingEvent);
-            if (!REMOVE_APP_SWITCH_DROPS) {
-                if (isAppSwitchDue) {
-                    if (isAppSwitchKeyEvent(*keyEntry)) {
-                        resetPendingAppSwitchLocked(true);
-                        isAppSwitchDue = false;
-                    } else if (dropReason == DropReason::NOT_DROPPED) {
-                        dropReason = DropReason::APP_SWITCH;
-                    }
-                }
-            }
             if (dropReason == DropReason::NOT_DROPPED && isStaleEvent(currentTime, *keyEntry)) {
                 dropReason = DropReason::STALE;
             }
@@ -1114,11 +1076,6 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t& nextWakeupTime) {
         case EventEntry::Type::MOTION: {
             std::shared_ptr<const MotionEntry> motionEntry =
                     std::static_pointer_cast<const MotionEntry>(mPendingEvent);
-            if (!REMOVE_APP_SWITCH_DROPS) {
-                if (dropReason == DropReason::NOT_DROPPED && isAppSwitchDue) {
-                    dropReason = DropReason::APP_SWITCH;
-                }
-            }
             if (dropReason == DropReason::NOT_DROPPED && isStaleEvent(currentTime, *motionEntry)) {
                 // The event is stale. However, only drop stale events if there isn't an ongoing
                 // gesture. That would allow us to complete the processing of the current stroke.
@@ -1144,11 +1101,7 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t& nextWakeupTime) {
         case EventEntry::Type::SENSOR: {
             std::shared_ptr<const SensorEntry> sensorEntry =
                     std::static_pointer_cast<const SensorEntry>(mPendingEvent);
-            if (!REMOVE_APP_SWITCH_DROPS) {
-                if (dropReason == DropReason::NOT_DROPPED && isAppSwitchDue) {
-                    dropReason = DropReason::APP_SWITCH;
-                }
-            }
+
             //  Sensor timestamps use SYSTEM_TIME_BOOTTIME time base, so we can't use
             // 'currentTime' here, get SYSTEM_TIME_BOOTTIME instead.
             nsecs_t bootTime = systemTime(SYSTEM_TIME_BOOTTIME);
@@ -1245,27 +1198,9 @@ bool InputDispatcher::enqueueInboundEventLocked(std::unique_ptr<EventEntry> newE
         case EventEntry::Type::KEY: {
             LOG_ALWAYS_FATAL_IF((entry.policyFlags & POLICY_FLAG_TRUSTED) == 0,
                                 "Unexpected untrusted event.");
-            // Optimize app switch latency.
-            // If the application takes too long to catch up then we drop all events preceding
-            // the app switch key.
+
             const KeyEntry& keyEntry = static_cast<const KeyEntry&>(entry);
 
-            if (!REMOVE_APP_SWITCH_DROPS) {
-                if (isAppSwitchKeyEvent(keyEntry)) {
-                    if (keyEntry.action == AKEY_EVENT_ACTION_DOWN) {
-                        mAppSwitchSawKeyDown = true;
-                    } else if (keyEntry.action == AKEY_EVENT_ACTION_UP) {
-                        if (mAppSwitchSawKeyDown) {
-                            if (DEBUG_APP_SWITCH) {
-                                ALOGD("App switch is pending!");
-                            }
-                            mAppSwitchDueTime = keyEntry.eventTime + APP_SWITCH_TIMEOUT;
-                            mAppSwitchSawKeyDown = false;
-                            needWake = true;
-                        }
-                    }
-                }
-            }
             // If a new up event comes in, and the pending event with same key code has been asked
             // to try again later because of the policy. We have to reset the intercept key wake up
             // time for it may have been handled in the policy and could be dropped.
@@ -1401,10 +1336,6 @@ void InputDispatcher::dropInboundEventLocked(const EventEntry& entry, DropReason
             }
             reason = "inbound event was dropped because input dispatch is disabled";
             break;
-        case DropReason::APP_SWITCH:
-            ALOGI("Dropped event because of pending overdue app switch.");
-            reason = "inbound event was dropped because of pending overdue app switch";
-            break;
         case DropReason::BLOCKED:
             LOG(INFO) << "Dropping because the current application is not responding and the user "
                          "has started interacting with a different application: "
@@ -1464,33 +1395,6 @@ void InputDispatcher::dropInboundEventLocked(const EventEntry& entry, DropReason
         case EventEntry::Type::DEVICE_RESET: {
             LOG_ALWAYS_FATAL("Should not drop %s events", ftl::enum_string(entry.type).c_str());
             break;
-        }
-    }
-}
-
-static bool isAppSwitchKeyCode(int32_t keyCode) {
-    return keyCode == AKEYCODE_HOME || keyCode == AKEYCODE_ENDCALL ||
-            keyCode == AKEYCODE_APP_SWITCH;
-}
-
-bool InputDispatcher::isAppSwitchKeyEvent(const KeyEntry& keyEntry) {
-    return !(keyEntry.flags & AKEY_EVENT_FLAG_CANCELED) && isAppSwitchKeyCode(keyEntry.keyCode) &&
-            (keyEntry.policyFlags & POLICY_FLAG_TRUSTED) &&
-            (keyEntry.policyFlags & POLICY_FLAG_PASS_TO_USER);
-}
-
-bool InputDispatcher::isAppSwitchPendingLocked() const {
-    return mAppSwitchDueTime != LLONG_MAX;
-}
-
-void InputDispatcher::resetPendingAppSwitchLocked(bool handled) {
-    mAppSwitchDueTime = LLONG_MAX;
-
-    if (DEBUG_APP_SWITCH) {
-        if (handled) {
-            ALOGD("App switch has arrived.");
-        } else {
-            ALOGD("App switch was abandoned.");
         }
     }
 }
@@ -5841,16 +5745,6 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) const {
         }
     } else {
         dump += INDENT "Connections: <none>\n";
-    }
-
-    dump += "input_flags::remove_app_switch_drops() = ";
-    dump += toString(REMOVE_APP_SWITCH_DROPS);
-    dump += "\n";
-    if (isAppSwitchPendingLocked()) {
-        dump += StringPrintf(INDENT "AppSwitch: pending, due in %" PRId64 "ms\n",
-                             ns2ms(mAppSwitchDueTime - now()));
-    } else {
-        dump += INDENT "AppSwitch: not pending\n";
     }
 
     if (!mTouchModePerDisplay.empty()) {
