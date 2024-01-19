@@ -2436,6 +2436,13 @@ bool SurfaceFlinger::updateLayerSnapshots(VsyncId vsyncId, nsecs_t frameTimeNs,
             const bool willReleaseBufferOnLatch = layer->willReleaseBufferOnLatch();
 
             auto it = mLegacyLayers.find(layer->id);
+            if (it == mLegacyLayers.end() &&
+                layer->changes.test(frontend::RequestedLayerState::Changes::Destroyed)) {
+                // Layer handle was created and immediately destroyed. It was destroyed before it
+                // was added to the map.
+                continue;
+            }
+
             LLOG_ALWAYS_FATAL_WITH_TRACE_IF(it == mLegacyLayers.end(),
                                             "Couldnt find layer object for %s",
                                             layer->getDebugString().c_str());
