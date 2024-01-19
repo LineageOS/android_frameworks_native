@@ -13,6 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#include "SensorService.h"
+
 #include <aidl/android/hardware/sensors/ISensors.h>
 #include <android-base/strings.h>
 #include <android/content/pm/IPackageManagerNative.h>
@@ -22,19 +24,35 @@
 #include <binder/IServiceManager.h>
 #include <binder/PermissionCache.h>
 #include <binder/PermissionController.h>
+#include <com_android_frameworks_sensorservice_flags.h>
 #include <cutils/ashmem.h>
 #include <cutils/misc.h>
 #include <cutils/properties.h>
 #include <frameworks/base/core/proto/android/service/sensor_service.proto.h>
 #include <hardware/sensors.h>
 #include <hardware_legacy/power.h>
+#include <inttypes.h>
 #include <log/log.h>
+#include <math.h>
 #include <openssl/digest.h>
 #include <openssl/hmac.h>
 #include <openssl/rand.h>
+#include <private/android_filesystem_config.h>
+#include <sched.h>
 #include <sensor/SensorEventQueue.h>
 #include <sensorprivacy/SensorPrivacyManager.h>
+#include <stdint.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 #include <utils/SystemClock.h>
+
+#include <condition_variable>
+#include <ctime>
+#include <future>
+#include <mutex>
+#include <string>
 
 #include "BatteryService.h"
 #include "CorrectedGyroSensor.h"
@@ -43,35 +61,17 @@
 #include "LinearAccelerationSensor.h"
 #include "OrientationSensor.h"
 #include "RotationVectorSensor.h"
-#include "SensorFusion.h"
-#include "SensorInterface.h"
-
-#include "SensorService.h"
 #include "SensorDirectConnection.h"
 #include "SensorEventAckReceiver.h"
 #include "SensorEventConnection.h"
+#include "SensorFusion.h"
+#include "SensorInterface.h"
 #include "SensorRecord.h"
 #include "SensorRegistrationInfo.h"
 #include "SensorServiceUtils.h"
 
-#include <inttypes.h>
-#include <math.h>
-#include <sched.h>
-#include <stdint.h>
-#include <sys/socket.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <unistd.h>
-
-#include <condition_variable>
-#include <ctime>
-#include <future>
-#include <mutex>
-#include <string>
-
-#include <private/android_filesystem_config.h>
-
 using namespace std::chrono_literals;
+namespace sensorservice_flags = com::android::frameworks::sensorservice::flags;
 
 namespace android {
 // ---------------------------------------------------------------------------
@@ -335,6 +335,11 @@ void SensorService::onFirstRef() {
                     case SENSOR_TYPE_GYROSCOPE_UNCALIBRATED:
                         hasGyroUncalibrated = true;
                         break;
+                    case SENSOR_TYPE_DYNAMIC_SENSOR_META:
+                        if (sensorservice_flags::dynamic_sensor_hal_reconnect_handling()) {
+                            mDynamicMetaSensorHandle = list[i].handle;
+                        }
+                      break;
                     case SENSOR_TYPE_GRAVITY:
                     case SENSOR_TYPE_LINEAR_ACCELERATION:
                     case SENSOR_TYPE_ROTATION_VECTOR:
@@ -1055,6 +1060,68 @@ void SensorService::cleanupAutoDisabledSensorLocked(const sp<SensorEventConnecti
    }
 }
 
+void SensorService::sendEventsToAllClients(
+    const std::vector<sp<SensorEventConnection>>& activeConnections,
+    ssize_t count) {
+   // Send our events to clients. Check the state of wake lock for each client
+   // and release the lock if none of the clients need it.
+   bool needsWakeLock = false;
+   for (const sp<SensorEventConnection>& connection : activeConnections) {
+       connection->sendEvents(mSensorEventBuffer, count, mSensorEventScratch,
+                              mMapFlushEventsToConnections);
+       needsWakeLock |= connection->needsWakeLock();
+       // If the connection has one-shot sensors, it may be cleaned up after
+       // first trigger. Early check for one-shot sensors.
+       if (connection->hasOneShotSensors()) {
+           cleanupAutoDisabledSensorLocked(connection, mSensorEventBuffer, count);
+       }
+   }
+
+   if (mWakeLockAcquired && !needsWakeLock) {
+        setWakeLockAcquiredLocked(false);
+   }
+}
+
+void SensorService::disconnectDynamicSensor(
+    int handle,
+    const std::vector<sp<SensorEventConnection>>& activeConnections) {
+   ALOGI("Dynamic sensor handle 0x%x disconnected", handle);
+   SensorDevice::getInstance().handleDynamicSensorConnection(
+       handle, false /*connected*/);
+   if (!unregisterDynamicSensorLocked(handle)) {
+        ALOGE("Dynamic sensor release error.");
+   }
+   for (const sp<SensorEventConnection>& connection : activeConnections) {
+        connection->removeSensor(handle);
+   }
+}
+
+void SensorService::handleDeviceReconnection(SensorDevice& device) {
+    if (sensorservice_flags::dynamic_sensor_hal_reconnect_handling()) {
+        const std::vector<sp<SensorEventConnection>> activeConnections =
+                mConnectionHolder.lock(mLock).getActiveConnections();
+
+        for (int32_t handle : device.getDynamicSensorHandles()) {
+            if (mDynamicMetaSensorHandle.has_value()) {
+                // Sending one event at a time to prevent the number of handle is more than the
+                // buffer can hold.
+                mSensorEventBuffer[0].type = SENSOR_TYPE_DYNAMIC_SENSOR_META;
+                mSensorEventBuffer[0].sensor = *mDynamicMetaSensorHandle;
+                mSensorEventBuffer[0].dynamic_sensor_meta.connected = false;
+                mSensorEventBuffer[0].dynamic_sensor_meta.handle = handle;
+                mMapFlushEventsToConnections[0] = nullptr;
+
+                disconnectDynamicSensor(handle, activeConnections);
+                sendEventsToAllClients(activeConnections, 1);
+            } else {
+                ALOGE("Failed to find mDynamicMetaSensorHandle during init.");
+                break;
+            }
+        }
+    }
+    device.reconnect();
+}
+
 bool SensorService::threadLoop() {
     ALOGD("nuSensorService thread starting...");
 
@@ -1071,8 +1138,8 @@ bool SensorService::threadLoop() {
     do {
         ssize_t count = device.poll(mSensorEventBuffer, numEventMax);
         if (count < 0) {
-            if(count == DEAD_OBJECT && device.isReconnecting()) {
-                device.reconnect();
+            if (count == DEAD_OBJECT && device.isReconnecting()) {
+                handleDeviceReconnection(device);
                 continue;
             } else {
                 ALOGE("sensor poll failed (%s)", strerror(-count));
@@ -1176,7 +1243,6 @@ bool SensorService::threadLoop() {
                     rec->removeFirstPendingFlushConnection();
                 }
             }
-
             // handle dynamic sensor meta events, process registration and unregistration of dynamic
             // sensor based on content of event.
             if (mSensorEventBuffer[i].type == SENSOR_TYPE_DYNAMIC_SENSOR_META) {
@@ -1206,37 +1272,14 @@ bool SensorService::threadLoop() {
                     }
                 } else {
                     int handle = mSensorEventBuffer[i].dynamic_sensor_meta.handle;
-                    ALOGI("Dynamic sensor handle 0x%x disconnected", handle);
-
-                    device.handleDynamicSensorConnection(handle, false /*connected*/);
-                    if (!unregisterDynamicSensorLocked(handle)) {
-                        ALOGE("Dynamic sensor release error.");
-                    }
-
-                    for (const sp<SensorEventConnection>& connection : activeConnections) {
-                        connection->removeSensor(handle);
-                    }
+                    disconnectDynamicSensor(handle, activeConnections);
                 }
             }
         }
 
         // Send our events to clients. Check the state of wake lock for each client and release the
         // lock if none of the clients need it.
-        bool needsWakeLock = false;
-        for (const sp<SensorEventConnection>& connection : activeConnections) {
-            connection->sendEvents(mSensorEventBuffer, count, mSensorEventScratch,
-                                   mMapFlushEventsToConnections);
-            needsWakeLock |= connection->needsWakeLock();
-            // If the connection has one-shot sensors, it may be cleaned up after first trigger.
-            // Early check for one-shot sensors.
-            if (connection->hasOneShotSensors()) {
-                cleanupAutoDisabledSensorLocked(connection, mSensorEventBuffer, count);
-            }
-        }
-
-        if (mWakeLockAcquired && !needsWakeLock) {
-            setWakeLockAcquiredLocked(false);
-        }
+        sendEventsToAllClients(activeConnections, count);
     } while (!Thread::exitPending());
 
     ALOGW("Exiting SensorService::threadLoop => aborting...");
