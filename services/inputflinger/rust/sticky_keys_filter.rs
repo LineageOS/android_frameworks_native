@@ -142,6 +142,10 @@ impl Filter for StickyKeysFilter {
         }
         self.next.notify_devices_changed(device_infos);
     }
+
+    fn destroy(&mut self) {
+        self.next.destroy();
+    }
 }
 
 fn is_modifier_key(keycode: i32) -> bool {

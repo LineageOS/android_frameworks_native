@@ -118,6 +118,15 @@ void InputFilter::setAccessibilityBounceKeysThreshold(nsecs_t threshold) {
     }
 }
 
+void InputFilter::setAccessibilitySlowKeysThreshold(nsecs_t threshold) {
+    std::scoped_lock _l(mLock);
+
+    if (mConfig.slowKeysThresholdNs != threshold) {
+        mConfig.slowKeysThresholdNs = threshold;
+        notifyConfigurationChangedLocked();
+    }
+}
+
 void InputFilter::setAccessibilityStickyKeysEnabled(bool enabled) {
     std::scoped_lock _l(mLock);
 

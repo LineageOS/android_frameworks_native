@@ -17,6 +17,8 @@
 package com.android.server.inputflinger;
 
 import com.android.server.inputflinger.DeviceInfo;
+import com.android.server.inputflinger.IInputThread;
+import com.android.server.inputflinger.IInputThread.IInputThreadCallback;
 import com.android.server.inputflinger.InputFilterConfiguration;
 import com.android.server.inputflinger.KeyEvent;
 
@@ -36,6 +38,9 @@ interface IInputFilter {
 
         /** Sends back modifier state */
         void onModifierStateChanged(int modifierState, int lockedModifierState);
+
+        /** Creates an Input filter thread */
+        IInputThread createInputFilterThread(in IInputThreadCallback callback);
     }
 
     /** Returns if InputFilter is enabled */
