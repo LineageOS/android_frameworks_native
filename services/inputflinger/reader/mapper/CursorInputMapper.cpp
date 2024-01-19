@@ -159,14 +159,14 @@ std::list<NotifyArgs> CursorInputMapper::reconfigure(nsecs_t when,
         out.push_back(NotifyDeviceResetArgs(getContext()->getNextId(), when, getDeviceId()));
     }
 
-    if (!changes.any() || changes.test(InputReaderConfiguration::Change::POINTER_SPEED) ||
-        configurePointerCapture) {
-        configureOnChangePointerSpeed(readerConfig);
-    }
-
     if (!changes.any() || changes.test(InputReaderConfiguration::Change::DISPLAY_INFO) ||
         configurePointerCapture) {
         configureOnChangeDisplayInfo(readerConfig);
+    }
+
+    if (!changes.any() || changes.test(InputReaderConfiguration::Change::POINTER_SPEED) ||
+        configurePointerCapture) {
+        configureOnChangePointerSpeed(readerConfig);
     }
     return out;
 }
@@ -510,7 +510,8 @@ void CursorInputMapper::configureOnChangePointerSpeed(const InputReaderConfigura
     } else {
         if (mEnableNewMousePointerBallistics) {
             mNewPointerVelocityControl.setAccelerationEnabled(
-                    config.mousePointerAccelerationEnabled);
+                    config.displaysWithMousePointerAccelerationDisabled.count(
+                            mDisplayId.value_or(ADISPLAY_ID_NONE)) == 0);
             mNewPointerVelocityControl.setCurve(
                     createAccelerationCurveForPointerSensitivity(config.mousePointerSpeed));
         } else {

@@ -131,10 +131,10 @@ struct InputReaderConfiguration {
     // Currently only used when the enable_new_mouse_pointer_ballistics flag is enabled.
     int32_t mousePointerSpeed;
 
-    // Whether to apply an acceleration curve to pointer movements from mice.
+    // Displays on which an acceleration curve shouldn't be applied for pointer movements from mice.
     //
     // Currently only used when the enable_new_mouse_pointer_ballistics flag is enabled.
-    bool mousePointerAccelerationEnabled;
+    std::set<int32_t> displaysWithMousePointerAccelerationDisabled;
 
     // Velocity control parameters for mouse pointer movements.
     //
@@ -243,7 +243,7 @@ struct InputReaderConfiguration {
     InputReaderConfiguration()
           : virtualKeyQuietTime(0),
             mousePointerSpeed(0),
-            mousePointerAccelerationEnabled(true),
+            displaysWithMousePointerAccelerationDisabled(),
             pointerVelocityControlParameters(1.0f, 500.0f, 3000.0f,
                                              static_cast<float>(
                                                      android::os::IInputConstants::
