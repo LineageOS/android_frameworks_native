@@ -32,6 +32,8 @@
 #include "Monitor.h"
 #include "TouchState.h"
 #include "TouchedWindow.h"
+#include "trace/InputTracerInterface.h"
+#include "trace/InputTracingBackendInterface.h"
 
 #include <attestation/HmacKeyManager.h>
 #include <gui/InputApplication.h>
@@ -82,6 +84,9 @@ public:
     static constexpr bool kDefaultInTouchMode = true;
 
     explicit InputDispatcher(InputDispatcherPolicyInterface& policy);
+    // Constructor used for testing.
+    explicit InputDispatcher(InputDispatcherPolicyInterface&,
+                             std::unique_ptr<trace::InputTracingBackendInterface>);
     ~InputDispatcher() override;
 
     void dump(std::string& dump) const override;
@@ -155,7 +160,6 @@ private:
     enum class DropReason {
         NOT_DROPPED,
         POLICY,
-        APP_SWITCH,
         DISABLED,
         BLOCKED,
         STALE,
@@ -171,6 +175,9 @@ private:
 
     std::condition_variable mDispatcherIsAlive;
     mutable std::condition_variable mDispatcherEnteredIdle;
+
+    // Input event tracer. The tracer will only exist on builds where input tracing is allowed.
+    std::unique_ptr<trace::InputTracerInterface> mTracer GUARDED_BY(mLock);
 
     sp<Looper> mLooper;
 
@@ -227,14 +234,6 @@ private:
 
     // Adds an event to a queue of recent events for debugging purposes.
     void addRecentEventLocked(std::shared_ptr<const EventEntry> entry) REQUIRES(mLock);
-
-    // App switch latency optimization.
-    bool mAppSwitchSawKeyDown GUARDED_BY(mLock);
-    nsecs_t mAppSwitchDueTime GUARDED_BY(mLock);
-
-    bool isAppSwitchKeyEvent(const KeyEntry& keyEntry);
-    bool isAppSwitchPendingLocked() const REQUIRES(mLock);
-    void resetPendingAppSwitchLocked(bool handled) REQUIRES(mLock);
 
     // Blocked event latency optimization.  Drops old events when the user intends
     // to transfer focus to a new application.

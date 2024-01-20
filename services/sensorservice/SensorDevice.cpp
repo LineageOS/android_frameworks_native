@@ -16,13 +16,6 @@
 
 #include "SensorDevice.h"
 
-#include "android/hardware/sensors/2.0/types.h"
-#include "android/hardware/sensors/2.1/types.h"
-#include "convertV2_1.h"
-
-#include "AidlSensorHalWrapper.h"
-#include "HidlSensorHalWrapper.h"
-
 #include <android-base/logging.h>
 #include <android/util/ProtoOutputStream.h>
 #include <com_android_frameworks_sensorservice_flags.h>
@@ -36,10 +29,16 @@
 
 #include <chrono>
 #include <cinttypes>
-#include <cstddef>
-#include <thread>
-#include <mutex>
 #include <condition_variable>
+#include <cstddef>
+#include <mutex>
+#include <thread>
+
+#include "AidlSensorHalWrapper.h"
+#include "HidlSensorHalWrapper.h"
+#include "android/hardware/sensors/2.0/types.h"
+#include "android/hardware/sensors/2.1/types.h"
+#include "convertV2_1.h"
 
 using namespace android::hardware::sensors;
 using android::util::ProtoOutputStream;
@@ -168,6 +167,9 @@ void SensorDevice::reconnect() {
 
     mActivationCount.clear();
     mSensorList.clear();
+    if (sensorservice_flags::dynamic_sensor_hal_reconnect_handling()) {
+        mConnectedDynamicSensors.clear();
+    }
 
     if (mHalWrapper->connect(this)) {
         initializeSensorList();
@@ -340,6 +342,15 @@ void SensorDevice::dump(ProtoOutputStream* proto) const {
         proto->write(SensorProto::BATCHING_PERIOD_SELECTED, info.bestBatchParams.mTBatch / 1e6f);
         proto->end(token);
     }
+}
+
+std::vector<int32_t> SensorDevice::getDynamicSensorHandles() {
+    std::vector<int32_t> sensorHandles;
+    std::lock_guard<std::mutex> lock(mDynamicSensorsMutex);
+    for (auto& sensors : mConnectedDynamicSensors) {
+        sensorHandles.push_back(sensors.first);
+    }
+    return sensorHandles;
 }
 
 ssize_t SensorDevice::getSensorList(sensor_t const** list) {

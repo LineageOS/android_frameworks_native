@@ -164,6 +164,11 @@ std::string KeyEntry::getDescription() const {
                         keyCode, scanCode, metaState, repeatCount, policyFlags);
 }
 
+std::ostream& operator<<(std::ostream& out, const KeyEntry& keyEntry) {
+    out << keyEntry.getDescription();
+    return out;
+}
+
 // --- TouchModeEntry ---
 
 TouchModeEntry::TouchModeEntry(int32_t id, nsecs_t eventTime, bool inTouchMode, int displayId)
