@@ -54,11 +54,13 @@ float SlopController::consumeEvent(nsecs_t eventTimeNanos, float value) {
     mCumulativeValue += value;
 
     if (abs(mCumulativeValue) >= mSlopThreshold) {
+        ALOGD("SlopController: did not drop event with value .%3f", value);
         mHasSlopBeenMet = true;
         // Return the amount of value that exceeds the slop.
         return signOf(value) * (abs(mCumulativeValue) - mSlopThreshold);
     }
 
+    ALOGD("SlopController: dropping event with value .%3f", value);
     return 0;
 }
 
