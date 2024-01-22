@@ -100,7 +100,7 @@ private:
 
     // Used to allow select thread safe methods to be accessed without requiring the
     // method to be invoked on the RenderEngine thread
-    bool mIsInitialized = false;
+    std::atomic_bool mIsInitialized = false;
     mutable std::mutex mInitializedMutex;
     mutable std::condition_variable mInitializedCondition;
 
