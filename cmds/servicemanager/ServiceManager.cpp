@@ -150,7 +150,7 @@ static std::optional<std::string> getVintfUpdatableApex(const std::string& name)
     std::optional<std::string> updatableViaApex;
 
     forEachManifest([&](const ManifestWithDescription& mwd) {
-        mwd.manifest->forEachInstance([&](const auto& manifestInstance) {
+        bool cont = mwd.manifest->forEachInstance([&](const auto& manifestInstance) {
             if (manifestInstance.format() != vintf::HalFormat::AIDL) return true;
             if (manifestInstance.package() != aname.package) return true;
             if (manifestInstance.interface() != aname.iface) return true;
@@ -158,8 +158,7 @@ static std::optional<std::string> getVintfUpdatableApex(const std::string& name)
             updatableViaApex = manifestInstance.updatableViaApex();
             return false; // break (libvintf uses opposite convention)
         });
-        if (updatableViaApex.has_value()) return true; // break (found match)
-        return false; // continue
+        return !cont;
     });
 
     return updatableViaApex;
