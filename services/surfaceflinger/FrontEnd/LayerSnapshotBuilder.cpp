@@ -587,8 +587,8 @@ LayerSnapshot* LayerSnapshotBuilder::createSnapshot(const LayerHierarchy::Traver
 bool LayerSnapshotBuilder::sortSnapshotsByZ(const Args& args) {
     if (!mResortSnapshots && args.forceUpdate == ForceUpdateFlags::NONE &&
         !args.layerLifecycleManager.getGlobalChanges().any(
-                RequestedLayerState::Changes::Hierarchy |
-                RequestedLayerState::Changes::Visibility)) {
+                RequestedLayerState::Changes::Hierarchy | RequestedLayerState::Changes::Visibility |
+                RequestedLayerState::Changes::Input)) {
         // We are not force updating and there are no hierarchy or visibility changes. Avoid sorting
         // the snapshots.
         return false;

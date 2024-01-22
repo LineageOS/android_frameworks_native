@@ -64,6 +64,18 @@ protected:
         actualBuilder.update(args);
     }
 
+    void update(LayerSnapshotBuilder& actualBuilder) {
+        LayerSnapshotBuilder::Args args{.root = mHierarchyBuilder.getHierarchy(),
+                                        .layerLifecycleManager = mLifecycleManager,
+                                        .includeMetadata = false,
+                                        .displays = mFrontEndDisplayInfos,
+                                        .globalShadowSettings = globalShadowSettings,
+                                        .supportsBlur = true,
+                                        .supportedLayerGenericMetadata = {},
+                                        .genericLayerMetadataKeyMap = {}};
+        update(actualBuilder, args);
+    }
+
     void updateAndVerify(LayerSnapshotBuilder& actualBuilder, bool hasDisplayChanges,
                          const std::vector<uint32_t> expectedVisibleLayerIdsInZOrder) {
         LayerSnapshotBuilder::Args args{.root = mHierarchyBuilder.getHierarchy(),
@@ -1197,6 +1209,32 @@ TEST_F(LayerSnapshotTest, propagateDropInputMode) {
     // Ensure child also has the correct drop input mode regardless of whether either layer has
     // an input channel
     EXPECT_EQ(getSnapshot(11)->dropInputMode, gui::DropInputMode::ALL);
+}
+
+TEST_F(LayerSnapshotTest, NonVisibleLayerWithInput) {
+    LayerHierarchyTestBase::createRootLayer(3);
+    setColor(3, {-1._hf, -1._hf, -1._hf});
+    UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
+
+    std::vector<TransactionState> transactions;
+    transactions.emplace_back();
+    transactions.back().states.push_back({});
+    transactions.back().states.front().state.what = layer_state_t::eInputInfoChanged;
+    transactions.back().states.front().layerId = 3;
+    transactions.back().states.front().state.windowInfoHandle = sp<gui::WindowInfoHandle>::make();
+    auto inputInfo = transactions.back().states.front().state.windowInfoHandle->editInfo();
+    inputInfo->token = sp<BBinder>::make();
+    mLifecycleManager.applyTransactions(transactions);
+
+    update(mSnapshotBuilder);
+
+    bool foundInputLayer = false;
+    mSnapshotBuilder.forEachInputSnapshot([&](const frontend::LayerSnapshot& snapshot) {
+        if (snapshot.uniqueSequence == 3) {
+            foundInputLayer = true;
+        }
+    });
+    EXPECT_TRUE(foundInputLayer);
 }
 
 } // namespace android::surfaceflinger::frontend
