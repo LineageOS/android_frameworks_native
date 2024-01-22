@@ -221,7 +221,7 @@ cc_library {
         "liblog",
         "libPlatformProperties",
         "libtinyxml2",
-        "libvintf",
+        "libz", // needed by libkernelconfigs
     ],
 
     ldflags: [
@@ -238,6 +238,7 @@ cc_library {
         "inputconstants-cpp",
         "libui-types",
         "libtflite_static",
+        "libkernelconfigs",
     ],
 
     whole_static_libs: [

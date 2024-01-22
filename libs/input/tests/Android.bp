@@ -36,8 +36,10 @@ cc_test {
         "libgmock",
         "libgui_window_info_static",
         "libinput",
+        "libkernelconfigs",
         "libtflite_static",
         "libui-types",
+        "libz", // needed by libkernelconfigs
     ],
     cflags: [
         "-Wall",
@@ -61,7 +63,6 @@ cc_test {
         "libPlatformProperties",
         "libtinyxml2",
         "libutils",
-        "libvintf",
     ],
     data: [
         "data/*",
