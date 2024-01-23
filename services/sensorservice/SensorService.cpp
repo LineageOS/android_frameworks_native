@@ -89,7 +89,7 @@ bool SensorService::sHmacGlobalKeyIsValid = false;
 std::map<String16, int> SensorService::sPackageTargetVersion;
 Mutex SensorService::sPackageTargetVersionLock;
 String16 SensorService::sSensorInterfaceDescriptorPrefix =
-        String16("android.frameworks.sensorservice@");
+    String16("android.frameworks.sensorservice");
 AppOpsManager SensorService::sAppOpsManager;
 std::atomic_uint64_t SensorService::curProxCallbackSeq(0);
 std::atomic_uint64_t SensorService::completedCallbackSeq(0);
@@ -2242,10 +2242,12 @@ bool SensorService::hasPermissionForSensor(const Sensor& sensor) {
 }
 
 int SensorService::getTargetSdkVersion(const String16& opPackageName) {
-    // Don't query the SDK version for the ISensorManager descriptor as it doesn't have one. This
-    // descriptor tends to be used for VNDK clients, but can technically be set by anyone so don't
-    // give it elevated privileges.
-    if (opPackageName.startsWith(sSensorInterfaceDescriptorPrefix)) {
+    // Don't query the SDK version for the ISensorManager descriptor as it
+    // doesn't have one. This descriptor tends to be used for VNDK clients, but
+    // can technically be set by anyone so don't give it elevated privileges.
+    bool isVNDK = opPackageName.startsWith(sSensorInterfaceDescriptorPrefix) &&
+                  opPackageName.contains(String16("@"));
+    if (isVNDK) {
         return -1;
     }
 
