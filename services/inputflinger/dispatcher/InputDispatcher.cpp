@@ -393,22 +393,23 @@ std::unique_ptr<DispatchEntry> createDispatchEntry(const InputTarget& inputTarge
     // as long as all other pointers are normalized to the same value and the final DispatchEntry
     // uses the transform for the normalized pointer.
     const ui::Transform& firstPointerTransform =
-            inputTarget.pointerTransforms[firstMarkedBit(inputTarget.pointerIds)];
-    ui::Transform inverseFirstTransform = firstPointerTransform.inverse();
+            inputTarget.getTransformForPointer(firstMarkedBit(inputTarget.getPointerIds()));
+    const ui::Transform inverseFirstTransform = firstPointerTransform.inverse();
 
     // Iterate through all pointers in the event to normalize against the first.
-    for (uint32_t pointerIndex = 0; pointerIndex < motionEntry.getPointerCount(); pointerIndex++) {
-        const PointerProperties& pointerProperties = motionEntry.pointerProperties[pointerIndex];
-        uint32_t pointerId = uint32_t(pointerProperties.id);
-        const ui::Transform& currTransform = inputTarget.pointerTransforms[pointerId];
+    for (size_t i = 0; i < motionEntry.getPointerCount(); i++) {
+        PointerCoords& newCoords = pointerCoords[i];
 
-        pointerCoords[pointerIndex].copyFrom(motionEntry.pointerCoords[pointerIndex]);
+        const auto pointerId = motionEntry.pointerProperties[i].id;
+        const ui::Transform& currTransform = inputTarget.getTransformForPointer(pointerId);
+
+        newCoords.copyFrom(motionEntry.pointerCoords[i]);
         // First, apply the current pointer's transform to update the coordinates into
         // window space.
-        pointerCoords[pointerIndex].transform(currTransform);
+        newCoords.transform(currTransform);
         // Next, apply the inverse transform of the normalized coordinates so the
         // current coordinates are transformed into the normalized coordinate space.
-        pointerCoords[pointerIndex].transform(inverseFirstTransform);
+        newCoords.transform(inverseFirstTransform);
     }
 
     std::unique_ptr<MotionEntry> combinedMotionEntry =
@@ -1630,14 +1631,12 @@ void InputDispatcher::dispatchFocusLocked(nsecs_t currentTime,
     if (connection == nullptr) {
         return; // Connection has gone away
     }
-    InputTarget target;
-    target.connection = connection;
     entry->dispatchInProgress = true;
     std::string message = std::string("Focus ") + (entry->hasFocus ? "entering " : "leaving ") +
             connection->getInputChannelName();
     std::string reason = std::string("reason=").append(entry->reason);
     android_log_event_list(LOGTAG_INPUT_FOCUS) << message << reason << LOG_ID_EVENTS;
-    dispatchEventLocked(currentTime, entry, {target});
+    dispatchEventLocked(currentTime, entry, {{connection}});
 }
 
 void InputDispatcher::dispatchPointerCaptureChangedLocked(
@@ -1703,10 +1702,8 @@ void InputDispatcher::dispatchPointerCaptureChangedLocked(
         }
         return;
     }
-    InputTarget target;
-    target.connection = connection;
     entry->dispatchInProgress = true;
-    dispatchEventLocked(currentTime, entry, {target});
+    dispatchEventLocked(currentTime, entry, {{connection}});
 
     dropReason = DropReason::NOT_DROPPED;
 }
@@ -1739,9 +1736,7 @@ std::vector<InputTarget> InputDispatcher::getInputTargetsFromWindowHandlesLocked
         if (connection == nullptr) {
             continue; // Connection has gone away
         }
-        InputTarget target;
-        target.connection = connection;
-        inputTargets.push_back(target);
+        inputTargets.emplace_back(connection);
     }
     return inputTargets;
 }
@@ -2022,10 +2017,8 @@ void InputDispatcher::dispatchDragLocked(nsecs_t currentTime,
     if (connection == nullptr) {
         return; // Connection has gone away
     }
-    InputTarget target;
-    target.connection = connection;
     entry->dispatchInProgress = true;
-    dispatchEventLocked(currentTime, entry, {target});
+    dispatchEventLocked(currentTime, entry, {{connection}});
 }
 
 void InputDispatcher::logOutboundMotionDetails(const char* prefix, const MotionEntry& entry) {
@@ -2868,8 +2861,7 @@ std::optional<InputTarget> InputDispatcher::createInputTargetLocked(
         ALOGW("Not creating InputTarget for %s, no input channel", windowHandle->getName().c_str());
         return {};
     }
-    InputTarget inputTarget;
-    inputTarget.connection = connection;
+    InputTarget inputTarget{connection};
     inputTarget.windowHandle = windowHandle;
     inputTarget.dispatchMode = dispatchMode;
     inputTarget.flags = targetFlags;
@@ -2982,8 +2974,7 @@ void InputDispatcher::addGlobalMonitoringTargetsLocked(std::vector<InputTarget>&
     if (monitorsIt == mGlobalMonitorsByDisplay.end()) return;
 
     for (const Monitor& monitor : selectResponsiveMonitorsLocked(monitorsIt->second)) {
-        InputTarget target;
-        target.connection = monitor.connection;
+        InputTarget target{monitor.connection};
         // target.firstDownTimeInTarget is not set for global monitors. It is only required in split
         // touch and global monitoring works as intended even without setting firstDownTimeInTarget
         if (const auto& it = mDisplayInfos.find(displayId); it != mDisplayInfos.end()) {
@@ -3275,7 +3266,7 @@ void InputDispatcher::prepareDispatchCycleLocked(nsecs_t currentTime,
         ALOGD("channel '%s' ~ prepareDispatchCycle - flags=%s, "
               "globalScaleFactor=%f, pointerIds=%s %s",
               connection->getInputChannelName().c_str(), inputTarget.flags.string().c_str(),
-              inputTarget.globalScaleFactor, bitsetToString(inputTarget.pointerIds).c_str(),
+              inputTarget.globalScaleFactor, bitsetToString(inputTarget.getPointerIds()).c_str(),
               inputTarget.getPointerInfoString().c_str());
     }
 
@@ -3297,7 +3288,7 @@ void InputDispatcher::prepareDispatchCycleLocked(nsecs_t currentTime,
                             ftl::enum_string(eventEntry->type).c_str());
 
         const MotionEntry& originalMotionEntry = static_cast<const MotionEntry&>(*eventEntry);
-        if (inputTarget.pointerIds.count() != originalMotionEntry.getPointerCount()) {
+        if (inputTarget.getPointerIds().count() != originalMotionEntry.getPointerCount()) {
             if (!inputTarget.firstDownTimeInTarget.has_value()) {
                 logDispatchStateLocked();
                 LOG(FATAL) << "Splitting motion events requires a down time to be set for the "
@@ -3306,7 +3297,7 @@ void InputDispatcher::prepareDispatchCycleLocked(nsecs_t currentTime,
                            << originalMotionEntry.getDescription();
             }
             std::unique_ptr<MotionEntry> splitMotionEntry =
-                    splitMotionEvent(originalMotionEntry, inputTarget.pointerIds,
+                    splitMotionEvent(originalMotionEntry, inputTarget.getPointerIds(),
                                      inputTarget.firstDownTimeInTarget.value());
             if (!splitMotionEntry) {
                 return; // split event was dropped
@@ -4107,7 +4098,7 @@ void InputDispatcher::synthesizeCancelationEventsForConnectionLocked(
 
     const bool wasEmpty = connection->outboundQueue.empty();
     // The target to use if we don't find a window associated with the channel.
-    const InputTarget fallbackTarget{.connection = connection};
+    const InputTarget fallbackTarget{connection};
     const auto& token = connection->getToken();
 
     for (size_t i = 0; i < cancelationEvents.size(); i++) {
@@ -4225,8 +4216,7 @@ void InputDispatcher::synthesizePointerDownEventsForConnectionLocked(
                                                  targetFlags, pointerIds, motionEntry.downTime,
                                                  targets);
                 } else {
-                    targets.emplace_back(
-                            InputTarget{.connection = connection, .flags = targetFlags});
+                    targets.emplace_back(connection, targetFlags);
                     const auto it = mDisplayInfos.find(motionEntry.displayId);
                     if (it != mDisplayInfos.end()) {
                         targets.back().displayTransform = it->second.transform;
