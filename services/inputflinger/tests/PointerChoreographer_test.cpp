@@ -1557,4 +1557,122 @@ TEST_F(PointerChoreographerTest, SetsPointerIconForMouseAndStylus) {
     mousePc->assertPointerIconNotSet();
 }
 
+TEST_F(PointerChoreographerTest, SetPointerIconVisibilityHidesPointerOnDisplay) {
+    // Make sure there are two PointerControllers on different displays.
+    mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID, ANOTHER_DISPLAY_ID}));
+    mChoreographer.setDefaultMouseDisplayId(DISPLAY_ID);
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0,
+             {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE),
+              generateTestDeviceInfo(SECOND_DEVICE_ID, AINPUT_SOURCE_MOUSE, ANOTHER_DISPLAY_ID)}});
+    auto firstMousePc = assertPointerControllerCreated(ControllerType::MOUSE);
+    ASSERT_EQ(DISPLAY_ID, firstMousePc->getDisplayId());
+    auto secondMousePc = assertPointerControllerCreated(ControllerType::MOUSE);
+    ASSERT_EQ(ANOTHER_DISPLAY_ID, secondMousePc->getDisplayId());
+
+    // Both pointers should be visible.
+    ASSERT_TRUE(firstMousePc->isPointerShown());
+    ASSERT_TRUE(secondMousePc->isPointerShown());
+
+    // Hide the icon on the second display.
+    mChoreographer.setPointerIconVisibility(ANOTHER_DISPLAY_ID, false);
+    ASSERT_TRUE(firstMousePc->isPointerShown());
+    ASSERT_FALSE(secondMousePc->isPointerShown());
+
+    // Move and set pointer icons for both mice. The second pointer should still be hidden.
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, AINPUT_SOURCE_MOUSE)
+                    .pointer(MOUSE_POINTER)
+                    .deviceId(DEVICE_ID)
+                    .displayId(DISPLAY_ID)
+                    .build());
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, AINPUT_SOURCE_MOUSE)
+                    .pointer(MOUSE_POINTER)
+                    .deviceId(SECOND_DEVICE_ID)
+                    .displayId(ANOTHER_DISPLAY_ID)
+                    .build());
+    ASSERT_TRUE(mChoreographer.setPointerIcon(PointerIconStyle::TYPE_TEXT, DISPLAY_ID, DEVICE_ID));
+    ASSERT_TRUE(mChoreographer.setPointerIcon(PointerIconStyle::TYPE_TEXT, ANOTHER_DISPLAY_ID,
+                                              SECOND_DEVICE_ID));
+    firstMousePc->assertPointerIconSet(PointerIconStyle::TYPE_TEXT);
+    secondMousePc->assertPointerIconSet(PointerIconStyle::TYPE_TEXT);
+    ASSERT_TRUE(firstMousePc->isPointerShown());
+    ASSERT_FALSE(secondMousePc->isPointerShown());
+
+    // Allow the icon to be visible on the second display, and move the mouse.
+    mChoreographer.setPointerIconVisibility(ANOTHER_DISPLAY_ID, true);
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, AINPUT_SOURCE_MOUSE)
+                    .pointer(MOUSE_POINTER)
+                    .deviceId(SECOND_DEVICE_ID)
+                    .displayId(ANOTHER_DISPLAY_ID)
+                    .build());
+    ASSERT_TRUE(firstMousePc->isPointerShown());
+    ASSERT_TRUE(secondMousePc->isPointerShown());
+}
+
+TEST_F(PointerChoreographerTest, SetPointerIconVisibilityHidesPointerWhenDeviceConnected) {
+    mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID}));
+    mChoreographer.setDefaultMouseDisplayId(DISPLAY_ID);
+
+    // Hide the pointer on the display, and then connect the mouse.
+    mChoreographer.setPointerIconVisibility(DISPLAY_ID, false);
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE)}});
+    auto mousePc = assertPointerControllerCreated(ControllerType::MOUSE);
+    ASSERT_EQ(DISPLAY_ID, mousePc->getDisplayId());
+
+    // The pointer should not be visible.
+    ASSERT_FALSE(mousePc->isPointerShown());
+}
+
+TEST_F(PointerChoreographerTest, SetPointerIconVisibilityHidesPointerForTouchpad) {
+    mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID}));
+    mChoreographer.setDefaultMouseDisplayId(DISPLAY_ID);
+
+    // Hide the pointer on the display.
+    mChoreographer.setPointerIconVisibility(DISPLAY_ID, false);
+
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0,
+             {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE | AINPUT_SOURCE_TOUCHPAD,
+                                     ADISPLAY_ID_NONE)}});
+    auto touchpadPc = assertPointerControllerCreated(ControllerType::MOUSE);
+    ASSERT_EQ(DISPLAY_ID, touchpadPc->getDisplayId());
+
+    mChoreographer.notifyMotion(MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER,
+                                                  AINPUT_SOURCE_MOUSE | AINPUT_SOURCE_TOUCHPAD)
+                                        .pointer(TOUCHPAD_POINTER)
+                                        .deviceId(DEVICE_ID)
+                                        .displayId(DISPLAY_ID)
+                                        .build());
+
+    // The pointer should not be visible.
+    ASSERT_FALSE(touchpadPc->isPointerShown());
+}
+
+TEST_F(PointerChoreographerTest, SetPointerIconVisibilityHidesPointerForStylus) {
+    mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID}));
+    mChoreographer.setStylusPointerIconEnabled(true);
+
+    // Hide the pointer on the display.
+    mChoreographer.setPointerIconVisibility(DISPLAY_ID, false);
+
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_STYLUS, DISPLAY_ID)}});
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
+                    .pointer(STYLUS_POINTER)
+                    .deviceId(DEVICE_ID)
+                    .displayId(DISPLAY_ID)
+                    .build());
+    ASSERT_TRUE(mChoreographer.setPointerIcon(PointerIconStyle::TYPE_TEXT, DISPLAY_ID, DEVICE_ID));
+    auto pc = assertPointerControllerCreated(ControllerType::STYLUS);
+    pc->assertPointerIconSet(PointerIconStyle::TYPE_TEXT);
+
+    // The pointer should not be visible.
+    ASSERT_FALSE(pc->isPointerShown());
+}
+
 } // namespace android

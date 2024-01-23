@@ -109,7 +109,9 @@ NotifyMotionArgs PointerChoreographer::processMouseEventLocked(const NotifyMotio
     const float deltaX = args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X);
     const float deltaY = args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y);
     pc.move(deltaX, deltaY);
-    pc.unfade(PointerControllerInterface::Transition::IMMEDIATE);
+    if (canUnfadeOnDisplay(displayId)) {
+        pc.unfade(PointerControllerInterface::Transition::IMMEDIATE);
+    }
 
     const auto [x, y] = pc.getPosition();
     NotifyMotionArgs newArgs(args);
@@ -131,7 +133,9 @@ NotifyMotionArgs PointerChoreographer::processTouchpadEventLocked(const NotifyMo
         const float deltaX = args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X);
         const float deltaY = args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y);
         pc.move(deltaX, deltaY);
-        pc.unfade(PointerControllerInterface::Transition::IMMEDIATE);
+        if (canUnfadeOnDisplay(displayId)) {
+            pc.unfade(PointerControllerInterface::Transition::IMMEDIATE);
+        }
 
         const auto [x, y] = pc.getPosition();
         newArgs.pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_X, x);
@@ -140,7 +144,9 @@ NotifyMotionArgs PointerChoreographer::processTouchpadEventLocked(const NotifyMo
         newArgs.yCursorPosition = y;
     } else {
         // This is a trackpad gesture with fake finger(s) that should not move the mouse pointer.
-        pc.unfade(PointerControllerInterface::Transition::IMMEDIATE);
+        if (canUnfadeOnDisplay(displayId)) {
+            pc.unfade(PointerControllerInterface::Transition::IMMEDIATE);
+        }
 
         const auto [x, y] = pc.getPosition();
         for (uint32_t i = 0; i < newArgs.getPointerCount(); i++) {
@@ -223,7 +229,7 @@ void PointerChoreographer::processStylusHoverEventLocked(const NotifyMotionArgs&
     if (args.action == AMOTION_EVENT_ACTION_HOVER_EXIT) {
         pc.fade(PointerControllerInterface::Transition::IMMEDIATE);
         pc.updatePointerIcon(PointerIconStyle::TYPE_NOT_SPECIFIED);
-    } else {
+    } else if (canUnfadeOnDisplay(args.displayId)) {
         pc.unfade(PointerControllerInterface::Transition::IMMEDIATE);
     }
 }
@@ -323,6 +329,10 @@ InputDeviceInfo* PointerChoreographer::findInputDeviceLocked(DeviceId deviceId) 
     return it != mInputDeviceInfos.end() ? &(*it) : nullptr;
 }
 
+bool PointerChoreographer::canUnfadeOnDisplay(int32_t displayId) {
+    return mDisplaysWithPointersHidden.find(displayId) == mDisplaysWithPointersHidden.end();
+}
+
 void PointerChoreographer::updatePointerControllersLocked() {
     std::set<int32_t /*displayId*/> mouseDisplaysToKeep;
     std::set<DeviceId> touchDevicesToKeep;
@@ -342,7 +352,7 @@ void PointerChoreographer::updatePointerControllersLocked() {
                     mMousePointersByDisplay.try_emplace(displayId,
                                                         getMouseControllerConstructor(displayId));
             auto [_, isNewMouseDevice] = mMouseDevices.emplace(info.getId());
-            if (isNewMouseDevice || isNewMousePointer) {
+            if ((isNewMouseDevice || isNewMousePointer) && canUnfadeOnDisplay(displayId)) {
                 mousePointerIt->second->unfade(PointerControllerInterface::Transition::IMMEDIATE);
             }
         }
@@ -511,6 +521,28 @@ bool PointerChoreographer::setPointerIcon(
         return false;
     }
     return true;
+}
+
+void PointerChoreographer::setPointerIconVisibility(int32_t displayId, bool visible) {
+    std::scoped_lock lock(mLock);
+    if (visible) {
+        mDisplaysWithPointersHidden.erase(displayId);
+        // We do not unfade the icons here, because we don't know when the last event happened.
+        return;
+    }
+
+    mDisplaysWithPointersHidden.emplace(displayId);
+
+    // Hide any icons that are currently visible on the display.
+    if (auto it = mMousePointersByDisplay.find(displayId); it != mMousePointersByDisplay.end()) {
+        const auto& [_, controller] = *it;
+        controller->fade(PointerControllerInterface::Transition::IMMEDIATE);
+    }
+    for (const auto& [_, controller] : mStylusPointersByDevice) {
+        if (controller->getDisplayId() == displayId) {
+            controller->fade(PointerControllerInterface::Transition::IMMEDIATE);
+        }
+    }
 }
 
 PointerChoreographer::ControllerConstructor PointerChoreographer::getMouseControllerConstructor(
