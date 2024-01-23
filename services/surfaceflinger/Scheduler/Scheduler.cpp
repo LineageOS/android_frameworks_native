@@ -646,13 +646,13 @@ Fps Scheduler::getNextFrameInterval(PhysicalDisplayId id,
         return Fps{};
     }
     const Display& display = *displayOpt;
-    const nsecs_t threshold =
-            display.selectorPtr->getActiveMode().modePtr->getVsyncRate().getPeriodNsecs() / 2;
-    const nsecs_t nextVsyncTime =
-            display.schedulePtr->getTracker()
-                    .nextAnticipatedVSyncTimeFrom(currentExpectedPresentTime.ns() + threshold,
-                                                  currentExpectedPresentTime.ns());
-    return Fps::fromPeriodNsecs(nextVsyncTime - currentExpectedPresentTime.ns());
+    const Duration threshold =
+            display.selectorPtr->getActiveMode().modePtr->getVsyncRate().getPeriod() / 2;
+    const TimePoint nextVsyncTime =
+            display.schedulePtr->vsyncDeadlineAfter(currentExpectedPresentTime + threshold,
+                                                    currentExpectedPresentTime);
+    const Duration frameInterval = nextVsyncTime - currentExpectedPresentTime;
+    return Fps::fromPeriodNsecs(frameInterval.ns());
 }
 
 void Scheduler::resync() {

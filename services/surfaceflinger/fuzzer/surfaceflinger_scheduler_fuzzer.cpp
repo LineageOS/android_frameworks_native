@@ -441,7 +441,9 @@ void SchedulerFuzzer::fuzzFrameTargeter() {
         FuzzedDataProvider& fuzzer;
 
         Period period() const { return getFuzzedDuration(fuzzer); }
-        TimePoint vsyncDeadlineAfter(TimePoint) const { return getFuzzedTimePoint(fuzzer); }
+        TimePoint vsyncDeadlineAfter(TimePoint, ftl::Optional<TimePoint> = {}) const {
+            return getFuzzedTimePoint(fuzzer);
+        }
         Period minFramePeriod() const { return period(); }
     } vsyncSource{mFdp};
 

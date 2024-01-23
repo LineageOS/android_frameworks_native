@@ -16,13 +16,14 @@
 
 #pragma once
 
+#include <ftl/optional.h>
 #include <scheduler/Time.h>
 
 namespace android::scheduler {
 
 struct IVsyncSource {
     virtual Period period() const = 0;
-    virtual TimePoint vsyncDeadlineAfter(TimePoint) const = 0;
+    virtual TimePoint vsyncDeadlineAfter(TimePoint, ftl::Optional<TimePoint> = {}) const = 0;
     virtual Period minFramePeriod() const = 0;
 
 protected:
