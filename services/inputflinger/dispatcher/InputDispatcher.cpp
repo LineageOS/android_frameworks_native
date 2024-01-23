@@ -365,17 +365,20 @@ size_t firstMarkedBit(T set) {
     return i;
 }
 
-std::unique_ptr<DispatchEntry> createDispatchEntry(const InputTarget& inputTarget,
+std::unique_ptr<DispatchEntry> createDispatchEntry(const IdGenerator& idGenerator,
+                                                   const InputTarget& inputTarget,
                                                    std::shared_ptr<const EventEntry> eventEntry,
                                                    ftl::Flags<InputTarget::Flags> inputTargetFlags,
                                                    int64_t vsyncId) {
+    const bool zeroCoords = inputTargetFlags.test(InputTarget::Flags::ZERO_COORDS);
     const sp<WindowInfoHandle> win = inputTarget.windowHandle;
     const std::optional<int32_t> windowId =
             win ? std::make_optional(win->getInfo()->id) : std::nullopt;
     // Assume the only targets that are not associated with a window are global monitors, and use
     // the system UID for global monitors for tracing purposes.
     const gui::Uid uid = win ? win->getInfo()->ownerUid : gui::Uid(AID_SYSTEM);
-    if (inputTarget.useDefaultPointerTransform()) {
+
+    if (inputTarget.useDefaultPointerTransform() && !zeroCoords) {
         const ui::Transform& transform = inputTarget.getDefaultPointerTransform();
         return std::make_unique<DispatchEntry>(eventEntry, inputTargetFlags, transform,
                                                inputTarget.displayTransform,
@@ -386,34 +389,39 @@ std::unique_ptr<DispatchEntry> createDispatchEntry(const InputTarget& inputTarge
     ALOG_ASSERT(eventEntry->type == EventEntry::Type::MOTION);
     const MotionEntry& motionEntry = static_cast<const MotionEntry&>(*eventEntry);
 
-    std::vector<PointerCoords> pointerCoords;
-    pointerCoords.resize(motionEntry.getPointerCount());
+    std::vector<PointerCoords> pointerCoords{motionEntry.getPointerCount()};
 
-    // Use the first pointer information to normalize all other pointers. This could be any pointer
-    // as long as all other pointers are normalized to the same value and the final DispatchEntry
-    // uses the transform for the normalized pointer.
-    const ui::Transform& firstPointerTransform =
-            inputTarget.getTransformForPointer(firstMarkedBit(inputTarget.getPointerIds()));
-    const ui::Transform inverseFirstTransform = firstPointerTransform.inverse();
+    const ui::Transform* transform = &kIdentityTransform;
+    const ui::Transform* displayTransform = &kIdentityTransform;
+    if (zeroCoords) {
+        std::for_each(pointerCoords.begin(), pointerCoords.end(), [](auto& pc) { pc.clear(); });
+    } else {
+        // Use the first pointer information to normalize all other pointers. This could be any
+        // pointer as long as all other pointers are normalized to the same value and the final
+        // DispatchEntry uses the transform for the normalized pointer.
+        transform =
+                &inputTarget.getTransformForPointer(firstMarkedBit(inputTarget.getPointerIds()));
+        const ui::Transform inverseTransform = transform->inverse();
+        displayTransform = &inputTarget.displayTransform;
 
-    // Iterate through all pointers in the event to normalize against the first.
-    for (size_t i = 0; i < motionEntry.getPointerCount(); i++) {
-        PointerCoords& newCoords = pointerCoords[i];
+        // Iterate through all pointers in the event to normalize against the first.
+        for (size_t i = 0; i < motionEntry.getPointerCount(); i++) {
+            PointerCoords& newCoords = pointerCoords[i];
+            const auto pointerId = motionEntry.pointerProperties[i].id;
+            const ui::Transform& currTransform = inputTarget.getTransformForPointer(pointerId);
 
-        const auto pointerId = motionEntry.pointerProperties[i].id;
-        const ui::Transform& currTransform = inputTarget.getTransformForPointer(pointerId);
-
-        newCoords.copyFrom(motionEntry.pointerCoords[i]);
-        // First, apply the current pointer's transform to update the coordinates into
-        // window space.
-        newCoords.transform(currTransform);
-        // Next, apply the inverse transform of the normalized coordinates so the
-        // current coordinates are transformed into the normalized coordinate space.
-        newCoords.transform(inverseFirstTransform);
+            newCoords.copyFrom(motionEntry.pointerCoords[i]);
+            // First, apply the current pointer's transform to update the coordinates into
+            // window space.
+            newCoords.transform(currTransform);
+            // Next, apply the inverse transform of the normalized coordinates so the
+            // current coordinates are transformed into the normalized coordinate space.
+            newCoords.transform(inverseTransform);
+        }
     }
 
     std::unique_ptr<MotionEntry> combinedMotionEntry =
-            std::make_unique<MotionEntry>(motionEntry.id, motionEntry.injectionState,
+            std::make_unique<MotionEntry>(idGenerator.nextId(), motionEntry.injectionState,
                                           motionEntry.eventTime, motionEntry.deviceId,
                                           motionEntry.source, motionEntry.displayId,
                                           motionEntry.policyFlags, motionEntry.action,
@@ -427,7 +435,7 @@ std::unique_ptr<DispatchEntry> createDispatchEntry(const InputTarget& inputTarge
 
     std::unique_ptr<DispatchEntry> dispatchEntry =
             std::make_unique<DispatchEntry>(std::move(combinedMotionEntry), inputTargetFlags,
-                                            firstPointerTransform, inputTarget.displayTransform,
+                                            *transform, *displayTransform,
                                             inputTarget.globalScaleFactor, uid, vsyncId, windowId);
     return dispatchEntry;
 }
@@ -3355,7 +3363,8 @@ void InputDispatcher::enqueueDispatchEntryLocked(const std::shared_ptr<Connectio
     // This is a new event.
     // Enqueue a new dispatch entry onto the outbound queue for this connection.
     std::unique_ptr<DispatchEntry> dispatchEntry =
-            createDispatchEntry(inputTarget, eventEntry, inputTarget.flags, mWindowInfosVsyncId);
+            createDispatchEntry(mIdGenerator, inputTarget, eventEntry, inputTarget.flags,
+                                mWindowInfosVsyncId);
 
     // Use the eventEntry from dispatchEntry since the entry may have changed and can now be a
     // different EventEntry than what was passed in.
@@ -3473,7 +3482,7 @@ void InputDispatcher::enqueueDispatchEntryLocked(const std::shared_ptr<Connectio
                           << connection->getInputChannelName() << " with event "
                           << cancelEvent->getDescription();
                 std::unique_ptr<DispatchEntry> cancelDispatchEntry =
-                        createDispatchEntry(inputTarget, std::move(cancelEvent),
+                        createDispatchEntry(mIdGenerator, inputTarget, std::move(cancelEvent),
                                             ftl::Flags<InputTarget::Flags>(), mWindowInfosVsyncId);
 
                 // Send these cancel events to the queue before sending the event from the new
@@ -3653,12 +3662,6 @@ status_t InputDispatcher::publishMotionEvent(Connection& connection,
             }
             usingCoords = scaledCoords;
         }
-    } else if (dispatchEntry.targetFlags.test(InputTarget::Flags::ZERO_COORDS)) {
-        // We don't want the dispatch target to know the coordinates
-        for (uint32_t i = 0; i < motionEntry.getPointerCount(); i++) {
-            scaledCoords[i].clear();
-        }
-        usingCoords = scaledCoords;
     }
 
     std::array<uint8_t, 32> hmac = getSignature(motionEntry, dispatchEntry);
