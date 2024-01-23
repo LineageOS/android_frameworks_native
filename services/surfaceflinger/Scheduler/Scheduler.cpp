@@ -77,8 +77,7 @@ Scheduler::Scheduler(ICompositor& compositor, ISchedulerCallback& callback, Feat
         mFeatures(features),
         mVsyncConfiguration(factory.createVsyncConfiguration(activeRefreshRate)),
         mVsyncModulator(sp<VsyncModulator>::make(mVsyncConfiguration->getCurrentConfigs())),
-        mRefreshRateStats(std::make_unique<RefreshRateStats>(timeStats, activeRefreshRate,
-                                                             hal::PowerMode::OFF)),
+        mRefreshRateStats(std::make_unique<RefreshRateStats>(timeStats, activeRefreshRate)),
         mSchedulerCallback(callback),
         mVsyncTrackerCallback(vsyncTrackerCallback) {}
 

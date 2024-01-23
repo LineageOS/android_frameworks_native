@@ -405,8 +405,8 @@ void SchedulerFuzzer::fuzzRefreshRateSelector() {
                                              Fps::fromValue(mFdp.ConsumeFloatingPoint<float>()));
 
     android::mock::TimeStats timeStats;
-    RefreshRateStats refreshRateStats(timeStats, Fps::fromValue(mFdp.ConsumeFloatingPoint<float>()),
-                                      PowerMode::OFF);
+    RefreshRateStats refreshRateStats(timeStats,
+                                      Fps::fromValue(mFdp.ConsumeFloatingPoint<float>()));
 
     const auto fpsOpt = displayModes.get(modeId).transform(
             [](const DisplayModePtr& mode) { return mode->getVsyncRate(); });
