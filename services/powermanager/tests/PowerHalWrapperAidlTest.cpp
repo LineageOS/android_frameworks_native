@@ -256,6 +256,23 @@ TEST_F(PowerHalWrapperAidlTest, TestCreateHintSessionSuccessful) {
     ASSERT_TRUE(result.isOk());
 }
 
+TEST_F(PowerHalWrapperAidlTest, TestCreateHintSessionWithConfigSuccessful) {
+    std::vector<int> threadIds{gettid()};
+    int32_t tgid = 999;
+    int32_t uid = 1001;
+    int64_t durationNanos = 16666666L;
+    SessionTag tag = SessionTag::OTHER;
+    SessionConfig out;
+    EXPECT_CALL(*mMockHal.get(),
+                createHintSessionWithConfig(Eq(tgid), Eq(uid), Eq(threadIds), Eq(durationNanos),
+                                            Eq(tag), _, _))
+            .Times(Exactly(1))
+            .WillOnce(Return(testing::ByMove(ndk::ScopedAStatus::ok())));
+    auto result =
+            mWrapper->createHintSessionWithConfig(tgid, uid, threadIds, durationNanos, tag, &out);
+    ASSERT_TRUE(result.isOk());
+}
+
 TEST_F(PowerHalWrapperAidlTest, TestCreateHintSessionFailed) {
     int32_t tgid = 999;
     int32_t uid = 1001;
@@ -278,4 +295,19 @@ TEST_F(PowerHalWrapperAidlTest, TestGetHintSessionPreferredRate) {
     ASSERT_TRUE(result.isOk());
     int64_t rate = result.value();
     ASSERT_GE(0, rate);
+}
+
+TEST_F(PowerHalWrapperAidlTest, TestSessionChannel) {
+    int32_t tgid = 999;
+    int32_t uid = 1001;
+    EXPECT_CALL(*mMockHal.get(), getSessionChannel(Eq(tgid), Eq(uid), _))
+            .Times(Exactly(1))
+            .WillOnce(Return(testing::ByMove(ndk::ScopedAStatus::ok())));
+    EXPECT_CALL(*mMockHal.get(), closeSessionChannel(Eq(tgid), Eq(uid)))
+            .Times(Exactly(1))
+            .WillOnce(Return(testing::ByMove(ndk::ScopedAStatus::ok())));
+    auto createResult = mWrapper->getSessionChannel(tgid, uid);
+    ASSERT_TRUE(createResult.isOk());
+    auto closeResult = mWrapper->closeSessionChannel(tgid, uid);
+    ASSERT_TRUE(closeResult.isOk());
 }
