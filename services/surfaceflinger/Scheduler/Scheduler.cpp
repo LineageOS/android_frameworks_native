@@ -96,6 +96,11 @@ Scheduler::~Scheduler() {
     demotePacesetterDisplay();
 }
 
+void Scheduler::initVsync(frametimeline::TokenManager& tokenManager,
+                          std::chrono::nanoseconds workDuration) {
+    Impl::initVsyncInternal(getVsyncSchedule()->getDispatch(), tokenManager, workDuration);
+}
+
 void Scheduler::startTimers() {
     using namespace sysprop;
     using namespace std::string_literals;
