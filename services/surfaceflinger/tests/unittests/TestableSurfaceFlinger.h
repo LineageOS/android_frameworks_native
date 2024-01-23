@@ -268,7 +268,7 @@ public:
                                                           vsyncTrackerCallback);
         }
 
-        mScheduler->initVsync(mScheduler->getVsyncSchedule()->getDispatch(), *mTokenManager, 0ms);
+        mScheduler->initVsync(*mTokenManager, 0ms);
 
         mScheduler->mutableAppConnectionHandle() =
                 mScheduler->createConnection(std::move(appEventThread));

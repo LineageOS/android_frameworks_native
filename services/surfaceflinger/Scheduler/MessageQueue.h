@@ -65,8 +65,9 @@ class MessageQueue {
 public:
     virtual ~MessageQueue() = default;
 
-    virtual void initVsync(std::shared_ptr<scheduler::VSyncDispatch>, frametimeline::TokenManager&,
-                           std::chrono::nanoseconds workDuration) = 0;
+    virtual void initVsyncInternal(std::shared_ptr<scheduler::VSyncDispatch>,
+                                   frametimeline::TokenManager&,
+                                   std::chrono::nanoseconds workDuration) = 0;
     virtual void destroyVsync() = 0;
     virtual void setDuration(std::chrono::nanoseconds workDuration) = 0;
     virtual void waitMessage() = 0;
@@ -137,8 +138,8 @@ private:
 public:
     explicit MessageQueue(ICompositor&);
 
-    void initVsync(std::shared_ptr<scheduler::VSyncDispatch>, frametimeline::TokenManager&,
-                   std::chrono::nanoseconds workDuration) override;
+    void initVsyncInternal(std::shared_ptr<scheduler::VSyncDispatch>, frametimeline::TokenManager&,
+                           std::chrono::nanoseconds workDuration) override;
     void destroyVsync() override;
     void setDuration(std::chrono::nanoseconds workDuration) override;
 
