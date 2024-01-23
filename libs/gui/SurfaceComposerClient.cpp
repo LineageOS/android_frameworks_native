@@ -56,6 +56,7 @@
 
 #include <android-base/thread_annotations.h>
 #include <gui/LayerStatePermissions.h>
+#include <gui/ScreenCaptureResults.h>
 #include <private/gui/ComposerService.h>
 #include <private/gui/ComposerServiceAIDL.h>
 
@@ -3138,11 +3139,19 @@ status_t ScreenshotClient::captureDisplay(DisplayId displayId, const gui::Captur
 }
 
 status_t ScreenshotClient::captureLayers(const LayerCaptureArgs& captureArgs,
-                                         const sp<IScreenCaptureListener>& captureListener) {
+                                         const sp<IScreenCaptureListener>& captureListener,
+                                         bool sync) {
     sp<gui::ISurfaceComposer> s(ComposerServiceAIDL::getComposerService());
     if (s == nullptr) return NO_INIT;
 
-    binder::Status status = s->captureLayers(captureArgs, captureListener);
+    binder::Status status;
+    if (sync) {
+        gui::ScreenCaptureResults captureResults;
+        status = s->captureLayersSync(captureArgs, &captureResults);
+        captureListener->onScreenCaptureCompleted(captureResults);
+    } else {
+        status = s->captureLayers(captureArgs, captureListener);
+    }
     return statusTFromBinderStatus(status);
 }
 
