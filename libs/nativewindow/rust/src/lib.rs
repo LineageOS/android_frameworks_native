@@ -16,6 +16,8 @@
 
 extern crate nativewindow_bindgen as ffi;
 
+pub mod surface;
+
 pub use ffi::{AHardwareBuffer_Format, AHardwareBuffer_UsageFlags};
 
 use binder::{
@@ -210,7 +212,7 @@ impl Drop for HardwareBuffer {
 }
 
 impl Debug for HardwareBuffer {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         f.debug_struct("HardwareBuffer").field("id", &self.id()).finish()
     }
 }
