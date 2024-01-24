@@ -397,6 +397,8 @@ std::list<NotifyArgs> TouchpadInputMapper::reconfigure(nsecs_t when,
                 .setBoolValues({config.touchpadNaturalScrollingEnabled});
         mPropertyProvider.getProperty("Tap Enable")
                 .setBoolValues({config.touchpadTapToClickEnabled});
+        mPropertyProvider.getProperty("Tap Drag Enable")
+                .setBoolValues({config.touchpadTapDraggingEnabled});
         mPropertyProvider.getProperty("Button Right Click Zone Enable")
                 .setBoolValues({config.touchpadRightClickZoneEnabled});
     }
