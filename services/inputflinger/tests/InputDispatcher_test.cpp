@@ -7739,7 +7739,7 @@ protected:
         application->setDispatchingTimeout(100ms);
         mWindow = sp<FakeWindowHandle>::make(application, mDispatcher, "TestWindow",
                                              ADISPLAY_ID_DEFAULT);
-        mWindow->setFrame(Rect(0, 0, 30, 30));
+        mWindow->setFrame(Rect(0, 0, 100, 100));
         mWindow->setDispatchingTimeout(100ms);
         mWindow->setFocusable(true);
 
