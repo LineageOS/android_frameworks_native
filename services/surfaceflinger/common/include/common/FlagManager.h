@@ -68,6 +68,7 @@ public:
     bool fp16_client_target() const;
     bool game_default_frame_rate() const;
     bool enable_layer_command_batching() const;
+    bool vulkan_renderengine() const;
 
 protected:
     // overridden for unit tests

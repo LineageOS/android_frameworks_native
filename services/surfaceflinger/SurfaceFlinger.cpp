@@ -798,22 +798,26 @@ void SurfaceFlinger::bootFinished() {
     }));
 }
 
-static std::optional<renderengine::RenderEngine::RenderEngineType>
-chooseRenderEngineTypeViaSysProp() {
+void chooseRenderEngineType(renderengine::RenderEngineCreationArgs::Builder& builder) {
     char prop[PROPERTY_VALUE_MAX];
     property_get(PROPERTY_DEBUG_RENDERENGINE_BACKEND, prop, "skiaglthreaded");
 
     if (strcmp(prop, "skiagl") == 0) {
-        return renderengine::RenderEngine::RenderEngineType::SKIA_GL;
+        builder.setThreaded(renderengine::RenderEngine::Threaded::NO)
+                .setGraphicsApi(renderengine::RenderEngine::GraphicsApi::GL);
     } else if (strcmp(prop, "skiaglthreaded") == 0) {
-        return renderengine::RenderEngine::RenderEngineType::SKIA_GL_THREADED;
+        builder.setThreaded(renderengine::RenderEngine::Threaded::YES)
+                .setGraphicsApi(renderengine::RenderEngine::GraphicsApi::GL);
     } else if (strcmp(prop, "skiavk") == 0) {
-        return renderengine::RenderEngine::RenderEngineType::SKIA_VK;
+        builder.setThreaded(renderengine::RenderEngine::Threaded::NO)
+                .setGraphicsApi(renderengine::RenderEngine::GraphicsApi::VK);
     } else if (strcmp(prop, "skiavkthreaded") == 0) {
-        return renderengine::RenderEngine::RenderEngineType::SKIA_VK_THREADED;
+        builder.setThreaded(renderengine::RenderEngine::Threaded::YES)
+                .setGraphicsApi(renderengine::RenderEngine::GraphicsApi::VK);
     } else {
-        ALOGE("Unrecognized RenderEngineType %s; ignoring!", prop);
-        return {};
+        builder.setGraphicsApi(FlagManager::getInstance().vulkan_renderengine()
+                                       ? renderengine::RenderEngine::GraphicsApi::VK
+                                       : renderengine::RenderEngine::GraphicsApi::GL);
     }
 }
 
@@ -839,9 +843,7 @@ void SurfaceFlinger::init() FTL_FAKE_GUARD(kMainThreadContext) {
                                    useContextPriority
                                            ? renderengine::RenderEngine::ContextPriority::REALTIME
                                            : renderengine::RenderEngine::ContextPriority::MEDIUM);
-    if (auto type = chooseRenderEngineTypeViaSysProp()) {
-        builder.setRenderEngineType(type.value());
-    }
+    chooseRenderEngineType(builder);
     mRenderEngine = renderengine::RenderEngine::create(builder.build());
     mCompositionEngine->setRenderEngine(mRenderEngine.get());
     mMaxRenderTargetSize =
@@ -8149,13 +8151,8 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
     //
     // TODO(b/196334700) Once we use RenderEngineThreaded everywhere we can always defer the call
     // to CompositionEngine::present.
-    const bool renderEngineIsThreaded = [&]() {
-        using Type = renderengine::RenderEngine::RenderEngineType;
-        const auto type = mRenderEngine->getRenderEngineType();
-        return type == Type::SKIA_GL_THREADED;
-    }();
-    auto presentFuture = renderEngineIsThreaded ? ftl::defer(std::move(present)).share()
-                                                : ftl::yield(present()).share();
+    auto presentFuture = mRenderEngine->isThreaded() ? ftl::defer(std::move(present)).share()
+                                                     : ftl::yield(present()).share();
 
     for (auto& [layer, layerFE] : layers) {
         layer->onLayerDisplayed(ftl::Future(presentFuture)
