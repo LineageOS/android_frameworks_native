@@ -40,15 +40,12 @@ class BinderCallback : public LooperCallback {
 public:
     static sp<BinderCallback> setupTo(const sp<Looper>& looper) {
         sp<BinderCallback> cb = sp<BinderCallback>::make();
+        cb->mLooper = looper;
 
-        int binder_fd = -1;
-        IPCThreadState::self()->setupPolling(&binder_fd);
-        LOG_ALWAYS_FATAL_IF(binder_fd < 0, "Failed to setupPolling: %d", binder_fd);
+        IPCThreadState::self()->setupPolling(&cb->mBinderFd);
+        LOG_ALWAYS_FATAL_IF(cb->mBinderFd < 0, "Failed to setupPolling: %d", cb->mBinderFd);
 
-        int ret = looper->addFd(binder_fd,
-                                Looper::POLL_CALLBACK,
-                                Looper::EVENT_INPUT,
-                                cb,
+        int ret = looper->addFd(cb->mBinderFd, Looper::POLL_CALLBACK, Looper::EVENT_INPUT, cb,
                                 nullptr /*data*/);
         LOG_ALWAYS_FATAL_IF(ret != 1, "Failed to add binder FD to Looper");
 
@@ -59,13 +56,26 @@ public:
         IPCThreadState::self()->handlePolledCommands();
         return 1;  // Continue receiving callbacks.
     }
+
+    void repoll() {
+        if (!mLooper->repoll(mBinderFd)) {
+            ALOGE("Failed to repoll binder FD.");
+        }
+    }
+
+private:
+    sp<Looper> mLooper;
+    int mBinderFd = -1;
 };
 
 // LooperCallback for IClientCallback
 class ClientCallbackCallback : public LooperCallback {
 public:
-    static sp<ClientCallbackCallback> setupTo(const sp<Looper>& looper, const sp<ServiceManager>& manager) {
+    static sp<ClientCallbackCallback> setupTo(const sp<Looper>& looper,
+                                              const sp<ServiceManager>& manager,
+                                              sp<BinderCallback> binderCallback) {
         sp<ClientCallbackCallback> cb = sp<ClientCallbackCallback>::make(manager);
+        cb->mBinderCallback = binderCallback;
 
         int fdTimer = timerfd_create(CLOCK_MONOTONIC, 0 /*flags*/);
         LOG_ALWAYS_FATAL_IF(fdTimer < 0, "Failed to timerfd_create: fd: %d err: %d", fdTimer, errno);
@@ -102,12 +112,15 @@ public:
         }
 
         mManager->handleClientCallbacks();
+        mBinderCallback->repoll(); // b/316829336
+
         return 1;  // Continue receiving callbacks.
     }
 private:
     friend sp<ClientCallbackCallback>;
     ClientCallbackCallback(const sp<ServiceManager>& manager) : mManager(manager) {}
     sp<ServiceManager> mManager;
+    sp<BinderCallback> mBinderCallback;
 };
 
 int main(int argc, char** argv) {
@@ -139,8 +152,8 @@ int main(int argc, char** argv) {
 
     sp<Looper> looper = Looper::prepare(false /*allowNonCallbacks*/);
 
-    BinderCallback::setupTo(looper);
-    ClientCallbackCallback::setupTo(looper, manager);
+    sp<BinderCallback> binderCallback = BinderCallback::setupTo(looper);
+    ClientCallbackCallback::setupTo(looper, manager, binderCallback);
 
 #ifndef VENDORSERVICEMANAGER
     if (!SetProperty("servicemanager.ready", "true")) {
