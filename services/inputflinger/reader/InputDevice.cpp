@@ -251,6 +251,7 @@ std::list<NotifyArgs> InputDevice::configureInternal(nsecs_t when,
             mAssociatedDeviceType =
                     getValueByKey(readerConfig.deviceTypeAssociations, mIdentifier.location);
             mIsWaking = mConfiguration.getBool("device.wake").value_or(false);
+            mShouldSmoothScroll = mConfiguration.getBool("device.viewBehavior_smoothScroll");
         }
 
         if (!changes.any() || changes.test(Change::DEVICE_ALIAS)) {
@@ -401,7 +402,8 @@ std::list<NotifyArgs> InputDevice::updateExternalStylusState(const StylusState& 
 InputDeviceInfo InputDevice::getDeviceInfo() {
     InputDeviceInfo outDeviceInfo;
     outDeviceInfo.initialize(mId, mGeneration, mControllerNumber, mIdentifier, mAlias, mIsExternal,
-                             mHasMic, getAssociatedDisplayId().value_or(ADISPLAY_ID_NONE));
+                             mHasMic, getAssociatedDisplayId().value_or(ADISPLAY_ID_NONE),
+                             {mShouldSmoothScroll});
 
     for_each_mapper(
             [&outDeviceInfo](InputMapper& mapper) { mapper.populateDeviceInfo(outDeviceInfo); });
