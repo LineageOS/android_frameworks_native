@@ -101,6 +101,9 @@ public:
      */
     virtual void setFocusedDisplay(int32_t displayId) = 0;
 
+    /** Sets the minimum time between user activity pokes. */
+    virtual void setMinTimeBetweenUserActivityPokes(std::chrono::milliseconds interval) = 0;
+
     /* Sets the input dispatching mode.
      *
      * This method may be called on any thread (usually by the input manager).

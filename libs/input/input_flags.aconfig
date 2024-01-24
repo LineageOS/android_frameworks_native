@@ -97,3 +97,10 @@ flag {
   description: "Change the acceleration curves for mouse pointer movements to match the touchpad ones"
   bug: "315313622"
 }
+
+flag {
+  name: "rate_limit_user_activity_poke_in_dispatcher"
+  namespace: "input"
+  description: "Move user-activity poke rate-limiting from PowerManagerService to InputDispatcher."
+  bug: "320499729"
+}
