@@ -62,7 +62,15 @@ public:
     virtual HalResult<std::shared_ptr<aidl::android::hardware::power::IPowerHintSession>>
     createHintSession(int32_t tgid, int32_t uid, const std::vector<int32_t>& threadIds,
                       int64_t durationNanos) override;
+    virtual HalResult<std::shared_ptr<aidl::android::hardware::power::IPowerHintSession>>
+    createHintSessionWithConfig(int32_t tgid, int32_t uid, const std::vector<int32_t>& threadIds,
+                                int64_t durationNanos,
+                                aidl::android::hardware::power::SessionTag tag,
+                                aidl::android::hardware::power::SessionConfig* config) override;
     virtual HalResult<int64_t> getHintSessionPreferredRate() override;
+    virtual HalResult<aidl::android::hardware::power::ChannelConfig> getSessionChannel(
+            int tgid, int uid) override;
+    virtual HalResult<void> closeSessionChannel(int tgid, int uid) override;
 
 private:
     std::mutex mConnectedHalMutex;
@@ -75,7 +83,7 @@ private:
 
     std::shared_ptr<HalWrapper> initHal();
     template <typename T>
-    HalResult<T> processHalResult(HalResult<T> result, const char* functionName);
+    HalResult<T> processHalResult(HalResult<T>&& result, const char* functionName);
 };
 
 // -------------------------------------------------------------------------------------------------

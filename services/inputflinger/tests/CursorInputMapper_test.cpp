@@ -1324,6 +1324,42 @@ TEST_F(CursorInputMapperUnitTestWithNewBallistics, PointerCaptureDisablesVelocit
     ASSERT_EQ(20, relY2);
 }
 
+TEST_F(CursorInputMapperUnitTestWithNewBallistics, ConfigureAccelerationWithAssociatedViewport) {
+    mPropertyMap.addProperty("cursor.mode", "pointer");
+    DisplayViewport primaryViewport = createPrimaryViewport(ui::Rotation::Rotation0);
+    mReaderConfiguration.setDisplayViewports({primaryViewport});
+    createDevice();
+    ViewportFakingInputDeviceContext deviceContext(*mDevice, EVENTHUB_ID, primaryViewport);
+    mMapper = createInputMapper<CursorInputMapper>(deviceContext, mReaderConfiguration);
+
+    std::list<NotifyArgs> args;
+
+    // Verify that acceleration is being applied by default by checking that the movement is scaled.
+    args += process(ARBITRARY_TIME, EV_REL, REL_X, 10);
+    args += process(ARBITRARY_TIME, EV_REL, REL_Y, 20);
+    args += process(ARBITRARY_TIME, EV_SYN, SYN_REPORT, 0);
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithMotionAction(HOVER_MOVE), WithDisplayId(DISPLAY_ID)))));
+    const auto& coords = get<NotifyMotionArgs>(args.back()).pointerCoords[0];
+    ASSERT_GT(coords.getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X), 10.f);
+    ASSERT_GT(coords.getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y), 20.f);
+
+    // Disable acceleration for the display, and verify that acceleration is no longer applied.
+    mReaderConfiguration.displaysWithMousePointerAccelerationDisabled.emplace(DISPLAY_ID);
+    args += mMapper->reconfigure(ARBITRARY_TIME, mReaderConfiguration,
+                                 InputReaderConfiguration::Change::POINTER_SPEED);
+    args.clear();
+
+    args += process(ARBITRARY_TIME, EV_REL, REL_X, 10);
+    args += process(ARBITRARY_TIME, EV_REL, REL_Y, 20);
+    args += process(ARBITRARY_TIME, EV_SYN, SYN_REPORT, 0);
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithMotionAction(HOVER_MOVE), WithDisplayId(DISPLAY_ID),
+                              WithRelativeMotion(10, 20)))));
+}
+
 namespace {
 
 // Minimum timestamp separation between subsequent input events from a Bluetooth device.
