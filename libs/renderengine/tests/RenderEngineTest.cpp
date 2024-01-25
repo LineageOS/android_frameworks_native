@@ -107,8 +107,20 @@ public:
 
     virtual std::string name() = 0;
     virtual renderengine::RenderEngine::RenderEngineType type() = 0;
-    virtual std::unique_ptr<renderengine::RenderEngine> createRenderEngine() = 0;
     virtual bool typeSupported() = 0;
+    std::unique_ptr<renderengine::RenderEngine> createRenderEngine() {
+        renderengine::RenderEngineCreationArgs reCreationArgs =
+                renderengine::RenderEngineCreationArgs::Builder()
+                        .setPixelFormat(static_cast<int>(ui::PixelFormat::RGBA_8888))
+                        .setImageCacheSize(1)
+                        .setEnableProtectedContext(false)
+                        .setPrecacheToneMapperShaderOnly(false)
+                        .setSupportsBackgroundBlur(true)
+                        .setContextPriority(renderengine::RenderEngine::ContextPriority::MEDIUM)
+                        .setRenderEngineType(type())
+                        .build();
+        return renderengine::RenderEngine::create(reCreationArgs);
+    }
 };
 
 class SkiaVkRenderEngineFactory : public RenderEngineFactory {
@@ -119,29 +131,9 @@ public:
         return renderengine::RenderEngine::RenderEngineType::SKIA_VK;
     }
 
-    std::unique_ptr<renderengine::RenderEngine> createRenderEngine() override {
-        std::unique_ptr<renderengine::RenderEngine> re = createSkiaVkRenderEngine();
-        return re;
-    }
-
-    std::unique_ptr<renderengine::skia::SkiaVkRenderEngine> createSkiaVkRenderEngine() {
-        renderengine::RenderEngineCreationArgs reCreationArgs =
-                renderengine::RenderEngineCreationArgs::Builder()
-                        .setPixelFormat(static_cast<int>(ui::PixelFormat::RGBA_8888))
-                        .setImageCacheSize(1)
-                        .setEnableProtectedContext(false)
-                        .setPrecacheToneMapperShaderOnly(false)
-                        .setSupportsBackgroundBlur(true)
-                        .setContextPriority(renderengine::RenderEngine::ContextPriority::MEDIUM)
-                        .setRenderEngineType(type())
-                        .build();
-        return renderengine::skia::SkiaVkRenderEngine::create(reCreationArgs);
-    }
-
     bool typeSupported() override {
         return skia::SkiaVkRenderEngine::canSupportSkiaVkRenderEngine();
     }
-    void skip() { GTEST_SKIP(); }
 };
 
 class SkiaGLESRenderEngineFactory : public RenderEngineFactory {
@@ -150,45 +142,6 @@ public:
 
     renderengine::RenderEngine::RenderEngineType type() {
         return renderengine::RenderEngine::RenderEngineType::SKIA_GL;
-    }
-
-    std::unique_ptr<renderengine::RenderEngine> createRenderEngine() override {
-        renderengine::RenderEngineCreationArgs reCreationArgs =
-                renderengine::RenderEngineCreationArgs::Builder()
-                        .setPixelFormat(static_cast<int>(ui::PixelFormat::RGBA_8888))
-                        .setImageCacheSize(1)
-                        .setEnableProtectedContext(false)
-                        .setPrecacheToneMapperShaderOnly(false)
-                        .setSupportsBackgroundBlur(true)
-                        .setContextPriority(renderengine::RenderEngine::ContextPriority::MEDIUM)
-                        .setRenderEngineType(type())
-                        .build();
-        return renderengine::skia::SkiaGLRenderEngine::create(reCreationArgs);
-    }
-
-    bool typeSupported() override { return true; }
-};
-
-class SkiaGLESCMRenderEngineFactory : public RenderEngineFactory {
-public:
-    std::string name() override { return "SkiaGLCMRenderEngineFactory"; }
-
-    renderengine::RenderEngine::RenderEngineType type() {
-        return renderengine::RenderEngine::RenderEngineType::SKIA_GL;
-    }
-
-    std::unique_ptr<renderengine::RenderEngine> createRenderEngine() override {
-        renderengine::RenderEngineCreationArgs reCreationArgs =
-                renderengine::RenderEngineCreationArgs::Builder()
-                        .setPixelFormat(static_cast<int>(ui::PixelFormat::RGBA_8888))
-                        .setImageCacheSize(1)
-                        .setEnableProtectedContext(false)
-                        .setPrecacheToneMapperShaderOnly(false)
-                        .setSupportsBackgroundBlur(true)
-                        .setContextPriority(renderengine::RenderEngine::ContextPriority::MEDIUM)
-                        .setRenderEngineType(type())
-                        .build();
-        return renderengine::skia::SkiaGLRenderEngine::create(reCreationArgs);
     }
 
     bool typeSupported() override { return true; }
