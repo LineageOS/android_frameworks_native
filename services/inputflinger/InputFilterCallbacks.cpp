@@ -17,6 +17,11 @@
 #define LOG_TAG "InputFilterCallbacks"
 
 #include "InputFilterCallbacks.h"
+#include <aidl/com/android/server/inputflinger/BnInputThread.h>
+#include <android/binder_auto_utils.h>
+#include <utils/StrongPointer.h>
+#include <utils/Thread.h>
+#include <functional>
 
 namespace android {
 
@@ -28,6 +33,47 @@ NotifyKeyArgs keyEventToNotifyKeyArgs(const AidlKeyEvent& event) {
                          static_cast<int32_t>(event.action), event.flags, event.keyCode,
                          event.scanCode, event.metaState, event.downTime);
 }
+
+namespace {
+
+using namespace aidl::com::android::server::inputflinger;
+
+class InputFilterThreadImpl : public Thread {
+public:
+    explicit InputFilterThreadImpl(std::function<void()> loop)
+          : Thread(/*canCallJava=*/true), mThreadLoop(loop) {}
+
+    ~InputFilterThreadImpl() {}
+
+private:
+    std::function<void()> mThreadLoop;
+
+    bool threadLoop() override {
+        mThreadLoop();
+        return true;
+    }
+};
+
+class InputFilterThread : public BnInputThread {
+public:
+    InputFilterThread(std::shared_ptr<IInputThreadCallback> callback) : mCallback(callback) {
+        mThread = sp<InputFilterThreadImpl>::make([this]() { loopOnce(); });
+        mThread->run("InputFilterThread", ANDROID_PRIORITY_URGENT_DISPLAY);
+    }
+
+    ndk::ScopedAStatus finish() override {
+        mThread->requestExit();
+        return ndk::ScopedAStatus::ok();
+    }
+
+private:
+    sp<Thread> mThread;
+    std::shared_ptr<IInputThreadCallback> mCallback;
+
+    void loopOnce() { LOG_ALWAYS_FATAL_IF(!mCallback->loopOnce().isOk()); }
+};
+
+} // namespace
 
 InputFilterCallbacks::InputFilterCallbacks(InputListenerInterface& listener,
                                            InputFilterPolicyInterface& policy)
@@ -46,6 +92,13 @@ ndk::ScopedAStatus InputFilterCallbacks::onModifierStateChanged(int32_t modifier
     mPolicy.notifyStickyModifierStateChanged(modifierState, lockedModifierState);
     ALOGI("Sticky keys modifier state changed: modifierState=%d, lockedModifierState=%d",
           modifierState, lockedModifierState);
+    return ndk::ScopedAStatus::ok();
+}
+
+ndk::ScopedAStatus InputFilterCallbacks::createInputFilterThread(
+        const std::shared_ptr<IInputThreadCallback>& callback,
+        std::shared_ptr<IInputThread>* aidl_return) {
+    *aidl_return = ndk::SharedRefBase::make<InputFilterThread>(callback);
     return ndk::ScopedAStatus::ok();
 }
 

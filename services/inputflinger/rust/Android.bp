@@ -42,6 +42,7 @@ rust_defaults {
         "libbinder_rs",
         "liblog_rust",
         "liblogger",
+        "libnix",
     ],
     host_supported: true,
 }

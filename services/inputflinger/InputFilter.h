@@ -35,6 +35,7 @@ public:
      */
     virtual void dump(std::string& dump) = 0;
     virtual void setAccessibilityBounceKeysThreshold(nsecs_t threshold) = 0;
+    virtual void setAccessibilitySlowKeysThreshold(nsecs_t threshold) = 0;
     virtual void setAccessibilityStickyKeysEnabled(bool enabled) = 0;
 };
 
@@ -61,6 +62,7 @@ public:
     void notifyDeviceReset(const NotifyDeviceResetArgs& args) override;
     void notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs& args) override;
     void setAccessibilityBounceKeysThreshold(nsecs_t threshold) override;
+    void setAccessibilitySlowKeysThreshold(nsecs_t threshold) override;
     void setAccessibilityStickyKeysEnabled(bool enabled) override;
     void dump(std::string& dump) override;
 
