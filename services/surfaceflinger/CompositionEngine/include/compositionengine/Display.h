@@ -60,7 +60,7 @@ public:
     virtual void createClientCompositionCache(uint32_t cacheSize) = 0;
 
     // Sends the brightness setting to HWC
-    virtual void applyDisplayBrightness(const bool applyImmediately) = 0;
+    virtual void applyDisplayBrightness(bool applyImmediately) = 0;
 
 protected:
     ~Display() = default;

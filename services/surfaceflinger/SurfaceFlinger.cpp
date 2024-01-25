@@ -1950,6 +1950,7 @@ status_t SurfaceFlinger::setDisplayBrightness(const sp<IBinder>& displayToken,
 
     const char* const whence = __func__;
     return ftl::Future(mScheduler->schedule([=, this]() FTL_FAKE_GUARD(mStateLock) {
+               // TODO(b/241285876): Validate that the display is physical instead of failing later.
                if (const auto display = getDisplayDeviceLocked(displayToken)) {
                    const bool supportsDisplayBrightnessCommand =
                            getHwComposer().getComposer()->isSupported(
@@ -1999,7 +2000,6 @@ status_t SurfaceFlinger::setDisplayBrightness(const sp<IBinder>& displayToken,
                                                      Hwc2::Composer::DisplayBrightnessOptions{
                                                              .applyImmediately = true});
                    }
-
                } else {
                    ALOGE("%s: Invalid display token %p", whence, displayToken.get());
                    return ftl::yield<status_t>(NAME_NOT_FOUND);
@@ -3544,9 +3544,7 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
             getPhysicalDisplayOrientation(compositionDisplay->getId(), creationArgs.isPrimary);
     ALOGV("Display Orientation: %s", toCString(creationArgs.physicalOrientation));
 
-    // virtual displays are always considered enabled
-    creationArgs.initialPowerMode =
-            state.isVirtual() ? std::make_optional(hal::PowerMode::ON) : std::nullopt;
+    creationArgs.initialPowerMode = state.isVirtual() ? hal::PowerMode::ON : hal::PowerMode::OFF;
 
     creationArgs.requestedRefreshRate = state.requestedRefreshRate;
 
@@ -5810,12 +5808,6 @@ void SurfaceFlinger::onHandleDestroyed(BBinder* handle, sp<Layer>& layer, uint32
 }
 
 void SurfaceFlinger::initializeDisplays() {
-    const auto display = FTL_FAKE_GUARD(mStateLock, getDefaultDisplayDeviceLocked());
-    if (!display) return;
-
-    const sp<IBinder> token = display->getDisplayToken().promote();
-    LOG_ALWAYS_FATAL_IF(token == nullptr);
-
     TransactionState state;
     state.inputWindowCommands = mInputWindowCommands;
     const nsecs_t now = systemTime();
@@ -5826,18 +5818,10 @@ void SurfaceFlinger::initializeDisplays() {
     const uint64_t transactionId = (static_cast<uint64_t>(mPid) << 32) | mUniqueTransactionId++;
     state.id = transactionId;
 
-    // reset screen orientation and use primary layer stack
-    DisplayState d;
-    d.what = DisplayState::eDisplayProjectionChanged |
-             DisplayState::eLayerStackChanged;
-    d.token = token;
-    d.layerStack = ui::DEFAULT_LAYER_STACK;
-    d.orientation = ui::ROTATION_0;
-    d.orientedDisplaySpaceRect.makeInvalid();
-    d.layerStackSpaceRect.makeInvalid();
-    d.width = 0;
-    d.height = 0;
-    state.displays.add(d);
+    auto layerStack = ui::DEFAULT_LAYER_STACK.id;
+    for (const auto& [id, display] : FTL_FAKE_GUARD(mStateLock, mPhysicalDisplays)) {
+        state.displays.push(DisplayState(display.token(), ui::LayerStack::fromValue(layerStack++)));
+    }
 
     std::vector<TransactionState> transactions;
     transactions.emplace_back(state);
@@ -5850,12 +5834,25 @@ void SurfaceFlinger::initializeDisplays() {
 
     {
         ftl::FakeGuard guard(mStateLock);
-        setPowerModeInternal(display, hal::PowerMode::ON);
+
+        // In case of a restart, ensure all displays are off.
+        for (const auto& [id, display] : mPhysicalDisplays) {
+            setPowerModeInternal(getDisplayDeviceLocked(id), hal::PowerMode::OFF);
+        }
+
+        // Power on all displays. The primary display is first, so becomes the active display. Also,
+        // the DisplayCapability set of a display is populated on its first powering on. Do this now
+        // before responding to any Binder query from DisplayManager about display capabilities.
+        for (const auto& [id, display] : mPhysicalDisplays) {
+            setPowerModeInternal(getDisplayDeviceLocked(id), hal::PowerMode::ON);
+        }
     }
 }
 
 void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal::PowerMode mode) {
     if (display->isVirtual()) {
+        // TODO(b/241285876): This code path should not be reachable, so enforce this at compile
+        // time.
         ALOGE("%s: Invalid operation on virtual display", __func__);
         return;
     }
@@ -5863,8 +5860,8 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
     const auto displayId = display->getPhysicalId();
     ALOGD("Setting power mode %d on display %s", mode, to_string(displayId).c_str());
 
-    const auto currentModeOpt = display->getPowerMode();
-    if (currentModeOpt == mode) {
+    const auto currentMode = display->getPowerMode();
+    if (currentMode == mode) {
         return;
     }
 
@@ -5881,7 +5878,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
     display->setPowerMode(mode);
 
     const auto activeMode = display->refreshRateSelector().getActiveMode().modePtr;
-    if (!currentModeOpt || *currentModeOpt == hal::PowerMode::OFF) {
+    if (currentMode == hal::PowerMode::OFF) {
         // Turn on the display
 
         // Activate the display (which involves a modeset to the active mode) when the inner or
@@ -5926,7 +5923,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
         mVisibleRegionsDirty = true;
         scheduleComposite(FrameHint::kActive);
     } else if (mode == hal::PowerMode::OFF) {
-        const bool currentModeNotDozeSuspend = (*currentModeOpt != hal::PowerMode::DOZE_SUSPEND);
+        const bool currentModeNotDozeSuspend = (currentMode != hal::PowerMode::DOZE_SUSPEND);
         // Turn off the display
         if (displayId == mActiveDisplayId) {
             if (const auto display = getActivatableDisplay()) {
@@ -5967,7 +5964,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
     } else if (mode == hal::PowerMode::DOZE || mode == hal::PowerMode::ON) {
         // Update display while dozing
         getHwComposer().setPowerMode(displayId, mode);
-        if (*currentModeOpt == hal::PowerMode::DOZE_SUSPEND &&
+        if (currentMode == hal::PowerMode::DOZE_SUSPEND &&
             (displayId == mActiveDisplayId || FlagManager::getInstance().multithreaded_present())) {
             if (displayId == mActiveDisplayId) {
                 ALOGI("Force repainting for DOZE_SUSPEND -> DOZE or ON.");

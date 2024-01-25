@@ -903,7 +903,8 @@ private:
      * Display and layer stack management
      */
 
-    // Called during boot, and restart after system_server death.
+    // Called during boot and restart after system_server death, setting the stage for bootanimation
+    // before DisplayManager takes over.
     void initializeDisplays() REQUIRES(kMainThreadContext);
 
     sp<const DisplayDevice> getDisplayDeviceLocked(const wp<IBinder>& displayToken) const

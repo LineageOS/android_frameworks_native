@@ -750,7 +750,6 @@ public:
         static constexpr int32_t DEFAULT_CONFIG_GROUP = 7;
         static constexpr int32_t DEFAULT_DPI = 320;
         static constexpr hal::HWConfigId DEFAULT_ACTIVE_CONFIG = 0;
-        static constexpr hal::PowerMode DEFAULT_POWER_MODE = hal::PowerMode::ON;
 
         FakeHwcDisplayInjector(HalDisplayId displayId, hal::DisplayType hwcDisplayType,
                                bool isPrimary)
@@ -793,7 +792,7 @@ public:
             return *this;
         }
 
-        auto& setPowerMode(std::optional<hal::PowerMode> mode) {
+        auto& setPowerMode(hal::PowerMode mode) {
             mPowerMode = mode;
             return *this;
         }
@@ -817,9 +816,7 @@ public:
                                                          mHwcDisplayType);
             display->mutableIsConnected() = true;
 
-            if (mPowerMode) {
-                display->setPowerMode(*mPowerMode);
-            }
+            display->setPowerMode(mPowerMode);
 
             flinger->mutableHwcDisplayData()[mDisplayId].hwcDisplay = std::move(display);
 
@@ -885,7 +882,7 @@ public:
         int32_t mDpiY = DEFAULT_DPI;
         int32_t mConfigGroup = DEFAULT_CONFIG_GROUP;
         hal::HWConfigId mActiveConfig = DEFAULT_ACTIVE_CONFIG;
-        std::optional<hal::PowerMode> mPowerMode = DEFAULT_POWER_MODE;
+        hal::PowerMode mPowerMode = hal::PowerMode::ON;
         const std::unordered_set<aidl::android::hardware::graphics::composer3::Capability>*
                 mCapabilities = nullptr;
     };
@@ -962,7 +959,7 @@ public:
             return *this;
         }
 
-        auto& setPowerMode(std::optional<hal::PowerMode> mode) {
+        auto& setPowerMode(hal::PowerMode mode) {
             mCreationArgs.initialPowerMode = mode;
             return *this;
         }
