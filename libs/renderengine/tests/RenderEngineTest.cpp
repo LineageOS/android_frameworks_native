@@ -2371,7 +2371,7 @@ TEST_P(RenderEngineTest, testRoundedCornersParentCropSmallBounds) {
 }
 
 TEST_P(RenderEngineTest, testRoundedCornersXY) {
-    if (GetParam()->graphicsApi() != renderengine::RenderEngine::GraphicsApi::GL) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
 
@@ -2497,7 +2497,7 @@ TEST_P(RenderEngineTest, testDisableBlendingBuffer) {
 }
 
 TEST_P(RenderEngineTest, testBorder) {
-    if (GetParam()->graphicsApi() != renderengine::RenderEngine::GraphicsApi::GL) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
 
