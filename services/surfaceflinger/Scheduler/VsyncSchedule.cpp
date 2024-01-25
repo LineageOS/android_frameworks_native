@@ -89,8 +89,12 @@ Period VsyncSchedule::minFramePeriod() const {
     return period();
 }
 
-TimePoint VsyncSchedule::vsyncDeadlineAfter(TimePoint timePoint) const {
-    return TimePoint::fromNs(mTracker->nextAnticipatedVSyncTimeFrom(timePoint.ns()));
+TimePoint VsyncSchedule::vsyncDeadlineAfter(TimePoint timePoint,
+                                            ftl::Optional<TimePoint> lastVsyncOpt) const {
+    return TimePoint::fromNs(
+            mTracker->nextAnticipatedVSyncTimeFrom(timePoint.ns(),
+                                                   lastVsyncOpt.transform(
+                                                           [](TimePoint t) { return t.ns(); })));
 }
 
 void VsyncSchedule::dump(std::string& out) const {

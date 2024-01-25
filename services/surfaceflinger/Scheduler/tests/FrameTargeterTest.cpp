@@ -38,7 +38,9 @@ struct VsyncSource final : IVsyncSource {
     const TimePoint vsyncDeadline;
 
     Period period() const override { return vsyncPeriod; }
-    TimePoint vsyncDeadlineAfter(TimePoint) const override { return vsyncDeadline; }
+    TimePoint vsyncDeadlineAfter(TimePoint, ftl::Optional<TimePoint> = {}) const override {
+        return vsyncDeadline;
+    }
     Period minFramePeriod() const override { return framePeriod; }
 };
 
