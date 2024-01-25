@@ -70,6 +70,7 @@ public:
     bool enable_layer_command_batching() const;
     bool screenshot_fence_preservation() const;
     bool vulkan_renderengine() const;
+    bool renderable_buffer_usage() const;
 
 protected:
     // overridden for unit tests
