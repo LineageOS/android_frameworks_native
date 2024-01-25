@@ -33,13 +33,12 @@ namespace android {
 namespace renderengine {
 namespace threaded {
 
-std::unique_ptr<RenderEngineThreaded> RenderEngineThreaded::create(CreateInstanceFactory factory,
-                                                                   RenderEngineType type) {
-    return std::make_unique<RenderEngineThreaded>(std::move(factory), type);
+std::unique_ptr<RenderEngineThreaded> RenderEngineThreaded::create(CreateInstanceFactory factory) {
+    return std::make_unique<RenderEngineThreaded>(std::move(factory));
 }
 
-RenderEngineThreaded::RenderEngineThreaded(CreateInstanceFactory factory, RenderEngineType type)
-      : RenderEngine(type) {
+RenderEngineThreaded::RenderEngineThreaded(CreateInstanceFactory factory)
+      : RenderEngine(Threaded::YES) {
     ATRACE_CALL();
 
     std::lock_guard lockThread(mThreadMutex);

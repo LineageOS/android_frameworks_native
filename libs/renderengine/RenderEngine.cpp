@@ -28,28 +28,28 @@ namespace android {
 namespace renderengine {
 
 std::unique_ptr<RenderEngine> RenderEngine::create(const RenderEngineCreationArgs& args) {
-    switch (args.renderEngineType) {
-        case RenderEngineType::SKIA_GL:
+    if (args.threaded == Threaded::YES) {
+        switch (args.graphicsApi) {
+            case GraphicsApi::GL:
+                ALOGD("Threaded RenderEngine with SkiaGL Backend");
+                return renderengine::threaded::RenderEngineThreaded::create([args]() {
+                    return android::renderengine::skia::SkiaGLRenderEngine::create(args);
+                });
+            case GraphicsApi::VK:
+                ALOGD("Threaded RenderEngine with SkiaVK Backend");
+                return renderengine::threaded::RenderEngineThreaded::create([args]() {
+                    return android::renderengine::skia::SkiaVkRenderEngine::create(args);
+                });
+        }
+    }
+
+    switch (args.graphicsApi) {
+        case GraphicsApi::GL:
             ALOGD("RenderEngine with SkiaGL Backend");
             return renderengine::skia::SkiaGLRenderEngine::create(args);
-        case RenderEngineType::SKIA_VK:
+        case GraphicsApi::VK:
             ALOGD("RenderEngine with SkiaVK Backend");
             return renderengine::skia::SkiaVkRenderEngine::create(args);
-        case RenderEngineType::SKIA_GL_THREADED: {
-            ALOGD("Threaded RenderEngine with SkiaGL Backend");
-            return renderengine::threaded::RenderEngineThreaded::create(
-                    [args]() {
-                        return android::renderengine::skia::SkiaGLRenderEngine::create(args);
-                    },
-                    args.renderEngineType);
-        }
-        case RenderEngineType::SKIA_VK_THREADED:
-            ALOGD("Threaded RenderEngine with SkiaVK Backend");
-            return renderengine::threaded::RenderEngineThreaded::create(
-                    [args]() {
-                        return android::renderengine::skia::SkiaVkRenderEngine::create(args);
-                    },
-                    args.renderEngineType);
     }
 }
 
