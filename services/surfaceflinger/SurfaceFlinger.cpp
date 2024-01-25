@@ -3095,7 +3095,7 @@ void SurfaceFlinger::onCompositionPresented(PhysicalDisplayId pacesetterId,
     {
         Mutex::Autolock lock(mStateLock);
         if (mFpsReporter) {
-            mFpsReporter->dispatchLayerFps();
+            mFpsReporter->dispatchLayerFps(mLayerHierarchyBuilder.getHierarchy());
         }
 
         if (mTunnelModeEnabledReporter) {
@@ -4238,7 +4238,7 @@ void SurfaceFlinger::initScheduler(const sp<const DisplayDevice>& display) {
     mRegionSamplingThread =
             sp<RegionSamplingThread>::make(*this,
                                            RegionSamplingThread::EnvironmentTimingTunables());
-    mFpsReporter = sp<FpsReporter>::make(*mFrameTimeline, *this);
+    mFpsReporter = sp<FpsReporter>::make(*mFrameTimeline);
 }
 
 void SurfaceFlinger::doCommitTransactions() {
