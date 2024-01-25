@@ -49,10 +49,10 @@ class RefreshRateStats {
 
 public:
     // TODO(b/185535769): Inject clock to avoid sleeping in tests.
-    RefreshRateStats(TimeStats& timeStats, Fps currentRefreshRate, PowerMode currentPowerMode)
+    RefreshRateStats(TimeStats& timeStats, Fps currentRefreshRate)
           : mTimeStats(timeStats),
             mCurrentRefreshRate(currentRefreshRate),
-            mCurrentPowerMode(currentPowerMode) {}
+            mCurrentPowerMode(PowerMode::OFF) {}
 
     void setPowerMode(PowerMode mode) {
         if (mCurrentPowerMode == mode) {

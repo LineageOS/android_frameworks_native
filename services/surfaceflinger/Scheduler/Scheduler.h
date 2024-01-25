@@ -131,7 +131,7 @@ public:
 
     void run();
 
-    using Impl::initVsync;
+    void initVsync(frametimeline::TokenManager&, std::chrono::nanoseconds workDuration);
 
     using Impl::getScheduledFrameTime;
     using Impl::setDuration;

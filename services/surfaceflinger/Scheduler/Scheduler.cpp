@@ -77,8 +77,7 @@ Scheduler::Scheduler(ICompositor& compositor, ISchedulerCallback& callback, Feat
         mFeatures(features),
         mVsyncConfiguration(factory.createVsyncConfiguration(activeRefreshRate)),
         mVsyncModulator(sp<VsyncModulator>::make(mVsyncConfiguration->getCurrentConfigs())),
-        mRefreshRateStats(std::make_unique<RefreshRateStats>(timeStats, activeRefreshRate,
-                                                             hal::PowerMode::OFF)),
+        mRefreshRateStats(std::make_unique<RefreshRateStats>(timeStats, activeRefreshRate)),
         mSchedulerCallback(callback),
         mVsyncTrackerCallback(vsyncTrackerCallback) {}
 
@@ -94,6 +93,11 @@ Scheduler::~Scheduler() {
 
     // Stop idle timer and clear callbacks, as the RefreshRateSelector may outlive the Scheduler.
     demotePacesetterDisplay();
+}
+
+void Scheduler::initVsync(frametimeline::TokenManager& tokenManager,
+                          std::chrono::nanoseconds workDuration) {
+    Impl::initVsyncInternal(getVsyncSchedule()->getDispatch(), tokenManager, workDuration);
 }
 
 void Scheduler::startTimers() {

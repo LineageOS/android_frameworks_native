@@ -88,7 +88,7 @@ HalResult<T> PowerHalController::processHalResult(HalResult<T>&& result, const c
         mConnectedHal = nullptr;
         mHalConnector->reset();
     }
-    return result;
+    return std::move(result);
 }
 
 HalResult<void> PowerHalController::setBoost(aidl::android::hardware::power::Boost boost,

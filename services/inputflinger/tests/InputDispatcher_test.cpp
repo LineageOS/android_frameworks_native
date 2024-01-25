@@ -156,6 +156,20 @@ class FakeInputDispatcherPolicy : public InputDispatcherPolicyInterface {
         sp<IBinder> token{};
         gui::Pid pid{gui::Pid::INVALID};
     };
+    /* Stores data about a user-activity-poke event from the dispatcher. */
+    struct UserActivityPokeEvent {
+        nsecs_t eventTime;
+        int32_t eventType;
+        int32_t displayId;
+
+        bool operator==(const UserActivityPokeEvent& rhs) const = default;
+
+        friend std::ostream& operator<<(std::ostream& os, const UserActivityPokeEvent& ev) {
+            os << "UserActivityPokeEvent[time=" << ev.eventTime << ", eventType=" << ev.eventType
+               << ", displayId=" << ev.displayId << "]";
+            return os;
+        }
+    };
 
 public:
     FakeInputDispatcherPolicy() = default;
@@ -351,14 +365,36 @@ public:
 
     void setStaleEventTimeout(std::chrono::nanoseconds timeout) { mStaleEventTimeout = timeout; }
 
-    void assertUserActivityPoked() {
-        std::scoped_lock lock(mLock);
-        ASSERT_TRUE(mPokedUserActivity) << "Expected user activity to have been poked";
+    void assertUserActivityNotPoked() {
+        std::unique_lock lock(mLock);
+        base::ScopedLockAssertion assumeLocked(mLock);
+
+        std::optional<UserActivityPokeEvent> pokeEvent =
+                getItemFromStorageLockedInterruptible(500ms, mUserActivityPokeEvents, lock,
+                                                      mNotifyUserActivity);
+
+        ASSERT_FALSE(pokeEvent) << "Expected user activity not to have been poked";
     }
 
-    void assertUserActivityNotPoked() {
-        std::scoped_lock lock(mLock);
-        ASSERT_FALSE(mPokedUserActivity) << "Expected user activity not to have been poked";
+    /**
+     * Asserts that a user activity poke has happened. The earliest recorded poke event will be
+     * cleared after this call.
+     *
+     * If an expected UserActivityPokeEvent is provided, asserts that the given event is the
+     * earliest recorded poke event.
+     */
+    void assertUserActivityPoked(std::optional<UserActivityPokeEvent> expectedPokeEvent = {}) {
+        std::unique_lock lock(mLock);
+        base::ScopedLockAssertion assumeLocked(mLock);
+
+        std::optional<UserActivityPokeEvent> pokeEvent =
+                getItemFromStorageLockedInterruptible(500ms, mUserActivityPokeEvents, lock,
+                                                      mNotifyUserActivity);
+        ASSERT_TRUE(pokeEvent) << "Expected a user poke event";
+
+        if (expectedPokeEvent) {
+            ASSERT_EQ(expectedPokeEvent, *pokeEvent);
+        }
     }
 
     void assertNotifyDeviceInteractionWasCalled(int32_t deviceId, std::set<gui::Uid> uids) {
@@ -414,7 +450,9 @@ private:
 
     sp<IBinder> mDropTargetWindowToken GUARDED_BY(mLock);
     bool mNotifyDropWindowWasCalled GUARDED_BY(mLock) = false;
-    bool mPokedUserActivity GUARDED_BY(mLock) = false;
+
+    std::condition_variable mNotifyUserActivity;
+    std::queue<UserActivityPokeEvent> mUserActivityPokeEvents;
 
     std::chrono::milliseconds mInterceptKeyTimeout = 0ms;
 
@@ -576,9 +614,10 @@ private:
                 NotifySwitchArgs(InputEvent::nextId(), when, policyFlags, switchValues, switchMask);
     }
 
-    void pokeUserActivity(nsecs_t, int32_t, int32_t) override {
+    void pokeUserActivity(nsecs_t eventTime, int32_t eventType, int32_t displayId) override {
         std::scoped_lock lock(mLock);
-        mPokedUserActivity = true;
+        mNotifyUserActivity.notify_all();
+        mUserActivityPokeEvents.push({eventTime, eventType, displayId});
     }
 
     bool isStaleEvent(nsecs_t currentTime, nsecs_t eventTime) override {
@@ -7688,6 +7727,130 @@ TEST_F(InputFilterInjectionPolicyTest,
 TEST_F(InputFilterInjectionPolicyTest, RegularInjectedEvents_ReceiveVirtualDeviceId) {
     testInjectedKey(/*policyFlags=*/0, /*injectedDeviceId=*/3,
                     /*resolvedDeviceId=*/VIRTUAL_KEYBOARD_ID, /*flags=*/0);
+}
+
+class InputDispatcherUserActivityPokeTests : public InputDispatcherTest {
+protected:
+    virtual void SetUp() override {
+        InputDispatcherTest::SetUp();
+
+        std::shared_ptr<FakeApplicationHandle> application =
+                std::make_shared<FakeApplicationHandle>();
+        application->setDispatchingTimeout(100ms);
+        mWindow = sp<FakeWindowHandle>::make(application, mDispatcher, "TestWindow",
+                                             ADISPLAY_ID_DEFAULT);
+        mWindow->setFrame(Rect(0, 0, 100, 100));
+        mWindow->setDispatchingTimeout(100ms);
+        mWindow->setFocusable(true);
+
+        // Set focused application.
+        mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
+
+        mDispatcher->onWindowInfosChanged({{*mWindow->getInfo()}, {}, 0, 0});
+        setFocusedWindow(mWindow);
+        mWindow->consumeFocusEvent(true);
+    }
+
+    void notifyAndConsumeMotion(int32_t action, uint32_t source, int32_t displayId,
+                                nsecs_t eventTime) {
+        mDispatcher->notifyMotion(MotionArgsBuilder(action, source)
+                                          .displayId(displayId)
+                                          .eventTime(eventTime)
+                                          .pointer(PointerBuilder(0, ToolType::FINGER).x(50).y(50))
+                                          .build());
+        mWindow->consumeMotionEvent(WithMotionAction(action));
+    }
+
+private:
+    sp<FakeWindowHandle> mWindow;
+};
+
+TEST_F_WITH_FLAGS(
+        InputDispatcherUserActivityPokeTests, MinPokeTimeObserved,
+        REQUIRES_FLAGS_ENABLED(ACONFIG_FLAG(com::android::input::flags,
+                                            rate_limit_user_activity_poke_in_dispatcher))) {
+    mDispatcher->setMinTimeBetweenUserActivityPokes(50ms);
+
+    // First event of type TOUCH. Should poke.
+    notifyAndConsumeMotion(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+                           milliseconds_to_nanoseconds(50));
+    mFakePolicy->assertUserActivityPoked(
+            {{milliseconds_to_nanoseconds(50), USER_ACTIVITY_EVENT_TOUCH, ADISPLAY_ID_DEFAULT}});
+
+    // 80ns > 50ns has passed since previous TOUCH event. Should poke.
+    notifyAndConsumeMotion(ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+                           milliseconds_to_nanoseconds(130));
+    mFakePolicy->assertUserActivityPoked(
+            {{milliseconds_to_nanoseconds(130), USER_ACTIVITY_EVENT_TOUCH, ADISPLAY_ID_DEFAULT}});
+
+    // First event of type OTHER. Should poke (despite being within 50ns of previous TOUCH event).
+    notifyAndConsumeMotion(ACTION_SCROLL, AINPUT_SOURCE_ROTARY_ENCODER, ADISPLAY_ID_DEFAULT,
+                           milliseconds_to_nanoseconds(135));
+    mFakePolicy->assertUserActivityPoked(
+            {{milliseconds_to_nanoseconds(135), USER_ACTIVITY_EVENT_OTHER, ADISPLAY_ID_DEFAULT}});
+
+    // Within 50ns of previous TOUCH event. Should NOT poke.
+    notifyAndConsumeMotion(ACTION_UP, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+                           milliseconds_to_nanoseconds(140));
+    mFakePolicy->assertUserActivityNotPoked();
+
+    // Within 50ns of previous OTHER event. Should NOT poke.
+    notifyAndConsumeMotion(ACTION_SCROLL, AINPUT_SOURCE_ROTARY_ENCODER, ADISPLAY_ID_DEFAULT,
+                           milliseconds_to_nanoseconds(150));
+    mFakePolicy->assertUserActivityNotPoked();
+
+    // Within 50ns of previous TOUCH event (which was at time 130). Should NOT poke.
+    // Note that STYLUS is mapped to TOUCH user activity, since it's a pointer-type source.
+    notifyAndConsumeMotion(ACTION_DOWN, AINPUT_SOURCE_STYLUS, ADISPLAY_ID_DEFAULT,
+                           milliseconds_to_nanoseconds(160));
+    mFakePolicy->assertUserActivityNotPoked();
+
+    // 65ns > 50ns has passed since previous OTHER event. Should poke.
+    notifyAndConsumeMotion(ACTION_SCROLL, AINPUT_SOURCE_ROTARY_ENCODER, ADISPLAY_ID_DEFAULT,
+                           milliseconds_to_nanoseconds(200));
+    mFakePolicy->assertUserActivityPoked(
+            {{milliseconds_to_nanoseconds(200), USER_ACTIVITY_EVENT_OTHER, ADISPLAY_ID_DEFAULT}});
+
+    // 170ns > 50ns has passed since previous TOUCH event. Should poke.
+    notifyAndConsumeMotion(ACTION_UP, AINPUT_SOURCE_STYLUS, ADISPLAY_ID_DEFAULT,
+                           milliseconds_to_nanoseconds(300));
+    mFakePolicy->assertUserActivityPoked(
+            {{milliseconds_to_nanoseconds(300), USER_ACTIVITY_EVENT_TOUCH, ADISPLAY_ID_DEFAULT}});
+
+    // Assert that there's no more user activity poke event.
+    mFakePolicy->assertUserActivityNotPoked();
+}
+
+TEST_F_WITH_FLAGS(
+        InputDispatcherUserActivityPokeTests, DefaultMinPokeTimeOf100MsUsed,
+        REQUIRES_FLAGS_ENABLED(ACONFIG_FLAG(com::android::input::flags,
+                                            rate_limit_user_activity_poke_in_dispatcher))) {
+    notifyAndConsumeMotion(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+                           milliseconds_to_nanoseconds(200));
+    mFakePolicy->assertUserActivityPoked(
+            {{milliseconds_to_nanoseconds(200), USER_ACTIVITY_EVENT_TOUCH, ADISPLAY_ID_DEFAULT}});
+
+    notifyAndConsumeMotion(ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+                           milliseconds_to_nanoseconds(280));
+    mFakePolicy->assertUserActivityNotPoked();
+
+    notifyAndConsumeMotion(ACTION_UP, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+                           milliseconds_to_nanoseconds(340));
+    mFakePolicy->assertUserActivityPoked(
+            {{milliseconds_to_nanoseconds(340), USER_ACTIVITY_EVENT_TOUCH, ADISPLAY_ID_DEFAULT}});
+}
+
+TEST_F_WITH_FLAGS(
+        InputDispatcherUserActivityPokeTests, ZeroMinPokeTimeDisablesRateLimiting,
+        REQUIRES_FLAGS_ENABLED(ACONFIG_FLAG(com::android::input::flags,
+                                            rate_limit_user_activity_poke_in_dispatcher))) {
+    mDispatcher->setMinTimeBetweenUserActivityPokes(0ms);
+
+    notifyAndConsumeMotion(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT, 20);
+    mFakePolicy->assertUserActivityPoked();
+
+    notifyAndConsumeMotion(ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT, 30);
+    mFakePolicy->assertUserActivityPoked();
 }
 
 class InputDispatcherOnPointerDownOutsideFocus : public InputDispatcherTest {
