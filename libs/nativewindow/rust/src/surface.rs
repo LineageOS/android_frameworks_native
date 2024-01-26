@@ -127,6 +127,9 @@ impl_serialize_for_unstructured_parcelable!(Surface);
 // SAFETY: The underlying *ANativeWindow can be moved between threads.
 unsafe impl Send for Surface {}
 
+// SAFETY: The underlying *ANativeWindow can be used from multiple threads concurrently.
+unsafe impl Sync for Surface {}
+
 /// An error code returned by methods on [`Surface`].
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct ErrorCode(i32);
