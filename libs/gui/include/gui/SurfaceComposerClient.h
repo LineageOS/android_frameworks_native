@@ -849,7 +849,8 @@ public:
     static status_t captureDisplay(const DisplayCaptureArgs&, const sp<IScreenCaptureListener>&);
     static status_t captureDisplay(DisplayId, const gui::CaptureArgs&,
                                    const sp<IScreenCaptureListener>&);
-    static status_t captureLayers(const LayerCaptureArgs&, const sp<IScreenCaptureListener>&);
+    static status_t captureLayers(const LayerCaptureArgs&, const sp<IScreenCaptureListener>&,
+                                  bool sync);
 
     [[deprecated]] static status_t captureDisplay(DisplayId id,
                                                   const sp<IScreenCaptureListener>& listener) {
