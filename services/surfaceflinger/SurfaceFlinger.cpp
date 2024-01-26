@@ -800,7 +800,7 @@ void SurfaceFlinger::bootFinished() {
 
 void chooseRenderEngineType(renderengine::RenderEngineCreationArgs::Builder& builder) {
     char prop[PROPERTY_VALUE_MAX];
-    property_get(PROPERTY_DEBUG_RENDERENGINE_BACKEND, prop, "skiaglthreaded");
+    property_get(PROPERTY_DEBUG_RENDERENGINE_BACKEND, prop, "");
 
     if (strcmp(prop, "skiagl") == 0) {
         builder.setThreaded(renderengine::RenderEngine::Threaded::NO)
