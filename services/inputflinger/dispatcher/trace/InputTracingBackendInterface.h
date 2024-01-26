@@ -16,9 +16,63 @@
 
 #pragma once
 
-#include "../Entry.h"
+#include <gui/PidUid.h>
+#include <input/Input.h>
+#include <ui/Transform.h>
+
+#include <array>
+#include <variant>
+#include <vector>
 
 namespace android::inputdispatcher::trace {
+
+/**
+ * A representation of an Android KeyEvent used by the tracing backend.
+ */
+struct TracedKeyEvent {
+    int32_t id;
+    nsecs_t eventTime;
+    uint32_t policyFlags;
+    int32_t deviceId;
+    uint32_t source;
+    int32_t displayId;
+    int32_t action;
+    int32_t keyCode;
+    int32_t scanCode;
+    int32_t metaState;
+    nsecs_t downTime;
+    int32_t flags;
+    int32_t repeatCount;
+};
+
+/**
+ * A representation of an Android MotionEvent used by the tracing backend.
+ */
+struct TracedMotionEvent {
+    int32_t id;
+    nsecs_t eventTime;
+    uint32_t policyFlags;
+    int32_t deviceId;
+    uint32_t source;
+    int32_t displayId;
+    int32_t action;
+    int32_t actionButton;
+    int32_t flags;
+    int32_t metaState;
+    int32_t buttonState;
+    MotionClassification classification;
+    int32_t edgeFlags;
+    float xPrecision;
+    float yPrecision;
+    float xCursorPosition;
+    float yCursorPosition;
+    nsecs_t downTime;
+    std::vector<PointerProperties> pointerProperties;
+    std::vector<PointerCoords> pointerCoords;
+};
+
+/** A representation of a traced input event. */
+using TracedEvent = std::variant<TracedKeyEvent, TracedMotionEvent>;
 
 /**
  * An interface for the tracing backend, used for setting a custom backend for testing.
@@ -28,14 +82,14 @@ public:
     virtual ~InputTracingBackendInterface() = default;
 
     /** Trace a KeyEvent. */
-    virtual void traceKeyEvent(const KeyEntry&) const = 0;
+    virtual void traceKeyEvent(const TracedKeyEvent&) const = 0;
 
     /** Trace a MotionEvent. */
-    virtual void traceMotionEvent(const MotionEntry&) const = 0;
+    virtual void traceMotionEvent(const TracedMotionEvent&) const = 0;
 
     /** Trace an event being sent to a window. */
     struct WindowDispatchArgs {
-        std::variant<MotionEntry, KeyEntry> eventEntry;
+        TracedEvent eventEntry;
         nsecs_t deliveryTime;
         int32_t resolvedFlags;
         gui::Uid targetUid;
