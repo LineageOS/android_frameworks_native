@@ -63,7 +63,8 @@ public:
 
     // IVsyncSource overrides:
     Period period() const override;
-    TimePoint vsyncDeadlineAfter(TimePoint) const override;
+    TimePoint vsyncDeadlineAfter(TimePoint,
+                                 ftl::Optional<TimePoint> lastVsyncOpt = {}) const override;
     Period minFramePeriod() const override;
 
     // Inform the schedule that the display mode changed the schedule needs to recalibrate

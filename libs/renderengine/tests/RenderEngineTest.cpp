@@ -106,92 +106,46 @@ public:
     virtual ~RenderEngineFactory() = default;
 
     virtual std::string name() = 0;
-    virtual renderengine::RenderEngine::RenderEngineType type() = 0;
-    virtual std::unique_ptr<renderengine::RenderEngine> createRenderEngine() = 0;
-    virtual bool typeSupported() = 0;
+    virtual renderengine::RenderEngine::GraphicsApi graphicsApi() = 0;
+    virtual bool apiSupported() = 0;
+    std::unique_ptr<renderengine::RenderEngine> createRenderEngine() {
+        renderengine::RenderEngineCreationArgs reCreationArgs =
+                renderengine::RenderEngineCreationArgs::Builder()
+                        .setPixelFormat(static_cast<int>(ui::PixelFormat::RGBA_8888))
+                        .setImageCacheSize(1)
+                        .setEnableProtectedContext(false)
+                        .setPrecacheToneMapperShaderOnly(false)
+                        .setSupportsBackgroundBlur(true)
+                        .setContextPriority(renderengine::RenderEngine::ContextPriority::MEDIUM)
+                        .setThreaded(renderengine::RenderEngine::Threaded::NO)
+                        .setGraphicsApi(graphicsApi())
+                        .build();
+        return renderengine::RenderEngine::create(reCreationArgs);
+    }
 };
 
 class SkiaVkRenderEngineFactory : public RenderEngineFactory {
 public:
     std::string name() override { return "SkiaVkRenderEngineFactory"; }
 
-    renderengine::RenderEngine::RenderEngineType type() {
-        return renderengine::RenderEngine::RenderEngineType::SKIA_VK;
+    renderengine::RenderEngine::GraphicsApi graphicsApi() override {
+        return renderengine::RenderEngine::GraphicsApi::VK;
     }
 
-    std::unique_ptr<renderengine::RenderEngine> createRenderEngine() override {
-        std::unique_ptr<renderengine::RenderEngine> re = createSkiaVkRenderEngine();
-        return re;
-    }
-
-    std::unique_ptr<renderengine::skia::SkiaVkRenderEngine> createSkiaVkRenderEngine() {
-        renderengine::RenderEngineCreationArgs reCreationArgs =
-                renderengine::RenderEngineCreationArgs::Builder()
-                        .setPixelFormat(static_cast<int>(ui::PixelFormat::RGBA_8888))
-                        .setImageCacheSize(1)
-                        .setEnableProtectedContext(false)
-                        .setPrecacheToneMapperShaderOnly(false)
-                        .setSupportsBackgroundBlur(true)
-                        .setContextPriority(renderengine::RenderEngine::ContextPriority::MEDIUM)
-                        .setRenderEngineType(type())
-                        .build();
-        return renderengine::skia::SkiaVkRenderEngine::create(reCreationArgs);
-    }
-
-    bool typeSupported() override {
+    bool apiSupported() override {
         return skia::SkiaVkRenderEngine::canSupportSkiaVkRenderEngine();
     }
-    void skip() { GTEST_SKIP(); }
 };
 
 class SkiaGLESRenderEngineFactory : public RenderEngineFactory {
 public:
     std::string name() override { return "SkiaGLRenderEngineFactory"; }
 
-    renderengine::RenderEngine::RenderEngineType type() {
-        return renderengine::RenderEngine::RenderEngineType::SKIA_GL;
+    renderengine::RenderEngine::GraphicsApi graphicsApi() {
+        return renderengine::RenderEngine::GraphicsApi::GL;
     }
 
-    std::unique_ptr<renderengine::RenderEngine> createRenderEngine() override {
-        renderengine::RenderEngineCreationArgs reCreationArgs =
-                renderengine::RenderEngineCreationArgs::Builder()
-                        .setPixelFormat(static_cast<int>(ui::PixelFormat::RGBA_8888))
-                        .setImageCacheSize(1)
-                        .setEnableProtectedContext(false)
-                        .setPrecacheToneMapperShaderOnly(false)
-                        .setSupportsBackgroundBlur(true)
-                        .setContextPriority(renderengine::RenderEngine::ContextPriority::MEDIUM)
-                        .setRenderEngineType(type())
-                        .build();
-        return renderengine::skia::SkiaGLRenderEngine::create(reCreationArgs);
-    }
-
-    bool typeSupported() override { return true; }
-};
-
-class SkiaGLESCMRenderEngineFactory : public RenderEngineFactory {
-public:
-    std::string name() override { return "SkiaGLCMRenderEngineFactory"; }
-
-    renderengine::RenderEngine::RenderEngineType type() {
-        return renderengine::RenderEngine::RenderEngineType::SKIA_GL;
-    }
-
-    std::unique_ptr<renderengine::RenderEngine> createRenderEngine() override {
-        renderengine::RenderEngineCreationArgs reCreationArgs =
-                renderengine::RenderEngineCreationArgs::Builder()
-                        .setPixelFormat(static_cast<int>(ui::PixelFormat::RGBA_8888))
-                        .setImageCacheSize(1)
-                        .setEnableProtectedContext(false)
-                        .setPrecacheToneMapperShaderOnly(false)
-                        .setSupportsBackgroundBlur(true)
-                        .setContextPriority(renderengine::RenderEngine::ContextPriority::MEDIUM)
-                        .setRenderEngineType(type())
-                        .build();
-        return renderengine::skia::SkiaGLRenderEngine::create(reCreationArgs);
-    }
-
-    bool typeSupported() override { return true; }
+    bool apiSupported() override { return true; }
 };
 
 class RenderEngineTest : public ::testing::TestWithParam<std::shared_ptr<RenderEngineFactory>> {
@@ -1526,7 +1480,7 @@ INSTANTIATE_TEST_SUITE_P(PerRenderEngineType, RenderEngineTest,
                                          std::make_shared<SkiaVkRenderEngineFactory>()));
 
 TEST_P(RenderEngineTest, drawLayers_noLayersToDraw) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -1534,7 +1488,7 @@ TEST_P(RenderEngineTest, drawLayers_noLayersToDraw) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillRedBufferAndEmptyBuffer) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -1561,7 +1515,7 @@ TEST_P(RenderEngineTest, drawLayers_fillRedBufferAndEmptyBuffer) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_withoutBuffers_withColorTransform) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -1595,7 +1549,7 @@ TEST_P(RenderEngineTest, drawLayers_withoutBuffers_withColorTransform) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_nullOutputBuffer) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -1616,7 +1570,7 @@ TEST_P(RenderEngineTest, drawLayers_nullOutputBuffer) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillRedBuffer_colorSource) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -1624,7 +1578,7 @@ TEST_P(RenderEngineTest, drawLayers_fillRedBuffer_colorSource) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillGreenBuffer_colorSource) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -1632,7 +1586,7 @@ TEST_P(RenderEngineTest, drawLayers_fillGreenBuffer_colorSource) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBlueBuffer_colorSource) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -1640,7 +1594,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBlueBuffer_colorSource) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillRedTransparentBuffer_colorSource) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -1648,7 +1602,7 @@ TEST_P(RenderEngineTest, drawLayers_fillRedTransparentBuffer_colorSource) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferPhysicalOffset_colorSource) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -1656,7 +1610,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferPhysicalOffset_colorSource) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferCheckersRotate0_colorSource) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -1664,7 +1618,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferCheckersRotate0_colorSource) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferCheckersRotate90_colorSource) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -1672,7 +1626,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferCheckersRotate90_colorSource) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferCheckersRotate180_colorSource) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -1680,7 +1634,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferCheckersRotate180_colorSource) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferCheckersRotate270_colorSource) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -1688,7 +1642,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferCheckersRotate270_colorSource) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferLayerTransform_colorSource) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -1696,7 +1650,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferLayerTransform_colorSource) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransform_colorSource) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -1706,7 +1660,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransform_colorSource) {
 TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransform_sourceDataspace) {
     const auto& renderEngineFactory = GetParam();
     // skip for non color management
-    if (!renderEngineFactory->typeSupported()) {
+    if (!renderEngineFactory->apiSupported()) {
         GTEST_SKIP();
     }
 
@@ -1717,7 +1671,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransform_sourceDataspace) {
 TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransform_outputDataspace) {
     const auto& renderEngineFactory = GetParam();
     // skip for non color management
-    if (!renderEngineFactory->typeSupported()) {
+    if (!renderEngineFactory->apiSupported()) {
         GTEST_SKIP();
     }
 
@@ -1726,7 +1680,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransform_outputDataspace) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferRoundedCorners_colorSource) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -1734,7 +1688,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferRoundedCorners_colorSource) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformZeroLayerAlpha_colorSource) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -1742,7 +1696,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformZeroLayerAlpha_color
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferAndBlurBackground_colorSource) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -1750,7 +1704,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferAndBlurBackground_colorSource) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillSmallLayerAndBlurBackground_colorSource) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -1758,7 +1712,7 @@ TEST_P(RenderEngineTest, drawLayers_fillSmallLayerAndBlurBackground_colorSource)
 }
 
 TEST_P(RenderEngineTest, drawLayers_overlayCorners_colorSource) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -1766,7 +1720,7 @@ TEST_P(RenderEngineTest, drawLayers_overlayCorners_colorSource) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillRedBuffer_opaqueBufferSource) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -1774,7 +1728,7 @@ TEST_P(RenderEngineTest, drawLayers_fillRedBuffer_opaqueBufferSource) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillGreenBuffer_opaqueBufferSource) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -1782,7 +1736,7 @@ TEST_P(RenderEngineTest, drawLayers_fillGreenBuffer_opaqueBufferSource) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBlueBuffer_opaqueBufferSource) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -1790,7 +1744,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBlueBuffer_opaqueBufferSource) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillRedTransparentBuffer_opaqueBufferSource) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -1798,7 +1752,7 @@ TEST_P(RenderEngineTest, drawLayers_fillRedTransparentBuffer_opaqueBufferSource)
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferPhysicalOffset_opaqueBufferSource) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -1806,7 +1760,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferPhysicalOffset_opaqueBufferSource)
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferCheckersRotate0_opaqueBufferSource) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -1814,7 +1768,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferCheckersRotate0_opaqueBufferSource
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferCheckersRotate90_opaqueBufferSource) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -1822,7 +1776,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferCheckersRotate90_opaqueBufferSourc
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferCheckersRotate180_opaqueBufferSource) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -1830,7 +1784,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferCheckersRotate180_opaqueBufferSour
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferCheckersRotate270_opaqueBufferSource) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -1838,7 +1792,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferCheckersRotate270_opaqueBufferSour
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferLayerTransform_opaqueBufferSource) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -1846,7 +1800,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferLayerTransform_opaqueBufferSource)
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransform_opaqueBufferSource) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -1856,7 +1810,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransform_opaqueBufferSource)
 TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformAndSourceDataspace_opaqueBufferSource) {
     const auto& renderEngineFactory = GetParam();
     // skip for non color management
-    if (!renderEngineFactory->typeSupported()) {
+    if (!renderEngineFactory->apiSupported()) {
         GTEST_SKIP();
     }
 
@@ -1867,7 +1821,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformAndSourceDataspace_o
 TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformAndOutputDataspace_opaqueBufferSource) {
     const auto& renderEngineFactory = GetParam();
     // skip for non color management
-    if (!renderEngineFactory->typeSupported()) {
+    if (!renderEngineFactory->apiSupported()) {
         GTEST_SKIP();
     }
 
@@ -1876,7 +1830,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformAndOutputDataspace_o
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferRoundedCorners_opaqueBufferSource) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -1884,7 +1838,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferRoundedCorners_opaqueBufferSource)
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformZeroLayerAlpha_opaqueBufferSource) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -1892,7 +1846,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformZeroLayerAlpha_opaqu
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferAndBlurBackground_opaqueBufferSource) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -1900,7 +1854,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferAndBlurBackground_opaqueBufferSour
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillSmallLayerAndBlurBackground_opaqueBufferSource) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -1908,7 +1862,7 @@ TEST_P(RenderEngineTest, drawLayers_fillSmallLayerAndBlurBackground_opaqueBuffer
 }
 
 TEST_P(RenderEngineTest, drawLayers_overlayCorners_opaqueBufferSource) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -1916,7 +1870,7 @@ TEST_P(RenderEngineTest, drawLayers_overlayCorners_opaqueBufferSource) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillRedBuffer_bufferSource) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -1924,7 +1878,7 @@ TEST_P(RenderEngineTest, drawLayers_fillRedBuffer_bufferSource) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillGreenBuffer_bufferSource) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -1932,7 +1886,7 @@ TEST_P(RenderEngineTest, drawLayers_fillGreenBuffer_bufferSource) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBlueBuffer_bufferSource) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -1940,7 +1894,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBlueBuffer_bufferSource) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillRedTransparentBuffer_bufferSource) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -1948,7 +1902,7 @@ TEST_P(RenderEngineTest, drawLayers_fillRedTransparentBuffer_bufferSource) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferPhysicalOffset_bufferSource) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -1956,7 +1910,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferPhysicalOffset_bufferSource) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferCheckersRotate0_bufferSource) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -1964,7 +1918,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferCheckersRotate0_bufferSource) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferCheckersRotate90_bufferSource) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -1972,7 +1926,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferCheckersRotate90_bufferSource) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferCheckersRotate180_bufferSource) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -1980,7 +1934,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferCheckersRotate180_bufferSource) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferCheckersRotate270_bufferSource) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -1988,7 +1942,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferCheckersRotate270_bufferSource) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferLayerTransform_bufferSource) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -1996,7 +1950,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferLayerTransform_bufferSource) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransform_bufferSource) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -2006,7 +1960,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransform_bufferSource) {
 TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformAndSourceDataspace_bufferSource) {
     const auto& renderEngineFactory = GetParam();
     // skip for non color management
-    if (!renderEngineFactory->typeSupported()) {
+    if (!renderEngineFactory->apiSupported()) {
         GTEST_SKIP();
     }
 
@@ -2017,7 +1971,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformAndSourceDataspace_b
 TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformAndOutputDataspace_bufferSource) {
     const auto& renderEngineFactory = GetParam();
     // skip for non color management
-    if (!renderEngineFactory->typeSupported()) {
+    if (!renderEngineFactory->apiSupported()) {
         GTEST_SKIP();
     }
 
@@ -2026,7 +1980,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformAndOutputDataspace_b
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferRoundedCorners_bufferSource) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -2034,7 +1988,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferRoundedCorners_bufferSource) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformZeroLayerAlpha_bufferSource) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -2042,7 +1996,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformZeroLayerAlpha_buffe
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferAndBlurBackground_bufferSource) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -2050,7 +2004,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferAndBlurBackground_bufferSource) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillSmallLayerAndBlurBackground_bufferSource) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -2058,7 +2012,7 @@ TEST_P(RenderEngineTest, drawLayers_fillSmallLayerAndBlurBackground_bufferSource
 }
 
 TEST_P(RenderEngineTest, drawLayers_overlayCorners_bufferSource) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -2066,7 +2020,7 @@ TEST_P(RenderEngineTest, drawLayers_overlayCorners_bufferSource) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferTextureTransform) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -2074,7 +2028,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferTextureTransform) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBuffer_premultipliesAlpha) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -2082,7 +2036,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBuffer_premultipliesAlpha) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBuffer_withoutPremultiplyingAlpha) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -2090,7 +2044,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBuffer_withoutPremultiplyingAlpha) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillShadow_castsWithoutCasterLayer) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -2108,7 +2062,7 @@ TEST_P(RenderEngineTest, drawLayers_fillShadow_castsWithoutCasterLayer) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillShadow_casterLayerMinSize) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -2131,7 +2085,7 @@ TEST_P(RenderEngineTest, drawLayers_fillShadow_casterLayerMinSize) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillShadow_casterColorLayer) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -2155,7 +2109,7 @@ TEST_P(RenderEngineTest, drawLayers_fillShadow_casterColorLayer) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillShadow_casterOpaqueBufferLayer) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -2180,7 +2134,7 @@ TEST_P(RenderEngineTest, drawLayers_fillShadow_casterOpaqueBufferLayer) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillShadow_casterWithRoundedCorner) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -2206,7 +2160,7 @@ TEST_P(RenderEngineTest, drawLayers_fillShadow_casterWithRoundedCorner) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillShadow_translucentCasterWithAlpha) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -2235,7 +2189,7 @@ TEST_P(RenderEngineTest, drawLayers_fillShadow_translucentCasterWithAlpha) {
 }
 
 TEST_P(RenderEngineTest, cleanupPostRender_cleansUpOnce) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -2271,7 +2225,7 @@ TEST_P(RenderEngineTest, cleanupPostRender_cleansUpOnce) {
     if (mRE->canSkipPostRenderCleanup()) {
         // Skia's Vk backend may keep the texture alive beyond drawLayersInternal, so
         // it never gets added to the cleanup list. In those cases, we can skip.
-        EXPECT_TRUE(GetParam()->type() == renderengine::RenderEngine::RenderEngineType::SKIA_VK);
+        EXPECT_TRUE(GetParam()->graphicsApi() == renderengine::RenderEngine::GraphicsApi::VK);
     } else {
         mRE->cleanupPostRender();
         EXPECT_TRUE(mRE->canSkipPostRenderCleanup());
@@ -2279,7 +2233,7 @@ TEST_P(RenderEngineTest, cleanupPostRender_cleansUpOnce) {
 }
 
 TEST_P(RenderEngineTest, testRoundedCornersCrop) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -2332,7 +2286,7 @@ TEST_P(RenderEngineTest, testRoundedCornersCrop) {
 }
 
 TEST_P(RenderEngineTest, testRoundedCornersParentCrop) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -2380,7 +2334,7 @@ TEST_P(RenderEngineTest, testRoundedCornersParentCrop) {
 }
 
 TEST_P(RenderEngineTest, testRoundedCornersParentCropSmallBounds) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -2417,7 +2371,7 @@ TEST_P(RenderEngineTest, testRoundedCornersParentCropSmallBounds) {
 }
 
 TEST_P(RenderEngineTest, testRoundedCornersXY) {
-    if (GetParam()->type() != renderengine::RenderEngine::RenderEngineType::SKIA_GL) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
 
@@ -2460,7 +2414,7 @@ TEST_P(RenderEngineTest, testRoundedCornersXY) {
 }
 
 TEST_P(RenderEngineTest, testClear) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -2492,7 +2446,7 @@ TEST_P(RenderEngineTest, testClear) {
 }
 
 TEST_P(RenderEngineTest, testDisableBlendingBuffer) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -2543,7 +2497,7 @@ TEST_P(RenderEngineTest, testDisableBlendingBuffer) {
 }
 
 TEST_P(RenderEngineTest, testBorder) {
-    if (GetParam()->type() != renderengine::RenderEngine::RenderEngineType::SKIA_GL) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
 
@@ -2588,7 +2542,7 @@ TEST_P(RenderEngineTest, testBorder) {
 }
 
 TEST_P(RenderEngineTest, testDimming) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -2663,7 +2617,7 @@ TEST_P(RenderEngineTest, testDimming) {
 }
 
 TEST_P(RenderEngineTest, testDimming_inGammaSpace) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -2741,7 +2695,7 @@ TEST_P(RenderEngineTest, testDimming_inGammaSpace) {
 }
 
 TEST_P(RenderEngineTest, testDimming_inGammaSpace_withDisplayColorTransform) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -2804,7 +2758,7 @@ TEST_P(RenderEngineTest, testDimming_inGammaSpace_withDisplayColorTransform) {
 }
 
 TEST_P(RenderEngineTest, testDimming_inGammaSpace_withDisplayColorTransform_deviceHandles) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -2868,7 +2822,7 @@ TEST_P(RenderEngineTest, testDimming_inGammaSpace_withDisplayColorTransform_devi
 }
 
 TEST_P(RenderEngineTest, testDimming_withoutTargetLuminance) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -2922,7 +2876,7 @@ TEST_P(RenderEngineTest, testDimming_withoutTargetLuminance) {
 }
 
 TEST_P(RenderEngineTest, test_isOpaque) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -2972,7 +2926,7 @@ TEST_P(RenderEngineTest, test_isOpaque) {
 }
 
 TEST_P(RenderEngineTest, test_tonemapPQMatches) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
 
@@ -2989,7 +2943,7 @@ TEST_P(RenderEngineTest, test_tonemapPQMatches) {
 }
 
 TEST_P(RenderEngineTest, test_tonemapHLGMatches) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
 
@@ -3006,7 +2960,7 @@ TEST_P(RenderEngineTest, test_tonemapHLGMatches) {
 }
 
 TEST_P(RenderEngineTest, r8_behaves_as_mask) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -3066,7 +3020,7 @@ TEST_P(RenderEngineTest, r8_behaves_as_mask) {
 }
 
 TEST_P(RenderEngineTest, r8_respects_color_transform) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -3131,7 +3085,7 @@ TEST_P(RenderEngineTest, r8_respects_color_transform) {
 }
 
 TEST_P(RenderEngineTest, r8_respects_color_transform_when_device_handles) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();
@@ -3199,7 +3153,7 @@ TEST_P(RenderEngineTest, r8_respects_color_transform_when_device_handles) {
 }
 
 TEST_P(RenderEngineTest, primeShaderCache) {
-    if (!GetParam()->typeSupported()) {
+    if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
     initializeRenderEngine();

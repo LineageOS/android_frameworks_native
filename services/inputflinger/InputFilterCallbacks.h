@@ -19,6 +19,7 @@
 #include <aidl/com/android/server/inputflinger/IInputFlingerRust.h>
 #include <android/binder_auto_utils.h>
 #include <utils/Mutex.h>
+#include <memory>
 #include <mutex>
 #include "InputFilterPolicyInterface.h"
 #include "InputListener.h"
@@ -31,6 +32,9 @@ namespace android {
 
 using IInputFilter = aidl::com::android::server::inputflinger::IInputFilter;
 using AidlKeyEvent = aidl::com::android::server::inputflinger::KeyEvent;
+using aidl::com::android::server::inputflinger::IInputThread;
+using IInputThreadCallback =
+        aidl::com::android::server::inputflinger::IInputThread::IInputThreadCallback;
 
 class InputFilterCallbacks : public IInputFilter::BnInputFilterCallbacks {
 public:
@@ -53,6 +57,9 @@ private:
     ndk::ScopedAStatus sendKeyEvent(const AidlKeyEvent& event) override;
     ndk::ScopedAStatus onModifierStateChanged(int32_t modifierState,
                                               int32_t lockedModifierState) override;
+    ndk::ScopedAStatus createInputFilterThread(
+            const std::shared_ptr<IInputThreadCallback>& callback,
+            std::shared_ptr<IInputThread>* aidl_return) override;
 };
 
 } // namespace android

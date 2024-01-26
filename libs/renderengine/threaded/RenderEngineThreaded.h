@@ -37,10 +37,9 @@ using CreateInstanceFactory = std::function<std::unique_ptr<renderengine::Render
  */
 class RenderEngineThreaded : public RenderEngine {
 public:
-    static std::unique_ptr<RenderEngineThreaded> create(CreateInstanceFactory factory,
-                                                        RenderEngineType type);
+    static std::unique_ptr<RenderEngineThreaded> create(CreateInstanceFactory factory);
 
-    RenderEngineThreaded(CreateInstanceFactory factory, RenderEngineType type);
+    RenderEngineThreaded(CreateInstanceFactory factory);
     ~RenderEngineThreaded() override;
     std::future<void> primeCache(bool shouldPrimeUltraHDR) override;
 
