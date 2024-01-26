@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "c05c80a6_63174605",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 7
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 14048
+      },
+      "writtenOn": "2024-01-26T05:29:49Z",
+      "side": 1,
+      "message": "Verified on foster, dolphin-emu is able to create a desktop gl context and render graphics.",
+      "revId": "91cefe9c75a61cfb6e6d5301ac1809bb2cf9d4c7",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
