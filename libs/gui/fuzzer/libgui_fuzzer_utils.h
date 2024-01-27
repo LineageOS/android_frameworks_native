@@ -104,6 +104,8 @@ public:
                 (int64_t, const gui::CaptureArgs&, const sp<IScreenCaptureListener>&), (override));
     MOCK_METHOD(binder::Status, captureLayers,
                 (const LayerCaptureArgs&, const sp<IScreenCaptureListener>&), (override));
+    MOCK_METHOD(binder::Status, captureLayersSync,
+                (const LayerCaptureArgs&, gui::ScreenCaptureResults*), (override));
     MOCK_METHOD(binder::Status, clearAnimationFrameStats, (), (override));
     MOCK_METHOD(binder::Status, getAnimationFrameStats, (gui::FrameStats*), (override));
     MOCK_METHOD(binder::Status, overrideHdrTypes, (const sp<IBinder>&, const std::vector<int32_t>&),

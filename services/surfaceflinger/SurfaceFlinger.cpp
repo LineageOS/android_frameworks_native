@@ -116,6 +116,7 @@
 #include <common/FlagManager.h>
 #include <gui/LayerStatePermissions.h>
 #include <gui/SchedulingPolicy.h>
+#include <gui/SyncScreenCaptureListener.h>
 #include <ui/DisplayIdentification.h>
 #include "BackgroundExecutor.h"
 #include "Client.h"
@@ -800,7 +801,7 @@ void SurfaceFlinger::bootFinished() {
 
 void chooseRenderEngineType(renderengine::RenderEngineCreationArgs::Builder& builder) {
     char prop[PROPERTY_VALUE_MAX];
-    property_get(PROPERTY_DEBUG_RENDERENGINE_BACKEND, prop, "skiaglthreaded");
+    property_get(PROPERTY_DEBUG_RENDERENGINE_BACKEND, prop, "");
 
     if (strcmp(prop, "skiagl") == 0) {
         builder.setThreaded(renderengine::RenderEngine::Threaded::NO)
@@ -7739,6 +7740,12 @@ void SurfaceFlinger::captureDisplay(DisplayId displayId, const CaptureArgs& args
                         kAllowProtected, kGrayscale, captureListener);
 }
 
+ScreenCaptureResults SurfaceFlinger::captureLayersSync(const LayerCaptureArgs& args) {
+    sp<SyncScreenCaptureListener> captureListener = sp<SyncScreenCaptureListener>::make();
+    captureLayers(args, captureListener);
+    return captureListener->waitForResults();
+}
+
 void SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
                                    const sp<IScreenCaptureListener>& captureListener) {
     ATRACE_CALL();
@@ -9575,6 +9582,12 @@ binder::Status SurfaceComposerAIDL::captureDisplayById(
     } else {
         invokeScreenCaptureError(PERMISSION_DENIED, captureListener);
     }
+    return binderStatusFromStatusT(NO_ERROR);
+}
+
+binder::Status SurfaceComposerAIDL::captureLayersSync(const LayerCaptureArgs& args,
+                                                      ScreenCaptureResults* outResults) {
+    *outResults = mFlinger->captureLayersSync(args);
     return binderStatusFromStatusT(NO_ERROR);
 }
 

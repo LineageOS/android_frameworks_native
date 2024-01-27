@@ -560,6 +560,7 @@ private:
 
     void captureDisplay(const DisplayCaptureArgs&, const sp<IScreenCaptureListener>&);
     void captureDisplay(DisplayId, const CaptureArgs&, const sp<IScreenCaptureListener>&);
+    ScreenCaptureResults captureLayersSync(const LayerCaptureArgs&);
     void captureLayers(const LayerCaptureArgs&, const sp<IScreenCaptureListener>&);
 
     status_t getDisplayStats(const sp<IBinder>& displayToken, DisplayStatInfo* stats);
@@ -1547,6 +1548,7 @@ public:
                                       const sp<IScreenCaptureListener>&) override;
     binder::Status captureLayers(const LayerCaptureArgs&,
                                  const sp<IScreenCaptureListener>&) override;
+    binder::Status captureLayersSync(const LayerCaptureArgs&, ScreenCaptureResults* results);
 
     // TODO(b/239076119): Remove deprecated AIDL.
     [[deprecated]] binder::Status clearAnimationFrameStats() override {
