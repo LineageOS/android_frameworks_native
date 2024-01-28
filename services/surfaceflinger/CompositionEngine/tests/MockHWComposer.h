@@ -103,7 +103,7 @@ public:
     MOCK_CONST_METHOD0(isUsingVrComposer, bool());
     MOCK_CONST_METHOD1(getDisplayConnectionType, ui::DisplayConnectionType(PhysicalDisplayId));
     MOCK_CONST_METHOD1(isVsyncPeriodSwitchSupported, bool(PhysicalDisplayId));
-    MOCK_CONST_METHOD2(getDisplayVsyncPeriod, status_t(PhysicalDisplayId, nsecs_t*));
+    MOCK_CONST_METHOD1(getDisplayVsyncPeriod, ftl::Expected<nsecs_t, status_t>(PhysicalDisplayId));
     MOCK_METHOD4(setActiveModeWithConstraints,
                  status_t(PhysicalDisplayId, hal::HWConfigId,
                           const hal::VsyncPeriodChangeConstraints&,

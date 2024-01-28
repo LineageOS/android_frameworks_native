@@ -248,8 +248,7 @@ public:
     // Composer 2.4
     virtual ui::DisplayConnectionType getDisplayConnectionType(PhysicalDisplayId) const = 0;
     virtual bool isVsyncPeriodSwitchSupported(PhysicalDisplayId) const = 0;
-    virtual status_t getDisplayVsyncPeriod(PhysicalDisplayId displayId,
-                                           nsecs_t* outVsyncPeriod) const = 0;
+    virtual ftl::Expected<nsecs_t, status_t> getDisplayVsyncPeriod(PhysicalDisplayId) const = 0;
     virtual status_t setActiveModeWithConstraints(PhysicalDisplayId, hal::HWConfigId,
                                                   const hal::VsyncPeriodChangeConstraints&,
                                                   hal::VsyncPeriodChangeTimeline* outTimeline) = 0;
@@ -436,8 +435,7 @@ public:
     // Composer 2.4
     ui::DisplayConnectionType getDisplayConnectionType(PhysicalDisplayId) const override;
     bool isVsyncPeriodSwitchSupported(PhysicalDisplayId) const override;
-    status_t getDisplayVsyncPeriod(PhysicalDisplayId displayId,
-                                   nsecs_t* outVsyncPeriod) const override;
+    ftl::Expected<nsecs_t, status_t> getDisplayVsyncPeriod(PhysicalDisplayId) const override;
     status_t setActiveModeWithConstraints(PhysicalDisplayId, hal::HWConfigId,
                                           const hal::VsyncPeriodChangeConstraints&,
                                           hal::VsyncPeriodChangeTimeline* outTimeline) override;

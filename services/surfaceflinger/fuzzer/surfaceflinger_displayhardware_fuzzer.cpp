@@ -143,7 +143,6 @@ private:
     void invokeComposerHal2_2(Hwc2::AidlComposer*, Display, Hwc2::V2_4::hal::Layer);
     void invokeComposerHal2_3(Hwc2::AidlComposer*, Display, Hwc2::V2_4::hal::Layer);
     void invokeComposerHal2_4(Hwc2::AidlComposer*, Display, Hwc2::V2_4::hal::Layer);
-    void getDisplayVsyncPeriod();
     void setActiveModeWithConstraints();
     void getDisplayIdentificationData();
     void dumpHwc();
@@ -200,11 +199,6 @@ Display DisplayHardwareFuzzer::createVirtualDisplay(Hwc2::AidlComposer* composer
     composer->createVirtualDisplay(mFdp.ConsumeIntegral<uint32_t>() /*width*/,
                                    mFdp.ConsumeIntegral<uint32_t>() /*height*/, &format, &display);
     return display;
-}
-
-void DisplayHardwareFuzzer::getDisplayVsyncPeriod() {
-    nsecs_t outVsyncPeriod;
-    mHwc.getDisplayVsyncPeriod(mPhysicalDisplayId, &outVsyncPeriod);
 }
 
 void DisplayHardwareFuzzer::setActiveModeWithConstraints() {
@@ -617,8 +611,7 @@ void DisplayHardwareFuzzer::invokeComposer() {
 
     mHwc.getDisplayConnectionType(mPhysicalDisplayId);
     mHwc.isVsyncPeriodSwitchSupported(mPhysicalDisplayId);
-
-    getDisplayVsyncPeriod();
+    mHwc.getDisplayVsyncPeriod(mPhysicalDisplayId);
 
     setActiveModeWithConstraints();
 
