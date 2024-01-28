@@ -343,14 +343,18 @@ std::vector<HWComposer::HWCDisplayMode> HWComposer::getModesFromLegacyDisplayCon
     return modes;
 }
 
-std::optional<hal::HWConfigId> HWComposer::getActiveMode(PhysicalDisplayId displayId) const {
-    RETURN_IF_INVALID_DISPLAY(displayId, std::nullopt);
+ftl::Expected<hal::HWConfigId, status_t> HWComposer::getActiveMode(
+        PhysicalDisplayId displayId) const {
+    RETURN_IF_INVALID_DISPLAY(displayId, ftl::Unexpected(BAD_INDEX));
     const auto hwcId = *fromPhysicalDisplayId(displayId);
 
     hal::HWConfigId configId;
     const auto error = static_cast<hal::Error>(mComposer->getActiveConfig(hwcId, &configId));
+    if (error == hal::Error::BAD_CONFIG) {
+        return ftl::Unexpected(NO_INIT);
+    }
 
-    RETURN_IF_HWC_ERROR_FOR("getActiveConfig", error, displayId, std::nullopt);
+    RETURN_IF_HWC_ERROR_FOR("getActiveConfig", error, displayId, ftl::Unexpected(UNKNOWN_ERROR));
     return configId;
 }
 

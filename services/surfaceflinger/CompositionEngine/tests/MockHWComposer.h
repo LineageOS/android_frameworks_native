@@ -97,7 +97,7 @@ public:
     MOCK_CONST_METHOD1(isConnected, bool(PhysicalDisplayId));
     MOCK_CONST_METHOD2(getModes,
                        std::vector<HWComposer::HWCDisplayMode>(PhysicalDisplayId, int32_t));
-    MOCK_CONST_METHOD1(getActiveMode, std::optional<hal::HWConfigId>(PhysicalDisplayId));
+    MOCK_CONST_METHOD1(getActiveMode, ftl::Expected<hal::HWConfigId, status_t>(PhysicalDisplayId));
     MOCK_CONST_METHOD1(getColorModes, std::vector<ui::ColorMode>(PhysicalDisplayId));
     MOCK_METHOD3(setActiveColorMode, status_t(PhysicalDisplayId, ui::ColorMode, ui::RenderIntent));
     MOCK_CONST_METHOD0(isUsingVrComposer, bool());

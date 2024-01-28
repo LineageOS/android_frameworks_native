@@ -25,6 +25,7 @@
 #include <vector>
 
 #include <android-base/thread_annotations.h>
+#include <ftl/expected.h>
 #include <ftl/future.h>
 #include <ui/DisplayIdentification.h>
 #include <ui/FenceTime.h>
@@ -237,7 +238,7 @@ public:
     virtual std::vector<HWCDisplayMode> getModes(PhysicalDisplayId,
                                                  int32_t maxFrameIntervalNs) const = 0;
 
-    virtual std::optional<hal::HWConfigId> getActiveMode(PhysicalDisplayId) const = 0;
+    virtual ftl::Expected<hal::HWConfigId, status_t> getActiveMode(PhysicalDisplayId) const = 0;
 
     virtual std::vector<ui::ColorMode> getColorModes(PhysicalDisplayId) const = 0;
 
@@ -424,7 +425,7 @@ public:
     std::vector<HWCDisplayMode> getModes(PhysicalDisplayId,
                                          int32_t maxFrameIntervalNs) const override;
 
-    std::optional<hal::HWConfigId> getActiveMode(PhysicalDisplayId) const override;
+    ftl::Expected<hal::HWConfigId, status_t> getActiveMode(PhysicalDisplayId) const override;
 
     std::vector<ui::ColorMode> getColorModes(PhysicalDisplayId) const override;
 
