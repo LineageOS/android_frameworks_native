@@ -21,6 +21,18 @@ package {
     default_applicable_licenses: ["frameworks_native_license"],
 }
 
+aconfig_declarations {
+    name: "libsensor_flags",
+    package: "com.android.hardware.libsensor.flags",
+    srcs: ["libsensor_flags.aconfig"],
+}
+
+cc_aconfig_library {
+    name: "libsensor_flags_c_lib",
+    host_supported: true,
+    aconfig_declarations: "libsensor_flags",
+}
+
 cc_library {
     name: "libsensor",
 
@@ -50,6 +62,10 @@ cc_library {
         "libhardware",
         "libpermission",
         "android.companion.virtual.virtualdevice_aidl-cpp",
+    ],
+
+    static_libs: [
+        "libsensor_flags_c_lib",
     ],
 
     export_include_dirs: ["include"],

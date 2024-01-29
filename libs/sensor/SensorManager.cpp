@@ -37,6 +37,8 @@
 #include <sensor/Sensor.h>
 #include <sensor/SensorEventQueue.h>
 
+#include <com_android_hardware_libsensor_flags.h>
+
 // ----------------------------------------------------------------------------
 namespace android {
 // ----------------------------------------------------------------------------
@@ -192,6 +194,9 @@ void SensorManager::sensorManagerDied() {
 }
 
 status_t SensorManager::assertStateLocked() {
+#if COM_ANDROID_HARDWARE_LIBSENSOR_FLAGS(SENSORMANAGER_PING_BINDER)
+    if (mSensorServer == nullptr) {
+#else
     bool initSensorManager = false;
     if (mSensorServer == nullptr) {
         initSensorManager = true;
@@ -203,6 +208,7 @@ status_t SensorManager::assertStateLocked() {
         }
     }
     if (initSensorManager) {
+#endif
         waitForSensorService(&mSensorServer);
         LOG_ALWAYS_FATAL_IF(mSensorServer == nullptr, "getService(SensorService) NULL");
 
