@@ -1237,4 +1237,25 @@ TEST_F(LayerSnapshotTest, NonVisibleLayerWithInput) {
     EXPECT_TRUE(foundInputLayer);
 }
 
+TEST_F(LayerSnapshotTest, canOccludePresentation) {
+    setFlags(12, layer_state_t::eCanOccludePresentation, layer_state_t::eCanOccludePresentation);
+    LayerSnapshotBuilder::Args args{.root = mHierarchyBuilder.getHierarchy(),
+                                    .layerLifecycleManager = mLifecycleManager,
+                                    .includeMetadata = false,
+                                    .displays = mFrontEndDisplayInfos,
+                                    .displayChanges = false,
+                                    .globalShadowSettings = globalShadowSettings,
+                                    .supportsBlur = true,
+                                    .supportedLayerGenericMetadata = {},
+                                    .genericLayerMetadataKeyMap = {}};
+    UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
+
+    EXPECT_EQ(getSnapshot(1)->inputInfo.canOccludePresentation, false);
+
+    // ensure we can set the property on the window info for layer and all its children
+    EXPECT_EQ(getSnapshot(12)->inputInfo.canOccludePresentation, true);
+    EXPECT_EQ(getSnapshot(121)->inputInfo.canOccludePresentation, true);
+    EXPECT_EQ(getSnapshot(1221)->inputInfo.canOccludePresentation, true);
+}
+
 } // namespace android::surfaceflinger::frontend

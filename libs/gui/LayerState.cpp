@@ -199,7 +199,7 @@ status_t layer_state_t::write(Parcel& output) const
     SAFE_PARCEL(output.writeParcelable, trustedPresentationListener);
     SAFE_PARCEL(output.writeFloat, currentHdrSdrRatio);
     SAFE_PARCEL(output.writeFloat, desiredHdrSdrRatio);
-    SAFE_PARCEL(output.writeInt32, static_cast<int32_t>(cachingHint))
+    SAFE_PARCEL(output.writeInt32, static_cast<int32_t>(cachingHint));
     return NO_ERROR;
 }
 
@@ -483,6 +483,12 @@ void layer_state_t::sanitize(int32_t permissions) {
             !(permissions & Permission::INTERNAL_SYSTEM_WINDOW)) {
             flags &= ~eLayerIsDisplayDecoration;
             ALOGE("Stripped attempt to set LayerIsDisplayDecoration in sanitize");
+        }
+        if ((mask & eCanOccludePresentation) &&
+            !(permissions & Permission::ACCESS_SURFACE_FLINGER)) {
+            flags &= ~eCanOccludePresentation;
+            mask &= ~eCanOccludePresentation;
+            ALOGE("Stripped attempt to set eCanOccludePresentation in sanitize");
         }
     }
 

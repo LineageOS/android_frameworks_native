@@ -161,6 +161,9 @@ struct layer_state_t {
         // See SurfaceView scaling behavior for more details.
         eIgnoreDestinationFrame = 0x400,
         eLayerIsRefreshRateIndicator = 0x800, // REFRESH_RATE_INDICATOR
+        // Sets a property on this layer indicating that its visible region should be considered
+        // when computing TrustedPresentation Thresholds.
+        eCanOccludePresentation = 0x1000,
     };
 
     enum {

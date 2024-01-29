@@ -170,6 +170,9 @@ void RequestedLayerState::merge(const ResolvedComposerState& resolvedComposerSta
         if ((oldFlags ^ flags) & layer_state_t::eIgnoreDestinationFrame) {
             changes |= RequestedLayerState::Changes::Geometry;
         }
+        if ((oldFlags ^ flags) & layer_state_t::eCanOccludePresentation) {
+            changes |= RequestedLayerState::Changes::Input;
+        }
     }
 
     if (clientState.what & layer_state_t::eBufferChanged) {
