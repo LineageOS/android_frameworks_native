@@ -98,6 +98,7 @@ struct DeviceData {
 
     VkDevice driver_device;
     DeviceDriverTable driver;
+    VkPhysicalDevice driver_physical_device;
 };
 
 bool OpenHAL();

@@ -47,10 +47,6 @@ protected:
         ASSERT_NO_FATAL_FAILURE(SetUpDisplay());
 
         sp<gui::ISurfaceComposer> sf(ComposerServiceAIDL::getComposerService());
-        binder::Status status = sf->getColorManagement(&mColorManagementUsed);
-        ASSERT_NO_FATAL_FAILURE(gui::aidl_utils::statusTFromBinderStatus(status));
-
-        mCaptureArgs.displayToken = mDisplay;
     }
 
     virtual void TearDown() {
@@ -282,9 +278,6 @@ protected:
     const int32_t mLayerZBase = std::numeric_limits<int32_t>::max() - 256;
 
     sp<SurfaceControl> mBlackBgSurface;
-    bool mColorManagementUsed;
-
-    DisplayCaptureArgs mCaptureArgs;
     ScreenCaptureResults mCaptureResults;
 
 private:
@@ -303,7 +296,7 @@ private:
         // After a new buffer is queued, SurfaceFlinger is notified and will
         // latch the new buffer on next vsync.  Let's heuristically wait for 3
         // vsyncs.
-        mBufferPostDelay = static_cast<int32_t>(1e6 / mode.refreshRate) * 3;
+        mBufferPostDelay = static_cast<int32_t>(1e6 / mode.peakRefreshRate) * 3;
 
         mBlackBgSurface =
                 createSurface(mClient, "BaseSurface", 0 /* buffer width */, 0 /* buffer height */,

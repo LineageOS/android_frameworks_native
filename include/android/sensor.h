@@ -657,7 +657,7 @@ typedef struct ASensorEvent {
     uint32_t flags;
     int32_t reserved1[3];
 } ASensorEvent;
-// LINT.ThenChange (hardware/libhardware/include/hardware/sensors.h)
+// LINT.ThenChange(hardware/libhardware/include/hardware/sensors.h)
 
 struct ASensorManager;
 /**

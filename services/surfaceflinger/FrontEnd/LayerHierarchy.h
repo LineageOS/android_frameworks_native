@@ -57,25 +57,25 @@ public:
     // ├─ B {Traversal path id = 2}
     // │  ├─ C {Traversal path id = 3}
     // │  ├─ D {Traversal path id = 4}
-    // │  └─ E {Traversal path id = 5}
-    // ├─ F (Mirrors B) {Traversal path id = 6}
-    // └─ G (Mirrors F) {Traversal path id = 7}
+    // │  └─ E (Mirrors C) {Traversal path id = 5}
+    // └─ F (Mirrors B) {Traversal path id = 6}
     //
-    // C, D and E can be traversed via B or via F then B or via G then F then B.
+    // C can be traversed via B or E or F and or via F then E.
     // Depending on how the node is reached, its properties such as geometry or visibility might be
     // different. And we can uniquely identify the node by keeping track of the nodes leading up to
     // it. But to be more efficient we only need to track the nodes id and the top mirror root path.
     // So C for example, would have the following unique traversal paths:
     //  - {Traversal path id = 3}
-    //  - {Traversal path id = 3, mirrorRootId = 6}
-    //  - {Traversal path id = 3, mirrorRootId = 7}
+    //  - {Traversal path id = 3, mirrorRootIds = 5}
+    //  - {Traversal path id = 3, mirrorRootIds = 6}
+    //  - {Traversal path id = 3, mirrorRootIds = 6, 5}
 
     struct TraversalPath {
         uint32_t id;
         LayerHierarchy::Variant variant;
         // Mirrored layers can have a different geometry than their parents so we need to track
         // the mirror roots in the traversal.
-        uint32_t mirrorRootId = UNASSIGNED_LAYER_ID;
+        ftl::SmallVector<uint32_t, 5> mirrorRootIds;
         // Relative layers can be visited twice, once by their parent and then once again by
         // their relative parent. We keep track of the roots here to detect any loops in the
         // hierarchy. If a relative root already exists in the list while building the
@@ -93,11 +93,10 @@ public:
         // Returns true if the node or its parents are not Detached.
         bool isAttached() const { return !detached; }
         // Returns true if the node is a clone.
-        bool isClone() const { return mirrorRootId != UNASSIGNED_LAYER_ID; }
-        TraversalPath getMirrorRoot() const;
+        bool isClone() const { return !mirrorRootIds.empty(); }
 
         bool operator==(const TraversalPath& other) const {
-            return id == other.id && mirrorRootId == other.mirrorRootId;
+            return id == other.id && mirrorRootIds == other.mirrorRootIds;
         }
         std::string toString() const;
 
@@ -107,8 +106,8 @@ public:
     struct TraversalPathHash {
         std::size_t operator()(const LayerHierarchy::TraversalPath& key) const {
             uint32_t hashCode = key.id * 31;
-            if (key.mirrorRootId != UNASSIGNED_LAYER_ID) {
-                hashCode += key.mirrorRootId * 31;
+            for (uint32_t mirrorRootId : key.mirrorRootIds) {
+                hashCode += mirrorRootId * 31;
             }
             return std::hash<size_t>{}(hashCode);
         }
@@ -156,7 +155,20 @@ public:
     const RequestedLayerState* getLayer() const;
     const LayerHierarchy* getRelativeParent() const;
     const LayerHierarchy* getParent() const;
-    std::string getDebugString(const char* prefix = "") const;
+    friend std::ostream& operator<<(std::ostream& os, const LayerHierarchy& obj) {
+        std::string prefix = " ";
+        obj.dump(os, prefix, LayerHierarchy::Variant::Attached, /*isLastChild=*/false,
+                 /*includeMirroredHierarchy*/ false);
+        return os;
+    }
+    std::string dump() const {
+        std::string prefix = " ";
+        std::ostringstream os;
+        dump(os, prefix, LayerHierarchy::Variant::Attached, /*isLastChild=*/false,
+             /*includeMirroredHierarchy*/ true);
+        return os.str();
+    }
+
     std::string getDebugStringShort() const;
     // Traverse the hierarchy and return true if loops are found. The outInvalidRelativeRoot
     // will contain the first relative root that was visited twice in a traversal.
@@ -172,6 +184,8 @@ private:
     void updateChild(LayerHierarchy*, LayerHierarchy::Variant);
     void traverseInZOrder(const Visitor& visitor, LayerHierarchy::TraversalPath& parent) const;
     void traverse(const Visitor& visitor, LayerHierarchy::TraversalPath& parent) const;
+    void dump(std::ostream& out, const std::string& prefix, LayerHierarchy::Variant variant,
+              bool isLastChild, bool includeMirroredHierarchy) const;
 
     const RequestedLayerState* mLayer;
     LayerHierarchy* mParent = nullptr;

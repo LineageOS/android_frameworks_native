@@ -54,7 +54,6 @@ using gui::VsyncEventData;
 
 // ---------------------------------------------------------------------------
 
-using ResyncCallback = std::function<void()>;
 using FrameRateOverride = DisplayEventReceiver::Event::FrameRateOverride;
 
 enum class VSyncRequest {
@@ -69,7 +68,7 @@ enum class VSyncRequest {
 
 class EventThreadConnection : public gui::BnDisplayEventConnection {
 public:
-    EventThreadConnection(EventThread*, uid_t callingUid, ResyncCallback,
+    EventThreadConnection(EventThread*, uid_t callingUid,
                           EventRegistrationFlags eventRegistration = {});
     virtual ~EventThreadConnection();
 
@@ -79,9 +78,7 @@ public:
     binder::Status setVsyncRate(int rate) override;
     binder::Status requestNextVsync() override; // asynchronous
     binder::Status getLatestVsyncEventData(ParcelableVsyncEventData* outVsyncEventData) override;
-
-    // Called in response to requestNextVsync.
-    const ResyncCallback resyncCallback;
+    binder::Status getSchedulingPolicy(gui::SchedulingPolicy* outPolicy) override;
 
     VSyncRequest vsyncRequest = VSyncRequest::None;
     const uid_t mOwnerUid;
@@ -104,12 +101,14 @@ public:
     virtual ~EventThread();
 
     virtual sp<EventThreadConnection> createEventConnection(
-            ResyncCallback, EventRegistrationFlags eventRegistration = {}) const = 0;
+            EventRegistrationFlags eventRegistration = {}) const = 0;
 
     // Feed clients with fake VSYNC, e.g. while the display is off.
     virtual void enableSyntheticVsync(bool) = 0;
 
     virtual void onHotplugReceived(PhysicalDisplayId displayId, bool connected) = 0;
+
+    virtual void onHotplugConnectionError(int32_t connectionError) = 0;
 
     // called when SF changes the active mode and apps needs to be notified about the change
     virtual void onModeChanged(const scheduler::FrameRateMode&) = 0;
@@ -131,26 +130,28 @@ public:
     virtual VsyncEventData getLatestVsyncEventData(
             const sp<EventThreadConnection>& connection) const = 0;
 
-    // Retrieves the number of event connections tracked by this EventThread.
-    virtual size_t getEventThreadConnectionCount() = 0;
-
     virtual void onNewVsyncSchedule(std::shared_ptr<scheduler::VsyncSchedule>) = 0;
+};
+
+struct IEventThreadCallback {
+    virtual ~IEventThreadCallback() = default;
+
+    virtual bool throttleVsync(TimePoint, uid_t) = 0;
+    virtual Period getVsyncPeriod(uid_t) = 0;
+    virtual void resync() = 0;
 };
 
 namespace impl {
 
 class EventThread : public android::EventThread {
 public:
-    using ThrottleVsyncCallback = std::function<bool(nsecs_t, uid_t)>;
-    using GetVsyncPeriodFunction = std::function<nsecs_t(uid_t)>;
-
     EventThread(const char* name, std::shared_ptr<scheduler::VsyncSchedule>,
-                frametimeline::TokenManager*, ThrottleVsyncCallback, GetVsyncPeriodFunction,
+                frametimeline::TokenManager*, IEventThreadCallback& callback,
                 std::chrono::nanoseconds workDuration, std::chrono::nanoseconds readyDuration);
     ~EventThread();
 
     sp<EventThreadConnection> createEventConnection(
-            ResyncCallback, EventRegistrationFlags eventRegistration = {}) const override;
+            EventRegistrationFlags eventRegistration = {}) const override;
 
     status_t registerDisplayEventConnection(const sp<EventThreadConnection>& connection) override;
     void setVsyncRate(uint32_t rate, const sp<EventThreadConnection>& connection) override;
@@ -162,6 +163,8 @@ public:
 
     void onHotplugReceived(PhysicalDisplayId displayId, bool connected) override;
 
+    void onHotplugConnectionError(int32_t connectionError) override;
+
     void onModeChanged(const scheduler::FrameRateMode&) override;
 
     void onFrameRateOverridesChanged(PhysicalDisplayId displayId,
@@ -171,8 +174,6 @@ public:
 
     void setDuration(std::chrono::nanoseconds workDuration,
                      std::chrono::nanoseconds readyDuration) override;
-
-    size_t getEventThreadConnectionCount() override;
 
     void onNewVsyncSchedule(std::shared_ptr<scheduler::VsyncSchedule>) override EXCLUDES(mMutex);
 
@@ -215,8 +216,7 @@ private:
     scheduler::VSyncCallbackRegistration mVsyncRegistration GUARDED_BY(mMutex);
     frametimeline::TokenManager* const mTokenManager;
 
-    const ThrottleVsyncCallback mThrottleVsyncCallback;
-    const GetVsyncPeriodFunction mGetVsyncPeriodFunction;
+    IEventThreadCallback& mCallback;
 
     std::thread mThread;
     mutable std::mutex mMutex;

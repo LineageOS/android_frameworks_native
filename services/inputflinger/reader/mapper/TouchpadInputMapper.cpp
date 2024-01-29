@@ -25,6 +25,7 @@
 
 #include <android-base/stringprintf.h>
 #include <android/input.h>
+#include <com_android_input_flags.h>
 #include <ftl/enum.h>
 #include <input/PrintTools.h>
 #include <linux/input-event-codes.h>
@@ -33,7 +34,11 @@
 #include <statslog.h>
 #include "TouchCursorInputMapperCommon.h"
 #include "TouchpadInputMapper.h"
+#include "gestures/HardwareProperties.h"
+#include "gestures/TimerProvider.h"
 #include "ui/Rotation.h"
+
+namespace input_flags = com::android::input::flags;
 
 namespace android {
 
@@ -117,57 +122,6 @@ std::vector<double> createAccelerationCurveForSensitivity(int32_t sensitivity,
     }
 
     return output;
-}
-
-short getMaxTouchCount(const InputDeviceContext& context) {
-    if (context.hasScanCode(BTN_TOOL_QUINTTAP)) return 5;
-    if (context.hasScanCode(BTN_TOOL_QUADTAP)) return 4;
-    if (context.hasScanCode(BTN_TOOL_TRIPLETAP)) return 3;
-    if (context.hasScanCode(BTN_TOOL_DOUBLETAP)) return 2;
-    if (context.hasScanCode(BTN_TOOL_FINGER)) return 1;
-    return 0;
-}
-
-HardwareProperties createHardwareProperties(const InputDeviceContext& context) {
-    HardwareProperties props;
-    RawAbsoluteAxisInfo absMtPositionX;
-    context.getAbsoluteAxisInfo(ABS_MT_POSITION_X, &absMtPositionX);
-    props.left = absMtPositionX.minValue;
-    props.right = absMtPositionX.maxValue;
-    props.res_x = absMtPositionX.resolution;
-
-    RawAbsoluteAxisInfo absMtPositionY;
-    context.getAbsoluteAxisInfo(ABS_MT_POSITION_Y, &absMtPositionY);
-    props.top = absMtPositionY.minValue;
-    props.bottom = absMtPositionY.maxValue;
-    props.res_y = absMtPositionY.resolution;
-
-    RawAbsoluteAxisInfo absMtOrientation;
-    context.getAbsoluteAxisInfo(ABS_MT_ORIENTATION, &absMtOrientation);
-    props.orientation_minimum = absMtOrientation.minValue;
-    props.orientation_maximum = absMtOrientation.maxValue;
-
-    RawAbsoluteAxisInfo absMtSlot;
-    context.getAbsoluteAxisInfo(ABS_MT_SLOT, &absMtSlot);
-    props.max_finger_cnt = absMtSlot.maxValue - absMtSlot.minValue + 1;
-    props.max_touch_cnt = getMaxTouchCount(context);
-
-    // T5R2 ("Track 5, Report 2") is a feature of some old Synaptics touchpads that could track 5
-    // fingers but only report the coordinates of 2 of them. We don't know of any external touchpads
-    // that did this, so assume false.
-    props.supports_t5r2 = false;
-
-    props.support_semi_mt = context.hasInputProperty(INPUT_PROP_SEMI_MT);
-    props.is_button_pad = context.hasInputProperty(INPUT_PROP_BUTTONPAD);
-
-    // Mouse-only properties, which will always be false.
-    props.has_wheel = false;
-    props.wheel_is_hi_res = false;
-
-    // Linux Kernel haptic touchpad support isn't merged yet, so for now assume that no touchpads
-    // are haptic.
-    props.is_haptic_pad = false;
-    return props;
 }
 
 void gestureInterpreterCallback(void* clientData, const Gesture* gesture) {
@@ -288,10 +242,12 @@ TouchpadInputMapper::TouchpadInputMapper(InputDeviceContext& deviceContext,
       : InputMapper(deviceContext, readerConfig),
         mGestureInterpreter(NewGestureInterpreter(), DeleteGestureInterpreter),
         mPointerController(getContext()->getPointerController(getDeviceId())),
+        mTimerProvider(*getContext()),
         mStateConverter(deviceContext, mMotionAccumulator),
         mGestureConverter(*getContext(), deviceContext, getDeviceId()),
         mCapturedEventConverter(*getContext(), deviceContext, mMotionAccumulator, getDeviceId()),
-        mMetricsId(metricsIdFromInputDeviceIdentifier(deviceContext.getDeviceIdentifier())) {
+        mMetricsId(metricsIdFromInputDeviceIdentifier(deviceContext.getDeviceIdentifier())),
+        mEnablePointerChoreographer(input_flags::enable_pointer_choreographer()) {
     RawAbsoluteAxisInfo slotAxisInfo;
     deviceContext.getAbsoluteAxisInfo(ABS_MT_SLOT, &slotAxisInfo);
     if (!slotAxisInfo.valid || slotAxisInfo.maxValue <= 0) {
@@ -309,8 +265,12 @@ TouchpadInputMapper::TouchpadInputMapper(InputDeviceContext& deviceContext,
     // 2) TouchpadInputMapper is stored as a unique_ptr and not moved.
     mGestureInterpreter->SetPropProvider(const_cast<GesturesPropProvider*>(&gesturePropProvider),
                                          &mPropertyProvider);
+    if (input_flags::enable_gestures_library_timer_provider()) {
+        mGestureInterpreter->SetTimerProvider(const_cast<GesturesTimerProvider*>(
+                                                      &kGestureTimerProvider),
+                                              &mTimerProvider);
+    }
     mGestureInterpreter->SetCallback(gestureInterpreterCallback, this);
-    // TODO(b/251196347): set a timer provider, so the library can use timers.
 }
 
 TouchpadInputMapper::~TouchpadInputMapper() {
@@ -318,14 +278,14 @@ TouchpadInputMapper::~TouchpadInputMapper() {
         mPointerController->fade(PointerControllerInterface::Transition::IMMEDIATE);
     }
 
-    // The gesture interpreter's destructor will call its property provider's free function for all
-    // gesture properties, in this case calling PropertyProvider::freeProperty using a raw pointer
-    // to mPropertyProvider. Depending on the declaration order in TouchpadInputMapper.h, this may
-    // happen after mPropertyProvider has been destructed, causing allocation errors. Depending on
-    // declaration order to avoid crashes seems rather fragile, so explicitly clear the property
-    // provider here to ensure all the freeProperty calls happen before mPropertyProvider is
-    // destructed.
+    // The gesture interpreter's destructor will try to free its property and timer providers,
+    // calling PropertyProvider::freeProperty and TimerProvider::freeTimer using a raw pointers.
+    // Depending on the declaration order in TouchpadInputMapper.h, those providers may have already
+    // been freed, causing allocation errors or use-after-free bugs. Depending on declaration order
+    // to avoid this seems rather fragile, so explicitly clear the providers here to ensure all the
+    // freeProperty and freeTimer calls happen before the providers are destructed.
     mGestureInterpreter->SetPropProvider(nullptr, nullptr);
+    mGestureInterpreter->SetTimerProvider(nullptr, nullptr);
 }
 
 uint32_t TouchpadInputMapper::getSources() const {
@@ -343,9 +303,6 @@ void TouchpadInputMapper::populateDeviceInfo(InputDeviceInfo& info) {
 
 void TouchpadInputMapper::dump(std::string& dump) {
     dump += INDENT2 "Touchpad Input Mapper:\n";
-    if (mProcessing) {
-        dump += INDENT3 "Currently processing a hardware state\n";
-    }
     if (mResettingInterpreter) {
         dump += INDENT3 "Currently resetting gesture interpreter\n";
     }
@@ -354,8 +311,15 @@ void TouchpadInputMapper::dump(std::string& dump) {
     dump += addLinePrefix(mGestureConverter.dump(), INDENT4);
     dump += INDENT3 "Gesture properties:\n";
     dump += addLinePrefix(mPropertyProvider.dump(), INDENT4);
+    if (input_flags::enable_gestures_library_timer_provider()) {
+        dump += INDENT3 "Timer provider:\n";
+        dump += addLinePrefix(mTimerProvider.dump(), INDENT4);
+    } else {
+        dump += INDENT3 "Timer provider: disabled by flag\n";
+    }
     dump += INDENT3 "Captured event converter:\n";
     dump += addLinePrefix(mCapturedEventConverter.dump(), INDENT4);
+    dump += StringPrintf(INDENT3 "DisplayId: %s\n", toString(mDisplayId).c_str());
 }
 
 std::list<NotifyArgs> TouchpadInputMapper::reconfigure(nsecs_t when,
@@ -367,14 +331,57 @@ std::list<NotifyArgs> TouchpadInputMapper::reconfigure(nsecs_t when,
     }
 
     if (!changes.any() || changes.test(InputReaderConfiguration::Change::DISPLAY_INFO)) {
-        std::optional<int32_t> displayId = mPointerController->getDisplayId();
-        ui::Rotation orientation = ui::ROTATION_0;
-        if (displayId.has_value()) {
-            if (auto viewport = config.getDisplayViewportById(*displayId); viewport) {
-                orientation = getInverseRotation(viewport->orientation);
+        mDisplayId = ADISPLAY_ID_NONE;
+        std::optional<DisplayViewport> resolvedViewport;
+        std::optional<FloatRect> boundsInLogicalDisplay;
+        if (auto assocViewport = mDeviceContext.getAssociatedViewport(); assocViewport) {
+            // This InputDevice is associated with a viewport.
+            // Only generate events for the associated display.
+            mDisplayId = assocViewport->displayId;
+            resolvedViewport = *assocViewport;
+            if (!mEnablePointerChoreographer) {
+                const bool mismatchedPointerDisplay =
+                        (assocViewport->displayId != mPointerController->getDisplayId());
+                if (mismatchedPointerDisplay) {
+                    ALOGW("Touchpad \"%s\" associated viewport display does not match pointer "
+                          "controller",
+                          mDeviceContext.getName().c_str());
+                    mDisplayId.reset();
+                }
+            }
+        } else {
+            // The InputDevice is not associated with a viewport, but it controls the mouse pointer.
+            if (mEnablePointerChoreographer) {
+                // Always use DISPLAY_ID_NONE for touchpad events.
+                // PointerChoreographer will make it target the correct the displayId later.
+                resolvedViewport =
+                        getContext()->getPolicy()->getPointerViewportForAssociatedDisplay();
+                mDisplayId = resolvedViewport ? std::make_optional(ADISPLAY_ID_NONE) : std::nullopt;
+            } else {
+                mDisplayId = mPointerController->getDisplayId();
+                if (auto v = config.getDisplayViewportById(*mDisplayId); v) {
+                    resolvedViewport = *v;
+                }
+                if (auto bounds = mPointerController->getBounds(); bounds) {
+                    boundsInLogicalDisplay = *bounds;
+                }
             }
         }
-        mGestureConverter.setOrientation(orientation);
+
+        mGestureConverter.setDisplayId(mDisplayId);
+        mGestureConverter.setOrientation(resolvedViewport
+                                                 ? getInverseRotation(resolvedViewport->orientation)
+                                                 : ui::ROTATION_0);
+
+        if (!boundsInLogicalDisplay) {
+            boundsInLogicalDisplay = resolvedViewport
+                    ? FloatRect{static_cast<float>(resolvedViewport->logicalLeft),
+                                static_cast<float>(resolvedViewport->logicalTop),
+                                static_cast<float>(resolvedViewport->logicalRight - 1),
+                                static_cast<float>(resolvedViewport->logicalBottom - 1)}
+                    : FloatRect{0, 0, 0, 0};
+        }
+        mGestureConverter.setBoundsInLogicalDisplay(*boundsInLogicalDisplay);
     }
     if (!changes.any() || changes.test(InputReaderConfiguration::Change::TOUCHPAD_SETTINGS)) {
         mPropertyProvider.getProperty("Use Custom Touchpad Pointer Accel Curve")
@@ -480,11 +487,16 @@ void TouchpadInputMapper::updatePalmDetectionMetrics() {
 std::list<NotifyArgs> TouchpadInputMapper::sendHardwareState(nsecs_t when, nsecs_t readTime,
                                                              SelfContainedHardwareState schs) {
     ALOGD_IF(DEBUG_TOUCHPAD_GESTURES, "New hardware state: %s", schs.state.String().c_str());
-    mProcessing = true;
     mGestureInterpreter->PushHardwareState(&schs.state);
-    mProcessing = false;
-
     return processGestures(when, readTime);
+}
+
+std::list<NotifyArgs> TouchpadInputMapper::timeoutExpired(nsecs_t when) {
+    if (!input_flags::enable_gestures_library_timer_provider()) {
+        return {};
+    }
+    mTimerProvider.triggerCallbacks(when);
+    return processGestures(when, when);
 }
 
 void TouchpadInputMapper::consumeGesture(const Gesture* gesture) {
@@ -494,22 +506,24 @@ void TouchpadInputMapper::consumeGesture(const Gesture* gesture) {
         // ignore any gestures produced from the interpreter while we're resetting it.
         return;
     }
-    if (!mProcessing) {
-        ALOGE("Received gesture outside of the normal processing flow; ignoring it.");
-        return;
-    }
     mGesturesToProcess.push_back(*gesture);
 }
 
 std::list<NotifyArgs> TouchpadInputMapper::processGestures(nsecs_t when, nsecs_t readTime) {
     std::list<NotifyArgs> out = {};
-    MetricsAccumulator& metricsAccumulator = MetricsAccumulator::getInstance();
-    for (Gesture& gesture : mGesturesToProcess) {
-        out += mGestureConverter.handleGesture(when, readTime, gesture);
-        metricsAccumulator.processGesture(mMetricsId, gesture);
+    if (mDisplayId) {
+        MetricsAccumulator& metricsAccumulator = MetricsAccumulator::getInstance();
+        for (Gesture& gesture : mGesturesToProcess) {
+            out += mGestureConverter.handleGesture(when, readTime, gesture);
+            metricsAccumulator.processGesture(mMetricsId, gesture);
+        }
     }
     mGesturesToProcess.clear();
     return out;
+}
+
+std::optional<int32_t> TouchpadInputMapper::getAssociatedDisplayId() {
+    return mDisplayId;
 }
 
 } // namespace android

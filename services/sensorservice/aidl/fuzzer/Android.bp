@@ -17,6 +17,7 @@ cc_fuzz {
     static_libs: [
         "libsensorserviceaidl",
         "libpermission",
+        "android.companion.virtual.virtualdevice_aidl-cpp",
         "android.frameworks.sensorservice-V1-ndk",
         "android.hardware.sensors-V1-convert",
         "android.hardware.sensors-V2-ndk",
@@ -46,7 +47,6 @@ cc_fuzz {
                 "unsigned-integer-overflow",
             ],
         },
-        address: true,
         integer_overflow: true,
     },
 

@@ -25,6 +25,7 @@
 #include <gui/IGraphicBufferProducer.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/LayerState.h>
+#include <gui/SchedulingPolicy.h>
 #include <private/gui/ParcelUtils.h>
 #include <stdint.h>
 #include <sys/types.h>
@@ -201,6 +202,18 @@ status_t BnSurfaceComposer::onTransact(
                                        isAutoTimestamp, uncacheBuffers, hasListenerCallbacks,
                                        listenerCallbacks, transactionId, mergedTransactions);
         }
+        case GET_SCHEDULING_POLICY: {
+            gui::SchedulingPolicy policy;
+            const auto status = gui::getSchedulingPolicy(&policy);
+            if (!status.isOk()) {
+                return status.exceptionCode();
+            }
+
+            SAFE_PARCEL(reply->writeInt32, policy.policy);
+            SAFE_PARCEL(reply->writeInt32, policy.priority);
+            return NO_ERROR;
+        }
+
         default: {
             return BBinder::onTransact(code, data, reply, flags);
         }

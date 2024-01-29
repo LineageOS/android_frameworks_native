@@ -26,6 +26,8 @@
 #include <utils/RefBase.h>
 #include <utils/Singleton.h>
 
+#include <android/companion/virtualnative/IVirtualDeviceManagerNative.h>
+
 #include <binder/IBinder.h>
 #include <binder/IPermissionController.h>
 #include <binder/IServiceManager.h>
@@ -38,6 +40,43 @@
 // ----------------------------------------------------------------------------
 namespace android {
 // ----------------------------------------------------------------------------
+
+namespace {
+
+using ::android::companion::virtualnative::IVirtualDeviceManagerNative;
+
+static constexpr int DEVICE_ID_DEFAULT = 0;
+
+// Returns the deviceId of the device where this uid is observed. If the uid is present on more than
+// one devices, return the default deviceId.
+int getDeviceIdForUid(uid_t uid) {
+    sp<IBinder> binder =
+            defaultServiceManager()->checkService(String16("virtualdevice_native"));
+    if (binder != nullptr) {
+        auto vdm = interface_cast<IVirtualDeviceManagerNative>(binder);
+        std::vector<int> deviceIds;
+        vdm->getDeviceIdsForUid(uid, &deviceIds);
+        // If the UID is associated with multiple virtual devices, use the default device's
+        // sensors as we cannot disambiguate here. This effectively means that the app has
+        // activities on different devices at the same time, so it must handle the device
+        // awareness by itself.
+        if (deviceIds.size() == 1) {
+            const int deviceId = deviceIds.at(0);
+            int devicePolicy = IVirtualDeviceManagerNative::DEVICE_POLICY_DEFAULT;
+            vdm->getDevicePolicy(deviceId,
+                                 IVirtualDeviceManagerNative::POLICY_TYPE_SENSORS,
+                                 &devicePolicy);
+            if (devicePolicy == IVirtualDeviceManagerNative::DEVICE_POLICY_CUSTOM) {
+                return deviceId;
+            }
+        }
+    } else {
+        ALOGW("Cannot get virtualdevice_native service");
+    }
+    return DEVICE_ID_DEFAULT;
+}
+
+}  // namespace
 
 Mutex SensorManager::sLock;
 std::map<String16, SensorManager*> SensorManager::sPackageInstances;
@@ -53,6 +92,7 @@ SensorManager& SensorManager::getInstanceForPackage(const String16& packageName)
         sensorManager = iterator->second;
     } else {
         String16 opPackageName = packageName;
+        const uid_t uid = IPCThreadState::self()->getCallingUid();
 
         // It is possible that the calling code has no access to the package name.
         // In this case we will get the packages for the calling UID and pick the
@@ -63,7 +103,6 @@ SensorManager& SensorManager::getInstanceForPackage(const String16& packageName)
         if (opPackageName.size() <= 0) {
             sp<IBinder> binder = defaultServiceManager()->getService(String16("permission"));
             if (binder != nullptr) {
-                const uid_t uid = IPCThreadState::self()->getCallingUid();
                 Vector<String16> packages;
                 interface_cast<IPermissionController>(binder)->getPackagesForUid(uid, packages);
                 if (!packages.isEmpty()) {
@@ -76,7 +115,10 @@ SensorManager& SensorManager::getInstanceForPackage(const String16& packageName)
             }
         }
 
-        sensorManager = new SensorManager(opPackageName);
+        // Check if the calling UID is observed on a virtual device. If so, provide that device's
+        // sensors by default instead of the default device's sensors.
+        const int deviceId = getDeviceIdForUid(uid);
+        sensorManager = new SensorManager(opPackageName, deviceId);
 
         // If we had no package name, we looked it up from the UID and the sensor
         // manager instance we created should also be mapped to the empty package
@@ -102,8 +144,9 @@ void SensorManager::removeInstanceForPackage(const String16& packageName) {
     }
 }
 
-SensorManager::SensorManager(const String16& opPackageName)
-    : mSensorList(nullptr), mOpPackageName(opPackageName), mDirectConnectionHandle(1) {
+SensorManager::SensorManager(const String16& opPackageName, int deviceId)
+    : mSensorList(nullptr), mOpPackageName(opPackageName), mDeviceId(deviceId),
+        mDirectConnectionHandle(1) {
     Mutex::Autolock _l(mLock);
     assertStateLocked();
 }
@@ -174,7 +217,12 @@ status_t SensorManager::assertStateLocked() {
         mDeathObserver = new DeathObserver(*const_cast<SensorManager *>(this));
         IInterface::asBinder(mSensorServer)->linkToDeath(mDeathObserver);
 
-        mSensors = mSensorServer->getSensorList(mOpPackageName);
+        if (mDeviceId == DEVICE_ID_DEFAULT) {
+            mSensors = mSensorServer->getSensorList(mOpPackageName);
+        } else {
+            mSensors = mSensorServer->getRuntimeSensorList(mOpPackageName, mDeviceId);
+        }
+
         size_t count = mSensors.size();
         // If count is 0, mSensorList will be non-null. This is old
         // existing behavior and callers expect this.
@@ -306,6 +354,22 @@ bool SensorManager::isDataInjectionEnabled() {
     Mutex::Autolock _l(mLock);
     if (assertStateLocked() == NO_ERROR) {
         return mSensorServer->isDataInjectionEnabled();
+    }
+    return false;
+}
+
+bool SensorManager::isReplayDataInjectionEnabled() {
+    Mutex::Autolock _l(mLock);
+    if (assertStateLocked() == NO_ERROR) {
+        return mSensorServer->isReplayDataInjectionEnabled();
+    }
+    return false;
+}
+
+bool SensorManager::isHalBypassReplayDataInjectionEnabled() {
+    Mutex::Autolock _l(mLock);
+    if (assertStateLocked() == NO_ERROR) {
+        return mSensorServer->isHalBypassReplayDataInjectionEnabled();
     }
     return false;
 }

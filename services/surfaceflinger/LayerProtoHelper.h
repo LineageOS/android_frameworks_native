@@ -35,39 +35,47 @@ namespace android {
 namespace surfaceflinger {
 class LayerProtoHelper {
 public:
-    static void writePositionToProto(const float x, const float y,
-                                     std::function<PositionProto*()> getPositionProto);
+    static void writePositionToProto(
+            const float x, const float y,
+            std::function<perfetto::protos::PositionProto*()> getPositionProto);
     static void writeSizeToProto(const uint32_t w, const uint32_t h,
-                                 std::function<SizeProto*()> getSizeProto);
-    static void writeToProto(const Rect& rect, std::function<RectProto*()> getRectProto);
-    static void writeToProto(const Rect& rect, RectProto* rectProto);
-    static void readFromProto(const RectProto& proto, Rect& outRect);
+                                 std::function<perfetto::protos::SizeProto*()> getSizeProto);
+    static void writeToProto(const Rect& rect,
+                             std::function<perfetto::protos::RectProto*()> getRectProto);
+    static void writeToProto(const Rect& rect, perfetto::protos::RectProto* rectProto);
+    static void readFromProto(const perfetto::protos::RectProto& proto, Rect& outRect);
     static void writeToProto(const FloatRect& rect,
-                             std::function<FloatRectProto*()> getFloatRectProto);
-    static void writeToProto(const Region& region, std::function<RegionProto*()> getRegionProto);
-    static void writeToProto(const Region& region, RegionProto* regionProto);
-    static void readFromProto(const RegionProto& regionProto, Region& outRegion);
-    static void writeToProto(const half4 color, std::function<ColorProto*()> getColorProto);
+                             std::function<perfetto::protos::FloatRectProto*()> getFloatRectProto);
+    static void writeToProto(const Region& region,
+                             std::function<perfetto::protos::RegionProto*()> getRegionProto);
+    static void writeToProto(const Region& region, perfetto::protos::RegionProto* regionProto);
+    static void readFromProto(const perfetto::protos::RegionProto& regionProto, Region& outRegion);
+    static void writeToProto(const half4 color,
+                             std::function<perfetto::protos::ColorProto*()> getColorProto);
     // This writeToProto for transform is incorrect, but due to backwards compatibility, we can't
     // update Layers to use it. Use writeTransformToProto for any new transform proto data.
     static void writeToProtoDeprecated(const ui::Transform& transform,
-                                       TransformProto* transformProto);
+                                       perfetto::protos::TransformProto* transformProto);
     static void writeTransformToProto(const ui::Transform& transform,
-                                      TransformProto* transformProto);
-    static void writeToProto(const renderengine::ExternalTexture& buffer,
-                             std::function<ActiveBufferProto*()> getActiveBufferProto);
-    static void writeToProto(const gui::WindowInfo& inputInfo,
-                             const wp<Layer>& touchableRegionBounds,
-                             std::function<InputWindowInfoProto*()> getInputWindowInfoProto);
-    static void writeToProto(const mat4 matrix, ColorTransformProto* colorTransformProto);
-    static void readFromProto(const ColorTransformProto& colorTransformProto, mat4& matrix);
-    static void writeToProto(const android::BlurRegion region, BlurRegion*);
-    static void readFromProto(const BlurRegion& proto, android::BlurRegion& outRegion);
-    static void writeSnapshotToProto(LayerProto* outProto,
+                                      perfetto::protos::TransformProto* transformProto);
+    static void writeToProto(
+            const renderengine::ExternalTexture& buffer,
+            std::function<perfetto::protos::ActiveBufferProto*()> getActiveBufferProto);
+    static void writeToProto(
+            const gui::WindowInfo& inputInfo, const wp<Layer>& touchableRegionBounds,
+            std::function<perfetto::protos::InputWindowInfoProto*()> getInputWindowInfoProto);
+    static void writeToProto(const mat4 matrix,
+                             perfetto::protos::ColorTransformProto* colorTransformProto);
+    static void readFromProto(const perfetto::protos::ColorTransformProto& colorTransformProto,
+                              mat4& matrix);
+    static void writeToProto(const android::BlurRegion region, perfetto::protos::BlurRegion*);
+    static void readFromProto(const perfetto::protos::BlurRegion& proto,
+                              android::BlurRegion& outRegion);
+    static void writeSnapshotToProto(perfetto::protos::LayerProto* outProto,
                                      const frontend::RequestedLayerState& requestedState,
                                      const frontend::LayerSnapshot& snapshot, uint32_t traceFlags);
-    static google::protobuf::RepeatedPtrField<DisplayProto> writeDisplayInfoToProto(
-            const frontend::DisplayInfos&);
+    static google::protobuf::RepeatedPtrField<perfetto::protos::DisplayProto>
+    writeDisplayInfoToProto(const frontend::DisplayInfos&);
 };
 
 class LayerProtoFromSnapshotGenerator {
@@ -80,7 +88,7 @@ public:
             mLegacyLayers(legacyLayers),
             mDisplayInfos(displayInfos),
             mTraceFlags(traceFlags) {}
-    LayersProto generate(const frontend::LayerHierarchy& root);
+    perfetto::protos::LayersProto generate(const frontend::LayerHierarchy& root);
 
 private:
     void writeHierarchyToProto(const frontend::LayerHierarchy& root,
@@ -92,7 +100,7 @@ private:
     const std::unordered_map<uint32_t, sp<Layer>>& mLegacyLayers;
     const frontend::DisplayInfos& mDisplayInfos;
     uint32_t mTraceFlags;
-    LayersProto mLayersProto;
+    perfetto::protos::LayersProto mLayersProto;
     // winscope expects all the layers, so provide a snapshot even if it not currently drawing
     std::unordered_map<frontend::LayerHierarchy::TraversalPath, frontend::LayerSnapshot,
                        frontend::LayerHierarchy::TraversalPathHash>

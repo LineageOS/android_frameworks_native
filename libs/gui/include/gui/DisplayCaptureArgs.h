@@ -76,7 +76,6 @@ struct DisplayCaptureArgs : CaptureArgs {
     sp<IBinder> displayToken;
     uint32_t width{0};
     uint32_t height{0};
-    bool useIdentityTransform{false};
 
     status_t writeToParcel(Parcel* output) const override;
     status_t readFromParcel(const Parcel* input) override;

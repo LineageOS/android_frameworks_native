@@ -46,7 +46,7 @@ struct Update {
     std::vector<LayerCreatedState> layerCreatedStates;
     std::vector<std::unique_ptr<frontend::RequestedLayerState>> newLayers;
     std::vector<LayerCreationArgs> layerCreationArgs;
-    std::vector<uint32_t> destroyedHandles;
+    std::vector<std::pair<uint32_t, std::string /* debugName */>> destroyedHandles;
 };
 
 } // namespace android::surfaceflinger::frontend

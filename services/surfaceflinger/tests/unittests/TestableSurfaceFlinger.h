@@ -53,7 +53,14 @@
 #include "mock/MockFrameTimeline.h"
 #include "mock/MockFrameTracer.h"
 #include "mock/MockSchedulerCallback.h"
+#include "mock/MockVsyncTrackerCallback.h"
 #include "mock/system/window/MockNativeWindow.h"
+
+#include "Scheduler/VSyncTracker.h"
+#include "Scheduler/VsyncController.h"
+#include "mock/MockVSyncDispatch.h"
+#include "mock/MockVSyncTracker.h"
+#include "mock/MockVsyncController.h"
 
 namespace android {
 
@@ -198,6 +205,8 @@ public:
 
     enum class SchedulerCallbackImpl { kNoOp, kMock };
 
+    enum class VsyncTrackerCallbackImpl { kNoOp, kMock };
+
     struct DefaultDisplayMode {
         // The ID of the injected RefreshRateSelector and its default display mode.
         PhysicalDisplayId displayId;
@@ -207,13 +216,14 @@ public:
 
     using DisplayModesVariant = std::variant<DefaultDisplayMode, RefreshRateSelectorPtr>;
 
-    void setupScheduler(std::unique_ptr<scheduler::VsyncController> vsyncController,
-                        std::shared_ptr<scheduler::VSyncTracker> vsyncTracker,
-                        std::unique_ptr<EventThread> appEventThread,
-                        std::unique_ptr<EventThread> sfEventThread,
-                        DisplayModesVariant modesVariant,
-                        SchedulerCallbackImpl callbackImpl = SchedulerCallbackImpl::kNoOp,
-                        bool useNiceMock = false) {
+    void setupScheduler(
+            std::unique_ptr<scheduler::VsyncController> vsyncController,
+            std::shared_ptr<scheduler::VSyncTracker> vsyncTracker,
+            std::unique_ptr<EventThread> appEventThread, std::unique_ptr<EventThread> sfEventThread,
+            DisplayModesVariant modesVariant,
+            SchedulerCallbackImpl callbackImpl = SchedulerCallbackImpl::kNoOp,
+            VsyncTrackerCallbackImpl vsyncTrackerCallbackImpl = VsyncTrackerCallbackImpl::kNoOp,
+            bool useNiceMock = false) {
         RefreshRateSelectorPtr selectorPtr = ftl::match(
                 modesVariant,
                 [](DefaultDisplayMode arg) {
@@ -233,10 +243,16 @@ public:
 
         mTokenManager = std::make_unique<frametimeline::impl::TokenManager>();
 
-        using Callback = scheduler::ISchedulerCallback;
-        Callback& callback = callbackImpl == SchedulerCallbackImpl::kNoOp
-                ? static_cast<Callback&>(mNoOpSchedulerCallback)
-                : static_cast<Callback&>(mSchedulerCallback);
+        using ISchedulerCallback = scheduler::ISchedulerCallback;
+        ISchedulerCallback& schedulerCallback = callbackImpl == SchedulerCallbackImpl::kNoOp
+                ? static_cast<ISchedulerCallback&>(mNoOpSchedulerCallback)
+                : static_cast<ISchedulerCallback&>(mSchedulerCallback);
+
+        using VsyncTrackerCallback = scheduler::IVsyncTrackerCallback;
+        VsyncTrackerCallback& vsyncTrackerCallback =
+                vsyncTrackerCallbackImpl == VsyncTrackerCallbackImpl::kNoOp
+                ? static_cast<VsyncTrackerCallback&>(mNoOpVsyncTrackerCallback)
+                : static_cast<VsyncTrackerCallback&>(mVsyncTrackerCallback);
 
         auto modulatorPtr = sp<scheduler::VsyncModulator>::make(
                 mFlinger->mVsyncConfiguration->getCurrentConfigs());
@@ -247,12 +263,14 @@ public:
                                                                         std::move(vsyncTracker),
                                                                         std::move(selectorPtr),
                                                                         std::move(modulatorPtr),
-                                                                        callback);
+                                                                        schedulerCallback,
+                                                                        vsyncTrackerCallback);
         } else {
             mScheduler = new scheduler::TestableScheduler(std::move(vsyncController),
                                                           std::move(vsyncTracker),
                                                           std::move(selectorPtr),
-                                                          std::move(modulatorPtr), callback);
+                                                          std::move(modulatorPtr),
+                                                          schedulerCallback, vsyncTrackerCallback);
         }
 
         mScheduler->initVsync(mScheduler->getVsyncSchedule()->getDispatch(), *mTokenManager, 0ms);
@@ -265,7 +283,7 @@ public:
         resetScheduler(mScheduler);
     }
 
-    void setupMockScheduler(test::MockSchedulerOptions options = {}) {
+    void setupMockScheduler(surfaceflinger::test::MockSchedulerOptions options = {}) {
         using testing::_;
         using testing::Return;
 
@@ -275,14 +293,12 @@ public:
         EXPECT_CALL(*eventThread, registerDisplayEventConnection(_));
         EXPECT_CALL(*eventThread, createEventConnection(_, _))
                 .WillOnce(Return(sp<EventThreadConnection>::make(eventThread.get(),
-                                                                 mock::EventThread::kCallingUid,
-                                                                 ResyncCallback())));
+                                                                 mock::EventThread::kCallingUid)));
 
         EXPECT_CALL(*sfEventThread, registerDisplayEventConnection(_));
         EXPECT_CALL(*sfEventThread, createEventConnection(_, _))
                 .WillOnce(Return(sp<EventThreadConnection>::make(sfEventThread.get(),
-                                                                 mock::EventThread::kCallingUid,
-                                                                 ResyncCallback())));
+                                                                 mock::EventThread::kCallingUid)));
 
         auto vsyncController = makeMock<mock::VsyncController>(options.useNiceMock);
         auto vsyncTracker = makeSharedMock<mock::VSyncTracker>(options.useNiceMock);
@@ -290,10 +306,14 @@ public:
         EXPECT_CALL(*vsyncTracker, nextAnticipatedVSyncTimeFrom(_)).WillRepeatedly(Return(0));
         EXPECT_CALL(*vsyncTracker, currentPeriod())
                 .WillRepeatedly(Return(FakeHwcDisplayInjector::DEFAULT_VSYNC_PERIOD));
+        EXPECT_CALL(*vsyncTracker, minFramePeriod())
+                .WillRepeatedly(
+                        Return(Period::fromNs(FakeHwcDisplayInjector::DEFAULT_VSYNC_PERIOD)));
         EXPECT_CALL(*vsyncTracker, nextAnticipatedVSyncTimeFrom(_)).WillRepeatedly(Return(0));
         setupScheduler(std::move(vsyncController), std::move(vsyncTracker), std::move(eventThread),
                        std::move(sfEventThread), DefaultDisplayMode{options.displayId},
-                       SchedulerCallbackImpl::kNoOp, options.useNiceMock);
+                       SchedulerCallbackImpl::kNoOp, VsyncTrackerCallbackImpl::kNoOp,
+                       options.useNiceMock);
     }
 
     void resetScheduler(scheduler::Scheduler* scheduler) { mFlinger->mScheduler.reset(scheduler); }
@@ -446,8 +466,8 @@ public:
         mFlinger->commitTransactionsLocked(transactionFlags);
     }
 
-    void onComposerHalHotplug(hal::HWDisplayId hwcDisplayId, hal::Connection connection) {
-        mFlinger->onComposerHalHotplug(hwcDisplayId, connection);
+    void onComposerHalHotplugEvent(hal::HWDisplayId hwcDisplayId, DisplayHotplugEvent event) {
+        mFlinger->onComposerHalHotplugEvent(hwcDisplayId, event);
     }
 
     auto setDisplayStateLocked(const DisplayState& s) {
@@ -473,12 +493,13 @@ public:
     auto renderScreenImpl(std::shared_ptr<const RenderArea> renderArea,
                           SurfaceFlinger::GetLayerSnapshotsFunction traverseLayers,
                           const std::shared_ptr<renderengine::ExternalTexture>& buffer,
-                          bool forSystem, bool regionSampling) {
+                          bool regionSampling) {
         ScreenCaptureResults captureResults;
         return FTL_FAKE_GUARD(kMainThreadContext,
                               mFlinger->renderScreenImpl(std::move(renderArea), traverseLayers,
-                                                         buffer, forSystem, regionSampling,
-                                                         false /* grayscale */, captureResults));
+                                                         buffer, regionSampling,
+                                                         false /* grayscale */,
+                                                         false /* isProtected */, captureResults));
     }
 
     auto traverseLayersInLayerStack(ui::LayerStack layerStack, int32_t uid,
@@ -600,6 +621,25 @@ public:
         return static_cast<mock::FrameTracer*>(mFlinger->mFrameTracer.get());
     }
 
+    void injectLegacyLayer(sp<Layer> layer) {
+        mFlinger->mLegacyLayers[static_cast<uint32_t>(layer->sequence)] = layer;
+    };
+
+    void releaseLegacyLayer(uint32_t sequence) { mFlinger->mLegacyLayers.erase(sequence); };
+
+    auto setLayerHistoryDisplayArea(uint32_t displayArea) {
+        return mFlinger->mScheduler->onActiveDisplayAreaChanged(displayArea);
+    };
+    auto updateLayerHistory(nsecs_t now) { return mFlinger->updateLayerHistory(now); };
+    auto setDaltonizerType(ColorBlindnessType type) {
+        mFlinger->mDaltonizer.setType(type);
+        return mFlinger->updateColorMatrixLocked();
+    }
+    auto updateLayerSnapshots(VsyncId vsyncId, nsecs_t frameTimeNs, bool transactionsFlushed,
+                              bool& out) {
+        ftl::FakeGuard guard(kMainThreadContext);
+        return mFlinger->updateLayerSnapshots(vsyncId, frameTimeNs, transactionsFlushed, out);
+    }
     /* ------------------------------------------------------------------------
      * Read-write access to private data to set up preconditions and assert
      * post-conditions.
@@ -625,7 +665,6 @@ public:
     auto& mutableVisibleRegionsDirty() { return mFlinger->mVisibleRegionsDirty; }
     auto& mutableMainThreadId() { return mFlinger->mMainThreadId; }
     auto& mutablePendingHotplugEvents() { return mFlinger->mPendingHotplugEvents; }
-    auto& mutableTexturePool() { return mFlinger->mTexturePool; }
     auto& mutableTransactionFlags() { return mFlinger->mTransactionFlags; }
     auto& mutableDebugDisableHWC() { return mFlinger->mDebugDisableHWC; }
     auto& mutableMaxRenderTargetSize() { return mFlinger->mMaxRenderTargetSize; }
@@ -640,7 +679,36 @@ public:
         return SurfaceFlinger::sActiveDisplayRotationFlags;
     }
 
+    auto& mutableMinAcquiredBuffers() { return SurfaceFlinger::minAcquiredBuffers; }
+    auto& mutableLayersPendingRemoval() { return mFlinger->mLayersPendingRemoval; }
+    auto& mutableLayerSnapshotBuilder() { return mFlinger->mLayerSnapshotBuilder; };
+
     auto fromHandle(const sp<IBinder>& handle) { return LayerHandle::getLayer(handle); }
+
+    auto initTransactionTraceWriter() {
+        mFlinger->mTransactionTracing.emplace();
+        return mFlinger->initTransactionTraceWriter();
+    }
+
+    void enableNewFrontEnd() {
+        mFlinger->mLayerLifecycleManagerEnabled = true;
+        mFlinger->mLegacyFrontEndEnabled = false;
+    }
+
+    void notifyExpectedPresentIfRequired(PhysicalDisplayId displayId, Period vsyncPeriod,
+                                         TimePoint expectedPresentTime, Fps frameInterval,
+                                         std::optional<Period> timeoutOpt) {
+        mFlinger->notifyExpectedPresentIfRequired(displayId, vsyncPeriod, expectedPresentTime,
+                                                  frameInterval, timeoutOpt);
+    }
+
+    void setNotifyExpectedPresentData(PhysicalDisplayId displayId,
+                                      TimePoint lastExpectedPresentTimestamp,
+                                      Fps lastFrameInterval) {
+        auto& displayData = mFlinger->mNotifyExpectedPresentMap[displayId];
+        displayData.lastExpectedPresentTimestamp = lastExpectedPresentTimestamp;
+        displayData.lastFrameInterval = lastFrameInterval;
+    }
 
     ~TestableSurfaceFlinger() {
         // All these pointer and container clears help ensure that GMock does
@@ -650,10 +718,12 @@ public:
         mutableDisplays().clear();
         mutableCurrentState().displays.clear();
         mutableDrawingState().displays.clear();
+        mFlinger->mLayersPendingRemoval.clear();
         mFlinger->mScheduler.reset();
         mFlinger->mCompositionEngine->setHwComposer(std::unique_ptr<HWComposer>());
         mFlinger->mRenderEngine = std::unique_ptr<renderengine::RenderEngine>();
         mFlinger->mCompositionEngine->setRenderEngine(mFlinger->mRenderEngine.get());
+        mFlinger->mTransactionTracing.reset();
     }
 
     /* ------------------------------------------------------------------------
@@ -924,6 +994,13 @@ public:
         }
 
         sp<DisplayDevice> inject() NO_THREAD_SAFETY_ANALYSIS {
+            return inject(std::make_unique<mock::VsyncController>(),
+                          std::make_shared<mock::VSyncTracker>());
+        }
+
+        sp<DisplayDevice> inject(std::unique_ptr<android::scheduler::VsyncController> controller,
+                                 std::shared_ptr<android::scheduler::VSyncTracker> tracker)
+                NO_THREAD_SAFETY_ANALYSIS {
             const auto displayId = mCreationArgs.compositionDisplay->getDisplayId();
 
             auto& modes = mDisplayModes;
@@ -974,7 +1051,7 @@ public:
 
                 const auto activeMode = modes.get(activeModeId);
                 LOG_ALWAYS_FATAL_IF(!activeMode);
-                const auto fps = activeMode->get()->getFps();
+                const auto fps = activeMode->get()->getPeakFps();
 
                 state.physical = {.id = physicalId,
                                   .hwcDisplayId = *mHwcDisplayId,
@@ -988,7 +1065,9 @@ public:
 
                 if (mFlinger.scheduler() && mRegisterDisplay) {
                     mFlinger.scheduler()->registerDisplay(physicalId,
-                                                          display->holdRefreshRateSelector());
+                                                          display->holdRefreshRateSelector(),
+                                                          std::move(controller),
+                                                          std::move(tracker));
                 }
 
                 display->setActiveMode(activeModeId, fps, fps);
@@ -1027,6 +1106,8 @@ private:
     sp<SurfaceFlinger> mFlinger;
     scheduler::mock::SchedulerCallback mSchedulerCallback;
     scheduler::mock::NoOpSchedulerCallback mNoOpSchedulerCallback;
+    scheduler::mock::VsyncTrackerCallback mVsyncTrackerCallback;
+    scheduler::mock::NoOpVsyncTrackerCallback mNoOpVsyncTrackerCallback;
     std::unique_ptr<frametimeline::impl::TokenManager> mTokenManager;
     scheduler::TestableScheduler* mScheduler = nullptr;
     Hwc2::mock::PowerAdvisor mPowerAdvisor;

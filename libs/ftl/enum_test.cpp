@@ -33,6 +33,11 @@ static_assert(ftl::enum_name<E::ftl_last>() == "F");
 static_assert(ftl::enum_name(E::C).value_or("?") == "C");
 static_assert(ftl::enum_name(E{3}).value_or("?") == "?");
 
+static_assert(ftl::enum_name_full<E::B>() == "E::B");
+static_assert(ftl::enum_name_full<E::ftl_last>() == "E::F");
+static_assert(ftl::enum_name_full(E::C).value_or("?") == "E::C");
+static_assert(ftl::enum_name_full(E{3}).value_or("?") == "?");
+
 enum class F : std::uint16_t { X = 0b1, Y = 0b10, Z = 0b100 };
 
 static_assert(ftl::enum_begin_v<F> == F{0});
@@ -60,6 +65,10 @@ static_assert(ftl::enum_name<Flags::kNone>() == "kNone");
 static_assert(ftl::enum_name<Flags::kFlag4>() == "kFlag4");
 static_assert(ftl::enum_name<Flags::kFlag7>() == "kFlag7");
 
+static_assert(ftl::enum_name_full<Flags::kNone>() == "Flags::kNone");
+static_assert(ftl::enum_name_full<Flags::kFlag4>() == "Flags::kFlag4");
+static_assert(ftl::enum_name_full<Flags::kFlag7>() == "Flags::kFlag7");
+
 // Though not flags, the enumerators are within the implicit range of bit indices.
 enum class Planet : std::uint8_t {
   kMercury,
@@ -80,6 +89,9 @@ static_assert(ftl::enum_size_v<Planet> == 8);
 
 static_assert(ftl::enum_name<Planet::kMercury>() == "kMercury");
 static_assert(ftl::enum_name<Planet::kSaturn>() == "kSaturn");
+
+static_assert(ftl::enum_name_full<Planet::kMercury>() == "Planet::kMercury");
+static_assert(ftl::enum_name_full<Planet::kSaturn>() == "Planet::kSaturn");
 
 // Unscoped enum must define explicit range, even if the underlying type is fixed.
 enum Temperature : int {
@@ -122,9 +134,17 @@ TEST(Enum, Name) {
     EXPECT_EQ(ftl::enum_name(Planet::kEarth), "kEarth");
     EXPECT_EQ(ftl::enum_name(Planet::kNeptune), "kNeptune");
 
+    EXPECT_EQ(ftl::enum_name_full(Planet::kEarth), "Planet::kEarth");
+    EXPECT_EQ(ftl::enum_name_full(Planet::kNeptune), "Planet::kNeptune");
+
     EXPECT_EQ(ftl::enum_name(kPluto), std::nullopt);
+    EXPECT_EQ(ftl::enum_name_full(kPluto), std::nullopt);
   }
   {
+    EXPECT_EQ(ftl::enum_name(kRoom), "kRoom");
+    EXPECT_EQ(ftl::enum_name(kFridge), "kFridge");
+    EXPECT_EQ(ftl::enum_name(kFreezer), "kFreezer");
+
     EXPECT_EQ(ftl::enum_name(kRoom), "kRoom");
     EXPECT_EQ(ftl::enum_name(kFridge), "kFridge");
     EXPECT_EQ(ftl::enum_name(kFreezer), "kFreezer");
@@ -132,6 +152,10 @@ TEST(Enum, Name) {
     EXPECT_EQ(ftl::enum_name(static_cast<Temperature>(-30)), std::nullopt);
     EXPECT_EQ(ftl::enum_name(static_cast<Temperature>(0)), std::nullopt);
     EXPECT_EQ(ftl::enum_name(static_cast<Temperature>(100)), std::nullopt);
+
+    EXPECT_EQ(ftl::enum_name_full(static_cast<Temperature>(-30)), std::nullopt);
+    EXPECT_EQ(ftl::enum_name_full(static_cast<Temperature>(0)), std::nullopt);
+    EXPECT_EQ(ftl::enum_name_full(static_cast<Temperature>(100)), std::nullopt);
   }
 }
 
@@ -158,16 +182,30 @@ TEST(Enum, String) {
     EXPECT_EQ(ftl::enum_string(Planet::kEarth), "kEarth");
     EXPECT_EQ(ftl::enum_string(Planet::kNeptune), "kNeptune");
 
+    EXPECT_EQ(ftl::enum_string_full(Planet::kEarth), "Planet::kEarth");
+    EXPECT_EQ(ftl::enum_string_full(Planet::kNeptune), "Planet::kNeptune");
+
     EXPECT_EQ(ftl::enum_string(kPluto), "8");
+
+    EXPECT_EQ(ftl::enum_string_full(kPluto), "8");
+
   }
   {
     EXPECT_EQ(ftl::enum_string(kRoom), "kRoom");
     EXPECT_EQ(ftl::enum_string(kFridge), "kFridge");
     EXPECT_EQ(ftl::enum_string(kFreezer), "kFreezer");
 
+    EXPECT_EQ(ftl::enum_string_full(kRoom), "20");
+    EXPECT_EQ(ftl::enum_string_full(kFridge), "4");
+    EXPECT_EQ(ftl::enum_string_full(kFreezer), "-18");
+
     EXPECT_EQ(ftl::enum_string(static_cast<Temperature>(-30)), "-30");
     EXPECT_EQ(ftl::enum_string(static_cast<Temperature>(0)), "0");
     EXPECT_EQ(ftl::enum_string(static_cast<Temperature>(100)), "100");
+
+    EXPECT_EQ(ftl::enum_string_full(static_cast<Temperature>(-30)), "-30");
+    EXPECT_EQ(ftl::enum_string_full(static_cast<Temperature>(0)), "0");
+    EXPECT_EQ(ftl::enum_string_full(static_cast<Temperature>(100)), "100");
   }
 }
 

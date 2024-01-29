@@ -18,11 +18,13 @@
 
 #include <android-base/logging.h>
 #include <input/InputVerifier.h>
-#include "input_verifier.rs.h"
+#include "input_cxx_bridge.rs.h"
 
 using android::base::Error;
 using android::base::Result;
 using android::input::RustPointerProperties;
+
+using DeviceId = int32_t;
 
 namespace android {
 
@@ -31,7 +33,8 @@ namespace android {
 InputVerifier::InputVerifier(const std::string& name)
       : mVerifier(android::input::verifier::create(rust::String::lossy(name))){};
 
-Result<void> InputVerifier::processMovement(int32_t deviceId, int32_t action, uint32_t pointerCount,
+Result<void> InputVerifier::processMovement(DeviceId deviceId, int32_t source, int32_t action,
+                                            uint32_t pointerCount,
                                             const PointerProperties* pointerProperties,
                                             const PointerCoords* pointerCoords, int32_t flags) {
     std::vector<RustPointerProperties> rpp;
@@ -40,13 +43,17 @@ Result<void> InputVerifier::processMovement(int32_t deviceId, int32_t action, ui
     }
     rust::Slice<const RustPointerProperties> properties{rpp.data(), rpp.size()};
     rust::String errorMessage =
-            android::input::verifier::process_movement(*mVerifier, deviceId, action, properties,
-                                                       flags);
+            android::input::verifier::process_movement(*mVerifier, deviceId, source, action,
+                                                       properties, static_cast<uint32_t>(flags));
     if (errorMessage.empty()) {
         return {};
     } else {
         return Error() << errorMessage;
     }
+}
+
+void InputVerifier::resetDevice(DeviceId deviceId) {
+    android::input::verifier::reset_device(*mVerifier, deviceId);
 }
 
 } // namespace android

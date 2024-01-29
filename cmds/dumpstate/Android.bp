@@ -104,6 +104,8 @@ cc_defaults {
         "libvintf",
         "libbinderdebug",
         "packagemanager_aidl-cpp",
+        "server_configurable_flags",
+        "device_policy_aconfig_flags_c_lib",
     ],
     srcs: [
         "DumpstateService.cpp",

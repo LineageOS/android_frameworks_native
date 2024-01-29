@@ -56,6 +56,7 @@ struct RequestedLayerState : layer_state_t {
         Animation = 1u << 17,
         BufferSize = 1u << 18,
         GameMode = 1u << 19,
+        BufferUsageFlags = 1u << 20,
     };
     static Rect reduce(const Rect& win, const Region& exclude);
     RequestedLayerState(const LayerCreationArgs&);
@@ -74,6 +75,7 @@ struct RequestedLayerState : layer_state_t {
     Rect getBufferCrop() const;
     std::string getDebugString() const;
     std::string getDebugStringShort() const;
+    friend std::ostream& operator<<(std::ostream& os, const RequestedLayerState& obj);
     aidl::android::hardware::graphics::composer3::Composition getCompositionType() const;
     bool hasValidRelativeParent() const;
     bool hasInputInfo() const;
@@ -82,6 +84,10 @@ struct RequestedLayerState : layer_state_t {
     bool hasReadyFrame() const;
     bool hasSidebandStreamFrame() const;
     bool willReleaseBufferOnLatch() const;
+    bool backpressureEnabled() const;
+    bool isSimpleBufferUpdate(const layer_state_t&) const;
+    bool isProtected() const;
+    bool hasSomethingToDraw() const;
 
     // Layer serial number.  This gives layers an explicit ordering, so we
     // have a stable sort order when their layer stack and Z-order are
@@ -90,7 +96,6 @@ struct RequestedLayerState : layer_state_t {
     const std::string name;
     bool canBeRoot = false;
     const uint32_t layerCreationFlags;
-    const uint32_t textureName;
     // The owner of the layer. If created from a non system process, it will be the calling uid.
     // If created from a system process, the value can be passed in.
     const gui::Uid ownerUid;
@@ -116,6 +121,7 @@ struct RequestedLayerState : layer_state_t {
     uint32_t bgColorLayerId = UNASSIGNED_LAYER_ID;
     uint64_t barrierFrameNumber = 0;
     uint32_t barrierProducerId = 0;
+    std::string debugName;
 
     // book keeping states
     bool handleAlive = true;

@@ -19,26 +19,26 @@
 
 namespace android::scheduler {
 void SmallAreaDetectionAllowMappings::update(
-        std::vector<std::pair<uid_t, float>>& uidThresholdMappings) {
+        std::vector<std::pair<int32_t, float>>& appIdThresholdMappings) {
     std::lock_guard lock(mLock);
     mMap.clear();
-    for (std::pair<uid_t, float> row : uidThresholdMappings) {
+    for (std::pair<int32_t, float> row : appIdThresholdMappings) {
         if (!isValidThreshold(row.second)) continue;
 
         mMap.emplace(row.first, row.second);
     }
 }
 
-void SmallAreaDetectionAllowMappings::setThesholdForUid(uid_t uid, float threshold) {
+void SmallAreaDetectionAllowMappings::setThresholdForAppId(int32_t appId, float threshold) {
     if (!isValidThreshold(threshold)) return;
 
     std::lock_guard lock(mLock);
-    mMap.emplace(uid, threshold);
+    mMap.emplace(appId, threshold);
 }
 
-std::optional<float> SmallAreaDetectionAllowMappings::getThresholdForUid(uid_t uid) {
+std::optional<float> SmallAreaDetectionAllowMappings::getThresholdForAppId(int32_t appId) {
     std::lock_guard lock(mLock);
-    const auto iter = mMap.find(uid);
+    const auto iter = mMap.find(appId);
     if (iter != mMap.end()) {
         return iter->second;
     }

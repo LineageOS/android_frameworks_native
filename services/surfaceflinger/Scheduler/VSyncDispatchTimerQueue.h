@@ -146,13 +146,14 @@ private:
     void cancelTimer() REQUIRES(mMutex);
     ScheduleResult scheduleLocked(CallbackToken, ScheduleTiming) REQUIRES(mMutex);
 
+    std::mutex mutable mMutex;
+
     static constexpr nsecs_t kInvalidTime = std::numeric_limits<int64_t>::max();
     std::unique_ptr<TimeKeeper> const mTimeKeeper;
     VsyncSchedule::TrackerPtr mTracker;
     nsecs_t const mTimerSlack;
     nsecs_t const mMinVsyncDistance;
 
-    std::mutex mutable mMutex;
     size_t mCallbackToken GUARDED_BY(mMutex) = 0;
 
     CallbackMap mCallbacks GUARDED_BY(mMutex);

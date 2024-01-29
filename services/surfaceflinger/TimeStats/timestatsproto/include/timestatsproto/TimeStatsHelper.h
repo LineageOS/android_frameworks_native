@@ -175,7 +175,6 @@ public:
         int32_t clientCompositionReusedFramesLegacy = 0;
         int32_t refreshRateSwitchesLegacy = 0;
         int32_t compositionStrategyChangesLegacy = 0;
-        int32_t displayEventConnectionsCountLegacy = 0;
         int64_t displayOnTimeLegacy = 0;
         Histogram presentToPresentLegacy;
         Histogram frameDurationLegacy;

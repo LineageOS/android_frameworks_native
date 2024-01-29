@@ -538,7 +538,8 @@ EventHub::Device::Device(int fd, int32_t id, std::string path, InputDeviceIdenti
         associatedDevice(std::move(assocDev)),
         controllerNumber(0),
         enabled(true),
-        isVirtual(fd < 0) {}
+        isVirtual(fd < 0),
+        currentFrameDropped(false) {}
 
 EventHub::Device::~Device() {
     close();
@@ -612,6 +613,45 @@ void EventHub::Device::configureFd() {
     }
     bool usingClockIoctl = !ioctl(fd, EVIOCSCLOCKID, &clockId);
     ALOGI("usingClockIoctl=%s", toString(usingClockIoctl));
+
+    // Query the initial state of keys and switches, which is tracked by EventHub.
+    readDeviceState();
+}
+
+void EventHub::Device::readDeviceState() {
+    if (readDeviceBitMask(EVIOCGKEY(0), keyState) < 0) {
+        ALOGD("Unable to query the global key state for %s: %s", path.c_str(), strerror(errno));
+    }
+    if (readDeviceBitMask(EVIOCGSW(0), swState) < 0) {
+        ALOGD("Unable to query the global switch state for %s: %s", path.c_str(), strerror(errno));
+    }
+
+    // Read absolute axis info and values for all available axes for the device.
+    populateAbsoluteAxisStates();
+}
+
+void EventHub::Device::populateAbsoluteAxisStates() {
+    absState.clear();
+
+    for (int axis = 0; axis <= ABS_MAX; axis++) {
+        if (!absBitmask.test(axis)) {
+            continue;
+        }
+        struct input_absinfo info {};
+        if (ioctl(fd, EVIOCGABS(axis), &info)) {
+            ALOGE("Error reading absolute controller %d for device %s fd %d: %s", axis,
+                  identifier.name.c_str(), fd, strerror(errno));
+            continue;
+        }
+        auto& [axisInfo, value] = absState[axis];
+        axisInfo.valid = true;
+        axisInfo.minValue = info.minimum;
+        axisInfo.maxValue = info.maximum;
+        axisInfo.flat = info.flat;
+        axisInfo.fuzz = info.fuzz;
+        axisInfo.resolution = info.resolution;
+        value = info.value;
+    }
 }
 
 bool EventHub::Device::hasKeycodeLocked(int keycode) const {
@@ -727,6 +767,66 @@ status_t EventHub::Device::mapLed(int32_t led, int32_t* outScanCode) const {
         }
     }
     return NAME_NOT_FOUND;
+}
+
+void EventHub::Device::trackInputEvent(const struct input_event& event) {
+    switch (event.type) {
+        case EV_KEY: {
+            LOG_ALWAYS_FATAL_IF(!currentFrameDropped &&
+                                        !keyState.set(static_cast<size_t>(event.code),
+                                                      event.value != 0),
+                                "%s: device '%s' received invalid EV_KEY event code: %s value: %d",
+                                __func__, identifier.name.c_str(),
+                                InputEventLookup::getLinuxEvdevLabel(EV_KEY, event.code, 1)
+                                        .code.c_str(),
+                                event.value);
+            break;
+        }
+        case EV_SW: {
+            LOG_ALWAYS_FATAL_IF(!currentFrameDropped &&
+                                        !swState.set(static_cast<size_t>(event.code),
+                                                     event.value != 0),
+                                "%s: device '%s' received invalid EV_SW event code: %s value: %d",
+                                __func__, identifier.name.c_str(),
+                                InputEventLookup::getLinuxEvdevLabel(EV_SW, event.code, 1)
+                                        .code.c_str(),
+                                event.value);
+            break;
+        }
+        case EV_ABS: {
+            if (currentFrameDropped) {
+                break;
+            }
+            auto it = absState.find(event.code);
+            LOG_ALWAYS_FATAL_IF(it == absState.end(),
+                                "%s: device '%s' received invalid EV_ABS event code: %s value: %d",
+                                __func__, identifier.name.c_str(),
+                                InputEventLookup::getLinuxEvdevLabel(EV_ABS, event.code, 0)
+                                        .code.c_str(),
+                                event.value);
+            it->second.value = event.value;
+            break;
+        }
+        case EV_SYN: {
+            switch (event.code) {
+                case SYN_REPORT:
+                    currentFrameDropped = false;
+                    break;
+                case SYN_DROPPED:
+                    // When we receive SYN_DROPPED, all events in the current frame should be
+                    // dropped. We query the state of the device to synchronize our device state
+                    // with the kernel's to account for the dropped events.
+                    currentFrameDropped = true;
+                    readDeviceState();
+                    break;
+                default:
+                    break;
+            }
+            break;
+        }
+        default:
+            break;
+    }
 }
 
 /**
@@ -864,30 +964,6 @@ void EventHub::addDeviceInotify() {
                         strerror(errno));
 }
 
-void EventHub::populateDeviceAbsoluteAxisInfo(Device& device) {
-    for (int axis = 0; axis <= ABS_MAX; axis++) {
-        if (!device.absBitmask.test(axis)) {
-            continue;
-        }
-        struct input_absinfo info {};
-        if (ioctl(device.fd, EVIOCGABS(axis), &info)) {
-            ALOGE("Error reading absolute controller %d for device %s fd %d, errno=%d", axis,
-                  device.identifier.name.c_str(), device.fd, errno);
-            continue;
-        }
-        if (info.minimum == info.maximum) {
-            continue;
-        }
-        RawAbsoluteAxisInfo& outAxisInfo = device.rawAbsoluteAxisInfoCache[axis];
-        outAxisInfo.valid = true;
-        outAxisInfo.minValue = info.minimum;
-        outAxisInfo.maxValue = info.maximum;
-        outAxisInfo.flat = info.flat;
-        outAxisInfo.fuzz = info.fuzz;
-        outAxisInfo.resolution = info.resolution;
-    }
-}
-
 InputDeviceIdentifier EventHub::getDeviceIdentifier(int32_t deviceId) const {
     std::scoped_lock _l(mLock);
     Device* device = getDeviceLocked(deviceId);
@@ -919,18 +995,21 @@ status_t EventHub::getAbsoluteAxisInfo(int32_t deviceId, int axis,
                                        RawAbsoluteAxisInfo* outAxisInfo) const {
     outAxisInfo->clear();
     if (axis < 0 || axis > ABS_MAX) {
-        return -1;
+        return NAME_NOT_FOUND;
     }
     std::scoped_lock _l(mLock);
-    Device* device = getDeviceLocked(deviceId);
+    const Device* device = getDeviceLocked(deviceId);
     if (device == nullptr) {
-        return -1;
+        return NAME_NOT_FOUND;
     }
-    auto it = device->rawAbsoluteAxisInfoCache.find(axis);
-    if (it == device->rawAbsoluteAxisInfoCache.end()) {
-        return -1;
+    // We can read the RawAbsoluteAxisInfo even if the device is disabled and doesn't have a valid
+    // fd, because the info is populated once when the device is first opened, and it doesn't change
+    // throughout the device lifecycle.
+    auto it = device->absState.find(axis);
+    if (it == device->absState.end()) {
+        return NAME_NOT_FOUND;
     }
-    *outAxisInfo = it->second;
+    *outAxisInfo = it->second.info;
     return OK;
 }
 
@@ -962,38 +1041,34 @@ bool EventHub::hasMscEvent(int32_t deviceId, int mscEvent) const {
 }
 
 int32_t EventHub::getScanCodeState(int32_t deviceId, int32_t scanCode) const {
-    if (scanCode >= 0 && scanCode <= KEY_MAX) {
-        std::scoped_lock _l(mLock);
-
-        Device* device = getDeviceLocked(deviceId);
-        if (device != nullptr && device->hasValidFd() && device->keyBitmask.test(scanCode)) {
-            if (device->readDeviceBitMask(EVIOCGKEY(0), device->keyState) >= 0) {
-                return device->keyState.test(scanCode) ? AKEY_STATE_DOWN : AKEY_STATE_UP;
-            }
-        }
+    if (scanCode < 0 || scanCode > KEY_MAX) {
+        return AKEY_STATE_UNKNOWN;
     }
-    return AKEY_STATE_UNKNOWN;
+    std::scoped_lock _l(mLock);
+    const Device* device = getDeviceLocked(deviceId);
+    if (device == nullptr || !device->hasValidFd() || !device->keyBitmask.test(scanCode)) {
+        return AKEY_STATE_UNKNOWN;
+    }
+    return device->keyState.test(scanCode) ? AKEY_STATE_DOWN : AKEY_STATE_UP;
 }
 
 int32_t EventHub::getKeyCodeState(int32_t deviceId, int32_t keyCode) const {
     std::scoped_lock _l(mLock);
-
-    Device* device = getDeviceLocked(deviceId);
-    if (device != nullptr && device->hasValidFd() && device->keyMap.haveKeyLayout()) {
-        std::vector<int32_t> scanCodes = device->keyMap.keyLayoutMap->findScanCodesForKey(keyCode);
-        if (scanCodes.size() != 0) {
-            if (device->readDeviceBitMask(EVIOCGKEY(0), device->keyState) >= 0) {
-                for (size_t i = 0; i < scanCodes.size(); i++) {
-                    int32_t sc = scanCodes[i];
-                    if (sc >= 0 && sc <= KEY_MAX && device->keyState.test(sc)) {
-                        return AKEY_STATE_DOWN;
-                    }
-                }
-                return AKEY_STATE_UP;
-            }
-        }
+    const Device* device = getDeviceLocked(deviceId);
+    if (device == nullptr || !device->hasValidFd() || !device->keyMap.haveKeyLayout()) {
+        return AKEY_STATE_UNKNOWN;
     }
-    return AKEY_STATE_UNKNOWN;
+    const std::vector<int32_t> scanCodes =
+            device->keyMap.keyLayoutMap->findScanCodesForKey(keyCode);
+    if (scanCodes.empty()) {
+        return AKEY_STATE_UNKNOWN;
+    }
+    return std::any_of(scanCodes.begin(), scanCodes.end(),
+                       [&device](const int32_t sc) {
+                           return sc >= 0 && sc <= KEY_MAX && device->keyState.test(sc);
+                       })
+            ? AKEY_STATE_DOWN
+            : AKEY_STATE_UP;
 }
 
 int32_t EventHub::getKeyCodeForKeyLocation(int32_t deviceId, int32_t locationKeyCode) const {
@@ -1037,39 +1112,33 @@ int32_t EventHub::getKeyCodeForKeyLocation(int32_t deviceId, int32_t locationKey
 }
 
 int32_t EventHub::getSwitchState(int32_t deviceId, int32_t sw) const {
-    if (sw >= 0 && sw <= SW_MAX) {
-        std::scoped_lock _l(mLock);
-
-        Device* device = getDeviceLocked(deviceId);
-        if (device != nullptr && device->hasValidFd() && device->swBitmask.test(sw)) {
-            if (device->readDeviceBitMask(EVIOCGSW(0), device->swState) >= 0) {
-                return device->swState.test(sw) ? AKEY_STATE_DOWN : AKEY_STATE_UP;
-            }
-        }
+    if (sw < 0 || sw > SW_MAX) {
+        return AKEY_STATE_UNKNOWN;
     }
-    return AKEY_STATE_UNKNOWN;
+    std::scoped_lock _l(mLock);
+    const Device* device = getDeviceLocked(deviceId);
+    if (device == nullptr || !device->hasValidFd() || !device->swBitmask.test(sw)) {
+        return AKEY_STATE_UNKNOWN;
+    }
+    return device->swState.test(sw) ? AKEY_STATE_DOWN : AKEY_STATE_UP;
 }
 
 status_t EventHub::getAbsoluteAxisValue(int32_t deviceId, int32_t axis, int32_t* outValue) const {
     *outValue = 0;
-
-    if (axis >= 0 && axis <= ABS_MAX) {
-        std::scoped_lock _l(mLock);
-
-        Device* device = getDeviceLocked(deviceId);
-        if (device != nullptr && device->hasValidFd() && device->absBitmask.test(axis)) {
-            struct input_absinfo info;
-            if (ioctl(device->fd, EVIOCGABS(axis), &info)) {
-                ALOGW("Error reading absolute controller %d for device %s fd %d, errno=%d", axis,
-                      device->identifier.name.c_str(), device->fd, errno);
-                return -errno;
-            }
-
-            *outValue = info.value;
-            return OK;
-        }
+    if (axis < 0 || axis > ABS_MAX) {
+        return NAME_NOT_FOUND;
     }
-    return -1;
+    std::scoped_lock _l(mLock);
+    const Device* device = getDeviceLocked(deviceId);
+    if (device == nullptr || !device->hasValidFd()) {
+        return NAME_NOT_FOUND;
+    }
+    const auto it = device->absState.find(axis);
+    if (it == device->absState.end()) {
+        return NAME_NOT_FOUND;
+    }
+    *outValue = it->second.value;
+    return OK;
 }
 
 bool EventHub::markSupportedKeyCodes(int32_t deviceId, const std::vector<int32_t>& keyCodes,
@@ -1922,6 +1991,7 @@ std::vector<RawEvent> EventHub::getEvents(int timeoutMillis) {
                     const size_t count = size_t(readSize) / sizeof(struct input_event);
                     for (size_t i = 0; i < count; i++) {
                         struct input_event& iev = readBuffer[i];
+                        device->trackInputEvent(iev);
                         events.push_back({
                                 .when = processEventTimestamp(iev),
                                 .readTime = systemTime(SYSTEM_TIME_MONOTONIC),
@@ -2449,9 +2519,6 @@ void EventHub::openDeviceLocked(const std::string& devicePath) {
 
     device->configureFd();
 
-    // read absolute axis info for all available axes for the device
-    populateDeviceAbsoluteAxisInfo(*device);
-
     ALOGI("New device: id=%d, fd=%d, path='%s', name='%s', classes=%s, "
           "configuration='%s', keyLayout='%s', keyCharacterMap='%s', builtinKeyboard=%s, ",
           deviceId, fd, devicePath.c_str(), device->identifier.name.c_str(),
@@ -2803,6 +2870,31 @@ void EventHub::dump(std::string& dump) const {
                                  device->associatedDevice
                                          ? device->associatedDevice->sysfsRootPath.c_str()
                                          : "<none>");
+            if (device->keyBitmask.any(0, KEY_MAX + 1)) {
+                const auto pressedKeys = device->keyState.dumpSetIndices(", ", [](int i) {
+                    return InputEventLookup::getLinuxEvdevLabel(EV_KEY, i, 1).code;
+                });
+                dump += StringPrintf(INDENT3 "KeyState (pressed): %s\n", pressedKeys.c_str());
+            }
+            if (device->swBitmask.any(0, SW_MAX + 1)) {
+                const auto pressedSwitches = device->swState.dumpSetIndices(", ", [](int i) {
+                    return InputEventLookup::getLinuxEvdevLabel(EV_SW, i, 1).code;
+                });
+                dump += StringPrintf(INDENT3 "SwState (pressed): %s\n", pressedSwitches.c_str());
+            }
+            if (!device->absState.empty()) {
+                std::string axisValues;
+                for (const auto& [axis, state] : device->absState) {
+                    if (!axisValues.empty()) {
+                        axisValues += ", ";
+                    }
+                    axisValues += StringPrintf("%s=%d",
+                                               InputEventLookup::getLinuxEvdevLabel(EV_ABS, axis, 0)
+                                                       .code.c_str(),
+                                               state.value);
+                }
+                dump += INDENT3 "AbsState: " + axisValues + "\n";
+            }
         }
 
         dump += INDENT "Unattached video devices:\n";

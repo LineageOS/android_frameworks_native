@@ -27,10 +27,10 @@ TEST_F(HotplugTest, schedulesConfigureToProcessHotplugEvents) {
     EXPECT_CALL(*mFlinger.scheduler(), scheduleConfigure()).Times(2);
 
     constexpr HWDisplayId hwcDisplayId1 = 456;
-    mFlinger.onComposerHalHotplug(hwcDisplayId1, Connection::CONNECTED);
+    mFlinger.onComposerHalHotplugEvent(hwcDisplayId1, DisplayHotplugEvent::CONNECTED);
 
     constexpr HWDisplayId hwcDisplayId2 = 654;
-    mFlinger.onComposerHalHotplug(hwcDisplayId2, Connection::DISCONNECTED);
+    mFlinger.onComposerHalHotplugEvent(hwcDisplayId2, DisplayHotplugEvent::DISCONNECTED);
 
     const auto& pendingEvents = mFlinger.mutablePendingHotplugEvents();
     ASSERT_EQ(2u, pendingEvents.size());
@@ -45,7 +45,7 @@ TEST_F(HotplugTest, schedulesFrameToCommitDisplayTransaction) {
     EXPECT_CALL(*mFlinger.scheduler(), scheduleFrame()).Times(1);
 
     constexpr HWDisplayId displayId1 = 456;
-    mFlinger.onComposerHalHotplug(displayId1, Connection::DISCONNECTED);
+    mFlinger.onComposerHalHotplugEvent(displayId1, DisplayHotplugEvent::DISCONNECTED);
     mFlinger.configure();
 
     // The configure stage should consume the hotplug queue and produce a display transaction.

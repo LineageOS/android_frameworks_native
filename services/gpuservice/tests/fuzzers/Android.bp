@@ -5,10 +5,12 @@ package {
 cc_fuzz {
     name: "gpu_service_fuzzer",
     defaults: [
+        "libgpuservice_defaults",
         "service_fuzzer_defaults",
         "fuzzer_disable_leaks",
     ],
     static_libs: [
+        "libgpuservice",
         "liblog",
     ],
     fuzz_config: {
@@ -20,7 +22,4 @@ cc_fuzz {
     },
     include_dirs: ["frameworks/native/services/gpuservice/"],
     srcs: ["GpuServiceFuzzer.cpp"],
-    shared_libs: [
-        "libgpuservice",
-    ],
 }

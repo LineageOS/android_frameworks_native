@@ -36,7 +36,7 @@ struct RenderEngineThreadedTest : public ::testing::Test {
     void SetUp() override {
         mThreadedRE = renderengine::threaded::RenderEngineThreaded::create(
                 [this]() { return std::unique_ptr<renderengine::RenderEngine>(mRenderEngine); },
-                renderengine::RenderEngine::RenderEngineType::THREADED);
+                renderengine::RenderEngine::RenderEngineType::SKIA_GL_THREADED);
     }
 
     std::unique_ptr<renderengine::threaded::RenderEngineThreaded> mThreadedRE;
@@ -50,23 +50,11 @@ TEST_F(RenderEngineThreadedTest, dump) {
 }
 
 TEST_F(RenderEngineThreadedTest, primeCache) {
-    EXPECT_CALL(*mRenderEngine, primeCache());
-    mThreadedRE->primeCache();
+    EXPECT_CALL(*mRenderEngine, primeCache(false));
+    mThreadedRE->primeCache(false);
     // need to call ANY synchronous function after primeCache to ensure that primeCache has
     // completed asynchronously before the test completes execution.
     mThreadedRE->getContextPriority();
-}
-
-TEST_F(RenderEngineThreadedTest, genTextures) {
-    uint32_t texName;
-    EXPECT_CALL(*mRenderEngine, genTextures(1, &texName));
-    mThreadedRE->genTextures(1, &texName);
-}
-
-TEST_F(RenderEngineThreadedTest, deleteTextures) {
-    uint32_t texName;
-    EXPECT_CALL(*mRenderEngine, deleteTextures(1, &texName));
-    mThreadedRE->deleteTextures(1, &texName);
 }
 
 TEST_F(RenderEngineThreadedTest, getMaxTextureSize_returns20) {
@@ -110,7 +98,6 @@ TEST_F(RenderEngineThreadedTest, supportsProtectedContent_returnsTrue) {
 }
 
 TEST_F(RenderEngineThreadedTest, PostRenderCleanup_skipped) {
-    EXPECT_CALL(*mRenderEngine, canSkipPostRenderCleanup()).WillOnce(Return(true));
     EXPECT_CALL(*mRenderEngine, cleanupPostRender()).Times(0);
     mThreadedRE->cleanupPostRender();
 
@@ -119,8 +106,25 @@ TEST_F(RenderEngineThreadedTest, PostRenderCleanup_skipped) {
 }
 
 TEST_F(RenderEngineThreadedTest, PostRenderCleanup_notSkipped) {
-    EXPECT_CALL(*mRenderEngine, canSkipPostRenderCleanup()).WillOnce(Return(false));
+    renderengine::DisplaySettings settings;
+    std::vector<renderengine::LayerSettings> layers;
+    std::shared_ptr<renderengine::ExternalTexture> buffer = std::make_shared<
+            renderengine::impl::
+                    ExternalTexture>(sp<GraphicBuffer>::make(), *mRenderEngine,
+                                     renderengine::impl::ExternalTexture::Usage::READABLE |
+                                             renderengine::impl::ExternalTexture::Usage::WRITEABLE);
+    base::unique_fd bufferFence;
+
+    EXPECT_CALL(*mRenderEngine, useProtectedContext(false));
+    EXPECT_CALL(*mRenderEngine, drawLayersInternal)
+        .WillOnce([&](const std::shared_ptr<std::promise<FenceResult>>&& resultPromise,
+                          const renderengine::DisplaySettings&,
+                          const std::vector<renderengine::LayerSettings>&,
+                          const std::shared_ptr<renderengine::ExternalTexture>&,
+                          base::unique_fd&&) { resultPromise->set_value(Fence::NO_FENCE); });
     EXPECT_CALL(*mRenderEngine, cleanupPostRender()).WillOnce(Return());
+    ftl::Future<FenceResult> future =
+            mThreadedRE->drawLayers(settings, layers, buffer, std::move(bufferFence));
     mThreadedRE->cleanupPostRender();
 
     // call ANY synchronous function to ensure that cleanupPostRender has completed.
@@ -155,11 +159,11 @@ TEST_F(RenderEngineThreadedTest, drawLayers) {
             .WillOnce([&](const std::shared_ptr<std::promise<FenceResult>>&& resultPromise,
                           const renderengine::DisplaySettings&,
                           const std::vector<renderengine::LayerSettings>&,
-                          const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
+                          const std::shared_ptr<renderengine::ExternalTexture>&,
                           base::unique_fd&&) { resultPromise->set_value(Fence::NO_FENCE); });
 
     ftl::Future<FenceResult> future =
-            mThreadedRE->drawLayers(settings, layers, buffer, false, std::move(bufferFence));
+            mThreadedRE->drawLayers(settings, layers, buffer, std::move(bufferFence));
     ASSERT_TRUE(future.valid());
     auto result = future.get();
     ASSERT_TRUE(result.ok());
@@ -188,11 +192,11 @@ TEST_F(RenderEngineThreadedTest, drawLayers_protectedLayer) {
             .WillOnce([&](const std::shared_ptr<std::promise<FenceResult>>&& resultPromise,
                           const renderengine::DisplaySettings&,
                           const std::vector<renderengine::LayerSettings>&,
-                          const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
+                          const std::shared_ptr<renderengine::ExternalTexture>&,
                           base::unique_fd&&) { resultPromise->set_value(Fence::NO_FENCE); });
 
     ftl::Future<FenceResult> future =
-            mThreadedRE->drawLayers(settings, layers, buffer, false, std::move(bufferFence));
+            mThreadedRE->drawLayers(settings, layers, buffer, std::move(bufferFence));
     ASSERT_TRUE(future.valid());
     auto result = future.get();
     ASSERT_TRUE(result.ok());
@@ -216,11 +220,11 @@ TEST_F(RenderEngineThreadedTest, drawLayers_protectedOutputBuffer) {
             .WillOnce([&](const std::shared_ptr<std::promise<FenceResult>>&& resultPromise,
                           const renderengine::DisplaySettings&,
                           const std::vector<renderengine::LayerSettings>&,
-                          const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
+                          const std::shared_ptr<renderengine::ExternalTexture>&,
                           base::unique_fd&&) { resultPromise->set_value(Fence::NO_FENCE); });
 
     ftl::Future<FenceResult> future =
-            mThreadedRE->drawLayers(settings, layers, buffer, false, std::move(bufferFence));
+            mThreadedRE->drawLayers(settings, layers, buffer, std::move(bufferFence));
     ASSERT_TRUE(future.valid());
     auto result = future.get();
     ASSERT_TRUE(result.ok());

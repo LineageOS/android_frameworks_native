@@ -37,7 +37,7 @@ public:
         return mBuffer;
     }
 
-    void queueBuffer(base::unique_fd readyFence) override {
+    void queueBuffer(base::unique_fd readyFence, float) override {
         mRenderFence = sp<Fence>::make(readyFence.release());
     }
 

@@ -24,16 +24,16 @@
 
 namespace android::scheduler {
 class SmallAreaDetectionAllowMappings {
-    using UidThresholdMap = std::unordered_map<uid_t, float>;
+    using AppIdThresholdMap = std::unordered_map<int32_t, float>;
 
 public:
-    void update(std::vector<std::pair<uid_t, float>>& uidThresholdMappings);
-    void setThesholdForUid(uid_t uid, float threshold) EXCLUDES(mLock);
-    std::optional<float> getThresholdForUid(uid_t uid) EXCLUDES(mLock);
+    void update(std::vector<std::pair<int32_t, float>>& appIdThresholdMappings);
+    void setThresholdForAppId(int32_t appId, float threshold) EXCLUDES(mLock);
+    std::optional<float> getThresholdForAppId(int32_t uid) EXCLUDES(mLock);
 
 private:
     static bool isValidThreshold(float threshold) { return threshold >= 0.0f && threshold <= 1.0f; }
     mutable std::mutex mLock;
-    UidThresholdMap mMap GUARDED_BY(mLock);
+    AppIdThresholdMap mMap GUARDED_BY(mLock);
 };
 } // namespace android::scheduler

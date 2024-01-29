@@ -198,7 +198,7 @@ std::shared_ptr<renderengine::ExternalTexture> RenderSurface::dequeueBuffer(
     return mTexture;
 }
 
-void RenderSurface::queueBuffer(base::unique_fd readyFence) {
+void RenderSurface::queueBuffer(base::unique_fd readyFence, float hdrSdrRatio) {
     auto& state = mDisplay.getState();
 
     if (state.usesClientComposition || state.flipClientTarget) {
@@ -241,7 +241,7 @@ void RenderSurface::queueBuffer(base::unique_fd readyFence) {
         }
     }
 
-    status_t result = mDisplaySurface->advanceFrame();
+    status_t result = mDisplaySurface->advanceFrame(hdrSdrRatio);
     if (result != NO_ERROR) {
         ALOGE("[%s] failed pushing new frame to HWC: %d", mDisplay.getName().c_str(), result);
     }

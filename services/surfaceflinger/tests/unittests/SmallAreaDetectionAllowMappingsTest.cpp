@@ -23,38 +23,34 @@
 
 namespace android::scheduler {
 
-class SmallAreaDetectionMappingsAllowTest : public testing::Test {
+class SmallAreaDetectionAllowMappingsTest : public testing::Test {
 protected:
     SmallAreaDetectionAllowMappings mMappings;
+    static constexpr int32_t kAppId1 = 10100;
+    static constexpr int32_t kAppId2 = 10101;
+    static constexpr float kThreshold1 = 0.05f;
+    static constexpr float kThreshold2 = 0.07f;
 };
 
 namespace {
-TEST_F(SmallAreaDetectionMappingsAllowTest, testUpdate) {
-    const uid_t uid1 = 10100;
-    const uid_t uid2 = 10101;
-    const float threshold1 = 0.05f;
-    const float threshold2 = 0.07f;
-    std::vector<std::pair<uid_t, float>> mappings;
+TEST_F(SmallAreaDetectionAllowMappingsTest, testUpdate) {
+    std::vector<std::pair<int32_t, float>> mappings;
     mappings.reserve(2);
-    mappings.push_back(std::make_pair(uid1, threshold1));
-    mappings.push_back(std::make_pair(uid2, threshold2));
+    mappings.push_back(std::make_pair(kAppId1, kThreshold1));
+    mappings.push_back(std::make_pair(kAppId2, kThreshold2));
 
     mMappings.update(mappings);
-    ASSERT_EQ(mMappings.getThresholdForUid(uid1).value(), threshold1);
-    ASSERT_EQ(mMappings.getThresholdForUid(uid2).value(), threshold2);
+    ASSERT_EQ(mMappings.getThresholdForAppId(kAppId1).value(), kThreshold1);
+    ASSERT_EQ(mMappings.getThresholdForAppId(kAppId2).value(), kThreshold2);
 }
 
-TEST_F(SmallAreaDetectionMappingsAllowTest, testSetThesholdForUid) {
-    const uid_t uid = 10111;
-    const float threshold = 0.05f;
-
-    mMappings.setThesholdForUid(uid, threshold);
-    ASSERT_EQ(mMappings.getThresholdForUid(uid), threshold);
+TEST_F(SmallAreaDetectionAllowMappingsTest, testSetThresholdForAppId) {
+    mMappings.setThresholdForAppId(kAppId1, kThreshold1);
+    ASSERT_EQ(mMappings.getThresholdForAppId(kAppId1), kThreshold1);
 }
 
-TEST_F(SmallAreaDetectionMappingsAllowTest, testUidNotInTheMappings) {
-    const uid_t uid = 10222;
-    ASSERT_EQ(mMappings.getThresholdForUid(uid), std::nullopt);
+TEST_F(SmallAreaDetectionAllowMappingsTest, testAppIdNotInTheMappings) {
+    ASSERT_EQ(mMappings.getThresholdForAppId(kAppId1), std::nullopt);
 }
 
 } // namespace

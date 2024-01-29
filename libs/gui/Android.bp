@@ -20,6 +20,25 @@ package {
     default_applicable_licenses: ["frameworks_native_license"],
 }
 
+aconfig_declarations {
+    name: "libgui_flags",
+    package: "com.android.graphics.libgui.flags",
+    srcs: ["libgui_flags.aconfig"],
+}
+
+cc_aconfig_library {
+    name: "libguiflags",
+    host_supported: true,
+    vendor_available: true,
+    min_sdk_version: "29",
+    apex_available: [
+        "//apex_available:platform",
+        "com.android.media.swcodec",
+        "test_com.android.media.swcodec",
+    ],
+    aconfig_declarations: "libgui_flags",
+}
+
 cc_library_headers {
     name: "libgui_headers",
     vendor_available: true,
@@ -36,6 +55,8 @@ cc_library_headers {
         "android.hardware.graphics.bufferqueue@1.0",
         "android.hardware.graphics.bufferqueue@2.0",
     ],
+    static_libs: ["libguiflags"],
+    export_static_lib_headers: ["libguiflags"],
     min_sdk_version: "29",
     // TODO(b/218719284) can media use be constrained to libgui_bufferqueue_static?
     apex_available: [
@@ -192,26 +213,8 @@ cc_library_static {
     },
 }
 
-cc_library_shared {
-    name: "libgui",
-    vendor_available: true,
-    vndk: {
-        enabled: true,
-        private: true,
-    },
-    double_loadable: true,
-
-    defaults: ["libgui_bufferqueue-defaults"],
-
-    static_libs: [
-        "libgui_aidl_static",
-        "libgui_window_info_static",
-    ],
-    export_static_lib_headers: [
-        "libgui_aidl_static",
-        "libgui_window_info_static",
-    ],
-
+filegroup {
+    name: "libgui-sources",
     srcs: [
         ":framework_native_aidl_binder",
         ":framework_native_aidl_gui",
@@ -255,10 +258,42 @@ cc_library_shared {
         "bufferqueue/2.0/B2HProducerListener.cpp",
         "bufferqueue/2.0/H2BGraphicBufferProducer.cpp",
     ],
+}
 
+cc_defaults {
+    name: "libgui-defaults",
+    defaults: ["libgui_bufferqueue-defaults"],
+    srcs: [":libgui-sources"],
+    static_libs: [
+        "libgui_aidl_static",
+        "libgui_window_info_static",
+        "libguiflags",
+    ],
     shared_libs: [
         "libbinder",
         "libGLESv2",
+    ],
+    export_static_lib_headers: [
+        "libguiflags",
+    ],
+}
+
+cc_library_shared {
+    name: "libgui",
+    vendor_available: true,
+    vndk: {
+        enabled: true,
+        private: true,
+    },
+    double_loadable: true,
+
+    defaults: [
+        "libgui-defaults",
+    ],
+
+    export_static_lib_headers: [
+        "libgui_aidl_static",
+        "libgui_window_info_static",
     ],
 
     export_shared_lib_headers: [
@@ -333,6 +368,7 @@ filegroup {
         "BufferQueueProducer.cpp",
         "BufferQueueThreadState.cpp",
         "BufferSlot.cpp",
+        "FrameRateUtils.cpp",
         "FrameTimestamps.cpp",
         "GLConsumerUtils.cpp",
         "HdrMetadata.cpp",
@@ -434,6 +470,7 @@ cc_library_static {
     static_libs: [
         "libgtest",
         "libgmock",
+        "libguiflags",
     ],
 
     srcs: [

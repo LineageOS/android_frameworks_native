@@ -24,18 +24,12 @@ namespace android {
 namespace inputdispatcher {
 
 struct InjectionState {
-    mutable int32_t refCount;
-
-    std::optional<gui::Uid> targetUid;
+    const std::optional<gui::Uid> targetUid;
+    const bool injectionIsAsync; // set to true if injection is not waiting for the result
     android::os::InputEventInjectionResult injectionResult; // initially PENDING
-    bool injectionIsAsync;               // set to true if injection is not waiting for the result
     int32_t pendingForegroundDispatches; // the number of foreground dispatches in progress
 
-    explicit InjectionState(const std::optional<gui::Uid>& targetUid);
-    void release();
-
-private:
-    ~InjectionState();
+    explicit InjectionState(const std::optional<gui::Uid>& targetUid, bool isAsync);
 };
 
 } // namespace inputdispatcher

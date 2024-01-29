@@ -15,9 +15,14 @@
  */
 
 #include "PreferStylusOverTouchBlocker.h"
+#include <com_android_input_flags.h>
 #include <input/PrintTools.h>
 
+namespace input_flags = com::android::input::flags;
+
 namespace android {
+
+const bool BLOCK_TOUCH_WHEN_STYLUS_HOVER = !input_flags::disable_reject_touch_on_stylus_hover();
 
 static std::pair<bool, bool> checkToolType(const NotifyMotionArgs& args) {
     bool hasStylus = false;
@@ -96,8 +101,11 @@ static void intersectInPlace(std::map<K, V>& map, const std::set<K>& set2) {
 std::vector<NotifyMotionArgs> PreferStylusOverTouchBlocker::processMotion(
         const NotifyMotionArgs& args) {
     const auto [hasTouch, hasStylus] = checkToolType(args);
-    const bool isUpOrCancel =
-            args.action == AMOTION_EVENT_ACTION_UP || args.action == AMOTION_EVENT_ACTION_CANCEL;
+    const bool isDisengageOrCancel = BLOCK_TOUCH_WHEN_STYLUS_HOVER
+            ? (args.action == AMOTION_EVENT_ACTION_HOVER_EXIT ||
+               args.action == AMOTION_EVENT_ACTION_UP || args.action == AMOTION_EVENT_ACTION_CANCEL)
+            : (args.action == AMOTION_EVENT_ACTION_UP ||
+               args.action == AMOTION_EVENT_ACTION_CANCEL);
 
     if (hasTouch && hasStylus) {
         mDevicesWithMixedToolType.insert(args.deviceId);
@@ -109,7 +117,7 @@ std::vector<NotifyMotionArgs> PreferStylusOverTouchBlocker::processMotion(
         if (mCanceledDevices.find(args.deviceId) != mCanceledDevices.end()) {
             // If we started to cancel events from this device, continue to do so to keep
             // the stream consistent. It should happen at most once per "mixed" device.
-            if (isUpOrCancel) {
+            if (isDisengageOrCancel) {
                 mCanceledDevices.erase(args.deviceId);
                 mLastTouchEvents.erase(args.deviceId);
             }
@@ -119,10 +127,13 @@ std::vector<NotifyMotionArgs> PreferStylusOverTouchBlocker::processMotion(
     }
 
     const bool isStylusEvent = hasStylus;
-    const bool isDown = args.action == AMOTION_EVENT_ACTION_DOWN;
+    const bool isEngage = BLOCK_TOUCH_WHEN_STYLUS_HOVER
+            ? (args.action == AMOTION_EVENT_ACTION_DOWN ||
+               args.action == AMOTION_EVENT_ACTION_HOVER_ENTER)
+            : (args.action == AMOTION_EVENT_ACTION_DOWN);
 
     if (isStylusEvent) {
-        if (isDown) {
+        if (isEngage) {
             // Reject all touch while stylus is down
             mActiveStyli.insert(args.deviceId);
 
@@ -143,7 +154,7 @@ std::vector<NotifyMotionArgs> PreferStylusOverTouchBlocker::processMotion(
             result.push_back(args);
             return result;
         }
-        if (isUpOrCancel) {
+        if (isDisengageOrCancel) {
             mActiveStyli.erase(args.deviceId);
         }
         // Never drop stylus events
@@ -158,7 +169,7 @@ std::vector<NotifyMotionArgs> PreferStylusOverTouchBlocker::processMotion(
         }
 
         const bool shouldDrop = mCanceledDevices.find(args.deviceId) != mCanceledDevices.end();
-        if (isUpOrCancel) {
+        if (isDisengageOrCancel) {
             mCanceledDevices.erase(args.deviceId);
             mLastTouchEvents.erase(args.deviceId);
         }
@@ -169,7 +180,7 @@ std::vector<NotifyMotionArgs> PreferStylusOverTouchBlocker::processMotion(
             return {};
         }
 
-        if (!isUpOrCancel) {
+        if (!isDisengageOrCancel) {
             mLastTouchEvents[args.deviceId] = args;
         }
         return {args};

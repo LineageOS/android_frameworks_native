@@ -155,7 +155,7 @@ int ADisplay_acquirePhysicalDisplays(ADisplay*** outDisplays) {
             const ui::DisplayMode& mode = modes[j];
             modesPerDisplay[i].emplace_back(
                     DisplayConfigImpl{static_cast<size_t>(mode.id), mode.resolution.getWidth(),
-                                      mode.resolution.getHeight(), mode.refreshRate,
+                                      mode.resolution.getHeight(), mode.peakRefreshRate,
                                       mode.sfVsyncOffset, mode.appVsyncOffset});
         }
     }

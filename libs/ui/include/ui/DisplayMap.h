@@ -23,13 +23,18 @@ namespace android::ui {
 
 // The static capacities were chosen to exceed a typical number of physical and/or virtual displays.
 
+constexpr size_t kDisplayCapacity = 5;
 template <typename Key, typename Value>
-using DisplayMap = ftl::SmallMap<Key, Value, 5>;
+using DisplayMap = ftl::SmallMap<Key, Value, kDisplayCapacity>;
 
+constexpr size_t kPhysicalDisplayCapacity = 3;
 template <typename Key, typename Value>
-using PhysicalDisplayMap = ftl::SmallMap<Key, Value, 3>;
+using PhysicalDisplayMap = ftl::SmallMap<Key, Value, kPhysicalDisplayCapacity>;
 
 template <typename T>
-using PhysicalDisplayVector = ftl::SmallVector<T, 3>;
+using DisplayVector = ftl::SmallVector<T, kDisplayCapacity>;
+
+template <typename T>
+using PhysicalDisplayVector = ftl::SmallVector<T, kPhysicalDisplayCapacity>;
 
 } // namespace android::ui

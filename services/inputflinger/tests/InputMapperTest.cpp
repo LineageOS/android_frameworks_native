@@ -27,10 +27,13 @@ using testing::Return;
 void InputMapperUnitTest::SetUp() {
     mFakePointerController = std::make_shared<FakePointerController>();
     mFakePointerController->setBounds(0, 0, 800 - 1, 480 - 1);
-    mFakePointerController->setPosition(400, 240);
+    mFakePointerController->setPosition(INITIAL_CURSOR_X, INITIAL_CURSOR_Y);
+    mFakePolicy = sp<FakeInputReaderPolicy>::make();
 
     EXPECT_CALL(mMockInputReaderContext, getPointerController(DEVICE_ID))
             .WillRepeatedly(Return(mFakePointerController));
+
+    EXPECT_CALL(mMockInputReaderContext, getPolicy()).WillRepeatedly(Return(mFakePolicy.get()));
 
     EXPECT_CALL(mMockInputReaderContext, getEventHub()).WillRepeatedly(Return(&mMockEventHub));
     InputDeviceIdentifier identifier;
@@ -80,9 +83,15 @@ void InputMapperUnitTest::setKeyCodeState(KeyState state, std::set<int> keyCodes
 }
 
 std::list<NotifyArgs> InputMapperUnitTest::process(int32_t type, int32_t code, int32_t value) {
+    nsecs_t when = systemTime(SYSTEM_TIME_MONOTONIC);
+    return process(when, type, code, value);
+}
+
+std::list<NotifyArgs> InputMapperUnitTest::process(nsecs_t when, int32_t type, int32_t code,
+                                                   int32_t value) {
     RawEvent event;
-    event.when = systemTime(SYSTEM_TIME_MONOTONIC);
-    event.readTime = event.when;
+    event.when = when;
+    event.readTime = when;
     event.deviceId = mMapper->getDeviceContext().getEventHubId();
     event.type = type;
     event.code = code;

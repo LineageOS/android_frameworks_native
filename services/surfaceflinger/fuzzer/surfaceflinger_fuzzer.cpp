@@ -24,7 +24,6 @@
 namespace android::fuzz {
 
 static constexpr LatchUnsignaledConfig kLatchUnsignaledConfig[] = {
-        LatchUnsignaledConfig::Always,
         LatchUnsignaledConfig::AutoSingleLayer,
         LatchUnsignaledConfig::Disabled,
 };
@@ -95,6 +94,7 @@ static constexpr BnSurfaceComposer::ISurfaceComposerTag kSurfaceComposerTags[]{
         BnSurfaceComposer::REMOVE_TUNNEL_MODE_ENABLED_LISTENER,
         BnSurfaceComposer::ADD_WINDOW_INFOS_LISTENER,
         BnSurfaceComposer::REMOVE_WINDOW_INFOS_LISTENER,
+        BnSurfaceComposer::GET_SCHEDULING_POLICY,
 };
 
 static constexpr uint32_t kMinCode = 1000;
@@ -144,9 +144,6 @@ void SurfaceFlingerFuzzer::invokeFlinger() {
     mFlinger->scheduleComposite(mFdp.ConsumeBool() ? FrameHint::kActive : FrameHint::kNone);
     mFlinger->scheduleRepaint();
     mFlinger->scheduleSample();
-
-    uint32_t texture = mFlinger->getNewTexture();
-    mFlinger->deleteTextureAsync(texture);
 
     sp<IBinder> handle = defaultServiceManager()->checkService(
             String16(mFdp.ConsumeRandomLengthString().c_str()));

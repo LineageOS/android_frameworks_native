@@ -33,6 +33,7 @@
 #pragma clang diagnostic pop // ignored "-Wconversion -Wextra"
 
 #include <ftl/fake_guard.h>
+#include <ftl/non_null.h>
 #include <ftl/optional.h>
 #include <scheduler/Features.h>
 #include <scheduler/FrameTargeter.h>
@@ -52,6 +53,8 @@
 #include "SmallAreaDetectionAllowMappings.h"
 #include "Utils/Dumper.h"
 #include "VsyncModulator.h"
+
+#include <FrontEnd/LayerHierarchy.h>
 
 namespace android::scheduler {
 
@@ -96,11 +99,12 @@ using GlobalSignals = RefreshRateSelector::GlobalSignals;
 
 class VsyncSchedule;
 
-class Scheduler : android::impl::MessageQueue {
+class Scheduler : public IEventThreadCallback, android::impl::MessageQueue {
     using Impl = android::impl::MessageQueue;
 
 public:
-    Scheduler(ICompositor&, ISchedulerCallback&, FeatureFlags, sp<VsyncModulator>);
+    Scheduler(ICompositor&, ISchedulerCallback&, FeatureFlags, sp<VsyncModulator>,
+              IVsyncTrackerCallback&);
     virtual ~Scheduler();
 
     void startTimers();
@@ -154,11 +158,13 @@ public:
 
     sp<IDisplayEventConnection> createDisplayEventConnection(
             ConnectionHandle, EventRegistrationFlags eventRegistration = {},
-            const sp<IBinder>& layerHandle = nullptr);
+            const sp<IBinder>& layerHandle = nullptr) EXCLUDES(mChoreographerLock);
 
     sp<EventThreadConnection> getEventConnection(ConnectionHandle);
 
     void onHotplugReceived(ConnectionHandle, PhysicalDisplayId, bool connected);
+    void onHotplugConnectionError(ConnectionHandle, int32_t errorCode);
+
     void onPrimaryDisplayModeChanged(ConnectionHandle, const FrameRateMode&) EXCLUDES(mPolicyLock);
     void onNonPrimaryDisplayModeChanged(ConnectionHandle, const FrameRateMode&);
 
@@ -205,15 +211,13 @@ public:
     // If allowToEnable is true, then hardware vsync will be turned on.
     // Otherwise, if hardware vsync is not already enabled then this method will
     // no-op.
-    // If refreshRate is nullopt, use the existing refresh rate of the display.
+    // If modePtr is nullopt, use the active display mode.
     void resyncToHardwareVsync(PhysicalDisplayId id, bool allowToEnable,
-                               std::optional<Fps> refreshRate = std::nullopt)
-            EXCLUDES(mDisplayLock) {
+                               DisplayModePtr modePtr = nullptr) EXCLUDES(mDisplayLock) {
         std::scoped_lock lock(mDisplayLock);
         ftl::FakeGuard guard(kMainThreadContext);
-        resyncToHardwareVsyncLocked(id, allowToEnable, refreshRate);
+        resyncToHardwareVsyncLocked(id, allowToEnable, modePtr);
     }
-    void resync() EXCLUDES(mDisplayLock);
     void forceNextResync() { mLastResyncTime = 0; }
 
     // Passes a vsync sample to VsyncController. Returns true if
@@ -227,13 +231,16 @@ public:
     // Layers are registered on creation, and unregistered when the weak reference expires.
     void registerLayer(Layer*);
     void recordLayerHistory(int32_t id, const LayerProps& layerProps, nsecs_t presentTime,
-                            LayerHistory::LayerUpdateType) EXCLUDES(mDisplayLock);
+                            nsecs_t now, LayerHistory::LayerUpdateType) EXCLUDES(mDisplayLock);
     void setModeChangePending(bool pending);
-    void setDefaultFrameRateCompatibility(Layer*);
+    void setDefaultFrameRateCompatibility(int32_t id, scheduler::FrameRateCompatibility);
+    void setLayerProperties(int32_t id, const LayerProps&);
     void deregisterLayer(Layer*);
+    void onLayerDestroyed(Layer*) EXCLUDES(mChoreographerLock);
 
     // Detects content using layer history, and selects a matching refresh rate.
-    void chooseRefreshRateForContent() EXCLUDES(mDisplayLock);
+    void chooseRefreshRateForContent(const surfaceflinger::frontend::LayerHierarchy*,
+                                     bool updateAttachedChoreographer) EXCLUDES(mDisplayLock);
 
     void resetIdleTimer();
 
@@ -276,26 +283,34 @@ public:
     // Notifies the scheduler about a refresh rate timeline change.
     void onNewVsyncPeriodChangeTimeline(const hal::VsyncPeriodChangeTimeline& timeline);
 
-    // Notifies the scheduler post composition. Returns if recomposite is needed.
-    bool onPostComposition(nsecs_t presentTime);
+    // Notifies the scheduler once the composition is presented. Returns if recomposite is needed.
+    bool onCompositionPresented(nsecs_t presentTime);
 
     // Notifies the scheduler when the display size has changed. Called from SF's main thread
     void onActiveDisplayAreaChanged(uint32_t displayArea);
-
-    size_t getEventThreadConnectionCount(ConnectionHandle handle);
 
     // Stores the preferred refresh rate that an app should run at.
     // FrameRateOverride.refreshRateHz == 0 means no preference.
     void setPreferredRefreshRateForUid(FrameRateOverride);
 
-    void setGameModeRefreshRateForUid(FrameRateOverride);
+    // Stores the frame rate override that a game should run at set by game interventions.
+    // FrameRateOverride.refreshRateHz == 0 means no preference.
+    void setGameModeFrameRateForUid(FrameRateOverride) EXCLUDES(mDisplayLock);
 
-    void updateSmallAreaDetection(std::vector<std::pair<uid_t, float>>& uidThresholdMappings);
+    // Stores the frame rate override that a game should run rat set by default game frame rate.
+    // FrameRateOverride.refreshRateHz == 0 means no preference, game default game frame rate is not
+    // enabled.
+    //
+    // "ro.surface_flinger.game_default_frame_rate_override" sets the frame rate value,
+    // "persist.graphics.game_default_frame_rate.enabled" controls whether this feature is enabled.
+    void setGameDefaultFrameRateForUid(FrameRateOverride) EXCLUDES(mDisplayLock);
 
-    void setSmallAreaDetectionThreshold(uid_t uid, float threshold);
+    void updateSmallAreaDetection(std::vector<std::pair<int32_t, float>>& uidThresholdMappings);
+
+    void setSmallAreaDetectionThreshold(int32_t appId, float threshold);
 
     // Returns true if the dirty area is less than threshold.
-    bool isSmallDirtyArea(uid_t uid, uint32_t dirtyArea);
+    bool isSmallDirtyArea(int32_t appId, uint32_t dirtyArea);
 
     // Retrieves the overridden refresh rate for a given uid.
     std::optional<Fps> getFrameRateOverride(uid_t) const EXCLUDES(mDisplayLock);
@@ -308,14 +323,25 @@ public:
         return pacesetterSelectorPtr()->getActiveMode().fps;
     }
 
+    Fps getNextFrameInterval(PhysicalDisplayId, TimePoint currentExpectedPresentTime) const
+            EXCLUDES(mDisplayLock);
+
     // Returns the framerate of the layer with the given sequence ID
     float getLayerFramerate(nsecs_t now, int32_t id) const {
         return mLayerHistory.getLayerFramerate(now, id);
     }
 
-    // Returns true if the small dirty detection is enabled.
-    bool supportSmallDirtyDetection() const {
-        return mFeatures.test(Feature::kSmallDirtyContentDetection);
+    bool updateFrameRateOverrides(GlobalSignals, Fps displayRefreshRate) EXCLUDES(mPolicyLock);
+
+    // Returns true if the small dirty detection is enabled for the appId.
+    bool supportSmallDirtyDetection(int32_t appId) {
+        return mFeatures.test(Feature::kSmallDirtyContentDetection) &&
+                mSmallAreaDetectionAllowMappings.getThresholdForAppId(appId).has_value();
+    }
+
+    // Injects a delay that is a fraction of the predicted frame duration for the next frame.
+    void injectPacesetterDelay(float frameDurationFraction) REQUIRES(kMainThreadContext) {
+        mPacesetterFrameDurationFractionToSkip = frameDurationFraction;
     }
 
 private:
@@ -331,9 +357,6 @@ private:
 
     // Create a connection on the given EventThread.
     ConnectionHandle createConnection(std::unique_ptr<EventThread>);
-    sp<EventThreadConnection> createConnectionInternal(
-            EventThread*, EventRegistrationFlags eventRegistration = {},
-            const sp<IBinder>& layerHandle = nullptr);
 
     // Update feature state machine to given state when corresponding timer resets or expires.
     void kernelIdleTimerCallback(TimerState) EXCLUDES(mDisplayLock);
@@ -345,7 +368,7 @@ private:
     void onHardwareVsyncRequest(PhysicalDisplayId, bool enable);
 
     void resyncToHardwareVsyncLocked(PhysicalDisplayId, bool allowToEnable,
-                                     std::optional<Fps> refreshRate = std::nullopt)
+                                     DisplayModePtr modePtr = nullptr)
             REQUIRES(kMainThreadContext, mDisplayLock);
     void resyncAllToHardwareVsync(bool allowToEnable) EXCLUDES(mDisplayLock);
     void setVsyncConfig(const VsyncConfig&, Period vsyncPeriod);
@@ -406,12 +429,21 @@ private:
 
     GlobalSignals makeGlobalSignals() const REQUIRES(mPolicyLock);
 
-    bool updateFrameRateOverrides(GlobalSignals, Fps displayRefreshRate) REQUIRES(mPolicyLock);
+    bool updateFrameRateOverridesLocked(GlobalSignals, Fps displayRefreshRate)
+            REQUIRES(mPolicyLock);
+    void updateAttachedChoreographers(const surfaceflinger::frontend::LayerHierarchy&,
+                                      Fps displayRefreshRate);
+    int updateAttachedChoreographersInternal(const surfaceflinger::frontend::LayerHierarchy&,
+                                             Fps displayRefreshRate, int parentDivisor);
+    void updateAttachedChoreographersFrameRate(const surfaceflinger::frontend::RequestedLayerState&,
+                                               Fps fps) EXCLUDES(mChoreographerLock);
 
     void dispatchCachedReportedMode() REQUIRES(mPolicyLock) EXCLUDES(mDisplayLock);
 
-    android::impl::EventThread::ThrottleVsyncCallback makeThrottleVsyncCallback() const;
-    android::impl::EventThread::GetVsyncPeriodFunction makeGetVsyncPeriodFunction() const;
+    // IEventThreadCallback overrides
+    bool throttleVsync(TimePoint, uid_t) override;
+    Period getVsyncPeriod(uid_t) override EXCLUDES(mDisplayLock);
+    void resync() override EXCLUDES(mDisplayLock);
 
     // Stores EventThread associated with a given VSyncSource, and an initial EventThreadConnection.
     struct Connection {
@@ -441,7 +473,12 @@ private:
     // Timer used to monitor display power mode.
     ftl::Optional<OneShotTimer> mDisplayPowerTimer;
 
+    // Injected delay prior to compositing, for simulating jank.
+    float mPacesetterFrameDurationFractionToSkip GUARDED_BY(kMainThreadContext) = 0.f;
+
     ISchedulerCallback& mSchedulerCallback;
+
+    IVsyncTrackerCallback& mVsyncTrackerCallback;
 
     // mDisplayLock may be locked while under mPolicyLock.
     mutable std::mutex mPolicyLock;
@@ -494,13 +531,17 @@ private:
                                                      });
     }
 
+    // The pacesetter must exist as a precondition.
+    ftl::NonNull<const Display*> pacesetterPtrLocked() const REQUIRES(mDisplayLock) {
+        return ftl::as_non_null(&pacesetterDisplayLocked()->get());
+    }
+
     RefreshRateSelectorPtr pacesetterSelectorPtr() const EXCLUDES(mDisplayLock) {
         std::scoped_lock lock(mDisplayLock);
         return pacesetterSelectorPtrLocked();
     }
 
     RefreshRateSelectorPtr pacesetterSelectorPtrLocked() const REQUIRES(mDisplayLock) {
-        ftl::FakeGuard guard(kMainThreadContext);
         return pacesetterDisplayLocked()
                 .transform([](const Display& display) { return display.selectorPtr; })
                 .or_else([] { return std::optional<RefreshRateSelectorPtr>(nullptr); })
@@ -535,6 +576,16 @@ private:
         // Parameters for latest dispatch of mode change event.
         std::optional<ModeChangedParams> cachedModeChangedParams;
     } mPolicy GUARDED_BY(mPolicyLock);
+
+    std::mutex mChoreographerLock;
+
+    struct AttachedChoreographers {
+        Fps frameRate;
+        std::unordered_set<wp<EventThreadConnection>, WpHash> connections;
+    };
+    // Map keyed by layer ID (sequence) to choreographer connections.
+    std::unordered_map<int32_t, AttachedChoreographers> mAttachedChoreographers
+            GUARDED_BY(mChoreographerLock);
 
     std::mutex mVsyncTimelineLock;
     std::optional<hal::VsyncPeriodChangeTimeline> mLastVsyncPeriodChangeTimeline

@@ -31,9 +31,9 @@
 #include <utils/Mutex.h>
 #include <utils/Trace.h>
 
-#include <android/hardware/power/IPower.h>
-#include <android/hardware/power/IPowerHintSession.h>
-#include <android/hardware/power/WorkDuration.h>
+#include <aidl/android/hardware/power/IPower.h>
+#include <aidl/android/hardware/power/IPowerHintSession.h>
+#include <aidl/android/hardware/power/WorkDuration.h>
 
 #include <binder/IServiceManager.h>
 
@@ -49,11 +49,10 @@ PowerAdvisor::~PowerAdvisor() = default;
 
 namespace impl {
 
-using android::hardware::power::Boost;
-using android::hardware::power::IPowerHintSession;
-using android::hardware::power::Mode;
-using android::hardware::power::SessionHint;
-using android::hardware::power::WorkDuration;
+using aidl::android::hardware::power::Boost;
+using aidl::android::hardware::power::Mode;
+using aidl::android::hardware::power::SessionHint;
+using aidl::android::hardware::power::WorkDuration;
 
 PowerAdvisor::~PowerAdvisor() = default;
 
@@ -144,11 +143,13 @@ void PowerAdvisor::notifyCpuLoadUp() {
     if (!mBootFinished.load()) {
         return;
     }
-    if (usePowerHintSession() && ensurePowerHintSessionRunning()) {
+    if (usePowerHintSession()) {
         std::lock_guard lock(mHintSessionMutex);
-        auto ret = mHintSession->sendHint(SessionHint::CPU_LOAD_UP);
-        if (!ret.isOk()) {
-            mHintSessionRunning = false;
+        if (ensurePowerHintSessionRunning()) {
+            auto ret = mHintSession->sendHint(SessionHint::CPU_LOAD_UP);
+            if (!ret.isOk()) {
+                mHintSession = nullptr;
+            }
         }
     }
 }
@@ -162,11 +163,13 @@ void PowerAdvisor::notifyDisplayUpdateImminentAndCpuReset() {
 
     if (mSendUpdateImminent.exchange(false)) {
         ALOGV("AIDL notifyDisplayUpdateImminentAndCpuReset");
-        if (usePowerHintSession() && ensurePowerHintSessionRunning()) {
+        if (usePowerHintSession()) {
             std::lock_guard lock(mHintSessionMutex);
-            auto ret = mHintSession->sendHint(SessionHint::CPU_LOAD_RESET);
-            if (!ret.isOk()) {
-                mHintSessionRunning = false;
+            if (ensurePowerHintSessionRunning()) {
+                auto ret = mHintSession->sendHint(SessionHint::CPU_LOAD_RESET);
+                if (!ret.isOk()) {
+                    mHintSession = nullptr;
+                }
             }
         }
 
@@ -193,14 +196,12 @@ void PowerAdvisor::notifyDisplayUpdateImminentAndCpuReset() {
     }
 }
 
-// checks both if it supports and if it's enabled
 bool PowerAdvisor::usePowerHintSession() {
     // uses cached value since the underlying support and flag are unlikely to change at runtime
     return mHintSessionEnabled.value_or(false) && supportsPowerHintSession();
 }
 
 bool PowerAdvisor::supportsPowerHintSession() {
-    // cache to avoid needing lock every time
     if (!mSupportsHintSession.has_value()) {
         mSupportsHintSession = getPowerHal().getHintSessionPreferredRate().isOk();
     }
@@ -208,10 +209,15 @@ bool PowerAdvisor::supportsPowerHintSession() {
 }
 
 bool PowerAdvisor::ensurePowerHintSessionRunning() {
-    if (!mHintSessionRunning && !mHintSessionThreadIds.empty() && usePowerHintSession()) {
-        startPowerHintSession(mHintSessionThreadIds);
+    if (mHintSession == nullptr && !mHintSessionThreadIds.empty() && usePowerHintSession()) {
+        auto ret = getPowerHal().createHintSession(getpid(), static_cast<int32_t>(getuid()),
+                                                   mHintSessionThreadIds, mTargetDuration.ns());
+
+        if (ret.isOk()) {
+            mHintSession = ret.value();
+        }
     }
-    return mHintSessionRunning;
+    return mHintSession != nullptr;
 }
 
 void PowerAdvisor::updateTargetWorkDuration(Duration targetDuration) {
@@ -223,15 +229,16 @@ void PowerAdvisor::updateTargetWorkDuration(Duration targetDuration) {
     {
         mTargetDuration = targetDuration;
         if (sTraceHintSessionData) ATRACE_INT64("Time target", targetDuration.ns());
-        if (ensurePowerHintSessionRunning() && (targetDuration != mLastTargetDurationSent)) {
+        if (targetDuration == mLastTargetDurationSent) return;
+        std::lock_guard lock(mHintSessionMutex);
+        if (ensurePowerHintSessionRunning()) {
             ALOGV("Sending target time: %" PRId64 "ns", targetDuration.ns());
             mLastTargetDurationSent = targetDuration;
-            std::lock_guard lock(mHintSessionMutex);
             auto ret = mHintSession->updateTargetWorkDuration(targetDuration.ns());
             if (!ret.isOk()) {
                 ALOGW("Failed to set power hint target work duration with error: %s",
-                      ret.exceptionMessage().c_str());
-                mHintSessionRunning = false;
+                      ret.getDescription().c_str());
+                mHintSession = nullptr;
             }
         }
     }
@@ -244,16 +251,12 @@ void PowerAdvisor::reportActualWorkDuration() {
     }
     ATRACE_CALL();
     std::optional<Duration> actualDuration = estimateWorkDuration();
-    if (!actualDuration.has_value() || actualDuration < 0ns || !ensurePowerHintSessionRunning()) {
+    if (!actualDuration.has_value() || actualDuration < 0ns) {
         ALOGV("Failed to send actual work duration, skipping");
         return;
     }
     actualDuration = std::make_optional(*actualDuration + sTargetSafetyMargin);
     mActualDuration = actualDuration;
-    WorkDuration duration;
-    duration.durationNanos = actualDuration->ns();
-    duration.timeStampNanos = TimePoint::now().ns();
-    mHintSessionQueue.push_back(duration);
 
     if (sTraceHintSessionData) {
         ATRACE_INT64("Measured duration", actualDuration->ns());
@@ -269,13 +272,34 @@ void PowerAdvisor::reportActualWorkDuration() {
           actualDuration->ns(), mLastTargetDurationSent.ns(),
           Duration{*actualDuration - mLastTargetDurationSent}.ns());
 
+    if (mTimingTestingMode) {
+        mDelayReportActualMutexAcquisitonPromise.get_future().wait();
+        mDelayReportActualMutexAcquisitonPromise = std::promise<bool>{};
+    }
+
     {
         std::lock_guard lock(mHintSessionMutex);
+        if (!ensurePowerHintSessionRunning()) {
+            ALOGV("Hint session not running and could not be started, skipping");
+            return;
+        }
+
+        WorkDuration duration{
+                .timeStampNanos = TimePoint::now().ns(),
+                // TODO(b/284324521): Correctly calculate total duration.
+                .durationNanos = actualDuration->ns(),
+                .workPeriodStartTimestampNanos = mCommitStartTimes[0].ns(),
+                .cpuDurationNanos = actualDuration->ns(),
+                // TODO(b/284324521): Calculate RenderEngine GPU time.
+                .gpuDurationNanos = 0,
+        };
+        mHintSessionQueue.push_back(duration);
+
         auto ret = mHintSession->reportActualWorkDuration(mHintSessionQueue);
         if (!ret.isOk()) {
             ALOGW("Failed to report actual work durations with error: %s",
-                  ret.exceptionMessage().c_str());
-            mHintSessionRunning = false;
+                  ret.getDescription().c_str());
+            mHintSession = nullptr;
             return;
         }
     }
@@ -286,7 +310,8 @@ void PowerAdvisor::enablePowerHintSession(bool enabled) {
     mHintSessionEnabled = enabled;
 }
 
-bool PowerAdvisor::startPowerHintSession(const std::vector<int32_t>& threadIds) {
+bool PowerAdvisor::startPowerHintSession(std::vector<int32_t>&& threadIds) {
+    mHintSessionThreadIds = threadIds;
     if (!mBootFinished.load()) {
         return false;
     }
@@ -294,25 +319,14 @@ bool PowerAdvisor::startPowerHintSession(const std::vector<int32_t>& threadIds) 
         ALOGI("Cannot start power hint session: disabled or unsupported");
         return false;
     }
-    if (mHintSessionRunning) {
+    LOG_ALWAYS_FATAL_IF(mHintSessionThreadIds.empty(),
+                        "No thread IDs provided to power hint session!");
+    std::lock_guard lock(mHintSessionMutex);
+    if (mHintSession != nullptr) {
         ALOGE("Cannot start power hint session: already running");
         return false;
     }
-    LOG_ALWAYS_FATAL_IF(threadIds.empty(), "No thread IDs provided to power hint session!");
-    {
-        std::lock_guard lock(mHintSessionMutex);
-        mHintSession = nullptr;
-        mHintSessionThreadIds = threadIds;
-
-        auto ret = getPowerHal().createHintSession(getpid(), static_cast<int32_t>(getuid()),
-                                                   threadIds, mTargetDuration.ns());
-
-        if (ret.isOk()) {
-            mHintSessionRunning = true;
-            mHintSession = ret.value();
-        }
-    }
-    return mHintSessionRunning;
+    return ensurePowerHintSessionRunning();
 }
 
 void PowerAdvisor::setGpuFenceTime(DisplayId displayId, std::unique_ptr<FenceTime>&& fenceTime) {

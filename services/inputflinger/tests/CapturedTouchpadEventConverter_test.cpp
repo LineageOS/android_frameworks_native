@@ -29,8 +29,8 @@
 #include "FakeInputReaderPolicy.h"
 #include "InstrumentedInputReader.h"
 #include "TestConstants.h"
+#include "TestEventMatchers.h"
 #include "TestInputListener.h"
-#include "TestInputListenerMatchers.h"
 
 namespace android {
 

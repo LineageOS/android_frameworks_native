@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <deque>
 #include <mutex>
 #include <unordered_map>
 #include <vector>
@@ -31,29 +32,23 @@ class VSyncPredictor : public VSyncTracker {
 public:
     /*
      * \param [in] PhysicalDisplayid The display this corresponds to.
-     * \param [in] idealPeriod  The initial ideal period to use.
+     * \param [in] modePtr  The initial display mode
      * \param [in] historySize  The internal amount of entries to store in the model.
      * \param [in] minimumSamplesForPrediction The minimum number of samples to collect before
      * predicting. \param [in] outlierTolerancePercent a number 0 to 100 that will be used to filter
      * samples that fall outlierTolerancePercent from an anticipated vsync event.
+     * \param [in] IVsyncTrackerCallback The callback for the VSyncTracker.
      */
-    VSyncPredictor(PhysicalDisplayId, nsecs_t idealPeriod, size_t historySize,
-                   size_t minimumSamplesForPrediction, uint32_t outlierTolerancePercent);
+    VSyncPredictor(ftl::NonNull<DisplayModePtr> modePtr, size_t historySize,
+                   size_t minimumSamplesForPrediction, uint32_t outlierTolerancePercent,
+                   IVsyncTrackerCallback&);
     ~VSyncPredictor();
 
     bool addVsyncTimestamp(nsecs_t timestamp) final EXCLUDES(mMutex);
     nsecs_t nextAnticipatedVSyncTimeFrom(nsecs_t timePoint) const final EXCLUDES(mMutex);
     nsecs_t currentPeriod() const final EXCLUDES(mMutex);
+    Period minFramePeriod() const final EXCLUDES(mMutex);
     void resetModel() final EXCLUDES(mMutex);
-
-    /*
-     * Inform the model that the period is anticipated to change to a new value.
-     * model will use the period parameter to predict vsync events until enough
-     * timestamps with the new period have been collected.
-     *
-     * \param [in] period   The new period that should be used.
-     */
-    void setPeriod(nsecs_t period) final EXCLUDES(mMutex);
 
     /* Query if the model is in need of more samples to make a prediction.
      * \return  True, if model would benefit from more samples, False if not.
@@ -69,7 +64,13 @@ public:
 
     bool isVSyncInPhase(nsecs_t timePoint, Fps frameRate) const final EXCLUDES(mMutex);
 
+    void setDisplayModePtr(ftl::NonNull<DisplayModePtr>) final EXCLUDES(mMutex);
+
     void setRenderRate(Fps) final EXCLUDES(mMutex);
+
+    void onFrameBegin(TimePoint expectedPresentTime, TimePoint lastConfirmedPresentTime) final
+            EXCLUDES(mMutex);
+    void onFrameMissed(TimePoint expectedPresentTime) final EXCLUDES(mMutex);
 
     void dump(std::string& result) const final EXCLUDES(mMutex);
 
@@ -88,20 +89,23 @@ private:
     Model getVSyncPredictionModelLocked() const REQUIRES(mMutex);
     nsecs_t nextAnticipatedVSyncTimeFromLocked(nsecs_t timePoint) const REQUIRES(mMutex);
     bool isVSyncInPhaseLocked(nsecs_t timePoint, unsigned divisor) const REQUIRES(mMutex);
+    Period minFramePeriodLocked() const REQUIRES(mMutex);
+    void ensureMinFrameDurationIsKept(TimePoint, TimePoint) REQUIRES(mMutex);
 
     struct VsyncSequence {
         nsecs_t vsyncTime;
         int64_t seq;
     };
     VsyncSequence getVsyncSequenceLocked(nsecs_t timestamp) const REQUIRES(mMutex);
+    nsecs_t idealPeriod() const REQUIRES(mMutex);
 
     bool const mTraceOn;
     size_t const kHistorySize;
     size_t const kMinimumSamplesForPrediction;
     size_t const kOutlierTolerancePercent;
+    IVsyncTrackerCallback& mVsyncTrackerCallback;
     std::mutex mutable mMutex;
 
-    nsecs_t mIdealPeriod GUARDED_BY(mMutex);
     std::optional<nsecs_t> mKnownTimestamp GUARDED_BY(mMutex);
 
     // Map between ideal vsync period and the calculated model
@@ -110,9 +114,12 @@ private:
     size_t mLastTimestampIndex GUARDED_BY(mMutex) = 0;
     std::vector<nsecs_t> mTimestamps GUARDED_BY(mMutex);
 
-    std::optional<Fps> mRenderRate GUARDED_BY(mMutex);
+    ftl::NonNull<DisplayModePtr> mDisplayModePtr GUARDED_BY(mMutex);
+    std::optional<Fps> mRenderRateOpt GUARDED_BY(mMutex);
 
     mutable std::optional<VsyncSequence> mLastVsyncSequence GUARDED_BY(mMutex);
+
+    std::deque<TimePoint> mPastExpectedPresentTimes GUARDED_BY(mMutex);
 };
 
 } // namespace android::scheduler

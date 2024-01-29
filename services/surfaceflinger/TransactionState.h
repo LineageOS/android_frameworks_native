@@ -89,7 +89,7 @@ struct TransactionState {
     void traverseStatesWithBuffersWhileTrue(Visitor&& visitor) {
         for (auto state = states.begin(); state != states.end();) {
             if (state->state.hasBufferChanges() && state->externalTexture && state->state.surface) {
-                int result = visitor(state->state, state->externalTexture);
+                int result = visitor(*state);
                 if (result == STOP_TRAVERSAL) return;
                 if (result == DELETE_AND_CONTINUE_TRAVERSAL) {
                     state = states.erase(state);

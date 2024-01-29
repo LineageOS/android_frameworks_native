@@ -67,22 +67,21 @@ void DisplayTransactionTest::injectMockScheduler(PhysicalDisplayId displayId) {
 
     EXPECT_CALL(*mEventThread, registerDisplayEventConnection(_));
     EXPECT_CALL(*mEventThread, createEventConnection(_, _))
-            .WillOnce(Return(sp<EventThreadConnection>::make(mEventThread,
-                                                             mock::EventThread::kCallingUid,
-                                                             ResyncCallback())));
+            .WillOnce(Return(
+                    sp<EventThreadConnection>::make(mEventThread, mock::EventThread::kCallingUid)));
 
     EXPECT_CALL(*mSFEventThread, registerDisplayEventConnection(_));
     EXPECT_CALL(*mSFEventThread, createEventConnection(_, _))
             .WillOnce(Return(sp<EventThreadConnection>::make(mSFEventThread,
-                                                             mock::EventThread::kCallingUid,
-                                                             ResyncCallback())));
+                                                             mock::EventThread::kCallingUid)));
 
     mFlinger.setupScheduler(std::make_unique<mock::VsyncController>(),
                             std::make_shared<mock::VSyncTracker>(),
                             std::unique_ptr<EventThread>(mEventThread),
                             std::unique_ptr<EventThread>(mSFEventThread),
                             TestableSurfaceFlinger::DefaultDisplayMode{displayId},
-                            TestableSurfaceFlinger::SchedulerCallbackImpl::kMock);
+                            TestableSurfaceFlinger::SchedulerCallbackImpl::kMock,
+                            TestableSurfaceFlinger::VsyncTrackerCallbackImpl::kMock);
 }
 
 void DisplayTransactionTest::injectMockComposer(int virtualDisplayCount) {

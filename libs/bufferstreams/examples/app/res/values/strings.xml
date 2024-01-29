@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">Buffer Demos</string>
+    <string name="start">Start</string>
+    <string name="demo1">Demo 1</string>
+    <string name="demo2">Demo 2</string>
+    <string name="demo3">Demo 3</string>
+    <string name="back_button">Back</string>
+</resources>

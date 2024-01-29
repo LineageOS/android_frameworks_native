@@ -18,14 +18,15 @@
 
 #include "binder/Status.h"
 
-#include <android/hardware/power/IPower.h>
+#include <aidl/android/hardware/power/IPower.h>
 #include <gmock/gmock.h>
 
+using aidl::android::hardware::power::IPowerHintSession;
+using aidl::android::hardware::power::SessionHint;
+using aidl::android::hardware::power::SessionMode;
 using android::binder::Status;
-using android::hardware::power::IPowerHintSession;
-using android::hardware::power::SessionHint;
 
-using namespace android::hardware::power;
+using namespace aidl::android::hardware::power;
 
 namespace android::Hwc2::mock {
 
@@ -33,16 +34,19 @@ class MockIPowerHintSession : public IPowerHintSession {
 public:
     MockIPowerHintSession();
 
-    MOCK_METHOD(IBinder*, onAsBinder, (), (override));
-    MOCK_METHOD(Status, pause, (), (override));
-    MOCK_METHOD(Status, resume, (), (override));
-    MOCK_METHOD(Status, close, (), (override));
-    MOCK_METHOD(int32_t, getInterfaceVersion, (), (override));
-    MOCK_METHOD(std::string, getInterfaceHash, (), (override));
-    MOCK_METHOD(Status, updateTargetWorkDuration, (int64_t), (override));
-    MOCK_METHOD(Status, reportActualWorkDuration, (const ::std::vector<WorkDuration>&), (override));
-    MOCK_METHOD(Status, sendHint, (SessionHint), (override));
-    MOCK_METHOD(Status, setThreads, (const ::std::vector<int32_t>&), (override));
+    MOCK_METHOD(ndk::SpAIBinder, asBinder, (), (override));
+    MOCK_METHOD(ndk::ScopedAStatus, pause, (), (override));
+    MOCK_METHOD(ndk::ScopedAStatus, resume, (), (override));
+    MOCK_METHOD(ndk::ScopedAStatus, close, (), (override));
+    MOCK_METHOD(ndk::ScopedAStatus, getInterfaceVersion, (int32_t * version), (override));
+    MOCK_METHOD(ndk::ScopedAStatus, getInterfaceHash, (std::string * hash), (override));
+    MOCK_METHOD(bool, isRemote, (), (override));
+    MOCK_METHOD(ndk::ScopedAStatus, updateTargetWorkDuration, (int64_t), (override));
+    MOCK_METHOD(ndk::ScopedAStatus, reportActualWorkDuration, (const ::std::vector<WorkDuration>&),
+                (override));
+    MOCK_METHOD(ndk::ScopedAStatus, sendHint, (SessionHint), (override));
+    MOCK_METHOD(ndk::ScopedAStatus, setThreads, (const ::std::vector<int32_t>&), (override));
+    MOCK_METHOD(ndk::ScopedAStatus, setMode, (SessionMode, bool), (override));
 };
 
 } // namespace android::Hwc2::mock

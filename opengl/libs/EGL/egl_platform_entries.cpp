@@ -1644,26 +1644,6 @@ EGLImageKHR eglCreateImageTmpl(EGLDisplay dpy, EGLContext ctx, EGLenum target,
     const egl_display_t* dp = validate_display(dpy);
     if (!dp) return EGL_NO_IMAGE_KHR;
 
-    std::vector<AttrType> strippedAttribs;
-    if (needsAndroidPEglMitigation()) {
-        // Mitigation for Android P vendor partitions: eglImageCreateKHR should accept
-        // EGL_GL_COLORSPACE_LINEAR_KHR, EGL_GL_COLORSPACE_SRGB_KHR and
-        // EGL_GL_COLORSPACE_DEFAULT_EXT if EGL_EXT_image_gl_colorspace is supported,
-        // but some drivers don't like the DEFAULT value and generate an error.
-        for (const AttrType* attr = attrib_list; attr && attr[0] != EGL_NONE; attr += 2) {
-            if (attr[0] == EGL_GL_COLORSPACE_KHR &&
-                dp->haveExtension("EGL_EXT_image_gl_colorspace")) {
-                if (attr[1] != EGL_GL_COLORSPACE_LINEAR_KHR &&
-                    attr[1] != EGL_GL_COLORSPACE_SRGB_KHR) {
-                    continue;
-                }
-            }
-            strippedAttribs.push_back(attr[0]);
-            strippedAttribs.push_back(attr[1]);
-        }
-        strippedAttribs.push_back(EGL_NONE);
-    }
-
     ContextRef _c(dp, ctx);
     egl_context_t* const c = _c.get();
 
@@ -1671,8 +1651,7 @@ EGLImageKHR eglCreateImageTmpl(EGLDisplay dpy, EGLContext ctx, EGLenum target,
     egl_connection_t* const cnx = &gEGLImpl;
     if (cnx->dso && eglCreateImageFunc) {
         result = eglCreateImageFunc(dp->disp.dpy, c ? c->context : EGL_NO_CONTEXT, target, buffer,
-                                    needsAndroidPEglMitigation() ? strippedAttribs.data()
-                                                                 : attrib_list);
+                                    attrib_list);
     }
     return result;
 }

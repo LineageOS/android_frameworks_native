@@ -168,7 +168,7 @@ Color srgbInvOetf(Color e_gamma) {
 
 // See IEC 61966-2-1, Equations F.5 and F.6.
 float srgbInvOetfLUT(float e_gamma) {
-  uint32_t value = static_cast<uint32_t>(e_gamma * kSrgbInvOETFNumEntries);
+  uint32_t value = static_cast<uint32_t>(e_gamma * (kSrgbInvOETFNumEntries - 1) + 0.5);
   //TODO() : Remove once conversion modules have appropriate clamping in place
   value = CLIP3(value, 0, kSrgbInvOETFNumEntries - 1);
   return kSrgbInvOETF[value];
@@ -288,7 +288,7 @@ Color hlgOetf(Color e) {
 }
 
 float hlgOetfLUT(float e) {
-  uint32_t value = static_cast<uint32_t>(e * kHlgOETFNumEntries);
+  uint32_t value = static_cast<uint32_t>(e * (kHlgOETFNumEntries - 1) + 0.5);
   //TODO() : Remove once conversion modules have appropriate clamping in place
   value = CLIP3(value, 0, kHlgOETFNumEntries - 1);
 
@@ -315,7 +315,7 @@ Color hlgInvOetf(Color e_gamma) {
 }
 
 float hlgInvOetfLUT(float e_gamma) {
-  uint32_t value = static_cast<uint32_t>(e_gamma * kHlgInvOETFNumEntries);
+  uint32_t value = static_cast<uint32_t>(e_gamma * (kHlgInvOETFNumEntries - 1) + 0.5);
   //TODO() : Remove once conversion modules have appropriate clamping in place
   value = CLIP3(value, 0, kHlgInvOETFNumEntries - 1);
 
@@ -344,7 +344,7 @@ Color pqOetf(Color e) {
 }
 
 float pqOetfLUT(float e) {
-  uint32_t value = static_cast<uint32_t>(e * kPqOETFNumEntries);
+  uint32_t value = static_cast<uint32_t>(e * (kPqOETFNumEntries - 1) + 0.5);
   //TODO() : Remove once conversion modules have appropriate clamping in place
   value = CLIP3(value, 0, kPqOETFNumEntries - 1);
 
@@ -376,7 +376,7 @@ Color pqInvOetf(Color e_gamma) {
 }
 
 float pqInvOetfLUT(float e_gamma) {
-  uint32_t value = static_cast<uint32_t>(e_gamma * kPqInvOETFNumEntries);
+  uint32_t value = static_cast<uint32_t>(e_gamma * (kPqInvOETFNumEntries - 1) + 0.5);
   //TODO() : Remove once conversion modules have appropriate clamping in place
   value = CLIP3(value, 0, kPqInvOETFNumEntries - 1);
 
@@ -531,29 +531,29 @@ void transformYuv420(jr_uncompressed_ptr image, size_t x_chroma, size_t y_chroma
 
   Color new_uv = (yuv1 + yuv2 + yuv3 + yuv4) / 4.0f;
 
-  size_t pixel_y1_idx =  x_chroma * 2      +  y_chroma * 2      * image->width;
-  size_t pixel_y2_idx = (x_chroma * 2 + 1) +  y_chroma * 2      * image->width;
-  size_t pixel_y3_idx =  x_chroma * 2      + (y_chroma * 2 + 1) * image->width;
-  size_t pixel_y4_idx = (x_chroma * 2 + 1) + (y_chroma * 2 + 1) * image->width;
+  size_t pixel_y1_idx =  x_chroma * 2      +  y_chroma * 2      * image->luma_stride;
+  size_t pixel_y2_idx = (x_chroma * 2 + 1) +  y_chroma * 2      * image->luma_stride;
+  size_t pixel_y3_idx =  x_chroma * 2      + (y_chroma * 2 + 1) * image->luma_stride;
+  size_t pixel_y4_idx = (x_chroma * 2 + 1) + (y_chroma * 2 + 1) * image->luma_stride;
 
   uint8_t& y1_uint = reinterpret_cast<uint8_t*>(image->data)[pixel_y1_idx];
   uint8_t& y2_uint = reinterpret_cast<uint8_t*>(image->data)[pixel_y2_idx];
   uint8_t& y3_uint = reinterpret_cast<uint8_t*>(image->data)[pixel_y3_idx];
   uint8_t& y4_uint = reinterpret_cast<uint8_t*>(image->data)[pixel_y4_idx];
 
-  size_t pixel_count = image->width * image->height;
-  size_t pixel_uv_idx = x_chroma + y_chroma * (image->width / 2);
+  size_t pixel_count = image->chroma_stride * image->height / 2;
+  size_t pixel_uv_idx = x_chroma + y_chroma * (image->chroma_stride);
 
-  uint8_t& u_uint = reinterpret_cast<uint8_t*>(image->data)[pixel_count + pixel_uv_idx];
-  uint8_t& v_uint = reinterpret_cast<uint8_t*>(image->data)[pixel_count * 5 / 4 + pixel_uv_idx];
+  uint8_t& u_uint = reinterpret_cast<uint8_t*>(image->chroma_data)[pixel_uv_idx];
+  uint8_t& v_uint = reinterpret_cast<uint8_t*>(image->chroma_data)[pixel_count + pixel_uv_idx];
 
-  y1_uint = static_cast<uint8_t>(floor(yuv1.y * 255.0f + 0.5f));
-  y2_uint = static_cast<uint8_t>(floor(yuv2.y * 255.0f + 0.5f));
-  y3_uint = static_cast<uint8_t>(floor(yuv3.y * 255.0f + 0.5f));
-  y4_uint = static_cast<uint8_t>(floor(yuv4.y * 255.0f + 0.5f));
+  y1_uint = static_cast<uint8_t>(CLIP3((yuv1.y * 255.0f + 0.5f), 0, 255));
+  y2_uint = static_cast<uint8_t>(CLIP3((yuv2.y * 255.0f + 0.5f), 0, 255));
+  y3_uint = static_cast<uint8_t>(CLIP3((yuv3.y * 255.0f + 0.5f), 0, 255));
+  y4_uint = static_cast<uint8_t>(CLIP3((yuv4.y * 255.0f + 0.5f), 0, 255));
 
-  u_uint = static_cast<uint8_t>(floor(new_uv.u * 255.0f + 128.0f + 0.5f));
-  v_uint = static_cast<uint8_t>(floor(new_uv.v * 255.0f + 128.0f + 0.5f));
+  u_uint = static_cast<uint8_t>(CLIP3((new_uv.u * 255.0f + 128.0f + 0.5f), 0, 255));
+  v_uint = static_cast<uint8_t>(CLIP3((new_uv.v * 255.0f + 128.0f + 0.5f), 0, 255));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -598,14 +598,18 @@ Color applyGainLUT(Color e, float gain, GainLUT& gainLUT) {
 }
 
 Color getYuv420Pixel(jr_uncompressed_ptr image, size_t x, size_t y) {
-  size_t pixel_count = image->width * image->height;
+  uint8_t* luma_data = reinterpret_cast<uint8_t*>(image->data);
+  size_t luma_stride = image->luma_stride;
+  uint8_t* chroma_data = reinterpret_cast<uint8_t*>(image->chroma_data);
+  size_t chroma_stride = image->chroma_stride;
 
-  size_t pixel_y_idx = x + y * image->width;
-  size_t pixel_uv_idx = x / 2 + (y / 2) * (image->width / 2);
+  size_t offset_cr = chroma_stride * (image->height / 2);
+  size_t pixel_y_idx = x + y * luma_stride;
+  size_t pixel_chroma_idx = x / 2 + (y / 2) * chroma_stride;
 
-  uint8_t y_uint = reinterpret_cast<uint8_t*>(image->data)[pixel_y_idx];
-  uint8_t u_uint = reinterpret_cast<uint8_t*>(image->data)[pixel_count + pixel_uv_idx];
-  uint8_t v_uint = reinterpret_cast<uint8_t*>(image->data)[pixel_count * 5 / 4 + pixel_uv_idx];
+  uint8_t y_uint = luma_data[pixel_y_idx];
+  uint8_t u_uint = chroma_data[pixel_chroma_idx];
+  uint8_t v_uint = chroma_data[offset_cr + pixel_chroma_idx];
 
   // 128 bias for UV given we are using jpeglib; see:
   // https://github.com/kornelski/libjpeg/blob/master/structure.doc
@@ -615,20 +619,10 @@ Color getYuv420Pixel(jr_uncompressed_ptr image, size_t x, size_t y) {
 }
 
 Color getP010Pixel(jr_uncompressed_ptr image, size_t x, size_t y) {
-  size_t luma_stride = image->luma_stride;
-  size_t chroma_stride = image->chroma_stride;
   uint16_t* luma_data = reinterpret_cast<uint16_t*>(image->data);
+  size_t luma_stride = image->luma_stride == 0 ? image->width : image->luma_stride;
   uint16_t* chroma_data = reinterpret_cast<uint16_t*>(image->chroma_data);
-
-  if (luma_stride == 0) {
-    luma_stride = image->width;
-  }
-  if (chroma_stride == 0) {
-    chroma_stride = luma_stride;
-  }
-  if (chroma_data == nullptr) {
-    chroma_data = &reinterpret_cast<uint16_t*>(image->data)[luma_stride * image->height];
-  }
+  size_t chroma_stride = image->chroma_stride;
 
   size_t pixel_y_idx = y * luma_stride + x;
   size_t pixel_u_idx = (y >> 1) * chroma_stride + (x & ~0x1);

@@ -206,6 +206,7 @@ public:
     void sendTrackingId(int32_t trackingId);
     void sendDown(const Point& point);
     void sendMove(const Point& point);
+    void sendPressure(int32_t pressure);
     void sendPointerUp();
     void sendUp();
     void sendToolType(int32_t toolType);

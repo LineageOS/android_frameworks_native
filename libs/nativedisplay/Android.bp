@@ -73,6 +73,8 @@ cc_library_shared {
         "libGLESv2",
     ],
 
+    static_libs: ["libguiflags"],
+
     export_header_lib_headers: ["jni_headers"],
 
     header_libs: [

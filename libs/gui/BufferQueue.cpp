@@ -98,6 +98,16 @@ void BufferQueue::ProxyConsumerListener::addAndGetFrameTimestamps(
     }
 }
 
+#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(BQ_SETFRAMERATE)
+void BufferQueue::ProxyConsumerListener::onSetFrameRate(float frameRate, int8_t compatibility,
+                                                        int8_t changeFrameRateStrategy) {
+    sp<ConsumerListener> listener(mConsumerListener.promote());
+    if (listener != nullptr) {
+        listener->onSetFrameRate(frameRate, compatibility, changeFrameRateStrategy);
+    }
+}
+#endif
+
 void BufferQueue::createBufferQueue(sp<IGraphicBufferProducer>* outProducer,
         sp<IGraphicBufferConsumer>* outConsumer,
         bool consumerIsSurfaceFlinger) {

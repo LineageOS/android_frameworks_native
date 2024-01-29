@@ -21,12 +21,8 @@ package {
     default_applicable_licenses: ["frameworks_native_license"],
 }
 
-cc_library_shared {
-    name: "libgpumem",
-    srcs: [
-        "GpuMem.cpp",
-    ],
-    header_libs: ["bpf_headers"],
+cc_defaults {
+    name: "libgpumem_deps",
     shared_libs: [
         "libbase",
         "libbpf_bcc",
@@ -34,6 +30,17 @@ cc_library_shared {
         "liblog",
         "libutils",
     ],
+}
+
+cc_library_static {
+    name: "libgpumem",
+    defaults: [
+        "libgpumem_deps",
+    ],
+    srcs: [
+        "GpuMem.cpp",
+    ],
+    header_libs: ["bpf_headers"],
     export_include_dirs: ["include"],
     export_header_lib_headers: ["bpf_headers"],
     export_shared_lib_headers: ["libbase"],

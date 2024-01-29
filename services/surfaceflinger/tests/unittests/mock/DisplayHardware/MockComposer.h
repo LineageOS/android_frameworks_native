@@ -51,6 +51,7 @@ public:
     ~Composer() override;
 
     MOCK_METHOD(bool, isSupported, (OptionalFeature), (const, override));
+    MOCK_METHOD(bool, isVrrSupported, (), (const, override));
     MOCK_METHOD0(getCapabilities,
                  std::vector<aidl::android::hardware::graphics::composer3::Capability>());
     MOCK_METHOD0(dumpDebugInfo, std::string());
@@ -70,6 +71,8 @@ public:
     MOCK_METHOD4(getDisplayAttribute,
                  Error(Display, Config config, IComposerClient::Attribute, int32_t*));
     MOCK_METHOD2(getDisplayConfigs, Error(Display, std::vector<Config>*));
+    MOCK_METHOD3(getDisplayConfigurations,
+                 Error(Display, int32_t, std::vector<DisplayConfiguration>*));
     MOCK_METHOD2(getDisplayName, Error(Display, std::string*));
     MOCK_METHOD4(getDisplayRequests,
                  Error(Display, uint32_t*, std::vector<Layer>*, std::vector<uint32_t>*));
@@ -83,18 +86,19 @@ public:
     MOCK_METHOD3(getReleaseFences, Error(Display, std::vector<Layer>*, std::vector<int>*));
     MOCK_METHOD2(presentDisplay, Error(Display, int*));
     MOCK_METHOD2(setActiveConfig, Error(Display, Config));
-    MOCK_METHOD6(setClientTarget,
-                 Error(Display, uint32_t, const sp<GraphicBuffer>&, int, Dataspace,
-                       const std::vector<IComposerClient::Rect>&));
+    MOCK_METHOD(Error, setClientTarget,
+                (Display, uint32_t, const sp<GraphicBuffer>&, int, Dataspace,
+                 const std::vector<IComposerClient::Rect>&, float),
+                (override));
     MOCK_METHOD3(setColorMode, Error(Display, ColorMode, RenderIntent));
     MOCK_METHOD2(setColorTransform, Error(Display, const float*));
     MOCK_METHOD3(setOutputBuffer, Error(Display, const native_handle_t*, int));
     MOCK_METHOD2(setPowerMode, Error(Display, IComposerClient::PowerMode));
     MOCK_METHOD2(setVsyncEnabled, Error(Display, IComposerClient::Vsync));
     MOCK_METHOD1(setClientTargetSlotCount, Error(Display));
-    MOCK_METHOD4(validateDisplay, Error(Display, nsecs_t, uint32_t*, uint32_t*));
-    MOCK_METHOD6(presentOrValidateDisplay,
-                 Error(Display, nsecs_t, uint32_t*, uint32_t*, int*, uint32_t*));
+    MOCK_METHOD(Error, validateDisplay, (Display, nsecs_t, int32_t, uint32_t*, uint32_t*));
+    MOCK_METHOD(Error, presentOrValidateDisplay,
+                (Display, nsecs_t, int32_t, uint32_t*, uint32_t*, int*, uint32_t*));
     MOCK_METHOD4(setCursorPosition, Error(Display, Layer, int32_t, int32_t));
     MOCK_METHOD5(setLayerBuffer, Error(Display, Layer, uint32_t, const sp<GraphicBuffer>&, int));
     MOCK_METHOD4(setLayerBufferSlotsToClear,
@@ -175,6 +179,7 @@ public:
     MOCK_METHOD1(onHotplugConnect, void(Display));
     MOCK_METHOD1(onHotplugDisconnect, void(Display));
     MOCK_METHOD(Error, setRefreshRateChangedCallbackDebugEnabled, (Display, bool));
+    MOCK_METHOD(Error, notifyExpectedPresent, (Display, nsecs_t, int32_t));
 };
 
 } // namespace Hwc2::mock
