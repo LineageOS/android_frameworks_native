@@ -1022,7 +1022,7 @@ void SkiaRenderEngine::drawLayersInternal(
                                                   .fakeOutputDataspace = fakeDataspace}));
 
             // Turn on dithering when dimming beyond this (arbitrary) threshold...
-            static constexpr float kDimmingThreshold = 0.2f;
+            static constexpr float kDimmingThreshold = 0.9f;
             // ...or we're rendering an HDR layer down to an 8-bit target
             // Most HDR standards require at least 10-bits of color depth for source content, so we
             // can just extract the transfer function rather than dig into precise gralloc layout.
