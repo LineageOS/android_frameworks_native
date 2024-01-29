@@ -34,6 +34,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <vector>
 
 #include <vulkan/vulkan.h>
@@ -67,6 +68,13 @@ struct DestroySemaphoreInfo {
     DestroySemaphoreInfo(VkSemaphore semaphore) : mSemaphore(semaphore) {}
 };
 
+namespace {
+void onVkDeviceFault(void* callbackContext, const std::string& description,
+                     const std::vector<VkDeviceFaultAddressInfoEXT>& addressInfos,
+                     const std::vector<VkDeviceFaultVendorInfoEXT>& vendorInfos,
+                     const std::vector<std::byte>& vendorBinaryData);
+} // anonymous namespace
+
 struct VulkanInterface {
     bool initialized = false;
     VkInstance instance;
@@ -79,6 +87,7 @@ struct VulkanInterface {
     VkPhysicalDeviceFeatures2* physicalDeviceFeatures2 = nullptr;
     VkPhysicalDeviceSamplerYcbcrConversionFeatures* samplerYcbcrConversionFeatures = nullptr;
     VkPhysicalDeviceProtectedMemoryFeatures* protectedMemoryFeatures = nullptr;
+    VkPhysicalDeviceFaultFeaturesEXT* deviceFaultFeatures = nullptr;
     GrVkGetProc grGetProc;
     bool isProtected;
     bool isRealtimePriority;
@@ -100,6 +109,8 @@ struct VulkanInterface {
         backendContext.fDeviceFeatures2 = physicalDeviceFeatures2;
         backendContext.fGetProc = grGetProc;
         backendContext.fProtectedContext = isProtected ? GrProtected::kYes : GrProtected::kNo;
+        backendContext.fDeviceLostContext = this; // VulkanInterface is long-lived
+        backendContext.fDeviceLostProc = onVkDeviceFault;
         return backendContext;
     };
 
@@ -177,6 +188,67 @@ struct VulkanInterface {
         funcs.vkDestroySemaphore(device, semaphore, nullptr);
     }
 };
+
+namespace {
+void onVkDeviceFault(void* callbackContext, const std::string& description,
+                     const std::vector<VkDeviceFaultAddressInfoEXT>& addressInfos,
+                     const std::vector<VkDeviceFaultVendorInfoEXT>& vendorInfos,
+                     const std::vector<std::byte>& vendorBinaryData) {
+    VulkanInterface* interface = static_cast<VulkanInterface*>(callbackContext);
+    const string protectedStr = interface->isProtected ? "protected" : "non-protected";
+    // The final crash string should contain as much differentiating info as possible, up to 1024
+    // bytes. As this final message is constructed, the same information is also dumped to the logs
+    // but in a more verbose format. Building the crash string is unsightly, so the clearer logging
+    // statement is always placed first to give context.
+    ALOGE("VK_ERROR_DEVICE_LOST (%s context): %s", protectedStr.c_str(), description.c_str());
+    string crashStr = "VK_ERROR_DEVICE_LOST (" + protectedStr;
+
+    if (!addressInfos.empty()) {
+        ALOGE("%zu VkDeviceFaultAddressInfoEXT:", addressInfos.size());
+        crashStr += ", " + std::to_string(addressInfos.size()) + " address info (";
+        for (VkDeviceFaultAddressInfoEXT addressInfo : addressInfos) {
+            ALOGE(" addressType:       %d", (int)addressInfo.addressType);
+            ALOGE("  reportedAddress:  %" PRIu64, addressInfo.reportedAddress);
+            ALOGE("  addressPrecision: %" PRIu64, addressInfo.addressPrecision);
+            crashStr += std::to_string(addressInfo.addressType) + ":" +
+                    std::to_string(addressInfo.reportedAddress) + ":" +
+                    std::to_string(addressInfo.addressPrecision) + ", ";
+        }
+        crashStr.resize(crashStr.size() - 2); // Remove trailing ", "
+        crashStr += ")";
+    }
+
+    if (!vendorInfos.empty()) {
+        ALOGE("%zu VkDeviceFaultVendorInfoEXT:", vendorInfos.size());
+        crashStr += ", " + std::to_string(vendorInfos.size()) + " vendor info (";
+        for (VkDeviceFaultVendorInfoEXT vendorInfo : vendorInfos) {
+            ALOGE(" description:      %s", vendorInfo.description);
+            ALOGE("  vendorFaultCode: %" PRIu64, vendorInfo.vendorFaultCode);
+            ALOGE("  vendorFaultData: %" PRIu64, vendorInfo.vendorFaultData);
+            // Omit descriptions for individual vendor info structs in the crash string, as the
+            // fault code and fault data fields should be enough for clustering, and the verbosity
+            // isn't worth it. Additionally, vendors may just set the general description field of
+            // the overall fault to the description of the first element in this list, and that
+            // overall description will be placed at the end of the crash string.
+            crashStr += std::to_string(vendorInfo.vendorFaultCode) + ":" +
+                    std::to_string(vendorInfo.vendorFaultData) + ", ";
+        }
+        crashStr.resize(crashStr.size() - 2); // Remove trailing ", "
+        crashStr += ")";
+    }
+
+    if (!vendorBinaryData.empty()) {
+        // TODO: b/322830575 - Log in base64, or dump directly to a file that gets put in bugreports
+        ALOGE("%zu bytes of vendor-specific binary data (please notify Android's Core Graphics"
+              " Stack team if you observe this message).",
+              vendorBinaryData.size());
+        crashStr += ", " + std::to_string(vendorBinaryData.size()) + " bytes binary";
+    }
+
+    crashStr += "): " + description;
+    LOG_ALWAYS_FATAL("%s", crashStr.c_str());
+};
+} // anonymous namespace
 
 static GrVkGetProc sGetProc = [](const char* proc_name, VkInstance instance, VkDevice device) {
     if (device != VK_NULL_HANDLE) {
@@ -429,6 +501,14 @@ VulkanInterface initVulkanInterface(bool protectedContent = false) {
         tailPnext = &interface.protectedMemoryFeatures->pNext;
     }
 
+    if (interface.grExtensions.hasExtension(VK_EXT_DEVICE_FAULT_EXTENSION_NAME, 1)) {
+        interface.deviceFaultFeatures = new VkPhysicalDeviceFaultFeaturesEXT;
+        interface.deviceFaultFeatures->sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FAULT_FEATURES_EXT;
+        interface.deviceFaultFeatures->pNext = nullptr;
+        *tailPnext = interface.deviceFaultFeatures;
+        tailPnext = &interface.deviceFaultFeatures->pNext;
+    }
+
     vkGetPhysicalDeviceFeatures2(physicalDevice, interface.physicalDeviceFeatures2);
     // Looks like this would slow things down and we can't depend on it on all platforms
     interface.physicalDeviceFeatures2->features.robustBufferAccess = VK_FALSE;
@@ -543,6 +623,10 @@ void teardownVulkanInterface(VulkanInterface* interface) {
 
     if (interface->physicalDeviceFeatures2) {
         delete interface->physicalDeviceFeatures2;
+    }
+
+    if (interface->deviceFaultFeatures) {
+        delete interface->deviceFaultFeatures;
     }
 
     interface->samplerYcbcrConversionFeatures = nullptr;
