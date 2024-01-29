@@ -243,6 +243,12 @@ cc_defaults {
     // contention on the device. b/276820894
     test_options: {
         unit_test: false,
+        test_runner_options: [
+            {
+                name: "native-test-timeout",
+                value: "10m",
+            },
+        ],
     },
 
     test_suites: ["general-tests"],
