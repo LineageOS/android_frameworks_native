@@ -166,3 +166,11 @@ flag {
   bug: "293371537"
   is_fixed_read_only: true
 }
+
+flag {
+  name: "screenshot_fence_preservation"
+  namespace: "core_graphics"
+  description: "Bug fix around screenshot fences"
+  bug: "302703346"
+  is_fixed_read_only: true
+}
