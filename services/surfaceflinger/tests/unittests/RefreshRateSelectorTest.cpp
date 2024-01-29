@@ -1624,6 +1624,7 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_withFrameRateCategory_HighH
     EXPECT_EQ(120_Hz, actualFrameRateMode.fps);
     EXPECT_EQ(kModeId120, actualFrameRateMode.modePtr->getId());
 
+    // No touch boost, for example a game that uses setFrameRate(30, default compatibility).
     lr1.vote = LayerVoteType::ExplicitCategory;
     lr1.frameRateCategory = FrameRateCategory::HighHint;
     lr1.name = "ExplicitCategory HighHint";
@@ -1652,8 +1653,9 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_withFrameRateCategory_HighH
     lr2.frameRateCategory = FrameRateCategory::Low;
     lr2.name = "ExplicitCategory Low";
     actualFrameRateMode = selector.getBestFrameRateMode(layers);
-    EXPECT_EQ(30_Hz, actualFrameRateMode.fps);
-    EXPECT_EQ(kModeId30, actualFrameRateMode.modePtr->getId());
+    // Gets touch boost
+    EXPECT_EQ(120_Hz, actualFrameRateMode.fps);
+    EXPECT_EQ(kModeId120, actualFrameRateMode.modePtr->getId());
 
     lr1.vote = LayerVoteType::ExplicitCategory;
     lr1.frameRateCategory = FrameRateCategory::HighHint;
