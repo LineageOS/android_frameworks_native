@@ -136,7 +136,8 @@ public:
     void dump(std::string& dump) override;
 
     status_t dump(int fd, const Vector<String16>& args) override;
-    binder::Status createInputChannel(const std::string& name, InputChannel* outChannel) override;
+    binder::Status createInputChannel(const std::string& name,
+                                      android::os::InputChannelCore* outChannel) override;
     binder::Status removeInputChannel(const sp<IBinder>& connectionToken) override;
     binder::Status setFocusedWindow(const gui::FocusRequest&) override;
 

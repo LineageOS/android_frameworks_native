@@ -5733,7 +5733,7 @@ status_t SurfaceFlinger::createLayer(LayerCreationArgs& args, gui::CreateSurface
         case ISurfaceComposerClient::eFXSurfaceContainer:
         case ISurfaceComposerClient::eFXSurfaceBufferState:
             args.flags |= ISurfaceComposerClient::eNoColorFill;
-            FMT_FALLTHROUGH;
+            [[fallthrough]];
         case ISurfaceComposerClient::eFXSurfaceEffect: {
             result = createBufferStateLayer(args, &outResult.handle, &layer);
             std::atomic<int32_t>* pendingBufferCounter = layer->getPendingBufferCounter();

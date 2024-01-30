@@ -15,6 +15,16 @@
 ** limitations under the License.
 */
 
-package android;
+package android.os;
 
-parcelable InputChannel cpp_header "input/InputTransport.h";
+import android.os.ParcelFileDescriptor;
+
+/**
+ * Input channel struct for sending InputChannel between processes.
+ * @hide
+ */
+parcelable InputChannelCore {
+    @utf8InCpp String name;
+    ParcelFileDescriptor fd;
+    IBinder token;
+}

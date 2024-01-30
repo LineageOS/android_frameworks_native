@@ -63,8 +63,7 @@ namespace android::test {
 using Transaction = SurfaceComposerClient::Transaction;
 
 sp<IInputFlinger> getInputFlinger() {
-   sp<IBinder> input(defaultServiceManager()->getService(
-            String16("inputflinger")));
+    sp<IBinder> input(defaultServiceManager()->waitForService(String16("inputflinger")));
     if (input == nullptr) {
         ALOGE("Failed to link to input service");
     } else { ALOGE("Linked to input"); }
@@ -104,8 +103,13 @@ public:
         if (noInputChannel) {
             mInputInfo.setInputConfig(WindowInfo::InputConfig::NO_INPUT_CHANNEL, true);
         } else {
-            mClientChannel = std::make_shared<InputChannel>();
-            mInputFlinger->createInputChannel("testchannels", mClientChannel.get());
+            android::os::InputChannelCore tempChannel;
+            android::binder::Status result =
+                    mInputFlinger->createInputChannel("testchannels", &tempChannel);
+            if (!result.isOk()) {
+                ADD_FAILURE() << "binder call to createInputChannel failed";
+            }
+            mClientChannel = InputChannel::create(std::move(tempChannel));
             mInputInfo.token = mClientChannel->getConnectionToken();
             mInputConsumer = new InputConsumer(mClientChannel);
         }

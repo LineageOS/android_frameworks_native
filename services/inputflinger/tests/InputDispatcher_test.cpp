@@ -1113,7 +1113,7 @@ public:
 
     sp<IBinder> getToken() { return mConsumer.getChannel()->getConnectionToken(); }
 
-    int getChannelFd() { return mConsumer.getChannel()->getFd().get(); }
+    int getChannelFd() { return mConsumer.getChannel()->getFd(); }
 
 private:
     InputConsumer mConsumer;

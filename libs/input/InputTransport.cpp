@@ -95,6 +95,21 @@ bool debugResampling() {
     return __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "Resampling", ANDROID_LOG_INFO);
 }
 
+android::base::unique_fd dupChannelFd(int fd) {
+    android::base::unique_fd newFd(::dup(fd));
+    if (!newFd.ok()) {
+        ALOGE("Could not duplicate fd %i : %s", fd, strerror(errno));
+        const bool hitFdLimit = errno == EMFILE || errno == ENFILE;
+        // If this process is out of file descriptors, then throwing that might end up exploding
+        // on the other side of a binder call, which isn't really helpful.
+        // Better to just crash here and hope that the FD leak is slow.
+        // Other failures could be client errors, so we still propagate those back to the caller.
+        LOG_ALWAYS_FATAL_IF(hitFdLimit, "Too many open files, could not duplicate input channel");
+        return {};
+    }
+    return newFd;
+}
+
 } // namespace
 
 using android::base::Result;
@@ -395,15 +410,23 @@ std::unique_ptr<InputChannel> InputChannel::create(const std::string& name,
     return std::unique_ptr<InputChannel>(new InputChannel(name, std::move(fd), token));
 }
 
-InputChannel::InputChannel(const std::string name, android::base::unique_fd fd, sp<IBinder> token)
-      : mName(std::move(name)), mFd(std::move(fd)), mToken(std::move(token)) {
+std::unique_ptr<InputChannel> InputChannel::create(
+        android::os::InputChannelCore&& parceledChannel) {
+    return InputChannel::create(parceledChannel.name, parceledChannel.fd.release(),
+                                parceledChannel.token);
+}
+
+InputChannel::InputChannel(const std::string name, android::base::unique_fd fd, sp<IBinder> token) {
+    this->name = std::move(name);
+    this->fd.reset(std::move(fd));
+    this->token = std::move(token);
     ALOGD_IF(DEBUG_CHANNEL_LIFECYCLE, "Input channel constructed: name='%s', fd=%d",
-             getName().c_str(), getFd().get());
+             getName().c_str(), getFd());
 }
 
 InputChannel::~InputChannel() {
     ALOGD_IF(DEBUG_CHANNEL_LIFECYCLE, "Input channel destroyed: name='%s', fd=%d",
-             getName().c_str(), getFd().get());
+             getName().c_str(), getFd());
 }
 
 status_t InputChannel::openInputChannelPair(const std::string& name,
@@ -441,19 +464,19 @@ status_t InputChannel::sendMessage(const InputMessage* msg) {
     ATRACE_NAME_IF(ATRACE_ENABLED(),
                    StringPrintf("sendMessage(inputChannel=%s, seq=0x%" PRIx32 ", type=0x%" PRIx32
                                 ")",
-                                mName.c_str(), msg->header.seq, msg->header.type));
+                                name.c_str(), msg->header.seq, msg->header.type));
     const size_t msgLength = msg->size();
     InputMessage cleanMsg;
     msg->getSanitizedCopy(&cleanMsg);
     ssize_t nWrite;
     do {
-        nWrite = ::send(getFd().get(), &cleanMsg, msgLength, MSG_DONTWAIT | MSG_NOSIGNAL);
+        nWrite = ::send(getFd(), &cleanMsg, msgLength, MSG_DONTWAIT | MSG_NOSIGNAL);
     } while (nWrite == -1 && errno == EINTR);
 
     if (nWrite < 0) {
         int error = errno;
         ALOGD_IF(DEBUG_CHANNEL_MESSAGES, "channel '%s' ~ error sending message of type %s, %s",
-                 mName.c_str(), ftl::enum_string(msg->header.type).c_str(), strerror(error));
+                 name.c_str(), ftl::enum_string(msg->header.type).c_str(), strerror(error));
         if (error == EAGAIN || error == EWOULDBLOCK) {
             return WOULD_BLOCK;
         }
@@ -465,12 +488,12 @@ status_t InputChannel::sendMessage(const InputMessage* msg) {
 
     if (size_t(nWrite) != msgLength) {
         ALOGD_IF(DEBUG_CHANNEL_MESSAGES,
-                 "channel '%s' ~ error sending message type %s, send was incomplete", mName.c_str(),
+                 "channel '%s' ~ error sending message type %s, send was incomplete", name.c_str(),
                  ftl::enum_string(msg->header.type).c_str());
         return DEAD_OBJECT;
     }
 
-    ALOGD_IF(DEBUG_CHANNEL_MESSAGES, "channel '%s' ~ sent message of type %s", mName.c_str(),
+    ALOGD_IF(DEBUG_CHANNEL_MESSAGES, "channel '%s' ~ sent message of type %s", name.c_str(),
              ftl::enum_string(msg->header.type).c_str());
 
     return OK;
@@ -479,13 +502,13 @@ status_t InputChannel::sendMessage(const InputMessage* msg) {
 status_t InputChannel::receiveMessage(InputMessage* msg) {
     ssize_t nRead;
     do {
-        nRead = ::recv(getFd().get(), msg, sizeof(InputMessage), MSG_DONTWAIT);
+        nRead = ::recv(getFd(), msg, sizeof(InputMessage), MSG_DONTWAIT);
     } while (nRead == -1 && errno == EINTR);
 
     if (nRead < 0) {
         int error = errno;
         ALOGD_IF(DEBUG_CHANNEL_MESSAGES, "channel '%s' ~ receive message failed, errno=%d",
-                 mName.c_str(), errno);
+                 name.c_str(), errno);
         if (error == EAGAIN || error == EWOULDBLOCK) {
             return WOULD_BLOCK;
         }
@@ -497,29 +520,29 @@ status_t InputChannel::receiveMessage(InputMessage* msg) {
 
     if (nRead == 0) { // check for EOF
         ALOGD_IF(DEBUG_CHANNEL_MESSAGES,
-                 "channel '%s' ~ receive message failed because peer was closed", mName.c_str());
+                 "channel '%s' ~ receive message failed because peer was closed", name.c_str());
         return DEAD_OBJECT;
     }
 
     if (!msg->isValid(nRead)) {
-        ALOGE("channel '%s' ~ received invalid message of size %zd", mName.c_str(), nRead);
+        ALOGE("channel '%s' ~ received invalid message of size %zd", name.c_str(), nRead);
         return BAD_VALUE;
     }
 
-    ALOGD_IF(DEBUG_CHANNEL_MESSAGES, "channel '%s' ~ received message of type %s", mName.c_str(),
+    ALOGD_IF(DEBUG_CHANNEL_MESSAGES, "channel '%s' ~ received message of type %s", name.c_str(),
              ftl::enum_string(msg->header.type).c_str());
     if (ATRACE_ENABLED()) {
         // Add an additional trace point to include data about the received message.
         std::string message = StringPrintf("receiveMessage(inputChannel=%s, seq=0x%" PRIx32
                                            ", type=0x%" PRIx32 ")",
-                                           mName.c_str(), msg->header.seq, msg->header.type);
+                                           name.c_str(), msg->header.seq, msg->header.type);
         ATRACE_NAME(message.c_str());
     }
     return OK;
 }
 
 bool InputChannel::probablyHasInput() const {
-    struct pollfd pfds = {.fd = mFd, .events = POLLIN};
+    struct pollfd pfds = {.fd = fd.get(), .events = POLLIN};
     if (::poll(&pfds, /*nfds=*/1, /*timeout=*/0) <= 0) {
         // This can be a false negative because EINTR and ENOMEM are not handled. The latter should
         // be extremely rare. The EINTR is also unlikely because it happens only when the signal
@@ -538,7 +561,7 @@ void InputChannel::waitForMessage(std::chrono::milliseconds timeout) const {
     if (timeout < 0ms) {
         LOG(FATAL) << "Timeout cannot be negative, received " << timeout.count();
     }
-    struct pollfd pfds = {.fd = mFd, .events = POLLIN};
+    struct pollfd pfds = {.fd = fd.get(), .events = POLLIN};
     int ret;
     std::chrono::time_point<std::chrono::steady_clock> stopTime =
             std::chrono::steady_clock::now() + timeout;
@@ -551,53 +574,18 @@ void InputChannel::waitForMessage(std::chrono::milliseconds timeout) const {
 }
 
 std::unique_ptr<InputChannel> InputChannel::dup() const {
-    base::unique_fd newFd(dupFd());
+    base::unique_fd newFd(dupChannelFd(fd.get()));
     return InputChannel::create(getName(), std::move(newFd), getConnectionToken());
 }
 
-void InputChannel::copyTo(InputChannel& outChannel) const {
-    outChannel.mName = getName();
-    outChannel.mFd = dupFd();
-    outChannel.mToken = getConnectionToken();
-}
-
-status_t InputChannel::writeToParcel(android::Parcel* parcel) const {
-    if (parcel == nullptr) {
-        ALOGE("%s: Null parcel", __func__);
-        return BAD_VALUE;
-    }
-    return parcel->writeStrongBinder(mToken)
-            ?: parcel->writeUtf8AsUtf16(mName) ?: parcel->writeUniqueFileDescriptor(mFd);
-}
-
-status_t InputChannel::readFromParcel(const android::Parcel* parcel) {
-    if (parcel == nullptr) {
-        ALOGE("%s: Null parcel", __func__);
-        return BAD_VALUE;
-    }
-    mToken = parcel->readStrongBinder();
-    return parcel->readUtf8FromUtf16(&mName) ?: parcel->readUniqueFileDescriptor(&mFd);
+void InputChannel::copyTo(android::os::InputChannelCore& outChannel) const {
+    outChannel.name = getName();
+    outChannel.fd.reset(dupChannelFd(fd.get()));
+    outChannel.token = getConnectionToken();
 }
 
 sp<IBinder> InputChannel::getConnectionToken() const {
-    return mToken;
-}
-
-base::unique_fd InputChannel::dupFd() const {
-    base::unique_fd newFd(::dup(getFd().get()));
-    if (!newFd.ok()) {
-        ALOGE("Could not duplicate fd %i for channel %s: %s", getFd().get(), getName().c_str(),
-              strerror(errno));
-        const bool hitFdLimit = errno == EMFILE || errno == ENFILE;
-        // If this process is out of file descriptors, then throwing that might end up exploding
-        // on the other side of a binder call, which isn't really helpful.
-        // Better to just crash here and hope that the FD leak is slow.
-        // Other failures could be client errors, so we still propagate those back to the caller.
-        LOG_ALWAYS_FATAL_IF(hitFdLimit, "Too many open files, could not duplicate input channel %s",
-                            getName().c_str());
-        return {};
-    }
-    return newFd;
+    return token;
 }
 
 // --- InputPublisher ---

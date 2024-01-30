@@ -260,13 +260,16 @@ void InputManager::dump(std::string& dump) {
 }
 
 // Used by tests only.
-binder::Status InputManager::createInputChannel(const std::string& name, InputChannel* outChannel) {
+binder::Status InputManager::createInputChannel(const std::string& name,
+                                                android::os::InputChannelCore* outChannel) {
     IPCThreadState* ipc = IPCThreadState::self();
-    const int uid = ipc->getCallingUid();
+    const uid_t uid = ipc->getCallingUid();
     if (uid != AID_SHELL && uid != AID_ROOT) {
-        ALOGE("Invalid attempt to register input channel over IPC"
-                "from non shell/root entity (PID: %d)", ipc->getCallingPid());
-        return binder::Status::ok();
+        LOG(ERROR) << __func__ << " can only be called by SHELL or ROOT users, "
+                   << "but was called from UID " << uid;
+        return binder::Status::
+                fromExceptionCode(EX_SECURITY,
+                                  "This uid is not allowed to call createInputChannel");
     }
 
     base::Result<std::unique_ptr<InputChannel>> channel = mDispatcher->createInputChannel(name);
