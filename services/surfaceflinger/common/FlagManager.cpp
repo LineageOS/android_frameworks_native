@@ -128,6 +128,7 @@ void FlagManager::dump(std::string& result) const {
     DUMP_READ_ONLY_FLAG(fp16_client_target);
     DUMP_READ_ONLY_FLAG(game_default_frame_rate);
     DUMP_READ_ONLY_FLAG(enable_layer_command_batching);
+    DUMP_READ_ONLY_FLAG(screenshot_fence_preservation);
     DUMP_READ_ONLY_FLAG(vulkan_renderengine);
 #undef DUMP_READ_ONLY_FLAG
 #undef DUMP_SERVER_FLAG
@@ -203,6 +204,7 @@ FLAG_MANAGER_READ_ONLY_FLAG(display_protected, "")
 FLAG_MANAGER_READ_ONLY_FLAG(fp16_client_target, "debug.sf.fp16_client_target")
 FLAG_MANAGER_READ_ONLY_FLAG(game_default_frame_rate, "")
 FLAG_MANAGER_READ_ONLY_FLAG(enable_layer_command_batching, "")
+FLAG_MANAGER_READ_ONLY_FLAG(screenshot_fence_preservation, "debug.sf.screenshot_fence_preservation")
 FLAG_MANAGER_READ_ONLY_FLAG(vulkan_renderengine, "debug.renderengine.vulkan")
 
 /// Trunk stable server flags ///

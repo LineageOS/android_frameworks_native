@@ -555,7 +555,8 @@ public:
     const compositionengine::LayerFECompositionState* getCompositionState() const;
     bool fenceHasSignaled() const;
     void onPreComposition(nsecs_t refreshStartTime);
-    void onLayerDisplayed(ftl::SharedFuture<FenceResult>, ui::LayerStack layerStack);
+    void onLayerDisplayed(ftl::SharedFuture<FenceResult>, ui::LayerStack layerStack,
+                          std::function<FenceResult(FenceResult)>&& continuation = nullptr);
 
     void setWasClientComposed(const sp<Fence>& fence) {
         mLastClientCompositionFence = fence;
@@ -932,6 +933,19 @@ public:
     // the release fences from the correct displays when we release the last buffer
     // from the layer.
     std::vector<ui::LayerStack> mPreviouslyPresentedLayerStacks;
+    struct FenceAndContinuation {
+        ftl::SharedFuture<FenceResult> future;
+        std::function<FenceResult(FenceResult)> continuation;
+
+        ftl::SharedFuture<FenceResult> chain() const {
+            if (continuation) {
+                return ftl::Future(future).then(continuation).share();
+            } else {
+                return future;
+            }
+        }
+    };
+    std::vector<FenceAndContinuation> mAdditionalPreviousReleaseFences;
     // Exposed so SurfaceFlinger can assert that it's held
     const sp<SurfaceFlinger> mFlinger;
 

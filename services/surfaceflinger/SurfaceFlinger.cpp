@@ -8159,14 +8159,23 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
                                                      : ftl::yield(present()).share();
 
     for (auto& [layer, layerFE] : layers) {
-        layer->onLayerDisplayed(ftl::Future(presentFuture)
-                                        .then([layerFE = std::move(layerFE)](FenceResult) {
-                                            return layerFE->stealCompositionResult()
-                                                    .releaseFences.back()
-                                                    .first.get();
-                                        })
-                                        .share(),
-                                ui::INVALID_LAYER_STACK);
+        layer->onLayerDisplayed(presentFuture, ui::INVALID_LAYER_STACK,
+                                [layerFE = std::move(layerFE)](FenceResult) {
+                                    if (FlagManager::getInstance()
+                                                .screenshot_fence_preservation()) {
+                                        const auto compositionResult =
+                                                layerFE->stealCompositionResult();
+                                        const auto& fences = compositionResult.releaseFences;
+                                        // CompositionEngine may choose to cull layers that
+                                        // aren't visible, so pass a non-fence.
+                                        return fences.empty() ? Fence::NO_FENCE
+                                                              : fences.back().first.get();
+                                    } else {
+                                        return layerFE->stealCompositionResult()
+                                                .releaseFences.back()
+                                                .first.get();
+                                    }
+                                });
     }
 
     return presentFuture;
