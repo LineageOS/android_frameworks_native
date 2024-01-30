@@ -43,6 +43,7 @@
 
 #include <gui/AidlStatusUtil.h>
 #include <gui/BufferItem.h>
+
 #include <gui/IProducerListener.h>
 
 #include <gui/ISurfaceComposer.h>
@@ -50,8 +51,11 @@
 #include <private/gui/ComposerService.h>
 #include <private/gui/ComposerServiceAIDL.h>
 
+#include <com_android_graphics_libgui_flags.h>
+
 namespace android {
 
+using namespace com::android::graphics::libgui;
 using gui::aidl_utils::statusTFromBinderStatus;
 using ui::Dataspace;
 
@@ -2565,8 +2569,22 @@ void Surface::ProducerListenerProxy::onBuffersDiscarded(const std::vector<int32_
     mSurfaceListener->onBuffersDiscarded(discardedBufs);
 }
 
-[[deprecated]] status_t Surface::setFrameRate(float /*frameRate*/, int8_t /*compatibility*/,
-                                              int8_t /*changeFrameRateStrategy*/) {
+status_t Surface::setFrameRate(float frameRate, int8_t compatibility,
+                               int8_t changeFrameRateStrategy) {
+#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(BQ_SETFRAMERATE)
+    if (flags::bq_setframerate()) {
+        status_t err = mGraphicBufferProducer->setFrameRate(frameRate, compatibility,
+                                                            changeFrameRateStrategy);
+        ALOGE_IF(err, "IGraphicBufferProducer::setFrameRate(%.2f) returned %s", frameRate,
+                 strerror(-err));
+        return err;
+    }
+#else
+    static_cast<void>(frameRate);
+    static_cast<void>(compatibility);
+    static_cast<void>(changeFrameRateStrategy);
+#endif
+
     ALOGI("Surface::setFrameRate is deprecated, setFrameRate hint is dropped as destination is not "
           "SurfaceFlinger");
     // ISurfaceComposer no longer supports setFrameRate, we will return NO_ERROR when the api is

@@ -25,12 +25,12 @@
 
 #include <ftl/string.h>
 
-// Returns the name of enumerator E::V (i.e. "V") as std::optional<std::string_view> by parsing the
-// compiler-generated string literal for the signature of this function. The function is defined in
-// the global namespace with a short name and inferred return type to reduce bloat in the read-only
-// data segment.
-template <typename E, E V>
-constexpr auto ftl_enum() {
+// Returns the name of enumerator E::V and optionally the class (i.e. "E::V" or "V") as
+// std::optional<std::string_view> by parsing the compiler-generated string literal for the
+// signature of this function. The function is defined in the global namespace with a short name
+// and inferred return type to reduce bloat in the read-only data segment.
+template <bool S, typename E, E V>
+constexpr auto ftl_enum_builder() {
   static_assert(std::is_enum_v<E>);
 
   using R = std::optional<std::string_view>;
@@ -58,7 +58,9 @@ constexpr auto ftl_enum() {
   //   V = android::test::Enum::kValue
   //
   view = view.substr(value_begin);
-  const auto name_begin = view.rfind("::"sv);
+  const auto pos = S ? view.rfind("::"sv) - 2 : view.npos;
+
+  const auto name_begin = view.rfind("::"sv, pos);
   if (name_begin == view.npos) return R{};
 
   // Chop off the leading "::".
@@ -66,6 +68,18 @@ constexpr auto ftl_enum() {
 
   // A value that is not enumerated has the format "Enum)42".
   return name.find(')') == view.npos ? R{name} : R{};
+}
+
+// Returns the name of enumerator E::V (i.e. "V") as std::optional<std::string_view>
+template <typename E, E V>
+constexpr auto ftl_enum() {
+  return ftl_enum_builder<false, E, V>();
+}
+
+// Returns the name of enumerator and class E::V (i.e. "E::V") as std::optional<std::string_view>
+template <typename E, E V>
+constexpr auto ftl_enum_full() {
+  return ftl_enum_builder<true, E, V>();
 }
 
 namespace android::ftl {
@@ -191,6 +205,11 @@ struct EnumName {
   static constexpr auto value = ftl_enum<decltype(V), V>();
 };
 
+template <auto V>
+struct EnumNameFull {
+  static constexpr auto value = ftl_enum_full<decltype(V), V>();
+};
+
 template <auto I>
 struct FlagName {
   using E = decltype(I);
@@ -230,6 +249,18 @@ constexpr std::string_view enum_name() {
   return *kName;
 }
 
+// Returns a stringified enumerator with class at compile time.
+//
+//   enum class E { A, B, C };
+//   static_assert(ftl::enum_name<E::B>() == "E::B");
+//
+template <auto V>
+constexpr std::string_view enum_name_full() {
+  constexpr auto kName = ftl_enum_full<decltype(V), V>();
+  static_assert(kName, "Unknown enumerator");
+  return *kName;
+}
+
 // Returns a stringified enumerator, possibly at compile time.
 //
 //   enum class E { A, B, C, F = 5, ftl_last = F };
@@ -246,6 +277,25 @@ constexpr std::optional<std::string_view> enum_name(E v) {
   if (value < kBegin || value > kLast) return {};
 
   constexpr auto kRange = details::EnumRange<E, details::EnumName>{};
+  return kRange.values[value - kBegin];
+}
+
+// Returns a stringified enumerator with class, possibly at compile time.
+//
+//   enum class E { A, B, C, F = 5, ftl_last = F };
+//
+//   static_assert(ftl::enum_name(E::C).value_or("?") == "E::C");
+//   static_assert(ftl::enum_name(E{3}).value_or("?") == "?");
+//
+template <typename E>
+constexpr std::optional<std::string_view> enum_name_full(E v) {
+  const auto value = to_underlying(v);
+
+  constexpr auto kBegin = to_underlying(enum_begin_v<E>);
+  constexpr auto kLast = to_underlying(enum_last_v<E>);
+  if (value < kBegin || value > kLast) return {};
+
+  constexpr auto kRange = details::EnumRange<E, details::EnumNameFull>{};
   return kRange.values[value - kBegin];
 }
 
@@ -278,6 +328,21 @@ template <typename E>
 inline std::string enum_string(E v) {
   if (const auto name = enum_name(v)) {
     return std::string(*name);
+  }
+  return to_string(to_underlying(v));
+}
+
+// Returns a stringified enumerator with class, or its integral value if not named.
+//
+//   enum class E { A, B, C, F = 5, ftl_last = F };
+//
+//   assert(ftl::enum_string(E::C) == "E::C");
+//   assert(ftl::enum_string(E{3}) == "3");
+//
+template <typename E>
+inline std::string enum_string_full(E v) {
+  if (const auto name = enum_name_full(v)) {
+      return std::string(*name);
   }
   return to_string(to_underlying(v));
 }

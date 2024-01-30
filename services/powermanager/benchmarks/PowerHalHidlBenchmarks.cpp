@@ -16,10 +16,10 @@
 
 #define LOG_TAG "PowerHalHidlBenchmarks"
 
+#include <aidl/android/hardware/power/Boost.h>
+#include <aidl/android/hardware/power/IPower.h>
+#include <aidl/android/hardware/power/Mode.h>
 #include <android/hardware/power/1.1/IPower.h>
-#include <android/hardware/power/Boost.h>
-#include <android/hardware/power/IPower.h>
-#include <android/hardware/power/Mode.h>
 #include <benchmark/benchmark.h>
 #include <hardware/power.h>
 #include <hardware_legacy/power.h>
@@ -27,8 +27,6 @@
 #include <chrono>
 
 using android::hardware::Return;
-using android::hardware::power::Boost;
-using android::hardware::power::Mode;
 using android::hardware::power::V1_0::Feature;
 using android::hardware::power::V1_0::PowerHint;
 using std::chrono::microseconds;

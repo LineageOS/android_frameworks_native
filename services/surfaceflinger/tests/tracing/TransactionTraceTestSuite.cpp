@@ -23,8 +23,9 @@
 #include <unordered_map>
 
 #include <LayerProtoHelper.h>
-#include <LayerTraceGenerator.h>
+#include <Tracing/LayerTracing.h>
 #include <Tracing/TransactionProtoParser.h>
+#include <Tracing/tools/LayerTraceGenerator.h>
 #include <layerproto/LayerProtoHeader.h>
 #include <log/log.h>
 
@@ -40,9 +41,9 @@ public:
     static constexpr std::string_view sLayersTracePrefix = "layers_trace_";
     static constexpr std::string_view sTracePostfix = ".winscope";
 
-    proto::TransactionTraceFile mTransactionTrace;
-    LayersTraceFileProto mExpectedLayersTraceProto;
-    LayersTraceFileProto mActualLayersTraceProto;
+    perfetto::protos::TransactionTraceFile mTransactionTrace;
+    perfetto::protos::LayersTraceFileProto mExpectedLayersTraceProto;
+    perfetto::protos::LayersTraceFileProto mActualLayersTraceProto;
 
 protected:
     void SetUp() override {
@@ -56,18 +57,24 @@ protected:
         EXPECT_TRUE(std::filesystem::exists(std::filesystem::path(expectedLayersTracePath)));
         parseLayersTraceFromFile(expectedLayersTracePath.c_str(), mExpectedLayersTraceProto);
         TemporaryDir temp_dir;
+
         std::string actualLayersTracePath =
                 std::string(temp_dir.path) + "/" + expectedLayersFilename + "_actual";
+        {
+            auto traceFlags = LayerTracing::TRACE_INPUT | LayerTracing::TRACE_BUFFERS;
+            std::ofstream outStream{actualLayersTracePath, std::ios::binary | std::ios::app};
+            auto layerTracing = LayerTracing{outStream};
+            EXPECT_TRUE(LayerTraceGenerator().generate(mTransactionTrace, traceFlags, layerTracing,
+                                                       /*onlyLastEntry=*/true))
+                    << "Failed to generate layers trace from " << transactionTracePath;
+        }
 
-        EXPECT_TRUE(LayerTraceGenerator().generate(mTransactionTrace, actualLayersTracePath.c_str(),
-                                                   /*onlyLastEntry=*/true))
-                << "Failed to generate layers trace from " << transactionTracePath;
         EXPECT_TRUE(std::filesystem::exists(std::filesystem::path(actualLayersTracePath)));
         parseLayersTraceFromFile(actualLayersTracePath.c_str(), mActualLayersTraceProto);
     }
 
     void parseTransactionTraceFromFile(const char* transactionTracePath,
-                                       proto::TransactionTraceFile& outProto) {
+                                       perfetto::protos::TransactionTraceFile& outProto) {
         ALOGD("Parsing file %s...", transactionTracePath);
         std::fstream input(transactionTracePath, std::ios::in | std::ios::binary);
         EXPECT_TRUE(input) << "Error could not open " << transactionTracePath;
@@ -75,7 +82,8 @@ protected:
                 << "Failed to parse " << transactionTracePath;
     }
 
-    void parseLayersTraceFromFile(const char* layersTracePath, LayersTraceFileProto& outProto) {
+    void parseLayersTraceFromFile(const char* layersTracePath,
+                                  perfetto::protos::LayersTraceFileProto& outProto) {
         ALOGD("Parsing file %s...", layersTracePath);
         std::fstream input(layersTracePath, std::ios::in | std::ios::binary);
         EXPECT_TRUE(input) << "Error could not open " << layersTracePath;
@@ -124,7 +132,7 @@ struct find_id {
     bool operator()(LayerInfo const& m) const { return m.id == id; }
 };
 
-static LayerInfo getLayerInfoFromProto(::android::surfaceflinger::LayerProto& proto) {
+static LayerInfo getLayerInfoFromProto(perfetto::protos::LayerProto& proto) {
     Rect touchableRegionBounds = Rect::INVALID_RECT;
     // ignore touchable region for layers without buffers, the new fe aggressively avoids
     // calculating state for layers that are not visible which could lead to mismatches
@@ -148,8 +156,7 @@ static LayerInfo getLayerInfoFromProto(::android::surfaceflinger::LayerProto& pr
             touchableRegionBounds};
 }
 
-static std::vector<LayerInfo> getLayerInfosFromProto(
-        android::surfaceflinger::LayersTraceProto& entry) {
+static std::vector<LayerInfo> getLayerInfosFromProto(perfetto::protos::LayersSnapshotProto& entry) {
     std::unordered_map<uint64_t /* snapshotId*/, uint64_t /*layerId*/> snapshotIdToLayerId;
     std::vector<LayerInfo> layers;
     layers.reserve(static_cast<size_t>(entry.layers().layers_size()));

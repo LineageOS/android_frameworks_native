@@ -19,6 +19,7 @@
 #define LOG_TAG "SurfaceFlinger"
 
 #include "LayerSnapshot.h"
+#include "Layer.h"
 
 namespace android::surfaceflinger::frontend {
 
@@ -37,6 +38,63 @@ void updateSurfaceDamage(const RequestedLayerState& requested, bool hasReadyFram
     } else {
         outSurfaceDamageRegion = requested.surfaceDamageRegion;
     }
+}
+
+std::ostream& operator<<(std::ostream& os, const ui::Transform& transform) {
+    const uint32_t type = transform.getType();
+    const uint32_t orientation = transform.getOrientation();
+    if (type == ui::Transform::IDENTITY) {
+        return os;
+    }
+
+    if (type & ui::Transform::UNKNOWN) {
+        std::string out;
+        transform.dump(out, "", "");
+        os << out;
+        return os;
+    }
+
+    if (type & ui::Transform::ROTATE) {
+        switch (orientation) {
+            case ui::Transform::ROT_0:
+                os << "ROT_0";
+                break;
+            case ui::Transform::FLIP_H:
+                os << "FLIP_H";
+                break;
+            case ui::Transform::FLIP_V:
+                os << "FLIP_V";
+                break;
+            case ui::Transform::ROT_90:
+                os << "ROT_90";
+                break;
+            case ui::Transform::ROT_180:
+                os << "ROT_180";
+                break;
+            case ui::Transform::ROT_270:
+                os << "ROT_270";
+                break;
+            case ui::Transform::ROT_INVALID:
+            default:
+                os << "ROT_INVALID";
+                break;
+        }
+    }
+
+    if (type & ui::Transform::SCALE) {
+        std::string out;
+        android::base::StringAppendF(&out, " scale x=%.4f y=%.4f ", transform.getScaleX(),
+                                     transform.getScaleY());
+        os << out;
+    }
+
+    if (type & ui::Transform::TRANSLATE) {
+        std::string out;
+        android::base::StringAppendF(&out, " tx=%.4f ty=%.4f ", transform.tx(), transform.ty());
+        os << out;
+    }
+
+    return os;
 }
 
 } // namespace
@@ -59,7 +117,7 @@ LayerSnapshot::LayerSnapshot(const RequestedLayerState& state,
     }
     sequence = static_cast<int32_t>(state.id);
     name = state.name;
-    textureName = state.textureName;
+    debugName = state.debugName;
     premultipliedAlpha = state.premultipliedAlpha;
     inputInfo.name = state.name;
     inputInfo.id = static_cast<int32_t>(uniqueSequence);
@@ -73,6 +131,8 @@ LayerSnapshot::LayerSnapshot(const RequestedLayerState& state,
             ? path
             : LayerHierarchy::TraversalPath::ROOT;
     reachablilty = LayerSnapshot::Reachablilty::Unreachable;
+    frameRateSelectionPriority = state.frameRateSelectionPriority;
+    layerMetadata = state.metadata;
 }
 
 // As documented in libhardware header, formats in the range
@@ -180,13 +240,13 @@ std::string LayerSnapshot::getIsVisibleReason() const {
     if (handleSkipScreenshotFlag & outputFilter.toInternalDisplay) return "eLayerSkipScreenshot";
     if (invalidTransform) return "invalidTransform";
     if (color.a == 0.0f && !hasBlur()) return "alpha = 0 and no blur";
-    if (!hasSomethingToDraw()) return "!hasSomethingToDraw";
+    if (!hasSomethingToDraw()) return "nothing to draw";
 
     // visible
     std::stringstream reason;
     if (sidebandStream != nullptr) reason << " sidebandStream";
     if (externalTexture != nullptr)
-        reason << " buffer:" << externalTexture->getId() << " frame:" << frameNumber;
+        reason << " buffer=" << externalTexture->getId() << " frame=" << frameNumber;
     if (fillsColor() || color.a > 0.0f) reason << " color{" << color << "}";
     if (drawShadows()) reason << " shadowSettings.length=" << shadowSettings.length;
     if (backgroundBlurRadius > 0) reason << " backgroundBlurRadius=" << backgroundBlurRadius;
@@ -232,11 +292,52 @@ std::string LayerSnapshot::getDebugString() const {
     return debug.str();
 }
 
+std::ostream& operator<<(std::ostream& out, const LayerSnapshot& obj) {
+    out << "Layer [" << obj.path.id;
+    if (!obj.path.mirrorRootIds.empty()) {
+        out << " mirrored from ";
+        for (auto rootId : obj.path.mirrorRootIds) {
+            out << rootId << ",";
+        }
+    }
+    out << "] " << obj.name << "\n    " << (obj.isVisible ? "visible" : "invisible")
+        << " reason=" << obj.getIsVisibleReason();
+
+    if (!obj.geomLayerBounds.isEmpty()) {
+        out << "\n    bounds={" << obj.transformedBounds.left << "," << obj.transformedBounds.top
+            << "," << obj.transformedBounds.bottom << "," << obj.transformedBounds.right << "}";
+    }
+
+    if (obj.geomLayerTransform.getType() != ui::Transform::IDENTITY) {
+        out << " toDisplayTransform={" << obj.geomLayerTransform << "}";
+    }
+
+    if (obj.hasInputInfo()) {
+        out << "\n    input{"
+            << "(" << obj.inputInfo.inputConfig.string() << ")";
+        if (obj.touchCropId != UNASSIGNED_LAYER_ID) out << " touchCropId=" << obj.touchCropId;
+        if (obj.inputInfo.replaceTouchableRegionWithCrop) out << " replaceTouchableRegionWithCrop";
+        auto touchableRegion = obj.inputInfo.touchableRegion.getBounds();
+        out << " touchableRegion={" << touchableRegion.left << "," << touchableRegion.top << ","
+            << touchableRegion.bottom << "," << touchableRegion.right << "}"
+            << "}";
+    }
+    return out;
+}
+
 FloatRect LayerSnapshot::sourceBounds() const {
     if (!externalTexture) {
         return geomLayerBounds;
     }
     return geomBufferSize.toFloatRect();
+}
+
+bool LayerSnapshot::isFrontBuffered() const {
+    if (!externalTexture) {
+        return false;
+    }
+
+    return externalTexture->getUsage() & AHARDWAREBUFFER_USAGE_FRONT_BUFFER;
 }
 
 Hwc2::IComposerClient::BlendMode LayerSnapshot::getBlendMode(
@@ -255,10 +356,9 @@ void LayerSnapshot::merge(const RequestedLayerState& requested, bool forceUpdate
     clientChanges = requested.what;
     changes = requested.changes;
     contentDirty = requested.what & layer_state_t::CONTENT_DIRTY;
-    // TODO(b/238781169) scope down the changes to only buffer updates.
-    hasReadyFrame = requested.hasReadyFrame();
+    hasReadyFrame = requested.autoRefresh;
     sidebandStreamHasFrame = requested.hasSidebandStreamFrame();
-    updateSurfaceDamage(requested, hasReadyFrame, forceFullDamage, surfaceDamage);
+    updateSurfaceDamage(requested, requested.hasReadyFrame(), forceFullDamage, surfaceDamage);
 
     if (forceUpdate || requested.what & layer_state_t::eTransparentRegionChanged) {
         transparentRegionHint = requested.transparentRegion;
@@ -274,7 +374,7 @@ void LayerSnapshot::merge(const RequestedLayerState& requested, bool forceUpdate
         geomBufferUsesDisplayInverseTransform = requested.transformToDisplayInverse;
     }
     if (forceUpdate || requested.what & layer_state_t::eDataspaceChanged) {
-        dataspace = requested.dataspace;
+        dataspace = Layer::translateDataspace(requested.dataspace);
     }
     if (forceUpdate || requested.what & layer_state_t::eExtendedRangeBrightnessChanged) {
         currentHdrSdrRatio = requested.currentHdrSdrRatio;
@@ -290,7 +390,6 @@ void LayerSnapshot::merge(const RequestedLayerState& requested, bool forceUpdate
         sidebandStream = requested.sidebandStream;
     }
     if (forceUpdate || requested.what & layer_state_t::eShadowRadiusChanged) {
-        shadowRadius = requested.shadowRadius;
         shadowSettings.length = requested.shadowRadius;
     }
     if (forceUpdate || requested.what & layer_state_t::eFrameRateSelectionPriority) {
@@ -304,6 +403,15 @@ void LayerSnapshot::merge(const RequestedLayerState& requested, bool forceUpdate
     }
     if (forceUpdate || requested.what & layer_state_t::eCropChanged) {
         geomCrop = requested.crop;
+    }
+
+    if (forceUpdate || requested.what & layer_state_t::eDefaultFrameRateCompatibilityChanged) {
+        const auto compatibility =
+                Layer::FrameRate::convertCompatibility(requested.defaultFrameRateCompatibility);
+        if (defaultFrameRateCompatibility != compatibility) {
+            clientChanges |= layer_state_t::eDefaultFrameRateCompatibilityChanged;
+        }
+        defaultFrameRateCompatibility = compatibility;
     }
 
     if (forceUpdate ||
@@ -379,19 +487,9 @@ void LayerSnapshot::merge(const RequestedLayerState& requested, bool forceUpdate
     if (forceUpdate ||
         requested.what &
                 (layer_state_t::eBufferChanged | layer_state_t::eDataspaceChanged |
-                 layer_state_t::eApiChanged)) {
-        isHdrY410 = requested.dataspace == ui::Dataspace::BT2020_ITU_PQ &&
-                requested.api == NATIVE_WINDOW_API_MEDIA &&
-                requested.bufferData->getPixelFormat() == HAL_PIXEL_FORMAT_RGBA_1010102;
-    }
-
-    if (forceUpdate ||
-        requested.what &
-                (layer_state_t::eBufferChanged | layer_state_t::eDataspaceChanged |
                  layer_state_t::eApiChanged | layer_state_t::eShadowRadiusChanged |
                  layer_state_t::eBlurRegionsChanged | layer_state_t::eStretchChanged)) {
-        forceClientComposition = isHdrY410 || shadowSettings.length > 0 ||
-                requested.blurRegions.size() > 0 || stretchEffect.hasEffect();
+        forceClientComposition = shadowSettings.length > 0 || stretchEffect.hasEffect();
     }
 
     if (forceUpdate ||

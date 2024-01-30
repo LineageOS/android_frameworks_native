@@ -23,21 +23,11 @@
 
 // User include files
 #include "ultrahdr/gainmapmath.h"
+#include "ultrahdr/jpegdecoderhelper.h"
 #include "ultrahdr/jpegencoderhelper.h"
 #include "utils/Log.h"
 
 using namespace android::ultrahdr;
-
-// constants
-const int kMinWidth = 8;
-const int kMaxWidth = 7680;
-
-const int kMinHeight = 8;
-const int kMaxHeight = 4320;
-
-const int kScaleFactor = 4;
-
-const int kJpegBlock = 16;
 
 // Color gamuts for image data, sync with ultrahdr.h
 const int kCgMin = ULTRAHDR_COLORGAMUT_UNSPECIFIED + 1;
@@ -60,7 +50,7 @@ public:
     UltraHdrEncFuzzer(const uint8_t* data, size_t size) : mFdp(data, size){};
     void process();
     void fillP010Buffer(uint16_t* data, int width, int height, int stride);
-    void fill420Buffer(uint8_t* data, int size);
+    void fill420Buffer(uint8_t* data, int width, int height, int stride);
 
 private:
     FuzzedDataProvider mFdp;
@@ -70,11 +60,12 @@ void UltraHdrEncFuzzer::fillP010Buffer(uint16_t* data, int width, int height, in
     uint16_t* tmp = data;
     std::vector<uint16_t> buffer(16);
     for (int i = 0; i < buffer.size(); i++) {
-        buffer[i] = mFdp.ConsumeIntegralInRange<int>(0, (1 << 10) - 1);
+        buffer[i] = (mFdp.ConsumeIntegralInRange<int>(0, (1 << 10) - 1)) << 6;
     }
     for (int j = 0; j < height; j++) {
         for (int i = 0; i < width; i += buffer.size()) {
-            memcpy(data + i, buffer.data(), std::min((int)buffer.size(), (width - i)));
+            memcpy(tmp + i, buffer.data(),
+                   std::min((int)buffer.size(), (width - i)) * sizeof(*data));
             std::shuffle(buffer.begin(), buffer.end(),
                          std::default_random_engine(std::random_device{}()));
         }
@@ -82,13 +73,18 @@ void UltraHdrEncFuzzer::fillP010Buffer(uint16_t* data, int width, int height, in
     }
 }
 
-void UltraHdrEncFuzzer::fill420Buffer(uint8_t* data, int size) {
+void UltraHdrEncFuzzer::fill420Buffer(uint8_t* data, int width, int height, int stride) {
+    uint8_t* tmp = data;
     std::vector<uint8_t> buffer(16);
     mFdp.ConsumeData(buffer.data(), buffer.size());
-    for (int i = 0; i < size; i += buffer.size()) {
-        memcpy(data + i, buffer.data(), std::min((int)buffer.size(), (size - i)));
-        std::shuffle(buffer.begin(), buffer.end(),
-                     std::default_random_engine(std::random_device{}()));
+    for (int j = 0; j < height; j++) {
+        for (int i = 0; i < width; i += buffer.size()) {
+            memcpy(tmp + i, buffer.data(),
+                   std::min((int)buffer.size(), (width - i)) * sizeof(*data));
+            std::shuffle(buffer.begin(), buffer.end(),
+                         std::default_random_engine(std::random_device{}()));
+        }
+        tmp += stride;
     }
 }
 
@@ -129,9 +125,10 @@ void UltraHdrEncFuzzer::process() {
         int height = mFdp.ConsumeIntegralInRange<int>(kMinHeight, kMaxHeight);
         height = (height >> 1) << 1;
 
-        std::unique_ptr<uint16_t[]> bufferY = nullptr;
-        std::unique_ptr<uint16_t[]> bufferUV = nullptr;
-        std::unique_ptr<uint8_t[]> yuv420ImgRaw = nullptr;
+        std::unique_ptr<uint16_t[]> bufferYHdr = nullptr;
+        std::unique_ptr<uint16_t[]> bufferUVHdr = nullptr;
+        std::unique_ptr<uint8_t[]> bufferYSdr = nullptr;
+        std::unique_ptr<uint8_t[]> bufferUVSdr = nullptr;
         std::unique_ptr<uint8_t[]> grayImgRaw = nullptr;
         if (muxSwitch != 4) {
             // init p010 image
@@ -145,30 +142,27 @@ void UltraHdrEncFuzzer::process() {
             int bppP010 = 2;
             if (isUVContiguous) {
                 size_t p010Size = yStride * height * 3 / 2;
-                bufferY = std::make_unique<uint16_t[]>(p010Size);
-                p010Img.data = bufferY.get();
+                bufferYHdr = std::make_unique<uint16_t[]>(p010Size);
+                p010Img.data = bufferYHdr.get();
                 p010Img.chroma_data = nullptr;
                 p010Img.chroma_stride = 0;
-                fillP010Buffer(bufferY.get(), width, height, yStride);
-                fillP010Buffer(bufferY.get() + yStride * height, width, height / 2, yStride);
+                fillP010Buffer(bufferYHdr.get(), width, height, yStride);
+                fillP010Buffer(bufferYHdr.get() + yStride * height, width, height / 2, yStride);
             } else {
                 int uvStride = mFdp.ConsumeIntegralInRange<int>(width, width + 128);
                 size_t p010YSize = yStride * height;
-                bufferY = std::make_unique<uint16_t[]>(p010YSize);
-                p010Img.data = bufferY.get();
-                fillP010Buffer(bufferY.get(), width, height, yStride);
+                bufferYHdr = std::make_unique<uint16_t[]>(p010YSize);
+                p010Img.data = bufferYHdr.get();
+                fillP010Buffer(bufferYHdr.get(), width, height, yStride);
                 size_t p010UVSize = uvStride * p010Img.height / 2;
-                bufferUV = std::make_unique<uint16_t[]>(p010UVSize);
-                p010Img.chroma_data = bufferUV.get();
+                bufferUVHdr = std::make_unique<uint16_t[]>(p010UVSize);
+                p010Img.chroma_data = bufferUVHdr.get();
                 p010Img.chroma_stride = uvStride;
-                fillP010Buffer(bufferUV.get(), width, height / 2, uvStride);
+                fillP010Buffer(bufferUVHdr.get(), width, height / 2, uvStride);
             }
         } else {
-            int map_width = width / kScaleFactor;
-            int map_height = height / kScaleFactor;
-            map_width = static_cast<size_t>(floor((map_width + kJpegBlock - 1) / kJpegBlock)) *
-                    kJpegBlock;
-            map_height = ((map_height + 1) >> 1) << 1;
+            size_t map_width = width / kMapDimensionScaleFactor;
+            size_t map_height = height / kMapDimensionScaleFactor;
             // init 400 image
             grayImg.width = map_width;
             grayImg.height = map_height;
@@ -177,7 +171,7 @@ void UltraHdrEncFuzzer::process() {
             const size_t graySize = map_width * map_height;
             grayImgRaw = std::make_unique<uint8_t[]>(graySize);
             grayImg.data = grayImgRaw.get();
-            fill420Buffer(grayImgRaw.get(), graySize);
+            fill420Buffer(grayImgRaw.get(), map_width, map_height, map_width);
             grayImg.chroma_data = nullptr;
             grayImg.luma_stride = 0;
             grayImg.chroma_stride = 0;
@@ -185,17 +179,38 @@ void UltraHdrEncFuzzer::process() {
 
         if (muxSwitch > 0) {
             // init 420 image
+            bool isUVContiguous = mFdp.ConsumeBool();
+            bool hasYStride = mFdp.ConsumeBool();
+            int yStride = hasYStride ? mFdp.ConsumeIntegralInRange<int>(width, width + 128) : width;
             yuv420Img.width = width;
             yuv420Img.height = height;
             yuv420Img.colorGamut = yuv420Cg;
-
-            const size_t yuv420Size = (yuv420Img.width * yuv420Img.height * 3) / 2;
-            yuv420ImgRaw = std::make_unique<uint8_t[]>(yuv420Size);
-            yuv420Img.data = yuv420ImgRaw.get();
-            fill420Buffer(yuv420ImgRaw.get(), yuv420Size);
-            yuv420Img.chroma_data = nullptr;
-            yuv420Img.luma_stride = 0;
-            yuv420Img.chroma_stride = 0;
+            yuv420Img.luma_stride = hasYStride ? yStride : 0;
+            if (isUVContiguous) {
+                size_t yuv420Size = yStride * height * 3 / 2;
+                bufferYSdr = std::make_unique<uint8_t[]>(yuv420Size);
+                yuv420Img.data = bufferYSdr.get();
+                yuv420Img.chroma_data = nullptr;
+                yuv420Img.chroma_stride = 0;
+                fill420Buffer(bufferYSdr.get(), width, height, yStride);
+                fill420Buffer(bufferYSdr.get() + yStride * height, width / 2, height / 2,
+                              yStride / 2);
+                fill420Buffer(bufferYSdr.get() + yStride * height * 5 / 4, width / 2, height / 2,
+                              yStride / 2);
+            } else {
+                int uvStride = mFdp.ConsumeIntegralInRange<int>(width / 2, width / 2 + 128);
+                size_t yuv420YSize = yStride * height;
+                bufferYSdr = std::make_unique<uint8_t[]>(yuv420YSize);
+                yuv420Img.data = bufferYSdr.get();
+                fill420Buffer(bufferYSdr.get(), width, height, yStride);
+                size_t yuv420UVSize = uvStride * yuv420Img.height / 2 * 2;
+                bufferUVSdr = std::make_unique<uint8_t[]>(yuv420UVSize);
+                yuv420Img.chroma_data = bufferUVSdr.get();
+                yuv420Img.chroma_stride = uvStride;
+                fill420Buffer(bufferUVSdr.get(), width / 2, height / 2, uvStride);
+                fill420Buffer(bufferUVSdr.get() + uvStride * height / 2, width / 2, height / 2,
+                              uvStride);
+            }
         }
 
         // dest
@@ -212,6 +227,8 @@ void UltraHdrEncFuzzer::process() {
         std::cout << "p010 luma stride " << p010Img.luma_stride << std::endl;
         std::cout << "p010 chroma stride " << p010Img.chroma_stride << std::endl;
         std::cout << "420 color gamut " << yuv420Img.colorGamut << std::endl;
+        std::cout << "420 luma stride " << yuv420Img.luma_stride << std::endl;
+        std::cout << "420 chroma stride " << yuv420Img.chroma_stride << std::endl;
         std::cout << "quality factor " << quality << std::endl;
 #endif
 
@@ -226,8 +243,19 @@ void UltraHdrEncFuzzer::process() {
         } else {
             // compressed img
             JpegEncoderHelper encoder;
-            if (encoder.compressImage(yuv420Img.data, yuv420Img.width, yuv420Img.height, quality,
-                                      nullptr, 0)) {
+            struct jpegr_uncompressed_struct yuv420ImgCopy = yuv420Img;
+            if (yuv420ImgCopy.luma_stride == 0) yuv420ImgCopy.luma_stride = yuv420Img.width;
+            if (!yuv420ImgCopy.chroma_data) {
+                uint8_t* data = reinterpret_cast<uint8_t*>(yuv420Img.data);
+                yuv420ImgCopy.chroma_data = data + yuv420Img.luma_stride * yuv420Img.height;
+                yuv420ImgCopy.chroma_stride = yuv420Img.luma_stride >> 1;
+            }
+
+            if (encoder.compressImage(reinterpret_cast<uint8_t*>(yuv420ImgCopy.data),
+                                      reinterpret_cast<uint8_t*>(yuv420ImgCopy.chroma_data),
+                                      yuv420ImgCopy.width, yuv420ImgCopy.height,
+                                      yuv420ImgCopy.luma_stride, yuv420ImgCopy.chroma_stride,
+                                      quality, nullptr, 0)) {
                 jpegImg.length = encoder.getCompressedImageSize();
                 jpegImg.maxLength = jpegImg.length;
                 jpegImg.data = encoder.getCompressedImagePtr();
@@ -242,14 +270,15 @@ void UltraHdrEncFuzzer::process() {
                 } else if (muxSwitch == 4) { // api 4
                     jpegImgR.length = 0;
                     JpegEncoderHelper gainMapEncoder;
-                    if (gainMapEncoder.compressImage(grayImg.data, grayImg.width, grayImg.height,
-                                                     quality, nullptr, 0, true)) {
+                    if (gainMapEncoder.compressImage(reinterpret_cast<uint8_t*>(grayImg.data),
+                                                     nullptr, grayImg.width, grayImg.height,
+                                                     grayImg.width, 0, quality, nullptr, 0)) {
                         jpegGainMap.length = gainMapEncoder.getCompressedImageSize();
                         jpegGainMap.maxLength = jpegImg.length;
                         jpegGainMap.data = gainMapEncoder.getCompressedImagePtr();
                         jpegGainMap.colorGamut = ULTRAHDR_COLORGAMUT_UNSPECIFIED;
                         ultrahdr_metadata_struct metadata;
-                        metadata.version = "1.0";
+                        metadata.version = kJpegrVersion;
                         if (tf == ULTRAHDR_TF_HLG) {
                             metadata.maxContentBoost = kHlgMaxNits / kSdrWhiteNits;
                         } else if (tf == ULTRAHDR_TF_PQ) {
@@ -274,7 +303,8 @@ void UltraHdrEncFuzzer::process() {
             jpegr_info_struct info{0, 0, &iccData, &exifData};
             status = jpegHdr.getJPEGRInfo(&jpegImgR, &info);
             if (status == android::OK) {
-                size_t outSize = info.width * info.height * ((of == ULTRAHDR_OUTPUT_SDR) ? 4 : 8);
+                size_t outSize =
+                        info.width * info.height * ((of == ULTRAHDR_OUTPUT_HDR_LINEAR) ? 8 : 4);
                 jpegr_uncompressed_struct decodedJpegR;
                 auto decodedRaw = std::make_unique<uint8_t[]>(outSize);
                 decodedJpegR.data = decodedRaw.get();

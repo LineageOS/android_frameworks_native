@@ -57,6 +57,18 @@ void TestInputListener::assertNotifyDeviceResetWasCalled(NotifyDeviceResetArgs* 
                                            "Expected notifyDeviceReset() to have been called."));
 }
 
+void TestInputListener::clearNotifyDeviceResetCalls() {
+    std::scoped_lock<std::mutex> lock(mLock);
+    std::get<std::vector<NotifyDeviceResetArgs>>(mQueues).clear();
+}
+
+void TestInputListener::assertNotifyDeviceResetWasCalled(
+        const ::testing::Matcher<NotifyDeviceResetArgs>& matcher) {
+    NotifyDeviceResetArgs outEventArgs;
+    ASSERT_NO_FATAL_FAILURE(assertNotifyDeviceResetWasCalled(&outEventArgs));
+    ASSERT_THAT(outEventArgs, matcher);
+}
+
 void TestInputListener::assertNotifyDeviceResetWasNotCalled() {
     ASSERT_NO_FATAL_FAILURE(
             assertNotCalled<NotifyDeviceResetArgs>("notifyDeviceReset() should not be called."));

@@ -1057,7 +1057,85 @@ enum {
     /**
      * This surface will vote for the minimum refresh rate.
      */
-    ANATIVEWINDOW_FRAME_RATE_MIN
+    ANATIVEWINDOW_FRAME_RATE_MIN,
+
+    /**
+     * The surface requests a frame rate that is greater than or equal to `frameRate`.
+     */
+    ANATIVEWINDOW_FRAME_RATE_GTE
+};
+
+/*
+ * Frame rate category values that can be used in Transaction::setFrameRateCategory.
+ */
+enum {
+    /**
+     * Default value. This value can also be set to return to default behavior, such as layers
+     * without animations.
+     */
+    ANATIVEWINDOW_FRAME_RATE_CATEGORY_DEFAULT = 0,
+
+    /**
+     * The layer will explicitly not influence the frame rate.
+     * This may indicate a frame rate suitable for no animation updates (such as a cursor blinking
+     * or a sporadic update).
+     */
+    ANATIVEWINDOW_FRAME_RATE_CATEGORY_NO_PREFERENCE = 1,
+
+    /**
+     * Indicates a frame rate suitable for animations that looks fine even if played at a low frame
+     * rate.
+     */
+    ANATIVEWINDOW_FRAME_RATE_CATEGORY_LOW = 2,
+
+    /**
+     * Indicates a middle frame rate suitable for animations that do not require higher frame
+     * rates, or do not benefit from high smoothness. This is normally 60 Hz or close to it.
+     */
+    ANATIVEWINDOW_FRAME_RATE_CATEGORY_NORMAL = 3,
+
+    /**
+     * Indicates a frame rate suitable for animations that require a high frame rate, which may
+     * increase smoothness but may also increase power usage.
+     */
+    ANATIVEWINDOW_FRAME_RATE_CATEGORY_HIGH = 4
+};
+
+/*
+ * Frame rate selection strategy values that can be used in
+ * Transaction::setFrameRateSelectionStrategy.
+ */
+enum {
+    /**
+     * Default value. The layer uses its own frame rate specifications, assuming it has any
+     * specifications, instead of its parent's. If it does not have its own frame rate
+     * specifications, it will try to use its parent's. It will propagate its specifications to any
+     * descendants that do not have their own.
+     *
+     * However, FRAME_RATE_SELECTION_STRATEGY_OVERRIDE_CHILDREN on an ancestor layer
+     * supersedes this behavior, meaning that this layer will inherit frame rate specifications
+     * regardless of whether it has its own.
+     */
+    ANATIVEWINDOW_FRAME_RATE_SELECTION_STRATEGY_PROPAGATE = 0,
+
+    /**
+     * The layer's frame rate specifications will propagate to and override those of its descendant
+     * layers.
+     *
+     * The layer itself has the FRAME_RATE_SELECTION_STRATEGY_PROPAGATE behavior.
+     * Thus, ancestor layer that also has the strategy
+     * FRAME_RATE_SELECTION_STRATEGY_OVERRIDE_CHILDREN will override this layer's
+     * frame rate specifications.
+     */
+    ANATIVEWINDOW_FRAME_RATE_SELECTION_STRATEGY_OVERRIDE_CHILDREN = 1,
+
+    /**
+     * The layer's frame rate specifications will not propagate to its descendant
+     * layers, even if the descendant layer has no frame rate specifications.
+     * However, FRAME_RATE_SELECTION_STRATEGY_OVERRIDE_CHILDREN on an ancestor
+     * layer supersedes this behavior.
+     */
+    ANATIVEWINDOW_FRAME_RATE_SELECTION_STRATEGY_SELF = 2,
 };
 
 static inline int native_window_set_frame_rate(struct ANativeWindow* window, float frameRate,

@@ -144,7 +144,7 @@ private:
     CleanupManager& mCleanupMgr;
 
     static void releaseSurfaceProc(SkSurface::ReleaseContext releaseContext);
-    static void releaseImageProc(SkImage::ReleaseContext releaseContext);
+    static void releaseImageProc(SkImages::ReleaseContext releaseContext);
 
     int mUsageCount = 0;
 

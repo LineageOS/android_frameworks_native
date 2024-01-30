@@ -127,7 +127,7 @@ TEST_F(TunnelModeEnabledReporterTest, callsNewListenerWithFreshInformation) {
     sp<NativeHandle> stream =
             NativeHandle::create(reinterpret_cast<native_handle_t*>(DEFAULT_SIDEBAND_STREAM),
                                  false);
-    layer->setSidebandStream(stream);
+    layer->setSidebandStream(stream, FrameTimelineInfo{}, 20);
     mFlinger.mutableCurrentState().layersSortedByZ.add(layer);
     mTunnelModeEnabledReporter->updateTunnelModeStatus();
     mTunnelModeEnabledReporter->addListener(mTunnelModeEnabledListener);
@@ -151,7 +151,7 @@ TEST_F(TunnelModeEnabledReporterTest, layerWithSidebandStreamTriggersUpdate) {
     sp<NativeHandle> stream =
             NativeHandle::create(reinterpret_cast<native_handle_t*>(DEFAULT_SIDEBAND_STREAM),
                                  false);
-    layerWithSidebandStream->setSidebandStream(stream);
+    layerWithSidebandStream->setSidebandStream(stream, FrameTimelineInfo{}, 20);
 
     mFlinger.mutableCurrentState().layersSortedByZ.add(simpleLayer);
     mFlinger.mutableCurrentState().layersSortedByZ.add(layerWithSidebandStream);

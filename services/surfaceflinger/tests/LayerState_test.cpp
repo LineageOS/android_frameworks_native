@@ -38,7 +38,6 @@ TEST(LayerStateTest, ParcellingDisplayCaptureArgs) {
     args.displayToken = sp<BBinder>::make();
     args.width = 10;
     args.height = 20;
-    args.useIdentityTransform = true;
     args.grayscale = true;
 
     Parcel p;
@@ -56,7 +55,6 @@ TEST(LayerStateTest, ParcellingDisplayCaptureArgs) {
     ASSERT_EQ(args.displayToken, args2.displayToken);
     ASSERT_EQ(args.width, args2.width);
     ASSERT_EQ(args.height, args2.height);
-    ASSERT_EQ(args.useIdentityTransform, args2.useIdentityTransform);
     ASSERT_EQ(args.grayscale, args2.grayscale);
 }
 

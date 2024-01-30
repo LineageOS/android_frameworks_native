@@ -63,6 +63,7 @@ public:
         SET_UPDATABLE_DRIVER_PATH,
         GET_UPDATABLE_DRIVER_PATH,
         TOGGLE_ANGLE_AS_SYSTEM_DRIVER,
+        SET_TARGET_STATS_ARRAY,
         // Always append new enum to the end.
     };
 

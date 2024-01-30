@@ -36,6 +36,15 @@
 
 #include <hardware/gralloc.h>
 
+#if defined(__ANDROID_APEX__) || defined(__ANDROID_VNDK__)
+// TODO: Provide alternatives that aren't broken
+#define AHB_CONVERSION                                                                          \
+    [[deprecated("WARNING: VNDK casts beteween GraphicBuffer & AHardwareBuffer are UNSAFE and " \
+                 "will be removed in the future")]]
+#else
+#define AHB_CONVERSION
+#endif
+
 namespace android {
 
 class GraphicBufferMapper;
@@ -80,10 +89,10 @@ public:
 
     static sp<GraphicBuffer> from(ANativeWindowBuffer *);
 
-    static GraphicBuffer* fromAHardwareBuffer(AHardwareBuffer*);
-    static GraphicBuffer const* fromAHardwareBuffer(AHardwareBuffer const*);
-    AHardwareBuffer* toAHardwareBuffer();
-    AHardwareBuffer const* toAHardwareBuffer() const;
+    AHB_CONVERSION static GraphicBuffer* fromAHardwareBuffer(AHardwareBuffer*);
+    AHB_CONVERSION static GraphicBuffer const* fromAHardwareBuffer(AHardwareBuffer const*);
+    AHB_CONVERSION AHardwareBuffer* toAHardwareBuffer();
+    AHB_CONVERSION AHardwareBuffer const* toAHardwareBuffer() const;
 
     // Create a GraphicBuffer to be unflatten'ed into or be reallocated.
     GraphicBuffer();

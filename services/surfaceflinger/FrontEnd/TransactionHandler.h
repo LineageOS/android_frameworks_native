@@ -59,6 +59,8 @@ public:
     using TransactionFilter = std::function<TransactionReadiness(const TransactionFlushState&)>;
 
     bool hasPendingTransactions();
+    // Moves transactions from the lockless queue.
+    void collectTransactions();
     std::vector<TransactionState> flushTransactions();
     void addTransactionReadyFilter(TransactionFilter&&);
     void queueTransaction(TransactionState&&);

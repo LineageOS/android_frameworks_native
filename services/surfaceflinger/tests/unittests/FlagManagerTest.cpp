@@ -14,130 +14,174 @@
  * limitations under the License.
  */
 
-#include <cstdint>
 #undef LOG_TAG
 #define LOG_TAG "FlagManagerTest"
 
-#include "FlagManager.h"
+#include <common/FlagManager.h>
+#include <common/test/FlagUtils.h>
 
-#include <android-base/properties.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <log/log.h>
-#include <server_configurable_flags/get_flags.h>
-#include <optional>
+
+#include <com_android_graphics_surfaceflinger_flags.h>
 
 namespace android {
 
 using testing::Return;
 
-class MockFlagManager : public FlagManager {
+class TestableFlagManager : public FlagManager {
 public:
-    MockFlagManager() = default;
-    ~MockFlagManager() = default;
+    TestableFlagManager() : FlagManager(ConstructorTag{}) { markBootCompleted(); }
+    ~TestableFlagManager() = default;
 
-    MOCK_METHOD(std::string, getServerConfigurableFlag, (const std::string& experimentFlagName),
-                (const, override));
+    MOCK_METHOD(std::optional<bool>, getBoolProperty, (const char*), (const, override));
+    MOCK_METHOD(bool, getServerConfigurableFlag, (const char*), (const, override));
+
+    void markBootIncomplete() { mBootCompleted = false; }
 };
 
 class FlagManagerTest : public testing::Test {
 public:
-    FlagManagerTest();
-    ~FlagManagerTest() override;
-    std::unique_ptr<MockFlagManager> mFlagManager;
+    FlagManagerTest() {
+        const ::testing::TestInfo* const test_info =
+                ::testing::UnitTest::GetInstance()->current_test_info();
+        ALOGD("**** Setting up for %s.%s\n", test_info->test_case_name(), test_info->name());
+    }
+    ~FlagManagerTest() override {
+        const ::testing::TestInfo* const test_info =
+                ::testing::UnitTest::GetInstance()->current_test_info();
+        ALOGD("**** Tearing down after %s.%s\n", test_info->test_case_name(), test_info->name());
+    }
 
-    template <typename T>
-    T getValue(const std::string& experimentFlagName, std::optional<T> systemPropertyOpt,
-               T defaultValue);
+    TestableFlagManager mFlagManager;
 };
 
-FlagManagerTest::FlagManagerTest() {
-    const ::testing::TestInfo* const test_info =
-            ::testing::UnitTest::GetInstance()->current_test_info();
-    ALOGD("**** Setting up for %s.%s\n", test_info->test_case_name(), test_info->name());
-    mFlagManager = std::make_unique<MockFlagManager>();
+TEST_F(FlagManagerTest, isSingleton) {
+    EXPECT_EQ(&FlagManager::getInstance(), &FlagManager::getInstance());
 }
 
-FlagManagerTest::~FlagManagerTest() {
-    const ::testing::TestInfo* const test_info =
-            ::testing::UnitTest::GetInstance()->current_test_info();
-    ALOGD("**** Tearing down after %s.%s\n", test_info->test_case_name(), test_info->name());
+TEST_F(FlagManagerTest, legacyCreashesIfQueriedBeforeBoot) {
+    mFlagManager.markBootIncomplete();
+    EXPECT_DEATH(FlagManager::getInstance().test_flag(), "");
 }
 
-template <typename T>
-T FlagManagerTest::getValue(const std::string& experimentFlagName,
-                            std::optional<T> systemPropertyOpt, T defaultValue) {
-    return mFlagManager->getValue(experimentFlagName, systemPropertyOpt, defaultValue);
+TEST_F(FlagManagerTest, legacyReturnsOverride) {
+    EXPECT_CALL(mFlagManager, getBoolProperty).WillOnce(Return(true));
+    EXPECT_EQ(true, mFlagManager.test_flag());
+
+    EXPECT_CALL(mFlagManager, getBoolProperty).WillOnce(Return(false));
+    EXPECT_EQ(false, mFlagManager.test_flag());
 }
 
-namespace {
-TEST_F(FlagManagerTest, getValue_bool_default) {
-    EXPECT_CALL(*mFlagManager, getServerConfigurableFlag).Times(1).WillOnce(Return(""));
-    const bool defaultValue = false;
-    std::optional<bool> systemPropertyValue = std::nullopt;
-    const bool result = FlagManagerTest::getValue("test_flag", systemPropertyValue, defaultValue);
-    ASSERT_EQ(result, defaultValue);
+TEST_F(FlagManagerTest, legacyReturnsValue) {
+    EXPECT_CALL(mFlagManager, getBoolProperty).WillRepeatedly(Return(std::nullopt));
+
+    EXPECT_CALL(mFlagManager, getServerConfigurableFlag).WillOnce(Return(true));
+    EXPECT_EQ(true, mFlagManager.test_flag());
+
+    EXPECT_CALL(mFlagManager, getServerConfigurableFlag).WillOnce(Return(false));
+    EXPECT_EQ(false, mFlagManager.test_flag());
 }
 
-TEST_F(FlagManagerTest, getValue_bool_sysprop) {
-    const bool defaultValue = false;
-    std::optional<bool> systemPropertyValue = std::make_optional(true);
-    const bool result = FlagManagerTest::getValue("test_flag", systemPropertyValue, defaultValue);
-    ASSERT_EQ(result, true);
+TEST_F(FlagManagerTest, creashesIfQueriedBeforeBoot) {
+    mFlagManager.markBootIncomplete();
+    EXPECT_DEATH(FlagManager::getInstance().late_boot_misc2(), "");
 }
 
-TEST_F(FlagManagerTest, getValue_bool_experiment) {
-    EXPECT_CALL(*mFlagManager, getServerConfigurableFlag).Times(1).WillOnce(Return("1"));
-    const bool defaultValue = false;
-    std::optional<bool> systemPropertyValue = std::nullopt;
-    const bool result = FlagManagerTest::getValue("test_flag", systemPropertyValue, defaultValue);
-    ASSERT_EQ(result, true);
+TEST_F(FlagManagerTest, returnsOverrideTrue) {
+    mFlagManager.markBootCompleted();
+
+    SET_FLAG_FOR_TEST(com::android::graphics::surfaceflinger::flags::late_boot_misc2, false);
+
+    // This is stored in a static variable, so this test depends on the fact
+    // that this flag has not been read in this process.
+    EXPECT_CALL(mFlagManager, getBoolProperty).WillOnce(Return(true));
+    EXPECT_TRUE(mFlagManager.late_boot_misc2());
+
+    // Further calls will not result in further calls to getBoolProperty.
+    EXPECT_TRUE(mFlagManager.late_boot_misc2());
 }
 
-TEST_F(FlagManagerTest, getValue_int32_default) {
-    EXPECT_CALL(*mFlagManager, getServerConfigurableFlag).Times(1).WillOnce(Return(""));
-    int32_t defaultValue = 30;
-    std::optional<int32_t> systemPropertyValue = std::nullopt;
-    int32_t result = FlagManagerTest::getValue("test_flag", systemPropertyValue, defaultValue);
-    ASSERT_EQ(result, defaultValue);
+TEST_F(FlagManagerTest, returnsOverrideReadonly) {
+    SET_FLAG_FOR_TEST(com::android::graphics::surfaceflinger::flags::add_sf_skipped_frames_to_trace,
+                      false);
+
+    // This is stored in a static variable, so this test depends on the fact
+    // that this flag has not been read in this process.
+    EXPECT_CALL(mFlagManager, getBoolProperty).WillOnce(Return(true));
+    EXPECT_TRUE(mFlagManager.add_sf_skipped_frames_to_trace());
 }
 
-TEST_F(FlagManagerTest, getValue_int32_sysprop) {
-    int32_t defaultValue = 30;
-    std::optional<int32_t> systemPropertyValue = std::make_optional(10);
-    int32_t result = FlagManagerTest::getValue("test_flag", systemPropertyValue, defaultValue);
-    ASSERT_EQ(result, 10);
+TEST_F(FlagManagerTest, returnsOverrideFalse) {
+    mFlagManager.markBootCompleted();
+
+    SET_FLAG_FOR_TEST(com::android::graphics::surfaceflinger::flags::
+                              refresh_rate_overlay_on_external_display,
+                      true);
+
+    // This is stored in a static variable, so this test depends on the fact
+    // that this flag has not been read in this process.
+    EXPECT_CALL(mFlagManager, getBoolProperty).WillOnce(Return(false));
+    EXPECT_FALSE(mFlagManager.refresh_rate_overlay_on_external_display());
 }
 
-TEST_F(FlagManagerTest, getValue_int32_experiment) {
-    EXPECT_CALL(*mFlagManager, getServerConfigurableFlag).Times(1).WillOnce(Return("50"));
-    std::int32_t defaultValue = 30;
-    std::optional<std::int32_t> systemPropertyValue = std::nullopt;
-    std::int32_t result = FlagManagerTest::getValue("test_flag", systemPropertyValue, defaultValue);
-    ASSERT_EQ(result, 50);
+TEST_F(FlagManagerTest, ignoresOverrideInUnitTestMode) {
+    mFlagManager.setUnitTestMode();
+
+    SET_FLAG_FOR_TEST(com::android::graphics::surfaceflinger::flags::multithreaded_present, true);
+
+    // If this has not been called in this process, it will be called.
+    // Regardless, the result is ignored.
+    EXPECT_CALL(mFlagManager, getBoolProperty).WillRepeatedly(Return(false));
+
+    EXPECT_EQ(true, mFlagManager.multithreaded_present());
 }
 
-TEST_F(FlagManagerTest, getValue_int64_default) {
-    EXPECT_CALL(*mFlagManager, getServerConfigurableFlag).Times(1).WillOnce(Return(""));
-    int64_t defaultValue = 30;
-    std::optional<int64_t> systemPropertyValue = std::nullopt;
-    int64_t result = getValue("flag_name", systemPropertyValue, defaultValue);
-    ASSERT_EQ(result, defaultValue);
+TEST_F(FlagManagerTest, returnsValue) {
+    mFlagManager.setUnitTestMode();
+
+    EXPECT_CALL(mFlagManager, getBoolProperty).WillRepeatedly(Return(std::nullopt));
+
+    {
+        SET_FLAG_FOR_TEST(com::android::graphics::surfaceflinger::flags::late_boot_misc2, true);
+        EXPECT_EQ(true, mFlagManager.late_boot_misc2());
+    }
+
+    {
+        SET_FLAG_FOR_TEST(com::android::graphics::surfaceflinger::flags::late_boot_misc2, false);
+        EXPECT_EQ(false, mFlagManager.late_boot_misc2());
+    }
 }
 
-TEST_F(FlagManagerTest, getValue_int64_sysprop) {
-    int64_t defaultValue = 30;
-    std::optional<int64_t> systemPropertyValue = std::make_optional(10);
-    int64_t result = getValue("flag_name", systemPropertyValue, defaultValue);
-    ASSERT_EQ(result, 10);
+TEST_F(FlagManagerTest, readonlyReturnsValue) {
+    mFlagManager.setUnitTestMode();
+
+    EXPECT_CALL(mFlagManager, getBoolProperty).WillRepeatedly(Return(std::nullopt));
+
+    {
+        SET_FLAG_FOR_TEST(com::android::graphics::surfaceflinger::flags::misc1, true);
+        EXPECT_EQ(true, mFlagManager.misc1());
+    }
+
+    {
+        SET_FLAG_FOR_TEST(com::android::graphics::surfaceflinger::flags::misc1, false);
+        EXPECT_EQ(false, mFlagManager.misc1());
+    }
 }
 
-TEST_F(FlagManagerTest, getValue_int64_experiment) {
-    EXPECT_CALL(*mFlagManager, getServerConfigurableFlag).Times(1).WillOnce(Return("50"));
-    int64_t defaultValue = 30;
-    std::optional<int64_t> systemPropertyValue = std::nullopt;
-    int64_t result = getValue("flag_name", systemPropertyValue, defaultValue);
-    ASSERT_EQ(result, 50);
+TEST_F(FlagManagerTest, dontSkipOnEarlyIsNotCached) {
+    EXPECT_CALL(mFlagManager, getBoolProperty).WillRepeatedly(Return(std::nullopt));
+
+    const auto initialValue = com::android::graphics::surfaceflinger::flags::dont_skip_on_early();
+
+    com::android::graphics::surfaceflinger::flags::dont_skip_on_early(true);
+    EXPECT_EQ(true, mFlagManager.dont_skip_on_early());
+
+    com::android::graphics::surfaceflinger::flags::dont_skip_on_early(false);
+    EXPECT_EQ(false, mFlagManager.dont_skip_on_early());
+
+    com::android::graphics::surfaceflinger::flags::dont_skip_on_early(initialValue);
 }
-} // namespace
+
 } // namespace android

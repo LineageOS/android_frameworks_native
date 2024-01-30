@@ -53,6 +53,9 @@ struct OutputCompositionState {
     // If false, this output is not considered secure
     bool isSecure{false};
 
+    // If false, this output is not considered protected
+    bool isProtected{false};
+
     // If true, the current frame on this output uses client composition
     bool usesClientComposition{false};
 
@@ -116,9 +119,6 @@ struct OutputCompositionState {
     // Current active dataspace
     ui::Dataspace dataspace{ui::Dataspace::UNKNOWN};
 
-    // Current target dataspace
-    ui::Dataspace targetDataspace{ui::Dataspace::UNKNOWN};
-
     std::optional<android::HWComposer::DeviceRequestedChanges> previousDeviceRequestedChanges{};
 
     bool previousDeviceRequestedSuccess = false;
@@ -129,6 +129,9 @@ struct OutputCompositionState {
 
     // The expected time for the next present
     nsecs_t expectedPresentTime{0};
+
+    // The frameInterval for the next present
+    Fps frameInterval{};
 
     // Current display brightness
     float displayBrightnessNits{-1.f};

@@ -52,7 +52,6 @@ void OutputCompositionState::dump(std::string& out) const {
     dumpVal(out, "colorMode", toString(colorMode), colorMode);
     dumpVal(out, "renderIntent", toString(renderIntent), renderIntent);
     dumpVal(out, "dataspace", toString(dataspace), dataspace);
-    dumpVal(out, "targetDataspace", toString(targetDataspace), targetDataspace);
 
     out.append("\n   ");
     dumpVal(out, "colorTransformMatrix", colorTransformMatrix);

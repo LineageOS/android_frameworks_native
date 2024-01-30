@@ -16,42 +16,79 @@
 
 #pragma once
 
-#include <android-base/thread_annotations.h>
 #include <layerproto/LayerProtoHeader.h>
-#include <utils/Errors.h>
-#include <utils/StrongPointer.h>
-#include <utils/Timers.h>
 
-#include <memory>
-#include <mutex>
-
-using namespace android::surfaceflinger;
+#include <atomic>
+#include <functional>
+#include <optional>
+#include <ostream>
 
 namespace android {
 
-template <typename FileProto, typename EntryProto>
-class RingBuffer;
-
-class SurfaceFlinger;
+class TransactionTracing;
 
 /*
  * LayerTracing records layer states during surface flinging. Manages tracing state and
  * configuration.
+ *
+ * The traced data can then be collected with Perfetto.
+ *
+ * The Perfetto custom data source LayerDataSource is registered with perfetto. The data source
+ * is used to listen to perfetto events (setup, start, stop, flush) and to write trace packets
+ * to perfetto.
+ *
+ * The user can configure/start/stop tracing via /system/bin/perfetto.
+ *
+ * Tracing can operate in the following modes.
+ *
+ * ACTIVE mode:
+ * A layers snapshot is taken and written to perfetto for each vsyncid commit.
+ *
+ * GENERATED mode:
+ * Listens to the perfetto 'flush' event (e.g. when a bugreport is taken).
+ * When a 'flush' event is received, the ring buffer of transactions (hold by TransactionTracing)
+ * is processed by LayerTraceGenerator, a sequence of layers snapshots is generated
+ * and written to perfetto.
+ *
+ * DUMP mode:
+ * When the 'start' event is received a single layers snapshot is taken
+ * and written to perfetto.
+ *
+ *
+ * E.g. start active mode tracing
+ * (replace mode value with MODE_DUMP, MODE_GENERATED or MODE_GENERATED_BUGREPORT_ONLY to enable
+ * different tracing modes):
+ *
+   adb shell -t perfetto \
+     -c - --txt \
+     -o /data/misc/perfetto-traces/trace \
+   <<EOF
+   unique_session_name: "surfaceflinger_layers_active"
+   buffers: {
+       size_kb: 63488
+       fill_policy: RING_BUFFER
+   }
+   data_sources: {
+       config {
+           name: "android.surfaceflinger.layers"
+           surfaceflinger_layers_config: {
+               mode: MODE_ACTIVE
+               trace_flags: TRACE_FLAG_INPUT
+               trace_flags: TRACE_FLAG_COMPOSITION
+               trace_flags: TRACE_FLAG_HWC
+               trace_flags: TRACE_FLAG_BUFFERS
+               trace_flags: TRACE_FLAG_VIRTUAL_DISPLAYS
+           }
+       }
+   }
+EOF
+ *
  */
 class LayerTracing {
 public:
-    LayerTracing();
-    ~LayerTracing();
-    bool enable();
-    bool disable(std::string filename = FILE_NAME, bool writeToFile = true);
-    void appendToStream(std::ofstream& out);
-    bool isEnabled() const;
-    status_t writeToFile(std::string filename = FILE_NAME);
-    static LayersTraceFileProto createTraceFileProto();
-    void notify(bool visibleRegionDirty, int64_t time, int64_t vsyncId, LayersProto* layers,
-                std::string hwcDump, google::protobuf::RepeatedPtrField<DisplayProto>* displays);
+    using Mode = perfetto::protos::pbzero::SurfaceFlingerLayersConfig::Mode;
 
-    enum : uint32_t {
+    enum Flag : uint32_t {
         TRACE_INPUT = 1 << 1,
         TRACE_COMPOSITION = 1 << 2,
         TRACE_EXTRA = 1 << 3,
@@ -60,20 +97,39 @@ public:
         TRACE_VIRTUAL_DISPLAYS = 1 << 6,
         TRACE_ALL = TRACE_INPUT | TRACE_COMPOSITION | TRACE_EXTRA,
     };
-    void setTraceFlags(uint32_t flags);
-    bool flagIsSet(uint32_t flags) const;
-    uint32_t getFlags() const;
-    void setBufferSize(size_t bufferSizeInBytes);
-    void dump(std::string&) const;
+
+    LayerTracing();
+    LayerTracing(std::ostream&);
+    ~LayerTracing();
+    void setTakeLayersSnapshotProtoFunction(
+            const std::function<perfetto::protos::LayersSnapshotProto(uint32_t)>&);
+    void setTransactionTracing(TransactionTracing&);
+
+    // Start event from perfetto data source
+    void onStart(Mode mode, uint32_t flags);
+    // Flush event from perfetto data source
+    void onFlush(Mode mode, uint32_t flags, bool isBugreport);
+    // Stop event from perfetto data source
+    void onStop(Mode mode);
+
+    void addProtoSnapshotToOstream(perfetto::protos::LayersSnapshotProto&& snapshot, Mode mode);
+    bool isActiveTracingStarted() const;
+    uint32_t getActiveTracingFlags() const;
+    bool isActiveTracingFlagSet(Flag flag) const;
+    static perfetto::protos::LayersTraceFileProto createTraceFileProto();
 
 private:
-    static constexpr auto FILE_NAME = "/data/misc/wmtrace/layers_trace.winscope";
-    uint32_t mFlags = TRACE_INPUT;
-    mutable std::mutex mTraceLock;
-    bool mEnabled GUARDED_BY(mTraceLock) = false;
-    std::unique_ptr<RingBuffer<LayersTraceFileProto, LayersTraceProto>> mBuffer
-            GUARDED_BY(mTraceLock);
-    size_t mBufferSizeInBytes GUARDED_BY(mTraceLock) = 20 * 1024 * 1024;
+    void writeSnapshotToStream(perfetto::protos::LayersSnapshotProto&& snapshot) const;
+    void writeSnapshotToPerfetto(const perfetto::protos::LayersSnapshotProto& snapshot, Mode mode);
+    bool checkAndUpdateLastVsyncIdWrittenToPerfetto(Mode mode, std::int64_t vsyncId);
+
+    std::function<perfetto::protos::LayersSnapshotProto(uint32_t)> mTakeLayersSnapshotProto;
+    TransactionTracing* mTransactionTracing;
+
+    std::atomic<bool> mIsActiveTracingStarted{false};
+    std::atomic<uint32_t> mActiveTracingFlags{0};
+    std::atomic<std::int64_t> mLastVsyncIdWrittenToPerfetto{-1};
+    std::optional<std::reference_wrapper<std::ostream>> mOutStream;
 };
 
 } // namespace android

@@ -41,6 +41,7 @@ static const unsigned int kDeferredMonolithicSaveDelay = 4;
 constexpr uint32_t kMaxMultifileKeySize = 1 * 1024 * 1024;
 constexpr uint32_t kMaxMultifileValueSize = 8 * 1024 * 1024;
 constexpr uint32_t kMaxMultifileTotalSize = 32 * 1024 * 1024;
+constexpr uint32_t kMaxMultifileTotalEntries = 4 * 1024;
 
 namespace android {
 
@@ -277,7 +278,7 @@ MultifileBlobCache* egl_cache_t::getMultifileBlobCacheLocked() {
     if (mMultifileBlobCache == nullptr) {
         mMultifileBlobCache.reset(new MultifileBlobCache(kMaxMultifileKeySize,
                                                          kMaxMultifileValueSize, mCacheByteLimit,
-                                                         mFilename));
+                                                         kMaxMultifileTotalEntries, mFilename));
     }
     return mMultifileBlobCache.get();
 }

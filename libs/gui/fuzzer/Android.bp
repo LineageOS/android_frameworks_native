@@ -24,6 +24,7 @@ package {
 
 cc_defaults {
     name: "libgui_fuzzer_defaults",
+    defaults: ["android.hardware.power-ndk_shared"],
     static_libs: [
         "android.hidl.token@1.0-utils",
         "libbinder_random_parcel",
@@ -46,7 +47,6 @@ cc_defaults {
         "android.hardware.configstore-utils",
         "android.hardware.graphics.bufferqueue@1.0",
         "android.hardware.graphics.bufferqueue@2.0",
-        "android.hardware.power-V4-cpp",
         "android.hidl.token@1.0",
         "libSurfaceFlingerProp",
         "libgui",
@@ -72,6 +72,14 @@ cc_defaults {
             "android-media-fuzzing-reports@google.com",
         ],
         componentid: 155276,
+        hotlists: [
+            "4593311",
+        ],
+        description: "The fuzzer targets the APIs of libgui library",
+        vector: "local_no_privileges_required",
+        service_privilege: "privileged",
+        users: "multi_user",
+        fuzzed_code_usage: "shipped",
     },
 }
 
@@ -82,6 +90,7 @@ cc_fuzz {
     ],
     defaults: [
         "libgui_fuzzer_defaults",
+        "service_fuzzer_defaults",
     ],
 }
 
@@ -92,6 +101,7 @@ cc_fuzz {
     ],
     defaults: [
         "libgui_fuzzer_defaults",
+        "service_fuzzer_defaults",
     ],
 }
 

@@ -21,6 +21,7 @@
 #include <iostream>
 #include <string>
 
+#include <Tracing/LayerTracing.h>
 #include "LayerTraceGenerator.h"
 
 using namespace android;
@@ -41,25 +42,39 @@ int main(int argc, char** argv) {
         return -1;
     }
 
-    proto::TransactionTraceFile transactionTraceFile;
+    perfetto::protos::TransactionTraceFile transactionTraceFile;
     if (!transactionTraceFile.ParseFromIstream(&input)) {
         std::cout << "Error: Failed to parse " << transactionTracePath;
         return -1;
     }
 
-    const char* outputLayersTracePath =
-            (argc >= 3) ? argv[2] : "/data/misc/wmtrace/layers_trace.winscope";
+    const auto* outputLayersTracePath =
+            (argc == 3) ? argv[2] : "/data/misc/wmtrace/layers_trace.winscope";
+    auto outStream = std::ofstream{outputLayersTracePath, std::ios::binary | std::ios::out};
+
+    auto layerTracing = LayerTracing{outStream};
 
     const bool generateLastEntryOnly =
             argc >= 4 && std::string_view(argv[3]) == "--last-entry-only";
 
+    auto traceFlags = LayerTracing::Flag::TRACE_INPUT | LayerTracing::Flag::TRACE_BUFFERS;
+
     ALOGD("Generating %s...", outputLayersTracePath);
     std::cout << "Generating " << outputLayersTracePath << "\n";
 
-    if (!LayerTraceGenerator().generate(transactionTraceFile, outputLayersTracePath,
+    if (!LayerTraceGenerator().generate(transactionTraceFile, traceFlags, layerTracing,
                                         generateLastEntryOnly)) {
-        std::cout << "Error: Failed to generate layers trace " << outputLayersTracePath;
+        std::cout << "Error: Failed to generate layers trace " << outputLayersTracePath << "\n";
         return -1;
     }
+
+    // Set output file permissions (-rw-r--r--)
+    outStream.close();
+    const mode_t mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
+    if (chmod(outputLayersTracePath, mode) != 0) {
+        std::cout << "Error: Failed to set permissions of " << outputLayersTracePath << "\n";
+        return -1;
+    }
+
     return 0;
 }

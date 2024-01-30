@@ -193,6 +193,7 @@ const std::map<int, int> VirtualKeyboard::KEY_CODE_MAPPING = {
         {AKEYCODE_NUMPAD_ENTER, KEY_KPENTER},
         {AKEYCODE_NUMPAD_EQUALS, KEY_KPEQUAL},
         {AKEYCODE_NUMPAD_COMMA, KEY_KPCOMMA},
+        {AKEYCODE_LANGUAGE_SWITCH, KEY_LANGUAGE},
 };
 VirtualKeyboard::VirtualKeyboard(unique_fd fd) : VirtualInputDevice(std::move(fd)) {}
 VirtualKeyboard::~VirtualKeyboard() {}

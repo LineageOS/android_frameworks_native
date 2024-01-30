@@ -28,6 +28,7 @@ namespace android {
 using gui::InputApplicationInfo;
 using gui::TouchOcclusionMode;
 using gui::WindowInfo;
+using ui::Size;
 
 namespace test {
 
@@ -52,10 +53,8 @@ TEST(WindowInfo, Parcelling) {
     i.layoutParamsFlags = WindowInfo::Flag::SLIPPERY;
     i.layoutParamsType = WindowInfo::Type::INPUT_METHOD;
     i.dispatchingTimeout = 12s;
-    i.frameLeft = 93;
-    i.frameTop = 34;
-    i.frameRight = 16;
-    i.frameBottom = 19;
+    i.frame = Rect(93, 34, 16, 19);
+    i.contentSize = Size(10, 40);
     i.surfaceInset = 17;
     i.globalScaleFactor = 0.3;
     i.alpha = 0.7;
@@ -85,10 +84,8 @@ TEST(WindowInfo, Parcelling) {
     ASSERT_EQ(i.layoutParamsFlags, i2.layoutParamsFlags);
     ASSERT_EQ(i.layoutParamsType, i2.layoutParamsType);
     ASSERT_EQ(i.dispatchingTimeout, i2.dispatchingTimeout);
-    ASSERT_EQ(i.frameLeft, i2.frameLeft);
-    ASSERT_EQ(i.frameTop, i2.frameTop);
-    ASSERT_EQ(i.frameRight, i2.frameRight);
-    ASSERT_EQ(i.frameBottom, i2.frameBottom);
+    ASSERT_EQ(i.frame, i2.frame);
+    ASSERT_EQ(i.contentSize, i2.contentSize);
     ASSERT_EQ(i.surfaceInset, i2.surfaceInset);
     ASSERT_EQ(i.globalScaleFactor, i2.globalScaleFactor);
     ASSERT_EQ(i.alpha, i2.alpha);

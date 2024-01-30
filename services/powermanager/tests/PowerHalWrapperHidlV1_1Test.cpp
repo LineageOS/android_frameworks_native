@@ -16,18 +16,18 @@
 
 #define LOG_TAG "PowerHalWrapperHidlV1_1Test"
 
+#include <aidl/android/hardware/power/Boost.h>
+#include <aidl/android/hardware/power/IPower.h>
+#include <aidl/android/hardware/power/Mode.h>
 #include <android/hardware/power/1.1/IPower.h>
-#include <android/hardware/power/Boost.h>
-#include <android/hardware/power/IPower.h>
-#include <android/hardware/power/Mode.h>
 #include <binder/IServiceManager.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <powermanager/PowerHalWrapper.h>
 #include <utils/Log.h>
 
-using android::hardware::power::Boost;
-using android::hardware::power::Mode;
+using aidl::android::hardware::power::Boost;
+using aidl::android::hardware::power::Mode;
 using android::hardware::power::V1_0::Feature;
 using android::hardware::power::V1_0::PowerHint;
 using IPowerV1_1 = android::hardware::power::V1_1::IPower;

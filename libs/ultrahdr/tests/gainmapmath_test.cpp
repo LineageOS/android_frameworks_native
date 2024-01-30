@@ -120,7 +120,7 @@ public:
       0xB0, 0xB1,
       0xB2, 0xB3,
     };
-    return { pixels, 4, 4, ULTRAHDR_COLORGAMUT_BT709 };
+    return { pixels, 4, 4, ULTRAHDR_COLORGAMUT_BT709, pixels + 16, 4, 2 };
   }
 
   Color (*Yuv420Colors())[4] {
@@ -153,7 +153,7 @@ public:
       0xA0 << 6, 0xB0 << 6, 0xA1 << 6, 0xB1 << 6,
       0xA2 << 6, 0xB2 << 6, 0xA3 << 6, 0xB3 << 6,
     };
-    return { pixels, 4, 4, ULTRAHDR_COLORGAMUT_BT709 };
+    return { pixels, 4, 4, ULTRAHDR_COLORGAMUT_BT709, pixels + 16, 4, 4 };
   }
 
   Color (*P010Colors())[4] {
@@ -636,6 +636,9 @@ TEST_F(GainMapMathTest, TransformYuv420) {
     memcpy(out_buf.get(), input.data, out_buf_size);
     jpegr_uncompressed_struct output = Yuv420Image();
     output.data = out_buf.get();
+    output.chroma_data = out_buf.get() + input.width * input.height;
+    output.luma_stride = input.width;
+    output.chroma_stride = input.width / 2;
 
     transformYuv420(&output, 1, 1, transform);
 

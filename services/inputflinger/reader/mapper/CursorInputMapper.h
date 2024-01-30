@@ -119,13 +119,16 @@ private:
     // ADISPLAY_ID_NONE to target the focused display. If there is no display target (i.e.
     // std::nullopt), all events will be ignored.
     std::optional<int32_t> mDisplayId;
-    ui::Rotation mOrientation;
+    ui::Rotation mOrientation{ui::ROTATION_0};
+    FloatRect mBoundsInLogicalDisplay{};
 
     std::shared_ptr<PointerControllerInterface> mPointerController;
 
     int32_t mButtonState;
     nsecs_t mDownTime;
     nsecs_t mLastEventTime;
+
+    const bool mEnablePointerChoreographer;
 
     explicit CursorInputMapper(InputDeviceContext& deviceContext,
                                const InputReaderConfiguration& readerConfig);

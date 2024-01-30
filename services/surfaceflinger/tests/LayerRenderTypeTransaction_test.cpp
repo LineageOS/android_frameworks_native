@@ -1479,15 +1479,11 @@ TEST_P(LayerRenderTypeTransactionTest, SetColorTransformBasic) {
     matrix[2][2] = 0.11;
 
     // degamma before applying the matrix
-    if (mColorManagementUsed) {
-        ColorTransformHelper::DegammaColor(expected);
-    }
+    ColorTransformHelper::DegammaColor(expected);
 
     ColorTransformHelper::applyMatrix(expected, matrix);
 
-    if (mColorManagementUsed) {
-        ColorTransformHelper::GammaColor(expected);
-    }
+    ColorTransformHelper::GammaColor(expected);
 
     const Color expectedColor = {uint8_t(expected.r * 255), uint8_t(expected.g * 255),
                                  uint8_t(expected.b * 255), 255};
@@ -1537,15 +1533,11 @@ TEST_P(LayerRenderTypeTransactionTest, SetColorTransformOnParent) {
     matrix[2][2] = 0.11;
 
     // degamma before applying the matrix
-    if (mColorManagementUsed) {
-        ColorTransformHelper::DegammaColor(expected);
-    }
+    ColorTransformHelper::DegammaColor(expected);
 
     ColorTransformHelper::applyMatrix(expected, matrix);
 
-    if (mColorManagementUsed) {
-        ColorTransformHelper::GammaColor(expected);
-    }
+    ColorTransformHelper::GammaColor(expected);
 
     const Color expectedColor = {uint8_t(expected.r * 255), uint8_t(expected.g * 255),
                                  uint8_t(expected.b * 255), 255};
@@ -1608,16 +1600,12 @@ TEST_P(LayerRenderTypeTransactionTest, SetColorTransformOnChildAndParent) {
     matrixParent[2][2] = 0.10;
 
     // degamma before applying the matrix
-    if (mColorManagementUsed) {
-        ColorTransformHelper::DegammaColor(expected);
-    }
+    ColorTransformHelper::DegammaColor(expected);
 
     ColorTransformHelper::applyMatrix(expected, matrixChild);
     ColorTransformHelper::applyMatrix(expected, matrixParent);
 
-    if (mColorManagementUsed) {
-        ColorTransformHelper::GammaColor(expected);
-    }
+    ColorTransformHelper::GammaColor(expected);
 
     const Color expectedColor = {uint8_t(expected.r * 255), uint8_t(expected.g * 255),
                                  uint8_t(expected.b * 255), 255};

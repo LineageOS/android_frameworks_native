@@ -70,7 +70,6 @@
 #include "installd_deps.h"
 #include "otapreopt_utils.h"
 #include "utils.h"
-#include "view_compiler.h"
 
 #include "CacheTracker.h"
 #include "CrateManager.h"
@@ -3313,17 +3312,6 @@ binder::Status InstalldNativeService::dexopt(
 binder::Status InstalldNativeService::controlDexOptBlocking(bool block) {
     android::installd::control_dexopt_blocking(block);
     return ok();
-}
-
-binder::Status InstalldNativeService::compileLayouts(const std::string& apkPath,
-                                                     const std::string& packageName,
-                                                     const std ::string& outDexFile, int uid,
-                                                     bool* _aidl_return) {
-    const char* apk_path = apkPath.c_str();
-    const char* package_name = packageName.c_str();
-    const char* out_dex_file = outDexFile.c_str();
-    *_aidl_return = android::installd::view_compiler(apk_path, package_name, out_dex_file, uid);
-    return *_aidl_return ? ok() : error("viewcompiler failed");
 }
 
 binder::Status InstalldNativeService::linkNativeLibraryDirectory(

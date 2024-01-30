@@ -18,7 +18,6 @@
 
 #include <cutils/properties.h>
 #include <log/log.h>
-#include "gl/GLESRenderEngine.h"
 #include "renderengine/ExternalTexture.h"
 #include "threaded/RenderEngineThreaded.h"
 
@@ -30,11 +29,6 @@ namespace renderengine {
 
 std::unique_ptr<RenderEngine> RenderEngine::create(const RenderEngineCreationArgs& args) {
     switch (args.renderEngineType) {
-        case RenderEngineType::THREADED:
-            ALOGD("Threaded RenderEngine with GLES Backend");
-            return renderengine::threaded::RenderEngineThreaded::create(
-                    [args]() { return android::renderengine::gl::GLESRenderEngine::create(args); },
-                    args.renderEngineType);
         case RenderEngineType::SKIA_GL:
             ALOGD("RenderEngine with SkiaGL Backend");
             return renderengine::skia::SkiaGLRenderEngine::create(args);
@@ -56,10 +50,6 @@ std::unique_ptr<RenderEngine> RenderEngine::create(const RenderEngineCreationArg
                         return android::renderengine::skia::SkiaVkRenderEngine::create(args);
                     },
                     args.renderEngineType);
-        case RenderEngineType::GLES:
-        default:
-            ALOGD("RenderEngine with GLES Backend");
-            return renderengine::gl::GLESRenderEngine::create(args);
     }
 }
 
@@ -78,13 +68,11 @@ void RenderEngine::validateOutputBufferUsage(const sp<GraphicBuffer>& buffer) {
 ftl::Future<FenceResult> RenderEngine::drawLayers(const DisplaySettings& display,
                                                   const std::vector<LayerSettings>& layers,
                                                   const std::shared_ptr<ExternalTexture>& buffer,
-                                                  const bool useFramebufferCache,
                                                   base::unique_fd&& bufferFence) {
     const auto resultPromise = std::make_shared<std::promise<FenceResult>>();
     std::future<FenceResult> resultFuture = resultPromise->get_future();
     updateProtectedContext(layers, buffer);
-    drawLayersInternal(std::move(resultPromise), display, layers, buffer, useFramebufferCache,
-                       std::move(bufferFence));
+    drawLayersInternal(std::move(resultPromise), display, layers, buffer, std::move(bufferFence));
     return resultFuture;
 }
 

@@ -76,4 +76,26 @@ private:
     std::vector<NotifyArgs> mArgsQueue;
 };
 
+/*
+ * An implementation of the listener interface that traces the calls to its inner listener.
+ */
+class TracedInputListener : public InputListenerInterface {
+public:
+    explicit TracedInputListener(const char* name, InputListenerInterface& innerListener);
+
+    virtual void notifyInputDevicesChanged(const NotifyInputDevicesChangedArgs& args) override;
+    virtual void notifyConfigurationChanged(const NotifyConfigurationChangedArgs& args) override;
+    virtual void notifyKey(const NotifyKeyArgs& args) override;
+    virtual void notifyMotion(const NotifyMotionArgs& args) override;
+    virtual void notifySwitch(const NotifySwitchArgs& args) override;
+    virtual void notifySensor(const NotifySensorArgs& args) override;
+    virtual void notifyDeviceReset(const NotifyDeviceResetArgs& args) override;
+    void notifyVibratorState(const NotifyVibratorStateArgs& args) override;
+    void notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs& args) override;
+
+private:
+    InputListenerInterface& mInnerListener;
+    const char* mName;
+};
+
 } // namespace android

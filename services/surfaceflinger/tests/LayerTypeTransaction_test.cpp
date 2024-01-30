@@ -167,18 +167,18 @@ TEST_P(LayerTypeTransactionTest, SetFlagsSecure) {
             .setFlags(layer, layer_state_t::eLayerSecure, layer_state_t::eLayerSecure)
             .apply(true);
 
-    DisplayCaptureArgs args;
-    args.displayToken = mDisplay;
+    LayerCaptureArgs args;
+    args.layerHandle = layer->getHandle();
 
     ScreenCaptureResults captureResults;
     {
         // Ensure the UID is not root because root has all permissions
         UIDFaker f(AID_APP_START);
-        ASSERT_EQ(PERMISSION_DENIED, ScreenCapture::captureDisplay(args, captureResults));
+        ASSERT_EQ(PERMISSION_DENIED, ScreenCapture::captureLayers(args, captureResults));
     }
 
     Transaction().setFlags(layer, 0, layer_state_t::eLayerSecure).apply(true);
-    ASSERT_EQ(NO_ERROR, ScreenCapture::captureDisplay(args, captureResults));
+    ASSERT_EQ(NO_ERROR, ScreenCapture::captureLayers(args, captureResults));
 }
 
 TEST_P(LayerTypeTransactionTest, RefreshRateIsInitialized) {

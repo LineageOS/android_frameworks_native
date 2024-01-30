@@ -16,6 +16,7 @@
 
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 #include "BlurFilter.h"
+#include <SkBlendMode.h>
 #include <SkCanvas.h>
 #include <SkPaint.h>
 #include <SkRRect.h>
@@ -23,6 +24,7 @@
 #include <SkSize.h>
 #include <SkString.h>
 #include <SkSurface.h>
+#include <SkTileMode.h>
 #include <log/log.h>
 #include <utils/Trace.h>
 

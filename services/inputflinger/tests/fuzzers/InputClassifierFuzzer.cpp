@@ -16,44 +16,16 @@
 
 #include <MapperHelpers.h>
 #include <fuzzer/FuzzedDataProvider.h>
+#include "FuzzedInputStream.h"
 #include "InputCommonConverter.h"
 #include "InputProcessor.h"
 
 namespace android {
 
-static constexpr int32_t MAX_AXES = 64;
+namespace {
 
-// Used by two fuzz operations and a bit lengthy, so pulled out into a function.
-NotifyMotionArgs generateFuzzedMotionArgs(FuzzedDataProvider &fdp) {
-    // Create a basic motion event for testing
-    PointerProperties properties;
-    properties.id = 0;
-    properties.toolType = getFuzzedToolType(fdp);
-    PointerCoords coords;
-    coords.clear();
-    for (int32_t i = 0; i < fdp.ConsumeIntegralInRange<int32_t>(0, MAX_AXES); i++) {
-        coords.setAxisValue(fdp.ConsumeIntegral<int32_t>(), fdp.ConsumeFloatingPoint<float>());
-    }
+constexpr int32_t MAX_RANDOM_DISPLAYS = 4;
 
-    const nsecs_t downTime = 2;
-    const nsecs_t readTime = downTime + fdp.ConsumeIntegralInRange<nsecs_t>(0, 1E8);
-    NotifyMotionArgs motionArgs(/*sequenceNum=*/fdp.ConsumeIntegral<uint32_t>(),
-                                /*eventTime=*/downTime, readTime,
-                                /*deviceId=*/fdp.ConsumeIntegral<int32_t>(), AINPUT_SOURCE_ANY,
-                                ADISPLAY_ID_DEFAULT,
-                                /*policyFlags=*/fdp.ConsumeIntegral<uint32_t>(),
-                                AMOTION_EVENT_ACTION_DOWN,
-                                /*actionButton=*/fdp.ConsumeIntegral<int32_t>(),
-                                /*flags=*/fdp.ConsumeIntegral<int32_t>(), AMETA_NONE,
-                                /*buttonState=*/fdp.ConsumeIntegral<int32_t>(),
-                                MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE,
-                                /*pointerCount=*/1, &properties, &coords,
-                                /*xPrecision=*/fdp.ConsumeFloatingPoint<float>(),
-                                /*yPrecision=*/fdp.ConsumeFloatingPoint<float>(),
-                                AMOTION_EVENT_INVALID_CURSOR_POSITION,
-                                AMOTION_EVENT_INVALID_CURSOR_POSITION, downTime,
-                                /*videoFrames=*/{});
-    return motionArgs;
 }
 
 extern "C" int LLVMFuzzerTestOneInput(uint8_t *data, size_t size) {
@@ -62,6 +34,7 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t *data, size_t size) {
     std::unique_ptr<FuzzInputListener> mFuzzListener = std::make_unique<FuzzInputListener>();
     std::unique_ptr<InputProcessorInterface> mClassifier =
             std::make_unique<InputProcessor>(*mFuzzListener);
+    IdGenerator idGenerator(IdGenerator::Source::OTHER);
 
     while (fdp.remaining_bytes() > 0) {
         fdp.PickValueInArray<std::function<void()>>({
@@ -73,9 +46,11 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t *data, size_t size) {
                 },
                 [&]() -> void {
                     // SendToNextStage_NotifyKeyArgs
-                    const nsecs_t eventTime = fdp.ConsumeIntegral<nsecs_t>();
-                    const nsecs_t readTime =
-                            eventTime + fdp.ConsumeIntegralInRange<nsecs_t>(0, 1E8);
+                    const nsecs_t eventTime =
+                            fdp.ConsumeIntegralInRange<nsecs_t>(0,
+                                                                systemTime(SYSTEM_TIME_MONOTONIC));
+                    const nsecs_t readTime = fdp.ConsumeIntegralInRange<
+                            nsecs_t>(eventTime, std::numeric_limits<nsecs_t>::max());
                     mClassifier->notifyKey({/*sequenceNum=*/fdp.ConsumeIntegral<int32_t>(),
                                             eventTime, readTime,
                                             /*deviceId=*/fdp.ConsumeIntegral<int32_t>(),
@@ -88,7 +63,8 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t *data, size_t size) {
                 },
                 [&]() -> void {
                     // SendToNextStage_NotifyMotionArgs
-                    mClassifier->notifyMotion(generateFuzzedMotionArgs(fdp));
+                    mClassifier->notifyMotion(
+                            generateFuzzedMotionArgs(idGenerator, fdp, MAX_RANDOM_DISPLAYS));
                 },
                 [&]() -> void {
                     // SendToNextStage_NotifySwitchArgs
@@ -106,7 +82,8 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t *data, size_t size) {
                 },
                 [&]() -> void {
                     // InputClassifierConverterTest
-                    const NotifyMotionArgs motionArgs = generateFuzzedMotionArgs(fdp);
+                    const NotifyMotionArgs motionArgs =
+                            generateFuzzedMotionArgs(idGenerator, fdp, MAX_RANDOM_DISPLAYS);
                     aidl::android::hardware::input::common::MotionEvent motionEvent =
                             notifyMotionArgsToHalMotionEvent(motionArgs);
                 },

@@ -106,7 +106,8 @@ bool TimeStats::populateGlobalAtom(std::vector<uint8_t>* pulledData) {
         atom->set_client_composition_frames(mTimeStats.clientCompositionFramesLegacy);
         atom->set_display_on_millis(mTimeStats.displayOnTimeLegacy);
         atom->set_animation_millis(mTimeStats.presentToPresentLegacy.totalTime());
-        atom->set_event_connection_count(mTimeStats.displayEventConnectionsCountLegacy);
+        // Deprecated
+        atom->set_event_connection_count(0);
         *atom->mutable_frame_duration() =
                 histogramToProto(mTimeStats.frameDurationLegacy.hist, mMaxPulledHistogramBuckets);
         *atom->mutable_render_engine_timing() =
@@ -354,16 +355,6 @@ void TimeStats::incrementRefreshRateSwitches() {
 
     std::lock_guard<std::mutex> lock(mMutex);
     mTimeStats.refreshRateSwitchesLegacy++;
-}
-
-void TimeStats::recordDisplayEventConnectionCount(int32_t count) {
-    if (!mEnabled.load()) return;
-
-    ATRACE_CALL();
-
-    std::lock_guard<std::mutex> lock(mMutex);
-    mTimeStats.displayEventConnectionsCountLegacy =
-            std::max(mTimeStats.displayEventConnectionsCountLegacy, count);
 }
 
 static int32_t toMs(nsecs_t nanos) {
@@ -1072,7 +1063,6 @@ void TimeStats::clearGlobalLocked() {
     mTimeStats.compositionStrategyPredictedLegacy = 0;
     mTimeStats.compositionStrategyPredictionSucceededLegacy = 0;
     mTimeStats.refreshRateSwitchesLegacy = 0;
-    mTimeStats.displayEventConnectionsCountLegacy = 0;
     mTimeStats.displayOnTimeLegacy = 0;
     mTimeStats.presentToPresentLegacy.hist.clear();
     mTimeStats.frameDurationLegacy.hist.clear();

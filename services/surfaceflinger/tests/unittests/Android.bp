@@ -42,6 +42,12 @@ filegroup {
     ],
 }
 
+cc_aconfig_library {
+    name: "libsurfaceflingerflags_test",
+    aconfig_declarations: "surfaceflinger_flags",
+    mode: "test",
+}
+
 cc_test {
     name: "libsurfaceflinger_unittest",
     defaults: [
@@ -50,28 +56,14 @@ cc_test {
         "surfaceflinger_defaults",
     ],
     test_suites: ["device-tests"],
-    sanitize: {
-        // Using the address sanitizer not only helps uncover issues in the code
-        // covered by the tests, but also covers some of the tricky injection of
-        // fakes the unit tests currently do.
-        //
-        // Note: If you get an runtime link error like:
-        //
-        //   CANNOT LINK EXECUTABLE "/data/local/tmp/libsurfaceflinger_unittest": library "libclang_rt.asan-aarch64-android.so" not found
-        //
-        // it is because the address sanitizer shared objects are not installed
-        // by default in the system image.
-        //
-        // You can either "make dist tests" before flashing, or set this
-        // option to false temporarily.
-        address: true,
-    },
+    static_libs: ["libc++fs"],
     srcs: [
         ":libsurfaceflinger_mock_sources",
         ":libsurfaceflinger_sources",
         "libsurfaceflinger_unittest_main.cpp",
         "ActiveDisplayRotationFlagsTest.cpp",
         "BackgroundExecutorTest.cpp",
+        "CommitTest.cpp",
         "CompositionTest.cpp",
         "DisplayIdGeneratorTest.cpp",
         "DisplayTransactionTest.cpp",
@@ -86,11 +78,13 @@ cc_test {
         "FramebufferSurfaceTest.cpp",
         "FrameRateOverrideMappingsTest.cpp",
         "FrameRateSelectionPriorityTest.cpp",
+        "FrameRateSelectionStrategyTest.cpp",
         "FrameTimelineTest.cpp",
         "GameModeTest.cpp",
         "HWComposerTest.cpp",
         "OneShotTimerTest.cpp",
         "LayerHistoryTest.cpp",
+        "LayerHistoryIntegrationTest.cpp",
         "LayerInfoTest.cpp",
         "LayerMetadataTest.cpp",
         "LayerHierarchyTest.cpp",
@@ -112,6 +106,7 @@ cc_test {
         "SurfaceFlinger_HdrOutputControlTest.cpp",
         "SurfaceFlinger_HotplugTest.cpp",
         "SurfaceFlinger_InitializeDisplaysTest.cpp",
+        "SurfaceFlinger_NotifyExpectedPresentTest.cpp",
         "SurfaceFlinger_NotifyPowerBoostTest.cpp",
         "SurfaceFlinger_PowerHintTest.cpp",
         "SurfaceFlinger_SetDisplayStateTest.cpp",
@@ -129,6 +124,7 @@ cc_test {
         "TransactionFrameTracerTest.cpp",
         "TransactionProtoParserTest.cpp",
         "TransactionSurfaceFrameTest.cpp",
+        "TransactionTraceWriterTest.cpp",
         "TransactionTracingTest.cpp",
         "TunnelModeEnabledReporterTest.cpp",
         "StrongTypingTest.cpp",
@@ -149,6 +145,7 @@ cc_defaults {
     defaults: [
         "android.hardware.graphics.common-ndk_static",
         "android.hardware.graphics.composer3-ndk_static",
+        "android.hardware.power-ndk_static",
         "librenderengine_deps",
     ],
     static_libs: [
@@ -162,7 +159,6 @@ cc_defaults {
         "android.hardware.power@1.1",
         "android.hardware.power@1.2",
         "android.hardware.power@1.3",
-        "android.hardware.power-V4-cpp",
         "libaidlcommonsupport",
         "libcompositionengine_mocks",
         "libcompositionengine",
@@ -175,11 +171,13 @@ cc_defaults {
         "librenderengine_mocks",
         "libscheduler",
         "libserviceutils",
+        "libsurfaceflinger_common_test",
         "libtimestats",
         "libtimestats_atoms_proto",
         "libtimestats_proto",
         "libtonemap",
         "perfetto_trace_protos",
+        "libsurfaceflingerflags_test",
     ],
     shared_libs: [
         "android.hardware.configstore-utils",

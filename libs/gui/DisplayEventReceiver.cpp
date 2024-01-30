@@ -99,7 +99,7 @@ status_t DisplayEventReceiver::getLatestVsyncEventData(
     if (mEventConnection != nullptr) {
         auto status = mEventConnection->getLatestVsyncEventData(outVsyncEventData);
         if (!status.isOk()) {
-            ALOGE("Failed to get latest vsync event data: %s", status.exceptionMessage().c_str());
+            ALOGE("Failed to get latest vsync event data: %s", status.toString8().c_str());
             return status.transactionError();
         }
         return NO_ERROR;

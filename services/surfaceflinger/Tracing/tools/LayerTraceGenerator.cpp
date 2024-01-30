@@ -40,8 +40,9 @@
 namespace android {
 using namespace ftl::flag_operators;
 
-bool LayerTraceGenerator::generate(const proto::TransactionTraceFile& traceFile,
-                                   const char* outputLayersTracePath, bool onlyLastEntry) {
+bool LayerTraceGenerator::generate(const perfetto::protos::TransactionTraceFile& traceFile,
+                                   std::uint32_t traceFlags, LayerTracing& layerTracing,
+                                   bool onlyLastEntry) {
     if (traceFile.entry_size() == 0) {
         ALOGD("Trace file is empty");
         return false;
@@ -55,23 +56,15 @@ bool LayerTraceGenerator::generate(const proto::TransactionTraceFile& traceFile,
     frontend::LayerSnapshotBuilder snapshotBuilder;
     ui::DisplayMap<ui::LayerStack, frontend::DisplayInfo> displayInfos;
 
-    renderengine::ShadowSettings globalShadowSettings{.ambientColor = {1, 1, 1, 1}};
+    ShadowSettings globalShadowSettings{.ambientColor = {1, 1, 1, 1}};
     char value[PROPERTY_VALUE_MAX];
     property_get("ro.surface_flinger.supports_background_blur", value, "0");
     bool supportsBlur = atoi(value);
 
-    LayerTracing layerTracing;
-    layerTracing.setTraceFlags(LayerTracing::TRACE_INPUT | LayerTracing::TRACE_BUFFERS);
-    // 10MB buffer size (large enough to hold a single entry)
-    layerTracing.setBufferSize(10 * 1024 * 1024);
-    layerTracing.enable();
-    layerTracing.writeToFile(outputLayersTracePath);
-    std::ofstream out(outputLayersTracePath, std::ios::binary | std::ios::app);
-
     ALOGD("Generating %d transactions...", traceFile.entry_size());
     for (int i = 0; i < traceFile.entry_size(); i++) {
         // parse proto
-        proto::TransactionTraceEntry entry = traceFile.entry(i);
+        perfetto::protos::TransactionTraceEntry entry = traceFile.entry(i);
         ALOGV("    Entry %04d/%04d for time=%" PRId64 " vsyncid=%" PRId64
               " layers +%d -%d handles -%d transactions=%d",
               i, traceFile.entry_size(), entry.elapsed_realtime_nanos(), entry.vsync_id(),
@@ -109,11 +102,11 @@ bool LayerTraceGenerator::generate(const proto::TransactionTraceFile& traceFile,
             ALOGV("       destroyedHandles=%d", entry.destroyed_layers(j));
         }
 
-        std::vector<uint32_t> destroyedHandles;
+        std::vector<std::pair<uint32_t, std::string>> destroyedHandles;
         destroyedHandles.reserve((size_t)entry.destroyed_layer_handles_size());
         for (int j = 0; j < entry.destroyed_layer_handles_size(); j++) {
             ALOGV("       destroyedHandles=%d", entry.destroyed_layer_handles(j));
-            destroyedHandles.push_back(entry.destroyed_layer_handles(j));
+            destroyedHandles.push_back({entry.destroyed_layer_handles(j), ""});
         }
 
         bool displayChanged = entry.displays_changed();
@@ -154,19 +147,26 @@ bool LayerTraceGenerator::generate(const proto::TransactionTraceFile& traceFile,
 
         lifecycleManager.commitChanges();
 
-        LayersProto layersProto = LayerProtoFromSnapshotGenerator(snapshotBuilder, displayInfos, {},
-                                                                  layerTracing.getFlags())
-                                          .generate(hierarchyBuilder.getHierarchy());
+        auto layersProto =
+                LayerProtoFromSnapshotGenerator(snapshotBuilder, displayInfos, {}, traceFlags)
+                        .generate(hierarchyBuilder.getHierarchy());
         auto displayProtos = LayerProtoHelper::writeDisplayInfoToProto(displayInfos);
         if (!onlyLastEntry || (i == traceFile.entry_size() - 1)) {
-            layerTracing.notify(visibleRegionsDirty, entry.elapsed_realtime_nanos(),
-                                entry.vsync_id(), &layersProto, {}, &displayProtos);
-            layerTracing.appendToStream(out);
+            perfetto::protos::LayersSnapshotProto snapshotProto{};
+            snapshotProto.set_vsync_id(entry.vsync_id());
+            snapshotProto.set_elapsed_realtime_nanos(entry.elapsed_realtime_nanos());
+            snapshotProto.set_where(visibleRegionsDirty ? "visibleRegionsDirty" : "bufferLatched");
+            *snapshotProto.mutable_layers() = std::move(layersProto);
+            if ((traceFlags & LayerTracing::TRACE_COMPOSITION) == 0) {
+                snapshotProto.set_excludes_composition_state(true);
+            }
+            *snapshotProto.mutable_displays() = std::move(displayProtos);
+
+            layerTracing.addProtoSnapshotToOstream(std::move(snapshotProto),
+                                                   LayerTracing::Mode::MODE_GENERATED);
         }
     }
-    layerTracing.disable("", /*writeToFile=*/false);
-    out.close();
-    ALOGD("End of generating trace file. File written to %s", outputLayersTracePath);
+    ALOGD("End of generating trace file");
     return true;
 }
 

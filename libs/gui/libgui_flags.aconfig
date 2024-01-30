@@ -1,0 +1,17 @@
+package: "com.android.graphics.libgui.flags"
+
+flag {
+  name: "bq_setframerate"
+  namespace: "core_graphics"
+  description: "This flag controls plumbing setFrameRate thru BufferQueue"
+  bug: "281695725"
+  is_fixed_read_only: true
+}
+
+flag {
+  name: "frametimestamps_previousrelease"
+  namespace: "core_graphics"
+  description: "Controls a fence fixup for timestamp apis"
+  bug: "310927247"
+  is_fixed_read_only: true
+}

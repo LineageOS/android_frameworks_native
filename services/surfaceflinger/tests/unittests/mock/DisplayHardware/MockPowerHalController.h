@@ -31,8 +31,8 @@ class IPower;
 
 namespace android::Hwc2::mock {
 
-using android::hardware::power::Boost;
-using android::hardware::power::Mode;
+using aidl::android::hardware::power::Boost;
+using aidl::android::hardware::power::Mode;
 using android::power::HalResult;
 
 class MockPowerHalController : public power::PowerHalController {
@@ -42,8 +42,9 @@ public:
     MOCK_METHOD(void, init, (), (override));
     MOCK_METHOD(HalResult<void>, setBoost, (Boost, int32_t), (override));
     MOCK_METHOD(HalResult<void>, setMode, (Mode, bool), (override));
-    MOCK_METHOD(HalResult<sp<hardware::power::IPowerHintSession>>, createHintSession,
-                (int32_t, int32_t, const std::vector<int32_t>&, int64_t), (override));
+    MOCK_METHOD(HalResult<std::shared_ptr<aidl::android::hardware::power::IPowerHintSession>>,
+                createHintSession, (int32_t, int32_t, const std::vector<int32_t>&, int64_t),
+                (override));
     MOCK_METHOD(HalResult<int64_t>, getHintSessionPreferredRate, (), (override));
 };
 

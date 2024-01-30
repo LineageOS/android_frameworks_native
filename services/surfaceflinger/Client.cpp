@@ -22,6 +22,7 @@
 #include <private/android_filesystem_config.h>
 
 #include <gui/AidlStatusUtil.h>
+#include <gui/SchedulingPolicy.h>
 
 #include "Client.h"
 #include "FrontEnd/LayerCreationArgs.h"
@@ -115,6 +116,10 @@ binder::Status Client::mirrorDisplay(int64_t displayId, gui::CreateSurfaceResult
     std::optional<DisplayId> id = DisplayId::fromValue(static_cast<uint64_t>(displayId));
     status_t status = mFlinger->mirrorDisplay(*id, args, *outResult);
     return binderStatusFromStatusT(status);
+}
+
+binder::Status Client::getSchedulingPolicy(gui::SchedulingPolicy* outPolicy) {
+    return gui::getSchedulingPolicy(outPolicy);
 }
 
 // ---------------------------------------------------------------------------

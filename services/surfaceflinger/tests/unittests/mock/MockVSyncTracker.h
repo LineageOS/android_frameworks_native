@@ -27,15 +27,18 @@ public:
     VSyncTracker();
     ~VSyncTracker() override;
 
-    MOCK_METHOD1(addVsyncTimestamp, bool(nsecs_t));
-    MOCK_CONST_METHOD1(nextAnticipatedVSyncTimeFrom, nsecs_t(nsecs_t));
-    MOCK_CONST_METHOD0(currentPeriod, nsecs_t());
-    MOCK_METHOD1(setPeriod, void(nsecs_t));
-    MOCK_METHOD0(resetModel, void());
-    MOCK_CONST_METHOD0(needsMoreSamples, bool());
-    MOCK_CONST_METHOD2(isVSyncInPhase, bool(nsecs_t, Fps));
+    MOCK_METHOD(bool, addVsyncTimestamp, (nsecs_t), (override));
+    MOCK_METHOD(nsecs_t, nextAnticipatedVSyncTimeFrom, (nsecs_t), (const, override));
+    MOCK_METHOD(nsecs_t, currentPeriod, (), (const, override));
+    MOCK_METHOD(Period, minFramePeriod, (), (const, override));
+    MOCK_METHOD(void, resetModel, (), (override));
+    MOCK_METHOD(bool, needsMoreSamples, (), (const, override));
+    MOCK_METHOD(bool, isVSyncInPhase, (nsecs_t, Fps), (const, override));
+    MOCK_METHOD(void, setDisplayModePtr, (ftl::NonNull<DisplayModePtr>), (override));
     MOCK_METHOD(void, setRenderRate, (Fps), (override));
-    MOCK_CONST_METHOD1(dump, void(std::string&));
+    MOCK_METHOD(void, onFrameBegin, (TimePoint, TimePoint), (override));
+    MOCK_METHOD(void, onFrameMissed, (TimePoint), (override));
+    MOCK_METHOD(void, dump, (std::string&), (const, override));
 };
 
 } // namespace android::mock

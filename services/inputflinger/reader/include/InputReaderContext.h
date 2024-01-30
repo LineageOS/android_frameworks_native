@@ -65,6 +65,9 @@ public:
 
     virtual void setPreventingTouchpadTaps(bool prevent) = 0;
     virtual bool isPreventingTouchpadTaps() = 0;
+
+    virtual void setLastKeyDownTimestamp(nsecs_t when) = 0;
+    virtual nsecs_t getLastKeyDownTimestamp() = 0;
 };
 
 } // namespace android

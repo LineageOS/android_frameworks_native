@@ -42,6 +42,8 @@
 
 #include <stdint.h>
 #include <sys/types.h>
+#include <condition_variable>
+#include <mutex>
 #include <queue>
 #include <unordered_map>
 #include <unordered_set>
@@ -120,6 +122,11 @@ public:
        // delivered to all requesting apps rather than just the package allowed to inject data.
        // This mode is only allowed to be used on development builds.
        REPLAY_DATA_INJECTION = 3,
+       // Like REPLAY_DATA_INJECTION but injected data is not sent into the HAL. It is stored in a
+       // buffer in SensorDevice and played back to SensorService when SensorDevice::poll() is
+       // called. This is useful for playing back sensor data on the platform without relying on
+       // the HAL to support data injection.
+       HAL_BYPASS_REPLAY_DATA_INJECTION = 4,
 
       // State Transitions supported.
       //     RESTRICTED   <---  NORMAL   ---> DATA_INJECTION/REPLAY_DATA_INJECTION
@@ -208,6 +215,7 @@ private:
     class SensorEventAckReceiver;
     class SensorRecord;
     class SensorRegistrationInfo;
+    class RuntimeSensorHandler;
 
     // Promoting a SensorEventConnection or SensorDirectConnection from wp to sp must be done with
     // mLock held, but destroying that sp must be done unlocked to avoid a race condition that
@@ -262,6 +270,14 @@ private:
         friend class ConnectionSafeAutolock;
         SortedVector< wp<SensorEventConnection> > mActiveConnections;
         SortedVector< wp<SensorDirectConnection> > mDirectConnections;
+    };
+
+    class RuntimeSensorHandler : public Thread {
+        sp<SensorService> const mService;
+    public:
+        virtual bool threadLoop();
+        explicit RuntimeSensorHandler(const sp<SensorService>& service) : mService(service) {
+        }
     };
 
     // If accessing a sensor we need to make sure the UID has access to it. If
@@ -368,6 +384,8 @@ private:
     // Thread interface
     virtual bool threadLoop();
 
+    void processRuntimeSensorEvents();
+
     // ISensorServer interface
     virtual Vector<Sensor> getSensorList(const String16& opPackageName);
     virtual Vector<Sensor> getDynamicSensorList(const String16& opPackageName);
@@ -376,6 +394,8 @@ private:
             const String8& packageName,
             int requestedMode, const String16& opPackageName, const String16& attributionTag);
     virtual int isDataInjectionEnabled();
+    virtual int isReplayDataInjectionEnabled();
+    virtual int isHalBypassReplayDataInjectionEnabled();
     virtual sp<ISensorEventConnection> createSensorDirectConnection(const String16& opPackageName,
             int deviceId, uint32_t size, int32_t type, int32_t format,
             const native_handle *resource);
@@ -494,6 +514,8 @@ private:
     // Removes the capped rate on active direct connections (when the mic toggle is flipped to off)
     void uncapRates();
 
+    bool isInjectionMode(int mode);
+
     static inline bool isAudioServerOrSystemServerUid(uid_t uid) {
         return multiuser_get_app_id(uid) == AID_SYSTEM || uid == AID_AUDIOSERVER;
     }
@@ -512,6 +534,10 @@ private:
     uint32_t mSocketBufferSize;
     sp<Looper> mLooper;
     sp<SensorEventAckReceiver> mAckReceiver;
+    sp<RuntimeSensorHandler> mRuntimeSensorHandler;
+    // Mutex and CV used to notify the mRuntimeSensorHandler thread that there are new events.
+    std::mutex mRutimeSensorThreadMutex;
+    std::condition_variable mRuntimeSensorsCv;
 
     // protected by mLock
     mutable Mutex mLock;
@@ -519,7 +545,7 @@ private:
     std::unordered_set<int> mActiveVirtualSensors;
     SensorConnectionHolder mConnectionHolder;
     bool mWakeLockAcquired;
-    sensors_event_t *mSensorEventBuffer, *mSensorEventScratch;
+    sensors_event_t *mSensorEventBuffer, *mSensorEventScratch, *mRuntimeSensorEventBuffer;
     // WARNING: these SensorEventConnection instances must not be promoted to sp, except via
     // modification to add support for them in ConnectionSafeAutolock
     wp<const SensorEventConnection> * mMapFlushEventsToConnections;
