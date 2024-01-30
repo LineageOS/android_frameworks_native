@@ -49,6 +49,7 @@ filegroup {
         "Monitor.cpp",
         "TouchedWindow.cpp",
         "TouchState.cpp",
+        "trace/*.cpp",
     ],
 }
 
@@ -72,6 +73,7 @@ cc_defaults {
     static_libs: [
         "libattestation",
         "libgui_window_info_static",
+        "libperfetto_client_experimental",
     ],
     target: {
         android: {

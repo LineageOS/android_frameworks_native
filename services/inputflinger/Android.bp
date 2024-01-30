@@ -110,6 +110,7 @@ cc_defaults {
     ],
     static_libs: [
         "libattestation",
+        "libperfetto_client_experimental",
         "libpalmrejection",
         "libui-types",
     ],
