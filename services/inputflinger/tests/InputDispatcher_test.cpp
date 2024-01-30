@@ -6178,16 +6178,12 @@ TEST_F(InputDispatcherMonitorTest, MonitorTouchIsNotCanceledWhenAnotherEmptyDisp
 
     window->consumeMotionDown();
     monitor.consumeMotionDown(ADISPLAY_ID_DEFAULT);
-    secondMonitor.assertNoEvents();
 
     ASSERT_EQ(InputEventInjectionResult::FAILED,
               injectMotionDown(*mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, SECOND_DISPLAY_ID,
                                {100, 200}))
-            << "The down event injected into the second display should failed";
-    // Foreground window and monitor on the first display should not receive any events.
-    window->assertNoEvents();
-    monitor.assertNoEvents();
-    secondMonitor.assertNoEvents();
+            << "The down event injected into the second display should fail since there's no "
+               "touchable window";
 
     // Continue to inject event to first display.
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
@@ -6197,7 +6193,6 @@ TEST_F(InputDispatcherMonitorTest, MonitorTouchIsNotCanceledWhenAnotherEmptyDisp
 
     window->consumeMotionMove();
     monitor.consumeMotionMove(ADISPLAY_ID_DEFAULT);
-    secondMonitor.assertNoEvents();
 
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
               injectMotionUp(*mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
@@ -6206,6 +6201,9 @@ TEST_F(InputDispatcherMonitorTest, MonitorTouchIsNotCanceledWhenAnotherEmptyDisp
 
     window->consumeMotionUp();
     monitor.consumeMotionUp(ADISPLAY_ID_DEFAULT);
+
+    window->assertNoEvents();
+    monitor.assertNoEvents();
     secondMonitor.assertNoEvents();
 }
 
@@ -6244,16 +6242,12 @@ TEST_F(InputDispatcherMonitorTest, MonitorTouchIsNotCancelWhenAnotherDisplayMoni
 
     window->consumeMotionDown(ADISPLAY_ID_DEFAULT);
     monitor.consumeMotionDown(ADISPLAY_ID_DEFAULT);
-    secondWindow->assertNoEvents();
-    secondMonitor.assertNoEvents();
 
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
               injectMotionDown(*mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, SECOND_DISPLAY_ID,
                                {100, 200}))
             << "The down event injected into the second display should succeed";
 
-    window->assertNoEvents();
-    monitor.assertNoEvents();
     secondWindow->consumeMotionDown(SECOND_DISPLAY_ID);
     secondMonitor.consumeMotionDown(SECOND_DISPLAY_ID);
 
@@ -6262,21 +6256,16 @@ TEST_F(InputDispatcherMonitorTest, MonitorTouchIsNotCancelWhenAnotherDisplayMoni
 
     // The gone window should receive a cancel, and the monitor on the second display should not
     // receive any events.
-    window->assertNoEvents();
-    monitor.assertNoEvents();
     secondWindow->consumeMotionCancel(SECOND_DISPLAY_ID);
     secondMonitor.assertNoEvents();
 
     ASSERT_EQ(InputEventInjectionResult::FAILED,
               injectMotionEvent(*mDispatcher, AMOTION_EVENT_ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN,
                                 SECOND_DISPLAY_ID, {110, 220}))
-            << "The move event injected into the second display should failed";
+            << "The move event injected into the second display should fail because there's no "
+               "touchable window";
     // Now the monitor on the second display should receive a cancel event.
     secondMonitor.consumeMotionCancel(SECOND_DISPLAY_ID);
-    // Other windows and monitors should not receive any events.
-    window->assertNoEvents();
-    monitor.assertNoEvents();
-    secondWindow->assertNoEvents();
 
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
               injectMotionEvent(*mDispatcher, AMOTION_EVENT_ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN,
@@ -6285,18 +6274,12 @@ TEST_F(InputDispatcherMonitorTest, MonitorTouchIsNotCancelWhenAnotherDisplayMoni
 
     window->consumeMotionMove();
     monitor.consumeMotionMove(ADISPLAY_ID_DEFAULT);
-    secondWindow->assertNoEvents();
-    secondMonitor.assertNoEvents();
 
     ASSERT_EQ(InputEventInjectionResult::FAILED,
-              injectMotionUp(*mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, SECOND_DISPLAY_ID, {110,
-                                                                                          220}))
-            << "The up event injected into the second display should failed";
-
-    window->assertNoEvents();
-    monitor.assertNoEvents();
-    secondWindow->assertNoEvents();
-    secondMonitor.assertNoEvents();
+              injectMotionUp(*mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, SECOND_DISPLAY_ID,
+                             {110, 220}))
+            << "The up event injected into the second display should fail because there's no "
+               "touchable window";
 
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
               injectMotionUp(*mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
@@ -6305,8 +6288,11 @@ TEST_F(InputDispatcherMonitorTest, MonitorTouchIsNotCancelWhenAnotherDisplayMoni
 
     window->consumeMotionUp(ADISPLAY_ID_DEFAULT);
     monitor.consumeMotionUp(ADISPLAY_ID_DEFAULT);
+
     window->assertNoEvents();
     monitor.assertNoEvents();
+    secondWindow->assertNoEvents();
+    secondMonitor.assertNoEvents();
 }
 
 /**
@@ -6355,9 +6341,8 @@ TEST_F(InputDispatcherMonitorTest, MonitorTouchCancelEventWithDisplayTransform) 
     // Let foreground window gone
     mDispatcher->onWindowInfosChanged({{}, {displayInfo}, 0, 0});
 
-    // Foreground window should receive a cancel event, but monitor not.
+    // Foreground window should receive a cancel event, but not the monitor.
     window->consumeMotionCancel();
-    monitor.assertNoEvents();
 
     ASSERT_EQ(InputEventInjectionResult::FAILED,
               injectMotionEvent(*mDispatcher, AMOTION_EVENT_ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN,
@@ -6365,7 +6350,6 @@ TEST_F(InputDispatcherMonitorTest, MonitorTouchCancelEventWithDisplayTransform) 
             << "The move event injected should failed";
     // Now foreground should not receive any events, but monitor should receive a cancel event
     // with transform that same as display's display.
-    window->assertNoEvents();
     std::unique_ptr<MotionEvent> cancelMotionEvent = monitor.consumeMotion();
     EXPECT_EQ(transform, cancelMotionEvent->getTransform());
     EXPECT_EQ(ADISPLAY_ID_DEFAULT, cancelMotionEvent->getDisplayId());
@@ -6375,7 +6359,7 @@ TEST_F(InputDispatcherMonitorTest, MonitorTouchCancelEventWithDisplayTransform) 
     ASSERT_EQ(InputEventInjectionResult::FAILED,
               injectMotionEvent(*mDispatcher, AMOTION_EVENT_ACTION_UP, AINPUT_SOURCE_TOUCHSCREEN,
                                 ADISPLAY_ID_DEFAULT, {110, 220}))
-            << "The up event injected should failed";
+            << "The up event injected should fail because the touched window was removed";
     window->assertNoEvents();
     monitor.assertNoEvents();
 }
