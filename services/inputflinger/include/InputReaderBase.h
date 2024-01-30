@@ -226,6 +226,9 @@ struct InputReaderConfiguration {
     // True to enable tap-to-click on touchpads.
     bool touchpadTapToClickEnabled;
 
+    // True to enable tap dragging on touchpads.
+    bool touchpadTapDraggingEnabled;
+
     // True to enable a zone on the right-hand side of touchpads where clicks will be turned into
     // context (a.k.a. "right") clicks.
     bool touchpadRightClickZoneEnabled;
@@ -266,6 +269,7 @@ struct InputReaderConfiguration {
             touchpadPointerSpeed(0),
             touchpadNaturalScrollingEnabled(true),
             touchpadTapToClickEnabled(true),
+            touchpadTapDraggingEnabled(false),
             touchpadRightClickZoneEnabled(false),
             stylusButtonMotionEventsEnabled(true),
             stylusPointerIconEnabled(false) {}

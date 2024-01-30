@@ -123,6 +123,7 @@ void setTouchpadSettings(ThreadSafeFuzzedDataProvider& fdp, InputReaderConfigura
     config.touchpadPointerSpeed = fdp.ConsumeIntegralInRange(-7, 7);
     config.touchpadNaturalScrollingEnabled = fdp.ConsumeBool();
     config.touchpadTapToClickEnabled = fdp.ConsumeBool();
+    config.touchpadTapDraggingEnabled = fdp.ConsumeBool();
     config.touchpadRightClickZoneEnabled = fdp.ConsumeBool();
 }
 
