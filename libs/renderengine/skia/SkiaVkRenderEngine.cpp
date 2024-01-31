@@ -34,6 +34,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -195,32 +196,33 @@ void onVkDeviceFault(void* callbackContext, const std::string& description,
                      const std::vector<VkDeviceFaultVendorInfoEXT>& vendorInfos,
                      const std::vector<std::byte>& vendorBinaryData) {
     VulkanInterface* interface = static_cast<VulkanInterface*>(callbackContext);
-    const string protectedStr = interface->isProtected ? "protected" : "non-protected";
+    const std::string protectedStr = interface->isProtected ? "protected" : "non-protected";
     // The final crash string should contain as much differentiating info as possible, up to 1024
     // bytes. As this final message is constructed, the same information is also dumped to the logs
     // but in a more verbose format. Building the crash string is unsightly, so the clearer logging
     // statement is always placed first to give context.
     ALOGE("VK_ERROR_DEVICE_LOST (%s context): %s", protectedStr.c_str(), description.c_str());
-    string crashStr = "VK_ERROR_DEVICE_LOST (" + protectedStr;
+    std::stringstream crashMsg;
+    crashMsg << "VK_ERROR_DEVICE_LOST (" << protectedStr;
 
     if (!addressInfos.empty()) {
         ALOGE("%zu VkDeviceFaultAddressInfoEXT:", addressInfos.size());
-        crashStr += ", " + std::to_string(addressInfos.size()) + " address info (";
+        crashMsg << ", " << addressInfos.size() << " address info (";
         for (VkDeviceFaultAddressInfoEXT addressInfo : addressInfos) {
             ALOGE(" addressType:       %d", (int)addressInfo.addressType);
             ALOGE("  reportedAddress:  %" PRIu64, addressInfo.reportedAddress);
             ALOGE("  addressPrecision: %" PRIu64, addressInfo.addressPrecision);
-            crashStr += std::to_string(addressInfo.addressType) + ":" +
-                    std::to_string(addressInfo.reportedAddress) + ":" +
-                    std::to_string(addressInfo.addressPrecision) + ", ";
+            crashMsg << addressInfo.addressType << ":"
+                     << addressInfo.reportedAddress << ":"
+                     << addressInfo.addressPrecision << ", ";
         }
-        crashStr.resize(crashStr.size() - 2); // Remove trailing ", "
-        crashStr += ")";
+        crashMsg.seekp(-2, crashMsg.cur); // Move back to overwrite trailing ", "
+        crashMsg << ")";
     }
 
     if (!vendorInfos.empty()) {
         ALOGE("%zu VkDeviceFaultVendorInfoEXT:", vendorInfos.size());
-        crashStr += ", " + std::to_string(vendorInfos.size()) + " vendor info (";
+        crashMsg << ", " << vendorInfos.size() << " vendor info (";
         for (VkDeviceFaultVendorInfoEXT vendorInfo : vendorInfos) {
             ALOGE(" description:      %s", vendorInfo.description);
             ALOGE("  vendorFaultCode: %" PRIu64, vendorInfo.vendorFaultCode);
@@ -230,11 +232,11 @@ void onVkDeviceFault(void* callbackContext, const std::string& description,
             // isn't worth it. Additionally, vendors may just set the general description field of
             // the overall fault to the description of the first element in this list, and that
             // overall description will be placed at the end of the crash string.
-            crashStr += std::to_string(vendorInfo.vendorFaultCode) + ":" +
-                    std::to_string(vendorInfo.vendorFaultData) + ", ";
+            crashMsg << vendorInfo.vendorFaultCode << ":"
+                     << vendorInfo.vendorFaultData << ", ";
         }
-        crashStr.resize(crashStr.size() - 2); // Remove trailing ", "
-        crashStr += ")";
+        crashMsg.seekp(-2, crashMsg.cur); // Move back to overwrite trailing ", "
+        crashMsg << ")";
     }
 
     if (!vendorBinaryData.empty()) {
@@ -242,11 +244,11 @@ void onVkDeviceFault(void* callbackContext, const std::string& description,
         ALOGE("%zu bytes of vendor-specific binary data (please notify Android's Core Graphics"
               " Stack team if you observe this message).",
               vendorBinaryData.size());
-        crashStr += ", " + std::to_string(vendorBinaryData.size()) + " bytes binary";
+        crashMsg << ", " << vendorBinaryData.size() << " bytes binary";
     }
 
-    crashStr += "): " + description;
-    LOG_ALWAYS_FATAL("%s", crashStr.c_str());
+    crashMsg << "): " << description;
+    LOG_ALWAYS_FATAL("%s", crashMsg.str().c_str());
 };
 } // anonymous namespace
 
