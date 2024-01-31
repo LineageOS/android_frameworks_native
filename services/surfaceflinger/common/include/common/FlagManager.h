@@ -71,6 +71,7 @@ public:
     bool screenshot_fence_preservation() const;
     bool vulkan_renderengine() const;
     bool renderable_buffer_usage() const;
+    bool restore_blur_step() const;
 
 protected:
     // overridden for unit tests
