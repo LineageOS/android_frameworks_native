@@ -79,7 +79,7 @@ impl InputVerifier {
         logger::init(
             logger::Config::default()
                 .with_tag_on_device("InputVerifier")
-                .with_min_level(log::Level::Trace),
+                .with_max_level(log::LevelFilter::Trace),
         );
         Self {
             name: name.to_owned(),
