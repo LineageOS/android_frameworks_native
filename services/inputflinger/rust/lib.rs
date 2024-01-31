@@ -70,7 +70,9 @@ mod ffi {
 /// incremented using `AIBinder_incStrong`. See `binder::unstable_api::new_spibinder`.
 unsafe fn create_inputflinger_rust(callback: *mut ffi::IInputFlingerRustBootstrapCallbackAIBinder) {
     logger::init(
-        logger::Config::default().with_tag_on_device(LOG_TAG).with_min_level(log::Level::Trace),
+        logger::Config::default()
+            .with_tag_on_device(LOG_TAG)
+            .with_max_level(log::LevelFilter::Trace),
     );
 
     let callback = callback as *mut AIBinder;
