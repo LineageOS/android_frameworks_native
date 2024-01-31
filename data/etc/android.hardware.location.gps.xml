@@ -17,6 +17,5 @@
 <!-- These are the location-related features for devices that include GPS. -->
 <permissions>
     <feature name="android.hardware.location" />
-    <feature name="android.hardware.location.network" />
     <feature name="android.hardware.location.gps" />
 </permissions>
