@@ -343,14 +343,18 @@ std::vector<HWComposer::HWCDisplayMode> HWComposer::getModesFromLegacyDisplayCon
     return modes;
 }
 
-std::optional<hal::HWConfigId> HWComposer::getActiveMode(PhysicalDisplayId displayId) const {
-    RETURN_IF_INVALID_DISPLAY(displayId, std::nullopt);
+ftl::Expected<hal::HWConfigId, status_t> HWComposer::getActiveMode(
+        PhysicalDisplayId displayId) const {
+    RETURN_IF_INVALID_DISPLAY(displayId, ftl::Unexpected(BAD_INDEX));
     const auto hwcId = *fromPhysicalDisplayId(displayId);
 
     hal::HWConfigId configId;
     const auto error = static_cast<hal::Error>(mComposer->getActiveConfig(hwcId, &configId));
+    if (error == hal::Error::BAD_CONFIG) {
+        return ftl::Unexpected(NO_INIT);
+    }
 
-    RETURN_IF_HWC_ERROR_FOR("getActiveConfig", error, displayId, std::nullopt);
+    RETURN_IF_HWC_ERROR_FOR("getActiveConfig", error, displayId, ftl::Unexpected(UNKNOWN_ERROR));
     return configId;
 }
 
@@ -376,20 +380,20 @@ bool HWComposer::isVsyncPeriodSwitchSupported(PhysicalDisplayId displayId) const
     return mDisplayData.at(displayId).hwcDisplay->isVsyncPeriodSwitchSupported();
 }
 
-status_t HWComposer::getDisplayVsyncPeriod(PhysicalDisplayId displayId,
-                                           nsecs_t* outVsyncPeriod) const {
-    RETURN_IF_INVALID_DISPLAY(displayId, 0);
+ftl::Expected<nsecs_t, status_t> HWComposer::getDisplayVsyncPeriod(
+        PhysicalDisplayId displayId) const {
+    RETURN_IF_INVALID_DISPLAY(displayId, ftl::Unexpected(BAD_INDEX));
 
     if (!isVsyncPeriodSwitchSupported(displayId)) {
-        return INVALID_OPERATION;
+        return ftl::Unexpected(INVALID_OPERATION);
     }
+
     const auto hwcId = *fromPhysicalDisplayId(displayId);
     Hwc2::VsyncPeriodNanos vsyncPeriodNanos = 0;
-    auto error =
+    const auto error =
             static_cast<hal::Error>(mComposer->getDisplayVsyncPeriod(hwcId, &vsyncPeriodNanos));
-    RETURN_IF_HWC_ERROR(error, displayId, 0);
-    *outVsyncPeriod = static_cast<nsecs_t>(vsyncPeriodNanos);
-    return NO_ERROR;
+    RETURN_IF_HWC_ERROR(error, displayId, ftl::Unexpected(UNKNOWN_ERROR));
+    return static_cast<nsecs_t>(vsyncPeriodNanos);
 }
 
 std::vector<ui::ColorMode> HWComposer::getColorModes(PhysicalDisplayId displayId) const {

@@ -239,10 +239,8 @@ nsecs_t DisplayDevice::getVsyncPeriodFromHWC() const {
         return 0;
     }
 
-    nsecs_t vsyncPeriod;
-    const auto status = mHwComposer.getDisplayVsyncPeriod(physicalId, &vsyncPeriod);
-    if (status == NO_ERROR) {
-        return vsyncPeriod;
+    if (const auto vsyncPeriodOpt = mHwComposer.getDisplayVsyncPeriod(physicalId).value_opt()) {
+        return *vsyncPeriodOpt;
     }
 
     return refreshRateSelector().getActiveMode().modePtr->getVsyncRate().getPeriodNsecs();

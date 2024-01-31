@@ -104,7 +104,7 @@ TEST_F(HWComposerTest, isHeadless) {
 
 TEST_F(HWComposerTest, getActiveMode) {
     // Unknown display.
-    EXPECT_EQ(mHwc.getActiveMode(PhysicalDisplayId::fromPort(0)), std::nullopt);
+    EXPECT_EQ(mHwc.getActiveMode(PhysicalDisplayId::fromPort(0)), ftl::Unexpected(BAD_INDEX));
 
     constexpr hal::HWDisplayId kHwcDisplayId = 2;
     expectHotplugConnect(kHwcDisplayId);
@@ -117,14 +117,20 @@ TEST_F(HWComposerTest, getActiveMode) {
         EXPECT_CALL(*mHal, getActiveConfig(kHwcDisplayId, _))
                 .WillOnce(Return(HalError::BAD_DISPLAY));
 
-        EXPECT_EQ(mHwc.getActiveMode(info->id), std::nullopt);
+        EXPECT_EQ(mHwc.getActiveMode(info->id), ftl::Unexpected(UNKNOWN_ERROR));
+    }
+    {
+        EXPECT_CALL(*mHal, getActiveConfig(kHwcDisplayId, _))
+                .WillOnce(Return(HalError::BAD_CONFIG));
+
+        EXPECT_EQ(mHwc.getActiveMode(info->id), ftl::Unexpected(NO_INIT));
     }
     {
         constexpr hal::HWConfigId kConfigId = 42;
         EXPECT_CALL(*mHal, getActiveConfig(kHwcDisplayId, _))
                 .WillOnce(DoAll(SetArgPointee<1>(kConfigId), Return(HalError::NONE)));
 
-        EXPECT_EQ(mHwc.getActiveMode(info->id), kConfigId);
+        EXPECT_EQ(mHwc.getActiveMode(info->id).value_opt(), kConfigId);
     }
 }
 
