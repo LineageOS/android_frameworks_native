@@ -14,6 +14,7 @@
 
 // Default flags to be used throughout all libraries in inputflinger.
 package {
+    default_team: "trendy_team_input_framework",
     // See: http://go/android-license-faq
     // A large-scale-change added 'default_applicable_licenses' to import
     // all of the 'license_kinds' from "frameworks_native_license"
