@@ -227,9 +227,19 @@ struct DispatchEntry {
 
     int32_t resolvedFlags;
 
+    // Information about the dispatch window used for tracing. We avoid holding a window handle
+    // here because information in a window handle may be dynamically updated within the lifespan
+    // of this dispatch entry.
+    gui::Uid targetUid;
+    int64_t vsyncId;
+    // The window that this event is targeting. The only case when this windowId is not populated
+    // is when dispatching an event to a global monitor.
+    std::optional<int32_t> windowId;
+
     DispatchEntry(std::shared_ptr<const EventEntry> eventEntry,
                   ftl::Flags<InputTarget::Flags> targetFlags, const ui::Transform& transform,
-                  const ui::Transform& rawTransform, float globalScaleFactor);
+                  const ui::Transform& rawTransform, float globalScaleFactor, gui::Uid targetUid,
+                  int64_t vsyncId, std::optional<int32_t> windowId);
     DispatchEntry(const DispatchEntry&) = delete;
     DispatchEntry& operator=(const DispatchEntry&) = delete;
 

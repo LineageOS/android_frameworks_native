@@ -16,14 +16,13 @@
 
 package android.os;
 
-import android.InputChannel;
+import android.os.InputChannelCore;
 import android.gui.FocusRequest;
-import android.gui.WindowInfo;
 
 /** @hide */
 interface IInputFlinger
 {
-    InputChannel createInputChannel(in @utf8InCpp String name);
+    InputChannelCore createInputChannel(in @utf8InCpp String name);
     void removeInputChannel(in IBinder connectionToken);
     /**
      * Sets focus to the window identified by the token. This must be called

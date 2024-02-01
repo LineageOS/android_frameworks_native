@@ -35,6 +35,7 @@
 #include <input/PrintTools.h>
 #include <input/TraceTools.h>
 #include <openssl/mem.h>
+#include <private/android_filesystem_config.h>
 #include <unistd.h>
 #include <utils/Trace.h>
 
@@ -51,6 +52,8 @@
 #include "Connection.h"
 #include "DebugConfig.h"
 #include "InputDispatcher.h"
+#include "trace/InputTracer.h"
+#include "trace/InputTracingPerfettoBackend.h"
 
 #define INDENT "  "
 #define INDENT2 "    "
@@ -74,6 +77,14 @@ namespace input_flags = com::android::input::flags;
 namespace android::inputdispatcher {
 
 namespace {
+
+// Input tracing is only available on debuggable builds (userdebug and eng) when the feature
+// flag is enabled. When the flag is changed, tracing will only be available after reboot.
+bool isInputTracingEnabled() {
+    static const std::string buildType = base::GetProperty("ro.build.type", "user");
+    static const bool isUserdebugOrEng = buildType == "userdebug" || buildType == "eng";
+    return input_flags::enable_input_event_tracing() && isUserdebugOrEng;
+}
 
 template <class Entry>
 void ensureEventTraced(const Entry& entry) {
@@ -359,14 +370,22 @@ size_t firstMarkedBit(T set) {
     return i;
 }
 
-std::unique_ptr<DispatchEntry> createDispatchEntry(
-        const InputTarget& inputTarget, std::shared_ptr<const EventEntry> eventEntry,
-        ftl::Flags<InputTarget::Flags> inputTargetFlags) {
+std::unique_ptr<DispatchEntry> createDispatchEntry(const InputTarget& inputTarget,
+                                                   std::shared_ptr<const EventEntry> eventEntry,
+                                                   ftl::Flags<InputTarget::Flags> inputTargetFlags,
+                                                   int64_t vsyncId) {
+    const sp<WindowInfoHandle> win = inputTarget.windowHandle;
+    const std::optional<int32_t> windowId =
+            win ? std::make_optional(win->getInfo()->id) : std::nullopt;
+    // Assume the only targets that are not associated with a window are global monitors, and use
+    // the system UID for global monitors for tracing purposes.
+    const gui::Uid uid = win ? win->getInfo()->ownerUid : gui::Uid(AID_SYSTEM);
     if (inputTarget.useDefaultPointerTransform()) {
         const ui::Transform& transform = inputTarget.getDefaultPointerTransform();
         return std::make_unique<DispatchEntry>(eventEntry, inputTargetFlags, transform,
                                                inputTarget.displayTransform,
-                                               inputTarget.globalScaleFactor);
+                                               inputTarget.globalScaleFactor, uid, vsyncId,
+                                               windowId);
     }
 
     ALOG_ASSERT(eventEntry->type == EventEntry::Type::MOTION);
@@ -413,7 +432,7 @@ std::unique_ptr<DispatchEntry> createDispatchEntry(
     std::unique_ptr<DispatchEntry> dispatchEntry =
             std::make_unique<DispatchEntry>(std::move(combinedMotionEntry), inputTargetFlags,
                                             firstPointerTransform, inputTarget.displayTransform,
-                                            inputTarget.globalScaleFactor);
+                                            inputTarget.globalScaleFactor, uid, vsyncId, windowId);
     return dispatchEntry;
 }
 
@@ -804,7 +823,9 @@ int32_t getUserActivityEventType(const EventEntry& eventEntry) {
 // --- InputDispatcher ---
 
 InputDispatcher::InputDispatcher(InputDispatcherPolicyInterface& policy)
-      : InputDispatcher(policy, nullptr) {}
+      : InputDispatcher(policy,
+                        isInputTracingEnabled() ? std::make_unique<trace::impl::PerfettoBackend>()
+                                                : nullptr) {}
 
 InputDispatcher::InputDispatcher(InputDispatcherPolicyInterface& policy,
                                  std::unique_ptr<trace::InputTracingBackendInterface> traceBackend)
@@ -833,7 +854,7 @@ InputDispatcher::InputDispatcher(InputDispatcherPolicyInterface& policy,
     mKeyRepeatState.lastKeyEntry = nullptr;
 
     if (traceBackend) {
-        // TODO: Create input tracer instance.
+        mTracer = std::make_unique<trace::impl::InputTracer>(std::move(traceBackend));
     }
 
     mLastUserActivityTimes.fill(0);
@@ -3334,10 +3355,11 @@ void InputDispatcher::enqueueDispatchEntryAndStartDispatchCycleLocked(
 void InputDispatcher::enqueueDispatchEntryLocked(const std::shared_ptr<Connection>& connection,
                                                  std::shared_ptr<const EventEntry> eventEntry,
                                                  const InputTarget& inputTarget) {
+    // TODO(b/210460522): Verify all targets excluding global monitors are associated with a window.
     // This is a new event.
     // Enqueue a new dispatch entry onto the outbound queue for this connection.
     std::unique_ptr<DispatchEntry> dispatchEntry =
-            createDispatchEntry(inputTarget, eventEntry, inputTarget.flags);
+            createDispatchEntry(inputTarget, eventEntry, inputTarget.flags, mWindowInfosVsyncId);
 
     // Use the eventEntry from dispatchEntry since the entry may have changed and can now be a
     // different EventEntry than what was passed in.
@@ -3456,7 +3478,7 @@ void InputDispatcher::enqueueDispatchEntryLocked(const std::shared_ptr<Connectio
                           << cancelEvent->getDescription();
                 std::unique_ptr<DispatchEntry> cancelDispatchEntry =
                         createDispatchEntry(inputTarget, std::move(cancelEvent),
-                                            ftl::Flags<InputTarget::Flags>());
+                                            ftl::Flags<InputTarget::Flags>(), mWindowInfosVsyncId);
 
                 // Send these cancel events to the queue before sending the event from the new
                 // device.
@@ -5828,7 +5850,7 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) const {
         for (const auto& [token, connection] : mConnectionsByToken) {
             dump += StringPrintf(INDENT2 "%i: channelName='%s', windowName='%s', "
                                          "status=%s, monitor=%s, responsive=%s\n",
-                                 connection->inputChannel->getFd().get(),
+                                 connection->inputChannel->getFd(),
                                  connection->getInputChannelName().c_str(),
                                  connection->getWindowName().c_str(),
                                  ftl::enum_string(connection->status).c_str(),
@@ -5915,7 +5937,7 @@ Result<std::unique_ptr<InputChannel>> InputDispatcher::createInputChannel(const 
     { // acquire lock
         std::scoped_lock _l(mLock);
         const sp<IBinder>& token = serverChannel->getConnectionToken();
-        auto&& fd = serverChannel->getFd();
+        const int fd = serverChannel->getFd();
         std::shared_ptr<Connection> connection =
                 std::make_shared<Connection>(std::move(serverChannel), /*monitor=*/false,
                                              mIdGenerator);
@@ -5928,7 +5950,7 @@ Result<std::unique_ptr<InputChannel>> InputDispatcher::createInputChannel(const 
         std::function<int(int events)> callback = std::bind(&InputDispatcher::handleReceiveCallback,
                                                             this, std::placeholders::_1, token);
 
-        mLooper->addFd(fd.get(), 0, ALOOPER_EVENT_INPUT, sp<LooperEventCallback>::make(callback),
+        mLooper->addFd(fd, 0, ALOOPER_EVENT_INPUT, sp<LooperEventCallback>::make(callback),
                        nullptr);
     } // release lock
 
@@ -5958,7 +5980,7 @@ Result<std::unique_ptr<InputChannel>> InputDispatcher::createInputMonitor(int32_
         std::shared_ptr<Connection> connection =
                 std::make_shared<Connection>(serverChannel, /*monitor=*/true, mIdGenerator);
         const sp<IBinder>& token = serverChannel->getConnectionToken();
-        auto&& fd = serverChannel->getFd();
+        const int fd = serverChannel->getFd();
 
         if (mConnectionsByToken.find(token) != mConnectionsByToken.end()) {
             ALOGE("Created a new connection, but the token %p is already known", token.get());
@@ -5969,7 +5991,7 @@ Result<std::unique_ptr<InputChannel>> InputDispatcher::createInputMonitor(int32_
 
         mGlobalMonitorsByDisplay[displayId].emplace_back(serverChannel, pid);
 
-        mLooper->addFd(fd.get(), 0, ALOOPER_EVENT_INPUT, sp<LooperEventCallback>::make(callback),
+        mLooper->addFd(fd, 0, ALOOPER_EVENT_INPUT, sp<LooperEventCallback>::make(callback),
                        nullptr);
     }
 
@@ -6008,7 +6030,7 @@ status_t InputDispatcher::removeInputChannelLocked(const sp<IBinder>& connection
         removeMonitorChannelLocked(connectionToken);
     }
 
-    mLooper->removeFd(connection->inputChannel->getFd().get());
+    mLooper->removeFd(connection->inputChannel->getFd());
 
     nsecs_t currentTime = now();
     abortBrokenDispatchCycleLocked(currentTime, connection, notify);

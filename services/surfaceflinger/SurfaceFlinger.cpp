@@ -3293,7 +3293,7 @@ void SurfaceFlinger::commitTransactions() {
 std::pair<DisplayModes, DisplayModePtr> SurfaceFlinger::loadDisplayModes(
         PhysicalDisplayId displayId) const {
     std::vector<HWComposer::HWCDisplayMode> hwcModes;
-    std::optional<hal::HWDisplayId> activeModeHwcId;
+    std::optional<hal::HWConfigId> activeModeHwcIdOpt;
 
     int attempt = 0;
     constexpr int kMaxAttempts = 3;
@@ -3301,10 +3301,10 @@ std::pair<DisplayModes, DisplayModePtr> SurfaceFlinger::loadDisplayModes(
         hwcModes = getHwComposer().getModes(displayId,
                                             scheduler::RefreshRateSelector::kMinSupportedFrameRate
                                                     .getPeriodNsecs());
-        activeModeHwcId = getHwComposer().getActiveMode(displayId);
+        activeModeHwcIdOpt = getHwComposer().getActiveMode(displayId).value_opt();
 
-        const auto isActiveMode = [activeModeHwcId](const HWComposer::HWCDisplayMode& mode) {
-            return mode.hwcId == activeModeHwcId;
+        const auto isActiveMode = [activeModeHwcIdOpt](const HWComposer::HWCDisplayMode& mode) {
+            return mode.hwcId == activeModeHwcIdOpt;
         };
 
         if (std::any_of(hwcModes.begin(), hwcModes.end(), isActiveMode)) {
@@ -3314,7 +3314,7 @@ std::pair<DisplayModes, DisplayModePtr> SurfaceFlinger::loadDisplayModes(
 
     if (attempt == kMaxAttempts) {
         const std::string activeMode =
-                activeModeHwcId ? std::to_string(*activeModeHwcId) : "unknown"s;
+                activeModeHwcIdOpt ? std::to_string(*activeModeHwcIdOpt) : "unknown"s;
         ALOGE("HWC failed to report an active mode that is supported: activeModeHwcId=%s, "
               "hwcModes={%s}",
               activeMode.c_str(), base::Join(hwcModes, ", ").c_str());
@@ -3358,8 +3358,8 @@ std::pair<DisplayModes, DisplayModePtr> SurfaceFlinger::loadDisplayModes(
     // Keep IDs if modes have not changed.
     const auto& modes = sameModes ? oldModes : newModes;
     const DisplayModePtr activeMode =
-            std::find_if(modes.begin(), modes.end(), [activeModeHwcId](const auto& pair) {
-                return pair.second->getHwcId() == activeModeHwcId;
+            std::find_if(modes.begin(), modes.end(), [activeModeHwcIdOpt](const auto& pair) {
+                return pair.second->getHwcId() == activeModeHwcIdOpt;
             })->second;
 
     return {modes, activeMode};
@@ -5733,7 +5733,7 @@ status_t SurfaceFlinger::createLayer(LayerCreationArgs& args, gui::CreateSurface
         case ISurfaceComposerClient::eFXSurfaceContainer:
         case ISurfaceComposerClient::eFXSurfaceBufferState:
             args.flags |= ISurfaceComposerClient::eNoColorFill;
-            FMT_FALLTHROUGH;
+            [[fallthrough]];
         case ISurfaceComposerClient::eFXSurfaceEffect: {
             result = createBufferStateLayer(args, &outResult.handle, &layer);
             std::atomic<int32_t>* pendingBufferCounter = layer->getPendingBufferCounter();

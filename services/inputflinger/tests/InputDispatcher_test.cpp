@@ -17,6 +17,7 @@
 #include "../dispatcher/InputDispatcher.h"
 #include "../BlockingQueue.h"
 #include "FakeApplicationHandle.h"
+#include "FakeInputTracingBackend.h"
 #include "TestEventMatchers.h"
 
 #include <NotifyArgsBuilders.h>
@@ -658,14 +659,22 @@ private:
 
 // --- InputDispatcherTest ---
 
+// The trace is a global variable for now, to avoid having to pass it into all of the
+// FakeWindowHandles created throughout the tests.
+// TODO(b/210460522): Update the tests to avoid the need to have the trace be a global variable.
+static std::shared_ptr<VerifyingTrace> gVerifyingTrace = std::make_shared<VerifyingTrace>();
+
 class InputDispatcherTest : public testing::Test {
 protected:
     std::unique_ptr<FakeInputDispatcherPolicy> mFakePolicy;
     std::unique_ptr<InputDispatcher> mDispatcher;
 
     void SetUp() override {
+        gVerifyingTrace->reset();
         mFakePolicy = std::make_unique<FakeInputDispatcherPolicy>();
-        mDispatcher = std::make_unique<InputDispatcher>(*mFakePolicy);
+        mDispatcher = std::make_unique<InputDispatcher>(*mFakePolicy,
+                                                        std::make_unique<FakeInputTracingBackend>(
+                                                                gVerifyingTrace));
 
         mDispatcher->setInputDispatchMode(/*enabled=*/true, /*frozen=*/false);
         // Start InputDispatcher thread
@@ -676,6 +685,7 @@ protected:
         ASSERT_EQ(OK, mDispatcher->stop());
         mFakePolicy.reset();
         mDispatcher.reset();
+        ASSERT_NO_FATAL_FAILURE(gVerifyingTrace->verifyExpectedEventsTraced());
     }
 
     /**
@@ -1113,7 +1123,7 @@ public:
 
     sp<IBinder> getToken() { return mConsumer.getChannel()->getConnectionToken(); }
 
-    int getChannelFd() { return mConsumer.getChannel()->getFd().get(); }
+    int getChannelFd() { return mConsumer.getChannel()->getFd(); }
 
 private:
     InputConsumer mConsumer;
@@ -1395,11 +1405,7 @@ public:
     }
 
     std::pair<std::optional<uint32_t>, std::unique_ptr<InputEvent>> receiveEvent() {
-        if (mInputReceiver == nullptr) {
-            ADD_FAILURE() << "Invalid receive event on window with no receiver";
-            return std::make_pair(std::nullopt, nullptr);
-        }
-        return mInputReceiver->receiveEvent(CONSUME_TIMEOUT_EVENT_EXPECTED);
+        return receive();
     }
 
     void finishEvent(uint32_t sequenceNum) {
@@ -1444,6 +1450,7 @@ private:
     static std::atomic<int32_t> sId; // each window gets a unique id, like in surfaceflinger
     friend class sp<FakeWindowHandle>;
 
+    // FakeWindowHandle uses this consume method to ensure received events are added to the trace.
     std::unique_ptr<InputEvent> consume(std::chrono::milliseconds timeout, bool handled = true) {
         if (mInputReceiver == nullptr) {
             LOG(FATAL) << "Cannot consume event from a window with no input event receiver";
@@ -1452,7 +1459,39 @@ private:
         if (event == nullptr) {
             ADD_FAILURE() << "Consume failed: no event";
         }
+        expectReceivedEventTraced(event);
         return event;
+    }
+
+    // FakeWindowHandle uses this receive method to ensure received events are added to the trace.
+    std::pair<std::optional<uint32_t /*seq*/>, std::unique_ptr<InputEvent>> receive() {
+        if (mInputReceiver == nullptr) {
+            ADD_FAILURE() << "Invalid receive event on window with no receiver";
+            return std::make_pair(std::nullopt, nullptr);
+        }
+        auto out = mInputReceiver->receiveEvent(CONSUME_TIMEOUT_EVENT_EXPECTED);
+        const auto& [_, event] = out;
+        expectReceivedEventTraced(event);
+        return std::move(out);
+    }
+
+    void expectReceivedEventTraced(const std::unique_ptr<InputEvent>& event) {
+        if (!event) {
+            return;
+        }
+
+        switch (event->getType()) {
+            case InputEventType::KEY: {
+                gVerifyingTrace->expectKeyDispatchTraced(static_cast<KeyEvent&>(*event));
+                break;
+            }
+            case InputEventType::MOTION: {
+                gVerifyingTrace->expectMotionDispatchTraced(static_cast<MotionEvent&>(*event));
+                break;
+            }
+            default:
+                break;
+        }
     }
 };
 
@@ -7303,12 +7342,9 @@ protected:
     sp<FakeWindowHandle> mWindow;
 
     virtual void SetUp() override {
-        mFakePolicy = std::make_unique<FakeInputDispatcherPolicy>();
-        mDispatcher = std::make_unique<InputDispatcher>(*mFakePolicy);
-        mDispatcher->setInputDispatchMode(/*enabled=*/true, /*frozen=*/false);
-        mDispatcher->setKeyRepeatConfiguration(KEY_REPEAT_TIMEOUT, KEY_REPEAT_DELAY);
-        ASSERT_EQ(OK, mDispatcher->start());
+        InputDispatcherTest::SetUp();
 
+        mDispatcher->setKeyRepeatConfiguration(KEY_REPEAT_TIMEOUT, KEY_REPEAT_DELAY);
         setUpWindow();
     }
 
