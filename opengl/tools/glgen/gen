@@ -22,8 +22,10 @@ mkdir out
 
 mkdir -p out/javax/microedition/khronos/opengles
 mkdir -p out/com/google/android/gles_jni
+mkdir -p out/android/annotation
 mkdir -p out/android/app
 mkdir -p out/android/graphics
+mkdir -p out/android/hardware
 mkdir -p out/android/view
 mkdir -p out/android/opengl
 mkdir -p out/android/content
@@ -34,17 +36,19 @@ mkdir -p out/android/util
 echo "package android.graphics;" > out/android/graphics/Canvas.java
 echo "public interface Canvas {}" >> out/android/graphics/Canvas.java
 
+echo "package android.annotation; public @interface NonNull {}" > out/android/annotation/NonNull.java
 echo "package android.app; import android.content.pm.IPackageManager; public class AppGlobals { public static IPackageManager getPackageManager() { return null;} }" > out/android/app/AppGlobals.java
 # echo "package android.content; import android.content.pm.PackageManager; public interface Context { public PackageManager getPackageManager(); }" > out/android/content/Context.java
 echo "package android.content.pm; public class ApplicationInfo {public int targetSdkVersion;}" > out/android/content/pm/ApplicationInfo.java
 echo "package android.content.pm; public interface IPackageManager {ApplicationInfo getApplicationInfo(java.lang.String packageName, int flags, java.lang.String userId) throws android.os.RemoteException;}" > out/android/content/pm/IPackageManager.java
-echo "package android.os; public class Build {public static class VERSION_CODES { public static final int CUPCAKE = 3;};	}" > out/android/os/Build.java
+echo "package android.hardware; import android.os.ParcelFileDescriptor; public class SyncFence { public static SyncFence create(ParcelFileDescriptor w) { return null; } public static SyncFence createEmpty() { return null; } }" > out/android/hardware/SyncFence.java
+echo "package android.os; public class Build {public static class VERSION_CODES { public static final int CUPCAKE = 0; public static final int R = 0; }; }" > out/android/os/Build.java
+echo "package android.os; public class ParcelFileDescriptor { public static ParcelFileDescriptor adoptFd(int fd) { return null; } }" > out/android/os/ParcelFileDescriptor.java
 echo "package android.os; public class UserHandle {public static String myUserId() { return \"\"; } }" > out/android/os/UserHandle.java
 echo "package android.os; public class RemoteException extends Exception {}" > out/android/os/RemoteException.java
-echo "package android.util; public class Log {public static void w(String a, String b) {} public static void e(String a, String b) {}}" > out/android/util/Log.java
+echo "package android.util; public class Log {public static void d(String a, String b) {} public static void w(String a, String b) {} public static void e(String a, String b) {}}" > out/android/util/Log.java
 
 echo "package android.opengl; public abstract class EGLObjectHandle { public int getHandle() { return 0; } }" > out/android/opengl/EGLObjectHandle.java
-
 
 echo "package android.graphics;" > out/android/graphics/SurfaceTexture.java
 echo "public interface SurfaceTexture {}" >> out/android/graphics/SurfaceTexture.java

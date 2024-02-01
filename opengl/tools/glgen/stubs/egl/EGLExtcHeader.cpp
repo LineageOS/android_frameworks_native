@@ -17,6 +17,7 @@
 // This source file is automatically generated
 
 #pragma GCC diagnostic ignored "-Wunused-variable"
+#pragma GCC diagnostic ignored "-Wunused-but-set-variable"
 #pragma GCC diagnostic ignored "-Wunused-function"
 
 #include "jni.h"
@@ -37,25 +38,12 @@
 #include <ui/ANativeObjectBase.h>
 
 static jclass egldisplayClass;
-static jclass eglcontextClass;
 static jclass eglsurfaceClass;
-static jclass eglconfigClass;
+static jclass eglsyncClass;
 
 static jmethodID egldisplayGetHandleID;
-static jmethodID eglcontextGetHandleID;
 static jmethodID eglsurfaceGetHandleID;
-static jmethodID eglconfigGetHandleID;
-
-static jmethodID egldisplayConstructor;
-static jmethodID eglcontextConstructor;
-static jmethodID eglsurfaceConstructor;
-static jmethodID eglconfigConstructor;
-
-static jobject eglNoContextObject;
-static jobject eglNoDisplayObject;
-static jobject eglNoSurfaceObject;
-
-
+static jmethodID eglsyncGetHandleID;
 
 /* Cache method IDs each time the class is loaded. */
 
@@ -64,37 +52,14 @@ nativeClassInit(JNIEnv *_env, jclass glImplClass)
 {
     jclass egldisplayClassLocal = _env->FindClass("android/opengl/EGLDisplay");
     egldisplayClass = (jclass) _env->NewGlobalRef(egldisplayClassLocal);
-    jclass eglcontextClassLocal = _env->FindClass("android/opengl/EGLContext");
-    eglcontextClass = (jclass) _env->NewGlobalRef(eglcontextClassLocal);
     jclass eglsurfaceClassLocal = _env->FindClass("android/opengl/EGLSurface");
     eglsurfaceClass = (jclass) _env->NewGlobalRef(eglsurfaceClassLocal);
-    jclass eglconfigClassLocal = _env->FindClass("android/opengl/EGLConfig");
-    eglconfigClass = (jclass) _env->NewGlobalRef(eglconfigClassLocal);
+    jclass eglsyncClassLocal = _env->FindClass("android/opengl/EGLSync");
+    eglsyncClass = (jclass) _env->NewGlobalRef(eglsyncClassLocal);
 
     egldisplayGetHandleID = _env->GetMethodID(egldisplayClass, "getNativeHandle", "()J");
-    eglcontextGetHandleID = _env->GetMethodID(eglcontextClass, "getNativeHandle", "()J");
     eglsurfaceGetHandleID = _env->GetMethodID(eglsurfaceClass, "getNativeHandle", "()J");
-    eglconfigGetHandleID = _env->GetMethodID(eglconfigClass, "getNativeHandle", "()J");
-
-
-    egldisplayConstructor = _env->GetMethodID(egldisplayClass, "<init>", "(J)V");
-    eglcontextConstructor = _env->GetMethodID(eglcontextClass, "<init>", "(J)V");
-    eglsurfaceConstructor = _env->GetMethodID(eglsurfaceClass, "<init>", "(J)V");
-    eglconfigConstructor = _env->GetMethodID(eglconfigClass, "<init>", "(J)V");
-
-
-    jclass eglClass = _env->FindClass("android/opengl/EGL14");
-    jfieldID noContextFieldID = _env->GetStaticFieldID(eglClass, "EGL_NO_CONTEXT", "Landroid/opengl/EGLContext;");
-    jobject localeglNoContextObject = _env->GetStaticObjectField(eglClass, noContextFieldID);
-    eglNoContextObject = _env->NewGlobalRef(localeglNoContextObject);
-
-    jfieldID noDisplayFieldID = _env->GetStaticFieldID(eglClass, "EGL_NO_DISPLAY", "Landroid/opengl/EGLDisplay;");
-    jobject localeglNoDisplayObject = _env->GetStaticObjectField(eglClass, noDisplayFieldID);
-    eglNoDisplayObject = _env->NewGlobalRef(localeglNoDisplayObject);
-
-    jfieldID noSurfaceFieldID = _env->GetStaticFieldID(eglClass, "EGL_NO_SURFACE", "Landroid/opengl/EGLSurface;");
-    jobject localeglNoSurfaceObject = _env->GetStaticObjectField(eglClass, noSurfaceFieldID);
-    eglNoSurfaceObject = _env->NewGlobalRef(localeglNoSurfaceObject);
+    eglsyncGetHandleID = _env->GetMethodID(eglsyncClass, "getNativeHandle", "()J");
 }
 
 static void *
@@ -108,24 +73,12 @@ fromEGLHandle(JNIEnv *_env, jmethodID mid, jobject obj) {
     return reinterpret_cast<void*>(_env->CallLongMethod(obj, mid));
 }
 
-static jobject
-toEGLHandle(JNIEnv *_env, jclass cls, jmethodID con, void * handle) {
-    if (cls == eglcontextClass &&
-       (EGLContext)handle == EGL_NO_CONTEXT) {
-           return eglNoContextObject;
-    }
+// TODO: this should be generated from the .spec file, but needs to be renamed and made private
+static jint android_eglDupNativeFenceFDANDROID(JNIEnv *env, jobject, jobject dpy, jobject sync) {
+    EGLDisplay dpy_native = (EGLDisplay)fromEGLHandle(env, egldisplayGetHandleID, dpy);
+    EGLSync sync_native = (EGLSync)fromEGLHandle(env, eglsyncGetHandleID, sync);
 
-    if (cls == egldisplayClass &&
-       (EGLDisplay)handle == EGL_NO_DISPLAY) {
-           return eglNoDisplayObject;
-    }
-
-    if (cls == eglsurfaceClass &&
-       (EGLSurface)handle == EGL_NO_SURFACE) {
-           return eglNoSurfaceObject;
-    }
-
-    return _env->NewObject(cls, con, reinterpret_cast<jlong>(handle));
+    return eglDupNativeFenceFDANDROID(dpy_native, sync_native);
 }
 
 // --------------------------------------------------------------------------

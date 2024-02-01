@@ -20,6 +20,7 @@ package android.opengl;
 
 import android.compat.annotation.UnsupportedAppUsage;
 import android.graphics.SurfaceTexture;
+import android.os.Build;
 import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
