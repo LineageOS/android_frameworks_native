@@ -23,8 +23,6 @@ pub mod subscriptions;
 use buffers::Buffer;
 pub use stream_config::*;
 
-use std::time::Instant;
-
 /// This function will print Hello World.
 #[no_mangle]
 pub extern "C" fn hello() -> bool {
@@ -106,7 +104,8 @@ pub trait BufferSubscriber {
 /// BufferSubscriptions serve as the bridge between BufferPublishers and
 /// BufferSubscribers. BufferSubscribers receive a BufferSubscription when they
 /// subscribe to a BufferPublisher via on_subscribe.
-/// This object is to be used by the BufferSubscriber to cancel its subscription
+///
+/// This object is used by the BufferSubscriber to cancel its subscription
 /// or request more buffers.
 ///
 /// BufferSubcriptions are required to adhere to the following, based on the
@@ -147,7 +146,7 @@ pub trait BufferSubscriber {
 /// no other Subscription exists at this point.
 /// * Calling Subscription.cancel MUST return normally.
 /// * Calling Subscription.request MUST return normally.
-pub trait BufferSubscription {
+pub trait BufferSubscription: Send + Sync + 'static {
     /// request
     fn request(&self, n: u64);
     /// cancel
@@ -161,8 +160,8 @@ pub type BufferError = anyhow::Error;
 pub struct Frame {
     /// A buffer to be used this frame.
     pub buffer: Buffer,
-    /// The time at which the buffer was dispatched.
-    pub present_time: Instant,
+    /// The time at which this buffer is expected to be displayed.
+    pub present_time: i64,
     /// A fence used for reading/writing safely.
     pub fence: i32,
 }
@@ -175,14 +174,12 @@ mod test {
     use anyhow::anyhow;
     use buffers::Buffer;
     use nativewindow::{AHardwareBuffer_Format, AHardwareBuffer_UsageFlags};
-    use std::borrow::BorrowMut;
-    use std::error::Error;
-    use std::ops::Add;
-    use std::sync::Arc;
-    use std::time::Duration;
+    use std::{borrow::BorrowMut, error::Error, ops::Add, sync::Arc};
 
-    use crate::publishers::testing::*;
-    use crate::subscribers::{testing::*, SharedSubscriber};
+    use crate::{
+        publishers::testing::*,
+        subscribers::{testing::*, SharedSubscriber},
+    };
 
     const STREAM_CONFIG: StreamConfig = StreamConfig {
         width: 1,
@@ -200,7 +197,7 @@ mod test {
                     .create_hardware_buffer()
                     .expect("Unable to create hardware buffer for test"),
             ),
-            present_time: Instant::now() + Duration::from_secs(1),
+            present_time: 1,
             fence: 0,
         }
     }
