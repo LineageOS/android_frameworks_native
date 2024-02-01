@@ -64,6 +64,8 @@ public:
 
     inline const std::string getInputChannelName() const { return inputChannel->getName(); }
 
+    sp<IBinder> getToken() const;
+
     const std::string getWindowName() const;
 };
 

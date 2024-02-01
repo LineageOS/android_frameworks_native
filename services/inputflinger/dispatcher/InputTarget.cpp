@@ -83,9 +83,9 @@ std::string InputTarget::getPointerInfoString() const {
 }
 
 std::ostream& operator<<(std::ostream& out, const InputTarget& target) {
-    out << "{inputChannel=";
-    if (target.inputChannel != nullptr) {
-        out << target.inputChannel->getName();
+    out << "{connection=";
+    if (target.connection != nullptr) {
+        out << target.connection->getInputChannelName();
     } else {
         out << "<null>";
     }

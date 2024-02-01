@@ -369,8 +369,6 @@ private:
             REQUIRES(mLock);
     sp<android::gui::WindowInfoHandle> getWindowHandleLocked(
             const sp<android::gui::WindowInfoHandle>& windowHandle) const REQUIRES(mLock);
-    std::shared_ptr<InputChannel> getInputChannelLocked(const sp<IBinder>& windowToken) const
-            REQUIRES(mLock);
     sp<android::gui::WindowInfoHandle> getFocusedWindowHandleLocked(int displayId) const
             REQUIRES(mLock);
     bool canWindowReceiveMotionLocked(const sp<android::gui::WindowInfoHandle>& window,
@@ -616,9 +614,6 @@ private:
     void synthesizeCancelationEventsForAllConnectionsLocked(const CancelationOptions& options)
             REQUIRES(mLock);
     void synthesizeCancelationEventsForMonitorsLocked(const CancelationOptions& options)
-            REQUIRES(mLock);
-    void synthesizeCancelationEventsForInputChannelLocked(
-            const std::shared_ptr<InputChannel>& channel, const CancelationOptions& options)
             REQUIRES(mLock);
     void synthesizeCancelationEventsForConnectionLocked(
             const std::shared_ptr<Connection>& connection, const CancelationOptions& options)
