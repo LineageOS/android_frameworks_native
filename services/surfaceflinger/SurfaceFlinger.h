@@ -1500,7 +1500,9 @@ private:
     std::unordered_map<PhysicalDisplayId, NotifyExpectedPresentData> mNotifyExpectedPresentMap;
     void sendNotifyExpectedPresentHint(PhysicalDisplayId displayId) override
             REQUIRES(kMainThreadContext);
-    void scheduleNotifyExpectedPresentHint(PhysicalDisplayId displayId);
+    void scheduleNotifyExpectedPresentHint(PhysicalDisplayId displayId,
+                                           VsyncId vsyncId = VsyncId{
+                                                   FrameTimelineInfo::INVALID_VSYNC_ID});
     void notifyExpectedPresentIfRequired(PhysicalDisplayId, Period vsyncPeriod,
                                          TimePoint expectedPresentTime, Fps frameInterval,
                                          std::optional<Period> timeoutOpt);

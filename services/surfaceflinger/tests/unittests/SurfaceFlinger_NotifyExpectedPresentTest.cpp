@@ -41,6 +41,33 @@ public:
     }
 
 protected:
+    void setTransactionState() {
+        ASSERT_TRUE(mFlinger.getTransactionQueue().isEmpty());
+        TransactionInfo transaction;
+        mFlinger.setTransactionState(FrameTimelineInfo{}, transaction.states, transaction.displays,
+                                     transaction.flags, transaction.applyToken,
+                                     transaction.inputWindowCommands,
+                                     TimePoint::now().ns() + s2ns(1), transaction.isAutoTimestamp,
+                                     transaction.unCachedBuffers,
+                                     /*HasListenerCallbacks=*/false, transaction.callbacks,
+                                     transaction.id, transaction.mergedTransactionIds);
+    }
+
+    struct TransactionInfo {
+        Vector<ComposerState> states;
+        Vector<DisplayState> displays;
+        uint32_t flags = 0;
+        sp<IBinder> applyToken = IInterface::asBinder(TransactionCompletedListener::getIInstance());
+        InputWindowCommands inputWindowCommands;
+        int64_t desiredPresentTime = 0;
+        bool isAutoTimestamp = false;
+        FrameTimelineInfo frameTimelineInfo{};
+        std::vector<client_cache_t> unCachedBuffers;
+        uint64_t id = static_cast<uint64_t>(-1);
+        std::vector<uint64_t> mergedTransactionIds;
+        std::vector<ListenerCallbacks> callbacks;
+    };
+
     struct Compositor final : ICompositor {
         explicit Compositor(PhysicalDisplayId displayId, TestableSurfaceFlinger& surfaceFlinger)
               : displayId(displayId), surfaceFlinger(surfaceFlinger) {}
@@ -102,7 +129,7 @@ protected:
 };
 
 TEST_F(NotifyExpectedPresentTest, noNotifyExpectedPresentHintCall_absentTimeout) {
-    auto expectedPresentTime = systemTime() + ms2ns(10);
+    auto expectedPresentTime = TimePoint::now().ns() + ms2ns(10);
     ASSERT_NO_FATAL_FAILURE(
             mFlinger.setNotifyExpectedPresentData(mPhysicalDisplayId,
                                                   TimePoint::fromNs(expectedPresentTime),
@@ -120,7 +147,7 @@ TEST_F(NotifyExpectedPresentTest, noNotifyExpectedPresentHintCall_absentTimeout)
 }
 
 TEST_F(NotifyExpectedPresentTest, notifyExpectedPresentHint_zeroTimeout) {
-    auto expectedPresentTime = systemTime() + ms2ns(10);
+    auto expectedPresentTime = TimePoint::now().ns() + ms2ns(10);
     {
         // Very first ExpectedPresent after idle, no previous timestamp.
         EXPECT_CALL(*mComposer,
@@ -139,6 +166,10 @@ TEST_F(NotifyExpectedPresentTest, notifyExpectedPresentHint_zeroTimeout) {
     {
         mCompositor->committed = false;
         expectedPresentTime += kFrameInterval60HzNs;
+        EXPECT_CALL(static_cast<mock::VSyncTracker&>(
+                            mFlinger.scheduler()->getVsyncSchedule()->getTracker()),
+                    nextAnticipatedVSyncTimeFrom(_, _))
+                .WillRepeatedly(Return(expectedPresentTime));
         EXPECT_CALL(*mComposer,
                     notifyExpectedPresent(kHwcDisplayId, expectedPresentTime, kFrameInterval60HzNs))
                 .WillOnce(Return(Error::NONE));
@@ -154,6 +185,10 @@ TEST_F(NotifyExpectedPresentTest, notifyExpectedPresentHint_zeroTimeout) {
     }
     {
         expectedPresentTime += kFrameInterval60HzNs;
+        EXPECT_CALL(static_cast<mock::VSyncTracker&>(
+                            mFlinger.scheduler()->getVsyncSchedule()->getTracker()),
+                    nextAnticipatedVSyncTimeFrom(_, _))
+                .WillRepeatedly(Return(expectedPresentTime));
         EXPECT_CALL(*mComposer,
                     notifyExpectedPresent(kHwcDisplayId, expectedPresentTime, kFrameInterval60HzNs))
                 .WillOnce(Return(Error::NONE));
@@ -168,9 +203,8 @@ TEST_F(NotifyExpectedPresentTest, notifyExpectedPresentHint_zeroTimeout) {
         ASSERT_TRUE(mFlinger.verifyHintIsSent(mPhysicalDisplayId));
     }
 }
-
 TEST_F(NotifyExpectedPresentTest, notifyExpectedPresentTimeout) {
-    auto expectedPresentTime = systemTime() + ms2ns(10);
+    auto expectedPresentTime = TimePoint::now().ns() + ms2ns(10);
     {
         // Very first ExpectedPresent after idle, no previous timestamp
         mCompositor->committed = false;
@@ -185,6 +219,27 @@ TEST_F(NotifyExpectedPresentTest, notifyExpectedPresentTimeout) {
         ASSERT_TRUE(mFlinger.verifyHintIsSent(mPhysicalDisplayId));
     }
     {
+        EXPECT_CALL(*mComposer, notifyExpectedPresent(kHwcDisplayId, _, _)).Times(0);
+        expectedPresentTime += 2 * kFrameInterval5HzNs;
+        mFlinger.notifyExpectedPresentIfRequired(mPhysicalDisplayId, kVsyncPeriod,
+                                                 TimePoint::fromNs(expectedPresentTime), kFps60Hz,
+                                                 kTimeoutNs);
+        EXPECT_TRUE(
+                mFlinger.verifyLastExpectedPresentTime(mPhysicalDisplayId, expectedPresentTime));
+        ASSERT_TRUE(mFlinger.verifyHintStatusIsScheduledOnTx(mPhysicalDisplayId));
+        mFlinger.scheduler()->doFrameSignal(*mCompositor, VsyncId{42});
+        ASSERT_TRUE(mFlinger.verifyHintStatusIsScheduledOnTx(mPhysicalDisplayId));
+        {
+            EXPECT_CALL(*mComposer,
+                        notifyExpectedPresent(kHwcDisplayId, expectedPresentTime,
+                                              kFrameInterval60HzNs))
+                    .WillOnce(Return(Error::NONE));
+            // Hint sent with the setTransactionState
+            setTransactionState();
+            ASSERT_TRUE(mFlinger.verifyHintIsSent(mPhysicalDisplayId));
+        }
+    }
+    {
         // ExpectedPresentTime is after the timeoutNs
         mCompositor->committed = true;
         expectedPresentTime += 2 * kFrameInterval5HzNs;
@@ -194,7 +249,7 @@ TEST_F(NotifyExpectedPresentTest, notifyExpectedPresentTimeout) {
                                                  kTimeoutNs);
         EXPECT_TRUE(
                 mFlinger.verifyLastExpectedPresentTime(mPhysicalDisplayId, expectedPresentTime));
-        ASSERT_TRUE(mFlinger.verifyHintIsSent(mPhysicalDisplayId));
+        ASSERT_TRUE(mFlinger.verifyHintStatusIsScheduledOnTx(mPhysicalDisplayId));
         mFlinger.scheduler()->doFrameSignal(*mCompositor, VsyncId{42});
         // Present happens notifyExpectedPresentHintStatus is Start
         ASSERT_TRUE(mFlinger.verifyHintStatusIsStart(mPhysicalDisplayId));
@@ -259,7 +314,7 @@ TEST_F(NotifyExpectedPresentTest, notifyExpectedPresentTimeout) {
 }
 
 TEST_F(NotifyExpectedPresentTest, notifyExpectedPresentRenderRateChanged) {
-    const auto now = systemTime();
+    const auto now = TimePoint::now().ns();
     auto expectedPresentTime = now;
     static constexpr Period kTimeoutNs = Period::fromNs(static_cast<Fps>(1_Hz).getPeriodNsecs());
 
@@ -298,6 +353,10 @@ TEST_F(NotifyExpectedPresentTest, notifyExpectedPresentRenderRateChanged) {
                                                  TimePoint::fromNs(expectedPresentTime),
                                                  Fps::fromPeriodNsecs(frameIntervalNs), kTimeoutNs);
 
+        EXPECT_CALL(static_cast<mock::VSyncTracker&>(
+                            mFlinger.scheduler()->getVsyncSchedule()->getTracker()),
+                    nextAnticipatedVSyncTimeFrom(_, _))
+                .WillRepeatedly(Return(expectedPresentTime));
         if (callNotifyExpectedPresentHint) {
             mCompositor->committed = false;
             ASSERT_TRUE(mFlinger.verifyHintIsScheduledOnPresent(mPhysicalDisplayId))

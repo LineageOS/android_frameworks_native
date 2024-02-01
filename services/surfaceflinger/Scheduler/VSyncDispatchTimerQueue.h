@@ -48,7 +48,8 @@ public:
     std::optional<nsecs_t> lastExecutedVsyncTarget() const;
 
     // This moves the state from disarmed->armed and will calculate the wakeupTime.
-    ScheduleResult schedule(VSyncDispatch::ScheduleTiming, VSyncTracker&, nsecs_t now);
+    std::optional<ScheduleResult> schedule(VSyncDispatch::ScheduleTiming, VSyncTracker&,
+                                           nsecs_t now);
     // This will update armed entries with the latest vsync information. Entry remains armed.
     void update(VSyncTracker&, nsecs_t now);
 
@@ -69,7 +70,8 @@ public:
 
     // Adds a pending upload of the earliestVSync and workDuration that will be applied on the next
     // call to update()
-    nsecs_t addPendingWorkloadUpdate(VSyncTracker&, nsecs_t now, VSyncDispatch::ScheduleTiming);
+    ScheduleResult addPendingWorkloadUpdate(VSyncTracker&, nsecs_t now,
+                                            VSyncDispatch::ScheduleTiming);
 
     // Checks if there is a pending update to the workload, returning true if so.
     bool hasPendingWorkloadUpdate() const;
@@ -128,8 +130,8 @@ public:
 
     CallbackToken registerCallback(Callback, std::string callbackName) final;
     void unregisterCallback(CallbackToken) final;
-    ScheduleResult schedule(CallbackToken, ScheduleTiming) final;
-    ScheduleResult update(CallbackToken, ScheduleTiming) final;
+    std::optional<ScheduleResult> schedule(CallbackToken, ScheduleTiming) final;
+    std::optional<ScheduleResult> update(CallbackToken, ScheduleTiming) final;
     CancelResult cancel(CallbackToken) final;
     void dump(std::string&) const final;
 
@@ -147,7 +149,7 @@ private:
     void rearmTimerSkippingUpdateFor(nsecs_t now, CallbackMap::const_iterator skipUpdate)
             REQUIRES(mMutex);
     void cancelTimer() REQUIRES(mMutex);
-    ScheduleResult scheduleLocked(CallbackToken, ScheduleTiming) REQUIRES(mMutex);
+    std::optional<ScheduleResult> scheduleLocked(CallbackToken, ScheduleTiming) REQUIRES(mMutex);
 
     std::mutex mutable mMutex;
 
