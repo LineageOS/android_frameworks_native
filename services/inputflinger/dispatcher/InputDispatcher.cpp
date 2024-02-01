@@ -6207,8 +6207,18 @@ void InputDispatcher::doDispatchCycleFinishedCommand(nsecs_t finishTime,
         }
         traceWaitQueueLength(*connection);
         if (fallbackKeyEntry && connection->status == Connection::Status::NORMAL) {
-            const InputTarget target{.connection = connection, .flags = dispatchEntry->targetFlags};
-            enqueueDispatchEntryLocked(connection, std::move(fallbackKeyEntry), target);
+            const auto windowHandle = getWindowHandleLocked(connection->getToken());
+            // Only dispatch fallbacks if there is a window for the connection.
+            if (windowHandle != nullptr) {
+                const auto inputTarget =
+                        createInputTargetLocked(windowHandle, InputTarget::DispatchMode::AS_IS,
+                                                dispatchEntry->targetFlags,
+                                                fallbackKeyEntry->downTime);
+                if (inputTarget.has_value()) {
+                    enqueueDispatchEntryLocked(connection, std::move(fallbackKeyEntry),
+                                               *inputTarget);
+                }
+            }
         }
         releaseDispatchEntry(std::move(dispatchEntry));
     }
@@ -6440,14 +6450,18 @@ std::unique_ptr<const KeyEntry> InputDispatcher::afterKeyEventLockedInterruptabl
 
             mLock.lock();
 
-            // Cancel the fallback key.
+            // Cancel the fallback key, but only if we still have a window for the channel.
+            // It could have been removed during the policy call.
             if (*fallbackKeyCode != AKEYCODE_UNKNOWN) {
-                CancelationOptions options(CancelationOptions::Mode::CANCEL_FALLBACK_EVENTS,
-                                           "application handled the original non-fallback key "
-                                           "or is no longer a foreground target, "
-                                           "canceling previously dispatched fallback key");
-                options.keyCode = *fallbackKeyCode;
-                synthesizeCancelationEventsForConnectionLocked(connection, options);
+                const auto windowHandle = getWindowHandleLocked(connection->getToken());
+                if (windowHandle != nullptr) {
+                    CancelationOptions options(CancelationOptions::Mode::CANCEL_FALLBACK_EVENTS,
+                                               "application handled the original non-fallback key "
+                                               "or is no longer a foreground target, "
+                                               "canceling previously dispatched fallback key");
+                    options.keyCode = *fallbackKeyCode;
+                    synthesizeCancelationEventsForConnectionLocked(connection, options);
+                }
             }
             connection->inputState.removeFallbackKey(originalKeyCode);
         }
@@ -6523,10 +6537,13 @@ std::unique_ptr<const KeyEntry> InputDispatcher::afterKeyEventLockedInterruptabl
                 }
             }
 
-            CancelationOptions options(CancelationOptions::Mode::CANCEL_FALLBACK_EVENTS,
-                                       "canceling fallback, policy no longer desires it");
-            options.keyCode = *fallbackKeyCode;
-            synthesizeCancelationEventsForConnectionLocked(connection, options);
+            const auto windowHandle = getWindowHandleLocked(connection->getToken());
+            if (windowHandle != nullptr) {
+                CancelationOptions options(CancelationOptions::Mode::CANCEL_FALLBACK_EVENTS,
+                                           "canceling fallback, policy no longer desires it");
+                options.keyCode = *fallbackKeyCode;
+                synthesizeCancelationEventsForConnectionLocked(connection, options);
+            }
 
             fallback = false;
             *fallbackKeyCode = AKEYCODE_UNKNOWN;
