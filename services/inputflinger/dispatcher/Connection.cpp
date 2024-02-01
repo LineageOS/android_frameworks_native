@@ -23,20 +23,9 @@ namespace android::inputdispatcher {
 Connection::Connection(const std::shared_ptr<InputChannel>& inputChannel, bool monitor,
                        const IdGenerator& idGenerator)
       : status(Status::NORMAL),
-        inputChannel(inputChannel),
         monitor(monitor),
         inputPublisher(inputChannel),
         inputState(idGenerator) {}
-
-const std::string Connection::getWindowName() const {
-    if (inputChannel != nullptr) {
-        return inputChannel->getName();
-    }
-    if (monitor) {
-        return "monitor";
-    }
-    return "?";
-}
 
 sp<IBinder> Connection::getToken() const {
     return inputPublisher.getChannel()->getConnectionToken();
