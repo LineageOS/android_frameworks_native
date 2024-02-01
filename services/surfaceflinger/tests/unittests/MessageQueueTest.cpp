@@ -41,6 +41,7 @@ struct NoOpCompositor final : ICompositor {
         return {};
     }
     void sample() override {}
+    void sendNotifyExpectedPresentHint(PhysicalDisplayId) {}
 } gNoOpCompositor;
 
 class TestableMessageQueue : public impl::MessageQueue {

@@ -80,8 +80,7 @@ void DisplayTransactionTest::injectMockScheduler(PhysicalDisplayId displayId) {
                             std::unique_ptr<EventThread>(mEventThread),
                             std::unique_ptr<EventThread>(mSFEventThread),
                             TestableSurfaceFlinger::DefaultDisplayMode{displayId},
-                            TestableSurfaceFlinger::SchedulerCallbackImpl::kMock,
-                            TestableSurfaceFlinger::VsyncTrackerCallbackImpl::kMock);
+                            TestableSurfaceFlinger::SchedulerCallbackImpl::kMock);
 }
 
 void DisplayTransactionTest::injectMockComposer(int virtualDisplayCount) {

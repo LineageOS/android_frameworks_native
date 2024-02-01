@@ -41,18 +41,16 @@ namespace android::scheduler {
 class TestableScheduler : public Scheduler, private ICompositor {
 public:
     TestableScheduler(RefreshRateSelectorPtr selectorPtr,
-                      TestableSurfaceFlinger& testableSurfaceFlinger, ISchedulerCallback& callback,
-                      IVsyncTrackerCallback& vsyncTrackerCallback);
+                      TestableSurfaceFlinger& testableSurfaceFlinger, ISchedulerCallback& callback);
 
     TestableScheduler(std::unique_ptr<VsyncController> controller,
                       std::shared_ptr<VSyncTracker> tracker, RefreshRateSelectorPtr selectorPtr,
                       surfaceflinger::Factory& factory, TimeStats& timeStats,
-                      ISchedulerCallback& schedulerCallback,
-                      IVsyncTrackerCallback& vsyncTrackerCallback)
+                      ISchedulerCallback& schedulerCallback)
           : Scheduler(*this, schedulerCallback,
                       (FeatureFlags)Feature::kContentDetection |
                               Feature::kSmallDirtyContentDetection,
-                      factory, selectorPtr->getActiveMode().fps, timeStats, vsyncTrackerCallback) {
+                      factory, selectorPtr->getActiveMode().fps, timeStats) {
         const auto displayId = selectorPtr->getActiveMode().modePtr->getPhysicalDisplayId();
         registerDisplay(displayId, std::move(selectorPtr), std::move(controller),
                         std::move(tracker));
@@ -210,6 +208,7 @@ private:
         return {};
     }
     void sample() override {}
+    void sendNotifyExpectedPresentHint(PhysicalDisplayId) override {}
 };
 
 } // namespace android::scheduler
