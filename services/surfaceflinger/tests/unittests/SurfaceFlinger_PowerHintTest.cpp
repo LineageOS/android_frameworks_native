@@ -17,84 +17,18 @@
 #undef LOG_TAG
 #define LOG_TAG "SurfaceFlingerPowerHintTest"
 
-#include <compositionengine/Display.h>
-#include <compositionengine/mock/DisplaySurface.h>
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
-#include <renderengine/mock/RenderEngine.h>
-#include <algorithm>
 #include <chrono>
-#include <memory>
-#include "TestableSurfaceFlinger.h"
-#include "mock/DisplayHardware/MockComposer.h"
-#include "mock/DisplayHardware/MockPowerAdvisor.h"
-#include "mock/MockTimeStats.h"
-#include "mock/system/window/MockNativeWindow.h"
 
-using namespace android;
-using namespace android::Hwc2::mock;
-using namespace android::hardware::power;
+#include "CommitAndCompositeTest.h"
+
 using namespace std::chrono_literals;
-using namespace testing;
+using testing::_;
+using testing::Return;
 
 namespace android {
 namespace {
-using FakeHwcDisplayInjector = TestableSurfaceFlinger::FakeHwcDisplayInjector;
-using FakeDisplayDeviceInjector = TestableSurfaceFlinger::FakeDisplayDeviceInjector;
 
-constexpr hal::HWDisplayId HWC_DISPLAY = FakeHwcDisplayInjector::DEFAULT_HWC_DISPLAY_ID;
-constexpr PhysicalDisplayId DEFAULT_DISPLAY_ID = PhysicalDisplayId::fromPort(42u);
-constexpr int DEFAULT_DISPLAY_WIDTH = 1920;
-constexpr int DEFAULT_DISPLAY_HEIGHT = 1024;
-
-class SurfaceFlingerPowerHintTest : public Test {
-public:
-    void SetUp() override;
-
-protected:
-    TestableSurfaceFlinger mFlinger;
-    renderengine::mock::RenderEngine* mRenderEngine = new renderengine::mock::RenderEngine();
-    sp<DisplayDevice> mDisplay;
-    sp<compositionengine::mock::DisplaySurface> mDisplaySurface =
-            sp<compositionengine::mock::DisplaySurface>::make();
-    sp<mock::NativeWindow> mNativeWindow = sp<mock::NativeWindow>::make();
-    mock::TimeStats* mTimeStats = new mock::TimeStats();
-    Hwc2::mock::PowerAdvisor* mPowerAdvisor = nullptr;
-    Hwc2::mock::Composer* mComposer = nullptr;
-};
-
-void SurfaceFlingerPowerHintTest::SetUp() {
-    mFlinger.setupMockScheduler({.displayId = DEFAULT_DISPLAY_ID});
-    mComposer = new Hwc2::mock::Composer();
-    mPowerAdvisor = new Hwc2::mock::PowerAdvisor();
-    mFlinger.setupRenderEngine(std::unique_ptr<renderengine::RenderEngine>(mRenderEngine));
-    mFlinger.setupTimeStats(std::shared_ptr<TimeStats>(mTimeStats));
-    mFlinger.setupComposer(std::unique_ptr<Hwc2::Composer>(mComposer));
-    mFlinger.setupPowerAdvisor(std::unique_ptr<Hwc2::PowerAdvisor>(mPowerAdvisor));
-    static constexpr bool kIsPrimary = true;
-    FakeHwcDisplayInjector(DEFAULT_DISPLAY_ID, hal::DisplayType::PHYSICAL, kIsPrimary)
-            .setPowerMode(hal::PowerMode::ON)
-            .inject(&mFlinger, mComposer);
-    auto compostionEngineDisplayArgs =
-            compositionengine::DisplayCreationArgsBuilder()
-                    .setId(DEFAULT_DISPLAY_ID)
-                    .setPixels({DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT})
-                    .setPowerAdvisor(mPowerAdvisor)
-                    .setName("injected display")
-                    .build();
-    auto compositionDisplay =
-            compositionengine::impl::createDisplay(mFlinger.getCompositionEngine(),
-                                                   std::move(compostionEngineDisplayArgs));
-    mDisplay =
-            FakeDisplayDeviceInjector(mFlinger, compositionDisplay,
-                                      ui::DisplayConnectionType::Internal, HWC_DISPLAY, kIsPrimary)
-                    .setDisplaySurface(mDisplaySurface)
-                    .setNativeWindow(mNativeWindow)
-                    .setPowerMode(hal::PowerMode::ON)
-                    .setRefreshRateSelector(mFlinger.scheduler()->refreshRateSelector())
-                    .skipRegisterDisplay()
-                    .inject();
-}
+class SurfaceFlingerPowerHintTest : public CommitAndCompositeTest {};
 
 TEST_F(SurfaceFlingerPowerHintTest, sendDurationsIncludingHwcWaitTime) {
     ON_CALL(*mPowerAdvisor, usePowerHintSession()).WillByDefault(Return(true));
