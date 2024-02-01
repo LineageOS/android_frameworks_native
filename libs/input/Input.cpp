@@ -374,7 +374,7 @@ std::ostream& operator<<(std::ostream& out, const KeyEvent& event) {
     out << ", deviceId=" << event.getDeviceId();
     out << ", source=" << inputEventSourceToString(event.getSource());
     out << ", displayId=" << event.getDisplayId();
-    out << ", eventId=" << event.getId();
+    out << ", eventId=0x" << std::hex << event.getId() << std::dec;
     out << "}";
     return out;
 }
@@ -1051,7 +1051,7 @@ std::ostream& operator<<(std::ostream& out, const MotionEvent& event) {
     out << ", deviceId=" << event.getDeviceId();
     out << ", source=" << inputEventSourceToString(event.getSource());
     out << ", displayId=" << event.getDisplayId();
-    out << ", eventId=" << event.getId();
+    out << ", eventId=0x" << std::hex << event.getId() << std::dec;
     out << "}";
     return out;
 }
