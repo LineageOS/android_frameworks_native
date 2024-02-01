@@ -109,7 +109,8 @@ bool WindowInfo::operator==(const WindowInfo& info) const {
             info.inputConfig == inputConfig && info.displayId == displayId &&
             info.replaceTouchableRegionWithCrop == replaceTouchableRegionWithCrop &&
             info.applicationInfo == applicationInfo && info.layoutParamsType == layoutParamsType &&
-            info.layoutParamsFlags == layoutParamsFlags;
+            info.layoutParamsFlags == layoutParamsFlags &&
+            info.canOccludePresentation == canOccludePresentation;
 }
 
 status_t WindowInfo::writeToParcel(android::Parcel* parcel) const {
@@ -158,8 +159,9 @@ status_t WindowInfo::writeToParcel(android::Parcel* parcel) const {
         parcel->write(touchableRegion) ?:
         parcel->writeBool(replaceTouchableRegionWithCrop) ?:
         parcel->writeStrongBinder(touchableRegionCropHandle.promote()) ?:
-        parcel->writeStrongBinder(windowToken);
-        parcel->writeStrongBinder(focusTransferTarget);
+        parcel->writeStrongBinder(windowToken) ?:
+        parcel->writeStrongBinder(focusTransferTarget) ?:
+        parcel->writeBool(canOccludePresentation);
     // clang-format on
     return status;
 }
@@ -210,7 +212,8 @@ status_t WindowInfo::readFromParcel(const android::Parcel* parcel) {
         parcel->readBool(&replaceTouchableRegionWithCrop) ?:
         parcel->readNullableStrongBinder(&touchableRegionCropHandleSp) ?:
         parcel->readNullableStrongBinder(&windowToken) ?:
-        parcel->readNullableStrongBinder(&focusTransferTarget);
+        parcel->readNullableStrongBinder(&focusTransferTarget) ?:
+        parcel->readBool(&canOccludePresentation);
 
     // clang-format on
 
@@ -273,6 +276,7 @@ std::ostream& operator<<(std::ostream& out, const WindowInfo& info) {
         << "ms, token=" << info.token.get()
         << ", touchOcclusionMode=" << ftl::enum_string(info.touchOcclusionMode) << "\n"
         << transform;
+    if (info.canOccludePresentation) out << " canOccludePresentation";
     return out;
 }
 
