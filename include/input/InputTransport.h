@@ -333,7 +333,7 @@ public:
     ~InputPublisher();
 
     /* Gets the underlying input channel. */
-    inline std::shared_ptr<InputChannel> getChannel() { return mChannel; }
+    inline std::shared_ptr<InputChannel> getChannel() const { return mChannel; }
 
     /* Publishes a key event to the input channel.
      *

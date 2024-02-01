@@ -282,7 +282,7 @@ std::string SensorEntry::getDescription() const {
 volatile int32_t DispatchEntry::sNextSeqAtomic;
 
 DispatchEntry::DispatchEntry(std::shared_ptr<const EventEntry> eventEntry,
-                             ftl::Flags<InputTarget::Flags> targetFlags,
+                             ftl::Flags<InputTargetFlags> targetFlags,
                              const ui::Transform& transform, const ui::Transform& rawTransform,
                              float globalScaleFactor, gui::Uid targetUid, int64_t vsyncId,
                              std::optional<int32_t> windowId)

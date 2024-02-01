@@ -38,4 +38,8 @@ const std::string Connection::getWindowName() const {
     return "?";
 }
 
+sp<IBinder> Connection::getToken() const {
+    return inputPublisher.getChannel()->getConnectionToken();
+};
+
 } // namespace android::inputdispatcher
