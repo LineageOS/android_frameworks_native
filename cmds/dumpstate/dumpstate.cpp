@@ -1563,6 +1563,13 @@ static void DumpstateLimitedOnly() {
     RunDumpsys("DROPBOX SYSTEM SERVER CRASHES", {"dropbox", "-p", "system_server_crash"});
     RunDumpsys("DROPBOX SYSTEM APP CRASHES", {"dropbox", "-p", "system_app_crash"});
 
+
+    printf("========================================================\n");
+    printf("== ANR Traces\n");
+    printf("========================================================\n");
+
+    AddAnrTraceFiles();
+
     printf("========================================================\n");
     printf("== Final progress (pid %d): %d/%d (estimated %d)\n", ds.pid_, ds.progress_->Get(),
            ds.progress_->GetMax(), ds.progress_->GetInitialMax());
