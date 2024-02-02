@@ -232,6 +232,11 @@ Status Lshal::main(const Arg &arg) {
         return static_cast<HelpCommand*>(help)->usageOfCommand(mCommand);
     }
 
+    // After Lshal::main() finishes, caller may call _exit(), causing debug
+    // information to prematurely ends. Hence flush().
+    err().flush();
+    out().flush();
+
     return status;
 }
 
