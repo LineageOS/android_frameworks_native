@@ -42,7 +42,6 @@ public:
     };
 
     Status status;
-    std::shared_ptr<InputChannel> inputChannel; // never null
     bool monitor;
     InputPublisher inputPublisher;
     InputState inputState;
@@ -62,11 +61,11 @@ public:
     Connection(const std::shared_ptr<InputChannel>& inputChannel, bool monitor,
                const IdGenerator& idGenerator);
 
-    inline const std::string getInputChannelName() const { return inputChannel->getName(); }
+    inline const std::string getInputChannelName() const {
+        return inputPublisher.getChannel()->getName();
+    }
 
     sp<IBinder> getToken() const;
-
-    const std::string getWindowName() const;
 };
 
 } // namespace android::inputdispatcher

@@ -2084,7 +2084,7 @@ void InputDispatcher::cancelEventsForAnrLocked(const std::shared_ptr<Connection>
     // sending new pointers to the connection when it blocked, but focused events will continue to
     // pile up.
     ALOGW("Canceling events for %s because it is unresponsive",
-          connection->inputChannel->getName().c_str());
+          connection->getInputChannelName().c_str());
     if (connection->status == Connection::Status::NORMAL) {
         CancelationOptions options(CancelationOptions::Mode::CANCEL_ALL_EVENTS,
                                    "application not responding");
@@ -2271,7 +2271,7 @@ std::vector<Monitor> InputDispatcher::selectResponsiveMonitorsLocked(
                      std::shared_ptr<Connection> connection = monitor.connection;
                      if (!connection->responsive) {
                          ALOGW("Unresponsive monitor %s will not get the new gesture",
-                               connection->inputChannel->getName().c_str());
+                               connection->getInputChannelName().c_str());
                          return false;
                      }
                      return true;
@@ -3586,7 +3586,7 @@ void InputDispatcher::processInteractionsLocked(const EventEntry& entry,
 
     std::string targetList;
     for (const std::shared_ptr<Connection>& connection : newConnections) {
-        targetList += connection->getWindowName() + ", ";
+        targetList += connection->getInputChannelName() + ", ";
     }
     std::string message = "Interaction with: " + targetList;
     if (targetList.empty()) {
@@ -5803,11 +5803,10 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) const {
     if (!mConnectionsByToken.empty()) {
         dump += INDENT "Connections:\n";
         for (const auto& [token, connection] : mConnectionsByToken) {
-            dump += StringPrintf(INDENT2 "%i: channelName='%s', windowName='%s', "
+            dump += StringPrintf(INDENT2 "%i: channelName='%s', "
                                          "status=%s, monitor=%s, responsive=%s\n",
-                                 connection->inputChannel->getFd(),
+                                 connection->inputPublisher.getChannel()->getFd(),
                                  connection->getInputChannelName().c_str(),
-                                 connection->getWindowName().c_str(),
                                  ftl::enum_string(connection->status).c_str(),
                                  toString(connection->monitor), toString(connection->responsive));
 
@@ -5986,7 +5985,7 @@ status_t InputDispatcher::removeInputChannelLocked(const sp<IBinder>& connection
         removeMonitorChannelLocked(connectionToken);
     }
 
-    mLooper->removeFd(connection->inputChannel->getFd());
+    mLooper->removeFd(connection->inputPublisher.getChannel()->getFd());
 
     nsecs_t currentTime = now();
     abortBrokenDispatchCycleLocked(currentTime, connection, notify);
@@ -6180,7 +6179,7 @@ void InputDispatcher::doDispatchCycleFinishedCommand(nsecs_t finishTime,
 
         const nsecs_t eventDuration = finishTime - dispatchEntry.deliveryTime;
         if (eventDuration > SLOW_EVENT_PROCESSING_WARNING_TIMEOUT) {
-            ALOGI("%s spent %" PRId64 "ms processing %s", connection->getWindowName().c_str(),
+            ALOGI("%s spent %" PRId64 "ms processing %s", connection->getInputChannelName().c_str(),
                   ns2ms(eventDuration), dispatchEntry.eventEntry->getDescription().c_str());
         }
         if (shouldReportFinishedEvent(dispatchEntry, *connection)) {
@@ -6251,7 +6250,7 @@ void InputDispatcher::onAnrLocked(const std::shared_ptr<Connection>& connection)
     // is already healthy again. Don't raise ANR in this situation
     if (connection->waitQueue.empty()) {
         ALOGI("Not raising ANR because the connection %s has recovered",
-              connection->inputChannel->getName().c_str());
+              connection->getInputChannelName().c_str());
         return;
     }
     /**
@@ -6266,7 +6265,7 @@ void InputDispatcher::onAnrLocked(const std::shared_ptr<Connection>& connection)
     const nsecs_t currentWait = now() - oldestEntry.deliveryTime;
     std::string reason =
             android::base::StringPrintf("%s is not responding. Waited %" PRId64 "ms for %s",
-                                        connection->inputChannel->getName().c_str(),
+                                        connection->getInputChannelName().c_str(),
                                         ns2ms(currentWait),
                                         oldestEntry.eventEntry->getDescription().c_str());
     sp<IBinder> connectionToken = connection->getToken();
@@ -6371,12 +6370,12 @@ void InputDispatcher::processConnectionUnresponsiveLocked(const Connection& conn
     const sp<IBinder>& connectionToken = connection.getToken();
     std::optional<gui::Pid> pid;
     if (connection.monitor) {
-        ALOGW("Monitor %s is unresponsive: %s", connection.inputChannel->getName().c_str(),
+        ALOGW("Monitor %s is unresponsive: %s", connection.getInputChannelName().c_str(),
               reason.c_str());
         pid = findMonitorPidByTokenLocked(connectionToken);
     } else {
         // The connection is a window
-        ALOGW("Window %s is unresponsive: %s", connection.inputChannel->getName().c_str(),
+        ALOGW("Window %s is unresponsive: %s", connection.getInputChannelName().c_str(),
               reason.c_str());
         const sp<WindowInfoHandle> handle = getWindowHandleLocked(connectionToken);
         if (handle != nullptr) {
@@ -6595,7 +6594,8 @@ void InputDispatcher::traceInboundQueueLengthLocked() {
 void InputDispatcher::traceOutboundQueueLength(const Connection& connection) {
     if (ATRACE_ENABLED()) {
         char counterName[40];
-        snprintf(counterName, sizeof(counterName), "oq:%s", connection.getWindowName().c_str());
+        snprintf(counterName, sizeof(counterName), "oq:%s",
+                 connection.getInputChannelName().c_str());
         ATRACE_INT(counterName, connection.outboundQueue.size());
     }
 }
@@ -6603,7 +6603,8 @@ void InputDispatcher::traceOutboundQueueLength(const Connection& connection) {
 void InputDispatcher::traceWaitQueueLength(const Connection& connection) {
     if (ATRACE_ENABLED()) {
         char counterName[40];
-        snprintf(counterName, sizeof(counterName), "wq:%s", connection.getWindowName().c_str());
+        snprintf(counterName, sizeof(counterName), "wq:%s",
+                 connection.getInputChannelName().c_str());
         ATRACE_INT(counterName, connection.waitQueue.size());
     }
 }
