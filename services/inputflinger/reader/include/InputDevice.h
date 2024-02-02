@@ -199,6 +199,7 @@ private:
     std::optional<DisplayViewport> mAssociatedViewport;
     bool mHasMic;
     bool mDropUntilNextSync;
+    std::optional<bool> mShouldSmoothScroll;
 
     typedef int32_t (InputMapper::*GetStateFunc)(uint32_t sourceMask, int32_t code);
     int32_t getState(uint32_t sourceMask, int32_t code, GetStateFunc getStateFunc);

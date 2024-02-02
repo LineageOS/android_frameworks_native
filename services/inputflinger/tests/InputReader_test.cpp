@@ -2706,6 +2706,31 @@ TEST_F(InputDeviceTest, WhenMappersAreRegistered_DeviceIsNotIgnoredAndForwardsRe
     ASSERT_NO_FATAL_FAILURE(mapper2.assertProcessWasCalled());
 }
 
+TEST_F(InputDeviceTest, Configure_SmoothScrollViewBehaviorNotSet) {
+    // Set some behavior to force the configuration to be update.
+    mFakeEventHub->addConfigurationProperty(EVENTHUB_ID, "device.wake", "1");
+    mDevice->addMapper<FakeInputMapper>(EVENTHUB_ID, mFakePolicy->getReaderConfiguration(),
+                                        AINPUT_SOURCE_KEYBOARD);
+
+    std::list<NotifyArgs> unused =
+            mDevice->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(),
+                               /*changes=*/{});
+
+    ASSERT_FALSE(mDevice->getDeviceInfo().getViewBehavior().shouldSmoothScroll.has_value());
+}
+
+TEST_F(InputDeviceTest, Configure_SmoothScrollViewBehaviorEnabled) {
+    mFakeEventHub->addConfigurationProperty(EVENTHUB_ID, "device.viewBehavior_smoothScroll", "1");
+    mDevice->addMapper<FakeInputMapper>(EVENTHUB_ID, mFakePolicy->getReaderConfiguration(),
+                                        AINPUT_SOURCE_KEYBOARD);
+
+    std::list<NotifyArgs> unused =
+            mDevice->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(),
+                               /*changes=*/{});
+
+    ASSERT_TRUE(mDevice->getDeviceInfo().getViewBehavior().shouldSmoothScroll.value_or(false));
+}
+
 TEST_F(InputDeviceTest, WakeDevice_AddsWakeFlagToProcessNotifyArgs) {
     mFakeEventHub->addConfigurationProperty(EVENTHUB_ID, "device.wake", "1");
     FakeInputMapper& mapper =
