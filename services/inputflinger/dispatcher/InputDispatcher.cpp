@@ -5195,6 +5195,7 @@ void InputDispatcher::setInputWindowsLocked(
 
     // Copy old handles for release if they are no longer present.
     const std::vector<sp<WindowInfoHandle>> oldWindowHandles = getWindowHandlesLocked(displayId);
+    const sp<WindowInfoHandle> removedFocusedWindowHandle = getFocusedWindowHandleLocked(displayId);
 
     updateWindowHandlesForDisplayLocked(windowInfoHandles, displayId);
 
@@ -5203,7 +5204,7 @@ void InputDispatcher::setInputWindowsLocked(
     std::optional<FocusResolver::FocusChanges> changes =
             mFocusResolver.setInputWindows(displayId, windowHandles);
     if (changes) {
-        onFocusChangedLocked(*changes);
+        onFocusChangedLocked(*changes, removedFocusedWindowHandle);
     }
 
     std::unordered_map<int32_t, TouchState>::iterator stateIt =
@@ -5325,14 +5326,16 @@ void InputDispatcher::setFocusedDisplay(int32_t displayId) {
             sp<IBinder> oldFocusedWindowToken =
                     mFocusResolver.getFocusedWindowToken(mFocusedDisplayId);
             if (oldFocusedWindowToken != nullptr) {
-                std::shared_ptr<Connection> connection = getConnectionLocked(oldFocusedWindowToken);
-                if (connection != nullptr) {
-                    CancelationOptions
-                            options(CancelationOptions::Mode::CANCEL_NON_POINTER_EVENTS,
-                                    "The display which contains this window no longer has focus.");
-                    options.displayId = ADISPLAY_ID_NONE;
-                    synthesizeCancelationEventsForConnectionLocked(connection, options);
+                const auto windowHandle =
+                        getWindowHandleLocked(oldFocusedWindowToken, mFocusedDisplayId);
+                if (windowHandle == nullptr) {
+                    LOG(FATAL) << __func__ << ": Previously focused token did not have a window";
                 }
+                CancelationOptions
+                        options(CancelationOptions::Mode::CANCEL_NON_POINTER_EVENTS,
+                                "The display which contains this window no longer has focus.");
+                options.displayId = ADISPLAY_ID_NONE;
+                synthesizeCancelationEventsForWindowLocked(windowHandle, options);
             }
             mFocusedDisplayId = displayId;
 
@@ -6682,15 +6685,19 @@ void InputDispatcher::setFocusedWindow(const FocusRequest& request) {
     mLooper->wake();
 }
 
-void InputDispatcher::onFocusChangedLocked(const FocusResolver::FocusChanges& changes) {
+void InputDispatcher::onFocusChangedLocked(const FocusResolver::FocusChanges& changes,
+                                           const sp<WindowInfoHandle> removedFocusedWindowHandle) {
     if (changes.oldFocus) {
-        std::shared_ptr<Connection> focusedConnection = getConnectionLocked(changes.oldFocus);
-        if (focusedConnection) {
-            CancelationOptions options(CancelationOptions::Mode::CANCEL_NON_POINTER_EVENTS,
-                                       "focus left window");
-            synthesizeCancelationEventsForConnectionLocked(focusedConnection, options);
-            enqueueFocusEventLocked(changes.oldFocus, /*hasFocus=*/false, changes.reason);
+        const auto resolvedWindow = removedFocusedWindowHandle != nullptr
+                ? removedFocusedWindowHandle
+                : getWindowHandleLocked(changes.oldFocus, changes.displayId);
+        if (resolvedWindow == nullptr) {
+            LOG(FATAL) << __func__ << ": Previously focused token did not have a window";
         }
+        CancelationOptions options(CancelationOptions::Mode::CANCEL_NON_POINTER_EVENTS,
+                                   "focus left window");
+        synthesizeCancelationEventsForWindowLocked(resolvedWindow, options);
+        enqueueFocusEventLocked(changes.oldFocus, /*hasFocus=*/false, changes.reason);
     }
     if (changes.newFocus) {
         resetNoFocusedWindowTimeoutLocked();
