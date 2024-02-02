@@ -95,6 +95,7 @@ cc_test {
         "MessageQueueTest.cpp",
         "PowerAdvisorTest.cpp",
         "SmallAreaDetectionAllowMappingsTest.cpp",
+        "SurfaceFlinger_ColorMatrixTest.cpp",
         "SurfaceFlinger_CreateDisplayTest.cpp",
         "SurfaceFlinger_DestroyDisplayTest.cpp",
         "SurfaceFlinger_DisplayModeSwitching.cpp",

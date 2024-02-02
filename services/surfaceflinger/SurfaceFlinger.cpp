@@ -3764,6 +3764,9 @@ void SurfaceFlinger::processDisplayChangesLocked() {
         mVisibleRegionsDirty = true;
         mUpdateInputInfo = true;
 
+        // Apply the current color matrix to any added or changed display.
+        mCurrentState.colorMatrixChanged = true;
+
         // find the displays that were removed
         // (ie: in drawing state but not in current state)
         // also handle displays that changed
@@ -4308,7 +4311,6 @@ void SurfaceFlinger::doCommitTransactions() {
     }
 
     mDrawingState = mCurrentState;
-    // clear the "changed" flags in current state
     mCurrentState.colorMatrixChanged = false;
 
     if (mVisibleRegionsDirty) {
