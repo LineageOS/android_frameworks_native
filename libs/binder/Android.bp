@@ -320,6 +320,24 @@ cc_defaults {
                 "ServiceManagerHost.cpp",
             ],
         },
+        android: {
+            shared_libs: [
+                "libapexsupport",
+                "libvndksupport",
+            ],
+        },
+        recovery: {
+            exclude_shared_libs: [
+                "libapexsupport",
+                "libvndksupport",
+            ],
+        },
+        native_bridge: {
+            exclude_shared_libs: [
+                "libapexsupport",
+                "libvndksupport",
+            ],
+        },
     },
     cflags: [
         "-DBINDER_WITH_KERNEL_IPC",

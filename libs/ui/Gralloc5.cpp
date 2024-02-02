@@ -83,10 +83,18 @@ static void *loadIMapperLibrary() {
             return nullptr;
         }
 
-        std::string lib_name = "mapper." + mapperSuffix + ".so";
-        void *so = android_load_sphal_library(lib_name.c_str(), RTLD_LOCAL | RTLD_NOW);
+        void* so = nullptr;
+        // TODO(b/322384429) switch this to __ANDROID_API_V__ when V is finalized
+        // TODO(b/302113279) use __ANDROID_VENDOR_API__ for vendor variant
+        if (__builtin_available(android __ANDROID_API_FUTURE__, *)) {
+            so = AServiceManager_openDeclaredPassthroughHal("mapper", mapperSuffix.c_str(),
+                                                            RTLD_LOCAL | RTLD_NOW);
+        } else {
+            std::string lib_name = "mapper." + mapperSuffix + ".so";
+            so = android_load_sphal_library(lib_name.c_str(), RTLD_LOCAL | RTLD_NOW);
+        }
         if (!so) {
-            ALOGE("Failed to load %s", lib_name.c_str());
+            ALOGE("Failed to load mapper.%s.so", mapperSuffix.c_str());
         }
         return so;
     }();
