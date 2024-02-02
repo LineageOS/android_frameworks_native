@@ -23,11 +23,7 @@ namespace android::inputdispatcher {
 
 namespace {
 
-// Use a larger timeout while waiting for events to be traced, compared to the timeout used while
-// waiting to receive events through the input channel. Events are traced from a separate thread,
-// which does not have the same high thread priority as the InputDispatcher's thread, so the tracer
-// is expected to lag behind the Dispatcher at times.
-constexpr auto TRACE_TIMEOUT = std::chrono::seconds(5);
+constexpr auto TRACE_TIMEOUT = std::chrono::milliseconds(100);
 
 base::ResultError<> error(const std::ostringstream& ss) {
     return base::ResultError(ss.str(), BAD_VALUE);
