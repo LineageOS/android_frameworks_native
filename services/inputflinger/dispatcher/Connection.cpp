@@ -20,15 +20,15 @@
 
 namespace android::inputdispatcher {
 
-Connection::Connection(const std::shared_ptr<InputChannel>& inputChannel, bool monitor,
+Connection::Connection(std::unique_ptr<InputChannel> inputChannel, bool monitor,
                        const IdGenerator& idGenerator)
       : status(Status::NORMAL),
         monitor(monitor),
-        inputPublisher(inputChannel),
+        inputPublisher(std::move(inputChannel)),
         inputState(idGenerator) {}
 
 sp<IBinder> Connection::getToken() const {
-    return inputPublisher.getChannel()->getConnectionToken();
+    return inputPublisher.getChannel().getConnectionToken();
 };
 
 } // namespace android::inputdispatcher

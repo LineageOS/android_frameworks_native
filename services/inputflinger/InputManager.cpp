@@ -277,7 +277,7 @@ binder::Status InputManager::createInputChannel(const std::string& name,
         return binder::Status::fromExceptionCode(exceptionCodeFromStatusT(channel.error().code()),
                                                  channel.error().message().c_str());
     }
-    (*channel)->copyTo(*outChannel);
+    InputChannel::moveChannel(std::move(*channel), *outChannel);
     return binder::Status::ok();
 }
 
