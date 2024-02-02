@@ -116,7 +116,7 @@ Choreographer::~Choreographer() {
     std::lock_guard<std::mutex> _l(gChoreographers.lock);
     gChoreographers.ptrs.erase(std::remove_if(gChoreographers.ptrs.begin(),
                                               gChoreographers.ptrs.end(),
-                                              [=](Choreographer* c) { return c == this; }),
+                                              [=, this](Choreographer* c) { return c == this; }),
                                gChoreographers.ptrs.end());
     // Only poke DisplayManagerGlobal to unregister if we previously registered
     // callbacks.
