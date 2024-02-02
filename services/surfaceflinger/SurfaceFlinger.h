@@ -199,8 +199,7 @@ class SurfaceFlinger : public BnSurfaceComposer,
                        private HWC2::ComposerCallback,
                        private ICompositor,
                        private scheduler::ISchedulerCallback,
-                       private compositionengine::ICEPowerCallback,
-                       private scheduler::IVsyncTrackerCallback {
+                       private compositionengine::ICEPowerCallback {
 public:
     struct SkipInitializationTag {};
 
@@ -686,13 +685,11 @@ private:
     void kernelTimerChanged(bool expired) override;
     void triggerOnFrameRateOverridesChanged() override;
     void onChoreographerAttached() override;
+    void onExpectedPresentTimePosted(TimePoint expectedPresentTime, ftl::NonNull<DisplayModePtr>,
+                                     Fps renderRate) override;
 
     // ICEPowerCallback overrides:
     void notifyCpuLoadUp() override;
-
-    // IVsyncTrackerCallback overrides
-    void onVsyncGenerated(TimePoint expectedPresentTime, ftl::NonNull<DisplayModePtr>,
-                          Fps renderRate) override;
 
     // Toggles the kernel idle timer on or off depending the policy decisions around refresh rates.
     void toggleKernelIdleTimer() REQUIRES(mStateLock);
@@ -1482,14 +1479,28 @@ private:
     ftl::SmallMap<int64_t, sp<SurfaceControl>, 3> mMirrorMapForDebug;
 
     // NotifyExpectedPresentHint
+    enum class NotifyExpectedPresentHintStatus {
+        // Represents that framework can start sending hint if required.
+        Start,
+        // Represents that the hint is already sent.
+        Sent,
+        // Represents that the hint will be scheduled with a new frame.
+        ScheduleOnPresent,
+        // Represents that a hint will be sent instantly by scheduling on the main thread.
+        ScheduleOnTx
+    };
     struct NotifyExpectedPresentData {
-        // lastExpectedPresentTimestamp is read and write from multiple threads such as
-        // main thread, EventThread, MessageQueue. And is atomic for that reason.
-        std::atomic<TimePoint> lastExpectedPresentTimestamp{};
+        TimePoint lastExpectedPresentTimestamp{};
         Fps lastFrameInterval{};
+        // hintStatus is read and write from multiple threads such as
+        // main thread, EventThread. And is atomic for that reason.
+        std::atomic<NotifyExpectedPresentHintStatus> hintStatus =
+                NotifyExpectedPresentHintStatus::Start;
     };
     std::unordered_map<PhysicalDisplayId, NotifyExpectedPresentData> mNotifyExpectedPresentMap;
-
+    void sendNotifyExpectedPresentHint(PhysicalDisplayId displayId) override
+            REQUIRES(kMainThreadContext);
+    void scheduleNotifyExpectedPresentHint(PhysicalDisplayId displayId);
     void notifyExpectedPresentIfRequired(PhysicalDisplayId, Period vsyncPeriod,
                                          TimePoint expectedPresentTime, Fps frameInterval,
                                          std::optional<Period> timeoutOpt);

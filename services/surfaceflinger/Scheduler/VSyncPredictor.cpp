@@ -48,14 +48,12 @@ static auto constexpr kMaxPercent = 100u;
 VSyncPredictor::~VSyncPredictor() = default;
 
 VSyncPredictor::VSyncPredictor(ftl::NonNull<DisplayModePtr> modePtr, size_t historySize,
-                               size_t minimumSamplesForPrediction, uint32_t outlierTolerancePercent,
-                               IVsyncTrackerCallback& callback)
+                               size_t minimumSamplesForPrediction, uint32_t outlierTolerancePercent)
       : mId(modePtr->getPhysicalDisplayId()),
         mTraceOn(property_get_bool("debug.sf.vsp_trace", false)),
         kHistorySize(historySize),
         kMinimumSamplesForPrediction(minimumSamplesForPrediction),
         kOutlierTolerancePercent(std::min(outlierTolerancePercent, kMaxPercent)),
-        mVsyncTrackerCallback(callback),
         mDisplayModePtr(modePtr) {
     resetModel();
 }
@@ -312,13 +310,7 @@ nsecs_t VSyncPredictor::nextAnticipatedVSyncTimeFrom(nsecs_t timePoint,
             FlagManager::getInstance().vrr_config() && !lastFrameMissed && lastVsyncOpt
             ? std::max(timePoint, *lastVsyncOpt + minFramePeriod - threshold)
             : timePoint;
-    const auto vsyncTime = snapToVsyncAlignedWithRenderRate(baseTime);
-    if (FlagManager::getInstance().vrr_config() && mDisplayModePtr->getVrrConfig()) {
-        const auto vsyncTimePoint = TimePoint::fromNs(vsyncTime);
-        const Fps renderRate = mRenderRateOpt ? *mRenderRateOpt : mDisplayModePtr->getPeakFps();
-        mVsyncTrackerCallback.onVsyncGenerated(vsyncTimePoint, mDisplayModePtr, renderRate);
-    }
-    return vsyncTime;
+    return snapToVsyncAlignedWithRenderRate(baseTime);
 }
 
 nsecs_t VSyncPredictor::snapToVsyncAlignedWithRenderRate(nsecs_t timePoint) const {

@@ -103,6 +103,7 @@ struct EventThreadCallback : public IEventThreadCallback {
     bool throttleVsync(TimePoint, uid_t) override { return false; }
     Period getVsyncPeriod(uid_t) override { return kSyncPeriod; }
     void resync() override {}
+    void onExpectedPresentTimePosted(TimePoint) override {}
 };
 
 void SchedulerFuzzer::fuzzEventThread() {
@@ -180,21 +181,15 @@ void SchedulerFuzzer::fuzzVSyncDispatchTimerQueue() {
     dump<scheduler::VSyncDispatchTimerQueueEntry>(&entry, &mFdp);
 }
 
-struct VsyncTrackerCallback : public scheduler::IVsyncTrackerCallback {
-    void onVsyncGenerated(TimePoint, ftl::NonNull<DisplayModePtr>, Fps) override {}
-};
-
 void SchedulerFuzzer::fuzzVSyncPredictor() {
     uint16_t now = mFdp.ConsumeIntegral<uint16_t>();
     uint16_t historySize = mFdp.ConsumeIntegralInRange<uint16_t>(1, UINT16_MAX);
     uint16_t minimumSamplesForPrediction = mFdp.ConsumeIntegralInRange<uint16_t>(1, UINT16_MAX);
     nsecs_t idealPeriod = mFdp.ConsumeIntegralInRange<nsecs_t>(1, UINT32_MAX);
-    VsyncTrackerCallback callback;
     const auto mode = ftl::as_non_null(
             mock::createDisplayMode(DisplayModeId(0), Fps::fromPeriodNsecs(idealPeriod)));
     scheduler::VSyncPredictor tracker{mode, historySize, minimumSamplesForPrediction,
-                                      mFdp.ConsumeIntegral<uint32_t>() /*outlierTolerancePercent*/,
-                                      callback};
+                                      mFdp.ConsumeIntegral<uint32_t>() /*outlierTolerancePercent*/};
     uint16_t period = mFdp.ConsumeIntegral<uint16_t>();
     tracker.setDisplayModePtr(ftl::as_non_null(
             mock::createDisplayMode(DisplayModeId(0), Fps::fromPeriodNsecs(period))));

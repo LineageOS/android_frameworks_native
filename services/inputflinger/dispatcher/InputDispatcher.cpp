@@ -728,7 +728,7 @@ void filterUntrustedTargets(TouchState& touchState, std::vector<InputTarget>& ta
             // TODO(b/282025641): simplify this code once InputTargets are being identified
             // separately from TouchedWindows.
             std::erase_if(targets, [&](const InputTarget& target) {
-                return target.inputChannel->getConnectionToken() == window.windowHandle->getToken();
+                return target.connection->getToken() == window.windowHandle->getToken();
             });
             return true;
         }
@@ -870,7 +870,7 @@ InputDispatcher::~InputDispatcher() {
 
     while (!mConnectionsByToken.empty()) {
         std::shared_ptr<Connection> connection = mConnectionsByToken.begin()->second;
-        removeInputChannelLocked(connection->inputChannel->getConnectionToken(), /*notify=*/false);
+        removeInputChannelLocked(connection->getToken(), /*notify=*/false);
     }
 }
 
@@ -990,7 +990,7 @@ nsecs_t InputDispatcher::processAnrsLocked() {
     }
     connection->responsive = false;
     // Stop waking up for this unresponsive connection
-    mAnrTracker.eraseToken(connection->inputChannel->getConnectionToken());
+    mAnrTracker.eraseToken(connection->getToken());
     onAnrLocked(connection);
     return LLONG_MIN;
 }
@@ -1000,8 +1000,7 @@ std::chrono::nanoseconds InputDispatcher::getDispatchingTimeoutLocked(
     if (connection->monitor) {
         return mMonitorDispatchingTimeout;
     }
-    const sp<WindowInfoHandle> window =
-            getWindowHandleLocked(connection->inputChannel->getConnectionToken());
+    const sp<WindowInfoHandle> window = getWindowHandleLocked(connection->getToken());
     if (window != nullptr) {
         return window->getDispatchingTimeout(DEFAULT_INPUT_DISPATCHING_TIMEOUT);
     }
@@ -1623,15 +1622,15 @@ void InputDispatcher::enqueueFocusEventLocked(const sp<IBinder>& windowToken, bo
 
 void InputDispatcher::dispatchFocusLocked(nsecs_t currentTime,
                                           std::shared_ptr<const FocusEntry> entry) {
-    std::shared_ptr<InputChannel> channel = getInputChannelLocked(entry->connectionToken);
-    if (channel == nullptr) {
-        return; // Window has gone away
+    std::shared_ptr<Connection> connection = getConnectionLocked(entry->connectionToken);
+    if (connection == nullptr) {
+        return; // Connection has gone away
     }
     InputTarget target;
-    target.inputChannel = channel;
+    target.connection = connection;
     entry->dispatchInProgress = true;
     std::string message = std::string("Focus ") + (entry->hasFocus ? "entering " : "leaving ") +
-            channel->getName();
+            connection->getInputChannelName();
     std::string reason = std::string("reason=").append(entry->reason);
     android_log_event_list(LOGTAG_INPUT_FOCUS) << message << reason << LOG_ID_EVENTS;
     dispatchEventLocked(currentTime, entry, {target});
@@ -1691,8 +1690,8 @@ void InputDispatcher::dispatchPointerCaptureChangedLocked(
         }
     }
 
-    auto channel = getInputChannelLocked(token);
-    if (channel == nullptr) {
+    auto connection = getConnectionLocked(token);
+    if (connection == nullptr) {
         // Window has gone away, clean up Pointer Capture state.
         mWindowTokenWithPointerCapture = nullptr;
         if (mCurrentPointerCaptureRequest.enable) {
@@ -1701,7 +1700,7 @@ void InputDispatcher::dispatchPointerCaptureChangedLocked(
         return;
     }
     InputTarget target;
-    target.inputChannel = channel;
+    target.connection = connection;
     entry->dispatchInProgress = true;
     dispatchEventLocked(currentTime, entry, {target});
 
@@ -1732,12 +1731,12 @@ std::vector<InputTarget> InputDispatcher::getInputTargetsFromWindowHandlesLocked
         if (token == nullptr) {
             continue;
         }
-        std::shared_ptr<InputChannel> channel = getInputChannelLocked(token);
-        if (channel == nullptr) {
-            continue; // Window has gone away
+        std::shared_ptr<Connection> connection = getConnectionLocked(token);
+        if (connection == nullptr) {
+            continue; // Connection has gone away
         }
         InputTarget target;
-        target.inputChannel = channel;
+        target.connection = connection;
         inputTargets.push_back(target);
     }
     return inputTargets;
@@ -2015,12 +2014,12 @@ void InputDispatcher::enqueueDragEventLocked(const sp<WindowInfoHandle>& windowH
 
 void InputDispatcher::dispatchDragLocked(nsecs_t currentTime,
                                          std::shared_ptr<const DragEntry> entry) {
-    std::shared_ptr<InputChannel> channel = getInputChannelLocked(entry->connectionToken);
-    if (channel == nullptr) {
-        return; // Window has gone away
+    std::shared_ptr<Connection> connection = getConnectionLocked(entry->connectionToken);
+    if (connection == nullptr) {
+        return; // Connection has gone away
     }
     InputTarget target;
-    target.inputChannel = channel;
+    target.connection = connection;
     entry->dispatchInProgress = true;
     dispatchEventLocked(currentTime, entry, {target});
 }
@@ -2073,17 +2072,8 @@ void InputDispatcher::dispatchEventLocked(nsecs_t currentTime,
     pokeUserActivityLocked(*eventEntry);
 
     for (const InputTarget& inputTarget : inputTargets) {
-        std::shared_ptr<Connection> connection =
-                getConnectionLocked(inputTarget.inputChannel->getConnectionToken());
-        if (connection != nullptr) {
-            prepareDispatchCycleLocked(currentTime, connection, eventEntry, inputTarget);
-        } else {
-            if (DEBUG_DROPPED_EVENTS_VERBOSE) {
-                LOG(INFO) << "Dropping event delivery to target with channel "
-                          << inputTarget.inputChannel->getName()
-                          << " because it is no longer registered with the input dispatcher.";
-            }
-        }
+        std::shared_ptr<Connection> connection = inputTarget.connection;
+        prepareDispatchCycleLocked(currentTime, connection, eventEntry, inputTarget);
     }
 }
 
@@ -2277,14 +2267,8 @@ std::vector<Monitor> InputDispatcher::selectResponsiveMonitorsLocked(
         const std::vector<Monitor>& monitors) const {
     std::vector<Monitor> responsiveMonitors;
     std::copy_if(monitors.begin(), monitors.end(), std::back_inserter(responsiveMonitors),
-                 [this](const Monitor& monitor) REQUIRES(mLock) {
-                     std::shared_ptr<Connection> connection =
-                             getConnectionLocked(monitor.inputChannel->getConnectionToken());
-                     if (connection == nullptr) {
-                         ALOGE("Could not find connection for monitor %s",
-                               monitor.inputChannel->getName().c_str());
-                         return false;
-                     }
+                 [](const Monitor& monitor) REQUIRES(mLock) {
+                     std::shared_ptr<Connection> connection = monitor.connection;
                      if (!connection->responsive) {
                          ALOGW("Unresponsive monitor %s will not get the new gesture",
                                connection->inputChannel->getName().c_str());
@@ -2664,7 +2648,7 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
             for (InputTarget& target : targets) {
                 if (target.dispatchMode == InputTarget::DispatchMode::OUTSIDE) {
                     sp<WindowInfoHandle> targetWindow =
-                            getWindowHandleLocked(target.inputChannel->getConnectionToken());
+                            getWindowHandleLocked(target.connection->getToken());
                     if (targetWindow->getInfo()->ownerUid != foregroundWindowUid) {
                         target.flags |= InputTarget::Flags::ZERO_COORDS;
                     }
@@ -2862,13 +2846,13 @@ std::optional<InputTarget> InputDispatcher::createInputTargetLocked(
         const sp<android::gui::WindowInfoHandle>& windowHandle,
         InputTarget::DispatchMode dispatchMode, ftl::Flags<InputTarget::Flags> targetFlags,
         std::optional<nsecs_t> firstDownTimeInTarget) const {
-    std::shared_ptr<InputChannel> inputChannel = getInputChannelLocked(windowHandle->getToken());
-    if (inputChannel == nullptr) {
+    std::shared_ptr<Connection> connection = getConnectionLocked(windowHandle->getToken());
+    if (connection == nullptr) {
         ALOGW("Not creating InputTarget for %s, no input channel", windowHandle->getName().c_str());
         return {};
     }
     InputTarget inputTarget;
-    inputTarget.inputChannel = inputChannel;
+    inputTarget.connection = connection;
     inputTarget.windowHandle = windowHandle;
     inputTarget.dispatchMode = dispatchMode;
     inputTarget.flags = targetFlags;
@@ -2892,8 +2876,7 @@ void InputDispatcher::addWindowTargetLocked(const sp<WindowInfoHandle>& windowHa
     std::vector<InputTarget>::iterator it =
             std::find_if(inputTargets.begin(), inputTargets.end(),
                          [&windowHandle](const InputTarget& inputTarget) {
-                             return inputTarget.inputChannel->getConnectionToken() ==
-                                     windowHandle->getToken();
+                             return inputTarget.connection->getToken() == windowHandle->getToken();
                          });
 
     const WindowInfo* windowInfo = windowHandle->getInfo();
@@ -2933,8 +2916,7 @@ void InputDispatcher::addPointerWindowTargetLocked(
     std::vector<InputTarget>::iterator it =
             std::find_if(inputTargets.begin(), inputTargets.end(),
                          [&windowHandle](const InputTarget& inputTarget) {
-                             return inputTarget.inputChannel->getConnectionToken() ==
-                                     windowHandle->getToken();
+                             return inputTarget.connection->getToken() == windowHandle->getToken();
                          });
 
     // This is a hack, because the actual entry could potentially be an ACTION_DOWN event that
@@ -2984,7 +2966,7 @@ void InputDispatcher::addGlobalMonitoringTargetsLocked(std::vector<InputTarget>&
 
     for (const Monitor& monitor : selectResponsiveMonitorsLocked(monitorsIt->second)) {
         InputTarget target;
-        target.inputChannel = monitor.inputChannel;
+        target.connection = monitor.connection;
         // target.firstDownTimeInTarget is not set for global monitors. It is only required in split
         // touch and global monitoring works as intended even without setting firstDownTimeInTarget
         if (const auto& it = mDisplayInfos.find(displayId); it != mDisplayInfos.end()) {
@@ -3499,7 +3481,7 @@ void InputDispatcher::enqueueDispatchEntryLocked(const std::shared_ptr<Connectio
             }
 
             dispatchPointerDownOutsideFocus(resolvedMotion->source, resolvedMotion->action,
-                                            inputTarget.inputChannel->getConnectionToken());
+                                            inputTarget.connection->getToken());
 
             break;
         }
@@ -3582,13 +3564,9 @@ void InputDispatcher::processInteractionsLocked(const EventEntry& entry,
             continue; // Skip windows that receive ACTION_OUTSIDE
         }
 
-        sp<IBinder> token = target.inputChannel->getConnectionToken();
-        std::shared_ptr<Connection> connection = getConnectionLocked(token);
-        if (connection == nullptr) {
-            continue;
-        }
+        sp<IBinder> token = target.connection->getToken();
         newConnectionTokens.insert(std::move(token));
-        newConnections.emplace_back(connection);
+        newConnections.emplace_back(target.connection);
         if (target.windowHandle) {
             interactionUids.emplace(target.windowHandle->getInfo()->ownerUid);
         }
@@ -3822,7 +3800,7 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
         connection->outboundQueue.erase(connection->outboundQueue.begin());
         traceOutboundQueueLength(*connection);
         if (connection->responsive) {
-            mAnrTracker.insert(timeoutTime, connection->inputChannel->getConnectionToken());
+            mAnrTracker.insert(timeoutTime, connection->getToken());
         }
         traceWaitQueueLength(*connection);
     }
@@ -3912,7 +3890,7 @@ void InputDispatcher::abortBrokenDispatchCycleLocked(nsecs_t currentTime,
 
             auto command = [this, connection]() REQUIRES(mLock) {
                 scoped_unlock unlock(mLock);
-                mPolicy.notifyInputChannelBroken(connection->inputChannel->getConnectionToken());
+                mPolicy.notifyInputChannelBroken(connection->getToken());
             };
             postCommandLocked(std::move(command));
         }
@@ -3970,10 +3948,9 @@ int InputDispatcher::handleReceiveCallback(int events, sp<IBinder> connectionTok
                 if (shouldReportMetricsForConnection(*connection)) {
                     const InputPublisher::Timeline& timeline =
                             std::get<InputPublisher::Timeline>(*result);
-                    mLatencyTracker
-                            .trackGraphicsLatency(timeline.inputEventId,
-                                                  connection->inputChannel->getConnectionToken(),
-                                                  std::move(timeline.graphicsTimeline));
+                    mLatencyTracker.trackGraphicsLatency(timeline.inputEventId,
+                                                         connection->getToken(),
+                                                         std::move(timeline.graphicsTimeline));
                 }
             }
             gotOne = true;
@@ -3994,8 +3971,7 @@ int InputDispatcher::handleReceiveCallback(int events, sp<IBinder> connectionTok
     } else {
         // Monitor channels are never explicitly unregistered.
         // We do it automatically when the remote endpoint is closed so don't warn about them.
-        const bool stillHaveWindowHandle =
-                getWindowHandleLocked(connection->inputChannel->getConnectionToken()) != nullptr;
+        const bool stillHaveWindowHandle = getWindowHandleLocked(connection->getToken()) != nullptr;
         notify = !connection->monitor && stillHaveWindowHandle;
         if (notify) {
             ALOGW("channel '%s' ~ Consumer closed input channel or an error occurred.  events=0x%x",
@@ -4004,7 +3980,7 @@ int InputDispatcher::handleReceiveCallback(int events, sp<IBinder> connectionTok
     }
 
     // Remove the channel.
-    removeInputChannelLocked(connection->inputChannel->getConnectionToken(), notify);
+    removeInputChannelLocked(connection->getToken(), notify);
     return 0; // remove the callback
 }
 
@@ -4019,19 +3995,9 @@ void InputDispatcher::synthesizeCancelationEventsForMonitorsLocked(
         const CancelationOptions& options) {
     for (const auto& [_, monitors] : mGlobalMonitorsByDisplay) {
         for (const Monitor& monitor : monitors) {
-            synthesizeCancelationEventsForInputChannelLocked(monitor.inputChannel, options);
+            synthesizeCancelationEventsForConnectionLocked(monitor.connection, options);
         }
     }
-}
-
-void InputDispatcher::synthesizeCancelationEventsForInputChannelLocked(
-        const std::shared_ptr<InputChannel>& channel, const CancelationOptions& options) {
-    std::shared_ptr<Connection> connection = getConnectionLocked(channel->getConnectionToken());
-    if (connection == nullptr) {
-        return;
-    }
-
-    synthesizeCancelationEventsForConnectionLocked(connection, options);
 }
 
 void InputDispatcher::synthesizeCancelationEventsForConnectionLocked(
@@ -4062,8 +4028,8 @@ void InputDispatcher::synthesizeCancelationEventsForConnectionLocked(
 
     const bool wasEmpty = connection->outboundQueue.empty();
     // The target to use if we don't find a window associated with the channel.
-    const InputTarget fallbackTarget{.inputChannel = connection->inputChannel};
-    const auto& token = connection->inputChannel->getConnectionToken();
+    const InputTarget fallbackTarget{.connection = connection};
+    const auto& token = connection->getToken();
 
     for (size_t i = 0; i < cancelationEvents.size(); i++) {
         std::unique_ptr<EventEntry> cancelationEventEntry = std::move(cancelationEvents[i]);
@@ -4164,8 +4130,7 @@ void InputDispatcher::synthesizePointerDownEventsForConnectionLocked(
               connection->getInputChannelName().c_str(), downEvents.size());
     }
 
-    sp<WindowInfoHandle> windowHandle =
-            getWindowHandleLocked(connection->inputChannel->getConnectionToken());
+    sp<WindowInfoHandle> windowHandle = getWindowHandleLocked(connection->getToken());
 
     const bool wasEmpty = connection->outboundQueue.empty();
     for (std::unique_ptr<EventEntry>& downEventEntry : downEvents) {
@@ -4183,8 +4148,8 @@ void InputDispatcher::synthesizePointerDownEventsForConnectionLocked(
                                                  targetFlags, pointerIds, motionEntry.downTime,
                                                  targets);
                 } else {
-                    targets.emplace_back(InputTarget{.inputChannel = connection->inputChannel,
-                                                     .flags = targetFlags});
+                    targets.emplace_back(
+                            InputTarget{.connection = connection, .flags = targetFlags});
                     const auto it = mDisplayInfos.find(motionEntry.displayId);
                     if (it != mDisplayInfos.end()) {
                         targets.back().displayTransform = it->second.transform;
@@ -5141,15 +5106,6 @@ bool InputDispatcher::canWindowReceiveMotionLocked(const sp<WindowInfoHandle>& w
     return true;
 }
 
-std::shared_ptr<InputChannel> InputDispatcher::getInputChannelLocked(
-        const sp<IBinder>& token) const {
-    auto connectionIt = mConnectionsByToken.find(token);
-    if (connectionIt == mConnectionsByToken.end()) {
-        return nullptr;
-    }
-    return connectionIt->second->inputChannel;
-}
-
 void InputDispatcher::updateWindowHandlesForDisplayLocked(
         const std::vector<sp<WindowInfoHandle>>& windowInfoHandles, int32_t displayId) {
     if (windowInfoHandles.empty()) {
@@ -5169,7 +5125,7 @@ void InputDispatcher::updateWindowHandlesForDisplayLocked(
     std::vector<sp<WindowInfoHandle>> newHandles;
     for (const sp<WindowInfoHandle>& handle : windowInfoHandles) {
         const WindowInfo* info = handle->getInfo();
-        if (getInputChannelLocked(handle->getToken()) == nullptr) {
+        if (getConnectionLocked(handle->getToken()) == nullptr) {
             const bool noInputChannel =
                     info->inputConfig.test(WindowInfo::InputConfig::NO_INPUT_CHANNEL);
             const bool canReceiveInput =
@@ -5268,12 +5224,12 @@ void InputDispatcher::setInputWindowsLocked(
             if (getWindowHandleLocked(touchedWindow.windowHandle) == nullptr) {
                 LOG(INFO) << "Touched window was removed: " << touchedWindow.windowHandle->getName()
                           << " in display %" << displayId;
-                std::shared_ptr<InputChannel> touchedInputChannel =
-                        getInputChannelLocked(touchedWindow.windowHandle->getToken());
-                if (touchedInputChannel != nullptr) {
+                std::shared_ptr<Connection> touchedConnection =
+                        getConnectionLocked(touchedWindow.windowHandle->getToken());
+                if (touchedConnection != nullptr) {
                     CancelationOptions options(CancelationOptions::Mode::CANCEL_POINTER_EVENTS,
                                                "touched window was removed");
-                    synthesizeCancelationEventsForInputChannelLocked(touchedInputChannel, options);
+                    synthesizeCancelationEventsForConnectionLocked(touchedConnection, options);
                     // Since we are about to drop the touch, cancel the events for the wallpaper as
                     // well.
                     if (touchedWindow.targetFlags.test(InputTarget::Flags::FOREGROUND) &&
@@ -5378,14 +5334,13 @@ void InputDispatcher::setFocusedDisplay(int32_t displayId) {
             sp<IBinder> oldFocusedWindowToken =
                     mFocusResolver.getFocusedWindowToken(mFocusedDisplayId);
             if (oldFocusedWindowToken != nullptr) {
-                std::shared_ptr<InputChannel> inputChannel =
-                        getInputChannelLocked(oldFocusedWindowToken);
-                if (inputChannel != nullptr) {
+                std::shared_ptr<Connection> connection = getConnectionLocked(oldFocusedWindowToken);
+                if (connection != nullptr) {
                     CancelationOptions
                             options(CancelationOptions::Mode::CANCEL_NON_POINTER_EVENTS,
                                     "The display which contains this window no longer has focus.");
                     options.displayId = ADISPLAY_ID_NONE;
-                    synthesizeCancelationEventsForInputChannelLocked(inputChannel, options);
+                    synthesizeCancelationEventsForConnectionLocked(connection, options);
                 }
             }
             mFocusedDisplayId = displayId;
@@ -5906,8 +5861,8 @@ void InputDispatcher::dumpMonitors(std::string& dump, const std::vector<Monitor>
     const size_t numMonitors = monitors.size();
     for (size_t i = 0; i < numMonitors; i++) {
         const Monitor& monitor = monitors[i];
-        const std::shared_ptr<InputChannel>& channel = monitor.inputChannel;
-        dump += StringPrintf(INDENT2 "%zu: '%s', ", i, channel->getName().c_str());
+        const std::shared_ptr<Connection>& connection = monitor.connection;
+        dump += StringPrintf(INDENT2 "%zu: '%s', ", i, connection->getInputChannelName().c_str());
         dump += "\n";
     }
 }
@@ -5942,10 +5897,10 @@ Result<std::unique_ptr<InputChannel>> InputDispatcher::createInputChannel(const 
                 std::make_shared<Connection>(std::move(serverChannel), /*monitor=*/false,
                                              mIdGenerator);
 
-        if (mConnectionsByToken.find(token) != mConnectionsByToken.end()) {
+        auto [_, inserted] = mConnectionsByToken.try_emplace(token, connection);
+        if (!inserted) {
             ALOGE("Created a new connection, but the token %p is already known", token.get());
         }
-        mConnectionsByToken.emplace(token, connection);
 
         std::function<int(int events)> callback = std::bind(&InputDispatcher::handleReceiveCallback,
                                                             this, std::placeholders::_1, token);
@@ -5982,14 +5937,15 @@ Result<std::unique_ptr<InputChannel>> InputDispatcher::createInputMonitor(int32_
         const sp<IBinder>& token = serverChannel->getConnectionToken();
         const int fd = serverChannel->getFd();
 
-        if (mConnectionsByToken.find(token) != mConnectionsByToken.end()) {
+        auto [_, inserted] = mConnectionsByToken.emplace(token, connection);
+        if (!inserted) {
             ALOGE("Created a new connection, but the token %p is already known", token.get());
         }
-        mConnectionsByToken.emplace(token, connection);
+
         std::function<int(int events)> callback = std::bind(&InputDispatcher::handleReceiveCallback,
                                                             this, std::placeholders::_1, token);
 
-        mGlobalMonitorsByDisplay[displayId].emplace_back(serverChannel, pid);
+        mGlobalMonitorsByDisplay[displayId].emplace_back(connection, pid);
 
         mLooper->addFd(fd, 0, ALOOPER_EVENT_INPUT, sp<LooperEventCallback>::make(callback),
                        nullptr);
@@ -6043,7 +5999,7 @@ void InputDispatcher::removeMonitorChannelLocked(const sp<IBinder>& connectionTo
     for (auto it = mGlobalMonitorsByDisplay.begin(); it != mGlobalMonitorsByDisplay.end();) {
         auto& [displayId, monitors] = *it;
         std::erase_if(monitors, [connectionToken](const Monitor& monitor) {
-            return monitor.inputChannel->getConnectionToken() == connectionToken;
+            return monitor.connection->getToken() == connectionToken;
         });
 
         if (monitors.empty()) {
@@ -6060,8 +6016,8 @@ status_t InputDispatcher::pilferPointers(const sp<IBinder>& token) {
 }
 
 status_t InputDispatcher::pilferPointersLocked(const sp<IBinder>& token) {
-    const std::shared_ptr<InputChannel> requestingChannel = getInputChannelLocked(token);
-    if (!requestingChannel) {
+    const std::shared_ptr<Connection> requestingConnection = getConnectionLocked(token);
+    if (!requestingConnection) {
         LOG(WARNING)
                 << "Attempted to pilfer pointers from an un-registered channel or invalid token";
         return BAD_VALUE;
@@ -6094,16 +6050,16 @@ status_t InputDispatcher::pilferPointersLocked(const sp<IBinder>& token) {
 
         std::string canceledWindows;
         for (const TouchedWindow& w : state.windows) {
-            const std::shared_ptr<InputChannel> channel =
-                    getInputChannelLocked(w.windowHandle->getToken());
-            if (channel != nullptr && channel->getConnectionToken() != token) {
-                synthesizeCancelationEventsForInputChannelLocked(channel, options);
+            const std::shared_ptr<Connection> connection =
+                    getConnectionLocked(w.windowHandle->getToken());
+            if (connection != nullptr && connection->getToken() != token) {
+                synthesizeCancelationEventsForConnectionLocked(connection, options);
                 canceledWindows += canceledWindows.empty() ? "[" : ", ";
-                canceledWindows += channel->getName();
+                canceledWindows += connection->getInputChannelName();
             }
         }
         canceledWindows += canceledWindows.empty() ? "[]" : "]";
-        LOG(INFO) << "Channel " << requestingChannel->getName()
+        LOG(INFO) << "Channel " << requestingConnection->getInputChannelName()
                   << " is stealing input gesture for device " << deviceId << " from "
                   << canceledWindows;
 
@@ -6169,7 +6125,7 @@ void InputDispatcher::setDisplayEligibilityForPointerCapture(int32_t displayId, 
 std::optional<gui::Pid> InputDispatcher::findMonitorPidByTokenLocked(const sp<IBinder>& token) {
     for (const auto& [_, monitors] : mGlobalMonitorsByDisplay) {
         for (const Monitor& monitor : monitors) {
-            if (monitor.inputChannel->getConnectionToken() == token) {
+            if (monitor.connection->getToken() == token) {
                 return monitor.pid;
             }
         }
@@ -6201,8 +6157,8 @@ std::string InputDispatcher::getConnectionNameLocked(const sp<IBinder>& connecti
 }
 
 void InputDispatcher::removeConnectionLocked(const std::shared_ptr<Connection>& connection) {
-    mAnrTracker.eraseToken(connection->inputChannel->getConnectionToken());
-    mConnectionsByToken.erase(connection->inputChannel->getConnectionToken());
+    mAnrTracker.eraseToken(connection->getToken());
+    mConnectionsByToken.erase(connection->getToken());
 }
 
 void InputDispatcher::doDispatchCycleFinishedCommand(nsecs_t finishTime,
@@ -6228,8 +6184,7 @@ void InputDispatcher::doDispatchCycleFinishedCommand(nsecs_t finishTime,
                   ns2ms(eventDuration), dispatchEntry.eventEntry->getDescription().c_str());
         }
         if (shouldReportFinishedEvent(dispatchEntry, *connection)) {
-            mLatencyTracker.trackFinishedEvent(dispatchEntry.eventEntry->id,
-                                               connection->inputChannel->getConnectionToken(),
+            mLatencyTracker.trackFinishedEvent(dispatchEntry.eventEntry->id, connection->getToken(),
                                                dispatchEntry.deliveryTime, consumeTime, finishTime);
         }
 
@@ -6250,7 +6205,7 @@ void InputDispatcher::doDispatchCycleFinishedCommand(nsecs_t finishTime,
         std::unique_ptr<DispatchEntry> dispatchEntry = std::move(*entryIt);
         connection->waitQueue.erase(entryIt);
 
-        const sp<IBinder>& connectionToken = connection->inputChannel->getConnectionToken();
+        const sp<IBinder>& connectionToken = connection->getToken();
         mAnrTracker.erase(dispatchEntry->timeoutTime, connectionToken);
         if (!connection->responsive) {
             connection->responsive = isConnectionResponsive(*connection);
@@ -6261,8 +6216,7 @@ void InputDispatcher::doDispatchCycleFinishedCommand(nsecs_t finishTime,
         }
         traceWaitQueueLength(*connection);
         if (fallbackKeyEntry && connection->status == Connection::Status::NORMAL) {
-            const InputTarget target{.inputChannel = connection->inputChannel,
-                                     .flags = dispatchEntry->targetFlags};
+            const InputTarget target{.connection = connection, .flags = dispatchEntry->targetFlags};
             enqueueDispatchEntryLocked(connection, std::move(fallbackKeyEntry), target);
         }
         releaseDispatchEntry(std::move(dispatchEntry));
@@ -6315,7 +6269,7 @@ void InputDispatcher::onAnrLocked(const std::shared_ptr<Connection>& connection)
                                         connection->inputChannel->getName().c_str(),
                                         ns2ms(currentWait),
                                         oldestEntry.eventEntry->getDescription().c_str());
-    sp<IBinder> connectionToken = connection->inputChannel->getConnectionToken();
+    sp<IBinder> connectionToken = connection->getToken();
     updateLastAnrStateLocked(getWindowHandleLocked(connectionToken), reason);
 
     processConnectionUnresponsiveLocked(*connection, std::move(reason));
@@ -6414,7 +6368,7 @@ void InputDispatcher::sendWindowResponsiveCommandLocked(const sp<IBinder>& token
  */
 void InputDispatcher::processConnectionUnresponsiveLocked(const Connection& connection,
                                                           std::string reason) {
-    const sp<IBinder>& connectionToken = connection.inputChannel->getConnectionToken();
+    const sp<IBinder>& connectionToken = connection.getToken();
     std::optional<gui::Pid> pid;
     if (connection.monitor) {
         ALOGW("Monitor %s is unresponsive: %s", connection.inputChannel->getName().c_str(),
@@ -6436,7 +6390,7 @@ void InputDispatcher::processConnectionUnresponsiveLocked(const Connection& conn
  * Tell the policy that a connection has become responsive so that it can stop ANR.
  */
 void InputDispatcher::processConnectionResponsiveLocked(const Connection& connection) {
-    const sp<IBinder>& connectionToken = connection.inputChannel->getConnectionToken();
+    const sp<IBinder>& connectionToken = connection.getToken();
     std::optional<gui::Pid> pid;
     if (connection.monitor) {
         pid = findMonitorPidByTokenLocked(connectionToken);
@@ -6487,8 +6441,8 @@ std::unique_ptr<const KeyEntry> InputDispatcher::afterKeyEventLockedInterruptabl
             mLock.unlock();
 
             if (const auto unhandledKeyFallback =
-                        mPolicy.dispatchUnhandledKey(connection->inputChannel->getConnectionToken(),
-                                                     event, keyEntry.policyFlags);
+                        mPolicy.dispatchUnhandledKey(connection->getToken(), event,
+                                                     keyEntry.policyFlags);
                 unhandledKeyFallback) {
                 event = *unhandledKeyFallback;
             }
@@ -6532,8 +6486,8 @@ std::unique_ptr<const KeyEntry> InputDispatcher::afterKeyEventLockedInterruptabl
         mLock.unlock();
 
         bool fallback = false;
-        if (auto fb = mPolicy.dispatchUnhandledKey(connection->inputChannel->getConnectionToken(),
-                                                   event, keyEntry.policyFlags);
+        if (auto fb = mPolicy.dispatchUnhandledKey(connection->getToken(), event,
+                                                   keyEntry.policyFlags);
             fb) {
             fallback = true;
             event = *fb;
@@ -6720,11 +6674,11 @@ void InputDispatcher::setFocusedWindow(const FocusRequest& request) {
 
 void InputDispatcher::onFocusChangedLocked(const FocusResolver::FocusChanges& changes) {
     if (changes.oldFocus) {
-        std::shared_ptr<InputChannel> focusedInputChannel = getInputChannelLocked(changes.oldFocus);
-        if (focusedInputChannel) {
+        std::shared_ptr<Connection> focusedConnection = getConnectionLocked(changes.oldFocus);
+        if (focusedConnection) {
             CancelationOptions options(CancelationOptions::Mode::CANCEL_NON_POINTER_EVENTS,
                                        "focus left window");
-            synthesizeCancelationEventsForInputChannelLocked(focusedInputChannel, options);
+            synthesizeCancelationEventsForConnectionLocked(focusedConnection, options);
             enqueueFocusEventLocked(changes.oldFocus, /*hasFocus=*/false, changes.reason);
         }
     }

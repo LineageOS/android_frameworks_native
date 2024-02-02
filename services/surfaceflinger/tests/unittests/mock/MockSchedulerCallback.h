@@ -28,6 +28,8 @@ struct SchedulerCallback final : ISchedulerCallback {
     MOCK_METHOD(void, kernelTimerChanged, (bool), (override));
     MOCK_METHOD(void, triggerOnFrameRateOverridesChanged, (), (override));
     MOCK_METHOD(void, onChoreographerAttached, (), (override));
+    MOCK_METHOD(void, onExpectedPresentTimePosted, (TimePoint, ftl::NonNull<DisplayModePtr>, Fps),
+                (override));
 };
 
 struct NoOpSchedulerCallback final : ISchedulerCallback {
@@ -36,6 +38,7 @@ struct NoOpSchedulerCallback final : ISchedulerCallback {
     void kernelTimerChanged(bool) override {}
     void triggerOnFrameRateOverridesChanged() override {}
     void onChoreographerAttached() override {}
+    void onExpectedPresentTimePosted(TimePoint, ftl::NonNull<DisplayModePtr>, Fps) override {}
 };
 
 } // namespace android::scheduler::mock
