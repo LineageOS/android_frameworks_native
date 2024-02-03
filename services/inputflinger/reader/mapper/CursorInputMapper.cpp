@@ -164,8 +164,9 @@ std::list<NotifyArgs> CursorInputMapper::reconfigure(nsecs_t when,
         configureOnChangeDisplayInfo(readerConfig);
     }
 
+    // Pointer speed settings depend on display settings.
     if (!changes.any() || changes.test(InputReaderConfiguration::Change::POINTER_SPEED) ||
-        configurePointerCapture) {
+        changes.test(InputReaderConfiguration::Change::DISPLAY_INFO) || configurePointerCapture) {
         configureOnChangePointerSpeed(readerConfig);
     }
     return out;
@@ -515,7 +516,11 @@ void CursorInputMapper::configureOnChangePointerSpeed(const InputReaderConfigura
             mNewPointerVelocityControl.setCurve(
                     createAccelerationCurveForPointerSensitivity(config.mousePointerSpeed));
         } else {
-            mOldPointerVelocityControl.setParameters(config.pointerVelocityControlParameters);
+            mOldPointerVelocityControl.setParameters(
+                    (config.displaysWithMousePointerAccelerationDisabled.count(
+                             mDisplayId.value_or(ADISPLAY_ID_NONE)) == 0)
+                            ? config.pointerVelocityControlParameters
+                            : FLAT_VELOCITY_CONTROL_PARAMS);
         }
         mWheelXVelocityControl.setParameters(config.wheelVelocityControlParameters);
         mWheelYVelocityControl.setParameters(config.wheelVelocityControlParameters);
