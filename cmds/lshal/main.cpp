@@ -18,6 +18,5 @@
 
 int main(int argc, char **argv) {
     using namespace ::android::lshal;
-    // Use _exit() to force terminate background threads in Timeout.h
-    _exit(Lshal{}.main(Arg{argc, argv}));
+    return Lshal{}.main(Arg{argc, argv});
 }

@@ -75,6 +75,17 @@ struct InputDeviceIdentifier {
     bool operator!=(const InputDeviceIdentifier&) const = default;
 };
 
+/**
+ * Holds View related behaviors for an InputDevice.
+ */
+struct InputDeviceViewBehavior {
+    /**
+     * The smooth scroll behavior that applies for all source/axis, if defined by the device.
+     * Empty optional if the device has not specified the default smooth scroll behavior.
+     */
+    std::optional<bool> shouldSmoothScroll;
+};
+
 /* Types of input device sensors. Keep sync with core/java/android/hardware/Sensor.java */
 enum class InputDeviceSensorType : int32_t {
     ACCELEROMETER = ASENSOR_TYPE_ACCELEROMETER,
@@ -266,7 +277,8 @@ public:
 
     void initialize(int32_t id, int32_t generation, int32_t controllerNumber,
                     const InputDeviceIdentifier& identifier, const std::string& alias,
-                    bool isExternal, bool hasMic, int32_t associatedDisplayId);
+                    bool isExternal, bool hasMic, int32_t associatedDisplayId,
+                    InputDeviceViewBehavior viewBehavior = {{}});
 
     inline int32_t getId() const { return mId; }
     inline int32_t getControllerNumber() const { return mControllerNumber; }
@@ -297,6 +309,8 @@ public:
     inline const std::optional<KeyboardLayoutInfo>& getKeyboardLayoutInfo() const {
         return mKeyboardLayoutInfo;
     }
+
+    inline const InputDeviceViewBehavior& getViewBehavior() const { return mViewBehavior; }
 
     inline void setKeyCharacterMap(const std::shared_ptr<KeyCharacterMap> value) {
         mKeyCharacterMap = value;
@@ -359,6 +373,8 @@ private:
     std::unordered_map<int32_t, InputDeviceLightInfo> mLights;
     /* Map from battery ID to battery info */
     std::unordered_map<int32_t, InputDeviceBatteryInfo> mBatteries;
+    /** The View related behaviors for the device. */
+    InputDeviceViewBehavior mViewBehavior;
 };
 
 /* Types of input device configuration files. */

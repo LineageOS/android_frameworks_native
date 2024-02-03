@@ -190,14 +190,16 @@ InputDeviceInfo::InputDeviceInfo(const InputDeviceInfo& other)
         mHasSensor(other.mHasSensor),
         mMotionRanges(other.mMotionRanges),
         mSensors(other.mSensors),
-        mLights(other.mLights) {}
+        mLights(other.mLights),
+        mViewBehavior(other.mViewBehavior) {}
 
 InputDeviceInfo::~InputDeviceInfo() {
 }
 
 void InputDeviceInfo::initialize(int32_t id, int32_t generation, int32_t controllerNumber,
                                  const InputDeviceIdentifier& identifier, const std::string& alias,
-                                 bool isExternal, bool hasMic, int32_t associatedDisplayId) {
+                                 bool isExternal, bool hasMic, int32_t associatedDisplayId,
+                                 InputDeviceViewBehavior viewBehavior) {
     mId = id;
     mGeneration = generation;
     mControllerNumber = controllerNumber;
@@ -212,6 +214,7 @@ void InputDeviceInfo::initialize(int32_t id, int32_t generation, int32_t control
     mHasBattery = false;
     mHasButtonUnderPad = false;
     mHasSensor = false;
+    mViewBehavior = viewBehavior;
     mUsiVersion.reset();
     mMotionRanges.clear();
     mSensors.clear();

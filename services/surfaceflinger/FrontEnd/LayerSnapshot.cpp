@@ -315,6 +315,7 @@ std::ostream& operator<<(std::ostream& out, const LayerSnapshot& obj) {
     if (obj.hasInputInfo()) {
         out << "\n    input{"
             << "(" << obj.inputInfo.inputConfig.string() << ")";
+        if (obj.inputInfo.canOccludePresentation) out << " canOccludePresentation";
         if (obj.touchCropId != UNASSIGNED_LAYER_ID) out << " touchCropId=" << obj.touchCropId;
         if (obj.inputInfo.replaceTouchableRegionWithCrop) out << " replaceTouchableRegionWithCrop";
         auto touchableRegion = obj.inputInfo.touchableRegion.getBounds();

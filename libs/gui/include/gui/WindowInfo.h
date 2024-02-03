@@ -246,6 +246,10 @@ struct WindowInfo : public Parcelable {
     // any other window.
     sp<IBinder> focusTransferTarget;
 
+    // Sets a property on this window indicating that its visible region should be considered when
+    // computing TrustedPresentation Thresholds.
+    bool canOccludePresentation = false;
+
     void setInputConfig(ftl::Flags<InputConfig> config, bool value);
 
     void addTouchableRegion(const Rect& region);

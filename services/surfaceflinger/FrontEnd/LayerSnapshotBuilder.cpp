@@ -1044,6 +1044,8 @@ void LayerSnapshotBuilder::updateInput(LayerSnapshot& snapshot,
     snapshot.inputInfo.touchOcclusionMode = requested.hasInputInfo()
             ? requested.windowInfoHandle->getInfo()->touchOcclusionMode
             : parentSnapshot.inputInfo.touchOcclusionMode;
+    snapshot.inputInfo.canOccludePresentation = parentSnapshot.inputInfo.canOccludePresentation ||
+            (requested.flags & layer_state_t::eCanOccludePresentation);
     if (requested.dropInputMode == gui::DropInputMode::ALL ||
         parentSnapshot.dropInputMode == gui::DropInputMode::ALL) {
         snapshot.dropInputMode = gui::DropInputMode::ALL;
