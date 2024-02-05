@@ -20,7 +20,6 @@ cc_library_shared {
         "PowerHintSessionWrapper.cpp",
         "PowerSaveState.cpp",
         "Temperature.cpp",
-        "WorkDuration.cpp",
         "WorkSource.cpp",
         ":libpowermanager_aidl",
     ],
@@ -50,6 +49,10 @@ cc_library_shared {
         "android.hardware.power@1.1",
         "android.hardware.power@1.2",
         "android.hardware.power@1.3",
+    ],
+
+    whole_static_libs: [
+        "android.os.hintmanager_aidl-ndk",
     ],
 
     cflags: [
