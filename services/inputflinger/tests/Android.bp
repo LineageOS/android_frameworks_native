@@ -45,6 +45,7 @@ cc_test {
         "EventHub_test.cpp",
         "FakeEventHub.cpp",
         "FakeInputReaderPolicy.cpp",
+        "FakeInputTracingBackend.cpp",
         "FakePointerController.cpp",
         "FocusResolver_test.cpp",
         "GestureConverter_test.cpp",
