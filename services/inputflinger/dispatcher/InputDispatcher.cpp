@@ -436,15 +436,6 @@ std::unique_ptr<DispatchEntry> createDispatchEntry(const InputTarget& inputTarge
     return dispatchEntry;
 }
 
-status_t openInputChannelPair(const std::string& name, std::shared_ptr<InputChannel>& serverChannel,
-                              std::unique_ptr<InputChannel>& clientChannel) {
-    std::unique_ptr<InputChannel> uniqueServerChannel;
-    status_t result = InputChannel::openInputChannelPair(name, uniqueServerChannel, clientChannel);
-
-    serverChannel = std::move(uniqueServerChannel);
-    return result;
-}
-
 template <typename T>
 bool sharedPointersEqual(const std::shared_ptr<T>& lhs, const std::shared_ptr<T>& rhs) {
     if (lhs == nullptr && rhs == nullptr) {
@@ -5805,7 +5796,7 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) const {
         for (const auto& [token, connection] : mConnectionsByToken) {
             dump += StringPrintf(INDENT2 "%i: channelName='%s', "
                                          "status=%s, monitor=%s, responsive=%s\n",
-                                 connection->inputPublisher.getChannel()->getFd(),
+                                 connection->inputPublisher.getChannel().getFd(),
                                  connection->getInputChannelName().c_str(),
                                  ftl::enum_string(connection->status).c_str(),
                                  toString(connection->monitor), toString(connection->responsive));
@@ -5916,9 +5907,9 @@ Result<std::unique_ptr<InputChannel>> InputDispatcher::createInputChannel(const 
 Result<std::unique_ptr<InputChannel>> InputDispatcher::createInputMonitor(int32_t displayId,
                                                                           const std::string& name,
                                                                           gui::Pid pid) {
-    std::shared_ptr<InputChannel> serverChannel;
+    std::unique_ptr<InputChannel> serverChannel;
     std::unique_ptr<InputChannel> clientChannel;
-    status_t result = openInputChannelPair(name, serverChannel, clientChannel);
+    status_t result = InputChannel::openInputChannelPair(name, serverChannel, clientChannel);
     if (result) {
         return base::Error(result) << "Failed to open input channel pair with name " << name;
     }
@@ -5931,10 +5922,11 @@ Result<std::unique_ptr<InputChannel>> InputDispatcher::createInputMonitor(int32_
                                           << " without a specified display.";
         }
 
-        std::shared_ptr<Connection> connection =
-                std::make_shared<Connection>(serverChannel, /*monitor=*/true, mIdGenerator);
         const sp<IBinder>& token = serverChannel->getConnectionToken();
         const int fd = serverChannel->getFd();
+        std::shared_ptr<Connection> connection =
+                std::make_shared<Connection>(std::move(serverChannel), /*monitor=*/true,
+                                             mIdGenerator);
 
         auto [_, inserted] = mConnectionsByToken.emplace(token, connection);
         if (!inserted) {
@@ -5985,7 +5977,7 @@ status_t InputDispatcher::removeInputChannelLocked(const sp<IBinder>& connection
         removeMonitorChannelLocked(connectionToken);
     }
 
-    mLooper->removeFd(connection->inputPublisher.getChannel()->getFd());
+    mLooper->removeFd(connection->inputPublisher.getChannel().getFd());
 
     nsecs_t currentTime = now();
     abortBrokenDispatchCycleLocked(currentTime, connection, notify);

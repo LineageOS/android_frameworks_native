@@ -220,7 +220,6 @@ void waitUntilInputAvailable(const InputConsumer& inputConsumer) {
 
 class InputPublisherAndConsumerTest : public testing::Test {
 protected:
-    std::shared_ptr<InputChannel> mServerChannel, mClientChannel;
     std::unique_ptr<InputPublisher> mPublisher;
     std::unique_ptr<InputConsumer> mConsumer;
     PreallocatedInputEventFactory mEventFactory;
@@ -230,11 +229,9 @@ protected:
         status_t result = InputChannel::openInputChannelPair("channel name",
                 serverChannel, clientChannel);
         ASSERT_EQ(OK, result);
-        mServerChannel = std::move(serverChannel);
-        mClientChannel = std::move(clientChannel);
 
-        mPublisher = std::make_unique<InputPublisher>(mServerChannel);
-        mConsumer = std::make_unique<InputConsumer>(mClientChannel);
+        mPublisher = std::make_unique<InputPublisher>(std::move(serverChannel));
+        mConsumer = std::make_unique<InputConsumer>(std::move(clientChannel));
     }
 
     void publishAndConsumeKeyEvent();
@@ -254,11 +251,7 @@ private:
 };
 
 TEST_F(InputPublisherAndConsumerTest, GetChannel_ReturnsTheChannel) {
-    ASSERT_NE(nullptr, mPublisher->getChannel());
-    ASSERT_NE(nullptr, mConsumer->getChannel());
-    EXPECT_EQ(mServerChannel.get(), mPublisher->getChannel().get());
-    EXPECT_EQ(mClientChannel.get(), mConsumer->getChannel().get());
-    ASSERT_EQ(mPublisher->getChannel()->getConnectionToken(),
+    ASSERT_EQ(mPublisher->getChannel().getConnectionToken(),
               mConsumer->getChannel()->getConnectionToken());
 }
 

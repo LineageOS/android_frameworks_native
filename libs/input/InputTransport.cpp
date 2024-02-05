@@ -584,6 +584,13 @@ void InputChannel::copyTo(android::os::InputChannelCore& outChannel) const {
     outChannel.token = getConnectionToken();
 }
 
+void InputChannel::moveChannel(std::unique_ptr<InputChannel> from,
+                               android::os::InputChannelCore& outChannel) {
+    outChannel.name = from->getName();
+    outChannel.fd = android::os::ParcelFileDescriptor(std::move(from->fd));
+    outChannel.token = from->getConnectionToken();
+}
+
 sp<IBinder> InputChannel::getConnectionToken() const {
     return token;
 }
@@ -591,7 +598,7 @@ sp<IBinder> InputChannel::getConnectionToken() const {
 // --- InputPublisher ---
 
 InputPublisher::InputPublisher(const std::shared_ptr<InputChannel>& channel)
-      : mChannel(channel), mInputVerifier(channel->getName()) {}
+      : mChannel(channel), mInputVerifier(mChannel->getName()) {}
 
 InputPublisher::~InputPublisher() {
 }
