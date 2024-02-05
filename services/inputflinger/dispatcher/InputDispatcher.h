@@ -470,7 +470,7 @@ private:
 
     bool isStaleEvent(nsecs_t currentTime, const EventEntry& entry);
 
-    bool shouldPruneInboundQueueLocked(const MotionEntry& motionEntry) REQUIRES(mLock);
+    bool shouldPruneInboundQueueLocked(const MotionEntry& motionEntry) const REQUIRES(mLock);
 
     /**
      * Time to stop waiting for the events to be processed while trying to dispatch a key.
