@@ -684,10 +684,10 @@ protected:
     }
 
     void TearDown() override {
+        ASSERT_NO_FATAL_FAILURE(gVerifyingTrace->verifyExpectedEventsTraced());
         ASSERT_EQ(OK, mDispatcher->stop());
         mFakePolicy.reset();
         mDispatcher.reset();
-        ASSERT_NO_FATAL_FAILURE(gVerifyingTrace->verifyExpectedEventsTraced());
     }
 
     /**
