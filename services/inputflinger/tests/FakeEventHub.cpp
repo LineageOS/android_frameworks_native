@@ -431,6 +431,38 @@ status_t FakeEventHub::getAbsoluteAxisValue(int32_t deviceId, int32_t axis,
     return -1;
 }
 
+void FakeEventHub::setMtSlotValues(int32_t deviceId, int32_t axis,
+                                   const std::vector<int32_t>& values) {
+    Device* device = getDevice(deviceId);
+    if (!device) {
+        FAIL() << "Missing device";
+    }
+    device->mtSlotValues[axis] = values;
+}
+
+base::Result<std::vector<int32_t>> FakeEventHub::getMtSlotValues(int32_t deviceId, int32_t axis,
+                                                                 size_t slotCount) const {
+    Device* device = getDevice(deviceId);
+    if (!device) {
+        ADD_FAILURE() << "Missing device";
+        return base::ResultError("Missing device", UNKNOWN_ERROR);
+    }
+    const auto& mtSlotValuesIterator = device->mtSlotValues.find(axis);
+    if (mtSlotValuesIterator == device->mtSlotValues.end()) {
+        return base::ResultError("axis not supported", NAME_NOT_FOUND);
+    }
+    const auto& mtSlotValues = mtSlotValuesIterator->second;
+    if (mtSlotValues.size() != slotCount) {
+        ADD_FAILURE() << "MtSlot values specified for " << mtSlotValues.size()
+                      << " slots but expected for " << slotCount << " Slots";
+        return base::ResultError("Slot count mismatch", NAME_NOT_FOUND);
+    }
+    std::vector<int32_t> outValues(slotCount + 1);
+    outValues[0] = axis;
+    std::copy(mtSlotValues.begin(), mtSlotValues.end(), outValues.begin() + 1);
+    return std::move(outValues);
+}
+
 int32_t FakeEventHub::getKeyCodeForKeyLocation(int32_t deviceId, int32_t locationKeyCode) const {
     Device* device = getDevice(deviceId);
     if (!device) {

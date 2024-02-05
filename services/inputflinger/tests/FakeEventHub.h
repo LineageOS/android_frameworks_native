@@ -65,6 +65,7 @@ class FakeEventHub : public EventHubInterface {
         bool enabled;
         std::optional<RawLayoutInfo> layoutInfo;
         std::string sysfsRootPath;
+        std::unordered_map<int32_t, std::vector<int32_t>> mtSlotValues;
 
         status_t enable() {
             enabled = true;
@@ -154,6 +155,11 @@ public:
                       int32_t value);
     void assertQueueIsEmpty();
     void setSysfsRootPath(int32_t deviceId, std::string sysfsRootPath) const;
+    // Populate fake slot values to be returned by the getter, size of the values should be equal to
+    // the slot count
+    void setMtSlotValues(int32_t deviceId, int32_t axis, const std::vector<int32_t>& values);
+    base::Result<std::vector<int32_t>> getMtSlotValues(int32_t deviceId, int32_t axis,
+                                                       size_t slotCount) const override;
 
 private:
     Device* getDevice(int32_t deviceId) const;

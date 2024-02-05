@@ -220,6 +220,11 @@ public:
         mResetWasCalled = false;
     }
 
+    void assertResetWasNotCalled() {
+        std::scoped_lock lock(mLock);
+        ASSERT_FALSE(mResetWasCalled) << "Expected reset to not have been called.";
+    }
+
     void assertProcessWasCalled(RawEvent* outLastEvent = nullptr) {
         std::unique_lock<std::mutex> lock(mLock);
         base::ScopedLockAssertion assumeLocked(mLock);
@@ -234,6 +239,11 @@ public:
             *outLastEvent = mLastEvent;
         }
         mProcessWasCalled = false;
+    }
+
+    void assertProcessWasNotCalled() {
+        std::scoped_lock lock(mLock);
+        ASSERT_FALSE(mProcessWasCalled) << "Expected process to not have been called.";
     }
 
     void setKeyCodeState(int32_t keyCode, int32_t state) {
@@ -2713,6 +2723,60 @@ TEST_F(InputDeviceTest, GetBluetoothAddress) {
     const auto& address = mReader->getBluetoothAddress(DEVICE_ID);
     ASSERT_TRUE(address);
     ASSERT_EQ(DEVICE_BLUETOOTH_ADDRESS, *address);
+}
+
+TEST_F(InputDeviceTest, KernelBufferOverflowResetsMappers) {
+    mFakePolicy->clearViewports();
+    FakeInputMapper& mapper =
+            mDevice->addMapper<FakeInputMapper>(EVENTHUB_ID, mFakePolicy->getReaderConfiguration(),
+                                                AINPUT_SOURCE_KEYBOARD);
+    std::list<NotifyArgs> unused =
+            mDevice->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(),
+                               /*changes=*/{});
+
+    mapper.assertConfigureWasCalled();
+    mapper.assertResetWasNotCalled();
+
+    RawEvent event{.when = ARBITRARY_TIME,
+                   .readTime = ARBITRARY_TIME,
+                   .deviceId = EVENTHUB_ID,
+                   .type = EV_SYN,
+                   .code = SYN_REPORT,
+                   .value = 0};
+
+    // Events are processed normally.
+    unused = mDevice->process(&event, /*count=*/1);
+    mapper.assertProcessWasCalled();
+
+    // Simulate a kernel buffer overflow, which generates a SYN_DROPPED event.
+    event.type = EV_SYN;
+    event.code = SYN_DROPPED;
+    event.value = 0;
+    unused = mDevice->process(&event, /*count=*/1);
+    mapper.assertProcessWasNotCalled();
+
+    // All events until the next SYN_REPORT should be dropped.
+    event.type = EV_KEY;
+    event.code = KEY_A;
+    event.value = 1;
+    unused = mDevice->process(&event, /*count=*/1);
+    mapper.assertProcessWasNotCalled();
+
+    // We get the SYN_REPORT event now, which is not forwarded to mappers.
+    // This should reset the mapper.
+    event.type = EV_SYN;
+    event.code = SYN_REPORT;
+    event.value = 0;
+    unused = mDevice->process(&event, /*count=*/1);
+    mapper.assertProcessWasNotCalled();
+    mapper.assertResetWasCalled();
+
+    // The mapper receives events normally now.
+    event.type = EV_KEY;
+    event.code = KEY_B;
+    event.value = 1;
+    unused = mDevice->process(&event, /*count=*/1);
+    mapper.assertProcessWasCalled();
 }
 
 // --- SwitchInputMapperTest ---
@@ -10187,15 +10251,16 @@ TEST_F(MultiTouchInputMapperTest, Process_MultiTouch_WithInvalidTrackingId) {
     ASSERT_EQ(uint32_t(1), motionArgs.getPointerCount());
 }
 
-TEST_F(MultiTouchInputMapperTest, Reset_PreservesLastTouchState) {
+TEST_F(MultiTouchInputMapperTest, Reset_RepopulatesMultiTouchState) {
     addConfigurationProperty("touch.deviceType", "touchScreen");
     prepareDisplay(ui::ROTATION_0);
     prepareAxes(POSITION | ID | SLOT | PRESSURE);
     MultiTouchInputMapper& mapper = constructAndAddMapper<MultiTouchInputMapper>();
 
     // First finger down.
+    constexpr int32_t x1 = 100, y1 = 200, x2 = 300, y2 = 400;
     processId(mapper, FIRST_TRACKING_ID);
-    processPosition(mapper, 100, 200);
+    processPosition(mapper, x1, y1);
     processPressure(mapper, RAW_PRESSURE_MAX);
     processSync(mapper);
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
@@ -10204,14 +10269,32 @@ TEST_F(MultiTouchInputMapperTest, Reset_PreservesLastTouchState) {
     // Second finger down.
     processSlot(mapper, SECOND_SLOT);
     processId(mapper, SECOND_TRACKING_ID);
-    processPosition(mapper, 300, 400);
+    processPosition(mapper, x2, y2);
     processPressure(mapper, RAW_PRESSURE_MAX);
     processSync(mapper);
     ASSERT_NO_FATAL_FAILURE(
             mFakeListener->assertNotifyMotionWasCalled(WithMotionAction(ACTION_POINTER_1_DOWN)));
 
+    // Set MT Slot state to be repopulated for the required slots
+    std::vector<int32_t> mtSlotValues(RAW_SLOT_MAX + 1, -1);
+    mtSlotValues[0] = FIRST_TRACKING_ID;
+    mtSlotValues[1] = SECOND_TRACKING_ID;
+    mFakeEventHub->setMtSlotValues(EVENTHUB_ID, ABS_MT_TRACKING_ID, mtSlotValues);
+
+    mtSlotValues[0] = x1;
+    mtSlotValues[1] = x2;
+    mFakeEventHub->setMtSlotValues(EVENTHUB_ID, ABS_MT_POSITION_X, mtSlotValues);
+
+    mtSlotValues[0] = y1;
+    mtSlotValues[1] = y2;
+    mFakeEventHub->setMtSlotValues(EVENTHUB_ID, ABS_MT_POSITION_Y, mtSlotValues);
+
+    mtSlotValues[0] = RAW_PRESSURE_MAX;
+    mtSlotValues[1] = RAW_PRESSURE_MAX;
+    mFakeEventHub->setMtSlotValues(EVENTHUB_ID, ABS_MT_PRESSURE, mtSlotValues);
+
     // Reset the mapper. When the mapper is reset, we expect the current multi-touch state to be
-    // preserved. Resetting should cancel the ongoing gesture.
+    // repopulated. Resetting should cancel the ongoing gesture.
     resetMapper(mapper, ARBITRARY_TIME);
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
             WithMotionAction(AMOTION_EVENT_ACTION_CANCEL)));
