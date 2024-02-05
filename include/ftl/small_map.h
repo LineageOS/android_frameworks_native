@@ -107,12 +107,20 @@ class SmallMap final {
   template <typename Q, typename W, std::size_t M, typename E>
   SmallMap(SmallMap<Q, W, M, E> other) : map_(std::move(other.map_)) {}
 
+  static constexpr size_type static_capacity() { return N; }
+
   size_type max_size() const { return map_.max_size(); }
   size_type size() const { return map_.size(); }
   bool empty() const { return map_.empty(); }
 
   // Returns whether the map is backed by static or dynamic storage.
-  bool dynamic() const { return map_.dynamic(); }
+  bool dynamic() const {
+    if constexpr (static_capacity() > 0) {
+      return map_.dynamic();
+    } else {
+      return true;
+    }
+  }
 
   iterator begin() { return map_.begin(); }
   const_iterator begin() const { return cbegin(); }
@@ -171,9 +179,15 @@ class SmallMap final {
       return {it, false};
     }
 
-    auto& ref = map_.emplace_back(std::piecewise_construct, std::forward_as_tuple(key),
-                                  std::forward_as_tuple(std::forward<Args>(args)...));
-    return {&ref, true};
+    decltype(auto) ref_or_it =
+        map_.emplace_back(std::piecewise_construct, std::forward_as_tuple(key),
+                          std::forward_as_tuple(std::forward<Args>(args)...));
+
+    if constexpr (static_capacity() > 0) {
+      return {&ref_or_it, true};
+    } else {
+      return {ref_or_it, true};
+    }
   }
 
   // Replaces a mapping if it exists, and returns an iterator to it. Returns the end() iterator
