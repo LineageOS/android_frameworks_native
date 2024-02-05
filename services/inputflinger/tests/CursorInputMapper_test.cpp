@@ -105,7 +105,7 @@ DisplayViewport createSecondaryViewport() {
 class ViewportFakingInputDeviceContext : public InputDeviceContext {
 public:
     ViewportFakingInputDeviceContext(InputDevice& device, int32_t eventHubId,
-                                     DisplayViewport viewport)
+                                     std::optional<DisplayViewport> viewport)
           : InputDeviceContext(device, eventHubId), mAssociatedViewport(viewport) {}
 
     ViewportFakingInputDeviceContext(InputDevice& device, int32_t eventHubId,
@@ -117,10 +117,12 @@ public:
         return mAssociatedViewport;
     }
 
-    void setViewport(const DisplayViewport& viewport) { mAssociatedViewport = viewport; }
+    void setViewport(const std::optional<DisplayViewport>& viewport) {
+        mAssociatedViewport = viewport;
+    }
 
 private:
-    DisplayViewport mAssociatedViewport;
+    std::optional<DisplayViewport> mAssociatedViewport;
 };
 
 } // namespace
@@ -1349,6 +1351,45 @@ TEST_F(CursorInputMapperUnitTestWithNewBallistics, ConfigureAccelerationWithAsso
     mReaderConfiguration.displaysWithMousePointerAccelerationDisabled.emplace(DISPLAY_ID);
     args += mMapper->reconfigure(ARBITRARY_TIME, mReaderConfiguration,
                                  InputReaderConfiguration::Change::POINTER_SPEED);
+    args.clear();
+
+    args += process(ARBITRARY_TIME, EV_REL, REL_X, 10);
+    args += process(ARBITRARY_TIME, EV_REL, REL_Y, 20);
+    args += process(ARBITRARY_TIME, EV_SYN, SYN_REPORT, 0);
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(AllOf(WithMotionAction(HOVER_MOVE),
+                                                                WithDisplayId(DISPLAY_ID),
+                                                                WithRelativeMotion(10, 20)))));
+}
+
+TEST_F(CursorInputMapperUnitTestWithNewBallistics, ConfigureAccelerationOnDisplayChange) {
+    mPropertyMap.addProperty("cursor.mode", "pointer");
+    DisplayViewport primaryViewport = createPrimaryViewport(ui::Rotation::Rotation0);
+    mReaderConfiguration.setDisplayViewports({primaryViewport});
+    // Disable acceleration for the display.
+    mReaderConfiguration.displaysWithMousePointerAccelerationDisabled.emplace(DISPLAY_ID);
+    createDevice();
+
+    // Don't associate the device with the display yet.
+    ViewportFakingInputDeviceContext deviceContext(*mDevice, EVENTHUB_ID,
+                                                   /*viewport=*/std::nullopt);
+    mMapper = createInputMapper<CursorInputMapper>(deviceContext, mReaderConfiguration);
+
+    std::list<NotifyArgs> args;
+
+    // Verify that acceleration is being applied by default by checking that the movement is scaled.
+    args += process(ARBITRARY_TIME, EV_REL, REL_X, 10);
+    args += process(ARBITRARY_TIME, EV_REL, REL_Y, 20);
+    args += process(ARBITRARY_TIME, EV_SYN, SYN_REPORT, 0);
+    ASSERT_THAT(args, ElementsAre(VariantWith<NotifyMotionArgs>(WithMotionAction(HOVER_MOVE))));
+    const auto& coords = get<NotifyMotionArgs>(args.back()).pointerCoords[0];
+    ASSERT_GT(coords.getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X), 10.f);
+    ASSERT_GT(coords.getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y), 20.f);
+
+    // Now associate the device with the display, and verify that acceleration is disabled.
+    deviceContext.setViewport(primaryViewport);
+    args += mMapper->reconfigure(ARBITRARY_TIME, mReaderConfiguration,
+                                 InputReaderConfiguration::Change::DISPLAY_INFO);
     args.clear();
 
     args += process(ARBITRARY_TIME, EV_REL, REL_X, 10);
