@@ -461,9 +461,11 @@ struct HwcDisplayVariant {
                     ? IComposerClient::DisplayConnectionType::INTERNAL
                     : IComposerClient::DisplayConnectionType::EXTERNAL;
 
+            using ::testing::AtLeast;
             EXPECT_CALL(*test->mComposer, getDisplayConnectionType(HWC_DISPLAY_ID, _))
-                    .WillOnce(DoAll(SetArgPointee<1>(CONNECTION_TYPE),
-                                    Return(hal::V2_4::Error::NONE)));
+                    .Times(AtLeast(1))
+                    .WillRepeatedly(DoAll(SetArgPointee<1>(CONNECTION_TYPE),
+                                          Return(hal::V2_4::Error::NONE)));
         }
 
         EXPECT_CALL(*test->mComposer, setClientTargetSlotCount(_))
