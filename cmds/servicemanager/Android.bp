@@ -95,6 +95,16 @@ cc_test {
     static_libs: ["libgmock"],
 }
 
+cc_test_host {
+    name: "servicemanager_unittest",
+    test_suites: ["general-tests"],
+    defaults: ["servicemanager_defaults"],
+    srcs: [
+        "ServiceManagerUnittest.cpp",
+    ],
+    static_libs: ["libgmock"],
+}
+
 cc_fuzz {
     name: "servicemanager_fuzzer",
     defaults: [

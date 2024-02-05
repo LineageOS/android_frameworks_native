@@ -361,6 +361,24 @@ TEST(Vintf, GetUpdatableNames_InvalidApexNameReturnsEmpty) {
     EXPECT_EQ(std::vector<std::string>{}, names);
 }
 
+TEST(Vintf, IsDeclared_native) {
+    if (!isCuttlefishPhone()) GTEST_SKIP() << "Skipping non-Cuttlefish-phone devices";
+
+    auto sm = getPermissiveServiceManager();
+    bool declared = false;
+    EXPECT_TRUE(sm->isDeclared("mapper/minigbm", &declared).isOk());
+    EXPECT_TRUE(declared);
+}
+
+TEST(Vintf, GetDeclaredInstances_native) {
+    if (!isCuttlefishPhone()) GTEST_SKIP() << "Skipping non-Cuttlefish-phone devices";
+
+    auto sm = getPermissiveServiceManager();
+    std::vector<std::string> instances;
+    EXPECT_TRUE(sm->getDeclaredInstances("mapper", &instances).isOk());
+    EXPECT_EQ(std::vector<std::string>{"minigbm"}, instances);
+}
+
 class CallbackHistorian : public BnServiceCallback {
     Status onRegistration(const std::string& name, const sp<IBinder>& binder) override {
         registrations.push_back(name);
