@@ -4192,7 +4192,12 @@ void InputDispatcher::synthesizePointerDownEventsForConnectionLocked(
               connection->getInputChannelName().c_str(), downEvents.size());
     }
 
-    sp<WindowInfoHandle> windowHandle = getWindowHandleLocked(connection->getToken());
+    const auto [_, touchedWindowState, displayId] =
+            findTouchStateWindowAndDisplayLocked(connection->getToken());
+    if (touchedWindowState == nullptr) {
+        LOG(FATAL) << __func__ << ": Touch state is out of sync: No touched window for token";
+    }
+    const auto& windowHandle = touchedWindowState->windowHandle;
 
     const bool wasEmpty = connection->outboundQueue.empty();
     for (std::unique_ptr<EventEntry>& downEventEntry : downEvents) {
