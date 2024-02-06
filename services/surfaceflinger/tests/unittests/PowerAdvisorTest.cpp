@@ -74,12 +74,14 @@ void PowerAdvisorTest::SetUp() {
 void PowerAdvisorTest::startPowerHintSession(bool returnValidSession) {
     mMockPowerHintSession = ndk::SharedRefBase::make<NiceMock<MockIPowerHintSession>>();
     if (returnValidSession) {
-        ON_CALL(*mMockPowerHalController, createHintSession)
-                .WillByDefault(
-                        Return(HalResult<std::shared_ptr<IPowerHintSession>>::
-                                       fromStatus(binder::Status::ok(), mMockPowerHintSession)));
+        ON_CALL(*mMockPowerHalController, createHintSessionWithConfig)
+                .WillByDefault(DoAll(SetArgPointee<5>(aidl::android::hardware::power::SessionConfig{
+                                             .id = 12}),
+                                     Return(HalResult<std::shared_ptr<IPowerHintSession>>::
+                                                    fromStatus(binder::Status::ok(),
+                                                               mMockPowerHintSession))));
     } else {
-        ON_CALL(*mMockPowerHalController, createHintSession)
+        ON_CALL(*mMockPowerHalController, createHintSessionWithConfig)
                 .WillByDefault(Return(HalResult<std::shared_ptr<IPowerHintSession>>::
                                               fromStatus(binder::Status::ok(), nullptr)));
     }
@@ -283,7 +285,7 @@ TEST_F(PowerAdvisorTest, hintSessionValidWhenNullFromPowerHAL) {
 }
 
 TEST_F(PowerAdvisorTest, hintSessionOnlyCreatedOnce) {
-    EXPECT_CALL(*mMockPowerHalController, createHintSession(_, _, _, _)).Times(1);
+    EXPECT_CALL(*mMockPowerHalController, createHintSessionWithConfig(_, _, _, _, _, _)).Times(1);
     mPowerAdvisor->onBootFinished();
     startPowerHintSession();
     mPowerAdvisor->startPowerHintSession({1, 2, 3});
@@ -335,7 +337,7 @@ TEST_F(PowerAdvisorTest, hintSessionTestNotifyReportRace) {
         return ndk::ScopedAStatus::fromExceptionCode(-127);
     });
 
-    ON_CALL(*mMockPowerHalController, createHintSession)
+    ON_CALL(*mMockPowerHalController, createHintSessionWithConfig)
             .WillByDefault(Return(
                     HalResult<std::shared_ptr<IPowerHintSession>>::
                             fromStatus(ndk::ScopedAStatus::fromExceptionCode(-127), nullptr)));

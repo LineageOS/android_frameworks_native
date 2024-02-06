@@ -301,6 +301,15 @@ public:
     void copyTo(android::os::InputChannelCore& outChannel) const;
 
     /**
+     * Similar to "copyTo", but it takes ownership of the provided InputChannel (and after this is
+     * called, it destroys it).
+     * @param from the InputChannel that should be converted to InputChannelCore
+     * @param outChannel the pre-allocated InputChannelCore to which to transfer the 'from' channel
+     */
+    static void moveChannel(std::unique_ptr<InputChannel> from,
+                            android::os::InputChannelCore& outChannel);
+
+    /**
      * The connection token is used to identify the input connection, i.e.
      * the pair of input channels that were created simultaneously. Input channels
      * are always created in pairs, and the token can be used to find the server-side
@@ -333,7 +342,7 @@ public:
     ~InputPublisher();
 
     /* Gets the underlying input channel. */
-    inline std::shared_ptr<InputChannel> getChannel() const { return mChannel; }
+    inline InputChannel& getChannel() const { return *mChannel; }
 
     /* Publishes a key event to the input channel.
      *

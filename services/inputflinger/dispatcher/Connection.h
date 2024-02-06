@@ -58,11 +58,11 @@ public:
     // yet received a "finished" response from the application.
     std::deque<std::unique_ptr<DispatchEntry>> waitQueue;
 
-    Connection(const std::shared_ptr<InputChannel>& inputChannel, bool monitor,
+    Connection(std::unique_ptr<InputChannel> inputChannel, bool monitor,
                const IdGenerator& idGenerator);
 
     inline const std::string getInputChannelName() const {
-        return inputPublisher.getChannel()->getName();
+        return inputPublisher.getChannel().getName();
     }
 
     sp<IBinder> getToken() const;
