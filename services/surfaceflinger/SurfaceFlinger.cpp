@@ -3476,8 +3476,12 @@ const char* SurfaceFlinger::processHotplug(PhysicalDisplayId displayId,
 
     auto [displayModes, activeMode] = loadDisplayModes(displayId);
     if (!activeMode) {
-        // TODO(b/241286153): Report hotplug failure to the framework.
         ALOGE("Failed to hotplug display %s", to_string(displayId).c_str());
+        if (FlagManager::getInstance().hotplug2()) {
+            mScheduler->onHotplugConnectionError(mAppConnectionHandle,
+                                                 static_cast<int32_t>(
+                                                         DisplayHotplugEvent::ERROR_UNKNOWN));
+        }
         getHwComposer().disconnectDisplay(displayId);
         return nullptr;
     }
