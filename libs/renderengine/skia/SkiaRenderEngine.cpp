@@ -53,6 +53,7 @@
 #include <SkSurface.h>
 #include <SkTileMode.h>
 #include <android-base/stringprintf.h>
+#include <common/FlagManager.h>
 #include <gui/FenceMonitor.h>
 #include <gui/TraceUtils.h>
 #include <include/gpu/ganesh/SkSurfaceGanesh.h>
@@ -419,6 +420,9 @@ void SkiaRenderEngine::mapExternalTextureBuffer(const sp<GraphicBuffer>& buffer,
     mGraphicBufferExternalRefs[buffer->getId()]++;
 
     if (const auto& iter = cache.find(buffer->getId()); iter == cache.end()) {
+        if (FlagManager::getInstance().renderable_buffer_usage()) {
+            isRenderable = buffer->getUsage() & GRALLOC_USAGE_HW_RENDER;
+        }
         std::shared_ptr<AutoBackendTexture::LocalRef> imageTextureRef =
                 std::make_shared<AutoBackendTexture::LocalRef>(grContext,
                                                                buffer->toAHardwareBuffer(),

@@ -37,6 +37,7 @@ cc_benchmark {
     static_libs: [
         "librenderengine",
         "libshaders",
+        "libsurfaceflinger_common",
         "libtonemap",
     ],
     cflags: [
@@ -54,6 +55,7 @@ cc_benchmark {
         "libsync",
         "libui",
         "libutils",
+        "server_configurable_flags",
     ],
 
     data: ["resources/*"],

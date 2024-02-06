@@ -44,6 +44,7 @@ cc_test {
         "librenderengine_mocks",
         "libshaders",
         "libtonemap",
+        "libsurfaceflinger_common",
     ],
     header_libs: [
         "libtonemap_headers",
@@ -61,5 +62,6 @@ cc_test {
         "libsync",
         "libui",
         "libutils",
+        "server_configurable_flags",
     ],
 }
