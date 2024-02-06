@@ -267,15 +267,15 @@ void VSyncDispatchTimerQueue::setTimer(nsecs_t targetTime, nsecs_t /*now*/) {
 }
 
 void VSyncDispatchTimerQueue::rearmTimer(nsecs_t now) {
-    rearmTimerSkippingUpdateFor(now, mCallbacks.end());
+    rearmTimerSkippingUpdateFor(now, mCallbacks.cend());
 }
 
 void VSyncDispatchTimerQueue::rearmTimerSkippingUpdateFor(
-        nsecs_t now, CallbackMap::iterator const& skipUpdateIt) {
+        nsecs_t now, CallbackMap::const_iterator skipUpdateIt) {
     std::optional<nsecs_t> min;
     std::optional<nsecs_t> targetVsync;
     std::optional<std::string_view> nextWakeupName;
-    for (auto it = mCallbacks.begin(); it != mCallbacks.end(); it++) {
+    for (auto it = mCallbacks.cbegin(); it != mCallbacks.cend(); ++it) {
         auto& callback = it->second;
         if (!callback->wakeupTime() && !callback->hasPendingWorkloadUpdate()) {
             continue;
@@ -351,13 +351,12 @@ void VSyncDispatchTimerQueue::timerCallback() {
 VSyncDispatchTimerQueue::CallbackToken VSyncDispatchTimerQueue::registerCallback(
         Callback callback, std::string callbackName) {
     std::lock_guard lock(mMutex);
-    return CallbackToken{
-            mCallbacks
-                    .emplace(++mCallbackToken,
-                             std::make_shared<VSyncDispatchTimerQueueEntry>(std::move(callbackName),
-                                                                            std::move(callback),
-                                                                            mMinVsyncDistance))
-                    .first->first};
+    return mCallbacks
+            .try_emplace(CallbackToken{++mCallbackToken},
+                         std::make_shared<VSyncDispatchTimerQueueEntry>(std::move(callbackName),
+                                                                        std::move(callback),
+                                                                        mMinVsyncDistance))
+            .first->first;
 }
 
 void VSyncDispatchTimerQueue::unregisterCallback(CallbackToken token) {
@@ -367,7 +366,7 @@ void VSyncDispatchTimerQueue::unregisterCallback(CallbackToken token) {
         auto it = mCallbacks.find(token);
         if (it != mCallbacks.end()) {
             entry = it->second;
-            mCallbacks.erase(it);
+            mCallbacks.erase(it->first);
         }
     }
 
