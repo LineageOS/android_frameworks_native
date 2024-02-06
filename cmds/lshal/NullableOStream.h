@@ -59,6 +59,11 @@ public:
     operator bool() const { // NOLINT(google-explicit-constructor)
         return mOs != nullptr;
     }
+    void flush() {
+        if (mOs) {
+            mOs->flush();
+        }
+    }
 private:
     template<typename>
     friend class NullableOStream;
