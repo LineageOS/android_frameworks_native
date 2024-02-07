@@ -786,6 +786,9 @@ VkResult GetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice pdev,
             all_formats.emplace_back(
                 VkSurfaceFormatKHR{VK_FORMAT_R16G16B16A16_SFLOAT,
                                    VK_COLOR_SPACE_EXTENDED_SRGB_NONLINEAR_EXT});
+            all_formats.emplace_back(
+                VkSurfaceFormatKHR{VK_FORMAT_R16G16B16A16_SFLOAT,
+                                   VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT});
         }
     }
 
