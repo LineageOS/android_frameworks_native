@@ -60,6 +60,7 @@ sp<V1_0::IPower> PowerHalLoader::gHalHidlV1_0 = nullptr;
 sp<V1_1::IPower> PowerHalLoader::gHalHidlV1_1 = nullptr;
 sp<V1_2::IPower> PowerHalLoader::gHalHidlV1_2 = nullptr;
 sp<V1_3::IPower> PowerHalLoader::gHalHidlV1_3 = nullptr;
+int32_t PowerHalLoader::gAidlInterfaceVersion = 0;
 
 void PowerHalLoader::unloadAll() {
     std::lock_guard<std::mutex> lock(gHalMutex);
@@ -89,6 +90,8 @@ std::shared_ptr<aidl::android::hardware::power::IPower> PowerHalLoader::loadAidl
             ndk::SpAIBinder(AServiceManager_waitForService(aidlServiceName.c_str())));
     if (gHalAidl) {
         ALOGI("Successfully connected to Power HAL AIDL service.");
+        gHalAidl->getInterfaceVersion(&gAidlInterfaceVersion);
+
     } else {
         ALOGI("Power HAL AIDL service not available.");
         gHalExists = false;
@@ -126,6 +129,10 @@ sp<V1_0::IPower> PowerHalLoader::loadHidlV1_0Locked() {
     static bool gHalExists = true;
     static auto loadFn = []() { return V1_0::IPower::getService(); };
     return loadHal<V1_0::IPower>(gHalExists, gHalHidlV1_0, loadFn, "HIDL v1.0");
+}
+
+int32_t PowerHalLoader::getAidlVersion() {
+    return gAidlInterfaceVersion;
 }
 
 // -------------------------------------------------------------------------------------------------

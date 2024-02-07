@@ -37,6 +37,7 @@ cc_test {
         "PowerHalWrapperHidlV1_1Test.cpp",
         "PowerHalWrapperHidlV1_2Test.cpp",
         "PowerHalWrapperHidlV1_3Test.cpp",
+        "PowerHintSessionWrapperTest.cpp",
         "WorkSourceTest.cpp",
     ],
     cflags: [

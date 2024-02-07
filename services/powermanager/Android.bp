@@ -17,6 +17,7 @@ cc_library_shared {
         "PowerHalController.cpp",
         "PowerHalLoader.cpp",
         "PowerHalWrapper.cpp",
+        "PowerHintSessionWrapper.cpp",
         "PowerSaveState.cpp",
         "Temperature.cpp",
         "WorkDuration.cpp",
