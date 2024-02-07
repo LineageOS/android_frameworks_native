@@ -53,6 +53,7 @@
 #include <SkSurface.h>
 #include <SkTileMode.h>
 #include <android-base/stringprintf.h>
+#include <common/FlagManager.h>
 #include <gui/FenceMonitor.h>
 #include <gui/TraceUtils.h>
 #include <include/gpu/ganesh/SkSurfaceGanesh.h>
@@ -419,6 +420,9 @@ void SkiaRenderEngine::mapExternalTextureBuffer(const sp<GraphicBuffer>& buffer,
     mGraphicBufferExternalRefs[buffer->getId()]++;
 
     if (const auto& iter = cache.find(buffer->getId()); iter == cache.end()) {
+        if (FlagManager::getInstance().renderable_buffer_usage()) {
+            isRenderable = buffer->getUsage() & GRALLOC_USAGE_HW_RENDER;
+        }
         std::shared_ptr<AutoBackendTexture::LocalRef> imageTextureRef =
                 std::make_shared<AutoBackendTexture::LocalRef>(grContext,
                                                                buffer->toAHardwareBuffer(),
@@ -760,10 +764,11 @@ void SkiaRenderEngine::drawLayersInternal(
             // save a snapshot of the activeSurface to use as input to the blur shaders
             blurInput = activeSurface->makeImageSnapshot();
 
-            // blit the offscreen framebuffer into the destination AHB, but only
-            // if there are blur regions. backgroundBlurRadius blurs the entire
-            // image below, so it can skip this step.
-            if (layer.blurRegions.size()) {
+            // blit the offscreen framebuffer into the destination AHB. This ensures that
+            // even if the blurred image does not cover the screen (for example, during
+            // a rotation animation, or if blur regions are used), the entire screen is
+            // initialized.
+            if (layer.blurRegions.size() || FlagManager::getInstance().restore_blur_step()) {
                 SkPaint paint;
                 paint.setBlendMode(SkBlendMode::kSrc);
                 if (CC_UNLIKELY(mCapture->isCaptureRunning())) {

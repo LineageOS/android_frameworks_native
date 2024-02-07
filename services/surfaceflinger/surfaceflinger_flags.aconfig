@@ -174,3 +174,25 @@ flag {
   bug: "302703346"
   is_fixed_read_only: true
 }
+
+flag {
+  name: "renderable_buffer_usage"
+  namespace: "core_graphics"
+  description: "Decide whether an ExternalTexture isRenderable based on its buffer's usage."
+  bug: "305445199"
+  is_fixed_read_only: true
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}
+
+flag {
+  name: "restore_blur_step"
+  namespace: "core_graphics"
+  description: "Restore drawing the blur input prior to drawing blurred content."
+  bug: "255921628"
+  is_fixed_read_only: true
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}

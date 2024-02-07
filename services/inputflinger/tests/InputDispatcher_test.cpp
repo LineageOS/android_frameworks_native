@@ -363,6 +363,8 @@ public:
         mInterceptKeyTimeout = timeout;
     }
 
+    std::chrono::nanoseconds getKeyWaitingForEventsTimeout() override { return 500ms; }
+
     void setStaleEventTimeout(std::chrono::nanoseconds timeout) { mStaleEventTimeout = timeout; }
 
     void assertUserActivityNotPoked() {
@@ -1083,8 +1085,8 @@ public:
         EXPECT_EQ(inTouchMode, touchModeEvent.isInTouchMode());
     }
 
-    void assertNoEvents() {
-        std::unique_ptr<InputEvent> event = consume(CONSUME_TIMEOUT_NO_EVENT_EXPECTED);
+    void assertNoEvents(std::chrono::milliseconds timeout) {
+        std::unique_ptr<InputEvent> event = consume(timeout);
         if (event == nullptr) {
             return;
         }
@@ -1412,14 +1414,14 @@ public:
         mInputReceiver->sendTimeline(inputEventId, timeline);
     }
 
-    void assertNoEvents() {
+    void assertNoEvents(std::chrono::milliseconds timeout = CONSUME_TIMEOUT_NO_EVENT_EXPECTED) {
         if (mInputReceiver == nullptr &&
             mInfo.inputConfig.test(WindowInfo::InputConfig::NO_INPUT_CHANNEL)) {
             return; // Can't receive events if the window does not have input channel
         }
         ASSERT_NE(nullptr, mInputReceiver)
                 << "Window without InputReceiver must specify feature NO_INPUT_CHANNEL";
-        mInputReceiver->assertNoEvents();
+        mInputReceiver->assertNoEvents(timeout);
     }
 
     sp<IBinder> getToken() { return mInfo.token; }
@@ -1437,13 +1439,6 @@ public:
 
     int getChannelFd() { return mInputReceiver->getChannelFd(); }
 
-private:
-    FakeWindowHandle(std::string name) : mName(name){};
-    const std::string mName;
-    std::shared_ptr<FakeInputReceiver> mInputReceiver;
-    static std::atomic<int32_t> sId; // each window gets a unique id, like in surfaceflinger
-    friend class sp<FakeWindowHandle>;
-
     std::unique_ptr<InputEvent> consume(std::chrono::milliseconds timeout, bool handled = true) {
         if (mInputReceiver == nullptr) {
             LOG(FATAL) << "Cannot consume event from a window with no input event receiver";
@@ -1454,6 +1449,13 @@ private:
         }
         return event;
     }
+
+private:
+    FakeWindowHandle(std::string name) : mName(name){};
+    const std::string mName;
+    std::shared_ptr<FakeInputReceiver> mInputReceiver;
+    static std::atomic<int32_t> sId; // each window gets a unique id, like in surfaceflinger
+    friend class sp<FakeWindowHandle>;
 };
 
 std::atomic<int32_t> FakeWindowHandle::sId{1};
@@ -1512,7 +1514,7 @@ public:
 
     std::unique_ptr<MotionEvent> consumeMotion() { return mInputReceiver.consumeMotion(); }
 
-    void assertNoEvents() { mInputReceiver.assertNoEvents(); }
+    void assertNoEvents() { mInputReceiver.assertNoEvents(CONSUME_TIMEOUT_NO_EVENT_EXPECTED); }
 
 private:
     FakeInputReceiver mInputReceiver;
@@ -7261,7 +7263,7 @@ TEST_F(InputDispatcherFallbackKeyTest, CanceledKeyCancelsFallback) {
     mWindow->assertNoEvents();
 }
 
-TEST_F(InputDispatcherFallbackKeyTest, WindowRemovedDuringPolicyCall) {
+TEST_F(InputDispatcherFallbackKeyTest, InputChannelRemovedDuringPolicyCall) {
     setFallback(AKEYCODE_B);
     mDispatcher->notifyKey(
             KeyArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_KEYBOARD).keyCode(AKEYCODE_A).build());
@@ -7292,6 +7294,71 @@ TEST_F(InputDispatcherFallbackKeyTest, WindowRemovedDuringPolicyCall) {
     consumeKey(/*handled=*/true,
                AllOf(WithKeyAction(ACTION_UP), WithKeyCode(AKEYCODE_A), WithFlags(0)));
     ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertUnhandledKeyReported(AKEYCODE_A));
+}
+
+TEST_F(InputDispatcherFallbackKeyTest, WindowRemovedDuringPolicyCall) {
+    setFallback(AKEYCODE_B);
+    mDispatcher->notifyKey(
+            KeyArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_KEYBOARD).keyCode(AKEYCODE_A).build());
+
+    // Do not handle this key event.
+    consumeKey(/*handled=*/false,
+               AllOf(WithKeyAction(ACTION_DOWN), WithKeyCode(AKEYCODE_A), WithFlags(0)));
+    ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertUnhandledKeyReported(AKEYCODE_A));
+    consumeKey(/*handled=*/true,
+               AllOf(WithKeyAction(ACTION_DOWN), WithKeyCode(AKEYCODE_B),
+                     WithFlags(AKEY_EVENT_FLAG_FALLBACK)));
+
+    mFakePolicy->setUnhandledKeyHandler([&](const KeyEvent& event) {
+        // When the unhandled key is reported to the policy next, remove the window.
+        mDispatcher->onWindowInfosChanged({{}, {}, 0, 0});
+        return KeyEventBuilder(event).keyCode(AKEYCODE_B).build();
+    });
+    // Release the original key, which the app will not handle. When this unhandled key is reported
+    // to the policy, the window will be removed.
+    mDispatcher->notifyKey(
+            KeyArgsBuilder(ACTION_UP, AINPUT_SOURCE_KEYBOARD).keyCode(AKEYCODE_A).build());
+    consumeKey(/*handled=*/false,
+               AllOf(WithKeyAction(ACTION_UP), WithKeyCode(AKEYCODE_A), WithFlags(0)));
+    ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertUnhandledKeyReported(AKEYCODE_A));
+
+    // Since the window was removed, it loses focus, and the channel state will be reset.
+    consumeKey(/*handled=*/true,
+               AllOf(WithKeyAction(ACTION_UP), WithKeyCode(AKEYCODE_B),
+                     WithFlags(AKEY_EVENT_FLAG_FALLBACK | AKEY_EVENT_FLAG_CANCELED)));
+    mWindow->consumeFocusEvent(false);
+    mWindow->assertNoEvents();
+}
+
+TEST_F(InputDispatcherFallbackKeyTest, WindowRemovedWhileAwaitingFinishedSignal) {
+    setFallback(AKEYCODE_B);
+    mDispatcher->notifyKey(
+            KeyArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_KEYBOARD).keyCode(AKEYCODE_A).build());
+
+    // Do not handle this key event.
+    consumeKey(/*handled=*/false,
+               AllOf(WithKeyAction(ACTION_DOWN), WithKeyCode(AKEYCODE_A), WithFlags(0)));
+    ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertUnhandledKeyReported(AKEYCODE_A));
+    const auto [seq, event] = mWindow->receiveEvent();
+    ASSERT_TRUE(seq.has_value() && event != nullptr) << "Failed to receive fallback event";
+    ASSERT_EQ(event->getType(), InputEventType::KEY);
+    ASSERT_THAT(static_cast<const KeyEvent&>(*event),
+                AllOf(WithKeyAction(ACTION_DOWN), WithKeyCode(AKEYCODE_B),
+                      WithFlags(AKEY_EVENT_FLAG_FALLBACK)));
+
+    // Remove the window now, which should generate a cancellations and make the window lose focus.
+    mDispatcher->onWindowInfosChanged({{}, {}, 0, 0});
+    consumeKey(/*handled=*/true,
+               AllOf(WithKeyAction(ACTION_UP), WithKeyCode(AKEYCODE_A),
+                     WithFlags(AKEY_EVENT_FLAG_CANCELED)));
+    consumeKey(/*handled=*/true,
+               AllOf(WithKeyAction(ACTION_UP), WithKeyCode(AKEYCODE_B),
+                     WithFlags(AKEY_EVENT_FLAG_FALLBACK | AKEY_EVENT_FLAG_CANCELED)));
+    mWindow->consumeFocusEvent(false);
+
+    // Finish the event by reporting it as handled.
+    mWindow->finishEvent(*seq);
+    mWindow->assertNoEvents();
 }
 
 class InputDispatcherKeyRepeatTest : public InputDispatcherTest {
@@ -8824,16 +8891,11 @@ TEST_F(InputDispatcherSingleWindowAnr, Policy_DoesNotGetDuplicateAnr) {
 /**
  * If a window is processing a motion event, and then a key event comes in, the key event should
  * not get delivered to the focused window until the motion is processed.
- *
- * Warning!!!
- * This test depends on the value of android::inputdispatcher::KEY_WAITING_FOR_MOTION_TIMEOUT
- * and the injection timeout that we specify when injecting the key.
- * We must have the injection timeout (100ms) be smaller than
- *  KEY_WAITING_FOR_MOTION_TIMEOUT (currently 500ms).
- *
- * If that value changes, this test should also change.
  */
 TEST_F(InputDispatcherSingleWindowAnr, Key_StaysPendingWhileMotionIsProcessed) {
+    // The timeouts in this test are established by relying on the fact that the "key waiting for
+    // events timeout" is equal to 500ms.
+    ASSERT_EQ(mFakePolicy->getKeyWaitingForEventsTimeout(), 500ms);
     mWindow->setDispatchingTimeout(2s); // Set a long ANR timeout to prevent it from triggering
     mDispatcher->onWindowInfosChanged({{*mWindow->getInfo()}, {}, 0, 0});
 
@@ -8842,23 +8904,18 @@ TEST_F(InputDispatcherSingleWindowAnr, Key_StaysPendingWhileMotionIsProcessed) {
     ASSERT_TRUE(downSequenceNum);
     const auto& [upSequenceNum, upEvent] = mWindow->receiveEvent();
     ASSERT_TRUE(upSequenceNum);
-    // Don't finish the events yet, and send a key
-    // Injection will "succeed" because we will eventually give up and send the key to the focused
-    // window even if motions are still being processed. But because the injection timeout is short,
-    // we will receive INJECTION_TIMED_OUT as the result.
 
-    InputEventInjectionResult result =
-            injectKey(*mDispatcher, AKEY_EVENT_ACTION_DOWN, /*repeatCount=*/0, ADISPLAY_ID_DEFAULT,
-                      InputEventInjectionSync::WAIT_FOR_RESULT, 100ms);
-    ASSERT_EQ(InputEventInjectionResult::TIMED_OUT, result);
+    // Don't finish the events yet, and send a key
+    mDispatcher->notifyKey(
+            KeyArgsBuilder(AKEY_EVENT_ACTION_DOWN, AINPUT_SOURCE_KEYBOARD)
+                    .policyFlags(DEFAULT_POLICY_FLAGS | POLICY_FLAG_DISABLE_KEY_REPEAT)
+                    .build());
     // Key will not be sent to the window, yet, because the window is still processing events
     // and the key remains pending, waiting for the touch events to be processed
     // Make sure that `assertNoEvents` doesn't wait too long, because it could cause an ANR.
-    // Rely here on the fact that it uses CONSUME_TIMEOUT_NO_EVENT_EXPECTED under the hood.
-    static_assert(CONSUME_TIMEOUT_NO_EVENT_EXPECTED < 100ms);
-    mWindow->assertNoEvents();
+    mWindow->assertNoEvents(100ms);
 
-    std::this_thread::sleep_for(500ms);
+    std::this_thread::sleep_for(400ms);
     // if we wait long enough though, dispatcher will give up, and still send the key
     // to the focused window, even though we have not yet finished the motion event
     mWindow->consumeKeyDown(ADISPLAY_ID_DEFAULT);
@@ -8873,7 +8930,10 @@ TEST_F(InputDispatcherSingleWindowAnr, Key_StaysPendingWhileMotionIsProcessed) {
  * focused window right away.
  */
 TEST_F(InputDispatcherSingleWindowAnr,
-       PendingKey_IsDroppedWhileMotionIsProcessedAndNewTouchComesIn) {
+       PendingKey_IsDeliveredWhileMotionIsProcessingAndNewTouchComesIn) {
+    // The timeouts in this test are established by relying on the fact that the "key waiting for
+    // events timeout" is equal to 500ms.
+    ASSERT_EQ(mFakePolicy->getKeyWaitingForEventsTimeout(), 500ms);
     mWindow->setDispatchingTimeout(2s); // Set a long ANR timeout to prevent it from triggering
     mDispatcher->onWindowInfosChanged({{*mWindow->getInfo()}, {}, 0, 0});
 
@@ -8888,15 +8948,19 @@ TEST_F(InputDispatcherSingleWindowAnr,
                     .policyFlags(DEFAULT_POLICY_FLAGS | POLICY_FLAG_DISABLE_KEY_REPEAT)
                     .build());
     // At this point, key is still pending, and should not be sent to the application yet.
-    // Make sure the `assertNoEvents` check doesn't take too long. It uses
-    // CONSUME_TIMEOUT_NO_EVENT_EXPECTED under the hood.
-    static_assert(CONSUME_TIMEOUT_NO_EVENT_EXPECTED < 100ms);
-    mWindow->assertNoEvents();
+    mWindow->assertNoEvents(100ms);
 
     // Now tap down again. It should cause the pending key to go to the focused window right away.
     tapOnWindow();
-    mWindow->consumeKeyEvent(WithKeyAction(AKEY_EVENT_ACTION_DOWN)); // it doesn't matter that we
-    // haven't ack'd the other events yet. We can finish events in any order.
+    // Now that we tapped, we should receive the key immediately.
+    // Since there's still room for slowness, we use 200ms, which is much less than
+    // the "key waiting for events' timeout of 500ms minus the already waited 100ms duration.
+    std::unique_ptr<InputEvent> keyEvent = mWindow->consume(200ms);
+    ASSERT_NE(nullptr, keyEvent);
+    ASSERT_EQ(InputEventType::KEY, keyEvent->getType());
+    ASSERT_THAT(static_cast<KeyEvent&>(*keyEvent), WithKeyAction(AKEY_EVENT_ACTION_DOWN));
+    // it doesn't matter that we haven't ack'd the other events yet. We can finish events in any
+    // order.
     mWindow->finishEvent(*downSequenceNum); // first tap's ACTION_DOWN
     mWindow->finishEvent(*upSequenceNum);   // first tap's ACTION_UP
     mWindow->consumeMotionEvent(WithMotionAction(ACTION_DOWN));

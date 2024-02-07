@@ -121,11 +121,6 @@ constexpr nsecs_t SLOW_EVENT_PROCESSING_WARNING_TIMEOUT = 2000 * 1000000LL; // 2
 // Log a warning when an interception call takes longer than this to process.
 constexpr std::chrono::milliseconds SLOW_INTERCEPTION_THRESHOLD = 50ms;
 
-// Additional key latency in case a connection is still processing some motion events.
-// This will help with the case when a user touched a button that opens a new window,
-// and gives us the chance to dispatch the key to this new window.
-constexpr std::chrono::nanoseconds KEY_WAITING_FOR_EVENTS_TIMEOUT = 500ms;
-
 // Number of recent events to keep for debugging purposes.
 constexpr size_t RECENT_QUEUE_MAX_SIZE = 10;
 
@@ -1192,7 +1187,7 @@ bool InputDispatcher::isStaleEvent(nsecs_t currentTime, const EventEntry& entry)
  * Return true if the events preceding this incoming motion event should be dropped
  * Return false otherwise (the default behaviour)
  */
-bool InputDispatcher::shouldPruneInboundQueueLocked(const MotionEntry& motionEntry) {
+bool InputDispatcher::shouldPruneInboundQueueLocked(const MotionEntry& motionEntry) const {
     const bool isPointerDownEvent = motionEntry.action == AMOTION_EVENT_ACTION_DOWN &&
             isFromSource(motionEntry.source, AINPUT_SOURCE_CLASS_POINTER);
 
@@ -1234,16 +1229,6 @@ bool InputDispatcher::shouldPruneInboundQueueLocked(const MotionEntry& motionEnt
         }
     }
 
-    // Prevent getting stuck: if we have a pending key event, and some motion events that have not
-    // yet been processed by some connections, the dispatcher will wait for these motion
-    // events to be processed before dispatching the key event. This is because these motion events
-    // may cause a new window to be launched, which the user might expect to receive focus.
-    // To prevent waiting forever for such events, just send the key to the currently focused window
-    if (isPointerDownEvent && mKeyIsWaitingForEventsTimeout) {
-        ALOGD("Received a new pointer down event, stop waiting for events to process and "
-              "just send the pending key event to the focused window.");
-        mKeyIsWaitingForEventsTimeout = now();
-    }
     return false;
 }
 
@@ -1290,6 +1275,20 @@ bool InputDispatcher::enqueueInboundEventLocked(std::unique_ptr<EventEntry> newE
             if (shouldPruneInboundQueueLocked(motionEntry)) {
                 mNextUnblockedEvent = mInboundQueue.back();
                 needWake = true;
+            }
+
+            const bool isPointerDownEvent = motionEntry.action == AMOTION_EVENT_ACTION_DOWN &&
+                    isFromSource(motionEntry.source, AINPUT_SOURCE_CLASS_POINTER);
+            if (isPointerDownEvent && mKeyIsWaitingForEventsTimeout) {
+                // Prevent waiting too long for unprocessed events: if we have a pending key event,
+                // and some other events have not yet been processed, the dispatcher will wait for
+                // these events to be processed before dispatching the key event. This is because
+                // the unprocessed events may cause the focus to change (for example, by launching a
+                // new window or tapping a different window). To prevent waiting too long, we force
+                // the key to be sent to the currently focused window when a new tap comes in.
+                ALOGD("Received a new pointer down event, stop waiting for events to process and "
+                      "just send the pending key event to the currently focused window.");
+                mKeyIsWaitingForEventsTimeout = now();
             }
             break;
         }
@@ -2137,7 +2136,8 @@ bool InputDispatcher::shouldWaitToSendKeyLocked(nsecs_t currentTime,
         // Start the timer
         // Wait to send key because there are unprocessed events that may cause focus to change
         mKeyIsWaitingForEventsTimeout = currentTime +
-                std::chrono::duration_cast<std::chrono::nanoseconds>(KEY_WAITING_FOR_EVENTS_TIMEOUT)
+                std::chrono::duration_cast<std::chrono::nanoseconds>(
+                        mPolicy.getKeyWaitingForEventsTimeout())
                         .count();
         return true;
     }
@@ -4879,7 +4879,7 @@ std::unique_ptr<VerifiedInputEvent> InputDispatcher::verifyInputEvent(const Inpu
             break;
         }
         default: {
-            ALOGE("Cannot verify events of type %" PRId32, event.getType());
+            LOG(ERROR) << "Cannot verify events of type " << ftl::enum_string(event.getType());
             return nullptr;
         }
     }
@@ -5195,6 +5195,7 @@ void InputDispatcher::setInputWindowsLocked(
 
     // Copy old handles for release if they are no longer present.
     const std::vector<sp<WindowInfoHandle>> oldWindowHandles = getWindowHandlesLocked(displayId);
+    const sp<WindowInfoHandle> removedFocusedWindowHandle = getFocusedWindowHandleLocked(displayId);
 
     updateWindowHandlesForDisplayLocked(windowInfoHandles, displayId);
 
@@ -5203,7 +5204,7 @@ void InputDispatcher::setInputWindowsLocked(
     std::optional<FocusResolver::FocusChanges> changes =
             mFocusResolver.setInputWindows(displayId, windowHandles);
     if (changes) {
-        onFocusChangedLocked(*changes);
+        onFocusChangedLocked(*changes, removedFocusedWindowHandle);
     }
 
     std::unordered_map<int32_t, TouchState>::iterator stateIt =
@@ -5325,14 +5326,16 @@ void InputDispatcher::setFocusedDisplay(int32_t displayId) {
             sp<IBinder> oldFocusedWindowToken =
                     mFocusResolver.getFocusedWindowToken(mFocusedDisplayId);
             if (oldFocusedWindowToken != nullptr) {
-                std::shared_ptr<Connection> connection = getConnectionLocked(oldFocusedWindowToken);
-                if (connection != nullptr) {
-                    CancelationOptions
-                            options(CancelationOptions::Mode::CANCEL_NON_POINTER_EVENTS,
-                                    "The display which contains this window no longer has focus.");
-                    options.displayId = ADISPLAY_ID_NONE;
-                    synthesizeCancelationEventsForConnectionLocked(connection, options);
+                const auto windowHandle =
+                        getWindowHandleLocked(oldFocusedWindowToken, mFocusedDisplayId);
+                if (windowHandle == nullptr) {
+                    LOG(FATAL) << __func__ << ": Previously focused token did not have a window";
                 }
+                CancelationOptions
+                        options(CancelationOptions::Mode::CANCEL_NON_POINTER_EVENTS,
+                                "The display which contains this window no longer has focus.");
+                options.displayId = ADISPLAY_ID_NONE;
+                synthesizeCancelationEventsForWindowLocked(windowHandle, options);
             }
             mFocusedDisplayId = displayId;
 
@@ -6207,8 +6210,18 @@ void InputDispatcher::doDispatchCycleFinishedCommand(nsecs_t finishTime,
         }
         traceWaitQueueLength(*connection);
         if (fallbackKeyEntry && connection->status == Connection::Status::NORMAL) {
-            const InputTarget target{.connection = connection, .flags = dispatchEntry->targetFlags};
-            enqueueDispatchEntryLocked(connection, std::move(fallbackKeyEntry), target);
+            const auto windowHandle = getWindowHandleLocked(connection->getToken());
+            // Only dispatch fallbacks if there is a window for the connection.
+            if (windowHandle != nullptr) {
+                const auto inputTarget =
+                        createInputTargetLocked(windowHandle, InputTarget::DispatchMode::AS_IS,
+                                                dispatchEntry->targetFlags,
+                                                fallbackKeyEntry->downTime);
+                if (inputTarget.has_value()) {
+                    enqueueDispatchEntryLocked(connection, std::move(fallbackKeyEntry),
+                                               *inputTarget);
+                }
+            }
         }
         releaseDispatchEntry(std::move(dispatchEntry));
     }
@@ -6440,14 +6453,18 @@ std::unique_ptr<const KeyEntry> InputDispatcher::afterKeyEventLockedInterruptabl
 
             mLock.lock();
 
-            // Cancel the fallback key.
+            // Cancel the fallback key, but only if we still have a window for the channel.
+            // It could have been removed during the policy call.
             if (*fallbackKeyCode != AKEYCODE_UNKNOWN) {
-                CancelationOptions options(CancelationOptions::Mode::CANCEL_FALLBACK_EVENTS,
-                                           "application handled the original non-fallback key "
-                                           "or is no longer a foreground target, "
-                                           "canceling previously dispatched fallback key");
-                options.keyCode = *fallbackKeyCode;
-                synthesizeCancelationEventsForConnectionLocked(connection, options);
+                const auto windowHandle = getWindowHandleLocked(connection->getToken());
+                if (windowHandle != nullptr) {
+                    CancelationOptions options(CancelationOptions::Mode::CANCEL_FALLBACK_EVENTS,
+                                               "application handled the original non-fallback key "
+                                               "or is no longer a foreground target, "
+                                               "canceling previously dispatched fallback key");
+                    options.keyCode = *fallbackKeyCode;
+                    synthesizeCancelationEventsForConnectionLocked(connection, options);
+                }
             }
             connection->inputState.removeFallbackKey(originalKeyCode);
         }
@@ -6523,10 +6540,13 @@ std::unique_ptr<const KeyEntry> InputDispatcher::afterKeyEventLockedInterruptabl
                 }
             }
 
-            CancelationOptions options(CancelationOptions::Mode::CANCEL_FALLBACK_EVENTS,
-                                       "canceling fallback, policy no longer desires it");
-            options.keyCode = *fallbackKeyCode;
-            synthesizeCancelationEventsForConnectionLocked(connection, options);
+            const auto windowHandle = getWindowHandleLocked(connection->getToken());
+            if (windowHandle != nullptr) {
+                CancelationOptions options(CancelationOptions::Mode::CANCEL_FALLBACK_EVENTS,
+                                           "canceling fallback, policy no longer desires it");
+                options.keyCode = *fallbackKeyCode;
+                synthesizeCancelationEventsForConnectionLocked(connection, options);
+            }
 
             fallback = false;
             *fallbackKeyCode = AKEYCODE_UNKNOWN;
@@ -6665,15 +6685,19 @@ void InputDispatcher::setFocusedWindow(const FocusRequest& request) {
     mLooper->wake();
 }
 
-void InputDispatcher::onFocusChangedLocked(const FocusResolver::FocusChanges& changes) {
+void InputDispatcher::onFocusChangedLocked(const FocusResolver::FocusChanges& changes,
+                                           const sp<WindowInfoHandle> removedFocusedWindowHandle) {
     if (changes.oldFocus) {
-        std::shared_ptr<Connection> focusedConnection = getConnectionLocked(changes.oldFocus);
-        if (focusedConnection) {
-            CancelationOptions options(CancelationOptions::Mode::CANCEL_NON_POINTER_EVENTS,
-                                       "focus left window");
-            synthesizeCancelationEventsForConnectionLocked(focusedConnection, options);
-            enqueueFocusEventLocked(changes.oldFocus, /*hasFocus=*/false, changes.reason);
+        const auto resolvedWindow = removedFocusedWindowHandle != nullptr
+                ? removedFocusedWindowHandle
+                : getWindowHandleLocked(changes.oldFocus, changes.displayId);
+        if (resolvedWindow == nullptr) {
+            LOG(FATAL) << __func__ << ": Previously focused token did not have a window";
         }
+        CancelationOptions options(CancelationOptions::Mode::CANCEL_NON_POINTER_EVENTS,
+                                   "focus left window");
+        synthesizeCancelationEventsForWindowLocked(resolvedWindow, options);
+        enqueueFocusEventLocked(changes.oldFocus, /*hasFocus=*/false, changes.reason);
     }
     if (changes.newFocus) {
         resetNoFocusedWindowTimeoutLocked();

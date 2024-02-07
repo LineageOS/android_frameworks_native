@@ -470,7 +470,7 @@ private:
 
     bool isStaleEvent(nsecs_t currentTime, const EventEntry& entry);
 
-    bool shouldPruneInboundQueueLocked(const MotionEntry& motionEntry) REQUIRES(mLock);
+    bool shouldPruneInboundQueueLocked(const MotionEntry& motionEntry) const REQUIRES(mLock);
 
     /**
      * Time to stop waiting for the events to be processed while trying to dispatch a key.
@@ -653,7 +653,9 @@ private:
                                         bool handled, nsecs_t consumeTime) REQUIRES(mLock);
     void doInterceptKeyBeforeDispatchingCommand(const sp<IBinder>& focusedWindowToken,
                                                 const KeyEntry& entry) REQUIRES(mLock);
-    void onFocusChangedLocked(const FocusResolver::FocusChanges& changes) REQUIRES(mLock);
+    void onFocusChangedLocked(const FocusResolver::FocusChanges& changes,
+                              const sp<gui::WindowInfoHandle> removedFocusedWindowHandle = nullptr)
+            REQUIRES(mLock);
     void sendFocusChangedCommandLocked(const sp<IBinder>& oldToken, const sp<IBinder>& newToken)
             REQUIRES(mLock);
     void sendDropWindowCommandLocked(const sp<IBinder>& token, float x, float y) REQUIRES(mLock);

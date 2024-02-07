@@ -48,6 +48,7 @@ cc_defaults {
     static_libs: [
         "libshaders",
         "libtonemap",
+        "libsurfaceflinger_common",
     ],
     local_include_dirs: ["include"],
     export_include_dirs: ["include"],
