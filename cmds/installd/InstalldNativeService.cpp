@@ -4029,24 +4029,37 @@ binder::Status InstalldNativeService::enableFsverity(const sp<IFsveritySetupAuth
         return exception(binder::Status::EX_ILLEGAL_ARGUMENT, "Received a null auth token");
     }
 
-    // Authenticate to check the targeting file is the same inode as the authFd.
+    // Authenticate to check the targeting file is the same inode as the authFd. With O_PATH, we
+    // prevent a malicious client from blocking installd by providing a path to FIFO. After the
+    // authentication, the actual open is safe.
     sp<IBinder> authTokenBinder = IInterface::asBinder(authToken)->localBinder();
     if (authTokenBinder == nullptr) {
         return exception(binder::Status::EX_SECURITY, "Received a non-local auth token");
     }
-    auto authTokenInstance = sp<FsveritySetupAuthToken>::cast(authTokenBinder);
-    unique_fd rfd(open(filePath.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW));
-    struct stat stFromPath;
-    if (fstat(rfd.get(), &stFromPath) < 0) {
-        *_aidl_return = errno;
+    unique_fd pathFd(open(filePath.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_PATH));
+    // Returns a constant errno to avoid one app probing file existence of the others, before the
+    // authentication is done.
+    const int kFixedErrno = EPERM;
+    if (pathFd.get() < 0) {
+        PLOG(DEBUG) << "Failed to open the path";
+        *_aidl_return = kFixedErrno;
         return ok();
     }
+    std::string procFdPath(StringPrintf("/proc/self/fd/%d", pathFd.get()));
+    struct stat stFromPath;
+    if (stat(procFdPath.c_str(), &stFromPath) < 0) {
+        PLOG(DEBUG) << "Failed to stat proc fd " << pathFd.get() << " -> " << filePath;
+        *_aidl_return = kFixedErrno;
+        return ok();
+    }
+    auto authTokenInstance = sp<FsveritySetupAuthToken>::cast(authTokenBinder);
     if (!authTokenInstance->isSameStat(stFromPath)) {
         LOG(DEBUG) << "FD authentication failed";
-        *_aidl_return = EPERM;
+        *_aidl_return = kFixedErrno;
         return ok();
     }
 
+    unique_fd rfd(open(procFdPath.c_str(), O_RDONLY | O_CLOEXEC));
     fsverity_enable_arg arg = {};
     arg.version = 1;
     arg.hash_algorithm = FS_VERITY_HASH_ALG_SHA256;
