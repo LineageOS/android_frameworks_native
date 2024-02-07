@@ -18,12 +18,15 @@
 
 #include <android/gui/DisplayModeSpecs.h>
 
+#include "DisplayHardware/DisplayMode.h"
+
 namespace android::mock {
 
-inline gui::DisplayModeSpecs createDisplayModeSpecs(int32_t defaultMode, bool allowGroupSwitching,
-                                                    float minFps, float maxFps) {
+inline gui::DisplayModeSpecs createDisplayModeSpecs(DisplayModeId defaultMode,
+                                                    bool allowGroupSwitching, float minFps,
+                                                    float maxFps) {
     gui::DisplayModeSpecs specs;
-    specs.defaultMode = defaultMode;
+    specs.defaultMode = ftl::to_underlying(defaultMode);
     specs.allowGroupSwitching = allowGroupSwitching;
     specs.primaryRanges.physical.min = minFps;
     specs.primaryRanges.physical.max = maxFps;

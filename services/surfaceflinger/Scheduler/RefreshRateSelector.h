@@ -31,7 +31,6 @@
 
 #include "DisplayHardware/DisplayMode.h"
 #include "Scheduler/OneShotTimer.h"
-#include "Scheduler/StrongTyping.h"
 #include "ThreadContext.h"
 #include "Utils/Dumper.h"
 
