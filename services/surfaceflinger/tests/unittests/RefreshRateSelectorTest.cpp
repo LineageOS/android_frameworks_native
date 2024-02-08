@@ -103,7 +103,7 @@ struct TestableRefreshRateSelector : RefreshRateSelector {
     auto& mutableGetRankedRefreshRatesCache() { return mGetRankedFrameRatesCache; }
 
     auto getRankedFrameRates(const std::vector<LayerRequirement>& layers,
-                             GlobalSignals signals) const {
+                             GlobalSignals signals = {}) const {
         const auto result = RefreshRateSelector::getRankedFrameRates(layers, signals);
 
         EXPECT_TRUE(std::is_sorted(result.ranking.begin(), result.ranking.end(),
@@ -1619,10 +1619,11 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_withFrameRateCategory_HighH
     lr1.name = "ExplicitCategory HighHint";
     lr2.vote = LayerVoteType::NoVote;
     lr2.name = "NoVote";
-    auto actualFrameRateMode = selector.getBestFrameRateMode(layers);
+    auto actualRankedFrameRates = selector.getRankedFrameRates(layers);
     // Gets touch boost
-    EXPECT_EQ(120_Hz, actualFrameRateMode.fps);
-    EXPECT_EQ(kModeId120, actualFrameRateMode.modePtr->getId());
+    EXPECT_EQ(120_Hz, actualRankedFrameRates.ranking.front().frameRateMode.fps);
+    EXPECT_EQ(kModeId120, actualRankedFrameRates.ranking.front().frameRateMode.modePtr->getId());
+    EXPECT_TRUE(actualRankedFrameRates.consideredSignals.touch);
 
     // No touch boost, for example a game that uses setFrameRate(30, default compatibility).
     lr1.vote = LayerVoteType::ExplicitCategory;
@@ -1631,9 +1632,10 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_withFrameRateCategory_HighH
     lr2.vote = LayerVoteType::ExplicitDefault;
     lr2.desiredRefreshRate = 30_Hz;
     lr2.name = "30Hz ExplicitDefault";
-    actualFrameRateMode = selector.getBestFrameRateMode(layers);
-    EXPECT_EQ(30_Hz, actualFrameRateMode.fps);
-    EXPECT_EQ(kModeId30, actualFrameRateMode.modePtr->getId());
+    actualRankedFrameRates = selector.getRankedFrameRates(layers);
+    EXPECT_EQ(30_Hz, actualRankedFrameRates.ranking.front().frameRateMode.fps);
+    EXPECT_EQ(kModeId30, actualRankedFrameRates.ranking.front().frameRateMode.modePtr->getId());
+    EXPECT_FALSE(actualRankedFrameRates.consideredSignals.touch);
 
     lr1.vote = LayerVoteType::ExplicitCategory;
     lr1.frameRateCategory = FrameRateCategory::HighHint;
@@ -1641,10 +1643,11 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_withFrameRateCategory_HighH
     lr2.vote = LayerVoteType::ExplicitCategory;
     lr2.frameRateCategory = FrameRateCategory::HighHint;
     lr2.name = "ExplicitCategory HighHint#2";
-    actualFrameRateMode = selector.getBestFrameRateMode(layers);
+    actualRankedFrameRates = selector.getRankedFrameRates(layers);
     // Gets touch boost
-    EXPECT_EQ(120_Hz, actualFrameRateMode.fps);
-    EXPECT_EQ(kModeId120, actualFrameRateMode.modePtr->getId());
+    EXPECT_EQ(120_Hz, actualRankedFrameRates.ranking.front().frameRateMode.fps);
+    EXPECT_EQ(kModeId120, actualRankedFrameRates.ranking.front().frameRateMode.modePtr->getId());
+    EXPECT_TRUE(actualRankedFrameRates.consideredSignals.touch);
 
     lr1.vote = LayerVoteType::ExplicitCategory;
     lr1.frameRateCategory = FrameRateCategory::HighHint;
@@ -1652,10 +1655,11 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_withFrameRateCategory_HighH
     lr2.vote = LayerVoteType::ExplicitCategory;
     lr2.frameRateCategory = FrameRateCategory::Low;
     lr2.name = "ExplicitCategory Low";
-    actualFrameRateMode = selector.getBestFrameRateMode(layers);
+    actualRankedFrameRates = selector.getRankedFrameRates(layers);
     // Gets touch boost
-    EXPECT_EQ(120_Hz, actualFrameRateMode.fps);
-    EXPECT_EQ(kModeId120, actualFrameRateMode.modePtr->getId());
+    EXPECT_EQ(120_Hz, actualRankedFrameRates.ranking.front().frameRateMode.fps);
+    EXPECT_EQ(kModeId120, actualRankedFrameRates.ranking.front().frameRateMode.modePtr->getId());
+    EXPECT_TRUE(actualRankedFrameRates.consideredSignals.touch);
 
     lr1.vote = LayerVoteType::ExplicitCategory;
     lr1.frameRateCategory = FrameRateCategory::HighHint;
@@ -1663,10 +1667,11 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_withFrameRateCategory_HighH
     lr2.vote = LayerVoteType::ExplicitExactOrMultiple;
     lr2.desiredRefreshRate = 30_Hz;
     lr2.name = "30Hz ExplicitExactOrMultiple";
-    actualFrameRateMode = selector.getBestFrameRateMode(layers);
+    actualRankedFrameRates = selector.getRankedFrameRates(layers);
     // Gets touch boost
-    EXPECT_EQ(120_Hz, actualFrameRateMode.fps);
-    EXPECT_EQ(kModeId120, actualFrameRateMode.modePtr->getId());
+    EXPECT_EQ(120_Hz, actualRankedFrameRates.ranking.front().frameRateMode.fps);
+    EXPECT_EQ(kModeId120, actualRankedFrameRates.ranking.front().frameRateMode.modePtr->getId());
+    EXPECT_TRUE(actualRankedFrameRates.consideredSignals.touch);
 
     lr1.vote = LayerVoteType::ExplicitCategory;
     lr1.frameRateCategory = FrameRateCategory::HighHint;
@@ -1674,14 +1679,17 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_withFrameRateCategory_HighH
     lr2.vote = LayerVoteType::ExplicitExact;
     lr2.desiredRefreshRate = 30_Hz;
     lr2.name = "30Hz ExplicitExact";
-    actualFrameRateMode = selector.getBestFrameRateMode(layers);
+    actualRankedFrameRates = selector.getRankedFrameRates(layers);
     if (selector.supportsAppFrameRateOverrideByContent()) {
         // Gets touch boost
-        EXPECT_EQ(120_Hz, actualFrameRateMode.fps);
-        EXPECT_EQ(kModeId120, actualFrameRateMode.modePtr->getId());
+        EXPECT_EQ(120_Hz, actualRankedFrameRates.ranking.front().frameRateMode.fps);
+        EXPECT_EQ(kModeId120,
+                  actualRankedFrameRates.ranking.front().frameRateMode.modePtr->getId());
+        EXPECT_TRUE(actualRankedFrameRates.consideredSignals.touch);
     } else {
-        EXPECT_EQ(30_Hz, actualFrameRateMode.fps);
-        EXPECT_EQ(kModeId30, actualFrameRateMode.modePtr->getId());
+        EXPECT_EQ(30_Hz, actualRankedFrameRates.ranking.front().frameRateMode.fps);
+        EXPECT_EQ(kModeId30, actualRankedFrameRates.ranking.front().frameRateMode.modePtr->getId());
+        EXPECT_FALSE(actualRankedFrameRates.consideredSignals.touch);
     }
 }
 
