@@ -20,9 +20,8 @@
 #include <optional>
 #include <string>
 
+#include <ftl/mixins.h>
 #include <utils/Timers.h>
-
-#include "StrongTyping.h"
 
 namespace android::scheduler {
 
@@ -35,7 +34,11 @@ enum class CancelResult { Cancelled, TooLate, Error };
  */
 class VSyncDispatch {
 public:
-    using CallbackToken = StrongTyping<size_t, class CallbackTokenTag, Compare>;
+    struct CallbackToken : ftl::DefaultConstructible<CallbackToken, size_t>,
+                           ftl::Equatable<CallbackToken>,
+                           ftl::Incrementable<CallbackToken> {
+        using DefaultConstructible::DefaultConstructible;
+    };
 
     virtual ~VSyncDispatch();
 

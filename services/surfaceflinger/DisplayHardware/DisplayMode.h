@@ -21,17 +21,17 @@
 
 #include <android-base/stringprintf.h>
 #include <android/configuration.h>
+#include <ftl/mixins.h>
 #include <ftl/small_map.h>
 #include <ui/DisplayId.h>
 #include <ui/DisplayMode.h>
 #include <ui/Size.h>
 #include <utils/Timers.h>
 
+#include <common/FlagManager.h>
 #include <scheduler/Fps.h>
 
-#include <common/FlagManager.h>
 #include "DisplayHardware/Hal.h"
-#include "Scheduler/StrongTyping.h"
 
 namespace android {
 
@@ -46,7 +46,12 @@ bool operator>(const DisplayModePtr&, const DisplayModePtr&) = delete;
 bool operator<=(const DisplayModePtr&, const DisplayModePtr&) = delete;
 bool operator>=(const DisplayModePtr&, const DisplayModePtr&) = delete;
 
-using DisplayModeId = StrongTyping<ui::DisplayModeId, struct DisplayModeIdTag, Compare>;
+struct DisplayModeId : ftl::DefaultConstructible<DisplayModeId, ui::DisplayModeId>,
+                       ftl::Incrementable<DisplayModeId>,
+                       ftl::Equatable<DisplayModeId>,
+                       ftl::Orderable<DisplayModeId> {
+    using DefaultConstructible::DefaultConstructible;
+};
 
 using DisplayModes = ftl::SmallMap<DisplayModeId, DisplayModePtr, 3>;
 using DisplayModeIterator = DisplayModes::const_iterator;
@@ -185,7 +190,7 @@ inline bool equalsExceptDisplayModeId(const DisplayMode& lhs, const DisplayMode&
 inline std::string to_string(const DisplayMode& mode) {
     return base::StringPrintf("{id=%d, hwcId=%d, resolution=%dx%d, vsyncRate=%s, "
                               "dpi=%.2fx%.2f, group=%d, vrrConfig=%s}",
-                              mode.getId().value(), mode.getHwcId(), mode.getWidth(),
+                              ftl::to_underlying(mode.getId()), mode.getHwcId(), mode.getWidth(),
                               mode.getHeight(), to_string(mode.getVsyncRate()).c_str(),
                               mode.getDpi().x, mode.getDpi().y, mode.getGroup(),
                               to_string(mode.getVrrConfig()).c_str());

@@ -1083,7 +1083,7 @@ void SurfaceFlinger::getDynamicDisplayInfoInternal(ui::DynamicDisplayInfo*& info
 
     for (const auto& [id, mode] : displayModes) {
         ui::DisplayMode outMode;
-        outMode.id = static_cast<int32_t>(id.value());
+        outMode.id = ftl::to_underlying(id);
 
         auto [width, height] = mode->getResolution();
         auto [xDpi, yDpi] = mode->getDpi();
@@ -1132,7 +1132,7 @@ void SurfaceFlinger::getDynamicDisplayInfoInternal(ui::DynamicDisplayInfo*& info
     const PhysicalDisplayId displayId = snapshot.displayId();
 
     const auto mode = display->refreshRateSelector().getActiveMode();
-    info->activeDisplayModeId = mode.modePtr->getId().value();
+    info->activeDisplayModeId = ftl::to_underlying(mode.modePtr->getId());
     info->renderFrameRate = mode.fps.getValue();
     info->activeColorMode = display->getCompositionDisplay()->getState().colorMode;
     info->hdrCapabilities = filterOut4k30(display->getHdrCapabilities());
@@ -1148,7 +1148,7 @@ void SurfaceFlinger::getDynamicDisplayInfoInternal(ui::DynamicDisplayInfo*& info
     if (getHwComposer().hasCapability(Capability::BOOT_DISPLAY_CONFIG)) {
         if (const auto hwcId = getHwComposer().getPreferredBootDisplayMode(displayId)) {
             if (const auto modeId = snapshot.translateModeId(*hwcId)) {
-                info->preferredBootDisplayMode = modeId->value();
+                info->preferredBootDisplayMode = ftl::to_underlying(*modeId);
             }
         }
     }
@@ -1312,7 +1312,7 @@ status_t SurfaceFlinger::setActiveModeFromBackdoor(const sp<display::DisplayToke
                 [](const DisplayModePtr& mode) { return mode->getPeakFps(); });
 
         if (!fpsOpt) {
-            ALOGE("%s: Invalid mode %d for display %s", whence, modeId.value(),
+            ALOGE("%s: Invalid mode %d for display %s", whence, ftl::to_underlying(modeId),
                   to_string(snapshot.displayId()).c_str());
             return BAD_VALUE;
         }
@@ -1421,12 +1421,12 @@ void SurfaceFlinger::initiateDisplayModeChanges() {
 
         if (!displayModePtrOpt) {
             ALOGW("Desired display mode is no longer supported. Mode ID = %d",
-                  desiredModeId.value());
-            dropModeRequest(display);
+                  ftl::to_underlying(desiredModeId));
             continue;
         }
 
-        ALOGV("%s changing active mode to %d(%s) for display %s", __func__, desiredModeId.value(),
+        ALOGV("%s changing active mode to %d(%s) for display %s", __func__,
+              ftl::to_underlying(desiredModeId),
               to_string(displayModePtrOpt->get()->getVsyncRate()).c_str(),
               to_string(display->getId()).c_str());
 
@@ -1619,7 +1619,7 @@ status_t SurfaceFlinger::setBootDisplayMode(const sp<display::DisplayToken>& dis
                 [](const DisplayModePtr& mode) { return mode->getHwcId(); });
 
         if (!hwcIdOpt) {
-            ALOGE("%s: Invalid mode %d for display %s", whence, modeId.value(),
+            ALOGE("%s: Invalid mode %d for display %s", whence, ftl::to_underlying(modeId),
                   to_string(snapshot.displayId()).c_str());
             return BAD_VALUE;
         }
@@ -3393,15 +3393,15 @@ std::pair<DisplayModes, DisplayModePtr> SurfaceFlinger::loadDisplayModes(
                                           })
                                           .value_or(DisplayModes{});
 
-    ui::DisplayModeId nextModeId = 1 +
-            std::accumulate(oldModes.begin(), oldModes.end(), static_cast<ui::DisplayModeId>(-1),
-                            [](ui::DisplayModeId max, const auto& pair) {
-                                return std::max(max, pair.first.value());
-                            });
+    DisplayModeId nextModeId = std::accumulate(oldModes.begin(), oldModes.end(), DisplayModeId(-1),
+                                               [](DisplayModeId max, const auto& pair) {
+                                                   return std::max(max, pair.first);
+                                               });
+    ++nextModeId;
 
     DisplayModes newModes;
     for (const auto& hwcMode : hwcModes) {
-        const DisplayModeId id{nextModeId++};
+        const auto id = nextModeId++;
         newModes.try_emplace(id,
                              DisplayMode::Builder(hwcMode.hwcId)
                                      .setId(id)
@@ -3476,8 +3476,12 @@ const char* SurfaceFlinger::processHotplug(PhysicalDisplayId displayId,
 
     auto [displayModes, activeMode] = loadDisplayModes(displayId);
     if (!activeMode) {
-        // TODO(b/241286153): Report hotplug failure to the framework.
         ALOGE("Failed to hotplug display %s", to_string(displayId).c_str());
+        if (FlagManager::getInstance().hotplug2()) {
+            mScheduler->onHotplugConnectionError(mAppConnectionHandle,
+                                                 static_cast<int32_t>(
+                                                         DisplayHotplugEvent::ERROR_UNKNOWN));
+        }
         getHwComposer().disconnectDisplay(displayId);
         return nullptr;
     }
@@ -4178,8 +4182,8 @@ void SurfaceFlinger::requestDisplayModes(std::vector<display::DisplayModeRequest
         if (display->refreshRateSelector().isModeAllowed(request.mode)) {
             setDesiredMode(std::move(request));
         } else {
-            ALOGV("%s: Mode %d is disallowed for display %s", __func__, modePtr->getId().value(),
-                  to_string(displayId).c_str());
+            ALOGV("%s: Mode %d is disallowed for display %s", __func__,
+                  ftl::to_underlying(modePtr->getId()), to_string(displayId).c_str());
         }
     }
 }
@@ -8473,11 +8477,11 @@ status_t SurfaceFlinger::applyRefreshRateSelectorPolicy(
     const auto preferredModeId = preferredMode.modePtr->getId();
 
     const Fps preferredFps = preferredMode.fps;
-    ALOGV("Switching to Scheduler preferred mode %d (%s)", preferredModeId.value(),
+    ALOGV("Switching to Scheduler preferred mode %d (%s)", ftl::to_underlying(preferredModeId),
           to_string(preferredFps).c_str());
 
     if (!selector.isModeAllowed(preferredMode)) {
-        ALOGE("%s: Preferred mode %d is disallowed", __func__, preferredModeId.value());
+        ALOGE("%s: Preferred mode %d is disallowed", __func__, ftl::to_underlying(preferredModeId));
         return INVALID_OPERATION;
     }
 
@@ -8565,7 +8569,7 @@ status_t SurfaceFlinger::getDesiredDisplayModeSpecs(const sp<IBinder>& displayTo
 
     scheduler::RefreshRateSelector::Policy policy =
             display->refreshRateSelector().getDisplayManagerPolicy();
-    outSpecs->defaultMode = policy.defaultMode.value();
+    outSpecs->defaultMode = ftl::to_underlying(policy.defaultMode);
     outSpecs->allowGroupSwitching = policy.allowGroupSwitching;
     outSpecs->primaryRanges = translate(policy.primaryRanges);
     outSpecs->appRequestRanges = translate(policy.appRequestRanges);

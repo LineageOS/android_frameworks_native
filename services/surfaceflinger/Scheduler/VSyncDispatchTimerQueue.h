@@ -158,7 +158,7 @@ private:
     nsecs_t const mTimerSlack;
     nsecs_t const mMinVsyncDistance;
 
-    size_t mCallbackToken GUARDED_BY(mMutex) = 0;
+    CallbackToken mCallbackToken GUARDED_BY(mMutex);
 
     CallbackMap mCallbacks GUARDED_BY(mMutex);
     nsecs_t mIntendedWakeupTime GUARDED_BY(mMutex) = kInvalidTime;

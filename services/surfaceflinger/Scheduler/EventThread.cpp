@@ -148,7 +148,7 @@ DisplayEventReceiver::Event makeModeChanged(const scheduler::FrameRateMode& mode
     DisplayEventReceiver::Event event;
     event.header = {DisplayEventReceiver::DISPLAY_EVENT_MODE_CHANGE,
                     mode.modePtr->getPhysicalDisplayId(), systemTime()};
-    event.modeChange.modeId = mode.modePtr->getId().value();
+    event.modeChange.modeId = ftl::to_underlying(mode.modePtr->getId());
     event.modeChange.vsyncPeriod = mode.fps.getPeriodNsecs();
     return event;
 }

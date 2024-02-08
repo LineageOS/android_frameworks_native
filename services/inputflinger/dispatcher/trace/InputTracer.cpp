@@ -154,18 +154,20 @@ std::optional<InputTracer::EventState>& InputTracer::getState(const EventTracker
 void InputTracer::threadLoop() {
     androidSetThreadName("InputTracer");
 
+    std::vector<const EventState> eventsToTrace;
+    std::vector<const WindowDispatchArgs> dispatchEventsToTrace;
+
     while (true) {
-        std::vector<const EventState> eventsToTrace;
-        std::vector<const WindowDispatchArgs> dispatchEventsToTrace;
-        {
+        { // acquire lock
             std::unique_lock lock(mLock);
             base::ScopedLockAssertion assumeLocked(mLock);
+
+            // Wait until we need to process more events or exit.
+            mThreadWakeCondition.wait(lock, [&]() REQUIRES(mLock) {
+                return mThreadExit || !mTraceQueue.empty() || !mDispatchTraceQueue.empty();
+            });
             if (mThreadExit) {
                 return;
-            }
-            if (mTraceQueue.empty() && mDispatchTraceQueue.empty()) {
-                // Wait indefinitely until the thread is awoken.
-                mThreadWakeCondition.wait(lock);
             }
 
             mTraceQueue.swap(eventsToTrace);
