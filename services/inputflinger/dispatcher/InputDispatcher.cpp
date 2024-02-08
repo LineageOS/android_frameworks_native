@@ -2089,13 +2089,23 @@ void InputDispatcher::cancelEventsForAnrLocked(const std::shared_ptr<Connection>
     // pile up.
     ALOGW("Canceling events for %s because it is unresponsive",
           connection->getInputChannelName().c_str());
-    if (connection->status == Connection::Status::NORMAL) {
-        CancelationOptions options(CancelationOptions::Mode::CANCEL_ALL_EVENTS,
-                                   "application not responding");
-        synthesizeCancelationEventsForConnectionLocked(connection, options,
-                                                       getWindowHandleLocked(
-                                                               connection->getToken()));
+    if (connection->status != Connection::Status::NORMAL) {
+        return;
     }
+    CancelationOptions options(CancelationOptions::Mode::CANCEL_ALL_EVENTS,
+                               "application not responding");
+
+    sp<WindowInfoHandle> windowHandle;
+    if (!connection->monitor) {
+        windowHandle = getWindowHandleLocked(connection->getToken());
+        if (windowHandle == nullptr) {
+            // The window that is receiving this ANR was removed, so there is no need to generate
+            // cancellations, because the cancellations would have already been generated when
+            // the window was removed.
+            return;
+        }
+    }
+    synthesizeCancelationEventsForConnectionLocked(connection, options, windowHandle);
 }
 
 void InputDispatcher::resetNoFocusedWindowTimeoutLocked() {
