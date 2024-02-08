@@ -194,6 +194,12 @@ static bool exists_renamed_deleted_dir(const std::string& rootDirectory) {
     });
 }
 
+static void unlink_path(const std::string& path) {
+    if (unlink(path.c_str()) < 0) {
+        PLOG(DEBUG) << "Failed to unlink " + path;
+    }
+}
+
 class ServiceTest : public testing::Test {
 protected:
     InstalldNativeService* service;
@@ -555,7 +561,7 @@ protected:
 TEST_F(FsverityTest, enableFsverity) {
     const std::string path = kTestPath + "/foo";
     create_with_content(path, kTestAppUid, kTestAppUid, 0600, "content");
-    UniqueFile raii(/*fd=*/-1, path, [](const std::string& path) { unlink(path.c_str()); });
+    UniqueFile raii(/*fd=*/-1, path, &unlink_path);
 
     // Expect to fs-verity setup to succeed
     sp<IFsveritySetupAuthToken> authToken;
@@ -573,7 +579,7 @@ TEST_F(FsverityTest, enableFsverity) {
 TEST_F(FsverityTest, enableFsverity_nullAuthToken) {
     const std::string path = kTestPath + "/foo";
     create_with_content(path, kTestAppUid, kTestAppUid, 0600, "content");
-    UniqueFile raii(/*fd=*/-1, path, [](const std::string& path) { unlink(path.c_str()); });
+    UniqueFile raii(/*fd=*/-1, path, &unlink_path);
 
     // Verity null auth token fails
     sp<IFsveritySetupAuthToken> authToken;
@@ -586,7 +592,7 @@ TEST_F(FsverityTest, enableFsverity_nullAuthToken) {
 TEST_F(FsverityTest, enableFsverity_differentFile) {
     const std::string path = kTestPath + "/foo";
     create_with_content(path, kTestAppUid, kTestAppUid, 0600, "content");
-    UniqueFile raii(/*fd=*/-1, path, [](const std::string& path) { unlink(path.c_str()); });
+    UniqueFile raii(/*fd=*/-1, path, &unlink_path);
 
     // Expect to fs-verity setup to succeed
     sp<IFsveritySetupAuthToken> authToken;
@@ -597,17 +603,36 @@ TEST_F(FsverityTest, enableFsverity_differentFile) {
     // Verity auth token does not work for a different file
     const std::string anotherPath = kTestPath + "/bar";
     ASSERT_TRUE(android::base::WriteStringToFile("content", anotherPath));
-    UniqueFile raii2(/*fd=*/-1, anotherPath, [](const std::string& path) { unlink(path.c_str()); });
+    UniqueFile raii2(/*fd=*/-1, anotherPath, &unlink_path);
     int32_t errno_local;
     status = service->enableFsverity(authToken, anotherPath, "fake.package.name", &errno_local);
     EXPECT_TRUE(status.isOk());
     EXPECT_NE(errno_local, 0);
 }
 
+TEST_F(FsverityTest, enableFsverity_errnoBeforeAuthenticated) {
+    const std::string path = kTestPath + "/foo";
+    create_with_content(path, kTestAppUid, kTestAppUid, 0600, "content");
+    UniqueFile raii(/*fd=*/-1, path, &unlink_path);
+
+    // Expect to fs-verity setup to succeed
+    sp<IFsveritySetupAuthToken> authToken;
+    binder::Status status = createFsveritySetupAuthToken(path, O_RDWR, &authToken);
+    EXPECT_TRUE(status.isOk());
+    EXPECT_TRUE(authToken != nullptr);
+
+    // Verity errno before the fd authentication is constant (EPERM)
+    int32_t errno_local;
+    status = service->enableFsverity(authToken, path + "-non-exist", "fake.package.name",
+                                     &errno_local);
+    EXPECT_TRUE(status.isOk());
+    EXPECT_EQ(errno_local, EPERM);
+}
+
 TEST_F(FsverityTest, createFsveritySetupAuthToken_ReadonlyFdDoesNotAuthenticate) {
     const std::string path = kTestPath + "/foo";
     create_with_content(path, kTestAppUid, kTestAppUid, 0600, "content");
-    UniqueFile raii(/*fd=*/-1, path, [](const std::string& path) { unlink(path.c_str()); });
+    UniqueFile raii(/*fd=*/-1, path, &unlink_path);
 
     // Expect the fs-verity setup to fail
     sp<IFsveritySetupAuthToken> authToken;
@@ -619,7 +644,7 @@ TEST_F(FsverityTest, createFsveritySetupAuthToken_UnownedFile) {
     const std::string path = kTestPath + "/foo";
     // Simulate world-writable file owned by another app
     create_with_content(path, kTestAppUid + 1, kTestAppUid + 1, 0666, "content");
-    UniqueFile raii(/*fd=*/-1, path, [](const std::string& path) { unlink(path.c_str()); });
+    UniqueFile raii(/*fd=*/-1, path, &unlink_path);
 
     // Expect the fs-verity setup to fail
     sp<IFsveritySetupAuthToken> authToken;
