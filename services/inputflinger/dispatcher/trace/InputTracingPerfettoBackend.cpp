@@ -55,6 +55,20 @@ void PerfettoBackend::InputEventDataSource::OnStop(const InputEventDataSource::S
     InputEventDataSource::Trace([&](InputEventDataSource::TraceContext ctx) { ctx.Flush(); });
 }
 
+bool PerfettoBackend::InputEventDataSource::shouldIgnoreTracedInputEvent(
+        const EventType& type) const {
+    if (!getFlags().test(TraceFlag::TRACE_DISPATCHER_INPUT_EVENTS)) {
+        // Ignore all input events.
+        return true;
+    }
+    if (!getFlags().test(TraceFlag::TRACE_DISPATCHER_WINDOW_DISPATCH) &&
+        type != EventType::INBOUND) {
+        // When window dispatch tracing is disabled, ignore any events that are not inbound events.
+        return true;
+    }
+    return false;
+}
+
 // --- PerfettoBackend ---
 
 std::once_flag PerfettoBackend::sDataSourceRegistrationFlag{};
@@ -85,6 +99,10 @@ void PerfettoBackend::traceMotionEvent(const TracedMotionEvent& event,
         return;
     }
     InputEventDataSource::Trace([&](InputEventDataSource::TraceContext ctx) {
+        auto dataSource = ctx.GetDataSourceLocked();
+        if (dataSource->shouldIgnoreTracedInputEvent(event.eventType)) {
+            return;
+        }
         auto tracePacket = ctx.NewTracePacket();
         auto* inputEvent = tracePacket->set_android_input_event();
         auto* dispatchMotion = inputEvent->set_dispatcher_motion_event();
@@ -98,6 +116,10 @@ void PerfettoBackend::traceKeyEvent(const TracedKeyEvent& event, const TracedEve
         return;
     }
     InputEventDataSource::Trace([&](InputEventDataSource::TraceContext ctx) {
+        auto dataSource = ctx.GetDataSourceLocked();
+        if (dataSource->shouldIgnoreTracedInputEvent(event.eventType)) {
+            return;
+        }
         auto tracePacket = ctx.NewTracePacket();
         auto* inputEvent = tracePacket->set_android_input_event();
         auto* dispatchKey = inputEvent->set_dispatcher_key_event();
@@ -112,6 +134,10 @@ void PerfettoBackend::traceWindowDispatch(const WindowDispatchArgs& dispatchArgs
         return;
     }
     InputEventDataSource::Trace([&](InputEventDataSource::TraceContext ctx) {
+        auto dataSource = ctx.GetDataSourceLocked();
+        if (!dataSource->getFlags().test(TraceFlag::TRACE_DISPATCHER_WINDOW_DISPATCH)) {
+            return;
+        }
         auto tracePacket = ctx.NewTracePacket();
         auto* inputEvent = tracePacket->set_android_input_event();
         auto* dispatchEvent = inputEvent->set_dispatcher_window_dispatch_event();

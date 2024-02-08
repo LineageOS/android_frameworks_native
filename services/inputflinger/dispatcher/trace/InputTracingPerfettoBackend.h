@@ -20,6 +20,7 @@
 
 #include "InputTracingPerfettoBackendConfig.h"
 
+#include <ftl/flags.h>
 #include <perfetto/tracing.h>
 #include <mutex>
 
@@ -64,6 +65,9 @@ private:
         void OnSetup(const SetupArgs&) override;
         void OnStart(const StartArgs&) override;
         void OnStop(const StopArgs&) override;
+
+        bool shouldIgnoreTracedInputEvent(const EventType&) const;
+        inline ftl::Flags<TraceFlag> getFlags() const { return mConfig.flags; }
 
     private:
         const int32_t mInstanceId;
