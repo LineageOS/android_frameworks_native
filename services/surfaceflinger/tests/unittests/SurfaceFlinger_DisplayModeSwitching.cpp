@@ -21,12 +21,8 @@
 #include "mock/DisplayHardware/MockDisplayMode.h"
 #include "mock/MockDisplayModeSpecs.h"
 
-#include <com_android_graphics_surfaceflinger_flags.h>
-#include <common/test/FlagUtils.h>
 #include <ftl/fake_guard.h>
 #include <scheduler/Fps.h>
-
-using namespace com::android::graphics::surfaceflinger;
 
 #define EXPECT_SET_ACTIVE_CONFIG(displayId, modeId)                                 \
     EXPECT_CALL(*mComposer,                                                         \
@@ -353,13 +349,6 @@ MATCHER_P(ModeSettledTo, modeId, "") {
 }
 
 TEST_F(DisplayModeSwitchingTest, innerXorOuterDisplay) {
-    SET_FLAG_FOR_TEST(flags::connected_display, true);
-
-    // For the inner display, this is handled by setupHwcHotplugCallExpectations.
-    EXPECT_CALL(*mComposer, getDisplayConnectionType(kOuterDisplayHwcId, _))
-            .WillOnce(DoAll(SetArgPointee<1>(IComposerClient::DisplayConnectionType::INTERNAL),
-                            Return(hal::V2_4::Error::NONE)));
-
     const auto [innerDisplay, outerDisplay] = injectOuterDisplay();
 
     EXPECT_TRUE(innerDisplay->isPoweredOn());
@@ -423,12 +412,6 @@ TEST_F(DisplayModeSwitchingTest, innerXorOuterDisplay) {
 }
 
 TEST_F(DisplayModeSwitchingTest, innerAndOuterDisplay) {
-    SET_FLAG_FOR_TEST(flags::connected_display, true);
-
-    // For the inner display, this is handled by setupHwcHotplugCallExpectations.
-    EXPECT_CALL(*mComposer, getDisplayConnectionType(kOuterDisplayHwcId, _))
-            .WillOnce(DoAll(SetArgPointee<1>(IComposerClient::DisplayConnectionType::INTERNAL),
-                            Return(hal::V2_4::Error::NONE)));
     const auto [innerDisplay, outerDisplay] = injectOuterDisplay();
 
     EXPECT_TRUE(innerDisplay->isPoweredOn());
@@ -502,13 +485,6 @@ TEST_F(DisplayModeSwitchingTest, powerOffDuringModeSet) {
 }
 
 TEST_F(DisplayModeSwitchingTest, powerOffDuringConcurrentModeSet) {
-    SET_FLAG_FOR_TEST(flags::connected_display, true);
-
-    // For the inner display, this is handled by setupHwcHotplugCallExpectations.
-    EXPECT_CALL(*mComposer, getDisplayConnectionType(kOuterDisplayHwcId, _))
-            .WillOnce(DoAll(SetArgPointee<1>(IComposerClient::DisplayConnectionType::INTERNAL),
-                            Return(hal::V2_4::Error::NONE)));
-
     const auto [innerDisplay, outerDisplay] = injectOuterDisplay();
 
     EXPECT_TRUE(innerDisplay->isPoweredOn());
