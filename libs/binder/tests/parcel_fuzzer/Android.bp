@@ -131,6 +131,13 @@ cc_library {
         "libcutils",
         "libutils",
     ],
+    static_libs: [
+        "libbinder_random_parcel",
+    ],
+    include_dirs: [
+        "bionic/libc/kernel/android/uapi/",
+        "bionic/libc/kernel/uapi/",
+    ],
     local_include_dirs: [
         "include_random_parcel_seeds",
     ],
@@ -140,7 +147,11 @@ cc_library {
 cc_binary_host {
     name: "binder2corpus",
     static_libs: [
+        "libbinder_random_parcel",
         "libbinder_random_parcel_seeds",
+    ],
+    cflags: [
+        "-DBINDER_WITH_KERNEL_IPC",
     ],
     srcs: [
         "binder2corpus/binder2corpus.cpp",
@@ -149,5 +160,6 @@ cc_binary_host {
         "libbase",
         "libbinder",
         "libutils",
+        "libcutils",
     ],
 }
