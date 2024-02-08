@@ -102,6 +102,29 @@ TEST_F(HWComposerTest, isHeadless) {
     ASSERT_TRUE(mHwc.isHeadless());
 }
 
+TEST_F(HWComposerTest, getDisplayConnectionType) {
+    // Unknown display.
+    EXPECT_EQ(mHwc.getDisplayConnectionType(PhysicalDisplayId::fromPort(0)),
+              ui::DisplayConnectionType::Internal);
+
+    constexpr hal::HWDisplayId kHwcDisplayId = 1;
+    expectHotplugConnect(kHwcDisplayId);
+
+    const auto info = mHwc.onHotplug(kHwcDisplayId, hal::Connection::CONNECTED);
+    ASSERT_TRUE(info);
+
+    EXPECT_CALL(*mHal, getDisplayConnectionType(kHwcDisplayId, _))
+            .WillOnce(DoAll(SetArgPointee<1>(IComposerClient::DisplayConnectionType::EXTERNAL),
+                            Return(V2_4::Error::NONE)));
+
+    // The first call caches the connection type.
+    EXPECT_EQ(mHwc.getDisplayConnectionType(info->id), ui::DisplayConnectionType::External);
+
+    // Subsequent calls return the cached connection type.
+    EXPECT_EQ(mHwc.getDisplayConnectionType(info->id), ui::DisplayConnectionType::External);
+    EXPECT_EQ(mHwc.getDisplayConnectionType(info->id), ui::DisplayConnectionType::External);
+}
+
 TEST_F(HWComposerTest, getActiveMode) {
     // Unknown display.
     EXPECT_EQ(mHwc.getActiveMode(PhysicalDisplayId::fromPort(0)), ftl::Unexpected(BAD_INDEX));
@@ -449,7 +472,7 @@ TEST_F(HWComposerSetCallbackTest, loadsLayerMetadataSupport) {
                                     {kMetadata1Name, kMetadata1Mandatory},
                                     {kMetadata2Name, kMetadata2Mandatory},
                             }),
-                            Return(hardware::graphics::composer::V2_4::Error::NONE)));
+                            Return(V2_4::Error::NONE)));
     EXPECT_CALL(*mHal, getOverlaySupport(_)).WillOnce(Return(HalError::NONE));
     EXPECT_CALL(*mHal, getHdrConversionCapabilities(_)).WillOnce(Return(HalError::NONE));
 
@@ -467,8 +490,7 @@ TEST_F(HWComposerSetCallbackTest, loadsLayerMetadataSupport) {
 
 TEST_F(HWComposerSetCallbackTest, handlesUnsupportedCallToGetLayerGenericMetadataKeys) {
     EXPECT_CALL(*mHal, getCapabilities()).WillOnce(Return(std::vector<aidl::Capability>{}));
-    EXPECT_CALL(*mHal, getLayerGenericMetadataKeys(_))
-            .WillOnce(Return(hardware::graphics::composer::V2_4::Error::UNSUPPORTED));
+    EXPECT_CALL(*mHal, getLayerGenericMetadataKeys(_)).WillOnce(Return(V2_4::Error::UNSUPPORTED));
     EXPECT_CALL(*mHal, getOverlaySupport(_)).WillOnce(Return(HalError::UNSUPPORTED));
     EXPECT_CALL(*mHal, getHdrConversionCapabilities(_)).WillOnce(Return(HalError::UNSUPPORTED));
     EXPECT_CALL(*mHal, registerCallback(_));
@@ -528,7 +550,7 @@ TEST_F(HWComposerLayerGenericMetadataTest, forwardsSupportedMetadata) {
                 setLayerGenericMetadata(kDisplayId, kLayerId, kLayerGenericMetadata1Name,
                                         kLayerGenericMetadata1Mandatory,
                                         kLayerGenericMetadata1Value))
-            .WillOnce(Return(hardware::graphics::composer::V2_4::Error::NONE));
+            .WillOnce(Return(V2_4::Error::NONE));
     auto result = mLayer.setLayerGenericMetadata(kLayerGenericMetadata1Name,
                                                  kLayerGenericMetadata1Mandatory,
                                                  kLayerGenericMetadata1Value);
@@ -538,7 +560,7 @@ TEST_F(HWComposerLayerGenericMetadataTest, forwardsSupportedMetadata) {
                 setLayerGenericMetadata(kDisplayId, kLayerId, kLayerGenericMetadata2Name,
                                         kLayerGenericMetadata2Mandatory,
                                         kLayerGenericMetadata2Value))
-            .WillOnce(Return(hardware::graphics::composer::V2_4::Error::UNSUPPORTED));
+            .WillOnce(Return(V2_4::Error::UNSUPPORTED));
     result = mLayer.setLayerGenericMetadata(kLayerGenericMetadata2Name,
                                             kLayerGenericMetadata2Mandatory,
                                             kLayerGenericMetadata2Value);

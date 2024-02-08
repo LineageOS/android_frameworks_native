@@ -282,19 +282,28 @@ Error Display::getRequests(HWC2::DisplayRequest* outDisplayRequests,
     return Error::NONE;
 }
 
-Error Display::getConnectionType(ui::DisplayConnectionType* outType) const {
-    if (mType != DisplayType::PHYSICAL) return Error::BAD_DISPLAY;
+ftl::Expected<ui::DisplayConnectionType, hal::Error> Display::getConnectionType() const {
+    if (!mConnectionType) {
+        mConnectionType = [this]() -> decltype(mConnectionType) {
+            if (mType != DisplayType::PHYSICAL) {
+                return ftl::Unexpected(Error::BAD_DISPLAY);
+            }
 
-    using ConnectionType = Hwc2::IComposerClient::DisplayConnectionType;
-    ConnectionType connectionType;
-    const auto error = static_cast<Error>(mComposer.getDisplayConnectionType(mId, &connectionType));
-    if (error != Error::NONE) {
-        return error;
+            using ConnectionType = Hwc2::IComposerClient::DisplayConnectionType;
+            ConnectionType connectionType;
+
+            if (const auto error = static_cast<Error>(
+                        mComposer.getDisplayConnectionType(mId, &connectionType));
+                error != Error::NONE) {
+                return ftl::Unexpected(error);
+            }
+
+            return connectionType == ConnectionType::INTERNAL ? ui::DisplayConnectionType::Internal
+                                                              : ui::DisplayConnectionType::External;
+        }();
     }
 
-    *outType = connectionType == ConnectionType::INTERNAL ? ui::DisplayConnectionType::Internal
-                                                          : ui::DisplayConnectionType::External;
-    return Error::NONE;
+    return *mConnectionType;
 }
 
 bool Display::hasCapability(DisplayCapability capability) const {
@@ -420,16 +429,11 @@ Error Display::setActiveConfigWithConstraints(hal::HWConfigId configId,
     // FIXME (b/319505580): At least the first config set on an external display must be
     // `setActiveConfig`, so skip over the block that calls `setActiveConfigWithConstraints`
     // for simplicity.
-    ui::DisplayConnectionType type = ui::DisplayConnectionType::Internal;
     const bool connected_display = FlagManager::getInstance().connected_display();
-    if (connected_display) {
-        // Do not bail out on error, since the underlying API may return UNSUPPORTED on older HWCs.
-        // TODO: b/323905961 - Remove this AIDL call.
-        getConnectionType(&type);
-    }
 
     if (isVsyncPeriodSwitchSupported() &&
-        (!connected_display || type != ui::DisplayConnectionType::External)) {
+        (!connected_display ||
+         getConnectionType().value_opt() != ui::DisplayConnectionType::External)) {
         Hwc2::IComposerClient::VsyncPeriodChangeConstraints hwc2Constraints;
         hwc2Constraints.desiredTimeNanos = constraints.desiredTimeNanos;
         hwc2Constraints.seamlessRequired = constraints.seamlessRequired;
