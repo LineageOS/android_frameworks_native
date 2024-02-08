@@ -69,10 +69,14 @@ cc_test {
 cc_test {
     name: "binderRecordReplayTest",
     srcs: ["binderRecordReplayTest.cpp"],
+    cflags: [
+        "-DBINDER_WITH_KERNEL_IPC",
+    ],
     shared_libs: [
         "libbinder",
         "libcutils",
         "libutils",
+        "liblog",
     ],
     static_libs: [
         "binderRecordReplayTestIface-cpp",
@@ -95,6 +99,9 @@ aidl_interface {
         java: {
             enabled: true,
             platform_apis: true,
+        },
+        ndk: {
+            enabled: false,
         },
     },
 }
