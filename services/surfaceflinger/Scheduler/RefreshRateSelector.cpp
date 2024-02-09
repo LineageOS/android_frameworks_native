@@ -855,7 +855,7 @@ auto RefreshRateSelector::getRankedFrameRatesLocked(const std::vector<LayerRequi
         ALOGV("Touch Boost");
         ATRACE_FORMAT_INSTANT("%s (Touch Boost [late])",
                               to_string(touchRefreshRates.front().frameRateMode.fps).c_str());
-        return {touchRefreshRates, GlobalSignals{.touch = signals.touch}};
+        return {touchRefreshRates, GlobalSignals{.touch = true}};
     }
 
     // If we never scored any layers, and we don't favor high refresh rates, prefer to stay with the

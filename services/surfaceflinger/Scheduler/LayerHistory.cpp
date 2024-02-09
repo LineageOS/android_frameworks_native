@@ -221,9 +221,8 @@ auto LayerHistory::summarize(const RefreshRateSelector& selector, nsecs_t now) -
             const std::string categoryString = vote.category == FrameRateCategory::Default
                     ? ""
                     : base::StringPrintf("category=%s", ftl::enum_string(vote.category).c_str());
-            ATRACE_FORMAT_INSTANT("%s %s %s (%d%)", ftl::enum_string(vote.type).c_str(),
-                                  to_string(vote.fps).c_str(), categoryString.c_str(),
-                                  weight * 100);
+            ATRACE_FORMAT_INSTANT("%s %s %s (%.2f)", ftl::enum_string(vote.type).c_str(),
+                                  to_string(vote.fps).c_str(), categoryString.c_str(), weight);
             summary.push_back({info->getName(), info->getOwnerUid(), vote.type, vote.fps,
                                vote.seamlessness, vote.category, vote.categorySmoothSwitchOnly,
                                weight, layerFocused});

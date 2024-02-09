@@ -492,6 +492,7 @@ bool ProcessState::isDriverFeatureEnabled(const DriverFeature feature) {
     if (read(fd, &on, sizeof(on)) == -1) {
         ALOGE("%s: error reading to %s: %s", __func__,
                  names[static_cast<int>(feature)], strerror(errno));
+        close(fd);
         return false;
     }
     close(fd);

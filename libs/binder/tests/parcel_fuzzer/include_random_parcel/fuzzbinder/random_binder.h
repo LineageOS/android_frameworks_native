@@ -16,10 +16,24 @@
 
 #pragma once
 
+#include <binder/Binder.h>
 #include <binder/IBinder.h>
 #include <fuzzer/FuzzedDataProvider.h>
 
 namespace android {
+
+class RandomBinder : public BBinder {
+public:
+    RandomBinder(const String16& descriptor, std::vector<uint8_t>&& bytes);
+    const String16& getInterfaceDescriptor() const override;
+    status_t onTransact(uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags) override;
+
+private:
+    String16 mDescriptor;
+    // note may not all be used
+    std::vector<uint8_t> mBytes;
+    FuzzedDataProvider mProvider;
+};
 
 // Get a random binder object for use in fuzzing.
 //
