@@ -339,6 +339,61 @@ TEST_F(SchedulerTest, chooseDisplayModesSingleDisplay) {
     EXPECT_EQ(choice->get(), DisplayModeChoice({120_Hz, kDisplay1Mode120}, globalSignals));
 }
 
+TEST_F(SchedulerTest, chooseDisplayModesSingleDisplayHighHintTouchSignal) {
+    mScheduler->registerDisplay(kDisplayId1,
+                                std::make_shared<RefreshRateSelector>(kDisplay1Modes,
+                                                                      kDisplay1Mode60->getId()));
+
+    using DisplayModeChoice = TestableScheduler::DisplayModeChoice;
+
+    std::vector<RefreshRateSelector::LayerRequirement> layers =
+            std::vector<RefreshRateSelector::LayerRequirement>({{.weight = 1.f}, {.weight = 1.f}});
+    auto& lr1 = layers[0];
+    auto& lr2 = layers[1];
+
+    // Scenario that is similar to game. Expects no touch boost.
+    lr1.vote = RefreshRateSelector::LayerVoteType::ExplicitCategory;
+    lr1.frameRateCategory = FrameRateCategory::HighHint;
+    lr1.name = "ExplicitCategory HighHint";
+    lr2.vote = RefreshRateSelector::LayerVoteType::ExplicitDefault;
+    lr2.desiredRefreshRate = 30_Hz;
+    lr2.name = "30Hz ExplicitDefault";
+    mScheduler->setContentRequirements(layers);
+    auto modeChoices = mScheduler->chooseDisplayModes();
+    ASSERT_EQ(1u, modeChoices.size());
+    auto choice = modeChoices.get(kDisplayId1);
+    ASSERT_TRUE(choice);
+    EXPECT_EQ(choice->get(), DisplayModeChoice({60_Hz, kDisplay1Mode60}, {.touch = false}));
+
+    // Scenario that is similar to video playback and interaction. Expects touch boost.
+    lr1.vote = RefreshRateSelector::LayerVoteType::ExplicitCategory;
+    lr1.frameRateCategory = FrameRateCategory::HighHint;
+    lr1.name = "ExplicitCategory HighHint";
+    lr2.vote = RefreshRateSelector::LayerVoteType::ExplicitExactOrMultiple;
+    lr2.desiredRefreshRate = 30_Hz;
+    lr2.name = "30Hz ExplicitExactOrMultiple";
+    mScheduler->setContentRequirements(layers);
+    modeChoices = mScheduler->chooseDisplayModes();
+    ASSERT_EQ(1u, modeChoices.size());
+    choice = modeChoices.get(kDisplayId1);
+    ASSERT_TRUE(choice);
+    EXPECT_EQ(choice->get(), DisplayModeChoice({120_Hz, kDisplay1Mode120}, {.touch = true}));
+
+    // Scenario with explicit category and HighHint. Expects touch boost.
+    lr1.vote = RefreshRateSelector::LayerVoteType::ExplicitCategory;
+    lr1.frameRateCategory = FrameRateCategory::HighHint;
+    lr1.name = "ExplicitCategory HighHint";
+    lr2.vote = RefreshRateSelector::LayerVoteType::ExplicitCategory;
+    lr2.frameRateCategory = FrameRateCategory::Low;
+    lr2.name = "ExplicitCategory Low";
+    mScheduler->setContentRequirements(layers);
+    modeChoices = mScheduler->chooseDisplayModes();
+    ASSERT_EQ(1u, modeChoices.size());
+    choice = modeChoices.get(kDisplayId1);
+    ASSERT_TRUE(choice);
+    EXPECT_EQ(choice->get(), DisplayModeChoice({120_Hz, kDisplay1Mode120}, {.touch = true}));
+}
+
 TEST_F(SchedulerTest, chooseDisplayModesMultipleDisplays) {
     mScheduler->registerDisplay(kDisplayId1,
                                 std::make_shared<RefreshRateSelector>(kDisplay1Modes,
