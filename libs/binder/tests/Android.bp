@@ -100,7 +100,12 @@ aidl_interface {
             enabled: true,
             platform_apis: true,
         },
+
+        // TODO: switch from FileDescriptor to ParcelFileDescriptor
         ndk: {
+            enabled: false,
+        },
+        rust: {
             enabled: false,
         },
     },
