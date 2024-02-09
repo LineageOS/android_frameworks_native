@@ -20,6 +20,7 @@
 
 #include "KeyboardInputMapper.h"
 
+#include <ftl/enum.h>
 #include <ui/Rotation.h>
 
 namespace android {
@@ -143,7 +144,7 @@ void KeyboardInputMapper::dump(std::string& dump) {
     dump += INDENT2 "Keyboard Input Mapper:\n";
     dumpParameters(dump);
     dump += StringPrintf(INDENT3 "KeyboardType: %d\n", mKeyboardType);
-    dump += StringPrintf(INDENT3 "Orientation: %d\n", getOrientation());
+    dump += StringPrintf(INDENT3 "Orientation: %s\n", ftl::enum_string(getOrientation()).c_str());
     dump += StringPrintf(INDENT3 "KeyDowns: %zu keys currently down\n", mKeyDowns.size());
     dump += StringPrintf(INDENT3 "MetaState: 0x%0x\n", mMetaState);
     dump += INDENT3 "KeyboardLayoutInfo: ";
