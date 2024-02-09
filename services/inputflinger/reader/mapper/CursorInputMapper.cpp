@@ -23,6 +23,7 @@
 #include <optional>
 
 #include <com_android_input_flags.h>
+#include <ftl/enum.h>
 #include <input/AccelerationCurve.h>
 
 #include "CursorButtonAccumulator.h"
@@ -136,7 +137,7 @@ void CursorInputMapper::dump(std::string& dump) {
     dump += StringPrintf(INDENT3 "VWheelScale: %0.3f\n", mVWheelScale);
     dump += StringPrintf(INDENT3 "HWheelScale: %0.3f\n", mHWheelScale);
     dump += StringPrintf(INDENT3 "DisplayId: %s\n", toString(mDisplayId).c_str());
-    dump += StringPrintf(INDENT3 "Orientation: %d\n", mOrientation);
+    dump += StringPrintf(INDENT3 "Orientation: %s\n", ftl::enum_string(mOrientation).c_str());
     dump += StringPrintf(INDENT3 "ButtonState: 0x%08x\n", mButtonState);
     dump += StringPrintf(INDENT3 "Down: %s\n", toString(isPointerDown(mButtonState)));
     dump += StringPrintf(INDENT3 "DownTime: %" PRId64 "\n", mDownTime);
