@@ -16,6 +16,7 @@
 
 package android.hardware;
 
+import android.hardware.CameraPrivacyAllowlistEntry;
 import android.hardware.ISensorPrivacyListener;
 
 /** @hide */
@@ -41,4 +42,15 @@ interface ISensorPrivacyManager {
     void setToggleSensorPrivacy(int userId, int source, int sensor, boolean enable);
 
     void setToggleSensorPrivacyForProfileGroup(int userId, int source, int sensor, boolean enable);
+
+    List<CameraPrivacyAllowlistEntry> getCameraPrivacyAllowlist();
+
+    int getToggleSensorPrivacyState(int toggleType, int sensor);
+
+    void setToggleSensorPrivacyState(int userId, int source, int sensor, int state);
+
+    void setToggleSensorPrivacyStateForProfileGroup(int userId, int source, int sensor, int  state);
+
+    boolean isCameraPrivacyEnabled(String packageName);
+
 }
