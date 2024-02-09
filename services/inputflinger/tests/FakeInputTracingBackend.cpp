@@ -163,7 +163,8 @@ base::Result<void> VerifyingTrace::verifyEventTraced(const Event& expectedEvent,
 
 // --- FakeInputTracingBackend ---
 
-void FakeInputTracingBackend::traceKeyEvent(const trace::TracedKeyEvent& event) {
+void FakeInputTracingBackend::traceKeyEvent(const trace::TracedKeyEvent& event,
+                                            const trace::TracedEventArgs&) {
     {
         std::scoped_lock lock(mTrace->mLock);
         mTrace->mTracedEvents.emplace(event.id, event);
@@ -171,7 +172,8 @@ void FakeInputTracingBackend::traceKeyEvent(const trace::TracedKeyEvent& event) 
     mTrace->mEventTracedCondition.notify_all();
 }
 
-void FakeInputTracingBackend::traceMotionEvent(const trace::TracedMotionEvent& event) {
+void FakeInputTracingBackend::traceMotionEvent(const trace::TracedMotionEvent& event,
+                                               const trace::TracedEventArgs&) {
     {
         std::scoped_lock lock(mTrace->mLock);
         mTrace->mTracedEvents.emplace(event.id, event);
@@ -179,7 +181,8 @@ void FakeInputTracingBackend::traceMotionEvent(const trace::TracedMotionEvent& e
     mTrace->mEventTracedCondition.notify_all();
 }
 
-void FakeInputTracingBackend::traceWindowDispatch(const WindowDispatchArgs& args) {
+void FakeInputTracingBackend::traceWindowDispatch(const WindowDispatchArgs& args,
+                                                  const trace::TracedEventArgs&) {
     {
         std::scoped_lock lock(mTrace->mLock);
         mTrace->mTracedWindowDispatches.push_back(args);
