@@ -21,5 +21,4 @@ package android.hardware;
  */
 oneway interface ISensorPrivacyListener {
     void onSensorPrivacyChanged(int toggleType, int sensor, boolean enabled);
-    void onSensorPrivacyStateChanged(int toggleType, int sensor, int state);
 }
