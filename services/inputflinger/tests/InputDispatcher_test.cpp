@@ -155,7 +155,7 @@ static KeyEvent getTestKeyEvent() {
 class FakeInputDispatcherPolicy : public InputDispatcherPolicyInterface {
     struct AnrResult {
         sp<IBinder> token{};
-        gui::Pid pid{gui::Pid::INVALID};
+        std::optional<gui::Pid> pid{};
     };
     /* Stores data about a user-activity-poke event from the dispatcher. */
     struct UserActivityPokeEvent {
@@ -260,7 +260,7 @@ public:
 
     void assertNotifyWindowUnresponsiveWasCalled(std::chrono::nanoseconds timeout,
                                                  const sp<IBinder>& expectedToken,
-                                                 gui::Pid expectedPid) {
+                                                 std::optional<gui::Pid> expectedPid) {
         std::unique_lock lock(mLock);
         android::base::ScopedLockAssertion assumeLocked(mLock);
         AnrResult result;
@@ -280,7 +280,7 @@ public:
     }
 
     void assertNotifyWindowResponsiveWasCalled(const sp<IBinder>& expectedToken,
-                                               gui::Pid expectedPid) {
+                                               std::optional<gui::Pid> expectedPid) {
         std::unique_lock lock(mLock);
         android::base::ScopedLockAssertion assumeLocked(mLock);
         AnrResult result;
@@ -524,16 +524,14 @@ private:
     void notifyWindowUnresponsive(const sp<IBinder>& connectionToken, std::optional<gui::Pid> pid,
                                   const std::string&) override {
         std::scoped_lock lock(mLock);
-        ASSERT_TRUE(pid.has_value());
-        mAnrWindows.push({connectionToken, *pid});
+        mAnrWindows.push({connectionToken, pid});
         mNotifyAnr.notify_all();
     }
 
     void notifyWindowResponsive(const sp<IBinder>& connectionToken,
                                 std::optional<gui::Pid> pid) override {
         std::scoped_lock lock(mLock);
-        ASSERT_TRUE(pid.has_value());
-        mResponsiveWindows.push({connectionToken, *pid});
+        mResponsiveWindows.push({connectionToken, pid});
         mNotifyAnr.notify_all();
     }
 
@@ -9057,6 +9055,61 @@ TEST_F(InputDispatcherSingleWindowAnr, TwoGesturesWithAnr) {
                                       .pointer(PointerBuilder(0, ToolType::FINGER).x(15).y(15))
                                       .build());
     mWindow->consumeMotionEvent(WithMotionAction(ACTION_DOWN));
+}
+
+// Send an event to the app and have the app not respond right away. Then remove the app window.
+// When the window is removed, the dispatcher will cancel the events for that window.
+// So InputDispatcher will enqueue ACTION_CANCEL event as well.
+TEST_F(InputDispatcherSingleWindowAnr, AnrAfterWindowRemoval) {
+    mDispatcher->notifyMotion(generateMotionArgs(AMOTION_EVENT_ACTION_DOWN,
+                                                 AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+                                                 {WINDOW_LOCATION}));
+
+    const auto [sequenceNum, _] = mWindow->receiveEvent(); // ACTION_DOWN
+    ASSERT_TRUE(sequenceNum);
+
+    // Remove the window, but the input channel should remain alive.
+    mDispatcher->onWindowInfosChanged({{}, {}, 0, 0});
+
+    const std::chrono::duration timeout = mWindow->getDispatchingTimeout(DISPATCHING_TIMEOUT);
+    // Since the window was removed, Dispatcher does not know the PID associated with the window
+    // anymore, so the policy is notified without the PID.
+    mFakePolicy->assertNotifyWindowUnresponsiveWasCalled(timeout, mWindow->getToken(),
+                                                         /*pid=*/std::nullopt);
+
+    mWindow->finishEvent(*sequenceNum);
+    // The cancellation was generated when the window was removed, along with the focus event.
+    mWindow->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_CANCEL), WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    mWindow->consumeFocusEvent(false);
+    ASSERT_TRUE(mDispatcher->waitForIdle());
+    mFakePolicy->assertNotifyWindowResponsiveWasCalled(mWindow->getToken(), /*pid=*/std::nullopt);
+}
+
+// Send an event to the app and have the app not respond right away. Wait for the policy to be
+// notified of the unresponsive window, then remove the app window.
+TEST_F(InputDispatcherSingleWindowAnr, AnrFollowedByWindowRemoval) {
+    mDispatcher->notifyMotion(generateMotionArgs(AMOTION_EVENT_ACTION_DOWN,
+                                                 AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
+                                                 {WINDOW_LOCATION}));
+
+    const auto [sequenceNum, _] = mWindow->receiveEvent(); // ACTION_DOWN
+    ASSERT_TRUE(sequenceNum);
+    const std::chrono::duration timeout = mWindow->getDispatchingTimeout(DISPATCHING_TIMEOUT);
+    mFakePolicy->assertNotifyWindowUnresponsiveWasCalled(timeout, mWindow);
+
+    // Remove the window, but the input channel should remain alive.
+    mDispatcher->onWindowInfosChanged({{}, {}, 0, 0});
+
+    mWindow->finishEvent(*sequenceNum);
+    // The cancellation was generated during the ANR, and the window lost focus when it was removed.
+    mWindow->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_CANCEL), WithDisplayId(ADISPLAY_ID_DEFAULT)));
+    mWindow->consumeFocusEvent(false);
+    ASSERT_TRUE(mDispatcher->waitForIdle());
+    // Since the window was removed, Dispatcher does not know the PID associated with the window
+    // becoming responsive, so the policy is notified without the PID.
+    mFakePolicy->assertNotifyWindowResponsiveWasCalled(mWindow->getToken(), /*pid=*/std::nullopt);
 }
 
 class InputDispatcherMultiWindowAnr : public InputDispatcherTest {
