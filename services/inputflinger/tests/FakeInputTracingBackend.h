@@ -83,9 +83,9 @@ public:
 private:
     std::shared_ptr<VerifyingTrace> mTrace;
 
-    void traceKeyEvent(const trace::TracedKeyEvent& entry) const override;
-    void traceMotionEvent(const trace::TracedMotionEvent& entry) const override;
-    void traceWindowDispatch(const WindowDispatchArgs& entry) const override;
+    void traceKeyEvent(const trace::TracedKeyEvent& entry) override;
+    void traceMotionEvent(const trace::TracedMotionEvent& entry) override;
+    void traceWindowDispatch(const WindowDispatchArgs& entry) override;
 };
 
 } // namespace android::inputdispatcher
