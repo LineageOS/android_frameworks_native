@@ -159,6 +159,25 @@ int InvertTransformToNative(VkSurfaceTransformFlagBitsKHR transform) {
     }
 }
 
+const static VkColorSpaceKHR colorSpaceSupportedByVkEXTSwapchainColorspace[] = {
+    VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT,
+    VK_COLOR_SPACE_DISPLAY_P3_LINEAR_EXT,
+    VK_COLOR_SPACE_DCI_P3_NONLINEAR_EXT,
+    VK_COLOR_SPACE_BT709_LINEAR_EXT,
+    VK_COLOR_SPACE_BT709_NONLINEAR_EXT,
+    VK_COLOR_SPACE_BT2020_LINEAR_EXT,
+    VK_COLOR_SPACE_HDR10_ST2084_EXT,
+    VK_COLOR_SPACE_HDR10_HLG_EXT,
+    VK_COLOR_SPACE_ADOBERGB_LINEAR_EXT,
+    VK_COLOR_SPACE_ADOBERGB_NONLINEAR_EXT,
+    VK_COLOR_SPACE_PASS_THROUGH_EXT,
+    VK_COLOR_SPACE_DCI_P3_LINEAR_EXT};
+
+const static VkColorSpaceKHR
+    colorSpaceSupportedByVkEXTSwapchainColorspaceOnFP16SurfaceOnly[] = {
+        VK_COLOR_SPACE_EXTENDED_SRGB_LINEAR_EXT,
+        VK_COLOR_SPACE_EXTENDED_SRGB_NONLINEAR_EXT};
+
 class TimingInfo {
    public:
     TimingInfo(const VkPresentTimeGOOGLE* qp, uint64_t nativeFrameId)
@@ -746,16 +765,22 @@ VkResult GetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice pdev,
     };
 
     if (colorspace_ext) {
-        all_formats.emplace_back(VkSurfaceFormatKHR{
-            VK_FORMAT_R8G8B8A8_UNORM, VK_COLOR_SPACE_PASS_THROUGH_EXT});
-        all_formats.emplace_back(VkSurfaceFormatKHR{
-            VK_FORMAT_R8G8B8A8_SRGB, VK_COLOR_SPACE_PASS_THROUGH_EXT});
-        all_formats.emplace_back(VkSurfaceFormatKHR{
-            VK_FORMAT_R8G8B8A8_UNORM, VK_COLOR_SPACE_BT709_LINEAR_EXT});
-        all_formats.emplace_back(VkSurfaceFormatKHR{
-            VK_FORMAT_R8G8B8A8_UNORM, VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT});
-        all_formats.emplace_back(VkSurfaceFormatKHR{
-            VK_FORMAT_R8G8B8A8_SRGB, VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT});
+        for (VkColorSpaceKHR colorSpace :
+             colorSpaceSupportedByVkEXTSwapchainColorspace) {
+            if (GetNativeDataspace(colorSpace, GetNativePixelFormat(
+                                                   VK_FORMAT_R8G8B8A8_UNORM)) !=
+                DataSpace::UNKNOWN) {
+                all_formats.emplace_back(
+                    VkSurfaceFormatKHR{VK_FORMAT_R8G8B8A8_UNORM, colorSpace});
+            }
+
+            if (GetNativeDataspace(colorSpace, GetNativePixelFormat(
+                                                   VK_FORMAT_R8G8B8A8_SRGB)) !=
+                DataSpace::UNKNOWN) {
+                all_formats.emplace_back(
+                    VkSurfaceFormatKHR{VK_FORMAT_R8G8B8A8_SRGB, colorSpace});
+            }
+        }
     }
 
     // NOTE: Any new formats that are added must be coordinated across different
@@ -767,9 +792,16 @@ VkResult GetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice pdev,
         all_formats.emplace_back(VkSurfaceFormatKHR{
             VK_FORMAT_R5G6B5_UNORM_PACK16, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR});
         if (colorspace_ext) {
-            all_formats.emplace_back(
-                VkSurfaceFormatKHR{VK_FORMAT_R5G6B5_UNORM_PACK16,
-                                   VK_COLOR_SPACE_PASS_THROUGH_EXT});
+            for (VkColorSpaceKHR colorSpace :
+                 colorSpaceSupportedByVkEXTSwapchainColorspace) {
+                if (GetNativeDataspace(
+                        colorSpace,
+                        GetNativePixelFormat(VK_FORMAT_R5G6B5_UNORM_PACK16)) !=
+                    DataSpace::UNKNOWN) {
+                    all_formats.emplace_back(VkSurfaceFormatKHR{
+                        VK_FORMAT_R5G6B5_UNORM_PACK16, colorSpace});
+                }
+            }
         }
     }
 
@@ -778,21 +810,28 @@ VkResult GetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice pdev,
         all_formats.emplace_back(VkSurfaceFormatKHR{
             VK_FORMAT_R16G16B16A16_SFLOAT, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR});
         if (colorspace_ext) {
-            all_formats.emplace_back(
-                VkSurfaceFormatKHR{VK_FORMAT_R16G16B16A16_SFLOAT,
-                                   VK_COLOR_SPACE_PASS_THROUGH_EXT});
-            all_formats.emplace_back(
-                VkSurfaceFormatKHR{VK_FORMAT_R16G16B16A16_SFLOAT,
-                                   VK_COLOR_SPACE_EXTENDED_SRGB_LINEAR_EXT});
-            all_formats.emplace_back(
-                VkSurfaceFormatKHR{VK_FORMAT_R16G16B16A16_SFLOAT,
-                                   VK_COLOR_SPACE_EXTENDED_SRGB_NONLINEAR_EXT});
-            all_formats.emplace_back(
-                VkSurfaceFormatKHR{VK_FORMAT_R16G16B16A16_SFLOAT,
-                                   VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT});
-            all_formats.emplace_back(
-                VkSurfaceFormatKHR{VK_FORMAT_R16G16B16A16_SFLOAT,
-                                   VK_COLOR_SPACE_DISPLAY_P3_LINEAR_EXT});
+            for (VkColorSpaceKHR colorSpace :
+                 colorSpaceSupportedByVkEXTSwapchainColorspace) {
+                if (GetNativeDataspace(
+                        colorSpace,
+                        GetNativePixelFormat(VK_FORMAT_R16G16B16A16_SFLOAT)) !=
+                    DataSpace::UNKNOWN) {
+                    all_formats.emplace_back(VkSurfaceFormatKHR{
+                        VK_FORMAT_R16G16B16A16_SFLOAT, colorSpace});
+                }
+            }
+
+            for (
+                VkColorSpaceKHR colorSpace :
+                colorSpaceSupportedByVkEXTSwapchainColorspaceOnFP16SurfaceOnly) {
+                if (GetNativeDataspace(
+                        colorSpace,
+                        GetNativePixelFormat(VK_FORMAT_R16G16B16A16_SFLOAT)) !=
+                    DataSpace::UNKNOWN) {
+                    all_formats.emplace_back(VkSurfaceFormatKHR{
+                        VK_FORMAT_R16G16B16A16_SFLOAT, colorSpace});
+                }
+            }
         }
     }
 
@@ -802,12 +841,16 @@ VkResult GetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice pdev,
             VkSurfaceFormatKHR{VK_FORMAT_A2B10G10R10_UNORM_PACK32,
                                VK_COLOR_SPACE_SRGB_NONLINEAR_KHR});
         if (colorspace_ext) {
-            all_formats.emplace_back(
-                VkSurfaceFormatKHR{VK_FORMAT_A2B10G10R10_UNORM_PACK32,
-                                   VK_COLOR_SPACE_PASS_THROUGH_EXT});
-            all_formats.emplace_back(
-                VkSurfaceFormatKHR{VK_FORMAT_A2B10G10R10_UNORM_PACK32,
-                                   VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT});
+            for (VkColorSpaceKHR colorSpace :
+                 colorSpaceSupportedByVkEXTSwapchainColorspace) {
+                if (GetNativeDataspace(
+                        colorSpace, GetNativePixelFormat(
+                                        VK_FORMAT_A2B10G10R10_UNORM_PACK32)) !=
+                    DataSpace::UNKNOWN) {
+                    all_formats.emplace_back(VkSurfaceFormatKHR{
+                        VK_FORMAT_A2B10G10R10_UNORM_PACK32, colorSpace});
+                }
+            }
         }
     }
 
@@ -840,12 +883,18 @@ VkResult GetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice pdev,
             VkSurfaceFormatKHR{VK_FORMAT_R10X6G10X6B10X6A10X6_UNORM_4PACK16,
                                VK_COLOR_SPACE_SRGB_NONLINEAR_KHR});
         if (colorspace_ext) {
-            all_formats.emplace_back(
-                VkSurfaceFormatKHR{VK_FORMAT_R10X6G10X6B10X6A10X6_UNORM_4PACK16,
-                                   VK_COLOR_SPACE_PASS_THROUGH_EXT});
-            all_formats.emplace_back(
-                VkSurfaceFormatKHR{VK_FORMAT_R10X6G10X6B10X6A10X6_UNORM_4PACK16,
-                                   VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT});
+            for (VkColorSpaceKHR colorSpace :
+                 colorSpaceSupportedByVkEXTSwapchainColorspace) {
+                if (GetNativeDataspace(
+                        colorSpace,
+                        GetNativePixelFormat(
+                            VK_FORMAT_R10X6G10X6B10X6A10X6_UNORM_4PACK16)) !=
+                    DataSpace::UNKNOWN) {
+                    all_formats.emplace_back(VkSurfaceFormatKHR{
+                        VK_FORMAT_R10X6G10X6B10X6A10X6_UNORM_4PACK16,
+                        colorSpace});
+                }
+            }
         }
     }
 
