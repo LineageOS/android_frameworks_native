@@ -340,6 +340,12 @@ private:
             binder::Status onSensorPrivacyChanged(int toggleType, int sensor,
                                                   bool enabled);
 
+            // This callback is used for additional automotive-specific states for sensor privacy
+            // such as AUTO_DRIVER_ASSISTANCE_APPS. The newly defined states will only be valid
+            // for camera privacy on automotive devices. onSensorPrivacyChanged() will still be
+            // invoked whenever the enabled status of a toggle changes.
+            binder::Status onSensorPrivacyStateChanged(int, int, int) {return binder::Status::ok();}
+
         protected:
             std::atomic_bool mSensorPrivacyEnabled;
             wp<SensorService> mService;

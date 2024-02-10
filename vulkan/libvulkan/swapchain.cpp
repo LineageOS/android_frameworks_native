@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "vulkan/vulkan_core.h"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 #include <aidl/android/hardware/graphics/common/Dataspace.h>
@@ -789,6 +790,9 @@ VkResult GetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice pdev,
             all_formats.emplace_back(
                 VkSurfaceFormatKHR{VK_FORMAT_R16G16B16A16_SFLOAT,
                                    VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT});
+            all_formats.emplace_back(
+                VkSurfaceFormatKHR{VK_FORMAT_R16G16B16A16_SFLOAT,
+                                   VK_COLOR_SPACE_DISPLAY_P3_LINEAR_EXT});
         }
     }
 
