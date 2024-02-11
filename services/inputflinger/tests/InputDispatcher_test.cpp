@@ -1482,11 +1482,12 @@ private:
 
         switch (event->getType()) {
             case InputEventType::KEY: {
-                gVerifyingTrace->expectKeyDispatchTraced(static_cast<KeyEvent&>(*event));
+                gVerifyingTrace->expectKeyDispatchTraced(static_cast<KeyEvent&>(*event), mInfo.id);
                 break;
             }
             case InputEventType::MOTION: {
-                gVerifyingTrace->expectMotionDispatchTraced(static_cast<MotionEvent&>(*event));
+                gVerifyingTrace->expectMotionDispatchTraced(static_cast<MotionEvent&>(*event),
+                                                            mInfo.id);
                 break;
             }
             default:
