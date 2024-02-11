@@ -39,10 +39,10 @@ public:
     VerifyingTrace() = default;
 
     /** Add an expectation for a key event to be traced. */
-    void expectKeyDispatchTraced(const KeyEvent& event);
+    void expectKeyDispatchTraced(const KeyEvent& event, int32_t windowId);
 
     /** Add an expectation for a motion event to be traced. */
-    void expectMotionDispatchTraced(const MotionEvent& event);
+    void expectMotionDispatchTraced(const MotionEvent& event, int32_t windowId);
 
     /**
      * Wait and verify that all expected events are traced.
@@ -59,14 +59,17 @@ private:
     std::mutex mLock;
     std::condition_variable mEventTracedCondition;
     std::unordered_set<uint32_t /*eventId*/> mTracedEvents GUARDED_BY(mLock);
-    std::vector<std::variant<KeyEvent, MotionEvent>> mExpectedEvents GUARDED_BY(mLock);
+    using WindowDispatchArgs = trace::InputTracingBackendInterface::WindowDispatchArgs;
+    std::vector<WindowDispatchArgs> mTracedWindowDispatches GUARDED_BY(mLock);
+    std::vector<std::pair<std::variant<KeyEvent, MotionEvent>, int32_t /*windowId*/>>
+            mExpectedEvents GUARDED_BY(mLock);
 
     friend class FakeInputTracingBackend;
 
     // Helper to verify that the given event appears as expected in the trace. If the verification
     // fails, the error message describes why.
     template <typename Event>
-    base::Result<void> verifyEventTraced(const Event&) const REQUIRES(mLock);
+    base::Result<void> verifyEventTraced(const Event&, int32_t windowId) const REQUIRES(mLock);
 };
 
 /**
@@ -82,7 +85,7 @@ private:
 
     void traceKeyEvent(const trace::TracedKeyEvent& entry) const override;
     void traceMotionEvent(const trace::TracedMotionEvent& entry) const override;
-    void traceWindowDispatch(const WindowDispatchArgs& entry) const override {}
+    void traceWindowDispatch(const WindowDispatchArgs& entry) const override;
 };
 
 } // namespace android::inputdispatcher
