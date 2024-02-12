@@ -513,13 +513,6 @@ void Flattener::buildCachedSets(time_point now) {
         }
     }
 
-    for (const CachedSet& layer : mLayers) {
-        if (layer.hasSolidColorLayers()) {
-            ATRACE_NAME("layer->hasSolidColorLayers()");
-            return;
-        }
-    }
-
     std::vector<Run> runs = findCandidateRuns(now);
 
     std::optional<Run> bestRun = findBestRun(runs);
