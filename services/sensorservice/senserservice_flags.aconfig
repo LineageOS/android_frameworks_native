@@ -1,4 +1,5 @@
 package: "com.android.frameworks.sensorservice.flags"
+container: "system"
 
 flag {
   name: "dynamic_sensor_hal_reconnect_handling"

@@ -27,6 +27,7 @@
 #include "HWC2.h"
 
 #include <android/configuration.h>
+#include <common/FlagManager.h>
 #include <ui/Fence.h>
 #include <ui/FloatRect.h>
 #include <ui/GraphicBuffer.h>
@@ -416,7 +417,19 @@ Error Display::setActiveConfigWithConstraints(hal::HWConfigId configId,
                                               VsyncPeriodChangeTimeline* outTimeline) {
     ALOGV("[%" PRIu64 "] setActiveConfigWithConstraints", mId);
 
-    if (isVsyncPeriodSwitchSupported()) {
+    // FIXME (b/319505580): At least the first config set on an external display must be
+    // `setActiveConfig`, so skip over the block that calls `setActiveConfigWithConstraints`
+    // for simplicity.
+    ui::DisplayConnectionType type = ui::DisplayConnectionType::Internal;
+    const bool connected_display = FlagManager::getInstance().connected_display();
+    if (connected_display) {
+        // Do not bail out on error, since the underlying API may return UNSUPPORTED on older HWCs.
+        // TODO: b/323905961 - Remove this AIDL call.
+        getConnectionType(&type);
+    }
+
+    if (isVsyncPeriodSwitchSupported() &&
+        (!connected_display || type != ui::DisplayConnectionType::External)) {
         Hwc2::IComposerClient::VsyncPeriodChangeConstraints hwc2Constraints;
         hwc2Constraints.desiredTimeNanos = constraints.desiredTimeNanos;
         hwc2Constraints.seamlessRequired = constraints.seamlessRequired;

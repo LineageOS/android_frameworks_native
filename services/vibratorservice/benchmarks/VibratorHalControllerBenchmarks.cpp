@@ -152,6 +152,7 @@ BENCHMARK_WRAPPER(VibratorBench, off, {
 
 BENCHMARK_WRAPPER(VibratorBench, setAmplitude, {
     if (!hasCapabilities(vibrator::Capabilities::AMPLITUDE_CONTROL, state)) {
+        state.SkipWithMessage("missing capability");
         return;
     }
 
@@ -180,6 +181,7 @@ BENCHMARK_WRAPPER(VibratorBench, setAmplitude, {
 
 BENCHMARK_WRAPPER(VibratorBench, setAmplitudeCached, {
     if (!hasCapabilities(vibrator::Capabilities::AMPLITUDE_CONTROL, state)) {
+        state.SkipWithMessage("missing capability");
         return;
     }
 
@@ -200,6 +202,7 @@ BENCHMARK_WRAPPER(VibratorBench, setAmplitudeCached, {
 
 BENCHMARK_WRAPPER(VibratorBench, setExternalControl, {
     if (!hasCapabilities(vibrator::Capabilities::EXTERNAL_CONTROL, state)) {
+        state.SkipWithMessage("missing capability");
         return;
     }
 
@@ -221,6 +224,7 @@ BENCHMARK_WRAPPER(VibratorBench, setExternalControl, {
 
 BENCHMARK_WRAPPER(VibratorBench, setExternalControlCached, {
     if (!hasCapabilities(vibrator::Capabilities::EXTERNAL_CONTROL, state)) {
+        state.SkipWithMessage("missing capability");
         return;
     }
 
@@ -239,6 +243,7 @@ BENCHMARK_WRAPPER(VibratorBench, setExternalControlCached, {
 
 BENCHMARK_WRAPPER(VibratorBench, setExternalAmplitudeCached, {
     if (!hasCapabilities(vibrator::Capabilities::EXTERNAL_AMPLITUDE_CONTROL, state)) {
+        state.SkipWithMessage("missing capability");
         return;
     }
 
@@ -331,9 +336,11 @@ protected:
 
 BENCHMARK_WRAPPER(VibratorEffectsBench, alwaysOnEnable, {
     if (!hasCapabilities(vibrator::Capabilities::ALWAYS_ON_CONTROL, state)) {
+        state.SkipWithMessage("missing capability");
         return;
     }
     if (!hasArgs(state)) {
+        state.SkipWithMessage("missing args");
         return;
     }
 
@@ -357,9 +364,11 @@ BENCHMARK_WRAPPER(VibratorEffectsBench, alwaysOnEnable, {
 
 BENCHMARK_WRAPPER(VibratorEffectsBench, alwaysOnDisable, {
     if (!hasCapabilities(vibrator::Capabilities::ALWAYS_ON_CONTROL, state)) {
+        state.SkipWithMessage("missing capability");
         return;
     }
     if (!hasArgs(state)) {
+        state.SkipWithMessage("missing args");
         return;
     }
 
@@ -384,6 +393,7 @@ BENCHMARK_WRAPPER(VibratorEffectsBench, alwaysOnDisable, {
 
 BENCHMARK_WRAPPER(VibratorEffectsBench, performEffect, {
     if (!hasArgs(state)) {
+        state.SkipWithMessage("missing args");
         return;
     }
 
@@ -441,9 +451,11 @@ protected:
 
 BENCHMARK_WRAPPER(VibratorPrimitivesBench, performComposedEffect, {
     if (!hasCapabilities(vibrator::Capabilities::COMPOSE_EFFECTS, state)) {
+        state.SkipWithMessage("missing capability");
         return;
     }
     if (!hasArgs(state)) {
+        state.SkipWithMessage("missing args");
         return;
     }
 

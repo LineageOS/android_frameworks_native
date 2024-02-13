@@ -1,4 +1,5 @@
 package: "com.android.graphics.bufferstreams.flags"
+container: "system"
 
 flag {
   name: "bufferstreams_steel_thread"
