@@ -140,7 +140,9 @@ public:
      */
     virtual void setMaximumObscuringOpacityForTouch(float opacity) = 0;
 
-    /* Transfers touch focus from one window to another window.
+    /**
+     * Transfers touch focus from one window to another window. Transferring touch focus will not
+     * have any effect on the focused window.
      *
      * Returns true on success.  False if the window did not actually have touch focus.
      */
@@ -149,6 +151,7 @@ public:
 
     /**
      * Transfer touch focus to the provided channel, no matter where the current touch is.
+     * Transferring touch focus will not have any effect on the focused window.
      *
      * Return true on success, false if there was no on-going touch.
      */
