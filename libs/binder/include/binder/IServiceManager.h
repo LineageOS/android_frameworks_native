@@ -207,6 +207,8 @@ status_t getService(const String16& name, sp<INTERFACE>* outService)
     return NAME_NOT_FOUND;
 }
 
+void* openDeclaredPassthroughHal(const String16& interface, const String16& instance, int flag);
+
 bool checkCallingPermission(const String16& permission);
 bool checkCallingPermission(const String16& permission,
                             int32_t* outPid, int32_t* outUid);
