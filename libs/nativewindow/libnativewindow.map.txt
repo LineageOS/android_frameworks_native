@@ -2,7 +2,7 @@ LIBNATIVEWINDOW {
   global:
     AHardwareBuffer_acquire;
     AHardwareBuffer_allocate;
-    AHardwareBuffer_allocate2; # llndk systemapi
+    AHardwareBuffer_allocateWithOptions; # llndk systemapi
     AHardwareBuffer_createFromHandle; # llndk systemapi
     AHardwareBuffer_describe;
     AHardwareBuffer_getId; # introduced=31

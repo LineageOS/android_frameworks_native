@@ -188,7 +188,7 @@ TEST(AHardwareBufferTest, Allocate2NoExtras) {
     };
 
     AHardwareBuffer* buffer = nullptr;
-    ASSERT_EQ(0, AHardwareBuffer_allocate2(&desc, nullptr, 0, &buffer));
+    ASSERT_EQ(0, AHardwareBuffer_allocateWithOptions(&desc, nullptr, 0, &buffer));
     uint64_t id = 0;
     EXPECT_EQ(0, AHardwareBuffer_getId(buffer, &id));
     EXPECT_NE(0, id);
@@ -219,7 +219,7 @@ TEST(AHardwareBufferTest, Allocate2WithExtras) {
     std::array<AHardwareBufferLongOptions, 1> extras = {{
             {.name = "android.hardware.graphics.common.Dataspace", ADATASPACE_DISPLAY_P3},
     }};
-    ASSERT_EQ(0, AHardwareBuffer_allocate2(&desc, extras.data(), extras.size(), &buffer));
+    ASSERT_EQ(0, AHardwareBuffer_allocateWithOptions(&desc, extras.data(), extras.size(), &buffer));
     uint64_t id = 0;
     EXPECT_EQ(0, AHardwareBuffer_getId(buffer, &id));
     EXPECT_NE(0, id);

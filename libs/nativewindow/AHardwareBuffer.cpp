@@ -586,7 +586,7 @@ int AHardwareBuffer_createFromHandle(const AHardwareBuffer_Desc* desc,
     return NO_ERROR;
 }
 
-enum AHardwareBufferStatus AHardwareBuffer_allocate2(
+enum AHardwareBufferStatus AHardwareBuffer_allocateWithOptions(
         const AHardwareBuffer_Desc* desc, const AHardwareBufferLongOptions* additionalOptions,
         size_t additionalOptionsSize, AHardwareBuffer** outBuffer) {
     (void)additionalOptions;
