@@ -5562,8 +5562,8 @@ InputDispatcher::findTouchStateWindowAndDisplayLocked(const sp<IBinder>& token) 
     return std::make_tuple(nullptr, nullptr, ADISPLAY_ID_DEFAULT);
 }
 
-bool InputDispatcher::transferTouchFocus(const sp<IBinder>& fromToken, const sp<IBinder>& toToken,
-                                         bool isDragDrop) {
+bool InputDispatcher::transferTouchGesture(const sp<IBinder>& fromToken, const sp<IBinder>& toToken,
+                                           bool isDragDrop) {
     if (fromToken == toToken) {
         if (DEBUG_FOCUS) {
             ALOGD("Trivial transfer to same window.");
@@ -5597,7 +5597,7 @@ bool InputDispatcher::transferTouchFocus(const sp<IBinder>& fromToken, const sp<
         }
 
         if (DEBUG_FOCUS) {
-            ALOGD("transferTouchFocus: fromWindowHandle=%s, toWindowHandle=%s",
+            ALOGD("%s: fromWindowHandle=%s, toWindowHandle=%s", __func__,
                   touchedWindow->windowHandle->getName().c_str(),
                   toWindowHandle->getName().c_str());
         }
@@ -5683,7 +5683,8 @@ sp<WindowInfoHandle> InputDispatcher::findTouchedForegroundWindowLocked(int32_t 
 }
 
 // Binder call
-bool InputDispatcher::transferTouch(const sp<IBinder>& destChannelToken, int32_t displayId) {
+bool InputDispatcher::transferTouchOnDisplay(const sp<IBinder>& destChannelToken,
+                                             int32_t displayId) {
     sp<IBinder> fromToken;
     { // acquire lock
         std::scoped_lock _l(mLock);
@@ -5703,7 +5704,7 @@ bool InputDispatcher::transferTouch(const sp<IBinder>& destChannelToken, int32_t
         fromToken = from->getToken();
     } // release lock
 
-    return transferTouchFocus(fromToken, destChannelToken);
+    return transferTouchGesture(fromToken, destChannelToken);
 }
 
 void InputDispatcher::resetAndDropEverythingLocked(const char* reason) {
