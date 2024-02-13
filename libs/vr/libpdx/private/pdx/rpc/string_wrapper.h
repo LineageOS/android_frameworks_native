@@ -17,12 +17,12 @@ namespace rpc {
 // C strings more efficient by avoiding unnecessary copies when remote method
 // signatures specify std::basic_string arguments or return values.
 template <typename CharT = std::string::value_type,
-          typename Traits = std::char_traits<CharT>>
+          typename Traits = std::char_traits<std::remove_cv_t<CharT>>>
 class StringWrapper {
  public:
   // Define types in the style of STL strings to support STL operators.
   typedef Traits traits_type;
-  typedef typename Traits::char_type value_type;
+  typedef CharT value_type;
   typedef std::size_t size_type;
   typedef value_type& reference;
   typedef const value_type& const_reference;
