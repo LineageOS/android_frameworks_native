@@ -150,7 +150,7 @@ enum AHardwareBufferStatus : int32_t {
  *         AHARDWAREBUFFER_STATUS_UNKNOWN_ERROR for any other error
  * any reason. The returned buffer has a reference count of 1.
  */
-enum AHardwareBufferStatus AHardwareBuffer_allocate2(
+enum AHardwareBufferStatus AHardwareBuffer_allocateWithOptions(
         const AHardwareBuffer_Desc* _Nonnull desc,
         const AHardwareBufferLongOptions* _Nullable additionalOptions, size_t additionalOptionsSize,
         AHardwareBuffer* _Nullable* _Nonnull outBuffer) __INTRODUCED_IN(__ANDROID_API_V__);
