@@ -40,6 +40,11 @@
 #include "ServiceManagerHost.h"
 #endif
 
+#if defined(__ANDROID__) && !defined(__ANDROID_RECOVERY__) && !defined(__ANDROID_NATIVE_BRIDGE__)
+#include <android/apexsupport.h>
+#include <vndksupport/linker.h>
+#endif
+
 #include "Static.h"
 
 namespace android {
@@ -257,6 +262,27 @@ bool checkPermission(const String16& permission, pid_t pid, uid_t uid, bool logP
             gPermissionControllerLock.unlock();
         }
     }
+}
+
+void* openDeclaredPassthroughHal(const String16& interface, const String16& instance, int flag) {
+#if defined(__ANDROID__) && !defined(__ANDROID_RECOVERY__) && !defined(__ANDROID_NATIVE_BRIDGE__)
+    sp<IServiceManager> sm = defaultServiceManager();
+    String16 name = interface + String16("/") + instance;
+    if (!sm->isDeclared(name)) {
+        return nullptr;
+    }
+    String16 libraryName = interface + String16(".") + instance + String16(".so");
+    if (auto updatableViaApex = sm->updatableViaApex(name); updatableViaApex.has_value()) {
+        return AApexSupport_loadLibrary(String8(libraryName).c_str(),
+                                        String8(*updatableViaApex).c_str(), flag);
+    }
+    return android_load_sphal_library(String8(libraryName).c_str(), flag);
+#else
+    (void)interface;
+    (void)instance;
+    (void)flag;
+    return nullptr;
+#endif
 }
 
 #endif //__ANDROID_VNDK__
