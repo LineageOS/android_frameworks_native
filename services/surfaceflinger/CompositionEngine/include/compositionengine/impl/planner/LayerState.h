@@ -258,11 +258,6 @@ public:
 
     gui::CachingHint getCachingHint() const { return mCachingHint.get(); }
 
-    bool hasSolidColorCompositionType() const {
-        return getOutputLayer()->getLayerFE().getCompositionState()->compositionType ==
-                aidl::android::hardware::graphics::composer3::Composition::SOLID_COLOR;
-    }
-
     float getFps() const { return getOutputLayer()->getLayerFE().getCompositionState()->fps; }
 
     void dump(std::string& result) const;
