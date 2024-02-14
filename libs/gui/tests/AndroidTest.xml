@@ -18,6 +18,7 @@
         <option name="cleanup" value="true" />
         <option name="push" value="libgui_test->/data/local/tmp/libgui_test" />
     </target_preparer>
+    <target_preparer class="com.android.tradefed.targetprep.RootTargetPreparer" />
     <target_preparer class="com.android.tradefed.targetprep.DeviceSetup">
       <option name="force-skip-system-props" value="true" /> <!-- avoid restarting device -->
       <option name="screen-always-on" value="on" />
