@@ -70,7 +70,7 @@ MATCHER_P(StatusEq, expected, (negation ? "not " : "") + statusToString(expected
 }
 
 static ::testing::AssertionResult IsPageAligned(void *buf) {
-    if (((unsigned long)buf & ((unsigned long)PAGE_SIZE - 1)) == 0)
+    if (((unsigned long)buf & ((unsigned long)getpagesize() - 1)) == 0)
         return ::testing::AssertionSuccess();
     else
         return ::testing::AssertionFailure() << buf << " is not page aligned";
