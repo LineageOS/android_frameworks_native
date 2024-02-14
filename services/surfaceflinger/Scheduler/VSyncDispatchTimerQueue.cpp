@@ -107,7 +107,7 @@ ScheduleResult VSyncDispatchTimerQueueEntry::schedule(VSyncDispatch::ScheduleTim
             mArmedInfo && (nextVsyncTime > (mArmedInfo->mActualVsyncTime + mMinVsyncDistance));
     bool const wouldSkipAWakeup =
             mArmedInfo && ((nextWakeupTime > (mArmedInfo->mActualWakeupTime + mMinVsyncDistance)));
-    if (FlagManager::getInstance().dont_skip_on_early()) {
+    if (FlagManager::getInstance().dont_skip_on_early_ro()) {
         if (wouldSkipAVsyncTarget || wouldSkipAWakeup) {
             nextVsyncTime = mArmedInfo->mActualVsyncTime;
         } else {

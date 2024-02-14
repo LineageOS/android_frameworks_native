@@ -169,18 +169,4 @@ TEST_F(FlagManagerTest, readonlyReturnsValue) {
     }
 }
 
-TEST_F(FlagManagerTest, dontSkipOnEarlyIsNotCached) {
-    EXPECT_CALL(mFlagManager, getBoolProperty).WillRepeatedly(Return(std::nullopt));
-
-    const auto initialValue = flags::dont_skip_on_early();
-
-    flags::dont_skip_on_early(true);
-    EXPECT_EQ(true, mFlagManager.dont_skip_on_early());
-
-    flags::dont_skip_on_early(false);
-    EXPECT_EQ(false, mFlagManager.dont_skip_on_early());
-
-    flags::dont_skip_on_early(initialValue);
-}
-
 } // namespace android
