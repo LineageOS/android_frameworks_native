@@ -108,7 +108,7 @@ bool SensorPrivacyManager::isSensorPrivacyEnabled()
 
 bool SensorPrivacyManager::isToggleSensorPrivacyEnabled(int sensor)
 {
-	sp<hardware::ISensorPrivacyManager> service = getService();
+    sp<hardware::ISensorPrivacyManager> service = getService();
     if (service != nullptr) {
         bool result;
         service->isCombinedToggleSensorPrivacyEnabled(sensor, &result);
@@ -141,6 +141,39 @@ status_t SensorPrivacyManager::isToggleSensorPrivacyEnabled(int toggleType, int 
     // if the SensorPrivacyManager is not available then assume sensor privacy is disabled
     returnVal = false;
     return UNKNOWN_ERROR;
+}
+
+int SensorPrivacyManager::getToggleSensorPrivacyState(int toggleType, int sensor)
+{
+    sp<hardware::ISensorPrivacyManager> service = getService();
+    if (service != nullptr) {
+        int result;
+        service->getToggleSensorPrivacyState(toggleType, sensor, &result);
+        return result;
+    }
+    // if the SensorPrivacyManager is not available then assume sensor privacy is disabled
+    return DISABLED;
+}
+
+std::vector<hardware::CameraPrivacyAllowlistEntry>
+        SensorPrivacyManager::getCameraPrivacyAllowlist(){
+    sp<hardware::ISensorPrivacyManager> service = getService();
+    std::vector<hardware::CameraPrivacyAllowlistEntry> result;
+    if (service != nullptr) {
+        service->getCameraPrivacyAllowlist(&result);
+        return result;
+    }
+    return result;
+}
+
+bool SensorPrivacyManager::isCameraPrivacyEnabled(String16 packageName){
+    sp<hardware::ISensorPrivacyManager> service = getService();
+    if (service != nullptr) {
+        bool result;
+        service->isCameraPrivacyEnabled(packageName, &result);
+        return result;
+    }
+    return false;
 }
 
 status_t SensorPrivacyManager::linkToDeath(const sp<IBinder::DeathRecipient>& recipient)
