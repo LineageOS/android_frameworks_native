@@ -327,7 +327,8 @@ LayerInfo::RefreshRateVotes LayerInfo::getRefreshRateVote(const RefreshRateSelec
             mLayerVote.type != LayerHistory::LayerVoteType::ExplicitDefault) {
             ATRACE_FORMAT_INSTANT("Vote %s", ftl::enum_string(mLayerVote.type).c_str());
             ALOGV("%s voted %d", mName.c_str(), static_cast<int>(mLayerVote.type));
-            votes.push_back(mLayerVote);
+            votes.push_back({mLayerVote.type, mLayerVote.fps, mLayerVote.seamlessness,
+                             FrameRateCategory::Default, mLayerVote.categorySmoothSwitchOnly});
         }
 
         return votes;
