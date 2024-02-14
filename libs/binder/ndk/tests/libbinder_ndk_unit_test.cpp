@@ -984,7 +984,7 @@ int main(int argc, char* argv[]) {
         return generatedFlaggedService(test_flags, kBinderNdkUnitTestServiceFlagged);
     }
 
-    ABinderProcess_setThreadPoolMaxThreadCount(1);  // to receive death notifications/callbacks
+    ABinderProcess_setThreadPoolMaxThreadCount(0);
     ABinderProcess_startThreadPool();
 
     return RUN_ALL_TESTS();
