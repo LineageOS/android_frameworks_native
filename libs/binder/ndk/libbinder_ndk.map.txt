@@ -204,6 +204,7 @@ LIBBINDER_NDK35 { # introduced=VanillaIceCream
     APersistableBundle_getDoubleVectorKeys;
     APersistableBundle_getStringVectorKeys;
     APersistableBundle_getPersistableBundleKeys;
+    AServiceManager_openDeclaredPassthroughHal; # systemapi llndk
 };
 
 LIBBINDER_NDK_PLATFORM {
