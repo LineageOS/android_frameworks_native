@@ -4018,7 +4018,6 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings,
 TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings,
        usesExpectedDisplaySettingsWithFp16Buffer) {
     SET_FLAG_FOR_TEST(flags::fp16_client_target, true);
-    ALOGE("alecmouri: %d", flags::fp16_client_target());
     verify().ifMixedCompositionIs(false)
             .andIfUsesHdr(true)
             .withDisplayBrightnessNits(kDisplayLuminance)
