@@ -175,7 +175,8 @@ void SchedulerFuzzer::fuzzVSyncDispatchTimerQueue() {
     auto const wakeup = entry.wakeupTime();
     auto const ready = entry.readyTime();
     entry.callback(entry.executing(), *wakeup, *ready);
-    entry.addPendingWorkloadUpdate({.workDuration = mFdp.ConsumeIntegral<nsecs_t>(),
+    entry.addPendingWorkloadUpdate(*stubTracker, 0,
+                                   {.workDuration = mFdp.ConsumeIntegral<nsecs_t>(),
                                     .readyDuration = mFdp.ConsumeIntegral<nsecs_t>(),
                                     .lastVsync = mFdp.ConsumeIntegral<nsecs_t>()});
     dump<scheduler::VSyncDispatchTimerQueueEntry>(&entry, &mFdp);
