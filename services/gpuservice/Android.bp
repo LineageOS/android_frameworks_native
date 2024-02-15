@@ -23,10 +23,11 @@ cc_defaults {
     name: "libgpuservice_defaults",
     defaults: [
         "gpuservice_defaults",
-        "libvkjson_deps",
         "libgfxstats_deps",
         "libgpumem_deps",
         "libgpumemtracer_deps",
+        "libvkjson_deps",
+        "libvkprofiles_deps",
     ],
     cflags: [
         "-DLOG_TAG=\"GpuService\"",
@@ -46,6 +47,7 @@ cc_defaults {
         "libgpumemtracer",
         "libserviceutils",
         "libvkjson",
+        "libvkprofiles",
     ],
     export_static_lib_headers: [
         "libserviceutils",
