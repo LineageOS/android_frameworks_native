@@ -1490,6 +1490,14 @@ int32_t AMotionEvent_getClassification(const AInputEvent* motion_event)
  */
 const AInputEvent* AMotionEvent_fromJava(JNIEnv* env, jobject motionEvent) __INTRODUCED_IN(31);
 
+/**
+ * Creates a java android.view.InputEvent object that is a copy of the specified native
+ * {@link AInputEvent}. Returns null on error
+ *
+ *  Available since API level 35.
+ */
+jobject AInputEvent_toJava(JNIEnv* env, const AInputEvent* aInputEvent) __INTRODUCED_IN(35);
+
 struct AInputQueue;
 /**
  * Input queue
