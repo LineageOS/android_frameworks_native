@@ -734,7 +734,7 @@ TEST_F(VSyncDispatchTimerQueueTest, canMoveCallbackBackwardsInTime) {
 
 // b/1450138150
 TEST_F(VSyncDispatchTimerQueueTest, doesNotMoveCallbackBackwardsAndSkipAScheduledTargetVSync) {
-    SET_FLAG_FOR_TEST(flags::dont_skip_on_early, false);
+    SET_FLAG_FOR_TEST(flags::dont_skip_on_early_ro, false);
 
     EXPECT_CALL(mMockClock, alarmAt(_, 500));
     CountingCallback cb(mDispatch);
@@ -754,7 +754,7 @@ TEST_F(VSyncDispatchTimerQueueTest, doesNotMoveCallbackBackwardsAndSkipASchedule
 
 // b/1450138150
 TEST_F(VSyncDispatchTimerQueueTest, movesCallbackBackwardsAndSkipAScheduledTargetVSync) {
-    SET_FLAG_FOR_TEST(flags::dont_skip_on_early, true);
+    SET_FLAG_FOR_TEST(flags::dont_skip_on_early_ro, true);
 
     Sequence seq;
     EXPECT_CALL(mMockClock, alarmAt(_, 500)).InSequence(seq);
@@ -821,7 +821,7 @@ TEST_F(VSyncDispatchTimerQueueTest, canScheduleLargeNegativeOffset) {
 }
 
 TEST_F(VSyncDispatchTimerQueueTest, scheduleUpdatesDoesNotAffectSchedulingState) {
-    SET_FLAG_FOR_TEST(flags::dont_skip_on_early, false);
+    SET_FLAG_FOR_TEST(flags::dont_skip_on_early_ro, false);
 
     EXPECT_CALL(mMockClock, alarmAt(_, 600));
 
@@ -839,7 +839,7 @@ TEST_F(VSyncDispatchTimerQueueTest, scheduleUpdatesDoesNotAffectSchedulingState)
 }
 
 TEST_F(VSyncDispatchTimerQueueTest, scheduleUpdatesDoesAffectSchedulingState) {
-    SET_FLAG_FOR_TEST(flags::dont_skip_on_early, true);
+    SET_FLAG_FOR_TEST(flags::dont_skip_on_early_ro, true);
 
     Sequence seq;
     EXPECT_CALL(mMockClock, alarmAt(_, 600)).InSequence(seq);
@@ -1051,7 +1051,7 @@ TEST_F(VSyncDispatchTimerQueueTest, basicAlarmSettingFutureWithReadyDuration) {
 }
 
 TEST_F(VSyncDispatchTimerQueueTest, updatesVsyncTimeForCloseWakeupTime) {
-    SET_FLAG_FOR_TEST(flags::dont_skip_on_early, false);
+    SET_FLAG_FOR_TEST(flags::dont_skip_on_early_ro, false);
 
     Sequence seq;
     EXPECT_CALL(mMockClock, alarmAt(_, 600)).InSequence(seq);
@@ -1074,7 +1074,7 @@ TEST_F(VSyncDispatchTimerQueueTest, updatesVsyncTimeForCloseWakeupTime) {
 }
 
 TEST_F(VSyncDispatchTimerQueueTest, doesNotUpdatesVsyncTimeForCloseWakeupTime) {
-    SET_FLAG_FOR_TEST(flags::dont_skip_on_early, true);
+    SET_FLAG_FOR_TEST(flags::dont_skip_on_early_ro, true);
 
     Sequence seq;
     EXPECT_CALL(mMockClock, alarmAt(_, 600)).InSequence(seq);
@@ -1098,7 +1098,7 @@ TEST_F(VSyncDispatchTimerQueueTest, doesNotUpdatesVsyncTimeForCloseWakeupTime) {
 }
 
 TEST_F(VSyncDispatchTimerQueueTest, skipAVsyc) {
-    SET_FLAG_FOR_TEST(flags::dont_skip_on_early, false);
+    SET_FLAG_FOR_TEST(flags::dont_skip_on_early_ro, false);
 
     EXPECT_CALL(mMockClock, alarmAt(_, 500));
     CountingCallback cb(mDispatch);
@@ -1117,7 +1117,7 @@ TEST_F(VSyncDispatchTimerQueueTest, skipAVsyc) {
 }
 
 TEST_F(VSyncDispatchTimerQueueTest, dontskipAVsyc) {
-    SET_FLAG_FOR_TEST(flags::dont_skip_on_early, true);
+    SET_FLAG_FOR_TEST(flags::dont_skip_on_early_ro, true);
 
     Sequence seq;
     EXPECT_CALL(mMockClock, alarmAt(_, 500)).InSequence(seq);
