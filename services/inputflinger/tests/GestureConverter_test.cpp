@@ -47,6 +47,7 @@ const auto TOUCHPAD_PALM_REJECTION_V2 =
 } // namespace
 
 using testing::AllOf;
+using testing::Each;
 using testing::ElementsAre;
 using testing::VariantWith;
 
@@ -1227,6 +1228,38 @@ TEST_F(GestureConverterTest, FlingTapDown) {
 
     ASSERT_NO_FATAL_FAILURE(mFakePointerController->assertPosition(POINTER_X, POINTER_Y));
     ASSERT_TRUE(mFakePointerController->isPointerShown());
+}
+
+TEST_F(GestureConverterTest, FlingTapDownAfterScrollStopsFling) {
+    InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
+    input_flags::enable_touchpad_fling_stop(true);
+    GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
+    converter.setDisplayId(ADISPLAY_ID_DEFAULT);
+
+    Gesture scrollGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, -10);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, scrollGesture);
+    Gesture flingGesture(kGestureFling, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 1, 1,
+                         GESTURES_FLING_START);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, flingGesture);
+
+    Gesture tapDownGesture(kGestureFling, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
+                           /*vx=*/0.f, /*vy=*/0.f, GESTURES_FLING_TAP_DOWN);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, tapDownGesture);
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                                    WithMotionAction(AMOTION_EVENT_ACTION_HOVER_EXIT)),
+                            VariantWith<NotifyMotionArgs>(
+                                    WithMotionAction(AMOTION_EVENT_ACTION_DOWN)),
+                            VariantWith<NotifyMotionArgs>(
+                                    WithMotionAction(AMOTION_EVENT_ACTION_CANCEL)),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER),
+                                          WithMotionClassification(MotionClassification::NONE)))));
+    ASSERT_THAT(args,
+                Each(VariantWith<NotifyMotionArgs>(AllOf(WithCoords(POINTER_X, POINTER_Y),
+                                                         WithToolType(ToolType::FINGER),
+                                                         WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 }
 
 TEST_F(GestureConverterTest, Tap) {
@@ -2715,6 +2748,38 @@ TEST_F(GestureConverterTestWithChoreographer, FlingTapDown) {
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER), WithCoords(0, 0),
                       WithRelativeMotion(0.f, 0.f), WithToolType(ToolType::FINGER),
                       WithButtonState(0), WithPressure(0.0f), WithDisplayId(ADISPLAY_ID_DEFAULT)));
+}
+
+TEST_F(GestureConverterTestWithChoreographer, FlingTapDownAfterScrollStopsFling) {
+    InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
+    input_flags::enable_touchpad_fling_stop(true);
+    GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
+    converter.setDisplayId(ADISPLAY_ID_DEFAULT);
+
+    Gesture scrollGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, -10);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, scrollGesture);
+    Gesture flingGesture(kGestureFling, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 1, 1,
+                         GESTURES_FLING_START);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, flingGesture);
+
+    Gesture tapDownGesture(kGestureFling, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
+                           /*vx=*/0.f, /*vy=*/0.f, GESTURES_FLING_TAP_DOWN);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, tapDownGesture);
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                                    WithMotionAction(AMOTION_EVENT_ACTION_HOVER_EXIT)),
+                            VariantWith<NotifyMotionArgs>(
+                                    WithMotionAction(AMOTION_EVENT_ACTION_DOWN)),
+                            VariantWith<NotifyMotionArgs>(
+                                    WithMotionAction(AMOTION_EVENT_ACTION_CANCEL)),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER),
+                                          WithMotionClassification(MotionClassification::NONE)))));
+    ASSERT_THAT(args,
+                Each(VariantWith<NotifyMotionArgs>(AllOf(WithCoords(0, 0),
+                                                         WithToolType(ToolType::FINGER),
+                                                         WithDisplayId(ADISPLAY_ID_DEFAULT)))));
 }
 
 TEST_F(GestureConverterTestWithChoreographer, Tap) {
