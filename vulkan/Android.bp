@@ -42,4 +42,5 @@ subdirs = [
     "nulldrv",
     "libvulkan",
     "vkjson",
+    "vkprofiles",
 ]
