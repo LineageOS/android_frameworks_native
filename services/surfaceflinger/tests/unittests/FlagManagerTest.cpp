@@ -114,7 +114,10 @@ TEST_F(FlagManagerTest, returnsOverrideReadonly) {
     EXPECT_TRUE(mFlagManager.add_sf_skipped_frames_to_trace());
 }
 
-TEST_F(FlagManagerTest, returnsOverrideFalse) {
+// disabling this test since we need to use a unique flag for this test,
+// but we only one server flag currently. Re-enable once we have a new flag
+// and change this test to use a unique flag.
+TEST_F(FlagManagerTest, DISABLED_returnsOverrideFalse) {
     mFlagManager.markBootCompleted();
 
     SET_FLAG_FOR_TEST(flags::refresh_rate_overlay_on_external_display, true);
