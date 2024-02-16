@@ -107,7 +107,7 @@ public:
 
     virtual std::string name() = 0;
     virtual renderengine::RenderEngine::GraphicsApi graphicsApi() = 0;
-    virtual bool apiSupported() = 0;
+    bool apiSupported() { return renderengine::RenderEngine::canSupport(graphicsApi()); }
     std::unique_ptr<renderengine::RenderEngine> createRenderEngine() {
         renderengine::RenderEngineCreationArgs reCreationArgs =
                 renderengine::RenderEngineCreationArgs::Builder()
@@ -131,10 +131,6 @@ public:
     renderengine::RenderEngine::GraphicsApi graphicsApi() override {
         return renderengine::RenderEngine::GraphicsApi::VK;
     }
-
-    bool apiSupported() override {
-        return skia::SkiaVkRenderEngine::canSupportSkiaVkRenderEngine();
-    }
 };
 
 class SkiaGLESRenderEngineFactory : public RenderEngineFactory {
@@ -144,8 +140,6 @@ public:
     renderengine::RenderEngine::GraphicsApi graphicsApi() {
         return renderengine::RenderEngine::GraphicsApi::GL;
     }
-
-    bool apiSupported() override { return true; }
 };
 
 class RenderEngineTest : public ::testing::TestWithParam<std::shared_ptr<RenderEngineFactory>> {
