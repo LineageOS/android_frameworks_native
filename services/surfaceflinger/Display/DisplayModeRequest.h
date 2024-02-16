@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <android-base/stringprintf.h>
 #include <ftl/non_null.h>
 
 #include <scheduler/FrameRateMode.h>
@@ -34,6 +35,12 @@ struct DisplayModeRequest {
 
 inline bool operator==(const DisplayModeRequest& lhs, const DisplayModeRequest& rhs) {
     return lhs.mode == rhs.mode && lhs.emitEvent == rhs.emitEvent;
+}
+
+inline std::string to_string(const DisplayModeRequest& request) {
+    constexpr const char* kBool[] = {"false", "true"};
+    return base::StringPrintf("{mode=%s, emitEvent=%s, force=%s}", to_string(request.mode).c_str(),
+                              kBool[request.emitEvent], kBool[request.force]);
 }
 
 } // namespace android::display

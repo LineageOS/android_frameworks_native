@@ -530,16 +530,8 @@ void DisplayDevice::animateOverlay() {
 }
 
 auto DisplayDevice::setDesiredMode(display::DisplayModeRequest&& desiredMode) -> DesiredModeAction {
-    ATRACE_CALL();
-
-    const auto& desiredModePtr = desiredMode.mode.modePtr;
-
-    LOG_ALWAYS_FATAL_IF(getPhysicalId() != desiredModePtr->getPhysicalDisplayId(),
-                        "DisplayId mismatch");
-
-    // TODO (b/318533819): Stringize DisplayModeRequest.
-    ALOGD("%s(%s, force=%s)", __func__, to_string(*desiredModePtr).c_str(),
-          desiredMode.force ? "true" : "false");
+    ATRACE_NAME(concatId(__func__).c_str());
+    ALOGD("%s %s", concatId(__func__).c_str(), to_string(desiredMode).c_str());
 
     std::scoped_lock lock(mDesiredModeLock);
     if (mDesiredModeOpt) {
@@ -556,7 +548,8 @@ auto DisplayDevice::setDesiredMode(display::DisplayModeRequest&& desiredMode) ->
 
     // If the desired mode is already active...
     const auto activeMode = refreshRateSelector().getActiveMode();
-    if (!desiredMode.force && activeMode.modePtr->getId() == desiredModePtr->getId()) {
+    if (const auto& desiredModePtr = desiredMode.mode.modePtr;
+        !desiredMode.force && activeMode.modePtr->getId() == desiredModePtr->getId()) {
         if (activeMode == desiredMode.mode) {
             return DesiredModeAction::None;
         }
