@@ -85,8 +85,8 @@ std::optional<nsecs_t> VSyncDispatchTimerQueueEntry::targetVsync() const {
     return {mArmedInfo->mActualVsyncTime};
 }
 
-std::optional<ScheduleResult> VSyncDispatchTimerQueueEntry::schedule(
-        VSyncDispatch::ScheduleTiming timing, VSyncTracker& tracker, nsecs_t now) {
+ScheduleResult VSyncDispatchTimerQueueEntry::schedule(VSyncDispatch::ScheduleTiming timing,
+                                                      VSyncTracker& tracker, nsecs_t now) {
     auto nextVsyncTime =
             tracker.nextAnticipatedVSyncTimeFrom(std::max(timing.lastVsync,
                                                           now + timing.workDuration +
@@ -407,16 +407,13 @@ std::optional<ScheduleResult> VSyncDispatchTimerQueue::scheduleLocked(
         return callback->addPendingWorkloadUpdate(*mTracker, now, scheduleTiming);
     }
 
-    const auto resultOpt = callback->schedule(scheduleTiming, *mTracker, now);
+    const auto result = callback->schedule(scheduleTiming, *mTracker, now);
 
-    if (!resultOpt) {
-        return {};
-    }
     if (callback->wakeupTime() < mIntendedWakeupTime - mTimerSlack) {
         rearmTimerSkippingUpdateFor(now, it);
     }
 
-    return resultOpt;
+    return result;
 }
 
 std::optional<ScheduleResult> VSyncDispatchTimerQueue::update(CallbackToken token,

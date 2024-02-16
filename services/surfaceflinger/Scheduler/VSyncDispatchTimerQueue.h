@@ -48,8 +48,7 @@ public:
     std::optional<nsecs_t> lastExecutedVsyncTarget() const;
 
     // This moves the state from disarmed->armed and will calculate the wakeupTime.
-    std::optional<ScheduleResult> schedule(VSyncDispatch::ScheduleTiming, VSyncTracker&,
-                                           nsecs_t now);
+    ScheduleResult schedule(VSyncDispatch::ScheduleTiming, VSyncTracker&, nsecs_t now);
     // This will update armed entries with the latest vsync information. Entry remains armed.
     void update(VSyncTracker&, nsecs_t now);
 
