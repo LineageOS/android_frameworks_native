@@ -213,7 +213,8 @@ TEST_F(LayerInfoTest, getRefreshRateVote_explicitVote) {
 TEST_F(LayerInfoTest, getRefreshRateVote_explicitVoteWithCategory) {
     LayerInfo::LayerVote vote = {.type = LayerHistory::LayerVoteType::ExplicitDefault,
                                  .fps = 20_Hz,
-                                 .category = FrameRateCategory::High};
+                                 .category = FrameRateCategory::High,
+                                 .categorySmoothSwitchOnly = true};
     layerInfo.setLayerVote(vote);
 
     auto actualVotes =
@@ -221,10 +222,12 @@ TEST_F(LayerInfoTest, getRefreshRateVote_explicitVoteWithCategory) {
     ASSERT_EQ(actualVotes.size(), 2u);
     ASSERT_EQ(actualVotes[0].type, LayerHistory::LayerVoteType::ExplicitCategory);
     ASSERT_EQ(actualVotes[0].category, vote.category);
+    ASSERT_TRUE(actualVotes[0].categorySmoothSwitchOnly);
     ASSERT_EQ(actualVotes[1].type, vote.type);
     ASSERT_EQ(actualVotes[1].fps, vote.fps);
     ASSERT_EQ(actualVotes[1].seamlessness, vote.seamlessness);
-    ASSERT_EQ(actualVotes[1].category, vote.category);
+    ASSERT_EQ(actualVotes[1].category, FrameRateCategory::Default);
+    ASSERT_TRUE(actualVotes[1].categorySmoothSwitchOnly);
 }
 
 TEST_F(LayerInfoTest, getRefreshRateVote_explicitCategory) {
