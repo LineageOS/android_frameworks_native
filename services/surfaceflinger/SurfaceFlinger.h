@@ -1356,12 +1356,7 @@ private:
 
     const std::string mHwcServiceName;
 
-    /*
-     * Scheduler
-     */
     std::unique_ptr<scheduler::Scheduler> mScheduler;
-    scheduler::ConnectionHandle mAppConnectionHandle;
-    scheduler::ConnectionHandle mSfConnectionHandle;
 
     scheduler::PresentLatencyTracker mPresentLatencyTracker GUARDED_BY(kMainThreadContext);
 

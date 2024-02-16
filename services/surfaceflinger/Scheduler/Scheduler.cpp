@@ -60,14 +60,6 @@
 #include "VsyncController.h"
 #include "VsyncSchedule.h"
 
-#define RETURN_IF_INVALID_HANDLE(handle, ...)                        \
-    do {                                                             \
-        if (mConnections.count(handle) == 0) {                       \
-            ALOGE("Invalid connection handle %" PRIuPTR, handle.id); \
-            return __VA_ARGS__;                                      \
-        }                                                            \
-    } while (false)
-
 namespace android::scheduler {
 
 Scheduler::Scheduler(ICompositor& compositor, ISchedulerCallback& callback, FeatureFlags features,
@@ -344,40 +336,26 @@ void Scheduler::onExpectedPresentTimePosted(TimePoint expectedPresentTime) {
     }
 }
 
-ConnectionHandle Scheduler::createEventThread(Cycle cycle,
-                                              frametimeline::TokenManager* tokenManager,
-                                              std::chrono::nanoseconds workDuration,
-                                              std::chrono::nanoseconds readyDuration) {
+void Scheduler::createEventThread(Cycle cycle, frametimeline::TokenManager* tokenManager,
+                                  std::chrono::nanoseconds workDuration,
+                                  std::chrono::nanoseconds readyDuration) {
     auto eventThread =
             std::make_unique<android::impl::EventThread>(cycle == Cycle::Render ? "app" : "appSf",
                                                          getVsyncSchedule(), tokenManager, *this,
                                                          workDuration, readyDuration);
 
-    auto& handle = cycle == Cycle::Render ? mAppConnectionHandle : mSfConnectionHandle;
-    handle = createConnection(std::move(eventThread));
-    return handle;
-}
-
-ConnectionHandle Scheduler::createConnection(std::unique_ptr<EventThread> eventThread) {
-    const ConnectionHandle handle = ConnectionHandle{mNextConnectionHandleId++};
-    ALOGV("Creating a connection handle with ID %" PRIuPTR, handle.id);
-
-    auto connection = eventThread->createEventConnection();
-
-    std::lock_guard<std::mutex> lock(mConnectionsLock);
-    mConnections.emplace(handle, Connection{connection, std::move(eventThread)});
-    return handle;
+    if (cycle == Cycle::Render) {
+        mRenderEventThread = std::move(eventThread);
+        mRenderEventConnection = mRenderEventThread->createEventConnection();
+    } else {
+        mLastCompositeEventThread = std::move(eventThread);
+        mLastCompositeEventConnection = mLastCompositeEventThread->createEventConnection();
+    }
 }
 
 sp<IDisplayEventConnection> Scheduler::createDisplayEventConnection(
-        ConnectionHandle handle, EventRegistrationFlags eventRegistration,
-        const sp<IBinder>& layerHandle) {
-    const auto connection = [&]() -> sp<EventThreadConnection> {
-        std::scoped_lock lock(mConnectionsLock);
-        RETURN_IF_INVALID_HANDLE(handle, nullptr);
-
-        return mConnections[handle].thread->createEventConnection(eventRegistration);
-    }();
+        Cycle cycle, EventRegistrationFlags eventRegistration, const sp<IBinder>& layerHandle) {
+    const auto connection = eventThreadFor(cycle).createEventConnection(eventRegistration);
     const auto layerId = static_cast<int32_t>(LayerHandle::getLayerId(layerHandle));
 
     if (layerId != static_cast<int32_t>(UNASSIGNED_LAYER_ID)) {
@@ -397,85 +375,48 @@ sp<IDisplayEventConnection> Scheduler::createDisplayEventConnection(
     return connection;
 }
 
-sp<EventThreadConnection> Scheduler::getEventConnection(ConnectionHandle handle) {
-    std::lock_guard<std::mutex> lock(mConnectionsLock);
-    RETURN_IF_INVALID_HANDLE(handle, nullptr);
-    return mConnections[handle].connection;
+void Scheduler::onHotplugReceived(Cycle cycle, PhysicalDisplayId displayId, bool connected) {
+    if (hasEventThreads()) {
+        eventThreadFor(cycle).onHotplugReceived(displayId, connected);
+    }
 }
 
-void Scheduler::onHotplugReceived(ConnectionHandle handle, PhysicalDisplayId displayId,
-                                  bool connected) {
-    android::EventThread* thread;
-    {
-        std::lock_guard<std::mutex> lock(mConnectionsLock);
-        RETURN_IF_INVALID_HANDLE(handle);
-        thread = mConnections[handle].thread.get();
+void Scheduler::onHotplugConnectionError(Cycle cycle, int32_t errorCode) {
+    if (hasEventThreads()) {
+        eventThreadFor(cycle).onHotplugConnectionError(errorCode);
     }
-
-    thread->onHotplugReceived(displayId, connected);
-}
-
-void Scheduler::onHotplugConnectionError(ConnectionHandle handle, int32_t errorCode) {
-    android::EventThread* thread;
-    {
-        std::lock_guard<std::mutex> lock(mConnectionsLock);
-        RETURN_IF_INVALID_HANDLE(handle);
-        thread = mConnections[handle].thread.get();
-    }
-
-    thread->onHotplugConnectionError(errorCode);
 }
 
 void Scheduler::enableSyntheticVsync(bool enable) {
-    // TODO(b/241285945): Remove connection handles.
-    const ConnectionHandle handle = mAppConnectionHandle;
-    android::EventThread* thread;
-    {
-        std::lock_guard<std::mutex> lock(mConnectionsLock);
-        RETURN_IF_INVALID_HANDLE(handle);
-        thread = mConnections[handle].thread.get();
-    }
-    thread->enableSyntheticVsync(enable);
+    eventThreadFor(Cycle::Render).enableSyntheticVsync(enable);
 }
 
-void Scheduler::onFrameRateOverridesChanged(ConnectionHandle handle, PhysicalDisplayId displayId) {
+void Scheduler::onFrameRateOverridesChanged(Cycle cycle, PhysicalDisplayId displayId) {
     const bool supportsFrameRateOverrideByContent =
             pacesetterSelectorPtr()->supportsAppFrameRateOverrideByContent();
 
     std::vector<FrameRateOverride> overrides =
             mFrameRateOverrideMappings.getAllFrameRateOverrides(supportsFrameRateOverrideByContent);
 
-    android::EventThread* thread;
-    {
-        std::lock_guard lock(mConnectionsLock);
-        RETURN_IF_INVALID_HANDLE(handle);
-        thread = mConnections[handle].thread.get();
-    }
-    thread->onFrameRateOverridesChanged(displayId, std::move(overrides));
+    eventThreadFor(cycle).onFrameRateOverridesChanged(displayId, std::move(overrides));
 }
 
-void Scheduler::onHdcpLevelsChanged(ConnectionHandle handle, PhysicalDisplayId displayId,
+void Scheduler::onHdcpLevelsChanged(Cycle cycle, PhysicalDisplayId displayId,
                                     int32_t connectedLevel, int32_t maxLevel) {
-    android::EventThread* thread;
-    {
-        std::lock_guard<std::mutex> lock(mConnectionsLock);
-        RETURN_IF_INVALID_HANDLE(handle);
-        thread = mConnections[handle].thread.get();
-    }
-    thread->onHdcpLevelsChanged(displayId, connectedLevel, maxLevel);
+    eventThreadFor(cycle).onHdcpLevelsChanged(displayId, connectedLevel, maxLevel);
 }
 
-void Scheduler::onPrimaryDisplayModeChanged(ConnectionHandle handle, const FrameRateMode& mode) {
+void Scheduler::onPrimaryDisplayModeChanged(Cycle cycle, const FrameRateMode& mode) {
     {
         std::lock_guard<std::mutex> lock(mPolicyLock);
         // Cache the last reported modes for primary display.
-        mPolicy.cachedModeChangedParams = {handle, mode};
+        mPolicy.cachedModeChangedParams = {cycle, mode};
 
         // Invalidate content based refresh rate selection so it could be calculated
         // again for the new refresh rate.
         mPolicy.contentRequirements.clear();
     }
-    onNonPrimaryDisplayModeChanged(handle, mode);
+    onNonPrimaryDisplayModeChanged(cycle, mode);
 }
 
 void Scheduler::dispatchCachedReportedMode() {
@@ -502,39 +443,25 @@ void Scheduler::dispatchCachedReportedMode() {
     }
 
     mPolicy.cachedModeChangedParams->mode = *mPolicy.modeOpt;
-    onNonPrimaryDisplayModeChanged(mPolicy.cachedModeChangedParams->handle,
+    onNonPrimaryDisplayModeChanged(mPolicy.cachedModeChangedParams->cycle,
                                    mPolicy.cachedModeChangedParams->mode);
 }
 
-void Scheduler::onNonPrimaryDisplayModeChanged(ConnectionHandle handle, const FrameRateMode& mode) {
-    android::EventThread* thread;
-    {
-        std::lock_guard<std::mutex> lock(mConnectionsLock);
-        RETURN_IF_INVALID_HANDLE(handle);
-        thread = mConnections[handle].thread.get();
+void Scheduler::onNonPrimaryDisplayModeChanged(Cycle cycle, const FrameRateMode& mode) {
+    if (hasEventThreads()) {
+        eventThreadFor(cycle).onModeChanged(mode);
     }
-    thread->onModeChanged(mode);
 }
 
-void Scheduler::dump(ConnectionHandle handle, std::string& result) const {
-    android::EventThread* thread;
-    {
-        std::lock_guard<std::mutex> lock(mConnectionsLock);
-        RETURN_IF_INVALID_HANDLE(handle);
-        thread = mConnections.at(handle).thread.get();
-    }
-    thread->dump(result);
+void Scheduler::dump(Cycle cycle, std::string& result) const {
+    eventThreadFor(cycle).dump(result);
 }
 
-void Scheduler::setDuration(ConnectionHandle handle, std::chrono::nanoseconds workDuration,
+void Scheduler::setDuration(Cycle cycle, std::chrono::nanoseconds workDuration,
                             std::chrono::nanoseconds readyDuration) {
-    android::EventThread* thread;
-    {
-        std::lock_guard<std::mutex> lock(mConnectionsLock);
-        RETURN_IF_INVALID_HANDLE(handle);
-        thread = mConnections[handle].thread.get();
+    if (hasEventThreads()) {
+        eventThreadFor(cycle).setDuration(workDuration, readyDuration);
     }
-    thread->setDuration(workDuration, readyDuration);
 }
 
 void Scheduler::updatePhaseConfiguration(Fps refreshRate) {
@@ -557,10 +484,10 @@ void Scheduler::setActiveDisplayPowerModeForRefreshRateStats(hal::PowerMode powe
 }
 
 void Scheduler::setVsyncConfig(const VsyncConfig& config, Period vsyncPeriod) {
-    setDuration(mAppConnectionHandle,
+    setDuration(Cycle::Render,
                 /* workDuration */ config.appWorkDuration,
                 /* readyDuration */ config.sfWorkDuration);
-    setDuration(mSfConnectionHandle,
+    setDuration(Cycle::LastComposite,
                 /* workDuration */ vsyncPeriod,
                 /* readyDuration */ config.sfWorkDuration);
     setDuration(config.sfWorkDuration);
@@ -1027,16 +954,10 @@ std::shared_ptr<VsyncSchedule> Scheduler::promotePacesetterDisplayLocked(
 
 void Scheduler::applyNewVsyncSchedule(std::shared_ptr<VsyncSchedule> vsyncSchedule) {
     onNewVsyncSchedule(vsyncSchedule->getDispatch());
-    std::vector<android::EventThread*> threads;
-    {
-        std::lock_guard<std::mutex> lock(mConnectionsLock);
-        threads.reserve(mConnections.size());
-        for (auto& [_, connection] : mConnections) {
-            threads.push_back(connection.thread.get());
-        }
-    }
-    for (auto* thread : threads) {
-        thread->onNewVsyncSchedule(vsyncSchedule);
+
+    if (hasEventThreads()) {
+        eventThreadFor(Cycle::Render).onNewVsyncSchedule(vsyncSchedule);
+        eventThreadFor(Cycle::LastComposite).onNewVsyncSchedule(vsyncSchedule);
     }
 }
 

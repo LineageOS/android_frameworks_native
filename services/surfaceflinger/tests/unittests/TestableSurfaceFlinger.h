@@ -258,11 +258,9 @@ public:
 
         mScheduler->initVsync(*mTokenManager, 0ms);
 
-        mScheduler->mutableAppConnectionHandle() =
-                mScheduler->createConnection(std::move(appEventThread));
+        mScheduler->setEventThread(scheduler::Cycle::Render, std::move(appEventThread));
+        mScheduler->setEventThread(scheduler::Cycle::LastComposite, std::move(sfEventThread));
 
-        mFlinger->mAppConnectionHandle = mScheduler->mutableAppConnectionHandle();
-        mFlinger->mSfConnectionHandle = mScheduler->createConnection(std::move(sfEventThread));
         resetScheduler(mScheduler);
     }
 
