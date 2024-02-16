@@ -26,7 +26,6 @@
 #include "FrameTracer/FrameTracer.h"
 #include "Layer.h"
 #include "NativeWindowSurface.h"
-#include "StartPropertySetThread.h"
 #include "SurfaceFlingerDefaultFactory.h"
 #include "SurfaceFlingerProperties.h"
 
@@ -51,11 +50,6 @@ std::unique_ptr<scheduler::VsyncConfiguration> DefaultFactory::createVsyncConfig
     } else {
         return std::make_unique<scheduler::impl::PhaseOffsets>(currentRefreshRate);
     }
-}
-
-sp<StartPropertySetThread> DefaultFactory::createStartPropertySetThread(
-        bool timestampPropertyValue) {
-    return sp<StartPropertySetThread>::make(timestampPropertyValue);
 }
 
 sp<DisplayDevice> DefaultFactory::createDisplayDevice(DisplayDeviceCreationArgs& creationArgs) {
