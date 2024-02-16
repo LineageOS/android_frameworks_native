@@ -209,7 +209,7 @@ struct layer_state_t {
         eBackgroundBlurRadiusChanged = 0x80'00000000,
         eProducerDisconnect = 0x100'00000000,
         eFixedTransformHintChanged = 0x200'00000000,
-        /* unused 0x400'00000000, */
+        eDesiredHdrHeadroomChanged = 0x400'00000000,
         eBlurRegionsChanged = 0x800'00000000,
         eAutoRefreshChanged = 0x1000'00000000,
         eStretchChanged = 0x2000'00000000,
@@ -248,7 +248,8 @@ struct layer_state_t {
             layer_state_t::eSidebandStreamChanged | layer_state_t::eSurfaceDamageRegionChanged |
             layer_state_t::eTransformToDisplayInverseChanged |
             layer_state_t::eTransparentRegionChanged |
-            layer_state_t::eExtendedRangeBrightnessChanged;
+            layer_state_t::eExtendedRangeBrightnessChanged |
+            layer_state_t::eDesiredHdrHeadroomChanged;
 
     // Content updates.
     static constexpr uint64_t CONTENT_CHANGES = layer_state_t::BUFFER_CHANGES |
