@@ -734,7 +734,7 @@ TEST_F(VSyncDispatchTimerQueueTest, canMoveCallbackBackwardsInTime) {
 
 // b/1450138150
 TEST_F(VSyncDispatchTimerQueueTest, doesNotMoveCallbackBackwardsAndSkipAScheduledTargetVSync) {
-    SET_FLAG_FOR_TEST(flags::dont_skip_on_early, false);
+    SET_FLAG_FOR_TEST(flags::dont_skip_on_early_ro, false);
 
     EXPECT_CALL(mMockClock, alarmAt(_, 500));
     CountingCallback cb(mDispatch);
@@ -754,7 +754,7 @@ TEST_F(VSyncDispatchTimerQueueTest, doesNotMoveCallbackBackwardsAndSkipASchedule
 
 // b/1450138150
 TEST_F(VSyncDispatchTimerQueueTest, movesCallbackBackwardsAndSkipAScheduledTargetVSync) {
-    SET_FLAG_FOR_TEST(flags::dont_skip_on_early, true);
+    SET_FLAG_FOR_TEST(flags::dont_skip_on_early_ro, true);
 
     Sequence seq;
     EXPECT_CALL(mMockClock, alarmAt(_, 500)).InSequence(seq);
@@ -821,7 +821,7 @@ TEST_F(VSyncDispatchTimerQueueTest, canScheduleLargeNegativeOffset) {
 }
 
 TEST_F(VSyncDispatchTimerQueueTest, scheduleUpdatesDoesNotAffectSchedulingState) {
-    SET_FLAG_FOR_TEST(flags::dont_skip_on_early, false);
+    SET_FLAG_FOR_TEST(flags::dont_skip_on_early_ro, false);
 
     EXPECT_CALL(mMockClock, alarmAt(_, 600));
 
@@ -839,7 +839,7 @@ TEST_F(VSyncDispatchTimerQueueTest, scheduleUpdatesDoesNotAffectSchedulingState)
 }
 
 TEST_F(VSyncDispatchTimerQueueTest, scheduleUpdatesDoesAffectSchedulingState) {
-    SET_FLAG_FOR_TEST(flags::dont_skip_on_early, true);
+    SET_FLAG_FOR_TEST(flags::dont_skip_on_early_ro, true);
 
     Sequence seq;
     EXPECT_CALL(mMockClock, alarmAt(_, 600)).InSequence(seq);
@@ -917,6 +917,8 @@ TEST_F(VSyncDispatchTimerQueueTest, skipsSchedulingIfTimerReschedulingIsImminent
 // If the same callback tries to reschedule itself after it's too late, timer opts to apply the
 // update later, as opposed to blocking the calling thread.
 TEST_F(VSyncDispatchTimerQueueTest, skipsSchedulingIfTimerReschedulingIsImminentSameCallback) {
+    SET_FLAG_FOR_TEST(flags::dont_skip_on_early_ro, false);
+
     Sequence seq;
     EXPECT_CALL(mMockClock, alarmAt(_, 600)).InSequence(seq);
     EXPECT_CALL(mMockClock, alarmAt(_, 1630)).InSequence(seq);
@@ -936,6 +938,37 @@ TEST_F(VSyncDispatchTimerQueueTest, skipsSchedulingIfTimerReschedulingIsImminent
     mMockClock.advanceBy(80);
 
     EXPECT_THAT(cb.mCalls.size(), Eq(1));
+}
+
+// b/154303580.
+// If the same callback tries to reschedule itself after it's too late, timer opts to apply the
+// update later, as opposed to blocking the calling thread.
+TEST_F(VSyncDispatchTimerQueueTest, doesntSkipSchedulingIfTimerReschedulingIsImminentSameCallback) {
+    SET_FLAG_FOR_TEST(flags::dont_skip_on_early_ro, true);
+
+    Sequence seq;
+    EXPECT_CALL(mMockClock, alarmAt(_, 600)).InSequence(seq);
+    EXPECT_CALL(mMockClock, alarmAt(_, 1630)).InSequence(seq);
+    CountingCallback cb(mDispatch);
+
+    auto result =
+            mDispatch->schedule(cb, {.workDuration = 400, .readyDuration = 0, .lastVsync = 1000});
+    EXPECT_TRUE(result.has_value());
+    EXPECT_EQ(600, *result);
+
+    mMockClock.setLag(100);
+    mMockClock.advanceBy(620);
+
+    result = mDispatch->schedule(cb, {.workDuration = 370, .readyDuration = 0, .lastVsync = 2000});
+    EXPECT_TRUE(result.has_value());
+    EXPECT_EQ(600, *result);
+    mMockClock.advanceBy(80);
+
+    ASSERT_EQ(1, cb.mCalls.size());
+    EXPECT_EQ(1000, cb.mCalls[0]);
+
+    ASSERT_EQ(1, cb.mWakeupTime.size());
+    EXPECT_EQ(600, cb.mWakeupTime[0]);
 }
 
 // b/154303580.
@@ -1051,7 +1084,7 @@ TEST_F(VSyncDispatchTimerQueueTest, basicAlarmSettingFutureWithReadyDuration) {
 }
 
 TEST_F(VSyncDispatchTimerQueueTest, updatesVsyncTimeForCloseWakeupTime) {
-    SET_FLAG_FOR_TEST(flags::dont_skip_on_early, false);
+    SET_FLAG_FOR_TEST(flags::dont_skip_on_early_ro, false);
 
     Sequence seq;
     EXPECT_CALL(mMockClock, alarmAt(_, 600)).InSequence(seq);
@@ -1074,7 +1107,7 @@ TEST_F(VSyncDispatchTimerQueueTest, updatesVsyncTimeForCloseWakeupTime) {
 }
 
 TEST_F(VSyncDispatchTimerQueueTest, doesNotUpdatesVsyncTimeForCloseWakeupTime) {
-    SET_FLAG_FOR_TEST(flags::dont_skip_on_early, true);
+    SET_FLAG_FOR_TEST(flags::dont_skip_on_early_ro, true);
 
     Sequence seq;
     EXPECT_CALL(mMockClock, alarmAt(_, 600)).InSequence(seq);
@@ -1098,7 +1131,7 @@ TEST_F(VSyncDispatchTimerQueueTest, doesNotUpdatesVsyncTimeForCloseWakeupTime) {
 }
 
 TEST_F(VSyncDispatchTimerQueueTest, skipAVsyc) {
-    SET_FLAG_FOR_TEST(flags::dont_skip_on_early, false);
+    SET_FLAG_FOR_TEST(flags::dont_skip_on_early_ro, false);
 
     EXPECT_CALL(mMockClock, alarmAt(_, 500));
     CountingCallback cb(mDispatch);
@@ -1117,7 +1150,7 @@ TEST_F(VSyncDispatchTimerQueueTest, skipAVsyc) {
 }
 
 TEST_F(VSyncDispatchTimerQueueTest, dontskipAVsyc) {
-    SET_FLAG_FOR_TEST(flags::dont_skip_on_early, true);
+    SET_FLAG_FOR_TEST(flags::dont_skip_on_early_ro, true);
 
     Sequence seq;
     EXPECT_CALL(mMockClock, alarmAt(_, 500)).InSequence(seq);
@@ -1344,14 +1377,17 @@ TEST_F(VSyncDispatchTimerQueueEntryTest, reportsScheduledIfStillTime) {
                         .has_value());
 }
 
-TEST_F(VSyncDispatchTimerQueueEntryTest, storesPendingUpdatesUntilUpdate) {
+TEST_F(VSyncDispatchTimerQueueEntryTest, storesPendingUpdatesUntilUpdateAndDontSkip) {
     static constexpr auto effectualOffset = 200;
     VSyncDispatchTimerQueueEntry entry(
             "test", [](auto, auto, auto) {}, mVsyncMoveThreshold);
     EXPECT_FALSE(entry.hasPendingWorkloadUpdate());
-    entry.addPendingWorkloadUpdate({.workDuration = 100, .readyDuration = 0, .lastVsync = 400});
-    entry.addPendingWorkloadUpdate(
-            {.workDuration = effectualOffset, .readyDuration = 0, .lastVsync = 400});
+    entry.addPendingWorkloadUpdate(*mStubTracker.get(), 0,
+                                   {.workDuration = 100, .readyDuration = 0, .lastVsync = 400});
+    entry.addPendingWorkloadUpdate(*mStubTracker.get(), 0,
+                                   {.workDuration = effectualOffset,
+                                    .readyDuration = 0,
+                                    .lastVsync = 400});
     EXPECT_TRUE(entry.hasPendingWorkloadUpdate());
     entry.update(*mStubTracker.get(), 0);
     EXPECT_FALSE(entry.hasPendingWorkloadUpdate());
