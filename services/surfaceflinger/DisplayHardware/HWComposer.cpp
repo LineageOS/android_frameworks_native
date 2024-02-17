@@ -92,7 +92,7 @@ HWComposer::HWComposer(std::unique_ptr<Hwc2::Composer> composer)
         mMaxVirtualDisplayDimension(static_cast<size_t>(sysprop::max_virtual_display_dimension(0))),
         mUpdateDeviceProductInfoOnHotplugReconnect(
                 sysprop::update_device_product_info_on_hotplug_reconnect(false)),
-        mEnableVrrTimeout(base::GetBoolProperty("debug.sf.vrr_timeout_hint_enabled"s, false)) {}
+        mEnableVrrTimeout(base::GetBoolProperty("debug.sf.vrr_timeout_hint_enabled"s, true)) {}
 
 HWComposer::HWComposer(const std::string& composerServiceName)
       : HWComposer(Hwc2::Composer::create(composerServiceName)) {}
