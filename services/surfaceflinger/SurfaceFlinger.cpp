@@ -3111,6 +3111,7 @@ void SurfaceFlinger::onCompositionPresented(PhysicalDisplayId pacesetterId,
         for (auto& [compositionDisplay, listener] : hdrInfoListeners) {
             HdrLayerInfoReporter::HdrLayerInfo info;
             int32_t maxArea = 0;
+
             auto updateInfoFn =
                     [&](const std::shared_ptr<compositionengine::Display>& compositionDisplay,
                         const frontend::LayerSnapshot& snapshot, const sp<LayerFE>& layerFe) {
@@ -3121,7 +3122,7 @@ void SurfaceFlinger::onCompositionPresented(PhysicalDisplayId pacesetterId,
                                         compositionDisplay->getOutputLayerForLayer(layerFe);
                                 if (outputLayer) {
                                     const float desiredHdrSdrRatio =
-                                            snapshot.desiredHdrSdrRatio <= 1.f
+                                            snapshot.desiredHdrSdrRatio < 1.f
                                             ? std::numeric_limits<float>::infinity()
                                             : snapshot.desiredHdrSdrRatio;
                                     info.mergeDesiredRatio(desiredHdrSdrRatio);
@@ -5559,6 +5560,11 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
             flags |= eTraversalNeeded;
         }
     }
+    if (what & layer_state_t::eDesiredHdrHeadroomChanged) {
+        if (layer->setDesiredHdrHeadroom(s.desiredHdrSdrRatio)) {
+            flags |= eTraversalNeeded;
+        }
+    }
     if (what & layer_state_t::eCachingHintChanged) {
         if (layer->setCachingHint(s.cachingHint)) {
             flags |= eTraversalNeeded;
@@ -5741,6 +5747,11 @@ uint32_t SurfaceFlinger::updateLayerCallbacksAndStats(const FrameTimelineInfo& f
     }
     if (what & layer_state_t::eExtendedRangeBrightnessChanged) {
         if (layer->setExtendedRangeBrightness(s.currentHdrSdrRatio, s.desiredHdrSdrRatio)) {
+            flags |= eTraversalNeeded;
+        }
+    }
+    if (what & layer_state_t::eDesiredHdrHeadroomChanged) {
+        if (layer->setDesiredHdrHeadroom(s.desiredHdrSdrRatio)) {
             flags |= eTraversalNeeded;
         }
     }

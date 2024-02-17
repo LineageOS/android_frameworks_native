@@ -3395,6 +3395,14 @@ bool Layer::setExtendedRangeBrightness(float currentBufferRatio, float desiredRa
     return true;
 }
 
+bool Layer::setDesiredHdrHeadroom(float desiredRatio) {
+    if (mDrawingState.desiredHdrSdrRatio == desiredRatio) return false;
+    mDrawingState.desiredHdrSdrRatio = desiredRatio;
+    mDrawingState.modified = true;
+    setTransactionFlags(eTransactionNeeded);
+    return true;
+}
+
 bool Layer::setCachingHint(gui::CachingHint cachingHint) {
     if (mDrawingState.cachingHint == cachingHint) return false;
     mDrawingState.cachingHint = cachingHint;
@@ -3987,6 +3995,13 @@ bool Layer::isSimpleBufferUpdate(const layer_state_t& s) const {
         if (mDrawingState.currentHdrSdrRatio != s.currentHdrSdrRatio ||
             mDrawingState.desiredHdrSdrRatio != s.desiredHdrSdrRatio) {
             ATRACE_FORMAT_INSTANT("%s: false [eExtendedRangeBrightnessChanged changed]", __func__);
+            return false;
+        }
+    }
+
+    if (s.what & layer_state_t::eDesiredHdrHeadroomChanged) {
+        if (mDrawingState.desiredHdrSdrRatio != s.desiredHdrSdrRatio) {
+            ATRACE_FORMAT_INSTANT("%s: false [eDesiredHdrHeadroomChanged changed]", __func__);
             return false;
         }
     }

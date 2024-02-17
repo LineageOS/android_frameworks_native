@@ -611,6 +611,10 @@ void layer_state_t::merge(const layer_state_t& other) {
         desiredHdrSdrRatio = other.desiredHdrSdrRatio;
         currentHdrSdrRatio = other.currentHdrSdrRatio;
     }
+    if (other.what & eDesiredHdrHeadroomChanged) {
+        what |= eDesiredHdrHeadroomChanged;
+        desiredHdrSdrRatio = other.desiredHdrSdrRatio;
+    }
     if (other.what & eCachingHintChanged) {
         what |= eCachingHintChanged;
         cachingHint = other.cachingHint;
@@ -774,6 +778,7 @@ uint64_t layer_state_t::diff(const layer_state_t& other) const {
     CHECK_DIFF(diff, eDataspaceChanged, other, dataspace);
     CHECK_DIFF2(diff, eExtendedRangeBrightnessChanged, other, currentHdrSdrRatio,
                 desiredHdrSdrRatio);
+    CHECK_DIFF(diff, eDesiredHdrHeadroomChanged, other, desiredHdrSdrRatio);
     CHECK_DIFF(diff, eCachingHintChanged, other, cachingHint);
     CHECK_DIFF(diff, eHdrMetadataChanged, other, hdrMetadata);
     if (other.what & eSurfaceDamageRegionChanged &&

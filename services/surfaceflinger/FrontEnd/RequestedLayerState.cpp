@@ -98,7 +98,7 @@ RequestedLayerState::RequestedLayerState(const LayerCreationArgs& args)
     z = 0;
     layerStack = ui::DEFAULT_LAYER_STACK;
     transformToDisplayInverse = false;
-    desiredHdrSdrRatio = 1.f;
+    desiredHdrSdrRatio = -1.f;
     currentHdrSdrRatio = 1.f;
     dataspaceRequested = false;
     hdrMetadata.validTypes = 0;
@@ -606,7 +606,8 @@ bool RequestedLayerState::isSimpleBufferUpdate(const layer_state_t& s) const {
             layer_state_t::eShadowRadiusChanged | layer_state_t::eFixedTransformHintChanged |
             layer_state_t::eTrustedOverlayChanged | layer_state_t::eStretchChanged |
             layer_state_t::eBufferCropChanged | layer_state_t::eDestinationFrameChanged |
-            layer_state_t::eDimmingEnabledChanged | layer_state_t::eExtendedRangeBrightnessChanged;
+            layer_state_t::eDimmingEnabledChanged | layer_state_t::eExtendedRangeBrightnessChanged |
+            layer_state_t::eDesiredHdrHeadroomChanged;
     if (changedFlags & deniedChanges) {
         ATRACE_FORMAT_INSTANT("%s: false [has denied changes flags 0x%" PRIx64 "]", __func__,
                               s.what & deniedChanges);

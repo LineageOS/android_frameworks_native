@@ -381,6 +381,9 @@ void LayerSnapshot::merge(const RequestedLayerState& requested, bool forceUpdate
         currentHdrSdrRatio = requested.currentHdrSdrRatio;
         desiredHdrSdrRatio = requested.desiredHdrSdrRatio;
     }
+    if (forceUpdate || requested.what & layer_state_t::eDesiredHdrHeadroomChanged) {
+        desiredHdrSdrRatio = requested.desiredHdrSdrRatio;
+    }
     if (forceUpdate || requested.what & layer_state_t::eCachingHintChanged) {
         cachingHint = requested.cachingHint;
     }

@@ -1808,6 +1808,20 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setExten
     return *this;
 }
 
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setDesiredHdrHeadroom(
+        const sp<SurfaceControl>& sc, float desiredRatio) {
+    layer_state_t* s = getLayerState(sc);
+    if (!s) {
+        mStatus = BAD_INDEX;
+        return *this;
+    }
+    s->what |= layer_state_t::eDesiredHdrHeadroomChanged;
+    s->desiredHdrSdrRatio = desiredRatio;
+
+    registerSurfaceControlForCallback(sc);
+    return *this;
+}
+
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setCachingHint(
         const sp<SurfaceControl>& sc, gui::CachingHint cachingHint) {
     layer_state_t* s = getLayerState(sc);

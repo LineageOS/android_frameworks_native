@@ -108,7 +108,6 @@ void FlagManager::dump(std::string& result) const {
     DUMP_SERVER_FLAG(use_skia_tracing);
 
     /// Trunk stable server flags ///
-    DUMP_SERVER_FLAG(dont_skip_on_early);
     DUMP_SERVER_FLAG(refresh_rate_overlay_on_external_display);
 
     /// Trunk stable readonly flags ///
@@ -131,6 +130,7 @@ void FlagManager::dump(std::string& result) const {
     DUMP_READ_ONLY_FLAG(vulkan_renderengine);
     DUMP_READ_ONLY_FLAG(renderable_buffer_usage);
     DUMP_READ_ONLY_FLAG(restore_blur_step);
+    DUMP_READ_ONLY_FLAG(dont_skip_on_early_ro);
 #undef DUMP_READ_ONLY_FLAG
 #undef DUMP_SERVER_FLAG
 #undef DUMP_FLAG_INTERVAL
@@ -209,15 +209,9 @@ FLAG_MANAGER_READ_ONLY_FLAG(screenshot_fence_preservation, "debug.sf.screenshot_
 FLAG_MANAGER_READ_ONLY_FLAG(vulkan_renderengine, "debug.renderengine.vulkan")
 FLAG_MANAGER_READ_ONLY_FLAG(renderable_buffer_usage, "")
 FLAG_MANAGER_READ_ONLY_FLAG(restore_blur_step, "debug.renderengine.restore_blur_step")
+FLAG_MANAGER_READ_ONLY_FLAG(dont_skip_on_early_ro, "")
 
 /// Trunk stable server flags ///
 FLAG_MANAGER_SERVER_FLAG(refresh_rate_overlay_on_external_display, "")
-
-/// Exceptions ///
-bool FlagManager::dont_skip_on_early() const {
-    // Even though this is a server writable flag, we do call it before boot completed, but that's
-    // fine since the decision is done per frame. We can't do caching though.
-    return flags::dont_skip_on_early();
-}
 
 } // namespace android

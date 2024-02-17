@@ -114,7 +114,10 @@ TEST_F(FlagManagerTest, returnsOverrideReadonly) {
     EXPECT_TRUE(mFlagManager.add_sf_skipped_frames_to_trace());
 }
 
-TEST_F(FlagManagerTest, returnsOverrideFalse) {
+// disabling this test since we need to use a unique flag for this test,
+// but we only one server flag currently. Re-enable once we have a new flag
+// and change this test to use a unique flag.
+TEST_F(FlagManagerTest, DISABLED_returnsOverrideFalse) {
     mFlagManager.markBootCompleted();
 
     SET_FLAG_FOR_TEST(flags::refresh_rate_overlay_on_external_display, true);
@@ -167,20 +170,6 @@ TEST_F(FlagManagerTest, readonlyReturnsValue) {
         SET_FLAG_FOR_TEST(flags::misc1, false);
         EXPECT_EQ(false, mFlagManager.misc1());
     }
-}
-
-TEST_F(FlagManagerTest, dontSkipOnEarlyIsNotCached) {
-    EXPECT_CALL(mFlagManager, getBoolProperty).WillRepeatedly(Return(std::nullopt));
-
-    const auto initialValue = flags::dont_skip_on_early();
-
-    flags::dont_skip_on_early(true);
-    EXPECT_EQ(true, mFlagManager.dont_skip_on_early());
-
-    flags::dont_skip_on_early(false);
-    EXPECT_EQ(false, mFlagManager.dont_skip_on_early());
-
-    flags::dont_skip_on_early(initialValue);
 }
 
 } // namespace android
