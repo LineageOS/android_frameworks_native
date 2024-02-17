@@ -48,8 +48,12 @@ bool FrameTarget::wouldPresentEarly(Period vsyncPeriod) const {
         return true;
     }
 
+#ifdef IS_NOT_ATV
     const auto fence = presentFenceForPastVsync(vsyncPeriod);
     return fence->isValid() && fence->getSignalTime() != Fence::SIGNAL_TIME_PENDING;
+#else
+    return true;
+#endif
 }
 
 void FrameTargeter::beginFrame(const BeginFrameArgs& args, const IVsyncSource& vsyncSource) {
