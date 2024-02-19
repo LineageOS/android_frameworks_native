@@ -65,9 +65,9 @@ mod ffi {
 ///
 /// # Safety
 ///
-/// This function is safe iff `callback` is a valid pointer to an `AIBinder` interface of type
-/// `IInputFlingerRustBootstrapCallback`. The pointer must have had its reference count manually
-/// incremented using `AIBinder_incStrong`. See `binder::unstable_api::new_spibinder`.
+/// The provided `callback` must be a valid pointer to an `AIBinder` interface of type
+/// `IInputFlingerRustBootstrapCallback`, and the caller must give this function ownership of one
+/// strong refcount to the interface. See `binder::unstable_api::new_spibinder`.
 unsafe fn create_inputflinger_rust(callback: *mut ffi::IInputFlingerRustBootstrapCallbackAIBinder) {
     logger::init(
         logger::Config::default()
