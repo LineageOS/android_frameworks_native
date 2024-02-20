@@ -17,49 +17,9 @@
 #define LOG_TAG "dumpstate"
 #define ATRACE_TAG ATRACE_TAG_ALWAYS
 
-#include <dirent.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <inttypes.h>
-#include <libgen.h>
-#include <limits.h>
-#include <math.h>
-#include <poll.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/mount.h>
-#include <sys/poll.h>
-#include <sys/prctl.h>
-#include <sys/resource.h>
-#include <sys/stat.h>
-#include <sys/time.h>
-#include <sys/wait.h>
-#include <signal.h>
-#include <stdarg.h>
-#include <string.h>
-#include <sys/capability.h>
-#include <sys/inotify.h>
-#include <sys/klog.h>
-#include <time.h>
-#include <unistd.h>
-
-#include <chrono>
-#include <cmath>
-#include <fstream>
-#include <functional>
-#include <future>
-#include <memory>
-#include <numeric>
-#include <regex>
-#include <set>
-#include <string>
-#include <utility>
-#include <vector>
+#include "dumpstate.h"
 
 #include <aidl/android/hardware/dumpstate/IDumpstateDevice.h>
-#include <android_app_admin_flags.h>
 #include <android-base/file.h>
 #include <android-base/properties.h>
 #include <android-base/scopeguard.h>
@@ -74,6 +34,8 @@
 #include <android/hardware/dumpstate/1.1/types.h>
 #include <android/hidl/manager/1.0/IServiceManager.h>
 #include <android/os/IIncidentCompanion.h>
+#include <android_app_admin_flags.h>
+#include <android_tracing.h>
 #include <binder/IServiceManager.h>
 #include <cutils/multiuser.h>
 #include <cutils/native_handle.h>
@@ -81,21 +43,60 @@
 #include <cutils/sockets.h>
 #include <cutils/trace.h>
 #include <debuggerd/client.h>
+#include <dirent.h>
 #include <dumpsys.h>
 #include <dumputils/dump_utils.h>
+#include <errno.h>
+#include <fcntl.h>
 #include <hardware_legacy/power.h>
 #include <hidl/ServiceManagement.h>
+#include <inttypes.h>
+#include <libgen.h>
+#include <limits.h>
 #include <log/log.h>
 #include <log/log_read.h>
+#include <math.h>
 #include <openssl/sha.h>
+#include <poll.h>
 #include <private/android_filesystem_config.h>
 #include <private/android_logger.h>
 #include <serviceutils/PriorityDumper.h>
+#include <signal.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/capability.h>
+#include <sys/inotify.h>
+#include <sys/klog.h>
+#include <sys/mount.h>
+#include <sys/poll.h>
+#include <sys/prctl.h>
+#include <sys/resource.h>
+#include <sys/stat.h>
+#include <sys/time.h>
+#include <sys/wait.h>
+#include <time.h>
+#include <unistd.h>
 #include <utils/StrongPointer.h>
 #include <vintf/VintfObject.h>
+
+#include <chrono>
+#include <cmath>
+#include <fstream>
+#include <functional>
+#include <future>
+#include <memory>
+#include <numeric>
+#include <regex>
+#include <set>
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "DumpstateInternal.h"
 #include "DumpstateService.h"
-#include "dumpstate.h"
 
 namespace dumpstate_hal_hidl_1_0 = android::hardware::dumpstate::V1_0;
 namespace dumpstate_hal_hidl = android::hardware::dumpstate::V1_1;
@@ -3455,15 +3456,23 @@ void Dumpstate::MaybeSnapshotUiTraces() {
         return;
     }
 
-    const std::vector<std::vector<std::string>> dumpTracesForBugReportCommands = {
-        {"dumpsys", "activity", "service", "SystemUIService", "WMShell", "protolog",
-         "save-for-bugreport"},
-        {"dumpsys", "activity", "service", "SystemUIService", "WMShell", "transitions", "tracing",
-         "save-for-bugreport"},
+    std::vector<std::vector<std::string>> dumpTracesForBugReportCommands = {
         {"cmd", "input_method", "tracing", "save-for-bugreport"},
         {"cmd", "window", "tracing", "save-for-bugreport"},
         {"cmd", "window", "shell", "tracing", "save-for-bugreport"},
     };
+
+    if (!android_tracing_perfetto_transition_tracing()) {
+        dumpTracesForBugReportCommands.push_back({"dumpsys", "activity", "service",
+                                                  "SystemUIService", "WMShell", "transitions",
+                                                  "tracing", "save-for-bugreport"});
+    }
+
+    if (!android_tracing_perfetto_protolog()) {
+        dumpTracesForBugReportCommands.push_back({"dumpsys", "activity", "service",
+                                                  "SystemUIService", "WMShell", "protolog",
+                                                  "save-for-bugreport"});
+    }
 
     for (const auto& command : dumpTracesForBugReportCommands) {
         RunCommand(
