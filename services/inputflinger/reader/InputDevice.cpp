@@ -265,6 +265,8 @@ std::list<NotifyArgs> InputDevice::configureInternal(nsecs_t when,
         }
 
         if (!changes.any() || changes.test(Change::DISPLAY_INFO)) {
+            const auto oldAssociatedDisplayId = getAssociatedDisplayId();
+
             // In most situations, no port or name will be specified.
             mAssociatedDisplayPort = std::nullopt;
             mAssociatedDisplayUniqueId = std::nullopt;
@@ -305,6 +307,10 @@ std::list<NotifyArgs> InputDevice::configureInternal(nsecs_t when,
                           "corresponding viewport cannot be found",
                           getName().c_str(), mAssociatedDisplayUniqueId->c_str());
                 }
+            }
+
+            if (getAssociatedDisplayId() != oldAssociatedDisplayId) {
+                bumpGeneration();
             }
         }
 
