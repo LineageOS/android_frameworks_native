@@ -5381,9 +5381,11 @@ TEST_P(TransferTouchFixture, TransferTouch_OnePointer) {
     sp<FakeWindowHandle> wallpaper =
             sp<FakeWindowHandle>::make(application, mDispatcher, "Wallpaper", ADISPLAY_ID_DEFAULT);
     wallpaper->setIsWallpaper(true);
-    // Add the windows to the dispatcher
+    // Add the windows to the dispatcher, and ensure the first window is focused
     mDispatcher->onWindowInfosChanged(
             {{*firstWindow->getInfo(), *secondWindow->getInfo(), *wallpaper->getInfo()}, {}, 0, 0});
+    setFocusedWindow(firstWindow);
+    firstWindow->consumeFocusEvent(true);
 
     // Send down to the first window
     mDispatcher->notifyMotion(generateMotionArgs(AMOTION_EVENT_ACTION_DOWN,
@@ -5393,6 +5395,8 @@ TEST_P(TransferTouchFixture, TransferTouch_OnePointer) {
     firstWindow->consumeMotionDown();
     secondWindow->assertNoEvents();
     wallpaper->consumeMotionDown(ADISPLAY_ID_DEFAULT, expectedWallpaperFlags);
+    // Dispatcher reports pointer down outside focus for the wallpaper
+    mFakePolicy->assertOnPointerDownEquals(wallpaper->getToken());
 
     // Transfer touch to the second window
     TransferFunction f = GetParam();
@@ -5400,15 +5404,17 @@ TEST_P(TransferTouchFixture, TransferTouch_OnePointer) {
     ASSERT_TRUE(success);
     // The first window gets cancel and the second gets down
     firstWindow->consumeMotionCancel();
-    secondWindow->consumeMotionDown();
+    secondWindow->consumeMotionDown(ADISPLAY_ID_DEFAULT, AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
     wallpaper->consumeMotionCancel(ADISPLAY_ID_DEFAULT, expectedWallpaperFlags);
+    // There should not be any changes to the focused window when transferring touch
+    ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertOnPointerDownWasNotCalled());
 
     // Send up event to the second window
     mDispatcher->notifyMotion(generateMotionArgs(AMOTION_EVENT_ACTION_UP, AINPUT_SOURCE_TOUCHSCREEN,
                                                  ADISPLAY_ID_DEFAULT));
-    // The first  window gets no events and the second gets up
+    // The first window gets no events and the second gets up
     firstWindow->assertNoEvents();
-    secondWindow->consumeMotionUp();
+    secondWindow->consumeMotionUp(ADISPLAY_ID_DEFAULT, AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
     wallpaper->assertNoEvents();
 }
 
@@ -5455,7 +5461,7 @@ TEST_P(TransferTouchFixture, TransferTouch_MultipleWindowsWithSpy) {
     ASSERT_TRUE(success);
     // The first window gets cancel and the second gets down
     firstWindow->consumeMotionCancel();
-    secondWindow->consumeMotionDown();
+    secondWindow->consumeMotionDown(ADISPLAY_ID_DEFAULT, AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
 
     // Send up event to the second window
     mDispatcher->notifyMotion(generateMotionArgs(AMOTION_EVENT_ACTION_UP, AINPUT_SOURCE_TOUCHSCREEN,
@@ -5463,7 +5469,7 @@ TEST_P(TransferTouchFixture, TransferTouch_MultipleWindowsWithSpy) {
     // The first  window gets no events and the second+spy get up
     firstWindow->assertNoEvents();
     spyWindow->consumeMotionUp();
-    secondWindow->consumeMotionUp();
+    secondWindow->consumeMotionUp(ADISPLAY_ID_DEFAULT, AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
 }
 
 TEST_P(TransferTouchFixture, TransferTouch_TwoPointersNonSplitTouch) {
@@ -5506,22 +5512,24 @@ TEST_P(TransferTouchFixture, TransferTouch_TwoPointersNonSplitTouch) {
     ASSERT_TRUE(success);
     // The first window gets cancel and the second gets down and pointer down
     firstWindow->consumeMotionCancel();
-    secondWindow->consumeMotionDown();
-    secondWindow->consumeMotionPointerDown(1);
+    secondWindow->consumeMotionDown(ADISPLAY_ID_DEFAULT, AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
+    secondWindow->consumeMotionPointerDown(1, ADISPLAY_ID_DEFAULT,
+                                           AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
 
     // Send pointer up to the second window
     mDispatcher->notifyMotion(generateMotionArgs(POINTER_1_UP, AINPUT_SOURCE_TOUCHSCREEN,
                                                  ADISPLAY_ID_DEFAULT, {touchPoint, touchPoint}));
     // The first window gets nothing and the second gets pointer up
     firstWindow->assertNoEvents();
-    secondWindow->consumeMotionPointerUp(1);
+    secondWindow->consumeMotionPointerUp(1, ADISPLAY_ID_DEFAULT,
+                                         AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
 
     // Send up event to the second window
     mDispatcher->notifyMotion(generateMotionArgs(AMOTION_EVENT_ACTION_UP, AINPUT_SOURCE_TOUCHSCREEN,
                                                  ADISPLAY_ID_DEFAULT));
     // The first window gets nothing and the second gets up
     firstWindow->assertNoEvents();
-    secondWindow->consumeMotionUp();
+    secondWindow->consumeMotionUp(ADISPLAY_ID_DEFAULT, AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
 }
 
 TEST_P(TransferTouchFixture, TransferTouch_MultipleWallpapers) {
@@ -5568,24 +5576,26 @@ TEST_P(TransferTouchFixture, TransferTouch_MultipleWallpapers) {
 
     // The first window gets cancel and the second gets down
     firstWindow->consumeMotionCancel();
-    secondWindow->consumeMotionDown();
+    secondWindow->consumeMotionDown(ADISPLAY_ID_DEFAULT, AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
     wallpaper1->consumeMotionCancel(ADISPLAY_ID_DEFAULT, expectedWallpaperFlags);
-    wallpaper2->consumeMotionDown(ADISPLAY_ID_DEFAULT, expectedWallpaperFlags);
+    wallpaper2->consumeMotionDown(ADISPLAY_ID_DEFAULT,
+                                  expectedWallpaperFlags | AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
 
     // Send up event to the second window
     mDispatcher->notifyMotion(generateMotionArgs(AMOTION_EVENT_ACTION_UP, AINPUT_SOURCE_TOUCHSCREEN,
                                                  ADISPLAY_ID_DEFAULT));
     // The first  window gets no events and the second gets up
     firstWindow->assertNoEvents();
-    secondWindow->consumeMotionUp();
+    secondWindow->consumeMotionUp(ADISPLAY_ID_DEFAULT, AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
     wallpaper1->assertNoEvents();
-    wallpaper2->consumeMotionUp(ADISPLAY_ID_DEFAULT, expectedWallpaperFlags);
+    wallpaper2->consumeMotionUp(ADISPLAY_ID_DEFAULT,
+                                expectedWallpaperFlags | AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
 }
 
 // For the cases of single pointer touch and two pointers non-split touch, the api's
 // 'transferTouch' and 'transferTouchFocus' are equivalent in behaviour. They only differ
 // for the case where there are multiple pointers split across several windows.
-INSTANTIATE_TEST_SUITE_P(TransferFunctionTests, TransferTouchFixture,
+INSTANTIATE_TEST_SUITE_P(InputDispatcherTransferFunctionTests, TransferTouchFixture,
                          ::testing::Values(
                                  [&](const std::unique_ptr<InputDispatcher>& dispatcher,
                                      sp<IBinder> /*ignored*/, sp<IBinder> destChannelToken) {
@@ -5638,7 +5648,8 @@ TEST_F(InputDispatcherTest, TransferTouchFocus_TwoPointersSplitTouch) {
     mDispatcher->transferTouchFocus(firstWindow->getToken(), secondWindow->getToken());
     // The first window gets cancel and the new gets pointer down (it already saw down)
     firstWindow->consumeMotionCancel();
-    secondWindow->consumeMotionPointerDown(1);
+    secondWindow->consumeMotionPointerDown(1, ADISPLAY_ID_DEFAULT,
+                                           AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
 
     // Send pointer up to the second window
     mDispatcher->notifyMotion(generateMotionArgs(POINTER_1_UP, AINPUT_SOURCE_TOUCHSCREEN,
@@ -5646,14 +5657,15 @@ TEST_F(InputDispatcherTest, TransferTouchFocus_TwoPointersSplitTouch) {
                                                  {pointInFirst, pointInSecond}));
     // The first window gets nothing and the second gets pointer up
     firstWindow->assertNoEvents();
-    secondWindow->consumeMotionPointerUp(1);
+    secondWindow->consumeMotionPointerUp(1, ADISPLAY_ID_DEFAULT,
+                                         AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
 
     // Send up event to the second window
     mDispatcher->notifyMotion(generateMotionArgs(AMOTION_EVENT_ACTION_UP, AINPUT_SOURCE_TOUCHSCREEN,
                                                  ADISPLAY_ID_DEFAULT));
     // The first window gets nothing and the second gets up
     firstWindow->assertNoEvents();
-    secondWindow->consumeMotionUp();
+    secondWindow->consumeMotionUp(ADISPLAY_ID_DEFAULT, AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
 }
 
 // Same as TransferTouchFocus_TwoPointersSplitTouch, but using 'transferTouch' api.
@@ -5764,21 +5776,23 @@ TEST_F(InputDispatcherTest, TransferTouchFocus_CloneSurface) {
                                                 secondWindowInPrimary->getToken()));
     // The first window gets cancel.
     firstWindowInPrimary->consumeMotionCancel();
-    secondWindowInPrimary->consumeMotionDown();
+    secondWindowInPrimary->consumeMotionDown(ADISPLAY_ID_DEFAULT,
+                                             AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
 
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
               injectMotionEvent(*mDispatcher, AMOTION_EVENT_ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN,
                                 ADISPLAY_ID_DEFAULT, {150, 50}))
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
     firstWindowInPrimary->assertNoEvents();
-    secondWindowInPrimary->consumeMotionMove();
+    secondWindowInPrimary->consumeMotionMove(ADISPLAY_ID_DEFAULT,
+                                             AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
 
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
               injectMotionUp(*mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
                              {150, 50}))
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
     firstWindowInPrimary->assertNoEvents();
-    secondWindowInPrimary->consumeMotionUp();
+    secondWindowInPrimary->consumeMotionUp(ADISPLAY_ID_DEFAULT, AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
 }
 
 // Same as TransferTouchFocus_CloneSurface, but this touch on the secondary display and use
@@ -5824,20 +5838,22 @@ TEST_F(InputDispatcherTest, TransferTouch_CloneSurface) {
 
     // The first window gets cancel.
     firstWindowInSecondary->consumeMotionCancel(SECOND_DISPLAY_ID);
-    secondWindowInSecondary->consumeMotionDown(SECOND_DISPLAY_ID);
+    secondWindowInSecondary->consumeMotionDown(SECOND_DISPLAY_ID,
+                                               AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
 
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
               injectMotionEvent(*mDispatcher, AMOTION_EVENT_ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN,
                                 SECOND_DISPLAY_ID, {150, 50}))
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
     firstWindowInSecondary->assertNoEvents();
-    secondWindowInSecondary->consumeMotionMove(SECOND_DISPLAY_ID);
+    secondWindowInSecondary->consumeMotionMove(SECOND_DISPLAY_ID,
+                                               AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
 
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
               injectMotionUp(*mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, SECOND_DISPLAY_ID, {150, 50}))
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
     firstWindowInSecondary->assertNoEvents();
-    secondWindowInSecondary->consumeMotionUp(SECOND_DISPLAY_ID);
+    secondWindowInSecondary->consumeMotionUp(SECOND_DISPLAY_ID, AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
 }
 
 TEST_F(InputDispatcherTest, FocusedWindow_ReceivesFocusEventAndKeyEvent) {
@@ -10508,7 +10524,7 @@ protected:
                                                 /*isDragDrop=*/true);
         if (transferred) {
             mWindow->consumeMotionCancel();
-            mDragWindow->consumeMotionDown();
+            mDragWindow->consumeMotionDown(ADISPLAY_ID_DEFAULT, AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
         }
         return transferred;
     }
@@ -10522,7 +10538,7 @@ TEST_F(InputDispatcherDragTests, DragEnterAndDragExit) {
               injectMotionEvent(*mDispatcher, AMOTION_EVENT_ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN,
                                 ADISPLAY_ID_DEFAULT, {50, 50}))
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
-    mDragWindow->consumeMotionMove(ADISPLAY_ID_DEFAULT);
+    mDragWindow->consumeMotionMove(ADISPLAY_ID_DEFAULT, AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
     mWindow->consumeDragEvent(false, 50, 50);
     mSecondWindow->assertNoEvents();
 
@@ -10531,7 +10547,7 @@ TEST_F(InputDispatcherDragTests, DragEnterAndDragExit) {
               injectMotionEvent(*mDispatcher, AMOTION_EVENT_ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN,
                                 ADISPLAY_ID_DEFAULT, {150, 50}))
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
-    mDragWindow->consumeMotionMove(ADISPLAY_ID_DEFAULT);
+    mDragWindow->consumeMotionMove(ADISPLAY_ID_DEFAULT, AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
     mWindow->consumeDragEvent(true, 150, 50);
     mSecondWindow->consumeDragEvent(false, 50, 50);
 
@@ -10540,7 +10556,7 @@ TEST_F(InputDispatcherDragTests, DragEnterAndDragExit) {
               injectMotionEvent(*mDispatcher, AMOTION_EVENT_ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN,
                                 ADISPLAY_ID_DEFAULT, {50, 50}))
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
-    mDragWindow->consumeMotionMove(ADISPLAY_ID_DEFAULT);
+    mDragWindow->consumeMotionMove(ADISPLAY_ID_DEFAULT, AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
     mWindow->consumeDragEvent(false, 50, 50);
     mSecondWindow->consumeDragEvent(true, -50, 50);
 
@@ -10548,7 +10564,7 @@ TEST_F(InputDispatcherDragTests, DragEnterAndDragExit) {
               injectMotionUp(*mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
                              {50, 50}))
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
-    mDragWindow->consumeMotionUp(ADISPLAY_ID_DEFAULT);
+    mDragWindow->consumeMotionUp(ADISPLAY_ID_DEFAULT, AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
     mWindow->assertNoEvents();
     mSecondWindow->assertNoEvents();
 }
@@ -10585,7 +10601,7 @@ TEST_F(InputDispatcherDragTests, DragAndDrop) {
               injectMotionEvent(*mDispatcher, AMOTION_EVENT_ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN,
                                 ADISPLAY_ID_DEFAULT, {50, 50}))
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
-    mDragWindow->consumeMotionMove(ADISPLAY_ID_DEFAULT);
+    mDragWindow->consumeMotionMove(ADISPLAY_ID_DEFAULT, AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
     mWindow->consumeDragEvent(false, 50, 50);
     mSecondWindow->assertNoEvents();
 
@@ -10594,7 +10610,7 @@ TEST_F(InputDispatcherDragTests, DragAndDrop) {
               injectMotionEvent(*mDispatcher, AMOTION_EVENT_ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN,
                                 ADISPLAY_ID_DEFAULT, {150, 50}))
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
-    mDragWindow->consumeMotionMove(ADISPLAY_ID_DEFAULT);
+    mDragWindow->consumeMotionMove(ADISPLAY_ID_DEFAULT, AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
     mWindow->consumeDragEvent(true, 150, 50);
     mSecondWindow->consumeDragEvent(false, 50, 50);
 
@@ -10603,7 +10619,7 @@ TEST_F(InputDispatcherDragTests, DragAndDrop) {
               injectMotionUp(*mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
                              {150, 50}))
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
-    mDragWindow->consumeMotionUp(ADISPLAY_ID_DEFAULT);
+    mDragWindow->consumeMotionUp(ADISPLAY_ID_DEFAULT, AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
     mFakePolicy->assertDropTargetEquals(*mDispatcher, mSecondWindow->getToken());
     mWindow->assertNoEvents();
     mSecondWindow->assertNoEvents();
@@ -10649,7 +10665,8 @@ TEST_F(InputDispatcherDragTests, DragAndDropNotCancelledIfSomeOtherPointerIsPilf
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
 
     // Drag window should still receive the new event
-    mDragWindow->consumeMotionEvent(WithMotionAction(ACTION_MOVE));
+    mDragWindow->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_MOVE), WithFlags(AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE)));
     mDragWindow->assertNoEvents();
 }
 
@@ -10664,7 +10681,7 @@ TEST_F(InputDispatcherDragTests, StylusDragAndDrop) {
                                         .pointer(PointerBuilder(0, ToolType::STYLUS).x(50).y(50))
                                         .build()))
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
-    mDragWindow->consumeMotionMove(ADISPLAY_ID_DEFAULT);
+    mDragWindow->consumeMotionMove(ADISPLAY_ID_DEFAULT, AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
     mWindow->consumeDragEvent(false, 50, 50);
     mSecondWindow->assertNoEvents();
 
@@ -10676,7 +10693,7 @@ TEST_F(InputDispatcherDragTests, StylusDragAndDrop) {
                                         .pointer(PointerBuilder(0, ToolType::STYLUS).x(150).y(50))
                                         .build()))
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
-    mDragWindow->consumeMotionMove(ADISPLAY_ID_DEFAULT);
+    mDragWindow->consumeMotionMove(ADISPLAY_ID_DEFAULT, AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
     mWindow->assertNoEvents();
     mSecondWindow->assertNoEvents();
     mFakePolicy->assertDropTargetEquals(*mDispatcher, mSecondWindow->getToken());
@@ -10689,7 +10706,7 @@ TEST_F(InputDispatcherDragTests, StylusDragAndDrop) {
                                         .pointer(PointerBuilder(0, ToolType::STYLUS).x(150).y(50))
                                         .build()))
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
-    mDragWindow->consumeMotionUp(ADISPLAY_ID_DEFAULT);
+    mDragWindow->consumeMotionUp(ADISPLAY_ID_DEFAULT, AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
     mWindow->assertNoEvents();
     mSecondWindow->assertNoEvents();
 }
@@ -10707,7 +10724,7 @@ TEST_F(InputDispatcherDragTests, DragAndDropOnInvalidWindow) {
               injectMotionEvent(*mDispatcher, AMOTION_EVENT_ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN,
                                 ADISPLAY_ID_DEFAULT, {50, 50}))
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
-    mDragWindow->consumeMotionMove(ADISPLAY_ID_DEFAULT);
+    mDragWindow->consumeMotionMove(ADISPLAY_ID_DEFAULT, AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
     mWindow->consumeDragEvent(false, 50, 50);
     mSecondWindow->assertNoEvents();
 
@@ -10716,7 +10733,7 @@ TEST_F(InputDispatcherDragTests, DragAndDropOnInvalidWindow) {
               injectMotionEvent(*mDispatcher, AMOTION_EVENT_ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN,
                                 ADISPLAY_ID_DEFAULT, {150, 50}))
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
-    mDragWindow->consumeMotionMove(ADISPLAY_ID_DEFAULT);
+    mDragWindow->consumeMotionMove(ADISPLAY_ID_DEFAULT, AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
     mWindow->consumeDragEvent(true, 150, 50);
     mSecondWindow->assertNoEvents();
 
@@ -10725,7 +10742,7 @@ TEST_F(InputDispatcherDragTests, DragAndDropOnInvalidWindow) {
               injectMotionUp(*mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
                              {150, 50}))
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
-    mDragWindow->consumeMotionUp(ADISPLAY_ID_DEFAULT);
+    mDragWindow->consumeMotionUp(ADISPLAY_ID_DEFAULT, AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
     mFakePolicy->assertDropTargetEquals(*mDispatcher, nullptr);
     mWindow->assertNoEvents();
     mSecondWindow->assertNoEvents();
@@ -10794,7 +10811,7 @@ TEST_F(InputDispatcherDragTests, DragAndDropWhenSplitTouch) {
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
               injectMotionEvent(*mDispatcher, secondFingerMoveEvent, INJECT_EVENT_TIMEOUT,
                                 InputEventInjectionSync::WAIT_FOR_RESULT));
-    mDragWindow->consumeMotionMove(ADISPLAY_ID_DEFAULT);
+    mDragWindow->consumeMotionMove(ADISPLAY_ID_DEFAULT, AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
     mWindow->consumeDragEvent(false, 50, 50);
     mSecondWindow->consumeMotionMove();
 
@@ -10808,7 +10825,7 @@ TEST_F(InputDispatcherDragTests, DragAndDropWhenSplitTouch) {
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
               injectMotionEvent(*mDispatcher, secondFingerUpEvent, INJECT_EVENT_TIMEOUT,
                                 InputEventInjectionSync::WAIT_FOR_RESULT));
-    mDragWindow->consumeMotionUp(ADISPLAY_ID_DEFAULT);
+    mDragWindow->consumeMotionUp(ADISPLAY_ID_DEFAULT, AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
     mFakePolicy->assertDropTargetEquals(*mDispatcher, mWindow->getToken());
     mWindow->assertNoEvents();
     mSecondWindow->consumeMotionMove();
@@ -10849,7 +10866,7 @@ TEST_F(InputDispatcherDragTests, DragAndDropWhenMultiDisplays) {
               injectMotionEvent(*mDispatcher, AMOTION_EVENT_ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN,
                                 ADISPLAY_ID_DEFAULT, {50, 50}))
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
-    mDragWindow->consumeMotionMove(ADISPLAY_ID_DEFAULT);
+    mDragWindow->consumeMotionMove(ADISPLAY_ID_DEFAULT, AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
     mWindow->consumeDragEvent(false, 50, 50);
     mSecondWindow->assertNoEvents();
 
@@ -10858,7 +10875,7 @@ TEST_F(InputDispatcherDragTests, DragAndDropWhenMultiDisplays) {
               injectMotionEvent(*mDispatcher, AMOTION_EVENT_ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN,
                                 ADISPLAY_ID_DEFAULT, {150, 50}))
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
-    mDragWindow->consumeMotionMove(ADISPLAY_ID_DEFAULT);
+    mDragWindow->consumeMotionMove(ADISPLAY_ID_DEFAULT, AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
     mWindow->consumeDragEvent(true, 150, 50);
     mSecondWindow->consumeDragEvent(false, 50, 50);
 
@@ -10867,7 +10884,7 @@ TEST_F(InputDispatcherDragTests, DragAndDropWhenMultiDisplays) {
               injectMotionUp(*mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_DEFAULT,
                              {150, 50}))
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
-    mDragWindow->consumeMotionUp(ADISPLAY_ID_DEFAULT);
+    mDragWindow->consumeMotionUp(ADISPLAY_ID_DEFAULT, AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
     mFakePolicy->assertDropTargetEquals(*mDispatcher, mSecondWindow->getToken());
     mWindow->assertNoEvents();
     mSecondWindow->assertNoEvents();
@@ -10885,7 +10902,7 @@ TEST_F(InputDispatcherDragTests, MouseDragAndDrop) {
                                                          .y(50))
                                         .build()))
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
-    mDragWindow->consumeMotionMove(ADISPLAY_ID_DEFAULT);
+    mDragWindow->consumeMotionMove(ADISPLAY_ID_DEFAULT, AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
     mWindow->consumeDragEvent(false, 50, 50);
     mSecondWindow->assertNoEvents();
 
@@ -10899,7 +10916,7 @@ TEST_F(InputDispatcherDragTests, MouseDragAndDrop) {
                                                          .y(50))
                                         .build()))
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
-    mDragWindow->consumeMotionMove(ADISPLAY_ID_DEFAULT);
+    mDragWindow->consumeMotionMove(ADISPLAY_ID_DEFAULT, AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
     mWindow->consumeDragEvent(true, 150, 50);
     mSecondWindow->consumeDragEvent(false, 50, 50);
 
@@ -10913,7 +10930,7 @@ TEST_F(InputDispatcherDragTests, MouseDragAndDrop) {
                                                          .y(50))
                                         .build()))
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
-    mDragWindow->consumeMotionUp(ADISPLAY_ID_DEFAULT);
+    mDragWindow->consumeMotionUp(ADISPLAY_ID_DEFAULT, AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
     mFakePolicy->assertDropTargetEquals(*mDispatcher, mSecondWindow->getToken());
     mWindow->assertNoEvents();
     mSecondWindow->assertNoEvents();
@@ -10954,7 +10971,8 @@ TEST_F(InputDispatcherDragTests, DragAndDropFinishedWhenCancelCurrentTouch) {
     // Trigger cancel
     mDispatcher->cancelCurrentTouch();
     ASSERT_NO_FATAL_FAILURE(mSecondWindow->consumeMotionCancel());
-    ASSERT_NO_FATAL_FAILURE(mDragWindow->consumeMotionCancel());
+    ASSERT_NO_FATAL_FAILURE(mDragWindow->consumeMotionCancel(ADISPLAY_ID_DEFAULT,
+                                                             AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE));
     ASSERT_NO_FATAL_FAILURE(mSpyWindow->consumeMotionCancel());
 
     ASSERT_TRUE(mDispatcher->waitForIdle());
