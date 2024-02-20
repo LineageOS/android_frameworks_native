@@ -47,6 +47,7 @@ uint64_t shiftMix(uint64_t val) {
     return val ^ (val >> 47);
 }
 
+__attribute__((no_sanitize("unsigned-integer-overflow")))
 uint64_t hash64Len16(uint64_t u, uint64_t v) {
     constexpr uint64_t kMul = 0x9ddfea08eb382d69;
     uint64_t a = (u ^ v) * kMul;
@@ -57,6 +58,7 @@ uint64_t hash64Len16(uint64_t u, uint64_t v) {
     return b;
 }
 
+__attribute__((no_sanitize("unsigned-integer-overflow")))
 uint64_t hash64Len0To16(const char* s, uint64_t len) {
     constexpr uint64_t k2 = 0x9ae16a3b2f90404f;
     constexpr uint64_t k3 = 0xc949d7c7509e6557;
