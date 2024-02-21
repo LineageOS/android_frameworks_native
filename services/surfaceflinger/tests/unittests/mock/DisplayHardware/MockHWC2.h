@@ -53,7 +53,8 @@ public:
     MOCK_METHOD(hal::Error, getRequests,
                 (hal::DisplayRequest *, (std::unordered_map<Layer *, hal::LayerRequest> *)),
                 (override));
-    MOCK_METHOD(hal::Error, getConnectionType, (ui::DisplayConnectionType *), (const, override));
+    MOCK_METHOD((ftl::Expected<ui::DisplayConnectionType, hal::Error>), getConnectionType, (),
+                (const, override));
     MOCK_METHOD(hal::Error, supportsDoze, (bool *), (const, override));
     MOCK_METHOD(hal::Error, getHdrCapabilities, (android::HdrCapabilities *), (const, override));
     MOCK_METHOD(hal::Error, getDisplayedContentSamplingAttributes,

@@ -1037,6 +1037,9 @@ std::ostream& operator<<(std::ostream& out, const MotionEvent& event) {
     if (event.getMetaState() != 0) {
         out << ", metaState=" << event.getMetaState();
     }
+    if (event.getFlags() != 0) {
+        out << ", flags=0x" << std::hex << event.getFlags() << std::dec;
+    }
     if (event.getEdgeFlags() != 0) {
         out << ", edgeFlags=" << event.getEdgeFlags();
     }
