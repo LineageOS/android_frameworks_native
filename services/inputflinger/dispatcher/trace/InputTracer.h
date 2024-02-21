@@ -44,36 +44,43 @@ public:
     std::unique_ptr<EventTrackerInterface> traceInboundEvent(const EventEntry&) override;
     void dispatchToTargetHint(const EventTrackerInterface&, const InputTarget&) override;
     void eventProcessingComplete(const EventTrackerInterface&) override;
+    std::unique_ptr<EventTrackerInterface> traceDerivedEvent(const EventEntry&,
+                                                             const EventTrackerInterface&) override;
     void traceEventDispatch(const DispatchEntry&, const EventTrackerInterface*) override;
 
 private:
     std::unique_ptr<InputTracingBackendInterface> mBackend;
 
-    // The state of a tracked event.
+    // The state of a tracked event, shared across all events derived from the original event.
     struct EventState {
-        explicit inline EventState(TracedEvent event) : event(std::move(event)){};
+        explicit inline EventState(InputTracer& tracer) : tracer(tracer){};
+        ~EventState();
 
-        const TracedEvent event;
+        InputTracer& tracer;
+        std::vector<const TracedEvent> events;
         bool isEventProcessingComplete{false};
         // TODO(b/210460522): Add additional args for tracking event sensitivity and
         //  dispatch target UIDs.
     };
 
     // Get the event state associated with a tracking cookie.
-    EventState& getState(const EventTrackerInterface&);
+    std::shared_ptr<EventState>& getState(const EventTrackerInterface&);
+    bool isDerivedCookie(const EventTrackerInterface&);
 
     // Implementation of the event tracker cookie. The cookie holds the event state directly for
     // convenience to avoid the overhead of tracking the state separately in InputTracer.
     class EventTrackerImpl : public EventTrackerInterface {
     public:
-        explicit EventTrackerImpl(InputTracer&, TracedEvent&& entry);
-        virtual ~EventTrackerImpl() override;
+        inline EventTrackerImpl(const std::shared_ptr<EventState>& state, bool isDerivedEvent)
+              : mState(state), mIsDerived(isDerivedEvent) {}
+        EventTrackerImpl(const EventTrackerImpl&) = default;
 
     private:
-        InputTracer& mTracer;
-        mutable EventState mState;
+        mutable std::shared_ptr<EventState> mState;
+        const bool mIsDerived;
 
-        friend EventState& InputTracer::getState(const EventTrackerInterface&);
+        friend std::shared_ptr<EventState>& InputTracer::getState(const EventTrackerInterface&);
+        friend bool InputTracer::isDerivedCookie(const EventTrackerInterface&);
     };
 };
 

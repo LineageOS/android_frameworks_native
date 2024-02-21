@@ -52,7 +52,6 @@ public:
      * to track the event's lifecycle inside InputDispatcher.
      */
     virtual std::unique_ptr<EventTrackerInterface> traceInboundEvent(const EventEntry&) = 0;
-
     /**
      * Notify the tracer that the traced event will be sent to the given InputTarget.
      * The tracer may change how the event is logged depending on the target. For example,
@@ -74,6 +73,19 @@ public:
      * that.
      */
     virtual void eventProcessingComplete(const EventTrackerInterface&) = 0;
+
+    /**
+     * Trace an input event that is derived from another event. This is used in cases where an event
+     * is modified from the original, such as when a touch is split across multiple windows, or
+     * when a HOVER_MOVE event is modified to be a HOVER_EXIT, etc. The original event's tracker
+     * must be provided, and a new EventTracker is returned that should be used to track the event's
+     * lifecycle.
+     *
+     * NOTE: The derived tracker cannot be used to change the targets of the original event, meaning
+     * it cannot be used with {@link #dispatchToTargetHint} or {@link eventProcessingComplete}.
+     */
+    virtual std::unique_ptr<EventTrackerInterface> traceDerivedEvent(
+            const EventEntry&, const EventTrackerInterface& originalEventTracker) = 0;
 
     /**
      * Trace an input event being successfully dispatched to a window. The dispatched event may
