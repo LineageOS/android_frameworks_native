@@ -233,31 +233,25 @@ bool validateCompositionDataspace(Dataspace dataspace) {
 }
 
 std::chrono::milliseconds getIdleTimerTimeout(DisplayId displayId) {
-    const auto displayIdleTimerMsKey = [displayId] {
-        std::stringstream ss;
-        ss << "debug.sf.set_idle_timer_ms_" << displayId.value;
-        return ss.str();
-    }();
-
-    const int32_t displayIdleTimerMs = base::GetIntProperty(displayIdleTimerMsKey, 0);
-    if (displayIdleTimerMs > 0) {
+    if (const int32_t displayIdleTimerMs =
+                base::GetIntProperty("debug.sf.set_idle_timer_ms_"s +
+                                             std::to_string(displayId.value),
+                                     0);
+        displayIdleTimerMs > 0) {
         return std::chrono::milliseconds(displayIdleTimerMs);
     }
 
-    const int32_t setIdleTimerMs = base::GetIntProperty("debug.sf.set_idle_timer_ms", 0);
+    const int32_t setIdleTimerMs = base::GetIntProperty("debug.sf.set_idle_timer_ms"s, 0);
     const int32_t millis = setIdleTimerMs ? setIdleTimerMs : sysprop::set_idle_timer_ms(0);
     return std::chrono::milliseconds(millis);
 }
 
 bool getKernelIdleTimerSyspropConfig(DisplayId displayId) {
-    const auto displaySupportKernelIdleTimerKey = [displayId] {
-        std::stringstream ss;
-        ss << "debug.sf.support_kernel_idle_timer_" << displayId.value;
-        return ss.str();
-    }();
+    const bool displaySupportKernelIdleTimer =
+            base::GetBoolProperty("debug.sf.support_kernel_idle_timer_"s +
+                                          std::to_string(displayId.value),
+                                  false);
 
-    const auto displaySupportKernelIdleTimer =
-            base::GetBoolProperty(displaySupportKernelIdleTimerKey, false);
     return displaySupportKernelIdleTimer || sysprop::support_kernel_idle_timer(false);
 }
 
@@ -467,11 +461,10 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
     wideColorGamutCompositionPixelFormat =
             static_cast<ui::PixelFormat>(wcg_composition_pixel_format(ui::PixelFormat::RGBA_8888));
 
-    mLayerCachingEnabled = [] {
-        const bool enable =
-                android::sysprop::SurfaceFlingerProperties::enable_layer_caching().value_or(false);
-        return base::GetBoolProperty(std::string("debug.sf.enable_layer_caching"), enable);
-    }();
+    mLayerCachingEnabled =
+            base::GetBoolProperty("debug.sf.enable_layer_caching"s,
+                                  sysprop::SurfaceFlingerProperties::enable_layer_caching()
+                                          .value_or(false));
 
     useContextPriority = use_context_priority(true);
 
@@ -3570,10 +3563,10 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
         const auto enableFrameRateOverride = sysprop::enable_frame_rate_override(true)
                 ? Config::FrameRateOverride::Enabled
                 : Config::FrameRateOverride::Disabled;
-        Config config =
+        const Config config =
                 {.enableFrameRateOverride = enableFrameRateOverride,
                  .frameRateMultipleThreshold =
-                         base::GetIntProperty("debug.sf.frame_rate_multiple_threshold", 0),
+                         base::GetIntProperty("debug.sf.frame_rate_multiple_threshold"s, 0),
                  .idleTimerTimeout = idleTimerTimeoutMs,
                  .kernelIdleTimerController = kernelIdleTimerController};
 
@@ -7690,7 +7683,7 @@ status_t SurfaceFlinger::setSchedFifo(bool enabled) {
 
 status_t SurfaceFlinger::setSchedAttr(bool enabled) {
     static const unsigned int kUclampMin =
-            base::GetUintProperty<unsigned int>("ro.surface_flinger.uclamp.min", 0U);
+            base::GetUintProperty<unsigned int>("ro.surface_flinger.uclamp.min"s, 0U);
 
     if (!kUclampMin) {
         // uclamp.min set to 0 (default), skip setting
