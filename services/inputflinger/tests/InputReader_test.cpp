@@ -58,6 +58,7 @@ namespace android {
 using namespace ftl::flag_operators;
 using testing::AllOf;
 using std::chrono_literals::operator""ms;
+using std::chrono_literals::operator""s;
 
 // Arbitrary display properties.
 static constexpr int32_t DISPLAY_ID = 0;
@@ -149,7 +150,7 @@ static void assertAxisNotPresent(MultiTouchInputMapper& mapper, int axis) {
     std::istringstream iss(dump);
     for (std::string line; std::getline(iss, line);) {
         ALOGE("%s", line.c_str());
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        std::this_thread::sleep_for(1ms);
     }
 }
 
@@ -1374,13 +1375,23 @@ protected:
         mFakePolicy.clear();
     }
 
-    std::optional<InputDeviceInfo> findDeviceByName(const std::string& name) {
-        const std::vector<InputDeviceInfo> inputDevices = mFakePolicy->getInputDevices();
-        const auto& it = std::find_if(inputDevices.begin(), inputDevices.end(),
-                                      [&name](const InputDeviceInfo& info) {
-                                          return info.getIdentifier().name == name;
-                                      });
-        return it != inputDevices.end() ? std::make_optional(*it) : std::nullopt;
+    std::optional<InputDeviceInfo> waitForDevice(const std::string& deviceName) {
+        std::chrono::time_point start = std::chrono::steady_clock::now();
+        while (true) {
+            const std::vector<InputDeviceInfo> inputDevices = mFakePolicy->getInputDevices();
+            const auto& it = std::find_if(inputDevices.begin(), inputDevices.end(),
+                                          [&deviceName](const InputDeviceInfo& info) {
+                                              return info.getIdentifier().name == deviceName;
+                                          });
+            if (it != inputDevices.end()) {
+                return std::make_optional(*it);
+            }
+            std::this_thread::sleep_for(1ms);
+            std::chrono::duration elapsed = std::chrono::steady_clock::now() - start;
+            if (elapsed > 5s) {
+                return {};
+            }
+        }
     }
 
     void setupInputReader() {
@@ -1433,7 +1444,7 @@ TEST_F(InputReaderIntegrationTest, AddNewDevice) {
     ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyConfigurationChangedWasCalled());
     ASSERT_EQ(initialNumDevices + 1, mFakePolicy->getInputDevices().size());
 
-    const auto device = findDeviceByName(keyboard->getName());
+    const auto device = waitForDevice(keyboard->getName());
     ASSERT_TRUE(device.has_value());
     ASSERT_EQ(AINPUT_KEYBOARD_TYPE_NON_ALPHABETIC, device->getKeyboardType());
     ASSERT_EQ(AINPUT_SOURCE_KEYBOARD, device->getSources());
@@ -1476,7 +1487,7 @@ TEST_F(InputReaderIntegrationTest, ExternalStylusesButtons) {
     std::unique_ptr<UinputExternalStylus> stylus = createUinputDevice<UinputExternalStylus>();
     ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertInputDevicesChanged());
 
-    const auto device = findDeviceByName(stylus->getName());
+    const auto device = waitForDevice(stylus->getName());
     ASSERT_TRUE(device.has_value());
 
     // An external stylus with buttons should also be recognized as a keyboard.
@@ -1516,7 +1527,7 @@ TEST_F(InputReaderIntegrationTest, KeyboardWithStylusButtons) {
                                                                           BTN_STYLUS3});
     ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertInputDevicesChanged());
 
-    const auto device = findDeviceByName(keyboard->getName());
+    const auto device = waitForDevice(keyboard->getName());
     ASSERT_TRUE(device.has_value());
 
     // An alphabetical keyboard that reports stylus buttons should not be recognized as a stylus.
@@ -1533,7 +1544,7 @@ TEST_F(InputReaderIntegrationTest, HidUsageKeyboardIsNotAStylus) {
                     std::initializer_list<int>{KEY_VOLUMEUP, KEY_VOLUMEDOWN});
     ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertInputDevicesChanged());
 
-    const auto device = findDeviceByName(keyboard->getName());
+    const auto device = waitForDevice(keyboard->getName());
     ASSERT_TRUE(device.has_value());
 
     ASSERT_EQ(AINPUT_SOURCE_KEYBOARD, device->getSources())
@@ -1587,7 +1598,7 @@ protected:
         mDevice = createUinputDevice<UinputTouchScreen>(Rect(0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT));
         ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertInputDevicesChanged());
         ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyConfigurationChangedWasCalled());
-        const auto info = findDeviceByName(mDevice->getName());
+        const auto info = waitForDevice(mDevice->getName());
         ASSERT_TRUE(info);
         mDeviceInfo = *info;
     }
@@ -1658,7 +1669,7 @@ protected:
                                      ViewportType::INTERNAL);
         ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertInputDevicesChanged());
         ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyConfigurationChangedWasCalled());
-        const auto info = findDeviceByName(mDevice->getName());
+        const auto info = waitForDevice(mDevice->getName());
         ASSERT_TRUE(info);
         mDeviceInfo = *info;
     }
@@ -1991,7 +2002,7 @@ TEST_P(TouchIntegrationTest, ExternalStylusConnectedDuringTouchGesture) {
     auto externalStylus = createUinputDevice<UinputExternalStylus>();
     ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertInputDevicesChanged());
     ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyConfigurationChangedWasCalled());
-    const auto stylusInfo = findDeviceByName(externalStylus->getName());
+    const auto stylusInfo = waitForDevice(externalStylus->getName());
     ASSERT_TRUE(stylusInfo);
 
     // Move
@@ -2062,7 +2073,7 @@ private:
         mStylus = mStylusDeviceLifecycleTracker.get();
         ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertInputDevicesChanged());
         ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyConfigurationChangedWasCalled());
-        const auto info = findDeviceByName(mStylus->getName());
+        const auto info = waitForDevice(mStylus->getName());
         ASSERT_TRUE(info);
         mStylusInfo = *info;
     }
@@ -2332,11 +2343,11 @@ TEST_F(ExternalStylusIntegrationTest, ExternalStylusConnectionChangesTouchscreen
             createUinputDevice<UinputExternalStylusWithPressure>();
     ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertInputDevicesChanged());
     ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyConfigurationChangedWasCalled());
-    const auto stylusInfo = findDeviceByName(stylus->getName());
+    const auto stylusInfo = waitForDevice(stylus->getName());
     ASSERT_TRUE(stylusInfo);
 
     // Connecting an external stylus changes the source of the touchscreen.
-    const auto deviceInfo = findDeviceByName(mDevice->getName());
+    const auto deviceInfo = waitForDevice(mDevice->getName());
     ASSERT_TRUE(deviceInfo);
     ASSERT_TRUE(isFromSource(deviceInfo->getSources(), STYLUS_FUSION_SOURCE));
 }
@@ -2350,7 +2361,7 @@ TEST_F(ExternalStylusIntegrationTest, FusedExternalStylusPressureReported) {
             createUinputDevice<UinputExternalStylusWithPressure>();
     ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertInputDevicesChanged());
     ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyConfigurationChangedWasCalled());
-    const auto stylusInfo = findDeviceByName(stylus->getName());
+    const auto stylusInfo = waitForDevice(stylus->getName());
     ASSERT_TRUE(stylusInfo);
 
     ASSERT_EQ(AINPUT_SOURCE_STYLUS | AINPUT_SOURCE_KEYBOARD, stylusInfo->getSources());
@@ -2396,7 +2407,7 @@ TEST_F(ExternalStylusIntegrationTest, FusedExternalStylusPressureNotReported) {
             createUinputDevice<UinputExternalStylusWithPressure>();
     ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertInputDevicesChanged());
     ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyConfigurationChangedWasCalled());
-    const auto stylusInfo = findDeviceByName(stylus->getName());
+    const auto stylusInfo = waitForDevice(stylus->getName());
     ASSERT_TRUE(stylusInfo);
 
     ASSERT_EQ(AINPUT_SOURCE_STYLUS | AINPUT_SOURCE_KEYBOARD, stylusInfo->getSources());
@@ -2476,7 +2487,7 @@ TEST_F(ExternalStylusIntegrationTest, UnfusedExternalStylus) {
     std::unique_ptr<UinputExternalStylus> stylus = createUinputDevice<UinputExternalStylus>();
     ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertInputDevicesChanged());
     ASSERT_NO_FATAL_FAILURE(mTestListener->assertNotifyConfigurationChangedWasCalled());
-    const auto stylusInfo = findDeviceByName(stylus->getName());
+    const auto stylusInfo = waitForDevice(stylus->getName());
     ASSERT_TRUE(stylusInfo);
 
     ASSERT_EQ(AINPUT_SOURCE_STYLUS | AINPUT_SOURCE_KEYBOARD, stylusInfo->getSources());
