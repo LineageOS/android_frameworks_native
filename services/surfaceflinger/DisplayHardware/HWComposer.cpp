@@ -364,15 +364,13 @@ ui::DisplayConnectionType HWComposer::getDisplayConnectionType(PhysicalDisplayId
     RETURN_IF_INVALID_DISPLAY(displayId, ui::DisplayConnectionType::Internal);
     const auto& hwcDisplay = mDisplayData.at(displayId).hwcDisplay;
 
-    ui::DisplayConnectionType type;
-    const auto error = hwcDisplay->getConnectionType(&type);
-
-    const auto FALLBACK_TYPE = hwcDisplay->getId() == mPrimaryHwcDisplayId
-            ? ui::DisplayConnectionType::Internal
-            : ui::DisplayConnectionType::External;
-
-    RETURN_IF_HWC_ERROR(error, displayId, FALLBACK_TYPE);
-    return type;
+    if (const auto connectionType = hwcDisplay->getConnectionType()) {
+        return connectionType.value();
+    } else {
+        LOG_HWC_ERROR(__func__, connectionType.error(), displayId);
+        return hwcDisplay->getId() == mPrimaryHwcDisplayId ? ui::DisplayConnectionType::Internal
+                                                           : ui::DisplayConnectionType::External;
+    }
 }
 
 bool HWComposer::isVsyncPeriodSwitchSupported(PhysicalDisplayId displayId) const {

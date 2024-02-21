@@ -38,6 +38,12 @@ enum class InputTargetFlags : uint32_t {
      * the same UID from watching all touches. */
     ZERO_COORDS = 1 << 3,
 
+    /* This flag indicates that the event will not cause a focus change if it is directed to an
+     * unfocused window, even if it an ACTION_DOWN. This is typically used to allow gestures to be
+     * directed to an unfocused window without bringing it into focus. The motion event should be
+     * delivered with flag AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE. */
+    NO_FOCUS_CHANGE = 1 << 4,
+
     /* This flag indicates that the target of a MotionEvent is partly or wholly
      * obscured by another visible window above it.  The motion event should be
      * delivered with flag AMOTION_EVENT_FLAG_WINDOW_IS_PARTIALLY_OBSCURED. */

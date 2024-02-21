@@ -3422,6 +3422,9 @@ void InputDispatcher::enqueueDispatchEntryLocked(const std::shared_ptr<Connectio
                             InputTarget::Flags::WINDOW_IS_PARTIALLY_OBSCURED)) {
                     resolvedFlags |= AMOTION_EVENT_FLAG_WINDOW_IS_PARTIALLY_OBSCURED;
                 }
+                if (dispatchEntry->targetFlags.test(InputTarget::Flags::NO_FOCUS_CHANGE)) {
+                    resolvedFlags |= AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE;
+                }
 
                 dispatchEntry->resolvedFlags = resolvedFlags;
                 if (resolvedAction != motionEntry.action) {
@@ -3496,8 +3499,7 @@ void InputDispatcher::enqueueDispatchEntryLocked(const std::shared_ptr<Connectio
                              << "~ dropping inconsistent event: " << *dispatchEntry;
                 return; // skip the inconsistent event
             }
-
-            if ((resolvedMotion->flags & AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE) &&
+            if ((dispatchEntry->resolvedFlags & AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE) &&
                 (resolvedMotion->policyFlags & POLICY_FLAG_TRUSTED)) {
                 // Skip reporting pointer down outside focus to the policy.
                 break;
@@ -5612,6 +5614,8 @@ bool InputDispatcher::transferTouchFocus(const sp<IBinder>& fromToken, const sp<
         if (canReceiveForegroundTouches(*toWindowHandle->getInfo())) {
             newTargetFlags |= InputTarget::Flags::FOREGROUND;
         }
+        // Transferring touch focus using this API should not effect the focused window.
+        newTargetFlags |= InputTarget::Flags::NO_FOCUS_CHANGE;
         state->addOrUpdateWindow(toWindowHandle, InputTarget::DispatchMode::AS_IS, newTargetFlags,
                                  deviceId, pointers, downTimeInTarget);
 
@@ -7000,7 +7004,8 @@ void InputDispatcher::transferWallpaperTouch(ftl::Flags<InputTarget::Flags> oldT
 
     if (newWallpaper != nullptr) {
         nsecs_t downTimeInTarget = now();
-        ftl::Flags<InputTarget::Flags> wallpaperFlags = oldTargetFlags & InputTarget::Flags::SPLIT;
+        ftl::Flags<InputTarget::Flags> wallpaperFlags = newTargetFlags;
+        wallpaperFlags |= oldTargetFlags & InputTarget::Flags::SPLIT;
         wallpaperFlags |= InputTarget::Flags::WINDOW_IS_OBSCURED |
                 InputTarget::Flags::WINDOW_IS_PARTIALLY_OBSCURED;
         state.addOrUpdateWindow(newWallpaper, InputTarget::DispatchMode::AS_IS, wallpaperFlags,
