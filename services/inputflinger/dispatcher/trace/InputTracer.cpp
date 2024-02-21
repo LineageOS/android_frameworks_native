@@ -65,6 +65,10 @@ void writeEventToBackend(const TracedEvent& event, InputTracingBackendInterface&
                event);
 }
 
+inline auto getId(const trace::TracedEvent& v) {
+    return std::visit([](const auto& event) { return event.id; }, v);
+}
+
 } // namespace
 
 // --- InputTracer ---
@@ -87,6 +91,12 @@ std::unique_ptr<EventTrackerInterface> InputTracer::traceInboundEvent(const Even
     }
 
     return std::make_unique<EventTrackerImpl>(std::move(eventState), /*isDerived=*/false);
+}
+
+std::unique_ptr<EventTrackerInterface> InputTracer::createTrackerForSyntheticEvent() {
+    // Create a new EventState to track events derived from this tracker.
+    return std::make_unique<EventTrackerImpl>(std::make_shared<EventState>(*this),
+                                              /*isDerived=*/false);
 }
 
 void InputTracer::dispatchToTargetHint(const EventTrackerInterface& cookie,
@@ -140,7 +150,8 @@ std::unique_ptr<EventTrackerInterface> InputTracer::traceDerivedEvent(
 }
 
 void InputTracer::traceEventDispatch(const DispatchEntry& dispatchEntry,
-                                     const EventTrackerInterface* cookie) {
+                                     const EventTrackerInterface& cookie) {
+    auto& eventState = getState(cookie);
     const EventEntry& entry = *dispatchEntry.eventEntry;
     // TODO(b/328618922): Remove resolved key repeats after making repeatCount non-mutable.
     // The KeyEntry's repeatCount is mutable and can be modified after an event is initially traced,
@@ -159,9 +170,13 @@ void InputTracer::traceEventDispatch(const DispatchEntry& dispatchEntry,
         LOG(FATAL) << "Cannot trace EventEntry of type: " << ftl::enum_string(entry.type);
     }
 
-    if (!cookie) {
-        // This event was not tracked as an inbound event, so trace it now.
-        writeEventToBackend(traced, *mBackend);
+    auto tracedEventIt =
+            std::find_if(eventState->events.begin(), eventState->events.end(),
+                         [&traced](const auto& event) { return getId(traced) == getId(event); });
+    if (tracedEventIt == eventState->events.end()) {
+        LOG(FATAL)
+                << __func__
+                << ": Failed to find a previously traced event that matches the dispatched event";
     }
 
     // The vsyncId only has meaning if the event is targeting a window.

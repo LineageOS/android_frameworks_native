@@ -42,11 +42,12 @@ public:
     InputTracer& operator=(const InputTracer&) = delete;
 
     std::unique_ptr<EventTrackerInterface> traceInboundEvent(const EventEntry&) override;
+    std::unique_ptr<EventTrackerInterface> createTrackerForSyntheticEvent() override;
     void dispatchToTargetHint(const EventTrackerInterface&, const InputTarget&) override;
     void eventProcessingComplete(const EventTrackerInterface&) override;
     std::unique_ptr<EventTrackerInterface> traceDerivedEvent(const EventEntry&,
                                                              const EventTrackerInterface&) override;
-    void traceEventDispatch(const DispatchEntry&, const EventTrackerInterface*) override;
+    void traceEventDispatch(const DispatchEntry&, const EventTrackerInterface&) override;
 
 private:
     std::unique_ptr<InputTracingBackendInterface> mBackend;
