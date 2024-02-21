@@ -41,8 +41,12 @@
 
 #include <system/graphics.h>
 
+using unique_fd = ::android::base::unique_fd;
+
 namespace android {
 // ---------------------------------------------------------------------------
+
+using LockResult = GraphicBufferMapper::LockResult;
 
 ANDROID_SINGLETON_STATIC_INSTANCE( GraphicBufferMapper )
 
@@ -135,63 +139,86 @@ status_t GraphicBufferMapper::freeBuffer(buffer_handle_t handle)
     return NO_ERROR;
 }
 
-status_t GraphicBufferMapper::lock(buffer_handle_t handle, uint32_t usage, const Rect& bounds,
-                                   void** vaddr, int32_t* outBytesPerPixel,
-                                   int32_t* outBytesPerStride) {
-    return lockAsync(handle, usage, bounds, vaddr, -1, outBytesPerPixel, outBytesPerStride);
-}
+ui::Result<LockResult> GraphicBufferMapper::lock(buffer_handle_t handle, int64_t usage,
+                                                 const Rect& bounds, unique_fd&& acquireFence) {
+    ATRACE_CALL();
 
-status_t GraphicBufferMapper::lockYCbCr(buffer_handle_t handle, uint32_t usage,
-        const Rect& bounds, android_ycbcr *ycbcr)
-{
-    return lockAsyncYCbCr(handle, usage, bounds, ycbcr, -1);
-}
-
-status_t GraphicBufferMapper::unlock(buffer_handle_t handle)
-{
-    int32_t fenceFd = -1;
-    status_t error = unlockAsync(handle, &fenceFd);
-    if (error == NO_ERROR && fenceFd >= 0) {
-        sync_wait(fenceFd, -1);
-        close(fenceFd);
+    LockResult result;
+    status_t status = mMapper->lock(handle, usage, bounds, acquireFence.release(), &result.address,
+                                    &result.bytesPerPixel, &result.bytesPerStride);
+    if (status != OK) {
+        return base::unexpected(ui::Error::statusToCode(status));
+    } else {
+        return result;
     }
-    return error;
+}
+
+ui::Result<android_ycbcr> GraphicBufferMapper::lockYCbCr(buffer_handle_t handle, int64_t usage,
+                                                         const Rect& bounds,
+                                                         base::unique_fd&& acquireFence) {
+    ATRACE_CALL();
+
+    android_ycbcr result = {};
+    status_t status = mMapper->lock(handle, usage, bounds, acquireFence.release(), &result);
+    if (status != OK) {
+        return base::unexpected(ui::Error::statusToCode(status));
+    } else {
+        return result;
+    }
+}
+
+status_t GraphicBufferMapper::unlock(buffer_handle_t handle, base::unique_fd* outFence) {
+    ATRACE_CALL();
+    int fence = mMapper->unlock(handle);
+    if (outFence) {
+        *outFence = unique_fd{fence};
+    } else {
+        sync_wait(fence, -1);
+        close(fence);
+    }
+    return OK;
+}
+
+status_t GraphicBufferMapper::lock(buffer_handle_t handle, uint32_t usage, const Rect& bounds,
+                                   void** vaddr) {
+    auto result = lock(handle, static_cast<int64_t>(usage), bounds);
+    if (!result.has_value()) return result.asStatus();
+    auto val = result.value();
+    *vaddr = val.address;
+    return OK;
+}
+
+status_t GraphicBufferMapper::lockYCbCr(buffer_handle_t handle, uint32_t usage, const Rect& bounds,
+                                        android_ycbcr* ycbcr) {
+    auto result = lockYCbCr(handle, static_cast<int64_t>(usage), bounds);
+    if (!result.has_value()) return result.asStatus();
+    *ycbcr = result.value();
+    return OK;
 }
 
 status_t GraphicBufferMapper::lockAsync(buffer_handle_t handle, uint32_t usage, const Rect& bounds,
-                                        void** vaddr, int fenceFd, int32_t* outBytesPerPixel,
-                                        int32_t* outBytesPerStride) {
-    return lockAsync(handle, usage, usage, bounds, vaddr, fenceFd, outBytesPerPixel,
-                     outBytesPerStride);
+                                        void** vaddr, int fenceFd) {
+    auto result = lock(handle, static_cast<int64_t>(usage), bounds, unique_fd{fenceFd});
+    if (!result.has_value()) return result.asStatus();
+    auto val = result.value();
+    *vaddr = val.address;
+    return OK;
 }
 
 status_t GraphicBufferMapper::lockAsync(buffer_handle_t handle, uint64_t producerUsage,
                                         uint64_t consumerUsage, const Rect& bounds, void** vaddr,
-                                        int fenceFd, int32_t* outBytesPerPixel,
-                                        int32_t* outBytesPerStride) {
-    ATRACE_CALL();
-
-    const uint64_t usage = static_cast<uint64_t>(
-            android_convertGralloc1To0Usage(producerUsage, consumerUsage));
-    return mMapper->lock(handle, usage, bounds, fenceFd, vaddr, outBytesPerPixel,
-                         outBytesPerStride);
+                                        int fenceFd) {
+    return lockAsync(handle, android_convertGralloc1To0Usage(producerUsage, consumerUsage), bounds,
+                     vaddr, fenceFd);
 }
 
-status_t GraphicBufferMapper::lockAsyncYCbCr(buffer_handle_t handle,
-        uint32_t usage, const Rect& bounds, android_ycbcr *ycbcr, int fenceFd)
-{
-    ATRACE_CALL();
-
-    return mMapper->lock(handle, usage, bounds, fenceFd, ycbcr);
-}
-
-status_t GraphicBufferMapper::unlockAsync(buffer_handle_t handle, int *fenceFd)
-{
-    ATRACE_CALL();
-
-    *fenceFd = mMapper->unlock(handle);
-
-    return NO_ERROR;
+status_t GraphicBufferMapper::lockAsyncYCbCr(buffer_handle_t handle, uint32_t usage,
+                                             const Rect& bounds, android_ycbcr* ycbcr,
+                                             int fenceFd) {
+    auto result = lockYCbCr(handle, static_cast<int64_t>(usage), bounds, unique_fd{fenceFd});
+    if (!result.has_value()) return result.asStatus();
+    *ycbcr = result.value();
+    return OK;
 }
 
 status_t GraphicBufferMapper::isSupported(uint32_t width, uint32_t height,
@@ -285,6 +312,17 @@ status_t GraphicBufferMapper::getChromaSiting(buffer_handle_t bufferHandle,
 status_t GraphicBufferMapper::getPlaneLayouts(buffer_handle_t bufferHandle,
                                               std::vector<ui::PlaneLayout>* outPlaneLayouts) {
     return mMapper->getPlaneLayouts(bufferHandle, outPlaneLayouts);
+}
+
+ui::Result<std::vector<ui::PlaneLayout>> GraphicBufferMapper::getPlaneLayouts(
+        buffer_handle_t bufferHandle) {
+    std::vector<ui::PlaneLayout> temp;
+    status_t status = mMapper->getPlaneLayouts(bufferHandle, &temp);
+    if (status == OK) {
+        return std::move(temp);
+    } else {
+        return base::unexpected(ui::Error::statusToCode(status));
+    }
 }
 
 status_t GraphicBufferMapper::getDataspace(buffer_handle_t bufferHandle,
