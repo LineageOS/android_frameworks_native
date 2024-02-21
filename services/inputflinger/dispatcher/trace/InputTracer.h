@@ -52,8 +52,6 @@ public:
 private:
     std::unique_ptr<InputTracingBackendInterface> mBackend;
 
-    using WindowDispatchArgs = InputTracingBackendInterface::WindowDispatchArgs;
-
     // The state of a tracked event, shared across all events derived from the original event.
     struct EventState {
         explicit inline EventState(InputTracer& tracer) : tracer(tracer){};

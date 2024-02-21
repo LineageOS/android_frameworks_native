@@ -80,6 +80,20 @@ struct TracedEventArgs {
     bool isSecure;
 };
 
+/** Additional information about an input event being dispatched to a window. */
+struct WindowDispatchArgs {
+    TracedEvent eventEntry;
+    nsecs_t deliveryTime;
+    int32_t resolvedFlags;
+    gui::Uid targetUid;
+    int64_t vsyncId;
+    int32_t windowId;
+    ui::Transform transform;
+    ui::Transform rawTransform;
+    std::array<uint8_t, 32> hmac;
+    int32_t resolvedKeyRepeatCount;
+};
+
 /**
  * An interface for the tracing backend, used for setting a custom backend for testing.
  */
@@ -94,18 +108,6 @@ public:
     virtual void traceMotionEvent(const TracedMotionEvent&, const TracedEventArgs&) = 0;
 
     /** Trace an event being sent to a window. */
-    struct WindowDispatchArgs {
-        TracedEvent eventEntry;
-        nsecs_t deliveryTime;
-        int32_t resolvedFlags;
-        gui::Uid targetUid;
-        int64_t vsyncId;
-        int32_t windowId;
-        ui::Transform transform;
-        ui::Transform rawTransform;
-        std::array<uint8_t, 32> hmac;
-        int32_t resolvedKeyRepeatCount;
-    };
     virtual void traceWindowDispatch(const WindowDispatchArgs&, const TracedEventArgs&) = 0;
 };
 

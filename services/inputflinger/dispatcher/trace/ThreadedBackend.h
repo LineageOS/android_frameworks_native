@@ -53,8 +53,6 @@ private:
                       TracedEventArgs>;
     std::vector<TraceEntry> mQueue GUARDED_BY(mLock);
 
-    using WindowDispatchArgs = InputTracingBackendInterface::WindowDispatchArgs;
-
     void threadLoop();
 };
 

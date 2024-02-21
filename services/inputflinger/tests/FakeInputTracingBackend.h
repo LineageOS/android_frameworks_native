@@ -59,8 +59,7 @@ private:
     std::mutex mLock;
     std::condition_variable mEventTracedCondition;
     std::unordered_map<uint32_t /*eventId*/, trace::TracedEvent> mTracedEvents GUARDED_BY(mLock);
-    using WindowDispatchArgs = trace::InputTracingBackendInterface::WindowDispatchArgs;
-    std::vector<WindowDispatchArgs> mTracedWindowDispatches GUARDED_BY(mLock);
+    std::vector<trace::WindowDispatchArgs> mTracedWindowDispatches GUARDED_BY(mLock);
     std::vector<std::pair<std::variant<KeyEvent, MotionEvent>, int32_t /*windowId*/>>
             mExpectedEvents GUARDED_BY(mLock);
 
@@ -86,7 +85,7 @@ private:
     void traceKeyEvent(const trace::TracedKeyEvent& entry, const trace::TracedEventArgs&) override;
     void traceMotionEvent(const trace::TracedMotionEvent& entry,
                           const trace::TracedEventArgs&) override;
-    void traceWindowDispatch(const WindowDispatchArgs& entry,
+    void traceWindowDispatch(const trace::WindowDispatchArgs& entry,
                              const trace::TracedEventArgs&) override;
 };
 

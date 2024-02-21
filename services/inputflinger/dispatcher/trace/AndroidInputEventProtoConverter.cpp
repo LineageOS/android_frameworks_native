@@ -72,8 +72,7 @@ void AndroidInputEventProtoConverter::toProtoKeyEvent(const TracedKeyEvent& even
 }
 
 void AndroidInputEventProtoConverter::toProtoWindowDispatchEvent(
-        const InputTracingBackendInterface::WindowDispatchArgs& args,
-        proto::AndroidWindowInputDispatchEvent& outProto) {
+        const WindowDispatchArgs& args, proto::AndroidWindowInputDispatchEvent& outProto) {
     std::visit([&](auto entry) { outProto.set_event_id(entry.id); }, args.eventEntry);
     outProto.set_vsync_id(args.vsyncId);
     outProto.set_window_id(args.windowId);
