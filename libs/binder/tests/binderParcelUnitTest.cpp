@@ -23,6 +23,7 @@
 using android::BBinder;
 using android::IBinder;
 using android::IPCThreadState;
+using android::NO_ERROR;
 using android::OK;
 using android::Parcel;
 using android::sp;
@@ -162,6 +163,45 @@ TEST(Parcel, AppendPlainDataPartial) {
 
     p2.setDataPosition(0);
     ASSERT_EQ(2, p2.readInt32());
+}
+
+TEST(Parcel, HasBinders) {
+    sp<IBinder> b1 = sp<BBinder>::make();
+
+    Parcel p1;
+    p1.writeInt32(1);
+    p1.writeStrongBinder(b1);
+
+    bool result = false;
+    ASSERT_EQ(NO_ERROR, p1.hasBinders(&result));
+    ASSERT_EQ(true, result);
+
+    p1.setDataSize(0); // clear data
+    result = false;
+    ASSERT_EQ(NO_ERROR, p1.hasBinders(&result));
+    ASSERT_EQ(false, result);
+    p1.writeStrongBinder(b1); // reset with binder data
+    result = false;
+    ASSERT_EQ(NO_ERROR, p1.hasBinders(&result));
+    ASSERT_EQ(true, result);
+
+    Parcel p3;
+    p3.appendFrom(&p1, 0, p1.dataSize());
+    result = false;
+    ASSERT_EQ(NO_ERROR, p1.hasBinders(&result));
+    ASSERT_EQ(true, result);
+}
+
+TEST(Parcel, HasBindersInRange) {
+    sp<IBinder> b1 = sp<BBinder>::make();
+    Parcel p1;
+    p1.writeStrongBinder(b1);
+    bool result = false;
+    ASSERT_EQ(NO_ERROR, p1.hasBindersInRange(0, p1.dataSize(), &result));
+    ASSERT_EQ(true, result);
+    result = false;
+    ASSERT_EQ(NO_ERROR, p1.hasBinders(&result));
+    ASSERT_EQ(true, result);
 }
 
 TEST(Parcel, AppendWithBinder) {

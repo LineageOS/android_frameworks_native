@@ -216,7 +216,7 @@ status_t Parcel::flattenBinder(const sp<IBinder>& binder) {
 
     if (const auto* rpcFields = maybeRpcFields()) {
         if (binder) {
-            status_t status = writeInt32(1); // non-null
+            status_t status = writeInt32(RpcFields::TYPE_BINDER); // non-null
             if (status != OK) return status;
             uint64_t address;
             // TODO(b/167966510): need to undo this if the Parcel is not sent
@@ -226,7 +226,7 @@ status_t Parcel::flattenBinder(const sp<IBinder>& binder) {
             status = writeUint64(address);
             if (status != OK) return status;
         } else {
-            status_t status = writeInt32(0); // null
+            status_t status = writeInt32(RpcFields::TYPE_BINDER_NULL); // null
             if (status != OK) return status;
         }
         return finishFlattenBinder(binder);
@@ -699,6 +699,12 @@ bool Parcel::hasFileDescriptors() const
     return kernelFields->mHasFds;
 }
 
+status_t Parcel::hasBinders(bool* result) const {
+    status_t status = hasBindersInRange(0, dataSize(), result);
+    ALOGE_IF(status != NO_ERROR, "Error %d calling hasBindersInRange()", status);
+    return status;
+}
+
 std::vector<sp<IBinder>> Parcel::debugReadAllStrongBinders() const {
     std::vector<sp<IBinder>> ret;
 
@@ -756,6 +762,46 @@ std::vector<int> Parcel::debugReadAllFileDescriptors() const {
     }
 
     return ret;
+}
+
+status_t Parcel::hasBindersInRange(size_t offset, size_t len, bool* result) const {
+    if (len > INT32_MAX || offset > INT32_MAX) {
+        // Don't accept size_t values which may have come from an inadvertent conversion from a
+        // negative int.
+        return BAD_VALUE;
+    }
+    size_t limit;
+    if (__builtin_add_overflow(offset, len, &limit) || limit > mDataSize) {
+        return BAD_VALUE;
+    }
+    *result = false;
+    if (const auto* kernelFields = maybeKernelFields()) {
+#ifdef BINDER_WITH_KERNEL_IPC
+        for (size_t i = 0; i < kernelFields->mObjectsSize; i++) {
+            size_t pos = kernelFields->mObjects[i];
+            if (pos < offset) continue;
+            if (pos + sizeof(flat_binder_object) > offset + len) {
+                if (kernelFields->mObjectsSorted) {
+                    break;
+                } else {
+                    continue;
+                }
+            }
+            const flat_binder_object* flat =
+                    reinterpret_cast<const flat_binder_object*>(mData + pos);
+            if (flat->hdr.type == BINDER_TYPE_BINDER || flat->hdr.type == BINDER_TYPE_HANDLE) {
+                *result = true;
+                break;
+            }
+        }
+#else
+        LOG_ALWAYS_FATAL("Binder kernel driver disabled at build time");
+        return INVALID_OPERATION;
+#endif // BINDER_WITH_KERNEL_IPC
+    } else if (const auto* rpcFields = maybeRpcFields()) {
+        return INVALID_OPERATION;
+    }
+    return NO_ERROR;
 }
 
 status_t Parcel::hasFileDescriptorsInRange(size_t offset, size_t len, bool* result) const {
