@@ -1221,6 +1221,7 @@ private:
     // constant members (no synchronization needed for access)
     const nsecs_t mBootTime = systemTime();
     bool mIsUserBuild = true;
+    bool mHasReliablePresentFences = false;
 
     // Can only accessed from the main thread, these members
     // don't need synchronization

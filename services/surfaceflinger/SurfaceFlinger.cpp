@@ -861,6 +861,9 @@ void SurfaceFlinger::init() FTL_FAKE_GUARD(kMainThreadContext) {
     mCompositionEngine->getHwComposer().setCallback(*this);
     ClientCache::getInstance().setRenderEngine(&getRenderEngine());
 
+    mHasReliablePresentFences =
+            !getHwComposer().hasCapability(Capability::PRESENT_FENCE_IS_NOT_RELIABLE);
+
     enableLatchUnsignaledConfig = getLatchUnsignaledConfig();
 
     if (base::GetBoolProperty("debug.sf.enable_hwc_vds"s, false)) {
@@ -935,9 +938,7 @@ void SurfaceFlinger::init() FTL_FAKE_GUARD(kMainThreadContext) {
 
     // Inform native graphics APIs whether the present timestamp is supported:
 
-    const bool presentFenceReliable =
-            !getHwComposer().hasCapability(Capability::PRESENT_FENCE_IS_NOT_RELIABLE);
-    mStartPropertySetThread = getFactory().createStartPropertySetThread(presentFenceReliable);
+    mStartPropertySetThread = getFactory().createStartPropertySetThread(mHasReliablePresentFences);
 
     if (mStartPropertySetThread->Start() != NO_ERROR) {
         ALOGE("Run StartPropertySetThread failed!");
@@ -1011,9 +1012,7 @@ status_t SurfaceFlinger::getSupportedFrameTimestamps(
         FrameEvent::RELEASE,
     };
 
-    ConditionalLock lock(mStateLock, std::this_thread::get_id() != mMainThreadId);
-
-    if (!getHwComposer().hasCapability(Capability::PRESENT_FENCE_IS_NOT_RELIABLE)) {
+    if (mHasReliablePresentFences) {
         outSupported->push_back(FrameEvent::DISPLAY_PRESENT);
     }
     return NO_ERROR;
@@ -3037,10 +3036,9 @@ void SurfaceFlinger::onCompositionPresented(PhysicalDisplayId pacesetterId,
     // but that should be okay since CompositorTiming has snapping logic.
     const TimePoint compositeTime =
             TimePoint::fromNs(mCompositionEngine->getLastFrameRefreshTimestamp());
-    const Duration presentLatency =
-            getHwComposer().hasCapability(Capability::PRESENT_FENCE_IS_NOT_RELIABLE)
-            ? Duration::zero()
-            : mPresentLatencyTracker.trackPendingFrame(compositeTime, pacesetterPresentFenceTime);
+    const Duration presentLatency = mHasReliablePresentFences
+            ? mPresentLatencyTracker.trackPendingFrame(compositeTime, pacesetterPresentFenceTime)
+            : Duration::zero();
 
     const auto schedule = mScheduler->getVsyncSchedule();
     const TimePoint vsyncDeadline = schedule->vsyncDeadlineAfter(presentTime);
@@ -4344,7 +4342,7 @@ void SurfaceFlinger::initScheduler(const sp<const DisplayDevice>& display) {
         features |= Feature::kTracePredictedVsync;
     }
     if (!base::GetBoolProperty("debug.sf.vsync_reactor_ignore_present_fences"s, false) &&
-        !getHwComposer().hasCapability(Capability::PRESENT_FENCE_IS_NOT_RELIABLE)) {
+        mHasReliablePresentFences) {
         features |= Feature::kPresentFences;
     }
     if (display->refreshRateSelector().kernelIdleTimerController()) {
