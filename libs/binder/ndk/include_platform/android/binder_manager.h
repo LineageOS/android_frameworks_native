@@ -248,6 +248,8 @@ void AServiceManager_getUpdatableApexName(const char* instance, void* context,
  * \param instance identifier of the passthrough service (e.g. "mapper")
  * \param instance identifier of the implemenatation (e.g. "default")
  * \param flag passed to dlopen()
+ *
+ * \return the result of dlopen of the specified HAL
  */
 void* AServiceManager_openDeclaredPassthroughHal(const char* interface, const char* instance,
                                                  int flag)
