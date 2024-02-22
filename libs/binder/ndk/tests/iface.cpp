@@ -25,6 +25,7 @@ using ::android::wp;
 
 const char* IFoo::kSomeInstanceName = "libbinder_ndk-test-IFoo";
 const char* IFoo::kInstanceNameToDieFor = "libbinder_ndk-test-IFoo-to-die";
+const char* IFoo::kInstanceNameToDieFor2 = "libbinder_ndk-test-IFoo-to-die2";
 const char* IFoo::kIFooDescriptor = "my-special-IFoo-class";
 
 struct IFoo_Class_Data {
