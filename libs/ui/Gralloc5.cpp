@@ -597,37 +597,8 @@ void Gralloc5Mapper::getTransportSize(buffer_handle_t bufferHandle, uint32_t *ou
 status_t Gralloc5Mapper::lock(buffer_handle_t bufferHandle, uint64_t usage, const Rect &bounds,
                               int acquireFence, void **outData, int32_t *outBytesPerPixel,
                               int32_t *outBytesPerStride) const {
-    std::vector<ui::PlaneLayout> planeLayouts;
-    status_t err = getPlaneLayouts(bufferHandle, &planeLayouts);
-
-    if (err == NO_ERROR && !planeLayouts.empty()) {
-        if (outBytesPerPixel) {
-            int32_t bitsPerPixel = planeLayouts.front().sampleIncrementInBits;
-            for (const auto &planeLayout : planeLayouts) {
-                if (bitsPerPixel != planeLayout.sampleIncrementInBits) {
-                    bitsPerPixel = -1;
-                }
-            }
-            if (bitsPerPixel >= 0 && bitsPerPixel % 8 == 0) {
-                *outBytesPerPixel = bitsPerPixel / 8;
-            } else {
-                *outBytesPerPixel = -1;
-            }
-        }
-        if (outBytesPerStride) {
-            int32_t bytesPerStride = planeLayouts.front().strideInBytes;
-            for (const auto &planeLayout : planeLayouts) {
-                if (bytesPerStride != planeLayout.strideInBytes) {
-                    bytesPerStride = -1;
-                }
-            }
-            if (bytesPerStride >= 0) {
-                *outBytesPerStride = bytesPerStride;
-            } else {
-                *outBytesPerStride = -1;
-            }
-        }
-    }
+    if (outBytesPerPixel) *outBytesPerPixel = -1;
+    if (outBytesPerStride) *outBytesPerStride = -1;
 
     auto status = mMapper->v5.lock(bufferHandle, usage, bounds, acquireFence, outData);
 
