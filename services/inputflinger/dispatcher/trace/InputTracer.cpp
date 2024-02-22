@@ -111,11 +111,7 @@ void InputTracer::eventProcessingComplete(const EventTrackerInterface& cookie) {
         LOG(FATAL) << "Traced event was already logged. "
                       "eventProcessingComplete() was likely called more than once.";
     }
-
-    for (const auto& event : eventState->events) {
-        writeEventToBackend(event, *mBackend);
-    }
-    eventState->isEventProcessingComplete = true;
+    eventState->onEventProcessingComplete();
 }
 
 std::unique_ptr<EventTrackerInterface> InputTracer::traceDerivedEvent(
@@ -189,18 +185,24 @@ bool InputTracer::isDerivedCookie(const EventTrackerInterface& cookie) {
 
 // --- InputTracer::EventState ---
 
+void InputTracer::EventState::onEventProcessingComplete() {
+    // Write all of the events known so far to the trace.
+    for (const auto& event : events) {
+        writeEventToBackend(event, *tracer.mBackend);
+    }
+    isEventProcessingComplete = true;
+}
+
 InputTracer::EventState::~EventState() {
     if (isEventProcessingComplete) {
         // This event has already been written to the trace as expected.
         return;
     }
     // The event processing was never marked as complete, so do it now.
-    // TODO(b/210460522): Determine why/where the event is being destroyed before
-    //   eventProcessingComplete() is called.
-    for (const auto& event : events) {
-        writeEventToBackend(event, *tracer.mBackend);
-    }
-    isEventProcessingComplete = true;
+    // We should never end up here in normal operation. However, in tests, it's possible that we
+    // stop and destroy InputDispatcher without waiting for it to finish processing events, at
+    // which point an event (and thus its EventState) may be destroyed before processing finishes.
+    onEventProcessingComplete();
 }
 
 } // namespace android::inputdispatcher::trace::impl

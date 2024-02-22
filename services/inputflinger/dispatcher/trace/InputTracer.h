@@ -56,6 +56,8 @@ private:
         explicit inline EventState(InputTracer& tracer) : tracer(tracer){};
         ~EventState();
 
+        void onEventProcessingComplete();
+
         InputTracer& tracer;
         std::vector<const TracedEvent> events;
         bool isEventProcessingComplete{false};
