@@ -25,7 +25,7 @@
 #include <condition_variable>
 #include <memory>
 #include <mutex>
-#include <unordered_set>
+#include <unordered_map>
 #include <vector>
 
 namespace android::inputdispatcher {
@@ -58,7 +58,7 @@ public:
 private:
     std::mutex mLock;
     std::condition_variable mEventTracedCondition;
-    std::unordered_set<uint32_t /*eventId*/> mTracedEvents GUARDED_BY(mLock);
+    std::unordered_map<uint32_t /*eventId*/, trace::TracedEvent> mTracedEvents GUARDED_BY(mLock);
     using WindowDispatchArgs = trace::InputTracingBackendInterface::WindowDispatchArgs;
     std::vector<WindowDispatchArgs> mTracedWindowDispatches GUARDED_BY(mLock);
     std::vector<std::pair<std::variant<KeyEvent, MotionEvent>, int32_t /*windowId*/>>
