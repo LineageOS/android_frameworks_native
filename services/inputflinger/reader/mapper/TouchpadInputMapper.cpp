@@ -410,9 +410,9 @@ std::list<NotifyArgs> TouchpadInputMapper::reconfigure(nsecs_t when,
                 .setBoolValues({config.touchpadRightClickZoneEnabled});
     }
     std::list<NotifyArgs> out;
-    if ((!changes.any() && config.pointerCaptureRequest.enable) ||
+    if ((!changes.any() && config.pointerCaptureRequest.isEnable()) ||
         changes.test(InputReaderConfiguration::Change::POINTER_CAPTURE)) {
-        mPointerCaptured = config.pointerCaptureRequest.enable;
+        mPointerCaptured = config.pointerCaptureRequest.isEnable();
         // The motion ranges are going to change, so bump the generation to clear the cached ones.
         bumpGeneration();
         if (mPointerCaptured) {

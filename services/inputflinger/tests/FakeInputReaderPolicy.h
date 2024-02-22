@@ -68,7 +68,7 @@ public:
     TouchAffineTransformation getTouchAffineTransformation(const std::string& inputDeviceDescriptor,
                                                            ui::Rotation surfaceRotation);
     void setTouchAffineTransformation(const TouchAffineTransformation t);
-    PointerCaptureRequest setPointerCapture(bool enabled);
+    PointerCaptureRequest setPointerCapture(const sp<IBinder>& window);
     void setShowTouches(bool enabled);
     void setDefaultPointerDisplayId(int32_t pointerDisplayId);
     void setPointerGestureEnabled(bool enabled);

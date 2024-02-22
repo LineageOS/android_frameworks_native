@@ -486,7 +486,7 @@ void CursorInputMapper::configureBasicParams() {
 }
 
 void CursorInputMapper::configureOnPointerCapture(const InputReaderConfiguration& config) {
-    if (config.pointerCaptureRequest.enable) {
+    if (config.pointerCaptureRequest.isEnable()) {
         if (mParameters.mode == Parameters::Mode::POINTER) {
             mParameters.mode = Parameters::Mode::POINTER_RELATIVE;
             mSource = AINPUT_SOURCE_MOUSE_RELATIVE;
