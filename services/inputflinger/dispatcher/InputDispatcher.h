@@ -124,9 +124,9 @@ public:
                         int32_t displayId) override;
     void setMaximumObscuringOpacityForTouch(float opacity) override;
 
-    bool transferTouchFocus(const sp<IBinder>& fromToken, const sp<IBinder>& toToken,
-                            bool isDragDrop = false) override;
-    bool transferTouch(const sp<IBinder>& destChannelToken, int32_t displayId) override;
+    bool transferTouchGesture(const sp<IBinder>& fromToken, const sp<IBinder>& toToken,
+                              bool isDragDrop = false) override;
+    bool transferTouchOnDisplay(const sp<IBinder>& destChannelToken, int32_t displayId) override;
 
     base::Result<std::unique_ptr<InputChannel>> createInputChannel(
             const std::string& name) override;

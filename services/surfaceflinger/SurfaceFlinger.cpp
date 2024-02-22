@@ -816,9 +816,10 @@ void chooseRenderEngineType(renderengine::RenderEngineCreationArgs::Builder& bui
         builder.setThreaded(renderengine::RenderEngine::Threaded::YES)
                 .setGraphicsApi(renderengine::RenderEngine::GraphicsApi::VK);
     } else {
-        builder.setGraphicsApi(FlagManager::getInstance().vulkan_renderengine()
-                                       ? renderengine::RenderEngine::GraphicsApi::VK
-                                       : renderengine::RenderEngine::GraphicsApi::GL);
+        const auto kVulkan = renderengine::RenderEngine::GraphicsApi::VK;
+        const bool useVulkan = FlagManager::getInstance().vulkan_renderengine() &&
+                renderengine::RenderEngine::canSupport(kVulkan);
+        builder.setGraphicsApi(useVulkan ? kVulkan : renderengine::RenderEngine::GraphicsApi::GL);
     }
 }
 

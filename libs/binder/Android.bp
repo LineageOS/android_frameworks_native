@@ -664,9 +664,7 @@ cc_library {
     // Do not expand the visibility.
     visibility: [
         ":__subpackages__",
-        "//packages/modules/Virtualization/javalib/jni",
-        "//packages/modules/Virtualization/vm_payload",
-        "//packages/modules/Virtualization/demo_native",
+        "//packages/modules/Virtualization:__subpackages__",
         "//device/google/cuttlefish/shared/minidroid:__subpackages__",
         "//system/software_defined_vehicle:__subpackages__",
     ],

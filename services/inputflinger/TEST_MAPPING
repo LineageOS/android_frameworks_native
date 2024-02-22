@@ -285,5 +285,10 @@
     {
       "name": "CtsInputHostTestCases"
     }
+  ],
+  "staged-platinum-postsubmit": [
+    {
+      "name": "inputflinger_tests"
+    }
   ]
 }
