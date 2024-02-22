@@ -107,7 +107,7 @@ enum {
 };
 
 /**
- * Additional options for AHardwareBuffer_allocate2. These correspond to
+ * Additional options for AHardwareBuffer_allocateWithOptions. These correspond to
  * android.hardware.graphics.common.ExtendableType
  */
 typedef struct {
