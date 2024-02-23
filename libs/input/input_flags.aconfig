@@ -119,3 +119,10 @@ flag {
   description: "Controls the API to provide InputDevice view behavior."
   bug: "246946631"
 }
+
+flag {
+  name: "enable_touchpad_fling_stop"
+  namespace: "input"
+  description: "Enable fling scrolling to be stopped by putting a finger on the touchpad again"
+  bug: "281106755"
+}
