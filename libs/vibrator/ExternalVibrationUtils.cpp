@@ -26,30 +26,30 @@ static constexpr float HAPTIC_SCALE_VERY_LOW_RATIO = 2.0f / 3.0f;
 static constexpr float HAPTIC_SCALE_LOW_RATIO = 3.0f / 4.0f;
 static constexpr float HAPTIC_MAX_AMPLITUDE_FLOAT = 1.0f;
 
-float getHapticScaleGamma(HapticScale scale) {
-    switch (scale) {
-    case HapticScale::VERY_LOW:
+float getHapticScaleGamma(HapticLevel level) {
+    switch (level) {
+    case HapticLevel::VERY_LOW:
         return 2.0f;
-    case HapticScale::LOW:
+    case HapticLevel::LOW:
         return 1.5f;
-    case HapticScale::HIGH:
+    case HapticLevel::HIGH:
         return 0.5f;
-    case HapticScale::VERY_HIGH:
+    case HapticLevel::VERY_HIGH:
         return 0.25f;
     default:
         return 1.0f;
     }
 }
 
-float getHapticMaxAmplitudeRatio(HapticScale scale) {
-    switch (scale) {
-    case HapticScale::VERY_LOW:
+float getHapticMaxAmplitudeRatio(HapticLevel level) {
+    switch (level) {
+    case HapticLevel::VERY_LOW:
         return HAPTIC_SCALE_VERY_LOW_RATIO;
-    case HapticScale::LOW:
+    case HapticLevel::LOW:
         return HAPTIC_SCALE_LOW_RATIO;
-    case HapticScale::NONE:
-    case HapticScale::HIGH:
-    case HapticScale::VERY_HIGH:
+    case HapticLevel::NONE:
+    case HapticLevel::HIGH:
+    case HapticLevel::VERY_HIGH:
         return 1.0f;
     default:
         return 0.0f;
@@ -57,19 +57,28 @@ float getHapticMaxAmplitudeRatio(HapticScale scale) {
 }
 
 void applyHapticScale(float* buffer, size_t length, HapticScale scale) {
-    if (scale == HapticScale::MUTE) {
+    if (scale.isScaleMute()) {
         memset(buffer, 0, length * sizeof(float));
         return;
     }
-    if (scale == HapticScale::NONE) {
+    if (scale.isScaleNone()) {
         return;
     }
-    float gamma = getHapticScaleGamma(scale);
-    float maxAmplitudeRatio = getHapticMaxAmplitudeRatio(scale);
+    HapticLevel hapticLevel = scale.getLevel();
+    float adaptiveScaleFactor = scale.getAdaptiveScaleFactor();
+    float gamma = getHapticScaleGamma(hapticLevel);
+    float maxAmplitudeRatio = getHapticMaxAmplitudeRatio(hapticLevel);
+
     for (size_t i = 0; i < length; i++) {
-        float sign = buffer[i] >= 0 ? 1.0 : -1.0;
-        buffer[i] = powf(fabsf(buffer[i] / HAPTIC_MAX_AMPLITUDE_FLOAT), gamma)
-                * maxAmplitudeRatio * HAPTIC_MAX_AMPLITUDE_FLOAT * sign;
+        if (hapticLevel != HapticLevel::NONE) {
+            float sign = buffer[i] >= 0 ? 1.0 : -1.0;
+            buffer[i] = powf(fabsf(buffer[i] / HAPTIC_MAX_AMPLITUDE_FLOAT), gamma)
+                        * maxAmplitudeRatio * HAPTIC_MAX_AMPLITUDE_FLOAT * sign;
+        }
+
+        if (adaptiveScaleFactor != 1.0f) {
+            buffer[i] *= adaptiveScaleFactor;
+        }
     }
 }
 
@@ -89,13 +98,13 @@ void clipHapticData(float* buffer, size_t length, float limit) {
 } // namespace
 
 bool isValidHapticScale(HapticScale scale) {
-    switch (scale) {
-    case HapticScale::MUTE:
-    case HapticScale::VERY_LOW:
-    case HapticScale::LOW:
-    case HapticScale::NONE:
-    case HapticScale::HIGH:
-    case HapticScale::VERY_HIGH:
+    switch (scale.getLevel()) {
+    case HapticLevel::MUTE:
+    case HapticLevel::VERY_LOW:
+    case HapticLevel::LOW:
+    case HapticLevel::NONE:
+    case HapticLevel::HIGH:
+    case HapticLevel::VERY_HIGH:
         return true;
     }
     return false;
