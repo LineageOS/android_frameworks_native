@@ -23,6 +23,7 @@
 #include <ftl/flags.h>
 #include <perfetto/tracing.h>
 #include <mutex>
+#include <set>
 
 namespace android::inputdispatcher::trace::impl {
 
@@ -48,7 +49,9 @@ namespace android::inputdispatcher::trace::impl {
  */
 class PerfettoBackend : public InputTracingBackendInterface {
 public:
-    PerfettoBackend();
+    using GetPackageUid = std::function<gui::Uid(std::string)>;
+
+    explicit PerfettoBackend(GetPackageUid);
     ~PerfettoBackend() override = default;
 
     void traceKeyEvent(const TracedKeyEvent&, const TracedEventArgs&) override;
@@ -66,6 +69,7 @@ private:
         void OnStart(const StartArgs&) override;
         void OnStop(const StopArgs&) override;
 
+        void initializeUidMap(GetPackageUid);
         bool shouldIgnoreTracedInputEvent(const EventType&) const;
         inline ftl::Flags<TraceFlag> getFlags() const { return mConfig.flags; }
         TraceLevel resolveTraceLevel(const TracedEventArgs&) const;
@@ -75,7 +79,13 @@ private:
         TraceConfig mConfig;
 
         bool ruleMatches(const TraceRule&, const TracedEventArgs&) const;
+
+        std::optional<std::map<std::string, gui::Uid>> mUidMap;
     };
+
+    // TODO(b/330360505): Query the native package manager directly from the data source,
+    //   and remove this.
+    GetPackageUid mGetPackageUid;
 
     static std::once_flag sDataSourceRegistrationFlag;
     static std::atomic<int32_t> sNextInstanceId;

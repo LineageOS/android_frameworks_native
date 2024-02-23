@@ -21,6 +21,7 @@
 #include <ui/Transform.h>
 
 #include <array>
+#include <set>
 #include <variant>
 #include <vector>
 
@@ -94,6 +95,8 @@ using TracedEvent = std::variant<TracedKeyEvent, TracedMotionEvent>;
 struct TracedEventArgs {
     // True if the event is targeting at least one secure window.
     bool isSecure;
+    // The list of possible UIDs that this event could be targeting.
+    std::set<gui::Uid> targets;
 };
 
 /** Additional information about an input event being dispatched to a window. */

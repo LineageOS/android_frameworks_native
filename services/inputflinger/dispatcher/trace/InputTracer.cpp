@@ -19,6 +19,7 @@
 #include "InputTracer.h"
 
 #include <android-base/logging.h>
+#include <private/android_filesystem_config.h>
 
 namespace android::inputdispatcher::trace::impl {
 
@@ -71,6 +72,24 @@ inline auto getId(const trace::TracedEvent& v) {
     return std::visit([](const auto& event) { return event.id; }, v);
 }
 
+// Helper class to extract relevant information from InputTarget.
+struct InputTargetInfo {
+    gui::Uid uid;
+    bool isSecureWindow;
+};
+
+InputTargetInfo getTargetInfo(const InputTarget& target) {
+    if (target.windowHandle == nullptr) {
+        if (!target.connection->monitor) {
+            LOG(FATAL) << __func__ << ": Window is not set for non-monitor target";
+        }
+        // This is a global monitor, assume its target is the system.
+        return {.uid = gui::Uid{AID_SYSTEM}, .isSecureWindow = false};
+    }
+    return {target.windowHandle->getInfo()->ownerUid,
+            target.windowHandle->getInfo()->layoutParamsFlags.test(gui::WindowInfo::Flag::SECURE)};
+}
+
 } // namespace
 
 // --- InputTracer ---
@@ -104,19 +123,25 @@ std::unique_ptr<EventTrackerInterface> InputTracer::createTrackerForSyntheticEve
 void InputTracer::dispatchToTargetHint(const EventTrackerInterface& cookie,
                                        const InputTarget& target) {
     auto& eventState = getState(cookie);
+    const InputTargetInfo& targetInfo = getTargetInfo(target);
     if (eventState->isEventProcessingComplete) {
-        // TODO(b/210460522): Disallow adding new targets after eventProcessingComplete() is called.
+        // Disallow adding new targets after eventProcessingComplete() is called.
+        if (eventState->targets.find(targetInfo.uid) == eventState->targets.end()) {
+            LOG(FATAL) << __func__ << ": Cannot add new target after eventProcessingComplete";
+        }
         return;
     }
     if (isDerivedCookie(cookie)) {
-        // TODO(b/210460522): Disallow adding new targets from a derived cookie.
+        // Disallow adding new targets from a derived cookie.
+        if (eventState->targets.find(targetInfo.uid) == eventState->targets.end()) {
+            LOG(FATAL) << __func__ << ": Cannot add new target from a derived cookie";
+        }
         return;
     }
-    if (target.windowHandle != nullptr) {
-        eventState->isSecure |= target.windowHandle->getInfo()->layoutParamsFlags.test(
-                gui::WindowInfo::Flag::SECURE);
-        // TODO(b/210460522): Set events as sensitive when the IME connection is active.
-    }
+
+    eventState->targets.emplace(targetInfo.uid);
+    eventState->isSecure |= targetInfo.isSecureWindow;
+    // TODO(b/210460522): Set events as sensitive when the IME connection is active.
 }
 
 void InputTracer::eventProcessingComplete(const EventTrackerInterface& cookie) {
@@ -152,8 +177,9 @@ std::unique_ptr<EventTrackerInterface> InputTracer::traceDerivedEvent(
         // is dispatched, such as in the case of key fallback events. To account for these cases,
         // derived events can be traced after the processing is complete for the original event.
         const auto& event = eventState->events.back();
-        const TracedEventArgs traceArgs{.isSecure = eventState->isSecure};
-        writeEventToBackend(event, traceArgs, *mBackend);
+        const TracedEventArgs traceArgs{.isSecure = eventState->isSecure,
+                                        .targets = eventState->targets};
+        writeEventToBackend(event, std::move(traceArgs), *mBackend);
     }
     return std::make_unique<EventTrackerImpl>(std::move(eventState), /*isDerived=*/true);
 }
@@ -180,6 +206,10 @@ void InputTracer::traceEventDispatch(const DispatchEntry& dispatchEntry,
                 << ": Failed to find a previously traced event that matches the dispatched event";
     }
 
+    if (eventState->targets.count(dispatchEntry.targetUid) == 0) {
+        LOG(FATAL) << __func__ << ": Event is being dispatched to UID that it is not targeting";
+    }
+
     // The vsyncId only has meaning if the event is targeting a window.
     const int32_t windowId = dispatchEntry.windowId.value_or(0);
     const int32_t vsyncId = dispatchEntry.windowId.has_value() ? dispatchEntry.vsyncId : 0;
@@ -196,8 +226,9 @@ void InputTracer::traceEventDispatch(const DispatchEntry& dispatchEntry,
                                                 /*hmac=*/{},
                                                 resolvedKeyRepeatCount};
     if (eventState->isEventProcessingComplete) {
-        mBackend->traceWindowDispatch(std::move(windowDispatchArgs),
-                                      TracedEventArgs{.isSecure = eventState->isSecure});
+        const TracedEventArgs traceArgs{.isSecure = eventState->isSecure,
+                                        .targets = eventState->targets};
+        mBackend->traceWindowDispatch(std::move(windowDispatchArgs), std::move(traceArgs));
     } else {
         eventState->pendingDispatchArgs.emplace_back(std::move(windowDispatchArgs));
     }
@@ -217,7 +248,7 @@ bool InputTracer::isDerivedCookie(const EventTrackerInterface& cookie) {
 void InputTracer::EventState::onEventProcessingComplete() {
     // Write all of the events known so far to the trace.
     for (const auto& event : events) {
-        const TracedEventArgs traceArgs{.isSecure = isSecure};
+        const TracedEventArgs traceArgs{.isSecure = isSecure, .targets = targets};
         writeEventToBackend(event, traceArgs, *tracer.mBackend);
     }
     // Write all pending dispatch args to the trace.
@@ -232,8 +263,8 @@ void InputTracer::EventState::onEventProcessingComplete() {
                        << ": Failed to find a previously traced event that matches the dispatched "
                           "event";
         }
-        const TracedEventArgs traceArgs{.isSecure = isSecure};
-        tracer.mBackend->traceWindowDispatch(windowDispatchArgs, traceArgs);
+        const TracedEventArgs traceArgs{.isSecure = isSecure, .targets = targets};
+        tracer.mBackend->traceWindowDispatch(windowDispatchArgs, std::move(traceArgs));
     }
     pendingDispatchArgs.clear();
 

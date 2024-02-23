@@ -660,6 +660,8 @@ private:
         verify(*mFilteredEvent);
         mFilteredEvent = nullptr;
     }
+
+    gui::Uid getPackageUid(std::string) override { return gui::Uid::INVALID; }
 };
 } // namespace
 
