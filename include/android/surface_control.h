@@ -346,7 +346,7 @@ void ASurfaceTransaction_setZOrder(ASurfaceTransaction* transaction,
  */
 void ASurfaceTransaction_setBuffer(ASurfaceTransaction* transaction,
                                    ASurfaceControl* surface_control, AHardwareBuffer* buffer,
-                                   int acquire_fence_fd = -1) __INTRODUCED_IN(29);
+                                   int acquire_fence_fd) __INTRODUCED_IN(29);
 
 /**
  * Updates the color for \a surface_control.  This will make the background color for the
