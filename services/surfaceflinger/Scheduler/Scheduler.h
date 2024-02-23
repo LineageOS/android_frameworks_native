@@ -109,9 +109,9 @@ public:
 
     void initVsync(frametimeline::TokenManager&, std::chrono::nanoseconds workDuration);
 
-    using Impl::getScheduledFrameTime;
     using Impl::setDuration;
 
+    using Impl::getScheduledFrameResult;
     using Impl::scheduleConfigure;
     using Impl::scheduleFrame;
 

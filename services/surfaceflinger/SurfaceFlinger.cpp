@@ -2751,7 +2751,11 @@ CompositeResultsPerDisplay SurfaceFlinger::composite(
     // TODO(b/255601557) Update frameInterval per display
     refreshArgs.frameInterval =
             mScheduler->getNextFrameInterval(pacesetterId, pacesetterTarget.expectedPresentTime());
-    refreshArgs.scheduledFrameTime = mScheduler->getScheduledFrameTime();
+    const auto scheduledFrameResultOpt = mScheduler->getScheduledFrameResult();
+    const auto scheduledFrameTimeOpt = scheduledFrameResultOpt
+            ? std::optional{scheduledFrameResultOpt->callbackTime}
+            : std::nullopt;
+    refreshArgs.scheduledFrameTime = scheduledFrameTimeOpt;
     refreshArgs.hasTrustedPresentationListener = mNumTrustedPresentationListeners > 0;
     // Store the present time just before calling to the composition engine so we could notify
     // the scheduler.
@@ -4250,7 +4254,8 @@ void SurfaceFlinger::notifyExpectedPresentIfRequired(PhysicalDisplayId displayId
 
     auto hintStatus = data.hintStatus.load();
     if (!expectedPresentWithinTimeout) {
-        if (hintStatus != NotifyExpectedPresentHintStatus::Sent ||
+        if ((hintStatus != NotifyExpectedPresentHintStatus::Sent &&
+             hintStatus != NotifyExpectedPresentHintStatus::ScheduleOnTx) ||
             (timeoutOpt && timeoutOpt->ns() == 0)) {
             // Send the hint immediately if timeout, as the hint gets
             // delayed otherwise, as the frame is scheduled close
@@ -4259,11 +4264,16 @@ void SurfaceFlinger::notifyExpectedPresentIfRequired(PhysicalDisplayId displayId
                         .compare_exchange_strong(hintStatus,
                                                  NotifyExpectedPresentHintStatus::ScheduleOnTx)) {
                 scheduleNotifyExpectedPresentHint(displayId);
+                return;
             }
-            return;
         }
     }
 
+    if (hintStatus == NotifyExpectedPresentHintStatus::Sent &&
+        data.hintStatus.compare_exchange_strong(hintStatus,
+                                                NotifyExpectedPresentHintStatus::ScheduleOnTx)) {
+        return;
+    }
     if (hintStatus != NotifyExpectedPresentHintStatus::Start) {
         return;
     }
@@ -4271,7 +4281,8 @@ void SurfaceFlinger::notifyExpectedPresentIfRequired(PhysicalDisplayId displayId
     mScheduler->scheduleFrame();
 }
 
-void SurfaceFlinger::scheduleNotifyExpectedPresentHint(PhysicalDisplayId displayId) {
+void SurfaceFlinger::scheduleNotifyExpectedPresentHint(PhysicalDisplayId displayId,
+                                                       VsyncId vsyncId) {
     auto itr = mNotifyExpectedPresentMap.find(displayId);
     if (itr == mNotifyExpectedPresentMap.end()) {
         return;
@@ -4280,10 +4291,30 @@ void SurfaceFlinger::scheduleNotifyExpectedPresentHint(PhysicalDisplayId display
     const char* const whence = __func__;
     const auto sendHint = [=, this]() {
         auto& data = mNotifyExpectedPresentMap.at(displayId);
-        data.hintStatus.store(NotifyExpectedPresentHintStatus::Sent);
-        const auto status =
-                getHwComposer().notifyExpectedPresent(displayId, data.lastExpectedPresentTimestamp,
-                                                      data.lastFrameInterval);
+        TimePoint expectedPresentTime = data.lastExpectedPresentTimestamp;
+        if (ftl::to_underlying(vsyncId) != FrameTimelineInfo::INVALID_VSYNC_ID) {
+            const auto predictionOpt = mFrameTimeline->getTokenManager()->getPredictionsForToken(
+                    ftl::to_underlying(vsyncId));
+            const auto expectedPresentTimeOnPredictor = TimePoint::fromNs(
+                    predictionOpt ? predictionOpt->presentTime : expectedPresentTime.ns());
+            const auto scheduledFrameResultOpt = mScheduler->getScheduledFrameResult();
+            const auto expectedPresentTimeOnScheduler = scheduledFrameResultOpt.has_value()
+                    ? scheduledFrameResultOpt->vsyncTime
+                    : TimePoint::fromNs(0);
+            expectedPresentTime =
+                    std::max(expectedPresentTimeOnPredictor, expectedPresentTimeOnScheduler);
+        }
+
+        if (expectedPresentTime < TimePoint::now()) {
+            expectedPresentTime =
+                    mScheduler->getVsyncSchedule()->vsyncDeadlineAfter(TimePoint::now());
+            if (mScheduler->vsyncModulator().getVsyncConfig().sfWorkDuration >
+                mScheduler->getVsyncSchedule(displayId)->period()) {
+                expectedPresentTime += mScheduler->getVsyncSchedule(displayId)->period();
+            }
+        }
+        const auto status = getHwComposer().notifyExpectedPresent(displayId, expectedPresentTime,
+                                                                  data.lastFrameInterval);
         if (status != NO_ERROR) {
             ALOGE("%s failed to notifyExpectedPresentHint for display %" PRId64, whence,
                   displayId.value);
@@ -4301,7 +4332,11 @@ void SurfaceFlinger::scheduleNotifyExpectedPresentHint(PhysicalDisplayId display
             }
         }));
     }
-    sendHint();
+    auto scheduleHintOnPresent = NotifyExpectedPresentHintStatus::ScheduleOnPresent;
+    if (itr->second.hintStatus.compare_exchange_strong(scheduleHintOnPresent,
+                                                       NotifyExpectedPresentHintStatus::Sent)) {
+        sendHint();
+    }
 }
 
 void SurfaceFlinger::sendNotifyExpectedPresentHint(PhysicalDisplayId displayId) {
@@ -5105,6 +5140,11 @@ status_t SurfaceFlinger::setTransactionState(
 
     const auto frameHint = state.isFrameActive() ? FrameHint::kActive : FrameHint::kNone;
     mTransactionHandler.queueTransaction(std::move(state));
+    for (const auto& [displayId, data] : mNotifyExpectedPresentMap) {
+        if (data.hintStatus.load() == NotifyExpectedPresentHintStatus::ScheduleOnTx) {
+            scheduleNotifyExpectedPresentHint(displayId, VsyncId{frameTimelineInfo.vsyncId});
+        }
+    }
     setTransactionFlags(eTransactionFlushNeeded, schedule, applyToken, frameHint);
     return NO_ERROR;
 }
@@ -8814,7 +8854,11 @@ void SurfaceFlinger::sample() {
         return;
     }
 
-    mRegionSamplingThread->onCompositionComplete(mScheduler->getScheduledFrameTime());
+    const auto scheduledFrameResultOpt = mScheduler->getScheduledFrameResult();
+    const auto scheduleFrameTimeOpt = scheduledFrameResultOpt
+            ? std::optional{scheduledFrameResultOpt->callbackTime}
+            : std::nullopt;
+    mRegionSamplingThread->onCompositionComplete(scheduleFrameTimeOpt);
 }
 
 void SurfaceFlinger::onActiveDisplaySizeChanged(const DisplayDevice& activeDisplay) {

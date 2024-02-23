@@ -17,7 +17,6 @@
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 #include <binder/IPCThreadState.h>
-#include <gui/DisplayEventReceiver.h>
 #include <utils/Log.h>
 #include <utils/Timers.h>
 #include <utils/threads.h>
@@ -66,7 +65,7 @@ void MessageQueue::vsyncCallback(nsecs_t vsyncTime, nsecs_t targetWakeupTime, ns
     {
         std::lock_guard lock(mVsync.mutex);
         mVsync.lastCallbackTime = expectedVsyncTime;
-        mVsync.scheduledFrameTime.reset();
+        mVsync.scheduledFrameTimeOpt.reset();
     }
 
     const auto vsyncId = VsyncId{mVsync.tokenManager->generateTokenForPredictions(
@@ -122,7 +121,7 @@ std::unique_ptr<scheduler::VSyncCallbackRegistration> MessageQueue::onNewVsyncSc
                                                             std::placeholders::_3),
                                                   "sf");
     if (reschedule) {
-        mVsync.scheduledFrameTime =
+        mVsync.scheduledFrameTimeOpt =
                 mVsync.registration->schedule({.workDuration = mVsync.workDuration.get().count(),
                                                .readyDuration = 0,
                                                .lastVsync = mVsync.lastCallbackTime.ns()});
@@ -140,7 +139,7 @@ void MessageQueue::setDuration(std::chrono::nanoseconds workDuration) {
     ATRACE_CALL();
     std::lock_guard lock(mVsync.mutex);
     mVsync.workDuration = workDuration;
-    mVsync.scheduledFrameTime =
+    mVsync.scheduledFrameTimeOpt =
             mVsync.registration->update({.workDuration = mVsync.workDuration.get().count(),
                                          .readyDuration = 0,
                                          .lastVsync = mVsync.lastCallbackTime.ns()});
@@ -193,22 +192,20 @@ void MessageQueue::scheduleFrame() {
     ATRACE_CALL();
 
     std::lock_guard lock(mVsync.mutex);
-    mVsync.scheduledFrameTime =
+    mVsync.scheduledFrameTimeOpt =
             mVsync.registration->schedule({.workDuration = mVsync.workDuration.get().count(),
                                            .readyDuration = 0,
                                            .lastVsync = mVsync.lastCallbackTime.ns()});
 }
 
-auto MessageQueue::getScheduledFrameTime() const -> std::optional<Clock::time_point> {
+std::optional<scheduler::ScheduleResult> MessageQueue::getScheduledFrameResult() const {
     if (mHandler->isFramePending()) {
-        return Clock::now();
+        return scheduler::ScheduleResult{TimePoint::now(), mHandler->getExpectedVsyncTime()};
     }
-
     std::lock_guard lock(mVsync.mutex);
-    if (const auto time = mVsync.scheduledFrameTime) {
-        return Clock::time_point(std::chrono::nanoseconds(*time));
+    if (const auto scheduledFrameTimeline = mVsync.scheduledFrameTimeOpt) {
+        return scheduledFrameTimeline;
     }
-
     return std::nullopt;
 }
 
