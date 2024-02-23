@@ -39,7 +39,8 @@ const impl::TraceConfig CONFIG_TRACE_ALL{
 } // namespace
 
 void AndroidInputEventProtoConverter::toProtoMotionEvent(const TracedMotionEvent& event,
-                                                         proto::AndroidMotionEvent& outProto) {
+                                                         proto::AndroidMotionEvent& outProto,
+                                                         bool isRedacted) {
     outProto.set_event_id(event.id);
     outProto.set_event_time_nanos(event.eventTime);
     outProto.set_down_time_nanos(event.downTime);
@@ -48,10 +49,14 @@ void AndroidInputEventProtoConverter::toProtoMotionEvent(const TracedMotionEvent
     outProto.set_device_id(event.deviceId);
     outProto.set_display_id(event.displayId);
     outProto.set_classification(static_cast<int32_t>(event.classification));
-    outProto.set_cursor_position_x(event.xCursorPosition);
-    outProto.set_cursor_position_y(event.yCursorPosition);
     outProto.set_flags(event.flags);
     outProto.set_policy_flags(event.policyFlags);
+
+    if (!isRedacted) {
+        outProto.set_cursor_position_x(event.xCursorPosition);
+        outProto.set_cursor_position_y(event.yCursorPosition);
+        outProto.set_meta_state(event.metaState);
+    }
 
     for (uint32_t i = 0; i < event.pointerProperties.size(); i++) {
         auto* pointer = outProto.add_pointer();
@@ -66,13 +71,17 @@ void AndroidInputEventProtoConverter::toProtoMotionEvent(const TracedMotionEvent
             const auto axis = bits.clearFirstMarkedBit();
             auto axisEntry = pointer->add_axis_value();
             axisEntry->set_axis(axis);
-            axisEntry->set_value(coords.values[axisIndex]);
+
+            if (!isRedacted) {
+                axisEntry->set_value(coords.values[axisIndex]);
+            }
         }
     }
 }
 
 void AndroidInputEventProtoConverter::toProtoKeyEvent(const TracedKeyEvent& event,
-                                                      proto::AndroidKeyEvent& outProto) {
+                                                      proto::AndroidKeyEvent& outProto,
+                                                      bool isRedacted) {
     outProto.set_event_id(event.id);
     outProto.set_event_time_nanos(event.eventTime);
     outProto.set_down_time_nanos(event.downTime);
@@ -80,21 +89,28 @@ void AndroidInputEventProtoConverter::toProtoKeyEvent(const TracedKeyEvent& even
     outProto.set_action(event.action);
     outProto.set_device_id(event.deviceId);
     outProto.set_display_id(event.displayId);
-    outProto.set_key_code(event.keyCode);
-    outProto.set_scan_code(event.scanCode);
-    outProto.set_meta_state(event.metaState);
     outProto.set_repeat_count(event.repeatCount);
     outProto.set_flags(event.flags);
     outProto.set_policy_flags(event.policyFlags);
+
+    if (!isRedacted) {
+        outProto.set_key_code(event.keyCode);
+        outProto.set_scan_code(event.scanCode);
+        outProto.set_meta_state(event.metaState);
+    }
 }
 
 void AndroidInputEventProtoConverter::toProtoWindowDispatchEvent(
-        const WindowDispatchArgs& args, proto::AndroidWindowInputDispatchEvent& outProto) {
+        const WindowDispatchArgs& args, proto::AndroidWindowInputDispatchEvent& outProto,
+        bool isRedacted) {
     std::visit([&](auto entry) { outProto.set_event_id(entry.id); }, args.eventEntry);
     outProto.set_vsync_id(args.vsyncId);
     outProto.set_window_id(args.windowId);
     outProto.set_resolved_flags(args.resolvedFlags);
 
+    if (isRedacted) {
+        return;
+    }
     if (auto* motion = std::get_if<TracedMotionEvent>(&args.eventEntry); motion != nullptr) {
         for (size_t i = 0; i < motion->pointerProperties.size(); i++) {
             auto* pointerProto = outProto.add_dispatched_pointer();

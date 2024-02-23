@@ -68,10 +68,13 @@ private:
 
         bool shouldIgnoreTracedInputEvent(const EventType&) const;
         inline ftl::Flags<TraceFlag> getFlags() const { return mConfig.flags; }
+        TraceLevel resolveTraceLevel(const TracedEventArgs&) const;
 
     private:
         const int32_t mInstanceId;
         TraceConfig mConfig;
+
+        bool ruleMatches(const TraceRule&, const TracedEventArgs&) const;
     };
 
     static std::once_flag sDataSourceRegistrationFlag;

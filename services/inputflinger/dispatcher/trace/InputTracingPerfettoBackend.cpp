@@ -69,6 +69,30 @@ bool PerfettoBackend::InputEventDataSource::shouldIgnoreTracedInputEvent(
     return false;
 }
 
+TraceLevel PerfettoBackend::InputEventDataSource::resolveTraceLevel(
+        const TracedEventArgs& args) const {
+    // Check for matches with the rules in the order that they are defined.
+    for (const auto& rule : mConfig.rules) {
+        if (ruleMatches(rule, args)) {
+            return rule.level;
+        }
+    }
+
+    // The event is not traced if it matched zero rules.
+    return TraceLevel::TRACE_LEVEL_NONE;
+}
+
+bool PerfettoBackend::InputEventDataSource::ruleMatches(const TraceRule& rule,
+                                                        const TracedEventArgs& args) const {
+    // By default, a rule will match all events. Return early if the rule does not match.
+
+    if (rule.matchSecure.has_value() && *rule.matchSecure != args.isSecure) {
+        return false;
+    }
+
+    return true;
+}
+
 // --- PerfettoBackend ---
 
 std::once_flag PerfettoBackend::sDataSourceRegistrationFlag{};
@@ -94,54 +118,62 @@ PerfettoBackend::PerfettoBackend() {
 
 void PerfettoBackend::traceMotionEvent(const TracedMotionEvent& event,
                                        const TracedEventArgs& args) {
-    if (args.isSecure) {
-        // For now, avoid tracing secure event entirely.
-        return;
-    }
     InputEventDataSource::Trace([&](InputEventDataSource::TraceContext ctx) {
         auto dataSource = ctx.GetDataSourceLocked();
         if (dataSource->shouldIgnoreTracedInputEvent(event.eventType)) {
             return;
         }
+        const TraceLevel traceLevel = dataSource->resolveTraceLevel(args);
+        if (traceLevel == TraceLevel::TRACE_LEVEL_NONE) {
+            return;
+        }
+        const bool isRedacted = traceLevel == TraceLevel::TRACE_LEVEL_REDACTED;
         auto tracePacket = ctx.NewTracePacket();
         auto* inputEvent = tracePacket->set_android_input_event();
-        auto* dispatchMotion = inputEvent->set_dispatcher_motion_event();
-        AndroidInputEventProtoConverter::toProtoMotionEvent(event, *dispatchMotion);
+        auto* dispatchMotion = isRedacted ? inputEvent->set_dispatcher_motion_event_redacted()
+                                          : inputEvent->set_dispatcher_motion_event();
+        AndroidInputEventProtoConverter::toProtoMotionEvent(event, *dispatchMotion, isRedacted);
     });
 }
 
 void PerfettoBackend::traceKeyEvent(const TracedKeyEvent& event, const TracedEventArgs& args) {
-    if (args.isSecure) {
-        // For now, avoid tracing secure event entirely.
-        return;
-    }
     InputEventDataSource::Trace([&](InputEventDataSource::TraceContext ctx) {
         auto dataSource = ctx.GetDataSourceLocked();
         if (dataSource->shouldIgnoreTracedInputEvent(event.eventType)) {
             return;
         }
+        const TraceLevel traceLevel = dataSource->resolveTraceLevel(args);
+        if (traceLevel == TraceLevel::TRACE_LEVEL_NONE) {
+            return;
+        }
+        const bool isRedacted = traceLevel == TraceLevel::TRACE_LEVEL_REDACTED;
         auto tracePacket = ctx.NewTracePacket();
         auto* inputEvent = tracePacket->set_android_input_event();
-        auto* dispatchKey = inputEvent->set_dispatcher_key_event();
-        AndroidInputEventProtoConverter::toProtoKeyEvent(event, *dispatchKey);
+        auto* dispatchKey = isRedacted ? inputEvent->set_dispatcher_key_event_redacted()
+                                       : inputEvent->set_dispatcher_key_event();
+        AndroidInputEventProtoConverter::toProtoKeyEvent(event, *dispatchKey, isRedacted);
     });
 }
 
 void PerfettoBackend::traceWindowDispatch(const WindowDispatchArgs& dispatchArgs,
                                           const TracedEventArgs& args) {
-    if (args.isSecure) {
-        // For now, avoid tracing secure event entirely.
-        return;
-    }
     InputEventDataSource::Trace([&](InputEventDataSource::TraceContext ctx) {
         auto dataSource = ctx.GetDataSourceLocked();
         if (!dataSource->getFlags().test(TraceFlag::TRACE_DISPATCHER_WINDOW_DISPATCH)) {
             return;
         }
+        const TraceLevel traceLevel = dataSource->resolveTraceLevel(args);
+        if (traceLevel == TraceLevel::TRACE_LEVEL_NONE) {
+            return;
+        }
+        const bool isRedacted = traceLevel == TraceLevel::TRACE_LEVEL_REDACTED;
         auto tracePacket = ctx.NewTracePacket();
         auto* inputEvent = tracePacket->set_android_input_event();
-        auto* dispatchEvent = inputEvent->set_dispatcher_window_dispatch_event();
-        AndroidInputEventProtoConverter::toProtoWindowDispatchEvent(dispatchArgs, *dispatchEvent);
+        auto* dispatchEvent = isRedacted
+                ? inputEvent->set_dispatcher_window_dispatch_event_redacted()
+                : inputEvent->set_dispatcher_window_dispatch_event();
+        AndroidInputEventProtoConverter::toProtoWindowDispatchEvent(dispatchArgs, *dispatchEvent,
+                                                                    isRedacted);
     });
 }
 
