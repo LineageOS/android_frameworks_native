@@ -48,8 +48,18 @@
 #ifndef ANDROID_CHOREOGRAPHER_H
 #define ANDROID_CHOREOGRAPHER_H
 
+#include <stddef.h>
 #include <stdint.h>
 #include <sys/cdefs.h>
+
+// This file may also be built on glibc or on Windows/MacOS libc's, so no-op
+// and deprecated definitions are provided.
+#if !defined(__INTRODUCED_IN)
+#define __INTRODUCED_IN(__api_level) /* nothing */
+#endif
+#if !defined(__DEPRECATED_IN)
+#define __DEPRECATED_IN(__api_level) __attribute__((__deprecated__))
+#endif
 
 __BEGIN_DECLS
 
