@@ -3865,48 +3865,57 @@ TEST_F(InputDispatcherTest, SplitTouchesSendCorrectActionDownTime) {
 
     // Touch down on the first window
     mDispatcher->notifyMotion(generateTouchArgs(AMOTION_EVENT_ACTION_DOWN, {{50, 50}}));
-
     mDispatcher->waitForIdle();
 
-    std::unique_ptr<MotionEvent> motionEvent1 = window1->consumeMotionEvent();
-    ASSERT_NE(nullptr, motionEvent1);
+    const std::unique_ptr<MotionEvent> firstDown =
+            window1->consumeMotionEvent(AllOf(WithMotionAction(ACTION_DOWN)));
+    ASSERT_EQ(firstDown->getDownTime(), firstDown->getEventTime());
     window2->assertNoEvents();
-    nsecs_t downTimeForWindow1 = motionEvent1->getDownTime();
-    ASSERT_EQ(motionEvent1->getDownTime(), motionEvent1->getEventTime());
 
     // Now touch down on the window with another pointer
     mDispatcher->notifyMotion(generateTouchArgs(POINTER_1_DOWN, {{50, 50}, {150, 50}}));
     mDispatcher->waitForIdle();
-    std::unique_ptr<MotionEvent> motionEvent2 = window2->consumeMotionEvent();
-    ASSERT_NE(nullptr, motionEvent2);
-    nsecs_t downTimeForWindow2 = motionEvent2->getDownTime();
-    ASSERT_NE(downTimeForWindow1, downTimeForWindow2);
-    ASSERT_EQ(motionEvent2->getDownTime(), motionEvent2->getEventTime());
+
+    const std::unique_ptr<MotionEvent> secondDown =
+            window2->consumeMotionEvent(AllOf(WithMotionAction(ACTION_DOWN)));
+    ASSERT_EQ(secondDown->getDownTime(), secondDown->getEventTime());
+    ASSERT_NE(firstDown->getDownTime(), secondDown->getDownTime());
+    // We currently send MOVE events to all windows receiving a split touch when there is any change
+    // in the touch state, even when none of the pointers in the split window actually moved.
+    // Document this behavior in the test.
+    window1->consumeMotionMove();
 
     // Now move the pointer on the second window
     mDispatcher->notifyMotion(generateTouchArgs(AMOTION_EVENT_ACTION_MOVE, {{50, 50}, {151, 51}}));
     mDispatcher->waitForIdle();
-    window2->consumeMotionEvent(WithDownTime(downTimeForWindow2));
+
+    window2->consumeMotionEvent(WithDownTime(secondDown->getDownTime()));
+    window1->consumeMotionEvent(WithDownTime(firstDown->getDownTime()));
 
     // Now add new touch down on the second window
     mDispatcher->notifyMotion(generateTouchArgs(POINTER_2_DOWN, {{50, 50}, {151, 51}, {150, 50}}));
     mDispatcher->waitForIdle();
-    window2->consumeMotionEvent(WithDownTime(downTimeForWindow2));
 
-    // TODO(b/232530217): do not send the unnecessary MOVE event and delete the next line
-    window1->consumeMotionMove();
-    window1->assertNoEvents();
+    window2->consumeMotionEvent(
+            AllOf(WithMotionAction(POINTER_1_DOWN), WithDownTime(secondDown->getDownTime())));
+    window1->consumeMotionEvent(WithDownTime(firstDown->getDownTime()));
 
     // Now move the pointer on the first window
     mDispatcher->notifyMotion(
             generateTouchArgs(AMOTION_EVENT_ACTION_MOVE, {{51, 51}, {151, 51}, {150, 50}}));
     mDispatcher->waitForIdle();
-    window1->consumeMotionEvent(WithDownTime(downTimeForWindow1));
 
+    window1->consumeMotionEvent(WithDownTime(firstDown->getDownTime()));
+    window2->consumeMotionEvent(WithDownTime(secondDown->getDownTime()));
+
+    // Now add new touch down on the first window
     mDispatcher->notifyMotion(
             generateTouchArgs(POINTER_3_DOWN, {{51, 51}, {151, 51}, {150, 50}, {50, 50}}));
     mDispatcher->waitForIdle();
-    window1->consumeMotionEvent(WithDownTime(downTimeForWindow1));
+
+    window1->consumeMotionEvent(
+            AllOf(WithMotionAction(POINTER_1_DOWN), WithDownTime(firstDown->getDownTime())));
+    window2->consumeMotionEvent(WithDownTime(secondDown->getDownTime()));
 }
 
 TEST_F(InputDispatcherTest, HoverMoveEnterMouseClickAndHoverMoveExit) {
@@ -10799,6 +10808,7 @@ TEST_F(InputDispatcherDragTests, DragAndDropWhenSplitTouch) {
                                 InputEventInjectionSync::WAIT_FOR_RESULT))
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
     mWindow->consumeMotionDown(ADISPLAY_ID_DEFAULT);
+    mSecondWindow->consumeMotionMove(ADISPLAY_ID_DEFAULT);
 
     // Perform drag and drop from first window.
     ASSERT_TRUE(startDrag(false));

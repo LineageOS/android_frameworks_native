@@ -33,7 +33,8 @@ namespace android::inputdispatcher {
  * be added to input event coordinates to compensate for the absolute position of the
  * window area.
  */
-struct InputTarget {
+class InputTarget {
+public:
     using Flags = InputTargetFlags;
 
     enum class DispatchMode {
@@ -80,19 +81,16 @@ struct InputTarget {
     // Current display transform. Used for compatibility for raw coordinates.
     ui::Transform displayTransform;
 
-    // The subset of pointer ids to include in motion events dispatched to this input target
-    // if FLAG_SPLIT is set.
-    std::bitset<MAX_POINTER_ID + 1> pointerIds;
     // Event time for the first motion event (ACTION_DOWN) dispatched to this input target if
     // FLAG_SPLIT is set.
     std::optional<nsecs_t> firstDownTimeInTarget;
-    // The data is stored by the pointerId. Use the bit position of pointerIds to look up
-    // Transform per pointerId.
-    ui::Transform pointerTransforms[MAX_POINTERS];
 
     // The window that this input target is being dispatched to. It is possible for this to be
     // null for cases like global monitors.
     sp<gui::WindowInfoHandle> windowHandle;
+
+    InputTarget() = default;
+    InputTarget(const std::shared_ptr<Connection>&, ftl::Flags<Flags> = {});
 
     void addPointers(std::bitset<MAX_POINTER_ID + 1> pointerIds, const ui::Transform& transform);
     void setDefaultPointerTransform(const ui::Transform& transform);
@@ -111,7 +109,22 @@ struct InputTarget {
      */
     const ui::Transform& getDefaultPointerTransform() const;
 
+    const ui::Transform& getTransformForPointer(int32_t pointerId) const;
+
+    std::bitset<MAX_POINTER_ID + 1> getPointerIds() const;
+
     std::string getPointerInfoString() const;
+
+private:
+    template <typename K, typename V>
+    using ArrayMap = std::vector<std::pair<K, V>>;
+    using PointerIds = std::bitset<MAX_POINTER_ID + 1>;
+    // The mapping of pointer IDs to the transform that should be used for that collection of IDs.
+    // Each of the pointer IDs are mutually disjoint, and their union makes up pointer IDs to
+    // include in the motion events dispatched to this target. We use an ArrayMap to store this to
+    // avoid having to define hash or comparison functions for ui::Transform, which would be needed
+    // to use std::unordered_map or std::map respectively.
+    ArrayMap<ui::Transform, PointerIds> mPointerTransforms;
 };
 
 std::ostream& operator<<(std::ostream& out, const InputTarget& target);
