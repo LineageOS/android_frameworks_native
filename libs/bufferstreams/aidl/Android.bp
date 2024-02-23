@@ -1,0 +1,43 @@
+// Copyright (C) 2024 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+aidl_interface {
+    name: "android.graphics.bufferstreams",
+    unstable: true,
+    flags: ["-Werror"],
+    srcs: ["android/graphics/bufferstreams/*.aidl"],
+    headers: [
+        "HardwareBuffer_aidl",
+    ],
+    imports: [
+        "android.hardware.common-V2",
+    ],
+    backend: {
+        cpp: {
+            enabled: false,
+        },
+        java: {
+            enabled: false,
+        },
+        ndk: {
+            enabled: false,
+        },
+        rust: {
+            enabled: true,
+            additional_rustlibs: [
+                "libnativewindow_rs",
+            ],
+        },
+    },
+}

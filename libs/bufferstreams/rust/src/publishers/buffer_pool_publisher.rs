@@ -14,8 +14,6 @@
 
 //!
 
-use std::time::Instant;
-
 use crate::{
     buffers::BufferPool, subscriptions::SharedBufferSubscription, BufferPublisher,
     BufferSubscriber, Frame, StreamConfig,
@@ -43,7 +41,7 @@ impl BufferPoolPublisher {
 
     /// If the [SharedBufferSubscription] is ready for a [Frame], a buffer will be requested from
     /// [BufferPool] and sent over to the [BufferSubscriber].
-    pub fn send_next_frame(&mut self, present_time: Instant) -> bool {
+    pub fn send_next_frame(&mut self, present_time: i64) -> bool {
         if let Some(subscriber) = self.subscriber.as_mut() {
             if self.subscription.take_request() {
                 if let Some(buffer) = self.buffer_pool.next_buffer() {
@@ -103,7 +101,7 @@ mod test {
 
         subscriber.map_inner(|s| s.request(1));
 
-        assert!(buffer_pool_publisher.send_next_frame(Instant::now()));
+        assert!(buffer_pool_publisher.send_next_frame(1));
 
         let events = subscriber.map_inner_mut(|s| s.take_events());
         assert!(matches!(events.last().unwrap(), TestingSubscriberEvent::Next(_)));
