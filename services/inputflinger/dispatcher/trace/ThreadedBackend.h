@@ -16,11 +16,11 @@
 
 #pragma once
 
+#include "InputThread.h"
 #include "InputTracingPerfettoBackend.h"
 
 #include <android-base/thread_annotations.h>
 #include <mutex>
-#include <thread>
 #include <variant>
 #include <vector>
 
@@ -44,12 +44,12 @@ public:
 
 private:
     std::mutex mLock;
-    std::thread mTracerThread;
+    InputThread mTracerThread;
     bool mThreadExit GUARDED_BY(mLock){false};
     std::condition_variable mThreadWakeCondition;
     Backend mBackend;
-    std::vector<std::variant<TracedKeyEvent, TracedMotionEvent, WindowDispatchArgs>> mQueue
-            GUARDED_BY(mLock);
+    using TraceEntry = std::variant<TracedKeyEvent, TracedMotionEvent, WindowDispatchArgs>;
+    std::vector<TraceEntry> mQueue GUARDED_BY(mLock);
 
     using WindowDispatchArgs = InputTracingBackendInterface::WindowDispatchArgs;
 
