@@ -19,11 +19,16 @@
 #include "InputTracer.h"
 
 #include <android-base/logging.h>
-#include <utils/AndroidThreads.h>
 
 namespace android::inputdispatcher::trace::impl {
 
 namespace {
+
+// Helper to std::visit with lambdas.
+template <typename... V>
+struct Visitor : V... {
+    using V::operator()...;
+};
 
 TracedEvent createTracedEvent(const MotionEntry& e) {
     return TracedMotionEvent{e.id,
@@ -59,19 +64,9 @@ TracedEvent createTracedEvent(const KeyEntry& e) {
 // --- InputTracer ---
 
 InputTracer::InputTracer(std::unique_ptr<InputTracingBackendInterface> backend)
-      : mTracerThread(&InputTracer::threadLoop, this), mBackend(std::move(backend)) {}
-
-InputTracer::~InputTracer() {
-    {
-        std::scoped_lock lock(mLock);
-        mThreadExit = true;
-    }
-    mThreadWakeCondition.notify_all();
-    mTracerThread.join();
-}
+      : mBackend(std::move(backend)) {}
 
 std::unique_ptr<EventTrackerInterface> InputTracer::traceInboundEvent(const EventEntry& entry) {
-    std::scoped_lock lock(mLock);
     TracedEvent traced;
 
     if (entry.type == EventEntry::Type::MOTION) {
@@ -89,7 +84,6 @@ std::unique_ptr<EventTrackerInterface> InputTracer::traceInboundEvent(const Even
 
 void InputTracer::dispatchToTargetHint(const EventTrackerInterface& cookie,
                                        const InputTarget& target) {
-    std::scoped_lock lock(mLock);
     auto& cookieState = getState(cookie);
     if (!cookieState) {
         LOG(FATAL) << "dispatchToTargetHint() should not be called after eventProcessingComplete()";
@@ -98,127 +92,72 @@ void InputTracer::dispatchToTargetHint(const EventTrackerInterface& cookie,
 }
 
 void InputTracer::eventProcessingComplete(const EventTrackerInterface& cookie) {
-    {
-        std::scoped_lock lock(mLock);
-        auto& cookieState = getState(cookie);
-        if (!cookieState) {
-            LOG(FATAL) << "Traced event was already logged. "
-                          "eventProcessingComplete() was likely called more than once.";
-        }
-        mTraceQueue.emplace_back(std::move(*cookieState));
-        cookieState.reset();
-    } // release lock
+    auto& cookieState = getState(cookie);
+    if (!cookieState) {
+        LOG(FATAL) << "Traced event was already logged. "
+                      "eventProcessingComplete() was likely called more than once.";
+    }
 
-    mThreadWakeCondition.notify_all();
+    std::visit(Visitor{[&](const TracedMotionEvent& e) { mBackend->traceMotionEvent(e); },
+                       [&](const TracedKeyEvent& e) { mBackend->traceKeyEvent(e); }},
+               cookieState->event);
+    cookieState.reset();
 }
 
 void InputTracer::traceEventDispatch(const DispatchEntry& dispatchEntry,
                                      const EventTrackerInterface* cookie) {
-    {
-        std::scoped_lock lock(mLock);
-        const EventEntry& entry = *dispatchEntry.eventEntry;
+    const EventEntry& entry = *dispatchEntry.eventEntry;
 
-        TracedEvent traced;
-        if (entry.type == EventEntry::Type::MOTION) {
-            const auto& motion = static_cast<const MotionEntry&>(entry);
-            traced = createTracedEvent(motion);
-        } else if (entry.type == EventEntry::Type::KEY) {
-            const auto& key = static_cast<const KeyEntry&>(entry);
-            traced = createTracedEvent(key);
-        } else {
-            LOG(FATAL) << "Cannot trace EventEntry of type: " << ftl::enum_string(entry.type);
-        }
+    TracedEvent traced;
+    if (entry.type == EventEntry::Type::MOTION) {
+        const auto& motion = static_cast<const MotionEntry&>(entry);
+        traced = createTracedEvent(motion);
+    } else if (entry.type == EventEntry::Type::KEY) {
+        const auto& key = static_cast<const KeyEntry&>(entry);
+        traced = createTracedEvent(key);
+    } else {
+        LOG(FATAL) << "Cannot trace EventEntry of type: " << ftl::enum_string(entry.type);
+    }
 
-        if (!cookie) {
-            // This event was not tracked as an inbound event, so trace it now.
-            mTraceQueue.emplace_back(traced);
-        }
+    if (!cookie) {
+        // This event was not tracked as an inbound event, so trace it now.
+        std::visit(Visitor{[&](const TracedMotionEvent& e) { mBackend->traceMotionEvent(e); },
+                           [&](const TracedKeyEvent& e) { mBackend->traceKeyEvent(e); }},
+                   traced);
+    }
 
-        // The vsyncId only has meaning if the event is targeting a window.
-        const int32_t windowId = dispatchEntry.windowId.value_or(0);
-        const int32_t vsyncId = dispatchEntry.windowId.has_value() ? dispatchEntry.vsyncId : 0;
+    // The vsyncId only has meaning if the event is targeting a window.
+    const int32_t windowId = dispatchEntry.windowId.value_or(0);
+    const int32_t vsyncId = dispatchEntry.windowId.has_value() ? dispatchEntry.vsyncId : 0;
 
-        mDispatchTraceQueue.emplace_back(std::move(traced), dispatchEntry.deliveryTime,
-                                         dispatchEntry.resolvedFlags, dispatchEntry.targetUid,
-                                         vsyncId, windowId, dispatchEntry.transform,
-                                         dispatchEntry.rawTransform);
-    } // release lock
-
-    mThreadWakeCondition.notify_all();
+    mBackend->traceWindowDispatch({std::move(traced), dispatchEntry.deliveryTime,
+                                   dispatchEntry.resolvedFlags, dispatchEntry.targetUid, vsyncId,
+                                   windowId, dispatchEntry.transform, dispatchEntry.rawTransform,
+                                   /*hmac=*/{}});
 }
 
 std::optional<InputTracer::EventState>& InputTracer::getState(const EventTrackerInterface& cookie) {
-    return static_cast<const EventTrackerImpl&>(cookie).mLockedState;
-}
-
-void InputTracer::threadLoop() {
-    androidSetThreadName("InputTracer");
-
-    std::vector<const EventState> eventsToTrace;
-    std::vector<const WindowDispatchArgs> dispatchEventsToTrace;
-
-    while (true) {
-        { // acquire lock
-            std::unique_lock lock(mLock);
-            base::ScopedLockAssertion assumeLocked(mLock);
-
-            // Wait until we need to process more events or exit.
-            mThreadWakeCondition.wait(lock, [&]() REQUIRES(mLock) {
-                return mThreadExit || !mTraceQueue.empty() || !mDispatchTraceQueue.empty();
-            });
-            if (mThreadExit) {
-                return;
-            }
-
-            mTraceQueue.swap(eventsToTrace);
-            mDispatchTraceQueue.swap(dispatchEventsToTrace);
-        } // release lock
-
-        // Trace the events into the backend without holding the lock to reduce the amount of
-        // work performed in the critical section.
-        writeEventsToBackend(eventsToTrace, dispatchEventsToTrace);
-        eventsToTrace.clear();
-        dispatchEventsToTrace.clear();
-    }
-}
-
-void InputTracer::writeEventsToBackend(
-        const std::vector<const EventState>& events,
-        const std::vector<const WindowDispatchArgs>& dispatchEvents) {
-    for (const auto& event : events) {
-        if (auto* motion = std::get_if<TracedMotionEvent>(&event.event); motion != nullptr) {
-            mBackend->traceMotionEvent(*motion);
-        } else {
-            mBackend->traceKeyEvent(std::get<TracedKeyEvent>(event.event));
-        }
-    }
-
-    for (const auto& dispatchArgs : dispatchEvents) {
-        mBackend->traceWindowDispatch(dispatchArgs);
-    }
+    return static_cast<const EventTrackerImpl&>(cookie).mState;
 }
 
 // --- InputTracer::EventTrackerImpl ---
 
 InputTracer::EventTrackerImpl::EventTrackerImpl(InputTracer& tracer, TracedEvent&& event)
-      : mTracer(tracer), mLockedState(event) {}
+      : mTracer(tracer), mState(event) {}
 
 InputTracer::EventTrackerImpl::~EventTrackerImpl() {
-    {
-        std::scoped_lock lock(mTracer.mLock);
-        if (!mLockedState) {
-            // This event has already been written to the trace as expected.
-            return;
-        }
-        // We're still holding on to the state, which means it hasn't yet been written to the trace.
-        // Write it to the trace now.
-        // TODO(b/210460522): Determine why/where the event is being destroyed before
-        //   eventProcessingComplete() is called.
-        mTracer.mTraceQueue.emplace_back(std::move(*mLockedState));
-        mLockedState.reset();
-    } // release lock
-
-    mTracer.mThreadWakeCondition.notify_all();
+    if (!mState) {
+        // This event has already been written to the trace as expected.
+        return;
+    }
+    // We're still holding on to the state, which means it hasn't yet been written to the trace.
+    // Write it to the trace now.
+    // TODO(b/210460522): Determine why/where the event is being destroyed before
+    //   eventProcessingComplete() is called.
+    std::visit(Visitor{[&](const TracedMotionEvent& e) { mTracer.mBackend->traceMotionEvent(e); },
+                       [&](const TracedKeyEvent& e) { mTracer.mBackend->traceKeyEvent(e); }},
+               mState->event);
+    mState.reset();
 }
 
 } // namespace android::inputdispatcher::trace::impl
