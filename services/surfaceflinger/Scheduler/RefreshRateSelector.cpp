@@ -972,6 +972,7 @@ auto RefreshRateSelector::getFrameRateOverrides(const std::vector<LayerRequireme
             LOG_ALWAYS_FATAL_IF(layer->vote != LayerVoteType::ExplicitDefault &&
                                         layer->vote != LayerVoteType::ExplicitExactOrMultiple &&
                                         layer->vote != LayerVoteType::ExplicitExact &&
+                                        layer->vote != LayerVoteType::ExplicitGte &&
                                         layer->vote != LayerVoteType::ExplicitCategory,
                                 "Invalid layer vote type for frame rate overrides");
             for (auto& [fps, score] : scoredFrameRates) {
