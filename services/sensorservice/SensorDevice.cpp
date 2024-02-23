@@ -812,7 +812,6 @@ status_t SensorDevice::setMode(uint32_t mode) {
             }
             mInHalBypassMode = true;
         }
-        return OK;
     } else {
         if (mInHalBypassMode) {
             // We are transitioning out of HAL Bypass mode. We need to notify the reader thread
