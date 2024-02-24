@@ -117,14 +117,16 @@ protected:
         mThread->onVsync(expectedPresentationTime, timestamp, deadlineTimestamp);
     }
 
+    static constexpr scheduler::ScheduleResult kScheduleResult{TimePoint::fromNs(0),
+                                                               TimePoint::fromNs(0)};
     AsyncCallRecorderWithCannedReturn<
             scheduler::ScheduleResult (*)(scheduler::VSyncDispatch::CallbackToken,
                                           scheduler::VSyncDispatch::ScheduleTiming)>
-            mVSyncCallbackScheduleRecorder{0};
+            mVSyncCallbackScheduleRecorder{kScheduleResult};
     AsyncCallRecorderWithCannedReturn<
             scheduler::ScheduleResult (*)(scheduler::VSyncDispatch::CallbackToken,
                                           scheduler::VSyncDispatch::ScheduleTiming)>
-            mVSyncCallbackUpdateRecorder{0};
+            mVSyncCallbackUpdateRecorder{kScheduleResult};
     AsyncCallRecorderWithCannedReturn<
             scheduler::VSyncDispatch::CallbackToken (*)(scheduler::VSyncDispatch::Callback,
                                                         std::string)>

@@ -67,7 +67,8 @@ GestureConverter::GestureConverter(InputReaderContext& readerContext,
       : mDeviceId(deviceId),
         mReaderContext(readerContext),
         mPointerController(readerContext.getPointerController(deviceId)),
-        mEnablePointerChoreographer(input_flags::enable_pointer_choreographer()) {
+        mEnablePointerChoreographer(input_flags::enable_pointer_choreographer()),
+        mEnableFlingStop(input_flags::enable_touchpad_fling_stop()) {
     deviceContext.getAbsoluteAxisInfo(ABS_MT_POSITION_X, &mXAxisInfo);
     deviceContext.getAbsoluteAxisInfo(ABS_MT_POSITION_Y, &mYAxisInfo);
 }
@@ -400,20 +401,55 @@ std::list<NotifyArgs> GestureConverter::handleFling(nsecs_t when, nsecs_t readTi
                 // ensure consistency between touchscreen and touchpad flings), so we're just using
                 // the "start fling" gestures as a marker for the end of a two-finger scroll
                 // gesture.
+                mFlingMayBeInProgress = true;
                 return endScroll(when, readTime);
             }
             break;
         case GESTURES_FLING_TAP_DOWN:
             if (mCurrentClassification == MotionClassification::NONE) {
-                // Use the tap down state of a fling gesture as an indicator that a contact
-                // has been initiated with the touchpad. We treat this as a move event with zero
-                // magnitude, which will also result in the pointer icon being updated.
-                // TODO(b/282023644): Add a signal in libgestures for when a stable contact has been
-                //  initiated with a touchpad.
-                return handleMove(when, readTime, gestureStartTime,
-                                  Gesture(kGestureMove, gesture.start_time, gesture.end_time,
-                                          /*dx=*/0.f,
-                                          /*dy=*/0.f));
+                if (mEnableFlingStop && mFlingMayBeInProgress) {
+                    // The user has just touched the pad again after ending a two-finger scroll
+                    // motion, which might have started a fling. We want to stop the fling, but
+                    // unfortunately there's currently no API for doing so. Instead, send and
+                    // immediately cancel a fake finger to cause the scrolling to stop and hopefully
+                    // avoid side effects (e.g. activation of UI elements).
+                    // TODO(b/326056750): add an API for fling stops.
+                    mFlingMayBeInProgress = false;
+                    const auto [xCursorPosition, yCursorPosition] = mEnablePointerChoreographer
+                            ? FloatPoint{0, 0}
+                            : mPointerController->getPosition();
+                    PointerCoords coords;
+                    coords.clear();
+                    coords.setAxisValue(AMOTION_EVENT_AXIS_X, xCursorPosition);
+                    coords.setAxisValue(AMOTION_EVENT_AXIS_Y, yCursorPosition);
+                    coords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, 0);
+                    coords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, 0);
+
+                    std::list<NotifyArgs> out;
+                    mDownTime = when;
+                    out += exitHover(when, readTime, xCursorPosition, yCursorPosition);
+                    // TODO(b/281106755): add a MotionClassification value for fling stops.
+                    out.push_back(makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_DOWN,
+                                                 /*actionButton=*/0, /*buttonState=*/0,
+                                                 /*pointerCount=*/1, &coords, xCursorPosition,
+                                                 yCursorPosition));
+                    out.push_back(makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_CANCEL,
+                                                 /*actionButton=*/0, /*buttonState=*/0,
+                                                 /*pointerCount=*/1, &coords, xCursorPosition,
+                                                 yCursorPosition));
+                    out += enterHover(when, readTime, xCursorPosition, yCursorPosition);
+                    return out;
+                } else {
+                    // Use the tap down state of a fling gesture as an indicator that a contact
+                    // has been initiated with the touchpad. We treat this as a move event with zero
+                    // magnitude, which will also result in the pointer icon being updated.
+                    // TODO(b/282023644): Add a signal in libgestures for when a stable contact has
+                    //  been initiated with a touchpad.
+                    return handleMove(when, readTime, gestureStartTime,
+                                      Gesture(kGestureMove, gesture.start_time, gesture.end_time,
+                                              /*dx=*/0.f,
+                                              /*dy=*/0.f));
+                }
             }
             break;
         default:

@@ -106,6 +106,7 @@ private:
     InputReaderContext& mReaderContext;
     std::shared_ptr<PointerControllerInterface> mPointerController;
     const bool mEnablePointerChoreographer;
+    const bool mEnableFlingStop;
 
     std::optional<int32_t> mDisplayId;
     FloatRect mBoundsInLogicalDisplay{};
@@ -120,6 +121,9 @@ private:
     // Whether we are currently in a hover state (i.e. a HOVER_ENTER event has been sent without a
     // matching HOVER_EXIT).
     bool mIsHovering = false;
+    // Whether we've received a "fling start" gesture (i.e. the end of a scroll) but no "fling tap
+    // down" gesture to match it yet.
+    bool mFlingMayBeInProgress = false;
 
     MotionClassification mCurrentClassification = MotionClassification::NONE;
     // Only used when mCurrentClassification is MULTI_FINGER_SWIPE.

@@ -21,11 +21,15 @@
 #include <string>
 
 #include <ftl/mixins.h>
+#include <scheduler/Time.h>
 #include <utils/Timers.h>
 
 namespace android::scheduler {
 
-using ScheduleResult = std::optional<nsecs_t>;
+struct ScheduleResult {
+    TimePoint callbackTime;
+    TimePoint vsyncTime;
+};
 
 enum class CancelResult { Cancelled, TooLate, Error };
 
@@ -124,10 +128,12 @@ public:
      *
      * \param [in] token           The callback to schedule.
      * \param [in] scheduleTiming  The timing information for this schedule call
-     * \return                     The expected callback time if a callback was scheduled.
+     * \return                     The expected callback time if a callback was scheduled,
+     *                             along with VSYNC time for the callback scheduled.
      *                             std::nullopt if the callback is not registered.
      */
-    virtual ScheduleResult schedule(CallbackToken token, ScheduleTiming scheduleTiming) = 0;
+    virtual std::optional<ScheduleResult> schedule(CallbackToken token,
+                                                   ScheduleTiming scheduleTiming) = 0;
 
     /*
      * Update the timing information for a scheduled callback.
@@ -135,10 +141,12 @@ public:
      *
      * \param [in] token           The callback to schedule.
      * \param [in] scheduleTiming  The timing information for this schedule call
-     * \return                     The expected callback time if a callback was scheduled.
+     * \return                     The expected callback time if a callback was scheduled,
+     *                             along with VSYNC time for the callback scheduled.
      *                             std::nullopt if the callback is not registered.
      */
-    virtual ScheduleResult update(CallbackToken token, ScheduleTiming scheduleTiming) = 0;
+    virtual std::optional<ScheduleResult> update(CallbackToken token,
+                                                 ScheduleTiming scheduleTiming) = 0;
 
     /* Cancels a scheduled callback, if possible.
      *
@@ -168,10 +176,10 @@ public:
     VSyncCallbackRegistration& operator=(VSyncCallbackRegistration&&);
 
     // See documentation for VSyncDispatch::schedule.
-    ScheduleResult schedule(VSyncDispatch::ScheduleTiming scheduleTiming);
+    std::optional<ScheduleResult> schedule(VSyncDispatch::ScheduleTiming scheduleTiming);
 
     // See documentation for VSyncDispatch::update.
-    ScheduleResult update(VSyncDispatch::ScheduleTiming scheduleTiming);
+    std::optional<ScheduleResult> update(VSyncDispatch::ScheduleTiming scheduleTiming);
 
     // See documentation for VSyncDispatch::cancel.
     CancelResult cancel();

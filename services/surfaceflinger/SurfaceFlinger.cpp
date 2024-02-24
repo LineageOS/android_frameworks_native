@@ -233,31 +233,25 @@ bool validateCompositionDataspace(Dataspace dataspace) {
 }
 
 std::chrono::milliseconds getIdleTimerTimeout(DisplayId displayId) {
-    const auto displayIdleTimerMsKey = [displayId] {
-        std::stringstream ss;
-        ss << "debug.sf.set_idle_timer_ms_" << displayId.value;
-        return ss.str();
-    }();
-
-    const int32_t displayIdleTimerMs = base::GetIntProperty(displayIdleTimerMsKey, 0);
-    if (displayIdleTimerMs > 0) {
+    if (const int32_t displayIdleTimerMs =
+                base::GetIntProperty("debug.sf.set_idle_timer_ms_"s +
+                                             std::to_string(displayId.value),
+                                     0);
+        displayIdleTimerMs > 0) {
         return std::chrono::milliseconds(displayIdleTimerMs);
     }
 
-    const int32_t setIdleTimerMs = base::GetIntProperty("debug.sf.set_idle_timer_ms", 0);
+    const int32_t setIdleTimerMs = base::GetIntProperty("debug.sf.set_idle_timer_ms"s, 0);
     const int32_t millis = setIdleTimerMs ? setIdleTimerMs : sysprop::set_idle_timer_ms(0);
     return std::chrono::milliseconds(millis);
 }
 
 bool getKernelIdleTimerSyspropConfig(DisplayId displayId) {
-    const auto displaySupportKernelIdleTimerKey = [displayId] {
-        std::stringstream ss;
-        ss << "debug.sf.support_kernel_idle_timer_" << displayId.value;
-        return ss.str();
-    }();
+    const bool displaySupportKernelIdleTimer =
+            base::GetBoolProperty("debug.sf.support_kernel_idle_timer_"s +
+                                          std::to_string(displayId.value),
+                                  false);
 
-    const auto displaySupportKernelIdleTimer =
-            base::GetBoolProperty(displaySupportKernelIdleTimerKey, false);
     return displaySupportKernelIdleTimer || sysprop::support_kernel_idle_timer(false);
 }
 
@@ -467,11 +461,10 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
     wideColorGamutCompositionPixelFormat =
             static_cast<ui::PixelFormat>(wcg_composition_pixel_format(ui::PixelFormat::RGBA_8888));
 
-    mLayerCachingEnabled = [] {
-        const bool enable =
-                android::sysprop::SurfaceFlingerProperties::enable_layer_caching().value_or(false);
-        return base::GetBoolProperty(std::string("debug.sf.enable_layer_caching"), enable);
-    }();
+    mLayerCachingEnabled =
+            base::GetBoolProperty("debug.sf.enable_layer_caching"s,
+                                  sysprop::SurfaceFlingerProperties::enable_layer_caching()
+                                          .value_or(false));
 
     useContextPriority = use_context_priority(true);
 
@@ -2092,12 +2085,11 @@ status_t SurfaceFlinger::getDisplayDecorationSupport(
 sp<IDisplayEventConnection> SurfaceFlinger::createDisplayEventConnection(
         gui::ISurfaceComposer::VsyncSource vsyncSource, EventRegistrationFlags eventRegistration,
         const sp<IBinder>& layerHandle) {
-    const auto& handle =
-            vsyncSource == gui::ISurfaceComposer::VsyncSource::eVsyncSourceSurfaceFlinger
-            ? mSfConnectionHandle
-            : mAppConnectionHandle;
+    const auto cycle = vsyncSource == gui::ISurfaceComposer::VsyncSource::eVsyncSourceSurfaceFlinger
+            ? scheduler::Cycle::LastComposite
+            : scheduler::Cycle::Render;
 
-    return mScheduler->createDisplayEventConnection(handle, eventRegistration, layerHandle);
+    return mScheduler->createDisplayEventConnection(cycle, eventRegistration, layerHandle);
 }
 
 void SurfaceFlinger::scheduleCommit(FrameHint hint) {
@@ -2139,7 +2131,7 @@ void SurfaceFlinger::onComposerHalVsync(hal::HWDisplayId hwcDisplayId, int64_t t
             const int32_t hotplugErrorCode = static_cast<int32_t>(-timestamp);
             ALOGD("SurfaceFlinger got hotplugErrorCode=%d for display %" PRIu64, hotplugErrorCode,
                   hwcDisplayId);
-            mScheduler->onHotplugConnectionError(mAppConnectionHandle, hotplugErrorCode);
+            mScheduler->onHotplugConnectionError(scheduler::Cycle::Render, hotplugErrorCode);
             return;
         }
 
@@ -2190,7 +2182,7 @@ void SurfaceFlinger::onComposerHalHotplugEvent(hal::HWDisplayId hwcDisplayId,
     if (FlagManager::getInstance().hotplug2()) {
         ALOGD("SurfaceFlinger got hotplug event=%d", static_cast<int32_t>(event));
         // TODO(b/311403559): use enum type instead of int
-        mScheduler->onHotplugConnectionError(mAppConnectionHandle, static_cast<int32_t>(event));
+        mScheduler->onHotplugConnectionError(scheduler::Cycle::Render, static_cast<int32_t>(event));
     }
 }
 
@@ -2759,7 +2751,11 @@ CompositeResultsPerDisplay SurfaceFlinger::composite(
     // TODO(b/255601557) Update frameInterval per display
     refreshArgs.frameInterval =
             mScheduler->getNextFrameInterval(pacesetterId, pacesetterTarget.expectedPresentTime());
-    refreshArgs.scheduledFrameTime = mScheduler->getScheduledFrameTime();
+    const auto scheduledFrameResultOpt = mScheduler->getScheduledFrameResult();
+    const auto scheduledFrameTimeOpt = scheduledFrameResultOpt
+            ? std::optional{scheduledFrameResultOpt->callbackTime}
+            : std::nullopt;
+    refreshArgs.scheduledFrameTime = scheduledFrameTimeOpt;
     refreshArgs.hasTrustedPresentationListener = mNumTrustedPresentationListeners > 0;
     // Store the present time just before calling to the composition engine so we could notify
     // the scheduler.
@@ -3480,7 +3476,7 @@ const char* SurfaceFlinger::processHotplug(PhysicalDisplayId displayId,
     if (!activeMode) {
         ALOGE("Failed to hotplug display %s", to_string(displayId).c_str());
         if (FlagManager::getInstance().hotplug2()) {
-            mScheduler->onHotplugConnectionError(mAppConnectionHandle,
+            mScheduler->onHotplugConnectionError(scheduler::Cycle::Render,
                                                  static_cast<int32_t>(
                                                          DisplayHotplugEvent::ERROR_UNKNOWN));
         }
@@ -3533,8 +3529,8 @@ const char* SurfaceFlinger::processHotplug(PhysicalDisplayId displayId,
 }
 
 void SurfaceFlinger::dispatchDisplayHotplugEvent(PhysicalDisplayId displayId, bool connected) {
-    mScheduler->onHotplugReceived(mAppConnectionHandle, displayId, connected);
-    mScheduler->onHotplugReceived(mSfConnectionHandle, displayId, connected);
+    mScheduler->onHotplugReceived(scheduler::Cycle::Render, displayId, connected);
+    mScheduler->onHotplugReceived(scheduler::Cycle::LastComposite, displayId, connected);
 }
 
 void SurfaceFlinger::dispatchDisplayModeChangeEvent(PhysicalDisplayId displayId,
@@ -3544,7 +3540,7 @@ void SurfaceFlinger::dispatchDisplayModeChangeEvent(PhysicalDisplayId displayId,
             ? &scheduler::Scheduler::onPrimaryDisplayModeChanged
             : &scheduler::Scheduler::onNonPrimaryDisplayModeChanged;
 
-    ((*mScheduler).*onDisplayModeChanged)(mAppConnectionHandle, mode);
+    ((*mScheduler).*onDisplayModeChanged)(scheduler::Cycle::Render, mode);
 }
 
 sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
@@ -3571,10 +3567,10 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
         const auto enableFrameRateOverride = sysprop::enable_frame_rate_override(true)
                 ? Config::FrameRateOverride::Enabled
                 : Config::FrameRateOverride::Disabled;
-        Config config =
+        const Config config =
                 {.enableFrameRateOverride = enableFrameRateOverride,
                  .frameRateMultipleThreshold =
-                         base::GetIntProperty("debug.sf.frame_rate_multiple_threshold", 0),
+                         base::GetIntProperty("debug.sf.frame_rate_multiple_threshold"s, 0),
                  .idleTimerTimeout = idleTimerTimeoutMs,
                  .kernelIdleTimerController = kernelIdleTimerController};
 
@@ -4196,7 +4192,7 @@ void SurfaceFlinger::triggerOnFrameRateOverridesChanged() {
         return getDefaultDisplayDeviceLocked()->getPhysicalId();
     }();
 
-    mScheduler->onFrameRateOverridesChanged(mAppConnectionHandle, displayId);
+    mScheduler->onFrameRateOverridesChanged(scheduler::Cycle::Render, displayId);
 }
 
 void SurfaceFlinger::notifyCpuLoadUp() {
@@ -4258,7 +4254,8 @@ void SurfaceFlinger::notifyExpectedPresentIfRequired(PhysicalDisplayId displayId
 
     auto hintStatus = data.hintStatus.load();
     if (!expectedPresentWithinTimeout) {
-        if (hintStatus != NotifyExpectedPresentHintStatus::Sent ||
+        if ((hintStatus != NotifyExpectedPresentHintStatus::Sent &&
+             hintStatus != NotifyExpectedPresentHintStatus::ScheduleOnTx) ||
             (timeoutOpt && timeoutOpt->ns() == 0)) {
             // Send the hint immediately if timeout, as the hint gets
             // delayed otherwise, as the frame is scheduled close
@@ -4267,11 +4264,16 @@ void SurfaceFlinger::notifyExpectedPresentIfRequired(PhysicalDisplayId displayId
                         .compare_exchange_strong(hintStatus,
                                                  NotifyExpectedPresentHintStatus::ScheduleOnTx)) {
                 scheduleNotifyExpectedPresentHint(displayId);
+                return;
             }
-            return;
         }
     }
 
+    if (hintStatus == NotifyExpectedPresentHintStatus::Sent &&
+        data.hintStatus.compare_exchange_strong(hintStatus,
+                                                NotifyExpectedPresentHintStatus::ScheduleOnTx)) {
+        return;
+    }
     if (hintStatus != NotifyExpectedPresentHintStatus::Start) {
         return;
     }
@@ -4279,7 +4281,8 @@ void SurfaceFlinger::notifyExpectedPresentIfRequired(PhysicalDisplayId displayId
     mScheduler->scheduleFrame();
 }
 
-void SurfaceFlinger::scheduleNotifyExpectedPresentHint(PhysicalDisplayId displayId) {
+void SurfaceFlinger::scheduleNotifyExpectedPresentHint(PhysicalDisplayId displayId,
+                                                       VsyncId vsyncId) {
     auto itr = mNotifyExpectedPresentMap.find(displayId);
     if (itr == mNotifyExpectedPresentMap.end()) {
         return;
@@ -4288,10 +4291,30 @@ void SurfaceFlinger::scheduleNotifyExpectedPresentHint(PhysicalDisplayId display
     const char* const whence = __func__;
     const auto sendHint = [=, this]() {
         auto& data = mNotifyExpectedPresentMap.at(displayId);
-        data.hintStatus.store(NotifyExpectedPresentHintStatus::Sent);
-        const auto status =
-                getHwComposer().notifyExpectedPresent(displayId, data.lastExpectedPresentTimestamp,
-                                                      data.lastFrameInterval);
+        TimePoint expectedPresentTime = data.lastExpectedPresentTimestamp;
+        if (ftl::to_underlying(vsyncId) != FrameTimelineInfo::INVALID_VSYNC_ID) {
+            const auto predictionOpt = mFrameTimeline->getTokenManager()->getPredictionsForToken(
+                    ftl::to_underlying(vsyncId));
+            const auto expectedPresentTimeOnPredictor = TimePoint::fromNs(
+                    predictionOpt ? predictionOpt->presentTime : expectedPresentTime.ns());
+            const auto scheduledFrameResultOpt = mScheduler->getScheduledFrameResult();
+            const auto expectedPresentTimeOnScheduler = scheduledFrameResultOpt.has_value()
+                    ? scheduledFrameResultOpt->vsyncTime
+                    : TimePoint::fromNs(0);
+            expectedPresentTime =
+                    std::max(expectedPresentTimeOnPredictor, expectedPresentTimeOnScheduler);
+        }
+
+        if (expectedPresentTime < TimePoint::now()) {
+            expectedPresentTime =
+                    mScheduler->getVsyncSchedule()->vsyncDeadlineAfter(TimePoint::now());
+            if (mScheduler->vsyncModulator().getVsyncConfig().sfWorkDuration >
+                mScheduler->getVsyncSchedule(displayId)->period()) {
+                expectedPresentTime += mScheduler->getVsyncSchedule(displayId)->period();
+            }
+        }
+        const auto status = getHwComposer().notifyExpectedPresent(displayId, expectedPresentTime,
+                                                                  data.lastFrameInterval);
         if (status != NO_ERROR) {
             ALOGE("%s failed to notifyExpectedPresentHint for display %" PRId64, whence,
                   displayId.value);
@@ -4309,7 +4332,11 @@ void SurfaceFlinger::scheduleNotifyExpectedPresentHint(PhysicalDisplayId display
             }
         }));
     }
-    sendHint();
+    auto scheduleHintOnPresent = NotifyExpectedPresentHintStatus::ScheduleOnPresent;
+    if (itr->second.hintStatus.compare_exchange_strong(scheduleHintOnPresent,
+                                                       NotifyExpectedPresentHintStatus::Sent)) {
+        sendHint();
+    }
 }
 
 void SurfaceFlinger::sendNotifyExpectedPresentHint(PhysicalDisplayId displayId) {
@@ -4361,24 +4388,22 @@ void SurfaceFlinger::initScheduler(const sp<const DisplayDevice>& display) {
     mScheduler = std::make_unique<Scheduler>(static_cast<ICompositor&>(*this),
                                              static_cast<ISchedulerCallback&>(*this), features,
                                              getFactory(), activeRefreshRate, *mTimeStats);
+
+    // The pacesetter must be registered before EventThread creation below.
     mScheduler->registerDisplay(display->getPhysicalId(), display->holdRefreshRateSelector());
     if (FlagManager::getInstance().vrr_config()) {
         mScheduler->setRenderRate(display->getPhysicalId(), activeMode.fps);
     }
-    mScheduler->startTimers();
 
     const auto configs = mScheduler->getVsyncConfiguration().getCurrentConfigs();
 
-    mAppConnectionHandle =
-            mScheduler->createEventThread(Scheduler::Cycle::Render,
-                                          mFrameTimeline->getTokenManager(),
-                                          /* workDuration */ configs.late.appWorkDuration,
-                                          /* readyDuration */ configs.late.sfWorkDuration);
-    mSfConnectionHandle =
-            mScheduler->createEventThread(Scheduler::Cycle::LastComposite,
-                                          mFrameTimeline->getTokenManager(),
-                                          /* workDuration */ activeRefreshRate.getPeriod(),
-                                          /* readyDuration */ configs.late.sfWorkDuration);
+    mScheduler->createEventThread(scheduler::Cycle::Render, mFrameTimeline->getTokenManager(),
+                                  /* workDuration */ configs.late.appWorkDuration,
+                                  /* readyDuration */ configs.late.sfWorkDuration);
+    mScheduler->createEventThread(scheduler::Cycle::LastComposite,
+                                  mFrameTimeline->getTokenManager(),
+                                  /* workDuration */ activeRefreshRate.getPeriod(),
+                                  /* readyDuration */ configs.late.sfWorkDuration);
 
     mScheduler->initVsync(*mFrameTimeline->getTokenManager(), configs.late.sfWorkDuration);
 
@@ -4386,6 +4411,9 @@ void SurfaceFlinger::initScheduler(const sp<const DisplayDevice>& display) {
             sp<RegionSamplingThread>::make(*this,
                                            RegionSamplingThread::EnvironmentTimingTunables());
     mFpsReporter = sp<FpsReporter>::make(*mFrameTimeline);
+
+    // Timer callbacks may fire, so do this last.
+    mScheduler->startTimers();
 }
 
 void SurfaceFlinger::doCommitTransactions() {
@@ -5112,6 +5140,11 @@ status_t SurfaceFlinger::setTransactionState(
 
     const auto frameHint = state.isFrameActive() ? FrameHint::kActive : FrameHint::kNone;
     mTransactionHandler.queueTransaction(std::move(state));
+    for (const auto& [displayId, data] : mNotifyExpectedPresentMap) {
+        if (data.hintStatus.load() == NotifyExpectedPresentHintStatus::ScheduleOnTx) {
+            scheduleNotifyExpectedPresentHint(displayId, VsyncId{frameTimelineInfo.vsyncId});
+        }
+    }
     setTransactionFlags(eTransactionFlushNeeded, schedule, applyToken, frameHint);
     return NO_ERROR;
 }
@@ -6322,7 +6355,7 @@ void SurfaceFlinger::dumpScheduler(std::string& result) const {
 }
 
 void SurfaceFlinger::dumpEvents(std::string& result) const {
-    mScheduler->dump(mAppConnectionHandle, result);
+    mScheduler->dump(scheduler::Cycle::Render, result);
 }
 
 void SurfaceFlinger::dumpVsync(std::string& result) const {
@@ -7094,14 +7127,15 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 mForceFullDamage = n != 0;
                 return NO_ERROR;
             }
-            case 1018: { // Modify Choreographer's duration
+            case 1018: { // Set the render deadline as a duration until VSYNC.
                 n = data.readInt32();
-                mScheduler->setDuration(mAppConnectionHandle, std::chrono::nanoseconds(n), 0ns);
+                mScheduler->setDuration(scheduler::Cycle::Render, std::chrono::nanoseconds(n), 0ns);
                 return NO_ERROR;
             }
-            case 1019: { // Modify SurfaceFlinger's duration
+            case 1019: { // Set the deadline of the last composite as a duration until VSYNC.
                 n = data.readInt32();
-                mScheduler->setDuration(mSfConnectionHandle, std::chrono::nanoseconds(n), 0ns);
+                mScheduler->setDuration(scheduler::Cycle::LastComposite,
+                                        std::chrono::nanoseconds(n), 0ns);
                 return NO_ERROR;
             }
             case 1020: { // Unused
@@ -7333,7 +7367,7 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 auto inUid = static_cast<uid_t>(data.readInt32());
                 const auto refreshRate = data.readFloat();
                 mScheduler->setPreferredRefreshRateForUid(FrameRateOverride{inUid, refreshRate});
-                mScheduler->onFrameRateOverridesChanged(mAppConnectionHandle, displayId);
+                mScheduler->onFrameRateOverridesChanged(scheduler::Cycle::Render, displayId);
                 return NO_ERROR;
             }
             // Toggle caching feature
@@ -7691,7 +7725,7 @@ status_t SurfaceFlinger::setSchedFifo(bool enabled) {
 
 status_t SurfaceFlinger::setSchedAttr(bool enabled) {
     static const unsigned int kUclampMin =
-            base::GetUintProperty<unsigned int>("ro.surface_flinger.uclamp.min", 0U);
+            base::GetUintProperty<unsigned int>("ro.surface_flinger.uclamp.min"s, 0U);
 
     if (!kUclampMin) {
         // uclamp.min set to 0 (default), skip setting
@@ -8473,10 +8507,10 @@ status_t SurfaceFlinger::applyRefreshRateSelectorPolicy(
     // TODO(b/140204874): Leave the event in until we do proper testing with all apps that might
     // be depending in this callback.
     if (const auto activeMode = selector.getActiveMode(); displayId == mActiveDisplayId) {
-        mScheduler->onPrimaryDisplayModeChanged(mAppConnectionHandle, activeMode);
+        mScheduler->onPrimaryDisplayModeChanged(scheduler::Cycle::Render, activeMode);
         toggleKernelIdleTimer();
     } else {
-        mScheduler->onNonPrimaryDisplayModeChanged(mAppConnectionHandle, activeMode);
+        mScheduler->onNonPrimaryDisplayModeChanged(scheduler::Cycle::Render, activeMode);
     }
 
     auto preferredModeOpt = getPreferredDisplayMode(displayId, currentPolicy.defaultMode);
@@ -8664,7 +8698,7 @@ status_t SurfaceFlinger::setGameModeFrameRateOverride(uid_t uid, float frameRate
     }();
 
     mScheduler->setGameModeFrameRateForUid(FrameRateOverride{static_cast<uid_t>(uid), frameRate});
-    mScheduler->onFrameRateOverridesChanged(mAppConnectionHandle, displayId);
+    mScheduler->onFrameRateOverridesChanged(scheduler::Cycle::Render, displayId);
     return NO_ERROR;
 }
 
@@ -8820,7 +8854,11 @@ void SurfaceFlinger::sample() {
         return;
     }
 
-    mRegionSamplingThread->onCompositionComplete(mScheduler->getScheduledFrameTime());
+    const auto scheduledFrameResultOpt = mScheduler->getScheduledFrameResult();
+    const auto scheduleFrameTimeOpt = scheduledFrameResultOpt
+            ? std::optional{scheduledFrameResultOpt->callbackTime}
+            : std::nullopt;
+    mRegionSamplingThread->onCompositionComplete(scheduleFrameTimeOpt);
 }
 
 void SurfaceFlinger::onActiveDisplaySizeChanged(const DisplayDevice& activeDisplay) {
@@ -8926,7 +8964,8 @@ void SurfaceFlinger::updateHdcpLevels(hal::HWDisplayId hwcDisplayId, int32_t con
             Mutex::Autolock lock(mStateLock);
             display->setSecure(connectedLevel >= 2 /* HDCP_V1 */);
         }
-        mScheduler->onHdcpLevelsChanged(mAppConnectionHandle, displayId, connectedLevel, maxLevel);
+        mScheduler->onHdcpLevelsChanged(scheduler::Cycle::Render, displayId, connectedLevel,
+                                        maxLevel);
     }));
 }
 
