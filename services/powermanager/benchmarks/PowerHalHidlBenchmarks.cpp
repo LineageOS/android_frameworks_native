@@ -50,6 +50,7 @@ static void runBenchmark(benchmark::State& state, microseconds delay, Return<R> 
 
     if (hal == nullptr) {
         ALOGV("Power HAL HIDL not available, skipping test...");
+        state.SkipWithMessage("Power HAL unavailable");
         return;
     }
 
