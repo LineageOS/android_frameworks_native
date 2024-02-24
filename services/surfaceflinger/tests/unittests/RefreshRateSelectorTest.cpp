@@ -3159,6 +3159,210 @@ TEST_P(RefreshRateSelectorTest, getFrameRateOverrides_twoUids) {
     EXPECT_TRUE(frameRateOverrides.empty());
 }
 
+TEST_P(RefreshRateSelectorTest, getFrameRateOverrides_withFrameRateCategory) {
+    if (GetParam() == Config::FrameRateOverride::Disabled) {
+        return;
+    }
+
+    ASSERT_TRUE(GetParam() == Config::FrameRateOverride::AppOverrideNativeRefreshRates ||
+                GetParam() == Config::FrameRateOverride::AppOverride ||
+                GetParam() == Config::FrameRateOverride::Enabled);
+
+    auto selector = createSelector(kModes_30_60_72_90_120, kModeId120);
+
+    std::vector<LayerRequirement> layers = {{.ownerUid = 1234, .weight = 1.f},
+                                            {.ownerUid = 1234, .weight = 1.f}};
+
+    // HighHint case with touch boost and thus should skip frame rate override.
+    layers[0].name = "ExplicitCategory HighHint";
+    layers[0].vote = LayerVoteType::ExplicitCategory;
+    layers[0].desiredRefreshRate = 0_Hz;
+    layers[0].frameRateCategory = FrameRateCategory::HighHint;
+    layers[1].name = "ExplicitCategory High";
+    layers[1].vote = LayerVoteType::ExplicitCategory;
+    layers[1].desiredRefreshRate = 0_Hz;
+    layers[1].frameRateCategory = FrameRateCategory::High;
+    auto frameRateOverrides = selector.getFrameRateOverrides(layers, 120_Hz, {});
+    EXPECT_TRUE(frameRateOverrides.empty());
+    frameRateOverrides = selector.getFrameRateOverrides(layers, 120_Hz, {.touch = true});
+    EXPECT_TRUE(frameRateOverrides.empty());
+
+    // HighHint case with touch boost and thus should skip frame rate override.
+    layers[0].name = "ExplicitCategory HighHint";
+    layers[0].vote = LayerVoteType::ExplicitCategory;
+    layers[0].desiredRefreshRate = 0_Hz;
+    layers[0].frameRateCategory = FrameRateCategory::HighHint;
+    layers[1].name = "ExplicitCategory Normal";
+    layers[1].vote = LayerVoteType::ExplicitCategory;
+    layers[1].desiredRefreshRate = 0_Hz;
+    layers[1].frameRateCategory = FrameRateCategory::Normal;
+    frameRateOverrides = selector.getFrameRateOverrides(layers, 120_Hz, {});
+    EXPECT_TRUE(frameRateOverrides.empty());
+    frameRateOverrides = selector.getFrameRateOverrides(layers, 120_Hz, {.touch = true});
+    EXPECT_TRUE(frameRateOverrides.empty());
+
+    // HighHint case with touch boost and thus should skip frame rate override.
+    layers[0].name = "ExplicitCategory HighHint";
+    layers[0].vote = LayerVoteType::ExplicitCategory;
+    layers[0].desiredRefreshRate = 0_Hz;
+    layers[0].frameRateCategory = FrameRateCategory::HighHint;
+    layers[1].name = "ExplicitCategory Low";
+    layers[1].vote = LayerVoteType::ExplicitCategory;
+    layers[1].desiredRefreshRate = 0_Hz;
+    layers[1].frameRateCategory = FrameRateCategory::Low;
+    frameRateOverrides = selector.getFrameRateOverrides(layers, 120_Hz, {});
+    EXPECT_TRUE(frameRateOverrides.empty());
+    frameRateOverrides = selector.getFrameRateOverrides(layers, 120_Hz, {.touch = true});
+    EXPECT_TRUE(frameRateOverrides.empty());
+
+    // HighHint case with touch boost and thus should skip frame rate override.
+    layers[0].name = "ExplicitCategory HighHint";
+    layers[0].vote = LayerVoteType::ExplicitCategory;
+    layers[0].desiredRefreshRate = 0_Hz;
+    layers[0].frameRateCategory = FrameRateCategory::HighHint;
+    layers[1].name = "ExplicitCategory NoPreference";
+    layers[1].vote = LayerVoteType::ExplicitCategory;
+    layers[1].desiredRefreshRate = 0_Hz;
+    layers[1].frameRateCategory = FrameRateCategory::NoPreference;
+    frameRateOverrides = selector.getFrameRateOverrides(layers, 120_Hz, {});
+    EXPECT_TRUE(frameRateOverrides.empty());
+    frameRateOverrides = selector.getFrameRateOverrides(layers, 120_Hz, {.touch = true});
+    EXPECT_TRUE(frameRateOverrides.empty());
+
+    // HighHint case *without* touch boost has frame rate override.
+    // For example, game and touch interaction.
+    layers[0].name = "ExplicitCategory HighHint";
+    layers[0].vote = LayerVoteType::ExplicitCategory;
+    layers[0].desiredRefreshRate = 0_Hz;
+    layers[0].frameRateCategory = FrameRateCategory::HighHint;
+    layers[1].name = "ExplicitDefault 60";
+    layers[1].vote = LayerVoteType::ExplicitDefault;
+    layers[1].desiredRefreshRate = 60_Hz;
+    layers[1].frameRateCategory = FrameRateCategory::Default;
+    frameRateOverrides = selector.getFrameRateOverrides(layers, 120_Hz, {});
+    EXPECT_EQ(1u, frameRateOverrides.size());
+    ASSERT_EQ(1u, frameRateOverrides.count(1234));
+    EXPECT_EQ(60_Hz, frameRateOverrides.at(1234));
+    frameRateOverrides = selector.getFrameRateOverrides(layers, 120_Hz, {.touch = true});
+    EXPECT_EQ(1u, frameRateOverrides.size());
+    ASSERT_EQ(1u, frameRateOverrides.count(1234));
+    EXPECT_EQ(60_Hz, frameRateOverrides.at(1234));
+
+    // HighHint case with touch boost and thus should skip frame rate override.
+    layers[0].name = "ExplicitCategory HighHint";
+    layers[0].vote = LayerVoteType::ExplicitCategory;
+    layers[0].desiredRefreshRate = 0_Hz;
+    layers[0].frameRateCategory = FrameRateCategory::HighHint;
+    layers[1].name = "ExplicitExactOrMultiple 30";
+    layers[1].vote = LayerVoteType::ExplicitExactOrMultiple;
+    layers[1].desiredRefreshRate = 30_Hz;
+    layers[1].frameRateCategory = FrameRateCategory::Default;
+    frameRateOverrides = selector.getFrameRateOverrides(layers, 120_Hz, {});
+    EXPECT_TRUE(frameRateOverrides.empty());
+    frameRateOverrides = selector.getFrameRateOverrides(layers, 120_Hz, {.touch = true});
+    EXPECT_TRUE(frameRateOverrides.empty());
+
+    // HighHint case with touch boost and thus should skip frame rate override.
+    layers[0].name = "ExplicitCategory HighHint";
+    layers[0].vote = LayerVoteType::ExplicitCategory;
+    layers[0].desiredRefreshRate = 0_Hz;
+    layers[0].frameRateCategory = FrameRateCategory::HighHint;
+    layers[1].name = "ExplicitExact 60";
+    layers[1].vote = LayerVoteType::ExplicitExact;
+    layers[1].desiredRefreshRate = 60_Hz;
+    layers[1].frameRateCategory = FrameRateCategory::Default;
+    frameRateOverrides = selector.getFrameRateOverrides(layers, 120_Hz, {});
+    EXPECT_TRUE(frameRateOverrides.empty());
+    frameRateOverrides = selector.getFrameRateOverrides(layers, 120_Hz, {.touch = true});
+    EXPECT_TRUE(frameRateOverrides.empty());
+
+    // HighHint case with touch boost and thus should skip frame rate override.
+    layers[0].name = "ExplicitCategory HighHint";
+    layers[0].vote = LayerVoteType::ExplicitCategory;
+    layers[0].desiredRefreshRate = 0_Hz;
+    layers[0].frameRateCategory = FrameRateCategory::HighHint;
+    layers[1].name = "ExplicitGte 60";
+    layers[1].vote = LayerVoteType::ExplicitGte;
+    layers[1].desiredRefreshRate = 60_Hz;
+    layers[1].frameRateCategory = FrameRateCategory::Default;
+    frameRateOverrides = selector.getFrameRateOverrides(layers, 120_Hz, {});
+    EXPECT_TRUE(frameRateOverrides.empty());
+    frameRateOverrides = selector.getFrameRateOverrides(layers, 120_Hz, {.touch = true});
+    EXPECT_TRUE(frameRateOverrides.empty());
+
+    // ExplicitCategory case that expects no global touch boost and thus has frame rate override.
+    layers[0].name = "ExplicitDefault 60";
+    layers[0].vote = LayerVoteType::ExplicitDefault;
+    layers[0].desiredRefreshRate = 60_Hz;
+    layers[0].frameRateCategory = FrameRateCategory::Default;
+    layers[1].name = "ExplicitCategory High";
+    layers[1].vote = LayerVoteType::ExplicitCategory;
+    layers[1].desiredRefreshRate = 0_Hz;
+    layers[1].frameRateCategory = FrameRateCategory::High;
+    frameRateOverrides = selector.getFrameRateOverrides(layers, 120_Hz, {});
+    EXPECT_EQ(1u, frameRateOverrides.size());
+    ASSERT_EQ(1u, frameRateOverrides.count(1234));
+    EXPECT_EQ(120_Hz, frameRateOverrides.at(1234));
+    frameRateOverrides = selector.getFrameRateOverrides(layers, 120_Hz, {.touch = true});
+    EXPECT_EQ(1u, frameRateOverrides.size());
+    ASSERT_EQ(1u, frameRateOverrides.count(1234));
+    EXPECT_EQ(120_Hz, frameRateOverrides.at(1234));
+
+    // ExplicitCategory case that expects no global touch boost and thus has frame rate override.
+    layers[0].name = "ExplicitDefault 60";
+    layers[0].vote = LayerVoteType::ExplicitDefault;
+    layers[0].desiredRefreshRate = 60_Hz;
+    layers[0].frameRateCategory = FrameRateCategory::Default;
+    layers[1].name = "ExplicitCategory Normal";
+    layers[1].vote = LayerVoteType::ExplicitCategory;
+    layers[1].desiredRefreshRate = 0_Hz;
+    layers[1].frameRateCategory = FrameRateCategory::Normal;
+    frameRateOverrides = selector.getFrameRateOverrides(layers, 120_Hz, {});
+    EXPECT_EQ(1u, frameRateOverrides.size());
+    ASSERT_EQ(1u, frameRateOverrides.count(1234));
+    EXPECT_EQ(60_Hz, frameRateOverrides.at(1234));
+    frameRateOverrides = selector.getFrameRateOverrides(layers, 120_Hz, {.touch = true});
+    EXPECT_EQ(1u, frameRateOverrides.size());
+    ASSERT_EQ(1u, frameRateOverrides.count(1234));
+    EXPECT_EQ(60_Hz, frameRateOverrides.at(1234));
+
+    // ExplicitCategory case that expects no global touch boost and thus has frame rate override.
+    layers[0].name = "ExplicitDefault 60";
+    layers[0].vote = LayerVoteType::ExplicitDefault;
+    layers[0].desiredRefreshRate = 60_Hz;
+    layers[0].frameRateCategory = FrameRateCategory::Default;
+    layers[1].name = "ExplicitCategory Low";
+    layers[1].vote = LayerVoteType::ExplicitCategory;
+    layers[1].desiredRefreshRate = 0_Hz;
+    layers[1].frameRateCategory = FrameRateCategory::Low;
+    frameRateOverrides = selector.getFrameRateOverrides(layers, 120_Hz, {});
+    EXPECT_EQ(1u, frameRateOverrides.size());
+    ASSERT_EQ(1u, frameRateOverrides.count(1234));
+    EXPECT_EQ(60_Hz, frameRateOverrides.at(1234));
+    frameRateOverrides = selector.getFrameRateOverrides(layers, 120_Hz, {.touch = true});
+    EXPECT_EQ(1u, frameRateOverrides.size());
+    ASSERT_EQ(1u, frameRateOverrides.count(1234));
+    EXPECT_EQ(60_Hz, frameRateOverrides.at(1234));
+
+    // ExplicitCategory case that expects no global touch boost and thus has frame rate override.
+    layers[0].name = "ExplicitDefault 60";
+    layers[0].vote = LayerVoteType::ExplicitDefault;
+    layers[0].desiredRefreshRate = 60_Hz;
+    layers[0].frameRateCategory = FrameRateCategory::Default;
+    layers[1].name = "ExplicitCategory NoPreference";
+    layers[1].vote = LayerVoteType::ExplicitCategory;
+    layers[1].desiredRefreshRate = 0_Hz;
+    layers[1].frameRateCategory = FrameRateCategory::NoPreference;
+    frameRateOverrides = selector.getFrameRateOverrides(layers, 120_Hz, {});
+    EXPECT_EQ(1u, frameRateOverrides.size());
+    ASSERT_EQ(1u, frameRateOverrides.count(1234));
+    EXPECT_EQ(60_Hz, frameRateOverrides.at(1234));
+    frameRateOverrides = selector.getFrameRateOverrides(layers, 120_Hz, {.touch = true});
+    EXPECT_EQ(1u, frameRateOverrides.size());
+    ASSERT_EQ(1u, frameRateOverrides.count(1234));
+    EXPECT_EQ(60_Hz, frameRateOverrides.at(1234));
+}
+
 TEST_P(RefreshRateSelectorTest, getFrameRateOverrides_touch) {
     if (GetParam() == Config::FrameRateOverride::Disabled) {
         return;
@@ -3204,6 +3408,17 @@ TEST_P(RefreshRateSelectorTest, getFrameRateOverrides_touch) {
 
     frameRateOverrides = selector.getFrameRateOverrides(layers, 120_Hz, {.touch = true});
     EXPECT_TRUE(frameRateOverrides.empty());
+
+    layers[0].vote = LayerVoteType::ExplicitGte;
+    frameRateOverrides = selector.getFrameRateOverrides(layers, 120_Hz, {});
+    EXPECT_EQ(1u, frameRateOverrides.size());
+    ASSERT_EQ(1u, frameRateOverrides.count(1234));
+    EXPECT_EQ(60_Hz, frameRateOverrides.at(1234));
+
+    frameRateOverrides = selector.getFrameRateOverrides(layers, 120_Hz, {.touch = true});
+    EXPECT_EQ(1u, frameRateOverrides.size());
+    ASSERT_EQ(1u, frameRateOverrides.count(1234));
+    EXPECT_EQ(60_Hz, frameRateOverrides.at(1234));
 }
 
 TEST_P(RefreshRateSelectorTest, getFrameRateOverrides_DivisorIsNotDisplayRefreshRate) {
