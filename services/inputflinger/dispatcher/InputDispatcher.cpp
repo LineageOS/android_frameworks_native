@@ -54,6 +54,7 @@
 #include "InputDispatcher.h"
 #include "trace/InputTracer.h"
 #include "trace/InputTracingPerfettoBackend.h"
+#include "trace/ThreadedBackend.h"
 
 #define INDENT "  "
 #define INDENT2 "    "
@@ -84,6 +85,15 @@ bool isInputTracingEnabled() {
     static const std::string buildType = base::GetProperty("ro.build.type", "user");
     static const bool isUserdebugOrEng = buildType == "userdebug" || buildType == "eng";
     return input_flags::enable_input_event_tracing() && isUserdebugOrEng;
+}
+
+// Create the input tracing backend that writes to perfetto from a single thread.
+std::unique_ptr<trace::InputTracingBackendInterface> createInputTracingBackendIfEnabled() {
+    if (!isInputTracingEnabled()) {
+        return nullptr;
+    }
+    return std::make_unique<trace::impl::ThreadedBackend<trace::impl::PerfettoBackend>>(
+            trace::impl::PerfettoBackend());
 }
 
 template <class Entry>
@@ -832,9 +842,7 @@ std::pair<bool /*cancelPointers*/, bool /*cancelNonPointers*/> expandCancellatio
 // --- InputDispatcher ---
 
 InputDispatcher::InputDispatcher(InputDispatcherPolicyInterface& policy)
-      : InputDispatcher(policy,
-                        isInputTracingEnabled() ? std::make_unique<trace::impl::PerfettoBackend>()
-                                                : nullptr) {}
+      : InputDispatcher(policy, createInputTracingBackendIfEnabled()) {}
 
 InputDispatcher::InputDispatcher(InputDispatcherPolicyInterface& policy,
                                  std::unique_ptr<trace::InputTracingBackendInterface> traceBackend)
@@ -1312,6 +1320,7 @@ bool InputDispatcher::enqueueInboundEventLocked(std::unique_ptr<EventEntry> newE
                 ALOGD("Received a new pointer down event, stop waiting for events to process and "
                       "just send the pending key event to the currently focused window.");
                 mKeyIsWaitingForEventsTimeout = now();
+                needWake = true;
             }
             break;
         }

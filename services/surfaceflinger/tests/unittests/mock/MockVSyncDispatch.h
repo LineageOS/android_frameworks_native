@@ -29,8 +29,10 @@ public:
 
     MOCK_METHOD(CallbackToken, registerCallback, (Callback, std::string), (override));
     MOCK_METHOD(void, unregisterCallback, (CallbackToken), (override));
-    MOCK_METHOD(scheduler::ScheduleResult, schedule, (CallbackToken, ScheduleTiming), (override));
-    MOCK_METHOD(scheduler::ScheduleResult, update, (CallbackToken, ScheduleTiming), (override));
+    MOCK_METHOD(std::optional<scheduler::ScheduleResult>, schedule, (CallbackToken, ScheduleTiming),
+                (override));
+    MOCK_METHOD(std::optional<scheduler::ScheduleResult>, update, (CallbackToken, ScheduleTiming),
+                (override));
     MOCK_METHOD(scheduler::CancelResult, cancel, (CallbackToken token), (override));
     MOCK_METHOD(void, dump, (std::string&), (const, override));
 };

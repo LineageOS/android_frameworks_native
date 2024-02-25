@@ -71,9 +71,14 @@ public:
         Scheduler::onFrameSignal(compositor, vsyncId, TimePoint());
     }
 
-    // Used to inject mock event thread.
-    ConnectionHandle createConnection(std::unique_ptr<EventThread> eventThread) {
-        return Scheduler::createConnection(std::move(eventThread));
+    void setEventThread(Cycle cycle, std::unique_ptr<EventThread> eventThreadPtr) {
+        if (cycle == Cycle::Render) {
+            mRenderEventThread = std::move(eventThreadPtr);
+            mRenderEventConnection = mRenderEventThread->createEventConnection();
+        } else {
+            mLastCompositeEventThread = std::move(eventThreadPtr);
+            mLastCompositeEventConnection = mLastCompositeEventThread->createEventConnection();
+        }
     }
 
     auto refreshRateSelector() { return pacesetterSelectorPtr(); }
@@ -124,7 +129,6 @@ public:
 
     using Scheduler::resyncAllToHardwareVsync;
 
-    auto& mutableAppConnectionHandle() { return mAppConnectionHandle; }
     auto& mutableLayerHistory() { return mLayerHistory; }
     auto& mutableAttachedChoreographers() { return mAttachedChoreographers; }
 
@@ -178,10 +182,6 @@ public:
     void clearCachedReportedMode() {
         std::lock_guard<std::mutex> lock(mPolicyLock);
         mPolicy.cachedModeChangedParams.reset();
-    }
-
-    void onNonPrimaryDisplayModeChanged(ConnectionHandle handle, const FrameRateMode& mode) {
-        Scheduler::onNonPrimaryDisplayModeChanged(handle, mode);
     }
 
     void setInitialHwVsyncEnabled(PhysicalDisplayId id, bool enabled) {

@@ -48,9 +48,9 @@ public:
     PerfettoBackend();
     ~PerfettoBackend() override = default;
 
-    void traceKeyEvent(const TracedKeyEvent&) const override;
-    void traceMotionEvent(const TracedMotionEvent&) const override;
-    void traceWindowDispatch(const WindowDispatchArgs&) const override;
+    void traceKeyEvent(const TracedKeyEvent&) override;
+    void traceMotionEvent(const TracedMotionEvent&) override;
+    void traceWindowDispatch(const WindowDispatchArgs&) override;
 
     class InputEventDataSource : public perfetto::DataSource<InputEventDataSource> {
     public:

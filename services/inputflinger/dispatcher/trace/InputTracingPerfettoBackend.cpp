@@ -63,7 +63,7 @@ PerfettoBackend::PerfettoBackend() {
     });
 }
 
-void PerfettoBackend::traceMotionEvent(const TracedMotionEvent& event) const {
+void PerfettoBackend::traceMotionEvent(const TracedMotionEvent& event) {
     InputEventDataSource::Trace([&](InputEventDataSource::TraceContext ctx) {
         auto tracePacket = ctx.NewTracePacket();
         auto* inputEvent = tracePacket->set_android_input_event();
@@ -72,7 +72,7 @@ void PerfettoBackend::traceMotionEvent(const TracedMotionEvent& event) const {
     });
 }
 
-void PerfettoBackend::traceKeyEvent(const TracedKeyEvent& event) const {
+void PerfettoBackend::traceKeyEvent(const TracedKeyEvent& event) {
     InputEventDataSource::Trace([&](InputEventDataSource::TraceContext ctx) {
         auto tracePacket = ctx.NewTracePacket();
         auto* inputEvent = tracePacket->set_android_input_event();
@@ -81,7 +81,7 @@ void PerfettoBackend::traceKeyEvent(const TracedKeyEvent& event) const {
     });
 }
 
-void PerfettoBackend::traceWindowDispatch(const WindowDispatchArgs& dispatchArgs) const {
+void PerfettoBackend::traceWindowDispatch(const WindowDispatchArgs& dispatchArgs) {
     InputEventDataSource::Trace([&](InputEventDataSource::TraceContext ctx) {
         auto tracePacket = ctx.NewTracePacket();
         auto* inputEventProto = tracePacket->set_android_input_event();

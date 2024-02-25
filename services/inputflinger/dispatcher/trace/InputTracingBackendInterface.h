@@ -82,10 +82,10 @@ public:
     virtual ~InputTracingBackendInterface() = default;
 
     /** Trace a KeyEvent. */
-    virtual void traceKeyEvent(const TracedKeyEvent&) const = 0;
+    virtual void traceKeyEvent(const TracedKeyEvent&) = 0;
 
     /** Trace a MotionEvent. */
-    virtual void traceMotionEvent(const TracedMotionEvent&) const = 0;
+    virtual void traceMotionEvent(const TracedMotionEvent&) = 0;
 
     /** Trace an event being sent to a window. */
     struct WindowDispatchArgs {
@@ -99,7 +99,7 @@ public:
         ui::Transform rawTransform;
         std::array<uint8_t, 32> hmac;
     };
-    virtual void traceWindowDispatch(const WindowDispatchArgs&) const = 0;
+    virtual void traceWindowDispatch(const WindowDispatchArgs&) = 0;
 };
 
 } // namespace android::inputdispatcher::trace
