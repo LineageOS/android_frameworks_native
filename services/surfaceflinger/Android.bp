@@ -210,6 +210,7 @@ cc_defaults {
     defaults: [
         "surfaceflinger_defaults",
         "libsurfaceflinger_production_defaults",
+        "nvidia_enhancements_defaults",
     ],
     cflags: [
         "-DLOG_TAG=\"SurfaceFlinger\"",

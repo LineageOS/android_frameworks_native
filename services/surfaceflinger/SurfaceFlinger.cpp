@@ -2804,6 +2804,10 @@ void SurfaceFlinger::processDisplayHotplugEventsLocked() {
                 if (getHwComposer().updatesDeviceProductInfoOnHotplugReconnect()) {
                     state.physical->deviceProductInfo = std::move(info->deviceProductInfo);
                 }
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+                state.orientedDisplaySpaceRect.makeInvalid();
+                mScheduler->disableHardwareVsync(true);
+#endif
             }
         } else {
             ALOGV("Removing display %s", to_string(displayId).c_str());
@@ -2818,6 +2822,16 @@ void SurfaceFlinger::processDisplayHotplugEventsLocked() {
         }
 
         processDisplayChangesLocked();
+
+#ifdef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+        if (event.connection == hal::Connection::CONNECTED && !token) {
+            auto display = getDisplayDeviceLocked(displayId);
+            const auto refreshRate = display->getActiveMode()->getFps();
+            mRefreshRateStats->setRefreshRate(refreshRate);
+            applyRefreshRateConfigsPolicy(display);
+            mScheduler->resyncToHardwareVsync(true, refreshRate);
+        }
+#endif
     }
 
     mPendingHotplugEvents.clear();
