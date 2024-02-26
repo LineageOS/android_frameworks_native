@@ -16,4 +16,4 @@
 
 package android.gui;
 
-parcelable DisplayInfo cpp_header "gui/DisplayInfo.h";
+parcelable DisplayInfo cpp_header "gui/DisplayInfo.h" rust_type "gui_aidl_types_rs::DisplayInfo";

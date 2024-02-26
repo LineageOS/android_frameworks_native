@@ -16,4 +16,4 @@
 
 package android.gui;
 
-parcelable BitTube cpp_header "private/gui/BitTube.h";
+parcelable BitTube cpp_header "private/gui/BitTube.h" rust_type "gui_aidl_types_rs::BitTube";

@@ -16,4 +16,5 @@
 
 package android.gui;
 
-parcelable DisplayCaptureArgs cpp_header "gui/DisplayCaptureArgs.h";
+parcelable DisplayCaptureArgs cpp_header "gui/DisplayCaptureArgs.h" rust_type "gui_aidl_types_rs::DisplayCaptureArgs";
+
