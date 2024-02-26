@@ -27,7 +27,6 @@ class IFoo : public virtual ::android::RefBase {
    public:
     static const char* kSomeInstanceName;
     static const char* kInstanceNameToDieFor;
-    static const char* kInstanceNameToDieFor2;
     static const char* kIFooDescriptor;
 
     static AIBinder_Class* kClass;
