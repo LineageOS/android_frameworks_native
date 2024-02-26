@@ -69,7 +69,8 @@ protected:
         mFakeEventHub->addAbsoluteAxis(EVENTHUB_ID, ABS_MT_POSITION_X, -500, 500, 0, 0, 20);
         mFakeEventHub->addAbsoluteAxis(EVENTHUB_ID, ABS_MT_POSITION_Y, -500, 500, 0, 0, 20);
 
-        mFakePointerController = std::make_shared<FakePointerController>();
+        mFakePointerController = std::make_shared<FakePointerController>(
+                /*enabled=*/!input_flags::enable_pointer_choreographer());
         mFakePointerController->setBounds(0, 0, 800 - 1, 480 - 1);
         mFakePointerController->setPosition(POINTER_X, POINTER_Y);
         mFakePolicy->setPointerController(mFakePointerController);

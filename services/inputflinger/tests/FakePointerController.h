@@ -30,6 +30,9 @@ struct SpriteIcon {
 
 class FakePointerController : public PointerControllerInterface {
 public:
+    FakePointerController() : FakePointerController(/*enabled=*/true) {}
+    FakePointerController(bool enabled) : mEnabled(enabled) {}
+
     virtual ~FakePointerController() {}
 
     void setBounds(float minX, float minY, float maxX, float maxY);
@@ -64,6 +67,7 @@ private:
                   int32_t displayId) override;
     void clearSpots() override;
 
+    const bool mEnabled;
     bool mHaveBounds{false};
     float mMinX{0}, mMinY{0}, mMaxX{0}, mMaxY{0};
     float mX{0}, mY{0};
