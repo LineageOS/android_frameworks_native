@@ -28,6 +28,9 @@ use log::debug;
 use std::collections::HashSet;
 use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
+// Policy flags from Input.h
+const POLICY_FLAG_DISABLE_KEY_REPEAT: i32 = 0x08000000;
+
 #[derive(Debug)]
 struct OngoingKeyDown {
     scancode: i32,
@@ -129,6 +132,12 @@ impl Filter for SlowKeysFilter {
                     let mut pending_event = *event;
                     pending_event.downTime += slow_filter.slow_key_threshold_ns;
                     pending_event.eventTime = pending_event.downTime;
+                    // Currently a slow keys user ends up repeating the presses key quite often
+                    // since default repeat thresholds are very low, so blocking repeat for events
+                    // when slow keys is enabled.
+                    // TODO(b/322327461): Allow key repeat with slow keys, once repeat key rate and
+                    //  thresholds can be modified in the settings.
+                    pending_event.policyFlags |= POLICY_FLAG_DISABLE_KEY_REPEAT;
                     slow_filter.pending_down_events.push(pending_event);
                 }
                 KeyEventAction::UP => {
@@ -200,7 +209,7 @@ impl ThreadCallback for SlowKeysFilter {
 mod tests {
     use crate::input_filter::{test_callbacks::TestCallbacks, test_filter::TestFilter, Filter};
     use crate::input_filter_thread::test_thread::TestThread;
-    use crate::slow_keys_filter::SlowKeysFilter;
+    use crate::slow_keys_filter::{SlowKeysFilter, POLICY_FLAG_DISABLE_KEY_REPEAT};
     use android_hardware_input_common::aidl::android::hardware::input::common::Source::Source;
     use com_android_server_inputflinger::aidl::com::android::server::inputflinger::{
         DeviceInfo::DeviceInfo, KeyEvent::KeyEvent, KeyEventAction::KeyEventAction,
@@ -285,6 +294,7 @@ mod tests {
                 action: KeyEventAction::DOWN,
                 downTime: 100,
                 eventTime: 100,
+                policyFlags: POLICY_FLAG_DISABLE_KEY_REPEAT,
                 ..BASE_KEY_EVENT
             }
         );
