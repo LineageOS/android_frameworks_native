@@ -72,6 +72,10 @@ private:
     void resetGestureInterpreter(nsecs_t when);
     explicit TouchpadInputMapper(InputDeviceContext& deviceContext,
                                  const InputReaderConfiguration& readerConfig);
+    // Constructor for testing.
+    explicit TouchpadInputMapper(InputDeviceContext& deviceContext,
+                                 const InputReaderConfiguration& readerConfig,
+                                 bool enablePointerChoreographer);
     void updatePalmDetectionMetrics();
     [[nodiscard]] std::list<NotifyArgs> sendHardwareState(nsecs_t when, nsecs_t readTime,
                                                           SelfContainedHardwareState schs);

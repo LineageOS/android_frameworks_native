@@ -157,9 +157,12 @@ protected:
         mFakePolicy->addDisplayViewport(createPrimaryViewport(ui::Rotation::Rotation0));
     }
 
+    virtual bool isPointerChoreographerEnabled() { return false; }
+
     void createMapper() {
         createDevice();
-        mMapper = createInputMapper<CursorInputMapper>(*mDeviceContext, mReaderConfiguration);
+        mMapper = createInputMapper<CursorInputMapper>(*mDeviceContext, mReaderConfiguration,
+                                                       isPointerChoreographerEnabled());
     }
 
     void setPointerCapture(bool enabled) {
@@ -194,10 +197,11 @@ protected:
 class CursorInputMapperUnitTest : public CursorInputMapperUnitTestBase {
 protected:
     void SetUp() override {
-        input_flags::enable_pointer_choreographer(false);
         input_flags::enable_new_mouse_pointer_ballistics(false);
         CursorInputMapperUnitTestBase::SetUp();
     }
+
+    bool isPointerChoreographerEnabled() override { return false; }
 };
 
 TEST_F(CursorInputMapperUnitTest, GetSourcesReturnsMouseInPointerMode) {
@@ -321,10 +325,10 @@ TEST_F(CursorInputMapperUnitTest, ProcessPointerCapture) {
 
     // Disable pointer capture. Afterwards, events should be generated the usual way.
     setPointerCapture(false);
-    const auto expectedCoords = input_flags::enable_pointer_choreographer()
+    const auto expectedCoords = CursorInputMapperUnitTest::isPointerChoreographerEnabled()
             ? WithCoords(0, 0)
             : WithCoords(INITIAL_CURSOR_X + 10.0f, INITIAL_CURSOR_Y + 20.0f);
-    const auto expectedCursorPosition = input_flags::enable_pointer_choreographer()
+    const auto expectedCursorPosition = CursorInputMapperUnitTest::isPointerChoreographerEnabled()
             ? WithCursorPosition(INVALID_CURSOR_POSITION, INVALID_CURSOR_POSITION)
             : WithCursorPosition(INITIAL_CURSOR_X + 10.0f, INITIAL_CURSOR_Y + 20.0f);
     args.clear();
@@ -708,7 +712,9 @@ TEST_F(CursorInputMapperUnitTest, ConfigureDisplayIdWithAssociatedViewport) {
     createDevice();
     // Associate the InputDevice with the secondary display.
     ViewportFakingInputDeviceContext deviceContext(*mDevice, EVENTHUB_ID, secondaryViewport);
-    mMapper = createInputMapper<CursorInputMapper>(deviceContext, mReaderConfiguration);
+    mMapper = createInputMapper<
+            CursorInputMapper>(deviceContext, mReaderConfiguration,
+                               CursorInputMapperUnitTest::isPointerChoreographerEnabled());
 
     // Ensure input events are generated for the secondary display.
     std::list<NotifyArgs> args;
@@ -731,7 +737,9 @@ TEST_F(CursorInputMapperUnitTest, ConfigureDisplayIdIgnoresEventsForMismatchedPo
     createDevice();
     // Associate the InputDevice with the secondary display.
     ViewportFakingInputDeviceContext deviceContext(*mDevice, EVENTHUB_ID, secondaryViewport);
-    mMapper = createInputMapper<CursorInputMapper>(deviceContext, mReaderConfiguration);
+    mMapper = createInputMapper<
+            CursorInputMapper>(deviceContext, mReaderConfiguration,
+                               CursorInputMapperUnitTest::isPointerChoreographerEnabled());
 
     // The mapper should not generate any events because it is associated with a display that is
     // different from the pointer display.
@@ -837,7 +845,9 @@ class CursorInputMapperButtonKeyTest
       : public CursorInputMapperUnitTest,
         public testing::WithParamInterface<
                 std::tuple<int32_t /*evdevCode*/, int32_t /*expectedButtonState*/,
-                           int32_t /*expectedKeyCode*/>> {};
+                           int32_t /*expectedKeyCode*/>> {
+    virtual bool isPointerChoreographerEnabled() override { return false; }
+};
 
 TEST_P(CursorInputMapperButtonKeyTest, ProcessShouldHandleButtonKey) {
     auto [evdevCode, expectedButtonState, expectedKeyCode] = GetParam();
@@ -956,10 +966,11 @@ TEST_F(CursorInputMapperUnitTest, PointerCaptureDisablesVelocityProcessing) {
 class CursorInputMapperUnitTestWithChoreographer : public CursorInputMapperUnitTestBase {
 protected:
     void SetUp() override {
-        input_flags::enable_pointer_choreographer(true);
         input_flags::enable_new_mouse_pointer_ballistics(false);
         CursorInputMapperUnitTestBase::SetUp();
     }
+
+    bool isPointerChoreographerEnabled() override { return true; }
 };
 
 TEST_F(CursorInputMapperUnitTestWithChoreographer, PopulateDeviceInfoReturnsRangeFromPolicy) {
@@ -1288,10 +1299,11 @@ TEST_F(CursorInputMapperUnitTestWithChoreographer, ConfigureDisplayIdNoAssociate
 class CursorInputMapperUnitTestWithNewBallistics : public CursorInputMapperUnitTestBase {
 protected:
     void SetUp() override {
-        input_flags::enable_pointer_choreographer(true);
         input_flags::enable_new_mouse_pointer_ballistics(true);
         CursorInputMapperUnitTestBase::SetUp();
     }
+
+    bool isPointerChoreographerEnabled() override { return true; }
 };
 
 TEST_F(CursorInputMapperUnitTestWithNewBallistics, PointerCaptureDisablesVelocityProcessing) {
@@ -1413,7 +1425,6 @@ constexpr nsecs_t MAX_BLUETOOTH_SMOOTHING_DELTA = ms2ns(32);
 class BluetoothCursorInputMapperUnitTest : public CursorInputMapperUnitTestBase {
 protected:
     void SetUp() override {
-        input_flags::enable_pointer_choreographer(false);
         SetUpWithBus(BUS_BLUETOOTH);
 
         mFakePointerController = std::make_shared<FakePointerController>();
@@ -1531,12 +1542,13 @@ TEST_F(BluetoothCursorInputMapperUnitTest, TimestampSmootheningNotUsed) {
 class BluetoothCursorInputMapperUnitTestWithChoreographer : public CursorInputMapperUnitTestBase {
 protected:
     void SetUp() override {
-        input_flags::enable_pointer_choreographer(true);
         SetUpWithBus(BUS_BLUETOOTH);
 
         mFakePointerController = std::make_shared<FakePointerController>();
         mFakePolicy->setPointerController(mFakePointerController);
     }
+
+    bool isPointerChoreographerEnabled() override { return true; }
 };
 
 TEST_F(BluetoothCursorInputMapperUnitTestWithChoreographer, TimestampSmoothening) {

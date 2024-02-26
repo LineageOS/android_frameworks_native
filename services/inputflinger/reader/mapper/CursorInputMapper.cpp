@@ -40,6 +40,8 @@ namespace android {
 // The default velocity control parameters that has no effect.
 static const VelocityControlParameters FLAT_VELOCITY_CONTROL_PARAMS{};
 
+static const bool ENABLE_POINTER_CHOREOGRAPHER = input_flags::enable_pointer_choreographer();
+
 // --- CursorMotionAccumulator ---
 
 CursorMotionAccumulator::CursorMotionAccumulator() {
@@ -76,9 +78,14 @@ void CursorMotionAccumulator::finishSync() {
 
 CursorInputMapper::CursorInputMapper(InputDeviceContext& deviceContext,
                                      const InputReaderConfiguration& readerConfig)
+      : CursorInputMapper(deviceContext, readerConfig, ENABLE_POINTER_CHOREOGRAPHER) {}
+
+CursorInputMapper::CursorInputMapper(InputDeviceContext& deviceContext,
+                                     const InputReaderConfiguration& readerConfig,
+                                     bool enablePointerChoreographer)
       : InputMapper(deviceContext, readerConfig),
         mLastEventTime(std::numeric_limits<nsecs_t>::min()),
-        mEnablePointerChoreographer(input_flags::enable_pointer_choreographer()),
+        mEnablePointerChoreographer(enablePointerChoreographer),
         mEnableNewMousePointerBallistics(input_flags::enable_new_mouse_pointer_ballistics()) {}
 
 CursorInputMapper::~CursorInputMapper() {
