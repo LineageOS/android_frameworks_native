@@ -21,7 +21,6 @@
 #include "InputTracingPerfettoBackend.h"
 
 #include <android-base/logging.h>
-#include <utils/AndroidThreads.h>
 
 namespace android::inputdispatcher::trace::impl {
 
@@ -39,7 +38,10 @@ struct Visitor : V... {
 
 template <typename Backend>
 ThreadedBackend<Backend>::ThreadedBackend(Backend&& innerBackend)
-      : mTracerThread(&ThreadedBackend::threadLoop, this), mBackend(std::move(innerBackend)) {}
+      : mTracerThread(
+                "InputTracer", [this]() { threadLoop(); },
+                [this]() { mThreadWakeCondition.notify_all(); }),
+        mBackend(std::move(innerBackend)) {}
 
 template <typename Backend>
 ThreadedBackend<Backend>::~ThreadedBackend() {
@@ -48,7 +50,6 @@ ThreadedBackend<Backend>::~ThreadedBackend() {
         mThreadExit = true;
     }
     mThreadWakeCondition.notify_all();
-    mTracerThread.join();
 }
 
 template <typename Backend>
@@ -74,38 +75,33 @@ void ThreadedBackend<Backend>::traceWindowDispatch(const WindowDispatchArgs& dis
 
 template <typename Backend>
 void ThreadedBackend<Backend>::threadLoop() {
-    androidSetThreadName("InputTracer");
+    std::vector<TraceEntry> entries;
 
-    std::vector<std::variant<TracedKeyEvent, TracedMotionEvent, WindowDispatchArgs>> events;
+    { // acquire lock
+        std::unique_lock lock(mLock);
+        base::ScopedLockAssertion assumeLocked(mLock);
 
-    while (true) {
-        { // acquire lock
-            std::unique_lock lock(mLock);
-            base::ScopedLockAssertion assumeLocked(mLock);
-
-            // Wait until we need to process more events or exit.
-            mThreadWakeCondition.wait(lock, [&]() REQUIRES(mLock) {
-                return mThreadExit || !mQueue.empty();
-            });
-            if (mThreadExit) {
-                return;
-            }
-
-            mQueue.swap(events);
-        } // release lock
-
-        // Trace the events into the backend without holding the lock to reduce the amount of
-        // work performed in the critical section.
-        for (const auto& event : events) {
-            std::visit(Visitor{[&](const TracedMotionEvent& e) { mBackend.traceMotionEvent(e); },
-                               [&](const TracedKeyEvent& e) { mBackend.traceKeyEvent(e); },
-                               [&](const WindowDispatchArgs& args) {
-                                   mBackend.traceWindowDispatch(args);
-                               }},
-                       event);
+        // Wait until we need to process more events or exit.
+        mThreadWakeCondition.wait(lock,
+                                  [&]() REQUIRES(mLock) { return mThreadExit || !mQueue.empty(); });
+        if (mThreadExit) {
+            return;
         }
-        events.clear();
+
+        mQueue.swap(entries);
+    } // release lock
+
+    // Trace the events into the backend without holding the lock to reduce the amount of
+    // work performed in the critical section.
+    for (const auto& entry : entries) {
+        std::visit(Visitor{[&](const TracedMotionEvent& e) { mBackend.traceMotionEvent(e); },
+                           [&](const TracedKeyEvent& e) { mBackend.traceKeyEvent(e); },
+                           [&](const WindowDispatchArgs& args) {
+                               mBackend.traceWindowDispatch(args);
+                           }},
+                   entry);
     }
+    entries.clear();
 }
 
 // Explicit template instantiation for the PerfettoBackend.
