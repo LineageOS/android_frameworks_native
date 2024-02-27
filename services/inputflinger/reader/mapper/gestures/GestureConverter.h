@@ -105,7 +105,6 @@ private:
     const int32_t mDeviceId;
     InputReaderContext& mReaderContext;
     std::shared_ptr<PointerControllerInterface> mPointerController;
-    const bool mEnablePointerChoreographer;
     const bool mEnableFlingStop;
 
     std::optional<int32_t> mDisplayId;

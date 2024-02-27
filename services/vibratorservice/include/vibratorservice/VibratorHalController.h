@@ -64,7 +64,29 @@ public:
      */
     Info getInfo() {
         static Info sDefaultInfo = InfoCache().get();
-        return apply<Info>([](HalWrapper* hal) { return hal->getInfo(); }, sDefaultInfo, "getInfo");
+        if (!init()) {
+            ALOGV("Skipped getInfo because Vibrator HAL is not available");
+            return sDefaultInfo;
+        }
+        std::shared_ptr<HalWrapper> hal;
+        {
+            std::lock_guard<std::mutex> lock(mConnectedHalMutex);
+            hal = mConnectedHal;
+        }
+
+        for (int i = 0; i < MAX_RETRIES; i++) {
+            Info result = hal.get()->getInfo();
+            result.logFailures();
+            if (result.shouldRetry()) {
+                tryReconnect();
+            } else {
+                return result;
+            }
+        }
+
+        Info result = hal.get()->getInfo();
+        result.logFailures();
+        return result;
     }
 
     /* Calls given HAL function, applying automatic retries to reconnect with the HAL when the
@@ -72,7 +94,7 @@ public:
      */
     template <typename T>
     HalResult<T> doWithRetry(const HalFunction<HalResult<T>>& halFn, const char* functionName) {
-        return apply(halFn, HalResult<T>::unsupported(), functionName);
+        return doWithRetry<T>(halFn, HalResult<T>::unsupported(), functionName);
     }
 
 private:
@@ -90,7 +112,8 @@ private:
      * function name is for logging purposes.
      */
     template <typename T>
-    T apply(const HalFunction<T>& halFn, T defaultValue, const char* functionName) {
+    HalResult<T> doWithRetry(const HalFunction<HalResult<T>>& halFn, HalResult<T> defaultValue,
+                             const char* functionName) {
         if (!init()) {
             ALOGV("Skipped %s because Vibrator HAL is not available", functionName);
             return defaultValue;
@@ -101,16 +124,22 @@ private:
             hal = mConnectedHal;
         }
 
-        for (int i = 0; i < MAX_RETRIES; i++) {
-            T result = halFn(hal.get());
-            if (result.isFailedLogged(functionName)) {
-                tryReconnect();
-            } else {
-                return result;
-            }
+        HalResult<T> result = doOnce(hal.get(), halFn, functionName);
+        for (int i = 0; i < MAX_RETRIES && result.shouldRetry(); i++) {
+            tryReconnect();
+            result = doOnce(hal.get(), halFn, functionName);
         }
+        return result;
+    }
 
-        return halFn(hal.get());
+    template <typename T>
+    HalResult<T> doOnce(HalWrapper* hal, const HalFunction<HalResult<T>>& halFn,
+                        const char* functionName) {
+        HalResult<T> result = halFn(hal);
+        if (result.isFailed()) {
+            ALOGE("Vibrator HAL %s failed: %s", functionName, result.errorMessage());
+        }
+        return result;
     }
 };
 

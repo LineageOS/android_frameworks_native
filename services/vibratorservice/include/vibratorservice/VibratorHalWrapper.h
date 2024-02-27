@@ -31,100 +31,153 @@ namespace vibrator {
 
 // -------------------------------------------------------------------------------------------------
 
+// Base class to represent a generic result of a call to the Vibrator HAL wrapper.
+class BaseHalResult {
+public:
+    bool isOk() const { return mStatus == SUCCESS; }
+    bool isFailed() const { return mStatus == FAILED; }
+    bool isUnsupported() const { return mStatus == UNSUPPORTED; }
+    bool shouldRetry() const { return isFailed() && mDeadObject; }
+    const char* errorMessage() const { return mErrorMessage.c_str(); }
+
+protected:
+    enum Status { SUCCESS, UNSUPPORTED, FAILED };
+    Status mStatus;
+    std::string mErrorMessage;
+    bool mDeadObject;
+
+    explicit BaseHalResult(Status status, const char* errorMessage = "", bool deadObject = false)
+          : mStatus(status), mErrorMessage(errorMessage), mDeadObject(deadObject) {}
+    virtual ~BaseHalResult() = default;
+};
+
 // Result of a call to the Vibrator HAL wrapper, holding data if successful.
 template <typename T>
-class HalResult {
+class HalResult : public BaseHalResult {
 public:
     static HalResult<T> ok(T value) { return HalResult(value); }
-    static HalResult<T> failed(std::string msg) {
-        return HalResult(std::move(msg), /* unsupported= */ false);
+    static HalResult<T> unsupported() { return HalResult(Status::UNSUPPORTED); }
+    static HalResult<T> failed(const char* msg) { return HalResult(Status::FAILED, msg); }
+    static HalResult<T> transactionFailed(const char* msg) {
+        return HalResult(Status::FAILED, msg, /* deadObject= */ true);
     }
-    static HalResult<T> unsupported() { return HalResult("", /* unsupported= */ true); }
 
+    // This will throw std::bad_optional_access if this result is not ok.
+    const T& value() const { return mValue.value(); }
+    const T valueOr(T&& defaultValue) const { return mValue.value_or(defaultValue); }
+
+private:
+    std::optional<T> mValue;
+
+    explicit HalResult(T value)
+          : BaseHalResult(Status::SUCCESS), mValue(std::make_optional(value)) {}
+    explicit HalResult(Status status, const char* errorMessage = "", bool deadObject = false)
+          : BaseHalResult(status, errorMessage, deadObject), mValue() {}
+};
+
+// Empty result of a call to the Vibrator HAL wrapper.
+template <>
+class HalResult<void> : public BaseHalResult {
+public:
+    static HalResult<void> ok() { return HalResult(Status::SUCCESS); }
+    static HalResult<void> unsupported() { return HalResult(Status::UNSUPPORTED); }
+    static HalResult<void> failed(const char* msg) { return HalResult(Status::FAILED, msg); }
+    static HalResult<void> transactionFailed(const char* msg) {
+        return HalResult(Status::FAILED, msg, /* deadObject= */ true);
+    }
+
+private:
+    explicit HalResult(Status status, const char* errorMessage = "", bool deadObject = false)
+          : BaseHalResult(status, errorMessage, deadObject) {}
+};
+
+// -------------------------------------------------------------------------------------------------
+
+// Factory functions that convert failed HIDL/AIDL results into HalResult instances.
+// Implementation of static template functions needs to be in this header file for the linker.
+class HalResultFactory {
+public:
+    template <typename T>
     static HalResult<T> fromStatus(binder::Status status, T data) {
+        return status.isOk() ? HalResult<T>::ok(data) : fromFailedStatus<T>(status);
+    }
+
+    template <typename T>
+    static HalResult<T> fromStatus(hardware::vibrator::V1_0::Status status, T data) {
+        return (status == hardware::vibrator::V1_0::Status::OK) ? HalResult<T>::ok(data)
+                                                                : fromFailedStatus<T>(status);
+    }
+
+    template <typename T, typename R>
+    static HalResult<T> fromReturn(hardware::Return<R>& ret, T data) {
+        return ret.isOk() ? HalResult<T>::ok(data) : fromFailedReturn<T, R>(ret);
+    }
+
+    template <typename T, typename R>
+    static HalResult<T> fromReturn(hardware::Return<R>& ret,
+                                   hardware::vibrator::V1_0::Status status, T data) {
+        return ret.isOk() ? fromStatus<T>(status, data) : fromFailedReturn<T, R>(ret);
+    }
+
+    static HalResult<void> fromStatus(status_t status) {
+        return (status == android::OK) ? HalResult<void>::ok() : fromFailedStatus<void>(status);
+    }
+
+    static HalResult<void> fromStatus(binder::Status status) {
+        return status.isOk() ? HalResult<void>::ok() : fromFailedStatus<void>(status);
+    }
+
+    static HalResult<void> fromStatus(hardware::vibrator::V1_0::Status status) {
+        return (status == hardware::vibrator::V1_0::Status::OK) ? HalResult<void>::ok()
+                                                                : fromFailedStatus<void>(status);
+    }
+
+    template <typename R>
+    static HalResult<void> fromReturn(hardware::Return<R>& ret) {
+        return ret.isOk() ? HalResult<void>::ok() : fromFailedReturn<void, R>(ret);
+    }
+
+private:
+    template <typename T>
+    static HalResult<T> fromFailedStatus(status_t status) {
+        auto msg = "status_t = " + statusToString(status);
+        return (status == android::DEAD_OBJECT) ? HalResult<T>::transactionFailed(msg.c_str())
+                                                : HalResult<T>::failed(msg.c_str());
+    }
+
+    template <typename T>
+    static HalResult<T> fromFailedStatus(binder::Status status) {
         if (status.exceptionCode() == binder::Status::EX_UNSUPPORTED_OPERATION ||
             status.transactionError() == android::UNKNOWN_TRANSACTION) {
             // UNKNOWN_TRANSACTION means the HAL implementation is an older version, so this is
             // the same as the operation being unsupported by this HAL. Should not retry.
             return HalResult<T>::unsupported();
         }
-        if (status.isOk()) {
-            return HalResult<T>::ok(data);
+        if (status.exceptionCode() == binder::Status::EX_TRANSACTION_FAILED) {
+            return HalResult<T>::transactionFailed(status.toString8().c_str());
         }
         return HalResult<T>::failed(status.toString8().c_str());
     }
-    static HalResult<T> fromStatus(hardware::vibrator::V1_0::Status status, T data);
 
-    template <typename R>
-    static HalResult<T> fromReturn(hardware::Return<R>& ret, T data);
-
-    template <typename R>
-    static HalResult<T> fromReturn(hardware::Return<R>& ret,
-                                   hardware::vibrator::V1_0::Status status, T data);
-
-    // This will throw std::bad_optional_access if this result is not ok.
-    const T& value() const { return mValue.value(); }
-    const T valueOr(T&& defaultValue) const { return mValue.value_or(defaultValue); }
-    bool isOk() const { return !mUnsupported && mValue.has_value(); }
-    bool isFailed() const { return !mUnsupported && !mValue.has_value(); }
-    bool isUnsupported() const { return mUnsupported; }
-    const char* errorMessage() const { return mErrorMessage.c_str(); }
-    bool isFailedLogged(const char* functionNameForLogging) const {
-        if (isFailed()) {
-            ALOGE("Vibrator HAL %s failed: %s", functionNameForLogging, errorMessage());
-            return true;
+    template <typename T>
+    static HalResult<T> fromFailedStatus(hardware::vibrator::V1_0::Status status) {
+        switch (status) {
+            case hardware::vibrator::V1_0::Status::UNSUPPORTED_OPERATION:
+                return HalResult<T>::unsupported();
+            default:
+                auto msg = "android::hardware::vibrator::V1_0::Status = " + toString(status);
+                return HalResult<T>::failed(msg.c_str());
         }
-        return false;
     }
 
-private:
-    std::optional<T> mValue;
-    std::string mErrorMessage;
-    bool mUnsupported;
-
-    explicit HalResult(T value)
-          : mValue(std::make_optional(value)), mErrorMessage(), mUnsupported(false) {}
-    explicit HalResult(std::string errorMessage, bool unsupported)
-          : mValue(), mErrorMessage(std::move(errorMessage)), mUnsupported(unsupported) {}
-};
-
-// Empty result of a call to the Vibrator HAL wrapper.
-template <>
-class HalResult<void> {
-public:
-    static HalResult<void> ok() { return HalResult(); }
-    static HalResult<void> failed(std::string msg) { return HalResult(std::move(msg)); }
-    static HalResult<void> unsupported() { return HalResult(/* unsupported= */ true); }
-
-    static HalResult<void> fromStatus(status_t status);
-    static HalResult<void> fromStatus(binder::Status status);
-    static HalResult<void> fromStatus(hardware::vibrator::V1_0::Status status);
-
-    template <typename R>
-    static HalResult<void> fromReturn(hardware::Return<R>& ret);
-
-    bool isOk() const { return !mUnsupported && !mFailed; }
-    bool isFailed() const { return !mUnsupported && mFailed; }
-    bool isUnsupported() const { return mUnsupported; }
-    const char* errorMessage() const { return mErrorMessage.c_str(); }
-    bool isFailedLogged(const char* functionNameForLogging) const {
-        if (isFailed()) {
-            ALOGE("Vibrator HAL %s failed: %s", functionNameForLogging, errorMessage());
-            return true;
-        }
-        return false;
+    template <typename T, typename R>
+    static HalResult<T> fromFailedReturn(hardware::Return<R>& ret) {
+        return ret.isDeadObject() ? HalResult<T>::transactionFailed(ret.description().c_str())
+                                  : HalResult<T>::failed(ret.description().c_str());
     }
-
-private:
-    std::string mErrorMessage;
-    bool mFailed;
-    bool mUnsupported;
-
-    explicit HalResult(bool unsupported = false)
-          : mErrorMessage(), mFailed(false), mUnsupported(unsupported) {}
-    explicit HalResult(std::string errorMessage)
-          : mErrorMessage(std::move(errorMessage)), mFailed(true), mUnsupported(false) {}
 };
+
+// -------------------------------------------------------------------------------------------------
 
 class HalCallbackWrapper : public hardware::vibrator::BnVibratorCallback {
 public:
@@ -192,21 +245,44 @@ public:
     const HalResult<float> qFactor;
     const HalResult<std::vector<float>> maxAmplitudes;
 
-    bool isFailedLogged(const char*) const {
-        return capabilities.isFailedLogged("getCapabilities") ||
-                supportedEffects.isFailedLogged("getSupportedEffects") ||
-                supportedBraking.isFailedLogged("getSupportedBraking") ||
-                supportedPrimitives.isFailedLogged("getSupportedPrimitives") ||
-                primitiveDurations.isFailedLogged("getPrimitiveDuration") ||
-                primitiveDelayMax.isFailedLogged("getPrimitiveDelayMax") ||
-                pwlePrimitiveDurationMax.isFailedLogged("getPwlePrimitiveDurationMax") ||
-                compositionSizeMax.isFailedLogged("getCompositionSizeMax") ||
-                pwleSizeMax.isFailedLogged("getPwleSizeMax") ||
-                minFrequency.isFailedLogged("getMinFrequency") ||
-                resonantFrequency.isFailedLogged("getResonantFrequency") ||
-                frequencyResolution.isFailedLogged("getFrequencyResolution") ||
-                qFactor.isFailedLogged("getQFactor") ||
-                maxAmplitudes.isFailedLogged("getMaxAmplitudes");
+    void logFailures() const {
+        logFailure<Capabilities>(capabilities, "getCapabilities");
+        logFailure<std::vector<hardware::vibrator::Effect>>(supportedEffects,
+                                                            "getSupportedEffects");
+        logFailure<std::vector<hardware::vibrator::Braking>>(supportedBraking,
+                                                             "getSupportedBraking");
+        logFailure<std::vector<hardware::vibrator::CompositePrimitive>>(supportedPrimitives,
+                                                                        "getSupportedPrimitives");
+        logFailure<std::vector<std::chrono::milliseconds>>(primitiveDurations,
+                                                           "getPrimitiveDuration");
+        logFailure<std::chrono::milliseconds>(primitiveDelayMax, "getPrimitiveDelayMax");
+        logFailure<std::chrono::milliseconds>(pwlePrimitiveDurationMax,
+                                              "getPwlePrimitiveDurationMax");
+        logFailure<int32_t>(compositionSizeMax, "getCompositionSizeMax");
+        logFailure<int32_t>(pwleSizeMax, "getPwleSizeMax");
+        logFailure<float>(minFrequency, "getMinFrequency");
+        logFailure<float>(resonantFrequency, "getResonantFrequency");
+        logFailure<float>(frequencyResolution, "getFrequencyResolution");
+        logFailure<float>(qFactor, "getQFactor");
+        logFailure<std::vector<float>>(maxAmplitudes, "getMaxAmplitudes");
+    }
+
+    bool shouldRetry() const {
+        return capabilities.shouldRetry() || supportedEffects.shouldRetry() ||
+                supportedBraking.shouldRetry() || supportedPrimitives.shouldRetry() ||
+                primitiveDurations.shouldRetry() || primitiveDelayMax.shouldRetry() ||
+                pwlePrimitiveDurationMax.shouldRetry() || compositionSizeMax.shouldRetry() ||
+                pwleSizeMax.shouldRetry() || minFrequency.shouldRetry() ||
+                resonantFrequency.shouldRetry() || frequencyResolution.shouldRetry() ||
+                qFactor.shouldRetry() || maxAmplitudes.shouldRetry();
+    }
+
+private:
+    template <typename T>
+    void logFailure(HalResult<T> result, const char* functionName) const {
+        if (result.isFailed()) {
+            ALOGE("Vibrator HAL %s failed: %s", functionName, result.errorMessage());
+        }
     }
 };
 
@@ -230,27 +306,29 @@ public:
     }
 
 private:
+    // Create a transaction failed results as default so we can retry on the first time we get them.
     static const constexpr char* MSG = "never loaded";
-    HalResult<Capabilities> mCapabilities = HalResult<Capabilities>::failed(MSG);
+    HalResult<Capabilities> mCapabilities = HalResult<Capabilities>::transactionFailed(MSG);
     HalResult<std::vector<hardware::vibrator::Effect>> mSupportedEffects =
-            HalResult<std::vector<hardware::vibrator::Effect>>::failed(MSG);
+            HalResult<std::vector<hardware::vibrator::Effect>>::transactionFailed(MSG);
     HalResult<std::vector<hardware::vibrator::Braking>> mSupportedBraking =
-            HalResult<std::vector<hardware::vibrator::Braking>>::failed(MSG);
+            HalResult<std::vector<hardware::vibrator::Braking>>::transactionFailed(MSG);
     HalResult<std::vector<hardware::vibrator::CompositePrimitive>> mSupportedPrimitives =
-            HalResult<std::vector<hardware::vibrator::CompositePrimitive>>::failed(MSG);
+            HalResult<std::vector<hardware::vibrator::CompositePrimitive>>::transactionFailed(MSG);
     HalResult<std::vector<std::chrono::milliseconds>> mPrimitiveDurations =
-            HalResult<std::vector<std::chrono::milliseconds>>::failed(MSG);
+            HalResult<std::vector<std::chrono::milliseconds>>::transactionFailed(MSG);
     HalResult<std::chrono::milliseconds> mPrimitiveDelayMax =
-            HalResult<std::chrono::milliseconds>::failed(MSG);
+            HalResult<std::chrono::milliseconds>::transactionFailed(MSG);
     HalResult<std::chrono::milliseconds> mPwlePrimitiveDurationMax =
-            HalResult<std::chrono::milliseconds>::failed(MSG);
-    HalResult<int32_t> mCompositionSizeMax = HalResult<int>::failed(MSG);
-    HalResult<int32_t> mPwleSizeMax = HalResult<int>::failed(MSG);
-    HalResult<float> mMinFrequency = HalResult<float>::failed(MSG);
-    HalResult<float> mResonantFrequency = HalResult<float>::failed(MSG);
-    HalResult<float> mFrequencyResolution = HalResult<float>::failed(MSG);
-    HalResult<float> mQFactor = HalResult<float>::failed(MSG);
-    HalResult<std::vector<float>> mMaxAmplitudes = HalResult<std::vector<float>>::failed(MSG);
+            HalResult<std::chrono::milliseconds>::transactionFailed(MSG);
+    HalResult<int32_t> mCompositionSizeMax = HalResult<int>::transactionFailed(MSG);
+    HalResult<int32_t> mPwleSizeMax = HalResult<int>::transactionFailed(MSG);
+    HalResult<float> mMinFrequency = HalResult<float>::transactionFailed(MSG);
+    HalResult<float> mResonantFrequency = HalResult<float>::transactionFailed(MSG);
+    HalResult<float> mFrequencyResolution = HalResult<float>::transactionFailed(MSG);
+    HalResult<float> mQFactor = HalResult<float>::transactionFailed(MSG);
+    HalResult<std::vector<float>> mMaxAmplitudes =
+            HalResult<std::vector<float>>::transactionFailed(MSG);
 
     friend class HalWrapper;
 };

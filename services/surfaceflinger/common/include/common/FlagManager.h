@@ -71,6 +71,7 @@ public:
     bool renderable_buffer_usage() const;
     bool restore_blur_step() const;
     bool dont_skip_on_early_ro() const;
+    bool protected_if_client() const;
 
 protected:
     // overridden for unit tests
