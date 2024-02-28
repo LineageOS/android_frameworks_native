@@ -42,6 +42,7 @@ bool ValidateFrameRate(float frameRate, int8_t compatibility, int8_t changeFrame
 
     if (compatibility != ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT &&
         compatibility != ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_FIXED_SOURCE &&
+        compatibility != ANATIVEWINDOW_FRAME_RATE_GTE &&
         (!privileged ||
          (compatibility != ANATIVEWINDOW_FRAME_RATE_EXACT &&
           compatibility != ANATIVEWINDOW_FRAME_RATE_NO_VOTE))) {
