@@ -378,6 +378,11 @@ VulkanInterface initVulkanInterface(bool protectedContent = false) {
         BAIL("Could not find a Vulkan 1.1+ physical device");
     }
 
+    if (physDevProps.properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_CPU) {
+        // TODO: b/326633110 - SkiaVK is not working correctly on swiftshader path.
+        BAIL("CPU implementations of Vulkan is not supported");
+    }
+
     // Check for syncfd support. Bail if we cannot both import and export them.
     VkPhysicalDeviceExternalSemaphoreInfo semInfo = {
             VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_SEMAPHORE_INFO,
