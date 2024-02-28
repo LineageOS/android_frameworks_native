@@ -27,6 +27,7 @@ cc_test {
     defaults: [
         "android.hardware.graphics.common-ndk_shared",
         "surfaceflinger_defaults",
+        "libsurfaceflinger_common_test_deps",
     ],
     test_suites: ["device-tests"],
     srcs: [
@@ -66,7 +67,6 @@ cc_test {
     static_libs: [
         "liblayers_proto",
         "android.hardware.graphics.composer@2.1",
-        "libsurfaceflingerflags",
     ],
     shared_libs: [
         "android.hardware.graphics.common@1.2",

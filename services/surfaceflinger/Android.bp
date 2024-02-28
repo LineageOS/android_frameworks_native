@@ -42,6 +42,7 @@ cc_defaults {
         "android.hardware.power-ndk_shared",
         "librenderengine_deps",
         "libtimestats_deps",
+        "libsurfaceflinger_common_deps",
         "surfaceflinger_defaults",
     ],
     cflags: [
@@ -82,7 +83,6 @@ cc_defaults {
         "libinput",
         "libutils",
         "libSurfaceFlingerProp",
-        "server_configurable_flags",
     ],
     static_libs: [
         "libaidlcommonsupport",
@@ -95,10 +95,8 @@ cc_defaults {
         "libscheduler",
         "libserviceutils",
         "libshaders",
-        "libsurfaceflinger_common",
         "libtimestats",
         "libtonemap",
-        "libsurfaceflingerflags",
     ],
     header_libs: [
         "android.hardware.graphics.composer@2.1-command-buffer",
