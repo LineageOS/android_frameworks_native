@@ -51,8 +51,6 @@ struct AIBinder : public virtual ::android::RefBase {
         ::android::sp<::android::IBinder> binder = const_cast<AIBinder*>(this)->getBinder();
         return binder->remoteBinder() != nullptr;
     }
-    virtual void addDeathRecipient(const ::android::sp<AIBinder_DeathRecipient>& recipient,
-                                   void* cookie) = 0;
 
    private:
     // AIBinder instance is instance of this class for a local object. In order to transact on a
@@ -80,8 +78,6 @@ struct ABBinder : public AIBinder, public ::android::BBinder {
     ::android::status_t dump(int fd, const ::android::Vector<::android::String16>& args) override;
     ::android::status_t onTransact(uint32_t code, const ::android::Parcel& data,
                                    ::android::Parcel* reply, binder_flags_t flags) override;
-    void addDeathRecipient(const ::android::sp<AIBinder_DeathRecipient>& /* recipient */,
-                           void* /* cookie */) override;
 
    private:
     ABBinder(const AIBinder_Class* clazz, void* userData);
@@ -110,19 +106,12 @@ struct ABpBinder : public AIBinder {
 
     bool isServiceFuzzing() const { return mServiceFuzzing; }
     void setServiceFuzzing() { mServiceFuzzing = true; }
-    void addDeathRecipient(const ::android::sp<AIBinder_DeathRecipient>& recipient,
-                           void* cookie) override;
 
    private:
     friend android::sp<ABpBinder>;
     explicit ABpBinder(const ::android::sp<::android::IBinder>& binder);
     ::android::sp<::android::IBinder> mRemote;
     bool mServiceFuzzing = false;
-    struct DeathRecipientInfo {
-        android::wp<AIBinder_DeathRecipient> recipient;
-        void* cookie;
-    };
-    std::vector<DeathRecipientInfo> mDeathRecipients;
 };
 
 struct AIBinder_Class {
@@ -194,7 +183,6 @@ struct AIBinder_DeathRecipient : ::android::RefBase {
     binder_status_t linkToDeath(const ::android::sp<::android::IBinder>&, void* cookie);
     binder_status_t unlinkToDeath(const ::android::sp<::android::IBinder>& binder, void* cookie);
     void setOnUnlinked(AIBinder_DeathRecipient_onBinderUnlinked onUnlinked);
-    void pruneThisTransferEntry(const ::android::sp<::android::IBinder>&, void* cookie);
 
    private:
     // When the user of this API deletes a Bp object but not the death recipient, the
