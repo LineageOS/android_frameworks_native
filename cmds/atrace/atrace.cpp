@@ -313,12 +313,6 @@ static const char* k_traceClockPath =
 static const char* k_traceBufferSizePath =
     "buffer_size_kb";
 
-#if 0
-// TODO: Re-enable after stabilization
-static const char* k_traceCmdlineSizePath =
-    "saved_cmdlines_size";
-#endif
-
 static const char* k_tracingOverwriteEnablePath =
     "options/overwrite";
 
@@ -544,18 +538,6 @@ static bool setTraceBufferSizeKB(int size)
     snprintf(str, 32, "%d", size);
     return writeStr(k_traceBufferSizePath, str);
 }
-
-#if 0
-// TODO: Re-enable after stabilization
-// Set the default size of cmdline hashtable
-static bool setCmdlineSize()
-{
-    if (fileExists(k_traceCmdlineSizePath)) {
-        return writeStr(k_traceCmdlineSizePath, "8192");
-    }
-    return true;
-}
-#endif
 
 // Set the clock to the best available option while tracing. Use 'boot' if it's
 // available; otherwise, use 'mono'. If neither are available use 'global'.
@@ -870,8 +852,6 @@ static bool setUpKernelTracing()
     ok &= setCategoriesEnableFromFile(g_categoriesFile);
     ok &= setTraceOverwriteEnable(g_traceOverwrite);
     ok &= setTraceBufferSizeKB(g_traceBufferSizeKB);
-    // TODO: Re-enable after stabilization
-    //ok &= setCmdlineSize();
     ok &= setClock();
     ok &= setPrintTgidEnableIfPresent(true);
     ok &= setKernelTraceFuncs(g_kernelTraceFuncs);
