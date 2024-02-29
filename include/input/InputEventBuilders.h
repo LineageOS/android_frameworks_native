@@ -118,6 +118,16 @@ public:
         return *this;
     }
 
+    MotionEventBuilder& transform(ui::Transform t) {
+        mTransform = t;
+        return *this;
+    }
+
+    MotionEventBuilder& rawTransform(ui::Transform t) {
+        mRawTransform = t;
+        return *this;
+    }
+
     MotionEvent build() {
         std::vector<PointerProperties> pointerProperties;
         std::vector<PointerCoords> pointerCoords;
@@ -134,12 +144,11 @@ public:
         }
 
         MotionEvent event;
-        static const ui::Transform kIdentityTransform;
         event.initialize(InputEvent::nextId(), mDeviceId, mSource, mDisplayId, INVALID_HMAC,
                          mAction, mActionButton, mFlags, /*edgeFlags=*/0, AMETA_NONE, mButtonState,
-                         MotionClassification::NONE, kIdentityTransform,
+                         MotionClassification::NONE, mTransform,
                          /*xPrecision=*/0, /*yPrecision=*/0, mRawXCursorPosition,
-                         mRawYCursorPosition, kIdentityTransform, mDownTime, mEventTime,
+                         mRawYCursorPosition, mRawTransform, mDownTime, mEventTime,
                          mPointers.size(), pointerProperties.data(), pointerCoords.data());
         return event;
     }
@@ -156,6 +165,8 @@ private:
     int32_t mFlags{0};
     float mRawXCursorPosition{AMOTION_EVENT_INVALID_CURSOR_POSITION};
     float mRawYCursorPosition{AMOTION_EVENT_INVALID_CURSOR_POSITION};
+    ui::Transform mTransform;
+    ui::Transform mRawTransform;
 
     std::vector<PointerBuilder> mPointers;
 };

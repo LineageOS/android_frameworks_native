@@ -4268,72 +4268,13 @@ void InputDispatcher::synthesizePointerDownEventsForConnectionLocked(
 std::unique_ptr<MotionEntry> InputDispatcher::splitMotionEvent(
         const MotionEntry& originalMotionEntry, std::bitset<MAX_POINTER_ID + 1> pointerIds,
         nsecs_t splitDownTime) {
-    ALOG_ASSERT(pointerIds.any());
+    const auto& [action, pointerProperties, pointerCoords] =
+            MotionEvent::split(originalMotionEntry.action, originalMotionEntry.flags,
+                               /*historySize=*/0, originalMotionEntry.pointerProperties,
+                               originalMotionEntry.pointerCoords, pointerIds);
 
-    uint32_t splitPointerIndexMap[MAX_POINTERS];
-    std::vector<PointerProperties> splitPointerProperties;
-    std::vector<PointerCoords> splitPointerCoords;
-
-    uint32_t originalPointerCount = originalMotionEntry.getPointerCount();
-    uint32_t splitPointerCount = 0;
-
-    for (uint32_t originalPointerIndex = 0; originalPointerIndex < originalPointerCount;
-         originalPointerIndex++) {
-        const PointerProperties& pointerProperties =
-                originalMotionEntry.pointerProperties[originalPointerIndex];
-        uint32_t pointerId = uint32_t(pointerProperties.id);
-        if (pointerIds.test(pointerId)) {
-            splitPointerIndexMap[splitPointerCount] = originalPointerIndex;
-            splitPointerProperties.push_back(pointerProperties);
-            splitPointerCoords.push_back(originalMotionEntry.pointerCoords[originalPointerIndex]);
-            splitPointerCount += 1;
-        }
-    }
-
-    if (splitPointerCount != pointerIds.count()) {
-        // This is bad.  We are missing some of the pointers that we expected to deliver.
-        // Most likely this indicates that we received an ACTION_MOVE events that has
-        // different pointer ids than we expected based on the previous ACTION_DOWN
-        // or ACTION_POINTER_DOWN events that caused us to decide to split the pointers
-        // in this way.
-        ALOGW("Dropping split motion event because the pointer count is %d but "
-              "we expected there to be %zu pointers.  This probably means we received "
-              "a broken sequence of pointer ids from the input device: %s",
-              splitPointerCount, pointerIds.count(), originalMotionEntry.getDescription().c_str());
-        return nullptr;
-    }
-
-    int32_t action = originalMotionEntry.action;
-    int32_t maskedAction = action & AMOTION_EVENT_ACTION_MASK;
-    if (maskedAction == AMOTION_EVENT_ACTION_POINTER_DOWN ||
-        maskedAction == AMOTION_EVENT_ACTION_POINTER_UP) {
-        int32_t originalPointerIndex = MotionEvent::getActionIndex(action);
-        const PointerProperties& pointerProperties =
-                originalMotionEntry.pointerProperties[originalPointerIndex];
-        uint32_t pointerId = uint32_t(pointerProperties.id);
-        if (pointerIds.test(pointerId)) {
-            if (pointerIds.count() == 1) {
-                // The first/last pointer went down/up.
-                action = maskedAction == AMOTION_EVENT_ACTION_POINTER_DOWN
-                        ? AMOTION_EVENT_ACTION_DOWN
-                        : (originalMotionEntry.flags & AMOTION_EVENT_FLAG_CANCELED) != 0
-                                ? AMOTION_EVENT_ACTION_CANCEL
-                                : AMOTION_EVENT_ACTION_UP;
-            } else {
-                // A secondary pointer went down/up.
-                uint32_t splitPointerIndex = 0;
-                while (pointerId != uint32_t(splitPointerProperties[splitPointerIndex].id)) {
-                    splitPointerIndex += 1;
-                }
-                action = maskedAction |
-                        (splitPointerIndex << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
-            }
-        } else {
-            // An unrelated pointer changed.
-            action = AMOTION_EVENT_ACTION_MOVE;
-        }
-    }
-
+    // TODO(b/327503168): Move this check inside MotionEvent::split once all callers handle it
+    //   correctly.
     if (action == AMOTION_EVENT_ACTION_DOWN && splitDownTime != originalMotionEntry.eventTime) {
         logDispatchStateLocked();
         LOG_ALWAYS_FATAL("Split motion event has mismatching downTime and eventTime for "
@@ -4361,7 +4302,7 @@ std::unique_ptr<MotionEntry> InputDispatcher::splitMotionEvent(
                                           originalMotionEntry.yPrecision,
                                           originalMotionEntry.xCursorPosition,
                                           originalMotionEntry.yCursorPosition, splitDownTime,
-                                          splitPointerProperties, splitPointerCoords);
+                                          pointerProperties, pointerCoords);
 
     return splitMotionEntry;
 }
