@@ -133,6 +133,10 @@ private:
 
     explicit CursorInputMapper(InputDeviceContext& deviceContext,
                                const InputReaderConfiguration& readerConfig);
+    // Constructor for testing.
+    explicit CursorInputMapper(InputDeviceContext& deviceContext,
+                               const InputReaderConfiguration& readerConfig,
+                               bool enablePointerChoreographer);
     void dumpParameters(std::string& dump);
     void configureBasicParams();
     void configureOnPointerCapture(const InputReaderConfiguration& config);

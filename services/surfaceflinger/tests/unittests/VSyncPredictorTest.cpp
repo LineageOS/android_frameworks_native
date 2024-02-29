@@ -75,6 +75,28 @@ ftl::NonNull<DisplayModePtr> displayMode(nsecs_t period) {
     return ftl::as_non_null(createDisplayMode(DisplayModeId(0), refreshRate, kGroup, kResolution,
                                               DEFAULT_DISPLAY_ID));
 }
+
+class TestClock : public Clock {
+public:
+    TestClock() = default;
+
+    nsecs_t now() const override { return mNow; }
+    void setNow(nsecs_t now) { mNow = now; }
+
+private:
+    nsecs_t mNow = 0;
+};
+
+class ClockWrapper : public Clock {
+public:
+    ClockWrapper(std::shared_ptr<Clock> const& clock) : mClock(clock) {}
+
+    nsecs_t now() const { return mClock->now(); }
+
+private:
+    std::shared_ptr<Clock> const mClock;
+};
+
 } // namespace
 
 struct VSyncPredictorTest : testing::Test {
@@ -86,8 +108,10 @@ struct VSyncPredictorTest : testing::Test {
     static constexpr size_t kOutlierTolerancePercent = 25;
     static constexpr nsecs_t mMaxRoundingError = 100;
 
-    VSyncPredictor tracker{mMode, kHistorySize, kMinimumSamplesForPrediction,
-                           kOutlierTolerancePercent};
+    std::shared_ptr<TestClock> mClock{std::make_shared<TestClock>()};
+
+    VSyncPredictor tracker{std::make_unique<ClockWrapper>(mClock), mMode, kHistorySize,
+                           kMinimumSamplesForPrediction, kOutlierTolerancePercent};
 };
 
 TEST_F(VSyncPredictorTest, reportsAnticipatedPeriod) {
@@ -408,7 +432,8 @@ TEST_F(VSyncPredictorTest, doesNotPredictBeforeTimePointWithHigherIntercept) {
 // See b/151146131
 TEST_F(VSyncPredictorTest, hasEnoughPrecision) {
     const auto mode = displayMode(mPeriod);
-    VSyncPredictor tracker{mode, 20, kMinimumSamplesForPrediction, kOutlierTolerancePercent};
+    VSyncPredictor tracker{std::make_unique<ClockWrapper>(mClock), mode, 20,
+                           kMinimumSamplesForPrediction, kOutlierTolerancePercent};
     std::vector<nsecs_t> const simulatedVsyncs{840873348817, 840890049444, 840906762675,
                                                840923581635, 840940161584, 840956868096,
                                                840973702473, 840990256277, 841007116851,
@@ -606,35 +631,6 @@ TEST_F(VSyncPredictorTest, setRenderRateIsRespected) {
     EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 5100), Eq(mNow + 7 * mPeriod));
 }
 
-TEST_F(VSyncPredictorTest, setRenderRateOfDivisorIsInPhase) {
-    auto last = mNow;
-    for (auto i = 0u; i < kMinimumSamplesForPrediction; i++) {
-        EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow), Eq(last + mPeriod));
-        mNow += mPeriod;
-        last = mNow;
-        tracker.addVsyncTimestamp(mNow);
-    }
-
-    const auto refreshRate = Fps::fromPeriodNsecs(mPeriod);
-
-    tracker.setRenderRate(refreshRate / 4);
-    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow), Eq(mNow + 3 * mPeriod));
-    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 3 * mPeriod), Eq(mNow + 7 * mPeriod));
-    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 7 * mPeriod), Eq(mNow + 11 * mPeriod));
-
-    tracker.setRenderRate(refreshRate / 2);
-    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow), Eq(mNow + 1 * mPeriod));
-    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 1 * mPeriod), Eq(mNow + 3 * mPeriod));
-    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 3 * mPeriod), Eq(mNow + 5 * mPeriod));
-    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 5 * mPeriod), Eq(mNow + 7 * mPeriod));
-    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 7 * mPeriod), Eq(mNow + 9 * mPeriod));
-    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 9 * mPeriod), Eq(mNow + 11 * mPeriod));
-
-    tracker.setRenderRate(refreshRate / 6);
-    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow), Eq(mNow + 1 * mPeriod));
-    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + 1 * mPeriod), Eq(mNow + 7 * mPeriod));
-}
-
 TEST_F(VSyncPredictorTest, setRenderRateIsIgnoredIfNotDivisor) {
     auto last = mNow;
     for (auto i = 0u; i < kMinimumSamplesForPrediction; i++) {
@@ -670,8 +666,8 @@ TEST_F(VSyncPredictorTest, adjustsVrrTimeline) {
                                      .setVrrConfig(std::move(vrrConfig))
                                      .build());
 
-    VSyncPredictor vrrTracker{kMode, kHistorySize, kMinimumSamplesForPrediction,
-                              kOutlierTolerancePercent};
+    VSyncPredictor vrrTracker{std::make_unique<ClockWrapper>(mClock), kMode, kHistorySize,
+                              kMinimumSamplesForPrediction, kOutlierTolerancePercent};
 
     vrrTracker.setRenderRate(minFrameRate);
     vrrTracker.addVsyncTimestamp(0);
@@ -687,7 +683,44 @@ TEST_F(VSyncPredictorTest, adjustsVrrTimeline) {
     vrrTracker.onFrameMissed(TimePoint::fromNs(4500));
     EXPECT_EQ(5000, vrrTracker.nextAnticipatedVSyncTimeFrom(4500, 4500));
     EXPECT_EQ(6000, vrrTracker.nextAnticipatedVSyncTimeFrom(5000, 5000));
+
+    vrrTracker.onFrameBegin(TimePoint::fromNs(7000), TimePoint::fromNs(6500));
+    EXPECT_EQ(10500, vrrTracker.nextAnticipatedVSyncTimeFrom(9000, 7000));
 }
+
+TEST_F(VSyncPredictorTest, renderRateIsPreservedForCommittedVsyncs) {
+    tracker.addVsyncTimestamp(1000);
+
+    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(1), Eq(1000));
+    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(5001), Eq(6000));
+    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(6001), Eq(7000));
+
+    tracker.setRenderRate(Fps::fromPeriodNsecs(2000));
+    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(1), Eq(1000));
+    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(5001), Eq(6000));
+    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(6001), Eq(7000));
+    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(7001), Eq(8000));
+    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(8001), Eq(10000));
+    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(9001), Eq(10000));
+
+    tracker.setRenderRate(Fps::fromPeriodNsecs(3000));
+    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(1), Eq(1000));
+    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(5001), Eq(6000));
+    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(6001), Eq(7000));
+    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(7001), Eq(8000));
+    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(8001), Eq(10000));
+    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(9001), Eq(10000));
+    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(10001), Eq(11000));
+    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(11001), Eq(14000));
+    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(12001), Eq(14000));
+
+    // Check the purge logic works
+    mClock->setNow(20000);
+    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(1), Eq(2000));
+    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(5001), Eq(8000));
+    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(6001), Eq(8000));
+}
+
 } // namespace android::scheduler
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues

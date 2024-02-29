@@ -300,12 +300,26 @@ void LayerHistory::partitionLayers(nsecs_t now) {
 
                 if (gameModeFrameRateOverride.isValid()) {
                     info->setLayerVote({gameFrameRateOverrideVoteType, gameModeFrameRateOverride});
+                    ATRACE_FORMAT_INSTANT("GameModeFrameRateOverride");
+                    if (CC_UNLIKELY(mTraceEnabled)) {
+                        trace(*info, gameFrameRateOverrideVoteType,
+                              gameModeFrameRateOverride.getIntValue());
+                    }
                 } else if (frameRate.isValid()) {
                     info->setLayerVote({setFrameRateVoteType, frameRate.vote.rate,
                                         frameRate.vote.seamlessness, frameRate.category});
+                    if (CC_UNLIKELY(mTraceEnabled)) {
+                        trace(*info, gameFrameRateOverrideVoteType,
+                              frameRate.vote.rate.getIntValue());
+                    }
                 } else if (gameDefaultFrameRateOverride.isValid()) {
                     info->setLayerVote(
                             {gameFrameRateOverrideVoteType, gameDefaultFrameRateOverride});
+                    ATRACE_FORMAT_INSTANT("GameDefaultFrameRateOverride");
+                    if (CC_UNLIKELY(mTraceEnabled)) {
+                        trace(*info, gameFrameRateOverrideVoteType,
+                              gameDefaultFrameRateOverride.getIntValue());
+                    }
                 } else {
                     info->resetLayerVote();
                 }
@@ -341,9 +355,18 @@ void LayerHistory::clear() {
 
 std::string LayerHistory::dump() const {
     std::lock_guard lock(mLock);
-    return base::StringPrintf("{size=%zu, active=%zu}",
+    return base::StringPrintf("{size=%zu, active=%zu}\n\tGameFrameRateOverrides=\n\t\t%s",
                               mActiveLayerInfos.size() + mInactiveLayerInfos.size(),
-                              mActiveLayerInfos.size());
+                              mActiveLayerInfos.size(), dumpGameFrameRateOverridesLocked().c_str());
+}
+
+std::string LayerHistory::dumpGameFrameRateOverridesLocked() const {
+    std::string overridesString = "(uid, gameModeOverride, gameDefaultOverride)=";
+    for (auto it = mGameFrameRateOverride.begin(); it != mGameFrameRateOverride.end(); ++it) {
+        base::StringAppendF(&overridesString, "{%u, %d %d} ", it->first,
+                            it->second.first.getIntValue(), it->second.second.getIntValue());
+    }
+    return overridesString;
 }
 
 float LayerHistory::getLayerFramerate(nsecs_t now, int32_t id) const {
