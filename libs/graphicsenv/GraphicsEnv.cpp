@@ -265,7 +265,8 @@ android_namespace_t* GraphicsEnv::getDriverNamespace() {
 
     auto vndkNamespace = android_get_exported_namespace("vndk");
     if (!vndkNamespace) {
-        return nullptr;
+        mDriverNamespace = nullptr;
+        return mDriverNamespace;
     }
 
     mDriverNamespace = android_create_namespace("updatable gfx driver",
@@ -617,7 +618,8 @@ android_namespace_t* GraphicsEnv::getAngleNamespace() {
 
     auto vndkNamespace = android_get_exported_namespace("vndk");
     if (!vndkNamespace) {
-        return nullptr;
+        mAngleNamespace = nullptr;
+        return mAngleNamespace;
     }
 
     if (!linkDriverNamespaceLocked(mAngleNamespace, vndkNamespace, "")) {
