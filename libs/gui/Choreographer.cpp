@@ -143,9 +143,9 @@ Choreographer::~Choreographer() {
 void Choreographer::postFrameCallbackDelayed(AChoreographer_frameCallback cb,
                                              AChoreographer_frameCallback64 cb64,
                                              AChoreographer_vsyncCallback vsyncCallback, void* data,
-                                             nsecs_t delay) {
+                                             nsecs_t delay, CallbackType callbackType) {
     nsecs_t now = systemTime(SYSTEM_TIME_MONOTONIC);
-    FrameCallback callback{cb, cb64, vsyncCallback, data, now + delay};
+    FrameCallback callback{cb, cb64, vsyncCallback, data, now + delay, callbackType};
     {
         std::lock_guard<std::mutex> _l{mLock};
         mFrameCallbacks.push(callback);
@@ -285,18 +285,8 @@ void Choreographer::handleRefreshRateUpdates() {
     }
 }
 
-void Choreographer::dispatchVsync(nsecs_t timestamp, PhysicalDisplayId, uint32_t,
-                                  VsyncEventData vsyncEventData) {
-    std::vector<FrameCallback> callbacks{};
-    {
-        std::lock_guard<std::mutex> _l{mLock};
-        nsecs_t now = systemTime(SYSTEM_TIME_MONOTONIC);
-        while (!mFrameCallbacks.empty() && mFrameCallbacks.top().dueTime < now) {
-            callbacks.push_back(mFrameCallbacks.top());
-            mFrameCallbacks.pop();
-        }
-    }
-    mLastVsyncEventData = vsyncEventData;
+void Choreographer::dispatchCallbacks(const std::vector<FrameCallback>& callbacks,
+                                      VsyncEventData vsyncEventData, nsecs_t timestamp) {
     for (const auto& cb : callbacks) {
         if (cb.vsyncCallback != nullptr) {
             ATRACE_FORMAT("AChoreographer_vsyncCallback %" PRId64,
@@ -316,6 +306,34 @@ void Choreographer::dispatchVsync(nsecs_t timestamp, PhysicalDisplayId, uint32_t
             ATRACE_FORMAT("AChoreographer_frameCallback");
             cb.callback(timestamp, cb.data);
         }
+    }
+}
+
+void Choreographer::dispatchVsync(nsecs_t timestamp, PhysicalDisplayId, uint32_t,
+                                  VsyncEventData vsyncEventData) {
+    std::vector<FrameCallback> animationCallbacks{};
+    std::vector<FrameCallback> inputCallbacks{};
+    {
+        std::lock_guard<std::mutex> _l{mLock};
+        nsecs_t now = systemTime(SYSTEM_TIME_MONOTONIC);
+        while (!mFrameCallbacks.empty() && mFrameCallbacks.top().dueTime < now) {
+            if (mFrameCallbacks.top().callbackType == CALLBACK_INPUT) {
+                inputCallbacks.push_back(mFrameCallbacks.top());
+            } else {
+                animationCallbacks.push_back(mFrameCallbacks.top());
+            }
+            mFrameCallbacks.pop();
+        }
+    }
+    mLastVsyncEventData = vsyncEventData;
+    // Callbacks with type CALLBACK_INPUT should always run first
+    {
+        ATRACE_FORMAT("CALLBACK_INPUT");
+        dispatchCallbacks(inputCallbacks, vsyncEventData, timestamp);
+    }
+    {
+        ATRACE_FORMAT("CALLBACK_ANIMATION");
+        dispatchCallbacks(animationCallbacks, vsyncEventData, timestamp);
     }
 }
 
