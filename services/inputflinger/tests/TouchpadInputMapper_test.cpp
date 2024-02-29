@@ -117,8 +117,11 @@ protected:
                     return base::ResultError("Axis not supported", NAME_NOT_FOUND);
                 });
         createDevice();
-        mMapper = createInputMapper<TouchpadInputMapper>(*mDeviceContext, mReaderConfiguration);
+        mMapper = createInputMapper<TouchpadInputMapper>(*mDeviceContext, mReaderConfiguration,
+                                                         isPointerChoreographerEnabled());
     }
+
+    virtual bool isPointerChoreographerEnabled() { return false; }
 };
 
 class TouchpadInputMapperTest : public TouchpadInputMapperTestBase {
@@ -182,10 +185,9 @@ TEST_F(TouchpadInputMapperTest, HoverAndLeftButtonPress) {
 
 class TouchpadInputMapperTestWithChoreographer : public TouchpadInputMapperTestBase {
 protected:
-    void SetUp() override {
-        input_flags::enable_pointer_choreographer(true);
-        TouchpadInputMapperTestBase::SetUp();
-    }
+    void SetUp() override { TouchpadInputMapperTestBase::SetUp(); }
+
+    bool isPointerChoreographerEnabled() override { return true; }
 };
 
 // TODO(b/311416205): De-duplicate the test cases after the refactoring is complete and the flagging

@@ -97,6 +97,8 @@ public:
     virtual void writeWakeLockHandled(uint32_t count) = 0;
 
     std::atomic_bool mReconnecting = false;
+
+    std::atomic_bool mInHalBypassMode = false;
 };
 
 } // namespace android
