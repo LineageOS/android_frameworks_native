@@ -258,11 +258,24 @@ status_t ABBinder::onTransact(transaction_code_t code, const Parcel& data, Parce
     }
 }
 
+void ABBinder::addDeathRecipient(const ::android::sp<AIBinder_DeathRecipient>& /* recipient */,
+                                 void* /* cookie */) {
+    LOG_ALWAYS_FATAL("Should not reach this. Can't linkToDeath local binders.");
+}
+
 ABpBinder::ABpBinder(const ::android::sp<::android::IBinder>& binder)
     : AIBinder(nullptr /*clazz*/), mRemote(binder) {
     LOG_ALWAYS_FATAL_IF(binder == nullptr, "binder == nullptr");
 }
-ABpBinder::~ABpBinder() {}
+
+ABpBinder::~ABpBinder() {
+    for (auto& recip : mDeathRecipients) {
+        sp<AIBinder_DeathRecipient> strongRecip = recip.recipient.promote();
+        if (strongRecip) {
+            strongRecip->pruneThisTransferEntry(getBinder(), recip.cookie);
+        }
+    }
+}
 
 sp<AIBinder> ABpBinder::lookupOrCreateFromBinder(const ::android::sp<::android::IBinder>& binder) {
     if (binder == nullptr) {
@@ -299,6 +312,12 @@ sp<AIBinder> ABpBinder::lookupOrCreateFromBinder(const ::android::sp<::android::
     });
 
     return ret;
+}
+
+void ABpBinder::addDeathRecipient(const ::android::sp<AIBinder_DeathRecipient>& recipient,
+                                  void* cookie) {
+    std::lock_guard<std::mutex> l(mDeathRecipientsMutex);
+    mDeathRecipients.emplace_back(recipient, cookie);
 }
 
 struct AIBinder_Weak {
@@ -424,6 +443,17 @@ void AIBinder_DeathRecipient::TransferDeathRecipient::binderDied(const wp<IBinde
 AIBinder_DeathRecipient::AIBinder_DeathRecipient(AIBinder_DeathRecipient_onBinderDied onDied)
     : mOnDied(onDied), mOnUnlinked(nullptr) {
     LOG_ALWAYS_FATAL_IF(onDied == nullptr, "onDied == nullptr");
+}
+
+void AIBinder_DeathRecipient::pruneThisTransferEntry(const sp<IBinder>& who, void* cookie) {
+    std::lock_guard<std::mutex> l(mDeathRecipientsMutex);
+    mDeathRecipients.erase(std::remove_if(mDeathRecipients.begin(), mDeathRecipients.end(),
+                                          [&](const sp<TransferDeathRecipient>& tdr) {
+                                              auto tdrWho = tdr->getWho();
+                                              return tdrWho != nullptr && tdrWho.promote() == who &&
+                                                     cookie == tdr->getCookie();
+                                          }),
+                           mDeathRecipients.end());
 }
 
 void AIBinder_DeathRecipient::pruneDeadTransferEntriesLocked() {
@@ -554,8 +584,11 @@ binder_status_t AIBinder_linkToDeath(AIBinder* binder, AIBinder_DeathRecipient* 
         return STATUS_UNEXPECTED_NULL;
     }
 
-    // returns binder_status_t
-    return recipient->linkToDeath(binder->getBinder(), cookie);
+    binder_status_t ret = recipient->linkToDeath(binder->getBinder(), cookie);
+    if (ret == STATUS_OK) {
+        binder->addDeathRecipient(recipient, cookie);
+    }
+    return ret;
 }
 
 binder_status_t AIBinder_unlinkToDeath(AIBinder* binder, AIBinder_DeathRecipient* recipient,
