@@ -1492,7 +1492,10 @@ const AInputEvent* AMotionEvent_fromJava(JNIEnv* env, jobject motionEvent) __INT
 
 /**
  * Creates a java android.view.InputEvent object that is a copy of the specified native
- * {@link AInputEvent}. Returns null on error
+ * {@link AInputEvent}.
+ *
+ * Specified {@link AInputEvent} is require to be a valid {@link MotionEvent} or {@link KeyEvent}
+ * object.
  *
  *  Available since API level 35.
  */
