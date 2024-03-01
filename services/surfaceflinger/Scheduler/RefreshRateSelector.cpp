@@ -948,14 +948,40 @@ auto RefreshRateSelector::getFrameRateOverrides(const std::vector<LayerRequireme
     const auto layersByUid = groupLayersByUid(layers);
     UidToFrameRateOverride frameRateOverrides;
     for (const auto& [uid, layersWithSameUid] : layersByUid) {
-        // Layers with ExplicitExactOrMultiple expect touch boost
-        const bool hasExplicitExactOrMultiple =
-                std::any_of(layersWithSameUid.cbegin(), layersWithSameUid.cend(),
-                            [](const auto& layer) {
-                                return layer->vote == LayerVoteType::ExplicitExactOrMultiple;
-                            });
+        // Look for cases that should not have frame rate overrides.
+        bool hasExplicitExactOrMultiple = false;
+        bool hasExplicitDefault = false;
+        bool hasHighHint = false;
+        for (const auto& layer : layersWithSameUid) {
+            switch (layer->vote) {
+                case LayerVoteType::ExplicitExactOrMultiple:
+                    hasExplicitExactOrMultiple = true;
+                    break;
+                case LayerVoteType::ExplicitDefault:
+                    hasExplicitDefault = true;
+                    break;
+                case LayerVoteType::ExplicitCategory:
+                    if (layer->frameRateCategory == FrameRateCategory::HighHint) {
+                        hasHighHint = true;
+                    }
+                    break;
+                default:
+                    // No action
+                    break;
+            }
+            if (hasExplicitExactOrMultiple && hasExplicitDefault && hasHighHint) {
+                break;
+            }
+        }
 
+        // Layers with ExplicitExactOrMultiple expect touch boost
         if (globalSignals.touch && hasExplicitExactOrMultiple) {
+            continue;
+        }
+
+        // Mirrors getRankedFrameRates. If there is no ExplicitDefault, expect touch boost and
+        // skip frame rate override.
+        if (hasHighHint && !hasExplicitDefault) {
             continue;
         }
 
