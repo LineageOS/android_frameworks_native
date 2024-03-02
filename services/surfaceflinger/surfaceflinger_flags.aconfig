@@ -1,3 +1,5 @@
+# This file is locked and should not be changed. Use surfaceflinger_flags_new.aconfig
+
 package: "com.android.graphics.surfaceflinger.flags"
 container: "system"
 
@@ -25,6 +27,8 @@ flag {
   is_fixed_read_only: true
 }
 
+# This file is locked and should not be changed. Use surfaceflinger_flags_new.aconfig
+
 flag {
   name: "enable_layer_command_batching"
   namespace: "core_graphics"
@@ -48,6 +52,8 @@ flag {
   bug: "283055450"
   is_fixed_read_only: true
 }
+
+# This file is locked and should not be changed. Use surfaceflinger_flags_new.aconfig
 
 flag {
   name: "hotplug2"
@@ -73,6 +79,8 @@ flag {
   is_fixed_read_only: true
 }
 
+# This file is locked and should not be changed. Use surfaceflinger_flags_new.aconfig
+
 flag {
   name: "refresh_rate_overlay_on_external_display"
   namespace: "core_graphics"
@@ -97,6 +105,8 @@ flag {
 #   bug: "305718400"
 #   is_fixed_read_only: true
 # }
+
+# This file is locked and should not be changed. Use surfaceflinger_flags_new.aconfig
 
 flag {
   name: "cache_when_source_crop_layer_only_moved"
@@ -130,6 +140,8 @@ flag {
   is_fixed_read_only: true
 }
 
+# This file is locked and should not be changed. Use surfaceflinger_flags_new.aconfig
+
 flag {
   name: "game_default_frame_rate"
   namespace: "game"
@@ -162,6 +174,8 @@ flag {
   is_fixed_read_only: true
 }
 
+# This file is locked and should not be changed. Use surfaceflinger_flags_new.aconfig
+
 flag {
   name: "renderable_buffer_usage"
   namespace: "core_graphics"
@@ -184,6 +198,8 @@ flag {
   }
 }
 
+# This file is locked and should not be changed. Use surfaceflinger_flags_new.aconfig
+
 flag {
   name: "dont_skip_on_early_ro"
   namespace: "core_graphics"
@@ -205,3 +221,5 @@ flag {
     purpose: PURPOSE_BUGFIX
   }
 }
+
+# This file is locked and should not be changed. Use surfaceflinger_flags_new.aconfig
