@@ -12,7 +12,10 @@ aconfig_declarations {
     name: "surfaceflinger_flags",
     package: "com.android.graphics.surfaceflinger.flags",
     container: "system",
-    srcs: ["surfaceflinger_flags.aconfig"],
+    srcs: [
+        "surfaceflinger_flags.aconfig",
+        "surfaceflinger_flags_new.aconfig",
+    ],
 }
 
 cc_aconfig_library {
