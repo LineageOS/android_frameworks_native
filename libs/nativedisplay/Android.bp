@@ -34,7 +34,13 @@ license {
 
 cc_library_headers {
     name: "libnativedisplay_headers",
+    host_supported: true,
     export_include_dirs: ["include"],
+    target: {
+        windows: {
+            enabled: true,
+        },
+    },
 }
 
 cc_library_shared {

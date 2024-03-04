@@ -52,6 +52,10 @@
 #include <inttypes.h>
 #include <sys/cdefs.h>
 
+#if !defined(__INTRODUCED_IN)
+#define __INTRODUCED_IN(__api_level) /* nothing */
+#endif
+
 __BEGIN_DECLS
 
 // clang-format off

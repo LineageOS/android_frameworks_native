@@ -54,6 +54,11 @@ cc_library_headers {
         "test_com.android.media.swcodec",
     ],
     host_supported: true,
+    target: {
+        windows: {
+            enabled: true,
+        },
+    },
 }
 
 ndk_library {
