@@ -109,6 +109,7 @@ public:
     virtual ~Choreographer() override EXCLUDES(gChoreographers.lock);
     int64_t getFrameInterval() const;
     bool inCallback() const;
+    const sp<Looper> getLooper();
 
 private:
     Choreographer(const Choreographer&) = delete;
