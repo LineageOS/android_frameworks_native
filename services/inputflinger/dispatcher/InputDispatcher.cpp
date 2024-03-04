@@ -2558,9 +2558,9 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
                 return {};
             }
 
-            // Drop touch events if requested by input feature
+            // Do not slide events to the window which can not receive motion event
             if (newTouchedWindowHandle != nullptr &&
-                shouldDropInput(entry, newTouchedWindowHandle)) {
+                !canWindowReceiveMotionLocked(newTouchedWindowHandle, entry)) {
                 newTouchedWindowHandle = nullptr;
             }
 
