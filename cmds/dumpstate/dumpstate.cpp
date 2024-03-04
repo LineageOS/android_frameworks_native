@@ -3280,6 +3280,12 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
     // duration is logged into MYLOG instead.
     PrintHeader();
 
+    bool system_trace_exists = access(SYSTEM_TRACE_SNAPSHOT, F_OK) == 0;
+    if (options_->use_predumped_ui_data && !system_trace_exists) {
+        MYLOGW("Ignoring 'use predumped data' flag because no predumped data is available");
+        options_->use_predumped_ui_data = false;
+    }
+
     std::future<std::string> snapshot_system_trace;
 
     bool is_dumpstate_restricted =
