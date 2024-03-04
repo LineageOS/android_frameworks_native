@@ -591,6 +591,7 @@ TEST_F(SchedulerTest, nextFrameIntervalTest) {
                                              TimePoint::fromNs(2000)));
 
     // Not crossing the min frame period
+    vrrTracker->onFrameBegin(TimePoint::fromNs(2000), TimePoint::fromNs(1500));
     EXPECT_EQ(Fps::fromPeriodNsecs(1000),
               scheduler.getNextFrameInterval(kMode->getPhysicalDisplayId(),
                                              TimePoint::fromNs(2500)));
@@ -599,15 +600,15 @@ TEST_F(SchedulerTest, nextFrameIntervalTest) {
     vrrSelectorPtr->setActiveMode(kMode->getId(), frameRate);
     scheduler.setRenderRate(kMode->getPhysicalDisplayId(), frameRate);
 
-    // Set 2000 as vsync seq #0
-    vrrTracker->nextAnticipatedVSyncTimeFrom(1700);
+    // Set 4000 as vsync seq #0
+    vrrTracker->nextAnticipatedVSyncTimeFrom(3700);
 
     EXPECT_EQ(Fps::fromPeriodNsecs(2000),
               scheduler.getNextFrameInterval(kMode->getPhysicalDisplayId(),
-                                             TimePoint::fromNs(2000)));
+                                             TimePoint::fromNs(4000)));
     EXPECT_EQ(Fps::fromPeriodNsecs(2000),
               scheduler.getNextFrameInterval(kMode->getPhysicalDisplayId(),
-                                             TimePoint::fromNs(4000)));
+                                             TimePoint::fromNs(6000)));
 }
 
 TEST_F(SchedulerTest, resyncAllToHardwareVsync) FTL_FAKE_GUARD(kMainThreadContext) {

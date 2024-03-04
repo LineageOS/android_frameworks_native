@@ -688,6 +688,50 @@ TEST_F(VSyncPredictorTest, adjustsVrrTimeline) {
     EXPECT_EQ(10500, vrrTracker.nextAnticipatedVSyncTimeFrom(9000, 7000));
 }
 
+TEST_F(VSyncPredictorTest, adjustsVrrTimelineTwoClients) {
+    SET_FLAG_FOR_TEST(flags::vrr_config, true);
+
+    const int32_t kGroup = 0;
+    const auto kResolution = ui::Size(1920, 1080);
+    const auto refreshRate = Fps::fromPeriodNsecs(500);
+    const auto minFrameRate = Fps::fromPeriodNsecs(1000);
+    hal::VrrConfig vrrConfig;
+    vrrConfig.minFrameIntervalNs = minFrameRate.getPeriodNsecs();
+    const ftl::NonNull<DisplayModePtr> kMode =
+            ftl::as_non_null(createDisplayModeBuilder(DisplayModeId(0), refreshRate, kGroup,
+                                                      kResolution, DEFAULT_DISPLAY_ID)
+                                     .setVrrConfig(std::move(vrrConfig))
+                                     .build());
+
+    VSyncPredictor vrrTracker{std::make_unique<ClockWrapper>(mClock), kMode, kHistorySize,
+                              kMinimumSamplesForPrediction, kOutlierTolerancePercent};
+
+    vrrTracker.setRenderRate(minFrameRate);
+    vrrTracker.addVsyncTimestamp(0);
+    EXPECT_EQ(3000, vrrTracker.nextAnticipatedVSyncTimeFrom(2700));
+
+    EXPECT_EQ(4000, vrrTracker.nextAnticipatedVSyncTimeFrom(3000, 3000));
+
+    EXPECT_EQ(5000, vrrTracker.nextAnticipatedVSyncTimeFrom(4000, 4000));
+    EXPECT_EQ(3000, vrrTracker.nextAnticipatedVSyncTimeFrom(2700));
+    vrrTracker.onFrameBegin(TimePoint::fromNs(3000), TimePoint::fromNs(0));
+
+    EXPECT_EQ(6000, vrrTracker.nextAnticipatedVSyncTimeFrom(5000, 5000));
+    EXPECT_EQ(4000, vrrTracker.nextAnticipatedVSyncTimeFrom(3700));
+    vrrTracker.onFrameMissed(TimePoint::fromNs(4000));
+
+    EXPECT_EQ(4500, vrrTracker.nextAnticipatedVSyncTimeFrom(4000, 4000));
+    vrrTracker.onFrameBegin(TimePoint::fromNs(4500), TimePoint::fromNs(4500));
+
+    EXPECT_EQ(7500, vrrTracker.nextAnticipatedVSyncTimeFrom(6000, 6000));
+    EXPECT_EQ(5500, vrrTracker.nextAnticipatedVSyncTimeFrom(4500, 4500));
+    vrrTracker.onFrameBegin(TimePoint::fromNs(5500), TimePoint::fromNs(4500));
+
+    EXPECT_EQ(8500, vrrTracker.nextAnticipatedVSyncTimeFrom(7500, 7500));
+    EXPECT_EQ(6500, vrrTracker.nextAnticipatedVSyncTimeFrom(5500, 5500));
+    vrrTracker.onFrameBegin(TimePoint::fromNs(6500), TimePoint::fromNs(5500));
+}
+
 TEST_F(VSyncPredictorTest, renderRateIsPreservedForCommittedVsyncs) {
     tracker.addVsyncTimestamp(1000);
 
