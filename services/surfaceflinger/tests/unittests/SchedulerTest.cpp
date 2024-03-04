@@ -25,7 +25,6 @@
 #include "Scheduler/EventThread.h"
 #include "Scheduler/RefreshRateSelector.h"
 #include "Scheduler/VSyncPredictor.h"
-#include "Scheduler/VSyncReactor.h"
 #include "TestableScheduler.h"
 #include "TestableSurfaceFlinger.h"
 #include "mock/DisplayHardware/MockDisplayMode.h"
@@ -564,8 +563,7 @@ TEST_F(SchedulerTest, nextFrameIntervalTest) {
                                  hal::VrrConfig{.minFrameIntervalNs = static_cast<int32_t>(
                                                         frameRate.getPeriodNsecs())}));
     std::shared_ptr<VSyncPredictor> vrrTracker =
-            std::make_shared<VSyncPredictor>(std::make_unique<SystemClock>(), kMode, kHistorySize,
-                                             kMinimumSamplesForPrediction,
+            std::make_shared<VSyncPredictor>(kMode, kHistorySize, kMinimumSamplesForPrediction,
                                              kOutlierTolerancePercent);
     std::shared_ptr<RefreshRateSelector> vrrSelectorPtr =
             std::make_shared<RefreshRateSelector>(makeModes(kMode), kMode->getId());
@@ -580,8 +578,6 @@ TEST_F(SchedulerTest, nextFrameIntervalTest) {
     vrrSelectorPtr->setActiveMode(kMode->getId(), frameRate);
     scheduler.setRenderRate(kMode->getPhysicalDisplayId(), frameRate);
     vrrTracker->addVsyncTimestamp(0);
-    // Set 1000 as vsync seq #0
-    vrrTracker->nextAnticipatedVSyncTimeFrom(700);
 
     EXPECT_EQ(Fps::fromPeriodNsecs(1000),
               scheduler.getNextFrameInterval(kMode->getPhysicalDisplayId(),
@@ -591,16 +587,13 @@ TEST_F(SchedulerTest, nextFrameIntervalTest) {
                                              TimePoint::fromNs(2000)));
 
     // Not crossing the min frame period
-    EXPECT_EQ(Fps::fromPeriodNsecs(1000),
+    EXPECT_EQ(Fps::fromPeriodNsecs(1500),
               scheduler.getNextFrameInterval(kMode->getPhysicalDisplayId(),
                                              TimePoint::fromNs(2500)));
     // Change render rate
     frameRate = Fps::fromPeriodNsecs(2000);
     vrrSelectorPtr->setActiveMode(kMode->getId(), frameRate);
     scheduler.setRenderRate(kMode->getPhysicalDisplayId(), frameRate);
-
-    // Set 2000 as vsync seq #0
-    vrrTracker->nextAnticipatedVSyncTimeFrom(1700);
 
     EXPECT_EQ(Fps::fromPeriodNsecs(2000),
               scheduler.getNextFrameInterval(kMode->getPhysicalDisplayId(),
