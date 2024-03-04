@@ -22,7 +22,6 @@
 #include <vector>
 
 #include <android-base/thread_annotations.h>
-#include <scheduler/TimeKeeper.h>
 #include <ui/DisplayId.h>
 
 #include "VSyncTracker.h"
@@ -32,7 +31,6 @@ namespace android::scheduler {
 class VSyncPredictor : public VSyncTracker {
 public:
     /*
-     * \param [in] Clock The clock abstraction. Useful for unit tests.
      * \param [in] PhysicalDisplayid The display this corresponds to.
      * \param [in] modePtr  The initial display mode
      * \param [in] historySize  The internal amount of entries to store in the model.
@@ -40,13 +38,13 @@ public:
      * predicting. \param [in] outlierTolerancePercent a number 0 to 100 that will be used to filter
      * samples that fall outlierTolerancePercent from an anticipated vsync event.
      */
-    VSyncPredictor(std::unique_ptr<Clock>, ftl::NonNull<DisplayModePtr> modePtr, size_t historySize,
+    VSyncPredictor(ftl::NonNull<DisplayModePtr> modePtr, size_t historySize,
                    size_t minimumSamplesForPrediction, uint32_t outlierTolerancePercent);
     ~VSyncPredictor();
 
     bool addVsyncTimestamp(nsecs_t timestamp) final EXCLUDES(mMutex);
     nsecs_t nextAnticipatedVSyncTimeFrom(nsecs_t timePoint,
-                                         std::optional<nsecs_t> lastVsyncOpt = {}) final
+                                         std::optional<nsecs_t> lastVsyncOpt = {}) const final
             EXCLUDES(mMutex);
     nsecs_t currentPeriod() const final EXCLUDES(mMutex);
     Period minFramePeriod() const final EXCLUDES(mMutex);
@@ -64,7 +62,7 @@ public:
 
     VSyncPredictor::Model getVSyncPredictionModel() const EXCLUDES(mMutex);
 
-    bool isVSyncInPhase(nsecs_t timePoint, Fps frameRate) final EXCLUDES(mMutex);
+    bool isVSyncInPhase(nsecs_t timePoint, Fps frameRate) const final EXCLUDES(mMutex);
 
     void setDisplayModePtr(ftl::NonNull<DisplayModePtr>) final EXCLUDES(mMutex);
 
@@ -77,42 +75,10 @@ public:
     void dump(std::string& result) const final EXCLUDES(mMutex);
 
 private:
-    struct VsyncSequence {
-        nsecs_t vsyncTime;
-        int64_t seq;
-    };
-
-    struct MissedVsync {
-        TimePoint vsync;
-        Duration fixup = Duration::fromNs(0);
-    };
-
-    class VsyncTimeline {
-    public:
-        VsyncTimeline(Period idealPeriod, std::optional<Fps> renderRateOpt);
-        std::optional<TimePoint> nextAnticipatedVSyncTimeFrom(
-                Model model, Period minFramePeriod, nsecs_t vsyncTime, MissedVsync lastMissedVsync,
-                std::optional<nsecs_t> lastVsyncOpt = {});
-        void freeze(TimePoint lastVsync);
-        std::optional<TimePoint> validUntil() const { return mValidUntil; }
-        bool isVSyncInPhase(Model, nsecs_t vsync, Fps frameRate);
-        void shiftVsyncSequence(Duration phase);
-
-    private:
-        nsecs_t snapToVsyncAlignedWithRenderRate(Model model, nsecs_t vsync);
-        VsyncSequence getVsyncSequenceLocked(Model, nsecs_t vsync);
-
-        const Period mIdealPeriod = Duration::fromNs(0);
-        const std::optional<Fps> mRenderRateOpt;
-        std::optional<TimePoint> mValidUntil;
-        std::optional<VsyncSequence> mLastVsyncSequence;
-    };
-
     VSyncPredictor(VSyncPredictor const&) = delete;
     VSyncPredictor& operator=(VSyncPredictor const&) = delete;
     void clearTimestamps() REQUIRES(mMutex);
 
-    const std::unique_ptr<Clock> mClock;
     const PhysicalDisplayId mId;
 
     inline void traceInt64If(const char* name, int64_t value) const;
@@ -122,10 +88,16 @@ private:
     bool validate(nsecs_t timestamp) const REQUIRES(mMutex);
     Model getVSyncPredictionModelLocked() const REQUIRES(mMutex);
     nsecs_t snapToVsync(nsecs_t timePoint) const REQUIRES(mMutex);
+    nsecs_t snapToVsyncAlignedWithRenderRate(nsecs_t timePoint) const REQUIRES(mMutex);
+    bool isVSyncInPhaseLocked(nsecs_t timePoint, unsigned divisor) const REQUIRES(mMutex);
     Period minFramePeriodLocked() const REQUIRES(mMutex);
-    Duration ensureMinFrameDurationIsKept(TimePoint, TimePoint) REQUIRES(mMutex);
-    void purgeTimelines(android::TimePoint now) REQUIRES(mMutex);
+    void ensureMinFrameDurationIsKept(TimePoint, TimePoint) REQUIRES(mMutex);
 
+    struct VsyncSequence {
+        nsecs_t vsyncTime;
+        int64_t seq;
+    };
+    VsyncSequence getVsyncSequenceLocked(nsecs_t timestamp) const REQUIRES(mMutex);
     nsecs_t idealPeriod() const REQUIRES(mMutex);
 
     bool const mTraceOn;
@@ -143,15 +115,13 @@ private:
     std::vector<nsecs_t> mTimestamps GUARDED_BY(mMutex);
 
     ftl::NonNull<DisplayModePtr> mDisplayModePtr GUARDED_BY(mMutex);
+    std::optional<Fps> mRenderRateOpt GUARDED_BY(mMutex);
+
+    mutable std::optional<VsyncSequence> mLastVsyncSequence GUARDED_BY(mMutex);
 
     std::deque<TimePoint> mPastExpectedPresentTimes GUARDED_BY(mMutex);
 
-    MissedVsync mMissedVsync GUARDED_BY(mMutex);
-
-    std::deque<VsyncTimeline> mTimelines GUARDED_BY(mMutex);
-    TimePoint mLastCommittedVsync GUARDED_BY(mMutex) = TimePoint::fromNs(0);
-    Period mIdealPeriod GUARDED_BY(mMutex) = Duration::fromNs(0);
-    std::optional<Fps> mRenderRateOpt GUARDED_BY(mMutex);
+    TimePoint mLastMissedVsync GUARDED_BY(mMutex);
 };
 
 } // namespace android::scheduler
