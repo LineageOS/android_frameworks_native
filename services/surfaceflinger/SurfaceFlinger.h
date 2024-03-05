@@ -874,17 +874,13 @@ private:
     // Boot animation, on/off animations and screen capture
     void startBootAnim();
 
-    bool layersHasProtectedLayer(const std::vector<std::pair<Layer*, sp<LayerFE>>>& layers) const;
-
     void captureScreenCommon(RenderAreaFuture, GetLayerSnapshotsFunction, ui::Size bufferSize,
                              ui::PixelFormat, bool allowProtected, bool grayscale,
                              const sp<IScreenCaptureListener>&);
-
-    ftl::SharedFuture<FenceResult> captureScreenshot(
+    ftl::SharedFuture<FenceResult> captureScreenCommon(
             RenderAreaFuture, GetLayerSnapshotsFunction,
             const std::shared_ptr<renderengine::ExternalTexture>&, bool regionSampling,
             bool grayscale, bool isProtected, const sp<IScreenCaptureListener>&);
-
     ftl::SharedFuture<FenceResult> renderScreenImpl(
             std::shared_ptr<const RenderArea>, GetLayerSnapshotsFunction,
             const std::shared_ptr<renderengine::ExternalTexture>&, bool regionSampling,
