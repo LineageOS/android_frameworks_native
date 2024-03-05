@@ -53,7 +53,10 @@ cc_library_static {
 cc_test {
     name: "libscheduler_test",
     test_suites: ["device-tests"],
-    defaults: ["libscheduler_defaults"],
+    defaults: [
+        "libscheduler_defaults",
+        "libsurfaceflinger_common_test_deps",
+    ],
     srcs: [
         "tests/FrameTargeterTest.cpp",
         "tests/PresentLatencyTrackerTest.cpp",
@@ -63,9 +66,5 @@ cc_test {
         "libgmock",
         "libgtest",
         "libscheduler",
-        "libsurfaceflingerflags_test",
-    ],
-    shared_libs: [
-        "server_configurable_flags",
     ],
 }

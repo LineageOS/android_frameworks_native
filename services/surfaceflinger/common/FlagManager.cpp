@@ -26,6 +26,7 @@
 #include <server_configurable_flags/get_flags.h>
 #include <cinttypes>
 
+#include <android_os.h>
 #include <com_android_graphics_surfaceflinger_flags.h>
 
 namespace android {
@@ -109,6 +110,7 @@ void FlagManager::dump(std::string& result) const {
 
     /// Trunk stable server flags ///
     DUMP_SERVER_FLAG(refresh_rate_overlay_on_external_display);
+    DUMP_SERVER_FLAG(adpf_use_fmq_channel);
 
     /// Trunk stable readonly flags ///
     DUMP_READ_ONLY_FLAG(connected_display);
@@ -158,7 +160,7 @@ bool FlagManager::getServerConfigurableFlag(const char* experimentFlagName) cons
         return getServerConfigurableFlag(serverFlagName);                                   \
     }
 
-#define FLAG_MANAGER_FLAG_INTERNAL(name, syspropOverride, checkForBootCompleted)                \
+#define FLAG_MANAGER_FLAG_INTERNAL(name, syspropOverride, checkForBootCompleted, owner)         \
     bool FlagManager::name() const {                                                            \
         if (checkForBootCompleted) {                                                            \
             LOG_ALWAYS_FATAL_IF(!mBootCompleted,                                                \
@@ -166,21 +168,24 @@ bool FlagManager::getServerConfigurableFlag(const char* experimentFlagName) cons
                                 __func__);                                                      \
         }                                                                                       \
         static const std::optional<bool> debugOverride = getBoolProperty(syspropOverride);      \
-        static const bool value = getFlagValue([] { return flags::name(); }, debugOverride);    \
+        static const bool value = getFlagValue([] { return owner ::name(); }, debugOverride);   \
         if (mUnitTestMode) {                                                                    \
             /*                                                                                  \
              * When testing, we don't want to rely on the cached `value` or the debugOverride.  \
              */                                                                                 \
-            return flags::name();                                                               \
+            return owner ::name();                                                              \
         }                                                                                       \
         return value;                                                                           \
     }
 
 #define FLAG_MANAGER_SERVER_FLAG(name, syspropOverride) \
-    FLAG_MANAGER_FLAG_INTERNAL(name, syspropOverride, true)
+    FLAG_MANAGER_FLAG_INTERNAL(name, syspropOverride, true, flags)
 
 #define FLAG_MANAGER_READ_ONLY_FLAG(name, syspropOverride) \
-    FLAG_MANAGER_FLAG_INTERNAL(name, syspropOverride, false)
+    FLAG_MANAGER_FLAG_INTERNAL(name, syspropOverride, false, flags)
+
+#define FLAG_MANAGER_SERVER_FLAG_IMPORTED(name, syspropOverride, owner) \
+    FLAG_MANAGER_FLAG_INTERNAL(name, syspropOverride, true, owner)
 
 /// Legacy server flags ///
 FLAG_MANAGER_LEGACY_SERVER_FLAG(test_flag, "", "")
@@ -215,5 +220,8 @@ FLAG_MANAGER_READ_ONLY_FLAG(protected_if_client, "")
 
 /// Trunk stable server flags ///
 FLAG_MANAGER_SERVER_FLAG(refresh_rate_overlay_on_external_display, "")
+
+/// Trunk stable server flags from outside SurfaceFlinger ///
+FLAG_MANAGER_SERVER_FLAG_IMPORTED(adpf_use_fmq_channel, "", android::os)
 
 } // namespace android

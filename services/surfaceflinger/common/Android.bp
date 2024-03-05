@@ -35,6 +35,7 @@ cc_library_static {
     ],
     static_libs: [
         "libsurfaceflingerflags",
+        "android.os.flags-aconfig-cc",
     ],
 }
 
@@ -45,5 +46,30 @@ cc_library_static {
     ],
     static_libs: [
         "libsurfaceflingerflags_test",
+        "android.os.flags-aconfig-cc-test",
+    ],
+}
+
+cc_defaults {
+    name: "libsurfaceflinger_common_deps",
+    shared_libs: [
+        "server_configurable_flags",
+    ],
+    static_libs: [
+        "libsurfaceflinger_common",
+        "libsurfaceflingerflags",
+        "android.os.flags-aconfig-cc",
+    ],
+}
+
+cc_defaults {
+    name: "libsurfaceflinger_common_test_deps",
+    shared_libs: [
+        "server_configurable_flags",
+    ],
+    static_libs: [
+        "libsurfaceflinger_common_test",
+        "libsurfaceflingerflags_test",
+        "android.os.flags-aconfig-cc-test",
     ],
 }

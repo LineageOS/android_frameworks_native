@@ -49,6 +49,7 @@ public:
 
     /// Trunk stable server flags ///
     bool refresh_rate_overlay_on_external_display() const;
+    bool adpf_use_fmq_channel() const;
 
     /// Trunk stable readonly flags ///
     bool connected_display() const;
