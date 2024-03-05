@@ -155,10 +155,9 @@ int SensorPrivacyManager::getToggleSensorPrivacyState(int toggleType, int sensor
     return DISABLED;
 }
 
-std::vector<hardware::CameraPrivacyAllowlistEntry>
-        SensorPrivacyManager::getCameraPrivacyAllowlist(){
+std::vector<String16> SensorPrivacyManager::getCameraPrivacyAllowlist(){
     sp<hardware::ISensorPrivacyManager> service = getService();
-    std::vector<hardware::CameraPrivacyAllowlistEntry> result;
+    std::vector<String16> result;
     if (service != nullptr) {
         service->getCameraPrivacyAllowlist(&result);
         return result;
