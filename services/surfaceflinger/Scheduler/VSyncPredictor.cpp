@@ -45,35 +45,11 @@ using base::StringAppendF;
 
 static auto constexpr kMaxPercent = 100u;
 
-namespace {
-nsecs_t getVsyncFixup(VSyncPredictor::Model model, Period minFramePeriod, nsecs_t vsyncTime,
-                      std::optional<nsecs_t> lastVsyncOpt) {
-    const auto threshold = model.slope / 2;
-
-    if (FlagManager::getInstance().vrr_config() && lastVsyncOpt) {
-        const auto vsyncDiff = vsyncTime - *lastVsyncOpt;
-        if (vsyncDiff >= threshold && vsyncDiff <= minFramePeriod.ns() - threshold) {
-            const auto vsyncFixup = *lastVsyncOpt + minFramePeriod.ns() - vsyncTime;
-            ATRACE_FORMAT_INSTANT("minFramePeriod violation. next in %.2f which is %.2f from prev. "
-                                  "adjust by %.2f",
-                                  static_cast<float>(vsyncTime - TimePoint::now().ns()) / 1e6f,
-                                  static_cast<float>(vsyncTime - *lastVsyncOpt) / 1e6f,
-                                  static_cast<float>(vsyncFixup) / 1e6f);
-            return vsyncFixup;
-        }
-    }
-
-    return 0;
-}
-} // namespace
-
 VSyncPredictor::~VSyncPredictor() = default;
 
-VSyncPredictor::VSyncPredictor(std::unique_ptr<Clock> clock, ftl::NonNull<DisplayModePtr> modePtr,
-                               size_t historySize, size_t minimumSamplesForPrediction,
-                               uint32_t outlierTolerancePercent)
-      : mClock(std::move(clock)),
-        mId(modePtr->getPhysicalDisplayId()),
+VSyncPredictor::VSyncPredictor(ftl::NonNull<DisplayModePtr> modePtr, size_t historySize,
+                               size_t minimumSamplesForPrediction, uint32_t outlierTolerancePercent)
+      : mId(modePtr->getPhysicalDisplayId()),
         mTraceOn(property_get_bool("debug.sf.vsp_trace", false)),
         kHistorySize(historySize),
         kMinimumSamplesForPrediction(minimumSamplesForPrediction),
@@ -171,7 +147,7 @@ bool VSyncPredictor::addVsyncTimestamp(nsecs_t timestamp) {
             mKnownTimestamp = timestamp;
         }
         ATRACE_FORMAT_INSTANT("timestamp rejected. mKnownTimestamp was %.2fms ago",
-                              (mClock->now() - *mKnownTimestamp) / 1e6f);
+            (systemTime() - *mKnownTimestamp) / 1e6f);
         return false;
     }
 
@@ -274,6 +250,17 @@ bool VSyncPredictor::addVsyncTimestamp(nsecs_t timestamp) {
     return true;
 }
 
+auto VSyncPredictor::getVsyncSequenceLocked(nsecs_t timestamp) const -> VsyncSequence {
+    const auto vsync = snapToVsync(timestamp);
+    if (!mLastVsyncSequence) return {vsync, 0};
+
+    const auto [slope, _] = getVSyncPredictionModelLocked();
+    const auto [lastVsyncTime, lastVsyncSequence] = *mLastVsyncSequence;
+    const auto vsyncSequence = lastVsyncSequence +
+            static_cast<int64_t>(std::round((vsync - lastVsyncTime) / static_cast<float>(slope)));
+    return {vsync, vsyncSequence};
+}
+
 nsecs_t VSyncPredictor::snapToVsync(nsecs_t timePoint) const {
     auto const [slope, intercept] = getVSyncPredictionModelLocked();
 
@@ -311,32 +298,51 @@ nsecs_t VSyncPredictor::snapToVsync(nsecs_t timePoint) const {
 }
 
 nsecs_t VSyncPredictor::nextAnticipatedVSyncTimeFrom(nsecs_t timePoint,
-                                                     std::optional<nsecs_t> lastVsyncOpt) {
+                                                     std::optional<nsecs_t> lastVsyncOpt) const {
     ATRACE_CALL();
     std::lock_guard lock(mMutex);
+    const auto currentPeriod = mRateMap.find(idealPeriod())->second.slope;
+    const auto threshold = currentPeriod / 2;
+    const auto minFramePeriod = minFramePeriodLocked().ns();
+    const auto lastFrameMissed =
+            lastVsyncOpt && std::abs(*lastVsyncOpt - mLastMissedVsync.ns()) < threshold;
+    const nsecs_t baseTime =
+            FlagManager::getInstance().vrr_config() && !lastFrameMissed && lastVsyncOpt
+            ? std::max(timePoint, *lastVsyncOpt + minFramePeriod - threshold)
+            : timePoint;
+    return snapToVsyncAlignedWithRenderRate(baseTime);
+}
 
-    const auto now = TimePoint::fromNs(mClock->now());
-    purgeTimelines(now);
+nsecs_t VSyncPredictor::snapToVsyncAlignedWithRenderRate(nsecs_t timePoint) const {
+    // update the mLastVsyncSequence for reference point
+    mLastVsyncSequence = getVsyncSequenceLocked(timePoint);
 
-    std::optional<TimePoint> vsyncOpt;
-    for (auto& timeline : mTimelines) {
-        vsyncOpt = timeline.nextAnticipatedVSyncTimeFrom(getVSyncPredictionModelLocked(),
-                                                         minFramePeriodLocked(),
-                                                         snapToVsync(timePoint), mMissedVsync,
-                                                         lastVsyncOpt);
-        if (vsyncOpt) {
-            break;
+    const auto renderRatePhase = [&]() REQUIRES(mMutex) -> int {
+        if (!mRenderRateOpt) return 0;
+        const auto divisor =
+                RefreshRateSelector::getFrameRateDivisor(Fps::fromPeriodNsecs(idealPeriod()),
+                                                         *mRenderRateOpt);
+        if (divisor <= 1) return 0;
+
+        int mod = mLastVsyncSequence->seq % divisor;
+        if (mod == 0) return 0;
+
+        // This is actually a bug fix, but guarded with vrr_config since we found it with this
+        // config
+        if (FlagManager::getInstance().vrr_config()) {
+            if (mod < 0) mod += divisor;
         }
-    }
-    LOG_ALWAYS_FATAL_IF(!vsyncOpt);
 
-    if (*vsyncOpt > mLastCommittedVsync) {
-        mLastCommittedVsync = *vsyncOpt;
-        ATRACE_FORMAT_INSTANT("mLastCommittedVsync in %.2fms",
-                              float(mLastCommittedVsync.ns() - mClock->now()) / 1e6f);
+        return divisor - mod;
+    }();
+
+    if (renderRatePhase == 0) {
+        return mLastVsyncSequence->vsyncTime;
     }
 
-    return vsyncOpt->ns();
+    auto const [slope, intercept] = getVSyncPredictionModelLocked();
+    const auto approximateNextVsync = mLastVsyncSequence->vsyncTime + slope * renderRatePhase;
+    return snapToVsync(approximateNextVsync - slope / 2);
 }
 
 /*
@@ -347,28 +353,32 @@ nsecs_t VSyncPredictor::nextAnticipatedVSyncTimeFrom(nsecs_t timePoint,
  * isVSyncInPhase(33.3, 30) = false
  * isVSyncInPhase(50.0, 30) = true
  */
-bool VSyncPredictor::isVSyncInPhase(nsecs_t timePoint, Fps frameRate) {
-    if (timePoint == 0) {
+bool VSyncPredictor::isVSyncInPhase(nsecs_t timePoint, Fps frameRate) const {
+    std::lock_guard lock(mMutex);
+    const auto divisor =
+            RefreshRateSelector::getFrameRateDivisor(Fps::fromPeriodNsecs(idealPeriod()),
+                                                     frameRate);
+    return isVSyncInPhaseLocked(timePoint, static_cast<unsigned>(divisor));
+}
+
+bool VSyncPredictor::isVSyncInPhaseLocked(nsecs_t timePoint, unsigned divisor) const {
+    const TimePoint now = TimePoint::now();
+    const auto getTimePointIn = [](TimePoint now, nsecs_t timePoint) -> float {
+        return ticks<std::milli, float>(TimePoint::fromNs(timePoint) - now);
+    };
+    ATRACE_FORMAT("%s timePoint in: %.2f divisor: %zu", __func__, getTimePointIn(now, timePoint),
+                  divisor);
+
+    if (divisor <= 1 || timePoint == 0) {
         return true;
     }
 
-    std::lock_guard lock(mMutex);
-    const auto model = getVSyncPredictionModelLocked();
-    const nsecs_t period = model.slope;
+    const nsecs_t period = mRateMap[idealPeriod()].slope;
     const nsecs_t justBeforeTimePoint = timePoint - period / 2;
-    const auto now = TimePoint::fromNs(mClock->now());
-    const auto vsync = snapToVsync(justBeforeTimePoint);
-
-    purgeTimelines(now);
-
-    for (auto& timeline : mTimelines) {
-        if (timeline.validUntil() && timeline.validUntil()->ns() > vsync) {
-            return timeline.isVSyncInPhase(model, vsync, frameRate);
-        }
-    }
-
-    // The last timeline should always be valid
-    return mTimelines.back().isVSyncInPhase(model, vsync, frameRate);
+    const auto vsyncSequence = getVsyncSequenceLocked(justBeforeTimePoint);
+    ATRACE_FORMAT_INSTANT("vsync in: %.2f sequence: %" PRId64,
+                          getTimePointIn(now, vsyncSequence.vsyncTime), vsyncSequence.seq);
+    return vsyncSequence.seq % divisor == 0;
 }
 
 void VSyncPredictor::setRenderRate(Fps renderRate) {
@@ -376,9 +386,6 @@ void VSyncPredictor::setRenderRate(Fps renderRate) {
     ALOGV("%s %s: RenderRate %s ", __func__, to_string(mId).c_str(), to_string(renderRate).c_str());
     std::lock_guard lock(mMutex);
     mRenderRateOpt = renderRate;
-    mTimelines.back().freeze(TimePoint::fromNs(mLastCommittedVsync.ns() + mIdealPeriod.ns() / 2));
-    mTimelines.emplace_back(mIdealPeriod, renderRate);
-    purgeTimelines(TimePoint::fromNs(mClock->now()));
 }
 
 void VSyncPredictor::setDisplayModePtr(ftl::NonNull<DisplayModePtr> modePtr) {
@@ -408,9 +415,8 @@ void VSyncPredictor::setDisplayModePtr(ftl::NonNull<DisplayModePtr> modePtr) {
     clearTimestamps();
 }
 
-Duration VSyncPredictor::ensureMinFrameDurationIsKept(TimePoint expectedPresentTime,
-                                                      TimePoint lastConfirmedPresentTime) {
-    ATRACE_CALL();
+void VSyncPredictor::ensureMinFrameDurationIsKept(TimePoint expectedPresentTime,
+                                                  TimePoint lastConfirmedPresentTime) {
     const auto currentPeriod = mRateMap.find(idealPeriod())->second.slope;
     const auto threshold = currentPeriod / 2;
     const auto minFramePeriod = minFramePeriodLocked().ns();
@@ -436,20 +442,17 @@ Duration VSyncPredictor::ensureMinFrameDurationIsKept(TimePoint expectedPresentT
     if (!mPastExpectedPresentTimes.empty()) {
         const auto phase = Duration(mPastExpectedPresentTimes.back() - expectedPresentTime);
         if (phase > 0ns) {
-            for (auto& timeline : mTimelines) {
-                timeline.shiftVsyncSequence(phase);
+            if (mLastVsyncSequence) {
+                mLastVsyncSequence->vsyncTime += phase.ns();
             }
             mPastExpectedPresentTimes.clear();
-            return phase;
         }
     }
-
-    return 0ns;
 }
 
 void VSyncPredictor::onFrameBegin(TimePoint expectedPresentTime,
                                   TimePoint lastConfirmedPresentTime) {
-    ATRACE_NAME("VSyncPredictor::onFrameBegin");
+    ATRACE_CALL();
     std::lock_guard lock(mMutex);
 
     if (!mDisplayModePtr->getVrrConfig()) return;
@@ -479,14 +482,11 @@ void VSyncPredictor::onFrameBegin(TimePoint expectedPresentTime,
         }
     }
 
-    const auto phase = ensureMinFrameDurationIsKept(expectedPresentTime, lastConfirmedPresentTime);
-    if (phase > 0ns) {
-        mMissedVsync = {expectedPresentTime, minFramePeriodLocked()};
-    }
+    ensureMinFrameDurationIsKept(expectedPresentTime, lastConfirmedPresentTime);
 }
 
 void VSyncPredictor::onFrameMissed(TimePoint expectedPresentTime) {
-    ATRACE_NAME("VSyncPredictor::onFrameMissed");
+    ATRACE_CALL();
 
     std::lock_guard lock(mMutex);
     if (!mDisplayModePtr->getVrrConfig()) return;
@@ -496,15 +496,14 @@ void VSyncPredictor::onFrameMissed(TimePoint expectedPresentTime) {
     const auto lastConfirmedPresentTime =
             TimePoint::fromNs(expectedPresentTime.ns() + currentPeriod);
 
-    const auto phase = ensureMinFrameDurationIsKept(expectedPresentTime, lastConfirmedPresentTime);
-    if (phase > 0ns) {
-        mMissedVsync = {expectedPresentTime, Duration::fromNs(0)};
-    }
+    ensureMinFrameDurationIsKept(expectedPresentTime, lastConfirmedPresentTime);
+    mLastMissedVsync = expectedPresentTime;
 }
 
 VSyncPredictor::Model VSyncPredictor::getVSyncPredictionModel() const {
     std::lock_guard lock(mMutex);
-    return VSyncPredictor::getVSyncPredictionModelLocked();
+    const auto model = VSyncPredictor::getVSyncPredictionModelLocked();
+    return {model.slope, model.intercept};
 }
 
 VSyncPredictor::Model VSyncPredictor::getVSyncPredictionModelLocked() const {
@@ -525,11 +524,6 @@ void VSyncPredictor::clearTimestamps() {
         mTimestamps.clear();
         mLastTimestampIndex = 0;
     }
-
-    mTimelines.clear();
-    mLastCommittedVsync = TimePoint::fromNs(0);
-    mIdealPeriod = Period::fromNs(idealPeriod());
-    mTimelines.emplace_back(mIdealPeriod, mRenderRateOpt);
 }
 
 bool VSyncPredictor::needsMoreSamples() const {
@@ -552,130 +546,6 @@ void VSyncPredictor::dump(std::string& result) const {
                       "\t\tFor ideal period %.2fms: period = %.2fms, intercept = %" PRId64 "\n",
                       period / 1e6f, periodInterceptTuple.slope / 1e6f,
                       periodInterceptTuple.intercept);
-    }
-    StringAppendF(&result, "\tmTimelines.size()=%zu\n", mTimelines.size());
-}
-
-void VSyncPredictor::purgeTimelines(android::TimePoint now) {
-    while (mTimelines.size() > 1) {
-        const auto validUntilOpt = mTimelines.front().validUntil();
-        if (validUntilOpt && *validUntilOpt < now) {
-            mTimelines.pop_front();
-        } else {
-            break;
-        }
-    }
-    LOG_ALWAYS_FATAL_IF(mTimelines.empty());
-    LOG_ALWAYS_FATAL_IF(mTimelines.back().validUntil().has_value());
-}
-
-VSyncPredictor::VsyncTimeline::VsyncTimeline(Period idealPeriod, std::optional<Fps> renderRateOpt)
-      : mIdealPeriod(idealPeriod), mRenderRateOpt(renderRateOpt) {}
-
-void VSyncPredictor::VsyncTimeline::freeze(TimePoint lastVsync) {
-    LOG_ALWAYS_FATAL_IF(mValidUntil.has_value());
-    ATRACE_FORMAT_INSTANT("renderRate %s valid for %.2f",
-                          mRenderRateOpt ? to_string(*mRenderRateOpt).c_str() : "NA",
-                          float(lastVsync.ns() - TimePoint::now().ns()) / 1e6f);
-    mValidUntil = lastVsync;
-}
-
-std::optional<TimePoint> VSyncPredictor::VsyncTimeline::nextAnticipatedVSyncTimeFrom(
-        Model model, Period minFramePeriod, nsecs_t vsync, MissedVsync missedVsync,
-        std::optional<nsecs_t> lastVsyncOpt) {
-    ATRACE_FORMAT("renderRate %s", mRenderRateOpt ? to_string(*mRenderRateOpt).c_str() : "NA");
-
-    const auto threshold = model.slope / 2;
-    const auto lastFrameMissed =
-            lastVsyncOpt && std::abs(*lastVsyncOpt - missedVsync.vsync.ns()) < threshold;
-    nsecs_t vsyncTime = snapToVsyncAlignedWithRenderRate(model, vsync);
-    nsecs_t vsyncFixupTime = 0;
-    if (FlagManager::getInstance().vrr_config() && lastFrameMissed) {
-        vsyncTime += missedVsync.fixup.ns();
-        ATRACE_FORMAT_INSTANT("lastFrameMissed");
-    } else {
-        vsyncFixupTime = getVsyncFixup(model, minFramePeriod, vsyncTime, lastVsyncOpt);
-        vsyncTime += vsyncFixupTime;
-    }
-
-    ATRACE_FORMAT_INSTANT("vsync in %.2fms", float(vsyncTime - TimePoint::now().ns()) / 1e6f);
-    if (mValidUntil && vsyncTime > mValidUntil->ns()) {
-        ATRACE_FORMAT_INSTANT("no longer valid for vsync in %.2f",
-                              static_cast<float>(vsyncTime - TimePoint::now().ns()) / 1e6f);
-        return std::nullopt;
-    }
-
-    if (vsyncFixupTime > 0) {
-        shiftVsyncSequence(Duration::fromNs(vsyncFixupTime));
-    }
-
-    return TimePoint::fromNs(vsyncTime);
-}
-
-auto VSyncPredictor::VsyncTimeline::getVsyncSequenceLocked(Model model, nsecs_t vsync)
-        -> VsyncSequence {
-    if (!mLastVsyncSequence) return {vsync, 0};
-
-    const auto [lastVsyncTime, lastVsyncSequence] = *mLastVsyncSequence;
-    const auto vsyncSequence = lastVsyncSequence +
-            static_cast<int64_t>(std::round((vsync - lastVsyncTime) /
-                                            static_cast<float>(model.slope)));
-    return {vsync, vsyncSequence};
-}
-
-nsecs_t VSyncPredictor::VsyncTimeline::snapToVsyncAlignedWithRenderRate(Model model,
-                                                                        nsecs_t vsync) {
-    // update the mLastVsyncSequence for reference point
-    mLastVsyncSequence = getVsyncSequenceLocked(model, vsync);
-
-    const auto renderRatePhase = [&]() -> int {
-        if (!mRenderRateOpt) return 0;
-        const auto divisor =
-                RefreshRateSelector::getFrameRateDivisor(Fps::fromPeriodNsecs(mIdealPeriod.ns()),
-                                                         *mRenderRateOpt);
-        if (divisor <= 1) return 0;
-
-        int mod = mLastVsyncSequence->seq % divisor;
-        if (mod == 0) return 0;
-
-        // This is actually a bug fix, but guarded with vrr_config since we found it with this
-        // config
-        if (FlagManager::getInstance().vrr_config()) {
-            if (mod < 0) mod += divisor;
-        }
-
-        return divisor - mod;
-    }();
-
-    if (renderRatePhase == 0) {
-        return mLastVsyncSequence->vsyncTime;
-    }
-
-    return mLastVsyncSequence->vsyncTime + model.slope * renderRatePhase;
-}
-
-bool VSyncPredictor::VsyncTimeline::isVSyncInPhase(Model model, nsecs_t vsync, Fps frameRate) {
-    const auto getVsyncIn = [](TimePoint now, nsecs_t timePoint) -> float {
-        return ticks<std::milli, float>(TimePoint::fromNs(timePoint) - now);
-    };
-
-    Fps displayFps = mRenderRateOpt ? *mRenderRateOpt : Fps::fromPeriodNsecs(mIdealPeriod.ns());
-    const auto divisor = RefreshRateSelector::getFrameRateDivisor(displayFps, frameRate);
-    const auto now = TimePoint::now();
-
-    if (divisor <= 1) {
-        return true;
-    }
-    const auto vsyncSequence = getVsyncSequenceLocked(model, vsync);
-    ATRACE_FORMAT_INSTANT("vsync in: %.2f sequence: %" PRId64 " divisor: %zu",
-                          getVsyncIn(now, vsyncSequence.vsyncTime), vsyncSequence.seq, divisor);
-    return vsyncSequence.seq % divisor == 0;
-}
-
-void VSyncPredictor::VsyncTimeline::shiftVsyncSequence(Duration phase) {
-    if (mLastVsyncSequence) {
-        ATRACE_FORMAT_INSTANT("adjusting vsync by %.2f", static_cast<float>(phase.ns()) / 1e6f);
-        mLastVsyncSequence->vsyncTime += phase.ns();
     }
 }
 
