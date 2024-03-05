@@ -259,6 +259,44 @@ protected:
         config.enableFrameRateOverride = GetParam();
         return TestableRefreshRateSelector(modes, activeModeId, config);
     }
+
+    template <class T>
+    void testFrameRateCategoryWithMultipleLayers(const std::initializer_list<T>& testCases,
+                                                 const TestableRefreshRateSelector& selector) {
+        std::vector<LayerRequirement> layers;
+        for (auto testCase : testCases) {
+            ALOGI("**** %s: Testing desiredFrameRate=%s, frameRateCategory=%s", __func__,
+                  to_string(testCase.desiredFrameRate).c_str(),
+                  ftl::enum_string(testCase.frameRateCategory).c_str());
+
+            if (testCase.desiredFrameRate.isValid()) {
+                std::stringstream ss;
+                ss << to_string(testCase.desiredFrameRate)
+                   << ftl::enum_string(testCase.frameRateCategory) << "ExplicitDefault";
+                LayerRequirement layer = {.name = ss.str(),
+                                          .vote = LayerVoteType::ExplicitDefault,
+                                          .desiredRefreshRate = testCase.desiredFrameRate,
+                                          .weight = 1.f};
+                layers.push_back(layer);
+            }
+
+            if (testCase.frameRateCategory != FrameRateCategory::Default) {
+                std::stringstream ss;
+                ss << "ExplicitCategory (" << ftl::enum_string(testCase.frameRateCategory) << ")";
+                LayerRequirement layer = {.name = ss.str(),
+                                          .vote = LayerVoteType::ExplicitCategory,
+                                          .frameRateCategory = testCase.frameRateCategory,
+                                          .weight = 1.f};
+                layers.push_back(layer);
+            }
+
+            EXPECT_EQ(testCase.expectedFrameRate,
+                      selector.getBestFrameRateMode(layers).modePtr->getPeakFps())
+                    << "Did not get expected frame rate for frameRate="
+                    << to_string(testCase.desiredFrameRate)
+                    << " category=" << ftl::enum_string(testCase.frameRateCategory);
+        }
+    }
 };
 
 RefreshRateSelectorTest::RefreshRateSelectorTest() {
@@ -1542,6 +1580,96 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_withFrameRateCategory_30_60
     }
 }
 
+TEST_P(RefreshRateSelectorTest,
+       getBestFrameRateMode_withFrameRateCategoryMultiLayers_30_60_90_120) {
+    auto selector = createSelector(makeModes(kMode30, kMode60, kMode90, kMode120), kModeId60);
+
+    struct Case {
+        // Params
+        Fps desiredFrameRate = 0_Hz;
+        FrameRateCategory frameRateCategory = FrameRateCategory::Default;
+
+        // Expected result
+        Fps expectedFrameRate = 0_Hz;
+    };
+
+    testFrameRateCategoryWithMultipleLayers(
+            std::initializer_list<Case>{
+                    {0_Hz, FrameRateCategory::High, 90_Hz},
+                    {0_Hz, FrameRateCategory::NoPreference, 90_Hz},
+                    {0_Hz, FrameRateCategory::Normal, 90_Hz},
+                    {0_Hz, FrameRateCategory::Normal, 90_Hz},
+                    {0_Hz, FrameRateCategory::NoPreference, 90_Hz},
+            },
+            selector);
+
+    testFrameRateCategoryWithMultipleLayers(
+            std::initializer_list<Case>{
+                    {0_Hz, FrameRateCategory::Normal, 60_Hz},
+                    {0_Hz, FrameRateCategory::High, 90_Hz},
+                    {0_Hz, FrameRateCategory::NoPreference, 90_Hz},
+            },
+            selector);
+
+    testFrameRateCategoryWithMultipleLayers(
+            std::initializer_list<Case>{
+                    {30_Hz, FrameRateCategory::High, 90_Hz},
+                    {24_Hz, FrameRateCategory::High, 120_Hz},
+                    {12_Hz, FrameRateCategory::Normal, 120_Hz},
+                    {30_Hz, FrameRateCategory::NoPreference, 120_Hz},
+
+            },
+            selector);
+
+    testFrameRateCategoryWithMultipleLayers(
+            std::initializer_list<Case>{
+                    {24_Hz, FrameRateCategory::Default, 120_Hz},
+                    {30_Hz, FrameRateCategory::Default, 120_Hz},
+                    {120_Hz, FrameRateCategory::Default, 120_Hz},
+            },
+            selector);
+}
+
+TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_withFrameRateCategoryMultiLayers_60_120) {
+    auto selector = createSelector(makeModes(kMode60, kMode120), kModeId60);
+
+    struct Case {
+        // Params
+        Fps desiredFrameRate = 0_Hz;
+        FrameRateCategory frameRateCategory = FrameRateCategory::Default;
+
+        // Expected result
+        Fps expectedFrameRate = 0_Hz;
+    };
+
+    testFrameRateCategoryWithMultipleLayers(std::initializer_list<
+                                                    Case>{{0_Hz, FrameRateCategory::High, 120_Hz},
+                                                          {0_Hz, FrameRateCategory::NoPreference,
+                                                           120_Hz},
+                                                          {0_Hz, FrameRateCategory::Normal, 120_Hz},
+                                                          {0_Hz, FrameRateCategory::Normal, 120_Hz},
+                                                          {0_Hz, FrameRateCategory::NoPreference,
+                                                           120_Hz}},
+                                            selector);
+
+    testFrameRateCategoryWithMultipleLayers(std::initializer_list<
+                                                    Case>{{24_Hz, FrameRateCategory::High, 120_Hz},
+                                                          {30_Hz, FrameRateCategory::High, 120_Hz},
+                                                          {12_Hz, FrameRateCategory::Normal,
+                                                           120_Hz},
+                                                          {30_Hz, FrameRateCategory::NoPreference,
+                                                           120_Hz}},
+                                            selector);
+
+    testFrameRateCategoryWithMultipleLayers(
+            std::initializer_list<Case>{
+                    {24_Hz, FrameRateCategory::Default, 120_Hz},
+                    {30_Hz, FrameRateCategory::Default, 120_Hz},
+                    {120_Hz, FrameRateCategory::Default, 120_Hz},
+            },
+            selector);
+}
+
 TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_withFrameRateCategory_60_120) {
     auto selector = createSelector(makeModes(kMode60, kMode120), kModeId60);
 
@@ -1725,8 +1853,8 @@ TEST_P(RefreshRateSelectorTest,
             // These layers cannot change mode due to smoothSwitchOnly, and will definitely use
             // active mode (120Hz).
             {FrameRateCategory::NoPreference, true, 120_Hz, kModeId120},
-            {FrameRateCategory::Low, true, 120_Hz, kModeId120},
-            {FrameRateCategory::Normal, true, 40_Hz, kModeId120},
+            {FrameRateCategory::Low, true, 40_Hz, kModeId120},
+            {FrameRateCategory::Normal, true, 120_Hz, kModeId120},
             {FrameRateCategory::High, true, 120_Hz, kModeId120},
     };
 

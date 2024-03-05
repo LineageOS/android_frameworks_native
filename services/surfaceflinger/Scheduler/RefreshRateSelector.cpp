@@ -1554,19 +1554,17 @@ FpsRange RefreshRateSelector::getFrameRateCategoryRange(FrameRateCategory catego
         case FrameRateCategory::High:
             return FpsRange{90_Hz, 120_Hz};
         case FrameRateCategory::Normal:
-            return FpsRange{60_Hz, 90_Hz};
+            return FpsRange{60_Hz, 120_Hz};
         case FrameRateCategory::Low:
-            return FpsRange{30_Hz, 30_Hz};
+            return FpsRange{30_Hz, 120_Hz};
         case FrameRateCategory::HighHint:
         case FrameRateCategory::NoPreference:
         case FrameRateCategory::Default:
             LOG_ALWAYS_FATAL("Should not get fps range for frame rate category: %s",
                              ftl::enum_string(category).c_str());
-            return FpsRange{0_Hz, 0_Hz};
         default:
             LOG_ALWAYS_FATAL("Invalid frame rate category for range: %s",
                              ftl::enum_string(category).c_str());
-            return FpsRange{0_Hz, 0_Hz};
     }
 }
 
