@@ -259,8 +259,8 @@ private:
     std::optional<bool> mSupportsHintSession;
 
     std::mutex mHintSessionMutex;
-    std::shared_ptr<aidl::android::hardware::power::IPowerHintSession> mHintSession
-            GUARDED_BY(mHintSessionMutex) = nullptr;
+    std::shared_ptr<power::PowerHintSessionWrapper> mHintSession GUARDED_BY(mHintSessionMutex) =
+            nullptr;
 
     // Initialize to true so we try to call, to check if it's supported
     bool mHasExpensiveRendering = true;

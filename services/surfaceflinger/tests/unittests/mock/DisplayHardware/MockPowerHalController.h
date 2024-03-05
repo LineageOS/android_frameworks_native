@@ -44,10 +44,10 @@ public:
     MOCK_METHOD(HalResult<void>, setBoost, (aidl::android::hardware::power::Boost, int32_t),
                 (override));
     MOCK_METHOD(HalResult<void>, setMode, (aidl::android::hardware::power::Mode, bool), (override));
-    MOCK_METHOD(HalResult<std::shared_ptr<aidl::android::hardware::power::IPowerHintSession>>,
+    MOCK_METHOD(HalResult<std::shared_ptr<android::power::PowerHintSessionWrapper>>,
                 createHintSession, (int32_t, int32_t, const std::vector<int32_t>&, int64_t),
                 (override));
-    MOCK_METHOD(HalResult<std::shared_ptr<aidl::android::hardware::power::IPowerHintSession>>,
+    MOCK_METHOD(HalResult<std::shared_ptr<android::power::PowerHintSessionWrapper>>,
                 createHintSessionWithConfig,
                 (int32_t tgid, int32_t uid, const std::vector<int32_t>& threadIds,
                  int64_t durationNanos, aidl::android::hardware::power::SessionTag tag,

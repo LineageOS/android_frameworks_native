@@ -26,6 +26,9 @@
 #include <android/hardware/power/1.1/IPower.h>
 #include <android/hardware/power/1.2/IPower.h>
 #include <android/hardware/power/1.3/IPower.h>
+#include <powermanager/HalResult.h>
+#include <powermanager/PowerHintSessionWrapper.h>
+
 #include <binder/Status.h>
 
 #include <utility>
@@ -41,134 +44,6 @@ enum class HalSupport {
     OFF = 2,
 };
 
-// Result of a call to the Power HAL wrapper, holding data if successful.
-template <typename T>
-class HalResult {
-public:
-    static HalResult<T> ok(T&& value) { return HalResult(std::forward<T>(value)); }
-    static HalResult<T> ok(T& value) { return HalResult<T>::ok(T{value}); }
-    static HalResult<T> failed(std::string msg) { return HalResult(msg, /* unsupported= */ false); }
-    static HalResult<T> unsupported() { return HalResult("", /* unsupported= */ true); }
-
-    static HalResult<T> fromStatus(const binder::Status& status, T&& data) {
-        if (status.exceptionCode() == binder::Status::EX_UNSUPPORTED_OPERATION) {
-            return HalResult<T>::unsupported();
-        }
-        if (status.isOk()) {
-            return HalResult<T>::ok(std::forward<T>(data));
-        }
-        return HalResult<T>::failed(std::string(status.toString8().c_str()));
-    }
-
-    static HalResult<T> fromStatus(const binder::Status& status, T& data) {
-        return HalResult<T>::fromStatus(status, T{data});
-    }
-
-    static HalResult<T> fromStatus(const ndk::ScopedAStatus& status, T&& data) {
-        if (status.getExceptionCode() == binder::Status::EX_UNSUPPORTED_OPERATION) {
-            return HalResult<T>::unsupported();
-        }
-        if (status.isOk()) {
-            return HalResult<T>::ok(std::forward<T>(data));
-        }
-        return HalResult<T>::failed(std::string(status.getDescription()));
-    }
-
-    static HalResult<T> fromStatus(const ndk::ScopedAStatus& status, T& data) {
-        return HalResult<T>::fromStatus(status, T{data});
-    }
-
-    template <typename R>
-    static HalResult<T> fromReturn(hardware::Return<R>& ret, T&& data) {
-        return ret.isOk() ? HalResult<T>::ok(std::forward<T>(data))
-                          : HalResult<T>::failed(ret.description());
-    }
-
-    template <typename R>
-    static HalResult<T> fromReturn(hardware::Return<R>& ret, T& data) {
-        return HalResult<T>::fromReturn(ret, T{data});
-    }
-
-    template <typename R>
-    static HalResult<T> fromReturn(hardware::Return<R>& ret, hardware::power::V1_0::Status status,
-                                   T&& data) {
-        return ret.isOk() ? HalResult<T>::fromStatus(status, std::forward<T>(data))
-                          : HalResult<T>::failed(ret.description());
-    }
-
-    template <typename R>
-    static HalResult<T> fromReturn(hardware::Return<R>& ret, hardware::power::V1_0::Status status,
-                                   T& data) {
-        return HalResult<T>::fromReturn(ret, status, T{data});
-    }
-
-    // This will throw std::bad_optional_access if this result is not ok.
-    const T& value() const { return mValue.value(); }
-    bool isOk() const { return !mUnsupported && mValue.has_value(); }
-    bool isFailed() const { return !mUnsupported && !mValue.has_value(); }
-    bool isUnsupported() const { return mUnsupported; }
-    const char* errorMessage() const { return mErrorMessage.c_str(); }
-
-private:
-    std::optional<T> mValue;
-    std::string mErrorMessage;
-    bool mUnsupported;
-
-    explicit HalResult(T&& value)
-          : mValue{std::move(value)}, mErrorMessage(), mUnsupported(false) {}
-    explicit HalResult(std::string errorMessage, bool unsupported)
-          : mValue(), mErrorMessage(std::move(errorMessage)), mUnsupported(unsupported) {}
-};
-
-// Empty result of a call to the Power HAL wrapper.
-template <>
-class HalResult<void> {
-public:
-    static HalResult<void> ok() { return HalResult(); }
-    static HalResult<void> failed(std::string msg) { return HalResult(std::move(msg)); }
-    static HalResult<void> unsupported() { return HalResult(/* unsupported= */ true); }
-
-    static HalResult<void> fromStatus(const binder::Status& status) {
-        if (status.exceptionCode() == binder::Status::EX_UNSUPPORTED_OPERATION) {
-            return HalResult<void>::unsupported();
-        }
-        if (status.isOk()) {
-            return HalResult<void>::ok();
-        }
-        return HalResult<void>::failed(std::string(status.toString8().c_str()));
-    }
-
-    static HalResult<void> fromStatus(const ndk::ScopedAStatus& status) {
-        if (status.getExceptionCode() == binder::Status::EX_UNSUPPORTED_OPERATION) {
-            return HalResult<void>::unsupported();
-        }
-        if (status.isOk()) {
-            return HalResult<void>::ok();
-        }
-        return HalResult<void>::failed(std::string(status.getDescription()));
-    }
-
-    template <typename R>
-    static HalResult<void> fromReturn(hardware::Return<R>& ret) {
-        return ret.isOk() ? HalResult<void>::ok() : HalResult<void>::failed(ret.description());
-    }
-
-    bool isOk() const { return !mUnsupported && !mFailed; }
-    bool isFailed() const { return !mUnsupported && mFailed; }
-    bool isUnsupported() const { return mUnsupported; }
-    const char* errorMessage() const { return mErrorMessage.c_str(); }
-
-private:
-    std::string mErrorMessage;
-    bool mFailed;
-    bool mUnsupported;
-
-    explicit HalResult(bool unsupported = false)
-          : mErrorMessage(), mFailed(false), mUnsupported(unsupported) {}
-    explicit HalResult(std::string errorMessage)
-          : mErrorMessage(std::move(errorMessage)), mFailed(true), mUnsupported(false) {}
-};
-
 // Wrapper for Power HAL handlers.
 class HalWrapper {
 public:
@@ -177,14 +52,13 @@ public:
     virtual HalResult<void> setBoost(aidl::android::hardware::power::Boost boost,
                                      int32_t durationMs) = 0;
     virtual HalResult<void> setMode(aidl::android::hardware::power::Mode mode, bool enabled) = 0;
-    virtual HalResult<std::shared_ptr<aidl::android::hardware::power::IPowerHintSession>>
-    createHintSession(int32_t tgid, int32_t uid, const std::vector<int32_t>& threadIds,
-                      int64_t durationNanos) = 0;
-    virtual HalResult<std::shared_ptr<aidl::android::hardware::power::IPowerHintSession>>
-    createHintSessionWithConfig(int32_t tgid, int32_t uid, const std::vector<int32_t>& threadIds,
-                                int64_t durationNanos,
-                                aidl::android::hardware::power::SessionTag tag,
-                                aidl::android::hardware::power::SessionConfig* config) = 0;
+    virtual HalResult<std::shared_ptr<PowerHintSessionWrapper>> createHintSession(
+            int32_t tgid, int32_t uid, const std::vector<int32_t>& threadIds,
+            int64_t durationNanos) = 0;
+    virtual HalResult<std::shared_ptr<PowerHintSessionWrapper>> createHintSessionWithConfig(
+            int32_t tgid, int32_t uid, const std::vector<int32_t>& threadIds, int64_t durationNanos,
+            aidl::android::hardware::power::SessionTag tag,
+            aidl::android::hardware::power::SessionConfig* config) = 0;
     virtual HalResult<int64_t> getHintSessionPreferredRate() = 0;
     virtual HalResult<aidl::android::hardware::power::ChannelConfig> getSessionChannel(int tgid,
                                                                                        int uid) = 0;
@@ -200,14 +74,13 @@ public:
     HalResult<void> setBoost(aidl::android::hardware::power::Boost boost,
                              int32_t durationMs) override;
     HalResult<void> setMode(aidl::android::hardware::power::Mode mode, bool enabled) override;
-    HalResult<std::shared_ptr<aidl::android::hardware::power::IPowerHintSession>> createHintSession(
+    HalResult<std::shared_ptr<PowerHintSessionWrapper>> createHintSession(
             int32_t tgid, int32_t uid, const std::vector<int32_t>& threadIds,
             int64_t durationNanos) override;
-    HalResult<std::shared_ptr<aidl::android::hardware::power::IPowerHintSession>>
-    createHintSessionWithConfig(int32_t tgid, int32_t uid, const std::vector<int32_t>& threadIds,
-                                int64_t durationNanos,
-                                aidl::android::hardware::power::SessionTag tag,
-                                aidl::android::hardware::power::SessionConfig* config) override;
+    HalResult<std::shared_ptr<PowerHintSessionWrapper>> createHintSessionWithConfig(
+            int32_t tgid, int32_t uid, const std::vector<int32_t>& threadIds, int64_t durationNanos,
+            aidl::android::hardware::power::SessionTag tag,
+            aidl::android::hardware::power::SessionConfig* config) override;
     HalResult<int64_t> getHintSessionPreferredRate() override;
     HalResult<aidl::android::hardware::power::ChannelConfig> getSessionChannel(int tgid,
                                                                                int uid) override;
@@ -285,14 +158,13 @@ public:
     HalResult<void> setBoost(aidl::android::hardware::power::Boost boost,
                              int32_t durationMs) override;
     HalResult<void> setMode(aidl::android::hardware::power::Mode mode, bool enabled) override;
-    HalResult<std::shared_ptr<aidl::android::hardware::power::IPowerHintSession>> createHintSession(
+    HalResult<std::shared_ptr<PowerHintSessionWrapper>> createHintSession(
             int32_t tgid, int32_t uid, const std::vector<int32_t>& threadIds,
             int64_t durationNanos) override;
-    HalResult<std::shared_ptr<aidl::android::hardware::power::IPowerHintSession>>
-    createHintSessionWithConfig(int32_t tgid, int32_t uid, const std::vector<int32_t>& threadIds,
-                                int64_t durationNanos,
-                                aidl::android::hardware::power::SessionTag tag,
-                                aidl::android::hardware::power::SessionConfig* config) override;
+    HalResult<std::shared_ptr<PowerHintSessionWrapper>> createHintSessionWithConfig(
+            int32_t tgid, int32_t uid, const std::vector<int32_t>& threadIds, int64_t durationNanos,
+            aidl::android::hardware::power::SessionTag tag,
+            aidl::android::hardware::power::SessionConfig* config) override;
 
     HalResult<int64_t> getHintSessionPreferredRate() override;
     HalResult<aidl::android::hardware::power::ChannelConfig> getSessionChannel(int tgid,
@@ -307,14 +179,12 @@ private:
     std::mutex mBoostMutex;
     std::mutex mModeMutex;
     std::shared_ptr<aidl::android::hardware::power::IPower> mHandle;
-    // Android framework only sends boost upto DISPLAY_UPDATE_IMMINENT.
-    // Need to increase the array size if more boost supported.
-    std::array<
-            std::atomic<HalSupport>,
-            static_cast<int32_t>(aidl::android::hardware::power::Boost::DISPLAY_UPDATE_IMMINENT) +
-                    1>
+    std::array<HalSupport,
+               static_cast<int32_t>(
+                       *(ndk::enum_range<aidl::android::hardware::power::Boost>().end() - 1)) +
+                       1>
             mBoostSupportedArray GUARDED_BY(mBoostMutex) = {HalSupport::UNKNOWN};
-    std::array<std::atomic<HalSupport>,
+    std::array<HalSupport,
                static_cast<int32_t>(
                        *(ndk::enum_range<aidl::android::hardware::power::Mode>().end() - 1)) +
                        1>

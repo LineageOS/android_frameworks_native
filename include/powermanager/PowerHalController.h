@@ -23,6 +23,7 @@
 #include <aidl/android/hardware/power/Mode.h>
 #include <android-base/thread_annotations.h>
 #include <powermanager/PowerHalWrapper.h>
+#include <powermanager/PowerHintSessionWrapper.h>
 
 namespace android {
 
@@ -38,6 +39,7 @@ public:
 
     virtual std::unique_ptr<HalWrapper> connect();
     virtual void reset();
+    virtual int32_t getAidlVersion();
 };
 
 // -------------------------------------------------------------------------------------------------
@@ -59,14 +61,13 @@ public:
                                      int32_t durationMs) override;
     virtual HalResult<void> setMode(aidl::android::hardware::power::Mode mode,
                                     bool enabled) override;
-    virtual HalResult<std::shared_ptr<aidl::android::hardware::power::IPowerHintSession>>
-    createHintSession(int32_t tgid, int32_t uid, const std::vector<int32_t>& threadIds,
-                      int64_t durationNanos) override;
-    virtual HalResult<std::shared_ptr<aidl::android::hardware::power::IPowerHintSession>>
-    createHintSessionWithConfig(int32_t tgid, int32_t uid, const std::vector<int32_t>& threadIds,
-                                int64_t durationNanos,
-                                aidl::android::hardware::power::SessionTag tag,
-                                aidl::android::hardware::power::SessionConfig* config) override;
+    virtual HalResult<std::shared_ptr<PowerHintSessionWrapper>> createHintSession(
+            int32_t tgid, int32_t uid, const std::vector<int32_t>& threadIds,
+            int64_t durationNanos) override;
+    virtual HalResult<std::shared_ptr<PowerHintSessionWrapper>> createHintSessionWithConfig(
+            int32_t tgid, int32_t uid, const std::vector<int32_t>& threadIds, int64_t durationNanos,
+            aidl::android::hardware::power::SessionTag tag,
+            aidl::android::hardware::power::SessionConfig* config) override;
     virtual HalResult<int64_t> getHintSessionPreferredRate() override;
     virtual HalResult<aidl::android::hardware::power::ChannelConfig> getSessionChannel(
             int tgid, int uid) override;

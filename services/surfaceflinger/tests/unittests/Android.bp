@@ -29,7 +29,7 @@ filegroup {
         "mock/DisplayHardware/MockComposer.cpp",
         "mock/DisplayHardware/MockHWC2.cpp",
         "mock/DisplayHardware/MockIPower.cpp",
-        "mock/DisplayHardware/MockIPowerHintSession.cpp",
+        "mock/DisplayHardware/MockPowerHintSessionWrapper.cpp",
         "mock/DisplayHardware/MockPowerAdvisor.cpp",
         "mock/MockEventThread.cpp",
         "mock/MockFrameTimeline.cpp",

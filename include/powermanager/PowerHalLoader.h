@@ -36,6 +36,8 @@ public:
     static sp<hardware::power::V1_1::IPower> loadHidlV1_1();
     static sp<hardware::power::V1_2::IPower> loadHidlV1_2();
     static sp<hardware::power::V1_3::IPower> loadHidlV1_3();
+    // Returns aidl interface version, or 0 if AIDL is not used
+    static int32_t getAidlVersion();
 
 private:
     static std::mutex gHalMutex;
@@ -47,6 +49,8 @@ private:
 
     static sp<hardware::power::V1_0::IPower> loadHidlV1_0Locked()
             EXCLUSIVE_LOCKS_REQUIRED(gHalMutex);
+
+    static int32_t gAidlInterfaceVersion;
 
     PowerHalLoader() = delete;
     ~PowerHalLoader() = delete;
