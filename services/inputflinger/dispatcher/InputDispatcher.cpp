@@ -103,6 +103,26 @@ void ensureEventTraced(const Entry& entry) {
     }
 }
 
+// Helper to get a trace tracker from a traced key or motion entry.
+const std::unique_ptr<trace::EventTrackerInterface>& getTraceTracker(const EventEntry& entry) {
+    switch (entry.type) {
+        case EventEntry::Type::MOTION: {
+            const auto& motion = static_cast<const MotionEntry&>(entry);
+            ensureEventTraced(motion);
+            return motion.traceTracker;
+        }
+        case EventEntry::Type::KEY: {
+            const auto& key = static_cast<const KeyEntry&>(entry);
+            ensureEventTraced(key);
+            return key.traceTracker;
+        }
+        default: {
+            const static std::unique_ptr<trace::EventTrackerInterface> kNullTracker;
+            return kNullTracker;
+        }
+    }
+}
+
 // Temporarily releases a held mutex for the lifetime of the instance.
 // Named to match std::scoped_lock
 class scoped_unlock {
@@ -1147,10 +1167,6 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t& nextWakeupTime) {
                 dropReason = DropReason::BLOCKED;
             }
             done = dispatchKeyLocked(currentTime, keyEntry, &dropReason, nextWakeupTime);
-            if (done && mTracer) {
-                ensureEventTraced(*keyEntry);
-                mTracer->eventProcessingComplete(*keyEntry->traceTracker);
-            }
             break;
         }
 
@@ -1176,10 +1192,6 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t& nextWakeupTime) {
                 }
             }
             done = dispatchMotionLocked(currentTime, motionEntry, &dropReason, nextWakeupTime);
-            if (done && mTracer) {
-                ensureEventTraced(*motionEntry);
-                mTracer->eventProcessingComplete(*motionEntry->traceTracker);
-            }
             break;
         }
 
@@ -1204,6 +1216,12 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t& nextWakeupTime) {
             dropInboundEventLocked(*mPendingEvent, dropReason);
         }
         mLastDropReason = dropReason;
+
+        if (mTracer) {
+            if (auto& traceTracker = getTraceTracker(*mPendingEvent); traceTracker != nullptr) {
+                mTracer->eventProcessingComplete(*traceTracker);
+            }
+        }
 
         releasePendingEventLocked();
         nextWakeupTime = LLONG_MIN; // force next poll to wake up immediately
