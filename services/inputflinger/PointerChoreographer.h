@@ -113,7 +113,7 @@ private:
     void notifyPointerDisplayIdChangedLocked() REQUIRES(mLock);
     const DisplayViewport* findViewportByIdLocked(int32_t displayId) const REQUIRES(mLock);
     int32_t getTargetMouseDisplayLocked(int32_t associatedDisplayId) const REQUIRES(mLock);
-    std::pair<int32_t, PointerControllerInterface&> getDisplayIdAndMouseControllerLocked(
+    std::pair<int32_t /*displayId*/, PointerControllerInterface&> ensureMouseControllerLocked(
             int32_t associatedDisplayId) REQUIRES(mLock);
     InputDeviceInfo* findInputDeviceLocked(DeviceId deviceId) REQUIRES(mLock);
     bool canUnfadeOnDisplay(int32_t displayId) REQUIRES(mLock);
