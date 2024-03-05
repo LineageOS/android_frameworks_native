@@ -104,7 +104,7 @@ NotifyMotionArgs PointerChoreographer::processMouseEventLocked(const NotifyMotio
                    << args.dump();
     }
 
-    auto [displayId, pc] = getDisplayIdAndMouseControllerLocked(args.displayId);
+    auto [displayId, pc] = ensureMouseControllerLocked(args.displayId);
 
     const float deltaX = args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X);
     const float deltaY = args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y);
@@ -124,7 +124,7 @@ NotifyMotionArgs PointerChoreographer::processMouseEventLocked(const NotifyMotio
 }
 
 NotifyMotionArgs PointerChoreographer::processTouchpadEventLocked(const NotifyMotionArgs& args) {
-    auto [displayId, pc] = getDisplayIdAndMouseControllerLocked(args.displayId);
+    auto [displayId, pc] = ensureMouseControllerLocked(args.displayId);
 
     NotifyMotionArgs newArgs(args);
     newArgs.displayId = displayId;
@@ -308,17 +308,13 @@ int32_t PointerChoreographer::getTargetMouseDisplayLocked(int32_t associatedDisp
     return associatedDisplayId == ADISPLAY_ID_NONE ? mDefaultMouseDisplayId : associatedDisplayId;
 }
 
-std::pair<int32_t, PointerControllerInterface&>
-PointerChoreographer::getDisplayIdAndMouseControllerLocked(int32_t associatedDisplayId) {
+std::pair<int32_t, PointerControllerInterface&> PointerChoreographer::ensureMouseControllerLocked(
+        int32_t associatedDisplayId) {
     const int32_t displayId = getTargetMouseDisplayLocked(associatedDisplayId);
 
-    // Get the mouse pointer controller for the display, or create one if it doesn't exist.
-    auto [it, emplaced] =
-            mMousePointersByDisplay.try_emplace(displayId,
-                                                getMouseControllerConstructor(displayId));
-    if (emplaced) {
-        notifyPointerDisplayIdChangedLocked();
-    }
+    auto it = mMousePointersByDisplay.find(displayId);
+    LOG_ALWAYS_FATAL_IF(it == mMousePointersByDisplay.end(),
+                        "There is no mouse controller created for display %d", displayId);
 
     return {displayId, *it->second};
 }
