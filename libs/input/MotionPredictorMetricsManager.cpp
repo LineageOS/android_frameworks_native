@@ -113,7 +113,12 @@ void MotionPredictorMetricsManager::onRecord(const MotionEvent& inputEvent) {
 // Adds new predictions to mRecentPredictions and maintains the invariant that elements are
 // sorted in ascending order of targetTimestamp.
 void MotionPredictorMetricsManager::onPredict(const MotionEvent& predictionEvent) {
-    for (size_t i = 0; i < predictionEvent.getHistorySize() + 1; ++i) {
+    const size_t numPredictions = predictionEvent.getHistorySize() + 1;
+    if (numPredictions > mMaxNumPredictions) {
+        LOG(WARNING) << "numPredictions (" << numPredictions << ") > mMaxNumPredictions ("
+                     << mMaxNumPredictions << "). Ignoring extra predictions in metrics.";
+    }
+    for (size_t i = 0; (i < numPredictions) && (i < mMaxNumPredictions); ++i) {
         // Convert MotionEvent to PredictionPoint.
         const PointerCoords* coords =
                 predictionEvent.getHistoricalRawPointerCoords(/*pointerIndex=*/0, i);
@@ -325,42 +330,44 @@ void MotionPredictorMetricsManager::computeAtomFields() {
             mAtomFields[i].highVelocityOffTrajectoryRmse =
                     static_cast<int>(offTrajectoryRmse * 1000);
         }
+    }
 
-        // Scale-invariant errors: reported only for the last time bucket, where the values
-        // represent an average across all time buckets.
-        if (i + 1 == mMaxNumPredictions) {
-            // Compute error averages.
-            float alongTrajectoryRmseSum = 0;
-            float offTrajectoryRmseSum = 0;
-            for (size_t j = 0; j < mAggregatedMetrics.size(); ++j) {
-                // If we have general errors (checked above), we should always also have
-                // scale-invariant errors.
-                LOG_ALWAYS_FATAL_IF(mAggregatedMetrics[j].scaleInvariantErrorsCount == 0,
-                                    "mAggregatedMetrics[%zu].scaleInvariantErrorsCount is 0", j);
-
-                LOG_ALWAYS_FATAL_IF(mAggregatedMetrics[j].scaleInvariantAlongTrajectorySse < 0,
-                                    "mAggregatedMetrics[%zu].scaleInvariantAlongTrajectorySse = %f "
-                                    "should not be negative",
-                                    j, mAggregatedMetrics[j].scaleInvariantAlongTrajectorySse);
-                alongTrajectoryRmseSum +=
-                        std::sqrt(mAggregatedMetrics[j].scaleInvariantAlongTrajectorySse /
-                                  mAggregatedMetrics[j].scaleInvariantErrorsCount);
-
-                LOG_ALWAYS_FATAL_IF(mAggregatedMetrics[j].scaleInvariantOffTrajectorySse < 0,
-                                    "mAggregatedMetrics[%zu].scaleInvariantOffTrajectorySse = %f "
-                                    "should not be negative",
-                                    j, mAggregatedMetrics[j].scaleInvariantOffTrajectorySse);
-                offTrajectoryRmseSum +=
-                        std::sqrt(mAggregatedMetrics[j].scaleInvariantOffTrajectorySse /
-                                  mAggregatedMetrics[j].scaleInvariantErrorsCount);
+    // Scale-invariant errors: the average scale-invariant error across all time buckets
+    // is reported in the last time bucket.
+    {
+        // Compute error averages.
+        float alongTrajectoryRmseSum = 0;
+        float offTrajectoryRmseSum = 0;
+        int bucket_count = 0;
+        for (size_t j = 0; j < mAggregatedMetrics.size(); ++j) {
+            if (mAggregatedMetrics[j].scaleInvariantErrorsCount == 0) {
+                continue;
             }
 
-            const float averageAlongTrajectoryRmse =
-                    alongTrajectoryRmseSum / mAggregatedMetrics.size();
+            LOG_ALWAYS_FATAL_IF(mAggregatedMetrics[j].scaleInvariantAlongTrajectorySse < 0,
+                                "mAggregatedMetrics[%zu].scaleInvariantAlongTrajectorySse = %f "
+                                "should not be negative",
+                                j, mAggregatedMetrics[j].scaleInvariantAlongTrajectorySse);
+            alongTrajectoryRmseSum +=
+                    std::sqrt(mAggregatedMetrics[j].scaleInvariantAlongTrajectorySse /
+                              mAggregatedMetrics[j].scaleInvariantErrorsCount);
+
+            LOG_ALWAYS_FATAL_IF(mAggregatedMetrics[j].scaleInvariantOffTrajectorySse < 0,
+                                "mAggregatedMetrics[%zu].scaleInvariantOffTrajectorySse = %f "
+                                "should not be negative",
+                                j, mAggregatedMetrics[j].scaleInvariantOffTrajectorySse);
+            offTrajectoryRmseSum += std::sqrt(mAggregatedMetrics[j].scaleInvariantOffTrajectorySse /
+                                              mAggregatedMetrics[j].scaleInvariantErrorsCount);
+
+            ++bucket_count;
+        }
+
+        if (bucket_count > 0) {
+            const float averageAlongTrajectoryRmse = alongTrajectoryRmseSum / bucket_count;
             mAtomFields.back().scaleInvariantAlongTrajectoryRmse =
                     static_cast<int>(averageAlongTrajectoryRmse * 1000);
 
-            const float averageOffTrajectoryRmse = offTrajectoryRmseSum / mAggregatedMetrics.size();
+            const float averageOffTrajectoryRmse = offTrajectoryRmseSum / bucket_count;
             mAtomFields.back().scaleInvariantOffTrajectoryRmse =
                     static_cast<int>(averageOffTrajectoryRmse * 1000);
         }

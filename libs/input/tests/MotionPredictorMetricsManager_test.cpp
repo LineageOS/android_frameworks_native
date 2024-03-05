@@ -238,14 +238,17 @@ TEST(MakeMotionEventTest, MakeLiftMotionEvent) {
 
 // --- Ground-truth-generation helper functions. ---
 
+// Generates numPoints ground truth points with values equal to those of the given
+// GroundTruthPoint, and with consecutive timestamps separated by the given inputInterval.
 std::vector<GroundTruthPoint> generateConstantGroundTruthPoints(
-        const GroundTruthPoint& groundTruthPoint, size_t numPoints) {
+        const GroundTruthPoint& groundTruthPoint, size_t numPoints,
+        nsecs_t inputInterval = TEST_PREDICTION_INTERVAL_NANOS) {
     std::vector<GroundTruthPoint> groundTruthPoints;
     nsecs_t timestamp = groundTruthPoint.timestamp;
     for (size_t i = 0; i < numPoints; ++i) {
         groundTruthPoints.emplace_back(groundTruthPoint);
         groundTruthPoints.back().timestamp = timestamp;
-        timestamp += TEST_PREDICTION_INTERVAL_NANOS;
+        timestamp += inputInterval;
     }
     return groundTruthPoints;
 }
@@ -280,7 +283,8 @@ TEST(GenerateConstantGroundTruthPointsTest, BasicTest) {
     const GroundTruthPoint groundTruthPoint{{.position = Eigen::Vector2f(10, 20), .pressure = 0.3f},
                                             .timestamp = TEST_INITIAL_TIMESTAMP};
     const std::vector<GroundTruthPoint> groundTruthPoints =
-            generateConstantGroundTruthPoints(groundTruthPoint, /*numPoints=*/3);
+            generateConstantGroundTruthPoints(groundTruthPoint, /*numPoints=*/3,
+                                              /*inputInterval=*/10);
 
     ASSERT_EQ(3u, groundTruthPoints.size());
     // First point.
@@ -290,11 +294,11 @@ TEST(GenerateConstantGroundTruthPointsTest, BasicTest) {
     // Second point.
     EXPECT_EQ(groundTruthPoints[1].position, groundTruthPoint.position);
     EXPECT_EQ(groundTruthPoints[1].pressure, groundTruthPoint.pressure);
-    EXPECT_GT(groundTruthPoints[1].timestamp, groundTruthPoints[0].timestamp);
+    EXPECT_EQ(groundTruthPoints[1].timestamp, groundTruthPoint.timestamp + 10);
     // Third point.
     EXPECT_EQ(groundTruthPoints[2].position, groundTruthPoint.position);
     EXPECT_EQ(groundTruthPoints[2].pressure, groundTruthPoint.pressure);
-    EXPECT_GT(groundTruthPoints[2].timestamp, groundTruthPoints[1].timestamp);
+    EXPECT_EQ(groundTruthPoints[2].timestamp, groundTruthPoint.timestamp + 20);
 }
 
 TEST(GenerateCircularArcGroundTruthTest, StraightLineUpwards) {
@@ -333,16 +337,19 @@ TEST(GenerateCircularArcGroundTruthTest, CounterclockwiseSquare) {
 
 // --- Prediction-generation helper functions. ---
 
-// Creates a sequence of predictions with values equal to those of the given GroundTruthPoint.
-std::vector<PredictionPoint> generateConstantPredictions(const GroundTruthPoint& groundTruthPoint) {
+// Generates TEST_MAX_NUM_PREDICTIONS predictions with values equal to those of the given
+// GroundTruthPoint, and with consecutive timestamps separated by the given predictionInterval.
+std::vector<PredictionPoint> generateConstantPredictions(
+        const GroundTruthPoint& groundTruthPoint,
+        nsecs_t predictionInterval = TEST_PREDICTION_INTERVAL_NANOS) {
     std::vector<PredictionPoint> predictions;
-    nsecs_t predictionTimestamp = groundTruthPoint.timestamp + TEST_PREDICTION_INTERVAL_NANOS;
+    nsecs_t predictionTimestamp = groundTruthPoint.timestamp + predictionInterval;
     for (size_t j = 0; j < TEST_MAX_NUM_PREDICTIONS; ++j) {
         predictions.push_back(PredictionPoint{{.position = groundTruthPoint.position,
                                                .pressure = groundTruthPoint.pressure},
                                               .originTimestamp = groundTruthPoint.timestamp,
                                               .targetTimestamp = predictionTimestamp});
-        predictionTimestamp += TEST_PREDICTION_INTERVAL_NANOS;
+        predictionTimestamp += predictionInterval;
     }
     return predictions;
 }
@@ -375,8 +382,9 @@ std::vector<PredictionPoint> generatePredictionsByLinearExtrapolation(
 TEST(GeneratePredictionsTest, GenerateConstantPredictions) {
     const GroundTruthPoint groundTruthPoint{{.position = Eigen::Vector2f(10, 20), .pressure = 0.3f},
                                             .timestamp = TEST_INITIAL_TIMESTAMP};
+    const nsecs_t predictionInterval = 10;
     const std::vector<PredictionPoint> predictionPoints =
-            generateConstantPredictions(groundTruthPoint);
+            generateConstantPredictions(groundTruthPoint, predictionInterval);
 
     ASSERT_EQ(TEST_MAX_NUM_PREDICTIONS, predictionPoints.size());
     for (size_t i = 0; i < predictionPoints.size(); ++i) {
@@ -385,8 +393,7 @@ TEST(GeneratePredictionsTest, GenerateConstantPredictions) {
         EXPECT_THAT(predictionPoints[i].pressure, FloatNear(groundTruthPoint.pressure, 1e-6));
         EXPECT_EQ(predictionPoints[i].originTimestamp, groundTruthPoint.timestamp);
         EXPECT_EQ(predictionPoints[i].targetTimestamp,
-                  groundTruthPoint.timestamp +
-                          static_cast<nsecs_t>(i + 1) * TEST_PREDICTION_INTERVAL_NANOS);
+                  TEST_INITIAL_TIMESTAMP + static_cast<nsecs_t>(i + 1) * predictionInterval);
     }
 }
 
@@ -678,12 +685,9 @@ ReportAtomFunction createMockReportAtomFunction(std::vector<AtomFields>& reporte
 //  • groundTruthPoints: chronologically-ordered ground truth points, with at least 2 elements.
 //  • predictionPoints: the first index points to a vector of predictions corresponding to the
 //    source ground truth point with the same index.
-//     - The first element should be empty, because there are not expected to be predictions until
-//       we have received 2 ground truth points.
-//     - The last element may be empty, because there will be no future ground truth points to
-//       associate with those predictions (if not empty, it will be ignored).
+//     - For empty prediction vectors, MetricsManager::onPredict will not be called.
 //     - To test all prediction buckets, there should be at least TEST_MAX_NUM_PREDICTIONS non-empty
-//       prediction sets (that is, excluding the first and last). Thus, groundTruthPoints and
+//       prediction vectors (that is, excluding the first and last). Thus, groundTruthPoints and
 //       predictionPoints should have size at least TEST_MAX_NUM_PREDICTIONS + 2.
 //
 // When the function returns, outReportedAtomFields will contain the reported AtomFields.
@@ -697,19 +701,12 @@ void runMetricsManager(const std::vector<GroundTruthPoint>& groundTruthPoints,
                                                  createMockReportAtomFunction(
                                                          outReportedAtomFields));
 
-    // Validate structure of groundTruthPoints and predictionPoints.
-    ASSERT_EQ(predictionPoints.size(), groundTruthPoints.size());
     ASSERT_GE(groundTruthPoints.size(), 2u);
-    ASSERT_EQ(predictionPoints[0].size(), 0u);
-    for (size_t i = 1; i + 1 < predictionPoints.size(); ++i) {
-        SCOPED_TRACE(testing::Message() << "i = " << i);
-        ASSERT_EQ(predictionPoints[i].size(), TEST_MAX_NUM_PREDICTIONS);
-    }
+    ASSERT_EQ(predictionPoints.size(), groundTruthPoints.size());
 
-    // Pass ground truth points and predictions (for all except first and last ground truth).
     for (size_t i = 0; i < groundTruthPoints.size(); ++i) {
         metricsManager.onRecord(makeMotionEvent(groundTruthPoints[i]));
-        if ((i > 0) && (i + 1 < predictionPoints.size())) {
+        if (!predictionPoints[i].empty()) {
             metricsManager.onPredict(makeMotionEvent(predictionPoints[i]));
         }
     }
@@ -738,7 +735,7 @@ TEST(MotionPredictorMetricsManagerTest, NoPredictions) {
 // Perfect predictions test:
 //  • Input: constant input events, perfect predictions matching the input events.
 //  • Expectation: all error metrics should be zero, or NO_DATA_SENTINEL for "unreported" metrics.
-//    (For example, scale-invariant errors are only reported for the final time bucket.)
+//    (For example, scale-invariant errors are only reported for the last time bucket.)
 TEST(MotionPredictorMetricsManagerTest, ConstantGroundTruthPerfectPredictions) {
     GroundTruthPoint groundTruthPoint{{.position = Eigen::Vector2f(10.0f, 20.0f), .pressure = 0.6f},
                                       .timestamp = TEST_INITIAL_TIMESTAMP};
@@ -975,6 +972,36 @@ TEST(MotionPredictorMetricsManagerTest, CounterclockwiseOctagonGroundTruthLinear
             EXPECT_EQ(NO_DATA_SENTINEL, atom.scaleInvariantOffTrajectoryRmse);
         }
     }
+}
+
+// Robustness test:
+//  • Input: input events separated by a significantly greater time interval than the interval
+//    between predictions.
+//  • Expectation: the MetricsManager should not crash in this case. (No assertions are made about
+//    the resulting metrics.)
+//
+// In practice, this scenario could arise either if the input and prediction intervals are
+// mismatched, or if input events are missing (dropped or skipped for some reason).
+TEST(MotionPredictorMetricsManagerTest, MismatchedInputAndPredictionInterval) {
+    // Create two ground truth points separated by MAX_NUM_PREDICTIONS * PREDICTION_INTERVAL,
+    // so that the second ground truth point corresponds to the last prediction bucket. This
+    // ensures that the scale-invariant error codepath will be run, giving full code coverage.
+    GroundTruthPoint groundTruthPoint{{.position = Eigen::Vector2f(0.0f, 0.0f), .pressure = 0.5f},
+                                      .timestamp = TEST_INITIAL_TIMESTAMP};
+    const nsecs_t inputInterval = TEST_MAX_NUM_PREDICTIONS * TEST_PREDICTION_INTERVAL_NANOS;
+    const std::vector<GroundTruthPoint> groundTruthPoints =
+            generateConstantGroundTruthPoints(groundTruthPoint, /*numPoints=*/2, inputInterval);
+
+    // Create predictions separated by the prediction interval.
+    std::vector<std::vector<PredictionPoint>> predictionPoints;
+    for (size_t i = 0; i < groundTruthPoints.size(); ++i) {
+        predictionPoints.push_back(
+                generateConstantPredictions(groundTruthPoints[i], TEST_PREDICTION_INTERVAL_NANOS));
+    }
+
+    // Test that we can run the MetricsManager without crashing.
+    std::vector<AtomFields> reportedAtomFields;
+    runMetricsManager(groundTruthPoints, predictionPoints, reportedAtomFields);
 }
 
 } // namespace
