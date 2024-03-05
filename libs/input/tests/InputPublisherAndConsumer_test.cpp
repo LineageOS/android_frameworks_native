@@ -135,8 +135,10 @@ void verifyArgsEqualToEvent(const PublishMotionArgs& args, const MotionEvent& mo
     EXPECT_EQ(args.buttonState, motionEvent.getButtonState());
     EXPECT_EQ(args.classification, motionEvent.getClassification());
     EXPECT_EQ(args.transform, motionEvent.getTransform());
-    EXPECT_EQ(args.xOffset, motionEvent.getXOffset());
-    EXPECT_EQ(args.yOffset, motionEvent.getYOffset());
+    EXPECT_NEAR((-args.rawXOffset / args.rawXScale) * args.xScale + args.xOffset,
+                motionEvent.getRawXOffset(), EPSILON);
+    EXPECT_NEAR((-args.rawYOffset / args.rawYScale) * args.yScale + args.yOffset,
+                motionEvent.getRawYOffset(), EPSILON);
     EXPECT_EQ(args.xPrecision, motionEvent.getXPrecision());
     EXPECT_EQ(args.yPrecision, motionEvent.getYPrecision());
     EXPECT_NEAR(args.xCursorPosition, motionEvent.getRawXCursorPosition(), EPSILON);
