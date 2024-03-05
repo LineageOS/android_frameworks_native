@@ -25,6 +25,9 @@ namespace android {
  *
  * This is the interface that PointerChoreographer uses to talk to Window Manager and other
  * system components.
+ *
+ * NOTE: In general, the PointerChoreographer must not interact with the policy while
+ * holding any locks.
  */
 class PointerChoreographerPolicyInterface {
 public:
@@ -37,6 +40,9 @@ public:
      * for and runnable on the host, the PointerController implementation must be in a separate
      * library, libinputservice, that has the additional dependencies. The PointerController
      * will be mocked when testing PointerChoreographer.
+     *
+     * Since this is a factory method used to work around dependencies, it will not interact with
+     * other input components and may be called with the PointerChoreographer lock held.
      */
     virtual std::shared_ptr<PointerControllerInterface> createPointerController(
             PointerControllerInterface::ControllerType type) = 0;
