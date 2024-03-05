@@ -353,6 +353,20 @@ std::vector<ParcelRead<::android::Parcel>> BINDER_PARCEL_READ_FUNCTIONS {
         FUZZ_LOG() << " status: " << status  << " result: " << result;
     },
     [] (const ::android::Parcel& p, FuzzedDataProvider& /*provider*/) {
+        FUZZ_LOG() << "about to call hasBinders() with status";
+        bool result;
+        status_t status = p.hasBinders(&result);
+        FUZZ_LOG() << " status: " << status  << " result: " << result;
+    },
+    [] (const ::android::Parcel& p, FuzzedDataProvider& /*provider*/) {
+        FUZZ_LOG() << "about to call hasBindersInRange() with status";
+        size_t offset = p.readUint32();
+        size_t length = p.readUint32();
+        bool result;
+        status_t status = p.hasBindersInRange(offset, length, &result);
+        FUZZ_LOG() << " status: " << status  << " result: " << result;
+    },
+    [] (const ::android::Parcel& p, FuzzedDataProvider& /*provider*/) {
         FUZZ_LOG() << "about to call compareDataInRange() with status";
         size_t thisOffset = p.readUint32();
         size_t otherOffset = p.readUint32();

@@ -101,7 +101,9 @@ public:
     void                restoreAllowFds(bool lastValue);
 
     bool                hasFileDescriptors() const;
+    status_t hasBinders(bool* result) const;
     status_t hasFileDescriptorsInRange(size_t offset, size_t length, bool* result) const;
+    status_t hasBindersInRange(size_t offset, size_t length, bool* result) const;
 
     // returns all binder objects in the Parcel
     std::vector<sp<IBinder>> debugReadAllStrongBinders() const;
@@ -647,6 +649,8 @@ private:
     void                freeDataNoInit();
     void                initState();
     void                scanForFds() const;
+    status_t scanForBinders(bool* result) const;
+
     status_t            validateReadData(size_t len) const;
 
     void                updateWorkSourceRequestHeaderPosition() const;
