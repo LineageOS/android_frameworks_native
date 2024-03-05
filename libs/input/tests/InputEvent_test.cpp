@@ -23,6 +23,7 @@
 #include <gtest/gtest.h>
 #include <gui/constants.h>
 #include <input/Input.h>
+#include <input/InputEventBuilders.h>
 
 namespace android {
 
@@ -30,6 +31,18 @@ namespace android {
 static constexpr int32_t DISPLAY_ID = ADISPLAY_ID_DEFAULT;
 
 static constexpr float EPSILON = MotionEvent::ROUNDING_PRECISION;
+
+static constexpr auto POINTER_0_DOWN =
+        AMOTION_EVENT_ACTION_POINTER_DOWN | (0 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
+
+static constexpr auto POINTER_1_DOWN =
+        AMOTION_EVENT_ACTION_POINTER_DOWN | (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
+
+static constexpr auto POINTER_0_UP =
+        AMOTION_EVENT_ACTION_POINTER_UP | (0 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
+
+static constexpr auto POINTER_1_UP =
+        AMOTION_EVENT_ACTION_POINTER_UP | (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
 
 class BaseTest : public testing::Test {
 protected:
@@ -552,6 +565,145 @@ TEST_F(MotionEventTest, CopyFrom_DoNotKeepHistory) {
     ASSERT_EQ(event.getEventTime(), copy.getEventTime());
 
     ASSERT_EQ(event.getX(0), copy.getX(0));
+}
+
+TEST_F(MotionEventTest, SplitPointerDown) {
+    MotionEvent event = MotionEventBuilder(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                                .downTime(ARBITRARY_DOWN_TIME)
+                                .pointer(PointerBuilder(/*id=*/4, ToolType::FINGER).x(4).y(4))
+                                .pointer(PointerBuilder(/*id=*/6, ToolType::FINGER).x(6).y(6))
+                                .pointer(PointerBuilder(/*id=*/8, ToolType::FINGER).x(8).y(8))
+                                .build();
+
+    MotionEvent splitDown;
+    std::bitset<MAX_POINTER_ID + 1> splitDownIds{};
+    splitDownIds.set(6, true);
+    splitDown.splitFrom(event, splitDownIds, /*eventId=*/42);
+    ASSERT_EQ(splitDown.getAction(), AMOTION_EVENT_ACTION_DOWN);
+    ASSERT_EQ(splitDown.getPointerCount(), 1u);
+    ASSERT_EQ(splitDown.getPointerId(0), 6);
+    ASSERT_EQ(splitDown.getX(0), 6);
+    ASSERT_EQ(splitDown.getY(0), 6);
+
+    MotionEvent splitPointerDown;
+    std::bitset<MAX_POINTER_ID + 1> splitPointerDownIds{};
+    splitPointerDownIds.set(6, true);
+    splitPointerDownIds.set(8, true);
+    splitPointerDown.splitFrom(event, splitPointerDownIds, /*eventId=*/42);
+    ASSERT_EQ(splitPointerDown.getAction(), POINTER_0_DOWN);
+    ASSERT_EQ(splitPointerDown.getPointerCount(), 2u);
+    ASSERT_EQ(splitPointerDown.getPointerId(0), 6);
+    ASSERT_EQ(splitPointerDown.getX(0), 6);
+    ASSERT_EQ(splitPointerDown.getY(0), 6);
+    ASSERT_EQ(splitPointerDown.getPointerId(1), 8);
+    ASSERT_EQ(splitPointerDown.getX(1), 8);
+    ASSERT_EQ(splitPointerDown.getY(1), 8);
+
+    MotionEvent splitMove;
+    std::bitset<MAX_POINTER_ID + 1> splitMoveIds{};
+    splitMoveIds.set(4, true);
+    splitMove.splitFrom(event, splitMoveIds, /*eventId=*/43);
+    ASSERT_EQ(splitMove.getAction(), AMOTION_EVENT_ACTION_MOVE);
+    ASSERT_EQ(splitMove.getPointerCount(), 1u);
+    ASSERT_EQ(splitMove.getPointerId(0), 4);
+    ASSERT_EQ(splitMove.getX(0), 4);
+    ASSERT_EQ(splitMove.getY(0), 4);
+}
+
+TEST_F(MotionEventTest, SplitPointerUp) {
+    MotionEvent event = MotionEventBuilder(POINTER_0_UP, AINPUT_SOURCE_TOUCHSCREEN)
+                                .downTime(ARBITRARY_DOWN_TIME)
+                                .pointer(PointerBuilder(/*id=*/4, ToolType::FINGER).x(4).y(4))
+                                .pointer(PointerBuilder(/*id=*/6, ToolType::FINGER).x(6).y(6))
+                                .pointer(PointerBuilder(/*id=*/8, ToolType::FINGER).x(8).y(8))
+                                .build();
+
+    MotionEvent splitUp;
+    std::bitset<MAX_POINTER_ID + 1> splitUpIds{};
+    splitUpIds.set(4, true);
+    splitUp.splitFrom(event, splitUpIds, /*eventId=*/42);
+    ASSERT_EQ(splitUp.getAction(), AMOTION_EVENT_ACTION_UP);
+    ASSERT_EQ(splitUp.getPointerCount(), 1u);
+    ASSERT_EQ(splitUp.getPointerId(0), 4);
+    ASSERT_EQ(splitUp.getX(0), 4);
+    ASSERT_EQ(splitUp.getY(0), 4);
+
+    MotionEvent splitPointerUp;
+    std::bitset<MAX_POINTER_ID + 1> splitPointerUpIds{};
+    splitPointerUpIds.set(4, true);
+    splitPointerUpIds.set(8, true);
+    splitPointerUp.splitFrom(event, splitPointerUpIds, /*eventId=*/42);
+    ASSERT_EQ(splitPointerUp.getAction(), POINTER_0_UP);
+    ASSERT_EQ(splitPointerUp.getPointerCount(), 2u);
+    ASSERT_EQ(splitPointerUp.getPointerId(0), 4);
+    ASSERT_EQ(splitPointerUp.getX(0), 4);
+    ASSERT_EQ(splitPointerUp.getY(0), 4);
+    ASSERT_EQ(splitPointerUp.getPointerId(1), 8);
+    ASSERT_EQ(splitPointerUp.getX(1), 8);
+    ASSERT_EQ(splitPointerUp.getY(1), 8);
+
+    MotionEvent splitMove;
+    std::bitset<MAX_POINTER_ID + 1> splitMoveIds{};
+    splitMoveIds.set(6, true);
+    splitMoveIds.set(8, true);
+    splitMove.splitFrom(event, splitMoveIds, /*eventId=*/43);
+    ASSERT_EQ(splitMove.getAction(), AMOTION_EVENT_ACTION_MOVE);
+    ASSERT_EQ(splitMove.getPointerCount(), 2u);
+    ASSERT_EQ(splitMove.getPointerId(0), 6);
+    ASSERT_EQ(splitMove.getX(0), 6);
+    ASSERT_EQ(splitMove.getY(0), 6);
+    ASSERT_EQ(splitMove.getPointerId(1), 8);
+    ASSERT_EQ(splitMove.getX(1), 8);
+    ASSERT_EQ(splitMove.getY(1), 8);
+}
+
+TEST_F(MotionEventTest, SplitPointerUpCancel) {
+    MotionEvent event = MotionEventBuilder(POINTER_1_UP, AINPUT_SOURCE_TOUCHSCREEN)
+                                .downTime(ARBITRARY_DOWN_TIME)
+                                .pointer(PointerBuilder(/*id=*/4, ToolType::FINGER).x(4).y(4))
+                                .pointer(PointerBuilder(/*id=*/6, ToolType::FINGER).x(6).y(6))
+                                .pointer(PointerBuilder(/*id=*/8, ToolType::FINGER).x(8).y(8))
+                                .addFlag(AMOTION_EVENT_FLAG_CANCELED)
+                                .build();
+
+    MotionEvent splitUp;
+    std::bitset<MAX_POINTER_ID + 1> splitUpIds{};
+    splitUpIds.set(6, true);
+    splitUp.splitFrom(event, splitUpIds, /*eventId=*/42);
+    ASSERT_EQ(splitUp.getAction(), AMOTION_EVENT_ACTION_CANCEL);
+    ASSERT_EQ(splitUp.getPointerCount(), 1u);
+    ASSERT_EQ(splitUp.getPointerId(0), 6);
+    ASSERT_EQ(splitUp.getX(0), 6);
+    ASSERT_EQ(splitUp.getY(0), 6);
+}
+
+TEST_F(MotionEventTest, SplitPointerMove) {
+    MotionEvent event = MotionEventBuilder(AMOTION_EVENT_ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN)
+                                .downTime(ARBITRARY_DOWN_TIME)
+                                .pointer(PointerBuilder(/*id=*/4, ToolType::FINGER).x(4).y(4))
+                                .pointer(PointerBuilder(/*id=*/6, ToolType::FINGER).x(6).y(6))
+                                .pointer(PointerBuilder(/*id=*/8, ToolType::FINGER).x(8).y(8))
+                                .transform(ui::Transform(ui::Transform::ROT_90, 100, 100))
+                                .rawTransform(ui::Transform(ui::Transform::FLIP_H, 50, 50))
+                                .build();
+
+    MotionEvent splitMove;
+    std::bitset<MAX_POINTER_ID + 1> splitMoveIds{};
+    splitMoveIds.set(4, true);
+    splitMoveIds.set(8, true);
+    splitMove.splitFrom(event, splitMoveIds, /*eventId=*/42);
+    ASSERT_EQ(splitMove.getAction(), AMOTION_EVENT_ACTION_MOVE);
+    ASSERT_EQ(splitMove.getPointerCount(), 2u);
+    ASSERT_EQ(splitMove.getPointerId(0), 4);
+    ASSERT_EQ(splitMove.getX(0), event.getX(0));
+    ASSERT_EQ(splitMove.getY(0), event.getY(0));
+    ASSERT_EQ(splitMove.getRawX(0), event.getRawX(0));
+    ASSERT_EQ(splitMove.getRawY(0), event.getRawY(0));
+    ASSERT_EQ(splitMove.getPointerId(1), 8);
+    ASSERT_EQ(splitMove.getX(1), event.getX(2));
+    ASSERT_EQ(splitMove.getY(1), event.getY(2));
+    ASSERT_EQ(splitMove.getRawX(1), event.getRawX(2));
+    ASSERT_EQ(splitMove.getRawY(1), event.getRawY(2));
 }
 
 TEST_F(MotionEventTest, OffsetLocation) {

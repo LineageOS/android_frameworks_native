@@ -60,6 +60,45 @@ bool shouldDisregardOffset(uint32_t source) {
     return !isFromSource(source, AINPUT_SOURCE_CLASS_POINTER);
 }
 
+int32_t resolveActionForSplitMotionEvent(
+        int32_t action, int32_t flags, const std::vector<PointerProperties>& pointerProperties,
+        const std::vector<PointerProperties>& splitPointerProperties) {
+    LOG_ALWAYS_FATAL_IF(splitPointerProperties.empty());
+    const auto maskedAction = MotionEvent::getActionMasked(action);
+    if (maskedAction != AMOTION_EVENT_ACTION_POINTER_DOWN &&
+        maskedAction != AMOTION_EVENT_ACTION_POINTER_UP) {
+        // The action is unaffected by splitting this motion event.
+        return action;
+    }
+    const auto actionIndex = MotionEvent::getActionIndex(action);
+    if (CC_UNLIKELY(actionIndex >= pointerProperties.size())) {
+        LOG(FATAL) << "Action index is out of bounds, index: " << actionIndex;
+    }
+
+    const auto affectedPointerId = pointerProperties[actionIndex].id;
+    std::optional<uint32_t> splitActionIndex;
+    for (uint32_t i = 0; i < splitPointerProperties.size(); i++) {
+        if (affectedPointerId == splitPointerProperties[i].id) {
+            splitActionIndex = i;
+            break;
+        }
+    }
+    if (!splitActionIndex.has_value()) {
+        // The affected pointer is not part of the split motion event.
+        return AMOTION_EVENT_ACTION_MOVE;
+    }
+
+    if (splitPointerProperties.size() > 1) {
+        return maskedAction | (*splitActionIndex << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
+    }
+
+    if (maskedAction == AMOTION_EVENT_ACTION_POINTER_UP) {
+        return ((flags & AMOTION_EVENT_FLAG_CANCELED) != 0) ? AMOTION_EVENT_ACTION_CANCEL
+                                                            : AMOTION_EVENT_ACTION_UP;
+    }
+    return AMOTION_EVENT_ACTION_DOWN;
+}
+
 } // namespace
 
 const char* motionClassificationToString(MotionClassification classification) {
@@ -584,6 +623,28 @@ void MotionEvent::copyFrom(const MotionEvent* other, bool keepHistory) {
     }
 }
 
+void MotionEvent::splitFrom(const android::MotionEvent& other,
+                            std::bitset<MAX_POINTER_ID + 1> splitPointerIds, int32_t newEventId) {
+    // TODO(b/327503168): The down time should be a parameter to the split function, because only
+    //   the caller can know when the first event went down on the target.
+    const nsecs_t splitDownTime = other.mDownTime;
+
+    auto [action, pointerProperties, pointerCoords] =
+            split(other.getAction(), other.getFlags(), other.getHistorySize(),
+                  other.mPointerProperties, other.mSamplePointerCoords, splitPointerIds);
+
+    // Initialize the event with zero pointers, and manually set the split pointers.
+    initialize(newEventId, other.mDeviceId, other.mSource, other.mDisplayId, /*hmac=*/{}, action,
+               other.mActionButton, other.mFlags, other.mEdgeFlags, other.mMetaState,
+               other.mButtonState, other.mClassification, other.mTransform, other.mXPrecision,
+               other.mYPrecision, other.mRawXCursorPosition, other.mRawYCursorPosition,
+               other.mRawTransform, splitDownTime, other.getEventTime(), /*pointerCount=*/0,
+               pointerProperties.data(), pointerCoords.data());
+    mPointerProperties = std::move(pointerProperties);
+    mSamplePointerCoords = std::move(pointerCoords);
+    mSampleEventTimes = other.mSampleEventTimes;
+}
+
 void MotionEvent::addSample(
         int64_t eventTime,
         const PointerCoords* pointerCoords) {
@@ -932,6 +993,45 @@ std::string MotionEvent::actionToString(int32_t action) {
             return "BUTTON_RELEASE";
     }
     return android::base::StringPrintf("%" PRId32, action);
+}
+
+std::tuple<int32_t, std::vector<PointerProperties>, std::vector<PointerCoords>> MotionEvent::split(
+        int32_t action, int32_t flags, int32_t historySize,
+        const std::vector<PointerProperties>& pointerProperties,
+        const std::vector<PointerCoords>& pointerCoords,
+        std::bitset<MAX_POINTER_ID + 1> splitPointerIds) {
+    LOG_ALWAYS_FATAL_IF(!splitPointerIds.any());
+    const auto pointerCount = pointerProperties.size();
+    LOG_ALWAYS_FATAL_IF(pointerCoords.size() != (pointerCount * (historySize + 1)));
+    const auto splitCount = splitPointerIds.count();
+
+    std::vector<PointerProperties> splitPointerProperties;
+    std::vector<PointerCoords> splitPointerCoords;
+
+    for (uint32_t i = 0; i < pointerCount; i++) {
+        if (splitPointerIds.test(pointerProperties[i].id)) {
+            splitPointerProperties.emplace_back(pointerProperties[i]);
+        }
+    }
+    for (uint32_t i = 0; i < pointerCoords.size(); i++) {
+        if (splitPointerIds.test(pointerProperties[i % pointerCount].id)) {
+            splitPointerCoords.emplace_back(pointerCoords[i]);
+        }
+    }
+    LOG_ALWAYS_FATAL_IF(splitPointerCoords.size() !=
+                        (splitPointerProperties.size() * (historySize + 1)));
+
+    if (CC_UNLIKELY(splitPointerProperties.size() != splitCount)) {
+        LOG(FATAL) << "Cannot split MotionEvent: Requested splitting " << splitCount
+                   << " pointers from the original event, but the original event only contained "
+                   << splitPointerProperties.size() << " of those pointers.";
+    }
+
+    // TODO(b/327503168): Verify the splitDownTime here once it is used correctly.
+
+    const auto splitAction = resolveActionForSplitMotionEvent(action, flags, pointerProperties,
+                                                              splitPointerProperties);
+    return {splitAction, splitPointerProperties, splitPointerCoords};
 }
 
 // Apply the given transformation to the point without checking whether the entire transform
