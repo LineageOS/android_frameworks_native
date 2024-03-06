@@ -42,6 +42,10 @@ struct DisplayCreationArgs {
     // True if this display should be considered secure
     bool isSecure = false;
 
+    // True if this display should be considered protected, as in this display should render DRM
+    // content.
+    bool isProtected = false;
+
     // Optional pointer to the power advisor interface, if one is needed for
     // this display.
     Hwc2::PowerAdvisor* powerAdvisor = nullptr;
@@ -70,6 +74,11 @@ public:
 
     DisplayCreationArgsBuilder& setIsSecure(bool isSecure) {
         mArgs.isSecure = isSecure;
+        return *this;
+    }
+
+    DisplayCreationArgsBuilder& setIsProtected(bool isProtected) {
+        mArgs.isProtected = isProtected;
         return *this;
     }
 

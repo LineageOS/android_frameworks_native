@@ -37,7 +37,8 @@ bool sortLayers(LayerProtoParser::Layer* lhs, const LayerProtoParser::Layer* rhs
     return lhs->id < rhs->id;
 }
 
-LayerProtoParser::LayerTree LayerProtoParser::generateLayerTree(const LayersProto& layersProto) {
+LayerProtoParser::LayerTree LayerProtoParser::generateLayerTree(
+        const perfetto::protos::LayersProto& layersProto) {
     LayerTree layerTree;
     layerTree.allLayers = generateLayerList(layersProto);
 
@@ -53,7 +54,7 @@ LayerProtoParser::LayerTree LayerProtoParser::generateLayerTree(const LayersProt
 }
 
 std::vector<LayerProtoParser::Layer> LayerProtoParser::generateLayerList(
-        const LayersProto& layersProto) {
+        const perfetto::protos::LayersProto& layersProto) {
     std::vector<Layer> layerList;
     std::unordered_map<int32_t, Layer*> layerMap;
 
@@ -74,7 +75,8 @@ std::vector<LayerProtoParser::Layer> LayerProtoParser::generateLayerList(
     return layerList;
 }
 
-LayerProtoParser::Layer LayerProtoParser::generateLayer(const LayerProto& layerProto) {
+LayerProtoParser::Layer LayerProtoParser::generateLayer(
+        const perfetto::protos::LayerProto& layerProto) {
     Layer layer;
     layer.id = layerProto.id();
     layer.name = layerProto.name();
@@ -120,17 +122,19 @@ LayerProtoParser::Layer LayerProtoParser::generateLayer(const LayerProto& layerP
     return layer;
 }
 
-LayerProtoParser::Region LayerProtoParser::generateRegion(const RegionProto& regionProto) {
+LayerProtoParser::Region LayerProtoParser::generateRegion(
+        const perfetto::protos::RegionProto& regionProto) {
     LayerProtoParser::Region region;
     for (int i = 0; i < regionProto.rect_size(); i++) {
-        const RectProto& rectProto = regionProto.rect(i);
+        const perfetto::protos::RectProto& rectProto = regionProto.rect(i);
         region.rects.push_back(generateRect(rectProto));
     }
 
     return region;
 }
 
-LayerProtoParser::Rect LayerProtoParser::generateRect(const RectProto& rectProto) {
+LayerProtoParser::Rect LayerProtoParser::generateRect(
+        const perfetto::protos::RectProto& rectProto) {
     LayerProtoParser::Rect rect;
     rect.left = rectProto.left();
     rect.top = rectProto.top();
@@ -140,7 +144,8 @@ LayerProtoParser::Rect LayerProtoParser::generateRect(const RectProto& rectProto
     return rect;
 }
 
-LayerProtoParser::FloatRect LayerProtoParser::generateFloatRect(const FloatRectProto& rectProto) {
+LayerProtoParser::FloatRect LayerProtoParser::generateFloatRect(
+        const perfetto::protos::FloatRectProto& rectProto) {
     LayerProtoParser::FloatRect rect;
     rect.left = rectProto.left();
     rect.top = rectProto.top();
@@ -151,7 +156,7 @@ LayerProtoParser::FloatRect LayerProtoParser::generateFloatRect(const FloatRectP
 }
 
 LayerProtoParser::Transform LayerProtoParser::generateTransform(
-        const TransformProto& transformProto) {
+        const perfetto::protos::TransformProto& transformProto) {
     LayerProtoParser::Transform transform;
     transform.dsdx = transformProto.dsdx();
     transform.dtdx = transformProto.dtdx();
@@ -162,7 +167,7 @@ LayerProtoParser::Transform LayerProtoParser::generateTransform(
 }
 
 LayerProtoParser::ActiveBuffer LayerProtoParser::generateActiveBuffer(
-        const ActiveBufferProto& activeBufferProto) {
+        const perfetto::protos::ActiveBufferProto& activeBufferProto) {
     LayerProtoParser::ActiveBuffer activeBuffer;
     activeBuffer.width = activeBufferProto.width();
     activeBuffer.height = activeBufferProto.height();
@@ -172,7 +177,7 @@ LayerProtoParser::ActiveBuffer LayerProtoParser::generateActiveBuffer(
     return activeBuffer;
 }
 
-void LayerProtoParser::updateChildrenAndRelative(const LayerProto& layerProto,
+void LayerProtoParser::updateChildrenAndRelative(const perfetto::protos::LayerProto& layerProto,
                                                  std::unordered_map<int32_t, Layer*>& layerMap) {
     auto currLayer = layerMap[layerProto.id()];
 
@@ -188,13 +193,13 @@ void LayerProtoParser::updateChildrenAndRelative(const LayerProto& layerProto,
         }
     }
 
-    if (layerProto.parent() != -1) {
+    if (layerProto.has_parent()) {
         if (layerMap.count(layerProto.parent()) > 0) {
             currLayer->parent = layerMap[layerProto.parent()];
         }
     }
 
-    if (layerProto.z_order_relative_of() != -1) {
+    if (layerProto.has_z_order_relative_of()) {
         if (layerMap.count(layerProto.z_order_relative_of()) > 0) {
             currLayer->zOrderRelativeOf = layerMap[layerProto.z_order_relative_of()];
         }

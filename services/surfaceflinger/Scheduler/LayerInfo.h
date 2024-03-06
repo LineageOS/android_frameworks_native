@@ -25,8 +25,10 @@
 #include <ui/Transform.h>
 #include <utils/Timers.h>
 
+#include <scheduler/Fps.h>
 #include <scheduler/Seamlessness.h>
 
+#include "FrameRateCompatibility.h"
 #include "LayerHistory.h"
 #include "RefreshRateSelector.h"
 
@@ -60,6 +62,7 @@ class LayerInfo {
     static constexpr size_t kNumSmallDirtyThreshold = 2;
 
     friend class LayerHistoryTest;
+    friend class LayerHistoryIntegrationTest;
     friend class LayerInfoTest;
 
 public:
@@ -68,44 +71,58 @@ public:
         LayerHistory::LayerVoteType type = LayerHistory::LayerVoteType::Heuristic;
         Fps fps;
         Seamlessness seamlessness = Seamlessness::Default;
+        FrameRateCategory category = FrameRateCategory::Default;
+        bool categorySmoothSwitchOnly = false;
+
+        // Returns true if the layer explicitly should contribute to frame rate scoring.
+        bool isNoVote() const { return RefreshRateSelector::isNoVote(type); }
     };
 
-    // FrameRateCompatibility specifies how we should interpret the frame rate associated with
-    // the layer.
-    enum class FrameRateCompatibility {
-        Default, // Layer didn't specify any specific handling strategy
+    using RefreshRateVotes = ftl::SmallVector<LayerInfo::LayerVote, 2>;
 
-        Min, // Layer needs the minimum frame rate.
+    enum class FrameRateSelectionStrategy {
+        Propagate,
+        OverrideChildren,
+        Self,
 
-        Exact, // Layer needs the exact frame rate.
-
-        ExactOrMultiple, // Layer needs the exact frame rate (or a multiple of it) to present the
-                         // content properly. Any other value will result in a pull down.
-
-        NoVote, // Layer doesn't have any requirements for the refresh rate and
-                // should not be considered when the display refresh rate is determined.
-
-        ftl_last = NoVote
+        ftl_last = Self
     };
 
-    // Encapsulates the frame rate and compatibility of the layer. This information will be used
+    // Encapsulates the frame rate specifications of the layer. This information will be used
     // when the display refresh rate is determined.
     struct FrameRate {
         using Seamlessness = scheduler::Seamlessness;
 
-        Fps rate;
-        FrameRateCompatibility type = FrameRateCompatibility::Default;
-        Seamlessness seamlessness = Seamlessness::Default;
+        // Information related to a specific desired frame rate vote.
+        struct FrameRateVote {
+            Fps rate;
+            FrameRateCompatibility type = FrameRateCompatibility::Default;
+            Seamlessness seamlessness = Seamlessness::Default;
+
+            bool operator==(const FrameRateVote& other) const {
+                return isApproxEqual(rate, other.rate) && type == other.type &&
+                        seamlessness == other.seamlessness;
+            }
+
+            FrameRateVote() = default;
+
+            FrameRateVote(Fps rate, FrameRateCompatibility type,
+                          Seamlessness seamlessness = Seamlessness::OnlySeamless)
+                  : rate(rate), type(type), seamlessness(getSeamlessness(rate, seamlessness)) {}
+        } vote;
+
+        FrameRateCategory category = FrameRateCategory::Default;
+        bool categorySmoothSwitchOnly = false;
 
         FrameRate() = default;
 
         FrameRate(Fps rate, FrameRateCompatibility type,
-                  Seamlessness seamlessness = Seamlessness::OnlySeamless)
-              : rate(rate), type(type), seamlessness(getSeamlessness(rate, seamlessness)) {}
+                  Seamlessness seamlessness = Seamlessness::OnlySeamless,
+                  FrameRateCategory category = FrameRateCategory::Default)
+              : vote(FrameRateVote(rate, type, seamlessness)), category(category) {}
 
         bool operator==(const FrameRate& other) const {
-            return isApproxEqual(rate, other.rate) && type == other.type &&
-                    seamlessness == other.seamlessness;
+            return vote == other.vote && category == other.category;
         }
 
         bool operator!=(const FrameRate& other) const { return !(*this == other); }
@@ -113,7 +130,21 @@ public:
         // Convert an ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_* value to a
         // Layer::FrameRateCompatibility. Logs fatal if the compatibility value is invalid.
         static FrameRateCompatibility convertCompatibility(int8_t compatibility);
+
+        // Convert an ANATIVEWINDOW_CHANGE_FRAME_RATE_* value to a scheduler::Seamlessness.
+        // Logs fatal if the strategy value is invalid.
         static scheduler::Seamlessness convertChangeFrameRateStrategy(int8_t strategy);
+
+        // Convert an ANATIVEWINDOW_FRAME_RATE_CATEGORY_* value to a FrameRateCategory.
+        // Logs fatal if the category value is invalid.
+        static FrameRateCategory convertCategory(int8_t category);
+
+        // True if the FrameRate has explicit frame rate specifications.
+        bool isValid() const;
+
+        // Returns true if the FrameRate explicitly instructs to not contribute to frame rate
+        // selection.
+        bool isNoVote() const;
 
     private:
         static Seamlessness getSeamlessness(Fps rate, Seamlessness seamlessness) {
@@ -125,6 +156,10 @@ public:
             return seamlessness;
         }
     };
+
+    // Convert an ANATIVEWINDOW_FRAME_RATE_SELECTION_STRATEGY_* value to FrameRateSelectionStrategy.
+    // Logs fatal if the strategy value is invalid.
+    static FrameRateSelectionStrategy convertFrameRateSelectionStrategy(int8_t strategy);
 
     static void setTraceEnabled(bool enabled) { sTraceEnabled = enabled; }
 
@@ -140,7 +175,8 @@ public:
                             bool pendingModeChange, const LayerProps& props);
 
     // Sets an explicit layer vote. This usually comes directly from the application via
-    // ANativeWindow_setFrameRate API
+    // ANativeWindow_setFrameRate API. This is also used by Game Default Frame Rate and
+    // Game Mode Intervention Frame Rate.
     void setLayerVote(LayerVote vote) { mLayerVote = vote; }
 
     // Sets the default layer vote. This will be the layer vote after calling to resetLayerVote().
@@ -148,14 +184,18 @@ public:
     // layer can go back to whatever vote it had before the app voted for it.
     void setDefaultLayerVote(LayerHistory::LayerVoteType type) { mDefaultVote = type; }
 
+    void setProperties(const LayerProps&);
+
     // Resets the layer vote to its default.
-    void resetLayerVote() { mLayerVote = {mDefaultVote, Fps(), Seamlessness::Default}; }
+    void resetLayerVote() {
+        mLayerVote = {mDefaultVote, Fps(), Seamlessness::Default, FrameRateCategory::Default};
+    }
 
     std::string getName() const { return mName; }
 
     uid_t getOwnerUid() const { return mOwnerUid; }
 
-    LayerVote getRefreshRateVote(const RefreshRateSelector&, nsecs_t now);
+    RefreshRateVotes getRefreshRateVote(const RefreshRateSelector&, nsecs_t now);
 
     // Return the last updated time. If the present time is farther in the future than the
     // updated time, the updated time is the present time.
@@ -164,6 +204,7 @@ public:
     FrameRate getSetFrameRateVote() const;
     bool isVisible() const;
     int32_t getFrameRateSelectionPriority() const;
+    bool isFrontBuffered() const;
     FloatRect getBounds() const;
     ui::Transform getTransform() const;
 
@@ -225,11 +266,12 @@ private:
         // Clears History
         void clear();
 
-        // Adds a new refresh rate and returns true if it is consistent
-        bool add(Fps refreshRate, nsecs_t now);
+        // Adds a new refresh rate and returns valid refresh rate if it is consistent enough
+        Fps add(Fps refreshRate, nsecs_t now, const RefreshRateSelector&);
 
     private:
         friend class LayerHistoryTest;
+        friend class LayerHistoryIntegrationTest;
 
         // Holds the refresh rate when it was calculated
         struct RefreshRateData {
@@ -245,13 +287,14 @@ private:
             std::string average;
         };
 
-        bool isConsistent() const;
+        Fps selectRefreshRate(const RefreshRateSelector&) const;
         HeuristicTraceTagData makeHeuristicTraceTagData() const;
 
         const std::string mName;
         mutable std::optional<HeuristicTraceTagData> mHeuristicTraceTagData;
         std::deque<RefreshRateData> mRefreshRates;
         static constexpr float MARGIN_CONSISTENT_FPS = 1.0;
+        static constexpr float MARGIN_CONSISTENT_FPS_FOR_CLOSEST_REFRESH_RATE = 5.0;
     };
 
     // Represents whether we were able to determine either layer is frequent or infrequent
@@ -323,6 +366,7 @@ struct LayerProps {
     LayerInfo::FrameRate setFrameRateVote;
     int32_t frameRateSelectionPriority = -1;
     bool isSmallDirty = false;
+    bool isFrontBuffered = false;
 };
 
 } // namespace scheduler

@@ -17,6 +17,7 @@ cc_test {
         "enum_test.cpp",
         "fake_guard_test.cpp",
         "flags_test.cpp",
+        "function_test.cpp",
         "future_test.cpp",
         "match_test.cpp",
         "mixins_test.cpp",

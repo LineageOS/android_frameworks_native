@@ -18,10 +18,18 @@
 
 #include <Tracing/TransactionTracing.h>
 
+#include <functional>
+#include <optional>
+#include <ostream>
+#include <string>
+
 namespace android {
+
+class LayerTracing;
+
 class LayerTraceGenerator {
 public:
-    bool generate(const proto::TransactionTraceFile&, const char* outputLayersTracePath,
-                  bool onlyLastEntry);
+    bool generate(const perfetto::protos::TransactionTraceFile&, std::uint32_t traceFlags,
+                  LayerTracing& layerTracing, bool onlyLastEntry = false);
 };
 } // namespace android

@@ -22,6 +22,7 @@
 #include <cutils/trace.h>
 #include <utils/Log.h>
 #include <utils/Trace.h>
+#include "FrontEnd/LayerLog.h"
 
 #include "TransactionHandler.h"
 
@@ -33,7 +34,7 @@ void TransactionHandler::queueTransaction(TransactionState&& state) {
     ATRACE_INT("TransactionQueue", static_cast<int>(mPendingTransactionCount.load()));
 }
 
-std::vector<TransactionState> TransactionHandler::flushTransactions() {
+void TransactionHandler::collectTransactions() {
     while (!mLocklessTransactionQueue.isEmpty()) {
         auto maybeTransaction = mLocklessTransactionQueue.pop();
         if (!maybeTransaction.has_value()) {
@@ -42,7 +43,9 @@ std::vector<TransactionState> TransactionHandler::flushTransactions() {
         auto transaction = maybeTransaction.value();
         mPendingTransactionQueues[transaction.applyToken].emplace(std::move(transaction));
     }
+}
 
+std::vector<TransactionState> TransactionHandler::flushTransactions() {
     // Collect transaction that are ready to be applied.
     std::vector<TransactionState> transactions;
     TransactionFlushState flushState;
@@ -85,8 +88,8 @@ void TransactionHandler::applyUnsignaledBufferTransaction(
     }
 
     auto it = mPendingTransactionQueues.find(flushState.queueWithUnsignaledBuffer);
-    LOG_ALWAYS_FATAL_IF(it == mPendingTransactionQueues.end(),
-                        "Could not find queue with unsignaled buffer!");
+    LLOG_ALWAYS_FATAL_WITH_TRACE_IF(it == mPendingTransactionQueues.end(),
+                                    "Could not find queue with unsignaled buffer!");
 
     auto& queue = it->second;
     popTransactionFromPending(transactions, flushState, queue);

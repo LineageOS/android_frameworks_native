@@ -17,11 +17,11 @@
 #ifndef ANDROID_POWERHALCONTROLLER_H
 #define ANDROID_POWERHALCONTROLLER_H
 
+#include <aidl/android/hardware/power/Boost.h>
+#include <aidl/android/hardware/power/IPower.h>
+#include <aidl/android/hardware/power/IPowerHintSession.h>
+#include <aidl/android/hardware/power/Mode.h>
 #include <android-base/thread_annotations.h>
-#include <android/hardware/power/Boost.h>
-#include <android/hardware/power/IPower.h>
-#include <android/hardware/power/IPowerHintSession.h>
-#include <android/hardware/power/Mode.h>
 #include <powermanager/PowerHalWrapper.h>
 
 namespace android {
@@ -55,11 +55,13 @@ public:
 
     virtual void init();
 
-    virtual HalResult<void> setBoost(hardware::power::Boost boost, int32_t durationMs) override;
-    virtual HalResult<void> setMode(hardware::power::Mode mode, bool enabled) override;
-    virtual HalResult<sp<hardware::power::IPowerHintSession>> createHintSession(
-            int32_t tgid, int32_t uid, const std::vector<int32_t>& threadIds,
-            int64_t durationNanos) override;
+    virtual HalResult<void> setBoost(aidl::android::hardware::power::Boost boost,
+                                     int32_t durationMs) override;
+    virtual HalResult<void> setMode(aidl::android::hardware::power::Mode mode,
+                                    bool enabled) override;
+    virtual HalResult<std::shared_ptr<aidl::android::hardware::power::IPowerHintSession>>
+    createHintSession(int32_t tgid, int32_t uid, const std::vector<int32_t>& threadIds,
+                      int64_t durationNanos) override;
     virtual HalResult<int64_t> getHintSessionPreferredRate() override;
 
 private:

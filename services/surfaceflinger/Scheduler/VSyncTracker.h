@@ -16,13 +16,22 @@
 
 #pragma once
 
+#include <ui/DisplayId.h>
 #include <utils/Timers.h>
 
 #include <scheduler/Fps.h>
+#include <scheduler/FrameRateMode.h>
 
 #include "VSyncDispatch.h"
 
 namespace android::scheduler {
+
+struct IVsyncTrackerCallback {
+    virtual ~IVsyncTrackerCallback() = default;
+    virtual void onVsyncGenerated(TimePoint expectedPresentTime, ftl::NonNull<DisplayModePtr>,
+                                  Fps renderRate) = 0;
+};
+
 /*
  * VSyncTracker is an interface for providing estimates on future Vsync signal times based on
  * historical vsync timing data.
@@ -60,11 +69,9 @@ public:
     virtual nsecs_t currentPeriod() const = 0;
 
     /*
-     * Inform the tracker that the period is changing and the tracker needs to recalibrate itself.
-     *
-     * \param [in] period   The period that the system is changing into.
+     * The minimal period frames can be displayed.
      */
-    virtual void setPeriod(nsecs_t period) = 0;
+    virtual Period minFramePeriod() const = 0;
 
     /* Inform the tracker that the samples it has are not accurate for prediction. */
     virtual void resetModel() = 0;
@@ -80,6 +87,15 @@ public:
     virtual bool isVSyncInPhase(nsecs_t timePoint, Fps frameRate) const = 0;
 
     /*
+     * Sets the active mode of the display which includes the vsync period and other VRR attributes.
+     * This will inform the tracker that the period is changing and the tracker needs to recalibrate
+     * itself.
+     *
+     * \param [in] DisplayModePtr The display mode the tracker will use.
+     */
+    virtual void setDisplayModePtr(ftl::NonNull<DisplayModePtr>) = 0;
+
+    /*
      * Sets a render rate on the tracker. If the render rate is not a divisor
      * of the period, the render rate is ignored until the period changes.
      * The tracker will continue to track the vsync timeline and expect it
@@ -90,6 +106,11 @@ public:
      * \param [in] Fps   The render rate the tracker should operate at.
      */
     virtual void setRenderRate(Fps) = 0;
+
+    virtual void onFrameBegin(TimePoint expectedPresentTime,
+                              TimePoint lastConfirmedPresentTime) = 0;
+
+    virtual void onFrameMissed(TimePoint expectedPresentTime) = 0;
 
     virtual void dump(std::string& result) const = 0;
 

@@ -16,6 +16,8 @@
 
 // WARNING: This file is generated. See ../README.md for instructions.
 
+#include <android/hardware_buffer.h>
+
 #include <algorithm>
 
 #include "null_driver_gen.h"

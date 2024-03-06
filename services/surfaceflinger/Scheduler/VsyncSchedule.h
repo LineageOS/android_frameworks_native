@@ -21,6 +21,7 @@
 #include <string>
 
 #include <android-base/thread_annotations.h>
+#include <ThreadContext.h>
 #include <ftl/enum.h>
 #include <ftl/optional.h>
 #include <ui/DisplayId.h>
@@ -30,6 +31,7 @@
 #include <scheduler/Time.h>
 
 #include "ThreadContext.h"
+#include "VSyncTracker.h"
 
 namespace android {
 class EventThreadTest;
@@ -55,21 +57,23 @@ class VsyncSchedule final : public IVsyncSource {
 public:
     using RequestHardwareVsync = std::function<void(PhysicalDisplayId, bool enabled)>;
 
-    VsyncSchedule(PhysicalDisplayId, FeatureFlags, RequestHardwareVsync);
+    VsyncSchedule(ftl::NonNull<DisplayModePtr> modePtr, FeatureFlags, RequestHardwareVsync,
+                  IVsyncTrackerCallback&);
     ~VsyncSchedule();
 
     // IVsyncSource overrides:
     Period period() const override;
     TimePoint vsyncDeadlineAfter(TimePoint) const override;
+    Period minFramePeriod() const override;
 
-    // Inform the schedule that the period is changing and the schedule needs to recalibrate
-    // itself. The schedule will end the period transition internally. This will
-    // enable hardware VSYNCs in order to calibrate.
+    // Inform the schedule that the display mode changed the schedule needs to recalibrate
+    // itself to the new vsync period. The schedule will end the period transition internally.
+    // This will enable hardware VSYNCs in order to calibrate.
     //
-    // \param [in] period   The period that the system is changing into.
+    // \param [in] DisplayModePtr  The mode that the display is changing to.
     // \param [in] force    True to force a transition even if it is not a
     //                      change.
-    void startPeriodTransition(Period period, bool force);
+    void onDisplayModeChanged(ftl::NonNull<DisplayModePtr>, bool force);
 
     // Pass a VSYNC sample to VsyncController. Return true if
     // VsyncController detected that the VSYNC period changed. Enable or disable
@@ -123,7 +127,7 @@ private:
     friend class android::VsyncScheduleTest;
     friend class android::fuzz::SchedulerFuzzer;
 
-    static TrackerPtr createTracker(PhysicalDisplayId);
+    static TrackerPtr createTracker(ftl::NonNull<DisplayModePtr> modePtr, IVsyncTrackerCallback&);
     static DispatchPtr createDispatch(TrackerPtr);
     static ControllerPtr createController(PhysicalDisplayId, VsyncTracker&, FeatureFlags);
 

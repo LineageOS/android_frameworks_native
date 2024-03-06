@@ -25,6 +25,7 @@
 
 #include <scheduler/TimeKeeper.h>
 
+#include <common/FlagManager.h>
 #include "VSyncDispatchTimerQueue.h"
 #include "VSyncTracker.h"
 
@@ -100,17 +101,25 @@ ScheduleResult VSyncDispatchTimerQueueEntry::schedule(VSyncDispatch::ScheduleTim
             mArmedInfo && (nextVsyncTime > (mArmedInfo->mActualVsyncTime + mMinVsyncDistance));
     bool const wouldSkipAWakeup =
             mArmedInfo && ((nextWakeupTime > (mArmedInfo->mActualWakeupTime + mMinVsyncDistance)));
-    if (wouldSkipAVsyncTarget && wouldSkipAWakeup) {
-        return getExpectedCallbackTime(nextVsyncTime, timing);
+    if (FlagManager::getInstance().dont_skip_on_early()) {
+        if (wouldSkipAVsyncTarget || wouldSkipAWakeup) {
+            nextVsyncTime = mArmedInfo->mActualVsyncTime;
+        } else {
+            nextVsyncTime = adjustVsyncIfNeeded(tracker, nextVsyncTime);
+        }
+        nextWakeupTime = std::max(now, nextVsyncTime - timing.workDuration - timing.readyDuration);
+    } else {
+        if (wouldSkipAVsyncTarget && wouldSkipAWakeup) {
+            return getExpectedCallbackTime(nextVsyncTime, timing);
+        }
+        nextVsyncTime = adjustVsyncIfNeeded(tracker, nextVsyncTime);
+        nextWakeupTime = nextVsyncTime - timing.workDuration - timing.readyDuration;
     }
-
-    nextVsyncTime = adjustVsyncIfNeeded(tracker, nextVsyncTime);
-    nextWakeupTime = nextVsyncTime - timing.workDuration - timing.readyDuration;
 
     auto const nextReadyTime = nextVsyncTime - timing.readyDuration;
     mScheduleTiming = timing;
     mArmedInfo = {nextWakeupTime, nextVsyncTime, nextReadyTime};
-    return getExpectedCallbackTime(nextVsyncTime, timing);
+    return nextWakeupTime;
 }
 
 void VSyncDispatchTimerQueueEntry::addPendingWorkloadUpdate(VSyncDispatch::ScheduleTiming timing) {

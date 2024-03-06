@@ -16,21 +16,24 @@
 
 #define LOG_TAG "PowerHalAidlBenchmarks"
 
-#include <android/hardware/power/Boost.h>
-#include <android/hardware/power/IPower.h>
-#include <android/hardware/power/IPowerHintSession.h>
-#include <android/hardware/power/Mode.h>
-#include <android/hardware/power/WorkDuration.h>
+#include <aidl/android/hardware/power/Boost.h>
+#include <aidl/android/hardware/power/IPower.h>
+#include <aidl/android/hardware/power/IPowerHintSession.h>
+#include <aidl/android/hardware/power/Mode.h>
+#include <aidl/android/hardware/power/WorkDuration.h>
 #include <benchmark/benchmark.h>
 #include <binder/IServiceManager.h>
+#include <binder/Status.h>
+#include <powermanager/PowerHalLoader.h>
 #include <testUtil.h>
 #include <chrono>
 
-using android::hardware::power::Boost;
-using android::hardware::power::IPower;
-using android::hardware::power::IPowerHintSession;
-using android::hardware::power::Mode;
-using android::hardware::power::WorkDuration;
+using aidl::android::hardware::power::Boost;
+using aidl::android::hardware::power::IPower;
+using aidl::android::hardware::power::IPowerHintSession;
+using aidl::android::hardware::power::Mode;
+using aidl::android::hardware::power::WorkDuration;
+using android::power::PowerHalLoader;
 using std::chrono::microseconds;
 
 using namespace android;
@@ -63,15 +66,15 @@ static constexpr microseconds ONEWAY_API_DELAY = 100us;
 template <class R, class... Args0, class... Args1>
 static void runBenchmark(benchmark::State& state, microseconds delay, R (IPower::*fn)(Args0...),
                          Args1&&... args1) {
-    sp<IPower> hal = waitForVintfService<IPower>();
+    std::shared_ptr<IPower> hal = PowerHalLoader::loadAidl();
 
     if (hal == nullptr) {
         ALOGV("Power HAL not available, skipping test...");
         return;
     }
 
-    binder::Status ret = (*hal.*fn)(std::forward<Args1>(args1)...);
-    if (ret.exceptionCode() == binder::Status::Exception::EX_UNSUPPORTED_OPERATION) {
+    ndk::ScopedAStatus ret = (*hal.*fn)(std::forward<Args1>(args1)...);
+    if (ret.getExceptionCode() == binder::Status::EX_UNSUPPORTED_OPERATION) {
         ALOGV("Power HAL does not support this operation, skipping test...");
         return;
     }
@@ -79,7 +82,7 @@ static void runBenchmark(benchmark::State& state, microseconds delay, R (IPower:
     while (state.KeepRunning()) {
         ret = (*hal.*fn)(std::forward<Args1>(args1)...);
         state.PauseTiming();
-        if (!ret.isOk()) state.SkipWithError(ret.toString8().c_str());
+        if (!ret.isOk()) state.SkipWithError(ret.getDescription().c_str());
         if (delay > 0us) {
             testDelaySpin(std::chrono::duration_cast<std::chrono::duration<float>>(delay).count());
         }
@@ -90,9 +93,9 @@ static void runBenchmark(benchmark::State& state, microseconds delay, R (IPower:
 template <class R, class... Args0, class... Args1>
 static void runSessionBenchmark(benchmark::State& state, R (IPowerHintSession::*fn)(Args0...),
                                 Args1&&... args1) {
-    sp<IPower> pwHal = waitForVintfService<IPower>();
+    std::shared_ptr<IPower> hal = PowerHalLoader::loadAidl();
 
-    if (pwHal == nullptr) {
+    if (hal == nullptr) {
         ALOGV("Power HAL not available, skipping test...");
         return;
     }
@@ -100,32 +103,32 @@ static void runSessionBenchmark(benchmark::State& state, R (IPowerHintSession::*
     // do not use tid from the benchmark process, use 1 for init
     std::vector<int32_t> threadIds{1};
     int64_t durationNanos = 16666666L;
-    sp<IPowerHintSession> hal;
+    std::shared_ptr<IPowerHintSession> session;
 
-    auto status = pwHal->createHintSession(1, 0, threadIds, durationNanos, &hal);
+    auto status = hal->createHintSession(1, 0, threadIds, durationNanos, &session);
 
-    if (hal == nullptr) {
+    if (session == nullptr) {
         ALOGV("Power HAL doesn't support session, skipping test...");
         return;
     }
 
-    binder::Status ret = (*hal.*fn)(std::forward<Args1>(args1)...);
-    if (ret.exceptionCode() == binder::Status::Exception::EX_UNSUPPORTED_OPERATION) {
+    ndk::ScopedAStatus ret = (*session.*fn)(std::forward<Args1>(args1)...);
+    if (ret.getExceptionCode() == binder::Status::EX_UNSUPPORTED_OPERATION) {
         ALOGV("Power HAL does not support this operation, skipping test...");
         return;
     }
 
     while (state.KeepRunning()) {
-        ret = (*hal.*fn)(std::forward<Args1>(args1)...);
+        ret = (*session.*fn)(std::forward<Args1>(args1)...);
         state.PauseTiming();
-        if (!ret.isOk()) state.SkipWithError(ret.toString8().c_str());
+        if (!ret.isOk()) state.SkipWithError(ret.getDescription().c_str());
         if (ONEWAY_API_DELAY > 0us) {
             testDelaySpin(std::chrono::duration_cast<std::chrono::duration<float>>(ONEWAY_API_DELAY)
                                   .count());
         }
         state.ResumeTiming();
     }
-    hal->close();
+    session->close();
 }
 
 static void BM_PowerHalAidlBenchmarks_isBoostSupported(benchmark::State& state) {
@@ -155,16 +158,17 @@ static void BM_PowerHalAidlBenchmarks_createHintSession(benchmark::State& state)
     int64_t durationNanos = 16666666L;
     int32_t tgid = 999;
     int32_t uid = 1001;
-    sp<IPowerHintSession> appSession;
-    sp<IPower> hal = waitForVintfService<IPower>();
+    std::shared_ptr<IPowerHintSession> appSession;
+    std::shared_ptr<IPower> hal = PowerHalLoader::loadAidl();
 
     if (hal == nullptr) {
         ALOGV("Power HAL not available, skipping test...");
         return;
     }
 
-    binder::Status ret = hal->createHintSession(tgid, uid, threadIds, durationNanos, &appSession);
-    if (ret.exceptionCode() == binder::Status::Exception::EX_UNSUPPORTED_OPERATION) {
+    ndk::ScopedAStatus ret =
+            hal->createHintSession(tgid, uid, threadIds, durationNanos, &appSession);
+    if (ret.getExceptionCode() == binder::Status::EX_UNSUPPORTED_OPERATION) {
         ALOGV("Power HAL does not support this operation, skipping test...");
         return;
     }
@@ -172,7 +176,7 @@ static void BM_PowerHalAidlBenchmarks_createHintSession(benchmark::State& state)
     while (state.KeepRunning()) {
         ret = hal->createHintSession(tgid, uid, threadIds, durationNanos, &appSession);
         state.PauseTiming();
-        if (!ret.isOk()) state.SkipWithError(ret.toString8().c_str());
+        if (!ret.isOk()) state.SkipWithError(ret.getDescription().c_str());
         appSession->close();
         state.ResumeTiming();
     }

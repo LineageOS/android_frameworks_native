@@ -143,7 +143,7 @@ private:
  */
 class WorkDuration : public VsyncConfiguration {
 public:
-    explicit WorkDuration(Fps currentRefrshRate);
+    explicit WorkDuration(Fps currentRefreshRate);
 
 protected:
     // Used for unit tests

@@ -45,11 +45,11 @@ void LayerLifecycleManager::addLayers(std::vector<std::unique_ptr<RequestedLayer
     for (auto& newLayer : newLayers) {
         RequestedLayerState& layer = *newLayer.get();
         auto [it, inserted] = mIdToLayer.try_emplace(layer.id, References{.owner = layer});
-        if (!inserted) {
-            LOG_ALWAYS_FATAL("Duplicate layer id found. New layer: %s Existing layer: %s",
-                             layer.getDebugString().c_str(),
-                             it->second.owner.getDebugString().c_str());
-        }
+        LLOG_ALWAYS_FATAL_WITH_TRACE_IF(!inserted,
+                                        "Duplicate layer id found. New layer: %s Existing layer: "
+                                        "%s",
+                                        layer.getDebugString().c_str(),
+                                        it->second.owner.getDebugString().c_str());
         mAddedLayers.push_back(newLayer.get());
         mChangedLayers.push_back(newLayer.get());
         layer.parentId = linkLayer(layer.parentId, layer.id);
@@ -85,14 +85,15 @@ void LayerLifecycleManager::addLayers(std::vector<std::unique_ptr<RequestedLayer
     }
 }
 
-void LayerLifecycleManager::onHandlesDestroyed(const std::vector<uint32_t>& destroyedHandles,
-                                               bool ignoreUnknownHandles) {
+void LayerLifecycleManager::onHandlesDestroyed(
+        const std::vector<std::pair<uint32_t, std::string /* debugName */>>& destroyedHandles,
+        bool ignoreUnknownHandles) {
     std::vector<uint32_t> layersToBeDestroyed;
-    for (const auto& layerId : destroyedHandles) {
+    for (const auto& [layerId, name] : destroyedHandles) {
         auto it = mIdToLayer.find(layerId);
         if (it == mIdToLayer.end()) {
-            LOG_ALWAYS_FATAL_IF(!ignoreUnknownHandles, "%s Layerid not found %d", __func__,
-                                layerId);
+            LLOG_ALWAYS_FATAL_WITH_TRACE_IF(!ignoreUnknownHandles, "%s Layerid not found %s[%d]",
+                                            __func__, name.c_str(), layerId);
             continue;
         }
         RequestedLayerState& layer = it->second.owner;
@@ -113,10 +114,8 @@ void LayerLifecycleManager::onHandlesDestroyed(const std::vector<uint32_t>& dest
     for (size_t i = 0; i < layersToBeDestroyed.size(); i++) {
         uint32_t layerId = layersToBeDestroyed[i];
         auto it = mIdToLayer.find(layerId);
-        if (it == mIdToLayer.end()) {
-            LOG_ALWAYS_FATAL("%s Layer with id %d not found", __func__, layerId);
-            continue;
-        }
+        LLOG_ALWAYS_FATAL_WITH_TRACE_IF(it == mIdToLayer.end(), "%s Layer with id %d not found",
+                                        __func__, layerId);
 
         RequestedLayerState& layer = it->second.owner;
 
@@ -135,11 +134,9 @@ void LayerLifecycleManager::onHandlesDestroyed(const std::vector<uint32_t>& dest
         auto& references = it->second.references;
         for (uint32_t linkedLayerId : references) {
             RequestedLayerState* linkedLayer = getLayerFromId(linkedLayerId);
-            if (!linkedLayer) {
-                LOG_ALWAYS_FATAL("%s Layerid reference %d not found for %d", __func__,
-                                 linkedLayerId, layer.id);
-                continue;
-            };
+            LLOG_ALWAYS_FATAL_WITH_TRACE_IF(!linkedLayer,
+                                            "%s Layerid reference %d not found for %d", __func__,
+                                            linkedLayerId, layer.id);
             if (linkedLayer->parentId == layer.id) {
                 linkedLayer->parentId = UNASSIGNED_LAYER_ID;
                 if (linkedLayer->canBeDestroyed()) {
@@ -191,17 +188,17 @@ void LayerLifecycleManager::applyTransactions(const std::vector<TransactionState
 
             RequestedLayerState* layer = getLayerFromId(layerId);
             if (layer == nullptr) {
-                LOG_ALWAYS_FATAL_IF(!ignoreUnknownLayers, "%s Layer with layerid=%d not found",
-                                    __func__, layerId);
+                LLOG_ALWAYS_FATAL_WITH_TRACE_IF(!ignoreUnknownLayers,
+                                                "%s Layer with layerid=%d not found", __func__,
+                                                layerId);
                 continue;
             }
 
-            if (!layer->handleAlive) {
-                LOG_ALWAYS_FATAL("%s Layer's with layerid=%d) is not alive. Possible out of "
-                                 "order LayerLifecycleManager updates",
-                                 __func__, layerId);
-                continue;
-            }
+            LLOG_ALWAYS_FATAL_WITH_TRACE_IF(!layer->handleAlive,
+                                            "%s Layer's with layerid=%d) is not alive. Possible "
+                                            "out of "
+                                            "order LayerLifecycleManager updates",
+                                            __func__, layerId);
 
             if (layer->changes.get() == 0) {
                 mChangedLayers.push_back(layer);
@@ -241,7 +238,7 @@ void LayerLifecycleManager::applyTransactions(const std::vector<TransactionState
                     RequestedLayerState* bgColorLayer = getLayerFromId(layer->bgColorLayerId);
                     layer->bgColorLayerId = UNASSIGNED_LAYER_ID;
                     bgColorLayer->parentId = unlinkLayer(bgColorLayer->parentId, bgColorLayer->id);
-                    onHandlesDestroyed({bgColorLayer->id});
+                    onHandlesDestroyed({{bgColorLayer->id, bgColorLayer->debugName}});
                 } else if (layer->bgColorLayerId != UNASSIGNED_LAYER_ID) {
                     RequestedLayerState* bgColorLayer = getLayerFromId(layer->bgColorLayerId);
                     bgColorLayer->color = layer->bgColor;
@@ -434,6 +431,17 @@ void LayerLifecycleManager::updateDisplayMirrorLayers(RequestedLayerState& rootL
             mirrorLayer->changes |= RequestedLayerState::Changes::Mirror;
         }
     }
+}
+
+bool LayerLifecycleManager::isLayerSecure(uint32_t layerId) const {
+    if (layerId == UNASSIGNED_LAYER_ID) {
+        return false;
+    }
+
+    if (getLayerFromId(layerId)->flags & layer_state_t::eLayerSecure) {
+        return true;
+    }
+    return isLayerSecure(getLayerFromId(layerId)->parentId);
 }
 
 } // namespace android::surfaceflinger::frontend

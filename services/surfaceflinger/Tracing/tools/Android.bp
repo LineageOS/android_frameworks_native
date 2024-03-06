@@ -31,7 +31,6 @@ cc_binary {
     srcs: [
         ":libsurfaceflinger_sources",
         ":libsurfaceflinger_mock_sources",
-        ":layertracegenerator_sources",
         "main.cpp",
     ],
     static_libs: [
@@ -40,16 +39,4 @@ cc_binary {
     header_libs: [
         "libsurfaceflinger_mocks_headers",
     ],
-}
-
-filegroup {
-    name: "layertracegenerator_sources",
-    srcs: [
-        "LayerTraceGenerator.cpp",
-    ],
-}
-
-cc_library_headers {
-    name: "layertracegenerator_headers",
-    export_include_dirs: ["."],
 }

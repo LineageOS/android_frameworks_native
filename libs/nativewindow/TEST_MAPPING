@@ -1,12 +1,10 @@
 {
   "presubmit": [
     {
-      "name": "libnativewindow_test"
-    }
-  ],
-  "postsubmit": [
-    {
       "name": "libnativewindow_bindgen_test"
+    },
+    {
+      "name": "libnativewindow_test"
     },
     {
       "name": "libnativewindow_rs-internal_test"

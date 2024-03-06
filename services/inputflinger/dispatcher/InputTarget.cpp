@@ -16,7 +16,9 @@
 
 #include "InputTarget.h"
 
+#include <android-base/logging.h>
 #include <android-base/stringprintf.h>
+#include <input/PrintTools.h>
 #include <inttypes.h>
 #include <string>
 
@@ -34,7 +36,10 @@ void InputTarget::addPointers(std::bitset<MAX_POINTER_ID + 1> newPointerIds,
     }
 
     // Ensure that the new set of pointers doesn't overlap with the current set of pointers.
-    LOG_ALWAYS_FATAL_IF((pointerIds & newPointerIds).any());
+    if ((pointerIds & newPointerIds).any()) {
+        LOG(FATAL) << __func__ << " - overlap with incoming pointers "
+                   << bitsetToString(newPointerIds) << " in " << *this;
+    }
 
     pointerIds |= newPointerIds;
     for (size_t i = 0; i < newPointerIds.size(); i++) {
@@ -76,4 +81,25 @@ std::string InputTarget::getPointerInfoString() const {
     }
     return out;
 }
+
+std::ostream& operator<<(std::ostream& out, const InputTarget& target) {
+    out << "{inputChannel=";
+    if (target.inputChannel != nullptr) {
+        out << target.inputChannel->getName();
+    } else {
+        out << "<null>";
+    }
+    out << ", windowHandle=";
+    if (target.windowHandle != nullptr) {
+        out << target.windowHandle->getName();
+    } else {
+        out << "<null>";
+    }
+    out << ", dispatchMode=" << ftl::enum_string(target.dispatchMode).c_str();
+    out << ", targetFlags=" << target.flags.string();
+    out << ", pointers=" << target.getPointerInfoString();
+    out << "}";
+    return out;
+}
+
 } // namespace android::inputdispatcher

@@ -158,7 +158,8 @@ const InputReaderConfiguration& FakeInputReaderPolicy::getReaderConfiguration() 
     return mConfig;
 }
 
-const std::vector<InputDeviceInfo>& FakeInputReaderPolicy::getInputDevices() const {
+const std::vector<InputDeviceInfo> FakeInputReaderPolicy::getInputDevices() const {
+    std::scoped_lock lock(mLock);
     return mInputDevices;
 }
 
@@ -228,14 +229,14 @@ std::shared_ptr<PointerControllerInterface> FakeInputReaderPolicy::obtainPointer
 
 void FakeInputReaderPolicy::notifyInputDevicesChanged(
         const std::vector<InputDeviceInfo>& inputDevices) {
-    std::scoped_lock<std::mutex> lock(mLock);
+    std::scoped_lock lock(mLock);
     mInputDevices = inputDevices;
     mInputDevicesChanged = true;
     mDevicesChangedCondition.notify_all();
 }
 
 std::shared_ptr<KeyCharacterMap> FakeInputReaderPolicy::getKeyboardLayoutOverlay(
-        const InputDeviceIdentifier&) {
+        const InputDeviceIdentifier&, const std::optional<KeyboardLayoutInfo>) {
     return nullptr;
 }
 
@@ -256,8 +257,21 @@ void FakeInputReaderPolicy::waitForInputDevices(std::function<void(bool)> proces
 }
 
 void FakeInputReaderPolicy::notifyStylusGestureStarted(int32_t deviceId, nsecs_t eventTime) {
-    std::scoped_lock<std::mutex> lock(mLock);
+    std::scoped_lock lock(mLock);
     mStylusGestureNotified = deviceId;
+}
+
+std::optional<DisplayViewport> FakeInputReaderPolicy::getPointerViewportForAssociatedDisplay(
+        int32_t associatedDisplayId) {
+    if (associatedDisplayId == ADISPLAY_ID_NONE) {
+        associatedDisplayId = mConfig.defaultPointerDisplayId;
+    }
+    for (auto& viewport : mViewports) {
+        if (viewport.displayId == associatedDisplayId) {
+            return std::make_optional(viewport);
+        }
+    }
+    return std::nullopt;
 }
 
 } // namespace android

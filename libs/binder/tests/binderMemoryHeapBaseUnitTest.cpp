@@ -37,7 +37,8 @@ TEST(MemoryHeapBase, MemfdSealed) {
     ASSERT_NE(mHeap.get(), nullptr);
     int fd = mHeap->getHeapID();
     EXPECT_NE(fd, -1);
-    EXPECT_EQ(fcntl(fd, F_GET_SEALS), F_SEAL_SEAL);
+    EXPECT_EQ(fcntl(fd, F_GET_SEALS), F_SEAL_GROW | F_SEAL_SHRINK | F_SEAL_SEAL);
+    EXPECT_EQ(ftruncate(fd, 4096), -1);
 }
 
 TEST(MemoryHeapBase, MemfdUnsealed) {
@@ -48,7 +49,8 @@ TEST(MemoryHeapBase, MemfdUnsealed) {
     ASSERT_NE(mHeap.get(), nullptr);
     int fd = mHeap->getHeapID();
     EXPECT_NE(fd, -1);
-    EXPECT_EQ(fcntl(fd, F_GET_SEALS), 0);
+    EXPECT_EQ(fcntl(fd, F_GET_SEALS), F_SEAL_GROW | F_SEAL_SHRINK);
+    EXPECT_EQ(ftruncate(fd, 4096), -1);
 }
 
 TEST(MemoryHeapBase, MemfdSealedProtected) {
@@ -59,7 +61,9 @@ TEST(MemoryHeapBase, MemfdSealedProtected) {
     ASSERT_NE(mHeap.get(), nullptr);
     int fd = mHeap->getHeapID();
     EXPECT_NE(fd, -1);
-    EXPECT_EQ(fcntl(fd, F_GET_SEALS), F_SEAL_SEAL | F_SEAL_FUTURE_WRITE);
+    EXPECT_EQ(fcntl(fd, F_GET_SEALS),
+              F_SEAL_GROW | F_SEAL_SHRINK | F_SEAL_SEAL | F_SEAL_FUTURE_WRITE);
+    EXPECT_EQ(ftruncate(fd, 4096), -1);
 }
 
 TEST(MemoryHeapBase, MemfdUnsealedProtected) {
@@ -71,7 +75,8 @@ TEST(MemoryHeapBase, MemfdUnsealedProtected) {
     ASSERT_NE(mHeap.get(), nullptr);
     int fd = mHeap->getHeapID();
     EXPECT_NE(fd, -1);
-    EXPECT_EQ(fcntl(fd, F_GET_SEALS), F_SEAL_FUTURE_WRITE);
+    EXPECT_EQ(fcntl(fd, F_GET_SEALS), F_SEAL_GROW | F_SEAL_SHRINK | F_SEAL_FUTURE_WRITE);
+    EXPECT_EQ(ftruncate(fd, 4096), -1);
 }
 
 #else

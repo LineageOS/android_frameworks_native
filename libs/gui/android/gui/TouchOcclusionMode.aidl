@@ -43,5 +43,6 @@ enum TouchOcclusionMode {
       * The window won't count for touch occlusion rules if the touch passes
       * through it.
       */
-    ALLOW
+    ALLOW,
+    ftl_last=ALLOW,
 }

@@ -22,8 +22,6 @@
 #include <math/mat4.h>
 #include <renderengine/DisplaySettings.h>
 #include <renderengine/ExternalTexture.h>
-#include <renderengine/Framebuffer.h>
-#include <renderengine/Image.h>
 #include <renderengine/LayerSettings.h>
 #include <stdint.h>
 #include <sys/types.h>
@@ -95,8 +93,6 @@ public:
     };
 
     enum class RenderEngineType {
-        GLES = 1,
-        THREADED = 2,
         SKIA_GL = 3,
         SKIA_GL_THREADED = 4,
         SKIA_VK = 5,
@@ -111,13 +107,10 @@ public:
     // This interface, while still in use until a suitable replacement is built,
     // should be considered deprecated, minus some methods which still may be
     // used to support legacy behavior.
-    virtual std::future<void> primeCache() = 0;
+    virtual std::future<void> primeCache(bool shouldPrimeUltraHDR) = 0;
 
     // dump the extension strings. always call the base class.
     virtual void dump(std::string& result) = 0;
-
-    virtual void genTextures(size_t count, uint32_t* names) = 0;
-    virtual void deleteTextures(size_t count, uint32_t const* names) = 0;
 
     // queries that are required to be thread safe
     virtual size_t getMaxTextureSize() const = 0;
@@ -152,9 +145,6 @@ public:
     // @param layers The layers to draw onto the display, in Z-order.
     // @param buffer The buffer which will be drawn to. This buffer will be
     // ready once drawFence fires.
-    // @param useFramebufferCache True if the framebuffer cache should be used.
-    // If an implementation does not cache output framebuffers, then this
-    // parameter does nothing.
     // @param bufferFence Fence signalling that the buffer is ready to be drawn
     // to.
     // @return A future object of FenceResult indicating whether drawing was
@@ -162,7 +152,6 @@ public:
     virtual ftl::Future<FenceResult> drawLayers(const DisplaySettings& display,
                                                 const std::vector<LayerSettings>& layers,
                                                 const std::shared_ptr<ExternalTexture>& buffer,
-                                                const bool useFramebufferCache,
                                                 base::unique_fd&& bufferFence);
 
     // Clean-up method that should be called on the main thread after the
@@ -170,8 +159,6 @@ public:
     // resources used by the most recently drawn frame. If the frame is still
     // being drawn, then the implementation is free to silently ignore this call.
     virtual void cleanupPostRender() = 0;
-
-    virtual void cleanFramebufferCache() = 0;
 
     // Returns the priority this context was actually created with. Note: this
     // may not be the same as specified at context creation time, due to
@@ -204,7 +191,7 @@ public:
     virtual void setEnableTracing(bool /*tracingEnabled*/) {}
 
 protected:
-    RenderEngine() : RenderEngine(RenderEngineType::GLES) {}
+    RenderEngine() : RenderEngine(RenderEngineType::SKIA_GL) {}
 
     RenderEngine(RenderEngineType type) : mRenderEngineType(type) {}
 
@@ -253,8 +240,7 @@ protected:
     virtual void drawLayersInternal(
             const std::shared_ptr<std::promise<FenceResult>>&& resultPromise,
             const DisplaySettings& display, const std::vector<LayerSettings>& layers,
-            const std::shared_ptr<ExternalTexture>& buffer, const bool useFramebufferCache,
-            base::unique_fd&& bufferFence) = 0;
+            const std::shared_ptr<ExternalTexture>& buffer, base::unique_fd&& bufferFence) = 0;
 };
 
 struct RenderEngineCreationArgs {
@@ -271,14 +257,13 @@ struct RenderEngineCreationArgs {
 
 private:
     // must be created by Builder via constructor with full argument list
-    RenderEngineCreationArgs(int _pixelFormat, uint32_t _imageCacheSize, bool _useColorManagement,
+    RenderEngineCreationArgs(int _pixelFormat, uint32_t _imageCacheSize,
                              bool _enableProtectedContext, bool _precacheToneMapperShaderOnly,
                              bool _supportsBackgroundBlur,
                              RenderEngine::ContextPriority _contextPriority,
                              RenderEngine::RenderEngineType _renderEngineType)
           : pixelFormat(_pixelFormat),
             imageCacheSize(_imageCacheSize),
-            useColorManagement(_useColorManagement),
             enableProtectedContext(_enableProtectedContext),
             precacheToneMapperShaderOnly(_precacheToneMapperShaderOnly),
             supportsBackgroundBlur(_supportsBackgroundBlur),
@@ -296,10 +281,6 @@ struct RenderEngineCreationArgs::Builder {
     }
     Builder& setImageCacheSize(uint32_t imageCacheSize) {
         this->imageCacheSize = imageCacheSize;
-        return *this;
-    }
-    Builder& setUseColorManagerment(bool useColorManagement) {
-        this->useColorManagement = useColorManagement;
         return *this;
     }
     Builder& setEnableProtectedContext(bool enableProtectedContext) {
@@ -323,16 +304,15 @@ struct RenderEngineCreationArgs::Builder {
         return *this;
     }
     RenderEngineCreationArgs build() const {
-        return RenderEngineCreationArgs(pixelFormat, imageCacheSize, useColorManagement,
-                                        enableProtectedContext, precacheToneMapperShaderOnly,
-                                        supportsBackgroundBlur, contextPriority, renderEngineType);
+        return RenderEngineCreationArgs(pixelFormat, imageCacheSize, enableProtectedContext,
+                                        precacheToneMapperShaderOnly, supportsBackgroundBlur,
+                                        contextPriority, renderEngineType);
     }
 
 private:
     // 1 means RGBA_8888
     int pixelFormat = 1;
     uint32_t imageCacheSize = 0;
-    bool useColorManagement = true;
     bool enableProtectedContext = false;
     bool precacheToneMapperShaderOnly = false;
     bool supportsBackgroundBlur = false;

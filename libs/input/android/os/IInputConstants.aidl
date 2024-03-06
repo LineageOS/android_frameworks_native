@@ -57,4 +57,88 @@ interface IInputConstants
 
     /* The default pointer acceleration value. */
     const int DEFAULT_POINTER_ACCELERATION = 3;
+
+    /**
+     * Use the default Velocity Tracker Strategy. Different axes may use different default
+     * strategies.
+     */
+    const int VELOCITY_TRACKER_STRATEGY_DEFAULT = -1;
+
+    /**
+     * Velocity Tracker Strategy: Impulse.
+     * Physical model of pushing an object.  Quality: VERY GOOD.
+     * Works with duplicate coordinates, unclean finger liftoff.
+     */
+    const int VELOCITY_TRACKER_STRATEGY_IMPULSE = 0;
+
+    /**
+     * Velocity Tracker Strategy: LSQ1.
+     * 1st order least squares.  Quality: POOR.
+     * Frequently underfits the touch data especially when the finger accelerates
+     * or changes direction.  Often underestimates velocity.  The direction
+     * is overly influenced by historical touch points.
+     */
+    const int VELOCITY_TRACKER_STRATEGY_LSQ1 = 1;
+
+    /**
+     * Velocity Tracker Strategy: LSQ2.
+     * 2nd order least squares.  Quality: VERY GOOD.
+     * Pretty much ideal, but can be confused by certain kinds of touch data,
+     * particularly if the panel has a tendency to generate delayed,
+     * duplicate or jittery touch coordinates when the finger is released.
+     */
+    const int VELOCITY_TRACKER_STRATEGY_LSQ2 = 2;
+
+    /**
+     * Velocity Tracker Strategy: LSQ3.
+     * 3rd order least squares.  Quality: UNUSABLE.
+     * Frequently overfits the touch data yielding wildly divergent estimates
+     * of the velocity when the finger is released.
+     */
+    const int VELOCITY_TRACKER_STRATEGY_LSQ3 = 3;
+
+    /**
+     * Velocity Tracker Strategy: WLSQ2_DELTA.
+     * 2nd order weighted least squares, delta weighting.  Quality: EXPERIMENTAL
+     */
+    const int VELOCITY_TRACKER_STRATEGY_WLSQ2_DELTA = 4;
+
+    /**
+     * Velocity Tracker Strategy: WLSQ2_CENTRAL.
+     * 2nd order weighted least squares, central weighting.  Quality: EXPERIMENTALe
+     */
+    const int VELOCITY_TRACKER_STRATEGY_WLSQ2_CENTRAL = 5;
+
+    /**
+     * Velocity Tracker Strategy: WLSQ2_RECENT.
+     * 2nd order weighted least squares, recent weighting.  Quality: EXPERIMENTAL
+     */
+    const int VELOCITY_TRACKER_STRATEGY_WLSQ2_RECENT = 6;
+
+    /**
+     * Velocity Tracker Strategy: INT1.
+     * 1st order integrating filter.  Quality: GOOD.
+     * Not as good as 'lsq2' because it cannot estimate acceleration but it is
+     * more tolerant of errors.  Like 'lsq1', this strategy tends to underestimate
+     * the velocity of a fling but this strategy tends to respond to changes in
+     * direction more quickly and accurately.
+     */
+    const int VELOCITY_TRACKER_STRATEGY_INT1 = 7;
+
+    /**
+     * Velocity Tracker Strategy: INT2.
+     * 2nd order integrating filter.  Quality: EXPERIMENTAL.
+     * For comparison purposes only.  Unlike 'int1' this strategy can compensate
+     * for acceleration but it typically overestimates the effect.
+     */
+    const int VELOCITY_TRACKER_STRATEGY_INT2 = 8;
+
+    /**
+     * Velocity Tracker Strategy: Legacy.
+     * Legacy velocity tracker algorithm.  Quality: POOR.
+     * For comparison purposes only.  This algorithm is strongly influenced by
+     * old data points, consistently underestimates velocity and takes a very long
+     * time to adjust to changes in direction.
+     */
+    const int VELOCITY_TRACKER_STRATEGY_LEGACY = 9;
 }

@@ -33,6 +33,29 @@ filegroup {
     ],
 }
 
+/////////////////////////////////////////////////
+// flags
+/////////////////////////////////////////////////
+aconfig_declarations {
+    name: "com.android.input.flags-aconfig",
+    package: "com.android.input.flags",
+    srcs: ["input_flags.aconfig"],
+}
+
+cc_aconfig_library {
+    name: "com.android.input.flags-aconfig-cc",
+    aconfig_declarations: "com.android.input.flags-aconfig",
+    host_supported: true,
+    // Use the test version of the aconfig flag library by default to allow tests to set local
+    // overrides for flags, without having to link against a separate version of libinput or of this
+    // library. Bundling this library directly into libinput prevents us from having to add this
+    // library as a shared lib dependency everywhere where libinput is used.
+    mode: "test",
+    shared: {
+        enabled: false,
+    },
+}
+
 aidl_interface {
     name: "inputconstants",
     host_supported: true,
@@ -65,12 +88,38 @@ rust_bindgen {
     bindgen_flags: [
         "--verbose",
         "--allowlist-var=AMOTION_EVENT_FLAG_CANCELED",
+        "--allowlist-var=AMOTION_EVENT_FLAG_WINDOW_IS_OBSCURED",
+        "--allowlist-var=AMOTION_EVENT_FLAG_WINDOW_IS_PARTIALLY_OBSCURED",
+        "--allowlist-var=AMOTION_EVENT_FLAG_IS_ACCESSIBILITY_EVENT",
+        "--allowlist-var=AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE",
         "--allowlist-var=AMOTION_EVENT_ACTION_CANCEL",
         "--allowlist-var=AMOTION_EVENT_ACTION_UP",
         "--allowlist-var=AMOTION_EVENT_ACTION_POINTER_DOWN",
         "--allowlist-var=AMOTION_EVENT_ACTION_DOWN",
         "--allowlist-var=AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT",
         "--allowlist-var=MAX_POINTER_ID",
+        "--allowlist-var=AINPUT_SOURCE_CLASS_NONE",
+        "--allowlist-var=AINPUT_SOURCE_CLASS_BUTTON",
+        "--allowlist-var=AINPUT_SOURCE_CLASS_POINTER",
+        "--allowlist-var=AINPUT_SOURCE_CLASS_NAVIGATION",
+        "--allowlist-var=AINPUT_SOURCE_CLASS_POSITION",
+        "--allowlist-var=AINPUT_SOURCE_CLASS_JOYSTICK",
+        "--allowlist-var=AINPUT_SOURCE_UNKNOWN",
+        "--allowlist-var=AINPUT_SOURCE_KEYBOARD",
+        "--allowlist-var=AINPUT_SOURCE_DPAD",
+        "--allowlist-var=AINPUT_SOURCE_GAMEPAD",
+        "--allowlist-var=AINPUT_SOURCE_TOUCHSCREEN",
+        "--allowlist-var=AINPUT_SOURCE_MOUSE",
+        "--allowlist-var=AINPUT_SOURCE_STYLUS",
+        "--allowlist-var=AINPUT_SOURCE_BLUETOOTH_STYLUS",
+        "--allowlist-var=AINPUT_SOURCE_TRACKBALL",
+        "--allowlist-var=AINPUT_SOURCE_MOUSE_RELATIVE",
+        "--allowlist-var=AINPUT_SOURCE_TOUCHPAD",
+        "--allowlist-var=AINPUT_SOURCE_TOUCH_NAVIGATION",
+        "--allowlist-var=AINPUT_SOURCE_JOYSTICK",
+        "--allowlist-var=AINPUT_SOURCE_HDMI",
+        "--allowlist-var=AINPUT_SOURCE_SENSOR",
+        "--allowlist-var=AINPUT_SOURCE_ROTARY_ENCODER",
     ],
 
     static_libs: [
@@ -109,62 +158,6 @@ cc_library_static {
     ],
 }
 
-genrule {
-    name: "libinput_cxx_bridge_code",
-    tools: ["cxxbridge"],
-    cmd: "$(location cxxbridge) $(in) >> $(out)",
-    srcs: ["input_verifier.rs"],
-    out: ["inputverifier_generated.cpp"],
-}
-
-genrule {
-    name: "libinput_cxx_bridge_header",
-    tools: ["cxxbridge"],
-    cmd: "$(location cxxbridge) $(in) --header >> $(out)",
-    srcs: ["input_verifier.rs"],
-    out: ["input_verifier.rs.h"],
-}
-
-rust_defaults {
-    name: "libinput_rust_defaults",
-    srcs: ["input_verifier.rs"],
-    host_supported: true,
-    rustlibs: [
-        "libbitflags",
-        "libcxx",
-        "libinput_bindgen",
-        "liblogger",
-        "liblog_rust",
-        "inputconstants-rust",
-    ],
-
-    shared_libs: [
-        "libbase",
-        "liblog",
-    ],
-}
-
-rust_ffi_static {
-    name: "libinput_rust",
-    crate_name: "input",
-    defaults: ["libinput_rust_defaults"],
-}
-
-rust_test {
-    name: "libinput_rust_test",
-    defaults: ["libinput_rust_defaults"],
-    whole_static_libs: [
-        "libinput_from_rust_to_cpp",
-    ],
-    test_options: {
-        unit_test: true,
-    },
-    test_suites: ["device_tests"],
-    sanitize: {
-        hwaddress: true,
-    },
-}
-
 cc_library {
     name: "libinput",
     cpp_std: "c++20",
@@ -174,12 +167,18 @@ cc_library {
         "-Wextra",
         "-Werror",
         "-Wno-unused-parameter",
+        "-Wthread-safety",
+        "-Wshadow",
+        "-Wshadow-field-in-constructor-modified",
+        "-Wshadow-uncaptured-local",
+        "-DANDROID_UTILS_REF_BASE_DISABLE_IMPLICIT_CONSTRUCTION",
     ],
     srcs: [
-        "FromRustToCpp.cpp",
+        "android/os/IInputFlinger.aidl",
         "Input.cpp",
         "InputDevice.cpp",
         "InputEventLabels.cpp",
+        "InputTransport.cpp",
         "InputVerifier.cpp",
         "Keyboard.cpp",
         "KeyCharacterMap.cpp",
@@ -213,15 +212,16 @@ cc_library {
         "toolbox_input_labels",
     ],
 
-    generated_sources: ["libinput_cxx_bridge_code"],
-
     shared_libs: [
         "libbase",
+        "libbinder",
         "libcutils",
         "liblog",
         "libPlatformProperties",
         "libtinyxml2",
+        "libutils",
         "libz", // needed by libkernelconfigs
+        "server_configurable_flags",
     ],
 
     ldflags: [
@@ -236,16 +236,19 @@ cc_library {
 
     static_libs: [
         "inputconstants-cpp",
+        "libgui_window_info_static",
         "libui-types",
         "libtflite_static",
         "libkernelconfigs",
     ],
 
     whole_static_libs: [
-        "libinput_rust",
+        "com.android.input.flags-aconfig-cc",
+        "libinput_rust_ffi",
     ],
 
     export_static_lib_headers: [
+        "libgui_window_info_static",
         "libui-types",
     ],
 
@@ -256,11 +259,6 @@ cc_library {
 
     target: {
         android: {
-            srcs: [
-                "InputTransport.cpp",
-                "android/os/IInputFlinger.aidl",
-            ],
-
             export_shared_lib_headers: ["libbinder"],
 
             shared_libs: [
@@ -272,42 +270,15 @@ cc_library {
                 "android.os.statsbootstrap_aidl-cpp",
             ],
 
-            static_libs: [
-                "libgui_window_info_static",
-            ],
-
-            export_static_lib_headers: [
-                "libgui_window_info_static",
-            ],
-
             required: [
                 "motion_predictor_model_prebuilt",
                 "motion_predictor_model_config",
             ],
         },
         host: {
-            shared: {
-                enabled: false,
-            },
             include_dirs: [
                 "bionic/libc/kernel/android/uapi/",
                 "bionic/libc/kernel/uapi",
-                "frameworks/native/libs/arect/include",
-            ],
-        },
-        host_linux: {
-            srcs: [
-                "InputTransport.cpp",
-            ],
-            static_libs: [
-                "libgui_window_info_static",
-            ],
-            shared_libs: [
-                "libbinder",
-            ],
-
-            export_static_lib_headers: [
-                "libgui_window_info_static",
             ],
         },
     },

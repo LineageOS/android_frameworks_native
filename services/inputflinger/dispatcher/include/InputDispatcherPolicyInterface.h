@@ -18,9 +18,12 @@
 
 #include "InputDispatcherConfiguration.h"
 
+#include <android-base/properties.h>
 #include <binder/IBinder.h>
 #include <gui/InputApplication.h>
+#include <gui/PidUid.h>
 #include <input/Input.h>
+#include <input/InputDevice.h>
 #include <utils/RefBase.h>
 #include <set>
 
@@ -73,9 +76,6 @@ public:
                                       InputDeviceSensorAccuracy accuracy) = 0;
     virtual void notifyVibratorState(int32_t deviceId, bool isOn) = 0;
 
-    /* Gets the input dispatcher configuration. */
-    virtual InputDispatcherConfiguration getDispatcherConfiguration() = 0;
-
     /* Filters an input event.
      * Return true to dispatch the event unmodified, false to consume the event.
      * A filter can also transform and inject events later by passing POLICY_FLAG_FILTERED
@@ -121,6 +121,16 @@ public:
     /* Poke user activity for an event dispatched to a window. */
     virtual void pokeUserActivity(nsecs_t eventTime, int32_t eventType, int32_t displayId) = 0;
 
+    /*
+     * Return true if the provided event is stale, and false otherwise. Used for determining
+     * whether the dispatcher should drop the event.
+     */
+    virtual bool isStaleEvent(nsecs_t currentTime, nsecs_t eventTime) {
+        static const std::chrono::duration STALE_EVENT_TIMEOUT =
+                std::chrono::seconds(10) * android::base::HwTimeoutMultiplier();
+        return std::chrono::nanoseconds(currentTime - eventTime) >= STALE_EVENT_TIMEOUT;
+    }
+
     /* Notifies the policy that a pointer down event has occurred outside the current focused
      * window.
      *
@@ -138,7 +148,7 @@ public:
     virtual void notifyDropWindow(const sp<IBinder>& token, float x, float y) = 0;
 
     /* Notifies the policy that there was an input device interaction with apps. */
-    virtual void notifyDeviceInteraction(int32_t deviceId, nsecs_t timestamp,
+    virtual void notifyDeviceInteraction(DeviceId deviceId, nsecs_t timestamp,
                                          const std::set<gui::Uid>& uids) = 0;
 };
 

@@ -1,0 +1,71 @@
+// Copyright 2023 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Generate the C++ code that Rust calls into.
+genrule {
+    name: "inputflinger_rs_bootstrap_bridge_code",
+    tools: ["cxxbridge"],
+    cmd: "$(location cxxbridge) $(in) >> $(out)",
+    srcs: ["lib.rs"],
+    out: ["inputflinger_rs_bootstrap_cxx_generated.cc"],
+}
+
+// Generate a C++ header containing the C++ bindings
+// to the Rust exported functions in lib.rs.
+genrule {
+    name: "inputflinger_rs_bootstrap_bridge_header",
+    tools: ["cxxbridge"],
+    cmd: "$(location cxxbridge) $(in) --header >> $(out)",
+    srcs: ["lib.rs"],
+    out: ["inputflinger_bootstrap.rs.h"],
+}
+
+rust_defaults {
+    name: "libinputflinger_rs_defaults",
+    crate_name: "inputflinger",
+    srcs: ["lib.rs"],
+    rustlibs: [
+        "libcxx",
+        "com.android.server.inputflinger-rust",
+        "android.hardware.input.common-V1-rust",
+        "libbinder_rs",
+        "liblog_rust",
+        "liblogger",
+    ],
+    host_supported: true,
+}
+
+rust_ffi_static {
+    name: "libinputflinger_rs",
+    defaults: ["libinputflinger_rs_defaults"],
+}
+
+rust_test {
+    name: "libinputflinger_rs_test",
+    defaults: ["libinputflinger_rs_defaults"],
+    test_options: {
+        unit_test: true,
+    },
+    test_suites: ["device_tests"],
+    sanitize: {
+        address: true,
+        hwaddress: true,
+    },
+}
+
+cc_library_headers {
+    name: "inputflinger_rs_bootstrap_cxx_headers",
+    host_supported: true,
+    export_include_dirs: ["ffi"],
+}

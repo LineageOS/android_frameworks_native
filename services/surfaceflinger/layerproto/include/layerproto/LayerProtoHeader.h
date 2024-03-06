@@ -14,11 +14,14 @@
  * limitations under the License.
  */
 
+#pragma once
+
 // pragma is used here to disable the warnings emitted from the protobuf
 // headers. By adding #pragma before including layer.pb.h, it supresses
 // protobuf warnings, but allows the rest of the files to continuing using
 // the current flags.
 // This file should be included instead of directly including layer.b.h
 #pragma GCC system_header
-#include <layers.pb.h>
-#include <layerstrace.pb.h>
+#include <perfetto/config/android/surfaceflinger_layers_config.pbzero.h>
+#include <perfetto/trace/android/surfaceflinger_layers.pb.h>
+#include <perfetto/trace/android/surfaceflinger_layers.pbzero.h>

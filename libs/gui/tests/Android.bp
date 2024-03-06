@@ -16,9 +16,13 @@ cc_test {
     name: "libgui_test",
     test_suites: ["device-tests"],
 
-    cflags: [
+    defaults: ["libgui-defaults"],
+
+    cppflags: [
         "-Wall",
         "-Werror",
+        "-Wno-extra",
+        "-DCOM_ANDROID_GRAPHICS_LIBGUI_FLAGS_BQ_SETFRAMERATE=true",
     ],
 
     srcs: [
@@ -29,6 +33,7 @@ cc_test {
         "CompositorTiming_test.cpp",
         "CpuConsumer_test.cpp",
         "EndToEndNativeInputTest.cpp",
+        "FrameRateUtilsTest.cpp",
         "DisplayInfo_test.cpp",
         "DisplayedContentSampling_test.cpp",
         "FillBuffer.cpp",
@@ -54,19 +59,12 @@ cc_test {
         "android.hardware.configstore@1.0",
         "android.hardware.configstore-utils",
         "libSurfaceFlingerProp",
-        "libbase",
-        "liblog",
-        "libEGL",
         "libGLESv1_CM",
-        "libGLESv2",
-        "libbinder",
-        "libcutils",
-        "libgui",
-        "libhidlbase",
         "libinput",
-        "libui",
-        "libutils",
-        "libnativewindow",
+    ],
+
+    static_libs: [
+        "libgmock",
     ],
 
     header_libs: ["libsurfaceflinger_headers"],

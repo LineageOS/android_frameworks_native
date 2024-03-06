@@ -32,27 +32,12 @@ SensorPrivacyManager::SensorPrivacyManager()
 sp<hardware::ISensorPrivacyManager> SensorPrivacyManager::getService()
 {
     std::lock_guard<Mutex> scoped_lock(mLock);
-    int64_t startTime = 0;
     sp<hardware::ISensorPrivacyManager> service = mService;
-    while (service == nullptr || !IInterface::asBinder(service)->isBinderAlive()) {
-        sp<IBinder> binder = defaultServiceManager()->checkService(String16("sensor_privacy"));
-        if (binder == nullptr) {
-            // Wait for the sensor privacy service to come back...
-            if (startTime == 0) {
-                startTime = uptimeMillis();
-                ALOGI("Waiting for sensor privacy service");
-            } else if ((uptimeMillis() - startTime) > 1000000) {
-                ALOGW("Waiting too long for sensor privacy service, giving up");
-                service = nullptr;
-                break;
-            }
-            usleep(25000);
-        } else {
-            service = interface_cast<hardware::ISensorPrivacyManager>(binder);
-            mService = service;
-        }
+    if (service == nullptr || !IInterface::asBinder(service)->isBinderAlive()) {
+      sp<IBinder> binder = defaultServiceManager()->waitForService(String16("sensor_privacy"));
+      mService = interface_cast<hardware::ISensorPrivacyManager>(binder);
     }
-    return service;
+    return mService;
 }
 
 bool SensorPrivacyManager::supportsSensorToggle(int toggleType, int sensor) {

@@ -85,7 +85,7 @@ TEST_F(ActiveDisplayRotationFlagsTest, rotate90) {
     ASSERT_EQ(ui::Transform::ROT_90, SurfaceFlinger::getActiveDisplayRotationFlags());
 }
 
-TEST_F(ActiveDisplayRotationFlagsTest, rotate90_inactive) {
+TEST_F(ActiveDisplayRotationFlagsTest, rotate90inactive) {
     auto displayToken = mOuterDisplay->getDisplayToken().promote();
     mFlinger.mutableDrawingState().displays.editValueFor(displayToken).orientation = ui::ROTATION_0;
     mFlinger.mutableCurrentState().displays.editValueFor(displayToken).orientation =
@@ -95,7 +95,7 @@ TEST_F(ActiveDisplayRotationFlagsTest, rotate90_inactive) {
     ASSERT_EQ(ui::Transform::ROT_0, SurfaceFlinger::getActiveDisplayRotationFlags());
 }
 
-TEST_F(ActiveDisplayRotationFlagsTest, rotateBoth_innerActive) {
+TEST_F(ActiveDisplayRotationFlagsTest, rotateBothInnerActive) {
     auto displayToken = mInnerDisplay->getDisplayToken().promote();
     mFlinger.mutableDrawingState().displays.editValueFor(displayToken).orientation = ui::ROTATION_0;
     mFlinger.mutableCurrentState().displays.editValueFor(displayToken).orientation =
@@ -110,7 +110,7 @@ TEST_F(ActiveDisplayRotationFlagsTest, rotateBoth_innerActive) {
     ASSERT_EQ(ui::Transform::ROT_180, SurfaceFlinger::getActiveDisplayRotationFlags());
 }
 
-TEST_F(ActiveDisplayRotationFlagsTest, rotateBoth_outerActive) {
+TEST_F(ActiveDisplayRotationFlagsTest, rotateBothOuterActive) {
     mFlinger.mutableActiveDisplayId() = kOuterDisplayId;
     auto displayToken = mInnerDisplay->getDisplayToken().promote();
     mFlinger.mutableDrawingState().displays.editValueFor(displayToken).orientation = ui::ROTATION_0;

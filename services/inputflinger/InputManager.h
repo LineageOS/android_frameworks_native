@@ -21,21 +21,28 @@
  */
 
 #include "InputDeviceMetricsCollector.h"
+#include "InputFilter.h"
 #include "InputProcessor.h"
 #include "InputReaderBase.h"
+#include "PointerChoreographer.h"
 #include "include/UnwantedInteractionBlockerInterface.h"
 
 #include <InputDispatcherInterface.h>
 #include <InputDispatcherPolicyInterface.h>
+#include <PointerChoreographerPolicyInterface.h>
 #include <input/Input.h>
 #include <input/InputTransport.h>
 
+#include <aidl/com/android/server/inputflinger/IInputFlingerRust.h>
 #include <android/os/BnInputFlinger.h>
 #include <utils/Errors.h>
 #include <utils/RefBase.h>
 #include <utils/Timers.h>
 
 using android::os::BnInputFlinger;
+
+using aidl::com::android::server::inputflinger::IInputFilter;
+using aidl::com::android::server::inputflinger::IInputFlingerRust;
 
 namespace android {
 class InputChannel;
@@ -83,6 +90,9 @@ public:
     /* Gets the input reader. */
     virtual InputReaderInterface& getReader() = 0;
 
+    /* Gets the PointerChoreographer. */
+    virtual PointerChoreographerInterface& getChoreographer() = 0;
+
     /* Gets the input processor. */
     virtual InputProcessorInterface& getProcessor() = 0;
 
@@ -91,6 +101,9 @@ public:
 
     /* Gets the input dispatcher. */
     virtual InputDispatcherInterface& getDispatcher() = 0;
+
+    /* Gets the input filter */
+    virtual InputFilterInterface& getInputFilter() = 0;
 
     /* Check that the input stages have not deadlocked. */
     virtual void monitor() = 0;
@@ -105,15 +118,18 @@ protected:
 
 public:
     InputManager(const sp<InputReaderPolicyInterface>& readerPolicy,
-                 InputDispatcherPolicyInterface& dispatcherPolicy);
+                 InputDispatcherPolicyInterface& dispatcherPolicy,
+                 PointerChoreographerPolicyInterface& choreographerPolicy);
 
     status_t start() override;
     status_t stop() override;
 
     InputReaderInterface& getReader() override;
+    PointerChoreographerInterface& getChoreographer() override;
     InputProcessorInterface& getProcessor() override;
     InputDeviceMetricsCollectorInterface& getMetricsCollector() override;
     InputDispatcherInterface& getDispatcher() override;
+    InputFilterInterface& getInputFilter() override;
     void monitor() override;
     void dump(std::string& dump) override;
 
@@ -127,11 +143,19 @@ private:
 
     std::unique_ptr<UnwantedInteractionBlockerInterface> mBlocker;
 
+    std::unique_ptr<InputFilterInterface> mInputFilter;
+
+    std::unique_ptr<PointerChoreographerInterface> mChoreographer;
+
     std::unique_ptr<InputProcessorInterface> mProcessor;
 
     std::unique_ptr<InputDeviceMetricsCollectorInterface> mCollector;
 
     std::unique_ptr<InputDispatcherInterface> mDispatcher;
+
+    std::shared_ptr<IInputFlingerRust> mInputFlingerRust;
+
+    std::vector<std::unique_ptr<TracedInputListener>> mTracingStages;
 };
 
 } // namespace android

@@ -220,17 +220,6 @@ DisplayColorProfile::DisplayColorProfile(const DisplayColorProfileCreationArgs& 
     minLuminance = minLuminance <= 0.0 ? sDefaultMinLumiance : minLuminance;
     maxLuminance = maxLuminance <= 0.0 ? sDefaultMaxLumiance : maxLuminance;
     maxAverageLuminance = maxAverageLuminance <= 0.0 ? sDefaultMaxLumiance : maxAverageLuminance;
-    if (args.hasWideColorGamut) {
-        // insert HDR10/HLG as we will force client composition for HDR10/HLG
-        // layers
-        if (!hasHDR10Support()) {
-            types.push_back(ui::Hdr::HDR10);
-        }
-
-        if (!hasHLGSupport()) {
-            types.push_back(ui::Hdr::HLG);
-        }
-    }
 
     mHdrCapabilities = HdrCapabilities(types, maxLuminance, maxAverageLuminance, minLuminance);
 }
@@ -391,17 +380,6 @@ bool DisplayColorProfile::isDataspaceSupported(Dataspace dataspace) const {
     }
 }
 
-ui::Dataspace DisplayColorProfile::getTargetDataspace(ColorMode mode, Dataspace dataspace,
-                                                      Dataspace colorSpaceAgnosticDataspace) const {
-    if (isHdrColorMode(mode)) {
-        return Dataspace::UNKNOWN;
-    }
-    if (colorSpaceAgnosticDataspace != ui::Dataspace::UNKNOWN) {
-        return colorSpaceAgnosticDataspace;
-    }
-    return dataspace;
-}
-
 void DisplayColorProfile::dump(std::string& out) const {
     out.append("   Composition Display Color State:");
 
@@ -414,6 +392,10 @@ void DisplayColorProfile::dump(std::string& out) const {
     dumpVal(out, "dv", hasDolbyVisionSupport());
     dumpVal(out, "metadata", getSupportedPerFrameMetadata());
 
+    out.append("\n   Hdr Luminance Info:");
+    dumpVal(out, "desiredMinLuminance", mHdrCapabilities.getDesiredMinLuminance());
+    dumpVal(out, "desiredMaxLuminance", mHdrCapabilities.getDesiredMaxLuminance());
+    dumpVal(out, "desiredMaxAverageLuminance", mHdrCapabilities.getDesiredMaxAverageLuminance());
     out.append("\n");
 }
 

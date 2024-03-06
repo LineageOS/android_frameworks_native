@@ -69,6 +69,12 @@ public:
 
     static EvdevEventLabel getLinuxEvdevLabel(int32_t type, int32_t code, int32_t value);
 
+    static std::optional<int> getLinuxEvdevEventTypeByLabel(const char* label);
+
+    static std::optional<int> getLinuxEvdevEventCodeByLabel(int32_t type, const char* label);
+
+    static std::optional<int> getLinuxEvdevInputPropByLabel(const char* label);
+
 private:
     InputEventLookup();
 

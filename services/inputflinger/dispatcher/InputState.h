@@ -36,17 +36,20 @@ public:
 
     // Returns true if the specified source is known to have received a hover enter
     // motion event.
-    bool isHovering(int32_t deviceId, uint32_t source, int32_t displayId) const;
+    bool isHovering(DeviceId deviceId, uint32_t source, int32_t displayId) const;
 
     // Records tracking information for a key event that has just been published.
     // Returns true if the event should be delivered, false if it is inconsistent
     // and should be skipped.
-    bool trackKey(const KeyEntry& entry, int32_t action, int32_t flags);
+    bool trackKey(const KeyEntry& entry, int32_t flags);
 
     // Records tracking information for a motion event that has just been published.
     // Returns true if the event should be delivered, false if it is inconsistent
     // and should be skipped.
-    bool trackMotion(const MotionEntry& entry, int32_t action, int32_t flags);
+    bool trackMotion(const MotionEntry& entry, int32_t flags);
+
+    // Create cancel events for the previous stream if the current motionEntry requires it.
+    std::unique_ptr<EventEntry> cancelConflictingInputStream(const MotionEntry& motionEntry);
 
     // Synthesizes cancelation events for the current state and resets the tracked state.
     std::vector<std::unique_ptr<EventEntry>> synthesizeCancelationEvents(
@@ -76,7 +79,7 @@ public:
 
 private:
     struct KeyMemento {
-        int32_t deviceId;
+        DeviceId deviceId;
         uint32_t source;
         int32_t displayId;
         int32_t keyCode;
@@ -88,7 +91,7 @@ private:
     };
 
     struct MotionMemento {
-        int32_t deviceId;
+        DeviceId deviceId;
         uint32_t source;
         int32_t displayId;
         int32_t flags;
@@ -97,9 +100,8 @@ private:
         float xCursorPosition;
         float yCursorPosition;
         nsecs_t downTime;
-        uint32_t pointerCount;
-        PointerProperties pointerProperties[MAX_POINTERS];
-        PointerCoords pointerCoords[MAX_POINTERS];
+        std::vector<PointerProperties> pointerProperties;
+        std::vector<PointerCoords> pointerCoords;
         // Track for which pointers the target doesn't know about.
         int32_t firstNewPointerIdx = INVALID_POINTER_INDEX;
         bool hovering;
@@ -107,6 +109,7 @@ private:
 
         void setPointers(const MotionEntry& entry);
         void mergePointerStateTo(MotionMemento& other) const;
+        size_t getPointerCount() const;
     };
 
     const IdGenerator& mIdGenerator; // InputDispatcher owns it so we won't have dangling reference.
@@ -123,12 +126,18 @@ private:
 
     static bool shouldCancelKey(const KeyMemento& memento, const CancelationOptions& options);
     static bool shouldCancelMotion(const MotionMemento& memento, const CancelationOptions& options);
+    bool shouldCancelPreviousStream(const MotionEntry& motionEntry) const;
+    std::unique_ptr<MotionEntry> createCancelEntryForMemento(const MotionMemento& memento,
+                                                             nsecs_t eventTime) const;
 
     // Synthesizes pointer cancel events for a particular set of pointers.
     std::vector<std::unique_ptr<MotionEntry>> synthesizeCancelationEventsForPointers(
             const MotionMemento& memento, std::bitset<MAX_POINTER_ID + 1> pointerIds,
             nsecs_t currentTime);
+    friend std::ostream& operator<<(std::ostream& out, const InputState& state);
 };
+
+std::ostream& operator<<(std::ostream& out, const InputState& state);
 
 } // namespace inputdispatcher
 } // namespace android

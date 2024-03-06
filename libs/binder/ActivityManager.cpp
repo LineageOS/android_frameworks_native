@@ -21,6 +21,7 @@
 #include <binder/ActivityManager.h>
 #include <binder/Binder.h>
 #include <binder/IServiceManager.h>
+#include <binder/ProcessState.h>
 
 #include <utils/SystemClock.h>
 
@@ -33,27 +34,36 @@ ActivityManager::ActivityManager()
 sp<IActivityManager> ActivityManager::getService()
 {
     std::lock_guard<Mutex> scoped_lock(mLock);
-    int64_t startTime = 0;
     sp<IActivityManager> service = mService;
-    while (service == nullptr || !IInterface::asBinder(service)->isBinderAlive()) {
-        sp<IBinder> binder = defaultServiceManager()->checkService(String16("activity"));
-        if (binder == nullptr) {
-            // Wait for the activity service to come back...
-            if (startTime == 0) {
-                startTime = uptimeMillis();
-                ALOGI("Waiting for activity service");
-            } else if ((uptimeMillis() - startTime) > 1000000) {
-                ALOGW("Waiting too long for activity service, giving up");
-                service = nullptr;
-                break;
-            }
-            usleep(25000);
-        } else {
+    if (ProcessState::self()->isThreadPoolStarted()) {
+        if (service == nullptr || !IInterface::asBinder(service)->isBinderAlive()) {
+            sp<IBinder> binder = defaultServiceManager()->waitForService(String16("activity"));
             service = interface_cast<IActivityManager>(binder);
             mService = service;
         }
+    } else {
+        ALOGI("Thread pool not started. Polling for activity service.");
+        int64_t startTime = 0;
+        while (service == nullptr || !IInterface::asBinder(service)->isBinderAlive()) {
+            sp<IBinder> binder = defaultServiceManager()->checkService(String16("activity"));
+            if (binder == nullptr) {
+                // Wait for the activity service to come back...
+                if (startTime == 0) {
+                    startTime = uptimeMillis();
+                    ALOGI("Waiting for activity service");
+                } else if ((uptimeMillis() - startTime) > 1000000) {
+                    ALOGW("Waiting too long for activity service, giving up");
+                    service = nullptr;
+                    break;
+                }
+                usleep(25000);
+            } else {
+                service = interface_cast<IActivityManager>(binder);
+                mService = service;
+            }
+        }
     }
-    return service;
+    return mService;
 }
 
 int ActivityManager::openContentUri(const String16& stringUri)

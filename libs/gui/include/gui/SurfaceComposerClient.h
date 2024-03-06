@@ -201,17 +201,23 @@ public:
 
     // Sets the frame rate of a particular app (uid). This is currently called
     // by GameManager.
-    static status_t setOverrideFrameRate(uid_t uid, float frameRate);
+    static status_t setGameModeFrameRateOverride(uid_t uid, float frameRate);
 
-    // Update the small area detection whole uid-threshold mappings by same size uid and threshold
-    // vector.
+    // Sets the frame rate of a particular app (uid). This is currently called
+    // by GameManager and controlled by two sysprops:
+    // "ro.surface_flinger.game_default_frame_rate_override" holding the override value,
+    // "persisit.graphics.game_default_frame_rate.enabled" to determine if it's enabled.
+    static status_t setGameDefaultFrameRateOverride(uid_t uid, float frameRate);
+
+    // Update the small area detection whole appId-threshold mappings by same size appId and
+    // threshold vector.
     // Ref:setSmallAreaDetectionThreshold.
-    static status_t updateSmallAreaDetection(std::vector<int32_t>& uids,
+    static status_t updateSmallAreaDetection(std::vector<int32_t>& appIds,
                                              std::vector<float>& thresholds);
 
-    // Sets the small area detection threshold to particular apps (uid). Passing value 0 means
+    // Sets the small area detection threshold to particular apps (appId). Passing value 0 means
     // to disable small area detection to the app.
-    static status_t setSmallAreaDetectionThreshold(uid_t uid, float threshold);
+    static status_t setSmallAreaDetectionThreshold(int32_t appId, float threshold);
 
     // Switches on/off Auto Low Latency Mode on the connected display. This should only be
     // called if the connected display supports Auto Low Latency Mode as reported by
@@ -422,6 +428,7 @@ public:
     class Transaction : public Parcelable {
     private:
         static sp<IBinder> sApplyToken;
+        static std::mutex sApplyTokenMutex;
         void releaseBufferIfOverwriting(const layer_state_t& state);
         static void mergeFrameTimelineInfo(FrameTimelineInfo& t, const FrameTimelineInfo& other);
 
@@ -685,6 +692,11 @@ public:
         Transaction& setDefaultFrameRateCompatibility(const sp<SurfaceControl>& sc,
                                                       int8_t compatibility);
 
+        Transaction& setFrameRateCategory(const sp<SurfaceControl>& sc, int8_t category,
+                                          bool smoothSwitchOnly);
+
+        Transaction& setFrameRateSelectionStrategy(const sp<SurfaceControl>& sc, int8_t strategy);
+
         // Set by window manager indicating the layer and all its children are
         // in a different orientation than the display. The hint suggests that
         // the graphic producers should receive a transform hint as if the
@@ -835,8 +847,14 @@ private:
 class ScreenshotClient {
 public:
     static status_t captureDisplay(const DisplayCaptureArgs&, const sp<IScreenCaptureListener>&);
-    static status_t captureDisplay(DisplayId, const sp<IScreenCaptureListener>&);
+    static status_t captureDisplay(DisplayId, const gui::CaptureArgs&,
+                                   const sp<IScreenCaptureListener>&);
     static status_t captureLayers(const LayerCaptureArgs&, const sp<IScreenCaptureListener>&);
+
+    [[deprecated]] static status_t captureDisplay(DisplayId id,
+                                                  const sp<IScreenCaptureListener>& listener) {
+        return captureDisplay(id, gui::CaptureArgs(), listener);
+    }
 };
 
 // ---------------------------------------------------------------------------

@@ -27,6 +27,10 @@ parcelable AttributionSourceState {
     int pid = -1;
     /** The UID that is accessing the permission protected data. */
     int uid = -1;
+    /** The default device ID from where the permission protected data is read.
+     * @see Context#DEVICE_ID_DEFAULT
+     */
+    int deviceId = 0;
     /** The package that is accessing the permission protected data. */
     @nullable @utf8InCpp String packageName;
     /** The attribution tag of the app accessing the permission protected data. */

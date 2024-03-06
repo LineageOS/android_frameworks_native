@@ -31,6 +31,7 @@ cc_defaults {
     ],
     static_libs: [
         "android.hardware.graphics.composer@2.1-resources",
+        "libc++fs",
         "libgmock",
         "libgui_mocks",
         "libgmock_ndk",
@@ -38,6 +39,7 @@ cc_defaults {
         "libgtest_ndk_c++",
         "libgmock_main_ndk",
         "librenderengine_mocks",
+        "libsurfaceflinger_common",
         "perfetto_trace_protos",
         "libcompositionengine_mocks",
         "perfetto_trace_protos",
@@ -145,4 +147,19 @@ cc_fuzz {
     srcs: [
         "surfaceflinger_frametracer_fuzzer.cpp",
     ],
+}
+
+cc_fuzz {
+    name: "surfaceflinger_service_fuzzer",
+    defaults: [
+        "surfaceflinger_fuzz_defaults",
+        "service_fuzzer_defaults",
+        "fuzzer_disable_leaks",
+    ],
+    srcs: [
+        "surfaceflinger_service_fuzzer.cpp",
+    ],
+    fuzz_config: {
+        triage_assignee: "waghpawan@google.com",
+    },
 }

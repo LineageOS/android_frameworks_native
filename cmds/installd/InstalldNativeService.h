@@ -145,9 +145,6 @@ public:
 
     binder::Status controlDexOptBlocking(bool block);
 
-    binder::Status compileLayouts(const std::string& apkPath, const std::string& packageName,
-                                  const std::string& outDexFile, int uid, bool* _aidl_return);
-
     binder::Status rmdex(const std::string& codePath, const std::string& instructionSet);
 
     binder::Status mergeProfiles(int32_t uid, const std::string& packageName,

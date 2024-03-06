@@ -199,6 +199,7 @@ prop {
 # useColorManagement indicates whether SurfaceFlinger should manage color
 # by switching to appropriate color mode automatically depending on the
 # Dataspace of the surfaces on screen.
+# DEPRECATED: SurfaceFlinger is always color managed.
 prop {
     api_name: "use_color_management"
     type: Boolean
@@ -207,7 +208,7 @@ prop {
     prop_name: "ro.surface_flinger.use_color_management"
 }
 
-# The following four propertiess define:
+# The following four properties define:
 # Returns the default data space and pixel format that SurfaceFlinger
 # expects to receive and output as well as the wide color gamut data space
 # and pixel format for wide color gamut surfaces.
@@ -276,7 +277,7 @@ prop {
 # The variable works only when useColorManagement is specified. If
 # unspecified, the data space follows what SurfaceFlinger expects for
 # surfaces when useColorManagement is specified.
-
+# DEPRECATED: do not use
 prop {
     api_name: "color_space_agnostic_dataspace"
     type: Long
@@ -472,6 +473,16 @@ prop {
     prop_name: "ro.surface_flinger.ignore_hdr_camera_layers"
 }
 
+# Controls the minimum acquired buffers SurfaceFlinger will suggest via
+# ISurfaceComposer.getMaxAcquiredBufferCount().
+prop {
+    api_name: "min_acquired_buffers"
+    type: Long
+    scope: Public
+    access: Readonly
+    prop_name: "ro.surface_flinger.min_acquired_buffers"
+}
+
 # When enabled, SurfaceFlinger will attempt to clear the per-layer HAL buffer cache slots for
 # buffers when they are evicted from the app cache by using additional setLayerBuffer commands.
 # Ideally, this behavior would always be enabled to reduce graphics memory consumption. However,
@@ -485,3 +496,14 @@ prop {
     prop_name: "ro.surface_flinger.clear_slots_with_set_layer_buffer"
 }
 
+# Controls the default frame rate override of game applications. Ideally, game applications set
+# desired frame rate via setFrameRate() API. However, to cover the scenario when the game didn't
+# have a set frame rate, we introduce the default frame rate. The priority of this override is the
+# lowest among setFrameRate() and game intervention override.
+prop {
+    api_name: "game_default_frame_rate_override"
+    type: Integer
+    scope: Public
+    access: Readonly
+    prop_name: "ro.surface_flinger.game_default_frame_rate_override"
+}

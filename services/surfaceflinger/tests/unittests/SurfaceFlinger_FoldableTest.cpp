@@ -18,9 +18,13 @@
 #define LOG_TAG "LibSurfaceFlingerUnittests"
 
 #include "DisplayTransactionTestHelpers.h"
+#include <com_android_graphics_surfaceflinger_flags.h>
+#include <common/test/FlagUtils.h>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+
+using namespace com::android::graphics::surfaceflinger;
 
 namespace android {
 namespace {
@@ -186,6 +190,41 @@ TEST_F(FoldableTest, requestsHardwareVsyncForBothDisplays) {
     auto& scheduler = *mFlinger.scheduler();
     scheduler.onHardwareVsyncRequest(mInnerDisplay->getPhysicalId(), true);
     scheduler.onHardwareVsyncRequest(mOuterDisplay->getPhysicalId(), true);
+}
+
+TEST_F(FoldableTest, requestVsyncOnPowerOn) {
+    SET_FLAG_FOR_TEST(flags::multithreaded_present, true);
+    EXPECT_CALL(mFlinger.scheduler()->mockRequestHardwareVsync, Call(kInnerDisplayId, true))
+            .Times(1);
+    EXPECT_CALL(mFlinger.scheduler()->mockRequestHardwareVsync, Call(kOuterDisplayId, true))
+            .Times(1);
+
+    mFlinger.setPowerModeInternal(mInnerDisplay, PowerMode::ON);
+    mFlinger.setPowerModeInternal(mOuterDisplay, PowerMode::ON);
+}
+
+TEST_F(FoldableTest, disableVsyncOnPowerOffPacesetter) {
+    SET_FLAG_FOR_TEST(flags::multithreaded_present, true);
+    // When the device boots, the inner display should be the pacesetter.
+    ASSERT_EQ(mFlinger.scheduler()->pacesetterDisplayId(), kInnerDisplayId);
+
+    testing::InSequence seq;
+    EXPECT_CALL(mFlinger.scheduler()->mockRequestHardwareVsync, Call(kInnerDisplayId, true))
+            .Times(1);
+    EXPECT_CALL(mFlinger.scheduler()->mockRequestHardwareVsync, Call(kOuterDisplayId, true))
+            .Times(1);
+
+    // Turning off the pacesetter will result in disabling VSYNC.
+    EXPECT_CALL(mFlinger.scheduler()->mockRequestHardwareVsync, Call(kInnerDisplayId, false))
+            .Times(1);
+
+    mFlinger.setPowerModeInternal(mInnerDisplay, PowerMode::ON);
+    mFlinger.setPowerModeInternal(mOuterDisplay, PowerMode::ON);
+
+    mFlinger.setPowerModeInternal(mInnerDisplay, PowerMode::OFF);
+
+    // Other display is now the pacesetter.
+    ASSERT_EQ(mFlinger.scheduler()->pacesetterDisplayId(), kOuterDisplayId);
 }
 
 } // namespace

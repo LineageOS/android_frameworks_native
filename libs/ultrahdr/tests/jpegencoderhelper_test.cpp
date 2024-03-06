@@ -22,13 +22,13 @@
 
 namespace android::ultrahdr {
 
-#define ALIGNED_IMAGE "/sdcard/Documents/minnie-320x240.yu12"
+#define ALIGNED_IMAGE "/data/local/tmp/minnie-320x240.yu12"
 #define ALIGNED_IMAGE_WIDTH 320
 #define ALIGNED_IMAGE_HEIGHT 240
-#define SINGLE_CHANNEL_IMAGE "/sdcard/Documents/minnie-320x240.y"
+#define SINGLE_CHANNEL_IMAGE "/data/local/tmp/minnie-320x240.y"
 #define SINGLE_CHANNEL_IMAGE_WIDTH ALIGNED_IMAGE_WIDTH
 #define SINGLE_CHANNEL_IMAGE_HEIGHT ALIGNED_IMAGE_HEIGHT
-#define UNALIGNED_IMAGE "/sdcard/Documents/minnie-318x240.yu12"
+#define UNALIGNED_IMAGE "/data/local/tmp/minnie-318x240.yu12"
 #define UNALIGNED_IMAGE_WIDTH 318
 #define UNALIGNED_IMAGE_HEIGHT 240
 #define JPEG_QUALITY 90
@@ -42,6 +42,7 @@ public:
     };
     JpegEncoderHelperTest();
     ~JpegEncoderHelperTest();
+
 protected:
     virtual void SetUp();
     virtual void TearDown();
@@ -103,24 +104,32 @@ void JpegEncoderHelperTest::TearDown() {}
 
 TEST_F(JpegEncoderHelperTest, encodeAlignedImage) {
     JpegEncoderHelper encoder;
-    EXPECT_TRUE(encoder.compressImage(mAlignedImage.buffer.get(), mAlignedImage.width,
-                                      mAlignedImage.height, JPEG_QUALITY, NULL, 0));
+    EXPECT_TRUE(encoder.compressImage(mAlignedImage.buffer.get(),
+                                      mAlignedImage.buffer.get() +
+                                              mAlignedImage.width * mAlignedImage.height,
+                                      mAlignedImage.width, mAlignedImage.height,
+                                      mAlignedImage.width, mAlignedImage.width / 2, JPEG_QUALITY,
+                                      NULL, 0));
     ASSERT_GT(encoder.getCompressedImageSize(), static_cast<uint32_t>(0));
 }
 
 TEST_F(JpegEncoderHelperTest, encodeUnalignedImage) {
     JpegEncoderHelper encoder;
-    EXPECT_TRUE(encoder.compressImage(mUnalignedImage.buffer.get(), mUnalignedImage.width,
-                                      mUnalignedImage.height, JPEG_QUALITY, NULL, 0));
+    EXPECT_TRUE(encoder.compressImage(mUnalignedImage.buffer.get(),
+                                      mUnalignedImage.buffer.get() +
+                                              mUnalignedImage.width * mUnalignedImage.height,
+                                      mUnalignedImage.width, mUnalignedImage.height,
+                                      mUnalignedImage.width, mUnalignedImage.width / 2,
+                                      JPEG_QUALITY, NULL, 0));
     ASSERT_GT(encoder.getCompressedImageSize(), static_cast<uint32_t>(0));
 }
 
 TEST_F(JpegEncoderHelperTest, encodeSingleChannelImage) {
     JpegEncoderHelper encoder;
-    EXPECT_TRUE(encoder.compressImage(mSingleChannelImage.buffer.get(), mSingleChannelImage.width,
-                                         mSingleChannelImage.height, JPEG_QUALITY, NULL, 0, true));
+    EXPECT_TRUE(encoder.compressImage(mSingleChannelImage.buffer.get(), nullptr,
+                                      mSingleChannelImage.width, mSingleChannelImage.height,
+                                      mSingleChannelImage.width, 0, JPEG_QUALITY, NULL, 0));
     ASSERT_GT(encoder.getCompressedImageSize(), static_cast<uint32_t>(0));
 }
 
-}  // namespace android::ultrahdr
-
+} // namespace android::ultrahdr

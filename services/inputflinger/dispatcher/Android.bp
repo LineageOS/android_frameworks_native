@@ -59,6 +59,7 @@ cc_defaults {
         "libbase",
         "libcrypto",
         "libcutils",
+        "libinput",
         "libkll",
         "liblog",
         "libprotobuf-cpp-lite",
@@ -76,12 +77,6 @@ cc_defaults {
         android: {
             shared_libs: [
                 "libgui",
-                "libinput",
-            ],
-        },
-        host: {
-            static_libs: [
-                "libinput",
             ],
         },
     },

@@ -261,22 +261,16 @@ void Output::setColorTransform(const compositionengine::CompositionRefreshArgs& 
 }
 
 void Output::setColorProfile(const ColorProfile& colorProfile) {
-    ui::Dataspace targetDataspace =
-            getDisplayColorProfile()->getTargetDataspace(colorProfile.mode, colorProfile.dataspace,
-                                                         colorProfile.colorSpaceAgnosticDataspace);
-
     auto& outputState = editState();
     if (outputState.colorMode == colorProfile.mode &&
         outputState.dataspace == colorProfile.dataspace &&
-        outputState.renderIntent == colorProfile.renderIntent &&
-        outputState.targetDataspace == targetDataspace) {
+        outputState.renderIntent == colorProfile.renderIntent) {
         return;
     }
 
     outputState.colorMode = colorProfile.mode;
     outputState.dataspace = colorProfile.dataspace;
     outputState.renderIntent = colorProfile.renderIntent;
-    outputState.targetDataspace = targetDataspace;
 
     mRenderSurface->setBufferDataspace(colorProfile.dataspace);
 
@@ -433,7 +427,8 @@ void Output::prepare(const compositionengine::CompositionRefreshArgs& refreshArg
     uncacheBuffers(refreshArgs.bufferIdsToUncache);
 }
 
-void Output::present(const compositionengine::CompositionRefreshArgs& refreshArgs) {
+ftl::Future<std::monostate> Output::present(
+        const compositionengine::CompositionRefreshArgs& refreshArgs) {
     ATRACE_FORMAT("%s for %s", __func__, mNamePlusId.c_str());
     ALOGV(__FUNCTION__);
 
@@ -454,8 +449,26 @@ void Output::present(const compositionengine::CompositionRefreshArgs& refreshArg
 
     devOptRepaintFlash(refreshArgs);
     finishFrame(std::move(result));
-    postFramebuffer();
+    ftl::Future<std::monostate> future;
+    if (mOffloadPresent) {
+        future = presentFrameAndReleaseLayersAsync();
+
+        // Only offload for this frame. The next frame will determine whether it
+        // needs to be offloaded. Leave the HwcAsyncWorker in place. For one thing,
+        // it is currently presenting. Further, it may be needed next frame, and
+        // we don't want to churn.
+        mOffloadPresent = false;
+    } else {
+        presentFrameAndReleaseLayers();
+        future = ftl::yield<std::monostate>({});
+    }
     renderCachedSets(refreshArgs);
+    return future;
+}
+
+void Output::offloadPresentNextFrame() {
+    mOffloadPresent = true;
+    updateHwcAsyncWorker();
 }
 
 void Output::uncacheBuffers(std::vector<uint64_t> const& bufferIdsToUncache) {
@@ -469,15 +482,14 @@ void Output::uncacheBuffers(std::vector<uint64_t> const& bufferIdsToUncache) {
 
 void Output::rebuildLayerStacks(const compositionengine::CompositionRefreshArgs& refreshArgs,
                                 LayerFESet& layerFESet) {
-    ATRACE_CALL();
-    ALOGV(__FUNCTION__);
-
     auto& outputState = editState();
 
     // Do nothing if this output is not enabled or there is no need to perform this update
     if (!outputState.isEnabled || CC_LIKELY(!refreshArgs.updatingOutputGeometryThisFrame)) {
         return;
     }
+    ATRACE_CALL();
+    ALOGV(__FUNCTION__);
 
     // Process the layers to determine visibility and coverage
     compositionengine::Output::CoverageState coverage{layerFESet};
@@ -595,10 +607,10 @@ void Output::ensureOutputLayerIfVisible(sp<compositionengine::LayerFE>& layerFE,
     const Rect visibleRect(tr.transform(layerFEState->geomLayerBounds));
     visibleRegion.set(visibleRect);
 
-    if (layerFEState->shadowRadius > 0.0f) {
+    if (layerFEState->shadowSettings.length > 0.0f) {
         // if the layer casts a shadow, offset the layers visible region and
         // calculate the shadow region.
-        const auto inset = static_cast<int32_t>(ceilf(layerFEState->shadowRadius) * -1.0f);
+        const auto inset = static_cast<int32_t>(ceilf(layerFEState->shadowSettings.length) * -1.0f);
         Rect visibleRectWithShadows(visibleRect);
         visibleRectWithShadows.inset(inset, inset, inset, inset);
         visibleRegion.set(visibleRectWithShadows);
@@ -843,6 +855,7 @@ void Output::writeCompositionState(const compositionengine::CompositionRefreshAr
 
     editState().earliestPresentTime = refreshArgs.earliestPresentTime;
     editState().expectedPresentTime = refreshArgs.expectedPresentTime;
+    editState().frameInterval = refreshArgs.frameInterval;
     editState().powerCallback = refreshArgs.powerCallback;
 
     compositionengine::OutputLayer* peekThroughLayer = nullptr;
@@ -902,11 +915,17 @@ void Output::writeCompositionState(const compositionengine::CompositionRefreshAr
 compositionengine::OutputLayer* Output::findLayerRequestingBackgroundComposition() const {
     compositionengine::OutputLayer* layerRequestingBgComposition = nullptr;
     for (auto* layer : getOutputLayersOrderedByZ()) {
-        auto* compState = layer->getLayerFE().getCompositionState();
+        const auto* compState = layer->getLayerFE().getCompositionState();
 
         // If any layer has a sideband stream, we will disable blurs. In that case, we don't
         // want to force client composition because of the blur.
         if (compState->sidebandStream != nullptr) {
+            return nullptr;
+        }
+
+        // If RenderEngine cannot render protected content, we cannot blur.
+        if (compState->hasProtectedContent &&
+            !getCompositionEngine().getRenderEngine().supportsProtectedContent()) {
             return nullptr;
         }
         if (compState->isOpaque) {
@@ -968,7 +987,7 @@ ui::Dataspace Output::getBestDataspace(ui::Dataspace* outHdrDataSpace,
             case ui::Dataspace::BT2020_ITU_HLG:
                 bestDataSpace = ui::Dataspace::DISPLAY_P3;
                 // When there's mixed PQ content and HLG content, we set the HDR
-                // data space to be BT2020_PQ and convert HLG to PQ.
+                // data space to be BT2020_HLG and convert PQ to HLG.
                 if (*outHdrDataSpace == ui::Dataspace::UNKNOWN) {
                     *outHdrDataSpace = ui::Dataspace::BT2020_HLG;
                 }
@@ -985,8 +1004,7 @@ compositionengine::Output::ColorProfile Output::pickColorProfile(
         const compositionengine::CompositionRefreshArgs& refreshArgs) const {
     if (refreshArgs.outputColorSetting == OutputColorSetting::kUnmanaged) {
         return ColorProfile{ui::ColorMode::NATIVE, ui::Dataspace::UNKNOWN,
-                            ui::RenderIntent::COLORIMETRIC,
-                            refreshArgs.colorSpaceAgnosticDataspace};
+                            ui::RenderIntent::COLORIMETRIC};
     }
 
     ui::Dataspace hdrDataSpace;
@@ -1032,8 +1050,7 @@ compositionengine::Output::ColorProfile Output::pickColorProfile(
     mDisplayColorProfile->getBestColorMode(bestDataSpace, intent, &outDataSpace, &outMode,
                                            &outRenderIntent);
 
-    return ColorProfile{outMode, outDataSpace, outRenderIntent,
-                        refreshArgs.colorSpaceAgnosticDataspace};
+    return ColorProfile{outMode, outDataSpace, outRenderIntent};
 }
 
 void Output::beginFrame() {
@@ -1084,6 +1101,14 @@ void Output::prepareFrame() {
         applyCompositionStrategy(changes);
     }
     finishPrepareFrame();
+}
+
+ftl::Future<std::monostate> Output::presentFrameAndReleaseLayersAsync() {
+    return ftl::Future<bool>(std::move(mHwComposerAsyncWorker->send([&]() {
+               presentFrameAndReleaseLayers();
+               return true;
+           })))
+            .then([](bool) { return std::monostate{}; });
 }
 
 std::future<bool> Output::chooseCompositionStrategyAsync(
@@ -1151,11 +1176,11 @@ void Output::devOptRepaintFlash(const compositionengine::CompositionRefreshArgs&
             updateProtectedContentState();
             dequeueRenderBuffer(&bufferFence, &buffer);
             static_cast<void>(composeSurfaces(dirtyRegion, buffer, bufferFence));
-            mRenderSurface->queueBuffer(base::unique_fd());
+            mRenderSurface->queueBuffer(base::unique_fd(), getHdrSdrRatio(buffer));
         }
     }
 
-    postFramebuffer();
+    presentFrameAndReleaseLayers();
 
     std::this_thread::sleep_for(*refreshArgs.devOptFlashDirtyRegionsDelay);
 
@@ -1199,7 +1224,7 @@ void Output::finishFrame(GpuCompositionResult&& result) {
                 std::make_unique<FenceTime>(sp<Fence>::make(dup(optReadyFence->get()))));
     }
     // swap buffers (presentation)
-    mRenderSurface->queueBuffer(std::move(*optReadyFence));
+    mRenderSurface->queueBuffer(std::move(*optReadyFence), getHdrSdrRatio(buffer));
 }
 
 void Output::updateProtectedContentState() {
@@ -1207,10 +1232,18 @@ void Output::updateProtectedContentState() {
     auto& renderEngine = getCompositionEngine().getRenderEngine();
     const bool supportsProtectedContent = renderEngine.supportsProtectedContent();
 
-    // If we the display is secure, protected content support is enabled, and at
-    // least one layer has protected content, we need to use a secure back
-    // buffer.
-    if (outputState.isSecure && supportsProtectedContent) {
+    bool isProtected;
+    if (FlagManager::getInstance().display_protected()) {
+        isProtected = outputState.isProtected;
+    } else {
+        isProtected = outputState.isSecure;
+    }
+
+    // We need to set the render surface as protected (DRM) if all the following conditions are met:
+    // 1. The display is protected (in legacy, check if the display is secure)
+    // 2. Protected content is supported
+    // 3. At least one layer has protected content.
+    if (isProtected && supportsProtectedContent) {
         auto layers = getOutputLayersOrderedByZ();
         bool needsProtected = std::any_of(layers.begin(), layers.end(), [](auto* layer) {
             return layer->getLayerFE().getCompositionState()->hasProtectedContent
@@ -1266,7 +1299,7 @@ std::optional<base::unique_fd> Output::composeSurfaces(
     ALOGV("hasClientComposition");
 
     renderengine::DisplaySettings clientCompositionDisplay =
-            generateClientCompositionDisplaySettings();
+            generateClientCompositionDisplaySettings(tex);
 
     // Generate the client composition requests for the layers on this output.
     auto& renderEngine = getCompositionEngine().getRenderEngine();
@@ -1319,17 +1352,9 @@ std::optional<base::unique_fd> Output::composeSurfaces(
                    });
 
     const nsecs_t renderEngineStart = systemTime();
-    // Only use the framebuffer cache when rendering to an internal display
-    // TODO(b/173560331): This is only to help mitigate memory leaks from virtual displays because
-    // right now we don't have a concrete eviction policy for output buffers: GLESRenderEngine
-    // bounds its framebuffer cache but Skia RenderEngine has no current policy. The best fix is
-    // probably to encapsulate the output buffer into a structure that dispatches resource cleanup
-    // over to RenderEngine, in which case this flag can be removed from the drawLayers interface.
-    const bool useFramebufferCache = outputState.layerFilter.toInternalDisplay;
-
     auto fenceResult = renderEngine
                                .drawLayers(clientCompositionDisplay, clientRenderEngineLayers, tex,
-                                           useFramebufferCache, std::move(fd))
+                                           std::move(fd))
                                .get();
 
     if (mClientCompositionRequestCache && fenceStatus(fenceResult) != NO_ERROR) {
@@ -1355,7 +1380,8 @@ std::optional<base::unique_fd> Output::composeSurfaces(
     return base::unique_fd(fence->dup());
 }
 
-renderengine::DisplaySettings Output::generateClientCompositionDisplaySettings() const {
+renderengine::DisplaySettings Output::generateClientCompositionDisplaySettings(
+        const std::shared_ptr<renderengine::ExternalTexture>& buffer) const {
     const auto& outputState = getState();
 
     renderengine::DisplaySettings clientCompositionDisplay;
@@ -1375,8 +1401,10 @@ renderengine::DisplaySettings Output::generateClientCompositionDisplaySettings()
             : mDisplayColorProfile->getHdrCapabilities().getDesiredMaxLuminance();
     clientCompositionDisplay.maxLuminance =
             mDisplayColorProfile->getHdrCapabilities().getDesiredMaxLuminance();
-    clientCompositionDisplay.targetLuminanceNits =
-            outputState.clientTargetBrightness * outputState.displayBrightnessNits;
+
+    float hdrSdrRatioMultiplier = 1.0f / getHdrSdrRatio(buffer);
+    clientCompositionDisplay.targetLuminanceNits = outputState.clientTargetBrightness *
+            outputState.displayBrightnessNits * hdrSdrRatioMultiplier;
     clientCompositionDisplay.dimmingStage = outputState.clientTargetDimmingStage;
     clientCompositionDisplay.renderIntent =
             static_cast<aidl::android::hardware::graphics::composer3::RenderIntent>(
@@ -1459,12 +1487,16 @@ std::vector<LayerFE::LayerSettings> Output::generateClientCompositionRequests(
                                              BlurRegionsOnly
                                    : LayerFE::ClientCompositionTargetSettings::BlurSetting::
                                              Enabled);
+                bool isProtected = supportsProtectedContent;
+                if (FlagManager::getInstance().display_protected()) {
+                    isProtected = outputState.isProtected && supportsProtectedContent;
+                }
                 compositionengine::LayerFE::ClientCompositionTargetSettings
                         targetSettings{.clip = clip,
                                        .needsFiltering = layer->needsFiltering() ||
                                                outputState.needsFiltering,
                                        .isSecure = outputState.isSecure,
-                                       .supportsProtectedContent = supportsProtectedContent,
+                                       .isProtected = isProtected,
                                        .viewport = outputState.layerStackSpace.getContent(),
                                        .dataspace = outputDataspace,
                                        .realContentIsVisible = realContentIsVisible,
@@ -1521,7 +1553,7 @@ bool Output::isPowerHintSessionEnabled() {
     return false;
 }
 
-void Output::postFramebuffer() {
+void Output::presentFrameAndReleaseLayers() {
     ATRACE_FORMAT("%s for %s", __func__, mNamePlusId.c_str());
     ALOGV(__FUNCTION__);
 
@@ -1532,7 +1564,7 @@ void Output::postFramebuffer() {
     auto& outputState = editState();
     outputState.dirtyRegion.clear();
 
-    auto frame = presentAndGetFrameFences();
+    auto frame = presentFrame();
 
     mRenderSurface->onPresentDisplayCompleted();
 
@@ -1602,7 +1634,7 @@ bool Output::getSkipColorTransform() const {
     return true;
 }
 
-compositionengine::Output::FrameFences Output::presentAndGetFrameFences() {
+compositionengine::Output::FrameFences Output::presentFrame() {
     compositionengine::Output::FrameFences result;
     if (getState().usesClientComposition) {
         result.clientTargetAcquireFence = mRenderSurface->getClientTargetAcquireFence();
@@ -1611,8 +1643,15 @@ compositionengine::Output::FrameFences Output::presentAndGetFrameFences() {
 }
 
 void Output::setPredictCompositionStrategy(bool predict) {
-    if (predict) {
-        mHwComposerAsyncWorker = std::make_unique<HwcAsyncWorker>();
+    mPredictCompositionStrategy = predict;
+    updateHwcAsyncWorker();
+}
+
+void Output::updateHwcAsyncWorker() {
+    if (mPredictCompositionStrategy || mOffloadPresent) {
+        if (!mHwComposerAsyncWorker) {
+            mHwComposerAsyncWorker = std::make_unique<HwcAsyncWorker>();
+        }
     } else {
         mHwComposerAsyncWorker.reset(nullptr);
     }
@@ -1627,7 +1666,7 @@ bool Output::canPredictCompositionStrategy(const CompositionRefreshArgs& refresh
     uint64_t outputLayerHash = getState().outputLayerHash;
     editState().lastOutputLayerHash = outputLayerHash;
 
-    if (!getState().isEnabled || !mHwComposerAsyncWorker) {
+    if (!getState().isEnabled || !mPredictCompositionStrategy) {
         ALOGV("canPredictCompositionStrategy disabled");
         return false;
     }
@@ -1678,6 +1717,26 @@ void Output::finishPrepareFrame() {
 
 bool Output::mustRecompose() const {
     return mMustRecompose;
+}
+
+float Output::getHdrSdrRatio(const std::shared_ptr<renderengine::ExternalTexture>& buffer) const {
+    if (buffer == nullptr) {
+        return 1.0f;
+    }
+
+    if (!FlagManager::getInstance().fp16_client_target()) {
+        return 1.0f;
+    }
+
+    if (getState().displayBrightnessNits < 0.0f || getState().sdrWhitePointNits <= 0.0f ||
+        buffer->getPixelFormat() != PIXEL_FORMAT_RGBA_FP16 ||
+        (static_cast<int32_t>(getState().dataspace) &
+         static_cast<int32_t>(ui::Dataspace::RANGE_MASK)) !=
+                static_cast<int32_t>(ui::Dataspace::RANGE_EXTENDED)) {
+        return 1.0f;
+    }
+
+    return getState().displayBrightnessNits / getState().sdrWhitePointNits;
 }
 
 } // namespace impl

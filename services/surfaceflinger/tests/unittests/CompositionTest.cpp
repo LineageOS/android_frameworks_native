@@ -31,8 +31,6 @@
 #include <gui/LayerMetadata.h>
 #include <log/log.h>
 #include <renderengine/mock/FakeExternalTexture.h>
-#include <renderengine/mock/Framebuffer.h>
-#include <renderengine/mock/Image.h>
 #include <renderengine/mock/RenderEngine.h>
 #include <system/window.h>
 #include <utils/String8.h>
@@ -196,7 +194,6 @@ void CompositionTest::captureScreenComposition() {
     LayerCase::setupForScreenCapture(this);
 
     const Rect sourceCrop(0, 0, DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT);
-    constexpr bool forSystem = true;
     constexpr bool regionSampling = false;
 
     auto renderArea = DisplayRenderArea::create(mDisplay, sourceCrop, sourceCrop.getSize(),
@@ -218,7 +215,7 @@ void CompositionTest::captureScreenComposition() {
                                                                       usage);
 
     auto future = mFlinger.renderScreenImpl(std::move(renderArea), getLayerSnapshots,
-                                            mCaptureScreenBuffer, forSystem, regionSampling);
+                                            mCaptureScreenBuffer, regionSampling);
     ASSERT_TRUE(future.valid());
     const auto fenceResult = future.get();
 
@@ -318,7 +315,7 @@ struct BaseDisplayVariant {
         EXPECT_CALL(*test->mComposer, getReleaseFences(HWC_DISPLAY, _, _)).Times(1);
 
         EXPECT_CALL(*test->mDisplaySurface, onFrameCommitted()).Times(1);
-        EXPECT_CALL(*test->mDisplaySurface, advanceFrame()).Times(1);
+        EXPECT_CALL(*test->mDisplaySurface, advanceFrame(_)).Times(1);
 
         Case::CompositionType::setupHwcSetCallExpectations(test);
         Case::CompositionType::setupHwcGetCallExpectations(test);
@@ -330,7 +327,7 @@ struct BaseDisplayVariant {
                 .WillRepeatedly([&](const renderengine::DisplaySettings& displaySettings,
                                     const std::vector<renderengine::LayerSettings>&,
                                     const std::shared_ptr<renderengine::ExternalTexture>&,
-                                    const bool, base::unique_fd&&) -> std::future<FenceResult> {
+                                    base::unique_fd&&) -> std::future<FenceResult> {
                     EXPECT_EQ(DEFAULT_DISPLAY_MAX_LUMINANCE, displaySettings.maxLuminance);
                     EXPECT_EQ(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
                               displaySettings.physicalDisplay);
@@ -349,7 +346,7 @@ struct BaseDisplayVariant {
     }
 
     static void setupHwcCompositionCallExpectations(CompositionTest* test) {
-        EXPECT_CALL(*test->mComposer, presentOrValidateDisplay(HWC_DISPLAY, _, _, _, _, _))
+        EXPECT_CALL(*test->mComposer, presentOrValidateDisplay(HWC_DISPLAY, _, _, _, _, _, _))
                 .Times(1);
 
         EXPECT_CALL(*test->mDisplaySurface,
@@ -358,12 +355,12 @@ struct BaseDisplayVariant {
     }
 
     static void setupHwcClientCompositionCallExpectations(CompositionTest* test) {
-        EXPECT_CALL(*test->mComposer, presentOrValidateDisplay(HWC_DISPLAY, _, _, _, _, _))
+        EXPECT_CALL(*test->mComposer, presentOrValidateDisplay(HWC_DISPLAY, _, _, _, _, _, _))
                 .Times(1);
     }
 
     static void setupHwcForcedClientCompositionCallExpectations(CompositionTest* test) {
-        EXPECT_CALL(*test->mComposer, validateDisplay(HWC_DISPLAY, _, _, _)).Times(1);
+        EXPECT_CALL(*test->mComposer, validateDisplay(HWC_DISPLAY, _, _, _, _)).Times(1);
     }
 
     static void setupRECompositionCallExpectations(CompositionTest* test) {
@@ -381,7 +378,7 @@ struct BaseDisplayVariant {
                 .WillRepeatedly([&](const renderengine::DisplaySettings& displaySettings,
                                     const std::vector<renderengine::LayerSettings>&,
                                     const std::shared_ptr<renderengine::ExternalTexture>&,
-                                    const bool, base::unique_fd&&) -> std::future<FenceResult> {
+                                    base::unique_fd&&) -> std::future<FenceResult> {
                     EXPECT_EQ(DEFAULT_DISPLAY_MAX_LUMINANCE, displaySettings.maxLuminance);
                     EXPECT_EQ(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
                               displaySettings.physicalDisplay);
@@ -580,7 +577,7 @@ struct BaseLayerProperties {
         EXPECT_CALL(*test->mRenderEngine, drawLayers)
                 .WillOnce([&](const renderengine::DisplaySettings& displaySettings,
                               const std::vector<renderengine::LayerSettings>& layerSettings,
-                              const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
+                              const std::shared_ptr<renderengine::ExternalTexture>&,
                               base::unique_fd&&) -> std::future<FenceResult> {
                     EXPECT_EQ(DEFAULT_DISPLAY_MAX_LUMINANCE, displaySettings.maxLuminance);
                     EXPECT_EQ(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
@@ -599,8 +596,6 @@ struct BaseLayerProperties {
                     const renderengine::LayerSettings layer = layerSettings.back();
                     EXPECT_THAT(layer.source.buffer.buffer, Not(IsNull()));
                     EXPECT_THAT(layer.source.buffer.fence, Not(IsNull()));
-                    EXPECT_EQ(DEFAULT_TEXTURE_ID, layer.source.buffer.textureName);
-                    EXPECT_EQ(false, layer.source.buffer.isY410BT2020);
                     EXPECT_EQ(true, layer.source.buffer.usePremultipliedAlpha);
                     EXPECT_EQ(false, layer.source.buffer.isOpaque);
                     EXPECT_EQ(0.0, layer.geometry.roundedCornersRadius.x);
@@ -631,7 +626,7 @@ struct BaseLayerProperties {
         EXPECT_CALL(*test->mRenderEngine, drawLayers)
                 .WillOnce([&](const renderengine::DisplaySettings& displaySettings,
                               const std::vector<renderengine::LayerSettings>& layerSettings,
-                              const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
+                              const std::shared_ptr<renderengine::ExternalTexture>&,
                               base::unique_fd&&) -> std::future<FenceResult> {
                     EXPECT_EQ(DEFAULT_DISPLAY_MAX_LUMINANCE, displaySettings.maxLuminance);
                     EXPECT_EQ(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
@@ -713,7 +708,7 @@ struct CommonSecureLayerProperties : public BaseLayerProperties<LayerProperties>
         EXPECT_CALL(*test->mRenderEngine, drawLayers)
                 .WillOnce([&](const renderengine::DisplaySettings& displaySettings,
                               const std::vector<renderengine::LayerSettings>& layerSettings,
-                              const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
+                              const std::shared_ptr<renderengine::ExternalTexture>&,
                               base::unique_fd&&) -> std::future<FenceResult> {
                     EXPECT_EQ(DEFAULT_DISPLAY_MAX_LUMINANCE, displaySettings.maxLuminance);
                     EXPECT_EQ(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
@@ -876,15 +871,11 @@ struct BufferLayerVariant : public BaseLayerVariant<LayerProperties> {
     using FlingerLayerType = sp<Layer>;
 
     static FlingerLayerType createLayer(CompositionTest* test) {
-        test->mFlinger.mutableTexturePool().push_back(DEFAULT_TEXTURE_ID);
-
-        FlingerLayerType layer =
-                Base::template createLayerWithFactory<Layer>(test, [test]() {
-                    LayerCreationArgs args(test->mFlinger.flinger(), sp<Client>(), "test-layer",
-                                           LayerProperties::LAYER_FLAGS, LayerMetadata());
-                    args.textureName = test->mFlinger.mutableTexturePool().back();
-                    return sp<Layer>::make(args);
-                });
+        FlingerLayerType layer = Base::template createLayerWithFactory<Layer>(test, [test]() {
+            LayerCreationArgs args(test->mFlinger.flinger(), sp<Client>(), "test-layer",
+                                   LayerProperties::LAYER_FLAGS, LayerMetadata());
+            return sp<Layer>::make(args);
+        });
 
         LayerProperties::setupLayerState(test, layer);
 

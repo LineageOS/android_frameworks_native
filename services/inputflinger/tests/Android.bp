@@ -48,8 +48,10 @@ cc_test {
         "FakePointerController.cpp",
         "FocusResolver_test.cpp",
         "GestureConverter_test.cpp",
+        "HardwareProperties_test.cpp",
         "HardwareStateConverter_test.cpp",
         "InputDeviceMetricsCollector_test.cpp",
+        "InputDeviceMetricsSource_test.cpp",
         "InputMapperTest.cpp",
         "InputProcessor_test.cpp",
         "InputProcessorConverter_test.cpp",
@@ -57,10 +59,14 @@ cc_test {
         "InputReader_test.cpp",
         "InstrumentedInputReader.cpp",
         "LatencyTracker_test.cpp",
+        "MultiTouchMotionAccumulator_test.cpp",
         "NotifyArgs_test.cpp",
+        "PointerChoreographer_test.cpp",
         "PreferStylusOverTouch_test.cpp",
         "PropertyProvider_test.cpp",
+        "SlopController_test.cpp",
         "SyncQueue_test.cpp",
+        "TimerProvider_test.cpp",
         "TestInputListener.cpp",
         "TouchpadInputMapper_test.cpp",
         "KeyboardInputMapper_test.cpp",
@@ -76,23 +82,7 @@ cc_test {
     target: {
         android: {
             shared_libs: [
-                "libinput",
                 "libvintf",
-            ],
-        },
-        host: {
-            sanitize: {
-                address: true,
-            },
-            include_dirs: [
-                "bionic/libc/kernel/android/uapi/",
-                "bionic/libc/kernel/uapi",
-            ],
-            cflags: [
-                "-D__ANDROID_HOST__",
-            ],
-            static_libs: [
-                "libinput",
             ],
         },
     },
@@ -105,6 +95,7 @@ cc_test {
         },
     },
     static_libs: [
+        "libflagtest",
         "libc++fs",
         "libgmock",
     ],

@@ -334,7 +334,7 @@ TEST_F(OutputLayerDisplayFrameTest, outputTransformAffectsDisplayFrame) {
 
 TEST_F(OutputLayerDisplayFrameTest, shadowExpandsDisplayFrame) {
     const int kShadowRadius = 5;
-    mLayerFEState.shadowRadius = kShadowRadius;
+    mLayerFEState.shadowSettings.length = kShadowRadius;
     mLayerFEState.forceClientComposition = true;
 
     mLayerFEState.geomLayerBounds = FloatRect{100.f, 100.f, 200.f, 200.f};
@@ -345,7 +345,7 @@ TEST_F(OutputLayerDisplayFrameTest, shadowExpandsDisplayFrame) {
 
 TEST_F(OutputLayerDisplayFrameTest, shadowExpandsDisplayFrame_onlyIfForcingClientComposition) {
     const int kShadowRadius = 5;
-    mLayerFEState.shadowRadius = kShadowRadius;
+    mLayerFEState.shadowSettings.length = kShadowRadius;
     mLayerFEState.forceClientComposition = false;
 
     mLayerFEState.geomLayerBounds = FloatRect{100.f, 100.f, 200.f, 200.f};
@@ -642,7 +642,7 @@ TEST_F(OutputLayerUpdateCompositionStateTest,
 
 TEST_F(OutputLayerUpdateCompositionStateTest, setsOutputLayerColorspaceCorrectly) {
     mLayerFEState.dataspace = ui::Dataspace::DISPLAY_P3;
-    mOutputState.targetDataspace = ui::Dataspace::V0_SCRGB;
+    mOutputState.dataspace = ui::Dataspace::V0_SCRGB;
 
     // If the layer is not colorspace agnostic, the output layer dataspace
     // should use the layers requested colorspace.
@@ -659,11 +659,18 @@ TEST_F(OutputLayerUpdateCompositionStateTest, setsOutputLayerColorspaceCorrectly
     mOutputLayer.updateCompositionState(false, false, ui::Transform::RotationFlags::ROT_0);
 
     EXPECT_EQ(ui::Dataspace::V0_SCRGB, mOutputLayer.getState().dataspace);
+
+    // If the output is HDR, then don't blind the user with a colorspace agnostic dataspace
+    // drawing all white
+    mOutputState.dataspace = ui::Dataspace::BT2020_PQ;
+
+    mOutputLayer.updateCompositionState(false, false, ui::Transform::RotationFlags::ROT_0);
+
+    EXPECT_EQ(ui::Dataspace::DISPLAY_P3, mOutputLayer.getState().dataspace);
 }
 
 TEST_F(OutputLayerUpdateCompositionStateTest, setsOutputLayerColorspaceWith170mReplacement) {
     mLayerFEState.dataspace = ui::Dataspace::TRANSFER_SMPTE_170M;
-    mOutputState.targetDataspace = ui::Dataspace::V0_SCRGB;
     mOutputState.treat170mAsSrgb = false;
     mLayerFEState.isColorspaceAgnostic = false;
 
@@ -1603,6 +1610,21 @@ TEST_F(OutputLayerTest, needsFilteringReturnsFalseIfDisplaySizeSameAsSourceSize)
 TEST_F(OutputLayerTest, needsFilteringReturnsTrueIfDisplaySizeDifferentFromSourceSize) {
     mOutputLayer.editState().displayFrame = Rect(100, 100, 200, 200);
     mOutputLayer.editState().sourceCrop = FloatRect{0.f, 0.f, 100.1f, 100.1f};
+
+    EXPECT_TRUE(mOutputLayer.needsFiltering());
+}
+
+TEST_F(OutputLayerTest, needsFilteringReturnsFalseIfRotatedDisplaySizeSameAsSourceSize) {
+    mOutputLayer.editState().displayFrame = Rect(100, 100, 300, 200);
+    mOutputLayer.editState().sourceCrop = FloatRect{0.f, 0.f, 100.f, 200.f};
+    mOutputLayer.editState().bufferTransform = Hwc2::Transform::ROT_90;
+
+    EXPECT_FALSE(mOutputLayer.needsFiltering());
+}
+
+TEST_F(OutputLayerTest, needsFilteringReturnsTrueIfRotatedDisplaySizeDiffersFromSourceSize) {
+    mOutputLayer.editState().displayFrame = Rect(100, 100, 300, 200);
+    mOutputLayer.editState().sourceCrop = FloatRect{0.f, 0.f, 100.f, 200.f};
 
     EXPECT_TRUE(mOutputLayer.needsFiltering());
 }

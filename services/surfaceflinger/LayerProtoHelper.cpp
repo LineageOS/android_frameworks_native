@@ -29,28 +29,30 @@ using gui::WindowInfo;
 
 namespace surfaceflinger {
 
-void LayerProtoHelper::writePositionToProto(const float x, const float y,
-                                            std::function<PositionProto*()> getPositionProto) {
+void LayerProtoHelper::writePositionToProto(
+        const float x, const float y,
+        std::function<perfetto::protos::PositionProto*()> getPositionProto) {
     if (x != 0 || y != 0) {
         // Use a lambda do avoid writing the object header when the object is empty
-        PositionProto* position = getPositionProto();
+        perfetto::protos::PositionProto* position = getPositionProto();
         position->set_x(x);
         position->set_y(y);
     }
 }
 
-void LayerProtoHelper::writeSizeToProto(const uint32_t w, const uint32_t h,
-                                        std::function<SizeProto*()> getSizeProto) {
+void LayerProtoHelper::writeSizeToProto(
+        const uint32_t w, const uint32_t h,
+        std::function<perfetto::protos::SizeProto*()> getSizeProto) {
     if (w != 0 || h != 0) {
         // Use a lambda do avoid writing the object header when the object is empty
-        SizeProto* size = getSizeProto();
+        perfetto::protos::SizeProto* size = getSizeProto();
         size->set_w(w);
         size->set_h(h);
     }
 }
 
-void LayerProtoHelper::writeToProto(const Region& region,
-                                    std::function<RegionProto*()> getRegionProto) {
+void LayerProtoHelper::writeToProto(
+        const Region& region, std::function<perfetto::protos::RegionProto*()> getRegionProto) {
     if (region.isEmpty()) {
         return;
     }
@@ -58,7 +60,8 @@ void LayerProtoHelper::writeToProto(const Region& region,
     writeToProto(region, getRegionProto());
 }
 
-void LayerProtoHelper::writeToProto(const Region& region, RegionProto* regionProto) {
+void LayerProtoHelper::writeToProto(const Region& region,
+                                    perfetto::protos::RegionProto* regionProto) {
     if (region.isEmpty()) {
         return;
     }
@@ -72,7 +75,8 @@ void LayerProtoHelper::writeToProto(const Region& region, RegionProto* regionPro
     }
 }
 
-void LayerProtoHelper::readFromProto(const RegionProto& regionProto, Region& outRegion) {
+void LayerProtoHelper::readFromProto(const perfetto::protos::RegionProto& regionProto,
+                                     Region& outRegion) {
     for (int i = 0; i < regionProto.rect_size(); i++) {
         Rect rect;
         readFromProto(regionProto.rect(i), rect);
@@ -80,32 +84,34 @@ void LayerProtoHelper::readFromProto(const RegionProto& regionProto, Region& out
     }
 }
 
-void LayerProtoHelper::writeToProto(const Rect& rect, std::function<RectProto*()> getRectProto) {
+void LayerProtoHelper::writeToProto(const Rect& rect,
+                                    std::function<perfetto::protos::RectProto*()> getRectProto) {
     if (rect.left != 0 || rect.right != 0 || rect.top != 0 || rect.bottom != 0) {
         // Use a lambda do avoid writing the object header when the object is empty
         writeToProto(rect, getRectProto());
     }
 }
 
-void LayerProtoHelper::writeToProto(const Rect& rect, RectProto* rectProto) {
+void LayerProtoHelper::writeToProto(const Rect& rect, perfetto::protos::RectProto* rectProto) {
     rectProto->set_left(rect.left);
     rectProto->set_top(rect.top);
     rectProto->set_bottom(rect.bottom);
     rectProto->set_right(rect.right);
 }
 
-void LayerProtoHelper::readFromProto(const RectProto& proto, Rect& outRect) {
+void LayerProtoHelper::readFromProto(const perfetto::protos::RectProto& proto, Rect& outRect) {
     outRect.left = proto.left();
     outRect.top = proto.top();
     outRect.bottom = proto.bottom();
     outRect.right = proto.right();
 }
 
-void LayerProtoHelper::writeToProto(const FloatRect& rect,
-                                    std::function<FloatRectProto*()> getFloatRectProto) {
+void LayerProtoHelper::writeToProto(
+        const FloatRect& rect,
+        std::function<perfetto::protos::FloatRectProto*()> getFloatRectProto) {
     if (rect.left != 0 || rect.right != 0 || rect.top != 0 || rect.bottom != 0) {
         // Use a lambda do avoid writing the object header when the object is empty
-        FloatRectProto* rectProto = getFloatRectProto();
+        perfetto::protos::FloatRectProto* rectProto = getFloatRectProto();
         rectProto->set_left(rect.left);
         rectProto->set_top(rect.top);
         rectProto->set_bottom(rect.bottom);
@@ -113,10 +119,11 @@ void LayerProtoHelper::writeToProto(const FloatRect& rect,
     }
 }
 
-void LayerProtoHelper::writeToProto(const half4 color, std::function<ColorProto*()> getColorProto) {
+void LayerProtoHelper::writeToProto(const half4 color,
+                                    std::function<perfetto::protos::ColorProto*()> getColorProto) {
     if (color.r != 0 || color.g != 0 || color.b != 0 || color.a != 0) {
         // Use a lambda do avoid writing the object header when the object is empty
-        ColorProto* colorProto = getColorProto();
+        perfetto::protos::ColorProto* colorProto = getColorProto();
         colorProto->set_r(color.r);
         colorProto->set_g(color.g);
         colorProto->set_b(color.b);
@@ -125,7 +132,7 @@ void LayerProtoHelper::writeToProto(const half4 color, std::function<ColorProto*
 }
 
 void LayerProtoHelper::writeToProtoDeprecated(const ui::Transform& transform,
-                                              TransformProto* transformProto) {
+                                              perfetto::protos::TransformProto* transformProto) {
     const uint32_t type = transform.getType() | (transform.getOrientation() << 8);
     transformProto->set_type(type);
 
@@ -141,7 +148,7 @@ void LayerProtoHelper::writeToProtoDeprecated(const ui::Transform& transform,
 }
 
 void LayerProtoHelper::writeTransformToProto(const ui::Transform& transform,
-                                             TransformProto* transformProto) {
+                                             perfetto::protos::TransformProto* transformProto) {
     const uint32_t type = transform.getType() | (transform.getOrientation() << 8);
     transformProto->set_type(type);
 
@@ -156,12 +163,13 @@ void LayerProtoHelper::writeTransformToProto(const ui::Transform& transform,
     }
 }
 
-void LayerProtoHelper::writeToProto(const renderengine::ExternalTexture& buffer,
-                                    std::function<ActiveBufferProto*()> getActiveBufferProto) {
+void LayerProtoHelper::writeToProto(
+        const renderengine::ExternalTexture& buffer,
+        std::function<perfetto::protos::ActiveBufferProto*()> getActiveBufferProto) {
     if (buffer.getWidth() != 0 || buffer.getHeight() != 0 || buffer.getUsage() != 0 ||
         buffer.getPixelFormat() != 0) {
         // Use a lambda do avoid writing the object header when the object is empty
-        ActiveBufferProto* activeBufferProto = getActiveBufferProto();
+        auto* activeBufferProto = getActiveBufferProto();
         activeBufferProto->set_width(buffer.getWidth());
         activeBufferProto->set_height(buffer.getHeight());
         activeBufferProto->set_stride(buffer.getUsage());
@@ -171,12 +179,12 @@ void LayerProtoHelper::writeToProto(const renderengine::ExternalTexture& buffer,
 
 void LayerProtoHelper::writeToProto(
         const WindowInfo& inputInfo, const wp<Layer>& touchableRegionBounds,
-        std::function<InputWindowInfoProto*()> getInputWindowInfoProto) {
+        std::function<perfetto::protos::InputWindowInfoProto*()> getInputWindowInfoProto) {
     if (inputInfo.token == nullptr) {
         return;
     }
 
-    InputWindowInfoProto* proto = getInputWindowInfoProto();
+    perfetto::protos::InputWindowInfoProto* proto = getInputWindowInfoProto();
     proto->set_layout_params_flags(inputInfo.layoutParamsFlags.get());
     proto->set_input_config(inputInfo.inputConfig.get());
     using U = std::underlying_type_t<WindowInfo::Type>;
@@ -185,8 +193,8 @@ void LayerProtoHelper::writeToProto(
     static_assert(std::is_same_v<U, int32_t>);
     proto->set_layout_params_type(static_cast<U>(inputInfo.layoutParamsType));
 
-    LayerProtoHelper::writeToProto({inputInfo.frameLeft, inputInfo.frameTop, inputInfo.frameRight,
-                                    inputInfo.frameBottom},
+    LayerProtoHelper::writeToProto({inputInfo.frame.left, inputInfo.frame.top,
+                                    inputInfo.frame.right, inputInfo.frame.bottom},
                                    [&]() { return proto->mutable_frame(); });
     LayerProtoHelper::writeToProto(inputInfo.touchableRegion,
                                    [&]() { return proto->mutable_touchable_region(); });
@@ -209,7 +217,8 @@ void LayerProtoHelper::writeToProto(
     }
 }
 
-void LayerProtoHelper::writeToProto(const mat4 matrix, ColorTransformProto* colorTransformProto) {
+void LayerProtoHelper::writeToProto(const mat4 matrix,
+                                    perfetto::protos::ColorTransformProto* colorTransformProto) {
     for (int i = 0; i < mat4::ROW_SIZE; i++) {
         for (int j = 0; j < mat4::COL_SIZE; j++) {
             colorTransformProto->add_val(matrix[i][j]);
@@ -217,7 +226,8 @@ void LayerProtoHelper::writeToProto(const mat4 matrix, ColorTransformProto* colo
     }
 }
 
-void LayerProtoHelper::readFromProto(const ColorTransformProto& colorTransformProto, mat4& matrix) {
+void LayerProtoHelper::readFromProto(
+        const perfetto::protos::ColorTransformProto& colorTransformProto, mat4& matrix) {
     for (int i = 0; i < mat4::ROW_SIZE; i++) {
         for (int j = 0; j < mat4::COL_SIZE; j++) {
             matrix[i][j] = colorTransformProto.val(i * mat4::COL_SIZE + j);
@@ -225,7 +235,8 @@ void LayerProtoHelper::readFromProto(const ColorTransformProto& colorTransformPr
     }
 }
 
-void LayerProtoHelper::writeToProto(const android::BlurRegion region, BlurRegion* proto) {
+void LayerProtoHelper::writeToProto(const android::BlurRegion region,
+                                    perfetto::protos::BlurRegion* proto) {
     proto->set_blur_radius(region.blurRadius);
     proto->set_corner_radius_tl(region.cornerRadiusTL);
     proto->set_corner_radius_tr(region.cornerRadiusTR);
@@ -238,7 +249,8 @@ void LayerProtoHelper::writeToProto(const android::BlurRegion region, BlurRegion
     proto->set_bottom(region.bottom);
 }
 
-void LayerProtoHelper::readFromProto(const BlurRegion& proto, android::BlurRegion& outRegion) {
+void LayerProtoHelper::readFromProto(const perfetto::protos::BlurRegion& proto,
+                                     android::BlurRegion& outRegion) {
     outRegion.blurRadius = proto.blur_radius();
     outRegion.cornerRadiusTL = proto.corner_radius_tl();
     outRegion.cornerRadiusTR = proto.corner_radius_tr();
@@ -251,7 +263,8 @@ void LayerProtoHelper::readFromProto(const BlurRegion& proto, android::BlurRegio
     outRegion.bottom = proto.bottom();
 }
 
-LayersProto LayerProtoFromSnapshotGenerator::generate(const frontend::LayerHierarchy& root) {
+perfetto::protos::LayersProto LayerProtoFromSnapshotGenerator::generate(
+        const frontend::LayerHierarchy& root) {
     mLayersProto.clear_layers();
     std::unordered_set<uint64_t> stackIdsToSkip;
     if ((mTraceFlags & LayerTracing::TRACE_VIRTUAL_DISPLAYS) == 0) {
@@ -310,7 +323,7 @@ frontend::LayerSnapshot* LayerProtoFromSnapshotGenerator::getSnapshot(
 void LayerProtoFromSnapshotGenerator::writeHierarchyToProto(
         const frontend::LayerHierarchy& root, frontend::LayerHierarchy::TraversalPath& path) {
     using Variant = frontend::LayerHierarchy::Variant;
-    LayerProto* layerProto = mLayersProto.add_layers();
+    perfetto::protos::LayerProto* layerProto = mLayersProto.add_layers();
     const frontend::RequestedLayerState& layer = *root.getLayer();
     frontend::LayerSnapshot* snapshot = getSnapshot(path, layer);
     LayerProtoHelper::writeSnapshotToProto(layerProto, layer, *snapshot, mTraceFlags);
@@ -349,7 +362,7 @@ void LayerProtoFromSnapshotGenerator::writeHierarchyToProto(
     }
 }
 
-void LayerProtoHelper::writeSnapshotToProto(LayerProto* layerInfo,
+void LayerProtoHelper::writeSnapshotToProto(perfetto::protos::LayerProto* layerInfo,
                                             const frontend::RequestedLayerState& requestedState,
                                             const frontend::LayerSnapshot& snapshot,
                                             uint32_t traceFlags) {
@@ -389,7 +402,7 @@ void LayerProtoHelper::writeSnapshotToProto(LayerProto* layerInfo,
                                    [&]() { return layerInfo->mutable_screen_bounds(); });
     LayerProtoHelper::writeToProto(snapshot.roundedCorner.cropRect,
                                    [&]() { return layerInfo->mutable_corner_radius_crop(); });
-    layerInfo->set_shadow_radius(snapshot.shadowRadius);
+    layerInfo->set_shadow_radius(snapshot.shadowSettings.length);
 
     layerInfo->set_id(snapshot.uniqueSequence);
     layerInfo->set_original_id(snapshot.sequence);
@@ -446,9 +459,9 @@ void LayerProtoHelper::writeSnapshotToProto(LayerProto* layerInfo,
                                    [&]() { return layerInfo->mutable_destination_frame(); });
 }
 
-google::protobuf::RepeatedPtrField<DisplayProto> LayerProtoHelper::writeDisplayInfoToProto(
-        const frontend::DisplayInfos& displayInfos) {
-    google::protobuf::RepeatedPtrField<DisplayProto> displays;
+google::protobuf::RepeatedPtrField<perfetto::protos::DisplayProto>
+LayerProtoHelper::writeDisplayInfoToProto(const frontend::DisplayInfos& displayInfos) {
+    google::protobuf::RepeatedPtrField<perfetto::protos::DisplayProto> displays;
     displays.Reserve(displayInfos.size());
     for (const auto& [layerStack, displayInfo] : displayInfos) {
         auto displayProto = displays.Add();

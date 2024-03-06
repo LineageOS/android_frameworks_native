@@ -17,10 +17,15 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include <gui/fake/BufferData.h>
+#include <renderengine/mock/FakeExternalTexture.h>
+#include <ui/ShadowSettings.h>
+
 #include "Client.h" // temporarily needed for LayerCreationArgs
 #include "FrontEnd/LayerCreationArgs.h"
 #include "FrontEnd/LayerHierarchy.h"
 #include "FrontEnd/LayerLifecycleManager.h"
+#include "FrontEnd/LayerSnapshotBuilder.h"
 
 namespace android::surfaceflinger::frontend {
 
@@ -168,7 +173,7 @@ protected:
         mLifecycleManager.applyTransactions(transactions);
     }
 
-    void destroyLayerHandle(uint32_t id) { mLifecycleManager.onHandlesDestroyed({id}); }
+    void destroyLayerHandle(uint32_t id) { mLifecycleManager.onHandlesDestroyed({{id, "test"}}); }
 
     void updateAndVerify(LayerHierarchyBuilder& hierarchyBuilder) {
         if (mLifecycleManager.getGlobalChanges().test(RequestedLayerState::Changes::Hierarchy)) {
@@ -308,7 +313,229 @@ protected:
         mLifecycleManager.applyTransactions(transactions);
     }
 
+    void setFrameRateSelectionPriority(uint32_t id, int32_t priority) {
+        std::vector<TransactionState> transactions;
+        transactions.emplace_back();
+        transactions.back().states.push_back({});
+
+        transactions.back().states.front().state.what = layer_state_t::eFrameRateSelectionPriority;
+        transactions.back().states.front().layerId = id;
+        transactions.back().states.front().state.frameRateSelectionPriority = priority;
+        mLifecycleManager.applyTransactions(transactions);
+    }
+
+    void setFrameRate(uint32_t id, float frameRate, int8_t compatibility,
+                      int8_t changeFrameRateStrategy) {
+        std::vector<TransactionState> transactions;
+        transactions.emplace_back();
+        transactions.back().states.push_back({});
+
+        transactions.back().states.front().state.what = layer_state_t::eFrameRateChanged;
+        transactions.back().states.front().layerId = id;
+        transactions.back().states.front().state.frameRate = frameRate;
+        transactions.back().states.front().state.frameRateCompatibility = compatibility;
+        transactions.back().states.front().state.changeFrameRateStrategy = changeFrameRateStrategy;
+        mLifecycleManager.applyTransactions(transactions);
+    }
+
+    void setFrameRateCategory(uint32_t id, int8_t frameRateCategory) {
+        std::vector<TransactionState> transactions;
+        transactions.emplace_back();
+        transactions.back().states.push_back({});
+
+        transactions.back().states.front().state.what = layer_state_t::eFrameRateCategoryChanged;
+        transactions.back().states.front().layerId = id;
+        transactions.back().states.front().state.frameRateCategory = frameRateCategory;
+        mLifecycleManager.applyTransactions(transactions);
+    }
+
+    void setFrameRateSelectionStrategy(uint32_t id, int8_t strategy) {
+        std::vector<TransactionState> transactions;
+        transactions.emplace_back();
+        transactions.back().states.push_back({});
+
+        transactions.back().states.front().state.what =
+                layer_state_t::eFrameRateSelectionStrategyChanged;
+        transactions.back().states.front().layerId = id;
+        transactions.back().states.front().state.frameRateSelectionStrategy = strategy;
+        mLifecycleManager.applyTransactions(transactions);
+    }
+
+    void setDefaultFrameRateCompatibility(uint32_t id, int8_t defaultFrameRateCompatibility) {
+        std::vector<TransactionState> transactions;
+        transactions.emplace_back();
+        transactions.back().states.push_back({});
+
+        transactions.back().states.front().state.what =
+                layer_state_t::eDefaultFrameRateCompatibilityChanged;
+        transactions.back().states.front().layerId = id;
+        transactions.back().states.front().state.defaultFrameRateCompatibility =
+                defaultFrameRateCompatibility;
+        mLifecycleManager.applyTransactions(transactions);
+    }
+
+    void setRoundedCorners(uint32_t id, float radius) {
+        std::vector<TransactionState> transactions;
+        transactions.emplace_back();
+        transactions.back().states.push_back({});
+
+        transactions.back().states.front().state.what = layer_state_t::eCornerRadiusChanged;
+        transactions.back().states.front().layerId = id;
+        transactions.back().states.front().state.cornerRadius = radius;
+        mLifecycleManager.applyTransactions(transactions);
+    }
+
+    void setBuffer(uint32_t id, std::shared_ptr<renderengine::ExternalTexture> texture) {
+        std::vector<TransactionState> transactions;
+        transactions.emplace_back();
+        transactions.back().states.push_back({});
+
+        transactions.back().states.front().state.what = layer_state_t::eBufferChanged;
+        transactions.back().states.front().layerId = id;
+        transactions.back().states.front().externalTexture = texture;
+        transactions.back().states.front().state.bufferData =
+                std::make_shared<fake::BufferData>(texture->getId(), texture->getWidth(),
+                                                   texture->getHeight(), texture->getPixelFormat(),
+                                                   texture->getUsage());
+        mLifecycleManager.applyTransactions(transactions);
+    }
+
+    void setBuffer(uint32_t id) {
+        static uint64_t sBufferId = 1;
+        setBuffer(id,
+                  std::make_shared<renderengine::mock::
+                                           FakeExternalTexture>(1U /*width*/, 1U /*height*/,
+                                                                sBufferId++,
+                                                                HAL_PIXEL_FORMAT_RGBA_8888,
+                                                                GRALLOC_USAGE_PROTECTED /*usage*/));
+    }
+
+    void setBufferCrop(uint32_t id, const Rect& bufferCrop) {
+        std::vector<TransactionState> transactions;
+        transactions.emplace_back();
+        transactions.back().states.push_back({});
+
+        transactions.back().states.front().state.what = layer_state_t::eBufferCropChanged;
+        transactions.back().states.front().layerId = id;
+        transactions.back().states.front().state.bufferCrop = bufferCrop;
+        mLifecycleManager.applyTransactions(transactions);
+    }
+
+    void setDamageRegion(uint32_t id, const Region& damageRegion) {
+        std::vector<TransactionState> transactions;
+        transactions.emplace_back();
+        transactions.back().states.push_back({});
+
+        transactions.back().states.front().state.what = layer_state_t::eSurfaceDamageRegionChanged;
+        transactions.back().states.front().layerId = id;
+        transactions.back().states.front().state.surfaceDamageRegion = damageRegion;
+        mLifecycleManager.applyTransactions(transactions);
+    }
+
+    void setDataspace(uint32_t id, ui::Dataspace dataspace) {
+        std::vector<TransactionState> transactions;
+        transactions.emplace_back();
+        transactions.back().states.push_back({});
+
+        transactions.back().states.front().state.what = layer_state_t::eDataspaceChanged;
+        transactions.back().states.front().layerId = id;
+        transactions.back().states.front().state.dataspace = dataspace;
+        mLifecycleManager.applyTransactions(transactions);
+    }
+
+    void setMatrix(uint32_t id, float dsdx, float dtdx, float dtdy, float dsdy) {
+        layer_state_t::matrix22_t matrix{dsdx, dtdx, dtdy, dsdy};
+
+        std::vector<TransactionState> transactions;
+        transactions.emplace_back();
+        transactions.back().states.push_back({});
+
+        transactions.back().states.front().state.what = layer_state_t::eMatrixChanged;
+        transactions.back().states.front().layerId = id;
+        transactions.back().states.front().state.matrix = matrix;
+        mLifecycleManager.applyTransactions(transactions);
+    }
+
+    void setShadowRadius(uint32_t id, float shadowRadius) {
+        std::vector<TransactionState> transactions;
+        transactions.emplace_back();
+        transactions.back().states.push_back({});
+
+        transactions.back().states.front().state.what = layer_state_t::eShadowRadiusChanged;
+        transactions.back().states.front().layerId = id;
+        transactions.back().states.front().state.shadowRadius = shadowRadius;
+        mLifecycleManager.applyTransactions(transactions);
+    }
+
+    void setTrustedOverlay(uint32_t id, bool isTrustedOverlay) {
+        std::vector<TransactionState> transactions;
+        transactions.emplace_back();
+        transactions.back().states.push_back({});
+
+        transactions.back().states.front().state.what = layer_state_t::eTrustedOverlayChanged;
+        transactions.back().states.front().layerId = id;
+        transactions.back().states.front().state.isTrustedOverlay = isTrustedOverlay;
+        mLifecycleManager.applyTransactions(transactions);
+    }
+
+    void setDropInputMode(uint32_t id, gui::DropInputMode dropInputMode) {
+        std::vector<TransactionState> transactions;
+        transactions.emplace_back();
+        transactions.back().states.push_back({});
+
+        transactions.back().states.front().state.what = layer_state_t::eDropInputModeChanged;
+        transactions.back().states.front().layerId = id;
+        transactions.back().states.front().state.dropInputMode = dropInputMode;
+        mLifecycleManager.applyTransactions(transactions);
+    }
+
     LayerLifecycleManager mLifecycleManager;
+};
+
+class LayerSnapshotTestBase : public LayerHierarchyTestBase {
+protected:
+    LayerSnapshotTestBase() : LayerHierarchyTestBase() {}
+
+    void createRootLayer(uint32_t id) override {
+        LayerHierarchyTestBase::createRootLayer(id);
+        setColor(id);
+    }
+
+    void createLayer(uint32_t id, uint32_t parentId) override {
+        LayerHierarchyTestBase::createLayer(id, parentId);
+        setColor(parentId);
+    }
+
+    void mirrorLayer(uint32_t id, uint32_t parent, uint32_t layerToMirror) override {
+        LayerHierarchyTestBase::mirrorLayer(id, parent, layerToMirror);
+        setColor(id);
+    }
+
+    void update(LayerSnapshotBuilder& snapshotBuilder) {
+        if (mLifecycleManager.getGlobalChanges().test(RequestedLayerState::Changes::Hierarchy)) {
+            mHierarchyBuilder.update(mLifecycleManager.getLayers(),
+                                     mLifecycleManager.getDestroyedLayers());
+        }
+        LayerSnapshotBuilder::Args args{.root = mHierarchyBuilder.getHierarchy(),
+                                        .layerLifecycleManager = mLifecycleManager,
+                                        .includeMetadata = false,
+                                        .displays = mFrontEndDisplayInfos,
+                                        .displayChanges = mHasDisplayChanges,
+                                        .globalShadowSettings = globalShadowSettings,
+                                        .supportsBlur = true,
+                                        .supportedLayerGenericMetadata = {},
+                                        .genericLayerMetadataKeyMap = {}};
+        snapshotBuilder.update(args);
+
+        mLifecycleManager.commitChanges();
+    }
+
+    LayerHierarchyBuilder mHierarchyBuilder{{}};
+
+    DisplayInfos mFrontEndDisplayInfos;
+    bool mHasDisplayChanges = false;
+
+    ShadowSettings globalShadowSettings;
 };
 
 } // namespace android::surfaceflinger::frontend

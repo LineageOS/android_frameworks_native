@@ -87,14 +87,6 @@ public:
      */
     virtual std::unique_ptr<VerifiedInputEvent> verifyInputEvent(const InputEvent& event) = 0;
 
-    /* Sets the list of input windows per display.
-     *
-     * This method may be called on any thread (usually by the input manager).
-     */
-    virtual void setInputWindows(
-            const std::unordered_map<int32_t, std::vector<sp<gui::WindowInfoHandle>>>&
-                    handlesPerDisplay) = 0;
-
     /* Sets the focused application on the given display.
      *
      * This method may be called on any thread (usually by the input manager).
@@ -226,11 +218,17 @@ public:
      */
     virtual void cancelCurrentTouch() = 0;
 
-    /**
-     * Request that the InputDispatcher's configuration, which can be obtained through the policy,
-     * be updated.
+    /*
+     * Updates key repeat configuration timeout and delay.
      */
-    virtual void requestRefreshConfiguration() = 0;
+    virtual void setKeyRepeatConfiguration(std::chrono::nanoseconds timeout,
+                                           std::chrono::nanoseconds delay) = 0;
+
+    /*
+     * Determine if a pointer from a device is being dispatched to the given window.
+     */
+    virtual bool isPointerInWindow(const sp<IBinder>& token, int32_t displayId, DeviceId deviceId,
+                                   int32_t pointerId) = 0;
 };
 
 } // namespace android

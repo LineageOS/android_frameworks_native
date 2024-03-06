@@ -16,15 +16,15 @@
 
 #define LOG_TAG "PowerHalControllerBenchmarks"
 
-#include <android/hardware/power/Boost.h>
-#include <android/hardware/power/Mode.h>
+#include <aidl/android/hardware/power/Boost.h>
+#include <aidl/android/hardware/power/Mode.h>
 #include <benchmark/benchmark.h>
 #include <powermanager/PowerHalController.h>
 #include <testUtil.h>
 #include <chrono>
 
-using android::hardware::power::Boost;
-using android::hardware::power::Mode;
+using aidl::android::hardware::power::Boost;
+using aidl::android::hardware::power::Mode;
 using android::power::HalResult;
 using android::power::PowerHalController;
 

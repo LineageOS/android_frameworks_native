@@ -23,9 +23,10 @@ namespace android::fuzz {
 
 using namespace google::protobuf;
 
-constexpr size_t kMaxStringSize = 100;
+constexpr size_t kMaxStringSize = 256;
 constexpr size_t kMinLayerIds = 1;
 constexpr size_t kMaxLayerIds = 10;
+constexpr int32_t kMinRange = 0;
 constexpr int32_t kConfigDuration = 500;
 constexpr int32_t kBufferSize = 1024;
 constexpr int32_t kTimeOffset = 100000;
@@ -47,20 +48,20 @@ public:
     void process();
 
 private:
-    std::unique_ptr<perfetto::TracingSession> getTracingSessionForTest();
     void traceTimestamp();
-    std::vector<int32_t> generateLayerIds(size_t numLayerIds);
     void traceTimestamp(std::vector<int32_t> layerIds, size_t numLayerIds);
     void traceFence(std::vector<int32_t> layerIds, size_t numLayerIds);
+    std::unique_ptr<perfetto::TracingSession> getTracingSessionForTest();
     std::unique_ptr<android::FrameTracer> mFrameTracer = nullptr;
-    FuzzedDataProvider mFdp;
+    std::vector<int32_t> generateLayerIds(size_t numLayerIds);
     android::FenceToFenceTimeMap mFenceFactory;
+    FuzzedDataProvider mFdp;
 };
 
 std::unique_ptr<perfetto::TracingSession> FrameTracerFuzzer::getTracingSessionForTest() {
     perfetto::TraceConfig cfg;
-    cfg.set_duration_ms(kConfigDuration);
-    cfg.add_buffers()->set_size_kb(kBufferSize);
+    cfg.set_duration_ms(mFdp.ConsumeIntegralInRange<int32_t>(kMinRange, kConfigDuration));
+    cfg.add_buffers()->set_size_kb(mFdp.ConsumeIntegralInRange<int32_t>(kMinRange, kBufferSize));
     auto* dsCfg = cfg.add_data_sources()->mutable_config();
     dsCfg->set_name(android::FrameTracer::kFrameTracerDataSource);
 
@@ -78,17 +79,23 @@ std::vector<int32_t> FrameTracerFuzzer::generateLayerIds(size_t numLayerIds) {
 }
 
 void FrameTracerFuzzer::traceTimestamp(std::vector<int32_t> layerIds, size_t numLayerIds) {
-    int32_t layerId = layerIds.at(mFdp.ConsumeIntegralInRange<size_t>(0, numLayerIds - 1));
+    uint32_t layerId = layerIds.at(mFdp.ConsumeIntegralInRange<size_t>(0, numLayerIds - 1));
+    android::FrameTracer::FrameEvent::BufferEventType type = static_cast<
+            android::FrameTracer::FrameEvent::BufferEventType>(
+            mFdp.ConsumeIntegralInRange<uint32_t>(android::FrameTracer::FrameEvent::UNSPECIFIED,
+                                                  android::FrameTracer::FrameEvent::CANCEL));
     mFrameTracer->traceTimestamp(layerId, mFdp.ConsumeIntegral<uint64_t>() /*bufferID*/,
                                  mFdp.ConsumeIntegral<uint64_t>() /*frameNumber*/,
-                                 mFdp.ConsumeIntegral<nsecs_t>() /*timestamp*/,
-                                 android::FrameTracer::FrameEvent::UNSPECIFIED,
+                                 mFdp.ConsumeIntegral<nsecs_t>() /*timestamp*/, type,
                                  mFdp.ConsumeIntegral<nsecs_t>() /*duration*/);
 }
 
 void FrameTracerFuzzer::traceFence(std::vector<int32_t> layerIds, size_t numLayerIds) {
-    const nsecs_t signalTime = systemTime();
-    const nsecs_t startTime = signalTime + kTimeOffset;
+    const nsecs_t signalTime =
+            mFdp.ConsumeBool() ? android::Fence::SIGNAL_TIME_PENDING : systemTime();
+    const nsecs_t startTime = (signalTime == android::Fence::SIGNAL_TIME_PENDING)
+            ? signalTime - kTimeOffset
+            : signalTime + kTimeOffset;
     auto fence = mFenceFactory.createFenceTimeForTest(android::Fence::NO_FENCE);
     mFenceFactory.signalAllForTest(android::Fence::NO_FENCE, signalTime);
     int32_t layerId = layerIds.at(mFdp.ConsumeIntegralInRange<size_t>(0, numLayerIds - 1));
@@ -98,25 +105,33 @@ void FrameTracerFuzzer::traceFence(std::vector<int32_t> layerIds, size_t numLaye
 }
 
 void FrameTracerFuzzer::process() {
-    mFrameTracer->registerDataSource();
+    std::vector<int32_t> layerIds =
+            generateLayerIds(mFdp.ConsumeIntegralInRange<size_t>(kMinLayerIds, kMaxLayerIds));
 
-    auto tracingSession = getTracingSessionForTest();
-    tracingSession->StartBlocking();
-
-    size_t numLayerIds = mFdp.ConsumeIntegralInRange<size_t>(kMinLayerIds, kMaxLayerIds);
-    std::vector<int32_t> layerIds = generateLayerIds(numLayerIds);
-
-    for (auto it = layerIds.begin(); it != layerIds.end(); ++it) {
-        mFrameTracer->traceNewLayer(*it /*layerId*/,
-                                    mFdp.ConsumeRandomLengthString(kMaxStringSize) /*layerName*/);
+    std::unique_ptr<perfetto::TracingSession> tracingSession;
+    while (mFdp.remaining_bytes()) {
+        auto invokeFrametracerAPI = mFdp.PickValueInArray<const std::function<void()>>({
+                [&]() { mFrameTracer->registerDataSource(); },
+                [&]() {
+                    if (tracingSession) {
+                        tracingSession->StopBlocking();
+                    }
+                    tracingSession = getTracingSessionForTest();
+                    tracingSession->StartBlocking();
+                },
+                [&]() { traceTimestamp(layerIds, layerIds.size()); },
+                [&]() { traceFence(layerIds, layerIds.size()); },
+                [&]() {
+                    for (auto it = layerIds.begin(); it != layerIds.end(); ++it) {
+                        mFrameTracer->traceNewLayer(*it /*layerId*/,
+                                                    mFdp.ConsumeRandomLengthString(
+                                                            kMaxStringSize) /*layerName*/);
+                    }
+                },
+                [&]() { mFenceFactory.signalAllForTest(android::Fence::NO_FENCE, systemTime()); },
+        });
+        invokeFrametracerAPI();
     }
-
-    traceTimestamp(layerIds, numLayerIds);
-    traceFence(layerIds, numLayerIds);
-
-    mFenceFactory.signalAllForTest(android::Fence::NO_FENCE, systemTime());
-
-    tracingSession->StopBlocking();
 
     for (auto it = layerIds.begin(); it != layerIds.end(); ++it) {
         mFrameTracer->onDestroy(*it);

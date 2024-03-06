@@ -76,6 +76,11 @@ size_t LayerState::getHash() const {
     return hash;
 }
 
+bool LayerState::isSourceCropSizeEqual(const LayerState& other) const {
+    return mSourceCrop.get().getWidth() == other.mSourceCrop.get().getWidth() &&
+            mSourceCrop.get().getHeight() == other.mSourceCrop.get().getHeight();
+}
+
 ftl::Flags<LayerStateField> LayerState::getDifferingFields(const LayerState& other) const {
     ftl::Flags<LayerStateField> differences;
     auto myFields = getNonUniqueFields();

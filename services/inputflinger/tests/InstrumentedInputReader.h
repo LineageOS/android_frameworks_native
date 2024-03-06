@@ -44,7 +44,7 @@ public:
 
 protected:
     virtual std::shared_ptr<InputDevice> createDeviceLocked(
-            int32_t eventHubId, const InputDeviceIdentifier& identifier);
+            nsecs_t when, int32_t eventHubId, const InputDeviceIdentifier& identifier);
 
     class FakeInputReaderContext : public ContextImpl {
     public:
@@ -106,6 +106,9 @@ protected:
         void setPreventingTouchpadTaps(bool prevent) override { mPreventingTouchpadTaps = prevent; }
         bool isPreventingTouchpadTaps() override { return mPreventingTouchpadTaps; }
 
+        void setLastKeyDownTimestamp(nsecs_t when) override { mLastKeyDownTimestamp = when; };
+        nsecs_t getLastKeyDownTimestamp() override { return mLastKeyDownTimestamp; };
+
     private:
         int32_t mGlobalMetaState;
         bool mUpdateGlobalMetaStateWasCalled;
@@ -113,6 +116,7 @@ protected:
         std::optional<nsecs_t> mRequestedTimeout;
         std::vector<InputDeviceInfo> mExternalStylusDevices;
         bool mPreventingTouchpadTaps{false};
+        nsecs_t mLastKeyDownTimestamp;
     } mFakeContext;
 
     friend class InputReaderTest;

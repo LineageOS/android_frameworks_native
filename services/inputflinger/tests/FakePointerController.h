@@ -24,6 +24,10 @@
 
 namespace android {
 
+struct SpriteIcon {
+    PointerIconStyle style;
+};
+
 class FakePointerController : public PointerControllerInterface {
 public:
     virtual ~FakePointerController() {}
@@ -35,14 +39,24 @@ public:
     FloatPoint getPosition() const override;
     int32_t getDisplayId() const override;
     void setDisplayViewport(const DisplayViewport& viewport) override;
+    void updatePointerIcon(PointerIconStyle iconId) override;
+    void setCustomPointerIcon(const SpriteIcon& icon) override;
+    void fade(Transition) override;
 
+    void assertViewportSet(int32_t displayId);
+    void assertViewportNotSet();
     void assertPosition(float x, float y);
+    void assertSpotCount(int32_t displayId, int32_t count);
+    void assertPointerIconSet(PointerIconStyle iconId);
+    void assertPointerIconNotSet();
+    void assertCustomPointerIconSet(PointerIconStyle iconId);
+    void assertCustomPointerIconNotSet();
     bool isPointerShown();
 
 private:
+    std::string dump() override { return ""; }
     std::optional<FloatRect> getBounds() const override;
     void move(float deltaX, float deltaY) override;
-    void fade(Transition) override;
     void unfade(Transition) override;
     void setPresentation(Presentation) override {}
     void setSpots(const PointerCoords*, const uint32_t*, BitSet32 spotIdBits,
@@ -52,8 +66,10 @@ private:
     bool mHaveBounds{false};
     float mMinX{0}, mMinY{0}, mMaxX{0}, mMaxY{0};
     float mX{0}, mY{0};
-    int32_t mDisplayId{ADISPLAY_ID_DEFAULT};
+    std::optional<int32_t> mDisplayId;
     bool mIsPointerShown{false};
+    std::optional<PointerIconStyle> mIconStyle;
+    std::optional<PointerIconStyle> mCustomIconStyle;
 
     std::map<int32_t, std::vector<int32_t>> mSpotsByDisplay;
 };
