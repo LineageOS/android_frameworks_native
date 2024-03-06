@@ -371,8 +371,10 @@ void MotionEventTest::assertEqualsEventWithHistory(const MotionEvent* event) {
     ASSERT_EQ(AMOTION_EVENT_BUTTON_PRIMARY, event->getButtonState());
     ASSERT_EQ(MotionClassification::NONE, event->getClassification());
     EXPECT_EQ(mTransform, event->getTransform());
-    ASSERT_EQ(X_OFFSET, event->getXOffset());
-    ASSERT_EQ(Y_OFFSET, event->getYOffset());
+    ASSERT_NEAR((-RAW_X_OFFSET / RAW_X_SCALE) * X_SCALE + X_OFFSET, event->getRawXOffset(),
+                EPSILON);
+    ASSERT_NEAR((-RAW_Y_OFFSET / RAW_Y_SCALE) * Y_SCALE + Y_OFFSET, event->getRawYOffset(),
+                EPSILON);
     ASSERT_EQ(2.0f, event->getXPrecision());
     ASSERT_EQ(2.1f, event->getYPrecision());
     ASSERT_EQ(ARBITRARY_DOWN_TIME, event->getDownTime());
@@ -709,22 +711,26 @@ TEST_F(MotionEventTest, SplitPointerMove) {
 TEST_F(MotionEventTest, OffsetLocation) {
     MotionEvent event;
     initializeEventWithHistory(&event);
+    const float xOffset = event.getRawXOffset();
+    const float yOffset = event.getRawYOffset();
 
     event.offsetLocation(5.0f, -2.0f);
 
-    ASSERT_EQ(X_OFFSET + 5.0f, event.getXOffset());
-    ASSERT_EQ(Y_OFFSET - 2.0f, event.getYOffset());
+    ASSERT_EQ(xOffset + 5.0f, event.getRawXOffset());
+    ASSERT_EQ(yOffset - 2.0f, event.getRawYOffset());
 }
 
 TEST_F(MotionEventTest, Scale) {
     MotionEvent event;
     initializeEventWithHistory(&event);
     const float unscaledOrientation = event.getOrientation(0);
+    const float unscaledXOffset = event.getRawXOffset();
+    const float unscaledYOffset = event.getRawYOffset();
 
     event.scale(2.0f);
 
-    ASSERT_EQ(X_OFFSET * 2, event.getXOffset());
-    ASSERT_EQ(Y_OFFSET * 2, event.getYOffset());
+    ASSERT_EQ(unscaledXOffset * 2, event.getRawXOffset());
+    ASSERT_EQ(unscaledYOffset * 2, event.getRawYOffset());
 
     ASSERT_NEAR((RAW_X_OFFSET + 210 * RAW_X_SCALE) * 2, event.getRawX(0), EPSILON);
     ASSERT_NEAR((RAW_Y_OFFSET + 211 * RAW_Y_SCALE) * 2, event.getRawY(0), EPSILON);
