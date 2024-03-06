@@ -317,8 +317,20 @@ prebuilt_etc {
 }
 
 prebuilt_etc {
+    name: "android.hardware.vulkan.level-1.prebuilt.xml",
+    src: "android.hardware.vulkan.level-1.xml",
+    defaults: ["frameworks_native_data_etc_defaults"],
+}
+
+prebuilt_etc {
     name: "android.hardware.vulkan.version-1_0_3.prebuilt.xml",
     src: "android.hardware.vulkan.version-1_0_3.xml",
+    defaults: ["frameworks_native_data_etc_defaults"],
+}
+
+prebuilt_etc {
+    name: "android.hardware.vulkan.version-1_3.prebuilt.xml",
+    src: "android.hardware.vulkan.version-1_3.xml",
     defaults: ["frameworks_native_data_etc_defaults"],
 }
 
