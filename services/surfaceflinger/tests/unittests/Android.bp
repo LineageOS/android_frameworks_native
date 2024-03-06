@@ -29,7 +29,7 @@ filegroup {
         "mock/DisplayHardware/MockComposer.cpp",
         "mock/DisplayHardware/MockHWC2.cpp",
         "mock/DisplayHardware/MockIPower.cpp",
-        "mock/DisplayHardware/MockIPowerHintSession.cpp",
+        "mock/DisplayHardware/MockPowerHintSessionWrapper.cpp",
         "mock/DisplayHardware/MockPowerAdvisor.cpp",
         "mock/MockEventThread.cpp",
         "mock/MockFrameTimeline.cpp",
@@ -149,6 +149,7 @@ cc_defaults {
         "android.hardware.graphics.composer3-ndk_static",
         "android.hardware.power-ndk_static",
         "librenderengine_deps",
+        "libsurfaceflinger_common_test_deps",
     ],
     static_libs: [
         "android.hardware.common-V2-ndk",
@@ -173,13 +174,11 @@ cc_defaults {
         "librenderengine_mocks",
         "libscheduler",
         "libserviceutils",
-        "libsurfaceflinger_common_test",
         "libtimestats",
         "libtimestats_atoms_proto",
         "libtimestats_proto",
         "libtonemap",
         "perfetto_trace_protos",
-        "libsurfaceflingerflags_test",
     ],
     shared_libs: [
         "android.hardware.configstore-utils",
@@ -208,7 +207,6 @@ cc_defaults {
         "libsync",
         "libui",
         "libutils",
-        "server_configurable_flags",
     ],
     header_libs: [
         "android.hardware.graphics.composer3-command-buffer",

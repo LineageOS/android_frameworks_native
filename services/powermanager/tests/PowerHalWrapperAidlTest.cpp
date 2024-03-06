@@ -86,6 +86,10 @@ protected:
 
 void PowerHalWrapperAidlTest::SetUp() {
     mMockHal = ndk::SharedRefBase::make<StrictMock<MockIPower>>();
+    EXPECT_CALL(*mMockHal, getInterfaceVersion(_)).WillRepeatedly(([](int32_t* ret) {
+        *ret = 5;
+        return ndk::ScopedAStatus::ok();
+    }));
     mWrapper = std::make_unique<AidlHalWrapper>(mMockHal);
     ASSERT_NE(nullptr, mWrapper);
 }
@@ -130,10 +134,12 @@ TEST_F(PowerHalWrapperAidlTest, TestSetBoostFailed) {
 }
 
 TEST_F(PowerHalWrapperAidlTest, TestSetBoostUnsupported) {
-    EXPECT_CALL(*mMockHal.get(), isBoostSupported(Eq(Boost::INTERACTION), _))
-            .Times(Exactly(1))
-            .WillOnce(DoAll(SetArgPointee<1>(false),
-                            Return(testing::ByMove(ndk::ScopedAStatus::ok()))));
+    EXPECT_CALL(*mMockHal.get(), isBoostSupported(_, _))
+            .Times(Exactly(2))
+            .WillRepeatedly([](Boost, bool* ret) {
+                *ret = false;
+                return ndk::ScopedAStatus::ok();
+            });
 
     auto result = mWrapper->setBoost(Boost::INTERACTION, 1000);
     ASSERT_TRUE(result.isUnsupported());
@@ -310,4 +316,30 @@ TEST_F(PowerHalWrapperAidlTest, TestSessionChannel) {
     ASSERT_TRUE(createResult.isOk());
     auto closeResult = mWrapper->closeSessionChannel(tgid, uid);
     ASSERT_TRUE(closeResult.isOk());
+}
+
+TEST_F(PowerHalWrapperAidlTest, TestCreateHintSessionWithConfigUnsupported) {
+    std::vector<int> threadIds{gettid()};
+    int32_t tgid = 999;
+    int32_t uid = 1001;
+    int64_t durationNanos = 16666666L;
+    SessionTag tag = SessionTag::OTHER;
+    SessionConfig out;
+    EXPECT_CALL(*mMockHal.get(),
+                createHintSessionWithConfig(Eq(tgid), Eq(uid), Eq(threadIds), Eq(durationNanos),
+                                            Eq(tag), _, _))
+            .Times(1)
+            .WillOnce(Return(testing::ByMove(
+                    ndk::ScopedAStatus::fromExceptionCode(EX_UNSUPPORTED_OPERATION))));
+    auto result =
+            mWrapper->createHintSessionWithConfig(tgid, uid, threadIds, durationNanos, tag, &out);
+    ASSERT_TRUE(result.isUnsupported());
+    Mock::VerifyAndClearExpectations(mMockHal.get());
+    EXPECT_CALL(*mMockHal.get(),
+                createHintSessionWithConfig(Eq(tgid), Eq(uid), Eq(threadIds), Eq(durationNanos),
+                                            Eq(tag), _, _))
+            .WillOnce(Return(
+                    testing::ByMove(ndk::ScopedAStatus::fromStatus(STATUS_UNKNOWN_TRANSACTION))));
+    result = mWrapper->createHintSessionWithConfig(tgid, uid, threadIds, durationNanos, tag, &out);
+    ASSERT_TRUE(result.isUnsupported());
 }

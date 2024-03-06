@@ -233,7 +233,7 @@ void PowerAdvisor::updateTargetWorkDuration(Duration targetDuration) {
             auto ret = mHintSession->updateTargetWorkDuration(targetDuration.ns());
             if (!ret.isOk()) {
                 ALOGW("Failed to set power hint target work duration with error: %s",
-                      ret.getDescription().c_str());
+                      ret.errorMessage());
                 mHintSession = nullptr;
             }
         }
@@ -293,8 +293,7 @@ void PowerAdvisor::reportActualWorkDuration() {
 
         auto ret = mHintSession->reportActualWorkDuration(mHintSessionQueue);
         if (!ret.isOk()) {
-            ALOGW("Failed to report actual work durations with error: %s",
-                  ret.getDescription().c_str());
+            ALOGW("Failed to report actual work durations with error: %s", ret.errorMessage());
             mHintSession = nullptr;
             return;
         }

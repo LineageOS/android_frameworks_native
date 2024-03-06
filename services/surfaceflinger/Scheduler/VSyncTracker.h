@@ -56,8 +56,8 @@ public:
      *                          and avoid crossing the minimal frame period of a VRR display.
      * \return                  A prediction of the timestamp of a vsync event.
      */
-    virtual nsecs_t nextAnticipatedVSyncTimeFrom(nsecs_t timePoint,
-                                                 std::optional<nsecs_t> lastVsyncOpt = {}) = 0;
+    virtual nsecs_t nextAnticipatedVSyncTimeFrom(
+            nsecs_t timePoint, std::optional<nsecs_t> lastVsyncOpt = {}) const = 0;
 
     /*
      * The current period of the vsync signal.
@@ -82,7 +82,7 @@ public:
      * \param [in] timePoint  A vsync timestamp
      * \param [in] frameRate  The frame rate to check for
      */
-    virtual bool isVSyncInPhase(nsecs_t timePoint, Fps frameRate) = 0;
+    virtual bool isVSyncInPhase(nsecs_t timePoint, Fps frameRate) const = 0;
 
     /*
      * Sets the active mode of the display which includes the vsync period and other VRR attributes.

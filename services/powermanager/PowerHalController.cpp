@@ -57,6 +57,10 @@ void HalConnector::reset() {
     PowerHalLoader::unloadAll();
 }
 
+int32_t HalConnector::getAidlVersion() {
+    return PowerHalLoader::getAidlVersion();
+}
+
 // -------------------------------------------------------------------------------------------------
 
 void PowerHalController::init() {
@@ -76,6 +80,22 @@ std::shared_ptr<HalWrapper> PowerHalController::initHal() {
     }
     return mConnectedHal;
 }
+
+// Using statement expression macro instead of a method lets the static be
+// scoped to the outer method while dodging the need for a support lookup table
+// This only works for AIDL methods that do not vary supported/unsupported depending
+// on their arguments (not setBoost, setMode) which do their own support checks
+#define CACHE_SUPPORT(version, method)                                    \
+    ({                                                                    \
+        static bool support = mHalConnector->getAidlVersion() >= version; \
+        !support ? decltype(method)::unsupported() : ({                   \
+            auto result = method;                                         \
+            if (result.isUnsupported()) {                                 \
+                support = false;                                          \
+            }                                                             \
+            std::move(result);                                            \
+        });                                                               \
+    })
 
 // Check if a call to Power HAL function failed; if so, log the failure and
 // invalidate the current Power HAL handle.
@@ -103,40 +123,49 @@ HalResult<void> PowerHalController::setMode(aidl::android::hardware::power::Mode
     return processHalResult(handle->setMode(mode, enabled), "setMode");
 }
 
-HalResult<std::shared_ptr<aidl::android::hardware::power::IPowerHintSession>>
-PowerHalController::createHintSession(int32_t tgid, int32_t uid,
-                                      const std::vector<int32_t>& threadIds,
-                                      int64_t durationNanos) {
+// Aidl-only methods
+
+HalResult<std::shared_ptr<PowerHintSessionWrapper>> PowerHalController::createHintSession(
+        int32_t tgid, int32_t uid, const std::vector<int32_t>& threadIds, int64_t durationNanos) {
     std::shared_ptr<HalWrapper> handle = initHal();
-    return processHalResult(handle->createHintSession(tgid, uid, threadIds, durationNanos),
-                            "createHintSession");
+    return CACHE_SUPPORT(2,
+                         processHalResult(handle->createHintSession(tgid, uid, threadIds,
+                                                                    durationNanos),
+                                          "createHintSession"));
 }
 
-HalResult<std::shared_ptr<aidl::android::hardware::power::IPowerHintSession>>
-PowerHalController::createHintSessionWithConfig(
+HalResult<std::shared_ptr<PowerHintSessionWrapper>> PowerHalController::createHintSessionWithConfig(
         int32_t tgid, int32_t uid, const std::vector<int32_t>& threadIds, int64_t durationNanos,
         aidl::android::hardware::power::SessionTag tag,
         aidl::android::hardware::power::SessionConfig* config) {
     std::shared_ptr<HalWrapper> handle = initHal();
-    return processHalResult(handle->createHintSessionWithConfig(tgid, uid, threadIds, durationNanos,
-                                                                tag, config),
-                            "createHintSessionWithConfig");
+    return CACHE_SUPPORT(5,
+                         processHalResult(handle->createHintSessionWithConfig(tgid, uid, threadIds,
+                                                                              durationNanos, tag,
+                                                                              config),
+                                          "createHintSessionWithConfig"));
 }
 
 HalResult<int64_t> PowerHalController::getHintSessionPreferredRate() {
     std::shared_ptr<HalWrapper> handle = initHal();
-    return processHalResult(handle->getHintSessionPreferredRate(), "getHintSessionPreferredRate");
+    return CACHE_SUPPORT(2,
+                         processHalResult(handle->getHintSessionPreferredRate(),
+                                          "getHintSessionPreferredRate"));
 }
 
 HalResult<aidl::android::hardware::power::ChannelConfig> PowerHalController::getSessionChannel(
         int tgid, int uid) {
     std::shared_ptr<HalWrapper> handle = initHal();
-    return processHalResult(handle->getSessionChannel(tgid, uid), "getSessionChannel");
+    return CACHE_SUPPORT(5,
+                         processHalResult(handle->getSessionChannel(tgid, uid),
+                                          "getSessionChannel"));
 }
 
 HalResult<void> PowerHalController::closeSessionChannel(int tgid, int uid) {
     std::shared_ptr<HalWrapper> handle = initHal();
-    return processHalResult(handle->closeSessionChannel(tgid, uid), "closeSessionChannel");
+    return CACHE_SUPPORT(5,
+                         processHalResult(handle->closeSessionChannel(tgid, uid),
+                                          "closeSessionChannel"));
 }
 
 } // namespace power

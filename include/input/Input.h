@@ -870,6 +870,10 @@ public:
 
     void copyFrom(const MotionEvent* other, bool keepHistory);
 
+    // Initialize this event by keeping only the pointers from "other" that are in splitPointerIds.
+    void splitFrom(const MotionEvent& other, std::bitset<MAX_POINTER_ID + 1> splitPointerIds,
+                   int32_t newEventId);
+
     void addSample(
             nsecs_t eventTime,
             const PointerCoords* pointerCoords);
@@ -909,6 +913,11 @@ public:
     static std::optional<int> getAxisFromLabel(const char* label);
 
     static std::string actionToString(int32_t action);
+
+    static std::tuple<int32_t /*action*/, std::vector<PointerProperties>,
+                      std::vector<PointerCoords>>
+    split(int32_t action, int32_t flags, int32_t historySize, const std::vector<PointerProperties>&,
+          const std::vector<PointerCoords>&, std::bitset<MAX_POINTER_ID + 1> splitPointerIds);
 
     // MotionEvent will transform various axes in different ways, based on the source. For
     // example, the x and y axes will not have any offsets/translations applied if it comes from a
