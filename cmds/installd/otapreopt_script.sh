@@ -50,6 +50,12 @@ else
   exit 1
 fi
 
+if pm art on-ota-staged --slot "$TARGET_SLOT_SUFFIX"; then
+  # Handled by Pre-reboot Dexopt.
+  exit 0
+fi
+echo "Pre-reboot Dexopt not enabled. Fall back to otapreopt."
+
 if [ "$(/system/bin/otapreopt_chroot --version)" != 2 ]; then
   # We require an updated chroot wrapper that reads dexopt commands from stdin.
   # Even if we kept compat with the old binary, the OTA preopt wouldn't work due
