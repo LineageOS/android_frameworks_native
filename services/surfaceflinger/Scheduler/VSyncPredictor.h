@@ -68,7 +68,7 @@ public:
 
     void setDisplayModePtr(ftl::NonNull<DisplayModePtr>) final EXCLUDES(mMutex);
 
-    void setRenderRate(Fps) final EXCLUDES(mMutex);
+    void setRenderRate(Fps, bool applyImmediately) final EXCLUDES(mMutex);
 
     void onFrameBegin(TimePoint expectedPresentTime, TimePoint lastConfirmedPresentTime) final
             EXCLUDES(mMutex);

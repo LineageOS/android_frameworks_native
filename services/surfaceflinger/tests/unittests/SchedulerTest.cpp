@@ -583,7 +583,7 @@ TEST_F(SchedulerTest, nextFrameIntervalTest) {
 
     scheduler.registerDisplay(kMode->getPhysicalDisplayId(), vrrSelectorPtr, vrrTracker);
     vrrSelectorPtr->setActiveMode(kMode->getId(), frameRate);
-    scheduler.setRenderRate(kMode->getPhysicalDisplayId(), frameRate);
+    scheduler.setRenderRate(kMode->getPhysicalDisplayId(), frameRate, /*applyImmediately*/ false);
     vrrTracker->addVsyncTimestamp(0);
     // Set 1000 as vsync seq #0
     vrrTracker->nextAnticipatedVSyncTimeFrom(700);
@@ -603,7 +603,7 @@ TEST_F(SchedulerTest, nextFrameIntervalTest) {
     // Change render rate
     frameRate = Fps::fromPeriodNsecs(2000);
     vrrSelectorPtr->setActiveMode(kMode->getId(), frameRate);
-    scheduler.setRenderRate(kMode->getPhysicalDisplayId(), frameRate);
+    scheduler.setRenderRate(kMode->getPhysicalDisplayId(), frameRate, /*applyImmediately*/ false);
 
     EXPECT_EQ(Fps::fromPeriodNsecs(2000),
               scheduler.getNextFrameInterval(kMode->getPhysicalDisplayId(),

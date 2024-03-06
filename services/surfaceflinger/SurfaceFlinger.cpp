@@ -1239,8 +1239,8 @@ void SurfaceFlinger::setDesiredMode(display::DisplayModeRequest&& desiredMode) {
     switch (display->setDesiredMode(std::move(desiredMode))) {
         case DisplayDevice::DesiredModeAction::InitiateDisplayModeSwitch:
             // DisplayDevice::setDesiredMode updated the render rate, so inform Scheduler.
-            mScheduler->setRenderRate(displayId,
-                                      display->refreshRateSelector().getActiveMode().fps);
+            mScheduler->setRenderRate(displayId, display->refreshRateSelector().getActiveMode().fps,
+                                      /*applyImmediately*/ true);
 
             // Schedule a new frame to initiate the display mode switch.
             scheduleComposite(FrameHint::kNone);
@@ -1261,7 +1261,7 @@ void SurfaceFlinger::setDesiredMode(display::DisplayModeRequest&& desiredMode) {
             mScheduler->setModeChangePending(true);
             break;
         case DisplayDevice::DesiredModeAction::InitiateRenderRateSwitch:
-            mScheduler->setRenderRate(displayId, mode.fps);
+            mScheduler->setRenderRate(displayId, mode.fps, /*applyImmediately*/ false);
 
             if (displayId == mActiveDisplayId) {
                 mScheduler->updatePhaseConfiguration(mode.fps);
@@ -1382,7 +1382,7 @@ void SurfaceFlinger::applyActiveMode(const sp<DisplayDevice>& display) {
 
     constexpr bool kAllowToEnable = true;
     mScheduler->resyncToHardwareVsync(displayId, kAllowToEnable, std::move(activeModePtr).take());
-    mScheduler->setRenderRate(displayId, renderFps);
+    mScheduler->setRenderRate(displayId, renderFps, /*applyImmediately*/ true);
 
     if (displayId == mActiveDisplayId) {
         mScheduler->updatePhaseConfiguration(renderFps);
@@ -4376,7 +4376,8 @@ void SurfaceFlinger::initScheduler(const sp<const DisplayDevice>& display) {
     // The pacesetter must be registered before EventThread creation below.
     mScheduler->registerDisplay(display->getPhysicalId(), display->holdRefreshRateSelector());
     if (FlagManager::getInstance().vrr_config()) {
-        mScheduler->setRenderRate(display->getPhysicalId(), activeMode.fps);
+        mScheduler->setRenderRate(display->getPhysicalId(), activeMode.fps,
+                                  /*applyImmediately*/ true);
     }
 
     const auto configs = mScheduler->getVsyncConfiguration().getCurrentConfigs();

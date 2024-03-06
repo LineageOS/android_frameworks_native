@@ -296,6 +296,10 @@ nsecs_t VSyncPredictor::nextAnticipatedVSyncTimeFrom(nsecs_t timePoint,
     const auto now = TimePoint::fromNs(mClock->now());
     purgeTimelines(now);
 
+    if (lastVsyncOpt && *lastVsyncOpt > timePoint) {
+        timePoint = *lastVsyncOpt;
+    }
+
     const auto model = getVSyncPredictionModelLocked();
     const auto threshold = model.slope / 2;
     std::optional<TimePoint> vsyncOpt;
@@ -352,7 +356,7 @@ bool VSyncPredictor::isVSyncInPhase(nsecs_t timePoint, Fps frameRate) {
     return mTimelines.back().isVSyncInPhase(model, vsync, frameRate);
 }
 
-void VSyncPredictor::setRenderRate(Fps renderRate) {
+void VSyncPredictor::setRenderRate(Fps renderRate, bool applyImmediately) {
     ATRACE_FORMAT("%s %s", __func__, to_string(renderRate).c_str());
     ALOGV("%s %s: RenderRate %s ", __func__, to_string(mId).c_str(), to_string(renderRate).c_str());
     std::lock_guard lock(mMutex);
@@ -360,8 +364,9 @@ void VSyncPredictor::setRenderRate(Fps renderRate) {
     mRenderRateOpt = renderRate;
     const auto renderPeriodDelta =
             prevRenderRate ? prevRenderRate->getPeriodNsecs() - renderRate.getPeriodNsecs() : 0;
-    if (renderPeriodDelta > renderRate.getPeriodNsecs() &&
-        mLastCommittedVsync.ns() - mClock->now() > 2 * renderRate.getPeriodNsecs()) {
+    const bool newRenderRateIsHigher = renderPeriodDelta > renderRate.getPeriodNsecs() &&
+            mLastCommittedVsync.ns() - mClock->now() > 2 * renderRate.getPeriodNsecs();
+    if (applyImmediately || newRenderRateIsHigher) {
         mTimelines.clear();
         mLastCommittedVsync = TimePoint::fromNs(0);
     } else {

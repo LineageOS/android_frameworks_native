@@ -102,8 +102,10 @@ public:
      * when a display is running at 120Hz but the render frame rate is 60Hz.
      *
      * \param [in] Fps   The render rate the tracker should operate at.
+     * \param [in] applyImmediately Whether to apply the new render rate immediately regardless of
+     *                              already committed vsyncs.
      */
-    virtual void setRenderRate(Fps) = 0;
+    virtual void setRenderRate(Fps, bool applyImmediately) = 0;
 
     virtual void onFrameBegin(TimePoint expectedPresentTime,
                               TimePoint lastConfirmedPresentTime) = 0;

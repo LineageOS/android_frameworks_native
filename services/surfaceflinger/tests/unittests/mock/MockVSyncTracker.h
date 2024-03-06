@@ -36,7 +36,7 @@ public:
     MOCK_METHOD(bool, needsMoreSamples, (), (const, override));
     MOCK_METHOD(bool, isVSyncInPhase, (nsecs_t, Fps), (override));
     MOCK_METHOD(void, setDisplayModePtr, (ftl::NonNull<DisplayModePtr>), (override));
-    MOCK_METHOD(void, setRenderRate, (Fps), (override));
+    MOCK_METHOD(void, setRenderRate, (Fps, bool), (override));
     MOCK_METHOD(void, onFrameBegin, (TimePoint, TimePoint), (override));
     MOCK_METHOD(void, onFrameMissed, (TimePoint), (override));
     MOCK_METHOD(void, dump, (std::string&), (const, override));
