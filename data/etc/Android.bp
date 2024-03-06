@@ -353,6 +353,12 @@ prebuilt_etc {
 }
 
 prebuilt_etc {
+    name: "android.software.contextualsearch.prebuilt.xml",
+    src: "android.software.contextualsearch.xml",
+    defaults: ["frameworks_native_data_etc_defaults"],
+}
+
+prebuilt_etc {
     name: "android.software.device_id_attestation.prebuilt.xml",
     src: "android.software.device_id_attestation.xml",
     defaults: ["frameworks_native_data_etc_defaults"],
