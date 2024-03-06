@@ -25,6 +25,7 @@
 #include <GrContextOptions.h>
 #include <vk/GrVkExtensions.h>
 #include <vk/GrVkTypes.h>
+#include <include/gpu/ganesh/vk/GrVkBackendSemaphore.h>
 #include <include/gpu/ganesh/vk/GrVkDirectContext.h>
 
 #include <android-base/stringprintf.h>
@@ -766,8 +767,7 @@ void SkiaVkRenderEngine::waitFence(GrDirectContext* grContext, base::borrowed_fd
     base::unique_fd fenceDup(dupedFd);
     VkSemaphore waitSemaphore =
             getVulkanInterface(isProtected()).importSemaphoreFromSyncFd(fenceDup.release());
-    GrBackendSemaphore beSemaphore;
-    beSemaphore.initVulkan(waitSemaphore);
+    GrBackendSemaphore beSemaphore = GrBackendSemaphores::MakeVk(waitSemaphore);
     grContext->wait(1, &beSemaphore, true /* delete after wait */);
 }
 
@@ -775,8 +775,7 @@ base::unique_fd SkiaVkRenderEngine::flushAndSubmit(GrDirectContext* grContext) {
     VulkanInterface& vi = getVulkanInterface(isProtected());
     VkSemaphore semaphore = vi.createExportableSemaphore();
 
-    GrBackendSemaphore backendSemaphore;
-    backendSemaphore.initVulkan(semaphore);
+    GrBackendSemaphore backendSemaphore = GrBackendSemaphores::MakeVk(semaphore);
 
     GrFlushInfo flushInfo;
     DestroySemaphoreInfo* destroySemaphoreInfo = nullptr;
