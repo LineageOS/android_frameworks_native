@@ -89,7 +89,7 @@ private:
 
     class VsyncTimeline {
     public:
-        VsyncTimeline(Period idealPeriod, std::optional<Fps> renderRateOpt);
+        VsyncTimeline(TimePoint knownVsync, Period idealPeriod, std::optional<Fps> renderRateOpt);
         std::optional<TimePoint> nextAnticipatedVSyncTimeFrom(
                 Model model, Period minFramePeriod, nsecs_t vsyncTime, MissedVsync lastMissedVsync,
                 std::optional<nsecs_t> lastVsyncOpt = {});
@@ -101,6 +101,7 @@ private:
     private:
         nsecs_t snapToVsyncAlignedWithRenderRate(Model model, nsecs_t vsync);
         VsyncSequence getVsyncSequenceLocked(Model, nsecs_t vsync);
+        std::optional<VsyncSequence> makeVsyncSequence(TimePoint knownVsync);
 
         const Period mIdealPeriod = Duration::fromNs(0);
         const std::optional<Fps> mRenderRateOpt;
