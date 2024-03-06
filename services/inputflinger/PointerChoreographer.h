@@ -109,11 +109,13 @@ public:
     void dump(std::string& dump) override;
 
 private:
-    void updatePointerControllersLocked() REQUIRES(mLock);
-    void notifyPointerDisplayIdChangedLocked() REQUIRES(mLock);
+    using PointerDisplayChange =
+            std::optional<std::tuple<int32_t /*displayId*/, FloatPoint /*cursorPosition*/>>;
+    [[nodiscard]] PointerDisplayChange updatePointerControllersLocked() REQUIRES(mLock);
+    [[nodiscard]] PointerDisplayChange calculatePointerDisplayChangeToNotify() REQUIRES(mLock);
     const DisplayViewport* findViewportByIdLocked(int32_t displayId) const REQUIRES(mLock);
     int32_t getTargetMouseDisplayLocked(int32_t associatedDisplayId) const REQUIRES(mLock);
-    std::pair<int32_t, PointerControllerInterface&> getDisplayIdAndMouseControllerLocked(
+    std::pair<int32_t /*displayId*/, PointerControllerInterface&> ensureMouseControllerLocked(
             int32_t associatedDisplayId) REQUIRES(mLock);
     InputDeviceInfo* findInputDeviceLocked(DeviceId deviceId) REQUIRES(mLock);
     bool canUnfadeOnDisplay(int32_t displayId) REQUIRES(mLock);
