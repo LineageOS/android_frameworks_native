@@ -1,0 +1,92 @@
+package: "com.android.input.flags"
+
+flag {
+  name: "enable_outbound_event_verification"
+  namespace: "input"
+  description: "Set to true to enable crashing whenever bad outbound events are detected inside InputTransport"
+  bug: "271455682"
+}
+
+flag {
+  name: "enable_inbound_event_verification"
+  namespace: "input"
+  description: "Set to true to enable crashing whenever bad inbound events are going into InputDispatcher"
+  bug: "271455682"
+}
+
+flag {
+  name: "enable_pointer_choreographer"
+  namespace: "input"
+  description: "Set to true to enable PointerChoreographer: the new pipeline for showing pointer icons"
+  bug: "293587049"
+}
+
+flag {
+  name: "enable_gestures_library_timer_provider"
+  namespace: "input"
+  description: "Set to true to enable timer support for the touchpad Gestures library"
+  bug: "297192727"
+}
+
+flag {
+  name: "enable_multi_device_input"
+  namespace: "input"
+  description: "Set to true to enable multi-device input: touch and stylus can be active at the same time, but in different windows"
+  bug: "211379801"
+}
+
+flag {
+  name: "a11y_crash_on_inconsistent_event_stream"
+  namespace: "accessibility"
+  description: "Brings back fatal logging for inconsistent event streams originating from accessibility."
+  bug: "299977100"
+}
+
+flag {
+  name: "report_palms_to_gestures_library"
+  namespace: "input"
+  description: "Report touches marked as palm by firmware to gestures library"
+  bug: "302505955"
+}
+
+flag {
+  name: "enable_touchpad_typing_palm_rejection"
+  namespace: "input"
+  description: "Enable additional palm rejection on touchpad while typing"
+  bug: "301055381"
+}
+
+flag {
+  name: "remove_app_switch_drops"
+  namespace: "input"
+  description: "Remove the logic of dropping events due to pending app switch"
+  bug: "284808102"
+}
+
+flag {
+  name: "disable_reject_touch_on_stylus_hover"
+  namespace: "input"
+  description: "Disable touch rejection when the stylus hovers the screen"
+  bug: "301216095"
+}
+
+flag {
+  name: "enable_input_filter_rust_impl"
+  namespace: "input"
+  description: "Enable input filter rust implementation"
+  bug: "294546335"
+}
+
+flag {
+  name: "override_key_behavior_permission_apis"
+  namespace: "input"
+  description: "enable override key behavior permission APIs"
+  bug: "309018874"
+}
+
+flag {
+  name: "remove_pointer_event_tracking_in_wm"
+  namespace: "input"
+  description: "Remove pointer event tracking in WM after the Pointer Icon Refactor"
+  bug: "315321016"
+}

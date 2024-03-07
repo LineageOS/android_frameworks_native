@@ -282,39 +282,6 @@ TEST_F(DisplayColorProfileTest, ctorUsesOrDefaultsLuminanceValuesFromInputArgs) 
     }
 }
 
-TEST_F(DisplayColorProfileTest, ctorSignalsHdrSupportForAnyWideColorGamutDevice) {
-    {
-        // If the output does not profile wide color gamut, then no HDR modes
-        // will be profileed in the generated HDR capabilities.
-        auto profile = ProfileFactory().setHasWideColorGamut(false).build();
-
-        EXPECT_THAT(profile.getHdrCapabilities().getSupportedHdrTypes(), IsEmpty());
-    }
-
-    {
-        // If the HWC does not show profile for certain HDR modes, then the
-        // generated HDR capabilities will indicate profile anyway.
-        auto profile = ProfileFactory().setHasWideColorGamut(true).build();
-
-        EXPECT_THAT(profile.getHdrCapabilities().getSupportedHdrTypes(), SizeIs(2));
-        EXPECT_THAT(profile.getHdrCapabilities().getSupportedHdrTypes(), Contains(Hdr::HDR10));
-        EXPECT_THAT(profile.getHdrCapabilities().getSupportedHdrTypes(), Contains(Hdr::HLG));
-    }
-
-    {
-        // If the HWC profiles the HDR modes, then the generated capabilities
-        // still has one entry for each HDR type.
-        auto profile = ProfileFactory()
-                               .setHasWideColorGamut(true)
-                               .addHdrTypes({Hdr::HLG, Hdr::HDR10})
-                               .build();
-
-        EXPECT_THAT(profile.getHdrCapabilities().getSupportedHdrTypes(), SizeIs(2));
-        EXPECT_THAT(profile.getHdrCapabilities().getSupportedHdrTypes(), Contains(Hdr::HDR10));
-        EXPECT_THAT(profile.getHdrCapabilities().getSupportedHdrTypes(), Contains(Hdr::HLG));
-    }
-}
-
 /* ------------------------------------------------------------------------
  * DisplayColorProfile::hasRenderIntent
  */
@@ -644,30 +611,6 @@ TEST_F(DisplayColorProfileTest, isDataspaceSupportedWorksForProfileWithHlgSuppor
     EXPECT_FALSE(profile.isDataspaceSupported(Dataspace::BT2020_ITU_PQ));
     EXPECT_TRUE(profile.isDataspaceSupported(Dataspace::BT2020_HLG));
     EXPECT_TRUE(profile.isDataspaceSupported(Dataspace::BT2020_ITU_HLG));
-}
-
-/*
- * RenderSurface::getTargetDataspace()
- */
-
-TEST_F(DisplayColorProfileTest, getTargetDataspaceWorks) {
-    auto profile = ProfileFactory::createProfileWithNoColorModeSupport();
-
-    // For a non-HDR colorspace with no colorSpaceAgnosticDataspace override,
-    // the input dataspace should be returned.
-    EXPECT_EQ(Dataspace::DISPLAY_P3,
-              profile.getTargetDataspace(ColorMode::DISPLAY_P3, Dataspace::DISPLAY_P3,
-                                         Dataspace::UNKNOWN));
-
-    // If colorSpaceAgnosticDataspace is set, its value should be returned
-    EXPECT_EQ(Dataspace::V0_SRGB,
-              profile.getTargetDataspace(ColorMode::DISPLAY_P3, Dataspace::DISPLAY_P3,
-                                         Dataspace::V0_SRGB));
-
-    // For an HDR colorspace, Dataspace::UNKNOWN should be returned.
-    EXPECT_EQ(Dataspace::UNKNOWN,
-              profile.getTargetDataspace(ColorMode::BT2100_PQ, Dataspace::BT2020_PQ,
-                                         Dataspace::UNKNOWN));
 }
 
 } // namespace

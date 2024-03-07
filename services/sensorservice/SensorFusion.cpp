@@ -42,17 +42,20 @@ SensorFusion::SensorFusion()
 
     if (count > 0) {
         for (size_t i=0 ; i<size_t(count) ; i++) {
-            if (list[i].type == SENSOR_TYPE_ACCELEROMETER) {
-                mAcc = Sensor(list + i);
-            }
-            if (list[i].type == SENSOR_TYPE_MAGNETIC_FIELD) {
-                mMag = Sensor(list + i);
-            }
-            if (list[i].type == SENSOR_TYPE_GYROSCOPE) {
-                mGyro = Sensor(list + i);
-            }
-            if (list[i].type == SENSOR_TYPE_GYROSCOPE_UNCALIBRATED) {
-                uncalibratedGyro = Sensor(list + i);
+            // Only use non-wakeup sensors
+            if ((list[i].flags & SENSOR_FLAG_WAKE_UP) == 0) {
+                if (list[i].type == SENSOR_TYPE_ACCELEROMETER) {
+                    mAcc = Sensor(list + i);
+                }
+                if (list[i].type == SENSOR_TYPE_MAGNETIC_FIELD) {
+                    mMag = Sensor(list + i);
+                }
+                if (list[i].type == SENSOR_TYPE_GYROSCOPE) {
+                    mGyro = Sensor(list + i);
+                }
+                if (list[i].type == SENSOR_TYPE_GYROSCOPE_UNCALIBRATED) {
+                    uncalibratedGyro = Sensor(list + i);
+                }
             }
         }
 

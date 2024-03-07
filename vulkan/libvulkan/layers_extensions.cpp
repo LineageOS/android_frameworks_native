@@ -74,6 +74,7 @@ class LayerLibrary {
           filename_(filename),
           dlhandle_(nullptr),
           native_bridge_(false),
+          opened_with_native_loader_(false),
           refcount_(0) {}
 
     LayerLibrary(LayerLibrary&& other) noexcept
@@ -81,6 +82,7 @@ class LayerLibrary {
           filename_(std::move(other.filename_)),
           dlhandle_(other.dlhandle_),
           native_bridge_(other.native_bridge_),
+          opened_with_native_loader_(other.opened_with_native_loader_),
           refcount_(other.refcount_) {
         other.dlhandle_ = nullptr;
         other.refcount_ = 0;
@@ -120,6 +122,7 @@ class LayerLibrary {
     std::mutex mutex_;
     void* dlhandle_;
     bool native_bridge_;
+    bool opened_with_native_loader_;
     size_t refcount_;
 };
 
@@ -136,7 +139,7 @@ bool LayerLibrary::Open() {
         if (app_namespace &&
             !android::base::StartsWith(path_, kSystemLayerLibraryDir)) {
             char* error_msg = nullptr;
-            dlhandle_ = OpenNativeLibraryInNamespace(
+            dlhandle_ = android::OpenNativeLibraryInNamespace(
                 app_namespace, path_.c_str(), &native_bridge_, &error_msg);
             if (!dlhandle_) {
                 ALOGE("failed to load layer library '%s': %s", path_.c_str(), error_msg);
@@ -144,14 +147,16 @@ bool LayerLibrary::Open() {
                 refcount_ = 0;
                 return false;
             }
+            opened_with_native_loader_ = true;
         } else {
-          dlhandle_ = dlopen(path_.c_str(), RTLD_NOW | RTLD_LOCAL);
+            dlhandle_ = dlopen(path_.c_str(), RTLD_NOW | RTLD_LOCAL);
             if (!dlhandle_) {
                 ALOGE("failed to load layer library '%s': %s", path_.c_str(),
                       dlerror());
                 refcount_ = 0;
                 return false;
             }
+            opened_with_native_loader_ = false;
         }
     }
     return true;
@@ -161,14 +166,25 @@ void LayerLibrary::Close() {
     std::lock_guard<std::mutex> lock(mutex_);
     if (--refcount_ == 0) {
         ALOGV("closing layer library '%s'", path_.c_str());
-        char* error_msg = nullptr;
-        if (!android::CloseNativeLibrary(dlhandle_, native_bridge_, &error_msg)) {
-            ALOGE("failed to unload library '%s': %s", path_.c_str(), error_msg);
-            android::NativeLoaderFreeErrorMessage(error_msg);
-            refcount_++;
+        // we close the .so same way as we opened. It's importain, because
+        // android::CloseNativeLibrary lives in libnativeloader.so, which is
+        // not accessible for early loaded services like SurfaceFlinger
+        if (opened_with_native_loader_) {
+            char* error_msg = nullptr;
+            if (!android::CloseNativeLibrary(dlhandle_, native_bridge_, &error_msg)) {
+                ALOGE("failed to unload library '%s': %s", path_.c_str(), error_msg);
+                android::NativeLoaderFreeErrorMessage(error_msg);
+                refcount_++;
+                return;
+            }
         } else {
-           dlhandle_ = nullptr;
+            if (dlclose(dlhandle_) != 0) {
+                ALOGE("failed to unload library '%s': %s", path_.c_str(), dlerror());
+                refcount_++;
+                return;
+            }
         }
+        dlhandle_ = nullptr;
     }
 }
 

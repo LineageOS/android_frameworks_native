@@ -40,7 +40,7 @@ public:
     MOCK_METHOD1(beginFrame, status_t(bool mustRecompose));
     MOCK_METHOD2(prepareFrame, void(bool, bool));
     MOCK_METHOD1(dequeueBuffer, std::shared_ptr<renderengine::ExternalTexture>(base::unique_fd*));
-    MOCK_METHOD1(queueBuffer, void(base::unique_fd));
+    MOCK_METHOD(void, queueBuffer, (base::unique_fd, float), (override));
     MOCK_METHOD0(onPresentDisplayCompleted, void());
     MOCK_CONST_METHOD1(dump, void(std::string& result));
     MOCK_CONST_METHOD0(supportsCompositionStrategyPrediction, bool());

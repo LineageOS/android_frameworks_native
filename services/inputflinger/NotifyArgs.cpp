@@ -91,8 +91,8 @@ NotifyMotionArgs::NotifyMotionArgs(
         readTime(readTime),
         videoFrames(videoFrames) {
     for (uint32_t i = 0; i < pointerCount; i++) {
-        this->pointerProperties.push_back(pointerProperties[i]);
-        this->pointerCoords.push_back(pointerCoords[i]);
+        this->pointerProperties.emplace_back(pointerProperties[i]);
+        this->pointerCoords.emplace_back(pointerCoords[i]);
     }
 }
 

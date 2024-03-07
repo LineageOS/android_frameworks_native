@@ -25,6 +25,7 @@
 #include "HidlComposerHal.h"
 
 #include <SurfaceFlingerProperties.h>
+#include <aidl/android/hardware/graphics/common/DisplayHotplugEvent.h>
 #include <android/binder_manager.h>
 #include <composer-command-buffer/2.2/ComposerCommandBuffer.h>
 #include <hidl/HidlTransportSupport.h>
@@ -38,6 +39,7 @@
 #include <algorithm>
 #include <cinttypes>
 
+using aidl::android::hardware::graphics::common::DisplayHotplugEvent;
 using aidl::android::hardware::graphics::common::HdrConversionCapability;
 using aidl::android::hardware::graphics::common::HdrConversionStrategy;
 using aidl::android::hardware::graphics::composer3::Capability;
@@ -64,8 +66,13 @@ public:
     ComposerCallbackBridge(ComposerCallback& callback, bool vsyncSwitchingSupported)
           : mCallback(callback), mVsyncSwitchingSupported(vsyncSwitchingSupported) {}
 
+    // For code sharing purposes, `ComposerCallback` (implemented by SurfaceFlinger)
+    // replaced `onComposerHalHotplug` with `onComposerHalHotplugEvent` by converting
+    // from HIDL's connection into an AIDL DisplayHotplugEvent.
     Return<void> onHotplug(Display display, Connection connection) override {
-        mCallback.onComposerHalHotplug(display, connection);
+        const auto event = connection == Connection::CONNECTED ? DisplayHotplugEvent::CONNECTED
+                                                               : DisplayHotplugEvent::DISCONNECTED;
+        mCallback.onComposerHalHotplugEvent(display, event);
         return Void();
     }
 
@@ -268,6 +275,11 @@ bool HidlComposer::isSupported(OptionalFeature feature) const {
             return false;
     }
 }
+
+bool HidlComposer::isVrrSupported() const {
+    // VRR is not supported on the HIDL composer.
+    return false;
+};
 
 std::vector<Capability> HidlComposer::getCapabilities() {
     std::vector<Capability> capabilities;
@@ -477,6 +489,12 @@ Error HidlComposer::getDisplayConfigs(Display display, std::vector<Config>* outC
     return error;
 }
 
+Error HidlComposer::getDisplayConfigurations(Display, int32_t /*maxFrameIntervalNs*/,
+                                             std::vector<DisplayConfiguration>*) {
+    LOG_ALWAYS_FATAL("getDisplayConfigurations should not have been called on this, as "
+                     "it's a HWC3 interface version 3 feature");
+}
+
 Error HidlComposer::getDisplayName(Display display, std::string* outName) {
     Error error = kDefaultError;
     mClient->getDisplayName(display, [&](const auto& tmpError, const auto& tmpName) {
@@ -590,7 +608,8 @@ Error HidlComposer::setActiveConfig(Display display, Config config) {
 
 Error HidlComposer::setClientTarget(Display display, uint32_t slot, const sp<GraphicBuffer>& target,
                                     int acquireFence, Dataspace dataspace,
-                                    const std::vector<IComposerClient::Rect>& damage) {
+                                    const std::vector<IComposerClient::Rect>& damage,
+                                    float /*hdrSdrRatio*/) {
     mWriter.selectDisplay(display);
 
     const native_handle_t* handle = nullptr;
@@ -654,7 +673,8 @@ Error HidlComposer::setClientTargetSlotCount(Display display) {
 }
 
 Error HidlComposer::validateDisplay(Display display, nsecs_t /*expectedPresentTime*/,
-                                    uint32_t* outNumTypes, uint32_t* outNumRequests) {
+                                    int32_t /*frameIntervalNs*/, uint32_t* outNumTypes,
+                                    uint32_t* outNumRequests) {
     ATRACE_NAME("HwcValidateDisplay");
     mWriter.selectDisplay(display);
     mWriter.validateDisplay();
@@ -670,8 +690,9 @@ Error HidlComposer::validateDisplay(Display display, nsecs_t /*expectedPresentTi
 }
 
 Error HidlComposer::presentOrValidateDisplay(Display display, nsecs_t /*expectedPresentTime*/,
-                                             uint32_t* outNumTypes, uint32_t* outNumRequests,
-                                             int* outPresentFence, uint32_t* state) {
+                                             int32_t /*frameIntervalNs*/, uint32_t* outNumTypes,
+                                             uint32_t* outNumRequests, int* outPresentFence,
+                                             uint32_t* state) {
     ATRACE_NAME("HwcPresentOrValidateDisplay");
     mWriter.selectDisplay(display);
     mWriter.presentOrvalidateDisplay();
@@ -1364,6 +1385,10 @@ Error HidlComposer::setHdrConversionStrategy(HdrConversionStrategy, Hdr*) {
 }
 
 Error HidlComposer::setRefreshRateChangedCallbackDebugEnabled(Display, bool) {
+    return Error::UNSUPPORTED;
+}
+
+Error HidlComposer::notifyExpectedPresent(Display, nsecs_t, int32_t) {
     return Error::UNSUPPORTED;
 }
 

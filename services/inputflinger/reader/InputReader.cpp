@@ -236,7 +236,7 @@ void InputReader::addDeviceLocked(nsecs_t when, int32_t eventHubId) {
     }
 
     InputDeviceIdentifier identifier = mEventHub->getDeviceIdentifier(eventHubId);
-    std::shared_ptr<InputDevice> device = createDeviceLocked(eventHubId, identifier);
+    std::shared_ptr<InputDevice> device = createDeviceLocked(when, eventHubId, identifier);
 
     mPendingArgs += device->configure(when, mConfig, /*changes=*/{});
     mPendingArgs += device->reset(when);
@@ -319,7 +319,7 @@ void InputReader::removeDeviceLocked(nsecs_t when, int32_t eventHubId) {
 }
 
 std::shared_ptr<InputDevice> InputReader::createDeviceLocked(
-        int32_t eventHubId, const InputDeviceIdentifier& identifier) {
+        nsecs_t when, int32_t eventHubId, const InputDeviceIdentifier& identifier) {
     auto deviceIt = std::find_if(mDevices.begin(), mDevices.end(), [identifier](auto& devicePair) {
         const InputDeviceIdentifier identifier2 =
                 devicePair.second->getDeviceInfo().getIdentifier();
@@ -334,7 +334,7 @@ std::shared_ptr<InputDevice> InputReader::createDeviceLocked(
         device = std::make_shared<InputDevice>(&mContext, deviceId, bumpGenerationLocked(),
                                                identifier);
     }
-    device->addEventHubDevice(eventHubId, mConfig);
+    mPendingArgs += device->addEventHubDevice(when, eventHubId, mConfig);
     return device;
 }
 
@@ -946,6 +946,7 @@ void InputReader::dump(std::string& dump) {
         device->dump(dump, eventHubDevStr);
     }
 
+    dump += StringPrintf(INDENT "NextTimeout: %" PRId64 "\n", mNextTimeout);
     dump += INDENT "Configuration:\n";
     dump += INDENT2 "ExcludedDeviceNames: [";
     for (size_t i = 0; i < mConfig.excludedDeviceNames.size(); i++) {
@@ -1043,6 +1044,14 @@ void InputReader::ContextImpl::setPreventingTouchpadTaps(bool prevent) {
 bool InputReader::ContextImpl::isPreventingTouchpadTaps() {
     // lock is already held by the input loop
     return mReader->mPreventingTouchpadTaps;
+}
+
+void InputReader::ContextImpl::setLastKeyDownTimestamp(nsecs_t when) {
+    mReader->mLastKeyDownTimestamp = when;
+}
+
+nsecs_t InputReader::ContextImpl::getLastKeyDownTimestamp() {
+    return mReader->mLastKeyDownTimestamp;
 }
 
 void InputReader::ContextImpl::disableVirtualKeysUntil(nsecs_t time) {

@@ -47,7 +47,8 @@ public:
     // Ignore unknown handles when iteroping with legacy front end. In the old world, we
     // would create child layers which are not necessary with the new front end. This means
     // we will get notified for handle changes that don't exist in the new front end.
-    void onHandlesDestroyed(const std::vector<uint32_t>&, bool ignoreUnknownHandles = false);
+    void onHandlesDestroyed(const std::vector<std::pair<uint32_t, std::string /* debugName */>>&,
+                            bool ignoreUnknownHandles = false);
 
     // Detaches the layer from its relative parent to prevent a loop in the
     // layer hierarchy. This overrides the RequestedLayerState and leaves
@@ -79,6 +80,7 @@ public:
     const std::vector<RequestedLayerState*>& getChangedLayers() const;
     const ftl::Flags<RequestedLayerState::Changes> getGlobalChanges() const;
     const RequestedLayerState* getLayerFromId(uint32_t) const;
+    bool isLayerSecure(uint32_t) const;
 
 private:
     friend class LayerLifecycleManagerTest;

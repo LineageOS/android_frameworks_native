@@ -71,9 +71,6 @@ int64_t wcg_composition_dataspace(
 int32_t wcg_composition_pixel_format(
         android::hardware::graphics::common::V1_2::PixelFormat defaultValue);
 
-int64_t color_space_agnostic_dataspace(
-        android::hardware::graphics::common::V1_2::Dataspace defaultValue);
-
 bool refresh_rate_switching(bool defaultValue);
 
 int32_t set_idle_timer_ms(int32_t defaultValue);
@@ -103,6 +100,8 @@ bool enable_sdr_dimming(bool defaultValue);
 bool ignore_hdr_camera_layers(bool defaultValue);
 
 bool clear_slots_with_set_layer_buffer(bool defaultValue);
+
+int32_t game_default_frame_rate_override(int32_t defaultValue);
 
 } // namespace sysprop
 } // namespace android

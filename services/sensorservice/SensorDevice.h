@@ -35,6 +35,9 @@
 #include <utils/Timers.h>
 
 #include <algorithm> //std::max std::min
+#include <condition_variable>
+#include <mutex>
+#include <queue>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -225,6 +228,12 @@ private:
     float getResolutionForSensor(int sensorHandle);
 
     bool mIsDirectReportSupported;
+
+    std::mutex mHalBypassLock;
+    std::condition_variable mHalBypassCV;
+    std::queue<sensors_event_t> mHalBypassInjectedEventQueue;
+    ssize_t getHalBypassInjectedEvents(sensors_event_t* buffer, size_t count);
+    bool mInHalBypassMode;
 };
 
 // ---------------------------------------------------------------------------

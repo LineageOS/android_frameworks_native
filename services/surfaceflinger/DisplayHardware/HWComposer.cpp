@@ -15,6 +15,7 @@
  */
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
+#include <chrono>
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wconversion"
 
@@ -31,6 +32,7 @@
 #include <compositionengine/OutputLayer.h>
 #include <compositionengine/impl/OutputLayerCompositionState.h>
 #include <ftl/concat.h>
+#include <gui/TraceUtils.h>
 #include <log/log.h>
 #include <ui/DebugUtils.h>
 #include <ui/GraphicBuffer.h>
@@ -261,10 +263,50 @@ bool HWComposer::isConnected(PhysicalDisplayId displayId) const {
     return mDisplayData.count(displayId) && mDisplayData.at(displayId).hwcDisplay->isConnected();
 }
 
-std::vector<HWComposer::HWCDisplayMode> HWComposer::getModes(PhysicalDisplayId displayId) const {
+std::vector<HWComposer::HWCDisplayMode> HWComposer::getModes(PhysicalDisplayId displayId,
+                                                             int32_t maxFrameIntervalNs) const {
     RETURN_IF_INVALID_DISPLAY(displayId, {});
 
     const auto hwcDisplayId = mDisplayData.at(displayId).hwcDisplay->getId();
+
+    if (mComposer->isVrrSupported()) {
+        return getModesFromDisplayConfigurations(hwcDisplayId, maxFrameIntervalNs);
+    }
+
+    return getModesFromLegacyDisplayConfigs(hwcDisplayId);
+}
+
+std::vector<HWComposer::HWCDisplayMode> HWComposer::getModesFromDisplayConfigurations(
+        uint64_t hwcDisplayId, int32_t maxFrameIntervalNs) const {
+    std::vector<hal::DisplayConfiguration> configs;
+    auto error = static_cast<hal::Error>(
+            mComposer->getDisplayConfigurations(hwcDisplayId, maxFrameIntervalNs, &configs));
+    RETURN_IF_HWC_ERROR_FOR("getDisplayConfigurations", error, *toPhysicalDisplayId(hwcDisplayId),
+                            {});
+
+    std::vector<HWCDisplayMode> modes;
+    modes.reserve(configs.size());
+    for (auto config : configs) {
+        auto hwcMode = HWCDisplayMode{.hwcId = static_cast<hal::HWConfigId>(config.configId),
+                                      .width = config.width,
+                                      .height = config.height,
+                                      .vsyncPeriod = config.vsyncPeriod,
+                                      .configGroup = config.configGroup,
+                                      .vrrConfig = config.vrrConfig};
+
+        if (config.dpi) {
+            hwcMode.dpiX = config.dpi->x;
+            hwcMode.dpiY = config.dpi->y;
+        }
+
+        modes.push_back(hwcMode);
+    }
+
+    return modes;
+}
+
+std::vector<HWComposer::HWCDisplayMode> HWComposer::getModesFromLegacyDisplayConfigs(
+        uint64_t hwcDisplayId) const {
     std::vector<hal::HWConfigId> configIds;
     auto error = static_cast<hal::Error>(mComposer->getDisplayConfigs(hwcDisplayId, &configIds));
     RETURN_IF_HWC_ERROR_FOR("getDisplayConfigs", error, *toPhysicalDisplayId(hwcDisplayId), {});
@@ -272,17 +314,25 @@ std::vector<HWComposer::HWCDisplayMode> HWComposer::getModes(PhysicalDisplayId d
     std::vector<HWCDisplayMode> modes;
     modes.reserve(configIds.size());
     for (auto configId : configIds) {
-        modes.push_back(HWCDisplayMode{
+        auto hwcMode = HWCDisplayMode{
                 .hwcId = configId,
                 .width = getAttribute(hwcDisplayId, configId, hal::Attribute::WIDTH),
                 .height = getAttribute(hwcDisplayId, configId, hal::Attribute::HEIGHT),
                 .vsyncPeriod = getAttribute(hwcDisplayId, configId, hal::Attribute::VSYNC_PERIOD),
-                .dpiX = getAttribute(hwcDisplayId, configId, hal::Attribute::DPI_X),
-                .dpiY = getAttribute(hwcDisplayId, configId, hal::Attribute::DPI_Y),
                 .configGroup = getAttribute(hwcDisplayId, configId, hal::Attribute::CONFIG_GROUP),
-        });
-    }
+        };
 
+        const int32_t dpiX = getAttribute(hwcDisplayId, configId, hal::Attribute::DPI_X);
+        const int32_t dpiY = getAttribute(hwcDisplayId, configId, hal::Attribute::DPI_Y);
+        if (dpiX != -1) {
+            hwcMode.dpiX = static_cast<float>(dpiX) / 1000.f;
+        }
+        if (dpiY != -1) {
+            hwcMode.dpiY = static_cast<float>(dpiY) / 1000.f;
+        }
+
+        modes.push_back(hwcMode);
+    }
     return modes;
 }
 
@@ -383,12 +433,12 @@ void HWComposer::setVsyncEnabled(PhysicalDisplayId displayId, hal::Vsync enabled
 
 status_t HWComposer::setClientTarget(HalDisplayId displayId, uint32_t slot,
                                      const sp<Fence>& acquireFence, const sp<GraphicBuffer>& target,
-                                     ui::Dataspace dataspace) {
+                                     ui::Dataspace dataspace, float hdrSdrRatio) {
     RETURN_IF_INVALID_DISPLAY(displayId, BAD_INDEX);
 
     ALOGV("%s for display %s", __FUNCTION__, to_string(displayId).c_str());
     auto& hwcDisplay = mDisplayData[displayId].hwcDisplay;
-    auto error = hwcDisplay->setClientTarget(slot, target, acquireFence, dataspace);
+    auto error = hwcDisplay->setClientTarget(slot, target, acquireFence, dataspace, hdrSdrRatio);
     RETURN_IF_HWC_ERROR(error, displayId, BAD_VALUE);
     return NO_ERROR;
 }
@@ -396,7 +446,7 @@ status_t HWComposer::setClientTarget(HalDisplayId displayId, uint32_t slot,
 status_t HWComposer::getDeviceCompositionChanges(
         HalDisplayId displayId, bool frameUsesClientComposition,
         std::optional<std::chrono::steady_clock::time_point> earliestPresentTime,
-        nsecs_t expectedPresentTime,
+        nsecs_t expectedPresentTime, Fps frameInterval,
         std::optional<android::HWComposer::DeviceRequestedChanges>* outChanges) {
     ATRACE_CALL();
 
@@ -436,11 +486,12 @@ status_t HWComposer::getDeviceCompositionChanges(
     }();
 
     displayData.validateWasSkipped = false;
+    ATRACE_FORMAT("NextFrameInterval %d_Hz", frameInterval.getIntValue());
     if (canSkipValidate) {
-        sp<Fence> outPresentFence;
+        sp<Fence> outPresentFence = Fence::NO_FENCE;
         uint32_t state = UINT32_MAX;
-        error = hwcDisplay->presentOrValidate(expectedPresentTime, &numTypes, &numRequests,
-                                              &outPresentFence, &state);
+        error = hwcDisplay->presentOrValidate(expectedPresentTime, frameInterval.getPeriodNsecs(),
+                                              &numTypes, &numRequests, &outPresentFence, &state);
         if (!hasChangesError(error)) {
             RETURN_IF_HWC_ERROR_FOR("presentOrValidate", error, displayId, UNKNOWN_ERROR);
         }
@@ -455,7 +506,8 @@ status_t HWComposer::getDeviceCompositionChanges(
         }
         // Present failed but Validate ran.
     } else {
-        error = hwcDisplay->validate(expectedPresentTime, &numTypes, &numRequests);
+        error = hwcDisplay->validate(expectedPresentTime, frameInterval.getPeriodNsecs(), &numTypes,
+                                     &numRequests);
     }
     ALOGV("SkipValidate failed, Falling back to SLOW validate/present");
     if (!hasChangesError(error)) {
@@ -567,19 +619,29 @@ status_t HWComposer::setPowerMode(PhysicalDisplayId displayId, hal::PowerMode mo
             ALOGV("setPowerMode: Calling HWC %s", to_string(mode).c_str());
             {
                 bool supportsDoze = false;
-                auto error = hwcDisplay->supportsDoze(&supportsDoze);
-                if (error != hal::Error::NONE) {
-                    LOG_HWC_ERROR("supportsDoze", error, displayId);
-                }
+                const auto queryDozeError = hwcDisplay->supportsDoze(&supportsDoze);
 
-                if (!supportsDoze) {
+                // queryDozeError might be NO_RESOURCES, in the case of a display that has never
+                // been turned on. In that case, attempt to set to DOZE anyway.
+                if (!supportsDoze && queryDozeError == hal::Error::NONE) {
                     mode = hal::PowerMode::ON;
                 }
 
-                error = hwcDisplay->setPowerMode(mode);
+                auto error = hwcDisplay->setPowerMode(mode);
                 if (error != hal::Error::NONE) {
                     LOG_HWC_ERROR(("setPowerMode(" + to_string(mode) + ")").c_str(), error,
                                   displayId);
+                    // If the display had never been turned on, so its doze
+                    // support was unknown, it may truly not support doze. Try
+                    // switching it to ON instead.
+                    if (queryDozeError == hal::Error::NO_RESOURCES) {
+                        ALOGD("%s: failed to set %s to %s. Trying again with ON", __func__,
+                              to_string(displayId).c_str(), to_string(mode).c_str());
+                        error = hwcDisplay->setPowerMode(hal::PowerMode::ON);
+                        if (error != hal::Error::NONE) {
+                            LOG_HWC_ERROR("setPowerMode(ON)", error, displayId);
+                        }
+                    }
                 }
             }
             break;
@@ -813,6 +875,22 @@ status_t HWComposer::setRefreshRateChangedCallbackDebugEnabled(PhysicalDisplayId
     if (error != hal::Error::NONE) {
         ALOGE("Error in setting refresh refresh rate change callback debug enabled %s",
               to_string(error).c_str());
+        return INVALID_OPERATION;
+    }
+    return NO_ERROR;
+}
+
+status_t HWComposer::notifyExpectedPresent(PhysicalDisplayId displayId,
+                                           TimePoint expectedPresentTime, Fps frameInterval) {
+    RETURN_IF_INVALID_DISPLAY(displayId, BAD_INDEX);
+    ATRACE_FORMAT("%s ExpectedPresentTime in %.2fms frameInterval %.2fms", __func__,
+                  ticks<std::milli, float>(expectedPresentTime - TimePoint::now()),
+                  ticks<std::milli, float>(Duration::fromNs(frameInterval.getPeriodNsecs())));
+    const auto error = mComposer->notifyExpectedPresent(mDisplayData[displayId].hwcDisplay->getId(),
+                                                        expectedPresentTime.ns(),
+                                                        frameInterval.getPeriodNsecs());
+    if (error != hal::Error::NONE) {
+        ALOGE("Error in notifyExpectedPresent call %s", to_string(error).c_str());
         return INVALID_OPERATION;
     }
     return NO_ERROR;

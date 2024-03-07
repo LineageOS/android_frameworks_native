@@ -15,36 +15,47 @@
  */
 
 #include <CursorInputMapper.h>
-#include <FuzzContainer.h>
+#include <InputDevice.h>
+#include <InputReaderBase.h>
+#include <MapperHelpers.h>
 
 namespace android {
 
-static void addProperty(FuzzContainer& fuzzer, std::shared_ptr<ThreadSafeFuzzedDataProvider> fdp) {
+static void addProperty(FuzzEventHub& eventHub, std::shared_ptr<ThreadSafeFuzzedDataProvider> fdp) {
     // Pick a random property to set for the mapper to have set.
     fdp->PickValueInArray<std::function<void()>>(
-            {[&]() -> void { fuzzer.addProperty("cursor.mode", "pointer"); },
-             [&]() -> void { fuzzer.addProperty("cursor.mode", "navigation"); },
+            {[&]() -> void { eventHub.addProperty("cursor.mode", "pointer"); },
+             [&]() -> void { eventHub.addProperty("cursor.mode", "navigation"); },
              [&]() -> void {
-                 fuzzer.addProperty("cursor.mode", fdp->ConsumeRandomLengthString(100).data());
+                 eventHub.addProperty("cursor.mode", fdp->ConsumeRandomLengthString(100).data());
              },
              [&]() -> void {
-                 fuzzer.addProperty("cursor.orientationAware",
-                                    fdp->ConsumeRandomLengthString(100).data());
+                 eventHub.addProperty("cursor.orientationAware",
+                                      fdp->ConsumeRandomLengthString(100).data());
              }})();
 }
 
 extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size) {
     std::shared_ptr<ThreadSafeFuzzedDataProvider> fdp =
             std::make_shared<ThreadSafeFuzzedDataProvider>(data, size);
-    FuzzContainer fuzzer(fdp);
 
-    auto policyConfig = fuzzer.getPolicyConfig();
-    CursorInputMapper& mapper = fuzzer.getMapper<CursorInputMapper>(policyConfig);
+    // Create mocked objects to support the fuzzed input mapper.
+    std::shared_ptr<FuzzEventHub> eventHub = std::make_shared<FuzzEventHub>(fdp);
+    FuzzInputReaderContext context(eventHub, fdp);
+    InputDevice device = getFuzzedInputDevice(*fdp, &context);
+
+    InputReaderConfiguration policyConfig;
+    CursorInputMapper& mapper =
+            getMapperForDevice<ThreadSafeFuzzedDataProvider, CursorInputMapper>(*fdp.get(), device,
+                                                                                policyConfig);
 
     // Loop through mapper operations until randomness is exhausted.
     while (fdp->remaining_bytes() > 0) {
         fdp->PickValueInArray<std::function<void()>>({
-                [&]() -> void { addProperty(fuzzer, fdp); },
+                [&]() -> void {
+                    addProperty(*eventHub.get(), fdp);
+                    configureAndResetDevice(*fdp, device);
+                },
                 [&]() -> void {
                     std::string dump;
                     mapper.dump(dump);
@@ -65,22 +76,11 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size) {
                     mapper.populateDeviceInfo(info);
                 },
                 [&]() -> void {
-                    int32_t type, code;
-                    type = fdp->ConsumeBool() ? fdp->PickValueInArray(kValidTypes)
-                                              : fdp->ConsumeIntegral<int32_t>();
-                    code = fdp->ConsumeBool() ? fdp->PickValueInArray(kValidCodes)
-                                              : fdp->ConsumeIntegral<int32_t>();
-
                     // Need to reconfigure with 0 or you risk a NPE.
                     std::list<NotifyArgs> unused =
                             mapper.reconfigure(fdp->ConsumeIntegral<nsecs_t>(), policyConfig,
                                                InputReaderConfiguration::Change(0));
-                    RawEvent rawEvent{fdp->ConsumeIntegral<nsecs_t>(),
-                                      fdp->ConsumeIntegral<nsecs_t>(),
-                                      fdp->ConsumeIntegral<int32_t>(),
-                                      type,
-                                      code,
-                                      fdp->ConsumeIntegral<int32_t>()};
+                    RawEvent rawEvent = getFuzzedRawEvent(*fdp);
                     unused += mapper.process(&rawEvent);
                 },
                 [&]() -> void {

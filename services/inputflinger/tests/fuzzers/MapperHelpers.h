@@ -15,6 +15,10 @@
  */
 #pragma once
 
+#include <map>
+#include <memory>
+
+#include <EventHub.h>
 #include <InputDevice.h>
 #include <InputMapper.h>
 #include <InputReader.h>
@@ -22,7 +26,6 @@
 
 constexpr size_t kValidTypes[] = {EV_SW,
                                   EV_SYN,
-                                  SYN_REPORT,
                                   EV_ABS,
                                   EV_KEY,
                                   EV_MSC,
@@ -46,7 +49,6 @@ constexpr size_t kValidCodes[] = {
         ABS_MT_PRESSURE,
         ABS_MT_DISTANCE,
         ABS_MT_TOOL_TYPE,
-        SYN_MT_REPORT,
         MSC_SCAN,
         REL_X,
         REL_Y,
@@ -74,10 +76,27 @@ ToolType getFuzzedToolType(Fdp& fdp) {
     return static_cast<ToolType>(toolType);
 }
 
+template <class Fdp>
+RawEvent getFuzzedRawEvent(Fdp& fdp) {
+    const int32_t type = fdp.ConsumeBool() ? fdp.PickValueInArray(kValidTypes)
+                                           : fdp.template ConsumeIntegral<int32_t>();
+    const int32_t code = fdp.ConsumeBool() ? fdp.PickValueInArray(kValidCodes)
+                                           : fdp.template ConsumeIntegral<int32_t>();
+    return RawEvent{
+            .when = fdp.template ConsumeIntegral<nsecs_t>(),
+            .readTime = fdp.template ConsumeIntegral<nsecs_t>(),
+            .deviceId = fdp.template ConsumeIntegral<int32_t>(),
+            .type = type,
+            .code = code,
+            .value = fdp.template ConsumeIntegral<int32_t>(),
+    };
+}
+
 class FuzzEventHub : public EventHubInterface {
     InputDeviceIdentifier mIdentifier;
     std::vector<TouchVideoFrame> mVideoFrames;
     PropertyMap mFuzzConfig;
+    std::map<int32_t /* deviceId */, std::map<int /* axis */, RawAbsoluteAxisInfo>> mAxes;
     std::shared_ptr<ThreadSafeFuzzedDataProvider> mFdp;
 
 public:
@@ -97,8 +116,18 @@ public:
     std::optional<PropertyMap> getConfiguration(int32_t deviceId) const override {
         return mFuzzConfig;
     }
+    void setAbsoluteAxisInfo(int32_t deviceId, int axis, const RawAbsoluteAxisInfo& axisInfo) {
+        mAxes[deviceId][axis] = axisInfo;
+    }
     status_t getAbsoluteAxisInfo(int32_t deviceId, int axis,
                                  RawAbsoluteAxisInfo* outAxisInfo) const override {
+        if (auto deviceAxesIt = mAxes.find(deviceId); deviceAxesIt != mAxes.end()) {
+            const std::map<int, RawAbsoluteAxisInfo>& deviceAxes = deviceAxesIt->second;
+            if (auto axisInfoIt = deviceAxes.find(axis); axisInfoIt != deviceAxes.end()) {
+                *outAxisInfo = axisInfoIt->second;
+                return OK;
+            }
+        }
         return mFdp->ConsumeIntegral<status_t>();
     }
     bool hasRelativeAxis(int32_t deviceId, int axis) const override { return mFdp->ConsumeBool(); }
@@ -118,18 +147,7 @@ public:
         std::vector<RawEvent> events;
         const size_t count = mFdp->ConsumeIntegralInRange<size_t>(0, kMaxSize);
         for (size_t i = 0; i < count; ++i) {
-            int32_t type = mFdp->ConsumeBool() ? mFdp->PickValueInArray(kValidTypes)
-                                               : mFdp->ConsumeIntegral<int32_t>();
-            int32_t code = mFdp->ConsumeBool() ? mFdp->PickValueInArray(kValidCodes)
-                                               : mFdp->ConsumeIntegral<int32_t>();
-            events.push_back({
-                    .when = mFdp->ConsumeIntegral<nsecs_t>(),
-                    .readTime = mFdp->ConsumeIntegral<nsecs_t>(),
-                    .deviceId = mFdp->ConsumeIntegral<int32_t>(),
-                    .type = type,
-                    .code = code,
-                    .value = mFdp->ConsumeIntegral<int32_t>(),
-            });
+            events.push_back(getFuzzedRawEvent(*mFdp));
         }
         return events;
     }
@@ -257,6 +275,9 @@ public:
     void clearSpots() override {}
     int32_t getDisplayId() const override { return mFdp->ConsumeIntegral<int32_t>(); }
     void setDisplayViewport(const DisplayViewport& displayViewport) override {}
+    void updatePointerIcon(PointerIconStyle iconId) override {}
+    void setCustomPointerIcon(const SpriteIcon& icon) override {}
+    std::string dump() override { return ""; }
 };
 
 class FuzzInputReaderPolicy : public InputReaderPolicyInterface {
@@ -277,7 +298,8 @@ public:
     }
     void notifyInputDevicesChanged(const std::vector<InputDeviceInfo>& inputDevices) override {}
     std::shared_ptr<KeyCharacterMap> getKeyboardLayoutOverlay(
-            const InputDeviceIdentifier& identifier) override {
+            const InputDeviceIdentifier& identifier,
+            const std::optional<KeyboardLayoutInfo> layoutInfo) override {
         return nullptr;
     }
     std::string getDeviceAlias(const InputDeviceIdentifier& identifier) {
@@ -290,6 +312,10 @@ public:
     void setTouchAffineTransformation(const TouchAffineTransformation t) { mTransform = t; }
     void notifyStylusGestureStarted(int32_t, nsecs_t) {}
     bool isInputMethodConnectionActive() override { return mFdp->ConsumeBool(); }
+    std::optional<DisplayViewport> getPointerViewportForAssociatedDisplay(
+            int32_t associatedDisplayId) override {
+        return {};
+    }
 };
 
 class FuzzInputListener : public virtual InputListenerInterface {
@@ -312,10 +338,8 @@ class FuzzInputReaderContext : public InputReaderContext {
 
 public:
     FuzzInputReaderContext(std::shared_ptr<EventHubInterface> eventHub,
-                           const sp<InputReaderPolicyInterface>& policy,
-                           InputListenerInterface& listener,
-                           std::shared_ptr<ThreadSafeFuzzedDataProvider> mFdp)
-          : mEventHub(eventHub), mPolicy(policy), mFdp(mFdp) {}
+                           std::shared_ptr<ThreadSafeFuzzedDataProvider> fdp)
+          : mEventHub(eventHub), mPolicy(sp<FuzzInputReaderPolicy>::make(fdp)), mFdp(fdp) {}
     ~FuzzInputReaderContext() {}
     void updateGlobalMetaState() override {}
     int32_t getGlobalMetaState() { return mFdp->ConsumeIntegral<int32_t>(); }
@@ -343,6 +367,40 @@ public:
 
     void setPreventingTouchpadTaps(bool prevent) {}
     bool isPreventingTouchpadTaps() { return mFdp->ConsumeBool(); };
+
+    void setLastKeyDownTimestamp(nsecs_t when) { mLastKeyDownTimestamp = when; };
+    nsecs_t getLastKeyDownTimestamp() { return mLastKeyDownTimestamp; };
+
+private:
+    nsecs_t mLastKeyDownTimestamp;
 };
+
+template <class Fdp>
+InputDevice getFuzzedInputDevice(Fdp& fdp, FuzzInputReaderContext* context) {
+    InputDeviceIdentifier identifier;
+    identifier.name = fdp.ConsumeRandomLengthString(16);
+    identifier.location = fdp.ConsumeRandomLengthString(12);
+    int32_t deviceID = fdp.ConsumeIntegralInRange(0, 5);
+    int32_t deviceGeneration = fdp.ConsumeIntegralInRange(0, 5);
+    return InputDevice(context, deviceID, deviceGeneration, identifier);
+}
+
+template <class Fdp>
+void configureAndResetDevice(Fdp& fdp, InputDevice& device) {
+    nsecs_t arbitraryTime = fdp.template ConsumeIntegral<nsecs_t>();
+    std::list<NotifyArgs> out;
+    out += device.configure(arbitraryTime, /*readerConfig=*/{}, /*changes=*/{});
+    out += device.reset(arbitraryTime);
+}
+
+template <class Fdp, class T, typename... Args>
+T& getMapperForDevice(Fdp& fdp, InputDevice& device, Args... args) {
+    int32_t eventhubId = fdp.template ConsumeIntegral<int32_t>();
+    // ensure a device entry exists for this eventHubId
+    device.addEmptyEventHubDevice(eventhubId);
+    configureAndResetDevice(fdp, device);
+
+    return device.template constructAndAddMapper<T>(eventhubId, args...);
+}
 
 } // namespace android

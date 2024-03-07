@@ -17,13 +17,22 @@
 #undef LOG_TAG
 #define LOG_TAG "LibSurfaceFlingerUnittests"
 
+#include <com_android_graphics_surfaceflinger_flags.h>
+#include <common/test/FlagUtils.h>
 #include "DisplayTransactionTestHelpers.h"
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+using namespace com::android::graphics::surfaceflinger;
+
 namespace android {
 namespace {
+
+MATCHER_P(DisplayModeFps, value, "equals") {
+    using fps_approx_ops::operator==;
+    return arg->getVsyncRate() == value;
+}
 
 // Used when we simulate a display that supports doze.
 template <typename Display>
@@ -68,11 +77,13 @@ struct EventThreadBaseSupportedVariant {
 
 struct EventThreadNotSupportedVariant : public EventThreadBaseSupportedVariant {
     static void setupEnableVsyncCallExpectations(DisplayTransactionTest* test) {
-        setupVsyncNoCallExpectations(test);
+        EXPECT_CALL(test->mFlinger.scheduler()->mockRequestHardwareVsync, Call(_, true)).Times(1);
+        EXPECT_CALL(*test->mEventThread, enableSyntheticVsync(_)).Times(0);
     }
 
     static void setupDisableVsyncCallExpectations(DisplayTransactionTest* test) {
-        setupVsyncNoCallExpectations(test);
+        EXPECT_CALL(test->mFlinger.scheduler()->mockRequestHardwareVsync, Call(_, false)).Times(1);
+        EXPECT_CALL(*test->mEventThread, enableSyntheticVsync(_)).Times(0);
     }
 };
 
@@ -94,7 +105,8 @@ struct DispSyncIsSupportedVariant {
     static void setupResetModelCallExpectations(DisplayTransactionTest* test) {
         auto vsyncSchedule = test->mFlinger.scheduler()->getVsyncSchedule();
         EXPECT_CALL(static_cast<mock::VsyncController&>(vsyncSchedule->getController()),
-                    startPeriodTransition(DEFAULT_VSYNC_PERIOD, false))
+                    onDisplayModeChanged(DisplayModeFps(Fps::fromPeriodNsecs(DEFAULT_VSYNC_PERIOD)),
+                                         false))
                 .Times(1);
         EXPECT_CALL(static_cast<mock::VSyncTracker&>(vsyncSchedule->getTracker()), resetModel())
                 .Times(1);
@@ -292,6 +304,11 @@ using PrimaryDisplayPowerCase =
 // A sample configuration for the external display.
 // In addition to not having event thread support, we emulate not having doze
 // support.
+// TODO (b/267483230): ExternalDisplay supports the features tracked in
+// DispSyncIsSupportedVariant, but is the follower, so the
+// expectations set by DispSyncIsSupportedVariant don't match (wrong schedule).
+// We need a way to retrieve the proper DisplayId from
+// setupResetModelCallExpectations (or pass it in).
 template <typename TransitionVariant>
 using ExternalDisplayPowerCase =
         DisplayPowerCase<ExternalDisplayVariant, DozeNotSupportedVariant<ExternalDisplayVariant>,
@@ -440,6 +457,7 @@ TEST_F(SetPowerModeInternalTest, transitionsDisplayFromOnToUnknownPrimaryDisplay
 }
 
 TEST_F(SetPowerModeInternalTest, transitionsDisplayFromOffToOnExternalDisplay) {
+    SET_FLAG_FOR_TEST(flags::multithreaded_present, true);
     transitionDisplayCommon<ExternalDisplayPowerCase<TransitionOffToOnVariant>>();
 }
 
@@ -448,6 +466,7 @@ TEST_F(SetPowerModeInternalTest, transitionsDisplayFromOffToDozeSuspendExternalD
 }
 
 TEST_F(SetPowerModeInternalTest, transitionsDisplayFromOnToOffExternalDisplay) {
+    SET_FLAG_FOR_TEST(flags::multithreaded_present, true);
     transitionDisplayCommon<ExternalDisplayPowerCase<TransitionOnToOffVariant>>();
 }
 
@@ -460,6 +479,7 @@ TEST_F(SetPowerModeInternalTest, transitionsDisplayFromOnToDozeExternalDisplay) 
 }
 
 TEST_F(SetPowerModeInternalTest, transitionsDisplayFromDozeSuspendToDozeExternalDisplay) {
+    SET_FLAG_FOR_TEST(flags::multithreaded_present, true);
     transitionDisplayCommon<ExternalDisplayPowerCase<TransitionDozeSuspendToDozeVariant>>();
 }
 
@@ -468,10 +488,12 @@ TEST_F(SetPowerModeInternalTest, transitionsDisplayFromDozeToOnExternalDisplay) 
 }
 
 TEST_F(SetPowerModeInternalTest, transitionsDisplayFromDozeSuspendToOnExternalDisplay) {
+    SET_FLAG_FOR_TEST(flags::multithreaded_present, true);
     transitionDisplayCommon<ExternalDisplayPowerCase<TransitionDozeSuspendToOnVariant>>();
 }
 
 TEST_F(SetPowerModeInternalTest, transitionsDisplayFromOnToDozeSuspendExternalDisplay) {
+    SET_FLAG_FOR_TEST(flags::multithreaded_present, true);
     transitionDisplayCommon<ExternalDisplayPowerCase<TransitionOnToDozeSuspendVariant>>();
 }
 

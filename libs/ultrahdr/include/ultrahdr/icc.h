@@ -17,6 +17,7 @@
 #ifndef ANDROID_ULTRAHDR_ICC_H
 #define ANDROID_ULTRAHDR_ICC_H
 
+#include <ultrahdr/gainmapmath.h>
 #include <ultrahdr/jpegr.h>
 #include <ultrahdr/jpegrutils.h>
 #include <utils/RefBase.h>
@@ -222,7 +223,7 @@ private:
                                        const ultrahdr_color_gamut gamut);
     static sp<DataStruct> write_xyz_tag(float x, float y, float z);
     static sp<DataStruct> write_trc_tag(const int table_entries, const void* table_16);
-    static sp<DataStruct> write_trc_tag_for_linear();
+    static sp<DataStruct> write_trc_tag(const TransferFunction& fn);
     static float compute_tone_map_gain(const ultrahdr_transfer_function tf, float L);
     static sp<DataStruct> write_cicp_tag(uint32_t color_primaries,
                                          uint32_t transfer_characteristics);

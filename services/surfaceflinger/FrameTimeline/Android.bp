@@ -28,6 +28,7 @@ cc_library_static {
     ],
     static_libs: [
         "libperfetto_client_experimental",
+        "libsurfaceflinger_common",
     ],
     export_include_dirs: ["."],
 }

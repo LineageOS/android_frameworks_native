@@ -77,11 +77,11 @@ public:
     inline bool isIgnored() { return !getMapperCount() && !mController; }
 
     bool isEnabled();
-    [[nodiscard]] std::list<NotifyArgs> setEnabled(bool enabled, nsecs_t when);
 
     void dump(std::string& dump, const std::string& eventHubDevStr);
     void addEmptyEventHubDevice(int32_t eventHubId);
-    void addEventHubDevice(int32_t eventHubId, const InputReaderConfiguration& readerConfig);
+    [[nodiscard]] std::list<NotifyArgs> addEventHubDevice(
+            nsecs_t when, int32_t eventHubId, const InputReaderConfiguration& readerConfig);
     void removeEventHubDevice(int32_t eventHubId);
     [[nodiscard]] std::list<NotifyArgs> configure(nsecs_t when,
                                                   const InputReaderConfiguration& readerConfig,
@@ -191,6 +191,7 @@ private:
     std::unique_ptr<PeripheralControllerInterface> mController;
 
     uint32_t mSources;
+    bool mIsWaking;
     bool mIsExternal;
     std::optional<uint8_t> mAssociatedDisplayPort;
     std::optional<std::string> mAssociatedDisplayUniqueId;
@@ -205,7 +206,18 @@ private:
     std::vector<std::unique_ptr<InputMapper>> createMappers(
             InputDeviceContext& contextPtr, const InputReaderConfiguration& readerConfig);
 
+    [[nodiscard]] std::list<NotifyArgs> configureInternal(
+            nsecs_t when, const InputReaderConfiguration& readerConfig,
+            ConfigurationChanges changes, bool forceEnable = false);
+
+    [[nodiscard]] std::list<NotifyArgs> updateEnableState(
+            nsecs_t when, const InputReaderConfiguration& readerConfig, bool forceEnable = false);
+
     PropertyMap mConfiguration;
+
+    // Runs logic post a `process` call. This can be used to update the generated `NotifyArgs` as
+    // per the properties of the InputDevice.
+    void postProcess(std::list<NotifyArgs>& args) const;
 
     // helpers to interate over the devices collection
     // run a function against every mapper on every subdevice
@@ -284,7 +296,18 @@ public:
         return mEventHub->getDeviceControllerNumber(mId);
     }
     inline status_t getAbsoluteAxisInfo(int32_t code, RawAbsoluteAxisInfo* axisInfo) const {
-        return mEventHub->getAbsoluteAxisInfo(mId, code, axisInfo);
+        if (const auto status = mEventHub->getAbsoluteAxisInfo(mId, code, axisInfo); status != OK) {
+            return status;
+        }
+
+        // Validate axis info for InputDevice.
+        if (axisInfo->valid && axisInfo->minValue == axisInfo->maxValue) {
+            // Historically, we deem axes with the same min and max values as invalid to avoid
+            // dividing by zero when scaling by max - min.
+            // TODO(b/291772515): Perform axis info validation on a per-axis basis when it is used.
+            axisInfo->valid = false;
+        }
+        return OK;
     }
     inline bool hasRelativeAxis(int32_t code) const {
         return mEventHub->hasRelativeAxis(mId, code);

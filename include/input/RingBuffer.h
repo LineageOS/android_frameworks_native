@@ -24,7 +24,6 @@
 #include <type_traits>
 #include <utility>
 
-#include <android-base/logging.h>
 #include <android-base/stringprintf.h>
 
 namespace android {
@@ -277,15 +276,16 @@ private:
 
     // Converts the index of an element in [0, size()] to its corresponding index in mBuffer.
     size_type bufferIndex(size_type elementIndex) const {
-        CHECK_LE(elementIndex, size());
+        if (elementIndex > size()) {
+            abort();
+        }
         size_type index = mBegin + elementIndex;
         if (index >= capacity()) {
             index -= capacity();
         }
-        CHECK_LT(index, capacity())
-                << android::base::StringPrintf("Invalid index calculated for element (%zu) "
-                                               "in buffer of size %zu",
-                                               elementIndex, size());
+        if (index >= capacity()) {
+            abort();
+        }
         return index;
     }
 

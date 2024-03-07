@@ -19,6 +19,7 @@
 
 // We must include cstdio before jpeglib.h. It is a requirement of libjpeg.
 #include <cstdio>
+#include <vector>
 
 extern "C" {
 #include <jerror.h>
@@ -26,9 +27,10 @@ extern "C" {
 }
 
 #include <utils/Errors.h>
-#include <vector>
 
 namespace android::ultrahdr {
+
+#define ALIGNM(x, m) ((((x) + ((m)-1)) / (m)) * (m))
 
 /*
  * Encapsulates a converter from raw image (YUV420planer or grey-scale) to JPEG format.
@@ -46,8 +48,9 @@ public:
      * ICC segment which will be added to the compressed image.
      * Returns false if errors occur during compression.
      */
-    bool compressImage(const void* image, int width, int height, int quality,
-                       const void* iccBuffer, unsigned int iccSize, bool isSingleChannel = false);
+    bool compressImage(const uint8_t* yBuffer, const uint8_t* uvBuffer, int width, int height,
+                       int lumaStride, int chromaStride, int quality, const void* iccBuffer,
+                       unsigned int iccSize);
 
     /*
      * Returns the compressed JPEG buffer pointer. This method must be called only after calling
@@ -66,6 +69,7 @@ public:
      * We must pass at least 16 scanlines according to libjpeg documentation.
      */
     static const int kCompressBatchSize = 16;
+
 private:
     // initDestination(), emptyOutputBuffer() and emptyOutputBuffer() are callback functions to be
     // passed into jpeg library.
@@ -75,15 +79,16 @@ private:
     static void outputErrorMessage(j_common_ptr cinfo);
 
     // Returns false if errors occur.
-    bool encode(const void* inYuv, int width, int height, int jpegQuality,
-                const void* iccBuffer, unsigned int iccSize, bool isSingleChannel);
+    bool encode(const uint8_t* yBuffer, const uint8_t* uvBuffer, int width, int height,
+                int lumaStride, int chromaStride, int quality, const void* iccBuffer,
+                unsigned int iccSize);
     void setJpegDestination(jpeg_compress_struct* cinfo);
     void setJpegCompressStruct(int width, int height, int quality, jpeg_compress_struct* cinfo,
                                bool isSingleChannel);
     // Returns false if errors occur.
-    bool compress(jpeg_compress_struct* cinfo, const uint8_t* image, bool isSingleChannel);
-    bool compressYuv(jpeg_compress_struct* cinfo, const uint8_t* yuv);
-    bool compressSingleChannel(jpeg_compress_struct* cinfo, const uint8_t* image);
+    bool compressYuv(jpeg_compress_struct* cinfo, const uint8_t* yBuffer, const uint8_t* uvBuffer,
+                     int lumaStride, int chromaStride);
+    bool compressY(jpeg_compress_struct* cinfo, const uint8_t* yBuffer, int lumaStride);
 
     // The block size for encoded jpeg image buffer.
     static const int kBlockSize = 16384;

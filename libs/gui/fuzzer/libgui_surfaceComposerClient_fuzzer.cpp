@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include <android/hardware/power/Boost.h>
+#include <aidl/android/hardware/power/Boost.h>
 #include <fuzzbinder/libbinder_driver.h>
 #include <gui/Surface.h>
 #include <gui/SurfaceComposerClient.h>
@@ -39,10 +39,13 @@ constexpr ui::ColorMode kColormodes[] = {ui::ColorMode::NATIVE,
                                          ui::ColorMode::BT2100_HLG,
                                          ui::ColorMode::DISPLAY_BT2020};
 
-constexpr hardware::power::Boost kBoost[] = {
-        hardware::power::Boost::INTERACTION,   hardware::power::Boost::DISPLAY_UPDATE_IMMINENT,
-        hardware::power::Boost::ML_ACC,        hardware::power::Boost::AUDIO_LAUNCH,
-        hardware::power::Boost::CAMERA_LAUNCH, hardware::power::Boost::CAMERA_SHOT,
+constexpr aidl::android::hardware::power::Boost kBoost[] = {
+        aidl::android::hardware::power::Boost::INTERACTION,
+        aidl::android::hardware::power::Boost::DISPLAY_UPDATE_IMMINENT,
+        aidl::android::hardware::power::Boost::ML_ACC,
+        aidl::android::hardware::power::Boost::AUDIO_LAUNCH,
+        aidl::android::hardware::power::Boost::CAMERA_LAUNCH,
+        aidl::android::hardware::power::Boost::CAMERA_SHOT,
 };
 
 constexpr gui::TouchOcclusionMode kMode[] = {
@@ -175,10 +178,8 @@ void SurfaceComposerClientFuzzer::getWindowInfo(gui::WindowInfo* windowInfo) {
     windowInfo->name = mFdp.ConsumeRandomLengthString(kRandomStringMaxBytes);
     windowInfo->layoutParamsFlags = mFdp.PickValueInArray(kFlags);
     windowInfo->layoutParamsType = mFdp.PickValueInArray(kType);
-    windowInfo->frameLeft = mFdp.ConsumeIntegral<int32_t>();
-    windowInfo->frameTop = mFdp.ConsumeIntegral<int32_t>();
-    windowInfo->frameRight = mFdp.ConsumeIntegral<int32_t>();
-    windowInfo->frameBottom = mFdp.ConsumeIntegral<int32_t>();
+    windowInfo->frame = Rect(mFdp.ConsumeIntegral<int32_t>(), mFdp.ConsumeIntegral<int32_t>(),
+                             mFdp.ConsumeIntegral<int32_t>(), mFdp.ConsumeIntegral<int32_t>());
     windowInfo->surfaceInset = mFdp.ConsumeIntegral<int32_t>();
     windowInfo->alpha = mFdp.ConsumeFloatingPointInRange<float>(0, 1);
     ui::Transform transform(mFdp.PickValueInArray(kOrientation));
@@ -284,7 +285,7 @@ void SurfaceComposerClientFuzzer::invokeSurfaceComposerClient() {
     SurfaceComposerClient::doUncacheBufferTransaction(mFdp.ConsumeIntegral<uint64_t>());
 
     SurfaceComposerClient::setDisplayBrightness(displayToken, getBrightness(&mFdp));
-    hardware::power::Boost boostId = mFdp.PickValueInArray(kBoost);
+    aidl::android::hardware::power::Boost boostId = mFdp.PickValueInArray(kBoost);
     SurfaceComposerClient::notifyPowerBoost((int32_t)boostId);
 
     String8 surfaceName((mFdp.ConsumeRandomLengthString(kRandomStringMaxBytes)).c_str());

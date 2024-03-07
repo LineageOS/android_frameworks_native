@@ -27,11 +27,12 @@
 #include <binder/Parcel.h>
 #include <binder/IInterface.h>
 
-#include <gui/bufferqueue/1.0/H2BGraphicBufferProducer.h>
-#include <gui/bufferqueue/2.0/H2BGraphicBufferProducer.h>
 #include <gui/BufferQueueDefs.h>
+
 #include <gui/IGraphicBufferProducer.h>
 #include <gui/IProducerListener.h>
+#include <gui/bufferqueue/1.0/H2BGraphicBufferProducer.h>
+#include <gui/bufferqueue/2.0/H2BGraphicBufferProducer.h>
 
 namespace android {
 // ----------------------------------------------------------------------------
@@ -78,6 +79,7 @@ enum {
     CANCEL_BUFFERS,
     QUERY_MULTIPLE,
     GET_LAST_QUEUED_BUFFER2,
+    SET_FRAME_RATE,
 };
 
 class BpGraphicBufferProducer : public BpInterface<IGraphicBufferProducer>
@@ -761,6 +763,21 @@ public:
         }
         return result;
     }
+#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(BQ_SETFRAMERATE)
+    virtual status_t setFrameRate(float frameRate, int8_t compatibility,
+                                  int8_t changeFrameRateStrategy) override {
+        Parcel data, reply;
+        data.writeInterfaceToken(IGraphicBufferProducer::getInterfaceDescriptor());
+        data.writeFloat(frameRate);
+        data.writeInt32(compatibility);
+        data.writeInt32(changeFrameRateStrategy);
+        status_t result = remote()->transact(SET_FRAME_RATE, data, &reply);
+        if (result == NO_ERROR) {
+            result = reply.readInt32();
+        }
+        return result;
+    }
+#endif
 };
 
 // Out-of-line virtual method definition to trigger vtable emission in this
@@ -955,6 +972,14 @@ status_t IGraphicBufferProducer::setAutoPrerotation(bool autoPrerotation) {
     (void)autoPrerotation;
     return INVALID_OPERATION;
 }
+
+#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(BQ_SETFRAMERATE)
+status_t IGraphicBufferProducer::setFrameRate(float /*frameRate*/, int8_t /*compatibility*/,
+                                              int8_t /*changeFrameRateStrategy*/) {
+    // No-op for IGBP other than BufferQueue.
+    return INVALID_OPERATION;
+}
+#endif
 
 status_t IGraphicBufferProducer::exportToParcel(Parcel* parcel) {
     status_t res = OK;
@@ -1497,6 +1522,17 @@ status_t BnGraphicBufferProducer::onTransact(
             reply->writeInt32(result);
             return NO_ERROR;
         }
+#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(BQ_SETFRAMERATE)
+        case SET_FRAME_RATE: {
+            CHECK_INTERFACE(IGraphicBuffer, data, reply);
+            float frameRate = data.readFloat();
+            int8_t compatibility = data.readInt32();
+            int8_t changeFrameRateStrategy = data.readInt32();
+            status_t result = setFrameRate(frameRate, compatibility, changeFrameRateStrategy);
+            reply->writeInt32(result);
+            return NO_ERROR;
+        }
+#endif
     }
     return BBinder::onTransact(code, data, reply, flags);
 }

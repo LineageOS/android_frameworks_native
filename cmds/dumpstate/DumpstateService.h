@@ -48,8 +48,10 @@ class DumpstateService : public BinderService<DumpstateService>, public BnDumpst
 
     binder::Status retrieveBugreport(int32_t calling_uid,
                                      const std::string& calling_package,
+                                     int32_t user_id,
                                      android::base::unique_fd bugreport_fd,
                                      const std::string& bugreport_file,
+                                     const bool keep_bugreport_on_retrieval,
                                      const sp<IDumpstateListener>& listener)
                                      override;
 

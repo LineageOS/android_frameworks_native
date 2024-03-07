@@ -1,10 +1,10 @@
 {
   "presubmit": [
     {
-      "name": "CtsWindowManagerDeviceTestCases",
+      "name": "CtsWindowManagerDeviceWindow",
       "options": [
         {
-          "include-filter": "android.server.wm.WindowInputTests"
+          "include-filter": "android.server.wm.window.WindowInputTests"
         }
       ]
     },
@@ -39,6 +39,9 @@
       "options": [
         {
           "include-filter": "android.hardware.input.cts.tests"
+        },
+        {
+          "exclude-annotation": "androidx.test.filters.FlakyTest"
         }
       ]
     },
@@ -70,9 +73,6 @@
         },
         {
           "include-filter": "android.view.cts.TouchDelegateTest"
-        },
-        {
-          "include-filter": "android.view.cts.VelocityTrackerTest"
         },
         {
           "include-filter": "android.view.cts.VerifyInputEventTest"
@@ -116,6 +116,14 @@
       ]
     },
     {
+      "name": "CtsAppTestCases",
+      "options": [
+        {
+          "include-filter": "android.app.cts.ToolbarActionBarTest"
+        }
+      ]
+    },
+    {
       "name": "FrameworksServicesTests",
       "options": [
         {
@@ -140,12 +148,12 @@
       ]
     }
   ],
-  "hwasan-postsubmit": [
+  "postsubmit": [
     {
-      "name": "CtsWindowManagerDeviceTestCases",
+      "name": "CtsWindowManagerDeviceWindow",
       "options": [
         {
-          "include-filter": "android.server.wm.WindowInputTests"
+          "include-filter": "android.server.wm.window.WindowInputTests"
         }
       ]
     },
@@ -210,9 +218,6 @@
           "include-filter": "android.view.cts.TouchDelegateTest"
         },
         {
-          "include-filter": "android.view.cts.VelocityTrackerTest"
-        },
-        {
           "include-filter": "android.view.cts.VerifyInputEventTest"
         },
         {
@@ -246,6 +251,14 @@
       ]
     },
     {
+      "name": "CtsAppTestCases",
+      "options": [
+        {
+          "include-filter": "android.app.cts.ToolbarActionBarTest"
+        }
+      ]
+    },
+    {
       "name": "FrameworksServicesTests",
       "options": [
         {
@@ -268,6 +281,9 @@
           "include-filter": "android.security.cts.Poc19_03#testPocBug_115739809"
         }
       ]
+    },
+    {
+      "name": "CtsInputHostTestCases"
     }
   ]
 }

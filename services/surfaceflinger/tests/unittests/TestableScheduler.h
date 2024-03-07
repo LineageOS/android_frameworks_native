@@ -36,15 +36,21 @@ namespace android::scheduler {
 
 class TestableScheduler : public Scheduler, private ICompositor {
 public:
-    TestableScheduler(RefreshRateSelectorPtr selectorPtr, ISchedulerCallback& callback)
+    TestableScheduler(RefreshRateSelectorPtr selectorPtr, ISchedulerCallback& callback,
+                      IVsyncTrackerCallback& vsyncTrackerCallback)
           : TestableScheduler(std::make_unique<mock::VsyncController>(),
                               std::make_shared<mock::VSyncTracker>(), std::move(selectorPtr),
-                              /* modulatorPtr */ nullptr, callback) {}
+                              sp<VsyncModulator>::make(VsyncConfigSet{}), callback,
+                              vsyncTrackerCallback) {}
 
     TestableScheduler(std::unique_ptr<VsyncController> controller,
                       std::shared_ptr<VSyncTracker> tracker, RefreshRateSelectorPtr selectorPtr,
-                      sp<VsyncModulator> modulatorPtr, ISchedulerCallback& callback)
-          : Scheduler(*this, callback, Feature::kContentDetection, std::move(modulatorPtr)) {
+                      sp<VsyncModulator> modulatorPtr, ISchedulerCallback& schedulerCallback,
+                      IVsyncTrackerCallback& vsyncTrackerCallback)
+          : Scheduler(*this, schedulerCallback,
+                      (FeatureFlags)Feature::kContentDetection |
+                              Feature::kSmallDirtyContentDetection,
+                      std::move(modulatorPtr), vsyncTrackerCallback) {
         const auto displayId = selectorPtr->getActiveMode().modePtr->getPhysicalDisplayId();
         registerDisplay(displayId, std::move(selectorPtr), std::move(controller),
                         std::move(tracker));
@@ -59,6 +65,12 @@ public:
     MOCK_METHOD(void, scheduleFrame, (), (override));
     MOCK_METHOD(void, postMessage, (sp<MessageHandler>&&), (override));
 
+    void doFrameSignal(ICompositor& compositor, VsyncId vsyncId) {
+        ftl::FakeGuard guard1(kMainThreadContext);
+        ftl::FakeGuard guard2(mDisplayLock);
+        Scheduler::onFrameSignal(compositor, vsyncId, TimePoint());
+    }
+
     // Used to inject mock event thread.
     ConnectionHandle createConnection(std::unique_ptr<EventThread> eventThread) {
         return Scheduler::createConnection(std::move(eventThread));
@@ -66,10 +78,11 @@ public:
 
     auto refreshRateSelector() { return pacesetterSelectorPtr(); }
 
-    void registerDisplay(PhysicalDisplayId displayId, RefreshRateSelectorPtr selectorPtr) {
+    void registerDisplay(
+            PhysicalDisplayId displayId, RefreshRateSelectorPtr selectorPtr,
+            std::shared_ptr<VSyncTracker> vsyncTracker = std::make_shared<mock::VSyncTracker>()) {
         registerDisplay(displayId, std::move(selectorPtr),
-                        std::make_unique<mock::VsyncController>(),
-                        std::make_shared<mock::VSyncTracker>());
+                        std::make_unique<mock::VsyncController>(), vsyncTracker);
     }
 
     void registerDisplay(PhysicalDisplayId displayId, RefreshRateSelectorPtr selectorPtr,
@@ -102,8 +115,18 @@ public:
         Scheduler::setPacesetterDisplay(displayId);
     }
 
+    std::optional<hal::PowerMode> getDisplayPowerMode(PhysicalDisplayId id) {
+        ftl::FakeGuard guard1(kMainThreadContext);
+        ftl::FakeGuard guard2(mDisplayLock);
+        return mDisplays.get(id).transform(
+                [](const Display& display) { return display.powerMode; });
+    }
+
+    using Scheduler::resyncAllToHardwareVsync;
+
     auto& mutableAppConnectionHandle() { return mAppConnectionHandle; }
     auto& mutableLayerHistory() { return mLayerHistory; }
+    auto& mutableAttachedChoreographers() { return mAttachedChoreographers; }
 
     size_t layerHistorySize() NO_THREAD_SAFETY_ANALYSIS {
         return mLayerHistory.mActiveLayerInfos.size() + mLayerHistory.mInactiveLayerInfos.size();
@@ -166,6 +189,12 @@ public:
         std::lock_guard<std::mutex> lock(schedule->mHwVsyncLock);
         schedule->mHwVsyncState = enabled ? VsyncSchedule::HwVsyncState::Enabled
                                           : VsyncSchedule::HwVsyncState::Disabled;
+    }
+
+    void updateAttachedChoreographers(
+            const surfaceflinger::frontend::LayerHierarchy& layerHierarchy,
+            Fps displayRefreshRate) {
+        Scheduler::updateAttachedChoreographers(layerHierarchy, displayRefreshRate);
     }
 
     using Scheduler::onHardwareVsyncRequest;

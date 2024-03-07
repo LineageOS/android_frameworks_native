@@ -15,11 +15,14 @@
  */
 
 #include "../dispatcher/LatencyTracker.h"
+#include "../InputDeviceMetricsSource.h"
 
 #include <android-base/properties.h>
 #include <binder/Binder.h>
 #include <gtest/gtest.h>
+#include <gui/constants.h>
 #include <inttypes.h>
+#include <linux/input.h>
 #include <log/log.h>
 
 #define TAG "LatencyTracker_test"
@@ -30,6 +33,29 @@ using android::inputdispatcher::LatencyTracker;
 
 namespace android::inputdispatcher {
 
+namespace {
+
+constexpr DeviceId DEVICE_ID = 100;
+
+static InputDeviceInfo generateTestDeviceInfo(uint16_t vendorId, uint16_t productId,
+                                              DeviceId deviceId) {
+    InputDeviceIdentifier identifier;
+    identifier.vendor = vendorId;
+    identifier.product = productId;
+    auto info = InputDeviceInfo();
+    info.initialize(deviceId, /*generation=*/1, /*controllerNumber=*/1, identifier, "Test Device",
+                    /*isExternal=*/false, /*hasMic=*/false, ADISPLAY_ID_NONE);
+    return info;
+}
+
+void setDefaultInputDeviceInfo(LatencyTracker& tracker) {
+    InputDeviceInfo deviceInfo = generateTestDeviceInfo(
+            /*vendorId=*/0, /*productId=*/0, DEVICE_ID);
+    tracker.setInputDevices({deviceInfo});
+}
+
+} // namespace
+
 const std::chrono::duration ANR_TIMEOUT = std::chrono::milliseconds(
         android::os::IInputConstants::UNMULTIPLIED_DEFAULT_DISPATCHING_TIMEOUT_MILLIS *
         HwTimeoutMultiplier());
@@ -38,7 +64,10 @@ InputEventTimeline getTestTimeline() {
     InputEventTimeline t(
             /*isDown=*/true,
             /*eventTime=*/2,
-            /*readTime=*/3);
+            /*readTime=*/3,
+            /*vendorId=*/0,
+            /*productId=*/0,
+            /*sources=*/{InputDeviceUsageSource::UNKNOWN});
     ConnectionTimeline expectedCT(/*deliveryTime=*/6, /*consumeTime=*/7, /*finishTime=*/8);
     std::array<nsecs_t, GraphicsTimeline::SIZE> graphicsTimeline;
     graphicsTimeline[GraphicsTimeline::GPU_COMPLETED_TIME] = 9;
@@ -60,6 +89,7 @@ protected:
         connection2 = sp<BBinder>::make();
 
         mTracker = std::make_unique<LatencyTracker>(this);
+        setDefaultInputDeviceInfo(*mTracker);
     }
     void TearDown() override {}
 
@@ -88,7 +118,8 @@ void LatencyTrackerTest::triggerEventReporting(nsecs_t lastEventTime) {
     const nsecs_t triggerEventTime =
             lastEventTime + std::chrono::nanoseconds(ANR_TIMEOUT).count() + 1;
     mTracker->trackListener(/*inputEventId=*/1, /*isDown=*/true, triggerEventTime,
-                            /*readTime=*/3);
+                            /*readTime=*/3, DEVICE_ID,
+                            /*sources=*/{InputDeviceUsageSource::UNKNOWN});
 }
 
 void LatencyTrackerTest::assertReceivedTimeline(const InputEventTimeline& timeline) {
@@ -138,9 +169,11 @@ void LatencyTrackerTest::assertReceivedTimelines(const std::vector<InputEventTim
  */
 TEST_F(LatencyTrackerTest, TrackListener_DoesNotTriggerReporting) {
     mTracker->trackListener(/*inputEventId=*/1, /*isDown=*/false, /*eventTime=*/2,
-                            /*readTime=*/3);
+                            /*readTime=*/3, DEVICE_ID, {InputDeviceUsageSource::UNKNOWN});
     triggerEventReporting(/*eventTime=*/2);
-    assertReceivedTimeline(InputEventTimeline{false, 2, 3});
+    assertReceivedTimeline(InputEventTimeline{/*isDown=*/false, /*eventTime=*/2,
+                                              /*readTime=*/3, /*vendorId=*/0, /*productID=*/0,
+                                              /*sources=*/{InputDeviceUsageSource::UNKNOWN}});
 }
 
 /**
@@ -171,7 +204,8 @@ TEST_F(LatencyTrackerTest, TrackAllParameters_ReportsFullTimeline) {
 
     const auto& [connectionToken, expectedCT] = *expected.connectionTimelines.begin();
 
-    mTracker->trackListener(inputEventId, expected.isDown, expected.eventTime, expected.readTime);
+    mTracker->trackListener(inputEventId, expected.isDown, expected.eventTime, expected.readTime,
+                            DEVICE_ID, {InputDeviceUsageSource::UNKNOWN});
     mTracker->trackFinishedEvent(inputEventId, connectionToken, expectedCT.deliveryTime,
                                  expectedCT.consumeTime, expectedCT.finishTime);
     mTracker->trackGraphicsLatency(inputEventId, connectionToken, expectedCT.graphicsTimeline);
@@ -191,8 +225,10 @@ TEST_F(LatencyTrackerTest, WhenDuplicateEventsAreReported_DoesNotCrash) {
 
     // In the following 2 calls to trackListener, the inputEventId's are the same, but event times
     // are different.
-    mTracker->trackListener(inputEventId, isDown, /*eventTime=*/1, readTime);
-    mTracker->trackListener(inputEventId, isDown, /*eventTime=*/2, readTime);
+    mTracker->trackListener(inputEventId, isDown, /*eventTime=*/1, readTime, DEVICE_ID,
+                            {InputDeviceUsageSource::UNKNOWN});
+    mTracker->trackListener(inputEventId, isDown, /*eventTime=*/2, readTime, DEVICE_ID,
+                            {InputDeviceUsageSource::UNKNOWN});
 
     triggerEventReporting(/*eventTime=*/2);
     // Since we sent duplicate input events, the tracker should just delete all of them, because it
@@ -205,7 +241,10 @@ TEST_F(LatencyTrackerTest, MultipleEvents_AreReportedConsistently) {
     InputEventTimeline timeline1(
             /*isDown*/ true,
             /*eventTime*/ 2,
-            /*readTime*/ 3);
+            /*readTime*/ 3,
+            /*vendorId=*/0,
+            /*productId=*/0,
+            /*sources=*/{InputDeviceUsageSource::UNKNOWN});
     timeline1.connectionTimelines.emplace(connection1,
                                           ConnectionTimeline(/*deliveryTime*/ 6, /*consumeTime*/ 7,
                                                              /*finishTime*/ 8));
@@ -219,7 +258,10 @@ TEST_F(LatencyTrackerTest, MultipleEvents_AreReportedConsistently) {
     InputEventTimeline timeline2(
             /*isDown=*/false,
             /*eventTime=*/20,
-            /*readTime=*/30);
+            /*readTime=*/30,
+            /*vendorId=*/0,
+            /*productId=*/0,
+            /*sources=*/{InputDeviceUsageSource::UNKNOWN});
     timeline2.connectionTimelines.emplace(connection2,
                                           ConnectionTimeline(/*deliveryTime=*/60,
                                                              /*consumeTime=*/70,
@@ -232,10 +274,10 @@ TEST_F(LatencyTrackerTest, MultipleEvents_AreReportedConsistently) {
 
     // Start processing first event
     mTracker->trackListener(inputEventId1, timeline1.isDown, timeline1.eventTime,
-                            timeline1.readTime);
+                            timeline1.readTime, DEVICE_ID, {InputDeviceUsageSource::UNKNOWN});
     // Start processing second event
     mTracker->trackListener(inputEventId2, timeline2.isDown, timeline2.eventTime,
-                            timeline2.readTime);
+                            timeline2.readTime, DEVICE_ID, {InputDeviceUsageSource::UNKNOWN});
     mTracker->trackFinishedEvent(inputEventId1, connection1, connectionTimeline1.deliveryTime,
                                  connectionTimeline1.consumeTime, connectionTimeline1.finishTime);
 
@@ -261,9 +303,11 @@ TEST_F(LatencyTrackerTest, IncompleteEvents_AreHandledConsistently) {
 
     for (size_t i = 1; i <= 100; i++) {
         mTracker->trackListener(/*inputEventId=*/i, timeline.isDown, timeline.eventTime,
-                                timeline.readTime);
-        expectedTimelines.push_back(
-                InputEventTimeline{timeline.isDown, timeline.eventTime, timeline.readTime});
+                                timeline.readTime, /*deviceId=*/DEVICE_ID,
+                                /*sources=*/{InputDeviceUsageSource::UNKNOWN});
+        expectedTimelines.push_back(InputEventTimeline{timeline.isDown, timeline.eventTime,
+                                                       timeline.readTime, timeline.vendorId,
+                                                       timeline.productId, timeline.sources});
     }
     // Now, complete the first event that was sent.
     mTracker->trackFinishedEvent(/*inputEventId=*/1, token, expectedCT.deliveryTime,
@@ -289,10 +333,38 @@ TEST_F(LatencyTrackerTest, EventsAreTracked_WhenTrackListenerIsCalledFirst) {
                                  expectedCT.consumeTime, expectedCT.finishTime);
     mTracker->trackGraphicsLatency(inputEventId, connection1, expectedCT.graphicsTimeline);
 
-    mTracker->trackListener(inputEventId, expected.isDown, expected.eventTime, expected.readTime);
+    mTracker->trackListener(inputEventId, expected.isDown, expected.eventTime, expected.readTime,
+                            DEVICE_ID, {InputDeviceUsageSource::UNKNOWN});
     triggerEventReporting(expected.eventTime);
-    assertReceivedTimeline(
-            InputEventTimeline{expected.isDown, expected.eventTime, expected.readTime});
+    assertReceivedTimeline(InputEventTimeline{expected.isDown, expected.eventTime,
+                                              expected.readTime, expected.vendorId,
+                                              expected.productId, expected.sources});
+}
+
+/**
+ * Check that LatencyTracker has the received timeline that contains the correctly
+ * resolved product ID, vendor ID and source for a particular device ID from
+ * among a list of devices.
+ */
+TEST_F(LatencyTrackerTest, TrackListenerCheck_DeviceInfoFieldsInputEventTimeline) {
+    constexpr int32_t inputEventId = 1;
+    InputEventTimeline timeline(
+            /*isDown*/ true, /*eventTime*/ 2, /*readTime*/ 3,
+            /*vendorId=*/50, /*productId=*/60,
+            /*sources=*/
+            {InputDeviceUsageSource::TOUCHSCREEN, InputDeviceUsageSource::STYLUS_DIRECT});
+    InputDeviceInfo deviceInfo1 = generateTestDeviceInfo(
+            /*vendorId=*/5, /*productId=*/6, /*deviceId=*/DEVICE_ID + 1);
+    InputDeviceInfo deviceInfo2 = generateTestDeviceInfo(
+            /*vendorId=*/50, /*productId=*/60, /*deviceId=*/DEVICE_ID);
+
+    mTracker->setInputDevices({deviceInfo1, deviceInfo2});
+    mTracker->trackListener(inputEventId, timeline.isDown, timeline.eventTime, timeline.readTime,
+                            DEVICE_ID,
+                            {InputDeviceUsageSource::TOUCHSCREEN,
+                             InputDeviceUsageSource::STYLUS_DIRECT});
+    triggerEventReporting(timeline.eventTime);
+    assertReceivedTimeline(timeline);
 }
 
 } // namespace android::inputdispatcher

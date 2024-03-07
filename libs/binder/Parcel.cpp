@@ -68,6 +68,10 @@
 typedef uintptr_t binder_uintptr_t;
 #endif // BINDER_WITH_KERNEL_IPC
 
+#ifdef __BIONIC__
+#include <android/fdsan.h>
+#endif
+
 #define LOG_REFS(...)
 // #define LOG_REFS(...) ALOG(LOG_DEBUG, LOG_TAG, __VA_ARGS__)
 #define LOG_ALLOC(...)
@@ -112,6 +116,37 @@ constexpr size_t kMaxFds = 1024;
 // Maximum size of a blob to transfer in-place.
 [[maybe_unused]] static const size_t BLOB_INPLACE_LIMIT = 16 * 1024;
 
+#if defined(__BIONIC__)
+static void FdTag(int fd, const void* old_addr, const void* new_addr) {
+    if (android_fdsan_exchange_owner_tag) {
+        uint64_t old_tag = android_fdsan_create_owner_tag(ANDROID_FDSAN_OWNER_TYPE_PARCEL,
+                                                          reinterpret_cast<uint64_t>(old_addr));
+        uint64_t new_tag = android_fdsan_create_owner_tag(ANDROID_FDSAN_OWNER_TYPE_PARCEL,
+                                                          reinterpret_cast<uint64_t>(new_addr));
+        android_fdsan_exchange_owner_tag(fd, old_tag, new_tag);
+    }
+}
+static void FdTagClose(int fd, const void* addr) {
+    if (android_fdsan_close_with_tag) {
+        uint64_t tag = android_fdsan_create_owner_tag(ANDROID_FDSAN_OWNER_TYPE_PARCEL,
+                                                      reinterpret_cast<uint64_t>(addr));
+        android_fdsan_close_with_tag(fd, tag);
+    } else {
+        close(fd);
+    }
+}
+#else
+static void FdTag(int fd, const void* old_addr, const void* new_addr) {
+    (void)fd;
+    (void)old_addr;
+    (void)new_addr;
+}
+static void FdTagClose(int fd, const void* addr) {
+    (void)addr;
+    close(fd);
+}
+#endif
+
 enum {
     BLOB_INPLACE = 0,
     BLOB_ASHMEM_IMMUTABLE = 1,
@@ -137,6 +172,9 @@ static void acquire_object(const sp<ProcessState>& proc, const flat_binder_objec
             return;
         }
         case BINDER_TYPE_FD: {
+            if (obj.cookie != 0) { // owned
+                FdTag(obj.handle, nullptr, who);
+            }
             return;
         }
     }
@@ -162,8 +200,10 @@ static void release_object(const sp<ProcessState>& proc, const flat_binder_objec
             return;
         }
         case BINDER_TYPE_FD: {
+            // note: this path is not used when mOwner, so the tag is also released
+            // in 'closeFileDescriptors'
             if (obj.cookie != 0) { // owned
-                close(obj.handle);
+                FdTagClose(obj.handle, who);
             }
             return;
         }
@@ -557,7 +597,6 @@ status_t Parcel::appendFrom(const Parcel* parcel, size_t offset, size_t len) {
                 kernelFields->mObjectsSize++;
 
                 flat_binder_object* flat = reinterpret_cast<flat_binder_object*>(mData + off);
-                acquire_object(proc, *flat, this);
 
                 if (flat->hdr.type == BINDER_TYPE_FD) {
                     // If this is a file descriptor, we need to dup it so the
@@ -570,6 +609,8 @@ status_t Parcel::appendFrom(const Parcel* parcel, size_t offset, size_t len) {
                         err = FDS_NOT_ALLOWED;
                     }
                 }
+
+                acquire_object(proc, *flat, this);
             }
         }
 #else
@@ -2642,7 +2683,8 @@ void Parcel::closeFileDescriptors() {
                     reinterpret_cast<flat_binder_object*>(mData + kernelFields->mObjects[i]);
             if (flat->hdr.type == BINDER_TYPE_FD) {
                 // ALOGI("Closing fd: %ld", flat->handle);
-                close(flat->handle);
+                // FDs from the kernel are always owned
+                FdTagClose(flat->handle, this);
             }
         }
 #else  // BINDER_WITH_KERNEL_IPC
@@ -2722,6 +2764,10 @@ void Parcel::ipcSetDataReference(const uint8_t* data, size_t dataSize, const bin
             // don't rely on mObjectsSize in their release_func.
             kernelFields->mObjectsSize = 0;
             break;
+        }
+        if (type == BINDER_TYPE_FD) {
+            // FDs from the kernel are always owned
+            FdTag(flat->handle, 0, this);
         }
         minOffset = offset + sizeof(flat_binder_object);
     }

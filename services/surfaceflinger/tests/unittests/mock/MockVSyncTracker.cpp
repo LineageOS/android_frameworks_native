@@ -17,9 +17,13 @@
 #include "mock/MockVSyncTracker.h"
 
 namespace android::mock {
+using testing::Return;
 
 // Explicit default instantiation is recommended.
-VSyncTracker::VSyncTracker() = default;
 VSyncTracker::~VSyncTracker() = default;
+
+VSyncTracker::VSyncTracker() {
+    ON_CALL(*this, minFramePeriod()).WillByDefault(Return(Period::fromNs(0)));
+}
 
 } // namespace android::mock

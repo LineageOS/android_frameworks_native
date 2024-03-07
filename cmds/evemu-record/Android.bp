@@ -1,0 +1,13 @@
+package {
+    default_applicable_licenses: ["frameworks_native_license"],
+}
+
+rust_binary {
+    name: "evemu-record",
+    srcs: ["main.rs"],
+    rustlibs: [
+        "libclap",
+        "liblibc",
+        "libnix",
+    ],
+}

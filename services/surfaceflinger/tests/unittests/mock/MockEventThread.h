@@ -29,10 +29,19 @@ public:
     EventThread();
     ~EventThread() override;
 
-    MOCK_METHOD(sp<EventThreadConnection>, createEventConnection,
-                (ResyncCallback, EventRegistrationFlags), (const, override));
+    // TODO(b/302035909): workaround otherwise gtest complains about
+    //  error: no viable conversion from
+    //  'tuple<android::ftl::Flags<android::gui::ISurfaceComposer::EventRegistration> &&>' to 'const
+    //  tuple<android::ftl::Flags<android::gui::ISurfaceComposer::EventRegistration>>'
+    sp<EventThreadConnection> createEventConnection(EventRegistrationFlags flags) const override {
+        return createEventConnection(false, flags);
+    }
+    MOCK_METHOD(sp<EventThreadConnection>, createEventConnection, (bool, EventRegistrationFlags),
+                (const));
+
     MOCK_METHOD(void, enableSyntheticVsync, (bool), (override));
     MOCK_METHOD(void, onHotplugReceived, (PhysicalDisplayId, bool), (override));
+    MOCK_METHOD(void, onHotplugConnectionError, (int32_t), (override));
     MOCK_METHOD(void, onModeChanged, (const scheduler::FrameRateMode&), (override));
     MOCK_METHOD(void, onFrameRateOverridesChanged,
                 (PhysicalDisplayId, std::vector<FrameRateOverride>), (override));
@@ -49,7 +58,6 @@ public:
                 (const sp<android::EventThreadConnection>&), (const, override));
     MOCK_METHOD(void, requestLatestConfig, (const sp<android::EventThreadConnection>&));
     MOCK_METHOD(void, pauseVsyncCallback, (bool));
-    MOCK_METHOD(size_t, getEventThreadConnectionCount, (), (override));
     MOCK_METHOD(void, onNewVsyncSchedule, (std::shared_ptr<scheduler::VsyncSchedule>), (override));
 };
 

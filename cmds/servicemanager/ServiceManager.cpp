@@ -363,6 +363,8 @@ sp<IBinder> ServiceManager::tryGetService(const std::string& name, bool startIfN
         service = &(it->second);
 
         if (!service->allowIsolated && is_multiuser_uid_isolated(ctx.uid)) {
+            LOG(WARNING) << "Isolated app with UID " << ctx.uid << " requested '" << name
+                         << "', but the service is not allowed for isolated apps.";
             return nullptr;
         }
         out = service->binder;

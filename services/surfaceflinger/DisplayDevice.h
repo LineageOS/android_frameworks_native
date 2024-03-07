@@ -17,7 +17,6 @@
 #pragma once
 
 #include <memory>
-#include <optional>
 #include <string>
 #include <unordered_map>
 
@@ -25,6 +24,7 @@
 #include <android/native_window.h>
 #include <binder/IBinder.h>
 #include <ftl/concat.h>
+#include <ftl/optional.h>
 #include <gui/LayerState.h>
 #include <math/mat4.h>
 #include <renderengine/RenderEngine.h>
@@ -51,10 +51,12 @@
 #include "ThreadContext.h"
 #include "TracedOrdinal.h"
 #include "Utils/Dumper.h"
+
 namespace android {
 
 class Fence;
 class HWComposer;
+class HdrSdrRatioOverlay;
 class IGraphicBufferProducer;
 class Layer;
 class RefreshRateOverlay;
@@ -184,53 +186,32 @@ public:
      * Display mode management.
      */
 
-    // TODO(b/241285876): Replace ActiveModeInfo and DisplayModeEvent with DisplayModeRequest.
-    struct ActiveModeInfo {
-        using Event = scheduler::DisplayModeEvent;
+    enum class DesiredModeAction { None, InitiateDisplayModeSwitch, InitiateRenderRateSwitch };
 
-        ActiveModeInfo() = default;
-        ActiveModeInfo(scheduler::FrameRateMode mode, Event event)
-              : modeOpt(std::move(mode)), event(event) {}
+    DesiredModeAction setDesiredMode(display::DisplayModeRequest&&, bool force = false)
+            EXCLUDES(mDesiredModeLock);
 
-        explicit ActiveModeInfo(display::DisplayModeRequest&& request)
-              : ActiveModeInfo(std::move(request.mode),
-                               request.emitEvent ? Event::Changed : Event::None) {}
+    using DisplayModeRequestOpt = ftl::Optional<display::DisplayModeRequest>;
 
-        ftl::Optional<scheduler::FrameRateMode> modeOpt;
-        Event event = Event::None;
+    DisplayModeRequestOpt getDesiredMode() const EXCLUDES(mDesiredModeLock);
+    void clearDesiredMode() EXCLUDES(mDesiredModeLock);
 
-        bool operator!=(const ActiveModeInfo& other) const {
-            return modeOpt != other.modeOpt || event != other.event;
-        }
-    };
-
-    enum class DesiredActiveModeAction {
-        None,
-        InitiateDisplayModeSwitch,
-        InitiateRenderRateSwitch
-    };
-    DesiredActiveModeAction setDesiredActiveMode(const ActiveModeInfo&, bool force = false)
-            EXCLUDES(mActiveModeLock);
-    std::optional<ActiveModeInfo> getDesiredActiveMode() const EXCLUDES(mActiveModeLock);
-    void clearDesiredActiveModeState() EXCLUDES(mActiveModeLock);
-    ActiveModeInfo getUpcomingActiveMode() const REQUIRES(kMainThreadContext) {
-        return mUpcomingActiveMode;
+    DisplayModeRequestOpt getPendingMode() const REQUIRES(kMainThreadContext) {
+        return mPendingModeOpt;
     }
-
     bool isModeSetPending() const REQUIRES(kMainThreadContext) { return mIsModeSetPending; }
 
     scheduler::FrameRateMode getActiveMode() const REQUIRES(kMainThreadContext) {
         return mRefreshRateSelector->getActiveMode();
     }
 
-    void setActiveMode(DisplayModeId, Fps displayFps, Fps renderFps);
+    void setActiveMode(DisplayModeId, Fps vsyncRate, Fps renderFps);
 
-    status_t initiateModeChange(const ActiveModeInfo&,
-                                const hal::VsyncPeriodChangeConstraints& constraints,
-                                hal::VsyncPeriodChangeTimeline* outTimeline)
+    bool initiateModeChange(display::DisplayModeRequest&&, const hal::VsyncPeriodChangeConstraints&,
+                            hal::VsyncPeriodChangeTimeline& outTimeline)
             REQUIRES(kMainThreadContext);
 
-    void finalizeModeChange(DisplayModeId, Fps displayFps, Fps renderFps)
+    void finalizeModeChange(DisplayModeId, Fps vsyncRate, Fps renderFps)
             REQUIRES(kMainThreadContext);
 
     scheduler::RefreshRateSelector& refreshRateSelector() const { return *mRefreshRateSelector; }
@@ -240,13 +221,19 @@ public:
         return mRefreshRateSelector;
     }
 
+    void animateOverlay();
+
     // Enables an overlay to be displayed with the current refresh rate
     void enableRefreshRateOverlay(bool enable, bool setByHwc, bool showSpinner, bool showRenderRate,
                                   bool showInMiddle) REQUIRES(kMainThreadContext);
-    void updateRefreshRateOverlayRate(Fps displayFps, Fps renderFps, bool setByHwc = false);
+    void updateRefreshRateOverlayRate(Fps vsyncRate, Fps renderFps, bool setByHwc = false);
     bool isRefreshRateOverlayEnabled() const { return mRefreshRateOverlay != nullptr; }
     bool onKernelTimerChanged(std::optional<DisplayModeId>, bool timerExpired);
-    void animateRefreshRateOverlay();
+
+    // Enables an overlay to be display with the hdr/sdr ratio
+    void enableHdrSdrRatioOverlay(bool enable) REQUIRES(kMainThreadContext);
+    void updateHdrSdrRatioOverlayRatio(float currentHdrSdrRatio);
+    bool isHdrSdrRatioOverlayEnabled() const { return mHdrSdrRatioOverlay != nullptr; }
 
     nsecs_t getVsyncPeriodFromHWC() const;
 
@@ -262,6 +249,11 @@ public:
     void dump(utils::Dumper&) const;
 
 private:
+    template <size_t N>
+    inline std::string concatId(const char (&str)[N]) const {
+        return std::string(ftl::Concat(str, ' ', getId().value).str());
+    }
+
     const sp<SurfaceFlinger> mFlinger;
     HWComposer& mHwComposer;
     const wp<IBinder> mDisplayToken;
@@ -270,12 +262,13 @@ private:
     const std::shared_ptr<compositionengine::Display> mCompositionDisplay;
 
     std::string mDisplayName;
-    std::string mActiveModeFPSTrace;
-    std::string mActiveModeFPSHwcTrace;
-    std::string mRenderFrameRateFPSTrace;
+    std::string mPendingModeFpsTrace;
+    std::string mActiveModeFpsTrace;
+    std::string mRenderRateFpsTrace;
 
     const ui::Rotation mPhysicalOrientation;
     ui::Rotation mOrientation = ui::ROTATION_0;
+    bool mIsOrientationChanged = false;
 
     // Allow nullopt as initial power mode.
     using TracedPowerMode = TracedOrdinal<hardware::graphics::composer::hal::PowerMode>;
@@ -302,13 +295,15 @@ private:
 
     std::shared_ptr<scheduler::RefreshRateSelector> mRefreshRateSelector;
     std::unique_ptr<RefreshRateOverlay> mRefreshRateOverlay;
+    std::unique_ptr<HdrSdrRatioOverlay> mHdrSdrRatioOverlay;
+    // This parameter is only used for hdr/sdr ratio overlay
+    float mHdrSdrRatio = 1.0f;
 
-    mutable std::mutex mActiveModeLock;
-    ActiveModeInfo mDesiredActiveMode GUARDED_BY(mActiveModeLock);
-    TracedOrdinal<bool> mDesiredActiveModeChanged GUARDED_BY(mActiveModeLock) =
-            {ftl::Concat("DesiredActiveModeChanged-", getId().value).c_str(), false};
+    mutable std::mutex mDesiredModeLock;
+    DisplayModeRequestOpt mDesiredModeOpt GUARDED_BY(mDesiredModeLock);
+    TracedOrdinal<bool> mHasDesiredModeTrace GUARDED_BY(mDesiredModeLock);
 
-    ActiveModeInfo mUpcomingActiveMode GUARDED_BY(kMainThreadContext);
+    DisplayModeRequestOpt mPendingModeOpt GUARDED_BY(kMainThreadContext);
     bool mIsModeSetPending GUARDED_BY(kMainThreadContext) = false;
 };
 
@@ -337,6 +332,7 @@ struct DisplayDeviceState {
     uint32_t height = 0;
     std::string displayName;
     bool isSecure = false;
+    bool isProtected = false;
     // Refer to DisplayDevice::mRequestedRefreshRate, for virtual display only
     Fps requestedRefreshRate;
 
@@ -358,6 +354,7 @@ struct DisplayDeviceCreationArgs {
 
     int32_t sequenceId{0};
     bool isSecure{false};
+    bool isProtected{false};
     sp<ANativeWindow> nativeWindow;
     sp<compositionengine::DisplaySurface> displaySurface;
     ui::Rotation physicalOrientation{ui::ROTATION_0};

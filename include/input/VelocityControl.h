@@ -88,7 +88,7 @@ public:
     VelocityControl();
 
     /* Gets the various parameters. */
-    VelocityControlParameters& getParameters();
+    const VelocityControlParameters& getParameters() const;
 
     /* Sets the various parameters. */
     void setParameters(const VelocityControlParameters& parameters);

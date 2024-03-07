@@ -80,7 +80,10 @@ public:
     MOCK_METHOD1(setReleasedLayers, void(ReleasedLayers&&));
 
     MOCK_METHOD2(prepare, void(const compositionengine::CompositionRefreshArgs&, LayerFESet&));
-    MOCK_METHOD1(present, void(const compositionengine::CompositionRefreshArgs&));
+    MOCK_METHOD1(present,
+                 ftl::Future<std::monostate>(const compositionengine::CompositionRefreshArgs&));
+    MOCK_CONST_METHOD0(supportsOffloadPresent, bool());
+    MOCK_METHOD(void, offloadPresentNextFrame, ());
 
     MOCK_METHOD1(uncacheBuffers, void(const std::vector<uint64_t>&));
     MOCK_METHOD2(rebuildLayerStacks,
@@ -118,9 +121,9 @@ public:
                                                 base::unique_fd&));
     MOCK_CONST_METHOD0(getSkipColorTransform, bool());
 
-    MOCK_METHOD0(postFramebuffer, void());
+    MOCK_METHOD0(presentFrameAndReleaseLayers, void());
     MOCK_METHOD1(renderCachedSets, void(const CompositionRefreshArgs&));
-    MOCK_METHOD0(presentAndGetFrameFences, compositionengine::Output::FrameFences());
+    MOCK_METHOD0(presentFrame, compositionengine::Output::FrameFences());
 
     MOCK_METHOD3(generateClientCompositionRequests,
                  std::vector<LayerFE::LayerSettings>(bool, ui::Dataspace, std::vector<compositionengine::LayerFE*>&));

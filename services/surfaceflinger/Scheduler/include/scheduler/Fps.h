@@ -23,6 +23,7 @@
 #include <type_traits>
 
 #include <android-base/stringprintf.h>
+#include <ftl/enum.h>
 #include <scheduler/Time.h>
 
 namespace android {
@@ -79,6 +80,17 @@ struct FpsRanges {
     FpsRange render;
 
     bool valid() const;
+};
+
+// The frame rate category of a Layer.
+enum class FrameRateCategory : int32_t {
+    Default,
+    NoPreference,
+    Low,
+    Normal,
+    High,
+
+    ftl_last = High
 };
 
 static_assert(std::is_trivially_copyable_v<Fps>);

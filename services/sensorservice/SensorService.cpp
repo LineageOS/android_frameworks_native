@@ -63,8 +63,10 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <condition_variable>
 #include <ctime>
 #include <future>
+#include <mutex>
 #include <string>
 
 #include <private/android_filesystem_config.h>
@@ -89,7 +91,7 @@ bool SensorService::sHmacGlobalKeyIsValid = false;
 std::map<String16, int> SensorService::sPackageTargetVersion;
 Mutex SensorService::sPackageTargetVersionLock;
 String16 SensorService::sSensorInterfaceDescriptorPrefix =
-        String16("android.frameworks.sensorservice@");
+    String16("android.frameworks.sensorservice");
 AppOpsManager SensorService::sAppOpsManager;
 std::atomic_uint64_t SensorService::curProxCallbackSeq(0);
 std::atomic_uint64_t SensorService::completedCallbackSeq(0);
@@ -196,6 +198,16 @@ int SensorService::registerRuntimeSensor(
     if (mRuntimeSensorCallbacks.find(deviceId) == mRuntimeSensorCallbacks.end()) {
         mRuntimeSensorCallbacks.emplace(deviceId, callback);
     }
+
+    if (mRuntimeSensorHandler == nullptr) {
+        mRuntimeSensorEventBuffer =
+                new sensors_event_t[SensorEventQueue::MAX_RECEIVE_BUFFER_EVENT_COUNT];
+        mRuntimeSensorHandler = new RuntimeSensorHandler(this);
+        // Use PRIORITY_URGENT_DISPLAY as the injected sensor events should be dispatched as soon as
+        // possible, and also for consistency within the SensorService.
+        mRuntimeSensorHandler->run("RuntimeSensorHandler", PRIORITY_URGENT_DISPLAY);
+    }
+
     return handle;
 }
 
@@ -232,8 +244,9 @@ status_t SensorService::unregisterRuntimeSensor(int handle) {
 }
 
 status_t SensorService::sendRuntimeSensorEvent(const sensors_event_t& event) {
-    Mutex::Autolock _l(mLock);
+    std::unique_lock<std::mutex> lock(mRutimeSensorThreadMutex);
     mRuntimeSensorEventQueue.push(event);
+    mRuntimeSensorsCv.notify_all();
     return OK;
 }
 
@@ -458,6 +471,7 @@ void SensorService::onFirstRef() {
             const size_t minBufferSize = SensorEventQueue::MAX_RECEIVE_BUFFER_EVENT_COUNT;
             mSensorEventBuffer = new sensors_event_t[minBufferSize];
             mSensorEventScratch = new sensors_event_t[minBufferSize];
+            mRuntimeSensorEventBuffer = nullptr;
             mMapFlushEventsToConnections = new wp<const SensorEventConnection> [minBufferSize];
             mCurrentOperatingMode = NORMAL;
 
@@ -649,6 +663,10 @@ status_t SensorService::dump(int fd, const Vector<String16>& args) {
                    break;
                case REPLAY_DATA_INJECTION:
                    result.appendFormat(" REPLAY_DATA_INJECTION : %s\n",
+                            mAllowListedPackage.c_str());
+                   break;
+               case HAL_BYPASS_REPLAY_DATA_INJECTION:
+                   result.appendFormat(" HAL_BYPASS_REPLAY_DATA_INJECTION : %s\n",
                             mAllowListedPackage.c_str());
                    break;
                default:
@@ -1089,7 +1107,6 @@ bool SensorService::threadLoop() {
         recordLastValueLocked(mSensorEventBuffer, count);
 
         // handle virtual sensors
-        bool bufferNeedsSorting = false;
         if (count && vcount) {
             sensors_event_t const * const event = mSensorEventBuffer;
             if (!mActiveVirtualSensors.empty()) {
@@ -1125,35 +1142,9 @@ bool SensorService::threadLoop() {
                     // record the last synthesized values
                     recordLastValueLocked(&mSensorEventBuffer[count], k);
                     count += k;
-                    bufferNeedsSorting = true;
+                    sortEventBuffer(mSensorEventBuffer, count);
                 }
             }
-        }
-
-        // handle runtime sensors
-        {
-            size_t k = 0;
-            while (!mRuntimeSensorEventQueue.empty()) {
-                if (count + k >= minBufferSize) {
-                    ALOGE("buffer too small to hold all events: count=%zd, k=%zu, size=%zu",
-                          count, k, minBufferSize);
-                    break;
-                }
-                mSensorEventBuffer[count + k] = mRuntimeSensorEventQueue.front();
-                mRuntimeSensorEventQueue.pop();
-                k++;
-            }
-            if (k) {
-                // record the last synthesized values
-                recordLastValueLocked(&mSensorEventBuffer[count], k);
-                count += k;
-                bufferNeedsSorting = true;
-            }
-        }
-
-        if (bufferNeedsSorting) {
-            // sort the buffer by time-stamps
-            sortEventBuffer(mSensorEventBuffer, count);
         }
 
         // handle backward compatibility for RotationVector sensor
@@ -1234,7 +1225,7 @@ bool SensorService::threadLoop() {
         bool needsWakeLock = false;
         for (const sp<SensorEventConnection>& connection : activeConnections) {
             connection->sendEvents(mSensorEventBuffer, count, mSensorEventScratch,
-                    mMapFlushEventsToConnections);
+                                   mMapFlushEventsToConnections);
             needsWakeLock |= connection->needsWakeLock();
             // If the connection has one-shot sensors, it may be cleaned up after first trigger.
             // Early check for one-shot sensors.
@@ -1251,6 +1242,46 @@ bool SensorService::threadLoop() {
     ALOGW("Exiting SensorService::threadLoop => aborting...");
     abort();
     return false;
+}
+
+void SensorService::processRuntimeSensorEvents() {
+    size_t count = 0;
+    const size_t maxBufferSize = SensorEventQueue::MAX_RECEIVE_BUFFER_EVENT_COUNT;
+
+    {
+        std::unique_lock<std::mutex> lock(mRutimeSensorThreadMutex);
+
+        if (mRuntimeSensorEventQueue.empty()) {
+            mRuntimeSensorsCv.wait(lock, [this] { return !mRuntimeSensorEventQueue.empty(); });
+        }
+
+        // Pop the events from the queue into the buffer until it's empty or the buffer is full.
+        while (!mRuntimeSensorEventQueue.empty()) {
+            if (count >= maxBufferSize) {
+                ALOGE("buffer too small to hold all events: count=%zd, size=%zu", count,
+                      maxBufferSize);
+                break;
+            }
+            mRuntimeSensorEventBuffer[count] = mRuntimeSensorEventQueue.front();
+            mRuntimeSensorEventQueue.pop();
+            count++;
+        }
+    }
+
+    if (count) {
+        ConnectionSafeAutolock connLock = mConnectionHolder.lock(mLock);
+
+        recordLastValueLocked(mRuntimeSensorEventBuffer, count);
+        sortEventBuffer(mRuntimeSensorEventBuffer, count);
+
+        for (const sp<SensorEventConnection>& connection : connLock.getActiveConnections()) {
+            connection->sendEvents(mRuntimeSensorEventBuffer, count, /* scratch= */ nullptr,
+                                   /* mapFlushEventsToConnections= */ nullptr);
+            if (connection->hasOneShotSensors()) {
+                cleanupAutoDisabledSensorLocked(connection, mRuntimeSensorEventBuffer, count);
+            }
+        }
+    }
 }
 
 sp<Looper> SensorService::getLooper() const {
@@ -1297,6 +1328,14 @@ bool SensorService::SensorEventAckReceiver::threadLoop() {
            mService->resetAllWakeLockRefCounts();
         }
     } while(!Thread::exitPending());
+    return false;
+}
+
+bool SensorService::RuntimeSensorHandler::threadLoop() {
+    ALOGD("new thread RuntimeSensorHandler");
+    do {
+        mService->processRuntimeSensorEvents();
+    } while (!Thread::exitPending());
     return false;
 }
 
@@ -1494,10 +1533,9 @@ Vector<Sensor> SensorService::getRuntimeSensorList(const String16& opPackageName
 
 sp<ISensorEventConnection> SensorService::createSensorEventConnection(const String8& packageName,
         int requestedMode, const String16& opPackageName, const String16& attributionTag) {
-    // Only 3 modes supported for a SensorEventConnection ... NORMAL, DATA_INJECTION and
-    // REPLAY_DATA_INJECTION.
-    if (requestedMode != NORMAL && requestedMode != DATA_INJECTION &&
-            requestedMode != REPLAY_DATA_INJECTION) {
+    // Only 4 modes supported for a SensorEventConnection ... NORMAL, DATA_INJECTION,
+    // REPLAY_DATA_INJECTION and HAL_BYPASS_REPLAY_DATA_INJECTION
+    if (requestedMode != NORMAL && !isInjectionMode(requestedMode)) {
         return nullptr;
     }
     resetTargetSdkVersionCache(opPackageName);
@@ -1518,9 +1556,9 @@ sp<ISensorEventConnection> SensorService::createSensorEventConnection(const Stri
     String16 connOpPackageName =
             (opPackageName == String16("")) ? String16(connPackageName) : opPackageName;
     sp<SensorEventConnection> result(new SensorEventConnection(this, uid, connPackageName,
-            requestedMode == DATA_INJECTION || requestedMode == REPLAY_DATA_INJECTION,
-            connOpPackageName, attributionTag));
-    if (requestedMode == DATA_INJECTION || requestedMode == REPLAY_DATA_INJECTION) {
+                                                               isInjectionMode(requestedMode),
+                                                               connOpPackageName, attributionTag));
+    if (isInjectionMode(requestedMode)) {
         mConnectionHolder.addEventConnectionIfNotPresent(result);
         // Add the associated file descriptor to the Looper for polling whenever there is data to
         // be injected.
@@ -1531,7 +1569,22 @@ sp<ISensorEventConnection> SensorService::createSensorEventConnection(const Stri
 
 int SensorService::isDataInjectionEnabled() {
     Mutex::Autolock _l(mLock);
-    return (mCurrentOperatingMode == DATA_INJECTION);
+    return mCurrentOperatingMode == DATA_INJECTION;
+}
+
+int SensorService::isReplayDataInjectionEnabled() {
+    Mutex::Autolock _l(mLock);
+    return mCurrentOperatingMode == REPLAY_DATA_INJECTION;
+}
+
+int SensorService::isHalBypassReplayDataInjectionEnabled() {
+    Mutex::Autolock _l(mLock);
+    return mCurrentOperatingMode == HAL_BYPASS_REPLAY_DATA_INJECTION;
+}
+
+bool SensorService::isInjectionMode(int mode) {
+    return (mode == DATA_INJECTION || mode == REPLAY_DATA_INJECTION ||
+            mode == HAL_BYPASS_REPLAY_DATA_INJECTION);
 }
 
 sp<ISensorEventConnection> SensorService::createSensorDirectConnection(
@@ -2242,10 +2295,12 @@ bool SensorService::hasPermissionForSensor(const Sensor& sensor) {
 }
 
 int SensorService::getTargetSdkVersion(const String16& opPackageName) {
-    // Don't query the SDK version for the ISensorManager descriptor as it doesn't have one. This
-    // descriptor tends to be used for VNDK clients, but can technically be set by anyone so don't
-    // give it elevated privileges.
-    if (opPackageName.startsWith(sSensorInterfaceDescriptorPrefix)) {
+    // Don't query the SDK version for the ISensorManager descriptor as it
+    // doesn't have one. This descriptor tends to be used for VNDK clients, but
+    // can technically be set by anyone so don't give it elevated privileges.
+    bool isVNDK = opPackageName.startsWith(sSensorInterfaceDescriptorPrefix) &&
+                  opPackageName.contains(String16("@"));
+    if (isVNDK) {
         return -1;
     }
 
@@ -2297,6 +2352,10 @@ bool SensorService::getTargetOperatingMode(const std::string &inputString, Mode 
       *targetModeOut = REPLAY_DATA_INJECTION;
       return true;
     }
+    if (inputString == std::string("hal_bypass_replay_data_injection")) {
+      *targetModeOut = HAL_BYPASS_REPLAY_DATA_INJECTION;
+      return true;
+    }
     return false;
 }
 
@@ -2322,7 +2381,8 @@ status_t SensorService::changeOperatingMode(const Vector<String16>& args,
             dev.disableAllSensors();
         }
         if (mCurrentOperatingMode == DATA_INJECTION ||
-                mCurrentOperatingMode == REPLAY_DATA_INJECTION) {
+                mCurrentOperatingMode == REPLAY_DATA_INJECTION ||
+                mCurrentOperatingMode == HAL_BYPASS_REPLAY_DATA_INJECTION) {
           resetToNormalModeLocked();
         }
         mAllowListedPackage.clear();
@@ -2338,6 +2398,8 @@ status_t SensorService::changeOperatingMode(const Vector<String16>& args,
         disableAllSensorsLocked(&connLock);
         mAllowListedPackage = String8(args[1]);
         return status_t(NO_ERROR);
+      case HAL_BYPASS_REPLAY_DATA_INJECTION:
+        FALLTHROUGH_INTENDED;
       case REPLAY_DATA_INJECTION:
         if (SensorServiceUtil::isUserBuild()) {
             return INVALID_OPERATION;
@@ -2346,9 +2408,16 @@ status_t SensorService::changeOperatingMode(const Vector<String16>& args,
       case DATA_INJECTION:
         if (mCurrentOperatingMode == NORMAL) {
             dev.disableAllSensors();
-            // Always use DATA_INJECTION here since this value goes to the HAL and the HAL
-            // doesn't have an understanding of replay vs. normal data injection.
-            status_t err = dev.setMode(DATA_INJECTION);
+            status_t err = NO_ERROR;
+            if (targetOperatingMode == HAL_BYPASS_REPLAY_DATA_INJECTION) {
+                // Set SensorDevice to HAL_BYPASS_REPLAY_DATA_INJECTION_MODE. This value is not
+                // injected into the HAL, nor will any events be injected into the HAL
+                err = dev.setMode(HAL_BYPASS_REPLAY_DATA_INJECTION);
+            } else {
+                // Otherwise use DATA_INJECTION here since this value goes to the HAL and the HAL
+                // doesn't have an understanding of replay vs. normal data injection.
+                err = dev.setMode(DATA_INJECTION);
+            }
             if (err == NO_ERROR) {
                 mCurrentOperatingMode = targetOperatingMode;
             }

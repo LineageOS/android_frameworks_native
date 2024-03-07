@@ -30,23 +30,29 @@ void MultiTouchMotionAccumulator::configure(const InputDeviceContext& deviceCont
                                             size_t slotCount, bool usingSlotsProtocol) {
     mUsingSlotsProtocol = usingSlotsProtocol;
     mSlots = std::vector<Slot>(slotCount);
+    reset(deviceContext);
+}
 
-    mCurrentSlot = -1;
-    if (mUsingSlotsProtocol) {
-        // Query the driver for the current slot index and use it as the initial slot before we
-        // start reading events from the device.  It is possible that the current slot index will
-        // not be the same as it was when the first event was written into the evdev buffer, which
-        // means the input mapper could start out of sync with the initial state of the events in
-        // the evdev buffer. In the extremely unlikely case that this happens, the data from two
-        // slots will be confused until the next ABS_MT_SLOT event is received. This can cause the
-        // touch point to "jump", but at least there will be no stuck touches.
-        int32_t initialSlot;
-        if (const auto status = deviceContext.getAbsoluteAxisValue(ABS_MT_SLOT, &initialSlot);
-            status == OK) {
-            mCurrentSlot = initialSlot;
-        } else {
-            ALOGD("Could not retrieve current multi-touch slot index. status=%d", status);
-        }
+void MultiTouchMotionAccumulator::reset(const InputDeviceContext& deviceContext) {
+    resetSlots();
+
+    if (!mUsingSlotsProtocol) {
+        return;
+    }
+
+    // Query the driver for the current slot index and use it as the initial slot before we
+    // start reading events from the device.  It is possible that the current slot index will
+    // not be the same as it was when the first event was written into the evdev buffer, which
+    // means the input mapper could start out of sync with the initial state of the events in
+    // the evdev buffer. In the extremely unlikely case that this happens, the data from two
+    // slots will be confused until the next ABS_MT_SLOT event is received. This can cause the
+    // touch point to "jump", but at least there will be no stuck touches.
+    int32_t initialSlot;
+    if (const auto status = deviceContext.getAbsoluteAxisValue(ABS_MT_SLOT, &initialSlot);
+        status == OK) {
+        mCurrentSlot = initialSlot;
+    } else {
+        ALOGD("Could not retrieve current multi-touch slot index. status=%d", status);
     }
 }
 
@@ -150,6 +156,14 @@ void MultiTouchMotionAccumulator::warnIfNotInUse(const RawEvent& event, const Sl
         ALOGW("Received unexpected event (0x%0x, 0x%0x) for slot %i with tracking id %i",
               event.code, event.value, mCurrentSlot, slot.mAbsMtTrackingId);
     }
+}
+
+size_t MultiTouchMotionAccumulator::getActiveSlotsCount() const {
+    if (!mUsingSlotsProtocol) {
+        return mCurrentSlot < 0 ? 0 : mCurrentSlot;
+    }
+    return std::count_if(mSlots.begin(), mSlots.end(),
+                         [](const Slot& slot) { return slot.mInUse; });
 }
 
 // --- MultiTouchMotionAccumulator::Slot ---

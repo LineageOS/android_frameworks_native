@@ -30,7 +30,7 @@ public:
 
     MOCK_METHOD1(beginFrame, status_t(bool mustRecompose));
     MOCK_METHOD1(prepareFrame, status_t(CompositionType compositionType));
-    MOCK_METHOD0(advanceFrame, status_t());
+    MOCK_METHOD((status_t), advanceFrame, (float), (override));
     MOCK_METHOD0(onFrameCommitted, void());
     MOCK_CONST_METHOD1(dumpAsString, void(String8& result));
     MOCK_METHOD1(resizeBuffers, void(const ui::Size&));

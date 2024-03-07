@@ -20,10 +20,12 @@
 #include <binder/Binder.h>
 #include <gui/constants.h>
 #include "../dispatcher/InputDispatcher.h"
+#include "../tests/FakeApplicationHandle.h"
+#include "../tests/FakeInputDispatcherPolicy.h"
+#include "../tests/FakeWindowHandle.h"
 
 using android::base::Result;
 using android::gui::WindowInfo;
-using android::gui::WindowInfoHandle;
 using android::os::IInputConstants;
 using android::os::InputEventInjectionResult;
 using android::os::InputEventInjectionSync;
@@ -33,175 +35,16 @@ namespace android::inputdispatcher {
 namespace {
 
 // An arbitrary device id.
-constexpr int32_t DEVICE_ID = 1;
+constexpr DeviceId DEVICE_ID = 1;
 
-// The default pid and uid for windows created by the test.
-constexpr gui::Pid WINDOW_PID{999};
-constexpr gui::Uid WINDOW_UID{1001};
+// An arbitrary display id
+constexpr int32_t DISPLAY_ID = ADISPLAY_ID_DEFAULT;
 
 static constexpr std::chrono::duration INJECT_EVENT_TIMEOUT = 5s;
-static constexpr std::chrono::nanoseconds DISPATCHING_TIMEOUT = 100ms;
 
 static nsecs_t now() {
     return systemTime(SYSTEM_TIME_MONOTONIC);
 }
-
-// --- FakeInputDispatcherPolicy ---
-
-class FakeInputDispatcherPolicy : public InputDispatcherPolicyInterface {
-public:
-    FakeInputDispatcherPolicy() = default;
-    virtual ~FakeInputDispatcherPolicy() = default;
-
-private:
-    void notifyConfigurationChanged(nsecs_t) override {}
-
-    void notifyNoFocusedWindowAnr(
-            const std::shared_ptr<InputApplicationHandle>& applicationHandle) override {
-        ALOGE("There is no focused window for %s", applicationHandle->getName().c_str());
-    }
-
-    void notifyWindowUnresponsive(const sp<IBinder>& connectionToken, std::optional<gui::Pid> pid,
-                                  const std::string& reason) override {
-        ALOGE("Window is not responding: %s", reason.c_str());
-    }
-
-    void notifyWindowResponsive(const sp<IBinder>& connectionToken,
-                                std::optional<gui::Pid> pid) override {}
-
-    void notifyInputChannelBroken(const sp<IBinder>&) override {}
-
-    void notifyFocusChanged(const sp<IBinder>&, const sp<IBinder>&) override {}
-
-    void notifySensorEvent(int32_t deviceId, InputDeviceSensorType sensorType,
-                           InputDeviceSensorAccuracy accuracy, nsecs_t timestamp,
-                           const std::vector<float>& values) override {}
-
-    void notifySensorAccuracy(int32_t deviceId, InputDeviceSensorType sensorType,
-                              InputDeviceSensorAccuracy accuracy) override {}
-
-    void notifyVibratorState(int32_t deviceId, bool isOn) override {}
-
-    InputDispatcherConfiguration getDispatcherConfiguration() override { return mConfig; }
-
-    bool filterInputEvent(const InputEvent& inputEvent, uint32_t policyFlags) override {
-        return true; // dispatch event normally
-    }
-
-    void interceptKeyBeforeQueueing(const KeyEvent&, uint32_t&) override {}
-
-    void interceptMotionBeforeQueueing(int32_t, nsecs_t, uint32_t&) override {}
-
-    nsecs_t interceptKeyBeforeDispatching(const sp<IBinder>&, const KeyEvent&, uint32_t) override {
-        return 0;
-    }
-
-    std::optional<KeyEvent> dispatchUnhandledKey(const sp<IBinder>&, const KeyEvent&,
-                                                 uint32_t) override {
-        return {};
-    }
-
-    void notifySwitch(nsecs_t, uint32_t, uint32_t, uint32_t) override {}
-
-    void pokeUserActivity(nsecs_t, int32_t, int32_t) override {}
-
-    void onPointerDownOutsideFocus(const sp<IBinder>& newToken) override {}
-
-    void setPointerCapture(const PointerCaptureRequest&) override {}
-
-    void notifyDropWindow(const sp<IBinder>&, float x, float y) override {}
-
-    void notifyDeviceInteraction(int32_t deviceId, nsecs_t timestamp,
-                                 const std::set<gui::Uid>& uids) override {}
-
-    InputDispatcherConfiguration mConfig;
-};
-
-class FakeApplicationHandle : public InputApplicationHandle {
-public:
-    FakeApplicationHandle() {}
-    virtual ~FakeApplicationHandle() {}
-
-    virtual bool updateInfo() {
-        mInfo.dispatchingTimeoutMillis =
-                std::chrono::duration_cast<std::chrono::milliseconds>(DISPATCHING_TIMEOUT).count();
-        return true;
-    }
-};
-
-class FakeInputReceiver {
-public:
-    void consumeEvent() {
-        uint32_t consumeSeq = 0;
-        InputEvent* event;
-
-        std::chrono::time_point start = std::chrono::steady_clock::now();
-        status_t result = WOULD_BLOCK;
-        while (result == WOULD_BLOCK) {
-            std::chrono::duration elapsed = std::chrono::steady_clock::now() - start;
-            if (elapsed > 10ms) {
-                ALOGE("Waited too long for consumer to produce an event, giving up");
-                break;
-            }
-            result = mConsumer->consume(&mEventFactory, /*consumeBatches=*/true, -1, &consumeSeq,
-                                        &event);
-        }
-        if (result != OK) {
-            ALOGE("Received result = %d from consume()", result);
-        }
-        result = mConsumer->sendFinishedSignal(consumeSeq, true);
-        if (result != OK) {
-            ALOGE("Received result = %d from sendFinishedSignal", result);
-        }
-    }
-
-protected:
-    explicit FakeInputReceiver(InputDispatcher& dispatcher, const std::string name) {
-        Result<std::unique_ptr<InputChannel>> channelResult = dispatcher.createInputChannel(name);
-        LOG_ALWAYS_FATAL_IF(!channelResult.ok());
-        mClientChannel = std::move(*channelResult);
-        mConsumer = std::make_unique<InputConsumer>(mClientChannel);
-    }
-
-    virtual ~FakeInputReceiver() {}
-
-    std::shared_ptr<InputChannel> mClientChannel;
-    std::unique_ptr<InputConsumer> mConsumer;
-    PreallocatedInputEventFactory mEventFactory;
-};
-
-class FakeWindowHandle : public WindowInfoHandle, public FakeInputReceiver {
-public:
-    static const int32_t WIDTH = 200;
-    static const int32_t HEIGHT = 200;
-
-    FakeWindowHandle(const std::shared_ptr<InputApplicationHandle>& inputApplicationHandle,
-                     InputDispatcher& dispatcher, const std::string name)
-          : FakeInputReceiver(dispatcher, name), mFrame(Rect(0, 0, WIDTH, HEIGHT)) {
-        inputApplicationHandle->updateInfo();
-        updateInfo();
-        mInfo.applicationInfo = *inputApplicationHandle->getInfo();
-    }
-
-    void updateInfo() {
-        mInfo.token = mClientChannel->getConnectionToken();
-        mInfo.name = "FakeWindowHandle";
-        mInfo.dispatchingTimeout = DISPATCHING_TIMEOUT;
-        mInfo.frameLeft = mFrame.left;
-        mInfo.frameTop = mFrame.top;
-        mInfo.frameRight = mFrame.right;
-        mInfo.frameBottom = mFrame.bottom;
-        mInfo.globalScaleFactor = 1.0;
-        mInfo.touchableRegion.clear();
-        mInfo.addTouchableRegion(mFrame);
-        mInfo.ownerPid = WINDOW_PID;
-        mInfo.ownerUid = WINDOW_UID;
-        mInfo.displayId = ADISPLAY_ID_DEFAULT;
-    }
-
-protected:
-    Rect mFrame;
-};
 
 static MotionEvent generateMotionEvent() {
     PointerProperties pointerProperties[1];
@@ -268,9 +111,9 @@ static void benchmarkNotifyMotion(benchmark::State& state) {
     // Create a window that will receive motion events
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
     sp<FakeWindowHandle> window =
-            sp<FakeWindowHandle>::make(application, dispatcher, "Fake Window");
+            sp<FakeWindowHandle>::make(application, dispatcher, "Fake Window", DISPLAY_ID);
 
-    dispatcher.setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
+    dispatcher.onWindowInfosChanged({{*window->getInfo()}, {}, 0, 0});
 
     NotifyMotionArgs motionArgs = generateMotionArgs();
 
@@ -286,8 +129,8 @@ static void benchmarkNotifyMotion(benchmark::State& state) {
         motionArgs.eventTime = now();
         dispatcher.notifyMotion(motionArgs);
 
-        window->consumeEvent();
-        window->consumeEvent();
+        window->consumeMotion();
+        window->consumeMotion();
     }
 
     dispatcher.stop();
@@ -303,9 +146,9 @@ static void benchmarkInjectMotion(benchmark::State& state) {
     // Create a window that will receive motion events
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
     sp<FakeWindowHandle> window =
-            sp<FakeWindowHandle>::make(application, dispatcher, "Fake Window");
+            sp<FakeWindowHandle>::make(application, dispatcher, "Fake Window", DISPLAY_ID);
 
-    dispatcher.setInputWindows({{ADISPLAY_ID_DEFAULT, {window}}});
+    dispatcher.onWindowInfosChanged({{*window->getInfo()}, {}, 0, 0});
 
     for (auto _ : state) {
         MotionEvent event = generateMotionEvent();
@@ -320,8 +163,8 @@ static void benchmarkInjectMotion(benchmark::State& state) {
                                     INJECT_EVENT_TIMEOUT,
                                     POLICY_FLAG_FILTERED | POLICY_FLAG_PASS_TO_USER);
 
-        window->consumeEvent();
-        window->consumeEvent();
+        window->consumeMotion();
+        window->consumeMotion();
     }
 
     dispatcher.stop();
@@ -337,7 +180,7 @@ static void benchmarkOnWindowInfosChanged(benchmark::State& state) {
     // Create a window
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
     sp<FakeWindowHandle> window =
-            sp<FakeWindowHandle>::make(application, dispatcher, "Fake Window");
+            sp<FakeWindowHandle>::make(application, dispatcher, "Fake Window", DISPLAY_ID);
 
     std::vector<gui::WindowInfo> windowInfos{*window->getInfo()};
     gui::DisplayInfo info;

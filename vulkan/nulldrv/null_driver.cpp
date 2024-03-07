@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <android/hardware_buffer.h>
 #include <hardware/hwvulkan.h>
 
 #include <errno.h>

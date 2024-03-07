@@ -63,6 +63,7 @@ cc_test {
         "libPlatformProperties",
         "libtinyxml2",
         "libutils",
+        "server_configurable_flags",
     ],
     data: [
         "data/*",

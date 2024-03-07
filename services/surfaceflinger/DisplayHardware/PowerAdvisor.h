@@ -25,7 +25,7 @@
 #include <ui/FenceTime.h>
 #include <utils/Mutex.h>
 
-#include <android/hardware/power/IPower.h>
+#include <aidl/android/hardware/power/IPower.h>
 #include <compositionengine/impl/OutputCompositionState.h>
 #include <powermanager/PowerHalController.h>
 #include <scheduler/Time.h>
@@ -46,16 +46,15 @@ public:
 
     // Initializes resources that cannot be initialized on construction
     virtual void init() = 0;
+    // Used to indicate that power hints can now be reported
     virtual void onBootFinished() = 0;
     virtual void setExpensiveRenderingExpected(DisplayId displayId, bool expected) = 0;
     virtual bool isUsingExpensiveRendering() = 0;
-    virtual void notifyCpuLoadUp() = 0;
-    virtual void notifyDisplayUpdateImminentAndCpuReset() = 0;
-    // Checks both if it supports and if it's enabled
+    // Checks both if it's supported and if it's enabled; this is thread-safe since its values are
+    // set before onBootFinished, which gates all methods that run on threads other than SF main
     virtual bool usePowerHintSession() = 0;
     virtual bool supportsPowerHintSession() = 0;
 
-    virtual bool ensurePowerHintSessionRunning() = 0;
     // Sends a power hint that updates to the target work duration for the frame
     virtual void updateTargetWorkDuration(Duration targetDuration) = 0;
     // Sends a power hint for the actual known work duration at the end of the frame
@@ -63,7 +62,7 @@ public:
     // Sets whether the power hint session is enabled
     virtual void enablePowerHintSession(bool enabled) = 0;
     // Initializes the power hint session
-    virtual bool startPowerHintSession(const std::vector<int32_t>& threadIds) = 0;
+    virtual bool startPowerHintSession(std::vector<int32_t>&& threadIds) = 0;
     // Provides PowerAdvisor with a copy of the gpu fence so it can determine the gpu end time
     virtual void setGpuFenceTime(DisplayId displayId, std::unique_ptr<FenceTime>&& fenceTime) = 0;
     // Reports the start and end times of a hwc validate call this frame for a given display
@@ -94,6 +93,12 @@ public:
     virtual void setDisplays(std::vector<DisplayId>& displayIds) = 0;
     // Sets the target duration for the entire pipeline including the gpu
     virtual void setTotalFrameTargetWorkDuration(Duration targetDuration) = 0;
+
+    // --- The following methods may run on threads besides SF main ---
+    // Send a hint about an upcoming increase in the CPU workload
+    virtual void notifyCpuLoadUp() = 0;
+    // Send a hint about the imminent start of a new CPU workload
+    virtual void notifyDisplayUpdateImminentAndCpuReset() = 0;
 };
 
 namespace impl {
@@ -109,16 +114,13 @@ public:
     void onBootFinished() override;
     void setExpensiveRenderingExpected(DisplayId displayId, bool expected) override;
     bool isUsingExpensiveRendering() override { return mNotifiedExpensiveRendering; };
-    void notifyCpuLoadUp() override;
-    void notifyDisplayUpdateImminentAndCpuReset() override;
     bool usePowerHintSession() override;
     bool supportsPowerHintSession() override;
-    bool ensurePowerHintSessionRunning() override;
     void updateTargetWorkDuration(Duration targetDuration) override;
     void reportActualWorkDuration() override;
     void enablePowerHintSession(bool enabled) override;
-    bool startPowerHintSession(const std::vector<int32_t>& threadIds) override;
-    void setGpuFenceTime(DisplayId displayId, std::unique_ptr<FenceTime>&& fenceTime);
+    bool startPowerHintSession(std::vector<int32_t>&& threadIds) override;
+    void setGpuFenceTime(DisplayId displayId, std::unique_ptr<FenceTime>&& fenceTime) override;
     void setHwcValidateTiming(DisplayId displayId, TimePoint validateStartTime,
                               TimePoint validateEndTime) override;
     void setHwcPresentTiming(DisplayId displayId, TimePoint presentStartTime,
@@ -128,12 +130,15 @@ public:
     void setExpectedPresentTime(TimePoint expectedPresentTime) override;
     void setSfPresentTiming(TimePoint presentFenceTime, TimePoint presentEndTime) override;
     void setHwcPresentDelayedTime(DisplayId displayId, TimePoint earliestFrameStartTime) override;
-
     void setFrameDelay(Duration frameDelayDuration) override;
     void setCommitStart(TimePoint commitStartTime) override;
     void setCompositeEnd(TimePoint compositeEndTime) override;
     void setDisplays(std::vector<DisplayId>& displayIds) override;
     void setTotalFrameTargetWorkDuration(Duration targetDuration) override;
+
+    // --- The following methods may run on threads besides SF main ---
+    void notifyCpuLoadUp() override;
+    void notifyDisplayUpdateImminentAndCpuReset() override;
 
 private:
     friend class PowerAdvisorTest;
@@ -220,6 +225,7 @@ private:
     // this normalizes them together and takes the max of the two
     Duration combineTimingEstimates(Duration totalDuration, Duration flingerDuration);
 
+    bool ensurePowerHintSessionRunning() REQUIRES(mHintSessionMutex);
     std::unordered_map<DisplayId, DisplayTimingData> mDisplayTimingData;
 
     // Current frame's delay
@@ -242,24 +248,31 @@ private:
     // Ensure powerhal connection is initialized
     power::PowerHalController& getPowerHal();
 
+    // These variables are set before mBootFinished and never mutated after, so it's safe to access
+    // from threaded methods.
     std::optional<bool> mHintSessionEnabled;
     std::optional<bool> mSupportsHintSession;
-    bool mHintSessionRunning = false;
 
     std::mutex mHintSessionMutex;
-    sp<hardware::power::IPowerHintSession> mHintSession GUARDED_BY(mHintSessionMutex) = nullptr;
+    std::shared_ptr<aidl::android::hardware::power::IPowerHintSession> mHintSession
+            GUARDED_BY(mHintSessionMutex) = nullptr;
 
     // Initialize to true so we try to call, to check if it's supported
     bool mHasExpensiveRendering = true;
     bool mHasDisplayUpdateImminent = true;
     // Queue of actual durations saved to report
-    std::vector<hardware::power::WorkDuration> mHintSessionQueue;
+    std::vector<aidl::android::hardware::power::WorkDuration> mHintSessionQueue;
     // The latest values we have received for target and actual
     Duration mTargetDuration = kDefaultTargetDuration;
     std::optional<Duration> mActualDuration;
     // The list of thread ids, stored so we can restart the session from this class if needed
     std::vector<int32_t> mHintSessionThreadIds;
     Duration mLastTargetDurationSent = kDefaultTargetDuration;
+
+    // Used to manage the execution ordering of reportActualWorkDuration for concurrency testing
+    std::promise<bool> mDelayReportActualMutexAcquisitonPromise;
+    bool mTimingTestingMode = false;
+
     // Whether we should emit ATRACE_INT data for hint sessions
     static const bool sTraceHintSessionData;
 

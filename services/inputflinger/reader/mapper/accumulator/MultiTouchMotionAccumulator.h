@@ -77,11 +77,13 @@ public:
     void process(const RawEvent* rawEvent);
     void finishSync();
 
+    size_t getActiveSlotsCount() const;
     inline size_t getSlotCount() const { return mSlots.size(); }
     inline const Slot& getSlot(size_t index) const {
         LOG_ALWAYS_FATAL_IF(index < 0 || index >= mSlots.size(), "Invalid index: %zu", index);
         return mSlots[index];
     }
+    void reset(const InputDeviceContext& deviceContext);
 
 private:
     int32_t mCurrentSlot;

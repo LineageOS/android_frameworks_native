@@ -25,6 +25,7 @@
 #include <GrContextOptions.h>
 #include <vk/GrVkExtensions.h>
 #include <vk/GrVkTypes.h>
+#include <include/gpu/ganesh/vk/GrVkDirectContext.h>
 
 #include <android-base/stringprintf.h>
 #include <gui/TraceUtils.h>
@@ -432,6 +433,10 @@ VulkanInterface initVulkanInterface(bool protectedContent = false) {
     // Looks like this would slow things down and we can't depend on it on all platforms
     interface.physicalDeviceFeatures2->features.robustBufferAccess = VK_FALSE;
 
+    if (protectedContent && !interface.protectedMemoryFeatures->protectedMemory) {
+        BAIL("Protected memory not supported");
+    }
+
     float queuePriorities[1] = {0.0f};
     void* queueNextPtr = nullptr;
 
@@ -592,7 +597,7 @@ std::unique_ptr<SkiaVkRenderEngine> SkiaVkRenderEngine::create(
 
 SkiaVkRenderEngine::SkiaVkRenderEngine(const RenderEngineCreationArgs& args)
       : SkiaRenderEngine(args.renderEngineType, static_cast<PixelFormat>(args.pixelFormat),
-                         args.useColorManagement, args.supportsBackgroundBlur) {}
+                         args.supportsBackgroundBlur) {}
 
 SkiaVkRenderEngine::~SkiaVkRenderEngine() {
     finishRenderingAndAbandonContext();
@@ -603,11 +608,11 @@ SkiaRenderEngine::Contexts SkiaVkRenderEngine::createDirectContexts(
     sSetupVulkanInterface();
 
     SkiaRenderEngine::Contexts contexts;
-    contexts.first = GrDirectContext::MakeVulkan(sVulkanInterface.getBackendContext(), options);
+    contexts.first = GrDirectContexts::MakeVulkan(sVulkanInterface.getBackendContext(), options);
     if (supportsProtectedContentImpl()) {
         contexts.second =
-                GrDirectContext::MakeVulkan(sProtectedContentVulkanInterface.getBackendContext(),
-                                            options);
+                GrDirectContexts::MakeVulkan(sProtectedContentVulkanInterface.getBackendContext(),
+                                             options);
     }
 
     return contexts;
@@ -681,7 +686,7 @@ base::unique_fd SkiaVkRenderEngine::flushAndSubmit(GrDirectContext* grContext) {
         flushInfo.fFinishedContext = destroySemaphoreInfo;
     }
     GrSemaphoresSubmitted submitted = grContext->flush(flushInfo);
-    grContext->submit(false /* no cpu sync */);
+    grContext->submit(GrSyncCpu::kNo);
     int drawFenceFd = -1;
     if (semaphore != VK_NULL_HANDLE) {
         if (GrSemaphoresSubmitted::kYes == submitted) {

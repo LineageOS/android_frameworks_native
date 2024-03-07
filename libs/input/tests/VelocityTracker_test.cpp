@@ -42,8 +42,8 @@ constexpr int32_t DEFAULT_POINTER_ID = 0; // pointer ID used for manually define
 // here EV = expected value, tol = VELOCITY_TOLERANCE
 constexpr float VELOCITY_TOLERANCE = 0.2;
 
-// estimate coefficients must be within 0.001% of the target value
-constexpr float COEFFICIENT_TOLERANCE = 0.00001;
+// quadratic velocity must be within 0.001% of the target value
+constexpr float QUADRATIC_VELOCITY_TOLERANCE = 0.00001;
 
 // --- VelocityTrackerTest ---
 class VelocityTrackerTest : public testing::Test { };
@@ -74,10 +74,6 @@ static void checkVelocity(std::optional<float> Vactual, std::optional<float> Vta
     } else if (Vtarget != std::nullopt) {
         FAIL() << "Expected  velocity, but found no velocity";
     }
-}
-
-static void checkCoefficient(float actual, float target) {
-    EXPECT_NEAR_BY_FRACTION(actual, target, COEFFICIENT_TOLERANCE);
 }
 
 struct Position {
@@ -233,41 +229,23 @@ static std::vector<MotionEvent> createTouchMotionEventStream(
     return events;
 }
 
-static std::optional<float> computePlanarVelocity(
-        const VelocityTracker::Strategy strategy,
-        const std::vector<PlanarMotionEventEntry>& motions, int32_t axis,
-        uint32_t pointerId = DEFAULT_POINTER_ID) {
+static std::optional<float> computeVelocity(const VelocityTracker::Strategy strategy,
+                                            const std::vector<MotionEvent>& events, int32_t axis,
+                                            uint32_t pointerId = DEFAULT_POINTER_ID) {
     VelocityTracker vt(strategy);
 
-    std::vector<MotionEvent> events = createTouchMotionEventStream(motions);
-    for (MotionEvent event : events) {
-        vt.addMovement(&event);
+    for (const MotionEvent& event : events) {
+        vt.addMovement(event);
     }
 
     return vt.getVelocity(axis, pointerId);
 }
 
-static std::vector<MotionEvent> createMotionEventStream(
-        int32_t axis, const std::vector<std::pair<std::chrono::nanoseconds, float>>& motion) {
-    switch (axis) {
-        case AMOTION_EVENT_AXIS_SCROLL:
-            return createAxisScrollMotionEventStream(motion);
-        default:
-            ADD_FAILURE() << "Axis " << axis << " is not supported";
-            return {};
-    }
-}
-
-static std::optional<float> computeVelocity(
+static std::optional<float> computePlanarVelocity(
         const VelocityTracker::Strategy strategy,
-        const std::vector<std::pair<std::chrono::nanoseconds, float>>& motions, int32_t axis) {
-    VelocityTracker vt(strategy);
-
-    for (const MotionEvent& event : createMotionEventStream(axis, motions)) {
-        vt.addMovement(&event);
-    }
-
-    return vt.getVelocity(axis, DEFAULT_POINTER_ID);
+        const std::vector<PlanarMotionEventEntry>& motions, int32_t axis, uint32_t pointerId) {
+    std::vector<MotionEvent> events = createTouchMotionEventStream(motions);
+    return computeVelocity(strategy, events, axis, pointerId);
 }
 
 static void computeAndCheckVelocity(const VelocityTracker::Strategy strategy,
@@ -281,29 +259,28 @@ static void computeAndCheckAxisScrollVelocity(
         const VelocityTracker::Strategy strategy,
         const std::vector<std::pair<std::chrono::nanoseconds, float>>& motions,
         std::optional<float> targetVelocity) {
-    checkVelocity(computeVelocity(strategy, motions, AMOTION_EVENT_AXIS_SCROLL), targetVelocity);
+    std::vector<MotionEvent> events = createAxisScrollMotionEventStream(motions);
+    checkVelocity(computeVelocity(strategy, events, AMOTION_EVENT_AXIS_SCROLL), targetVelocity);
     // The strategy LSQ2 is not compatible with AXIS_SCROLL. In those situations, we should fall
     // back to a strategy that supports differential axes.
-    checkVelocity(computeVelocity(VelocityTracker::Strategy::LSQ2, motions,
+    checkVelocity(computeVelocity(VelocityTracker::Strategy::LSQ2, events,
                                   AMOTION_EVENT_AXIS_SCROLL),
                   targetVelocity);
 }
 
-static void computeAndCheckQuadraticEstimate(const std::vector<PlanarMotionEventEntry>& motions,
-                                             const std::array<float, 3>& coefficients) {
-    VelocityTracker vt(VelocityTracker::Strategy::LSQ2);
-    std::vector<MotionEvent> events = createTouchMotionEventStream(motions);
-    for (MotionEvent event : events) {
-        vt.addMovement(&event);
-    }
-    std::optional<VelocityTracker::Estimator> estimatorX = vt.getEstimator(AMOTION_EVENT_AXIS_X, 0);
-    std::optional<VelocityTracker::Estimator> estimatorY = vt.getEstimator(AMOTION_EVENT_AXIS_Y, 0);
-    EXPECT_TRUE(estimatorX);
-    EXPECT_TRUE(estimatorY);
-    for (size_t i = 0; i< coefficients.size(); i++) {
-        checkCoefficient((*estimatorX).coeff[i], coefficients[i]);
-        checkCoefficient((*estimatorY).coeff[i], coefficients[i]);
-    }
+static void computeAndCheckQuadraticVelocity(const std::vector<PlanarMotionEventEntry>& motions,
+                                             float velocity) {
+    std::optional<float> velocityX =
+            computePlanarVelocity(VelocityTracker::Strategy::LSQ2, motions, AMOTION_EVENT_AXIS_X,
+                                  DEFAULT_POINTER_ID);
+    std::optional<float> velocityY =
+            computePlanarVelocity(VelocityTracker::Strategy::LSQ2, motions, AMOTION_EVENT_AXIS_Y,
+                                  DEFAULT_POINTER_ID);
+    ASSERT_TRUE(velocityX);
+    ASSERT_TRUE(velocityY);
+
+    EXPECT_NEAR_BY_FRACTION(*velocityX, velocity, QUADRATIC_VELOCITY_TOLERANCE);
+    EXPECT_NEAR_BY_FRACTION(*velocityY, velocity, QUADRATIC_VELOCITY_TOLERANCE);
 }
 
 /*
@@ -335,12 +312,14 @@ TEST_F(VelocityTrackerTest, TestDefaultStrategiesForPlanarAxes) {
                                                    {30ms, {{6, 20}}},
                                                    {40ms, {{10, 30}}}};
 
-    EXPECT_EQ(computePlanarVelocity(VelocityTracker::Strategy::LSQ2, motions, AMOTION_EVENT_AXIS_X),
+    EXPECT_EQ(computePlanarVelocity(VelocityTracker::Strategy::LSQ2, motions, AMOTION_EVENT_AXIS_X,
+                                    DEFAULT_POINTER_ID),
               computePlanarVelocity(VelocityTracker::Strategy::DEFAULT, motions,
-                                    AMOTION_EVENT_AXIS_X));
-    EXPECT_EQ(computePlanarVelocity(VelocityTracker::Strategy::LSQ2, motions, AMOTION_EVENT_AXIS_Y),
+                                    AMOTION_EVENT_AXIS_X, DEFAULT_POINTER_ID));
+    EXPECT_EQ(computePlanarVelocity(VelocityTracker::Strategy::LSQ2, motions, AMOTION_EVENT_AXIS_Y,
+                                    DEFAULT_POINTER_ID),
               computePlanarVelocity(VelocityTracker::Strategy::DEFAULT, motions,
-                                    AMOTION_EVENT_AXIS_Y));
+                                    AMOTION_EVENT_AXIS_Y, DEFAULT_POINTER_ID));
 }
 
 TEST_F(VelocityTrackerTest, TestComputedVelocity) {
@@ -436,7 +415,7 @@ TEST_F(VelocityTrackerTest, TestGetComputedVelocity) {
     VelocityTracker vt(VelocityTracker::Strategy::IMPULSE);
     std::vector<MotionEvent> events = createTouchMotionEventStream(motions);
     for (const MotionEvent& event : events) {
-        vt.addMovement(&event);
+        vt.addMovement(event);
     }
 
     float maxFloat = std::numeric_limits<float>::max();
@@ -465,8 +444,6 @@ TEST_F(VelocityTrackerTest, TestApiInteractionsWithNoMotionEvents) {
     VelocityTracker vt(VelocityTracker::Strategy::DEFAULT);
 
     EXPECT_FALSE(vt.getVelocity(AMOTION_EVENT_AXIS_X, DEFAULT_POINTER_ID));
-
-    EXPECT_FALSE(vt.getEstimator(AMOTION_EVENT_AXIS_X, DEFAULT_POINTER_ID));
 
     VelocityTracker::ComputedVelocity computedVelocity = vt.getComputedVelocity(1000, 1000);
     for (uint32_t id = 0; id <= MAX_POINTER_ID; id++) {
@@ -516,6 +493,89 @@ TEST_F(VelocityTrackerTest, ThreePointsLinearVelocityTest) {
     computeAndCheckVelocity(VelocityTracker::Strategy::LSQ2, motions, AMOTION_EVENT_AXIS_X, 500);
 }
 
+/**
+ * When the stream is terminated with ACTION_CANCEL, the resulting velocity should be 0.
+ */
+TEST_F(VelocityTrackerTest, ActionCancelResultsInZeroVelocity) {
+    std::vector<PlanarMotionEventEntry> motions = {
+            {0ms, {{0, 0}}},    // DOWN
+            {10ms, {{5, 10}}},  // MOVE
+            {20ms, {{10, 20}}}, // MOVE
+            {20ms, {{10, 20}}}, // ACTION_UP
+    };
+    std::vector<MotionEvent> events = createTouchMotionEventStream(motions);
+    // By default, `createTouchMotionEventStream` produces an event stream that terminates with
+    // ACTION_UP. We need to manually change it to ACTION_CANCEL.
+    MotionEvent& lastEvent = events.back();
+    lastEvent.setAction(AMOTION_EVENT_ACTION_CANCEL);
+    lastEvent.setFlags(lastEvent.getFlags() | AMOTION_EVENT_FLAG_CANCELED);
+    const int32_t pointerId = lastEvent.getPointerId(0);
+    checkVelocity(computeVelocity(VelocityTracker::Strategy::IMPULSE, events, AMOTION_EVENT_AXIS_X,
+                                  pointerId),
+                  /*targetVelocity*/ std::nullopt);
+    checkVelocity(computeVelocity(VelocityTracker::Strategy::IMPULSE, events, AMOTION_EVENT_AXIS_Y,
+                                  pointerId),
+                  /*targetVelocity*/ std::nullopt);
+    checkVelocity(computeVelocity(VelocityTracker::Strategy::LSQ2, events, AMOTION_EVENT_AXIS_X,
+                                  pointerId),
+                  /*targetVelocity*/ std::nullopt);
+    checkVelocity(computeVelocity(VelocityTracker::Strategy::LSQ2, events, AMOTION_EVENT_AXIS_Y,
+                                  pointerId),
+                  /*targetVelocity*/ std::nullopt);
+}
+
+/**
+ * When the stream is terminated with ACTION_CANCEL, the resulting velocity should be 0.
+ */
+TEST_F(VelocityTrackerTest, ActionPointerCancelResultsInZeroVelocityForThatPointer) {
+    std::vector<PlanarMotionEventEntry> motions = {
+            {0ms, {{0, 5}, {NAN, NAN}}},    // DOWN
+            {0ms, {{0, 5}, {10, 15}}},      // POINTER_DOWN
+            {10ms, {{5, 10}, {15, 20}}},    // MOVE
+            {20ms, {{10, 15}, {20, 25}}},   // MOVE
+            {30ms, {{10, 15}, {20, 25}}},   // POINTER_UP
+            {30ms, {{10, 15}, {NAN, NAN}}}, // UP
+    };
+    std::vector<MotionEvent> events = createTouchMotionEventStream(motions);
+    // Cancel the lifting pointer of the ACTION_POINTER_UP event
+    MotionEvent& pointerUpEvent = events.rbegin()[1];
+    pointerUpEvent.setFlags(pointerUpEvent.getFlags() | AMOTION_EVENT_FLAG_CANCELED);
+    const int32_t pointerId = pointerUpEvent.getPointerId(pointerUpEvent.getActionIndex());
+    // Double check the stream
+    ASSERT_EQ(1, pointerId);
+    ASSERT_EQ(AMOTION_EVENT_ACTION_POINTER_UP, pointerUpEvent.getActionMasked());
+    ASSERT_EQ(AMOTION_EVENT_ACTION_UP, events.back().getActionMasked());
+
+    // Ensure the velocity of the lifting pointer is zero
+    checkVelocity(computeVelocity(VelocityTracker::Strategy::IMPULSE, events, AMOTION_EVENT_AXIS_X,
+                                  pointerId),
+                  /*targetVelocity*/ std::nullopt);
+    checkVelocity(computeVelocity(VelocityTracker::Strategy::IMPULSE, events, AMOTION_EVENT_AXIS_Y,
+                                  pointerId),
+                  /*targetVelocity*/ std::nullopt);
+    checkVelocity(computeVelocity(VelocityTracker::Strategy::LSQ2, events, AMOTION_EVENT_AXIS_X,
+                                  pointerId),
+                  /*targetVelocity*/ std::nullopt);
+    checkVelocity(computeVelocity(VelocityTracker::Strategy::LSQ2, events, AMOTION_EVENT_AXIS_Y,
+                                  pointerId),
+                  /*targetVelocity*/ std::nullopt);
+
+    // The remaining pointer should have the correct velocity.
+    const int32_t remainingPointerId = events.back().getPointerId(0);
+    ASSERT_EQ(0, remainingPointerId);
+    checkVelocity(computeVelocity(VelocityTracker::Strategy::IMPULSE, events, AMOTION_EVENT_AXIS_X,
+                                  remainingPointerId),
+                  /*targetVelocity*/ 500);
+    checkVelocity(computeVelocity(VelocityTracker::Strategy::IMPULSE, events, AMOTION_EVENT_AXIS_Y,
+                                  remainingPointerId),
+                  /*targetVelocity*/ 500);
+    checkVelocity(computeVelocity(VelocityTracker::Strategy::LSQ2, events, AMOTION_EVENT_AXIS_X,
+                                  remainingPointerId),
+                  /*targetVelocity*/ 500);
+    checkVelocity(computeVelocity(VelocityTracker::Strategy::LSQ2, events, AMOTION_EVENT_AXIS_Y,
+                                  remainingPointerId),
+                  /*targetVelocity*/ 500);
+}
 
 /**
  * ================== VelocityTracker tests generated by recording real events =====================
@@ -1079,7 +1139,7 @@ TEST_F(VelocityTrackerTest, SailfishFlingDownFast3) {
  * If the events with POINTER_UP or POINTER_DOWN are not handled correctly (these should not be
  * part of the fitted data), this can cause large velocity values to be reported instead.
  */
-TEST_F(VelocityTrackerTest, LeastSquaresVelocityTrackerStrategyEstimator_ThreeFingerTap) {
+TEST_F(VelocityTrackerTest, LeastSquaresVelocityTrackerStrategy_ThreeFingerTap) {
     std::vector<PlanarMotionEventEntry> motions = {
         { 0us,      {{1063, 1128}, {NAN, NAN}, {NAN, NAN}} },
         { 10800us,  {{1063, 1128}, {682, 1318}, {NAN, NAN}} }, // POINTER_DOWN
@@ -1167,7 +1227,7 @@ TEST_F(VelocityTrackerTest, LongDelayBeforeActionPointerUp) {
  * ================== Tests for least squares fitting ==============================================
  *
  * Special care must be taken when constructing tests for LeastSquaresVelocityTrackerStrategy
- * getEstimator function. In particular:
+ * getVelocity function. In particular:
  * - inside the function, time gets converted from nanoseconds to seconds
  *   before being used in the fit.
  * - any values that are older than 100 ms are being discarded.
@@ -1188,7 +1248,7 @@ TEST_F(VelocityTrackerTest, LongDelayBeforeActionPointerUp) {
  * The coefficients are (0, 0, 1).
  * In the test, we would convert these coefficients to (0*(1E3)^0, 0*(1E3)^1, 1*(1E3)^2).
  */
-TEST_F(VelocityTrackerTest, LeastSquaresVelocityTrackerStrategyEstimator_Constant) {
+TEST_F(VelocityTrackerTest, LeastSquaresVelocityTrackerStrategy_Constant) {
     std::vector<PlanarMotionEventEntry> motions = {
         { 0ms, {{1, 1}} }, // 0 s
         { 1ms, {{1, 1}} }, // 0.001 s
@@ -1200,13 +1260,13 @@ TEST_F(VelocityTrackerTest, LeastSquaresVelocityTrackerStrategyEstimator_Constan
     // -0.002, 1
     // -0.001, 1
     // -0.ms, 1
-    computeAndCheckQuadraticEstimate(motions, std::array<float, 3>({1, 0, 0}));
+    computeAndCheckQuadraticVelocity(motions, 0);
 }
 
 /*
  * Straight line y = x :: the constant and quadratic coefficients are zero.
  */
-TEST_F(VelocityTrackerTest, LeastSquaresVelocityTrackerStrategyEstimator_Linear) {
+TEST_F(VelocityTrackerTest, LeastSquaresVelocityTrackerStrategy_Linear) {
     std::vector<PlanarMotionEventEntry> motions = {
         { 0ms, {{-2, -2}} },
         { 1ms, {{-1, -1}} },
@@ -1218,13 +1278,13 @@ TEST_F(VelocityTrackerTest, LeastSquaresVelocityTrackerStrategyEstimator_Linear)
     // -0.002, -2
     // -0.001, -1
     // -0.000,  0
-    computeAndCheckQuadraticEstimate(motions, std::array<float, 3>({0, 1E3, 0}));
+    computeAndCheckQuadraticVelocity(motions, 1E3);
 }
 
 /*
  * Parabola
  */
-TEST_F(VelocityTrackerTest, LeastSquaresVelocityTrackerStrategyEstimator_Parabolic) {
+TEST_F(VelocityTrackerTest, LeastSquaresVelocityTrackerStrategy_Parabolic) {
     std::vector<PlanarMotionEventEntry> motions = {
         { 0ms, {{1, 1}} },
         { 1ms, {{4, 4}} },
@@ -1236,13 +1296,13 @@ TEST_F(VelocityTrackerTest, LeastSquaresVelocityTrackerStrategyEstimator_Parabol
     // -0.002, 1
     // -0.001, 4
     // -0.000, 8
-    computeAndCheckQuadraticEstimate(motions, std::array<float, 3>({8, 4.5E3, 0.5E6}));
+    computeAndCheckQuadraticVelocity(motions, 4.5E3);
 }
 
 /*
  * Parabola
  */
-TEST_F(VelocityTrackerTest, LeastSquaresVelocityTrackerStrategyEstimator_Parabolic2) {
+TEST_F(VelocityTrackerTest, LeastSquaresVelocityTrackerStrategy_Parabolic2) {
     std::vector<PlanarMotionEventEntry> motions = {
         { 0ms, {{1, 1}} },
         { 1ms, {{4, 4}} },
@@ -1254,13 +1314,13 @@ TEST_F(VelocityTrackerTest, LeastSquaresVelocityTrackerStrategyEstimator_Parabol
     // -0.002, 1
     // -0.001, 4
     // -0.000, 9
-    computeAndCheckQuadraticEstimate(motions, std::array<float, 3>({9, 6E3, 1E6}));
+    computeAndCheckQuadraticVelocity(motions, 6E3);
 }
 
 /*
  * Parabola :: y = x^2 :: the constant and linear coefficients are zero.
  */
-TEST_F(VelocityTrackerTest, LeastSquaresVelocityTrackerStrategyEstimator_Parabolic3) {
+TEST_F(VelocityTrackerTest, LeastSquaresVelocityTrackerStrategy_Parabolic3) {
     std::vector<PlanarMotionEventEntry> motions = {
         { 0ms, {{4, 4}} },
         { 1ms, {{1, 1}} },
@@ -1272,7 +1332,7 @@ TEST_F(VelocityTrackerTest, LeastSquaresVelocityTrackerStrategyEstimator_Parabol
     // -0.002, 4
     // -0.001, 1
     // -0.000, 0
-    computeAndCheckQuadraticEstimate(motions, std::array<float, 3>({0, 0E3, 1E6}));
+    computeAndCheckQuadraticVelocity(motions, 0E3);
 }
 
 // Recorded by hand on sailfish, but only the diffs are taken to test cumulative axis velocity.
@@ -1343,9 +1403,10 @@ TEST_F(VelocityTrackerTest, TestDefaultStrategyForAxisScroll) {
             {40ms, 100},
     };
 
-    EXPECT_EQ(computeVelocity(VelocityTracker::Strategy::IMPULSE, motions,
+    std::vector<MotionEvent> events = createAxisScrollMotionEventStream(motions);
+    EXPECT_EQ(computeVelocity(VelocityTracker::Strategy::IMPULSE, events,
                               AMOTION_EVENT_AXIS_SCROLL),
-              computeVelocity(VelocityTracker::Strategy::DEFAULT, motions,
+              computeVelocity(VelocityTracker::Strategy::DEFAULT, events,
                               AMOTION_EVENT_AXIS_SCROLL));
 }
 

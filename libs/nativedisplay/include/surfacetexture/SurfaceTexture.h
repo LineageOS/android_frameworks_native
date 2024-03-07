@@ -19,6 +19,7 @@
 #include <android/hardware_buffer.h>
 #include <gui/BufferQueueDefs.h>
 #include <gui/ConsumerBase.h>
+
 #include <gui/IGraphicBufferProducer.h>
 #include <sys/cdefs.h>
 #include <system/graphics.h>
@@ -290,6 +291,20 @@ public:
      */
     void releaseConsumerOwnership();
 
+    /**
+     * Interface for SurfaceTexture callback(s).
+     */
+    struct SurfaceTextureListener : public RefBase {
+        virtual void onFrameAvailable(const BufferItem& item) = 0;
+        virtual void onSetFrameRate(float frameRate, int8_t compatibility,
+                                    int8_t changeFrameRateStrategy) = 0;
+    };
+
+    /**
+     * setSurfaceTextureListener registers a SurfaceTextureListener.
+     */
+    void setSurfaceTextureListener(const sp<SurfaceTextureListener>&);
+
 protected:
     /**
      * abandonLocked overrides the ConsumerBase method to clear
@@ -333,6 +348,14 @@ protected:
      * mCurrentTextureImage must not be NULL.
      */
     void computeCurrentTransformMatrixLocked();
+
+    /**
+     * onSetFrameRate Notifies the consumer of a setFrameRate call from the producer side.
+     */
+#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(BQ_SETFRAMERATE)
+    void onSetFrameRate(float frameRate, int8_t compatibility,
+                        int8_t changeFrameRateStrategy) override;
+#endif
 
     /**
      * The default consumer usage flags that SurfaceTexture always sets on its
@@ -465,8 +488,30 @@ protected:
      */
     ImageConsumer mImageConsumer;
 
+    /**
+     * mSurfaceTextureListener holds the registered SurfaceTextureListener.
+     * Note that SurfaceTexture holds the lister with an sp<>, which means that the listener
+     * must only hold a wp<> to SurfaceTexture and not an sp<>.
+     */
+    sp<SurfaceTextureListener> mSurfaceTextureListener;
+
     friend class ImageConsumer;
     friend class EGLConsumer;
+
+private:
+    // Proxy listener to avoid having SurfaceTexture directly implement FrameAvailableListener as it
+    // is extending ConsumerBase which also implements FrameAvailableListener.
+    class FrameAvailableListenerProxy : public ConsumerBase::FrameAvailableListener {
+    public:
+        FrameAvailableListenerProxy(const wp<SurfaceTextureListener>& listener)
+              : mSurfaceTextureListener(listener) {}
+
+    private:
+        void onFrameAvailable(const BufferItem& item) override;
+
+        const wp<SurfaceTextureListener> mSurfaceTextureListener;
+    };
+    sp<FrameAvailableListenerProxy> mFrameAvailableListenerProxy;
 };
 
 // ----------------------------------------------------------------------------

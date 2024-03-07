@@ -31,10 +31,15 @@ using namespace aidl::android::hardware::graphics::allocator;
 using namespace aidl::android::hardware::graphics::common;
 using namespace ::android::hardware::graphics::mapper;
 
+using ADataspace = aidl::android::hardware::graphics::common::Dataspace;
+using APixelFormat = aidl::android::hardware::graphics::common::PixelFormat;
+
 namespace android {
 
 static const auto kIAllocatorServiceName = IAllocator::descriptor + std::string("/default");
 static const auto kIAllocatorMinimumVersion = 2;
+constexpr const char* kStandardMetadataName =
+        "android.hardware.graphics.common.StandardMetadataType";
 
 // TODO(b/72323293, b/72703005): Remove these invalid bits from callers
 static constexpr uint64_t kRemovedUsageBits = static_cast<uint64_t>((1 << 10) | (1 << 13));
@@ -292,17 +297,205 @@ bool Gralloc5Mapper::isLoaded() const {
     return mMapper != nullptr && mMapper->version >= AIMAPPER_VERSION_5;
 }
 
+static bool isStandardMetadata(AIMapper_MetadataType metadataType) {
+    return strcmp(kStandardMetadataName, metadataType.name) == 0;
+}
+
+struct DumpBufferResult {
+    uint64_t bufferId;
+    std::string name;
+    uint64_t width;
+    uint64_t height;
+    uint64_t layerCount;
+    APixelFormat pixelFormatRequested;
+    uint32_t pixelFormatFourCC;
+    uint64_t pixelFormatModifier;
+    BufferUsage usage;
+    ADataspace dataspace;
+    uint64_t allocationSize;
+    uint64_t protectedContent;
+    ExtendableType compression;
+    ExtendableType interlaced;
+    ExtendableType chromaSiting;
+    std::vector<ui::PlaneLayout> planeLayouts;
+};
+
+#define DECODE_TO(name, output)                                                                 \
+    case StandardMetadataType::name:                                                            \
+        output = StandardMetadata<StandardMetadataType::name>::value ::decode(value, valueSize) \
+                         .value();                                                              \
+        break
+
+static void dumpBufferCommon(DumpBufferResult* outResult, AIMapper_MetadataType metadataType,
+                             const void* value, size_t valueSize) {
+    if (!isStandardMetadata(metadataType)) {
+        return;
+    }
+    StandardMetadataType type = (StandardMetadataType)metadataType.value;
+    switch (type) {
+        DECODE_TO(BUFFER_ID, outResult->bufferId);
+        DECODE_TO(NAME, outResult->name);
+        DECODE_TO(WIDTH, outResult->width);
+        DECODE_TO(HEIGHT, outResult->height);
+        DECODE_TO(LAYER_COUNT, outResult->layerCount);
+        DECODE_TO(PIXEL_FORMAT_REQUESTED, outResult->pixelFormatRequested);
+        DECODE_TO(PIXEL_FORMAT_FOURCC, outResult->pixelFormatFourCC);
+        DECODE_TO(PIXEL_FORMAT_MODIFIER, outResult->pixelFormatModifier);
+        DECODE_TO(USAGE, outResult->usage);
+        DECODE_TO(DATASPACE, outResult->dataspace);
+        DECODE_TO(ALLOCATION_SIZE, outResult->allocationSize);
+        DECODE_TO(PROTECTED_CONTENT, outResult->protectedContent);
+        DECODE_TO(COMPRESSION, outResult->compression);
+        DECODE_TO(INTERLACED, outResult->interlaced);
+        DECODE_TO(CHROMA_SITING, outResult->chromaSiting);
+        DECODE_TO(PLANE_LAYOUTS, outResult->planeLayouts);
+        default:
+            break;
+    }
+}
+
+#undef DECODE_TO
+
+template <typename EnumT, typename = std::enable_if_t<std::is_enum<EnumT>{}>>
+constexpr std::underlying_type_t<EnumT> to_underlying(EnumT e) noexcept {
+    return static_cast<std::underlying_type_t<EnumT>>(e);
+}
+
+static void writeDumpToStream(const DumpBufferResult& bufferDump, std::ostream& outDump,
+                              bool less) {
+    double allocationSizeKiB = static_cast<double>(bufferDump.allocationSize) / 1024;
+
+    outDump << "+ name:" << bufferDump.name << ", id:" << bufferDump.bufferId
+            << ", size:" << std::fixed << allocationSizeKiB << "KiB, w/h:" << bufferDump.width
+            << "x" << bufferDump.height << ", usage: 0x" << std::hex
+            << to_underlying(bufferDump.usage) << std::dec
+            << ", req fmt:" << to_underlying(bufferDump.pixelFormatRequested)
+            << ", fourcc/mod:" << bufferDump.pixelFormatFourCC << "/"
+            << bufferDump.pixelFormatModifier << ", dataspace: 0x" << std::hex
+            << to_underlying(bufferDump.dataspace) << std::dec << ", compressed: ";
+
+    if (less) {
+        bool isCompressed = !gralloc4::isStandardCompression(bufferDump.compression) ||
+                (gralloc4::getStandardCompressionValue(bufferDump.compression) !=
+                 ui::Compression::NONE);
+        outDump << std::boolalpha << isCompressed << "\n";
+    } else {
+        outDump << gralloc4::getCompressionName(bufferDump.compression) << "\n";
+    }
+
+    if (!less) {
+        bool firstPlane = true;
+        for (const auto& planeLayout : bufferDump.planeLayouts) {
+            if (firstPlane) {
+                firstPlane = false;
+                outDump << "\tplanes: ";
+            } else {
+                outDump << "\t        ";
+            }
+
+            for (size_t i = 0; i < planeLayout.components.size(); i++) {
+                const auto& planeLayoutComponent = planeLayout.components[i];
+                outDump << gralloc4::getPlaneLayoutComponentTypeName(planeLayoutComponent.type);
+                if (i < planeLayout.components.size() - 1) {
+                    outDump << "/";
+                } else {
+                    outDump << ":\t";
+                }
+            }
+            outDump << " w/h:" << planeLayout.widthInSamples << "x" << planeLayout.heightInSamples
+                    << ", stride:" << planeLayout.strideInBytes
+                    << " bytes, size:" << planeLayout.totalSizeInBytes;
+            outDump << ", inc:" << planeLayout.sampleIncrementInBits
+                    << " bits, subsampling w/h:" << planeLayout.horizontalSubsampling << "x"
+                    << planeLayout.verticalSubsampling;
+            outDump << "\n";
+        }
+
+        outDump << "\tlayer cnt: " << bufferDump.layerCount
+                << ", protected content: " << bufferDump.protectedContent
+                << ", interlaced: " << gralloc4::getInterlacedName(bufferDump.interlaced)
+                << ", chroma siting:" << gralloc4::getChromaSitingName(bufferDump.chromaSiting)
+                << "\n";
+    }
+}
+
 std::string Gralloc5Mapper::dumpBuffer(buffer_handle_t bufferHandle, bool less) const {
-    // TODO(b/261858392): Implement
-    (void)bufferHandle;
-    (void)less;
-    return {};
+    DumpBufferResult bufferInfo;
+    AIMapper_DumpBufferCallback dumpBuffer = [](void* contextPtr,
+                                                AIMapper_MetadataType metadataType,
+                                                const void* _Nonnull value, size_t valueSize) {
+        DumpBufferResult* context = reinterpret_cast<DumpBufferResult*>(contextPtr);
+        dumpBufferCommon(context, metadataType, value, valueSize);
+    };
+    AIMapper_Error error = mMapper->v5.dumpBuffer(bufferHandle, dumpBuffer, &bufferInfo);
+    if (error != AIMAPPER_ERROR_NONE) {
+        ALOGE("Error dumping buffer: %d", error);
+        return std::string{};
+    }
+    std::ostringstream stream;
+    stream.precision(2);
+    writeDumpToStream(bufferInfo, stream, less);
+    return stream.str();
 }
 
 std::string Gralloc5Mapper::dumpBuffers(bool less) const {
-    // TODO(b/261858392): Implement
-    (void)less;
-    return {};
+    class DumpAllBuffersContext {
+    private:
+        bool mHasPending = false;
+        DumpBufferResult mPending;
+        std::vector<DumpBufferResult> mResults;
+
+    public:
+        DumpAllBuffersContext() { mResults.reserve(10); }
+
+        void commit() {
+            if (mHasPending) {
+                mResults.push_back(mPending);
+                mHasPending = false;
+            }
+        }
+
+        DumpBufferResult* write() {
+            mHasPending = true;
+            return &mPending;
+        }
+
+        const std::vector<DumpBufferResult>& results() {
+            commit();
+            return mResults;
+        }
+    } context;
+
+    AIMapper_BeginDumpBufferCallback beginCallback = [](void* contextPtr) {
+        DumpAllBuffersContext* context = reinterpret_cast<DumpAllBuffersContext*>(contextPtr);
+        context->commit();
+    };
+
+    AIMapper_DumpBufferCallback dumpBuffer = [](void* contextPtr,
+                                                AIMapper_MetadataType metadataType,
+                                                const void* _Nonnull value, size_t valueSize) {
+        DumpAllBuffersContext* context = reinterpret_cast<DumpAllBuffersContext*>(contextPtr);
+        dumpBufferCommon(context->write(), metadataType, value, valueSize);
+    };
+
+    AIMapper_Error error = mMapper->v5.dumpAllBuffers(beginCallback, dumpBuffer, &context);
+    if (error != AIMAPPER_ERROR_NONE) {
+        ALOGE("Error dumping buffers: %d", error);
+        return std::string{};
+    }
+    uint64_t totalAllocationSize = 0;
+    std::ostringstream stream;
+    stream.precision(2);
+    stream << "Imported gralloc buffers:\n";
+
+    for (const auto& bufferDump : context.results()) {
+        writeDumpToStream(bufferDump, stream, less);
+        totalAllocationSize += bufferDump.allocationSize;
+    }
+
+    double totalAllocationSizeKiB = static_cast<double>(totalAllocationSize) / 1024;
+    stream << "Total imported by gralloc: " << totalAllocationSizeKiB << "KiB\n";
+    return stream.str();
 }
 
 status_t Gralloc5Mapper::importBuffer(const native_handle_t *rawHandle,
@@ -333,14 +526,16 @@ status_t Gralloc5Mapper::validateBufferSize(buffer_handle_t bufferHandle, uint32
         }
     }
     {
-        auto value =
-                getStandardMetadata<StandardMetadataType::PIXEL_FORMAT_REQUESTED>(mMapper,
-                                                                                  bufferHandle);
-        if (static_cast<::aidl::android::hardware::graphics::common::PixelFormat>(format) !=
-            value) {
-            ALOGW("Format didn't match, expected %d got %s", format,
-                  value.has_value() ? toString(*value).c_str() : "<null>");
-            return BAD_VALUE;
+        auto expected = static_cast<APixelFormat>(format);
+        if (expected != APixelFormat::IMPLEMENTATION_DEFINED) {
+            auto value =
+                    getStandardMetadata<StandardMetadataType::PIXEL_FORMAT_REQUESTED>(mMapper,
+                                                                                      bufferHandle);
+            if (expected != value) {
+                ALOGW("Format didn't match, expected %d got %s", format,
+                      value.has_value() ? toString(*value).c_str() : "<null>");
+                return BAD_VALUE;
+            }
         }
     }
     {

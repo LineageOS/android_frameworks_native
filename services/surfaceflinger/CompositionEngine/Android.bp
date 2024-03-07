@@ -11,7 +11,9 @@ cc_defaults {
     name: "libcompositionengine_defaults",
     defaults: [
         "android.hardware.graphics.composer3-ndk_shared",
+        "android.hardware.power-ndk_shared",
         "librenderengine_deps",
+        "libtimestats_deps",
         "surfaceflinger_defaults",
     ],
     cflags: [
@@ -26,22 +28,22 @@ cc_defaults {
         "android.hardware.graphics.composer@2.4",
         "android.hardware.power@1.0",
         "android.hardware.power@1.3",
-        "android.hardware.power-V4-cpp",
         "libbase",
         "libcutils",
         "libgui",
-        "liblayers_proto",
         "liblog",
         "libnativewindow",
         "libprotobuf-cpp-lite",
         "libSurfaceFlingerProp",
-        "libtimestats",
         "libui",
         "libutils",
+        "server_configurable_flags",
     ],
     static_libs: [
+        "liblayers_proto",
         "libmath",
         "librenderengine",
+        "libtimestats",
         "libtonemap",
         "libaidlcommonsupport",
         "libprocessgroup",
@@ -59,9 +61,8 @@ cc_defaults {
     ],
 }
 
-cc_library {
-    name: "libcompositionengine",
-    defaults: ["libcompositionengine_defaults"],
+filegroup {
+    name: "libcompositionengine_sources",
     srcs: [
         "src/planner/CachedSet.cpp",
         "src/planner/Flattener.cpp",
@@ -84,8 +85,23 @@ cc_library {
         "src/OutputLayerCompositionState.cpp",
         "src/RenderSurface.cpp",
     ],
+}
+
+cc_library {
+    name: "libcompositionengine",
+    defaults: ["libcompositionengine_defaults"],
+    static_libs: [
+        "libsurfaceflinger_common",
+        "libsurfaceflingerflags",
+    ],
+    srcs: [
+        ":libcompositionengine_sources",
+    ],
     local_include_dirs: ["include"],
     export_include_dirs: ["include"],
+    shared_libs: [
+        "server_configurable_flags",
+    ],
 }
 
 cc_library {
@@ -106,6 +122,11 @@ cc_library {
         "libgtest",
         "libgmock",
         "libcompositionengine",
+        "libsurfaceflinger_common_test",
+        "libsurfaceflingerflags_test",
+    ],
+    shared_libs: [
+        "server_configurable_flags",
     ],
     local_include_dirs: ["include"],
     export_include_dirs: ["include"],
@@ -114,8 +135,13 @@ cc_library {
 cc_test {
     name: "libcompositionengine_test",
     test_suites: ["device-tests"],
+    include_dirs: [
+        "frameworks/native/services/surfaceflinger/common/include",
+        "frameworks/native/services/surfaceflinger/tests/unittests",
+    ],
     defaults: ["libcompositionengine_defaults"],
     srcs: [
+        ":libcompositionengine_sources",
         "tests/planner/CachedSetTest.cpp",
         "tests/planner/FlattenerTest.cpp",
         "tests/planner/LayerStateTest.cpp",
@@ -134,17 +160,19 @@ cc_test {
         "tests/RenderSurfaceTest.cpp",
     ],
     static_libs: [
-        "libcompositionengine",
         "libcompositionengine_mocks",
         "libgui_mocks",
         "librenderengine_mocks",
         "libgmock",
         "libgtest",
+        "libsurfaceflinger_common_test",
+        "libsurfaceflingerflags_test",
     ],
-    // For some reason, libvulkan isn't picked up from librenderengine
-    // Probably ASAN related?
     shared_libs: [
+        // For some reason, libvulkan isn't picked up from librenderengine
+        // Probably ASAN related?
         "libvulkan",
+        "server_configurable_flags",
     ],
     sanitize: {
         hwaddress: true,

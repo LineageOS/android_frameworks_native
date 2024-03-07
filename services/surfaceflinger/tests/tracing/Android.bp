@@ -29,13 +29,9 @@ cc_test {
         "skia_renderengine_deps",
     ],
     test_suites: ["device-tests"],
-    sanitize: {
-        address: true,
-    },
     srcs: [
         ":libsurfaceflinger_sources",
         ":libsurfaceflinger_mock_sources",
-        ":layertracegenerator_sources",
         "TransactionTraceTestSuite.cpp",
     ],
     static_libs: [
@@ -43,7 +39,6 @@ cc_test {
     ],
     header_libs: [
         "libsurfaceflinger_mocks_headers",
-        "layertracegenerator_headers",
     ],
     data: ["testdata/*"],
 }

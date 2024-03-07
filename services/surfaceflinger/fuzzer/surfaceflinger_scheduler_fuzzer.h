@@ -89,8 +89,7 @@ public:
     nsecs_t nextAnticipatedVSyncTimeFrom(nsecs_t /* timePoint */) const override { return 1; }
 
     nsecs_t currentPeriod() const override { return 1; }
-
-    void setPeriod(nsecs_t /* period */) override {}
+    Period minFramePeriod() const override { return Period::fromNs(currentPeriod()); }
 
     void resetModel() override {}
 
@@ -100,7 +99,7 @@ public:
         return true;
     }
 
-    void setRenderRate(Fps) override {}
+    void setDisplayModePtr(ftl::NonNull<DisplayModePtr>) override {}
 
     nsecs_t nextVSyncTime(nsecs_t timePoint) const {
         if (timePoint % mPeriod == 0) {
@@ -108,6 +107,12 @@ public:
         }
         return (timePoint - (timePoint % mPeriod) + mPeriod);
     }
+
+    void setRenderRate(Fps) override {}
+
+    void onFrameBegin(TimePoint, TimePoint) override {}
+
+    void onFrameMissed(TimePoint) override {}
 
     void dump(std::string& /* result */) const override {}
 

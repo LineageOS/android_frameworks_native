@@ -293,12 +293,6 @@ prebuilt_etc {
 }
 
 prebuilt_etc {
-    name: "android.hardware.telephony.satellite.prebuilt.xml",
-    src: "android.hardware.telephony.satellite.xml",
-    defaults: ["frameworks_native_data_etc_defaults"],
-}
-
-prebuilt_etc {
     name: "android.hardware.thread_network.prebuilt.xml",
     src: "android.hardware.thread_network.xml",
     defaults: ["frameworks_native_data_etc_defaults"],
@@ -377,6 +371,12 @@ prebuilt_etc {
 }
 
 prebuilt_etc {
+    name: "android.software.opengles.deqp.level-2024-03-01.prebuilt.xml",
+    src: "android.software.opengles.deqp.level-2024-03-01.xml",
+    defaults: ["frameworks_native_data_etc_defaults"],
+}
+
+prebuilt_etc {
     name: "android.software.opengles.deqp.level-latest.prebuilt.xml",
     src: "android.software.opengles.deqp.level-latest.xml",
     defaults: ["frameworks_native_data_etc_defaults"],
@@ -409,6 +409,12 @@ prebuilt_etc {
 prebuilt_etc {
     name: "android.software.vulkan.deqp.level-2023-03-01.prebuilt.xml",
     src: "android.software.vulkan.deqp.level-2023-03-01.xml",
+    defaults: ["frameworks_native_data_etc_defaults"],
+}
+
+prebuilt_etc {
+    name: "android.software.vulkan.deqp.level-2024-03-01.prebuilt.xml",
+    src: "android.software.vulkan.deqp.level-2024-03-01.xml",
     defaults: ["frameworks_native_data_etc_defaults"],
 }
 

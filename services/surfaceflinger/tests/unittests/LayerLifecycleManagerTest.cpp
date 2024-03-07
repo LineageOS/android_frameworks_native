@@ -17,6 +17,8 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include <renderengine/mock/FakeExternalTexture.h>
+
 #include "FrontEnd/LayerLifecycleManager.h"
 #include "LayerHierarchyTest.h"
 #include "TransactionState.h"
@@ -24,6 +26,8 @@
 using namespace android::surfaceflinger;
 
 namespace android::surfaceflinger::frontend {
+
+using namespace ftl::flag_operators;
 
 // To run test:
 /**
@@ -84,7 +88,7 @@ TEST_F(LayerLifecycleManagerTest, addLayers) {
     layers.emplace_back(rootLayer(2));
     layers.emplace_back(rootLayer(3));
     lifecycleManager.addLayers(std::move(layers));
-    lifecycleManager.onHandlesDestroyed({1, 2, 3});
+    lifecycleManager.onHandlesDestroyed({{1, "1"}, {2, "2"}, {3, "3"}});
     EXPECT_TRUE(lifecycleManager.getGlobalChanges().test(RequestedLayerState::Changes::Hierarchy));
     lifecycleManager.commitChanges();
     EXPECT_FALSE(lifecycleManager.getGlobalChanges().test(RequestedLayerState::Changes::Hierarchy));
@@ -133,7 +137,7 @@ TEST_F(LayerLifecycleManagerTest, layerWithoutHandleIsDestroyed) {
     layers.emplace_back(rootLayer(1));
     layers.emplace_back(rootLayer(2));
     lifecycleManager.addLayers(std::move(layers));
-    lifecycleManager.onHandlesDestroyed({1});
+    lifecycleManager.onHandlesDestroyed({{1, "1"}});
     lifecycleManager.commitChanges();
 
     SCOPED_TRACE("layerWithoutHandleIsDestroyed");
@@ -149,7 +153,7 @@ TEST_F(LayerLifecycleManagerTest, rootLayerWithoutHandleIsDestroyed) {
     layers.emplace_back(rootLayer(1));
     layers.emplace_back(rootLayer(2));
     lifecycleManager.addLayers(std::move(layers));
-    lifecycleManager.onHandlesDestroyed({1});
+    lifecycleManager.onHandlesDestroyed({{1, "1"}});
     lifecycleManager.commitChanges();
     listener->expectLayersAdded({1, 2});
     listener->expectLayersDestroyed({1});
@@ -173,7 +177,7 @@ TEST_F(LayerLifecycleManagerTest, offscreenLayerIsDestroyed) {
     listener->expectLayersAdded({});
     listener->expectLayersDestroyed({});
 
-    lifecycleManager.onHandlesDestroyed({3});
+    lifecycleManager.onHandlesDestroyed({{3, "3"}});
     lifecycleManager.commitChanges();
     listener->expectLayersAdded({});
     listener->expectLayersDestroyed({3});
@@ -194,7 +198,7 @@ TEST_F(LayerLifecycleManagerTest, offscreenChildLayerWithHandleIsNotDestroyed) {
     listener->expectLayersDestroyed({});
 
     lifecycleManager.applyTransactions(reparentLayerTransaction(3, UNASSIGNED_LAYER_ID));
-    lifecycleManager.onHandlesDestroyed({3});
+    lifecycleManager.onHandlesDestroyed({{3, "3"}});
     lifecycleManager.commitChanges();
     listener->expectLayersAdded({});
     listener->expectLayersDestroyed({3});
@@ -215,7 +219,7 @@ TEST_F(LayerLifecycleManagerTest, offscreenChildLayerWithoutHandleIsDestroyed) {
     listener->expectLayersDestroyed({});
 
     lifecycleManager.applyTransactions(reparentLayerTransaction(3, UNASSIGNED_LAYER_ID));
-    lifecycleManager.onHandlesDestroyed({3, 4});
+    lifecycleManager.onHandlesDestroyed({{3, "3"}, {4, "4"}});
     lifecycleManager.commitChanges();
     listener->expectLayersAdded({});
     listener->expectLayersDestroyed({3, 4});
@@ -376,7 +380,7 @@ TEST_F(LayerLifecycleManagerTest, onParentDestroyDestroysBackgroundLayer) {
     transactions.back().states.front().layerId = 1;
     transactions.emplace_back();
     lifecycleManager.applyTransactions(transactions);
-    lifecycleManager.onHandlesDestroyed({1});
+    lifecycleManager.onHandlesDestroyed({{1, "1"}});
 
     ASSERT_EQ(lifecycleManager.getLayers().size(), 0u);
     ASSERT_EQ(lifecycleManager.getDestroyedLayers().size(), 2u);
@@ -387,6 +391,173 @@ TEST_F(LayerLifecycleManagerTest, onParentDestroyDestroysBackgroundLayer) {
     auto bgLayerId = listener->mActualLayersAdded[1];
     listener->expectLayersAdded({1, bgLayerId});
     listener->expectLayersDestroyed({1, bgLayerId});
+}
+
+TEST_F(LayerLifecycleManagerTest, blurSetsVisibilityChangeFlag) {
+    // clear default color on layer so we start with a layer that does not draw anything.
+    setColor(1, {-1.f, -1.f, -1.f});
+    mLifecycleManager.commitChanges();
+
+    // layer has something to draw
+    setBackgroundBlurRadius(1, 2);
+    EXPECT_TRUE(
+            mLifecycleManager.getGlobalChanges().test(RequestedLayerState::Changes::Visibility));
+    mLifecycleManager.commitChanges();
+
+    // layer still has something to draw, so visibility shouldn't change
+    setBackgroundBlurRadius(1, 3);
+    EXPECT_FALSE(
+            mLifecycleManager.getGlobalChanges().test(RequestedLayerState::Changes::Visibility));
+    mLifecycleManager.commitChanges();
+
+    // layer has nothing to draw
+    setBackgroundBlurRadius(1, 0);
+    EXPECT_TRUE(
+            mLifecycleManager.getGlobalChanges().test(RequestedLayerState::Changes::Visibility));
+    mLifecycleManager.commitChanges();
+}
+
+TEST_F(LayerLifecycleManagerTest, colorSetsVisibilityChangeFlag) {
+    // clear default color on layer so we start with a layer that does not draw anything.
+    setColor(1, {-1.f, -1.f, -1.f});
+    mLifecycleManager.commitChanges();
+
+    // layer has something to draw
+    setColor(1, {2.f, 3.f, 4.f});
+    EXPECT_TRUE(
+            mLifecycleManager.getGlobalChanges().test(RequestedLayerState::Changes::Visibility));
+    mLifecycleManager.commitChanges();
+
+    // layer still has something to draw, so visibility shouldn't change
+    setColor(1, {0.f, 0.f, 0.f});
+    EXPECT_FALSE(
+            mLifecycleManager.getGlobalChanges().test(RequestedLayerState::Changes::Visibility));
+    mLifecycleManager.commitChanges();
+
+    // layer has nothing to draw
+    setColor(1, {-1.f, -1.f, -1.f});
+    EXPECT_TRUE(
+            mLifecycleManager.getGlobalChanges().test(RequestedLayerState::Changes::Visibility));
+    mLifecycleManager.commitChanges();
+}
+
+TEST_F(LayerLifecycleManagerTest, layerOpacityChangesSetsVisibilityChangeFlag) {
+    // add a default buffer and make the layer opaque
+    setFlags(1, layer_state_t::eLayerOpaque, layer_state_t::eLayerOpaque);
+    setBuffer(1,
+              std::make_shared<
+                      renderengine::mock::FakeExternalTexture>(1U /*width*/, 1U /*height*/,
+                                                               1ULL /* bufferId */,
+                                                               HAL_PIXEL_FORMAT_RGBA_8888,
+                                                               GRALLOC_USAGE_PROTECTED /*usage*/));
+
+    mLifecycleManager.commitChanges();
+
+    // set new buffer but layer opacity doesn't change
+    setBuffer(1,
+              std::make_shared<
+                      renderengine::mock::FakeExternalTexture>(1U /*width*/, 1U /*height*/,
+                                                               2ULL /* bufferId */,
+                                                               HAL_PIXEL_FORMAT_RGBA_8888,
+                                                               GRALLOC_USAGE_PROTECTED /*usage*/));
+    EXPECT_EQ(mLifecycleManager.getGlobalChanges().get(),
+              ftl::Flags<RequestedLayerState::Changes>(RequestedLayerState::Changes::Buffer |
+                                                       RequestedLayerState::Changes::Content)
+                      .get());
+    mLifecycleManager.commitChanges();
+
+    // change layer flags and confirm visibility flag is set
+    setFlags(1, layer_state_t::eLayerOpaque, 0);
+    EXPECT_TRUE(
+            mLifecycleManager.getGlobalChanges().test(RequestedLayerState::Changes::Visibility));
+    mLifecycleManager.commitChanges();
+}
+
+TEST_F(LayerLifecycleManagerTest, bufferFormatChangesSetsVisibilityChangeFlag) {
+    // add a default buffer and make the layer opaque
+    setFlags(1, layer_state_t::eLayerOpaque, layer_state_t::eLayerOpaque);
+    setBuffer(1,
+              std::make_shared<
+                      renderengine::mock::FakeExternalTexture>(1U /*width*/, 1U /*height*/,
+                                                               1ULL /* bufferId */,
+                                                               HAL_PIXEL_FORMAT_RGBA_8888,
+                                                               GRALLOC_USAGE_PROTECTED /*usage*/));
+
+    mLifecycleManager.commitChanges();
+
+    // set new buffer with an opaque buffer format
+    setBuffer(1,
+              std::make_shared<
+                      renderengine::mock::FakeExternalTexture>(1U /*width*/, 1U /*height*/,
+                                                               2ULL /* bufferId */,
+                                                               HAL_PIXEL_FORMAT_RGB_888,
+                                                               GRALLOC_USAGE_PROTECTED /*usage*/));
+    EXPECT_EQ(mLifecycleManager.getGlobalChanges().get(),
+              ftl::Flags<RequestedLayerState::Changes>(RequestedLayerState::Changes::Buffer |
+                                                       RequestedLayerState::Changes::Content |
+                                                       RequestedLayerState::Changes::VisibleRegion |
+                                                       RequestedLayerState::Changes::Visibility)
+                      .get());
+    mLifecycleManager.commitChanges();
+}
+
+TEST_F(LayerLifecycleManagerTest, roundedCornerChangesSetsVisibilityChangeFlag) {
+    // add a default buffer and make the layer opaque
+    setFlags(1, layer_state_t::eLayerOpaque, layer_state_t::eLayerOpaque);
+    setBuffer(1,
+              std::make_shared<
+                      renderengine::mock::FakeExternalTexture>(1U /*width*/, 1U /*height*/,
+                                                               1ULL /* bufferId */,
+                                                               HAL_PIXEL_FORMAT_RGBA_8888,
+                                                               GRALLOC_USAGE_PROTECTED /*usage*/));
+
+    mLifecycleManager.commitChanges();
+
+    // add rounded corners which should make the layer translucent
+    setRoundedCorners(1, 5.f);
+    EXPECT_EQ(mLifecycleManager.getGlobalChanges().get(),
+              ftl::Flags<RequestedLayerState::Changes>(
+                      RequestedLayerState::Changes::AffectsChildren |
+                      RequestedLayerState::Changes::Content |
+                      RequestedLayerState::Changes::Geometry |
+                      RequestedLayerState::Changes::VisibleRegion)
+                      .get());
+    mLifecycleManager.commitChanges();
+}
+
+// Even when it does not change visible region, we should mark alpha changes as affecting
+// visible region because HWC impl depends on it. writeOutputIndependentGeometryStateToHWC
+// is only called if we are updating geometry.
+TEST_F(LayerLifecycleManagerTest, alphaChangesAlwaysSetsVisibleRegionFlag) {
+    mLifecycleManager.commitChanges();
+    float startingAlpha = 0.5f;
+    setAlpha(1, startingAlpha);
+
+    // this is expected because layer alpha changes from 1 to 0.5, it may no longer be opaque
+    EXPECT_EQ(mLifecycleManager.getGlobalChanges().string(),
+              ftl::Flags<RequestedLayerState::Changes>(
+                      RequestedLayerState::Changes::Content |
+                      RequestedLayerState::Changes::AffectsChildren |
+                      RequestedLayerState::Changes::VisibleRegion)
+                      .string());
+    EXPECT_EQ(mLifecycleManager.getChangedLayers()[0]->color.a, static_cast<half>(startingAlpha));
+    mLifecycleManager.commitChanges();
+
+    float endingAlpha = 0.2f;
+    setAlpha(1, endingAlpha);
+
+    // this is not expected but we should make sure this behavior does not change
+    EXPECT_EQ(mLifecycleManager.getGlobalChanges().string(),
+              ftl::Flags<RequestedLayerState::Changes>(
+                      RequestedLayerState::Changes::Content |
+                      RequestedLayerState::Changes::AffectsChildren |
+                      RequestedLayerState::Changes::VisibleRegion)
+                      .string());
+    EXPECT_EQ(mLifecycleManager.getChangedLayers()[0]->color.a, static_cast<half>(endingAlpha));
+    mLifecycleManager.commitChanges();
+
+    EXPECT_EQ(mLifecycleManager.getGlobalChanges().string(),
+              ftl::Flags<RequestedLayerState::Changes>().string());
 }
 
 } // namespace android::surfaceflinger::frontend

@@ -17,4 +17,6 @@
 <!-- These features determine that the device running android is a car. -->
 <permissions>
     <feature name="android.hardware.type.automotive" />
+
+    <unavailable-feature name="android.software.picture_in_picture"/>
 </permissions>

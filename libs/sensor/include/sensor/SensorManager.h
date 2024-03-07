@@ -65,6 +65,8 @@ public:
     sp<SensorEventQueue> createEventQueue(
         String8 packageName = String8(""), int mode = 0, String16 attributionTag = String16(""));
     bool isDataInjectionEnabled();
+    bool isReplayDataInjectionEnabled();
+    bool isHalBypassReplayDataInjectionEnabled();
     int createDirectChannel(size_t size, int channelType, const native_handle_t *channelData);
     int createDirectChannel(
         int deviceId, size_t size, int channelType, const native_handle_t *channelData);
@@ -77,7 +79,7 @@ private:
     void sensorManagerDied();
     static status_t waitForSensorService(sp<ISensorServer> *server);
 
-    explicit SensorManager(const String16& opPackageName);
+    explicit SensorManager(const String16& opPackageName, int deviceId);
     status_t assertStateLocked();
 
 private:
@@ -92,6 +94,7 @@ private:
     Vector<Sensor> mDynamicSensors;
     sp<IBinder::DeathRecipient> mDeathObserver;
     const String16 mOpPackageName;
+    const int mDeviceId;
     std::unordered_map<int, sp<ISensorEventConnection>> mDirectConnection;
     int32_t mDirectConnectionHandle;
 };
