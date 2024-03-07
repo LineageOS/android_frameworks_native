@@ -98,6 +98,7 @@ public:
         ui::Transform transform;
         ui::Transform rawTransform;
         std::array<uint8_t, 32> hmac;
+        int32_t resolvedKeyRepeatCount;
     };
     virtual void traceWindowDispatch(const WindowDispatchArgs&) = 0;
 };

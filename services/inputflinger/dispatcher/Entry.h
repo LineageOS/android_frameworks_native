@@ -140,6 +140,7 @@ struct KeyEntry : EventEntry {
     mutable InterceptKeyResult interceptKeyResult; // set based on the interception result
     mutable nsecs_t interceptKeyWakeupTime;        // used with INTERCEPT_KEY_RESULT_TRY_AGAIN_LATER
     mutable int32_t flags;
+    // TODO(b/328618922): Refactor key repeat generation to make repeatCount non-mutable.
     mutable int32_t repeatCount;
 
     KeyEntry(int32_t id, std::shared_ptr<InjectionState> injectionState, nsecs_t eventTime,
