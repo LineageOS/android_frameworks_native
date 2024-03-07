@@ -91,8 +91,8 @@ private:
     public:
         VsyncTimeline(TimePoint knownVsync, Period idealPeriod, std::optional<Fps> renderRateOpt);
         std::optional<TimePoint> nextAnticipatedVSyncTimeFrom(
-                Model model, Period minFramePeriod, nsecs_t vsyncTime, MissedVsync lastMissedVsync,
-                std::optional<nsecs_t> lastVsyncOpt = {});
+                Model model, std::optional<Period> minFramePeriodOpt, nsecs_t vsyncTime,
+                MissedVsync lastMissedVsync, std::optional<nsecs_t> lastVsyncOpt = {});
         void freeze(TimePoint lastVsync);
         std::optional<TimePoint> validUntil() const { return mValidUntil; }
         bool isVSyncInPhase(Model, nsecs_t vsync, Fps frameRate);
@@ -144,6 +144,7 @@ private:
     std::vector<nsecs_t> mTimestamps GUARDED_BY(mMutex);
 
     ftl::NonNull<DisplayModePtr> mDisplayModePtr GUARDED_BY(mMutex);
+    int mNumVsyncsForFrame GUARDED_BY(mMutex);
 
     std::deque<TimePoint> mPastExpectedPresentTimes GUARDED_BY(mMutex);
 

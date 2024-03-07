@@ -714,6 +714,33 @@ TEST_F(VSyncPredictorTest, setRenderRateHighIsAppliedImmediately) {
     EXPECT_EQ(20000, vrrTracker.nextAnticipatedVSyncTimeFrom(19000, 19000));
 }
 
+TEST_F(VSyncPredictorTest, minFramePeriodDoesntApplyWhenSameWithRefreshRate) {
+    SET_FLAG_FOR_TEST(flags::vrr_config, true);
+
+    const int32_t kGroup = 0;
+    const auto kResolution = ui::Size(1920, 1080);
+    const auto vsyncRate = Fps::fromPeriodNsecs(1000);
+    const auto minFrameRate = Fps::fromPeriodNsecs(1000);
+    hal::VrrConfig vrrConfig;
+    vrrConfig.minFrameIntervalNs = minFrameRate.getPeriodNsecs();
+    const ftl::NonNull<DisplayModePtr> kMode =
+            ftl::as_non_null(createDisplayModeBuilder(DisplayModeId(0), vsyncRate, kGroup,
+                                                      kResolution, DEFAULT_DISPLAY_ID)
+                                     .setVrrConfig(std::move(vrrConfig))
+                                     .build());
+
+    VSyncPredictor vrrTracker{std::make_unique<ClockWrapper>(mClock), kMode, kHistorySize,
+                              kMinimumSamplesForPrediction, kOutlierTolerancePercent};
+
+    vrrTracker.setRenderRate(Fps::fromPeriodNsecs(1000), /*applyImmediately*/ false);
+    vrrTracker.addVsyncTimestamp(0);
+    EXPECT_EQ(1000, vrrTracker.nextAnticipatedVSyncTimeFrom(700));
+    EXPECT_EQ(2000, vrrTracker.nextAnticipatedVSyncTimeFrom(1000, 1000));
+
+    // Assume that the last vsync is wrong due to a vsync drift. It shouldn't matter.
+    EXPECT_EQ(2000, vrrTracker.nextAnticipatedVSyncTimeFrom(1000, 1700));
+}
+
 TEST_F(VSyncPredictorTest, setRenderRateExplicitAppliedImmediately) {
     SET_FLAG_FOR_TEST(flags::vrr_config, true);
 
@@ -853,21 +880,27 @@ TEST_F(VSyncPredictorTest, adjustsVrrTimelineTwoClients) {
 
     vrrTracker.setRenderRate(minFrameRate, /*applyImmediately*/ false);
     vrrTracker.addVsyncTimestamp(0);
+
+    // App runs ahead
     EXPECT_EQ(3000, vrrTracker.nextAnticipatedVSyncTimeFrom(2700));
-
     EXPECT_EQ(4000, vrrTracker.nextAnticipatedVSyncTimeFrom(3000, 3000));
-
     EXPECT_EQ(5000, vrrTracker.nextAnticipatedVSyncTimeFrom(4000, 4000));
+
+    // SF starts to catch up
     EXPECT_EQ(3000, vrrTracker.nextAnticipatedVSyncTimeFrom(2700));
     vrrTracker.onFrameBegin(TimePoint::fromNs(3000), TimePoint::fromNs(0));
 
+    // SF misses last frame (3000) and observes that when committing (4000)
     EXPECT_EQ(6000, vrrTracker.nextAnticipatedVSyncTimeFrom(5000, 5000));
     EXPECT_EQ(4000, vrrTracker.nextAnticipatedVSyncTimeFrom(3700));
     vrrTracker.onFrameMissed(TimePoint::fromNs(4000));
 
+    // SF wakes up again instead of the (4000) missed frame
     EXPECT_EQ(4500, vrrTracker.nextAnticipatedVSyncTimeFrom(4000, 4000));
     vrrTracker.onFrameBegin(TimePoint::fromNs(4500), TimePoint::fromNs(4500));
 
+    // Timeline shifted. The app needs to get the next frame at (7500) as its last frame (6500) will
+    // be presented at (7500)
     EXPECT_EQ(7500, vrrTracker.nextAnticipatedVSyncTimeFrom(6000, 6000));
     EXPECT_EQ(5500, vrrTracker.nextAnticipatedVSyncTimeFrom(4500, 4500));
     vrrTracker.onFrameBegin(TimePoint::fromNs(5500), TimePoint::fromNs(4500));
