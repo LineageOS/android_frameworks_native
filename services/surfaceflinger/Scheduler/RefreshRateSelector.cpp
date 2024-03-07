@@ -834,12 +834,15 @@ auto RefreshRateSelector::getRankedFrameRatesLocked(const std::vector<LayerRequi
     const bool touchBoostForExplicitExact = [&] {
         if (supportsAppFrameRateOverrideByContent()) {
             // Enable touch boost if there are other layers besides exact
-            return explicitExact + noVoteLayers != layers.size();
+            return explicitExact + noVoteLayers + explicitGteLayers != layers.size();
         } else {
             // Enable touch boost if there are no exact layers
             return explicitExact == 0;
         }
     }();
+
+    const bool touchBoostForCategory =
+            explicitCategoryVoteLayers + noVoteLayers + explicitGteLayers != layers.size();
 
     const auto touchRefreshRates = rankFrameRates(anchorGroup, RefreshRateOrder::Descending);
     using fps_approx_ops::operator<;
@@ -851,6 +854,7 @@ auto RefreshRateSelector::getRankedFrameRatesLocked(const std::vector<LayerRequi
     const bool hasInteraction = signals.touch || interactiveLayers > 0;
 
     if (hasInteraction && explicitDefaultVoteLayers == 0 && touchBoostForExplicitExact &&
+        touchBoostForCategory &&
         scores.front().frameRateMode.fps < touchRefreshRates.front().frameRateMode.fps) {
         ALOGV("Touch Boost");
         ATRACE_FORMAT_INSTANT("%s (Touch Boost [late])",
