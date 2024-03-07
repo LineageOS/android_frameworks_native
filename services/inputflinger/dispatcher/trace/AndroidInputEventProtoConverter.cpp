@@ -21,6 +21,23 @@
 
 namespace android::inputdispatcher::trace {
 
+namespace {
+
+using namespace ftl::flag_operators;
+
+// The trace config to use for maximal tracing.
+const impl::TraceConfig CONFIG_TRACE_ALL{
+        .flags = impl::TraceFlag::TRACE_DISPATCHER_INPUT_EVENTS |
+                impl::TraceFlag::TRACE_DISPATCHER_WINDOW_DISPATCH,
+        .rules = {impl::TraceRule{.level = impl::TraceLevel::TRACE_LEVEL_COMPLETE,
+                                  .matchAllPackages = {},
+                                  .matchAnyPackages = {},
+                                  .matchSecure{},
+                                  .matchImeConnectionActive = {}}},
+};
+
+} // namespace
+
 void AndroidInputEventProtoConverter::toProtoMotionEvent(const TracedMotionEvent& event,
                                                          proto::AndroidMotionEvent& outProto) {
     outProto.set_event_id(event.id);
@@ -103,6 +120,67 @@ void AndroidInputEventProtoConverter::toProtoWindowDispatchEvent(
             }
         }
     }
+}
+
+impl::TraceConfig AndroidInputEventProtoConverter::parseConfig(
+        proto::AndroidInputEventConfig::Decoder& protoConfig) {
+    if (protoConfig.has_mode() &&
+        protoConfig.mode() == proto::AndroidInputEventConfig::TRACE_MODE_TRACE_ALL) {
+        // User has requested the preset for maximal tracing
+        return CONFIG_TRACE_ALL;
+    }
+
+    impl::TraceConfig config;
+
+    // Parse trace flags
+    if (protoConfig.has_trace_dispatcher_input_events() &&
+        protoConfig.trace_dispatcher_input_events()) {
+        config.flags |= impl::TraceFlag::TRACE_DISPATCHER_INPUT_EVENTS;
+    }
+    if (protoConfig.has_trace_dispatcher_window_dispatch() &&
+        protoConfig.trace_dispatcher_window_dispatch()) {
+        config.flags |= impl::TraceFlag::TRACE_DISPATCHER_WINDOW_DISPATCH;
+    }
+
+    // Parse trace rules
+    auto rulesIt = protoConfig.rules();
+    while (rulesIt) {
+        proto::AndroidInputEventConfig::TraceRule::Decoder protoRule{rulesIt->as_bytes()};
+        config.rules.emplace_back();
+        auto& rule = config.rules.back();
+
+        rule.level = protoRule.has_trace_level()
+                ? static_cast<impl::TraceLevel>(protoRule.trace_level())
+                : impl::TraceLevel::TRACE_LEVEL_NONE;
+
+        if (protoRule.has_match_all_packages()) {
+            auto pkgIt = protoRule.match_all_packages();
+            while (pkgIt) {
+                rule.matchAllPackages.emplace_back(pkgIt->as_std_string());
+                pkgIt++;
+            }
+        }
+
+        if (protoRule.has_match_any_packages()) {
+            auto pkgIt = protoRule.match_any_packages();
+            while (pkgIt) {
+                rule.matchAnyPackages.emplace_back(pkgIt->as_std_string());
+                pkgIt++;
+            }
+        }
+
+        if (protoRule.has_match_secure()) {
+            rule.matchSecure = protoRule.match_secure();
+        }
+
+        if (protoRule.has_match_ime_connection_active()) {
+            rule.matchImeConnectionActive = protoRule.match_ime_connection_active();
+        }
+
+        rulesIt++;
+    }
+
+    return config;
 }
 
 } // namespace android::inputdispatcher::trace

@@ -33,18 +33,33 @@ constexpr auto INPUT_EVENT_TRACE_DATA_SOURCE_NAME = "android.input.inputevent";
 
 // --- PerfettoBackend::InputEventDataSource ---
 
-void PerfettoBackend::InputEventDataSource::OnStart(const perfetto::DataSourceBase::StartArgs&) {
-    LOG(INFO) << "Starting perfetto trace for: " << INPUT_EVENT_TRACE_DATA_SOURCE_NAME;
+PerfettoBackend::InputEventDataSource::InputEventDataSource() : mInstanceId(sNextInstanceId++) {}
+
+void PerfettoBackend::InputEventDataSource::OnSetup(const InputEventDataSource::SetupArgs& args) {
+    LOG(INFO) << "Setting up perfetto trace for: " << INPUT_EVENT_TRACE_DATA_SOURCE_NAME
+              << ", instanceId: " << mInstanceId;
+    const auto rawConfig = args.config->android_input_event_config_raw();
+    auto protoConfig = perfetto::protos::pbzero::AndroidInputEventConfig::Decoder{rawConfig};
+
+    mConfig = AndroidInputEventProtoConverter::parseConfig(protoConfig);
 }
 
-void PerfettoBackend::InputEventDataSource::OnStop(const perfetto::DataSourceBase::StopArgs&) {
-    LOG(INFO) << "Stopping perfetto trace for: " << INPUT_EVENT_TRACE_DATA_SOURCE_NAME;
+void PerfettoBackend::InputEventDataSource::OnStart(const InputEventDataSource::StartArgs&) {
+    LOG(INFO) << "Starting perfetto trace for: " << INPUT_EVENT_TRACE_DATA_SOURCE_NAME
+              << ", instanceId: " << mInstanceId;
+}
+
+void PerfettoBackend::InputEventDataSource::OnStop(const InputEventDataSource::StopArgs&) {
+    LOG(INFO) << "Stopping perfetto trace for: " << INPUT_EVENT_TRACE_DATA_SOURCE_NAME
+              << ", instanceId: " << mInstanceId;
     InputEventDataSource::Trace([&](InputEventDataSource::TraceContext ctx) { ctx.Flush(); });
 }
 
 // --- PerfettoBackend ---
 
 std::once_flag PerfettoBackend::sDataSourceRegistrationFlag{};
+
+std::atomic<int32_t> PerfettoBackend::sNextInstanceId{1};
 
 PerfettoBackend::PerfettoBackend() {
     // Use a once-flag to ensure that the data source is only registered once per boot, since

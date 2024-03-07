@@ -18,6 +18,8 @@
 
 #include "InputTracingBackendInterface.h"
 
+#include "InputTracingPerfettoBackendConfig.h"
+
 #include <perfetto/tracing.h>
 #include <mutex>
 
@@ -52,15 +54,24 @@ public:
     void traceMotionEvent(const TracedMotionEvent&, const TracedEventArgs&) override;
     void traceWindowDispatch(const WindowDispatchArgs&, const TracedEventArgs&) override;
 
+private:
+    // Implementation of the perfetto data source.
+    // Each instance of the InputEventDataSource represents a different tracing session.
     class InputEventDataSource : public perfetto::DataSource<InputEventDataSource> {
     public:
-        void OnSetup(const SetupArgs&) override {}
+        explicit InputEventDataSource();
+
+        void OnSetup(const SetupArgs&) override;
         void OnStart(const StartArgs&) override;
         void OnStop(const StopArgs&) override;
+
+    private:
+        const int32_t mInstanceId;
+        TraceConfig mConfig;
     };
 
-private:
     static std::once_flag sDataSourceRegistrationFlag;
+    static std::atomic<int32_t> sNextInstanceId;
 };
 
 } // namespace android::inputdispatcher::trace::impl
