@@ -84,24 +84,24 @@ std::unique_ptr<EventTrackerInterface> InputTracer::traceInboundEvent(const Even
 
 void InputTracer::dispatchToTargetHint(const EventTrackerInterface& cookie,
                                        const InputTarget& target) {
-    auto& cookieState = getState(cookie);
-    if (!cookieState) {
+    auto& eventState = getState(cookie);
+    if (eventState.isEventProcessingComplete) {
         LOG(FATAL) << "dispatchToTargetHint() should not be called after eventProcessingComplete()";
     }
     // TODO(b/210460522): Determine if the event is sensitive based on the target.
 }
 
 void InputTracer::eventProcessingComplete(const EventTrackerInterface& cookie) {
-    auto& cookieState = getState(cookie);
-    if (!cookieState) {
+    auto& eventState = getState(cookie);
+    if (eventState.isEventProcessingComplete) {
         LOG(FATAL) << "Traced event was already logged. "
                       "eventProcessingComplete() was likely called more than once.";
     }
 
     std::visit(Visitor{[&](const TracedMotionEvent& e) { mBackend->traceMotionEvent(e); },
                        [&](const TracedKeyEvent& e) { mBackend->traceKeyEvent(e); }},
-               cookieState->event);
-    cookieState.reset();
+               eventState.event);
+    eventState.isEventProcessingComplete = true;
 }
 
 void InputTracer::traceEventDispatch(const DispatchEntry& dispatchEntry,
@@ -136,7 +136,7 @@ void InputTracer::traceEventDispatch(const DispatchEntry& dispatchEntry,
                                    /*hmac=*/{}});
 }
 
-std::optional<InputTracer::EventState>& InputTracer::getState(const EventTrackerInterface& cookie) {
+InputTracer::EventState& InputTracer::getState(const EventTrackerInterface& cookie) {
     return static_cast<const EventTrackerImpl&>(cookie).mState;
 }
 
@@ -146,18 +146,17 @@ InputTracer::EventTrackerImpl::EventTrackerImpl(InputTracer& tracer, TracedEvent
       : mTracer(tracer), mState(event) {}
 
 InputTracer::EventTrackerImpl::~EventTrackerImpl() {
-    if (!mState) {
+    if (mState.isEventProcessingComplete) {
         // This event has already been written to the trace as expected.
         return;
     }
-    // We're still holding on to the state, which means it hasn't yet been written to the trace.
-    // Write it to the trace now.
+    // The event processing was never marked as complete, so do it now.
     // TODO(b/210460522): Determine why/where the event is being destroyed before
     //   eventProcessingComplete() is called.
     std::visit(Visitor{[&](const TracedMotionEvent& e) { mTracer.mBackend->traceMotionEvent(e); },
                        [&](const TracedKeyEvent& e) { mTracer.mBackend->traceKeyEvent(e); }},
-               mState->event);
-    mState.reset();
+               mState.event);
+    mState.isEventProcessingComplete = true;
 }
 
 } // namespace android::inputdispatcher::trace::impl

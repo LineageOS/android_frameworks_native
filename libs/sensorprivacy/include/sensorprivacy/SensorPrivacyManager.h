@@ -45,9 +45,7 @@ public:
     enum {
         ENABLED = 1,
         DISABLED = 2,
-        AUTOMOTIVE_DRIVER_ASSISTANCE_HELPFUL_APPS = 3,
-        AUTOMOTIVE_DRIVER_ASSISTANCE_REQUIRED_APPS = 4,
-        AUTOMOTIVE_DRIVER_ASSISTANCE_APPS = 5
+        ENABLED_EXCEPT_ALLOWLISTED_APPS = 3
     };
 
     SensorPrivacyManager();
@@ -62,7 +60,7 @@ public:
     bool isToggleSensorPrivacyEnabled(int toggleType, int sensor);
     status_t isToggleSensorPrivacyEnabled(int toggleType, int sensor, bool &result);
     int getToggleSensorPrivacyState(int toggleType, int sensor);
-    std::vector<hardware::CameraPrivacyAllowlistEntry> getCameraPrivacyAllowlist();
+    std::vector<String16> getCameraPrivacyAllowlist();
     bool isCameraPrivacyEnabled(String16 packageName);
 
     status_t linkToDeath(const sp<IBinder::DeathRecipient>& recipient);

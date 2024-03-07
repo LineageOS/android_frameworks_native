@@ -662,10 +662,6 @@ public:
 
     inline void setActionButton(int32_t button) { mActionButton = button; }
 
-    inline float getXOffset() const { return mTransform.tx(); }
-
-    inline float getYOffset() const { return mTransform.ty(); }
-
     inline const ui::Transform& getTransform() const { return mTransform; }
 
     std::optional<ui::Rotation> getSurfaceRotation() const;
@@ -879,6 +875,22 @@ public:
             const PointerCoords* pointerCoords);
 
     void offsetLocation(float xOffset, float yOffset);
+
+    /**
+     * Get the X offset of this motion event relative to the origin of the raw coordinate space.
+     *
+     * In practice, this is the delta that was added to the raw screen coordinates (i.e. in logical
+     * display space) to adjust for the absolute position of the containing windows and views.
+     */
+    float getRawXOffset() const;
+
+    /**
+     * Get the Y offset of this motion event relative to the origin of the raw coordinate space.
+     *
+     * In practice, this is the delta that was added to the raw screen coordinates (i.e. in logical
+     * display space) to adjust for the absolute position of the containing windows and views.
+     */
+    float getRawYOffset() const;
 
     void scale(float globalScaleFactor);
 

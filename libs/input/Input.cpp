@@ -751,6 +751,18 @@ void MotionEvent::offsetLocation(float xOffset, float yOffset) {
     mTransform.set(currXOffset + xOffset, currYOffset + yOffset);
 }
 
+float MotionEvent::getRawXOffset() const {
+    // This is equivalent to the x-coordinate of the point that the origin of the raw coordinate
+    // space maps to.
+    return (mTransform * mRawTransform.inverse()).tx();
+}
+
+float MotionEvent::getRawYOffset() const {
+    // This is equivalent to the y-coordinate of the point that the origin of the raw coordinate
+    // space maps to.
+    return (mTransform * mRawTransform.inverse()).ty();
+}
+
 void MotionEvent::scale(float globalScaleFactor) {
     mTransform.set(mTransform.tx() * globalScaleFactor, mTransform.ty() * globalScaleFactor);
     mRawTransform.set(mRawTransform.tx() * globalScaleFactor,

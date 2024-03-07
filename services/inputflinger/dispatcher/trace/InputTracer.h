@@ -51,13 +51,16 @@ private:
 
     // The state of a tracked event.
     struct EventState {
+        explicit inline EventState(TracedEvent event) : event(std::move(event)){};
+
         const TracedEvent event;
+        bool isEventProcessingComplete{false};
         // TODO(b/210460522): Add additional args for tracking event sensitivity and
         //  dispatch target UIDs.
     };
 
     // Get the event state associated with a tracking cookie.
-    std::optional<EventState>& getState(const EventTrackerInterface&);
+    EventState& getState(const EventTrackerInterface&);
 
     // Implementation of the event tracker cookie. The cookie holds the event state directly for
     // convenience to avoid the overhead of tracking the state separately in InputTracer.
@@ -68,11 +71,9 @@ private:
 
     private:
         InputTracer& mTracer;
-        // This event tracker cookie will only hold the state as long as it has not been written
-        // to the trace. The state is released when the event is written to the trace.
-        mutable std::optional<EventState> mState;
+        mutable EventState mState;
 
-        friend std::optional<EventState>& InputTracer::getState(const EventTrackerInterface&);
+        friend EventState& InputTracer::getState(const EventTrackerInterface&);
     };
 };
 

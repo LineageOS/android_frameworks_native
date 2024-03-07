@@ -103,6 +103,26 @@ void ensureEventTraced(const Entry& entry) {
     }
 }
 
+// Helper to get a trace tracker from a traced key or motion entry.
+const std::unique_ptr<trace::EventTrackerInterface>& getTraceTracker(const EventEntry& entry) {
+    switch (entry.type) {
+        case EventEntry::Type::MOTION: {
+            const auto& motion = static_cast<const MotionEntry&>(entry);
+            ensureEventTraced(motion);
+            return motion.traceTracker;
+        }
+        case EventEntry::Type::KEY: {
+            const auto& key = static_cast<const KeyEntry&>(entry);
+            ensureEventTraced(key);
+            return key.traceTracker;
+        }
+        default: {
+            const static std::unique_ptr<trace::EventTrackerInterface> kNullTracker;
+            return kNullTracker;
+        }
+    }
+}
+
 // Temporarily releases a held mutex for the lifetime of the instance.
 // Named to match std::scoped_lock
 class scoped_unlock {
@@ -656,13 +676,13 @@ std::optional<nsecs_t> getDownTime(const EventEntry& eventEntry) {
 std::vector<TouchedWindow> getHoveringWindowsLocked(const TouchState* oldState,
                                                     const TouchState& newTouchState,
                                                     const MotionEntry& entry) {
-    std::vector<TouchedWindow> out;
     const int32_t maskedAction = MotionEvent::getActionMasked(entry.action);
 
     if (maskedAction == AMOTION_EVENT_ACTION_SCROLL) {
         // ACTION_SCROLL events should not affect the hovering pointer dispatch
         return {};
     }
+    std::vector<TouchedWindow> out;
 
     // We should consider all hovering pointers here. But for now, just use the first one
     const PointerProperties& pointer = entry.pointerProperties[0];
@@ -1147,10 +1167,6 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t& nextWakeupTime) {
                 dropReason = DropReason::BLOCKED;
             }
             done = dispatchKeyLocked(currentTime, keyEntry, &dropReason, nextWakeupTime);
-            if (done && mTracer) {
-                ensureEventTraced(*keyEntry);
-                mTracer->eventProcessingComplete(*keyEntry->traceTracker);
-            }
             break;
         }
 
@@ -1176,10 +1192,6 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t& nextWakeupTime) {
                 }
             }
             done = dispatchMotionLocked(currentTime, motionEntry, &dropReason, nextWakeupTime);
-            if (done && mTracer) {
-                ensureEventTraced(*motionEntry);
-                mTracer->eventProcessingComplete(*motionEntry->traceTracker);
-            }
             break;
         }
 
@@ -1204,6 +1216,12 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t& nextWakeupTime) {
             dropInboundEventLocked(*mPendingEvent, dropReason);
         }
         mLastDropReason = dropReason;
+
+        if (mTracer) {
+            if (auto& traceTracker = getTraceTracker(*mPendingEvent); traceTracker != nullptr) {
+                mTracer->eventProcessingComplete(*traceTracker);
+            }
+        }
 
         releasePendingEventLocked();
         nextWakeupTime = LLONG_MIN; // force next poll to wake up immediately
@@ -2633,19 +2651,14 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
     {
         std::vector<TouchedWindow> hoveringWindows =
                 getHoveringWindowsLocked(oldState, tempTouchState, entry);
+        // Hardcode to single hovering pointer for now.
+        std::bitset<MAX_POINTER_ID + 1> pointerIds;
+        pointerIds.set(entry.pointerProperties[0].id);
         for (const TouchedWindow& touchedWindow : hoveringWindows) {
-            std::optional<InputTarget> target =
-                    createInputTargetLocked(touchedWindow.windowHandle, touchedWindow.dispatchMode,
-                                            touchedWindow.targetFlags,
-                                            touchedWindow.getDownTimeInTarget(entry.deviceId));
-            if (!target) {
-                continue;
-            }
-            // Hardcode to single hovering pointer for now.
-            std::bitset<MAX_POINTER_ID + 1> pointerIds;
-            pointerIds.set(entry.pointerProperties[0].id);
-            target->addPointers(pointerIds, touchedWindow.windowHandle->getInfo()->transform);
-            targets.push_back(*target);
+            addPointerWindowTargetLocked(touchedWindow.windowHandle, touchedWindow.dispatchMode,
+                                         touchedWindow.targetFlags, pointerIds,
+                                         touchedWindow.getDownTimeInTarget(entry.deviceId),
+                                         targets);
         }
     }
 

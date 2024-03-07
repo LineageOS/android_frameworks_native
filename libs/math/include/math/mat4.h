@@ -34,6 +34,14 @@
 #define CONSTEXPR
 #endif
 
+#ifdef _WIN32
+// windows.h contains obsolete defines of 'near' and 'far' for systems using
+// legacy 16 bit pointers. Undefine them to avoid conflicting with the usage of
+// 'near' and 'far' in this file.
+#undef near
+#undef far
+#endif
+
 namespace android {
 // -------------------------------------------------------------------------------------
 namespace details {
