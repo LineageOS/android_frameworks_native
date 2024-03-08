@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#include "../BlockingQueue.h"
-
+#include <input/BlockingQueue.h>
 
 #include <gtest/gtest.h>
 #include <thread>
@@ -109,7 +108,7 @@ TEST(BlockingQueueTest, Queue_AllowsMultipleThreads) {
     BlockingQueue<int> queue(capacity);
 
     // Fill queue from a different thread
-    std::thread fillQueue([&queue](){
+    std::thread fillQueue([&queue]() {
         for (size_t i = 0; i < capacity; i++) {
             ASSERT_TRUE(queue.push(static_cast<int>(i)));
         }
@@ -136,7 +135,7 @@ TEST(BlockingQueueTest, Queue_BlocksWhileWaitingForElements) {
     std::atomic_bool hasReceivedElement = false;
 
     // fill queue from a different thread
-    std::thread waitUntilHasElements([&queue, &hasReceivedElement](){
+    std::thread waitUntilHasElements([&queue, &hasReceivedElement]() {
         queue.pop(); // This should block until an element has been added
         hasReceivedElement = true;
     });
