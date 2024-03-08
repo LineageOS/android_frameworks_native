@@ -565,7 +565,7 @@ void Scheduler::onHardwareVsyncRequest(PhysicalDisplayId id, bool enabled) {
             }));
 }
 
-void Scheduler::setRenderRate(PhysicalDisplayId id, Fps renderFrameRate) {
+void Scheduler::setRenderRate(PhysicalDisplayId id, Fps renderFrameRate, bool applyImmediately) {
     std::scoped_lock lock(mDisplayLock);
     ftl::FakeGuard guard(kMainThreadContext);
 
@@ -586,7 +586,7 @@ void Scheduler::setRenderRate(PhysicalDisplayId id, Fps renderFrameRate) {
     ALOGV("%s %s (%s)", __func__, to_string(mode.fps).c_str(),
           to_string(mode.modePtr->getVsyncRate()).c_str());
 
-    display.schedulePtr->getTracker().setRenderRate(renderFrameRate);
+    display.schedulePtr->getTracker().setRenderRate(renderFrameRate, applyImmediately);
 }
 
 Fps Scheduler::getNextFrameInterval(PhysicalDisplayId id,
