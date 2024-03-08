@@ -99,20 +99,26 @@ int32_t KeyboardInputMapper::getDisplayId() {
     return ADISPLAY_ID_NONE;
 }
 
+std::optional<KeyboardLayoutInfo> KeyboardInputMapper::getKeyboardLayoutInfo() const {
+    if (mKeyboardLayoutInfo) {
+        return mKeyboardLayoutInfo;
+    }
+    std::optional<RawLayoutInfo> layoutInfo = getDeviceContext().getRawLayoutInfo();
+    if (!layoutInfo) {
+        return std::nullopt;
+    }
+    return KeyboardLayoutInfo(layoutInfo->languageTag, layoutInfo->layoutType);
+}
+
 void KeyboardInputMapper::populateDeviceInfo(InputDeviceInfo& info) {
     InputMapper::populateDeviceInfo(info);
 
     info.setKeyboardType(mKeyboardType);
     info.setKeyCharacterMap(getDeviceContext().getKeyCharacterMap());
 
-    if (mKeyboardLayoutInfo) {
-        info.setKeyboardLayoutInfo(*mKeyboardLayoutInfo);
-    } else {
-        std::optional<RawLayoutInfo> layoutInfo = getDeviceContext().getRawLayoutInfo();
-        if (layoutInfo) {
-            info.setKeyboardLayoutInfo(
-                    KeyboardLayoutInfo(layoutInfo->languageTag, layoutInfo->layoutType));
-        }
+    std::optional keyboardLayoutInfo = getKeyboardLayoutInfo();
+    if (keyboardLayoutInfo) {
+        info.setKeyboardLayoutInfo(*keyboardLayoutInfo);
     }
 }
 
@@ -165,6 +171,15 @@ std::list<NotifyArgs> KeyboardInputMapper::reconfigure(nsecs_t when,
                 getValueByKey(config.keyboardLayoutAssociations, getDeviceContext().getLocation());
         if (mKeyboardLayoutInfo != newKeyboardLayoutInfo) {
             mKeyboardLayoutInfo = newKeyboardLayoutInfo;
+            // Also update keyboard layout overlay as soon as we find the new layout info
+            updateKeyboardLayoutOverlay();
+            bumpGeneration();
+        }
+    }
+
+    if (!changes.any() || changes.test(InputReaderConfiguration::Change::KEYBOARD_LAYOUTS)) {
+        if (!getDeviceContext().getDeviceClasses().test(InputDeviceClass::VIRTUAL) &&
+            updateKeyboardLayoutOverlay()) {
             bumpGeneration();
         }
     }
@@ -177,6 +192,16 @@ std::list<NotifyArgs> KeyboardInputMapper::reconfigure(nsecs_t when,
     }
 
     return out;
+}
+
+bool KeyboardInputMapper::updateKeyboardLayoutOverlay() {
+    std::shared_ptr<KeyCharacterMap> keyboardLayout =
+            getDeviceContext()
+                    .getContext()
+                    ->getPolicy()
+                    ->getKeyboardLayoutOverlay(getDeviceContext().getDeviceIdentifier(),
+                                               getKeyboardLayoutInfo());
+    return getDeviceContext().setKeyboardLayoutOverlay(keyboardLayout);
 }
 
 void KeyboardInputMapper::configureParameters() {
@@ -226,6 +251,7 @@ std::list<NotifyArgs> KeyboardInputMapper::processKey(nsecs_t when, nsecs_t read
     int32_t keyCode;
     int32_t keyMetaState;
     uint32_t policyFlags;
+    int32_t flags = AKEY_EVENT_FLAG_FROM_SYSTEM;
 
     if (getDeviceContext().mapKey(scanCode, usageCode, mMetaState, &keyCode, &keyMetaState,
                                   &policyFlags)) {
@@ -247,6 +273,7 @@ std::list<NotifyArgs> KeyboardInputMapper::processKey(nsecs_t when, nsecs_t read
             // key repeat, be sure to use same keycode as before in case of rotation
             keyCode = mKeyDowns[*keyDownIndex].keyCode;
             downTime = mKeyDowns[*keyDownIndex].downTime;
+            flags = mKeyDowns[*keyDownIndex].flags;
         } else {
             // key down
             if ((policyFlags & POLICY_FLAG_VIRTUAL) &&
@@ -255,21 +282,24 @@ std::list<NotifyArgs> KeyboardInputMapper::processKey(nsecs_t when, nsecs_t read
             }
             if (policyFlags & POLICY_FLAG_GESTURE) {
                 out += getDeviceContext().cancelTouch(when, readTime);
+                flags |= AKEY_EVENT_FLAG_KEEP_TOUCH_MODE;
             }
 
             KeyDown keyDown;
             keyDown.keyCode = keyCode;
             keyDown.scanCode = scanCode;
             keyDown.downTime = when;
+            keyDown.flags = flags;
             mKeyDowns.push_back(keyDown);
         }
-        onKeyDownProcessed();
+        onKeyDownProcessed(downTime);
     } else {
         // Remove key down.
         if (keyDownIndex) {
             // key up, be sure to use same keycode as before in case of rotation
             keyCode = mKeyDowns[*keyDownIndex].keyCode;
             downTime = mKeyDowns[*keyDownIndex].downTime;
+            flags = mKeyDowns[*keyDownIndex].flags;
             mKeyDowns.erase(mKeyDowns.begin() + *keyDownIndex);
         } else {
             // key was not actually down
@@ -303,9 +333,8 @@ std::list<NotifyArgs> KeyboardInputMapper::processKey(nsecs_t when, nsecs_t read
 
     out.emplace_back(NotifyKeyArgs(getContext()->getNextId(), when, readTime, getDeviceId(),
                                    mSource, getDisplayId(), policyFlags,
-                                   down ? AKEY_EVENT_ACTION_DOWN : AKEY_EVENT_ACTION_UP,
-                                   AKEY_EVENT_FLAG_FROM_SYSTEM, keyCode, scanCode, keyMetaState,
-                                   downTime));
+                                   down ? AKEY_EVENT_ACTION_DOWN : AKEY_EVENT_ACTION_UP, flags,
+                                   keyCode, scanCode, keyMetaState, downTime));
     return out;
 }
 
@@ -432,7 +461,7 @@ std::list<NotifyArgs> KeyboardInputMapper::cancelAllDownKeys(nsecs_t when) {
         out.emplace_back(NotifyKeyArgs(getContext()->getNextId(), when,
                                        systemTime(SYSTEM_TIME_MONOTONIC), getDeviceId(), mSource,
                                        getDisplayId(), /*policyFlags=*/0, AKEY_EVENT_ACTION_UP,
-                                       AKEY_EVENT_FLAG_FROM_SYSTEM | AKEY_EVENT_FLAG_CANCELED,
+                                       mKeyDowns[i].flags | AKEY_EVENT_FLAG_CANCELED,
                                        mKeyDowns[i].keyCode, mKeyDowns[i].scanCode, AMETA_NONE,
                                        mKeyDowns[i].downTime));
     }
@@ -441,10 +470,12 @@ std::list<NotifyArgs> KeyboardInputMapper::cancelAllDownKeys(nsecs_t when) {
     return out;
 }
 
-void KeyboardInputMapper::onKeyDownProcessed() {
+void KeyboardInputMapper::onKeyDownProcessed(nsecs_t downTime) {
     InputReaderContext& context = *getContext();
+    context.setLastKeyDownTimestamp(downTime);
     if (context.isPreventingTouchpadTaps()) {
-        // avoid pinging java service unnecessarily
+        // avoid pinging java service unnecessarily, just fade pointer again if it became visible
+        context.fadePointer();
         return;
     }
     // Ignore meta keys or multiple simultaneous down keys as they are likely to be keyboard

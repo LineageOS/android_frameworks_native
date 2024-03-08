@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
-#include <FuzzContainer.h>
+#include <InputDevice.h>
+#include <InputReaderBase.h>
+#include <MapperHelpers.h>
 #include <SwitchInputMapper.h>
 
 namespace android {
@@ -22,10 +24,15 @@ namespace android {
 extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size) {
     std::shared_ptr<ThreadSafeFuzzedDataProvider> fdp =
             std::make_shared<ThreadSafeFuzzedDataProvider>(data, size);
-    FuzzContainer fuzzer(fdp);
 
-    auto policyConfig = fuzzer.getPolicyConfig();
-    SwitchInputMapper& mapper = fuzzer.getMapper<SwitchInputMapper>(policyConfig);
+    // Create mocked objects to support the fuzzed input mapper.
+    std::shared_ptr<FuzzEventHub> eventHub = std::make_shared<FuzzEventHub>(fdp);
+    FuzzInputReaderContext context(eventHub, fdp);
+    InputDevice device = getFuzzedInputDevice(*fdp, &context);
+
+    SwitchInputMapper& mapper =
+            getMapperForDevice<ThreadSafeFuzzedDataProvider,
+                               SwitchInputMapper>(*fdp.get(), device, InputReaderConfiguration{});
 
     // Loop through mapper operations until randomness is exhausted.
     while (fdp->remaining_bytes() > 0) {
@@ -36,16 +43,7 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size) {
                 },
                 [&]() -> void { mapper.getSources(); },
                 [&]() -> void {
-                    int32_t type = fdp->ConsumeBool() ? fdp->PickValueInArray(kValidTypes)
-                                                      : fdp->ConsumeIntegral<int32_t>();
-                    int32_t code = fdp->ConsumeBool() ? fdp->PickValueInArray(kValidCodes)
-                                                      : fdp->ConsumeIntegral<int32_t>();
-                    RawEvent rawEvent{fdp->ConsumeIntegral<nsecs_t>(),
-                                      fdp->ConsumeIntegral<nsecs_t>(),
-                                      fdp->ConsumeIntegral<int32_t>(),
-                                      type,
-                                      code,
-                                      fdp->ConsumeIntegral<int32_t>()};
+                    RawEvent rawEvent = getFuzzedRawEvent(*fdp);
                     std::list<NotifyArgs> unused = mapper.process(&rawEvent);
                 },
                 [&]() -> void {

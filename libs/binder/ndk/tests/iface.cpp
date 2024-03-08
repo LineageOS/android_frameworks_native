@@ -156,7 +156,10 @@ binder_status_t IFoo::addService(const char* instance) {
 }
 
 sp<IFoo> IFoo::getService(const char* instance, AIBinder** outBinder) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     AIBinder* binder = AServiceManager_getService(instance);  // maybe nullptr
+#pragma clang diagnostic pop
     if (binder == nullptr) {
         return nullptr;
     }

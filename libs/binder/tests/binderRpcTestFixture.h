@@ -79,6 +79,7 @@ struct BinderRpcTestProcessSession {
         expectAlreadyShutdown = true;
     }
 
+    BinderRpcTestProcessSession(std::unique_ptr<ProcessSession> proc) : proc(std::move(proc)){};
     BinderRpcTestProcessSession(BinderRpcTestProcessSession&&) = default;
     ~BinderRpcTestProcessSession() {
         if (!expectAlreadyShutdown) {
@@ -105,15 +106,23 @@ struct BinderRpcTestProcessSession {
     }
 };
 
-class BinderRpc : public ::testing::TestWithParam<
-                          std::tuple<SocketType, RpcSecurity, uint32_t, uint32_t, bool, bool>> {
+struct BinderRpcParam {
+    SocketType type;
+    RpcSecurity security;
+    uint32_t clientVersion;
+    uint32_t serverVersion;
+    bool singleThreaded;
+    bool noKernel;
+};
+class BinderRpc : public ::testing::TestWithParam<BinderRpcParam> {
 public:
-    SocketType socketType() const { return std::get<0>(GetParam()); }
-    RpcSecurity rpcSecurity() const { return std::get<1>(GetParam()); }
-    uint32_t clientVersion() const { return std::get<2>(GetParam()); }
-    uint32_t serverVersion() const { return std::get<3>(GetParam()); }
-    bool serverSingleThreaded() const { return std::get<4>(GetParam()); }
-    bool noKernel() const { return std::get<5>(GetParam()); }
+    // TODO: avoid unnecessary layer of indirection
+    SocketType socketType() const { return GetParam().type; }
+    RpcSecurity rpcSecurity() const { return GetParam().security; }
+    uint32_t clientVersion() const { return GetParam().clientVersion; }
+    uint32_t serverVersion() const { return GetParam().serverVersion; }
+    bool serverSingleThreaded() const { return GetParam().singleThreaded; }
+    bool noKernel() const { return GetParam().noKernel; }
 
     bool clientOrServerSingleThreaded() const {
         return !kEnableRpcThreads || serverSingleThreaded();
@@ -138,9 +147,7 @@ public:
     }
 
     BinderRpcTestProcessSession createRpcTestSocketServerProcess(const BinderRpcOptions& options) {
-        BinderRpcTestProcessSession ret{
-                .proc = createRpcTestSocketServerProcessEtc(options),
-        };
+        BinderRpcTestProcessSession ret(createRpcTestSocketServerProcessEtc(options));
 
         ret.rootBinder = ret.proc->sessions.empty() ? nullptr : ret.proc->sessions.at(0).root;
         ret.rootIface = interface_cast<IBinderRpcTest>(ret.rootBinder);
@@ -149,15 +156,16 @@ public:
     }
 
     static std::string PrintParamInfo(const testing::TestParamInfo<ParamType>& info) {
-        auto [type, security, clientVersion, serverVersion, singleThreaded, noKernel] = info.param;
-        auto ret = PrintToString(type) + "_" + newFactory(security)->toCString() + "_clientV" +
-                std::to_string(clientVersion) + "_serverV" + std::to_string(serverVersion);
-        if (singleThreaded) {
+        auto ret = PrintToString(info.param.type) + "_" +
+                newFactory(info.param.security)->toCString() + "_clientV" +
+                std::to_string(info.param.clientVersion) + "_serverV" +
+                std::to_string(info.param.serverVersion);
+        if (info.param.singleThreaded) {
             ret += "_single_threaded";
         } else {
             ret += "_multi_threaded";
         }
-        if (noKernel) {
+        if (info.param.noKernel) {
             ret += "_no_kernel";
         } else {
             ret += "_with_kernel";

@@ -34,7 +34,6 @@ cc_defaults {
         "unique_file.cpp",
         "utils.cpp",
         "utils_default.cpp",
-        "view_compiler.cpp",
         ":installd_aidl",
     ],
     shared_libs: [
@@ -254,7 +253,6 @@ cc_binary {
         "unique_file.cpp",
         "utils.cpp",
         "utils_default.cpp",
-        "view_compiler.cpp",
     ],
 
     static_libs: [

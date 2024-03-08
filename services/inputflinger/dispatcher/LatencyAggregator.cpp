@@ -126,6 +126,7 @@ void LatencyAggregator::processTimeline(const InputEventTimeline& timeline) {
 }
 
 void LatencyAggregator::processStatistics(const InputEventTimeline& timeline) {
+    std::scoped_lock lock(mLock);
     // Before we do any processing, check that we have not yet exceeded MAX_SIZE
     if (mNumSketchEventsProcessed >= MAX_EVENTS_FOR_STATISTICS) {
         return;
@@ -167,6 +168,7 @@ void LatencyAggregator::processStatistics(const InputEventTimeline& timeline) {
 }
 
 AStatsManager_PullAtomCallbackReturn LatencyAggregator::pullData(AStatsEventList* data) {
+    std::scoped_lock lock(mLock);
     std::array<std::unique_ptr<SafeBytesField>, SketchIndex::SIZE> serializedDownData;
     std::array<std::unique_ptr<SafeBytesField>, SketchIndex::SIZE> serializedMoveData;
     for (size_t i = 0; i < SketchIndex::SIZE; i++) {
@@ -257,6 +259,7 @@ void LatencyAggregator::processSlowEvent(const InputEventTimeline& timeline) {
 }
 
 std::string LatencyAggregator::dump(const char* prefix) const {
+    std::scoped_lock lock(mLock);
     std::string sketchDump = StringPrintf("%s  Sketches:\n", prefix);
     for (size_t i = 0; i < SketchIndex::SIZE; i++) {
         const int64_t numDown = mDownSketches[i]->num_values();

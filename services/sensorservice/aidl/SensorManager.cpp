@@ -188,13 +188,26 @@ ndk::ScopedAStatus SensorManagerAidl::getSensorList(std::vector<SensorInfo>* _ai
 }
 
 ::android::SensorManager& SensorManagerAidl::getInternalManager() {
-    return ::android::SensorManager::getInstanceForPackage(
-            String16(ISensorManager::descriptor));
+    int32_t version;
+    ndk::ScopedAStatus status = getInterfaceVersion(&version);
+    if (!status.isOk()) {
+        LOG(ERROR) << "Failed to get interface version with error: "
+                   << status.getDescription();
+        version = -1;
+    }
+    String16 packageName = String16(ISensorManager::descriptor);
+    packageName += String16("@") + String16(std::to_string(version).c_str());
+    return ::android::SensorManager::getInstanceForPackage(packageName);
 }
 
 /* One global looper for all event queues created from this SensorManager. */
 sp<Looper> SensorManagerAidl::getLooper() {
     std::lock_guard<std::mutex> lock(mThreadMutex);
+
+    if (!mJavaVm) {
+        LOG(ERROR) << "No Java VM. This must be running in a test or fuzzer.";
+        return mLooper;
+    }
 
     if (!mPollThread.joinable()) {
         // if thread not initialized, start thread

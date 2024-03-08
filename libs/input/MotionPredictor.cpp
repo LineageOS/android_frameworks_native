@@ -25,9 +25,9 @@
 #include <string>
 #include <vector>
 
+#include <android-base/logging.h>
 #include <android-base/strings.h>
 #include <android/input.h>
-#include <log/log.h>
 
 #include <attestation/HmacKeyManager.h>
 #include <ftl/enum.h>
@@ -60,9 +60,11 @@ TfLiteMotionPredictorSample::Point convertPrediction(
 // --- MotionPredictor ---
 
 MotionPredictor::MotionPredictor(nsecs_t predictionTimestampOffsetNanos,
-                                 std::function<bool()> checkMotionPredictionEnabled)
+                                 std::function<bool()> checkMotionPredictionEnabled,
+                                 ReportAtomFunction reportAtomFunction)
       : mPredictionTimestampOffsetNanos(predictionTimestampOffsetNanos),
-        mCheckMotionPredictionEnabled(std::move(checkMotionPredictionEnabled)) {}
+        mCheckMotionPredictionEnabled(std::move(checkMotionPredictionEnabled)),
+        mReportAtomFunction(reportAtomFunction) {}
 
 android::base::Result<void> MotionPredictor::record(const MotionEvent& event) {
     if (mLastEvent && mLastEvent->getDeviceId() != event.getDeviceId()) {
@@ -89,6 +91,13 @@ android::base::Result<void> MotionPredictor::record(const MotionEvent& event) {
     if (!mBuffers) {
         mBuffers = std::make_unique<TfLiteMotionPredictorBuffers>(mModel->inputLength());
     }
+
+    // Pass input event to the MetricsManager.
+    if (!mMetricsManager) {
+        mMetricsManager.emplace(mModel->config().predictionInterval, mModel->outputLength(),
+                                mReportAtomFunction);
+    }
+    mMetricsManager->onRecord(event);
 
     const int32_t action = event.getActionMasked();
     if (action == AMOTION_EVENT_ACTION_UP || action == AMOTION_EVENT_ACTION_CANCEL) {
@@ -135,12 +144,6 @@ android::base::Result<void> MotionPredictor::record(const MotionEvent& event) {
     }
     mLastEvent->copyFrom(&event, /*keepHistory=*/false);
 
-    // Pass input event to the MetricsManager.
-    if (!mMetricsManager) {
-        mMetricsManager.emplace(mModel->config().predictionInterval, mModel->outputLength());
-    }
-    mMetricsManager->onRecord(event);
-
     return {};
 }
 
@@ -181,7 +184,8 @@ std::unique_ptr<MotionEvent> MotionPredictor::predict(nsecs_t timestamp) {
     int64_t predictionTime = mBuffers->lastTimestamp();
     const int64_t futureTime = timestamp + mPredictionTimestampOffsetNanos;
 
-    for (int i = 0; i < predictedR.size() && predictionTime <= futureTime; ++i) {
+    for (size_t i = 0; i < static_cast<size_t>(predictedR.size()) && predictionTime <= futureTime;
+         ++i) {
         if (predictedR[i] < mModel->config().distanceNoiseFloor) {
             // Stop predicting when the predicted output is below the model's noise floor.
             //
@@ -198,12 +202,19 @@ std::unique_ptr<MotionEvent> MotionPredictor::predict(nsecs_t timestamp) {
         const TfLiteMotionPredictorSample::Point predictedPoint =
                 convertPrediction(axisFrom, axisTo, predictedR[i], predictedPhi[i]);
 
-        ALOGD_IF(isDebug(), "prediction %d: %f, %f", i, predictedPoint.x, predictedPoint.y);
+        ALOGD_IF(isDebug(), "prediction %zu: %f, %f", i, predictedPoint.x, predictedPoint.y);
         PointerCoords coords;
         coords.clear();
         coords.setAxisValue(AMOTION_EVENT_AXIS_X, predictedPoint.x);
         coords.setAxisValue(AMOTION_EVENT_AXIS_Y, predictedPoint.y);
         coords.setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, predictedPressure[i]);
+        // Copy forward tilt and orientation from the last event until they are predicted
+        // (b/291789258).
+        coords.setAxisValue(AMOTION_EVENT_AXIS_TILT,
+                            event.getAxisValue(AMOTION_EVENT_AXIS_TILT, 0));
+        coords.setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION,
+                            event.getRawPointerCoords(0)->getAxisValue(
+                                    AMOTION_EVENT_AXIS_ORIENTATION));
 
         predictionTime += mModel->config().predictionInterval;
         if (i == 0) {

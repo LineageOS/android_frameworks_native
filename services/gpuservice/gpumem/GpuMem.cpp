@@ -77,7 +77,7 @@ void GpuMem::initialize() {
     mInitialized.store(true);
 }
 
-void GpuMem::setGpuMemTotalMap(bpf::BpfMap<uint64_t, uint64_t>& map) {
+void GpuMem::setGpuMemTotalMap(bpf::BpfMapRO<uint64_t, uint64_t>& map) {
     mGpuMemTotalMap = std::move(map);
 }
 

@@ -30,9 +30,12 @@
 #include <gmock/gmock.h>
 #pragma clang diagnostic pop
 
+#include <common/FlagManager.h>
 #include <gui/LayerMetadata.h>
 #include <log/log.h>
+#include <chrono>
 
+#include <common/test/FlagUtils.h>
 #include "DisplayHardware/DisplayMode.h"
 #include "DisplayHardware/HWComposer.h"
 #include "DisplayHardware/Hal.h"
@@ -40,22 +43,25 @@
 #include "mock/DisplayHardware/MockComposer.h"
 #include "mock/DisplayHardware/MockHWC2.h"
 
+#include <com_android_graphics_surfaceflinger_flags.h>
+
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
 #pragma clang diagnostic pop // ignored "-Wconversion"
 
 namespace android {
-namespace {
 
 namespace V2_1 = hardware::graphics::composer::V2_1;
 namespace V2_4 = hardware::graphics::composer::V2_4;
 namespace aidl = aidl::android::hardware::graphics::composer3;
+using namespace std::chrono_literals;
 
 using Hwc2::Config;
 
+using ::aidl::android::hardware::graphics::common::DisplayHotplugEvent;
 using ::aidl::android::hardware::graphics::composer3::RefreshRateChangedDebugData;
+using hal::IComposerClient;
 using ::testing::_;
 using ::testing::DoAll;
-using ::testing::ElementsAreArray;
 using ::testing::Return;
 using ::testing::SetArgPointee;
 using ::testing::StrictMock;
@@ -119,6 +125,261 @@ TEST_F(HWComposerTest, getActiveMode) {
     }
 }
 
+TEST_F(HWComposerTest, getModesWithLegacyDisplayConfigs) {
+    constexpr hal::HWDisplayId kHwcDisplayId = 2;
+    constexpr hal::HWConfigId kConfigId = 42;
+    constexpr int32_t kMaxFrameIntervalNs = 50000000; // 20Fps
+
+    expectHotplugConnect(kHwcDisplayId);
+    const auto info = mHwc.onHotplug(kHwcDisplayId, hal::Connection::CONNECTED);
+    ASSERT_TRUE(info);
+
+    EXPECT_CALL(*mHal, isVrrSupported()).WillRepeatedly(Return(false));
+
+    {
+        EXPECT_CALL(*mHal, getDisplayConfigs(kHwcDisplayId, _))
+                .WillOnce(Return(HalError::BAD_DISPLAY));
+        EXPECT_TRUE(mHwc.getModes(info->id, kMaxFrameIntervalNs).empty());
+    }
+    {
+        constexpr int32_t kWidth = 480;
+        constexpr int32_t kHeight = 720;
+        constexpr int32_t kConfigGroup = 1;
+        constexpr int32_t kVsyncPeriod = 16666667;
+
+        EXPECT_CALL(*mHal,
+                    getDisplayAttribute(kHwcDisplayId, kConfigId, IComposerClient::Attribute::WIDTH,
+                                        _))
+                .WillRepeatedly(DoAll(SetArgPointee<3>(kWidth), Return(HalError::NONE)));
+        EXPECT_CALL(*mHal,
+                    getDisplayAttribute(kHwcDisplayId, kConfigId,
+                                        IComposerClient::Attribute::HEIGHT, _))
+                .WillRepeatedly(DoAll(SetArgPointee<3>(kHeight), Return(HalError::NONE)));
+        EXPECT_CALL(*mHal,
+                    getDisplayAttribute(kHwcDisplayId, kConfigId,
+                                        IComposerClient::Attribute::CONFIG_GROUP, _))
+                .WillRepeatedly(DoAll(SetArgPointee<3>(kConfigGroup), Return(HalError::NONE)));
+        EXPECT_CALL(*mHal,
+                    getDisplayAttribute(kHwcDisplayId, kConfigId,
+                                        IComposerClient::Attribute::VSYNC_PERIOD, _))
+                .WillRepeatedly(DoAll(SetArgPointee<3>(kVsyncPeriod), Return(HalError::NONE)));
+
+        // Optional Parameters UNSUPPORTED
+        EXPECT_CALL(*mHal,
+                    getDisplayAttribute(kHwcDisplayId, kConfigId, IComposerClient::Attribute::DPI_X,
+                                        _))
+                .WillOnce(Return(HalError::UNSUPPORTED));
+        EXPECT_CALL(*mHal,
+                    getDisplayAttribute(kHwcDisplayId, kConfigId, IComposerClient::Attribute::DPI_Y,
+                                        _))
+                .WillOnce(Return(HalError::UNSUPPORTED));
+
+        EXPECT_CALL(*mHal, getDisplayConfigs(kHwcDisplayId, _))
+                .WillRepeatedly(DoAll(SetArgPointee<1>(std::vector<hal::HWConfigId>{kConfigId}),
+                                      Return(HalError::NONE)));
+
+        auto modes = mHwc.getModes(info->id, kMaxFrameIntervalNs);
+        EXPECT_EQ(modes.size(), size_t{1});
+        EXPECT_EQ(modes.front().hwcId, kConfigId);
+        EXPECT_EQ(modes.front().width, kWidth);
+        EXPECT_EQ(modes.front().height, kHeight);
+        EXPECT_EQ(modes.front().configGroup, kConfigGroup);
+        EXPECT_EQ(modes.front().vsyncPeriod, kVsyncPeriod);
+        EXPECT_EQ(modes.front().dpiX, -1);
+        EXPECT_EQ(modes.front().dpiY, -1);
+
+        // Optional parameters are supported
+        constexpr int32_t kDpi = 320;
+        EXPECT_CALL(*mHal,
+                    getDisplayAttribute(kHwcDisplayId, kConfigId, IComposerClient::Attribute::DPI_X,
+                                        _))
+                .WillOnce(DoAll(SetArgPointee<3>(kDpi), Return(HalError::NONE)));
+        EXPECT_CALL(*mHal,
+                    getDisplayAttribute(kHwcDisplayId, kConfigId, IComposerClient::Attribute::DPI_Y,
+                                        _))
+                .WillOnce(DoAll(SetArgPointee<3>(kDpi), Return(HalError::NONE)));
+
+        modes = mHwc.getModes(info->id, kMaxFrameIntervalNs);
+        EXPECT_EQ(modes.size(), size_t{1});
+        EXPECT_EQ(modes.front().hwcId, kConfigId);
+        EXPECT_EQ(modes.front().width, kWidth);
+        EXPECT_EQ(modes.front().height, kHeight);
+        EXPECT_EQ(modes.front().configGroup, kConfigGroup);
+        EXPECT_EQ(modes.front().vsyncPeriod, kVsyncPeriod);
+        // DPI values are scaled by 1000 in the legacy implementation.
+        EXPECT_EQ(modes.front().dpiX, kDpi / 1000.f);
+        EXPECT_EQ(modes.front().dpiY, kDpi / 1000.f);
+    }
+}
+
+TEST_F(HWComposerTest, getModesWithDisplayConfigurations_VRR_OFF) {
+    // if vrr_config is off, getDisplayConfigurationsSupported() is off as well
+    // then getModesWithLegacyDisplayConfigs should be called instead
+    SET_FLAG_FOR_TEST(com::android::graphics::surfaceflinger::flags::vrr_config, false);
+    ASSERT_FALSE(FlagManager::getInstance().vrr_config());
+
+    constexpr hal::HWDisplayId kHwcDisplayId = 2;
+    constexpr hal::HWConfigId kConfigId = 42;
+    constexpr int32_t kMaxFrameIntervalNs = 50000000; // 20Fps
+
+    expectHotplugConnect(kHwcDisplayId);
+    const auto info = mHwc.onHotplug(kHwcDisplayId, hal::Connection::CONNECTED);
+    ASSERT_TRUE(info);
+
+    EXPECT_CALL(*mHal, isVrrSupported()).WillRepeatedly(Return(false));
+
+    {
+        EXPECT_CALL(*mHal, getDisplayConfigs(kHwcDisplayId, _))
+                .WillOnce(Return(HalError::BAD_DISPLAY));
+        EXPECT_TRUE(mHwc.getModes(info->id, kMaxFrameIntervalNs).empty());
+    }
+    {
+        constexpr int32_t kWidth = 480;
+        constexpr int32_t kHeight = 720;
+        constexpr int32_t kConfigGroup = 1;
+        constexpr int32_t kVsyncPeriod = 16666667;
+
+        EXPECT_CALL(*mHal,
+                    getDisplayAttribute(kHwcDisplayId, kConfigId, IComposerClient::Attribute::WIDTH,
+                                        _))
+                .WillRepeatedly(DoAll(SetArgPointee<3>(kWidth), Return(HalError::NONE)));
+        EXPECT_CALL(*mHal,
+                    getDisplayAttribute(kHwcDisplayId, kConfigId,
+                                        IComposerClient::Attribute::HEIGHT, _))
+                .WillRepeatedly(DoAll(SetArgPointee<3>(kHeight), Return(HalError::NONE)));
+        EXPECT_CALL(*mHal,
+                    getDisplayAttribute(kHwcDisplayId, kConfigId,
+                                        IComposerClient::Attribute::CONFIG_GROUP, _))
+                .WillRepeatedly(DoAll(SetArgPointee<3>(kConfigGroup), Return(HalError::NONE)));
+        EXPECT_CALL(*mHal,
+                    getDisplayAttribute(kHwcDisplayId, kConfigId,
+                                        IComposerClient::Attribute::VSYNC_PERIOD, _))
+                .WillRepeatedly(DoAll(SetArgPointee<3>(kVsyncPeriod), Return(HalError::NONE)));
+
+        // Optional Parameters UNSUPPORTED
+        EXPECT_CALL(*mHal,
+                    getDisplayAttribute(kHwcDisplayId, kConfigId, IComposerClient::Attribute::DPI_X,
+                                        _))
+                .WillOnce(Return(HalError::UNSUPPORTED));
+        EXPECT_CALL(*mHal,
+                    getDisplayAttribute(kHwcDisplayId, kConfigId, IComposerClient::Attribute::DPI_Y,
+                                        _))
+                .WillOnce(Return(HalError::UNSUPPORTED));
+
+        EXPECT_CALL(*mHal, getDisplayConfigs(kHwcDisplayId, _))
+                .WillRepeatedly(DoAll(SetArgPointee<1>(std::vector<hal::HWConfigId>{kConfigId}),
+                                      Return(HalError::NONE)));
+
+        auto modes = mHwc.getModes(info->id, kMaxFrameIntervalNs);
+        EXPECT_EQ(modes.size(), size_t{1});
+        EXPECT_EQ(modes.front().hwcId, kConfigId);
+        EXPECT_EQ(modes.front().width, kWidth);
+        EXPECT_EQ(modes.front().height, kHeight);
+        EXPECT_EQ(modes.front().configGroup, kConfigGroup);
+        EXPECT_EQ(modes.front().vsyncPeriod, kVsyncPeriod);
+        EXPECT_EQ(modes.front().dpiX, -1);
+        EXPECT_EQ(modes.front().dpiY, -1);
+
+        // Optional parameters are supported
+        constexpr int32_t kDpi = 320;
+        EXPECT_CALL(*mHal,
+                    getDisplayAttribute(kHwcDisplayId, kConfigId, IComposerClient::Attribute::DPI_X,
+                                        _))
+                .WillOnce(DoAll(SetArgPointee<3>(kDpi), Return(HalError::NONE)));
+        EXPECT_CALL(*mHal,
+                    getDisplayAttribute(kHwcDisplayId, kConfigId, IComposerClient::Attribute::DPI_Y,
+                                        _))
+                .WillOnce(DoAll(SetArgPointee<3>(kDpi), Return(HalError::NONE)));
+
+        modes = mHwc.getModes(info->id, kMaxFrameIntervalNs);
+        EXPECT_EQ(modes.size(), size_t{1});
+        EXPECT_EQ(modes.front().hwcId, kConfigId);
+        EXPECT_EQ(modes.front().width, kWidth);
+        EXPECT_EQ(modes.front().height, kHeight);
+        EXPECT_EQ(modes.front().configGroup, kConfigGroup);
+        EXPECT_EQ(modes.front().vsyncPeriod, kVsyncPeriod);
+        // DPI values are scaled by 1000 in the legacy implementation.
+        EXPECT_EQ(modes.front().dpiX, kDpi / 1000.f);
+        EXPECT_EQ(modes.front().dpiY, kDpi / 1000.f);
+    }
+}
+
+TEST_F(HWComposerTest, getModesWithDisplayConfigurations_VRR_ON) {
+    SET_FLAG_FOR_TEST(com::android::graphics::surfaceflinger::flags::vrr_config, true);
+    ASSERT_TRUE(FlagManager::getInstance().vrr_config());
+
+    constexpr hal::HWDisplayId kHwcDisplayId = 2;
+    constexpr hal::HWConfigId kConfigId = 42;
+    constexpr int32_t kMaxFrameIntervalNs = 50000000; // 20Fps
+    expectHotplugConnect(kHwcDisplayId);
+    const auto info = mHwc.onHotplug(kHwcDisplayId, hal::Connection::CONNECTED);
+    ASSERT_TRUE(info);
+
+    EXPECT_CALL(*mHal, isVrrSupported()).WillRepeatedly(Return(true));
+
+    {
+        EXPECT_CALL(*mHal, getDisplayConfigurations(kHwcDisplayId, _, _))
+                .WillOnce(Return(HalError::BAD_DISPLAY));
+        EXPECT_TRUE(mHwc.getModes(info->id, kMaxFrameIntervalNs).empty());
+    }
+    {
+        constexpr int32_t kWidth = 480;
+        constexpr int32_t kHeight = 720;
+        constexpr int32_t kConfigGroup = 1;
+        constexpr int32_t kVsyncPeriod = 16666667;
+        const hal::VrrConfig vrrConfig =
+                hal::VrrConfig{.minFrameIntervalNs = static_cast<Fps>(120_Hz).getPeriodNsecs(),
+                               .notifyExpectedPresentConfig = hal::VrrConfig::
+                                       NotifyExpectedPresentConfig{.notifyExpectedPresentHeadsUpNs =
+                                                                           ms2ns(30),
+                                                                   .notifyExpectedPresentTimeoutNs =
+                                                                           ms2ns(30)}};
+        hal::DisplayConfiguration displayConfiguration{.configId = kConfigId,
+                                                       .width = kWidth,
+                                                       .height = kHeight,
+                                                       .configGroup = kConfigGroup,
+                                                       .vsyncPeriod = kVsyncPeriod,
+                                                       .vrrConfig = vrrConfig};
+
+        EXPECT_CALL(*mHal, getDisplayConfigurations(kHwcDisplayId, _, _))
+                .WillOnce(DoAll(SetArgPointee<2>(std::vector<hal::DisplayConfiguration>{
+                                        displayConfiguration}),
+                                Return(HalError::NONE)));
+
+        // Optional dpi not supported
+        auto modes = mHwc.getModes(info->id, kMaxFrameIntervalNs);
+        EXPECT_EQ(modes.size(), size_t{1});
+        EXPECT_EQ(modes.front().hwcId, kConfigId);
+        EXPECT_EQ(modes.front().width, kWidth);
+        EXPECT_EQ(modes.front().height, kHeight);
+        EXPECT_EQ(modes.front().configGroup, kConfigGroup);
+        EXPECT_EQ(modes.front().vsyncPeriod, kVsyncPeriod);
+        EXPECT_EQ(modes.front().vrrConfig, vrrConfig);
+        EXPECT_EQ(modes.front().dpiX, -1);
+        EXPECT_EQ(modes.front().dpiY, -1);
+
+        // Supports optional dpi parameter
+        constexpr int32_t kDpi = 320;
+        displayConfiguration.dpi = {kDpi, kDpi};
+
+        EXPECT_CALL(*mHal, getDisplayConfigurations(kHwcDisplayId, _, _))
+                .WillOnce(DoAll(SetArgPointee<2>(std::vector<hal::DisplayConfiguration>{
+                                        displayConfiguration}),
+                                Return(HalError::NONE)));
+
+        modes = mHwc.getModes(info->id, kMaxFrameIntervalNs);
+        EXPECT_EQ(modes.size(), size_t{1});
+        EXPECT_EQ(modes.front().hwcId, kConfigId);
+        EXPECT_EQ(modes.front().width, kWidth);
+        EXPECT_EQ(modes.front().height, kHeight);
+        EXPECT_EQ(modes.front().configGroup, kConfigGroup);
+        EXPECT_EQ(modes.front().vsyncPeriod, kVsyncPeriod);
+        EXPECT_EQ(modes.front().vrrConfig, vrrConfig);
+        EXPECT_EQ(modes.front().dpiX, kDpi);
+        EXPECT_EQ(modes.front().dpiY, kDpi);
+    }
+}
+
 TEST_F(HWComposerTest, onVsync) {
     constexpr hal::HWDisplayId kHwcDisplayId = 1;
     expectHotplugConnect(kHwcDisplayId);
@@ -148,7 +409,8 @@ TEST_F(HWComposerTest, onVsyncInvalid) {
 }
 
 struct MockHWC2ComposerCallback final : StrictMock<HWC2::ComposerCallback> {
-    MOCK_METHOD2(onComposerHalHotplug, void(hal::HWDisplayId, hal::Connection));
+    MOCK_METHOD(void, onComposerHalHotplugEvent, (hal::HWDisplayId, DisplayHotplugEvent),
+                (override));
     MOCK_METHOD1(onComposerHalRefresh, void(hal::HWDisplayId));
     MOCK_METHOD3(onComposerHalVsync,
                  void(hal::HWDisplayId, int64_t timestamp, std::optional<hal::VsyncPeriodNanos>));
@@ -271,5 +533,4 @@ TEST_F(HWComposerLayerGenericMetadataTest, forwardsSupportedMetadata) {
     EXPECT_EQ(hal::Error::UNSUPPORTED, result);
 }
 
-} // namespace
 } // namespace android

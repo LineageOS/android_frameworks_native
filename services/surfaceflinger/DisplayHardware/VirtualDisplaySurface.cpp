@@ -183,7 +183,7 @@ status_t VirtualDisplaySurface::prepareFrame(CompositionType compositionType) {
     return NO_ERROR;
 }
 
-status_t VirtualDisplaySurface::advanceFrame() {
+status_t VirtualDisplaySurface::advanceFrame(float hdrSdrRatio) {
     if (GpuVirtualDisplayId::tryCast(mDisplayId)) {
         return NO_ERROR;
     }
@@ -231,7 +231,7 @@ status_t VirtualDisplaySurface::advanceFrame() {
         }
         // TODO: Correctly propagate the dataspace from GL composition
         result = mHwc.setClientTarget(*halDisplayId, mFbProducerSlot, mFbFence, hwcBuffer,
-                                      ui::Dataspace::UNKNOWN);
+                                      ui::Dataspace::UNKNOWN, hdrSdrRatio);
     }
 
     return result;

@@ -22,7 +22,6 @@
 #include <BnBinderRpcCallback.h>
 #include <BnBinderRpcSession.h>
 #include <BnBinderRpcTest.h>
-#include <android-base/stringprintf.h>
 #include <binder/Binder.h>
 #include <binder/BpBinder.h>
 #include <binder/IPCThreadState.h>
@@ -37,10 +36,11 @@
 #include <string>
 #include <vector>
 
-#ifndef __TRUSTY__
-#include <android-base/file.h>
-#include <android-base/logging.h>
+#ifdef __ANDROID__
 #include <android-base/properties.h>
+#endif
+
+#ifndef __TRUSTY__
 #include <android/binder_auto_utils.h>
 #include <android/binder_libbinder.h>
 #include <binder/ProcessState.h>
@@ -57,7 +57,10 @@
 
 #include "../BuildFlags.h"
 #include "../FdTrigger.h"
+#include "../FdUtils.h"
 #include "../RpcState.h" // for debugging
+#include "FileUtils.h"
+#include "format.h"
 #include "utils/Errors.h"
 
 namespace android {
@@ -70,17 +73,27 @@ static inline std::vector<RpcSecurity> RpcSecurityValues() {
     return {RpcSecurity::RAW, RpcSecurity::TLS};
 }
 
+static inline bool hasExperimentalRpc() {
+#ifdef __ANDROID__
+    return base::GetProperty("ro.build.version.codename", "") != "REL";
+#else
+    return false;
+#endif
+}
+
 static inline std::vector<uint32_t> testVersions() {
     std::vector<uint32_t> versions;
     for (size_t i = 0; i < RPC_WIRE_PROTOCOL_VERSION_NEXT; i++) {
         versions.push_back(i);
     }
-    versions.push_back(RPC_WIRE_PROTOCOL_VERSION_EXPERIMENTAL);
+    if (hasExperimentalRpc()) {
+        versions.push_back(RPC_WIRE_PROTOCOL_VERSION_EXPERIMENTAL);
+    }
     return versions;
 }
 
 static inline std::string trustyIpcPort(uint32_t serverVersion) {
-    return base::StringPrintf("com.android.trusty.binderRpcTestService.V%" PRIu32, serverVersion);
+    return std::format("com.android.trusty.binderRpcTestService.V{}", serverVersion);
 }
 
 enum class SocketType {
@@ -144,33 +157,34 @@ struct BinderRpcOptions {
 };
 
 #ifndef __TRUSTY__
-static inline void writeString(android::base::borrowed_fd fd, std::string_view str) {
+static inline void writeString(binder::borrowed_fd fd, std::string_view str) {
     uint64_t length = str.length();
-    CHECK(android::base::WriteFully(fd, &length, sizeof(length)));
-    CHECK(android::base::WriteFully(fd, str.data(), str.length()));
+    LOG_ALWAYS_FATAL_IF(!android::binder::WriteFully(fd, &length, sizeof(length)));
+    LOG_ALWAYS_FATAL_IF(!android::binder::WriteFully(fd, str.data(), str.length()));
 }
 
-static inline std::string readString(android::base::borrowed_fd fd) {
+static inline std::string readString(binder::borrowed_fd fd) {
     uint64_t length;
-    CHECK(android::base::ReadFully(fd, &length, sizeof(length)));
+    LOG_ALWAYS_FATAL_IF(!android::binder::ReadFully(fd, &length, sizeof(length)));
     std::string ret(length, '\0');
-    CHECK(android::base::ReadFully(fd, ret.data(), length));
+    LOG_ALWAYS_FATAL_IF(!android::binder::ReadFully(fd, ret.data(), length));
     return ret;
 }
 
-static inline void writeToFd(android::base::borrowed_fd fd, const Parcelable& parcelable) {
+static inline void writeToFd(binder::borrowed_fd fd, const Parcelable& parcelable) {
     Parcel parcel;
-    CHECK_EQ(OK, parcelable.writeToParcel(&parcel));
+    LOG_ALWAYS_FATAL_IF(OK != parcelable.writeToParcel(&parcel));
     writeString(fd, std::string(reinterpret_cast<const char*>(parcel.data()), parcel.dataSize()));
 }
 
 template <typename T>
-static inline T readFromFd(android::base::borrowed_fd fd) {
+static inline T readFromFd(binder::borrowed_fd fd) {
     std::string data = readString(fd);
     Parcel parcel;
-    CHECK_EQ(OK, parcel.setData(reinterpret_cast<const uint8_t*>(data.data()), data.size()));
+    LOG_ALWAYS_FATAL_IF(OK !=
+                        parcel.setData(reinterpret_cast<const uint8_t*>(data.data()), data.size()));
     T object;
-    CHECK_EQ(OK, object.readFromParcel(&parcel));
+    LOG_ALWAYS_FATAL_IF(OK != object.readFromParcel(&parcel));
     return object;
 }
 
@@ -195,12 +209,12 @@ static inline std::unique_ptr<RpcTransportCtxFactory> newTlsFactory(
 }
 
 // Create an FD that returns `contents` when read.
-static inline base::unique_fd mockFileDescriptor(std::string contents) {
-    android::base::unique_fd readFd, writeFd;
-    CHECK(android::base::Pipe(&readFd, &writeFd)) << strerror(errno);
+static inline binder::unique_fd mockFileDescriptor(std::string contents) {
+    binder::unique_fd readFd, writeFd;
+    LOG_ALWAYS_FATAL_IF(!binder::Pipe(&readFd, &writeFd), "%s", strerror(errno));
     RpcMaybeThread([writeFd = std::move(writeFd), contents = std::move(contents)]() {
         signal(SIGPIPE, SIG_IGN); // ignore possible SIGPIPE from the write
-        if (!WriteStringToFd(contents, writeFd)) {
+        if (!android::binder::WriteStringToFd(contents, writeFd)) {
             int savedErrno = errno;
             LOG_ALWAYS_FATAL_IF(EPIPE != savedErrno, "mockFileDescriptor write failed: %s",
                                 strerror(savedErrno));
@@ -379,7 +393,7 @@ public:
         }
 
         if (delayed) {
-            RpcMaybeThread([=]() {
+            RpcMaybeThread([=, this]() {
                 ALOGE("Executing delayed callback: '%s'", value.c_str());
                 Status status = doCallback(callback, oneway, false, value);
                 ALOGE("Delayed callback status: '%s'", status.toString8().c_str());

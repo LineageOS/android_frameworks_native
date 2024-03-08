@@ -15,6 +15,8 @@
  */
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
+#include <sys/types.h>
+#include <cstdint>
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wconversion"
 
@@ -31,26 +33,22 @@ protected:
         LayerTransactionTest::SetUp();
         ASSERT_EQ(NO_ERROR, mClient->initCheck());
 
-        const auto ids = SurfaceComposerClient::getPhysicalDisplayIds();
-        ASSERT_FALSE(ids.empty());
-        mDisplayToken = SurfaceComposerClient::getPhysicalDisplayToken(ids.front());
-        ASSERT_FALSE(mDisplayToken == nullptr);
-
-        ui::DisplayMode mode;
-        ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayMode(mDisplayToken, &mode));
-        const ui::Size& resolution = mode.resolution;
-
-        mDisplaySize = resolution;
+        // Root surface
+        mRootSurfaceControl =
+                createLayer(String8("RootTestSurface"), mDisplayWidth, mDisplayHeight, 0);
+        ASSERT_TRUE(mRootSurfaceControl != nullptr);
+        ASSERT_TRUE(mRootSurfaceControl->isValid());
 
         // Background surface
-        mBGSurfaceControl = createLayer(String8("BG Test Surface"), resolution.getWidth(),
-                                        resolution.getHeight(), 0);
+        mBGSurfaceControl = createLayer(String8("BG Test Surface"), mDisplayWidth, mDisplayHeight,
+                                        0, mRootSurfaceControl.get());
         ASSERT_TRUE(mBGSurfaceControl != nullptr);
         ASSERT_TRUE(mBGSurfaceControl->isValid());
         TransactionUtils::fillSurfaceRGBA8(mBGSurfaceControl, 63, 63, 195);
 
         // Foreground surface
-        mFGSurfaceControl = createLayer(String8("FG Test Surface"), 64, 64, 0);
+        mFGSurfaceControl =
+                createLayer(String8("FG Test Surface"), 64, 64, 0, mRootSurfaceControl.get());
 
         ASSERT_TRUE(mFGSurfaceControl != nullptr);
         ASSERT_TRUE(mFGSurfaceControl->isValid());
@@ -58,7 +56,7 @@ protected:
         TransactionUtils::fillSurfaceRGBA8(mFGSurfaceControl, 195, 63, 63);
 
         asTransaction([&](Transaction& t) {
-            t.setDisplayLayerStack(mDisplayToken, ui::DEFAULT_LAYER_STACK);
+            t.setDisplayLayerStack(mDisplay, ui::DEFAULT_LAYER_STACK);
 
             t.setLayer(mBGSurfaceControl, INT32_MAX - 2).show(mBGSurfaceControl);
 
@@ -66,25 +64,22 @@ protected:
                     .setPosition(mFGSurfaceControl, 64, 64)
                     .show(mFGSurfaceControl);
         });
+
+        mCaptureArgs.sourceCrop = mDisplayRect;
+        mCaptureArgs.layerHandle = mRootSurfaceControl->getHandle();
     }
 
     virtual void TearDown() {
         LayerTransactionTest::TearDown();
         mBGSurfaceControl = 0;
         mFGSurfaceControl = 0;
-
-        // Restore display rotation
-        asTransaction([&](Transaction& t) {
-            Rect displayBounds{mDisplaySize};
-            t.setDisplayProjection(mDisplayToken, ui::ROTATION_0, displayBounds, displayBounds);
-        });
     }
 
+    sp<SurfaceControl> mRootSurfaceControl;
     sp<SurfaceControl> mBGSurfaceControl;
     sp<SurfaceControl> mFGSurfaceControl;
     std::unique_ptr<ScreenCapture> mCapture;
-    sp<IBinder> mDisplayToken;
-    ui::Size mDisplaySize;
+    LayerCaptureArgs mCaptureArgs;
 };
 
 TEST_F(ScreenCaptureTest, SetFlagsSecureEUidSystem) {
@@ -92,7 +87,8 @@ TEST_F(ScreenCaptureTest, SetFlagsSecureEUidSystem) {
     ASSERT_NO_FATAL_FAILURE(
             layer = createLayer("test", 32, 32,
                                 ISurfaceComposerClient::eSecure |
-                                        ISurfaceComposerClient::eFXSurfaceBufferQueue));
+                                        ISurfaceComposerClient::eFXSurfaceBufferQueue,
+                                mRootSurfaceControl.get()));
     ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 32, 32));
 
     Transaction().show(layer).setLayer(layer, INT32_MAX).apply(true);
@@ -100,30 +96,45 @@ TEST_F(ScreenCaptureTest, SetFlagsSecureEUidSystem) {
     {
         // Ensure the UID is not root because root has all permissions
         UIDFaker f(AID_APP_START);
-        ASSERT_EQ(PERMISSION_DENIED, ScreenCapture::captureDisplay(mCaptureArgs, mCaptureResults));
+        ASSERT_EQ(PERMISSION_DENIED, ScreenCapture::captureLayers(mCaptureArgs, mCaptureResults));
     }
-
-    UIDFaker f(AID_SYSTEM);
-
-    // By default the system can capture screenshots with secure layers but they
-    // will be blacked out
-    ASSERT_EQ(NO_ERROR, ScreenCapture::captureDisplay(mCaptureArgs, mCaptureResults));
 
     {
-        SCOPED_TRACE("as system");
-        auto shot = screenshot();
-        shot->expectColor(Rect(0, 0, 32, 32), Color::BLACK);
+        UIDFaker f(AID_SYSTEM);
+
+        // By default the system can capture screenshots with secure layers but they
+        // will be blacked out
+        ASSERT_EQ(NO_ERROR, ScreenCapture::captureLayers(mCaptureArgs, mCaptureResults));
+
+        {
+            SCOPED_TRACE("as system");
+            auto shot = screenshot();
+            shot->expectColor(Rect(0, 0, 32, 32), Color::BLACK);
+        }
+
+        mCaptureArgs.captureSecureLayers = true;
+        // AID_SYSTEM is allowed to capture secure content.
+        ASSERT_EQ(NO_ERROR, ScreenCapture::captureLayers(mCaptureArgs, mCaptureResults));
+        ASSERT_TRUE(mCaptureResults.capturedSecureLayers);
+        ScreenCapture sc(mCaptureResults.buffer, mCaptureResults.capturedHdrLayers);
+        sc.expectColor(Rect(0, 0, 32, 32), Color::RED);
     }
 
-    // Here we pass captureSecureLayers = true and since we are AID_SYSTEM we should be able
-    // to receive them...we are expected to take care with the results.
-    DisplayCaptureArgs args;
-    args.displayToken = mDisplay;
-    args.captureSecureLayers = true;
-    ASSERT_EQ(NO_ERROR, ScreenCapture::captureDisplay(args, mCaptureResults));
-    ASSERT_TRUE(mCaptureResults.capturedSecureLayers);
-    ScreenCapture sc(mCaptureResults.buffer, mCaptureResults.capturedHdrLayers);
-    sc.expectColor(Rect(0, 0, 32, 32), Color::RED);
+    {
+        // Attempt secure screenshot from shell since it doesn't have CAPTURE_BLACKOUT_CONTENT
+        // permission, but is allowed normal screenshots.
+        UIDFaker faker(AID_SHELL);
+        ASSERT_EQ(PERMISSION_DENIED, ScreenCapture::captureLayers(mCaptureArgs, mCaptureResults));
+    }
+
+    // Remove flag secure from the layer.
+    Transaction().setFlags(layer, 0, layer_state_t::eLayerSecure).apply(true);
+    {
+        // Assert that screenshot fails without CAPTURE_BLACKOUT_CONTENT when requesting
+        // captureSecureLayers even if there are no actual secure layers on screen.
+        UIDFaker faker(AID_SHELL);
+        ASSERT_EQ(PERMISSION_DENIED, ScreenCapture::captureLayers(mCaptureArgs, mCaptureResults));
+    }
 }
 
 TEST_F(ScreenCaptureTest, CaptureChildSetParentFlagsSecureEUidSystem) {
@@ -131,7 +142,8 @@ TEST_F(ScreenCaptureTest, CaptureChildSetParentFlagsSecureEUidSystem) {
     ASSERT_NO_FATAL_FAILURE(
             parentLayer = createLayer("parent-test", 32, 32,
                                       ISurfaceComposerClient::eSecure |
-                                              ISurfaceComposerClient::eFXSurfaceBufferQueue));
+                                              ISurfaceComposerClient::eFXSurfaceBufferQueue,
+                                      mRootSurfaceControl.get()));
     ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(parentLayer, Color::RED, 32, 32));
 
     sp<SurfaceControl> childLayer;
@@ -152,13 +164,138 @@ TEST_F(ScreenCaptureTest, CaptureChildSetParentFlagsSecureEUidSystem) {
 
     // Here we pass captureSecureLayers = true and since we are AID_SYSTEM we should be able
     // to receive them...we are expected to take care with the results.
-    DisplayCaptureArgs args;
-    args.displayToken = mDisplay;
-    args.captureSecureLayers = true;
-    ASSERT_EQ(NO_ERROR, ScreenCapture::captureDisplay(args, mCaptureResults));
+    mCaptureArgs.captureSecureLayers = true;
+    ASSERT_EQ(NO_ERROR, ScreenCapture::captureLayers(mCaptureArgs, mCaptureResults));
     ASSERT_TRUE(mCaptureResults.capturedSecureLayers);
     ScreenCapture sc(mCaptureResults.buffer, mCaptureResults.capturedHdrLayers);
     sc.expectColor(Rect(0, 0, 10, 10), Color::BLUE);
+}
+
+/**
+ * If a parent layer sets the secure flag, but the screenshot requests is for the child hierarchy,
+ * we need to ensure the secure flag is respected from the parent even though the parent isn't
+ * in the captured sub-hierarchy
+ */
+TEST_F(ScreenCaptureTest, CaptureChildRespectsParentSecureFlag) {
+    Rect size(0, 0, 100, 100);
+    Transaction().hide(mBGSurfaceControl).hide(mFGSurfaceControl).apply();
+    sp<SurfaceControl> parentLayer;
+    ASSERT_NO_FATAL_FAILURE(parentLayer = createLayer("parent-test", 0, 0,
+                                                      ISurfaceComposerClient::eHidden,
+                                                      mRootSurfaceControl.get()));
+
+    sp<SurfaceControl> childLayer;
+    ASSERT_NO_FATAL_FAILURE(childLayer = createLayer("child-test", 0, 0,
+                                                     ISurfaceComposerClient::eFXSurfaceBufferState,
+                                                     parentLayer.get()));
+    ASSERT_NO_FATAL_FAILURE(
+            fillBufferLayerColor(childLayer, Color::GREEN, size.width(), size.height()));
+
+    // hide the parent layer to ensure secure flag is passed down to child when screenshotting
+    Transaction().setLayer(parentLayer, INT32_MAX).show(childLayer).apply(true);
+    Transaction()
+            .setFlags(parentLayer, layer_state_t::eLayerSecure, layer_state_t::eLayerSecure)
+            .apply();
+    LayerCaptureArgs captureArgs;
+    captureArgs.layerHandle = childLayer->getHandle();
+    captureArgs.sourceCrop = size;
+    captureArgs.captureSecureLayers = false;
+    {
+        SCOPED_TRACE("parent hidden");
+        ASSERT_EQ(NO_ERROR, ScreenCapture::captureLayers(captureArgs, mCaptureResults));
+        ASSERT_TRUE(mCaptureResults.capturedSecureLayers);
+        ScreenCapture sc(mCaptureResults.buffer, mCaptureResults.capturedHdrLayers);
+        sc.expectColor(size, Color::BLACK);
+    }
+
+    captureArgs.captureSecureLayers = true;
+    {
+        SCOPED_TRACE("capture secure parent not visible");
+        ASSERT_EQ(NO_ERROR, ScreenCapture::captureLayers(captureArgs, mCaptureResults));
+        ASSERT_TRUE(mCaptureResults.capturedSecureLayers);
+        ScreenCapture sc(mCaptureResults.buffer, mCaptureResults.capturedHdrLayers);
+        sc.expectColor(size, Color::GREEN);
+    }
+
+    Transaction().show(parentLayer).apply();
+    captureArgs.captureSecureLayers = false;
+    {
+        SCOPED_TRACE("parent visible");
+        ASSERT_EQ(NO_ERROR, ScreenCapture::captureLayers(captureArgs, mCaptureResults));
+        ASSERT_TRUE(mCaptureResults.capturedSecureLayers);
+        ScreenCapture sc(mCaptureResults.buffer, mCaptureResults.capturedHdrLayers);
+        sc.expectColor(size, Color::BLACK);
+    }
+
+    captureArgs.captureSecureLayers = true;
+    {
+        SCOPED_TRACE("capture secure parent visible");
+        ASSERT_EQ(NO_ERROR, ScreenCapture::captureLayers(captureArgs, mCaptureResults));
+        ASSERT_TRUE(mCaptureResults.capturedSecureLayers);
+        ScreenCapture sc(mCaptureResults.buffer, mCaptureResults.capturedHdrLayers);
+        sc.expectColor(size, Color::GREEN);
+    }
+}
+
+TEST_F(ScreenCaptureTest, CaptureOffscreenChildRespectsParentSecureFlag) {
+    Rect size(0, 0, 100, 100);
+    Transaction().hide(mBGSurfaceControl).hide(mFGSurfaceControl).apply();
+    // Parent layer should be offscreen.
+    sp<SurfaceControl> parentLayer;
+    ASSERT_NO_FATAL_FAILURE(
+            parentLayer = createLayer("parent-test", 0, 0, ISurfaceComposerClient::eHidden));
+
+    sp<SurfaceControl> childLayer;
+    ASSERT_NO_FATAL_FAILURE(childLayer = createLayer("child-test", 0, 0,
+                                                     ISurfaceComposerClient::eFXSurfaceBufferState,
+                                                     parentLayer.get()));
+    ASSERT_NO_FATAL_FAILURE(
+            fillBufferLayerColor(childLayer, Color::GREEN, size.width(), size.height()));
+
+    // hide the parent layer to ensure secure flag is passed down to child when screenshotting
+    Transaction().setLayer(parentLayer, INT32_MAX).show(childLayer).apply(true);
+    Transaction()
+            .setFlags(parentLayer, layer_state_t::eLayerSecure, layer_state_t::eLayerSecure)
+            .apply();
+    LayerCaptureArgs captureArgs;
+    captureArgs.layerHandle = childLayer->getHandle();
+    captureArgs.sourceCrop = size;
+    captureArgs.captureSecureLayers = false;
+    {
+        SCOPED_TRACE("parent hidden");
+        ASSERT_EQ(NO_ERROR, ScreenCapture::captureLayers(captureArgs, mCaptureResults));
+        ASSERT_TRUE(mCaptureResults.capturedSecureLayers);
+        ScreenCapture sc(mCaptureResults.buffer, mCaptureResults.capturedHdrLayers);
+        sc.expectColor(size, Color::BLACK);
+    }
+
+    captureArgs.captureSecureLayers = true;
+    {
+        SCOPED_TRACE("capture secure parent not visible");
+        ASSERT_EQ(NO_ERROR, ScreenCapture::captureLayers(captureArgs, mCaptureResults));
+        ASSERT_TRUE(mCaptureResults.capturedSecureLayers);
+        ScreenCapture sc(mCaptureResults.buffer, mCaptureResults.capturedHdrLayers);
+        sc.expectColor(size, Color::GREEN);
+    }
+
+    Transaction().show(parentLayer).apply();
+    captureArgs.captureSecureLayers = false;
+    {
+        SCOPED_TRACE("parent visible");
+        ASSERT_EQ(NO_ERROR, ScreenCapture::captureLayers(captureArgs, mCaptureResults));
+        ASSERT_TRUE(mCaptureResults.capturedSecureLayers);
+        ScreenCapture sc(mCaptureResults.buffer, mCaptureResults.capturedHdrLayers);
+        sc.expectColor(size, Color::BLACK);
+    }
+
+    captureArgs.captureSecureLayers = true;
+    {
+        SCOPED_TRACE("capture secure parent visible");
+        ASSERT_EQ(NO_ERROR, ScreenCapture::captureLayers(captureArgs, mCaptureResults));
+        ASSERT_TRUE(mCaptureResults.capturedSecureLayers);
+        ScreenCapture sc(mCaptureResults.buffer, mCaptureResults.capturedHdrLayers);
+        sc.expectColor(size, Color::GREEN);
+    }
 }
 
 TEST_F(ScreenCaptureTest, CaptureSingleLayer) {
@@ -232,7 +369,7 @@ TEST_F(ScreenCaptureTest, CaptureLayerExclude) {
 
 TEST_F(ScreenCaptureTest, CaptureLayerExcludeThroughDisplayArgs) {
     mCaptureArgs.excludeHandles = {mFGSurfaceControl->getHandle()};
-    ScreenCapture::captureDisplay(&mCapture, mCaptureArgs);
+    ScreenCapture::captureLayers(&mCapture, mCaptureArgs);
     mCapture->expectBGColor(0, 0);
     // Doesn't capture FG layer which is at 64, 64
     mCapture->expectBGColor(64, 64);
@@ -605,60 +742,55 @@ TEST_F(ScreenCaptureTest, CaptureSecureLayer) {
     mCapture->expectColor(Rect(30, 30, 60, 60), Color::RED);
 }
 
-TEST_F(ScreenCaptureTest, CaptureDisplayWithUid) {
-    uid_t fakeUid = 12345;
+TEST_F(ScreenCaptureTest, ScreenshotProtectedBuffer) {
+    const uint32_t bufferWidth = 60;
+    const uint32_t bufferHeight = 60;
 
-    DisplayCaptureArgs captureArgs;
-    captureArgs.displayToken = mDisplay;
+    sp<SurfaceControl> layer =
+            createLayer(String8("Colored surface"), bufferWidth, bufferHeight,
+                        ISurfaceComposerClient::eFXSurfaceBufferState, mRootSurfaceControl.get());
 
-    sp<SurfaceControl> layer;
-    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test layer", 32, 32,
-                                                ISurfaceComposerClient::eFXSurfaceBufferQueue,
-                                                mBGSurfaceControl.get()));
-    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 32, 32));
+    Transaction().show(layer).setLayer(layer, INT32_MAX).apply(true);
 
-    Transaction().show(layer).setLayer(layer, INT32_MAX).apply();
+    sp<Surface> surface = layer->getSurface();
+    ASSERT_TRUE(surface != nullptr);
+    sp<ANativeWindow> anw(surface);
 
-    // Make sure red layer with the background layer is screenshot.
-    ScreenCapture::captureDisplay(&mCapture, captureArgs);
-    mCapture->expectColor(Rect(0, 0, 32, 32), Color::RED);
-    mCapture->expectBorder(Rect(0, 0, 32, 32), {63, 63, 195, 255});
+    ASSERT_EQ(NO_ERROR, native_window_api_connect(anw.get(), NATIVE_WINDOW_API_CPU));
+    ASSERT_EQ(NO_ERROR, native_window_set_usage(anw.get(), GRALLOC_USAGE_PROTECTED));
 
-    // From non system uid, can't request screenshot without a specified uid.
-    UIDFaker f(fakeUid);
-    ASSERT_EQ(PERMISSION_DENIED, ScreenCapture::captureDisplay(captureArgs, mCaptureResults));
+    int fenceFd;
+    ANativeWindowBuffer* buf = nullptr;
 
-    // Make screenshot request with current uid set. No layers were created with the current
-    // uid so screenshot will be black.
-    captureArgs.uid = fakeUid;
-    ScreenCapture::captureDisplay(&mCapture, captureArgs);
-    mCapture->expectColor(Rect(0, 0, 32, 32), Color::BLACK);
-    mCapture->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
+    // End test if device does not support USAGE_PROTECTED
+    // b/309965549 This check does not exit the test when running on AVDs
+    status_t err = anw->dequeueBuffer(anw.get(), &buf, &fenceFd);
+    if (err) {
+        return;
+    }
+    anw->queueBuffer(anw.get(), buf, fenceFd);
 
-    sp<SurfaceControl> layerWithFakeUid;
-    // Create a new layer with the current uid
-    ASSERT_NO_FATAL_FAILURE(layerWithFakeUid =
-                                    createLayer("new test layer", 32, 32,
-                                                ISurfaceComposerClient::eFXSurfaceBufferQueue,
-                                                mBGSurfaceControl.get()));
-    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layerWithFakeUid, Color::GREEN, 32, 32));
-    Transaction()
-            .show(layerWithFakeUid)
-            .setLayer(layerWithFakeUid, INT32_MAX)
-            .setPosition(layerWithFakeUid, 128, 128)
-            .apply();
+    // USAGE_PROTECTED buffer is read as a black screen
+    ScreenCaptureResults captureResults;
+    ASSERT_EQ(NO_ERROR, ScreenCapture::captureLayers(mCaptureArgs, captureResults));
 
-    // Screenshot from the fakeUid caller with the uid requested allows the layer
-    // with that uid to be screenshotted. Everything else is black
-    ScreenCapture::captureDisplay(&mCapture, captureArgs);
-    mCapture->expectColor(Rect(128, 128, 160, 160), Color::GREEN);
-    mCapture->expectBorder(Rect(128, 128, 160, 160), Color::BLACK);
+    ScreenCapture sc(captureResults.buffer, captureResults.capturedHdrLayers);
+    sc.expectColor(Rect(0, 0, bufferWidth, bufferHeight), Color::BLACK);
+
+    // Reading color data will expectedly result in crash, only check usage bit
+    // b/309965549 Checking that the usage bit is protected does not work for
+    // devices that do not support usage protected.
+    mCaptureArgs.allowProtected = true;
+    ASSERT_EQ(NO_ERROR, ScreenCapture::captureLayers(mCaptureArgs, captureResults));
+    // ASSERT_EQ(GRALLOC_USAGE_PROTECTED, GRALLOC_USAGE_PROTECTED &
+    // captureResults.buffer->getUsage());
 }
 
-TEST_F(ScreenCaptureTest, CaptureDisplayPrimaryDisplayOnly) {
+TEST_F(ScreenCaptureTest, CaptureLayer) {
     sp<SurfaceControl> layer;
-    ASSERT_NO_FATAL_FAILURE(
-            layer = createLayer("test layer", 0, 0, ISurfaceComposerClient::eFXSurfaceEffect));
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test layer", 0, 0,
+                                                ISurfaceComposerClient::eFXSurfaceEffect,
+                                                mRootSurfaceControl.get()));
 
     const Color layerColor = Color::RED;
     const Rect bounds = Rect(10, 10, 40, 40);
@@ -666,17 +798,13 @@ TEST_F(ScreenCaptureTest, CaptureDisplayPrimaryDisplayOnly) {
     Transaction()
             .show(layer)
             .hide(mFGSurfaceControl)
-            .setLayerStack(layer, ui::DEFAULT_LAYER_STACK)
             .setLayer(layer, INT32_MAX)
             .setColor(layer, {layerColor.r / 255, layerColor.g / 255, layerColor.b / 255})
             .setCrop(layer, bounds)
             .apply();
 
-    DisplayCaptureArgs captureArgs;
-    captureArgs.displayToken = mDisplay;
-
     {
-        ScreenCapture::captureDisplay(&mCapture, captureArgs);
+        ScreenCapture::captureLayers(&mCapture, mCaptureArgs);
         mCapture->expectColor(bounds, layerColor);
         mCapture->expectBorder(bounds, {63, 63, 195, 255});
     }
@@ -689,17 +817,18 @@ TEST_F(ScreenCaptureTest, CaptureDisplayPrimaryDisplayOnly) {
     {
         // Can't screenshot test layer since it now has flag
         // eLayerSkipScreenshot
-        ScreenCapture::captureDisplay(&mCapture, captureArgs);
+        ScreenCapture::captureLayers(&mCapture, mCaptureArgs);
         mCapture->expectColor(bounds, {63, 63, 195, 255});
         mCapture->expectBorder(bounds, {63, 63, 195, 255});
     }
 }
 
-TEST_F(ScreenCaptureTest, CaptureDisplayChildPrimaryDisplayOnly) {
+TEST_F(ScreenCaptureTest, CaptureLayerChild) {
     sp<SurfaceControl> layer;
     sp<SurfaceControl> childLayer;
-    ASSERT_NO_FATAL_FAILURE(
-            layer = createLayer("test layer", 0, 0, ISurfaceComposerClient::eFXSurfaceEffect));
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test layer", 0, 0,
+                                                ISurfaceComposerClient::eFXSurfaceEffect,
+                                                mRootSurfaceControl.get()));
     ASSERT_NO_FATAL_FAILURE(childLayer = createLayer("test layer", 0, 0,
                                                      ISurfaceComposerClient::eFXSurfaceEffect,
                                                      layer.get()));
@@ -713,7 +842,6 @@ TEST_F(ScreenCaptureTest, CaptureDisplayChildPrimaryDisplayOnly) {
             .show(layer)
             .show(childLayer)
             .hide(mFGSurfaceControl)
-            .setLayerStack(layer, ui::DEFAULT_LAYER_STACK)
             .setLayer(layer, INT32_MAX)
             .setColor(layer, {layerColor.r / 255, layerColor.g / 255, layerColor.b / 255})
             .setColor(childLayer, {childColor.r / 255, childColor.g / 255, childColor.b / 255})
@@ -721,11 +849,8 @@ TEST_F(ScreenCaptureTest, CaptureDisplayChildPrimaryDisplayOnly) {
             .setCrop(childLayer, childBounds)
             .apply();
 
-    DisplayCaptureArgs captureArgs;
-    captureArgs.displayToken = mDisplay;
-
     {
-        ScreenCapture::captureDisplay(&mCapture, captureArgs);
+        ScreenCapture::captureLayers(&mCapture, mCaptureArgs);
         mCapture->expectColor(childBounds, childColor);
         mCapture->expectBorder(childBounds, layerColor);
         mCapture->expectBorder(bounds, {63, 63, 195, 255});
@@ -739,7 +864,7 @@ TEST_F(ScreenCaptureTest, CaptureDisplayChildPrimaryDisplayOnly) {
     {
         // Can't screenshot child layer since the parent has the flag
         // eLayerSkipScreenshot
-        ScreenCapture::captureDisplay(&mCapture, captureArgs);
+        ScreenCapture::captureLayers(&mCapture, mCaptureArgs);
         mCapture->expectColor(childBounds, {63, 63, 195, 255});
         mCapture->expectBorder(childBounds, {63, 63, 195, 255});
         mCapture->expectBorder(bounds, {63, 63, 195, 255});
@@ -860,14 +985,10 @@ TEST_F(ScreenCaptureTest, CaptureOffscreen) {
 
     Transaction().show(layer).hide(mFGSurfaceControl).reparent(layer, nullptr).apply();
 
-    DisplayCaptureArgs displayCaptureArgs;
-    displayCaptureArgs.displayToken = mDisplay;
-
     {
         // Validate that the red layer is not on screen
-        ScreenCapture::captureDisplay(&mCapture, displayCaptureArgs);
-        mCapture->expectColor(Rect(0, 0, mDisplaySize.width, mDisplaySize.height),
-                              {63, 63, 195, 255});
+        ScreenCapture::captureLayers(&mCapture, mCaptureArgs);
+        mCapture->expectColor(Rect(0, 0, mDisplayWidth, mDisplayHeight), {63, 63, 195, 255});
     }
 
     LayerCaptureArgs captureArgs;
@@ -876,42 +997,6 @@ TEST_F(ScreenCaptureTest, CaptureOffscreen) {
     ScreenCapture::captureLayers(&mCapture, captureArgs);
     mCapture->expectSize(32, 32);
     mCapture->expectColor(Rect(0, 0, 32, 32), Color::RED);
-}
-
-TEST_F(ScreenCaptureTest, CaptureDisplayWith90DegRotation) {
-    asTransaction([&](Transaction& t) {
-        Rect newDisplayBounds{mDisplaySize.height, mDisplaySize.width};
-        t.setDisplayProjection(mDisplayToken, ui::ROTATION_90, newDisplayBounds, newDisplayBounds);
-    });
-
-    DisplayCaptureArgs displayCaptureArgs;
-    displayCaptureArgs.displayToken = mDisplayToken;
-    displayCaptureArgs.width = mDisplaySize.width;
-    displayCaptureArgs.height = mDisplaySize.height;
-    displayCaptureArgs.useIdentityTransform = true;
-    ScreenCapture::captureDisplay(&mCapture, displayCaptureArgs);
-
-    mCapture->expectBGColor(0, 0);
-    mCapture->expectFGColor(mDisplaySize.width - 65, 65);
-}
-
-TEST_F(ScreenCaptureTest, CaptureDisplayWith270DegRotation) {
-    asTransaction([&](Transaction& t) {
-        Rect newDisplayBounds{mDisplaySize.height, mDisplaySize.width};
-        t.setDisplayProjection(mDisplayToken, ui::ROTATION_270, newDisplayBounds, newDisplayBounds);
-    });
-
-    DisplayCaptureArgs displayCaptureArgs;
-    displayCaptureArgs.displayToken = mDisplayToken;
-    displayCaptureArgs.width = mDisplaySize.width;
-    displayCaptureArgs.height = mDisplaySize.height;
-    displayCaptureArgs.useIdentityTransform = true;
-    ScreenCapture::captureDisplay(&mCapture, displayCaptureArgs);
-
-    std::this_thread::sleep_for(std::chrono::seconds{5});
-
-    mCapture->expectBGColor(mDisplayWidth - 1, mDisplaySize.height - 1);
-    mCapture->expectFGColor(65, mDisplaySize.height - 65);
 }
 
 TEST_F(ScreenCaptureTest, CaptureNonHdrLayer) {

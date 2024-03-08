@@ -7,6 +7,17 @@ package {
     default_applicable_licenses: ["frameworks_native_license"],
 }
 
+aconfig_declarations {
+    name: "surfaceflinger_flags",
+    package: "com.android.graphics.surfaceflinger.flags",
+    srcs: ["surfaceflinger_flags.aconfig"],
+}
+
+cc_aconfig_library {
+    name: "libsurfaceflingerflags",
+    aconfig_declarations: "surfaceflinger_flags",
+}
+
 cc_defaults {
     name: "surfaceflinger_defaults",
     cflags: [
@@ -26,7 +37,9 @@ cc_defaults {
     name: "libsurfaceflinger_defaults",
     defaults: [
         "android.hardware.graphics.composer3-ndk_shared",
+        "android.hardware.power-ndk_shared",
         "librenderengine_deps",
+        "libtimestats_deps",
         "surfaceflinger_defaults",
         "surfaceflinger_qcom_ext_defaults",
     ],
@@ -48,7 +61,6 @@ cc_defaults {
         "android.hardware.graphics.composer@2.2",
         "android.hardware.graphics.composer@2.3",
         "android.hardware.graphics.composer@2.4",
-        "android.hardware.power-V4-cpp",
         "libbase",
         "libbinder",
         "libbinder_ndk",
@@ -59,14 +71,12 @@ cc_defaults {
         "libGLESv2",
         "libgui",
         "libhidlbase",
-        "liblayers_proto",
         "liblog",
         "libnativewindow",
         "libpowermanager",
         "libprocessgroup",
         "libprotobuf-cpp-lite",
         "libsync",
-        "libtimestats",
         "libui",
         "libinput",
         "libutils",
@@ -78,12 +88,16 @@ cc_defaults {
         "libcompositionengine",
         "libframetimeline",
         "libgui_aidl_static",
+        "liblayers_proto",
         "libperfetto_client_experimental",
         "librenderengine",
         "libscheduler",
         "libserviceutils",
         "libshaders",
+        "libsurfaceflinger_common",
+        "libtimestats",
         "libtonemap",
+        "libsurfaceflingerflags",
     ],
     header_libs: [
         "android.hardware.graphics.composer@2.1-command-buffer",
@@ -96,6 +110,7 @@ cc_defaults {
         "libcompositionengine",
         "librenderengine",
         "libserviceutils",
+        "libtimestats",
     ],
     export_shared_lib_headers: [
         "android.hardware.graphics.allocator@2.0",
@@ -107,7 +122,6 @@ cc_defaults {
         "android.hardware.graphics.composer@2.4",
         "libpowermanager",
         "libhidlbase",
-        "libtimestats",
     ],
     // TODO (marissaw): this library is not used by surfaceflinger. This is here so
     // the library compiled in a way that is accessible to system partition when running
@@ -163,11 +177,11 @@ filegroup {
         "FrontEnd/LayerLifecycleManager.cpp",
         "FrontEnd/RequestedLayerState.cpp",
         "FrontEnd/TransactionHandler.cpp",
-        "FlagManager.cpp",
         "FpsReporter.cpp",
         "FrameTracer/FrameTracer.cpp",
         "FrameTracker.cpp",
         "HdrLayerInfoReporter.cpp",
+        "HdrSdrRatioOverlay.cpp",
         "WindowInfosListenerInvoker.cpp",
         "Layer.cpp",
         "LayerFE.cpp",
@@ -197,9 +211,12 @@ filegroup {
         "StartPropertySetThread.cpp",
         "SurfaceFlinger.cpp",
         "SurfaceFlingerDefaultFactory.cpp",
+        "Tracing/LayerDataSource.cpp",
         "Tracing/LayerTracing.cpp",
+        "Tracing/TransactionDataSource.cpp",
         "Tracing/TransactionTracing.cpp",
         "Tracing/TransactionProtoParser.cpp",
+        "Tracing/tools/LayerTraceGenerator.cpp",
         "TransactionCallbackInvoker.cpp",
         "TunnelModeEnabledReporter.cpp",
     ],
@@ -215,14 +232,12 @@ cc_defaults {
         "-DLOG_TAG=\"SurfaceFlinger\"",
     ],
     shared_libs: [
-        "android.frameworks.displayservice@1.0",
         "android.hardware.configstore-utils",
         "android.hardware.configstore@1.0",
         "android.hardware.graphics.allocator@2.0",
         "android.hardware.graphics.allocator@3.0",
         "libbinder",
         "libcutils",
-        "libdisplayservicehidl",
         "libhidlbase",
         "liblog",
         "libprocessgroup",
@@ -230,6 +245,9 @@ cc_defaults {
         "libutils",
     ],
     static_libs: [
+        "android.frameworks.displayservice@1.0",
+        "libc++fs",
+        "libdisplayservicehidl",
         "libserviceutils",
     ],
 }

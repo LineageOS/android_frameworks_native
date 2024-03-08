@@ -59,6 +59,7 @@
 #include <vector>
 
 #include <aidl/android/hardware/dumpstate/IDumpstateDevice.h>
+#include <android_app_admin_flags.h>
 #include <android-base/file.h>
 #include <android-base/properties.h>
 #include <android-base/scopeguard.h>
@@ -187,6 +188,7 @@ void add_mountinfo();
 #define CGROUPFS_DIR "/sys/fs/cgroup"
 #define SDK_EXT_INFO "/apex/com.android.sdkext/bin/derive_sdk"
 #define DROPBOX_DIR "/data/system/dropbox"
+#define PRINT_FLAGS "/system/bin/printflags"
 
 // TODO(narayan): Since this information has to be kept in sync
 // with tombstoned, we should just put it in a common header.
@@ -1033,8 +1035,6 @@ static void DoLogcat() {
         CommandOptions::WithTimeoutInMs(timeout_ms).Build(), true /* verbose_duration */);
     DoRadioLogcat();
 
-    RunCommand("LOG STATISTICS", {"logcat", "-b", "all", "-S"});
-
     /* kernels must set CONFIG_PSTORE_PMSG, slice up pstore with device tree */
     RunCommand("LAST LOGCAT", {"logcat", "-L", "-b", "all", "-v", "threadtime", "-v", "printable",
                                "-v", "uid", "-d", "*:v"});
@@ -1087,8 +1087,14 @@ static void MaybeAddSystemTraceToZip() {
     // This function copies into the .zip the system trace that was snapshotted
     // by the early call to MaybeSnapshotSystemTrace(), if any background
     // tracing was happening.
-    if (!ds.has_system_trace_) {
-        // No background trace was happening at the time dumpstate was invoked.
+    bool system_trace_exists = access(SYSTEM_TRACE_SNAPSHOT, F_OK) == 0;
+    if (!system_trace_exists) {
+        // No background trace was happening at the time MaybeSnapshotSystemTrace() was invoked.
+        if (!PropertiesHelper::IsUserBuild()) {
+            MYLOGI(
+                "No system traces found. Check for previously uploaded traces by looking for "
+                "go/trace-uuid in logcat")
+        }
         return;
     }
     ds.AddZipEntry(
@@ -1235,7 +1241,7 @@ static void DumpPacketStats() {
 
 static void DumpIpAddrAndRules() {
     /* The following have a tendency to get wedged when wifi drivers/fw goes belly-up. */
-    RunCommand("NETWORK INTERFACES", {"ip", "link"});
+    RunCommand("NETWORK INTERFACES", {"ip", "-s", "link"});
     RunCommand("IPv4 ADDRESSES", {"ip", "-4", "addr", "show"});
     RunCommand("IPv6 ADDRESSES", {"ip", "-6", "addr", "show"});
     RunCommand("IP RULES", {"ip", "rule", "show"});
@@ -1420,12 +1426,12 @@ static void DumpHals(int out_fd = STDOUT_FILENO) {
     auto ret = sm->list([&](const auto& interfaces) {
         for (const std::string& interface : interfaces) {
             std::string cleanName = interface;
-            std::replace_if(cleanName.begin(),
-                            cleanName.end(),
-                            [](char c) {
-                                return !isalnum(c) &&
-                                    std::string("@-_:.").find(c) == std::string::npos;
-                            }, '_');
+            std::replace_if(
+                cleanName.begin(), cleanName.end(),
+                [](char c) {
+                    return !isalnum(c) && std::string("@-_.").find(c) == std::string::npos;
+                },
+                '_');
             const std::string path = ds.bugreport_internal_dir_ + "/lshal_debug_" + cleanName;
 
             bool empty = false;
@@ -1518,7 +1524,7 @@ static void DumpExternalFragmentationInfo() {
 }
 
 static void DumpstateLimitedOnly() {
-    // Trimmed-down version of dumpstate to only include a whitelisted
+    // Trimmed-down version of dumpstate to only include a allowlisted
     // set of logs (system log, event log, and system server / system app
     // crashes, and networking logs). See b/136273873 and b/138459828
     // for context.
@@ -1648,8 +1654,6 @@ Dumpstate::RunStatus Dumpstate::dumpstate() {
         dump_board = ds.dump_pool_->enqueueTaskWithFd(
             DUMP_BOARD_TASK, &Dumpstate::DumpstateBoard, &ds, _1);
         dump_checkins = ds.dump_pool_->enqueueTaskWithFd(DUMP_CHECKINS_TASK, &DumpCheckins, _1);
-        post_process_ui_traces = ds.dump_pool_->enqueueTask(
-            POST_PROCESS_UI_TRACES_TASK, &Dumpstate::MaybePostProcessUiTraces, &ds);
     }
 
     // Dump various things. Note that anything that takes "long" (i.e. several seconds) should
@@ -1758,6 +1762,14 @@ Dumpstate::RunStatus Dumpstate::dumpstate() {
 
     RunCommand("SYSTEM PROPERTIES", {"getprop"});
 
+    DumpFile("SYSTEM BUILD-TIME RELEASE FLAGS", "/system/etc/build_flags.json");
+    DumpFile("SYSTEM_EXT BUILD-TIME RELEASE FLAGS", "/system_ext/etc/build_flags.json");
+    DumpFile("PRODUCT BUILD-TIME RELEASE FLAGS", "/product/etc/build_flags.json");
+    DumpFile("VENDOR BUILD-TIME RELEASE FLAGS", "/vendor/etc/build_flags.json");
+
+    RunCommand("ACONFIG FLAGS", {PRINT_FLAGS},
+               CommandOptions::WithTimeout(10).Always().DropRoot().Build());
+
     RunCommand("STORAGED IO INFO", {"storaged", "-u", "-p"});
 
     RunCommand("FILESYSTEMS & FREE SPACE", {"df"});
@@ -1849,12 +1861,6 @@ Dumpstate::RunStatus Dumpstate::dumpstate() {
     } else {
         RUN_SLOW_FUNCTION_WITH_CONSENT_CHECK_AND_LOG(DUMP_INCIDENT_REPORT_TASK,
                 DumpIncidentReport);
-    }
-
-    if (ds.dump_pool_) {
-        WaitForTask(std::move(post_process_ui_traces));
-    } else {
-        RUN_SLOW_FUNCTION_AND_LOG(POST_PROCESS_UI_TRACES_TASK, MaybePostProcessUiTraces);
     }
 
     MaybeAddUiTracesToZip();
@@ -2162,6 +2168,11 @@ static void DumpstateWifiOnly() {
     printf("========================================================\n");
 }
 
+// Collects a lightweight dumpstate to be used for debugging onboarding related flows.
+static void DumpstateOnboardingOnly() {
+    ds.AddDir(LOGPERSIST_DATA_DIR, false);
+}
+
 Dumpstate::RunStatus Dumpstate::DumpTraces(const char** path) {
     const std::string temp_file_pattern = ds.bugreport_internal_dir_ + "/dumptrace_XXXXXX";
     const size_t buf_size = temp_file_pattern.length() + 1;
@@ -2294,6 +2305,7 @@ static dumpstate_hal_hidl::DumpstateMode GetDumpstateHalModeHidl(
             return dumpstate_hal_hidl::DumpstateMode::CONNECTIVITY;
         case Dumpstate::BugreportMode::BUGREPORT_WIFI:
             return dumpstate_hal_hidl::DumpstateMode::WIFI;
+        case Dumpstate::BugreportMode::BUGREPORT_ONBOARDING:
         case Dumpstate::BugreportMode::BUGREPORT_DEFAULT:
             return dumpstate_hal_hidl::DumpstateMode::DEFAULT;
     }
@@ -2315,6 +2327,7 @@ static dumpstate_hal_aidl::IDumpstateDevice::DumpstateMode GetDumpstateHalModeAi
             return dumpstate_hal_aidl::IDumpstateDevice::DumpstateMode::CONNECTIVITY;
         case Dumpstate::BugreportMode::BUGREPORT_WIFI:
             return dumpstate_hal_aidl::IDumpstateDevice::DumpstateMode::WIFI;
+        case Dumpstate::BugreportMode::BUGREPORT_ONBOARDING:
         case Dumpstate::BugreportMode::BUGREPORT_DEFAULT:
             return dumpstate_hal_aidl::IDumpstateDevice::DumpstateMode::DEFAULT;
     }
@@ -2798,6 +2811,8 @@ static inline const char* ModeToString(Dumpstate::BugreportMode mode) {
             return "BUGREPORT_TELEPHONY";
         case Dumpstate::BugreportMode::BUGREPORT_WIFI:
             return "BUGREPORT_WIFI";
+        case Dumpstate::BugreportMode::BUGREPORT_ONBOARDING:
+            return "BUGREPORT_ONBOARDING";
         case Dumpstate::BugreportMode::BUGREPORT_DEFAULT:
             return "BUGREPORT_DEFAULT";
     }
@@ -2841,6 +2856,10 @@ static void SetOptionsFromMode(Dumpstate::BugreportMode mode, Dumpstate::DumpOpt
             break;
         case Dumpstate::BugreportMode::BUGREPORT_WIFI:
             options->wifi_only = true;
+            options->do_screenshot = false;
+            break;
+        case Dumpstate::BugreportMode::BUGREPORT_ONBOARDING:
+            options->onboarding_only = true;
             options->do_screenshot = false;
             break;
         case Dumpstate::BugreportMode::BUGREPORT_DEFAULT:
@@ -2955,14 +2974,17 @@ Dumpstate::RunStatus Dumpstate::Run(int32_t calling_uid, const std::string& call
     return status;
 }
 
-Dumpstate::RunStatus Dumpstate::Retrieve(int32_t calling_uid, const std::string& calling_package) {
-    Dumpstate::RunStatus status = RetrieveInternal(calling_uid, calling_package);
+Dumpstate::RunStatus Dumpstate::Retrieve(int32_t calling_uid, const std::string& calling_package,
+                                         const bool keep_bugreport_on_retrieval) {
+    Dumpstate::RunStatus status = RetrieveInternal(calling_uid, calling_package,
+                                                    keep_bugreport_on_retrieval);
     HandleRunStatus(status);
     return status;
 }
 
 Dumpstate::RunStatus  Dumpstate::RetrieveInternal(int32_t calling_uid,
-                                                  const std::string& calling_package) {
+                                                  const std::string& calling_package,
+                                                  const bool keep_bugreport_on_retrieval) {
   consent_callback_ = new ConsentCallback();
   const String16 incidentcompanion("incidentcompanion");
   sp<android::IBinder> ics(
@@ -2997,9 +3019,12 @@ Dumpstate::RunStatus  Dumpstate::RetrieveInternal(int32_t calling_uid,
 
   bool copy_succeeded =
       android::os::CopyFileToFd(path_, options_->bugreport_fd.get());
-  if (copy_succeeded) {
-    android::os::UnlinkAndLogOnError(path_);
+
+  if (copy_succeeded && (!android::app::admin::flags::onboarding_bugreport_v2_enabled()
+                         || !keep_bugreport_on_retrieval)) {
+        android::os::UnlinkAndLogOnError(path_);
   }
+
   return copy_succeeded ? Dumpstate::RunStatus::OK
                         : Dumpstate::RunStatus::ERROR;
 }
@@ -3049,6 +3074,7 @@ void Dumpstate::Cancel() {
 }
 
 void Dumpstate::PreDumpUiData() {
+    MaybeSnapshotSystemTrace();
     MaybeSnapshotUiTraces();
 }
 
@@ -3235,25 +3261,23 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
     // duration is logged into MYLOG instead.
     PrintHeader();
 
-    bool is_dumpstate_restricted = options_->telephony_only
-                                   || options_->wifi_only
-                                   || options_->limited_only;
-    if (!is_dumpstate_restricted) {
-        // Invoke critical dumpsys first to preserve system state, before doing anything else.
-        RunDumpsysCritical();
-    }
-    MaybeTakeEarlyScreenshot();
-
+    bool is_dumpstate_restricted =
+        options_->telephony_only || options_->wifi_only || options_->limited_only;
     if (!is_dumpstate_restricted) {
         // Snapshot the system trace now (if running) to avoid that dumpstate's
         // own activity pushes out interesting data from the trace ring buffer.
         // The trace file is added to the zip by MaybeAddSystemTraceToZip().
         MaybeSnapshotSystemTrace();
 
+        // Invoke critical dumpsys to preserve system state, before doing anything else.
+        RunDumpsysCritical();
+
         // Snapshot the UI traces now (if running).
         // The trace files will be added to bugreport later.
         MaybeSnapshotUiTraces();
     }
+
+    MaybeTakeEarlyScreenshot();
     onUiIntensiveBugreportDumpsFinished(calling_uid);
     MaybeCheckUserConsent(calling_uid, calling_package);
     if (options_->telephony_only) {
@@ -3262,6 +3286,8 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
         DumpstateWifiOnly();
     } else if (options_->limited_only) {
         DumpstateLimitedOnly();
+    } else if (options_->onboarding_only) {
+        DumpstateOnboardingOnly();
     } else {
         // Dump state for the default case. This also drops root.
         RunStatus s = DumpstateDefaultAfterCritical();
@@ -3348,6 +3374,19 @@ void Dumpstate::MaybeTakeEarlyScreenshot() {
 }
 
 void Dumpstate::MaybeSnapshotSystemTrace() {
+    // When capturing traces via bugreport handler (BH), this function will be invoked twice:
+    // 1) When BH invokes IDumpstate::PreDumpUiData()
+    // 2) When BH invokes IDumpstate::startBugreport(flags = BUGREPORT_USE_PREDUMPED_UI_DATA)
+    // In this case we don't want to re-invoke perfetto in step 2.
+    // In all other standard invocation states, this function is invoked once
+    // without the flag BUGREPORT_USE_PREDUMPED_UI_DATA.
+    if (options_->use_predumped_ui_data) {
+        return;
+    }
+
+    // If a stale file exists already, remove it.
+    unlink(SYSTEM_TRACE_SNAPSHOT);
+
     // If a background system trace is happening and is marked as "suitable for
     // bugreport" (i.e. bugreport_score > 0 in the trace config), this command
     // will stop it and serialize into SYSTEM_TRACE_SNAPSHOT. In the (likely)
@@ -3355,14 +3394,8 @@ void Dumpstate::MaybeSnapshotSystemTrace() {
     // Note: this should not be enqueued as we need to freeze the trace before
     // dumpstate starts. Otherwise the trace ring buffers will contain mostly
     // the dumpstate's own activity which is irrelevant.
-    int res = RunCommand(
-        "SERIALIZE PERFETTO TRACE",
-        {"perfetto", "--save-for-bugreport"},
-        CommandOptions::WithTimeout(10)
-            .DropRoot()
-            .CloseAllFileDescriptorsOnExec()
-            .Build());
-    has_system_trace_ = res == 0;
+    RunCommand("SERIALIZE PERFETTO TRACE", {"perfetto", "--save-for-bugreport"},
+               CommandOptions::WithTimeout(10).DropRoot().CloseAllFileDescriptorsOnExec().Build());
     // MaybeAddSystemTraceToZip() will take care of copying the trace in the zip
     // file in the later stages.
 }
@@ -3389,33 +3422,6 @@ void Dumpstate::MaybeSnapshotUiTraces() {
             "", command,
             CommandOptions::WithTimeout(10).Always().DropRoot().RedirectStderr().Build());
     }
-
-    // This command needs to be run as root
-    static const auto SURFACEFLINGER_COMMAND_SAVE_ALL_TRACES = std::vector<std::string> {
-        "service", "call", "SurfaceFlinger", "1042"
-    };
-    // Empty name because it's not intended to be classified as a bugreport section.
-    // Actual tracing files can be found in "/data/misc/wmtrace/" in the bugreport.
-    RunCommand(
-        "", SURFACEFLINGER_COMMAND_SAVE_ALL_TRACES,
-        CommandOptions::WithTimeout(10).Always().AsRoot().RedirectStderr().Build());
-}
-
-void Dumpstate::MaybePostProcessUiTraces() {
-    if (PropertiesHelper::IsUserBuild()) {
-        return;
-    }
-
-    RunCommand(
-        // Empty name because it's not intended to be classified as a bugreport section.
-        // Actual tracing files can be found in "/data/misc/wmtrace/" in the bugreport.
-        "", {
-            "/system/xbin/su", "system",
-            "/system/bin/layertracegenerator",
-            "/data/misc/wmtrace/transactions_trace.winscope",
-            "/data/misc/wmtrace/layers_trace_from_transactions.winscope"
-        },
-        CommandOptions::WithTimeout(120).Always().RedirectStderr().Build());
 }
 
 void Dumpstate::MaybeAddUiTracesToZip() {

@@ -110,7 +110,7 @@ void DisplayTransactionCommitTest::verifyDisplayIsConnected(const sp<IBinder>& d
     EXPECT_EQ(static_cast<bool>(Case::Display::PRIMARY), display.isPrimary());
 
     std::optional<DisplayDeviceState::Physical> expectedPhysical;
-    if (const auto connectionType = Case::Display::CONNECTION_TYPE::value) {
+    if (Case::Display::CONNECTION_TYPE::value) {
         const auto displayId = PhysicalDisplayId::tryCast(Case::Display::DISPLAY_ID::get());
         ASSERT_TRUE(displayId);
         const auto hwcDisplayId = Case::Display::HWC_DISPLAY_ID_OPT::value;

@@ -298,7 +298,7 @@ struct TWGraphicBufferProducer : public BASE {
     }
 
     Return<void> getConsumerName(HGraphicBufferProducer::getConsumerName_cb _hidl_cb) override {
-        _hidl_cb(mBase->getConsumerName().string());
+        _hidl_cb(mBase->getConsumerName().c_str());
         return Void();
     }
 

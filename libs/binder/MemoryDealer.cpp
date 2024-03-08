@@ -155,7 +155,7 @@ private:
     void     dump_l(String8& res, const char* what) const;
 
     static const int    kMemoryAlign;
-    mutable Mutex       mLock;
+    mutable std::mutex mLock;
     LinkedList<chunk_t> mList;
     size_t              mHeapSize;
 };
@@ -305,14 +305,14 @@ size_t SimpleBestFitAllocator::size() const
 
 size_t SimpleBestFitAllocator::allocate(size_t size, uint32_t flags)
 {
-    Mutex::Autolock _l(mLock);
+    std::unique_lock<std::mutex> _l(mLock);
     ssize_t offset = alloc(size, flags);
     return offset;
 }
 
 status_t SimpleBestFitAllocator::deallocate(size_t offset)
 {
-    Mutex::Autolock _l(mLock);
+    std::unique_lock<std::mutex> _l(mLock);
     chunk_t const * const freed = dealloc(offset);
     if (freed) {
         return NO_ERROR;
@@ -420,7 +420,7 @@ SimpleBestFitAllocator::chunk_t* SimpleBestFitAllocator::dealloc(size_t start)
 
 void SimpleBestFitAllocator::dump(const char* what) const
 {
-    Mutex::Autolock _l(mLock);
+    std::unique_lock<std::mutex> _l(mLock);
     dump_l(what);
 }
 
@@ -428,13 +428,13 @@ void SimpleBestFitAllocator::dump_l(const char* what) const
 {
     String8 result;
     dump_l(result, what);
-    ALOGD("%s", result.string());
+    ALOGD("%s", result.c_str());
 }
 
 void SimpleBestFitAllocator::dump(String8& result,
         const char* what) const
 {
-    Mutex::Autolock _l(mLock);
+    std::unique_lock<std::mutex> _l(mLock);
     dump_l(result, what);
 }
 

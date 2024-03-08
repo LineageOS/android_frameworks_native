@@ -90,12 +90,12 @@ void SensorService::SensorEventConnection::dump(String8& result) {
         result.append("NORMAL\n");
     }
     result.appendFormat("\t %s | WakeLockRefCount %d | uid %d | cache size %d | "
-            "max cache size %d\n", mPackageName.string(), mWakeLockRefCount, mUid, mCacheSize,
+            "max cache size %d\n", mPackageName.c_str(), mWakeLockRefCount, mUid, mCacheSize,
             mMaxCacheSize);
     for (auto& it : mSensorInfo) {
         const FlushInfo& flushInfo = it.second;
         result.appendFormat("\t %s 0x%08x | status: %s | pending flush events %d \n",
-                            mService->getSensorName(it.first).string(),
+                            mService->getSensorName(it.first).c_str(),
                             it.first,
                             flushInfo.mFirstFlushPending ? "First flush pending" :
                                                            "active",
@@ -131,7 +131,7 @@ void SensorService::SensorEventConnection::dump(util::ProtoOutputStream* proto) 
     } else {
         proto->write(OPERATING_MODE, OP_MODE_NORMAL);
     }
-    proto->write(PACKAGE_NAME, std::string(mPackageName.string()));
+    proto->write(PACKAGE_NAME, std::string(mPackageName.c_str()));
     proto->write(WAKE_LOCK_REF_COUNT, int32_t(mWakeLockRefCount));
     proto->write(UID, int32_t(mUid));
     proto->write(CACHE_SIZE, int32_t(mCacheSize));
@@ -848,13 +848,13 @@ int SensorService::SensorEventConnection::handleEvent(int fd, int events, void* 
             if (numBytesRead == sizeof(sensors_event_t)) {
                 if (!mDataInjectionMode) {
                     ALOGE("Data injected in normal mode, dropping event"
-                          "package=%s uid=%d", mPackageName.string(), mUid);
+                          "package=%s uid=%d", mPackageName.c_str(), mUid);
                     // Unregister call backs.
                     return 0;
                 }
                 if (!mService->isAllowListedPackage(mPackageName)) {
                     ALOGE("App not allowed to inject data, dropping event"
-                          "package=%s uid=%d", mPackageName.string(), mUid);
+                          "package=%s uid=%d", mPackageName.c_str(), mUid);
                     return 0;
                 }
                 sensors_event_t sensor_event;

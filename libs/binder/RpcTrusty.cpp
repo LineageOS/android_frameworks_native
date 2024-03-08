@@ -16,15 +16,14 @@
 
 #define LOG_TAG "RpcTrusty"
 
-#include <android-base/logging.h>
-#include <android-base/unique_fd.h>
 #include <binder/RpcSession.h>
 #include <binder/RpcTransportTipcAndroid.h>
+#include <binder/unique_fd.h>
 #include <trusty/tipc.h>
 
 namespace android {
 
-using android::base::unique_fd;
+using android::binder::unique_fd;
 
 sp<RpcSession> RpcTrustyConnectWithSessionInitializer(
         const char* device, const char* port,
@@ -35,13 +34,13 @@ sp<RpcSession> RpcTrustyConnectWithSessionInitializer(
     auto request = [=] {
         int tipcFd = tipc_connect(device, port);
         if (tipcFd < 0) {
-            LOG(ERROR) << "Failed to connect to Trusty service. Error code: " << tipcFd;
+            ALOGE("Failed to connect to Trusty service. Error code: %d", tipcFd);
             return unique_fd();
         }
         return unique_fd(tipcFd);
     };
     if (status_t status = session->setupPreconnectedClient(unique_fd{}, request); status != OK) {
-        LOG(ERROR) << "Failed to set up Trusty client. Error: " << statusToString(status).c_str();
+        ALOGE("Failed to set up Trusty client. Error: %s", statusToString(status).c_str());
         return nullptr;
     }
     return session;

@@ -51,52 +51,48 @@ struct InputTarget {
          * the same UID from watching all touches. */
         ZERO_COORDS = 1 << 3,
 
-        /* This flag indicates that the event should be sent as is.
-         * Should always be set unless the event is to be transmuted. */
-        DISPATCH_AS_IS = 1 << 8,
-
-        /* This flag indicates that a MotionEvent with AMOTION_EVENT_ACTION_DOWN falls outside
-         * of the area of this target and so should instead be delivered as an
-         * AMOTION_EVENT_ACTION_OUTSIDE to this target. */
-        DISPATCH_AS_OUTSIDE = 1 << 9,
-
-        /* This flag indicates that a hover sequence is starting in the given window.
-         * The event is transmuted into ACTION_HOVER_ENTER. */
-        DISPATCH_AS_HOVER_ENTER = 1 << 10,
-
-        /* This flag indicates that a hover event happened outside of a window which handled
-         * previous hover events, signifying the end of the current hover sequence for that
-         * window.
-         * The event is transmuted into ACTION_HOVER_ENTER. */
-        DISPATCH_AS_HOVER_EXIT = 1 << 11,
-
-        /* This flag indicates that the event should be canceled.
-         * It is used to transmute ACTION_MOVE into ACTION_CANCEL when a touch slips
-         * outside of a window. */
-        DISPATCH_AS_SLIPPERY_EXIT = 1 << 12,
-
-        /* This flag indicates that the event should be dispatched as an initial down.
-         * It is used to transmute ACTION_MOVE into ACTION_DOWN when a touch slips
-         * into a new window. */
-        DISPATCH_AS_SLIPPERY_ENTER = 1 << 13,
-
         /* This flag indicates that the target of a MotionEvent is partly or wholly
          * obscured by another visible window above it.  The motion event should be
          * delivered with flag AMOTION_EVENT_FLAG_WINDOW_IS_PARTIALLY_OBSCURED. */
         WINDOW_IS_PARTIALLY_OBSCURED = 1 << 14,
     };
 
-    /* Mask for all dispatch modes. */
-    static constexpr const ftl::Flags<InputTarget::Flags> DISPATCH_MASK =
-            ftl::Flags<InputTarget::Flags>() | Flags::DISPATCH_AS_IS | Flags::DISPATCH_AS_OUTSIDE |
-            Flags::DISPATCH_AS_HOVER_ENTER | Flags::DISPATCH_AS_HOVER_EXIT |
-            Flags::DISPATCH_AS_SLIPPERY_EXIT | Flags::DISPATCH_AS_SLIPPERY_ENTER;
+    enum class DispatchMode {
+        /* This flag indicates that the event should be sent as is.
+         * Should always be set unless the event is to be transmuted. */
+        AS_IS,
+        /* This flag indicates that a MotionEvent with AMOTION_EVENT_ACTION_DOWN falls outside
+         * of the area of this target and so should instead be delivered as an
+         * AMOTION_EVENT_ACTION_OUTSIDE to this target. */
+        OUTSIDE,
+        /* This flag indicates that a hover sequence is starting in the given window.
+         * The event is transmuted into ACTION_HOVER_ENTER. */
+        HOVER_ENTER,
+        /* This flag indicates that a hover event happened outside of a window which handled
+         * previous hover events, signifying the end of the current hover sequence for that
+         * window.
+         * The event is transmuted into ACTION_HOVER_ENTER. */
+        HOVER_EXIT,
+        /* This flag indicates that the event should be canceled.
+         * It is used to transmute ACTION_MOVE into ACTION_CANCEL when a touch slips
+         * outside of a window. */
+        SLIPPERY_EXIT,
+        /* This flag indicates that the event should be dispatched as an initial down.
+         * It is used to transmute ACTION_MOVE into ACTION_DOWN when a touch slips
+         * into a new window. */
+        SLIPPERY_ENTER,
+
+        ftl_last = SLIPPERY_ENTER,
+    };
 
     // The input channel to be targeted.
     std::shared_ptr<InputChannel> inputChannel;
 
     // Flags for the input target.
     ftl::Flags<Flags> flags;
+
+    // The dispatch mode that should be used for this target.
+    DispatchMode dispatchMode = DispatchMode::AS_IS;
 
     // Scaling factor to apply to MotionEvent as it is delivered.
     // (ignored for KeyEvents)
@@ -139,6 +135,6 @@ struct InputTarget {
     std::string getPointerInfoString() const;
 };
 
-std::string dispatchModeToString(int32_t dispatchMode);
+std::ostream& operator<<(std::ostream& out, const InputTarget& target);
 
 } // namespace android::inputdispatcher

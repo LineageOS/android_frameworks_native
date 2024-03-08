@@ -181,7 +181,7 @@ struct layer_state_t {
         eRelativeLayerChanged = 0x00004000,
         eReparent = 0x00008000,
         eColorChanged = 0x00010000,
-        /* unused = 0x00020000, */
+        eFrameRateCategoryChanged = 0x00020000,
         eBufferTransformChanged = 0x00040000,
         eTransformToDisplayInverseChanged = 0x00080000,
         eCropChanged = 0x00100000,
@@ -197,7 +197,7 @@ struct layer_state_t {
         eInputInfoChanged = 0x40000000,
         eCornerRadiusChanged = 0x80000000,
         eDestinationFrameChanged = 0x1'00000000,
-        /* unused = 0x2'00000000, */
+        eFrameRateSelectionStrategyChanged = 0x2'00000000,
         eBackgroundColorChanged = 0x4'00000000,
         eMetadataChanged = 0x8'00000000,
         eColorSpaceAgnosticChanged = 0x10'00000000,
@@ -213,7 +213,6 @@ struct layer_state_t {
         eTrustedOverlayChanged = 0x4000'00000000,
         eDropInputModeChanged = 0x8000'00000000,
         eExtendedRangeBrightnessChanged = 0x10000'00000000,
-
     };
 
     layer_state_t();
@@ -265,9 +264,12 @@ struct layer_state_t {
     // Changes affecting child states.
     static constexpr uint64_t AFFECTS_CHILDREN = layer_state_t::GEOMETRY_CHANGES |
             layer_state_t::HIERARCHY_CHANGES | layer_state_t::eAlphaChanged |
+            layer_state_t::eBackgroundBlurRadiusChanged | layer_state_t::eBlurRegionsChanged |
             layer_state_t::eColorTransformChanged | layer_state_t::eCornerRadiusChanged |
             layer_state_t::eFlagsChanged | layer_state_t::eTrustedOverlayChanged |
-            layer_state_t::eFrameRateChanged | layer_state_t::eFixedTransformHintChanged;
+            layer_state_t::eFrameRateChanged | layer_state_t::eFrameRateCategoryChanged |
+            layer_state_t::eFrameRateSelectionStrategyChanged |
+            layer_state_t::eFrameRateSelectionPriority | layer_state_t::eFixedTransformHintChanged;
 
     // Changes affecting data sent to input.
     static constexpr uint64_t INPUT_CHANGES = layer_state_t::eInputInfoChanged |
@@ -275,8 +277,8 @@ struct layer_state_t {
             layer_state_t::eLayerStackChanged;
 
     // Changes that affect the visible region on a display.
-    static constexpr uint64_t VISIBLE_REGION_CHANGES =
-            layer_state_t::GEOMETRY_CHANGES | layer_state_t::HIERARCHY_CHANGES;
+    static constexpr uint64_t VISIBLE_REGION_CHANGES = layer_state_t::GEOMETRY_CHANGES |
+            layer_state_t::HIERARCHY_CHANGES | layer_state_t::eAlphaChanged;
 
     bool hasValidBuffer() const;
     void sanitize(int32_t permissions);
@@ -356,6 +358,13 @@ struct layer_state_t {
 
     // Default frame rate compatibility used to set the layer refresh rate votetype.
     int8_t defaultFrameRateCompatibility;
+
+    // Frame rate category to suggest what frame rate range a surface should run.
+    int8_t frameRateCategory;
+    bool frameRateCategorySmoothSwitchOnly;
+
+    // Strategy of the layer for frame rate selection.
+    int8_t frameRateSelectionStrategy;
 
     // Set by window manager indicating the layer and all its children are
     // in a different orientation than the display. The hint suggests that
@@ -471,16 +480,6 @@ static inline int compare_type(const ComposerState& lhs, const ComposerState& rh
 static inline int compare_type(const DisplayState& lhs, const DisplayState& rhs) {
     return compare_type(lhs.token, rhs.token);
 }
-
-// Returns true if the frameRate is valid.
-//
-// @param frameRate the frame rate in Hz
-// @param compatibility a ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_*
-// @param changeFrameRateStrategy a ANATIVEWINDOW_CHANGE_FRAME_RATE_*
-// @param functionName calling function or nullptr. Used for logging
-// @param privileged whether caller has unscoped surfaceflinger access
-bool ValidateFrameRate(float frameRate, int8_t compatibility, int8_t changeFrameRateStrategy,
-                       const char* functionName, bool privileged = false);
 
 }; // namespace android
 

@@ -51,6 +51,23 @@ struct Color {
 typedef Color (*ColorTransformFn)(Color);
 typedef float (*ColorCalculationFn)(Color);
 
+// A transfer function mapping encoded values to linear values,
+// represented by this 7-parameter piecewise function:
+//
+//   linear = sign(encoded) *  (c*|encoded| + f)       , 0 <= |encoded| < d
+//          = sign(encoded) * ((a*|encoded| + b)^g + e), d <= |encoded|
+//
+// (A simple gamma transfer function sets g to gamma and a to 1.)
+typedef struct TransferFunction {
+    float g, a,b,c,d,e,f;
+} TransferFunction;
+
+static constexpr TransferFunction kSRGB_TransFun =
+    { 2.4f, (float)(1/1.055), (float)(0.055/1.055), (float)(1/12.92), 0.04045f, 0.0f, 0.0f };
+
+static constexpr TransferFunction kLinear_TransFun =
+    { 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
+
 inline Color operator+=(Color& lhs, const Color& rhs) {
   lhs.r += rhs.r;
   lhs.g += rhs.g;
@@ -155,7 +172,7 @@ struct GainLUT {
   }
 
   float getGainFactor(float gain) {
-    uint32_t idx = static_cast<uint32_t>(gain * (kGainFactorNumEntries - 1));
+    uint32_t idx = static_cast<uint32_t>(gain * (kGainFactorNumEntries - 1) + 0.5);
     //TODO() : Remove once conversion modules have appropriate clamping in place
     idx = CLIP3(idx, 0, kGainFactorNumEntries - 1);
     return mGainTable[idx];
@@ -312,7 +329,7 @@ Color hlgOetf(Color e);
 float hlgOetfLUT(float e);
 Color hlgOetfLUT(Color e);
 
-constexpr size_t kHlgOETFPrecision = 10;
+constexpr size_t kHlgOETFPrecision = 16;
 constexpr size_t kHlgOETFNumEntries = 1 << kHlgOETFPrecision;
 
 /*
@@ -325,7 +342,7 @@ Color hlgInvOetf(Color e_gamma);
 float hlgInvOetfLUT(float e_gamma);
 Color hlgInvOetfLUT(Color e_gamma);
 
-constexpr size_t kHlgInvOETFPrecision = 10;
+constexpr size_t kHlgInvOETFPrecision = 12;
 constexpr size_t kHlgInvOETFNumEntries = 1 << kHlgInvOETFPrecision;
 
 /*
@@ -338,7 +355,7 @@ Color pqOetf(Color e);
 float pqOetfLUT(float e);
 Color pqOetfLUT(Color e);
 
-constexpr size_t kPqOETFPrecision = 10;
+constexpr size_t kPqOETFPrecision = 16;
 constexpr size_t kPqOETFNumEntries = 1 << kPqOETFPrecision;
 
 /*
@@ -351,7 +368,7 @@ Color pqInvOetf(Color e_gamma);
 float pqInvOetfLUT(float e_gamma);
 Color pqInvOetfLUT(Color e_gamma);
 
-constexpr size_t kPqInvOETFPrecision = 10;
+constexpr size_t kPqInvOETFPrecision = 12;
 constexpr size_t kPqInvOETFNumEntries = 1 << kPqInvOETFPrecision;
 
 

@@ -15,13 +15,11 @@
  */
 
 #include <android/binder_manager.h>
+#include <binder/IServiceManager.h>
+#include <binder/LazyServiceRegistrar.h>
 
 #include "ibinder_internal.h"
 #include "status_internal.h"
-
-#include <android-base/logging.h>
-#include <binder/IServiceManager.h>
-#include <binder/LazyServiceRegistrar.h>
 
 using ::android::defaultServiceManager;
 using ::android::IBinder;
@@ -115,7 +113,8 @@ struct AServiceManager_NotificationRegistration
         std::lock_guard<std::mutex> l(m);
         if (onRegister == nullptr) return;
 
-        CHECK_EQ(String8(smInstance), instance);
+        LOG_ALWAYS_FATAL_IF(String8(smInstance) != instance, "onServiceRegistration: %s != %s",
+                            String8(smInstance).c_str(), instance);
 
         sp<AIBinder> ret = ABpBinder::lookupOrCreateFromBinder(binder);
         AIBinder_incStrong(ret.get());
@@ -135,8 +134,8 @@ __attribute__((warn_unused_result)) AServiceManager_NotificationRegistration*
 AServiceManager_registerForServiceNotifications(const char* instance,
                                                 AServiceManager_onRegister onRegister,
                                                 void* cookie) {
-    CHECK_NE(instance, nullptr);
-    CHECK_NE(onRegister, nullptr) << instance;
+    LOG_ALWAYS_FATAL_IF(instance == nullptr, "instance == nullptr");
+    LOG_ALWAYS_FATAL_IF(onRegister == nullptr, "onRegister == nullptr for %s", instance);
     // cookie can be nullptr
 
     auto cb = sp<AServiceManager_NotificationRegistration>::make();
@@ -146,8 +145,8 @@ AServiceManager_registerForServiceNotifications(const char* instance,
 
     sp<IServiceManager> sm = defaultServiceManager();
     if (status_t res = sm->registerForNotifications(String16(instance), cb); res != STATUS_OK) {
-        LOG(ERROR) << "Failed to register for service notifications for " << instance << ": "
-                   << statusToString(res);
+        ALOGE("Failed to register for service notifications for %s: %s", instance,
+              statusToString(res).c_str());
         return nullptr;
     }
 
@@ -157,7 +156,7 @@ AServiceManager_registerForServiceNotifications(const char* instance,
 
 void AServiceManager_NotificationRegistration_delete(
         AServiceManager_NotificationRegistration* notification) {
-    CHECK_NE(notification, nullptr);
+    LOG_ALWAYS_FATAL_IF(notification == nullptr, "notification == nullptr");
     notification->clear();
     notification->decStrong(nullptr);
 }
@@ -172,9 +171,9 @@ bool AServiceManager_isDeclared(const char* instance) {
 }
 void AServiceManager_forEachDeclaredInstance(const char* interface, void* context,
                                              void (*callback)(const char*, void*)) {
-    CHECK(interface != nullptr);
+    LOG_ALWAYS_FATAL_IF(interface == nullptr, "interface == nullptr");
     // context may be nullptr
-    CHECK(callback != nullptr);
+    LOG_ALWAYS_FATAL_IF(callback == nullptr, "callback == nullptr");
 
     sp<IServiceManager> sm = defaultServiceManager();
     for (const String16& instance : sm->getDeclaredInstances(String16(interface))) {
@@ -191,9 +190,9 @@ bool AServiceManager_isUpdatableViaApex(const char* instance) {
 }
 void AServiceManager_getUpdatableApexName(const char* instance, void* context,
                                           void (*callback)(const char*, void*)) {
-    CHECK_NE(instance, nullptr);
+    LOG_ALWAYS_FATAL_IF(instance == nullptr, "instance == nullptr");
     // context may be nullptr
-    CHECK_NE(callback, nullptr);
+    LOG_ALWAYS_FATAL_IF(callback == nullptr, "callback == nullptr");
 
     sp<IServiceManager> sm = defaultServiceManager();
     std::optional<String16> updatableViaApex = sm->updatableViaApex(String16(instance));

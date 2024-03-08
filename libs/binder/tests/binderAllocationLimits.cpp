@@ -16,6 +16,7 @@
 
 #include <android-base/logging.h>
 #include <binder/Binder.h>
+#include <binder/Functional.h>
 #include <binder/IServiceManager.h>
 #include <binder/Parcel.h>
 #include <binder/RpcServer.h>
@@ -27,6 +28,8 @@
 #include <malloc.h>
 #include <functional>
 #include <vector>
+
+using namespace android::binder::impl;
 
 static android::String8 gEmpty(""); // make sure first allocation from optimization runs
 
@@ -172,6 +175,18 @@ TEST(BinderAllocation, PingTransaction) {
     a_binder->pingBinder();
 }
 
+TEST(BinderAllocation, MakeScopeGuard) {
+    const auto m = ScopeDisallowMalloc();
+    {
+        auto guard1 = make_scope_guard([] {});
+        guard1.release();
+
+        auto guard2 = make_scope_guard([&guard1, ptr = imaginary_use] {
+            if (ptr == nullptr) guard1.release();
+        });
+    }
+}
+
 TEST(BinderAllocation, InterfaceDescriptorTransaction) {
     sp<IBinder> a_binder = GetRemoteBinder();
 
@@ -216,16 +231,16 @@ TEST(RpcBinderAllocation, SetupRpcServer) {
     auto server = RpcServer::make();
     server->setRootObject(sp<BBinder>::make());
 
-    CHECK_EQ(OK, server->setupUnixDomainServer(addr.c_str()));
+    ASSERT_EQ(OK, server->setupUnixDomainServer(addr.c_str()));
 
     std::thread([server]() { server->join(); }).detach();
 
-    status_t status;
     auto session = RpcSession::make();
-    status = session->setupUnixDomainClient(addr.c_str());
-    CHECK_EQ(status, OK) << "Could not connect: " << addr << ": " << statusToString(status).c_str();
+    status_t status = session->setupUnixDomainClient(addr.c_str());
+    ASSERT_EQ(status, OK) << "Could not connect: " << addr << ": " << statusToString(status).c_str();
 
     auto remoteBinder = session->getRootObject();
+    ASSERT_NE(remoteBinder, nullptr);
 
     size_t mallocs = 0, totalBytes = 0;
     {
@@ -233,7 +248,7 @@ TEST(RpcBinderAllocation, SetupRpcServer) {
             mallocs++;
             totalBytes += bytes;
         });
-        CHECK_EQ(OK, remoteBinder->pingBinder());
+        ASSERT_EQ(OK, remoteBinder->pingBinder());
     }
     EXPECT_EQ(mallocs, 1);
     EXPECT_EQ(totalBytes, 40);

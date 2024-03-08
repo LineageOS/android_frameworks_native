@@ -18,6 +18,7 @@
 
 #include <android-base/logging.h>
 #include <android-base/properties.h>
+#include <android-base/strings.h>
 #include <binder/BpBinder.h>
 #include <binder/IPCThreadState.h>
 #include <binder/ProcessState.h>
@@ -117,10 +118,26 @@ static bool isVintfDeclared(const std::string& name) {
     });
 
     if (!found) {
+        std::set<std::string> instances;
+        forEachManifest([&](const ManifestWithDescription& mwd) {
+            std::set<std::string> res = mwd.manifest->getAidlInstances(aname.package, aname.iface);
+            instances.insert(res.begin(), res.end());
+            return true;
+        });
+
+        std::string available;
+        if (instances.empty()) {
+            available = "No alternative instances declared in VINTF";
+        } else {
+            // for logging only. We can't return this information to the client
+            // because they may not have permissions to find or list those
+            // instances
+            available = "VINTF declared instances: " + base::Join(instances, ", ");
+        }
         // Although it is tested, explicitly rebuilding qualified name, in case it
         // becomes something unexpected.
-        ALOGI("Could not find %s.%s/%s in the VINTF manifest.", aname.package.c_str(),
-              aname.iface.c_str(), aname.instance.c_str());
+        ALOGI("Could not find %s.%s/%s in the VINTF manifest. %s.", aname.package.c_str(),
+              aname.iface.c_str(), aname.instance.c_str(), available.c_str());
     }
 
     return found;
@@ -291,6 +308,8 @@ sp<IBinder> ServiceManager::tryGetService(const std::string& name, bool startIfN
         service = &(it->second);
 
         if (!service->allowIsolated && is_multiuser_uid_isolated(ctx.uid)) {
+            LOG(WARNING) << "Isolated app with UID " << ctx.uid << " requested '" << name
+                         << "', but the service is not allowed for isolated apps.";
             return nullptr;
         }
         out = service->binder;
@@ -301,7 +320,7 @@ sp<IBinder> ServiceManager::tryGetService(const std::string& name, bool startIfN
     }
 
     if (!out && startIfNotFound) {
-        tryStartService(name);
+        tryStartService(ctx, name);
     }
 
     if (out) {
@@ -372,8 +391,10 @@ Status ServiceManager::addService(const std::string& name, const sp<IBinder>& bi
     }
 
     auto it = mNameToService.find(name);
+    bool prevClients = false;
     if (it != mNameToService.end()) {
         const Service& existing = it->second;
+        prevClients = existing.hasClients;
 
         // We could do better than this because if the other service dies, it
         // may not have an entry here. However, this case is unlikely. We are
@@ -401,12 +422,14 @@ Status ServiceManager::addService(const std::string& name, const sp<IBinder>& bi
             .binder = binder,
             .allowIsolated = allowIsolated,
             .dumpPriority = dumpPriority,
+            .hasClients = prevClients, // see b/279898063, matters if existing callbacks
+            .guaranteeClient = false,
             .ctx = ctx,
     };
 
     if (auto it = mNameToRegistrationCallback.find(name); it != mNameToRegistrationCallback.end()) {
-        // See also getService - handles case where client never gets the service,
-        // we want the service to quit.
+        // If someone is currently waiting on the service, notify the service that
+        // we're waiting and flush it to the service.
         mNameToService[name].guaranteeClient = true;
         CHECK(handleServiceClientCallback(2 /* sm + transaction */, name, false));
         mNameToService[name].guaranteeClient = true;
@@ -633,6 +656,14 @@ void ServiceManager::removeRegistrationCallback(const wp<IBinder>& who,
 void ServiceManager::binderDied(const wp<IBinder>& who) {
     for (auto it = mNameToService.begin(); it != mNameToService.end();) {
         if (who == it->second.binder) {
+            // TODO: currently, this entry contains the state also
+            // associated with mNameToClientCallback. If we allowed
+            // other processes to register client callbacks, we
+            // would have to preserve hasClients (perhaps moving
+            // that state into mNameToClientCallback, which is complicated
+            // because those callbacks are associated w/ particular binder
+            // objects, though they are indexed by name now, they may
+            // need to be indexed by binder at that point).
             it = mNameToService.erase(it);
         } else {
             ++it;
@@ -648,10 +679,11 @@ void ServiceManager::binderDied(const wp<IBinder>& who) {
     }
 }
 
-void ServiceManager::tryStartService(const std::string& name) {
-    ALOGI("Since '%s' could not be found, trying to start it as a lazy AIDL service. (if it's not "
-          "configured to be a lazy service, it may be stuck starting or still starting).",
-          name.c_str());
+void ServiceManager::tryStartService(const Access::CallingContext& ctx, const std::string& name) {
+    ALOGI("Since '%s' could not be found (requested by debug pid %d), trying to start it as a lazy "
+          "AIDL service. (if it's not configured to be a lazy service, it may be stuck starting or "
+          "still starting).",
+          name.c_str(), ctx.debugPid);
 
     std::thread([=] {
         if (!base::SetProperty("ctl.interface_start", "aidl/" + name)) {
@@ -700,12 +732,20 @@ Status ServiceManager::registerClientCallback(const std::string& name, const sp<
         return Status::fromExceptionCode(Status::EX_ILLEGAL_STATE, "Couldn't linkToDeath.");
     }
 
-    // make sure all callbacks have been told about a consistent state - b/278038751
+    // WARNING: binderDied makes an assumption about this. If we open up client
+    // callbacks to other services, certain race conditions may lead to services
+    // getting extra client callback notifications.
+    // Make sure all callbacks have been told about a consistent state - b/278038751
     if (serviceIt->second.hasClients) {
         cb->onClients(service, true);
     }
 
     mNameToClientCallback[name].push_back(cb);
+
+    // Flush updated info to client callbacks (especially if guaranteeClient
+    // and !hasClient, see b/285202885). We may or may not have clients at
+    // this point, so ignore the return value.
+    (void)handleServiceClientCallback(2 /* sm + transaction */, name, false);
 
     return Status::ok();
 }

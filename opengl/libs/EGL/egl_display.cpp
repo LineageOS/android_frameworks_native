@@ -64,11 +64,6 @@ bool findExtension(const char* exts, const char* name, size_t nameLen) {
     return false;
 }
 
-bool needsAndroidPEglMitigation() {
-    static const int32_t vndk_version = base::GetIntProperty("ro.vndk.version", -1);
-    return vndk_version <= 28;
-}
-
 int egl_get_init_count(EGLDisplay dpy) {
     egl_display_t* eglDisplay = egl_display_t::get(dpy);
     return eglDisplay ? eglDisplay->getRefsCount() : 0;
@@ -185,7 +180,7 @@ static EGLDisplay getPlatformDisplayAngle(EGLNativeDisplayType display, egl_conn
         if (dpy == EGL_NO_DISPLAY) {
             ALOGE("eglGetPlatformDisplay failed!");
         } else {
-            if (!angle::initializeAnglePlatform(dpy)) {
+            if (!angle::initializeAnglePlatform(dpy, cnx)) {
                 ALOGE("initializeAnglePlatform failed!");
             }
         }
@@ -395,14 +390,6 @@ EGLBoolean egl_display_t::initialize(EGLint* major, EGLint* minor) {
             if (len) {
                 // NOTE: we could avoid the copy if we had strnstr.
                 const std::string ext(start, len);
-                // Mitigation for Android P vendor partitions: Adreno 530 driver shipped on
-                // some Android P vendor partitions this extension under the draft KHR name,
-                // but during Khronos review it was decided to demote it to EXT.
-                if (needsAndroidPEglMitigation() && ext == "EGL_EXT_image_gl_colorspace" &&
-                    findExtension(disp.queryString.extensions, "EGL_KHR_image_gl_colorspace")) {
-                    mExtensionString.append("EGL_EXT_image_gl_colorspace ");
-                }
-
                 if (findExtension(disp.queryString.extensions, ext.c_str(), len)) {
                     mExtensionString.append(ext + " ");
                 }
@@ -463,7 +450,7 @@ EGLBoolean egl_display_t::terminate() {
         if (cnx->dso && disp.state == egl_display_t::INITIALIZED) {
             // If we're using ANGLE reset any custom DisplayPlatform
             if (cnx->angleLoaded) {
-                angle::resetAnglePlatform(disp.dpy);
+                angle::resetAnglePlatform(disp.dpy, cnx);
             }
             if (cnx->egl.eglTerminate(disp.dpy) == EGL_FALSE) {
                 ALOGW("eglTerminate(%p) failed (%s)", disp.dpy,

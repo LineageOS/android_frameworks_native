@@ -75,7 +75,7 @@ void Stability::tryMarkCompilationUnit(IBinder* binder) {
 
 Stability::Level Stability::getLocalLevel() {
 #ifdef __ANDROID_APEX__
-#error APEX can't use libbinder (must use libbinder_ndk)
+#error "APEX can't use libbinder (must use libbinder_ndk)"
 #endif
 
 #ifdef __ANDROID_VNDK__

@@ -24,6 +24,7 @@
 
 #include <memory>
 
+#include <android/gui/BnWindowInfosReportedListener.h>
 #include <android/keycodes.h>
 #include <android/native_window.h>
 
@@ -73,6 +74,26 @@ sp<IInputFlinger> getInputFlinger() {
 // We use the top 10 layers as a way to haphazardly place ourselves above anything else.
 static const int LAYER_BASE = INT32_MAX - 10;
 static constexpr std::chrono::nanoseconds DISPATCHING_TIMEOUT = 5s;
+
+class SynchronousWindowInfosReportedListener : public gui::BnWindowInfosReportedListener {
+public:
+    binder::Status onWindowInfosReported() override {
+        std::lock_guard<std::mutex> lock{mMutex};
+        mWindowInfosReported = true;
+        mConditionVariable.notify_one();
+        return binder::Status::ok();
+    }
+
+    void wait() {
+        std::unique_lock<std::mutex> lock{mMutex};
+        mConditionVariable.wait(lock, [&] { return mWindowInfosReported; });
+    }
+
+private:
+    std::mutex mMutex;
+    std::condition_variable mConditionVariable;
+    bool mWindowInfosReported{false};
+};
 
 class InputSurface {
 public:
@@ -264,7 +285,10 @@ public:
         t.setPosition(mSurfaceControl, x, y);
         t.setCrop(mSurfaceControl, crop);
         t.setAlpha(mSurfaceControl, 1);
-        t.apply(true);
+        auto reportedListener = sp<SynchronousWindowInfosReportedListener>::make();
+        t.addWindowInfosReportedListener(reportedListener);
+        t.apply();
+        reportedListener->wait();
     }
 
     void requestFocus(int displayId = ADISPLAY_ID_DEFAULT) {
@@ -370,7 +394,7 @@ public:
         // After a new buffer is queued, SurfaceFlinger is notified and will
         // latch the new buffer on next vsync.  Let's heuristically wait for 3
         // vsyncs.
-        mBufferPostDelay = static_cast<int32_t>(1e6 / mode.refreshRate) * 3;
+        mBufferPostDelay = static_cast<int32_t>(1e6 / mode.peakRefreshRate) * 3;
     }
 
     void TearDown() {

@@ -21,17 +21,15 @@
 __BEGIN_DECLS
 
 /**
- * Private addition to binder_flag_t.
+ * Indicates that this transaction is coupled w/ vendor.img
  */
-enum {
-    /**
-     * Indicates that this transaction is coupled w/ vendor.img
-     */
-    FLAG_PRIVATE_VENDOR = 0x10000000,
-};
+constexpr binder_flags_t FLAG_PRIVATE_VENDOR = 0x10000000;
 
 #if defined(__ANDROID_VENDOR__)
 
+/**
+ * Private addition to binder_flag_t.
+ */
 enum {
     FLAG_PRIVATE_LOCAL = FLAG_PRIVATE_VENDOR,
 };

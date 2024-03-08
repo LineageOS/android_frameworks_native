@@ -19,8 +19,6 @@
 
 #include <binder/ProcessState.h>
 
-#include <utils/misc.h>
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>

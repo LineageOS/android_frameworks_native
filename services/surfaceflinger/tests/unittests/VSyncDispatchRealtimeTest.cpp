@@ -34,11 +34,35 @@ constexpr nsecs_t toNs(std::chrono::duration<Rep, Per> const& tp) {
     return std::chrono::duration_cast<std::chrono::nanoseconds>(tp).count();
 }
 
-class FixedRateIdealStubTracker : public VSyncTracker {
+class StubTracker : public VSyncTracker {
 public:
-    FixedRateIdealStubTracker() : mPeriod{toNs(3ms)} {}
+    StubTracker(nsecs_t period) : mPeriod(period) {}
 
     bool addVsyncTimestamp(nsecs_t) final { return true; }
+
+    nsecs_t currentPeriod() const final {
+        std::lock_guard lock(mMutex);
+        return mPeriod;
+    }
+
+    Period minFramePeriod() const final { return Period::fromNs(currentPeriod()); }
+    void resetModel() final {}
+    bool needsMoreSamples() const final { return false; }
+    bool isVSyncInPhase(nsecs_t, Fps) const final { return false; }
+    void setDisplayModePtr(ftl::NonNull<DisplayModePtr>) final {}
+    void setRenderRate(Fps) final {}
+    void onFrameBegin(TimePoint, TimePoint) final {}
+    void onFrameMissed(TimePoint) final {}
+    void dump(std::string&) const final {}
+
+protected:
+    std::mutex mutable mMutex;
+    nsecs_t mPeriod;
+};
+
+class FixedRateIdealStubTracker : public StubTracker {
+public:
+    FixedRateIdealStubTracker() : StubTracker{toNs(3ms)} {}
 
     nsecs_t nextAnticipatedVSyncTimeFrom(nsecs_t timePoint) const final {
         auto const floor = timePoint % mPeriod;
@@ -47,25 +71,11 @@ public:
         }
         return timePoint - floor + mPeriod;
     }
-
-    nsecs_t currentPeriod() const final { return mPeriod; }
-
-    void setPeriod(nsecs_t) final {}
-    void resetModel() final {}
-    bool needsMoreSamples() const final { return false; }
-    bool isVSyncInPhase(nsecs_t, Fps) const final { return false; }
-    void setRenderRate(Fps) final {}
-    void dump(std::string&) const final {}
-
-private:
-    nsecs_t const mPeriod;
 };
 
-class VRRStubTracker : public VSyncTracker {
+class VRRStubTracker : public StubTracker {
 public:
-    VRRStubTracker(nsecs_t period) : mPeriod{period} {}
-
-    bool addVsyncTimestamp(nsecs_t) final { return true; }
+    VRRStubTracker(nsecs_t period) : StubTracker(period) {}
 
     nsecs_t nextAnticipatedVSyncTimeFrom(nsecs_t time_point) const final {
         std::lock_guard lock(mMutex);
@@ -83,21 +93,7 @@ public:
         mBase = last_known;
     }
 
-    nsecs_t currentPeriod() const final {
-        std::lock_guard lock(mMutex);
-        return mPeriod;
-    }
-
-    void setPeriod(nsecs_t) final {}
-    void resetModel() final {}
-    bool needsMoreSamples() const final { return false; }
-    bool isVSyncInPhase(nsecs_t, Fps) const final { return false; }
-    void setRenderRate(Fps) final {}
-    void dump(std::string&) const final {}
-
 private:
-    std::mutex mutable mMutex;
-    nsecs_t mPeriod;
     nsecs_t mBase = 0;
 };
 

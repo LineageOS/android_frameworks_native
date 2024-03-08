@@ -15,11 +15,10 @@
  */
 #pragma once
 
-#include <android-base/threads.h>
-#include <android-base/unique_fd.h>
 #include <binder/IBinder.h>
 #include <binder/RpcThreads.h>
 #include <binder/RpcTransport.h>
+#include <binder/unique_fd.h>
 #include <utils/Errors.h>
 #include <utils/RefBase.h>
 
@@ -124,7 +123,7 @@ public:
     /**
      * Connects to an RPC server over a nameless Unix domain socket pair.
      */
-    [[nodiscard]] status_t setupUnixDomainSocketBootstrapClient(base::unique_fd bootstrap);
+    [[nodiscard]] status_t setupUnixDomainSocketBootstrapClient(binder::unique_fd bootstrap);
 
     /**
      * Connects to an RPC server at the CVD & port.
@@ -146,8 +145,8 @@ public:
      *
      * For future compatibility, 'request' should not reference any stack data.
      */
-    [[nodiscard]] status_t setupPreconnectedClient(base::unique_fd fd,
-                                                   std::function<base::unique_fd()>&& request);
+    [[nodiscard]] status_t setupPreconnectedClient(binder::unique_fd fd,
+                                                   std::function<binder::unique_fd()>&& request);
 
     /**
      * For debugging!

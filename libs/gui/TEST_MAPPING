@@ -2,6 +2,9 @@
   "imports": [
     {
       "path": "frameworks/native/libs/nativewindow"
+    },
+    {
+      "path": "frameworks/native/services/surfaceflinger"
     }
   ],
   "presubmit": [

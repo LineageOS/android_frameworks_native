@@ -353,7 +353,7 @@ static int otapreopt_chroot(const int argc, char **arg) {
     // Now go on and read dexopt lines from stdin and pass them on to otapreopt.
 
     int count = 1;
-    for (std::array<char, 1000> linebuf;
+    for (std::array<char, 10000> linebuf;
          std::cin.clear(), std::cin.getline(&linebuf[0], linebuf.size()); ++count) {
         // Subtract one from gcount() since getline() counts the newline.
         std::string line(&linebuf[0], std::cin.gcount() - 1);

@@ -21,19 +21,27 @@ package {
     default_applicable_licenses: ["frameworks_native_license"],
 }
 
-cc_library_shared {
-    name: "libgpumemtracer",
-    srcs: [
-        "GpuMemTracer.cpp",
-    ],
+cc_defaults {
+    name: "libgpumemtracer_deps",
     shared_libs: [
-        "libgpumem",
         "libbase",
         "liblog",
         "libutils",
     ],
     static_libs: [
+        "libgpumem",
         "libperfetto_client_experimental",
+    ],
+}
+
+cc_library_static {
+    name: "libgpumemtracer",
+    defaults: [
+        "libgpumemtracer_deps",
+        "libgpumem_deps",
+    ],
+    srcs: [
+        "GpuMemTracer.cpp",
     ],
     export_include_dirs: ["include"],
     export_static_lib_headers: [

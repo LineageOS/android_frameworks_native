@@ -7,11 +7,8 @@ package {
     default_applicable_licenses: ["frameworks_native_license"],
 }
 
-cc_library_shared {
-    name: "libgfxstats",
-    srcs: [
-        "GpuStats.cpp",
-    ],
+cc_defaults {
+    name: "libgfxstats_deps",
     shared_libs: [
         "libcutils",
         "libgraphicsenv",
@@ -21,6 +18,16 @@ cc_library_shared {
         "libstatspull",
         "libstatssocket",
         "libutils",
+    ],
+}
+
+cc_library_static {
+    name: "libgfxstats",
+    defaults: [
+        "libgfxstats_deps",
+    ],
+    srcs: [
+        "GpuStats.cpp",
     ],
     export_include_dirs: ["include"],
     export_shared_lib_headers: [

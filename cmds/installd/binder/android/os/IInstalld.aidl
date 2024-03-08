@@ -70,8 +70,6 @@ interface IInstalld {
     // Blocks (when block is true) or unblock (when block is false) dexopt.
     // Blocking also invloves cancelling the currently running dexopt.
     void controlDexOptBlocking(boolean block);
-    boolean compileLayouts(@utf8InCpp String apkPath, @utf8InCpp String packageName,
-            @utf8InCpp String outDexFile, int uid);
 
     void rmdex(@utf8InCpp String codePath, @utf8InCpp String instructionSet);
 
@@ -133,6 +131,22 @@ interface IInstalld {
 
     int getOdexVisibility(@utf8InCpp String packageName, @utf8InCpp String apkPath,
             @utf8InCpp String instructionSet, @nullable @utf8InCpp String outputPath);
+
+    interface IFsveritySetupAuthToken {
+        // Using an interface here is an easy way to create and maintain an IBinder object across
+        // the processes. When installd creates this binder object, it stores the file stat
+        // privately for later authentication, and only returns the reference to the caller process.
+        // Once the binder object has no reference count, it gets destructed automatically
+        // (alternatively, installd can maintain an internal mapping, but it is more error prone
+        // because the app may crash and not finish the fs-verity setup, keeping the memory unused
+        // forever).
+        //
+        // We don't necessarily need a method here, so it's left blank intentionally.
+    }
+    IFsveritySetupAuthToken createFsveritySetupAuthToken(in ParcelFileDescriptor authFd, int appUid,
+            int userId);
+    int enableFsverity(in IFsveritySetupAuthToken authToken, @utf8InCpp String filePath,
+            @utf8InCpp String packageName);
 
     const int FLAG_STORAGE_DE = 0x1;
     const int FLAG_STORAGE_CE = 0x2;

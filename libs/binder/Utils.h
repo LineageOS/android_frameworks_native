@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#pragma once
+
 #include <stddef.h>
 #include <sys/uio.h>
 #include <cstdint>
@@ -21,6 +23,30 @@
 
 #include <log/log.h>
 #include <utils/Errors.h>
+
+#define PLOGE(fmt, ...)                                                     \
+    do {                                                                    \
+        auto savedErrno = errno;                                            \
+        ALOGE(fmt ": %s" __VA_OPT__(, ) __VA_ARGS__, strerror(savedErrno)); \
+    } while (0)
+#define PLOGF(fmt, ...)                                                                \
+    do {                                                                               \
+        auto savedErrno = errno;                                                       \
+        LOG_ALWAYS_FATAL(fmt ": %s" __VA_OPT__(, ) __VA_ARGS__, strerror(savedErrno)); \
+    } while (0)
+
+/* TEMP_FAILURE_RETRY is not available on macOS and Trusty. */
+#ifndef TEMP_FAILURE_RETRY
+/* Used to retry syscalls that can return EINTR. */
+#define TEMP_FAILURE_RETRY(exp)                \
+    ({                                         \
+        __typeof__(exp) _rc;                   \
+        do {                                   \
+            _rc = (exp);                       \
+        } while (_rc == -1 && errno == EINTR); \
+        _rc;                                   \
+    })
+#endif
 
 #define TEST_AND_RETURN(value, expr)            \
     do {                                        \
@@ -31,6 +57,17 @@
     } while (0)
 
 namespace android {
+
+/**
+ * Get the size of a statically initialized array.
+ *
+ * \param N the array to get the size of.
+ * \return the size of the array.
+ */
+template <typename T, size_t N>
+constexpr size_t countof(T (&)[N]) {
+    return N;
+}
 
 // avoid optimizations
 void zeroMemory(uint8_t* data, size_t size);
@@ -69,5 +106,11 @@ struct Span {
         return Span<U>{reinterpret_cast<U*>(data), size / sizeof(U)};
     }
 };
+
+// Converts binary data into a hexString.
+//
+// Hex values are printed in order, e.g. 0xDEAD will result in 'adde' because
+// Android is little-endian.
+std::string HexString(const void* bytes, size_t len);
 
 }   // namespace android

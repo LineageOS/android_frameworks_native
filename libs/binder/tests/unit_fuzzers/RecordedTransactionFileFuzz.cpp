@@ -14,11 +14,12 @@
  * limitations under the License.
  */
 
-#include <android-base/macros.h>
 #include <binder/RecordedTransaction.h>
 #include <filesystem>
 
 #include "fuzzer/FuzzedDataProvider.h"
+
+using android::binder::unique_fd;
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     std::FILE* intermediateFile = std::tmpfile();
@@ -26,7 +27,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     rewind(intermediateFile);
     int fileNumber = fileno(intermediateFile);
 
-    android::base::unique_fd fd(dup(fileNumber));
+    unique_fd fd(dup(fileNumber));
 
     auto transaction = android::binder::debug::RecordedTransaction::fromFile(fd);
 
@@ -35,8 +36,8 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     if (transaction.has_value()) {
         intermediateFile = std::tmpfile();
 
-        android::base::unique_fd fdForWriting(fileno(intermediateFile));
-        auto writeStatus ATTRIBUTE_UNUSED = transaction.value().dumpToFile(fdForWriting);
+        unique_fd fdForWriting(dup(fileno(intermediateFile)));
+        auto writeStatus [[maybe_unused]] = transaction.value().dumpToFile(fdForWriting);
 
         std::fclose(intermediateFile);
     }

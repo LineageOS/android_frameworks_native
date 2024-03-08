@@ -17,30 +17,28 @@
 #pragma once
 
 #include <array>
+#include <limits>
 #include <map> // for legacy reasons
+#include <optional>
 #include <string>
 #include <type_traits>
 #include <variant>
 #include <vector>
 
-#include <android-base/unique_fd.h>
+#include <binder/unique_fd.h>
+#ifndef BINDER_DISABLE_NATIVE_HANDLE
 #include <cutils/native_handle.h>
+#endif
 #include <utils/Errors.h>
 #include <utils/RefBase.h>
 #include <utils/String16.h>
 #include <utils/Vector.h>
-#include <utils/Flattenable.h>
 
 #include <binder/IInterface.h>
 #include <binder/Parcelable.h>
 
-#ifdef BINDER_IPC_32BIT
-//NOLINTNEXTLINE(google-runtime-int) b/173188702
-typedef unsigned int binder_size_t;
-#else
 //NOLINTNEXTLINE(google-runtime-int) b/173188702
 typedef unsigned long long binder_size_t;
-#endif
 
 struct flat_binder_object;
 
@@ -154,6 +152,11 @@ public:
     // This Api is used by fuzzers to skip dataAvail checks.
     void setEnforceNoDataAvail(bool enforceNoDataAvail);
 
+    // When fuzzing, we want to remove certain ABI checks that cause significant
+    // lost coverage, and we also want to avoid logs that cost too much to write.
+    void setServiceFuzzing();
+    bool isServiceFuzzing() const;
+
     void                freeData();
 
     size_t              objectsCount() const;
@@ -266,7 +269,8 @@ public:
     status_t            writeEnumVector(const std::optional<std::vector<T>>& val)
             { return writeData(val); }
     template<typename T, std::enable_if_t<std::is_enum_v<T> && std::is_same_v<typename std::underlying_type_t<T>,int8_t>, bool> = 0>
-    status_t            writeEnumVector(const std::unique_ptr<std::vector<T>>& val) __attribute__((deprecated("use std::optional version instead")))
+    [[deprecated("use std::optional version instead")]] //
+    status_t            writeEnumVector(const std::unique_ptr<std::vector<T>>& val)
             { return writeData(val); }
     // Write an Enum vector with underlying type != int8_t.
     template<typename T, std::enable_if_t<std::is_enum_v<T> && !std::is_same_v<typename std::underlying_type_t<T>,int8_t>, bool> = 0>
@@ -276,17 +280,20 @@ public:
     status_t            writeEnumVector(const std::optional<std::vector<T>>& val)
             { return writeData(val); }
     template<typename T, std::enable_if_t<std::is_enum_v<T> && !std::is_same_v<typename std::underlying_type_t<T>,int8_t>, bool> = 0>
-    status_t            writeEnumVector(const std::unique_ptr<std::vector<T>>& val) __attribute__((deprecated("use std::optional version instead")))
+    [[deprecated("use std::optional version instead")]] //
+    status_t            writeEnumVector(const std::unique_ptr<std::vector<T>>& val)
             { return writeData(val); }
 
     template<typename T>
     status_t            writeParcelableVector(const std::optional<std::vector<std::optional<T>>>& val)
             { return writeData(val); }
     template<typename T>
-    status_t            writeParcelableVector(const std::unique_ptr<std::vector<std::unique_ptr<T>>>& val) __attribute__((deprecated("use std::optional version instead")))
+    [[deprecated("use std::optional version instead")]] //
+    status_t            writeParcelableVector(const std::unique_ptr<std::vector<std::unique_ptr<T>>>& val)
             { return writeData(val); }
     template<typename T>
-    status_t            writeParcelableVector(const std::shared_ptr<std::vector<std::unique_ptr<T>>>& val) __attribute__((deprecated("use std::optional version instead")))
+    [[deprecated("use std::optional version instead")]] //
+    status_t            writeParcelableVector(const std::shared_ptr<std::vector<std::unique_ptr<T>>>& val)
             { return writeData(val); }
     template<typename T>
     status_t            writeParcelableVector(const std::shared_ptr<std::vector<std::optional<T>>>& val)
@@ -318,11 +325,13 @@ public:
     template<typename T>
     status_t            writeVectorSize(const std::unique_ptr<std::vector<T>>& val) __attribute__((deprecated("use std::optional version instead")));
 
+#ifndef BINDER_DISABLE_NATIVE_HANDLE
     // Place a native_handle into the parcel (the native_handle's file-
     // descriptors are dup'ed, so it is safe to delete the native_handle
     // when this function returns).
     // Doesn't take ownership of the native_handle.
     status_t            writeNativeHandle(const native_handle* handle);
+#endif
 
     // Place a file descriptor into the parcel.  The given fd must remain
     // valid for the lifetime of the parcel.
@@ -345,17 +354,16 @@ public:
     // Place a file descriptor into the parcel.  This will not affect the
     // semantics of the smart file descriptor. A new descriptor will be
     // created, and will be closed when the parcel is destroyed.
-    status_t            writeUniqueFileDescriptor(
-                            const base::unique_fd& fd);
+    status_t writeUniqueFileDescriptor(const binder::unique_fd& fd);
 
     // Place a vector of file desciptors into the parcel. Each descriptor is
     // dup'd as in writeDupFileDescriptor
-    status_t            writeUniqueFileDescriptorVector(
-                            const std::optional<std::vector<base::unique_fd>>& val);
-    status_t            writeUniqueFileDescriptorVector(
-                            const std::unique_ptr<std::vector<base::unique_fd>>& val) __attribute__((deprecated("use std::optional version instead")));
-    status_t            writeUniqueFileDescriptorVector(
-                            const std::vector<base::unique_fd>& val);
+    status_t writeUniqueFileDescriptorVector(
+            const std::optional<std::vector<binder::unique_fd>>& val);
+    status_t writeUniqueFileDescriptorVector(
+            const std::unique_ptr<std::vector<binder::unique_fd>>& val)
+            __attribute__((deprecated("use std::optional version instead")));
+    status_t writeUniqueFileDescriptorVector(const std::vector<binder::unique_fd>& val);
 
     // Writes a blob to the parcel.
     // If the blob is small, then it is stored in-place, otherwise it is
@@ -422,7 +430,8 @@ public:
     status_t            readEnumVector(std::vector<T>* val) const
             { return readData(val); }
     template<typename T, std::enable_if_t<std::is_enum_v<T> && std::is_same_v<typename std::underlying_type_t<T>,int8_t>, bool> = 0>
-    status_t            readEnumVector(std::unique_ptr<std::vector<T>>* val) const __attribute__((deprecated("use std::optional version instead")))
+    [[deprecated("use std::optional version instead")]] //
+    status_t            readEnumVector(std::unique_ptr<std::vector<T>>* val) const
             { return readData(val); }
     template<typename T, std::enable_if_t<std::is_enum_v<T> && std::is_same_v<typename std::underlying_type_t<T>,int8_t>, bool> = 0>
     status_t            readEnumVector(std::optional<std::vector<T>>* val) const
@@ -432,7 +441,8 @@ public:
     status_t            readEnumVector(std::vector<T>* val) const
             { return readData(val); }
     template<typename T, std::enable_if_t<std::is_enum_v<T> && !std::is_same_v<typename std::underlying_type_t<T>,int8_t>, bool> = 0>
-    status_t            readEnumVector(std::unique_ptr<std::vector<T>>* val) const __attribute__((deprecated("use std::optional version instead")))
+    [[deprecated("use std::optional version instead")]] //
+    status_t            readEnumVector(std::unique_ptr<std::vector<T>>* val) const
             { return readData(val); }
     template<typename T, std::enable_if_t<std::is_enum_v<T> && !std::is_same_v<typename std::underlying_type_t<T>,int8_t>, bool> = 0>
     status_t            readEnumVector(std::optional<std::vector<T>>* val) const
@@ -443,8 +453,9 @@ public:
                             std::optional<std::vector<std::optional<T>>>* val) const
             { return readData(val); }
     template<typename T>
+    [[deprecated("use std::optional version instead")]] //
     status_t            readParcelableVector(
-                            std::unique_ptr<std::vector<std::unique_ptr<T>>>* val) const __attribute__((deprecated("use std::optional version instead")))
+                            std::unique_ptr<std::vector<std::unique_ptr<T>>>* val) const
             { return readData(val); }
     template<typename T>
     status_t            readParcelableVector(std::vector<T>* val) const
@@ -550,13 +561,14 @@ public:
     // response headers rather than doing it by hand.
     int32_t             readExceptionCode() const;
 
+#ifndef BINDER_DISABLE_NATIVE_HANDLE
     // Retrieve native_handle from the parcel. This returns a copy of the
     // parcel's native_handle (the caller takes ownership). The caller
-    // must free the native_handle with native_handle_close() and 
+    // must free the native_handle with native_handle_close() and
     // native_handle_delete().
     native_handle*     readNativeHandle() const;
+#endif
 
-    
     // Retrieve a file descriptor from the parcel.  This returns the raw fd
     // in the parcel, which you do not own -- use dup() to get your own copy.
     int                 readFileDescriptor() const;
@@ -566,20 +578,17 @@ public:
     int                 readParcelFileDescriptor() const;
 
     // Retrieve a smart file descriptor from the parcel.
-    status_t            readUniqueFileDescriptor(
-                            base::unique_fd* val) const;
+    status_t readUniqueFileDescriptor(binder::unique_fd* val) const;
 
     // Retrieve a Java "parcel file descriptor" from the parcel.
-    status_t            readUniqueParcelFileDescriptor(base::unique_fd* val) const;
-
+    status_t readUniqueParcelFileDescriptor(binder::unique_fd* val) const;
 
     // Retrieve a vector of smart file descriptors from the parcel.
-    status_t            readUniqueFileDescriptorVector(
-                            std::optional<std::vector<base::unique_fd>>* val) const;
-    status_t            readUniqueFileDescriptorVector(
-                            std::unique_ptr<std::vector<base::unique_fd>>* val) const __attribute__((deprecated("use std::optional version instead")));
-    status_t            readUniqueFileDescriptorVector(
-                            std::vector<base::unique_fd>* val) const;
+    status_t readUniqueFileDescriptorVector(
+            std::optional<std::vector<binder::unique_fd>>* val) const;
+    status_t readUniqueFileDescriptorVector(std::unique_ptr<std::vector<binder::unique_fd>>* val)
+            const __attribute__((deprecated("use std::optional version instead")));
+    status_t readUniqueFileDescriptorVector(std::vector<binder::unique_fd>* val) const;
 
     // Reads a blob from the parcel.
     // The caller should call release() on the blob after reading its contents.
@@ -616,7 +625,7 @@ private:
     status_t rpcSetDataReference(
             const sp<RpcSession>& session, const uint8_t* data, size_t dataSize,
             const uint32_t* objectTable, size_t objectTableSize,
-            std::vector<std::variant<base::unique_fd, base::borrowed_fd>>&& ancillaryFds,
+            std::vector<std::variant<binder::unique_fd, binder::borrowed_fd>>&& ancillaryFds,
             release_func relFunc);
 
     status_t            finishWrite(size_t len);
@@ -693,7 +702,7 @@ private:
     // 5) Nullable objects contained in std::optional, std::unique_ptr, or std::shared_ptr.
     //
     // And active objects from the Android ecosystem such as:
-    // 6) File descriptors, base::unique_fd (kernel object handles)
+    // 6) File descriptors, unique_fd (kernel object handles)
     // 7) Binder objects, sp<IBinder> (active Android RPC handles)
     //
     // Objects from (1) through (5) serialize into the mData buffer.
@@ -944,9 +953,7 @@ private:
         return writeUtf8AsUtf16(t);
     }
 
-    status_t writeData(const base::unique_fd& t) {
-        return writeUniqueFileDescriptor(t);
-    }
+    status_t writeData(const binder::unique_fd& t) { return writeUniqueFileDescriptor(t); }
 
     status_t writeData(const Parcelable& t) {  // std::is_base_of_v<Parcelable, T>
         // implemented here. writeParcelable() calls this.
@@ -1093,9 +1100,7 @@ private:
         return readUtf8FromUtf16(t);
     }
 
-    status_t readData(base::unique_fd* t) const {
-        return readUniqueFileDescriptor(t);
-    }
+    status_t readData(binder::unique_fd* t) const { return readUniqueFileDescriptor(t); }
 
     status_t readData(Parcelable* t) const { // std::is_base_of_v<Parcelable, T>
         // implemented here. readParcelable() calls this.
@@ -1280,6 +1285,7 @@ private:
 
     // Fields only needed when parcelling for "kernel Binder".
     struct KernelFields {
+        KernelFields() {}
         binder_size_t* mObjects = nullptr;
         size_t mObjectsSize = 0;
         size_t mObjectsCapacity = 0;
@@ -1314,7 +1320,7 @@ private:
         // same order as `mObjectPositions`.
         //
         // Boxed to save space. Lazy allocated.
-        std::unique_ptr<std::vector<std::variant<base::unique_fd, base::borrowed_fd>>> mFds;
+        std::unique_ptr<std::vector<std::variant<binder::unique_fd, binder::borrowed_fd>>> mFds;
     };
     std::variant<KernelFields, RpcFields> mVariantFields;
 
@@ -1335,6 +1341,7 @@ private:
 
     // Set this to false to skip dataAvail checks.
     bool mEnforceNoDataAvail;
+    bool mServiceFuzzing;
 
     release_func        mOwner;
 

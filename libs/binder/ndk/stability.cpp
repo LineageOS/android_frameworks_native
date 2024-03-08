@@ -27,6 +27,10 @@ using ::android::internal::Stability;
 #error libbinder_ndk should only be built in a system context
 #endif
 
+#ifdef __ANDROID_VENDOR__
+#error libbinder_ndk should only be built in a system context
+#endif
+
 #ifdef __ANDROID_NDK__
 #error libbinder_ndk should only be built in a system context
 #endif

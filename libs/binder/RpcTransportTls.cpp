@@ -18,6 +18,7 @@
 #include <log/log.h>
 
 #include <poll.h>
+#include <sys/socket.h>
 
 #include <openssl/bn.h>
 #include <openssl/ssl.h>
@@ -29,6 +30,8 @@
 #include "RpcState.h"
 #include "Utils.h"
 
+#include <sstream>
+
 #define SHOULD_LOG_TLS_DETAIL false
 
 #if SHOULD_LOG_TLS_DETAIL
@@ -38,6 +41,11 @@
 #endif
 
 namespace android {
+
+using namespace android::binder::impl;
+using android::binder::borrowed_fd;
+using android::binder::unique_fd;
+
 namespace {
 
 // Implement BIO for socket that ignores SIGPIPE.
@@ -51,7 +59,7 @@ int socketFree(BIO* bio) {
     return 1;
 }
 int socketRead(BIO* bio, char* buf, int size) {
-    android::base::borrowed_fd fd(static_cast<int>(reinterpret_cast<intptr_t>(BIO_get_data(bio))));
+    borrowed_fd fd(static_cast<int>(reinterpret_cast<intptr_t>(BIO_get_data(bio))));
     int ret = TEMP_FAILURE_RETRY(::recv(fd.get(), buf, size, MSG_NOSIGNAL));
     BIO_clear_retry_flags(bio);
     if (errno == EAGAIN || errno == EWOULDBLOCK) {
@@ -61,7 +69,7 @@ int socketRead(BIO* bio, char* buf, int size) {
 }
 
 int socketWrite(BIO* bio, const char* buf, int size) {
-    android::base::borrowed_fd fd(static_cast<int>(reinterpret_cast<intptr_t>(BIO_get_data(bio))));
+    borrowed_fd fd(static_cast<int>(reinterpret_cast<intptr_t>(BIO_get_data(bio))));
     int ret = TEMP_FAILURE_RETRY(::send(fd.get(), buf, size, MSG_NOSIGNAL));
     BIO_clear_retry_flags(bio);
     if (errno == EAGAIN || errno == EWOULDBLOCK) {
@@ -71,13 +79,13 @@ int socketWrite(BIO* bio, const char* buf, int size) {
 }
 
 long socketCtrl(BIO* bio, int cmd, long num, void*) { // NOLINT
-    android::base::borrowed_fd fd(static_cast<int>(reinterpret_cast<intptr_t>(BIO_get_data(bio))));
+    borrowed_fd fd(static_cast<int>(reinterpret_cast<intptr_t>(BIO_get_data(bio))));
     if (cmd == BIO_CTRL_FLUSH) return 1;
     LOG_ALWAYS_FATAL("sockCtrl(fd=%d, %d, %ld)", fd.get(), cmd, num);
     return 0;
 }
 
-bssl::UniquePtr<BIO> newSocketBio(android::base::borrowed_fd fd) {
+bssl::UniquePtr<BIO> newSocketBio(borrowed_fd fd) {
     static const BIO_METHOD* gMethods = ([] {
         auto methods = BIO_meth_new(BIO_get_new_index(), "socket_no_signal");
         LOG_ALWAYS_FATAL_IF(0 == BIO_meth_set_write(methods, socketWrite), "BIO_meth_set_write");
@@ -181,10 +189,9 @@ public:
     // |sslError| should be from Ssl::getError().
     // If |sslError| is WANT_READ / WANT_WRITE, poll for POLLIN / POLLOUT respectively. Otherwise
     // return error. Also return error if |fdTrigger| is triggered before or during poll().
-    status_t pollForSslError(
-            const android::RpcTransportFd& fd, int sslError, FdTrigger* fdTrigger,
-            const char* fnString, int additionalEvent,
-            const std::optional<android::base::function_ref<status_t()>>& altPoll) {
+    status_t pollForSslError(const android::RpcTransportFd& fd, int sslError, FdTrigger* fdTrigger,
+                             const char* fnString, int additionalEvent,
+                             const std::optional<SmallFunction<status_t()>>& altPoll) {
         switch (sslError) {
             case SSL_ERROR_WANT_READ:
                 return handlePoll(POLLIN | additionalEvent, fd, fdTrigger, fnString, altPoll);
@@ -200,7 +207,7 @@ private:
 
     status_t handlePoll(int event, const android::RpcTransportFd& fd, FdTrigger* fdTrigger,
                         const char* fnString,
-                        const std::optional<android::base::function_ref<status_t()>>& altPoll) {
+                        const std::optional<SmallFunction<status_t()>>& altPoll) {
         status_t ret;
         if (altPoll) {
             ret = (*altPoll)();
@@ -275,6 +282,8 @@ private:
     bssl::UniquePtr<SSL> mSsl;
 };
 
+} // namespace
+
 class RpcTransportTls : public RpcTransport {
 public:
     RpcTransportTls(RpcTransportFd socket, Ssl ssl)
@@ -282,15 +291,14 @@ public:
     status_t pollRead(void) override;
     status_t interruptableWriteFully(
             FdTrigger* fdTrigger, iovec* iovs, int niovs,
-            const std::optional<android::base::function_ref<status_t()>>& altPoll,
-            const std::vector<std::variant<base::unique_fd, base::borrowed_fd>>* ancillaryFds)
-            override;
+            const std::optional<SmallFunction<status_t()>>& altPoll,
+            const std::vector<std::variant<unique_fd, borrowed_fd>>* ancillaryFds) override;
     status_t interruptableReadFully(
             FdTrigger* fdTrigger, iovec* iovs, int niovs,
-            const std::optional<android::base::function_ref<status_t()>>& altPoll,
-            std::vector<std::variant<base::unique_fd, base::borrowed_fd>>* ancillaryFds) override;
+            const std::optional<SmallFunction<status_t()>>& altPoll,
+            std::vector<std::variant<unique_fd, borrowed_fd>>* ancillaryFds) override;
 
-    bool isWaiting() { return mSocket.isInPollingState(); };
+    bool isWaiting() override { return mSocket.isInPollingState(); };
 
 private:
     android::RpcTransportFd mSocket;
@@ -318,8 +326,8 @@ status_t RpcTransportTls::pollRead(void) {
 
 status_t RpcTransportTls::interruptableWriteFully(
         FdTrigger* fdTrigger, iovec* iovs, int niovs,
-        const std::optional<android::base::function_ref<status_t()>>& altPoll,
-        const std::vector<std::variant<base::unique_fd, base::borrowed_fd>>* ancillaryFds) {
+        const std::optional<SmallFunction<status_t()>>& altPoll,
+        const std::vector<std::variant<unique_fd, borrowed_fd>>* ancillaryFds) {
     (void)ancillaryFds;
 
     MAYBE_WAIT_IN_FLAKE_MODE;
@@ -364,8 +372,8 @@ status_t RpcTransportTls::interruptableWriteFully(
 
 status_t RpcTransportTls::interruptableReadFully(
         FdTrigger* fdTrigger, iovec* iovs, int niovs,
-        const std::optional<android::base::function_ref<status_t()>>& altPoll,
-        std::vector<std::variant<base::unique_fd, base::borrowed_fd>>* ancillaryFds) {
+        const std::optional<SmallFunction<status_t()>>& altPoll,
+        std::vector<std::variant<unique_fd, borrowed_fd>>* ancillaryFds) {
     (void)ancillaryFds;
 
     MAYBE_WAIT_IN_FLAKE_MODE;
@@ -411,7 +419,8 @@ status_t RpcTransportTls::interruptableReadFully(
 }
 
 // For |ssl|, set internal FD to |fd|, and do handshake. Handshake is triggerable by |fdTrigger|.
-bool setFdAndDoHandshake(Ssl* ssl, const android::RpcTransportFd& socket, FdTrigger* fdTrigger) {
+static bool setFdAndDoHandshake(Ssl* ssl, const android::RpcTransportFd& socket,
+                                FdTrigger* fdTrigger) {
     bssl::UniquePtr<BIO> bio = newSocketBio(socket.fd);
     TEST_AND_RETURN(false, bio != nullptr);
     auto [_, errorQueue] = ssl->call(SSL_set_bio, bio.get(), bio.get());
@@ -539,8 +548,6 @@ protected:
         ssl->call(SSL_set_connect_state).errorQueue.clear();
     }
 };
-
-} // namespace
 
 std::unique_ptr<RpcTransportCtx> RpcTransportCtxFactoryTls::newServerCtx() const {
     return android::RpcTransportCtxTls::create<RpcTransportCtxTlsServer>(mCertVerifier,

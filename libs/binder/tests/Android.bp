@@ -32,58 +32,14 @@ cc_defaults {
 }
 
 cc_test {
-    name: "binderDriverInterfaceTest_IPC_32",
-    defaults: ["binder_test_defaults"],
-    srcs: ["binderDriverInterfaceTest.cpp"],
-    header_libs: ["libbinder_headers"],
-    compile_multilib: "32",
-    multilib: {
-        lib32: {
-            suffix: "",
-        },
-    },
-    cflags: ["-DBINDER_IPC_32BIT=1"],
-    test_suites: ["vts"],
-}
-
-cc_test {
     name: "binderDriverInterfaceTest",
     defaults: ["binder_test_defaults"],
-    product_variables: {
-        binder32bit: {
-            cflags: ["-DBINDER_IPC_32BIT=1"],
-        },
-    },
     header_libs: ["libbinder_headers"],
     srcs: ["binderDriverInterfaceTest.cpp"],
     test_suites: [
         "device-tests",
         "vts",
     ],
-}
-
-cc_test {
-    name: "binderLibTest_IPC_32",
-    defaults: ["binder_test_defaults"],
-    srcs: ["binderLibTest.cpp"],
-    shared_libs: [
-        "libbase",
-        "libbinder",
-        "liblog",
-        "libutils",
-    ],
-    static_libs: [
-        "libgmock",
-    ],
-    compile_multilib: "32",
-    multilib: {
-        lib32: {
-            suffix: "",
-        },
-    },
-    cflags: ["-DBINDER_IPC_32BIT=1"],
-    test_suites: ["vts"],
-    require_root: true,
 }
 
 // unit test only, which can run on host and doesn't use /dev/binder
@@ -111,13 +67,41 @@ cc_test {
 }
 
 cc_test {
-    name: "binderLibTest",
-    defaults: ["binder_test_defaults"],
-    product_variables: {
-        binder32bit: {
-            cflags: ["-DBINDER_IPC_32BIT=1"],
+    name: "binderRecordReplayTest",
+    srcs: ["binderRecordReplayTest.cpp"],
+    shared_libs: [
+        "libbinder",
+        "libcutils",
+        "libutils",
+    ],
+    static_libs: [
+        "binderRecordReplayTestIface-cpp",
+        "binderReadParcelIface-cpp",
+        "libbinder_random_parcel_seeds",
+        "libbinder_random_parcel",
+    ],
+    test_suites: ["general-tests"],
+    require_root: true,
+}
+
+aidl_interface {
+    name: "binderRecordReplayTestIface",
+    unstable: true,
+    srcs: [
+        "IBinderRecordReplayTest.aidl",
+    ],
+    imports: ["binderReadParcelIface"],
+    backend: {
+        java: {
+            enabled: true,
+            platform_apis: true,
         },
     },
+}
+
+cc_test {
+    name: "binderLibTest",
+    defaults: ["binder_test_defaults"],
 
     srcs: ["binderLibTest.cpp"],
     shared_libs: [
@@ -149,6 +133,10 @@ aidl_interface {
         "IBinderRpcSession.aidl",
         "IBinderRpcTest.aidl",
         "ParcelableCertificateData.aidl",
+    ],
+    flags: [
+        "-Werror",
+        "-Wno-mixed-oneway",
     ],
     backend: {
         java: {
@@ -188,6 +176,30 @@ cc_library_static {
     ],
 }
 
+cc_library_static {
+    name: "libbinder_test_utils",
+    host_supported: true,
+    vendor_available: true,
+    target: {
+        darwin: {
+            enabled: false,
+        },
+    },
+    defaults: [
+        "binder_test_defaults",
+    ],
+    shared_libs: [
+        "libbase",
+        "liblog",
+    ],
+    srcs: [
+        "FileUtils.cpp",
+    ],
+    visibility: [
+        ":__subpackages__",
+    ],
+}
+
 cc_defaults {
     name: "binderRpcTest_common_defaults",
     host_supported: true,
@@ -201,6 +213,7 @@ cc_defaults {
     ],
 
     static_libs: [
+        "libbinder_test_utils",
         "libbinder_tls_static",
         "libbinder_tls_test_utils",
         "binderRpcTestIface-cpp",
@@ -716,6 +729,7 @@ cc_benchmark {
         "liblog",
         "libutils",
     ],
+    test_suites: ["general-tests"],
 }
 
 cc_test_host {
@@ -816,5 +830,17 @@ cc_defaults {
         ],
         // Adds bugs to hotlist "AIDL fuzzers bugs" on buganizer
         hotlists: ["4637097"],
+    },
+}
+
+cc_defaults {
+    name: "fuzzer_disable_leaks",
+    fuzz_config: {
+        asan_options: [
+            "detect_leaks=0",
+        ],
+        hwasan_options: [
+            "detect_leaks=0",
+        ],
     },
 }

@@ -24,7 +24,7 @@
 
 #include <android-base/stringprintf.h>
 #include <android/log.h>
-#include <utils/Trace.h>
+#include <input/TraceTools.h>
 
 using android::base::StringPrintf;
 
@@ -39,7 +39,7 @@ std::list<NotifyArgs>& operator+=(std::list<NotifyArgs>& keep, std::list<NotifyA
 
 // Helper to std::visit with lambdas.
 template <typename... V>
-struct Visitor : V... {};
+struct Visitor : V... { using V::operator()...; };
 // explicit deduction guide (not needed as of C++20)
 template <typename... V>
 Visitor(V...) -> Visitor<V...>;
@@ -61,58 +61,42 @@ void InputListenerInterface::notify(const NotifyArgs& generalArgs) {
 
 // --- QueuedInputListener ---
 
-static inline void traceEvent(const char* functionName, int32_t id) {
-    if (ATRACE_ENABLED()) {
-        std::string message = StringPrintf("%s(id=0x%" PRIx32 ")", functionName, id);
-        ATRACE_NAME(message.c_str());
-    }
-}
-
 QueuedInputListener::QueuedInputListener(InputListenerInterface& innerListener)
       : mInnerListener(innerListener) {}
 
 void QueuedInputListener::notifyInputDevicesChanged(const NotifyInputDevicesChangedArgs& args) {
-    traceEvent(__func__, args.id);
     mArgsQueue.emplace_back(args);
 }
 
 void QueuedInputListener::notifyConfigurationChanged(const NotifyConfigurationChangedArgs& args) {
-    traceEvent(__func__, args.id);
     mArgsQueue.emplace_back(args);
 }
 
 void QueuedInputListener::notifyKey(const NotifyKeyArgs& args) {
-    traceEvent(__func__, args.id);
     mArgsQueue.emplace_back(args);
 }
 
 void QueuedInputListener::notifyMotion(const NotifyMotionArgs& args) {
-    traceEvent(__func__, args.id);
     mArgsQueue.emplace_back(args);
 }
 
 void QueuedInputListener::notifySwitch(const NotifySwitchArgs& args) {
-    traceEvent(__func__, args.id);
     mArgsQueue.emplace_back(args);
 }
 
 void QueuedInputListener::notifySensor(const NotifySensorArgs& args) {
-    traceEvent(__func__, args.id);
     mArgsQueue.emplace_back(args);
 }
 
 void QueuedInputListener::notifyVibratorState(const NotifyVibratorStateArgs& args) {
-    traceEvent(__func__, args.id);
     mArgsQueue.emplace_back(args);
 }
 
 void QueuedInputListener::notifyDeviceReset(const NotifyDeviceResetArgs& args) {
-    traceEvent(__func__, args.id);
     mArgsQueue.emplace_back(args);
 }
 
 void QueuedInputListener::notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs& args) {
-    traceEvent(__func__, args.id);
     mArgsQueue.emplace_back(args);
 }
 
@@ -121,6 +105,74 @@ void QueuedInputListener::flush() {
         mInnerListener.notify(args);
     }
     mArgsQueue.clear();
+}
+
+// --- TracedInputListener ---
+
+TracedInputListener::TracedInputListener(const char* name, InputListenerInterface& innerListener)
+      : mInnerListener(innerListener), mName(name) {}
+
+void TracedInputListener::notifyInputDevicesChanged(const NotifyInputDevicesChangedArgs& args) {
+    constexpr static auto& fnName = __func__;
+    ATRACE_NAME_IF(ATRACE_ENABLED(),
+                   StringPrintf("%s::%s(id=0x%" PRIx32 ")", mName, fnName, args.id));
+    mInnerListener.notify(args);
+}
+
+void TracedInputListener::notifyConfigurationChanged(const NotifyConfigurationChangedArgs& args) {
+    constexpr static auto& fnName = __func__;
+    ATRACE_NAME_IF(ATRACE_ENABLED(),
+                   StringPrintf("%s::%s(id=0x%" PRIx32 ")", mName, fnName, args.id));
+    mInnerListener.notify(args);
+}
+
+void TracedInputListener::notifyKey(const NotifyKeyArgs& args) {
+    constexpr static auto& fnName = __func__;
+    ATRACE_NAME_IF(ATRACE_ENABLED(),
+                   StringPrintf("%s::%s(id=0x%" PRIx32 ")", mName, fnName, args.id));
+    mInnerListener.notify(args);
+}
+
+void TracedInputListener::notifyMotion(const NotifyMotionArgs& args) {
+    constexpr static auto& fnName = __func__;
+    ATRACE_NAME_IF(ATRACE_ENABLED(),
+                   StringPrintf("%s::%s(id=0x%" PRIx32 ")", mName, fnName, args.id));
+    mInnerListener.notify(args);
+}
+
+void TracedInputListener::notifySwitch(const NotifySwitchArgs& args) {
+    constexpr static auto& fnName = __func__;
+    ATRACE_NAME_IF(ATRACE_ENABLED(),
+                   StringPrintf("%s::%s(id=0x%" PRIx32 ")", mName, fnName, args.id));
+    mInnerListener.notify(args);
+}
+
+void TracedInputListener::notifySensor(const NotifySensorArgs& args) {
+    constexpr static auto& fnName = __func__;
+    ATRACE_NAME_IF(ATRACE_ENABLED(),
+                   StringPrintf("%s::%s(id=0x%" PRIx32 ")", mName, fnName, args.id));
+    mInnerListener.notify(args);
+}
+
+void TracedInputListener::notifyVibratorState(const NotifyVibratorStateArgs& args) {
+    constexpr static auto& fnName = __func__;
+    ATRACE_NAME_IF(ATRACE_ENABLED(),
+                   StringPrintf("%s::%s(id=0x%" PRIx32 ")", mName, fnName, args.id));
+    mInnerListener.notify(args);
+}
+
+void TracedInputListener::notifyDeviceReset(const NotifyDeviceResetArgs& args) {
+    constexpr static auto& fnName = __func__;
+    ATRACE_NAME_IF(ATRACE_ENABLED(),
+                   StringPrintf("%s::%s(id=0x%" PRIx32 ")", mName, fnName, args.id));
+    mInnerListener.notify(args);
+}
+
+void TracedInputListener::notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs& args) {
+    constexpr static auto& fnName = __func__;
+    ATRACE_NAME_IF(ATRACE_ENABLED(),
+                   StringPrintf("%s::%s(id=0x%" PRIx32 ")", mName, fnName, args.id));
+    mInnerListener.notify(args);
 }
 
 } // namespace android

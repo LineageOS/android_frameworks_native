@@ -324,6 +324,10 @@ LazyServiceRegistrar& LazyServiceRegistrar::getInstance() {
     return *registrarInstance;
 }
 
+LazyServiceRegistrar LazyServiceRegistrar::createExtraTestInstance() {
+    return LazyServiceRegistrar();
+}
+
 status_t LazyServiceRegistrar::registerService(const sp<IBinder>& service, const std::string& name,
                                                bool allowIsolated, int dumpFlags) {
     if (!mClientCC->registerService(service, name, allowIsolated, dumpFlags)) {

@@ -15,14 +15,15 @@
  */
 #pragma once
 
-#include <android-base/unique_fd.h>
 #include <binder/IBinder.h>
 #include <binder/RpcSession.h>
 #include <binder/RpcThreads.h>
 #include <binder/RpcTransport.h>
+#include <binder/unique_fd.h>
 #include <utils/Errors.h>
 #include <utils/RefBase.h>
 
+#include <bitset>
 #include <mutex>
 #include <thread>
 
@@ -58,7 +59,7 @@ public:
      * to RpcSession::setupUnixDomainSocketBootstrapClient. Multiple client
      * session can be created from the client end of the pair.
      */
-    [[nodiscard]] status_t setupUnixDomainSocketBootstrapServer(base::unique_fd serverFd);
+    [[nodiscard]] status_t setupUnixDomainSocketBootstrapServer(binder::unique_fd serverFd);
 
     /**
      * This represents a session for responses, e.g.:
@@ -78,7 +79,7 @@ public:
      * This method is used in the libbinder_rpc_unstable API
      * RunInitUnixDomainRpcServer().
      */
-    [[nodiscard]] status_t setupRawSocketServer(base::unique_fd socket_fd);
+    [[nodiscard]] status_t setupRawSocketServer(binder::unique_fd socket_fd);
 
     /**
      * Creates an RPC server binding to the given CID at the given port.
@@ -110,13 +111,13 @@ public:
     /**
      * If hasServer(), return the server FD. Otherwise return invalid FD.
      */
-    [[nodiscard]] base::unique_fd releaseServer();
+    [[nodiscard]] binder::unique_fd releaseServer();
 
     /**
      * Set up server using an external FD previously set up by releaseServer().
      * Return false if there's already a server.
      */
-    [[nodiscard]] status_t setupExternalServer(base::unique_fd serverFd);
+    [[nodiscard]] status_t setupExternalServer(binder::unique_fd serverFd);
 
     /**
      * This must be called before adding a client session. This corresponds
@@ -137,7 +138,7 @@ public:
      * used. However, this can be used in order to prevent newer protocol
      * versions from ever being used. This is expected to be useful for testing.
      */
-    void setProtocolVersion(uint32_t version);
+    [[nodiscard]] bool setProtocolVersion(uint32_t version);
 
     /**
      * Set the supported transports for sending and receiving file descriptors.
@@ -163,14 +164,18 @@ public:
      * Allows a root object to be created for each session.
      *
      * Takes one argument: a callable that is invoked once per new session.
-     * The callable takes two arguments: a type-erased pointer to an OS- and
-     * transport-specific address structure, e.g., sockaddr_vm for vsock, and
-     * an integer representing the size in bytes of that structure. The
-     * callable should validate the size, then cast the type-erased pointer
-     * to a pointer to the actual type of the address, e.g., const void* to
-     * const sockaddr_vm*.
+     * The callable takes three arguments:
+     * - a weak pointer to the session. If you want to hold onto this in the root object, then
+     *   you should keep a weak pointer, and promote it when needed. For instance, if you refer
+     *   to this from the root object, then you could get ahold of transport-specific information.
+     * - a type-erased pointer to an OS- and transport-specific address structure, e.g.,
+     *   sockaddr_vm for vsock
+     * - an integer representing the size in bytes of that structure. The callable should
+     *   validate the size, then cast the type-erased pointer to a pointer to the actual type of the
+     *   address, e.g., const void* to const sockaddr_vm*.
      */
-    void setPerSessionRootObject(std::function<sp<IBinder>(const void*, size_t)>&& object);
+    void setPerSessionRootObject(
+            std::function<sp<IBinder>(wp<RpcSession> session, const void*, size_t)>&& object);
     sp<IBinder> getRootObject();
 
     /**
@@ -182,6 +187,13 @@ public:
      * the callable's arguments.
      */
     void setConnectionFilter(std::function<bool(const void*, size_t)>&& filter);
+
+    /**
+     * Set optional modifier of each newly created server socket.
+     *
+     * The only argument is a successfully created file descriptor, not bound to an address yet.
+     */
+    void setServerSocketModifier(std::function<void(binder::borrowed_fd)>&& modifier);
 
     /**
      * See RpcTransportCtx::getCertificate
@@ -237,7 +249,7 @@ private:
     void onSessionIncomingThreadEnded() override;
 
     status_t setupExternalServer(
-            base::unique_fd serverFd,
+            binder::unique_fd serverFd,
             std::function<status_t(const RpcServer&, RpcTransportFd*)>&& acceptFn);
 
     static constexpr size_t kRpcAddressSize = 128;
@@ -265,8 +277,9 @@ private:
 
     sp<IBinder> mRootObject;
     wp<IBinder> mRootObjectWeak;
-    std::function<sp<IBinder>(const void*, size_t)> mRootObjectFactory;
+    std::function<sp<IBinder>(wp<RpcSession>, const void*, size_t)> mRootObjectFactory;
     std::function<bool(const void*, size_t)> mConnectionFilter;
+    std::function<void(binder::borrowed_fd)> mServerSocketModifier;
     std::map<std::vector<uint8_t>, sp<RpcSession>> mSessions;
     std::unique_ptr<FdTrigger> mShutdownTrigger;
     RpcConditionVariable mShutdownCv;

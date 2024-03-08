@@ -23,8 +23,8 @@
 #include <vector>
 
 #include <android-base/macros.h>
-#include <android-base/result.h>
-#include <android-base/unique_fd.h>
+#include <binder/unique_fd.h>
+#include <utils/Errors.h>
 
 /**
  * Log a lot more information about host-device binder communication, when debugging issues.
@@ -46,8 +46,8 @@ struct CommandResult {
     std::string stdoutStr;
     std::string stderrStr;
 
-    android::base::unique_fd outPipe;
-    android::base::unique_fd errPipe;
+    binder::unique_fd outPipe;
+    binder::unique_fd errPipe;
 
     CommandResult() = default;
     CommandResult(CommandResult&& other) noexcept { (*this) = std::move(other); }
@@ -67,7 +67,8 @@ struct CommandResult {
     }
 
 private:
-    DISALLOW_COPY_AND_ASSIGN(CommandResult);
+    CommandResult(const CommandResult&) = delete;
+    void operator=(const CommandResult&) = delete;
 };
 
 std::ostream& operator<<(std::ostream& os, const CommandResult& res);
@@ -94,6 +95,6 @@ std::ostream& operator<<(std::ostream& os, const CommandResult& res);
 //
 // If the parent process has encountered any errors for system calls, return ExecuteError with
 // the proper errno set.
-android::base::Result<CommandResult> execute(std::vector<std::string> argStringVec,
-                                             const std::function<bool(const CommandResult&)>& end);
+std::optional<CommandResult> execute(std::vector<std::string> argStringVec,
+                                     const std::function<bool(const CommandResult&)>& end);
 } // namespace android

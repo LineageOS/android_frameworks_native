@@ -227,14 +227,6 @@ int32_t wcg_composition_pixel_format(PixelFormat defaultValue) {
     return static_cast<int32_t>(defaultValue);
 }
 
-int64_t color_space_agnostic_dataspace(Dataspace defaultValue) {
-    auto temp = SurfaceFlingerProperties::color_space_agnostic_dataspace();
-    if (temp.has_value()) {
-        return *temp;
-    }
-    return static_cast<int64_t>(defaultValue);
-}
-
 bool refresh_rate_switching(bool defaultValue) {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
@@ -377,6 +369,10 @@ bool ignore_hdr_camera_layers(bool defaultValue) {
 
 bool clear_slots_with_set_layer_buffer(bool defaultValue) {
     return SurfaceFlingerProperties::clear_slots_with_set_layer_buffer().value_or(defaultValue);
+}
+
+int32_t game_default_frame_rate_override(int32_t defaultValue) {
+    return SurfaceFlingerProperties::game_default_frame_rate_override().value_or(defaultValue);
 }
 
 } // namespace sysprop

@@ -26,7 +26,7 @@ use binder::binder_impl::{
 
 use std::convert::{TryFrom, TryInto};
 use std::ffi::CStr;
-use std::fs::File;
+use std::io::Write;
 use std::sync::Mutex;
 
 /// Name of service runner.
@@ -118,7 +118,7 @@ impl TryFrom<u32> for TestTransactionCode {
 }
 
 impl Interface for TestService {
-    fn dump(&self, _file: &File, args: &[&CStr]) -> Result<(), StatusCode> {
+    fn dump(&self, _writer: &mut dyn Write, args: &[&CStr]) -> Result<(), StatusCode> {
         let mut dump_args = self.dump_args.lock().unwrap();
         dump_args.extend(args.iter().map(|s| s.to_str().unwrap().to_owned()));
         Ok(())
@@ -545,6 +545,11 @@ mod tests {
     }
 
     fn get_expected_selinux_context() -> &'static str {
+        // SAFETY: The pointer we pass to `getcon` is valid because it comes from a reference, and
+        // `getcon` doesn't retain it after it returns. If `getcon` succeeds then `out_ptr` will
+        // point to a valid C string, otherwise it will remain null. We check for null, so the
+        // pointer we pass to `CStr::from_ptr` must be a valid pointer to a C string. There is a
+        // memory leak as we don't call `freecon`, but that's fine because this is just a test.
         unsafe {
             let mut out_ptr = ptr::null_mut();
             assert_eq!(selinux_sys::getcon(&mut out_ptr), 0);

@@ -16,7 +16,6 @@
 
 #define TLOG_TAG "binderRpcTestService"
 
-#include <android-base/stringprintf.h>
 #include <binder/RpcServerTrusty.h>
 #include <inttypes.h>
 #include <lib/tipc/tipc.h>
@@ -28,7 +27,6 @@
 #include "binderRpcTestCommon.h"
 
 using namespace android;
-using android::base::StringPrintf;
 using binder::Status;
 
 static int gConnectionCounter = 0;
@@ -79,26 +77,27 @@ int main(void) {
         // Message size needs to be large enough to cover all messages sent by the
         // tests: SendAndGetResultBackBig sends two large strings.
         constexpr size_t max_msg_size = 4096;
-        auto serverOrErr =
+        auto server =
                 RpcServerTrusty::make(hset, serverInfo.port->c_str(),
                                       std::shared_ptr<const RpcServerTrusty::PortAcl>(&port_acl),
                                       max_msg_size);
-        if (!serverOrErr.ok()) {
-            TLOGE("Failed to create RpcServer (%d)\n", serverOrErr.error());
+        if (server == nullptr) {
             return EXIT_FAILURE;
         }
 
-        auto server = std::move(*serverOrErr);
         serverInfo.server = server;
-        serverInfo.server->setProtocolVersion(serverVersion);
-        serverInfo.server->setPerSessionRootObject([=](const void* /*addrPtr*/, size_t /*len*/) {
-            auto service = sp<MyBinderRpcTestTrusty>::make();
-            // Assign a unique connection identifier to service->port so
-            // getClientPort returns a unique value per connection
-            service->port = ++gConnectionCounter;
-            service->server = server;
-            return service;
-        });
+        if (!serverInfo.server->setProtocolVersion(serverVersion)) {
+            return EXIT_FAILURE;
+        }
+        serverInfo.server->setPerSessionRootObject(
+                [=](wp<RpcSession> /*session*/, const void* /*addrPtr*/, size_t /*len*/) {
+                    auto service = sp<MyBinderRpcTestTrusty>::make();
+                    // Assign a unique connection identifier to service->port so
+                    // getClientPort returns a unique value per connection
+                    service->port = ++gConnectionCounter;
+                    service->server = server;
+                    return service;
+                });
 
         servers.push_back(std::move(serverInfo));
     }

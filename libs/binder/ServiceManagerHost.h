@@ -16,7 +16,6 @@
 
 #pragma once
 
-#include <android-base/macros.h>
 #include <android/os/IServiceManager.h>
 
 namespace android {

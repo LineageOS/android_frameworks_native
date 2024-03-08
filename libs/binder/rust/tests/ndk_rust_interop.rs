@@ -28,10 +28,11 @@ use std::os::raw::{c_char, c_int};
 ///
 /// # Safety
 ///
-/// service_name must be a valid, non-null C-style string (null-terminated).
+/// service_name must be a valid, non-null C-style string (nul-terminated).
 #[no_mangle]
 pub unsafe extern "C" fn rust_call_ndk(service_name: *const c_char) -> c_int {
-    let service_name = CStr::from_ptr(service_name).to_str().unwrap();
+    // SAFETY: Our caller promises that service_name is a valid C string.
+    let service_name = unsafe { CStr::from_ptr(service_name) }.to_str().unwrap();
 
     // The Rust class descriptor pointer will not match the NDK one, but the
     // descriptor strings match so this needs to still associate.
@@ -57,7 +58,7 @@ pub unsafe extern "C" fn rust_call_ndk(service_name: *const c_char) -> c_int {
     let wrong_service: Result<binder::Strong<dyn IBinderRustNdkInteropTestOther>, StatusCode> =
         binder::get_interface(service_name);
     match wrong_service {
-        Err(e) if e == StatusCode::BAD_TYPE => {}
+        Err(StatusCode::BAD_TYPE) => {}
         Err(e) => {
             eprintln!("Trying to use a service via the wrong interface errored with unexpected error {:?}", e);
             return e as c_int;
@@ -85,10 +86,11 @@ impl IBinderRustNdkInteropTest for Service {
 ///
 /// # Safety
 ///
-/// service_name must be a valid, non-null C-style string (null-terminated).
+/// service_name must be a valid, non-null C-style string (nul-terminated).
 #[no_mangle]
 pub unsafe extern "C" fn rust_start_service(service_name: *const c_char) -> c_int {
-    let service_name = CStr::from_ptr(service_name).to_str().unwrap();
+    // SAFETY: Our caller promises that service_name is a valid C string.
+    let service_name = unsafe { CStr::from_ptr(service_name) }.to_str().unwrap();
     let service = BnBinderRustNdkInteropTest::new_binder(Service, BinderFeatures::default());
     match binder::add_service(service_name, service.as_binder()) {
         Ok(_) => StatusCode::OK as c_int,

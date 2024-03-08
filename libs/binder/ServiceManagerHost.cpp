@@ -56,16 +56,16 @@ public:
     [[nodiscard]] const std::optional<unsigned int>& hostPort() const { return mPort; }
 
 private:
-    DISALLOW_COPY_AND_ASSIGN(AdbForwarder);
+    AdbForwarder(const AdbForwarder&) = delete;
+    void operator=(const AdbForwarder&) = delete;
     explicit AdbForwarder(unsigned int port) : mPort(port) {}
     std::optional<unsigned int> mPort;
 };
 std::optional<AdbForwarder> AdbForwarder::forward(unsigned int devicePort) {
     auto result =
             execute({"adb", "forward", "tcp:0", "tcp:" + std::to_string(devicePort)}, nullptr);
-    if (!result.ok()) {
-        ALOGE("Unable to run `adb forward tcp:0 tcp:%d`: %s", devicePort,
-              result.error().message().c_str());
+    if (!result.has_value()) {
+        ALOGE("Unable to run `adb forward tcp:0 tcp:%d`", devicePort);
         return std::nullopt;
     }
     // Must end with exit code 0 (`has_value() && value() == 0`)
@@ -94,9 +94,8 @@ AdbForwarder::~AdbForwarder() {
     if (!mPort.has_value()) return;
 
     auto result = execute({"adb", "forward", "--remove", "tcp:" + std::to_string(*mPort)}, nullptr);
-    if (!result.ok()) {
-        ALOGE("Unable to run `adb forward --remove tcp:%d`: %s", *mPort,
-              result.error().message().c_str());
+    if (!result.has_value()) {
+        ALOGE("Unable to run `adb forward --remove tcp:%d`", *mPort);
         return;
     }
     // Must end with exit code 0 (`has_value() && value() == 0`)
@@ -130,8 +129,7 @@ sp<IBinder> getDeviceService(std::vector<std::string>&& serviceDispatcherArgs,
     serviceDispatcherArgs.insert(serviceDispatcherArgs.begin(), prefix.begin(), prefix.end());
 
     auto result = execute(std::move(serviceDispatcherArgs), &CommandResult::stdoutEndsWithNewLine);
-    if (!result.ok()) {
-        ALOGE("%s", result.error().message().c_str());
+    if (!result.has_value()) {
         return nullptr;
     }
 

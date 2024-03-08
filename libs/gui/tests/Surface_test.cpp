@@ -208,21 +208,6 @@ protected:
         ASSERT_EQ(NO_ERROR, surface->disconnect(NATIVE_WINDOW_API_CPU));
     }
 
-    static status_t captureDisplay(DisplayCaptureArgs& captureArgs,
-                                   ScreenCaptureResults& captureResults) {
-        const auto sf = ComposerServiceAIDL::getComposerService();
-        SurfaceComposerClient::Transaction().apply(true);
-
-        const sp<SyncScreenCaptureListener> captureListener = new SyncScreenCaptureListener();
-        binder::Status status = sf->captureDisplay(captureArgs, captureListener);
-        status_t err = gui::aidl_utils::statusTFromBinderStatus(status);
-        if (err != NO_ERROR) {
-            return err;
-        }
-        captureResults = captureListener->waitForResults();
-        return fenceStatus(captureResults.fenceResult);
-    }
-
     sp<Surface> mSurface;
     sp<SurfaceComposerClient> mComposerClient;
     sp<SurfaceControl> mSurfaceControl;
@@ -258,56 +243,6 @@ TEST_F(SurfaceTest, QueuesToWindowComposerIsTrueWhenPurgatorized) {
             &result);
     EXPECT_EQ(NO_ERROR, err);
     EXPECT_EQ(1, result);
-}
-
-// This test probably doesn't belong here.
-TEST_F(SurfaceTest, ScreenshotsOfProtectedBuffersDontSucceed) {
-    sp<ANativeWindow> anw(mSurface);
-
-    // Verify the screenshot works with no protected buffers.
-    const auto ids = SurfaceComposerClient::getPhysicalDisplayIds();
-    ASSERT_FALSE(ids.empty());
-    // display 0 is picked for now, can extend to support all displays if needed
-    const sp<IBinder> display = SurfaceComposerClient::getPhysicalDisplayToken(ids.front());
-    ASSERT_FALSE(display == nullptr);
-
-    DisplayCaptureArgs captureArgs;
-    captureArgs.displayToken = display;
-    captureArgs.width = 64;
-    captureArgs.height = 64;
-
-    ScreenCaptureResults captureResults;
-    ASSERT_EQ(NO_ERROR, captureDisplay(captureArgs, captureResults));
-
-    ASSERT_EQ(NO_ERROR, native_window_api_connect(anw.get(),
-            NATIVE_WINDOW_API_CPU));
-    // Set the PROTECTED usage bit and verify that the screenshot fails.  Note
-    // that we need to dequeue a buffer in order for it to actually get
-    // allocated in SurfaceFlinger.
-    ASSERT_EQ(NO_ERROR, native_window_set_usage(anw.get(),
-            GRALLOC_USAGE_PROTECTED));
-    ASSERT_EQ(NO_ERROR, native_window_set_buffer_count(anw.get(), 3));
-    ANativeWindowBuffer* buf = nullptr;
-
-    status_t err = native_window_dequeue_buffer_and_wait(anw.get(), &buf);
-    if (err) {
-        // we could fail if GRALLOC_USAGE_PROTECTED is not supported.
-        // that's okay as long as this is the reason for the failure.
-        // try again without the GRALLOC_USAGE_PROTECTED bit.
-        ASSERT_EQ(NO_ERROR, native_window_set_usage(anw.get(), 0));
-        ASSERT_EQ(NO_ERROR, native_window_dequeue_buffer_and_wait(anw.get(),
-                &buf));
-        return;
-    }
-    ASSERT_EQ(NO_ERROR, anw->cancelBuffer(anw.get(), buf, -1));
-
-    for (int i = 0; i < 4; i++) {
-        // Loop to make sure SurfaceFlinger has retired a protected buffer.
-        ASSERT_EQ(NO_ERROR, native_window_dequeue_buffer_and_wait(anw.get(),
-                &buf));
-        ASSERT_EQ(NO_ERROR, anw->queueBuffer(anw.get(), buf, -1));
-    }
-    ASSERT_EQ(NO_ERROR, captureDisplay(captureArgs, captureResults));
 }
 
 TEST_F(SurfaceTest, ConcreteTypeIsSurface) {
@@ -415,7 +350,7 @@ TEST_F(SurfaceTest, GetConsumerName) {
     sp<ANativeWindow> window(surface);
     native_window_api_connect(window.get(), NATIVE_WINDOW_API_CPU);
 
-    EXPECT_STREQ("TestConsumer", surface->getConsumerName().string());
+    EXPECT_STREQ("TestConsumer", surface->getConsumerName().c_str());
 }
 
 TEST_F(SurfaceTest, GetWideColorSupport) {
@@ -851,7 +786,8 @@ public:
         return binder::Status::ok();
     }
 
-    binder::Status captureDisplayById(int64_t, const sp<IScreenCaptureListener>&) override {
+    binder::Status captureDisplayById(int64_t, const gui::CaptureArgs&,
+                                      const sp<IScreenCaptureListener>&) override {
         return binder::Status::ok();
     }
 
@@ -876,10 +812,6 @@ public:
     }
 
     binder::Status getLayerDebugInfo(std::vector<gui::LayerDebugInfo>* /*outLayers*/) override {
-        return binder::Status::ok();
-    }
-
-    binder::Status getColorManagement(bool* /*outGetColorManagement*/) override {
         return binder::Status::ok();
     }
 
@@ -989,16 +921,34 @@ public:
         return binder::Status::ok();
     }
 
-    binder::Status setOverrideFrameRate(int32_t /*uid*/, float /*frameRate*/) override {
+    binder::Status setGameModeFrameRateOverride(int32_t /*uid*/, float /*frameRate*/) override {
         return binder::Status::ok();
     }
 
-    binder::Status updateSmallAreaDetection(const std::vector<int32_t>& /*uids*/,
+    binder::Status setGameDefaultFrameRateOverride(int32_t /*uid*/, float /*frameRate*/) override {
+        return binder::Status::ok();
+    }
+
+    binder::Status enableRefreshRateOverlay(bool /*active*/) override {
+        return binder::Status::ok();
+    }
+
+    binder::Status setDebugFlash(int /*delay*/) override { return binder::Status::ok(); }
+
+    binder::Status scheduleComposite() override { return binder::Status::ok(); }
+
+    binder::Status scheduleCommit() override { return binder::Status::ok(); }
+
+    binder::Status forceClientComposition(bool /*enabled*/) override {
+        return binder::Status::ok();
+    }
+
+    binder::Status updateSmallAreaDetection(const std::vector<int32_t>& /*appIds*/,
                                             const std::vector<float>& /*thresholds*/) {
         return binder::Status::ok();
     }
 
-    binder::Status setSmallAreaDetectionThreshold(int32_t /*uid*/, float /*threshold*/) {
+    binder::Status setSmallAreaDetectionThreshold(int32_t /*appId*/, float /*threshold*/) {
         return binder::Status::ok();
     }
 
@@ -1027,6 +977,10 @@ public:
 
     binder::Status getStalledTransactionInfo(
             int32_t /*pid*/, std::optional<gui::StalledTransactionInfo>* /*result*/) override {
+        return binder::Status::ok();
+    }
+
+    binder::Status getSchedulingPolicy(gui::SchedulingPolicy*) override {
         return binder::Status::ok();
     }
 
@@ -1331,7 +1285,7 @@ protected:
                 newFrame->mRefreshes[0].mGpuCompositionDone.mFenceTime :
                 FenceTime::NO_FENCE;
         // HWC2 releases the previous buffer after a new latch just before
-        // calling postComposition.
+        // calling onCompositionPresented.
         if (oldFrame != nullptr) {
             mCfeh->addRelease(nOldFrame, oldFrame->kDequeueReadyTime,
                     std::shared_ptr<FenceTime>(oldFrame->mRelease.mFenceTime));

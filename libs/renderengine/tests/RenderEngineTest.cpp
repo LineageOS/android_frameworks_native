@@ -109,7 +109,6 @@ public:
     virtual renderengine::RenderEngine::RenderEngineType type() = 0;
     virtual std::unique_ptr<renderengine::RenderEngine> createRenderEngine() = 0;
     virtual bool typeSupported() = 0;
-    virtual bool useColorManagement() const = 0;
 };
 
 class SkiaVkRenderEngineFactory : public RenderEngineFactory {
@@ -130,13 +129,11 @@ public:
                 renderengine::RenderEngineCreationArgs::Builder()
                         .setPixelFormat(static_cast<int>(ui::PixelFormat::RGBA_8888))
                         .setImageCacheSize(1)
-                        .setUseColorManagerment(false)
                         .setEnableProtectedContext(false)
                         .setPrecacheToneMapperShaderOnly(false)
                         .setSupportsBackgroundBlur(true)
                         .setContextPriority(renderengine::RenderEngine::ContextPriority::MEDIUM)
                         .setRenderEngineType(type())
-                        .setUseColorManagerment(useColorManagement())
                         .build();
         return renderengine::skia::SkiaVkRenderEngine::create(reCreationArgs);
     }
@@ -144,14 +141,9 @@ public:
     bool typeSupported() override {
         return skia::SkiaVkRenderEngine::canSupportSkiaVkRenderEngine();
     }
-    bool useColorManagement() const override { return false; }
     void skip() { GTEST_SKIP(); }
 };
 
-class SkiaVkCMRenderEngineFactory : public SkiaVkRenderEngineFactory {
-public:
-    bool useColorManagement() const override { return true; }
-};
 class SkiaGLESRenderEngineFactory : public RenderEngineFactory {
 public:
     std::string name() override { return "SkiaGLRenderEngineFactory"; }
@@ -170,13 +162,11 @@ public:
                         .setSupportsBackgroundBlur(true)
                         .setContextPriority(renderengine::RenderEngine::ContextPriority::MEDIUM)
                         .setRenderEngineType(type())
-                        .setUseColorManagerment(useColorManagement())
                         .build();
         return renderengine::skia::SkiaGLRenderEngine::create(reCreationArgs);
     }
 
     bool typeSupported() override { return true; }
-    bool useColorManagement() const override { return false; }
 };
 
 class SkiaGLESCMRenderEngineFactory : public RenderEngineFactory {
@@ -197,13 +187,11 @@ public:
                         .setSupportsBackgroundBlur(true)
                         .setContextPriority(renderengine::RenderEngine::ContextPriority::MEDIUM)
                         .setRenderEngineType(type())
-                        .setUseColorManagerment(useColorManagement())
                         .build();
         return renderengine::skia::SkiaGLRenderEngine::create(reCreationArgs);
     }
 
     bool typeSupported() override { return true; }
-    bool useColorManagement() const override { return true; }
 };
 
 class RenderEngineTest : public ::testing::TestWithParam<std::shared_ptr<RenderEngineFactory>> {
@@ -289,9 +277,6 @@ public:
     ~RenderEngineTest() {
         if (WRITE_BUFFER_TO_FILE_ON_FAILURE && ::testing::Test::HasFailure()) {
             writeBufferToFile("/data/texture_out_");
-        }
-        for (uint32_t texName : mTexNames) {
-            mRE->deleteTextures(1, &texName);
         }
         const ::testing::TestInfo* const test_info =
                 ::testing::UnitTest::GetInstance()->current_test_info();
@@ -418,7 +403,7 @@ public:
     }
 
     void expectShadowColor(const renderengine::LayerSettings& castingLayer,
-                           const renderengine::ShadowSettings& shadow, const ubyte4& casterColor,
+                           const ShadowSettings& shadow, const ubyte4& casterColor,
                            const ubyte4& backgroundColor) {
         const Rect casterRect(castingLayer.geometry.boundaries);
         Region casterRegion = Region(casterRect);
@@ -458,8 +443,7 @@ public:
                           backgroundColor.a);
     }
 
-    void expectShadowColorWithoutCaster(const FloatRect& casterBounds,
-                                        const renderengine::ShadowSettings& shadow,
+    void expectShadowColorWithoutCaster(const FloatRect& casterBounds, const ShadowSettings& shadow,
                                         const ubyte4& backgroundColor) {
         const float shadowInset = shadow.length * -1.0f;
         const Rect casterRect(casterBounds);
@@ -478,9 +462,9 @@ public:
                           backgroundColor.a);
     }
 
-    static renderengine::ShadowSettings getShadowSettings(const vec2& casterPos, float shadowLength,
-                                                          bool casterIsTranslucent) {
-        renderengine::ShadowSettings shadow;
+    static ShadowSettings getShadowSettings(const vec2& casterPos, float shadowLength,
+                                            bool casterIsTranslucent) {
+        ShadowSettings shadow;
         shadow.ambientColor = {0.0f, 0.0f, 0.0f, 0.039f};
         shadow.spotColor = {0.0f, 0.0f, 0.0f, 0.19f};
         shadow.lightPos = vec3(casterPos.x, casterPos.y, 0);
@@ -505,7 +489,7 @@ public:
     void invokeDraw(const renderengine::DisplaySettings& settings,
                     const std::vector<renderengine::LayerSettings>& layers) {
         ftl::Future<FenceResult> future =
-                mRE->drawLayers(settings, layers, mBuffer, true, base::unique_fd());
+                mRE->drawLayers(settings, layers, mBuffer, base::unique_fd());
         ASSERT_TRUE(future.valid());
 
         auto result = future.get();
@@ -617,12 +601,10 @@ public:
     void fillGreenColorBufferThenClearRegion();
 
     template <typename SourceVariant>
-    void drawShadow(const renderengine::LayerSettings& castingLayer,
-                    const renderengine::ShadowSettings& shadow, const ubyte4& casterColor,
-                    const ubyte4& backgroundColor);
+    void drawShadow(const renderengine::LayerSettings& castingLayer, const ShadowSettings& shadow,
+                    const ubyte4& casterColor, const ubyte4& backgroundColor);
 
-    void drawShadowWithoutCaster(const FloatRect& castingBounds,
-                                 const renderengine::ShadowSettings& shadow,
+    void drawShadowWithoutCaster(const FloatRect& castingBounds, const ShadowSettings& shadow,
                                  const ubyte4& backgroundColor);
 
     // Tonemaps grey values from sourceDataspace -> Display P3 and checks that GPU and CPU
@@ -635,8 +617,6 @@ public:
 
     std::unique_ptr<renderengine::RenderEngine> mRE;
     std::shared_ptr<renderengine::ExternalTexture> mBuffer;
-
-    std::vector<uint32_t> mTexNames;
 };
 
 void RenderEngineTest::initializeRenderEngine() {
@@ -680,9 +660,6 @@ struct BufferSourceVariant {
     static void fillColor(renderengine::LayerSettings& layer, half r, half g, half b,
                           RenderEngineTest* fixture) {
         const auto buf = fixture->allocateSourceBuffer(1, 1);
-        uint32_t texName;
-        fixture->mRE->genTextures(1, &texName);
-        fixture->mTexNames.push_back(texName);
 
         uint8_t* pixels;
         buf->getBuffer()->lock(GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN,
@@ -702,7 +679,6 @@ struct BufferSourceVariant {
         buf->getBuffer()->unlock();
 
         layer.source.buffer.buffer = buf;
-        layer.source.buffer.textureName = texName;
         layer.sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR;
         OpaquenessVariant::setOpaqueBit(layer);
     }
@@ -1251,9 +1227,6 @@ void RenderEngineTest::fillRedBufferTextureTransform() {
     // Here will allocate a checker board texture, but transform texture
     // coordinates so that only the upper left is applied.
     const auto buf = allocateSourceBuffer(2, 2);
-    uint32_t texName;
-    RenderEngineTest::mRE->genTextures(1, &texName);
-    this->mTexNames.push_back(texName);
 
     uint8_t* pixels;
     buf->getBuffer()->lock(GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN,
@@ -1274,7 +1247,6 @@ void RenderEngineTest::fillRedBufferTextureTransform() {
     buf->getBuffer()->unlock();
 
     layer.source.buffer.buffer = buf;
-    layer.source.buffer.textureName = texName;
     // Transform coordinates to only be inside the red quadrant.
     layer.source.buffer.textureTransform = mat4::scale(vec4(0.2f, 0.2f, 1.f, 1.f));
     layer.alpha = 1.0f;
@@ -1300,9 +1272,6 @@ void RenderEngineTest::fillRedBufferWithPremultiplyAlpha() {
 
     renderengine::LayerSettings layer;
     const auto buf = allocateSourceBuffer(1, 1);
-    uint32_t texName;
-    RenderEngineTest::mRE->genTextures(1, &texName);
-    this->mTexNames.push_back(texName);
 
     uint8_t* pixels;
     buf->getBuffer()->lock(GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN,
@@ -1314,7 +1283,6 @@ void RenderEngineTest::fillRedBufferWithPremultiplyAlpha() {
     buf->getBuffer()->unlock();
 
     layer.source.buffer.buffer = buf;
-    layer.source.buffer.textureName = texName;
     layer.source.buffer.usePremultipliedAlpha = true;
     layer.alpha = 0.5f;
     layer.geometry.boundaries = Rect(1, 1).toFloatRect();
@@ -1339,9 +1307,6 @@ void RenderEngineTest::fillRedBufferWithoutPremultiplyAlpha() {
 
     renderengine::LayerSettings layer;
     const auto buf = allocateSourceBuffer(1, 1);
-    uint32_t texName;
-    RenderEngineTest::mRE->genTextures(1, &texName);
-    this->mTexNames.push_back(texName);
 
     uint8_t* pixels;
     buf->getBuffer()->lock(GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN,
@@ -1353,7 +1318,6 @@ void RenderEngineTest::fillRedBufferWithoutPremultiplyAlpha() {
     buf->getBuffer()->unlock();
 
     layer.source.buffer.buffer = buf;
-    layer.source.buffer.textureName = texName;
     layer.source.buffer.usePremultipliedAlpha = false;
     layer.alpha = 0.5f;
     layer.geometry.boundaries = Rect(1, 1).toFloatRect();
@@ -1370,8 +1334,8 @@ void RenderEngineTest::fillBufferWithoutPremultiplyAlpha() {
 
 template <typename SourceVariant>
 void RenderEngineTest::drawShadow(const renderengine::LayerSettings& castingLayer,
-                                  const renderengine::ShadowSettings& shadow,
-                                  const ubyte4& casterColor, const ubyte4& backgroundColor) {
+                                  const ShadowSettings& shadow, const ubyte4& casterColor,
+                                  const ubyte4& backgroundColor) {
     renderengine::DisplaySettings settings;
     settings.outputDataspace = ui::Dataspace::V0_SRGB_LINEAR;
     settings.physicalDisplay = fullscreenRect();
@@ -1407,7 +1371,7 @@ void RenderEngineTest::drawShadow(const renderengine::LayerSettings& castingLaye
 }
 
 void RenderEngineTest::drawShadowWithoutCaster(const FloatRect& castingBounds,
-                                               const renderengine::ShadowSettings& shadow,
+                                               const ShadowSettings& shadow,
                                                const ubyte4& backgroundColor) {
     renderengine::DisplaySettings settings;
     settings.outputDataspace = ui::Dataspace::V0_SRGB_LINEAR;
@@ -1559,9 +1523,7 @@ void RenderEngineTest::tonemap(ui::Dataspace sourceDataspace, std::function<vec3
 
 INSTANTIATE_TEST_SUITE_P(PerRenderEngineType, RenderEngineTest,
                          testing::Values(std::make_shared<SkiaGLESRenderEngineFactory>(),
-                                         std::make_shared<SkiaGLESCMRenderEngineFactory>(),
-                                         std::make_shared<SkiaVkRenderEngineFactory>(),
-                                         std::make_shared<SkiaVkCMRenderEngineFactory>()));
+                                         std::make_shared<SkiaVkRenderEngineFactory>()));
 
 TEST_P(RenderEngineTest, drawLayers_noLayersToDraw) {
     if (!GetParam()->typeSupported()) {
@@ -1645,8 +1607,7 @@ TEST_P(RenderEngineTest, drawLayers_nullOutputBuffer) {
     layer.geometry.boundaries = fullscreenRect().toFloatRect();
     BufferSourceVariant<ForceOpaqueBufferVariant>::fillColor(layer, 1.0f, 0.0f, 0.0f, this);
     layers.push_back(layer);
-    ftl::Future<FenceResult> future =
-            mRE->drawLayers(settings, layers, nullptr, true, base::unique_fd());
+    ftl::Future<FenceResult> future = mRE->drawLayers(settings, layers, nullptr, base::unique_fd());
 
     ASSERT_TRUE(future.valid());
     auto result = future.get();
@@ -1745,7 +1706,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransform_colorSource) {
 TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransform_sourceDataspace) {
     const auto& renderEngineFactory = GetParam();
     // skip for non color management
-    if (!renderEngineFactory->typeSupported() || !renderEngineFactory->useColorManagement()) {
+    if (!renderEngineFactory->typeSupported()) {
         GTEST_SKIP();
     }
 
@@ -1756,7 +1717,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransform_sourceDataspace) {
 TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransform_outputDataspace) {
     const auto& renderEngineFactory = GetParam();
     // skip for non color management
-    if (!renderEngineFactory->typeSupported() || !renderEngineFactory->useColorManagement()) {
+    if (!renderEngineFactory->typeSupported()) {
         GTEST_SKIP();
     }
 
@@ -1895,7 +1856,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransform_opaqueBufferSource)
 TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformAndSourceDataspace_opaqueBufferSource) {
     const auto& renderEngineFactory = GetParam();
     // skip for non color management
-    if (!renderEngineFactory->typeSupported() || !renderEngineFactory->useColorManagement()) {
+    if (!renderEngineFactory->typeSupported()) {
         GTEST_SKIP();
     }
 
@@ -1906,7 +1867,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformAndSourceDataspace_o
 TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformAndOutputDataspace_opaqueBufferSource) {
     const auto& renderEngineFactory = GetParam();
     // skip for non color management
-    if (!renderEngineFactory->typeSupported() || !renderEngineFactory->useColorManagement()) {
+    if (!renderEngineFactory->typeSupported()) {
         GTEST_SKIP();
     }
 
@@ -2045,7 +2006,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransform_bufferSource) {
 TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformAndSourceDataspace_bufferSource) {
     const auto& renderEngineFactory = GetParam();
     // skip for non color management
-    if (!renderEngineFactory->typeSupported() || !renderEngineFactory->useColorManagement()) {
+    if (!renderEngineFactory->typeSupported()) {
         GTEST_SKIP();
     }
 
@@ -2056,7 +2017,7 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformAndSourceDataspace_b
 TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformAndOutputDataspace_bufferSource) {
     const auto& renderEngineFactory = GetParam();
     // skip for non color management
-    if (!renderEngineFactory->typeSupported() || !renderEngineFactory->useColorManagement()) {
+    if (!renderEngineFactory->typeSupported()) {
         GTEST_SKIP();
     }
 
@@ -2139,9 +2100,8 @@ TEST_P(RenderEngineTest, drawLayers_fillShadow_castsWithoutCasterLayer) {
     const float shadowLength = 5.0f;
     Rect casterBounds(DEFAULT_DISPLAY_WIDTH / 3.0f, DEFAULT_DISPLAY_HEIGHT / 3.0f);
     casterBounds.offsetBy(shadowLength + 1, shadowLength + 1);
-    renderengine::ShadowSettings settings =
-            getShadowSettings(vec2(casterBounds.left, casterBounds.top), shadowLength,
-                              false /* casterIsTranslucent */);
+    ShadowSettings settings = getShadowSettings(vec2(casterBounds.left, casterBounds.top),
+                                                shadowLength, false /* casterIsTranslucent */);
 
     drawShadowWithoutCaster(casterBounds.toFloatRect(), settings, backgroundColor);
     expectShadowColorWithoutCaster(casterBounds.toFloatRect(), settings, backgroundColor);
@@ -2163,9 +2123,8 @@ TEST_P(RenderEngineTest, drawLayers_fillShadow_casterLayerMinSize) {
     renderengine::LayerSettings castingLayer;
     castingLayer.geometry.boundaries = casterBounds.toFloatRect();
     castingLayer.alpha = 1.0f;
-    renderengine::ShadowSettings settings =
-            getShadowSettings(vec2(casterBounds.left, casterBounds.top), shadowLength,
-                              false /* casterIsTranslucent */);
+    ShadowSettings settings = getShadowSettings(vec2(casterBounds.left, casterBounds.top),
+                                                shadowLength, false /* casterIsTranslucent */);
 
     drawShadow<ColorSourceVariant>(castingLayer, settings, casterColor, backgroundColor);
     expectShadowColor(castingLayer, settings, casterColor, backgroundColor);
@@ -2188,9 +2147,8 @@ TEST_P(RenderEngineTest, drawLayers_fillShadow_casterColorLayer) {
     castingLayer.sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR;
     castingLayer.geometry.boundaries = casterBounds.toFloatRect();
     castingLayer.alpha = 1.0f;
-    renderengine::ShadowSettings settings =
-            getShadowSettings(vec2(casterBounds.left, casterBounds.top), shadowLength,
-                              false /* casterIsTranslucent */);
+    ShadowSettings settings = getShadowSettings(vec2(casterBounds.left, casterBounds.top),
+                                                shadowLength, false /* casterIsTranslucent */);
 
     drawShadow<ColorSourceVariant>(castingLayer, settings, casterColor, backgroundColor);
     expectShadowColor(castingLayer, settings, casterColor, backgroundColor);
@@ -2213,9 +2171,8 @@ TEST_P(RenderEngineTest, drawLayers_fillShadow_casterOpaqueBufferLayer) {
     castingLayer.sourceDataspace = ui::Dataspace::V0_SRGB_LINEAR;
     castingLayer.geometry.boundaries = casterBounds.toFloatRect();
     castingLayer.alpha = 1.0f;
-    renderengine::ShadowSettings settings =
-            getShadowSettings(vec2(casterBounds.left, casterBounds.top), shadowLength,
-                              false /* casterIsTranslucent */);
+    ShadowSettings settings = getShadowSettings(vec2(casterBounds.left, casterBounds.top),
+                                                shadowLength, false /* casterIsTranslucent */);
 
     drawShadow<BufferSourceVariant<ForceOpaqueBufferVariant>>(castingLayer, settings, casterColor,
                                                               backgroundColor);
@@ -2240,9 +2197,8 @@ TEST_P(RenderEngineTest, drawLayers_fillShadow_casterWithRoundedCorner) {
     castingLayer.geometry.roundedCornersRadius = {3.0f, 3.0f};
     castingLayer.geometry.roundedCornersCrop = casterBounds.toFloatRect();
     castingLayer.alpha = 1.0f;
-    renderengine::ShadowSettings settings =
-            getShadowSettings(vec2(casterBounds.left, casterBounds.top), shadowLength,
-                              false /* casterIsTranslucent */);
+    ShadowSettings settings = getShadowSettings(vec2(casterBounds.left, casterBounds.top),
+                                                shadowLength, false /* casterIsTranslucent */);
 
     drawShadow<BufferSourceVariant<ForceOpaqueBufferVariant>>(castingLayer, settings, casterColor,
                                                               backgroundColor);
@@ -2263,9 +2219,8 @@ TEST_P(RenderEngineTest, drawLayers_fillShadow_translucentCasterWithAlpha) {
     renderengine::LayerSettings castingLayer;
     castingLayer.geometry.boundaries = casterBounds.toFloatRect();
     castingLayer.alpha = 0.5f;
-    renderengine::ShadowSettings settings =
-            getShadowSettings(vec2(casterBounds.left, casterBounds.top), shadowLength,
-                              true /* casterIsTranslucent */);
+    ShadowSettings settings = getShadowSettings(vec2(casterBounds.left, casterBounds.top),
+                                                shadowLength, true /* casterIsTranslucent */);
 
     drawShadow<BufferSourceVariant<RelaxOpaqueBufferVariant>>(castingLayer, settings, casterColor,
                                                               backgroundColor);
@@ -2298,14 +2253,14 @@ TEST_P(RenderEngineTest, cleanupPostRender_cleansUpOnce) {
     layers.push_back(layer);
 
     ftl::Future<FenceResult> futureOne =
-            mRE->drawLayers(settings, layers, mBuffer, true, base::unique_fd());
+            mRE->drawLayers(settings, layers, mBuffer, base::unique_fd());
     ASSERT_TRUE(futureOne.valid());
     auto resultOne = futureOne.get();
     ASSERT_TRUE(resultOne.ok());
     auto fenceOne = resultOne.value();
 
     ftl::Future<FenceResult> futureTwo =
-            mRE->drawLayers(settings, layers, mBuffer, true, base::unique_fd(fenceOne->dup()));
+            mRE->drawLayers(settings, layers, mBuffer, base::unique_fd(fenceOne->dup()));
     ASSERT_TRUE(futureTwo.valid());
     auto resultTwo = futureTwo.get();
     ASSERT_TRUE(resultTwo.ok());
@@ -2589,10 +2544,6 @@ TEST_P(RenderEngineTest, testDisableBlendingBuffer) {
 
 TEST_P(RenderEngineTest, testBorder) {
     if (GetParam()->type() != renderengine::RenderEngine::RenderEngineType::SKIA_GL) {
-        GTEST_SKIP();
-    }
-
-    if (!GetParam()->useColorManagement()) {
         GTEST_SKIP();
     }
 
@@ -3017,15 +2968,11 @@ TEST_P(RenderEngineTest, test_isOpaque) {
     std::vector<renderengine::LayerSettings> layers{greenLayer};
     invokeDraw(display, layers);
 
-    if (GetParam()->useColorManagement()) {
-        expectBufferColor(rect, 117, 251, 76, 255);
-    } else {
-        expectBufferColor(rect, 0, 255, 0, 255);
-    }
+    expectBufferColor(rect, 117, 251, 76, 255);
 }
 
 TEST_P(RenderEngineTest, test_tonemapPQMatches) {
-    if (!GetParam()->typeSupported() || !GetParam()->useColorManagement()) {
+    if (!GetParam()->typeSupported()) {
         GTEST_SKIP();
     }
 
@@ -3042,7 +2989,7 @@ TEST_P(RenderEngineTest, test_tonemapPQMatches) {
 }
 
 TEST_P(RenderEngineTest, test_tonemapHLGMatches) {
-    if (!GetParam()->typeSupported() || !GetParam()->useColorManagement()) {
+    if (!GetParam()->typeSupported()) {
         GTEST_SKIP();
     }
 
@@ -3257,14 +3204,14 @@ TEST_P(RenderEngineTest, primeShaderCache) {
     }
     initializeRenderEngine();
 
-    auto fut = mRE->primeCache();
+    auto fut = mRE->primeCache(false);
     if (fut.valid()) {
         fut.wait();
     }
 
-    const int minimumExpectedShadersCompiled = GetParam()->useColorManagement() ? 60 : 30;
+    static constexpr int kMinimumExpectedShadersCompiled = 60;
     ASSERT_GT(static_cast<skia::SkiaGLRenderEngine*>(mRE.get())->reportShadersCompiled(),
-              minimumExpectedShadersCompiled);
+              kMinimumExpectedShadersCompiled);
 }
 } // namespace renderengine
 } // namespace android

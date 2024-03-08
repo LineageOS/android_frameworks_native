@@ -19,7 +19,20 @@
 use std::error::Error;
 use std::fmt;
 
-include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
+#[cfg(not(target_os = "trusty"))]
+mod bindings {
+    include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
+}
+
+// Trusty puts the full path to the auto-generated file in BINDGEN_INC_FILE
+// and builds it with warnings-as-errors, so we need to use #[allow(bad_style)]
+#[cfg(target_os = "trusty")]
+#[allow(bad_style)]
+mod bindings {
+    include!(env!("BINDGEN_INC_FILE"));
+}
+
+pub use bindings::*;
 
 impl Error for android_c_interface_StatusCode {}
 

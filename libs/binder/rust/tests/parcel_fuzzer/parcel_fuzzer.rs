@@ -105,9 +105,9 @@ fn do_read_fuzz(read_operations: Vec<ReadOperation>, data: &[u8]) {
     for operation in read_operations {
         match operation {
             ReadOperation::SetDataPosition { pos } => {
+                // Safety: Safe if pos is less than current size of the parcel.
+                // It relies on C++ code for bound checks
                 unsafe {
-                    // Safety: Safe if pos is less than current size of the parcel.
-                    // It relies on C++ code for bound checks
                     match parcel.set_data_position(pos) {
                         Ok(result) => result,
                         Err(e) => println!("error occurred while setting data position: {:?}", e),

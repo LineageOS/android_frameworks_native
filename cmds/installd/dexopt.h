@@ -18,6 +18,7 @@
 #define DEXOPT_H_
 
 #include "installd_constants.h"
+#include "unique_file.h"
 
 #include <sys/types.h>
 
@@ -155,6 +156,10 @@ const char* select_execution_binary(
 // are only accessible by this app, or -1 if failed to get the visibility of the optimized
 // artifacts.
 int get_odex_visibility(const char* apk_path, const char* instruction_set, const char* oat_dir);
+
+UniqueFile maybe_open_reference_profile(const std::string& pkgname, const std::string& dex_path,
+                                        const char* profile_name, bool profile_guided,
+                                        bool is_public, int uid, bool is_secondary_dex);
 
 }  // namespace installd
 }  // namespace android

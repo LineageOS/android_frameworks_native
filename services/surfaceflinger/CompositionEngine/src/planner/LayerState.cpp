@@ -34,7 +34,7 @@ LayerState::LayerState(compositionengine::OutputLayer* layer)
                          [](const mat4& mat) {
                              using namespace std::string_literals;
                              std::vector<std::string> split =
-                                     base::Split(std::string(mat.asString().string()), "\n"s);
+                                     base::Split(std::string(mat.asString().c_str()), "\n"s);
                              split.pop_back(); // Strip the last (empty) line
                              return split;
                          }}) {
@@ -74,6 +74,11 @@ size_t LayerState::getHash() const {
     }
 
     return hash;
+}
+
+bool LayerState::isSourceCropSizeEqual(const LayerState& other) const {
+    return mSourceCrop.get().getWidth() == other.mSourceCrop.get().getWidth() &&
+            mSourceCrop.get().getHeight() == other.mSourceCrop.get().getHeight();
 }
 
 ftl::Flags<LayerStateField> LayerState::getDifferingFields(const LayerState& other) const {

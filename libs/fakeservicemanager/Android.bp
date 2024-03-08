@@ -17,6 +17,7 @@ cc_defaults {
     shared_libs: [
         "libbinder",
         "libutils",
+        "liblog",
     ],
     target: {
         darwin: {
@@ -39,4 +40,42 @@ cc_test_host {
     ],
     static_libs: ["libgmock"],
     local_include_dirs: ["include"],
+}
+
+rust_bindgen {
+    name: "libfakeservicemanager_bindgen",
+    crate_name: "fakeservicemanager_bindgen",
+    host_supported: true,
+    wrapper_src: "rust/wrappers/FakeServiceManagerWrapper.hpp",
+    source_stem: "bindings",
+    visibility: [":__subpackages__"],
+    bindgen_flags: [
+        "--allowlist-function",
+        "setupFakeServiceManager",
+        "--allowlist-function",
+        "clearFakeServiceManager",
+    ],
+    shared_libs: [
+        "libc++",
+        "libbinder",
+        "libfakeservicemanager",
+    ],
+}
+
+rust_library {
+    name: "libfakeservicemanager_rs",
+    crate_name: "fakeservicemanager_rs",
+    host_supported: true,
+    srcs: [
+        "rust/src/lib.rs",
+    ],
+    shared_libs: [
+        "libc++",
+        "libfakeservicemanager",
+    ],
+    rustlibs: [
+        "libfakeservicemanager_bindgen",
+    ],
+    lints: "none",
+    clippy_lints: "none",
 }

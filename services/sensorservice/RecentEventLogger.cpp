@@ -83,7 +83,7 @@ std::string RecentEventLogger::dump() const {
         }
         buffer.append("\n");
     }
-    return std::string(buffer.string());
+    return std::string(buffer.c_str());
 }
 
 /**

@@ -37,6 +37,8 @@
 #include <cinttypes>
 #include <cstddef>
 #include <thread>
+#include <mutex>
+#include <condition_variable>
 
 using namespace android::hardware::sensors;
 using android::util::ProtoOutputStream;
@@ -65,7 +67,7 @@ enum DevicePrivateBase : int32_t {
 
 } // anonymous namespace
 
-SensorDevice::SensorDevice() {
+SensorDevice::SensorDevice() : mInHalBypassMode(false) {
     if (!connectHalService()) {
         return;
     }
@@ -298,7 +300,7 @@ std::string SensorDevice::dump() const {
         result.appendFormat("}, selected = %.2f ms\n", info.bestBatchParams.mTBatch / 1e6f);
     }
 
-    return result.string();
+    return result.c_str();
 }
 
 /**
@@ -352,13 +354,17 @@ ssize_t SensorDevice::poll(sensors_event_t* buffer, size_t count) {
     if (mHalWrapper == nullptr) return NO_INIT;
 
     ssize_t eventsRead = 0;
-    if (mHalWrapper->supportsMessageQueues()) {
-        eventsRead = mHalWrapper->pollFmq(buffer, count);
-    } else if (mHalWrapper->supportsPolling()) {
-        eventsRead = mHalWrapper->poll(buffer, count);
+    if (mInHalBypassMode) [[unlikely]] {
+        eventsRead = getHalBypassInjectedEvents(buffer, count);
     } else {
-        ALOGE("Must support polling or FMQ");
-        eventsRead = -1;
+        if (mHalWrapper->supportsMessageQueues()) {
+            eventsRead = mHalWrapper->pollFmq(buffer, count);
+        } else if (mHalWrapper->supportsPolling()) {
+            eventsRead = mHalWrapper->poll(buffer, count);
+        } else {
+            ALOGE("Must support polling or FMQ");
+            eventsRead = -1;
+        }
     }
 
     if (eventsRead > 0) {
@@ -762,11 +768,38 @@ status_t SensorDevice::injectSensorData(const sensors_event_t* injected_sensor_e
              injected_sensor_event->data[2], injected_sensor_event->data[3],
              injected_sensor_event->data[4], injected_sensor_event->data[5]);
 
+    if (mInHalBypassMode) {
+        std::lock_guard _l(mHalBypassLock);
+        mHalBypassInjectedEventQueue.push(*injected_sensor_event);
+        mHalBypassCV.notify_one();
+        return OK;
+    }
     return mHalWrapper->injectSensorData(injected_sensor_event);
 }
 
 status_t SensorDevice::setMode(uint32_t mode) {
     if (mHalWrapper == nullptr) return NO_INIT;
+    if (mode == SensorService::Mode::HAL_BYPASS_REPLAY_DATA_INJECTION) {
+        if (!mInHalBypassMode) {
+            std::lock_guard _l(mHalBypassLock);
+            while (!mHalBypassInjectedEventQueue.empty()) {
+                // flush any stale events from the injected event queue
+                mHalBypassInjectedEventQueue.pop();
+            }
+            mInHalBypassMode = true;
+        }
+        return OK;
+    } else {
+        if (mInHalBypassMode) {
+            // We are transitioning out of HAL Bypass mode. We need to notify the reader thread
+            // (specifically getHalBypassInjectedEvents()) of this change in state so that it is not
+            // stuck waiting on more injected events to come and therefore preventing events coming
+            // from the HAL from being read.
+            std::lock_guard _l(mHalBypassLock);
+            mInHalBypassMode = false;
+            mHalBypassCV.notify_one();
+        }
+    }
     return mHalWrapper->setOperationMode(static_cast<SensorService::Mode>(mode));
 }
 
@@ -870,6 +903,25 @@ float SensorDevice::getResolutionForSensor(int sensorHandle) {
     }
 
     return 0;
+}
+
+ssize_t SensorDevice::getHalBypassInjectedEvents(sensors_event_t* buffer,
+                                                 size_t maxNumEventsToRead) {
+    std::unique_lock _l(mHalBypassLock);
+    if (mHalBypassInjectedEventQueue.empty()) {
+        // if the injected event queue is empty, block and wait till there are events to process
+        // or if we are no longer in HAL Bypass mode so that this method is not called in a tight
+        // loop. Otherwise, continue copying the injected events into the supplied buffer.
+        mHalBypassCV.wait(_l, [this] {
+            return (!mHalBypassInjectedEventQueue.empty() || !mInHalBypassMode);
+        });
+    }
+    size_t eventsToRead = std::min(mHalBypassInjectedEventQueue.size(), maxNumEventsToRead);
+    for (size_t i = 0; i < eventsToRead; i++) {
+        buffer[i] = mHalBypassInjectedEventQueue.front();
+        mHalBypassInjectedEventQueue.pop();
+    }
+    return eventsToRead;
 }
 
 // ---------------------------------------------------------------------------

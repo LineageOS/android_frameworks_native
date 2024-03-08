@@ -1,0 +1,6 @@
+# Android > Android OS & Apps > Framework (Java + Native) > Window Manager > Surfaces
+# Bug component: 316245 = per-file BLASTBufferQueue_test.cpp, DisplayInfo_test.cpp, EndToEndNativeInputTest.cpp, WindowInfos_test.cpp
+# Buganizer template url: https://b.corp.google.com/issues/new?component=316245&template=1018194 = per-file BLASTBufferQueue_test.cpp, DisplayInfo_test.cpp, EndToEndNativeInputTest.cpp, WindowInfos_test.cpp
+
+# Android > Android OS & Apps > graphics > Core Graphics Stack (CoGS)
+# Bug component: 1075130

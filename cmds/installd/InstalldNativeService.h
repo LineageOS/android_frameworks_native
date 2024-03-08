@@ -19,6 +19,7 @@
 #define COMMANDS_H_
 
 #include <inttypes.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include <shared_mutex>
@@ -35,8 +36,26 @@
 namespace android {
 namespace installd {
 
+using IFsveritySetupAuthToken = android::os::IInstalld::IFsveritySetupAuthToken;
+
 class InstalldNativeService : public BinderService<InstalldNativeService>, public os::BnInstalld {
 public:
+    class FsveritySetupAuthToken : public os::IInstalld::BnFsveritySetupAuthToken {
+    public:
+        FsveritySetupAuthToken() : mStatFromAuthFd() {}
+
+        binder::Status authenticate(const android::os::ParcelFileDescriptor& authFd, int32_t appUid,
+                                    int32_t userId);
+        bool isSameStat(const struct stat& st) const;
+
+    private:
+        // Not copyable or movable
+        FsveritySetupAuthToken(const FsveritySetupAuthToken&) = delete;
+        FsveritySetupAuthToken& operator=(const FsveritySetupAuthToken&) = delete;
+
+        struct stat mStatFromAuthFd;
+    };
+
     static status_t start();
     static char const* getServiceName() { return "installd"; }
     virtual status_t dump(int fd, const Vector<String16> &args) override;
@@ -49,7 +68,8 @@ public:
     binder::Status createAppData(const std::optional<std::string>& uuid,
                                  const std::string& packageName, int32_t userId, int32_t flags,
                                  int32_t appId, int32_t previousAppId, const std::string& seInfo,
-                                 int32_t targetSdkVersion, int64_t* _aidl_return);
+                                 int32_t targetSdkVersion, int64_t* ceDataInode,
+                                 int64_t* deDataInode);
 
     binder::Status createAppData(
             const android::os::CreateAppDataArgs& args,
@@ -126,9 +146,6 @@ public:
 
     binder::Status controlDexOptBlocking(bool block);
 
-    binder::Status compileLayouts(const std::string& apkPath, const std::string& packageName,
-                                  const std::string& outDexFile, int uid, bool* _aidl_return);
-
     binder::Status rmdex(const std::string& codePath, const std::string& instructionSet);
 
     binder::Status mergeProfiles(int32_t uid, const std::string& packageName,
@@ -192,6 +209,13 @@ public:
                                      const std::optional<std::string>& outputPath,
                                      int32_t* _aidl_return);
 
+    binder::Status createFsveritySetupAuthToken(const android::os::ParcelFileDescriptor& authFd,
+                                                int32_t appUid, int32_t userId,
+                                                android::sp<IFsveritySetupAuthToken>* _aidl_return);
+    binder::Status enableFsverity(const android::sp<IFsveritySetupAuthToken>& authToken,
+                                  const std::string& filePath, const std::string& packageName,
+                                  int32_t* _aidl_return);
+
 private:
     std::recursive_mutex mLock;
     std::unordered_map<userid_t, std::weak_ptr<std::shared_mutex>> mUserIdLock;
@@ -212,7 +236,7 @@ private:
                                        const std::string& packageName, int32_t userId,
                                        int32_t flags, int32_t appId, int32_t previousAppId,
                                        const std::string& seInfo, int32_t targetSdkVersion,
-                                       int64_t* _aidl_return);
+                                       int64_t* ceDataInode, int64_t* deDataInode);
     binder::Status restoreconAppDataLocked(const std::optional<std::string>& uuid,
                                            const std::string& packageName, int32_t userId,
                                            int32_t flags, int32_t appId, const std::string& seInfo);

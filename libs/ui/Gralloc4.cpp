@@ -475,8 +475,8 @@ status_t Gralloc4Mapper::isSupported(uint32_t width, uint32_t height, PixelForma
                                      uint32_t layerCount, uint64_t usage,
                                      bool* outSupported) const {
     IMapper::BufferDescriptorInfo descriptorInfo;
-    if (auto error = sBufferDescriptorInfo("isSupported", width, height, format, layerCount, usage,
-                                           &descriptorInfo) != OK) {
+    if (sBufferDescriptorInfo("isSupported", width, height, format, layerCount, usage,
+                              &descriptorInfo) != OK) {
         // Usage isn't known to the HAL or otherwise failed validation.
         *outSupported = false;
         return OK;

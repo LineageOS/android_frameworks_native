@@ -104,10 +104,14 @@ struct ABpBinder : public AIBinder {
     ::android::sp<::android::IBinder> getBinder() override { return mRemote; }
     ABpBinder* asABpBinder() override { return this; }
 
+    bool isServiceFuzzing() const { return mServiceFuzzing; }
+    void setServiceFuzzing() { mServiceFuzzing = true; }
+
    private:
     friend android::sp<ABpBinder>;
     explicit ABpBinder(const ::android::sp<::android::IBinder>& binder);
     ::android::sp<::android::IBinder> mRemote;
+    bool mServiceFuzzing = false;
 };
 
 struct AIBinder_Class {

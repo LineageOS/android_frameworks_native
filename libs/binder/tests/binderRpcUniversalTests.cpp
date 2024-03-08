@@ -50,7 +50,8 @@ TEST(BinderRpc, CannotUseNextWireVersion) {
 
 TEST(BinderRpc, CanUseExperimentalWireVersion) {
     auto session = RpcSession::make();
-    EXPECT_TRUE(session->setProtocolVersion(RPC_WIRE_PROTOCOL_VERSION_EXPERIMENTAL));
+    EXPECT_EQ(hasExperimentalRpc(),
+              session->setProtocolVersion(RPC_WIRE_PROTOCOL_VERSION_EXPERIMENTAL));
 }
 
 TEST_P(BinderRpc, Ping) {
@@ -84,7 +85,7 @@ TEST_P(BinderRpc, SeparateRootObject) {
         GTEST_SKIP() << "This test requires a multi-threaded service";
     }
 
-    SocketType type = std::get<0>(GetParam());
+    SocketType type = GetParam().type;
     if (type == SocketType::PRECONNECTED || type == SocketType::UNIX ||
         type == SocketType::UNIX_BOOTSTRAP || type == SocketType::UNIX_RAW) {
         // we can't get port numbers for unix sockets

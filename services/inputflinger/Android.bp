@@ -28,6 +28,7 @@ inputflinger_tidy_checks = [
 
 cc_defaults {
     name: "inputflinger_defaults",
+    host_supported: true,
     cpp_std: "c++20",
     cflags: [
         "-Wall",
@@ -50,6 +51,20 @@ cc_defaults {
         "-*", // Disable all checks not explicitly enabled for now
     ] + inputflinger_tidy_checks,
     tidy_checks_as_errors: inputflinger_tidy_checks,
+    target: {
+        host: {
+            sanitize: {
+                address: true,
+            },
+            include_dirs: [
+                "bionic/libc/kernel/android/uapi/",
+                "bionic/libc/kernel/uapi",
+            ],
+            cflags: [
+                "-D__ANDROID_HOST__",
+            ],
+        },
+    },
 }
 
 /////////////////////////////////////////////////
@@ -61,7 +76,9 @@ filegroup {
     srcs: [
         "InputCommonConverter.cpp",
         "InputDeviceMetricsCollector.cpp",
+        "InputFilter.cpp",
         "InputProcessor.cpp",
+        "PointerChoreographer.cpp",
         "PreferStylusOverTouchBlocker.cpp",
         "UnwantedInteractionBlocker.cpp",
     ],
@@ -72,6 +89,7 @@ cc_defaults {
     srcs: [":libinputflinger_sources"],
     shared_libs: [
         "android.hardware.input.processor-V1-ndk",
+        "com.android.server.inputflinger-ndk",
         "libbase",
         "libbinder",
         "libbinder_ndk",
@@ -79,6 +97,7 @@ cc_defaults {
         "libcrypto",
         "libcutils",
         "libhidlbase",
+        "libinput",
         "libkll",
         "liblog",
         "libprotobuf-cpp-lite",
@@ -91,27 +110,26 @@ cc_defaults {
         "libpalmrejection",
         "libui-types",
     ],
+    generated_headers: [
+        "cxx-bridge-header",
+        "inputflinger_rs_bootstrap_bridge_header",
+    ],
+    header_libs: ["inputflinger_rs_bootstrap_cxx_headers"],
+    generated_sources: ["inputflinger_rs_bootstrap_bridge_code"],
+    whole_static_libs: ["libinputflinger_rs"],
+    export_shared_lib_headers: ["com.android.server.inputflinger-ndk"],
     target: {
         android: {
             shared_libs: [
                 "libgui",
-                "libinput",
                 "libstatspull",
                 "libstatssocket",
             ],
         },
         host: {
             static_libs: [
-                "libinput",
                 "libstatspull",
                 "libstatssocket",
-            ],
-            include_dirs: [
-                "bionic/libc/kernel/android/uapi/",
-                "bionic/libc/kernel/uapi",
-            ],
-            cflags: [
-                "-D__ANDROID_HOST__",
             ],
         },
     },
@@ -119,6 +137,7 @@ cc_defaults {
 
 cc_library_shared {
     name: "libinputflinger",
+    host_supported: true,
     defaults: [
         "inputflinger_defaults",
         "libinputflinger_defaults",
@@ -164,6 +183,7 @@ cc_library_headers {
 filegroup {
     name: "libinputflinger_base_sources",
     srcs: [
+        "InputDeviceMetricsSource.cpp",
         "InputListener.cpp",
         "InputReaderBase.cpp",
         "InputThread.cpp",
@@ -179,25 +199,14 @@ cc_defaults {
         "libbase",
         "libbinder",
         "libcutils",
+        "libinput",
         "liblog",
+        "libstatslog",
         "libutils",
     ],
     header_libs: [
         "libinputflinger_headers",
     ],
-    target: {
-        android: {
-            shared_libs: [
-                "libinput",
-            ],
-        },
-        host: {
-            static_libs: [
-                "libinput",
-                "libui-types",
-            ],
-        },
-    },
 }
 
 cc_library_shared {
@@ -224,6 +233,7 @@ phony {
         // native targets
         "libgui_test",
         "libinput",
+        "libinputreader_static",
         "libinputflinger",
         "inputflinger_tests",
         "inputflinger_benchmarks",
@@ -233,9 +243,9 @@ phony {
         "libinputservice_test",
         "Bug-115739809",
         "StructLayout_test",
-        // currently unused, but still must build correctly
-        "inputflinger",
-        "libinputflingerhost",
+
+        // jni
+        "libservices.core",
 
         // rust targets
         "libinput_rust_test",
@@ -246,12 +256,14 @@ phony {
         "inputflinger_keyboard_input_fuzzer",
         "inputflinger_multitouch_input_fuzzer",
         "inputflinger_switch_input_fuzzer",
+        "inputflinger_touchpad_input_fuzzer",
         "inputflinger_input_reader_fuzzer",
         "inputflinger_blocking_queue_fuzzer",
         "inputflinger_input_classifier_fuzzer",
+        "inputflinger_input_dispatcher_fuzzer",
 
         // Java/Kotlin targets
-        "CtsWindowManagerDeviceTestCases",
+        "CtsWindowManagerDeviceWindow",
         "InputTests",
         "CtsHardwareTestCases",
         "CtsInputTestCases",

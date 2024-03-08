@@ -1,0 +1,65 @@
+package: "com.android.graphics.bufferstreams.flags"
+
+flag {
+  name: "bufferstreams_steel_thread"
+  namespace: "core_graphics"
+  description: "Flag for bufferstreams steel thread milestone"
+  bug: "296101122"
+}
+
+flag {
+  name: "bufferstreams_local"
+  namespace: "core_graphics"
+  description: "Flag for bufferstreams single-process functionality milestone"
+  bug: "296100790"
+}
+
+flag {
+  name: "bufferstreams_pooling"
+  namespace: "core_graphics"
+  description: "Flag for bufferstreams buffer pooling milestone"
+  bug: "296101127"
+}
+
+flag {
+  name: "bufferstreams_ipc"
+  namespace: "core_graphics"
+  description: "Flag for bufferstreams IPC milestone"
+  bug: "296099728"
+}
+
+flag {
+  name: "bufferstreams_cpp"
+  namespace: "core_graphics"
+  description: "Flag for bufferstreams C/C++ milestone"
+  bug: "296100536"
+}
+
+flag {
+  name: "bufferstreams_utils"
+  namespace: "core_graphics"
+  description: "Flag for bufferstreams extra utilities milestone"
+  bug: "285322189"
+}
+
+flag {
+  name: "bufferstreams_demo"
+  namespace: "core_graphics"
+  description: "Flag for bufferstreams demo milestone"
+  bug: "297242965"
+}
+
+flag {
+  name: "bufferstreams_perf"
+  namespace: "core_graphics"
+  description: "Flag for bufferstreams performance enhancement milestone"
+  bug: "297242843"
+}
+
+flag {
+  name: "bufferstreams_tooling"
+  namespace: "core_graphics"
+  description: "Flag for bufferstreams tooling milestone"
+  bug: "297243180"
+}
+

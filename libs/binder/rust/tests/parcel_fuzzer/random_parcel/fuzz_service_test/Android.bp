@@ -19,17 +19,10 @@ rust_fuzz {
     srcs: [
         "service_fuzzer.rs",
     ],
+    defaults: [
+        "service_fuzzer_defaults_rs",
+    ],
     rustlibs: [
-        "libbinder_rs",
-        "libbinder_random_parcel_rs",
         "testServiceInterface-rust",
     ],
-    fuzz_config: {
-        cc: [
-            "waghpawan@google.com",
-            "smoreland@google.com",
-        ],
-        // hotlist "AIDL fuzzers bugs" on buganizer
-        hotlists: ["4637097"],
-    },
 }

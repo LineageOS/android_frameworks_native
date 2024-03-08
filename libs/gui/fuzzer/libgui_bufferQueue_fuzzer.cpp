@@ -141,8 +141,8 @@ void BufferQueueFuzzer::invokeBlastBufferQueue() {
     CompositorTiming compTiming;
     sp<Fence> previousFence = new Fence(memfd_create("pfd", MFD_ALLOW_SEALING));
     sp<Fence> gpuFence = new Fence(memfd_create("gfd", MFD_ALLOW_SEALING));
-    FrameEventHistoryStats frameStats(frameNumber, gpuFence, compTiming,
-                                      mFdp.ConsumeIntegral<int64_t>(),
+    FrameEventHistoryStats frameStats(frameNumber, mFdp.ConsumeIntegral<uint64_t>(), gpuFence,
+                                      compTiming, mFdp.ConsumeIntegral<int64_t>(),
                                       mFdp.ConsumeIntegral<int64_t>());
     std::vector<SurfaceControlStats> stats;
     sp<Fence> presentFence = new Fence(memfd_create("fd", MFD_ALLOW_SEALING));

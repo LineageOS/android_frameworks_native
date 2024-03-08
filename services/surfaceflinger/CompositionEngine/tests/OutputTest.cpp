@@ -15,6 +15,7 @@
  */
 
 #include <android-base/stringprintf.h>
+#include <com_android_graphics_surfaceflinger_flags.h>
 #include <compositionengine/LayerFECompositionState.h>
 #include <compositionengine/impl/Output.h>
 #include <compositionengine/impl/OutputCompositionState.h>
@@ -35,13 +36,18 @@
 
 #include <cmath>
 #include <cstdint>
+#include <variant>
 
+#include <common/FlagManager.h>
+#include <common/test/FlagUtils.h>
 #include "CallOrderStateMachineHelper.h"
 #include "MockHWC2.h"
 #include "RegionMatcher.h"
 
 namespace android::compositionengine {
 namespace {
+
+using namespace com::android::graphics::surfaceflinger;
 
 using testing::_;
 using testing::ByMove;
@@ -54,6 +60,7 @@ using testing::InSequence;
 using testing::Invoke;
 using testing::IsEmpty;
 using testing::Mock;
+using testing::NiceMock;
 using testing::Pointee;
 using testing::Property;
 using testing::Ref;
@@ -175,12 +182,10 @@ const Rect OutputTest::kDefaultDisplaySize{100, 200};
 using ColorProfile = compositionengine::Output::ColorProfile;
 
 void dumpColorProfile(ColorProfile profile, std::string& result, const char* name) {
-    android::base::StringAppendF(&result, "%s (%s[%d] %s[%d] %s[%d] %s[%d]) ", name,
+    android::base::StringAppendF(&result, "%s (%s[%d] %s[%d] %s[%d]) ", name,
                                  toString(profile.mode).c_str(), profile.mode,
                                  toString(profile.dataspace).c_str(), profile.dataspace,
-                                 toString(profile.renderIntent).c_str(), profile.renderIntent,
-                                 toString(profile.colorSpaceAgnosticDataspace).c_str(),
-                                 profile.colorSpaceAgnosticDataspace);
+                                 toString(profile.renderIntent).c_str(), profile.renderIntent);
 }
 
 // Checks for a ColorProfile match
@@ -192,8 +197,7 @@ MATCHER_P(ColorProfileEq, expected, "") {
     *result_listener << buf;
 
     return (expected.mode == arg.mode) && (expected.dataspace == arg.dataspace) &&
-            (expected.renderIntent == arg.renderIntent) &&
-            (expected.colorSpaceAgnosticDataspace == arg.colorSpaceAgnosticDataspace);
+            (expected.renderIntent == arg.renderIntent);
 }
 
 /*
@@ -540,20 +544,14 @@ using OutputSetColorProfileTest = OutputTest;
 TEST_F(OutputSetColorProfileTest, setsStateAndDirtiesOutputIfChanged) {
     using ColorProfile = Output::ColorProfile;
 
-    EXPECT_CALL(*mDisplayColorProfile,
-                getTargetDataspace(ui::ColorMode::DISPLAY_P3, ui::Dataspace::DISPLAY_P3,
-                                   ui::Dataspace::UNKNOWN))
-            .WillOnce(Return(ui::Dataspace::UNKNOWN));
     EXPECT_CALL(*mRenderSurface, setBufferDataspace(ui::Dataspace::DISPLAY_P3)).Times(1);
 
     mOutput->setColorProfile(ColorProfile{ui::ColorMode::DISPLAY_P3, ui::Dataspace::DISPLAY_P3,
-                                          ui::RenderIntent::TONE_MAP_COLORIMETRIC,
-                                          ui::Dataspace::UNKNOWN});
+                                          ui::RenderIntent::TONE_MAP_COLORIMETRIC});
 
     EXPECT_EQ(ui::ColorMode::DISPLAY_P3, mOutput->getState().colorMode);
     EXPECT_EQ(ui::Dataspace::DISPLAY_P3, mOutput->getState().dataspace);
     EXPECT_EQ(ui::RenderIntent::TONE_MAP_COLORIMETRIC, mOutput->getState().renderIntent);
-    EXPECT_EQ(ui::Dataspace::UNKNOWN, mOutput->getState().targetDataspace);
 
     EXPECT_THAT(mOutput->getState().dirtyRegion, RegionEq(Region(kDefaultDisplaySize)));
 }
@@ -561,19 +559,12 @@ TEST_F(OutputSetColorProfileTest, setsStateAndDirtiesOutputIfChanged) {
 TEST_F(OutputSetColorProfileTest, doesNothingIfNoChange) {
     using ColorProfile = Output::ColorProfile;
 
-    EXPECT_CALL(*mDisplayColorProfile,
-                getTargetDataspace(ui::ColorMode::DISPLAY_P3, ui::Dataspace::DISPLAY_P3,
-                                   ui::Dataspace::UNKNOWN))
-            .WillOnce(Return(ui::Dataspace::UNKNOWN));
-
     mOutput->editState().colorMode = ui::ColorMode::DISPLAY_P3;
     mOutput->editState().dataspace = ui::Dataspace::DISPLAY_P3;
     mOutput->editState().renderIntent = ui::RenderIntent::TONE_MAP_COLORIMETRIC;
-    mOutput->editState().targetDataspace = ui::Dataspace::UNKNOWN;
 
     mOutput->setColorProfile(ColorProfile{ui::ColorMode::DISPLAY_P3, ui::Dataspace::DISPLAY_P3,
-                                          ui::RenderIntent::TONE_MAP_COLORIMETRIC,
-                                          ui::Dataspace::UNKNOWN});
+                                          ui::RenderIntent::TONE_MAP_COLORIMETRIC});
 
     EXPECT_THAT(mOutput->getState().dirtyRegion, RegionEq(Region()));
 }
@@ -1846,7 +1837,7 @@ TEST_F(OutputEnsureOutputLayerIfVisibleTest, coverageAccumulatesWithShadowsTest)
     ui::Transform translate;
     translate.set(50, 50);
     mLayer.layerFEState.geomLayerTransform = translate;
-    mLayer.layerFEState.shadowRadius = 10.0f;
+    mLayer.layerFEState.shadowSettings.length = 10.0f;
 
     mCoverageState.dirtyRegion = Region(Rect(0, 0, 500, 500));
     // half of the layer including the casting shadow is covered and opaque
@@ -1888,7 +1879,7 @@ TEST_F(OutputEnsureOutputLayerIfVisibleTest, shadowRegionOnlyTest) {
     ui::Transform translate;
     translate.set(50, 50);
     mLayer.layerFEState.geomLayerTransform = translate;
-    mLayer.layerFEState.shadowRadius = 10.0f;
+    mLayer.layerFEState.shadowSettings.length = 10.0f;
 
     mCoverageState.dirtyRegion = Region(Rect(0, 0, 500, 500));
     // Casting layer is covered by an opaque region leaving only part of its shadow to be drawn
@@ -1913,7 +1904,7 @@ TEST_F(OutputEnsureOutputLayerIfVisibleTest, takesNotSoEarlyOutifLayerWithShadow
     ui::Transform translate;
     translate.set(50, 50);
     mLayer.layerFEState.geomLayerTransform = translate;
-    mLayer.layerFEState.shadowRadius = 10.0f;
+    mLayer.layerFEState.shadowSettings.length = 10.0f;
 
     mCoverageState.dirtyRegion = Region(Rect(0, 0, 500, 500));
     // Casting layer and its shadows are covered by an opaque region
@@ -2023,7 +2014,7 @@ struct OutputPresentTest : public testing::Test {
         MOCK_METHOD0(prepareFrameAsync, GpuCompositionResult());
         MOCK_METHOD1(devOptRepaintFlash, void(const compositionengine::CompositionRefreshArgs&));
         MOCK_METHOD1(finishFrame, void(GpuCompositionResult&&));
-        MOCK_METHOD0(postFramebuffer, void());
+        MOCK_METHOD0(presentFrameAndReleaseLayers, void());
         MOCK_METHOD1(renderCachedSets, void(const compositionengine::CompositionRefreshArgs&));
         MOCK_METHOD1(canPredictCompositionStrategy, bool(const CompositionRefreshArgs&));
     };
@@ -2045,7 +2036,7 @@ TEST_F(OutputPresentTest, justInvokesChildFunctionsInSequence) {
     EXPECT_CALL(mOutput, prepareFrame());
     EXPECT_CALL(mOutput, devOptRepaintFlash(Ref(args)));
     EXPECT_CALL(mOutput, finishFrame(_));
-    EXPECT_CALL(mOutput, postFramebuffer());
+    EXPECT_CALL(mOutput, presentFrameAndReleaseLayers());
     EXPECT_CALL(mOutput, renderCachedSets(Ref(args)));
 
     mOutput.present(args);
@@ -2065,7 +2056,7 @@ TEST_F(OutputPresentTest, predictingCompositionStrategyInvokesPrepareFrameAsync)
     EXPECT_CALL(mOutput, prepareFrameAsync());
     EXPECT_CALL(mOutput, devOptRepaintFlash(Ref(args)));
     EXPECT_CALL(mOutput, finishFrame(_));
-    EXPECT_CALL(mOutput, postFramebuffer());
+    EXPECT_CALL(mOutput, presentFrameAndReleaseLayers());
     EXPECT_CALL(mOutput, renderCachedSets(Ref(args)));
 
     mOutput.present(args);
@@ -2133,12 +2124,11 @@ TEST_F(OutputUpdateColorProfileTest, setsAColorProfileWhenUnmanaged) {
 
     EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(3u));
     EXPECT_CALL(mOutput,
-                setColorProfile(ColorProfileEq(
-                        ColorProfile{ui::ColorMode::NATIVE, ui::Dataspace::UNKNOWN,
-                                     ui::RenderIntent::COLORIMETRIC, ui::Dataspace::UNKNOWN})));
+                setColorProfile(
+                        ColorProfileEq(ColorProfile{ui::ColorMode::NATIVE, ui::Dataspace::UNKNOWN,
+                                                    ui::RenderIntent::COLORIMETRIC})));
 
     mRefreshArgs.outputColorSetting = OutputColorSetting::kUnmanaged;
-    mRefreshArgs.colorSpaceAgnosticDataspace = ui::Dataspace::UNKNOWN;
 
     mOutput.updateColorProfile(mRefreshArgs);
 }
@@ -2148,7 +2138,6 @@ struct OutputUpdateColorProfileTest_GetBestColorModeResultBecomesSetProfile
     OutputUpdateColorProfileTest_GetBestColorModeResultBecomesSetProfile() {
         EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(0u));
         mRefreshArgs.outputColorSetting = OutputColorSetting::kEnhanced;
-        mRefreshArgs.colorSpaceAgnosticDataspace = ui::Dataspace::UNKNOWN;
     }
 
     struct ExpectBestColorModeCallResultUsedToSetColorProfileState
@@ -2163,8 +2152,7 @@ struct OutputUpdateColorProfileTest_GetBestColorModeResultBecomesSetProfile
                                     SetArgPointee<4>(renderIntent)));
             EXPECT_CALL(getInstance()->mOutput,
                         setColorProfile(
-                                ColorProfileEq(ColorProfile{colorMode, dataspace, renderIntent,
-                                                            ui::Dataspace::UNKNOWN})));
+                                ColorProfileEq(ColorProfile{colorMode, dataspace, renderIntent})));
             return nextState<ExecuteState>();
         }
     };
@@ -2191,55 +2179,6 @@ TEST_F(OutputUpdateColorProfileTest_GetBestColorModeResultBecomesSetProfile,
             .execute();
 }
 
-struct OutputUpdateColorProfileTest_ColorSpaceAgnosticeDataspaceAffectsSetColorProfile
-      : public OutputUpdateColorProfileTest {
-    OutputUpdateColorProfileTest_ColorSpaceAgnosticeDataspaceAffectsSetColorProfile() {
-        EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(0u));
-        EXPECT_CALL(*mDisplayColorProfile,
-                    getBestColorMode(ui::Dataspace::V0_SRGB, ui::RenderIntent::ENHANCE, _, _, _))
-                .WillRepeatedly(DoAll(SetArgPointee<2>(ui::Dataspace::UNKNOWN),
-                                      SetArgPointee<3>(ui::ColorMode::NATIVE),
-                                      SetArgPointee<4>(ui::RenderIntent::COLORIMETRIC)));
-        mRefreshArgs.outputColorSetting = OutputColorSetting::kEnhanced;
-    }
-
-    struct IfColorSpaceAgnosticDataspaceSetToState
-          : public CallOrderStateMachineHelper<TestType, IfColorSpaceAgnosticDataspaceSetToState> {
-        [[nodiscard]] auto ifColorSpaceAgnosticDataspaceSetTo(ui::Dataspace dataspace) {
-            getInstance()->mRefreshArgs.colorSpaceAgnosticDataspace = dataspace;
-            return nextState<ThenExpectSetColorProfileCallUsesColorSpaceAgnosticDataspaceState>();
-        }
-    };
-
-    struct ThenExpectSetColorProfileCallUsesColorSpaceAgnosticDataspaceState
-          : public CallOrderStateMachineHelper<
-                    TestType, ThenExpectSetColorProfileCallUsesColorSpaceAgnosticDataspaceState> {
-        [[nodiscard]] auto thenExpectSetColorProfileCallUsesColorSpaceAgnosticDataspace(
-                ui::Dataspace dataspace) {
-            EXPECT_CALL(getInstance()->mOutput,
-                        setColorProfile(ColorProfileEq(
-                                ColorProfile{ui::ColorMode::NATIVE, ui::Dataspace::UNKNOWN,
-                                             ui::RenderIntent::COLORIMETRIC, dataspace})));
-            return nextState<ExecuteState>();
-        }
-    };
-
-    // Call this member function to start using the mini-DSL defined above.
-    [[nodiscard]] auto verify() { return IfColorSpaceAgnosticDataspaceSetToState::make(this); }
-};
-
-TEST_F(OutputUpdateColorProfileTest_ColorSpaceAgnosticeDataspaceAffectsSetColorProfile, DisplayP3) {
-    verify().ifColorSpaceAgnosticDataspaceSetTo(ui::Dataspace::DISPLAY_P3)
-            .thenExpectSetColorProfileCallUsesColorSpaceAgnosticDataspace(ui::Dataspace::DISPLAY_P3)
-            .execute();
-}
-
-TEST_F(OutputUpdateColorProfileTest_ColorSpaceAgnosticeDataspaceAffectsSetColorProfile, V0_SRGB) {
-    verify().ifColorSpaceAgnosticDataspaceSetTo(ui::Dataspace::V0_SRGB)
-            .thenExpectSetColorProfileCallUsesColorSpaceAgnosticDataspace(ui::Dataspace::V0_SRGB)
-            .execute();
-}
-
 struct OutputUpdateColorProfileTest_TopmostLayerPreferenceSetsOutputPreference
       : public OutputUpdateColorProfileTest {
     // Internally the implementation looks through the dataspaces of all the
@@ -2248,7 +2187,6 @@ struct OutputUpdateColorProfileTest_TopmostLayerPreferenceSetsOutputPreference
 
     OutputUpdateColorProfileTest_TopmostLayerPreferenceSetsOutputPreference() {
         mRefreshArgs.outputColorSetting = OutputColorSetting::kEnhanced;
-        mRefreshArgs.colorSpaceAgnosticDataspace = ui::Dataspace::UNKNOWN;
 
         EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(3u));
         EXPECT_CALL(mOutput, setColorProfile(_)).WillRepeatedly(Return());
@@ -2368,7 +2306,6 @@ struct OutputUpdateColorProfileTest_ForceOutputColorOverrides
 
     OutputUpdateColorProfileTest_ForceOutputColorOverrides() {
         mRefreshArgs.outputColorSetting = OutputColorSetting::kEnhanced;
-        mRefreshArgs.colorSpaceAgnosticDataspace = ui::Dataspace::UNKNOWN;
 
         mLayer1.mLayerFEState.dataspace = ui::Dataspace::DISPLAY_BT2020;
 
@@ -2424,7 +2361,6 @@ TEST_F(OutputUpdateColorProfileTest_ForceOutputColorOverrides, DisplayP3_Overrid
 struct OutputUpdateColorProfileTest_Hdr : public OutputUpdateColorProfileTest {
     OutputUpdateColorProfileTest_Hdr() {
         mRefreshArgs.outputColorSetting = OutputColorSetting::kEnhanced;
-        mRefreshArgs.colorSpaceAgnosticDataspace = ui::Dataspace::UNKNOWN;
         EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(2u));
         EXPECT_CALL(mOutput, setColorProfile(_)).WillRepeatedly(Return());
     }
@@ -2703,7 +2639,6 @@ struct OutputUpdateColorProfile_AffectsChosenRenderIntentTest
 
     OutputUpdateColorProfile_AffectsChosenRenderIntentTest() {
         mRefreshArgs.outputColorSetting = OutputColorSetting::kEnhanced;
-        mRefreshArgs.colorSpaceAgnosticDataspace = ui::Dataspace::UNKNOWN;
         mLayer1.mLayerFEState.dataspace = ui::Dataspace::BT2020_PQ;
         EXPECT_CALL(mOutput, getOutputLayerCount()).WillRepeatedly(Return(1u));
         EXPECT_CALL(mOutput, setColorProfile(_)).WillRepeatedly(Return());
@@ -2967,7 +2902,7 @@ struct OutputDevOptRepaintFlashTest : public testing::Test {
                      std::optional<base::unique_fd>(const Region&,
                                                     std::shared_ptr<renderengine::ExternalTexture>,
                                                     base::unique_fd&));
-        MOCK_METHOD0(postFramebuffer, void());
+        MOCK_METHOD0(presentFrameAndReleaseLayers, void());
         MOCK_METHOD0(prepareFrame, void());
         MOCK_METHOD0(updateProtectedContentState, void());
         MOCK_METHOD2(dequeueRenderBuffer,
@@ -3004,7 +2939,7 @@ TEST_F(OutputDevOptRepaintFlashTest, postsAndPreparesANewFrameIfNotEnabled) {
     mOutput.mState.isEnabled = false;
 
     InSequence seq;
-    EXPECT_CALL(mOutput, postFramebuffer());
+    EXPECT_CALL(mOutput, presentFrameAndReleaseLayers());
     EXPECT_CALL(mOutput, prepareFrame());
 
     mOutput.devOptRepaintFlash(mRefreshArgs);
@@ -3016,7 +2951,7 @@ TEST_F(OutputDevOptRepaintFlashTest, postsAndPreparesANewFrameIfEnabled) {
 
     InSequence seq;
     EXPECT_CALL(mOutput, getDirtyRegion()).WillOnce(Return(kEmptyRegion));
-    EXPECT_CALL(mOutput, postFramebuffer());
+    EXPECT_CALL(mOutput, presentFrameAndReleaseLayers());
     EXPECT_CALL(mOutput, prepareFrame());
 
     mOutput.devOptRepaintFlash(mRefreshArgs);
@@ -3031,8 +2966,8 @@ TEST_F(OutputDevOptRepaintFlashTest, alsoComposesSurfacesAndQueuesABufferIfDirty
     EXPECT_CALL(mOutput, updateProtectedContentState());
     EXPECT_CALL(mOutput, dequeueRenderBuffer(_, _));
     EXPECT_CALL(mOutput, composeSurfaces(RegionEq(kNotEmptyRegion), _, _));
-    EXPECT_CALL(*mRenderSurface, queueBuffer(_));
-    EXPECT_CALL(mOutput, postFramebuffer());
+    EXPECT_CALL(*mRenderSurface, queueBuffer(_, 1.f));
+    EXPECT_CALL(mOutput, presentFrameAndReleaseLayers());
     EXPECT_CALL(mOutput, prepareFrame());
 
     mOutput.devOptRepaintFlash(mRefreshArgs);
@@ -3050,7 +2985,7 @@ struct OutputFinishFrameTest : public testing::Test {
                      std::optional<base::unique_fd>(const Region&,
                                                     std::shared_ptr<renderengine::ExternalTexture>,
                                                     base::unique_fd&));
-        MOCK_METHOD0(postFramebuffer, void());
+        MOCK_METHOD0(presentFrameAndReleaseLayers, void());
         MOCK_METHOD0(updateProtectedContentState, void());
         MOCK_METHOD2(dequeueRenderBuffer,
                      bool(base::unique_fd*, std::shared_ptr<renderengine::ExternalTexture>*));
@@ -3060,11 +2995,15 @@ struct OutputFinishFrameTest : public testing::Test {
         mOutput.setDisplayColorProfileForTest(
                 std::unique_ptr<DisplayColorProfile>(mDisplayColorProfile));
         mOutput.setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(mRenderSurface));
+        EXPECT_CALL(mOutput, getCompositionEngine()).WillRepeatedly(ReturnRef(mCompositionEngine));
+        EXPECT_CALL(mCompositionEngine, getRenderEngine()).WillRepeatedly(ReturnRef(mRenderEngine));
     }
 
     StrictMock<OutputPartialMock> mOutput;
     mock::DisplayColorProfile* mDisplayColorProfile = new StrictMock<mock::DisplayColorProfile>();
     mock::RenderSurface* mRenderSurface = new StrictMock<mock::RenderSurface>();
+    StrictMock<mock::CompositionEngine> mCompositionEngine;
+    StrictMock<renderengine::mock::RenderEngine> mRenderEngine;
 };
 
 TEST_F(OutputFinishFrameTest, ifNotEnabledDoesNothing) {
@@ -3092,7 +3031,34 @@ TEST_F(OutputFinishFrameTest, queuesBufferIfComposeSurfacesReturnsAFence) {
     EXPECT_CALL(mOutput, dequeueRenderBuffer(_, _)).WillOnce(Return(true));
     EXPECT_CALL(mOutput, composeSurfaces(RegionEq(Region::INVALID_REGION), _, _))
             .WillOnce(Return(ByMove(base::unique_fd())));
-    EXPECT_CALL(*mRenderSurface, queueBuffer(_));
+    EXPECT_CALL(*mRenderSurface, queueBuffer(_, 1.f));
+
+    impl::GpuCompositionResult result;
+    mOutput.finishFrame(std::move(result));
+}
+
+TEST_F(OutputFinishFrameTest, queuesBufferWithHdrSdrRatio) {
+    SET_FLAG_FOR_TEST(flags::fp16_client_target, true);
+    mOutput.mState.isEnabled = true;
+
+    InSequence seq;
+    auto texture = std::make_shared<
+            renderengine::impl::
+                    ExternalTexture>(sp<GraphicBuffer>::make(1u, 1u, PIXEL_FORMAT_RGBA_FP16,
+                                                             GRALLOC_USAGE_SW_WRITE_OFTEN |
+                                                                     GRALLOC_USAGE_SW_READ_OFTEN),
+                                     mRenderEngine,
+                                     renderengine::impl::ExternalTexture::Usage::READABLE |
+                                             renderengine::impl::ExternalTexture::Usage::WRITEABLE);
+    mOutput.mState.displayBrightnessNits = 400.f;
+    mOutput.mState.sdrWhitePointNits = 200.f;
+    mOutput.mState.dataspace = ui::Dataspace::V0_SCRGB;
+    EXPECT_CALL(mOutput, updateProtectedContentState());
+    EXPECT_CALL(mOutput, dequeueRenderBuffer(_, _))
+            .WillOnce(DoAll(SetArgPointee<1>(texture), Return(true)));
+    EXPECT_CALL(mOutput, composeSurfaces(RegionEq(Region::INVALID_REGION), _, _))
+            .WillOnce(Return(ByMove(base::unique_fd())));
+    EXPECT_CALL(*mRenderSurface, queueBuffer(_, 2.f));
 
     impl::GpuCompositionResult result;
     mOutput.finishFrame(std::move(result));
@@ -3102,7 +3068,7 @@ TEST_F(OutputFinishFrameTest, predictionSucceeded) {
     mOutput.mState.isEnabled = true;
     mOutput.mState.strategyPrediction = CompositionStrategyPredictionState::SUCCESS;
     InSequence seq;
-    EXPECT_CALL(*mRenderSurface, queueBuffer(_));
+    EXPECT_CALL(*mRenderSurface, queueBuffer(_, 1.f));
 
     impl::GpuCompositionResult result;
     mOutput.finishFrame(std::move(result));
@@ -3124,19 +3090,19 @@ TEST_F(OutputFinishFrameTest, predictionFailedAndBufferIsReused) {
                 composeSurfaces(RegionEq(Region::INVALID_REGION), result.buffer,
                                 Eq(ByRef(result.fence))))
             .WillOnce(Return(ByMove(base::unique_fd())));
-    EXPECT_CALL(*mRenderSurface, queueBuffer(_));
+    EXPECT_CALL(*mRenderSurface, queueBuffer(_, 1.f));
     mOutput.finishFrame(std::move(result));
 }
 
 /*
- * Output::postFramebuffer()
+ * Output::presentFrameAndReleaseLayers()
  */
 
 struct OutputPostFramebufferTest : public testing::Test {
     struct OutputPartialMock : public OutputPartialMockBase {
         // Sets up the helper functions called by the function under test to use
         // mock implementations.
-        MOCK_METHOD0(presentAndGetFrameFences, compositionengine::Output::FrameFences());
+        MOCK_METHOD0(presentFrame, compositionengine::Output::FrameFences());
     };
 
     struct Layer {
@@ -3176,7 +3142,7 @@ struct OutputPostFramebufferTest : public testing::Test {
 TEST_F(OutputPostFramebufferTest, ifNotEnabledDoesNothing) {
     mOutput.mState.isEnabled = false;
 
-    mOutput.postFramebuffer();
+    mOutput.presentFrameAndReleaseLayers();
 }
 
 TEST_F(OutputPostFramebufferTest, ifEnabledMustFlipThenPresentThenSendPresentCompleted) {
@@ -3191,10 +3157,10 @@ TEST_F(OutputPostFramebufferTest, ifEnabledMustFlipThenPresentThenSendPresentCom
     // setup below are satisfied in the specific order.
     InSequence seq;
 
-    EXPECT_CALL(mOutput, presentAndGetFrameFences()).WillOnce(Return(frameFences));
+    EXPECT_CALL(mOutput, presentFrame()).WillOnce(Return(frameFences));
     EXPECT_CALL(*mRenderSurface, onPresentDisplayCompleted());
 
-    mOutput.postFramebuffer();
+    mOutput.presentFrameAndReleaseLayers();
 }
 
 TEST_F(OutputPostFramebufferTest, releaseFencesAreSentToLayerFE) {
@@ -3213,7 +3179,7 @@ TEST_F(OutputPostFramebufferTest, releaseFencesAreSentToLayerFE) {
     frameFences.layerFences.emplace(&mLayer2.hwc2Layer, layer2Fence);
     frameFences.layerFences.emplace(&mLayer3.hwc2Layer, layer3Fence);
 
-    EXPECT_CALL(mOutput, presentAndGetFrameFences()).WillOnce(Return(frameFences));
+    EXPECT_CALL(mOutput, presentFrame()).WillOnce(Return(frameFences));
     EXPECT_CALL(*mRenderSurface, onPresentDisplayCompleted());
 
     // Compare the pointers values of each fence to make sure the correct ones
@@ -3236,7 +3202,7 @@ TEST_F(OutputPostFramebufferTest, releaseFencesAreSentToLayerFE) {
                 EXPECT_EQ(FenceResult(layer3Fence), futureFenceResult.get());
             });
 
-    mOutput.postFramebuffer();
+    mOutput.presentFrameAndReleaseLayers();
 }
 
 TEST_F(OutputPostFramebufferTest, releaseFencesIncludeClientTargetAcquireFence) {
@@ -3249,7 +3215,7 @@ TEST_F(OutputPostFramebufferTest, releaseFencesIncludeClientTargetAcquireFence) 
     frameFences.layerFences.emplace(&mLayer2.hwc2Layer, sp<Fence>::make());
     frameFences.layerFences.emplace(&mLayer3.hwc2Layer, sp<Fence>::make());
 
-    EXPECT_CALL(mOutput, presentAndGetFrameFences()).WillOnce(Return(frameFences));
+    EXPECT_CALL(mOutput, presentFrame()).WillOnce(Return(frameFences));
     EXPECT_CALL(*mRenderSurface, onPresentDisplayCompleted());
 
     // Fence::merge is called, and since none of the fences are actually valid,
@@ -3259,7 +3225,7 @@ TEST_F(OutputPostFramebufferTest, releaseFencesIncludeClientTargetAcquireFence) 
     EXPECT_CALL(*mLayer2.layerFE, onLayerDisplayed).WillOnce(Return());
     EXPECT_CALL(*mLayer3.layerFE, onLayerDisplayed).WillOnce(Return());
 
-    mOutput.postFramebuffer();
+    mOutput.presentFrameAndReleaseLayers();
 }
 
 TEST_F(OutputPostFramebufferTest, releasedLayersSentPresentFence) {
@@ -3284,7 +3250,7 @@ TEST_F(OutputPostFramebufferTest, releasedLayersSentPresentFence) {
     Output::FrameFences frameFences;
     frameFences.presentFence = presentFence;
 
-    EXPECT_CALL(mOutput, presentAndGetFrameFences()).WillOnce(Return(frameFences));
+    EXPECT_CALL(mOutput, presentFrame()).WillOnce(Return(frameFences));
     EXPECT_CALL(*mRenderSurface, onPresentDisplayCompleted());
 
     // Each released layer should be given the presentFence.
@@ -3304,7 +3270,7 @@ TEST_F(OutputPostFramebufferTest, releasedLayersSentPresentFence) {
                 EXPECT_EQ(FenceResult(presentFence), futureFenceResult.get());
             });
 
-    mOutput.postFramebuffer();
+    mOutput.presentFrameAndReleaseLayers();
 
     // After the call the list of released layers should have been cleared.
     EXPECT_TRUE(mOutput.getReleasedLayersForTest().empty());
@@ -3394,6 +3360,7 @@ struct OutputComposeSurfacesTest : public testing::Test {
     static constexpr float kDefaultAvgLuminance = 0.7f;
     static constexpr float kDefaultMinLuminance = 0.1f;
     static constexpr float kDisplayLuminance = 400.f;
+    static constexpr float kWhitePointLuminance = 300.f;
     static constexpr float kClientTargetLuminanceNits = 200.f;
     static constexpr float kClientTargetBrightness = 0.5f;
 
@@ -3493,10 +3460,10 @@ TEST_F(OutputComposeSurfacesTest, handlesZeroCompositionRequests) {
             .WillRepeatedly(Return());
 
     EXPECT_CALL(*mRenderSurface, dequeueBuffer(_)).WillRepeatedly(Return(mOutputBuffer));
-    EXPECT_CALL(mRenderEngine, drawLayers(_, IsEmpty(), _, false, _))
+    EXPECT_CALL(mRenderEngine, drawLayers(_, IsEmpty(), _, _))
             .WillRepeatedly([&](const renderengine::DisplaySettings&,
                                 const std::vector<renderengine::LayerSettings>&,
-                                const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
+                                const std::shared_ptr<renderengine::ExternalTexture>&,
                                 base::unique_fd&&) -> ftl::Future<FenceResult> {
                 return ftl::yield<FenceResult>(Fence::NO_FENCE);
             });
@@ -3524,10 +3491,10 @@ TEST_F(OutputComposeSurfacesTest, buildsAndRendersRequestList) {
                     }));
 
     EXPECT_CALL(*mRenderSurface, dequeueBuffer(_)).WillRepeatedly(Return(mOutputBuffer));
-    EXPECT_CALL(mRenderEngine, drawLayers(_, ElementsAre(r1, r2), _, false, _))
+    EXPECT_CALL(mRenderEngine, drawLayers(_, ElementsAre(r1, r2), _, _))
             .WillRepeatedly([&](const renderengine::DisplaySettings&,
                                 const std::vector<renderengine::LayerSettings>&,
-                                const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
+                                const std::shared_ptr<renderengine::ExternalTexture>&,
                                 base::unique_fd&&) -> ftl::Future<FenceResult> {
                 return ftl::yield<FenceResult>(Fence::NO_FENCE);
             });
@@ -3558,10 +3525,10 @@ TEST_F(OutputComposeSurfacesTest,
                     }));
 
     EXPECT_CALL(*mRenderSurface, dequeueBuffer(_)).WillRepeatedly(Return(mOutputBuffer));
-    EXPECT_CALL(mRenderEngine, drawLayers(_, ElementsAre(r1, r2), _, true, _))
+    EXPECT_CALL(mRenderEngine, drawLayers(_, ElementsAre(r1, r2), _, _))
             .WillRepeatedly([&](const renderengine::DisplaySettings&,
                                 const std::vector<renderengine::LayerSettings>&,
-                                const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
+                                const std::shared_ptr<renderengine::ExternalTexture>&,
                                 base::unique_fd&&) -> ftl::Future<FenceResult> {
                 return ftl::yield<FenceResult>(Fence::NO_FENCE);
             });
@@ -3587,7 +3554,7 @@ TEST_F(OutputComposeSurfacesTest, renderDuplicateClientCompositionRequestsWithou
             .WillRepeatedly(Return());
 
     EXPECT_CALL(*mRenderSurface, dequeueBuffer(_)).WillRepeatedly(Return(mOutputBuffer));
-    EXPECT_CALL(mRenderEngine, drawLayers(_, ElementsAre(r1, r2), _, false, _))
+    EXPECT_CALL(mRenderEngine, drawLayers(_, ElementsAre(r1, r2), _, _))
             .Times(2)
             .WillOnce(Return(ByMove(ftl::yield<FenceResult>(Fence::NO_FENCE))))
             .WillOnce(Return(ByMove(ftl::yield<FenceResult>(Fence::NO_FENCE))));
@@ -3617,7 +3584,7 @@ TEST_F(OutputComposeSurfacesTest, skipDuplicateClientCompositionRequests) {
             .WillRepeatedly(Return());
 
     EXPECT_CALL(*mRenderSurface, dequeueBuffer(_)).WillRepeatedly(Return(mOutputBuffer));
-    EXPECT_CALL(mRenderEngine, drawLayers(_, ElementsAre(r1, r2), _, false, _))
+    EXPECT_CALL(mRenderEngine, drawLayers(_, ElementsAre(r1, r2), _, _))
             .WillOnce(Return(ByMove(ftl::yield<FenceResult>(Fence::NO_FENCE))));
     EXPECT_CALL(mOutput, setExpensiveRenderingExpected(false));
 
@@ -3653,10 +3620,10 @@ TEST_F(OutputComposeSurfacesTest, clientCompositionIfBufferChanges) {
     EXPECT_CALL(*mRenderSurface, dequeueBuffer(_))
             .WillOnce(Return(mOutputBuffer))
             .WillOnce(Return(otherOutputBuffer));
-    EXPECT_CALL(mRenderEngine, drawLayers(_, ElementsAre(r1, r2), _, false, _))
+    EXPECT_CALL(mRenderEngine, drawLayers(_, ElementsAre(r1, r2), _, _))
             .WillRepeatedly([&](const renderengine::DisplaySettings&,
                                 const std::vector<renderengine::LayerSettings>&,
-                                const std::shared_ptr<renderengine::ExternalTexture>&, const bool,
+                                const std::shared_ptr<renderengine::ExternalTexture>&,
                                 base::unique_fd&&) -> ftl::Future<FenceResult> {
                 return ftl::yield<FenceResult>(Fence::NO_FENCE);
             });
@@ -3688,9 +3655,9 @@ TEST_F(OutputComposeSurfacesTest, clientCompositionIfRequestChanges) {
             .WillRepeatedly(Return());
 
     EXPECT_CALL(*mRenderSurface, dequeueBuffer(_)).WillRepeatedly(Return(mOutputBuffer));
-    EXPECT_CALL(mRenderEngine, drawLayers(_, ElementsAre(r1, r2), _, false, _))
+    EXPECT_CALL(mRenderEngine, drawLayers(_, ElementsAre(r1, r2), _, _))
             .WillOnce(Return(ByMove(ftl::yield<FenceResult>(Fence::NO_FENCE))));
-    EXPECT_CALL(mRenderEngine, drawLayers(_, ElementsAre(r1, r3), _, false, _))
+    EXPECT_CALL(mRenderEngine, drawLayers(_, ElementsAre(r1, r3), _, _))
             .WillOnce(Return(ByMove(ftl::yield<FenceResult>(Fence::NO_FENCE))));
 
     verify().execute().expectAFenceWasReturned();
@@ -3704,7 +3671,7 @@ struct OutputComposeSurfacesTest_UsesExpectedDisplaySettings : public OutputComp
     OutputComposeSurfacesTest_UsesExpectedDisplaySettings() {
         EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(false));
         EXPECT_CALL(mRenderEngine, isProtected()).WillRepeatedly(Return(false));
-        EXPECT_CALL(mOutput, generateClientCompositionRequests(_, kDefaultOutputDataspace, _))
+        EXPECT_CALL(mOutput, generateClientCompositionRequests(_, _, _))
                 .WillRepeatedly(Return(std::vector<LayerFE::LayerSettings>{}));
         EXPECT_CALL(mOutput, appendRegionFlashRequests(RegionEq(kDebugRegion), _))
                 .WillRepeatedly(Return());
@@ -3731,6 +3698,14 @@ struct OutputComposeSurfacesTest_UsesExpectedDisplaySettings : public OutputComp
           : public CallOrderStateMachineHelper<TestType, OutputWithDisplayBrightnessNits> {
         auto withDisplayBrightnessNits(float nits) {
             getInstance()->mOutput.mState.displayBrightnessNits = nits;
+            return nextState<OutputWithSdrWhitePointNits>();
+        }
+    };
+
+    struct OutputWithSdrWhitePointNits
+          : public CallOrderStateMachineHelper<TestType, OutputWithSdrWhitePointNits> {
+        auto withSdrWhitePointNits(float nits) {
+            getInstance()->mOutput.mState.sdrWhitePointNits = nits;
             return nextState<OutputWithDimmingStage>();
         }
     };
@@ -3760,6 +3735,35 @@ struct OutputComposeSurfacesTest_UsesExpectedDisplaySettings : public OutputComp
             // May be called zero or one times.
             EXPECT_CALL(getInstance()->mOutput, getSkipColorTransform())
                     .WillRepeatedly(Return(skip));
+            return nextState<PixelFormatState>();
+        }
+    };
+
+    struct PixelFormatState : public CallOrderStateMachineHelper<TestType, PixelFormatState> {
+        auto withPixelFormat(std::optional<PixelFormat> format) {
+            // May be called zero or one times.
+            if (format) {
+                auto outputBuffer = std::make_shared<
+                        renderengine::impl::
+                                ExternalTexture>(sp<GraphicBuffer>::
+                                                         make(1u, 1u, *format,
+                                                              GRALLOC_USAGE_SW_WRITE_OFTEN |
+                                                                      GRALLOC_USAGE_SW_READ_OFTEN),
+                                                 getInstance()->mRenderEngine,
+                                                 renderengine::impl::ExternalTexture::Usage::
+                                                                 READABLE |
+                                                         renderengine::impl::ExternalTexture::
+                                                                 Usage::WRITEABLE);
+                EXPECT_CALL(*getInstance()->mRenderSurface, dequeueBuffer(_))
+                        .WillRepeatedly(Return(outputBuffer));
+            }
+            return nextState<DataspaceState>();
+        }
+    };
+
+    struct DataspaceState : public CallOrderStateMachineHelper<TestType, DataspaceState> {
+        auto withDataspace(ui::Dataspace dataspace) {
+            getInstance()->mOutput.mState.dataspace = dataspace;
             return nextState<ExpectDisplaySettingsState>();
         }
     };
@@ -3767,7 +3771,7 @@ struct OutputComposeSurfacesTest_UsesExpectedDisplaySettings : public OutputComp
     struct ExpectDisplaySettingsState
           : public CallOrderStateMachineHelper<TestType, ExpectDisplaySettingsState> {
         auto thenExpectDisplaySettingsUsed(renderengine::DisplaySettings settings) {
-            EXPECT_CALL(getInstance()->mRenderEngine, drawLayers(settings, _, _, false, _))
+            EXPECT_CALL(getInstance()->mRenderEngine, drawLayers(settings, _, _, _))
                     .WillOnce(Return(ByMove(ftl::yield<FenceResult>(Fence::NO_FENCE))));
             return nextState<ExecuteState>();
         }
@@ -3781,10 +3785,13 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forHdrMixedComposi
     verify().ifMixedCompositionIs(true)
             .andIfUsesHdr(true)
             .withDisplayBrightnessNits(kDisplayLuminance)
+            .withSdrWhitePointNits(kWhitePointLuminance)
             .withDimmingStage(aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR)
             .withRenderIntent(
                     aidl::android::hardware::graphics::composer3::RenderIntent::COLORIMETRIC)
             .andIfSkipColorTransform(false)
+            .withPixelFormat(std::nullopt)
+            .withDataspace(kDefaultOutputDataspace)
             .thenExpectDisplaySettingsUsed(
                     {.physicalDisplay = kDefaultOutputDestinationClip,
                      .clip = kDefaultOutputViewport,
@@ -3808,10 +3815,13 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings,
     verify().ifMixedCompositionIs(true)
             .andIfUsesHdr(true)
             .withDisplayBrightnessNits(kDisplayLuminance)
+            .withSdrWhitePointNits(kWhitePointLuminance)
             .withDimmingStage(aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR)
             .withRenderIntent(
                     aidl::android::hardware::graphics::composer3::RenderIntent::COLORIMETRIC)
             .andIfSkipColorTransform(false)
+            .withPixelFormat(std::nullopt)
+            .withDataspace(kDefaultOutputDataspace)
             .thenExpectDisplaySettingsUsed(
                     {.physicalDisplay = kDefaultOutputDestinationClip,
                      .clip = kDefaultOutputViewport,
@@ -3835,11 +3845,14 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings,
     verify().ifMixedCompositionIs(true)
             .andIfUsesHdr(true)
             .withDisplayBrightnessNits(kDisplayLuminance)
+            .withSdrWhitePointNits(kWhitePointLuminance)
             .withDimmingStage(
                     aidl::android::hardware::graphics::composer3::DimmingStage::GAMMA_OETF)
             .withRenderIntent(
                     aidl::android::hardware::graphics::composer3::RenderIntent::COLORIMETRIC)
             .andIfSkipColorTransform(false)
+            .withPixelFormat(std::nullopt)
+            .withDataspace(kDefaultOutputDataspace)
             .thenExpectDisplaySettingsUsed(
                     {.physicalDisplay = kDefaultOutputDestinationClip,
                      .clip = kDefaultOutputViewport,
@@ -3863,9 +3876,12 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings,
     verify().ifMixedCompositionIs(true)
             .andIfUsesHdr(true)
             .withDisplayBrightnessNits(kDisplayLuminance)
+            .withSdrWhitePointNits(kWhitePointLuminance)
             .withDimmingStage(aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR)
             .withRenderIntent(aidl::android::hardware::graphics::composer3::RenderIntent::ENHANCE)
             .andIfSkipColorTransform(false)
+            .withPixelFormat(std::nullopt)
+            .withDataspace(kDefaultOutputDataspace)
             .thenExpectDisplaySettingsUsed(
                     {.physicalDisplay = kDefaultOutputDestinationClip,
                      .clip = kDefaultOutputViewport,
@@ -3888,10 +3904,13 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forNonHdrMixedComp
     verify().ifMixedCompositionIs(true)
             .andIfUsesHdr(false)
             .withDisplayBrightnessNits(kDisplayLuminance)
+            .withSdrWhitePointNits(kWhitePointLuminance)
             .withDimmingStage(aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR)
             .withRenderIntent(
                     aidl::android::hardware::graphics::composer3::RenderIntent::COLORIMETRIC)
             .andIfSkipColorTransform(false)
+            .withPixelFormat(std::nullopt)
+            .withDataspace(kDefaultOutputDataspace)
             .thenExpectDisplaySettingsUsed(
                     {.physicalDisplay = kDefaultOutputDestinationClip,
                      .clip = kDefaultOutputViewport,
@@ -3914,10 +3933,13 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forHdrOnlyClientCo
     verify().ifMixedCompositionIs(false)
             .andIfUsesHdr(true)
             .withDisplayBrightnessNits(kDisplayLuminance)
+            .withSdrWhitePointNits(kWhitePointLuminance)
             .withDimmingStage(aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR)
             .withRenderIntent(
                     aidl::android::hardware::graphics::composer3::RenderIntent::COLORIMETRIC)
             .andIfSkipColorTransform(false)
+            .withPixelFormat(std::nullopt)
+            .withDataspace(kDefaultOutputDataspace)
             .thenExpectDisplaySettingsUsed(
                     {.physicalDisplay = kDefaultOutputDestinationClip,
                      .clip = kDefaultOutputViewport,
@@ -3940,10 +3962,13 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings, forNonHdrOnlyClien
     verify().ifMixedCompositionIs(false)
             .andIfUsesHdr(false)
             .withDisplayBrightnessNits(kDisplayLuminance)
+            .withSdrWhitePointNits(kWhitePointLuminance)
             .withDimmingStage(aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR)
             .withRenderIntent(
                     aidl::android::hardware::graphics::composer3::RenderIntent::COLORIMETRIC)
             .andIfSkipColorTransform(false)
+            .withPixelFormat(std::nullopt)
+            .withDataspace(kDefaultOutputDataspace)
             .thenExpectDisplaySettingsUsed(
                     {.physicalDisplay = kDefaultOutputDestinationClip,
                      .clip = kDefaultOutputViewport,
@@ -3967,10 +3992,13 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings,
     verify().ifMixedCompositionIs(false)
             .andIfUsesHdr(true)
             .withDisplayBrightnessNits(kDisplayLuminance)
+            .withSdrWhitePointNits(kWhitePointLuminance)
             .withDimmingStage(aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR)
             .withRenderIntent(
                     aidl::android::hardware::graphics::composer3::RenderIntent::COLORIMETRIC)
             .andIfSkipColorTransform(true)
+            .withPixelFormat(std::nullopt)
+            .withDataspace(kDefaultOutputDataspace)
             .thenExpectDisplaySettingsUsed(
                     {.physicalDisplay = kDefaultOutputDestinationClip,
                      .clip = kDefaultOutputViewport,
@@ -3981,6 +4009,38 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings,
                      .deviceHandlesColorTransform = true,
                      .orientation = kDefaultOutputOrientationFlags,
                      .targetLuminanceNits = kClientTargetLuminanceNits,
+                     .dimmingStage =
+                             aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR,
+                     .renderIntent = aidl::android::hardware::graphics::composer3::RenderIntent::
+                             COLORIMETRIC})
+            .execute()
+            .expectAFenceWasReturned();
+}
+
+TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings,
+       usesExpectedDisplaySettingsWithFp16Buffer) {
+    SET_FLAG_FOR_TEST(flags::fp16_client_target, true);
+    ALOGE("alecmouri: %d", flags::fp16_client_target());
+    verify().ifMixedCompositionIs(false)
+            .andIfUsesHdr(true)
+            .withDisplayBrightnessNits(kDisplayLuminance)
+            .withSdrWhitePointNits(kWhitePointLuminance)
+            .withDimmingStage(aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR)
+            .withRenderIntent(
+                    aidl::android::hardware::graphics::composer3::RenderIntent::COLORIMETRIC)
+            .andIfSkipColorTransform(true)
+            .withPixelFormat(PIXEL_FORMAT_RGBA_FP16)
+            .withDataspace(ui::Dataspace::V0_SCRGB)
+            .thenExpectDisplaySettingsUsed(
+                    {.physicalDisplay = kDefaultOutputDestinationClip,
+                     .clip = kDefaultOutputViewport,
+                     .maxLuminance = kDefaultMaxLuminance,
+                     .currentLuminanceNits = kDisplayLuminance,
+                     .outputDataspace = ui::Dataspace::V0_SCRGB,
+                     .colorTransform = kDefaultColorTransformMat,
+                     .deviceHandlesColorTransform = true,
+                     .orientation = kDefaultOutputOrientationFlags,
+                     .targetLuminanceNits = kClientTargetLuminanceNits * 0.75f,
                      .dimmingStage =
                              aidl::android::hardware::graphics::composer3::DimmingStage::LINEAR,
                      .renderIntent = aidl::android::hardware::graphics::composer3::RenderIntent::
@@ -4020,11 +4080,11 @@ struct OutputComposeSurfacesTest_HandlesProtectedContent : public OutputComposeS
         EXPECT_CALL(mOutput, appendRegionFlashRequests(RegionEq(kDebugRegion), _))
                 .WillRepeatedly(Return());
         EXPECT_CALL(*mRenderSurface, dequeueBuffer(_)).WillRepeatedly(Return(mOutputBuffer));
-        EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, false, _))
+        EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _))
                 .WillRepeatedly([&](const renderengine::DisplaySettings&,
                                     const std::vector<renderengine::LayerSettings>&,
                                     const std::shared_ptr<renderengine::ExternalTexture>&,
-                                    const bool, base::unique_fd&&) -> ftl::Future<FenceResult> {
+                                    base::unique_fd&&) -> ftl::Future<FenceResult> {
                     return ftl::yield<FenceResult>(Fence::NO_FENCE);
                 });
     }
@@ -4059,7 +4119,7 @@ TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifNotEnabled) {
     EXPECT_CALL(*mRenderSurface, setProtected(true));
     // Must happen after setting the protected content state.
     EXPECT_CALL(*mRenderSurface, dequeueBuffer(_)).WillRepeatedly(Return(mOutputBuffer));
-    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, false, _))
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _))
             .WillOnce(Return(ByMove(ftl::yield<FenceResult>(Fence::NO_FENCE))));
 
     base::unique_fd fd;
@@ -4118,7 +4178,7 @@ TEST_F(OutputComposeSurfacesTest_SetsExpensiveRendering, IfExepensiveOutputDatas
     InSequence seq;
 
     EXPECT_CALL(mOutput, setExpensiveRenderingExpected(true));
-    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, false, _))
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _))
             .WillOnce(Return(ByMove(ftl::yield<FenceResult>(Fence::NO_FENCE))));
 
     base::unique_fd fd;
@@ -4970,6 +5030,55 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
     ASSERT_EQ(1u, requests.size());
 
     EXPECT_EQ(mLayers[2].mLayerSettings, requests[0]);
+}
+
+struct OutputPresentFrameAndReleaseLayersAsyncTest : public ::testing::Test {
+    // Piggy-back on OutputPrepareFrameAsyncTest's version to avoid some boilerplate.
+    struct OutputPartialMock : public OutputPrepareFrameAsyncTest::OutputPartialMock {
+        // Set up the helper functions called by the function under test to use
+        // mock implementations.
+        MOCK_METHOD0(presentFrameAndReleaseLayers, void());
+        MOCK_METHOD0(presentFrameAndReleaseLayersAsync, ftl::Future<std::monostate>());
+    };
+    OutputPresentFrameAndReleaseLayersAsyncTest() {
+        mOutput->setDisplayColorProfileForTest(
+                std::unique_ptr<DisplayColorProfile>(mDisplayColorProfile));
+        mOutput->setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(mRenderSurface));
+        mOutput->setCompositionEnabled(true);
+        mRefreshArgs.outputs = {mOutput};
+    }
+
+    mock::DisplayColorProfile* mDisplayColorProfile = new NiceMock<mock::DisplayColorProfile>();
+    mock::RenderSurface* mRenderSurface = new NiceMock<mock::RenderSurface>();
+    std::shared_ptr<OutputPartialMock> mOutput{std::make_shared<NiceMock<OutputPartialMock>>()};
+    CompositionRefreshArgs mRefreshArgs;
+};
+
+TEST_F(OutputPresentFrameAndReleaseLayersAsyncTest, notCalledWhenNotRequested) {
+    EXPECT_CALL(*mOutput, presentFrameAndReleaseLayersAsync()).Times(0);
+    EXPECT_CALL(*mOutput, presentFrameAndReleaseLayers()).Times(1);
+
+    mOutput->present(mRefreshArgs);
+}
+
+TEST_F(OutputPresentFrameAndReleaseLayersAsyncTest, calledWhenRequested) {
+    EXPECT_CALL(*mOutput, presentFrameAndReleaseLayersAsync())
+            .WillOnce(Return(ftl::yield<std::monostate>({})));
+    EXPECT_CALL(*mOutput, presentFrameAndReleaseLayers()).Times(0);
+
+    mOutput->offloadPresentNextFrame();
+    mOutput->present(mRefreshArgs);
+}
+
+TEST_F(OutputPresentFrameAndReleaseLayersAsyncTest, calledForOneFrame) {
+    ::testing::InSequence inseq;
+    EXPECT_CALL(*mOutput, presentFrameAndReleaseLayersAsync())
+            .WillOnce(Return(ftl::yield<std::monostate>({})));
+    EXPECT_CALL(*mOutput, presentFrameAndReleaseLayers()).Times(1);
+
+    mOutput->offloadPresentNextFrame();
+    mOutput->present(mRefreshArgs);
+    mOutput->present(mRefreshArgs);
 }
 
 } // namespace

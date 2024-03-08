@@ -83,6 +83,12 @@ prebuilt_etc {
 }
 
 prebuilt_etc {
+    name: "android.hardware.consumerir.prebuilt.xml",
+    src: "android.hardware.consumerir.xml",
+    defaults: ["frameworks_native_data_etc_defaults"],
+}
+
+prebuilt_etc {
     name: "android.hardware.ethernet.prebuilt.xml",
     src: "android.hardware.ethernet.xml",
     defaults: ["frameworks_native_data_etc_defaults"],
@@ -107,8 +113,38 @@ prebuilt_etc {
 }
 
 prebuilt_etc {
+    name: "android.hardware.nfc.prebuilt.xml",
+    src: "android.hardware.nfc.xml",
+    defaults: ["frameworks_native_data_etc_defaults"],
+}
+
+prebuilt_etc {
+    name: "android.hardware.nfc.hce.prebuilt.xml",
+    src: "android.hardware.nfc.hce.xml",
+    defaults: ["frameworks_native_data_etc_defaults"],
+}
+
+prebuilt_etc {
     name: "android.hardware.reboot_escrow.prebuilt.xml",
     src: "android.hardware.reboot_escrow.xml",
+    defaults: ["frameworks_native_data_etc_defaults"],
+}
+
+prebuilt_etc {
+    name: "android.hardware.se.omapi.ese.prebuilt.xml",
+    src: "android.hardware.se.omapi.ese.xml",
+    defaults: ["frameworks_native_data_etc_defaults"],
+}
+
+prebuilt_etc {
+    name: "android.hardware.se.omapi.sd.prebuilt.xml",
+    src: "android.hardware.se.omapi.sd.xml",
+    defaults: ["frameworks_native_data_etc_defaults"],
+}
+
+prebuilt_etc {
+    name: "android.hardware.se.omapi.uicc.prebuilt.xml",
+    src: "android.hardware.se.omapi.uicc.xml",
     defaults: ["frameworks_native_data_etc_defaults"],
 }
 
@@ -257,8 +293,8 @@ prebuilt_etc {
 }
 
 prebuilt_etc {
-    name: "android.hardware.telephony.satellite.prebuilt.xml",
-    src: "android.hardware.telephony.satellite.xml",
+    name: "android.hardware.thread_network.prebuilt.xml",
+    src: "android.hardware.thread_network.xml",
     defaults: ["frameworks_native_data_etc_defaults"],
 }
 
@@ -335,6 +371,18 @@ prebuilt_etc {
 }
 
 prebuilt_etc {
+    name: "android.software.opengles.deqp.level-2024-03-01.prebuilt.xml",
+    src: "android.software.opengles.deqp.level-2024-03-01.xml",
+    defaults: ["frameworks_native_data_etc_defaults"],
+}
+
+prebuilt_etc {
+    name: "android.software.opengles.deqp.level-latest.prebuilt.xml",
+    src: "android.software.opengles.deqp.level-latest.xml",
+    defaults: ["frameworks_native_data_etc_defaults"],
+}
+
+prebuilt_etc {
     name: "android.software.sip.voip.prebuilt.xml",
     src: "android.software.sip.voip.xml",
     defaults: ["frameworks_native_data_etc_defaults"],
@@ -361,6 +409,18 @@ prebuilt_etc {
 prebuilt_etc {
     name: "android.software.vulkan.deqp.level-2023-03-01.prebuilt.xml",
     src: "android.software.vulkan.deqp.level-2023-03-01.xml",
+    defaults: ["frameworks_native_data_etc_defaults"],
+}
+
+prebuilt_etc {
+    name: "android.software.vulkan.deqp.level-2024-03-01.prebuilt.xml",
+    src: "android.software.vulkan.deqp.level-2024-03-01.xml",
+    defaults: ["frameworks_native_data_etc_defaults"],
+}
+
+prebuilt_etc {
+    name: "android.software.vulkan.deqp.level-latest.prebuilt.xml",
+    src: "android.software.vulkan.deqp.level-latest.xml",
     defaults: ["frameworks_native_data_etc_defaults"],
 }
 

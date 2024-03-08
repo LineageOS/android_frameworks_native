@@ -28,6 +28,7 @@
 #include <gtest/gtest.h>
 #pragma clang diagnostic pop
 
+#include <utils/Flattenable.h>
 #include <utils/LightRefBase.h>
 #include <utils/NativeHandle.h>
 
@@ -35,10 +36,12 @@
 
 #include <optional>
 
+#include <inttypes.h>
 #include <sys/eventfd.h>
 #include <sys/prctl.h>
 
 using namespace std::chrono_literals; // NOLINT - google-build-using-namespace
+using android::binder::unique_fd;
 
 namespace android {
 namespace tests {
@@ -604,7 +607,10 @@ private:
     static constexpr const char* getLogTag() { return "SafeInterfaceTest"; }
 
     sp<ISafeInterfaceTest> getRemoteService() {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
         sp<IBinder> binder = defaultServiceManager()->getService(kServiceName);
+#pragma clang diagnostic pop
         sp<ISafeInterfaceTest> iface = interface_cast<ISafeInterfaceTest>(binder);
         EXPECT_TRUE(iface != nullptr);
 
@@ -680,16 +686,18 @@ bool fdsAreEquivalent(int a, int b) {
 
 TEST_F(SafeInterfaceTest, TestIncrementNativeHandle) {
     // Create an fd we can use to send and receive from the remote process
-    base::unique_fd eventFd{eventfd(0 /*initval*/, 0 /*flags*/)};
+    unique_fd eventFd{eventfd(0 /*initval*/, 0 /*flags*/)};
     ASSERT_NE(-1, eventFd);
 
     // Determine the maximum number of fds this process can have open
     struct rlimit limit {};
     ASSERT_EQ(0, getrlimit(RLIMIT_NOFILE, &limit));
-    uint32_t maxFds = static_cast<uint32_t>(limit.rlim_cur);
+    uint64_t maxFds = limit.rlim_cur;
+
+    ALOG(LOG_INFO, "SafeInterfaceTest", "%s max FDs: %" PRIu64, __PRETTY_FUNCTION__, maxFds);
 
     // Perform this test enough times to rule out fd leaks
-    for (uint32_t iter = 0; iter < (2 * maxFds); ++iter) {
+    for (uint32_t iter = 0; iter < (maxFds + 100); ++iter) {
         native_handle* handle = native_handle_create(1 /*numFds*/, 1 /*numInts*/);
         ASSERT_NE(nullptr, handle);
         handle->data[0] = dup(eventFd.get());

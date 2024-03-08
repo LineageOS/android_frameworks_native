@@ -60,7 +60,7 @@ public:
     //
     // advanceFrame must be followed by a call to  onFrameCommitted before
     // advanceFrame may be called again.
-    virtual status_t advanceFrame() = 0;
+    virtual status_t advanceFrame(float hdrSdrRatio) = 0;
 
     // onFrameCommitted is called after the frame has been committed to the
     // hardware composer. The surface collects the release fence for this

@@ -29,6 +29,7 @@
 #include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
 #include <binder/ProcessState.h>
+#include <common/FlagManager.h>
 #include <configstore/Utils.h>
 #include <displayservice/DisplayService.h>
 #include <errno.h>
@@ -149,6 +150,9 @@ int main(int, char**) {
 
     // publish gui::ISurfaceComposer, the new AIDL interface
     sp<SurfaceComposerAIDL> composerAIDL = sp<SurfaceComposerAIDL>::make(flinger);
+    if (FlagManager::getInstance().misc1()) {
+        composerAIDL->setMinSchedulerPolicy(SCHED_FIFO, newPriority);
+    }
     sm->addService(String16("SurfaceFlingerAIDL"), composerAIDL, false,
                    IServiceManager::DUMP_FLAG_PRIORITY_CRITICAL | IServiceManager::DUMP_FLAG_PROTO);
 

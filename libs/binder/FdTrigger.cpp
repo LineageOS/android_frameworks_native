@@ -21,16 +21,20 @@
 
 #include <poll.h>
 
-#include <android-base/macros.h>
-#include <android-base/scopeguard.h>
+#include <binder/Functional.h>
 
+#include "FdUtils.h"
 #include "RpcState.h"
+#include "Utils.h"
+
 namespace android {
+
+using namespace android::binder::impl;
 
 std::unique_ptr<FdTrigger> FdTrigger::make() {
     auto ret = std::make_unique<FdTrigger>();
 #ifndef BINDER_RPC_SINGLE_THREADED
-    if (!android::base::Pipe(&ret->mRead, &ret->mWrite)) {
+    if (!binder::Pipe(&ret->mRead, &ret->mWrite)) {
         ALOGE("Could not create pipe %s", strerror(errno));
         return nullptr;
     }
@@ -50,7 +54,7 @@ bool FdTrigger::isTriggered() {
 #ifdef BINDER_RPC_SINGLE_THREADED
     return mTriggered;
 #else
-    return mWrite == -1;
+    return !mWrite.ok();
 #endif
 }
 
@@ -74,10 +78,9 @@ status_t FdTrigger::triggerablePoll(const android::RpcTransportFd& transportFd, 
                         "Only one thread should be polling on Fd!");
 
     transportFd.setPollingState(true);
-    auto pollingStateGuard =
-            android::base::make_scope_guard([&]() { transportFd.setPollingState(false); });
+    auto pollingStateGuard = make_scope_guard([&]() { transportFd.setPollingState(false); });
 
-    int ret = TEMP_FAILURE_RETRY(poll(pfd, arraysize(pfd), -1));
+    int ret = TEMP_FAILURE_RETRY(poll(pfd, countof(pfd), -1));
     if (ret < 0) {
         return -errno;
     }

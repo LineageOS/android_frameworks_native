@@ -28,7 +28,7 @@ public:
 
     void setInitialized() { mGpuMem->mInitialized.store(true); }
 
-    void setGpuMemTotalMap(bpf::BpfMap<uint64_t, uint64_t>& map) {
+    void setGpuMemTotalMap(bpf::BpfMapRO<uint64_t, uint64_t>& map) {
         mGpuMem->setGpuMemTotalMap(map);
     }
 

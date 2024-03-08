@@ -49,6 +49,7 @@ cc_library {
         "liblog",
         "libhardware",
         "libpermission",
+        "android.companion.virtual.virtualdevice_aidl-cpp",
     ],
 
     export_include_dirs: ["include"],

@@ -20,6 +20,13 @@
 #define LOG_TAG "RenderEngine"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
+#include <SkImage.h>
+#include <include/gpu/ganesh/SkImageGanesh.h>
+#include <include/gpu/ganesh/SkSurfaceGanesh.h>
+#include <include/gpu/ganesh/gl/GrGLBackendSurface.h>
+#include <include/gpu/ganesh/vk/GrVkBackendSurface.h>
+#include <include/gpu/vk/GrVkTypes.h>
+#include <android/hardware_buffer.h>
 #include "ColorSpaces.h"
 #include "log/log_main.h"
 #include "utils/Trace.h"
@@ -35,13 +42,44 @@ AutoBackendTexture::AutoBackendTexture(GrDirectContext* context, AHardwareBuffer
     AHardwareBuffer_Desc desc;
     AHardwareBuffer_describe(buffer, &desc);
     bool createProtectedImage = 0 != (desc.usage & AHARDWAREBUFFER_USAGE_PROTECTED_CONTENT);
-    GrBackendFormat backendFormat =
-            GrAHardwareBufferUtils::GetBackendFormat(context, buffer, desc.format, false);
-    mBackendTexture =
-            GrAHardwareBufferUtils::MakeBackendTexture(context, buffer, desc.width, desc.height,
-                                                       &mDeleteProc, &mUpdateProc, &mImageCtx,
-                                                       createProtectedImage, backendFormat,
-                                                       isOutputBuffer);
+    GrBackendFormat backendFormat;
+
+    GrBackendApi backend = context->backend();
+    if (backend == GrBackendApi::kOpenGL) {
+        backendFormat =
+                GrAHardwareBufferUtils::GetGLBackendFormat(context, desc.format, false);
+        mBackendTexture =
+                GrAHardwareBufferUtils::MakeGLBackendTexture(context,
+                                                             buffer,
+                                                             desc.width,
+                                                             desc.height,
+                                                             &mDeleteProc,
+                                                             &mUpdateProc,
+                                                             &mImageCtx,
+                                                             createProtectedImage,
+                                                             backendFormat,
+                                                             isOutputBuffer);
+    } else if (backend == GrBackendApi::kVulkan) {
+        backendFormat =
+                GrAHardwareBufferUtils::GetVulkanBackendFormat(context,
+                                                               buffer,
+                                                               desc.format,
+                                                               false);
+        mBackendTexture =
+                GrAHardwareBufferUtils::MakeVulkanBackendTexture(context,
+                                                                 buffer,
+                                                                 desc.width,
+                                                                 desc.height,
+                                                                 &mDeleteProc,
+                                                                 &mUpdateProc,
+                                                                 &mImageCtx,
+                                                                 createProtectedImage,
+                                                                 backendFormat,
+                                                                 isOutputBuffer);
+    } else {
+        LOG_ALWAYS_FATAL("Unexpected backend %d", backend);
+    }
+
     mColorType = GrAHardwareBufferUtils::GetSkColorTypeFromBufferFormat(desc.format);
     if (!mBackendTexture.isValid() || !desc.width || !desc.height) {
         LOG_ALWAYS_FATAL("Failed to create a valid texture. [%p]:[%d,%d] isProtected:%d "
@@ -79,7 +117,7 @@ void AutoBackendTexture::releaseSurfaceProc(SkSurface::ReleaseContext releaseCon
 
 // releaseImageProc is invoked by SkImage, when the texture is no longer in use.
 // "releaseContext" contains an "AutoBackendTexture*".
-void AutoBackendTexture::releaseImageProc(SkImage::ReleaseContext releaseContext) {
+void AutoBackendTexture::releaseImageProc(SkImages::ReleaseContext releaseContext) {
     AutoBackendTexture* textureRelease = reinterpret_cast<AutoBackendTexture*>(releaseContext);
     textureRelease->unref(false);
 }
@@ -89,20 +127,20 @@ void logFatalTexture(const char* msg, const GrBackendTexture& tex, ui::Dataspace
     switch (tex.backend()) {
         case GrBackendApi::kOpenGL: {
             GrGLTextureInfo textureInfo;
-            bool retrievedTextureInfo = tex.getGLTextureInfo(&textureInfo);
+            bool retrievedTextureInfo = GrBackendTextures::GetGLTextureInfo(tex, &textureInfo);
             LOG_ALWAYS_FATAL("%s isTextureValid:%d dataspace:%d"
                              "\n\tGrBackendTexture: (%i x %i) hasMipmaps: %i isProtected: %i "
                              "texType: %i\n\t\tGrGLTextureInfo: success: %i fTarget: %u fFormat: %u"
                              " colorType %i",
-                             msg, tex.isValid(), dataspace, tex.width(), tex.height(),
-                             tex.hasMipmaps(), tex.isProtected(),
+                             msg, tex.isValid(), static_cast<int32_t>(dataspace), tex.width(),
+                             tex.height(), tex.hasMipmaps(), tex.isProtected(),
                              static_cast<int>(tex.textureType()), retrievedTextureInfo,
                              textureInfo.fTarget, textureInfo.fFormat, colorType);
             break;
         }
         case GrBackendApi::kVulkan: {
             GrVkImageInfo imageInfo;
-            bool retrievedImageInfo = tex.getVkImageInfo(&imageInfo);
+            bool retrievedImageInfo = GrBackendTextures::GetVkImageInfo(tex, &imageInfo);
             LOG_ALWAYS_FATAL("%s isTextureValid:%d dataspace:%d"
                              "\n\tGrBackendTexture: (%i x %i) hasMipmaps: %i isProtected: %i "
                              "texType: %i\n\t\tVkImageInfo: success: %i fFormat: %i "
@@ -136,8 +174,9 @@ sk_sp<SkImage> AutoBackendTexture::makeImage(ui::Dataspace dataspace, SkAlphaTyp
     }
 
     sk_sp<SkImage> image =
-            SkImage::MakeFromTexture(context, mBackendTexture, kTopLeft_GrSurfaceOrigin, colorType,
-                                     alphaType, toSkColorSpace(dataspace), releaseImageProc, this);
+            SkImages::BorrowTextureFrom(context, mBackendTexture, kTopLeft_GrSurfaceOrigin,
+                                        colorType, alphaType, toSkColorSpace(dataspace),
+                                        releaseImageProc, this);
     if (image.get()) {
         // The following ref will be counteracted by releaseProc, when SkImage is discarded.
         ref();
@@ -157,10 +196,10 @@ sk_sp<SkSurface> AutoBackendTexture::getOrCreateSurface(ui::Dataspace dataspace,
     LOG_ALWAYS_FATAL_IF(!mIsOutputBuffer, "You can't generate a SkSurface for a read-only texture");
     if (!mSurface.get() || mDataspace != dataspace) {
         sk_sp<SkSurface> surface =
-                SkSurface::MakeFromBackendTexture(context, mBackendTexture,
-                                                  kTopLeft_GrSurfaceOrigin, 0, mColorType,
-                                                  toSkColorSpace(dataspace), nullptr,
-                                                  releaseSurfaceProc, this);
+                SkSurfaces::WrapBackendTexture(context, mBackendTexture,
+                                               kTopLeft_GrSurfaceOrigin, 0, mColorType,
+                                               toSkColorSpace(dataspace), nullptr,
+                                               releaseSurfaceProc, this);
         if (surface.get()) {
             // The following ref will be counteracted by releaseProc, when SkSurface is discarded.
             ref();

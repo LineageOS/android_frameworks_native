@@ -1079,7 +1079,6 @@ TEST_F(TimeStatsTest, globalStatsCallback) {
     constexpr size_t TOTAL_FRAMES = 5;
     constexpr size_t MISSED_FRAMES = 4;
     constexpr size_t CLIENT_COMPOSITION_FRAMES = 3;
-    constexpr size_t DISPLAY_EVENT_CONNECTIONS = 14;
     constexpr nsecs_t DISPLAY_DEADLINE_DELTA = 1'000'000;
     constexpr nsecs_t DISPLAY_PRESENT_JITTER = 2'000'000;
     constexpr nsecs_t APP_DEADLINE_DELTA = 3'000'000;
@@ -1100,7 +1099,6 @@ TEST_F(TimeStatsTest, globalStatsCallback) {
 
     insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, 1, 1000000);
 
-    mTimeStats->recordDisplayEventConnectionCount(DISPLAY_EVENT_CONNECTIONS);
     mTimeStats->setPowerMode(PowerMode::ON);
     mTimeStats->recordFrameDuration(1000000, 3000000);
     mTimeStats->recordRenderEngineDuration(2000000, 4000000);
@@ -1157,7 +1155,6 @@ TEST_F(TimeStatsTest, globalStatsCallback) {
     EXPECT_EQ(atom.client_composition_frames(), CLIENT_COMPOSITION_FRAMES);
     // Display on millis is not checked.
     EXPECT_EQ(atom.animation_millis(), 2);
-    EXPECT_EQ(atom.event_connection_count(), DISPLAY_EVENT_CONNECTIONS);
     EXPECT_THAT(atom.frame_duration(), HistogramEq(buildExpectedHistogram({2}, {1})));
     EXPECT_THAT(atom.render_engine_timing(), HistogramEq(buildExpectedHistogram({1, 2}, {1, 1})));
     EXPECT_EQ(atom.total_timeline_frames(), 9);

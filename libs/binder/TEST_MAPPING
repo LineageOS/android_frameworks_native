@@ -16,7 +16,13 @@
       "name": "binderDriverInterfaceTest"
     },
     {
+      "name": "binderRecordReplayTest"
+    },
+    {
       "name": "binderHostDeviceTest"
+    },
+    {
+      "name": "binderParcelBenchmark"
     },
     {
       "name": "binderTextOutputTest"
@@ -56,6 +62,9 @@
     },
     {
       "name": "libbinderthreadstateutils_test"
+    },
+    {
+      "name": "fuzz_service_test"
     },
     {
       "name": "CtsOsTestCases",

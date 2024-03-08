@@ -692,7 +692,7 @@ static bool verifyKernelTraceFuncs(const char* funcs)
     while (func) {
         if (!strchr(func, '*')) {
             String8 fancyFunc = String8::format("\n%s\n", func);
-            bool found = funcList.find(fancyFunc.string(), 0) >= 0;
+            bool found = funcList.find(fancyFunc.c_str(), 0) >= 0;
             if (!found || func[0] == '\0') {
                 fprintf(stderr, "error: \"%s\" is not a valid kernel function "
                         "to trace.\n", func);
@@ -796,11 +796,11 @@ static bool setCategoriesEnableFromFile(const char* categories_file)
     bool ok = true;
     while (!tokenizer->isEol()) {
         String8 token = tokenizer->nextToken(" ");
-        if (token.isEmpty()) {
+        if (token.empty()) {
             tokenizer->skipDelimiters(" ");
             continue;
         }
-        ok &= setCategoryEnable(token.string());
+        ok &= setCategoryEnable(token.c_str());
     }
     delete tokenizer;
     return ok;

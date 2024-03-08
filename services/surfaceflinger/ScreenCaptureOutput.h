@@ -38,6 +38,7 @@ struct ScreenCaptureOutputArgs {
     bool regionSampling;
     bool treat170mAsSrgb;
     bool dimInGammaSpaceForEnhancedScreenshots;
+    bool isProtected = false;
 };
 
 // ScreenCaptureOutput is used to compose a set of layers into a preallocated buffer.
@@ -58,7 +59,8 @@ public:
 
 protected:
     bool getSkipColorTransform() const override { return false; }
-    renderengine::DisplaySettings generateClientCompositionDisplaySettings() const override;
+    renderengine::DisplaySettings generateClientCompositionDisplaySettings(
+            const std::shared_ptr<renderengine::ExternalTexture>& buffer) const override;
 
 private:
     const RenderArea& mRenderArea;

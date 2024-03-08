@@ -101,9 +101,8 @@ bool PermissionCache::checkPermission(
         nsecs_t t = -systemTime();
         granted = android::checkPermission(permission, pid, uid);
         t += systemTime();
-        ALOGD("checking %s for uid=%d => %s (%d us)",
-                String8(permission).string(), uid,
-                granted?"granted":"denied", (int)ns2us(t));
+        ALOGD("checking %s for uid=%d => %s (%d us)", String8(permission).c_str(), uid,
+              granted ? "granted" : "denied", (int)ns2us(t));
         pc.cache(permission, uid, granted);
     }
     return granted;

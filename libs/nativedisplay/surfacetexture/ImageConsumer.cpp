@@ -19,7 +19,7 @@
 #include <surfacetexture/SurfaceTexture.h>
 
 // Macro for including the SurfaceTexture name in log messages
-#define IMG_LOGE(x, ...) ALOGE("[%s] " x, st.mName.string(), ##__VA_ARGS__)
+#define IMG_LOGE(x, ...) ALOGE("[%s] " x, st.mName.c_str(), ##__VA_ARGS__)
 
 namespace android {
 

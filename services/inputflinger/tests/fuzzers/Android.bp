@@ -56,6 +56,15 @@ cc_defaults {
     ],
     fuzz_config: {
         cc: ["android-framework-input@google.com"],
+        componentid: 155276,
+        hotlists: [
+            "4593311",
+        ],
+        description: "The fuzzer targets the APIs of libinputflinger library",
+        vector: "local_no_privileges_required",
+        service_privilege: "privileged",
+        users: "multi_user",
+        fuzzed_code_usage: "shipped",
     },
 }
 
@@ -100,6 +109,22 @@ cc_fuzz {
 }
 
 cc_fuzz {
+    name: "inputflinger_touchpad_input_fuzzer",
+    defaults: [
+        "inputflinger_fuzz_defaults",
+    ],
+    srcs: [
+        "TouchpadInputFuzzer.cpp",
+    ],
+    static_libs: [
+        "libchrome-gestures",
+    ],
+    header_libs: [
+        "libchrome-gestures_headers",
+    ],
+}
+
+cc_fuzz {
     name: "inputflinger_input_reader_fuzzer",
     defaults: [
         "inputflinger_fuzz_defaults",
@@ -140,5 +165,19 @@ cc_fuzz {
     ],
     srcs: [
         "LatencyTrackerFuzzer.cpp",
+    ],
+}
+
+cc_fuzz {
+    name: "inputflinger_input_dispatcher_fuzzer",
+    defaults: [
+        "inputflinger_fuzz_defaults",
+        "libinputdispatcher_defaults",
+    ],
+    shared_libs: [
+        "libinputreporter",
+    ],
+    srcs: [
+        "InputDispatcherFuzzer.cpp",
     ],
 }

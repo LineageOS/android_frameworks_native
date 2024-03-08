@@ -208,36 +208,13 @@ void RunDex2Oat::PrepareCompilerConfigFlags(const UniqueFile& input_vdex,
     }
 
     // Compute compiler filter.
-    {
-        std::string dex2oat_compiler_filter_arg;
-        {
-            // If we are booting without the real /data, don't spend time compiling.
-            std::string vold_decrypt = GetProperty("vold.decrypt", "");
-            bool skip_compilation = vold_decrypt == "trigger_restart_min_framework" ||
-                    vold_decrypt == "1";
-
-            bool have_dex2oat_relocation_skip_flag = false;
-            if (skip_compilation) {
-                dex2oat_compiler_filter_arg = "--compiler-filter=extract";
-                have_dex2oat_relocation_skip_flag = true;
-            } else if (compiler_filter != nullptr) {
-                dex2oat_compiler_filter_arg = StringPrintf("--compiler-filter=%s",
-                                                           compiler_filter);
-            }
-            if (have_dex2oat_relocation_skip_flag) {
-                AddRuntimeArg("-Xnorelocate");
-            }
-        }
-
-        if (dex2oat_compiler_filter_arg.empty()) {
-            dex2oat_compiler_filter_arg = MapPropertyToArg("dalvik.vm.dex2oat-filter",
-                                                           "--compiler-filter=%s");
-        }
-        AddArg(dex2oat_compiler_filter_arg);
-
-        if (compilation_reason != nullptr) {
-            AddArg(std::string("--compilation-reason=") + compilation_reason);
-        }
+    if (compiler_filter != nullptr) {
+        AddArg(StringPrintf("--compiler-filter=%s", compiler_filter));
+    } else {
+        AddArg(MapPropertyToArg("dalvik.vm.dex2oat-filter", "--compiler-filter=%s"));
+    }
+    if (compilation_reason != nullptr) {
+        AddArg(std::string("--compilation-reason=") + compilation_reason);
     }
 
     AddArg(MapPropertyToArg("dalvik.vm.dex2oat-max-image-block-size",

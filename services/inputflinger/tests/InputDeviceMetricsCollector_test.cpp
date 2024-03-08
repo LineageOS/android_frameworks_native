@@ -36,7 +36,6 @@ namespace {
 
 constexpr auto USAGE_TIMEOUT = 8765309ns;
 constexpr auto TIME = 999999ns;
-constexpr auto ALL_USAGE_SOURCES = ftl::enum_range<InputDeviceUsageSource>();
 
 constexpr int32_t DEVICE_ID = 3;
 constexpr int32_t DEVICE_ID_2 = 4;
@@ -48,10 +47,6 @@ const std::string LOCATION = "California";
 const std::string UNIQUE_ID = "Yosemite";
 constexpr uint32_t TOUCHSCREEN = AINPUT_SOURCE_TOUCHSCREEN;
 constexpr uint32_t STYLUS = AINPUT_SOURCE_STYLUS;
-constexpr uint32_t KEY_SOURCES =
-        AINPUT_SOURCE_KEYBOARD | AINPUT_SOURCE_DPAD | AINPUT_SOURCE_GAMEPAD;
-constexpr int32_t POINTER_1_DOWN =
-        AMOTION_EVENT_ACTION_POINTER_DOWN | (1 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
 
 InputDeviceIdentifier generateTestIdentifier(int32_t id = DEVICE_ID) {
     InputDeviceIdentifier identifier;
@@ -66,21 +61,14 @@ InputDeviceIdentifier generateTestIdentifier(int32_t id = DEVICE_ID) {
 }
 
 InputDeviceInfo generateTestDeviceInfo(int32_t id = DEVICE_ID,
-                                       uint32_t sources = TOUCHSCREEN | STYLUS,
-                                       bool isAlphabetic = false) {
+                                       uint32_t sources = TOUCHSCREEN | STYLUS) {
     auto info = InputDeviceInfo();
     info.initialize(id, /*generation=*/1, /*controllerNumber=*/1, generateTestIdentifier(id),
                     "alias", /*isExternal=*/false, /*hasMic=*/false, ADISPLAY_ID_NONE);
     info.addSource(sources);
-    info.setKeyboardType(isAlphabetic ? AINPUT_KEYBOARD_TYPE_ALPHABETIC
-                                      : AINPUT_KEYBOARD_TYPE_NON_ALPHABETIC);
     return info;
 }
 
-const InputDeviceInfo ALPHABETIC_KEYBOARD_INFO =
-        generateTestDeviceInfo(DEVICE_ID, KEY_SOURCES, /*isAlphabetic=*/true);
-const InputDeviceInfo NON_ALPHABETIC_KEYBOARD_INFO =
-        generateTestDeviceInfo(DEVICE_ID, KEY_SOURCES, /*isAlphabetic=*/false);
 const InputDeviceInfo TOUCHSCREEN_STYLUS_INFO = generateTestDeviceInfo(DEVICE_ID);
 const InputDeviceInfo SECOND_TOUCHSCREEN_STYLUS_INFO = generateTestDeviceInfo(DEVICE_ID_2);
 
@@ -94,258 +82,6 @@ std::set<gui::Uid> uids(std::initializer_list<int32_t> vals) {
 
 } // namespace
 
-// --- InputDeviceMetricsCollectorDeviceClassificationTest ---
-
-class DeviceClassificationFixture : public ::testing::Test,
-                                    public ::testing::WithParamInterface<InputDeviceUsageSource> {};
-
-TEST_P(DeviceClassificationFixture, ValidClassifications) {
-    const InputDeviceUsageSource usageSource = GetParam();
-
-    // Use a switch to ensure a test is added for all source classifications.
-    switch (usageSource) {
-        case InputDeviceUsageSource::UNKNOWN: {
-            ASSERT_EQ(InputDeviceUsageSource::UNKNOWN,
-                      getUsageSourceForKeyArgs(generateTestDeviceInfo(),
-                                               KeyArgsBuilder(AKEY_EVENT_ACTION_DOWN, TOUCHSCREEN)
-                                                       .build()));
-
-            std::set<InputDeviceUsageSource> srcs{InputDeviceUsageSource::UNKNOWN};
-            ASSERT_EQ(srcs,
-                      getUsageSourcesForMotionArgs(
-                              MotionArgsBuilder(AMOTION_EVENT_ACTION_MOVE, AINPUT_SOURCE_KEYBOARD)
-                                      .pointer(PointerBuilder(/*id=*/1, ToolType::PALM)
-                                                       .x(100)
-                                                       .y(200))
-                                      .build()));
-            break;
-        }
-
-        case InputDeviceUsageSource::BUTTONS: {
-            ASSERT_EQ(InputDeviceUsageSource::BUTTONS,
-                      getUsageSourceForKeyArgs(NON_ALPHABETIC_KEYBOARD_INFO,
-                                               KeyArgsBuilder(AKEY_EVENT_ACTION_DOWN, KEY_SOURCES)
-                                                       .keyCode(AKEYCODE_STYLUS_BUTTON_TAIL)
-                                                       .build()));
-            break;
-        }
-
-        case InputDeviceUsageSource::KEYBOARD: {
-            ASSERT_EQ(InputDeviceUsageSource::KEYBOARD,
-                      getUsageSourceForKeyArgs(ALPHABETIC_KEYBOARD_INFO,
-                                               KeyArgsBuilder(AKEY_EVENT_ACTION_DOWN, KEY_SOURCES)
-                                                       .build()));
-            break;
-        }
-
-        case InputDeviceUsageSource::DPAD: {
-            ASSERT_EQ(InputDeviceUsageSource::DPAD,
-                      getUsageSourceForKeyArgs(NON_ALPHABETIC_KEYBOARD_INFO,
-                                               KeyArgsBuilder(AKEY_EVENT_ACTION_DOWN, KEY_SOURCES)
-                                                       .keyCode(AKEYCODE_DPAD_CENTER)
-                                                       .build()));
-
-            ASSERT_EQ(InputDeviceUsageSource::DPAD,
-                      getUsageSourceForKeyArgs(ALPHABETIC_KEYBOARD_INFO,
-                                               KeyArgsBuilder(AKEY_EVENT_ACTION_DOWN, KEY_SOURCES)
-                                                       .keyCode(AKEYCODE_DPAD_CENTER)
-                                                       .build()));
-            break;
-        }
-
-        case InputDeviceUsageSource::GAMEPAD: {
-            ASSERT_EQ(InputDeviceUsageSource::GAMEPAD,
-                      getUsageSourceForKeyArgs(NON_ALPHABETIC_KEYBOARD_INFO,
-                                               KeyArgsBuilder(AKEY_EVENT_ACTION_DOWN, KEY_SOURCES)
-                                                       .keyCode(AKEYCODE_BUTTON_A)
-                                                       .build()));
-
-            ASSERT_EQ(InputDeviceUsageSource::GAMEPAD,
-                      getUsageSourceForKeyArgs(ALPHABETIC_KEYBOARD_INFO,
-                                               KeyArgsBuilder(AKEY_EVENT_ACTION_DOWN, KEY_SOURCES)
-                                                       .keyCode(AKEYCODE_BUTTON_A)
-                                                       .build()));
-            break;
-        }
-
-        case InputDeviceUsageSource::JOYSTICK: {
-            std::set<InputDeviceUsageSource> srcs{InputDeviceUsageSource::JOYSTICK};
-            ASSERT_EQ(srcs,
-                      getUsageSourcesForMotionArgs(
-                              MotionArgsBuilder(AMOTION_EVENT_ACTION_MOVE, AINPUT_SOURCE_JOYSTICK)
-                                      .pointer(PointerBuilder(/*id=*/1, ToolType::UNKNOWN)
-                                                       .axis(AMOTION_EVENT_AXIS_GAS, 1.f))
-                                      .build()));
-            break;
-        }
-
-        case InputDeviceUsageSource::MOUSE: {
-            std::set<InputDeviceUsageSource> srcs{InputDeviceUsageSource::MOUSE};
-            ASSERT_EQ(srcs,
-                      getUsageSourcesForMotionArgs(
-                              MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE,
-                                                AINPUT_SOURCE_MOUSE)
-                                      .pointer(PointerBuilder(/*id=*/1, ToolType::MOUSE)
-                                                       .x(100)
-                                                       .y(200))
-                                      .build()));
-            break;
-        }
-
-        case InputDeviceUsageSource::MOUSE_CAPTURED: {
-            std::set<InputDeviceUsageSource> srcs{InputDeviceUsageSource::MOUSE_CAPTURED};
-            ASSERT_EQ(srcs,
-                      getUsageSourcesForMotionArgs(
-                              MotionArgsBuilder(AMOTION_EVENT_ACTION_MOVE,
-                                                AINPUT_SOURCE_MOUSE_RELATIVE)
-                                      .pointer(PointerBuilder(/*id=*/1, ToolType::MOUSE)
-                                                       .x(100)
-                                                       .y(200)
-                                                       .axis(AMOTION_EVENT_AXIS_RELATIVE_X, 100)
-                                                       .axis(AMOTION_EVENT_AXIS_RELATIVE_Y, 200))
-                                      .build()));
-            break;
-        }
-
-        case InputDeviceUsageSource::TOUCHPAD: {
-            std::set<InputDeviceUsageSource> srcs{InputDeviceUsageSource::TOUCHPAD};
-            ASSERT_EQ(srcs,
-                      getUsageSourcesForMotionArgs(
-                              MotionArgsBuilder(AMOTION_EVENT_ACTION_MOVE, AINPUT_SOURCE_MOUSE)
-                                      .pointer(PointerBuilder(/*id=*/1, ToolType::FINGER)
-                                                       .x(100)
-                                                       .y(200))
-                                      .build()));
-            break;
-        }
-
-        case InputDeviceUsageSource::TOUCHPAD_CAPTURED: {
-            std::set<InputDeviceUsageSource> srcs{InputDeviceUsageSource::TOUCHPAD_CAPTURED};
-            ASSERT_EQ(srcs,
-                      getUsageSourcesForMotionArgs(
-                              MotionArgsBuilder(AMOTION_EVENT_ACTION_MOVE, AINPUT_SOURCE_TOUCHPAD)
-                                      .pointer(PointerBuilder(/*id=*/1, ToolType::FINGER)
-                                                       .x(100)
-                                                       .y(200)
-                                                       .axis(AMOTION_EVENT_AXIS_RELATIVE_X, 1)
-                                                       .axis(AMOTION_EVENT_AXIS_RELATIVE_Y, 2))
-                                      .build()));
-            break;
-        }
-
-        case InputDeviceUsageSource::ROTARY_ENCODER: {
-            std::set<InputDeviceUsageSource> srcs{InputDeviceUsageSource::ROTARY_ENCODER};
-            ASSERT_EQ(srcs,
-                      getUsageSourcesForMotionArgs(
-                              MotionArgsBuilder(AMOTION_EVENT_ACTION_SCROLL,
-                                                AINPUT_SOURCE_ROTARY_ENCODER)
-                                      .pointer(PointerBuilder(/*id=*/1, ToolType::UNKNOWN)
-                                                       .axis(AMOTION_EVENT_AXIS_SCROLL, 10)
-                                                       .axis(AMOTION_EVENT_AXIS_VSCROLL, 10))
-                                      .build()));
-            break;
-        }
-
-        case InputDeviceUsageSource::STYLUS_DIRECT: {
-            std::set<InputDeviceUsageSource> srcs{InputDeviceUsageSource::STYLUS_DIRECT};
-            ASSERT_EQ(srcs,
-                      getUsageSourcesForMotionArgs(
-                              MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER,
-                                                STYLUS | TOUCHSCREEN)
-                                      .pointer(PointerBuilder(/*id=*/1, ToolType::STYLUS)
-                                                       .x(100)
-                                                       .y(200))
-                                      .build()));
-            break;
-        }
-
-        case InputDeviceUsageSource::STYLUS_INDIRECT: {
-            std::set<InputDeviceUsageSource> srcs{InputDeviceUsageSource::STYLUS_INDIRECT};
-            ASSERT_EQ(srcs,
-                      getUsageSourcesForMotionArgs(
-                              MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER,
-                                                STYLUS | TOUCHSCREEN | AINPUT_SOURCE_MOUSE)
-                                      .pointer(PointerBuilder(/*id=*/1, ToolType::STYLUS)
-                                                       .x(100)
-                                                       .y(200))
-                                      .build()));
-            break;
-        }
-
-        case InputDeviceUsageSource::STYLUS_FUSED: {
-            std::set<InputDeviceUsageSource> srcs{InputDeviceUsageSource::STYLUS_FUSED};
-            ASSERT_EQ(srcs,
-                      getUsageSourcesForMotionArgs(
-                              MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER,
-                                                AINPUT_SOURCE_BLUETOOTH_STYLUS | TOUCHSCREEN)
-                                      .pointer(PointerBuilder(/*id=*/1, ToolType::STYLUS)
-                                                       .x(100)
-                                                       .y(200))
-                                      .build()));
-            break;
-        }
-
-        case InputDeviceUsageSource::TOUCH_NAVIGATION: {
-            std::set<InputDeviceUsageSource> srcs{InputDeviceUsageSource::TOUCH_NAVIGATION};
-            ASSERT_EQ(srcs,
-                      getUsageSourcesForMotionArgs(
-                              MotionArgsBuilder(AMOTION_EVENT_ACTION_MOVE,
-                                                AINPUT_SOURCE_TOUCH_NAVIGATION)
-                                      .pointer(PointerBuilder(/*id=*/1, ToolType::FINGER)
-                                                       .x(100)
-                                                       .y(200))
-                                      .build()));
-            break;
-        }
-
-        case InputDeviceUsageSource::TOUCHSCREEN: {
-            std::set<InputDeviceUsageSource> srcs{InputDeviceUsageSource::TOUCHSCREEN};
-            ASSERT_EQ(srcs,
-                      getUsageSourcesForMotionArgs(
-                              MotionArgsBuilder(POINTER_1_DOWN, TOUCHSCREEN)
-                                      .pointer(PointerBuilder(/*id=*/1, ToolType::FINGER)
-                                                       .x(100)
-                                                       .y(200))
-                                      .pointer(PointerBuilder(/*id=*/2, ToolType::FINGER)
-                                                       .x(300)
-                                                       .y(400))
-                                      .build()));
-            break;
-        }
-
-        case InputDeviceUsageSource::TRACKBALL: {
-            std::set<InputDeviceUsageSource> srcs{InputDeviceUsageSource::TRACKBALL};
-            ASSERT_EQ(srcs,
-                      getUsageSourcesForMotionArgs(
-                              MotionArgsBuilder(AMOTION_EVENT_ACTION_SCROLL,
-                                                AINPUT_SOURCE_TRACKBALL)
-                                      .pointer(PointerBuilder(/*id=*/1, ToolType::UNKNOWN)
-                                                       .axis(AMOTION_EVENT_AXIS_VSCROLL, 100)
-                                                       .axis(AMOTION_EVENT_AXIS_HSCROLL, 200))
-                                      .build()));
-            break;
-        }
-    }
-}
-
-INSTANTIATE_TEST_SUITE_P(InputDeviceMetricsCollectorDeviceClassificationTest,
-                         DeviceClassificationFixture,
-                         ::testing::ValuesIn(ALL_USAGE_SOURCES.begin(), ALL_USAGE_SOURCES.end()),
-                         [](const testing::TestParamInfo<InputDeviceUsageSource>& testParamInfo) {
-                             return ftl::enum_string(testParamInfo.param);
-                         });
-
-TEST(InputDeviceMetricsCollectorDeviceClassificationTest, MixedClassificationTouchscreenStylus) {
-    std::set<InputDeviceUsageSource> srcs{InputDeviceUsageSource::TOUCHSCREEN,
-                                          InputDeviceUsageSource::STYLUS_DIRECT};
-    ASSERT_EQ(srcs,
-              getUsageSourcesForMotionArgs(
-                      MotionArgsBuilder(POINTER_1_DOWN, TOUCHSCREEN | STYLUS)
-                              .pointer(PointerBuilder(/*id=*/1, ToolType::FINGER).x(100).y(200))
-                              .pointer(PointerBuilder(/*id=*/2, ToolType::STYLUS).x(300).y(400))
-                              .build()));
-}
-
 // --- InputDeviceMetricsCollectorTest ---
 
 class InputDeviceMetricsCollectorTest : public testing::Test, public InputDeviceMetricsLogger {
@@ -358,7 +94,13 @@ protected:
                            std::optional<UidUsageBreakdown> uidBreakdown = {}) {
         ASSERT_GE(mLoggedUsageSessions.size(), 1u);
         const auto& [loggedInfo, report] = *mLoggedUsageSessions.begin();
-        ASSERT_EQ(info.getIdentifier(), loggedInfo.getIdentifier());
+        const auto& i = info.getIdentifier();
+        ASSERT_EQ(info.getId(), loggedInfo.deviceId);
+        ASSERT_EQ(i.vendor, loggedInfo.vendor);
+        ASSERT_EQ(i.product, loggedInfo.product);
+        ASSERT_EQ(i.version, loggedInfo.version);
+        ASSERT_EQ(i.bus, loggedInfo.bus);
+        ASSERT_EQ(info.getUsiVersion().has_value(), loggedInfo.isUsiStylus);
         ASSERT_EQ(duration, report.usageDuration);
         if (sourceBreakdown) {
             ASSERT_EQ(sourceBreakdown, report.sourceBreakdown);
@@ -389,12 +131,12 @@ protected:
     }
 
 private:
-    std::vector<std::tuple<InputDeviceInfo, DeviceUsageReport>> mLoggedUsageSessions;
+    std::vector<std::tuple<MetricsDeviceInfo, DeviceUsageReport>> mLoggedUsageSessions;
     nanoseconds mCurrentTime{TIME};
 
     nanoseconds getCurrentTime() override { return mCurrentTime; }
 
-    void logInputDeviceUsageReported(const InputDeviceInfo& info,
+    void logInputDeviceUsageReported(const MetricsDeviceInfo& info,
                                      const DeviceUsageReport& report) override {
         mLoggedUsageSessions.emplace_back(info, report);
     }

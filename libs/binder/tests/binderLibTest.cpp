@@ -29,17 +29,17 @@
 
 #include <android-base/properties.h>
 #include <android-base/result-gmock.h>
-#include <android-base/result.h>
-#include <android-base/scopeguard.h>
 #include <android-base/strings.h>
-#include <android-base/unique_fd.h>
 #include <binder/Binder.h>
 #include <binder/BpBinder.h>
+#include <binder/Functional.h>
 #include <binder/IBinder.h>
 #include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
 #include <binder/RpcServer.h>
 #include <binder/RpcSession.h>
+#include <binder/unique_fd.h>
+#include <utils/Flattenable.h>
 
 #include <linux/sched.h>
 #include <sys/epoll.h>
@@ -48,15 +48,16 @@
 #include <sys/un.h>
 
 #include "../binder_module.h"
-#include "binderAbiHelper.h"
 
 #define ARRAY_SIZE(array) (sizeof array / sizeof array[0])
 
 using namespace android;
+using namespace android::binder::impl;
 using namespace std::string_literals;
 using namespace std::chrono_literals;
 using android::base::testing::HasValue;
 using android::base::testing::Ok;
+using android::binder::unique_fd;
 using testing::ExplainMatchResult;
 using testing::Matcher;
 using testing::Not;
@@ -83,7 +84,7 @@ static char binderserverarg[] = "--binderserver";
 static constexpr int kSchedPolicy = SCHED_RR;
 static constexpr int kSchedPriority = 7;
 static constexpr int kSchedPriorityMore = 8;
-static constexpr int kKernelThreads = 15;
+static constexpr int kKernelThreads = 17; // anything different than the default
 
 static String16 binderLibTestServiceName = String16("test.binderLib");
 
@@ -214,7 +215,10 @@ class BinderLibTestEnv : public ::testing::Environment {
 
             sp<IServiceManager> sm = defaultServiceManager();
             //printf("%s: pid %d, get service\n", __func__, m_pid);
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
             m_server = sm->getService(binderLibTestServiceName);
+#pragma clang diagnostic pop
             ASSERT_TRUE(m_server != nullptr);
             //printf("%s: pid %d, get service done\n", __func__, m_pid);
         }
@@ -844,7 +848,7 @@ TEST_F(BinderLibTest, PassParcelFileDescriptor) {
         writebuf[i] = i;
     }
 
-    android::base::unique_fd read_end, write_end;
+    unique_fd read_end, write_end;
     {
         int pipefd[2];
         ASSERT_EQ(0, pipe2(pipefd, O_NONBLOCK));
@@ -1108,6 +1112,7 @@ TEST_F(BinderLibTest, WorkSourcePropagatedForAllFollowingBinderCalls)
     status_t ret;
     data.writeInterfaceToken(binderLibTestServiceName);
     ret = m_server->transact(BINDER_LIB_TEST_GET_WORK_SOURCE_TRANSACTION, data, &reply);
+    EXPECT_EQ(NO_ERROR, ret);
 
     Parcel data2, reply2;
     status_t ret2;
@@ -1173,7 +1178,7 @@ TEST_F(BinderLibTest, FileDescriptorRemainsNonBlocking) {
     Parcel reply;
     EXPECT_THAT(server->transact(BINDER_LIB_TEST_GET_NON_BLOCKING_FD, {} /*data*/, &reply),
                 StatusEq(NO_ERROR));
-    base::unique_fd fd;
+    unique_fd fd;
     EXPECT_THAT(reply.readUniqueFileDescriptor(&fd), StatusEq(OK));
 
     const int result = fcntl(fd.get(), F_GETFL);
@@ -1322,7 +1327,7 @@ TEST_F(BinderLibTest, TooManyFdsFlattenable) {
     ASSERT_EQ(0, ret);
 
     // Restore the original file limits when the test finishes
-    base::ScopeGuard guardUnguard([&]() { setrlimit(RLIMIT_NOFILE, &origNofile); });
+    auto guardUnguard = make_scope_guard([&]() { setrlimit(RLIMIT_NOFILE, &origNofile); });
 
     rlimit testNofile = {1024, 1024};
     ret = setrlimit(RLIMIT_NOFILE, &testNofile);
@@ -1358,17 +1363,20 @@ TEST_F(BinderLibTest, ThreadPoolAvailableThreads) {
     EXPECT_THAT(server->transact(BINDER_LIB_TEST_GET_MAX_THREAD_COUNT, data, &reply),
                 StatusEq(NO_ERROR));
     int32_t replyi = reply.readInt32();
-    // Expect 16 threads: kKernelThreads = 15 + Pool thread == 16
-    EXPECT_TRUE(replyi == kKernelThreads || replyi == kKernelThreads + 1);
+    // see getThreadPoolMaxTotalThreadCount for why there is a race
+    EXPECT_TRUE(replyi == kKernelThreads + 1 || replyi == kKernelThreads + 2) << replyi;
+
     EXPECT_THAT(server->transact(BINDER_LIB_TEST_PROCESS_LOCK, data, &reply), NO_ERROR);
 
     /*
-     * This will use all threads in the pool expect the main pool thread.
-     * The service should run fine without locking, and the thread count should
-     * not exceed 16 (15 Max + pool thread).
+     * This will use all threads in the pool but one. There are actually kKernelThreads+2
+     * available in the other process (startThreadPool, joinThreadPool, + the kernel-
+     * started threads from setThreadPoolMaxThreadCount
+     *
+     * Adding one more will cause it to deadlock.
      */
     std::vector<std::thread> ts;
-    for (size_t i = 0; i < kKernelThreads; i++) {
+    for (size_t i = 0; i < kKernelThreads + 1; i++) {
         ts.push_back(std::thread([&] {
             Parcel local_reply;
             EXPECT_THAT(server->transact(BINDER_LIB_TEST_LOCK_UNLOCK, data, &local_reply),
@@ -1376,8 +1384,13 @@ TEST_F(BinderLibTest, ThreadPoolAvailableThreads) {
         }));
     }
 
-    data.writeInt32(500);
-    // Give a chance for all threads to be used
+    // make sure all of the above calls will be queued in parallel. Otherwise, most of
+    // the time, the below call will pre-empt them (presumably because we have the
+    // scheduler timeslice already + scheduler hint).
+    sleep(1);
+
+    data.writeInt32(1000);
+    // Give a chance for all threads to be used (kKernelThreads + 1 thread in use)
     EXPECT_THAT(server->transact(BINDER_LIB_TEST_UNLOCK_AFTER_MS, data, &reply), NO_ERROR);
 
     for (auto &t : ts) {
@@ -1387,7 +1400,7 @@ TEST_F(BinderLibTest, ThreadPoolAvailableThreads) {
     EXPECT_THAT(server->transact(BINDER_LIB_TEST_GET_MAX_THREAD_COUNT, data, &reply),
                 StatusEq(NO_ERROR));
     replyi = reply.readInt32();
-    EXPECT_EQ(replyi, kKernelThreads + 1);
+    EXPECT_EQ(replyi, kKernelThreads + 2);
 }
 
 TEST_F(BinderLibTest, ThreadPoolStarted) {
@@ -1434,6 +1447,36 @@ TEST_F(BinderLibTest, HangingServices) {
     EXPECT_GE(epochMsAfter, epochMsBefore + delay);
 }
 
+TEST_F(BinderLibTest, BinderProxyCount) {
+    Parcel data, reply;
+    sp<IBinder> server = addServer();
+    ASSERT_NE(server, nullptr);
+
+    uint32_t initialCount = BpBinder::getBinderProxyCount();
+    size_t iterations = 100;
+    {
+        uint32_t count = initialCount;
+        std::vector<sp<IBinder> > proxies;
+        sp<IBinder> proxy;
+        // Create binder proxies and verify the count.
+        for (size_t i = 0; i < iterations; i++) {
+            ASSERT_THAT(server->transact(BINDER_LIB_TEST_CREATE_BINDER_TRANSACTION, data, &reply),
+                        StatusEq(NO_ERROR));
+            proxies.push_back(reply.readStrongBinder());
+            EXPECT_EQ(BpBinder::getBinderProxyCount(), ++count);
+        }
+        // Remove every other one and verify the count.
+        auto it = proxies.begin();
+        for (size_t i = 0; it != proxies.end(); i++) {
+            if (i % 2 == 0) {
+                it = proxies.erase(it);
+                EXPECT_EQ(BpBinder::getBinderProxyCount(), --count);
+            }
+        }
+    }
+    EXPECT_EQ(BpBinder::getBinderProxyCount(), initialCount);
+}
+
 class BinderLibRpcTestBase : public BinderLibTest {
 public:
     void SetUp() override {
@@ -1444,7 +1487,7 @@ public:
         BinderLibTest::SetUp();
     }
 
-    std::tuple<android::base::unique_fd, unsigned int> CreateSocket() {
+    std::tuple<unique_fd, unsigned int> CreateSocket() {
         auto rpcServer = RpcServer::make();
         EXPECT_NE(nullptr, rpcServer);
         if (rpcServer == nullptr) return {};
@@ -1511,7 +1554,7 @@ public:
 TEST_P(BinderLibRpcTestP, SetRpcClientDebugNoFd) {
     auto binder = GetService();
     ASSERT_TRUE(binder != nullptr);
-    EXPECT_THAT(binder->setRpcClientDebug(android::base::unique_fd(), sp<BBinder>::make()),
+    EXPECT_THAT(binder->setRpcClientDebug(unique_fd(), sp<BBinder>::make()),
                 Debuggable(StatusEq(BAD_VALUE)));
 }
 
@@ -1558,9 +1601,8 @@ public:
         }
         switch (code) {
             case BINDER_LIB_TEST_REGISTER_SERVER: {
-                int32_t id;
                 sp<IBinder> binder;
-                id = data.readInt32();
+                /*id =*/data.readInt32();
                 binder = data.readStrongBinder();
                 if (binder == nullptr) {
                     return BAD_VALUE;
@@ -1782,7 +1824,7 @@ public:
                 int ret;
                 int32_t size;
                 const void *buf;
-                android::base::unique_fd fd;
+                unique_fd fd;
 
                 ret = data.readUniqueParcelFileDescriptor(&fd);
                 if (ret != NO_ERROR) {
@@ -1847,7 +1889,7 @@ public:
                     ALOGE("Could not make socket non-blocking: %s", strerror(errno));
                     return UNKNOWN_ERROR;
                 }
-                base::unique_fd out(sockets[0]);
+                unique_fd out(sockets[0]);
                 status_t writeResult = reply->writeUniqueFileDescriptor(out);
                 if (writeResult != NO_ERROR) {
                     ALOGE("Could not write unique_fd");
@@ -1956,7 +1998,10 @@ int run_server(int index, int readypipefd, bool usePoll)
         if (index == 0) {
             ret = sm->addService(binderLibTestServiceName, testService);
         } else {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
             sp<IBinder> server = sm->getService(binderLibTestServiceName);
+#pragma clang diagnostic pop
             Parcel data, reply;
             data.writeInt32(index);
             data.writeStrongBinder(testService);
@@ -2022,9 +2067,7 @@ int run_server(int index, int readypipefd, bool usePoll)
     return 1; /* joinThreadPool should not return */
 }
 
-int main(int argc, char **argv) {
-    ExitIfWrongAbi();
-
+int main(int argc, char** argv) {
     if (argc == 4 && !strcmp(argv[1], "--servername")) {
         binderservername = argv[2];
     } else {

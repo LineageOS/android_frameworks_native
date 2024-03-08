@@ -54,14 +54,12 @@ TEST(RustNdkInterop, NdkCanCallRust) {
     EXPECT_EQ(STATUS_OK, AIBinder_ping(binder.get()));
 
     auto interface = aidl::IBinderRustNdkInteropTest::fromBinder(binder);
-    // TODO(b/167723746): this test requires that fromBinder allow association
-    // with an already associated local binder by treating it as remote.
-    EXPECT_EQ(interface, nullptr);
+    EXPECT_NE(interface, nullptr);
 
-    // std::string in("testing");
-    // std::string out;
-    // EXPECT_TRUE(interface->echo(in, &out).isOk());
-    // EXPECT_EQ(in, out);
+    std::string in("testing");
+    std::string out;
+    EXPECT_TRUE(interface->echo(in, &out).isOk());
+    EXPECT_EQ(in, out);
 }
 
 int main(int argc, char** argv) {

@@ -22,7 +22,6 @@
 
 #include <iostream>
 
-#include <android-base/hex.h>
 #include <android-base/logging.h>
 #include <android/binder_auto_utils.h>
 #include <android/binder_libbinder.h>
@@ -34,10 +33,12 @@
 #include <sys/resource.h>
 #include <sys/time.h>
 
+#include "../../Utils.h"
+
 using android::fillRandomParcel;
 using android::RandomParcelOptions;
 using android::sp;
-using android::base::HexString;
+using android::HexString;
 
 void fillRandomParcel(::android::hardware::Parcel* p, FuzzedDataProvider&& provider,
                       RandomParcelOptions* options) {

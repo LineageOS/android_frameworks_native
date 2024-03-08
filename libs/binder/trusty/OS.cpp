@@ -22,17 +22,34 @@
 #endif
 
 #include <binder/RpcTransportTipcTrusty.h>
+#include <log/log.h>
+#include <trusty_log.h>
 
 #include "../OS.h"
 #include "TrustyStatus.h"
 
-using android::base::Result;
+#include <cstdarg>
 
-namespace android {
+using android::binder::borrowed_fd;
+using android::binder::unique_fd;
 
-Result<void> setNonBlocking(android::base::borrowed_fd /*fd*/) {
+namespace android::binder::os {
+
+void trace_begin(uint64_t, const char*) {}
+
+void trace_end(uint64_t) {}
+
+uint64_t GetThreadId() {
+    return 0;
+}
+
+bool report_sysprop_change() {
+    return false;
+}
+
+status_t setNonBlocking(borrowed_fd /*fd*/) {
     // Trusty IPC syscalls are all non-blocking by default.
-    return {};
+    return OK;
 }
 
 status_t getRandomBytes(uint8_t* data, size_t size) {
@@ -61,16 +78,51 @@ std::unique_ptr<RpcTransportCtxFactory> makeDefaultRpcTransportCtxFactory() {
 
 ssize_t sendMessageOnSocket(
         const RpcTransportFd& /* socket */, iovec* /* iovs */, int /* niovs */,
-        const std::vector<std::variant<base::unique_fd, base::borrowed_fd>>* /* ancillaryFds */) {
+        const std::vector<std::variant<unique_fd, borrowed_fd>>* /* ancillaryFds */) {
     errno = ENOTSUP;
     return -1;
 }
 
 ssize_t receiveMessageFromSocket(
         const RpcTransportFd& /* socket */, iovec* /* iovs */, int /* niovs */,
-        std::vector<std::variant<base::unique_fd, base::borrowed_fd>>* /* ancillaryFds */) {
+        std::vector<std::variant<unique_fd, borrowed_fd>>* /* ancillaryFds */) {
     errno = ENOTSUP;
     return -1;
 }
 
-} // namespace android
+} // namespace android::binder::os
+
+int __android_log_print(int prio [[maybe_unused]], const char* tag, const char* fmt, ...) {
+#ifdef TRUSTY_USERSPACE
+#define trusty_tlog _tlog
+#define trusty_vtlog _vtlog
+#else
+    // mapping taken from kernel trusty_log.h (TLOGx)
+    int kernelLogLevel;
+    if (prio <= ANDROID_LOG_DEBUG) {
+        kernelLogLevel = LK_DEBUGLEVEL_ALWAYS;
+    } else if (prio == ANDROID_LOG_INFO) {
+        kernelLogLevel = LK_DEBUGLEVEL_SPEW;
+    } else if (prio == ANDROID_LOG_WARN) {
+        kernelLogLevel = LK_DEBUGLEVEL_INFO;
+    } else if (prio == ANDROID_LOG_ERROR) {
+        kernelLogLevel = LK_DEBUGLEVEL_CRITICAL;
+    } else { /* prio >= ANDROID_LOG_FATAL */
+        kernelLogLevel = LK_DEBUGLEVEL_CRITICAL;
+    }
+#if LK_DEBUGLEVEL_NO_ALIASES
+    auto LK_DEBUGLEVEL_kernelLogLevel = kernelLogLevel;
+#endif
+
+#define trusty_tlog(...) _tlog(kernelLogLevel, __VA_ARGS__)
+#define trusty_vtlog(...) _vtlog(kernelLogLevel, __VA_ARGS__)
+#endif
+
+    va_list args;
+    va_start(args, fmt);
+    trusty_tlog((tag[0] == '\0') ? "libbinder" : "libbinder-");
+    trusty_vtlog(fmt, args);
+    va_end(args);
+
+    return 1;
+}

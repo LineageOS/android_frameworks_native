@@ -147,7 +147,12 @@ public:
             void                flushCommands();
             bool                flushIfNeeded();
 
-            // For main functions - dangerous for libraries to use
+            // Adds the current thread into the binder threadpool.
+            //
+            // This is in addition to any threads which are started
+            // with startThreadPool. Libraries should not call this
+            // function, as they may be loaded into processes which
+            // try to configure the threadpool differently.
             void                joinThreadPool(bool isMain = true);
             
             // Stop the local process.

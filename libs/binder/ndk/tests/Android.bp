@@ -80,6 +80,28 @@ cc_test {
     require_root: true,
 }
 
+cc_test_host {
+    name: "libbinder_ndk_unit_test_host",
+    defaults: ["test_libbinder_ndk_defaults"],
+    srcs: ["libbinder_ndk_unit_test_host.cpp"],
+    test_suites: [
+        "general-tests",
+    ],
+    test_options: {
+        unit_test: true,
+    },
+    static_libs: [
+        "libbase",
+        "libbinder_ndk",
+        "libbinder",
+        "libcutils",
+        "libfakeservicemanager",
+        "libgmock",
+        "liblog",
+        "libutils",
+    ],
+}
+
 cc_test {
     name: "binderVendorDoubleLoadTest",
     vendor: true,

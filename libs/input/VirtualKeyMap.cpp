@@ -79,8 +79,8 @@ VirtualKeyMap::Parser::~Parser() {
 status_t VirtualKeyMap::Parser::parse() {
     while (!mTokenizer->isEof()) {
 #if DEBUG_PARSER
-        ALOGD("Parsing %s: '%s'.", mTokenizer->getLocation().string(),
-                mTokenizer->peekRemainderOfLine().string());
+        ALOGD("Parsing %s: '%s'.", mTokenizer->getLocation().c_str(),
+              mTokenizer->peekRemainderOfLine().c_str());
 #endif
 
         mTokenizer->skipDelimiters(WHITESPACE);
@@ -91,7 +91,7 @@ status_t VirtualKeyMap::Parser::parse() {
                 String8 token = mTokenizer->nextToken(WHITESPACE_OR_FIELD_DELIMITER);
                 if (token != "0x01") {
                     ALOGE("%s: Unknown virtual key type, expected 0x01.",
-                          mTokenizer->getLocation().string());
+                          mTokenizer->getLocation().c_str());
                     return BAD_VALUE;
                 }
 
@@ -103,7 +103,7 @@ status_t VirtualKeyMap::Parser::parse() {
                         && parseNextIntField(&defn.height);
                 if (!success) {
                     ALOGE("%s: Expected 5 colon-delimited integers in virtual key definition.",
-                          mTokenizer->getLocation().string());
+                          mTokenizer->getLocation().c_str());
                     return BAD_VALUE;
                 }
 
@@ -116,9 +116,8 @@ status_t VirtualKeyMap::Parser::parse() {
             } while (consumeFieldDelimiterAndSkipWhitespace());
 
             if (!mTokenizer->isEol()) {
-                ALOGE("%s: Expected end of line, got '%s'.",
-                        mTokenizer->getLocation().string(),
-                        mTokenizer->peekRemainderOfLine().string());
+                ALOGE("%s: Expected end of line, got '%s'.", mTokenizer->getLocation().c_str(),
+                      mTokenizer->peekRemainderOfLine().c_str());
                 return BAD_VALUE;
             }
         }
@@ -146,9 +145,9 @@ bool VirtualKeyMap::Parser::parseNextIntField(int32_t* outValue) {
 
     String8 token = mTokenizer->nextToken(WHITESPACE_OR_FIELD_DELIMITER);
     char* end;
-    *outValue = strtol(token.string(), &end, 0);
-    if (token.isEmpty() || *end != '\0') {
-        ALOGE("Expected an integer, got '%s'.", token.string());
+    *outValue = strtol(token.c_str(), &end, 0);
+    if (token.empty() || *end != '\0') {
+        ALOGE("Expected an integer, got '%s'.", token.c_str());
         return false;
     }
     return true;

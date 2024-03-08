@@ -53,27 +53,27 @@ extern "C" {
 /**
  * Create a shared memory region.
  *
- * Create shared memory region and returns an file descriptor.  The resulting file descriptor can be
- * mmap'ed to process memory space with PROT_READ | PROT_WRITE | PROT_EXEC. Access to shared memory
- * region can be restricted with {@link ASharedMemory_setProt}.
+ * Create a shared memory region and returns a file descriptor.  The resulting file descriptor can be
+ * mapped into the process' memory using mmap(2) with `PROT_READ | PROT_WRITE | PROT_EXEC`.
+ * Access to shared memory regions can be restricted with {@link ASharedMemory_setProt}.
  *
- * Use close() to release the shared memory region.
+ * Use close(2) to release the shared memory region.
  *
  * Use <a href="/reference/android/os/ParcelFileDescriptor">android.os.ParcelFileDescriptor</a>
  * to pass the file descriptor to another process. File descriptors may also be sent to other
- * processes over a Unix domain socket with sendmsg and SCM_RIGHTS. See sendmsg(3) and
+ * processes over a Unix domain socket with sendmsg(2) and `SCM_RIGHTS`. See sendmsg(3) and
  * cmsg(3) man pages for more information.
  *
  * If you intend to share this file descriptor with a child process after
- * calling exec(3), note that you will need to use fcntl(2) with FD_SETFD
- * to clear the FD_CLOEXEC flag for this to work on all versions of Android.
+ * calling exec(3), note that you will need to use fcntl(2) with `F_SETFD`
+ * to clear the `FD_CLOEXEC` flag for this to work on all versions of Android.
  *
  * Available since API level 26.
  *
  * \param name an optional name.
  * \param size size of the shared memory region
  * \return file descriptor that denotes the shared memory;
- *         -1 and sets errno on failure, or -EINVAL if the error is that size was 0.
+ *         -1 and sets `errno` on failure, or `-EINVAL` if the error is that size was 0.
  */
 int ASharedMemory_create(const char *name, size_t size) __INTRODUCED_IN(26);
 
@@ -83,7 +83,7 @@ int ASharedMemory_create(const char *name, size_t size) __INTRODUCED_IN(26);
  * Available since API level 26.
  *
  * \param fd file descriptor of the shared memory region
- * \return size in bytes; 0 if fd is not a valid shared memory file descriptor.
+ * \return size in bytes; 0 if `fd` is not a valid shared memory file descriptor.
  */
 size_t ASharedMemory_getSize(int fd) __INTRODUCED_IN(26);
 
@@ -115,9 +115,9 @@ size_t ASharedMemory_getSize(int fd) __INTRODUCED_IN(26);
  * Available since API level 26.
  *
  * \param fd   file descriptor of the shared memory region.
- * \param prot any bitwise-or'ed combination of PROT_READ, PROT_WRITE, PROT_EXEC denoting
+ * \param prot any bitwise-or'ed combination of `PROT_READ`, `PROT_WRITE`, `PROT_EXEC` denoting
  *             updated access. Note access can only be removed, but not added back.
- * \return 0 for success, -1 and sets errno on failure.
+ * \return 0 for success, -1 and sets `errno` on failure.
  */
 int ASharedMemory_setProt(int fd, int prot) __INTRODUCED_IN(26);
 

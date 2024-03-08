@@ -16,6 +16,7 @@
 
 package android.gui;
 
+import android.gui.CaptureArgs;
 import android.gui.Color;
 import android.gui.CompositionPreference;
 import android.gui.ContentSamplingAttributes;
@@ -46,6 +47,7 @@ import android.gui.LayerDebugInfo;
 import android.gui.OverlayProperties;
 import android.gui.PullAtomData;
 import android.gui.ARect;
+import android.gui.SchedulingPolicy;
 import android.gui.StalledTransactionInfo;
 import android.gui.StaticDisplayInfo;
 import android.gui.WindowInfosListenerInfo;
@@ -231,20 +233,21 @@ interface ISurfaceComposer {
      * The subregion can be optionally rotated.  It will also be scaled to
      * match the size of the output buffer.
      */
-    void captureDisplay(in DisplayCaptureArgs args, IScreenCaptureListener listener);
+    oneway void captureDisplay(in DisplayCaptureArgs args, IScreenCaptureListener listener);
 
     /**
      * Capture the specified screen. This requires the READ_FRAME_BUFFER
      * permission.
      */
-    void captureDisplayById(long displayId, IScreenCaptureListener listener);
+    oneway void captureDisplayById(long displayId, in CaptureArgs args,
+            IScreenCaptureListener listener);
 
     /**
      * Capture a subtree of the layer hierarchy, potentially ignoring the root node.
      * This requires READ_FRAME_BUFFER permission. This function will fail if there
      * is a secure window on screen
      */
-    void captureLayers(in LayerCaptureArgs args, IScreenCaptureListener listener);
+    oneway void captureLayers(in LayerCaptureArgs args, IScreenCaptureListener listener);
 
     /**
      * Clears the frame statistics for animations.
@@ -280,8 +283,6 @@ interface ISurfaceComposer {
      * Requires the ACCESS_SURFACE_FLINGER permission.
      */
     List<LayerDebugInfo> getLayerDebugInfo();
-
-    boolean getColorManagement();
 
     /**
      * Gets the composition preference of the default data space and default pixel format,
@@ -476,19 +477,61 @@ interface ISurfaceComposer {
 
     /**
      * Set the override frame rate for a specified uid by GameManagerService.
+     * This override is controlled by game mode interventions.
+     * Passing the frame rate and uid to SurfaceFlinger to update the override mapping
+     * in the LayerHistory.
+     */
+    void setGameModeFrameRateOverride(int uid, float frameRate);
+
+    /**
+     * Set the override frame rate for a specified uid by GameManagerService.
+     * This override is controlled by game default frame rate sysprop:
+     * "ro.surface_flinger.game_default_frame_rate_override" holding the override value,
+     * "persisit.graphics.game_default_frame_rate.enabled" to determine if it's enabled.
      * Passing the frame rate and uid to SurfaceFlinger to update the override mapping
      * in the scheduler.
      */
-    void setOverrideFrameRate(int uid, float frameRate);
+    void setGameDefaultFrameRateOverride(int uid, float frameRate);
 
-    oneway void updateSmallAreaDetection(in int[] uids, in float[] thresholds);
+    oneway void updateSmallAreaDetection(in int[] appIds, in float[] thresholds);
 
     /**
-     * Set the small area detection threshold for a specified uid by SmallAreaDetectionController.
-     * Passing the threshold and uid to SurfaceFlinger to update the uid-threshold mapping
+     * Set the small area detection threshold for a specified appId by SmallAreaDetectionController.
+     * Passing the threshold and appId to SurfaceFlinger to update the appId-threshold mapping
      * in the scheduler.
      */
-    oneway void setSmallAreaDetectionThreshold(int uid, float threshold);
+    oneway void setSmallAreaDetectionThreshold(int appId, float threshold);
+
+    /**
+     * Enables or disables the frame rate overlay in the top left corner.
+     * Requires root or android.permission.HARDWARE_TEST
+     */
+    void enableRefreshRateOverlay(boolean active);
+
+    /**
+     * Enables or disables the debug flash.
+     * Requires root or android.permission.HARDWARE_TEST
+     */
+    void setDebugFlash(int delay);
+
+    /**
+     * Force composite ahead of next VSYNC.
+     * Requires root or android.permission.HARDWARE_TEST
+     */
+    void scheduleComposite();
+
+    /**
+     * Force commit ahead of next VSYNC.
+     * Requires root or android.permission.HARDWARE_TEST
+     */
+    void scheduleCommit();
+
+    /**
+     * Force all window composition to the GPU (i.e. disable Hardware Overlays).
+     * This can help check if there is a bug in HW Composer.
+     * Requires root or android.permission.HARDWARE_TEST
+     */
+    void forceClientComposition(boolean enabled);
 
     /**
      * Gets priority of the RenderEngine in SurfaceFlinger.
@@ -523,4 +566,6 @@ interface ISurfaceComposer {
      * applied in SurfaceFlinger due to an unsignaled fence. Otherwise, null is returned.
      */
     @nullable StalledTransactionInfo getStalledTransactionInfo(int pid);
+
+    SchedulingPolicy getSchedulingPolicy();
 }

@@ -17,6 +17,7 @@
 #define LOG_TAG "Parcel"
 //#define LOG_NDEBUG 0
 
+#include <endian.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <inttypes.h>
@@ -32,6 +33,7 @@
 
 #include <binder/Binder.h>
 #include <binder/BpBinder.h>
+#include <binder/Functional.h>
 #include <binder/IPCThreadState.h>
 #include <binder/Parcel.h>
 #include <binder/ProcessState.h>
@@ -39,14 +41,11 @@
 #include <binder/Status.h>
 #include <binder/TextOutput.h>
 
-#include <android-base/scopeguard.h>
+#ifndef BINDER_DISABLE_BLOB
 #include <cutils/ashmem.h>
-#include <cutils/compiler.h>
-#include <utils/Flattenable.h>
-#include <utils/Log.h>
+#endif
 #include <utils/String16.h>
 #include <utils/String8.h>
-#include <utils/misc.h>
 
 #include "OS.h"
 #include "RpcState.h"
@@ -68,6 +67,10 @@
 // Needed by {read,write}Pointer
 typedef uintptr_t binder_uintptr_t;
 #endif // BINDER_WITH_KERNEL_IPC
+
+#ifdef __BIONIC__
+#include <android/fdsan.h>
+#endif
 
 #define LOG_REFS(...)
 // #define LOG_REFS(...) ALOG(LOG_DEBUG, LOG_TAG, __VA_ARGS__)
@@ -93,6 +96,10 @@ static size_t pad_size(size_t s) {
 
 namespace android {
 
+using namespace android::binder::impl;
+using binder::borrowed_fd;
+using binder::unique_fd;
+
 // many things compile this into prebuilts on the stack
 #ifdef __LP64__
 static_assert(sizeof(Parcel) == 120);
@@ -107,7 +114,38 @@ static std::atomic<size_t> gParcelGlobalAllocSize;
 constexpr size_t kMaxFds = 1024;
 
 // Maximum size of a blob to transfer in-place.
-static const size_t BLOB_INPLACE_LIMIT = 16 * 1024;
+[[maybe_unused]] static const size_t BLOB_INPLACE_LIMIT = 16 * 1024;
+
+#if defined(__BIONIC__)
+static void FdTag(int fd, const void* old_addr, const void* new_addr) {
+    if (android_fdsan_exchange_owner_tag) {
+        uint64_t old_tag = android_fdsan_create_owner_tag(ANDROID_FDSAN_OWNER_TYPE_PARCEL,
+                                                          reinterpret_cast<uint64_t>(old_addr));
+        uint64_t new_tag = android_fdsan_create_owner_tag(ANDROID_FDSAN_OWNER_TYPE_PARCEL,
+                                                          reinterpret_cast<uint64_t>(new_addr));
+        android_fdsan_exchange_owner_tag(fd, old_tag, new_tag);
+    }
+}
+static void FdTagClose(int fd, const void* addr) {
+    if (android_fdsan_close_with_tag) {
+        uint64_t tag = android_fdsan_create_owner_tag(ANDROID_FDSAN_OWNER_TYPE_PARCEL,
+                                                      reinterpret_cast<uint64_t>(addr));
+        android_fdsan_close_with_tag(fd, tag);
+    } else {
+        close(fd);
+    }
+}
+#else
+static void FdTag(int fd, const void* old_addr, const void* new_addr) {
+    (void)fd;
+    (void)old_addr;
+    (void)new_addr;
+}
+static void FdTagClose(int fd, const void* addr) {
+    (void)addr;
+    close(fd);
+}
+#endif
 
 enum {
     BLOB_INPLACE = 0,
@@ -134,6 +172,9 @@ static void acquire_object(const sp<ProcessState>& proc, const flat_binder_objec
             return;
         }
         case BINDER_TYPE_FD: {
+            if (obj.cookie != 0) { // owned
+                FdTag(obj.handle, nullptr, who);
+            }
             return;
         }
     }
@@ -159,8 +200,10 @@ static void release_object(const sp<ProcessState>& proc, const flat_binder_objec
             return;
         }
         case BINDER_TYPE_FD: {
+            // note: this path is not used when mOwner, so the tag is also released
+            // in 'closeFileDescriptors'
             if (obj.cookie != 0) { // owned
-                close(obj.handle);
+                FdTagClose(obj.handle, who);
             }
             return;
         }
@@ -170,7 +213,7 @@ static void release_object(const sp<ProcessState>& proc, const flat_binder_objec
 }
 #endif // BINDER_WITH_KERNEL_IPC
 
-static int toRawFd(const std::variant<base::unique_fd, base::borrowed_fd>& v) {
+static int toRawFd(const std::variant<unique_fd, borrowed_fd>& v) {
     return std::visit([](const auto& fd) { return fd.get(); }, v);
 }
 
@@ -554,7 +597,6 @@ status_t Parcel::appendFrom(const Parcel* parcel, size_t offset, size_t len) {
                 kernelFields->mObjectsSize++;
 
                 flat_binder_object* flat = reinterpret_cast<flat_binder_object*>(mData + off);
-                acquire_object(proc, *flat, this);
 
                 if (flat->hdr.type == BINDER_TYPE_FD) {
                     // If this is a file descriptor, we need to dup it so the
@@ -567,6 +609,8 @@ status_t Parcel::appendFrom(const Parcel* parcel, size_t offset, size_t len) {
                         err = FDS_NOT_ALLOWED;
                     }
                 }
+
+                acquire_object(proc, *flat, this);
             }
         }
 #else
@@ -585,7 +629,7 @@ status_t Parcel::appendFrom(const Parcel* parcel, size_t offset, size_t len) {
         }
 
         const size_t savedDataPos = mDataPos;
-        base::ScopeGuard scopeGuard = [&]() { mDataPos = savedDataPos; };
+        auto scopeGuard = make_scope_guard([&]() { mDataPos = savedDataPos; });
 
         rpcFields->mObjectPositions.reserve(otherRpcFields->mObjectPositions.size());
         if (otherRpcFields->mFds != nullptr) {
@@ -622,10 +666,10 @@ status_t Parcel::appendFrom(const Parcel* parcel, size_t offset, size_t len) {
                 // To match kernel binder behavior, we always dup, even if the
                 // FD was unowned in the source parcel.
                 int newFd = -1;
-                if (status_t status = dupFileDescriptor(oldFd, &newFd); status != OK) {
+                if (status_t status = binder::os::dupFileDescriptor(oldFd, &newFd); status != OK) {
                     ALOGW("Failed to duplicate file descriptor %d: %s", oldFd, strerror(-status));
                 }
-                rpcFields->mFds->emplace_back(base::unique_fd(newFd));
+                rpcFields->mFds->emplace_back(unique_fd(newFd));
                 // Fixup the index in the data.
                 mDataPos = newDataPos + 4;
                 if (status_t status = writeInt32(rpcFields->mFds->size() - 1); status != OK) {
@@ -842,6 +886,9 @@ void Parcel::updateWorkSourceRequestHeaderPosition() const {
 }
 
 #ifdef BINDER_WITH_KERNEL_IPC
+
+#if defined(__ANDROID__)
+
 #if defined(__ANDROID_VNDK__)
 constexpr int32_t kHeader = B_PACK_CHARS('V', 'N', 'D', 'R');
 #elif defined(__ANDROID_RECOVERY__)
@@ -849,12 +896,20 @@ constexpr int32_t kHeader = B_PACK_CHARS('R', 'E', 'C', 'O');
 #else
 constexpr int32_t kHeader = B_PACK_CHARS('S', 'Y', 'S', 'T');
 #endif
+
+#else // ANDROID not defined
+
+// If kernel binder is used in new environments, we need to make sure it's separated
+// out and has a separate header.
+constexpr int32_t kHeader = B_PACK_CHARS('U', 'N', 'K', 'N');
+#endif
+
 #endif // BINDER_WITH_KERNEL_IPC
 
 // Write RPC headers.  (previously just the interface token)
 status_t Parcel::writeInterfaceToken(const String16& interface)
 {
-    return writeInterfaceToken(interface.string(), interface.size());
+    return writeInterfaceToken(interface.c_str(), interface.size());
 }
 
 status_t Parcel::writeInterfaceToken(const char16_t* str, size_t len) {
@@ -918,7 +973,7 @@ bool Parcel::checkInterface(IBinder* binder) const
 bool Parcel::enforceInterface(const String16& interface,
                               IPCThreadState* threadState) const
 {
-    return enforceInterface(interface.string(), interface.size(), threadState);
+    return enforceInterface(interface.c_str(), interface.size(), threadState);
 }
 
 bool Parcel::enforceInterface(const char16_t* interface,
@@ -947,7 +1002,10 @@ bool Parcel::enforceInterface(const char16_t* interface,
         threadState->setCallingWorkSourceUidWithoutPropagation(workSource);
         // vendor header
         int32_t header = readInt32();
-        if (header != kHeader) {
+
+        // fuzzers skip this check, because it is for protecting the underlying ABI, but
+        // we don't want it to reduce our coverage
+        if (header != kHeader && !mServiceFuzzing) {
             ALOGE("Expecting header 0x%x but found 0x%x. Mixing copies of libbinder?", kHeader,
                   header);
             return false;
@@ -966,15 +1024,31 @@ bool Parcel::enforceInterface(const char16_t* interface,
             (!len || !memcmp(parcel_interface, interface, len * sizeof (char16_t)))) {
         return true;
     } else {
-        ALOGW("**** enforceInterface() expected '%s' but read '%s'",
-              String8(interface, len).string(),
-              String8(parcel_interface, parcel_interface_len).string());
-        return false;
+        if (mServiceFuzzing) {
+            // ignore. Theoretically, this could cause a few false positives, because
+            // people could assume things about getInterfaceDescriptor if they pass
+            // this point, but it would be extremely fragile. It's more important that
+            // we fuzz with the above things read from the Parcel.
+            return true;
+        } else {
+            ALOGW("**** enforceInterface() expected '%s' but read '%s'",
+                  String8(interface, len).c_str(),
+                  String8(parcel_interface, parcel_interface_len).c_str());
+            return false;
+        }
     }
 }
 
 void Parcel::setEnforceNoDataAvail(bool enforceNoDataAvail) {
     mEnforceNoDataAvail = enforceNoDataAvail;
+}
+
+void Parcel::setServiceFuzzing() {
+    mServiceFuzzing = true;
+}
+
+bool Parcel::isServiceFuzzing() const {
+    return mServiceFuzzing;
 }
 
 binder::Status Parcel::enforceNoDataAvail() const {
@@ -1186,9 +1260,16 @@ status_t Parcel::writeUtf8VectorAsUtf16Vector(
                         const std::unique_ptr<std::vector<std::unique_ptr<std::string>>>& val) { return writeData(val); }
 status_t Parcel::writeUtf8VectorAsUtf16Vector(const std::vector<std::string>& val) { return writeData(val); }
 
-status_t Parcel::writeUniqueFileDescriptorVector(const std::vector<base::unique_fd>& val) { return writeData(val); }
-status_t Parcel::writeUniqueFileDescriptorVector(const std::optional<std::vector<base::unique_fd>>& val) { return writeData(val); }
-status_t Parcel::writeUniqueFileDescriptorVector(const std::unique_ptr<std::vector<base::unique_fd>>& val) { return writeData(val); }
+status_t Parcel::writeUniqueFileDescriptorVector(const std::vector<unique_fd>& val) {
+    return writeData(val);
+}
+status_t Parcel::writeUniqueFileDescriptorVector(const std::optional<std::vector<unique_fd>>& val) {
+    return writeData(val);
+}
+status_t Parcel::writeUniqueFileDescriptorVector(
+        const std::unique_ptr<std::vector<unique_fd>>& val) {
+    return writeData(val);
+}
 
 status_t Parcel::writeStrongBinderVector(const std::vector<sp<IBinder>>& val) { return writeData(val); }
 status_t Parcel::writeStrongBinderVector(const std::optional<std::vector<sp<IBinder>>>& val) { return writeData(val); }
@@ -1241,9 +1322,16 @@ status_t Parcel::readUtf8VectorFromUtf16Vector(
         std::unique_ptr<std::vector<std::unique_ptr<std::string>>>* val) const { return readData(val); }
 status_t Parcel::readUtf8VectorFromUtf16Vector(std::vector<std::string>* val) const { return readData(val); }
 
-status_t Parcel::readUniqueFileDescriptorVector(std::optional<std::vector<base::unique_fd>>* val) const { return readData(val); }
-status_t Parcel::readUniqueFileDescriptorVector(std::unique_ptr<std::vector<base::unique_fd>>* val) const { return readData(val); }
-status_t Parcel::readUniqueFileDescriptorVector(std::vector<base::unique_fd>* val) const { return readData(val); }
+status_t Parcel::readUniqueFileDescriptorVector(std::optional<std::vector<unique_fd>>* val) const {
+    return readData(val);
+}
+status_t Parcel::readUniqueFileDescriptorVector(
+        std::unique_ptr<std::vector<unique_fd>>* val) const {
+    return readData(val);
+}
+status_t Parcel::readUniqueFileDescriptorVector(std::vector<unique_fd>* val) const {
+    return readData(val);
+}
 
 status_t Parcel::readStrongBinderVector(std::optional<std::vector<sp<IBinder>>>* val) const { return readData(val); }
 status_t Parcel::readStrongBinderVector(std::unique_ptr<std::vector<sp<IBinder>>>* val) const { return readData(val); }
@@ -1357,7 +1445,7 @@ status_t Parcel::writeCString(const char* str)
 
 status_t Parcel::writeString8(const String8& str)
 {
-    return writeString8(str.string(), str.size());
+    return writeString8(str.c_str(), str.size());
 }
 
 status_t Parcel::writeString8(const char* str, size_t len)
@@ -1380,7 +1468,7 @@ status_t Parcel::writeString8(const char* str, size_t len)
 
 status_t Parcel::writeString16(const String16& str)
 {
-    return writeString16(str.string(), str.size());
+    return writeString16(str.c_str(), str.size());
 }
 
 status_t Parcel::writeString16(const char16_t* str, size_t len)
@@ -1416,6 +1504,7 @@ status_t Parcel::writeRawNullableParcelable(const Parcelable* parcelable) {
     return writeParcelable(*parcelable);
 }
 
+#ifndef BINDER_DISABLE_NATIVE_HANDLE
 status_t Parcel::writeNativeHandle(const native_handle* handle)
 {
     if (!handle || handle->version != sizeof(native_handle))
@@ -1438,14 +1527,15 @@ status_t Parcel::writeNativeHandle(const native_handle* handle)
     err = write(handle->data + handle->numFds, sizeof(int)*handle->numInts);
     return err;
 }
+#endif
 
 status_t Parcel::writeFileDescriptor(int fd, bool takeOwnership) {
     if (auto* rpcFields = maybeRpcFields()) {
-        std::variant<base::unique_fd, base::borrowed_fd> fdVariant;
+        std::variant<unique_fd, borrowed_fd> fdVariant;
         if (takeOwnership) {
-            fdVariant = base::unique_fd(fd);
+            fdVariant = unique_fd(fd);
         } else {
-            fdVariant = base::borrowed_fd(fd);
+            fdVariant = borrowed_fd(fd);
         }
         if (!mAllowFds) {
             return FDS_NOT_ALLOWED;
@@ -1495,7 +1585,7 @@ status_t Parcel::writeFileDescriptor(int fd, bool takeOwnership) {
 status_t Parcel::writeDupFileDescriptor(int fd)
 {
     int dupFd;
-    if (status_t err = dupFileDescriptor(fd, &dupFd); err != OK) {
+    if (status_t err = binder::os::dupFileDescriptor(fd, &dupFd); err != OK) {
         return err;
     }
     status_t err = writeFileDescriptor(dupFd, true /*takeOwnership*/);
@@ -1514,7 +1604,7 @@ status_t Parcel::writeParcelFileDescriptor(int fd, bool takeOwnership)
 status_t Parcel::writeDupParcelFileDescriptor(int fd)
 {
     int dupFd;
-    if (status_t err = dupFileDescriptor(fd, &dupFd); err != OK) {
+    if (status_t err = binder::os::dupFileDescriptor(fd, &dupFd); err != OK) {
         return err;
     }
     status_t err = writeParcelFileDescriptor(dupFd, true /*takeOwnership*/);
@@ -1524,12 +1614,18 @@ status_t Parcel::writeDupParcelFileDescriptor(int fd)
     return err;
 }
 
-status_t Parcel::writeUniqueFileDescriptor(const base::unique_fd& fd) {
+status_t Parcel::writeUniqueFileDescriptor(const unique_fd& fd) {
     return writeDupFileDescriptor(fd.get());
 }
 
 status_t Parcel::writeBlob(size_t len, bool mutableCopy, WritableBlob* outBlob)
 {
+#ifdef BINDER_DISABLE_BLOB
+    (void)len;
+    (void)mutableCopy;
+    (void)outBlob;
+    return INVALID_OPERATION;
+#else
     if (len > INT32_MAX) {
         // don't accept size_t values which may have come from an
         // inadvertent conversion from a negative int.
@@ -1581,6 +1677,7 @@ status_t Parcel::writeBlob(size_t len, bool mutableCopy, WritableBlob* outBlob)
     }
     ::close(fd);
     return status;
+#endif
 }
 
 status_t Parcel::writeDupImmutableBlobFileDescriptor(int fd)
@@ -1722,7 +1819,9 @@ status_t Parcel::validateReadData(size_t upperBound) const
             do {
                 if (mDataPos < kernelFields->mObjects[nextObject] + sizeof(flat_binder_object)) {
                     // Requested info overlaps with an object
-                    ALOGE("Attempt to read from protected data in Parcel %p", this);
+                    if (!mServiceFuzzing) {
+                        ALOGE("Attempt to read from protected data in Parcel %p", this);
+                    }
                     return PERMISSION_DENIED;
                 }
                 nextObject++;
@@ -2092,7 +2191,11 @@ String8 Parcel::readString8() const
     size_t len;
     const char* str = readString8Inplace(&len);
     if (str) return String8(str, len);
-    ALOGE("Reading a NULL string not supported here.");
+
+    if (!mServiceFuzzing) {
+        ALOGE("Reading a NULL string not supported here.");
+    }
+
     return String8();
 }
 
@@ -2132,7 +2235,11 @@ String16 Parcel::readString16() const
     size_t len;
     const char16_t* str = readString16Inplace(&len);
     if (str) return String16(str, len);
-    ALOGE("Reading a NULL string not supported here.");
+
+    if (!mServiceFuzzing) {
+        ALOGE("Reading a NULL string not supported here.");
+    }
+
     return String16();
 }
 
@@ -2172,7 +2279,9 @@ status_t Parcel::readStrongBinder(sp<IBinder>* val) const
 {
     status_t status = readNullableStrongBinder(val);
     if (status == OK && !val->get()) {
-        ALOGW("Expecting binder but got null!");
+        if (!mServiceFuzzing) {
+            ALOGW("Expecting binder but got null!");
+        }
         status = UNEXPECTED_NULL;
     }
     return status;
@@ -2200,6 +2309,7 @@ int32_t Parcel::readExceptionCode() const
     return status.exceptionCode();
 }
 
+#ifndef BINDER_DISABLE_NATIVE_HANDLE
 native_handle* Parcel::readNativeHandle() const
 {
     int numFds, numInts;
@@ -2232,14 +2342,17 @@ native_handle* Parcel::readNativeHandle() const
     }
     return h;
 }
+#endif
 
 int Parcel::readFileDescriptor() const {
     if (const auto* rpcFields = maybeRpcFields()) {
         if (!std::binary_search(rpcFields->mObjectPositions.begin(),
                                 rpcFields->mObjectPositions.end(), mDataPos)) {
-            ALOGW("Attempt to read file descriptor from Parcel %p at offset %zu that is not in the "
-                  "object list",
-                  this, mDataPos);
+            if (!mServiceFuzzing) {
+                ALOGW("Attempt to read file descriptor from Parcel %p at offset %zu that is not in "
+                      "the object list",
+                      this, mDataPos);
+            }
             return BAD_TYPE;
         }
 
@@ -2304,8 +2417,7 @@ int Parcel::readParcelFileDescriptor() const {
     return fd;
 }
 
-status_t Parcel::readUniqueFileDescriptor(base::unique_fd* val) const
-{
+status_t Parcel::readUniqueFileDescriptor(unique_fd* val) const {
     int got = readFileDescriptor();
 
     if (got == BAD_TYPE) {
@@ -2313,7 +2425,7 @@ status_t Parcel::readUniqueFileDescriptor(base::unique_fd* val) const
     }
 
     int dupFd;
-    if (status_t err = dupFileDescriptor(got, &dupFd); err != OK) {
+    if (status_t err = binder::os::dupFileDescriptor(got, &dupFd); err != OK) {
         return BAD_VALUE;
     }
 
@@ -2326,8 +2438,7 @@ status_t Parcel::readUniqueFileDescriptor(base::unique_fd* val) const
     return OK;
 }
 
-status_t Parcel::readUniqueParcelFileDescriptor(base::unique_fd* val) const
-{
+status_t Parcel::readUniqueParcelFileDescriptor(unique_fd* val) const {
     int got = readParcelFileDescriptor();
 
     if (got == BAD_TYPE) {
@@ -2335,7 +2446,7 @@ status_t Parcel::readUniqueParcelFileDescriptor(base::unique_fd* val) const
     }
 
     int dupFd;
-    if (status_t err = dupFileDescriptor(got, &dupFd); err != OK) {
+    if (status_t err = binder::os::dupFileDescriptor(got, &dupFd); err != OK) {
         return BAD_VALUE;
     }
 
@@ -2350,6 +2461,11 @@ status_t Parcel::readUniqueParcelFileDescriptor(base::unique_fd* val) const
 
 status_t Parcel::readBlob(size_t len, ReadableBlob* outBlob) const
 {
+#ifdef BINDER_DISABLE_BLOB
+    (void)len;
+    (void)outBlob;
+    return INVALID_OPERATION;
+#else
     int32_t blobType;
     status_t status = readInt32(&blobType);
     if (status) return status;
@@ -2383,6 +2499,7 @@ status_t Parcel::readBlob(size_t len, ReadableBlob* outBlob) const
 
     outBlob->init(fd, ptr, len, isMutable);
     return NO_ERROR;
+#endif
 }
 
 status_t Parcel::read(FlattenableHelperInterface& val) const
@@ -2497,8 +2614,11 @@ const flat_binder_object* Parcel::readObject(bool nullMetaData) const
                 return obj;
             }
         }
-        ALOGW("Attempt to read object from Parcel %p at offset %zu that is not in the object list",
-             this, DPOS);
+        if (!mServiceFuzzing) {
+            ALOGW("Attempt to read object from Parcel %p at offset %zu that is not in the object "
+                  "list",
+                  this, DPOS);
+        }
     }
     return nullptr;
 }
@@ -2517,7 +2637,8 @@ void Parcel::closeFileDescriptors() {
                     reinterpret_cast<flat_binder_object*>(mData + kernelFields->mObjects[i]);
             if (flat->hdr.type == BINDER_TYPE_FD) {
                 // ALOGI("Closing fd: %ld", flat->handle);
-                close(flat->handle);
+                // FDs from the kernel are always owned
+                FdTagClose(flat->handle, this);
             }
         }
 #else  // BINDER_WITH_KERNEL_IPC
@@ -2598,6 +2719,10 @@ void Parcel::ipcSetDataReference(const uint8_t* data, size_t dataSize, const bin
             kernelFields->mObjectsSize = 0;
             break;
         }
+        if (type == BINDER_TYPE_FD) {
+            // FDs from the kernel are always owned
+            FdTag(flat->handle, 0, this);
+        }
         minOffset = offset + sizeof(flat_binder_object);
     }
     scanForFds();
@@ -2610,8 +2735,7 @@ void Parcel::ipcSetDataReference(const uint8_t* data, size_t dataSize, const bin
 status_t Parcel::rpcSetDataReference(
         const sp<RpcSession>& session, const uint8_t* data, size_t dataSize,
         const uint32_t* objectTable, size_t objectTableSize,
-        std::vector<std::variant<base::unique_fd, base::borrowed_fd>>&& ancillaryFds,
-        release_func relFunc) {
+        std::vector<std::variant<unique_fd, borrowed_fd>>&& ancillaryFds, release_func relFunc) {
     // this code uses 'mOwner == nullptr' to understand whether it owns memory
     LOG_ALWAYS_FATAL_IF(relFunc == nullptr, "must provide cleanup function");
 
@@ -3093,6 +3217,7 @@ void Parcel::initState()
     mDeallocZero = false;
     mOwner = nullptr;
     mEnforceNoDataAvail = true;
+    mServiceFuzzing = false;
 }
 
 void Parcel::scanForFds() const {
@@ -3122,6 +3247,7 @@ size_t Parcel::getOpenAshmemSize() const
     }
 
     size_t openAshmemSize = 0;
+#ifndef BINDER_DISABLE_BLOB
     for (size_t i = 0; i < kernelFields->mObjectsSize; i++) {
         const flat_binder_object* flat =
                 reinterpret_cast<const flat_binder_object*>(mData + kernelFields->mObjects[i]);
@@ -3136,6 +3262,7 @@ size_t Parcel::getOpenAshmemSize() const
             }
         }
     }
+#endif
     return openAshmemSize;
 }
 #endif // BINDER_WITH_KERNEL_IPC

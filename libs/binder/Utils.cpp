@@ -24,4 +24,22 @@ void zeroMemory(uint8_t* data, size_t size) {
     memset(data, 0, size);
 }
 
+std::string HexString(const void* bytes, size_t len) {
+    LOG_ALWAYS_FATAL_IF(len > 0 && bytes == nullptr, "%p %zu", bytes, len);
+
+    // b/132916539: Doing this the 'C way', std::setfill triggers ubsan implicit conversion
+    const uint8_t* bytes8 = static_cast<const uint8_t*>(bytes);
+    const char chars[] = "0123456789abcdef";
+    std::string result;
+    result.resize(len * 2);
+
+    for (size_t i = 0; i < len; i++) {
+        const auto c = bytes8[i];
+        result[2 * i] = chars[c >> 4];
+        result[2 * i + 1] = chars[c & 0xf];
+    }
+
+    return result;
+}
+
 } // namespace android

@@ -49,11 +49,17 @@ interface IDumpstate {
     // Default mode.
     const int BUGREPORT_MODE_DEFAULT = 6;
 
+    // Bugreport taken for onboarding related flows.
+    const int BUGREPORT_MODE_ONBOARDING = 7;
+
     // Use pre-dumped data.
     const int BUGREPORT_FLAG_USE_PREDUMPED_UI_DATA = 0x1;
 
     // Defer user consent.
     const int BUGREPORT_FLAG_DEFER_CONSENT = 0x2;
+
+    // Keep bugreport stored after retrieval.
+    const int BUGREPORT_FLAG_KEEP_BUGREPORT_ON_RETRIEVAL = 0x4;
 
     /**
      * Speculatively pre-dumps UI data for a bugreport request that might come later.
@@ -113,12 +119,16 @@ interface IDumpstate {
      *
      * @param callingUid UID of the original application that requested the report.
      * @param callingPackage package of the original application that requested the report.
+     * @param userId user Id of the original package that requested the report.
      * @param bugreportFd the file to which the zipped bugreport should be written
      * @param bugreportFile the path of the bugreport file
+     * @param keepBugreportOnRetrieval boolean to indicate if the bugreport should be kept in the
+     * platform after it has been retrieved by the caller.
      * @param listener callback for updates; optional
      */
-    void retrieveBugreport(int callingUid, @utf8InCpp String callingPackage,
+    void retrieveBugreport(int callingUid, @utf8InCpp String callingPackage, int userId,
                            FileDescriptor bugreportFd,
                            @utf8InCpp String bugreportFile,
+                           boolean keepBugreportOnRetrieval,
                            IDumpstateListener listener);
 }

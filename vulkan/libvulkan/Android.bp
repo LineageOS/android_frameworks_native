@@ -109,6 +109,7 @@ cc_library_shared {
         "libnativeloader_lazy",
         "libnativewindow",
         "libvndksupport",
+        "libdl_android",
         "android.hardware.graphics.common@1.0",
         "libSurfaceFlingerProp",
     ],

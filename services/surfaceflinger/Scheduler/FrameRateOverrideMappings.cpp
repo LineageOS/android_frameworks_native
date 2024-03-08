@@ -15,6 +15,7 @@
  */
 
 #include "FrameRateOverrideMappings.h"
+#include <common/FlagManager.h>
 
 namespace android::scheduler {
 using FrameRateOverride = DisplayEventReceiver::Event::FrameRateOverride;
@@ -30,7 +31,7 @@ std::optional<Fps> FrameRateOverrideMappings::getFrameRateOverrideForUid(
         }
     }
 
-    {
+    if (!FlagManager::getInstance().game_default_frame_rate()) {
         const auto iter = mFrameRateOverridesFromGameManager.find(uid);
         if (iter != mFrameRateOverridesFromGameManager.end()) {
             return iter->second;
@@ -61,10 +62,13 @@ std::vector<FrameRateOverride> FrameRateOverrideMappings::getAllFrameRateOverrid
     for (const auto& [uid, frameRate] : mFrameRateOverridesFromBackdoor) {
         overrides.emplace_back(FrameRateOverride{uid, frameRate.getValue()});
     }
-    for (const auto& [uid, frameRate] : mFrameRateOverridesFromGameManager) {
-        if (std::find_if(overrides.begin(), overrides.end(),
-                         [uid = uid](auto i) { return i.uid == uid; }) == overrides.end()) {
-            overrides.emplace_back(FrameRateOverride{uid, frameRate.getValue()});
+
+    if (!FlagManager::getInstance().game_default_frame_rate()) {
+        for (const auto& [uid, frameRate] : mFrameRateOverridesFromGameManager) {
+            if (std::find_if(overrides.begin(), overrides.end(),
+                             [uid = uid](auto i) { return i.uid == uid; }) == overrides.end()) {
+                overrides.emplace_back(FrameRateOverride{uid, frameRate.getValue()});
+            }
         }
     }
 
@@ -93,7 +97,9 @@ void FrameRateOverrideMappings::dump(utils::Dumper& dumper) const {
     if (!hasOverrides) return;
 
     dump(dumper, "setFrameRate"sv, mFrameRateOverridesByContent);
-    dump(dumper, "GameManager"sv, mFrameRateOverridesFromGameManager);
+    if (!FlagManager::getInstance().game_default_frame_rate()) {
+        dump(dumper, "GameManager"sv, mFrameRateOverridesFromGameManager);
+    }
     dump(dumper, "Backdoor"sv, mFrameRateOverridesFromBackdoor);
 }
 

@@ -27,7 +27,7 @@ namespace android {
 struct RandomParcelOptions {
     std::function<void(Parcel* p, FuzzedDataProvider& provider)> writeHeader;
     std::vector<sp<IBinder>> extraBinders;
-    std::vector<base::unique_fd> extraFds;
+    std::vector<binder::unique_fd> extraFds;
 };
 
 /**

@@ -39,6 +39,7 @@
 #include <aidl/android/hardware/graphics/composer3/Color.h>
 #include <aidl/android/hardware/graphics/composer3/Composition.h>
 #include <aidl/android/hardware/graphics/composer3/DisplayCapability.h>
+#include <aidl/android/hardware/graphics/composer3/DisplayConfiguration.h>
 #include <aidl/android/hardware/graphics/composer3/IComposerCallback.h>
 #include <aidl/android/hardware/graphics/composer3/OverlayProperties.h>
 
@@ -85,6 +86,7 @@ using PerFrameMetadata = IComposerClient::PerFrameMetadata;
 using PerFrameMetadataKey = IComposerClient::PerFrameMetadataKey;
 using PerFrameMetadataBlob = IComposerClient::PerFrameMetadataBlob;
 using AidlTransform = ::aidl::android::hardware::graphics::common::Transform;
+using DisplayConfiguration = V3_0::DisplayConfiguration;
 using aidl::android::hardware::graphics::common::Hdr;
 
 class Composer {
@@ -103,6 +105,7 @@ public:
     };
 
     virtual bool isSupported(OptionalFeature) const = 0;
+    virtual bool isVrrSupported() const = 0;
 
     virtual std::vector<aidl::android::hardware::graphics::composer3::Capability>
     getCapabilities() = 0;
@@ -130,6 +133,10 @@ public:
     virtual Error getDisplayAttribute(Display display, Config config,
                                       IComposerClient::Attribute attribute, int32_t* outValue) = 0;
     virtual Error getDisplayConfigs(Display display, std::vector<Config>* outConfigs) = 0;
+
+    virtual Error getDisplayConfigurations(Display, int32_t maxFrameIntervalNs,
+                                           std::vector<DisplayConfiguration>*) = 0;
+
     virtual Error getDisplayName(Display display, std::string* outName) = 0;
 
     virtual Error getDisplayRequests(Display display, uint32_t* outDisplayRequestMask,
@@ -156,7 +163,8 @@ public:
      */
     virtual Error setClientTarget(Display display, uint32_t slot, const sp<GraphicBuffer>& target,
                                   int acquireFence, Dataspace dataspace,
-                                  const std::vector<IComposerClient::Rect>& damage) = 0;
+                                  const std::vector<IComposerClient::Rect>& damage,
+                                  float hdrSdrRatio) = 0;
     virtual Error setColorMode(Display display, ColorMode mode, RenderIntent renderIntent) = 0;
     virtual Error setColorTransform(Display display, const float* matrix) = 0;
     virtual Error setOutputBuffer(Display display, const native_handle_t* buffer,
@@ -167,11 +175,13 @@ public:
     virtual Error setClientTargetSlotCount(Display display) = 0;
 
     virtual Error validateDisplay(Display display, nsecs_t expectedPresentTime,
-                                  uint32_t* outNumTypes, uint32_t* outNumRequests) = 0;
+                                  int32_t frameIntervalNs, uint32_t* outNumTypes,
+                                  uint32_t* outNumRequests) = 0;
 
     virtual Error presentOrValidateDisplay(Display display, nsecs_t expectedPresentTime,
-                                           uint32_t* outNumTypes, uint32_t* outNumRequests,
-                                           int* outPresentFence, uint32_t* state) = 0;
+                                           int32_t frameIntervalNs, uint32_t* outNumTypes,
+                                           uint32_t* outNumRequests, int* outPresentFence,
+                                           uint32_t* state) = 0;
 
     virtual Error setCursorPosition(Display display, Layer layer, int32_t x, int32_t y) = 0;
     /* see setClientTarget for the purpose of slot */
@@ -291,6 +301,8 @@ public:
     virtual Error setHdrConversionStrategy(
             ::aidl::android::hardware::graphics::common::HdrConversionStrategy, Hdr*) = 0;
     virtual Error setRefreshRateChangedCallbackDebugEnabled(Display, bool) = 0;
+    virtual Error notifyExpectedPresent(Display, nsecs_t expectedPresentTime,
+                                        int32_t frameIntervalNs) = 0;
 };
 
 } // namespace Hwc2

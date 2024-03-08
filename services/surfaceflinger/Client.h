@@ -55,6 +55,8 @@ private:
 
     binder::Status mirrorDisplay(int64_t displayId, gui::CreateSurfaceResult* outResult) override;
 
+    binder::Status getSchedulingPolicy(gui::SchedulingPolicy* outPolicy) override;
+
     // constant
     sp<SurfaceFlinger> mFlinger;
 

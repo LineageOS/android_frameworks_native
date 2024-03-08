@@ -1,0 +1,65 @@
+// Copyright (C) 2023 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//       http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
+cc_fuzz {
+    name: "trusty_binder_fuzzer",
+    defaults: ["trusty_fuzzer_defaults"],
+    srcs: [":trusty_tipc_fuzzer"],
+    cflags: [
+        "-DTRUSTY_APP_PORT=\"com.android.trusty.binder.test.service\"",
+        "-DTRUSTY_APP_UUID=\"d42f06c5-9dc5-455b-9914-cf094116cfa8\"",
+        "-DTRUSTY_APP_FILENAME=\"binder-test-service.syms.elf\"",
+        "-DTRUSTY_APP_MAX_CONNECTIONS=1",
+    ],
+}
+
+cc_fuzz {
+    name: "trusty_binder_rpc_fuzzer",
+    defaults: ["trusty_fuzzer_defaults"],
+    srcs: [":trusty_tipc_fuzzer"],
+    cflags: [
+        "-DTRUSTY_APP_PORT=\"com.android.trusty.binderRpcTestService.V0\"",
+        "-DTRUSTY_APP_UUID=\"87e424e5-69d7-4bbd-8b7c-7e24812cbc94\"",
+        "-DTRUSTY_APP_FILENAME=\"binderRpcTestService.syms.elf\"",
+        "-DTRUSTY_APP_MAX_CONNECTIONS=1",
+    ],
+}
+
+cc_fuzz {
+    name: "trusty_binder_fuzzer_multi_connection",
+    defaults: ["trusty_fuzzer_defaults"],
+    srcs: [":trusty_tipc_fuzzer"],
+    cflags: [
+        "-DTRUSTY_APP_PORT=\"com.android.trusty.binder.test.service\"",
+        "-DTRUSTY_APP_UUID=\"d42f06c5-9dc5-455b-9914-cf094116cfa8\"",
+        "-DTRUSTY_APP_FILENAME=\"binder-test-service.syms.elf\"",
+        "-DTRUSTY_APP_MAX_CONNECTIONS=10",
+    ],
+}
+
+cc_fuzz {
+    name: "trusty_binder_rpc_fuzzer_multi_connection",
+    defaults: ["trusty_fuzzer_defaults"],
+    srcs: [":trusty_tipc_fuzzer"],
+    cflags: [
+        "-DTRUSTY_APP_PORT=\"com.android.trusty.binderRpcTestService.V0\"",
+        "-DTRUSTY_APP_UUID=\"87e424e5-69d7-4bbd-8b7c-7e24812cbc94\"",
+        "-DTRUSTY_APP_FILENAME=\"binderRpcTestService.syms.elf\"",
+        "-DTRUSTY_APP_MAX_CONNECTIONS=10",
+    ],
+}

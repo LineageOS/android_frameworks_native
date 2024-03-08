@@ -70,12 +70,11 @@ rust_library {
 // TODO(b/184872979): remove once the RPC Binder API is stabilised.
 rust_bindgen {
     name: "libbinder_rpc_unstable_bindgen",
-    wrapper_src: ":libbinder_rpc_unstable_header",
+    wrapper_src: "BinderBindings.hpp",
     crate_name: "binder_rpc_unstable_bindgen",
     visibility: [":__subpackages__"],
     source_stem: "bindings",
     bindgen_flags: [
-        "--size_t-is-usize",
         "--blocklist-type",
         "AIBinder",
         "--raw-line",

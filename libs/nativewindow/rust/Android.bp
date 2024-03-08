@@ -1,0 +1,125 @@
+// Copyright (C) 2023 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package {
+    default_applicable_licenses: [
+        "frameworks_native_libs_nativewindow_license",
+    ],
+}
+
+rust_bindgen {
+    name: "libnativewindow_bindgen_internal",
+    crate_name: "nativewindow_bindgen",
+    wrapper_src: "sys/nativewindow_bindings.h",
+    source_stem: "bindings",
+    bindgen_flags: [
+        "--constified-enum-module=AHardwareBuffer_Format",
+        "--bitfield-enum=AHardwareBuffer_UsageFlags",
+
+        "--allowlist-file=.*/nativewindow/include/.*\\.h",
+        "--blocklist-type",
+        "AParcel",
+        "--raw-line",
+        "use binder::unstable_api::AParcel;",
+
+        "--with-derive-eq",
+        "--with-derive-partialeq",
+    ],
+    shared_libs: [
+        "libbinder_ndk",
+        "libnativewindow",
+    ],
+    rustlibs: [
+        "libbinder_rs",
+    ],
+
+    // Currently necessary for host builds
+    // TODO(b/31559095): bionic on host should define this
+    target: {
+        darwin: {
+            enabled: false,
+        },
+    },
+    min_sdk_version: "VanillaIceCream",
+    vendor_available: true,
+}
+
+rust_library {
+    name: "libnativewindow_bindgen",
+    crate_name: "nativewindow_bindgen",
+    srcs: [":libnativewindow_bindgen_internal"],
+    shared_libs: [
+        "libbinder_ndk",
+        "libnativewindow",
+    ],
+    rustlibs: [
+        "libbinder_rs",
+    ],
+    lints: "none",
+    clippy_lints: "none",
+    // Currently necessary for host builds
+    // TODO(b/31559095): bionic on host should define this
+    target: {
+        darwin: {
+            enabled: false,
+        },
+    },
+    min_sdk_version: "VanillaIceCream",
+    vendor_available: true,
+}
+
+rust_test {
+    name: "libnativewindow_bindgen_test",
+    srcs: [":libnativewindow_bindgen_internal"],
+    crate_name: "nativewindow_bindgen_test",
+    rustlibs: [
+        "libbinder_rs",
+    ],
+    test_suites: ["general-tests"],
+    auto_gen_config: true,
+    clippy_lints: "none",
+    lints: "none",
+}
+
+rust_defaults {
+    name: "libnativewindow_defaults",
+    srcs: ["src/lib.rs"],
+    rustlibs: [
+        "libbinder_rs",
+        "libnativewindow_bindgen",
+    ],
+}
+
+rust_library {
+    name: "libnativewindow_rs",
+    crate_name: "nativewindow",
+    defaults: ["libnativewindow_defaults"],
+
+    // Currently necessary for host builds
+    // TODO(b/31559095): bionic on host should define this
+    target: {
+        darwin: {
+            enabled: false,
+        },
+    },
+    min_sdk_version: "VanillaIceCream",
+    vendor_available: true,
+}
+
+rust_test {
+    name: "libnativewindow_rs-internal_test",
+    crate_name: "nativewindow",
+    defaults: ["libnativewindow_defaults"],
+    test_suites: ["general-tests"],
+}

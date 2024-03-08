@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <common/test/FlagUtils.h>
 #include <ftl/fake_guard.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -23,6 +24,7 @@
 
 #include "Scheduler/EventThread.h"
 #include "Scheduler/RefreshRateSelector.h"
+#include "Scheduler/VSyncPredictor.h"
 #include "TestableScheduler.h"
 #include "TestableSurfaceFlinger.h"
 #include "mock/DisplayHardware/MockDisplayMode.h"
@@ -30,9 +32,17 @@
 #include "mock/MockLayer.h"
 #include "mock/MockSchedulerCallback.h"
 
+#include <FrontEnd/LayerHierarchy.h>
+
+#include <com_android_graphics_surfaceflinger_flags.h>
+#include "FpsOps.h"
+
+using namespace com::android::graphics::surfaceflinger;
+
 namespace android::scheduler {
 
 using android::mock::createDisplayMode;
+using android::mock::createVrrDisplayMode;
 
 using testing::_;
 using testing::Return;
@@ -42,13 +52,16 @@ namespace {
 using MockEventThread = android::mock::EventThread;
 using MockLayer = android::mock::MockLayer;
 
+using LayerHierarchy = surfaceflinger::frontend::LayerHierarchy;
+using LayerHierarchyBuilder = surfaceflinger::frontend::LayerHierarchyBuilder;
+using RequestedLayerState = surfaceflinger::frontend::RequestedLayerState;
+
 class SchedulerTest : public testing::Test {
 protected:
     class MockEventThreadConnection : public android::EventThreadConnection {
     public:
         explicit MockEventThreadConnection(EventThread* eventThread)
-              : EventThreadConnection(eventThread, /*callingUid*/ static_cast<uid_t>(0),
-                                      ResyncCallback()) {}
+              : EventThreadConnection(eventThread, /*callingUid*/ static_cast<uid_t>(0)) {}
         ~MockEventThreadConnection() = default;
 
         MOCK_METHOD1(stealReceiveChannel, binder::Status(gui::BitTube* outChannel));
@@ -82,7 +95,10 @@ protected:
                                                   kDisplay1Mode60->getId());
 
     mock::SchedulerCallback mSchedulerCallback;
-    TestableScheduler* mScheduler = new TestableScheduler{mSelector, mSchedulerCallback};
+    mock::VsyncTrackerCallback mVsyncTrackerCallback;
+    TestableScheduler* mScheduler =
+            new TestableScheduler{mSelector, mSchedulerCallback, mVsyncTrackerCallback};
+    surfaceflinger::frontend::LayerHierarchyBuilder mLayerHierarchyBuilder{{}};
 
     ConnectionHandle mConnectionHandle;
     MockEventThread* mEventThread;
@@ -149,10 +165,6 @@ TEST_F(SchedulerTest, validConnectionHandle) {
 
     EXPECT_CALL(*mEventThread, setDuration(10ns, 20ns)).Times(1);
     mScheduler->setDuration(mConnectionHandle, 10ns, 20ns);
-
-    static constexpr size_t kEventConnections = 5;
-    EXPECT_CALL(*mEventThread, getEventThreadConnectionCount()).WillOnce(Return(kEventConnections));
-    EXPECT_EQ(kEventConnections, mScheduler->getEventThreadConnectionCount(mConnectionHandle));
 }
 
 TEST_F(SchedulerTest, registerDisplay) FTL_FAKE_GUARD(kMainThreadContext) {
@@ -188,7 +200,7 @@ TEST_F(SchedulerTest, chooseRefreshRateForContentIsNoopWhenModeSwitchingIsNotSup
 
     // recordLayerHistory should be a noop
     ASSERT_EQ(0u, mScheduler->getNumActiveLayers());
-    mScheduler->recordLayerHistory(layer->getSequence(), layer->getLayerProps(), 0,
+    mScheduler->recordLayerHistory(layer->getSequence(), layer->getLayerProps(), 0, 0,
                                    LayerHistory::LayerUpdateType::Buffer);
     ASSERT_EQ(0u, mScheduler->getNumActiveLayers());
 
@@ -199,7 +211,8 @@ TEST_F(SchedulerTest, chooseRefreshRateForContentIsNoopWhenModeSwitchingIsNotSup
     mScheduler->onActiveDisplayAreaChanged(kDisplayArea);
 
     EXPECT_CALL(mSchedulerCallback, requestDisplayModes(_)).Times(0);
-    mScheduler->chooseRefreshRateForContent();
+    mScheduler->chooseRefreshRateForContent(/*LayerHierarchy*/ nullptr,
+                                            /*updateAttachedChoreographer*/ false);
 }
 
 TEST_F(SchedulerTest, updateDisplayModes) {
@@ -213,7 +226,7 @@ TEST_F(SchedulerTest, updateDisplayModes) {
                                                                       kDisplay1Mode60->getId()));
 
     ASSERT_EQ(0u, mScheduler->getNumActiveLayers());
-    mScheduler->recordLayerHistory(layer->getSequence(), layer->getLayerProps(), 0,
+    mScheduler->recordLayerHistory(layer->getSequence(), layer->getLayerProps(), 0, 0,
                                    LayerHistory::LayerUpdateType::Buffer);
     ASSERT_EQ(1u, mScheduler->getNumActiveLayers());
 }
@@ -249,6 +262,11 @@ TEST_F(SchedulerTest, calculateMaxAcquiredBufferCount) {
     EXPECT_EQ(2, mFlinger.calculateMaxAcquiredBufferCount(60_Hz, 40ms));
 
     EXPECT_EQ(1, mFlinger.calculateMaxAcquiredBufferCount(60_Hz, 10ms));
+
+    const auto savedMinAcquiredBuffers = mFlinger.mutableMinAcquiredBuffers();
+    mFlinger.mutableMinAcquiredBuffers() = 2;
+    EXPECT_EQ(2, mFlinger.calculateMaxAcquiredBufferCount(60_Hz, 10ms));
+    mFlinger.mutableMinAcquiredBuffers() = savedMinAcquiredBuffers;
 }
 
 MATCHER(Is120Hz, "") {
@@ -263,7 +281,7 @@ TEST_F(SchedulerTest, chooseRefreshRateForContentSelectsMaxRefreshRate) {
     const sp<MockLayer> layer = sp<MockLayer>::make(mFlinger.flinger());
     EXPECT_CALL(*layer, isVisible()).WillOnce(Return(true));
 
-    mScheduler->recordLayerHistory(layer->getSequence(), layer->getLayerProps(), 0,
+    mScheduler->recordLayerHistory(layer->getSequence(), layer->getLayerProps(), 0, systemTime(),
                                    LayerHistory::LayerUpdateType::Buffer);
 
     constexpr hal::PowerMode kPowerModeOn = hal::PowerMode::ON;
@@ -273,11 +291,13 @@ TEST_F(SchedulerTest, chooseRefreshRateForContentSelectsMaxRefreshRate) {
     mScheduler->onActiveDisplayAreaChanged(kDisplayArea);
 
     EXPECT_CALL(mSchedulerCallback, requestDisplayModes(Is120Hz())).Times(1);
-    mScheduler->chooseRefreshRateForContent();
+    mScheduler->chooseRefreshRateForContent(/*LayerHierarchy*/ nullptr,
+                                            /*updateAttachedChoreographer*/ false);
 
     // No-op if layer requirements have not changed.
     EXPECT_CALL(mSchedulerCallback, requestDisplayModes(_)).Times(0);
-    mScheduler->chooseRefreshRateForContent();
+    mScheduler->chooseRefreshRateForContent(/*LayerHierarchy*/ nullptr,
+                                            /*updateAttachedChoreographer*/ false);
 }
 
 TEST_F(SchedulerTest, chooseDisplayModesSingleDisplay) {
@@ -430,6 +450,581 @@ TEST_F(SchedulerTest, chooseDisplayModesMultipleDisplays) {
         const auto actualChoices = mScheduler->chooseDisplayModes();
         EXPECT_EQ(expectedChoices, actualChoices);
     }
+}
+
+TEST_F(SchedulerTest, onFrameSignalMultipleDisplays) {
+    mScheduler->registerDisplay(kDisplayId1,
+                                std::make_shared<RefreshRateSelector>(kDisplay1Modes,
+                                                                      kDisplay1Mode60->getId()));
+    mScheduler->registerDisplay(kDisplayId2,
+                                std::make_shared<RefreshRateSelector>(kDisplay2Modes,
+                                                                      kDisplay2Mode60->getId()));
+
+    using VsyncIds = std::vector<std::pair<PhysicalDisplayId, VsyncId>>;
+
+    struct Compositor final : ICompositor {
+        explicit Compositor(TestableScheduler& scheduler) : scheduler(scheduler) {}
+
+        TestableScheduler& scheduler;
+
+        struct {
+            PhysicalDisplayId commit;
+            PhysicalDisplayId composite;
+        } pacesetterIds;
+
+        struct {
+            VsyncIds commit;
+            VsyncIds composite;
+        } vsyncIds;
+
+        bool committed = true;
+        bool changePacesetter = false;
+
+        void configure() override {}
+
+        bool commit(PhysicalDisplayId pacesetterId,
+                    const scheduler::FrameTargets& targets) override {
+            pacesetterIds.commit = pacesetterId;
+
+            vsyncIds.commit.clear();
+            vsyncIds.composite.clear();
+
+            for (const auto& [id, target] : targets) {
+                vsyncIds.commit.emplace_back(id, target->vsyncId());
+            }
+
+            if (changePacesetter) {
+                scheduler.setPacesetterDisplay(kDisplayId2);
+            }
+
+            return committed;
+        }
+
+        CompositeResultsPerDisplay composite(PhysicalDisplayId pacesetterId,
+                                             const scheduler::FrameTargeters& targeters) override {
+            pacesetterIds.composite = pacesetterId;
+
+            CompositeResultsPerDisplay results;
+
+            for (const auto& [id, targeter] : targeters) {
+                vsyncIds.composite.emplace_back(id, targeter->target().vsyncId());
+                results.try_emplace(id,
+                                    CompositeResult{.compositionCoverage =
+                                                            CompositionCoverage::Hwc});
+            }
+
+            return results;
+        }
+
+        void sample() override {}
+    } compositor(*mScheduler);
+
+    mScheduler->doFrameSignal(compositor, VsyncId(42));
+
+    const auto makeVsyncIds = [](VsyncId vsyncId, bool swap = false) -> VsyncIds {
+        if (swap) {
+            return {{kDisplayId2, vsyncId}, {kDisplayId1, vsyncId}};
+        } else {
+            return {{kDisplayId1, vsyncId}, {kDisplayId2, vsyncId}};
+        }
+    };
+
+    EXPECT_EQ(kDisplayId1, compositor.pacesetterIds.commit);
+    EXPECT_EQ(kDisplayId1, compositor.pacesetterIds.composite);
+    EXPECT_EQ(makeVsyncIds(VsyncId(42)), compositor.vsyncIds.commit);
+    EXPECT_EQ(makeVsyncIds(VsyncId(42)), compositor.vsyncIds.composite);
+
+    // FrameTargets should be updated despite the skipped commit.
+    compositor.committed = false;
+    mScheduler->doFrameSignal(compositor, VsyncId(43));
+
+    EXPECT_EQ(kDisplayId1, compositor.pacesetterIds.commit);
+    EXPECT_EQ(kDisplayId1, compositor.pacesetterIds.composite);
+    EXPECT_EQ(makeVsyncIds(VsyncId(43)), compositor.vsyncIds.commit);
+    EXPECT_TRUE(compositor.vsyncIds.composite.empty());
+
+    // The pacesetter may change during commit.
+    compositor.committed = true;
+    compositor.changePacesetter = true;
+    mScheduler->doFrameSignal(compositor, VsyncId(44));
+
+    EXPECT_EQ(kDisplayId1, compositor.pacesetterIds.commit);
+    EXPECT_EQ(kDisplayId2, compositor.pacesetterIds.composite);
+    EXPECT_EQ(makeVsyncIds(VsyncId(44)), compositor.vsyncIds.commit);
+    EXPECT_EQ(makeVsyncIds(VsyncId(44), true), compositor.vsyncIds.composite);
+}
+
+TEST_F(SchedulerTest, nextFrameIntervalTest) {
+    SET_FLAG_FOR_TEST(flags::vrr_config, true);
+
+    static constexpr size_t kHistorySize = 10;
+    static constexpr size_t kMinimumSamplesForPrediction = 6;
+    static constexpr size_t kOutlierTolerancePercent = 25;
+    const auto refreshRate = Fps::fromPeriodNsecs(500);
+    auto frameRate = Fps::fromPeriodNsecs(1000);
+
+    const ftl::NonNull<DisplayModePtr> kMode = ftl::as_non_null(
+            createVrrDisplayMode(DisplayModeId(0), refreshRate,
+                                 hal::VrrConfig{.minFrameIntervalNs = static_cast<int32_t>(
+                                                        frameRate.getPeriodNsecs())}));
+    std::shared_ptr<VSyncPredictor> vrrTracker =
+            std::make_shared<VSyncPredictor>(kMode, kHistorySize, kMinimumSamplesForPrediction,
+                                             kOutlierTolerancePercent, mVsyncTrackerCallback);
+    std::shared_ptr<RefreshRateSelector> vrrSelectorPtr =
+            std::make_shared<RefreshRateSelector>(makeModes(kMode), kMode->getId());
+    TestableScheduler scheduler{std::make_unique<android::mock::VsyncController>(),
+                                vrrTracker,
+                                vrrSelectorPtr,
+                                sp<VsyncModulator>::make(VsyncConfigSet{}),
+                                mSchedulerCallback,
+                                mVsyncTrackerCallback};
+
+    scheduler.registerDisplay(kMode->getPhysicalDisplayId(), vrrSelectorPtr, vrrTracker);
+    vrrSelectorPtr->setActiveMode(kMode->getId(), frameRate);
+    scheduler.setRenderRate(kMode->getPhysicalDisplayId(), frameRate);
+    vrrTracker->addVsyncTimestamp(0);
+
+    // Next frame at refresh rate as no previous frame
+    EXPECT_EQ(refreshRate,
+              scheduler.getNextFrameInterval(kMode->getPhysicalDisplayId(), TimePoint::fromNs(0)));
+
+    EXPECT_EQ(Fps::fromPeriodNsecs(1000),
+              scheduler.getNextFrameInterval(kMode->getPhysicalDisplayId(),
+                                             TimePoint::fromNs(500)));
+    EXPECT_EQ(Fps::fromPeriodNsecs(1000),
+              scheduler.getNextFrameInterval(kMode->getPhysicalDisplayId(),
+                                             TimePoint::fromNs(1500)));
+
+    // Change render rate
+    frameRate = Fps::fromPeriodNsecs(2000);
+    vrrSelectorPtr->setActiveMode(kMode->getId(), frameRate);
+    scheduler.setRenderRate(kMode->getPhysicalDisplayId(), frameRate);
+
+    EXPECT_EQ(Fps::fromPeriodNsecs(2000),
+              scheduler.getNextFrameInterval(kMode->getPhysicalDisplayId(),
+                                             TimePoint::fromNs(2500)));
+    EXPECT_EQ(Fps::fromPeriodNsecs(2000),
+              scheduler.getNextFrameInterval(kMode->getPhysicalDisplayId(),
+                                             TimePoint::fromNs(4500)));
+}
+
+TEST_F(SchedulerTest, resyncAllToHardwareVsync) FTL_FAKE_GUARD(kMainThreadContext) {
+    // resyncAllToHardwareVsync will result in requesting hardware VSYNC on both displays, since
+    // they are both on.
+    EXPECT_CALL(mScheduler->mockRequestHardwareVsync, Call(kDisplayId1, true)).Times(1);
+    EXPECT_CALL(mScheduler->mockRequestHardwareVsync, Call(kDisplayId2, true)).Times(1);
+
+    mScheduler->registerDisplay(kDisplayId2,
+                                std::make_shared<RefreshRateSelector>(kDisplay2Modes,
+                                                                      kDisplay2Mode60->getId()));
+    mScheduler->setDisplayPowerMode(kDisplayId1, hal::PowerMode::ON);
+    mScheduler->setDisplayPowerMode(kDisplayId2, hal::PowerMode::ON);
+
+    static constexpr bool kDisallow = true;
+    mScheduler->disableHardwareVsync(kDisplayId1, kDisallow);
+    mScheduler->disableHardwareVsync(kDisplayId2, kDisallow);
+
+    static constexpr bool kAllowToEnable = true;
+    mScheduler->resyncAllToHardwareVsync(kAllowToEnable);
+}
+
+TEST_F(SchedulerTest, resyncAllDoNotAllow) FTL_FAKE_GUARD(kMainThreadContext) {
+    // Without setting allowToEnable to true, resyncAllToHardwareVsync does not
+    // result in requesting hardware VSYNC.
+    EXPECT_CALL(mScheduler->mockRequestHardwareVsync, Call(kDisplayId1, _)).Times(0);
+
+    mScheduler->setDisplayPowerMode(kDisplayId1, hal::PowerMode::ON);
+
+    static constexpr bool kDisallow = true;
+    mScheduler->disableHardwareVsync(kDisplayId1, kDisallow);
+
+    static constexpr bool kAllowToEnable = false;
+    mScheduler->resyncAllToHardwareVsync(kAllowToEnable);
+}
+
+TEST_F(SchedulerTest, resyncAllSkipsOffDisplays) FTL_FAKE_GUARD(kMainThreadContext) {
+    SET_FLAG_FOR_TEST(flags::multithreaded_present, true);
+
+    // resyncAllToHardwareVsync will result in requesting hardware VSYNC on display 1, which is on,
+    // but not on display 2, which is off.
+    EXPECT_CALL(mScheduler->mockRequestHardwareVsync, Call(kDisplayId1, true)).Times(1);
+    EXPECT_CALL(mScheduler->mockRequestHardwareVsync, Call(kDisplayId2, _)).Times(0);
+
+    mScheduler->setDisplayPowerMode(kDisplayId1, hal::PowerMode::ON);
+
+    mScheduler->registerDisplay(kDisplayId2,
+                                std::make_shared<RefreshRateSelector>(kDisplay2Modes,
+                                                                      kDisplay2Mode60->getId()));
+    ASSERT_EQ(hal::PowerMode::OFF, mScheduler->getDisplayPowerMode(kDisplayId2));
+
+    static constexpr bool kDisallow = true;
+    mScheduler->disableHardwareVsync(kDisplayId1, kDisallow);
+    mScheduler->disableHardwareVsync(kDisplayId2, kDisallow);
+
+    static constexpr bool kAllowToEnable = true;
+    mScheduler->resyncAllToHardwareVsync(kAllowToEnable);
+}
+
+TEST_F(SchedulerTest, resyncAllLegacyAppliesToOffDisplays) FTL_FAKE_GUARD(kMainThreadContext) {
+    SET_FLAG_FOR_TEST(flags::multithreaded_present, false);
+
+    // In the legacy code, prior to the flag, resync applied to OFF displays.
+    EXPECT_CALL(mScheduler->mockRequestHardwareVsync, Call(kDisplayId1, true)).Times(1);
+    EXPECT_CALL(mScheduler->mockRequestHardwareVsync, Call(kDisplayId2, true)).Times(1);
+
+    mScheduler->setDisplayPowerMode(kDisplayId1, hal::PowerMode::ON);
+
+    mScheduler->registerDisplay(kDisplayId2,
+                                std::make_shared<RefreshRateSelector>(kDisplay2Modes,
+                                                                      kDisplay2Mode60->getId()));
+    ASSERT_EQ(hal::PowerMode::OFF, mScheduler->getDisplayPowerMode(kDisplayId2));
+
+    static constexpr bool kDisallow = true;
+    mScheduler->disableHardwareVsync(kDisplayId1, kDisallow);
+    mScheduler->disableHardwareVsync(kDisplayId2, kDisallow);
+
+    static constexpr bool kAllowToEnable = true;
+    mScheduler->resyncAllToHardwareVsync(kAllowToEnable);
+}
+
+class AttachedChoreographerTest : public SchedulerTest {
+protected:
+    void frameRateTestScenario(Fps layerFps, int8_t frameRateCompatibility, Fps displayFps,
+                               Fps expectedChoreographerFps);
+};
+
+TEST_F(AttachedChoreographerTest, registerSingle) {
+    EXPECT_TRUE(mScheduler->mutableAttachedChoreographers().empty());
+
+    const sp<MockLayer> layer = sp<MockLayer>::make(mFlinger.flinger());
+
+    EXPECT_CALL(mSchedulerCallback, onChoreographerAttached);
+    const sp<IDisplayEventConnection> connection =
+            mScheduler->createDisplayEventConnection(mConnectionHandle, {}, layer->getHandle());
+
+    EXPECT_EQ(1u, mScheduler->mutableAttachedChoreographers().size());
+    ASSERT_EQ(1u, mScheduler->mutableAttachedChoreographers().count(layer->getSequence()));
+    EXPECT_EQ(1u,
+              mScheduler->mutableAttachedChoreographers()[layer->getSequence()].connections.size());
+    EXPECT_FALSE(
+            mScheduler->mutableAttachedChoreographers()[layer->getSequence()].frameRate.isValid());
+}
+
+TEST_F(AttachedChoreographerTest, registerMultipleOnSameLayer) {
+    EXPECT_TRUE(mScheduler->mutableAttachedChoreographers().empty());
+
+    const sp<MockLayer> layer = sp<MockLayer>::make(mFlinger.flinger());
+    const auto handle = layer->getHandle();
+
+    EXPECT_CALL(mSchedulerCallback, onChoreographerAttached).Times(2);
+
+    EXPECT_CALL(*mEventThread, registerDisplayEventConnection(_))
+            .WillOnce(Return(0))
+            .WillOnce(Return(0));
+
+    const auto mockConnection1 = sp<MockEventThreadConnection>::make(mEventThread);
+    const auto mockConnection2 = sp<MockEventThreadConnection>::make(mEventThread);
+    EXPECT_CALL(*mEventThread, createEventConnection(_, _))
+            .WillOnce(Return(mockConnection1))
+            .WillOnce(Return(mockConnection2));
+
+    const sp<IDisplayEventConnection> connection1 =
+            mScheduler->createDisplayEventConnection(mConnectionHandle, {}, handle);
+    const sp<IDisplayEventConnection> connection2 =
+            mScheduler->createDisplayEventConnection(mConnectionHandle, {}, handle);
+
+    EXPECT_EQ(1u, mScheduler->mutableAttachedChoreographers().size());
+    ASSERT_EQ(1u, mScheduler->mutableAttachedChoreographers().count(layer->getSequence()));
+    EXPECT_EQ(2u,
+              mScheduler->mutableAttachedChoreographers()[layer->getSequence()].connections.size());
+    EXPECT_FALSE(
+            mScheduler->mutableAttachedChoreographers()[layer->getSequence()].frameRate.isValid());
+}
+
+TEST_F(AttachedChoreographerTest, registerMultipleOnDifferentLayers) {
+    EXPECT_TRUE(mScheduler->mutableAttachedChoreographers().empty());
+
+    const sp<MockLayer> layer1 = sp<MockLayer>::make(mFlinger.flinger());
+    const sp<MockLayer> layer2 = sp<MockLayer>::make(mFlinger.flinger());
+
+    EXPECT_CALL(mSchedulerCallback, onChoreographerAttached).Times(2);
+    const sp<IDisplayEventConnection> connection1 =
+            mScheduler->createDisplayEventConnection(mConnectionHandle, {}, layer1->getHandle());
+    const sp<IDisplayEventConnection> connection2 =
+            mScheduler->createDisplayEventConnection(mConnectionHandle, {}, layer2->getHandle());
+
+    EXPECT_EQ(2u, mScheduler->mutableAttachedChoreographers().size());
+
+    ASSERT_EQ(1u, mScheduler->mutableAttachedChoreographers().count(layer1->getSequence()));
+    EXPECT_EQ(1u,
+              mScheduler->mutableAttachedChoreographers()[layer1->getSequence()]
+                      .connections.size());
+    EXPECT_FALSE(
+            mScheduler->mutableAttachedChoreographers()[layer1->getSequence()].frameRate.isValid());
+
+    ASSERT_EQ(1u, mScheduler->mutableAttachedChoreographers().count(layer2->getSequence()));
+    EXPECT_EQ(1u,
+              mScheduler->mutableAttachedChoreographers()[layer2->getSequence()]
+                      .connections.size());
+    EXPECT_FALSE(
+            mScheduler->mutableAttachedChoreographers()[layer2->getSequence()].frameRate.isValid());
+}
+
+TEST_F(AttachedChoreographerTest, removedWhenConnectionIsGone) {
+    EXPECT_TRUE(mScheduler->mutableAttachedChoreographers().empty());
+
+    const sp<MockLayer> layer = sp<MockLayer>::make(mFlinger.flinger());
+
+    EXPECT_CALL(mSchedulerCallback, onChoreographerAttached);
+
+    sp<IDisplayEventConnection> connection =
+            mScheduler->createDisplayEventConnection(mConnectionHandle, {}, layer->getHandle());
+
+    ASSERT_EQ(1u, mScheduler->mutableAttachedChoreographers().count(layer->getSequence()));
+    EXPECT_EQ(1u,
+              mScheduler->mutableAttachedChoreographers()[layer->getSequence()].connections.size());
+
+    // The connection is used all over this test, so it is quite hard to release it from here.
+    // Instead, we just do a small shortcut.
+    {
+        EXPECT_CALL(*mEventThread, registerDisplayEventConnection(_)).WillOnce(Return(0));
+        sp<MockEventThreadConnection> mockConnection =
+                sp<MockEventThreadConnection>::make(mEventThread);
+        mScheduler->mutableAttachedChoreographers()[layer->getSequence()].connections.clear();
+        mScheduler->mutableAttachedChoreographers()[layer->getSequence()].connections.emplace(
+                mockConnection);
+    }
+
+    RequestedLayerState layerState(LayerCreationArgs(layer->getSequence()));
+    LayerHierarchy hierarchy(&layerState);
+    mScheduler->updateAttachedChoreographers(hierarchy, 60_Hz);
+    EXPECT_TRUE(mScheduler->mutableAttachedChoreographers().empty());
+}
+
+TEST_F(AttachedChoreographerTest, removedWhenLayerIsGone) {
+    EXPECT_TRUE(mScheduler->mutableAttachedChoreographers().empty());
+
+    sp<MockLayer> layer = sp<MockLayer>::make(mFlinger.flinger());
+
+    EXPECT_CALL(mSchedulerCallback, onChoreographerAttached);
+    const sp<IDisplayEventConnection> connection =
+            mScheduler->createDisplayEventConnection(mConnectionHandle, {}, layer->getHandle());
+
+    layer.clear();
+    mFlinger.mutableLayersPendingRemoval().clear();
+    EXPECT_TRUE(mScheduler->mutableAttachedChoreographers().empty());
+}
+
+void AttachedChoreographerTest::frameRateTestScenario(Fps layerFps, int8_t frameRateCompatibility,
+                                                      Fps displayFps,
+                                                      Fps expectedChoreographerFps) {
+    const sp<MockLayer> layer = sp<MockLayer>::make(mFlinger.flinger());
+
+    EXPECT_CALL(mSchedulerCallback, onChoreographerAttached);
+    sp<IDisplayEventConnection> connection =
+            mScheduler->createDisplayEventConnection(mConnectionHandle, {}, layer->getHandle());
+
+    RequestedLayerState layerState(LayerCreationArgs(layer->getSequence()));
+    LayerHierarchy hierarchy(&layerState);
+
+    layerState.frameRate = layerFps.getValue();
+    layerState.frameRateCompatibility = frameRateCompatibility;
+
+    mScheduler->updateAttachedChoreographers(hierarchy, displayFps);
+
+    ASSERT_EQ(1u, mScheduler->mutableAttachedChoreographers().count(layer->getSequence()));
+    EXPECT_EQ(expectedChoreographerFps,
+              mScheduler->mutableAttachedChoreographers()[layer->getSequence()].frameRate);
+    EXPECT_EQ(expectedChoreographerFps, mEventThreadConnection->frameRate);
+}
+
+TEST_F(AttachedChoreographerTest, setsFrameRateDefault) {
+    Fps layerFps = 30_Hz;
+    int8_t frameRateCompatibility = ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT;
+    Fps displayFps = 60_Hz;
+    Fps expectedChoreographerFps = 30_Hz;
+
+    frameRateTestScenario(layerFps, frameRateCompatibility, displayFps, expectedChoreographerFps);
+
+    layerFps = Fps::fromValue(32.7f);
+    frameRateTestScenario(layerFps, frameRateCompatibility, displayFps, expectedChoreographerFps);
+}
+
+TEST_F(AttachedChoreographerTest, setsFrameRateExact) {
+    Fps layerFps = 30_Hz;
+    int8_t frameRateCompatibility = ANATIVEWINDOW_FRAME_RATE_EXACT;
+    Fps displayFps = 60_Hz;
+    Fps expectedChoreographerFps = 30_Hz;
+
+    frameRateTestScenario(layerFps, frameRateCompatibility, displayFps, expectedChoreographerFps);
+
+    layerFps = Fps::fromValue(32.7f);
+    expectedChoreographerFps = {};
+    frameRateTestScenario(layerFps, frameRateCompatibility, displayFps, expectedChoreographerFps);
+}
+
+TEST_F(AttachedChoreographerTest, setsFrameRateExactOrMultiple) {
+    Fps layerFps = 30_Hz;
+    int8_t frameRateCompatibility = ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_FIXED_SOURCE;
+    Fps displayFps = 60_Hz;
+    Fps expectedChoreographerFps = 30_Hz;
+
+    frameRateTestScenario(layerFps, frameRateCompatibility, displayFps, expectedChoreographerFps);
+
+    layerFps = Fps::fromValue(32.7f);
+    expectedChoreographerFps = {};
+    frameRateTestScenario(layerFps, frameRateCompatibility, displayFps, expectedChoreographerFps);
+}
+
+TEST_F(AttachedChoreographerTest, setsFrameRateParent) {
+    const sp<MockLayer> layer = sp<MockLayer>::make(mFlinger.flinger());
+    const sp<MockLayer> parent = sp<MockLayer>::make(mFlinger.flinger());
+
+    EXPECT_CALL(mSchedulerCallback, onChoreographerAttached);
+    sp<IDisplayEventConnection> connection =
+            mScheduler->createDisplayEventConnection(mConnectionHandle, {}, parent->getHandle());
+
+    RequestedLayerState parentState(LayerCreationArgs(parent->getSequence()));
+    LayerHierarchy parentHierarchy(&parentState);
+
+    RequestedLayerState layerState(LayerCreationArgs(layer->getSequence()));
+    LayerHierarchy hierarchy(&layerState);
+    parentHierarchy.mChildren.push_back(
+            std::make_pair(&hierarchy, LayerHierarchy::Variant::Attached));
+
+    layerState.frameRate = (30_Hz).getValue();
+    layerState.frameRateCompatibility = ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT;
+
+    mScheduler->updateAttachedChoreographers(parentHierarchy, 120_Hz);
+
+    ASSERT_EQ(1u, mScheduler->mutableAttachedChoreographers().count(parent->getSequence()));
+
+    EXPECT_EQ(30_Hz, mScheduler->mutableAttachedChoreographers()[parent->getSequence()].frameRate);
+}
+
+TEST_F(AttachedChoreographerTest, setsFrameRateParent2Children) {
+    const sp<MockLayer> layer1 = sp<MockLayer>::make(mFlinger.flinger());
+    const sp<MockLayer> layer2 = sp<MockLayer>::make(mFlinger.flinger());
+    const sp<MockLayer> parent = sp<MockLayer>::make(mFlinger.flinger());
+
+    EXPECT_CALL(mSchedulerCallback, onChoreographerAttached);
+    sp<IDisplayEventConnection> connection =
+            mScheduler->createDisplayEventConnection(mConnectionHandle, {}, parent->getHandle());
+
+    RequestedLayerState parentState(LayerCreationArgs(parent->getSequence()));
+    LayerHierarchy parentHierarchy(&parentState);
+
+    RequestedLayerState layer1State(LayerCreationArgs(layer1->getSequence()));
+    LayerHierarchy layer1Hierarchy(&layer1State);
+    parentHierarchy.mChildren.push_back(
+            std::make_pair(&layer1Hierarchy, LayerHierarchy::Variant::Attached));
+
+    RequestedLayerState layer2State(LayerCreationArgs(layer1->getSequence()));
+    LayerHierarchy layer2Hierarchy(&layer2State);
+    parentHierarchy.mChildren.push_back(
+            std::make_pair(&layer2Hierarchy, LayerHierarchy::Variant::Attached));
+
+    layer1State.frameRate = (30_Hz).getValue();
+    layer1State.frameRateCompatibility = ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT;
+
+    layer2State.frameRate = (20_Hz).getValue();
+    layer2State.frameRateCompatibility = ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT;
+
+    mScheduler->updateAttachedChoreographers(parentHierarchy, 120_Hz);
+
+    ASSERT_EQ(1u, mScheduler->mutableAttachedChoreographers().count(parent->getSequence()));
+
+    EXPECT_EQ(60_Hz, mScheduler->mutableAttachedChoreographers()[parent->getSequence()].frameRate);
+}
+
+TEST_F(AttachedChoreographerTest, setsFrameRateParentConflictingChildren) {
+    const sp<MockLayer> layer1 = sp<MockLayer>::make(mFlinger.flinger());
+    const sp<MockLayer> layer2 = sp<MockLayer>::make(mFlinger.flinger());
+    const sp<MockLayer> parent = sp<MockLayer>::make(mFlinger.flinger());
+
+    EXPECT_CALL(mSchedulerCallback, onChoreographerAttached);
+    sp<IDisplayEventConnection> connection =
+            mScheduler->createDisplayEventConnection(mConnectionHandle, {}, parent->getHandle());
+
+    RequestedLayerState parentState(LayerCreationArgs(parent->getSequence()));
+    LayerHierarchy parentHierarchy(&parentState);
+
+    RequestedLayerState layer1State(LayerCreationArgs(layer1->getSequence()));
+    LayerHierarchy layer1Hierarchy(&layer1State);
+    parentHierarchy.mChildren.push_back(
+            std::make_pair(&layer1Hierarchy, LayerHierarchy::Variant::Attached));
+
+    RequestedLayerState layer2State(LayerCreationArgs(layer1->getSequence()));
+    LayerHierarchy layer2Hierarchy(&layer2State);
+    parentHierarchy.mChildren.push_back(
+            std::make_pair(&layer2Hierarchy, LayerHierarchy::Variant::Attached));
+
+    layer1State.frameRate = (30_Hz).getValue();
+    layer1State.frameRateCompatibility = ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT;
+
+    layer2State.frameRate = (25_Hz).getValue();
+    layer2State.frameRateCompatibility = ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT;
+
+    mScheduler->updateAttachedChoreographers(parentHierarchy, 120_Hz);
+
+    ASSERT_EQ(1u, mScheduler->mutableAttachedChoreographers().count(parent->getSequence()));
+
+    EXPECT_EQ(Fps(), mScheduler->mutableAttachedChoreographers()[parent->getSequence()].frameRate);
+}
+
+TEST_F(AttachedChoreographerTest, setsFrameRateChild) {
+    const sp<MockLayer> layer = sp<MockLayer>::make(mFlinger.flinger());
+    const sp<MockLayer> parent = sp<MockLayer>::make(mFlinger.flinger());
+
+    EXPECT_CALL(mSchedulerCallback, onChoreographerAttached);
+    sp<IDisplayEventConnection> connection =
+            mScheduler->createDisplayEventConnection(mConnectionHandle, {}, layer->getHandle());
+
+    RequestedLayerState parentState(LayerCreationArgs(parent->getSequence()));
+    LayerHierarchy parentHierarchy(&parentState);
+
+    RequestedLayerState layerState(LayerCreationArgs(layer->getSequence()));
+    LayerHierarchy hierarchy(&layerState);
+    parentHierarchy.mChildren.push_back(
+            std::make_pair(&hierarchy, LayerHierarchy::Variant::Attached));
+
+    parentState.frameRate = (30_Hz).getValue();
+    parentState.frameRateCompatibility = ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT;
+
+    mScheduler->updateAttachedChoreographers(parentHierarchy, 120_Hz);
+
+    ASSERT_EQ(1u, mScheduler->mutableAttachedChoreographers().count(layer->getSequence()));
+
+    EXPECT_EQ(30_Hz, mScheduler->mutableAttachedChoreographers()[layer->getSequence()].frameRate);
+}
+
+TEST_F(AttachedChoreographerTest, setsFrameRateChildNotOverriddenByParent) {
+    const sp<MockLayer> layer = sp<MockLayer>::make(mFlinger.flinger());
+    const sp<MockLayer> parent = sp<MockLayer>::make(mFlinger.flinger());
+
+    EXPECT_CALL(mSchedulerCallback, onChoreographerAttached);
+    sp<IDisplayEventConnection> connection =
+            mScheduler->createDisplayEventConnection(mConnectionHandle, {}, layer->getHandle());
+
+    RequestedLayerState parentState(LayerCreationArgs(parent->getSequence()));
+    LayerHierarchy parentHierarchy(&parentState);
+
+    RequestedLayerState layerState(LayerCreationArgs(layer->getSequence()));
+    LayerHierarchy hierarchy(&layerState);
+    parentHierarchy.mChildren.push_back(
+            std::make_pair(&hierarchy, LayerHierarchy::Variant::Attached));
+
+    parentState.frameRate = (30_Hz).getValue();
+    parentState.frameRateCompatibility = ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT;
+
+    layerState.frameRate = (60_Hz).getValue();
+    layerState.frameRateCompatibility = ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT;
+
+    mScheduler->updateAttachedChoreographers(parentHierarchy, 120_Hz);
+
+    ASSERT_EQ(1u, mScheduler->mutableAttachedChoreographers().count(layer->getSequence()));
+
+    EXPECT_EQ(60_Hz, mScheduler->mutableAttachedChoreographers()[layer->getSequence()].frameRate);
 }
 
 } // namespace android::scheduler

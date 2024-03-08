@@ -22,7 +22,19 @@
 // and APEX users, but we need access to it to fuzz.
 #include "../../ndk/ibinder_internal.h"
 
+using android::IBinder;
+using android::sp;
+
 namespace android {
+
+void fuzzService(const std::vector<ndk::SpAIBinder>& binders, FuzzedDataProvider&& provider) {
+    std::vector<sp<IBinder>> cppBinders;
+    for (const auto& binder : binders) {
+        cppBinders.push_back(binder.get()->getBinder());
+    }
+
+    fuzzService(cppBinders, std::move(provider));
+}
 
 void fuzzService(AIBinder* binder, FuzzedDataProvider&& provider) {
     fuzzService(binder->getBinder(), std::move(provider));
@@ -32,9 +44,14 @@ void fuzzService(AIBinder* binder, FuzzedDataProvider&& provider) {
 
 extern "C" {
 // This API is used by fuzzers to automatically fuzz aidl services
-void fuzzRustService(void* binder, const uint8_t* data, size_t len) {
-    AIBinder* aiBinder = static_cast<AIBinder*>(binder);
+void fuzzRustService(void** binders, size_t numBinders, const uint8_t* data, size_t len) {
+    std::vector<sp<IBinder>> cppBinders;
+    for (size_t binderIndex = 0; binderIndex < numBinders; ++binderIndex) {
+        AIBinder* aiBinder = static_cast<AIBinder*>(binders[binderIndex]);
+        cppBinders.push_back(aiBinder->getBinder());
+    }
+
     FuzzedDataProvider provider(data, len);
-    android::fuzzService(aiBinder, std::move(provider));
+    android::fuzzService(cppBinders, std::move(provider));
 }
 } // extern "C"

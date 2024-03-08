@@ -20,6 +20,7 @@
 
 #include "CursorInputMapper.h"
 
+#include <com_android_input_flags.h>
 #include <optional>
 
 #include "CursorButtonAccumulator.h"
@@ -28,6 +29,8 @@
 #include "TouchCursorInputMapperCommon.h"
 
 #include "input/PrintTools.h"
+
+namespace input_flags = com::android::input::flags;
 
 namespace android {
 
@@ -71,7 +74,8 @@ void CursorMotionAccumulator::finishSync() {
 CursorInputMapper::CursorInputMapper(InputDeviceContext& deviceContext,
                                      const InputReaderConfiguration& readerConfig)
       : InputMapper(deviceContext, readerConfig),
-        mLastEventTime(std::numeric_limits<nsecs_t>::min()) {}
+        mLastEventTime(std::numeric_limits<nsecs_t>::min()),
+        mEnablePointerChoreographer(input_flags::enable_pointer_choreographer()) {}
 
 CursorInputMapper::~CursorInputMapper() {
     if (mPointerController != nullptr) {
@@ -87,11 +91,11 @@ void CursorInputMapper::populateDeviceInfo(InputDeviceInfo& info) {
     InputMapper::populateDeviceInfo(info);
 
     if (mParameters.mode == Parameters::Mode::POINTER) {
-        if (const auto bounds = mPointerController->getBounds(); bounds) {
-            info.addMotionRange(AMOTION_EVENT_AXIS_X, mSource, bounds->left, bounds->right, 0.0f,
-                                0.0f, 0.0f);
-            info.addMotionRange(AMOTION_EVENT_AXIS_Y, mSource, bounds->top, bounds->bottom, 0.0f,
-                                0.0f, 0.0f);
+        if (!mBoundsInLogicalDisplay.isEmpty()) {
+            info.addMotionRange(AMOTION_EVENT_AXIS_X, mSource, mBoundsInLogicalDisplay.left,
+                                mBoundsInLogicalDisplay.right, 0.0f, 0.0f, 0.0f);
+            info.addMotionRange(AMOTION_EVENT_AXIS_Y, mSource, mBoundsInLogicalDisplay.top,
+                                mBoundsInLogicalDisplay.bottom, 0.0f, 0.0f, 0.0f);
         }
     } else {
         info.addMotionRange(AMOTION_EVENT_AXIS_X, mSource, -1.0f, 1.0f, 0.0f, mXScale, 0.0f);
@@ -283,19 +287,22 @@ std::list<NotifyArgs> CursorInputMapper::sync(nsecs_t when, nsecs_t readTime) {
     float xCursorPosition = AMOTION_EVENT_INVALID_CURSOR_POSITION;
     float yCursorPosition = AMOTION_EVENT_INVALID_CURSOR_POSITION;
     if (mSource == AINPUT_SOURCE_MOUSE) {
-        if (moved || scrolled || buttonsChanged) {
-            mPointerController->setPresentation(PointerControllerInterface::Presentation::POINTER);
+        if (!mEnablePointerChoreographer) {
+            if (moved || scrolled || buttonsChanged) {
+                mPointerController->setPresentation(
+                        PointerControllerInterface::Presentation::POINTER);
 
-            if (moved) {
-                mPointerController->move(deltaX, deltaY);
+                if (moved) {
+                    mPointerController->move(deltaX, deltaY);
+                }
+                mPointerController->unfade(PointerControllerInterface::Transition::IMMEDIATE);
             }
-            mPointerController->unfade(PointerControllerInterface::Transition::IMMEDIATE);
+
+            std::tie(xCursorPosition, yCursorPosition) = mPointerController->getPosition();
+
+            pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_X, xCursorPosition);
+            pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_Y, yCursorPosition);
         }
-
-        std::tie(xCursorPosition, yCursorPosition) = mPointerController->getPosition();
-
-        pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_X, xCursorPosition);
-        pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_Y, yCursorPosition);
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, deltaX);
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, deltaY);
     } else {
@@ -347,7 +354,7 @@ std::list<NotifyArgs> CursorInputMapper::sync(nsecs_t when, nsecs_t readTime) {
                                                AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties,
                                                &pointerCoords, mXPrecision, mYPrecision,
                                                xCursorPosition, yCursorPosition, downTime,
-                                               /* videoFrames */ {}));
+                                               /*videoFrames=*/{}));
             }
         }
 
@@ -357,7 +364,7 @@ std::list<NotifyArgs> CursorInputMapper::sync(nsecs_t when, nsecs_t readTime) {
                                        AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties,
                                        &pointerCoords, mXPrecision, mYPrecision, xCursorPosition,
                                        yCursorPosition, downTime,
-                                       /* videoFrames */ {}));
+                                       /*videoFrames=*/{}));
 
         if (buttonsPressed) {
             BitSet32 pressed(buttonsPressed);
@@ -371,7 +378,7 @@ std::list<NotifyArgs> CursorInputMapper::sync(nsecs_t when, nsecs_t readTime) {
                                                AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties,
                                                &pointerCoords, mXPrecision, mYPrecision,
                                                xCursorPosition, yCursorPosition, downTime,
-                                               /* videoFrames */ {}));
+                                               /*videoFrames=*/{}));
             }
         }
 
@@ -386,7 +393,7 @@ std::list<NotifyArgs> CursorInputMapper::sync(nsecs_t when, nsecs_t readTime) {
                                            AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties,
                                            &pointerCoords, mXPrecision, mYPrecision,
                                            xCursorPosition, yCursorPosition, downTime,
-                                           /* videoFrames */ {}));
+                                           /*videoFrames=*/{}));
         }
 
         // Send scroll events.
@@ -401,7 +408,7 @@ std::list<NotifyArgs> CursorInputMapper::sync(nsecs_t when, nsecs_t readTime) {
                                            AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties,
                                            &pointerCoords, mXPrecision, mYPrecision,
                                            xCursorPosition, yCursorPosition, downTime,
-                                           /* videoFrames */ {}));
+                                           /*videoFrames=*/{}));
         }
     }
 
@@ -499,31 +506,53 @@ void CursorInputMapper::configureOnChangeDisplayInfo(const InputReaderConfigurat
     const bool isPointer = mParameters.mode == Parameters::Mode::POINTER;
 
     mDisplayId = ADISPLAY_ID_NONE;
-    if (auto viewport = mDeviceContext.getAssociatedViewport(); viewport) {
+    std::optional<DisplayViewport> resolvedViewport;
+    bool isBoundsSet = false;
+    if (auto assocViewport = mDeviceContext.getAssociatedViewport(); assocViewport) {
         // This InputDevice is associated with a viewport.
         // Only generate events for the associated display.
-        const bool mismatchedPointerDisplay =
-                isPointer && (viewport->displayId != mPointerController->getDisplayId());
-        mDisplayId =
-                mismatchedPointerDisplay ? std::nullopt : std::make_optional(viewport->displayId);
+        mDisplayId = assocViewport->displayId;
+        resolvedViewport = *assocViewport;
+        if (!mEnablePointerChoreographer) {
+            const bool mismatchedPointerDisplay =
+                    isPointer && (assocViewport->displayId != mPointerController->getDisplayId());
+            if (mismatchedPointerDisplay) {
+                // This device's associated display doesn't match PointerController's current
+                // display. Do not associate it with any display.
+                mDisplayId.reset();
+            }
+        }
     } else if (isPointer) {
         // The InputDevice is not associated with a viewport, but it controls the mouse pointer.
-        mDisplayId = mPointerController->getDisplayId();
+        if (mEnablePointerChoreographer) {
+            // Always use DISPLAY_ID_NONE for mouse events.
+            // PointerChoreographer will make it target the correct the displayId later.
+            resolvedViewport = getContext()->getPolicy()->getPointerViewportForAssociatedDisplay();
+            mDisplayId = resolvedViewport ? std::make_optional(ADISPLAY_ID_NONE) : std::nullopt;
+        } else {
+            mDisplayId = mPointerController->getDisplayId();
+            if (auto v = config.getDisplayViewportById(*mDisplayId); v) {
+                resolvedViewport = *v;
+            }
+            if (auto bounds = mPointerController->getBounds(); bounds) {
+                mBoundsInLogicalDisplay = *bounds;
+                isBoundsSet = true;
+            }
+        }
     }
 
-    mOrientation = ui::ROTATION_0;
-    const bool isOrientedDevice =
-            (mParameters.orientationAware && mParameters.hasAssociatedDisplay);
-    // InputReader works in the un-rotated display coordinate space, so we don't need to do
-    // anything if the device is already orientation-aware. If the device is not
-    // orientation-aware, then we need to apply the inverse rotation of the display so that
-    // when the display rotation is applied later as a part of the per-window transform, we
-    // get the expected screen coordinates. When pointer capture is enabled, we do not apply any
-    // rotations and report values directly from the input device.
-    if (!isOrientedDevice && mDisplayId && mParameters.mode != Parameters::Mode::POINTER_RELATIVE) {
-        if (auto viewport = config.getDisplayViewportById(*mDisplayId); viewport) {
-            mOrientation = getInverseRotation(viewport->orientation);
-        }
+    mOrientation = (mParameters.orientationAware && mParameters.hasAssociatedDisplay) ||
+                    mParameters.mode == Parameters::Mode::POINTER_RELATIVE || !resolvedViewport
+            ? ui::ROTATION_0
+            : getInverseRotation(resolvedViewport->orientation);
+
+    if (!isBoundsSet) {
+        mBoundsInLogicalDisplay = resolvedViewport
+                ? FloatRect{static_cast<float>(resolvedViewport->logicalLeft),
+                            static_cast<float>(resolvedViewport->logicalTop),
+                            static_cast<float>(resolvedViewport->logicalRight - 1),
+                            static_cast<float>(resolvedViewport->logicalBottom - 1)}
+                : FloatRect{0, 0, 0, 0};
     }
 
     bumpGeneration();

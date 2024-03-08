@@ -113,7 +113,7 @@ status_t VirtualTouchpadService::dump(
                         static_cast<long>(client_pid_));
     touchpad_->dumpInternal(result);
   }
-  write(fd, result.string(), result.size());
+  write(fd, result.c_str(), result.size());
   return OK;
 }
 

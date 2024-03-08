@@ -67,7 +67,6 @@ GpuService::GpuService()
     mGpuWorkAsyncInitThread = std::make_unique<std::thread>([this]() {
         mGpuWork->initialize();
     });
-    property_set("persist.graphics.egl", "");
 };
 
 GpuService::~GpuService() {
@@ -144,7 +143,7 @@ status_t GpuService::shellCommand(int /*in*/, int out, int err, std::vector<Stri
 
     ALOGV("shellCommand");
     for (size_t i = 0, n = args.size(); i < n; i++)
-        ALOGV("  arg[%zu]: '%s'", i, String8(args[i]).string());
+        ALOGV("  arg[%zu]: '%s'", i, String8(args[i]).c_str());
 
     if (args.size() >= 1) {
         if (args[0] == String16("vkjson")) return cmdVkjson(out, err);

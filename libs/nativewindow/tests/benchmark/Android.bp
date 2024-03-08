@@ -1,0 +1,50 @@
+// Copyright (C) 2023 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+cc_defaults {
+    name: "nativewindow_benchmark_defaults_cc",
+    shared_libs: ["libnativewindow"],
+    static_libs: [
+        "libbase",
+        "libgoogle-benchmark-main",
+    ],
+    test_suites: [
+        "device-tests",
+        "NativeWindowBenchmarks",
+    ],
+}
+
+cc_benchmark {
+    name: "nativewindow_buffer_benchmarks_cc",
+    srcs: ["buffer_benchmarks.cc"],
+    defaults: ["nativewindow_benchmark_defaults_cc"],
+}
+
+rust_defaults {
+    name: "nativewindow_benchmark_defaults_rs",
+    rustlibs: [
+        "libnativewindow_rs",
+        "libcriterion",
+    ],
+    test_suites: [
+        "device-tests",
+        "NativeWindowBenchmarks",
+    ],
+}
+
+rust_benchmark {
+    name: "nativewindow_buffer_benchmarks_rs",
+    srcs: ["buffer_benchmarks.rs"],
+    defaults: ["nativewindow_benchmark_defaults_rs"],
+}

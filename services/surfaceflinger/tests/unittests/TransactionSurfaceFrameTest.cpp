@@ -60,10 +60,7 @@ public:
         return sp<Layer>::make(args);
     }
 
-    void commitTransaction(Layer* layer) {
-        auto c = layer->getDrawingState();
-        layer->commitTransaction(c);
-    }
+    void commitTransaction(Layer* layer) { layer->commitTransaction(); }
 
     TestableSurfaceFlinger mFlinger;
     renderengine::mock::RenderEngine* mRenderEngine = new renderengine::mock::RenderEngine();
@@ -350,7 +347,7 @@ public:
         // Both the droppedSurfaceFrame and presentedSurfaceFrame should be in
         // pendingJankClassifications.
         EXPECT_EQ(2u, layer->mPendingJankClassifications.size());
-        presentedSurfaceFrame->onPresent(20, JankType::None, 90_Hz,
+        presentedSurfaceFrame->onPresent(20, JankType::None, 90_Hz, 90_Hz,
                                          /*displayDeadlineDelta*/ 0, /*displayPresentDelta*/ 0);
         layer->releasePendingBuffer(25);
 
@@ -487,10 +484,10 @@ public:
         // BufferlessSurfaceFrames are immediately set to presented and added to the DisplayFrame.
         // Since we don't have access to DisplayFrame here, trigger an onPresent directly.
         for (auto& surfaceFrame : bufferlessSurfaceFrames) {
-            surfaceFrame->onPresent(20, JankType::None, 90_Hz,
+            surfaceFrame->onPresent(20, JankType::None, 90_Hz, 90_Hz,
                                     /*displayDeadlineDelta*/ 0, /*displayPresentDelta*/ 0);
         }
-        presentedBufferSurfaceFrame->onPresent(20, JankType::None, 90_Hz,
+        presentedBufferSurfaceFrame->onPresent(20, JankType::None, 90_Hz, 90_Hz,
                                                /*displayDeadlineDelta*/ 0,
                                                /*displayPresentDelta*/ 0);
 

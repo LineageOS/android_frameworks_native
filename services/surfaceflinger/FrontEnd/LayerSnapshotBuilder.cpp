@@ -29,6 +29,7 @@
 
 #include "DisplayHardware/HWC2.h"
 #include "DisplayHardware/Hal.h"
+#include "Layer.h" // eFrameRateSelectionPriority constants
 #include "LayerLog.h"
 #include "LayerSnapshotBuilder.h"
 #include "TimeStats/TimeStats.h"
@@ -177,12 +178,7 @@ void fillInputFrameInfo(gui::WindowInfo& info, const ui::Transform& screenToDisp
         info.touchableRegion.clear();
     }
 
-    const Rect roundedFrameInDisplay =
-            getInputBoundsInDisplaySpace(snapshot, inputBounds, screenToDisplay);
-    info.frameLeft = roundedFrameInDisplay.left;
-    info.frameTop = roundedFrameInDisplay.top;
-    info.frameRight = roundedFrameInDisplay.right;
-    info.frameBottom = roundedFrameInDisplay.bottom;
+    info.frame = getInputBoundsInDisplaySpace(snapshot, inputBounds, screenToDisplay);
 
     ui::Transform inputToLayer;
     inputToLayer.set(inputBounds.left, inputBounds.top);
@@ -357,7 +353,7 @@ LayerSnapshot LayerSnapshotBuilder::getRootSnapshot() {
     snapshot.isSecure = false;
     snapshot.color.a = 1.0_hf;
     snapshot.colorTransformIsIdentity = true;
-    snapshot.shadowRadius = 0.f;
+    snapshot.shadowSettings.length = 0.f;
     snapshot.layerMetadata.mMap.clear();
     snapshot.relativeLayerMetadata.mMap.clear();
     snapshot.inputInfo.touchOcclusionMode = gui::TouchOcclusionMode::BLOCK_UNTRUSTED;
@@ -369,7 +365,7 @@ LayerSnapshot LayerSnapshotBuilder::getRootSnapshot() {
     return snapshot;
 }
 
-LayerSnapshotBuilder::LayerSnapshotBuilder() : mRootSnapshot(getRootSnapshot()) {}
+LayerSnapshotBuilder::LayerSnapshotBuilder() {}
 
 LayerSnapshotBuilder::LayerSnapshotBuilder(Args args) : LayerSnapshotBuilder() {
     args.forceUpdate = ForceUpdateFlags::ALL;
@@ -421,19 +417,20 @@ bool LayerSnapshotBuilder::tryFastUpdate(const Args& args) {
 
 void LayerSnapshotBuilder::updateSnapshots(const Args& args) {
     ATRACE_NAME("UpdateSnapshots");
+    LayerSnapshot rootSnapshot = args.rootSnapshot;
     if (args.parentCrop) {
-        mRootSnapshot.geomLayerBounds = *args.parentCrop;
+        rootSnapshot.geomLayerBounds = *args.parentCrop;
     } else if (args.forceUpdate == ForceUpdateFlags::ALL || args.displayChanges) {
-        mRootSnapshot.geomLayerBounds = getMaxDisplayBounds(args.displays);
+        rootSnapshot.geomLayerBounds = getMaxDisplayBounds(args.displays);
     }
     if (args.displayChanges) {
-        mRootSnapshot.changes = RequestedLayerState::Changes::AffectsChildren |
+        rootSnapshot.changes = RequestedLayerState::Changes::AffectsChildren |
                 RequestedLayerState::Changes::Geometry;
     }
     if (args.forceUpdate == ForceUpdateFlags::HIERARCHY) {
-        mRootSnapshot.changes |=
+        rootSnapshot.changes |=
                 RequestedLayerState::Changes::Hierarchy | RequestedLayerState::Changes::Visibility;
-        mRootSnapshot.clientChanges |= layer_state_t::eReparent;
+        rootSnapshot.clientChanges |= layer_state_t::eReparent;
     }
 
     for (auto& snapshot : mSnapshots) {
@@ -448,13 +445,13 @@ void LayerSnapshotBuilder::updateSnapshots(const Args& args) {
         // multiple children.
         LayerHierarchy::ScopedAddToTraversalPath addChildToPath(root, args.root.getLayer()->id,
                                                                 LayerHierarchy::Variant::Attached);
-        updateSnapshotsInHierarchy(args, args.root, root, mRootSnapshot, /*depth=*/0);
+        updateSnapshotsInHierarchy(args, args.root, root, rootSnapshot, /*depth=*/0);
     } else {
         for (auto& [childHierarchy, variant] : args.root.mChildren) {
             LayerHierarchy::ScopedAddToTraversalPath addChildToPath(root,
                                                                     childHierarchy->getLayer()->id,
                                                                     variant);
-            updateSnapshotsInHierarchy(args, *childHierarchy, root, mRootSnapshot, /*depth=*/0);
+            updateSnapshotsInHierarchy(args, *childHierarchy, root, rootSnapshot, /*depth=*/0);
         }
     }
 
@@ -463,7 +460,6 @@ void LayerSnapshotBuilder::updateSnapshots(const Args& args) {
     updateTouchableRegionCrop(args);
 
     const bool hasUnreachableSnapshots = sortSnapshotsByZ(args);
-    clearChanges(mRootSnapshot);
 
     // Destroy unreachable snapshots for clone layers. And destroy snapshots for non-clone
     // layers if the layer have been destroyed.
@@ -522,12 +518,9 @@ const LayerSnapshot& LayerSnapshotBuilder::updateSnapshotsInHierarchy(
         const Args& args, const LayerHierarchy& hierarchy,
         LayerHierarchy::TraversalPath& traversalPath, const LayerSnapshot& parentSnapshot,
         int depth) {
-    if (depth > 50) {
-        TransactionTraceWriter::getInstance().invoke("layer_builder_stack_overflow_",
-                                                     /*overwrite=*/false);
-        LOG_ALWAYS_FATAL("Cycle detected in LayerSnapshotBuilder. See "
-                         "builder_stack_overflow_transactions.winscope");
-    }
+    LLOG_ALWAYS_FATAL_WITH_TRACE_IF(depth > 50,
+                                    "Cycle detected in LayerSnapshotBuilder. See "
+                                    "builder_stack_overflow_transactions.winscope");
 
     const RequestedLayerState* layer = hierarchy.getLayer();
     LayerSnapshot* snapshot = getSnapshot(traversalPath);
@@ -539,7 +532,7 @@ const LayerSnapshot& LayerSnapshotBuilder::updateSnapshotsInHierarchy(
                         primaryDisplayRotationFlags);
         snapshot->changes |= RequestedLayerState::Changes::Created;
     }
-    scheduler::LayerInfo::FrameRate oldFrameRate = snapshot->frameRate;
+
     if (traversalPath.isRelative()) {
         bool parentIsRelative = traversalPath.variant == LayerHierarchy::Variant::Relative;
         updateRelativeState(*snapshot, parentSnapshot, parentIsRelative, args);
@@ -557,12 +550,9 @@ const LayerSnapshot& LayerSnapshotBuilder::updateSnapshotsInHierarchy(
         const LayerSnapshot& childSnapshot =
                 updateSnapshotsInHierarchy(args, *childHierarchy, traversalPath, *snapshot,
                                            depth + 1);
-        updateChildState(*snapshot, childSnapshot, args);
+        updateFrameRateFromChildSnapshot(*snapshot, childSnapshot, args);
     }
 
-    if (oldFrameRate == snapshot->frameRate) {
-        snapshot->changes.clear(RequestedLayerState::Changes::FrameRate);
-    }
     return *snapshot;
 }
 
@@ -665,36 +655,43 @@ void LayerSnapshotBuilder::updateRelativeState(LayerSnapshot& snapshot,
     }
 }
 
-void LayerSnapshotBuilder::updateChildState(LayerSnapshot& snapshot,
-                                            const LayerSnapshot& childSnapshot, const Args& args) {
-    if (snapshot.childState.hasValidFrameRate) {
+void LayerSnapshotBuilder::updateFrameRateFromChildSnapshot(LayerSnapshot& snapshot,
+                                                            const LayerSnapshot& childSnapshot,
+                                                            const Args& args) {
+    if (args.forceUpdate == ForceUpdateFlags::NONE &&
+        !args.layerLifecycleManager.getGlobalChanges().any(
+                RequestedLayerState::Changes::Hierarchy) &&
+        !childSnapshot.changes.any(RequestedLayerState::Changes::FrameRate) &&
+        !snapshot.changes.any(RequestedLayerState::Changes::FrameRate)) {
         return;
     }
-    if (args.forceUpdate == ForceUpdateFlags::ALL ||
-        childSnapshot.changes.test(RequestedLayerState::Changes::FrameRate)) {
-        // We return whether this layer ot its children has a vote. We ignore ExactOrMultiple votes
-        // for the same reason we are allowing touch boost for those layers. See
-        // RefreshRateSelector::rankFrameRates for details.
-        using FrameRateCompatibility = scheduler::LayerInfo::FrameRateCompatibility;
-        const auto layerVotedWithDefaultCompatibility = childSnapshot.frameRate.rate.isValid() &&
-                childSnapshot.frameRate.type == FrameRateCompatibility::Default;
-        const auto layerVotedWithNoVote =
-                childSnapshot.frameRate.type == FrameRateCompatibility::NoVote;
-        const auto layerVotedWithExactCompatibility = childSnapshot.frameRate.rate.isValid() &&
-                childSnapshot.frameRate.type == FrameRateCompatibility::Exact;
 
-        snapshot.childState.hasValidFrameRate |= layerVotedWithDefaultCompatibility ||
-                layerVotedWithNoVote || layerVotedWithExactCompatibility;
+    using FrameRateCompatibility = scheduler::FrameRateCompatibility;
+    if (snapshot.frameRate.isValid()) {
+        // we already have a valid framerate.
+        return;
+    }
 
-        // If we don't have a valid frame rate, but the children do, we set this
-        // layer as NoVote to allow the children to control the refresh rate
-        if (!snapshot.frameRate.rate.isValid() &&
-            snapshot.frameRate.type != FrameRateCompatibility::NoVote &&
-            snapshot.childState.hasValidFrameRate) {
-            snapshot.frameRate =
-                    scheduler::LayerInfo::FrameRate(Fps(), FrameRateCompatibility::NoVote);
-            snapshot.changes |= childSnapshot.changes & RequestedLayerState::Changes::FrameRate;
-        }
+    // We return whether this layer or its children has a vote. We ignore ExactOrMultiple votes
+    // for the same reason we are allowing touch boost for those layers. See
+    // RefreshRateSelector::rankFrameRates for details.
+    const auto layerVotedWithDefaultCompatibility = childSnapshot.frameRate.vote.rate.isValid() &&
+            childSnapshot.frameRate.vote.type == FrameRateCompatibility::Default;
+    const auto layerVotedWithNoVote =
+            childSnapshot.frameRate.vote.type == FrameRateCompatibility::NoVote;
+    const auto layerVotedWithCategory =
+            childSnapshot.frameRate.category != FrameRateCategory::Default;
+    const auto layerVotedWithExactCompatibility = childSnapshot.frameRate.vote.rate.isValid() &&
+            childSnapshot.frameRate.vote.type == FrameRateCompatibility::Exact;
+
+    bool childHasValidFrameRate = layerVotedWithDefaultCompatibility || layerVotedWithNoVote ||
+            layerVotedWithCategory || layerVotedWithExactCompatibility;
+
+    // If we don't have a valid frame rate, but the children do, we set this
+    // layer as NoVote to allow the children to control the refresh rate
+    if (childHasValidFrameRate) {
+        snapshot.frameRate = scheduler::LayerInfo::FrameRate(Fps(), FrameRateCompatibility::NoVote);
+        snapshot.changes |= RequestedLayerState::Changes::FrameRate;
     }
 }
 
@@ -711,7 +708,7 @@ void LayerSnapshotBuilder::updateSnapshot(LayerSnapshot& snapshot, const Args& a
     ftl::Flags<RequestedLayerState::Changes> parentChanges = parentSnapshot.changes &
             (RequestedLayerState::Changes::Hierarchy | RequestedLayerState::Changes::Geometry |
              RequestedLayerState::Changes::Visibility | RequestedLayerState::Changes::Metadata |
-             RequestedLayerState::Changes::AffectsChildren |
+             RequestedLayerState::Changes::AffectsChildren | RequestedLayerState::Changes::Input |
              RequestedLayerState::Changes::FrameRate | RequestedLayerState::Changes::GameMode);
     snapshot.changes |= parentChanges;
     if (args.displayChanges) snapshot.changes |= RequestedLayerState::Changes::Geometry;
@@ -734,10 +731,15 @@ void LayerSnapshotBuilder::updateSnapshot(LayerSnapshot& snapshot, const Args& a
                 : parentSnapshot.outputFilter.layerStack;
     }
 
+    if (forceUpdate || snapshot.clientChanges & layer_state_t::eTrustedOverlayChanged) {
+        snapshot.isTrustedOverlay = parentSnapshot.isTrustedOverlay || requested.isTrustedOverlay;
+    }
+
     if (snapshot.isHiddenByPolicyFromParent &&
         !snapshot.changes.test(RequestedLayerState::Changes::Created)) {
         if (forceUpdate ||
             snapshot.changes.any(RequestedLayerState::Changes::Geometry |
+                                 RequestedLayerState::Changes::BufferSize |
                                  RequestedLayerState::Changes::Input)) {
             updateInput(snapshot, requested, parentSnapshot, path, args);
         }
@@ -762,10 +764,6 @@ void LayerSnapshotBuilder::updateSnapshot(LayerSnapshot& snapshot, const Args& a
                 parentSnapshot.isSecure || (requested.flags & layer_state_t::eLayerSecure);
         snapshot.outputFilter.toInternalDisplay = parentSnapshot.outputFilter.toInternalDisplay ||
                 (requested.flags & layer_state_t::eLayerSkipScreenshot);
-    }
-
-    if (forceUpdate || snapshot.clientChanges & layer_state_t::eTrustedOverlayChanged) {
-        snapshot.isTrustedOverlay = parentSnapshot.isTrustedOverlay || requested.isTrustedOverlay;
     }
 
     if (forceUpdate || snapshot.clientChanges & layer_state_t::eStretchChanged) {
@@ -811,12 +809,44 @@ void LayerSnapshotBuilder::updateSnapshot(LayerSnapshot& snapshot, const Args& a
         }
     }
 
-    if (forceUpdate || snapshot.changes.any(RequestedLayerState::Changes::FrameRate)) {
-        snapshot.frameRate = (requested.requestedFrameRate.rate.isValid() ||
-                              (requested.requestedFrameRate.type ==
-                               scheduler::LayerInfo::FrameRateCompatibility::NoVote))
-                ? requested.requestedFrameRate
-                : parentSnapshot.frameRate;
+    if (forceUpdate ||
+        args.layerLifecycleManager.getGlobalChanges().any(
+                RequestedLayerState::Changes::Hierarchy) ||
+        snapshot.changes.any(RequestedLayerState::Changes::FrameRate |
+                             RequestedLayerState::Changes::Hierarchy)) {
+        const bool shouldOverrideChildren = parentSnapshot.frameRateSelectionStrategy ==
+                scheduler::LayerInfo::FrameRateSelectionStrategy::OverrideChildren;
+        const bool propagationAllowed = parentSnapshot.frameRateSelectionStrategy !=
+                scheduler::LayerInfo::FrameRateSelectionStrategy::Self;
+        if ((!requested.requestedFrameRate.isValid() && propagationAllowed) ||
+            shouldOverrideChildren) {
+            snapshot.inheritedFrameRate = parentSnapshot.inheritedFrameRate;
+        } else {
+            snapshot.inheritedFrameRate = requested.requestedFrameRate;
+        }
+        // Set the framerate as the inherited frame rate and allow children to override it if
+        // needed.
+        snapshot.frameRate = snapshot.inheritedFrameRate;
+        snapshot.changes |= RequestedLayerState::Changes::FrameRate;
+    }
+
+    if (forceUpdate || snapshot.clientChanges & layer_state_t::eFrameRateSelectionStrategyChanged) {
+        if (parentSnapshot.frameRateSelectionStrategy ==
+            scheduler::LayerInfo::FrameRateSelectionStrategy::OverrideChildren) {
+            snapshot.frameRateSelectionStrategy =
+                    scheduler::LayerInfo::FrameRateSelectionStrategy::OverrideChildren;
+        } else {
+            const auto strategy = scheduler::LayerInfo::convertFrameRateSelectionStrategy(
+                    requested.frameRateSelectionStrategy);
+            snapshot.frameRateSelectionStrategy = strategy;
+        }
+    }
+
+    if (forceUpdate || snapshot.clientChanges & layer_state_t::eFrameRateSelectionPriority) {
+        snapshot.frameRateSelectionPriority =
+                (requested.frameRateSelectionPriority == Layer::PRIORITY_UNSET)
+                ? parentSnapshot.frameRateSelectionPriority
+                : requested.frameRateSelectionPriority;
     }
 
     if (forceUpdate ||
@@ -838,8 +868,9 @@ void LayerSnapshotBuilder::updateSnapshot(LayerSnapshot& snapshot, const Args& a
     }
 
     if (forceUpdate || snapshot.clientChanges & layer_state_t::eCornerRadiusChanged ||
-        snapshot.changes.any(RequestedLayerState::Changes::Geometry)) {
-        updateRoundedCorner(snapshot, requested, parentSnapshot);
+        snapshot.changes.any(RequestedLayerState::Changes::Geometry |
+                             RequestedLayerState::Changes::BufferUsageFlags)) {
+        updateRoundedCorner(snapshot, requested, parentSnapshot, args);
     }
 
     if (forceUpdate || snapshot.clientChanges & layer_state_t::eShadowRadiusChanged ||
@@ -854,8 +885,8 @@ void LayerSnapshotBuilder::updateSnapshot(LayerSnapshot& snapshot, const Args& a
     }
 
     // computed snapshot properties
-    snapshot.forceClientComposition = snapshot.isHdrY410 || snapshot.shadowSettings.length > 0 ||
-            requested.blurRegions.size() > 0 || snapshot.stretchEffect.hasEffect();
+    snapshot.forceClientComposition =
+            snapshot.shadowSettings.length > 0 || snapshot.stretchEffect.hasEffect();
     snapshot.contentOpaque = snapshot.isContentOpaque();
     snapshot.isOpaque = snapshot.contentOpaque && !snapshot.roundedCorner.hasRoundedCorners() &&
             snapshot.color.a == 1.f;
@@ -870,7 +901,12 @@ void LayerSnapshotBuilder::updateSnapshot(LayerSnapshot& snapshot, const Args& a
 
 void LayerSnapshotBuilder::updateRoundedCorner(LayerSnapshot& snapshot,
                                                const RequestedLayerState& requested,
-                                               const LayerSnapshot& parentSnapshot) {
+                                               const LayerSnapshot& parentSnapshot,
+                                               const Args& args) {
+    if (args.skipRoundCornersWhenProtected && requested.isProtected()) {
+        snapshot.roundedCorner = RoundedCornerState();
+        return;
+    }
     snapshot.roundedCorner = RoundedCornerState();
     RoundedCornerState parentRoundedCorner;
     if (parentSnapshot.roundedCorner.hasRoundedCorners()) {
@@ -966,9 +1002,12 @@ void LayerSnapshotBuilder::updateLayerBounds(LayerSnapshot& snapshot,
 }
 
 void LayerSnapshotBuilder::updateShadows(LayerSnapshot& snapshot, const RequestedLayerState&,
-                                         const renderengine::ShadowSettings& globalShadowSettings) {
-    if (snapshot.shadowRadius > 0.f) {
-        snapshot.shadowSettings = globalShadowSettings;
+                                         const ShadowSettings& globalShadowSettings) {
+    if (snapshot.shadowSettings.length > 0.f) {
+        snapshot.shadowSettings.ambientColor = globalShadowSettings.ambientColor;
+        snapshot.shadowSettings.spotColor = globalShadowSettings.spotColor;
+        snapshot.shadowSettings.lightPos = globalShadowSettings.lightPos;
+        snapshot.shadowSettings.lightRadius = globalShadowSettings.lightRadius;
 
         // Note: this preserves existing behavior of shadowing the entire layer and not cropping
         // it if transparent regions are present. This may not be necessary since shadows are
@@ -1002,6 +1041,19 @@ void LayerSnapshotBuilder::updateInput(LayerSnapshot& snapshot,
 
     snapshot.inputInfo.id = static_cast<int32_t>(snapshot.uniqueSequence);
     snapshot.inputInfo.displayId = static_cast<int32_t>(snapshot.outputFilter.layerStack.id);
+    snapshot.inputInfo.touchOcclusionMode = requested.hasInputInfo()
+            ? requested.windowInfoHandle->getInfo()->touchOcclusionMode
+            : parentSnapshot.inputInfo.touchOcclusionMode;
+    if (requested.dropInputMode == gui::DropInputMode::ALL ||
+        parentSnapshot.dropInputMode == gui::DropInputMode::ALL) {
+        snapshot.dropInputMode = gui::DropInputMode::ALL;
+    } else if (requested.dropInputMode == gui::DropInputMode::OBSCURED ||
+               parentSnapshot.dropInputMode == gui::DropInputMode::OBSCURED) {
+        snapshot.dropInputMode = gui::DropInputMode::OBSCURED;
+    } else {
+        snapshot.dropInputMode = gui::DropInputMode::NONE;
+    }
+
     updateVisibility(snapshot, snapshot.isVisible);
     if (!needsInputInfo(snapshot, requested)) {
         return;
@@ -1025,18 +1077,6 @@ void LayerSnapshotBuilder::updateInput(LayerSnapshot& snapshot,
     }
 
     snapshot.inputInfo.alpha = snapshot.color.a;
-    snapshot.inputInfo.touchOcclusionMode = requested.hasInputInfo()
-            ? requested.windowInfoHandle->getInfo()->touchOcclusionMode
-            : parentSnapshot.inputInfo.touchOcclusionMode;
-    if (requested.dropInputMode == gui::DropInputMode::ALL ||
-        parentSnapshot.dropInputMode == gui::DropInputMode::ALL) {
-        snapshot.dropInputMode = gui::DropInputMode::ALL;
-    } else if (requested.dropInputMode == gui::DropInputMode::OBSCURED ||
-               parentSnapshot.dropInputMode == gui::DropInputMode::OBSCURED) {
-        snapshot.dropInputMode = gui::DropInputMode::OBSCURED;
-    } else {
-        snapshot.dropInputMode = gui::DropInputMode::NONE;
-    }
 
     handleDropInputMode(snapshot, parentSnapshot);
 
@@ -1062,6 +1102,8 @@ void LayerSnapshotBuilder::updateInput(LayerSnapshot& snapshot,
     if (snapshot.isTrustedOverlay) {
         snapshot.inputInfo.inputConfig |= gui::WindowInfo::InputConfig::TRUSTED_OVERLAY;
     }
+
+    snapshot.inputInfo.contentSize = snapshot.croppedBufferSize.getSize();
 
     // If the layer is a clone, we need to crop the input region to cloned root to prevent
     // touches from going outside the cloned area.
@@ -1175,8 +1217,8 @@ void LayerSnapshotBuilder::updateTouchableRegionCrop(const Args& args) {
             Rect inputBoundsInDisplaySpace =
                     getInputBoundsInDisplaySpace(*cropLayerSnapshot, inputBounds,
                                                  displayInfo.transform);
-            snapshot->inputInfo.touchableRegion = snapshot->inputInfo.touchableRegion.intersect(
-                    displayInfo.transform.transform(inputBoundsInDisplaySpace));
+            snapshot->inputInfo.touchableRegion =
+                    snapshot->inputInfo.touchableRegion.intersect(inputBoundsInDisplaySpace);
         }
 
         // If the layer is a clone, we need to crop the input region to cloned root to prevent

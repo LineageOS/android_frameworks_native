@@ -75,7 +75,7 @@ class HostDeviceTest : public ::testing::Test {
 public:
     void SetUp() override {
         auto debuggableResult = execute(Split("adb shell getprop ro.debuggable", " "), nullptr);
-        ASSERT_THAT(debuggableResult, Ok());
+        ASSERT_TRUE(debuggableResult.has_value());
         ASSERT_EQ(0, debuggableResult->exitCode) << *debuggableResult;
         auto debuggableBool = ParseBool(Trim(debuggableResult->stdoutStr));
         ASSERT_NE(ParseBoolResult::kError, debuggableBool) << Trim(debuggableResult->stdoutStr);
@@ -84,7 +84,7 @@ public:
         }
 
         auto lsResult = execute(Split("adb shell which servicedispatcher", " "), nullptr);
-        ASSERT_THAT(lsResult, Ok());
+        ASSERT_TRUE(lsResult.has_value());
         if (lsResult->exitCode != 0) {
             GTEST_SKIP() << "b/182914638: until feature is fully enabled, skip test on devices "
                             "without servicedispatcher";
@@ -95,7 +95,7 @@ public:
 
         auto service = execute({"adb", "shell", kServiceBinary, kServiceName, kDescriptor},
                                &CommandResult::stdoutEndsWithNewLine);
-        ASSERT_THAT(service, Ok());
+        ASSERT_TRUE(service.has_value());
         ASSERT_EQ(std::nullopt, service->exitCode) << *service;
         mService = std::move(*service);
     }
@@ -135,7 +135,10 @@ TEST_F(HostDeviceTest, CheckService) {
 TEST_F(HostDeviceTest, GetService) {
     auto sm = defaultServiceManager();
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     auto rpcBinder = sm->getService(String16(kServiceName));
+#pragma clang diagnostic pop
     ASSERT_NE(nullptr, rpcBinder);
 
     EXPECT_THAT(rpcBinder->pingBinder(), StatusEq(OK));

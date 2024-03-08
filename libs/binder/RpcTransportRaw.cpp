@@ -19,6 +19,7 @@
 
 #include <poll.h>
 #include <stddef.h>
+#include <sys/socket.h>
 
 #include <binder/RpcTransportRaw.h>
 
@@ -29,7 +30,9 @@
 
 namespace android {
 
-namespace {
+using namespace android::binder::impl;
+using android::binder::borrowed_fd;
+using android::binder::unique_fd;
 
 // RpcTransport with TLS disabled.
 class RpcTransportRaw : public RpcTransport {
@@ -56,13 +59,12 @@ public:
 
     status_t interruptableWriteFully(
             FdTrigger* fdTrigger, iovec* iovs, int niovs,
-            const std::optional<android::base::function_ref<status_t()>>& altPoll,
-            const std::vector<std::variant<base::unique_fd, base::borrowed_fd>>* ancillaryFds)
-            override {
+            const std::optional<SmallFunction<status_t()>>& altPoll,
+            const std::vector<std::variant<unique_fd, borrowed_fd>>* ancillaryFds) override {
         bool sentFds = false;
         auto send = [&](iovec* iovs, int niovs) -> ssize_t {
-            ssize_t ret =
-                    sendMessageOnSocket(mSocket, iovs, niovs, sentFds ? nullptr : ancillaryFds);
+            ssize_t ret = binder::os::sendMessageOnSocket(mSocket, iovs, niovs,
+                                                          sentFds ? nullptr : ancillaryFds);
             sentFds |= ret > 0;
             return ret;
         };
@@ -72,16 +74,16 @@ public:
 
     status_t interruptableReadFully(
             FdTrigger* fdTrigger, iovec* iovs, int niovs,
-            const std::optional<android::base::function_ref<status_t()>>& altPoll,
-            std::vector<std::variant<base::unique_fd, base::borrowed_fd>>* ancillaryFds) override {
+            const std::optional<SmallFunction<status_t()>>& altPoll,
+            std::vector<std::variant<unique_fd, borrowed_fd>>* ancillaryFds) override {
         auto recv = [&](iovec* iovs, int niovs) -> ssize_t {
-            return receiveMessageFromSocket(mSocket, iovs, niovs, ancillaryFds);
+            return binder::os::receiveMessageFromSocket(mSocket, iovs, niovs, ancillaryFds);
         };
         return interruptableReadOrWrite(mSocket, fdTrigger, iovs, niovs, recv, "recvmsg", POLLIN,
                                         altPoll);
     }
 
-    virtual bool isWaiting() { return mSocket.isInPollingState(); }
+    bool isWaiting() override { return mSocket.isInPollingState(); }
 
 private:
     android::RpcTransportFd mSocket;
@@ -90,13 +92,12 @@ private:
 // RpcTransportCtx with TLS disabled.
 class RpcTransportCtxRaw : public RpcTransportCtx {
 public:
-    std::unique_ptr<RpcTransport> newTransport(android::RpcTransportFd socket, FdTrigger*) const {
+    std::unique_ptr<RpcTransport> newTransport(android::RpcTransportFd socket,
+                                               FdTrigger*) const override {
         return std::make_unique<RpcTransportRaw>(std::move(socket));
     }
     std::vector<uint8_t> getCertificate(RpcCertificateFormat) const override { return {}; }
 };
-
-} // namespace
 
 std::unique_ptr<RpcTransportCtx> RpcTransportCtxFactoryRaw::newServerCtx() const {
     return std::make_unique<RpcTransportCtxRaw>();

@@ -33,9 +33,9 @@ foreign_type! {
     pub struct RpcServerRef;
 }
 
-/// SAFETY - The opaque handle can be cloned freely.
+/// SAFETY: The opaque handle can be cloned freely.
 unsafe impl Send for RpcServer {}
-/// SAFETY - The underlying C++ RpcServer class is thread-safe.
+/// SAFETY: The underlying C++ RpcServer class is thread-safe.
 unsafe impl Sync for RpcServer {}
 
 impl RpcServer {
@@ -57,26 +57,21 @@ impl RpcServer {
     }
 
     /// Creates a binder RPC server, serving the supplied binder service implementation on the given
-    /// socket file name. The socket should be initialized in init.rc with the same name.
-    pub fn new_init_unix_domain(
+    /// socket file descriptor. The socket should be bound to an address before calling this
+    /// function.
+    pub fn new_bound_socket(
         mut service: SpIBinder,
-        socket_name: &str,
+        socket_fd: OwnedFd,
     ) -> Result<RpcServer, Error> {
-        let socket_name = match CString::new(socket_name) {
-            Ok(s) => s,
-            Err(e) => {
-                log::error!("Cannot convert {} to CString. Error: {:?}", socket_name, e);
-                return Err(Error::from(ErrorKind::InvalidInput));
-            }
-        };
         let service = service.as_native_mut();
 
         // SAFETY: Service ownership is transferring to the server and won't be valid afterward.
         // Plus the binder objects are threadsafe.
+        // The server takes ownership of the socket FD.
         unsafe {
-            Self::checked_from_ptr(binder_rpc_unstable_bindgen::ARpcServer_newInitUnixDomain(
+            Self::checked_from_ptr(binder_rpc_unstable_bindgen::ARpcServer_newBoundSocket(
                 service,
-                socket_name.as_ptr(),
+                socket_fd.into_raw_fd(),
             ))
         }
     }
@@ -129,7 +124,9 @@ impl RpcServer {
         if ptr.is_null() {
             return Err(Error::new(ErrorKind::Other, "Failed to start server"));
         }
-        Ok(RpcServer::from_ptr(ptr))
+        // SAFETY: Our caller must pass us a valid or null pointer, and we've checked that it's not
+        // null.
+        Ok(unsafe { RpcServer::from_ptr(ptr) })
     }
 }
 
@@ -139,7 +136,7 @@ impl RpcServerRef {
         &self,
         modes: &[FileDescriptorTransportMode],
     ) {
-        // SAFETY - Does not keep the pointer after returning does, nor does it
+        // SAFETY: Does not keep the pointer after returning does, nor does it
         // read past its boundary. Only passes the 'self' pointer as an opaque handle.
         unsafe {
             binder_rpc_unstable_bindgen::ARpcServer_setSupportedFileDescriptorTransportModes(
@@ -152,18 +149,21 @@ impl RpcServerRef {
 
     /// Starts a new background thread and calls join(). Returns immediately.
     pub fn start(&self) {
+        // SAFETY: RpcServerRef wraps a valid pointer to an ARpcServer.
         unsafe { binder_rpc_unstable_bindgen::ARpcServer_start(self.as_ptr()) };
     }
 
     /// Joins the RpcServer thread. The call blocks until the server terminates.
     /// This must be called from exactly one thread.
     pub fn join(&self) {
+        // SAFETY: RpcServerRef wraps a valid pointer to an ARpcServer.
         unsafe { binder_rpc_unstable_bindgen::ARpcServer_join(self.as_ptr()) };
     }
 
     /// Shuts down the running RpcServer. Can be called multiple times and from
     /// multiple threads. Called automatically during drop().
     pub fn shutdown(&self) -> Result<(), Error> {
+        // SAFETY: RpcServerRef wraps a valid pointer to an ARpcServer.
         if unsafe { binder_rpc_unstable_bindgen::ARpcServer_shutdown(self.as_ptr()) } {
             Ok(())
         } else {

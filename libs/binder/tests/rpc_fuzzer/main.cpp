@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-#include <android-base/file.h>
+#include "../FileUtils.h"
+
 #include <android-base/logging.h>
-#include <android-base/unique_fd.h>
 #include <binder/Binder.h>
 #include <binder/Parcel.h>
 #include <binder/RpcServer.h>
@@ -24,12 +24,17 @@
 #include <binder/RpcTransport.h>
 #include <binder/RpcTransportRaw.h>
 #include <binder/RpcTransportTls.h>
+#include <binder/unique_fd.h>
 #include <fuzzer/FuzzedDataProvider.h>
 #include <openssl/rand.h>
 #include <openssl/ssl.h>
 
 #include <sys/resource.h>
+#include <sys/socket.h>
 #include <sys/un.h>
+
+using android::binder::GetExecutableDirectory;
+using android::binder::unique_fd;
 
 namespace android {
 
@@ -76,12 +81,12 @@ struct ServerAuth {
 ServerAuth readServerKeyAndCert() {
     ServerAuth ret;
 
-    auto keyPath = android::base::GetExecutableDirectory() + "/data/server.key";
+    auto keyPath = GetExecutableDirectory() + "/data/server.key";
     bssl::UniquePtr<BIO> keyBio(BIO_new_file(keyPath.c_str(), "r"));
     ret.pkey.reset(PEM_read_bio_PrivateKey(keyBio.get(), nullptr, passwordCallback, nullptr));
     CHECK_NE(ret.pkey.get(), nullptr);
 
-    auto certPath = android::base::GetExecutableDirectory() + "/data/server.crt";
+    auto certPath = GetExecutableDirectory() + "/data/server.crt";
     bssl::UniquePtr<BIO> certBio(BIO_new_file(certPath.c_str(), "r"));
     ret.cert.reset(PEM_read_bio_X509(certBio.get(), nullptr, nullptr, nullptr));
     CHECK_NE(ret.cert.get(), nullptr);
@@ -129,18 +134,18 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     CHECK_LT(kSock.size(), sizeof(addr.sun_path));
     memcpy(&addr.sun_path, kSock.c_str(), kSock.size());
 
-    std::vector<base::unique_fd> connections;
+    std::vector<unique_fd> connections;
 
     bool hangupBeforeShutdown = provider.ConsumeBool();
 
     // b/260736889 - limit arbitrarily, due to thread resource exhaustion, which currently
     // aborts. Servers should consider RpcServer::setConnectionFilter instead.
-    constexpr size_t kMaxConnections = 1000;
+    constexpr size_t kMaxConnections = 10;
 
     while (provider.remaining_bytes() > 0) {
         if (connections.empty() ||
             (connections.size() < kMaxConnections && provider.ConsumeBool())) {
-            base::unique_fd fd(TEMP_FAILURE_RETRY(socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0)));
+            unique_fd fd(TEMP_FAILURE_RETRY(socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0)));
             CHECK_NE(fd.get(), -1);
             CHECK_EQ(0,
                      TEMP_FAILURE_RETRY(

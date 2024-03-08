@@ -102,14 +102,8 @@ public:
     // to another process.
     void setParceled();
 
-    [[nodiscard]] status_t setRpcClientDebug(android::base::unique_fd clientFd,
+    [[nodiscard]] status_t setRpcClientDebug(binder::unique_fd clientFd,
                                              const sp<IBinder>& keepAliveBinder);
-
-    // Start recording transactions to the unique_fd in data.
-    // See RecordedTransaction.h for more details.
-    [[nodiscard]] status_t startRecordingTransactions(const Parcel& data);
-    // Stop the current recording.
-    [[nodiscard]] status_t stopRecordingTransactions();
 
 protected:
     virtual             ~BBinder();
@@ -131,6 +125,8 @@ private:
 
     [[nodiscard]] status_t setRpcClientDebug(const Parcel& data);
     void removeRpcServerLink(const sp<RpcServerLink>& link);
+    [[nodiscard]] status_t startRecordingTransactions(const Parcel& data);
+    [[nodiscard]] status_t stopRecordingTransactions();
 
     std::atomic<Extras*> mExtras;
 

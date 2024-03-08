@@ -1,0 +1,64 @@
+package {
+    default_applicable_licenses: ["frameworks_native_license"],
+}
+
+aidl_interface {
+    name: "testServiceIface",
+    host_supported: true,
+    unstable: true,
+    srcs: [
+        "ITestService.aidl",
+    ],
+    backend: {
+        java: {
+            enabled: true,
+            platform_apis: true,
+        },
+        rust: {
+            enabled: true,
+        },
+    },
+}
+
+// Adding this fuzzer to test the fuzzService functionality
+cc_fuzz {
+    name: "test_service_fuzzer_should_crash",
+    defaults: [
+        "service_fuzzer_defaults",
+    ],
+    static_libs: [
+        "liblog",
+        "testServiceIface-cpp",
+    ],
+    host_supported: true,
+    srcs: ["TestServiceFuzzer.cpp"],
+    fuzz_config: {
+        triage_assignee: "waghpawan@google.com",
+
+        // This fuzzer should be used only test fuzzService locally
+        fuzz_on_haiku_host: false,
+        fuzz_on_haiku_device: false,
+    },
+}
+
+sh_test_host {
+    name: "fuzz_service_test",
+    src: "run_fuzz_service_test.sh",
+    filename: "run_fuzz_service_test.sh",
+    test_config: "fuzz_service_test_config.xml",
+    data_bins: [
+        "test_service_fuzzer_should_crash",
+    ],
+    required: [
+        "test_service_fuzzer_should_crash",
+    ],
+    target: {
+        linux_bionic: {
+            enabled: false,
+        },
+        darwin: {
+            enabled: false,
+        },
+    },
+    test_suites: ["general-tests"],
+}

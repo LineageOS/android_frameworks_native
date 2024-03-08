@@ -197,6 +197,7 @@ protected:
     std::string app_oat_dir_;
 
     int64_t ce_data_inode_;
+    int64_t de_data_inode_;
 
     std::string secondary_dex_ce_;
     std::string secondary_dex_ce_link_;
@@ -261,16 +262,10 @@ protected:
         }
 
         // Create the app user data.
-        binder::Status status = service_->createAppData(
-                volume_uuid_,
-                package_name_,
-                kTestUserId,
-                kAppDataFlags,
-                kTestAppUid,
-                0 /* previousAppId */,
-                se_info_,
-                kOSdkVersion,
-                &ce_data_inode_);
+        binder::Status status =
+                service_->createAppData(volume_uuid_, package_name_, kTestUserId, kAppDataFlags,
+                                        kTestAppUid, 0 /* previousAppId */, se_info_, kOSdkVersion,
+                                        &ce_data_inode_, &de_data_inode_);
         if (!status.isOk()) {
             return ::testing::AssertionFailure() << "Could not create app data: "
                                                  << status.toString8().c_str();
@@ -1350,16 +1345,10 @@ TEST_F(ProfileTest, ProfileDirOkAfterFixup) {
     ASSERT_EQ(0, chmod(ref_profile_dir.c_str(), 0700));
 
     // Run createAppData again which will offer to fix-up the profile directories.
-    ASSERT_BINDER_SUCCESS(service_->createAppData(
-            volume_uuid_,
-            package_name_,
-            kTestUserId,
-            kAppDataFlags,
-            kTestAppUid,
-            0 /* previousAppId */,
-            se_info_,
-            kOSdkVersion,
-            &ce_data_inode_));
+    ASSERT_BINDER_SUCCESS(service_->createAppData(volume_uuid_, package_name_, kTestUserId,
+                                                  kAppDataFlags, kTestAppUid, 0 /* previousAppId */,
+                                                  se_info_, kOSdkVersion, &ce_data_inode_,
+                                                  &de_data_inode_));
 
     // Check the file access.
     CheckFileAccess(cur_profile_dir, kTestAppUid, kTestAppUid, 0700 | S_IFDIR);
@@ -1492,18 +1481,13 @@ class BootProfileTest : public ProfileTest {
     void createAppProfilesForBootMerge(size_t number_of_profiles) {
         for (size_t i = 0; i < number_of_profiles; i++) {
             int64_t ce_data_inode;
+            int64_t de_data_inode;
             std::string package_name = "dummy_test_pkg" + std::to_string(i);
             LOG(INFO) << package_name;
-            ASSERT_BINDER_SUCCESS(service_->createAppData(
-                    volume_uuid_,
-                    package_name,
-                    kTestUserId,
-                    kAppDataFlags,
-                    kTestAppUid,
-                    0 /* previousAppId */,
-                    se_info_,
-                    kOSdkVersion,
-                    &ce_data_inode));
+            ASSERT_BINDER_SUCCESS(
+                    service_->createAppData(volume_uuid_, package_name, kTestUserId, kAppDataFlags,
+                                            kTestAppUid, 0 /* previousAppId */, se_info_,
+                                            kOSdkVersion, &ce_data_inode, &de_data_inode));
             extra_apps_.push_back(package_name);
             extra_ce_data_inodes_.push_back(ce_data_inode);
             std::string profile = create_current_profile_path(

@@ -177,31 +177,31 @@ EGLSurface GLTest::createWindowSurface(EGLDisplay display, EGLConfig config,
         while ((err = glGetError()) != GL_NO_ERROR) {
             msg += String8::format(", %#x", err);
         }
-        return ::testing::AssertionFailure(::testing::Message(msg.string()));
+        return ::testing::AssertionFailure(::testing::Message(msg.c_str()));
     }
     if (r >= 0 && abs(r - int(pixel[0])) > tolerance) {
         msg += String8::format("r(%d isn't %d)", pixel[0], r);
     }
     if (g >= 0 && abs(g - int(pixel[1])) > tolerance) {
-        if (!msg.isEmpty()) {
+        if (!msg.empty()) {
             msg += " ";
         }
         msg += String8::format("g(%d isn't %d)", pixel[1], g);
     }
     if (b >= 0 && abs(b - int(pixel[2])) > tolerance) {
-        if (!msg.isEmpty()) {
+        if (!msg.empty()) {
             msg += " ";
         }
         msg += String8::format("b(%d isn't %d)", pixel[2], b);
     }
     if (a >= 0 && abs(a - int(pixel[3])) > tolerance) {
-        if (!msg.isEmpty()) {
+        if (!msg.empty()) {
             msg += " ";
         }
         msg += String8::format("a(%d isn't %d)", pixel[3], a);
     }
-    if (!msg.isEmpty()) {
-        return ::testing::AssertionFailure(::testing::Message(msg.string()));
+    if (!msg.empty()) {
+        return ::testing::AssertionFailure(::testing::Message(msg.c_str()));
     } else {
         return ::testing::AssertionSuccess();
     }
@@ -215,29 +215,29 @@ EGLSurface GLTest::createWindowSurface(EGLDisplay display, EGLConfig config,
         msg += String8::format("left(%d isn't %d)", r1.left, r2.left);
     }
     if (abs(r1.top - r2.top) > tolerance) {
-        if (!msg.isEmpty()) {
+        if (!msg.empty()) {
             msg += " ";
         }
         msg += String8::format("top(%d isn't %d)", r1.top, r2.top);
     }
     if (abs(r1.right - r2.right) > tolerance) {
-        if (!msg.isEmpty()) {
+        if (!msg.empty()) {
             msg += " ";
         }
         msg += String8::format("right(%d isn't %d)", r1.right, r2.right);
     }
     if (abs(r1.bottom - r2.bottom) > tolerance) {
-        if (!msg.isEmpty()) {
+        if (!msg.empty()) {
             msg += " ";
         }
         msg += String8::format("bottom(%d isn't %d)", r1.bottom, r2.bottom);
     }
-    if (!msg.isEmpty()) {
+    if (!msg.empty()) {
         msg += String8::format(" R1: [%d %d %d %d] R2: [%d %d %d %d]",
                                r1.left, r1.top, r1.right, r1.bottom,
                                r2.left, r2.top, r2.right, r2.bottom);
-        fprintf(stderr, "assertRectEq: %s\n", msg.string());
-        return ::testing::AssertionFailure(::testing::Message(msg.string()));
+        fprintf(stderr, "assertRectEq: %s\n", msg.c_str());
+        return ::testing::AssertionFailure(::testing::Message(msg.c_str()));
     } else {
         return ::testing::AssertionSuccess();
     }

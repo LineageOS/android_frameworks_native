@@ -17,8 +17,6 @@
 #include <android/binder_status.h>
 #include "status_internal.h"
 
-#include <android-base/logging.h>
-
 using ::android::status_t;
 using ::android::statusToString;
 using ::android::binder::Status;
@@ -127,8 +125,8 @@ binder_status_t PruneStatusT(status_t status) {
             return STATUS_UNKNOWN_ERROR;
 
         default:
-            LOG(WARNING) << __func__ << ": Unknown status_t (" << statusToString(status)
-                         << ") pruned into STATUS_UNKNOWN_ERROR";
+            ALOGW("%s: Unknown status_t (%s) pruned into STATUS_UNKNOWN_ERROR", __func__,
+                  statusToString(status).c_str());
             return STATUS_UNKNOWN_ERROR;
     }
 }
@@ -159,8 +157,8 @@ binder_exception_t PruneException(int32_t exception) {
             return EX_TRANSACTION_FAILED;
 
         default:
-            LOG(WARNING) << __func__ << ": Unknown binder exception (" << exception
-                         << ") pruned into EX_TRANSACTION_FAILED";
+            ALOGW("%s: Unknown binder exception (%d) pruned into EX_TRANSACTION_FAILED", __func__,
+                  exception);
             return EX_TRANSACTION_FAILED;
     }
 }

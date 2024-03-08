@@ -41,10 +41,6 @@ struct RoundedCornerState {
     }
 };
 
-struct ChildState {
-    bool hasValidFrameRate = false;
-};
-
 // LayerSnapshot stores Layer state used by CompositionEngine and RenderEngine. Composition
 // Engine uses a pointer to LayerSnapshot (as LayerFECompositionState*) and the LayerSettings
 // passed to Render Engine are created using properties stored on this struct.
@@ -67,22 +63,20 @@ struct LayerSnapshot : public compositionengine::LayerFECompositionState {
     // generated from the same layer, for example when mirroring.
     int32_t sequence;
     std::string name;
-    uint32_t textureName;
+    std::string debugName;
     bool contentOpaque;
     bool layerOpaqueFlagSet;
     RoundedCornerState roundedCorner;
     FloatRect transformedBounds;
     Rect transformedBoundsWithoutTransparentRegion;
-    renderengine::ShadowSettings shadowSettings;
     bool premultipliedAlpha;
-    bool isHdrY410;
     ui::Transform parentTransform;
     Rect bufferSize;
     Rect croppedBufferSize;
     std::shared_ptr<renderengine::ExternalTexture> externalTexture;
     gui::LayerMetadata layerMetadata;
     gui::LayerMetadata relativeLayerMetadata;
-    bool hasReadyFrame;
+    bool hasReadyFrame; // used in post composition to check if there is another frame ready
     ui::Transform localTransformInverse;
     gui::WindowInfo inputInfo;
     ui::Transform localTransform;
@@ -90,15 +84,18 @@ struct LayerSnapshot : public compositionengine::LayerFECompositionState {
     bool isTrustedOverlay;
     gui::GameMode gameMode;
     scheduler::LayerInfo::FrameRate frameRate;
+    scheduler::LayerInfo::FrameRate inheritedFrameRate;
+    scheduler::LayerInfo::FrameRateSelectionStrategy frameRateSelectionStrategy;
+    scheduler::FrameRateCompatibility defaultFrameRateCompatibility =
+            scheduler::FrameRateCompatibility::Default;
     ui::Transform::RotationFlags fixedTransformHint;
     std::optional<ui::Transform::RotationFlags> transformHint;
     bool handleSkipScreenshotFlag = false;
-    int32_t frameRateSelectionPriority;
+    int32_t frameRateSelectionPriority = -1;
     LayerHierarchy::TraversalPath mirrorRootPath;
     uint32_t touchCropId;
     gui::Uid uid = gui::Uid::INVALID;
     gui::Pid pid = gui::Pid::INVALID;
-    ChildState childState;
     enum class Reachablilty : uint32_t {
         // Can traverse the hierarchy from a root node and reach this snapshot
         Reachable,
@@ -126,6 +123,8 @@ struct LayerSnapshot : public compositionengine::LayerFECompositionState {
         ReachableByRelativeParent
     };
     Reachablilty reachablilty;
+    // True when the surfaceDamage is recognized as a small area update.
+    bool isSmallDirty = false;
 
     static bool isOpaqueFormat(PixelFormat format);
     static bool isTransformValid(const ui::Transform& t);
@@ -144,8 +143,9 @@ struct LayerSnapshot : public compositionengine::LayerFECompositionState {
     std::string getIsVisibleReason() const;
     bool hasInputInfo() const;
     FloatRect sourceBounds() const;
+    bool isFrontBuffered() const;
     Hwc2::IComposerClient::BlendMode getBlendMode(const RequestedLayerState& requested) const;
-
+    friend std::ostream& operator<<(std::ostream& os, const LayerSnapshot& obj);
     void merge(const RequestedLayerState& requested, bool forceUpdate, bool displayChanges,
                bool forceFullDamage, uint32_t displayRotationFlags);
 };

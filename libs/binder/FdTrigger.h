@@ -17,11 +17,10 @@
 
 #include <memory>
 
-#include <android-base/result.h>
-#include <android-base/unique_fd.h>
 #include <utils/Errors.h>
 
 #include <binder/RpcTransport.h>
+#include <binder/unique_fd.h>
 
 namespace android {
 
@@ -62,8 +61,8 @@ private:
 #ifdef BINDER_RPC_SINGLE_THREADED
     bool mTriggered = false;
 #else
-    base::unique_fd mWrite;
-    base::unique_fd mRead;
+    binder::unique_fd mWrite;
+    binder::unique_fd mRead;
 #endif
 };
 } // namespace android

@@ -104,7 +104,7 @@ public:
         GL_UPDATED = 2,
         VULKAN = 3,
         VULKAN_UPDATED = 4,
-        ANGLE = 5,
+        ANGLE = 5, // cover both system ANGLE and ANGLE APK
     };
 
     enum Stats {

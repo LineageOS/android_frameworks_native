@@ -18,14 +18,22 @@
 #define LOG_TAG "HdrLayerInfoReporter"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
+#include <android-base/stringprintf.h>
+#include <inttypes.h>
 #include <utils/Trace.h>
 
 #include "HdrLayerInfoReporter.h"
 
 namespace android {
 
+using base::StringAppendF;
+
 void HdrLayerInfoReporter::dispatchHdrLayerInfo(const HdrLayerInfo& info) {
     ATRACE_CALL();
+    if (mHdrInfoHistory.size() == 0 || mHdrInfoHistory.back().info != info) {
+        mHdrInfoHistory.next() = EventHistoryEntry{info};
+    }
+
     std::vector<sp<gui::IHdrLayerInfoListener>> toInvoke;
     {
         std::scoped_lock lock(mMutex);
@@ -60,6 +68,17 @@ void HdrLayerInfoReporter::addListener(const sp<gui::IHdrLayerInfoListener>& lis
 void HdrLayerInfoReporter::removeListener(const sp<gui::IHdrLayerInfoListener>& listener) {
     std::lock_guard lock(mMutex);
     mListeners.erase(wp<IBinder>(IInterface::asBinder(listener)));
+}
+
+void HdrLayerInfoReporter::dump(std::string& result) const {
+    for (size_t i = 0; i < mHdrInfoHistory.size(); i++) {
+        const auto& event = mHdrInfoHistory[i];
+        const auto& info = event.info;
+        StringAppendF(&result,
+                      "%" PRId64 ": numHdrLayers(%d), size(%dx%d), flags(%X), desiredRatio(%.2f)\n",
+                      event.timestamp, info.numberOfHdrLayers, info.maxW, info.maxH, info.flags,
+                      info.maxDesiredHdrSdrRatio);
+    }
 }
 
 } // namespace android

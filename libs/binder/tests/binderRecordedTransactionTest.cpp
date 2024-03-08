@@ -20,7 +20,7 @@
 
 using android::Parcel;
 using android::status_t;
-using android::base::unique_fd;
+using android::binder::unique_fd;
 using android::binder::debug::RecordedTransaction;
 
 TEST(BinderRecordedTransaction, RoundTripEncoding) {

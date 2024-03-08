@@ -16,6 +16,9 @@ aidl_interface {
         "parcelables/SingleDataParcelable.aidl",
         "parcelables/GenericDataParcelable.aidl",
     ],
+    flags: [
+        "-Werror",
+    ],
     backend: {
         java: {
             enabled: true,
@@ -32,7 +35,11 @@ cc_fuzz {
     host_supported: true,
 
     fuzz_config: {
-        cc: ["smoreland@google.com"],
+        cc: [
+            "smoreland@google.com",
+            "waghpawan@google.com",
+        ],
+        use_for_presubmit: true,
     },
 
     srcs: [
@@ -103,4 +110,44 @@ cc_library_static {
     ],
     local_include_dirs: ["include_random_parcel"],
     export_include_dirs: ["include_random_parcel"],
+}
+
+cc_library {
+    name: "libbinder_random_parcel_seeds",
+    host_supported: true,
+    vendor_available: true,
+    target: {
+        darwin: {
+            enabled: false,
+        },
+    },
+    srcs: [
+        "random_parcel_seeds.cpp",
+    ],
+    shared_libs: [
+        "libbase",
+        "libbinder",
+        "libbinder_ndk",
+        "libcutils",
+        "libutils",
+    ],
+    local_include_dirs: [
+        "include_random_parcel_seeds",
+    ],
+    export_include_dirs: ["include_random_parcel_seeds"],
+}
+
+cc_binary_host {
+    name: "binder2corpus",
+    static_libs: [
+        "libbinder_random_parcel_seeds",
+    ],
+    srcs: [
+        "binder2corpus/binder2corpus.cpp",
+    ],
+    shared_libs: [
+        "libbase",
+        "libbinder",
+        "libutils",
+    ],
 }

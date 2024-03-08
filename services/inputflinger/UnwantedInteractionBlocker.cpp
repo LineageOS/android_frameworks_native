@@ -18,6 +18,7 @@
 #include "UnwantedInteractionBlocker.h"
 
 #include <android-base/stringprintf.h>
+#include <com_android_input_flags.h>
 #include <ftl/enum.h>
 #include <input/PrintTools.h>
 #include <inttypes.h>
@@ -27,6 +28,8 @@
 
 #include "ui/events/ozone/evdev/touch_filter/neural_stylus_palm_detection_filter.h"
 #include "ui/events/ozone/evdev/touch_filter/palm_model/onedevice_train_palm_detection_filter_model.h"
+
+namespace input_flags = com::android::input::flags;
 
 using android::base::StringPrintf;
 
@@ -63,6 +66,16 @@ const bool DEBUG_OUTBOUND_MOTION =
  */
 const bool DEBUG_MODEL =
         __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "Model", ANDROID_LOG_INFO);
+
+/**
+ * When multi-device input is enabled, we shouldn't use PreferStylusOverTouchBlocker at all.
+ * However, multi-device input has the following default behaviour: hovering stylus rejects touch.
+ * Therefore, if we want to disable that behaviour (and go back to a place where stylus down
+ * blocks touch, but hovering stylus doesn't interact with touch), we should just disable the entire
+ * multi-device input feature.
+ */
+const bool ENABLE_MULTI_DEVICE_INPUT = input_flags::enable_multi_device_input() &&
+        !input_flags::disable_reject_touch_on_stylus_hover();
 
 // Category (=namespace) name for the input settings that are applied at boot time
 static const char* INPUT_NATIVE_BOOT = "input_native_boot";
@@ -344,10 +357,14 @@ void UnwantedInteractionBlocker::notifyMotion(const NotifyMotionArgs& args) {
     ALOGD_IF(DEBUG_INBOUND_MOTION, "%s: %s", __func__, args.dump().c_str());
     { // acquire lock
         std::scoped_lock lock(mLock);
-        const std::vector<NotifyMotionArgs> processedArgs =
-                mPreferStylusOverTouchBlocker.processMotion(args);
-        for (const NotifyMotionArgs& loopArgs : processedArgs) {
-            notifyMotionLocked(loopArgs);
+        if (ENABLE_MULTI_DEVICE_INPUT) {
+            notifyMotionLocked(args);
+        } else {
+            const std::vector<NotifyMotionArgs> processedArgs =
+                    mPreferStylusOverTouchBlocker.processMotion(args);
+            for (const NotifyMotionArgs& loopArgs : processedArgs) {
+                notifyMotionLocked(loopArgs);
+            }
         }
     } // release lock
 

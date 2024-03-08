@@ -60,7 +60,7 @@ public:
     void prepareFrame(bool usesClientComposition, bool usesDeviceComposition) override;
     std::shared_ptr<renderengine::ExternalTexture> dequeueBuffer(
             base::unique_fd* bufferFence) override;
-    void queueBuffer(base::unique_fd readyFence) override;
+    void queueBuffer(base::unique_fd readyFence, float hdrSdrRatio) override;
     void onPresentDisplayCompleted() override;
     bool supportsCompositionStrategyPrediction() const override;
 

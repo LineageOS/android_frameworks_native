@@ -27,11 +27,14 @@
 #include "Access.h"
 #include "ServiceManager.h"
 
-using android::sp;
 using android::Access;
 using android::BBinder;
 using android::IBinder;
 using android::ServiceManager;
+using android::sp;
+using android::base::EndsWith;
+using android::base::GetProperty;
+using android::base::StartsWith;
 using android::binder::Status;
 using android::os::BnServiceCallback;
 using android::os::IServiceManager;
@@ -62,7 +65,7 @@ public:
 class MockServiceManager : public ServiceManager {
  public:
     MockServiceManager(std::unique_ptr<Access>&& access) : ServiceManager(std::move(access)) {}
-    MOCK_METHOD1(tryStartService, void(const std::string& name));
+    MOCK_METHOD2(tryStartService, void(const Access::CallingContext&, const std::string& name));
 };
 
 static sp<ServiceManager> getPermissiveServiceManager() {
@@ -77,9 +80,11 @@ static sp<ServiceManager> getPermissiveServiceManager() {
     return sm;
 }
 
-static bool isCuttlefish() {
-    return android::base::StartsWith(android::base::GetProperty("ro.product.vendor.device", ""),
-                                     "vsoc_");
+// Determines if test device is a cuttlefish phone device
+static bool isCuttlefishPhone() {
+    auto device = GetProperty("ro.product.vendor.device", "");
+    auto product = GetProperty("ro.product.vendor.name", "");
+    return StartsWith(device, "vsoc_") && EndsWith(product, "_phone");
 }
 
 TEST(AddService, HappyHappy) {
@@ -314,7 +319,7 @@ TEST(ListServices, CriticalServices) {
 }
 
 TEST(Vintf, UpdatableViaApex) {
-    if (!isCuttlefish()) GTEST_SKIP() << "Skipping non-Cuttlefish devices";
+    if (!isCuttlefishPhone()) GTEST_SKIP() << "Skipping non-Cuttlefish-phone devices";
 
     auto sm = getPermissiveServiceManager();
     std::optional<std::string> updatableViaApex;
@@ -326,7 +331,7 @@ TEST(Vintf, UpdatableViaApex) {
 }
 
 TEST(Vintf, UpdatableViaApex_InvalidNameReturnsNullOpt) {
-    if (!isCuttlefish()) GTEST_SKIP() << "Skipping non-Cuttlefish devices";
+    if (!isCuttlefishPhone()) GTEST_SKIP() << "Skipping non-Cuttlefish-phone devices";
 
     auto sm = getPermissiveServiceManager();
     std::optional<std::string> updatableViaApex;
@@ -337,7 +342,7 @@ TEST(Vintf, UpdatableViaApex_InvalidNameReturnsNullOpt) {
 }
 
 TEST(Vintf, GetUpdatableNames) {
-    if (!isCuttlefish()) GTEST_SKIP() << "Skipping non-Cuttlefish devices";
+    if (!isCuttlefishPhone()) GTEST_SKIP() << "Skipping non-Cuttlefish-phone devices";
 
     auto sm = getPermissiveServiceManager();
     std::vector<std::string> names;
@@ -348,7 +353,7 @@ TEST(Vintf, GetUpdatableNames) {
 }
 
 TEST(Vintf, GetUpdatableNames_InvalidApexNameReturnsEmpty) {
-    if (!isCuttlefish()) GTEST_SKIP() << "Skipping non-Cuttlefish devices";
+    if (!isCuttlefishPhone()) GTEST_SKIP() << "Skipping non-Cuttlefish-phone devices";
 
     auto sm = getPermissiveServiceManager();
     std::vector<std::string> names;

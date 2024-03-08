@@ -59,12 +59,6 @@ cc_library_shared {
         "-Wunreachable-code",
     ],
 
-    // FIXME: Workaround LTO build breakage
-    // http://b/241699694
-    lto: {
-        never: true,
-    },
-
     local_include_dirs: ["include"],
 
     export_include_dirs: ["include"],

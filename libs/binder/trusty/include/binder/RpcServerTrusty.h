@@ -16,13 +16,11 @@
 
 #pragma once
 
-#include <android-base/expected.h>
-#include <android-base/macros.h>
-#include <android-base/unique_fd.h>
 #include <binder/IBinder.h>
 #include <binder/RpcServer.h>
 #include <binder/RpcSession.h>
 #include <binder/RpcTransport.h>
+#include <binder/unique_fd.h>
 #include <utils/Errors.h>
 #include <utils/RefBase.h>
 
@@ -54,19 +52,22 @@ public:
      * The caller is responsible for calling tipc_run_event_loop() to start
      * the TIPC event loop after creating one or more services here.
      */
-    static android::base::expected<sp<RpcServerTrusty>, int> make(
+    static sp<RpcServerTrusty> make(
             tipc_hset* handleSet, std::string&& portName, std::shared_ptr<const PortAcl>&& portAcl,
             size_t msgMaxSize,
             std::unique_ptr<RpcTransportCtxFactory> rpcTransportCtxFactory = nullptr);
 
-    void setProtocolVersion(uint32_t version) { mRpcServer->setProtocolVersion(version); }
+    [[nodiscard]] bool setProtocolVersion(uint32_t version) {
+        return mRpcServer->setProtocolVersion(version);
+    }
     void setSupportedFileDescriptorTransportModes(
             const std::vector<RpcSession::FileDescriptorTransportMode>& modes) {
         mRpcServer->setSupportedFileDescriptorTransportModes(modes);
     }
     void setRootObject(const sp<IBinder>& binder) { mRpcServer->setRootObject(binder); }
     void setRootObjectWeak(const wp<IBinder>& binder) { mRpcServer->setRootObjectWeak(binder); }
-    void setPerSessionRootObject(std::function<sp<IBinder>(const void*, size_t)>&& object) {
+    void setPerSessionRootObject(
+            std::function<sp<IBinder>(wp<RpcSession> session, const void*, size_t)>&& object) {
         mRpcServer->setPerSessionRootObject(std::move(object));
     }
     sp<IBinder> getRootObject() { return mRpcServer->getRootObject(); }
@@ -80,7 +81,8 @@ private:
     // Both this class and RpcServer have multiple non-copyable fields,
     // including mPortAcl below which can't be copied because mUuidPtrs
     // holds pointers into it
-    DISALLOW_COPY_AND_ASSIGN(RpcServerTrusty);
+    RpcServerTrusty(const RpcServerTrusty&) = delete;
+    void operator=(const RpcServerTrusty&) = delete;
 
     friend sp<RpcServerTrusty>;
     explicit RpcServerTrusty(std::unique_ptr<RpcTransportCtx> ctx, std::string&& portName,

@@ -22,6 +22,7 @@
 #include <binder/IServiceManager.h>
 
 #include "fakeservicemanager/FakeServiceManager.h"
+#include "rust/wrappers/FakeServiceManagerWrapper.hpp"
 
 using android::sp;
 using android::BBinder;
@@ -31,6 +32,7 @@ using android::status_t;
 using android::FakeServiceManager;
 using android::String16;
 using android::IServiceManager;
+using android::defaultServiceManager;
 using testing::ElementsAre;
 
 static sp<IBinder> getBinder() {
@@ -83,7 +85,7 @@ TEST(GetService, HappyHappy) {
     EXPECT_EQ(sm->getService(String16("foo")), service);
 }
 
-TEST(GetService, NonExistant) {
+TEST(GetService, NonExistent) {
     auto sm = new FakeServiceManager();
 
     EXPECT_EQ(sm->getService(String16("foo")), nullptr);
@@ -108,7 +110,7 @@ TEST(ListServices, AllServices) {
         String16("sd")));
 }
 
-TEST(WaitForService, NonExistant) {
+TEST(WaitForService, NonExistent) {
     auto sm = new FakeServiceManager();
 
     EXPECT_EQ(sm->waitForService(String16("foo")), nullptr);
@@ -124,7 +126,7 @@ TEST(WaitForService, HappyHappy) {
     EXPECT_EQ(sm->waitForService(String16("foo")), service);
 }
 
-TEST(IsDeclared, NonExistant) {
+TEST(IsDeclared, NonExistent) {
     auto sm = new FakeServiceManager();
 
     EXPECT_FALSE(sm->isDeclared(String16("foo")));
@@ -138,4 +140,32 @@ TEST(IsDeclared, HappyHappy) {
         IServiceManager::DUMP_FLAG_PRIORITY_DEFAULT), OK);
 
     EXPECT_TRUE(sm->isDeclared(String16("foo")));
+}
+
+TEST(SetupFakeServiceManager, NonExistent) {
+    setupFakeServiceManager();
+
+    EXPECT_EQ(defaultServiceManager()->getService(String16("foo")), nullptr);
+}
+
+TEST(SetupFakeServiceManager, GetExistingService) {
+    setupFakeServiceManager();
+    sp<IBinder> service = getBinder();
+
+    EXPECT_EQ(defaultServiceManager()->addService(String16("foo"), service, false /*allowIsolated*/,
+    IServiceManager::DUMP_FLAG_PRIORITY_DEFAULT), OK);
+
+    EXPECT_EQ(defaultServiceManager()->getService(String16("foo")), service);
+    clearFakeServiceManager();
+}
+
+TEST(ClearFakeServiceManager, GetServiceAfterClear) {
+    setupFakeServiceManager();
+
+    sp<IBinder> service = getBinder();
+    EXPECT_EQ(defaultServiceManager()->addService(String16("foo"), service, false /*allowIsolated*/,
+    IServiceManager::DUMP_FLAG_PRIORITY_DEFAULT), OK);
+
+    clearFakeServiceManager();
+    EXPECT_EQ(defaultServiceManager()->getService(String16("foo")), nullptr);
 }

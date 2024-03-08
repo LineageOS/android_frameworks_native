@@ -66,8 +66,8 @@ public:
                 ((std::unordered_map<Layer *, android::sp<android::Fence>> *)), (const, override));
     MOCK_METHOD(hal::Error, present, (android::sp<android::Fence> *), (override));
     MOCK_METHOD(hal::Error, setClientTarget,
-                (uint32_t, const android::sp<android::GraphicBuffer> &,
-                 const android::sp<android::Fence> &, hal::Dataspace),
+                (uint32_t, const android::sp<android::GraphicBuffer>&,
+                 const android::sp<android::Fence>&, hal::Dataspace, float),
                 (override));
     MOCK_METHOD(hal::Error, setColorMode, (hal::ColorMode, hal::RenderIntent), (override));
     MOCK_METHOD(hal::Error, setColorTransform, (const android::mat4 &), (override));
@@ -76,9 +76,9 @@ public:
                 (override));
     MOCK_METHOD(hal::Error, setPowerMode, (hal::PowerMode), (override));
     MOCK_METHOD(hal::Error, setVsyncEnabled, (hal::Vsync), (override));
-    MOCK_METHOD(hal::Error, validate, (nsecs_t, uint32_t *, uint32_t *), (override));
+    MOCK_METHOD(hal::Error, validate, (nsecs_t, int32_t, uint32_t*, uint32_t*), (override));
     MOCK_METHOD(hal::Error, presentOrValidate,
-                (nsecs_t, uint32_t *, uint32_t *, android::sp<android::Fence> *, uint32_t *),
+                (nsecs_t, int32_t, uint32_t*, uint32_t*, android::sp<android::Fence>*, uint32_t*),
                 (override));
     MOCK_METHOD(ftl::Future<hal::Error>, setDisplayBrightness,
                 (float, float, const Hwc2::Composer::DisplayBrightnessOptions &), (override));

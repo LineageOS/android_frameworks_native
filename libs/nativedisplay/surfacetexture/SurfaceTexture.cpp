@@ -23,13 +23,15 @@
 #include <system/window.h>
 #include <utils/Trace.h>
 
+#include <com_android_graphics_libgui_flags.h>
+
 namespace android {
 
 // Macros for including the SurfaceTexture name in log messages
-#define SFT_LOGV(x, ...) ALOGV("[%s] " x, mName.string(), ##__VA_ARGS__)
-#define SFT_LOGD(x, ...) ALOGD("[%s] " x, mName.string(), ##__VA_ARGS__)
-#define SFT_LOGW(x, ...) ALOGW("[%s] " x, mName.string(), ##__VA_ARGS__)
-#define SFT_LOGE(x, ...) ALOGE("[%s] " x, mName.string(), ##__VA_ARGS__)
+#define SFT_LOGV(x, ...) ALOGV("[%s] " x, mName.c_str(), ##__VA_ARGS__)
+#define SFT_LOGD(x, ...) ALOGD("[%s] " x, mName.c_str(), ##__VA_ARGS__)
+#define SFT_LOGW(x, ...) ALOGW("[%s] " x, mName.c_str(), ##__VA_ARGS__)
+#define SFT_LOGE(x, ...) ALOGE("[%s] " x, mName.c_str(), ##__VA_ARGS__)
 
 static const mat4 mtxIdentity;
 
@@ -490,5 +492,43 @@ sp<GraphicBuffer> SurfaceTexture::dequeueBuffer(int* outSlotid, android_dataspac
     *currentCrop = mCurrentCrop;
     return buffer;
 }
+
+void SurfaceTexture::setSurfaceTextureListener(
+        const sp<android::SurfaceTexture::SurfaceTextureListener>& listener) {
+    SFT_LOGV("setSurfaceTextureListener");
+
+    Mutex::Autolock _l(mMutex);
+    mSurfaceTextureListener = listener;
+    if (mSurfaceTextureListener != nullptr) {
+        mFrameAvailableListenerProxy =
+                sp<FrameAvailableListenerProxy>::make(mSurfaceTextureListener);
+        setFrameAvailableListener(mFrameAvailableListenerProxy);
+    } else {
+        mFrameAvailableListenerProxy.clear();
+    }
+}
+
+void SurfaceTexture::FrameAvailableListenerProxy::onFrameAvailable(const BufferItem& item) {
+    const auto listener = mSurfaceTextureListener.promote();
+    if (listener) {
+        listener->onFrameAvailable(item);
+    }
+}
+
+#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(BQ_SETFRAMERATE)
+void SurfaceTexture::onSetFrameRate(float frameRate, int8_t compatibility,
+                                    int8_t changeFrameRateStrategy) {
+    SFT_LOGV("onSetFrameRate: %.2f", frameRate);
+
+    auto listener = [&] {
+        Mutex::Autolock _l(mMutex);
+        return mSurfaceTextureListener;
+    }();
+
+    if (listener) {
+        listener->onSetFrameRate(frameRate, compatibility, changeFrameRateStrategy);
+    }
+}
+#endif
 
 } // namespace android

@@ -41,24 +41,53 @@ namespace android {
 /*
  * EGL userspace drivers must be provided either:
  * - as a single library:
- *      /vendor/lib/egl/libGLES.so
+ *      /vendor/${LIB}/egl/libGLES.so
  *
  * - as separate libraries:
- *      /vendor/lib/egl/libEGL.so
- *      /vendor/lib/egl/libGLESv1_CM.so
- *      /vendor/lib/egl/libGLESv2.so
+ *      /vendor/${LIB}/egl/libEGL.so
+ *      /vendor/${LIB}/egl/libGLESv1_CM.so
+ *      /vendor/${LIB}/egl/libGLESv2.so
  *
  * For backward compatibility and to facilitate the transition to
  * this new naming scheme, the loader will additionally look for:
  *
- *      /{vendor|system}/lib/egl/lib{GLES | [EGL|GLESv1_CM|GLESv2]}_*.so
+ *      /vendor/${LIB}/egl/lib{GLES | [EGL|GLESv1_CM|GLESv2]}_${SUFFIX}.so
  *
  */
 
-Loader& Loader::getInstance() {
-    static Loader loader;
-    return loader;
-}
+#ifndef SYSTEM_LIB_PATH
+#if defined(__LP64__)
+#define SYSTEM_LIB_PATH "/system/lib64"
+#else
+#define SYSTEM_LIB_PATH "/system/lib"
+#endif
+#endif
+
+static const char* PERSIST_DRIVER_SUFFIX_PROPERTY = "persist.graphics.egl";
+static const char* RO_DRIVER_SUFFIX_PROPERTY = "ro.hardware.egl";
+static const char* RO_BOARD_PLATFORM_PROPERTY = "ro.board.platform";
+static const char* ANGLE_SUFFIX_VALUE = "angle";
+static const char* VENDOR_ANGLE_BUILD = "ro.gfx.angle.supported";
+
+static const char* HAL_SUBNAME_KEY_PROPERTIES[3] = {
+        PERSIST_DRIVER_SUFFIX_PROPERTY,
+        RO_DRIVER_SUFFIX_PROPERTY,
+        RO_BOARD_PLATFORM_PROPERTY,
+};
+
+static const char* const VENDOR_LIB_EGL_DIR =
+#if defined(__LP64__)
+        "/vendor/lib64/egl";
+#else
+        "/vendor/lib/egl";
+#endif
+
+static const char* const SYSTEM_LIB_DIR =
+#if defined(__LP64__)
+        "/system/lib64";
+#else
+        "/system/lib";
+#endif
 
 static void* do_dlopen(const char* path, int mode) {
     ATRACE_CALL();
@@ -78,6 +107,17 @@ static void* do_android_load_sphal_library(const char* path, int mode) {
 static int do_android_unload_sphal_library(void* dso) {
     ATRACE_CALL();
     return android_unload_sphal_library(dso);
+}
+
+static void* load_wrapper(const char* path) {
+    void* so = do_dlopen(path, RTLD_NOW | RTLD_LOCAL);
+    ALOGE_IF(!so, "dlopen(\"%s\") failed: %s", path, dlerror());
+    return so;
+}
+
+Loader& Loader::getInstance() {
+    static Loader loader;
+    return loader;
 }
 
 Loader::driver_t::driver_t(void* gles)
@@ -122,30 +162,6 @@ Loader::Loader()
 
 Loader::~Loader() {
 }
-
-static void* load_wrapper(const char* path) {
-    void* so = do_dlopen(path, RTLD_NOW | RTLD_LOCAL);
-    ALOGE_IF(!so, "dlopen(\"%s\") failed: %s", path, dlerror());
-    return so;
-}
-
-#ifndef EGL_WRAPPER_DIR
-#if defined(__LP64__)
-#define EGL_WRAPPER_DIR "/system/lib64"
-#else
-#define EGL_WRAPPER_DIR "/system/lib"
-#endif
-#endif
-
-static const char* PERSIST_DRIVER_SUFFIX_PROPERTY = "persist.graphics.egl";
-static const char* RO_DRIVER_SUFFIX_PROPERTY = "ro.hardware.egl";
-static const char* RO_BOARD_PLATFORM_PROPERTY = "ro.board.platform";
-
-static const char* HAL_SUBNAME_KEY_PROPERTIES[3] = {
-        PERSIST_DRIVER_SUFFIX_PROPERTY,
-        RO_DRIVER_SUFFIX_PROPERTY,
-        RO_BOARD_PLATFORM_PROPERTY,
-};
 
 // Check whether the loaded system drivers should be unloaded in order to
 // load ANGLE or the updatable graphics drivers.
@@ -323,13 +339,13 @@ void* Loader::open(egl_connection_t* cnx) {
                         HAL_SUBNAME_KEY_PROPERTIES[2]);
 
     if (!cnx->libEgl) {
-        cnx->libEgl = load_wrapper(EGL_WRAPPER_DIR "/libEGL.so");
+        cnx->libEgl = load_wrapper(SYSTEM_LIB_PATH "/libEGL.so");
     }
     if (!cnx->libGles1) {
-        cnx->libGles1 = load_wrapper(EGL_WRAPPER_DIR "/libGLESv1_CM.so");
+        cnx->libGles1 = load_wrapper(SYSTEM_LIB_PATH "/libGLESv1_CM.so");
     }
     if (!cnx->libGles2) {
-        cnx->libGles2 = load_wrapper(EGL_WRAPPER_DIR "/libGLESv2.so");
+        cnx->libGles2 = load_wrapper(SYSTEM_LIB_PATH "/libGLESv2.so");
     }
 
     if (!cnx->libEgl || !cnx->libGles2 || !cnx->libGles1) {
@@ -427,110 +443,110 @@ void Loader::init_api(void* dso,
     }
 }
 
+static std::string findLibrary(const std::string libraryName, const std::string searchPath,
+                               const bool exact) {
+    if (exact) {
+        std::string absolutePath = searchPath + "/" + libraryName + ".so";
+        if (!access(absolutePath.c_str(), R_OK)) {
+            return absolutePath;
+        }
+        return std::string();
+    }
+
+    DIR* d = opendir(searchPath.c_str());
+    if (d != nullptr) {
+        struct dirent* e;
+        while ((e = readdir(d)) != nullptr) {
+            if (e->d_type == DT_DIR) {
+                continue;
+            }
+            if (!strcmp(e->d_name, "libGLES_android.so")) {
+                // always skip the software renderer
+                continue;
+            }
+            if (strstr(e->d_name, libraryName.c_str()) == e->d_name) {
+                if (!strcmp(e->d_name + strlen(e->d_name) - 3, ".so")) {
+                    std::string result = searchPath + "/" + e->d_name;
+                    closedir(d);
+                    return result;
+                }
+            }
+        }
+        closedir(d);
+    }
+    // Driver not found. gah.
+    return std::string();
+}
+
 static void* load_system_driver(const char* kind, const char* suffix, const bool exact) {
     ATRACE_CALL();
-    class MatchFile {
-    public:
-        static std::string find(const char* libraryName, const bool exact) {
-            const char* const searchPaths[] = {
-#if defined(__LP64__)
-                    "/vendor/lib64/egl",
-                    "/system/lib64/egl"
-#else
-                    "/vendor/lib/egl",
-                    "/system/lib/egl"
-#endif
-            };
-
-            for (auto dir : searchPaths) {
-                std::string absolutePath;
-                if (find(absolutePath, libraryName, dir, exact)) {
-                    return absolutePath;
-                }
-            }
-
-            // Driver not found. gah.
-            return std::string();
-        }
-    private:
-        static bool find(std::string& result,
-                const std::string& pattern, const char* const search, bool exact) {
-            if (exact) {
-                std::string absolutePath = std::string(search) + "/" + pattern + ".so";
-                if (!access(absolutePath.c_str(), R_OK)) {
-                    result = absolutePath;
-                    return true;
-                }
-                return false;
-            }
-
-            DIR* d = opendir(search);
-            if (d != nullptr) {
-                struct dirent* e;
-                while ((e = readdir(d)) != nullptr) {
-                    if (e->d_type == DT_DIR) {
-                        continue;
-                    }
-                    if (!strcmp(e->d_name, "libGLES_android.so")) {
-                        // always skip the software renderer
-                        continue;
-                    }
-                    if (strstr(e->d_name, pattern.c_str()) == e->d_name) {
-                        if (!strcmp(e->d_name + strlen(e->d_name) - 3, ".so")) {
-                            result = std::string(search) + "/" + e->d_name;
-                            closedir(d);
-                            return true;
-                        }
-                    }
-                }
-                closedir(d);
-            }
-            return false;
-        }
-    };
 
     std::string libraryName = std::string("lib") + kind;
     if (suffix) {
         libraryName += std::string("_") + suffix;
     } else if (!exact) {
-        // Deprecated: we look for files that match
-        //      libGLES_*.so, or:
+        // Deprecated for devices launching in Android 14
+        // Look for files that match
+        //      libGLES_*.so, or,
         //      libEGL_*.so, libGLESv1_CM_*.so, libGLESv2_*.so
         libraryName += std::string("_");
     }
-    std::string absolutePath = MatchFile::find(libraryName.c_str(), exact);
+
+    void* dso = nullptr;
+
+    const bool AngleInVendor = property_get_bool(VENDOR_ANGLE_BUILD, false);
+    const bool isSuffixAngle = suffix != nullptr && strcmp(suffix, ANGLE_SUFFIX_VALUE) == 0;
+    // Only use sphal namespace when system ANGLE binaries are not the default drivers.
+    const bool useSphalNamespace =  !isSuffixAngle || AngleInVendor;
+
+    const std::string absolutePath =
+            findLibrary(libraryName, useSphalNamespace ? VENDOR_LIB_EGL_DIR : SYSTEM_LIB_PATH,
+                        exact);
     if (absolutePath.empty()) {
         // this happens often, we don't want to log an error
         return nullptr;
     }
-    const char* const driver_absolute_path = absolutePath.c_str();
+    const char* const driverAbsolutePath = absolutePath.c_str();
 
-    // Try to load drivers from the 'sphal' namespace, if it exist. Fall back to
-    // the original routine when the namespace does not exist.
-    // See /system/core/rootdir/etc/ld.config.txt for the configuration of the
-    // sphal namespace.
-    void* dso = do_android_load_sphal_library(driver_absolute_path,
-                                              RTLD_NOW | RTLD_LOCAL);
+    // Currently the default driver is unlikely to be ANGLE on most devices,
+    // hence put this first.
+    if (useSphalNamespace) {
+        // Try to load drivers from the 'sphal' namespace, if it exist. Fall back to
+        // the original routine when the namespace does not exist.
+        // See /system/linkerconfig/contents/namespace for the configuration of the
+        // sphal namespace.
+        dso = do_android_load_sphal_library(driverAbsolutePath, RTLD_NOW | RTLD_LOCAL);
+    } else {
+        // Try to load drivers from the default namespace.
+        // See /system/linkerconfig/contents/namespace for the configuration of the
+        // default namespace.
+        dso = do_dlopen(driverAbsolutePath, RTLD_NOW | RTLD_LOCAL);
+    }
+
     if (dso == nullptr) {
         const char* err = dlerror();
-        ALOGE("load_driver(%s): %s", driver_absolute_path, err ? err : "unknown");
+        ALOGE("load_driver(%s): %s", driverAbsolutePath, err ? err : "unknown");
         return nullptr;
     }
 
-    ALOGD("loaded %s", driver_absolute_path);
+    ALOGV("loaded %s", driverAbsolutePath);
 
     return dso;
 }
 
 static void* load_angle(const char* kind, android_namespace_t* ns) {
-    const android_dlextinfo dlextinfo = {
-            .flags = ANDROID_DLEXT_USE_NAMESPACE,
-            .library_namespace = ns,
-    };
-
     std::string name = std::string("lib") + kind + "_angle.so";
+    void* so = nullptr;
 
-    void* so = do_android_dlopen_ext(name.c_str(), RTLD_LOCAL | RTLD_NOW, &dlextinfo);
+    if (android::GraphicsEnv::getInstance().shouldUseSystemAngle()) {
+        so = do_dlopen(name.c_str(), RTLD_NOW | RTLD_LOCAL);
+    } else {
+        const android_dlextinfo dlextinfo = {
+                .flags = ANDROID_DLEXT_USE_NAMESPACE,
+                .library_namespace = ns,
+        };
+        so = do_android_dlopen_ext(name.c_str(), RTLD_LOCAL | RTLD_NOW, &dlextinfo);
+    }
 
     if (so) {
         return so;
@@ -568,10 +584,14 @@ Loader::driver_t* Loader::attempt_to_load_angle(egl_connection_t* cnx) {
     ATRACE_CALL();
 
     android_namespace_t* ns = android::GraphicsEnv::getInstance().getAngleNamespace();
-    if (!ns) {
+    // ANGLE namespace is used for loading ANGLE from apk, and hence if namespace is not
+    // constructed, it means ANGLE apk is not set to be the OpenGL ES driver.
+    // Hence skip if ANGLE apk and system ANGLE are not set to be the OpenGL ES driver.
+    if (!ns && !android::GraphicsEnv::getInstance().shouldUseSystemAngle()) {
         return nullptr;
     }
 
+    // use ANGLE APK driver
     android::GraphicsEnv::getInstance().setDriverToLoad(android::GpuStatsInfo::Driver::ANGLE);
     driver_t* hnd = nullptr;
 
@@ -593,10 +613,13 @@ Loader::driver_t* Loader::attempt_to_load_angle(egl_connection_t* cnx) {
 }
 
 void Loader::attempt_to_init_angle_backend(void* dso, egl_connection_t* cnx) {
-    void* pANGLEGetDisplayPlatform = dlsym(dso, "ANGLEGetDisplayPlatform");
-    if (pANGLEGetDisplayPlatform) {
+    cnx->angleGetDisplayPlatformFunc = dlsym(dso, "ANGLEGetDisplayPlatform");
+    cnx->angleResetDisplayPlatformFunc = dlsym(dso, "ANGLEResetDisplayPlatform");
+
+    if (cnx->angleGetDisplayPlatformFunc) {
         ALOGV("ANGLE GLES library loaded");
         cnx->angleLoaded = true;
+        android::GraphicsEnv::getInstance().setDriverToLoad(android::GpuStatsInfo::Driver::ANGLE);
     } else {
         ALOGV("Native GLES library loaded");
         cnx->angleLoaded = false;
@@ -640,7 +663,13 @@ Loader::driver_t* Loader::attempt_to_load_updated_driver(egl_connection_t* cnx) 
 Loader::driver_t* Loader::attempt_to_load_system_driver(egl_connection_t* cnx, const char* suffix,
                                                         const bool exact) {
     ATRACE_CALL();
-    android::GraphicsEnv::getInstance().setDriverToLoad(android::GpuStatsInfo::Driver::GL);
+    if (suffix && strcmp(suffix, "angle") == 0) {
+        // use system ANGLE driver
+        android::GraphicsEnv::getInstance().setDriverToLoad(android::GpuStatsInfo::Driver::ANGLE);
+    } else {
+        android::GraphicsEnv::getInstance().setDriverToLoad(android::GpuStatsInfo::Driver::GL);
+    }
+
     driver_t* hnd = nullptr;
     void* dso = load_system_driver("GLES", suffix, exact);
     if (dso) {

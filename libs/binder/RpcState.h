@@ -15,11 +15,12 @@
  */
 #pragma once
 
-#include <android-base/unique_fd.h>
+#include <binder/Functional.h>
 #include <binder/IBinder.h>
 #include <binder/Parcel.h>
 #include <binder/RpcSession.h>
 #include <binder/RpcThreads.h>
+#include <binder/unique_fd.h>
 
 #include <map>
 #include <optional>
@@ -62,6 +63,8 @@ class RpcState {
 public:
     RpcState();
     ~RpcState();
+
+    [[nodiscard]] static bool validateProtocolVersion(uint32_t version);
 
     [[nodiscard]] status_t readNewSessionResponse(const sp<RpcSession::RpcConnection>& connection,
                                                   const sp<RpcSession>& session, uint32_t* version);
@@ -188,28 +191,29 @@ private:
     [[nodiscard]] status_t rpcSend(
             const sp<RpcSession::RpcConnection>& connection, const sp<RpcSession>& session,
             const char* what, iovec* iovs, int niovs,
-            const std::optional<android::base::function_ref<status_t()>>& altPoll,
-            const std::vector<std::variant<base::unique_fd, base::borrowed_fd>>* ancillaryFds =
+            const std::optional<binder::impl::SmallFunction<status_t()>>& altPoll,
+            const std::vector<std::variant<binder::unique_fd, binder::borrowed_fd>>* ancillaryFds =
                     nullptr);
-    [[nodiscard]] status_t rpcRec(
-            const sp<RpcSession::RpcConnection>& connection, const sp<RpcSession>& session,
-            const char* what, iovec* iovs, int niovs,
-            std::vector<std::variant<base::unique_fd, base::borrowed_fd>>* ancillaryFds = nullptr);
+    [[nodiscard]] status_t rpcRec(const sp<RpcSession::RpcConnection>& connection,
+                                  const sp<RpcSession>& session, const char* what, iovec* iovs,
+                                  int niovs,
+                                  std::vector<std::variant<binder::unique_fd, binder::borrowed_fd>>*
+                                          ancillaryFds = nullptr);
 
     [[nodiscard]] status_t waitForReply(const sp<RpcSession::RpcConnection>& connection,
                                         const sp<RpcSession>& session, Parcel* reply);
     [[nodiscard]] status_t processCommand(
             const sp<RpcSession::RpcConnection>& connection, const sp<RpcSession>& session,
             const RpcWireHeader& command, CommandType type,
-            std::vector<std::variant<base::unique_fd, base::borrowed_fd>>&& ancillaryFds);
+            std::vector<std::variant<binder::unique_fd, binder::borrowed_fd>>&& ancillaryFds);
     [[nodiscard]] status_t processTransact(
             const sp<RpcSession::RpcConnection>& connection, const sp<RpcSession>& session,
             const RpcWireHeader& command,
-            std::vector<std::variant<base::unique_fd, base::borrowed_fd>>&& ancillaryFds);
+            std::vector<std::variant<binder::unique_fd, binder::borrowed_fd>>&& ancillaryFds);
     [[nodiscard]] status_t processTransactInternal(
             const sp<RpcSession::RpcConnection>& connection, const sp<RpcSession>& session,
             CommandData transactionData,
-            std::vector<std::variant<base::unique_fd, base::borrowed_fd>>&& ancillaryFds);
+            std::vector<std::variant<binder::unique_fd, binder::borrowed_fd>>&& ancillaryFds);
     [[nodiscard]] status_t processDecStrong(const sp<RpcSession::RpcConnection>& connection,
                                             const sp<RpcSession>& session,
                                             const RpcWireHeader& command);
@@ -251,7 +255,7 @@ private:
         struct AsyncTodo {
             sp<IBinder> ref;
             CommandData data;
-            std::vector<std::variant<base::unique_fd, base::borrowed_fd>> ancillaryFds;
+            std::vector<std::variant<binder::unique_fd, binder::borrowed_fd>> ancillaryFds;
             uint64_t asyncNumber = 0;
 
             bool operator<(const AsyncTodo& o) const {

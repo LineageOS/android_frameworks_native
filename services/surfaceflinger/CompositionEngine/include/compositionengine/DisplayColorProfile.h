@@ -36,7 +36,7 @@ class HdrCapabilities;
 namespace compositionengine {
 
 /**
- * Encapsulates all the state and functionality for how colors should be
+ * Encapsulates all the states and functionality for how colors should be
  * transformed for a display
  */
 class DisplayColorProfile {
@@ -86,10 +86,6 @@ public:
 
     // Returns true if HWC for this profile supports the dataspace
     virtual bool isDataspaceSupported(ui::Dataspace) const = 0;
-
-    // Returns the target dataspace for picked color mode and dataspace
-    virtual ui::Dataspace getTargetDataspace(ui::ColorMode, ui::Dataspace,
-                                             ui::Dataspace colorSpaceAgnosticDataspace) const = 0;
 
     // Debugging
     virtual void dump(std::string&) const = 0;

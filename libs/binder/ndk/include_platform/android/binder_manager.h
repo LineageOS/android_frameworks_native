@@ -120,7 +120,7 @@ binder_status_t AServiceManager_registerLazyService(AIBinder* binder, const char
 
 /**
  * Gets a binder object with this specific instance name. Efficiently waits for the service.
- * If the service is not declared, it will wait indefinitely. Requires the threadpool
+ * If the service is not ever registered, it will wait indefinitely. Requires the threadpool
  * to be started in the service.
  * This also implicitly calls AIBinder_incStrong (so the caller of this function is responsible
  * for calling AIBinder_decStrong).

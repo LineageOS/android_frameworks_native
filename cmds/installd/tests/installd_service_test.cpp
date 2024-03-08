@@ -42,9 +42,12 @@
 #include "binder_test_utils.h"
 #include "dexopt.h"
 #include "globals.h"
+#include "unique_file.h"
 #include "utils.h"
 
 using android::base::StringPrintf;
+using android::base::unique_fd;
+using android::os::ParcelFileDescriptor;
 using std::filesystem::is_empty;
 
 namespace android {
@@ -134,6 +137,16 @@ static int create(const std::string& path, uid_t owner, gid_t group, mode_t mode
     EXPECT_EQ(::fchown(fd, owner, group), 0);
     EXPECT_EQ(::fchmod(fd, mode), 0);
     return fd;
+}
+
+static void create_with_content(const std::string& path, uid_t owner, gid_t group, mode_t mode,
+                                const std::string& content) {
+    int fd = ::open(path.c_str(), O_RDWR | O_CREAT, mode);
+    EXPECT_NE(fd, -1);
+    EXPECT_TRUE(android::base::WriteStringToFd(content, fd));
+    EXPECT_EQ(::fchown(fd, owner, group), 0);
+    EXPECT_EQ(::fchmod(fd, mode), 0);
+    close(fd);
 }
 
 static void touch(const std::string& path, uid_t owner, gid_t group, mode_t mode) {
@@ -527,6 +540,94 @@ TEST_F(ServiceTest, GetAppSizeWrongSizes) {
                                            externalStorageAppId, ceDataInodes, codePaths,
                                            &externalStorageSize));
 }
+
+class FsverityTest : public ServiceTest {
+protected:
+    binder::Status createFsveritySetupAuthToken(const std::string& path, int open_mode,
+                                                sp<IFsveritySetupAuthToken>* _aidl_return) {
+        unique_fd ufd(open(path.c_str(), open_mode));
+        EXPECT_GE(ufd.get(), 0) << "open failed: " << strerror(errno);
+        ParcelFileDescriptor rfd(std::move(ufd));
+        return service->createFsveritySetupAuthToken(std::move(rfd), kTestAppId, kTestUserId,
+                                                     _aidl_return);
+    }
+};
+
+TEST_F(FsverityTest, enableFsverity) {
+    const std::string path = kTestPath + "/foo";
+    create_with_content(path, kTestAppUid, kTestAppUid, 0600, "content");
+    UniqueFile raii(/*fd=*/-1, path, [](const std::string& path) { unlink(path.c_str()); });
+
+    // Expect to fs-verity setup to succeed
+    sp<IFsveritySetupAuthToken> authToken;
+    binder::Status status = createFsveritySetupAuthToken(path, O_RDWR, &authToken);
+    EXPECT_TRUE(status.isOk());
+    EXPECT_TRUE(authToken != nullptr);
+
+    // Verity auth token works to enable fs-verity
+    int32_t errno_local;
+    status = service->enableFsverity(authToken, path, "fake.package.name", &errno_local);
+    EXPECT_TRUE(status.isOk());
+    EXPECT_EQ(errno_local, 0);
+}
+
+TEST_F(FsverityTest, enableFsverity_nullAuthToken) {
+    const std::string path = kTestPath + "/foo";
+    create_with_content(path, kTestAppUid, kTestAppUid, 0600, "content");
+    UniqueFile raii(/*fd=*/-1, path, [](const std::string& path) { unlink(path.c_str()); });
+
+    // Verity null auth token fails
+    sp<IFsveritySetupAuthToken> authToken;
+    int32_t errno_local;
+    binder::Status status =
+            service->enableFsverity(authToken, path, "fake.package.name", &errno_local);
+    EXPECT_FALSE(status.isOk());
+}
+
+TEST_F(FsverityTest, enableFsverity_differentFile) {
+    const std::string path = kTestPath + "/foo";
+    create_with_content(path, kTestAppUid, kTestAppUid, 0600, "content");
+    UniqueFile raii(/*fd=*/-1, path, [](const std::string& path) { unlink(path.c_str()); });
+
+    // Expect to fs-verity setup to succeed
+    sp<IFsveritySetupAuthToken> authToken;
+    binder::Status status = createFsveritySetupAuthToken(path, O_RDWR, &authToken);
+    EXPECT_TRUE(status.isOk());
+    EXPECT_TRUE(authToken != nullptr);
+
+    // Verity auth token does not work for a different file
+    const std::string anotherPath = kTestPath + "/bar";
+    ASSERT_TRUE(android::base::WriteStringToFile("content", anotherPath));
+    UniqueFile raii2(/*fd=*/-1, anotherPath, [](const std::string& path) { unlink(path.c_str()); });
+    int32_t errno_local;
+    status = service->enableFsverity(authToken, anotherPath, "fake.package.name", &errno_local);
+    EXPECT_TRUE(status.isOk());
+    EXPECT_NE(errno_local, 0);
+}
+
+TEST_F(FsverityTest, createFsveritySetupAuthToken_ReadonlyFdDoesNotAuthenticate) {
+    const std::string path = kTestPath + "/foo";
+    create_with_content(path, kTestAppUid, kTestAppUid, 0600, "content");
+    UniqueFile raii(/*fd=*/-1, path, [](const std::string& path) { unlink(path.c_str()); });
+
+    // Expect the fs-verity setup to fail
+    sp<IFsveritySetupAuthToken> authToken;
+    binder::Status status = createFsveritySetupAuthToken(path, O_RDONLY, &authToken);
+    EXPECT_FALSE(status.isOk());
+}
+
+TEST_F(FsverityTest, createFsveritySetupAuthToken_UnownedFile) {
+    const std::string path = kTestPath + "/foo";
+    // Simulate world-writable file owned by another app
+    create_with_content(path, kTestAppUid + 1, kTestAppUid + 1, 0666, "content");
+    UniqueFile raii(/*fd=*/-1, path, [](const std::string& path) { unlink(path.c_str()); });
+
+    // Expect the fs-verity setup to fail
+    sp<IFsveritySetupAuthToken> authToken;
+    binder::Status status = createFsveritySetupAuthToken(path, O_RDWR, &authToken);
+    EXPECT_FALSE(status.isOk());
+}
+
 static bool mkdirs(const std::string& path, mode_t mode) {
     struct stat sb;
     if (stat(path.c_str(), &sb) != -1 && S_ISDIR(sb.st_mode)) {

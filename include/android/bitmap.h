@@ -196,7 +196,7 @@ enum AndroidBitmapCompressFormat {
  *
  *  @param userContext Pointer to user-defined data passed to
  *         {@link AndroidBitmap_compress}.
- *  @param data Compressed data of |size| bytes to write.
+ *  @param data Compressed data of `size` bytes to write.
  *  @param size Length in bytes of data to write.
  *  @return Whether the operation succeeded.
  */
@@ -205,7 +205,7 @@ typedef bool (*AndroidBitmap_CompressWriteFunc)(void* userContext,
                                                 size_t size) __INTRODUCED_IN(30);
 
 /**
- *  Compress |pixels| as described by |info|.
+ *  Compress `pixels` as described by `info`.
  *
  *  Available since API level 30.
  *

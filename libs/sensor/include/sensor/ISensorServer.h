@@ -48,6 +48,8 @@ public:
     virtual sp<ISensorEventConnection> createSensorEventConnection(const String8& packageName,
              int mode, const String16& opPackageName, const String16& attributionTag) = 0;
     virtual int32_t isDataInjectionEnabled() = 0;
+    virtual int32_t isReplayDataInjectionEnabled() = 0;
+    virtual int32_t isHalBypassReplayDataInjectionEnabled() = 0;
 
     virtual sp<ISensorEventConnection> createSensorDirectConnection(const String16& opPackageName,
             int deviceId, uint32_t size, int32_t type, int32_t format,

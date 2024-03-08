@@ -32,6 +32,8 @@
 #include <gui/BufferItem.h>
 #include <gui/BufferQueueCore.h>
 #include <gui/BufferQueueProducer.h>
+
+#include <gui/FrameRateUtils.h>
 #include <gui/GLConsumer.h>
 #include <gui/IConsumerListener.h>
 #include <gui/IProducerListener.h>
@@ -47,23 +49,23 @@ namespace android {
 
 // Macros for include BufferQueueCore information in log messages
 #define BQ_LOGV(x, ...)                                                                           \
-    ALOGV("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.string(),            \
+    ALOGV("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.c_str(),             \
           mCore->mUniqueId, mCore->mConnectedApi, mCore->mConnectedPid, (mCore->mUniqueId) >> 32, \
           ##__VA_ARGS__)
 #define BQ_LOGD(x, ...)                                                                           \
-    ALOGD("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.string(),            \
+    ALOGD("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.c_str(),             \
           mCore->mUniqueId, mCore->mConnectedApi, mCore->mConnectedPid, (mCore->mUniqueId) >> 32, \
           ##__VA_ARGS__)
 #define BQ_LOGI(x, ...)                                                                           \
-    ALOGI("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.string(),            \
+    ALOGI("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.c_str(),             \
           mCore->mUniqueId, mCore->mConnectedApi, mCore->mConnectedPid, (mCore->mUniqueId) >> 32, \
           ##__VA_ARGS__)
 #define BQ_LOGW(x, ...)                                                                           \
-    ALOGW("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.string(),            \
+    ALOGW("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.c_str(),             \
           mCore->mUniqueId, mCore->mConnectedApi, mCore->mConnectedPid, (mCore->mUniqueId) >> 32, \
           ##__VA_ARGS__)
 #define BQ_LOGE(x, ...)                                                                           \
-    ALOGE("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.string(),            \
+    ALOGE("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.c_str(),             \
           mCore->mUniqueId, mCore->mConnectedApi, mCore->mConnectedPid, (mCore->mUniqueId) >> 32, \
           ##__VA_ARGS__)
 
@@ -509,13 +511,13 @@ status_t BufferQueueProducer::dequeueBuffer(int* outSlot, sp<android::Fence>* ou
         {
             if (CC_UNLIKELY(ATRACE_ENABLED())) {
                 if (buffer == nullptr) {
-                    ATRACE_FORMAT_INSTANT("%s buffer reallocation: null", mConsumerName.string());
+                    ATRACE_FORMAT_INSTANT("%s buffer reallocation: null", mConsumerName.c_str());
                 } else {
                     ATRACE_FORMAT_INSTANT("%s buffer reallocation actual %dx%d format:%d "
                                           "layerCount:%d "
                                           "usage:%d requested: %dx%d format:%d layerCount:%d "
                                           "usage:%d ",
-                                          mConsumerName.string(), width, height, format,
+                                          mConsumerName.c_str(), width, height, format,
                                           BQ_LAYER_COUNT, usage, buffer->getWidth(),
                                           buffer->getHeight(), buffer->getPixelFormat(),
                                           buffer->getLayerCount(), buffer->getUsage());
@@ -574,9 +576,9 @@ status_t BufferQueueProducer::dequeueBuffer(int* outSlot, sp<android::Fence>* ou
 
     if (returnFlags & BUFFER_NEEDS_REALLOCATION) {
         BQ_LOGV("dequeueBuffer: allocating a new buffer for slot %d", *outSlot);
-        sp<GraphicBuffer> graphicBuffer = new GraphicBuffer(
-                width, height, format, BQ_LAYER_COUNT, usage,
-                {mConsumerName.string(), mConsumerName.size()});
+        sp<GraphicBuffer> graphicBuffer =
+                new GraphicBuffer(width, height, format, BQ_LAYER_COUNT, usage,
+                                  {mConsumerName.c_str(), mConsumerName.size()});
 
         status_t error = graphicBuffer->initCheck();
 
@@ -637,7 +639,8 @@ status_t BufferQueueProducer::dequeueBuffer(int* outSlot, sp<android::Fence>* ou
     BQ_LOGV("dequeueBuffer: returning slot=%d/%" PRIu64 " buf=%p flags=%#x",
             *outSlot,
             mSlots[*outSlot].mFrameNumber,
-            mSlots[*outSlot].mGraphicBuffer->handle, returnFlags);
+            mSlots[*outSlot].mGraphicBuffer != nullptr ?
+            mSlots[*outSlot].mGraphicBuffer->handle : nullptr, returnFlags);
 
     if (outBufferAge) {
         *outBufferAge = mCore->mBufferAge;
@@ -1046,8 +1049,7 @@ status_t BufferQueueProducer::queueBuffer(int slot,
         output->numPendingBuffers = static_cast<uint32_t>(mCore->mQueue.size());
         output->nextFrameNumber = mCore->mFrameCounter + 1;
 
-        ATRACE_INT(mCore->mConsumerName.string(),
-                static_cast<int32_t>(mCore->mQueue.size()));
+        ATRACE_INT(mCore->mConsumerName.c_str(), static_cast<int32_t>(mCore->mQueue.size()));
 #ifndef NO_BINDER
         mCore->mOccupancyTracker.registerOccupancyChange(mCore->mQueue.size());
 #endif
@@ -1487,7 +1489,7 @@ void BufferQueueProducer::allocateBuffers(uint32_t width, uint32_t height,
 
             allocFormat = format != 0 ? format : mCore->mDefaultBufferFormat;
             allocUsage = usage | mCore->mConsumerUsageBits;
-            allocName.assign(mCore->mConsumerName.string(), mCore->mConsumerName.size());
+            allocName.assign(mCore->mConsumerName.c_str(), mCore->mConsumerName.size());
 
             mCore->mIsAllocating = true;
         } // Autolock scope
@@ -1589,7 +1591,7 @@ status_t BufferQueueProducer::setGenerationNumber(uint32_t generationNumber) {
 String8 BufferQueueProducer::getConsumerName() const {
     ATRACE_CALL();
     std::lock_guard<std::mutex> lock(mCore->mMutex);
-    BQ_LOGV("getConsumerName: %s", mConsumerName.string());
+    BQ_LOGV("getConsumerName: %s", mConsumerName.c_str());
     return mConsumerName;
 }
 
@@ -1751,5 +1753,28 @@ status_t BufferQueueProducer::setAutoPrerotation(bool autoPrerotation) {
     mCore->mAutoPrerotation = autoPrerotation;
     return NO_ERROR;
 }
+
+#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(BQ_SETFRAMERATE)
+status_t BufferQueueProducer::setFrameRate(float frameRate, int8_t compatibility,
+                                           int8_t changeFrameRateStrategy) {
+    ATRACE_CALL();
+    BQ_LOGV("setFrameRate: %.2f", frameRate);
+
+    if (!ValidateFrameRate(frameRate, compatibility, changeFrameRateStrategy,
+                           "BufferQueueProducer::setFrameRate")) {
+        return BAD_VALUE;
+    }
+
+    sp<IConsumerListener> listener;
+    {
+        std::lock_guard<std::mutex> lock(mCore->mMutex);
+        listener = mCore->mConsumerListener;
+    }
+    if (listener != nullptr) {
+        listener->onSetFrameRate(frameRate, compatibility, changeFrameRateStrategy);
+    }
+    return NO_ERROR;
+}
+#endif
 
 } // namespace android

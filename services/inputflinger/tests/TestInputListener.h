@@ -43,6 +43,10 @@ public:
 
     void assertNotifyConfigurationChangedWasNotCalled();
 
+    void clearNotifyDeviceResetCalls();
+
+    void assertNotifyDeviceResetWasCalled(const ::testing::Matcher<NotifyDeviceResetArgs>& matcher);
+
     void assertNotifyDeviceResetWasCalled(NotifyDeviceResetArgs* outEventArgs = nullptr);
 
     void assertNotifyDeviceResetWasNotCalled();

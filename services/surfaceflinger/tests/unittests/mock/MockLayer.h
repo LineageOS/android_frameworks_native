@@ -17,6 +17,7 @@
 #pragma once
 
 #include <gmock/gmock.h>
+#include <optional>
 
 namespace android::mock {
 
@@ -25,8 +26,15 @@ public:
     MockLayer(SurfaceFlinger* flinger, std::string name)
           : Layer(LayerCreationArgs(flinger, nullptr, std::move(name), 0, {})) {
         EXPECT_CALL(*this, getDefaultFrameRateCompatibility())
-                .WillOnce(testing::Return(scheduler::LayerInfo::FrameRateCompatibility::Default));
+                .WillOnce(testing::Return(scheduler::FrameRateCompatibility::Default));
     }
+
+    MockLayer(SurfaceFlinger* flinger, std::string name, std::optional<uint32_t> uid)
+          : Layer(LayerCreationArgs(flinger, nullptr, std::move(name), 0, {}, uid)) {
+        EXPECT_CALL(*this, getDefaultFrameRateCompatibility())
+                .WillOnce(testing::Return(scheduler::FrameRateCompatibility::Default));
+    }
+
     explicit MockLayer(SurfaceFlinger* flinger) : MockLayer(flinger, "TestLayer") {}
 
     MOCK_CONST_METHOD0(getType, const char*());
@@ -34,10 +42,10 @@ public:
     MOCK_CONST_METHOD0(isVisible, bool());
     MOCK_METHOD1(createClone, sp<Layer>(uint32_t));
     MOCK_CONST_METHOD0(getFrameRateForLayerTree, FrameRate());
-    MOCK_CONST_METHOD0(getDefaultFrameRateCompatibility,
-                       scheduler::LayerInfo::FrameRateCompatibility());
+    MOCK_CONST_METHOD0(getDefaultFrameRateCompatibility, scheduler::FrameRateCompatibility());
     MOCK_CONST_METHOD0(getOwnerUid, uid_t());
     MOCK_CONST_METHOD0(getDataSpace, ui::Dataspace());
+    MOCK_METHOD(bool, isFrontBuffered, (), (const, override));
 };
 
 } // namespace android::mock

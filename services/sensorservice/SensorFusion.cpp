@@ -19,6 +19,7 @@
 #include "SensorService.h"
 
 #include <android/util/ProtoOutputStream.h>
+#include <cutils/properties.h>
 #include <frameworks/base/core/proto/android/service/sensor_service.proto.h>
 
 namespace android {
@@ -41,17 +42,20 @@ SensorFusion::SensorFusion()
 
     if (count > 0) {
         for (size_t i=0 ; i<size_t(count) ; i++) {
-            if (list[i].type == SENSOR_TYPE_ACCELEROMETER) {
-                mAcc = Sensor(list + i);
-            }
-            if (list[i].type == SENSOR_TYPE_MAGNETIC_FIELD) {
-                mMag = Sensor(list + i);
-            }
-            if (list[i].type == SENSOR_TYPE_GYROSCOPE) {
-                mGyro = Sensor(list + i);
-            }
-            if (list[i].type == SENSOR_TYPE_GYROSCOPE_UNCALIBRATED) {
-                uncalibratedGyro = Sensor(list + i);
+            // Only use non-wakeup sensors
+            if ((list[i].flags & SENSOR_FLAG_WAKE_UP) == 0) {
+                if (list[i].type == SENSOR_TYPE_ACCELEROMETER) {
+                    mAcc = Sensor(list + i);
+                }
+                if (list[i].type == SENSOR_TYPE_MAGNETIC_FIELD) {
+                    mMag = Sensor(list + i);
+                }
+                if (list[i].type == SENSOR_TYPE_GYROSCOPE) {
+                    mGyro = Sensor(list + i);
+                }
+                if (list[i].type == SENSOR_TYPE_GYROSCOPE_UNCALIBRATED) {
+                    uncalibratedGyro = Sensor(list + i);
+                }
             }
         }
 
@@ -60,10 +64,12 @@ SensorFusion::SensorFusion()
             mGyro = uncalibratedGyro;
         }
 
-        // 200 Hz for gyro events is a good compromise between precision
-        // and power/cpu usage.
-        mEstimatedGyroRate = 200;
-        mTargetDelayNs = 1000000000LL/mEstimatedGyroRate;
+        // Wearable devices will want to tune this parameter
+        // to 100 (Hz) in device.mk to save some power.
+        int32_t value = property_get_int32(
+            "sensors.aosp_low_power_sensor_fusion.maximum_rate", 200);
+        mEstimatedGyroRate = static_cast<float>(value);
+        mTargetDelayNs = 1000000000LL / mEstimatedGyroRate;
 
         for (int i = 0; i<NUM_FUSION_MODE; ++i) {
             mFusions[i].init(i);

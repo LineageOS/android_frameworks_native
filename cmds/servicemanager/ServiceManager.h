@@ -67,7 +67,7 @@ public:
     void clear();
 
 protected:
-    virtual void tryStartService(const std::string& name);
+    virtual void tryStartService(const Access::CallingContext& ctx, const std::string& name);
 
 private:
     struct Service {

@@ -25,6 +25,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include <functional>
 #include <optional>
 #include <string>
 #include <vector>

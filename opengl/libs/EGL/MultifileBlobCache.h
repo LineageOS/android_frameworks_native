@@ -21,6 +21,7 @@
 #include <EGL/eglext.h>
 
 #include <android-base/thread_annotations.h>
+#include <cutils/properties.h>
 #include <future>
 #include <map>
 #include <queue>
@@ -33,6 +34,9 @@
 
 namespace android {
 
+constexpr uint32_t kMultifileBlobCacheVersion = 1;
+constexpr char kMultifileBlobCacheStatusFile[] = "cache.status";
+
 struct MultifileHeader {
     uint32_t magic;
     uint32_t crc;
@@ -44,6 +48,13 @@ struct MultifileEntryStats {
     EGLsizeiANDROID valueSize;
     size_t fileSize;
     time_t accessTime;
+};
+
+struct MultifileStatus {
+    uint32_t magic;
+    uint32_t crc;
+    uint32_t cacheVersion;
+    char buildId[PROP_VALUE_MAX];
 };
 
 struct MultifileHotCache {
@@ -92,7 +103,7 @@ private:
 class MultifileBlobCache {
 public:
     MultifileBlobCache(size_t maxKeySize, size_t maxValueSize, size_t maxTotalSize,
-                       const std::string& baseDir);
+                       size_t maxTotalEntries, const std::string& baseDir);
     ~MultifileBlobCache();
 
     void set(const void* key, EGLsizeiANDROID keySize, const void* value,
@@ -103,6 +114,13 @@ public:
     void finish();
 
     size_t getTotalSize() const { return mTotalCacheSize; }
+    size_t getTotalEntries() const { return mTotalCacheEntries; }
+
+    const std::string& getCurrentBuildId() const { return mBuildId; }
+    void setCurrentBuildId(const std::string& buildId) { mBuildId = buildId; }
+
+    uint32_t getCurrentCacheVersion() const { return mCacheVersion; }
+    void setCurrentCacheVersion(uint32_t cacheVersion) { mCacheVersion = cacheVersion; }
 
 private:
     void trackEntry(uint32_t entryHash, EGLsizeiANDROID valueSize, size_t fileSize,
@@ -110,6 +128,9 @@ private:
     bool contains(uint32_t entryHash) const;
     bool removeEntry(uint32_t entryHash);
     MultifileEntryStats getEntryStats(uint32_t entryHash);
+
+    bool createStatus(const std::string& baseDir);
+    bool checkStatus(const std::string& baseDir);
 
     size_t getFileSize(uint32_t entryHash);
     size_t getValueSize(uint32_t entryHash);
@@ -120,11 +141,15 @@ private:
     bool addToHotCache(uint32_t entryHash, int fd, uint8_t* entryBufer, size_t entrySize);
     bool removeFromHotCache(uint32_t entryHash);
 
+    bool clearCache();
     void trimCache();
-    bool applyLRU(size_t cacheLimit);
+    bool applyLRU(size_t cacheSizeLimit, size_t cacheEntryLimit);
 
     bool mInitialized;
     std::string mMultifileDirName;
+
+    std::string mBuildId;
+    uint32_t mCacheVersion;
 
     std::unordered_set<uint32_t> mEntries;
     std::unordered_map<uint32_t, MultifileEntryStats> mEntryStats;
@@ -133,7 +158,9 @@ private:
     size_t mMaxKeySize;
     size_t mMaxValueSize;
     size_t mMaxTotalSize;
+    size_t mMaxTotalEntries;
     size_t mTotalCacheSize;
+    size_t mTotalCacheEntries;
     size_t mHotCacheLimit;
     size_t mHotCacheEntryLimit;
     size_t mHotCacheSize;

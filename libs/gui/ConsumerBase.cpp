@@ -41,11 +41,11 @@
 #include <utils/Trace.h>
 
 // Macros for including the ConsumerBase name in log messages
-#define CB_LOGV(x, ...) ALOGV("[%s] " x, mName.string(), ##__VA_ARGS__)
-//#define CB_LOGD(x, ...) ALOGD("[%s] " x, mName.string(), ##__VA_ARGS__)
-//#define CB_LOGI(x, ...) ALOGI("[%s] " x, mName.string(), ##__VA_ARGS__)
-//#define CB_LOGW(x, ...) ALOGW("[%s] " x, mName.string(), ##__VA_ARGS__)
-#define CB_LOGE(x, ...) ALOGE("[%s] " x, mName.string(), ##__VA_ARGS__)
+#define CB_LOGV(x, ...) ALOGV("[%s] " x, mName.c_str(), ##__VA_ARGS__)
+// #define CB_LOGD(x, ...) ALOGD("[%s] " x, mName.c_str(), ##__VA_ARGS__)
+// #define CB_LOGI(x, ...) ALOGI("[%s] " x, mName.c_str(), ##__VA_ARGS__)
+// #define CB_LOGW(x, ...) ALOGW("[%s] " x, mName.c_str(), ##__VA_ARGS__)
+#define CB_LOGE(x, ...) ALOGE("[%s] " x, mName.c_str(), ##__VA_ARGS__)
 
 namespace android {
 
@@ -86,8 +86,10 @@ ConsumerBase::~ConsumerBase() {
     // be done by ConsumerBase::onLastStrongRef(), but it's possible for a
     // derived class to override that method and not call
     // ConsumerBase::onLastStrongRef().
-    LOG_ALWAYS_FATAL_IF(!mAbandoned, "[%s] ~ConsumerBase was called, but the "
-        "consumer is not abandoned!", mName.string());
+    LOG_ALWAYS_FATAL_IF(!mAbandoned,
+                        "[%s] ~ConsumerBase was called, but the "
+                        "consumer is not abandoned!",
+                        mName.c_str());
 }
 
 void ConsumerBase::onLastStrongRef(const void* id __attribute__((unused))) {
@@ -451,7 +453,7 @@ status_t ConsumerBase::addReleaseFenceLocked(int slot,
     // them to get an accurate timestamp.
     if (currentStatus == incomingStatus) {
         char fenceName[32] = {};
-        snprintf(fenceName, 32, "%.28s:%d", mName.string(), slot);
+        snprintf(fenceName, 32, "%.28s:%d", mName.c_str(), slot);
         sp<Fence> mergedFence = Fence::merge(
                 fenceName, mSlots[slot].mFence, fence);
         if (!mergedFence.get()) {

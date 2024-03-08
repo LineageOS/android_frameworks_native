@@ -44,25 +44,25 @@ public:
     TransactionProtoParser(std::unique_ptr<FlingerDataMapper> provider)
           : mMapper(std::move(provider)) {}
 
-    proto::TransactionState toProto(const TransactionState&);
-    proto::TransactionState toProto(const std::map<uint32_t /* layerId */, TracingLayerState>&);
-    proto::LayerCreationArgs toProto(const LayerCreationArgs& args);
-    proto::LayerState toProto(const ResolvedComposerState&);
-    static proto::DisplayInfo toProto(const frontend::DisplayInfo&, uint32_t layerStack);
+    perfetto::protos::TransactionState toProto(const TransactionState&);
+    perfetto::protos::TransactionState toProto(
+            const std::map<uint32_t /* layerId */, TracingLayerState>&);
+    perfetto::protos::LayerCreationArgs toProto(const LayerCreationArgs& args);
+    perfetto::protos::LayerState toProto(const ResolvedComposerState&);
+    static perfetto::protos::DisplayInfo toProto(const frontend::DisplayInfo&, uint32_t layerStack);
 
-    TransactionState fromProto(const proto::TransactionState&);
-    void mergeFromProto(const proto::LayerState&, TracingLayerState& outState);
-    void fromProto(const proto::LayerCreationArgs&, LayerCreationArgs& outArgs);
+    TransactionState fromProto(const perfetto::protos::TransactionState&);
+    void mergeFromProto(const perfetto::protos::LayerState&, TracingLayerState& outState);
+    void fromProto(const perfetto::protos::LayerCreationArgs&, LayerCreationArgs& outArgs);
     std::unique_ptr<FlingerDataMapper> mMapper;
-    static frontend::DisplayInfo fromProto(const proto::DisplayInfo&);
-    static void fromProto(const google::protobuf::RepeatedPtrField<proto::DisplayInfo>&,
+    static frontend::DisplayInfo fromProto(const perfetto::protos::DisplayInfo&);
+    static void fromProto(const google::protobuf::RepeatedPtrField<perfetto::protos::DisplayInfo>&,
                           frontend::DisplayInfos& outDisplayInfos);
 
 private:
-    proto::DisplayState toProto(const DisplayState&);
-    void fromProto(const proto::LayerState&, ResolvedComposerState& out);
-    DisplayState fromProto(const proto::DisplayState&);
-
+    perfetto::protos::DisplayState toProto(const DisplayState&);
+    void fromProto(const perfetto::protos::LayerState&, ResolvedComposerState& out);
+    DisplayState fromProto(const perfetto::protos::DisplayState&);
 };
 
 } // namespace android::surfaceflinger

@@ -25,10 +25,16 @@
 
 #pragma once
 
+#include <assert.h>
 #include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <sys/cdefs.h>
+
+#if !defined(__BIONIC__) && defined(BINDER_ENABLE_LIBLOG_ASSERT)
+#include <log/log.h>
+#define __assert(file, line, message) LOG_ALWAYS_FATAL(file ":" #line ": " message)
+#endif
 
 __BEGIN_DECLS
 

@@ -65,9 +65,7 @@ public:
         mTestableGpuMem = TestableGpuMem(mGpuMem.get());
 
         errno = 0;
-        mTestMap = std::move(bpf::BpfMap<uint64_t, uint64_t>(BPF_MAP_TYPE_HASH,
-                                                             TEST_MAP_SIZE,
-                                                             BPF_F_NO_PREALLOC));
+        mTestMap.resetMap(BPF_MAP_TYPE_HASH, TEST_MAP_SIZE, BPF_F_NO_PREALLOC);
 
         EXPECT_EQ(0, errno);
         EXPECT_TRUE(mTestMap.isValid());

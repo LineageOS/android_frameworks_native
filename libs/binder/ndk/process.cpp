@@ -15,11 +15,9 @@
  */
 
 #include <android/binder_process.h>
+#include <binder/IPCThreadState.h>
 
 #include <mutex>
-
-#include <android-base/logging.h>
-#include <binder/IPCThreadState.h>
 
 using ::android::IPCThreadState;
 using ::android::ProcessState;

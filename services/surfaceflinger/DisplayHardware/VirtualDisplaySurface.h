@@ -85,7 +85,7 @@ public:
     //
     virtual status_t beginFrame(bool mustRecompose);
     virtual status_t prepareFrame(CompositionType);
-    virtual status_t advanceFrame();
+    virtual status_t advanceFrame(float hdrSdrRatio);
     virtual void onFrameCommitted();
     virtual void dumpAsString(String8& result) const;
     virtual void resizeBuffers(const ui::Size&) override;

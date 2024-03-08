@@ -36,34 +36,66 @@
 #include <gui/TraceUtils.h>
 
 #include <private/gui/BufferQueueThreadState.h>
-#ifndef __ANDROID_VNDK__
+#if !defined(__ANDROID_VNDK__) && !defined(NO_BINDER)
 #include <binder/PermissionCache.h>
-#include <vndksupport/linker.h>
+#include <selinux/android.h>
+#include <selinux/selinux.h>
 #endif
 
 #include <system/window.h>
+
+namespace {
+#if !defined(__ANDROID_VNDK__) && !defined(NO_BINDER)
+int selinux_log_suppress_callback(int, const char*, ...) { // NOLINT
+    // DO NOTHING
+    return 0;
+}
+
+bool hasAccessToPermissionService() {
+    char* ctx;
+
+    if (getcon(&ctx) == -1) {
+        // Failed to get current selinux context
+        return false;
+    }
+
+    union selinux_callback cb;
+
+    cb.func_log = selinux_log_suppress_callback;
+    selinux_set_callback(SELINUX_CB_LOG, cb);
+
+    bool hasAccess = selinux_check_access(ctx, "u:object_r:permission_service:s0",
+                                          "service_manager", "find", NULL) == 0;
+    freecon(ctx);
+    cb.func_log = hasAccess ? selinux_log_callback : selinux_vendor_log_callback;
+    selinux_set_callback(SELINUX_CB_LOG, cb);
+
+    return hasAccess;
+}
+#endif
+} // namespace
 
 namespace android {
 
 // Macros for include BufferQueueCore information in log messages
 #define BQ_LOGV(x, ...)                                                                           \
-    ALOGV("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.string(),            \
+    ALOGV("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.c_str(),             \
           mCore->mUniqueId, mCore->mConnectedApi, mCore->mConnectedPid, (mCore->mUniqueId) >> 32, \
           ##__VA_ARGS__)
 #define BQ_LOGD(x, ...)                                                                           \
-    ALOGD("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.string(),            \
+    ALOGD("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.c_str(),             \
           mCore->mUniqueId, mCore->mConnectedApi, mCore->mConnectedPid, (mCore->mUniqueId) >> 32, \
           ##__VA_ARGS__)
 #define BQ_LOGI(x, ...)                                                                           \
-    ALOGI("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.string(),            \
+    ALOGI("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.c_str(),             \
           mCore->mUniqueId, mCore->mConnectedApi, mCore->mConnectedPid, (mCore->mUniqueId) >> 32, \
           ##__VA_ARGS__)
 #define BQ_LOGW(x, ...)                                                                           \
-    ALOGW("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.string(),            \
+    ALOGW("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.c_str(),             \
           mCore->mUniqueId, mCore->mConnectedApi, mCore->mConnectedPid, (mCore->mUniqueId) >> 32, \
           ##__VA_ARGS__)
 #define BQ_LOGE(x, ...)                                                                           \
-    ALOGE("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.string(),            \
+    ALOGE("[%s](id:%" PRIx64 ",api:%d,p:%d,c:%" PRIu64 ") " x, mConsumerName.c_str(),             \
           mCore->mUniqueId, mCore->mConnectedApi, mCore->mConnectedPid, (mCore->mUniqueId) >> 32, \
           ##__VA_ARGS__)
 
@@ -298,8 +330,7 @@ status_t BufferQueueConsumer::acquireBuffer(BufferItem* outBuffer,
         // decrease.
         mCore->mDequeueCondition.notify_all();
 
-        ATRACE_INT(mCore->mConsumerName.string(),
-                static_cast<int32_t>(mCore->mQueue.size()));
+        ATRACE_INT(mCore->mConsumerName.c_str(), static_cast<int32_t>(mCore->mQueue.size()));
 #ifndef NO_BINDER
         mCore->mOccupancyTracker.registerOccupancyChange(mCore->mQueue.size());
 #endif
@@ -319,35 +350,44 @@ status_t BufferQueueConsumer::detachBuffer(int slot) {
     ATRACE_CALL();
     ATRACE_BUFFER_INDEX(slot);
     BQ_LOGV("detachBuffer: slot %d", slot);
-    std::lock_guard<std::mutex> lock(mCore->mMutex);
+    sp<IProducerListener> listener;
+    {
+        std::lock_guard<std::mutex> lock(mCore->mMutex);
 
-    if (mCore->mIsAbandoned) {
-        BQ_LOGE("detachBuffer: BufferQueue has been abandoned");
-        return NO_INIT;
+        if (mCore->mIsAbandoned) {
+            BQ_LOGE("detachBuffer: BufferQueue has been abandoned");
+            return NO_INIT;
+        }
+
+        if (mCore->mSharedBufferMode || slot == mCore->mSharedBufferSlot) {
+            BQ_LOGE("detachBuffer: detachBuffer not allowed in shared buffer mode");
+            return BAD_VALUE;
+        }
+
+        if (slot < 0 || slot >= BufferQueueDefs::NUM_BUFFER_SLOTS) {
+            BQ_LOGE("detachBuffer: slot index %d out of range [0, %d)",
+                    slot, BufferQueueDefs::NUM_BUFFER_SLOTS);
+            return BAD_VALUE;
+        } else if (!mSlots[slot].mBufferState.isAcquired()) {
+            BQ_LOGE("detachBuffer: slot %d is not owned by the consumer "
+                    "(state = %s)", slot, mSlots[slot].mBufferState.string());
+            return BAD_VALUE;
+        }
+        if (mCore->mBufferReleasedCbEnabled) {
+            listener = mCore->mConnectedProducerListener;
+        }
+
+        mSlots[slot].mBufferState.detachConsumer();
+        mCore->mActiveBuffers.erase(slot);
+        mCore->mFreeSlots.insert(slot);
+        mCore->clearBufferSlotLocked(slot);
+        mCore->mDequeueCondition.notify_all();
+        VALIDATE_CONSISTENCY();
     }
 
-    if (mCore->mSharedBufferMode || slot == mCore->mSharedBufferSlot) {
-        BQ_LOGE("detachBuffer: detachBuffer not allowed in shared buffer mode");
-        return BAD_VALUE;
+    if (listener) {
+        listener->onBufferDetached(slot);
     }
-
-    if (slot < 0 || slot >= BufferQueueDefs::NUM_BUFFER_SLOTS) {
-        BQ_LOGE("detachBuffer: slot index %d out of range [0, %d)",
-                slot, BufferQueueDefs::NUM_BUFFER_SLOTS);
-        return BAD_VALUE;
-    } else if (!mSlots[slot].mBufferState.isAcquired()) {
-        BQ_LOGE("detachBuffer: slot %d is not owned by the consumer "
-                "(state = %s)", slot, mSlots[slot].mBufferState.string());
-        return BAD_VALUE;
-    }
-
-    mSlots[slot].mBufferState.detachConsumer();
-    mCore->mActiveBuffers.erase(slot);
-    mCore->mFreeSlots.insert(slot);
-    mCore->clearBufferSlotLocked(slot);
-    mCore->mDequeueCondition.notify_all();
-    VALIDATE_CONSISTENCY();
-
     return NO_ERROR;
 }
 
@@ -718,7 +758,7 @@ status_t BufferQueueConsumer::setMaxAcquiredBufferCount(
 
 status_t BufferQueueConsumer::setConsumerName(const String8& name) {
     ATRACE_CALL();
-    BQ_LOGV("setConsumerName: '%s'", name.string());
+    BQ_LOGV("setConsumerName: '%s'", name.c_str());
     std::lock_guard<std::mutex> lock(mCore->mMutex);
     mCore->mConsumerName = name;
     mConsumerName = name;
@@ -806,7 +846,7 @@ status_t BufferQueueConsumer::dumpState(const String8& prefix, String8* outResul
     // the PermissionController. We need to do a runtime check as well, since
     // the system variant of libgui can be loaded in a vendor process. For eg:
     // if a HAL uses an llndk library that depends on libgui (libmediandk etc).
-    if (!android_is_in_vendor_process()) {
+    if (hasAccessToPermissionService()) {
         const pid_t pid = BufferQueueThreadState::getCallingPid();
         if ((uid != shellUid) &&
             !PermissionCache::checkPermission(String16("android.permission.DUMP"), pid, uid)) {

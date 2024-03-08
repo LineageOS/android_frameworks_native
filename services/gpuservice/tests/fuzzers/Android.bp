@@ -1,0 +1,25 @@
+package {
+    default_applicable_licenses: ["frameworks_native_license"],
+}
+
+cc_fuzz {
+    name: "gpu_service_fuzzer",
+    defaults: [
+        "libgpuservice_defaults",
+        "service_fuzzer_defaults",
+        "fuzzer_disable_leaks",
+    ],
+    static_libs: [
+        "libgpuservice",
+        "liblog",
+    ],
+    fuzz_config: {
+        cc: [
+            "paulthomson@google.com",
+            "pbaiget@google.com",
+        ],
+        triage_assignee: "waghpawan@google.com",
+    },
+    include_dirs: ["frameworks/native/services/gpuservice/"],
+    srcs: ["GpuServiceFuzzer.cpp"],
+}

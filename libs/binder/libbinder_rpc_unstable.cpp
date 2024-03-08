@@ -16,13 +16,18 @@
 
 #include <binder_rpc_unstable.hpp>
 
-#include <android-base/logging.h>
-#include <android-base/unique_fd.h>
 #include <android/binder_libbinder.h>
 #include <binder/RpcServer.h>
 #include <binder/RpcSession.h>
+#include <binder/unique_fd.h>
+
+#ifndef __TRUSTY__
 #include <cutils/sockets.h>
+#endif
+
+#ifdef __linux__
 #include <linux/vm_sockets.h>
+#endif // __linux__
 
 using android::OK;
 using android::RpcServer;
@@ -30,7 +35,7 @@ using android::RpcSession;
 using android::sp;
 using android::status_t;
 using android::statusToString;
-using android::base::unique_fd;
+using android::binder::unique_fd;
 
 // Opaque handle for RpcServer.
 struct ARpcServer {};
@@ -75,6 +80,7 @@ RpcSession::FileDescriptorTransportMode toTransportMode(
 
 extern "C" {
 
+#ifndef __TRUSTY__
 ARpcServer* ARpcServer_newVsock(AIBinder* service, unsigned int cid, unsigned int port) {
     auto server = RpcServer::make();
 
@@ -85,8 +91,8 @@ ARpcServer* ARpcServer_newVsock(AIBinder* service, unsigned int cid, unsigned in
     }
 
     if (status_t status = server->setupVsockServer(bindCid, port); status != OK) {
-        LOG(ERROR) << "Failed to set up vsock server with port " << port
-                   << " error: " << statusToString(status).c_str();
+        ALOGE("Failed to set up vsock server with port %u error: %s", port,
+              statusToString(status).c_str());
         return nullptr;
     }
     if (cid != VMADDR_CID_ANY) {
@@ -95,7 +101,7 @@ ARpcServer* ARpcServer_newVsock(AIBinder* service, unsigned int cid, unsigned in
             const sockaddr_vm* vaddr = reinterpret_cast<const sockaddr_vm*>(addr);
             LOG_ALWAYS_FATAL_IF(vaddr->svm_family != AF_VSOCK, "address is not a vsock");
             if (cid != vaddr->svm_cid) {
-                LOG(ERROR) << "Rejected vsock connection from CID " << vaddr->svm_cid;
+                ALOGE("Rejected vsock connection from CID %u", vaddr->svm_cid);
                 return false;
             }
             return true;
@@ -105,23 +111,16 @@ ARpcServer* ARpcServer_newVsock(AIBinder* service, unsigned int cid, unsigned in
     return createObjectHandle<ARpcServer>(server);
 }
 
-ARpcServer* ARpcServer_newInitUnixDomain(AIBinder* service, const char* name) {
+ARpcServer* ARpcServer_newBoundSocket(AIBinder* service, int socketFd) {
     auto server = RpcServer::make();
-    auto fd = unique_fd(android_get_control_socket(name));
+    auto fd = unique_fd(socketFd);
     if (!fd.ok()) {
-        LOG(ERROR) << "Failed to get fd for the socket:" << name;
+        ALOGE("Invalid socket fd %d", socketFd);
         return nullptr;
     }
-    // Control socket fds are inherited from init, so they don't have O_CLOEXEC set.
-    // But we don't want any child processes to inherit the socket we are running
-    // the server on, so attempt to set the flag now.
-    if (fcntl(fd, F_SETFD, FD_CLOEXEC) != 0) {
-        LOG(WARNING) << "Failed to set CLOEXEC on control socket with name " << name
-                     << " error: " << errno;
-    }
     if (status_t status = server->setupRawSocketServer(std::move(fd)); status != OK) {
-        LOG(ERROR) << "Failed to set up Unix Domain RPC server with name " << name
-                   << " error: " << statusToString(status).c_str();
+        ALOGE("Failed to set up RPC server with fd %d error: %s", socketFd,
+              statusToString(status).c_str());
         return nullptr;
     }
     server->setRootObject(AIBinder_toPlatformBinder(service));
@@ -132,13 +131,13 @@ ARpcServer* ARpcServer_newUnixDomainBootstrap(AIBinder* service, int bootstrapFd
     auto server = RpcServer::make();
     auto fd = unique_fd(bootstrapFd);
     if (!fd.ok()) {
-        LOG(ERROR) << "Invalid bootstrap fd " << bootstrapFd;
+        ALOGE("Invalid bootstrap fd %d", bootstrapFd);
         return nullptr;
     }
     if (status_t status = server->setupUnixDomainSocketBootstrapServer(std::move(fd));
         status != OK) {
-        LOG(ERROR) << "Failed to set up Unix Domain RPC server with bootstrap fd " << bootstrapFd
-                   << " error: " << statusToString(status).c_str();
+        ALOGE("Failed to set up Unix Domain RPC server with bootstrap fd %d error: %s", bootstrapFd,
+              statusToString(status).c_str());
         return nullptr;
     }
     server->setRootObject(AIBinder_toPlatformBinder(service));
@@ -148,13 +147,14 @@ ARpcServer* ARpcServer_newUnixDomainBootstrap(AIBinder* service, int bootstrapFd
 ARpcServer* ARpcServer_newInet(AIBinder* service, const char* address, unsigned int port) {
     auto server = RpcServer::make();
     if (status_t status = server->setupInetServer(address, port, nullptr); status != OK) {
-        LOG(ERROR) << "Failed to set up inet RPC server with address " << address << " and port "
-                   << port << " error: " << statusToString(status).c_str();
+        ALOGE("Failed to set up inet RPC server with address %s and port %u error: %s", address,
+              port, statusToString(status).c_str());
         return nullptr;
     }
     server->setRootObject(AIBinder_toPlatformBinder(service));
     return createObjectHandle<ARpcServer>(server);
 }
+#endif // __TRUSTY__
 
 void ARpcServer_setSupportedFileDescriptorTransportModes(
         ARpcServer* handle, const ARpcSession_FileDescriptorTransportMode modes[],
@@ -195,11 +195,12 @@ void ARpcSession_free(ARpcSession* handle) {
     freeObjectHandle<RpcSession>(handle);
 }
 
+#ifndef __TRUSTY__
 AIBinder* ARpcSession_setupVsockClient(ARpcSession* handle, unsigned int cid, unsigned int port) {
     auto session = handleToStrongPointer<RpcSession>(handle);
     if (status_t status = session->setupVsockClient(cid, port); status != OK) {
-        LOG(ERROR) << "Failed to set up vsock client with CID " << cid << " and port " << port
-                   << " error: " << statusToString(status).c_str();
+        ALOGE("Failed to set up vsock client with CID %u and port %u error: %s", cid, port,
+              statusToString(status).c_str());
         return nullptr;
     }
     return AIBinder_fromPlatformBinder(session->getRootObject());
@@ -210,8 +211,8 @@ AIBinder* ARpcSession_setupUnixDomainClient(ARpcSession* handle, const char* nam
     pathname = ANDROID_SOCKET_DIR "/" + pathname;
     auto session = handleToStrongPointer<RpcSession>(handle);
     if (status_t status = session->setupUnixDomainClient(pathname.c_str()); status != OK) {
-        LOG(ERROR) << "Failed to set up Unix Domain RPC client with path: " << pathname
-                   << " error: " << statusToString(status).c_str();
+        ALOGE("Failed to set up Unix Domain RPC client with path: %s error: %s", pathname.c_str(),
+              statusToString(status).c_str());
         return nullptr;
     }
     return AIBinder_fromPlatformBinder(session->getRootObject());
@@ -221,13 +222,13 @@ AIBinder* ARpcSession_setupUnixDomainBootstrapClient(ARpcSession* handle, int bo
     auto session = handleToStrongPointer<RpcSession>(handle);
     auto fd = unique_fd(dup(bootstrapFd));
     if (!fd.ok()) {
-        LOG(ERROR) << "Invalid bootstrap fd " << bootstrapFd;
+        ALOGE("Invalid bootstrap fd %d", bootstrapFd);
         return nullptr;
     }
     if (status_t status = session->setupUnixDomainSocketBootstrapClient(std::move(fd));
         status != OK) {
-        LOG(ERROR) << "Failed to set up Unix Domain RPC client with bootstrap fd: " << bootstrapFd
-                   << " error: " << statusToString(status).c_str();
+        ALOGE("Failed to set up Unix Domain RPC client with bootstrap fd: %d error: %s",
+              bootstrapFd, statusToString(status).c_str());
         return nullptr;
     }
     return AIBinder_fromPlatformBinder(session->getRootObject());
@@ -236,19 +237,20 @@ AIBinder* ARpcSession_setupUnixDomainBootstrapClient(ARpcSession* handle, int bo
 AIBinder* ARpcSession_setupInet(ARpcSession* handle, const char* address, unsigned int port) {
     auto session = handleToStrongPointer<RpcSession>(handle);
     if (status_t status = session->setupInetClient(address, port); status != OK) {
-        LOG(ERROR) << "Failed to set up inet RPC client with address " << address << " and port "
-                   << port << " error: " << statusToString(status).c_str();
+        ALOGE("Failed to set up inet RPC client with address %s and port %u error: %s", address,
+              port, statusToString(status).c_str());
         return nullptr;
     }
     return AIBinder_fromPlatformBinder(session->getRootObject());
 }
+#endif // __TRUSTY__
 
 AIBinder* ARpcSession_setupPreconnectedClient(ARpcSession* handle, int (*requestFd)(void* param),
                                               void* param) {
     auto session = handleToStrongPointer<RpcSession>(handle);
     auto request = [=] { return unique_fd{requestFd(param)}; };
     if (status_t status = session->setupPreconnectedClient(unique_fd{}, request); status != OK) {
-        LOG(ERROR) << "Failed to set up vsock client. error: " << statusToString(status).c_str();
+        ALOGE("Failed to set up preconnected client. error: %s", statusToString(status).c_str());
         return nullptr;
     }
     return AIBinder_fromPlatformBinder(session->getRootObject());

@@ -43,10 +43,6 @@ std::string RenderEngineTypeName(RenderEngine::RenderEngineType type) {
             return "skiavk";
         case RenderEngine::RenderEngineType::SKIA_VK_THREADED:
             return "skiavkthreaded";
-        case RenderEngine::RenderEngineType::GLES:
-        case RenderEngine::RenderEngineType::THREADED:
-            LOG_ALWAYS_FATAL("GLESRenderEngine is deprecated - why time it?");
-            return "unused";
     }
 }
 
@@ -108,10 +104,6 @@ std::pair<uint32_t, uint32_t> getDisplaySize() {
     return std::pair<uint32_t, uint32_t>(width, height);
 }
 
-// This value doesn't matter, as it's not read. TODO(b/199918329): Once we remove
-// GLESRenderEngine we can remove this, too.
-static constexpr const bool kUseFrameBufferCache = false;
-
 static std::unique_ptr<RenderEngine> createRenderEngine(RenderEngine::RenderEngineType type) {
     auto args = RenderEngineCreationArgs::Builder()
                         .setPixelFormat(static_cast<int>(ui::PixelFormat::RGBA_8888))
@@ -121,7 +113,6 @@ static std::unique_ptr<RenderEngine> createRenderEngine(RenderEngine::RenderEngi
                         .setSupportsBackgroundBlur(true)
                         .setContextPriority(RenderEngine::ContextPriority::REALTIME)
                         .setRenderEngineType(type)
-                        .setUseColorManagerment(true)
                         .build();
     return RenderEngine::create(args);
 }
@@ -173,10 +164,7 @@ static std::shared_ptr<ExternalTexture> copyBuffer(RenderEngine& re,
     };
     auto layers = std::vector<LayerSettings>{layer};
 
-    sp<Fence> waitFence =
-            re.drawLayers(display, layers, texture, kUseFrameBufferCache, base::unique_fd())
-                    .get()
-                    .value();
+    sp<Fence> waitFence = re.drawLayers(display, layers, texture, base::unique_fd()).get().value();
     waitFence->waitForever(LOG_TAG);
     return texture;
 }
@@ -205,10 +193,8 @@ static void benchDrawLayers(RenderEngine& re, const std::vector<LayerSettings>& 
 
     // This loop starts and stops the timer.
     for (auto _ : benchState) {
-        sp<Fence> waitFence = re.drawLayers(display, layers, outputBuffer, kUseFrameBufferCache,
-                                            base::unique_fd())
-                                      .get()
-                                      .value();
+        sp<Fence> waitFence =
+                re.drawLayers(display, layers, outputBuffer, base::unique_fd()).get().value();
         waitFence->waitForever(LOG_TAG);
     }
 

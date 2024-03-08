@@ -18,6 +18,7 @@ package android.gui;
 
 import android.gui.BitTube;
 import android.gui.ParcelableVsyncEventData;
+import android.gui.SchedulingPolicy;
 
 /** @hide */
 interface IDisplayEventConnection {
@@ -44,4 +45,9 @@ interface IDisplayEventConnection {
      * getLatestVsyncEventData() gets the latest vsync event data.
      */
     ParcelableVsyncEventData getLatestVsyncEventData();
+
+    /*
+     * getSchedulingPolicy() used in tests to validate the binder thread pririty
+     */
+    SchedulingPolicy getSchedulingPolicy();
 }
