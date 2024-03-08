@@ -107,6 +107,10 @@ void InputTracer::eventProcessingComplete(const EventTrackerInterface& cookie) {
 void InputTracer::traceEventDispatch(const DispatchEntry& dispatchEntry,
                                      const EventTrackerInterface* cookie) {
     const EventEntry& entry = *dispatchEntry.eventEntry;
+    // TODO(b/328618922): Remove resolved key repeats after making repeatCount non-mutable.
+    // The KeyEntry's repeatCount is mutable and can be modified after an event is initially traced,
+    // so we need to find the repeatCount at the time of dispatching to trace it accurately.
+    int32_t resolvedKeyRepeatCount = 0;
 
     TracedEvent traced;
     if (entry.type == EventEntry::Type::MOTION) {
@@ -114,6 +118,7 @@ void InputTracer::traceEventDispatch(const DispatchEntry& dispatchEntry,
         traced = createTracedEvent(motion);
     } else if (entry.type == EventEntry::Type::KEY) {
         const auto& key = static_cast<const KeyEntry&>(entry);
+        resolvedKeyRepeatCount = key.repeatCount;
         traced = createTracedEvent(key);
     } else {
         LOG(FATAL) << "Cannot trace EventEntry of type: " << ftl::enum_string(entry.type);
@@ -133,7 +138,7 @@ void InputTracer::traceEventDispatch(const DispatchEntry& dispatchEntry,
     mBackend->traceWindowDispatch({std::move(traced), dispatchEntry.deliveryTime,
                                    dispatchEntry.resolvedFlags, dispatchEntry.targetUid, vsyncId,
                                    windowId, dispatchEntry.transform, dispatchEntry.rawTransform,
-                                   /*hmac=*/{}});
+                                   /*hmac=*/{}, resolvedKeyRepeatCount});
 }
 
 InputTracer::EventState& InputTracer::getState(const EventTrackerInterface& cookie) {

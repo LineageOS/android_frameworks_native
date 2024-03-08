@@ -56,8 +56,8 @@ KeyEvent toInputEvent(const trace::TracedKeyEvent& e,
                       const std::array<uint8_t, 32>& hmac) {
     KeyEvent traced;
     traced.initialize(e.id, e.deviceId, e.source, e.displayId, hmac, e.action,
-                      dispatchArgs.resolvedFlags, e.keyCode, e.scanCode, e.metaState, e.repeatCount,
-                      e.downTime, e.eventTime);
+                      dispatchArgs.resolvedFlags, e.keyCode, e.scanCode, e.metaState,
+                      dispatchArgs.resolvedKeyRepeatCount, e.downTime, e.eventTime);
     return traced;
 }
 
