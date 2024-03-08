@@ -97,6 +97,7 @@ private:
         std::optional<TimePoint> validUntil() const { return mValidUntil; }
         bool isVSyncInPhase(Model, nsecs_t vsync, Fps frameRate);
         void shiftVsyncSequence(Duration phase);
+        void setRenderRate(Fps renderRate) { mRenderRateOpt = renderRate; }
 
     private:
         nsecs_t snapToVsyncAlignedWithRenderRate(Model model, nsecs_t vsync);
@@ -104,7 +105,7 @@ private:
         std::optional<VsyncSequence> makeVsyncSequence(TimePoint knownVsync);
 
         const Period mIdealPeriod = Duration::fromNs(0);
-        const std::optional<Fps> mRenderRateOpt;
+        std::optional<Fps> mRenderRateOpt;
         std::optional<TimePoint> mValidUntil;
         std::optional<VsyncSequence> mLastVsyncSequence;
     };

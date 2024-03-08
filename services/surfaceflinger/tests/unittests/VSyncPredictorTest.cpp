@@ -768,9 +768,9 @@ TEST_F(VSyncPredictorTest, setRenderRateExplicitAppliedImmediately) {
     EXPECT_EQ(6000, vrrTracker.nextAnticipatedVSyncTimeFrom(5000, 2000));
 
     vrrTracker.setRenderRate(Fps::fromPeriodNsecs(2000), /*applyImmediately*/ true);
-    EXPECT_EQ(4500, vrrTracker.nextAnticipatedVSyncTimeFrom(4000));
-    EXPECT_EQ(6500, vrrTracker.nextAnticipatedVSyncTimeFrom(5000, 4500));
-    EXPECT_EQ(8500, vrrTracker.nextAnticipatedVSyncTimeFrom(6000, 6500));
+    EXPECT_EQ(5000, vrrTracker.nextAnticipatedVSyncTimeFrom(4000));
+    EXPECT_EQ(7000, vrrTracker.nextAnticipatedVSyncTimeFrom(5000, 5000));
+    EXPECT_EQ(9000, vrrTracker.nextAnticipatedVSyncTimeFrom(7000, 7000));
 }
 
 TEST_F(VSyncPredictorTest, selectsClosestVsyncAfterInactivity) {
