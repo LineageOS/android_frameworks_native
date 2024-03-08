@@ -532,7 +532,7 @@ void ASurfaceTransaction_setHdrMetadata_cta861_3(ASurfaceTransaction* transactio
  * using this API for formats that encode an HDR/SDR ratio as part of generating the buffer.
  *
  * @param surface_control The layer whose extended range brightness is being specified
- * @param currentBufferRatio The current hdr/sdr ratio of the current buffer as represented as
+ * @param currentBufferRatio The current HDR/SDR ratio of the current buffer as represented as
  *                           peakHdrBrightnessInNits / targetSdrWhitePointInNits. For example if the
  *                           buffer was rendered with a target SDR whitepoint of 100nits and a max
  *                           display brightness of 200nits, this should be set to 2.0f.
@@ -546,7 +546,7 @@ void ASurfaceTransaction_setHdrMetadata_cta861_3(ASurfaceTransaction* transactio
  *
  *                           Must be finite && >= 1.0f
  *
- * @param desiredRatio The desired hdr/sdr ratio as represented as peakHdrBrightnessInNits /
+ * @param desiredRatio The desired HDR/SDR ratio as represented as peakHdrBrightnessInNits /
  *                     targetSdrWhitePointInNits. This can be used to communicate the max desired
  *                     brightness range. This is similar to the "max luminance" value in other
  *                     HDR metadata formats, but represented as a ratio of the target SDR whitepoint
@@ -579,13 +579,13 @@ void ASurfaceTransaction_setExtendedRangeBrightness(ASurfaceTransaction* transac
                                             float desiredRatio) __INTRODUCED_IN(__ANDROID_API_U__);
 
 /**
- * Sets the desired hdr headroom for the layer. See: ASurfaceTransaction_setExtendedRangeBrightness,
+ * Sets the desired HDR headroom for the layer. See: ASurfaceTransaction_setExtendedRangeBrightness,
  * prefer using this API for formats that conform to HDR standards like HLG or HDR10, that do not
  * communicate a HDR/SDR ratio as part of generating the buffer.
  *
- * @param surface_control The layer whose desired hdr headroom is being specified
+ * @param surface_control The layer whose desired HDR headroom is being specified
  *
- * @param desiredHeadroom The desired hdr/sdr ratio as represented as peakHdrBrightnessInNits /
+ * @param desiredHeadroom The desired HDR/SDR ratio as represented as peakHdrBrightnessInNits /
  *                        targetSdrWhitePointInNits. This can be used to communicate the max
  *                        desired brightness range of the panel. The system may not be able to, or
  *                        may choose not to, deliver the requested range.
