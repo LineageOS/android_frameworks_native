@@ -21,6 +21,13 @@ package com.android.server.inputflinger;
   * infrastructure.
   *
   * <p>
+  * Earlier, we used rust thread park()/unpark() to put the thread to sleep and wake up from sleep.
+  * But that caused some breakages after migrating the rust system crates to 2021 edition. Since,
+  * the threads are created in C++, it was more reliable to rely on C++ side of the implementation
+  * to implement the sleep and wake functions.
+  * </p>
+  *
+  * <p>
   * NOTE: Tried using rust provided threading infrastructure but that uses std::thread which doesn't
   * have JNI support and can't call into Java policy that we use currently. libutils provided
   * Thread.h also recommends against using std::thread and using the provided infrastructure that
@@ -32,6 +39,16 @@ package com.android.server.inputflinger;
 interface IInputThread {
     /** Finish input thread (if not running, this call does nothing) */
     void finish();
+
+    /** Wakes up the thread (if sleeping) */
+    void wake();
+
+    /**
+      * Puts the thread to sleep until a future time provided.
+      *
+      * NOTE: The thread can be awaken before the provided time using {@link wake()} function.
+      */
+    void sleepUntil(long whenNanos);
 
     /** Callbacks from C++ to call into inputflinger rust components */
     interface IInputThreadCallback {
