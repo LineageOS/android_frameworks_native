@@ -89,6 +89,7 @@
 #include "Tracing/TransactionTracing.h"
 #include "TransactionCallbackInvoker.h"
 #include "TransactionState.h"
+#include "Utils/OnceFuture.h"
 
 #include <atomic>
 #include <cstdint>
@@ -1189,10 +1190,9 @@ private:
     pid_t mPid;
 
     // TODO: b/328459745 - Encapsulate in a SystemProperties object.
-    std::mutex mInitBootPropsFutureMutex;
-    std::future<void> mInitBootPropsFuture GUARDED_BY(mInitBootPropsFutureMutex);
+    utils::OnceFuture mInitBootPropsFuture;
 
-    std::future<void> mRenderEnginePrimeCacheFuture;
+    utils::OnceFuture mRenderEnginePrimeCacheFuture;
 
     // mStateLock has conventions related to the current thread, because only
     // the main thread should modify variables protected by mStateLock.
