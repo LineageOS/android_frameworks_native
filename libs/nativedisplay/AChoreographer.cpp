@@ -148,29 +148,31 @@ AChoreographer* AChoreographer_getInstance() {
 void AChoreographer_postFrameCallback(AChoreographer* choreographer,
                                       AChoreographer_frameCallback callback, void* data) {
     AChoreographer_to_Choreographer(choreographer)
-            ->postFrameCallbackDelayed(callback, nullptr, nullptr, data, 0);
+            ->postFrameCallbackDelayed(callback, nullptr, nullptr, data, 0, CALLBACK_ANIMATION);
 }
 void AChoreographer_postFrameCallbackDelayed(AChoreographer* choreographer,
                                              AChoreographer_frameCallback callback, void* data,
                                              long delayMillis) {
     AChoreographer_to_Choreographer(choreographer)
-            ->postFrameCallbackDelayed(callback, nullptr, nullptr, data, ms2ns(delayMillis));
+            ->postFrameCallbackDelayed(callback, nullptr, nullptr, data, ms2ns(delayMillis),
+                                       CALLBACK_ANIMATION);
 }
 void AChoreographer_postVsyncCallback(AChoreographer* choreographer,
                                       AChoreographer_vsyncCallback callback, void* data) {
     AChoreographer_to_Choreographer(choreographer)
-            ->postFrameCallbackDelayed(nullptr, nullptr, callback, data, 0);
+            ->postFrameCallbackDelayed(nullptr, nullptr, callback, data, 0, CALLBACK_ANIMATION);
 }
 void AChoreographer_postFrameCallback64(AChoreographer* choreographer,
                                         AChoreographer_frameCallback64 callback, void* data) {
     AChoreographer_to_Choreographer(choreographer)
-            ->postFrameCallbackDelayed(nullptr, callback, nullptr, data, 0);
+            ->postFrameCallbackDelayed(nullptr, callback, nullptr, data, 0, CALLBACK_ANIMATION);
 }
 void AChoreographer_postFrameCallbackDelayed64(AChoreographer* choreographer,
                                                AChoreographer_frameCallback64 callback, void* data,
                                                uint32_t delayMillis) {
     AChoreographer_to_Choreographer(choreographer)
-            ->postFrameCallbackDelayed(nullptr, callback, nullptr, data, ms2ns(delayMillis));
+            ->postFrameCallbackDelayed(nullptr, callback, nullptr, data, ms2ns(delayMillis),
+                                       CALLBACK_ANIMATION);
 }
 void AChoreographer_registerRefreshRateCallback(AChoreographer* choreographer,
                                                 AChoreographer_refreshRateCallback callback,
