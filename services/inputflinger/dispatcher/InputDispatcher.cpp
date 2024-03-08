@@ -4810,6 +4810,10 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(const InputEvent* ev
                                                                         pointerCount));
                 transformMotionEntryForInjectionLocked(*nextInjectedEntry,
                                                        motionEvent.getTransform());
+                if (mTracer) {
+                    nextInjectedEntry->traceTracker =
+                            mTracer->traceInboundEvent(*nextInjectedEntry);
+                }
                 injectedEntries.push(std::move(nextInjectedEntry));
             }
             break;
