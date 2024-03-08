@@ -26,6 +26,7 @@
 
 #include <com_android_input_flags.h>
 #include <input/InputTransport.h>
+#include <input/PrintTools.h>
 #include <input/TraceTools.h>
 
 namespace input_flags = com::android::input::flags;
@@ -174,19 +175,14 @@ void initializeTouchModeEvent(TouchModeEvent& event, const InputMessage& msg) {
     event.initialize(msg.body.touchMode.eventId, msg.body.touchMode.isInTouchMode);
 }
 
-} // namespace
-
-using android::base::Result;
-using android::base::StringPrintf;
-
 // Socket buffer size.  The default is typically about 128KB, which is much larger than
 // we really need.  So we make it smaller.  It just needs to be big enough to hold
 // a few dozen large multi-finger motion events in the case where an application gets
 // behind processing touches.
-static const size_t SOCKET_BUFFER_SIZE = 32 * 1024;
+static constexpr size_t SOCKET_BUFFER_SIZE = 32 * 1024;
 
 // Nanoseconds per milliseconds.
-static const nsecs_t NANOS_PER_MS = 1000000;
+static constexpr nsecs_t NANOS_PER_MS = 1000000;
 
 // Latency added during resampling.  A few milliseconds doesn't hurt much but
 // reduces the impact of mispredicted touch positions.
@@ -219,31 +215,27 @@ static const char* PROPERTY_RESAMPLING_ENABLED = "ro.input.resampling";
  * Crash if the events that are getting sent to the InputPublisher are inconsistent.
  * Enable this via "adb shell setprop log.tag.InputTransportVerifyEvents DEBUG"
  */
-static bool verifyEvents() {
+bool verifyEvents() {
     return input_flags::enable_outbound_event_verification() ||
             __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "VerifyEvents", ANDROID_LOG_INFO);
 }
 
-template<typename T>
-inline static T min(const T& a, const T& b) {
-    return a < b ? a : b;
-}
-
-inline static float lerp(float a, float b, float alpha) {
+inline float lerp(float a, float b, float alpha) {
     return a + alpha * (b - a);
 }
 
-inline static bool isPointerEvent(int32_t source) {
+inline bool isPointerEvent(int32_t source) {
     return (source & AINPUT_SOURCE_CLASS_POINTER) == AINPUT_SOURCE_CLASS_POINTER;
 }
 
-inline static const char* toString(bool value) {
-    return value ? "true" : "false";
-}
-
-static bool shouldResampleTool(ToolType toolType) {
+bool shouldResampleTool(ToolType toolType) {
     return toolType == ToolType::FINGER || toolType == ToolType::UNKNOWN;
 }
+
+} // namespace
+
+using android::base::Result;
+using android::base::StringPrintf;
 
 // --- InputMessage ---
 
@@ -1324,7 +1316,7 @@ void InputConsumer::resampleTouchState(nsecs_t sampleTime, MotionEvent* event,
                      delta);
             return;
         }
-        nsecs_t maxPredict = current->eventTime + min(delta / 2, RESAMPLE_MAX_PREDICTION);
+        nsecs_t maxPredict = current->eventTime + std::min(delta / 2, RESAMPLE_MAX_PREDICTION);
         if (sampleTime > maxPredict) {
             ALOGD_IF(debugResampling(),
                      "Sample time is too far in the future, adjusting prediction "
