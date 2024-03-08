@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#include "TestHelpers.h"
-
 #include <attestation/HmacKeyManager.h>
 #include <gtest/gtest.h>
 #include <gui/constants.h>

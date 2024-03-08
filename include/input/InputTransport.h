@@ -670,13 +670,6 @@ private:
     status_t sendUnchainedFinishedSignal(uint32_t seq, bool handled);
 
     static void rewriteMessage(TouchState& state, InputMessage& msg);
-    static void initializeKeyEvent(KeyEvent* event, const InputMessage* msg);
-    static void initializeMotionEvent(MotionEvent* event, const InputMessage* msg);
-    static void initializeFocusEvent(FocusEvent* event, const InputMessage* msg);
-    static void initializeCaptureEvent(CaptureEvent* event, const InputMessage* msg);
-    static void initializeDragEvent(DragEvent* event, const InputMessage* msg);
-    static void initializeTouchModeEvent(TouchModeEvent* event, const InputMessage* msg);
-    static void addSample(MotionEvent* event, const InputMessage* msg);
     static bool canAddSample(const Batch& batch, const InputMessage* msg);
     static ssize_t findSampleNoLaterThan(const Batch& batch, nsecs_t time);
 
