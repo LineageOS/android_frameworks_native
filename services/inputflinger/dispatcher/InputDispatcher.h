@@ -628,7 +628,8 @@ private:
 
     void synthesizePointerDownEventsForConnectionLocked(
             const nsecs_t downTime, const std::shared_ptr<Connection>& connection,
-            ftl::Flags<InputTarget::Flags> targetFlags) REQUIRES(mLock);
+            ftl::Flags<InputTarget::Flags> targetFlags,
+            const std::unique_ptr<trace::EventTrackerInterface>& traceTracker) REQUIRES(mLock);
 
     // Splitting motion events across windows. When splitting motion event for a target,
     // splitDownTime refers to the time of first 'down' event on that particular target
@@ -657,6 +658,7 @@ private:
     void doInterceptKeyBeforeDispatchingCommand(const sp<IBinder>& focusedWindowToken,
                                                 const KeyEntry& entry) REQUIRES(mLock);
     void onFocusChangedLocked(const FocusResolver::FocusChanges& changes,
+                              const std::unique_ptr<trace::EventTrackerInterface>& traceTracker,
                               const sp<gui::WindowInfoHandle> removedFocusedWindowHandle = nullptr)
             REQUIRES(mLock);
     void sendFocusChangedCommandLocked(const sp<IBinder>& oldToken, const sp<IBinder>& newToken)
@@ -704,7 +706,9 @@ private:
                                 const sp<android::gui::WindowInfoHandle> fromWindowHandle,
                                 const sp<android::gui::WindowInfoHandle> toWindowHandle,
                                 TouchState& state, int32_t deviceId,
-                                const std::vector<PointerProperties>& pointers) REQUIRES(mLock);
+                                const std::vector<PointerProperties>& pointers,
+                                const std::unique_ptr<trace::EventTrackerInterface>& traceTracker)
+            REQUIRES(mLock);
 
     sp<android::gui::WindowInfoHandle> findWallpaperWindowBelow(
             const sp<android::gui::WindowInfoHandle>& windowHandle) const REQUIRES(mLock);

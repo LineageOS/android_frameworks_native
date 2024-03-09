@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include "trace/EventTrackerInterface.h"
+
 #include <input/Input.h>
 #include <bitset>
 #include <optional>
@@ -51,7 +53,13 @@ struct CancelationOptions {
     // The specific pointers to cancel, or nullopt to cancel all pointer events
     std::optional<std::bitset<MAX_POINTER_ID + 1>> pointerIds = std::nullopt;
 
-    CancelationOptions(Mode mode, const char* reason) : mode(mode), reason(reason) {}
+    const std::unique_ptr<trace::EventTrackerInterface>& traceTracker;
+
+    explicit CancelationOptions(Mode mode, const char* reason,
+                                const std::unique_ptr<trace::EventTrackerInterface>& traceTracker)
+          : mode(mode), reason(reason), traceTracker(traceTracker) {}
+    CancelationOptions(const CancelationOptions&) = delete;
+    CancelationOptions operator=(const CancelationOptions&) = delete;
 };
 
 } // namespace inputdispatcher

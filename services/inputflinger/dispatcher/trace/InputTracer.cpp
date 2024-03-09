@@ -65,6 +65,10 @@ void writeEventToBackend(const TracedEvent& event, InputTracingBackendInterface&
                event);
 }
 
+inline auto getId(const trace::TracedEvent& v) {
+    return std::visit([](const auto& event) { return event.id; }, v);
+}
+
 } // namespace
 
 // --- InputTracer ---
@@ -89,6 +93,12 @@ std::unique_ptr<EventTrackerInterface> InputTracer::traceInboundEvent(const Even
     return std::make_unique<EventTrackerImpl>(std::move(eventState), /*isDerived=*/false);
 }
 
+std::unique_ptr<EventTrackerInterface> InputTracer::createTrackerForSyntheticEvent() {
+    // Create a new EventState to track events derived from this tracker.
+    return std::make_unique<EventTrackerImpl>(std::make_shared<EventState>(*this),
+                                              /*isDerived=*/false);
+}
+
 void InputTracer::dispatchToTargetHint(const EventTrackerInterface& cookie,
                                        const InputTarget& target) {
     if (isDerivedCookie(cookie)) {
@@ -111,11 +121,7 @@ void InputTracer::eventProcessingComplete(const EventTrackerInterface& cookie) {
         LOG(FATAL) << "Traced event was already logged. "
                       "eventProcessingComplete() was likely called more than once.";
     }
-
-    for (const auto& event : eventState->events) {
-        writeEventToBackend(event, *mBackend);
-    }
-    eventState->isEventProcessingComplete = true;
+    eventState->onEventProcessingComplete();
 }
 
 std::unique_ptr<EventTrackerInterface> InputTracer::traceDerivedEvent(
@@ -144,7 +150,8 @@ std::unique_ptr<EventTrackerInterface> InputTracer::traceDerivedEvent(
 }
 
 void InputTracer::traceEventDispatch(const DispatchEntry& dispatchEntry,
-                                     const EventTrackerInterface* cookie) {
+                                     const EventTrackerInterface& cookie) {
+    auto& eventState = getState(cookie);
     const EventEntry& entry = *dispatchEntry.eventEntry;
     // TODO(b/328618922): Remove resolved key repeats after making repeatCount non-mutable.
     // The KeyEntry's repeatCount is mutable and can be modified after an event is initially traced,
@@ -163,9 +170,13 @@ void InputTracer::traceEventDispatch(const DispatchEntry& dispatchEntry,
         LOG(FATAL) << "Cannot trace EventEntry of type: " << ftl::enum_string(entry.type);
     }
 
-    if (!cookie) {
-        // This event was not tracked as an inbound event, so trace it now.
-        writeEventToBackend(traced, *mBackend);
+    auto tracedEventIt =
+            std::find_if(eventState->events.begin(), eventState->events.end(),
+                         [&traced](const auto& event) { return getId(traced) == getId(event); });
+    if (tracedEventIt == eventState->events.end()) {
+        LOG(FATAL)
+                << __func__
+                << ": Failed to find a previously traced event that matches the dispatched event";
     }
 
     // The vsyncId only has meaning if the event is targeting a window.
@@ -189,18 +200,24 @@ bool InputTracer::isDerivedCookie(const EventTrackerInterface& cookie) {
 
 // --- InputTracer::EventState ---
 
+void InputTracer::EventState::onEventProcessingComplete() {
+    // Write all of the events known so far to the trace.
+    for (const auto& event : events) {
+        writeEventToBackend(event, *tracer.mBackend);
+    }
+    isEventProcessingComplete = true;
+}
+
 InputTracer::EventState::~EventState() {
     if (isEventProcessingComplete) {
         // This event has already been written to the trace as expected.
         return;
     }
     // The event processing was never marked as complete, so do it now.
-    // TODO(b/210460522): Determine why/where the event is being destroyed before
-    //   eventProcessingComplete() is called.
-    for (const auto& event : events) {
-        writeEventToBackend(event, *tracer.mBackend);
-    }
-    isEventProcessingComplete = true;
+    // We should never end up here in normal operation. However, in tests, it's possible that we
+    // stop and destroy InputDispatcher without waiting for it to finish processing events, at
+    // which point an event (and thus its EventState) may be destroyed before processing finishes.
+    onEventProcessingComplete();
 }
 
 } // namespace android::inputdispatcher::trace::impl
