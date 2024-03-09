@@ -56,8 +56,8 @@ public:
      *                          and avoid crossing the minimal frame period of a VRR display.
      * \return                  A prediction of the timestamp of a vsync event.
      */
-    virtual nsecs_t nextAnticipatedVSyncTimeFrom(
-            nsecs_t timePoint, std::optional<nsecs_t> lastVsyncOpt = {}) const = 0;
+    virtual nsecs_t nextAnticipatedVSyncTimeFrom(nsecs_t timePoint,
+                                                 std::optional<nsecs_t> lastVsyncOpt = {}) = 0;
 
     /*
      * The current period of the vsync signal.
@@ -82,7 +82,7 @@ public:
      * \param [in] timePoint  A vsync timestamp
      * \param [in] frameRate  The frame rate to check for
      */
-    virtual bool isVSyncInPhase(nsecs_t timePoint, Fps frameRate) const = 0;
+    virtual bool isVSyncInPhase(nsecs_t timePoint, Fps frameRate) = 0;
 
     /*
      * Sets the active mode of the display which includes the vsync period and other VRR attributes.
@@ -102,8 +102,10 @@ public:
      * when a display is running at 120Hz but the render frame rate is 60Hz.
      *
      * \param [in] Fps   The render rate the tracker should operate at.
+     * \param [in] applyImmediately Whether to apply the new render rate immediately regardless of
+     *                              already committed vsyncs.
      */
-    virtual void setRenderRate(Fps) = 0;
+    virtual void setRenderRate(Fps, bool applyImmediately) = 0;
 
     virtual void onFrameBegin(TimePoint expectedPresentTime,
                               TimePoint lastConfirmedPresentTime) = 0;

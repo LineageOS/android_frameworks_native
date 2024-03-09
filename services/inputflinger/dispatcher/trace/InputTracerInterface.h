@@ -52,6 +52,15 @@ public:
      * to track the event's lifecycle inside InputDispatcher.
      */
     virtual std::unique_ptr<EventTrackerInterface> traceInboundEvent(const EventEntry&) = 0;
+
+    /**
+     * Create a trace tracker for a synthetic event that does not stem from an inbound input event.
+     * This includes things like generating cancellations or down events for various reasons,
+     * such as ANR, pilfering, transfer touch, etc. Any key or motion events generated for this
+     * synthetic event should be traced as a derived event using {@link #traceDerivedEvent}.
+     */
+    virtual std::unique_ptr<EventTrackerInterface> createTrackerForSyntheticEvent() = 0;
+
     /**
      * Notify the tracer that the traced event will be sent to the given InputTarget.
      * The tracer may change how the event is logged depending on the target. For example,
@@ -89,11 +98,11 @@ public:
 
     /**
      * Trace an input event being successfully dispatched to a window. The dispatched event may
-     * be a previously traced inbound event, or it may be a synthesized event that has not been
-     * previously traced. For inbound events that were previously traced, the EventTracker cookie
-     * must be provided. For events that were not previously traced, the cookie must be null.
+     * be a previously traced inbound event, or it may be a synthesized event. All dispatched events
+     * must have been previously traced, so the trace tracker associated with the event must be
+     * provided.
      */
-    virtual void traceEventDispatch(const DispatchEntry&, const EventTrackerInterface*) = 0;
+    virtual void traceEventDispatch(const DispatchEntry&, const EventTrackerInterface&) = 0;
 };
 
 } // namespace android::inputdispatcher::trace

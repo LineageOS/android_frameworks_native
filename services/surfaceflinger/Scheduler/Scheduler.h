@@ -188,7 +188,7 @@ public:
     const VsyncConfiguration& getVsyncConfiguration() const { return *mVsyncConfiguration; }
 
     // Sets the render rate for the scheduler to run at.
-    void setRenderRate(PhysicalDisplayId, Fps);
+    void setRenderRate(PhysicalDisplayId, Fps, bool applyImmediately);
 
     void enableHardwareVsync(PhysicalDisplayId) REQUIRES(kMainThreadContext);
     void disableHardwareVsync(PhysicalDisplayId, bool disallow) REQUIRES(kMainThreadContext);

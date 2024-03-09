@@ -91,8 +91,8 @@ private:
     };
 
     nsecs_t adjustVsyncIfNeeded(VSyncTracker& tracker, nsecs_t nextVsyncTime) const;
-    ArmingInfo update(VSyncTracker&, nsecs_t now, VSyncDispatch::ScheduleTiming,
-                      std::optional<ArmingInfo>) const;
+    ArmingInfo getArmedInfo(VSyncTracker&, nsecs_t now, VSyncDispatch::ScheduleTiming,
+                            std::optional<ArmingInfo>) const;
 
     const std::string mName;
     const VSyncDispatch::Callback mCallback;

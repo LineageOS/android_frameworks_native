@@ -1239,8 +1239,8 @@ void SurfaceFlinger::setDesiredMode(display::DisplayModeRequest&& desiredMode) {
     switch (display->setDesiredMode(std::move(desiredMode))) {
         case DisplayDevice::DesiredModeAction::InitiateDisplayModeSwitch:
             // DisplayDevice::setDesiredMode updated the render rate, so inform Scheduler.
-            mScheduler->setRenderRate(displayId,
-                                      display->refreshRateSelector().getActiveMode().fps);
+            mScheduler->setRenderRate(displayId, display->refreshRateSelector().getActiveMode().fps,
+                                      /*applyImmediately*/ true);
 
             // Schedule a new frame to initiate the display mode switch.
             scheduleComposite(FrameHint::kNone);
@@ -1261,7 +1261,7 @@ void SurfaceFlinger::setDesiredMode(display::DisplayModeRequest&& desiredMode) {
             mScheduler->setModeChangePending(true);
             break;
         case DisplayDevice::DesiredModeAction::InitiateRenderRateSwitch:
-            mScheduler->setRenderRate(displayId, mode.fps);
+            mScheduler->setRenderRate(displayId, mode.fps, /*applyImmediately*/ false);
 
             if (displayId == mActiveDisplayId) {
                 mScheduler->updatePhaseConfiguration(mode.fps);
@@ -1382,7 +1382,7 @@ void SurfaceFlinger::applyActiveMode(const sp<DisplayDevice>& display) {
 
     constexpr bool kAllowToEnable = true;
     mScheduler->resyncToHardwareVsync(displayId, kAllowToEnable, std::move(activeModePtr).take());
-    mScheduler->setRenderRate(displayId, renderFps);
+    mScheduler->setRenderRate(displayId, renderFps, /*applyImmediately*/ true);
 
     if (displayId == mActiveDisplayId) {
         mScheduler->updatePhaseConfiguration(renderFps);
@@ -4377,7 +4377,8 @@ void SurfaceFlinger::initScheduler(const sp<const DisplayDevice>& display) {
     // The pacesetter must be registered before EventThread creation below.
     mScheduler->registerDisplay(display->getPhysicalId(), display->holdRefreshRateSelector());
     if (FlagManager::getInstance().vrr_config()) {
-        mScheduler->setRenderRate(display->getPhysicalId(), activeMode.fps);
+        mScheduler->setRenderRate(display->getPhysicalId(), activeMode.fps,
+                                  /*applyImmediately*/ true);
     }
 
     const auto configs = mScheduler->getVsyncConfiguration().getCurrentConfigs();
@@ -4701,7 +4702,14 @@ TransactionHandler::TransactionReadiness SurfaceFlinger::transactionReadyTimelin
         return TransactionReadiness::NotReady;
     }
 
-    if (!mScheduler->isVsyncValid(expectedPresentTime, transaction.originUid)) {
+    const auto vsyncId = VsyncId{transaction.frameTimelineInfo.vsyncId};
+
+    // Transactions with VsyncId are already throttled by the vsyncId (i.e. Choreographer issued
+    // the vsyncId according to the frame rate override cadence) so we shouldn't throttle again
+    // when applying the transaction. Otherwise we might throttle older transactions
+    // incorrectly as the frame rate of SF changed before it drained the older transactions.
+    if (ftl::to_underlying(vsyncId) == FrameTimelineInfo::INVALID_VSYNC_ID &&
+        !mScheduler->isVsyncValid(expectedPresentTime, transaction.originUid)) {
         ATRACE_FORMAT("!isVsyncValid expectedPresentTime: %" PRId64 " uid: %d", expectedPresentTime,
                       transaction.originUid);
         return TransactionReadiness::NotReady;
@@ -4709,8 +4717,7 @@ TransactionHandler::TransactionReadiness SurfaceFlinger::transactionReadyTimelin
 
     // If the client didn't specify desiredPresentTime, use the vsyncId to determine the
     // expected present time of this transaction.
-    if (transaction.isAutoTimestamp &&
-        frameIsEarly(expectedPresentTime, VsyncId{transaction.frameTimelineInfo.vsyncId})) {
+    if (transaction.isAutoTimestamp && frameIsEarly(expectedPresentTime, vsyncId)) {
         ATRACE_FORMAT("frameIsEarly vsyncId: %" PRId64 " expectedPresentTime: %" PRId64,
                       transaction.frameTimelineInfo.vsyncId, expectedPresentTime);
         return TransactionReadiness::NotReady;
