@@ -399,7 +399,8 @@ std::unique_ptr<DispatchEntry> createDispatchEntry(const IdGenerator& idGenerato
                                                    const InputTarget& inputTarget,
                                                    std::shared_ptr<const EventEntry> eventEntry,
                                                    ftl::Flags<InputTarget::Flags> inputTargetFlags,
-                                                   int64_t vsyncId) {
+                                                   int64_t vsyncId,
+                                                   trace::InputTracerInterface* tracer) {
     const bool zeroCoords = inputTargetFlags.test(InputTarget::Flags::ZERO_COORDS);
     const sp<WindowInfoHandle> win = inputTarget.windowHandle;
     const std::optional<int32_t> windowId =
@@ -462,6 +463,10 @@ std::unique_ptr<DispatchEntry> createDispatchEntry(const IdGenerator& idGenerato
                                           motionEntry.xCursorPosition, motionEntry.yCursorPosition,
                                           motionEntry.downTime, motionEntry.pointerProperties,
                                           pointerCoords);
+    if (tracer) {
+        combinedMotionEntry->traceTracker =
+                tracer->traceDerivedEvent(*combinedMotionEntry, *motionEntry.traceTracker);
+    }
 
     std::unique_ptr<DispatchEntry> dispatchEntry =
             std::make_unique<DispatchEntry>(std::move(combinedMotionEntry), inputTargetFlags,
@@ -3386,7 +3391,7 @@ void InputDispatcher::enqueueDispatchEntryLocked(const std::shared_ptr<Connectio
     // Enqueue a new dispatch entry onto the outbound queue for this connection.
     std::unique_ptr<DispatchEntry> dispatchEntry =
             createDispatchEntry(mIdGenerator, inputTarget, eventEntry, inputTarget.flags,
-                                mWindowInfosVsyncId);
+                                mWindowInfosVsyncId, mTracer.get());
 
     // Use the eventEntry from dispatchEntry since the entry may have changed and can now be a
     // different EventEntry than what was passed in.
@@ -3469,21 +3474,31 @@ void InputDispatcher::enqueueDispatchEntryLocked(const std::shared_ptr<Connectio
                             usingCoords = pointerInfo->second;
                         }
                     }
-                    // Generate a new MotionEntry with a new eventId using the resolved action and
-                    // flags.
-                    resolvedMotion = std::make_shared<
-                            MotionEntry>(mIdGenerator.nextId(), motionEntry.injectionState,
-                                         motionEntry.eventTime, motionEntry.deviceId,
-                                         motionEntry.source, motionEntry.displayId,
-                                         motionEntry.policyFlags, resolvedAction,
-                                         motionEntry.actionButton, resolvedFlags,
-                                         motionEntry.metaState, motionEntry.buttonState,
-                                         motionEntry.classification, motionEntry.edgeFlags,
-                                         motionEntry.xPrecision, motionEntry.yPrecision,
-                                         motionEntry.xCursorPosition, motionEntry.yCursorPosition,
-                                         motionEntry.downTime,
-                                         usingProperties.value_or(motionEntry.pointerProperties),
-                                         usingCoords.value_or(motionEntry.pointerCoords));
+                    {
+                        // Generate a new MotionEntry with a new eventId using the resolved action
+                        // and flags, and set it as the resolved entry.
+                        auto newEntry = std::make_shared<
+                                MotionEntry>(mIdGenerator.nextId(), motionEntry.injectionState,
+                                             motionEntry.eventTime, motionEntry.deviceId,
+                                             motionEntry.source, motionEntry.displayId,
+                                             motionEntry.policyFlags, resolvedAction,
+                                             motionEntry.actionButton, resolvedFlags,
+                                             motionEntry.metaState, motionEntry.buttonState,
+                                             motionEntry.classification, motionEntry.edgeFlags,
+                                             motionEntry.xPrecision, motionEntry.yPrecision,
+                                             motionEntry.xCursorPosition,
+                                             motionEntry.yCursorPosition, motionEntry.downTime,
+                                             usingProperties.value_or(
+                                                     motionEntry.pointerProperties),
+                                             usingCoords.value_or(motionEntry.pointerCoords));
+                        if (mTracer) {
+                            ensureEventTraced(motionEntry);
+                            newEntry->traceTracker =
+                                    mTracer->traceDerivedEvent(*newEntry,
+                                                               *motionEntry.traceTracker);
+                        }
+                        resolvedMotion = newEntry;
+                    }
                     if (ATRACE_ENABLED()) {
                         std::string message = StringPrintf("Transmute MotionEvent(id=0x%" PRIx32
                                                            ") to MotionEvent(id=0x%" PRIx32 ").",
@@ -3508,7 +3523,8 @@ void InputDispatcher::enqueueDispatchEntryLocked(const std::shared_ptr<Connectio
                           << cancelEvent->getDescription();
                 std::unique_ptr<DispatchEntry> cancelDispatchEntry =
                         createDispatchEntry(mIdGenerator, inputTarget, std::move(cancelEvent),
-                                            ftl::Flags<InputTarget::Flags>(), mWindowInfosVsyncId);
+                                            ftl::Flags<InputTarget::Flags>(), mWindowInfosVsyncId,
+                                            mTracer.get());
 
                 // Send these cancel events to the queue before sending the event from the new
                 // device.
@@ -4316,6 +4332,10 @@ std::unique_ptr<MotionEntry> InputDispatcher::splitMotionEvent(
                                           originalMotionEntry.xCursorPosition,
                                           originalMotionEntry.yCursorPosition, splitDownTime,
                                           pointerProperties, pointerCoords);
+    if (mTracer) {
+        splitMotionEntry->traceTracker =
+                mTracer->traceDerivedEvent(*splitMotionEntry, *originalMotionEntry.traceTracker);
+    }
 
     return splitMotionEntry;
 }
@@ -4810,6 +4830,10 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(const InputEvent* ev
                                                                         pointerCount));
                 transformMotionEntryForInjectionLocked(*nextInjectedEntry,
                                                        motionEvent.getTransform());
+                if (mTracer) {
+                    nextInjectedEntry->traceTracker =
+                            mTracer->traceInboundEvent(*nextInjectedEntry);
+                }
                 injectedEntries.push(std::move(nextInjectedEntry));
             }
             break;
@@ -6610,6 +6634,10 @@ std::unique_ptr<const KeyEntry> InputDispatcher::afterKeyEventLockedInterruptabl
                                                *fallbackKeyCode, event.getScanCode(),
                                                event.getMetaState(), event.getRepeatCount(),
                                                event.getDownTime());
+            if (mTracer) {
+                newEntry->traceTracker =
+                        mTracer->traceDerivedEvent(*newEntry, *keyEntry.traceTracker);
+            }
             if (DEBUG_OUTBOUND_EVENT_DETAILS) {
                 ALOGD("Unhandled key event: Dispatching fallback key.  "
                       "originalKeyCode=%d, fallbackKeyCode=%d, fallbackMetaState=%08x",

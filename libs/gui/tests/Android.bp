@@ -30,6 +30,7 @@ cc_test {
         "BLASTBufferQueue_test.cpp",
         "BufferItemConsumer_test.cpp",
         "BufferQueue_test.cpp",
+        "Choreographer_test.cpp",
         "CompositorTiming_test.cpp",
         "CpuConsumer_test.cpp",
         "EndToEndNativeInputTest.cpp",
@@ -61,6 +62,7 @@ cc_test {
         "libSurfaceFlingerProp",
         "libGLESv1_CM",
         "libinput",
+        "libnativedisplay",
     ],
 
     static_libs: [

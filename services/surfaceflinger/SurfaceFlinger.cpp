@@ -2730,7 +2730,8 @@ CompositeResultsPerDisplay SurfaceFlinger::composite(
     refreshArgs.forceOutputColorMode = mForceColorMode;
 
     refreshArgs.updatingOutputGeometryThisFrame = mVisibleRegionsDirty;
-    refreshArgs.updatingGeometryThisFrame = mGeometryDirty.exchange(false) || mVisibleRegionsDirty;
+    refreshArgs.updatingGeometryThisFrame = mGeometryDirty.exchange(false) ||
+            mVisibleRegionsDirty || mDrawingState.colorMatrixChanged;
     refreshArgs.internalDisplayRotationFlags = getActiveDisplayRotationFlags();
 
     if (CC_UNLIKELY(mDrawingState.colorMatrixChanged)) {
