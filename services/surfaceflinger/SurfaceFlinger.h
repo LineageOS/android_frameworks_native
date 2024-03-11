@@ -550,7 +550,7 @@ private:
             bool hasListenerCallbacks, const std::vector<ListenerCallbacks>& listenerCallbacks,
             uint64_t transactionId, const std::vector<uint64_t>& mergedTransactionIds) override;
     void bootFinished();
-    virtual status_t getSupportedFrameTimestamps(std::vector<FrameEvent>* outSupported) const;
+    status_t getSupportedFrameTimestamps(std::vector<FrameEvent>* outSupported) const;
     sp<IDisplayEventConnection> createDisplayEventConnection(
             gui::ISurfaceComposer::VsyncSource vsyncSource =
                     gui::ISurfaceComposer::VsyncSource::eVsyncSourceApp,
@@ -871,9 +871,6 @@ private:
     // Traverse through all the layers and compute and cache its bounds.
     void computeLayerBounds();
 
-    // Boot animation, on/off animations and screen capture
-    void startBootAnim();
-
     bool layersHasProtectedLayer(const std::vector<std::pair<Layer*, sp<LayerFE>>>& layers) const;
 
     void captureScreenCommon(RenderAreaFuture, GetLayerSnapshotsFunction, ui::Size bufferSize,
@@ -1184,10 +1181,17 @@ private:
     ui::Rotation getPhysicalDisplayOrientation(DisplayId, bool isPrimary) const
             REQUIRES(mStateLock);
     void traverseLegacyLayers(const LayerVector::Visitor& visitor) const;
+
+    void initBootProperties();
     void initTransactionTraceWriter();
-    sp<StartPropertySetThread> mStartPropertySetThread;
+
     surfaceflinger::Factory& mFactory;
     pid_t mPid;
+
+    // TODO: b/328459745 - Encapsulate in a SystemProperties object.
+    std::mutex mInitBootPropsFutureMutex;
+    std::future<void> mInitBootPropsFuture GUARDED_BY(mInitBootPropsFutureMutex);
+
     std::future<void> mRenderEnginePrimeCacheFuture;
 
     // mStateLock has conventions related to the current thread, because only

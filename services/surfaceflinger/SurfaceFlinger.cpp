@@ -153,7 +153,6 @@
 #include "Scheduler/VsyncConfiguration.h"
 #include "Scheduler/VsyncModulator.h"
 #include "ScreenCaptureOutput.h"
-#include "StartPropertySetThread.h"
 #include "SurfaceFlingerProperties.h"
 #include "TimeStats/TimeStats.h"
 #include "TunnelModeEnabledReporter.h"
@@ -566,7 +565,14 @@ void SurfaceFlinger::binderDied(const wp<IBinder>&) {
         initializeDisplays();
     }));
 
-    startBootAnim();
+    std::lock_guard lock(mInitBootPropsFutureMutex);
+    if (!mInitBootPropsFuture.valid()) {
+        mInitBootPropsFuture =
+                std::async(std::launch::async, &SurfaceFlinger::initBootProperties, this);
+    }
+
+    mInitBootPropsFuture.wait();
+    mInitBootPropsFuture = {};
 }
 
 void SurfaceFlinger::run() {
@@ -722,13 +728,15 @@ void SurfaceFlinger::bootFinished() {
     }
     mBootFinished = true;
     FlagManager::getMutableInstance().markBootCompleted();
-    if (mStartPropertySetThread->join() != NO_ERROR) {
-        ALOGE("Join StartPropertySetThread failed!");
+
+    if (std::lock_guard lock(mInitBootPropsFutureMutex); mInitBootPropsFuture.valid()) {
+        mInitBootPropsFuture.wait();
+        mInitBootPropsFuture = {};
+    }
+    if (mRenderEnginePrimeCacheFuture.valid()) {
+        mRenderEnginePrimeCacheFuture.wait();
     }
 
-    if (mRenderEnginePrimeCacheFuture.valid()) {
-        mRenderEnginePrimeCacheFuture.get();
-    }
     const nsecs_t now = systemTime();
     const nsecs_t duration = now - mBootTime;
     ALOGI("Boot is finished (%ld ms)", long(ns2ms(duration)) );
@@ -816,8 +824,6 @@ void chooseRenderEngineType(renderengine::RenderEngineCreationArgs::Builder& bui
     }
 }
 
-// Do not call property_set on main thread which will be blocked by init
-// Use StartPropertySetThread instead.
 void SurfaceFlinger::init() FTL_FAKE_GUARD(kMainThreadContext) {
     ATRACE_CALL();
     ALOGI(  "SurfaceFlinger's main thread ready to run. "
@@ -928,16 +934,28 @@ void SurfaceFlinger::init() FTL_FAKE_GUARD(kMainThreadContext) {
         }
     }
 
-    // Inform native graphics APIs whether the present timestamp is supported:
-
-    mStartPropertySetThread = getFactory().createStartPropertySetThread(mHasReliablePresentFences);
-
-    if (mStartPropertySetThread->Start() != NO_ERROR) {
-        ALOGE("Run StartPropertySetThread failed!");
+    // Avoid blocking the main thread on `init` to set properties.
+    if (std::lock_guard lock(mInitBootPropsFutureMutex); !mInitBootPropsFuture.valid()) {
+        mInitBootPropsFuture =
+                std::async(std::launch::async, &SurfaceFlinger::initBootProperties, this);
     }
 
     initTransactionTraceWriter();
     ALOGV("Done initializing");
+}
+
+// During boot, offload `initBootProperties` to another thread. `property_set` depends on
+// `property_service`, which may be delayed by slow operations like `mount_all --late` in
+// the `init` process. See b/34499826 and b/63844978.
+void SurfaceFlinger::initBootProperties() {
+    property_set("service.sf.present_timestamp", mHasReliablePresentFences ? "1" : "0");
+
+    if (base::GetBoolProperty("debug.sf.boot_animation"s, true)) {
+        // Reset and (if needed) start BootAnimation.
+        property_set("service.bootanim.exit", "0");
+        property_set("service.bootanim.progress", "0");
+        property_set("ctl.start", "bootanim");
+    }
 }
 
 void SurfaceFlinger::initTransactionTraceWriter() {
@@ -978,18 +996,6 @@ void SurfaceFlinger::readPersistentProperties() {
     mForceColorMode =
             static_cast<ui::ColorMode>(base::GetIntProperty("persist.sys.sf.color_mode"s, 0));
 }
-
-void SurfaceFlinger::startBootAnim() {
-    // Start boot animation service by setting a property mailbox
-    // if property setting thread is already running, Start() will be just a NOP
-    mStartPropertySetThread->Start();
-    // Wait until property was set
-    if (mStartPropertySetThread->join() != NO_ERROR) {
-        ALOGE("Join StartPropertySetThread failed!");
-    }
-}
-
-// ----------------------------------------------------------------------------
 
 status_t SurfaceFlinger::getSupportedFrameTimestamps(
         std::vector<FrameEvent>* outSupported) const {

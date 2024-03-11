@@ -4197,14 +4197,14 @@ int Dumpstate::DumpFile(const std::string& title, const std::string& path) {
 }
 
 int read_file_as_long(const char *path, long int *output) {
-    int fd = TEMP_FAILURE_RETRY(open(path, O_RDONLY | O_NONBLOCK | O_CLOEXEC));
-    if (fd < 0) {
+    android::base::unique_fd fd(TEMP_FAILURE_RETRY(open(path, O_RDONLY | O_NONBLOCK | O_CLOEXEC)));
+    if (fd.get() < 0) {
         int err = errno;
         MYLOGE("Error opening file descriptor for %s: %s\n", path, strerror(err));
         return -1;
     }
     char buffer[50];
-    ssize_t bytes_read = TEMP_FAILURE_RETRY(read(fd, buffer, sizeof(buffer)));
+    ssize_t bytes_read = TEMP_FAILURE_RETRY(read(fd.get(), buffer, sizeof(buffer)));
     if (bytes_read == -1) {
         MYLOGE("Error reading file %s: %s\n", path, strerror(errno));
         return -2;
