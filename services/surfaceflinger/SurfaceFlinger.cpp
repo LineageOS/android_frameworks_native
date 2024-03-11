@@ -565,14 +565,11 @@ void SurfaceFlinger::binderDied(const wp<IBinder>&) {
         initializeDisplays();
     }));
 
-    std::lock_guard lock(mInitBootPropsFutureMutex);
-    if (!mInitBootPropsFuture.valid()) {
-        mInitBootPropsFuture =
-                std::async(std::launch::async, &SurfaceFlinger::initBootProperties, this);
-    }
+    mInitBootPropsFuture.callOnce([this] {
+        return std::async(std::launch::async, &SurfaceFlinger::initBootProperties, this);
+    });
 
     mInitBootPropsFuture.wait();
-    mInitBootPropsFuture = {};
 }
 
 void SurfaceFlinger::run() {
@@ -729,13 +726,8 @@ void SurfaceFlinger::bootFinished() {
     mBootFinished = true;
     FlagManager::getMutableInstance().markBootCompleted();
 
-    if (std::lock_guard lock(mInitBootPropsFutureMutex); mInitBootPropsFuture.valid()) {
-        mInitBootPropsFuture.wait();
-        mInitBootPropsFuture = {};
-    }
-    if (mRenderEnginePrimeCacheFuture.valid()) {
-        mRenderEnginePrimeCacheFuture.wait();
-    }
+    mInitBootPropsFuture.wait();
+    mRenderEnginePrimeCacheFuture.wait();
 
     const nsecs_t now = systemTime();
     const nsecs_t duration = now - mBootTime;
@@ -925,9 +917,11 @@ void SurfaceFlinger::init() FTL_FAKE_GUARD(kMainThreadContext) {
             ALOGW("Can't set SCHED_OTHER for primeCache");
         }
 
-        bool shouldPrimeUltraHDR =
-                base::GetBoolProperty("ro.surface_flinger.prime_shader_cache.ultrahdr"s, false);
-        mRenderEnginePrimeCacheFuture = getRenderEngine().primeCache(shouldPrimeUltraHDR);
+        mRenderEnginePrimeCacheFuture.callOnce([this] {
+            const bool shouldPrimeUltraHDR =
+                    base::GetBoolProperty("ro.surface_flinger.prime_shader_cache.ultrahdr"s, false);
+            return getRenderEngine().primeCache(shouldPrimeUltraHDR);
+        });
 
         if (setSchedFifo(true) != NO_ERROR) {
             ALOGW("Can't set SCHED_FIFO after primeCache");
@@ -935,10 +929,9 @@ void SurfaceFlinger::init() FTL_FAKE_GUARD(kMainThreadContext) {
     }
 
     // Avoid blocking the main thread on `init` to set properties.
-    if (std::lock_guard lock(mInitBootPropsFutureMutex); !mInitBootPropsFuture.valid()) {
-        mInitBootPropsFuture =
-                std::async(std::launch::async, &SurfaceFlinger::initBootProperties, this);
-    }
+    mInitBootPropsFuture.callOnce([this] {
+        return std::async(std::launch::async, &SurfaceFlinger::initBootProperties, this);
+    });
 
     initTransactionTraceWriter();
     ALOGV("Done initializing");
