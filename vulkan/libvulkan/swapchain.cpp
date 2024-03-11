@@ -526,12 +526,15 @@ void copy_ready_timings(Swapchain& swapchain,
     *count = num_copied;
 }
 
-PixelFormat GetNativePixelFormat(VkFormat format) {
+PixelFormat GetNativePixelFormat(VkFormat format,
+                                 VkCompositeAlphaFlagBitsKHR alpha) {
     PixelFormat native_format = PixelFormat::RGBA_8888;
     switch (format) {
         case VK_FORMAT_R8G8B8A8_UNORM:
         case VK_FORMAT_R8G8B8A8_SRGB:
-            native_format = PixelFormat::RGBA_8888;
+            native_format = alpha == VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR
+                                ? PixelFormat::RGBX_8888
+                                : PixelFormat::RGBA_8888;
             break;
         case VK_FORMAT_R5G6B5_UNORM_PACK16:
             native_format = PixelFormat::RGB_565;
@@ -901,7 +904,7 @@ VkResult GetPhysicalDeviceSurfaceCapabilities2KHR(
     VkSurfaceCapabilities2KHR* pSurfaceCapabilities) {
     ATRACE_CALL();
 
-    auto surface = pSurfaceInfo->surface;
+    auto surface_handle = pSurfaceInfo->surface;
     auto capabilities = &pSurfaceCapabilities->surfaceCapabilities;
 
     VkSurfacePresentModeEXT const *pPresentMode = nullptr;
@@ -922,7 +925,13 @@ VkResult GetPhysicalDeviceSurfaceCapabilities2KHR(
     int transform_hint;
     int max_buffer_count;
     int min_undequeued_buffers;
-    if (surface == VK_NULL_HANDLE) {
+    // On Android, window composition is a WindowManager property, not something
+    // associated with the bufferqueue. It can't be changed from here for a
+    // swapchain connected with SurfaceFlinger. For offscreen surfaces, it's
+    // allowed to report opaque being supported for RGBX preference.
+    VkCompositeAlphaFlagsKHR composite_alpha =
+        VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR;
+    if (surface_handle == VK_NULL_HANDLE) {
         const InstanceData& instance_data = GetData(physicalDevice);
         ProcHook::Extension surfaceless = ProcHook::GOOGLE_surfaceless_query;
         bool surfaceless_enabled =
@@ -943,7 +952,8 @@ VkResult GetPhysicalDeviceSurfaceCapabilities2KHR(
         capabilities->minImageCount = 0xFFFFFFFF;
         capabilities->maxImageCount = 0xFFFFFFFF;
     } else {
-        ANativeWindow* window = SurfaceFromHandle(surface)->window.get();
+        Surface& surface = *SurfaceFromHandle(surface_handle);
+        ANativeWindow* window = surface.window.get();
 
         err = window->query(window, NATIVE_WINDOW_DEFAULT_WIDTH, &width);
         if (err != android::OK) {
@@ -1018,6 +1028,11 @@ VkResult GetPhysicalDeviceSurfaceCapabilities2KHR(
                     min_undequeued_buffers + default_additional_buffers);
             capabilities->maxImageCount = static_cast<uint32_t>(max_buffer_count);
         }
+
+        if (!(surface.consumer_usage &
+              AHARDWAREBUFFER_USAGE_COMPOSER_OVERLAY)) {
+            composite_alpha |= VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+        }
     }
 
     capabilities->currentExtent =
@@ -1044,9 +1059,7 @@ VkResult GetPhysicalDeviceSurfaceCapabilities2KHR(
     capabilities->currentTransform =
         TranslateNativeToVulkanTransform(transform_hint);
 
-    // On Android, window composition is a WindowManager property, not something
-    // associated with the bufferqueue. It can't be changed from here.
-    capabilities->supportedCompositeAlpha = VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR;
+    capabilities->supportedCompositeAlpha = composite_alpha;
 
     capabilities->supportedUsageFlags =
         VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT |
@@ -1645,20 +1658,21 @@ VkResult CreateSwapchainKHR(VkDevice device,
 
     ALOGV("vkCreateSwapchainKHR: surface=0x%" PRIx64
           " minImageCount=%u imageFormat=%u imageColorSpace=%u"
-          " imageExtent=%ux%u imageUsage=%#x preTransform=%u presentMode=%u"
-          " oldSwapchain=0x%" PRIx64,
+          " imageExtent=%ux%u imageUsage=%#x preTransform=%u compositeAlpha=%u"
+          " presentMode=%u oldSwapchain=0x%" PRIx64,
           reinterpret_cast<uint64_t>(create_info->surface),
           create_info->minImageCount, create_info->imageFormat,
           create_info->imageColorSpace, create_info->imageExtent.width,
           create_info->imageExtent.height, create_info->imageUsage,
-          create_info->preTransform, create_info->presentMode,
+          create_info->preTransform, create_info->compositeAlpha,
+          create_info->presentMode,
           reinterpret_cast<uint64_t>(create_info->oldSwapchain));
 
     if (!allocator)
         allocator = &GetData(device).allocator;
 
-    PixelFormat native_pixel_format =
-        GetNativePixelFormat(create_info->imageFormat);
+    PixelFormat native_pixel_format = GetNativePixelFormat(
+        create_info->imageFormat, create_info->compositeAlpha);
     DataSpace native_dataspace = GetNativeDataspace(
         create_info->imageColorSpace, create_info->imageFormat);
     if (native_dataspace == DataSpace::UNKNOWN) {
