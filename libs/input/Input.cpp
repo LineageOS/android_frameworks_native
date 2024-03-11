@@ -1034,7 +1034,8 @@ std::tuple<int32_t, std::vector<PointerProperties>, std::vector<PointerCoords>> 
                         (splitPointerProperties.size() * (historySize + 1)));
 
     if (CC_UNLIKELY(splitPointerProperties.size() != splitCount)) {
-        LOG(FATAL) << "Cannot split MotionEvent: Requested splitting " << splitCount
+        // TODO(b/329107108): Promote this to a fatal check once bugs in the caller are resolved.
+        LOG(ERROR) << "Cannot split MotionEvent: Requested splitting " << splitCount
                    << " pointers from the original event, but the original event only contained "
                    << splitPointerProperties.size() << " of those pointers.";
     }
