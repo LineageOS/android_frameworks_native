@@ -83,11 +83,11 @@ cc_defaults {
         "libprotobuf-cpp-lite",
         "libsync",
         "libui",
-        "libinput",
         "libutils",
         "libSurfaceFlingerProp",
     ],
     static_libs: [
+        "iinputflinger_aidl_lib_static",
         "libaidlcommonsupport",
         "libcompositionengine",
         "libframetimeline",

@@ -135,6 +135,29 @@ rust_bindgen {
     ],
 }
 
+cc_library_static {
+    name: "iinputflinger_aidl_lib_static",
+    host_supported: true,
+    srcs: [
+        "android/os/IInputFlinger.aidl",
+        "android/os/InputChannelCore.aidl",
+    ],
+    shared_libs: [
+        "libbinder",
+    ],
+    whole_static_libs: [
+        "libgui_window_info_static",
+    ],
+    aidl: {
+        export_aidl_headers: true,
+        local_include_dirs: ["."],
+        include_dirs: [
+            "frameworks/native/libs/gui",
+            "frameworks/native/libs/input",
+        ],
+    },
+}
+
 // Contains methods to help access C++ code from rust
 cc_library_static {
     name: "libinput_from_rust_to_cpp",
@@ -179,8 +202,6 @@ cc_library {
         "-DANDROID_UTILS_REF_BASE_DISABLE_IMPLICIT_CONSTRUCTION",
     ],
     srcs: [
-        "android/os/IInputFlinger.aidl",
-        "android/os/InputChannelCore.aidl",
         "AccelerationCurve.cpp",
         "Input.cpp",
         "InputDevice.cpp",
@@ -243,7 +264,6 @@ cc_library {
 
     static_libs: [
         "inputconstants-cpp",
-        "libgui_window_info_static",
         "libui-types",
         "libtflite_static",
         "libkernelconfigs",
@@ -252,10 +272,10 @@ cc_library {
     whole_static_libs: [
         "com.android.input.flags-aconfig-cc",
         "libinput_rust_ffi",
+        "iinputflinger_aidl_lib_static",
     ],
 
     export_static_lib_headers: [
-        "libgui_window_info_static",
         "libui-types",
     ],
 
@@ -288,14 +308,6 @@ cc_library {
                 "bionic/libc/kernel/uapi",
             ],
         },
-    },
-
-    aidl: {
-        local_include_dirs: ["."],
-        export_aidl_headers: true,
-        include_dirs: [
-            "frameworks/native/libs/gui",
-        ],
     },
 }
 
