@@ -120,7 +120,7 @@ fn print_device_description(
     fn print_in_8_byte_chunks(
         output: &mut impl Write,
         prefix: &str,
-        data: &Vec<u8>,
+        data: &[u8],
     ) -> Result<(), io::Error> {
         for (i, byte) in data.iter().enumerate() {
             if i % 8 == 0 {
