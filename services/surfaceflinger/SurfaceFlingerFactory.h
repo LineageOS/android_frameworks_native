@@ -39,7 +39,6 @@ class IGraphicBufferConsumer;
 class IGraphicBufferProducer;
 class Layer;
 class LayerFE;
-class StartPropertySetThread;
 class SurfaceFlinger;
 class TimeStats;
 
@@ -71,8 +70,6 @@ public:
     virtual std::unique_ptr<scheduler::VsyncConfiguration> createVsyncConfiguration(
             Fps currentRefreshRate) = 0;
 
-    virtual sp<StartPropertySetThread> createStartPropertySetThread(
-            bool timestampPropertyValue) = 0;
     virtual sp<DisplayDevice> createDisplayDevice(DisplayDeviceCreationArgs&) = 0;
     virtual sp<GraphicBuffer> createGraphicBuffer(uint32_t width, uint32_t height,
                                                   PixelFormat format, uint32_t layerCount,

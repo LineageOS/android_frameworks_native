@@ -29,7 +29,6 @@ public:
     std::unique_ptr<HWComposer> createHWComposer(const std::string& serviceName) override;
     std::unique_ptr<scheduler::VsyncConfiguration> createVsyncConfiguration(
             Fps currentRefreshRate) override;
-    sp<StartPropertySetThread> createStartPropertySetThread(bool timestampPropertyValue) override;
     sp<DisplayDevice> createDisplayDevice(DisplayDeviceCreationArgs&) override;
     sp<GraphicBuffer> createGraphicBuffer(uint32_t width, uint32_t height, PixelFormat format,
                                           uint32_t layerCount, uint64_t usage,

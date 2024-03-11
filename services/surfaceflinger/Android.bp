@@ -210,7 +210,6 @@ filegroup {
         "Scheduler/VsyncModulator.cpp",
         "Scheduler/VsyncSchedule.cpp",
         "ScreenCaptureOutput.cpp",
-        "StartPropertySetThread.cpp",
         "SurfaceFlinger.cpp",
         "SurfaceFlingerDefaultFactory.cpp",
         "Tracing/LayerDataSource.cpp",
