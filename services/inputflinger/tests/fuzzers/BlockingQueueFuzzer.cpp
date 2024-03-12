@@ -15,8 +15,8 @@
  */
 
 #include <fuzzer/FuzzedDataProvider.h>
+#include <input/BlockingQueue.h>
 #include <thread>
-#include "BlockingQueue.h"
 
 // Chosen to be a number large enough for variation in fuzzer runs, but not consume too much memory.
 static constexpr size_t MAX_CAPACITY = 1024;

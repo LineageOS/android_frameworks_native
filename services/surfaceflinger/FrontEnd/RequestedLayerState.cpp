@@ -163,7 +163,9 @@ void RequestedLayerState::merge(const ResolvedComposerState& resolvedComposerSta
     LLOGV(layerId, "requested=%" PRIu64 "flags=%" PRIu64, clientState.what, clientChanges);
 
     if (clientState.what & layer_state_t::eFlagsChanged) {
-        if ((oldFlags ^ flags) & (layer_state_t::eLayerHidden | layer_state_t::eLayerOpaque)) {
+        if ((oldFlags ^ flags) &
+            (layer_state_t::eLayerHidden | layer_state_t::eLayerOpaque |
+             layer_state_t::eLayerSecure)) {
             changes |= RequestedLayerState::Changes::Visibility |
                     RequestedLayerState::Changes::VisibleRegion;
         }

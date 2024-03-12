@@ -15,7 +15,6 @@
  */
 
 #include "../dispatcher/InputDispatcher.h"
-#include "../BlockingQueue.h"
 #include "FakeApplicationHandle.h"
 #include "FakeInputTracingBackend.h"
 #include "TestEventMatchers.h"
@@ -32,6 +31,7 @@
 #include <flag_macros.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+#include <input/BlockingQueue.h>
 #include <input/Input.h>
 #include <input/PrintTools.h>
 #include <linux/input.h>
@@ -7477,6 +7477,12 @@ protected:
         mWindow->consumeKeyUp(ADISPLAY_ID_DEFAULT,
                               /*expectedFlags=*/0);
     }
+
+    void injectKeyRepeat(int32_t repeatCount) {
+        ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
+                  injectKey(*mDispatcher, AKEY_EVENT_ACTION_DOWN, repeatCount, ADISPLAY_ID_DEFAULT))
+                << "Inject key event should return InputEventInjectionResult::SUCCEEDED";
+    }
 };
 
 TEST_F(InputDispatcherKeyRepeatTest, FocusedWindow_ReceivesKeyRepeat) {
@@ -7563,6 +7569,17 @@ TEST_F(InputDispatcherKeyRepeatTest, FocusedWindow_RepeatKeyEventsUseUniqueEvent
         EXPECT_EQ(idSet.end(), idSet.find(id));
         idSet.insert(id);
     }
+}
+
+TEST_F(InputDispatcherKeyRepeatTest, FocusedWindow_CorrectRepeatCountWhenInjectKeyRepeat) {
+    injectKeyRepeat(0);
+    mWindow->consumeKeyDown(ADISPLAY_ID_DEFAULT);
+    for (int32_t repeatCount = 1; repeatCount <= 2; ++repeatCount) {
+        expectKeyRepeatOnce(repeatCount);
+    }
+    injectKeyRepeat(1);
+    // Expect repeatCount to be 3 instead of 1
+    expectKeyRepeatOnce(3);
 }
 
 /* Test InputDispatcher for MultiDisplay */
@@ -8709,9 +8726,10 @@ TEST_F(InputDispatcherSingleWindowAnr, StaleKeyEventDoesNotAnr) {
     // Define a valid key down event that is stale (too old).
     event.initialize(InputEvent::nextId(), DEVICE_ID, AINPUT_SOURCE_KEYBOARD, ADISPLAY_ID_NONE,
                      INVALID_HMAC, AKEY_EVENT_ACTION_DOWN, /*flags=*/0, AKEYCODE_A, KEY_A,
-                     AMETA_NONE, /*repeatCount=*/1, eventTime, eventTime);
+                     AMETA_NONE, /*repeatCount=*/0, eventTime, eventTime);
 
-    const int32_t policyFlags = POLICY_FLAG_FILTERED | POLICY_FLAG_PASS_TO_USER;
+    const int32_t policyFlags =
+            POLICY_FLAG_FILTERED | POLICY_FLAG_PASS_TO_USER | POLICY_FLAG_DISABLE_KEY_REPEAT;
 
     InputEventInjectionResult result =
             mDispatcher->injectInputEvent(&event, /*targetUid=*/{},

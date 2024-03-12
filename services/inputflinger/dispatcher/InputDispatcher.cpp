@@ -1813,7 +1813,7 @@ bool InputDispatcher::dispatchKeyLocked(nsecs_t currentTime, std::shared_ptr<con
                                         DropReason* dropReason, nsecs_t& nextWakeupTime) {
     // Preprocessing.
     if (!entry->dispatchInProgress) {
-        if (entry->repeatCount == 0 && entry->action == AKEY_EVENT_ACTION_DOWN &&
+        if (!entry->syntheticRepeat && entry->action == AKEY_EVENT_ACTION_DOWN &&
             (entry->policyFlags & POLICY_FLAG_TRUSTED) &&
             (!(entry->policyFlags & POLICY_FLAG_DISABLE_KEY_REPEAT))) {
             if (mKeyRepeatState.lastKeyEntry &&
@@ -4357,6 +4357,20 @@ std::unique_ptr<MotionEntry> InputDispatcher::splitMotionEvent(
             MotionEvent::split(originalMotionEntry.action, originalMotionEntry.flags,
                                /*historySize=*/0, originalMotionEntry.pointerProperties,
                                originalMotionEntry.pointerCoords, pointerIds);
+    if (pointerIds.count() != pointerCoords.size()) {
+        // TODO(b/329107108): Determine why some IDs in pointerIds were not in originalMotionEntry.
+        // This is bad.  We are missing some of the pointers that we expected to deliver.
+        // Most likely this indicates that we received an ACTION_MOVE events that has
+        // different pointer ids than we expected based on the previous ACTION_DOWN
+        // or ACTION_POINTER_DOWN events that caused us to decide to split the pointers
+        // in this way.
+        ALOGW("Dropping split motion event because the pointer count is %d but "
+              "we expected there to be %zu pointers.  This probably means we received "
+              "a broken sequence of pointer ids from the input device: %s",
+              pointerCoords.size(), pointerIds.count(),
+              originalMotionEntry.getDescription().c_str());
+        return nullptr;
+    }
 
     // TODO(b/327503168): Move this check inside MotionEvent::split once all callers handle it
     //   correctly.

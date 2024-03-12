@@ -18,7 +18,9 @@
 #define LOG_TAG "PowerAdvisorTest"
 
 #include <DisplayHardware/PowerAdvisor.h>
+#include <android_os.h>
 #include <binder/Status.h>
+#include <common/test/FlagUtils.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <powermanager/PowerHalWrapper.h>
@@ -55,6 +57,7 @@ protected:
     std::unique_ptr<PowerAdvisor> mPowerAdvisor;
     MockPowerHalController* mMockPowerHalController;
     std::shared_ptr<MockPowerHintSessionWrapper> mMockPowerHintSession;
+    SET_FLAG_FOR_TEST(android::os::adpf_use_fmq_channel, true);
 };
 
 bool PowerAdvisorTest::sessionExists() {
@@ -75,13 +78,14 @@ void PowerAdvisorTest::SetUp() {
 void PowerAdvisorTest::startPowerHintSession(bool returnValidSession) {
     mMockPowerHintSession = std::make_shared<NiceMock<MockPowerHintSessionWrapper>>();
     if (returnValidSession) {
-        ON_CALL(*mMockPowerHalController, createHintSession)
-                .WillByDefault([&](int32_t, int32_t, const std::vector<int32_t>&, int64_t) {
-                    return HalResult<std::shared_ptr<PowerHintSessionWrapper>>::
-                            fromStatus(ndk::ScopedAStatus::ok(), mMockPowerHintSession);
-                });
+        ON_CALL(*mMockPowerHalController, createHintSessionWithConfig)
+                .WillByDefault(DoAll(SetArgPointee<5>(aidl::android::hardware::power::SessionConfig{
+                                             .id = 12}),
+                                     Return(HalResult<std::shared_ptr<PowerHintSessionWrapper>>::
+                                                    fromStatus(binder::Status::ok(),
+                                                               mMockPowerHintSession))));
     } else {
-        ON_CALL(*mMockPowerHalController, createHintSession).WillByDefault([] {
+        ON_CALL(*mMockPowerHalController, createHintSessionWithConfig).WillByDefault([] {
             return HalResult<
                     std::shared_ptr<PowerHintSessionWrapper>>::fromStatus(ndk::ScopedAStatus::ok(),
                                                                           nullptr);
@@ -287,7 +291,7 @@ TEST_F(PowerAdvisorTest, hintSessionValidWhenNullFromPowerHAL) {
 }
 
 TEST_F(PowerAdvisorTest, hintSessionOnlyCreatedOnce) {
-    EXPECT_CALL(*mMockPowerHalController, createHintSession(_, _, _, _)).Times(1);
+    EXPECT_CALL(*mMockPowerHalController, createHintSessionWithConfig(_, _, _, _, _, _)).Times(1);
     mPowerAdvisor->onBootFinished();
     startPowerHintSession();
     mPowerAdvisor->startPowerHintSession({1, 2, 3});
@@ -339,7 +343,7 @@ TEST_F(PowerAdvisorTest, hintSessionTestNotifyReportRace) {
         return HalResult<void>::fromStatus(ndk::ScopedAStatus::fromExceptionCode(-127));
     });
 
-    ON_CALL(*mMockPowerHalController, createHintSession).WillByDefault([] {
+    ON_CALL(*mMockPowerHalController, createHintSessionWithConfig).WillByDefault([] {
         return HalResult<std::shared_ptr<PowerHintSessionWrapper>>::
                 fromStatus(ndk::ScopedAStatus::fromExceptionCode(-127), nullptr);
     });
@@ -372,6 +376,18 @@ TEST_F(PowerAdvisorTest, hintSessionTestNotifyReportRace) {
     allowReportActualToAcquireMutex();
     reportActual.wait();
     EXPECT_EQ(sessionExists(), false);
+}
+
+TEST_F(PowerAdvisorTest, legacyHintSessionCreationStillWorks) {
+    SET_FLAG_FOR_TEST(android::os::adpf_use_fmq_channel, false);
+    mPowerAdvisor->onBootFinished();
+    mMockPowerHintSession = std::make_shared<NiceMock<MockPowerHintSessionWrapper>>();
+    EXPECT_CALL(*mMockPowerHalController, createHintSession)
+            .Times(1)
+            .WillOnce(Return(HalResult<std::shared_ptr<PowerHintSessionWrapper>>::
+                                     fromStatus(binder::Status::ok(), mMockPowerHintSession)));
+    mPowerAdvisor->enablePowerHintSession(true);
+    mPowerAdvisor->startPowerHintSession({1, 2, 3});
 }
 
 } // namespace

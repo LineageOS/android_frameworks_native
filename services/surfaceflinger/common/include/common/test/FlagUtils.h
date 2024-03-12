@@ -18,7 +18,10 @@
 
 #include <common/FlagManager.h>
 
-#define SET_FLAG_FOR_TEST(name, value) TestFlagSetter _testflag_((name), (name), (value))
+#define SET_FLAG_FOR_TEST(name, value) \
+    TestFlagSetter _testflag_ {        \
+        (name), (name), (value)        \
+    }
 
 namespace android {
 class TestFlagSetter {
