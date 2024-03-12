@@ -81,7 +81,7 @@ public:
     bool addResyncSample(TimePoint timestamp, ftl::Optional<Period> hwcVsyncPeriod);
 
     // TODO(b/185535769): Hide behind API.
-    VsyncTracker& getTracker() const { return *mTracker; }
+    const VsyncTracker& getTracker() const { return *mTracker; }
     VsyncTracker& getTracker() { return *mTracker; }
     VsyncController& getController() { return *mController; }
 
