@@ -26,9 +26,6 @@
 namespace android {
 
 struct CompositionResult {
-    // TODO(b/238781169) update CE to no longer pass refreshStartTime to LayerFE::onPreComposition
-    // and remove this field.
-    nsecs_t refreshStartTime = 0;
     std::vector<std::pair<ftl::SharedFuture<FenceResult>, ui::LayerStack>> releaseFences;
     sp<Fence> lastClientCompositionFence = nullptr;
 };
@@ -39,7 +36,7 @@ public:
 
     // compositionengine::LayerFE overrides
     const compositionengine::LayerFECompositionState* getCompositionState() const override;
-    bool onPreComposition(nsecs_t refreshStartTime, bool updatingOutputGeometryThisFrame) override;
+    bool onPreComposition(bool updatingOutputGeometryThisFrame) override;
     void onLayerDisplayed(ftl::SharedFuture<FenceResult>, ui::LayerStack) override;
     const char* getDebugName() const override;
     int32_t getSequence() const override;
