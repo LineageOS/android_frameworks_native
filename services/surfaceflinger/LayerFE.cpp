@@ -82,8 +82,7 @@ const compositionengine::LayerFECompositionState* LayerFE::getCompositionState()
     return mSnapshot.get();
 }
 
-bool LayerFE::onPreComposition(nsecs_t refreshStartTime, bool) {
-    mCompositionResult.refreshStartTime = refreshStartTime;
+bool LayerFE::onPreComposition(bool) {
     return mSnapshot->hasReadyFrame;
 }
 

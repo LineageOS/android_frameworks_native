@@ -19,6 +19,7 @@
 #include <chrono>
 #include <optional>
 #include <vector>
+#include "utils/Timers.h"
 
 #include <compositionengine/Display.h>
 #include <compositionengine/LayerFE.h>
@@ -105,6 +106,9 @@ struct CompositionRefreshArgs {
     bool hasTrustedPresentationListener = false;
 
     ICEPowerCallback* powerCallback = nullptr;
+
+    // System time for when frame refresh starts. Used for stats.
+    nsecs_t refreshStartTime = 0;
 };
 
 } // namespace android::compositionengine

@@ -2783,12 +2783,16 @@ CompositeResultsPerDisplay SurfaceFlinger::composite(
         }
     }
 
+    refreshArgs.refreshStartTime = systemTime(SYSTEM_TIME_MONOTONIC);
+    for (auto [layer, layerFE] : layers) {
+        layer->onPreComposition(refreshArgs.refreshStartTime);
+    }
+
     mCompositionEngine->present(refreshArgs);
     moveSnapshotsFromCompositionArgs(refreshArgs, layers);
 
     for (auto [layer, layerFE] : layers) {
         CompositionResult compositionResult{layerFE->stealCompositionResult()};
-        layer->onPreComposition(compositionResult.refreshStartTime);
         for (auto& [releaseFence, layerStack] : compositionResult.releaseFences) {
             Layer* clonedFrom = layer->getClonedFrom().get();
             auto owningLayer = clonedFrom ? clonedFrom : layer;

@@ -181,10 +181,10 @@ void CompositionEngine::preComposition(CompositionRefreshArgs& args) {
 
     bool needsAnotherUpdate = false;
 
-    mRefreshStartTime = systemTime(SYSTEM_TIME_MONOTONIC);
+    mRefreshStartTime = args.refreshStartTime;
 
     for (auto& layer : args.layers) {
-        if (layer->onPreComposition(mRefreshStartTime, args.updatingOutputGeometryThisFrame)) {
+        if (layer->onPreComposition(args.updatingOutputGeometryThisFrame)) {
             needsAnotherUpdate = true;
         }
     }

@@ -214,6 +214,7 @@ struct CompositionTestPreComposition : public CompositionEngineTest {
 
 TEST_F(CompositionTestPreComposition, preCompositionSetsFrameTimestamp) {
     const nsecs_t before = systemTime(SYSTEM_TIME_MONOTONIC);
+    mRefreshArgs.refreshStartTime = systemTime(SYSTEM_TIME_MONOTONIC);
     mEngine.preComposition(mRefreshArgs);
     const nsecs_t after = systemTime(SYSTEM_TIME_MONOTONIC);
 
@@ -226,12 +227,9 @@ TEST_F(CompositionTestPreComposition, preCompositionInvokesLayerPreCompositionWi
     nsecs_t ts1 = 0;
     nsecs_t ts2 = 0;
     nsecs_t ts3 = 0;
-    EXPECT_CALL(*mLayer1FE, onPreComposition(_, _))
-            .WillOnce(DoAll(SaveArg<0>(&ts1), Return(false)));
-    EXPECT_CALL(*mLayer2FE, onPreComposition(_, _))
-            .WillOnce(DoAll(SaveArg<0>(&ts2), Return(false)));
-    EXPECT_CALL(*mLayer3FE, onPreComposition(_, _))
-            .WillOnce(DoAll(SaveArg<0>(&ts3), Return(false)));
+    EXPECT_CALL(*mLayer1FE, onPreComposition(_)).WillOnce(DoAll(SaveArg<0>(&ts1), Return(false)));
+    EXPECT_CALL(*mLayer2FE, onPreComposition(_)).WillOnce(DoAll(SaveArg<0>(&ts2), Return(false)));
+    EXPECT_CALL(*mLayer3FE, onPreComposition(_)).WillOnce(DoAll(SaveArg<0>(&ts3), Return(false)));
 
     mRefreshArgs.outputs = {mOutput1};
     mRefreshArgs.layers = {mLayer1FE, mLayer2FE, mLayer3FE};
@@ -245,9 +243,9 @@ TEST_F(CompositionTestPreComposition, preCompositionInvokesLayerPreCompositionWi
 }
 
 TEST_F(CompositionTestPreComposition, preCompositionDefaultsToNoUpdateNeeded) {
-    EXPECT_CALL(*mLayer1FE, onPreComposition(_, _)).WillOnce(Return(false));
-    EXPECT_CALL(*mLayer2FE, onPreComposition(_, _)).WillOnce(Return(false));
-    EXPECT_CALL(*mLayer3FE, onPreComposition(_, _)).WillOnce(Return(false));
+    EXPECT_CALL(*mLayer1FE, onPreComposition(_)).WillOnce(Return(false));
+    EXPECT_CALL(*mLayer2FE, onPreComposition(_)).WillOnce(Return(false));
+    EXPECT_CALL(*mLayer3FE, onPreComposition(_)).WillOnce(Return(false));
 
     mEngine.setNeedsAnotherUpdateForTest(true);
 
@@ -262,9 +260,9 @@ TEST_F(CompositionTestPreComposition, preCompositionDefaultsToNoUpdateNeeded) {
 
 TEST_F(CompositionTestPreComposition,
        preCompositionSetsNeedsAnotherUpdateIfAtLeastOneLayerRequestsIt) {
-    EXPECT_CALL(*mLayer1FE, onPreComposition(_, _)).WillOnce(Return(true));
-    EXPECT_CALL(*mLayer2FE, onPreComposition(_, _)).WillOnce(Return(false));
-    EXPECT_CALL(*mLayer3FE, onPreComposition(_, _)).WillOnce(Return(false));
+    EXPECT_CALL(*mLayer1FE, onPreComposition(_)).WillOnce(Return(true));
+    EXPECT_CALL(*mLayer2FE, onPreComposition(_)).WillOnce(Return(false));
+    EXPECT_CALL(*mLayer3FE, onPreComposition(_)).WillOnce(Return(false));
 
     mRefreshArgs.outputs = {mOutput1};
     mRefreshArgs.layers = {mLayer1FE, mLayer2FE, mLayer3FE};
