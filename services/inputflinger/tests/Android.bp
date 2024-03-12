@@ -39,7 +39,6 @@ cc_test {
     ],
     srcs: [
         "AnrTracker_test.cpp",
-        "BlockingQueue_test.cpp",
         "CapturedTouchpadEventConverter_test.cpp",
         "CursorInputMapper_test.cpp",
         "EventHub_test.cpp",
