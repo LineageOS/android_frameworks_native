@@ -560,4 +560,36 @@ TEST_F(LayerLifecycleManagerTest, alphaChangesAlwaysSetsVisibleRegionFlag) {
               ftl::Flags<RequestedLayerState::Changes>().string());
 }
 
+TEST_F(LayerLifecycleManagerTest, layerSecureChangesSetsVisibilityChangeFlag) {
+    // add a default buffer and make the layer secure
+    setFlags(1, layer_state_t::eLayerSecure, layer_state_t::eLayerSecure);
+    setBuffer(1,
+              std::make_shared<renderengine::mock::
+                                       FakeExternalTexture>(1U /*width*/, 1U /*height*/,
+                                                            1ULL /* bufferId */,
+                                                            HAL_PIXEL_FORMAT_RGBA_8888,
+                                                            GRALLOC_USAGE_SW_READ_NEVER /*usage*/));
+
+    mLifecycleManager.commitChanges();
+
+    // set new buffer but layer secure doesn't change
+    setBuffer(1,
+              std::make_shared<renderengine::mock::
+                                       FakeExternalTexture>(1U /*width*/, 1U /*height*/,
+                                                            2ULL /* bufferId */,
+                                                            HAL_PIXEL_FORMAT_RGBA_8888,
+                                                            GRALLOC_USAGE_SW_READ_NEVER /*usage*/));
+    EXPECT_EQ(mLifecycleManager.getGlobalChanges().get(),
+              ftl::Flags<RequestedLayerState::Changes>(RequestedLayerState::Changes::Buffer |
+                                                       RequestedLayerState::Changes::Content)
+                      .get());
+    mLifecycleManager.commitChanges();
+
+    // change layer flags and confirm visibility flag is set
+    setFlags(1, layer_state_t::eLayerSecure, 0);
+    EXPECT_TRUE(
+            mLifecycleManager.getGlobalChanges().test(RequestedLayerState::Changes::Visibility));
+    mLifecycleManager.commitChanges();
+}
+
 } // namespace android::surfaceflinger::frontend
