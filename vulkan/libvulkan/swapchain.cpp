@@ -555,8 +555,7 @@ PixelFormat GetNativePixelFormat(VkFormat format) {
     return native_format;
 }
 
-DataSpace GetNativeDataspace(VkColorSpaceKHR colorspace,
-                             PixelFormat pixelFormat) {
+DataSpace GetNativeDataspace(VkColorSpaceKHR colorspace, VkFormat format) {
     switch (colorspace) {
         case VK_COLOR_SPACE_SRGB_NONLINEAR_KHR:
             return DataSpace::SRGB;
@@ -575,7 +574,7 @@ DataSpace GetNativeDataspace(VkColorSpaceKHR colorspace,
         case VK_COLOR_SPACE_BT709_NONLINEAR_EXT:
             return DataSpace::SRGB;
         case VK_COLOR_SPACE_BT2020_LINEAR_EXT:
-            if (pixelFormat == PixelFormat::RGBA_FP16) {
+            if (format == VK_FORMAT_R16G16B16A16_SFLOAT) {
                 return DataSpace::BT2020_LINEAR_EXTENDED;
             } else {
                 return DataSpace::BT2020_LINEAR;
@@ -764,21 +763,20 @@ VkResult GetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice pdev,
         {VK_FORMAT_R8G8B8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR},
     };
 
+    VkFormat format = VK_FORMAT_UNDEFINED;
     if (colorspace_ext) {
         for (VkColorSpaceKHR colorSpace :
              colorSpaceSupportedByVkEXTSwapchainColorspace) {
-            if (GetNativeDataspace(colorSpace, GetNativePixelFormat(
-                                                   VK_FORMAT_R8G8B8A8_UNORM)) !=
-                DataSpace::UNKNOWN) {
+            format = VK_FORMAT_R8G8B8A8_UNORM;
+            if (GetNativeDataspace(colorSpace, format) != DataSpace::UNKNOWN) {
                 all_formats.emplace_back(
-                    VkSurfaceFormatKHR{VK_FORMAT_R8G8B8A8_UNORM, colorSpace});
+                    VkSurfaceFormatKHR{format, colorSpace});
             }
 
-            if (GetNativeDataspace(colorSpace, GetNativePixelFormat(
-                                                   VK_FORMAT_R8G8B8A8_SRGB)) !=
-                DataSpace::UNKNOWN) {
+            format = VK_FORMAT_R8G8B8A8_SRGB;
+            if (GetNativeDataspace(colorSpace, format) != DataSpace::UNKNOWN) {
                 all_formats.emplace_back(
-                    VkSurfaceFormatKHR{VK_FORMAT_R8G8B8A8_SRGB, colorSpace});
+                    VkSurfaceFormatKHR{format, colorSpace});
             }
         }
     }
@@ -787,78 +785,73 @@ VkResult GetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice pdev,
     // Android users.  This includes the ANGLE team (a layered implementation of
     // OpenGL-ES).
 
+    format = VK_FORMAT_R5G6B5_UNORM_PACK16;
     desc.format = AHARDWAREBUFFER_FORMAT_R5G6B5_UNORM;
     if (AHardwareBuffer_isSupported(&desc)) {
-        all_formats.emplace_back(VkSurfaceFormatKHR{
-            VK_FORMAT_R5G6B5_UNORM_PACK16, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR});
+        all_formats.emplace_back(
+            VkSurfaceFormatKHR{format, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR});
         if (colorspace_ext) {
             for (VkColorSpaceKHR colorSpace :
                  colorSpaceSupportedByVkEXTSwapchainColorspace) {
-                if (GetNativeDataspace(
-                        colorSpace,
-                        GetNativePixelFormat(VK_FORMAT_R5G6B5_UNORM_PACK16)) !=
+                if (GetNativeDataspace(colorSpace, format) !=
                     DataSpace::UNKNOWN) {
-                    all_formats.emplace_back(VkSurfaceFormatKHR{
-                        VK_FORMAT_R5G6B5_UNORM_PACK16, colorSpace});
+                    all_formats.emplace_back(
+                        VkSurfaceFormatKHR{format, colorSpace});
                 }
             }
         }
     }
 
+    format = VK_FORMAT_R16G16B16A16_SFLOAT;
     desc.format = AHARDWAREBUFFER_FORMAT_R16G16B16A16_FLOAT;
     if (AHardwareBuffer_isSupported(&desc)) {
-        all_formats.emplace_back(VkSurfaceFormatKHR{
-            VK_FORMAT_R16G16B16A16_SFLOAT, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR});
+        all_formats.emplace_back(
+            VkSurfaceFormatKHR{format, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR});
         if (colorspace_ext) {
             for (VkColorSpaceKHR colorSpace :
                  colorSpaceSupportedByVkEXTSwapchainColorspace) {
-                if (GetNativeDataspace(
-                        colorSpace,
-                        GetNativePixelFormat(VK_FORMAT_R16G16B16A16_SFLOAT)) !=
+                if (GetNativeDataspace(colorSpace, format) !=
                     DataSpace::UNKNOWN) {
-                    all_formats.emplace_back(VkSurfaceFormatKHR{
-                        VK_FORMAT_R16G16B16A16_SFLOAT, colorSpace});
+                    all_formats.emplace_back(
+                        VkSurfaceFormatKHR{format, colorSpace});
                 }
             }
 
             for (
                 VkColorSpaceKHR colorSpace :
                 colorSpaceSupportedByVkEXTSwapchainColorspaceOnFP16SurfaceOnly) {
-                if (GetNativeDataspace(
-                        colorSpace,
-                        GetNativePixelFormat(VK_FORMAT_R16G16B16A16_SFLOAT)) !=
+                if (GetNativeDataspace(colorSpace, format) !=
                     DataSpace::UNKNOWN) {
-                    all_formats.emplace_back(VkSurfaceFormatKHR{
-                        VK_FORMAT_R16G16B16A16_SFLOAT, colorSpace});
+                    all_formats.emplace_back(
+                        VkSurfaceFormatKHR{format, colorSpace});
                 }
             }
         }
     }
 
+    format = VK_FORMAT_A2B10G10R10_UNORM_PACK32;
     desc.format = AHARDWAREBUFFER_FORMAT_R10G10B10A2_UNORM;
     if (AHardwareBuffer_isSupported(&desc)) {
         all_formats.emplace_back(
-            VkSurfaceFormatKHR{VK_FORMAT_A2B10G10R10_UNORM_PACK32,
-                               VK_COLOR_SPACE_SRGB_NONLINEAR_KHR});
+            VkSurfaceFormatKHR{format, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR});
         if (colorspace_ext) {
             for (VkColorSpaceKHR colorSpace :
                  colorSpaceSupportedByVkEXTSwapchainColorspace) {
-                if (GetNativeDataspace(
-                        colorSpace, GetNativePixelFormat(
-                                        VK_FORMAT_A2B10G10R10_UNORM_PACK32)) !=
+                if (GetNativeDataspace(colorSpace, format) !=
                     DataSpace::UNKNOWN) {
-                    all_formats.emplace_back(VkSurfaceFormatKHR{
-                        VK_FORMAT_A2B10G10R10_UNORM_PACK32, colorSpace});
+                    all_formats.emplace_back(
+                        VkSurfaceFormatKHR{format, colorSpace});
                 }
             }
         }
     }
 
+    format = VK_FORMAT_R8_UNORM;
     desc.format = AHARDWAREBUFFER_FORMAT_R8_UNORM;
     if (AHardwareBuffer_isSupported(&desc)) {
         if (colorspace_ext) {
-            all_formats.emplace_back(VkSurfaceFormatKHR{
-                VK_FORMAT_R8_UNORM, VK_COLOR_SPACE_PASS_THROUGH_EXT});
+            all_formats.emplace_back(
+                VkSurfaceFormatKHR{format, VK_COLOR_SPACE_PASS_THROUGH_EXT});
         }
     }
 
@@ -877,22 +870,18 @@ VkResult GetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice pdev,
             rgba10x6_formats_ext = true;
         }
     }
+    format = VK_FORMAT_R10X6G10X6B10X6A10X6_UNORM_4PACK16;
     desc.format = AHARDWAREBUFFER_FORMAT_R10G10B10A10_UNORM;
     if (AHardwareBuffer_isSupported(&desc) && rgba10x6_formats_ext) {
         all_formats.emplace_back(
-            VkSurfaceFormatKHR{VK_FORMAT_R10X6G10X6B10X6A10X6_UNORM_4PACK16,
-                               VK_COLOR_SPACE_SRGB_NONLINEAR_KHR});
+            VkSurfaceFormatKHR{format, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR});
         if (colorspace_ext) {
             for (VkColorSpaceKHR colorSpace :
                  colorSpaceSupportedByVkEXTSwapchainColorspace) {
-                if (GetNativeDataspace(
-                        colorSpace,
-                        GetNativePixelFormat(
-                            VK_FORMAT_R10X6G10X6B10X6A10X6_UNORM_4PACK16)) !=
+                if (GetNativeDataspace(colorSpace, format) !=
                     DataSpace::UNKNOWN) {
-                    all_formats.emplace_back(VkSurfaceFormatKHR{
-                        VK_FORMAT_R10X6G10X6B10X6A10X6_UNORM_4PACK16,
-                        colorSpace});
+                    all_formats.emplace_back(
+                        VkSurfaceFormatKHR{format, colorSpace});
                 }
             }
         }
@@ -1670,8 +1659,8 @@ VkResult CreateSwapchainKHR(VkDevice device,
 
     PixelFormat native_pixel_format =
         GetNativePixelFormat(create_info->imageFormat);
-    DataSpace native_dataspace =
-        GetNativeDataspace(create_info->imageColorSpace, native_pixel_format);
+    DataSpace native_dataspace = GetNativeDataspace(
+        create_info->imageColorSpace, create_info->imageFormat);
     if (native_dataspace == DataSpace::UNKNOWN) {
         ALOGE(
             "CreateSwapchainKHR(VkSwapchainCreateInfoKHR.imageColorSpace = %d) "
