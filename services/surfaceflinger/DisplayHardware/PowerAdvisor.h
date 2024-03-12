@@ -230,6 +230,9 @@ private:
     // this normalizes them together and takes the max of the two
     Duration combineTimingEstimates(Duration totalDuration, Duration flingerDuration);
 
+    // Whether to use the new "createHintSessionWithConfig" method
+    bool shouldCreateSessionWithConfig() REQUIRES(mHintSessionMutex);
+
     bool ensurePowerHintSessionRunning() REQUIRES(mHintSessionMutex);
     std::unordered_map<DisplayId, DisplayTimingData> mDisplayTimingData;
 
@@ -277,6 +280,13 @@ private:
     // Used to manage the execution ordering of reportActualWorkDuration for concurrency testing
     std::promise<bool> mDelayReportActualMutexAcquisitonPromise;
     bool mTimingTestingMode = false;
+
+    // Hint session configuration data
+    aidl::android::hardware::power::SessionConfig mSessionConfig;
+
+    // Whether createHintSessionWithConfig is supported, assume true until it fails
+    bool mSessionConfigSupported = true;
+    bool mFirstConfigSupportCheck = true;
 
     // Whether we should emit ATRACE_INT data for hint sessions
     static const bool sTraceHintSessionData;
