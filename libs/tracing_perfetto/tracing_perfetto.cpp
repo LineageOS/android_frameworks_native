@@ -131,7 +131,8 @@ Result traceCounter(uint64_t category, const char* name, int64_t value) {
 }
 
 uint64_t getEnabledCategories() {
-  if (internal::isPerfettoSdkTracingEnabled()) {
+  if (internal::isPerfettoRegistered()) {
+    // TODO(b/303199244): Return only enabled categories and not all registered ones
     return internal::getDefaultCategories();
   } else {
     return atrace_get_enabled_tags();
