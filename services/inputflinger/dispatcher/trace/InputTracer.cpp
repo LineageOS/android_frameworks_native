@@ -183,10 +183,21 @@ void InputTracer::traceEventDispatch(const DispatchEntry& dispatchEntry,
     const int32_t windowId = dispatchEntry.windowId.value_or(0);
     const int32_t vsyncId = dispatchEntry.windowId.has_value() ? dispatchEntry.vsyncId : 0;
 
-    mBackend->traceWindowDispatch({std::move(traced), dispatchEntry.deliveryTime,
-                                   dispatchEntry.resolvedFlags, dispatchEntry.targetUid, vsyncId,
-                                   windowId, dispatchEntry.transform, dispatchEntry.rawTransform,
-                                   /*hmac=*/{}, resolvedKeyRepeatCount});
+    const WindowDispatchArgs windowDispatchArgs{std::move(traced),
+                                                dispatchEntry.deliveryTime,
+                                                dispatchEntry.resolvedFlags,
+                                                dispatchEntry.targetUid,
+                                                vsyncId,
+                                                windowId,
+                                                dispatchEntry.transform,
+                                                dispatchEntry.rawTransform,
+                                                /*hmac=*/{},
+                                                resolvedKeyRepeatCount};
+    if (eventState->isEventProcessingComplete) {
+        mBackend->traceWindowDispatch(std::move(windowDispatchArgs));
+    } else {
+        eventState->pendingDispatchArgs.emplace_back(std::move(windowDispatchArgs));
+    }
 }
 
 std::shared_ptr<InputTracer::EventState>& InputTracer::getState(
@@ -205,6 +216,12 @@ void InputTracer::EventState::onEventProcessingComplete() {
     for (const auto& event : events) {
         writeEventToBackend(event, *tracer.mBackend);
     }
+    // Write all pending dispatch args to the trace.
+    for (const auto& windowDispatchArgs : pendingDispatchArgs) {
+        tracer.mBackend->traceWindowDispatch(windowDispatchArgs);
+    }
+    pendingDispatchArgs.clear();
+
     isEventProcessingComplete = true;
 }
 
