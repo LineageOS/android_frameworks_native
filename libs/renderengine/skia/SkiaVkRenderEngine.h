@@ -21,6 +21,7 @@
 
 #include "SkiaRenderEngine.h"
 #include "VulkanInterface.h"
+#include "compat/SkiaGpuContext.h"
 
 namespace android {
 namespace renderengine {
@@ -72,11 +73,11 @@ public:
 protected:
     // Implementations of abstract SkiaRenderEngine functions specific to
     // rendering backend
-    virtual SkiaRenderEngine::Contexts createDirectContexts(const GrContextOptions& options);
+    SkiaRenderEngine::Contexts createContexts() override;
     bool supportsProtectedContentImpl() const override;
     bool useProtectedContextImpl(GrProtected isProtected) override;
-    void waitFence(GrDirectContext* grContext, base::borrowed_fd fenceFd) override;
-    base::unique_fd flushAndSubmit(GrDirectContext* context) override;
+    void waitFence(SkiaGpuContext* context, base::borrowed_fd fenceFd) override;
+    base::unique_fd flushAndSubmit(SkiaGpuContext* context) override;
     void appendBackendSpecificInfoToDump(std::string& result) override;
 
 private:

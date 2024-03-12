@@ -24,6 +24,7 @@
 #include <ui/GraphicTypes.h>
 
 #include "android-base/macros.h"
+#include "compat/SkiaGpuContext.h"
 
 #include <mutex>
 #include <vector>
@@ -80,7 +81,7 @@ public:
     // of shared ownership with Skia objects, so we wrap it here instead.
     class LocalRef {
     public:
-        LocalRef(GrDirectContext* context, AHardwareBuffer* buffer, bool isOutputBuffer,
+        LocalRef(SkiaGpuContext* context, AHardwareBuffer* buffer, bool isOutputBuffer,
                  CleanupManager& cleanupMgr) {
             mTexture = new AutoBackendTexture(context, buffer, isOutputBuffer, cleanupMgr);
             mTexture->ref();
@@ -113,8 +114,10 @@ public:
     };
 
 private:
+    DISALLOW_COPY_AND_ASSIGN(AutoBackendTexture);
+
     // Creates a GrBackendTexture whose contents come from the provided buffer.
-    AutoBackendTexture(GrDirectContext* context, AHardwareBuffer* buffer, bool isOutputBuffer,
+    AutoBackendTexture(SkiaGpuContext* context, AHardwareBuffer* buffer, bool isOutputBuffer,
                        CleanupManager& cleanupMgr);
 
     // The only way to invoke dtor is with unref, when mUsageCount is 0.
@@ -139,14 +142,14 @@ private:
     GrAHardwareBufferUtils::UpdateImageProc mUpdateProc;
     GrAHardwareBufferUtils::TexImageCtx mImageCtx;
 
-    const GrDirectContext* mGrContext = nullptr;
+    // TODO: b/293371537 - Graphite abstractions for ABT.
+    const sk_sp<GrDirectContext> mGrContext = nullptr;
     CleanupManager& mCleanupMgr;
 
     static void releaseSurfaceProc(SkSurface::ReleaseContext releaseContext);
     static void releaseImageProc(SkImages::ReleaseContext releaseContext);
 
     int mUsageCount = 0;
-
     const bool mIsOutputBuffer;
     sk_sp<SkImage> mImage = nullptr;
     sk_sp<SkSurface> mSurface = nullptr;

@@ -40,7 +40,7 @@ public:
     void teardown();
 
     // TODO: b/293371537 - Graphite variant (external/skia/include/gpu/vk/VulkanBackendContext.h)
-    GrVkBackendContext getBackendContext();
+    GrVkBackendContext getGaneshBackendContext();
     VkSemaphore createExportableSemaphore();
     VkSemaphore importSemaphoreFromSyncFd(int syncFd);
     int exportSemaphoreSyncFd(VkSemaphore semaphore);

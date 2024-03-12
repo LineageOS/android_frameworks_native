@@ -73,8 +73,7 @@ static sk_sp<SkImage> makeImage(SkSurface* surface, SkRuntimeShaderBuilder* buil
     return surface->makeImageSnapshot();
 }
 
-sk_sp<SkImage> KawaseBlurFilter::generate(GrRecordingContext* context,
-                                          const uint32_t blurRadius,
+sk_sp<SkImage> KawaseBlurFilter::generate(SkiaGpuContext* context, const uint32_t blurRadius,
                                           const sk_sp<SkImage> input,
                                           const SkRect& blurRect) const {
     LOG_ALWAYS_FATAL_IF(context == nullptr, "%s: Needs GPU context", __func__);
@@ -108,12 +107,7 @@ sk_sp<SkImage> KawaseBlurFilter::generate(GrRecordingContext* context,
             input->makeShader(SkTileMode::kClamp, SkTileMode::kClamp, linear, blurMatrix);
     blurBuilder.uniform("in_blurOffset") = radiusByPasses * kInputScale;
 
-    constexpr int kSampleCount = 1;
-    constexpr bool kMipmapped = false;
-    constexpr SkSurfaceProps* kProps = nullptr;
-    sk_sp<SkSurface> surface = SkSurfaces::RenderTarget(context, skgpu::Budgeted::kNo, scaledInfo,
-                                                        kSampleCount, kTopLeft_GrSurfaceOrigin,
-                                                        kProps, kMipmapped, input->isProtected());
+    sk_sp<SkSurface> surface = context->createRenderTarget(scaledInfo);
     LOG_ALWAYS_FATAL_IF(!surface, "%s: Failed to create surface for blurring!", __func__);
     sk_sp<SkImage> tmpBlur = makeImage(surface.get(), &blurBuilder);
 

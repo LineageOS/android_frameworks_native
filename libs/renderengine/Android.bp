@@ -88,6 +88,7 @@ filegroup {
         "skia/SkiaGLRenderEngine.cpp",
         "skia/SkiaVkRenderEngine.cpp",
         "skia/VulkanInterface.cpp",
+        "skia/compat/GaneshGpuContext.cpp",
         "skia/debug/CaptureTimer.cpp",
         "skia/debug/CommonPool.cpp",
         "skia/debug/SkiaCapture.cpp",

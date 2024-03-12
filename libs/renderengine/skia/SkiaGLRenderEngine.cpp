@@ -21,6 +21,8 @@
 
 #include "SkiaGLRenderEngine.h"
 
+#include "compat/SkiaGpuContext.h"
+
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 #include <GrContextOptions.h>
@@ -207,7 +209,7 @@ std::unique_ptr<SkiaGLRenderEngine> SkiaGLRenderEngine::create(
     std::unique_ptr<SkiaGLRenderEngine> engine(new SkiaGLRenderEngine(args, display, ctxt,
                                                                       placeholder, protectedContext,
                                                                       protectedPlaceholder));
-    engine->ensureGrContextsCreated();
+    engine->ensureContextsCreated();
 
     ALOGI("OpenGL ES informations:");
     ALOGI("vendor    : %s", extensions.getVendor());
@@ -295,9 +297,7 @@ SkiaGLRenderEngine::~SkiaGLRenderEngine() {
     eglReleaseThread();
 }
 
-SkiaRenderEngine::Contexts SkiaGLRenderEngine::createDirectContexts(
-    const GrContextOptions& options) {
-
+SkiaRenderEngine::Contexts SkiaGLRenderEngine::createContexts() {
     LOG_ALWAYS_FATAL_IF(isProtected(),
                         "Cannot setup contexts while already in protected mode");
 
@@ -306,10 +306,10 @@ SkiaRenderEngine::Contexts SkiaGLRenderEngine::createDirectContexts(
     LOG_ALWAYS_FATAL_IF(!glInterface.get(), "GrGLMakeNativeInterface() failed");
 
     SkiaRenderEngine::Contexts contexts;
-    contexts.first = GrDirectContexts::MakeGL(glInterface, options);
+    contexts.first = SkiaGpuContext::MakeGL_Ganesh(glInterface, mSkSLCacheMonitor);
     if (supportsProtectedContentImpl()) {
         useProtectedContextImpl(GrProtected::kYes);
-        contexts.second = GrDirectContexts::MakeGL(glInterface, options);
+        contexts.second = SkiaGpuContext::MakeGL_Ganesh(glInterface, mSkSLCacheMonitor);
         useProtectedContextImpl(GrProtected::kNo);
     }
 
@@ -330,14 +330,14 @@ bool SkiaGLRenderEngine::useProtectedContextImpl(GrProtected isProtected) {
     return eglMakeCurrent(mEGLDisplay, surface, surface, context) == EGL_TRUE;
 }
 
-void SkiaGLRenderEngine::waitFence(GrDirectContext*, base::borrowed_fd fenceFd) {
+void SkiaGLRenderEngine::waitFence(SkiaGpuContext*, base::borrowed_fd fenceFd) {
     if (fenceFd.get() >= 0 && !waitGpuFence(fenceFd)) {
         ATRACE_NAME("SkiaGLRenderEngine::waitFence");
         sync_wait(fenceFd.get(), -1);
     }
 }
 
-base::unique_fd SkiaGLRenderEngine::flushAndSubmit(GrDirectContext* grContext) {
+base::unique_fd SkiaGLRenderEngine::flushAndSubmit(SkiaGpuContext* context) {
     base::unique_fd drawFence = flush();
 
     bool requireSync = drawFence.get() < 0;
@@ -346,8 +346,8 @@ base::unique_fd SkiaGLRenderEngine::flushAndSubmit(GrDirectContext* grContext) {
     } else {
         ATRACE_BEGIN("Submit(sync=false)");
     }
-    bool success = grContext->submit(requireSync ? GrSyncCpu::kYes :
-                                                   GrSyncCpu::kNo);
+    bool success =
+            context->grDirectContext()->submit(requireSync ? GrSyncCpu::kYes : GrSyncCpu::kNo);
     ATRACE_END();
     if (!success) {
         ALOGE("Failed to flush RenderEngine commands");
