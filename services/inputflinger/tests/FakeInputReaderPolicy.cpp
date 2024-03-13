@@ -178,8 +178,8 @@ void FakeInputReaderPolicy::setTouchAffineTransformation(const TouchAffineTransf
     transform = t;
 }
 
-PointerCaptureRequest FakeInputReaderPolicy::setPointerCapture(bool enabled) {
-    mConfig.pointerCaptureRequest = {enabled, mNextPointerCaptureSequenceNumber++};
+PointerCaptureRequest FakeInputReaderPolicy::setPointerCapture(const sp<IBinder>& window) {
+    mConfig.pointerCaptureRequest = {window, mNextPointerCaptureSequenceNumber++};
     return mConfig.pointerCaptureRequest;
 }
 

@@ -58,8 +58,7 @@ public:
     // Called before composition starts. Should return true if this layer has
     // pending updates which would require an extra display refresh cycle to
     // process.
-    virtual bool onPreComposition(nsecs_t refreshStartTime,
-                                  bool updatingOutputGeometryThisFrame) = 0;
+    virtual bool onPreComposition(bool updatingOutputGeometryThisFrame) = 0;
 
     struct ClientCompositionTargetSettings {
         enum class BlurSetting {

@@ -1165,18 +1165,18 @@ TEST_F(InputReaderTest, GetKeyCodeState_ForwardsRequestsToSubdeviceMappers) {
 TEST_F(InputReaderTest, ChangingPointerCaptureNotifiesInputListener) {
     NotifyPointerCaptureChangedArgs args;
 
-    auto request = mFakePolicy->setPointerCapture(true);
+    auto request = mFakePolicy->setPointerCapture(/*window=*/sp<BBinder>::make());
     mReader->requestRefreshConfiguration(InputReaderConfiguration::Change::POINTER_CAPTURE);
     mReader->loopOnce();
     mFakeListener->assertNotifyCaptureWasCalled(&args);
-    ASSERT_TRUE(args.request.enable) << "Pointer Capture should be enabled.";
+    ASSERT_TRUE(args.request.isEnable()) << "Pointer Capture should be enabled.";
     ASSERT_EQ(args.request, request) << "Pointer Capture sequence number should match.";
 
-    mFakePolicy->setPointerCapture(false);
+    mFakePolicy->setPointerCapture(/*window=*/nullptr);
     mReader->requestRefreshConfiguration(InputReaderConfiguration::Change::POINTER_CAPTURE);
     mReader->loopOnce();
     mFakeListener->assertNotifyCaptureWasCalled(&args);
-    ASSERT_FALSE(args.request.enable) << "Pointer Capture should be disabled.";
+    ASSERT_FALSE(args.request.isEnable()) << "Pointer Capture should be disabled.";
 
     // Verify that the Pointer Capture state is not updated when the configuration value
     // does not change.
@@ -9802,7 +9802,7 @@ TEST_F(MultiTouchInputMapperTest, Process_TouchpadCapture) {
     prepareAxes(POSITION | ID | SLOT);
     mFakeEventHub->addKey(EVENTHUB_ID, BTN_LEFT, 0, AKEYCODE_UNKNOWN, 0);
     mFakeEventHub->addKey(EVENTHUB_ID, BTN_TOUCH, 0, AKEYCODE_UNKNOWN, 0);
-    mFakePolicy->setPointerCapture(true);
+    mFakePolicy->setPointerCapture(/*window=*/sp<BBinder>::make());
     mFakePolicy->setPointerController(fakePointerController);
     MultiTouchInputMapper& mapper = constructAndAddMapper<MultiTouchInputMapper>();
 
@@ -9934,7 +9934,7 @@ TEST_F(MultiTouchInputMapperTest, Process_TouchpadCapture) {
     ASSERT_EQ(AMOTION_EVENT_ACTION_UP, args.action);
 
     // non captured touchpad should be a mouse source
-    mFakePolicy->setPointerCapture(false);
+    mFakePolicy->setPointerCapture(/*window=*/nullptr);
     configureDevice(InputReaderConfiguration::Change::POINTER_CAPTURE);
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled(&resetArgs));
     ASSERT_EQ(AINPUT_SOURCE_MOUSE, mapper.getSources());
@@ -10012,14 +10012,14 @@ TEST_F(MultiTouchInputMapperTest, WhenCapturedAndNotCaptured_GetSources) {
     prepareAxes(POSITION | ID | SLOT);
     mFakeEventHub->addKey(EVENTHUB_ID, BTN_LEFT, 0, AKEYCODE_UNKNOWN, 0);
     mFakePolicy->setPointerController(fakePointerController);
-    mFakePolicy->setPointerCapture(false);
+    mFakePolicy->setPointerCapture(/*window=*/nullptr);
     MultiTouchInputMapper& mapper = constructAndAddMapper<MultiTouchInputMapper>();
 
     // uncaptured touchpad should be a pointer device
     ASSERT_EQ(AINPUT_SOURCE_MOUSE, mapper.getSources());
 
     // captured touchpad should be a touchpad device
-    mFakePolicy->setPointerCapture(true);
+    mFakePolicy->setPointerCapture(/*window=*/sp<BBinder>::make());
     configureDevice(InputReaderConfiguration::Change::POINTER_CAPTURE);
     ASSERT_EQ(AINPUT_SOURCE_TOUCHPAD, mapper.getSources());
 }
@@ -10090,7 +10090,7 @@ protected:
         prepareAbsoluteAxisResolution(xAxisResolution, yAxisResolution);
         // In order to enable swipe and freeform gesture in pointer mode, pointer capture
         // needs to be disabled, and the pointer gesture needs to be enabled.
-        mFakePolicy->setPointerCapture(false);
+        mFakePolicy->setPointerCapture(/*window=*/nullptr);
         mFakePolicy->setPointerGestureEnabled(true);
         mFakePolicy->setPointerController(fakePointerController);
 

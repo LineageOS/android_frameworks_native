@@ -122,21 +122,32 @@ NotifyMotionArgs PointerChoreographer::processMouseEventLocked(const NotifyMotio
     }
 
     auto [displayId, pc] = ensureMouseControllerLocked(args.displayId);
+    NotifyMotionArgs newArgs(args);
+    newArgs.displayId = displayId;
 
-    const float deltaX = args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X);
-    const float deltaY = args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y);
-    pc.move(deltaX, deltaY);
+    if (MotionEvent::isValidCursorPosition(args.xCursorPosition, args.yCursorPosition)) {
+        // This is an absolute mouse device that knows about the location of the cursor on the
+        // display, so set the cursor position to the specified location.
+        const auto [x, y] = pc.getPosition();
+        const float deltaX = args.xCursorPosition - x;
+        const float deltaY = args.yCursorPosition - y;
+        newArgs.pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, deltaX);
+        newArgs.pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, deltaY);
+        pc.setPosition(args.xCursorPosition, args.yCursorPosition);
+    } else {
+        // This is a relative mouse, so move the cursor by the specified amount.
+        const float deltaX = args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X);
+        const float deltaY = args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y);
+        pc.move(deltaX, deltaY);
+        const auto [x, y] = pc.getPosition();
+        newArgs.pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_X, x);
+        newArgs.pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_Y, y);
+        newArgs.xCursorPosition = x;
+        newArgs.yCursorPosition = y;
+    }
     if (canUnfadeOnDisplay(displayId)) {
         pc.unfade(PointerControllerInterface::Transition::IMMEDIATE);
     }
-
-    const auto [x, y] = pc.getPosition();
-    NotifyMotionArgs newArgs(args);
-    newArgs.pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_X, x);
-    newArgs.pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_Y, y);
-    newArgs.xCursorPosition = x;
-    newArgs.yCursorPosition = y;
-    newArgs.displayId = displayId;
     return newArgs;
 }
 
@@ -277,7 +288,7 @@ void PointerChoreographer::processDeviceReset(const NotifyDeviceResetArgs& args)
 
 void PointerChoreographer::notifyPointerCaptureChanged(
         const NotifyPointerCaptureChangedArgs& args) {
-    if (args.request.enable) {
+    if (args.request.isEnable()) {
         std::scoped_lock _l(mLock);
         for (const auto& [_, mousePointerController] : mMousePointersByDisplay) {
             mousePointerController->fade(PointerControllerInterface::Transition::IMMEDIATE);

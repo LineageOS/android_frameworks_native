@@ -110,7 +110,7 @@ PointerCaptureChangedEntry::PointerCaptureChangedEntry(int32_t id, nsecs_t event
 
 std::string PointerCaptureChangedEntry::getDescription() const {
     return StringPrintf("PointerCaptureChangedEvent(pointerCaptureEnabled=%s)",
-                        pointerCaptureRequest.enable ? "true" : "false");
+                        pointerCaptureRequest.isEnable() ? "true" : "false");
 }
 
 // --- DragEntry ---

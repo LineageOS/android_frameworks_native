@@ -923,7 +923,7 @@ void TouchInputMapper::configureInputDevice(nsecs_t when, bool* outResetNeeded) 
 
     // Determine device mode.
     if (mParameters.deviceType == Parameters::DeviceType::POINTER &&
-        mConfig.pointerGesturesEnabled && !mConfig.pointerCaptureRequest.enable) {
+        mConfig.pointerGesturesEnabled && !mConfig.pointerCaptureRequest.isEnable()) {
         mSource = AINPUT_SOURCE_MOUSE;
         mDeviceMode = DeviceMode::POINTER;
         if (hasStylus()) {
@@ -1038,7 +1038,7 @@ void TouchInputMapper::configureInputDevice(nsecs_t when, bool* outResetNeeded) 
             (mDeviceMode == DeviceMode::POINTER) ||
             // - when pointer capture is enabled, to preserve the mouse cursor position;
             (mParameters.deviceType == Parameters::DeviceType::POINTER &&
-             mConfig.pointerCaptureRequest.enable) ||
+             mConfig.pointerCaptureRequest.isEnable()) ||
             // - when we should be showing touches;
             (mDeviceMode == DeviceMode::DIRECT && mConfig.showTouches) ||
             // - when we should be showing a pointer icon for direct styluses.
@@ -1047,7 +1047,7 @@ void TouchInputMapper::configureInputDevice(nsecs_t when, bool* outResetNeeded) 
         if (mPointerController == nullptr) {
             mPointerController = getContext()->getPointerController(getDeviceId());
         }
-        if (mConfig.pointerCaptureRequest.enable) {
+        if (mConfig.pointerCaptureRequest.isEnable()) {
             mPointerController->fade(PointerControllerInterface::Transition::IMMEDIATE);
         }
     } else {
