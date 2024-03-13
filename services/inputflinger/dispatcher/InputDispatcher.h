@@ -421,7 +421,8 @@ private:
     void disablePointerCaptureForcedLocked() REQUIRES(mLock);
 
     // Set the Pointer Capture state in the Policy.
-    void setPointerCaptureLocked(bool enable) REQUIRES(mLock);
+    // The window is not nullptr for requests to enable, otherwise it is nullptr.
+    void setPointerCaptureLocked(const sp<IBinder>& window) REQUIRES(mLock);
 
     // Dispatcher state at time of last ANR.
     std::string mLastAnrState GUARDED_BY(mLock);

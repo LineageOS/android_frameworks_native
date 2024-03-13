@@ -125,6 +125,9 @@ void setTouchpadSettings(ThreadSafeFuzzedDataProvider& fdp, InputReaderConfigura
     config.touchpadTapToClickEnabled = fdp.ConsumeBool();
     config.touchpadTapDraggingEnabled = fdp.ConsumeBool();
     config.touchpadRightClickZoneEnabled = fdp.ConsumeBool();
+
+    config.pointerCaptureRequest.window = fdp.ConsumeBool() ? sp<BBinder>::make() : nullptr;
+    config.pointerCaptureRequest.seq = fdp.ConsumeIntegral<uint32_t>();
 }
 
 } // namespace
@@ -145,7 +148,6 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size) {
     // Some settings are fuzzed here, as well as in the main loop, to provide randomized data to the
     // TouchpadInputMapper constructor.
     setTouchpadSettings(*fdp, policyConfig);
-    policyConfig.pointerCaptureRequest.enable = fdp->ConsumeBool();
     TouchpadInputMapper& mapper =
             getMapperForDevice<ThreadSafeFuzzedDataProvider, TouchpadInputMapper>(*fdp, device,
                                                                                   policyConfig);
@@ -164,7 +166,6 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size) {
                 [&]() -> void { mapper.getSources(); },
                 [&]() -> void {
                     setTouchpadSettings(*fdp, policyConfig);
-                    policyConfig.pointerCaptureRequest.enable = fdp->ConsumeBool();
                     std::list<NotifyArgs> unused =
                             mapper.reconfigure(fdp->ConsumeIntegral<nsecs_t>(), policyConfig,
                                                InputReaderConfiguration::Change(

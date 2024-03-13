@@ -1715,7 +1715,7 @@ void InputDispatcher::dispatchPointerCaptureChangedLocked(
     const bool haveWindowWithPointerCapture = mWindowTokenWithPointerCapture != nullptr;
     sp<IBinder> token;
 
-    if (entry->pointerCaptureRequest.enable) {
+    if (entry->pointerCaptureRequest.isEnable()) {
         // Enable Pointer Capture.
         if (haveWindowWithPointerCapture &&
             (entry->pointerCaptureRequest == mCurrentPointerCaptureRequest)) {
@@ -1724,7 +1724,7 @@ void InputDispatcher::dispatchPointerCaptureChangedLocked(
             ALOGI("Skipping dispatch of Pointer Capture being enabled: no state change.");
             return;
         }
-        if (!mCurrentPointerCaptureRequest.enable) {
+        if (!mCurrentPointerCaptureRequest.isEnable()) {
             // This can happen if a window requests capture and immediately releases capture.
             ALOGW("No window requested Pointer Capture.");
             dropReason = DropReason::NO_POINTER_CAPTURE;
@@ -1737,6 +1737,8 @@ void InputDispatcher::dispatchPointerCaptureChangedLocked(
 
         token = mFocusResolver.getFocusedWindowToken(mFocusedDisplayId);
         LOG_ALWAYS_FATAL_IF(!token, "Cannot find focused window for Pointer Capture.");
+        LOG_ALWAYS_FATAL_IF(token != entry->pointerCaptureRequest.window,
+                            "Unexpected requested window for Pointer Capture.");
         mWindowTokenWithPointerCapture = token;
     } else {
         // Disable Pointer Capture.
@@ -1756,8 +1758,8 @@ void InputDispatcher::dispatchPointerCaptureChangedLocked(
         }
         token = mWindowTokenWithPointerCapture;
         mWindowTokenWithPointerCapture = nullptr;
-        if (mCurrentPointerCaptureRequest.enable) {
-            setPointerCaptureLocked(false);
+        if (mCurrentPointerCaptureRequest.isEnable()) {
+            setPointerCaptureLocked(nullptr);
         }
     }
 
@@ -1765,8 +1767,8 @@ void InputDispatcher::dispatchPointerCaptureChangedLocked(
     if (connection == nullptr) {
         // Window has gone away, clean up Pointer Capture state.
         mWindowTokenWithPointerCapture = nullptr;
-        if (mCurrentPointerCaptureRequest.enable) {
-            setPointerCaptureLocked(false);
+        if (mCurrentPointerCaptureRequest.isEnable()) {
+            setPointerCaptureLocked(nullptr);
         }
         return;
     }
@@ -3832,9 +3834,10 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
             case EventEntry::Type::POINTER_CAPTURE_CHANGED: {
                 const auto& captureEntry =
                         static_cast<const PointerCaptureChangedEntry&>(eventEntry);
-                status = connection->inputPublisher
-                                 .publishCaptureEvent(dispatchEntry->seq, captureEntry.id,
-                                                      captureEntry.pointerCaptureRequest.enable);
+                status =
+                        connection->inputPublisher
+                                .publishCaptureEvent(dispatchEntry->seq, captureEntry.id,
+                                                     captureEntry.pointerCaptureRequest.isEnable());
                 break;
             }
 
@@ -4727,7 +4730,7 @@ void InputDispatcher::notifyDeviceReset(const NotifyDeviceResetArgs& args) {
 void InputDispatcher::notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs& args) {
     if (debugInboundEventDetails()) {
         ALOGD("notifyPointerCaptureChanged - eventTime=%" PRId64 ", enabled=%s", args.eventTime,
-              args.request.enable ? "true" : "false");
+              args.request.isEnable() ? "true" : "false");
     }
 
     bool needWake = false;
@@ -5798,7 +5801,7 @@ std::string InputDispatcher::dumpPointerCaptureStateLocked() const {
     std::string dump;
 
     dump += StringPrintf(INDENT "Pointer Capture Requested: %s\n",
-                         toString(mCurrentPointerCaptureRequest.enable));
+                         toString(mCurrentPointerCaptureRequest.isEnable()));
 
     std::string windowName = "None";
     if (mWindowTokenWithPointerCapture) {
@@ -6217,7 +6220,7 @@ void InputDispatcher::requestPointerCapture(const sp<IBinder>& windowToken, bool
             return;
         }
 
-        if (enabled == mCurrentPointerCaptureRequest.enable) {
+        if (enabled == mCurrentPointerCaptureRequest.isEnable()) {
             ALOGW("Ignoring request to %s Pointer Capture: "
                   "window has %s requested pointer capture.",
                   enabled ? "enable" : "disable", enabled ? "already" : "not");
@@ -6233,7 +6236,7 @@ void InputDispatcher::requestPointerCapture(const sp<IBinder>& windowToken, bool
             }
         }
 
-        setPointerCaptureLocked(enabled);
+        setPointerCaptureLocked(enabled ? windowToken : nullptr);
     } // release lock
 
     // Wake the thread to process command entries.
@@ -6863,14 +6866,14 @@ void InputDispatcher::onFocusChangedLocked(
 }
 
 void InputDispatcher::disablePointerCaptureForcedLocked() {
-    if (!mCurrentPointerCaptureRequest.enable && !mWindowTokenWithPointerCapture) {
+    if (!mCurrentPointerCaptureRequest.isEnable() && !mWindowTokenWithPointerCapture) {
         return;
     }
 
     ALOGD_IF(DEBUG_FOCUS, "Disabling Pointer Capture because the window lost focus.");
 
-    if (mCurrentPointerCaptureRequest.enable) {
-        setPointerCaptureLocked(false);
+    if (mCurrentPointerCaptureRequest.isEnable()) {
+        setPointerCaptureLocked(nullptr);
     }
 
     if (!mWindowTokenWithPointerCapture) {
@@ -6890,8 +6893,8 @@ void InputDispatcher::disablePointerCaptureForcedLocked() {
     mInboundQueue.push_front(std::move(entry));
 }
 
-void InputDispatcher::setPointerCaptureLocked(bool enable) {
-    mCurrentPointerCaptureRequest.enable = enable;
+void InputDispatcher::setPointerCaptureLocked(const sp<IBinder>& windowToken) {
+    mCurrentPointerCaptureRequest.window = windowToken;
     mCurrentPointerCaptureRequest.seq++;
     auto command = [this, request = mCurrentPointerCaptureRequest]() REQUIRES(mLock) {
         scoped_unlock unlock(mLock);

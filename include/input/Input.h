@@ -1192,15 +1192,17 @@ public:
  */
 struct PointerCaptureRequest {
 public:
-    inline PointerCaptureRequest() : enable(false), seq(0) {}
-    inline PointerCaptureRequest(bool enable, uint32_t seq) : enable(enable), seq(seq) {}
+    inline PointerCaptureRequest() : window(), seq(0) {}
+    inline PointerCaptureRequest(sp<IBinder> window, uint32_t seq) : window(window), seq(seq) {}
     inline bool operator==(const PointerCaptureRequest& other) const {
-        return enable == other.enable && seq == other.seq;
+        return window == other.window && seq == other.seq;
     }
-    explicit inline operator bool() const { return enable; }
+    inline bool isEnable() const { return window != nullptr; }
 
-    // True iff this is a request to enable Pointer Capture.
-    bool enable;
+    // The requesting window.
+    // If the request is to enable the capture, this is the input token of the window that requested
+    // pointer capture. Otherwise, this is nullptr.
+    sp<IBinder> window;
 
     // The sequence number for the request.
     uint32_t seq;

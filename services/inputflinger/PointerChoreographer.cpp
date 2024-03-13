@@ -277,7 +277,7 @@ void PointerChoreographer::processDeviceReset(const NotifyDeviceResetArgs& args)
 
 void PointerChoreographer::notifyPointerCaptureChanged(
         const NotifyPointerCaptureChangedArgs& args) {
-    if (args.request.enable) {
+    if (args.request.isEnable()) {
         std::scoped_lock _l(mLock);
         for (const auto& [_, mousePointerController] : mMousePointersByDisplay) {
             mousePointerController->fade(PointerControllerInterface::Transition::IMMEDIATE);

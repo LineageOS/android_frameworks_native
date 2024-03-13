@@ -166,7 +166,7 @@ protected:
     }
 
     void setPointerCapture(bool enabled) {
-        mReaderConfiguration.pointerCaptureRequest.enable = enabled;
+        mReaderConfiguration.pointerCaptureRequest.window = enabled ? sp<BBinder>::make() : nullptr;
         mReaderConfiguration.pointerCaptureRequest.seq = 1;
         int32_t generation = mDevice->getGeneration();
         std::list<NotifyArgs> args =
