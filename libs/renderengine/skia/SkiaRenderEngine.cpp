@@ -679,8 +679,7 @@ void SkiaRenderEngine::drawLayersInternal(
     // wait on the buffer to be ready to use prior to using it
     waitFence(grContext, bufferFence);
 
-    sk_sp<SkSurface> dstSurface =
-            surfaceTextureRef->getOrCreateSurface(display.outputDataspace, grContext);
+    sk_sp<SkSurface> dstSurface = surfaceTextureRef->getOrCreateSurface(display.outputDataspace);
 
     SkCanvas* dstCanvas = mCapture->tryCapture(dstSurface.get());
     if (dstCanvas == nullptr) {
@@ -972,7 +971,7 @@ void SkiaRenderEngine::drawLayersInternal(
                     : item.isOpaque                      ? kOpaque_SkAlphaType
                     : item.usePremultipliedAlpha         ? kPremul_SkAlphaType
                                                          : kUnpremul_SkAlphaType;
-            sk_sp<SkImage> image = imageTextureRef->makeImage(layerDataspace, alphaType, grContext);
+            sk_sp<SkImage> image = imageTextureRef->makeImage(layerDataspace, alphaType);
 
             auto texMatrix = getSkM44(item.textureTransform).asM33();
             // textureTansform was intended to be passed directly into a shader, so when

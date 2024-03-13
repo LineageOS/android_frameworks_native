@@ -95,14 +95,13 @@ public:
         // Makes a new SkImage from the texture content.
         // As SkImages are immutable but buffer content is not, we create
         // a new SkImage every time.
-        sk_sp<SkImage> makeImage(ui::Dataspace dataspace, SkAlphaType alphaType,
-                                 GrDirectContext* context) {
-            return mTexture->makeImage(dataspace, alphaType, context);
+        sk_sp<SkImage> makeImage(ui::Dataspace dataspace, SkAlphaType alphaType) {
+            return mTexture->makeImage(dataspace, alphaType);
         }
 
         // Makes a new SkSurface from the texture content, if needed.
-        sk_sp<SkSurface> getOrCreateSurface(ui::Dataspace dataspace, GrDirectContext* context) {
-            return mTexture->getOrCreateSurface(dataspace, context);
+        sk_sp<SkSurface> getOrCreateSurface(ui::Dataspace dataspace) {
+            return mTexture->getOrCreateSurface(dataspace);
         }
 
         SkColorType colorType() const { return mTexture->mColorType; }
@@ -130,17 +129,17 @@ private:
     // Makes a new SkImage from the texture content.
     // As SkImages are immutable but buffer content is not, we create
     // a new SkImage every time.
-    sk_sp<SkImage> makeImage(ui::Dataspace dataspace, SkAlphaType alphaType,
-                             GrDirectContext* context);
+    sk_sp<SkImage> makeImage(ui::Dataspace dataspace, SkAlphaType alphaType);
 
     // Makes a new SkSurface from the texture content, if needed.
-    sk_sp<SkSurface> getOrCreateSurface(ui::Dataspace dataspace, GrDirectContext* context);
+    sk_sp<SkSurface> getOrCreateSurface(ui::Dataspace dataspace);
 
     GrBackendTexture mBackendTexture;
     GrAHardwareBufferUtils::DeleteImageProc mDeleteProc;
     GrAHardwareBufferUtils::UpdateImageProc mUpdateProc;
     GrAHardwareBufferUtils::TexImageCtx mImageCtx;
 
+    const GrDirectContext* mGrContext = nullptr;
     CleanupManager& mCleanupMgr;
 
     static void releaseSurfaceProc(SkSurface::ReleaseContext releaseContext);
