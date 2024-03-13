@@ -42,6 +42,17 @@ parcelable DisplayModeSpecs {
     }
 
     /**
+     * Refers to the time after which the idle screen's refresh rate is to be reduced
+     */
+    parcelable IdleScreenRefreshRateConfig {
+
+        /**
+         *  The timeout value in milli seconds
+         */
+        int timeoutMillis;
+    }
+
+    /**
      * Base mode ID. This is what system defaults to for all other settings, or
      * if the refresh rate range is not available.
      */
@@ -72,4 +83,13 @@ parcelable DisplayModeSpecs {
      * never smaller.
      */
     RefreshRateRanges appRequestRanges;
+
+    /**
+     * The config to represent the maximum time (in ms) for which the display can remain in an idle
+     * state before reducing the refresh rate to conserve power.
+     * Null value refers that the device is not configured to dynamically reduce the refresh rate
+     * based on external conditions.
+     * -1 refers to the current conditions requires no timeout
+     */
+    @nullable IdleScreenRefreshRateConfig idleScreenRefreshRateConfig;
 }
