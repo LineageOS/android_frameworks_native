@@ -1372,6 +1372,11 @@ VkResult CreateInstance(const VkInstanceCreateInfo* pCreateInfo,
             android::GraphicsEnv::getInstance().setTargetStats(
                 android::GpuStatsInfo::Stats::CREATED_VULKAN_API_VERSION,
                 vulkanApiVersion);
+
+            if (pCreateInfo->pApplicationInfo->pEngineName) {
+                android::GraphicsEnv::getInstance().addVulkanEngineName(
+                    pCreateInfo->pApplicationInfo->pEngineName);
+            }
         }
 
         // Update stats for the extensions requested

@@ -46,6 +46,8 @@ using testing::HasSubstr;
 #define UPDATED_DRIVER_VER_CODE   1
 #define UPDATED_DRIVER_BUILD_TIME 234
 #define VULKAN_VERSION            345
+#define VULKAN_ENGINE_NAME_1      "testVulkanEngine1"
+#define VULKAN_ENGINE_NAME_2      "testVulkanEngine2"
 #define APP_PKG_NAME_1            "testapp1"
 #define APP_PKG_NAME_2            "testapp2"
 #define DRIVER_LOADING_TIME_1     678
@@ -243,6 +245,8 @@ TEST_F(GpuStatsTest, canNotInsertTargetStatsBeforeProperSetup) {
     mGpuStats->insertTargetStats(APP_PKG_NAME_1, BUILTIN_DRIVER_VER_CODE,
                                  GpuStatsInfo::Stats::VULKAN_DEVICE_EXTENSION,
                                  VULKAN_DEVICE_EXTENSION_1);
+    mGpuStats->addVulkanEngineName(APP_PKG_NAME_1, BUILTIN_DRIVER_VER_CODE,
+                             VULKAN_ENGINE_NAME_1);
 
     EXPECT_TRUE(inputCommand(InputCommand::DUMP_APP).empty());
 }
@@ -282,6 +286,8 @@ TEST_F(GpuStatsTest, canInsertTargetStatsAfterProperSetup) {
     mGpuStats->insertTargetStats(APP_PKG_NAME_1, BUILTIN_DRIVER_VER_CODE,
                                  GpuStatsInfo::Stats::VULKAN_DEVICE_EXTENSION,
                                  VULKAN_DEVICE_EXTENSION_2);
+    mGpuStats->addVulkanEngineName(APP_PKG_NAME_1, BUILTIN_DRIVER_VER_CODE,
+                             VULKAN_ENGINE_NAME_1);
 
     EXPECT_THAT(inputCommand(InputCommand::DUMP_APP), HasSubstr("cpuVulkanInUse = 1"));
     EXPECT_THAT(inputCommand(InputCommand::DUMP_APP), HasSubstr("falsePrerotation = 1"));
@@ -302,6 +308,64 @@ TEST_F(GpuStatsTest, canInsertTargetStatsAfterProperSetup) {
     expectedResult.str("");
     expectedResult << "vulkanDeviceExtensions: 0x" << std::hex << VULKAN_DEVICE_EXTENSION_1
                     << " 0x" << std::hex << VULKAN_DEVICE_EXTENSION_2;
+    expectedResult.str("");
+    expectedResult << "vulkanEngineNames: " << VULKAN_ENGINE_NAME_1 << ",";
+
+    EXPECT_THAT(inputCommand(InputCommand::DUMP_APP), HasSubstr(expectedResult.str()));
+}
+
+// Verify the vulkanEngineNames list behaves like a set and dedupes additions
+TEST_F(GpuStatsTest, vulkanEngineNamesBehavesLikeSet) {
+    mGpuStats->insertDriverStats(BUILTIN_DRIVER_PKG_NAME, BUILTIN_DRIVER_VER_NAME,
+                                 BUILTIN_DRIVER_VER_CODE, BUILTIN_DRIVER_BUILD_TIME, APP_PKG_NAME_1,
+                                 VULKAN_VERSION, GpuStatsInfo::Driver::GL, true,
+                                 DRIVER_LOADING_TIME_1);
+    for (int i = 0; i < 4; i++) {
+        mGpuStats->addVulkanEngineName(APP_PKG_NAME_1, BUILTIN_DRIVER_VER_CODE,
+                                       VULKAN_ENGINE_NAME_1);
+    }
+
+    std::stringstream wrongResult, expectedResult;
+    wrongResult << "vulkanEngineNames: " << VULKAN_ENGINE_NAME_1 << ", " <<
+                   VULKAN_ENGINE_NAME_1;
+    expectedResult << "vulkanEngineNames: " << VULKAN_ENGINE_NAME_1;
+
+    EXPECT_THAT(inputCommand(InputCommand::DUMP_APP), Not(HasSubstr(wrongResult.str())));
+    EXPECT_THAT(inputCommand(InputCommand::DUMP_APP), HasSubstr(expectedResult.str()));
+}
+
+TEST_F(GpuStatsTest, vulkanEngineNamesCheckEmptyEngineNameAlone) {
+    mGpuStats->insertDriverStats(BUILTIN_DRIVER_PKG_NAME, BUILTIN_DRIVER_VER_NAME,
+                                 BUILTIN_DRIVER_VER_CODE, BUILTIN_DRIVER_BUILD_TIME, APP_PKG_NAME_1,
+                                 VULKAN_VERSION, GpuStatsInfo::Driver::GL, true,
+                                 DRIVER_LOADING_TIME_1);
+
+    mGpuStats->addVulkanEngineName(APP_PKG_NAME_1, BUILTIN_DRIVER_VER_CODE,
+                                   "");
+
+    std::stringstream expectedResult;
+    expectedResult << "vulkanEngineNames: ,";
+
+    EXPECT_THAT(inputCommand(InputCommand::DUMP_APP), HasSubstr(expectedResult.str()));
+}
+
+TEST_F(GpuStatsTest, vulkanEngineNamesCheckEmptyEngineNameWithOthers) {
+    mGpuStats->insertDriverStats(BUILTIN_DRIVER_PKG_NAME, BUILTIN_DRIVER_VER_NAME,
+                                 BUILTIN_DRIVER_VER_CODE, BUILTIN_DRIVER_BUILD_TIME, APP_PKG_NAME_1,
+                                 VULKAN_VERSION, GpuStatsInfo::Driver::GL, true,
+                                 DRIVER_LOADING_TIME_1);
+
+    mGpuStats->addVulkanEngineName(APP_PKG_NAME_1, BUILTIN_DRIVER_VER_CODE,
+                                   VULKAN_ENGINE_NAME_1);
+    mGpuStats->addVulkanEngineName(APP_PKG_NAME_1, BUILTIN_DRIVER_VER_CODE,
+                                   "");
+    mGpuStats->addVulkanEngineName(APP_PKG_NAME_1, BUILTIN_DRIVER_VER_CODE,
+                                   VULKAN_ENGINE_NAME_2);
+
+    std::stringstream expectedResult;
+    expectedResult << "vulkanEngineNames: " << VULKAN_ENGINE_NAME_1 << ", "
+                   << ", " <<  VULKAN_ENGINE_NAME_2;
+
     EXPECT_THAT(inputCommand(InputCommand::DUMP_APP), HasSubstr(expectedResult.str()));
 }
 
@@ -350,6 +414,10 @@ TEST_F(GpuStatsTest, canInsertMoreThanMaxNumAppRecords) {
         mGpuStats->insertTargetStats(fullPkgName, BUILTIN_DRIVER_VER_CODE,
                                     GpuStatsInfo::Stats::VULKAN_DEVICE_EXTENSION,
                                     VULKAN_DEVICE_EXTENSION_2);
+        mGpuStats->addVulkanEngineName(fullPkgName, BUILTIN_DRIVER_VER_CODE,
+                                 VULKAN_ENGINE_NAME_1);
+        mGpuStats->addVulkanEngineName(fullPkgName, BUILTIN_DRIVER_VER_CODE,
+                                 VULKAN_ENGINE_NAME_2);
 
         EXPECT_THAT(inputCommand(InputCommand::DUMP_APP), HasSubstr(fullPkgName.c_str()));
         EXPECT_THAT(inputCommand(InputCommand::DUMP_APP), HasSubstr("cpuVulkanInUse = 1"));
@@ -371,6 +439,9 @@ TEST_F(GpuStatsTest, canInsertMoreThanMaxNumAppRecords) {
         expectedResult.str("");
         expectedResult << "vulkanDeviceExtensions: 0x" << std::hex << VULKAN_DEVICE_EXTENSION_1
                         << " 0x" << std::hex << VULKAN_DEVICE_EXTENSION_2;
+        expectedResult.str("");
+        expectedResult << "vulkanEngineNames: " << VULKAN_ENGINE_NAME_1 << ", "
+                       << VULKAN_ENGINE_NAME_2 << ",";
         EXPECT_THAT(inputCommand(InputCommand::DUMP_APP), HasSubstr(expectedResult.str()));
     }
 

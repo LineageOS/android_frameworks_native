@@ -445,6 +445,21 @@ void GraphicsEnv::setVulkanDeviceExtensions(uint32_t enabledExtensionCount,
                         extensionHashes, numStats);
 }
 
+void GraphicsEnv::addVulkanEngineName(const char* engineName) {
+    ATRACE_CALL();
+    if (engineName == nullptr) {
+        return;
+    }
+    std::lock_guard<std::mutex> lock(mStatsLock);
+    if (!readyToSendGpuStatsLocked()) return;
+
+    const sp<IGpuService> gpuService = getGpuService();
+    if (gpuService) {
+        gpuService->addVulkanEngineName(mGpuStats.appPackageName, mGpuStats.driverVersionCode,
+                                        engineName);
+    }
+}
+
 bool GraphicsEnv::readyToSendGpuStatsLocked() {
     // Only send stats for processes having at least one activity launched and that process doesn't
     // skip the GraphicsEnvironment setup.

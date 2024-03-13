@@ -77,6 +77,19 @@ public:
                            IBinder::FLAG_ONEWAY);
     }
 
+    void addVulkanEngineName(const std::string& appPackageName, const uint64_t driverVersionCode,
+                             const char* engineName) override {
+        Parcel data, reply;
+        data.writeInterfaceToken(IGpuService::getInterfaceDescriptor());
+
+        data.writeUtf8AsUtf16(appPackageName);
+        data.writeUint64(driverVersionCode);
+        data.writeCString(engineName);
+
+        remote()->transact(BnGpuService::ADD_VULKAN_ENGINE_NAME, data, &reply,
+                           IBinder::FLAG_ONEWAY);
+    }
+
     void setUpdatableDriverPath(const std::string& driverPath) override {
         Parcel data, reply;
         data.writeInterfaceToken(IGpuService::getInterfaceDescriptor());
@@ -195,6 +208,21 @@ status_t BnGpuService::onTransact(uint32_t code, const Parcel& data, Parcel* rep
             setTargetStatsArray(appPackageName, driverVersionCode,
                                 static_cast<GpuStatsInfo::Stats>(stats), values.data(), valueCount);
 
+            return OK;
+        }
+        case ADD_VULKAN_ENGINE_NAME: {
+            CHECK_INTERFACE(IGpuService, data, reply);
+
+            std::string appPackageName;
+            if ((status = data.readUtf8FromUtf16(&appPackageName)) != OK) return status;
+
+            uint64_t driverVersionCode;
+            if ((status = data.readUint64(&driverVersionCode)) != OK) return status;
+
+            const char* engineName;
+            if ((engineName = data.readCString()) == nullptr) return BAD_VALUE;
+
+            addVulkanEngineName(appPackageName, driverVersionCode, engineName);
             return OK;
         }
         case SET_UPDATABLE_DRIVER_PATH: {
