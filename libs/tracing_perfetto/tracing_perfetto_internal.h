@@ -26,7 +26,7 @@ namespace tracing_perfetto {
 
 namespace internal {
 
-bool isPerfettoRegistered();
+bool isPerfettoSdkTracingEnabled();
 
 struct PerfettoTeCategory* toPerfettoCategory(uint64_t category);
 
