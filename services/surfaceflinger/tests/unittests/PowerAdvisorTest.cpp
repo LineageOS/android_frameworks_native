@@ -20,6 +20,8 @@
 #include <DisplayHardware/PowerAdvisor.h>
 #include <android_os.h>
 #include <binder/Status.h>
+#include <com_android_graphics_surfaceflinger_flags.h>
+#include <common/FlagManager.h>
 #include <common/test/FlagUtils.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -51,6 +53,20 @@ public:
     void setTimingTestingMode(bool testinMode);
     void allowReportActualToAcquireMutex();
     bool sessionExists();
+    int64_t toNanos(Duration d);
+
+    struct GpuTestConfig {
+        bool adpfGpuFlagOn;
+        Duration frame1GpuFenceDuration;
+        Duration frame2GpuFenceDuration;
+        Duration vsyncPeriod;
+        Duration presentDuration = 0ms;
+        Duration postCompDuration = 0ms;
+        bool frame1RequiresRenderEngine;
+        bool frame2RequiresRenderEngine;
+    };
+
+    WorkDuration testGpuScenario(GpuTestConfig& config);
 
 protected:
     TestableSurfaceFlinger mFlinger;
@@ -63,6 +79,10 @@ protected:
 bool PowerAdvisorTest::sessionExists() {
     std::scoped_lock lock(mPowerAdvisor->mHintSessionMutex);
     return mPowerAdvisor->mHintSession != nullptr;
+}
+
+int64_t PowerAdvisorTest::toNanos(Duration d) {
+    return std::chrono::nanoseconds(d).count();
 }
 
 void PowerAdvisorTest::SetUp() {
@@ -115,6 +135,71 @@ void PowerAdvisorTest::setTimingTestingMode(bool testingMode) {
 
 void PowerAdvisorTest::allowReportActualToAcquireMutex() {
     mPowerAdvisor->mDelayReportActualMutexAcquisitonPromise.set_value(true);
+}
+
+WorkDuration PowerAdvisorTest::testGpuScenario(GpuTestConfig& config) {
+    SET_FLAG_FOR_TEST(com::android::graphics::surfaceflinger::flags::adpf_gpu_sf,
+                      config.adpfGpuFlagOn);
+    mPowerAdvisor->onBootFinished();
+    startPowerHintSession();
+
+    std::vector<DisplayId> displayIds{PhysicalDisplayId::fromPort(42u), GpuVirtualDisplayId(0),
+                                      GpuVirtualDisplayId(1)};
+    mPowerAdvisor->setDisplays(displayIds);
+    auto display1 = displayIds[0];
+    // 60hz
+
+    TimePoint startTime = TimePoint::now();
+    // advisor only starts on frame 2 so do an initial frame
+    fakeBasicFrameTiming(startTime, config.vsyncPeriod);
+    setExpectedTiming(config.vsyncPeriod, startTime + config.vsyncPeriod);
+
+    // report GPU
+    mPowerAdvisor->setRequiresRenderEngine(display1, config.frame1RequiresRenderEngine);
+    if (config.adpfGpuFlagOn) {
+        mPowerAdvisor->setGpuStartTime(display1, startTime);
+    }
+    if (config.frame1GpuFenceDuration.count() == Fence::SIGNAL_TIME_PENDING) {
+        mPowerAdvisor->setGpuFenceTime(display1,
+                                       std::make_unique<FenceTime>(Fence::SIGNAL_TIME_PENDING));
+    } else {
+        TimePoint end = startTime + config.frame1GpuFenceDuration;
+        mPowerAdvisor->setGpuFenceTime(display1, std::make_unique<FenceTime>(end.ns()));
+    }
+
+    // increment the frame
+    std::this_thread::sleep_for(config.vsyncPeriod);
+    startTime = TimePoint::now();
+    fakeBasicFrameTiming(startTime, config.vsyncPeriod);
+    setExpectedTiming(config.vsyncPeriod, startTime + config.vsyncPeriod);
+
+    // report GPU
+    mPowerAdvisor->setRequiresRenderEngine(display1, config.frame2RequiresRenderEngine);
+    if (config.adpfGpuFlagOn) {
+        mPowerAdvisor->setGpuStartTime(display1, startTime);
+    }
+    if (config.frame2GpuFenceDuration.count() == Fence::SIGNAL_TIME_PENDING) {
+        mPowerAdvisor->setGpuFenceTime(display1,
+                                       std::make_unique<FenceTime>(Fence::SIGNAL_TIME_PENDING));
+    } else {
+        TimePoint end = startTime + config.frame2GpuFenceDuration;
+        mPowerAdvisor->setGpuFenceTime(display1, std::make_unique<FenceTime>(end.ns()));
+    }
+    mPowerAdvisor->setSfPresentTiming(startTime, startTime + config.presentDuration);
+    mPowerAdvisor->setCompositeEnd(startTime + config.presentDuration + config.postCompDuration);
+
+    // don't report timing for the HWC
+    mPowerAdvisor->setHwcValidateTiming(displayIds[0], startTime, startTime);
+    mPowerAdvisor->setHwcPresentTiming(displayIds[0], startTime, startTime);
+
+    std::vector<aidl::android::hardware::power::WorkDuration> durationReq;
+    EXPECT_CALL(*mMockPowerHintSession, reportActualWorkDuration(_))
+            .Times(1)
+            .WillOnce(DoAll(testing::SaveArg<0>(&durationReq),
+                            testing::Return(testing::ByMove(HalResult<void>::ok()))));
+    mPowerAdvisor->reportActualWorkDuration();
+    EXPECT_EQ(durationReq.size(), 1u);
+    return durationReq[0];
 }
 
 Duration PowerAdvisorTest::getFenceWaitDelayDuration(bool skipValidate) {
@@ -388,6 +473,149 @@ TEST_F(PowerAdvisorTest, legacyHintSessionCreationStillWorks) {
                                      fromStatus(binder::Status::ok(), mMockPowerHintSession)));
     mPowerAdvisor->enablePowerHintSession(true);
     mPowerAdvisor->startPowerHintSession({1, 2, 3});
+}
+
+TEST_F(PowerAdvisorTest, setGpuFenceTime_cpuThenGpuFrames) {
+    GpuTestConfig config{
+            .adpfGpuFlagOn = false,
+            // faked buffer fence time for testing
+            .frame1GpuFenceDuration = 41ms,
+            .frame2GpuFenceDuration = 31ms,
+            .vsyncPeriod = 10ms,
+            .presentDuration = 2ms,
+            .postCompDuration = 8ms,
+            .frame1RequiresRenderEngine = false,
+            .frame2RequiresRenderEngine = true,
+    };
+    WorkDuration res = testGpuScenario(config);
+    EXPECT_EQ(res.gpuDurationNanos, 0L);
+    EXPECT_EQ(res.cpuDurationNanos, 0L);
+    EXPECT_GE(res.durationNanos, toNanos(30ms + getErrorMargin()));
+    EXPECT_LE(res.durationNanos, toNanos(31ms + getErrorMargin()));
+}
+
+TEST_F(PowerAdvisorTest, setGpuFenceTime_cpuThenGpuFrames_flagOn) {
+    GpuTestConfig config{
+            .adpfGpuFlagOn = true,
+            .frame1GpuFenceDuration = 40ms,
+            .frame2GpuFenceDuration = 30ms,
+            .vsyncPeriod = 10ms,
+            .presentDuration = 2ms,
+            .postCompDuration = 8ms,
+            .frame1RequiresRenderEngine = false,
+            .frame2RequiresRenderEngine = true,
+    };
+    WorkDuration res = testGpuScenario(config);
+    EXPECT_EQ(res.gpuDurationNanos, toNanos(30ms));
+    EXPECT_EQ(res.cpuDurationNanos, toNanos(10ms));
+    EXPECT_EQ(res.durationNanos, toNanos(30ms + getErrorMargin()));
+}
+
+TEST_F(PowerAdvisorTest, setGpuFenceTime_gpuThenCpuFrames) {
+    GpuTestConfig config{
+            .adpfGpuFlagOn = false,
+            // faked fence time for testing
+            .frame1GpuFenceDuration = 41ms,
+            .frame2GpuFenceDuration = 31ms,
+            .vsyncPeriod = 10ms,
+            .presentDuration = 2ms,
+            .postCompDuration = 8ms,
+            .frame1RequiresRenderEngine = true,
+            .frame2RequiresRenderEngine = false,
+    };
+    WorkDuration res = testGpuScenario(config);
+    EXPECT_EQ(res.gpuDurationNanos, 0L);
+    EXPECT_EQ(res.cpuDurationNanos, 0L);
+    EXPECT_EQ(res.durationNanos, toNanos(10ms + getErrorMargin()));
+}
+
+TEST_F(PowerAdvisorTest, setGpuFenceTime_gpuThenCpuFrames_flagOn) {
+    GpuTestConfig config{
+            .adpfGpuFlagOn = true,
+            .frame1GpuFenceDuration = 40ms,
+            .frame2GpuFenceDuration = 30ms,
+            .vsyncPeriod = 10ms,
+            .presentDuration = 2ms,
+            .postCompDuration = 8ms,
+            .frame1RequiresRenderEngine = true,
+            .frame2RequiresRenderEngine = false,
+    };
+    WorkDuration res = testGpuScenario(config);
+    EXPECT_EQ(res.gpuDurationNanos, 0L);
+    EXPECT_EQ(res.cpuDurationNanos, toNanos(10ms));
+    EXPECT_EQ(res.durationNanos, toNanos(10ms + getErrorMargin()));
+}
+
+TEST_F(PowerAdvisorTest, setGpuFenceTime_twoSignaledGpuFrames) {
+    GpuTestConfig config{
+            .adpfGpuFlagOn = false,
+            // added a margin as a workaround since we set GPU start time at the time of fence set
+            // call
+            .frame1GpuFenceDuration = 31ms,
+            .frame2GpuFenceDuration = 51ms,
+            .vsyncPeriod = 10ms,
+            .presentDuration = 2ms,
+            .postCompDuration = 8ms,
+            .frame1RequiresRenderEngine = true,
+            .frame2RequiresRenderEngine = true,
+    };
+    WorkDuration res = testGpuScenario(config);
+    EXPECT_EQ(res.gpuDurationNanos, 0L);
+    EXPECT_EQ(res.cpuDurationNanos, 0L);
+    EXPECT_GE(res.durationNanos, toNanos(50ms + getErrorMargin()));
+    EXPECT_LE(res.durationNanos, toNanos(51ms + getErrorMargin()));
+}
+
+TEST_F(PowerAdvisorTest, setGpuFenceTime_twoSignaledGpuFenceFrames_flagOn) {
+    GpuTestConfig config{
+            .adpfGpuFlagOn = true,
+            .frame1GpuFenceDuration = 30ms,
+            .frame2GpuFenceDuration = 50ms,
+            .vsyncPeriod = 10ms,
+            .presentDuration = 2ms,
+            .postCompDuration = 8ms,
+            .frame1RequiresRenderEngine = true,
+            .frame2RequiresRenderEngine = true,
+    };
+    WorkDuration res = testGpuScenario(config);
+    EXPECT_EQ(res.gpuDurationNanos, toNanos(50ms));
+    EXPECT_EQ(res.cpuDurationNanos, toNanos(10ms));
+    EXPECT_EQ(res.durationNanos, toNanos(50ms + getErrorMargin()));
+}
+
+TEST_F(PowerAdvisorTest, setGpuFenceTime_UnsingaledGpuFenceFrameUsingPreviousFrame) {
+    GpuTestConfig config{
+            .adpfGpuFlagOn = false,
+            .frame1GpuFenceDuration = 31ms,
+            .frame2GpuFenceDuration = Duration::fromNs(Fence::SIGNAL_TIME_PENDING),
+            .vsyncPeriod = 10ms,
+            .presentDuration = 2ms,
+            .postCompDuration = 8ms,
+            .frame1RequiresRenderEngine = true,
+            .frame2RequiresRenderEngine = true,
+    };
+    WorkDuration res = testGpuScenario(config);
+    EXPECT_EQ(res.gpuDurationNanos, 0L);
+    EXPECT_EQ(res.cpuDurationNanos, 0L);
+    EXPECT_GE(res.durationNanos, toNanos(30ms + getErrorMargin()));
+    EXPECT_LE(res.durationNanos, toNanos(31ms + getErrorMargin()));
+}
+
+TEST_F(PowerAdvisorTest, setGpuFenceTime_UnsingaledGpuFenceFrameUsingPreviousFrame_flagOn) {
+    GpuTestConfig config{
+            .adpfGpuFlagOn = true,
+            .frame1GpuFenceDuration = 30ms,
+            .frame2GpuFenceDuration = Duration::fromNs(Fence::SIGNAL_TIME_PENDING),
+            .vsyncPeriod = 10ms,
+            .presentDuration = 22ms,
+            .postCompDuration = 88ms,
+            .frame1RequiresRenderEngine = true,
+            .frame2RequiresRenderEngine = true,
+    };
+    WorkDuration res = testGpuScenario(config);
+    EXPECT_EQ(res.gpuDurationNanos, toNanos(30ms));
+    EXPECT_EQ(res.cpuDurationNanos, toNanos(110ms));
+    EXPECT_EQ(res.durationNanos, toNanos(110ms + getErrorMargin()));
 }
 
 } // namespace
