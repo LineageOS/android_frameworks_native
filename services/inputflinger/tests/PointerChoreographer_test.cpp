@@ -355,6 +355,38 @@ TEST_F(PointerChoreographerTest, MouseMovesPointerAndReturnsNewArgs) {
             AllOf(WithCoords(110, 220), WithDisplayId(DISPLAY_ID), WithCursorPosition(110, 220)));
 }
 
+TEST_F(PointerChoreographerTest, AbsoluteMouseMovesPointerAndReturnsNewArgs) {
+    mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID}));
+    mChoreographer.setDefaultMouseDisplayId(DISPLAY_ID);
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE)}});
+    auto pc = assertPointerControllerCreated(ControllerType::MOUSE);
+    ASSERT_EQ(DISPLAY_ID, pc->getDisplayId());
+
+    // Set initial position of the PointerController.
+    pc->setPosition(100, 200);
+    const auto absoluteMousePointer = PointerBuilder(/*id=*/0, ToolType::MOUSE)
+                                              .axis(AMOTION_EVENT_AXIS_X, 110)
+                                              .axis(AMOTION_EVENT_AXIS_Y, 220);
+
+    // Make NotifyMotionArgs and notify Choreographer.
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
+                    .pointer(absoluteMousePointer)
+                    .deviceId(DEVICE_ID)
+                    .displayId(ADISPLAY_ID_NONE)
+                    .build());
+
+    // Check that the PointerController updated the position and the pointer is shown.
+    pc->assertPosition(110, 220);
+    ASSERT_TRUE(pc->isPointerShown());
+
+    // Check that x-y coordinates, displayId and cursor position are correctly updated.
+    mTestListener.assertNotifyMotionWasCalled(
+            AllOf(WithCoords(110, 220), WithRelativeMotion(10, 20), WithDisplayId(DISPLAY_ID),
+                  WithCursorPosition(110, 220)));
+}
+
 TEST_F(PointerChoreographerTest,
        AssociatedMouseMovesPointerOnAssociatedDisplayAndDoesNotMovePointerOnDefaultDisplay) {
     // Add two displays and set one to default.

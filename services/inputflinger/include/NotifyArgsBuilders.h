@@ -107,7 +107,9 @@ public:
 
         // Set mouse cursor position for the most common cases to avoid boilerplate.
         if (mSource == AINPUT_SOURCE_MOUSE &&
-            !MotionEvent::isValidCursorPosition(mRawXCursorPosition, mRawYCursorPosition)) {
+            !MotionEvent::isValidCursorPosition(mRawXCursorPosition, mRawYCursorPosition) &&
+            BitSet64::hasBit(pointerCoords[0].bits, AMOTION_EVENT_AXIS_X) &&
+            BitSet64::hasBit(pointerCoords[0].bits, AMOTION_EVENT_AXIS_Y)) {
             mRawXCursorPosition = pointerCoords[0].getX();
             mRawYCursorPosition = pointerCoords[0].getY();
         }
