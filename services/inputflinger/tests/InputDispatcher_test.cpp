@@ -33,6 +33,7 @@
 #include <gtest/gtest.h>
 #include <input/BlockingQueue.h>
 #include <input/Input.h>
+#include <input/InputConsumer.h>
 #include <input/PrintTools.h>
 #include <linux/input.h>
 #include <sys/epoll.h>
