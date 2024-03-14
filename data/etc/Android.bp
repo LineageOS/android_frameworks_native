@@ -335,6 +335,12 @@ prebuilt_etc {
 }
 
 prebuilt_etc {
+    name: "android.hardware.vulkan.compute-0.prebuilt.xml",
+    src: "android.hardware.vulkan.compute-0.xml",
+    defaults: ["frameworks_native_data_etc_defaults"],
+}
+
+prebuilt_etc {
     name: "android.hardware.vulkan.level-1.prebuilt.xml",
     src: "android.hardware.vulkan.level-1.xml",
     defaults: ["frameworks_native_data_etc_defaults"],
