@@ -24,6 +24,7 @@
 #include <ui/GraphicTypes.h>
 
 #include "android-base/macros.h"
+#include "compat/SkiaGpuContext.h"
 
 #include <mutex>
 #include <vector>
@@ -80,7 +81,7 @@ public:
     // of shared ownership with Skia objects, so we wrap it here instead.
     class LocalRef {
     public:
-        LocalRef(GrDirectContext* context, AHardwareBuffer* buffer, bool isOutputBuffer,
+        LocalRef(SkiaGpuContext* context, AHardwareBuffer* buffer, bool isOutputBuffer,
                  CleanupManager& cleanupMgr) {
             mTexture = new AutoBackendTexture(context, buffer, isOutputBuffer, cleanupMgr);
             mTexture->ref();
@@ -95,14 +96,13 @@ public:
         // Makes a new SkImage from the texture content.
         // As SkImages are immutable but buffer content is not, we create
         // a new SkImage every time.
-        sk_sp<SkImage> makeImage(ui::Dataspace dataspace, SkAlphaType alphaType,
-                                 GrDirectContext* context) {
-            return mTexture->makeImage(dataspace, alphaType, context);
+        sk_sp<SkImage> makeImage(ui::Dataspace dataspace, SkAlphaType alphaType) {
+            return mTexture->makeImage(dataspace, alphaType);
         }
 
         // Makes a new SkSurface from the texture content, if needed.
-        sk_sp<SkSurface> getOrCreateSurface(ui::Dataspace dataspace, GrDirectContext* context) {
-            return mTexture->getOrCreateSurface(dataspace, context);
+        sk_sp<SkSurface> getOrCreateSurface(ui::Dataspace dataspace) {
+            return mTexture->getOrCreateSurface(dataspace);
         }
 
         SkColorType colorType() const { return mTexture->mColorType; }
@@ -114,8 +114,10 @@ public:
     };
 
 private:
+    DISALLOW_COPY_AND_ASSIGN(AutoBackendTexture);
+
     // Creates a GrBackendTexture whose contents come from the provided buffer.
-    AutoBackendTexture(GrDirectContext* context, AHardwareBuffer* buffer, bool isOutputBuffer,
+    AutoBackendTexture(SkiaGpuContext* context, AHardwareBuffer* buffer, bool isOutputBuffer,
                        CleanupManager& cleanupMgr);
 
     // The only way to invoke dtor is with unref, when mUsageCount is 0.
@@ -130,24 +132,24 @@ private:
     // Makes a new SkImage from the texture content.
     // As SkImages are immutable but buffer content is not, we create
     // a new SkImage every time.
-    sk_sp<SkImage> makeImage(ui::Dataspace dataspace, SkAlphaType alphaType,
-                             GrDirectContext* context);
+    sk_sp<SkImage> makeImage(ui::Dataspace dataspace, SkAlphaType alphaType);
 
     // Makes a new SkSurface from the texture content, if needed.
-    sk_sp<SkSurface> getOrCreateSurface(ui::Dataspace dataspace, GrDirectContext* context);
+    sk_sp<SkSurface> getOrCreateSurface(ui::Dataspace dataspace);
 
     GrBackendTexture mBackendTexture;
     GrAHardwareBufferUtils::DeleteImageProc mDeleteProc;
     GrAHardwareBufferUtils::UpdateImageProc mUpdateProc;
     GrAHardwareBufferUtils::TexImageCtx mImageCtx;
 
+    // TODO: b/293371537 - Graphite abstractions for ABT.
+    const sk_sp<GrDirectContext> mGrContext = nullptr;
     CleanupManager& mCleanupMgr;
 
     static void releaseSurfaceProc(SkSurface::ReleaseContext releaseContext);
     static void releaseImageProc(SkImages::ReleaseContext releaseContext);
 
     int mUsageCount = 0;
-
     const bool mIsOutputBuffer;
     sk_sp<SkImage> mImage = nullptr;
     sk_sp<SkSurface> mSurface = nullptr;

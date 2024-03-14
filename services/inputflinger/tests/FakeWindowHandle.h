@@ -17,6 +17,7 @@
 #pragma once
 
 #include <android-base/logging.h>
+#include <input/InputConsumer.h>
 #include "../dispatcher/InputDispatcher.h"
 
 using android::base::Result;

@@ -21,21 +21,21 @@
 #include <sys/types.h>
 
 #include <GrBackendSemaphore.h>
-#include <GrDirectContext.h>
 #include <SkSurface.h>
 #include <android-base/thread_annotations.h>
 #include <renderengine/ExternalTexture.h>
 #include <renderengine/RenderEngine.h>
 #include <sys/types.h>
 
+#include <memory>
 #include <mutex>
 #include <unordered_map>
 
 #include "AutoBackendTexture.h"
 #include "GrContextOptions.h"
 #include "SkImageInfo.h"
-#include "SkiaRenderEngine.h"
 #include "android-base/macros.h"
+#include "compat/SkiaGpuContext.h"
 #include "debug/SkiaCapture.h"
 #include "filters/BlurFilter.h"
 #include "filters/LinearEffect.h"
@@ -76,24 +76,25 @@ public:
     bool supportsProtectedContent() const override {
         return supportsProtectedContentImpl();
     }
-    void ensureGrContextsCreated();
+    void ensureContextsCreated();
+
 protected:
     // This is so backends can stop the generic rendering state first before
     // cleaning up backend-specific state
     void finishRenderingAndAbandonContext();
 
     // Functions that a given backend (GLES, Vulkan) must implement
-    using Contexts = std::pair<sk_sp<GrDirectContext>, sk_sp<GrDirectContext>>;
-    virtual Contexts createDirectContexts(const GrContextOptions& options) = 0;
+    using Contexts = std::pair<unique_ptr<SkiaGpuContext>, unique_ptr<SkiaGpuContext>>;
+    virtual Contexts createContexts() = 0;
     virtual bool supportsProtectedContentImpl() const = 0;
     virtual bool useProtectedContextImpl(GrProtected isProtected) = 0;
-    virtual void waitFence(GrDirectContext* grContext, base::borrowed_fd fenceFd) = 0;
-    virtual base::unique_fd flushAndSubmit(GrDirectContext* context) = 0;
+    virtual void waitFence(SkiaGpuContext* context, base::borrowed_fd fenceFd) = 0;
+    virtual base::unique_fd flushAndSubmit(SkiaGpuContext* context) = 0;
     virtual void appendBackendSpecificInfoToDump(std::string& result) = 0;
 
     size_t getMaxTextureSize() const override final;
     size_t getMaxViewportDims() const override final;
-    GrDirectContext* getActiveGrContext();
+    SkiaGpuContext* getActiveContext();
 
     bool isProtected() const { return mInProtectedContext; }
 
@@ -120,6 +121,8 @@ protected:
         int mShadersCachedSinceLastCall = 0;
         int mTotalShadersCompiled = 0;
     };
+
+    SkSLCacheMonitor mSkSLCacheMonitor;
 
 private:
     void mapExternalTextureBuffer(const sp<GraphicBuffer>& buffer,
@@ -183,12 +186,11 @@ private:
     // Mutex guarding rendering operations, so that internal state related to
     // rendering that is potentially modified by multiple threads is guaranteed thread-safe.
     mutable std::mutex mRenderingMutex;
-    SkSLCacheMonitor mSkSLCacheMonitor;
 
     // Graphics context used for creating surfaces and submitting commands
-    sk_sp<GrDirectContext> mGrContext;
+    unique_ptr<SkiaGpuContext> mContext;
     // Same as above, but for protected content (eg. DRM)
-    sk_sp<GrDirectContext> mProtectedGrContext;
+    unique_ptr<SkiaGpuContext> mProtectedContext;
     bool mInProtectedContext = false;
 };
 

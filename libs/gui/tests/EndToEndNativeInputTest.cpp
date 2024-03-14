@@ -41,6 +41,7 @@
 #include <android/os/IInputFlinger.h>
 #include <gui/WindowInfo.h>
 #include <input/Input.h>
+#include <input/InputConsumer.h>
 #include <input/InputTransport.h>
 
 #include <ui/DisplayMode.h>

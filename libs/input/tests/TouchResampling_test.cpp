@@ -19,6 +19,7 @@
 
 #include <attestation/HmacKeyManager.h>
 #include <gtest/gtest.h>
+#include <input/InputConsumer.h>
 #include <input/InputTransport.h>
 
 using namespace std::chrono_literals;

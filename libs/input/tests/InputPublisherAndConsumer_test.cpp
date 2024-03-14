@@ -17,6 +17,7 @@
 #include <attestation/HmacKeyManager.h>
 #include <gtest/gtest.h>
 #include <gui/constants.h>
+#include <input/InputConsumer.h>
 #include <input/InputTransport.h>
 
 using android::base::Result;

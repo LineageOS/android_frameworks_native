@@ -30,7 +30,7 @@ namespace android {
 namespace renderengine {
 namespace skia {
 
-GrVkBackendContext VulkanInterface::getBackendContext() {
+GrVkBackendContext VulkanInterface::getGaneshBackendContext() {
     GrVkBackendContext backendContext;
     backendContext.fInstance = mInstance;
     backendContext.fPhysicalDevice = mPhysicalDevice;
