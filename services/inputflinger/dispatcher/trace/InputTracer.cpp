@@ -101,12 +101,13 @@ std::unique_ptr<EventTrackerInterface> InputTracer::createTrackerForSyntheticEve
 
 void InputTracer::dispatchToTargetHint(const EventTrackerInterface& cookie,
                                        const InputTarget& target) {
-    if (isDerivedCookie(cookie)) {
-        LOG(FATAL) << "Event target cannot be updated from a derived cookie.";
-    }
     auto& eventState = getState(cookie);
     if (eventState->isEventProcessingComplete) {
         // TODO(b/210460522): Disallow adding new targets after eventProcessingComplete() is called.
+        return;
+    }
+    if (isDerivedCookie(cookie)) {
+        // TODO(b/210460522): Disallow adding new targets from a derived cookie.
         return;
     }
     // TODO(b/210460522): Determine if the event is sensitive based on the target.
