@@ -21,6 +21,8 @@
 #include <SkRuntimeEffect.h>
 #include <SkSurface.h>
 
+#include "../compat/SkiaGpuContext.h"
+
 using namespace std;
 
 namespace android {
@@ -38,8 +40,9 @@ public:
     virtual ~BlurFilter(){}
 
     // Execute blur, saving it to a texture
-    virtual sk_sp<SkImage> generate(GrRecordingContext* context, const uint32_t radius,
-                            const sk_sp<SkImage> blurInput, const SkRect& blurRect) const = 0;
+    virtual sk_sp<SkImage> generate(SkiaGpuContext* context, const uint32_t radius,
+                                    const sk_sp<SkImage> blurInput,
+                                    const SkRect& blurRect) const = 0;
 
     /**
      * Draw the blurred content (from the generate method) into the canvas.

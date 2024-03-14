@@ -21,12 +21,15 @@
 
 #include "SkiaVkRenderEngine.h"
 
+#include "compat/SkiaGpuContext.h"
+
 #include <GrBackendSemaphore.h>
 #include <GrContextOptions.h>
-#include <vk/GrVkExtensions.h>
-#include <vk/GrVkTypes.h>
+#include <GrDirectContext.h>
 #include <include/gpu/ganesh/vk/GrVkBackendSemaphore.h>
 #include <include/gpu/ganesh/vk/GrVkDirectContext.h>
+#include <vk/GrVkExtensions.h>
+#include <vk/GrVkTypes.h>
 
 #include <android-base/stringprintf.h>
 #include <gui/TraceUtils.h>
@@ -82,7 +85,7 @@ using base::StringAppendF;
 std::unique_ptr<SkiaVkRenderEngine> SkiaVkRenderEngine::create(
         const RenderEngineCreationArgs& args) {
     std::unique_ptr<SkiaVkRenderEngine> engine(new SkiaVkRenderEngine(args));
-    engine->ensureGrContextsCreated();
+    engine->ensureContextsCreated();
 
     if (sVulkanInterface.isInitialized()) {
         ALOGD("SkiaVkRenderEngine::%s: successfully initialized SkiaVkRenderEngine", __func__);
@@ -103,16 +106,16 @@ SkiaVkRenderEngine::~SkiaVkRenderEngine() {
     finishRenderingAndAbandonContext();
 }
 
-SkiaRenderEngine::Contexts SkiaVkRenderEngine::createDirectContexts(
-        const GrContextOptions& options) {
+SkiaRenderEngine::Contexts SkiaVkRenderEngine::createContexts() {
     sSetupVulkanInterface();
 
     SkiaRenderEngine::Contexts contexts;
-    contexts.first = GrDirectContexts::MakeVulkan(sVulkanInterface.getBackendContext(), options);
+    contexts.first = SkiaGpuContext::MakeVulkan_Ganesh(sVulkanInterface.getGaneshBackendContext(),
+                                                       mSkSLCacheMonitor);
     if (supportsProtectedContentImpl()) {
-        contexts.second =
-                GrDirectContexts::MakeVulkan(sProtectedContentVulkanInterface.getBackendContext(),
-                                             options);
+        contexts.second = SkiaGpuContext::MakeVulkan_Ganesh(sProtectedContentVulkanInterface
+                                                                    .getGaneshBackendContext(),
+                                                            mSkSLCacheMonitor);
     }
 
     return contexts;
@@ -139,7 +142,7 @@ static VulkanInterface& getVulkanInterface(bool protectedContext) {
     return sVulkanInterface;
 }
 
-void SkiaVkRenderEngine::waitFence(GrDirectContext* grContext, base::borrowed_fd fenceFd) {
+void SkiaVkRenderEngine::waitFence(SkiaGpuContext* context, base::borrowed_fd fenceFd) {
     if (fenceFd.get() < 0) return;
 
     int dupedFd = dup(fenceFd.get());
@@ -153,10 +156,11 @@ void SkiaVkRenderEngine::waitFence(GrDirectContext* grContext, base::borrowed_fd
     VkSemaphore waitSemaphore =
             getVulkanInterface(isProtected()).importSemaphoreFromSyncFd(fenceDup.release());
     GrBackendSemaphore beSemaphore = GrBackendSemaphores::MakeVk(waitSemaphore);
-    grContext->wait(1, &beSemaphore, true /* delete after wait */);
+    context->grDirectContext()->wait(1, &beSemaphore, true /* delete after wait */);
 }
 
-base::unique_fd SkiaVkRenderEngine::flushAndSubmit(GrDirectContext* grContext) {
+base::unique_fd SkiaVkRenderEngine::flushAndSubmit(SkiaGpuContext* context) {
+    sk_sp<GrDirectContext> grContext = context->grDirectContext();
     VulkanInterface& vi = getVulkanInterface(isProtected());
     VkSemaphore semaphore = vi.createExportableSemaphore();
 

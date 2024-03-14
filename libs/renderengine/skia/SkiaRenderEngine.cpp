@@ -74,6 +74,7 @@
 
 #include "Cache.h"
 #include "ColorSpaces.h"
+#include "compat/SkiaGpuContext.h"
 #include "filters/BlurFilter.h"
 #include "filters/GaussianBlurFilter.h"
 #include "filters/KawaseBlurFilter.h"
@@ -290,14 +291,12 @@ void SkiaRenderEngine::finishRenderingAndAbandonContext() {
         delete mBlurFilter;
     }
 
-    if (mGrContext) {
-        mGrContext->flushAndSubmit(GrSyncCpu::kYes);
-        mGrContext->abandonContext();
+    if (mContext) {
+        mContext->finishRenderingAndAbandonContext();
     }
 
-    if (mProtectedGrContext) {
-        mProtectedGrContext->flushAndSubmit(GrSyncCpu::kYes);
-        mProtectedGrContext->abandonContext();
+    if (mProtectedContext) {
+        mProtectedContext->finishRenderingAndAbandonContext();
     }
 }
 
@@ -308,24 +307,24 @@ void SkiaRenderEngine::useProtectedContext(bool useProtectedContext) {
     }
 
     // release any scratch resources before switching into a new mode
-    if (getActiveGrContext()) {
-        getActiveGrContext()->purgeUnlockedResources(GrPurgeResourceOptions::kScratchResourcesOnly);
+    if (getActiveContext()) {
+        getActiveContext()->purgeUnlockedScratchResources();
     }
 
     // Backend-specific way to switch to protected context
     if (useProtectedContextImpl(
             useProtectedContext ? GrProtected::kYes : GrProtected::kNo)) {
         mInProtectedContext = useProtectedContext;
-        // given that we are sharing the same thread between two GrContexts we need to
+        // given that we are sharing the same thread between two contexts we need to
         // make sure that the thread state is reset when switching between the two.
-        if (getActiveGrContext()) {
-            getActiveGrContext()->resetContext();
+        if (getActiveContext()) {
+            getActiveContext()->resetContextIfApplicable();
         }
     }
 }
 
-GrDirectContext* SkiaRenderEngine::getActiveGrContext() {
-    return mInProtectedContext ? mProtectedGrContext.get() : mGrContext.get();
+SkiaGpuContext* SkiaRenderEngine::getActiveContext() {
+    return mInProtectedContext ? mProtectedContext.get() : mContext.get();
 }
 
 static float toDegrees(uint32_t transform) {
@@ -374,17 +373,12 @@ static bool needsToneMapping(ui::Dataspace sourceDataspace, ui::Dataspace destin
             sourceTransfer != destTransfer;
 }
 
-void SkiaRenderEngine::ensureGrContextsCreated() {
-    if (mGrContext) {
+void SkiaRenderEngine::ensureContextsCreated() {
+    if (mContext) {
         return;
     }
 
-    GrContextOptions options;
-    options.fDisableDriverCorrectnessWorkarounds = true;
-    options.fDisableDistanceFieldPaths = true;
-    options.fReducedShaderVariations = true;
-    options.fPersistentCache = &mSkSLCacheMonitor;
-    std::tie(mGrContext, mProtectedGrContext) = createDirectContexts(options);
+    std::tie(mContext, mProtectedContext) = createContexts();
 }
 
 void SkiaRenderEngine::mapExternalTextureBuffer(const sp<GraphicBuffer>& buffer,
@@ -413,7 +407,7 @@ void SkiaRenderEngine::mapExternalTextureBuffer(const sp<GraphicBuffer>& buffer,
     // switch back after the buffer is cached).  However, for non-protected content we can bind
     // the texture in either GL context because they are initialized with the same share_context
     // which allows the texture state to be shared between them.
-    auto grContext = getActiveGrContext();
+    auto context = getActiveContext();
     auto& cache = mTextureCache;
 
     std::lock_guard<std::mutex> lock(mRenderingMutex);
@@ -424,8 +418,7 @@ void SkiaRenderEngine::mapExternalTextureBuffer(const sp<GraphicBuffer>& buffer,
             isRenderable = buffer->getUsage() & GRALLOC_USAGE_HW_RENDER;
         }
         std::shared_ptr<AutoBackendTexture::LocalRef> imageTextureRef =
-                std::make_shared<AutoBackendTexture::LocalRef>(grContext,
-                                                               buffer->toAHardwareBuffer(),
+                std::make_shared<AutoBackendTexture::LocalRef>(context, buffer->toAHardwareBuffer(),
                                                                isRenderable, mTextureCleanupMgr);
         cache.insert({buffer->getId(), imageTextureRef});
     }
@@ -477,7 +470,7 @@ std::shared_ptr<AutoBackendTexture::LocalRef> SkiaRenderEngine::getOrCreateBacke
             return it->second;
         }
     }
-    return std::make_shared<AutoBackendTexture::LocalRef>(getActiveGrContext(),
+    return std::make_shared<AutoBackendTexture::LocalRef>(getActiveContext(),
                                                           buffer->toAHardwareBuffer(),
                                                           isOutputBuffer, mTextureCleanupMgr);
 }
@@ -667,8 +660,8 @@ void SkiaRenderEngine::drawLayersInternal(
 
     validateOutputBufferUsage(buffer->getBuffer());
 
-    auto grContext = getActiveGrContext();
-    LOG_ALWAYS_FATAL_IF(grContext->abandoned(), "GrContext is abandoned/device lost at start of %s",
+    auto context = getActiveContext();
+    LOG_ALWAYS_FATAL_IF(context->isAbandoned(), "Context is abandoned/device lost at start of %s",
                         __func__);
 
     // any AutoBackendTexture deletions will now be deferred until cleanupPostRender is called
@@ -677,10 +670,9 @@ void SkiaRenderEngine::drawLayersInternal(
     auto surfaceTextureRef = getOrCreateBackendTexture(buffer->getBuffer(), true);
 
     // wait on the buffer to be ready to use prior to using it
-    waitFence(grContext, bufferFence);
+    waitFence(context, bufferFence);
 
-    sk_sp<SkSurface> dstSurface =
-            surfaceTextureRef->getOrCreateSurface(display.outputDataspace, grContext);
+    sk_sp<SkSurface> dstSurface = surfaceTextureRef->getOrCreateSurface(display.outputDataspace);
 
     SkCanvas* dstCanvas = mCapture->tryCapture(dstSurface.get());
     if (dstCanvas == nullptr) {
@@ -845,7 +837,7 @@ void SkiaRenderEngine::drawLayersInternal(
             if (blurRect.width() > 0 && blurRect.height() > 0) {
                 if (layer.backgroundBlurRadius > 0) {
                     ATRACE_NAME("BackgroundBlur");
-                    auto blurredImage = mBlurFilter->generate(grContext, layer.backgroundBlurRadius,
+                    auto blurredImage = mBlurFilter->generate(context, layer.backgroundBlurRadius,
                                                               blurInput, blurRect);
 
                     cachedBlurs[layer.backgroundBlurRadius] = blurredImage;
@@ -859,7 +851,7 @@ void SkiaRenderEngine::drawLayersInternal(
                     if (cachedBlurs[region.blurRadius] == nullptr) {
                         ATRACE_NAME("BlurRegion");
                         cachedBlurs[region.blurRadius] =
-                                mBlurFilter->generate(grContext, region.blurRadius, blurInput,
+                                mBlurFilter->generate(context, region.blurRadius, blurInput,
                                                       blurRect);
                     }
 
@@ -948,7 +940,7 @@ void SkiaRenderEngine::drawLayersInternal(
             // if the layer's buffer has a fence, then we must must respect the fence prior to using
             // the buffer.
             if (layer.source.buffer.fence != nullptr) {
-                waitFence(grContext, layer.source.buffer.fence->get());
+                waitFence(context, layer.source.buffer.fence->get());
             }
 
             // isOpaque means we need to ignore the alpha in the image,
@@ -972,7 +964,7 @@ void SkiaRenderEngine::drawLayersInternal(
                     : item.isOpaque                      ? kOpaque_SkAlphaType
                     : item.usePremultipliedAlpha         ? kPremul_SkAlphaType
                                                          : kUnpremul_SkAlphaType;
-            sk_sp<SkImage> image = imageTextureRef->makeImage(layerDataspace, alphaType, grContext);
+            sk_sp<SkImage> image = imageTextureRef->makeImage(layerDataspace, alphaType);
 
             auto texMatrix = getSkM44(item.textureTransform).asM33();
             // textureTansform was intended to be passed directly into a shader, so when
@@ -1159,7 +1151,7 @@ void SkiaRenderEngine::drawLayersInternal(
         skgpu::ganesh::Flush(activeSurface);
     }
 
-    auto drawFence = sp<Fence>::make(flushAndSubmit(grContext));
+    auto drawFence = sp<Fence>::make(flushAndSubmit(context));
 
     if (ATRACE_ENABLED()) {
         static gui::FenceMonitor sMonitor("RE Completion");
@@ -1169,11 +1161,11 @@ void SkiaRenderEngine::drawLayersInternal(
 }
 
 size_t SkiaRenderEngine::getMaxTextureSize() const {
-    return mGrContext->maxTextureSize();
+    return mContext->getMaxTextureSize();
 }
 
 size_t SkiaRenderEngine::getMaxViewportDims() const {
-    return mGrContext->maxRenderTargetSize();
+    return mContext->getMaxRenderTargetSize();
 }
 
 void SkiaRenderEngine::drawShadow(SkCanvas* canvas,
@@ -1199,13 +1191,13 @@ void SkiaRenderEngine::onActiveDisplaySizeChanged(ui::Size size) {
     const int maxResourceBytes = size.width * size.height * SURFACE_SIZE_MULTIPLIER;
 
     // start by resizing the current context
-    getActiveGrContext()->setResourceCacheLimit(maxResourceBytes);
+    getActiveContext()->setResourceCacheLimit(maxResourceBytes);
 
     // if it is possible to switch contexts then we will resize the other context
     const bool originalProtectedState = mInProtectedContext;
     useProtectedContext(!mInProtectedContext);
     if (mInProtectedContext != originalProtectedState) {
-        getActiveGrContext()->setResourceCacheLimit(maxResourceBytes);
+        getActiveContext()->setResourceCacheLimit(maxResourceBytes);
         // reset back to the initial context that was active when this method was called
         useProtectedContext(originalProtectedState);
     }
@@ -1245,7 +1237,7 @@ void SkiaRenderEngine::dump(std::string& result) {
                 {"skia", "Other"},
         };
         SkiaMemoryReporter gpuReporter(gpuResourceMap, true);
-        mGrContext->dumpMemoryStatistics(&gpuReporter);
+        mContext->dumpMemoryStatistics(&gpuReporter);
         StringAppendF(&result, "Skia's GPU Caches: ");
         gpuReporter.logTotals(result);
         gpuReporter.logOutput(result);
@@ -1269,8 +1261,8 @@ void SkiaRenderEngine::dump(std::string& result) {
         StringAppendF(&result, "\n");
 
         SkiaMemoryReporter gpuProtectedReporter(gpuResourceMap, true);
-        if (mProtectedGrContext) {
-            mProtectedGrContext->dumpMemoryStatistics(&gpuProtectedReporter);
+        if (mProtectedContext) {
+            mProtectedContext->dumpMemoryStatistics(&gpuProtectedReporter);
         }
         StringAppendF(&result, "Skia's GPU Protected Caches: ");
         gpuProtectedReporter.logTotals(result);
