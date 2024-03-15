@@ -7144,4 +7144,11 @@ bool InputDispatcher::isPointerInWindow(const sp<android::IBinder>& token, int32
     return false;
 }
 
+void InputDispatcher::setInputMethodConnectionIsActive(bool isActive) {
+    std::scoped_lock _l(mLock);
+    if (mTracer) {
+        mTracer->setInputMethodConnectionIsActive(isActive);
+    }
+}
+
 } // namespace android::inputdispatcher

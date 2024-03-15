@@ -158,6 +158,8 @@ public:
     bool isPointerInWindow(const sp<IBinder>& token, int32_t displayId, DeviceId deviceId,
                            int32_t pointerId) override;
 
+    void setInputMethodConnectionIsActive(bool isActive) override;
+
 private:
     enum class DropReason {
         NOT_DROPPED,

@@ -236,6 +236,11 @@ public:
      */
     virtual bool isPointerInWindow(const sp<IBinder>& token, int32_t displayId, DeviceId deviceId,
                                    int32_t pointerId) = 0;
+
+    /*
+     * Notify the dispatcher that the state of the input method connection changed.
+     */
+    virtual void setInputMethodConnectionIsActive(bool isActive) = 0;
 };
 
 } // namespace android

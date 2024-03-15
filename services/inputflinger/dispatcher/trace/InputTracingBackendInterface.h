@@ -97,6 +97,8 @@ struct TracedEventMetadata {
     bool isSecure;
     // The list of possible UIDs that this event could be targeting.
     std::set<gui::Uid> targets;
+    // True if the there was an active input method connection while this event was processed.
+    bool isImeConnectionActive;
 };
 
 /** Additional information about an input event being dispatched to a window. */

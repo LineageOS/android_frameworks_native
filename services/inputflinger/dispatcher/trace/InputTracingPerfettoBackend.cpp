@@ -118,6 +118,12 @@ bool PerfettoBackend::InputEventDataSource::ruleMatches(const TraceRule& rule,
         return false;
     }
 
+    // Match the event if it was processed while there was an active InputMethod connection.
+    if (rule.matchImeConnectionActive.has_value() &&
+        *rule.matchImeConnectionActive != metadata.isImeConnectionActive) {
+        return false;
+    }
+
     // Match the event if all of its target packages are explicitly allowed in the "match all" list.
     if (!rule.matchAllPackages.empty() &&
         !std::all_of(metadata.targets.begin(), metadata.targets.end(), [&](const auto& uid) {
