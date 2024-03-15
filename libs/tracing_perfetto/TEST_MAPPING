@@ -1,0 +1,7 @@
+{
+  "postsubmit": [
+    {
+      "name": "libtracing_perfetto_tests"
+    }
+  ]
+}
