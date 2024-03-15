@@ -24,7 +24,11 @@
 #include <include/gpu/gl/GrGLInterface.h>
 #include <include/gpu/vk/GrVkBackendContext.h>
 
+#include "SkiaBackendTexture.h"
+
 #include <log/log.h>
+
+#include <memory>
 
 namespace android::renderengine::skia {
 
@@ -51,6 +55,9 @@ public:
     virtual sk_sp<GrDirectContext> grDirectContext() {
         LOG_ALWAYS_FATAL("grDirectContext() called on a non-Ganesh instance of SkiaGpuContext!");
     }
+
+    virtual std::unique_ptr<SkiaBackendTexture> makeBackendTexture(AHardwareBuffer* buffer,
+                                                                   bool isOutputBuffer) = 0;
 
     /**
      * Notes:

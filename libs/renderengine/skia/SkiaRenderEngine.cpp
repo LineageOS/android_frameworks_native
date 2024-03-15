@@ -80,6 +80,7 @@
 #include "filters/KawaseBlurFilter.h"
 #include "filters/LinearEffect.h"
 #include "log/log_main.h"
+#include "skia/compat/SkiaBackendTexture.h"
 #include "skia/debug/SkiaCapture.h"
 #include "skia/debug/SkiaMemoryReporter.h"
 #include "skia/filters/StretchShaderFactory.h"
@@ -417,9 +418,11 @@ void SkiaRenderEngine::mapExternalTextureBuffer(const sp<GraphicBuffer>& buffer,
         if (FlagManager::getInstance().renderable_buffer_usage()) {
             isRenderable = buffer->getUsage() & GRALLOC_USAGE_HW_RENDER;
         }
-        std::shared_ptr<AutoBackendTexture::LocalRef> imageTextureRef =
-                std::make_shared<AutoBackendTexture::LocalRef>(context, buffer->toAHardwareBuffer(),
-                                                               isRenderable, mTextureCleanupMgr);
+        std::unique_ptr<SkiaBackendTexture> backendTexture =
+                context->makeBackendTexture(buffer->toAHardwareBuffer(), isRenderable);
+        auto imageTextureRef =
+                std::make_shared<AutoBackendTexture::LocalRef>(std::move(backendTexture),
+                                                               mTextureCleanupMgr);
         cache.insert({buffer->getId(), imageTextureRef});
     }
 }
@@ -470,9 +473,10 @@ std::shared_ptr<AutoBackendTexture::LocalRef> SkiaRenderEngine::getOrCreateBacke
             return it->second;
         }
     }
-    return std::make_shared<AutoBackendTexture::LocalRef>(getActiveContext(),
-                                                          buffer->toAHardwareBuffer(),
-                                                          isOutputBuffer, mTextureCleanupMgr);
+    std::unique_ptr<SkiaBackendTexture> backendTexture =
+            getActiveContext()->makeBackendTexture(buffer->toAHardwareBuffer(), isOutputBuffer);
+    return std::make_shared<AutoBackendTexture::LocalRef>(std::move(backendTexture),
+                                                          mTextureCleanupMgr);
 }
 
 bool SkiaRenderEngine::canSkipPostRenderCleanup() const {
