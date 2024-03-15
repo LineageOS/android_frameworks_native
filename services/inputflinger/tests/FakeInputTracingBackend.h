@@ -59,8 +59,7 @@ private:
     std::mutex mLock;
     std::condition_variable mEventTracedCondition;
     std::unordered_map<uint32_t /*eventId*/, trace::TracedEvent> mTracedEvents GUARDED_BY(mLock);
-    using WindowDispatchArgs = trace::InputTracingBackendInterface::WindowDispatchArgs;
-    std::vector<WindowDispatchArgs> mTracedWindowDispatches GUARDED_BY(mLock);
+    std::vector<trace::WindowDispatchArgs> mTracedWindowDispatches GUARDED_BY(mLock);
     std::vector<std::pair<std::variant<KeyEvent, MotionEvent>, int32_t /*windowId*/>>
             mExpectedEvents GUARDED_BY(mLock);
 
@@ -83,9 +82,11 @@ public:
 private:
     std::shared_ptr<VerifyingTrace> mTrace;
 
-    void traceKeyEvent(const trace::TracedKeyEvent& entry) override;
-    void traceMotionEvent(const trace::TracedMotionEvent& entry) override;
-    void traceWindowDispatch(const WindowDispatchArgs& entry) override;
+    void traceKeyEvent(const trace::TracedKeyEvent& entry, const trace::TracedEventArgs&) override;
+    void traceMotionEvent(const trace::TracedMotionEvent& entry,
+                          const trace::TracedEventArgs&) override;
+    void traceWindowDispatch(const trace::WindowDispatchArgs& entry,
+                             const trace::TracedEventArgs&) override;
 };
 
 } // namespace android::inputdispatcher
