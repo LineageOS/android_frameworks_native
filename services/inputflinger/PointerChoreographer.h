@@ -123,6 +123,7 @@ private:
     NotifyMotionArgs processMotion(const NotifyMotionArgs& args);
     NotifyMotionArgs processMouseEventLocked(const NotifyMotionArgs& args) REQUIRES(mLock);
     NotifyMotionArgs processTouchpadEventLocked(const NotifyMotionArgs& args) REQUIRES(mLock);
+    void processDrawingTabletEventLocked(const NotifyMotionArgs& args) REQUIRES(mLock);
     void processTouchscreenAndStylusEventLocked(const NotifyMotionArgs& args) REQUIRES(mLock);
     void processStylusHoverEventLocked(const NotifyMotionArgs& args) REQUIRES(mLock);
     void processDeviceReset(const NotifyDeviceResetArgs& args);
@@ -143,6 +144,8 @@ private:
     std::map<DeviceId, std::shared_ptr<PointerControllerInterface>> mTouchPointersByDevice
             GUARDED_BY(mLock);
     std::map<DeviceId, std::shared_ptr<PointerControllerInterface>> mStylusPointersByDevice
+            GUARDED_BY(mLock);
+    std::map<DeviceId, std::shared_ptr<PointerControllerInterface>> mDrawingTabletPointersByDevice
             GUARDED_BY(mLock);
 
     int32_t mDefaultMouseDisplayId GUARDED_BY(mLock);
