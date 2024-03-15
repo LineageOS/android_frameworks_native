@@ -44,28 +44,37 @@ namespace {
 const bool DEBUG_TRANSPORT_CONSUMER =
         __android_log_is_loggable(ANDROID_LOG_DEBUG, LOG_TAG "Consumer", ANDROID_LOG_INFO);
 
-void initializeKeyEvent(KeyEvent& event, const InputMessage& msg) {
-    event.initialize(msg.body.key.eventId, msg.body.key.deviceId, msg.body.key.source,
-                     msg.body.key.displayId, msg.body.key.hmac, msg.body.key.action,
-                     msg.body.key.flags, msg.body.key.keyCode, msg.body.key.scanCode,
-                     msg.body.key.metaState, msg.body.key.repeatCount, msg.body.key.downTime,
-                     msg.body.key.eventTime);
+std::unique_ptr<KeyEvent> createKeyEvent(const InputMessage& msg) {
+    std::unique_ptr<KeyEvent> event = std::make_unique<KeyEvent>();
+    event->initialize(msg.body.key.eventId, msg.body.key.deviceId, msg.body.key.source,
+                      msg.body.key.displayId, msg.body.key.hmac, msg.body.key.action,
+                      msg.body.key.flags, msg.body.key.keyCode, msg.body.key.scanCode,
+                      msg.body.key.metaState, msg.body.key.repeatCount, msg.body.key.downTime,
+                      msg.body.key.eventTime);
+    return event;
 }
 
-void initializeFocusEvent(FocusEvent& event, const InputMessage& msg) {
-    event.initialize(msg.body.focus.eventId, msg.body.focus.hasFocus);
+std::unique_ptr<FocusEvent> createFocusEvent(const InputMessage& msg) {
+    std::unique_ptr<FocusEvent> event = std::make_unique<FocusEvent>();
+    event->initialize(msg.body.focus.eventId, msg.body.focus.hasFocus);
+    return event;
 }
 
-void initializeCaptureEvent(CaptureEvent& event, const InputMessage& msg) {
-    event.initialize(msg.body.capture.eventId, msg.body.capture.pointerCaptureEnabled);
+std::unique_ptr<CaptureEvent> createCaptureEvent(const InputMessage& msg) {
+    std::unique_ptr<CaptureEvent> event = std::make_unique<CaptureEvent>();
+    event->initialize(msg.body.capture.eventId, msg.body.capture.pointerCaptureEnabled);
+    return event;
 }
 
-void initializeDragEvent(DragEvent& event, const InputMessage& msg) {
-    event.initialize(msg.body.drag.eventId, msg.body.drag.x, msg.body.drag.y,
-                     msg.body.drag.isExiting);
+std::unique_ptr<DragEvent> createDragEvent(const InputMessage& msg) {
+    std::unique_ptr<DragEvent> event = std::make_unique<DragEvent>();
+    event->initialize(msg.body.drag.eventId, msg.body.drag.x, msg.body.drag.y,
+                      msg.body.drag.isExiting);
+    return event;
 }
 
-void initializeMotionEvent(MotionEvent& event, const InputMessage& msg) {
+std::unique_ptr<MotionEvent> createMotionEvent(const InputMessage& msg) {
+    std::unique_ptr<MotionEvent> event = std::make_unique<MotionEvent>();
     const uint32_t pointerCount = msg.body.motion.pointerCount;
     std::vector<PointerProperties> pointerProperties;
     pointerProperties.reserve(pointerCount);
@@ -83,15 +92,16 @@ void initializeMotionEvent(MotionEvent& event, const InputMessage& msg) {
     displayTransform.set({msg.body.motion.dsdxRaw, msg.body.motion.dtdxRaw, msg.body.motion.txRaw,
                           msg.body.motion.dtdyRaw, msg.body.motion.dsdyRaw, msg.body.motion.tyRaw,
                           0, 0, 1});
-    event.initialize(msg.body.motion.eventId, msg.body.motion.deviceId, msg.body.motion.source,
-                     msg.body.motion.displayId, msg.body.motion.hmac, msg.body.motion.action,
-                     msg.body.motion.actionButton, msg.body.motion.flags, msg.body.motion.edgeFlags,
-                     msg.body.motion.metaState, msg.body.motion.buttonState,
-                     msg.body.motion.classification, transform, msg.body.motion.xPrecision,
-                     msg.body.motion.yPrecision, msg.body.motion.xCursorPosition,
-                     msg.body.motion.yCursorPosition, displayTransform, msg.body.motion.downTime,
-                     msg.body.motion.eventTime, pointerCount, pointerProperties.data(),
-                     pointerCoords.data());
+    event->initialize(msg.body.motion.eventId, msg.body.motion.deviceId, msg.body.motion.source,
+                      msg.body.motion.displayId, msg.body.motion.hmac, msg.body.motion.action,
+                      msg.body.motion.actionButton, msg.body.motion.flags,
+                      msg.body.motion.edgeFlags, msg.body.motion.metaState,
+                      msg.body.motion.buttonState, msg.body.motion.classification, transform,
+                      msg.body.motion.xPrecision, msg.body.motion.yPrecision,
+                      msg.body.motion.xCursorPosition, msg.body.motion.yCursorPosition,
+                      displayTransform, msg.body.motion.downTime, msg.body.motion.eventTime,
+                      pointerCount, pointerProperties.data(), pointerCoords.data());
+    return event;
 }
 
 void addSample(MotionEvent& event, const InputMessage& msg) {
@@ -107,8 +117,10 @@ void addSample(MotionEvent& event, const InputMessage& msg) {
     event.addSample(msg.body.motion.eventTime, pointerCoords.data());
 }
 
-void initializeTouchModeEvent(TouchModeEvent& event, const InputMessage& msg) {
-    event.initialize(msg.body.touchMode.eventId, msg.body.touchMode.isInTouchMode);
+std::unique_ptr<TouchModeEvent> createTouchModeEvent(const InputMessage& msg) {
+    std::unique_ptr<TouchModeEvent> event = std::make_unique<TouchModeEvent>();
+    event->initialize(msg.body.touchMode.eventId, msg.body.touchMode.isInTouchMode);
+    return event;
 }
 
 std::string outboundMessageToString(const InputMessage& outboundMsg) {
@@ -388,15 +400,13 @@ std::vector<InputMessage> InputConsumerNoResampling::readAllMessages() {
 void InputConsumerNoResampling::handleMessage(const InputMessage& msg) const {
     switch (msg.header.type) {
         case InputMessage::Type::KEY: {
-            KeyEvent keyEvent;
-            initializeKeyEvent(keyEvent, msg);
+            std::unique_ptr<KeyEvent> keyEvent = createKeyEvent(msg);
             mCallbacks.onKeyEvent(std::move(keyEvent), msg.header.seq);
             break;
         }
 
         case InputMessage::Type::MOTION: {
-            MotionEvent motionEvent;
-            initializeMotionEvent(motionEvent, msg);
+            std::unique_ptr<MotionEvent> motionEvent = createMotionEvent(msg);
             mCallbacks.onMotionEvent(std::move(motionEvent), msg.header.seq);
             break;
         }
@@ -411,29 +421,25 @@ void InputConsumerNoResampling::handleMessage(const InputMessage& msg) const {
         }
 
         case InputMessage::Type::FOCUS: {
-            FocusEvent focusEvent;
-            initializeFocusEvent(focusEvent, msg);
+            std::unique_ptr<FocusEvent> focusEvent = createFocusEvent(msg);
             mCallbacks.onFocusEvent(std::move(focusEvent), msg.header.seq);
             break;
         }
 
         case InputMessage::Type::CAPTURE: {
-            CaptureEvent captureEvent;
-            initializeCaptureEvent(captureEvent, msg);
+            std::unique_ptr<CaptureEvent> captureEvent = createCaptureEvent(msg);
             mCallbacks.onCaptureEvent(std::move(captureEvent), msg.header.seq);
             break;
         }
 
         case InputMessage::Type::DRAG: {
-            DragEvent dragEvent;
-            initializeDragEvent(dragEvent, msg);
+            std::unique_ptr<DragEvent> dragEvent = createDragEvent(msg);
             mCallbacks.onDragEvent(std::move(dragEvent), msg.header.seq);
             break;
         }
 
         case InputMessage::Type::TOUCH_MODE: {
-            TouchModeEvent touchModeEvent;
-            initializeTouchModeEvent(touchModeEvent, msg);
+            std::unique_ptr<TouchModeEvent> touchModeEvent = createTouchModeEvent(msg);
             mCallbacks.onTouchModeEvent(std::move(touchModeEvent), msg.header.seq);
             break;
         }
@@ -448,7 +454,7 @@ bool InputConsumerNoResampling::consumeBatchedInputEvents(
     const nsecs_t frameTime = requestedFrameTime.value_or(std::numeric_limits<nsecs_t>::max());
     bool producedEvents = false;
     for (auto& [deviceId, messages] : mBatches) {
-        MotionEvent motion;
+        std::unique_ptr<MotionEvent> motion;
         std::optional<uint32_t> firstSeqForBatch;
         std::vector<uint32_t> sequences;
         while (!messages.empty()) {
@@ -456,20 +462,21 @@ bool InputConsumerNoResampling::consumeBatchedInputEvents(
             if (msg.body.motion.eventTime > frameTime) {
                 break;
             }
-            if (!firstSeqForBatch.has_value()) {
-                initializeMotionEvent(motion, msg);
+            if (motion == nullptr) {
+                motion = createMotionEvent(msg);
                 firstSeqForBatch = msg.header.seq;
                 const auto [_, inserted] = mBatchedSequenceNumbers.insert({*firstSeqForBatch, {}});
                 if (!inserted) {
                     LOG(FATAL) << "The sequence " << msg.header.seq << " was already present!";
                 }
             } else {
-                addSample(motion, msg);
+                addSample(*motion, msg);
                 mBatchedSequenceNumbers[*firstSeqForBatch].push_back(msg.header.seq);
             }
             messages.pop();
         }
-        if (firstSeqForBatch.has_value()) {
+        if (motion != nullptr) {
+            LOG_ALWAYS_FATAL_IF(!firstSeqForBatch.has_value());
             mCallbacks.onMotionEvent(std::move(motion), *firstSeqForBatch);
             producedEvents = true;
         } else {
@@ -520,9 +527,8 @@ std::string InputConsumerNoResampling::dump() const {
             std::queue<InputMessage> tmpQueue = messages;
             while (!tmpQueue.empty()) {
                 LOG_ALWAYS_FATAL_IF(tmpQueue.front().header.type != InputMessage::Type::MOTION);
-                MotionEvent motion;
-                initializeMotionEvent(motion, tmpQueue.front());
-                out += std::string("    ") + streamableToString(motion) + "\n";
+                std::unique_ptr<MotionEvent> motion = createMotionEvent(tmpQueue.front());
+                out += std::string("    ") + streamableToString(*motion) + "\n";
                 tmpQueue.pop();
             }
         }

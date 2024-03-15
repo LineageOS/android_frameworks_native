@@ -341,19 +341,19 @@ private:
     // The sequence number to use when publishing the next event
     uint32_t mSeq = 1;
 
-    BlockingQueue<KeyEvent> mKeyEvents;
-    BlockingQueue<MotionEvent> mMotionEvents;
-    BlockingQueue<FocusEvent> mFocusEvents;
-    BlockingQueue<CaptureEvent> mCaptureEvents;
-    BlockingQueue<DragEvent> mDragEvents;
-    BlockingQueue<TouchModeEvent> mTouchModeEvents;
+    BlockingQueue<std::unique_ptr<KeyEvent>> mKeyEvents;
+    BlockingQueue<std::unique_ptr<MotionEvent>> mMotionEvents;
+    BlockingQueue<std::unique_ptr<FocusEvent>> mFocusEvents;
+    BlockingQueue<std::unique_ptr<CaptureEvent>> mCaptureEvents;
+    BlockingQueue<std::unique_ptr<DragEvent>> mDragEvents;
+    BlockingQueue<std::unique_ptr<TouchModeEvent>> mTouchModeEvents;
 
     // InputConsumerCallbacks interface
-    void onKeyEvent(KeyEvent&& event, uint32_t seq) override {
+    void onKeyEvent(std::unique_ptr<KeyEvent> event, uint32_t seq) override {
         mKeyEvents.push(std::move(event));
         mConsumer->finishInputEvent(seq, true);
     }
-    void onMotionEvent(MotionEvent&& event, uint32_t seq) override {
+    void onMotionEvent(std::unique_ptr<MotionEvent> event, uint32_t seq) override {
         mMotionEvents.push(std::move(event));
         mConsumer->finishInputEvent(seq, true);
     }
@@ -363,19 +363,19 @@ private:
         }
         mConsumer->consumeBatchedInputEvents(std::nullopt);
     };
-    void onFocusEvent(FocusEvent&& event, uint32_t seq) override {
+    void onFocusEvent(std::unique_ptr<FocusEvent> event, uint32_t seq) override {
         mFocusEvents.push(std::move(event));
         mConsumer->finishInputEvent(seq, true);
     };
-    void onCaptureEvent(CaptureEvent&& event, uint32_t seq) override {
+    void onCaptureEvent(std::unique_ptr<CaptureEvent> event, uint32_t seq) override {
         mCaptureEvents.push(std::move(event));
         mConsumer->finishInputEvent(seq, true);
     };
-    void onDragEvent(DragEvent&& event, uint32_t seq) override {
+    void onDragEvent(std::unique_ptr<DragEvent> event, uint32_t seq) override {
         mDragEvents.push(std::move(event));
         mConsumer->finishInputEvent(seq, true);
     }
-    void onTouchModeEvent(TouchModeEvent&& event, uint32_t seq) override {
+    void onTouchModeEvent(std::unique_ptr<TouchModeEvent> event, uint32_t seq) override {
         mTouchModeEvents.push(std::move(event));
         mConsumer->finishInputEvent(seq, true);
     };
@@ -465,14 +465,14 @@ void InputPublisherAndConsumerNoResamplingTest::publishAndConsumeKeyEvent() {
                                          eventTime);
     ASSERT_EQ(OK, status) << "publisher publishKeyEvent should return OK";
 
-    std::optional<KeyEvent> keyEvent = mKeyEvents.popWithTimeout(TIMEOUT);
+    std::optional<std::unique_ptr<KeyEvent>> optKeyEvent = mKeyEvents.popWithTimeout(TIMEOUT);
+    ASSERT_TRUE(optKeyEvent.has_value()) << "consumer should have returned non-NULL event";
+    std::unique_ptr<KeyEvent> keyEvent = std::move(*optKeyEvent);
 
     sendMessage(LooperMessage::CALL_PROBABLY_HAS_INPUT);
     std::optional<bool> probablyHasInput = mProbablyHasInputResponses.popWithTimeout(TIMEOUT);
     ASSERT_TRUE(probablyHasInput.has_value());
     ASSERT_FALSE(probablyHasInput.value()) << "no events should be waiting after being consumed";
-
-    ASSERT_TRUE(keyEvent.has_value()) << "consumer should have returned non-NULL event";
 
     EXPECT_EQ(eventId, keyEvent->getId());
     EXPECT_EQ(deviceId, keyEvent->getDeviceId());
@@ -540,7 +540,8 @@ void InputPublisherAndConsumerNoResamplingTest::publishAndConsumeBatchedMotionMo
     publishMotionEvent(*mPublisher, args);
 
     // Ensure no event arrives because the UI thread is blocked
-    std::optional<MotionEvent> noEvent = mMotionEvents.popWithTimeout(NO_EVENT_TIMEOUT);
+    std::optional<std::unique_ptr<MotionEvent>> noEvent =
+            mMotionEvents.popWithTimeout(NO_EVENT_TIMEOUT);
     ASSERT_FALSE(noEvent.has_value()) << "Got unexpected event: " << *noEvent;
 
     Result<InputPublisher::ConsumerResponse> result = mPublisher->receiveConsumerResponse();
@@ -559,8 +560,9 @@ void InputPublisherAndConsumerNoResamplingTest::publishAndConsumeBatchedMotionMo
     }
     mNotifyLooperMayProceed.notify_all();
 
-    std::optional<MotionEvent> motion = mMotionEvents.popWithTimeout(TIMEOUT);
-    ASSERT_TRUE(motion.has_value());
+    std::optional<std::unique_ptr<MotionEvent>> optMotion = mMotionEvents.popWithTimeout(TIMEOUT);
+    ASSERT_TRUE(optMotion.has_value());
+    std::unique_ptr<MotionEvent> motion = std::move(*optMotion);
     ASSERT_EQ(ACTION_MOVE, motion->getAction());
 
     verifyFinishedSignal(*mPublisher, seq, publishTime);
@@ -573,8 +575,9 @@ void InputPublisherAndConsumerNoResamplingTest::publishAndConsumeMotionEvent(
     nsecs_t publishTime = systemTime(SYSTEM_TIME_MONOTONIC);
     publishMotionEvent(*mPublisher, args);
 
-    std::optional<MotionEvent> event = mMotionEvents.popWithTimeout(TIMEOUT);
-    ASSERT_TRUE(event.has_value()) << "consumer should have returned non-NULL event";
+    std::optional<std::unique_ptr<MotionEvent>> optMotion = mMotionEvents.popWithTimeout(TIMEOUT);
+    ASSERT_TRUE(optMotion.has_value());
+    std::unique_ptr<MotionEvent> event = std::move(*optMotion);
 
     verifyArgsEqualToEvent(args, *event);
 
@@ -592,8 +595,9 @@ void InputPublisherAndConsumerNoResamplingTest::publishAndConsumeFocusEvent() {
     status = mPublisher->publishFocusEvent(seq, eventId, hasFocus);
     ASSERT_EQ(OK, status) << "publisher publishFocusEvent should return OK";
 
-    std::optional<FocusEvent> focusEvent = mFocusEvents.popWithTimeout(TIMEOUT);
-    ASSERT_TRUE(focusEvent.has_value()) << "consumer should have returned non-NULL event";
+    std::optional<std::unique_ptr<FocusEvent>> optFocusEvent = mFocusEvents.popWithTimeout(TIMEOUT);
+    ASSERT_TRUE(optFocusEvent.has_value()) << "consumer should have returned non-NULL event";
+    std::unique_ptr<FocusEvent> focusEvent = std::move(*optFocusEvent);
     EXPECT_EQ(eventId, focusEvent->getId());
     EXPECT_EQ(hasFocus, focusEvent->getHasFocus());
 
@@ -611,9 +615,9 @@ void InputPublisherAndConsumerNoResamplingTest::publishAndConsumeCaptureEvent() 
     status = mPublisher->publishCaptureEvent(seq, eventId, captureEnabled);
     ASSERT_EQ(OK, status) << "publisher publishCaptureEvent should return OK";
 
-    std::optional<CaptureEvent> event = mCaptureEvents.popWithTimeout(TIMEOUT);
-
-    ASSERT_TRUE(event.has_value()) << "consumer should have returned non-NULL event";
+    std::optional<std::unique_ptr<CaptureEvent>> optEvent = mCaptureEvents.popWithTimeout(TIMEOUT);
+    ASSERT_TRUE(optEvent.has_value()) << "consumer should have returned non-NULL event";
+    std::unique_ptr<CaptureEvent> event = std::move(*optEvent);
 
     const CaptureEvent& captureEvent = *event;
     EXPECT_EQ(eventId, captureEvent.getId());
@@ -635,9 +639,9 @@ void InputPublisherAndConsumerNoResamplingTest::publishAndConsumeDragEvent() {
     status = mPublisher->publishDragEvent(seq, eventId, x, y, isExiting);
     ASSERT_EQ(OK, status) << "publisher publishDragEvent should return OK";
 
-    std::optional<DragEvent> event = mDragEvents.popWithTimeout(TIMEOUT);
-
-    ASSERT_TRUE(event.has_value()) << "consumer should have returned non-NULL event";
+    std::optional<std::unique_ptr<DragEvent>> optEvent = mDragEvents.popWithTimeout(TIMEOUT);
+    ASSERT_TRUE(optEvent.has_value()) << "consumer should have returned non-NULL event";
+    std::unique_ptr<DragEvent> event = std::move(*optEvent);
 
     const DragEvent& dragEvent = *event;
     EXPECT_EQ(eventId, dragEvent.getId());
@@ -659,8 +663,10 @@ void InputPublisherAndConsumerNoResamplingTest::publishAndConsumeTouchModeEvent(
     status = mPublisher->publishTouchModeEvent(seq, eventId, touchModeEnabled);
     ASSERT_EQ(OK, status) << "publisher publishTouchModeEvent should return OK";
 
-    std::optional<TouchModeEvent> event = mTouchModeEvents.popWithTimeout(TIMEOUT);
-    ASSERT_NE(std::nullopt, event);
+    std::optional<std::unique_ptr<TouchModeEvent>> optEvent =
+            mTouchModeEvents.popWithTimeout(TIMEOUT);
+    ASSERT_TRUE(optEvent.has_value());
+    std::unique_ptr<TouchModeEvent> event = std::move(*optEvent);
 
     const TouchModeEvent& touchModeEvent = *event;
     EXPECT_EQ(eventId, touchModeEvent.getId());
