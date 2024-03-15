@@ -406,6 +406,8 @@ public:
 
     std::chrono::milliseconds getIdleTimerTimeout();
 
+    bool isVrrDevice() const;
+
 private:
     friend struct TestableRefreshRateSelector;
 
@@ -512,6 +514,9 @@ private:
     // Display modes that satisfy the Policy's ranges, filtered and sorted by refresh rate.
     std::vector<FrameRateMode> mPrimaryFrameRates GUARDED_BY(mLock);
     std::vector<FrameRateMode> mAppRequestFrameRates GUARDED_BY(mLock);
+
+    // Caches whether the device is VRR-compatible based on the active display mode.
+    bool mIsVrrDevice GUARDED_BY(mLock) = false;
 
     Policy mDisplayManagerPolicy GUARDED_BY(mLock);
     std::optional<Policy> mOverridePolicy GUARDED_BY(mLock);

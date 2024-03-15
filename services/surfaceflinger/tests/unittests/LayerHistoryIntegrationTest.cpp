@@ -274,6 +274,8 @@ TEST_F(LayerHistoryIntegrationTest, oneLayerExplicitExactVote) {
 }
 
 TEST_F(LayerHistoryIntegrationTest, oneLayerExplicitCategory) {
+    SET_FLAG_FOR_TEST(flags::frame_rate_category_mrr, true);
+
     createLegacyAndFrontedEndLayer(1);
     setFrameRateCategory(1, ANATIVEWINDOW_FRAME_RATE_CATEGORY_HIGH);
 
