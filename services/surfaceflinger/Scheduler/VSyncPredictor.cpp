@@ -377,15 +377,20 @@ void VSyncPredictor::setRenderRate(Fps renderRate, bool applyImmediately) {
     mRenderRateOpt = renderRate;
     const auto renderPeriodDelta =
             prevRenderRate ? prevRenderRate->getPeriodNsecs() - renderRate.getPeriodNsecs() : 0;
-    const bool newRenderRateIsHigher = renderPeriodDelta > renderRate.getPeriodNsecs() &&
-            mLastCommittedVsync.ns() - mClock->now() > 2 * renderRate.getPeriodNsecs();
     if (applyImmediately) {
+        ATRACE_FORMAT_INSTANT("applyImmediately");
         while (mTimelines.size() > 1) {
             mTimelines.pop_front();
         }
 
         mTimelines.front().setRenderRate(renderRate);
-    } else if (newRenderRateIsHigher) {
+        return;
+    }
+
+    const bool newRenderRateIsHigher = renderPeriodDelta > renderRate.getPeriodNsecs() &&
+            mLastCommittedVsync.ns() - mClock->now() > 2 * renderRate.getPeriodNsecs();
+    if (newRenderRateIsHigher) {
+        ATRACE_FORMAT_INSTANT("newRenderRateIsHigher");
         mTimelines.clear();
         mLastCommittedVsync = TimePoint::fromNs(0);
 

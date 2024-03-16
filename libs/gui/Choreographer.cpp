@@ -425,4 +425,8 @@ int64_t Choreographer::getStartTimeNanosForVsyncId(AVsyncId vsyncId) {
     return iter->second;
 }
 
+const sp<Looper> Choreographer::getLooper() {
+    return mLooper;
+}
+
 } // namespace android
