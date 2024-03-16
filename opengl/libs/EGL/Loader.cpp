@@ -67,7 +67,6 @@ static const char* PERSIST_DRIVER_SUFFIX_PROPERTY = "persist.graphics.egl";
 static const char* RO_DRIVER_SUFFIX_PROPERTY = "ro.hardware.egl";
 static const char* RO_BOARD_PLATFORM_PROPERTY = "ro.board.platform";
 static const char* ANGLE_SUFFIX_VALUE = "angle";
-static const char* VENDOR_ANGLE_BUILD = "ro.gfx.angle.supported";
 
 static const char* HAL_SUBNAME_KEY_PROPERTIES[3] = {
         PERSIST_DRIVER_SUFFIX_PROPERTY,
@@ -494,14 +493,9 @@ static void* load_system_driver(const char* kind, const char* suffix, const bool
 
     void* dso = nullptr;
 
-    const bool AngleInVendor = property_get_bool(VENDOR_ANGLE_BUILD, false);
     const bool isSuffixAngle = suffix != nullptr && strcmp(suffix, ANGLE_SUFFIX_VALUE) == 0;
-    // Only use sphal namespace when system ANGLE binaries are not the default drivers.
-    const bool useSphalNamespace =  !isSuffixAngle || AngleInVendor;
-
     const std::string absolutePath =
-            findLibrary(libraryName, useSphalNamespace ? VENDOR_LIB_EGL_DIR : SYSTEM_LIB_PATH,
-                        exact);
+            findLibrary(libraryName, isSuffixAngle ? SYSTEM_LIB_PATH : VENDOR_LIB_EGL_DIR, exact);
     if (absolutePath.empty()) {
         // this happens often, we don't want to log an error
         return nullptr;
@@ -509,8 +503,9 @@ static void* load_system_driver(const char* kind, const char* suffix, const bool
     const char* const driverAbsolutePath = absolutePath.c_str();
 
     // Currently the default driver is unlikely to be ANGLE on most devices,
-    // hence put this first.
-    if (useSphalNamespace) {
+    // hence put this first. Only use sphal namespace when system ANGLE binaries
+    // are not the default drivers.
+    if (!isSuffixAngle) {
         // Try to load drivers from the 'sphal' namespace, if it exist. Fall back to
         // the original routine when the namespace does not exist.
         // See /system/linkerconfig/contents/namespace for the configuration of the

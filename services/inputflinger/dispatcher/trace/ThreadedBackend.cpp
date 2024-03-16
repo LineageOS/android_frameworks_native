@@ -53,23 +53,26 @@ ThreadedBackend<Backend>::~ThreadedBackend() {
 }
 
 template <typename Backend>
-void ThreadedBackend<Backend>::traceMotionEvent(const TracedMotionEvent& event) {
+void ThreadedBackend<Backend>::traceMotionEvent(const TracedMotionEvent& event,
+                                                const TracedEventArgs& traceArgs) {
     std::scoped_lock lock(mLock);
-    mQueue.emplace_back(event);
+    mQueue.emplace_back(event, traceArgs);
     mThreadWakeCondition.notify_all();
 }
 
 template <typename Backend>
-void ThreadedBackend<Backend>::traceKeyEvent(const TracedKeyEvent& event) {
+void ThreadedBackend<Backend>::traceKeyEvent(const TracedKeyEvent& event,
+                                             const TracedEventArgs& traceArgs) {
     std::scoped_lock lock(mLock);
-    mQueue.emplace_back(event);
+    mQueue.emplace_back(event, traceArgs);
     mThreadWakeCondition.notify_all();
 }
 
 template <typename Backend>
-void ThreadedBackend<Backend>::traceWindowDispatch(const WindowDispatchArgs& dispatchArgs) {
+void ThreadedBackend<Backend>::traceWindowDispatch(const WindowDispatchArgs& dispatchArgs,
+                                                   const TracedEventArgs& traceArgs) {
     std::scoped_lock lock(mLock);
-    mQueue.emplace_back(dispatchArgs);
+    mQueue.emplace_back(dispatchArgs, traceArgs);
     mThreadWakeCondition.notify_all();
 }
 
@@ -93,11 +96,13 @@ void ThreadedBackend<Backend>::threadLoop() {
 
     // Trace the events into the backend without holding the lock to reduce the amount of
     // work performed in the critical section.
-    for (const auto& entry : entries) {
-        std::visit(Visitor{[&](const TracedMotionEvent& e) { mBackend.traceMotionEvent(e); },
-                           [&](const TracedKeyEvent& e) { mBackend.traceKeyEvent(e); },
+    for (const auto& [entry, traceArgs] : entries) {
+        std::visit(Visitor{[&](const TracedMotionEvent& e) {
+                               mBackend.traceMotionEvent(e, traceArgs);
+                           },
+                           [&](const TracedKeyEvent& e) { mBackend.traceKeyEvent(e, traceArgs); },
                            [&](const WindowDispatchArgs& args) {
-                               mBackend.traceWindowDispatch(args);
+                               mBackend.traceWindowDispatch(args, traceArgs);
                            }},
                    entry);
     }

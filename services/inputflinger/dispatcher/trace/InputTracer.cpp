@@ -59,9 +59,10 @@ TracedEvent createTracedEvent(const KeyEntry& e) {
                           e.downTime,  e.flags,     e.repeatCount};
 }
 
-void writeEventToBackend(const TracedEvent& event, InputTracingBackendInterface& backend) {
-    std::visit(Visitor{[&](const TracedMotionEvent& e) { backend.traceMotionEvent(e); },
-                       [&](const TracedKeyEvent& e) { backend.traceKeyEvent(e); }},
+void writeEventToBackend(const TracedEvent& event, const TracedEventArgs args,
+                         InputTracingBackendInterface& backend) {
+    std::visit(Visitor{[&](const TracedMotionEvent& e) { backend.traceMotionEvent(e, args); },
+                       [&](const TracedKeyEvent& e) { backend.traceKeyEvent(e, args); }},
                event);
 }
 
@@ -101,15 +102,20 @@ std::unique_ptr<EventTrackerInterface> InputTracer::createTrackerForSyntheticEve
 
 void InputTracer::dispatchToTargetHint(const EventTrackerInterface& cookie,
                                        const InputTarget& target) {
-    if (isDerivedCookie(cookie)) {
-        LOG(FATAL) << "Event target cannot be updated from a derived cookie.";
-    }
     auto& eventState = getState(cookie);
     if (eventState->isEventProcessingComplete) {
         // TODO(b/210460522): Disallow adding new targets after eventProcessingComplete() is called.
         return;
     }
-    // TODO(b/210460522): Determine if the event is sensitive based on the target.
+    if (isDerivedCookie(cookie)) {
+        // TODO(b/210460522): Disallow adding new targets from a derived cookie.
+        return;
+    }
+    if (target.windowHandle != nullptr) {
+        eventState->isSecure |= target.windowHandle->getInfo()->layoutParamsFlags.test(
+                gui::WindowInfo::Flag::SECURE);
+        // TODO(b/210460522): Set events as sensitive when the IME connection is active.
+    }
 }
 
 void InputTracer::eventProcessingComplete(const EventTrackerInterface& cookie) {
@@ -144,7 +150,8 @@ std::unique_ptr<EventTrackerInterface> InputTracer::traceDerivedEvent(
         // It is possible for a derived event to be dispatched some time after the original event
         // is dispatched, such as in the case of key fallback events. To account for these cases,
         // derived events can be traced after the processing is complete for the original event.
-        writeEventToBackend(eventState->events.back(), *mBackend);
+        const TracedEventArgs traceArgs{.isSecure = eventState->isSecure};
+        writeEventToBackend(eventState->events.back(), traceArgs, *mBackend);
     }
     return std::make_unique<EventTrackerImpl>(std::move(eventState), /*isDerived=*/true);
 }
@@ -183,6 +190,7 @@ void InputTracer::traceEventDispatch(const DispatchEntry& dispatchEntry,
     const int32_t windowId = dispatchEntry.windowId.value_or(0);
     const int32_t vsyncId = dispatchEntry.windowId.has_value() ? dispatchEntry.vsyncId : 0;
 
+    // TODO(b/210460522): Pass HMAC into traceEventDispatch.
     const WindowDispatchArgs windowDispatchArgs{std::move(traced),
                                                 dispatchEntry.deliveryTime,
                                                 dispatchEntry.resolvedFlags,
@@ -194,7 +202,8 @@ void InputTracer::traceEventDispatch(const DispatchEntry& dispatchEntry,
                                                 /*hmac=*/{},
                                                 resolvedKeyRepeatCount};
     if (eventState->isEventProcessingComplete) {
-        mBackend->traceWindowDispatch(std::move(windowDispatchArgs));
+        mBackend->traceWindowDispatch(std::move(windowDispatchArgs),
+                                      TracedEventArgs{.isSecure = eventState->isSecure});
     } else {
         eventState->pendingDispatchArgs.emplace_back(std::move(windowDispatchArgs));
     }
@@ -213,12 +222,13 @@ bool InputTracer::isDerivedCookie(const EventTrackerInterface& cookie) {
 
 void InputTracer::EventState::onEventProcessingComplete() {
     // Write all of the events known so far to the trace.
+    const TracedEventArgs traceArgs{.isSecure = isSecure};
     for (const auto& event : events) {
-        writeEventToBackend(event, *tracer.mBackend);
+        writeEventToBackend(event, traceArgs, *tracer.mBackend);
     }
     // Write all pending dispatch args to the trace.
     for (const auto& windowDispatchArgs : pendingDispatchArgs) {
-        tracer.mBackend->traceWindowDispatch(windowDispatchArgs);
+        tracer.mBackend->traceWindowDispatch(windowDispatchArgs, traceArgs);
     }
     pendingDispatchArgs.clear();
 

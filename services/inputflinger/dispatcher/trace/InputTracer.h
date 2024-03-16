@@ -52,8 +52,6 @@ public:
 private:
     std::unique_ptr<InputTracingBackendInterface> mBackend;
 
-    using WindowDispatchArgs = InputTracingBackendInterface::WindowDispatchArgs;
-
     // The state of a tracked event, shared across all events derived from the original event.
     struct EventState {
         explicit inline EventState(InputTracer& tracer) : tracer(tracer){};
@@ -66,8 +64,8 @@ private:
         bool isEventProcessingComplete{false};
         // A queue to hold dispatch args from being traced until event processing is complete.
         std::vector<const WindowDispatchArgs> pendingDispatchArgs;
-        // TODO(b/210460522): Add additional args for tracking event sensitivity and
-        //  dispatch target UIDs.
+        // True if the event is targeting at least one secure window;
+        bool isSecure{false};
     };
 
     // Get the event state associated with a tracking cookie.

@@ -63,7 +63,12 @@ PerfettoBackend::PerfettoBackend() {
     });
 }
 
-void PerfettoBackend::traceMotionEvent(const TracedMotionEvent& event) {
+void PerfettoBackend::traceMotionEvent(const TracedMotionEvent& event,
+                                       const TracedEventArgs& args) {
+    if (args.isSecure) {
+        // For now, avoid tracing secure event entirely.
+        return;
+    }
     InputEventDataSource::Trace([&](InputEventDataSource::TraceContext ctx) {
         auto tracePacket = ctx.NewTracePacket();
         auto* inputEvent = tracePacket->set_android_input_event();
@@ -72,7 +77,11 @@ void PerfettoBackend::traceMotionEvent(const TracedMotionEvent& event) {
     });
 }
 
-void PerfettoBackend::traceKeyEvent(const TracedKeyEvent& event) {
+void PerfettoBackend::traceKeyEvent(const TracedKeyEvent& event, const TracedEventArgs& args) {
+    if (args.isSecure) {
+        // For now, avoid tracing secure event entirely.
+        return;
+    }
     InputEventDataSource::Trace([&](InputEventDataSource::TraceContext ctx) {
         auto tracePacket = ctx.NewTracePacket();
         auto* inputEvent = tracePacket->set_android_input_event();
@@ -81,13 +90,17 @@ void PerfettoBackend::traceKeyEvent(const TracedKeyEvent& event) {
     });
 }
 
-void PerfettoBackend::traceWindowDispatch(const WindowDispatchArgs& dispatchArgs) {
+void PerfettoBackend::traceWindowDispatch(const WindowDispatchArgs& dispatchArgs,
+                                          const TracedEventArgs& args) {
+    if (args.isSecure) {
+        // For now, avoid tracing secure event entirely.
+        return;
+    }
     InputEventDataSource::Trace([&](InputEventDataSource::TraceContext ctx) {
         auto tracePacket = ctx.NewTracePacket();
-        auto* inputEventProto = tracePacket->set_android_input_event();
-        auto* dispatchEventProto = inputEventProto->set_dispatcher_window_dispatch_event();
-        AndroidInputEventProtoConverter::toProtoWindowDispatchEvent(dispatchArgs,
-                                                                    *dispatchEventProto);
+        auto* inputEvent = tracePacket->set_android_input_event();
+        auto* dispatchEvent = inputEvent->set_dispatcher_window_dispatch_event();
+        AndroidInputEventProtoConverter::toProtoWindowDispatchEvent(dispatchArgs, *dispatchEvent);
     });
 }
 

@@ -506,6 +506,8 @@ auto RefreshRateSelector::getRankedFrameRatesLocked(const std::vector<LayerRequi
     }
 
     int noVoteLayers = 0;
+    // Layers that prefer the same mode ("no-op").
+    int noPreferenceLayers = 0;
     int minVoteLayers = 0;
     int maxVoteLayers = 0;
     int explicitDefaultVoteLayers = 0;
@@ -549,10 +551,7 @@ auto RefreshRateSelector::getRankedFrameRatesLocked(const std::vector<LayerRequi
                     explicitCategoryVoteLayers++;
                 }
                 if (layer.frameRateCategory == FrameRateCategory::NoPreference) {
-                    // Count this layer for Min vote as well. The explicit vote avoids
-                    // touch boost and idle for choosing a category, while Min vote is for correct
-                    // behavior when all layers are Min or no vote.
-                    minVoteLayers++;
+                    noPreferenceLayers++;
                 }
                 break;
             case LayerVoteType::Heuristic:
@@ -612,6 +611,16 @@ auto RefreshRateSelector::getRankedFrameRatesLocked(const std::vector<LayerRequi
         return {ranking, kNoSignals};
     }
 
+    // If all layers are category NoPreference, use the current config.
+    if (noPreferenceLayers + noVoteLayers == layers.size()) {
+        ALOGV("All layers NoPreference");
+        const auto ascendingWithPreferred =
+                rankFrameRates(anchorGroup, RefreshRateOrder::Ascending, activeMode.getId());
+        ATRACE_FORMAT_INSTANT("%s (All layers NoPreference)",
+                              to_string(ascendingWithPreferred.front().frameRateMode.fps).c_str());
+        return {ascendingWithPreferred, kNoSignals};
+    }
+
     const bool smoothSwitchOnly = categorySmoothSwitchOnlyLayers > 0;
     const DisplayModeId activeModeId = activeMode.getId();
 
@@ -643,6 +652,7 @@ auto RefreshRateSelector::getRankedFrameRatesLocked(const std::vector<LayerRequi
               ftl::enum_string(layer.frameRateCategory).c_str());
         if (layer.isNoVote() || layer.frameRateCategory == FrameRateCategory::NoPreference ||
             layer.vote == LayerVoteType::Min) {
+            ALOGV("%s scoring skipped due to vote", formatLayerInfo(layer, layer.weight).c_str());
             continue;
         }
 

@@ -38,9 +38,9 @@ public:
     ThreadedBackend(Backend&& innerBackend);
     ~ThreadedBackend() override;
 
-    void traceKeyEvent(const TracedKeyEvent&) override;
-    void traceMotionEvent(const TracedMotionEvent&) override;
-    void traceWindowDispatch(const WindowDispatchArgs&) override;
+    void traceKeyEvent(const TracedKeyEvent&, const TracedEventArgs&) override;
+    void traceMotionEvent(const TracedMotionEvent&, const TracedEventArgs&) override;
+    void traceWindowDispatch(const WindowDispatchArgs&, const TracedEventArgs&) override;
 
 private:
     std::mutex mLock;
@@ -48,10 +48,10 @@ private:
     bool mThreadExit GUARDED_BY(mLock){false};
     std::condition_variable mThreadWakeCondition;
     Backend mBackend;
-    using TraceEntry = std::variant<TracedKeyEvent, TracedMotionEvent, WindowDispatchArgs>;
+    using TraceEntry =
+            std::pair<std::variant<TracedKeyEvent, TracedMotionEvent, WindowDispatchArgs>,
+                      TracedEventArgs>;
     std::vector<TraceEntry> mQueue GUARDED_BY(mLock);
-
-    using WindowDispatchArgs = InputTracingBackendInterface::WindowDispatchArgs;
 
     void threadLoop();
 };
