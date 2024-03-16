@@ -944,6 +944,27 @@ TEST_F(VSyncPredictorTest, renderRateIsPreservedForCommittedVsyncs) {
     EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(6001), Eq(8000));
 }
 
+// b/329310308
+TEST_F(VSyncPredictorTest, renderRateChangeAfterAppliedImmediately) {
+    tracker.addVsyncTimestamp(1000);
+
+    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(1), Eq(1000));
+    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(1001), Eq(2000));
+    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(2001), Eq(3000));
+
+    tracker.setRenderRate(Fps::fromPeriodNsecs(2000), /*applyImmediately*/ true);
+    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(1), Eq(1000));
+    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(1001), Eq(3000));
+    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(3001), Eq(5000));
+
+    tracker.setRenderRate(Fps::fromPeriodNsecs(4000), /*applyImmediately*/ false);
+    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(1), Eq(1000));
+    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(1001), Eq(3000));
+    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(3001), Eq(5000));
+    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(5001), Eq(9000));
+    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(9001), Eq(13000));
+}
+
 } // namespace android::scheduler
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
