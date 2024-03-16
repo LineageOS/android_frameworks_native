@@ -29,8 +29,8 @@ namespace android {
 class InputConsumerCallbacks {
 public:
     virtual ~InputConsumerCallbacks(){};
-    virtual void onKeyEvent(KeyEvent&& event, uint32_t seq) = 0;
-    virtual void onMotionEvent(MotionEvent&& event, uint32_t seq) = 0;
+    virtual void onKeyEvent(std::unique_ptr<KeyEvent> event, uint32_t seq) = 0;
+    virtual void onMotionEvent(std::unique_ptr<MotionEvent> event, uint32_t seq) = 0;
     /**
      * When you receive this callback, you must (eventually) call "consumeBatchedInputEvents".
      * If you don't want batching, then call "consumeBatchedInputEvents" immediately with
@@ -38,10 +38,10 @@ public:
      * @param pendingBatchSource the source of the pending batch.
      */
     virtual void onBatchedInputEventPending(int32_t pendingBatchSource) = 0;
-    virtual void onFocusEvent(FocusEvent&& event, uint32_t seq) = 0;
-    virtual void onCaptureEvent(CaptureEvent&& event, uint32_t seq) = 0;
-    virtual void onDragEvent(DragEvent&& event, uint32_t seq) = 0;
-    virtual void onTouchModeEvent(TouchModeEvent&& event, uint32_t seq) = 0;
+    virtual void onFocusEvent(std::unique_ptr<FocusEvent> event, uint32_t seq) = 0;
+    virtual void onCaptureEvent(std::unique_ptr<CaptureEvent> event, uint32_t seq) = 0;
+    virtual void onDragEvent(std::unique_ptr<DragEvent> event, uint32_t seq) = 0;
+    virtual void onTouchModeEvent(std::unique_ptr<TouchModeEvent> event, uint32_t seq) = 0;
 };
 
 /**
