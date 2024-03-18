@@ -306,8 +306,11 @@ Period Scheduler::getVsyncPeriod(uid_t uid) {
         const auto pacesetterOpt = pacesetterDisplayLocked();
         LOG_ALWAYS_FATAL_IF(!pacesetterOpt);
         const Display& pacesetter = *pacesetterOpt;
-        return std::make_pair(pacesetter.selectorPtr->getActiveMode().fps,
-                              pacesetter.schedulePtr->period());
+        const FrameRateMode& frameRateMode = pacesetter.selectorPtr->getActiveMode();
+        const auto refreshRate = frameRateMode.fps;
+        const auto displayVsync = frameRateMode.modePtr->getVsyncRate();
+        const auto numPeriod = RefreshRateSelector::getFrameRateDivisor(displayVsync, refreshRate);
+        return std::make_pair(refreshRate, numPeriod * pacesetter.schedulePtr->period());
     }();
 
     const Period currentPeriod = period != Period::zero() ? period : refreshRate.getPeriod();
