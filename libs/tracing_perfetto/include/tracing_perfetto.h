@@ -46,7 +46,7 @@ Result traceInstantForTrack(uint64_t category, const char* trackName,
 
 Result traceCounter(uint64_t category, const char* name, int64_t value);
 
-uint64_t getEnabledCategories();
+bool isTagEnabled(uint64_t category);
 
 }  // namespace tracing_perfetto
 
