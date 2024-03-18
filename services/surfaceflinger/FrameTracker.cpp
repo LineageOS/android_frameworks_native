@@ -18,9 +18,6 @@
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wconversion"
 
-// This is needed for stdint.h to define INT64_MAX in C++
-#define __STDC_LIMIT_MACROS
-
 #include <inttypes.h>
 
 #include <android-base/stringprintf.h>
