@@ -130,13 +130,12 @@ Result traceCounter(uint64_t category, const char* name, int64_t value) {
   }
 }
 
-bool isTagEnabled(uint64_t category) {
-  struct PerfettoTeCategory* perfettoTeCategory =
-      internal::toPerfettoCategory(category);
-  if (perfettoTeCategory != nullptr) {
-    return true;
+uint64_t getEnabledCategories() {
+  if (internal::isPerfettoRegistered()) {
+    // TODO(b/303199244): Return only enabled categories and not all registered ones
+    return internal::getDefaultCategories();
   } else {
-    return (atrace_get_enabled_tags() & category) != 0;
+    return atrace_get_enabled_tags();
   }
 }
 
