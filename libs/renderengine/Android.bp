@@ -83,6 +83,7 @@ filegroup {
         "skia/AutoBackendTexture.cpp",
         "skia/Cache.cpp",
         "skia/ColorSpaces.cpp",
+        "skia/GaneshVkRenderEngine.cpp",
         "skia/GLExtensions.cpp",
         "skia/SkiaRenderEngine.cpp",
         "skia/SkiaGLRenderEngine.cpp",

@@ -71,20 +71,21 @@ public:
     };
 
 protected:
+    // Redeclare parent functions that Ganesh vs. Graphite subclasses must implement.
+    virtual void waitFence(SkiaGpuContext* context, base::borrowed_fd fenceFd) override = 0;
+    virtual base::unique_fd flushAndSubmit(SkiaGpuContext* context) override = 0;
+
+    SkiaVkRenderEngine(const RenderEngineCreationArgs& args);
+
     // Implementations of abstract SkiaRenderEngine functions specific to
-    // rendering backend
+    // Vulkan, but shareable between Ganesh and Graphite.
     SkiaRenderEngine::Contexts createContexts() override;
     bool supportsProtectedContentImpl() const override;
     bool useProtectedContextImpl(GrProtected isProtected) override;
-    void waitFence(SkiaGpuContext* context, base::borrowed_fd fenceFd) override;
-    base::unique_fd flushAndSubmit(SkiaGpuContext* context) override;
     void appendBackendSpecificInfoToDump(std::string& result) override;
 
-private:
-    SkiaVkRenderEngine(const RenderEngineCreationArgs& args);
-    base::unique_fd flush();
-
-    GrVkBackendContext mBackendContext;
+    // TODO: b/300533018 - refactor this to be non-static
+    static VulkanInterface& getVulkanInterface(bool protectedContext);
 };
 
 } // namespace skia
