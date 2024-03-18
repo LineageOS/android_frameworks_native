@@ -254,10 +254,6 @@ struct WindowInfo : public Parcelable {
 
     void addTouchableRegion(const Rect& region);
 
-    bool touchableRegionContainsPoint(int32_t x, int32_t y) const;
-
-    bool frameContainsPoint(int32_t x, int32_t y) const;
-
     bool supportsSplitTouch() const;
 
     bool isSpy() const;

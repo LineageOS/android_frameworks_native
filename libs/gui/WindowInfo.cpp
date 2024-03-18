@@ -73,14 +73,6 @@ void WindowInfo::addTouchableRegion(const Rect& region) {
     touchableRegion.orSelf(region);
 }
 
-bool WindowInfo::touchableRegionContainsPoint(int32_t x, int32_t y) const {
-    return touchableRegion.contains(x, y);
-}
-
-bool WindowInfo::frameContainsPoint(int32_t x, int32_t y) const {
-    return x >= frame.left && x < frame.right && y >= frame.top && y < frame.bottom;
-}
-
 bool WindowInfo::supportsSplitTouch() const {
     return !inputConfig.test(InputConfig::PREVENT_SPLITTING);
 }

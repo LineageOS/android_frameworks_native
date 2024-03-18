@@ -598,6 +598,18 @@ bool windowAcceptsTouchAt(const WindowInfo& windowInfo, int32_t displayId, float
     return true;
 }
 
+// Returns true if the given window's frame can occlude pointer events at the given display
+// location.
+bool windowOccludesTouchAt(const WindowInfo& windowInfo, int displayId, float x, float y,
+                           const ui::Transform& displayTransform) {
+    if (windowInfo.displayId != displayId) {
+        return false;
+    }
+    const auto frame = displayTransform.transform(windowInfo.frame);
+    const auto p = floor(displayTransform.transform(x, y));
+    return p.x >= frame.left && p.x < frame.right && p.y >= frame.top && p.y < frame.bottom;
+}
+
 bool isPointerFromStylus(const MotionEntry& entry, int32_t pointerIndex) {
     return isFromSource(entry.source, AINPUT_SOURCE_STYLUS) &&
             isStylusToolType(entry.pointerProperties[pointerIndex].toolType);
@@ -3105,7 +3117,7 @@ static bool canBeObscuredBy(const sp<WindowInfoHandle>& windowHandle,
  * If neither of those is true, then it means the touch can be allowed.
  */
 InputDispatcher::TouchOcclusionInfo InputDispatcher::computeTouchOcclusionInfoLocked(
-        const sp<WindowInfoHandle>& windowHandle, int32_t x, int32_t y) const {
+        const sp<WindowInfoHandle>& windowHandle, float x, float y) const {
     const WindowInfo* windowInfo = windowHandle->getInfo();
     int32_t displayId = windowInfo->displayId;
     const std::vector<sp<WindowInfoHandle>>& windowHandles = getWindowHandlesLocked(displayId);
@@ -3119,7 +3131,8 @@ InputDispatcher::TouchOcclusionInfo InputDispatcher::computeTouchOcclusionInfoLo
             break; // All future windows are below us. Exit early.
         }
         const WindowInfo* otherInfo = otherHandle->getInfo();
-        if (canBeObscuredBy(windowHandle, otherHandle) && otherInfo->frameContainsPoint(x, y) &&
+        if (canBeObscuredBy(windowHandle, otherHandle) &&
+            windowOccludesTouchAt(*otherInfo, displayId, x, y, getTransformLocked(displayId)) &&
             !haveSameApplicationToken(windowInfo, otherInfo)) {
             if (DEBUG_TOUCH_OCCLUSION) {
                 info.debugInfo.push_back(
@@ -3189,7 +3202,7 @@ bool InputDispatcher::isTouchTrustedLocked(const TouchOcclusionInfo& occlusionIn
 }
 
 bool InputDispatcher::isWindowObscuredAtPointLocked(const sp<WindowInfoHandle>& windowHandle,
-                                                    int32_t x, int32_t y) const {
+                                                    float x, float y) const {
     int32_t displayId = windowHandle->getInfo()->displayId;
     const std::vector<sp<WindowInfoHandle>>& windowHandles = getWindowHandlesLocked(displayId);
     for (const sp<WindowInfoHandle>& otherHandle : windowHandles) {
@@ -3198,7 +3211,7 @@ bool InputDispatcher::isWindowObscuredAtPointLocked(const sp<WindowInfoHandle>& 
         }
         const WindowInfo* otherInfo = otherHandle->getInfo();
         if (canBeObscuredBy(windowHandle, otherHandle) &&
-            otherInfo->frameContainsPoint(x, y)) {
+            windowOccludesTouchAt(*otherInfo, displayId, x, y, getTransformLocked(displayId))) {
             return true;
         }
     }
