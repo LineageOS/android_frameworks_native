@@ -731,16 +731,17 @@ Status ListCommand::fetchBinderizedEntry(const sp<IServiceManager> &manager,
                                   [hashChain](const auto& ret) { *hashChain = std::move(ret); });
         if (!hashRet.isOk()) {
             handleError(TRANSACTION_ERROR, "getHashChain failed: " + hashRet.description());
+            break; // skip getHashChain
         }
         if (static_cast<size_t>(hashIndex) >= hashChain->size()) {
             handleError(BAD_IMPL,
                         "interfaceChain indicates position " + std::to_string(hashIndex) +
                                 " but getHashChain returns " + std::to_string(hashChain->size()) +
                                 " hashes");
-        } else {
-            auto&& hashArray = (*hashChain)[hashIndex];
-            entry->hash = android::base::HexString(hashArray.data(), hashArray.size());
+            break; // skip getHashChain
         }
+        auto&& hashArray = (*hashChain)[hashIndex];
+        entry->hash = android::base::HexString(hashArray.data(), hashArray.size());
     } while (0);
     if (status == OK) {
         entry->serviceStatus = ServiceStatus::ALIVE;
