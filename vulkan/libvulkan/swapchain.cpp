@@ -250,6 +250,7 @@ struct Surface {
     android::sp<ANativeWindow> window;
     VkSwapchainKHR swapchain_handle;
     uint64_t consumer_usage;
+    int default_format;
 
     // Indicate whether this surface has been used by a swapchain, no matter the
     // swapchain is still current or has been destroyed.
@@ -526,12 +527,15 @@ void copy_ready_timings(Swapchain& swapchain,
     *count = num_copied;
 }
 
-PixelFormat GetNativePixelFormat(VkFormat format) {
+PixelFormat GetNativePixelFormat(VkFormat format,
+                                 VkCompositeAlphaFlagBitsKHR alpha) {
     PixelFormat native_format = PixelFormat::RGBA_8888;
     switch (format) {
         case VK_FORMAT_R8G8B8A8_UNORM:
         case VK_FORMAT_R8G8B8A8_SRGB:
-            native_format = PixelFormat::RGBA_8888;
+            native_format = alpha == VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR
+                                ? PixelFormat::RGBX_8888
+                                : PixelFormat::RGBA_8888;
             break;
         case VK_FORMAT_R5G6B5_UNORM_PACK16:
             native_format = PixelFormat::RGB_565;
@@ -621,11 +625,12 @@ VkResult CreateAndroidSurfaceKHR(
         return VK_ERROR_OUT_OF_HOST_MEMORY;
     Surface* surface = new (mem) Surface;
 
-    surface->window = pCreateInfo->window;
+    ANativeWindow* window = pCreateInfo->window;
+    surface->window = window;
     surface->swapchain_handle = VK_NULL_HANDLE;
     surface->used_by_swapchain = false;
-    int err = native_window_get_consumer_usage(surface->window.get(),
-                                               &surface->consumer_usage);
+    int err =
+        native_window_get_consumer_usage(window, &surface->consumer_usage);
     if (err != android::OK) {
         ALOGE("native_window_get_consumer_usage() failed: %s (%d)",
               strerror(-err), err);
@@ -634,8 +639,16 @@ VkResult CreateAndroidSurfaceKHR(
         return VK_ERROR_SURFACE_LOST_KHR;
     }
 
-    err =
-        native_window_api_connect(surface->window.get(), NATIVE_WINDOW_API_EGL);
+    err = window->query(window, NATIVE_WINDOW_FORMAT, &surface->default_format);
+    if (err != android::OK) {
+        ALOGE("NATIVE_WINDOW_FORMAT query failed: %s (%d)", strerror(-err),
+              err);
+        surface->~Surface();
+        allocator->pfnFree(allocator->pUserData, surface);
+        return VK_ERROR_SURFACE_LOST_KHR;
+    }
+
+    err = native_window_api_connect(window, NATIVE_WINDOW_API_EGL);
     if (err != android::OK) {
         ALOGE("native_window_api_connect() failed: %s (%d)", strerror(-err),
               err);
@@ -901,7 +914,7 @@ VkResult GetPhysicalDeviceSurfaceCapabilities2KHR(
     VkSurfaceCapabilities2KHR* pSurfaceCapabilities) {
     ATRACE_CALL();
 
-    auto surface = pSurfaceInfo->surface;
+    auto surface_handle = pSurfaceInfo->surface;
     auto capabilities = &pSurfaceCapabilities->surfaceCapabilities;
 
     VkSurfacePresentModeEXT const *pPresentMode = nullptr;
@@ -922,7 +935,9 @@ VkResult GetPhysicalDeviceSurfaceCapabilities2KHR(
     int transform_hint;
     int max_buffer_count;
     int min_undequeued_buffers;
-    if (surface == VK_NULL_HANDLE) {
+    VkCompositeAlphaFlagsKHR composite_alpha =
+        VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR;
+    if (surface_handle == VK_NULL_HANDLE) {
         const InstanceData& instance_data = GetData(physicalDevice);
         ProcHook::Extension surfaceless = ProcHook::GOOGLE_surfaceless_query;
         bool surfaceless_enabled =
@@ -943,7 +958,8 @@ VkResult GetPhysicalDeviceSurfaceCapabilities2KHR(
         capabilities->minImageCount = 0xFFFFFFFF;
         capabilities->maxImageCount = 0xFFFFFFFF;
     } else {
-        ANativeWindow* window = SurfaceFromHandle(surface)->window.get();
+        Surface& surface = *SurfaceFromHandle(surface_handle);
+        ANativeWindow* window = surface.window.get();
 
         err = window->query(window, NATIVE_WINDOW_DEFAULT_WIDTH, &width);
         if (err != android::OK) {
@@ -1018,6 +1034,17 @@ VkResult GetPhysicalDeviceSurfaceCapabilities2KHR(
                     min_undequeued_buffers + default_additional_buffers);
             capabilities->maxImageCount = static_cast<uint32_t>(max_buffer_count);
         }
+
+        // The surface default format can be either of below:
+        // - consumer side default format
+        // - platform EGL resolved format and we get here via ANGLE
+        //
+        // For any of above, advertise OPAQUE bit so that later swapchain
+        // creation can resolve VK_FORMAT_R8G8B8A8_* to RGBX_8888 only if the
+        // client also requests OPAQUE bit for compositeAlpha.
+        if (surface.default_format == (int)PixelFormat::RGBX_8888) {
+            composite_alpha |= VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+        }
     }
 
     capabilities->currentExtent =
@@ -1044,9 +1071,7 @@ VkResult GetPhysicalDeviceSurfaceCapabilities2KHR(
     capabilities->currentTransform =
         TranslateNativeToVulkanTransform(transform_hint);
 
-    // On Android, window composition is a WindowManager property, not something
-    // associated with the bufferqueue. It can't be changed from here.
-    capabilities->supportedCompositeAlpha = VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR;
+    capabilities->supportedCompositeAlpha = composite_alpha;
 
     capabilities->supportedUsageFlags =
         VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT |
@@ -1645,20 +1670,21 @@ VkResult CreateSwapchainKHR(VkDevice device,
 
     ALOGV("vkCreateSwapchainKHR: surface=0x%" PRIx64
           " minImageCount=%u imageFormat=%u imageColorSpace=%u"
-          " imageExtent=%ux%u imageUsage=%#x preTransform=%u presentMode=%u"
-          " oldSwapchain=0x%" PRIx64,
+          " imageExtent=%ux%u imageUsage=%#x preTransform=%u compositeAlpha=%u"
+          " presentMode=%u oldSwapchain=0x%" PRIx64,
           reinterpret_cast<uint64_t>(create_info->surface),
           create_info->minImageCount, create_info->imageFormat,
           create_info->imageColorSpace, create_info->imageExtent.width,
           create_info->imageExtent.height, create_info->imageUsage,
-          create_info->preTransform, create_info->presentMode,
+          create_info->preTransform, create_info->compositeAlpha,
+          create_info->presentMode,
           reinterpret_cast<uint64_t>(create_info->oldSwapchain));
 
     if (!allocator)
         allocator = &GetData(device).allocator;
 
-    PixelFormat native_pixel_format =
-        GetNativePixelFormat(create_info->imageFormat);
+    PixelFormat native_pixel_format = GetNativePixelFormat(
+        create_info->imageFormat, create_info->compositeAlpha);
     DataSpace native_dataspace = GetNativeDataspace(
         create_info->imageColorSpace, create_info->imageFormat);
     if (native_dataspace == DataSpace::UNKNOWN) {
