@@ -13,6 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+/**
+ * @addtogroup NativeActivity Native Activity
+ * @{
+ */
+/**
+ * @file surface_control_input_receiver.h
+ */
+
 #pragma once
 
 #include <stdint.h>
@@ -69,7 +77,7 @@ typedef struct AInputReceiver AInputReceiver __INTRODUCED_IN(__ANDROID_API_V__);
  * other input events will be delivered immediately.
  *
  * This is different from AInputReceiver_createUnbatchedInputReceiver in that the input events are
- * received batched. The caller must invoke AInputReceiver_release to cleanv up the resources when
+ * received batched. The caller must invoke AInputReceiver_release to clean up the resources when
  * no longer needing to use the input receiver.
  *
  * \param aChoreographer         The AChoreographer used for batching. This should match the
@@ -144,7 +152,7 @@ AInputReceiver_getInputTransferToken(AInputReceiver *_Nonnull aInputReceiver)
  * Available since API level 35.
  */
 void
-AInputReceiver_release(AInputReceiver *_Nonnull aInputReceiver) __INTRODUCED_IN(__ANDROID_API_V__);
+AInputReceiver_release(AInputReceiver *_Nullable aInputReceiver) __INTRODUCED_IN(__ANDROID_API_V__);
 
 /**
  * Creates a AInputReceiverCallbacks object that is used when registering for an AInputReceiver.
@@ -164,7 +172,7 @@ AInputReceiverCallbacks* _Nonnull AInputReceiverCallbacks_create(void* _Nullable
  *
  * Available since API level 35
  */
-void AInputReceiverCallbacks_release(AInputReceiverCallbacks* _Nonnull callbacks)
+void AInputReceiverCallbacks_release(AInputReceiverCallbacks* _Nullable callbacks)
                                      __INTRODUCED_IN(__ANDROID_API_V__);
 
 /**
