@@ -16,7 +16,6 @@
 
 #pragma once
 
-#include <GrAHardwareBufferUtils.h>
 #include <GrDirectContext.h>
 #include <SkImage.h>
 #include <SkSurface.h>
@@ -24,9 +23,9 @@
 #include <ui/GraphicTypes.h>
 
 #include "android-base/macros.h"
-#include "compat/SkiaGpuContext.h"
+#include "compat/SkiaBackendTexture.h"
 
-#include <mutex>
+#include <memory>
 #include <vector>
 
 namespace android {
@@ -81,9 +80,8 @@ public:
     // of shared ownership with Skia objects, so we wrap it here instead.
     class LocalRef {
     public:
-        LocalRef(SkiaGpuContext* context, AHardwareBuffer* buffer, bool isOutputBuffer,
-                 CleanupManager& cleanupMgr) {
-            mTexture = new AutoBackendTexture(context, buffer, isOutputBuffer, cleanupMgr);
+        LocalRef(std::unique_ptr<SkiaBackendTexture> backendTexture, CleanupManager& cleanupMgr) {
+            mTexture = new AutoBackendTexture(std::move(backendTexture), cleanupMgr);
             mTexture->ref();
         }
 
@@ -105,7 +103,7 @@ public:
             return mTexture->getOrCreateSurface(dataspace);
         }
 
-        SkColorType colorType() const { return mTexture->mColorType; }
+        SkColorType colorType() const { return mTexture->mBackendTexture->internalColorType(); }
 
         DISALLOW_COPY_AND_ASSIGN(LocalRef);
 
@@ -116,12 +114,13 @@ public:
 private:
     DISALLOW_COPY_AND_ASSIGN(AutoBackendTexture);
 
-    // Creates a GrBackendTexture whose contents come from the provided buffer.
-    AutoBackendTexture(SkiaGpuContext* context, AHardwareBuffer* buffer, bool isOutputBuffer,
+    // Creates an AutoBackendTexture to manage the lifecycle of a given SkiaBackendTexture, which is
+    // in turn backed by an underlying backend-specific texture type.
+    AutoBackendTexture(std::unique_ptr<SkiaBackendTexture> backendTexture,
                        CleanupManager& cleanupMgr);
 
     // The only way to invoke dtor is with unref, when mUsageCount is 0.
-    ~AutoBackendTexture();
+    ~AutoBackendTexture() = default;
 
     void ref() { mUsageCount++; }
 
@@ -137,24 +136,16 @@ private:
     // Makes a new SkSurface from the texture content, if needed.
     sk_sp<SkSurface> getOrCreateSurface(ui::Dataspace dataspace);
 
-    GrBackendTexture mBackendTexture;
-    GrAHardwareBufferUtils::DeleteImageProc mDeleteProc;
-    GrAHardwareBufferUtils::UpdateImageProc mUpdateProc;
-    GrAHardwareBufferUtils::TexImageCtx mImageCtx;
-
-    // TODO: b/293371537 - Graphite abstractions for ABT.
-    const sk_sp<GrDirectContext> mGrContext = nullptr;
     CleanupManager& mCleanupMgr;
 
     static void releaseSurfaceProc(SkSurface::ReleaseContext releaseContext);
     static void releaseImageProc(SkImages::ReleaseContext releaseContext);
 
+    std::unique_ptr<SkiaBackendTexture> mBackendTexture;
     int mUsageCount = 0;
-    const bool mIsOutputBuffer;
     sk_sp<SkImage> mImage = nullptr;
     sk_sp<SkSurface> mSurface = nullptr;
     ui::Dataspace mDataspace = ui::Dataspace::UNKNOWN;
-    SkColorType mColorType = kUnknown_SkColorType;
 };
 
 } // namespace skia

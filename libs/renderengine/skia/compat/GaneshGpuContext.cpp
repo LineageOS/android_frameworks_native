@@ -27,8 +27,13 @@
 #include <include/gpu/gl/GrGLInterface.h>
 #include <include/gpu/vk/GrVkBackendContext.h>
 
+#include "../AutoBackendTexture.h"
+#include "GaneshBackendTexture.h"
+#include "skia/compat/SkiaBackendTexture.h"
+
 #include <android-base/macros.h>
 #include <log/log_main.h>
+#include <memory>
 
 namespace android::renderengine::skia {
 
@@ -64,6 +69,11 @@ GaneshGpuContext::GaneshGpuContext(sk_sp<GrDirectContext> grContext) : mGrContex
 
 sk_sp<GrDirectContext> GaneshGpuContext::grDirectContext() {
     return mGrContext;
+}
+
+std::unique_ptr<SkiaBackendTexture> GaneshGpuContext::makeBackendTexture(AHardwareBuffer* buffer,
+                                                                         bool isOutputBuffer) {
+    return std::make_unique<GaneshBackendTexture>(mGrContext, buffer, isOutputBuffer);
 }
 
 sk_sp<SkSurface> GaneshGpuContext::createRenderTarget(SkImageInfo imageInfo) {
