@@ -44,7 +44,6 @@ public:
 
 private:
     std::mutex mLock;
-    InputThread mTracerThread;
     bool mThreadExit GUARDED_BY(mLock){false};
     std::condition_variable mThreadWakeCondition;
     Backend mBackend;
@@ -52,6 +51,11 @@ private:
             std::pair<std::variant<TracedKeyEvent, TracedMotionEvent, WindowDispatchArgs>,
                       TracedEventArgs>;
     std::vector<TraceEntry> mQueue GUARDED_BY(mLock);
+
+    // InputThread stops when its destructor is called. Initialize it last so that it is the
+    // first thing to be destructed. This will guarantee the thread will not access other
+    // members that have already been destructed.
+    InputThread mTracerThread;
 
     void threadLoop();
 };

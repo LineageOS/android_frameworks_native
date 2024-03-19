@@ -38,10 +38,10 @@ struct Visitor : V... {
 
 template <typename Backend>
 ThreadedBackend<Backend>::ThreadedBackend(Backend&& innerBackend)
-      : mTracerThread(
+      : mBackend(std::move(innerBackend)),
+        mTracerThread(
                 "InputTracer", [this]() { threadLoop(); },
-                [this]() { mThreadWakeCondition.notify_all(); }),
-        mBackend(std::move(innerBackend)) {}
+                [this]() { mThreadWakeCondition.notify_all(); }) {}
 
 template <typename Backend>
 ThreadedBackend<Backend>::~ThreadedBackend() {
