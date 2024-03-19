@@ -37,6 +37,11 @@ bool isFromTouchpad(const NotifyMotionArgs& args) {
             args.pointerProperties[0].toolType == ToolType::FINGER;
 }
 
+bool isFromDrawingTablet(const NotifyMotionArgs& args) {
+    return isFromSource(args.source, AINPUT_SOURCE_MOUSE | AINPUT_SOURCE_STYLUS) &&
+            isStylusToolType(args.pointerProperties[0].toolType);
+}
+
 bool isHoverAction(int32_t action) {
     return action == AMOTION_EVENT_ACTION_HOVER_ENTER ||
             action == AMOTION_EVENT_ACTION_HOVER_MOVE || action == AMOTION_EVENT_ACTION_HOVER_EXIT;
@@ -46,6 +51,13 @@ bool isStylusHoverEvent(const NotifyMotionArgs& args) {
     return isStylusEvent(args.source, args.pointerProperties) && isHoverAction(args.action);
 }
 
+bool isMouseOrTouchpad(uint32_t sources) {
+    // Check if this is a mouse or touchpad, but not a drawing tablet.
+    return isFromSource(sources, AINPUT_SOURCE_MOUSE_RELATIVE) ||
+            (isFromSource(sources, AINPUT_SOURCE_MOUSE) &&
+             !isFromSource(sources, AINPUT_SOURCE_STYLUS));
+}
+
 inline void notifyPointerDisplayChange(std::optional<std::tuple<int32_t, FloatPoint>> change,
                                        PointerChoreographerPolicyInterface& policy) {
     if (!change) {
@@ -53,6 +65,18 @@ inline void notifyPointerDisplayChange(std::optional<std::tuple<int32_t, FloatPo
     }
     const auto& [displayId, cursorPosition] = *change;
     policy.notifyPointerDisplayIdChanged(displayId, cursorPosition);
+}
+
+void setIconForController(const std::variant<std::unique_ptr<SpriteIcon>, PointerIconStyle>& icon,
+                          PointerControllerInterface& controller) {
+    if (std::holds_alternative<std::unique_ptr<SpriteIcon>>(icon)) {
+        if (std::get<std::unique_ptr<SpriteIcon>>(icon) == nullptr) {
+            LOG(FATAL) << "SpriteIcon should not be null";
+        }
+        controller.setCustomPointerIcon(*std::get<std::unique_ptr<SpriteIcon>>(icon));
+    } else {
+        controller.updatePointerIcon(std::get<PointerIconStyle>(icon));
+    }
 }
 
 } // namespace
@@ -107,6 +131,8 @@ NotifyMotionArgs PointerChoreographer::processMotion(const NotifyMotionArgs& arg
         return processMouseEventLocked(args);
     } else if (isFromTouchpad(args)) {
         return processTouchpadEventLocked(args);
+    } else if (isFromDrawingTablet(args)) {
+        processDrawingTabletEventLocked(args);
     } else if (mStylusPointerIconEnabled && isStylusHoverEvent(args)) {
         processStylusHoverEventLocked(args);
     } else if (isFromSource(args.source, AINPUT_SOURCE_TOUCHSCREEN)) {
@@ -189,6 +215,36 @@ NotifyMotionArgs PointerChoreographer::processTouchpadEventLocked(const NotifyMo
     return newArgs;
 }
 
+void PointerChoreographer::processDrawingTabletEventLocked(const android::NotifyMotionArgs& args) {
+    if (args.displayId == ADISPLAY_ID_NONE) {
+        return;
+    }
+
+    if (args.getPointerCount() != 1) {
+        LOG(WARNING) << "Only drawing tablet events with a single pointer are currently supported: "
+                     << args.dump();
+    }
+
+    // Use a mouse pointer controller for drawing tablets, or create one if it doesn't exist.
+    auto [it, _] = mDrawingTabletPointersByDevice.try_emplace(args.deviceId,
+                                                              getMouseControllerConstructor(
+                                                                      args.displayId));
+
+    PointerControllerInterface& pc = *it->second;
+
+    const float x = args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_X);
+    const float y = args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_Y);
+    pc.setPosition(x, y);
+    if (args.action == AMOTION_EVENT_ACTION_HOVER_EXIT) {
+        // TODO(b/315815559): Do not fade and reset the icon if the hover exit will be followed
+        //   immediately by a DOWN event.
+        pc.fade(PointerControllerInterface::Transition::IMMEDIATE);
+        pc.updatePointerIcon(PointerIconStyle::TYPE_NOT_SPECIFIED);
+    } else if (canUnfadeOnDisplay(args.displayId)) {
+        pc.unfade(PointerControllerInterface::Transition::IMMEDIATE);
+    }
+}
+
 /**
  * When screen is touched, fade the mouse pointer on that display. We only call fade for
  * ACTION_DOWN events.This would allow both mouse and touch to be used at the same time if the
@@ -255,6 +311,8 @@ void PointerChoreographer::processStylusHoverEventLocked(const NotifyMotionArgs&
     const float y = args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_Y);
     pc.setPosition(x, y);
     if (args.action == AMOTION_EVENT_ACTION_HOVER_EXIT) {
+        // TODO(b/315815559): Do not fade and reset the icon if the hover exit will be followed
+        //   immediately by a DOWN event.
         pc.fade(PointerControllerInterface::Transition::IMMEDIATE);
         pc.updatePointerIcon(PointerIconStyle::TYPE_NOT_SPECIFIED);
     } else if (canUnfadeOnDisplay(args.displayId)) {
@@ -284,6 +342,7 @@ void PointerChoreographer::processDeviceReset(const NotifyDeviceResetArgs& args)
     std::scoped_lock _l(mLock);
     mTouchPointersByDevice.erase(args.deviceId);
     mStylusPointersByDevice.erase(args.deviceId);
+    mDrawingTabletPointersByDevice.erase(args.deviceId);
 }
 
 void PointerChoreographer::notifyPointerCaptureChanged(
@@ -318,6 +377,11 @@ void PointerChoreographer::dump(std::string& dump) {
     dump += INDENT "StylusPointerControllers:\n";
     for (const auto& [deviceId, stylusPointerController] : mStylusPointersByDevice) {
         std::string pointerControllerDump = addLinePrefix(stylusPointerController->dump(), INDENT);
+        dump += INDENT + std::to_string(deviceId) + " : " + pointerControllerDump;
+    }
+    dump += INDENT "DrawingTabletControllers:\n";
+    for (const auto& [deviceId, drawingTabletController] : mDrawingTabletPointersByDevice) {
+        std::string pointerControllerDump = addLinePrefix(drawingTabletController->dump(), INDENT);
         dump += INDENT + std::to_string(deviceId) + " : " + pointerControllerDump;
     }
     dump += "\n";
@@ -361,13 +425,13 @@ PointerChoreographer::PointerDisplayChange PointerChoreographer::updatePointerCo
     std::set<int32_t /*displayId*/> mouseDisplaysToKeep;
     std::set<DeviceId> touchDevicesToKeep;
     std::set<DeviceId> stylusDevicesToKeep;
+    std::set<DeviceId> drawingTabletDevicesToKeep;
 
     // Mark the displayIds or deviceIds of PointerControllers currently needed, and create
     // new PointerControllers if necessary.
     for (const auto& info : mInputDeviceInfos) {
         const uint32_t sources = info.getSources();
-        if (isFromSource(sources, AINPUT_SOURCE_MOUSE) ||
-            isFromSource(sources, AINPUT_SOURCE_MOUSE_RELATIVE)) {
+        if (isMouseOrTouchpad(sources)) {
             const int32_t displayId = getTargetMouseDisplayLocked(info.getAssociatedDisplayId());
             mouseDisplaysToKeep.insert(displayId);
             // For mice, show the cursor immediately when the device is first connected or
@@ -388,6 +452,10 @@ PointerChoreographer::PointerDisplayChange PointerChoreographer::updatePointerCo
             info.getAssociatedDisplayId() != ADISPLAY_ID_NONE) {
             stylusDevicesToKeep.insert(info.getId());
         }
+        if (isFromSource(sources, AINPUT_SOURCE_STYLUS | AINPUT_SOURCE_MOUSE) &&
+            info.getAssociatedDisplayId() != ADISPLAY_ID_NONE) {
+            drawingTabletDevicesToKeep.insert(info.getId());
+        }
     }
 
     // Remove PointerControllers no longer needed.
@@ -399,6 +467,9 @@ PointerChoreographer::PointerDisplayChange PointerChoreographer::updatePointerCo
     });
     std::erase_if(mStylusPointersByDevice, [&stylusDevicesToKeep](const auto& pair) {
         return stylusDevicesToKeep.find(pair.first) == stylusDevicesToKeep.end();
+    });
+    std::erase_if(mDrawingTabletPointersByDevice, [&drawingTabletDevicesToKeep](const auto& pair) {
+        return drawingTabletDevicesToKeep.find(pair.first) == drawingTabletDevicesToKeep.end();
     });
     std::erase_if(mMouseDevices, [&](DeviceId id) REQUIRES(mLock) {
         return std::find_if(mInputDeviceInfos.begin(), mInputDeviceInfos.end(),
@@ -458,6 +529,12 @@ void PointerChoreographer::setDisplayViewports(const std::vector<DisplayViewport
                 const InputDeviceInfo* info = findInputDeviceLocked(deviceId);
                 if (info && info->getAssociatedDisplayId() == displayId) {
                     stylusPointerController->setDisplayViewport(viewport);
+                }
+            }
+            for (const auto& [deviceId, drawingTabletController] : mDrawingTabletPointersByDevice) {
+                const InputDeviceInfo* info = findInputDeviceLocked(deviceId);
+                if (info && info->getAssociatedDisplayId() == displayId) {
+                    drawingTabletController->setDisplayViewport(viewport);
                 }
             }
         }
@@ -533,42 +610,35 @@ bool PointerChoreographer::setPointerIcon(
         return false;
     }
     const uint32_t sources = info->getSources();
-    const auto stylusPointerIt = mStylusPointersByDevice.find(deviceId);
 
-    if (isFromSource(sources, AINPUT_SOURCE_STYLUS) &&
-        stylusPointerIt != mStylusPointersByDevice.end()) {
-        if (std::holds_alternative<std::unique_ptr<SpriteIcon>>(icon)) {
-            if (std::get<std::unique_ptr<SpriteIcon>>(icon) == nullptr) {
-                LOG(FATAL) << "SpriteIcon should not be null";
-            }
-            stylusPointerIt->second->setCustomPointerIcon(
-                    *std::get<std::unique_ptr<SpriteIcon>>(icon));
-        } else {
-            stylusPointerIt->second->updatePointerIcon(std::get<PointerIconStyle>(icon));
+    if (isFromSource(sources, AINPUT_SOURCE_STYLUS | AINPUT_SOURCE_MOUSE)) {
+        auto it = mDrawingTabletPointersByDevice.find(deviceId);
+        if (it != mDrawingTabletPointersByDevice.end()) {
+            setIconForController(icon, *it->second);
+            return true;
         }
-    } else if (isFromSource(sources, AINPUT_SOURCE_MOUSE)) {
-        if (const auto mousePointerIt = mMousePointersByDisplay.find(displayId);
-            mousePointerIt != mMousePointersByDisplay.end()) {
-            if (std::holds_alternative<std::unique_ptr<SpriteIcon>>(icon)) {
-                if (std::get<std::unique_ptr<SpriteIcon>>(icon) == nullptr) {
-                    LOG(FATAL) << "SpriteIcon should not be null";
-                }
-                mousePointerIt->second->setCustomPointerIcon(
-                        *std::get<std::unique_ptr<SpriteIcon>>(icon));
-            } else {
-                mousePointerIt->second->updatePointerIcon(std::get<PointerIconStyle>(icon));
-            }
+    }
+    if (isFromSource(sources, AINPUT_SOURCE_STYLUS)) {
+        auto it = mStylusPointersByDevice.find(deviceId);
+        if (it != mStylusPointersByDevice.end()) {
+            setIconForController(icon, *it->second);
+            return true;
+        }
+    }
+    if (isFromSource(sources, AINPUT_SOURCE_MOUSE)) {
+        auto it = mMousePointersByDisplay.find(displayId);
+        if (it != mMousePointersByDisplay.end()) {
+            setIconForController(icon, *it->second);
+            return true;
         } else {
             LOG(WARNING) << "No mouse pointer controller found for display " << displayId
                          << ", device " << deviceId << ".";
             return false;
         }
-    } else {
-        LOG(WARNING) << "Cannot set pointer icon for display " << displayId << ", device "
-                     << deviceId << ".";
-        return false;
     }
-    return true;
+    LOG(WARNING) << "Cannot set pointer icon for display " << displayId << ", device " << deviceId
+                 << ".";
+    return false;
 }
 
 void PointerChoreographer::setPointerIconVisibility(int32_t displayId, bool visible) {

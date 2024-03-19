@@ -24,6 +24,7 @@
 
 #include <mutex>
 #include <optional>
+#include <set>
 #include <thread>
 
 #include "FrontEnd/DisplayInfo.h"
