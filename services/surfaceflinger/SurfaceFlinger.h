@@ -509,10 +509,7 @@ private:
         return lockedDumper(std::bind(dump, this, _1, _2, _3));
     }
 
-    template <typename F, std::enable_if_t<std::is_member_function_pointer_v<F>>* = nullptr>
-    Dumper mainThreadDumper(F dump) {
-        using namespace std::placeholders;
-        Dumper dumper = std::bind(dump, this, _3);
+    Dumper mainThreadDumperImpl(Dumper dumper) {
         return [this, dumper](const DumpArgs& args, bool asProto, std::string& result) -> void {
             mScheduler
                     ->schedule(
@@ -520,6 +517,18 @@ private:
                                     FTL_FAKE_GUARD(mStateLock) { dumper(args, asProto, result); })
                     .get();
         };
+    }
+
+    template <typename F, std::enable_if_t<std::is_member_function_pointer_v<F>>* = nullptr>
+    Dumper mainThreadDumper(F dump) {
+        using namespace std::placeholders;
+        return mainThreadDumperImpl(std::bind(dump, this, _3));
+    }
+
+    template <typename F, std::enable_if_t<std::is_member_function_pointer_v<F>>* = nullptr>
+    Dumper argsMainThreadDumper(F dump) {
+        using namespace std::placeholders;
+        return mainThreadDumperImpl(std::bind(dump, this, _1, _3));
     }
 
     // Maximum allowed number of display frames that can be set through backdoor
@@ -1113,9 +1122,9 @@ private:
     void dumpHwcLayersMinidumpLockedLegacy(std::string& result) const REQUIRES(mStateLock);
 
     void appendSfConfigString(std::string& result) const;
-    void listLayersLocked(std::string& result) const;
-    void dumpStatsLocked(const DumpArgs& args, std::string& result) const REQUIRES(mStateLock);
-    void clearStatsLocked(const DumpArgs& args, std::string& result);
+    void listLayers(std::string& result) const;
+    void dumpStats(const DumpArgs& args, std::string& result) const REQUIRES(mStateLock);
+    void clearStats(const DumpArgs& args, std::string& result);
     void dumpTimeStats(const DumpArgs& args, bool asProto, std::string& result) const;
     void dumpFrameTimeline(const DumpArgs& args, std::string& result) const;
     void logFrameStats(TimePoint now) REQUIRES(kMainThreadContext);

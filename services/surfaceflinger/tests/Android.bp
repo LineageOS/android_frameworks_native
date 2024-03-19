@@ -38,6 +38,7 @@ cc_test {
         "DereferenceSurfaceControl_test.cpp",
         "DisplayConfigs_test.cpp",
         "DisplayEventReceiver_test.cpp",
+        "Dumpsys_test.cpp",
         "EffectLayer_test.cpp",
         "HdrSdrRatioOverlay_test.cpp",
         "InvalidHandles_test.cpp",
