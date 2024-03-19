@@ -607,10 +607,10 @@ TEST_F(SchedulerTest, nextFrameIntervalTest) {
 
     EXPECT_EQ(Fps::fromPeriodNsecs(2000),
               scheduler.getNextFrameInterval(kMode->getPhysicalDisplayId(),
-                                             TimePoint::fromNs(4500)));
+                                             TimePoint::fromNs(5500)));
     EXPECT_EQ(Fps::fromPeriodNsecs(2000),
               scheduler.getNextFrameInterval(kMode->getPhysicalDisplayId(),
-                                             TimePoint::fromNs(6500)));
+                                             TimePoint::fromNs(7500)));
 }
 
 TEST_F(SchedulerTest, resyncAllToHardwareVsync) FTL_FAKE_GUARD(kMainThreadContext) {
