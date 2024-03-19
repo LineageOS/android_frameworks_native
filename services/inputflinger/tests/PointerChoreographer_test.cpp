@@ -46,6 +46,7 @@ constexpr int32_t DISPLAY_ID = 5;
 constexpr int32_t ANOTHER_DISPLAY_ID = 10;
 constexpr int32_t DISPLAY_WIDTH = 480;
 constexpr int32_t DISPLAY_HEIGHT = 800;
+constexpr auto DRAWING_TABLET_SOURCE = AINPUT_SOURCE_MOUSE | AINPUT_SOURCE_STYLUS;
 
 const auto MOUSE_POINTER = PointerBuilder(/*id=*/0, ToolType::MOUSE)
                                    .axis(AMOTION_EVENT_AXIS_RELATIVE_X, 10)
@@ -759,12 +760,28 @@ TEST_F(PointerChoreographerTest, WhenTouchDeviceIsResetClearsSpots) {
     assertPointerControllerRemoved(pc);
 }
 
-TEST_F(PointerChoreographerTest,
-       WhenStylusPointerIconEnabledAndDisabledDoesNotCreatePointerController) {
+using StylusFixtureParam =
+        std::tuple</*name*/ std::string_view, /*source*/ uint32_t, ControllerType>;
+
+class StylusTestFixture : public PointerChoreographerTest,
+                          public ::testing::WithParamInterface<StylusFixtureParam> {};
+
+INSTANTIATE_TEST_SUITE_P(PointerChoreographerTest, StylusTestFixture,
+                         ::testing::Values(std::make_tuple("DirectStylus", AINPUT_SOURCE_STYLUS,
+                                                           ControllerType::STYLUS),
+                                           std::make_tuple("DrawingTablet", DRAWING_TABLET_SOURCE,
+                                                           ControllerType::MOUSE)),
+                         [](const testing::TestParamInfo<StylusFixtureParam>& p) {
+                             return std::string{std::get<0>(p.param)};
+                         });
+
+TEST_P(StylusTestFixture, WhenStylusPointerIconEnabledAndDisabledDoesNotCreatePointerController) {
+    const auto& [name, source, controllerType] = GetParam();
+
     // Disable stylus pointer icon and add a stylus device.
     mChoreographer.setStylusPointerIconEnabled(false);
     mChoreographer.notifyInputDevicesChanged(
-            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_STYLUS, DISPLAY_ID)}});
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, source, DISPLAY_ID)}});
     assertPointerControllerNotCreated();
 
     // Enable stylus pointer icon. PointerController still should not be created.
@@ -772,25 +789,25 @@ TEST_F(PointerChoreographerTest,
     assertPointerControllerNotCreated();
 }
 
-TEST_F(PointerChoreographerTest, WhenStylusHoverEventOccursCreatesPointerController) {
+TEST_P(StylusTestFixture, WhenStylusHoverEventOccursCreatesPointerController) {
+    const auto& [name, source, controllerType] = GetParam();
+
     // Add a stylus device and enable stylus pointer icon.
     mChoreographer.notifyInputDevicesChanged(
-            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_STYLUS, DISPLAY_ID)}});
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, source, DISPLAY_ID)}});
     mChoreographer.setStylusPointerIconEnabled(true);
     assertPointerControllerNotCreated();
 
     // Emit hover event. Now PointerController should be created.
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
-                    .pointer(STYLUS_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(DISPLAY_ID)
-                    .build());
-    assertPointerControllerCreated(ControllerType::STYLUS);
+    mChoreographer.notifyMotion(MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, source)
+                                        .pointer(STYLUS_POINTER)
+                                        .deviceId(DEVICE_ID)
+                                        .displayId(DISPLAY_ID)
+                                        .build());
+    assertPointerControllerCreated(controllerType);
 }
 
-TEST_F(PointerChoreographerTest,
-       WhenStylusPointerIconDisabledAndHoverEventOccursDoesNotCreatePointerController) {
+TEST_F(PointerChoreographerTest, StylusHoverEventWhenStylusPointerIconDisabled) {
     // Add a stylus device and disable stylus pointer icon.
     mChoreographer.notifyInputDevicesChanged(
             {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_STYLUS, DISPLAY_ID)}});
@@ -807,25 +824,43 @@ TEST_F(PointerChoreographerTest,
     assertPointerControllerNotCreated();
 }
 
-TEST_F(PointerChoreographerTest, WhenStylusDeviceIsRemovedRemovesPointerController) {
-    // Make sure the PointerController is created.
+TEST_F(PointerChoreographerTest, DrawingTabletHoverEventWhenStylusPointerIconDisabled) {
+    // Add a drawing tablet and disable stylus pointer icon.
     mChoreographer.notifyInputDevicesChanged(
-            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_STYLUS, DISPLAY_ID)}});
-    mChoreographer.setStylusPointerIconEnabled(true);
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, DRAWING_TABLET_SOURCE, DISPLAY_ID)}});
+    mChoreographer.setStylusPointerIconEnabled(false);
+    assertPointerControllerNotCreated();
+
+    // Emit hover event. Drawing tablets are not affected by "stylus pointer icon" setting.
     mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, DRAWING_TABLET_SOURCE)
                     .pointer(STYLUS_POINTER)
                     .deviceId(DEVICE_ID)
                     .displayId(DISPLAY_ID)
                     .build());
-    auto pc = assertPointerControllerCreated(ControllerType::STYLUS);
+    assertPointerControllerCreated(ControllerType::MOUSE);
+}
+
+TEST_P(StylusTestFixture, WhenStylusDeviceIsRemovedRemovesPointerController) {
+    const auto& [name, source, controllerType] = GetParam();
+
+    // Make sure the PointerController is created.
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, source, DISPLAY_ID)}});
+    mChoreographer.setStylusPointerIconEnabled(true);
+    mChoreographer.notifyMotion(MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, source)
+                                        .pointer(STYLUS_POINTER)
+                                        .deviceId(DEVICE_ID)
+                                        .displayId(DISPLAY_ID)
+                                        .build());
+    auto pc = assertPointerControllerCreated(controllerType);
 
     // Remove the device.
     mChoreographer.notifyInputDevicesChanged({/*id=*/1, {}});
     assertPointerControllerRemoved(pc);
 }
 
-TEST_F(PointerChoreographerTest, WhenStylusPointerIconDisabledRemovesPointerController) {
+TEST_F(PointerChoreographerTest, StylusPointerIconDisabledRemovesPointerController) {
     // Make sure the PointerController is created.
     mChoreographer.notifyInputDevicesChanged(
             {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_STYLUS, DISPLAY_ID)}});
@@ -843,38 +878,59 @@ TEST_F(PointerChoreographerTest, WhenStylusPointerIconDisabledRemovesPointerCont
     assertPointerControllerRemoved(pc);
 }
 
-TEST_F(PointerChoreographerTest, SetsViewportForStylusPointerController) {
+TEST_F(PointerChoreographerTest,
+       StylusPointerIconDisabledDoesNotRemoveDrawingTabletPointerController) {
+    // Make sure the PointerController is created.
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, DRAWING_TABLET_SOURCE, DISPLAY_ID)}});
+    mChoreographer.setStylusPointerIconEnabled(true);
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, DRAWING_TABLET_SOURCE)
+                    .pointer(STYLUS_POINTER)
+                    .deviceId(DEVICE_ID)
+                    .displayId(DISPLAY_ID)
+                    .build());
+    auto pc = assertPointerControllerCreated(ControllerType::MOUSE);
+
+    // Disable stylus pointer icon. This should not affect drawing tablets.
+    mChoreographer.setStylusPointerIconEnabled(false);
+    assertPointerControllerNotRemoved(pc);
+}
+
+TEST_P(StylusTestFixture, SetsViewportForStylusPointerController) {
+    const auto& [name, source, controllerType] = GetParam();
+
     // Set viewport.
     mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID}));
 
     // Make sure the PointerController is created.
     mChoreographer.notifyInputDevicesChanged(
-            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_STYLUS, DISPLAY_ID)}});
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, source, DISPLAY_ID)}});
     mChoreographer.setStylusPointerIconEnabled(true);
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
-                    .pointer(STYLUS_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(DISPLAY_ID)
-                    .build());
-    auto pc = assertPointerControllerCreated(ControllerType::STYLUS);
+    mChoreographer.notifyMotion(MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, source)
+                                        .pointer(STYLUS_POINTER)
+                                        .deviceId(DEVICE_ID)
+                                        .displayId(DISPLAY_ID)
+                                        .build());
+    auto pc = assertPointerControllerCreated(controllerType);
 
     // Check that viewport is set for the PointerController.
     pc->assertViewportSet(DISPLAY_ID);
 }
 
-TEST_F(PointerChoreographerTest, WhenViewportIsSetLaterSetsViewportForStylusPointerController) {
+TEST_P(StylusTestFixture, WhenViewportIsSetLaterSetsViewportForStylusPointerController) {
+    const auto& [name, source, controllerType] = GetParam();
+
     // Make sure the PointerController is created.
     mChoreographer.notifyInputDevicesChanged(
-            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_STYLUS, DISPLAY_ID)}});
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, source, DISPLAY_ID)}});
     mChoreographer.setStylusPointerIconEnabled(true);
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
-                    .pointer(STYLUS_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(DISPLAY_ID)
-                    .build());
-    auto pc = assertPointerControllerCreated(ControllerType::STYLUS);
+    mChoreographer.notifyMotion(MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, source)
+                                        .pointer(STYLUS_POINTER)
+                                        .deviceId(DEVICE_ID)
+                                        .displayId(DISPLAY_ID)
+                                        .build());
+    auto pc = assertPointerControllerCreated(controllerType);
 
     // Check that viewport is unset.
     pc->assertViewportNotSet();
@@ -886,19 +942,19 @@ TEST_F(PointerChoreographerTest, WhenViewportIsSetLaterSetsViewportForStylusPoin
     pc->assertViewportSet(DISPLAY_ID);
 }
 
-TEST_F(PointerChoreographerTest,
-       WhenViewportDoesNotMatchDoesNotSetViewportForStylusPointerController) {
+TEST_P(StylusTestFixture, WhenViewportDoesNotMatchDoesNotSetViewportForStylusPointerController) {
+    const auto& [name, source, controllerType] = GetParam();
+
     // Make sure the PointerController is created.
     mChoreographer.notifyInputDevicesChanged(
-            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_STYLUS, DISPLAY_ID)}});
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, source, DISPLAY_ID)}});
     mChoreographer.setStylusPointerIconEnabled(true);
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
-                    .pointer(STYLUS_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(DISPLAY_ID)
-                    .build());
-    auto pc = assertPointerControllerCreated(ControllerType::STYLUS);
+    mChoreographer.notifyMotion(MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, source)
+                                        .pointer(STYLUS_POINTER)
+                                        .deviceId(DEVICE_ID)
+                                        .displayId(DISPLAY_ID)
+                                        .build());
+    auto pc = assertPointerControllerCreated(controllerType);
 
     // Check that viewport is unset.
     pc->assertViewportNotSet();
@@ -910,24 +966,25 @@ TEST_F(PointerChoreographerTest,
     pc->assertViewportNotSet();
 }
 
-TEST_F(PointerChoreographerTest, StylusHoverManipulatesPointer) {
+TEST_P(StylusTestFixture, StylusHoverManipulatesPointer) {
+    const auto& [name, source, controllerType] = GetParam();
+
     mChoreographer.setStylusPointerIconEnabled(true);
     mChoreographer.notifyInputDevicesChanged(
-            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_STYLUS, DISPLAY_ID)}});
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, source, DISPLAY_ID)}});
     mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID}));
 
     // Emit hover enter event. This is for creating PointerController.
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
-                    .pointer(STYLUS_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(DISPLAY_ID)
-                    .build());
-    auto pc = assertPointerControllerCreated(ControllerType::STYLUS);
+    mChoreographer.notifyMotion(MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, source)
+                                        .pointer(STYLUS_POINTER)
+                                        .deviceId(DEVICE_ID)
+                                        .displayId(DISPLAY_ID)
+                                        .build());
+    auto pc = assertPointerControllerCreated(controllerType);
 
     // Emit hover move event. After bounds are set, PointerController will update the position.
     mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_STYLUS)
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, source)
                     .pointer(PointerBuilder(/*id=*/0, ToolType::STYLUS).x(150).y(250))
                     .deviceId(DEVICE_ID)
                     .displayId(DISPLAY_ID)
@@ -937,7 +994,7 @@ TEST_F(PointerChoreographerTest, StylusHoverManipulatesPointer) {
 
     // Emit hover exit event.
     mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_EXIT, AINPUT_SOURCE_STYLUS)
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_EXIT, source)
                     .pointer(PointerBuilder(/*id=*/0, ToolType::STYLUS).x(150).y(250))
                     .deviceId(DEVICE_ID)
                     .displayId(DISPLAY_ID)
@@ -946,38 +1003,38 @@ TEST_F(PointerChoreographerTest, StylusHoverManipulatesPointer) {
     ASSERT_FALSE(pc->isPointerShown());
 }
 
-TEST_F(PointerChoreographerTest, StylusHoverManipulatesPointerForTwoDisplays) {
+TEST_P(StylusTestFixture, StylusHoverManipulatesPointerForTwoDisplays) {
+    const auto& [name, source, controllerType] = GetParam();
+
     mChoreographer.setStylusPointerIconEnabled(true);
     // Add two stylus devices associated to different displays.
     mChoreographer.notifyInputDevicesChanged(
             {/*id=*/0,
-             {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_STYLUS, DISPLAY_ID),
-              generateTestDeviceInfo(SECOND_DEVICE_ID, AINPUT_SOURCE_STYLUS, ANOTHER_DISPLAY_ID)}});
+             {generateTestDeviceInfo(DEVICE_ID, source, DISPLAY_ID),
+              generateTestDeviceInfo(SECOND_DEVICE_ID, source, ANOTHER_DISPLAY_ID)}});
     mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID, ANOTHER_DISPLAY_ID}));
 
     // Emit hover event with first device. This is for creating PointerController.
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
-                    .pointer(STYLUS_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(DISPLAY_ID)
-                    .build());
-    auto firstDisplayPc = assertPointerControllerCreated(ControllerType::STYLUS);
+    mChoreographer.notifyMotion(MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, source)
+                                        .pointer(STYLUS_POINTER)
+                                        .deviceId(DEVICE_ID)
+                                        .displayId(DISPLAY_ID)
+                                        .build());
+    auto firstDisplayPc = assertPointerControllerCreated(controllerType);
 
     // Emit hover event with second device. This is for creating PointerController.
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
-                    .pointer(STYLUS_POINTER)
-                    .deviceId(SECOND_DEVICE_ID)
-                    .displayId(ANOTHER_DISPLAY_ID)
-                    .build());
+    mChoreographer.notifyMotion(MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, source)
+                                        .pointer(STYLUS_POINTER)
+                                        .deviceId(SECOND_DEVICE_ID)
+                                        .displayId(ANOTHER_DISPLAY_ID)
+                                        .build());
 
     // There should be another PointerController created.
-    auto secondDisplayPc = assertPointerControllerCreated(ControllerType::STYLUS);
+    auto secondDisplayPc = assertPointerControllerCreated(controllerType);
 
     // Emit hover event with first device.
     mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_STYLUS)
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, source)
                     .pointer(PointerBuilder(/*id=*/0, ToolType::STYLUS).x(150).y(250))
                     .deviceId(DEVICE_ID)
                     .displayId(DISPLAY_ID)
@@ -989,7 +1046,7 @@ TEST_F(PointerChoreographerTest, StylusHoverManipulatesPointerForTwoDisplays) {
 
     // Emit hover event with second device.
     mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_STYLUS)
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, source)
                     .pointer(PointerBuilder(/*id=*/0, ToolType::STYLUS).x(250).y(350))
                     .deviceId(SECOND_DEVICE_ID)
                     .displayId(ANOTHER_DISPLAY_ID)
@@ -1004,19 +1061,20 @@ TEST_F(PointerChoreographerTest, StylusHoverManipulatesPointerForTwoDisplays) {
     ASSERT_TRUE(firstDisplayPc->isPointerShown());
 }
 
-TEST_F(PointerChoreographerTest, WhenStylusDeviceIsResetRemovesPointer) {
+TEST_P(StylusTestFixture, WhenStylusDeviceIsResetRemovesPointer) {
+    const auto& [name, source, controllerType] = GetParam();
+
     // Make sure the PointerController is created and there is a pointer.
     mChoreographer.notifyInputDevicesChanged(
-            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_STYLUS, DISPLAY_ID)}});
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, source, DISPLAY_ID)}});
     mChoreographer.setStylusPointerIconEnabled(true);
     mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID}));
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
-                    .pointer(STYLUS_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(DISPLAY_ID)
-                    .build());
-    auto pc = assertPointerControllerCreated(ControllerType::STYLUS);
+    mChoreographer.notifyMotion(MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, source)
+                                        .pointer(STYLUS_POINTER)
+                                        .deviceId(DEVICE_ID)
+                                        .displayId(DISPLAY_ID)
+                                        .build());
+    auto pc = assertPointerControllerCreated(controllerType);
     ASSERT_TRUE(pc->isPointerShown());
 
     // Reset the device and see the pointer controller was removed.
@@ -1460,19 +1518,20 @@ TEST_F(PointerChoreographerTest, SetsPointerIconForMouseOnTwoDisplays) {
     firstMousePc->assertPointerIconNotSet();
 }
 
-TEST_F(PointerChoreographerTest, SetsPointerIconForStylus) {
+TEST_P(StylusTestFixture, SetsPointerIconForStylus) {
+    const auto& [name, source, controllerType] = GetParam();
+
     // Make sure there is a PointerController.
     mChoreographer.notifyInputDevicesChanged(
-            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_STYLUS, DISPLAY_ID)}});
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, source, DISPLAY_ID)}});
     mChoreographer.setStylusPointerIconEnabled(true);
     mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID}));
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
-                    .pointer(STYLUS_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(DISPLAY_ID)
-                    .build());
-    auto pc = assertPointerControllerCreated(ControllerType::STYLUS);
+    mChoreographer.notifyMotion(MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, source)
+                                        .pointer(STYLUS_POINTER)
+                                        .deviceId(DEVICE_ID)
+                                        .displayId(DISPLAY_ID)
+                                        .build());
+    auto pc = assertPointerControllerCreated(controllerType);
     pc->assertPointerIconNotSet();
 
     // Set pointer icon for the device.
@@ -1485,28 +1544,28 @@ TEST_F(PointerChoreographerTest, SetsPointerIconForStylus) {
     pc->assertPointerIconNotSet();
 
     // The stylus stops hovering. This should cause the icon to be reset.
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_EXIT, AINPUT_SOURCE_STYLUS)
-                    .pointer(STYLUS_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(DISPLAY_ID)
-                    .build());
+    mChoreographer.notifyMotion(MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_EXIT, source)
+                                        .pointer(STYLUS_POINTER)
+                                        .deviceId(DEVICE_ID)
+                                        .displayId(DISPLAY_ID)
+                                        .build());
     pc->assertPointerIconSet(PointerIconStyle::TYPE_NOT_SPECIFIED);
 }
 
-TEST_F(PointerChoreographerTest, SetsCustomPointerIconForStylus) {
+TEST_P(StylusTestFixture, SetsCustomPointerIconForStylus) {
+    const auto& [name, source, controllerType] = GetParam();
+
     // Make sure there is a PointerController.
     mChoreographer.notifyInputDevicesChanged(
-            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_STYLUS, DISPLAY_ID)}});
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, source, DISPLAY_ID)}});
     mChoreographer.setStylusPointerIconEnabled(true);
     mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID}));
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
-                    .pointer(STYLUS_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(DISPLAY_ID)
-                    .build());
-    auto pc = assertPointerControllerCreated(ControllerType::STYLUS);
+    mChoreographer.notifyMotion(MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, source)
+                                        .pointer(STYLUS_POINTER)
+                                        .deviceId(DEVICE_ID)
+                                        .displayId(DISPLAY_ID)
+                                        .build());
+    auto pc = assertPointerControllerCreated(controllerType);
     pc->assertCustomPointerIconNotSet();
 
     // Set custom pointer icon for the device.
@@ -1522,28 +1581,28 @@ TEST_F(PointerChoreographerTest, SetsCustomPointerIconForStylus) {
     pc->assertCustomPointerIconNotSet();
 }
 
-TEST_F(PointerChoreographerTest, SetsPointerIconForTwoStyluses) {
+TEST_P(StylusTestFixture, SetsPointerIconForTwoStyluses) {
+    const auto& [name, source, controllerType] = GetParam();
+
     // Make sure there are two StylusPointerControllers. They can be on a same display.
     mChoreographer.setStylusPointerIconEnabled(true);
     mChoreographer.notifyInputDevicesChanged(
             {/*id=*/0,
-             {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_STYLUS, DISPLAY_ID),
-              generateTestDeviceInfo(SECOND_DEVICE_ID, AINPUT_SOURCE_STYLUS, DISPLAY_ID)}});
+             {generateTestDeviceInfo(DEVICE_ID, source, DISPLAY_ID),
+              generateTestDeviceInfo(SECOND_DEVICE_ID, source, DISPLAY_ID)}});
     mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID}));
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
-                    .pointer(STYLUS_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(DISPLAY_ID)
-                    .build());
-    auto firstStylusPc = assertPointerControllerCreated(ControllerType::STYLUS);
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
-                    .pointer(STYLUS_POINTER)
-                    .deviceId(SECOND_DEVICE_ID)
-                    .displayId(DISPLAY_ID)
-                    .build());
-    auto secondStylusPc = assertPointerControllerCreated(ControllerType::STYLUS);
+    mChoreographer.notifyMotion(MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, source)
+                                        .pointer(STYLUS_POINTER)
+                                        .deviceId(DEVICE_ID)
+                                        .displayId(DISPLAY_ID)
+                                        .build());
+    auto firstStylusPc = assertPointerControllerCreated(controllerType);
+    mChoreographer.notifyMotion(MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, source)
+                                        .pointer(STYLUS_POINTER)
+                                        .deviceId(SECOND_DEVICE_ID)
+                                        .displayId(DISPLAY_ID)
+                                        .build());
+    auto secondStylusPc = assertPointerControllerCreated(controllerType);
 
     // Set pointer icon for one stylus.
     ASSERT_TRUE(mChoreographer.setPointerIcon(PointerIconStyle::TYPE_TEXT, DISPLAY_ID, DEVICE_ID));
@@ -1557,14 +1616,16 @@ TEST_F(PointerChoreographerTest, SetsPointerIconForTwoStyluses) {
     firstStylusPc->assertPointerIconNotSet();
 }
 
-TEST_F(PointerChoreographerTest, SetsPointerIconForMouseAndStylus) {
+TEST_P(StylusTestFixture, SetsPointerIconForMouseAndStylus) {
+    const auto& [name, source, controllerType] = GetParam();
+
     // Make sure there are PointerControllers for a mouse and a stylus.
     mChoreographer.setStylusPointerIconEnabled(true);
     mChoreographer.setDefaultMouseDisplayId(DISPLAY_ID);
     mChoreographer.notifyInputDevicesChanged(
             {/*id=*/0,
              {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE),
-              generateTestDeviceInfo(SECOND_DEVICE_ID, AINPUT_SOURCE_STYLUS, DISPLAY_ID)}});
+              generateTestDeviceInfo(SECOND_DEVICE_ID, source, DISPLAY_ID)}});
     mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID}));
     mChoreographer.notifyMotion(
             MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_MOVE, AINPUT_SOURCE_MOUSE)
@@ -1573,13 +1634,12 @@ TEST_F(PointerChoreographerTest, SetsPointerIconForMouseAndStylus) {
                     .displayId(ADISPLAY_ID_NONE)
                     .build());
     auto mousePc = assertPointerControllerCreated(ControllerType::MOUSE);
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
-                    .pointer(STYLUS_POINTER)
-                    .deviceId(SECOND_DEVICE_ID)
-                    .displayId(DISPLAY_ID)
-                    .build());
-    auto stylusPc = assertPointerControllerCreated(ControllerType::STYLUS);
+    mChoreographer.notifyMotion(MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, source)
+                                        .pointer(STYLUS_POINTER)
+                                        .deviceId(SECOND_DEVICE_ID)
+                                        .displayId(DISPLAY_ID)
+                                        .build());
+    auto stylusPc = assertPointerControllerCreated(controllerType);
 
     // Set pointer icon for the mouse.
     ASSERT_TRUE(mChoreographer.setPointerIcon(PointerIconStyle::TYPE_TEXT, DISPLAY_ID, DEVICE_ID));
@@ -1688,7 +1748,9 @@ TEST_F(PointerChoreographerTest, SetPointerIconVisibilityHidesPointerForTouchpad
     ASSERT_FALSE(touchpadPc->isPointerShown());
 }
 
-TEST_F(PointerChoreographerTest, SetPointerIconVisibilityHidesPointerForStylus) {
+TEST_P(StylusTestFixture, SetPointerIconVisibilityHidesPointerForStylus) {
+    const auto& [name, source, controllerType] = GetParam();
+
     mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID}));
     mChoreographer.setStylusPointerIconEnabled(true);
 
@@ -1696,15 +1758,14 @@ TEST_F(PointerChoreographerTest, SetPointerIconVisibilityHidesPointerForStylus) 
     mChoreographer.setPointerIconVisibility(DISPLAY_ID, false);
 
     mChoreographer.notifyInputDevicesChanged(
-            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_STYLUS, DISPLAY_ID)}});
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
-                    .pointer(STYLUS_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(DISPLAY_ID)
-                    .build());
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, source, DISPLAY_ID)}});
+    mChoreographer.notifyMotion(MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, source)
+                                        .pointer(STYLUS_POINTER)
+                                        .deviceId(DEVICE_ID)
+                                        .displayId(DISPLAY_ID)
+                                        .build());
     ASSERT_TRUE(mChoreographer.setPointerIcon(PointerIconStyle::TYPE_TEXT, DISPLAY_ID, DEVICE_ID));
-    auto pc = assertPointerControllerCreated(ControllerType::STYLUS);
+    auto pc = assertPointerControllerCreated(controllerType);
     pc->assertPointerIconSet(PointerIconStyle::TYPE_TEXT);
 
     // The pointer should not be visible.
