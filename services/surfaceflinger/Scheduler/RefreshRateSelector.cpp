@@ -474,27 +474,47 @@ float RefreshRateSelector::calculateLayerScoreLocked(const LayerRequirement& lay
 }
 
 auto RefreshRateSelector::getRankedFrameRates(const std::vector<LayerRequirement>& layers,
-                                              GlobalSignals signals) const -> RankedFrameRates {
+                                              GlobalSignals signals, Fps pacesetterFps) const
+        -> RankedFrameRates {
+    GetRankedFrameRatesCache cache{layers, signals, pacesetterFps};
+
     std::lock_guard lock(mLock);
 
-    if (mGetRankedFrameRatesCache &&
-        mGetRankedFrameRatesCache->arguments == std::make_pair(layers, signals)) {
+    if (mGetRankedFrameRatesCache && mGetRankedFrameRatesCache->matches(cache)) {
         return mGetRankedFrameRatesCache->result;
     }
 
-    const auto result = getRankedFrameRatesLocked(layers, signals);
-    mGetRankedFrameRatesCache = GetRankedFrameRatesCache{{layers, signals}, result};
-    return result;
+    cache.result = getRankedFrameRatesLocked(layers, signals, pacesetterFps);
+    mGetRankedFrameRatesCache = std::move(cache);
+    return mGetRankedFrameRatesCache->result;
 }
 
 auto RefreshRateSelector::getRankedFrameRatesLocked(const std::vector<LayerRequirement>& layers,
-                                                    GlobalSignals signals) const
+                                                    GlobalSignals signals, Fps pacesetterFps) const
         -> RankedFrameRates {
     using namespace fps_approx_ops;
     ATRACE_CALL();
     ALOGV("%s: %zu layers", __func__, layers.size());
 
     const auto& activeMode = *getActiveModeLocked().modePtr;
+
+    if (pacesetterFps.isValid()) {
+        ALOGV("Follower display");
+
+        const auto ranking = rankFrameRates(activeMode.getGroup(), RefreshRateOrder::Descending,
+                                            std::nullopt, [&](FrameRateMode mode) {
+                                                return mode.modePtr->getPeakFps() == pacesetterFps;
+                                            });
+
+        if (!ranking.empty()) {
+            ATRACE_FORMAT_INSTANT("%s (Follower display)",
+                                  to_string(ranking.front().frameRateMode.fps).c_str());
+
+            return {ranking, kNoSignals, pacesetterFps};
+        }
+
+        ALOGW("Follower display cannot follow the pacesetter");
+    }
 
     // Keep the display at max frame rate for the duration of powering on the display.
     if (signals.powerOnImminent) {
