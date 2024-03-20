@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <memory>
 #include <mutex>
@@ -28,6 +29,7 @@
 #include <android/sysprop/InputProperties.sysprop.h>
 #include <input/Input.h>
 #include <input/MotionPredictorMetricsManager.h>
+#include <input/RingBuffer.h>
 #include <input/TfLiteMotionPredictor.h>
 #include <utils/Timers.h> // for nsecs_t
 
@@ -36,6 +38,31 @@ namespace android {
 static inline bool isMotionPredictionEnabled() {
     return sysprop::InputProperties::enable_motion_prediction().value_or(true);
 }
+
+// Tracker to calculate jerk from motion position samples.
+class JerkTracker {
+public:
+    // Initialize the tracker. If normalizedDt is true, assume that each sample pushed has dt=1.
+    JerkTracker(bool normalizedDt);
+
+    // Add a position to the tracker and update derivative estimates.
+    void pushSample(int64_t timestamp, float xPos, float yPos);
+
+    // Reset JerkTracker for a new motion input.
+    void reset();
+
+    // Return last jerk calculation, if enough samples have been collected.
+    // Jerk is defined as the 3rd derivative of position (change in
+    // acceleration) and has the units of d^3p/dt^3.
+    std::optional<float> jerkMagnitude() const;
+
+private:
+    const bool mNormalizedDt;
+
+    RingBuffer<int64_t> mTimestamps{4};
+    std::array<float, 4> mXDerivatives{}; // [x, x', x'', x''']
+    std::array<float, 4> mYDerivatives{}; // [y, y', y'', y''']
+};
 
 /**
  * Given a set of MotionEvents for the current gesture, predict the motion. The returned MotionEvent
@@ -97,6 +124,11 @@ private:
 
     std::unique_ptr<TfLiteMotionPredictorBuffers> mBuffers;
     std::optional<MotionEvent> mLastEvent;
+    // mJerkTracker assumes normalized dt = 1 between recorded samples because
+    // the underlying mModel input also assumes fixed-interval samples.
+    // Normalized dt as 1 is also used to correspond with the similar Jank
+    // implementation from the JetPack MotionPredictor implementation.
+    JerkTracker mJerkTracker{true};
 
     std::optional<MotionPredictorMetricsManager> mMetricsManager;
 
