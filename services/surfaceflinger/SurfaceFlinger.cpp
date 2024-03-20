@@ -578,11 +578,11 @@ void SurfaceFlinger::run() {
 
 sp<IBinder> SurfaceFlinger::createDisplay(const String8& displayName, bool secure,
                                           float requestedRefreshRate) {
-    // onTransact already checks for some permissions, but adding an additional check here.
-    // This is to ensure that only system and graphics can request to create a secure
+    // SurfaceComposerAIDL checks for some permissions, but adding an additional check here.
+    // This is to ensure that only root, system, and graphics can request to create a secure
     // display. Secure displays can show secure content so we add an additional restriction on it.
     const int uid = IPCThreadState::self()->getCallingUid();
-    if (secure && uid != AID_GRAPHICS && uid != AID_SYSTEM) {
+    if (secure && uid != AID_ROOT && uid != AID_GRAPHICS && uid != AID_SYSTEM) {
         ALOGE("Only privileged processes can create a secure display");
         return nullptr;
     }

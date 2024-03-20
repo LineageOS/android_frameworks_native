@@ -241,7 +241,7 @@ TEST_F(CredentialsTest, CreateDisplayTest) {
     // Check with root.
     {
         UIDFaker f(AID_ROOT);
-        ASSERT_FALSE(condition());
+        ASSERT_TRUE(condition());
     }
 
     // Check as a Graphics user.
