@@ -90,7 +90,6 @@ layer_state_t::layer_state_t()
         fixedTransformHint(ui::Transform::ROT_INVALID),
         autoRefresh(false),
         isTrustedOverlay(false),
-        borderEnabled(false),
         bufferCrop(Rect::INVALID_RECT),
         destinationFrame(Rect::INVALID_RECT),
         dropInputMode(gui::DropInputMode::NONE) {
@@ -122,12 +121,6 @@ status_t layer_state_t::write(Parcel& output) const
     SAFE_PARCEL(output.write, transparentRegion);
     SAFE_PARCEL(output.writeUint32, bufferTransform);
     SAFE_PARCEL(output.writeBool, transformToDisplayInverse);
-    SAFE_PARCEL(output.writeBool, borderEnabled);
-    SAFE_PARCEL(output.writeFloat, borderWidth);
-    SAFE_PARCEL(output.writeFloat, borderColor.r);
-    SAFE_PARCEL(output.writeFloat, borderColor.g);
-    SAFE_PARCEL(output.writeFloat, borderColor.b);
-    SAFE_PARCEL(output.writeFloat, borderColor.a);
     SAFE_PARCEL(output.writeUint32, static_cast<uint32_t>(dataspace));
     SAFE_PARCEL(output.write, hdrMetadata);
     SAFE_PARCEL(output.write, surfaceDamageRegion);
@@ -238,17 +231,6 @@ status_t layer_state_t::read(const Parcel& input)
     SAFE_PARCEL(input.read, transparentRegion);
     SAFE_PARCEL(input.readUint32, &bufferTransform);
     SAFE_PARCEL(input.readBool, &transformToDisplayInverse);
-    SAFE_PARCEL(input.readBool, &borderEnabled);
-    SAFE_PARCEL(input.readFloat, &tmpFloat);
-    borderWidth = tmpFloat;
-    SAFE_PARCEL(input.readFloat, &tmpFloat);
-    borderColor.r = tmpFloat;
-    SAFE_PARCEL(input.readFloat, &tmpFloat);
-    borderColor.g = tmpFloat;
-    SAFE_PARCEL(input.readFloat, &tmpFloat);
-    borderColor.b = tmpFloat;
-    SAFE_PARCEL(input.readFloat, &tmpFloat);
-    borderColor.a = tmpFloat;
 
     uint32_t tmpUint32 = 0;
     SAFE_PARCEL(input.readUint32, &tmpUint32);
@@ -659,12 +641,6 @@ void layer_state_t::merge(const layer_state_t& other) {
         what |= eShadowRadiusChanged;
         shadowRadius = other.shadowRadius;
     }
-    if (other.what & eRenderBorderChanged) {
-        what |= eRenderBorderChanged;
-        borderEnabled = other.borderEnabled;
-        borderWidth = other.borderWidth;
-        borderColor = other.borderColor;
-    }
     if (other.what & eDefaultFrameRateCompatibilityChanged) {
         what |= eDefaultFrameRateCompatibilityChanged;
         defaultFrameRateCompatibility = other.defaultFrameRateCompatibility;
@@ -794,7 +770,6 @@ uint64_t layer_state_t::diff(const layer_state_t& other) const {
     CHECK_DIFF2(diff, eBackgroundColorChanged, other, bgColor, bgColorDataspace);
     if (other.what & eMetadataChanged) diff |= eMetadataChanged;
     CHECK_DIFF(diff, eShadowRadiusChanged, other, shadowRadius);
-    CHECK_DIFF3(diff, eRenderBorderChanged, other, borderEnabled, borderWidth, borderColor);
     CHECK_DIFF(diff, eDefaultFrameRateCompatibilityChanged, other, defaultFrameRateCompatibility);
     CHECK_DIFF(diff, eFrameRateSelectionPriority, other, frameRateSelectionPriority);
     CHECK_DIFF3(diff, eFrameRateChanged, other, frameRate, frameRateCompatibility,

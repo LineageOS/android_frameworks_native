@@ -42,7 +42,6 @@ cc_test {
         "EffectLayer_test.cpp",
         "HdrSdrRatioOverlay_test.cpp",
         "InvalidHandles_test.cpp",
-        "LayerBorder_test.cpp",
         "LayerCallback_test.cpp",
         "LayerRenderTypeTransaction_test.cpp",
         "LayerState_test.cpp",

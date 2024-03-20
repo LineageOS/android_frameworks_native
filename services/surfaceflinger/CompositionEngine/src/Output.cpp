@@ -818,44 +818,6 @@ void Output::updateCompositionState(const compositionengine::CompositionRefreshA
             forceClientComposition = false;
         }
     }
-
-    updateCompositionStateForBorder(refreshArgs);
-}
-
-void Output::updateCompositionStateForBorder(
-        const compositionengine::CompositionRefreshArgs& refreshArgs) {
-    std::unordered_map<int32_t, const Region*> layerVisibleRegionMap;
-    // Store a map of layerId to their computed visible region.
-    for (auto* layer : getOutputLayersOrderedByZ()) {
-        int layerId = (layer->getLayerFE()).getSequence();
-        layerVisibleRegionMap[layerId] = &((layer->getState()).visibleRegion);
-    }
-    OutputCompositionState& outputCompositionState = editState();
-    outputCompositionState.borderInfoList.clear();
-    bool clientComposeTopLayer = false;
-    for (const auto& borderInfo : refreshArgs.borderInfoList) {
-        renderengine::BorderRenderInfo info;
-        for (const auto& id : borderInfo.layerIds) {
-            info.combinedRegion.orSelf(*(layerVisibleRegionMap[id]));
-        }
-
-        if (!info.combinedRegion.isEmpty()) {
-            info.width = borderInfo.width;
-            info.color = borderInfo.color;
-            outputCompositionState.borderInfoList.emplace_back(std::move(info));
-            clientComposeTopLayer = true;
-        }
-    }
-
-    // In this situation we must client compose the top layer instead of using hwc
-    // because we want to draw the border above all else.
-    // This could potentially cause a bit of a performance regression if the top
-    // layer would have been rendered using hwc originally.
-    // TODO(b/227656283): Measure system's performance before enabling the border feature
-    if (clientComposeTopLayer) {
-        auto topLayer = getOutputLayerOrderedByZByIndex(getOutputLayerCount() - 1);
-        (topLayer->editState()).forceClientComposition = true;
-    }
 }
 
 void Output::planComposition() {
@@ -1443,13 +1405,6 @@ renderengine::DisplaySettings Output::generateClientCompositionDisplaySettings(
 
     // Compute the global color transform matrix.
     clientCompositionDisplay.colorTransform = outputState.colorTransformMatrix;
-    for (auto& info : outputState.borderInfoList) {
-        renderengine::BorderRenderInfo borderInfo;
-        borderInfo.width = info.width;
-        borderInfo.color = info.color;
-        borderInfo.combinedRegion = info.combinedRegion;
-        clientCompositionDisplay.borderInfoList.emplace_back(std::move(borderInfo));
-    }
     clientCompositionDisplay.deviceHandlesColorTransform =
             outputState.usesDeviceComposition || getSkipColorTransform();
     return clientCompositionDisplay;

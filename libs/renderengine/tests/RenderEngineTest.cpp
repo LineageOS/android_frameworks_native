@@ -2490,51 +2490,6 @@ TEST_P(RenderEngineTest, testDisableBlendingBuffer) {
     expectBufferColor(rect, 0, 128, 0, 128);
 }
 
-TEST_P(RenderEngineTest, testBorder) {
-    if (!GetParam()->apiSupported()) {
-        GTEST_SKIP();
-    }
-
-    initializeRenderEngine();
-
-    const ui::Dataspace dataspace = ui::Dataspace::V0_SRGB;
-
-    const auto displayRect = Rect(1080, 2280);
-    renderengine::DisplaySettings display{
-            .physicalDisplay = displayRect,
-            .clip = displayRect,
-            .outputDataspace = dataspace,
-    };
-    display.borderInfoList.clear();
-    renderengine::BorderRenderInfo info;
-    info.combinedRegion = Region(Rect(99, 99, 199, 199));
-    info.width = 20.0f;
-    info.color = half4{1.0f, 128.0f / 255.0f, 0.0f, 1.0f};
-    display.borderInfoList.emplace_back(info);
-
-    const auto greenBuffer = allocateAndFillSourceBuffer(1, 1, ubyte4(0, 255, 0, 255));
-    const renderengine::LayerSettings greenLayer{
-            .geometry.boundaries = FloatRect(0.f, 0.f, 1.f, 1.f),
-            .source =
-                    renderengine::PixelSource{
-                            .buffer =
-                                    renderengine::Buffer{
-                                            .buffer = greenBuffer,
-                                            .usePremultipliedAlpha = true,
-                                    },
-                    },
-            .alpha = 1.0f,
-            .sourceDataspace = dataspace,
-            .whitePointNits = 200.f,
-    };
-
-    std::vector<renderengine::LayerSettings> layers;
-    layers.emplace_back(greenLayer);
-    invokeDraw(display, layers);
-
-    expectBufferColor(Rect(99, 99, 101, 101), 255, 128, 0, 255, 1);
-}
-
 TEST_P(RenderEngineTest, testDimming) {
     if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
