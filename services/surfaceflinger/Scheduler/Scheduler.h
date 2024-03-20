@@ -402,6 +402,11 @@ private:
         DisplayModeChoice(FrameRateMode mode, GlobalSignals consideredSignals)
               : mode(std::move(mode)), consideredSignals(consideredSignals) {}
 
+        static DisplayModeChoice from(RefreshRateSelector::RankedFrameRates rankedFrameRates) {
+            return {rankedFrameRates.ranking.front().frameRateMode,
+                    rankedFrameRates.consideredSignals};
+        }
+
         FrameRateMode mode;
         GlobalSignals consideredSignals;
 

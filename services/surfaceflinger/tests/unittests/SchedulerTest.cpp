@@ -356,7 +356,7 @@ TEST_F(SchedulerTest, chooseDisplayModesMultipleDisplays) {
                                                   globalSignals)(kDisplayId2,
                                                                  FrameRateMode{60_Hz,
                                                                                kDisplay2Mode60},
-                                                                 globalSignals);
+                                                                 GlobalSignals{});
 
         std::vector<RefreshRateSelector::LayerRequirement> layers = {{.weight = 1.f},
                                                                      {.weight = 1.f}};
@@ -375,7 +375,7 @@ TEST_F(SchedulerTest, chooseDisplayModesMultipleDisplays) {
                                                   globalSignals)(kDisplayId2,
                                                                  FrameRateMode{120_Hz,
                                                                                kDisplay2Mode120},
-                                                                 globalSignals);
+                                                                 GlobalSignals{});
 
         mScheduler->setTouchStateAndIdleTimerPolicy(globalSignals);
 
@@ -394,7 +394,7 @@ TEST_F(SchedulerTest, chooseDisplayModesMultipleDisplays) {
                                                   globalSignals)(kDisplayId2,
                                                                  FrameRateMode{120_Hz,
                                                                                kDisplay2Mode120},
-                                                                 globalSignals);
+                                                                 GlobalSignals{});
 
         const auto actualChoices = mScheduler->chooseDisplayModes();
         EXPECT_EQ(expectedChoices, actualChoices);
@@ -416,10 +416,10 @@ TEST_F(SchedulerTest, chooseDisplayModesMultipleDisplays) {
                 DisplayModeChoice>(kDisplayId1, FrameRateMode{120_Hz, kDisplay1Mode120},
                                    globalSignals)(kDisplayId2,
                                                   FrameRateMode{120_Hz, kDisplay2Mode120},
-                                                  globalSignals)(kDisplayId3,
-                                                                 FrameRateMode{60_Hz,
-                                                                               kDisplay3Mode60},
-                                                                 globalSignals);
+                                                  GlobalSignals{})(kDisplayId3,
+                                                                   FrameRateMode{60_Hz,
+                                                                                 kDisplay3Mode60},
+                                                                   GlobalSignals{});
 
         const auto actualChoices = mScheduler->chooseDisplayModes();
         EXPECT_EQ(expectedChoices, actualChoices);
@@ -434,12 +434,12 @@ TEST_F(SchedulerTest, chooseDisplayModesMultipleDisplays) {
         expectedChoices = ftl::init::map<
                 const PhysicalDisplayId&,
                 DisplayModeChoice>(kDisplayId1, FrameRateMode{60_Hz, kDisplay1Mode60},
-                                   globalSignals)(kDisplayId2,
-                                                  FrameRateMode{60_Hz, kDisplay2Mode60},
-                                                  globalSignals)(kDisplayId3,
-                                                                 FrameRateMode{60_Hz,
-                                                                               kDisplay3Mode60},
-                                                                 globalSignals);
+                                   GlobalSignals{})(kDisplayId2,
+                                                    FrameRateMode{60_Hz, kDisplay2Mode60},
+                                                    GlobalSignals{})(kDisplayId3,
+                                                                     FrameRateMode{60_Hz,
+                                                                                   kDisplay3Mode60},
+                                                                     globalSignals);
 
         const auto actualChoices = mScheduler->chooseDisplayModes();
         EXPECT_EQ(expectedChoices, actualChoices);
