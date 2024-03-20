@@ -128,3 +128,10 @@ flag {
   description: "Enable fling scrolling to be stopped by putting a finger on the touchpad again"
   bug: "281106755"
 }
+
+flag {
+  name: "enable_jerk_prediction_pruning"
+  namespace: "input"
+  description: "Enable prediction pruning based on jerk thresholds."
+  bug: "266747654"
+}
