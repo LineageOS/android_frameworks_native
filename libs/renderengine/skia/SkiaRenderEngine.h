@@ -94,6 +94,7 @@ protected:
 
     size_t getMaxTextureSize() const override final;
     size_t getMaxViewportDims() const override final;
+    // TODO: b/293371537 - Return reference instead of pointer? (Cleanup)
     SkiaGpuContext* getActiveContext();
 
     bool isProtected() const { return mInProtectedContext; }

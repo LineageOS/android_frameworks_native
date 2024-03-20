@@ -21,6 +21,7 @@
 
 #include "SkiaVkRenderEngine.h"
 
+#include "GaneshVkRenderEngine.h"
 #include "compat/SkiaGpuContext.h"
 
 #include <GrBackendSemaphore.h>
@@ -84,7 +85,8 @@ using base::StringAppendF;
 
 std::unique_ptr<SkiaVkRenderEngine> SkiaVkRenderEngine::create(
         const RenderEngineCreationArgs& args) {
-    std::unique_ptr<SkiaVkRenderEngine> engine(new SkiaVkRenderEngine(args));
+    // TODO: b/293371537 - Ganesh vs. Graphite subclass based on flag in RenderEngineCreationArgs
+    std::unique_ptr<SkiaVkRenderEngine> engine(new GaneshVkRenderEngine(args));
     engine->ensureContextsCreated();
 
     if (sVulkanInterface.isInitialized()) {
@@ -129,64 +131,11 @@ bool SkiaVkRenderEngine::useProtectedContextImpl(GrProtected) {
     return true;
 }
 
-static void unref_semaphore(void* semaphore) {
-    SkiaVkRenderEngine::DestroySemaphoreInfo* info =
-            reinterpret_cast<SkiaVkRenderEngine::DestroySemaphoreInfo*>(semaphore);
-    info->unref();
-}
-
-static VulkanInterface& getVulkanInterface(bool protectedContext) {
+VulkanInterface& SkiaVkRenderEngine::getVulkanInterface(bool protectedContext) {
     if (protectedContext) {
         return sProtectedContentVulkanInterface;
     }
     return sVulkanInterface;
-}
-
-void SkiaVkRenderEngine::waitFence(SkiaGpuContext* context, base::borrowed_fd fenceFd) {
-    if (fenceFd.get() < 0) return;
-
-    int dupedFd = dup(fenceFd.get());
-    if (dupedFd < 0) {
-        ALOGE("failed to create duplicate fence fd: %d", dupedFd);
-        sync_wait(fenceFd.get(), -1);
-        return;
-    }
-
-    base::unique_fd fenceDup(dupedFd);
-    VkSemaphore waitSemaphore =
-            getVulkanInterface(isProtected()).importSemaphoreFromSyncFd(fenceDup.release());
-    GrBackendSemaphore beSemaphore = GrBackendSemaphores::MakeVk(waitSemaphore);
-    context->grDirectContext()->wait(1, &beSemaphore, true /* delete after wait */);
-}
-
-base::unique_fd SkiaVkRenderEngine::flushAndSubmit(SkiaGpuContext* context) {
-    sk_sp<GrDirectContext> grContext = context->grDirectContext();
-    VulkanInterface& vi = getVulkanInterface(isProtected());
-    VkSemaphore semaphore = vi.createExportableSemaphore();
-
-    GrBackendSemaphore backendSemaphore = GrBackendSemaphores::MakeVk(semaphore);
-
-    GrFlushInfo flushInfo;
-    DestroySemaphoreInfo* destroySemaphoreInfo = nullptr;
-    if (semaphore != VK_NULL_HANDLE) {
-        destroySemaphoreInfo = new DestroySemaphoreInfo(vi, semaphore);
-        flushInfo.fNumSemaphores = 1;
-        flushInfo.fSignalSemaphores = &backendSemaphore;
-        flushInfo.fFinishedProc = unref_semaphore;
-        flushInfo.fFinishedContext = destroySemaphoreInfo;
-    }
-    GrSemaphoresSubmitted submitted = grContext->flush(flushInfo);
-    grContext->submit(GrSyncCpu::kNo);
-    int drawFenceFd = -1;
-    if (semaphore != VK_NULL_HANDLE) {
-        if (GrSemaphoresSubmitted::kYes == submitted) {
-            drawFenceFd = vi.exportSemaphoreSyncFd(semaphore);
-        }
-        // Now that drawFenceFd has been created, we can delete our reference to this semaphore
-        flushInfo.fFinishedProc(destroySemaphoreInfo);
-    }
-    base::unique_fd res(drawFenceFd);
-    return res;
 }
 
 int SkiaVkRenderEngine::getContextPriority() {
