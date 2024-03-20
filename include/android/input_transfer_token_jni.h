@@ -20,8 +20,9 @@
 /**
  * @file input_transfer_token_jni.h
  */
-#ifndef ANDROID_INPUT_TRANSFER_TOKEN_JNI_H
-#define ANDROID_INPUT_TRANSFER_TOKEN_JNI_H
+
+#pragma once
+
 #include <sys/cdefs.h>
 #include <jni.h>
 
@@ -60,9 +61,8 @@ jobject _Nonnull AInputTransferToken_toJava(JNIEnv* _Nonnull env,
  *
  * Available since API level 35.
  */
-void AInputTransferToken_release(AInputTransferToken* _Nonnull aInputTransferToken)
+void AInputTransferToken_release(AInputTransferToken* _Nullable aInputTransferToken)
         __INTRODUCED_IN(__ANDROID_API_V__);
 
 __END_DECLS
-#endif // ANDROID_INPUT_TRANSFER_TOKEN_JNI_H
 /** @} */
