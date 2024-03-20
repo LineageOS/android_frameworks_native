@@ -18,6 +18,7 @@
 #include "FakeApplicationHandle.h"
 #include "FakeInputDispatcherPolicy.h"
 #include "FakeInputTracingBackend.h"
+#include "FakeWindows.h"
 #include "TestEventMatchers.h"
 
 #include <NotifyArgsBuilders.h>
@@ -107,33 +108,12 @@ static constexpr int32_t POINTER_1_UP =
 static constexpr int32_t POINTER_2_UP =
         AMOTION_EVENT_ACTION_POINTER_UP | (2 << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
 
-// The default pid and uid for windows created on the primary display by the test.
-static constexpr gui::Pid WINDOW_PID{999};
-static constexpr gui::Uid WINDOW_UID{1001};
-
 // The default pid and uid for the windows created on the secondary display by the test.
 static constexpr gui::Pid SECONDARY_WINDOW_PID{1010};
 static constexpr gui::Uid SECONDARY_WINDOW_UID{1012};
 
 // An arbitrary pid of the gesture monitor window
 static constexpr gui::Pid MONITOR_PID{2001};
-
-/**
- * If we expect to receive the event, the timeout can be made very long. When the test are running
- * correctly, we will actually never wait until the end of the timeout because the wait will end
- * when the event comes in. Still, this value shouldn't be infinite. During development, a local
- * change may cause the test to fail. This timeout should be short enough to not annoy so that the
- * developer can see the failure quickly (on human scale).
- */
-static constexpr std::chrono::duration CONSUME_TIMEOUT_EVENT_EXPECTED = 1000ms;
-/**
- * When no event is expected, we can have a very short timeout. A large value here would slow down
- * the tests. In the unlikely event of system being too slow, the event may still be present but the
- * timeout would complete before it is consumed. This would result in test flakiness. If this
- * occurs, the flakiness rate would be high. Since the flakes are treated with high priority, this
- * would get noticed and addressed quickly.
- */
-static constexpr std::chrono::duration CONSUME_TIMEOUT_NO_EVENT_EXPECTED = 10ms;
 
 static constexpr int expectedWallpaperFlags =
         AMOTION_EVENT_FLAG_WINDOW_IS_OBSCURED | AMOTION_EVENT_FLAG_WINDOW_IS_PARTIALLY_OBSCURED;
@@ -156,22 +136,22 @@ static KeyEvent getTestKeyEvent() {
 
 // --- InputDispatcherTest ---
 
-// The trace is a global variable for now, to avoid having to pass it into all of the
-// FakeWindowHandles created throughout the tests.
-// TODO(b/210460522): Update the tests to avoid the need to have the trace be a global variable.
-static std::shared_ptr<VerifyingTrace> gVerifyingTrace = std::make_shared<VerifyingTrace>();
-
 class InputDispatcherTest : public testing::Test {
 protected:
     std::unique_ptr<FakeInputDispatcherPolicy> mFakePolicy;
     std::unique_ptr<InputDispatcher> mDispatcher;
+    std::shared_ptr<VerifyingTrace> mVerifyingTrace;
 
     void SetUp() override {
-        gVerifyingTrace->reset();
+        mVerifyingTrace = std::make_shared<VerifyingTrace>();
+        FakeWindowHandle::sOnEventReceivedCallback = [this](const auto& _1, const auto& _2) {
+            handleEventReceivedByWindow(_1, _2);
+        };
+
         mFakePolicy = std::make_unique<FakeInputDispatcherPolicy>();
         mDispatcher = std::make_unique<InputDispatcher>(*mFakePolicy,
                                                         std::make_unique<FakeInputTracingBackend>(
-                                                                gVerifyingTrace));
+                                                                mVerifyingTrace));
 
         mDispatcher->setInputDispatchMode(/*enabled=*/true, /*frozen=*/false);
         // Start InputDispatcher thread
@@ -179,10 +159,33 @@ protected:
     }
 
     void TearDown() override {
-        ASSERT_NO_FATAL_FAILURE(gVerifyingTrace->verifyExpectedEventsTraced());
+        ASSERT_NO_FATAL_FAILURE(mVerifyingTrace->verifyExpectedEventsTraced());
+        FakeWindowHandle::sOnEventReceivedCallback = nullptr;
+
         ASSERT_EQ(OK, mDispatcher->stop());
         mFakePolicy.reset();
         mDispatcher.reset();
+    }
+
+    void handleEventReceivedByWindow(const std::unique_ptr<InputEvent>& event,
+                                     const gui::WindowInfo& info) {
+        if (!event) {
+            return;
+        }
+
+        switch (event->getType()) {
+            case InputEventType::KEY: {
+                mVerifyingTrace->expectKeyDispatchTraced(static_cast<KeyEvent&>(*event), info.id);
+                break;
+            }
+            case InputEventType::MOTION: {
+                mVerifyingTrace->expectMotionDispatchTraced(static_cast<MotionEvent&>(*event),
+                                                            info.id);
+                break;
+            }
+            default:
+                break;
+        }
     }
 
     /**
@@ -396,604 +399,6 @@ TEST_F(InputDispatcherTest, NotifySwitch_CallsPolicy) {
 namespace {
 
 static constexpr std::chrono::duration INJECT_EVENT_TIMEOUT = 500ms;
-// Default input dispatching timeout if there is no focused application or paused window
-// from which to determine an appropriate dispatching timeout.
-static const std::chrono::duration DISPATCHING_TIMEOUT = std::chrono::milliseconds(
-        android::os::IInputConstants::UNMULTIPLIED_DEFAULT_DISPATCHING_TIMEOUT_MILLIS *
-        android::base::HwTimeoutMultiplier());
-
-class FakeInputReceiver {
-public:
-    explicit FakeInputReceiver(std::unique_ptr<InputChannel> clientChannel, const std::string name)
-          : mConsumer(std::move(clientChannel)), mName(name) {}
-
-    std::unique_ptr<InputEvent> consume(std::chrono::milliseconds timeout, bool handled = false) {
-        auto [consumeSeq, event] = receiveEvent(timeout);
-        if (!consumeSeq) {
-            return nullptr;
-        }
-        finishEvent(*consumeSeq, handled);
-        return std::move(event);
-    }
-
-    /**
-     * Receive an event without acknowledging it.
-     * Return the sequence number that could later be used to send finished signal.
-     */
-    std::pair<std::optional<uint32_t>, std::unique_ptr<InputEvent>> receiveEvent(
-            std::chrono::milliseconds timeout) {
-        uint32_t consumeSeq;
-        std::unique_ptr<InputEvent> event;
-
-        std::chrono::time_point start = std::chrono::steady_clock::now();
-        status_t status = WOULD_BLOCK;
-        while (status == WOULD_BLOCK) {
-            InputEvent* rawEventPtr = nullptr;
-            status = mConsumer.consume(&mEventFactory, /*consumeBatches=*/true, -1, &consumeSeq,
-                                       &rawEventPtr);
-            event = std::unique_ptr<InputEvent>(rawEventPtr);
-            std::chrono::duration elapsed = std::chrono::steady_clock::now() - start;
-            if (elapsed > timeout) {
-                break;
-            }
-        }
-
-        if (status == WOULD_BLOCK) {
-            // Just means there's no event available.
-            return std::make_pair(std::nullopt, nullptr);
-        }
-
-        if (status != OK) {
-            ADD_FAILURE() << mName.c_str() << ": consumer consume should return OK.";
-            return std::make_pair(std::nullopt, nullptr);
-        }
-        if (event == nullptr) {
-            ADD_FAILURE() << "Consumed correctly, but received NULL event from consumer";
-        }
-        return std::make_pair(consumeSeq, std::move(event));
-    }
-
-    /**
-     * To be used together with "receiveEvent" to complete the consumption of an event.
-     */
-    void finishEvent(uint32_t consumeSeq, bool handled = true) {
-        const status_t status = mConsumer.sendFinishedSignal(consumeSeq, handled);
-        ASSERT_EQ(OK, status) << mName.c_str() << ": consumer sendFinishedSignal should return OK.";
-    }
-
-    void sendTimeline(int32_t inputEventId, std::array<nsecs_t, GraphicsTimeline::SIZE> timeline) {
-        const status_t status = mConsumer.sendTimeline(inputEventId, timeline);
-        ASSERT_EQ(OK, status);
-    }
-
-    void consumeEvent(InputEventType expectedEventType, int32_t expectedAction,
-                      std::optional<int32_t> expectedDisplayId,
-                      std::optional<int32_t> expectedFlags) {
-        std::unique_ptr<InputEvent> event = consume(CONSUME_TIMEOUT_EVENT_EXPECTED);
-
-        ASSERT_NE(nullptr, event) << mName.c_str()
-                                  << ": consumer should have returned non-NULL event.";
-        ASSERT_EQ(expectedEventType, event->getType())
-                << mName.c_str() << " expected " << ftl::enum_string(expectedEventType)
-                << " event, got " << *event;
-
-        if (expectedDisplayId.has_value()) {
-            EXPECT_EQ(expectedDisplayId, event->getDisplayId());
-        }
-
-        switch (expectedEventType) {
-            case InputEventType::KEY: {
-                const KeyEvent& keyEvent = static_cast<const KeyEvent&>(*event);
-                ASSERT_THAT(keyEvent, WithKeyAction(expectedAction));
-                if (expectedFlags.has_value()) {
-                    EXPECT_EQ(expectedFlags.value(), keyEvent.getFlags());
-                }
-                break;
-            }
-            case InputEventType::MOTION: {
-                const MotionEvent& motionEvent = static_cast<const MotionEvent&>(*event);
-                ASSERT_THAT(motionEvent, WithMotionAction(expectedAction));
-                if (expectedFlags.has_value()) {
-                    EXPECT_EQ(expectedFlags.value(), motionEvent.getFlags());
-                }
-                break;
-            }
-            case InputEventType::FOCUS: {
-                FAIL() << "Use 'consumeFocusEvent' for FOCUS events";
-            }
-            case InputEventType::CAPTURE: {
-                FAIL() << "Use 'consumeCaptureEvent' for CAPTURE events";
-            }
-            case InputEventType::TOUCH_MODE: {
-                FAIL() << "Use 'consumeTouchModeEvent' for TOUCH_MODE events";
-            }
-            case InputEventType::DRAG: {
-                FAIL() << "Use 'consumeDragEvent' for DRAG events";
-            }
-        }
-    }
-
-    std::unique_ptr<MotionEvent> consumeMotion() {
-        std::unique_ptr<InputEvent> event = consume(CONSUME_TIMEOUT_EVENT_EXPECTED);
-
-        if (event == nullptr) {
-            ADD_FAILURE() << mName << ": expected a MotionEvent, but didn't get one.";
-            return nullptr;
-        }
-
-        if (event->getType() != InputEventType::MOTION) {
-            ADD_FAILURE() << mName << " expected a MotionEvent, got " << *event;
-            return nullptr;
-        }
-        return std::unique_ptr<MotionEvent>(static_cast<MotionEvent*>(event.release()));
-    }
-
-    void consumeMotionEvent(const ::testing::Matcher<MotionEvent>& matcher) {
-        std::unique_ptr<MotionEvent> motionEvent = consumeMotion();
-        ASSERT_NE(nullptr, motionEvent) << "Did not get a motion event, but expected " << matcher;
-        ASSERT_THAT(*motionEvent, matcher);
-    }
-
-    void consumeFocusEvent(bool hasFocus, bool inTouchMode) {
-        std::unique_ptr<InputEvent> event = consume(CONSUME_TIMEOUT_EVENT_EXPECTED);
-        ASSERT_NE(nullptr, event) << mName.c_str()
-                                  << ": consumer should have returned non-NULL event.";
-        ASSERT_EQ(InputEventType::FOCUS, event->getType())
-                << "Instead of FocusEvent, got " << *event;
-
-        ASSERT_EQ(ADISPLAY_ID_NONE, event->getDisplayId())
-                << mName.c_str() << ": event displayId should always be NONE.";
-
-        FocusEvent& focusEvent = static_cast<FocusEvent&>(*event);
-        EXPECT_EQ(hasFocus, focusEvent.getHasFocus());
-    }
-
-    void consumeCaptureEvent(bool hasCapture) {
-        std::unique_ptr<InputEvent> event = consume(CONSUME_TIMEOUT_EVENT_EXPECTED);
-        ASSERT_NE(nullptr, event) << mName.c_str()
-                                  << ": consumer should have returned non-NULL event.";
-        ASSERT_EQ(InputEventType::CAPTURE, event->getType())
-                << "Instead of CaptureEvent, got " << *event;
-
-        ASSERT_EQ(ADISPLAY_ID_NONE, event->getDisplayId())
-                << mName.c_str() << ": event displayId should always be NONE.";
-
-        const auto& captureEvent = static_cast<const CaptureEvent&>(*event);
-        EXPECT_EQ(hasCapture, captureEvent.getPointerCaptureEnabled());
-    }
-
-    void consumeDragEvent(bool isExiting, float x, float y) {
-        std::unique_ptr<InputEvent> event = consume(CONSUME_TIMEOUT_EVENT_EXPECTED);
-        ASSERT_NE(nullptr, event) << mName.c_str()
-                                  << ": consumer should have returned non-NULL event.";
-        ASSERT_EQ(InputEventType::DRAG, event->getType()) << "Instead of DragEvent, got " << *event;
-
-        EXPECT_EQ(ADISPLAY_ID_NONE, event->getDisplayId())
-                << mName.c_str() << ": event displayId should always be NONE.";
-
-        const auto& dragEvent = static_cast<const DragEvent&>(*event);
-        EXPECT_EQ(isExiting, dragEvent.isExiting());
-        EXPECT_EQ(x, dragEvent.getX());
-        EXPECT_EQ(y, dragEvent.getY());
-    }
-
-    void consumeTouchModeEvent(bool inTouchMode) {
-        std::unique_ptr<InputEvent> event = consume(CONSUME_TIMEOUT_EVENT_EXPECTED);
-        ASSERT_NE(nullptr, event) << mName.c_str()
-                                  << ": consumer should have returned non-NULL event.";
-        ASSERT_EQ(InputEventType::TOUCH_MODE, event->getType())
-                << "Instead of TouchModeEvent, got " << *event;
-
-        ASSERT_EQ(ADISPLAY_ID_NONE, event->getDisplayId())
-                << mName.c_str() << ": event displayId should always be NONE.";
-        const auto& touchModeEvent = static_cast<const TouchModeEvent&>(*event);
-        EXPECT_EQ(inTouchMode, touchModeEvent.isInTouchMode());
-    }
-
-    void assertNoEvents(std::chrono::milliseconds timeout) {
-        std::unique_ptr<InputEvent> event = consume(timeout);
-        if (event == nullptr) {
-            return;
-        }
-        if (event->getType() == InputEventType::KEY) {
-            KeyEvent& keyEvent = static_cast<KeyEvent&>(*event);
-            ADD_FAILURE() << "Received key event " << keyEvent;
-        } else if (event->getType() == InputEventType::MOTION) {
-            MotionEvent& motionEvent = static_cast<MotionEvent&>(*event);
-            ADD_FAILURE() << "Received motion event " << motionEvent;
-        } else if (event->getType() == InputEventType::FOCUS) {
-            FocusEvent& focusEvent = static_cast<FocusEvent&>(*event);
-            ADD_FAILURE() << "Received focus event, hasFocus = "
-                          << (focusEvent.getHasFocus() ? "true" : "false");
-        } else if (event->getType() == InputEventType::CAPTURE) {
-            const auto& captureEvent = static_cast<CaptureEvent&>(*event);
-            ADD_FAILURE() << "Received capture event, pointerCaptureEnabled = "
-                          << (captureEvent.getPointerCaptureEnabled() ? "true" : "false");
-        } else if (event->getType() == InputEventType::TOUCH_MODE) {
-            const auto& touchModeEvent = static_cast<TouchModeEvent&>(*event);
-            ADD_FAILURE() << "Received touch mode event, inTouchMode = "
-                          << (touchModeEvent.isInTouchMode() ? "true" : "false");
-        }
-        FAIL() << mName.c_str()
-               << ": should not have received any events, so consume() should return NULL";
-    }
-
-    sp<IBinder> getToken() { return mConsumer.getChannel()->getConnectionToken(); }
-
-    int getChannelFd() { return mConsumer.getChannel()->getFd(); }
-
-private:
-    InputConsumer mConsumer;
-    DynamicInputEventFactory mEventFactory;
-
-    std::string mName;
-};
-
-class FakeWindowHandle : public WindowInfoHandle {
-public:
-    static const int32_t WIDTH = 600;
-    static const int32_t HEIGHT = 800;
-
-    FakeWindowHandle(const std::shared_ptr<InputApplicationHandle>& inputApplicationHandle,
-                     const std::unique_ptr<InputDispatcher>& dispatcher, const std::string name,
-                     int32_t displayId, bool createInputChannel = true)
-          : mName(name) {
-        sp<IBinder> token;
-        if (createInputChannel) {
-            base::Result<std::unique_ptr<InputChannel>> channel =
-                    dispatcher->createInputChannel(name);
-            token = (*channel)->getConnectionToken();
-            mInputReceiver = std::make_unique<FakeInputReceiver>(std::move(*channel), name);
-        }
-
-        inputApplicationHandle->updateInfo();
-        mInfo.applicationInfo = *inputApplicationHandle->getInfo();
-
-        mInfo.token = token;
-        mInfo.id = sId++;
-        mInfo.name = name;
-        mInfo.dispatchingTimeout = DISPATCHING_TIMEOUT;
-        mInfo.alpha = 1.0;
-        mInfo.frame = Rect(0, 0, WIDTH, HEIGHT);
-        mInfo.transform.set(0, 0);
-        mInfo.globalScaleFactor = 1.0;
-        mInfo.touchableRegion.clear();
-        mInfo.addTouchableRegion(Rect(0, 0, WIDTH, HEIGHT));
-        mInfo.ownerPid = WINDOW_PID;
-        mInfo.ownerUid = WINDOW_UID;
-        mInfo.displayId = displayId;
-        mInfo.inputConfig = WindowInfo::InputConfig::DEFAULT;
-    }
-
-    sp<FakeWindowHandle> clone(int32_t displayId) {
-        sp<FakeWindowHandle> handle = sp<FakeWindowHandle>::make(mInfo.name + "(Mirror)");
-        handle->mInfo = mInfo;
-        handle->mInfo.displayId = displayId;
-        handle->mInfo.id = sId++;
-        handle->mInputReceiver = mInputReceiver;
-        return handle;
-    }
-
-    void setTouchable(bool touchable) {
-        mInfo.setInputConfig(WindowInfo::InputConfig::NOT_TOUCHABLE, !touchable);
-    }
-
-    void setFocusable(bool focusable) {
-        mInfo.setInputConfig(WindowInfo::InputConfig::NOT_FOCUSABLE, !focusable);
-    }
-
-    void setVisible(bool visible) {
-        mInfo.setInputConfig(WindowInfo::InputConfig::NOT_VISIBLE, !visible);
-    }
-
-    void setDispatchingTimeout(std::chrono::nanoseconds timeout) {
-        mInfo.dispatchingTimeout = timeout;
-    }
-
-    void setPaused(bool paused) {
-        mInfo.setInputConfig(WindowInfo::InputConfig::PAUSE_DISPATCHING, paused);
-    }
-
-    void setPreventSplitting(bool preventSplitting) {
-        mInfo.setInputConfig(WindowInfo::InputConfig::PREVENT_SPLITTING, preventSplitting);
-    }
-
-    void setSlippery(bool slippery) {
-        mInfo.setInputConfig(WindowInfo::InputConfig::SLIPPERY, slippery);
-    }
-
-    void setWatchOutsideTouch(bool watchOutside) {
-        mInfo.setInputConfig(WindowInfo::InputConfig::WATCH_OUTSIDE_TOUCH, watchOutside);
-    }
-
-    void setSpy(bool spy) { mInfo.setInputConfig(WindowInfo::InputConfig::SPY, spy); }
-
-    void setInterceptsStylus(bool interceptsStylus) {
-        mInfo.setInputConfig(WindowInfo::InputConfig::INTERCEPTS_STYLUS, interceptsStylus);
-    }
-
-    void setDropInput(bool dropInput) {
-        mInfo.setInputConfig(WindowInfo::InputConfig::DROP_INPUT, dropInput);
-    }
-
-    void setDropInputIfObscured(bool dropInputIfObscured) {
-        mInfo.setInputConfig(WindowInfo::InputConfig::DROP_INPUT_IF_OBSCURED, dropInputIfObscured);
-    }
-
-    void setNoInputChannel(bool noInputChannel) {
-        mInfo.setInputConfig(WindowInfo::InputConfig::NO_INPUT_CHANNEL, noInputChannel);
-    }
-
-    void setDisableUserActivity(bool disableUserActivity) {
-        mInfo.setInputConfig(WindowInfo::InputConfig::DISABLE_USER_ACTIVITY, disableUserActivity);
-    }
-
-    void setGlobalStylusBlocksTouch(bool shouldGlobalStylusBlockTouch) {
-        mInfo.setInputConfig(WindowInfo::InputConfig::GLOBAL_STYLUS_BLOCKS_TOUCH,
-                             shouldGlobalStylusBlockTouch);
-    }
-
-    void setAlpha(float alpha) { mInfo.alpha = alpha; }
-
-    void setTouchOcclusionMode(TouchOcclusionMode mode) { mInfo.touchOcclusionMode = mode; }
-
-    void setApplicationToken(sp<IBinder> token) { mInfo.applicationInfo.token = token; }
-
-    void setFrame(const Rect& frame, const ui::Transform& displayTransform = ui::Transform()) {
-        mInfo.frame = frame;
-        mInfo.touchableRegion.clear();
-        mInfo.addTouchableRegion(frame);
-
-        const Rect logicalDisplayFrame = displayTransform.transform(frame);
-        ui::Transform translate;
-        translate.set(-logicalDisplayFrame.left, -logicalDisplayFrame.top);
-        mInfo.transform = translate * displayTransform;
-    }
-
-    void setTouchableRegion(const Region& region) { mInfo.touchableRegion = region; }
-
-    void setIsWallpaper(bool isWallpaper) {
-        mInfo.setInputConfig(WindowInfo::InputConfig::IS_WALLPAPER, isWallpaper);
-    }
-
-    void setDupTouchToWallpaper(bool hasWallpaper) {
-        mInfo.setInputConfig(WindowInfo::InputConfig::DUPLICATE_TOUCH_TO_WALLPAPER, hasWallpaper);
-    }
-
-    void setTrustedOverlay(bool trustedOverlay) {
-        mInfo.setInputConfig(WindowInfo::InputConfig::TRUSTED_OVERLAY, trustedOverlay);
-    }
-
-    void setWindowTransform(float dsdx, float dtdx, float dtdy, float dsdy) {
-        mInfo.transform.set(dsdx, dtdx, dtdy, dsdy);
-    }
-
-    void setWindowScale(float xScale, float yScale) { setWindowTransform(xScale, 0, 0, yScale); }
-
-    void setWindowOffset(float offsetX, float offsetY) { mInfo.transform.set(offsetX, offsetY); }
-
-    std::unique_ptr<KeyEvent> consumeKey(bool handled = true) {
-        std::unique_ptr<InputEvent> event = consume(CONSUME_TIMEOUT_EVENT_EXPECTED, handled);
-        if (event == nullptr) {
-            ADD_FAILURE() << "No event";
-            return nullptr;
-        }
-        if (event->getType() != InputEventType::KEY) {
-            ADD_FAILURE() << "Instead of key event, got " << event;
-            return nullptr;
-        }
-        return std::unique_ptr<KeyEvent>(static_cast<KeyEvent*>(event.release()));
-    }
-
-    void consumeKeyEvent(const ::testing::Matcher<KeyEvent>& matcher) {
-        std::unique_ptr<KeyEvent> keyEvent = consumeKey();
-        ASSERT_NE(nullptr, keyEvent);
-        ASSERT_THAT(*keyEvent, matcher);
-    }
-
-    void consumeKeyDown(int32_t expectedDisplayId, int32_t expectedFlags = 0) {
-        consumeKeyEvent(AllOf(WithKeyAction(ACTION_DOWN), WithDisplayId(expectedDisplayId),
-                              WithFlags(expectedFlags)));
-    }
-
-    void consumeKeyUp(int32_t expectedDisplayId, int32_t expectedFlags = 0) {
-        consumeKeyEvent(AllOf(WithKeyAction(ACTION_UP), WithDisplayId(expectedDisplayId),
-                              WithFlags(expectedFlags)));
-    }
-
-    void consumeMotionCancel(int32_t expectedDisplayId = ADISPLAY_ID_DEFAULT,
-                             int32_t expectedFlags = 0) {
-        consumeMotionEvent(AllOf(WithMotionAction(ACTION_CANCEL), WithDisplayId(expectedDisplayId),
-                                 WithFlags(expectedFlags | AMOTION_EVENT_FLAG_CANCELED)));
-    }
-
-    void consumeMotionMove(int32_t expectedDisplayId = ADISPLAY_ID_DEFAULT,
-                           int32_t expectedFlags = 0) {
-        consumeMotionEvent(AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
-                                 WithDisplayId(expectedDisplayId), WithFlags(expectedFlags)));
-    }
-
-    void consumeMotionDown(int32_t expectedDisplayId = ADISPLAY_ID_DEFAULT,
-                           int32_t expectedFlags = 0) {
-        consumeAnyMotionDown(expectedDisplayId, expectedFlags);
-    }
-
-    void consumeAnyMotionDown(std::optional<int32_t> expectedDisplayId = std::nullopt,
-                              std::optional<int32_t> expectedFlags = std::nullopt) {
-        consumeMotionEvent(
-                AllOf(WithMotionAction(ACTION_DOWN),
-                      testing::Conditional(expectedDisplayId.has_value(),
-                                           WithDisplayId(*expectedDisplayId), testing::_),
-                      testing::Conditional(expectedFlags.has_value(), WithFlags(*expectedFlags),
-                                           testing::_)));
-    }
-
-    void consumeMotionPointerDown(int32_t pointerIdx,
-                                  int32_t expectedDisplayId = ADISPLAY_ID_DEFAULT,
-                                  int32_t expectedFlags = 0) {
-        const int32_t action = AMOTION_EVENT_ACTION_POINTER_DOWN |
-                (pointerIdx << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
-        consumeMotionEvent(AllOf(WithMotionAction(action), WithDisplayId(expectedDisplayId),
-                                 WithFlags(expectedFlags)));
-    }
-
-    void consumeMotionPointerUp(int32_t pointerIdx, int32_t expectedDisplayId = ADISPLAY_ID_DEFAULT,
-                                int32_t expectedFlags = 0) {
-        const int32_t action = AMOTION_EVENT_ACTION_POINTER_UP |
-                (pointerIdx << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
-        consumeMotionEvent(AllOf(WithMotionAction(action), WithDisplayId(expectedDisplayId),
-                                 WithFlags(expectedFlags)));
-    }
-
-    void consumeMotionUp(int32_t expectedDisplayId = ADISPLAY_ID_DEFAULT,
-                         int32_t expectedFlags = 0) {
-        consumeMotionEvent(AllOf(WithMotionAction(ACTION_UP), WithDisplayId(expectedDisplayId),
-                                 WithFlags(expectedFlags)));
-    }
-
-    void consumeMotionOutside(int32_t expectedDisplayId = ADISPLAY_ID_DEFAULT,
-                              int32_t expectedFlags = 0) {
-        consumeMotionEvent(AllOf(WithMotionAction(AMOTION_EVENT_ACTION_OUTSIDE),
-                                 WithDisplayId(expectedDisplayId), WithFlags(expectedFlags)));
-    }
-
-    void consumeMotionOutsideWithZeroedCoords() {
-        consumeMotionEvent(
-                AllOf(WithMotionAction(AMOTION_EVENT_ACTION_OUTSIDE), WithRawCoords(0, 0)));
-    }
-
-    void consumeFocusEvent(bool hasFocus, bool inTouchMode = true) {
-        ASSERT_NE(mInputReceiver, nullptr)
-                << "Cannot consume events from a window with no receiver";
-        mInputReceiver->consumeFocusEvent(hasFocus, inTouchMode);
-    }
-
-    void consumeCaptureEvent(bool hasCapture) {
-        ASSERT_NE(mInputReceiver, nullptr)
-                << "Cannot consume events from a window with no receiver";
-        mInputReceiver->consumeCaptureEvent(hasCapture);
-    }
-
-    std::unique_ptr<MotionEvent> consumeMotionEvent(
-            const ::testing::Matcher<MotionEvent>& matcher = testing::_) {
-        std::unique_ptr<InputEvent> event = consume(CONSUME_TIMEOUT_EVENT_EXPECTED);
-        if (event == nullptr) {
-            ADD_FAILURE() << "No event";
-            return nullptr;
-        }
-        if (event->getType() != InputEventType::MOTION) {
-            ADD_FAILURE() << "Instead of motion event, got " << *event;
-            return nullptr;
-        }
-        std::unique_ptr<MotionEvent> motionEvent =
-                std::unique_ptr<MotionEvent>(static_cast<MotionEvent*>(event.release()));
-        EXPECT_THAT(*motionEvent, matcher);
-        return motionEvent;
-    }
-
-    void consumeDragEvent(bool isExiting, float x, float y) {
-        mInputReceiver->consumeDragEvent(isExiting, x, y);
-    }
-
-    void consumeTouchModeEvent(bool inTouchMode) {
-        ASSERT_NE(mInputReceiver, nullptr)
-                << "Cannot consume events from a window with no receiver";
-        mInputReceiver->consumeTouchModeEvent(inTouchMode);
-    }
-
-    std::pair<std::optional<uint32_t>, std::unique_ptr<InputEvent>> receiveEvent() {
-        return receive();
-    }
-
-    void finishEvent(uint32_t sequenceNum) {
-        ASSERT_NE(mInputReceiver, nullptr) << "Invalid receive event on window with no receiver";
-        mInputReceiver->finishEvent(sequenceNum);
-    }
-
-    void sendTimeline(int32_t inputEventId, std::array<nsecs_t, GraphicsTimeline::SIZE> timeline) {
-        ASSERT_NE(mInputReceiver, nullptr) << "Invalid receive event on window with no receiver";
-        mInputReceiver->sendTimeline(inputEventId, timeline);
-    }
-
-    void assertNoEvents(std::chrono::milliseconds timeout = CONSUME_TIMEOUT_NO_EVENT_EXPECTED) {
-        if (mInputReceiver == nullptr &&
-            mInfo.inputConfig.test(WindowInfo::InputConfig::NO_INPUT_CHANNEL)) {
-            return; // Can't receive events if the window does not have input channel
-        }
-        ASSERT_NE(nullptr, mInputReceiver)
-                << "Window without InputReceiver must specify feature NO_INPUT_CHANNEL";
-        mInputReceiver->assertNoEvents(timeout);
-    }
-
-    sp<IBinder> getToken() { return mInfo.token; }
-
-    const std::string& getName() { return mName; }
-
-    void setOwnerInfo(gui::Pid ownerPid, gui::Uid ownerUid) {
-        mInfo.ownerPid = ownerPid;
-        mInfo.ownerUid = ownerUid;
-    }
-
-    gui::Pid getPid() const { return mInfo.ownerPid; }
-
-    void destroyReceiver() { mInputReceiver = nullptr; }
-
-    int getChannelFd() { return mInputReceiver->getChannelFd(); }
-
-    // FakeWindowHandle uses this consume method to ensure received events are added to the trace.
-    std::unique_ptr<InputEvent> consume(std::chrono::milliseconds timeout, bool handled = true) {
-        if (mInputReceiver == nullptr) {
-            LOG(FATAL) << "Cannot consume event from a window with no input event receiver";
-        }
-        std::unique_ptr<InputEvent> event = mInputReceiver->consume(timeout, handled);
-        if (event == nullptr) {
-            ADD_FAILURE() << "Consume failed: no event";
-        }
-        expectReceivedEventTraced(event);
-        return event;
-    }
-
-private:
-    FakeWindowHandle(std::string name) : mName(name){};
-    const std::string mName;
-    std::shared_ptr<FakeInputReceiver> mInputReceiver;
-    static std::atomic<int32_t> sId; // each window gets a unique id, like in surfaceflinger
-    friend class sp<FakeWindowHandle>;
-
-    // FakeWindowHandle uses this receive method to ensure received events are added to the trace.
-    std::pair<std::optional<uint32_t /*seq*/>, std::unique_ptr<InputEvent>> receive() {
-        if (mInputReceiver == nullptr) {
-            ADD_FAILURE() << "Invalid receive event on window with no receiver";
-            return std::make_pair(std::nullopt, nullptr);
-        }
-        auto out = mInputReceiver->receiveEvent(CONSUME_TIMEOUT_EVENT_EXPECTED);
-        const auto& [_, event] = out;
-        expectReceivedEventTraced(event);
-        return std::move(out);
-    }
-
-    void expectReceivedEventTraced(const std::unique_ptr<InputEvent>& event) {
-        if (!event) {
-            return;
-        }
-
-        switch (event->getType()) {
-            case InputEventType::KEY: {
-                gVerifyingTrace->expectKeyDispatchTraced(static_cast<KeyEvent&>(*event), mInfo.id);
-                break;
-            }
-            case InputEventType::MOTION: {
-                gVerifyingTrace->expectMotionDispatchTraced(static_cast<MotionEvent&>(*event),
-                                                            mInfo.id);
-                break;
-            }
-            default:
-                break;
-        }
-    }
-};
-
-std::atomic<int32_t> FakeWindowHandle::sId{1};
 
 class FakeMonitorReceiver {
 public:

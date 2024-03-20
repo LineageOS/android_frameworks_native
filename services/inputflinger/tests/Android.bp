@@ -27,6 +27,7 @@ filegroup {
     name: "inputdispatcher_common_test_sources",
     srcs: [
         "FakeInputDispatcherPolicy.cpp",
+        "FakeWindows.cpp",
     ],
 }
 
