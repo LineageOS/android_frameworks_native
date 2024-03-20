@@ -437,6 +437,7 @@ private:
 
     // IEventThreadCallback overrides
     bool throttleVsync(TimePoint, uid_t) override;
+    // Get frame interval
     Period getVsyncPeriod(uid_t) override EXCLUDES(mDisplayLock);
     void resync() override EXCLUDES(mDisplayLock);
     void onExpectedPresentTimePosted(TimePoint expectedPresentTime) override EXCLUDES(mDisplayLock);
