@@ -23,6 +23,10 @@
 
 using namespace skgpu;
 
+namespace skgpu {
+struct VulkanBackendContext;
+} // namespace skgpu
+
 namespace android {
 namespace renderengine {
 namespace skia {
@@ -39,8 +43,8 @@ public:
     void init(bool protectedContent = false);
     void teardown();
 
-    // TODO: b/293371537 - Graphite variant (external/skia/include/gpu/vk/VulkanBackendContext.h)
     GrVkBackendContext getGaneshBackendContext();
+    VulkanBackendContext getGraphiteBackendContext();
     VkSemaphore createExportableSemaphore();
     VkSemaphore importSemaphoreFromSyncFd(int syncFd);
     int exportSemaphoreSyncFd(VkSemaphore semaphore);
