@@ -16,9 +16,11 @@
 
 #pragma once
 
+#include <perfetto/config/android/android_input_event_config.pbzero.h>
 #include <perfetto/trace/android/android_input_event.pbzero.h>
 
 #include "InputTracingBackendInterface.h"
+#include "InputTracingPerfettoBackendConfig.h"
 
 namespace proto = perfetto::protos::pbzero;
 
@@ -30,10 +32,14 @@ namespace android::inputdispatcher::trace {
 class AndroidInputEventProtoConverter {
 public:
     static void toProtoMotionEvent(const TracedMotionEvent& event,
-                                   proto::AndroidMotionEvent& outProto);
-    static void toProtoKeyEvent(const TracedKeyEvent& event, proto::AndroidKeyEvent& outProto);
+                                   proto::AndroidMotionEvent& outProto, bool isRedacted);
+    static void toProtoKeyEvent(const TracedKeyEvent& event, proto::AndroidKeyEvent& outProto,
+                                bool isRedacted);
     static void toProtoWindowDispatchEvent(const WindowDispatchArgs&,
-                                           proto::AndroidWindowInputDispatchEvent& outProto);
+                                           proto::AndroidWindowInputDispatchEvent& outProto,
+                                           bool isRedacted);
+
+    static impl::TraceConfig parseConfig(proto::AndroidInputEventConfig::Decoder& protoConfig);
 };
 
 } // namespace android::inputdispatcher::trace

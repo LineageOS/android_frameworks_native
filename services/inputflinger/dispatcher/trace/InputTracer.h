@@ -66,6 +66,8 @@ private:
         std::vector<const WindowDispatchArgs> pendingDispatchArgs;
         // True if the event is targeting at least one secure window;
         bool isSecure{false};
+        // The list of all possible UIDs that this event could be targeting.
+        std::set<gui::Uid> targets;
     };
 
     // Get the event state associated with a tracking cookie.

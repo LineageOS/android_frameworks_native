@@ -21,10 +21,25 @@
 #include <ui/Transform.h>
 
 #include <array>
+#include <set>
 #include <variant>
 #include <vector>
 
 namespace android::inputdispatcher::trace {
+
+/**
+ * Describes the type of this event being traced, with respect to InputDispatcher.
+ */
+enum class EventType {
+    // This is an event that was reported through the InputListener interface or was injected.
+    INBOUND,
+    // This is an event that was synthesized within InputDispatcher; either being derived
+    // from an inbound event (e.g. a split motion event), or synthesized completely
+    // (e.g. a CANCEL event generated when the inbound stream is not canceled).
+    SYNTHESIZED,
+
+    ftl_last = SYNTHESIZED,
+};
 
 /**
  * A representation of an Android KeyEvent used by the tracing backend.
@@ -43,6 +58,7 @@ struct TracedKeyEvent {
     nsecs_t downTime;
     int32_t flags;
     int32_t repeatCount;
+    EventType eventType;
 };
 
 /**
@@ -69,6 +85,7 @@ struct TracedMotionEvent {
     nsecs_t downTime;
     std::vector<PointerProperties> pointerProperties;
     std::vector<PointerCoords> pointerCoords;
+    EventType eventType;
 };
 
 /** A representation of a traced input event. */
@@ -78,6 +95,8 @@ using TracedEvent = std::variant<TracedKeyEvent, TracedMotionEvent>;
 struct TracedEventArgs {
     // True if the event is targeting at least one secure window.
     bool isSecure;
+    // The list of possible UIDs that this event could be targeting.
+    std::set<gui::Uid> targets;
 };
 
 /** Additional information about an input event being dispatched to a window. */

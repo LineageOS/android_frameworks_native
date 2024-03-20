@@ -163,6 +163,9 @@ public:
     virtual void notifyDeviceInteraction(DeviceId deviceId, nsecs_t timestamp,
                                          const std::set<gui::Uid>& uids) = 0;
 
+    /* Get the UID associated with the given package. */
+    virtual gui::Uid getPackageUid(std::string package) = 0;
+
 private:
     // Additional key latency in case a connection is still processing some motion events.
     // This will help with the case when a user touched a button that opens a new window,

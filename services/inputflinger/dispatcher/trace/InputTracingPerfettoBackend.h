@@ -18,8 +18,12 @@
 
 #include "InputTracingBackendInterface.h"
 
+#include "InputTracingPerfettoBackendConfig.h"
+
+#include <ftl/flags.h>
 #include <perfetto/tracing.h>
 #include <mutex>
+#include <set>
 
 namespace android::inputdispatcher::trace::impl {
 
@@ -45,22 +49,46 @@ namespace android::inputdispatcher::trace::impl {
  */
 class PerfettoBackend : public InputTracingBackendInterface {
 public:
-    PerfettoBackend();
+    using GetPackageUid = std::function<gui::Uid(std::string)>;
+
+    explicit PerfettoBackend(GetPackageUid);
     ~PerfettoBackend() override = default;
 
     void traceKeyEvent(const TracedKeyEvent&, const TracedEventArgs&) override;
     void traceMotionEvent(const TracedMotionEvent&, const TracedEventArgs&) override;
     void traceWindowDispatch(const WindowDispatchArgs&, const TracedEventArgs&) override;
 
+private:
+    // Implementation of the perfetto data source.
+    // Each instance of the InputEventDataSource represents a different tracing session.
     class InputEventDataSource : public perfetto::DataSource<InputEventDataSource> {
     public:
-        void OnSetup(const SetupArgs&) override {}
+        explicit InputEventDataSource();
+
+        void OnSetup(const SetupArgs&) override;
         void OnStart(const StartArgs&) override;
         void OnStop(const StopArgs&) override;
+
+        void initializeUidMap(GetPackageUid);
+        bool shouldIgnoreTracedInputEvent(const EventType&) const;
+        inline ftl::Flags<TraceFlag> getFlags() const { return mConfig.flags; }
+        TraceLevel resolveTraceLevel(const TracedEventArgs&) const;
+
+    private:
+        const int32_t mInstanceId;
+        TraceConfig mConfig;
+
+        bool ruleMatches(const TraceRule&, const TracedEventArgs&) const;
+
+        std::optional<std::map<std::string, gui::Uid>> mUidMap;
     };
 
-private:
+    // TODO(b/330360505): Query the native package manager directly from the data source,
+    //   and remove this.
+    GetPackageUid mGetPackageUid;
+
     static std::once_flag sDataSourceRegistrationFlag;
+    static std::atomic<int32_t> sNextInstanceId;
 };
 
 } // namespace android::inputdispatcher::trace::impl
