@@ -23,6 +23,7 @@
 #include <aidlcommonsupport/NativeHandle.h>
 #include <android/binder_manager.h>
 #include <android/hardware/graphics/mapper/utils/IMapperMetadataTypes.h>
+#include <android/llndk-versioning.h>
 #include <binder/IPCThreadState.h>
 #include <dlfcn.h>
 #include <ui/FatVector.h>
@@ -91,8 +92,7 @@ static void *loadIMapperLibrary() {
 
         void* so = nullptr;
         // TODO(b/322384429) switch this to __ANDROID_API_V__ when V is finalized
-        // TODO(b/302113279) use __ANDROID_VENDOR_API__ for vendor variant
-        if (__builtin_available(android __ANDROID_API_FUTURE__, *)) {
+        if API_LEVEL_AT_LEAST(__ANDROID_API_FUTURE__, 202404) {
             so = AServiceManager_openDeclaredPassthroughHal("mapper", mapperSuffix.c_str(),
                                                             RTLD_LOCAL | RTLD_NOW);
         } else {
