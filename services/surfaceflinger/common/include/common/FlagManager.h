@@ -54,6 +54,7 @@ public:
 
     /// Trunk stable readonly flags ///
     bool connected_display() const;
+    bool frame_rate_category_mrr() const;
     bool enable_small_area_detection() const;
     bool misc1() const;
     bool vrr_config() const;

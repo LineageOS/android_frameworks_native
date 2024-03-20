@@ -1246,6 +1246,8 @@ void RefreshRateSelector::setActiveMode(DisplayModeId modeId, Fps renderFrameRat
     LOG_ALWAYS_FATAL_IF(!activeModeOpt);
 
     mActiveModeOpt.emplace(FrameRateMode{renderFrameRate, ftl::as_non_null(activeModeOpt->get())});
+    mIsVrrDevice = FlagManager::getInstance().vrr_config() &&
+            activeModeOpt->get()->getVrrConfig().has_value();
 }
 
 RefreshRateSelector::RefreshRateSelector(DisplayModes modes, DisplayModeId activeModeId,
@@ -1459,13 +1461,19 @@ void RefreshRateSelector::constructAvailableRefreshRates() {
             }
             return str;
         };
-        ALOGV("%s render rates: %s", rangeName, stringifyModes().c_str());
+        ALOGV("%s render rates: %s, isVrrDevice? %d", rangeName, stringifyModes().c_str(),
+              mIsVrrDevice);
 
         return frameRateModes;
     };
 
     mPrimaryFrameRates = filterRefreshRates(policy->primaryRanges, "primary");
     mAppRequestFrameRates = filterRefreshRates(policy->appRequestRanges, "app request");
+}
+
+bool RefreshRateSelector::isVrrDevice() const {
+    std::lock_guard lock(mLock);
+    return mIsVrrDevice;
 }
 
 Fps RefreshRateSelector::findClosestKnownFrameRate(Fps frameRate) const {

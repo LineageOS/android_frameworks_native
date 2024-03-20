@@ -111,9 +111,12 @@ private:
     std::string dumpGameFrameRateOverridesLocked() const REQUIRES(mLock);
 
     // Iterates over layers maps moving all active layers to mActiveLayerInfos and all inactive
-    // layers to mInactiveLayerInfos.
+    // layers to mInactiveLayerInfos. Layer's active state is determined by multiple factors
+    // such as update activity, visibility, and frame rate vote.
     // worst case time complexity is O(2 * inactive + active)
-    void partitionLayers(nsecs_t now) REQUIRES(mLock);
+    // now: the current time (system time) when calling the method
+    // isVrrDevice: true if the device has DisplayMode with VrrConfig specified.
+    void partitionLayers(nsecs_t now, bool isVrrDevice) REQUIRES(mLock);
 
     enum class LayerStatus {
         NotFound,

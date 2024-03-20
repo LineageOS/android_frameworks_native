@@ -17,4 +17,15 @@ flag {
   bug: "273702768"
 } # dont_skip_on_early_ro2
 
+flag {
+  name: "frame_rate_category_mrr"
+  namespace: "core_graphics"
+  description: "Enable to use frame rate category and newer frame rate votes such as GTE in SurfaceFlinger scheduler, to guard dVRR changes from MRR devices"
+  bug: "330224639"
+  is_fixed_read_only: true
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+} # frame_rate_category_mrr
+
 # IMPORTANT - please keep alphabetize to reduce merge conflicts
