@@ -233,14 +233,18 @@ public:
     struct RankedFrameRates {
         FrameRateRanking ranking; // Ordered by descending score.
         GlobalSignals consideredSignals;
+        Fps pacesetterFps;
 
         bool operator==(const RankedFrameRates& other) const {
-            return ranking == other.ranking && consideredSignals == other.consideredSignals;
+            return ranking == other.ranking && consideredSignals == other.consideredSignals &&
+                    isApproxEqual(pacesetterFps, other.pacesetterFps);
         }
     };
 
-    RankedFrameRates getRankedFrameRates(const std::vector<LayerRequirement>&, GlobalSignals) const
-            EXCLUDES(mLock);
+    // If valid, `pacesetterFps` (used by follower displays) filters the ranking to modes matching
+    // that refresh rate.
+    RankedFrameRates getRankedFrameRates(const std::vector<LayerRequirement>&, GlobalSignals,
+                                         Fps pacesetterFps = {}) const EXCLUDES(mLock);
 
     FpsRange getSupportedRefreshRateRange() const EXCLUDES(mLock) {
         std::lock_guard lock(mLock);
@@ -406,6 +410,8 @@ public:
 
     std::chrono::milliseconds getIdleTimerTimeout();
 
+    bool isVrrDevice() const;
+
 private:
     friend struct TestableRefreshRateSelector;
 
@@ -415,7 +421,8 @@ private:
     const FrameRateMode& getActiveModeLocked() const REQUIRES(mLock);
 
     RankedFrameRates getRankedFrameRatesLocked(const std::vector<LayerRequirement>& layers,
-                                               GlobalSignals signals) const REQUIRES(mLock);
+                                               GlobalSignals signals, Fps pacesetterFps) const
+            REQUIRES(mLock);
 
     // Returns number of display frames and remainder when dividing the layer refresh period by
     // display refresh period.
@@ -513,6 +520,9 @@ private:
     std::vector<FrameRateMode> mPrimaryFrameRates GUARDED_BY(mLock);
     std::vector<FrameRateMode> mAppRequestFrameRates GUARDED_BY(mLock);
 
+    // Caches whether the device is VRR-compatible based on the active display mode.
+    bool mIsVrrDevice GUARDED_BY(mLock) = false;
+
     Policy mDisplayManagerPolicy GUARDED_BY(mLock);
     std::optional<Policy> mOverridePolicy GUARDED_BY(mLock);
 
@@ -534,8 +544,16 @@ private:
     Config::FrameRateOverride mFrameRateOverrideConfig;
 
     struct GetRankedFrameRatesCache {
-        std::pair<std::vector<LayerRequirement>, GlobalSignals> arguments;
+        std::vector<LayerRequirement> layers;
+        GlobalSignals signals;
+        Fps pacesetterFps;
+
         RankedFrameRates result;
+
+        bool matches(const GetRankedFrameRatesCache& other) const {
+            return layers == other.layers && signals == other.signals &&
+                    isApproxEqual(pacesetterFps, other.pacesetterFps);
+        }
     };
     mutable std::optional<GetRankedFrameRatesCache> mGetRankedFrameRatesCache GUARDED_BY(mLock);
 

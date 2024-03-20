@@ -29,6 +29,9 @@ public:
 
     sk_sp<GrDirectContext> grDirectContext() override;
 
+    std::unique_ptr<SkiaBackendTexture> makeBackendTexture(AHardwareBuffer* buffer,
+                                                           bool isOutputBuffer) override;
+
     sk_sp<SkSurface> createRenderTarget(SkImageInfo imageInfo) override;
 
     size_t getMaxRenderTargetSize() const override;

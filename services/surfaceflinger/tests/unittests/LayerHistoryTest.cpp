@@ -548,7 +548,41 @@ TEST_F(LayerHistoryTest, oneLayerExplicitExactVote) {
     EXPECT_EQ(0, frequentLayerCount(time));
 }
 
+TEST_F(LayerHistoryTest, oneLayerExplicitVoteWithCategory_vrrFeatureOff) {
+    SET_FLAG_FOR_TEST(flags::frame_rate_category_mrr, false);
+
+    auto layer = createLayer();
+    EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
+    EXPECT_CALL(*layer, getFrameRateForLayerTree())
+            .WillRepeatedly(
+                    Return(Layer::FrameRate(73.4_Hz, Layer::FrameRateCompatibility::Default,
+                                            Seamlessness::OnlySeamless, FrameRateCategory::High)));
+
+    // Set default to Min so it is obvious that the vote reset triggered.
+    setDefaultLayerVote(layer.get(), LayerHistory::LayerVoteType::Min);
+
+    EXPECT_EQ(1, layerCount());
+    EXPECT_EQ(0, activeLayerCount());
+
+    nsecs_t time = systemTime();
+    for (int i = 0; i < PRESENT_TIME_HISTORY_SIZE; i++) {
+        history().record(layer->getSequence(), layer->getLayerProps(), time, time,
+                         LayerHistory::LayerUpdateType::Buffer);
+        time += HI_FPS_PERIOD;
+    }
+
+    // There is only 1 LayerRequirement due to the disabled flag frame_rate_category_mrr.
+    ASSERT_EQ(1, summarizeLayerHistory(time).size());
+    EXPECT_EQ(1, activeLayerCount());
+    EXPECT_EQ(1, frequentLayerCount(time));
+    EXPECT_EQ(LayerHistory::LayerVoteType::Min, summarizeLayerHistory(time)[0].vote);
+    EXPECT_EQ(0_Hz, summarizeLayerHistory(time)[0].desiredRefreshRate);
+    EXPECT_EQ(FrameRateCategory::Default, summarizeLayerHistory(time)[0].frameRateCategory);
+}
+
 TEST_F(LayerHistoryTest, oneLayerExplicitCategory) {
+    SET_FLAG_FOR_TEST(flags::frame_rate_category_mrr, true);
+
     auto layer = createLayer();
     EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
     EXPECT_CALL(*layer, getFrameRateForLayerTree())
@@ -588,6 +622,8 @@ TEST_F(LayerHistoryTest, oneLayerExplicitCategory) {
 // This test case should be the same as oneLayerNoVote except instead of layer vote is NoVote,
 // the category is NoPreference.
 TEST_F(LayerHistoryTest, oneLayerCategoryNoPreference) {
+    SET_FLAG_FOR_TEST(flags::frame_rate_category_mrr, true);
+
     auto layer = createLayer();
     EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
     EXPECT_CALL(*layer, getFrameRateForLayerTree())
@@ -617,6 +653,8 @@ TEST_F(LayerHistoryTest, oneLayerCategoryNoPreference) {
 }
 
 TEST_F(LayerHistoryTest, oneLayerExplicitVoteWithCategory) {
+    SET_FLAG_FOR_TEST(flags::frame_rate_category_mrr, true);
+
     auto layer = createLayer();
     EXPECT_CALL(*layer, isVisible()).WillRepeatedly(Return(true));
     EXPECT_CALL(*layer, getFrameRateForLayerTree())

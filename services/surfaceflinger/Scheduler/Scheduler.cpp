@@ -1149,38 +1149,31 @@ auto Scheduler::applyPolicy(S Policy::*statePtr, T&& newState) -> GlobalSignals 
 auto Scheduler::chooseDisplayModes() const -> DisplayModeChoiceMap {
     ATRACE_CALL();
 
-    using RankedRefreshRates = RefreshRateSelector::RankedFrameRates;
-    ui::PhysicalDisplayVector<RankedRefreshRates> perDisplayRanking;
+    DisplayModeChoiceMap modeChoices;
     const auto globalSignals = makeGlobalSignals();
-    Fps pacesetterFps;
+
+    const Fps pacesetterFps = [&]() REQUIRES(mPolicyLock, mDisplayLock, kMainThreadContext) {
+        auto rankedFrameRates =
+                pacesetterSelectorPtrLocked()->getRankedFrameRates(mPolicy.contentRequirements,
+                                                                   globalSignals);
+
+        const Fps pacesetterFps = rankedFrameRates.ranking.front().frameRateMode.fps;
+
+        modeChoices.try_emplace(*mPacesetterDisplayId,
+                                DisplayModeChoice::from(std::move(rankedFrameRates)));
+        return pacesetterFps;
+    }();
 
     for (const auto& [id, display] : mDisplays) {
+        if (id == *mPacesetterDisplayId) continue;
+
         auto rankedFrameRates =
-                display.selectorPtr->getRankedFrameRates(mPolicy.contentRequirements,
-                                                         globalSignals);
-        if (id == *mPacesetterDisplayId) {
-            pacesetterFps = rankedFrameRates.ranking.front().frameRateMode.fps;
-        }
-        perDisplayRanking.push_back(std::move(rankedFrameRates));
+                display.selectorPtr->getRankedFrameRates(mPolicy.contentRequirements, globalSignals,
+                                                         pacesetterFps);
+
+        modeChoices.try_emplace(id, DisplayModeChoice::from(std::move(rankedFrameRates)));
     }
 
-    DisplayModeChoiceMap modeChoices;
-    using fps_approx_ops::operator==;
-
-    for (auto& [rankings, signals] : perDisplayRanking) {
-        const auto chosenFrameRateMode =
-                ftl::find_if(rankings,
-                             [&](const auto& ranking) {
-                                 return ranking.frameRateMode.fps == pacesetterFps;
-                             })
-                        .transform([](const auto& scoredFrameRate) {
-                            return scoredFrameRate.get().frameRateMode;
-                        })
-                        .value_or(rankings.front().frameRateMode);
-
-        modeChoices.try_emplace(chosenFrameRateMode.modePtr->getPhysicalDisplayId(),
-                                DisplayModeChoice{chosenFrameRateMode, signals});
-    }
     return modeChoices;
 }
 

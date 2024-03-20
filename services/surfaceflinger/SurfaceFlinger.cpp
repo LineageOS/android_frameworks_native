@@ -578,11 +578,11 @@ void SurfaceFlinger::run() {
 
 sp<IBinder> SurfaceFlinger::createDisplay(const String8& displayName, bool secure,
                                           float requestedRefreshRate) {
-    // onTransact already checks for some permissions, but adding an additional check here.
-    // This is to ensure that only system and graphics can request to create a secure
+    // SurfaceComposerAIDL checks for some permissions, but adding an additional check here.
+    // This is to ensure that only root, system, and graphics can request to create a secure
     // display. Secure displays can show secure content so we add an additional restriction on it.
     const int uid = IPCThreadState::self()->getCallingUid();
-    if (secure && uid != AID_GRAPHICS && uid != AID_SYSTEM) {
+    if (secure && uid != AID_ROOT && uid != AID_GRAPHICS && uid != AID_SYSTEM) {
         ALOGE("Only privileged processes can create a secure display");
         return nullptr;
     }
@@ -6244,9 +6244,9 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args, bool asProto) {
             {"--frontend"s, mainThreadDumper(&SurfaceFlinger::dumpFrontEnd)},
             {"--hdrinfo"s, dumper(&SurfaceFlinger::dumpHdrInfo)},
             {"--hwclayers"s, mainThreadDumper(&SurfaceFlinger::dumpHwcLayersMinidump)},
-            {"--latency"s, argsDumper(&SurfaceFlinger::dumpStatsLocked)},
-            {"--latency-clear"s, argsDumper(&SurfaceFlinger::clearStatsLocked)},
-            {"--list"s, dumper(&SurfaceFlinger::listLayersLocked)},
+            {"--latency"s, argsMainThreadDumper(&SurfaceFlinger::dumpStats)},
+            {"--latency-clear"s, argsMainThreadDumper(&SurfaceFlinger::clearStats)},
+            {"--list"s, mainThreadDumper(&SurfaceFlinger::listLayers)},
             {"--planner"s, argsDumper(&SurfaceFlinger::dumpPlannerInfo)},
             {"--scheduler"s, dumper(&SurfaceFlinger::dumpScheduler)},
             {"--timestats"s, protoDumper(&SurfaceFlinger::dumpTimeStats)},
@@ -6279,28 +6279,29 @@ status_t SurfaceFlinger::dumpCritical(int fd, const DumpArgs&, bool asProto) {
     return doDump(fd, DumpArgs(), asProto);
 }
 
-void SurfaceFlinger::listLayersLocked(std::string& result) const {
-    mCurrentState.traverseInZOrder(
-            [&](Layer* layer) { StringAppendF(&result, "%s\n", layer->getDebugName()); });
+void SurfaceFlinger::listLayers(std::string& result) const {
+    for (const auto& layer : mLayerLifecycleManager.getLayers()) {
+        StringAppendF(&result, "%s\n", layer->getDebugString().c_str());
+    }
 }
 
-void SurfaceFlinger::dumpStatsLocked(const DumpArgs& args, std::string& result) const {
+void SurfaceFlinger::dumpStats(const DumpArgs& args, std::string& result) const {
     StringAppendF(&result, "%" PRId64 "\n", getVsyncPeriodFromHWC());
     if (args.size() < 2) return;
 
     const auto name = String8(args[1]);
-    mCurrentState.traverseInZOrder([&](Layer* layer) {
+    traverseLegacyLayers([&](Layer* layer) {
         if (layer->getName() == name.c_str()) {
             layer->dumpFrameStats(result);
         }
     });
 }
 
-void SurfaceFlinger::clearStatsLocked(const DumpArgs& args, std::string&) {
+void SurfaceFlinger::clearStats(const DumpArgs& args, std::string&) {
     const bool clearAll = args.size() < 2;
     const auto name = clearAll ? String8() : String8(args[1]);
 
-    mCurrentState.traverse([&](Layer* layer) {
+    traverseLegacyLayers([&](Layer* layer) {
         if (clearAll || layer->getName() == name.c_str()) {
             layer->clearFrameStats();
         }

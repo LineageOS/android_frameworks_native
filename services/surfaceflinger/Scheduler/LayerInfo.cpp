@@ -566,6 +566,18 @@ bool LayerInfo::FrameRate::isValid() const {
     return isNoVote() || vote.rate.isValid() || category != FrameRateCategory::Default;
 }
 
+bool LayerInfo::FrameRate::isVoteValidForMrr(bool isVrrDevice) const {
+    if (isVrrDevice || FlagManager::getInstance().frame_rate_category_mrr()) {
+        return true;
+    }
+
+    if (category == FrameRateCategory::Default && vote.type != FrameRateCompatibility::Gte) {
+        return true;
+    }
+
+    return false;
+}
+
 std::ostream& operator<<(std::ostream& stream, const LayerInfo::FrameRate& rate) {
     return stream << "{rate=" << rate.vote.rate << " type=" << ftl::enum_string(rate.vote.type)
                   << " seamlessness=" << ftl::enum_string(rate.vote.seamlessness) << '}';

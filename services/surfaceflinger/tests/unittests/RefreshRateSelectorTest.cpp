@@ -103,8 +103,9 @@ struct TestableRefreshRateSelector : RefreshRateSelector {
     auto& mutableGetRankedRefreshRatesCache() { return mGetRankedFrameRatesCache; }
 
     auto getRankedFrameRates(const std::vector<LayerRequirement>& layers,
-                             GlobalSignals signals = {}) const {
-        const auto result = RefreshRateSelector::getRankedFrameRates(layers, signals);
+                             GlobalSignals signals = {}, Fps pacesetterFps = {}) const {
+        const auto result =
+                RefreshRateSelector::getRankedFrameRates(layers, signals, pacesetterFps);
 
         EXPECT_TRUE(std::is_sorted(result.ranking.begin(), result.ranking.end(),
                                    ScoredFrameRate::DescendingScore{}));
@@ -114,8 +115,8 @@ struct TestableRefreshRateSelector : RefreshRateSelector {
 
     auto getRankedRefreshRatesAsPair(const std::vector<LayerRequirement>& layers,
                                      GlobalSignals signals) const {
-        const auto [ranking, consideredSignals] = getRankedFrameRates(layers, signals);
-        return std::make_pair(ranking, consideredSignals);
+        const auto result = getRankedFrameRates(layers, signals);
+        return std::make_pair(result.ranking, result.consideredSignals);
     }
 
     FrameRateMode getBestFrameRateMode(const std::vector<LayerRequirement>& layers = {},
@@ -1387,7 +1388,7 @@ TEST_P(RefreshRateSelectorTest, getMaxRefreshRatesByPolicyOutsideTheGroup) {
 TEST_P(RefreshRateSelectorTest, powerOnImminentConsidered) {
     auto selector = createSelector(kModes_60_90, kModeId60);
 
-    auto [refreshRates, signals] = selector.getRankedFrameRates({}, {});
+    auto [refreshRates, signals, _] = selector.getRankedFrameRates({}, {});
     EXPECT_FALSE(signals.powerOnImminent);
 
     auto expectedRefreshRates = []() -> std::vector<FrameRateMode> {
@@ -1471,10 +1472,32 @@ TEST_P(RefreshRateSelectorTest, powerOnImminentConsidered) {
     }
 }
 
+TEST_P(RefreshRateSelectorTest, pacesetterConsidered) {
+    auto selector = createSelector(kModes_60_90, kModeId60);
+    constexpr RefreshRateSelector::GlobalSignals kNoSignals;
+
+    std::vector<LayerRequirement> layers = {{.weight = 1.f}};
+    layers[0].vote = LayerVoteType::Min;
+
+    // The pacesetterFps takes precedence over the LayerRequirement.
+    {
+        const auto result = selector.getRankedFrameRates(layers, {}, 90_Hz);
+        EXPECT_EQ(kMode90, result.ranking.front().frameRateMode.modePtr);
+        EXPECT_EQ(kNoSignals, result.consideredSignals);
+    }
+
+    // The pacesetterFps takes precedence over GlobalSignals.
+    {
+        const auto result = selector.getRankedFrameRates(layers, {.touch = true}, 60_Hz);
+        EXPECT_EQ(kMode60, result.ranking.front().frameRateMode.modePtr);
+        EXPECT_EQ(kNoSignals, result.consideredSignals);
+    }
+}
+
 TEST_P(RefreshRateSelectorTest, touchConsidered) {
     auto selector = createSelector(kModes_60_90, kModeId60);
 
-    auto [_, signals] = selector.getRankedFrameRates({}, {});
+    auto signals = selector.getRankedFrameRates({}, {}).consideredSignals;
     EXPECT_FALSE(signals.touch);
 
     std::tie(std::ignore, signals) = selector.getRankedRefreshRatesAsPair({}, {.touch = true});
@@ -2363,7 +2386,7 @@ TEST_P(RefreshRateSelectorTest,
     lr.name = "60Hz ExplicitDefault";
     lr.focused = true;
 
-    const auto [rankedFrameRate, signals] =
+    const auto [rankedFrameRate, signals, _] =
             selector.getRankedFrameRates(layers, {.touch = true, .idle = true});
 
     EXPECT_EQ(rankedFrameRate.begin()->frameRateMode.modePtr, kMode60);
@@ -2587,7 +2610,7 @@ TEST_P(RefreshRateSelectorTest,
     EXPECT_EQ(SetPolicyResult::Changed,
               selector.setDisplayManagerPolicy({kModeId90, {k90, k90}, {k60_90, k60_90}}));
 
-    const auto [ranking, signals] = selector.getRankedFrameRates({}, {});
+    const auto [ranking, signals, _] = selector.getRankedFrameRates({}, {});
     EXPECT_EQ(ranking.front().frameRateMode.modePtr, kMode90);
     EXPECT_FALSE(signals.touch);
 
@@ -2971,7 +2994,7 @@ TEST_P(RefreshRateSelectorTest, idle) {
         layers[0].vote = voteType;
         layers[0].desiredRefreshRate = 90_Hz;
 
-        const auto [ranking, signals] =
+        const auto [ranking, signals, _] =
                 selector.getRankedFrameRates(layers, {.touch = touchActive, .idle = true});
 
         // Refresh rate will be chosen by either touch state or idle state.
@@ -3121,16 +3144,17 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_ReadsCache) {
     auto selector = createSelector(kModes_30_60_72_90_120, kModeId60);
 
     using GlobalSignals = RefreshRateSelector::GlobalSignals;
-    const auto args = std::make_pair(std::vector<LayerRequirement>{},
-                                     GlobalSignals{.touch = true, .idle = true});
-
     const RefreshRateSelector::RankedFrameRates result = {{RefreshRateSelector::ScoredFrameRate{
                                                                   {90_Hz, kMode90}}},
                                                           GlobalSignals{.touch = true}};
 
-    selector.mutableGetRankedRefreshRatesCache() = {args, result};
+    selector.mutableGetRankedRefreshRatesCache() = {.layers = std::vector<LayerRequirement>{},
+                                                    .signals = GlobalSignals{.touch = true,
+                                                                             .idle = true},
+                                                    .result = result};
 
-    EXPECT_EQ(result, selector.getRankedFrameRates(args.first, args.second));
+    const auto& cache = *selector.mutableGetRankedRefreshRatesCache();
+    EXPECT_EQ(result, selector.getRankedFrameRates(cache.layers, cache.signals));
 }
 
 TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_WritesCache) {
@@ -3138,15 +3162,18 @@ TEST_P(RefreshRateSelectorTest, getBestFrameRateMode_WritesCache) {
 
     EXPECT_FALSE(selector.mutableGetRankedRefreshRatesCache());
 
-    std::vector<LayerRequirement> layers = {{.weight = 1.f}, {.weight = 0.5f}};
-    RefreshRateSelector::GlobalSignals globalSignals{.touch = true, .idle = true};
+    const std::vector<LayerRequirement> layers = {{.weight = 1.f}, {.weight = 0.5f}};
+    const RefreshRateSelector::GlobalSignals globalSignals{.touch = true, .idle = true};
+    const Fps pacesetterFps = 60_Hz;
 
-    const auto result = selector.getRankedFrameRates(layers, globalSignals);
+    const auto result = selector.getRankedFrameRates(layers, globalSignals, pacesetterFps);
 
     const auto& cache = selector.mutableGetRankedRefreshRatesCache();
     ASSERT_TRUE(cache);
 
-    EXPECT_EQ(cache->arguments, std::make_pair(layers, globalSignals));
+    EXPECT_EQ(cache->layers, layers);
+    EXPECT_EQ(cache->signals, globalSignals);
+    EXPECT_EQ(cache->pacesetterFps, pacesetterFps);
     EXPECT_EQ(cache->result, result);
 }
 
@@ -4073,7 +4100,7 @@ TEST_P(RefreshRateSelectorTest, idleWhenLowestRefreshRateIsNotDivisor) {
         layers[0].vote = voteType;
         layers[0].desiredRefreshRate = 90_Hz;
 
-        const auto [ranking, signals] =
+        const auto [ranking, signals, _] =
                 selector.getRankedFrameRates(layers, {.touch = touchActive, .idle = true});
 
         // Refresh rate will be chosen by either touch state or idle state.

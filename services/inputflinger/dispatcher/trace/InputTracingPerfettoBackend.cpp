@@ -22,6 +22,7 @@
 
 #include <android-base/logging.h>
 #include <perfetto/trace/android/android_input_event.pbzero.h>
+#include <private/android_filesystem_config.h>
 
 namespace android::inputdispatcher::trace::impl {
 
@@ -29,24 +30,125 @@ namespace {
 
 constexpr auto INPUT_EVENT_TRACE_DATA_SOURCE_NAME = "android.input.inputevent";
 
+bool isPermanentlyAllowed(gui::Uid uid) {
+    switch (uid.val()) {
+        case AID_SYSTEM:
+        case AID_SHELL:
+        case AID_ROOT:
+            return true;
+        default:
+            return false;
+    }
+}
+
 } // namespace
 
 // --- PerfettoBackend::InputEventDataSource ---
 
-void PerfettoBackend::InputEventDataSource::OnStart(const perfetto::DataSourceBase::StartArgs&) {
-    LOG(INFO) << "Starting perfetto trace for: " << INPUT_EVENT_TRACE_DATA_SOURCE_NAME;
+PerfettoBackend::InputEventDataSource::InputEventDataSource() : mInstanceId(sNextInstanceId++) {}
+
+void PerfettoBackend::InputEventDataSource::OnSetup(const InputEventDataSource::SetupArgs& args) {
+    LOG(INFO) << "Setting up perfetto trace for: " << INPUT_EVENT_TRACE_DATA_SOURCE_NAME
+              << ", instanceId: " << mInstanceId;
+    const auto rawConfig = args.config->android_input_event_config_raw();
+    auto protoConfig = perfetto::protos::pbzero::AndroidInputEventConfig::Decoder{rawConfig};
+
+    mConfig = AndroidInputEventProtoConverter::parseConfig(protoConfig);
 }
 
-void PerfettoBackend::InputEventDataSource::OnStop(const perfetto::DataSourceBase::StopArgs&) {
-    LOG(INFO) << "Stopping perfetto trace for: " << INPUT_EVENT_TRACE_DATA_SOURCE_NAME;
+void PerfettoBackend::InputEventDataSource::OnStart(const InputEventDataSource::StartArgs&) {
+    LOG(INFO) << "Starting perfetto trace for: " << INPUT_EVENT_TRACE_DATA_SOURCE_NAME
+              << ", instanceId: " << mInstanceId;
+}
+
+void PerfettoBackend::InputEventDataSource::OnStop(const InputEventDataSource::StopArgs&) {
+    LOG(INFO) << "Stopping perfetto trace for: " << INPUT_EVENT_TRACE_DATA_SOURCE_NAME
+              << ", instanceId: " << mInstanceId;
     InputEventDataSource::Trace([&](InputEventDataSource::TraceContext ctx) { ctx.Flush(); });
+}
+
+void PerfettoBackend::InputEventDataSource::initializeUidMap(GetPackageUid getPackageUid) {
+    if (mUidMap.has_value()) {
+        return;
+    }
+
+    mUidMap = {{}};
+    for (const auto& rule : mConfig.rules) {
+        for (const auto& package : rule.matchAllPackages) {
+            mUidMap->emplace(package, getPackageUid(package));
+        }
+        for (const auto& package : rule.matchAnyPackages) {
+            mUidMap->emplace(package, getPackageUid(package));
+        }
+    }
+}
+
+bool PerfettoBackend::InputEventDataSource::shouldIgnoreTracedInputEvent(
+        const EventType& type) const {
+    if (!getFlags().test(TraceFlag::TRACE_DISPATCHER_INPUT_EVENTS)) {
+        // Ignore all input events.
+        return true;
+    }
+    if (!getFlags().test(TraceFlag::TRACE_DISPATCHER_WINDOW_DISPATCH) &&
+        type != EventType::INBOUND) {
+        // When window dispatch tracing is disabled, ignore any events that are not inbound events.
+        return true;
+    }
+    return false;
+}
+
+TraceLevel PerfettoBackend::InputEventDataSource::resolveTraceLevel(
+        const TracedEventArgs& args) const {
+    // Check for matches with the rules in the order that they are defined.
+    for (const auto& rule : mConfig.rules) {
+        if (ruleMatches(rule, args)) {
+            return rule.level;
+        }
+    }
+    // The event is not traced if it matched zero rules.
+    return TraceLevel::TRACE_LEVEL_NONE;
+}
+
+bool PerfettoBackend::InputEventDataSource::ruleMatches(const TraceRule& rule,
+                                                        const TracedEventArgs& args) const {
+    // By default, a rule will match all events. Return early if the rule does not match.
+
+    // Match the event if it is directed to a secure window.
+    if (rule.matchSecure.has_value() && *rule.matchSecure != args.isSecure) {
+        return false;
+    }
+
+    // Match the event if all of its target packages are explicitly allowed in the "match all" list.
+    if (!rule.matchAllPackages.empty() &&
+        !std::all_of(args.targets.begin(), args.targets.end(), [&](const auto& uid) {
+            return isPermanentlyAllowed(uid) ||
+                    std::any_of(rule.matchAllPackages.begin(), rule.matchAllPackages.end(),
+                                [&](const auto& pkg) { return uid == mUidMap->at(pkg); });
+        })) {
+        return false;
+    }
+
+    // Match the event if any of its target packages are allowed in the "match any" list.
+    if (!rule.matchAnyPackages.empty() &&
+        !std::any_of(args.targets.begin(), args.targets.end(), [&](const auto& uid) {
+            return std::any_of(rule.matchAnyPackages.begin(), rule.matchAnyPackages.end(),
+                               [&](const auto& pkg) { return uid == mUidMap->at(pkg); });
+        })) {
+        return false;
+    }
+
+    // The event matches all matchers specified in the rule.
+    return true;
 }
 
 // --- PerfettoBackend ---
 
 std::once_flag PerfettoBackend::sDataSourceRegistrationFlag{};
 
-PerfettoBackend::PerfettoBackend() {
+std::atomic<int32_t> PerfettoBackend::sNextInstanceId{1};
+
+PerfettoBackend::PerfettoBackend(GetPackageUid getPackagesForUid)
+      : mGetPackageUid(getPackagesForUid) {
     // Use a once-flag to ensure that the data source is only registered once per boot, since
     // we never unregister the InputEventDataSource.
     std::call_once(sDataSourceRegistrationFlag, []() {
@@ -65,42 +167,65 @@ PerfettoBackend::PerfettoBackend() {
 
 void PerfettoBackend::traceMotionEvent(const TracedMotionEvent& event,
                                        const TracedEventArgs& args) {
-    if (args.isSecure) {
-        // For now, avoid tracing secure event entirely.
-        return;
-    }
     InputEventDataSource::Trace([&](InputEventDataSource::TraceContext ctx) {
+        auto dataSource = ctx.GetDataSourceLocked();
+        dataSource->initializeUidMap(mGetPackageUid);
+        if (dataSource->shouldIgnoreTracedInputEvent(event.eventType)) {
+            return;
+        }
+        const TraceLevel traceLevel = dataSource->resolveTraceLevel(args);
+        if (traceLevel == TraceLevel::TRACE_LEVEL_NONE) {
+            return;
+        }
+        const bool isRedacted = traceLevel == TraceLevel::TRACE_LEVEL_REDACTED;
         auto tracePacket = ctx.NewTracePacket();
         auto* inputEvent = tracePacket->set_android_input_event();
-        auto* dispatchMotion = inputEvent->set_dispatcher_motion_event();
-        AndroidInputEventProtoConverter::toProtoMotionEvent(event, *dispatchMotion);
+        auto* dispatchMotion = isRedacted ? inputEvent->set_dispatcher_motion_event_redacted()
+                                          : inputEvent->set_dispatcher_motion_event();
+        AndroidInputEventProtoConverter::toProtoMotionEvent(event, *dispatchMotion, isRedacted);
     });
 }
 
 void PerfettoBackend::traceKeyEvent(const TracedKeyEvent& event, const TracedEventArgs& args) {
-    if (args.isSecure) {
-        // For now, avoid tracing secure event entirely.
-        return;
-    }
     InputEventDataSource::Trace([&](InputEventDataSource::TraceContext ctx) {
+        auto dataSource = ctx.GetDataSourceLocked();
+        dataSource->initializeUidMap(mGetPackageUid);
+        if (dataSource->shouldIgnoreTracedInputEvent(event.eventType)) {
+            return;
+        }
+        const TraceLevel traceLevel = dataSource->resolveTraceLevel(args);
+        if (traceLevel == TraceLevel::TRACE_LEVEL_NONE) {
+            return;
+        }
+        const bool isRedacted = traceLevel == TraceLevel::TRACE_LEVEL_REDACTED;
         auto tracePacket = ctx.NewTracePacket();
         auto* inputEvent = tracePacket->set_android_input_event();
-        auto* dispatchKey = inputEvent->set_dispatcher_key_event();
-        AndroidInputEventProtoConverter::toProtoKeyEvent(event, *dispatchKey);
+        auto* dispatchKey = isRedacted ? inputEvent->set_dispatcher_key_event_redacted()
+                                       : inputEvent->set_dispatcher_key_event();
+        AndroidInputEventProtoConverter::toProtoKeyEvent(event, *dispatchKey, isRedacted);
     });
 }
 
 void PerfettoBackend::traceWindowDispatch(const WindowDispatchArgs& dispatchArgs,
                                           const TracedEventArgs& args) {
-    if (args.isSecure) {
-        // For now, avoid tracing secure event entirely.
-        return;
-    }
     InputEventDataSource::Trace([&](InputEventDataSource::TraceContext ctx) {
+        auto dataSource = ctx.GetDataSourceLocked();
+        dataSource->initializeUidMap(mGetPackageUid);
+        if (!dataSource->getFlags().test(TraceFlag::TRACE_DISPATCHER_WINDOW_DISPATCH)) {
+            return;
+        }
+        const TraceLevel traceLevel = dataSource->resolveTraceLevel(args);
+        if (traceLevel == TraceLevel::TRACE_LEVEL_NONE) {
+            return;
+        }
+        const bool isRedacted = traceLevel == TraceLevel::TRACE_LEVEL_REDACTED;
         auto tracePacket = ctx.NewTracePacket();
         auto* inputEvent = tracePacket->set_android_input_event();
-        auto* dispatchEvent = inputEvent->set_dispatcher_window_dispatch_event();
-        AndroidInputEventProtoConverter::toProtoWindowDispatchEvent(dispatchArgs, *dispatchEvent);
+        auto* dispatchEvent = isRedacted
+                ? inputEvent->set_dispatcher_window_dispatch_event_redacted()
+                : inputEvent->set_dispatcher_window_dispatch_event();
+        AndroidInputEventProtoConverter::toProtoWindowDispatchEvent(dispatchArgs, *dispatchEvent,
+                                                                    isRedacted);
     });
 }
 

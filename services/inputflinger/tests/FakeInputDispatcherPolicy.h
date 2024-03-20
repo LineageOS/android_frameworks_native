@@ -86,6 +86,8 @@ private:
 
     void notifyDeviceInteraction(DeviceId deviceId, nsecs_t timestamp,
                                  const std::set<gui::Uid>& uids) override {}
+
+    gui::Uid getPackageUid(std::string) override { return gui::Uid::INVALID; }
 };
 
 } // namespace android

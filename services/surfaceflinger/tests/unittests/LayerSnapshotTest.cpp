@@ -17,6 +17,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include <common/test/FlagUtils.h>
 #include <renderengine/mock/FakeExternalTexture.h>
 
 #include "FrontEnd/LayerHierarchy.h"
@@ -25,6 +26,8 @@
 #include "Layer.h"
 #include "LayerHierarchyTest.h"
 #include "ui/GraphicTypes.h"
+
+#include <com_android_graphics_surfaceflinger_flags.h>
 
 #define UPDATE_AND_VERIFY(BUILDER, ...)                                    \
     ({                                                                     \
@@ -42,6 +45,7 @@ namespace android::surfaceflinger::frontend {
 
 using ftl::Flags;
 using namespace ftl::flag_operators;
+using namespace com::android::graphics::surfaceflinger;
 
 // To run test:
 /**
@@ -668,6 +672,8 @@ TEST_F(LayerSnapshotTest, translateDataspace) {
 // This test is similar to "frameRate" test case but checks that the setFrameRateCategory API
 // interaction also works correctly with the setFrameRate API within SF frontend.
 TEST_F(LayerSnapshotTest, frameRateWithCategory) {
+    SET_FLAG_FOR_TEST(flags::frame_rate_category_mrr, true);
+
     // ROOT
     // ├── 1
     // │   ├── 11 (frame rate set to 244.f)
@@ -864,6 +870,8 @@ TEST_F(LayerSnapshotTest, frameRateSelectionStrategy) {
 }
 
 TEST_F(LayerSnapshotTest, frameRateSelectionStrategyWithCategory) {
+    SET_FLAG_FOR_TEST(flags::frame_rate_category_mrr, true);
+
     // ROOT
     // ├── 1
     // │   ├── 11
