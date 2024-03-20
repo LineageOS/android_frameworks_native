@@ -20,8 +20,10 @@
 #if defined(__ANDROID_VENDOR__)
 #include <android/llndk-versioning.h>
 #else
-#define __INTRODUCED_IN_LLNDK(x)
+#if !defined(__INTRODUCED_IN_LLNDK)
+#define __INTRODUCED_IN_LLNDK(level) __attribute__((annotate("introduced_in_llndk=" #level)))
 #endif
+#endif  // __ANDROID_VENDOR__
 #include <stdbool.h>
 #include <stdint.h>
 #include <sys/cdefs.h>
