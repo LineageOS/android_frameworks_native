@@ -560,10 +560,8 @@ auto DisplayDevice::setDesiredMode(display::DisplayModeRequest&& desiredMode) ->
         return DesiredModeAction::InitiateRenderRateSwitch;
     }
 
-    // Set the render frame rate to the active physical refresh rate to schedule the next
-    // frame as soon as possible.
     setActiveMode(activeMode.modePtr->getId(), activeMode.modePtr->getVsyncRate(),
-                  activeMode.modePtr->getVsyncRate());
+                  activeMode.modePtr->getPeakFps());
 
     // Initiate a mode change.
     mDesiredModeOpt = std::move(desiredMode);
