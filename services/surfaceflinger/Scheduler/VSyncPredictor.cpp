@@ -635,33 +635,30 @@ std::optional<TimePoint> VSyncPredictor::VsyncTimeline::nextAnticipatedVSyncTime
     const auto threshold = model.slope / 2;
     const auto lastFrameMissed =
             lastVsyncOpt && std::abs(*lastVsyncOpt - missedVsync.vsync.ns()) < threshold;
-    nsecs_t vsyncFixupTime = 0;
     if (FlagManager::getInstance().vrr_config() && lastFrameMissed) {
         // If the last frame missed is the last vsync, we already shifted the timeline. Depends on
         // whether we skipped the frame (onFrameMissed) or not (onFrameBegin) we apply a different
         // fixup. There is no need to to shift the vsync timeline again.
         vsyncTime += missedVsync.fixup.ns();
         ATRACE_FORMAT_INSTANT("lastFrameMissed");
-    } else if (minFramePeriodOpt) {
-        if (FlagManager::getInstance().vrr_config() && lastVsyncOpt) {
-            // lastVsyncOpt is based on the old timeline before we shifted it. we should correct it
-            // first before trying to use it.
-            if (mLastVsyncSequence->seq > 0) {
-                lastVsyncOpt = snapToVsyncAlignedWithRenderRate(model, *lastVsyncOpt);
-            }
-            const auto vsyncDiff = vsyncTime - *lastVsyncOpt;
-            if (vsyncDiff <= minFramePeriodOpt->ns() - threshold) {
-                vsyncFixupTime = *lastVsyncOpt + minFramePeriodOpt->ns() - vsyncTime;
-                ATRACE_FORMAT_INSTANT("minFramePeriod violation. next in %.2f which is %.2f "
-                                      "from "
-                                      "prev. "
-                                      "adjust by %.2f",
-                                      static_cast<float>(vsyncTime - TimePoint::now().ns()) / 1e6f,
-                                      static_cast<float>(vsyncTime - *lastVsyncOpt) / 1e6f,
-                                      static_cast<float>(vsyncFixupTime) / 1e6f);
-            }
+    } else if (FlagManager::getInstance().vrr_config() && minFramePeriodOpt && mRenderRateOpt &&
+               lastVsyncOpt) {
+        // lastVsyncOpt is based on the old timeline before we shifted it. we should correct it
+        // first before trying to use it.
+        lastVsyncOpt = snapToVsyncAlignedWithRenderRate(model, *lastVsyncOpt);
+        const auto vsyncDiff = vsyncTime - *lastVsyncOpt;
+        if (vsyncDiff <= minFramePeriodOpt->ns() - threshold) {
+            // avoid a duplicate vsync
+            ATRACE_FORMAT_INSTANT("skipping a vsync to avoid duplicate frame. next in %.2f which "
+                                  "is %.2f "
+                                  "from "
+                                  "prev. "
+                                  "adjust by %.2f",
+                                  static_cast<float>(vsyncTime - TimePoint::now().ns()) / 1e6f,
+                                  static_cast<float>(vsyncDiff) / 1e6f,
+                                  static_cast<float>(mRenderRateOpt->getPeriodNsecs()) / 1e6f);
+            vsyncTime += mRenderRateOpt->getPeriodNsecs();
         }
-        vsyncTime += vsyncFixupTime;
     }
 
     ATRACE_FORMAT_INSTANT("vsync in %.2fms", float(vsyncTime - TimePoint::now().ns()) / 1e6f);
@@ -669,12 +666,6 @@ std::optional<TimePoint> VSyncPredictor::VsyncTimeline::nextAnticipatedVSyncTime
         ATRACE_FORMAT_INSTANT("no longer valid for vsync in %.2f",
                               static_cast<float>(vsyncTime - TimePoint::now().ns()) / 1e6f);
         return std::nullopt;
-    }
-
-    // If we needed a fixup, it means that we changed the render rate and the chosen vsync would
-    // cross minFramePeriod. In that case we need to shift the entire vsync timeline.
-    if (vsyncFixupTime > 0) {
-        shiftVsyncSequence(Duration::fromNs(vsyncFixupTime));
     }
 
     return TimePoint::fromNs(vsyncTime);
