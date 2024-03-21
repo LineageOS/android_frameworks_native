@@ -66,14 +66,14 @@ public:
         Parcel data, reply;
         data.writeInterfaceToken(IBatteryStats::getInterfaceDescriptor());
         data.writeInt32(uid);
-        remote()->transact(NOTE_START_AUDIO_TRANSACTION, data, &reply);
+        remote()->transact(NOTE_START_AUDIO_TRANSACTION, data, &reply, IBinder::FLAG_ONEWAY);
     }
 
     virtual void noteStopAudio(int uid) {
         Parcel data, reply;
         data.writeInterfaceToken(IBatteryStats::getInterfaceDescriptor());
         data.writeInt32(uid);
-        remote()->transact(NOTE_STOP_AUDIO_TRANSACTION, data, &reply);
+        remote()->transact(NOTE_STOP_AUDIO_TRANSACTION, data, &reply, IBinder::FLAG_ONEWAY);
     }
 
     virtual void noteResetVideo() {
@@ -85,7 +85,7 @@ public:
     virtual void noteResetAudio() {
         Parcel data, reply;
         data.writeInterfaceToken(IBatteryStats::getInterfaceDescriptor());
-        remote()->transact(NOTE_RESET_AUDIO_TRANSACTION, data, &reply);
+        remote()->transact(NOTE_RESET_AUDIO_TRANSACTION, data, &reply, IBinder::FLAG_ONEWAY);
     }
 
     virtual void noteFlashlightOn(int uid) {
