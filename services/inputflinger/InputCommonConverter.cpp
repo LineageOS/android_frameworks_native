@@ -20,6 +20,9 @@ using namespace ::aidl::android::hardware::input;
 
 namespace android {
 
+const static ui::Transform kIdentityTransform;
+const static std::array<uint8_t, 32> kInvalidHmac{};
+
 static common::Source getSource(uint32_t source) {
     static_assert(static_cast<common::Source>(AINPUT_SOURCE_UNKNOWN) == common::Source::UNKNOWN,
                   "SOURCE_UNKNOWN mismatch");
@@ -334,6 +337,33 @@ common::MotionEvent notifyMotionArgsToHalMotionEvent(const NotifyMotionArgs& arg
 
     event.frames = convertVideoFrames(args.videoFrames);
 
+    return event;
+}
+
+MotionEvent toMotionEvent(const NotifyMotionArgs& args, const ui::Transform* transform,
+                          const ui::Transform* rawTransform, const std::array<uint8_t, 32>* hmac) {
+    if (transform == nullptr) transform = &kIdentityTransform;
+    if (rawTransform == nullptr) rawTransform = &kIdentityTransform;
+    if (hmac == nullptr) hmac = &kInvalidHmac;
+
+    MotionEvent event;
+    event.initialize(args.id, args.deviceId, args.source, args.displayId, *hmac, args.action,
+                     args.actionButton, args.flags, args.edgeFlags, args.metaState,
+                     args.buttonState, args.classification, *transform, args.xPrecision,
+                     args.yPrecision, args.xCursorPosition, args.yCursorPosition, *rawTransform,
+                     args.downTime, args.eventTime, args.getPointerCount(),
+                     args.pointerProperties.data(), args.pointerCoords.data());
+    return event;
+}
+
+KeyEvent toKeyEvent(const NotifyKeyArgs& args, int32_t repeatCount,
+                    const std::array<uint8_t, 32>* hmac) {
+    if (hmac == nullptr) hmac = &kInvalidHmac;
+
+    KeyEvent event;
+    event.initialize(args.id, args.deviceId, args.source, args.displayId, *hmac, args.action,
+                     args.flags, args.keyCode, args.scanCode, args.metaState, repeatCount,
+                     args.downTime, args.eventTime);
     return event;
 }
 

@@ -149,6 +149,8 @@ bool PerfettoBackend::InputEventDataSource::ruleMatches(const TraceRule& rule,
 
 // --- PerfettoBackend ---
 
+bool PerfettoBackend::sUseInProcessBackendForTest{false};
+
 std::once_flag PerfettoBackend::sDataSourceRegistrationFlag{};
 
 std::atomic<int32_t> PerfettoBackend::sNextInstanceId{1};
@@ -159,7 +161,8 @@ PerfettoBackend::PerfettoBackend(GetPackageUid getPackagesForUid)
     // we never unregister the InputEventDataSource.
     std::call_once(sDataSourceRegistrationFlag, []() {
         perfetto::TracingInitArgs args;
-        args.backends = perfetto::kSystemBackend;
+        args.backends = sUseInProcessBackendForTest ? perfetto::kInProcessBackend
+                                                    : perfetto::kSystemBackend;
         perfetto::Tracing::Initialize(args);
 
         // Register our custom data source for input event tracing.
@@ -175,6 +178,9 @@ void PerfettoBackend::traceMotionEvent(const TracedMotionEvent& event,
                                        const TracedEventMetadata& metadata) {
     InputEventDataSource::Trace([&](InputEventDataSource::TraceContext ctx) {
         auto dataSource = ctx.GetDataSourceLocked();
+        if (!dataSource.valid()) {
+            return;
+        }
         dataSource->initializeUidMap(mGetPackageUid);
         if (dataSource->shouldIgnoreTracedInputEvent(event.eventType)) {
             return;
@@ -196,6 +202,9 @@ void PerfettoBackend::traceKeyEvent(const TracedKeyEvent& event,
                                     const TracedEventMetadata& metadata) {
     InputEventDataSource::Trace([&](InputEventDataSource::TraceContext ctx) {
         auto dataSource = ctx.GetDataSourceLocked();
+        if (!dataSource.valid()) {
+            return;
+        }
         dataSource->initializeUidMap(mGetPackageUid);
         if (dataSource->shouldIgnoreTracedInputEvent(event.eventType)) {
             return;
@@ -217,6 +226,9 @@ void PerfettoBackend::traceWindowDispatch(const WindowDispatchArgs& dispatchArgs
                                           const TracedEventMetadata& metadata) {
     InputEventDataSource::Trace([&](InputEventDataSource::TraceContext ctx) {
         auto dataSource = ctx.GetDataSourceLocked();
+        if (!dataSource.valid()) {
+            return;
+        }
         dataSource->initializeUidMap(mGetPackageUid);
         if (!dataSource->getFlags().test(TraceFlag::TRACE_DISPATCHER_WINDOW_DISPATCH)) {
             return;

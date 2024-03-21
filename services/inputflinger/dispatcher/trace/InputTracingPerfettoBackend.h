@@ -51,6 +51,8 @@ class PerfettoBackend : public InputTracingBackendInterface {
 public:
     using GetPackageUid = std::function<gui::Uid(std::string)>;
 
+    static bool sUseInProcessBackendForTest;
+
     explicit PerfettoBackend(GetPackageUid);
     ~PerfettoBackend() override = default;
 
@@ -61,6 +63,7 @@ public:
 private:
     // Implementation of the perfetto data source.
     // Each instance of the InputEventDataSource represents a different tracing session.
+    // Its lifecycle is controlled by perfetto.
     class InputEventDataSource : public perfetto::DataSource<InputEventDataSource> {
     public:
         explicit InputEventDataSource();

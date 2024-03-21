@@ -157,6 +157,16 @@ public:
 
     inline void setSpy(bool spy) { mInfo.setInputConfig(InputConfig::SPY, spy); }
 
+    inline void setSecure(bool secure) {
+        if (secure) {
+            mInfo.layoutParamsFlags |= gui::WindowInfo::Flag::SECURE;
+        } else {
+            using namespace ftl::flag_operators;
+            mInfo.layoutParamsFlags &= ~gui::WindowInfo::Flag::SECURE;
+        }
+        mInfo.setInputConfig(InputConfig::SENSITIVE_FOR_TRACING, secure);
+    }
+
     inline void setInterceptsStylus(bool interceptsStylus) {
         mInfo.setInputConfig(InputConfig::INTERCEPTS_STYLUS, interceptsStylus);
     }
@@ -229,10 +239,14 @@ public:
 
     std::unique_ptr<KeyEvent> consumeKey(bool handled = true);
 
-    inline void consumeKeyEvent(const ::testing::Matcher<KeyEvent>& matcher) {
+    inline std::unique_ptr<KeyEvent> consumeKeyEvent(const ::testing::Matcher<KeyEvent>& matcher) {
         std::unique_ptr<KeyEvent> keyEvent = consumeKey();
-        ASSERT_NE(nullptr, keyEvent);
-        ASSERT_THAT(*keyEvent, matcher);
+        EXPECT_NE(nullptr, keyEvent);
+        if (!keyEvent) {
+            return nullptr;
+        }
+        EXPECT_THAT(*keyEvent, matcher);
+        return keyEvent;
     }
 
     inline void consumeKeyDown(int32_t expectedDisplayId, int32_t expectedFlags = 0) {
