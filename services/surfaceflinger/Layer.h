@@ -882,10 +882,6 @@ public:
 
     bool setStretchEffect(const StretchEffect& effect);
     StretchEffect getStretchEffect() const;
-    bool enableBorder(bool shouldEnable, float width, const half4& color);
-    bool isBorderEnabled();
-    float getBorderWidth();
-    const half4& getBorderColor();
 
     bool setBufferCrop(const Rect& /* bufferCrop */);
     bool setDestinationFrame(const Rect& /* destinationFrame */);
@@ -1255,10 +1251,6 @@ private:
     uint32_t mLayerCreationFlags;
 
     bool findInHierarchy(const sp<Layer>&);
-
-    bool mBorderEnabled = false;
-    float mBorderWidth;
-    half4 mBorderColor;
 
     void setTransformHintLegacy(ui::Transform::RotationFlags);
     void releasePreviousBuffer();

@@ -1127,25 +1127,6 @@ void SkiaRenderEngine::drawLayersInternal(
             skgpu::ganesh::Flush(activeSurface);
         }
     }
-    for (const auto& borderRenderInfo : display.borderInfoList) {
-        SkPaint p;
-        p.setColor(SkColor4f{borderRenderInfo.color.r, borderRenderInfo.color.g,
-                             borderRenderInfo.color.b, borderRenderInfo.color.a});
-        p.setAntiAlias(true);
-        p.setStyle(SkPaint::kStroke_Style);
-        p.setStrokeWidth(borderRenderInfo.width);
-        SkRegion sk_region;
-        SkPath path;
-
-        // Construct a final SkRegion using Regions
-        for (const auto& r : borderRenderInfo.combinedRegion) {
-            sk_region.op({r.left, r.top, r.right, r.bottom}, SkRegion::kUnion_Op);
-        }
-
-        sk_region.getBoundaryPath(&path);
-        canvas->drawPath(path, p);
-        path.close();
-    }
 
     surfaceAutoSaveRestore.restore();
     mCapture->endCapture();

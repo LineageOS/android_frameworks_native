@@ -151,7 +151,6 @@ Layer::Layer(const surfaceflinger::LayerCreationArgs& args)
         mWindowType(static_cast<WindowInfo::Type>(
                 args.metadata.getInt32(gui::METADATA_WINDOW_TYPE, 0))),
         mLayerCreationFlags(args.flags),
-        mBorderEnabled(false),
         mLegacyLayerFE(args.flinger->getFactory().createLayerFE(mName)) {
     ALOGV("Creating Layer %s", getDebugName());
 
@@ -1234,28 +1233,6 @@ StretchEffect Layer::getStretchEffect() const {
         }
     }
     return StretchEffect{};
-}
-
-bool Layer::enableBorder(bool shouldEnable, float width, const half4& color) {
-    if (mBorderEnabled == shouldEnable && mBorderWidth == width && mBorderColor == color) {
-        return false;
-    }
-    mBorderEnabled = shouldEnable;
-    mBorderWidth = width;
-    mBorderColor = color;
-    return true;
-}
-
-bool Layer::isBorderEnabled() {
-    return mBorderEnabled;
-}
-
-float Layer::getBorderWidth() {
-    return mBorderWidth;
-}
-
-const half4& Layer::getBorderColor() {
-    return mBorderColor;
 }
 
 bool Layer::propagateFrameRateForLayerTree(FrameRate parentFrameRate, bool overrideChildren,
