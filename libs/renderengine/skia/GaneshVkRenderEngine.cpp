@@ -34,6 +34,12 @@ static void unref_semaphore(void* semaphore) {
     info->unref();
 }
 
+std::unique_ptr<SkiaGpuContext> GaneshVkRenderEngine::createContext(
+        VulkanInterface& vulkanInterface) {
+    return SkiaGpuContext::MakeVulkan_Ganesh(vulkanInterface.getGaneshBackendContext(),
+                                             mSkSLCacheMonitor);
+}
+
 void GaneshVkRenderEngine::waitFence(SkiaGpuContext* context, base::borrowed_fd fenceFd) {
     if (fenceFd.get() < 0) return;
 
