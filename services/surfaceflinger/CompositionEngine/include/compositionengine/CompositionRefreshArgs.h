@@ -34,12 +34,6 @@ namespace android::compositionengine {
 using Layers = std::vector<sp<compositionengine::LayerFE>>;
 using Outputs = std::vector<std::shared_ptr<compositionengine::Output>>;
 
-struct BorderRenderInfo {
-    float width = 0;
-    half4 color;
-    std::vector<int32_t> layerIds;
-};
-
 // Interface of composition engine power hint callback.
 struct ICEPowerCallback {
     virtual void notifyCpuLoadUp() = 0;
@@ -100,8 +94,6 @@ struct CompositionRefreshArgs {
     // If set, a frame has been scheduled for that time.
     // TODO (b/255601557): Calculate per display.
     std::optional<std::chrono::steady_clock::time_point> scheduledFrameTime;
-
-    std::vector<BorderRenderInfo> borderInfoList;
 
     bool hasTrustedPresentationListener = false;
 

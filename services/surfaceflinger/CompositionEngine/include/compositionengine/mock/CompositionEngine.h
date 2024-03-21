@@ -52,6 +52,7 @@ public:
     MOCK_METHOD1(updateCursorAsync, void(CompositionRefreshArgs&));
 
     MOCK_METHOD1(preComposition, void(CompositionRefreshArgs&));
+    MOCK_METHOD1(postComposition, void(CompositionRefreshArgs&));
 
     MOCK_CONST_METHOD0(getFeatureFlags, FeatureFlags());
 

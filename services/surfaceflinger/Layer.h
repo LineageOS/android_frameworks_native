@@ -559,6 +559,14 @@ public:
     void onLayerDisplayed(ftl::SharedFuture<FenceResult>, ui::LayerStack layerStack,
                           std::function<FenceResult(FenceResult)>&& continuation = nullptr);
 
+    // Tracks mLastClientCompositionFence and gets the callback handle for this layer.
+    sp<CallbackHandle> findCallbackHandle();
+
+    // Adds the future release fence to a list of fences that are used to release the
+    // last presented buffer. Also keeps track of the layerstack in a list of previous
+    // layerstacks that have been presented.
+    void prepareReleaseCallbacks(ftl::Future<FenceResult>, ui::LayerStack layerStack);
+
     void setWasClientComposed(const sp<Fence>& fence) {
         mLastClientCompositionFence = fence;
         mClearClientCompositionFenceOnLayerDisplayed = false;
@@ -874,10 +882,6 @@ public:
 
     bool setStretchEffect(const StretchEffect& effect);
     StretchEffect getStretchEffect() const;
-    bool enableBorder(bool shouldEnable, float width, const half4& color);
-    bool isBorderEnabled();
-    float getBorderWidth();
-    const half4& getBorderColor();
 
     bool setBufferCrop(const Rect& /* bufferCrop */);
     bool setDestinationFrame(const Rect& /* destinationFrame */);
@@ -934,6 +938,7 @@ public:
     // the release fences from the correct displays when we release the last buffer
     // from the layer.
     std::vector<ui::LayerStack> mPreviouslyPresentedLayerStacks;
+
     struct FenceAndContinuation {
         ftl::SharedFuture<FenceResult> future;
         std::function<FenceResult(FenceResult)> continuation;
@@ -946,7 +951,16 @@ public:
             }
         }
     };
-    std::vector<FenceAndContinuation> mAdditionalPreviousReleaseFences;
+    std::vector<FenceAndContinuation> mPreviousReleaseFenceAndContinuations;
+
+    // Release fences for buffers that have not yet received a release
+    // callback. A release callback may not be given when capturing
+    // screenshots asynchronously. There may be no buffer update for the
+    // layer, but the layer will still be composited on the screen in every
+    // frame. Kepping track of these fences ensures that they are not dropped
+    // and can be dispatched to the client at a later time.
+    std::vector<ftl::Future<FenceResult>> mAdditionalPreviousReleaseFences;
+
     // Exposed so SurfaceFlinger can assert that it's held
     const sp<SurfaceFlinger> mFlinger;
 
@@ -1237,10 +1251,6 @@ private:
     uint32_t mLayerCreationFlags;
 
     bool findInHierarchy(const sp<Layer>&);
-
-    bool mBorderEnabled = false;
-    float mBorderWidth;
-    half4 mBorderColor;
 
     void setTransformHintLegacy(ui::Transform::RotationFlags);
     void releasePreviousBuffer();

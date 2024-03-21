@@ -40,6 +40,7 @@
 #include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
 #include <binder/PermissionCache.h>
+#include <common/FlagManager.h>
 #include <compositionengine/CompositionEngine.h>
 #include <compositionengine/CompositionRefreshArgs.h>
 #include <compositionengine/Display.h>
@@ -166,10 +167,6 @@
 #undef NO_THREAD_SAFETY_ANALYSIS
 #define NO_THREAD_SAFETY_ANALYSIS \
     _Pragma("GCC error \"Prefer <ftl/fake_guard.h> or MutexUtils.h helpers.\"")
-
-// To enable layer borders in the system, change the below flag to true.
-#undef DOES_CONTAIN_BORDER
-#define DOES_CONTAIN_BORDER false
 
 namespace android {
 using namespace std::chrono_literals;
@@ -2702,27 +2699,14 @@ CompositeResultsPerDisplay SurfaceFlinger::composite(
         mLayerMetadataSnapshotNeeded = false;
     }
 
-    if (DOES_CONTAIN_BORDER) {
-        refreshArgs.borderInfoList.clear();
-        mDrawingState.traverse([&refreshArgs](Layer* layer) {
-            if (layer->isBorderEnabled()) {
-                compositionengine::BorderRenderInfo info;
-                info.width = layer->getBorderWidth();
-                info.color = layer->getBorderColor();
-                layer->traverse(LayerVector::StateSet::Drawing, [&info](Layer* ilayer) {
-                    info.layerIds.push_back(ilayer->getSequence());
-                });
-                refreshArgs.borderInfoList.emplace_back(std::move(info));
-            }
-        });
-    }
-
     refreshArgs.bufferIdsToUncache = std::move(mBufferIdsToUncache);
 
-    refreshArgs.layersWithQueuedFrames.reserve(mLayersWithQueuedFrames.size());
-    for (auto layer : mLayersWithQueuedFrames) {
-        if (auto layerFE = layer->getCompositionEngineLayerFE())
-            refreshArgs.layersWithQueuedFrames.push_back(layerFE);
+    if (!FlagManager::getInstance().ce_fence_promise()) {
+        refreshArgs.layersWithQueuedFrames.reserve(mLayersWithQueuedFrames.size());
+        for (auto& layer : mLayersWithQueuedFrames) {
+            if (const auto& layerFE = layer->getCompositionEngineLayerFE())
+                refreshArgs.layersWithQueuedFrames.push_back(layerFE);
+        }
     }
 
     refreshArgs.outputColorSetting = mDisplayColorSetting;
@@ -2784,22 +2768,56 @@ CompositeResultsPerDisplay SurfaceFlinger::composite(
     }
 
     refreshArgs.refreshStartTime = systemTime(SYSTEM_TIME_MONOTONIC);
-    for (auto [layer, layerFE] : layers) {
+    for (auto& [layer, layerFE] : layers) {
         layer->onPreComposition(refreshArgs.refreshStartTime);
     }
 
-    mCompositionEngine->present(refreshArgs);
-    moveSnapshotsFromCompositionArgs(refreshArgs, layers);
-
-    for (auto [layer, layerFE] : layers) {
-        CompositionResult compositionResult{layerFE->stealCompositionResult()};
-        for (auto& [releaseFence, layerStack] : compositionResult.releaseFences) {
-            Layer* clonedFrom = layer->getClonedFrom().get();
-            auto owningLayer = clonedFrom ? clonedFrom : layer;
-            owningLayer->onLayerDisplayed(std::move(releaseFence), layerStack);
+    if (FlagManager::getInstance().ce_fence_promise()) {
+        for (auto& [layer, layerFE] : layers) {
+            attachReleaseFenceFutureToLayer(layer, layerFE,
+                                            layerFE->mSnapshot->outputFilter.layerStack);
         }
-        if (compositionResult.lastClientCompositionFence) {
-            layer->setWasClientComposed(compositionResult.lastClientCompositionFence);
+
+        refreshArgs.layersWithQueuedFrames.reserve(mLayersWithQueuedFrames.size());
+        for (auto& layer : mLayersWithQueuedFrames) {
+            if (const auto& layerFE = layer->getCompositionEngineLayerFE()) {
+                refreshArgs.layersWithQueuedFrames.push_back(layerFE);
+                // Some layers are not displayed and do not yet have a future release fence
+                if (layerFE->getReleaseFencePromiseStatus() ==
+                            LayerFE::ReleaseFencePromiseStatus::UNINITIALIZED ||
+                    layerFE->getReleaseFencePromiseStatus() ==
+                            LayerFE::ReleaseFencePromiseStatus::FULFILLED) {
+                    // layerStack is invalid because layer is not on a display
+                    attachReleaseFenceFutureToLayer(layer.get(), layerFE.get(),
+                                                    ui::INVALID_LAYER_STACK);
+                }
+            }
+        }
+
+        mCompositionEngine->present(refreshArgs);
+        moveSnapshotsFromCompositionArgs(refreshArgs, layers);
+
+        for (auto& [layer, layerFE] : layers) {
+            CompositionResult compositionResult{layerFE->stealCompositionResult()};
+            if (compositionResult.lastClientCompositionFence) {
+                layer->setWasClientComposed(compositionResult.lastClientCompositionFence);
+            }
+        }
+
+    } else {
+        mCompositionEngine->present(refreshArgs);
+        moveSnapshotsFromCompositionArgs(refreshArgs, layers);
+
+        for (auto [layer, layerFE] : layers) {
+            CompositionResult compositionResult{layerFE->stealCompositionResult()};
+            for (auto& [releaseFence, layerStack] : compositionResult.releaseFences) {
+                Layer* clonedFrom = layer->getClonedFrom().get();
+                auto owningLayer = clonedFrom ? clonedFrom : layer;
+                owningLayer->onLayerDisplayed(std::move(releaseFence), layerStack);
+            }
+            if (compositionResult.lastClientCompositionFence) {
+                layer->setWasClientComposed(compositionResult.lastClientCompositionFence);
+            }
         }
     }
 
@@ -3065,8 +3083,13 @@ void SurfaceFlinger::onCompositionPresented(PhysicalDisplayId pacesetterId,
             auto optDisplay = layerStackToDisplay.get(layerStack);
             if (optDisplay && !optDisplay->get()->isVirtual()) {
                 auto fence = getHwComposer().getPresentFence(optDisplay->get()->getPhysicalId());
-                layer->onLayerDisplayed(ftl::yield<FenceResult>(fence).share(),
-                                        ui::INVALID_LAYER_STACK);
+                if (FlagManager::getInstance().ce_fence_promise()) {
+                    layer->prepareReleaseCallbacks(ftl::yield<FenceResult>(fence),
+                                                   ui::INVALID_LAYER_STACK);
+                } else {
+                    layer->onLayerDisplayed(ftl::yield<FenceResult>(fence).share(),
+                                            ui::INVALID_LAYER_STACK);
+                }
             }
         }
         layer->releasePendingBuffer(presentTime.ns());
@@ -5460,11 +5483,6 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
     }
     if (what & layer_state_t::eBlurRegionsChanged) {
         if (layer->setBlurRegions(s.blurRegions)) flags |= eTraversalNeeded;
-    }
-    if (what & layer_state_t::eRenderBorderChanged) {
-        if (layer->enableBorder(s.borderEnabled, s.borderWidth, s.borderColor)) {
-            flags |= eTraversalNeeded;
-        }
     }
     if (what & layer_state_t::eLayerStackChanged) {
         ssize_t idx = mCurrentState.layersSortedByZ.indexOf(layer);
@@ -7999,7 +8017,7 @@ void SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
 
     // really small crop or frameScale
     if (reqSize.width <= 0 || reqSize.height <= 0) {
-        ALOGW("Failed to captureLayes: crop or scale too small");
+        ALOGW("Failed to captureLayers: crop or scale too small");
         invokeScreenCaptureError(BAD_VALUE, captureListener);
         return;
     }
@@ -8073,6 +8091,17 @@ void SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
                         args.allowProtected, args.grayscale, captureListener);
 }
 
+// Creates a Future release fence for a layer and keeps track of it in a list to
+// release the buffer when the Future is complete. Calls from composittion
+// involve needing to refresh the composition start time for stats.
+void SurfaceFlinger::attachReleaseFenceFutureToLayer(Layer* layer, LayerFE* layerFE,
+                                                     ui::LayerStack layerStack) {
+    ftl::Future<FenceResult> futureFence = layerFE->createReleaseFenceFuture();
+    Layer* clonedFrom = layer->getClonedFrom().get();
+    auto owningLayer = clonedFrom ? clonedFrom : layer;
+    owningLayer->prepareReleaseCallbacks(std::move(futureFence), layerStack);
+}
+
 bool SurfaceFlinger::layersHasProtectedLayer(
         const std::vector<std::pair<Layer*, sp<LayerFE>>>& layers) const {
     bool protectedLayerFound = false;
@@ -8108,7 +8137,6 @@ void SurfaceFlinger::captureScreenCommon(RenderAreaFuture renderAreaFuture,
     const bool supportsProtected = getRenderEngine().supportsProtectedContent();
     bool hasProtectedLayer = false;
     if (allowProtected && supportsProtected) {
-        // Snapshots must be taken from the main thread.
         auto layers = mScheduler->schedule([=]() { return getLayerSnapshots(); }).get();
         hasProtectedLayer = layersHasProtectedLayer(layers);
     }
@@ -8149,6 +8177,14 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::captureScreenshot(
 
     auto takeScreenshotFn = [=, this, renderAreaFuture = std::move(renderAreaFuture)]() REQUIRES(
                                     kMainThreadContext) mutable -> ftl::SharedFuture<FenceResult> {
+        // LayerSnapshots must be obtained from the main thread.
+        auto layers = getLayerSnapshots();
+        if (FlagManager::getInstance().ce_fence_promise()) {
+            for (auto& [layer, layerFE] : layers) {
+                attachReleaseFenceFutureToLayer(layer, layerFE.get(), ui::INVALID_LAYER_STACK);
+            }
+        }
+
         ScreenCaptureResults captureResults;
         std::shared_ptr<RenderArea> renderArea = renderAreaFuture.get();
         if (!renderArea) {
@@ -8162,8 +8198,8 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::captureScreenshot(
 
         ftl::SharedFuture<FenceResult> renderFuture;
         renderArea->render([&]() FTL_FAKE_GUARD(kMainThreadContext) {
-            renderFuture = renderScreenImpl(renderArea, getLayerSnapshots, buffer, regionSampling,
-                                            grayscale, isProtected, captureResults);
+            renderFuture = renderScreenImpl(renderArea, buffer, regionSampling, grayscale,
+                                            isProtected, captureResults, layers);
         });
 
         if (captureListener) {
@@ -8180,6 +8216,10 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::captureScreenshot(
         return renderFuture;
     };
 
+    // TODO(b/294936197): Run takeScreenshotsFn() in a binder thread to reduce the number
+    // of calls on the main thread. renderAreaFuture runs on the main thread and should
+    // no longer be a future, so that it does not need to make an additional jump on the
+    // main thread whenever get() is called.
     auto future =
             mScheduler->schedule(FTL_FAKE_GUARD(kMainThreadContext, std::move(takeScreenshotFn)));
 
@@ -8195,9 +8235,17 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
         std::shared_ptr<const RenderArea> renderArea, GetLayerSnapshotsFunction getLayerSnapshots,
         const std::shared_ptr<renderengine::ExternalTexture>& buffer, bool regionSampling,
         bool grayscale, bool isProtected, ScreenCaptureResults& captureResults) {
-    ATRACE_CALL();
-
     auto layers = getLayerSnapshots();
+    return renderScreenImpl(renderArea, buffer, regionSampling, grayscale, isProtected,
+                            captureResults, layers);
+}
+
+ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
+        std::shared_ptr<const RenderArea> renderArea,
+        const std::shared_ptr<renderengine::ExternalTexture>& buffer, bool regionSampling,
+        bool grayscale, bool isProtected, ScreenCaptureResults& captureResults,
+        std::vector<std::pair<Layer*, sp<android::LayerFE>>>& layers) {
+    ATRACE_CALL();
 
     for (auto& [_, layerFE] : layers) {
         frontend::LayerSnapshot* snapshot = layerFE->mSnapshot.get();
@@ -8351,24 +8399,26 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
     auto presentFuture = mRenderEngine->isThreaded() ? ftl::defer(std::move(present)).share()
                                                      : ftl::yield(present()).share();
 
-    for (auto& [layer, layerFE] : layers) {
-        layer->onLayerDisplayed(presentFuture, ui::INVALID_LAYER_STACK,
-                                [layerFE = std::move(layerFE)](FenceResult) {
-                                    if (FlagManager::getInstance()
-                                                .screenshot_fence_preservation()) {
-                                        const auto compositionResult =
-                                                layerFE->stealCompositionResult();
-                                        const auto& fences = compositionResult.releaseFences;
-                                        // CompositionEngine may choose to cull layers that
-                                        // aren't visible, so pass a non-fence.
-                                        return fences.empty() ? Fence::NO_FENCE
-                                                              : fences.back().first.get();
-                                    } else {
-                                        return layerFE->stealCompositionResult()
-                                                .releaseFences.back()
-                                                .first.get();
-                                    }
-                                });
+    if (!FlagManager::getInstance().ce_fence_promise()) {
+        for (auto& [layer, layerFE] : layers) {
+            layer->onLayerDisplayed(presentFuture, ui::INVALID_LAYER_STACK,
+                                    [layerFE = std::move(layerFE)](FenceResult) {
+                                        if (FlagManager::getInstance()
+                                                    .screenshot_fence_preservation()) {
+                                            const auto compositionResult =
+                                                    layerFE->stealCompositionResult();
+                                            const auto& fences = compositionResult.releaseFences;
+                                            // CompositionEngine may choose to cull layers that
+                                            // aren't visible, so pass a non-fence.
+                                            return fences.empty() ? Fence::NO_FENCE
+                                                                  : fences.back().first.get();
+                                        } else {
+                                            return layerFE->stealCompositionResult()
+                                                    .releaseFences.back()
+                                                    .first.get();
+                                        }
+                                    });
+        }
     }
 
     return presentFuture;

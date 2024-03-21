@@ -22,7 +22,6 @@
 
 #include <math/mat4.h>
 #include <renderengine/PrintMatrix.h>
-#include <renderengine/BorderRenderInfo.h>
 #include <ui/DisplayId.h>
 #include <ui/GraphicTypes.h>
 #include <ui/Rect.h>
@@ -87,8 +86,6 @@ struct DisplaySettings {
     // Configures the rendering intent of the output display. This is used for tonemapping.
     aidl::android::hardware::graphics::composer3::RenderIntent renderIntent =
             aidl::android::hardware::graphics::composer3::RenderIntent::TONE_MAP_COLORIMETRIC;
-
-    std::vector<renderengine::BorderRenderInfo> borderInfoList;
 };
 
 static inline bool operator==(const DisplaySettings& lhs, const DisplaySettings& rhs) {
@@ -100,8 +97,7 @@ static inline bool operator==(const DisplaySettings& lhs, const DisplaySettings&
             lhs.deviceHandlesColorTransform == rhs.deviceHandlesColorTransform &&
             lhs.orientation == rhs.orientation &&
             lhs.targetLuminanceNits == rhs.targetLuminanceNits &&
-            lhs.dimmingStage == rhs.dimmingStage && lhs.renderIntent == rhs.renderIntent &&
-            lhs.borderInfoList == rhs.borderInfoList;
+            lhs.dimmingStage == rhs.dimmingStage && lhs.renderIntent == rhs.renderIntent;
 }
 
 static const char* orientation_to_string(uint32_t orientation) {

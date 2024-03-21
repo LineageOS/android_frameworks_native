@@ -27,6 +27,8 @@
 
 #include "LayerFE.h"
 #include "SurfaceFlinger.h"
+#include "ui/FenceResult.h"
+#include "ui/LayerStack.h"
 
 namespace android {
 
@@ -387,4 +389,29 @@ const sp<GraphicBuffer> LayerFE::getBuffer() const {
     return mSnapshot->externalTexture ? mSnapshot->externalTexture->getBuffer() : nullptr;
 }
 
+void LayerFE::setReleaseFence(const FenceResult& releaseFence) {
+    // Promises should not be fulfilled more than once. This case can occur if virtual
+    // displays with the same layerstack ID are being created and destroyed in quick
+    // succession, such as in tests. This would result in a race condition in which
+    // multiple displays have the same layerstack ID within the same vsync interval.
+    if (mReleaseFencePromiseStatus == ReleaseFencePromiseStatus::FULFILLED) {
+        return;
+    }
+    mReleaseFence.set_value(releaseFence);
+    mReleaseFencePromiseStatus = ReleaseFencePromiseStatus::FULFILLED;
+}
+
+// LayerFEs are reused and a new fence needs to be created whevever a buffer is latched.
+ftl::Future<FenceResult> LayerFE::createReleaseFenceFuture() {
+    if (mReleaseFencePromiseStatus == ReleaseFencePromiseStatus::INITIALIZED) {
+        LOG_ALWAYS_FATAL("Attempting to create a new promise while one is still unfulfilled.");
+    }
+    mReleaseFence = std::promise<FenceResult>();
+    mReleaseFencePromiseStatus = ReleaseFencePromiseStatus::INITIALIZED;
+    return mReleaseFence.get_future();
+}
+
+LayerFE::ReleaseFencePromiseStatus LayerFE::getReleaseFencePromiseStatus() {
+    return mReleaseFencePromiseStatus;
+}
 } // namespace android

@@ -48,6 +48,8 @@ public:
 
     void preComposition(CompositionRefreshArgs&) override;
 
+    void postComposition(CompositionRefreshArgs&) override;
+
     FeatureFlags getFeatureFlags() const override;
 
     // Debugging

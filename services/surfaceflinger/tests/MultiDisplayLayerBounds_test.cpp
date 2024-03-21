@@ -18,9 +18,12 @@
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wconversion"
 
+#include <common/FlagManager.h>
 #include <ui/DisplayState.h>
 
 #include "LayerTransactionTest.h"
+#include "gui/SurfaceComposerClient.h"
+#include "ui/DisplayId.h"
 
 namespace android {
 
@@ -37,7 +40,8 @@ protected:
 
         const auto ids = SurfaceComposerClient::getPhysicalDisplayIds();
         ASSERT_FALSE(ids.empty());
-        mMainDisplay = SurfaceComposerClient::getPhysicalDisplayToken(ids.front());
+        mMainDisplayId = ids.front();
+        mMainDisplay = SurfaceComposerClient::getPhysicalDisplayToken(mMainDisplayId);
         SurfaceComposerClient::getDisplayState(mMainDisplay, &mMainDisplayState);
         SurfaceComposerClient::getActiveDisplayMode(mMainDisplay, &mMainDisplayMode);
 
@@ -85,6 +89,7 @@ protected:
     ui::DisplayState mMainDisplayState;
     ui::DisplayMode mMainDisplayMode;
     sp<IBinder> mMainDisplay;
+    PhysicalDisplayId mMainDisplayId;
     sp<IBinder> mVirtualDisplay;
     sp<IGraphicBufferProducer> mProducer;
     sp<SurfaceControl> mColorLayer;
@@ -119,7 +124,41 @@ TEST_F(MultiDisplayLayerBoundsTest, RenderLayerInMirroredVirtualDisplay) {
     createDisplay(mMainDisplayState.layerStackSpaceRect, ui::DEFAULT_LAYER_STACK);
     createColorLayer(ui::DEFAULT_LAYER_STACK);
 
+    sp<SurfaceControl> mirrorSc =
+            SurfaceComposerClient::getDefault()->mirrorDisplay(mMainDisplayId);
+
     asTransaction([&](Transaction& t) { t.setPosition(mColorLayer, 10, 10); });
+
+    // Verify color layer renders correctly on main display and it is mirrored on the
+    // virtual display.
+    std::unique_ptr<ScreenCapture> sc;
+    ScreenCapture::captureScreen(&sc, mMainDisplay);
+    sc->expectColor(Rect(10, 10, 40, 50), mExpectedColor);
+    sc->expectColor(Rect(0, 0, 9, 9), {0, 0, 0, 255});
+
+    ScreenCapture::captureScreen(&sc, mVirtualDisplay);
+    sc->expectColor(Rect(10, 10, 40, 50), mExpectedColor);
+    sc->expectColor(Rect(0, 0, 9, 9), {0, 0, 0, 255});
+}
+
+TEST_F(MultiDisplayLayerBoundsTest, RenderLayerWithPromisedFenceInMirroredVirtualDisplay) {
+    // Create a display and use a unique layerstack ID for mirrorDisplay() so
+    // the contents of the main display are mirrored on to the virtual display.
+
+    // A unique layerstack ID must be used because sharing the same layerFE
+    // with more than one display is unsupported. A unique layerstack ensures
+    // that a different layerFE is used between displays.
+    constexpr ui::LayerStack layerStack{77687666}; // ASCII for MDLB (MultiDisplayLayerBounds)
+    createDisplay(mMainDisplayState.layerStackSpaceRect, layerStack);
+    createColorLayer(ui::DEFAULT_LAYER_STACK);
+
+    sp<SurfaceControl> mirrorSc =
+            SurfaceComposerClient::getDefault()->mirrorDisplay(mMainDisplayId);
+
+    asTransaction([&](Transaction& t) {
+        t.setPosition(mColorLayer, 10, 10);
+        t.setLayerStack(mirrorSc, layerStack);
+    });
 
     // Verify color layer renders correctly on main display and it is mirrored on the
     // virtual display.

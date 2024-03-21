@@ -100,27 +100,31 @@ bool LayerMetadata::has(uint32_t key) const {
 int32_t LayerMetadata::getInt32(uint32_t key, int32_t fallback) const {
     if (!has(key)) return fallback;
     const std::vector<uint8_t>& data = mMap.at(key);
-    if (data.size() < sizeof(uint32_t)) return fallback;
-    Parcel p;
-    p.setData(data.data(), data.size());
-    return p.readInt32();
+
+    // TODO: should handle when not equal?
+    if (data.size() < sizeof(int32_t)) return fallback;
+
+    int32_t result;
+    memcpy(&result, data.data(), sizeof(result));
+    return result;
 }
 
 void LayerMetadata::setInt32(uint32_t key, int32_t value) {
     std::vector<uint8_t>& data = mMap[key];
-    Parcel p;
-    p.writeInt32(value);
-    data.resize(p.dataSize());
-    memcpy(data.data(), p.data(), p.dataSize());
+    data.resize(sizeof(value));
+    memcpy(data.data(), &value, sizeof(value));
 }
 
 std::optional<int64_t> LayerMetadata::getInt64(uint32_t key) const {
     if (!has(key)) return std::nullopt;
     const std::vector<uint8_t>& data = mMap.at(key);
+
+    // TODO: should handle when not equal?
     if (data.size() < sizeof(int64_t)) return std::nullopt;
-    Parcel p;
-    p.setData(data.data(), data.size());
-    return p.readInt64();
+
+    int64_t result;
+    memcpy(&result, data.data(), sizeof(result));
+    return result;
 }
 
 std::string LayerMetadata::itemToString(uint32_t key, const char* separator) const {

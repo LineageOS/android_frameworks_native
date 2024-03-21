@@ -881,6 +881,11 @@ private:
     // Traverse through all the layers and compute and cache its bounds.
     void computeLayerBounds();
 
+    // Creates a promise for a future release fence for a layer. This allows for
+    // the layer to keep track of when its buffer can be released.
+    void attachReleaseFenceFutureToLayer(Layer* layer, LayerFE* layerFE, ui::LayerStack layerStack);
+
+    // Checks if a protected layer exists in a list of layers.
     bool layersHasProtectedLayer(const std::vector<std::pair<Layer*, sp<LayerFE>>>& layers) const;
 
     void captureScreenCommon(RenderAreaFuture, GetLayerSnapshotsFunction, ui::Size bufferSize,
@@ -892,10 +897,20 @@ private:
             const std::shared_ptr<renderengine::ExternalTexture>&, bool regionSampling,
             bool grayscale, bool isProtected, const sp<IScreenCaptureListener>&);
 
+    // Overloaded version of renderScreenImpl that is used when layer snapshots have
+    // not yet been captured, and thus cannot yet be passed in as a parameter.
+    // Needed for TestableSurfaceFlinger.
     ftl::SharedFuture<FenceResult> renderScreenImpl(
             std::shared_ptr<const RenderArea>, GetLayerSnapshotsFunction,
             const std::shared_ptr<renderengine::ExternalTexture>&, bool regionSampling,
             bool grayscale, bool isProtected, ScreenCaptureResults&) EXCLUDES(mStateLock)
+            REQUIRES(kMainThreadContext);
+
+    ftl::SharedFuture<FenceResult> renderScreenImpl(
+            std::shared_ptr<const RenderArea>,
+            const std::shared_ptr<renderengine::ExternalTexture>&, bool regionSampling,
+            bool grayscale, bool isProtected, ScreenCaptureResults&,
+            std::vector<std::pair<Layer*, sp<android::LayerFE>>>& layers) EXCLUDES(mStateLock)
             REQUIRES(kMainThreadContext);
 
     // If the uid provided is not UNSET_UID, the traverse will skip any layers that don't have a

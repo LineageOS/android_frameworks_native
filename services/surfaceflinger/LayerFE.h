@@ -22,6 +22,9 @@
 #include "compositionengine/LayerFE.h"
 #include "compositionengine/LayerFECompositionState.h"
 #include "renderengine/LayerSettings.h"
+#include "ui/LayerStack.h"
+
+#include <ftl/future.h>
 
 namespace android {
 
@@ -47,6 +50,9 @@ public:
     std::optional<compositionengine::LayerFE::LayerSettings> prepareClientComposition(
             compositionengine::LayerFE::ClientCompositionTargetSettings&) const;
     CompositionResult&& stealCompositionResult();
+    ftl::Future<FenceResult> createReleaseFenceFuture() override;
+    void setReleaseFence(const FenceResult& releaseFence) override;
+    LayerFE::ReleaseFencePromiseStatus getReleaseFencePromiseStatus() override;
 
     std::unique_ptr<surfaceflinger::frontend::LayerSnapshot> mSnapshot;
 
@@ -76,6 +82,8 @@ private:
 
     CompositionResult mCompositionResult;
     std::string mName;
+    std::promise<FenceResult> mReleaseFence;
+    ReleaseFencePromiseStatus mReleaseFencePromiseStatus = ReleaseFencePromiseStatus::UNINITIALIZED;
 };
 
 } // namespace android
