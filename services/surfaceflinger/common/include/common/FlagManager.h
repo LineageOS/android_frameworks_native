@@ -76,6 +76,7 @@ public:
     bool dont_skip_on_early_ro() const;
     bool protected_if_client() const;
     bool ce_fence_promise() const;
+    bool idle_screen_refresh_rate_timeout() const;
 
 protected:
     // overridden for unit tests
