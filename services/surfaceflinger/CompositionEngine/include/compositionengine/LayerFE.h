@@ -133,6 +133,15 @@ public:
         uint64_t frameNumber = 0;
     };
 
+    // Describes the states of the release fence. Checking the states allows checks
+    // to ensure that set_value() is not called on the same promise multiple times,
+    // and can indicate if the promise has been fulfilled.
+    enum class ReleaseFencePromiseStatus {
+        UNINITIALIZED, // Promise not created
+        INITIALIZED,   // Promise created, fence has not been set
+        FULFILLED      // Promise fulfilled, fence is set
+    };
+
     // Returns the LayerSettings to pass to RenderEngine::drawLayers. The state may contain shadows
     // casted by the layer or the content of the layer itself. If the layer does not render then an
     // empty optional will be returned.
@@ -141,6 +150,19 @@ public:
 
     // Called after the layer is displayed to update the presentation fence
     virtual void onLayerDisplayed(ftl::SharedFuture<FenceResult>, ui::LayerStack layerStack) = 0;
+
+    // Initializes a promise for a buffer release fence and provides the future for that
+    // fence. This should only be called when a promise has not yet been created, or
+    // after the previous promise has already been fulfilled. Attempting to call this
+    // when an existing promise is INITIALIZED will fail because the promise has not
+    // yet been fulfilled.
+    virtual ftl::Future<FenceResult> createReleaseFenceFuture() = 0;
+
+    // Sets promise with its buffer's release fence
+    virtual void setReleaseFence(const FenceResult& releaseFence) = 0;
+
+    // Checks if the buffer's release fence has been set
+    virtual LayerFE::ReleaseFencePromiseStatus getReleaseFencePromiseStatus() = 0;
 
     // Gets some kind of identifier for the layer for debug purposes.
     virtual const char* getDebugName() const = 0;

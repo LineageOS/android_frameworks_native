@@ -73,6 +73,9 @@ public:
     // TODO(b/121291683): These will become private/internal
     virtual void preComposition(CompositionRefreshArgs&) = 0;
 
+    // Resolves any unfulfilled promises for release fences
+    virtual void postComposition(CompositionRefreshArgs&) = 0;
+
     virtual FeatureFlags getFeatureFlags() const = 0;
 
     // Debugging

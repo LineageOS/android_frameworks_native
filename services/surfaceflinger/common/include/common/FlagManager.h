@@ -75,6 +75,7 @@ public:
     bool restore_blur_step() const;
     bool dont_skip_on_early_ro() const;
     bool protected_if_client() const;
+    bool ce_fence_promise() const;
 
 protected:
     // overridden for unit tests

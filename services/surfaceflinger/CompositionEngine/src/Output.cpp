@@ -16,6 +16,7 @@
 
 #include <SurfaceFlingerProperties.sysprop.h>
 #include <android-base/stringprintf.h>
+#include <common/FlagManager.h>
 #include <compositionengine/CompositionEngine.h>
 #include <compositionengine/CompositionRefreshArgs.h>
 #include <compositionengine/DisplayColorProfile.h>
@@ -1621,9 +1622,13 @@ void Output::presentFrameAndReleaseLayers() {
             releaseFence =
                     Fence::merge("LayerRelease", releaseFence, frame.clientTargetAcquireFence);
         }
-        layer->getLayerFE()
-                .onLayerDisplayed(ftl::yield<FenceResult>(std::move(releaseFence)).share(),
-                                  outputState.layerFilter.layerStack);
+        if (FlagManager::getInstance().ce_fence_promise()) {
+            layer->getLayerFE().setReleaseFence(releaseFence);
+        } else {
+            layer->getLayerFE()
+                    .onLayerDisplayed(ftl::yield<FenceResult>(std::move(releaseFence)).share(),
+                                      outputState.layerFilter.layerStack);
+        }
     }
 
     // We've got a list of layers needing fences, that are disjoint with
@@ -1631,8 +1636,12 @@ void Output::presentFrameAndReleaseLayers() {
     // supply them with the present fence.
     for (auto& weakLayer : mReleasedLayers) {
         if (const auto layer = weakLayer.promote()) {
-            layer->onLayerDisplayed(ftl::yield<FenceResult>(frame.presentFence).share(),
-                                    outputState.layerFilter.layerStack);
+            if (FlagManager::getInstance().ce_fence_promise()) {
+                layer->setReleaseFence(frame.presentFence);
+            } else {
+                layer->onLayerDisplayed(ftl::yield<FenceResult>(frame.presentFence).share(),
+                                        outputState.layerFilter.layerStack);
+            }
         }
     }
 

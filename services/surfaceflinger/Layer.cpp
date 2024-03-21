@@ -15,6 +15,7 @@
  */
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
+#include "TransactionCallbackInvoker.h"
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wconversion"
 
@@ -2912,9 +2913,7 @@ void Layer::callReleaseBufferCallback(const sp<ITransactionCompletedListener>& l
                               currentMaxAcquiredBufferCount);
 }
 
-void Layer::onLayerDisplayed(ftl::SharedFuture<FenceResult> futureFenceResult,
-                             ui::LayerStack layerStack,
-                             std::function<FenceResult(FenceResult)>&& continuation) {
+sp<CallbackHandle> Layer::findCallbackHandle() {
     // If we are displayed on multiple displays in a single composition cycle then we would
     // need to do careful tracking to enable the use of the mLastClientCompositionFence.
     //  For example we can only use it if all the displays are client comp, and we need
@@ -2949,6 +2948,53 @@ void Layer::onLayerDisplayed(ftl::SharedFuture<FenceResult> futureFenceResult,
             break;
         }
     }
+    return ch;
+}
+
+void Layer::prepareReleaseCallbacks(ftl::Future<FenceResult> futureFenceResult,
+                                    ui::LayerStack layerStack) {
+    sp<CallbackHandle> ch = findCallbackHandle();
+
+    if (ch != nullptr) {
+        ch->previousReleaseCallbackId = mPreviousReleaseCallbackId;
+        ch->previousReleaseFences.emplace_back(std::move(futureFenceResult));
+        ch->name = mName;
+    } else {
+        // If we didn't get a release callback yet, e.g. some scenarios when capturing
+        // screenshots asynchronously, then make sure we don't drop the fence.
+        mAdditionalPreviousReleaseFences.emplace_back(std::move(futureFenceResult));
+        std::vector<ftl::Future<FenceResult>> mergedFences;
+        sp<Fence> prevFence = nullptr;
+        // For a layer that's frequently screenshotted, try to merge fences to make sure we
+        // don't grow unbounded.
+        for (auto& futureReleaseFence : mAdditionalPreviousReleaseFences) {
+            auto result = futureReleaseFence.wait_for(0s);
+            if (result != std::future_status::ready) {
+                mergedFences.emplace_back(std::move(futureReleaseFence));
+                continue;
+            }
+            mergeFence(getDebugName(), futureReleaseFence.get().value_or(Fence::NO_FENCE),
+                       prevFence);
+        }
+        if (prevFence != nullptr) {
+            mergedFences.emplace_back(ftl::yield(FenceResult(std::move(prevFence))));
+        }
+        mAdditionalPreviousReleaseFences.swap(mergedFences);
+    }
+
+    if (mBufferInfo.mBuffer) {
+        mPreviouslyPresentedLayerStacks.push_back(layerStack);
+    }
+
+    if (mDrawingState.frameNumber > 0) {
+        mDrawingState.previousFrameNumber = mDrawingState.frameNumber;
+    }
+}
+
+void Layer::onLayerDisplayed(ftl::SharedFuture<FenceResult> futureFenceResult,
+                             ui::LayerStack layerStack,
+                             std::function<FenceResult(FenceResult)>&& continuation) {
+    sp<CallbackHandle> ch = findCallbackHandle();
 
     if (!FlagManager::getInstance().screenshot_fence_preservation() && continuation) {
         futureFenceResult = ftl::Future(futureFenceResult).then(std::move(continuation)).share();
@@ -2956,32 +3002,32 @@ void Layer::onLayerDisplayed(ftl::SharedFuture<FenceResult> futureFenceResult,
 
     if (ch != nullptr) {
         ch->previousReleaseCallbackId = mPreviousReleaseCallbackId;
-        ch->previousReleaseFences.emplace_back(std::move(futureFenceResult));
+        ch->previousSharedReleaseFences.emplace_back(std::move(futureFenceResult));
         ch->name = mName;
     } else if (FlagManager::getInstance().screenshot_fence_preservation()) {
         // If we didn't get a release callback yet, e.g. some scenarios when capturing screenshots
         // asynchronously, then make sure we don't drop the fence.
-        mAdditionalPreviousReleaseFences.emplace_back(std::move(futureFenceResult),
-                                                      std::move(continuation));
+        mPreviousReleaseFenceAndContinuations.emplace_back(std::move(futureFenceResult),
+                                                           std::move(continuation));
         std::vector<FenceAndContinuation> mergedFences;
         sp<Fence> prevFence = nullptr;
         // For a layer that's frequently screenshotted, try to merge fences to make sure we don't
         // grow unbounded.
-        for (const auto& futureAndContinution : mAdditionalPreviousReleaseFences) {
-            auto result = futureAndContinution.future.wait_for(0s);
+        for (const auto& futureAndContinuation : mPreviousReleaseFenceAndContinuations) {
+            auto result = futureAndContinuation.future.wait_for(0s);
             if (result != std::future_status::ready) {
-                mergedFences.emplace_back(futureAndContinution);
+                mergedFences.emplace_back(futureAndContinuation);
                 continue;
             }
 
-            mergeFence(getDebugName(), futureAndContinution.chain().get().value_or(Fence::NO_FENCE),
-                       prevFence);
+            mergeFence(getDebugName(),
+                       futureAndContinuation.chain().get().value_or(Fence::NO_FENCE), prevFence);
         }
         if (prevFence != nullptr) {
             mergedFences.emplace_back(ftl::yield(FenceResult(std::move(prevFence))).share());
         }
 
-        mAdditionalPreviousReleaseFences.swap(mergedFences);
+        mPreviousReleaseFenceAndContinuations.swap(mergedFences);
     }
 
     if (mBufferInfo.mBuffer) {
@@ -3481,16 +3527,23 @@ bool Layer::setTransactionCompletedListeners(const std::vector<sp<CallbackHandle
             handle->acquireTimeOrFence = mCallbackHandleAcquireTimeOrFence;
             handle->frameNumber = mDrawingState.frameNumber;
             handle->previousFrameNumber = mDrawingState.previousFrameNumber;
-            if (FlagManager::getInstance().screenshot_fence_preservation() &&
+            if (FlagManager::getInstance().ce_fence_promise() &&
                 mPreviousReleaseBufferEndpoint == handle->listener) {
                 // Add fences from previous screenshots now so that they can be dispatched to the
                 // client.
-                for (const auto& futureAndContinution : mAdditionalPreviousReleaseFences) {
-                    handle->previousReleaseFences.emplace_back(futureAndContinution.chain());
+                for (auto& futureReleaseFence : mAdditionalPreviousReleaseFences) {
+                    handle->previousReleaseFences.emplace_back(std::move(futureReleaseFence));
                 }
                 mAdditionalPreviousReleaseFences.clear();
+            } else if (FlagManager::getInstance().screenshot_fence_preservation() &&
+                       mPreviousReleaseBufferEndpoint == handle->listener) {
+                // Add fences from previous screenshots now so that they can be dispatched to the
+                // client.
+                for (const auto& futureAndContinution : mPreviousReleaseFenceAndContinuations) {
+                    handle->previousSharedReleaseFences.emplace_back(futureAndContinution.chain());
+                }
+                mPreviousReleaseFenceAndContinuations.clear();
             }
-
             // Store so latched time and release fence can be set
             mDrawingState.callbackHandles.push_back(handle);
 
