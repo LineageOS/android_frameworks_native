@@ -337,8 +337,14 @@ void SkiaGLRenderEngine::waitFence(SkiaGpuContext*, base::borrowed_fd fenceFd) {
     }
 }
 
-base::unique_fd SkiaGLRenderEngine::flushAndSubmit(SkiaGpuContext* context) {
-    base::unique_fd drawFence = flush();
+base::unique_fd SkiaGLRenderEngine::flushAndSubmit(SkiaGpuContext* context,
+                                                   sk_sp<SkSurface> dstSurface) {
+    sk_sp<GrDirectContext> grContext = context->grDirectContext();
+    {
+        ATRACE_NAME("flush surface");
+        grContext->flush(dstSurface.get());
+    }
+    base::unique_fd drawFence = flushGL();
 
     bool requireSync = drawFence.get() < 0;
     if (requireSync) {
@@ -346,8 +352,7 @@ base::unique_fd SkiaGLRenderEngine::flushAndSubmit(SkiaGpuContext* context) {
     } else {
         ATRACE_BEGIN("Submit(sync=false)");
     }
-    bool success =
-            context->grDirectContext()->submit(requireSync ? GrSyncCpu::kYes : GrSyncCpu::kNo);
+    bool success = grContext->submit(requireSync ? GrSyncCpu::kYes : GrSyncCpu::kNo);
     ATRACE_END();
     if (!success) {
         ALOGE("Failed to flush RenderEngine commands");
@@ -394,7 +399,7 @@ bool SkiaGLRenderEngine::waitGpuFence(base::borrowed_fd fenceFd) {
     return true;
 }
 
-base::unique_fd SkiaGLRenderEngine::flush() {
+base::unique_fd SkiaGLRenderEngine::flushGL() {
     ATRACE_CALL();
     if (!GLExtensions::getInstance().hasNativeFenceSync()) {
         return base::unique_fd();
