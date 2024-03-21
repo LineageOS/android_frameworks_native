@@ -22,16 +22,20 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <string>
 #include <vector>
 
 #include <android-base/logging.h>
 #include <android-base/strings.h>
 #include <android/input.h>
+#include <com_android_input_flags.h>
 
 #include <attestation/HmacKeyManager.h>
 #include <ftl/enum.h>
 #include <input/TfLiteMotionPredictor.h>
+
+namespace input_flags = com::android::input::flags;
 
 namespace android {
 namespace {
@@ -197,7 +201,14 @@ std::unique_ptr<MotionEvent> MotionPredictor::predict(nsecs_t timestamp) {
             // device starts to speed up, but avoids producing noisy predictions as it slows down.
             break;
         }
-        // TODO(b/266747654): Stop predictions if confidence is < some threshold.
+        if (input_flags::enable_jerk_prediction_pruning()) {
+            // TODO(b/266747654): Stop predictions if confidence is < some threshold
+            // Arbitrarily high pruning index, will correct once jerk thresholding is implemented.
+            const size_t upperBoundPredictionIndex = std::numeric_limits<size_t>::max();
+            if (i > upperBoundPredictionIndex) {
+                break;
+            }
+        }
 
         const TfLiteMotionPredictorSample::Point predictedPoint =
                 convertPrediction(axisFrom, axisTo, predictedR[i], predictedPhi[i]);
