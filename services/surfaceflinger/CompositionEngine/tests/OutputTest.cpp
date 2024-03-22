@@ -3010,7 +3010,6 @@ struct OutputFinishFrameTest : public testing::Test {
         EXPECT_CALL(mOutput, getCompositionEngine()).WillRepeatedly(ReturnRef(mCompositionEngine));
         EXPECT_CALL(mCompositionEngine, getRenderEngine()).WillRepeatedly(ReturnRef(mRenderEngine));
         EXPECT_CALL(mOutput, isPowerHintSessionEnabled()).WillRepeatedly(Return(true));
-        SET_FLAG_FOR_TEST(flags::adpf_gpu_sf, false);
     }
 
     StrictMock<OutputPartialMock> mOutput;
@@ -3028,6 +3027,7 @@ TEST_F(OutputFinishFrameTest, ifNotEnabledDoesNothing) {
 }
 
 TEST_F(OutputFinishFrameTest, takesEarlyOutifComposeSurfacesReturnsNoFence) {
+    SET_FLAG_FOR_TEST(flags::adpf_gpu_sf, true);
     mOutput.mState.isEnabled = true;
     EXPECT_CALL(mOutput, updateProtectedContentState());
     EXPECT_CALL(mOutput, dequeueRenderBuffer(_, _)).WillOnce(Return(true));
@@ -3037,7 +3037,8 @@ TEST_F(OutputFinishFrameTest, takesEarlyOutifComposeSurfacesReturnsNoFence) {
     mOutput.finishFrame(std::move(result));
 }
 
-TEST_F(OutputFinishFrameTest, queuesBufferIfComposeSurfacesReturnsAFence) {
+TEST_F(OutputFinishFrameTest, queuesBufferIfComposeSurfacesReturnsAFenceWithAdpfGpuOff) {
+    SET_FLAG_FOR_TEST(flags::adpf_gpu_sf, false);
     mOutput.mState.isEnabled = true;
 
     InSequence seq;
@@ -3052,7 +3053,7 @@ TEST_F(OutputFinishFrameTest, queuesBufferIfComposeSurfacesReturnsAFence) {
     mOutput.finishFrame(std::move(result));
 }
 
-TEST_F(OutputFinishFrameTest, queuesBufferIfComposeSurfacesReturnsAFenceWithAdpfGpuOn) {
+TEST_F(OutputFinishFrameTest, queuesBufferIfComposeSurfacesReturnsAFence) {
     SET_FLAG_FOR_TEST(flags::adpf_gpu_sf, true);
     mOutput.mState.isEnabled = true;
 
@@ -3070,6 +3071,7 @@ TEST_F(OutputFinishFrameTest, queuesBufferIfComposeSurfacesReturnsAFenceWithAdpf
 
 TEST_F(OutputFinishFrameTest, queuesBufferWithHdrSdrRatio) {
     SET_FLAG_FOR_TEST(flags::fp16_client_target, true);
+    SET_FLAG_FOR_TEST(flags::adpf_gpu_sf, true);
     mOutput.mState.isEnabled = true;
 
     InSequence seq;
@@ -3089,7 +3091,7 @@ TEST_F(OutputFinishFrameTest, queuesBufferWithHdrSdrRatio) {
             .WillOnce(DoAll(SetArgPointee<1>(texture), Return(true)));
     EXPECT_CALL(mOutput, composeSurfaces(RegionEq(Region::INVALID_REGION), _, _))
             .WillOnce(Return(ByMove(base::unique_fd())));
-    EXPECT_CALL(mOutput, setHintSessionGpuFence(_));
+    EXPECT_CALL(mOutput, setHintSessionGpuFence(_)).Times(0);
     EXPECT_CALL(*mRenderSurface, queueBuffer(_, 2.f));
 
     impl::GpuCompositionResult result;
@@ -3097,10 +3099,11 @@ TEST_F(OutputFinishFrameTest, queuesBufferWithHdrSdrRatio) {
 }
 
 TEST_F(OutputFinishFrameTest, predictionSucceeded) {
+    SET_FLAG_FOR_TEST(flags::adpf_gpu_sf, true);
     mOutput.mState.isEnabled = true;
     mOutput.mState.strategyPrediction = CompositionStrategyPredictionState::SUCCESS;
     InSequence seq;
-    EXPECT_CALL(mOutput, setHintSessionGpuFence(_));
+    EXPECT_CALL(mOutput, setHintSessionGpuFence(_)).Times(0);
     EXPECT_CALL(*mRenderSurface, queueBuffer(_, 1.f));
 
     impl::GpuCompositionResult result;
@@ -3108,6 +3111,7 @@ TEST_F(OutputFinishFrameTest, predictionSucceeded) {
 }
 
 TEST_F(OutputFinishFrameTest, predictionFailedAndBufferIsReused) {
+    SET_FLAG_FOR_TEST(flags::adpf_gpu_sf, true);
     mOutput.mState.isEnabled = true;
     mOutput.mState.strategyPrediction = CompositionStrategyPredictionState::FAIL;
 
@@ -3123,7 +3127,7 @@ TEST_F(OutputFinishFrameTest, predictionFailedAndBufferIsReused) {
                 composeSurfaces(RegionEq(Region::INVALID_REGION), result.buffer,
                                 Eq(ByRef(result.fence))))
             .WillOnce(Return(ByMove(base::unique_fd())));
-    EXPECT_CALL(mOutput, setHintSessionGpuFence(_));
+    EXPECT_CALL(mOutput, setHintSessionGpuFence(_)).Times(0);
     EXPECT_CALL(*mRenderSurface, queueBuffer(_, 1.f));
     mOutput.finishFrame(std::move(result));
 }
@@ -3484,7 +3488,6 @@ struct OutputComposeSurfacesTest : public testing::Test {
         EXPECT_CALL(*mDisplayColorProfile, getHdrCapabilities())
                 .WillRepeatedly(ReturnRef(kHdrCapabilities));
         EXPECT_CALL(mOutput, isPowerHintSessionEnabled()).WillRepeatedly(Return(true));
-        SET_FLAG_FOR_TEST(flags::adpf_gpu_sf, false);
     }
 
     struct ExecuteState : public CallOrderStateMachineHelper<TestType, ExecuteState> {
@@ -3757,7 +3760,8 @@ TEST_F(OutputComposeSurfacesTest, skipDuplicateClientCompositionRequests) {
     EXPECT_TRUE(mOutput.mState.reusedClientComposition);
 }
 
-TEST_F(OutputComposeSurfacesTest, clientCompositionIfBufferChanges) {
+TEST_F(OutputComposeSurfacesTest, clientCompositionIfBufferChangesWithAdpfGpuOff) {
+    SET_FLAG_FOR_TEST(flags::adpf_gpu_sf, false);
     LayerFE::LayerSettings r1;
     LayerFE::LayerSettings r2;
 
@@ -3800,7 +3804,7 @@ TEST_F(OutputComposeSurfacesTest, clientCompositionIfBufferChanges) {
     EXPECT_FALSE(mOutput.mState.reusedClientComposition);
 }
 
-TEST_F(OutputComposeSurfacesTest, clientCompositionIfBufferChangesWithAdpfGpuOn) {
+TEST_F(OutputComposeSurfacesTest, clientCompositionIfBufferChanges) {
     SET_FLAG_FOR_TEST(flags::adpf_gpu_sf, true);
     LayerFE::LayerSettings r1;
     LayerFE::LayerSettings r2;
