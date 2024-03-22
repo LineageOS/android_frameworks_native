@@ -30,6 +30,7 @@ filegroup {
         "android/os/InputEventInjectionResult.aidl",
         "android/os/InputEventInjectionSync.aidl",
         "android/os/InputConfig.aidl",
+        "android/os/PointerIconType.aidl",
     ],
 }
 
