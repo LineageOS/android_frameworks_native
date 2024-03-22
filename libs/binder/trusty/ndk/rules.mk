@@ -23,6 +23,7 @@ MODULE_SRCS := \
 	$(LIBBINDER_NDK_DIR)/ibinder.cpp \
 	$(LIBBINDER_NDK_DIR)/libbinder.cpp \
 	$(LIBBINDER_NDK_DIR)/parcel.cpp \
+	$(LIBBINDER_NDK_DIR)/stability.cpp \
 	$(LIBBINDER_NDK_DIR)/status.cpp \
 
 MODULE_EXPORT_INCLUDES += \
