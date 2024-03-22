@@ -217,6 +217,11 @@ bool VSyncReactor::addHwVsyncTimestamp(nsecs_t timestamp, std::optional<nsecs_t>
         mMoreSamplesNeeded = mTracker.needsMoreSamples();
     }
 
+    if (mExternalIgnoreFences) {
+      // keep HWVSync on as long as we ignore present fences.
+      mMoreSamplesNeeded = true;
+    }
+
     if (!mMoreSamplesNeeded) {
         setIgnorePresentFencesInternal(false);
     }
