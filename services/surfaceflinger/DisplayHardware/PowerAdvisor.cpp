@@ -555,8 +555,6 @@ std::optional<WorkDuration> PowerAdvisor::estimateWorkDuration() {
     };
     if (sTraceHintSessionData) {
         ATRACE_INT64("Idle duration", idleDuration.ns());
-        ATRACE_INT64("First GPU start", firstGpuTimeline->startTime.ns());
-        ATRACE_INT64("First GPU duration", firstGpuTimeline->duration.ns());
         ATRACE_INT64("Total duration", totalDuration.ns());
         ATRACE_INT64("Flinger duration", flingerDuration.ns());
     }
@@ -636,7 +634,7 @@ std::optional<PowerAdvisor::GpuTimeline> PowerAdvisor::DisplayTimingData::estima
 }
 
 const bool PowerAdvisor::sTraceHintSessionData =
-        base::GetBoolProperty(std::string("debug.sf.trace_hint_sessions"), true);
+        base::GetBoolProperty(std::string("debug.sf.trace_hint_sessions"), false);
 
 const Duration PowerAdvisor::sTargetSafetyMargin = std::chrono::microseconds(
         base::GetIntProperty<int64_t>("debug.sf.hint_margin_us",
