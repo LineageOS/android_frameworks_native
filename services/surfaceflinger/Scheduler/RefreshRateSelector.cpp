@@ -285,11 +285,12 @@ struct RefreshRateSelector::RefreshRateScoreComparator {
 
 std::string RefreshRateSelector::Policy::toString() const {
     return base::StringPrintf("{defaultModeId=%d, allowGroupSwitching=%s"
-                              ", primaryRanges=%s, appRequestRanges=%s}",
+                              ", primaryRanges=%s, appRequestRanges=%s idleScreenConfig=%s}",
                               ftl::to_underlying(defaultMode),
                               allowGroupSwitching ? "true" : "false",
-                              to_string(primaryRanges).c_str(),
-                              to_string(appRequestRanges).c_str());
+                              to_string(primaryRanges).c_str(), to_string(appRequestRanges).c_str(),
+                              idleScreenConfigOpt ? idleScreenConfigOpt->toString().c_str()
+                                                  : "nullptr");
 }
 
 std::pair<nsecs_t, nsecs_t> RefreshRateSelector::getDisplayFrames(nsecs_t layerPeriod,
@@ -1255,14 +1256,14 @@ void RefreshRateSelector::setActiveMode(DisplayModeId modeId, Fps renderFrameRat
 RefreshRateSelector::RefreshRateSelector(DisplayModes modes, DisplayModeId activeModeId,
                                          Config config)
       : mKnownFrameRates(constructKnownFrameRates(modes)), mConfig(config) {
-    initializeIdleTimer();
+    initializeIdleTimer(mConfig.legacyIdleTimerTimeout);
     FTL_FAKE_GUARD(kMainThreadContext, updateDisplayModes(std::move(modes), activeModeId));
 }
 
-void RefreshRateSelector::initializeIdleTimer() {
-    if (mConfig.idleTimerTimeout > 0ms) {
+void RefreshRateSelector::initializeIdleTimer(std::chrono::milliseconds timeout) {
+    if (timeout > 0ms) {
         mIdleTimer.emplace(
-                "IdleTimer", mConfig.idleTimerTimeout,
+                "IdleTimer", timeout,
                 [this] {
                     std::scoped_lock lock(mIdleTimerCallbacksMutex);
                     if (const auto callbacks = getIdleTimerCallbacks()) {
@@ -1385,9 +1386,40 @@ auto RefreshRateSelector::setPolicy(const PolicyVariant& policy) -> SetPolicyRes
 
         mGetRankedFrameRatesCache.reset();
 
-        if (*getCurrentPolicyLocked() == oldPolicy) {
+        const auto& idleScreenConfigOpt = getCurrentPolicyLocked()->idleScreenConfigOpt;
+        if (idleScreenConfigOpt != oldPolicy.idleScreenConfigOpt) {
+            if (!idleScreenConfigOpt.has_value()) {
+                // fallback to legacy timer if existed, otherwise pause the old timer
+                LOG_ALWAYS_FATAL_IF(!mIdleTimer);
+                if (mConfig.legacyIdleTimerTimeout > 0ms) {
+                    mIdleTimer->setInterval(mConfig.legacyIdleTimerTimeout);
+                    mIdleTimer->resume();
+                } else {
+                    mIdleTimer->pause();
+                }
+            } else if (idleScreenConfigOpt->timeoutMillis > 0) {
+                // create a new timer or reconfigure
+                const auto timeout = std::chrono::milliseconds{idleScreenConfigOpt->timeoutMillis};
+                if (!mIdleTimer) {
+                    initializeIdleTimer(timeout);
+                    if (mIdleTimerStarted) {
+                        mIdleTimer->start();
+                    }
+                } else {
+                    mIdleTimer->setInterval(timeout);
+                    mIdleTimer->resume();
+                }
+            } else {
+                if (mIdleTimer) {
+                    mIdleTimer->pause();
+                }
+            }
+        }
+
+        if (getCurrentPolicyLocked()->similarExceptIdleConfig(oldPolicy)) {
             return SetPolicyResult::Unchanged;
         }
+
         constructAvailableRefreshRates();
 
         displayId = getActiveModeLocked().modePtr->getPhysicalDisplayId();
@@ -1589,7 +1621,10 @@ void RefreshRateSelector::dump(utils::Dumper& dumper) const {
 }
 
 std::chrono::milliseconds RefreshRateSelector::getIdleTimerTimeout() {
-    return mConfig.idleTimerTimeout;
+    if (FlagManager::getInstance().idle_screen_refresh_rate_timeout() && mIdleTimer) {
+        return std::chrono::duration_cast<std::chrono::milliseconds>(mIdleTimer->interval());
+    }
+    return mConfig.legacyIdleTimerTimeout;
 }
 
 // TODO(b/293651105): Extract category FpsRange mapping to OEM-configurable config.

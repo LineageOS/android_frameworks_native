@@ -115,9 +115,24 @@ void OneShotTimer::loop() {
             break;
         }
 
-        auto triggerTime = mClock->now() + mInterval;
+        auto triggerTime = mClock->now() + mInterval.load();
         state = TimerState::WAITING;
         while (true) {
+            if (mPaused) {
+                mWaiting = true;
+                int result = sem_wait(&mSemaphore);
+                if (result && errno != EINTR) {
+                    std::stringstream ss;
+                    ss << "sem_wait failed (" << errno << ")";
+                    LOG_ALWAYS_FATAL("%s", ss.str().c_str());
+                }
+
+                mWaiting = false;
+                state = checkForResetAndStop(state);
+                if (state == TimerState::STOPPED) {
+                    break;
+                }
+            }
             // Wait until triggerTime time to check if we need to reset or drop into the idle state.
             if (const auto triggerInterval = triggerTime - mClock->now(); triggerInterval > 0ns) {
                 mWaiting = true;
@@ -137,14 +152,14 @@ void OneShotTimer::loop() {
                 break;
             }
 
-            if (state == TimerState::WAITING && (triggerTime - mClock->now()) <= 0ns) {
+            if (!mPaused && state == TimerState::WAITING && (triggerTime - mClock->now()) <= 0ns) {
                 triggerTimeout = true;
                 state = TimerState::IDLE;
                 break;
             }
 
             if (state == TimerState::RESET) {
-                triggerTime = mLastResetTime.load() + mInterval;
+                triggerTime = mLastResetTime.load() + mInterval.load();
                 state = TimerState::WAITING;
             }
         }
@@ -175,6 +190,16 @@ void OneShotTimer::reset() {
     // mSemaphore for a timeout, rather than idling. So we can avoid a sem_post call since we can
     // just check that we triggered a reset on timeout.
     if (!mWaiting) {
+        LOG_ALWAYS_FATAL_IF(sem_post(&mSemaphore), "sem_post failed");
+    }
+}
+
+void OneShotTimer::pause() {
+    mPaused = true;
+}
+
+void OneShotTimer::resume() {
+    if (mPaused.exchange(false)) {
         LOG_ALWAYS_FATAL_IF(sem_post(&mSemaphore), "sem_post failed");
     }
 }

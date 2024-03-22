@@ -2078,7 +2078,7 @@ TEST_P(RefreshRateSelectorTest,
     constexpr std::chrono::milliseconds kIdleTimerTimeoutMs = 10ms;
     auto selector = createSelector(makeModes(kMode60, kMode120), kModeId120,
                                    Config{
-                                           .idleTimerTimeout = kIdleTimerTimeoutMs,
+                                           .legacyIdleTimerTimeout = kIdleTimerTimeoutMs,
                                    });
     ASSERT_EQ(KernelIdleTimerAction::TurnOn, selector.getIdleTimerAction());
     ASSERT_EQ(kIdleTimerTimeoutMs, selector.getIdleTimerTimeout());
