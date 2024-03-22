@@ -198,6 +198,7 @@ private:
     }
 
     void produceAtomsLocked(AStatsEventList& outEventList) const REQUIRES(mLock) {
+        ALOGI("Producing touchpad usage atoms for %zu counters", mCounters.size());
         for (auto& [id, counters] : mCounters) {
             auto [busId, vendorId, productId, versionId] = id;
             addAStatsEvent(&outEventList, android::util::TOUCHPAD_USAGE, vendorId, productId,
