@@ -24,6 +24,7 @@
 #include <private/android_filesystem_config.h>
 #endif
 
+#include "../BuildFlags.h"
 #include "ibinder_internal.h"
 #include "parcel_internal.h"
 #include "status_internal.h"
@@ -211,6 +212,12 @@ status_t ABBinder::onTransact(transaction_code_t code, const Parcel& data, Parce
         binder_status_t status = getClass()->onTransact(this, code, &in, &out);
         return PruneStatusT(status);
     } else if (code == SHELL_COMMAND_TRANSACTION && getClass()->handleShellCommand != nullptr) {
+        if constexpr (!android::kEnableKernelIpc) {
+            // Non-IPC builds do not have getCallingUid(),
+            // so we have no way of authenticating the caller
+            return STATUS_PERMISSION_DENIED;
+        }
+
         int in = data.readFileDescriptor();
         int out = data.readFileDescriptor();
         int err = data.readFileDescriptor();
