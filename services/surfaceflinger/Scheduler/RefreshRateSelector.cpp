@@ -861,7 +861,7 @@ auto RefreshRateSelector::getRankedFrameRatesLocked(const std::vector<LayerRequi
     // interactive (as opposed to ExplicitExactOrMultiple) and therefore if those posted an explicit
     // vote we should not change it if we get a touch event. Only apply touch boost if it will
     // actually increase the refresh rate over the normal selection.
-    const bool touchBoostForExplicitExact = [&] {
+    const auto isTouchBoostForExplicitExact = [&]() -> bool {
         if (supportsAppFrameRateOverrideByContent()) {
             // Enable touch boost if there are other layers besides exact
             return explicitExact + noVoteLayers + explicitGteLayers != layers.size();
@@ -869,13 +869,11 @@ auto RefreshRateSelector::getRankedFrameRatesLocked(const std::vector<LayerRequi
             // Enable touch boost if there are no exact layers
             return explicitExact == 0;
         }
-    }();
+    };
 
-    const bool touchBoostForCategory =
-            explicitCategoryVoteLayers + noVoteLayers + explicitGteLayers != layers.size();
-
-    const auto touchRefreshRates = rankFrameRates(anchorGroup, RefreshRateOrder::Descending);
-    using fps_approx_ops::operator<;
+    const auto isTouchBoostForCategory = [&]() -> bool {
+        return explicitCategoryVoteLayers + noVoteLayers + explicitGteLayers != layers.size();
+    };
 
     // A method for UI Toolkit to send the touch signal via "HighHint" category vote,
     // which will touch boost when there are no ExplicitDefault layer votes. This is an
@@ -883,13 +881,17 @@ auto RefreshRateSelector::getRankedFrameRatesLocked(const std::vector<LayerRequi
     // compatibility to limit the frame rate, which should not have touch boost.
     const bool hasInteraction = signals.touch || interactiveLayers > 0;
 
-    if (hasInteraction && explicitDefaultVoteLayers == 0 && touchBoostForExplicitExact &&
-        touchBoostForCategory &&
-        scores.front().frameRateMode.fps < touchRefreshRates.front().frameRateMode.fps) {
-        ALOGV("Touch Boost");
-        ATRACE_FORMAT_INSTANT("%s (Touch Boost [late])",
-                              to_string(touchRefreshRates.front().frameRateMode.fps).c_str());
-        return {touchRefreshRates, GlobalSignals{.touch = true}};
+    if (hasInteraction && explicitDefaultVoteLayers == 0 && isTouchBoostForExplicitExact() &&
+        isTouchBoostForCategory()) {
+        const auto touchRefreshRates = rankFrameRates(anchorGroup, RefreshRateOrder::Descending);
+        using fps_approx_ops::operator<;
+
+        if (scores.front().frameRateMode.fps < touchRefreshRates.front().frameRateMode.fps) {
+            ALOGV("Touch Boost");
+            ATRACE_FORMAT_INSTANT("%s (Touch Boost [late])",
+                                  to_string(touchRefreshRates.front().frameRateMode.fps).c_str());
+            return {touchRefreshRates, GlobalSignals{.touch = true}};
+        }
     }
 
     // If we never scored any layers, and we don't favor high refresh rates, prefer to stay with the
@@ -903,8 +905,8 @@ auto RefreshRateSelector::getRankedFrameRatesLocked(const std::vector<LayerRequi
         return {ascendingWithPreferred, kNoSignals};
     }
 
-    ALOGV("%s (scored))", to_string(ranking.front().frameRateMode.fps).c_str());
-    ATRACE_FORMAT_INSTANT("%s (scored))", to_string(ranking.front().frameRateMode.fps).c_str());
+    ALOGV("%s (scored)", to_string(ranking.front().frameRateMode.fps).c_str());
+    ATRACE_FORMAT_INSTANT("%s (scored)", to_string(ranking.front().frameRateMode.fps).c_str());
     return {ranking, kNoSignals};
 }
 
