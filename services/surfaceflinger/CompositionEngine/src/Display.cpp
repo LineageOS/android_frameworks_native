@@ -252,10 +252,6 @@ bool Display::chooseCompositionStrategy(
     auto& hwc = getCompositionEngine().getHwComposer();
     const bool requiresClientComposition = anyLayersRequireClientComposition();
 
-    if (isPowerHintSessionEnabled()) {
-        mPowerAdvisor->setRequiresClientComposition(mId, requiresClientComposition);
-    }
-
     const TimePoint hwcValidateStartTime = TimePoint::now();
 
     if (status_t result = hwc.getDeviceCompositionChanges(*halDisplayId, requiresClientComposition,
@@ -416,8 +412,18 @@ bool Display::isPowerHintSessionEnabled() {
     return mPowerAdvisor != nullptr && mPowerAdvisor->usePowerHintSession();
 }
 
+// For ADPF GPU v0 this is expected to set start time to when the GPU commands are submitted with
+// fence returned, i.e. when RenderEngine flushes the commands and returns the draw fence.
+void Display::setHintSessionGpuStart(TimePoint startTime) {
+    mPowerAdvisor->setGpuStartTime(mId, startTime);
+}
+
 void Display::setHintSessionGpuFence(std::unique_ptr<FenceTime>&& gpuFence) {
     mPowerAdvisor->setGpuFenceTime(mId, std::move(gpuFence));
+}
+
+void Display::setHintSessionRequiresRenderEngine(bool requiresRenderEngine) {
+    mPowerAdvisor->setRequiresRenderEngine(mId, requiresRenderEngine);
 }
 
 void Display::finishFrame(GpuCompositionResult&& result) {
