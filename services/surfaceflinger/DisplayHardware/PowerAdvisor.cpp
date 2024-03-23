@@ -270,27 +270,30 @@ void PowerAdvisor::reportActualWorkDuration() {
         return;
     }
     ATRACE_CALL();
-    std::optional<Duration> actualDuration = estimateWorkDuration();
-    if (!actualDuration.has_value() || actualDuration < 0ns) {
+    std::optional<WorkDuration> actualDuration = estimateWorkDuration();
+    if (!actualDuration.has_value() || actualDuration->durationNanos < 0) {
         ALOGV("Failed to send actual work duration, skipping");
         return;
     }
-    actualDuration = std::make_optional(*actualDuration + sTargetSafetyMargin);
-    mActualDuration = actualDuration;
-
+    actualDuration->durationNanos += sTargetSafetyMargin.ns();
     if (sTraceHintSessionData) {
-        ATRACE_INT64("Measured duration", actualDuration->ns());
-        ATRACE_INT64("Target error term", Duration{*actualDuration - mTargetDuration}.ns());
-        ATRACE_INT64("Reported duration", actualDuration->ns());
+        ATRACE_INT64("Measured duration", actualDuration->durationNanos);
+        ATRACE_INT64("Target error term", actualDuration->durationNanos - mTargetDuration.ns());
+        ATRACE_INT64("Reported duration", actualDuration->durationNanos);
+        if (FlagManager::getInstance().adpf_gpu_sf()) {
+            ATRACE_INT64("Reported cpu duration", actualDuration->cpuDurationNanos);
+            ATRACE_INT64("Reported gpu duration", actualDuration->gpuDurationNanos);
+        }
         ATRACE_INT64("Reported target", mLastTargetDurationSent.ns());
         ATRACE_INT64("Reported target error term",
-                     Duration{*actualDuration - mLastTargetDurationSent}.ns());
+                     actualDuration->durationNanos - mLastTargetDurationSent.ns());
     }
 
-    ALOGV("Sending actual work duration of: %" PRId64 " on reported target: %" PRId64
-          " with error: %" PRId64,
-          actualDuration->ns(), mLastTargetDurationSent.ns(),
-          Duration{*actualDuration - mLastTargetDurationSent}.ns());
+    ALOGV("Sending actual work duration of: %" PRId64 " with cpu: %" PRId64 " and gpu: %" PRId64
+          " on reported target: %" PRId64 " with error: %" PRId64,
+          actualDuration->durationNanos, actualDuration->cpuDurationNanos,
+          actualDuration->gpuDurationNanos, mLastTargetDurationSent.ns(),
+          actualDuration->durationNanos - mLastTargetDurationSent.ns());
 
     if (mTimingTestingMode) {
         mDelayReportActualMutexAcquisitonPromise.get_future().wait();
@@ -303,17 +306,7 @@ void PowerAdvisor::reportActualWorkDuration() {
             ALOGV("Hint session not running and could not be started, skipping");
             return;
         }
-
-        WorkDuration duration{
-                .timeStampNanos = TimePoint::now().ns(),
-                // TODO(b/284324521): Correctly calculate total duration.
-                .durationNanos = actualDuration->ns(),
-                .workPeriodStartTimestampNanos = mCommitStartTimes[0].ns(),
-                .cpuDurationNanos = actualDuration->ns(),
-                // TODO(b/284324521): Calculate RenderEngine GPU time.
-                .gpuDurationNanos = 0,
-        };
-        mHintSessionQueue.push_back(duration);
+        mHintSessionQueue.push_back(*actualDuration);
 
         auto ret = mHintSession->reportActualWorkDuration(mHintSessionQueue);
         if (!ret.isOk()) {
@@ -348,11 +341,36 @@ bool PowerAdvisor::startPowerHintSession(std::vector<int32_t>&& threadIds) {
     return ensurePowerHintSessionRunning();
 }
 
-void PowerAdvisor::setGpuFenceTime(DisplayId displayId, std::unique_ptr<FenceTime>&& fenceTime) {
+void PowerAdvisor::setGpuStartTime(DisplayId displayId, TimePoint startTime) {
     DisplayTimingData& displayData = mDisplayTimingData[displayId];
     if (displayData.gpuEndFenceTime) {
         nsecs_t signalTime = displayData.gpuEndFenceTime->getSignalTime();
         if (signalTime != Fence::SIGNAL_TIME_INVALID && signalTime != Fence::SIGNAL_TIME_PENDING) {
+            displayData.lastValidGpuStartTime = displayData.gpuStartTime;
+            displayData.lastValidGpuEndTime = TimePoint::fromNs(signalTime);
+            for (auto&& [_, otherDisplayData] : mDisplayTimingData) {
+                if (!otherDisplayData.lastValidGpuStartTime.has_value() ||
+                    !otherDisplayData.lastValidGpuEndTime.has_value())
+                    continue;
+                if ((*otherDisplayData.lastValidGpuStartTime < *displayData.gpuStartTime) &&
+                    (*otherDisplayData.lastValidGpuEndTime > *displayData.gpuStartTime)) {
+                    displayData.lastValidGpuStartTime = *otherDisplayData.lastValidGpuEndTime;
+                    break;
+                }
+            }
+        }
+        displayData.gpuEndFenceTime = nullptr;
+    }
+    displayData.gpuStartTime = startTime;
+}
+
+void PowerAdvisor::setGpuFenceTime(DisplayId displayId, std::unique_ptr<FenceTime>&& fenceTime) {
+    DisplayTimingData& displayData = mDisplayTimingData[displayId];
+    if (displayData.gpuEndFenceTime && !FlagManager::getInstance().adpf_gpu_sf()) {
+        nsecs_t signalTime = displayData.gpuEndFenceTime->getSignalTime();
+        if (signalTime != Fence::SIGNAL_TIME_INVALID && signalTime != Fence::SIGNAL_TIME_PENDING) {
+            displayData.lastValidGpuStartTime = displayData.gpuStartTime;
+            displayData.lastValidGpuEndTime = TimePoint::fromNs(signalTime);
             for (auto&& [_, otherDisplayData] : mDisplayTimingData) {
                 // If the previous display started before us but ended after we should have
                 // started, then it likely delayed our start time and we must compensate for that.
@@ -365,12 +383,12 @@ void PowerAdvisor::setGpuFenceTime(DisplayId displayId, std::unique_ptr<FenceTim
                     break;
                 }
             }
-            displayData.lastValidGpuStartTime = displayData.gpuStartTime;
-            displayData.lastValidGpuEndTime = TimePoint::fromNs(signalTime);
         }
     }
     displayData.gpuEndFenceTime = std::move(fenceTime);
-    displayData.gpuStartTime = TimePoint::now();
+    if (!FlagManager::getInstance().adpf_gpu_sf()) {
+        displayData.gpuStartTime = TimePoint::now();
+    }
 }
 
 void PowerAdvisor::setHwcValidateTiming(DisplayId displayId, TimePoint validateStartTime,
@@ -391,9 +409,8 @@ void PowerAdvisor::setSkippedValidate(DisplayId displayId, bool skipped) {
     mDisplayTimingData[displayId].skippedValidate = skipped;
 }
 
-void PowerAdvisor::setRequiresClientComposition(DisplayId displayId,
-                                                bool requiresClientComposition) {
-    mDisplayTimingData[displayId].usedClientComposition = requiresClientComposition;
+void PowerAdvisor::setRequiresRenderEngine(DisplayId displayId, bool requiresRenderEngine) {
+    mDisplayTimingData[displayId].requiresRenderEngine = requiresRenderEngine;
 }
 
 void PowerAdvisor::setExpectedPresentTime(TimePoint expectedPresentTime) {
@@ -401,8 +418,8 @@ void PowerAdvisor::setExpectedPresentTime(TimePoint expectedPresentTime) {
 }
 
 void PowerAdvisor::setSfPresentTiming(TimePoint presentFenceTime, TimePoint presentEndTime) {
-    mLastSfPresentEndTime = presentEndTime;
     mLastPresentFenceTime = presentFenceTime;
+    mLastSfPresentEndTime = presentEndTime;
 }
 
 void PowerAdvisor::setFrameDelay(Duration frameDelayDuration) {
@@ -443,7 +460,7 @@ std::vector<DisplayId> PowerAdvisor::getOrderedDisplayIds(
     return sortedDisplays;
 }
 
-std::optional<Duration> PowerAdvisor::estimateWorkDuration() {
+std::optional<WorkDuration> PowerAdvisor::estimateWorkDuration() {
     if (!mExpectedPresentTimes.isFull() || !mCommitStartTimes.isFull()) {
         return std::nullopt;
     }
@@ -462,11 +479,10 @@ std::optional<Duration> PowerAdvisor::estimateWorkDuration() {
     // used to accumulate gpu time as we iterate over the active displays
     std::optional<TimePoint> estimatedGpuEndTime;
 
-    // The timing info for the previously calculated display, if there was one
-    std::optional<DisplayTimeline> previousDisplayTiming;
     std::vector<DisplayId>&& displayIds =
             getOrderedDisplayIds(&DisplayTimingData::hwcPresentStartTime);
     DisplayTimeline displayTiming;
+    std::optional<GpuTimeline> firstGpuTimeline;
 
     // Iterate over the displays that use hwc in the same order they are presented
     for (DisplayId displayId : displayIds) {
@@ -477,14 +493,6 @@ std::optional<Duration> PowerAdvisor::estimateWorkDuration() {
         auto& displayData = mDisplayTimingData.at(displayId);
 
         displayTiming = displayData.calculateDisplayTimeline(mLastPresentFenceTime);
-
-        // If this is the first display, include the duration before hwc present starts
-        if (!previousDisplayTiming.has_value()) {
-            estimatedHwcEndTime += displayTiming.hwcPresentStartTime - mCommitStartTimes[0];
-        } else { // Otherwise add the time since last display's hwc present finished
-            estimatedHwcEndTime +=
-                    displayTiming.hwcPresentStartTime - previousDisplayTiming->hwcPresentEndTime;
-        }
 
         // Update predicted present finish time with this display's present time
         estimatedHwcEndTime = displayTiming.hwcPresentEndTime;
@@ -500,6 +508,9 @@ std::optional<Duration> PowerAdvisor::estimateWorkDuration() {
         // Estimate the reference frame's gpu timing
         auto gpuTiming = displayData.estimateGpuTiming(previousValidGpuEndTime);
         if (gpuTiming.has_value()) {
+            if (!firstGpuTimeline.has_value()) {
+                firstGpuTimeline = gpuTiming;
+            }
             previousValidGpuEndTime = gpuTiming->startTime + gpuTiming->duration;
 
             // Estimate the prediction frame's gpu end time from the reference frame
@@ -507,9 +518,7 @@ std::optional<Duration> PowerAdvisor::estimateWorkDuration() {
                                            estimatedGpuEndTime.value_or(TimePoint{0ns})) +
                     gpuTiming->duration;
         }
-        previousDisplayTiming = displayTiming;
     }
-    ATRACE_INT64("Idle duration", idleDuration.ns());
 
     TimePoint estimatedFlingerEndTime = mLastSfPresentEndTime;
 
@@ -522,15 +531,34 @@ std::optional<Duration> PowerAdvisor::estimateWorkDuration() {
     Duration totalDuration = mFrameDelayDuration +
             std::max(estimatedHwcEndTime, estimatedGpuEndTime.value_or(TimePoint{0ns})) -
             mCommitStartTimes[0];
+    Duration totalDurationWithoutGpu =
+            mFrameDelayDuration + estimatedHwcEndTime - mCommitStartTimes[0];
 
     // We finish SurfaceFlinger when post-composition finishes, so add that in here
     Duration flingerDuration =
             estimatedFlingerEndTime + mLastPostcompDuration - mCommitStartTimes[0];
+    Duration estimatedGpuDuration = firstGpuTimeline.has_value()
+            ? estimatedGpuEndTime.value_or(TimePoint{0ns}) - firstGpuTimeline->startTime
+            : Duration::fromNs(0);
 
     // Combine the two timings into a single normalized one
     Duration combinedDuration = combineTimingEstimates(totalDuration, flingerDuration);
+    Duration cpuDuration = combineTimingEstimates(totalDurationWithoutGpu, flingerDuration);
 
-    return std::make_optional(combinedDuration);
+    WorkDuration duration{
+            .timeStampNanos = TimePoint::now().ns(),
+            .durationNanos = combinedDuration.ns(),
+            .workPeriodStartTimestampNanos = mCommitStartTimes[0].ns(),
+            .cpuDurationNanos = FlagManager::getInstance().adpf_gpu_sf() ? cpuDuration.ns() : 0,
+            .gpuDurationNanos =
+                    FlagManager::getInstance().adpf_gpu_sf() ? estimatedGpuDuration.ns() : 0,
+    };
+    if (sTraceHintSessionData) {
+        ATRACE_INT64("Idle duration", idleDuration.ns());
+        ATRACE_INT64("Total duration", totalDuration.ns());
+        ATRACE_INT64("Flinger duration", flingerDuration.ns());
+    }
+    return std::make_optional(duration);
 }
 
 Duration PowerAdvisor::combineTimingEstimates(Duration totalDuration, Duration flingerDuration) {
@@ -581,7 +609,7 @@ PowerAdvisor::DisplayTimeline PowerAdvisor::DisplayTimingData::calculateDisplayT
 
 std::optional<PowerAdvisor::GpuTimeline> PowerAdvisor::DisplayTimingData::estimateGpuTiming(
         std::optional<TimePoint> previousEndTime) {
-    if (!(usedClientComposition && lastValidGpuStartTime.has_value() && gpuEndFenceTime)) {
+    if (!(requiresRenderEngine && lastValidGpuStartTime.has_value() && gpuEndFenceTime)) {
         return std::nullopt;
     }
     const TimePoint latestGpuStartTime =

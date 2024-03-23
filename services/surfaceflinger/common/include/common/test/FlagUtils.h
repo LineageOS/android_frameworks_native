@@ -18,9 +18,13 @@
 
 #include <common/FlagManager.h>
 
-#define SET_FLAG_FOR_TEST(name, value) \
-    TestFlagSetter _testflag_ {        \
-        (name), (name), (value)        \
+// indirection to resolve __LINE__ in SET_FLAG_FOR_TEST, it's used to create a unique TestFlagSetter
+// setter var name everytime so multiple flags can be set in a test
+#define CONCAT_INNER(a, b) a##b
+#define CONCAT(a, b) CONCAT_INNER(a, b)
+#define SET_FLAG_FOR_TEST(name, value)            \
+    TestFlagSetter CONCAT(_testFlag_, __LINE__) { \
+        (name), (name), (value)                   \
     }
 
 namespace android {

@@ -464,6 +464,10 @@ ftl::Future<std::monostate> Output::present(
     setColorTransform(refreshArgs);
     beginFrame();
 
+    if (isPowerHintSessionEnabled()) {
+        // always reset the flag before the composition prediction
+        setHintSessionRequiresRenderEngine(false);
+    }
     GpuCompositionResult result;
     const bool predictCompositionStrategy = canPredictCompositionStrategy(refreshArgs);
     if (predictCompositionStrategy) {
@@ -1210,8 +1214,7 @@ void Output::finishFrame(GpuCompositionResult&& result) {
     if (!optReadyFence) {
         return;
     }
-
-    if (isPowerHintSessionEnabled()) {
+    if (isPowerHintSessionEnabled() && !FlagManager::getInstance().adpf_gpu_sf()) {
         // get fence end time to know when gpu is complete in display
         setHintSessionGpuFence(
                 std::make_unique<FenceTime>(sp<Fence>::make(dup(optReadyFence->get()))));
@@ -1355,8 +1358,20 @@ std::optional<base::unique_fd> Output::composeSurfaces(
         // If rendering was not successful, remove the request from the cache.
         mClientCompositionRequestCache->remove(tex->getBuffer()->getId());
     }
-
     const auto fence = std::move(fenceResult).value_or(Fence::NO_FENCE);
+    if (isPowerHintSessionEnabled()) {
+        if (fence != Fence::NO_FENCE && fence->isValid() &&
+            !outputCompositionState.reusedClientComposition) {
+            setHintSessionRequiresRenderEngine(true);
+            if (FlagManager::getInstance().adpf_gpu_sf()) {
+                // the order of the two calls here matters as we should check if the previously
+                // tracked fence has signaled first and archive the previous start time
+                setHintSessionGpuStart(TimePoint::now());
+                setHintSessionGpuFence(
+                        std::make_unique<FenceTime>(sp<Fence>::make(dup(fence->get()))));
+            }
+        }
+    }
 
     if (auto timeStats = getCompositionEngine().getTimeStats()) {
         if (fence->isValid()) {
@@ -1532,7 +1547,15 @@ void Output::setExpensiveRenderingExpected(bool) {
     // The base class does nothing with this call.
 }
 
+void Output::setHintSessionGpuStart(TimePoint) {
+    // The base class does nothing with this call.
+}
+
 void Output::setHintSessionGpuFence(std::unique_ptr<FenceTime>&&) {
+    // The base class does nothing with this call.
+}
+
+void Output::setHintSessionRequiresRenderEngine(bool) {
     // The base class does nothing with this call.
 }
 

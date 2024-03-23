@@ -1,4 +1,4 @@
-per-file input.h, keycodes.h = file:platform/frameworks/base:/INPUT_OWNERS
+per-file input.h,keycodes.h = file:platform/frameworks/base:/INPUT_OWNERS
 
 # Window manager
 per-file surface_control_input_receiver.h = file:platform/frameworks/base:/services/core/java/com/android/server/wm/OWNERS

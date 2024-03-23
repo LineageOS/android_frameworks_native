@@ -28,6 +28,7 @@
 
 #include <android_os.h>
 #include <com_android_graphics_surfaceflinger_flags.h>
+#include <com_android_server_display_feature_flags.h>
 
 namespace android {
 using namespace com::android::graphics::surfaceflinger;
@@ -137,6 +138,7 @@ void FlagManager::dump(std::string& result) const {
     DUMP_READ_ONLY_FLAG(dont_skip_on_early_ro);
     DUMP_READ_ONLY_FLAG(protected_if_client);
     DUMP_READ_ONLY_FLAG(ce_fence_promise);
+    DUMP_READ_ONLY_FLAG(idle_screen_refresh_rate_timeout);
 #undef DUMP_READ_ONLY_FLAG
 #undef DUMP_SERVER_FLAG
 #undef DUMP_FLAG_INTERVAL
@@ -190,6 +192,9 @@ bool FlagManager::getServerConfigurableFlag(const char* experimentFlagName) cons
 #define FLAG_MANAGER_SERVER_FLAG_IMPORTED(name, syspropOverride, owner) \
     FLAG_MANAGER_FLAG_INTERNAL(name, syspropOverride, true, owner)
 
+#define FLAG_MANAGER_READ_ONLY_FLAG_IMPORTED(name, syspropOverride, owner) \
+    FLAG_MANAGER_FLAG_INTERNAL(name, syspropOverride, false, owner)
+
 /// Legacy server flags ///
 FLAG_MANAGER_LEGACY_SERVER_FLAG(test_flag, "", "")
 FLAG_MANAGER_LEGACY_SERVER_FLAG(use_adpf_cpu_hint, "debug.sf.enable_adpf_cpu_hint",
@@ -229,5 +234,9 @@ FLAG_MANAGER_SERVER_FLAG(adpf_gpu_sf, "")
 
 /// Trunk stable server flags from outside SurfaceFlinger ///
 FLAG_MANAGER_SERVER_FLAG_IMPORTED(adpf_use_fmq_channel, "", android::os)
+
+/// Trunk stable readonly flags from outside SurfaceFlinger ///
+FLAG_MANAGER_READ_ONLY_FLAG_IMPORTED(idle_screen_refresh_rate_timeout, "",
+                                     com::android::server::display::feature::flags)
 
 } // namespace android

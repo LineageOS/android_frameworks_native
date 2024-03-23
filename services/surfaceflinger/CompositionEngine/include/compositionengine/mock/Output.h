@@ -134,7 +134,9 @@ public:
     MOCK_METHOD1(canPredictCompositionStrategy, bool(const CompositionRefreshArgs&));
     MOCK_METHOD1(setPredictCompositionStrategy, void(bool));
     MOCK_METHOD1(setTreat170mAsSrgb, void(bool));
+    MOCK_METHOD(void, setHintSessionGpuStart, (TimePoint startTime));
     MOCK_METHOD(void, setHintSessionGpuFence, (std::unique_ptr<FenceTime> && gpuFence));
+    MOCK_METHOD(void, setHintSessionRequiresRenderEngine, (bool requiresRenderEngine));
     MOCK_METHOD(bool, isPowerHintSessionEnabled, ());
 };
 
