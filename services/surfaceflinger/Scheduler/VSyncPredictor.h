@@ -83,7 +83,7 @@ private:
     };
 
     struct MissedVsync {
-        TimePoint vsync;
+        TimePoint vsync = TimePoint::fromNs(0);
         Duration fixup = Duration::fromNs(0);
     };
 
@@ -97,7 +97,7 @@ private:
         std::optional<TimePoint> validUntil() const { return mValidUntil; }
         bool isVSyncInPhase(Model, nsecs_t vsync, Fps frameRate);
         void shiftVsyncSequence(Duration phase);
-        void setRenderRate(Fps renderRate) { mRenderRateOpt = renderRate; }
+        void setRenderRate(std::optional<Fps> renderRateOpt) { mRenderRateOpt = renderRateOpt; }
 
     private:
         nsecs_t snapToVsyncAlignedWithRenderRate(Model model, nsecs_t vsync);

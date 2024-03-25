@@ -71,9 +71,11 @@ public:
     };
 
 protected:
+    virtual std::unique_ptr<SkiaGpuContext> createContext(VulkanInterface& vulkanInterface) = 0;
     // Redeclare parent functions that Ganesh vs. Graphite subclasses must implement.
     virtual void waitFence(SkiaGpuContext* context, base::borrowed_fd fenceFd) override = 0;
-    virtual base::unique_fd flushAndSubmit(SkiaGpuContext* context) override = 0;
+    virtual base::unique_fd flushAndSubmit(SkiaGpuContext* context,
+                                           sk_sp<SkSurface> dstSurface) override = 0;
 
     SkiaVkRenderEngine(const RenderEngineCreationArgs& args);
 

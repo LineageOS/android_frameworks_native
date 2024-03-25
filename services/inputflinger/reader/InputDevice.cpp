@@ -507,10 +507,7 @@ std::vector<std::unique_ptr<InputMapper>> InputDevice::createMappers(
     }
 
     // Touchscreens and touchpad devices.
-    static const bool ENABLE_TOUCHPAD_GESTURES_LIBRARY =
-            sysprop::InputProperties::enable_touchpad_gestures_library().value_or(true);
-    if (ENABLE_TOUCHPAD_GESTURES_LIBRARY && classes.test(InputDeviceClass::TOUCHPAD) &&
-        classes.test(InputDeviceClass::TOUCH_MT)) {
+    if (classes.test(InputDeviceClass::TOUCHPAD) && classes.test(InputDeviceClass::TOUCH_MT)) {
         mappers.push_back(createInputMapper<TouchpadInputMapper>(contextPtr, readerConfig));
     } else if (classes.test(InputDeviceClass::TOUCH_MT)) {
         mappers.push_back(createInputMapper<MultiTouchInputMapper>(contextPtr, readerConfig));

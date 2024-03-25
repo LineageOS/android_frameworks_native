@@ -553,10 +553,23 @@ void VSyncPredictor::clearTimestamps() {
         mLastTimestampIndex = 0;
     }
 
-    mTimelines.clear();
-    mLastCommittedVsync = TimePoint::fromNs(0);
     mIdealPeriod = Period::fromNs(idealPeriod());
-    mTimelines.emplace_back(mLastCommittedVsync, mIdealPeriod, mRenderRateOpt);
+    if (mTimelines.empty()) {
+        mLastCommittedVsync = TimePoint::fromNs(0);
+        mTimelines.emplace_back(mLastCommittedVsync, mIdealPeriod, mRenderRateOpt);
+    } else {
+        while (mTimelines.size() > 1) {
+            mTimelines.pop_front();
+        }
+        mTimelines.front().setRenderRate(mRenderRateOpt);
+        // set mLastCommittedVsync to a valid vsync but don't commit too much in the future
+        const auto vsyncOpt = mTimelines.front().nextAnticipatedVSyncTimeFrom(
+            getVSyncPredictionModelLocked(),
+            /* minFramePeriodOpt */ std::nullopt,
+            snapToVsync(mClock->now()), MissedVsync{},
+            /* lastVsyncOpt */ std::nullopt);
+        mLastCommittedVsync = *vsyncOpt;
+    }
 }
 
 bool VSyncPredictor::needsMoreSamples() const {
@@ -588,6 +601,7 @@ void VSyncPredictor::purgeTimelines(android::TimePoint now) {
     if (mRenderRateOpt &&
         mLastCommittedVsync.ns() + mRenderRateOpt->getPeriodNsecs() * kEnoughFramesToBreakPhase <
                 mClock->now()) {
+        ATRACE_FORMAT_INSTANT("kEnoughFramesToBreakPhase");
         mTimelines.clear();
         mLastCommittedVsync = TimePoint::fromNs(0);
         mTimelines.emplace_back(mLastCommittedVsync, mIdealPeriod, mRenderRateOpt);

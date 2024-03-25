@@ -23,6 +23,7 @@
 
 #include <log/log_main.h>
 #include <sync/sync.h>
+#include <utils/Trace.h>
 
 namespace android::renderengine::skia {
 
@@ -31,6 +32,12 @@ static void unref_semaphore(void* semaphore) {
     SkiaVkRenderEngine::DestroySemaphoreInfo* info =
             reinterpret_cast<SkiaVkRenderEngine::DestroySemaphoreInfo*>(semaphore);
     info->unref();
+}
+
+std::unique_ptr<SkiaGpuContext> GaneshVkRenderEngine::createContext(
+        VulkanInterface& vulkanInterface) {
+    return SkiaGpuContext::MakeVulkan_Ganesh(vulkanInterface.getGaneshBackendContext(),
+                                             mSkSLCacheMonitor);
 }
 
 void GaneshVkRenderEngine::waitFence(SkiaGpuContext* context, base::borrowed_fd fenceFd) {
@@ -51,11 +58,18 @@ void GaneshVkRenderEngine::waitFence(SkiaGpuContext* context, base::borrowed_fd 
     context->grDirectContext()->wait(1, &beSemaphore, kDeleteAfterWait);
 }
 
-base::unique_fd GaneshVkRenderEngine::flushAndSubmit(SkiaGpuContext* context) {
+base::unique_fd GaneshVkRenderEngine::flushAndSubmit(SkiaGpuContext* context,
+                                                     sk_sp<SkSurface> dstSurface) {
     sk_sp<GrDirectContext> grContext = context->grDirectContext();
+    {
+        ATRACE_NAME("flush surface");
+        // TODO: Investigate feasibility of combining this "surface flush" into the "context flush"
+        // below.
+        context->grDirectContext()->flush(dstSurface.get());
+    }
+
     VulkanInterface& vi = getVulkanInterface(isProtected());
     VkSemaphore semaphore = vi.createExportableSemaphore();
-
     GrBackendSemaphore backendSemaphore = GrBackendSemaphores::MakeVk(semaphore);
 
     GrFlushInfo flushInfo;

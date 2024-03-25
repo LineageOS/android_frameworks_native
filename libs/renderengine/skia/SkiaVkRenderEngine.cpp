@@ -112,12 +112,9 @@ SkiaRenderEngine::Contexts SkiaVkRenderEngine::createContexts() {
     sSetupVulkanInterface();
 
     SkiaRenderEngine::Contexts contexts;
-    contexts.first = SkiaGpuContext::MakeVulkan_Ganesh(sVulkanInterface.getGaneshBackendContext(),
-                                                       mSkSLCacheMonitor);
+    contexts.first = createContext(sVulkanInterface);
     if (supportsProtectedContentImpl()) {
-        contexts.second = SkiaGpuContext::MakeVulkan_Ganesh(sProtectedContentVulkanInterface
-                                                                    .getGaneshBackendContext(),
-                                                            mSkSLCacheMonitor);
+        contexts.second = createContext(sProtectedContentVulkanInterface);
     }
 
     return contexts;
