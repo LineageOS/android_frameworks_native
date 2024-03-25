@@ -665,8 +665,8 @@ void SkiaRenderEngine::drawLayersInternal(
     validateOutputBufferUsage(buffer->getBuffer());
 
     auto context = getActiveContext();
-    LOG_ALWAYS_FATAL_IF(context->isAbandoned(), "Context is abandoned/device lost at start of %s",
-                        __func__);
+    LOG_ALWAYS_FATAL_IF(context->isAbandonedOrDeviceLost(),
+                        "Context is abandoned/device lost at start of %s", __func__);
 
     // any AutoBackendTexture deletions will now be deferred until cleanupPostRender is called
     DeferTextureCleanup dtc(mTextureCleanupMgr);
