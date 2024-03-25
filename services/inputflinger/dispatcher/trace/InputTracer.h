@@ -68,11 +68,8 @@ private:
         bool isEventProcessingComplete{false};
         // A queue to hold dispatch args from being traced until event processing is complete.
         std::vector<const WindowDispatchArgs> pendingDispatchArgs;
-        // True if the event is targeting at least one secure window;
-        bool isSecure{false};
-        // The list of all possible UIDs that this event could be targeting.
-        std::set<gui::Uid> targets;
-        bool isImeConnectionActive{false};
+        // The metadata should not be modified after event processing is complete.
+        TracedEventMetadata metadata{};
     };
 
     // Get the event state associated with a tracking cookie.
