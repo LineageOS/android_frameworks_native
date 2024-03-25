@@ -63,7 +63,7 @@ protected:
     bool supportsProtectedContentImpl() const override;
     bool useProtectedContextImpl(GrProtected isProtected) override;
     void waitFence(SkiaGpuContext* context, base::borrowed_fd fenceFd) override;
-    base::unique_fd flushAndSubmit(SkiaGpuContext* context) override;
+    base::unique_fd flushAndSubmit(SkiaGpuContext* context, sk_sp<SkSurface> dstSurface) override;
     void appendBackendSpecificInfoToDump(std::string& result) override;
 
 private:
@@ -71,7 +71,7 @@ private:
                        EGLSurface placeholder, EGLContext protectedContext,
                        EGLSurface protectedPlaceholder);
     bool waitGpuFence(base::borrowed_fd fenceFd);
-    base::unique_fd flush();
+    base::unique_fd flushGL();
     static EGLConfig chooseEglConfig(EGLDisplay display, int format, bool logConfig);
     static EGLContext createEglContext(EGLDisplay display, EGLConfig config,
                                        EGLContext shareContext,

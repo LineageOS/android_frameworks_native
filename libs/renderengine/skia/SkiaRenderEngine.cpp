@@ -90,7 +90,7 @@ namespace {
 
 // Debugging settings
 static const bool kPrintLayerSettings = false;
-static const bool kFlushAfterEveryLayer = kPrintLayerSettings;
+static const bool kGaneshFlushAfterEveryLayer = kPrintLayerSettings;
 static constexpr bool kEnableLayerBrightening = true;
 
 } // namespace
@@ -1122,21 +1122,21 @@ void SkiaRenderEngine::drawLayersInternal(
         } else {
             canvas->drawRect(bounds.rect(), paint);
         }
-        if (kFlushAfterEveryLayer) {
+        if (kGaneshFlushAfterEveryLayer) {
             ATRACE_NAME("flush surface");
+            // No-op in Graphite. If "flushing" Skia's drawing commands after each layer is desired
+            // in Graphite, then a graphite::Recording would need to be snapped and tracked for each
+            // layer, which is likely possible but adds non-trivial complexity (in both bookkeeping
+            // and refactoring).
             skgpu::ganesh::Flush(activeSurface);
         }
     }
 
     surfaceAutoSaveRestore.restore();
     mCapture->endCapture();
-    {
-        ATRACE_NAME("flush surface");
-        LOG_ALWAYS_FATAL_IF(activeSurface != dstSurface);
-        skgpu::ganesh::Flush(activeSurface);
-    }
 
-    auto drawFence = sp<Fence>::make(flushAndSubmit(context));
+    LOG_ALWAYS_FATAL_IF(activeSurface != dstSurface);
+    auto drawFence = sp<Fence>::make(flushAndSubmit(context, dstSurface));
 
     if (ATRACE_ENABLED()) {
         static gui::FenceMonitor sMonitor("RE Completion");
