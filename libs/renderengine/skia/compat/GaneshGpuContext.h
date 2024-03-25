@@ -36,7 +36,7 @@ public:
 
     size_t getMaxRenderTargetSize() const override;
     size_t getMaxTextureSize() const override;
-    bool isAbandoned() override;
+    bool isAbandonedOrDeviceLost() override;
     void setResourceCacheLimit(size_t maxResourceBytes) override;
 
     void finishRenderingAndAbandonContext() override;

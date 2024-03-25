@@ -93,7 +93,7 @@ size_t GaneshGpuContext::getMaxTextureSize() const {
     return mGrContext->maxTextureSize();
 };
 
-bool GaneshGpuContext::isAbandoned() {
+bool GaneshGpuContext::isAbandonedOrDeviceLost() {
     return mGrContext->abandoned();
 }
 
