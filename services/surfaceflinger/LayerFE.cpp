@@ -27,6 +27,7 @@
 
 #include "LayerFE.h"
 #include "SurfaceFlinger.h"
+#include "common/FlagManager.h"
 #include "ui/FenceResult.h"
 #include "ui/LayerStack.h"
 
@@ -79,6 +80,16 @@ void getDrawingTransformMatrix(const std::shared_ptr<renderengine::ExternalTextu
 } // namespace
 
 LayerFE::LayerFE(const std::string& name) : mName(name) {}
+
+LayerFE::~LayerFE() {
+    // Ensures that no promise is left unfulfilled before the LayerFE is destroyed.
+    // An unfulfilled promise could occur when a screenshot is attempted, but the
+    // render area is invalid and there is no memory for the capture result.
+    if (FlagManager::getInstance().ce_fence_promise() &&
+        mReleaseFencePromiseStatus == ReleaseFencePromiseStatus::INITIALIZED) {
+        setReleaseFence(Fence::NO_FENCE);
+    }
+}
 
 const compositionengine::LayerFECompositionState* LayerFE::getCompositionState() const {
     return mSnapshot.get();
