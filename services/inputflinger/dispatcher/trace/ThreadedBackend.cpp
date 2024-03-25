@@ -54,25 +54,25 @@ ThreadedBackend<Backend>::~ThreadedBackend() {
 
 template <typename Backend>
 void ThreadedBackend<Backend>::traceMotionEvent(const TracedMotionEvent& event,
-                                                const TracedEventArgs& traceArgs) {
+                                                const TracedEventMetadata& metadata) {
     std::scoped_lock lock(mLock);
-    mQueue.emplace_back(event, traceArgs);
+    mQueue.emplace_back(event, metadata);
     mThreadWakeCondition.notify_all();
 }
 
 template <typename Backend>
 void ThreadedBackend<Backend>::traceKeyEvent(const TracedKeyEvent& event,
-                                             const TracedEventArgs& traceArgs) {
+                                             const TracedEventMetadata& metadata) {
     std::scoped_lock lock(mLock);
-    mQueue.emplace_back(event, traceArgs);
+    mQueue.emplace_back(event, metadata);
     mThreadWakeCondition.notify_all();
 }
 
 template <typename Backend>
 void ThreadedBackend<Backend>::traceWindowDispatch(const WindowDispatchArgs& dispatchArgs,
-                                                   const TracedEventArgs& traceArgs) {
+                                                   const TracedEventMetadata& metadata) {
     std::scoped_lock lock(mLock);
-    mQueue.emplace_back(dispatchArgs, traceArgs);
+    mQueue.emplace_back(dispatchArgs, metadata);
     mThreadWakeCondition.notify_all();
 }
 

@@ -38,9 +38,9 @@ public:
     ThreadedBackend(Backend&& innerBackend);
     ~ThreadedBackend() override;
 
-    void traceKeyEvent(const TracedKeyEvent&, const TracedEventArgs&) override;
-    void traceMotionEvent(const TracedMotionEvent&, const TracedEventArgs&) override;
-    void traceWindowDispatch(const WindowDispatchArgs&, const TracedEventArgs&) override;
+    void traceKeyEvent(const TracedKeyEvent&, const TracedEventMetadata&) override;
+    void traceMotionEvent(const TracedMotionEvent&, const TracedEventMetadata&) override;
+    void traceWindowDispatch(const WindowDispatchArgs&, const TracedEventMetadata&) override;
 
 private:
     std::mutex mLock;
@@ -49,7 +49,7 @@ private:
     Backend mBackend;
     using TraceEntry =
             std::pair<std::variant<TracedKeyEvent, TracedMotionEvent, WindowDispatchArgs>,
-                      TracedEventArgs>;
+                      TracedEventMetadata>;
     std::vector<TraceEntry> mQueue GUARDED_BY(mLock);
 
     // InputThread stops when its destructor is called. Initialize it last so that it is the

@@ -61,10 +61,10 @@ TracedEvent createTracedEvent(const KeyEntry& e, EventType type) {
                           e.downTime,  e.flags,     e.repeatCount, type};
 }
 
-void writeEventToBackend(const TracedEvent& event, const TracedEventArgs args,
+void writeEventToBackend(const TracedEvent& event, const TracedEventMetadata metadata,
                          InputTracingBackendInterface& backend) {
-    std::visit(Visitor{[&](const TracedMotionEvent& e) { backend.traceMotionEvent(e, args); },
-                       [&](const TracedKeyEvent& e) { backend.traceKeyEvent(e, args); }},
+    std::visit(Visitor{[&](const TracedMotionEvent& e) { backend.traceMotionEvent(e, metadata); },
+                       [&](const TracedKeyEvent& e) { backend.traceKeyEvent(e, metadata); }},
                event);
 }
 
@@ -141,7 +141,6 @@ void InputTracer::dispatchToTargetHint(const EventTrackerInterface& cookie,
 
     eventState->targets.emplace(targetInfo.uid);
     eventState->isSecure |= targetInfo.isSecureWindow;
-    // TODO(b/210460522): Set events as sensitive when the IME connection is active.
 }
 
 void InputTracer::eventProcessingComplete(const EventTrackerInterface& cookie) {
@@ -177,9 +176,12 @@ std::unique_ptr<EventTrackerInterface> InputTracer::traceDerivedEvent(
         // is dispatched, such as in the case of key fallback events. To account for these cases,
         // derived events can be traced after the processing is complete for the original event.
         const auto& event = eventState->events.back();
-        const TracedEventArgs traceArgs{.isSecure = eventState->isSecure,
-                                        .targets = eventState->targets};
-        writeEventToBackend(event, std::move(traceArgs), *mBackend);
+        const TracedEventMetadata metadata{
+                .isSecure = eventState->isSecure,
+                .targets = eventState->targets,
+                .isImeConnectionActive = eventState->isImeConnectionActive,
+        };
+        writeEventToBackend(event, std::move(metadata), *mBackend);
     }
     return std::make_unique<EventTrackerImpl>(std::move(eventState), /*isDerived=*/true);
 }
@@ -226,9 +228,12 @@ void InputTracer::traceEventDispatch(const DispatchEntry& dispatchEntry,
                                                 /*hmac=*/{},
                                                 resolvedKeyRepeatCount};
     if (eventState->isEventProcessingComplete) {
-        const TracedEventArgs traceArgs{.isSecure = eventState->isSecure,
-                                        .targets = eventState->targets};
-        mBackend->traceWindowDispatch(std::move(windowDispatchArgs), std::move(traceArgs));
+        const TracedEventMetadata metadata{
+                .isSecure = eventState->isSecure,
+                .targets = eventState->targets,
+                .isImeConnectionActive = eventState->isImeConnectionActive,
+        };
+        mBackend->traceWindowDispatch(std::move(windowDispatchArgs), std::move(metadata));
     } else {
         eventState->pendingDispatchArgs.emplace_back(std::move(windowDispatchArgs));
     }
@@ -246,10 +251,16 @@ bool InputTracer::isDerivedCookie(const EventTrackerInterface& cookie) {
 // --- InputTracer::EventState ---
 
 void InputTracer::EventState::onEventProcessingComplete() {
+    isImeConnectionActive = tracer.mIsImeConnectionActive;
+
     // Write all of the events known so far to the trace.
     for (const auto& event : events) {
-        const TracedEventArgs traceArgs{.isSecure = isSecure, .targets = targets};
-        writeEventToBackend(event, traceArgs, *tracer.mBackend);
+        const TracedEventMetadata metadata{
+                .isSecure = isSecure,
+                .targets = targets,
+                .isImeConnectionActive = isImeConnectionActive,
+        };
+        writeEventToBackend(event, std::move(metadata), *tracer.mBackend);
     }
     // Write all pending dispatch args to the trace.
     for (const auto& windowDispatchArgs : pendingDispatchArgs) {
@@ -263,8 +274,12 @@ void InputTracer::EventState::onEventProcessingComplete() {
                        << ": Failed to find a previously traced event that matches the dispatched "
                           "event";
         }
-        const TracedEventArgs traceArgs{.isSecure = isSecure, .targets = targets};
-        tracer.mBackend->traceWindowDispatch(windowDispatchArgs, std::move(traceArgs));
+        const TracedEventMetadata metadata{
+                .isSecure = isSecure,
+                .targets = targets,
+                .isImeConnectionActive = isImeConnectionActive,
+        };
+        tracer.mBackend->traceWindowDispatch(windowDispatchArgs, std::move(metadata));
     }
     pendingDispatchArgs.clear();
 

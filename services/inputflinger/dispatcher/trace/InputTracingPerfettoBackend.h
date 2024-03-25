@@ -54,9 +54,9 @@ public:
     explicit PerfettoBackend(GetPackageUid);
     ~PerfettoBackend() override = default;
 
-    void traceKeyEvent(const TracedKeyEvent&, const TracedEventArgs&) override;
-    void traceMotionEvent(const TracedMotionEvent&, const TracedEventArgs&) override;
-    void traceWindowDispatch(const WindowDispatchArgs&, const TracedEventArgs&) override;
+    void traceKeyEvent(const TracedKeyEvent&, const TracedEventMetadata&) override;
+    void traceMotionEvent(const TracedMotionEvent&, const TracedEventMetadata&) override;
+    void traceWindowDispatch(const WindowDispatchArgs&, const TracedEventMetadata&) override;
 
 private:
     // Implementation of the perfetto data source.
@@ -72,13 +72,13 @@ private:
         void initializeUidMap(GetPackageUid);
         bool shouldIgnoreTracedInputEvent(const EventType&) const;
         inline ftl::Flags<TraceFlag> getFlags() const { return mConfig.flags; }
-        TraceLevel resolveTraceLevel(const TracedEventArgs&) const;
+        TraceLevel resolveTraceLevel(const TracedEventMetadata&) const;
 
     private:
         const int32_t mInstanceId;
         TraceConfig mConfig;
 
-        bool ruleMatches(const TraceRule&, const TracedEventArgs&) const;
+        bool ruleMatches(const TraceRule&, const TracedEventMetadata&) const;
 
         std::optional<std::map<std::string, gui::Uid>> mUidMap;
     };
