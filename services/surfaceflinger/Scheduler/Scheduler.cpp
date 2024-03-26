@@ -675,7 +675,13 @@ void Scheduler::onLayerDestroyed(Layer* layer) {
 
 void Scheduler::recordLayerHistory(int32_t id, const LayerProps& layerProps, nsecs_t presentTime,
                                    nsecs_t now, LayerHistory::LayerUpdateType updateType) {
-    if (pacesetterSelectorPtr()->canSwitch()) {
+    const auto& selectorPtr = pacesetterSelectorPtr();
+    // Skip recording layer history on LayerUpdateType::SetFrameRate for MRR devices when the
+    // dVRR vote types are guarded (disabled) for MRR. This is to avoid activity when setting dVRR
+    // vote types.
+    if (selectorPtr->canSwitch() &&
+        (updateType != LayerHistory::LayerUpdateType::SetFrameRate ||
+         layerProps.setFrameRateVote.isVoteValidForMrr(selectorPtr->isVrrDevice()))) {
         mLayerHistory.record(id, layerProps, presentTime, now, updateType);
     }
 }
