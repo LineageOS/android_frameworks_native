@@ -36,6 +36,7 @@ struct CompositionResult {
 class LayerFE : public virtual RefBase, public virtual compositionengine::LayerFE {
 public:
     LayerFE(const std::string& name);
+    virtual ~LayerFE();
 
     // compositionengine::LayerFE overrides
     const compositionengine::LayerFECompositionState* getCompositionState() const override;
