@@ -18,6 +18,7 @@
 
 #include <android/gui/DropInputMode.h>
 #include <android/gui/ISurfaceComposerClient.h>
+#include <ftl/small_map.h>
 #include <gui/BufferQueue.h>
 #include <gui/LayerState.h>
 #include <gui/WindowInfo.h>
@@ -25,9 +26,11 @@
 #include <math/vec4.h>
 #include <sys/types.h>
 #include <ui/BlurRegion.h>
+#include <ui/DisplayMap.h>
 #include <ui/FloatRect.h>
 #include <ui/FrameStats.h>
 #include <ui/GraphicBuffer.h>
+#include <ui/LayerStack.h>
 #include <ui/PixelFormat.h>
 #include <ui/Region.h>
 #include <ui/StretchEffect.h>
@@ -958,8 +961,11 @@ public:
     // screenshots asynchronously. There may be no buffer update for the
     // layer, but the layer will still be composited on the screen in every
     // frame. Kepping track of these fences ensures that they are not dropped
-    // and can be dispatched to the client at a later time.
-    std::vector<ftl::Future<FenceResult>> mAdditionalPreviousReleaseFences;
+    // and can be dispatched to the client at a later time. Older fences are
+    // dropped when a layer stack receives a new fence.
+    // TODO(b/300533018): Track fence per multi-instance RenderEngine
+    ftl::SmallMap<ui::LayerStack, ftl::Future<FenceResult>, ui::kDisplayCapacity>
+            mAdditionalPreviousReleaseFences;
 
     // Exposed so SurfaceFlinger can assert that it's held
     const sp<SurfaceFlinger> mFlinger;
