@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "9eee88a4_750e6095",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 13648
+      },
+      "writtenOn": "2024-03-26T16:06:26Z",
+      "side": 1,
+      "message": "Add some explanation to the comit message that this is required for WFD since QPR2.",
+      "revId": "5f92981b44f27dad9333cc6eb0638d3c31c1f67b",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
