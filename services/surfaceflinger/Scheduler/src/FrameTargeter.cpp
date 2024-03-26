@@ -113,6 +113,7 @@ void FrameTargeter::beginFrame(const BeginFrameArgs& args, const IVsyncSource& v
     mFrameMissed = mFramePending || [&] {
         const nsecs_t pastPresentTime = pastPresentFence->getSignalTime();
         if (pastPresentTime < 0) return false;
+        mLastSignaledFrameTime = TimePoint::fromNs(pastPresentTime);
         const nsecs_t frameMissedSlop = vsyncPeriod.ns() / 2;
         return lastScheduledPresentTime.ns() < pastPresentTime - frameMissedSlop;
     }();
