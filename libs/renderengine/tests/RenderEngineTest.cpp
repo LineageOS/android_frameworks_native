@@ -107,6 +107,7 @@ public:
 
     virtual std::string name() = 0;
     virtual renderengine::RenderEngine::GraphicsApi graphicsApi() = 0;
+    virtual renderengine::RenderEngine::SkiaBackend skiaBackend() = 0;
     bool apiSupported() { return renderengine::RenderEngine::canSupport(graphicsApi()); }
     std::unique_ptr<renderengine::RenderEngine> createRenderEngine() {
         renderengine::RenderEngineCreationArgs reCreationArgs =
@@ -119,17 +120,9 @@ public:
                         .setContextPriority(renderengine::RenderEngine::ContextPriority::MEDIUM)
                         .setThreaded(renderengine::RenderEngine::Threaded::NO)
                         .setGraphicsApi(graphicsApi())
+                        .setSkiaBackend(skiaBackend())
                         .build();
         return renderengine::RenderEngine::create(reCreationArgs);
-    }
-};
-
-class SkiaVkRenderEngineFactory : public RenderEngineFactory {
-public:
-    std::string name() override { return "SkiaVkRenderEngineFactory"; }
-
-    renderengine::RenderEngine::GraphicsApi graphicsApi() override {
-        return renderengine::RenderEngine::GraphicsApi::VK;
     }
 };
 
@@ -139,6 +132,36 @@ public:
 
     renderengine::RenderEngine::GraphicsApi graphicsApi() {
         return renderengine::RenderEngine::GraphicsApi::GL;
+    }
+
+    renderengine::RenderEngine::SkiaBackend skiaBackend() override {
+        return renderengine::RenderEngine::SkiaBackend::GANESH;
+    }
+};
+
+class GaneshVkRenderEngineFactory : public RenderEngineFactory {
+public:
+    std::string name() override { return "GaneshVkRenderEngineFactory"; }
+
+    renderengine::RenderEngine::GraphicsApi graphicsApi() override {
+        return renderengine::RenderEngine::GraphicsApi::VK;
+    }
+
+    renderengine::RenderEngine::SkiaBackend skiaBackend() override {
+        return renderengine::RenderEngine::SkiaBackend::GANESH;
+    }
+};
+
+class GraphiteVkRenderEngineFactory : public RenderEngineFactory {
+public:
+    std::string name() override { return "GraphiteVkRenderEngineFactory"; }
+
+    renderengine::RenderEngine::GraphicsApi graphicsApi() override {
+        return renderengine::RenderEngine::GraphicsApi::VK;
+    }
+
+    renderengine::RenderEngine::SkiaBackend skiaBackend() override {
+        return renderengine::RenderEngine::SkiaBackend::GRAPHITE;
     }
 };
 
@@ -1471,7 +1494,8 @@ void RenderEngineTest::tonemap(ui::Dataspace sourceDataspace, std::function<vec3
 
 INSTANTIATE_TEST_SUITE_P(PerRenderEngineType, RenderEngineTest,
                          testing::Values(std::make_shared<SkiaGLESRenderEngineFactory>(),
-                                         std::make_shared<SkiaVkRenderEngineFactory>()));
+                                         std::make_shared<GaneshVkRenderEngineFactory>(),
+                                         std::make_shared<GraphiteVkRenderEngineFactory>()));
 
 TEST_P(RenderEngineTest, drawLayers_noLayersToDraw) {
     if (!GetParam()->apiSupported()) {
@@ -1663,6 +1687,11 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransform_sourceDataspace) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransform_outputDataspace) {
+    // TODO: b/331445583 - Fix in Graphite and re-enable.
+    if (GetParam()->skiaBackend() == renderengine::RenderEngine::SkiaBackend::GRAPHITE) {
+        GTEST_SKIP();
+    }
+
     const auto& renderEngineFactory = GetParam();
     // skip for non color management
     if (!renderEngineFactory->apiSupported()) {
@@ -1813,6 +1842,11 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformAndSourceDataspace_o
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformAndOutputDataspace_opaqueBufferSource) {
+    // TODO: b/331447131 - Fix in Graphite and re-enable.
+    if (GetParam()->skiaBackend() == renderengine::RenderEngine::SkiaBackend::GRAPHITE) {
+        GTEST_SKIP();
+    }
+
     const auto& renderEngineFactory = GetParam();
     // skip for non color management
     if (!renderEngineFactory->apiSupported()) {
@@ -1963,6 +1997,11 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformAndSourceDataspace_b
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformAndOutputDataspace_bufferSource) {
+    // TODO: b/331446495 - Fix in Graphite and re-enable.
+    if (GetParam()->skiaBackend() == renderengine::RenderEngine::SkiaBackend::GRAPHITE) {
+        GTEST_SKIP();
+    }
+
     const auto& renderEngineFactory = GetParam();
     // skip for non color management
     if (!renderEngineFactory->apiSupported()) {
@@ -2022,6 +2061,11 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferTextureTransform) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBuffer_premultipliesAlpha) {
+    // TODO: b/331446496 - Fix in Graphite and re-enable.
+    if (GetParam()->skiaBackend() == renderengine::RenderEngine::SkiaBackend::GRAPHITE) {
+        GTEST_SKIP();
+    }
+
     if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
@@ -3102,6 +3146,11 @@ TEST_P(RenderEngineTest, r8_respects_color_transform_when_device_handles) {
 }
 
 TEST_P(RenderEngineTest, primeShaderCache) {
+    // TODO: b/331447071 - Fix in Graphite and re-enable.
+    if (GetParam()->skiaBackend() == renderengine::RenderEngine::SkiaBackend::GRAPHITE) {
+        GTEST_SKIP();
+    }
+
     if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }
