@@ -513,6 +513,8 @@ struct PointerProperties {
     }
 
     PointerProperties& operator=(const PointerProperties&) = default;
+
+    void copyFrom(const PointerProperties& other);
 };
 
 // TODO(b/211379801) : Use a strong type from ftl/mixins.h instead
