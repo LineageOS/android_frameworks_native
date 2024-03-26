@@ -29,7 +29,6 @@ namespace skia {
 
 class SkiaVkRenderEngine : public SkiaRenderEngine {
 public:
-    static std::unique_ptr<SkiaVkRenderEngine> create(const RenderEngineCreationArgs& args);
     ~SkiaVkRenderEngine() override;
 
     int getContextPriority() override;

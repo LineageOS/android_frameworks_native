@@ -83,23 +83,6 @@ namespace skia {
 
 using base::StringAppendF;
 
-std::unique_ptr<SkiaVkRenderEngine> SkiaVkRenderEngine::create(
-        const RenderEngineCreationArgs& args) {
-    // TODO: b/293371537 - Ganesh vs. Graphite subclass based on flag in RenderEngineCreationArgs
-    std::unique_ptr<SkiaVkRenderEngine> engine(new GaneshVkRenderEngine(args));
-    engine->ensureContextsCreated();
-
-    if (sVulkanInterface.isInitialized()) {
-        ALOGD("SkiaVkRenderEngine::%s: successfully initialized SkiaVkRenderEngine", __func__);
-        return engine;
-    } else {
-        ALOGD("SkiaVkRenderEngine::%s: could not create SkiaVkRenderEngine. "
-              "Likely insufficient Vulkan support",
-              __func__);
-        return {};
-    }
-}
-
 SkiaVkRenderEngine::SkiaVkRenderEngine(const RenderEngineCreationArgs& args)
       : SkiaRenderEngine(args.threaded, static_cast<PixelFormat>(args.pixelFormat),
                          args.supportsBackgroundBlur) {}

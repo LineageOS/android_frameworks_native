@@ -32,6 +32,23 @@
 
 namespace android::renderengine::skia {
 
+std::unique_ptr<GraphiteVkRenderEngine> GraphiteVkRenderEngine::create(
+        const RenderEngineCreationArgs& args) {
+    std::unique_ptr<GraphiteVkRenderEngine> engine(new GraphiteVkRenderEngine(args));
+    engine->ensureContextsCreated();
+
+    if (getVulkanInterface(false).isInitialized()) {
+        ALOGD("GraphiteVkRenderEngine::%s: successfully initialized GraphiteVkRenderEngine",
+              __func__);
+        return engine;
+    } else {
+        ALOGE("GraphiteVkRenderEngine::%s: could not create GraphiteVkRenderEngine. "
+              "Likely insufficient Vulkan support",
+              __func__);
+        return {};
+    }
+}
+
 // Graphite-specific function signature for fFinishedProc callback.
 static void unref_semaphore(void* semaphore, skgpu::CallbackResult result) {
     if (result != skgpu::CallbackResult::kSuccess) {
