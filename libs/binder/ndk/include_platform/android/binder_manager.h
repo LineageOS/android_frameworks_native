@@ -18,8 +18,11 @@
 
 #include <android/binder_ibinder.h>
 #include <android/binder_status.h>
-#include <android/llndk-versioning.h>
 #include <sys/cdefs.h>
+
+#ifndef __TRUSTY__
+#include <android/llndk-versioning.h>
+#endif
 
 __BEGIN_DECLS
 
