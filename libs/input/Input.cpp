@@ -510,6 +510,13 @@ void PointerCoords::transform(const ui::Transform& transform) {
     }
 }
 
+// --- PointerProperties ---
+
+void PointerProperties::copyFrom(const PointerProperties& other) {
+    id = other.id;
+    toolType = other.toolType;
+}
+
 // --- MotionEvent ---
 
 void MotionEvent::initialize(int32_t id, int32_t deviceId, uint32_t source, int32_t displayId,
