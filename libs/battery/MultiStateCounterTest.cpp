@@ -72,6 +72,22 @@ TEST_F(MultiStateCounterTest, stateChange) {
     EXPECT_DOUBLE_EQ(4.0, testCounter.getCount(2));
 }
 
+TEST_F(MultiStateCounterTest, copyStatesFrom) {
+    DoubleMultiStateCounter sourceCounter(3, 0);
+
+    sourceCounter.updateValue(0, 0);
+    sourceCounter.setState(1, 0);
+    sourceCounter.setState(2, 1000);
+
+    DoubleMultiStateCounter testCounter(3, 0);
+    testCounter.copyStatesFrom(sourceCounter);
+    testCounter.updateValue(6.0, 3000);
+
+    EXPECT_DOUBLE_EQ(0, testCounter.getCount(0));
+    EXPECT_DOUBLE_EQ(2.0, testCounter.getCount(1));
+    EXPECT_DOUBLE_EQ(4.0, testCounter.getCount(2));
+}
+
 TEST_F(MultiStateCounterTest, setEnabled) {
     DoubleMultiStateCounter testCounter(3, 0);
     testCounter.updateValue(0, 0);
