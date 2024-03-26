@@ -2606,6 +2606,14 @@ bool SurfaceFlinger::commit(PhysicalDisplayId pacesetterId,
                                          flushTransactions, transactionsAreEmpty);
         }
 
+        // Tell VsyncTracker that we are going to present this frame before scheduling
+        // setTransactionFlags which will schedule another SF frame. This was if the tracker
+        // needs to adjust the vsync timeline, it will be done before the next frame.
+        if (FlagManager::getInstance().vrr_config() && mustComposite) {
+            mScheduler->getVsyncSchedule()->getTracker().onFrameBegin(
+                pacesetterFrameTarget.expectedPresentTime(),
+                pacesetterFrameTarget.lastSignaledFrameTime());
+        }
         if (transactionFlushNeeded()) {
             setTransactionFlags(eTransactionFlushNeeded);
         }
