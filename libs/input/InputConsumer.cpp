@@ -325,9 +325,10 @@ status_t InputConsumer::consume(InputEventFactoryInterface* factory, bool consum
 
             case InputMessage::Type::FINISHED:
             case InputMessage::Type::TIMELINE: {
-                LOG_ALWAYS_FATAL("Consumed a %s message, which should never be seen by "
-                                 "InputConsumer!",
-                                 ftl::enum_string(mMsg.header.type).c_str());
+                LOG(FATAL) << "Consumed a " << ftl::enum_string(mMsg.header.type)
+                           << " message, which should never be seen by "
+                              "InputConsumer on "
+                           << mChannel->getName();
                 break;
             }
 
