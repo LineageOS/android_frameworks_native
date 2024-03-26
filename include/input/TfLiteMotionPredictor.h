@@ -105,6 +105,11 @@ public:
         // The noise floor for predictions.
         // Distances (r) less than this should be discarded as noise.
         float distanceNoiseFloor = 0;
+
+        // Low and high jerk thresholds (with normalized dt = 1) for predictions.
+        // High jerk means more predictions will be pruned, vice versa for low.
+        float lowJerk = 0;
+        float highJerk = 0;
     };
 
     // Creates a model from an encoded Flatbuffer model.
