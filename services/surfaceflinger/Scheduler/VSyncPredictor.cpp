@@ -427,6 +427,7 @@ void VSyncPredictor::setDisplayModePtr(ftl::NonNull<DisplayModePtr> modePtr) {
         mRateMap[idealPeriod()] = {idealPeriod(), 0};
     }
 
+    mTimelines.clear();
     clearTimestamps();
 }
 

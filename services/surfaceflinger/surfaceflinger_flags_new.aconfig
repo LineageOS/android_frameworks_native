@@ -19,7 +19,7 @@ flag {
   metadata {
     purpose: PURPOSE_BUGFIX
   }
-}
+ } # ce_fence_promise
 
 flag {
   name: "dont_skip_on_early_ro2"

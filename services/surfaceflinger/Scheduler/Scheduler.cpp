@@ -250,18 +250,6 @@ void Scheduler::onFrameSignal(ICompositor& compositor, VsyncId vsyncId,
         mPacesetterFrameDurationFractionToSkip = 0.f;
     }
 
-    if (FlagManager::getInstance().vrr_config()) {
-        const auto minFramePeriod = pacesetterPtr->schedulePtr->minFramePeriod();
-        const auto presentFenceForPastVsync =
-                pacesetterPtr->targeterPtr->target().presentFenceForPastVsync(minFramePeriod);
-        const auto lastConfirmedPresentTime = presentFenceForPastVsync->getSignalTime();
-        if (lastConfirmedPresentTime != Fence::SIGNAL_TIME_PENDING &&
-            lastConfirmedPresentTime != Fence::SIGNAL_TIME_INVALID) {
-            pacesetterPtr->schedulePtr->getTracker()
-                    .onFrameBegin(expectedVsyncTime, TimePoint::fromNs(lastConfirmedPresentTime));
-        }
-    }
-
     const auto resultsPerDisplay = compositor.composite(pacesetterPtr->displayId, targeters);
     if (FlagManager::getInstance().vrr_config()) {
         compositor.sendNotifyExpectedPresentHint(pacesetterPtr->displayId);
@@ -675,7 +663,13 @@ void Scheduler::onLayerDestroyed(Layer* layer) {
 
 void Scheduler::recordLayerHistory(int32_t id, const LayerProps& layerProps, nsecs_t presentTime,
                                    nsecs_t now, LayerHistory::LayerUpdateType updateType) {
-    if (pacesetterSelectorPtr()->canSwitch()) {
+    const auto& selectorPtr = pacesetterSelectorPtr();
+    // Skip recording layer history on LayerUpdateType::SetFrameRate for MRR devices when the
+    // dVRR vote types are guarded (disabled) for MRR. This is to avoid activity when setting dVRR
+    // vote types.
+    if (selectorPtr->canSwitch() &&
+        (updateType != LayerHistory::LayerUpdateType::SetFrameRate ||
+         layerProps.setFrameRateVote.isVoteValidForMrr(selectorPtr->isVrrDevice()))) {
         mLayerHistory.record(id, layerProps, presentTime, now, updateType);
     }
 }

@@ -98,10 +98,10 @@ bool PerfettoBackend::InputEventDataSource::shouldIgnoreTracedInputEvent(
 }
 
 TraceLevel PerfettoBackend::InputEventDataSource::resolveTraceLevel(
-        const TracedEventArgs& args) const {
+        const TracedEventMetadata& metadata) const {
     // Check for matches with the rules in the order that they are defined.
     for (const auto& rule : mConfig.rules) {
-        if (ruleMatches(rule, args)) {
+        if (ruleMatches(rule, metadata)) {
             return rule.level;
         }
     }
@@ -110,17 +110,23 @@ TraceLevel PerfettoBackend::InputEventDataSource::resolveTraceLevel(
 }
 
 bool PerfettoBackend::InputEventDataSource::ruleMatches(const TraceRule& rule,
-                                                        const TracedEventArgs& args) const {
+                                                        const TracedEventMetadata& metadata) const {
     // By default, a rule will match all events. Return early if the rule does not match.
 
     // Match the event if it is directed to a secure window.
-    if (rule.matchSecure.has_value() && *rule.matchSecure != args.isSecure) {
+    if (rule.matchSecure.has_value() && *rule.matchSecure != metadata.isSecure) {
+        return false;
+    }
+
+    // Match the event if it was processed while there was an active InputMethod connection.
+    if (rule.matchImeConnectionActive.has_value() &&
+        *rule.matchImeConnectionActive != metadata.isImeConnectionActive) {
         return false;
     }
 
     // Match the event if all of its target packages are explicitly allowed in the "match all" list.
     if (!rule.matchAllPackages.empty() &&
-        !std::all_of(args.targets.begin(), args.targets.end(), [&](const auto& uid) {
+        !std::all_of(metadata.targets.begin(), metadata.targets.end(), [&](const auto& uid) {
             return isPermanentlyAllowed(uid) ||
                     std::any_of(rule.matchAllPackages.begin(), rule.matchAllPackages.end(),
                                 [&](const auto& pkg) { return uid == mUidMap->at(pkg); });
@@ -130,7 +136,7 @@ bool PerfettoBackend::InputEventDataSource::ruleMatches(const TraceRule& rule,
 
     // Match the event if any of its target packages are allowed in the "match any" list.
     if (!rule.matchAnyPackages.empty() &&
-        !std::any_of(args.targets.begin(), args.targets.end(), [&](const auto& uid) {
+        !std::any_of(metadata.targets.begin(), metadata.targets.end(), [&](const auto& uid) {
             return std::any_of(rule.matchAnyPackages.begin(), rule.matchAnyPackages.end(),
                                [&](const auto& pkg) { return uid == mUidMap->at(pkg); });
         })) {
@@ -166,14 +172,14 @@ PerfettoBackend::PerfettoBackend(GetPackageUid getPackagesForUid)
 }
 
 void PerfettoBackend::traceMotionEvent(const TracedMotionEvent& event,
-                                       const TracedEventArgs& args) {
+                                       const TracedEventMetadata& metadata) {
     InputEventDataSource::Trace([&](InputEventDataSource::TraceContext ctx) {
         auto dataSource = ctx.GetDataSourceLocked();
         dataSource->initializeUidMap(mGetPackageUid);
         if (dataSource->shouldIgnoreTracedInputEvent(event.eventType)) {
             return;
         }
-        const TraceLevel traceLevel = dataSource->resolveTraceLevel(args);
+        const TraceLevel traceLevel = dataSource->resolveTraceLevel(metadata);
         if (traceLevel == TraceLevel::TRACE_LEVEL_NONE) {
             return;
         }
@@ -186,14 +192,15 @@ void PerfettoBackend::traceMotionEvent(const TracedMotionEvent& event,
     });
 }
 
-void PerfettoBackend::traceKeyEvent(const TracedKeyEvent& event, const TracedEventArgs& args) {
+void PerfettoBackend::traceKeyEvent(const TracedKeyEvent& event,
+                                    const TracedEventMetadata& metadata) {
     InputEventDataSource::Trace([&](InputEventDataSource::TraceContext ctx) {
         auto dataSource = ctx.GetDataSourceLocked();
         dataSource->initializeUidMap(mGetPackageUid);
         if (dataSource->shouldIgnoreTracedInputEvent(event.eventType)) {
             return;
         }
-        const TraceLevel traceLevel = dataSource->resolveTraceLevel(args);
+        const TraceLevel traceLevel = dataSource->resolveTraceLevel(metadata);
         if (traceLevel == TraceLevel::TRACE_LEVEL_NONE) {
             return;
         }
@@ -207,14 +214,14 @@ void PerfettoBackend::traceKeyEvent(const TracedKeyEvent& event, const TracedEve
 }
 
 void PerfettoBackend::traceWindowDispatch(const WindowDispatchArgs& dispatchArgs,
-                                          const TracedEventArgs& args) {
+                                          const TracedEventMetadata& metadata) {
     InputEventDataSource::Trace([&](InputEventDataSource::TraceContext ctx) {
         auto dataSource = ctx.GetDataSourceLocked();
         dataSource->initializeUidMap(mGetPackageUid);
         if (!dataSource->getFlags().test(TraceFlag::TRACE_DISPATCHER_WINDOW_DISPATCH)) {
             return;
         }
-        const TraceLevel traceLevel = dataSource->resolveTraceLevel(args);
+        const TraceLevel traceLevel = dataSource->resolveTraceLevel(metadata);
         if (traceLevel == TraceLevel::TRACE_LEVEL_NONE) {
             return;
         }

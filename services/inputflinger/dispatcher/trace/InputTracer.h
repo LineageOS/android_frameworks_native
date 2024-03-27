@@ -48,9 +48,13 @@ public:
     std::unique_ptr<EventTrackerInterface> traceDerivedEvent(const EventEntry&,
                                                              const EventTrackerInterface&) override;
     void traceEventDispatch(const DispatchEntry&, const EventTrackerInterface&) override;
+    void setInputMethodConnectionIsActive(bool isActive) override {
+        mIsImeConnectionActive = isActive;
+    }
 
 private:
     std::unique_ptr<InputTracingBackendInterface> mBackend;
+    bool mIsImeConnectionActive{false};
 
     // The state of a tracked event, shared across all events derived from the original event.
     struct EventState {
@@ -64,10 +68,8 @@ private:
         bool isEventProcessingComplete{false};
         // A queue to hold dispatch args from being traced until event processing is complete.
         std::vector<const WindowDispatchArgs> pendingDispatchArgs;
-        // True if the event is targeting at least one secure window;
-        bool isSecure{false};
-        // The list of all possible UIDs that this event could be targeting.
-        std::set<gui::Uid> targets;
+        // The metadata should not be modified after event processing is complete.
+        TracedEventMetadata metadata{};
     };
 
     // Get the event state associated with a tracking cookie.

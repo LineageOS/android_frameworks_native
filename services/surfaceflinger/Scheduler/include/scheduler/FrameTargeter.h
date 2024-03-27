@@ -71,6 +71,7 @@ public:
     bool isFramePending() const { return mFramePending; }
     bool didMissFrame() const { return mFrameMissed; }
     bool didMissHwcFrame() const { return mHwcFrameMissed && !mGpuFrameMissed; }
+    TimePoint lastSignaledFrameTime() const { return mLastSignaledFrameTime; };
 
 protected:
     explicit FrameTarget(const std::string& displayLabel);
@@ -98,6 +99,7 @@ protected:
         FenceTimePtr fenceTime = FenceTime::NO_FENCE;
     };
     std::array<FenceWithFenceTime, 2> mPresentFences;
+    TimePoint mLastSignaledFrameTime;
 
 private:
     friend class FrameTargeterTestBase;

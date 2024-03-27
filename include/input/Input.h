@@ -26,6 +26,7 @@
 #ifdef __linux__
 #include <android/os/IInputConstants.h>
 #endif
+#include <android/os/PointerIconType.h>
 #include <math.h>
 #include <stdint.h>
 #include <ui/Transform.h>
@@ -1213,43 +1214,41 @@ public:
  *
  * Due to backwards compatibility and public api constraints, this is a duplicate (but type safe)
  * definition of PointerIcon.java.
- *
- * TODO(b/235023317) move this definition to an aidl and statically assign to the below java public
- * api values.
- *
- * WARNING: Keep these definitions in sync with
- * frameworks/base/core/java/android/view/PointerIcon.java
  */
 enum class PointerIconStyle : int32_t {
-    TYPE_CUSTOM = -1,
-    TYPE_NULL = 0,
-    TYPE_NOT_SPECIFIED = 1,
-    TYPE_ARROW = 1000,
-    TYPE_CONTEXT_MENU = 1001,
-    TYPE_HAND = 1002,
-    TYPE_HELP = 1003,
-    TYPE_WAIT = 1004,
-    TYPE_CELL = 1006,
-    TYPE_CROSSHAIR = 1007,
-    TYPE_TEXT = 1008,
-    TYPE_VERTICAL_TEXT = 1009,
-    TYPE_ALIAS = 1010,
-    TYPE_COPY = 1011,
-    TYPE_NO_DROP = 1012,
-    TYPE_ALL_SCROLL = 1013,
-    TYPE_HORIZONTAL_DOUBLE_ARROW = 1014,
-    TYPE_VERTICAL_DOUBLE_ARROW = 1015,
-    TYPE_TOP_RIGHT_DOUBLE_ARROW = 1016,
-    TYPE_TOP_LEFT_DOUBLE_ARROW = 1017,
-    TYPE_ZOOM_IN = 1018,
-    TYPE_ZOOM_OUT = 1019,
-    TYPE_GRAB = 1020,
-    TYPE_GRABBING = 1021,
-    TYPE_HANDWRITING = 1022,
+    TYPE_CUSTOM = static_cast<int32_t>(::android::os::PointerIconType::CUSTOM),
+    TYPE_NULL = static_cast<int32_t>(::android::os::PointerIconType::TYPE_NULL),
+    TYPE_NOT_SPECIFIED = static_cast<int32_t>(::android::os::PointerIconType::NOT_SPECIFIED),
+    TYPE_ARROW = static_cast<int32_t>(::android::os::PointerIconType::ARROW),
+    TYPE_CONTEXT_MENU = static_cast<int32_t>(::android::os::PointerIconType::CONTEXT_MENU),
+    TYPE_HAND = static_cast<int32_t>(::android::os::PointerIconType::HAND),
+    TYPE_HELP = static_cast<int32_t>(::android::os::PointerIconType::HELP),
+    TYPE_WAIT = static_cast<int32_t>(::android::os::PointerIconType::WAIT),
+    TYPE_CELL = static_cast<int32_t>(::android::os::PointerIconType::CELL),
+    TYPE_CROSSHAIR = static_cast<int32_t>(::android::os::PointerIconType::CROSSHAIR),
+    TYPE_TEXT = static_cast<int32_t>(::android::os::PointerIconType::TEXT),
+    TYPE_VERTICAL_TEXT = static_cast<int32_t>(::android::os::PointerIconType::VERTICAL_TEXT),
+    TYPE_ALIAS = static_cast<int32_t>(::android::os::PointerIconType::ALIAS),
+    TYPE_COPY = static_cast<int32_t>(::android::os::PointerIconType::COPY),
+    TYPE_NO_DROP = static_cast<int32_t>(::android::os::PointerIconType::NO_DROP),
+    TYPE_ALL_SCROLL = static_cast<int32_t>(::android::os::PointerIconType::ALL_SCROLL),
+    TYPE_HORIZONTAL_DOUBLE_ARROW =
+            static_cast<int32_t>(::android::os::PointerIconType::HORIZONTAL_DOUBLE_ARROW),
+    TYPE_VERTICAL_DOUBLE_ARROW =
+            static_cast<int32_t>(::android::os::PointerIconType::VERTICAL_DOUBLE_ARROW),
+    TYPE_TOP_RIGHT_DOUBLE_ARROW =
+            static_cast<int32_t>(::android::os::PointerIconType::TOP_RIGHT_DOUBLE_ARROW),
+    TYPE_TOP_LEFT_DOUBLE_ARROW =
+            static_cast<int32_t>(::android::os::PointerIconType::TOP_LEFT_DOUBLE_ARROW),
+    TYPE_ZOOM_IN = static_cast<int32_t>(::android::os::PointerIconType::ZOOM_IN),
+    TYPE_ZOOM_OUT = static_cast<int32_t>(::android::os::PointerIconType::ZOOM_OUT),
+    TYPE_GRAB = static_cast<int32_t>(::android::os::PointerIconType::GRAB),
+    TYPE_GRABBING = static_cast<int32_t>(::android::os::PointerIconType::GRABBING),
+    TYPE_HANDWRITING = static_cast<int32_t>(::android::os::PointerIconType::HANDWRITING),
 
-    TYPE_SPOT_HOVER = 2000,
-    TYPE_SPOT_TOUCH = 2001,
-    TYPE_SPOT_ANCHOR = 2002,
+    TYPE_SPOT_HOVER = static_cast<int32_t>(::android::os::PointerIconType::SPOT_HOVER),
+    TYPE_SPOT_TOUCH = static_cast<int32_t>(::android::os::PointerIconType::SPOT_TOUCH),
+    TYPE_SPOT_ANCHOR = static_cast<int32_t>(::android::os::PointerIconType::SPOT_ANCHOR),
 };
 
 } // namespace android

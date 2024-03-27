@@ -103,6 +103,11 @@ public:
      * provided.
      */
     virtual void traceEventDispatch(const DispatchEntry&, const EventTrackerInterface&) = 0;
+
+    /**
+     * Notify that the state of the input method connection changed.
+     */
+    virtual void setInputMethodConnectionIsActive(bool isActive) = 0;
 };
 
 } // namespace android::inputdispatcher::trace

@@ -92,11 +92,13 @@ struct TracedMotionEvent {
 using TracedEvent = std::variant<TracedKeyEvent, TracedMotionEvent>;
 
 /** Additional information about an input event being traced. */
-struct TracedEventArgs {
+struct TracedEventMetadata {
     // True if the event is targeting at least one secure window.
     bool isSecure;
     // The list of possible UIDs that this event could be targeting.
     std::set<gui::Uid> targets;
+    // True if the there was an active input method connection while this event was processed.
+    bool isImeConnectionActive;
 };
 
 /** Additional information about an input event being dispatched to a window. */
@@ -121,13 +123,13 @@ public:
     virtual ~InputTracingBackendInterface() = default;
 
     /** Trace a KeyEvent. */
-    virtual void traceKeyEvent(const TracedKeyEvent&, const TracedEventArgs&) = 0;
+    virtual void traceKeyEvent(const TracedKeyEvent&, const TracedEventMetadata&) = 0;
 
     /** Trace a MotionEvent. */
-    virtual void traceMotionEvent(const TracedMotionEvent&, const TracedEventArgs&) = 0;
+    virtual void traceMotionEvent(const TracedMotionEvent&, const TracedEventMetadata&) = 0;
 
     /** Trace an event being sent to a window. */
-    virtual void traceWindowDispatch(const WindowDispatchArgs&, const TracedEventArgs&) = 0;
+    virtual void traceWindowDispatch(const WindowDispatchArgs&, const TracedEventMetadata&) = 0;
 };
 
 } // namespace android::inputdispatcher::trace
