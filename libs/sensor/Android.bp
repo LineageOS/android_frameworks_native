@@ -24,6 +24,7 @@ package {
 aconfig_declarations {
     name: "libsensor_flags",
     package: "com.android.hardware.libsensor.flags",
+    container: "system",
     srcs: ["libsensor_flags.aconfig"],
 }
 
