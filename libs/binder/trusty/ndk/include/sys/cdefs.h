@@ -22,3 +22,4 @@
 #define __END_DECLS __END_CDECLS
 
 #define __INTRODUCED_IN(x) /* nothing on Trusty */
+#define __INTRODUCED_IN_LLNDK(x) /* nothing on Trusty */

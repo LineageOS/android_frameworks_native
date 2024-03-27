@@ -18,12 +18,15 @@
 
 #include <input/MotionPredictor.h>
 
+#include <array>
 #include <cinttypes>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <android-base/logging.h>
@@ -60,6 +63,66 @@ TfLiteMotionPredictorSample::Point convertPrediction(
 }
 
 } // namespace
+
+// --- JerkTracker ---
+
+JerkTracker::JerkTracker(bool normalizedDt) : mNormalizedDt(normalizedDt) {}
+
+void JerkTracker::pushSample(int64_t timestamp, float xPos, float yPos) {
+    mTimestamps.pushBack(timestamp);
+    const int numSamples = mTimestamps.size();
+
+    std::array<float, 4> newXDerivatives;
+    std::array<float, 4> newYDerivatives;
+
+    /**
+     * Diagram showing the calculation of higher order derivatives of sample x3
+     * collected at time=t3.
+     * Terms in parentheses are not stored (and not needed for calculations)
+     *  t0 ----- t1  ----- t2 ----- t3
+     * (x0)-----(x1) ----- x2 ----- x3
+     * (x'0) --- x'1 ---  x'2
+     *  x''0  -  x''1
+     *  x'''0
+     *
+     * In this example:
+     * x'2 = (x3 - x2) / (t3 - t2)
+     * x''1 = (x'2 - x'1) / (t2 - t1)
+     * x'''0 = (x''1 - x''0) / (t1 - t0)
+     * Therefore, timestamp history is needed to calculate higher order derivatives,
+     * compared to just the last calculated derivative sample.
+     *
+     * If mNormalizedDt = true, then dt = 1 and the division is moot.
+     */
+    for (int i = 0; i < numSamples; ++i) {
+        if (i == 0) {
+            newXDerivatives[i] = xPos;
+            newYDerivatives[i] = yPos;
+        } else {
+            newXDerivatives[i] = newXDerivatives[i - 1] - mXDerivatives[i - 1];
+            newYDerivatives[i] = newYDerivatives[i - 1] - mYDerivatives[i - 1];
+            if (!mNormalizedDt) {
+                const float dt = mTimestamps[numSamples - i] - mTimestamps[numSamples - i - 1];
+                newXDerivatives[i] = newXDerivatives[i] / dt;
+                newYDerivatives[i] = newYDerivatives[i] / dt;
+            }
+        }
+    }
+
+    std::swap(newXDerivatives, mXDerivatives);
+    std::swap(newYDerivatives, mYDerivatives);
+}
+
+void JerkTracker::reset() {
+    mTimestamps.clear();
+}
+
+std::optional<float> JerkTracker::jerkMagnitude() const {
+    if (mTimestamps.size() == mTimestamps.capacity()) {
+        return std::hypot(mXDerivatives[3], mYDerivatives[3]);
+    }
+    return std::nullopt;
+}
 
 // --- MotionPredictor ---
 
@@ -107,6 +170,7 @@ android::base::Result<void> MotionPredictor::record(const MotionEvent& event) {
     if (action == AMOTION_EVENT_ACTION_UP || action == AMOTION_EVENT_ACTION_CANCEL) {
         ALOGD_IF(isDebug(), "End of event stream");
         mBuffers->reset();
+        mJerkTracker.reset();
         mLastEvent.reset();
         return {};
     } else if (action != AMOTION_EVENT_ACTION_DOWN && action != AMOTION_EVENT_ACTION_MOVE) {
@@ -141,6 +205,9 @@ android::base::Result<void> MotionPredictor::record(const MotionEvent& event) {
                                                                           0, i),
                                      .orientation = event.getHistoricalOrientation(0, i),
                              });
+        mJerkTracker.pushSample(event.getHistoricalEventTime(i),
+                                coords->getAxisValue(AMOTION_EVENT_AXIS_X),
+                                coords->getAxisValue(AMOTION_EVENT_AXIS_Y));
     }
 
     if (!mLastEvent) {

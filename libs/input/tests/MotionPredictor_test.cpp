@@ -15,6 +15,7 @@
  */
 
 #include <chrono>
+#include <cmath>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -63,6 +64,108 @@ static MotionEvent getMotionEvent(int32_t action, float x, float y,
                      identityTransform, /*downTime=*/100, eventTime.count(), pointerCount,
                      pointerProperties.data(), pointerCoords.data());
     return event;
+}
+
+TEST(JerkTrackerTest, JerkReadiness) {
+    JerkTracker jerkTracker(true);
+    EXPECT_FALSE(jerkTracker.jerkMagnitude());
+    jerkTracker.pushSample(/*timestamp=*/0, 20, 50);
+    EXPECT_FALSE(jerkTracker.jerkMagnitude());
+    jerkTracker.pushSample(/*timestamp=*/1, 25, 53);
+    EXPECT_FALSE(jerkTracker.jerkMagnitude());
+    jerkTracker.pushSample(/*timestamp=*/2, 30, 60);
+    EXPECT_FALSE(jerkTracker.jerkMagnitude());
+    jerkTracker.pushSample(/*timestamp=*/3, 35, 70);
+    EXPECT_TRUE(jerkTracker.jerkMagnitude());
+    jerkTracker.reset();
+    EXPECT_FALSE(jerkTracker.jerkMagnitude());
+    jerkTracker.pushSample(/*timestamp=*/4, 30, 60);
+    EXPECT_FALSE(jerkTracker.jerkMagnitude());
+}
+
+TEST(JerkTrackerTest, JerkCalculationNormalizedDtTrue) {
+    JerkTracker jerkTracker(true);
+    jerkTracker.pushSample(/*timestamp=*/0, 20, 50);
+    jerkTracker.pushSample(/*timestamp=*/1, 25, 53);
+    jerkTracker.pushSample(/*timestamp=*/2, 30, 60);
+    jerkTracker.pushSample(/*timestamp=*/3, 45, 70);
+    /**
+     * Jerk derivative table
+     * x:    20   25   30   45
+     * x':    5    5   15
+     * x'':   0   10
+     * x''': 10
+     *
+     * y:    50   53   60   70
+     * y':    3    7   10
+     * y'':   4    3
+     * y''': -1
+     */
+    EXPECT_FLOAT_EQ(jerkTracker.jerkMagnitude().value(), std::hypot(10, -1));
+    jerkTracker.pushSample(/*timestamp=*/4, 20, 65);
+    /**
+     * (continuing from above table)
+     * x:    45 -> 20
+     * x':   15 -> -25
+     * x'':  10 -> -40
+     * x''': -50
+     *
+     * y:    70 -> 65
+     * y':   10 -> -5
+     * y'':  3 -> -15
+     * y''': -18
+     */
+    EXPECT_FLOAT_EQ(jerkTracker.jerkMagnitude().value(), std::hypot(-50, -18));
+}
+
+TEST(JerkTrackerTest, JerkCalculationNormalizedDtFalse) {
+    JerkTracker jerkTracker(false);
+    jerkTracker.pushSample(/*timestamp=*/0, 20, 50);
+    jerkTracker.pushSample(/*timestamp=*/10, 25, 53);
+    jerkTracker.pushSample(/*timestamp=*/20, 30, 60);
+    jerkTracker.pushSample(/*timestamp=*/30, 45, 70);
+    /**
+     * Jerk derivative table
+     * x:     20   25   30   45
+     * x':    .5   .5  1.5
+     * x'':    0   .1
+     * x''': .01
+     *
+     * y:       50   53   60   70
+     * y':      .3   .7    1
+     * y'':    .04  .03
+     * y''': -.001
+     */
+    EXPECT_FLOAT_EQ(jerkTracker.jerkMagnitude().value(), std::hypot(.01, -.001));
+    jerkTracker.pushSample(/*timestamp=*/50, 20, 65);
+    /**
+     * (continuing from above table)
+     * x:    45 -> 20
+     * x':   1.5 -> -1.25 (delta above, divide by 20)
+     * x'':  .1 -> -.275 (delta above, divide by 10)
+     * x''': -.0375 (delta above, divide by 10)
+     *
+     * y:    70 -> 65
+     * y':   1 -> -.25 (delta above, divide by 20)
+     * y'':  .03 -> -.125 (delta above, divide by 10)
+     * y''': -.0155 (delta above, divide by 10)
+     */
+    EXPECT_FLOAT_EQ(jerkTracker.jerkMagnitude().value(), std::hypot(-.0375, -.0155));
+}
+
+TEST(JerkTrackerTest, JerkCalculationAfterReset) {
+    JerkTracker jerkTracker(true);
+    jerkTracker.pushSample(/*timestamp=*/0, 20, 50);
+    jerkTracker.pushSample(/*timestamp=*/1, 25, 53);
+    jerkTracker.pushSample(/*timestamp=*/2, 30, 60);
+    jerkTracker.pushSample(/*timestamp=*/3, 45, 70);
+    jerkTracker.pushSample(/*timestamp=*/4, 20, 65);
+    jerkTracker.reset();
+    jerkTracker.pushSample(/*timestamp=*/5, 20, 50);
+    jerkTracker.pushSample(/*timestamp=*/6, 25, 53);
+    jerkTracker.pushSample(/*timestamp=*/7, 30, 60);
+    jerkTracker.pushSample(/*timestamp=*/8, 45, 70);
+    EXPECT_FLOAT_EQ(jerkTracker.jerkMagnitude().value(), std::hypot(10, -1));
 }
 
 TEST(MotionPredictorTest, IsPredictionAvailable) {
