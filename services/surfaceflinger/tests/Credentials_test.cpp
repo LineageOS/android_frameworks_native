@@ -21,7 +21,6 @@
 #include <android/gui/ISurfaceComposer.h>
 #include <gtest/gtest.h>
 #include <gui/AidlStatusUtil.h>
-#include <gui/LayerDebugInfo.h>
 #include <gui/Surface.h>
 #include <gui/SurfaceComposerClient.h>
 #include <private/android_filesystem_config.h>
@@ -36,7 +35,6 @@
 namespace android {
 
 using Transaction = SurfaceComposerClient::Transaction;
-using gui::LayerDebugInfo;
 using gui::aidl_utils::statusTFromBinderStatus;
 using ui::ColorMode;
 
@@ -292,35 +290,6 @@ TEST_F(CredentialsTest, CaptureLayersTest) {
 /**
  * The following tests are for methods accessible directly through SurfaceFlinger.
  */
-TEST_F(CredentialsTest, GetLayerDebugInfo) {
-    setupBackgroundSurface();
-    sp<gui::ISurfaceComposer> sf(ComposerServiceAIDL::getComposerService());
-
-    // Historically, only root and shell can access the getLayerDebugInfo which
-    // is called when we call dumpsys. I don't see a reason why we should change this.
-    std::vector<LayerDebugInfo> outLayers;
-    binder::Status status = binder::Status::ok();
-    // Check with root.
-    {
-        UIDFaker f(AID_ROOT);
-        status = sf->getLayerDebugInfo(&outLayers);
-        ASSERT_EQ(NO_ERROR, statusTFromBinderStatus(status));
-    }
-
-    // Check as a shell.
-    {
-        UIDFaker f(AID_SHELL);
-        status = sf->getLayerDebugInfo(&outLayers);
-        ASSERT_EQ(NO_ERROR, statusTFromBinderStatus(status));
-    }
-
-    // Check as anyone else.
-    {
-        UIDFaker f(AID_BIN);
-        status = sf->getLayerDebugInfo(&outLayers);
-        ASSERT_EQ(PERMISSION_DENIED, statusTFromBinderStatus(status));
-    }
-}
 
 TEST_F(CredentialsTest, IsWideColorDisplayBasicCorrectness) {
     const auto display = getFirstDisplayToken();

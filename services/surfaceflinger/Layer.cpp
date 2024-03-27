@@ -40,7 +40,6 @@
 #include <ftl/enum.h>
 #include <ftl/fake_guard.h>
 #include <gui/BufferItem.h>
-#include <gui/LayerDebugInfo.h>
 #include <gui/Surface.h>
 #include <gui/TraceUtils.h>
 #include <math.h>
@@ -1565,53 +1564,6 @@ void Layer::updateTransformHint(ui::Transform::RotationFlags transformHint) {
 // ----------------------------------------------------------------------------
 // debugging
 // ----------------------------------------------------------------------------
-
-// TODO(marissaw): add new layer state info to layer debugging
-gui::LayerDebugInfo Layer::getLayerDebugInfo(const DisplayDevice* display) const {
-    using namespace std::string_literals;
-
-    gui::LayerDebugInfo info;
-    const State& ds = getDrawingState();
-    info.mName = getName();
-    sp<Layer> parent = mDrawingParent.promote();
-    info.mParentName = parent ? parent->getName() : "none"s;
-    info.mType = getType();
-
-    info.mVisibleRegion = getVisibleRegion(display);
-    info.mSurfaceDamageRegion = surfaceDamageRegion;
-    info.mLayerStack = getLayerStack().id;
-    info.mX = ds.transform.tx();
-    info.mY = ds.transform.ty();
-    info.mZ = ds.z;
-    info.mCrop = ds.crop;
-    info.mColor = ds.color;
-    info.mFlags = ds.flags;
-    info.mPixelFormat = getPixelFormat();
-    info.mDataSpace = static_cast<android_dataspace>(getDataSpace());
-    info.mMatrix[0][0] = ds.transform[0][0];
-    info.mMatrix[0][1] = ds.transform[0][1];
-    info.mMatrix[1][0] = ds.transform[1][0];
-    info.mMatrix[1][1] = ds.transform[1][1];
-    {
-        sp<const GraphicBuffer> buffer = getBuffer();
-        if (buffer != 0) {
-            info.mActiveBufferWidth = buffer->getWidth();
-            info.mActiveBufferHeight = buffer->getHeight();
-            info.mActiveBufferStride = buffer->getStride();
-            info.mActiveBufferFormat = buffer->format;
-        } else {
-            info.mActiveBufferWidth = 0;
-            info.mActiveBufferHeight = 0;
-            info.mActiveBufferStride = 0;
-            info.mActiveBufferFormat = 0;
-        }
-    }
-    info.mNumQueuedFrames = getQueuedFrameCount();
-    info.mIsOpaque = isOpaque(ds);
-    info.mContentDirty = contentDirty;
-    info.mStretchEffect = getStretchEffect();
-    return info;
-}
 
 void Layer::miniDumpHeader(std::string& result) {
     result.append(kDumpTableRowLength, '-');

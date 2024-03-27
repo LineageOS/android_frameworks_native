@@ -65,7 +65,6 @@
 #include <gui/BufferQueue.h>
 #include <gui/DebugEGLImageTracker.h>
 #include <gui/IProducerListener.h>
-#include <gui/LayerDebugInfo.h>
 #include <gui/LayerMetadata.h>
 #include <gui/LayerState.h>
 #include <gui/Surface.h>
@@ -1831,19 +1830,6 @@ status_t SurfaceFlinger::isWideColorDisplay(const sp<IBinder>& displayToken,
 
     *outIsWideColorDisplay =
             display->isPrimary() ? mSupportsWideColor : display->hasWideColorGamut();
-    return NO_ERROR;
-}
-
-status_t SurfaceFlinger::getLayerDebugInfo(std::vector<gui::LayerDebugInfo>* outLayers) {
-    outLayers->clear();
-    auto future = mScheduler->schedule([=, this] {
-        const auto display = FTL_FAKE_GUARD(mStateLock, getDefaultDisplayDeviceLocked());
-        mDrawingState.traverseInZOrder([&](Layer* layer) {
-            outLayers->push_back(layer->getLayerDebugInfo(display.get()));
-        });
-    });
-
-    future.wait();
     return NO_ERROR;
 }
 
@@ -9892,22 +9878,6 @@ binder::Status SurfaceComposerAIDL::onPullAtom(int32_t atomId, gui::PullAtomData
     } else {
         status = mFlinger->onPullAtom(atomId, &outPullData->data, &outPullData->success);
     }
-    return binderStatusFromStatusT(status);
-}
-
-binder::Status SurfaceComposerAIDL::getLayerDebugInfo(std::vector<gui::LayerDebugInfo>* outLayers) {
-    if (!outLayers) {
-        return binderStatusFromStatusT(UNEXPECTED_NULL);
-    }
-
-    IPCThreadState* ipc = IPCThreadState::self();
-    const int pid = ipc->getCallingPid();
-    const int uid = ipc->getCallingUid();
-    if ((uid != AID_SHELL) && !PermissionCache::checkPermission(sDump, pid, uid)) {
-        ALOGE("Layer debug info permission denied for pid=%d, uid=%d", pid, uid);
-        return binderStatusFromStatusT(PERMISSION_DENIED);
-    }
-    status_t status = mFlinger->getLayerDebugInfo(outLayers);
     return binderStatusFromStatusT(status);
 }
 
