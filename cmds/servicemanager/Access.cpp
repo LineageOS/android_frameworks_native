@@ -22,6 +22,8 @@
 #include <selinux/android.h>
 #include <selinux/avc.h>
 
+#include <sstream>
+
 namespace android {
 
 #ifdef VENDORSERVICEMANAGER
@@ -79,6 +81,12 @@ static int auditCallback(void *data, security_class_t /*cls*/, char *buf, size_t
     return 0;
 }
 #endif
+
+std::string Access::CallingContext::toDebugString() const {
+    std::stringstream ss;
+    ss << "Caller(pid=" << debugPid << ",uid=" << uid << ",sid=" << sid << ")";
+    return ss.str();
+}
 
 Access::Access() {
 #ifdef __ANDROID__
