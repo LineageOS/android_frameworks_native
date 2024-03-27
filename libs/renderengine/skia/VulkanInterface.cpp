@@ -20,6 +20,8 @@
 #include "VulkanInterface.h"
 
 #include <include/gpu/GpuTypes.h>
+#include <include/gpu/vk/VulkanBackendContext.h>
+
 #include <log/log_main.h>
 #include <utils/Timers.h>
 
@@ -32,6 +34,23 @@ namespace skia {
 
 GrVkBackendContext VulkanInterface::getGaneshBackendContext() {
     GrVkBackendContext backendContext;
+    backendContext.fInstance = mInstance;
+    backendContext.fPhysicalDevice = mPhysicalDevice;
+    backendContext.fDevice = mDevice;
+    backendContext.fQueue = mQueue;
+    backendContext.fGraphicsQueueIndex = mQueueIndex;
+    backendContext.fMaxAPIVersion = mApiVersion;
+    backendContext.fVkExtensions = &mGrExtensions;
+    backendContext.fDeviceFeatures2 = mPhysicalDeviceFeatures2;
+    backendContext.fGetProc = mGrGetProc;
+    backendContext.fProtectedContext = mIsProtected ? Protected::kYes : Protected::kNo;
+    backendContext.fDeviceLostContext = this; // VulkanInterface is long-lived
+    backendContext.fDeviceLostProc = onVkDeviceFault;
+    return backendContext;
+};
+
+VulkanBackendContext VulkanInterface::getGraphiteBackendContext() {
+    VulkanBackendContext backendContext;
     backendContext.fInstance = mInstance;
     backendContext.fPhysicalDevice = mPhysicalDevice;
     backendContext.fDevice = mDevice;

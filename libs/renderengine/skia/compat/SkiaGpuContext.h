@@ -22,7 +22,9 @@
 #include <include/core/SkSurface.h>
 #include <include/gpu/GrDirectContext.h>
 #include <include/gpu/gl/GrGLInterface.h>
+#include <include/gpu/graphite/Context.h>
 #include <include/gpu/vk/GrVkBackendContext.h>
+#include "include/gpu/vk/VulkanBackendContext.h"
 
 #include "SkiaBackendTexture.h"
 
@@ -41,19 +43,35 @@ public:
             sk_sp<const GrGLInterface> glInterface,
             GrContextOptions::PersistentCache& skSLCacheMonitor);
 
-    // TODO: b/293371537 - Graphite variant.
     static std::unique_ptr<SkiaGpuContext> MakeVulkan_Ganesh(
             const GrVkBackendContext& grVkBackendContext,
             GrContextOptions::PersistentCache& skSLCacheMonitor);
 
+    // TODO: b/293371537 - Need shader / pipeline monitoring support in Graphite.
+    static std::unique_ptr<SkiaGpuContext> MakeVulkan_Graphite(
+            const skgpu::VulkanBackendContext& vulkanBackendContext);
+
     virtual ~SkiaGpuContext() = default;
 
-    // TODO: b/293371537 - Maybe expose whether this SkiaGpuContext is using Ganesh or Graphite?
     /**
      * Only callable on Ganesh-backed instances of SkiaGpuContext, otherwise fatal.
      */
     virtual sk_sp<GrDirectContext> grDirectContext() {
         LOG_ALWAYS_FATAL("grDirectContext() called on a non-Ganesh instance of SkiaGpuContext!");
+    }
+
+    /**
+     * Only callable on Graphite-backed instances of SkiaGpuContext, otherwise fatal.
+     */
+    virtual std::shared_ptr<skgpu::graphite::Context> graphiteContext() {
+        LOG_ALWAYS_FATAL("graphiteContext() called on a non-Graphite instance of SkiaGpuContext!");
+    }
+
+    /**
+     * Only callable on Graphite-backed instances of SkiaGpuContext, otherwise fatal.
+     */
+    virtual std::shared_ptr<skgpu::graphite::Recorder> graphiteRecorder() {
+        LOG_ALWAYS_FATAL("graphiteRecorder() called on a non-Graphite instance of SkiaGpuContext!");
     }
 
     virtual std::unique_ptr<SkiaBackendTexture> makeBackendTexture(AHardwareBuffer* buffer,
