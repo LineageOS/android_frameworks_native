@@ -8279,7 +8279,11 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
         Mutex::Autolock lock(mStateLock);
         const DisplayDevice* display = nullptr;
         if (parent) {
-            display = findDisplay([layerStack = parent->getLayerStack()](const auto& display) {
+            const frontend::LayerSnapshot* snapshot = mLayerLifecycleManagerEnabled
+                    ? mLayerSnapshotBuilder.getSnapshot(parent->sequence)
+                    : parent->getLayerSnapshot();
+            display = findDisplay([layerStack =
+                                           snapshot->outputFilter.layerStack](const auto& display) {
                           return display.getLayerStack() == layerStack;
                       }).get();
         }
