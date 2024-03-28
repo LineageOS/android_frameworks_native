@@ -43,7 +43,6 @@ import android.gui.ITunnelModeEnabledListener;
 import android.gui.IWindowInfosListener;
 import android.gui.IWindowInfosPublisher;
 import android.gui.LayerCaptureArgs;
-import android.gui.LayerDebugInfo;
 import android.gui.OverlayProperties;
 import android.gui.PullAtomData;
 import android.gui.ScreenCaptureResults;
@@ -287,13 +286,6 @@ interface ISurfaceComposer {
      * Requires the calling uid be from system server.
      */
     PullAtomData onPullAtom(int atomId);
-
-    /**
-     * Gets the list of active layers in Z order for debugging purposes
-     *
-     * Requires the ACCESS_SURFACE_FLINGER permission.
-     */
-    List<LayerDebugInfo> getLayerDebugInfo();
 
     /**
      * Gets the composition preference of the default data space and default pixel format,

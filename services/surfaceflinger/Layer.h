@@ -71,10 +71,6 @@ class OutputLayer;
 struct LayerFECompositionState;
 }
 
-namespace gui {
-class LayerDebugInfo;
-}
-
 namespace frametimeline {
 class SurfaceFrame;
 } // namespace frametimeline
@@ -702,8 +698,6 @@ public:
     void skipReportingTransformHint();
     inline const State& getDrawingState() const { return mDrawingState; }
     inline State& getDrawingState() { return mDrawingState; }
-
-    gui::LayerDebugInfo getLayerDebugInfo(const DisplayDevice*) const;
 
     void miniDumpLegacy(std::string& result, const DisplayDevice&) const;
     void miniDump(std::string& result, const frontend::LayerSnapshot&, const DisplayDevice&) const;

@@ -74,7 +74,6 @@ namespace gui {
 
 struct DisplayCaptureArgs;
 struct LayerCaptureArgs;
-class LayerDebugInfo;
 
 } // namespace gui
 

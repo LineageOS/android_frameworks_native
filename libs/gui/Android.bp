@@ -241,7 +241,6 @@ filegroup {
         "IProducerListener.cpp",
         "ISurfaceComposer.cpp",
         "ITransactionCompletedListener.cpp",
-        "LayerDebugInfo.cpp",
         "LayerMetadata.cpp",
         "LayerStatePermissions.cpp",
         "LayerState.cpp",

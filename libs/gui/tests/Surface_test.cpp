@@ -815,10 +815,6 @@ public:
         return binder::Status::ok();
     }
 
-    binder::Status getLayerDebugInfo(std::vector<gui::LayerDebugInfo>* /*outLayers*/) override {
-        return binder::Status::ok();
-    }
-
     binder::Status getCompositionPreference(gui::CompositionPreference* /*outPref*/) override {
         return binder::Status::ok();
     }
