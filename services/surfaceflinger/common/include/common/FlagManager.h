@@ -78,6 +78,7 @@ public:
     bool ce_fence_promise() const;
     bool idle_screen_refresh_rate_timeout() const;
     bool graphite_renderengine() const;
+    bool latch_unsignaled_with_auto_refresh_changed() const;
 
 protected:
     // overridden for unit tests

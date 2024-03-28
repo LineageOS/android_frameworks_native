@@ -585,11 +585,13 @@ bool RequestedLayerState::isSimpleBufferUpdate(const layer_state_t& s) const {
         return false;
     }
 
-    static constexpr uint64_t deniedFlags = layer_state_t::eProducerDisconnect |
-            layer_state_t::eLayerChanged | layer_state_t::eRelativeLayerChanged |
-            layer_state_t::eTransparentRegionChanged | layer_state_t::eFlagsChanged |
-            layer_state_t::eBlurRegionsChanged | layer_state_t::eLayerStackChanged |
-            layer_state_t::eAutoRefreshChanged | layer_state_t::eReparent;
+    const uint64_t deniedFlags = layer_state_t::eProducerDisconnect | layer_state_t::eLayerChanged |
+            layer_state_t::eRelativeLayerChanged | layer_state_t::eTransparentRegionChanged |
+            layer_state_t::eFlagsChanged | layer_state_t::eBlurRegionsChanged |
+            layer_state_t::eLayerStackChanged | layer_state_t::eReparent |
+            (FlagManager::getInstance().latch_unsignaled_with_auto_refresh_changed()
+                     ? 0
+                     : layer_state_t::eAutoRefreshChanged);
     if (s.what & deniedFlags) {
         ATRACE_FORMAT_INSTANT("%s: false [has denied flags 0x%" PRIx64 "]", __func__,
                               s.what & deniedFlags);
