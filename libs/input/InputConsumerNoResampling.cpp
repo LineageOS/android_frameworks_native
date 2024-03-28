@@ -413,10 +413,9 @@ void InputConsumerNoResampling::handleMessage(const InputMessage& msg) const {
 
         case InputMessage::Type::FINISHED:
         case InputMessage::Type::TIMELINE: {
-            LOG_ALWAYS_FATAL("Consumed a %s message, which should never be seen by "
-                             "InputConsumer on %s",
-                             ftl::enum_string(msg.header.type).c_str(),
-                             mChannel->getName().c_str());
+            LOG(FATAL) << "Consumed a " << ftl::enum_string(msg.header.type)
+                       << " message, which should never be seen by InputConsumer on "
+                       << mChannel->getName();
             break;
         }
 

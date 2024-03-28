@@ -16,40 +16,45 @@
 
 #include <renderengine/RenderEngine.h>
 
-#include <cutils/properties.h>
-#include <log/log.h>
 #include "renderengine/ExternalTexture.h"
+#include "skia/GaneshVkRenderEngine.h"
+#include "skia/GraphiteVkRenderEngine.h"
+#include "skia/SkiaGLRenderEngine.h"
 #include "threaded/RenderEngineThreaded.h"
 
-#include "skia/SkiaGLRenderEngine.h"
-#include "skia/SkiaVkRenderEngine.h"
+#include <cutils/properties.h>
+#include <log/log.h>
 
 namespace android {
 namespace renderengine {
 
 std::unique_ptr<RenderEngine> RenderEngine::create(const RenderEngineCreationArgs& args) {
-    if (args.threaded == Threaded::YES) {
-        switch (args.graphicsApi) {
-            case GraphicsApi::GL:
-                ALOGD("Threaded RenderEngine with SkiaGL Backend");
-                return renderengine::threaded::RenderEngineThreaded::create([args]() {
-                    return android::renderengine::skia::SkiaGLRenderEngine::create(args);
-                });
-            case GraphicsApi::VK:
-                ALOGD("Threaded RenderEngine with SkiaVK Backend");
-                return renderengine::threaded::RenderEngineThreaded::create([args]() {
-                    return android::renderengine::skia::SkiaVkRenderEngine::create(args);
-                });
+    threaded::CreateInstanceFactory createInstanceFactory;
+
+    ALOGD("%sRenderEngine with %s Backend (%s)", args.threaded == Threaded::YES ? "Threaded " : "",
+          args.graphicsApi == GraphicsApi::GL ? "SkiaGL" : "SkiaVK",
+          args.skiaBackend == SkiaBackend::GANESH ? "Ganesh" : "Graphite");
+
+    if (args.skiaBackend == SkiaBackend::GRAPHITE) {
+        createInstanceFactory = [args]() {
+            return android::renderengine::skia::GraphiteVkRenderEngine::create(args);
+        };
+    } else { // GANESH
+        if (args.graphicsApi == GraphicsApi::VK) {
+            createInstanceFactory = [args]() {
+                return android::renderengine::skia::GaneshVkRenderEngine::create(args);
+            };
+        } else { // GL
+            createInstanceFactory = [args]() {
+                return android::renderengine::skia::SkiaGLRenderEngine::create(args);
+            };
         }
     }
 
-    switch (args.graphicsApi) {
-        case GraphicsApi::GL:
-            ALOGD("RenderEngine with SkiaGL Backend");
-            return renderengine::skia::SkiaGLRenderEngine::create(args);
-        case GraphicsApi::VK:
-            ALOGD("RenderEngine with SkiaVK Backend");
-            return renderengine::skia::SkiaVkRenderEngine::create(args);
+    if (args.threaded == Threaded::YES) {
+        return renderengine::threaded::RenderEngineThreaded::create(createInstanceFactory);
+    } else {
+        return createInstanceFactory();
     }
 }
 

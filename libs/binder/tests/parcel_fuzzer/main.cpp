@@ -46,7 +46,18 @@ void fillRandomParcel(::android::hardware::Parcel* p, FuzzedDataProvider&& provi
     (void)options;
 
     std::vector<uint8_t> input = provider.ConsumeRemainingBytes<uint8_t>();
-    p->setData(input.data(), input.size());
+
+    if (input.size() % 4 != 0) {
+        input.resize(input.size() + (sizeof(uint32_t) - input.size() % sizeof(uint32_t)));
+    }
+    CHECK_EQ(0, input.size() % 4);
+
+    p->setDataCapacity(input.size());
+    for (size_t i = 0; i < input.size(); i += 4) {
+        p->writeInt32(*((int32_t*)(input.data() + i)));
+    }
+
+    CHECK_EQ(0, memcmp(input.data(), p->data(), p->dataSize()));
 }
 static void fillRandomParcel(NdkParcelAdapter* p, FuzzedDataProvider&& provider,
                              RandomParcelOptions* options) {

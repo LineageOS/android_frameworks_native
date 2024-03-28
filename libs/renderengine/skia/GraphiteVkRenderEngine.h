@@ -23,17 +23,17 @@
 namespace android::renderengine::skia {
 
 class GraphiteVkRenderEngine : public SkiaVkRenderEngine {
-    friend std::unique_ptr<SkiaVkRenderEngine> SkiaVkRenderEngine::create(
-            const RenderEngineCreationArgs& args);
+public:
+    static std::unique_ptr<GraphiteVkRenderEngine> create(const RenderEngineCreationArgs& args);
 
 protected:
-    GraphiteVkRenderEngine(const RenderEngineCreationArgs& args) : SkiaVkRenderEngine(args) {}
-
     std::unique_ptr<SkiaGpuContext> createContext(VulkanInterface& vulkanInterface) override;
     void waitFence(SkiaGpuContext* context, base::borrowed_fd fenceFd) override;
     base::unique_fd flushAndSubmit(SkiaGpuContext* context, sk_sp<SkSurface> dstSurface) override;
 
 private:
+    GraphiteVkRenderEngine(const RenderEngineCreationArgs& args) : SkiaVkRenderEngine(args) {}
+
     std::vector<graphite::BackendSemaphore> mStagedWaitSemaphores;
 };
 

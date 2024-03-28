@@ -21,15 +21,16 @@
 namespace android::renderengine::skia {
 
 class GaneshVkRenderEngine : public SkiaVkRenderEngine {
-    friend std::unique_ptr<SkiaVkRenderEngine> SkiaVkRenderEngine::create(
-            const RenderEngineCreationArgs& args);
+public:
+    static std::unique_ptr<GaneshVkRenderEngine> create(const RenderEngineCreationArgs& args);
 
 protected:
-    GaneshVkRenderEngine(const RenderEngineCreationArgs& args) : SkiaVkRenderEngine(args) {}
-
     std::unique_ptr<SkiaGpuContext> createContext(VulkanInterface& vulkanInterface) override;
     void waitFence(SkiaGpuContext* context, base::borrowed_fd fenceFd) override;
     base::unique_fd flushAndSubmit(SkiaGpuContext* context, sk_sp<SkSurface> dstSurface) override;
+
+private:
+    GaneshVkRenderEngine(const RenderEngineCreationArgs& args) : SkiaVkRenderEngine(args) {}
 };
 
 } // namespace android::renderengine::skia

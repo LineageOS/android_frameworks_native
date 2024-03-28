@@ -27,6 +27,22 @@
 
 namespace android::renderengine::skia {
 
+std::unique_ptr<GaneshVkRenderEngine> GaneshVkRenderEngine::create(
+        const RenderEngineCreationArgs& args) {
+    std::unique_ptr<GaneshVkRenderEngine> engine(new GaneshVkRenderEngine(args));
+    engine->ensureContextsCreated();
+
+    if (getVulkanInterface(false).isInitialized()) {
+        ALOGD("GaneshVkRenderEngine::%s: successfully initialized GaneshVkRenderEngine", __func__);
+        return engine;
+    } else {
+        ALOGE("GaneshVkRenderEngine::%s: could not create GaneshVkRenderEngine. "
+              "Likely insufficient Vulkan support",
+              __func__);
+        return {};
+    }
+}
+
 // Ganesh-specific function signature for fFinishedProc callback.
 static void unref_semaphore(void* semaphore) {
     SkiaVkRenderEngine::DestroySemaphoreInfo* info =

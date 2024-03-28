@@ -102,6 +102,11 @@ public:
         VK,
     };
 
+    enum class SkiaBackend {
+        GANESH,
+        GRAPHITE,
+    };
+
     static std::unique_ptr<RenderEngine> create(const RenderEngineCreationArgs& args);
 
     static bool canSupport(GraphicsApi);
@@ -257,6 +262,7 @@ struct RenderEngineCreationArgs {
     RenderEngine::ContextPriority contextPriority;
     RenderEngine::Threaded threaded;
     RenderEngine::GraphicsApi graphicsApi;
+    RenderEngine::SkiaBackend skiaBackend;
 
     struct Builder;
 
@@ -267,7 +273,8 @@ private:
                              bool _supportsBackgroundBlur,
                              RenderEngine::ContextPriority _contextPriority,
                              RenderEngine::Threaded _threaded,
-                             RenderEngine::GraphicsApi _graphicsApi)
+                             RenderEngine::GraphicsApi _graphicsApi,
+                             RenderEngine::SkiaBackend _skiaBackend)
           : pixelFormat(_pixelFormat),
             imageCacheSize(_imageCacheSize),
             enableProtectedContext(_enableProtectedContext),
@@ -275,7 +282,8 @@ private:
             supportsBackgroundBlur(_supportsBackgroundBlur),
             contextPriority(_contextPriority),
             threaded(_threaded),
-            graphicsApi(_graphicsApi) {}
+            graphicsApi(_graphicsApi),
+            skiaBackend(_skiaBackend) {}
     RenderEngineCreationArgs() = delete;
 };
 
@@ -314,10 +322,14 @@ struct RenderEngineCreationArgs::Builder {
         this->graphicsApi = graphicsApi;
         return *this;
     }
+    Builder& setSkiaBackend(RenderEngine::SkiaBackend skiaBackend) {
+        this->skiaBackend = skiaBackend;
+        return *this;
+    }
     RenderEngineCreationArgs build() const {
         return RenderEngineCreationArgs(pixelFormat, imageCacheSize, enableProtectedContext,
                                         precacheToneMapperShaderOnly, supportsBackgroundBlur,
-                                        contextPriority, threaded, graphicsApi);
+                                        contextPriority, threaded, graphicsApi, skiaBackend);
     }
 
 private:
@@ -330,6 +342,7 @@ private:
     RenderEngine::ContextPriority contextPriority = RenderEngine::ContextPriority::MEDIUM;
     RenderEngine::Threaded threaded = RenderEngine::Threaded::YES;
     RenderEngine::GraphicsApi graphicsApi = RenderEngine::GraphicsApi::GL;
+    RenderEngine::SkiaBackend skiaBackend = RenderEngine::SkiaBackend::GANESH;
 };
 
 } // namespace renderengine

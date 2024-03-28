@@ -793,6 +793,8 @@ void chooseRenderEngineType(renderengine::RenderEngineCreationArgs::Builder& bui
     char prop[PROPERTY_VALUE_MAX];
     property_get(PROPERTY_DEBUG_RENDERENGINE_BACKEND, prop, "");
 
+    // TODO: b/293371537 - Once GraphiteVk is deemed relatively stable, log a warning that
+    // PROPERTY_DEBUG_RENDERENGINE_BACKEND is deprecated
     if (strcmp(prop, "skiagl") == 0) {
         builder.setThreaded(renderengine::RenderEngine::Threaded::NO)
                 .setGraphicsApi(renderengine::RenderEngine::GraphicsApi::GL);
@@ -807,8 +809,14 @@ void chooseRenderEngineType(renderengine::RenderEngineCreationArgs::Builder& bui
                 .setGraphicsApi(renderengine::RenderEngine::GraphicsApi::VK);
     } else {
         const auto kVulkan = renderengine::RenderEngine::GraphicsApi::VK;
-        const bool useVulkan = FlagManager::getInstance().vulkan_renderengine() &&
-                renderengine::RenderEngine::canSupport(kVulkan);
+        const bool canSupportVulkan = renderengine::RenderEngine::canSupport(kVulkan);
+        const bool useGraphite =
+                canSupportVulkan && FlagManager::getInstance().graphite_renderengine();
+        const bool useVulkan = useGraphite ||
+                (canSupportVulkan && FlagManager::getInstance().vulkan_renderengine());
+
+        builder.setSkiaBackend(useGraphite ? renderengine::RenderEngine::SkiaBackend::GRAPHITE
+                                           : renderengine::RenderEngine::SkiaBackend::GANESH);
         builder.setGraphicsApi(useVulkan ? kVulkan : renderengine::RenderEngine::GraphicsApi::GL);
     }
 }
