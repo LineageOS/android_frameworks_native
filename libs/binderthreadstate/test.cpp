@@ -22,6 +22,7 @@
 #include <binderthreadstateutilstest/1.0/IHidlStuff.h>
 #include <gtest/gtest.h>
 #include <hidl/HidlTransportSupport.h>
+#include <hidl/ServiceManagement.h>
 #include <hwbinder/IPCThreadState.h>
 
 #include <thread>
@@ -37,6 +38,7 @@ using android::OK;
 using android::sp;
 using android::String16;
 using android::binder::Status;
+using android::hardware::isHidlSupported;
 using android::hardware::Return;
 using binderthreadstateutilstest::V1_0::IHidlStuff;
 
@@ -67,6 +69,7 @@ std::string id2name(size_t id) {
 // complicated calls are possible, but this should do here.
 
 static void callHidl(size_t id, int32_t idx) {
+    CHECK_EQ(true, isHidlSupported()) << "We shouldn't be calling HIDL if it's not supported";
     auto stuff = IHidlStuff::getService(id2name(id));
     CHECK(stuff->call(idx).isOk());
 }
@@ -174,6 +177,7 @@ TEST(BinderThreadState, DoesntInitializeBinderDriver) {
 }
 
 TEST(BindThreadState, RemoteHidlCall) {
+    if (!isHidlSupported()) GTEST_SKIP() << "No  HIDL support on device";
     auto stuff = IHidlStuff::getService(id2name(kP1Id));
     ASSERT_NE(nullptr, stuff);
     ASSERT_TRUE(stuff->call(0).isOk());
@@ -186,11 +190,14 @@ TEST(BindThreadState, RemoteAidlCall) {
 }
 
 TEST(BindThreadState, RemoteNestedStartHidlCall) {
+    if (!isHidlSupported()) GTEST_SKIP() << "No  HIDL support on device";
     auto stuff = IHidlStuff::getService(id2name(kP1Id));
     ASSERT_NE(nullptr, stuff);
     ASSERT_TRUE(stuff->call(100).isOk());
 }
 TEST(BindThreadState, RemoteNestedStartAidlCall) {
+    // this test case is trying ot nest a HIDL call which requires HIDL support
+    if (!isHidlSupported()) GTEST_SKIP() << "No  HIDL support on device";
     sp<IAidlStuff> stuff;
     ASSERT_EQ(OK, android::getService<IAidlStuff>(String16(id2name(kP1Id).c_str()), &stuff));
     ASSERT_NE(nullptr, stuff);
@@ -205,11 +212,15 @@ int server(size_t thisId, size_t otherId) {
              defaultServiceManager()->addService(String16(id2name(thisId).c_str()), aidlServer));
     android::ProcessState::self()->startThreadPool();
 
-    // HIDL
-    android::hardware::configureRpcThreadpool(1, true /*callerWillJoin*/);
-    sp<IHidlStuff> hidlServer = new HidlServer(thisId, otherId);
-    CHECK_EQ(OK, hidlServer->registerAsService(id2name(thisId).c_str()));
-    android::hardware::joinRpcThreadpool();
+    if (isHidlSupported()) {
+        // HIDL
+        android::hardware::configureRpcThreadpool(1, true /*callerWillJoin*/);
+        sp<IHidlStuff> hidlServer = new HidlServer(thisId, otherId);
+        CHECK_EQ(OK, hidlServer->registerAsService(id2name(thisId).c_str()));
+        android::hardware::joinRpcThreadpool();
+    } else {
+        android::IPCThreadState::self()->joinThreadPool(true);
+    }
 
     return EXIT_FAILURE;
 }
@@ -227,9 +238,15 @@ int main(int argc, char** argv) {
     }
 
     android::waitForService<IAidlStuff>(String16(id2name(kP1Id).c_str()));
-    android::hardware::details::waitForHwService(IHidlStuff::descriptor, id2name(kP1Id).c_str());
+    if (isHidlSupported()) {
+        android::hardware::details::waitForHwService(IHidlStuff::descriptor,
+                                                     id2name(kP1Id).c_str());
+    }
     android::waitForService<IAidlStuff>(String16(id2name(kP2Id).c_str()));
-    android::hardware::details::waitForHwService(IHidlStuff::descriptor, id2name(kP2Id).c_str());
+    if (isHidlSupported()) {
+        android::hardware::details::waitForHwService(IHidlStuff::descriptor,
+                                                     id2name(kP2Id).c_str());
+    }
 
     return RUN_ALL_TESTS();
 }
