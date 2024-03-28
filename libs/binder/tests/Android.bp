@@ -435,6 +435,7 @@ cc_test {
     // Add the Trusty mock library as a fake dependency so it gets built
     required: [
         "libbinder_on_trusty_mock",
+        "libbinder_ndk_on_trusty_mock",
         "binderRpcTestService_on_trusty_mock",
         "binderRpcTest_on_trusty_mock",
     ],
