@@ -141,8 +141,7 @@ void VSyncReactor::onDisplayModeChanged(ftl::NonNull<DisplayModePtr> modePtr, bo
     std::lock_guard lock(mMutex);
     mLastHwVsync.reset();
 
-    if (!mSupportKernelIdleTimer &&
-        modePtr->getVsyncRate().getPeriodNsecs() == mTracker.currentPeriod() && !force) {
+    if (!mSupportKernelIdleTimer && mTracker.isCurrentMode(modePtr) && !force) {
         endPeriodTransition();
         setIgnorePresentFencesInternal(false);
         mMoreSamplesNeeded = false;

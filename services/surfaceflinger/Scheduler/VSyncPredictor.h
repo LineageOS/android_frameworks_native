@@ -68,6 +68,13 @@ public:
 
     void setDisplayModePtr(ftl::NonNull<DisplayModePtr>) final EXCLUDES(mMutex);
 
+    bool isCurrentMode(const ftl::NonNull<DisplayModePtr>& modePtr) const EXCLUDES(mMutex) {
+        std::lock_guard lock(mMutex);
+        return mDisplayModePtr->getId() == modePtr->getId() &&
+                mDisplayModePtr->getVsyncRate().getPeriodNsecs() ==
+                mRateMap.find(idealPeriod())->second.slope;
+    }
+
     void setRenderRate(Fps, bool applyImmediately) final EXCLUDES(mMutex);
 
     void onFrameBegin(TimePoint expectedPresentTime, TimePoint lastConfirmedPresentTime) final
