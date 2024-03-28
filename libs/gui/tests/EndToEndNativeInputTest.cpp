@@ -1100,6 +1100,7 @@ TEST_F(InputSurfacesTest, cropped_container_replaces_touchable_region_with_null_
  * in its parent's touchable region. The input events should be in the layer's coordinate space.
  */
 TEST_F(InputSurfacesTest, uncropped_container_replaces_touchable_region_with_null_crop) {
+    GTEST_SKIP() << "b/330446694 failing on udc-dev presubmit passes when run byitself";
     std::unique_ptr<InputSurface> parentContainer =
             InputSurface::makeContainerInputSurface(mComposerClient, 0, 0);
     std::unique_ptr<InputSurface> containerSurface =
