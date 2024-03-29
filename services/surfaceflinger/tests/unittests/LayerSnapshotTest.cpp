@@ -1198,6 +1198,42 @@ TEST_F(LayerSnapshotTest, setSecureRootSnapshot) {
     EXPECT_TRUE(getSnapshot(11)->isSecure);
 }
 
+TEST_F(LayerSnapshotTest, setSensitiveForTracingConfigForSecureLayers) {
+    setFlags(11, layer_state_t::eLayerSecure, layer_state_t::eLayerSecure);
+
+    UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
+
+    EXPECT_TRUE(getSnapshot(11)->inputInfo.inputConfig.test(
+            gui::WindowInfo::InputConfig::SENSITIVE_FOR_TRACING));
+    EXPECT_TRUE(getSnapshot(111)->inputInfo.inputConfig.test(
+            gui::WindowInfo::InputConfig::SENSITIVE_FOR_TRACING));
+    EXPECT_FALSE(getSnapshot(1)->inputInfo.inputConfig.test(
+            gui::WindowInfo::InputConfig::SENSITIVE_FOR_TRACING));
+    EXPECT_FALSE(getSnapshot(12)->inputInfo.inputConfig.test(
+            gui::WindowInfo::InputConfig::SENSITIVE_FOR_TRACING));
+    EXPECT_FALSE(getSnapshot(2)->inputInfo.inputConfig.test(
+            gui::WindowInfo::InputConfig::SENSITIVE_FOR_TRACING));
+}
+
+TEST_F(LayerSnapshotTest, setSensitiveForTracingFromInputWindowHandle) {
+    setInputInfo(11, [](auto& inputInfo) {
+        inputInfo.inputConfig |= gui::WindowInfo::InputConfig::SENSITIVE_FOR_TRACING;
+    });
+
+    UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
+
+    EXPECT_TRUE(getSnapshot(11)->inputInfo.inputConfig.test(
+            gui::WindowInfo::InputConfig::SENSITIVE_FOR_TRACING));
+    EXPECT_TRUE(getSnapshot(111)->inputInfo.inputConfig.test(
+            gui::WindowInfo::InputConfig::SENSITIVE_FOR_TRACING));
+    EXPECT_FALSE(getSnapshot(1)->inputInfo.inputConfig.test(
+            gui::WindowInfo::InputConfig::SENSITIVE_FOR_TRACING));
+    EXPECT_FALSE(getSnapshot(12)->inputInfo.inputConfig.test(
+            gui::WindowInfo::InputConfig::SENSITIVE_FOR_TRACING));
+    EXPECT_FALSE(getSnapshot(2)->inputInfo.inputConfig.test(
+            gui::WindowInfo::InputConfig::SENSITIVE_FOR_TRACING));
+}
+
 // b/314350323
 TEST_F(LayerSnapshotTest, propagateDropInputMode) {
     setDropInputMode(1, gui::DropInputMode::ALL);

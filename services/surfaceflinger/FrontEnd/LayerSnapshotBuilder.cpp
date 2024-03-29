@@ -1028,6 +1028,8 @@ void LayerSnapshotBuilder::updateInput(LayerSnapshot& snapshot,
                                        const LayerSnapshot& parentSnapshot,
                                        const LayerHierarchy::TraversalPath& path,
                                        const Args& args) {
+    using InputConfig = gui::WindowInfo::InputConfig;
+
     if (requested.windowInfoHandle) {
         snapshot.inputInfo = *requested.windowInfoHandle->getInfo();
     } else {
@@ -1056,6 +1058,11 @@ void LayerSnapshotBuilder::updateInput(LayerSnapshot& snapshot,
         snapshot.dropInputMode = gui::DropInputMode::NONE;
     }
 
+    if (snapshot.isSecure ||
+        parentSnapshot.inputInfo.inputConfig.test(InputConfig::SENSITIVE_FOR_TRACING)) {
+        snapshot.inputInfo.inputConfig |= InputConfig::SENSITIVE_FOR_TRACING;
+    }
+
     updateVisibility(snapshot, snapshot.isVisible);
     if (!needsInputInfo(snapshot, requested)) {
         return;
@@ -1068,14 +1075,14 @@ void LayerSnapshotBuilder::updateInput(LayerSnapshot& snapshot,
     auto displayInfo = displayInfoOpt.value_or(sDefaultInfo);
 
     if (!requested.windowInfoHandle) {
-        snapshot.inputInfo.inputConfig = gui::WindowInfo::InputConfig::NO_INPUT_CHANNEL;
+        snapshot.inputInfo.inputConfig = InputConfig::NO_INPUT_CHANNEL;
     }
     fillInputFrameInfo(snapshot.inputInfo, displayInfo.transform, snapshot);
 
     if (noValidDisplay) {
         // Do not let the window receive touches if it is not associated with a valid display
         // transform. We still allow the window to receive keys and prevent ANRs.
-        snapshot.inputInfo.inputConfig |= gui::WindowInfo::InputConfig::NOT_TOUCHABLE;
+        snapshot.inputInfo.inputConfig |= InputConfig::NOT_TOUCHABLE;
     }
 
     snapshot.inputInfo.alpha = snapshot.color.a;
@@ -1085,7 +1092,7 @@ void LayerSnapshotBuilder::updateInput(LayerSnapshot& snapshot,
     // If the window will be blacked out on a display because the display does not have the secure
     // flag and the layer has the secure flag set, then drop input.
     if (!displayInfo.isSecure && snapshot.isSecure) {
-        snapshot.inputInfo.inputConfig |= gui::WindowInfo::InputConfig::DROP_INPUT;
+        snapshot.inputInfo.inputConfig |= InputConfig::DROP_INPUT;
     }
 
     if (requested.touchCropId != UNASSIGNED_LAYER_ID || path.isClone()) {
@@ -1102,7 +1109,7 @@ void LayerSnapshotBuilder::updateInput(LayerSnapshot& snapshot,
     // Inherit the trusted state from the parent hierarchy, but don't clobber the trusted state
     // if it was set by WM for a known system overlay
     if (snapshot.isTrustedOverlay) {
-        snapshot.inputInfo.inputConfig |= gui::WindowInfo::InputConfig::TRUSTED_OVERLAY;
+        snapshot.inputInfo.inputConfig |= InputConfig::TRUSTED_OVERLAY;
     }
 
     snapshot.inputInfo.contentSize = snapshot.croppedBufferSize.getSize();
@@ -1110,10 +1117,10 @@ void LayerSnapshotBuilder::updateInput(LayerSnapshot& snapshot,
     // If the layer is a clone, we need to crop the input region to cloned root to prevent
     // touches from going outside the cloned area.
     if (path.isClone()) {
-        snapshot.inputInfo.inputConfig |= gui::WindowInfo::InputConfig::CLONE;
+        snapshot.inputInfo.inputConfig |= InputConfig::CLONE;
         // Cloned layers shouldn't handle watch outside since their z order is not determined by
         // WM or the client.
-        snapshot.inputInfo.inputConfig.clear(gui::WindowInfo::InputConfig::WATCH_OUTSIDE_TOUCH);
+        snapshot.inputInfo.inputConfig.clear(InputConfig::WATCH_OUTSIDE_TOUCH);
     }
 }
 
