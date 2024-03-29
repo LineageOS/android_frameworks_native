@@ -147,6 +147,7 @@ NotifyMotionArgs PointerChoreographer::processMouseEventLocked(const NotifyMotio
                    << args.dump();
     }
 
+    mMouseDevices.emplace(args.deviceId);
     auto [displayId, pc] = ensureMouseControllerLocked(args.displayId);
     NotifyMotionArgs newArgs(args);
     newArgs.displayId = displayId;
@@ -178,6 +179,7 @@ NotifyMotionArgs PointerChoreographer::processMouseEventLocked(const NotifyMotio
 }
 
 NotifyMotionArgs PointerChoreographer::processTouchpadEventLocked(const NotifyMotionArgs& args) {
+    mMouseDevices.emplace(args.deviceId);
     auto [displayId, pc] = ensureMouseControllerLocked(args.displayId);
 
     NotifyMotionArgs newArgs(args);
@@ -405,8 +407,10 @@ std::pair<int32_t, PointerControllerInterface&> PointerChoreographer::ensureMous
     const int32_t displayId = getTargetMouseDisplayLocked(associatedDisplayId);
 
     auto it = mMousePointersByDisplay.find(displayId);
-    LOG_ALWAYS_FATAL_IF(it == mMousePointersByDisplay.end(),
-                        "There is no mouse controller created for display %d", displayId);
+    if (it == mMousePointersByDisplay.end()) {
+        it = mMousePointersByDisplay.emplace(displayId, getMouseControllerConstructor(displayId))
+                     .first;
+    }
 
     return {displayId, *it->second};
 }
@@ -431,7 +435,9 @@ PointerChoreographer::PointerDisplayChange PointerChoreographer::updatePointerCo
     // new PointerControllers if necessary.
     for (const auto& info : mInputDeviceInfos) {
         const uint32_t sources = info.getSources();
-        if (isMouseOrTouchpad(sources)) {
+        const bool isKnownMouse = mMouseDevices.count(info.getId()) != 0;
+
+        if (isMouseOrTouchpad(sources) || isKnownMouse) {
             const int32_t displayId = getTargetMouseDisplayLocked(info.getAssociatedDisplayId());
             mouseDisplaysToKeep.insert(displayId);
             // For mice, show the cursor immediately when the device is first connected or
@@ -439,8 +445,8 @@ PointerChoreographer::PointerDisplayChange PointerChoreographer::updatePointerCo
             auto [mousePointerIt, isNewMousePointer] =
                     mMousePointersByDisplay.try_emplace(displayId,
                                                         getMouseControllerConstructor(displayId));
-            auto [_, isNewMouseDevice] = mMouseDevices.emplace(info.getId());
-            if ((isNewMouseDevice || isNewMousePointer) && canUnfadeOnDisplay(displayId)) {
+            mMouseDevices.emplace(info.getId());
+            if ((!isKnownMouse || isNewMousePointer) && canUnfadeOnDisplay(displayId)) {
                 mousePointerIt->second->unfade(PointerControllerInterface::Transition::IMMEDIATE);
             }
         }

@@ -1772,4 +1772,107 @@ TEST_P(StylusTestFixture, SetPointerIconVisibilityHidesPointerForStylus) {
     ASSERT_FALSE(pc->isPointerShown());
 }
 
+TEST_F(PointerChoreographerTest, DrawingTabletCanReportMouseEvent) {
+    mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID}));
+    mChoreographer.setDefaultMouseDisplayId(DISPLAY_ID);
+
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0,
+             {generateTestDeviceInfo(DEVICE_ID, DRAWING_TABLET_SOURCE, ADISPLAY_ID_NONE)}});
+    // There should be no controller created when a drawing tablet is connected
+    assertPointerControllerNotCreated();
+
+    // But if it ends up reporting a mouse event, then the mouse controller will be created
+    // dynamically.
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, AINPUT_SOURCE_MOUSE)
+                    .pointer(MOUSE_POINTER)
+                    .deviceId(DEVICE_ID)
+                    .displayId(DISPLAY_ID)
+                    .build());
+    auto pc = assertPointerControllerCreated(ControllerType::MOUSE);
+    ASSERT_TRUE(pc->isPointerShown());
+
+    // The controller is removed when the drawing tablet is removed
+    mChoreographer.notifyInputDevicesChanged({/*id=*/0, {}});
+    assertPointerControllerRemoved(pc);
+}
+
+TEST_F(PointerChoreographerTest, MultipleDrawingTabletsReportMouseEvents) {
+    mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID}));
+    mChoreographer.setDefaultMouseDisplayId(DISPLAY_ID);
+
+    // First drawing tablet is added
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0,
+             {generateTestDeviceInfo(DEVICE_ID, DRAWING_TABLET_SOURCE, ADISPLAY_ID_NONE)}});
+    assertPointerControllerNotCreated();
+
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, AINPUT_SOURCE_MOUSE)
+                    .pointer(MOUSE_POINTER)
+                    .deviceId(DEVICE_ID)
+                    .displayId(DISPLAY_ID)
+                    .build());
+    auto pc = assertPointerControllerCreated(ControllerType::MOUSE);
+    ASSERT_TRUE(pc->isPointerShown());
+
+    // Second drawing tablet is added
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0,
+             {generateTestDeviceInfo(DEVICE_ID, DRAWING_TABLET_SOURCE, ADISPLAY_ID_NONE),
+              generateTestDeviceInfo(SECOND_DEVICE_ID, DRAWING_TABLET_SOURCE, ADISPLAY_ID_NONE)}});
+    assertPointerControllerNotRemoved(pc);
+
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, AINPUT_SOURCE_MOUSE)
+                    .pointer(MOUSE_POINTER)
+                    .deviceId(SECOND_DEVICE_ID)
+                    .displayId(DISPLAY_ID)
+                    .build());
+
+    // First drawing tablet is removed
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0,
+             {generateTestDeviceInfo(DEVICE_ID, DRAWING_TABLET_SOURCE, ADISPLAY_ID_NONE)}});
+    assertPointerControllerNotRemoved(pc);
+
+    // Second drawing tablet is removed
+    mChoreographer.notifyInputDevicesChanged({/*id=*/0, {}});
+    assertPointerControllerRemoved(pc);
+}
+
+TEST_F(PointerChoreographerTest, MouseAndDrawingTabletReportMouseEvents) {
+    mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID}));
+    mChoreographer.setDefaultMouseDisplayId(DISPLAY_ID);
+
+    // Mouse and drawing tablet connected
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0,
+             {generateTestDeviceInfo(DEVICE_ID, DRAWING_TABLET_SOURCE, ADISPLAY_ID_NONE),
+              generateTestDeviceInfo(SECOND_DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE)}});
+    auto pc = assertPointerControllerCreated(ControllerType::MOUSE);
+    ASSERT_TRUE(pc->isPointerShown());
+
+    // Drawing tablet reports a mouse event
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, DRAWING_TABLET_SOURCE)
+                    .pointer(MOUSE_POINTER)
+                    .deviceId(DEVICE_ID)
+                    .displayId(DISPLAY_ID)
+                    .build());
+
+    // Remove the mouse device
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0,
+             {generateTestDeviceInfo(DEVICE_ID, DRAWING_TABLET_SOURCE, ADISPLAY_ID_NONE)}});
+
+    // The mouse controller should not be removed, because the drawing tablet has produced a
+    // mouse event, so we are treating it as a mouse too.
+    assertPointerControllerNotRemoved(pc);
+
+    mChoreographer.notifyInputDevicesChanged({/*id=*/0, {}});
+    assertPointerControllerRemoved(pc);
+}
+
 } // namespace android
