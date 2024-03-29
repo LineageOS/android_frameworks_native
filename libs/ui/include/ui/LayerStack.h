@@ -55,6 +55,10 @@ inline bool operator>(LayerStack lhs, LayerStack rhs) {
     return lhs.id > rhs.id;
 }
 
+inline bool operator<(LayerStack lhs, LayerStack rhs) {
+    return lhs.id < rhs.id;
+}
+
 // A LayerFilter determines if a layer is included for output to a display.
 struct LayerFilter {
     LayerStack layerStack;
