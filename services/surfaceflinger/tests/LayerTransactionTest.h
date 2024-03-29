@@ -106,6 +106,10 @@ protected:
         return colorLayer;
     }
 
+    sp<SurfaceControl> mirrorSurface(SurfaceControl* mirrorFromSurface) {
+        return mClient->mirrorSurface(mirrorFromSurface);
+    }
+
     ANativeWindow_Buffer getBufferQueueLayerBuffer(const sp<SurfaceControl>& layer) {
         // wait for previous transactions (such as setSize) to complete
         Transaction().apply(true);
