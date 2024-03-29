@@ -195,7 +195,7 @@ public:
         EXPECT_EQ(hasFocus, focusEvent->getHasFocus());
     }
 
-    void expectTap(int x, int y) {
+    void expectTap(float x, float y) {
         InputEvent* ev = consumeEvent();
         ASSERT_NE(ev, nullptr);
         ASSERT_EQ(InputEventType::MOTION, ev->getType());
@@ -266,6 +266,11 @@ public:
         EXPECT_EQ(AMOTION_EVENT_ACTION_UP, keyEvent->getAction());
         EXPECT_EQ(keycode, keyEvent->getKeyCode());
         EXPECT_EQ(0, keyEvent->getFlags() & VERIFIED_KEY_EVENT_FLAGS);
+    }
+
+    void assertNoEvent() {
+        InputEvent* event = consumeEvent(/*timeout=*/100ms);
+        ASSERT_EQ(event, nullptr) << "Expected no event, but got " << *event;
     }
 
     virtual ~InputSurface() {
@@ -937,9 +942,7 @@ TEST_F(InputSurfacesTest, strict_unobscured_input_unobscured_window) {
     surface->showAt(100, 100);
 
     injectTap(101, 101);
-
-    EXPECT_NE(surface->consumeEvent(), nullptr);
-    EXPECT_NE(surface->consumeEvent(), nullptr);
+    surface->expectTap(1, 1);
 
     surface->requestFocus();
     surface->assertFocusChange(true);
@@ -956,9 +959,7 @@ TEST_F(InputSurfacesTest, strict_unobscured_input_scaled_without_crop_window) {
     surface->showAt(100, 100);
 
     injectTap(101, 101);
-
-    EXPECT_NE(surface->consumeEvent(), nullptr);
-    EXPECT_NE(surface->consumeEvent(), nullptr);
+    surface->expectTap(.5, .5);
 
     surface->requestFocus();
     surface->assertFocusChange(true);
@@ -977,12 +978,12 @@ TEST_F(InputSurfacesTest, strict_unobscured_input_obscured_window) {
     obscuringSurface->mInputInfo.ownerUid = gui::Uid{22222};
     obscuringSurface->showAt(100, 100);
     injectTap(101, 101);
-    EXPECT_EQ(surface->consumeEvent(/*timeout=*/100ms), nullptr);
+    surface->assertNoEvent();
 
     surface->requestFocus();
     surface->assertFocusChange(true);
     injectKey(AKEYCODE_V);
-    EXPECT_EQ(surface->consumeEvent(/*timeout=*/100ms), nullptr);
+    surface->assertNoEvent();
 }
 
 TEST_F(InputSurfacesTest, strict_unobscured_input_partially_obscured_window) {
@@ -998,12 +999,12 @@ TEST_F(InputSurfacesTest, strict_unobscured_input_partially_obscured_window) {
 
     injectTap(101, 101);
 
-    EXPECT_EQ(surface->consumeEvent(/*timeout=*/100ms), nullptr);
+    surface->assertNoEvent();
 
     surface->requestFocus();
     surface->assertFocusChange(true);
     injectKey(AKEYCODE_V);
-    EXPECT_EQ(surface->consumeEvent(/*timeout=*/100ms), nullptr);
+    surface->assertNoEvent();
 }
 
 TEST_F(InputSurfacesTest, strict_unobscured_input_alpha_window) {
@@ -1020,12 +1021,12 @@ TEST_F(InputSurfacesTest, strict_unobscured_input_alpha_window) {
 
     injectTap(101, 101);
 
-    EXPECT_EQ(surface->consumeEvent(/*timeout=*/100ms), nullptr);
+    surface->assertNoEvent();
 
     surface->requestFocus();
     surface->assertFocusChange(true);
     injectKey(AKEYCODE_V);
-    EXPECT_EQ(surface->consumeEvent(/*timeout=*/100ms), nullptr);
+    surface->assertNoEvent();
 }
 
 TEST_F(InputSurfacesTest, strict_unobscured_input_cropped_window) {
@@ -1042,12 +1043,12 @@ TEST_F(InputSurfacesTest, strict_unobscured_input_cropped_window) {
 
     injectTap(111, 111);
 
-    EXPECT_EQ(surface->consumeEvent(/*timeout=*/100ms), nullptr);
+    surface->assertNoEvent();
 
     surface->requestFocus();
     surface->assertFocusChange(true);
     injectKey(AKEYCODE_V);
-    EXPECT_EQ(surface->consumeEvent(/*timeout=*/100ms), nullptr);
+    surface->assertNoEvent();
 }
 
 TEST_F(InputSurfacesTest, ignore_touch_region_with_zero_sized_blast) {
@@ -1071,13 +1072,12 @@ TEST_F(InputSurfacesTest, drop_input_policy) {
     surface->showAt(100, 100);
 
     injectTap(101, 101);
-
-    EXPECT_EQ(surface->consumeEvent(/*timeout=*/100ms), nullptr);
+    surface->assertNoEvent();
 
     surface->requestFocus();
     surface->assertFocusChange(true);
     injectKey(AKEYCODE_V);
-    EXPECT_EQ(surface->consumeEvent(/*timeout=*/100ms), nullptr);
+    surface->assertNoEvent();
 }
 
 TEST_F(InputSurfacesTest, layer_with_valid_crop_can_be_focused) {
@@ -1112,7 +1112,7 @@ TEST_F(InputSurfacesTest, cropped_container_replaces_touchable_region_with_null_
 
     // Does not receive events outside its crop
     injectTap(26, 26);
-    EXPECT_EQ(containerSurface->consumeEvent(/*timeout=*/100ms), nullptr);
+    containerSurface->assertNoEvent();
 }
 
 /**
@@ -1137,7 +1137,7 @@ TEST_F(InputSurfacesTest, uncropped_container_replaces_touchable_region_with_nul
 
     // Does not receive events outside parent bounds
     injectTap(31, 31);
-    EXPECT_EQ(containerSurface->consumeEvent(/*timeout=*/100ms), nullptr);
+    containerSurface->assertNoEvent();
 }
 
 /**
@@ -1163,7 +1163,7 @@ TEST_F(InputSurfacesTest, replace_touchable_region_with_crop) {
     // Does not receive events outside crop layer bounds
     injectTap(21, 21);
     injectTap(71, 71);
-    EXPECT_EQ(containerSurface->consumeEvent(/*timeout=*/100ms), nullptr);
+    containerSurface->assertNoEvent();
 }
 
 TEST_F(InputSurfacesTest, child_container_with_no_input_channel_blocks_parent) {
@@ -1180,7 +1180,7 @@ TEST_F(InputSurfacesTest, child_container_with_no_input_channel_blocks_parent) {
             [&](auto &t, auto &sc) { t.reparent(sc, parent->mSurfaceControl); });
     injectTap(101, 101);
 
-    EXPECT_EQ(parent->consumeEvent(/*timeout=*/100ms), nullptr);
+    parent->assertNoEvent();
 }
 
 class MultiDisplayTests : public InputSurfacesTest {
@@ -1229,7 +1229,7 @@ TEST_F(MultiDisplayTests, drop_touch_if_layer_on_invalid_display) {
 
     // Touches should be dropped if the layer is on an invalid display.
     injectTapOnDisplay(101, 101, layerStack.id);
-    EXPECT_EQ(surface->consumeEvent(/*timeout=*/100ms), nullptr);
+    surface->assertNoEvent();
 
     // However, we still let the window be focused and receive keys.
     surface->requestFocus(layerStack.id);
@@ -1267,12 +1267,12 @@ TEST_F(MultiDisplayTests, drop_input_for_secure_layer_on_nonsecure_display) {
 
     injectTapOnDisplay(101, 101, layerStack.id);
 
-    EXPECT_EQ(surface->consumeEvent(/*timeout=*/100ms), nullptr);
+    surface->assertNoEvent();
 
     surface->requestFocus(layerStack.id);
     surface->assertFocusChange(true);
     injectKeyOnDisplay(AKEYCODE_V, layerStack.id);
-    EXPECT_EQ(surface->consumeEvent(/*timeout=*/100ms), nullptr);
+    surface->assertNoEvent();
 }
 
 TEST_F(MultiDisplayTests, dont_drop_input_for_secure_layer_on_secure_display) {
@@ -1292,8 +1292,7 @@ TEST_F(MultiDisplayTests, dont_drop_input_for_secure_layer_on_secure_display) {
     surface->showAt(100, 100);
 
     injectTapOnDisplay(101, 101, layerStack.id);
-    EXPECT_NE(surface->consumeEvent(), nullptr);
-    EXPECT_NE(surface->consumeEvent(), nullptr);
+    surface->expectTap(1, 1);
 
     surface->requestFocus(layerStack.id);
     surface->assertFocusChange(true);
