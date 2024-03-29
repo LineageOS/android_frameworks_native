@@ -111,6 +111,11 @@ private:
 
     std::shared_ptr<InputChannel> mChannel;
 
+    // TODO(b/311142655): delete this temporary tracing after the ANR bug is fixed
+    const std::string mProcessingTraceTag;
+    const std::string mLifetimeTraceTag;
+    const int32_t mLifetimeTraceCookie;
+
     // The current input message.
     InputMessage mMsg;
 
