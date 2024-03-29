@@ -2539,11 +2539,19 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
             if (!isHoverAction) {
                 const bool isDownOrPointerDown = maskedAction == AMOTION_EVENT_ACTION_DOWN ||
                         maskedAction == AMOTION_EVENT_ACTION_POINTER_DOWN;
-                tempTouchState.addOrUpdateWindow(windowHandle, InputTarget::DispatchMode::AS_IS,
-                                                 targetFlags, entry.deviceId, {pointer},
-                                                 isDownOrPointerDown
-                                                         ? std::make_optional(entry.eventTime)
-                                                         : std::nullopt);
+                Result<void> addResult =
+                        tempTouchState.addOrUpdateWindow(windowHandle,
+                                                         InputTarget::DispatchMode::AS_IS,
+                                                         targetFlags, entry.deviceId, {pointer},
+                                                         isDownOrPointerDown
+                                                                 ? std::make_optional(
+                                                                           entry.eventTime)
+                                                                 : std::nullopt);
+                if (!addResult.ok()) {
+                    LOG(ERROR) << "Error while processing " << entry << " for "
+                               << windowHandle->getName();
+                    logDispatchStateLocked();
+                }
                 // If this is the pointer going down and the touched window has a wallpaper
                 // then also add the touched wallpaper windows so they are locked in for the
                 // duration of the touch gesture. We do not collect wallpapers during HOVER_MOVE or

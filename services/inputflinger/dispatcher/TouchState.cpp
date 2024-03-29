@@ -70,14 +70,14 @@ void TouchState::clearWindowsWithoutPointers() {
     });
 }
 
-void TouchState::addOrUpdateWindow(const sp<WindowInfoHandle>& windowHandle,
-                                   InputTarget::DispatchMode dispatchMode,
-                                   ftl::Flags<InputTarget::Flags> targetFlags, DeviceId deviceId,
-                                   const std::vector<PointerProperties>& touchingPointers,
-                                   std::optional<nsecs_t> firstDownTimeInTarget) {
+android::base::Result<void> TouchState::addOrUpdateWindow(
+        const sp<WindowInfoHandle>& windowHandle, InputTarget::DispatchMode dispatchMode,
+        ftl::Flags<InputTarget::Flags> targetFlags, DeviceId deviceId,
+        const std::vector<PointerProperties>& touchingPointers,
+        std::optional<nsecs_t> firstDownTimeInTarget) {
     if (touchingPointers.empty()) {
         LOG(FATAL) << __func__ << "No pointers specified for " << windowHandle->getName();
-        return;
+        return android::base::Error();
     }
     for (TouchedWindow& touchedWindow : windows) {
         // We do not compare windows by token here because two windows that share the same token
@@ -91,11 +91,12 @@ void TouchState::addOrUpdateWindow(const sp<WindowInfoHandle>& windowHandle,
             // For cases like hover enter/exit or DISPATCH_AS_OUTSIDE a touch window might not have
             // downTime set initially. Need to update existing window when a pointer is down for the
             // window.
-            touchedWindow.addTouchingPointers(deviceId, touchingPointers);
+            android::base::Result<void> addResult =
+                    touchedWindow.addTouchingPointers(deviceId, touchingPointers);
             if (firstDownTimeInTarget) {
                 touchedWindow.trySetDownTimeInTarget(deviceId, *firstDownTimeInTarget);
             }
-            return;
+            return addResult;
         }
     }
     TouchedWindow touchedWindow;
@@ -107,6 +108,7 @@ void TouchState::addOrUpdateWindow(const sp<WindowInfoHandle>& windowHandle,
         touchedWindow.trySetDownTimeInTarget(deviceId, *firstDownTimeInTarget);
     }
     windows.push_back(touchedWindow);
+    return {};
 }
 
 void TouchState::addHoveringPointerToWindow(const sp<WindowInfoHandle>& windowHandle,
