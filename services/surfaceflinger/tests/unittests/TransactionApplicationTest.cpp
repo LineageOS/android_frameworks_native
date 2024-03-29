@@ -17,6 +17,7 @@
 #undef LOG_TAG
 #define LOG_TAG "TransactionApplicationTest"
 
+#include <common/test/FlagUtils.h>
 #include <compositionengine/Display.h>
 #include <compositionengine/mock/DisplaySurface.h>
 #include <gmock/gmock.h>
@@ -34,8 +35,11 @@
 #include "TestableSurfaceFlinger.h"
 #include "TransactionState.h"
 
+#include <com_android_graphics_surfaceflinger_flags.h>
+
 namespace android {
 
+using namespace com::android::graphics::surfaceflinger;
 using testing::_;
 using testing::Return;
 
@@ -492,6 +496,44 @@ TEST_F(LatchUnsignaledAutoSingleLayerTest, Flush_KeepsUnSignaledInTheQueue_NonBu
                                           createComposerState(kLayerId,
                                                               fence(Fence::Status::Unsignaled),
                                                               layer_state_t::eCropChanged |
+                                                                      layer_state_t::
+                                                                              eBufferChanged),
+                                  });
+    setTransactionStates({unsignaledTransaction}, kExpectedTransactionsPending);
+}
+
+TEST_F(LatchUnsignaledAutoSingleLayerTest, Flush_KeepsUnSignaledInTheQueue_AutoRefreshChanged) {
+    SET_FLAG_FOR_TEST(flags::latch_unsignaled_with_auto_refresh_changed, false);
+    const sp<IBinder> kApplyToken =
+            IInterface::asBinder(TransactionCompletedListener::getIInstance());
+    const auto kLayerId = 1;
+    const auto kExpectedTransactionsPending = 1u;
+
+    const auto unsignaledTransaction =
+            createTransactionInfo(kApplyToken,
+                                  {
+                                          createComposerState(kLayerId,
+                                                              fence(Fence::Status::Unsignaled),
+                                                              layer_state_t::eAutoRefreshChanged |
+                                                                      layer_state_t::
+                                                                              eBufferChanged),
+                                  });
+    setTransactionStates({unsignaledTransaction}, kExpectedTransactionsPending);
+}
+
+TEST_F(LatchUnsignaledAutoSingleLayerTest, Flush_RemovesUnSignaledInTheQueue_AutoRefreshChanged) {
+    SET_FLAG_FOR_TEST(flags::latch_unsignaled_with_auto_refresh_changed, true);
+    const sp<IBinder> kApplyToken =
+            IInterface::asBinder(TransactionCompletedListener::getIInstance());
+    const auto kLayerId = 1;
+    const auto kExpectedTransactionsPending = 0u;
+
+    const auto unsignaledTransaction =
+            createTransactionInfo(kApplyToken,
+                                  {
+                                          createComposerState(kLayerId,
+                                                              fence(Fence::Status::Unsignaled),
+                                                              layer_state_t::eAutoRefreshChanged |
                                                                       layer_state_t::
                                                                               eBufferChanged),
                                   });

@@ -3792,8 +3792,10 @@ bool Layer::isSimpleBufferUpdate(const layer_state_t& s) const {
     const uint64_t deniedFlags = layer_state_t::eProducerDisconnect | layer_state_t::eLayerChanged |
             layer_state_t::eRelativeLayerChanged | layer_state_t::eTransparentRegionChanged |
             layer_state_t::eFlagsChanged | layer_state_t::eBlurRegionsChanged |
-            layer_state_t::eLayerStackChanged | layer_state_t::eAutoRefreshChanged |
-            layer_state_t::eReparent;
+            layer_state_t::eLayerStackChanged | layer_state_t::eReparent |
+            (FlagManager::getInstance().latch_unsignaled_with_auto_refresh_changed()
+                     ? 0
+                     : layer_state_t::eAutoRefreshChanged);
 
     if ((s.what & requiredFlags) != requiredFlags) {
         ATRACE_FORMAT_INSTANT("%s: false [missing required flags 0x%" PRIx64 "]", __func__,
