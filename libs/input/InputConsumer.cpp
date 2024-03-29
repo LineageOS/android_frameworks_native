@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <cstdint>
 #define LOG_TAG "InputTransport"
 #define ATRACE_TAG ATRACE_TAG_INPUT
 
@@ -194,9 +195,21 @@ InputConsumer::InputConsumer(const std::shared_ptr<InputChannel>& channel)
 
 InputConsumer::InputConsumer(const std::shared_ptr<InputChannel>& channel,
                              bool enableTouchResampling)
-      : mResampleTouch(enableTouchResampling), mChannel(channel), mMsgDeferred(false) {}
+      : mResampleTouch(enableTouchResampling),
+        mChannel(channel),
+        mProcessingTraceTag(StringPrintf("InputConsumer processing on %s (%p)",
+                                         mChannel->getName().c_str(), this)),
+        mLifetimeTraceTag(StringPrintf("InputConsumer lifetime on %s (%p)",
+                                       mChannel->getName().c_str(), this)),
+        mLifetimeTraceCookie(
+                static_cast<int32_t>(reinterpret_cast<std::uintptr_t>(this) & 0xFFFFFFFF)),
+        mMsgDeferred(false) {
+    ATRACE_ASYNC_BEGIN(mLifetimeTraceTag.c_str(), /*cookie=*/mLifetimeTraceCookie);
+}
 
-InputConsumer::~InputConsumer() {}
+InputConsumer::~InputConsumer() {
+    ATRACE_ASYNC_END(mLifetimeTraceTag.c_str(), /*cookie=*/mLifetimeTraceCookie);
+}
 
 bool InputConsumer::isTouchResamplingEnabled() {
     return property_get_bool(PROPERTY_RESAMPLING_ENABLED, true);
@@ -228,7 +241,7 @@ status_t InputConsumer::consume(InputEventFactoryInterface* factory, bool consum
                                     mMsg.header.seq);
 
                 // Trace the event processing timeline - event was just read from the socket
-                ATRACE_ASYNC_BEGIN("InputConsumer processing", /*cookie=*/mMsg.header.seq);
+                ATRACE_ASYNC_BEGIN(mProcessingTraceTag.c_str(), /*cookie=*/mMsg.header.seq);
             }
             if (result) {
                 // Consume the next batched event unless batches are being held for later.
@@ -769,7 +782,7 @@ status_t InputConsumer::sendUnchainedFinishedSignal(uint32_t seq, bool handled) 
         popConsumeTime(seq);
 
         // Trace the event processing timeline - event was just finished
-        ATRACE_ASYNC_END("InputConsumer processing", /*cookie=*/seq);
+        ATRACE_ASYNC_END(mProcessingTraceTag.c_str(), /*cookie=*/seq);
     }
     return result;
 }
