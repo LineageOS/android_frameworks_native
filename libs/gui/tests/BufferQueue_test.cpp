@@ -119,8 +119,7 @@ TEST_F(BufferQueueTest, DISABLED_BufferQueueInAnotherProcess) {
     }
 
     sp<IServiceManager> serviceManager = defaultServiceManager();
-    sp<IBinder> binderProducer =
-        serviceManager->getService(PRODUCER_NAME);
+    sp<IBinder> binderProducer = serviceManager->waitForService(PRODUCER_NAME);
     mProducer = interface_cast<IGraphicBufferProducer>(binderProducer);
     EXPECT_TRUE(mProducer != nullptr);
     sp<IBinder> binderConsumer =
@@ -1114,7 +1113,7 @@ TEST_F(BufferQueueTest, TestDiscardFreeBuffers) {
 
     // Check onBuffersDiscarded is called with correct slots
     auto buffersDiscarded = pl->getDiscardedSlots();
-    ASSERT_EQ(buffersDiscarded.size(), 1);
+    ASSERT_EQ(buffersDiscarded.size(), 1u);
     ASSERT_EQ(buffersDiscarded[0], releasedSlot);
 
     // Check no free buffers in dump
@@ -1239,7 +1238,7 @@ TEST_F(BufferQueueTest, TestConsumerDetachProducerListener) {
     ASSERT_EQ(OK, mConsumer->detachBuffer(item.mSlot));
 
     // Check whether the slot from IProducerListener is same to the detached slot.
-    ASSERT_EQ(pl->getDetachedSlots().size(), 1);
+    ASSERT_EQ(pl->getDetachedSlots().size(), 1u);
     ASSERT_EQ(pl->getDetachedSlots()[0], slots[1]);
 
     // Dequeue another buffer.

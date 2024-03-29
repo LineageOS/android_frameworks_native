@@ -24,6 +24,7 @@
 
 #include <memory>
 
+#include <android-base/thread_annotations.h>
 #include <android/gui/BnWindowInfosReportedListener.h>
 #include <android/keycodes.h>
 #include <android/native_window.h>
@@ -78,21 +79,22 @@ static constexpr std::chrono::nanoseconds DISPATCHING_TIMEOUT = 5s;
 class SynchronousWindowInfosReportedListener : public gui::BnWindowInfosReportedListener {
 public:
     binder::Status onWindowInfosReported() override {
-        std::lock_guard<std::mutex> lock{mMutex};
+        std::scoped_lock lock{mLock};
         mWindowInfosReported = true;
         mConditionVariable.notify_one();
         return binder::Status::ok();
     }
 
     void wait() {
-        std::unique_lock<std::mutex> lock{mMutex};
-        mConditionVariable.wait(lock, [&] { return mWindowInfosReported; });
+        std::unique_lock lock{mLock};
+        android::base::ScopedLockAssertion assumeLocked(mLock);
+        mConditionVariable.wait(lock, [&]() REQUIRES(mLock) { return mWindowInfosReported; });
     }
 
 private:
-    std::mutex mMutex;
+    std::mutex mLock;
     std::condition_variable mConditionVariable;
-    bool mWindowInfosReported{false};
+    bool mWindowInfosReported GUARDED_BY(mLock){false};
 };
 
 class InputSurface {
@@ -250,7 +252,7 @@ public:
         EXPECT_EQ(0, mev->getFlags() & VERIFIED_MOTION_EVENT_FLAGS);
     }
 
-    void expectKey(uint32_t keycode) {
+    void expectKey(int32_t keycode) {
         InputEvent *ev = consumeEvent();
         ASSERT_NE(ev, nullptr);
         ASSERT_EQ(InputEventType::KEY, ev->getType());
