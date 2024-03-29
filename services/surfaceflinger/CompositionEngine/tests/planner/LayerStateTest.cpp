@@ -304,6 +304,16 @@ TEST_F(LayerStateTest, getCompositionType_forcedClient) {
     EXPECT_EQ(Composition::CLIENT, mLayerState->getCompositionType());
 }
 
+TEST_F(LayerStateTest, getHdrSdrRatio) {
+    OutputLayerCompositionState outputLayerCompositionState;
+    LayerFECompositionState layerFECompositionState;
+    layerFECompositionState.currentHdrSdrRatio = 2.f;
+    setupMocksForLayer(mOutputLayer, *mLayerFE, outputLayerCompositionState,
+                       layerFECompositionState);
+    mLayerState = std::make_unique<LayerState>(&mOutputLayer);
+    EXPECT_EQ(2.f, mLayerState->getHdrSdrRatio());
+}
+
 TEST_F(LayerStateTest, updateCompositionType) {
     OutputLayerCompositionState outputLayerCompositionState;
     LayerFECompositionState layerFECompositionState;
@@ -1028,6 +1038,47 @@ TEST_F(LayerStateTest, compareCachingHint) {
     auto otherLayerState = std::make_unique<LayerState>(&newOutputLayer);
 
     verifyNonUniqueDifferingFields(*mLayerState, *otherLayerState, LayerStateField::CachingHint);
+
+    EXPECT_TRUE(mLayerState->compare(*otherLayerState));
+    EXPECT_TRUE(otherLayerState->compare(*mLayerState));
+}
+
+TEST_F(LayerStateTest, updateDimmingEnabled) {
+    OutputLayerCompositionState outputLayerCompositionState;
+    LayerFECompositionState layerFECompositionState;
+    layerFECompositionState.dimmingEnabled = true;
+    setupMocksForLayer(mOutputLayer, *mLayerFE, outputLayerCompositionState,
+                       layerFECompositionState);
+    mLayerState = std::make_unique<LayerState>(&mOutputLayer);
+    EXPECT_TRUE(mLayerState->isDimmingEnabled());
+
+    mock::OutputLayer newOutputLayer;
+    sp<mock::LayerFE> newLayerFE = sp<mock::LayerFE>::make();
+    LayerFECompositionState layerFECompositionStateTwo;
+    layerFECompositionStateTwo.dimmingEnabled = false;
+    setupMocksForLayer(newOutputLayer, *newLayerFE, outputLayerCompositionState,
+                       layerFECompositionStateTwo);
+    ftl::Flags<LayerStateField> updates = mLayerState->update(&newOutputLayer);
+    EXPECT_EQ(ftl::Flags<LayerStateField>(LayerStateField::DimmingEnabled), updates);
+    EXPECT_FALSE(mLayerState->isDimmingEnabled());
+}
+
+TEST_F(LayerStateTest, compareDimmingEnabled) {
+    OutputLayerCompositionState outputLayerCompositionState;
+    LayerFECompositionState layerFECompositionState;
+    layerFECompositionState.dimmingEnabled = true;
+    setupMocksForLayer(mOutputLayer, *mLayerFE, outputLayerCompositionState,
+                       layerFECompositionState);
+    mLayerState = std::make_unique<LayerState>(&mOutputLayer);
+    mock::OutputLayer newOutputLayer;
+    sp<mock::LayerFE> newLayerFE = sp<mock::LayerFE>::make();
+    LayerFECompositionState layerFECompositionStateTwo;
+    layerFECompositionStateTwo.dimmingEnabled = false;
+    setupMocksForLayer(newOutputLayer, *newLayerFE, outputLayerCompositionState,
+                       layerFECompositionStateTwo);
+    auto otherLayerState = std::make_unique<LayerState>(&newOutputLayer);
+
+    verifyNonUniqueDifferingFields(*mLayerState, *otherLayerState, LayerStateField::DimmingEnabled);
 
     EXPECT_TRUE(mLayerState->compare(*otherLayerState));
     EXPECT_TRUE(otherLayerState->compare(*mLayerState));
