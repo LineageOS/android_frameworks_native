@@ -229,6 +229,7 @@ cc_defaults {
 cc_library_headers {
     name: "trusty_mock_headers",
     host_supported: true,
+    vendor_available: true,
 
     export_include_dirs: [
         "trusty/include",
@@ -243,8 +244,14 @@ cc_library_headers {
 cc_defaults {
     name: "trusty_mock_defaults",
     host_supported: true,
+    vendor_available: true,
 
     header_libs: [
+        "libbinder_headers_base",
+        "liblog_stub",
+        "trusty_mock_headers",
+    ],
+    export_header_lib_headers: [
         "libbinder_headers_base",
         "liblog_stub",
         "trusty_mock_headers",

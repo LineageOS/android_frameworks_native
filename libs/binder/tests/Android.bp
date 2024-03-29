@@ -436,6 +436,7 @@ cc_test {
     required: [
         "libbinder_on_trusty_mock",
         "libbinder_ndk_on_trusty_mock",
+        "libbinder_rs_on_trusty_mock",
         "binderRpcTestService_on_trusty_mock",
         "binderRpcTest_on_trusty_mock",
     ],

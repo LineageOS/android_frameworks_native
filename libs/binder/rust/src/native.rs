@@ -327,7 +327,7 @@ impl<T: Remotable> InterfaceClassMethods for Binder<T> {
     /// contains a `T` pointer in its user data. fd should be a non-owned file
     /// descriptor, and args must be an array of null-terminated string
     /// pointers with length num_args.
-    #[cfg(not(target_os = "trusty"))]
+    #[cfg(not(trusty))]
     unsafe extern "C" fn on_dump(
         binder: *mut sys::AIBinder,
         fd: i32,
@@ -374,7 +374,7 @@ impl<T: Remotable> InterfaceClassMethods for Binder<T> {
     }
 
     /// Called to handle the `dump` transaction.
-    #[cfg(target_os = "trusty")]
+    #[cfg(trusty)]
     unsafe extern "C" fn on_dump(
         _binder: *mut sys::AIBinder,
         _fd: i32,
