@@ -8295,10 +8295,12 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
             const frontend::LayerSnapshot* snapshot = mLayerLifecycleManagerEnabled
                     ? mLayerSnapshotBuilder.getSnapshot(parent->sequence)
                     : parent->getLayerSnapshot();
-            display = findDisplay([layerStack =
-                                           snapshot->outputFilter.layerStack](const auto& display) {
-                          return display.getLayerStack() == layerStack;
-                      }).get();
+            if (snapshot) {
+                display = findDisplay([layerStack = snapshot->outputFilter.layerStack](
+                                              const auto& display) {
+                              return display.getLayerStack() == layerStack;
+                          }).get();
+            }
         }
 
         if (display == nullptr) {
