@@ -15,7 +15,7 @@
  */
 
 // TODO(b/129481165): remove the #pragma below and fix conversion issues
-#include "TransactionCallbackInvoker.h"
+
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wconversion"
 
@@ -23,8 +23,6 @@
 #undef LOG_TAG
 #define LOG_TAG "Layer"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
-
-#include "Layer.h"
 
 #include <android-base/properties.h>
 #include <android-base/stringprintf.h>
@@ -40,7 +38,6 @@
 #include <ftl/enum.h>
 #include <ftl/fake_guard.h>
 #include <gui/BufferItem.h>
-#include <gui/LayerDebugInfo.h>
 #include <gui/Surface.h>
 #include <gui/TraceUtils.h>
 #include <math.h>
@@ -74,10 +71,12 @@
 #include "FrameTracer/FrameTracer.h"
 #include "FrontEnd/LayerCreationArgs.h"
 #include "FrontEnd/LayerHandle.h"
+#include "Layer.h"
 #include "LayerProtoHelper.h"
 #include "MutexUtils.h"
 #include "SurfaceFlinger.h"
 #include "TimeStats/TimeStats.h"
+#include "TransactionCallbackInvoker.h"
 #include "TunnelModeEnabledReporter.h"
 #include "Utils/FenceUtils.h"
 
@@ -1566,53 +1565,6 @@ void Layer::updateTransformHint(ui::Transform::RotationFlags transformHint) {
 // debugging
 // ----------------------------------------------------------------------------
 
-// TODO(marissaw): add new layer state info to layer debugging
-gui::LayerDebugInfo Layer::getLayerDebugInfo(const DisplayDevice* display) const {
-    using namespace std::string_literals;
-
-    gui::LayerDebugInfo info;
-    const State& ds = getDrawingState();
-    info.mName = getName();
-    sp<Layer> parent = mDrawingParent.promote();
-    info.mParentName = parent ? parent->getName() : "none"s;
-    info.mType = getType();
-
-    info.mVisibleRegion = getVisibleRegion(display);
-    info.mSurfaceDamageRegion = surfaceDamageRegion;
-    info.mLayerStack = getLayerStack().id;
-    info.mX = ds.transform.tx();
-    info.mY = ds.transform.ty();
-    info.mZ = ds.z;
-    info.mCrop = ds.crop;
-    info.mColor = ds.color;
-    info.mFlags = ds.flags;
-    info.mPixelFormat = getPixelFormat();
-    info.mDataSpace = static_cast<android_dataspace>(getDataSpace());
-    info.mMatrix[0][0] = ds.transform[0][0];
-    info.mMatrix[0][1] = ds.transform[0][1];
-    info.mMatrix[1][0] = ds.transform[1][0];
-    info.mMatrix[1][1] = ds.transform[1][1];
-    {
-        sp<const GraphicBuffer> buffer = getBuffer();
-        if (buffer != 0) {
-            info.mActiveBufferWidth = buffer->getWidth();
-            info.mActiveBufferHeight = buffer->getHeight();
-            info.mActiveBufferStride = buffer->getStride();
-            info.mActiveBufferFormat = buffer->format;
-        } else {
-            info.mActiveBufferWidth = 0;
-            info.mActiveBufferHeight = 0;
-            info.mActiveBufferStride = 0;
-            info.mActiveBufferFormat = 0;
-        }
-    }
-    info.mNumQueuedFrames = getQueuedFrameCount();
-    info.mIsOpaque = isOpaque(ds);
-    info.mContentDirty = contentDirty;
-    info.mStretchEffect = getStretchEffect();
-    return info;
-}
-
 void Layer::miniDumpHeader(std::string& result) {
     result.append(kDumpTableRowLength, '-');
     result.append("\n");
@@ -2937,26 +2889,13 @@ void Layer::prepareReleaseCallbacks(ftl::Future<FenceResult> futureFenceResult,
         ch->previousReleaseFences.emplace_back(std::move(futureFenceResult));
         ch->name = mName;
     } else {
-        // If we didn't get a release callback yet, e.g. some scenarios when capturing
-        // screenshots asynchronously, then make sure we don't drop the fence.
-        mAdditionalPreviousReleaseFences.emplace_back(std::move(futureFenceResult));
-        std::vector<ftl::Future<FenceResult>> mergedFences;
-        sp<Fence> prevFence = nullptr;
-        // For a layer that's frequently screenshotted, try to merge fences to make sure we
-        // don't grow unbounded.
-        for (auto& futureReleaseFence : mAdditionalPreviousReleaseFences) {
-            auto result = futureReleaseFence.wait_for(0s);
-            if (result != std::future_status::ready) {
-                mergedFences.emplace_back(std::move(futureReleaseFence));
-                continue;
-            }
-            mergeFence(getDebugName(), futureReleaseFence.get().value_or(Fence::NO_FENCE),
-                       prevFence);
-        }
-        if (prevFence != nullptr) {
-            mergedFences.emplace_back(ftl::yield(FenceResult(std::move(prevFence))));
-        }
-        mAdditionalPreviousReleaseFences.swap(mergedFences);
+        // If we didn't get a release callback yet (e.g. some scenarios when capturing
+        // screenshots asynchronously) then make sure we don't drop the fence.
+        // Older fences for the same layer stack can be dropped when a new fence arrives.
+        // An assumption here is that RenderEngine performs work sequentially, so an
+        // incoming fence will not fire before an existing fence.
+        mAdditionalPreviousReleaseFences.emplace_or_replace(layerStack,
+                                                            std::move(futureFenceResult));
     }
 
     if (mBufferInfo.mBuffer) {
@@ -3506,10 +3445,10 @@ bool Layer::setTransactionCompletedListeners(const std::vector<sp<CallbackHandle
             handle->previousFrameNumber = mDrawingState.previousFrameNumber;
             if (FlagManager::getInstance().ce_fence_promise() &&
                 mPreviousReleaseBufferEndpoint == handle->listener) {
-                // Add fences from previous screenshots now so that they can be dispatched to the
+                // Add fence from previous screenshot now so that it can be dispatched to the
                 // client.
-                for (auto& futureReleaseFence : mAdditionalPreviousReleaseFences) {
-                    handle->previousReleaseFences.emplace_back(std::move(futureReleaseFence));
+                for (auto& [_, future] : mAdditionalPreviousReleaseFences) {
+                    handle->previousReleaseFences.emplace_back(std::move(future));
                 }
                 mAdditionalPreviousReleaseFences.clear();
             } else if (FlagManager::getInstance().screenshot_fence_preservation() &&

@@ -38,7 +38,6 @@
 #include <gui/FrameTimestamps.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/ITransactionCompletedListener.h>
-#include <gui/LayerDebugInfo.h>
 #include <gui/LayerState.h>
 #include <layerproto/LayerProtoHeader.h>
 #include <math/mat4.h>
@@ -599,7 +598,6 @@ private:
     status_t overrideHdrTypes(const sp<IBinder>& displayToken,
                               const std::vector<ui::Hdr>& hdrTypes);
     status_t onPullAtom(const int32_t atomId, std::vector<uint8_t>* pulledData, bool* success);
-    status_t getLayerDebugInfo(std::vector<gui::LayerDebugInfo>* outLayers);
     status_t getCompositionPreference(ui::Dataspace* outDataspace, ui::PixelFormat* outPixelFormat,
                                       ui::Dataspace* outWideColorGamutDataspace,
                                       ui::PixelFormat* outWideColorGamutPixelFormat) const;
@@ -760,7 +758,8 @@ private:
                                             bool force = false)
             REQUIRES(mStateLock, kMainThreadContext);
 
-    void commitTransactions() EXCLUDES(mStateLock) REQUIRES(kMainThreadContext);
+    void commitTransactionsLegacy() EXCLUDES(mStateLock) REQUIRES(kMainThreadContext);
+    void commitTransactions() REQUIRES(kMainThreadContext, mStateLock);
     void commitTransactionsLocked(uint32_t transactionFlags)
             REQUIRES(mStateLock, kMainThreadContext);
     void doCommitTransactions() REQUIRES(mStateLock);
@@ -810,8 +809,8 @@ private:
     bool flushTransactionQueues(VsyncId) REQUIRES(kMainThreadContext);
 
     bool applyTransactions(std::vector<TransactionState>&, VsyncId) REQUIRES(kMainThreadContext);
-    bool applyAndCommitDisplayTransactionStates(std::vector<TransactionState>& transactions)
-            REQUIRES(kMainThreadContext);
+    bool applyAndCommitDisplayTransactionStatesLocked(std::vector<TransactionState>& transactions)
+            REQUIRES(kMainThreadContext, mStateLock);
 
     // Returns true if there is at least one transaction that needs to be flushed
     bool transactionFlushNeeded();
@@ -1601,7 +1600,6 @@ public:
     binder::Status overrideHdrTypes(const sp<IBinder>& display,
                                     const std::vector<int32_t>& hdrTypes) override;
     binder::Status onPullAtom(int32_t atomId, gui::PullAtomData* outPullData) override;
-    binder::Status getLayerDebugInfo(std::vector<gui::LayerDebugInfo>* outLayers) override;
     binder::Status getCompositionPreference(gui::CompositionPreference* outPref) override;
     binder::Status getDisplayedContentSamplingAttributes(
             const sp<IBinder>& display, gui::ContentSamplingAttributes* outAttrs) override;

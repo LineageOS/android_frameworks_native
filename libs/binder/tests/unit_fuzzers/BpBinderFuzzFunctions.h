@@ -95,14 +95,16 @@ static const std::vector<std::function<void(FuzzedDataProvider*, const sp<BpBind
                  },
                  [](FuzzedDataProvider*, const sp<BpBinder>& bpbinder,
                     const sp<IBinder::DeathRecipient>&) -> void {
-                     binder_proxy_limit_callback cb = binder_proxy_limit_callback();
-                     bpbinder->setLimitCallback(cb);
+                     binder_proxy_limit_callback cbl = binder_proxy_limit_callback();
+                     binder_proxy_warning_callback cbw = binder_proxy_warning_callback();
+                     bpbinder->setBinderProxyCountEventCallback(cbl, cbw);
                  },
                  [](FuzzedDataProvider* fdp, const sp<BpBinder>& bpbinder,
                     const sp<IBinder::DeathRecipient>&) -> void {
                      int high = fdp->ConsumeIntegral<int>();
                      int low = fdp->ConsumeIntegral<int>();
-                     bpbinder->setBinderProxyCountWatermarks(high, low);
+                     int warning = fdp->ConsumeIntegral<int>();
+                     bpbinder->setBinderProxyCountWatermarks(high, low, warning);
                  }};
 
 } // namespace android

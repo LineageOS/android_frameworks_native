@@ -65,7 +65,6 @@
 #include <gui/BufferQueue.h>
 #include <gui/DebugEGLImageTracker.h>
 #include <gui/IProducerListener.h>
-#include <gui/LayerDebugInfo.h>
 #include <gui/LayerMetadata.h>
 #include <gui/LayerState.h>
 #include <gui/Surface.h>
@@ -1842,19 +1841,6 @@ status_t SurfaceFlinger::isWideColorDisplay(const sp<IBinder>& displayToken,
     return NO_ERROR;
 }
 
-status_t SurfaceFlinger::getLayerDebugInfo(std::vector<gui::LayerDebugInfo>* outLayers) {
-    outLayers->clear();
-    auto future = mScheduler->schedule([=, this] {
-        const auto display = FTL_FAKE_GUARD(mStateLock, getDefaultDisplayDeviceLocked());
-        mDrawingState.traverseInZOrder([&](Layer* layer) {
-            outLayers->push_back(layer->getLayerDebugInfo(display.get()));
-        });
-    });
-
-    future.wait();
-    return NO_ERROR;
-}
-
 status_t SurfaceFlinger::getCompositionPreference(
         Dataspace* outDataspace, ui::PixelFormat* outPixelFormat,
         Dataspace* outWideColorGamutDataspace,
@@ -2259,7 +2245,7 @@ bool SurfaceFlinger::updateLayerSnapshotsLegacy(VsyncId vsyncId, nsecs_t frameTi
     outTransactionsAreEmpty = !needsTraversal;
     const bool shouldCommit = (getTransactionFlags() & ~eTransactionFlushNeeded) || needsTraversal;
     if (shouldCommit) {
-        commitTransactions();
+        commitTransactionsLegacy();
     }
 
     bool mustComposite = latchBuffers() || shouldCommit;
@@ -2383,8 +2369,14 @@ bool SurfaceFlinger::updateLayerSnapshots(VsyncId vsyncId, nsecs_t frameTimeNs,
         mLayerHierarchyBuilder.update(mLayerLifecycleManager);
     }
 
+    // Keep a copy of the drawing state (that is going to be overwritten
+    // by commitTransactionsLocked) outside of mStateLock so that the side
+    // effects of the State assignment don't happen with mStateLock held,
+    // which can cause deadlocks.
+    State drawingState(mDrawingState);
+    Mutex::Autolock lock(mStateLock);
     bool mustComposite = false;
-    mustComposite |= applyAndCommitDisplayTransactionStates(update.transactions);
+    mustComposite |= applyAndCommitDisplayTransactionStatesLocked(update.transactions);
 
     {
         ATRACE_NAME("LayerSnapshotBuilder:update");
@@ -2423,7 +2415,7 @@ bool SurfaceFlinger::updateLayerSnapshots(VsyncId vsyncId, nsecs_t frameTimeNs,
     bool newDataLatched = false;
     if (!mLegacyFrontEndEnabled) {
         ATRACE_NAME("DisplayCallbackAndStatsUpdates");
-        mustComposite |= applyTransactions(update.transactions, vsyncId);
+        mustComposite |= applyTransactionsLocked(update.transactions, vsyncId);
         traverseLegacyLayers([&](Layer* layer) { layer->commitTransaction(); });
         const nsecs_t latchTime = systemTime();
         bool unused = false;
@@ -3297,6 +3289,19 @@ void SurfaceFlinger::computeLayerBounds() {
 }
 
 void SurfaceFlinger::commitTransactions() {
+    ATRACE_CALL();
+    mDebugInTransaction = systemTime();
+
+    // Here we're guaranteed that some transaction flags are set
+    // so we can call commitTransactionsLocked unconditionally.
+    // We clear the flags with mStateLock held to guarantee that
+    // mCurrentState won't change until the transaction is committed.
+    mScheduler->modulateVsync({}, &VsyncModulator::onTransactionCommit);
+    commitTransactionsLocked(clearTransactionFlags(eTransactionMask));
+    mDebugInTransaction = 0;
+}
+
+void SurfaceFlinger::commitTransactionsLegacy() {
     ATRACE_CALL();
 
     // Keep a copy of the drawing state (that is going to be overwritten
@@ -5267,9 +5272,8 @@ bool SurfaceFlinger::applyTransactionState(const FrameTimelineInfo& frameTimelin
     return needsTraversal;
 }
 
-bool SurfaceFlinger::applyAndCommitDisplayTransactionStates(
+bool SurfaceFlinger::applyAndCommitDisplayTransactionStatesLocked(
         std::vector<TransactionState>& transactions) {
-    Mutex::Autolock lock(mStateLock);
     bool needsTraversal = false;
     uint32_t transactionFlags = 0;
     for (auto& transaction : transactions) {
@@ -6052,7 +6056,8 @@ void SurfaceFlinger::initializeDisplays() {
     if (mLegacyFrontEndEnabled) {
         applyTransactions(transactions, VsyncId{0});
     } else {
-        applyAndCommitDisplayTransactionStates(transactions);
+        Mutex::Autolock lock(mStateLock);
+        applyAndCommitDisplayTransactionStatesLocked(transactions);
     }
 
     {
@@ -8287,7 +8292,11 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
         Mutex::Autolock lock(mStateLock);
         const DisplayDevice* display = nullptr;
         if (parent) {
-            display = findDisplay([layerStack = parent->getLayerStack()](const auto& display) {
+            const frontend::LayerSnapshot* snapshot = mLayerLifecycleManagerEnabled
+                    ? mLayerSnapshotBuilder.getSnapshot(parent->sequence)
+                    : parent->getLayerSnapshot();
+            display = findDisplay([layerStack =
+                                           snapshot->outputFilter.layerStack](const auto& display) {
                           return display.getLayerStack() == layerStack;
                       }).get();
         }
@@ -9900,22 +9909,6 @@ binder::Status SurfaceComposerAIDL::onPullAtom(int32_t atomId, gui::PullAtomData
     } else {
         status = mFlinger->onPullAtom(atomId, &outPullData->data, &outPullData->success);
     }
-    return binderStatusFromStatusT(status);
-}
-
-binder::Status SurfaceComposerAIDL::getLayerDebugInfo(std::vector<gui::LayerDebugInfo>* outLayers) {
-    if (!outLayers) {
-        return binderStatusFromStatusT(UNEXPECTED_NULL);
-    }
-
-    IPCThreadState* ipc = IPCThreadState::self();
-    const int pid = ipc->getCallingPid();
-    const int uid = ipc->getCallingUid();
-    if ((uid != AID_SHELL) && !PermissionCache::checkPermission(sDump, pid, uid)) {
-        ALOGE("Layer debug info permission denied for pid=%d, uid=%d", pid, uid);
-        return binderStatusFromStatusT(PERMISSION_DENIED);
-    }
-    status_t status = mFlinger->getLayerDebugInfo(outLayers);
     return binderStatusFromStatusT(status);
 }
 

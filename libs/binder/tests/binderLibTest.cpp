@@ -115,6 +115,7 @@ enum BinderLibTestTranscationCode {
     BINDER_LIB_TEST_GET_SCHEDULING_POLICY,
     BINDER_LIB_TEST_NOP_TRANSACTION_WAIT,
     BINDER_LIB_TEST_GETPID,
+    BINDER_LIB_TEST_GETUID,
     BINDER_LIB_TEST_ECHO_VECTOR,
     BINDER_LIB_TEST_GET_NON_BLOCKING_FD,
     BINDER_LIB_TEST_REJECT_OBJECTS,
@@ -1477,6 +1478,86 @@ TEST_F(BinderLibTest, BinderProxyCount) {
     EXPECT_EQ(BpBinder::getBinderProxyCount(), initialCount);
 }
 
+static constexpr int kBpCountHighWatermark = 20;
+static constexpr int kBpCountLowWatermark = 10;
+static constexpr int kBpCountWarningWatermark = 15;
+static constexpr int kInvalidUid = -1;
+
+TEST_F(BinderLibTest, BinderProxyCountCallback) {
+    Parcel data, reply;
+    sp<IBinder> server = addServer();
+    ASSERT_NE(server, nullptr);
+
+    BpBinder::enableCountByUid();
+    EXPECT_THAT(m_server->transact(BINDER_LIB_TEST_GETUID, data, &reply), StatusEq(NO_ERROR));
+    int32_t uid = reply.readInt32();
+    ASSERT_NE(uid, kInvalidUid);
+
+    uint32_t initialCount = BpBinder::getBinderProxyCount();
+    {
+        uint32_t count = initialCount;
+        BpBinder::setBinderProxyCountWatermarks(kBpCountHighWatermark,
+                                                kBpCountLowWatermark,
+                                                kBpCountWarningWatermark);
+        int limitCallbackUid = kInvalidUid;
+        int warningCallbackUid = kInvalidUid;
+        BpBinder::setBinderProxyCountEventCallback([&](int uid) { limitCallbackUid = uid; },
+                                                   [&](int uid) { warningCallbackUid = uid; });
+
+        std::vector<sp<IBinder> > proxies;
+        auto createProxyOnce = [&](int expectedWarningCallbackUid, int expectedLimitCallbackUid) {
+            warningCallbackUid = limitCallbackUid = kInvalidUid;
+            ASSERT_THAT(server->transact(BINDER_LIB_TEST_CREATE_BINDER_TRANSACTION, data, &reply),
+                        StatusEq(NO_ERROR));
+            proxies.push_back(reply.readStrongBinder());
+            EXPECT_EQ(BpBinder::getBinderProxyCount(), ++count);
+            EXPECT_EQ(warningCallbackUid, expectedWarningCallbackUid);
+            EXPECT_EQ(limitCallbackUid, expectedLimitCallbackUid);
+        };
+        auto removeProxyOnce = [&](int expectedWarningCallbackUid, int expectedLimitCallbackUid) {
+            warningCallbackUid = limitCallbackUid = kInvalidUid;
+            proxies.pop_back();
+            EXPECT_EQ(BpBinder::getBinderProxyCount(), --count);
+            EXPECT_EQ(warningCallbackUid, expectedWarningCallbackUid);
+            EXPECT_EQ(limitCallbackUid, expectedLimitCallbackUid);
+        };
+
+        // Test the increment/decrement of the binder proxies.
+        for (int i = 1; i <= kBpCountWarningWatermark; i++) {
+            createProxyOnce(kInvalidUid, kInvalidUid);
+        }
+        createProxyOnce(uid, kInvalidUid); // Warning callback should have been triggered.
+        for (int i = kBpCountWarningWatermark + 2; i <= kBpCountHighWatermark; i++) {
+            createProxyOnce(kInvalidUid, kInvalidUid);
+        }
+        createProxyOnce(kInvalidUid, uid); // Limit callback should have been triggered.
+        createProxyOnce(kInvalidUid, kInvalidUid);
+        for (int i = kBpCountHighWatermark + 2; i >= kBpCountHighWatermark; i--) {
+            removeProxyOnce(kInvalidUid, kInvalidUid);
+        }
+        createProxyOnce(kInvalidUid, kInvalidUid);
+
+        // Go down below the low watermark.
+        for (int i = kBpCountHighWatermark; i >= kBpCountLowWatermark; i--) {
+            removeProxyOnce(kInvalidUid, kInvalidUid);
+        }
+        for (int i = kBpCountLowWatermark; i <= kBpCountWarningWatermark; i++) {
+            createProxyOnce(kInvalidUid, kInvalidUid);
+        }
+        createProxyOnce(uid, kInvalidUid); // Warning callback should have been triggered.
+        for (int i = kBpCountWarningWatermark + 2; i <= kBpCountHighWatermark; i++) {
+            createProxyOnce(kInvalidUid, kInvalidUid);
+        }
+        createProxyOnce(kInvalidUid, uid); // Limit callback should have been triggered.
+        createProxyOnce(kInvalidUid, kInvalidUid);
+        for (int i = kBpCountHighWatermark + 2; i >= kBpCountHighWatermark; i--) {
+            removeProxyOnce(kInvalidUid, kInvalidUid);
+        }
+        createProxyOnce(kInvalidUid, kInvalidUid);
+    }
+    EXPECT_EQ(BpBinder::getBinderProxyCount(), initialCount);
+}
+
 class BinderLibRpcTestBase : public BinderLibTest {
 public:
     void SetUp() override {
@@ -1679,6 +1760,9 @@ public:
 
             case BINDER_LIB_TEST_GETPID:
                 reply->writeInt32(getpid());
+                return NO_ERROR;
+            case BINDER_LIB_TEST_GETUID:
+                reply->writeInt32(getuid());
                 return NO_ERROR;
             case BINDER_LIB_TEST_NOP_TRANSACTION_WAIT:
                 usleep(5000);
