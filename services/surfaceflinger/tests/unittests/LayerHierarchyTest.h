@@ -281,6 +281,24 @@ protected:
         mLifecycleManager.applyTransactions(transactions);
     }
 
+    void setInputInfo(uint32_t id, std::function<void(gui::WindowInfo&)> configureInput) {
+        std::vector<TransactionState> transactions;
+        transactions.emplace_back();
+        transactions.back().states.push_back({});
+
+        transactions.back().states.front().state.what = layer_state_t::eInputInfoChanged;
+        transactions.back().states.front().layerId = id;
+        transactions.back().states.front().state.windowInfoHandle =
+                sp<gui::WindowInfoHandle>::make();
+        auto inputInfo = transactions.back().states.front().state.windowInfoHandle->editInfo();
+        if (!inputInfo->token) {
+            inputInfo->token = sp<BBinder>::make();
+        }
+        configureInput(*inputInfo);
+
+        mLifecycleManager.applyTransactions(transactions);
+    }
+
     void setTouchableRegionCrop(uint32_t id, Region region, uint32_t touchCropId,
                                 bool replaceTouchableRegionWithCrop) {
         std::vector<TransactionState> transactions;

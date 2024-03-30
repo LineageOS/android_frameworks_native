@@ -39,4 +39,15 @@ flag {
   }
 } # frame_rate_category_mrr
 
+flag {
+  name: "latch_unsignaled_with_auto_refresh_changed"
+  namespace: "core_graphics"
+  description: "Ignore eAutoRefreshChanged with latch unsignaled"
+  bug: "331513837"
+  is_fixed_read_only: true
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+} # latch_unsignaled_with_auto_refresh_changed
+
 # IMPORTANT - please keep alphabetize to reduce merge conflicts

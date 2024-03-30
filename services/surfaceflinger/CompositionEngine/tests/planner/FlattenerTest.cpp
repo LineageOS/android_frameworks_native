@@ -1339,6 +1339,55 @@ TEST_F(FlattenerTest, flattenLayers_skipsHDR2) {
     EXPECT_EQ(nullptr, overrideBuffer3);
 }
 
+TEST_F(FlattenerTest, flattenLayers_skipsLayersDisablingDimming) {
+    auto& layerState1 = mTestLayers[0]->layerState;
+    const auto& overrideBuffer1 = layerState1->getOutputLayer()->getState().overrideInfo.buffer;
+
+    auto& layerState2 = mTestLayers[1]->layerState;
+    const auto& overrideBuffer2 = layerState2->getOutputLayer()->getState().overrideInfo.buffer;
+
+    // The third layer disables dimming, which means it should not be cached
+    auto& layerState3 = mTestLayers[2]->layerState;
+    const auto& overrideBuffer3 = layerState3->getOutputLayer()->getState().overrideInfo.buffer;
+    mTestLayers[2]->layerFECompositionState.dimmingEnabled = false;
+    mTestLayers[2]->layerState->update(&mTestLayers[2]->outputLayer);
+
+    const std::vector<const LayerState*> layers = {
+            layerState1.get(),
+            layerState2.get(),
+            layerState3.get(),
+    };
+
+    initializeFlattener(layers);
+
+    mTime += 200ms;
+    initializeOverrideBuffer(layers);
+    EXPECT_EQ(getNonBufferHash(layers),
+              mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
+
+    // This will render a CachedSet.
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _))
+            .WillOnce(Return(ByMove(ftl::yield<FenceResult>(Fence::NO_FENCE))));
+    mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
+
+    // We've rendered a CachedSet, but we haven't merged it in.
+    EXPECT_EQ(nullptr, overrideBuffer1);
+    EXPECT_EQ(nullptr, overrideBuffer2);
+    EXPECT_EQ(nullptr, overrideBuffer3);
+
+    // This time we merge the CachedSet in, so we have a new hash, and we should
+    // only have two sets.
+    EXPECT_CALL(mRenderEngine, drawLayers(_, _, _, _)).Times(0);
+    initializeOverrideBuffer(layers);
+    EXPECT_NE(getNonBufferHash(layers),
+              mFlattener->flattenLayers(layers, getNonBufferHash(layers), mTime));
+    mFlattener->renderCachedSets(mOutputState, std::nullopt, true);
+
+    EXPECT_NE(nullptr, overrideBuffer1);
+    EXPECT_EQ(overrideBuffer1, overrideBuffer2);
+    EXPECT_EQ(nullptr, overrideBuffer3);
+}
+
 TEST_F(FlattenerTest, flattenLayers_skipsColorLayers) {
     auto& layerState1 = mTestLayers[0]->layerState;
     const auto& overrideBuffer1 = layerState1->getOutputLayer()->getState().overrideInfo.buffer;
