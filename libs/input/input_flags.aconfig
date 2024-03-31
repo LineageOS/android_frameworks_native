@@ -137,3 +137,10 @@ flag {
   is_fixed_read_only: true
 
 }
+
+flag {
+  name: "enable_multi_device_same_window_stream"
+  namespace: "input"
+  description: "Allow multiple input devices to be active in the same window simultaneously"
+  bug: "330752824"
+}

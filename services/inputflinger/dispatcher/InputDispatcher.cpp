@@ -4390,7 +4390,7 @@ std::unique_ptr<MotionEntry> InputDispatcher::splitMotionEvent(
         // different pointer ids than we expected based on the previous ACTION_DOWN
         // or ACTION_POINTER_DOWN events that caused us to decide to split the pointers
         // in this way.
-        ALOGW("Dropping split motion event because the pointer count is %d but "
+        ALOGW("Dropping split motion event because the pointer count is %zu but "
               "we expected there to be %zu pointers.  This probably means we received "
               "a broken sequence of pointer ids from the input device: %s",
               pointerCoords.size(), pointerIds.count(),

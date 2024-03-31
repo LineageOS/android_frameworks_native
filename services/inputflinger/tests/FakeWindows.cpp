@@ -298,16 +298,18 @@ std::unique_ptr<MotionEvent> FakeWindowHandle::consumeMotionEvent(
         const ::testing::Matcher<MotionEvent>& matcher) {
     std::unique_ptr<InputEvent> event = consume(CONSUME_TIMEOUT_EVENT_EXPECTED);
     if (event == nullptr) {
-        ADD_FAILURE() << "No event";
+        std::ostringstream matcherDescription;
+        matcher.DescribeTo(&matcherDescription);
+        ADD_FAILURE() << "No event (expected " << matcherDescription.str() << ") on " << mName;
         return nullptr;
     }
     if (event->getType() != InputEventType::MOTION) {
-        ADD_FAILURE() << "Instead of motion event, got " << *event;
+        ADD_FAILURE() << "Instead of motion event, got " << *event << " on " << mName;
         return nullptr;
     }
     std::unique_ptr<MotionEvent> motionEvent =
             std::unique_ptr<MotionEvent>(static_cast<MotionEvent*>(event.release()));
-    EXPECT_THAT(*motionEvent, matcher);
+    EXPECT_THAT(*motionEvent, matcher) << " on " << mName;
     return motionEvent;
 }
 
