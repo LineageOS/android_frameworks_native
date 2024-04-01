@@ -71,6 +71,11 @@ public:
      */
     virtual Period minFramePeriod() const = 0;
 
+    /**
+     * Checks if the sourced mode is equal to the mode in the tracker.
+     */
+    virtual bool isCurrentMode(const ftl::NonNull<DisplayModePtr>& modePtr) const = 0;
+
     /* Inform the tracker that the samples it has are not accurate for prediction. */
     virtual void resetModel() = 0;
 
