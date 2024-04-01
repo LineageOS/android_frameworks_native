@@ -309,6 +309,9 @@ std::unique_ptr<MotionEvent> FakeWindowHandle::consumeMotionEvent(
     }
     std::unique_ptr<MotionEvent> motionEvent =
             std::unique_ptr<MotionEvent>(static_cast<MotionEvent*>(event.release()));
+    if (motionEvent == nullptr) {
+        return nullptr;
+    }
     EXPECT_THAT(*motionEvent, matcher) << " on " << mName;
     return motionEvent;
 }
