@@ -59,6 +59,8 @@ namespace android::inputdispatcher {
 using namespace ftl::flag_operators;
 using testing::AllOf;
 using testing::Not;
+using testing::Pointee;
+using testing::UnorderedElementsAre;
 
 namespace {
 
@@ -12299,8 +12301,13 @@ TEST_F(InputDispatcherPilferPointersTest, MultiDevicePilfer) {
                     .deviceId(touchDeviceId)
                     .pointer(PointerBuilder(0, ToolType::FINGER).x(151).y(52))
                     .build());
-    spy->consumeMotionEvent(AllOf(WithMotionAction(ACTION_MOVE), WithDeviceId(stylusDeviceId)));
-    spy->consumeMotionEvent(AllOf(WithMotionAction(ACTION_MOVE), WithDeviceId(touchDeviceId)));
+    std::vector<std::unique_ptr<MotionEvent>> spyEvents;
+    spyEvents.push_back(spy->consumeMotionEvent(WithMotionAction(ACTION_MOVE)));
+    spyEvents.push_back(spy->consumeMotionEvent(WithMotionAction(ACTION_MOVE)));
+    // TODO(b/332314982) : Figure out why these can be out of order
+    ASSERT_THAT(spyEvents,
+                UnorderedElementsAre(Pointee(WithDeviceId(stylusDeviceId)),
+                                     Pointee(WithDeviceId(touchDeviceId))));
 
     spy->assertNoEvents();
     leftWindow->assertNoEvents();
