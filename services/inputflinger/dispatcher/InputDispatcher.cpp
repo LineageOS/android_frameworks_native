@@ -838,13 +838,6 @@ Result<void> validateWindowInfosUpdate(const gui::WindowInfosUpdate& update) {
         if (!inserted) {
             return Error() << "Duplicate entry for " << info;
         }
-        if (info.layoutParamsFlags.test(WindowInfo::Flag::SECURE) &&
-            !info.inputConfig.test(WindowInfo::InputConfig::NOT_VISIBLE) &&
-            !info.inputConfig.test(WindowInfo::InputConfig::SENSITIVE_FOR_TRACING)) {
-            return Error()
-                    << "Window with FLAG_SECURE does not set InputConfig::SENSITIVE_FOR_TRACING: "
-                    << info;
-        }
     }
     return {};
 }

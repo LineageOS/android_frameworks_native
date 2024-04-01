@@ -86,8 +86,16 @@ InputTargetInfo getTargetInfo(const InputTarget& target) {
         // This is a global monitor, assume its target is the system.
         return {.uid = gui::Uid{AID_SYSTEM}, .isSecureWindow = false};
     }
-    const bool isSensitiveTarget = target.windowHandle->getInfo()->inputConfig.test(
-            gui::WindowInfo::InputConfig::SENSITIVE_FOR_TRACING);
+    const auto& info = *target.windowHandle->getInfo();
+    const bool isSensitiveTarget =
+            info.inputConfig.test(gui::WindowInfo::InputConfig::SENSITIVE_FOR_TRACING);
+
+    // All FLAG_SECURE targets must be marked as sensitive for tracing.
+    if (info.layoutParamsFlags.test(gui::WindowInfo::Flag::SECURE) && !isSensitiveTarget) {
+        LOG(FATAL)
+                << "Input target with FLAG_SECURE does not set InputConfig::SENSITIVE_FOR_TRACING: "
+                << info;
+    }
     return {target.windowHandle->getInfo()->ownerUid, isSensitiveTarget};
 }
 
