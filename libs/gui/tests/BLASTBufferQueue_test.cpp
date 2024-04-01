@@ -16,6 +16,9 @@
 
 #define LOG_TAG "BLASTBufferQueue_test"
 
+#pragma clang diagnostic ignored "-Wsign-compare"
+#pragma clang diagnostic ignored "-Wthread-safety"
+
 #include <gui/BLASTBufferQueue.h>
 
 #include <android/hardware/graphics/common/1.2/types.h>
@@ -476,7 +479,7 @@ TEST_F(BLASTBufferQueueTest, TripleBuffering) {
         ASSERT_EQ(OK, igbProducer->requestBuffer(slot, &buf));
         allocated.push_back({slot, fence});
     }
-    for (int i = 0; i < allocated.size(); i++) {
+    for (size_t i = 0; i < allocated.size(); i++) {
         igbProducer->cancelBuffer(allocated[i].first, allocated[i].second);
     }
 

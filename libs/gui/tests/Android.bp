@@ -21,7 +21,8 @@ cc_test {
     cppflags: [
         "-Wall",
         "-Werror",
-        "-Wno-extra",
+        "-Wextra",
+        "-Wthread-safety",
         "-DCOM_ANDROID_GRAPHICS_LIBGUI_FLAGS_BQ_SETFRAMERATE=true",
     ],
 
