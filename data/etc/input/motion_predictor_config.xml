@@ -31,5 +31,13 @@
        the UX issue mentioned above.
   -->
   <distance-noise-floor>0.2</distance-noise-floor>
+  <!-- The low and high jerk thresholds for prediction pruning.
+
+    The jerk thresholds are based on normalized dt = 1 calculations, and
+    are taken from Jetpacks MotionEventPredictor's KalmanPredictor
+    implementation (using its ACCURATE_LOW_JANK and ACCURATE_HIGH_JANK).
+  -->
+  <low-jerk>0.1</low-jerk>
+  <high-jerk>0.2</high-jerk>
 </motion-predictor>
 

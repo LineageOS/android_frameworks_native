@@ -18,6 +18,7 @@
 
 #include <input/MotionPredictor.h>
 
+#include <algorithm>
 #include <array>
 #include <cinttypes>
 #include <cmath>
@@ -60,6 +61,11 @@ TfLiteMotionPredictorSample::Point convertPrediction(
     const float x_delta = r * std::cos(axis_phi + phi);
     const float y_delta = r * std::sin(axis_phi + phi);
     return {.x = axisTo.x + x_delta, .y = axisTo.y + y_delta};
+}
+
+float normalizeRange(float x, float min, float max) {
+    const float normalized = (x - min) / (max - min);
+    return std::min(1.0f, std::max(0.0f, normalized));
 }
 
 } // namespace
@@ -255,6 +261,17 @@ std::unique_ptr<MotionEvent> MotionPredictor::predict(nsecs_t timestamp) {
     int64_t predictionTime = mBuffers->lastTimestamp();
     const int64_t futureTime = timestamp + mPredictionTimestampOffsetNanos;
 
+    const float jerkMagnitude = mJerkTracker.jerkMagnitude().value_or(0);
+    const float fractionKept =
+            1 - normalizeRange(jerkMagnitude, mModel->config().lowJerk, mModel->config().highJerk);
+    // float to ensure proper division below.
+    const float predictionTimeWindow = futureTime - predictionTime;
+    const int maxNumPredictions = static_cast<int>(
+            std::ceil(predictionTimeWindow / mModel->config().predictionInterval * fractionKept));
+    ALOGD_IF(isDebug(),
+             "jerk (d^3p/normalizedDt^3): %f, fraction of prediction window pruned: %f, max number "
+             "of predictions: %d",
+             jerkMagnitude, 1 - fractionKept, maxNumPredictions);
     for (size_t i = 0; i < static_cast<size_t>(predictedR.size()) && predictionTime <= futureTime;
          ++i) {
         if (predictedR[i] < mModel->config().distanceNoiseFloor) {
@@ -269,13 +286,12 @@ std::unique_ptr<MotionEvent> MotionPredictor::predict(nsecs_t timestamp) {
             break;
         }
         if (input_flags::enable_prediction_pruning_via_jerk_thresholding()) {
-            // TODO(b/266747654): Stop predictions if confidence is < some threshold
-            // Arbitrarily high pruning index, will correct once jerk thresholding is implemented.
-            const size_t upperBoundPredictionIndex = std::numeric_limits<size_t>::max();
-            if (i > upperBoundPredictionIndex) {
+            if (i >= static_cast<size_t>(maxNumPredictions)) {
                 break;
             }
         }
+        // TODO(b/266747654): Stop predictions if confidence is < some
+        // threshold. Currently predictions are pruned via jerk thresholding.
 
         const TfLiteMotionPredictorSample::Point predictedPoint =
                 convertPrediction(axisFrom, axisTo, predictedR[i], predictedPhi[i]);
