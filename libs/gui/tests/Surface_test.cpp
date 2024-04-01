@@ -173,7 +173,7 @@ protected:
         // Acquire and free 1+extraDiscardedBuffers buffer, check onBufferReleased is called.
         std::vector<BufferItem> releasedItems;
         releasedItems.resize(1+extraDiscardedBuffers);
-        for (int i = 0; i < releasedItems.size(); i++) {
+        for (size_t i = 0; i < releasedItems.size(); i++) {
             ASSERT_EQ(NO_ERROR, consumer->acquireBuffer(&releasedItems[i], 0));
             ASSERT_EQ(NO_ERROR, consumer->releaseBuffer(releasedItems[i].mSlot,
                     releasedItems[i].mFrameNumber, EGL_NO_DISPLAY, EGL_NO_SYNC_KHR,
@@ -197,7 +197,7 @@ protected:
             // Check onBufferDiscarded is called with correct buffer
             auto discardedBuffers = listener->getDiscardedBuffers();
             ASSERT_EQ(discardedBuffers.size(), releasedItems.size());
-            for (int i = 0; i < releasedItems.size(); i++) {
+            for (size_t i = 0; i < releasedItems.size(); i++) {
                 ASSERT_EQ(discardedBuffers[i], releasedItems[i].mGraphicBuffer);
             }
 
