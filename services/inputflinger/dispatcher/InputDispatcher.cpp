@@ -3061,7 +3061,11 @@ void InputDispatcher::addPointerWindowTargetLocked(
                    << ", windowInfo->globalScaleFactor=" << windowInfo->globalScaleFactor;
     }
 
-    it->addPointers(pointerIds, windowInfo->transform);
+    Result<void> result = it->addPointers(pointerIds, windowInfo->transform);
+    if (!result.ok()) {
+        logDispatchStateLocked();
+        LOG(FATAL) << result.error().message();
+    }
 }
 
 void InputDispatcher::addGlobalMonitoringTargetsLocked(std::vector<InputTarget>& inputTargets,
