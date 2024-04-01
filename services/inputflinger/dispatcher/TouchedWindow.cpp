@@ -20,6 +20,7 @@
 #include <android-base/stringprintf.h>
 #include <input/PrintTools.h>
 
+using android::base::Result;
 using android::base::StringPrintf;
 
 namespace android {
@@ -89,8 +90,8 @@ void TouchedWindow::addHoveringPointer(DeviceId deviceId, const PointerPropertie
     hoveringPointers.push_back(pointer);
 }
 
-void TouchedWindow::addTouchingPointers(DeviceId deviceId,
-                                        const std::vector<PointerProperties>& pointers) {
+Result<void> TouchedWindow::addTouchingPointers(DeviceId deviceId,
+                                                const std::vector<PointerProperties>& pointers) {
     std::vector<PointerProperties>& touchingPointers = mDeviceStates[deviceId].touchingPointers;
     const size_t initialSize = touchingPointers.size();
     for (const PointerProperties& pointer : pointers) {
@@ -98,11 +99,14 @@ void TouchedWindow::addTouchingPointers(DeviceId deviceId,
             return properties.id == pointer.id;
         });
     }
-    if (touchingPointers.size() != initialSize) {
+    const bool foundInconsistentState = touchingPointers.size() != initialSize;
+    touchingPointers.insert(touchingPointers.end(), pointers.begin(), pointers.end());
+    if (foundInconsistentState) {
         LOG(ERROR) << __func__ << ": " << dumpVector(pointers, streamableToString) << ", device "
                    << deviceId << " already in " << *this;
+        return android::base::Error();
     }
-    touchingPointers.insert(touchingPointers.end(), pointers.begin(), pointers.end());
+    return {};
 }
 
 bool TouchedWindow::hasTouchingPointers() const {
