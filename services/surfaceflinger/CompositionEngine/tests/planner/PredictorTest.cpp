@@ -18,6 +18,9 @@
 #undef LOG_TAG
 #define LOG_TAG "PredictorTest"
 
+#include <common/include/common/test/FlagUtils.h>
+#include "com_android_graphics_surfaceflinger_flags.h"
+
 #include <compositionengine/impl/planner/Predictor.h>
 #include <compositionengine/mock/LayerFE.h>
 #include <compositionengine/mock/OutputLayer.h>
@@ -127,6 +130,9 @@ TEST_F(LayerStackTest, getApproximateMatch_doesNotMatchDifferentCompositionTypes
 }
 
 TEST_F(LayerStackTest, getApproximateMatch_matchesSingleDifferenceInSingleLayer) {
+    SET_FLAG_FOR_TEST(com::android::graphics::surfaceflinger::flags::
+                              cache_when_source_crop_layer_only_moved,
+                      false);
     mock::OutputLayer outputLayerOne;
     sp<mock::LayerFE> layerFEOne = sp<mock::LayerFE>::make();
     OutputLayerCompositionState outputLayerCompositionStateOne{
@@ -158,6 +164,9 @@ TEST_F(LayerStackTest, getApproximateMatch_matchesSingleDifferenceInSingleLayer)
 }
 
 TEST_F(LayerStackTest, getApproximateMatch_matchesSingleDifferenceInMultiLayerStack) {
+    SET_FLAG_FOR_TEST(com::android::graphics::surfaceflinger::flags::
+                              cache_when_source_crop_layer_only_moved,
+                      false);
     mock::OutputLayer outputLayerOne;
     sp<mock::LayerFE> layerFEOne = sp<mock::LayerFE>::make();
     OutputLayerCompositionState outputLayerCompositionStateOne{
@@ -304,6 +313,9 @@ TEST_F(LayerStackTest, getApproximateMatch_alwaysMatchesClientComposition) {
 }
 
 TEST_F(LayerStackTest, getApproximateMatch_doesNotMatchMultipleApproximations) {
+    SET_FLAG_FOR_TEST(com::android::graphics::surfaceflinger::flags::
+                              cache_when_source_crop_layer_only_moved,
+                      false);
     mock::OutputLayer outputLayerOne;
     sp<mock::LayerFE> layerFEOne = sp<mock::LayerFE>::make();
     OutputLayerCompositionState outputLayerCompositionStateOne{
@@ -347,6 +359,9 @@ struct PredictionTest : public testing::Test {
 };
 
 TEST_F(LayerStackTest, reorderingChangesNonBufferHash) {
+    SET_FLAG_FOR_TEST(com::android::graphics::surfaceflinger::flags::
+                              cache_when_source_crop_layer_only_moved,
+                      false);
     mock::OutputLayer outputLayerOne;
     sp<mock::LayerFE> layerFEOne = sp<mock::LayerFE>::make();
     OutputLayerCompositionState outputLayerCompositionStateOne{
@@ -467,6 +482,9 @@ TEST_F(PredictorTest, getPredictedPlan_recordCandidateAndRetrieveExactMatch) {
 }
 
 TEST_F(PredictorTest, getPredictedPlan_recordCandidateAndRetrieveApproximateMatch) {
+    SET_FLAG_FOR_TEST(com::android::graphics::surfaceflinger::flags::
+                              cache_when_source_crop_layer_only_moved,
+                      false);
     mock::OutputLayer outputLayerOne;
     sp<mock::LayerFE> layerFEOne = sp<mock::LayerFE>::make();
     OutputLayerCompositionState outputLayerCompositionStateOne{
@@ -504,6 +522,9 @@ TEST_F(PredictorTest, getPredictedPlan_recordCandidateAndRetrieveApproximateMatc
 }
 
 TEST_F(PredictorTest, recordMissedPlan_skipsApproximateMatch) {
+    SET_FLAG_FOR_TEST(com::android::graphics::surfaceflinger::flags::
+                              cache_when_source_crop_layer_only_moved,
+                      false);
     mock::OutputLayer outputLayerOne;
     sp<mock::LayerFE> layerFEOne = sp<mock::LayerFE>::make();
     OutputLayerCompositionState outputLayerCompositionStateOne{
