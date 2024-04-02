@@ -838,13 +838,6 @@ Result<void> validateWindowInfosUpdate(const gui::WindowInfosUpdate& update) {
         if (!inserted) {
             return Error() << "Duplicate entry for " << info;
         }
-        if (info.layoutParamsFlags.test(WindowInfo::Flag::SECURE) &&
-            !info.inputConfig.test(WindowInfo::InputConfig::NOT_VISIBLE) &&
-            !info.inputConfig.test(WindowInfo::InputConfig::SENSITIVE_FOR_TRACING)) {
-            return Error()
-                    << "Window with FLAG_SECURE does not set InputConfig::SENSITIVE_FOR_TRACING: "
-                    << info;
-        }
     }
     return {};
 }
@@ -2539,11 +2532,19 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
             if (!isHoverAction) {
                 const bool isDownOrPointerDown = maskedAction == AMOTION_EVENT_ACTION_DOWN ||
                         maskedAction == AMOTION_EVENT_ACTION_POINTER_DOWN;
-                tempTouchState.addOrUpdateWindow(windowHandle, InputTarget::DispatchMode::AS_IS,
-                                                 targetFlags, entry.deviceId, {pointer},
-                                                 isDownOrPointerDown
-                                                         ? std::make_optional(entry.eventTime)
-                                                         : std::nullopt);
+                Result<void> addResult =
+                        tempTouchState.addOrUpdateWindow(windowHandle,
+                                                         InputTarget::DispatchMode::AS_IS,
+                                                         targetFlags, entry.deviceId, {pointer},
+                                                         isDownOrPointerDown
+                                                                 ? std::make_optional(
+                                                                           entry.eventTime)
+                                                                 : std::nullopt);
+                if (!addResult.ok()) {
+                    LOG(ERROR) << "Error while processing " << entry << " for "
+                               << windowHandle->getName();
+                    logDispatchStateLocked();
+                }
                 // If this is the pointer going down and the touched window has a wallpaper
                 // then also add the touched wallpaper windows so they are locked in for the
                 // duration of the touch gesture. We do not collect wallpapers during HOVER_MOVE or
@@ -3053,7 +3054,11 @@ void InputDispatcher::addPointerWindowTargetLocked(
                    << ", windowInfo->globalScaleFactor=" << windowInfo->globalScaleFactor;
     }
 
-    it->addPointers(pointerIds, windowInfo->transform);
+    Result<void> result = it->addPointers(pointerIds, windowInfo->transform);
+    if (!result.ok()) {
+        logDispatchStateLocked();
+        LOG(FATAL) << result.error().message();
+    }
 }
 
 void InputDispatcher::addGlobalMonitoringTargetsLocked(std::vector<InputTarget>& inputTargets,

@@ -1039,6 +1039,29 @@ TEST_F(ScreenCaptureTest, CaptureHdrLayer) {
     ASSERT_TRUE(mCapture->capturedHdrLayers());
 }
 
+TEST_F(ScreenCaptureTest, captureOffscreenNullSnapshot) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test layer", 32, 32,
+                                                ISurfaceComposerClient::eFXSurfaceBufferState,
+                                                mBGSurfaceControl.get()));
+
+    // A mirrored layer will not have a snapshot. Testing an offscreen mirrored layer
+    // ensures that the screenshot path handles cases where snapshots are null.
+    sp<SurfaceControl> mirroredLayer;
+    ASSERT_NO_FATAL_FAILURE(mirroredLayer = mirrorSurface(layer.get()));
+
+    LayerCaptureArgs captureArgs;
+    captureArgs.layerHandle = mirroredLayer->getHandle();
+    captureArgs.sourceCrop = Rect(0, 0, 1, 1);
+
+    // Screenshot path should only use the children of the layer hierarchy so
+    // that it will not create a new snapshot. A snapshot would otherwise be
+    // created to pass on the properties of the parent, which is not needed
+    // for the purposes of this test since we explicitly want a null snapshot.
+    captureArgs.childrenOnly = true;
+    ScreenCapture::captureLayers(&mCapture, captureArgs);
+}
+
 // In the following tests we verify successful skipping of a parent layer,
 // so we use the same verification logic and only change how we mutate
 // the parent layer to verify that various properties are ignored.

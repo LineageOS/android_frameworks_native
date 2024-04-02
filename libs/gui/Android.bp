@@ -155,9 +155,9 @@ cc_library_static {
     },
 }
 
-aidl_library {
-    name: "libgui_aidl_hdrs",
-    hdrs: [
+filegroup {
+    name: "libgui_extra_aidl_files",
+    srcs: [
         "android/gui/DisplayInfo.aidl",
         "android/gui/FocusRequest.aidl",
         "android/gui/InputApplicationInfo.aidl",
@@ -170,11 +170,34 @@ aidl_library {
     ],
 }
 
+filegroup {
+    name: "libgui_extra_unstructured_aidl_files",
+    srcs: [
+        "android/gui/DisplayInfo.aidl",
+        "android/gui/InputApplicationInfo.aidl",
+        "android/gui/WindowInfo.aidl",
+        "android/gui/WindowInfosUpdate.aidl",
+    ],
+}
+
+aidl_library {
+    name: "libgui_aidl_hdrs",
+    hdrs: [":libgui_extra_aidl_files"],
+}
+
+aidl_library {
+    name: "libgui_extra_unstructured_aidl_hdrs",
+    hdrs: [":libgui_extra_unstructured_aidl_files"],
+}
+
 aidl_library {
     name: "libgui_aidl",
     srcs: ["aidl/**/*.aidl"],
     strip_import_prefix: "aidl",
-    deps: ["libgui_aidl_hdrs"],
+    deps: [
+        "libgui_aidl_hdrs",
+        "libgui_extra_unstructured_aidl_hdrs",
+    ],
 }
 
 filegroup {

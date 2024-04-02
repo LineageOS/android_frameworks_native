@@ -7838,17 +7838,19 @@ void SurfaceFlinger::captureDisplay(const DisplayCaptureArgs& args,
 
     status_t validate = validateScreenshotPermissions(args);
     if (validate != OK) {
+        ALOGD("Permission denied to captureDisplay");
         invokeScreenCaptureError(validate, captureListener);
         return;
     }
 
     if (!args.displayToken) {
+        ALOGD("Invalid display token to captureDisplay");
         invokeScreenCaptureError(BAD_VALUE, captureListener);
         return;
     }
 
     if (args.captureSecureLayers && !hasCaptureBlackoutContentPermission()) {
-        ALOGE("Attempting to capture secure layers without CAPTURE_BLACKOUT_CONTENT");
+        ALOGD("Attempting to capture secure layers without CAPTURE_BLACKOUT_CONTENT");
         invokeScreenCaptureError(PERMISSION_DENIED, captureListener);
         return;
     }
@@ -7861,6 +7863,7 @@ void SurfaceFlinger::captureDisplay(const DisplayCaptureArgs& args,
         Mutex::Autolock lock(mStateLock);
         sp<DisplayDevice> display = getDisplayDeviceLocked(args.displayToken);
         if (!display) {
+            ALOGD("Unable to find display device for captureDisplay");
             invokeScreenCaptureError(NAME_NOT_FOUND, captureListener);
             return;
         }
@@ -7877,7 +7880,7 @@ void SurfaceFlinger::captureDisplay(const DisplayCaptureArgs& args,
             if (excludeLayer != UNASSIGNED_LAYER_ID) {
                 excludeLayerIds.emplace(excludeLayer);
             } else {
-                ALOGW("Invalid layer handle passed as excludeLayer to captureDisplay");
+                ALOGD("Invalid layer handle passed as excludeLayer to captureDisplay");
                 invokeScreenCaptureError(NAME_NOT_FOUND, captureListener);
                 return;
             }
@@ -7915,6 +7918,7 @@ void SurfaceFlinger::captureDisplay(DisplayId displayId, const CaptureArgs& args
 
         const auto display = getDisplayDeviceLocked(displayId);
         if (!display) {
+            ALOGD("Unable to find display device for captureDisplay");
             invokeScreenCaptureError(NAME_NOT_FOUND, captureListener);
             return;
         }
@@ -7932,7 +7936,7 @@ void SurfaceFlinger::captureDisplay(DisplayId displayId, const CaptureArgs& args
     constexpr auto kMaxTextureSize = 16384;
     if (size.width <= 0 || size.height <= 0 || size.width >= kMaxTextureSize ||
         size.height >= kMaxTextureSize) {
-        ALOGE("capture display resolved to invalid size %d x %d", size.width, size.height);
+        ALOGD("captureDisplay resolved to invalid size %d x %d", size.width, size.height);
         invokeScreenCaptureError(BAD_VALUE, captureListener);
         return;
     }
@@ -7979,6 +7983,7 @@ void SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
 
     status_t validate = validateScreenshotPermissions(args);
     if (validate != OK) {
+        ALOGD("Permission denied to captureLayers");
         invokeScreenCaptureError(validate, captureListener);
         return;
     }
@@ -7990,7 +7995,7 @@ void SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
     ui::Dataspace dataspace = args.dataspace;
 
     if (args.captureSecureLayers && !hasCaptureBlackoutContentPermission()) {
-        ALOGE("Attempting to capture secure layers without CAPTURE_BLACKOUT_CONTENT");
+        ALOGD("Attempting to capture secure layers without CAPTURE_BLACKOUT_CONTENT");
         invokeScreenCaptureError(PERMISSION_DENIED, captureListener);
         return;
     }
@@ -8000,7 +8005,7 @@ void SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
 
         parent = LayerHandle::getLayer(args.layerHandle);
         if (parent == nullptr) {
-            ALOGE("captureLayers called with an invalid or removed parent");
+            ALOGD("captureLayers called with an invalid or removed parent");
             invokeScreenCaptureError(NAME_NOT_FOUND, captureListener);
             return;
         }
@@ -8019,6 +8024,7 @@ void SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
         if (crop.isEmpty() || args.frameScaleX <= 0.0f || args.frameScaleY <= 0.0f) {
             // Error out if the layer has no source bounds (i.e. they are boundless) and a source
             // crop was not specified, or an invalid frame scale was provided.
+            ALOGD("Boundless layer, unspecified crop, or invalid frame scale to captureLayers");
             invokeScreenCaptureError(BAD_VALUE, captureListener);
             return;
         }
@@ -8029,7 +8035,7 @@ void SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
             if (excludeLayer != UNASSIGNED_LAYER_ID) {
                 excludeLayerIds.emplace(excludeLayer);
             } else {
-                ALOGW("Invalid layer handle passed as excludeLayer to captureLayers");
+                ALOGD("Invalid layer handle passed as excludeLayer to captureLayers");
                 invokeScreenCaptureError(NAME_NOT_FOUND, captureListener);
                 return;
             }
@@ -8038,7 +8044,7 @@ void SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
 
     // really small crop or frameScale
     if (reqSize.width <= 0 || reqSize.height <= 0) {
-        ALOGW("Failed to captureLayers: crop or scale too small");
+        ALOGD("Failed to captureLayers: crop or scale too small");
         invokeScreenCaptureError(BAD_VALUE, captureListener);
         return;
     }
@@ -8103,7 +8109,7 @@ void SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
     }
 
     if (captureListener == nullptr) {
-        ALOGE("capture screen must provide a capture listener callback");
+        ALOGD("capture screen must provide a capture listener callback");
         invokeScreenCaptureError(BAD_VALUE, captureListener);
         return;
     }
@@ -9869,6 +9875,7 @@ binder::Status SurfaceComposerAIDL::captureDisplayById(
         std::optional<DisplayId> id = DisplayId::fromValue(static_cast<uint64_t>(displayId));
         mFlinger->captureDisplay(*id, args, captureListener);
     } else {
+        ALOGD("Permission denied to captureDisplayById");
         invokeScreenCaptureError(PERMISSION_DENIED, captureListener);
     }
     return binderStatusFromStatusT(NO_ERROR);

@@ -230,7 +230,8 @@ TEST_F(VSyncReactorTest, setPeriodCalledOnceConfirmedChange) {
 TEST_F(VSyncReactorTest, changingPeriodBackAbortsConfirmationProcess) {
     nsecs_t sampleTime = 0;
     nsecs_t const newPeriod = 5000;
-    mReactor.onDisplayModeChanged(displayMode(newPeriod), false);
+    auto modePtr = displayMode(newPeriod);
+    mReactor.onDisplayModeChanged(modePtr, false);
     bool periodFlushed = true;
     EXPECT_TRUE(mReactor.addHwVsyncTimestamp(sampleTime += period, std::nullopt, &periodFlushed));
     EXPECT_FALSE(periodFlushed);
@@ -238,7 +239,9 @@ TEST_F(VSyncReactorTest, changingPeriodBackAbortsConfirmationProcess) {
     EXPECT_TRUE(mReactor.addHwVsyncTimestamp(sampleTime += period, std::nullopt, &periodFlushed));
     EXPECT_FALSE(periodFlushed);
 
-    mReactor.onDisplayModeChanged(displayMode(period), false);
+    modePtr = displayMode(period);
+    EXPECT_CALL(*mMockTracker, isCurrentMode(modePtr)).WillOnce(Return(true));
+    mReactor.onDisplayModeChanged(modePtr, false);
     EXPECT_FALSE(mReactor.addHwVsyncTimestamp(sampleTime += period, std::nullopt, &periodFlushed));
     EXPECT_FALSE(periodFlushed);
 }

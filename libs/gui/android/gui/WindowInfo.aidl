@@ -16,4 +16,4 @@
 
 package android.gui;
 
-parcelable WindowInfo cpp_header "gui/WindowInfo.h";
+parcelable WindowInfo cpp_header "gui/WindowInfo.h" rust_type "gui_aidl_types_rs::WindowInfo";

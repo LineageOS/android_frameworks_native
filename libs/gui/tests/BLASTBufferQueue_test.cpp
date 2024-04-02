@@ -16,11 +16,9 @@
 
 #define LOG_TAG "BLASTBufferQueue_test"
 
-#pragma clang diagnostic ignored "-Wsign-compare"
-#pragma clang diagnostic ignored "-Wthread-safety"
-
 #include <gui/BLASTBufferQueue.h>
 
+#include <android-base/thread_annotations.h>
 #include <android/hardware/graphics/common/1.2/types.h>
 #include <gui/AidlStatusUtil.h>
 #include <gui/BufferQueueCore.h>
@@ -64,7 +62,8 @@ public:
     }
 
     void waitOnNumberReleased(int32_t expectedNumReleased) {
-        std::unique_lock<std::mutex> lock(mMutex);
+        std::unique_lock lock{mMutex};
+        base::ScopedLockAssertion assumeLocked(mMutex);
         while (mNumReleased < expectedNumReleased) {
             ASSERT_NE(mReleaseCallback.wait_for(lock, std::chrono::seconds(3)),
                       std::cv_status::timeout)
@@ -137,11 +136,18 @@ public:
 
     void clearSyncTransaction() { mBlastBufferQueueAdapter->clearSyncTransaction(); }
 
-    int getWidth() { return mBlastBufferQueueAdapter->mSize.width; }
+    int getWidth() {
+        std::scoped_lock lock(mBlastBufferQueueAdapter->mMutex);
+        return mBlastBufferQueueAdapter->mSize.width;
+    }
 
-    int getHeight() { return mBlastBufferQueueAdapter->mSize.height; }
+    int getHeight() {
+        std::scoped_lock lock(mBlastBufferQueueAdapter->mMutex);
+        return mBlastBufferQueueAdapter->mSize.height;
+    }
 
     std::function<void(Transaction*)> getTransactionReadyCallback() {
+        std::scoped_lock lock(mBlastBufferQueueAdapter->mMutex);
         return mBlastBufferQueueAdapter->mTransactionReadyCallback;
     }
 
@@ -150,6 +156,7 @@ public:
     }
 
     const sp<SurfaceControl> getSurfaceControl() {
+        std::scoped_lock lock(mBlastBufferQueueAdapter->mMutex);
         return mBlastBufferQueueAdapter->mSurfaceControl;
     }
 
@@ -159,6 +166,7 @@ public:
 
     void waitForCallbacks() {
         std::unique_lock lock{mBlastBufferQueueAdapter->mMutex};
+        base::ScopedLockAssertion assumeLocked(mBlastBufferQueueAdapter->mMutex);
         // Wait until all but one of the submitted buffers have been released.
         while (mBlastBufferQueueAdapter->mSubmitted.size() > 1) {
             mBlastBufferQueueAdapter->mCallbackCV.wait(lock);
@@ -169,8 +177,8 @@ public:
         mBlastBufferQueueAdapter->waitForCallback(frameNumber);
     }
 
-    void validateNumFramesSubmitted(int64_t numFramesSubmitted) {
-        std::unique_lock lock{mBlastBufferQueueAdapter->mMutex};
+    void validateNumFramesSubmitted(size_t numFramesSubmitted) {
+        std::scoped_lock lock{mBlastBufferQueueAdapter->mMutex};
         ASSERT_EQ(numFramesSubmitted, mBlastBufferQueueAdapter->mSubmitted.size());
     }
 
@@ -204,7 +212,7 @@ protected:
         mDisplayWidth = resolution.getWidth();
         mDisplayHeight = resolution.getHeight();
         ALOGD("Display: %dx%d orientation:%d", mDisplayWidth, mDisplayHeight,
-              displayState.orientation);
+              static_cast<int32_t>(displayState.orientation));
 
         mRootSurfaceControl = mClient->createSurface(String8("RootTestSurface"), mDisplayWidth,
                                                      mDisplayHeight, PIXEL_FORMAT_RGBA_8888,
@@ -243,8 +251,8 @@ protected:
 
     void fillBuffer(uint32_t* bufData, Rect rect, uint32_t stride, uint8_t r, uint8_t g,
                     uint8_t b) {
-        for (uint32_t row = rect.top; row < rect.bottom; row++) {
-            for (uint32_t col = rect.left; col < rect.right; col++) {
+        for (int32_t row = rect.top; row < rect.bottom; row++) {
+            for (int32_t col = rect.left; col < rect.right; col++) {
                 uint8_t* pixel = (uint8_t*)(bufData + (row * stride) + col);
                 *pixel = r;
                 *(pixel + 1) = g;
@@ -274,16 +282,16 @@ protected:
                             bool outsideRegion = false) {
         sp<GraphicBuffer>& captureBuf = mCaptureResults.buffer;
         const auto epsilon = 3;
-        const auto width = captureBuf->getWidth();
-        const auto height = captureBuf->getHeight();
+        const int32_t width = static_cast<int32_t>(captureBuf->getWidth());
+        const int32_t height = static_cast<int32_t>(captureBuf->getHeight());
         const auto stride = captureBuf->getStride();
 
         uint32_t* bufData;
         captureBuf->lock(static_cast<uint32_t>(GraphicBuffer::USAGE_SW_READ_OFTEN),
                          reinterpret_cast<void**>(&bufData));
 
-        for (uint32_t row = 0; row < height; row++) {
-            for (uint32_t col = 0; col < width; col++) {
+        for (int32_t row = 0; row < height; row++) {
+            for (int32_t col = 0; col < width; col++) {
                 uint8_t* pixel = (uint8_t*)(bufData + (row * stride) + col);
                 ASSERT_NE(nullptr, pixel);
                 bool inRegion;
@@ -355,8 +363,8 @@ TEST_F(BLASTBufferQueueTest, CreateBLASTBufferQueue) {
     // create BLASTBufferQueue adapter associated with this surface
     BLASTBufferQueueHelper adapter(mSurfaceControl, mDisplayWidth, mDisplayHeight);
     ASSERT_EQ(mSurfaceControl, adapter.getSurfaceControl());
-    ASSERT_EQ(mDisplayWidth, adapter.getWidth());
-    ASSERT_EQ(mDisplayHeight, adapter.getHeight());
+    ASSERT_EQ(static_cast<int32_t>(mDisplayWidth), adapter.getWidth());
+    ASSERT_EQ(static_cast<int32_t>(mDisplayHeight), adapter.getHeight());
     ASSERT_EQ(nullptr, adapter.getTransactionReadyCallback());
 }
 
@@ -374,10 +382,10 @@ TEST_F(BLASTBufferQueueTest, Update) {
 
     int32_t width;
     igbProducer->query(NATIVE_WINDOW_WIDTH, &width);
-    ASSERT_EQ(mDisplayWidth / 2, width);
+    ASSERT_EQ(static_cast<int32_t>(mDisplayWidth) / 2, width);
     int32_t height;
     igbProducer->query(NATIVE_WINDOW_HEIGHT, &height);
-    ASSERT_EQ(mDisplayHeight / 2, height);
+    ASSERT_EQ(static_cast<int32_t>(mDisplayHeight) / 2, height);
 }
 
 TEST_F(BLASTBufferQueueTest, SyncNextTransaction) {
@@ -1316,14 +1324,14 @@ TEST_F(BLASTBufferQueueTest, TransformHint) {
     // Before connecting to the surface, we do not get a valid transform hint
     int transformHint;
     surface->query(NATIVE_WINDOW_TRANSFORM_HINT, &transformHint);
-    ASSERT_EQ(ui::Transform::ROT_0, transformHint);
+    ASSERT_EQ(ui::Transform::ROT_0, static_cast<ui::Transform::RotationFlags>(transformHint));
 
     ASSERT_EQ(NO_ERROR,
               surface->connect(NATIVE_WINDOW_API_CPU, new TestProducerListener(igbProducer)));
 
     // After connecting to the surface, we should get the correct hint.
     surface->query(NATIVE_WINDOW_TRANSFORM_HINT, &transformHint);
-    ASSERT_EQ(ui::Transform::ROT_90, transformHint);
+    ASSERT_EQ(ui::Transform::ROT_90, static_cast<ui::Transform::RotationFlags>(transformHint));
 
     ANativeWindow_Buffer buffer;
     surface->lock(&buffer, nullptr /* inOutDirtyBounds */);
@@ -1334,13 +1342,13 @@ TEST_F(BLASTBufferQueueTest, TransformHint) {
 
     // The hint does not change and matches the value used when dequeueing the buffer.
     surface->query(NATIVE_WINDOW_TRANSFORM_HINT, &transformHint);
-    ASSERT_EQ(ui::Transform::ROT_90, transformHint);
+    ASSERT_EQ(ui::Transform::ROT_90, static_cast<ui::Transform::RotationFlags>(transformHint));
 
     surface->unlockAndPost();
 
     // After queuing the buffer, we get the updated transform hint
     surface->query(NATIVE_WINDOW_TRANSFORM_HINT, &transformHint);
-    ASSERT_EQ(ui::Transform::ROT_0, transformHint);
+    ASSERT_EQ(ui::Transform::ROT_0, static_cast<ui::Transform::RotationFlags>(transformHint));
 
     adapter.waitForCallbacks();
 }
@@ -1576,7 +1584,7 @@ TEST_F(BLASTFrameEventHistoryTest, FrameEventHistory_Basic) {
     FrameEvents* events = nullptr;
     events = history.getFrame(1);
     ASSERT_NE(nullptr, events);
-    ASSERT_EQ(1, events->frameNumber);
+    ASSERT_EQ(1u, events->frameNumber);
     ASSERT_EQ(requestedPresentTimeA, events->requestedPresentTime);
     ASSERT_GE(events->postedTime, postedTimeA);
 
@@ -1594,7 +1602,7 @@ TEST_F(BLASTFrameEventHistoryTest, FrameEventHistory_Basic) {
     ASSERT_NE(nullptr, events);
 
     // frame number, requestedPresentTime, and postTime should not have changed
-    ASSERT_EQ(1, events->frameNumber);
+    ASSERT_EQ(1u, events->frameNumber);
     ASSERT_EQ(requestedPresentTimeA, events->requestedPresentTime);
     ASSERT_GE(events->postedTime, postedTimeA);
 
@@ -1609,7 +1617,7 @@ TEST_F(BLASTFrameEventHistoryTest, FrameEventHistory_Basic) {
     // we should also have gotten the initial values for the next frame
     events = history.getFrame(2);
     ASSERT_NE(nullptr, events);
-    ASSERT_EQ(2, events->frameNumber);
+    ASSERT_EQ(2u, events->frameNumber);
     ASSERT_EQ(requestedPresentTimeB, events->requestedPresentTime);
     ASSERT_GE(events->postedTime, postedTimeB);
 
@@ -1625,7 +1633,7 @@ TEST_F(BLASTFrameEventHistoryTest, FrameEventHistory_Basic) {
     // Check the first frame...
     events = history.getFrame(1);
     ASSERT_NE(nullptr, events);
-    ASSERT_EQ(1, events->frameNumber);
+    ASSERT_EQ(1u, events->frameNumber);
     ASSERT_EQ(requestedPresentTimeA, events->requestedPresentTime);
     ASSERT_GE(events->postedTime, postedTimeA);
     ASSERT_GE(events->latchTime, postedTimeA);
@@ -1639,7 +1647,7 @@ TEST_F(BLASTFrameEventHistoryTest, FrameEventHistory_Basic) {
     // ...and the second
     events = history.getFrame(2);
     ASSERT_NE(nullptr, events);
-    ASSERT_EQ(2, events->frameNumber);
+    ASSERT_EQ(2u, events->frameNumber);
     ASSERT_EQ(requestedPresentTimeB, events->requestedPresentTime);
     ASSERT_GE(events->postedTime, postedTimeB);
     ASSERT_GE(events->latchTime, postedTimeB);
@@ -1653,7 +1661,7 @@ TEST_F(BLASTFrameEventHistoryTest, FrameEventHistory_Basic) {
     // ...and finally the third!
     events = history.getFrame(3);
     ASSERT_NE(nullptr, events);
-    ASSERT_EQ(3, events->frameNumber);
+    ASSERT_EQ(3u, events->frameNumber);
     ASSERT_EQ(requestedPresentTimeC, events->requestedPresentTime);
     ASSERT_GE(events->postedTime, postedTimeC);
 
@@ -1680,7 +1688,7 @@ TEST_F(BLASTFrameEventHistoryTest, FrameEventHistory_DroppedFrame) {
     FrameEvents* events = nullptr;
     events = history.getFrame(1);
     ASSERT_NE(nullptr, events);
-    ASSERT_EQ(1, events->frameNumber);
+    ASSERT_EQ(1u, events->frameNumber);
     ASSERT_EQ(requestedPresentTimeA, events->requestedPresentTime);
     ASSERT_GE(events->postedTime, postedTimeA);
 
@@ -1695,7 +1703,7 @@ TEST_F(BLASTFrameEventHistoryTest, FrameEventHistory_DroppedFrame) {
     ASSERT_NE(nullptr, events);
 
     // frame number, requestedPresentTime, and postTime should not have changed
-    ASSERT_EQ(1, events->frameNumber);
+    ASSERT_EQ(1u, events->frameNumber);
     ASSERT_EQ(requestedPresentTimeA, events->requestedPresentTime);
     ASSERT_GE(events->postedTime, postedTimeA);
 
@@ -1718,7 +1726,7 @@ TEST_F(BLASTFrameEventHistoryTest, FrameEventHistory_DroppedFrame) {
     adapter.waitForCallback(3);
 
     // frame number, requestedPresentTime, and postTime should not have changed
-    ASSERT_EQ(1, events->frameNumber);
+    ASSERT_EQ(1u, events->frameNumber);
     ASSERT_EQ(requestedPresentTimeA, events->requestedPresentTime);
     ASSERT_GE(events->postedTime, postedTimeA);
 
@@ -1732,7 +1740,7 @@ TEST_F(BLASTFrameEventHistoryTest, FrameEventHistory_DroppedFrame) {
     // we should also have gotten values for the presented frame
     events = history.getFrame(2);
     ASSERT_NE(nullptr, events);
-    ASSERT_EQ(2, events->frameNumber);
+    ASSERT_EQ(2u, events->frameNumber);
     ASSERT_EQ(requestedPresentTimeB, events->requestedPresentTime);
     ASSERT_GE(events->postedTime, postedTimeB);
     ASSERT_GE(events->latchTime, postedTimeB);
@@ -1754,7 +1762,7 @@ TEST_F(BLASTFrameEventHistoryTest, FrameEventHistory_DroppedFrame) {
 
     // frame number, requestedPresentTime, and postTime should not have changed
     events = history.getFrame(1);
-    ASSERT_EQ(1, events->frameNumber);
+    ASSERT_EQ(1u, events->frameNumber);
     ASSERT_EQ(requestedPresentTimeA, events->requestedPresentTime);
     ASSERT_GE(events->postedTime, postedTimeA);
 
@@ -1768,7 +1776,7 @@ TEST_F(BLASTFrameEventHistoryTest, FrameEventHistory_DroppedFrame) {
     // we should also have gotten values for the presented frame
     events = history.getFrame(2);
     ASSERT_NE(nullptr, events);
-    ASSERT_EQ(2, events->frameNumber);
+    ASSERT_EQ(2u, events->frameNumber);
     ASSERT_EQ(requestedPresentTimeB, events->requestedPresentTime);
     ASSERT_GE(events->postedTime, postedTimeB);
     ASSERT_GE(events->latchTime, postedTimeB);

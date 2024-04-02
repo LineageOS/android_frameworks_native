@@ -54,6 +54,7 @@ public:
     void onFrameBegin(TimePoint, TimePoint) final {}
     void onFrameMissed(TimePoint) final {}
     void dump(std::string&) const final {}
+    bool isCurrentMode(const ftl::NonNull<DisplayModePtr>&) const final { return false; };
 
 protected:
     std::mutex mutable mMutex;

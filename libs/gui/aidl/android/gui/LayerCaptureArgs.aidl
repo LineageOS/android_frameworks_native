@@ -16,4 +16,4 @@
 
 package android.gui;
 
-parcelable LayerCaptureArgs cpp_header "gui/LayerCaptureArgs.h";
+parcelable LayerCaptureArgs cpp_header "gui/LayerCaptureArgs.h" rust_type "gui_aidl_types_rs::LayerCaptureArgs";

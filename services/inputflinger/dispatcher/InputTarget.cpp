@@ -22,6 +22,8 @@
 #include <inttypes.h>
 #include <string>
 
+using android::base::Error;
+using android::base::Result;
 using android::base::StringPrintf;
 
 namespace android::inputdispatcher {
@@ -35,28 +37,29 @@ const static ui::Transform kIdentityTransform{};
 InputTarget::InputTarget(const std::shared_ptr<Connection>& connection, ftl::Flags<Flags> flags)
       : connection(connection), flags(flags) {}
 
-void InputTarget::addPointers(std::bitset<MAX_POINTER_ID + 1> newPointerIds,
-                              const ui::Transform& transform) {
+Result<void> InputTarget::addPointers(std::bitset<MAX_POINTER_ID + 1> newPointerIds,
+                                      const ui::Transform& transform) {
     // The pointerIds can be empty, but still a valid InputTarget. This can happen when there is no
     // valid pointer property from the input event.
     if (newPointerIds.none()) {
         setDefaultPointerTransform(transform);
-        return;
+        return {};
     }
 
     // Ensure that the new set of pointers doesn't overlap with the current set of pointers.
     if ((getPointerIds() & newPointerIds).any()) {
-        LOG(FATAL) << __func__ << " - overlap with incoming pointers "
-                   << bitsetToString(newPointerIds) << " in " << *this;
+        return Error() << __func__ << " - overlap with incoming pointers "
+                       << bitsetToString(newPointerIds) << " in " << *this;
     }
 
     for (auto& [existingTransform, existingPointers] : mPointerTransforms) {
         if (transform == existingTransform) {
             existingPointers |= newPointerIds;
-            return;
+            return {};
         }
     }
     mPointerTransforms.emplace_back(transform, newPointerIds);
+    return {};
 }
 
 void InputTarget::setDefaultPointerTransform(const ui::Transform& transform) {

@@ -1,17 +1,10 @@
-cc_binary {
+rust_binary {
     name: "sfdo",
+    srcs: ["sfdo.rs"],
 
-    srcs: ["sfdo.cpp"],
-
-    shared_libs: [
-        "libutils",
-        "libgui",
+    rustlibs: [
+        "android.gui-rust",
+        "libclap",
     ],
-
-    cflags: [
-        "-Wall",
-        "-Werror",
-        "-Wunused",
-        "-Wunreachable-code",
-    ],
+    edition: "2021",
 }

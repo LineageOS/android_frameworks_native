@@ -16,4 +16,4 @@
 
 package android.gui;
 
-parcelable LayerMetadata cpp_header "gui/LayerMetadata.h";
+parcelable LayerMetadata cpp_header "gui/LayerMetadata.h" rust_type "gui_aidl_types_rs::LayerMetadata";

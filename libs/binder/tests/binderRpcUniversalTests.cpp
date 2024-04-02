@@ -48,11 +48,13 @@ TEST(BinderRpc, CannotUseNextWireVersion) {
     EXPECT_FALSE(session->setProtocolVersion(RPC_WIRE_PROTOCOL_VERSION_NEXT + 15));
 }
 
+#ifndef BINDER_RPC_TO_TRUSTY_TEST
 TEST(BinderRpc, CanUseExperimentalWireVersion) {
     auto session = RpcSession::make();
     EXPECT_EQ(hasExperimentalRpc(),
               session->setProtocolVersion(RPC_WIRE_PROTOCOL_VERSION_EXPERIMENTAL));
 }
+#endif
 
 TEST_P(BinderRpc, Ping) {
     auto proc = createRpcTestSocketServerProcess({});
