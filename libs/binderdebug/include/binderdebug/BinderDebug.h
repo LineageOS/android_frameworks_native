@@ -44,4 +44,12 @@ status_t getBinderPidInfo(BinderDebugContext context, pid_t pid, BinderPidInfo* 
 status_t getBinderClientPids(BinderDebugContext context, pid_t pid, pid_t servicePid,
                              int32_t handle, std::vector<pid_t>* pids);
 
+/**
+ * Get the transactions for a given process from /dev/binderfs/binder_logs/transactions
+ * Return: OK if the file was found and the pid was found in the file.
+ *         -errno if there was an issue opening the file
+ *         NAME_NOT_FOUND if the pid wasn't found in the file
+ */
+status_t getBinderTransactions(pid_t pid, std::string& transactionOutput);
+
 } // namespace  android
