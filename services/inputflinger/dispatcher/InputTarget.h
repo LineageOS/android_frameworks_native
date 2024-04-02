@@ -92,7 +92,8 @@ public:
     InputTarget() = default;
     InputTarget(const std::shared_ptr<Connection>&, ftl::Flags<Flags> = {});
 
-    void addPointers(std::bitset<MAX_POINTER_ID + 1> pointerIds, const ui::Transform& transform);
+    android::base::Result<void> addPointers(std::bitset<MAX_POINTER_ID + 1> pointerIds,
+                                            const ui::Transform& transform);
     void setDefaultPointerTransform(const ui::Transform& transform);
 
     /**
