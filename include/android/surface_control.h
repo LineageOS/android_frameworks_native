@@ -358,7 +358,7 @@ void ASurfaceTransaction_setBuffer(ASurfaceTransaction* transaction,
  */
 void ASurfaceTransaction_setColor(ASurfaceTransaction* transaction,
                                   ASurfaceControl* surface_control, float r, float g, float b,
-                                  float alpha, ADataSpace dataspace)
+                                  float alpha, enum ADataSpace dataspace)
                                   __INTRODUCED_IN(29);
 
 /**
@@ -497,7 +497,7 @@ void ASurfaceTransaction_setBufferAlpha(ASurfaceTransaction* transaction,
  * Available since API level 29.
  */
 void ASurfaceTransaction_setBufferDataSpace(ASurfaceTransaction* transaction,
-                                            ASurfaceControl* surface_control, ADataSpace data_space)
+                                            ASurfaceControl* surface_control, enum ADataSpace data_space)
                                             __INTRODUCED_IN(29);
 
 /**
