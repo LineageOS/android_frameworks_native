@@ -12292,22 +12292,25 @@ TEST_F(InputDispatcherPilferPointersTest, MultiDevicePilfer) {
             AllOf(WithMotionAction(ACTION_CANCEL), WithDeviceId(touchDeviceId)));
 
     // Continue movements from both stylus and touch. Touch and stylus will be delivered to spy
+    // Instead of sending the two MOVE events for each input device together, and then receiving
+    // them both, process them one at at time. InputConsumer is always in the batching mode, which
+    // means that the two MOVE events will be initially put into a batch. Once the events are
+    // batched, the 'consume' call may result in any of the MOVE events to be sent first (depending
+    // on the implementation of InputConsumer), which would mean that the order of the received
+    // events could be different depending on whether there are 1 or 2 events pending in the
+    // InputChannel at the time the test calls 'consume'. To make assertions simpler here, and to
+    // avoid this confusing behaviour, send and receive each MOVE event separately.
     mDispatcher->notifyMotion(MotionArgsBuilder(AMOTION_EVENT_ACTION_MOVE, AINPUT_SOURCE_STYLUS)
                                       .deviceId(stylusDeviceId)
                                       .pointer(PointerBuilder(0, ToolType::STYLUS).x(51).y(52))
                                       .build());
+    spy->consumeMotionEvent(AllOf(WithMotionAction(ACTION_MOVE), WithDeviceId(stylusDeviceId)));
     mDispatcher->notifyMotion(
             MotionArgsBuilder(AMOTION_EVENT_ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN)
                     .deviceId(touchDeviceId)
                     .pointer(PointerBuilder(0, ToolType::FINGER).x(151).y(52))
                     .build());
-    std::vector<std::unique_ptr<MotionEvent>> spyEvents;
-    spyEvents.push_back(spy->consumeMotionEvent(WithMotionAction(ACTION_MOVE)));
-    spyEvents.push_back(spy->consumeMotionEvent(WithMotionAction(ACTION_MOVE)));
-    // TODO(b/332314982) : Figure out why these can be out of order
-    ASSERT_THAT(spyEvents,
-                UnorderedElementsAre(Pointee(WithDeviceId(stylusDeviceId)),
-                                     Pointee(WithDeviceId(touchDeviceId))));
+    spy->consumeMotionEvent(AllOf(WithMotionAction(ACTION_MOVE), WithDeviceId(touchDeviceId)));
 
     spy->assertNoEvents();
     leftWindow->assertNoEvents();
