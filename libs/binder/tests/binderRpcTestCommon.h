@@ -74,6 +74,12 @@ static inline std::vector<RpcSecurity> RpcSecurityValues() {
 }
 
 static inline bool hasExperimentalRpc() {
+#ifdef BINDER_RPC_TO_TRUSTY_TEST
+    // Trusty services do not support the experimental version,
+    // so that we can update the prebuilts separately.
+    // This covers the binderRpcToTrustyTest case on Android.
+    return false;
+#endif
 #ifdef __ANDROID__
     return base::GetProperty("ro.build.version.codename", "") != "REL";
 #else
