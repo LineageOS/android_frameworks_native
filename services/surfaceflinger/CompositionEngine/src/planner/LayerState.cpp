@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <common/FlagManager.h>
 #include <compositionengine/impl/planner/LayerState.h>
 
 namespace {
@@ -68,6 +69,10 @@ size_t LayerState::getHash() const {
     size_t hash = 0;
     for (const StateInterface* field : getNonUniqueFields()) {
         if (field->getField() == LayerStateField::Buffer) {
+            continue;
+        }
+        if (FlagManager::getInstance().cache_when_source_crop_layer_only_moved() &&
+            field->getField() == LayerStateField::SourceCrop) {
             continue;
         }
         android::hashCombineSingleHashed(hash, field->getHash());
