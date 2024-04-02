@@ -29,6 +29,7 @@
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wconversion"
 #include <aidl/android/hardware/power/IPower.h>
+#include <fmq/AidlMessageQueue.h>
 #include <powermanager/PowerHalController.h>
 #pragma clang diagnostic pop
 
@@ -237,6 +238,7 @@ private:
     bool shouldCreateSessionWithConfig() REQUIRES(mHintSessionMutex);
 
     bool ensurePowerHintSessionRunning() REQUIRES(mHintSessionMutex);
+    void setUpFmq() REQUIRES(mHintSessionMutex);
     std::unordered_map<DisplayId, DisplayTimingData> mDisplayTimingData;
     // Current frame's delay
     Duration mFrameDelayDuration{0ns};
@@ -272,6 +274,15 @@ private:
     bool mHasDisplayUpdateImminent = true;
     // Queue of actual durations saved to report
     std::vector<aidl::android::hardware::power::WorkDuration> mHintSessionQueue;
+    std::unique_ptr<::android::AidlMessageQueue<
+            aidl::android::hardware::power::ChannelMessage,
+            ::aidl::android::hardware::common::fmq::SynchronizedReadWrite>>
+            mMsgQueue GUARDED_BY(mHintSessionMutex);
+    std::unique_ptr<::android::AidlMessageQueue<
+            int8_t, ::aidl::android::hardware::common::fmq::SynchronizedReadWrite>>
+            mFlagQueue GUARDED_BY(mHintSessionMutex);
+    android::hardware::EventFlag* mEventFlag;
+    uint32_t mFmqWriteMask;
     // The latest values we have received for target and actual
     Duration mTargetDuration = kDefaultTargetDuration;
     // The list of thread ids, stored so we can restart the session from this class if needed
@@ -306,6 +317,12 @@ private:
     // How long we expect hwc to run after the present call until it waits for the fence
     static constexpr const Duration kFenceWaitStartDelayValidated{150us};
     static constexpr const Duration kFenceWaitStartDelaySkippedValidate{250us};
+
+    void sendHintSessionHint(aidl::android::hardware::power::SessionHint hint);
+
+    template <aidl::android::hardware::power::ChannelMessage::ChannelMessageContents::Tag T,
+              class In>
+    bool writeHintSessionMessage(In* elements, size_t count) REQUIRES(mHintSessionMutex);
 };
 
 } // namespace impl

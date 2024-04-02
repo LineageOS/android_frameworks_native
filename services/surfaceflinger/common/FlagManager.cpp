@@ -249,5 +249,6 @@ FLAG_MANAGER_SERVER_FLAG_IMPORTED(adpf_use_fmq_channel, "", android::os)
 /// Trunk stable readonly flags from outside SurfaceFlinger ///
 FLAG_MANAGER_READ_ONLY_FLAG_IMPORTED(idle_screen_refresh_rate_timeout, "",
                                      com::android::server::display::feature::flags)
+FLAG_MANAGER_READ_ONLY_FLAG_IMPORTED(adpf_use_fmq_channel_fixed, "", android::os)
 
 } // namespace android
