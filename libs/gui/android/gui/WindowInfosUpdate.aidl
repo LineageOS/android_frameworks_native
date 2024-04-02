@@ -19,4 +19,4 @@ package android.gui;
 import android.gui.DisplayInfo;
 import android.gui.WindowInfo;
 
-parcelable WindowInfosUpdate cpp_header "gui/WindowInfosUpdate.h";
+parcelable WindowInfosUpdate cpp_header "gui/WindowInfosUpdate.h" rust_type "gui_aidl_types_rs::WindowInfosUpdate";

@@ -16,4 +16,4 @@
 
 package android.gui;
 
-parcelable ScreenCaptureResults cpp_header "gui/ScreenCaptureResults.h";
+parcelable ScreenCaptureResults cpp_header "gui/ScreenCaptureResults.h" rust_type "gui_aidl_types_rs::ScreenCaptureResults";

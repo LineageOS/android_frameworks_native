@@ -1,0 +1,85 @@
+// Copyright 2024 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package {
+    // See: http://go/android-license-faq
+    // A large-scale-change added 'default_applicable_licenses' to import
+    // all of the 'license_kinds' from "frameworks_native_license"
+    // to get the below license kinds:
+    //   SPDX-license-identifier-Apache-2.0
+    default_applicable_licenses: ["frameworks_native_license"],
+    default_team: "trendy_team_android_core_graphics_stack",
+}
+
+filegroup {
+    name: "libgui_unstructured_aidl_files",
+    srcs: [
+        ":libgui_extra_unstructured_aidl_files",
+
+        "android/gui/BitTube.aidl",
+        "android/gui/CaptureArgs.aidl",
+        "android/gui/DisplayCaptureArgs.aidl",
+        "android/gui/LayerCaptureArgs.aidl",
+        "android/gui/LayerMetadata.aidl",
+        "android/gui/ParcelableVsyncEventData.aidl",
+        "android/gui/ScreenCaptureResults.aidl",
+    ],
+}
+
+aidl_library {
+    name: "libgui_unstructured_aidl",
+    hdrs: [":libgui_unstructured_aidl_files"],
+}
+
+filegroup {
+    name: "libgui_interface_aidl_files",
+    srcs: [
+        ":libgui_extra_aidl_files",
+        "**/*.aidl",
+    ],
+    exclude_srcs: [":libgui_unstructured_aidl_files"],
+}
+
+aidl_interface {
+    name: "android.gui",
+    unstable: true,
+    srcs: [
+        ":libgui_interface_aidl_files",
+    ],
+    include_dirs: [
+        "frameworks/native/libs/gui",
+        "frameworks/native/libs/gui/aidl",
+    ],
+    headers: [
+        "libgui_aidl_hdrs",
+        "libgui_extra_unstructured_aidl_hdrs",
+    ],
+    backend: {
+        rust: {
+            enabled: true,
+            additional_rustlibs: [
+                "libgui_aidl_types_rs",
+            ],
+        },
+        java: {
+            enabled: false,
+        },
+        cpp: {
+            enabled: false,
+        },
+        ndk: {
+            enabled: false,
+        },
+    },
+}

@@ -1,0 +1,23 @@
+rust_defaults {
+    name: "libgui_aidl_types_defaults",
+    srcs: ["src/lib.rs"],
+    rustlibs: [
+        "libbinder_rs",
+    ],
+}
+
+rust_library {
+    name: "libgui_aidl_types_rs",
+    crate_name: "gui_aidl_types_rs",
+    defaults: ["libgui_aidl_types_defaults"],
+
+    // Currently necessary for host builds
+    // TODO(b/31559095): bionic on host should define this
+    target: {
+        darwin: {
+            enabled: false,
+        },
+    },
+    min_sdk_version: "VanillaIceCream",
+    vendor_available: true,
+}
