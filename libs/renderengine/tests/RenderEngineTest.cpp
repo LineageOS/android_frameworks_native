@@ -1687,11 +1687,6 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransform_sourceDataspace) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransform_outputDataspace) {
-    // TODO: b/331445583 - Fix in Graphite and re-enable.
-    if (GetParam()->skiaBackend() == renderengine::RenderEngine::SkiaBackend::GRAPHITE) {
-        GTEST_SKIP();
-    }
-
     const auto& renderEngineFactory = GetParam();
     // skip for non color management
     if (!renderEngineFactory->apiSupported()) {
@@ -1842,11 +1837,6 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformAndSourceDataspace_o
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformAndOutputDataspace_opaqueBufferSource) {
-    // TODO: b/331447131 - Fix in Graphite and re-enable.
-    if (GetParam()->skiaBackend() == renderengine::RenderEngine::SkiaBackend::GRAPHITE) {
-        GTEST_SKIP();
-    }
-
     const auto& renderEngineFactory = GetParam();
     // skip for non color management
     if (!renderEngineFactory->apiSupported()) {
@@ -1997,11 +1987,6 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformAndSourceDataspace_b
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformAndOutputDataspace_bufferSource) {
-    // TODO: b/331446495 - Fix in Graphite and re-enable.
-    if (GetParam()->skiaBackend() == renderengine::RenderEngine::SkiaBackend::GRAPHITE) {
-        GTEST_SKIP();
-    }
-
     const auto& renderEngineFactory = GetParam();
     // skip for non color management
     if (!renderEngineFactory->apiSupported()) {
