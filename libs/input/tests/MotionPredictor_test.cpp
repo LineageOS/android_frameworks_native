@@ -291,12 +291,12 @@ TEST_WITH_FLAGS(
     MotionPredictor predictor(/*predictionTimestampOffsetNanos=*/0,
                               []() { return true /*enable prediction*/; });
 
-    // Jerk is medium (1.5 normalized, which is halfway between LOW_JANK and HIGH_JANK)
-    predictor.record(getMotionEvent(DOWN, 0, 4, 20ms));
-    predictor.record(getMotionEvent(MOVE, 0, 6.25, 30ms));
-    predictor.record(getMotionEvent(MOVE, 0, 9.4, 40ms));
-    predictor.record(getMotionEvent(MOVE, 0, 13.6, 50ms));
-    predictor.record(getMotionEvent(MOVE, 0, 19, 60ms));
+    // Jerk is medium (1.05 normalized, which is halfway between LOW_JANK and HIGH_JANK)
+    predictor.record(getMotionEvent(DOWN, 0, 5.2, 20ms));
+    predictor.record(getMotionEvent(MOVE, 0, 11.5, 30ms));
+    predictor.record(getMotionEvent(MOVE, 0, 22, 40ms));
+    predictor.record(getMotionEvent(MOVE, 0, 37.75, 50ms));
+    predictor.record(getMotionEvent(MOVE, 0, 59.8, 60ms));
     std::unique_ptr<MotionEvent> predicted = predictor.predict(82 * NSEC_PER_MSEC);
     EXPECT_NE(nullptr, predicted);
     // Halfway between LOW_JANK and HIGH_JANK means that half of the predictions
