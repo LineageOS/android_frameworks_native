@@ -291,5 +291,9 @@ status_t GraphicBufferAllocator::free(buffer_handle_t handle)
     return NO_ERROR;
 }
 
+bool GraphicBufferAllocator::supportsAdditionalOptions() const {
+    return mAllocator->supportsAdditionalOptions();
+}
+
 // ---------------------------------------------------------------------------
 }; // namespace android

@@ -107,6 +107,8 @@ public:
     void dump(std::string& res, bool less = true) const;
     static void dumpToSystemLog(bool less = true);
 
+    bool supportsAdditionalOptions() const;
+
 protected:
     struct alloc_rec_t {
         uint32_t width;

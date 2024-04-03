@@ -16,3 +16,11 @@ flag {
   bug: "310927247"
   is_fixed_read_only: true
 }
+
+flag {
+  name: "bq_extendedallocate"
+  namespace: "core_graphics"
+  description: "Add BQ support for allocate with extended options"
+  bug: "268382490"
+  is_fixed_read_only: true
+}

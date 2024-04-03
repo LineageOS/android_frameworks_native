@@ -215,6 +215,16 @@ public:
                                   int8_t changeFrameRateStrategy);
     virtual status_t setFrameTimelineInfo(uint64_t frameNumber, const FrameTimelineInfo& info);
 
+#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(BQ_EXTENDEDALLOCATE)
+    /**
+     * Set additional options to be passed when allocating a buffer. Only valid if IAllocator-V2
+     * or newer is available, otherwise will return INVALID_OPERATION. Only allowed to be called
+     * after connect and options are cleared when disconnect happens. Returns NO_INIT if not
+     * connected
+     */
+    status_t setAdditionalOptions(const std::vector<gui::AdditionalOptions>& options);
+#endif
+
 protected:
     virtual ~Surface();
 
@@ -302,6 +312,7 @@ private:
     int dispatchGetLastQueuedBuffer(va_list args);
     int dispatchGetLastQueuedBuffer2(va_list args);
     int dispatchSetFrameTimelineInfo(va_list args);
+    int dispatchSetAdditionalOptions(va_list args);
 
     std::mutex mNameMutex;
     std::string mName;

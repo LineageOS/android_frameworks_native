@@ -17,6 +17,8 @@
 #ifndef ANDROID_GUI_BUFFERSLOT_H
 #define ANDROID_GUI_BUFFERSLOT_H
 
+#include <com_android_graphics_libgui_flags.h>
+
 #include <ui/Fence.h>
 #include <ui/GraphicBuffer.h>
 
@@ -230,6 +232,11 @@ struct BufferSlot {
     // producer. If so, it needs to set the BUFFER_NEEDS_REALLOCATION flag when
     // dequeued to prevent the producer from using a stale cached buffer.
     bool mNeedsReallocation;
+
+#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(BQ_EXTENDEDALLOCATE)
+    // The generation id of the additional options that mGraphicBuffer was allocated with
+    uint32_t mAdditionalOptionsGenerationId = 0;
+#endif
 };
 
 } // namespace android

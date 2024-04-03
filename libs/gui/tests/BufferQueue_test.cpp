@@ -28,6 +28,8 @@
 
 #include <ui/GraphicBuffer.h>
 
+#include <android-base/properties.h>
+
 #include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
 #include <binder/ProcessState.h>
@@ -46,6 +48,10 @@
 #include <com_android_graphics_libgui_flags.h>
 
 using namespace std::chrono_literals;
+
+static bool IsCuttlefish() {
+    return ::android::base::GetProperty("ro.product.board", "") == "cutf";
+}
 
 namespace android {
 using namespace com::android::graphics::libgui;
@@ -1437,6 +1443,57 @@ TEST(BufferQueueThreading, TestProducerDequeueConsumerDestroy) {
     ASSERT_EQ(std::future_status::ready, render.wait_for(1s));
     EXPECT_EQ(nullptr, luckyListener.get());
     EXPECT_EQ(nullptr, bufferConsumer.get());
+}
+
+TEST_F(BufferQueueTest, TestAdditionalOptions) {
+    sp<IGraphicBufferProducer> producer;
+    sp<IGraphicBufferConsumer> consumer;
+    BufferQueue::createBufferQueue(&producer, &consumer);
+
+    sp<BufferItemConsumer> bufferConsumer =
+            sp<BufferItemConsumer>::make(consumer, GRALLOC_USAGE_SW_READ_OFTEN, 2);
+    ASSERT_NE(nullptr, bufferConsumer.get());
+    sp<Surface> surface = sp<Surface>::make(producer);
+    native_window_set_buffers_format(surface.get(), PIXEL_FORMAT_RGBA_8888);
+    native_window_set_buffers_dimensions(surface.get(), 100, 100);
+
+    std::array<AHardwareBufferLongOptions, 1> extras = {{
+            {.name = "android.hardware.graphics.common.Dataspace", ADATASPACE_DISPLAY_P3},
+    }};
+
+    ASSERT_EQ(NO_INIT,
+              native_window_set_buffers_additional_options(surface.get(), extras.data(),
+                                                           extras.size()));
+
+    if (!IsCuttlefish()) {
+        GTEST_SKIP() << "Not cuttlefish";
+    }
+
+    ASSERT_EQ(OK, native_window_api_connect(surface.get(), NATIVE_WINDOW_API_CPU));
+    ASSERT_EQ(OK,
+              native_window_set_buffers_additional_options(surface.get(), extras.data(),
+                                                           extras.size()));
+
+    ANativeWindowBuffer* windowBuffer = nullptr;
+    int fence = -1;
+    ASSERT_EQ(OK, ANativeWindow_dequeueBuffer(surface.get(), &windowBuffer, &fence));
+
+    AHardwareBuffer* buffer = ANativeWindowBuffer_getHardwareBuffer(windowBuffer);
+    ASSERT_TRUE(buffer);
+    ADataSpace dataSpace = AHardwareBuffer_getDataSpace(buffer);
+    EXPECT_EQ(ADATASPACE_DISPLAY_P3, dataSpace);
+
+    ANativeWindow_cancelBuffer(surface.get(), windowBuffer, -1);
+
+    // Check that reconnecting properly clears the options
+    ASSERT_EQ(OK, native_window_api_disconnect(surface.get(), NATIVE_WINDOW_API_CPU));
+    ASSERT_EQ(OK, native_window_api_connect(surface.get(), NATIVE_WINDOW_API_CPU));
+
+    ASSERT_EQ(OK, ANativeWindow_dequeueBuffer(surface.get(), &windowBuffer, &fence));
+    buffer = ANativeWindowBuffer_getHardwareBuffer(windowBuffer);
+    ASSERT_TRUE(buffer);
+    dataSpace = AHardwareBuffer_getDataSpace(buffer);
+    EXPECT_EQ(ADATASPACE_UNKNOWN, dataSpace);
 }
 
 } // namespace android
