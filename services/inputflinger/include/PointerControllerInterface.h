@@ -142,10 +142,13 @@ public:
     /* Sets the custom pointer icon for mice or styluses. */
     virtual void setCustomPointerIcon(const SpriteIcon& icon) = 0;
 
-    /* Sets the flag to skip screenshot of the pointer indicators on the display matching the
-     * provided displayId.
+    /* Sets the flag to skip screenshot of the pointer indicators on the display for the specified
+     * displayId. This flag can only be reset with resetSkipScreenshotFlags()
      */
-    virtual void setSkipScreenshot(ui::LogicalDisplayId displayId, bool skip) = 0;
+    virtual void setSkipScreenshotFlagForDisplay(ui::LogicalDisplayId displayId) = 0;
+
+    /* Resets the flag to skip screenshot of the pointer indicators for all displays. */
+    virtual void clearSkipScreenshotFlags() = 0;
 };
 
 } // namespace android
