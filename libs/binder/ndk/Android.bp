@@ -50,6 +50,7 @@ cc_library {
     ],
 
     cflags: [
+        "-DBINDER_WITH_KERNEL_IPC",
         "-Wall",
         "-Wextra",
         "-Werror",
