@@ -2443,7 +2443,6 @@ status_t SurfaceComposerClient::createSurfaceChecked(const String8& name, uint32
                                                      const sp<IBinder>& parentHandle,
                                                      LayerMetadata metadata,
                                                      uint32_t* outTransformHint) {
-    sp<SurfaceControl> sur;
     status_t err = mStatus;
 
     if (mStatus == NO_ERROR) {

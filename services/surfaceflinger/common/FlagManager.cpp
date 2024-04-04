@@ -141,6 +141,7 @@ void FlagManager::dump(std::string& result) const {
     DUMP_READ_ONLY_FLAG(idle_screen_refresh_rate_timeout);
     DUMP_READ_ONLY_FLAG(graphite_renderengine);
     DUMP_READ_ONLY_FLAG(latch_unsignaled_with_auto_refresh_changed);
+    DUMP_READ_ONLY_FLAG(deprecate_vsync_sf);
 
 #undef DUMP_READ_ONLY_FLAG
 #undef DUMP_SERVER_FLAG
@@ -232,6 +233,7 @@ FLAG_MANAGER_READ_ONLY_FLAG(protected_if_client, "")
 FLAG_MANAGER_READ_ONLY_FLAG(ce_fence_promise, "");
 FLAG_MANAGER_READ_ONLY_FLAG(graphite_renderengine, "debug.renderengine.graphite")
 FLAG_MANAGER_READ_ONLY_FLAG(latch_unsignaled_with_auto_refresh_changed, "");
+FLAG_MANAGER_READ_ONLY_FLAG(deprecate_vsync_sf, "");
 
 /// Trunk stable server flags ///
 FLAG_MANAGER_SERVER_FLAG(refresh_rate_overlay_on_external_display, "")

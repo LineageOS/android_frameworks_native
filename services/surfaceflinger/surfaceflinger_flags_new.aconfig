@@ -21,6 +21,17 @@ flag {
   }
  } # ce_fence_promise
 
+ flag {
+  name: "deprecate_vsync_sf"
+  namespace: "core_graphics"
+  description: "Depracate eVsyncSourceSurfaceFlinger and use vsync_app everywhere"
+  bug: "162235855"
+  is_fixed_read_only: true
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+} # deprecate_vsync_sf
+
 flag {
   name: "frame_rate_category_mrr"
   namespace: "core_graphics"

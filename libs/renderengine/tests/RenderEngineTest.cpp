@@ -1265,7 +1265,12 @@ void RenderEngineTest::fillRedBufferWithPremultiplyAlpha() {
 
 void RenderEngineTest::fillBufferWithPremultiplyAlpha() {
     fillRedBufferWithPremultiplyAlpha();
-    expectBufferColor(fullscreenRect(), 128, 0, 0, 128);
+    // Different backends and GPUs may round 255 * 0.5 = 127.5 differently, but
+    // either 127 or 128 are acceptable. Checking both 127 and 128 with a
+    // tolerance of 1 allows either 127 or 128 to pass, while preventing 126 or
+    // 129 from erroneously passing.
+    expectBufferColor(fullscreenRect(), 127, 0, 0, 127, 1);
+    expectBufferColor(fullscreenRect(), 128, 0, 0, 128, 1);
 }
 
 void RenderEngineTest::fillRedBufferWithoutPremultiplyAlpha() {
@@ -1687,11 +1692,6 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransform_sourceDataspace) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransform_outputDataspace) {
-    // TODO: b/331445583 - Fix in Graphite and re-enable.
-    if (GetParam()->skiaBackend() == renderengine::RenderEngine::SkiaBackend::GRAPHITE) {
-        GTEST_SKIP();
-    }
-
     const auto& renderEngineFactory = GetParam();
     // skip for non color management
     if (!renderEngineFactory->apiSupported()) {
@@ -1842,11 +1842,6 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformAndSourceDataspace_o
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformAndOutputDataspace_opaqueBufferSource) {
-    // TODO: b/331447131 - Fix in Graphite and re-enable.
-    if (GetParam()->skiaBackend() == renderengine::RenderEngine::SkiaBackend::GRAPHITE) {
-        GTEST_SKIP();
-    }
-
     const auto& renderEngineFactory = GetParam();
     // skip for non color management
     if (!renderEngineFactory->apiSupported()) {
@@ -1997,11 +1992,6 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformAndSourceDataspace_b
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBufferColorTransformAndOutputDataspace_bufferSource) {
-    // TODO: b/331446495 - Fix in Graphite and re-enable.
-    if (GetParam()->skiaBackend() == renderengine::RenderEngine::SkiaBackend::GRAPHITE) {
-        GTEST_SKIP();
-    }
-
     const auto& renderEngineFactory = GetParam();
     // skip for non color management
     if (!renderEngineFactory->apiSupported()) {
@@ -2061,11 +2051,6 @@ TEST_P(RenderEngineTest, drawLayers_fillBufferTextureTransform) {
 }
 
 TEST_P(RenderEngineTest, drawLayers_fillBuffer_premultipliesAlpha) {
-    // TODO: b/331446496 - Fix in Graphite and re-enable.
-    if (GetParam()->skiaBackend() == renderengine::RenderEngine::SkiaBackend::GRAPHITE) {
-        GTEST_SKIP();
-    }
-
     if (!GetParam()->apiSupported()) {
         GTEST_SKIP();
     }

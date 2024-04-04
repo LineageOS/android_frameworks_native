@@ -307,7 +307,7 @@ void ASurfaceTransaction_reparent(ASurfaceTransaction* transaction,
 /**
  * Parameter for ASurfaceTransaction_setVisibility().
  */
-enum {
+enum ASurfaceTransactionVisibility : int8_t {
     ASURFACE_TRANSACTION_VISIBILITY_HIDE = 0,
     ASURFACE_TRANSACTION_VISIBILITY_SHOW = 1,
 };
@@ -319,7 +319,8 @@ enum {
  * Available since API level 29.
  */
 void ASurfaceTransaction_setVisibility(ASurfaceTransaction* transaction,
-                                       ASurfaceControl* surface_control, int8_t visibility)
+                                       ASurfaceControl* surface_control,
+                                       enum ASurfaceTransactionVisibility visibility)
                                        __INTRODUCED_IN(29);
 
 /**
@@ -362,7 +363,7 @@ void ASurfaceTransaction_setBuffer(ASurfaceTransaction* transaction,
  */
 void ASurfaceTransaction_setColor(ASurfaceTransaction* transaction,
                                   ASurfaceControl* surface_control, float r, float g, float b,
-                                  float alpha, ADataSpace dataspace)
+                                  float alpha, enum ADataSpace dataspace)
                                   __INTRODUCED_IN(29);
 
 /**
@@ -440,7 +441,7 @@ void ASurfaceTransaction_setScale(ASurfaceTransaction* transaction,
 /**
  * Parameter for ASurfaceTransaction_setBufferTransparency().
  */
-enum {
+enum ASurfaceTransactionTransparency : int8_t {
     ASURFACE_TRANSACTION_TRANSPARENCY_TRANSPARENT = 0,
     ASURFACE_TRANSACTION_TRANSPARENCY_TRANSLUCENT = 1,
     ASURFACE_TRANSACTION_TRANSPARENCY_OPAQUE = 2,
@@ -454,7 +455,7 @@ enum {
  */
 void ASurfaceTransaction_setBufferTransparency(ASurfaceTransaction* transaction,
                                                ASurfaceControl* surface_control,
-                                               int8_t transparency)
+                                               enum ASurfaceTransactionTransparency transparency)
                                                __INTRODUCED_IN(29);
 
 /**
@@ -501,7 +502,7 @@ void ASurfaceTransaction_setBufferAlpha(ASurfaceTransaction* transaction,
  * Available since API level 29.
  */
 void ASurfaceTransaction_setBufferDataSpace(ASurfaceTransaction* transaction,
-                                            ASurfaceControl* surface_control, ADataSpace data_space)
+                                            ASurfaceControl* surface_control, enum ADataSpace data_space)
                                             __INTRODUCED_IN(29);
 
 /**

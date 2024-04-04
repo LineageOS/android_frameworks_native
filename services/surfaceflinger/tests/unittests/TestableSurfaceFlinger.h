@@ -492,9 +492,11 @@ public:
 
     auto& getTransactionQueue() { return mFlinger->mTransactionHandler.mLocklessTransactionQueue; }
     auto& getPendingTransactionQueue() {
+        ftl::FakeGuard guard(kMainThreadContext);
         return mFlinger->mTransactionHandler.mPendingTransactionQueues;
     }
     size_t getPendingTransactionCount() {
+        ftl::FakeGuard guard(kMainThreadContext);
         return mFlinger->mTransactionHandler.mPendingTransactionCount.load();
     }
 
@@ -513,7 +515,9 @@ public:
     }
 
     auto setTransactionStateInternal(TransactionState& transaction) {
-        return mFlinger->mTransactionHandler.queueTransaction(std::move(transaction));
+        return FTL_FAKE_GUARD(kMainThreadContext,
+                              mFlinger->mTransactionHandler.queueTransaction(
+                                      std::move(transaction)));
     }
 
     auto flushTransactionQueues() {
@@ -598,15 +602,20 @@ public:
     }
 
     void injectLegacyLayer(sp<Layer> layer) {
-        mFlinger->mLegacyLayers[static_cast<uint32_t>(layer->sequence)] = layer;
+        FTL_FAKE_GUARD(kMainThreadContext,
+                       mFlinger->mLegacyLayers[static_cast<uint32_t>(layer->sequence)] = layer);
     };
 
-    void releaseLegacyLayer(uint32_t sequence) { mFlinger->mLegacyLayers.erase(sequence); };
+    void releaseLegacyLayer(uint32_t sequence) {
+        FTL_FAKE_GUARD(kMainThreadContext, mFlinger->mLegacyLayers.erase(sequence));
+    };
 
     auto setLayerHistoryDisplayArea(uint32_t displayArea) {
         return mFlinger->mScheduler->onActiveDisplayAreaChanged(displayArea);
     };
-    auto updateLayerHistory(nsecs_t now) { return mFlinger->updateLayerHistory(now); };
+    auto updateLayerHistory(nsecs_t now) {
+        return FTL_FAKE_GUARD(kMainThreadContext, mFlinger->updateLayerHistory(now));
+    };
     auto setDaltonizerType(ColorBlindnessType type) {
         mFlinger->mDaltonizer.setType(type);
         return mFlinger->updateColorMatrixLocked();
