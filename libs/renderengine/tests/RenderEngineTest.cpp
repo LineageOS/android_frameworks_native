@@ -116,7 +116,7 @@ public:
                         .setImageCacheSize(1)
                         .setEnableProtectedContext(false)
                         .setPrecacheToneMapperShaderOnly(false)
-                        .setSupportsBackgroundBlur(true)
+                        .setBlurAlgorithm(renderengine::RenderEngine::BlurAlgorithm::KAWASE)
                         .setContextPriority(renderengine::RenderEngine::ContextPriority::MEDIUM)
                         .setThreaded(renderengine::RenderEngine::Threaded::NO)
                         .setGraphicsApi(graphicsApi())
