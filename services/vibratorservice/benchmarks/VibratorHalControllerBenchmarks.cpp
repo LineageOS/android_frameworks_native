@@ -17,7 +17,9 @@
 #define LOG_TAG "VibratorHalControllerBenchmarks"
 
 #include <benchmark/benchmark.h>
+#include <binder/ProcessState.h>
 #include <vibratorservice/VibratorHalController.h>
+#include <future>
 
 using ::android::enum_range;
 using ::android::hardware::vibrator::CompositeEffect;
@@ -30,14 +32,90 @@ using ::benchmark::kMicrosecond;
 using ::benchmark::State;
 using ::benchmark::internal::Benchmark;
 
+using std::chrono::milliseconds;
+
 using namespace android;
 using namespace std::chrono_literals;
 
+// Fixed number of iterations for benchmarks that trigger a vibration on the loop.
+// They require slow cleanup to ensure a stable state on each run and less noisy metrics.
+static constexpr auto VIBRATION_ITERATIONS = 500;
+
+// Timeout to wait for vibration callback completion.
+static constexpr auto VIBRATION_CALLBACK_TIMEOUT = 100ms;
+
+// Max duration the vibrator can be turned on, in milliseconds.
+static constexpr auto MAX_ON_DURATION_MS = milliseconds(UINT16_MAX);
+
+// Helper to wait for the vibrator to become idle between vibrate bench iterations.
+class HalCallback {
+public:
+    HalCallback(std::function<void()>&& waitFn, std::function<void()>&& completeFn)
+          : mWaitFn(std::move(waitFn)), mCompleteFn(std::move(completeFn)) {}
+    ~HalCallback() = default;
+
+    std::function<void()> completeFn() const { return mCompleteFn; }
+
+    void waitForComplete() const { mWaitFn(); }
+
+private:
+    std::function<void()> mWaitFn;
+    std::function<void()> mCompleteFn;
+};
+
+// Helper for vibration callbacks, kept by the Fixture until all pending callbacks are done.
+class HalCallbacks {
+public:
+    HalCallback next() {
+        auto id = mCurrentId++;
+        mPendingPromises[id] = std::promise<void>();
+        mPendingFutures[id] = mPendingPromises[id].get_future(); // Can only be called once.
+        return HalCallback([&, id]() { waitForComplete(id); }, [&, id]() { onComplete(id); });
+    }
+
+    void onComplete(int32_t id) {
+        mPendingPromises[id].set_value();
+        mPendingPromises.erase(id);
+    }
+
+    void waitForComplete(int32_t id) {
+        // Wait until the HAL has finished processing previous vibration before starting a new one,
+        // so the HAL state is consistent on each run and metrics are less noisy. Some of the newest
+        // HAL implementations are waiting on previous vibration cleanup and might be significantly
+        // slower, so make sure we measure vibrations on a clean slate.
+        if (mPendingFutures[id].wait_for(VIBRATION_CALLBACK_TIMEOUT) == std::future_status::ready) {
+            mPendingFutures.erase(id);
+        }
+    }
+
+    void waitForPending() {
+        // Wait for pending callbacks from the test, possibly skipped with error.
+        for (auto& [id, future] : mPendingFutures) {
+            future.wait_for(VIBRATION_CALLBACK_TIMEOUT);
+        }
+        mPendingFutures.clear();
+        mPendingPromises.clear();
+    }
+
+private:
+    std::map<int32_t, std::promise<void>> mPendingPromises;
+    std::map<int32_t, std::future<void>> mPendingFutures;
+    int32_t mCurrentId;
+};
+
 class VibratorBench : public Fixture {
 public:
-    void SetUp(State& /*state*/) override { mController.init(); }
+    void SetUp(State& /*state*/) override {
+        android::ProcessState::self()->setThreadPoolMaxThreadCount(1);
+        android::ProcessState::self()->startThreadPool();
+        mController.init();
+    }
 
-    void TearDown(State& state) override { turnVibratorOff(state); }
+    void TearDown(State& /*state*/) override {
+        turnVibratorOff();
+        disableExternalControl();
+        mCallbacks.waitForPending();
+    }
 
     static void DefaultConfig(Benchmark* b) { b->Unit(kMicrosecond); }
 
@@ -47,38 +125,59 @@ public:
 
 protected:
     vibrator::HalController mController;
+    HalCallbacks mCallbacks;
+
+    static void SlowBenchConfig(Benchmark* b) { b->Iterations(VIBRATION_ITERATIONS); }
 
     auto getOtherArg(const State& state, std::size_t index) const { return state.range(index + 0); }
 
-    bool hasCapabilities(vibrator::Capabilities&& query, State& state) {
+    vibrator::HalResult<void> turnVibratorOff() {
+        return mController.doWithRetry<void>([](auto hal) { return hal->off(); }, "off");
+    }
+
+    vibrator::HalResult<void> disableExternalControl() {
+        auto disableExternalControlFn = [](auto hal) { return hal->setExternalControl(false); };
+        return mController.doWithRetry<void>(disableExternalControlFn, "setExternalControl false");
+    }
+
+    bool shouldSkipWithMissingCapabilityMessage(vibrator::Capabilities query, State& state) {
         auto result = mController.getInfo().capabilities;
         if (result.isFailed()) {
             state.SkipWithError(result.errorMessage());
-            return false;
+            return true;
         }
         if (!result.isOk()) {
-            return false;
+            state.SkipWithMessage("capability result is unsupported");
+            return true;
         }
-        return (result.value() & query) == query;
-    }
-
-    void turnVibratorOff(State& state) {
-        checkHalResult(halCall<void>(mController, [](auto hal) { return hal->off(); }), state);
+        if ((result.value() & query) != query) {
+            state.SkipWithMessage("missing capability");
+            return true;
+        }
+        return false;
     }
 
     template <class R>
-    bool checkHalResult(const vibrator::HalResult<R>& result, State& state) {
+    bool shouldSkipWithError(const vibrator::HalFunction<vibrator::HalResult<R>>& halFn,
+                             const char* label, State& state) {
+        return shouldSkipWithError(mController.doWithRetry<R>(halFn, label), state);
+    }
+
+    template <class R>
+    bool shouldSkipWithError(const vibrator::HalResult<R>& result, State& state) {
         if (result.isFailed()) {
             state.SkipWithError(result.errorMessage());
-            return false;
+            return true;
         }
-        return true;
+        return false;
     }
+};
 
-    template <class R>
-    vibrator::HalResult<R> halCall(vibrator::HalController& controller,
-                                   const vibrator::HalFunction<vibrator::HalResult<R>>& halFn) {
-        return controller.doWithRetry<R>(halFn, "benchmark");
+class SlowVibratorBench : public VibratorBench {
+public:
+    static void DefaultConfig(Benchmark* b) {
+        VibratorBench::DefaultConfig(b);
+        SlowBenchConfig(b);
     }
 };
 
@@ -91,25 +190,32 @@ protected:
 
 BENCHMARK_WRAPPER(VibratorBench, init, {
     for (auto _ : state) {
+        // Setup
         state.PauseTiming();
         vibrator::HalController controller;
         state.ResumeTiming();
+
+        // Test
         controller.init();
     }
 });
 
 BENCHMARK_WRAPPER(VibratorBench, initCached, {
+    // First call to cache values.
+    mController.init();
+
     for (auto _ : state) {
         mController.init();
     }
 });
 
 BENCHMARK_WRAPPER(VibratorBench, ping, {
+    auto pingFn = [](auto hal) { return hal->ping(); };
+
     for (auto _ : state) {
-        state.ResumeTiming();
-        auto ret = halCall<void>(mController, [](auto hal) { return hal->ping(); });
-        state.PauseTiming();
-        checkHalResult(ret, state);
+        if (shouldSkipWithError<void>(pingFn, "ping", state)) {
+            return;
+        }
     }
 });
 
@@ -119,164 +225,131 @@ BENCHMARK_WRAPPER(VibratorBench, tryReconnect, {
     }
 });
 
-BENCHMARK_WRAPPER(VibratorBench, on, {
-    auto duration = 60s;
-    auto callback = []() {};
+BENCHMARK_WRAPPER(SlowVibratorBench, on, {
+    auto duration = MAX_ON_DURATION_MS;
 
     for (auto _ : state) {
-        state.ResumeTiming();
-        auto ret =
-                halCall<void>(mController, [&](auto hal) { return hal->on(duration, callback); });
+        // Setup
         state.PauseTiming();
-        if (checkHalResult(ret, state)) {
-            turnVibratorOff(state);
+        auto cb = mCallbacks.next();
+        auto onFn = [&](auto hal) { return hal->on(duration, cb.completeFn()); };
+        state.ResumeTiming();
+
+        // Test
+        if (shouldSkipWithError<void>(onFn, "on", state)) {
+            return;
         }
+
+        // Cleanup
+        state.PauseTiming();
+        if (shouldSkipWithError(turnVibratorOff(), state)) {
+            return;
+        }
+        cb.waitForComplete();
+        state.ResumeTiming();
     }
 });
 
-BENCHMARK_WRAPPER(VibratorBench, off, {
-    auto duration = 60s;
-    auto callback = []() {};
+BENCHMARK_WRAPPER(SlowVibratorBench, off, {
+    auto duration = MAX_ON_DURATION_MS;
 
     for (auto _ : state) {
+        // Setup
         state.PauseTiming();
-        auto ret =
-                halCall<void>(mController, [&](auto hal) { return hal->on(duration, callback); });
-        if (!checkHalResult(ret, state)) {
-            continue;
+        auto cb = mCallbacks.next();
+        auto onFn = [&](auto hal) { return hal->on(duration, cb.completeFn()); };
+        if (shouldSkipWithError<void>(onFn, "on", state)) {
+            return;
         }
+        auto offFn = [&](auto hal) { return hal->off(); };
         state.ResumeTiming();
-        turnVibratorOff(state);
+
+        // Test
+        if (shouldSkipWithError<void>(offFn, "off", state)) {
+            return;
+        }
+
+        // Cleanup
+        state.PauseTiming();
+        cb.waitForComplete();
+        state.ResumeTiming();
     }
 });
 
 BENCHMARK_WRAPPER(VibratorBench, setAmplitude, {
-    if (!hasCapabilities(vibrator::Capabilities::AMPLITUDE_CONTROL, state)) {
-        state.SkipWithMessage("missing capability");
+    if (shouldSkipWithMissingCapabilityMessage(vibrator::Capabilities::AMPLITUDE_CONTROL, state)) {
         return;
     }
 
-    auto duration = 60s;
-    auto callback = []() {};
+    auto duration = MAX_ON_DURATION_MS;
     auto amplitude = 1.0f;
+    auto setAmplitudeFn = [&](auto hal) { return hal->setAmplitude(amplitude); };
 
-    for (auto _ : state) {
-        state.PauseTiming();
-        vibrator::HalController controller;
-        controller.init();
-        auto result =
-                halCall<void>(controller, [&](auto hal) { return hal->on(duration, callback); });
-        if (!checkHalResult(result, state)) {
-            continue;
-        }
-        state.ResumeTiming();
-        auto ret =
-                halCall<void>(controller, [&](auto hal) { return hal->setAmplitude(amplitude); });
-        state.PauseTiming();
-        if (checkHalResult(ret, state)) {
-            turnVibratorOff(state);
-        }
-    }
-});
-
-BENCHMARK_WRAPPER(VibratorBench, setAmplitudeCached, {
-    if (!hasCapabilities(vibrator::Capabilities::AMPLITUDE_CONTROL, state)) {
-        state.SkipWithMessage("missing capability");
+    auto onFn = [&](auto hal) { return hal->on(duration, [&]() {}); };
+    if (shouldSkipWithError<void>(onFn, "on", state)) {
         return;
     }
 
-    auto duration = 60s;
-    auto callback = []() {};
-    auto amplitude = 1.0f;
-
-    auto onResult =
-            halCall<void>(mController, [&](auto hal) { return hal->on(duration, callback); });
-    checkHalResult(onResult, state);
-
     for (auto _ : state) {
-        auto ret =
-                halCall<void>(mController, [&](auto hal) { return hal->setAmplitude(amplitude); });
-        checkHalResult(ret, state);
+        if (shouldSkipWithError<void>(setAmplitudeFn, "setAmplitude", state)) {
+            return;
+        }
     }
 });
 
 BENCHMARK_WRAPPER(VibratorBench, setExternalControl, {
-    if (!hasCapabilities(vibrator::Capabilities::EXTERNAL_CONTROL, state)) {
-        state.SkipWithMessage("missing capability");
+    if (shouldSkipWithMissingCapabilityMessage(vibrator::Capabilities::EXTERNAL_CONTROL, state)) {
         return;
     }
 
+    auto enableExternalControlFn = [](auto hal) { return hal->setExternalControl(true); };
+
     for (auto _ : state) {
-        state.PauseTiming();
-        vibrator::HalController controller;
-        controller.init();
-        state.ResumeTiming();
-        auto ret =
-                halCall<void>(controller, [](auto hal) { return hal->setExternalControl(true); });
-        state.PauseTiming();
-        if (checkHalResult(ret, state)) {
-            auto result = halCall<void>(controller,
-                                        [](auto hal) { return hal->setExternalControl(false); });
-            checkHalResult(result, state);
+        // Test
+        if (shouldSkipWithError<void>(enableExternalControlFn, "setExternalControl true", state)) {
+            return;
         }
+
+        // Cleanup
+        state.PauseTiming();
+        if (shouldSkipWithError(disableExternalControl(), state)) {
+            return;
+        }
+        state.ResumeTiming();
     }
 });
 
-BENCHMARK_WRAPPER(VibratorBench, setExternalControlCached, {
-    if (!hasCapabilities(vibrator::Capabilities::EXTERNAL_CONTROL, state)) {
-        state.SkipWithMessage("missing capability");
-        return;
-    }
-
-    for (auto _ : state) {
-        state.ResumeTiming();
-        auto result =
-                halCall<void>(mController, [](auto hal) { return hal->setExternalControl(true); });
-        state.PauseTiming();
-        if (checkHalResult(result, state)) {
-            auto ret = halCall<void>(mController,
-                                     [](auto hal) { return hal->setExternalControl(false); });
-            checkHalResult(ret, state);
-        }
-    }
-});
-
-BENCHMARK_WRAPPER(VibratorBench, setExternalAmplitudeCached, {
-    if (!hasCapabilities(vibrator::Capabilities::EXTERNAL_AMPLITUDE_CONTROL, state)) {
-        state.SkipWithMessage("missing capability");
+BENCHMARK_WRAPPER(VibratorBench, setExternalAmplitude, {
+    auto externalAmplitudeControl = vibrator::Capabilities::EXTERNAL_CONTROL &
+            vibrator::Capabilities::EXTERNAL_AMPLITUDE_CONTROL;
+    if (shouldSkipWithMissingCapabilityMessage(externalAmplitudeControl, state)) {
         return;
     }
 
     auto amplitude = 1.0f;
+    auto setAmplitudeFn = [&](auto hal) { return hal->setAmplitude(amplitude); };
+    auto enableExternalControlFn = [](auto hal) { return hal->setExternalControl(true); };
 
-    auto onResult =
-            halCall<void>(mController, [](auto hal) { return hal->setExternalControl(true); });
-    checkHalResult(onResult, state);
-
-    for (auto _ : state) {
-        auto ret =
-                halCall<void>(mController, [&](auto hal) { return hal->setAmplitude(amplitude); });
-        checkHalResult(ret, state);
+    if (shouldSkipWithError<void>(enableExternalControlFn, "setExternalControl true", state)) {
+        return;
     }
 
-    auto offResult =
-            halCall<void>(mController, [](auto hal) { return hal->setExternalControl(false); });
-    checkHalResult(offResult, state);
+    for (auto _ : state) {
+        if (shouldSkipWithError<void>(setAmplitudeFn, "setExternalAmplitude", state)) {
+            return;
+        }
+    }
 });
 
 BENCHMARK_WRAPPER(VibratorBench, getInfo, {
     for (auto _ : state) {
+        // Setup
         state.PauseTiming();
         vibrator::HalController controller;
         controller.init();
         state.ResumeTiming();
-        auto result = controller.getInfo();
-        checkHalResult(result.capabilities, state);
-        checkHalResult(result.supportedEffects, state);
-        checkHalResult(result.supportedPrimitives, state);
-        checkHalResult(result.primitiveDurations, state);
-        checkHalResult(result.resonantFrequency, state);
-        checkHalResult(result.qFactor, state);
+
+        controller.getInfo();
     }
 });
 
@@ -285,13 +358,7 @@ BENCHMARK_WRAPPER(VibratorBench, getInfoCached, {
     mController.getInfo();
 
     for (auto _ : state) {
-        auto result = mController.getInfo();
-        checkHalResult(result.capabilities, state);
-        checkHalResult(result.supportedEffects, state);
-        checkHalResult(result.supportedPrimitives, state);
-        checkHalResult(result.primitiveDurations, state);
-        checkHalResult(result.resonantFrequency, state);
-        checkHalResult(result.qFactor, state);
+        mController.getInfo();
     }
 });
 
@@ -334,9 +401,16 @@ protected:
     }
 };
 
+class SlowVibratorEffectsBench : public VibratorEffectsBench {
+public:
+    static void DefaultConfig(Benchmark* b) {
+        VibratorBench::DefaultConfig(b);
+        SlowBenchConfig(b);
+    }
+};
+
 BENCHMARK_WRAPPER(VibratorEffectsBench, alwaysOnEnable, {
-    if (!hasCapabilities(vibrator::Capabilities::ALWAYS_ON_CONTROL, state)) {
-        state.SkipWithMessage("missing capability");
+    if (shouldSkipWithMissingCapabilityMessage(vibrator::Capabilities::ALWAYS_ON_CONTROL, state)) {
         return;
     }
     if (!hasArgs(state)) {
@@ -347,24 +421,26 @@ BENCHMARK_WRAPPER(VibratorEffectsBench, alwaysOnEnable, {
     int32_t id = 1;
     auto effect = getEffect(state);
     auto strength = getStrength(state);
+    auto enableFn = [&](auto hal) { return hal->alwaysOnEnable(id, effect, strength); };
+    auto disableFn = [&](auto hal) { return hal->alwaysOnDisable(id); };
 
     for (auto _ : state) {
-        state.ResumeTiming();
-        auto ret = halCall<void>(mController, [&](auto hal) {
-            return hal->alwaysOnEnable(id, effect, strength);
-        });
-        state.PauseTiming();
-        if (checkHalResult(ret, state)) {
-            auto disableResult =
-                    halCall<void>(mController, [&](auto hal) { return hal->alwaysOnDisable(id); });
-            checkHalResult(disableResult, state);
+        // Test
+        if (shouldSkipWithError<void>(enableFn, "alwaysOnEnable", state)) {
+            return;
         }
+
+        // Cleanup
+        state.PauseTiming();
+        if (shouldSkipWithError<void>(disableFn, "alwaysOnDisable", state)) {
+            return;
+        }
+        state.ResumeTiming();
     }
 });
 
 BENCHMARK_WRAPPER(VibratorEffectsBench, alwaysOnDisable, {
-    if (!hasCapabilities(vibrator::Capabilities::ALWAYS_ON_CONTROL, state)) {
-        state.SkipWithMessage("missing capability");
+    if (shouldSkipWithMissingCapabilityMessage(vibrator::Capabilities::ALWAYS_ON_CONTROL, state)) {
         return;
     }
     if (!hasArgs(state)) {
@@ -375,23 +451,25 @@ BENCHMARK_WRAPPER(VibratorEffectsBench, alwaysOnDisable, {
     int32_t id = 1;
     auto effect = getEffect(state);
     auto strength = getStrength(state);
+    auto enableFn = [&](auto hal) { return hal->alwaysOnEnable(id, effect, strength); };
+    auto disableFn = [&](auto hal) { return hal->alwaysOnDisable(id); };
 
     for (auto _ : state) {
+        // Setup
         state.PauseTiming();
-        auto enableResult = halCall<void>(mController, [&](auto hal) {
-            return hal->alwaysOnEnable(id, effect, strength);
-        });
-        if (!checkHalResult(enableResult, state)) {
-            continue;
+        if (shouldSkipWithError<void>(enableFn, "alwaysOnEnable", state)) {
+            return;
         }
         state.ResumeTiming();
-        auto disableResult =
-                halCall<void>(mController, [&](auto hal) { return hal->alwaysOnDisable(id); });
-        checkHalResult(disableResult, state);
+
+        // Test
+        if (shouldSkipWithError<void>(disableFn, "alwaysOnDisable", state)) {
+            return;
+        }
     }
 });
 
-BENCHMARK_WRAPPER(VibratorEffectsBench, performEffect, {
+BENCHMARK_WRAPPER(SlowVibratorEffectsBench, performEffect, {
     if (!hasArgs(state)) {
         state.SkipWithMessage("missing args");
         return;
@@ -399,22 +477,38 @@ BENCHMARK_WRAPPER(VibratorEffectsBench, performEffect, {
 
     auto effect = getEffect(state);
     auto strength = getStrength(state);
-    auto callback = []() {};
 
     for (auto _ : state) {
-        state.ResumeTiming();
-        auto ret = halCall<std::chrono::milliseconds>(mController, [&](auto hal) {
-            return hal->performEffect(effect, strength, callback);
-        });
+        // Setup
         state.PauseTiming();
-        if (checkHalResult(ret, state)) {
-            turnVibratorOff(state);
+        auto cb = mCallbacks.next();
+        auto performFn = [&](auto hal) {
+            return hal->performEffect(effect, strength, cb.completeFn());
+        };
+        state.ResumeTiming();
+
+        // Test
+        if (shouldSkipWithError<milliseconds>(performFn, "performEffect", state)) {
+            return;
         }
+
+        // Cleanup
+        state.PauseTiming();
+        if (shouldSkipWithError(turnVibratorOff(), state)) {
+            return;
+        }
+        cb.waitForComplete();
+        state.ResumeTiming();
     }
 });
 
-class VibratorPrimitivesBench : public VibratorBench {
+class SlowVibratorPrimitivesBench : public VibratorBench {
 public:
+    static void DefaultConfig(Benchmark* b) {
+        VibratorBench::DefaultConfig(b);
+        SlowBenchConfig(b);
+    }
+
     static void DefaultArgs(Benchmark* b) {
         vibrator::HalController controller;
         auto primitivesResult = controller.getInfo().supportedPrimitives;
@@ -449,9 +543,8 @@ protected:
     }
 };
 
-BENCHMARK_WRAPPER(VibratorPrimitivesBench, performComposedEffect, {
-    if (!hasCapabilities(vibrator::Capabilities::COMPOSE_EFFECTS, state)) {
-        state.SkipWithMessage("missing capability");
+BENCHMARK_WRAPPER(SlowVibratorPrimitivesBench, performComposedEffect, {
+    if (shouldSkipWithMissingCapabilityMessage(vibrator::Capabilities::COMPOSE_EFFECTS, state)) {
         return;
     }
     if (!hasArgs(state)) {
@@ -464,19 +557,29 @@ BENCHMARK_WRAPPER(VibratorPrimitivesBench, performComposedEffect, {
     effect.scale = 1.0f;
     effect.delayMs = static_cast<int32_t>(0);
 
-    std::vector<CompositeEffect> effects;
-    effects.push_back(effect);
-    auto callback = []() {};
+    std::vector<CompositeEffect> effects = {effect};
 
     for (auto _ : state) {
-        state.ResumeTiming();
-        auto ret = halCall<std::chrono::milliseconds>(mController, [&](auto hal) {
-            return hal->performComposedEffect(effects, callback);
-        });
+        // Setup
         state.PauseTiming();
-        if (checkHalResult(ret, state)) {
-            turnVibratorOff(state);
+        auto cb = mCallbacks.next();
+        auto performFn = [&](auto hal) {
+            return hal->performComposedEffect(effects, cb.completeFn());
+        };
+        state.ResumeTiming();
+
+        // Test
+        if (shouldSkipWithError<milliseconds>(performFn, "performComposedEffect", state)) {
+            return;
         }
+
+        // Cleanup
+        state.PauseTiming();
+        if (shouldSkipWithError(turnVibratorOff(), state)) {
+            return;
+        }
+        cb.waitForComplete();
+        state.ResumeTiming();
     }
 });
 
