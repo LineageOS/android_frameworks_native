@@ -86,7 +86,7 @@ struct TransactionState {
     }
 
     template <typename Visitor>
-    void traverseStatesWithBuffersWhileTrue(Visitor&& visitor) {
+    void traverseStatesWithBuffersWhileTrue(Visitor&& visitor) NO_THREAD_SAFETY_ANALYSIS {
         for (auto state = states.begin(); state != states.end();) {
             if (state->state.hasBufferChanges() && state->externalTexture && state->state.surface) {
                 int result = visitor(*state);
