@@ -493,7 +493,7 @@ TEST_F(EventThreadTest, getLatestVsyncEventData) {
     EXPECT_CALL(mockTracker, nextAnticipatedVSyncTimeFrom(_, _))
             .WillOnce(Return(preferredExpectedPresentationTime));
 
-    VsyncEventData vsyncEventData = mThread->getLatestVsyncEventData(mConnection);
+    VsyncEventData vsyncEventData = mThread->getLatestVsyncEventData(mConnection, now);
 
     // Check EventThread immediately requested a resync.
     EXPECT_TRUE(mResyncCallRecorder.waitForCall().has_value());

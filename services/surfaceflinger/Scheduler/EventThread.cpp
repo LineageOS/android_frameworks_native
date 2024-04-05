@@ -235,7 +235,8 @@ binder::Status EventThreadConnection::getLatestVsyncEventData(
         ParcelableVsyncEventData* outVsyncEventData) {
     ATRACE_CALL();
     outVsyncEventData->vsync =
-            mEventThread->getLatestVsyncEventData(sp<EventThreadConnection>::fromExisting(this));
+            mEventThread->getLatestVsyncEventData(sp<EventThreadConnection>::fromExisting(this),
+                                                  systemTime());
     return binder::Status::ok();
 }
 
@@ -387,8 +388,8 @@ void EventThread::requestNextVsync(const sp<EventThreadConnection>& connection) 
     }
 }
 
-VsyncEventData EventThread::getLatestVsyncEventData(
-        const sp<EventThreadConnection>& connection) const {
+VsyncEventData EventThread::getLatestVsyncEventData(const sp<EventThreadConnection>& connection,
+                                                    nsecs_t now) const {
     // Resync so that the vsync is accurate with hardware. getLatestVsyncEventData is an alternate
     // way to get vsync data (instead of posting callbacks to Choreographer).
     mCallback.resync();
@@ -399,11 +400,10 @@ VsyncEventData EventThread::getLatestVsyncEventData(
     const auto [presentTime, deadline] = [&]() -> std::pair<nsecs_t, nsecs_t> {
         std::lock_guard<std::mutex> lock(mMutex);
         const auto vsyncTime = mVsyncSchedule->getTracker().nextAnticipatedVSyncTimeFrom(
-                systemTime() + mWorkDuration.get().count() + mReadyDuration.count());
+                now + mWorkDuration.get().count() + mReadyDuration.count());
         return {vsyncTime, vsyncTime - mReadyDuration.count()};
     }();
-    generateFrameTimeline(vsyncEventData, frameInterval.ns(), systemTime(SYSTEM_TIME_MONOTONIC),
-                          presentTime, deadline);
+    generateFrameTimeline(vsyncEventData, frameInterval.ns(), now, presentTime, deadline);
     if (FlagManager::getInstance().vrr_config()) {
         mCallback.onExpectedPresentTimePosted(TimePoint::fromNs(presentTime));
     }
