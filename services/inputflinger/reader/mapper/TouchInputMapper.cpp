@@ -20,8 +20,24 @@
 
 #include "TouchInputMapper.h"
 
+#include <algorithm>
+#include <cinttypes>
+#include <cmath>
+#include <cstddef>
+#include <tuple>
+
+#include <math.h>
+
+#include <android-base/stringprintf.h>
+#include <android/input.h>
 #include <ftl/enum.h>
 #include <input/PrintTools.h>
+#include <input/PropertyMap.h>
+#include <input/VirtualKeyMap.h>
+#include <linux/input-event-codes.h>
+#include <log/log_main.h>
+#include <math/vec2.h>
+#include <ui/FloatRect.h>
 
 #include "CursorButtonAccumulator.h"
 #include "CursorScrollAccumulator.h"
