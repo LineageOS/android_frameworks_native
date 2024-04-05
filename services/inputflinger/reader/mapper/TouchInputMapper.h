@@ -195,7 +195,6 @@ protected:
     enum class DeviceMode {
         DISABLED,   // input is disabled
         DIRECT,     // direct mapping (touchscreen)
-        UNSCALED,   // unscaled mapping (e.g. captured touchpad)
         NAVIGATION, // unscaled mapping with assist gesture (touch navigation)
         POINTER,    // pointer mapping (e.g. uncaptured touchpad, drawing tablet)
 

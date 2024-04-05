@@ -147,20 +147,6 @@ void TouchInputMapper::populateDeviceInfo(InputDeviceInfo& info) {
     info.addMotionRange(mOrientedRanges.y);
     info.addMotionRange(mOrientedRanges.pressure);
 
-    if (mDeviceMode == DeviceMode::UNSCALED && mSource == AINPUT_SOURCE_TOUCHPAD) {
-        // Populate RELATIVE_X and RELATIVE_Y motion ranges for touchpad capture mode.
-        //
-        // RELATIVE_X and RELATIVE_Y motion ranges should be the largest possible relative
-        // motion, i.e. the hardware dimensions, as the finger could move completely across the
-        // touchpad in one sample cycle.
-        const InputDeviceInfo::MotionRange& x = mOrientedRanges.x;
-        const InputDeviceInfo::MotionRange& y = mOrientedRanges.y;
-        info.addMotionRange(AMOTION_EVENT_AXIS_RELATIVE_X, mSource, -x.max, x.max, x.flat, x.fuzz,
-                            x.resolution);
-        info.addMotionRange(AMOTION_EVENT_AXIS_RELATIVE_Y, mSource, -y.max, y.max, y.flat, y.fuzz,
-                            y.resolution);
-    }
-
     if (mOrientedRanges.size) {
         info.addMotionRange(*mOrientedRanges.size);
     }
@@ -531,7 +517,7 @@ bool TouchInputMapper::hasExternalStylus() const {
  * 4. Otherwise, use a non-display viewport.
  */
 std::optional<DisplayViewport> TouchInputMapper::findViewport() {
-    if (mParameters.hasAssociatedDisplay && mDeviceMode != DeviceMode::UNSCALED) {
+    if (mParameters.hasAssociatedDisplay) {
         if (getDeviceContext().getAssociatedViewport()) {
             return getDeviceContext().getAssociatedViewport();
         }
@@ -939,8 +925,10 @@ void TouchInputMapper::configureInputDevice(nsecs_t when, bool* outResetNeeded) 
         mSource = AINPUT_SOURCE_TOUCH_NAVIGATION;
         mDeviceMode = DeviceMode::NAVIGATION;
     } else {
-        mSource = AINPUT_SOURCE_TOUCHPAD;
-        mDeviceMode = DeviceMode::UNSCALED;
+        ALOGW("Touch device '%s' has invalid parameters or configuration.  The device will be "
+              "inoperable.",
+              getDeviceName().c_str());
+        mDeviceMode = DeviceMode::DISABLED;
     }
 
     const std::optional<DisplayViewport> newViewportOpt = findViewport();
@@ -1884,8 +1872,7 @@ std::list<NotifyArgs> TouchInputMapper::consumeRawTouches(nsecs_t when, nsecs_t 
     }
 
     if (!mCurrentRawState.rawPointerData.hoveringIdBits.isEmpty() &&
-        mCurrentRawState.rawPointerData.touchingIdBits.isEmpty() &&
-        mDeviceMode != DeviceMode::UNSCALED) {
+        mCurrentRawState.rawPointerData.touchingIdBits.isEmpty()) {
         // We have hovering pointers, and there are no touching pointers.
         bool hoveringPointersInFrame = false;
         auto hoveringIds = mCurrentRawState.rawPointerData.hoveringIdBits;
@@ -1912,7 +1899,7 @@ std::list<NotifyArgs> TouchInputMapper::consumeRawTouches(nsecs_t when, nsecs_t 
         // Skip checking whether the pointer is inside the physical frame if the device is in
         // unscaled or pointer mode.
         if (!isPointInsidePhysicalFrame(pointer.x, pointer.y) &&
-            mDeviceMode != DeviceMode::UNSCALED && mDeviceMode != DeviceMode::POINTER) {
+            mDeviceMode != DeviceMode::POINTER) {
             // If exactly one pointer went down, check for virtual key hit.
             // Otherwise, we will drop the entire stroke.
             if (mCurrentRawState.rawPointerData.touchingIdBits.count() == 1) {
