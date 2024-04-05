@@ -72,6 +72,7 @@
 #include <gui/TraceUtils.h>
 #include <hidl/ServiceManagement.h>
 #include <layerproto/LayerProtoParser.h>
+#include <linux/sched/types.h>
 #include <log/log.h>
 #include <private/android_filesystem_config.h>
 #include <private/gui/SyncFeatures.h>
@@ -7564,20 +7565,6 @@ status_t SurfaceFlinger::setSchedAttr(bool enabled) {
         // uclamp.min set to 0 (default), skip setting
         return NO_ERROR;
     }
-
-    // Currently, there is no wrapper in bionic: b/183240349.
-    struct sched_attr {
-        uint32_t size;
-        uint32_t sched_policy;
-        uint64_t sched_flags;
-        int32_t sched_nice;
-        uint32_t sched_priority;
-        uint64_t sched_runtime;
-        uint64_t sched_deadline;
-        uint64_t sched_period;
-        uint32_t sched_util_min;
-        uint32_t sched_util_max;
-    };
 
     sched_attr attr = {};
     attr.size = sizeof(attr);
