@@ -55,10 +55,10 @@ void LayerInfo::setLastPresentTime(nsecs_t lastPresentTime, nsecs_t now, LayerUp
                                    bool pendingModeChange, const LayerProps& props) {
     lastPresentTime = std::max(lastPresentTime, static_cast<nsecs_t>(0));
 
-    mLastUpdatedTime = std::max(lastPresentTime, now);
     *mLayerProps = props;
     switch (updateType) {
         case LayerUpdateType::AnimationTX:
+            mLastUpdatedTime = std::max(lastPresentTime, now);
             mLastAnimationTime = std::max(lastPresentTime, now);
             break;
         case LayerUpdateType::SetFrameRate:
@@ -67,6 +67,7 @@ void LayerInfo::setLastPresentTime(nsecs_t lastPresentTime, nsecs_t now, LayerUp
             }
             FALLTHROUGH_INTENDED;
         case LayerUpdateType::Buffer:
+            mLastUpdatedTime = std::max(lastPresentTime, now);
             FrameTimeData frameTime = {.presentTime = lastPresentTime,
                                        .queueTime = mLastUpdatedTime,
                                        .pendingModeChange = pendingModeChange,
