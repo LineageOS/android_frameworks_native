@@ -18,6 +18,7 @@
 #define ANDROID_PRIVATE_NATIVE_PERFORMANCE_HINT_PRIVATE_H
 
 #include <stdint.h>
+#include <android/performance_hint.h>
 
 __BEGIN_DECLS
 
@@ -75,6 +76,15 @@ enum SessionHint: int32_t {
     GPU_LOAD_RESET = 7,
 };
 
+// Allows access to PowerHAL's SessionTags without needing to import its AIDL
+enum class SessionTag : int32_t {
+  OTHER = 0,
+  SURFACEFLINGER = 1,
+  HWUI = 2,
+  GAME = 3,
+  APP = 4,
+};
+
 /**
  * Sends performance hints to inform the hint session of changes in the workload.
  *
@@ -83,13 +93,21 @@ enum SessionHint: int32_t {
  * @return 0 on success
  *         EPIPE if communication with the system service has failed.
  */
-int APerformanceHint_sendHint(void* session, SessionHint hint);
+int APerformanceHint_sendHint(APerformanceHintSession* session, SessionHint hint);
 
 /**
  * Return the list of thread ids, this API should only be used for testing only.
  */
-int APerformanceHint_getThreadIds(void* aPerformanceHintSession,
+int APerformanceHint_getThreadIds(APerformanceHintSession* session,
                                   int32_t* const threadIds, size_t* const size);
+
+/**
+ * Creates a session with additional options
+ */
+APerformanceHintSession* APerformanceHint_createSessionInternal(APerformanceHintManager* manager,
+                                        const int32_t* threadIds, size_t size,
+                                        int64_t initialTargetWorkDurationNanos, SessionTag tag);
+
 
 __END_DECLS
 
