@@ -54,6 +54,10 @@ rust_bindgen {
     },
     min_sdk_version: "VanillaIceCream",
     vendor_available: true,
+    apex_available: [
+        "//apex_available:platform",
+        "com.android.virt",
+    ],
 }
 
 rust_library {
@@ -78,6 +82,10 @@ rust_library {
     },
     min_sdk_version: "VanillaIceCream",
     vendor_available: true,
+    apex_available: [
+        "//apex_available:platform",
+        "com.android.virt",
+    ],
 }
 
 rust_test {
@@ -116,6 +124,10 @@ rust_library {
     },
     min_sdk_version: "VanillaIceCream",
     vendor_available: true,
+    apex_available: [
+        "//apex_available:platform",
+        "com.android.virt",
+    ],
 }
 
 rust_test {
