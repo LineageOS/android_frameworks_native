@@ -29,11 +29,10 @@ use crate::sys;
 
 use std::cmp::Ordering;
 use std::convert::TryInto;
-use std::ffi::{c_void, CStr, CString};
+use std::ffi::{c_void, CString};
 use std::fmt;
 use std::mem;
 use std::os::fd::AsRawFd;
-use std::os::raw::c_char;
 use std::ptr;
 use std::sync::Arc;
 
@@ -126,14 +125,6 @@ impl SpIBinder {
     /// Creates a new weak reference to this binder object.
     pub fn downgrade(&mut self) -> WpIBinder {
         WpIBinder::new(self)
-    }
-}
-
-fn interface_cast<T: FromIBinder + ?Sized>(service: Option<SpIBinder>) -> Result<Strong<T>> {
-    if let Some(service) = service {
-        FromIBinder::try_from(service)
-    } else {
-        Err(StatusCode::NAME_NOT_FOUND)
     }
 }
 
@@ -737,93 +728,6 @@ unsafe impl<T: Proxy> AsNative<sys::AIBinder> for T {
     fn as_native_mut(&mut self) -> *mut sys::AIBinder {
         self.as_binder().as_native_mut()
     }
-}
-
-/// Retrieve an existing service, blocking for a few seconds if it doesn't yet
-/// exist.
-pub fn get_service(name: &str) -> Option<SpIBinder> {
-    let name = CString::new(name).ok()?;
-    // Safety: `AServiceManager_getService` returns either a null pointer or a
-    // valid pointer to an owned `AIBinder`. Either of these values is safe to
-    // pass to `SpIBinder::from_raw`.
-    unsafe { SpIBinder::from_raw(sys::AServiceManager_getService(name.as_ptr())) }
-}
-
-/// Retrieve an existing service, or start it if it is configured as a dynamic
-/// service and isn't yet started.
-pub fn wait_for_service(name: &str) -> Option<SpIBinder> {
-    let name = CString::new(name).ok()?;
-    // Safety: `AServiceManager_waitforService` returns either a null pointer or
-    // a valid pointer to an owned `AIBinder`. Either of these values is safe to
-    // pass to `SpIBinder::from_raw`.
-    unsafe { SpIBinder::from_raw(sys::AServiceManager_waitForService(name.as_ptr())) }
-}
-
-/// Retrieve an existing service for a particular interface, blocking for a few
-/// seconds if it doesn't yet exist.
-pub fn get_interface<T: FromIBinder + ?Sized>(name: &str) -> Result<Strong<T>> {
-    interface_cast(get_service(name))
-}
-
-/// Retrieve an existing service for a particular interface, or start it if it
-/// is configured as a dynamic service and isn't yet started.
-pub fn wait_for_interface<T: FromIBinder + ?Sized>(name: &str) -> Result<Strong<T>> {
-    interface_cast(wait_for_service(name))
-}
-
-/// Check if a service is declared (e.g. in a VINTF manifest)
-pub fn is_declared(interface: &str) -> Result<bool> {
-    let interface = CString::new(interface).or(Err(StatusCode::UNEXPECTED_NULL))?;
-
-    // Safety: `interface` is a valid null-terminated C-style string and is only
-    // borrowed for the lifetime of the call. The `interface` local outlives
-    // this call as it lives for the function scope.
-    unsafe { Ok(sys::AServiceManager_isDeclared(interface.as_ptr())) }
-}
-
-/// Retrieve all declared instances for a particular interface
-///
-/// For instance, if 'android.foo.IFoo/foo' is declared, and 'android.foo.IFoo'
-/// is passed here, then ["foo"] would be returned.
-pub fn get_declared_instances(interface: &str) -> Result<Vec<String>> {
-    unsafe extern "C" fn callback(instance: *const c_char, opaque: *mut c_void) {
-        // Safety: opaque was a mutable pointer created below from a Vec of
-        // CString, and outlives this callback. The null handling here is just
-        // to avoid the possibility of unwinding across C code if this crate is
-        // ever compiled with panic=unwind.
-        if let Some(instances) = unsafe { opaque.cast::<Vec<CString>>().as_mut() } {
-            // Safety: instance is a valid null-terminated C string with a
-            // lifetime at least as long as this function, and we immediately
-            // copy it into an owned CString.
-            unsafe {
-                instances.push(CStr::from_ptr(instance).to_owned());
-            }
-        } else {
-            eprintln!("Opaque pointer was null in get_declared_instances callback!");
-        }
-    }
-
-    let interface = CString::new(interface).or(Err(StatusCode::UNEXPECTED_NULL))?;
-    let mut instances: Vec<CString> = vec![];
-    // Safety: `interface` and `instances` are borrowed for the length of this
-    // call and both outlive the call. `interface` is guaranteed to be a valid
-    // null-terminated C-style string.
-    unsafe {
-        sys::AServiceManager_forEachDeclaredInstance(
-            interface.as_ptr(),
-            &mut instances as *mut _ as *mut c_void,
-            Some(callback),
-        );
-    }
-
-    instances
-        .into_iter()
-        .map(CString::into_string)
-        .collect::<std::result::Result<Vec<String>, _>>()
-        .map_err(|e| {
-            eprintln!("An interface instance name was not a valid UTF-8 string: {}", e);
-            StatusCode::BAD_VALUE
-        })
 }
 
 /// Safety: `SpIBinder` guarantees that `binder` always contains a valid pointer
