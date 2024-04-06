@@ -5252,17 +5252,19 @@ bool SurfaceFlinger::applyTransactionState(const FrameTimelineInfo& frameTimelin
                                                              desiredPresentTime, isAutoTimestamp,
                                                              postTime, transactionId);
         }
-        if ((flags & eAnimation) && resolvedState.state.surface) {
-            if (const auto layer = LayerHandle::getLayer(resolvedState.state.surface)) {
-                const auto layerProps = scheduler::LayerProps{
-                        .visible = layer->isVisible(),
-                        .bounds = layer->getBounds(),
-                        .transform = layer->getTransform(),
-                        .setFrameRateVote = layer->getFrameRateForLayerTree(),
-                        .frameRateSelectionPriority = layer->getFrameRateSelectionPriority(),
-                        .isFrontBuffered = layer->isFrontBuffered(),
-                };
-                layer->recordLayerHistoryAnimationTx(layerProps, now);
+        if (!mLayerLifecycleManagerEnabled) {
+            if ((flags & eAnimation) && resolvedState.state.surface) {
+                if (const auto layer = LayerHandle::getLayer(resolvedState.state.surface)) {
+                    const auto layerProps = scheduler::LayerProps{
+                            .visible = layer->isVisible(),
+                            .bounds = layer->getBounds(),
+                            .transform = layer->getTransform(),
+                            .setFrameRateVote = layer->getFrameRateForLayerTree(),
+                            .frameRateSelectionPriority = layer->getFrameRateSelectionPriority(),
+                            .isFrontBuffered = layer->isFrontBuffered(),
+                    };
+                    layer->recordLayerHistoryAnimationTx(layerProps, now);
+                }
             }
         }
     }

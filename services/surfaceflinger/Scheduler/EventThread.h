@@ -127,8 +127,8 @@ public:
     virtual void setVsyncRate(uint32_t rate, const sp<EventThreadConnection>& connection) = 0;
     // Requests the next vsync. If resetIdleTimer is set to true, it resets the idle timer.
     virtual void requestNextVsync(const sp<EventThreadConnection>& connection) = 0;
-    virtual VsyncEventData getLatestVsyncEventData(
-            const sp<EventThreadConnection>& connection) const = 0;
+    virtual VsyncEventData getLatestVsyncEventData(const sp<EventThreadConnection>& connection,
+                                                   nsecs_t now) const = 0;
 
     virtual void onNewVsyncSchedule(std::shared_ptr<scheduler::VsyncSchedule>) = 0;
 
@@ -160,8 +160,8 @@ public:
     status_t registerDisplayEventConnection(const sp<EventThreadConnection>& connection) override;
     void setVsyncRate(uint32_t rate, const sp<EventThreadConnection>& connection) override;
     void requestNextVsync(const sp<EventThreadConnection>& connection) override;
-    VsyncEventData getLatestVsyncEventData(
-            const sp<EventThreadConnection>& connection) const override;
+    VsyncEventData getLatestVsyncEventData(const sp<EventThreadConnection>& connection,
+                                           nsecs_t now) const override;
 
     void enableSyntheticVsync(bool) override;
 

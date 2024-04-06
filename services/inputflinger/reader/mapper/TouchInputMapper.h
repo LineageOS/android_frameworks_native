@@ -16,17 +16,38 @@
 
 #pragma once
 
+#include <array>
+#include <climits>
+#include <limits>
+#include <list>
+#include <memory>
 #include <optional>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include <stdint.h>
+#include <gui/constants.h>
+#include <input/DisplayViewport.h>
+#include <input/Input.h>
+#include <input/InputDevice.h>
+#include <input/VelocityControl.h>
+#include <input/VelocityTracker.h>
+#include <ui/Rect.h>
 #include <ui/Rotation.h>
+#include <ui/Size.h>
+#include <ui/Transform.h>
+#include <utils/BitSet.h>
+#include <utils/Timers.h>
 
 #include "CursorButtonAccumulator.h"
 #include "CursorScrollAccumulator.h"
 #include "EventHub.h"
 #include "InputMapper.h"
 #include "InputReaderBase.h"
+#include "NotifyArgs.h"
+#include "PointerControllerInterface.h"
+#include "StylusState.h"
 #include "TouchButtonAccumulator.h"
 
 namespace android {
@@ -195,7 +216,6 @@ protected:
     enum class DeviceMode {
         DISABLED,   // input is disabled
         DIRECT,     // direct mapping (touchscreen)
-        UNSCALED,   // unscaled mapping (e.g. captured touchpad)
         NAVIGATION, // unscaled mapping with assist gesture (touch navigation)
         POINTER,    // pointer mapping (e.g. uncaptured touchpad, drawing tablet)
 
