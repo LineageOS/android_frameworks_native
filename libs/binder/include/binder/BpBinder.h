@@ -35,7 +35,8 @@ class Stability;
 }
 class ProcessState;
 
-using binder_proxy_limit_callback = void(*)(int);
+using binder_proxy_limit_callback = std::function<void(int)>;
+using binder_proxy_warning_callback = std::function<void(int)>;
 
 class BpBinder : public IBinder
 {
@@ -86,8 +87,9 @@ public:
     static void         enableCountByUid();
     static void         disableCountByUid();
     static void         setCountByUidEnabled(bool enable);
-    static void         setLimitCallback(binder_proxy_limit_callback cb);
-    static void         setBinderProxyCountWatermarks(int high, int low);
+    static void         setBinderProxyCountEventCallback(binder_proxy_limit_callback cbl,
+                                                         binder_proxy_warning_callback cbw);
+    static void         setBinderProxyCountWatermarks(int high, int low, int warning);
     static uint32_t     getBinderProxyCount();
 
     std::optional<int32_t> getDebugBinderHandle() const;
@@ -212,6 +214,8 @@ private:
     static std::unordered_map<int32_t,uint32_t> sLastLimitCallbackMap;
     static std::atomic<uint32_t>                sBinderProxyCount;
     static std::atomic<uint32_t>                sBinderProxyCountWarned;
+    static binder_proxy_warning_callback        sWarningCallback;
+    static uint32_t                             sBinderProxyCountWarningWatermark;
 };
 
 } // namespace android
