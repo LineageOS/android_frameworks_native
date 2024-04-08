@@ -19,9 +19,10 @@
 #include "InputFilterCallbacks.h"
 #include <aidl/com/android/server/inputflinger/BnInputThread.h>
 #include <android/binder_auto_utils.h>
+#include <utils/Looper.h>
 #include <utils/StrongPointer.h>
-#include <utils/Thread.h>
 #include <functional>
+#include "InputThread.h"
 
 namespace android {
 
@@ -38,36 +39,37 @@ namespace {
 
 using namespace aidl::com::android::server::inputflinger;
 
-class InputFilterThreadImpl : public Thread {
-public:
-    explicit InputFilterThreadImpl(std::function<void()> loop)
-          : Thread(/*canCallJava=*/true), mThreadLoop(loop) {}
-
-    ~InputFilterThreadImpl() {}
-
-private:
-    std::function<void()> mThreadLoop;
-
-    bool threadLoop() override {
-        mThreadLoop();
-        return true;
-    }
-};
-
 class InputFilterThread : public BnInputThread {
 public:
     InputFilterThread(std::shared_ptr<IInputThreadCallback> callback) : mCallback(callback) {
-        mThread = sp<InputFilterThreadImpl>::make([this]() { loopOnce(); });
-        mThread->run("InputFilterThread", ANDROID_PRIORITY_URGENT_DISPLAY);
+        mLooper = sp<Looper>::make(/*allowNonCallbacks=*/false);
+        mThread = std::make_unique<InputThread>(
+                "InputFilter", [this]() { loopOnce(); }, [this]() { mLooper->wake(); });
     }
 
     ndk::ScopedAStatus finish() override {
-        mThread->requestExit();
+        if (mThread && mThread->isCallingThread()) {
+            ALOGE("InputFilterThread cannot be stopped on itself!");
+            return ndk::ScopedAStatus::fromStatus(INVALID_OPERATION);
+        }
+        mThread.reset();
+        return ndk::ScopedAStatus::ok();
+    }
+
+    ndk::ScopedAStatus sleepUntil(nsecs_t when) override {
+        nsecs_t now = systemTime(SYSTEM_TIME_MONOTONIC);
+        mLooper->pollOnce(toMillisecondTimeoutDelay(now, when));
+        return ndk::ScopedAStatus::ok();
+    }
+
+    ndk::ScopedAStatus wake() override {
+        mLooper->wake();
         return ndk::ScopedAStatus::ok();
     }
 
 private:
-    sp<Thread> mThread;
+    sp<Looper> mLooper;
+    std::unique_ptr<InputThread> mThread;
     std::shared_ptr<IInputThreadCallback> mCallback;
 
     void loopOnce() { LOG_ALWAYS_FATAL_IF(!mCallback->loopOnce().isOk()); }
