@@ -18,6 +18,7 @@
 #define LOG_TAG "LayerStateTest"
 
 #include <aidl/android/hardware/graphics/common/BufferUsage.h>
+#include <common/include/common/test/FlagUtils.h>
 #include <compositionengine/impl/OutputLayer.h>
 #include <compositionengine/impl/planner/LayerState.h>
 #include <compositionengine/mock/LayerFE.h>
@@ -26,6 +27,7 @@
 #include <log/log.h>
 
 #include "android/hardware_buffer.h"
+#include "com_android_graphics_surfaceflinger_flags.h"
 #include "compositionengine/LayerFECompositionState.h"
 
 #include <aidl/android/hardware/graphics/composer3/Composition.h>
@@ -464,6 +466,9 @@ TEST_F(LayerStateTest, updateSourceCrop) {
 }
 
 TEST_F(LayerStateTest, compareSourceCrop) {
+    SET_FLAG_FOR_TEST(com::android::graphics::surfaceflinger::flags::
+                              cache_when_source_crop_layer_only_moved,
+                      false);
     OutputLayerCompositionState outputLayerCompositionState;
     outputLayerCompositionState.sourceCrop = sFloatRectOne;
     LayerFECompositionState layerFECompositionState;
