@@ -255,16 +255,17 @@ TEST_F(VibratorHalControllerTest, TestScheduledCallbackSurvivesReconnection) {
                 .WillRepeatedly(Return(vibrator::HalResult<void>::transactionFailed("message")));
     }
 
-    std::unique_ptr<int32_t> callbackCounter = std::make_unique<int32_t>();
-    auto callback = vibrator::TestFactory::createCountingCallback(callbackCounter.get());
+    auto counter = vibrator::TestCounter(0);
 
-    auto onFn = [&](vibrator::HalWrapper* hal) { return hal->on(10ms, callback); };
+    auto onFn = [&](vibrator::HalWrapper* hal) {
+        return hal->on(10ms, [&counter] { counter.increment(); });
+    };
     ASSERT_TRUE(mController->doWithRetry<void>(onFn, "on").isOk());
     ASSERT_TRUE(mController->doWithRetry<void>(PING_FN, "ping").isFailed());
     mMockHal.reset();
-    ASSERT_EQ(0, *callbackCounter.get());
+    ASSERT_EQ(0, counter.get());
 
     // Callback triggered even after HalWrapper was reconnected.
-    std::this_thread::sleep_for(15ms);
-    ASSERT_EQ(1, *callbackCounter.get());
+    counter.tryWaitUntilCountIsAtLeast(1, 500ms);
+    ASSERT_EQ(1, counter.get());
 }
