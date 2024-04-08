@@ -207,13 +207,19 @@ impl ThreadCallback for SlowKeysFilter {
 
 #[cfg(test)]
 mod tests {
-    use crate::input_filter::{test_callbacks::TestCallbacks, test_filter::TestFilter, Filter};
-    use crate::input_filter_thread::test_thread::TestThread;
+    use crate::input_filter::{
+        test_callbacks::TestCallbacks, test_filter::TestFilter, Filter, InputFilterThreadCreator,
+    };
+    use crate::input_filter_thread::InputFilterThread;
     use crate::slow_keys_filter::{SlowKeysFilter, POLICY_FLAG_DISABLE_KEY_REPEAT};
     use android_hardware_input_common::aidl::android::hardware::input::common::Source::Source;
+    use binder::Strong;
     use com_android_server_inputflinger::aidl::com::android::server::inputflinger::{
         DeviceInfo::DeviceInfo, KeyEvent::KeyEvent, KeyEventAction::KeyEventAction,
     };
+    use nix::{sys::time::TimeValLike, time::clock_gettime, time::ClockId};
+    use std::sync::{Arc, RwLock};
+    use std::time::Duration;
 
     static BASE_KEY_EVENT: KeyEvent = KeyEvent {
         id: 1,
@@ -231,18 +237,19 @@ mod tests {
         metaState: 0,
     };
 
+    static SLOW_KEYS_THRESHOLD_NS: i64 = 100 * 1000000; // 100 ms
+
     #[test]
     fn test_is_notify_key_for_internal_keyboard_not_blocked() {
         let test_callbacks = TestCallbacks::new();
-        let test_thread = TestThread::new(test_callbacks.clone());
+        let test_thread = get_thread(test_callbacks.clone());
         let next = TestFilter::new();
         let mut filter = setup_filter_with_internal_device(
             Box::new(next.clone()),
             test_thread.clone(),
-            1,   /* device_id */
-            100, /* threshold */
+            1, /* device_id */
+            SLOW_KEYS_THRESHOLD_NS,
         );
-        test_thread.start_looper();
 
         let event = KeyEvent { action: KeyEventAction::DOWN, ..BASE_KEY_EVENT };
         filter.notify_key(&event);
@@ -252,15 +259,14 @@ mod tests {
     #[test]
     fn test_is_notify_key_for_external_stylus_not_blocked() {
         let test_callbacks = TestCallbacks::new();
-        let test_thread = TestThread::new(test_callbacks.clone());
+        let test_thread = get_thread(test_callbacks.clone());
         let next = TestFilter::new();
         let mut filter = setup_filter_with_external_device(
             Box::new(next.clone()),
             test_thread.clone(),
-            1,   /* device_id */
-            100, /* threshold */
+            1, /* device_id */
+            SLOW_KEYS_THRESHOLD_NS,
         );
-        test_thread.start_looper();
 
         let event =
             KeyEvent { action: KeyEventAction::DOWN, source: Source::STYLUS, ..BASE_KEY_EVENT };
@@ -271,30 +277,49 @@ mod tests {
     #[test]
     fn test_notify_key_for_external_keyboard_when_key_pressed_for_threshold_time() {
         let test_callbacks = TestCallbacks::new();
-        let test_thread = TestThread::new(test_callbacks.clone());
+        let test_thread = get_thread(test_callbacks.clone());
         let next = TestFilter::new();
         let mut filter = setup_filter_with_external_device(
             Box::new(next.clone()),
             test_thread.clone(),
-            1,   /* device_id */
-            100, /* threshold */
+            1, /* device_id */
+            SLOW_KEYS_THRESHOLD_NS,
         );
-        test_thread.start_looper();
-
-        filter.notify_key(&KeyEvent { action: KeyEventAction::DOWN, ..BASE_KEY_EVENT });
+        let down_time = clock_gettime(ClockId::CLOCK_MONOTONIC).unwrap().num_nanoseconds();
+        filter.notify_key(&KeyEvent {
+            action: KeyEventAction::DOWN,
+            downTime: down_time,
+            eventTime: down_time,
+            ..BASE_KEY_EVENT
+        });
         assert!(next.last_event().is_none());
-        test_thread.dispatch_next();
 
-        test_thread.move_time_forward(100);
-
-        test_thread.stop_looper();
+        std::thread::sleep(Duration::from_nanos(2 * SLOW_KEYS_THRESHOLD_NS as u64));
         assert_eq!(
             next.last_event().unwrap(),
             KeyEvent {
                 action: KeyEventAction::DOWN,
-                downTime: 100,
-                eventTime: 100,
+                downTime: down_time + SLOW_KEYS_THRESHOLD_NS,
+                eventTime: down_time + SLOW_KEYS_THRESHOLD_NS,
                 policyFlags: POLICY_FLAG_DISABLE_KEY_REPEAT,
+                ..BASE_KEY_EVENT
+            }
+        );
+
+        let up_time = clock_gettime(ClockId::CLOCK_MONOTONIC).unwrap().num_nanoseconds();
+        filter.notify_key(&KeyEvent {
+            action: KeyEventAction::UP,
+            downTime: down_time,
+            eventTime: up_time,
+            ..BASE_KEY_EVENT
+        });
+
+        assert_eq!(
+            next.last_event().unwrap(),
+            KeyEvent {
+                action: KeyEventAction::UP,
+                downTime: down_time + SLOW_KEYS_THRESHOLD_NS,
+                eventTime: up_time,
                 ..BASE_KEY_EVENT
             }
         );
@@ -303,57 +328,64 @@ mod tests {
     #[test]
     fn test_notify_key_for_external_keyboard_when_key_not_pressed_for_threshold_time() {
         let test_callbacks = TestCallbacks::new();
-        let test_thread = TestThread::new(test_callbacks.clone());
+        let test_thread = get_thread(test_callbacks.clone());
         let next = TestFilter::new();
         let mut filter = setup_filter_with_external_device(
             Box::new(next.clone()),
             test_thread.clone(),
-            1,   /* device_id */
-            100, /* threshold */
+            1, /* device_id */
+            SLOW_KEYS_THRESHOLD_NS,
         );
-        test_thread.start_looper();
+        let mut now = clock_gettime(ClockId::CLOCK_MONOTONIC).unwrap().num_nanoseconds();
+        filter.notify_key(&KeyEvent {
+            action: KeyEventAction::DOWN,
+            downTime: now,
+            eventTime: now,
+            ..BASE_KEY_EVENT
+        });
 
-        filter.notify_key(&KeyEvent { action: KeyEventAction::DOWN, ..BASE_KEY_EVENT });
-        test_thread.dispatch_next();
+        std::thread::sleep(Duration::from_nanos(SLOW_KEYS_THRESHOLD_NS as u64 / 2));
 
-        test_thread.move_time_forward(10);
+        now = clock_gettime(ClockId::CLOCK_MONOTONIC).unwrap().num_nanoseconds();
+        filter.notify_key(&KeyEvent {
+            action: KeyEventAction::UP,
+            downTime: now,
+            eventTime: now,
+            ..BASE_KEY_EVENT
+        });
 
-        filter.notify_key(&KeyEvent { action: KeyEventAction::UP, ..BASE_KEY_EVENT });
-        test_thread.dispatch_next();
-
-        test_thread.stop_looper();
         assert!(next.last_event().is_none());
     }
 
     #[test]
     fn test_notify_key_for_external_keyboard_when_device_removed_before_threshold_time() {
         let test_callbacks = TestCallbacks::new();
-        let test_thread = TestThread::new(test_callbacks.clone());
+        let test_thread = get_thread(test_callbacks.clone());
         let next = TestFilter::new();
         let mut filter = setup_filter_with_external_device(
             Box::new(next.clone()),
             test_thread.clone(),
-            1,   /* device_id */
-            100, /* threshold */
+            1, /* device_id */
+            SLOW_KEYS_THRESHOLD_NS,
         );
-        test_thread.start_looper();
 
-        filter.notify_key(&KeyEvent { action: KeyEventAction::DOWN, ..BASE_KEY_EVENT });
-        assert!(next.last_event().is_none());
-        test_thread.dispatch_next();
+        let now = clock_gettime(ClockId::CLOCK_MONOTONIC).unwrap().num_nanoseconds();
+        filter.notify_key(&KeyEvent {
+            action: KeyEventAction::DOWN,
+            downTime: now,
+            eventTime: now,
+            ..BASE_KEY_EVENT
+        });
 
         filter.notify_devices_changed(&[]);
-        test_thread.dispatch_next();
+        std::thread::sleep(Duration::from_nanos(2 * SLOW_KEYS_THRESHOLD_NS as u64));
 
-        test_thread.move_time_forward(100);
-
-        test_thread.stop_looper();
         assert!(next.last_event().is_none());
     }
 
     fn setup_filter_with_external_device(
         next: Box<dyn Filter + Send + Sync>,
-        test_thread: TestThread,
+        test_thread: InputFilterThread,
         device_id: i32,
         threshold: i64,
     ) -> SlowKeysFilter {
@@ -367,7 +399,7 @@ mod tests {
 
     fn setup_filter_with_internal_device(
         next: Box<dyn Filter + Send + Sync>,
-        test_thread: TestThread,
+        test_thread: InputFilterThread,
         device_id: i32,
         threshold: i64,
     ) -> SlowKeysFilter {
@@ -381,12 +413,18 @@ mod tests {
 
     fn setup_filter_with_devices(
         next: Box<dyn Filter + Send + Sync>,
-        test_thread: TestThread,
+        test_thread: InputFilterThread,
         devices: &[DeviceInfo],
         threshold: i64,
     ) -> SlowKeysFilter {
-        let mut filter = SlowKeysFilter::new(next, threshold, test_thread.get_input_thread());
+        let mut filter = SlowKeysFilter::new(next, threshold, test_thread);
         filter.notify_devices_changed(devices);
         filter
+    }
+
+    fn get_thread(callbacks: TestCallbacks) -> InputFilterThread {
+        InputFilterThread::new(InputFilterThreadCreator::new(Arc::new(RwLock::new(Strong::new(
+            Box::new(callbacks),
+        )))))
     }
 }

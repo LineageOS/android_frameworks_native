@@ -85,6 +85,32 @@ private:
     ~TestFactory() = delete;
 };
 
+class TestCounter {
+public:
+    TestCounter(int32_t init) : mCount(init), mMutex(), mCondVar() {}
+
+    int32_t get() {
+        std::unique_lock<std::mutex> lock(mMutex);
+        return mCount;
+    }
+
+    void increment() {
+        std::unique_lock<std::mutex> lock(mMutex);
+        mCount += 1;
+        mCondVar.notify_all();
+    }
+
+    void tryWaitUntilCountIsAtLeast(int32_t count, std::chrono::milliseconds timeout) {
+        std::unique_lock<std::mutex> lock(mMutex);
+        mCondVar.wait_for(lock, timeout, [&] { return mCount >= count; });
+    }
+
+private:
+    int32_t mCount;
+    std::mutex mMutex;
+    std::condition_variable mCondVar;
+};
+
 // -------------------------------------------------------------------------------------------------
 
 } // namespace vibrator

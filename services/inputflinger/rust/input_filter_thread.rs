@@ -33,8 +33,6 @@ use com_android_server_inputflinger::aidl::com::android::server::inputflinger::I
 use log::{debug, error};
 use nix::{sys::time::TimeValLike, time::clock_gettime, time::ClockId};
 use std::sync::{Arc, RwLock, RwLockWriteGuard};
-use std::time::Duration;
-use std::{thread, thread::Thread};
 
 /// Interface to receive callback from Input filter thread
 pub trait ThreadCallback {
@@ -54,13 +52,16 @@ pub struct InputFilterThread {
     thread_creator: InputFilterThreadCreator,
     thread_callback_handler: ThreadCallbackHandler,
     inner: Arc<RwLock<InputFilterThreadInner>>,
+    looper: Arc<RwLock<Looper>>,
 }
 
 struct InputFilterThreadInner {
-    cpp_thread: Option<Strong<dyn IInputThread>>,
-    looper: Option<Thread>,
     next_timeout: i64,
     is_finishing: bool,
+}
+
+struct Looper {
+    cpp_thread: Option<Strong<dyn IInputThread>>,
 }
 
 impl InputFilterThread {
@@ -71,11 +72,10 @@ impl InputFilterThread {
             thread_creator,
             thread_callback_handler: ThreadCallbackHandler::new(),
             inner: Arc::new(RwLock::new(InputFilterThreadInner {
-                cpp_thread: None,
-                looper: None,
                 next_timeout: i64::MAX,
                 is_finishing: false,
             })),
+            looper: Arc::new(RwLock::new(Looper { cpp_thread: None })),
         }
     }
 
@@ -83,12 +83,17 @@ impl InputFilterThread {
     /// time on the input filter thread.
     /// {@see ThreadCallback.notify_timeout_expired(...)}
     pub fn request_timeout_at_time(&self, when_nanos: i64) {
-        let filter_thread = &mut self.filter_thread();
-        if when_nanos < filter_thread.next_timeout {
-            filter_thread.next_timeout = when_nanos;
-            if let Some(looper) = &filter_thread.looper {
-                looper.unpark();
+        let mut need_wake = false;
+        {
+            // acquire filter lock
+            let filter_thread = &mut self.filter_thread();
+            if when_nanos < filter_thread.next_timeout {
+                filter_thread.next_timeout = when_nanos;
+                need_wake = true;
             }
+        } // release filter lock
+        if need_wake {
+            self.wake();
         }
     }
 
@@ -120,29 +125,36 @@ impl InputFilterThread {
 
     fn start(&self) {
         debug!("InputFilterThread: start thread");
-        let filter_thread = &mut self.filter_thread();
-        if filter_thread.cpp_thread.is_none() {
-            filter_thread.cpp_thread = Some(self.thread_creator.create(
-                &BnInputThreadCallback::new_binder(self.clone(), BinderFeatures::default()),
-            ));
-            filter_thread.looper = None;
-            filter_thread.is_finishing = false;
-        }
+        {
+            // acquire looper lock
+            let looper = &mut self.looper();
+            if looper.cpp_thread.is_none() {
+                looper.cpp_thread = Some(self.thread_creator.create(
+                    &BnInputThreadCallback::new_binder(self.clone(), BinderFeatures::default()),
+                ));
+            }
+        } // release looper lock
+        self.set_finishing(false);
     }
 
     fn stop(&self) {
         debug!("InputFilterThread: stop thread");
+        self.set_finishing(true);
+        self.wake();
+        {
+            // acquire looper lock
+            let looper = &mut self.looper();
+            if let Some(cpp_thread) = &looper.cpp_thread {
+                let _ = cpp_thread.finish();
+            }
+            // Clear all references
+            looper.cpp_thread = None;
+        } // release looper lock
+    }
+
+    fn set_finishing(&self, is_finishing: bool) {
         let filter_thread = &mut self.filter_thread();
-        filter_thread.is_finishing = true;
-        if let Some(looper) = &filter_thread.looper {
-            looper.unpark();
-        }
-        if let Some(cpp_thread) = &filter_thread.cpp_thread {
-            let _ = cpp_thread.finish();
-        }
-        // Clear all references
-        filter_thread.cpp_thread = None;
-        filter_thread.looper = None;
+        filter_thread.is_finishing = is_finishing;
     }
 
     fn loop_once(&self, now: i64) {
@@ -163,24 +175,33 @@ impl InputFilterThread {
                     wake_up_time = filter_thread.next_timeout;
                 }
             }
-            if filter_thread.looper.is_none() {
-                filter_thread.looper = Some(std::thread::current());
-            }
         } // release thread lock
         if timeout_expired {
             self.thread_callback_handler.notify_timeout_expired(now);
         }
-        if wake_up_time == i64::MAX {
-            thread::park();
-        } else {
-            let duration_now = Duration::from_nanos(now as u64);
-            let duration_wake_up = Duration::from_nanos(wake_up_time as u64);
-            thread::park_timeout(duration_wake_up - duration_now);
-        }
+        self.sleep_until(wake_up_time);
     }
 
     fn filter_thread(&self) -> RwLockWriteGuard<'_, InputFilterThreadInner> {
         self.inner.write().unwrap()
+    }
+
+    fn sleep_until(&self, when_nanos: i64) {
+        let looper = self.looper.read().unwrap();
+        if let Some(cpp_thread) = &looper.cpp_thread {
+            let _ = cpp_thread.sleepUntil(when_nanos);
+        }
+    }
+
+    fn wake(&self) {
+        let looper = self.looper.read().unwrap();
+        if let Some(cpp_thread) = &looper.cpp_thread {
+            let _ = cpp_thread.wake();
+        }
+    }
+
+    fn looper(&self) -> RwLockWriteGuard<'_, Looper> {
+        self.looper.write().unwrap()
     }
 }
 
@@ -252,165 +273,64 @@ impl ThreadCallbackHandler {
 
 #[cfg(test)]
 mod tests {
-    use crate::input_filter::test_callbacks::TestCallbacks;
-    use crate::input_filter_thread::{
-        test_thread::TestThread, test_thread_callback::TestThreadCallback,
-    };
+    use crate::input_filter::{test_callbacks::TestCallbacks, InputFilterThreadCreator};
+    use crate::input_filter_thread::{test_thread_callback::TestThreadCallback, InputFilterThread};
+    use binder::Strong;
+    use nix::{sys::time::TimeValLike, time::clock_gettime, time::ClockId};
+    use std::sync::{Arc, RwLock};
+    use std::time::Duration;
 
     #[test]
     fn test_register_callback_creates_cpp_thread() {
         let test_callbacks = TestCallbacks::new();
-        let test_thread = TestThread::new(test_callbacks.clone());
+        let test_thread = get_thread(test_callbacks.clone());
         let test_thread_callback = TestThreadCallback::new();
-        test_thread.register_thread_callback(test_thread_callback);
-        assert!(test_callbacks.is_thread_created());
+        test_thread.register_thread_callback(Box::new(test_thread_callback));
+        assert!(test_callbacks.is_thread_running());
     }
 
     #[test]
     fn test_unregister_callback_finishes_cpp_thread() {
         let test_callbacks = TestCallbacks::new();
-        let test_thread = TestThread::new(test_callbacks.clone());
+        let test_thread = get_thread(test_callbacks.clone());
         let test_thread_callback = TestThreadCallback::new();
-        test_thread.register_thread_callback(test_thread_callback.clone());
-        test_thread.unregister_thread_callback(test_thread_callback);
-        assert!(test_callbacks.is_thread_finished());
+        test_thread.register_thread_callback(Box::new(test_thread_callback.clone()));
+        test_thread.unregister_thread_callback(Box::new(test_thread_callback));
+        assert!(!test_callbacks.is_thread_running());
     }
 
     #[test]
     fn test_notify_timeout_called_after_timeout_expired() {
         let test_callbacks = TestCallbacks::new();
-        let test_thread = TestThread::new(test_callbacks.clone());
+        let test_thread = get_thread(test_callbacks.clone());
         let test_thread_callback = TestThreadCallback::new();
-        test_thread.register_thread_callback(test_thread_callback.clone());
-        test_thread.start_looper();
+        test_thread.register_thread_callback(Box::new(test_thread_callback.clone()));
 
-        test_thread.request_timeout_at_time(500);
-        test_thread.dispatch_next();
+        let now = clock_gettime(ClockId::CLOCK_MONOTONIC).unwrap().num_milliseconds();
+        test_thread.request_timeout_at_time((now + 10) * 1000000);
 
-        test_thread.move_time_forward(500);
-
-        test_thread.stop_looper();
+        std::thread::sleep(Duration::from_millis(20));
         assert!(test_thread_callback.is_notify_timeout_called());
     }
 
     #[test]
     fn test_notify_timeout_not_called_before_timeout_expired() {
         let test_callbacks = TestCallbacks::new();
-        let test_thread = TestThread::new(test_callbacks.clone());
+        let test_thread = get_thread(test_callbacks.clone());
         let test_thread_callback = TestThreadCallback::new();
-        test_thread.register_thread_callback(test_thread_callback.clone());
-        test_thread.start_looper();
+        test_thread.register_thread_callback(Box::new(test_thread_callback.clone()));
 
-        test_thread.request_timeout_at_time(500);
-        test_thread.dispatch_next();
+        let now = clock_gettime(ClockId::CLOCK_MONOTONIC).unwrap().num_milliseconds();
+        test_thread.request_timeout_at_time((now + 100) * 1000000);
 
-        test_thread.move_time_forward(100);
-
-        test_thread.stop_looper();
+        std::thread::sleep(Duration::from_millis(10));
         assert!(!test_thread_callback.is_notify_timeout_called());
     }
-}
 
-#[cfg(test)]
-pub mod test_thread {
-
-    use crate::input_filter::{test_callbacks::TestCallbacks, InputFilterThreadCreator};
-    use crate::input_filter_thread::{test_thread_callback::TestThreadCallback, InputFilterThread};
-    use binder::Strong;
-    use std::sync::{
-        atomic::AtomicBool, atomic::AtomicI64, atomic::Ordering, Arc, RwLock, RwLockWriteGuard,
-    };
-    use std::time::Duration;
-
-    #[derive(Clone)]
-    pub struct TestThread {
-        input_thread: InputFilterThread,
-        inner: Arc<RwLock<TestThreadInner>>,
-        exit_flag: Arc<AtomicBool>,
-        now: Arc<AtomicI64>,
-    }
-
-    struct TestThreadInner {
-        join_handle: Option<std::thread::JoinHandle<()>>,
-    }
-
-    impl TestThread {
-        pub fn new(callbacks: TestCallbacks) -> TestThread {
-            Self {
-                input_thread: InputFilterThread::new(InputFilterThreadCreator::new(Arc::new(
-                    RwLock::new(Strong::new(Box::new(callbacks))),
-                ))),
-                inner: Arc::new(RwLock::new(TestThreadInner { join_handle: None })),
-                exit_flag: Arc::new(AtomicBool::new(false)),
-                now: Arc::new(AtomicI64::new(0)),
-            }
-        }
-
-        fn inner(&self) -> RwLockWriteGuard<'_, TestThreadInner> {
-            self.inner.write().unwrap()
-        }
-
-        pub fn get_input_thread(&self) -> InputFilterThread {
-            self.input_thread.clone()
-        }
-
-        pub fn register_thread_callback(&self, thread_callback: TestThreadCallback) {
-            self.input_thread.register_thread_callback(Box::new(thread_callback));
-        }
-
-        pub fn unregister_thread_callback(&self, thread_callback: TestThreadCallback) {
-            self.input_thread.unregister_thread_callback(Box::new(thread_callback));
-        }
-
-        pub fn start_looper(&self) {
-            self.exit_flag.store(false, Ordering::Relaxed);
-            let clone = self.clone();
-            let join_handle = std::thread::Builder::new()
-                .name("test_thread".to_string())
-                .spawn(move || {
-                    while !clone.exit_flag.load(Ordering::Relaxed) {
-                        clone.loop_once();
-                    }
-                })
-                .unwrap();
-            self.inner().join_handle = Some(join_handle);
-            // Sleep until the looper thread starts
-            std::thread::sleep(Duration::from_millis(10));
-        }
-
-        pub fn stop_looper(&self) {
-            self.exit_flag.store(true, Ordering::Relaxed);
-            {
-                let mut inner = self.inner();
-                if let Some(join_handle) = &inner.join_handle {
-                    join_handle.thread().unpark();
-                }
-                inner.join_handle.take().map(std::thread::JoinHandle::join);
-                inner.join_handle = None;
-            }
-            self.exit_flag.store(false, Ordering::Relaxed);
-        }
-
-        pub fn move_time_forward(&self, value: i64) {
-            let _ = self.now.fetch_add(value, Ordering::Relaxed);
-            self.dispatch_next();
-        }
-
-        pub fn dispatch_next(&self) {
-            if let Some(join_handle) = &self.inner().join_handle {
-                join_handle.thread().unpark();
-            }
-            // Sleep until the looper thread runs a loop
-            std::thread::sleep(Duration::from_millis(10));
-        }
-
-        fn loop_once(&self) {
-            self.input_thread.loop_once(self.now.load(Ordering::Relaxed));
-        }
-
-        pub fn request_timeout_at_time(&self, when_nanos: i64) {
-            self.input_thread.request_timeout_at_time(when_nanos);
-        }
+    fn get_thread(callbacks: TestCallbacks) -> InputFilterThread {
+        InputFilterThread::new(InputFilterThreadCreator::new(Arc::new(RwLock::new(Strong::new(
+            Box::new(callbacks),
+        )))))
     }
 }
 
