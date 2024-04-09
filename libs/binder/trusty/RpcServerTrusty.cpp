@@ -60,17 +60,13 @@ sp<RpcServerTrusty> RpcServerTrusty::make(
 
 RpcServerTrusty::RpcServerTrusty(std::unique_ptr<RpcTransportCtx> ctx, std::string&& portName,
                                  std::shared_ptr<const PortAcl>&& portAcl, size_t msgMaxSize)
-      : mRpcServer(sp<RpcServer>::make(std::move(ctx))),
+      : mRpcServer(makeRpcServer(std::move(ctx))),
         mPortName(std::move(portName)),
         mPortAcl(std::move(portAcl)) {
     mTipcPort.name = mPortName.c_str();
     mTipcPort.msg_max_size = msgMaxSize;
     mTipcPort.msg_queue_len = 6; // Three each way
     mTipcPort.priv = this;
-
-    // TODO(b/266741352): follow-up to prevent needing this in the future
-    // Trusty needs to be set to the latest stable version that is in prebuilts there.
-    LOG_ALWAYS_FATAL_IF(!mRpcServer->setProtocolVersion(0));
 
     if (mPortAcl) {
         // Initialize the array of pointers to uuids.
@@ -101,8 +97,13 @@ RpcServerTrusty::RpcServerTrusty(std::unique_ptr<RpcTransportCtx> ctx, std::stri
 int RpcServerTrusty::handleConnect(const tipc_port* port, handle_t chan, const uuid* peer,
                                    void** ctx_p) {
     auto* server = reinterpret_cast<RpcServerTrusty*>(const_cast<void*>(port->priv));
-    server->mRpcServer->mShutdownTrigger = FdTrigger::make();
-    server->mRpcServer->mConnectingThreads[rpc_this_thread::get_id()] = RpcMaybeThread();
+    return handleConnectInternal(server->mRpcServer.get(), chan, peer, ctx_p);
+}
+
+int RpcServerTrusty::handleConnectInternal(RpcServer* rpcServer, handle_t chan, const uuid* peer,
+                                           void** ctx_p) {
+    rpcServer->mShutdownTrigger = FdTrigger::make();
+    rpcServer->mConnectingThreads[rpc_this_thread::get_id()] = RpcMaybeThread();
 
     int rc = NO_ERROR;
     auto joinFn = [&](sp<RpcSession>&& session, RpcSession::PreJoinSetupResult&& result) {
@@ -138,13 +139,17 @@ int RpcServerTrusty::handleConnect(const tipc_port* port, handle_t chan, const u
     std::array<uint8_t, RpcServer::kRpcAddressSize> addr;
     constexpr size_t addrLen = sizeof(*peer);
     memcpy(addr.data(), peer, addrLen);
-    RpcServer::establishConnection(sp(server->mRpcServer), std::move(transportFd), addr, addrLen,
-                                   joinFn);
+    RpcServer::establishConnection(sp<RpcServer>::fromExisting(rpcServer), std::move(transportFd),
+                                   addr, addrLen, joinFn);
 
     return rc;
 }
 
 int RpcServerTrusty::handleMessage(const tipc_port* /*port*/, handle_t /*chan*/, void* ctx) {
+    return handleMessageInternal(ctx);
+}
+
+int RpcServerTrusty::handleMessageInternal(void* ctx) {
     auto* channelContext = reinterpret_cast<ChannelContext*>(ctx);
     LOG_ALWAYS_FATAL_IF(channelContext == nullptr,
                         "bad state: message received on uninitialized channel");
@@ -162,6 +167,10 @@ int RpcServerTrusty::handleMessage(const tipc_port* /*port*/, handle_t /*chan*/,
 }
 
 void RpcServerTrusty::handleDisconnect(const tipc_port* /*port*/, handle_t /*chan*/, void* ctx) {
+    return handleDisconnectInternal(ctx);
+}
+
+void RpcServerTrusty::handleDisconnectInternal(void* ctx) {
     auto* channelContext = reinterpret_cast<ChannelContext*>(ctx);
     if (channelContext == nullptr) {
         // Connections marked "incoming" (outgoing from the server's side)
