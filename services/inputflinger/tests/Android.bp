@@ -67,6 +67,8 @@ cc_test {
         "InputProcessorConverter_test.cpp",
         "InputDispatcher_test.cpp",
         "InputReader_test.cpp",
+        "InputTraceSession.cpp",
+        "InputTracingTest.cpp",
         "InstrumentedInputReader.cpp",
         "LatencyTracker_test.cpp",
         "MultiTouchMotionAccumulator_test.cpp",

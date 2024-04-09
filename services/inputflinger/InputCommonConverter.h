@@ -16,16 +16,25 @@
 
 #pragma once
 
+#include "InputListener.h"
+
 #include <aidl/android/hardware/input/common/Axis.h>
 #include <aidl/android/hardware/input/common/MotionEvent.h>
-#include "InputListener.h"
+#include <input/Input.h>
 
 namespace android {
 
-/**
- * Convert from framework's NotifyMotionArgs to hidl's common::MotionEvent
- */
+/** Convert from framework's NotifyMotionArgs to hidl's common::MotionEvent. */
 ::aidl::android::hardware::input::common::MotionEvent notifyMotionArgsToHalMotionEvent(
         const NotifyMotionArgs& args);
+
+/** Convert from NotifyMotionArgs to MotionEvent. */
+MotionEvent toMotionEvent(const NotifyMotionArgs&, const ui::Transform* transform = nullptr,
+                          const ui::Transform* rawTransform = nullptr,
+                          const std::array<uint8_t, 32>* hmac = nullptr);
+
+/** Convert from NotifyKeyArgs to KeyEvent. */
+KeyEvent toKeyEvent(const NotifyKeyArgs&, int32_t repeatCount = 0,
+                    const std::array<uint8_t, 32>* hmac = nullptr);
 
 } // namespace android

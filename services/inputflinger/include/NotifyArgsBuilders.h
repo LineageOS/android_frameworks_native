@@ -30,8 +30,11 @@ namespace android {
 
 class MotionArgsBuilder {
 public:
-    MotionArgsBuilder(int32_t action, int32_t source) {
+    MotionArgsBuilder(int32_t action, int32_t source) : mEventId(InputEvent::nextId()) {
         mAction = action;
+        if (mAction == AMOTION_EVENT_ACTION_CANCEL) {
+            addFlag(AMOTION_EVENT_FLAG_CANCELED);
+        }
         mSource = source;
         mEventTime = systemTime(SYSTEM_TIME_MONOTONIC);
         mDownTime = mEventTime;
@@ -97,7 +100,7 @@ public:
         return *this;
     }
 
-    NotifyMotionArgs build() {
+    NotifyMotionArgs build() const {
         std::vector<PointerProperties> pointerProperties;
         std::vector<PointerCoords> pointerCoords;
         for (const PointerBuilder& pointer : mPointers) {
@@ -106,19 +109,17 @@ public:
         }
 
         // Set mouse cursor position for the most common cases to avoid boilerplate.
+        float resolvedCursorX = mRawXCursorPosition;
+        float resolvedCursorY = mRawYCursorPosition;
         if (mSource == AINPUT_SOURCE_MOUSE &&
             !MotionEvent::isValidCursorPosition(mRawXCursorPosition, mRawYCursorPosition) &&
             BitSet64::hasBit(pointerCoords[0].bits, AMOTION_EVENT_AXIS_X) &&
             BitSet64::hasBit(pointerCoords[0].bits, AMOTION_EVENT_AXIS_Y)) {
-            mRawXCursorPosition = pointerCoords[0].getX();
-            mRawYCursorPosition = pointerCoords[0].getY();
+            resolvedCursorX = pointerCoords[0].getX();
+            resolvedCursorY = pointerCoords[0].getY();
         }
 
-        if (mAction == AMOTION_EVENT_ACTION_CANCEL) {
-            addFlag(AMOTION_EVENT_FLAG_CANCELED);
-        }
-
-        return {InputEvent::nextId(),
+        return {mEventId,
                 mEventTime,
                 /*readTime=*/mEventTime,
                 mDeviceId,
@@ -137,13 +138,14 @@ public:
                 pointerCoords.data(),
                 /*xPrecision=*/0,
                 /*yPrecision=*/0,
-                mRawXCursorPosition,
-                mRawYCursorPosition,
+                resolvedCursorX,
+                resolvedCursorY,
                 mDownTime,
                 /*videoFrames=*/{}};
     }
 
 private:
+    const int32_t mEventId;
     int32_t mAction;
     int32_t mDeviceId{DEFAULT_DEVICE_ID};
     uint32_t mSource;
@@ -163,7 +165,7 @@ private:
 
 class KeyArgsBuilder {
 public:
-    KeyArgsBuilder(int32_t action, int32_t source) {
+    KeyArgsBuilder(int32_t action, int32_t source) : mEventId(InputEvent::nextId()) {
         mAction = action;
         mSource = source;
         mEventTime = systemTime(SYSTEM_TIME_MONOTONIC);
@@ -206,7 +208,7 @@ public:
     }
 
     NotifyKeyArgs build() const {
-        return {InputEvent::nextId(),
+        return {mEventId,
                 mEventTime,
                 /*readTime=*/mEventTime,
                 mDeviceId,
@@ -222,6 +224,7 @@ public:
     }
 
 private:
+    const int32_t mEventId;
     int32_t mAction;
     int32_t mDeviceId = DEFAULT_DEVICE_ID;
     uint32_t mSource;
