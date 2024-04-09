@@ -24,6 +24,7 @@ use binder::{
 macro_rules! stub_unstructured_parcelable {
     ($name:ident) => {
         /// Unimplemented stub parcelable.
+        #[allow(dead_code)]
         #[derive(Debug, Default)]
         pub struct $name(Option<()>);
 
