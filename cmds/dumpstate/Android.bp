@@ -37,9 +37,6 @@ cc_library_shared {
     name: "libdumpstateutil",
     defaults: ["dumpstate_cflag_defaults"],
     vendor_available: true,
-    vndk: {
-        enabled: true,
-    },
     srcs: [
         "DumpstateInternal.cpp",
         "DumpstateUtil.cpp",
