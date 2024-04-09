@@ -16,4 +16,5 @@
 
 [
     porttest("com.android.trusty.binderRpcTest"),
+    porttest("com.android.trusty.rust.binder_rpc_test.test"),
 ]

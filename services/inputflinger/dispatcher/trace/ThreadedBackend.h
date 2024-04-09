@@ -42,6 +42,9 @@ public:
     void traceMotionEvent(const TracedMotionEvent&, const TracedEventMetadata&) override;
     void traceWindowDispatch(const WindowDispatchArgs&, const TracedEventMetadata&) override;
 
+    /** Returns a function that, when called, will block until the tracing thread is idle. */
+    std::function<void()> getIdleWaiterForTesting();
+
 private:
     std::mutex mLock;
     bool mThreadExit GUARDED_BY(mLock){false};
@@ -52,12 +55,21 @@ private:
                       TracedEventMetadata>;
     std::vector<TraceEntry> mQueue GUARDED_BY(mLock);
 
+    struct IdleWaiter {
+        std::mutex idleLock;
+        std::condition_variable threadIdleCondition;
+        bool isIdle GUARDED_BY(idleLock){false};
+    };
+    // The lazy-initialized object used to wait for the tracing thread to idle.
+    std::shared_ptr<IdleWaiter> mIdleWaiter GUARDED_BY(mLock);
+
     // InputThread stops when its destructor is called. Initialize it last so that it is the
     // first thing to be destructed. This will guarantee the thread will not access other
     // members that have already been destructed.
     InputThread mTracerThread;
 
     void threadLoop();
+    void setIdleStatus(bool isIdle) REQUIRES(mLock);
 };
 
 } // namespace android::inputdispatcher::trace::impl

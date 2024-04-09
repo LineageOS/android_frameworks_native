@@ -1,0 +1,9 @@
+{
+    "uuid": "91eed949-8a9e-4569-9c83-5935fb624025",
+    "app_name": "rust_binder_rpc_test",
+    "min_heap": 16384,
+    "min_stack": 16384,
+    "mgmt_flags": {
+        "non_critical_app": true
+    }
+}

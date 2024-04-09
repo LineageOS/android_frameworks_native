@@ -17,9 +17,6 @@ cc_library_headers {
 cc_library {
     name: "libbufferqueueconverter",
     vendor_available: true,
-    vndk: {
-        enabled: true,
-    },
     double_loadable: true,
 
     srcs: [

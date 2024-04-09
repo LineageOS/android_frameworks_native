@@ -358,9 +358,6 @@ cc_library {
 
     // for vndbinder
     vendor_available: true,
-    vndk: {
-        enabled: true,
-    },
     recovery_available: true,
     double_loadable: true,
     // TODO(b/153609531): remove when no longer needed.
@@ -669,6 +666,7 @@ cc_library {
         "//packages/modules/Virtualization:__subpackages__",
         "//device/google/cuttlefish/shared/minidroid:__subpackages__",
         "//system/software_defined_vehicle:__subpackages__",
+        "//visibility:any_system_partition",
     ],
 }
 
