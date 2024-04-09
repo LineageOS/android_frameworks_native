@@ -20,6 +20,7 @@ use binder::{
     StatusCode,
 };
 
+#[allow(dead_code)]
 macro_rules! stub_unstructured_parcelable {
     ($name:ident) => {
         /// Unimplemented stub parcelable.
