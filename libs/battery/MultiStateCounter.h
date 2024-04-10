@@ -62,6 +62,12 @@ public:
 
     void setState(state_t state, time_t timestamp);
 
+    /**
+     * Copies the current state and accumulated times-in-state from the source. Resets
+     * the accumulated value.
+     */
+    void copyStatesFrom(const MultiStateCounter<T>& source);
+
     void setValue(state_t state, const T& value);
 
     /**
@@ -190,6 +196,22 @@ void MultiStateCounter<T>::setState(state_t state, time_t timestamp) {
     }
     currentState = state;
     lastStateChangeTimestamp = timestamp;
+}
+
+template <class T>
+void MultiStateCounter<T>::copyStatesFrom(const MultiStateCounter<T>& source) {
+    if (stateCount != source.stateCount) {
+        ALOGE("State count mismatch: %u vs. %u\n", stateCount, source.stateCount);
+        return;
+    }
+
+    currentState = source.currentState;
+    for (int i = 0; i < stateCount; i++) {
+        states[i].timeInStateSinceUpdate = source.states[i].timeInStateSinceUpdate;
+        states[i].counter = emptyValue;
+    }
+    lastStateChangeTimestamp = source.lastStateChangeTimestamp;
+    lastUpdateTimestamp = source.lastUpdateTimestamp;
 }
 
 template <class T>

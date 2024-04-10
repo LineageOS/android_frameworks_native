@@ -53,6 +53,7 @@ cc_library {
         "-DBINDER_WITH_KERNEL_IPC",
         "-Wall",
         "-Wextra",
+        "-Wextra-semi",
         "-Werror",
     ],
 
@@ -144,6 +145,46 @@ cc_library {
         "portability*",
     ],
     afdo: true,
+}
+
+cc_library {
+    name: "libbinder_ndk_on_trusty_mock",
+    defaults: [
+        "trusty_mock_defaults",
+    ],
+
+    export_include_dirs: [
+        "include_cpp",
+        "include_ndk",
+        "include_platform",
+    ],
+
+    srcs: [
+        "ibinder.cpp",
+        "libbinder.cpp",
+        "parcel.cpp",
+        "stability.cpp",
+        "status.cpp",
+    ],
+
+    shared_libs: [
+        "libbinder_on_trusty_mock",
+    ],
+
+    header_libs: [
+        "libbinder_trusty_ndk_headers",
+    ],
+    export_header_lib_headers: [
+        "libbinder_trusty_ndk_headers",
+    ],
+
+    cflags: [
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+    ],
+
+    visibility: ["//frameworks/native/libs/binder:__subpackages__"],
 }
 
 cc_library_headers {
