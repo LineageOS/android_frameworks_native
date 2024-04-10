@@ -327,7 +327,9 @@ MATCHER_P2(ModeSwitchingTo, flinger, modeId, "") {
         return false;
     }
 
-    if (!flinger->scheduler()->vsyncModulator().isVsyncConfigEarly()) {
+    // VsyncModulator should react to mode switches on the pacesetter display.
+    if (arg->getPhysicalId() == flinger->scheduler()->pacesetterDisplayId() &&
+        !flinger->scheduler()->vsyncModulator().isVsyncConfigEarly()) {
         *result_listener << "VsyncModulator did not shift to early phase";
         return false;
     }
@@ -368,8 +370,8 @@ TEST_F(DisplayModeSwitchingTest, innerXorOuterDisplay) {
     EXPECT_THAT(innerDisplay, ModeSettledTo(kModeId60));
     EXPECT_THAT(outerDisplay, ModeSettledTo(kModeId120));
 
-    // Only the inner display is powered on.
-    mFlinger.onActiveDisplayChanged(nullptr, *innerDisplay);
+    mFlinger.setPowerModeInternal(outerDisplay, hal::PowerMode::OFF);
+    mFlinger.setPowerModeInternal(innerDisplay, hal::PowerMode::ON);
 
     EXPECT_THAT(innerDisplay, ModeSettledTo(kModeId60));
     EXPECT_THAT(outerDisplay, ModeSettledTo(kModeId120));
@@ -385,40 +387,44 @@ TEST_F(DisplayModeSwitchingTest, innerXorOuterDisplay) {
                                                                                0.f, 120.f)));
 
     EXPECT_THAT(innerDisplay, ModeSwitchingTo(&mFlinger, kModeId90));
-    EXPECT_THAT(outerDisplay, ModeSettledTo(kModeId120));
+    EXPECT_THAT(outerDisplay, ModeSwitchingTo(&mFlinger, kModeId60));
 
     const VsyncPeriodChangeTimeline timeline{.refreshRequired = true};
     EXPECT_SET_ACTIVE_CONFIG(kInnerDisplayHwcId, kModeId90);
-
-    mFlinger.commit();
-
-    EXPECT_THAT(innerDisplay, ModeSwitchingTo(&mFlinger, kModeId90));
-    EXPECT_THAT(outerDisplay, ModeSettledTo(kModeId120));
-
-    mFlinger.commit();
-
-    EXPECT_THAT(innerDisplay, ModeSettledTo(kModeId90));
-    EXPECT_THAT(outerDisplay, ModeSettledTo(kModeId120));
-
-    innerDisplay->setPowerMode(hal::PowerMode::OFF);
-    outerDisplay->setPowerMode(hal::PowerMode::ON);
-
-    // Only the outer display is powered on.
-    mFlinger.onActiveDisplayChanged(innerDisplay.get(), *outerDisplay);
-
-    EXPECT_THAT(innerDisplay, ModeSettledTo(kModeId90));
-    EXPECT_THAT(outerDisplay, ModeSwitchingTo(&mFlinger, kModeId60));
-
     EXPECT_SET_ACTIVE_CONFIG(kOuterDisplayHwcId, kModeId60);
 
     mFlinger.commit();
 
-    EXPECT_THAT(innerDisplay, ModeSettledTo(kModeId90));
+    EXPECT_THAT(innerDisplay, ModeSwitchingTo(&mFlinger, kModeId90));
     EXPECT_THAT(outerDisplay, ModeSwitchingTo(&mFlinger, kModeId60));
 
     mFlinger.commit();
 
     EXPECT_THAT(innerDisplay, ModeSettledTo(kModeId90));
+    EXPECT_THAT(outerDisplay, ModeSettledTo(kModeId60));
+
+    mFlinger.setPowerModeInternal(innerDisplay, hal::PowerMode::OFF);
+    mFlinger.setPowerModeInternal(outerDisplay, hal::PowerMode::ON);
+
+    EXPECT_THAT(innerDisplay, ModeSettledTo(kModeId90));
+    EXPECT_THAT(outerDisplay, ModeSettledTo(kModeId60));
+
+    EXPECT_EQ(NO_ERROR,
+              mFlinger.setDesiredDisplayModeSpecs(innerDisplay->getDisplayToken().promote(),
+                                                  mock::createDisplayModeSpecs(kModeId60, false,
+                                                                               0.f, 120.f)));
+
+    EXPECT_THAT(innerDisplay, ModeSwitchingTo(&mFlinger, kModeId60));
+    EXPECT_SET_ACTIVE_CONFIG(kInnerDisplayHwcId, kModeId60);
+
+    mFlinger.commit();
+
+    EXPECT_THAT(innerDisplay, ModeSwitchingTo(&mFlinger, kModeId60));
+    EXPECT_THAT(outerDisplay, ModeSettledTo(kModeId60));
+
+    mFlinger.commit();
+
+    EXPECT_THAT(innerDisplay, ModeSettledTo(kModeId60));
     EXPECT_THAT(outerDisplay, ModeSettledTo(kModeId60));
 }
 
@@ -437,10 +443,8 @@ TEST_F(DisplayModeSwitchingTest, innerAndOuterDisplay) {
     EXPECT_THAT(innerDisplay, ModeSettledTo(kModeId60));
     EXPECT_THAT(outerDisplay, ModeSettledTo(kModeId120));
 
-    outerDisplay->setPowerMode(hal::PowerMode::ON);
-
-    // Both displays are powered on.
-    mFlinger.onActiveDisplayChanged(nullptr, *innerDisplay);
+    mFlinger.setPowerModeInternal(innerDisplay, hal::PowerMode::ON);
+    mFlinger.setPowerModeInternal(outerDisplay, hal::PowerMode::ON);
 
     EXPECT_THAT(innerDisplay, ModeSettledTo(kModeId60));
     EXPECT_THAT(outerDisplay, ModeSettledTo(kModeId120));
@@ -485,7 +489,7 @@ TEST_F(DisplayModeSwitchingTest, powerOffDuringModeSet) {
     EXPECT_THAT(mDisplay, ModeSwitchingTo(&mFlinger, kModeId90));
 
     // Power off the display before the mode has been set.
-    mDisplay->setPowerMode(hal::PowerMode::OFF);
+    mFlinger.setPowerModeInternal(mDisplay, hal::PowerMode::OFF);
 
     const VsyncPeriodChangeTimeline timeline{.refreshRequired = true};
     EXPECT_SET_ACTIVE_CONFIG(kInnerDisplayHwcId, kModeId90);
@@ -517,10 +521,8 @@ TEST_F(DisplayModeSwitchingTest, powerOffDuringConcurrentModeSet) {
     EXPECT_THAT(innerDisplay, ModeSettledTo(kModeId60));
     EXPECT_THAT(outerDisplay, ModeSettledTo(kModeId120));
 
-    outerDisplay->setPowerMode(hal::PowerMode::ON);
-
-    // Both displays are powered on.
-    mFlinger.onActiveDisplayChanged(nullptr, *innerDisplay);
+    mFlinger.setPowerModeInternal(innerDisplay, hal::PowerMode::ON);
+    mFlinger.setPowerModeInternal(outerDisplay, hal::PowerMode::ON);
 
     EXPECT_THAT(innerDisplay, ModeSettledTo(kModeId60));
     EXPECT_THAT(outerDisplay, ModeSettledTo(kModeId120));
@@ -539,40 +541,42 @@ TEST_F(DisplayModeSwitchingTest, powerOffDuringConcurrentModeSet) {
     EXPECT_THAT(outerDisplay, ModeSwitchingTo(&mFlinger, kModeId60));
 
     // Power off the outer display before the mode has been set.
-    outerDisplay->setPowerMode(hal::PowerMode::OFF);
+    mFlinger.setPowerModeInternal(outerDisplay, hal::PowerMode::OFF);
 
     const VsyncPeriodChangeTimeline timeline{.refreshRequired = true};
     EXPECT_SET_ACTIVE_CONFIG(kInnerDisplayHwcId, kModeId90);
-
-    mFlinger.commit();
-
-    // Powering off the inactive display should abort the mode set.
-    EXPECT_THAT(innerDisplay, ModeSwitchingTo(&mFlinger, kModeId90));
-    EXPECT_THAT(outerDisplay, ModeSettledTo(kModeId120));
-
-    mFlinger.commit();
-
-    EXPECT_THAT(innerDisplay, ModeSettledTo(kModeId90));
-    EXPECT_THAT(outerDisplay, ModeSettledTo(kModeId120));
-
-    innerDisplay->setPowerMode(hal::PowerMode::OFF);
-    outerDisplay->setPowerMode(hal::PowerMode::ON);
-
-    // Only the outer display is powered on.
-    mFlinger.onActiveDisplayChanged(innerDisplay.get(), *outerDisplay);
-
     EXPECT_SET_ACTIVE_CONFIG(kOuterDisplayHwcId, kModeId60);
 
     mFlinger.commit();
 
-    // The mode set should resume once the display becomes active.
-    EXPECT_THAT(innerDisplay, ModeSettledTo(kModeId90));
+    // Powering off the inactive display should not abort the mode set.
+    EXPECT_THAT(innerDisplay, ModeSwitchingTo(&mFlinger, kModeId90));
     EXPECT_THAT(outerDisplay, ModeSwitchingTo(&mFlinger, kModeId60));
 
     mFlinger.commit();
 
     EXPECT_THAT(innerDisplay, ModeSettledTo(kModeId90));
     EXPECT_THAT(outerDisplay, ModeSettledTo(kModeId60));
+
+    mFlinger.setPowerModeInternal(innerDisplay, hal::PowerMode::OFF);
+    mFlinger.setPowerModeInternal(outerDisplay, hal::PowerMode::ON);
+
+    EXPECT_EQ(NO_ERROR,
+              mFlinger.setDesiredDisplayModeSpecs(outerDisplay->getDisplayToken().promote(),
+                                                  mock::createDisplayModeSpecs(kModeId120, false,
+                                                                               0.f, 120.f)));
+
+    EXPECT_SET_ACTIVE_CONFIG(kOuterDisplayHwcId, kModeId120);
+
+    mFlinger.commit();
+
+    EXPECT_THAT(innerDisplay, ModeSettledTo(kModeId90));
+    EXPECT_THAT(outerDisplay, ModeSwitchingTo(&mFlinger, kModeId120));
+
+    mFlinger.commit();
+
+    EXPECT_THAT(innerDisplay, ModeSettledTo(kModeId90));
+    EXPECT_THAT(outerDisplay, ModeSettledTo(kModeId120));
 }
 
 } // namespace
