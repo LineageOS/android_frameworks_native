@@ -25,7 +25,9 @@ mod bindings {
 }
 
 // Trusty puts the full path to the auto-generated file in BINDGEN_INC_FILE
-// and builds it with warnings-as-errors, so we need to use #[allow(bad_style)]
+// and builds it with warnings-as-errors, so we need to use #[allow(bad_style)].
+// We need to use cfg(target_os) instead of cfg(trusty) here because of
+// the difference between the two build systems, which we cannot mock.
 #[cfg(target_os = "trusty")]
 #[allow(bad_style)]
 mod bindings {
