@@ -32,6 +32,7 @@ MODULE_LIBRARY_DEPS += \
 
 MODULE_RUSTFLAGS += \
 	--cfg 'android_vendor' \
+	--cfg 'trusty' \
 
 # Trusty does not have `ProcessState`, so there are a few
 # doc links in `IBinder` that are still broken.

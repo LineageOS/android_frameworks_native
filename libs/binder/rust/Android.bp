@@ -35,6 +35,21 @@ rust_library {
 }
 
 rust_library {
+    name: "libbinder_rs_on_trusty_mock",
+    crate_name: "binder",
+    srcs: ["src/lib.rs"],
+    cfgs: [
+        "trusty",
+    ],
+    rustlibs: [
+        "libbinder_ndk_sys_on_trusty_mock",
+        "libdowncast_rs",
+        "liblibc",
+    ],
+    vendor: true,
+}
+
+rust_library {
     name: "libbinder_tokio_rs",
     crate_name: "binder_tokio",
     srcs: ["binder_tokio/lib.rs"],
@@ -89,6 +104,26 @@ rust_library {
     visibility: [":__subpackages__"],
 }
 
+rust_library {
+    name: "libbinder_ndk_sys_on_trusty_mock",
+    crate_name: "binder_ndk_sys",
+    srcs: [
+        "sys/lib.rs",
+        ":libbinder_ndk_bindgen_on_trusty_mock",
+    ],
+    cfgs: [
+        "trusty",
+    ],
+    shared_libs: [
+        "libbinder_ndk_on_trusty_mock",
+    ],
+    vendor: true,
+    // Lints are checked separately for libbinder_ndk_sys.
+    // The Trusty mock copy pulls in extra headers that
+    // don't pass the lints for the bindgen output.
+    lints: "none",
+}
+
 rust_bindgen {
     name: "libbinder_ndk_bindgen",
     crate_name: "binder_ndk_bindgen",
@@ -123,6 +158,28 @@ rust_bindgen {
         "com.android.virt",
     ],
     min_sdk_version: "Tiramisu",
+}
+
+rust_bindgen {
+    name: "libbinder_ndk_bindgen_on_trusty_mock",
+    crate_name: "binder_ndk_bindgen",
+    wrapper_src: "sys/BinderBindings.hpp",
+    source_stem: "bindings",
+    defaults: [
+        "trusty_mock_defaults",
+    ],
+
+    bindgen_flag_files: [
+        // Unfortunately the only way to specify the rust_non_exhaustive enum
+        // style for a type is to make it the default
+        // and then specify constified enums for the enums we don't want
+        // rustified
+        "libbinder_ndk_bindgen_flags.txt",
+    ],
+    shared_libs: [
+        "libbinder_ndk_on_trusty_mock",
+        "libc++",
+    ],
 }
 
 rust_test {
