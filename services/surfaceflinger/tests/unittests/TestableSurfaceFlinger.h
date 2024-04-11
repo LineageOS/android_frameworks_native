@@ -191,6 +191,8 @@ public:
     void setupComposer(std::unique_ptr<Hwc2::Composer> composer) {
         mFlinger->mCompositionEngine->setHwComposer(
                 std::make_unique<impl::HWComposer>(std::move(composer)));
+        mFlinger->mDisplayModeController.setHwComposer(
+                &mFlinger->mCompositionEngine->getHwComposer());
     }
 
     void setupPowerAdvisor(std::unique_ptr<Hwc2::PowerAdvisor> powerAdvisor) {
@@ -1055,7 +1057,6 @@ public:
 
             auto& modes = mDisplayModes;
             auto& activeModeId = mActiveModeId;
-            std::optional<Fps> refreshRateOpt;
 
             DisplayDeviceState state;
             state.isSecure = mCreationArgs.isSecure;
@@ -1093,7 +1094,9 @@ public:
 
                 const auto activeModeOpt = modes.get(activeModeId);
                 LOG_ALWAYS_FATAL_IF(!activeModeOpt);
-                refreshRateOpt = activeModeOpt->get()->getPeakFps();
+
+                // Save a copy for use after `modes` is consumed.
+                const Fps refreshRate = activeModeOpt->get()->getPeakFps();
 
                 state.physical = {.id = *physicalId,
                                   .hwcDisplayId = *mHwcDisplayId,
@@ -1109,6 +1112,9 @@ public:
                         .registerDisplay(*physicalId, it->second.snapshot(),
                                          mCreationArgs.refreshRateSelector);
 
+                mFlinger.mutableDisplayModeController().setActiveMode(*physicalId, activeModeId,
+                                                                      refreshRate, refreshRate);
+
                 if (mFlinger.scheduler() && mSchedulerRegistration) {
                     mFlinger.scheduler()->registerDisplay(*physicalId,
                                                           mCreationArgs.refreshRateSelector,
@@ -1119,10 +1125,6 @@ public:
 
             sp<DisplayDevice> display = sp<DisplayDevice>::make(mCreationArgs);
             mFlinger.mutableDisplays().emplace_or_replace(mDisplayToken, display);
-
-            if (refreshRateOpt) {
-                display->setActiveMode(activeModeId, *refreshRateOpt, *refreshRateOpt);
-            }
 
             mFlinger.mutableCurrentState().displays.add(mDisplayToken, state);
             mFlinger.mutableDrawingState().displays.add(mDisplayToken, state);
