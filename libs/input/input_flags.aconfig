@@ -144,3 +144,10 @@ flag {
   description: "Allow multiple input devices to be active in the same window simultaneously"
   bug: "330752824"
 }
+
+flag {
+  name: "hide_pointer_indicators_for_secure_windows"
+  namespace: "input"
+  description: "Hide touch and pointer indicators if a secure window is present on display"
+  bug: "325252005"
+}
