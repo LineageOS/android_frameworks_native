@@ -4800,6 +4800,96 @@ TEST_F(InputDispatcherTest, ActionOutsideForOwnedWindowHasValidCoordinates) {
 }
 
 /**
+ * Three windows:
+ * - Left window
+ * - Right window
+ * - Outside window(watch for ACTION_OUTSIDE events)
+ * The windows "left" and "outside" share the same owner, the window "right" has a different owner,
+ * In order to allow the outside window can receive the ACTION_OUTSIDE events, the outside window is
+ * positioned above the "left" and "right" windows, and it doesn't overlap with them.
+ *
+ * First, device A report a down event landed in the right window, the outside window can receive
+ * an ACTION_OUTSIDE event that with zeroed coordinates, the device B report a down event landed
+ * in the left window, the outside window can receive an ACTION_OUTSIDE event the with valid
+ * coordinates, after these, device A and device B continue report MOVE event, the right and left
+ * window can receive it, but outside window event can't receive it.
+ */
+TEST_F(InputDispatcherTest, ActionOutsideForOwnedWindowHasValidCoordinatesWhenMultiDevice) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> leftWindow =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Left Window",
+                                       ADISPLAY_ID_DEFAULT);
+    leftWindow->setFrame(Rect{0, 0, 100, 100});
+    leftWindow->setOwnerInfo(gui::Pid{1}, gui::Uid{101});
+
+    sp<FakeWindowHandle> outsideWindow =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Outside Window",
+                                       ADISPLAY_ID_DEFAULT);
+    outsideWindow->setFrame(Rect{100, 100, 200, 200});
+    outsideWindow->setOwnerInfo(gui::Pid{1}, gui::Uid{101});
+    outsideWindow->setWatchOutsideTouch(true);
+
+    std::shared_ptr<FakeApplicationHandle> anotherApplication =
+            std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> rightWindow =
+            sp<FakeWindowHandle>::make(anotherApplication, mDispatcher, "Right Window",
+                                       ADISPLAY_ID_DEFAULT);
+    rightWindow->setFrame(Rect{100, 0, 200, 100});
+    rightWindow->setOwnerInfo(gui::Pid{2}, gui::Uid{202});
+
+    // OutsideWindow must be above left window and right window to receive ACTION_OUTSIDE events
+    // when left window or right window is tapped
+    mDispatcher->onWindowInfosChanged(
+            {{*outsideWindow->getInfo(), *leftWindow->getInfo(), *rightWindow->getInfo()},
+             {},
+             0,
+             0});
+
+    const DeviceId deviceA = 9;
+    const DeviceId deviceB = 3;
+
+    // Tap on right window use device A
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(150).y(50))
+                                      .deviceId(deviceA)
+                                      .build());
+    leftWindow->assertNoEvents();
+    rightWindow->consumeMotionEvent(AllOf(WithMotionAction(ACTION_DOWN), WithDeviceId(deviceA)));
+    // Right window is belonged to another owner, so outsideWindow should receive ACTION_OUTSIDE
+    // with zeroed coords.
+    outsideWindow->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_OUTSIDE), WithDeviceId(deviceA), WithCoords(0, 0)));
+
+    // Tap on left window use device B
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(50).y(50))
+                                      .deviceId(deviceB)
+                                      .build());
+    leftWindow->consumeMotionEvent(AllOf(WithMotionAction(ACTION_DOWN), WithDeviceId(deviceB)));
+    rightWindow->assertNoEvents();
+    // Because new gesture down on the left window that has the same owner with outside Window, the
+    // outside Window should receive the ACTION_OUTSIDE with coords.
+    outsideWindow->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_OUTSIDE), WithDeviceId(deviceB), WithCoords(-50, -50)));
+
+    // Ensure that windows that can only accept outside do not receive remaining gestures
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(151).y(51))
+                                      .deviceId(deviceA)
+                                      .build());
+    leftWindow->assertNoEvents();
+    rightWindow->consumeMotionEvent(AllOf(WithMotionAction(ACTION_MOVE), WithDeviceId(deviceA)));
+
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(51).y(51))
+                                      .deviceId(deviceB)
+                                      .build());
+    leftWindow->consumeMotionEvent(AllOf(WithMotionAction(ACTION_MOVE), WithDeviceId(deviceB)));
+    rightWindow->assertNoEvents();
+    outsideWindow->assertNoEvents();
+}
+
+/**
  * This test documents the behavior of WATCH_OUTSIDE_TOUCH. The window will get ACTION_OUTSIDE when
  * a another pointer causes ACTION_DOWN to be sent to another window for the first time. Only one
  * ACTION_OUTSIDE event is sent per gesture.
@@ -7389,6 +7479,60 @@ TEST_F(InputDispatcherTest, HoverEnterExitSynthesisUsesNewEventId) {
                                     WithEventIdSource(IdGenerator::Source::INPUT_DISPATCHER)));
 
     spy->consumeMotionEvent(AllOf(WithMotionAction(ACTION_HOVER_MOVE), WithEventId(notifyArgs.id)));
+}
+
+/**
+ * When a device reports a DOWN event, which lands in a window that supports splits, and then the
+ * device then reports a POINTER_DOWN, which lands in the location of a non-existing window, then
+ * the previous window should receive this event and not be dropped.
+ */
+TEST_F(InputDispatcherMultiDeviceTest, SingleDevicePointerDownEventRetentionWithoutWindowTarget) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> window =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Window", ADISPLAY_ID_DEFAULT);
+    window->setFrame(Rect(0, 0, 100, 100));
+    mDispatcher->onWindowInfosChanged({{*window->getInfo()}, {}, 0, 0});
+
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(50).y(50))
+                                      .build());
+
+    window->consumeMotionEvent(AllOf(WithMotionAction(ACTION_DOWN)));
+
+    mDispatcher->notifyMotion(MotionArgsBuilder(POINTER_1_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(50).y(50))
+                                      .pointer(PointerBuilder(1, ToolType::FINGER).x(200).y(200))
+                                      .build());
+
+    window->consumeMotionEvent(AllOf(WithMotionAction(POINTER_1_DOWN)));
+}
+
+/**
+ * When deviceA reports a DOWN event, which lands in a window that supports splits, and then deviceB
+ * also reports a DOWN event, which lands in the location of a non-existing window, then the
+ * previous window should receive deviceB's event and it should be dropped.
+ */
+TEST_F(InputDispatcherMultiDeviceTest, SecondDeviceDownEventDroppedWithoutWindowTarget) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> window =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Window", ADISPLAY_ID_DEFAULT);
+    window->setFrame(Rect(0, 0, 100, 100));
+    mDispatcher->onWindowInfosChanged({{*window->getInfo()}, {}, 0, 0});
+
+    const DeviceId deviceA = 9;
+    const DeviceId deviceB = 3;
+
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(50).y(50))
+                                      .deviceId(deviceA)
+                                      .build());
+    window->consumeMotionEvent(AllOf(WithMotionAction(ACTION_DOWN), WithDeviceId(deviceA)));
+
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(200).y(200))
+                                      .deviceId(deviceB)
+                                      .build());
+    window->assertNoEvents();
 }
 
 class InputDispatcherFallbackKeyTest : public InputDispatcherTest {
