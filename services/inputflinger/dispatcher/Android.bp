@@ -59,6 +59,8 @@ cc_defaults {
     srcs: [":libinputdispatcher_sources"],
     shared_libs: [
         "libbase",
+        "libbinder",
+        "libbinder_ndk",
         "libcrypto",
         "libcutils",
         "libinput",
@@ -69,6 +71,7 @@ cc_defaults {
         "libutils",
         "libstatspull",
         "libstatssocket",
+        "packagemanager_aidl-cpp",
         "server_configurable_flags",
     ],
     static_libs: [

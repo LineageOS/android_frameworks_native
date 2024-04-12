@@ -21,8 +21,10 @@
 #include "AndroidInputEventProtoConverter.h"
 
 #include <android-base/logging.h>
+#include <binder/IServiceManager.h>
 #include <perfetto/trace/android/android_input_event.pbzero.h>
 #include <private/android_filesystem_config.h>
+#include <utils/String16.h>
 
 namespace android::inputdispatcher::trace::impl {
 
@@ -39,6 +41,34 @@ bool isPermanentlyAllowed(gui::Uid uid) {
         default:
             return false;
     }
+}
+
+sp<content::pm::IPackageManagerNative> getPackageManager() {
+    sp<IServiceManager> serviceManager = defaultServiceManager();
+    if (!serviceManager) {
+        LOG(ERROR) << __func__ << ": unable to access native ServiceManager";
+        return nullptr;
+    }
+
+    sp<IBinder> binder = serviceManager->waitForService(String16("package_native"));
+    auto packageManager = interface_cast<content::pm::IPackageManagerNative>(binder);
+    if (!packageManager) {
+        LOG(ERROR) << ": unable to access native PackageManager";
+        return nullptr;
+    }
+    return packageManager;
+}
+
+gui::Uid getPackageUid(const sp<content::pm::IPackageManagerNative>& pm,
+                       const std::string& package) {
+    int32_t outUid = -1;
+    if (auto status = pm->getPackageUid(package, /*flags=*/0, AID_SYSTEM, &outUid);
+        !status.isOk()) {
+        LOG(INFO) << "Failed to get package UID from native package manager for package '"
+                  << package << "': " << status;
+        return gui::Uid::INVALID;
+    }
+    return gui::Uid{static_cast<uid_t>(outUid)};
 }
 
 } // namespace
@@ -67,18 +97,24 @@ void PerfettoBackend::InputEventDataSource::OnStop(const InputEventDataSource::S
     InputEventDataSource::Trace([&](InputEventDataSource::TraceContext ctx) { ctx.Flush(); });
 }
 
-void PerfettoBackend::InputEventDataSource::initializeUidMap(GetPackageUid getPackageUid) {
+void PerfettoBackend::InputEventDataSource::initializeUidMap() {
     if (mUidMap.has_value()) {
         return;
     }
 
     mUidMap = {{}};
+    auto packageManager = PerfettoBackend::sPackageManagerProvider();
+    if (!packageManager) {
+        LOG(ERROR) << "Failed to initialize UID map: Could not get native package manager";
+        return;
+    }
+
     for (const auto& rule : mConfig.rules) {
         for (const auto& package : rule.matchAllPackages) {
-            mUidMap->emplace(package, getPackageUid(package));
+            mUidMap->emplace(package, getPackageUid(packageManager, package));
         }
         for (const auto& package : rule.matchAnyPackages) {
-            mUidMap->emplace(package, getPackageUid(package));
+            mUidMap->emplace(package, getPackageUid(packageManager, package));
         }
     }
 }
@@ -151,12 +187,14 @@ bool PerfettoBackend::InputEventDataSource::ruleMatches(const TraceRule& rule,
 
 bool PerfettoBackend::sUseInProcessBackendForTest{false};
 
+std::function<sp<content::pm::IPackageManagerNative>()> PerfettoBackend::sPackageManagerProvider{
+        &getPackageManager};
+
 std::once_flag PerfettoBackend::sDataSourceRegistrationFlag{};
 
 std::atomic<int32_t> PerfettoBackend::sNextInstanceId{1};
 
-PerfettoBackend::PerfettoBackend(GetPackageUid getPackagesForUid)
-      : mGetPackageUid(getPackagesForUid) {
+PerfettoBackend::PerfettoBackend() {
     // Use a once-flag to ensure that the data source is only registered once per boot, since
     // we never unregister the InputEventDataSource.
     std::call_once(sDataSourceRegistrationFlag, []() {
@@ -181,7 +219,7 @@ void PerfettoBackend::traceMotionEvent(const TracedMotionEvent& event,
         if (!dataSource.valid()) {
             return;
         }
-        dataSource->initializeUidMap(mGetPackageUid);
+        dataSource->initializeUidMap();
         if (dataSource->shouldIgnoreTracedInputEvent(event.eventType)) {
             return;
         }
@@ -205,7 +243,7 @@ void PerfettoBackend::traceKeyEvent(const TracedKeyEvent& event,
         if (!dataSource.valid()) {
             return;
         }
-        dataSource->initializeUidMap(mGetPackageUid);
+        dataSource->initializeUidMap();
         if (dataSource->shouldIgnoreTracedInputEvent(event.eventType)) {
             return;
         }
@@ -229,7 +267,7 @@ void PerfettoBackend::traceWindowDispatch(const WindowDispatchArgs& dispatchArgs
         if (!dataSource.valid()) {
             return;
         }
-        dataSource->initializeUidMap(mGetPackageUid);
+        dataSource->initializeUidMap();
         if (!dataSource->getFlags().test(TraceFlag::TRACE_DISPATCHER_WINDOW_DISPATCH)) {
             return;
         }
