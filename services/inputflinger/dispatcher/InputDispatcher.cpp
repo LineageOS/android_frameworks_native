@@ -2619,7 +2619,7 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
 
         // Check whether touches should slip outside of the current foreground window.
         if (maskedAction == AMOTION_EVENT_ACTION_MOVE && entry.getPointerCount() == 1 &&
-            tempTouchState.isSlippery()) {
+            tempTouchState.isSlippery(entry.deviceId)) {
             const auto [x, y] = resolveTouchedPosition(entry);
             const bool isStylus = isPointerFromStylus(entry, /*pointerIndex=*/0);
             sp<WindowInfoHandle> oldTouchedWindowHandle =
