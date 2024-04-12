@@ -1,10 +1,10 @@
 {
   "presubmit": [
     {
-      "name": "CtsWindowManagerDeviceWindow",
+      "name": "CtsWindowManagerDeviceInput",
       "options": [
         {
-          "include-filter": "android.server.wm.window.WindowInputTests"
+          "include-filter": "android.server.wm.input.WindowInputTests"
         }
       ]
     },
