@@ -111,9 +111,13 @@ struct InputReaderConfiguration {
     // Used to determine which DisplayViewport should be tied to which InputDevice.
     std::unordered_map<std::string, uint8_t> portAssociations;
 
-    // The associations between input device physical port locations and display unique ids.
+    // The associations between input device ports and display unique ids.
     // Used to determine which DisplayViewport should be tied to which InputDevice.
-    std::unordered_map<std::string, std::string> uniqueIdAssociations;
+    std::unordered_map<std::string, std::string> uniqueIdAssociationsByPort;
+
+    // The associations between input device descriptor and display unique ids.
+    // Used to determine which DisplayViewport should be tied to which InputDevice.
+    std::unordered_map<std::string, std::string> uniqueIdAssociationsByDescriptor;
 
     // The associations between input device ports device types.
     // This is used to determine which device type and source should be tied to which InputDevice.
