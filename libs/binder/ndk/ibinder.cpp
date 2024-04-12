@@ -478,6 +478,16 @@ binder_status_t AIBinder_DeathRecipient::linkToDeath(const sp<IBinder>& binder, 
 
     std::lock_guard<std::mutex> l(mDeathRecipientsMutex);
 
+    if (mOnUnlinked && cookie &&
+        std::find_if(mDeathRecipients.begin(), mDeathRecipients.end(),
+                     [&cookie](android::sp<TransferDeathRecipient> recipient) {
+                         return recipient->getCookie() == cookie;
+                     }) != mDeathRecipients.end()) {
+        ALOGE("Attempting to AIBinder_linkToDeath with the same cookie with an onUnlink callback. "
+              "This will cause the onUnlinked callback to be called multiple times with the same "
+              "cookie, which is usually not intended.");
+    }
+
     sp<TransferDeathRecipient> recipient =
             new TransferDeathRecipient(binder, cookie, this, mOnDied, mOnUnlinked);
 
