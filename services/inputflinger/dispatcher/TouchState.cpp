@@ -180,9 +180,11 @@ void TouchState::cancelPointersForNonPilferingWindows() {
     clearWindowsWithoutPointers();
 }
 
-sp<WindowInfoHandle> TouchState::getFirstForegroundWindowHandle() const {
-    for (size_t i = 0; i < windows.size(); i++) {
-        const TouchedWindow& window = windows[i];
+sp<WindowInfoHandle> TouchState::getFirstForegroundWindowHandle(DeviceId deviceId) const {
+    for (const auto& window : windows) {
+        if (!window.hasTouchingPointers(deviceId)) {
+            continue;
+        }
         if (window.targetFlags.test(InputTarget::Flags::FOREGROUND)) {
             return window.windowHandle;
         }

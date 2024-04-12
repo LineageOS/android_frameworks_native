@@ -2455,7 +2455,7 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
         if (newTouchedWindowHandle == nullptr) {
             ALOGD("No new touched window at (%.1f, %.1f) in display %" PRId32, x, y, displayId);
             // Try to assign the pointer to the first foreground window we find, if there is one.
-            newTouchedWindowHandle = tempTouchState.getFirstForegroundWindowHandle();
+            newTouchedWindowHandle = tempTouchState.getFirstForegroundWindowHandle(entry.deviceId);
         }
 
         // Verify targeted injection.
@@ -2623,7 +2623,7 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
             const auto [x, y] = resolveTouchedPosition(entry);
             const bool isStylus = isPointerFromStylus(entry, /*pointerIndex=*/0);
             sp<WindowInfoHandle> oldTouchedWindowHandle =
-                    tempTouchState.getFirstForegroundWindowHandle();
+                    tempTouchState.getFirstForegroundWindowHandle(entry.deviceId);
             LOG_ALWAYS_FATAL_IF(oldTouchedWindowHandle == nullptr);
             sp<WindowInfoHandle> newTouchedWindowHandle =
                     findTouchedWindowAtLocked(displayId, x, y, isStylus);
@@ -2741,7 +2741,7 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
     // has a different UID, then we will not reveal coordinate information to this window.
     if (maskedAction == AMOTION_EVENT_ACTION_DOWN) {
         sp<WindowInfoHandle> foregroundWindowHandle =
-                tempTouchState.getFirstForegroundWindowHandle();
+                tempTouchState.getFirstForegroundWindowHandle(entry.deviceId);
         if (foregroundWindowHandle) {
             const auto foregroundWindowUid = foregroundWindowHandle->getInfo()->ownerUid;
             for (InputTarget& target : targets) {
