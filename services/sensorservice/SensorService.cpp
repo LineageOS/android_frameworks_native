@@ -2302,11 +2302,16 @@ bool SensorService::canAccessSensor(const Sensor& sensor, const char* operation,
         // requirement to hold the AR permission to access Step Counter and Step Detector events
         // was introduced.
         canAccess = true;
+    } else if (IPCThreadState::self()->getCallingUid() == AID_SYSTEM) {
+        // Allow access if it is requested from system.
+        canAccess = true;
     } else if (hasPermissionForSensor(sensor)) {
-        // Ensure that the AppOp is allowed, or that there is no necessary app op for the sensor
+        // Ensure that the AppOp is allowed, or that there is no necessary app op
+        // for the sensor
         if (opCode >= 0) {
-            const int32_t appOpMode = sAppOpsManager.checkOp(opCode,
-                    IPCThreadState::self()->getCallingUid(), opPackageName);
+            const int32_t appOpMode =
+                    sAppOpsManager.checkOp(opCode, IPCThreadState::self()->getCallingUid(),
+                                           opPackageName);
             canAccess = (appOpMode == AppOpsManager::MODE_ALLOWED);
         } else {
             canAccess = true;
