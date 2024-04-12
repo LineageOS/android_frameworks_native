@@ -697,6 +697,56 @@ TEST(NdkBinder, DeathRecipientDropBinderOnDied) {
     }
 }
 
+void LambdaOnUnlinkMultiple(void* cookie) {
+    auto funcs = static_cast<DeathRecipientCookie*>(cookie);
+    (*funcs->onUnlink)();
+};
+
+TEST(NdkBinder, DeathRecipientMultipleLinks) {
+    using namespace std::chrono_literals;
+
+    ndk::SpAIBinder binder;
+    sp<IFoo> foo = IFoo::getService(IFoo::kSomeInstanceName, binder.getR());
+    ASSERT_NE(nullptr, foo.get());
+    ASSERT_NE(nullptr, binder);
+
+    std::function<void(void)> onDeath = [&] {};
+
+    std::mutex unlinkMutex;
+    std::condition_variable unlinkCv;
+    bool unlinkReceived = false;
+    constexpr uint32_t kNumberOfLinksToDeath = 4;
+    uint32_t countdown = kNumberOfLinksToDeath;
+
+    std::function<void(void)> onUnlink = [&] {
+        std::unique_lock<std::mutex> lockUnlink(unlinkMutex);
+        countdown--;
+        if (countdown == 0) {
+            unlinkReceived = true;
+            unlinkCv.notify_one();
+        }
+    };
+
+    DeathRecipientCookie* cookie = new DeathRecipientCookie{&onDeath, &onUnlink};
+
+    ndk::ScopedAIBinder_DeathRecipient recipient(AIBinder_DeathRecipient_new(LambdaOnDeath));
+    AIBinder_DeathRecipient_setOnUnlinked(recipient.get(), LambdaOnUnlinkMultiple);
+
+    for (int32_t i = 0; i < kNumberOfLinksToDeath; i++) {
+        EXPECT_EQ(STATUS_OK,
+                  AIBinder_linkToDeath(binder.get(), recipient.get(), static_cast<void*>(cookie)));
+    }
+
+    foo = nullptr;
+    binder = nullptr;
+
+    std::unique_lock<std::mutex> lockUnlink(unlinkMutex);
+    EXPECT_TRUE(unlinkCv.wait_for(lockUnlink, 5s, [&] { return unlinkReceived; }))
+            << "countdown: " << countdown;
+    EXPECT_TRUE(unlinkReceived);
+    EXPECT_EQ(countdown, 0);
+}
+
 TEST(NdkBinder, RetrieveNonNdkService) {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
