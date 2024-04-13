@@ -1,4 +1,4 @@
-# Copyright (C) 2023 The Android Open Source Project
+# Copyright (C) 2024 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,20 +18,20 @@ LIBBINDER_DIR := $(LOCAL_DIR)/../../..
 
 MODULE := $(LOCAL_DIR)
 
-MODULE_SRCS := $(LIBBINDER_DIR)/rust/rpcbinder/src/lib.rs
+MODULE_SRCS := $(LOCAL_DIR)/lib.rs
 
-MODULE_CRATE_NAME := rpcbinder
+MODULE_CRATE_NAME := binder_rpc_server_bindgen
 
 MODULE_LIBRARY_DEPS += \
-	$(LIBBINDER_DIR)/trusty \
-	$(LIBBINDER_DIR)/trusty/ndk \
-	$(LIBBINDER_DIR)/trusty/rust \
-	$(LIBBINDER_DIR)/trusty/rust/binder_ndk_sys \
-	$(LIBBINDER_DIR)/trusty/rust/binder_rpc_unstable_bindgen \
-	$(LIBBINDER_DIR)/trusty/rust/binder_rpc_server_bindgen \
-	external/rust/crates/cfg-if \
-	external/rust/crates/foreign-types \
-	trusty/user/base/lib/tipc/rust \
+	$(LOCAL_DIR)/cpp \
+	trusty/user/base/lib/libstdc++-trusty \
 	trusty/user/base/lib/trusty-sys \
+
+MODULE_BINDGEN_SRC_HEADER := \
+	$(LIBBINDER_DIR)/trusty/include/binder/ARpcServerTrusty.h
+
+MODULE_BINDGEN_FLAGS += \
+	--allowlist-type="ARpcServerTrusty" \
+	--allowlist-function="ARpcServerTrusty_.*" \
 
 include make/library.mk
