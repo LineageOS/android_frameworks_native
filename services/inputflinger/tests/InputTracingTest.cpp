@@ -626,6 +626,8 @@ TEST_F(InputTracingTest, TraceWindowDispatch) {
     consumed = window->consumeMotionEvent(WithMotionAction(ACTION_CANCEL));
     s.expectMotionTraced(Level::NONE, *consumed);
     s.expectDispatchTraced(Level::REDACTED, {*consumed, window});
+
+    waitForTracerIdle();
 }
 
 TEST_F(InputTracingTest, SimultaneousTracingSessions) {

@@ -57,6 +57,7 @@ void ThreadedBackend<Backend>::traceMotionEvent(const TracedMotionEvent& event,
                                                 const TracedEventMetadata& metadata) {
     std::scoped_lock lock(mLock);
     mQueue.emplace_back(event, metadata);
+    setIdleStatus(false);
     mThreadWakeCondition.notify_all();
 }
 
@@ -65,6 +66,7 @@ void ThreadedBackend<Backend>::traceKeyEvent(const TracedKeyEvent& event,
                                              const TracedEventMetadata& metadata) {
     std::scoped_lock lock(mLock);
     mQueue.emplace_back(event, metadata);
+    setIdleStatus(false);
     mThreadWakeCondition.notify_all();
 }
 
@@ -73,6 +75,7 @@ void ThreadedBackend<Backend>::traceWindowDispatch(const WindowDispatchArgs& dis
                                                    const TracedEventMetadata& metadata) {
     std::scoped_lock lock(mLock);
     mQueue.emplace_back(dispatchArgs, metadata);
+    setIdleStatus(false);
     mThreadWakeCondition.notify_all();
 }
 
@@ -84,7 +87,9 @@ void ThreadedBackend<Backend>::threadLoop() {
         std::unique_lock lock(mLock);
         base::ScopedLockAssertion assumeLocked(mLock);
 
-        setIdleStatus(true);
+        if (mQueue.empty()) {
+            setIdleStatus(true);
+        }
 
         // Wait until we need to process more events or exit.
         mThreadWakeCondition.wait(lock,
@@ -93,8 +98,6 @@ void ThreadedBackend<Backend>::threadLoop() {
             setIdleStatus(true);
             return;
         }
-
-        setIdleStatus(false);
 
         mQueue.swap(entries);
     } // release lock
