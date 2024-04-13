@@ -23,14 +23,21 @@ use trusty_std::ffi::{CString, FallibleCString};
 test::init!();
 
 const SERVICE_PORT: &str = "com.android.trusty.binderRpcTestService.V1";
+const RUST_SERVICE_PORT: &str = "com.android.trusty.rust.binderRpcTestService.V1";
 
-fn get_service() -> Strong<dyn IBinderRpcTest> {
-    let port = CString::try_new(SERVICE_PORT).expect("Failed to allocate port name");
+fn get_service(port: &str) -> Strong<dyn IBinderRpcTest> {
+    let port = CString::try_new(port).expect("Failed to allocate port name");
     RpcSession::new().setup_trusty_client(port.as_c_str()).expect("Failed to create session")
 }
 
 #[test]
 fn ping() {
-    let srv = get_service();
+    let srv = get_service(SERVICE_PORT);
+    assert_eq!(srv.as_binder().ping_binder(), Ok(()));
+}
+
+#[test]
+fn ping_rust() {
+    let srv = get_service(RUST_SERVICE_PORT);
     assert_eq!(srv.as_binder().ping_binder(), Ok(()));
 }
