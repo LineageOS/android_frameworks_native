@@ -1,0 +1,10 @@
+{
+    "uuid": "4741fc65-8b65-4893-ba55-b182c003c8b7",
+    "app_name": "rust_binder_rpc_test_service",
+    "min_heap": 16384,
+    "min_stack": 16384,
+    "mgmt_flags": {
+        "non_critical_app": true,
+        "restart_on_exit": true
+    }
+}
