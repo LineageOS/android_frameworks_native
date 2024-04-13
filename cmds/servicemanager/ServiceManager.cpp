@@ -790,7 +790,8 @@ Status ServiceManager::registerClientCallback(const std::string& name, const sp<
 
     if (OK !=
         IInterface::asBinder(cb)->linkToDeath(sp<ServiceManager>::fromExisting(this))) {
-        ALOGE("%s Could not linkToDeath when adding client callback for %s", name.c_str());
+        ALOGE("%s Could not linkToDeath when adding client callback for %s",
+              ctx.toDebugString().c_str(), name.c_str());
         return Status::fromExceptionCode(Status::EX_ILLEGAL_STATE, "Couldn't linkToDeath.");
     }
 

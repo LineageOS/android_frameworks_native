@@ -18,6 +18,7 @@ rust_library {
         "libbinder_ndk_sys",
         "libbinder_rpc_unstable_bindgen_sys",
         "libbinder_rs",
+        "libcfg_if",
         "libdowncast_rs",
         "libforeign_types",
         "liblibc",
