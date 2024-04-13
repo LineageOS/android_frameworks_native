@@ -1,4 +1,4 @@
-# Copyright (C) 2023 The Android Open Source Project
+# Copyright (C) 2024 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,24 +14,16 @@
 #
 
 LOCAL_DIR := $(GET_LOCAL_DIR)
-LIBBINDER_DIR := $(LOCAL_DIR)/../../..
+LIBBINDER_DIR := $(LOCAL_DIR)/../../../..
 
 MODULE := $(LOCAL_DIR)
 
-MODULE_SRCS := $(LIBBINDER_DIR)/rust/rpcbinder/src/lib.rs
-
-MODULE_CRATE_NAME := rpcbinder
+MODULE_SRCS := \
+	$(LOCAL_DIR)/ARpcServerTrusty.cpp \
 
 MODULE_LIBRARY_DEPS += \
 	$(LIBBINDER_DIR)/trusty \
 	$(LIBBINDER_DIR)/trusty/ndk \
-	$(LIBBINDER_DIR)/trusty/rust \
-	$(LIBBINDER_DIR)/trusty/rust/binder_ndk_sys \
-	$(LIBBINDER_DIR)/trusty/rust/binder_rpc_unstable_bindgen \
-	$(LIBBINDER_DIR)/trusty/rust/binder_rpc_server_bindgen \
-	external/rust/crates/cfg-if \
-	external/rust/crates/foreign-types \
-	trusty/user/base/lib/tipc/rust \
-	trusty/user/base/lib/trusty-sys \
+	trusty/user/base/lib/libstdc++-trusty \
 
 include make/library.mk
