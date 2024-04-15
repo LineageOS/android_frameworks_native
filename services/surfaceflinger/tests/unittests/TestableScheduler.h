@@ -140,14 +140,25 @@ public:
         return mLayerHistory.mActiveLayerInfos.size();
     }
 
-    void replaceTouchTimer(int64_t millis) {
+    void replaceTouchTimer(int64_t millis,
+                           std::function<void(bool isReset)>&& testCallback = nullptr) {
         if (mTouchTimer) {
             mTouchTimer.reset();
         }
         mTouchTimer.emplace(
                 "Testable Touch timer", std::chrono::milliseconds(millis),
-                [this] { touchTimerCallback(TimerState::Reset); },
-                [this] { touchTimerCallback(TimerState::Expired); });
+                [this, testCallback] {
+                    touchTimerCallback(TimerState::Reset);
+                    if (testCallback != nullptr) {
+                        testCallback(true);
+                    }
+                },
+                [this, testCallback] {
+                    touchTimerCallback(TimerState::Expired);
+                    if (testCallback != nullptr) {
+                        testCallback(false);
+                    }
+                });
         mTouchTimer->start();
     }
 
