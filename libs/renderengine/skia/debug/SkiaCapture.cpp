@@ -30,7 +30,7 @@
 #include "SkCanvas.h"
 #include "SkRect.h"
 #include "SkTypeface.h"
-#include "src/utils/SkMultiPictureDocument.h"
+#include "include/docs/SkMultiPictureDocument.h"
 #include <sys/stat.h>
 
 namespace android {
@@ -196,7 +196,7 @@ bool SkiaCapture::setupMultiFrameCapture() {
         // procs doesn't need to outlive this Make call
         // The last argument is a callback for the endPage behavior.
         // See SkSharingProc.h for more explanation of this callback.
-        mMultiPic = SkMakeMultiPictureDocument(
+        mMultiPic = SkMultiPictureDocument::Make(
                 mOpenMultiPicStream.get(), &procs,
                 [sharingCtx = mSerialContext.get()](const SkPicture* pic) {
                     SkSharingSerialContext::collectNonTextureImagesFromPicture(pic, sharingCtx);

@@ -126,6 +126,7 @@ public:
                        const std::unordered_map<std::string, bool>&());
 
     MOCK_CONST_METHOD1(dump, void(std::string&));
+    MOCK_CONST_METHOD1(dumpOverlayProperties, void(std::string&));
     MOCK_CONST_METHOD0(getComposer, android::Hwc2::Composer*());
 
     MOCK_METHOD(hal::HWDisplayId, getPrimaryHwcDisplayId, (), (const, override));
