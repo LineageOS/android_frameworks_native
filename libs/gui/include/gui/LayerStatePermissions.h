@@ -15,15 +15,14 @@
  */
 
 #include <stdint.h>
-#include <string>
-#include <unordered_map>
-
+#include <utils/String16.h>
+#include <vector>
 namespace android {
 class LayerStatePermissions {
 public:
     static uint32_t getTransactionPermissions(int pid, int uid);
 
 private:
-    static std::unordered_map<std::string, int> mPermissionMap;
+    static std::vector<std::pair<String16, int>> mPermissionMap;
 };
 } // namespace android
