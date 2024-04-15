@@ -114,6 +114,9 @@ typedef struct APerformanceHintManager APerformanceHintManager;
  * API, the client is expected to call {@link APerformanceHint_reportActualWorkDuration} each
  * cycle to report the actual time taken to complete to the system.
  *
+ * Note, methods of {@link APerformanceHintSession_*} are not thread safe so callers must
+ * ensure thread safety.
+ *
  * All timings should be from `std::chrono::steady_clock` or `clock_gettime(CLOCK_MONOTONIC, ...)`
  */
 typedef struct APerformanceHintSession APerformanceHintSession;
