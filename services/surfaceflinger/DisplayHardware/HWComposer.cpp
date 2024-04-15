@@ -77,9 +77,7 @@ using aidl::android::hardware::graphics::common::HdrConversionCapability;
 using aidl::android::hardware::graphics::common::HdrConversionStrategy;
 using aidl::android::hardware::graphics::composer3::Capability;
 using aidl::android::hardware::graphics::composer3::DisplayCapability;
-using aidl::android::hardware::graphics::composer3::VrrConfig;
 using namespace std::string_literals;
-namespace hal = android::hardware::graphics::composer::hal;
 
 namespace android {
 
@@ -964,8 +962,45 @@ const std::unordered_map<std::string, bool>& HWComposer::getSupportedLayerGeneri
     return mSupportedLayerGenericMetadata;
 }
 
+void HWComposer::dumpOverlayProperties(std::string& result) const {
+    // dump overlay properties
+    result.append("OverlayProperties:\n");
+    base::StringAppendF(&result, "supportMixedColorSpaces: %d\n",
+                        mOverlayProperties.supportMixedColorSpaces);
+    base::StringAppendF(&result, "SupportedBufferCombinations(%zu entries)\n",
+                        mOverlayProperties.combinations.size());
+    for (const auto& combination : mOverlayProperties.combinations) {
+        result.append("    pixelFormats=\n");
+        for (const auto& pixelFormat : combination.pixelFormats) {
+            base::StringAppendF(&result, "        %s (%d)\n",
+                                decodePixelFormat(static_cast<PixelFormat>(pixelFormat)).c_str(),
+                                static_cast<uint32_t>(pixelFormat));
+        }
+        result.append("    standards=\n");
+        for (const auto& standard : combination.standards) {
+            base::StringAppendF(&result, "        %s (%d)\n",
+                                decodeStandard(static_cast<android_dataspace>(standard)).c_str(),
+                                static_cast<uint32_t>(standard));
+        }
+        result.append("    transfers=\n");
+        for (const auto& transfer : combination.transfers) {
+            base::StringAppendF(&result, "        %s (%d)\n",
+                                decodeTransferOnly(static_cast<uint32_t>(transfer)).c_str(),
+                                static_cast<uint32_t>(transfer));
+        }
+        result.append("    ranges=\n");
+        for (const auto& range : combination.ranges) {
+            base::StringAppendF(&result, "        %s (%d)\n",
+                                decodeRangeOnly(static_cast<uint32_t>(range)).c_str(),
+                                static_cast<uint32_t>(range));
+        }
+        result.append("\n");
+    }
+}
+
 void HWComposer::dump(std::string& result) const {
     result.append(mComposer->dumpDebugInfo());
+    dumpOverlayProperties(result);
 }
 
 std::optional<PhysicalDisplayId> HWComposer::toPhysicalDisplayId(

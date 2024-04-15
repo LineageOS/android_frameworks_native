@@ -27,8 +27,11 @@ struct DeviceProductInfo;
 }
 
 std::string decodeStandard(android_dataspace dataspace);
+std::string decodeStandardOnly(uint32_t dataspaceStandard);
 std::string decodeTransfer(android_dataspace dataspace);
+std::string decodeTransferOnly(uint32_t dataspaceTransfer);
 std::string decodeRange(android_dataspace dataspace);
+std::string decodeRangeOnly(uint32_t dataspaceRange);
 std::string dataspaceDetails(android_dataspace dataspace);
 std::string decodeColorMode(android::ui::ColorMode colormode);
 std::string decodeColorTransform(android_color_transform colorTransform);
