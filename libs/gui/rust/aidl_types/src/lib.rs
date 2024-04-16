@@ -20,13 +20,11 @@ use binder::{
     StatusCode,
 };
 
-#[allow(dead_code)]
 macro_rules! stub_unstructured_parcelable {
     ($name:ident) => {
         /// Unimplemented stub parcelable.
-        #[allow(dead_code)]
         #[derive(Debug, Default)]
-        pub struct $name(Option<()>);
+        pub struct $name(());
 
         impl UnstructuredParcelable for $name {
             fn write_to_parcel(&self, _parcel: &mut BorrowedParcel) -> Result<(), StatusCode> {
