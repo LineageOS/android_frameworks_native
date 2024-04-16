@@ -242,7 +242,7 @@ public:
     RenderEngineTest() {
         const ::testing::TestInfo* const test_info =
                 ::testing::UnitTest::GetInstance()->current_test_info();
-        ALOGD("**** Setting up for %s.%s\n", test_info->test_case_name(), test_info->name());
+        ALOGI("**** Setting up for %s.%s\n", test_info->test_case_name(), test_info->name());
     }
 
     ~RenderEngineTest() {
@@ -251,7 +251,7 @@ public:
         }
         const ::testing::TestInfo* const test_info =
                 ::testing::UnitTest::GetInstance()->current_test_info();
-        ALOGD("**** Tearing down after %s.%s\n", test_info->test_case_name(), test_info->name());
+        ALOGI("**** Tearing down after %s.%s\n", test_info->test_case_name(), test_info->name());
     }
 
     void writeBufferToFile(const char* basename) {
