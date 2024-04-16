@@ -809,11 +809,11 @@ void chooseRenderEngineType(renderengine::RenderEngineCreationArgs::Builder& bui
                 .setGraphicsApi(renderengine::RenderEngine::GraphicsApi::VK);
     } else {
         const auto kVulkan = renderengine::RenderEngine::GraphicsApi::VK;
-        const bool canSupportVulkan = renderengine::RenderEngine::canSupport(kVulkan);
-        const bool useGraphite =
-                canSupportVulkan && FlagManager::getInstance().graphite_renderengine();
+        const bool useGraphite = FlagManager::getInstance().graphite_renderengine() &&
+                renderengine::RenderEngine::canSupport(kVulkan);
         const bool useVulkan = useGraphite ||
-                (canSupportVulkan && FlagManager::getInstance().vulkan_renderengine());
+                (FlagManager::getInstance().vulkan_renderengine() &&
+                 renderengine::RenderEngine::canSupport(kVulkan));
 
         builder.setSkiaBackend(useGraphite ? renderengine::RenderEngine::SkiaBackend::GRAPHITE
                                            : renderengine::RenderEngine::SkiaBackend::GANESH);

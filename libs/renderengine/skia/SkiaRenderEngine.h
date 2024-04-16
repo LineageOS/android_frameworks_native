@@ -79,9 +79,9 @@ public:
     void ensureContextsCreated();
 
 protected:
-    // This is so backends can stop the generic rendering state first before
-    // cleaning up backend-specific state
-    void finishRenderingAndAbandonContext();
+    // This is so backends can stop the generic rendering state first before cleaning up
+    // backend-specific state. SkiaGpuContexts are invalid after invocation.
+    void finishRenderingAndAbandonContexts();
 
     // Functions that a given backend (GLES, Vulkan) must implement
     using Contexts = std::pair<unique_ptr<SkiaGpuContext>, unique_ptr<SkiaGpuContext>>;
