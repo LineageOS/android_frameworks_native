@@ -33,24 +33,45 @@ using aidl::android::hardware::power::Boost;
 TEST_F(DisplayTransactionTest, notifyPowerBoostNotifiesTouchEvent) {
     using namespace std::chrono_literals;
 
+    std::mutex timerMutex;
+    std::condition_variable cv;
+
     injectDefaultInternalDisplay([](FakeDisplayDeviceInjector&) {});
 
-    mFlinger.scheduler()->replaceTouchTimer(100);
-    std::this_thread::sleep_for(10ms);                  // wait for callback to be triggered
+    std::unique_lock lock(timerMutex);
+    bool didReset = false; // keeps track of what the most recent call was
+
+    auto waitForTimerReset = [&] { cv.wait_for(lock, 100ms, [&] { return didReset; }); };
+    auto waitForTimerExpired = [&] { cv.wait_for(lock, 100ms, [&] { return !didReset; }); };
+
+    // Add extra logic to unblock the test when the timer callbacks get called
+    mFlinger.scheduler()->replaceTouchTimer(10, [&](bool isReset) {
+        {
+            std::unique_lock lock(timerMutex); // guarantee we're waiting on the cv
+            didReset = isReset;
+        }
+        cv.notify_one();                   // wake the cv
+        std::unique_lock lock(timerMutex); // guarantee we finished the cv logic
+    });
+
+    waitForTimerReset();
     EXPECT_TRUE(mFlinger.scheduler()->isTouchActive()); // Starting timer activates touch
 
-    std::this_thread::sleep_for(110ms); // wait for reset touch timer to expire and trigger callback
-    EXPECT_FALSE(mFlinger.scheduler()->isTouchActive());
+    waitForTimerExpired();
+    EXPECT_FALSE(mFlinger.scheduler()->isTouchActive()); // Stopping timer deactivates touch
 
     EXPECT_EQ(NO_ERROR, mFlinger.notifyPowerBoost(static_cast<int32_t>(Boost::CAMERA_SHOT)));
-    std::this_thread::sleep_for(10ms); // wait for callback to maybe be triggered
-    EXPECT_FALSE(mFlinger.scheduler()->isTouchActive());
 
-    std::this_thread::sleep_for(110ms); // wait for reset touch timer to expire and trigger callback
+    EXPECT_FALSE(mFlinger.scheduler()->isTouchActive());
+    // Wait for the timer to start just in case
+    waitForTimerReset();
+    EXPECT_FALSE(mFlinger.scheduler()->isTouchActive());
+    // Wait for the timer to stop, again just in case
+    waitForTimerExpired();
     EXPECT_FALSE(mFlinger.scheduler()->isTouchActive());
 
     EXPECT_EQ(NO_ERROR, mFlinger.notifyPowerBoost(static_cast<int32_t>(Boost::INTERACTION)));
-    std::this_thread::sleep_for(10ms); // wait for callback to be triggered.
+    waitForTimerReset();
     EXPECT_TRUE(mFlinger.scheduler()->isTouchActive());
 }
 
