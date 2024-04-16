@@ -41,6 +41,8 @@
 #include <system/graphics.h>
 #include <unistd.h>
 
+#include <vndk/hardware_buffer.h>
+
 // system/window.h is a superset of the vndk and apex apis
 #include <apex/window.h>
 #include <vndk/window.h>
@@ -257,6 +259,7 @@ enum {
     NATIVE_WINDOW_SET_QUERY_INTERCEPTOR           = 47,    /* private */
     NATIVE_WINDOW_SET_FRAME_TIMELINE_INFO         = 48,    /* private */
     NATIVE_WINDOW_GET_LAST_QUEUED_BUFFER2         = 49,    /* private */
+    NATIVE_WINDOW_SET_BUFFERS_ADDITIONAL_OPTIONS  = 50,
     // clang-format on
 };
 
@@ -1180,6 +1183,26 @@ struct ANativeWindowFrameTimelineInfo {
 static inline int native_window_set_frame_timeline_info(
         struct ANativeWindow* window, struct ANativeWindowFrameTimelineInfo frameTimelineInfo) {
     return window->perform(window, NATIVE_WINDOW_SET_FRAME_TIMELINE_INFO, frameTimelineInfo);
+}
+
+/**
+ * native_window_set_buffers_additional_options(..., ExtendableType* additionalOptions, size_t size)
+ * All buffers dequeued after this call will have the additionalOptions specified.
+ *
+ * This must only be called after api_connect, otherwise NO_INIT is returned. The options are
+ * cleared in api_disconnect & api_connect
+ *
+ * If IAllocator is not v2 or newer this method returns INVALID_OPERATION
+ *
+ * \return NO_ERROR on success.
+ * \return NO_INIT if no api is connected
+ * \return INVALID_OPERATION if additional option support is not available
+ */
+static inline int native_window_set_buffers_additional_options(
+        struct ANativeWindow* window, const AHardwareBufferLongOptions* additionalOptions,
+        size_t additionalOptionsSize) {
+    return window->perform(window, NATIVE_WINDOW_SET_BUFFERS_ADDITIONAL_OPTIONS, additionalOptions,
+                           additionalOptionsSize);
 }
 
 // ------------------------------------------------------------------------------------------------

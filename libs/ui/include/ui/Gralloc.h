@@ -226,6 +226,8 @@ public:
             const GraphicBufferAllocator::AllocationRequest&) const {
         return GraphicBufferAllocator::AllocationResult(UNKNOWN_TRANSACTION);
     }
+
+    virtual bool supportsAdditionalOptions() const { return false; }
 };
 
 } // namespace android

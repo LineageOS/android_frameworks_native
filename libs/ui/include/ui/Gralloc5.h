@@ -178,6 +178,8 @@ public:
     [[nodiscard]] GraphicBufferAllocator::AllocationResult allocate(
             const GraphicBufferAllocator::AllocationRequest&) const override;
 
+    bool supportsAdditionalOptions() const override { return true; }
+
 private:
     const Gralloc5Mapper &mMapper;
     std::shared_ptr<aidl::android::hardware::graphics::allocator::IAllocator> mAllocator;
