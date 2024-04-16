@@ -979,7 +979,7 @@ void HWComposer::dumpOverlayProperties(std::string& result) const {
         result.append("    standards=\n");
         for (const auto& standard : combination.standards) {
             base::StringAppendF(&result, "        %s (%d)\n",
-                                decodeStandard(static_cast<android_dataspace>(standard)).c_str(),
+                                decodeStandardOnly(static_cast<uint32_t>(standard)).c_str(),
                                 static_cast<uint32_t>(standard));
         }
         result.append("    transfers=\n");
