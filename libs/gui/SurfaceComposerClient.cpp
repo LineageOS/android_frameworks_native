@@ -706,6 +706,7 @@ void removeDeadBufferCallback(void* /*context*/, uint64_t graphicBufferId) {
 
 SurfaceComposerClient::Transaction::Transaction() {
     mId = generateId();
+    mTransactionCompletedListener = TransactionCompletedListener::getInstance();
 }
 
 SurfaceComposerClient::Transaction::Transaction(const Transaction& other)
@@ -723,6 +724,7 @@ SurfaceComposerClient::Transaction::Transaction(const Transaction& other)
     mComposerStates = other.mComposerStates;
     mInputWindowCommands = other.mInputWindowCommands;
     mListenerCallbacks = other.mListenerCallbacks;
+    mTransactionCompletedListener = TransactionCompletedListener::getInstance();
 }
 
 void SurfaceComposerClient::Transaction::sanitize(int pid, int uid) {
@@ -1000,8 +1002,8 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::merge(Tr
 
         // register all surface controls for all callbackIds for this listener that is merging
         for (const auto& surfaceControl : currentProcessCallbackInfo.surfaceControls) {
-            TransactionCompletedListener::getInstance()
-                    ->addSurfaceControlToCallbacks(currentProcessCallbackInfo, surfaceControl);
+            mTransactionCompletedListener->addSurfaceControlToCallbacks(currentProcessCallbackInfo,
+                                                                        surfaceControl);
         }
     }
 
@@ -1354,7 +1356,7 @@ void SurfaceComposerClient::Transaction::registerSurfaceControlForCallback(
     auto& callbackInfo = mListenerCallbacks[TransactionCompletedListener::getIInstance()];
     callbackInfo.surfaceControls.insert(sc);
 
-    TransactionCompletedListener::getInstance()->addSurfaceControlToCallbacks(callbackInfo, sc);
+    mTransactionCompletedListener->addSurfaceControlToCallbacks(callbackInfo, sc);
 }
 
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setPosition(
@@ -1672,7 +1674,7 @@ std::shared_ptr<BufferData> SurfaceComposerClient::Transaction::getAndClearBuffe
 
     std::shared_ptr<BufferData> bufferData = std::move(s->bufferData);
 
-    TransactionCompletedListener::getInstance()->removeReleaseBufferCallback(
+    mTransactionCompletedListener->removeReleaseBufferCallback(
             bufferData->generateReleaseCallbackId());
     s->what &= ~layer_state_t::eBufferChanged;
     s->bufferData = nullptr;
@@ -1715,8 +1717,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setBuffe
             bufferData->acquireFence = *fence;
             bufferData->flags |= BufferData::BufferDataChange::fenceChanged;
         }
-        bufferData->releaseBufferEndpoint =
-                IInterface::asBinder(TransactionCompletedListener::getIInstance());
+        bufferData->releaseBufferEndpoint = IInterface::asBinder(mTransactionCompletedListener);
         setReleaseBufferCallback(bufferData.get(), callback);
     }
 
@@ -1774,9 +1775,10 @@ void SurfaceComposerClient::Transaction::setReleaseBufferCallback(BufferData* bu
         return;
     }
 
-    bufferData->releaseBufferListener = TransactionCompletedListener::getIInstance();
-    auto listener = TransactionCompletedListener::getInstance();
-    listener->setReleaseBufferCallback(bufferData->generateReleaseCallbackId(), callback);
+    bufferData->releaseBufferListener =
+            static_cast<sp<ITransactionCompletedListener>>(mTransactionCompletedListener);
+    mTransactionCompletedListener->setReleaseBufferCallback(bufferData->generateReleaseCallbackId(),
+                                                            callback);
 }
 
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setDataspace(
@@ -1932,18 +1934,15 @@ SurfaceComposerClient::Transaction::setFrameRateSelectionPriority(const sp<Surfa
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::addTransactionCallback(
         TransactionCompletedCallbackTakesContext callback, void* callbackContext,
         CallbackId::Type callbackType) {
-    auto listener = TransactionCompletedListener::getInstance();
-
     auto callbackWithContext = std::bind(callback, callbackContext, std::placeholders::_1,
                                          std::placeholders::_2, std::placeholders::_3);
-    const auto& surfaceControls =
-            mListenerCallbacks[TransactionCompletedListener::getIInstance()].surfaceControls;
+    const auto& surfaceControls = mListenerCallbacks[mTransactionCompletedListener].surfaceControls;
 
     CallbackId callbackId =
-            listener->addCallbackFunction(callbackWithContext, surfaceControls, callbackType);
+            mTransactionCompletedListener->addCallbackFunction(callbackWithContext, surfaceControls,
+                                                               callbackType);
 
-    mListenerCallbacks[TransactionCompletedListener::getIInstance()].callbackIds.emplace(
-            callbackId);
+    mListenerCallbacks[mTransactionCompletedListener].callbackIds.emplace(callbackId);
     return *this;
 }
 
@@ -2333,8 +2332,9 @@ SurfaceComposerClient::Transaction::setTrustedPresentationCallback(
         const sp<SurfaceControl>& sc, TrustedPresentationCallback cb,
         const TrustedPresentationThresholds& thresholds, void* context,
         sp<SurfaceComposerClient::PresentationCallbackRAII>& outCallbackRef) {
-    auto listener = TransactionCompletedListener::getInstance();
-    outCallbackRef = listener->addTrustedPresentationCallback(cb, sc->getLayerId(), context);
+    outCallbackRef =
+            mTransactionCompletedListener->addTrustedPresentationCallback(cb, sc->getLayerId(),
+                                                                          context);
 
     layer_state_t* s = getLayerState(sc);
     if (!s) {
@@ -2351,8 +2351,7 @@ SurfaceComposerClient::Transaction::setTrustedPresentationCallback(
 
 SurfaceComposerClient::Transaction&
 SurfaceComposerClient::Transaction::clearTrustedPresentationCallback(const sp<SurfaceControl>& sc) {
-    auto listener = TransactionCompletedListener::getInstance();
-    listener->clearTrustedPresentationCallback(sc->getLayerId());
+    mTransactionCompletedListener->clearTrustedPresentationCallback(sc->getLayerId());
 
     layer_state_t* s = getLayerState(sc);
     if (!s) {

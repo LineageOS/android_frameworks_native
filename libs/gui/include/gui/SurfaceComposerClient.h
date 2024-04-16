@@ -431,6 +431,8 @@ public:
         static std::mutex sApplyTokenMutex;
         void releaseBufferIfOverwriting(const layer_state_t& state);
         static void mergeFrameTimelineInfo(FrameTimelineInfo& t, const FrameTimelineInfo& other);
+        // Tracks registered callbacks
+        sp<TransactionCompletedListener> mTransactionCompletedListener = nullptr;
 
     protected:
         std::unordered_map<sp<IBinder>, ComposerState, IBinderHash> mComposerStates;
