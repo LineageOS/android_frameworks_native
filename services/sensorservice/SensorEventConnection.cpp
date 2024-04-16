@@ -461,16 +461,18 @@ bool SensorService::SensorEventConnection::noteOpIfRequired(const sensors_event_
         // is pre-Q, still permit delivering events to the app even if permission isn't granted
         // (since this permission was only introduced in Q)
         if ((event.type == SENSOR_TYPE_STEP_COUNTER || event.type == SENSOR_TYPE_STEP_DETECTOR) &&
-                mTargetSdk > 0 && mTargetSdk <= __ANDROID_API_P__) {
+            mTargetSdk > 0 && mTargetSdk <= __ANDROID_API_P__) {
+            success = true;
+        } else if (mUid == AID_SYSTEM) {
+            // Allow access if it is requested from system.
             success = true;
         } else {
             int32_t sensorHandle = event.sensor;
             String16 noteMsg("Sensor event (");
             noteMsg.append(String16(mService->getSensorStringType(sensorHandle)));
             noteMsg.append(String16(")"));
-            int32_t appOpMode = mService->sAppOpsManager.noteOp(iter->second, mUid,
-                                                                mOpPackageName, mAttributionTag,
-                                                                noteMsg);
+            int32_t appOpMode = mService->sAppOpsManager.noteOp(iter->second, mUid, mOpPackageName,
+                                                                mAttributionTag, noteMsg);
             success = (appOpMode == AppOpsManager::MODE_ALLOWED);
         }
     }
