@@ -71,7 +71,7 @@ static std::unique_ptr<RenderEngine> createRenderEngine(RenderEngine::Threaded t
                         .setImageCacheSize(1)
                         .setEnableProtectedContext(true)
                         .setPrecacheToneMapperShaderOnly(false)
-                        .setSupportsBackgroundBlur(true)
+                        .setBlurAlgorithm(renderengine::RenderEngine::BlurAlgorithm::KAWASE)
                         .setContextPriority(RenderEngine::ContextPriority::REALTIME)
                         .setThreaded(threaded)
                         .setGraphicsApi(graphicsApi)
