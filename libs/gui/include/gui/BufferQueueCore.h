@@ -17,6 +17,9 @@
 #ifndef ANDROID_GUI_BUFFERQUEUECORE_H
 #define ANDROID_GUI_BUFFERQUEUECORE_H
 
+#include <com_android_graphics_libgui_flags.h>
+
+#include <gui/AdditionalOptions.h>
 #include <gui/BufferItem.h>
 #include <gui/BufferQueueDefs.h>
 #include <gui/BufferSlot.h>
@@ -357,6 +360,14 @@ private:
     // This allows the consumer to acquire an additional buffer if that buffer is not droppable and
     // will eventually be released or acquired by the consumer.
     bool mAllowExtraAcquire = false;
+
+#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(BQ_EXTENDEDALLOCATE)
+    // Additional options to pass when allocating GraphicBuffers.
+    // GenerationID changes when the options change, indicating reallocation is required
+    uint32_t mAdditionalOptionsGenerationId = 0;
+    std::vector<gui::AdditionalOptions> mAdditionalOptions;
+#endif
+
 }; // class BufferQueueCore
 
 } // namespace android

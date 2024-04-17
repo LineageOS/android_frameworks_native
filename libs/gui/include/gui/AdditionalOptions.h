@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023 The Android Open Source Project
+ * Copyright 2024 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,15 +14,19 @@
  * limitations under the License.
  */
 
-#include <stdint.h>
-#include <utils/String16.h>
-#include <vector>
-namespace android {
-class LayerStatePermissions {
-public:
-    static uint32_t getTransactionPermissions(int pid, int uid);
+#pragma once
 
-private:
-    static std::vector<std::pair<String16, int>> mPermissionMap;
+#include <string>
+
+namespace android::gui {
+// Additional options to pass to AHardwareBuffer_allocateWithOptions.
+// See also allocator-v2's BufferDescriptorInfo.aidl
+struct AdditionalOptions {
+    std::string name;
+    int64_t value;
+
+    bool operator==(const AdditionalOptions& other) const {
+        return value == other.value && name == other.name;
+    }
 };
-} // namespace android
+} // namespace android::gui

@@ -273,12 +273,25 @@ void SkiaRenderEngine::setEnableTracing(bool tracingEnabled) {
 }
 
 SkiaRenderEngine::SkiaRenderEngine(Threaded threaded, PixelFormat pixelFormat,
-                                   bool supportsBackgroundBlur)
+                                   BlurAlgorithm blurAlgorithm)
       : RenderEngine(threaded), mDefaultPixelFormat(pixelFormat) {
-    if (supportsBackgroundBlur) {
-        ALOGD("Background Blurs Enabled");
-        mBlurFilter = new KawaseBlurFilter();
+    switch (blurAlgorithm) {
+        case BlurAlgorithm::GAUSSIAN: {
+            ALOGD("Background Blurs Enabled (Gaussian algorithm)");
+            mBlurFilter = new GaussianBlurFilter();
+            break;
+        }
+        case BlurAlgorithm::KAWASE: {
+            ALOGD("Background Blurs Enabled (Kawase algorithm)");
+            mBlurFilter = new KawaseBlurFilter();
+            break;
+        }
+        default: {
+            mBlurFilter = nullptr;
+            break;
+        }
     }
+
     mCapture = std::make_unique<SkiaCapture>();
 }
 

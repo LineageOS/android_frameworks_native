@@ -85,7 +85,7 @@ using base::StringAppendF;
 
 SkiaVkRenderEngine::SkiaVkRenderEngine(const RenderEngineCreationArgs& args)
       : SkiaRenderEngine(args.threaded, static_cast<PixelFormat>(args.pixelFormat),
-                         args.supportsBackgroundBlur) {}
+                         args.blurAlgorithm) {}
 
 SkiaVkRenderEngine::~SkiaVkRenderEngine() {
     finishRenderingAndAbandonContext();

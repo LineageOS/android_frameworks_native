@@ -17,6 +17,7 @@
 #ifndef ANDROID_GUI_BUFFERQUEUEPRODUCER_H
 #define ANDROID_GUI_BUFFERQUEUEPRODUCER_H
 
+#include <gui/AdditionalOptions.h>
 #include <gui/BufferQueueDefs.h>
 
 #include <gui/IGraphicBufferProducer.h>
@@ -206,6 +207,10 @@ public:
     // See IGraphicBufferProducer::setFrameRate
     status_t setFrameRate(float frameRate, int8_t compatibility,
                           int8_t changeFrameRateStrategy) override;
+#endif
+
+#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(BQ_EXTENDEDALLOCATE)
+    status_t setAdditionalOptions(const std::vector<gui::AdditionalOptions>& options) override;
 #endif
 
 protected:

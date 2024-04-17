@@ -1475,6 +1475,9 @@ int Surface::perform(int operation, va_list args)
     case NATIVE_WINDOW_SET_FRAME_TIMELINE_INFO:
         res = dispatchSetFrameTimelineInfo(args);
         break;
+    case NATIVE_WINDOW_SET_BUFFERS_ADDITIONAL_OPTIONS:
+        res = dispatchSetAdditionalOptions(args);
+        break;
     default:
         res = NAME_NOT_FOUND;
         break;
@@ -1831,6 +1834,24 @@ int Surface::dispatchSetFrameTimelineInfo(va_list args) {
     ftlInfo.skippedFrameStartTimeNanos = nativeWindowFtlInfo.skippedFrameStartTimeNanos;
 
     return setFrameTimelineInfo(nativeWindowFtlInfo.frameNumber, ftlInfo);
+}
+
+int Surface::dispatchSetAdditionalOptions(va_list args) {
+    ATRACE_CALL();
+
+#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(BQ_EXTENDEDALLOCATE)
+    const AHardwareBufferLongOptions* opts = va_arg(args, const AHardwareBufferLongOptions*);
+    const size_t optsSize = va_arg(args, size_t);
+    std::vector<gui::AdditionalOptions> convertedOpts;
+    convertedOpts.reserve(optsSize);
+    for (size_t i = 0; i < optsSize; i++) {
+        convertedOpts.emplace_back(opts[i].name, opts[i].value);
+    }
+    return setAdditionalOptions(convertedOpts);
+#else
+    (void)args;
+    return INVALID_OPERATION;
+#endif
 }
 
 bool Surface::transformToDisplayInverse() const {
@@ -2618,6 +2639,17 @@ status_t Surface::setFrameTimelineInfo(uint64_t /*frameNumber*/,
     // ISurfaceComposer no longer supports setFrameTimelineInfo
     return BAD_VALUE;
 }
+
+#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(BQ_EXTENDEDALLOCATE)
+status_t Surface::setAdditionalOptions(const std::vector<gui::AdditionalOptions>& options) {
+    if (!GraphicBufferAllocator::get().supportsAdditionalOptions()) {
+        return INVALID_OPERATION;
+    }
+
+    Mutex::Autolock lock(mMutex);
+    return mGraphicBufferProducer->setAdditionalOptions(options);
+}
+#endif
 
 sp<IBinder> Surface::getSurfaceControlHandle() const {
     Mutex::Autolock lock(mMutex);

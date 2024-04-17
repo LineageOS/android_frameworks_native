@@ -821,6 +821,23 @@ void chooseRenderEngineType(renderengine::RenderEngineCreationArgs::Builder& bui
     }
 }
 
+/**
+ * Choose a suggested blurring algorithm if supportsBlur is true. By default Kawase will be
+ * suggested as it's faster than a full Gaussian blur and looks close enough.
+ */
+renderengine::RenderEngine::BlurAlgorithm chooseBlurAlgorithm(bool supportsBlur) {
+    if (!supportsBlur) {
+        return renderengine::RenderEngine::BlurAlgorithm::NONE;
+    }
+
+    auto const algorithm = base::GetProperty(PROPERTY_DEBUG_RENDERENGINE_BLUR_ALGORITHM, "");
+    if (algorithm == "gaussian") {
+        return renderengine::RenderEngine::BlurAlgorithm::GAUSSIAN;
+    } else {
+        return renderengine::RenderEngine::BlurAlgorithm::KAWASE;
+    }
+}
+
 void SurfaceFlinger::init() FTL_FAKE_GUARD(kMainThreadContext) {
     ATRACE_CALL();
     ALOGI(  "SurfaceFlinger's main thread ready to run. "
@@ -836,7 +853,7 @@ void SurfaceFlinger::init() FTL_FAKE_GUARD(kMainThreadContext) {
                            .setImageCacheSize(maxFrameBufferAcquiredBuffers)
                            .setEnableProtectedContext(enable_protected_contents(false))
                            .setPrecacheToneMapperShaderOnly(false)
-                           .setSupportsBackgroundBlur(mSupportsBlur)
+                           .setBlurAlgorithm(chooseBlurAlgorithm(mSupportsBlur))
                            .setContextPriority(
                                    useContextPriority
                                            ? renderengine::RenderEngine::ContextPriority::REALTIME
@@ -2391,6 +2408,8 @@ bool SurfaceFlinger::updateLayerSnapshots(VsyncId vsyncId, nsecs_t frameTimeNs,
         frontend::LayerSnapshotBuilder::Args
                 args{.root = mLayerHierarchyBuilder.getHierarchy(),
                      .layerLifecycleManager = mLayerLifecycleManager,
+                     .includeMetadata = mCompositionEngine->getFeatureFlags().test(
+                             compositionengine::Feature::kSnapshotLayerMetadata),
                      .displays = mFrontEndDisplayInfos,
                      .displayChanges = mFrontEndDisplayInfosChanged,
                      .globalShadowSettings = mDrawingState.globalShadowSettings,

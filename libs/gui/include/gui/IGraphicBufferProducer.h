@@ -31,6 +31,7 @@
 #include <ui/Rect.h>
 #include <ui/Region.h>
 
+#include <gui/AdditionalOptions.h>
 #include <gui/FrameTimestamps.h>
 #include <gui/HdrMetadata.h>
 
@@ -682,6 +683,10 @@ public:
     // Sets the apps intended frame rate.
     virtual status_t setFrameRate(float frameRate, int8_t compatibility,
                                   int8_t changeFrameRateStrategy);
+#endif
+
+#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(BQ_EXTENDEDALLOCATE)
+    virtual status_t setAdditionalOptions(const std::vector<gui::AdditionalOptions>& options);
 #endif
 
     struct RequestBufferOutput : public Flattenable<RequestBufferOutput> {

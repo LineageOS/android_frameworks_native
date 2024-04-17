@@ -87,7 +87,7 @@ private:
 
 class TestCounter {
 public:
-    TestCounter(int32_t init) : mCount(init), mMutex(), mCondVar() {}
+    TestCounter(int32_t init = 0) : mMutex(), mCondVar(), mCount(init) {}
 
     int32_t get() {
         std::unique_lock<std::mutex> lock(mMutex);
@@ -106,9 +106,9 @@ public:
     }
 
 private:
-    int32_t mCount;
     std::mutex mMutex;
     std::condition_variable mCondVar;
+    int32_t mCount GUARDED_BY(mMutex);
 };
 
 // -------------------------------------------------------------------------------------------------
