@@ -8080,29 +8080,24 @@ void SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
         return;
     }
 
-    bool childrenOnly = args.childrenOnly;
     RenderAreaFuture renderAreaFuture = ftl::defer([=, this]() FTL_FAKE_GUARD(kMainThreadContext)
                                                            -> std::unique_ptr<RenderArea> {
         ui::Transform layerTransform;
         Rect layerBufferSize;
-        if (mLayerLifecycleManagerEnabled) {
-            frontend::LayerSnapshot* snapshot =
-                    mLayerSnapshotBuilder.getSnapshot(parent->getSequence());
-            if (!snapshot) {
-                ALOGW("Couldn't find layer snapshot for %d", parent->getSequence());
-            } else {
-                layerTransform = snapshot->localTransform;
-                layerBufferSize = snapshot->bufferSize;
-            }
+        frontend::LayerSnapshot* snapshot =
+                mLayerSnapshotBuilder.getSnapshot(parent->getSequence());
+        if (!snapshot) {
+            ALOGW("Couldn't find layer snapshot for %d", parent->getSequence());
         } else {
-            layerTransform = parent->getTransform();
-            layerBufferSize = parent->getBufferSize(parent->getDrawingState());
+            if (!args.childrenOnly) {
+                layerTransform = snapshot->localTransform.inverse();
+            }
+            layerBufferSize = snapshot->bufferSize;
         }
 
-        return std::make_unique<LayerRenderArea>(*this, parent, crop, reqSize, dataspace,
-                                                 childrenOnly, args.captureSecureLayers,
-                                                 layerTransform, layerBufferSize,
-                                                 args.hintForSeamlessTransition);
+        return std::make_unique<LayerRenderArea>(parent, crop, reqSize, dataspace,
+                                                 args.captureSecureLayers, layerTransform,
+                                                 layerBufferSize, args.hintForSeamlessTransition);
     });
     GetLayerSnapshotsFunction getLayerSnapshots;
     if (mLayerLifecycleManagerEnabled) {
@@ -8255,11 +8250,9 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::captureScreenshot(
             return ftl::yield<FenceResult>(base::unexpected(NO_ERROR)).share();
         }
 
-        ftl::SharedFuture<FenceResult> renderFuture;
-        renderArea->render([&]() FTL_FAKE_GUARD(kMainThreadContext) {
-            renderFuture = renderScreenImpl(renderArea, buffer, regionSampling, grayscale,
-                                            isProtected, captureResults, layers);
-        });
+        ftl::SharedFuture<FenceResult> renderFuture =
+                renderScreenImpl(renderArea, buffer, regionSampling, grayscale, isProtected,
+                                 captureResults, layers);
 
         if (captureListener) {
             // Defer blocking on renderFuture back to the Binder thread.

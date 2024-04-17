@@ -47,9 +47,6 @@ public:
 
     virtual ~RenderArea() = default;
 
-    // Invoke drawLayers to render layers into the render area.
-    virtual void render(std::function<void()> drawLayers) { drawLayers(); }
-
     // Returns true if the render area is secure.  A secure layer should be
     // blacked out / skipped when rendered to an insecure render area.
     virtual bool isSecure() const = 0;
