@@ -5928,7 +5928,7 @@ status_t SurfaceFlinger::mirrorLayer(const LayerCreationArgs& args,
             return result;
         }
 
-        mirrorLayer->setClonedChild(mirrorFrom->createClone(mirrorLayer->getSequence()));
+        mirrorLayer->setClonedChild(mirrorFrom->createClone());
     }
 
     outResult.layerId = mirrorLayer->sequence;
@@ -9183,7 +9183,7 @@ bool SurfaceFlinger::commitMirrorDisplays(VsyncId vsyncId) {
                 Mutex::Autolock lock(mStateLock);
                 createEffectLayer(mirrorArgs, &unused, &childMirror);
                 MUTEX_ALIAS(mStateLock, childMirror->mFlinger->mStateLock);
-                childMirror->setClonedChild(layer->createClone(childMirror->getSequence()));
+                childMirror->setClonedChild(layer->createClone());
                 childMirror->reparent(mirrorDisplay.rootHandle);
             }
             // lock on mStateLock needs to be released before binder handle gets destroyed

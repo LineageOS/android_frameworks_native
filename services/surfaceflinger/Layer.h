@@ -250,7 +250,7 @@ public:
     // true if this layer is visible, false otherwise
     virtual bool isVisible() const;
 
-    virtual sp<Layer> createClone(uint32_t mirrorRoot);
+    virtual sp<Layer> createClone();
 
     // Set a 2x2 transformation matrix on the layer. This transform
     // will be applied after parent transforms, but before any final
@@ -976,7 +976,6 @@ protected:
     friend class TransactionFrameTracerTest;
     friend class TransactionSurfaceFrameTest;
 
-    virtual void setInitialValuesForClone(const sp<Layer>& clonedFrom, uint32_t mirrorRootId);
     void preparePerFrameCompositionState();
     void preparePerFrameBufferCompositionState();
     void preparePerFrameEffectsCompositionState();

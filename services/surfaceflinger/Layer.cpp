@@ -2614,19 +2614,6 @@ Region Layer::getVisibleRegion(const DisplayDevice* display) const {
     return outputLayer ? outputLayer->getState().visibleRegion : Region();
 }
 
-void Layer::setInitialValuesForClone(const sp<Layer>& clonedFrom, uint32_t mirrorRootId) {
-    if (mFlinger->mLayerLifecycleManagerEnabled) return;
-    mSnapshot->path.id = clonedFrom->getSequence();
-    mSnapshot->path.mirrorRootIds.emplace_back(mirrorRootId);
-
-    cloneDrawingState(clonedFrom.get());
-    mClonedFrom = clonedFrom;
-    mPremultipliedAlpha = clonedFrom->mPremultipliedAlpha;
-    mPotentialCursor = clonedFrom->mPotentialCursor;
-    mProtectedByApp = clonedFrom->mProtectedByApp;
-    updateCloneBufferInfo();
-}
-
 void Layer::updateCloneBufferInfo() {
     if (!isClone() || !isClonedFromAlive()) {
         return;
@@ -2726,7 +2713,7 @@ void Layer::updateClonedChildren(const sp<Layer>& mirrorRoot,
         }
         sp<Layer> clonedChild = clonedLayersMap[child];
         if (clonedChild == nullptr) {
-            clonedChild = child->createClone(mirrorRoot->getSequence());
+            clonedChild = child->createClone();
             clonedLayersMap[child] = clonedChild;
         }
         addChildToDrawing(clonedChild);
@@ -3696,11 +3683,10 @@ Rect Layer::computeBufferCrop(const State& s) {
     }
 }
 
-sp<Layer> Layer::createClone(uint32_t mirrorRootId) {
+sp<Layer> Layer::createClone() {
     surfaceflinger::LayerCreationArgs args(mFlinger.get(), nullptr, mName + " (Mirror)", 0,
                                            LayerMetadata());
     sp<Layer> layer = mFlinger->getFactory().createBufferStateLayer(args);
-    layer->setInitialValuesForClone(sp<Layer>::fromExisting(this), mirrorRootId);
     return layer;
 }
 
