@@ -194,6 +194,8 @@ bitflags! {
                 input_bindgen::AMOTION_EVENT_FLAG_IS_ACCESSIBILITY_EVENT;
         /// FLAG_NO_FOCUS_CHANGE
         const NO_FOCUS_CHANGE = input_bindgen::AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE;
+        /// FLAG_IS_GENERATED_GESTURE
+        const IS_GENERATED_GESTURE = input_bindgen::AMOTION_EVENT_FLAG_IS_GENERATED_GESTURE;
     }
 }
 
