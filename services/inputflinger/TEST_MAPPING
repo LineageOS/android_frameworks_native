@@ -146,6 +146,9 @@
           "include-filter": "android.security.cts.Poc19_03#testPocBug_115739809"
         }
       ]
+    },
+    {
+      "name": "monkey_test"
     }
   ],
   "postsubmit": [
