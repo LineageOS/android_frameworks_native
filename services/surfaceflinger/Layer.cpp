@@ -1549,10 +1549,6 @@ uint32_t Layer::getEffectiveUsage(uint32_t usage) const {
     return usage;
 }
 
-void Layer::skipReportingTransformHint() {
-    mSkipReportingTransformHint = true;
-}
-
 void Layer::updateTransformHint(ui::Transform::RotationFlags transformHint) {
     if (mFlinger->mDebugDisableTransformHint || transformHint & ui::Transform::ROT_INVALID) {
         transformHint = ui::Transform::ROT_0;
@@ -2976,13 +2972,7 @@ void Layer::onSurfaceFrameCreated(
 
 void Layer::releasePendingBuffer(nsecs_t dequeueReadyTime) {
     for (const auto& handle : mDrawingState.callbackHandles) {
-        if (mFlinger->mLayerLifecycleManagerEnabled) {
-            handle->transformHint = mTransformHint;
-        } else {
-            handle->transformHint = mSkipReportingTransformHint
-                    ? std::nullopt
-                    : std::make_optional<uint32_t>(mTransformHintLegacy);
-        }
+        handle->transformHint = mTransformHint;
         handle->dequeueReadyTime = dequeueReadyTime;
         handle->currentMaxAcquiredBufferCount =
                 mFlinger->getMaxAcquiredBufferCountForCurrentRefreshRate(mOwnerUid);
@@ -4326,7 +4316,6 @@ void Layer::setTransformHintLegacy(ui::Transform::RotationFlags displayTransform
     if (mTransformHintLegacy == ui::Transform::ROT_INVALID) {
         mTransformHintLegacy = displayTransformHint;
     }
-    mSkipReportingTransformHint = false;
 }
 
 const std::shared_ptr<renderengine::ExternalTexture>& Layer::getExternalTexture() const {

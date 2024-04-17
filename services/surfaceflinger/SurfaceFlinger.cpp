@@ -4020,19 +4020,7 @@ void SurfaceFlinger::commitTransactionsLocked(uint32_t transactionFlags) {
                 }
             }
 
-            if (!hintDisplay) {
-                // NOTE: TEMPORARY FIX ONLY. Real fix should cause layers to
-                // redraw after transform hint changes. See bug 8508397.
-                // could be null when this layer is using a layerStack
-                // that is not visible on any display. Also can occur at
-                // screen off/on times.
-                // U Update: Don't provide stale hints to the clients. For
-                // special cases where we want the app to draw its
-                // first frame before the display is available, we rely
-                // on WMS and DMS to provide the right information
-                // so the client can calculate the hint.
-                layer->skipReportingTransformHint();
-            } else {
+            if (hintDisplay) {
                 layer->updateTransformHint(hintDisplay->getTransformHint());
             }
         });
