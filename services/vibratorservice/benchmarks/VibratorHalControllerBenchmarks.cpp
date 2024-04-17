@@ -67,6 +67,7 @@ private:
 class HalCallbacks {
 public:
     HalCallback next() {
+        std::unique_lock<std::mutex> lock(mMutex);
         auto id = mCurrentId++;
         mPendingPromises[id] = std::promise<void>();
         mPendingFutures[id] = mPendingPromises[id].get_future(); // Can only be called once.
@@ -74,8 +75,12 @@ public:
     }
 
     void onComplete(int32_t id) {
-        mPendingPromises[id].set_value();
-        mPendingPromises.erase(id);
+        std::unique_lock<std::mutex> lock(mMutex);
+        auto promise = mPendingPromises.find(id);
+        if (promise != mPendingPromises.end()) {
+            promise->second.set_value();
+            mPendingPromises.erase(promise);
+        }
     }
 
     void waitForComplete(int32_t id) {
@@ -94,11 +99,15 @@ public:
             future.wait_for(VIBRATION_CALLBACK_TIMEOUT);
         }
         mPendingFutures.clear();
-        mPendingPromises.clear();
+        {
+            std::unique_lock<std::mutex> lock(mMutex);
+            mPendingPromises.clear();
+        }
     }
 
 private:
-    std::map<int32_t, std::promise<void>> mPendingPromises;
+    std::mutex mMutex;
+    std::map<int32_t, std::promise<void>> mPendingPromises GUARDED_BY(mMutex);
     std::map<int32_t, std::future<void>> mPendingFutures;
     int32_t mCurrentId;
 };
