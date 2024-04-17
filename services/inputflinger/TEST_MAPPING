@@ -284,6 +284,9 @@
     },
     {
       "name": "CtsInputHostTestCases"
+    },
+    {
+      "name": "monkey_test"
     }
   ],
   "staged-platinum-postsubmit": [
