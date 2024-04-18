@@ -325,6 +325,7 @@ protected:
     virtual void setHintSessionGpuFence(std::unique_ptr<FenceTime>&& gpuFence) = 0;
     virtual void setHintSessionRequiresRenderEngine(bool requiresRenderEngine) = 0;
     virtual bool isPowerHintSessionEnabled() = 0;
+    virtual bool isPowerHintSessionGpuReportingEnabled() = 0;
     virtual void cacheClientCompositionRequests(uint32_t cacheSize) = 0;
     virtual bool canPredictCompositionStrategy(const CompositionRefreshArgs&) = 0;
 };

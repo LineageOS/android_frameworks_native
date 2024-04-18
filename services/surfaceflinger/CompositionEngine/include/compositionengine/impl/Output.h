@@ -148,6 +148,7 @@ protected:
     void setHintSessionGpuFence(std::unique_ptr<FenceTime>&& gpuFence) override;
     void setHintSessionRequiresRenderEngine(bool requiresRenderEngine) override;
     bool isPowerHintSessionEnabled() override;
+    bool isPowerHintSessionGpuReportingEnabled() override;
     void dumpBase(std::string&) const;
 
     // Implemented by the final implementation for the final state it uses.
