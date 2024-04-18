@@ -338,8 +338,9 @@ bool InputState::shouldCancelPreviousStream(const MotionEntry& motionEntry) cons
         // it's unlikely that those two streams would be consistent with each other. Therefore,
         // cancel the previous gesture if the display id changes.
         if (motionEntry.displayId != lastMemento.displayId) {
-            LOG(INFO) << "Canceling stream: last displayId was " << lastMemento.displayId
-                      << " and new event is " << motionEntry;
+            LOG(INFO) << "Canceling stream: last displayId was "
+                      << inputEventSourceToString(lastMemento.displayId) << " and new event is "
+                      << motionEntry;
             return true;
         }
 
