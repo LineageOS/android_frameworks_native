@@ -563,8 +563,25 @@ bool LayerInfo::FrameRate::isNoVote() const {
     return vote.type == FrameRateCompatibility::NoVote;
 }
 
+bool LayerInfo::FrameRate::isValuelessType() const {
+    // For a valueless frame rate compatibility (type), the frame rate should be unspecified (0 Hz).
+    if (!isApproxEqual(vote.rate, 0_Hz)) {
+        return false;
+    }
+    switch (vote.type) {
+        case FrameRateCompatibility::Min:
+        case FrameRateCompatibility::NoVote:
+            return true;
+        case FrameRateCompatibility::Default:
+        case FrameRateCompatibility::ExactOrMultiple:
+        case FrameRateCompatibility::Exact:
+        case FrameRateCompatibility::Gte:
+            return false;
+    }
+}
+
 bool LayerInfo::FrameRate::isValid() const {
-    return isNoVote() || vote.rate.isValid() || category != FrameRateCategory::Default;
+    return isValuelessType() || vote.rate.isValid() || category != FrameRateCategory::Default;
 }
 
 bool LayerInfo::FrameRate::isVoteValidForMrr(bool isVrrDevice) const {
@@ -572,7 +589,7 @@ bool LayerInfo::FrameRate::isVoteValidForMrr(bool isVrrDevice) const {
         return true;
     }
 
-    if (category == FrameRateCategory::Default && vote.type != FrameRateCompatibility::Gte) {
+    if (category == FrameRateCategory::Default) {
         return true;
     }
 
