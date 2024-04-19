@@ -167,6 +167,10 @@ void ARpcServer_setSupportedFileDescriptorTransportModes(
     server->setSupportedFileDescriptorTransportModes(modevec);
 }
 
+void ARpcServer_setMaxThreads(ARpcServer* handle, size_t threads) {
+    handleToStrongPointer<RpcServer>(handle)->setMaxThreads(threads);
+}
+
 void ARpcServer_start(ARpcServer* handle) {
     handleToStrongPointer<RpcServer>(handle)->start();
 }
