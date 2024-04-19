@@ -52,6 +52,18 @@ cc_defaults {
             enabled: false,
         },
     },
+    fuzz_config: {
+        cc: [
+            "smoreland@google.com",
+            "waghpawan@google.com",
+        ],
+        componentid: 32456,
+        description: "The fuzzer targets the APIs of libbinder",
+        vector: "local_no_privileges_required",
+        service_privilege: "privileged",
+        users: "multi_user",
+        fuzzed_code_usage: "shipped",
+    },
 }
 
 cc_fuzz {
