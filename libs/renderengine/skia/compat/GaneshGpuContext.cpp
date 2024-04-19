@@ -38,7 +38,6 @@
 namespace android::renderengine::skia {
 
 namespace {
-// TODO: b/293371537 - Graphite variant.
 static GrContextOptions ganeshOptions(GrContextOptions::PersistentCache& skSLCacheMonitor) {
     GrContextOptions options;
     options.fDisableDriverCorrectnessWorkarounds = true;
@@ -66,6 +65,11 @@ std::unique_ptr<SkiaGpuContext> SkiaGpuContext::MakeVulkan_Ganesh(
 GaneshGpuContext::GaneshGpuContext(sk_sp<GrDirectContext> grContext) : mGrContext(grContext) {
     LOG_ALWAYS_FATAL_IF(mGrContext.get() == nullptr, "GrDirectContext creation failed");
 }
+
+GaneshGpuContext::~GaneshGpuContext() {
+    mGrContext->flushAndSubmit(GrSyncCpu::kYes);
+    mGrContext->abandonContext();
+};
 
 sk_sp<GrDirectContext> GaneshGpuContext::grDirectContext() {
     return mGrContext;
@@ -100,11 +104,6 @@ bool GaneshGpuContext::isAbandonedOrDeviceLost() {
 void GaneshGpuContext::setResourceCacheLimit(size_t maxResourceBytes) {
     mGrContext->setResourceCacheLimit(maxResourceBytes);
 }
-
-void GaneshGpuContext::finishRenderingAndAbandonContext() {
-    mGrContext->flushAndSubmit(GrSyncCpu::kYes);
-    mGrContext->abandonContext();
-};
 
 void GaneshGpuContext::purgeUnlockedScratchResources() {
     mGrContext->purgeUnlockedResources(GrPurgeResourceOptions::kScratchResourcesOnly);

@@ -26,7 +26,7 @@ namespace android::renderengine::skia {
 class GraphiteGpuContext : public SkiaGpuContext {
 public:
     GraphiteGpuContext(std::unique_ptr<skgpu::graphite::Context> context);
-    ~GraphiteGpuContext() override = default;
+    ~GraphiteGpuContext() override;
 
     std::shared_ptr<skgpu::graphite::Context> graphiteContext() override;
     std::shared_ptr<skgpu::graphite::Recorder> graphiteRecorder() override;
@@ -45,7 +45,6 @@ public:
     // functions yet, as its design may evolve.)
     void setResourceCacheLimit(size_t maxResourceBytes) override{};
 
-    void finishRenderingAndAbandonContext() override;
     // TODO: b/293371537 - Triple-check and validate that no cleanup is necessary when switching
     // contexts.
     // No-op (unnecessary during context switch for Graphite's client-budgeted memory model).
@@ -58,7 +57,7 @@ public:
 private:
     DISALLOW_COPY_AND_ASSIGN(GraphiteGpuContext);
 
-    const std::shared_ptr<skgpu::graphite::Context> mContext;
+    std::shared_ptr<skgpu::graphite::Context> mContext;
     std::shared_ptr<skgpu::graphite::Recorder> mRecorder;
 };
 

@@ -36,18 +36,32 @@ namespace android::renderengine::skia {
 
 /**
  * Abstraction over Ganesh and Graphite's underlying context-like objects.
+ *
+ * On destruction, subclasses will submit any pending work before destroying their internal Skia
+ * context(s). Any unused cached SkiaBackendTextures created from a SkiaGpuContext that are awaiting
+ * cleanup must be deleted before destroying that SkiaGpuContext, and any textures that are released
+ * during ~SkiaGpuContext must be configured to be deleted immediately.
  */
 class SkiaGpuContext {
 public:
+    /**
+     * glInterface must remain valid until after SkiaGpuContext is destroyed.
+     */
     static std::unique_ptr<SkiaGpuContext> MakeGL_Ganesh(
             sk_sp<const GrGLInterface> glInterface,
             GrContextOptions::PersistentCache& skSLCacheMonitor);
 
+    /**
+     * grVkBackendContext must remain valid until after SkiaGpuContext is destroyed.
+     */
     static std::unique_ptr<SkiaGpuContext> MakeVulkan_Ganesh(
             const GrVkBackendContext& grVkBackendContext,
             GrContextOptions::PersistentCache& skSLCacheMonitor);
 
     // TODO: b/293371537 - Need shader / pipeline monitoring support in Graphite.
+    /**
+     * vulkanBackendContext must remain valid until after SkiaGpuContext is destroyed.
+     */
     static std::unique_ptr<SkiaGpuContext> MakeVulkan_Graphite(
             const skgpu::VulkanBackendContext& vulkanBackendContext);
 
@@ -91,7 +105,6 @@ public:
     virtual size_t getMaxTextureSize() const = 0;
     virtual void setResourceCacheLimit(size_t maxResourceBytes) = 0;
 
-    virtual void finishRenderingAndAbandonContext() = 0;
     virtual void purgeUnlockedScratchResources() = 0;
     virtual void resetContextIfApplicable() = 0; // No-op outside of GL (&& Ganesh at this point.)
 

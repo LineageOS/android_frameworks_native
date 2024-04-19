@@ -62,6 +62,22 @@ GraphiteGpuContext::GraphiteGpuContext(std::unique_ptr<skgpu::graphite::Context>
     LOG_ALWAYS_FATAL_IF(mRecorder.get() == nullptr, "graphite::Recorder creation failed");
 }
 
+GraphiteGpuContext::~GraphiteGpuContext() {
+    // The equivalent operation would occur when destroying the graphite::Context, but calling this
+    // explicitly allows any outstanding GraphiteBackendTextures to be released, thus allowing us to
+    // assert that this GraphiteGpuContext holds the last ref to the underlying graphite::Recorder.
+    mContext->submit(skgpu::graphite::SyncToCpu::kYes);
+    // We must call the Context's and Recorder's dtors before exiting this function, so all other
+    // refs must be released by now. Note: these assertions may be unreliable in a hypothetical
+    // future world where we take advantage of Graphite's multi-threading capabilities!
+    LOG_ALWAYS_FATAL_IF(mRecorder.use_count() > 1,
+                        "Something other than GraphiteGpuContext holds a ref to the underlying "
+                        "graphite::Recorder");
+    LOG_ALWAYS_FATAL_IF(mContext.use_count() > 1,
+                        "Something other than GraphiteGpuContext holds a ref to the underlying "
+                        "graphite::Context");
+};
+
 std::shared_ptr<skgpu::graphite::Context> GraphiteGpuContext::graphiteContext() {
     return mContext;
 }
@@ -93,11 +109,6 @@ size_t GraphiteGpuContext::getMaxTextureSize() const {
 bool GraphiteGpuContext::isAbandonedOrDeviceLost() {
     return mContext->isDeviceLost();
 }
-
-void GraphiteGpuContext::finishRenderingAndAbandonContext() {
-    // TODO: b/293371537 - Validate that nothing else needs to be explicitly abandoned.
-    mContext->submit(skgpu::graphite::SyncToCpu::kYes);
-};
 
 void GraphiteGpuContext::dumpMemoryStatistics(SkTraceMemoryDump* traceMemoryDump) const {
     mContext->dumpMemoryStatistics(traceMemoryDump);
