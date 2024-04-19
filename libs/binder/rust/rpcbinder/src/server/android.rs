@@ -147,6 +147,20 @@ impl RpcServerRef {
         }
     }
 
+    /// Sets the max number of threads this Server uses for incoming client connections.
+    ///
+    /// This must be called before adding a client session. This corresponds
+    /// to the number of incoming connections to RpcSession objects in the
+    /// server, which will correspond to the number of outgoing connections
+    /// in client RpcSession objects. Specifically this is useful for handling
+    /// client-side callback connections.
+    ///
+    /// If this is not specified, this will be a single-threaded server.
+    pub fn set_max_threads(&self, count: usize) {
+        // SAFETY: RpcServerRef wraps a valid pointer to an ARpcServer.
+        unsafe { binder_rpc_unstable_bindgen::ARpcServer_setMaxThreads(self.as_ptr(), count) };
+    }
+
     /// Starts a new background thread and calls join(). Returns immediately.
     pub fn start(&self) {
         // SAFETY: RpcServerRef wraps a valid pointer to an ARpcServer.
