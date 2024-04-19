@@ -79,12 +79,20 @@ fn process_movement(
     pointer_properties: &[RustPointerProperties],
     flags: u32,
 ) -> String {
+    let motion_flags = MotionFlags::from_bits(flags);
+    if motion_flags.is_none() {
+        panic!(
+            "The conversion of flags 0x{:08x} failed, please check if some flags have not been \
+            added to MotionFlags.",
+            flags
+        );
+    }
     let result = verifier.process_movement(
         DeviceId(device_id),
         Source::from_bits(source).unwrap(),
         action,
         pointer_properties,
-        MotionFlags::from_bits(flags).unwrap(),
+        motion_flags.unwrap(),
     );
     match result {
         Ok(()) => "".to_string(),
