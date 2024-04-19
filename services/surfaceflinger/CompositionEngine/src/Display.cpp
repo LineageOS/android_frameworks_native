@@ -412,6 +412,10 @@ bool Display::isPowerHintSessionEnabled() {
     return mPowerAdvisor != nullptr && mPowerAdvisor->usePowerHintSession();
 }
 
+bool Display::isPowerHintSessionGpuReportingEnabled() {
+    return mPowerAdvisor != nullptr && mPowerAdvisor->supportsGpuReporting();
+}
+
 // For ADPF GPU v0 this is expected to set start time to when the GPU commands are submitted with
 // fence returned, i.e. when RenderEngine flushes the commands and returns the draw fence.
 void Display::setHintSessionGpuStart(TimePoint startTime) {

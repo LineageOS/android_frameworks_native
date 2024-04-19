@@ -38,6 +38,7 @@ public:
     MOCK_METHOD(void, notifyDisplayUpdateImminentAndCpuReset, (), (override));
     MOCK_METHOD(bool, usePowerHintSession, (), (override));
     MOCK_METHOD(bool, supportsPowerHintSession, (), (override));
+    MOCK_METHOD(bool, supportsGpuReporting, (), (override));
     MOCK_METHOD(void, updateTargetWorkDuration, (Duration targetDuration), (override));
     MOCK_METHOD(void, reportActualWorkDuration, (), (override));
     MOCK_METHOD(void, enablePowerHintSession, (bool enabled), (override));

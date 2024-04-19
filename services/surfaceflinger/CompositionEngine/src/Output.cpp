@@ -1214,7 +1214,7 @@ void Output::finishFrame(GpuCompositionResult&& result) {
     if (!optReadyFence) {
         return;
     }
-    if (isPowerHintSessionEnabled() && !FlagManager::getInstance().adpf_gpu_sf()) {
+    if (isPowerHintSessionEnabled() && !isPowerHintSessionGpuReportingEnabled()) {
         // get fence end time to know when gpu is complete in display
         setHintSessionGpuFence(
                 std::make_unique<FenceTime>(sp<Fence>::make(dup(optReadyFence->get()))));
@@ -1363,7 +1363,7 @@ std::optional<base::unique_fd> Output::composeSurfaces(
         if (fence != Fence::NO_FENCE && fence->isValid() &&
             !outputCompositionState.reusedClientComposition) {
             setHintSessionRequiresRenderEngine(true);
-            if (FlagManager::getInstance().adpf_gpu_sf()) {
+            if (isPowerHintSessionGpuReportingEnabled()) {
                 // the order of the two calls here matters as we should check if the previously
                 // tracked fence has signaled first and archive the previous start time
                 setHintSessionGpuStart(TimePoint::now());
@@ -1560,6 +1560,10 @@ void Output::setHintSessionRequiresRenderEngine(bool) {
 }
 
 bool Output::isPowerHintSessionEnabled() {
+    return false;
+}
+
+bool Output::isPowerHintSessionGpuReportingEnabled() {
     return false;
 }
 
