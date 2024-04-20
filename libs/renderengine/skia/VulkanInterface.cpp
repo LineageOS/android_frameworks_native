@@ -557,13 +557,16 @@ void VulkanInterface::init(bool protectedContent) {
     ALOGD("%s: Success init Vulkan interface in %f ms", __func__, initTimeMs);
 }
 
-// TODO: b/293371537 - Iterate on this.
-// Currently unused, but copied over from its original location for potential future use. This
-// should likely be improved to walk the pNext chain of mPhysicalDeviceFeatures2 and free everything
-// like HWUI's VulkanManager. Also, not all fields are being reset.
-void VulkanInterface::teardown() {
-    mInitialized = false;
+bool VulkanInterface::takeOwnership() {
+    if (!isInitialized() || mIsOwned) {
+        return false;
+    }
+    mIsOwned = true;
+    return true;
+}
 
+void VulkanInterface::teardown() {
+    // Core resources that must be destroyed using Vulkan functions.
     if (mDevice != VK_NULL_HANDLE) {
         mFuncs.vkDeviceWaitIdle(mDevice);
         mFuncs.vkDestroyDevice(mDevice, nullptr);
@@ -574,26 +577,42 @@ void VulkanInterface::teardown() {
         mInstance = VK_NULL_HANDLE;
     }
 
+    // Optional features that can be deleted directly.
+    // TODO: b/293371537 - This section should likely be improved to walk the pNext chain of
+    // mPhysicalDeviceFeatures2 and free everything like HWUI's VulkanManager.
     if (mProtectedMemoryFeatures) {
         delete mProtectedMemoryFeatures;
+        mProtectedMemoryFeatures = nullptr;
     }
-
     if (mSamplerYcbcrConversionFeatures) {
         delete mSamplerYcbcrConversionFeatures;
+        mSamplerYcbcrConversionFeatures = nullptr;
     }
-
     if (mPhysicalDeviceFeatures2) {
         delete mPhysicalDeviceFeatures2;
+        mPhysicalDeviceFeatures2 = nullptr;
     }
-
     if (mDeviceFaultFeatures) {
         delete mDeviceFaultFeatures;
+        mDeviceFaultFeatures = nullptr;
     }
 
-    mSamplerYcbcrConversionFeatures = nullptr;
-    mPhysicalDeviceFeatures2 = nullptr;
-    mProtectedMemoryFeatures = nullptr;
-    mDeviceFaultFeatures = nullptr;
+    // Misc. fields that can be trivially reset without special deletion:
+    mInitialized = false;
+    mIsOwned = false;
+    mPhysicalDevice = VK_NULL_HANDLE; // Implicitly destroyed by destroying mInstance.
+    mQueue = VK_NULL_HANDLE;          // Implicitly destroyed by destroying mDevice.
+    mQueueIndex = 0;
+    mApiVersion = 0;
+    mGrExtensions = GrVkExtensions();
+    mGrGetProc = nullptr;
+    mIsProtected = false;
+    mIsRealtimePriority = false;
+
+    mFuncs = VulkanFuncs();
+
+    mInstanceExtensionNames.clear();
+    mDeviceExtensionNames.clear();
 }
 
 } // namespace skia

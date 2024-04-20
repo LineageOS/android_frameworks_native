@@ -206,7 +206,8 @@ bool PowerAdvisor::supportsPowerHintSession() {
 }
 
 bool PowerAdvisor::shouldCreateSessionWithConfig() {
-    return mSessionConfigSupported && FlagManager::getInstance().adpf_use_fmq_channel();
+    return mSessionConfigSupported && mBootFinished &&
+            FlagManager::getInstance().adpf_use_fmq_channel();
 }
 
 bool PowerAdvisor::ensurePowerHintSessionRunning() {
@@ -241,7 +242,7 @@ bool PowerAdvisor::ensurePowerHintSessionRunning() {
 }
 
 void PowerAdvisor::updateTargetWorkDuration(Duration targetDuration) {
-    if (!usePowerHintSession()) {
+    if (!mBootFinished || !usePowerHintSession()) {
         ALOGV("Power hint session target duration cannot be set, skipping");
         return;
     }
@@ -280,7 +281,7 @@ void PowerAdvisor::reportActualWorkDuration() {
         ATRACE_INT64("Measured duration", actualDuration->durationNanos);
         ATRACE_INT64("Target error term", actualDuration->durationNanos - mTargetDuration.ns());
         ATRACE_INT64("Reported duration", actualDuration->durationNanos);
-        if (FlagManager::getInstance().adpf_gpu_sf()) {
+        if (supportsGpuReporting()) {
             ATRACE_INT64("Reported cpu duration", actualDuration->cpuDurationNanos);
             ATRACE_INT64("Reported gpu duration", actualDuration->gpuDurationNanos);
         }
@@ -341,6 +342,10 @@ bool PowerAdvisor::startPowerHintSession(std::vector<int32_t>&& threadIds) {
     return ensurePowerHintSessionRunning();
 }
 
+bool PowerAdvisor::supportsGpuReporting() {
+    return mBootFinished && FlagManager::getInstance().adpf_gpu_sf();
+}
+
 void PowerAdvisor::setGpuStartTime(DisplayId displayId, TimePoint startTime) {
     DisplayTimingData& displayData = mDisplayTimingData[displayId];
     if (displayData.gpuEndFenceTime) {
@@ -366,7 +371,7 @@ void PowerAdvisor::setGpuStartTime(DisplayId displayId, TimePoint startTime) {
 
 void PowerAdvisor::setGpuFenceTime(DisplayId displayId, std::unique_ptr<FenceTime>&& fenceTime) {
     DisplayTimingData& displayData = mDisplayTimingData[displayId];
-    if (displayData.gpuEndFenceTime && !FlagManager::getInstance().adpf_gpu_sf()) {
+    if (displayData.gpuEndFenceTime && !supportsGpuReporting()) {
         nsecs_t signalTime = displayData.gpuEndFenceTime->getSignalTime();
         if (signalTime != Fence::SIGNAL_TIME_INVALID && signalTime != Fence::SIGNAL_TIME_PENDING) {
             displayData.lastValidGpuStartTime = displayData.gpuStartTime;
@@ -386,7 +391,7 @@ void PowerAdvisor::setGpuFenceTime(DisplayId displayId, std::unique_ptr<FenceTim
         }
     }
     displayData.gpuEndFenceTime = std::move(fenceTime);
-    if (!FlagManager::getInstance().adpf_gpu_sf()) {
+    if (!supportsGpuReporting()) {
         displayData.gpuStartTime = TimePoint::now();
     }
 }
@@ -549,9 +554,8 @@ std::optional<WorkDuration> PowerAdvisor::estimateWorkDuration() {
             .timeStampNanos = TimePoint::now().ns(),
             .durationNanos = combinedDuration.ns(),
             .workPeriodStartTimestampNanos = mCommitStartTimes[0].ns(),
-            .cpuDurationNanos = FlagManager::getInstance().adpf_gpu_sf() ? cpuDuration.ns() : 0,
-            .gpuDurationNanos =
-                    FlagManager::getInstance().adpf_gpu_sf() ? estimatedGpuDuration.ns() : 0,
+            .cpuDurationNanos = supportsGpuReporting() ? cpuDuration.ns() : 0,
+            .gpuDurationNanos = supportsGpuReporting() ? estimatedGpuDuration.ns() : 0,
     };
     if (sTraceHintSessionData) {
         ATRACE_INT64("Idle duration", idleDuration.ns());

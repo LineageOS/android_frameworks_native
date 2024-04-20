@@ -138,6 +138,7 @@ public:
     MOCK_METHOD(void, setHintSessionGpuFence, (std::unique_ptr<FenceTime> && gpuFence));
     MOCK_METHOD(void, setHintSessionRequiresRenderEngine, (bool requiresRenderEngine));
     MOCK_METHOD(bool, isPowerHintSessionEnabled, ());
+    MOCK_METHOD(bool, isPowerHintSessionGpuReportingEnabled, ());
 };
 
 } // namespace android::compositionengine::mock

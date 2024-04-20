@@ -1549,10 +1549,6 @@ uint32_t Layer::getEffectiveUsage(uint32_t usage) const {
     return usage;
 }
 
-void Layer::skipReportingTransformHint() {
-    mSkipReportingTransformHint = true;
-}
-
 void Layer::updateTransformHint(ui::Transform::RotationFlags transformHint) {
     if (mFlinger->mDebugDisableTransformHint || transformHint & ui::Transform::ROT_INVALID) {
         transformHint = ui::Transform::ROT_0;
@@ -2618,19 +2614,6 @@ Region Layer::getVisibleRegion(const DisplayDevice* display) const {
     return outputLayer ? outputLayer->getState().visibleRegion : Region();
 }
 
-void Layer::setInitialValuesForClone(const sp<Layer>& clonedFrom, uint32_t mirrorRootId) {
-    if (mFlinger->mLayerLifecycleManagerEnabled) return;
-    mSnapshot->path.id = clonedFrom->getSequence();
-    mSnapshot->path.mirrorRootIds.emplace_back(mirrorRootId);
-
-    cloneDrawingState(clonedFrom.get());
-    mClonedFrom = clonedFrom;
-    mPremultipliedAlpha = clonedFrom->mPremultipliedAlpha;
-    mPotentialCursor = clonedFrom->mPotentialCursor;
-    mProtectedByApp = clonedFrom->mProtectedByApp;
-    updateCloneBufferInfo();
-}
-
 void Layer::updateCloneBufferInfo() {
     if (!isClone() || !isClonedFromAlive()) {
         return;
@@ -2730,7 +2713,7 @@ void Layer::updateClonedChildren(const sp<Layer>& mirrorRoot,
         }
         sp<Layer> clonedChild = clonedLayersMap[child];
         if (clonedChild == nullptr) {
-            clonedChild = child->createClone(mirrorRoot->getSequence());
+            clonedChild = child->createClone();
             clonedLayersMap[child] = clonedChild;
         }
         addChildToDrawing(clonedChild);
@@ -2976,13 +2959,7 @@ void Layer::onSurfaceFrameCreated(
 
 void Layer::releasePendingBuffer(nsecs_t dequeueReadyTime) {
     for (const auto& handle : mDrawingState.callbackHandles) {
-        if (mFlinger->mLayerLifecycleManagerEnabled) {
-            handle->transformHint = mTransformHint;
-        } else {
-            handle->transformHint = mSkipReportingTransformHint
-                    ? std::nullopt
-                    : std::make_optional<uint32_t>(mTransformHintLegacy);
-        }
+        handle->transformHint = mTransformHint;
         handle->dequeueReadyTime = dequeueReadyTime;
         handle->currentMaxAcquiredBufferCount =
                 mFlinger->getMaxAcquiredBufferCountForCurrentRefreshRate(mOwnerUid);
@@ -3706,11 +3683,10 @@ Rect Layer::computeBufferCrop(const State& s) {
     }
 }
 
-sp<Layer> Layer::createClone(uint32_t mirrorRootId) {
+sp<Layer> Layer::createClone() {
     surfaceflinger::LayerCreationArgs args(mFlinger.get(), nullptr, mName + " (Mirror)", 0,
                                            LayerMetadata());
     sp<Layer> layer = mFlinger->getFactory().createBufferStateLayer(args);
-    layer->setInitialValuesForClone(sp<Layer>::fromExisting(this), mirrorRootId);
     return layer;
 }
 
@@ -4326,7 +4302,6 @@ void Layer::setTransformHintLegacy(ui::Transform::RotationFlags displayTransform
     if (mTransformHintLegacy == ui::Transform::ROT_INVALID) {
         mTransformHintLegacy = displayTransformHint;
     }
-    mSkipReportingTransformHint = false;
 }
 
 const std::shared_ptr<renderengine::ExternalTexture>& Layer::getExternalTexture() const {

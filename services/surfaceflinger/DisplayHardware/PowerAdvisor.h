@@ -59,6 +59,7 @@ public:
     // set before onBootFinished, which gates all methods that run on threads other than SF main
     virtual bool usePowerHintSession() = 0;
     virtual bool supportsPowerHintSession() = 0;
+    virtual bool supportsGpuReporting() = 0;
 
     // Sends a power hint that updates to the target work duration for the frame
     virtual void updateTargetWorkDuration(Duration targetDuration) = 0;
@@ -122,6 +123,7 @@ public:
     bool isUsingExpensiveRendering() override { return mNotifiedExpensiveRendering; };
     bool usePowerHintSession() override;
     bool supportsPowerHintSession() override;
+    bool supportsGpuReporting() override;
     void updateTargetWorkDuration(Duration targetDuration) override;
     void reportActualWorkDuration() override;
     void enablePowerHintSession(bool enabled) override;
@@ -231,7 +233,6 @@ private:
     // There are two different targets and actual work durations we care about,
     // this normalizes them together and takes the max of the two
     Duration combineTimingEstimates(Duration totalDuration, Duration flingerDuration);
-
     // Whether to use the new "createHintSessionWithConfig" method
     bool shouldCreateSessionWithConfig() REQUIRES(mHintSessionMutex);
 

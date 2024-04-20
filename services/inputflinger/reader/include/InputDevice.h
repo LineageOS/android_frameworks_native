@@ -63,11 +63,8 @@ public:
     inline std::optional<uint8_t> getAssociatedDisplayPort() const {
         return mAssociatedDisplayPort;
     }
-    inline std::optional<std::string> getAssociatedDisplayUniqueIdByPort() const {
-        return mAssociatedDisplayUniqueIdByPort;
-    }
-    inline std::optional<std::string> getAssociatedDisplayUniqueIdByDescriptor() const {
-        return mAssociatedDisplayUniqueIdByDescriptor;
+    inline std::optional<std::string> getAssociatedDisplayUniqueId() const {
+        return mAssociatedDisplayUniqueId;
     }
     inline std::optional<std::string> getDeviceTypeAssociation() const {
         return mAssociatedDeviceType;
@@ -197,8 +194,7 @@ private:
     bool mIsWaking;
     bool mIsExternal;
     std::optional<uint8_t> mAssociatedDisplayPort;
-    std::optional<std::string> mAssociatedDisplayUniqueIdByPort;
-    std::optional<std::string> mAssociatedDisplayUniqueIdByDescriptor;
+    std::optional<std::string> mAssociatedDisplayUniqueId;
     std::optional<std::string> mAssociatedDeviceType;
     std::optional<DisplayViewport> mAssociatedViewport;
     bool mHasMic;
@@ -453,11 +449,8 @@ public:
     inline std::optional<uint8_t> getAssociatedDisplayPort() const {
         return mDevice.getAssociatedDisplayPort();
     }
-    inline std::optional<std::string> getAssociatedDisplayUniqueIdByPort() const {
-        return mDevice.getAssociatedDisplayUniqueIdByPort();
-    }
-    inline std::optional<std::string> getAssociatedDisplayUniqueIdByDescriptor() const {
-        return mDevice.getAssociatedDisplayUniqueIdByDescriptor();
+    inline std::optional<std::string> getAssociatedDisplayUniqueId() const {
+        return mDevice.getAssociatedDisplayUniqueId();
     }
     inline std::optional<std::string> getDeviceTypeAssociation() const {
         return mDevice.getDeviceTypeAssociation();

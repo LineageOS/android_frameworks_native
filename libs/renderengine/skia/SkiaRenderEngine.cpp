@@ -297,21 +297,23 @@ SkiaRenderEngine::SkiaRenderEngine(Threaded threaded, PixelFormat pixelFormat,
 
 SkiaRenderEngine::~SkiaRenderEngine() { }
 
-// To be called from backend dtors.
-void SkiaRenderEngine::finishRenderingAndAbandonContext() {
+// To be called from backend dtors. Used to clean up Skia objects before GPU API contexts are
+// destroyed by subclasses.
+void SkiaRenderEngine::finishRenderingAndAbandonContexts() {
     std::lock_guard<std::mutex> lock(mRenderingMutex);
 
     if (mBlurFilter) {
         delete mBlurFilter;
     }
 
-    if (mContext) {
-        mContext->finishRenderingAndAbandonContext();
-    }
+    // Leftover textures may hold refs to backend-specific Skia contexts, which must be released
+    // before ~SkiaGpuContext is called.
+    mTextureCleanupMgr.setDeferredStatus(false);
+    mTextureCleanupMgr.cleanup();
 
-    if (mProtectedContext) {
-        mProtectedContext->finishRenderingAndAbandonContext();
-    }
+    // ~SkiaGpuContext must be called before GPU API contexts are torn down.
+    mContext.reset();
+    mProtectedContext.reset();
 }
 
 void SkiaRenderEngine::useProtectedContext(bool useProtectedContext) {

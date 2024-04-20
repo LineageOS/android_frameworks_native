@@ -73,6 +73,17 @@ void ARpcServer_setSupportedFileDescriptorTransportModes(
         const ARpcSession_FileDescriptorTransportMode modes[],
         size_t modes_len);
 
+// Sets the maximum number of threads that the Server will use for
+// incoming client connections.
+//
+// This must be called before adding a client session. This corresponds
+// to the number of incoming connections to RpcSession objects in the
+// server, which will correspond to the number of outgoing connections
+// in client RpcSession objects.
+//
+// If this is not specified, this will be a single-threaded server.
+void ARpcServer_setMaxThreads(ARpcServer* server, size_t threads);
+
 // Runs ARpcServer_join() in a background thread. Immediately returns.
 void ARpcServer_start(ARpcServer* server);
 

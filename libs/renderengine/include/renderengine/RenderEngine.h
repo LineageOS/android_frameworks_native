@@ -120,7 +120,24 @@ public:
 
     static std::unique_ptr<RenderEngine> create(const RenderEngineCreationArgs& args);
 
-    static bool canSupport(GraphicsApi);
+    // Check if the device supports the given GraphicsApi.
+    //
+    // If called for GraphicsApi::VK then underlying (unprotected) VK resources will be preserved
+    // to optimize subsequent VK initialization, but teardown(GraphicsApi::VK) must be invoked if
+    // the caller subsequently decides to NOT use VK.
+    //
+    // The first call may require significant resource initialization, but subsequent checks are
+    // cached internally.
+    static bool canSupport(GraphicsApi graphicsApi);
+
+    // Teardown any GPU API resources that were previously initialized but are no longer needed.
+    //
+    // Must be called with GraphicsApi::VK if canSupport(GraphicsApi::VK) was previously invoked but
+    // the caller subsequently decided to not use VK.
+    //
+    // This is safe to call if there is nothing to teardown, but NOT safe to call if a RenderEngine
+    // instance exists. The RenderEngine destructor will handle its own teardown logic.
+    static void teardown(GraphicsApi graphicsApi);
 
     virtual ~RenderEngine() = 0;
 

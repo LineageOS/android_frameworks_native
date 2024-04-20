@@ -691,11 +691,6 @@ public:
         return mFlinger->initTransactionTraceWriter();
     }
 
-    void enableNewFrontEnd() {
-        mFlinger->mLayerLifecycleManagerEnabled = true;
-        mFlinger->mLegacyFrontEndEnabled = false;
-    }
-
     void notifyExpectedPresentIfRequired(PhysicalDisplayId displayId, Period vsyncPeriod,
                                          TimePoint expectedPresentTime, Fps frameInterval,
                                          std::optional<Period> timeoutOpt) {

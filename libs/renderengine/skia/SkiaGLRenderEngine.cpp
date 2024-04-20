@@ -279,7 +279,7 @@ SkiaGLRenderEngine::SkiaGLRenderEngine(const RenderEngineCreationArgs& args, EGL
         mProtectedPlaceholderSurface(protectedPlaceholder) {}
 
 SkiaGLRenderEngine::~SkiaGLRenderEngine() {
-    finishRenderingAndAbandonContext();
+    finishRenderingAndAbandonContexts();
     if (mPlaceholderSurface != EGL_NO_SURFACE) {
         eglDestroySurface(mEGLDisplay, mPlaceholderSurface);
     }

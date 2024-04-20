@@ -25,7 +25,7 @@ namespace android::renderengine::skia {
 class GaneshGpuContext : public SkiaGpuContext {
 public:
     GaneshGpuContext(sk_sp<GrDirectContext> grContext);
-    ~GaneshGpuContext() override = default;
+    ~GaneshGpuContext() override;
 
     sk_sp<GrDirectContext> grDirectContext() override;
 
@@ -39,7 +39,6 @@ public:
     bool isAbandonedOrDeviceLost() override;
     void setResourceCacheLimit(size_t maxResourceBytes) override;
 
-    void finishRenderingAndAbandonContext() override;
     void purgeUnlockedScratchResources() override;
     void resetContextIfApplicable() override;
 

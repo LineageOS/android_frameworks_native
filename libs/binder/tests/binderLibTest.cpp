@@ -506,10 +506,11 @@ TEST_F(BinderLibTest, Freeze) {
 
     // Pass test on devices where BINDER_FREEZE ioctl is not supported
     int ret = IPCThreadState::self()->freeze(pid, false, 0);
-    if (ret != 0) {
+    if (ret == -EINVAL) {
         GTEST_SKIP();
         return;
     }
+    EXPECT_EQ(NO_ERROR, ret);
 
     EXPECT_EQ(-EAGAIN, IPCThreadState::self()->freeze(pid, true, 0));
 

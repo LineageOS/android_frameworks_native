@@ -69,12 +69,38 @@ bool RenderEngine::canSupport(GraphicsApi graphicsApi) {
         case GraphicsApi::GL:
             return true;
         case GraphicsApi::VK: {
-            if (!sVulkanInterface.isInitialized()) {
-                sVulkanInterface.init(false /* no protected content */);
-                ALOGD("%s: initialized == %s.", __func__,
-                      sVulkanInterface.isInitialized() ? "true" : "false");
+            // Static local variables are initialized once, on first invocation of the function.
+            static const bool canSupportVulkan = []() {
+                if (!sVulkanInterface.isInitialized()) {
+                    sVulkanInterface.init(false /* no protected content */);
+                    ALOGD("%s: initialized == %s.", __func__,
+                          sVulkanInterface.isInitialized() ? "true" : "false");
+                    if (!sVulkanInterface.isInitialized()) {
+                        sVulkanInterface.teardown();
+                        return false;
+                    }
+                }
+                return true;
+            }();
+            return canSupportVulkan;
+        }
+    }
+}
+
+void RenderEngine::teardown(GraphicsApi graphicsApi) {
+    switch (graphicsApi) {
+        case GraphicsApi::GL:
+            break;
+        case GraphicsApi::VK: {
+            if (sVulkanInterface.isInitialized()) {
+                sVulkanInterface.teardown();
+                ALOGD("Tearing down the unprotected VulkanInterface.");
             }
-            return sVulkanInterface.isInitialized();
+            if (sProtectedContentVulkanInterface.isInitialized()) {
+                sProtectedContentVulkanInterface.teardown();
+                ALOGD("Tearing down the protected VulkanInterface.");
+            }
+            break;
         }
     }
 }
@@ -88,11 +114,27 @@ SkiaVkRenderEngine::SkiaVkRenderEngine(const RenderEngineCreationArgs& args)
                          args.blurAlgorithm) {}
 
 SkiaVkRenderEngine::~SkiaVkRenderEngine() {
-    finishRenderingAndAbandonContext();
+    finishRenderingAndAbandonContexts();
+    // Teardown VulkanInterfaces after Skia contexts have been abandoned
+    teardown(GraphicsApi::VK);
 }
 
 SkiaRenderEngine::Contexts SkiaVkRenderEngine::createContexts() {
     sSetupVulkanInterface();
+    // More work would need to be done in order to have multiple RenderEngine instances. In
+    // particular, they would not be able to share the same VulkanInterface(s).
+    LOG_ALWAYS_FATAL_IF(!sVulkanInterface.takeOwnership(),
+                        "SkiaVkRenderEngine couldn't take ownership of existing unprotected "
+                        "VulkanInterface! Only one SkiaVkRenderEngine instance may exist at a "
+                        "time.");
+    if (sProtectedContentVulkanInterface.isInitialized()) {
+        // takeOwnership fails on an uninitialized VulkanInterface, but protected content support is
+        // optional.
+        LOG_ALWAYS_FATAL_IF(!sProtectedContentVulkanInterface.takeOwnership(),
+                            "SkiaVkRenderEngine couldn't take ownership of existing protected "
+                            "VulkanInterface! Only one SkiaVkRenderEngine instance may exist at a "
+                            "time.");
+    }
 
     SkiaRenderEngine::Contexts contexts;
     contexts.first = createContext(sVulkanInterface);

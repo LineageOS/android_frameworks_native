@@ -41,6 +41,10 @@ public:
     VulkanInterface& operator=(VulkanInterface&&) = delete;
 
     void init(bool protectedContent = false);
+    // Returns true and marks this VulkanInterface as "owned" if it is initialized but unused by any
+    // RenderEngine instances. Returns false if already owned, indicating that it must not be used
+    // by a new RE instance.
+    bool takeOwnership();
     void teardown();
 
     GrVkBackendContext getGaneshBackendContext();
@@ -72,7 +76,9 @@ private:
                                 const std::vector<VkDeviceFaultVendorInfoEXT>& vendorInfos,
                                 const std::vector<std::byte>& vendorBinaryData);
 
+    // Note: keep all field defaults in sync with teardown()
     bool mInitialized = false;
+    bool mIsOwned = false;
     VkInstance mInstance = VK_NULL_HANDLE;
     VkPhysicalDevice mPhysicalDevice = VK_NULL_HANDLE;
     VkDevice mDevice = VK_NULL_HANDLE;

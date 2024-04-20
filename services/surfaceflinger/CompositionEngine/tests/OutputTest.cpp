@@ -2020,10 +2020,12 @@ struct OutputPresentTest : public testing::Test {
         MOCK_METHOD(void, setHintSessionRequiresRenderEngine, (bool requiresRenderEngine),
                     (override));
         MOCK_METHOD(bool, isPowerHintSessionEnabled, (), (override));
+        MOCK_METHOD(bool, isPowerHintSessionGpuReportingEnabled, (), (override));
     };
 
     OutputPresentTest() {
         EXPECT_CALL(mOutput, isPowerHintSessionEnabled()).WillRepeatedly(Return(true));
+        EXPECT_CALL(mOutput, isPowerHintSessionGpuReportingEnabled()).WillRepeatedly(Return(true));
     }
 
     StrictMock<OutputPartialMock> mOutput;
@@ -3001,6 +3003,7 @@ struct OutputFinishFrameTest : public testing::Test {
         MOCK_METHOD(void, setHintSessionGpuFence, (std::unique_ptr<FenceTime> && gpuFence),
                     (override));
         MOCK_METHOD(bool, isPowerHintSessionEnabled, (), (override));
+        MOCK_METHOD(bool, isPowerHintSessionGpuReportingEnabled, (), (override));
     };
 
     OutputFinishFrameTest() {
@@ -3010,6 +3013,7 @@ struct OutputFinishFrameTest : public testing::Test {
         EXPECT_CALL(mOutput, getCompositionEngine()).WillRepeatedly(ReturnRef(mCompositionEngine));
         EXPECT_CALL(mCompositionEngine, getRenderEngine()).WillRepeatedly(ReturnRef(mRenderEngine));
         EXPECT_CALL(mOutput, isPowerHintSessionEnabled()).WillRepeatedly(Return(true));
+        EXPECT_CALL(mOutput, isPowerHintSessionGpuReportingEnabled()).WillRepeatedly(Return(true));
     }
 
     StrictMock<OutputPartialMock> mOutput;
@@ -3027,7 +3031,6 @@ TEST_F(OutputFinishFrameTest, ifNotEnabledDoesNothing) {
 }
 
 TEST_F(OutputFinishFrameTest, takesEarlyOutifComposeSurfacesReturnsNoFence) {
-    SET_FLAG_FOR_TEST(flags::adpf_gpu_sf, true);
     mOutput.mState.isEnabled = true;
     EXPECT_CALL(mOutput, updateProtectedContentState());
     EXPECT_CALL(mOutput, dequeueRenderBuffer(_, _)).WillOnce(Return(true));
@@ -3038,7 +3041,7 @@ TEST_F(OutputFinishFrameTest, takesEarlyOutifComposeSurfacesReturnsNoFence) {
 }
 
 TEST_F(OutputFinishFrameTest, queuesBufferIfComposeSurfacesReturnsAFenceWithAdpfGpuOff) {
-    SET_FLAG_FOR_TEST(flags::adpf_gpu_sf, false);
+    EXPECT_CALL(mOutput, isPowerHintSessionGpuReportingEnabled()).WillOnce(Return(false));
     mOutput.mState.isEnabled = true;
 
     InSequence seq;
@@ -3054,7 +3057,6 @@ TEST_F(OutputFinishFrameTest, queuesBufferIfComposeSurfacesReturnsAFenceWithAdpf
 }
 
 TEST_F(OutputFinishFrameTest, queuesBufferIfComposeSurfacesReturnsAFence) {
-    SET_FLAG_FOR_TEST(flags::adpf_gpu_sf, true);
     mOutput.mState.isEnabled = true;
 
     InSequence seq;
@@ -3071,7 +3073,6 @@ TEST_F(OutputFinishFrameTest, queuesBufferIfComposeSurfacesReturnsAFence) {
 
 TEST_F(OutputFinishFrameTest, queuesBufferWithHdrSdrRatio) {
     SET_FLAG_FOR_TEST(flags::fp16_client_target, true);
-    SET_FLAG_FOR_TEST(flags::adpf_gpu_sf, true);
     mOutput.mState.isEnabled = true;
 
     InSequence seq;
@@ -3099,7 +3100,6 @@ TEST_F(OutputFinishFrameTest, queuesBufferWithHdrSdrRatio) {
 }
 
 TEST_F(OutputFinishFrameTest, predictionSucceeded) {
-    SET_FLAG_FOR_TEST(flags::adpf_gpu_sf, true);
     mOutput.mState.isEnabled = true;
     mOutput.mState.strategyPrediction = CompositionStrategyPredictionState::SUCCESS;
     InSequence seq;
@@ -3111,7 +3111,6 @@ TEST_F(OutputFinishFrameTest, predictionSucceeded) {
 }
 
 TEST_F(OutputFinishFrameTest, predictionFailedAndBufferIsReused) {
-    SET_FLAG_FOR_TEST(flags::adpf_gpu_sf, true);
     mOutput.mState.isEnabled = true;
     mOutput.mState.strategyPrediction = CompositionStrategyPredictionState::FAIL;
 
@@ -3458,6 +3457,7 @@ struct OutputComposeSurfacesTest : public testing::Test {
                     (override));
         MOCK_METHOD(void, setHintSessionRequiresRenderEngine, (bool), (override));
         MOCK_METHOD(bool, isPowerHintSessionEnabled, (), (override));
+        MOCK_METHOD(bool, isPowerHintSessionGpuReportingEnabled, (), (override));
     };
 
     OutputComposeSurfacesTest() {
@@ -3488,6 +3488,7 @@ struct OutputComposeSurfacesTest : public testing::Test {
         EXPECT_CALL(*mDisplayColorProfile, getHdrCapabilities())
                 .WillRepeatedly(ReturnRef(kHdrCapabilities));
         EXPECT_CALL(mOutput, isPowerHintSessionEnabled()).WillRepeatedly(Return(true));
+        EXPECT_CALL(mOutput, isPowerHintSessionGpuReportingEnabled()).WillRepeatedly(Return(true));
     }
 
     struct ExecuteState : public CallOrderStateMachineHelper<TestType, ExecuteState> {
@@ -3761,7 +3762,7 @@ TEST_F(OutputComposeSurfacesTest, skipDuplicateClientCompositionRequests) {
 }
 
 TEST_F(OutputComposeSurfacesTest, clientCompositionIfBufferChangesWithAdpfGpuOff) {
-    SET_FLAG_FOR_TEST(flags::adpf_gpu_sf, false);
+    EXPECT_CALL(mOutput, isPowerHintSessionGpuReportingEnabled()).WillOnce(Return(false));
     LayerFE::LayerSettings r1;
     LayerFE::LayerSettings r2;
 
@@ -3805,7 +3806,6 @@ TEST_F(OutputComposeSurfacesTest, clientCompositionIfBufferChangesWithAdpfGpuOff
 }
 
 TEST_F(OutputComposeSurfacesTest, clientCompositionIfBufferChanges) {
-    SET_FLAG_FOR_TEST(flags::adpf_gpu_sf, true);
     LayerFE::LayerSettings r1;
     LayerFE::LayerSettings r2;
 

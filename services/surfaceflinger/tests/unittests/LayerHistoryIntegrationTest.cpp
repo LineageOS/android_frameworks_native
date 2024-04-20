@@ -1003,8 +1003,6 @@ protected:
         mappings.push_back(std::make_pair(kAppId1, kThreshold1));
         mappings.push_back(std::make_pair(kAppId2, kThreshold2));
 
-        mFlinger.enableNewFrontEnd();
-
         mScheduler->onActiveDisplayAreaChanged(DISPLAY_WIDTH * DISPLAY_HEIGHT);
         mScheduler->updateSmallAreaDetection(mappings);
     }

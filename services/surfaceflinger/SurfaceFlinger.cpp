@@ -809,11 +809,11 @@ void chooseRenderEngineType(renderengine::RenderEngineCreationArgs::Builder& bui
                 .setGraphicsApi(renderengine::RenderEngine::GraphicsApi::VK);
     } else {
         const auto kVulkan = renderengine::RenderEngine::GraphicsApi::VK;
-        const bool canSupportVulkan = renderengine::RenderEngine::canSupport(kVulkan);
-        const bool useGraphite =
-                canSupportVulkan && FlagManager::getInstance().graphite_renderengine();
+        const bool useGraphite = FlagManager::getInstance().graphite_renderengine() &&
+                renderengine::RenderEngine::canSupport(kVulkan);
         const bool useVulkan = useGraphite ||
-                (canSupportVulkan && FlagManager::getInstance().vulkan_renderengine());
+                (FlagManager::getInstance().vulkan_renderengine() &&
+                 renderengine::RenderEngine::canSupport(kVulkan));
 
         builder.setSkiaBackend(useGraphite ? renderengine::RenderEngine::SkiaBackend::GRAPHITE
                                            : renderengine::RenderEngine::SkiaBackend::GANESH);
@@ -4020,19 +4020,7 @@ void SurfaceFlinger::commitTransactionsLocked(uint32_t transactionFlags) {
                 }
             }
 
-            if (!hintDisplay) {
-                // NOTE: TEMPORARY FIX ONLY. Real fix should cause layers to
-                // redraw after transform hint changes. See bug 8508397.
-                // could be null when this layer is using a layerStack
-                // that is not visible on any display. Also can occur at
-                // screen off/on times.
-                // U Update: Don't provide stale hints to the clients. For
-                // special cases where we want the app to draw its
-                // first frame before the display is available, we rely
-                // on WMS and DMS to provide the right information
-                // so the client can calculate the hint.
-                layer->skipReportingTransformHint();
-            } else {
+            if (hintDisplay) {
                 layer->updateTransformHint(hintDisplay->getTransformHint());
             }
         });
@@ -5940,7 +5928,7 @@ status_t SurfaceFlinger::mirrorLayer(const LayerCreationArgs& args,
             return result;
         }
 
-        mirrorLayer->setClonedChild(mirrorFrom->createClone(mirrorLayer->getSequence()));
+        mirrorLayer->setClonedChild(mirrorFrom->createClone());
     }
 
     outResult.layerId = mirrorLayer->sequence;
@@ -8092,29 +8080,24 @@ void SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
         return;
     }
 
-    bool childrenOnly = args.childrenOnly;
     RenderAreaFuture renderAreaFuture = ftl::defer([=, this]() FTL_FAKE_GUARD(kMainThreadContext)
                                                            -> std::unique_ptr<RenderArea> {
         ui::Transform layerTransform;
         Rect layerBufferSize;
-        if (mLayerLifecycleManagerEnabled) {
-            frontend::LayerSnapshot* snapshot =
-                    mLayerSnapshotBuilder.getSnapshot(parent->getSequence());
-            if (!snapshot) {
-                ALOGW("Couldn't find layer snapshot for %d", parent->getSequence());
-            } else {
-                layerTransform = snapshot->localTransform;
-                layerBufferSize = snapshot->bufferSize;
-            }
+        frontend::LayerSnapshot* snapshot =
+                mLayerSnapshotBuilder.getSnapshot(parent->getSequence());
+        if (!snapshot) {
+            ALOGW("Couldn't find layer snapshot for %d", parent->getSequence());
         } else {
-            layerTransform = parent->getTransform();
-            layerBufferSize = parent->getBufferSize(parent->getDrawingState());
+            if (!args.childrenOnly) {
+                layerTransform = snapshot->localTransform.inverse();
+            }
+            layerBufferSize = snapshot->bufferSize;
         }
 
-        return std::make_unique<LayerRenderArea>(*this, parent, crop, reqSize, dataspace,
-                                                 childrenOnly, args.captureSecureLayers,
-                                                 layerTransform, layerBufferSize,
-                                                 args.hintForSeamlessTransition);
+        return std::make_unique<LayerRenderArea>(parent, crop, reqSize, dataspace,
+                                                 args.captureSecureLayers, layerTransform,
+                                                 layerBufferSize, args.hintForSeamlessTransition);
     });
     GetLayerSnapshotsFunction getLayerSnapshots;
     if (mLayerLifecycleManagerEnabled) {
@@ -8267,11 +8250,9 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::captureScreenshot(
             return ftl::yield<FenceResult>(base::unexpected(NO_ERROR)).share();
         }
 
-        ftl::SharedFuture<FenceResult> renderFuture;
-        renderArea->render([&]() FTL_FAKE_GUARD(kMainThreadContext) {
-            renderFuture = renderScreenImpl(renderArea, buffer, regionSampling, grayscale,
-                                            isProtected, captureResults, layers);
-        });
+        ftl::SharedFuture<FenceResult> renderFuture =
+                renderScreenImpl(renderArea, buffer, regionSampling, grayscale, isProtected,
+                                 captureResults, layers);
 
         if (captureListener) {
             // Defer blocking on renderFuture back to the Binder thread.
@@ -9195,7 +9176,7 @@ bool SurfaceFlinger::commitMirrorDisplays(VsyncId vsyncId) {
                 Mutex::Autolock lock(mStateLock);
                 createEffectLayer(mirrorArgs, &unused, &childMirror);
                 MUTEX_ALIAS(mStateLock, childMirror->mFlinger->mStateLock);
-                childMirror->setClonedChild(layer->createClone(childMirror->getSequence()));
+                childMirror->setClonedChild(layer->createClone());
                 childMirror->reparent(mirrorDisplay.rootHandle);
             }
             // lock on mStateLock needs to be released before binder handle gets destroyed
