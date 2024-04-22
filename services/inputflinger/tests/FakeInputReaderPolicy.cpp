@@ -139,7 +139,7 @@ void FakeInputReaderPolicy::addDeviceTypeAssociation(const std::string& inputPor
 
 void FakeInputReaderPolicy::addInputUniqueIdAssociation(const std::string& inputUniqueId,
                                                         const std::string& displayUniqueId) {
-    mConfig.uniqueIdAssociations.insert({inputUniqueId, displayUniqueId});
+    mConfig.uniqueIdAssociationsByPort.insert({inputUniqueId, displayUniqueId});
 }
 
 void FakeInputReaderPolicy::addKeyboardLayoutAssociation(const std::string& inputUniqueId,
