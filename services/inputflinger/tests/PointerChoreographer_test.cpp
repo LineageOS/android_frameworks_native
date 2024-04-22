@@ -42,6 +42,7 @@ Visitor(V...) -> Visitor<V...>;
 
 constexpr int32_t DEVICE_ID = 3;
 constexpr int32_t SECOND_DEVICE_ID = DEVICE_ID + 1;
+constexpr int32_t THIRD_DEVICE_ID = SECOND_DEVICE_ID + 1;
 constexpr int32_t DISPLAY_ID = 5;
 constexpr int32_t ANOTHER_DISPLAY_ID = 10;
 constexpr int32_t DISPLAY_WIDTH = 480;
@@ -537,7 +538,8 @@ TEST_F(PointerChoreographerTest, UnrelatedChangeDoesNotUnfadePointer) {
     mChoreographer.notifyInputDevicesChanged(
             {/*id=*/0,
              {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE),
-              generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_TOUCHSCREEN | AINPUT_SOURCE_STYLUS,
+              generateTestDeviceInfo(SECOND_DEVICE_ID,
+                                     AINPUT_SOURCE_TOUCHSCREEN | AINPUT_SOURCE_STYLUS,
                                      DISPLAY_ID)}});
 
     ASSERT_FALSE(pc->isPointerShown());
@@ -546,6 +548,73 @@ TEST_F(PointerChoreographerTest, UnrelatedChangeDoesNotUnfadePointer) {
     mChoreographer.setShowTouchesEnabled(true);
 
     ASSERT_FALSE(pc->isPointerShown());
+}
+
+TEST_F(PointerChoreographerTest, DisabledMouseConnected) {
+    mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID}));
+    mChoreographer.setDefaultMouseDisplayId(DISPLAY_ID);
+    InputDeviceInfo mouseDeviceInfo =
+            generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE);
+    // Disable this mouse device.
+    mouseDeviceInfo.setEnabled(false);
+    mChoreographer.notifyInputDevicesChanged({/*id=*/0, {mouseDeviceInfo}});
+
+    // Disabled mouse device should not create PointerController
+    assertPointerControllerNotCreated();
+}
+
+TEST_F(PointerChoreographerTest, MouseDeviceDisableLater) {
+    mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID}));
+    mChoreographer.setDefaultMouseDisplayId(DISPLAY_ID);
+    InputDeviceInfo mouseDeviceInfo =
+            generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE);
+
+    mChoreographer.notifyInputDevicesChanged({/*id=*/0, {mouseDeviceInfo}});
+
+    auto pc = assertPointerControllerCreated(PointerControllerInterface::ControllerType::MOUSE);
+    ASSERT_TRUE(pc->isPointerShown());
+
+    // Now we disable this mouse device
+    mouseDeviceInfo.setEnabled(false);
+    mChoreographer.notifyInputDevicesChanged({/*id=*/0, {mouseDeviceInfo}});
+
+    // Because the mouse device disabled, the PointerController should be removed.
+    assertPointerControllerRemoved(pc);
+}
+
+TEST_F(PointerChoreographerTest, MultipleEnabledAndDisabledMiceConnectionAndRemoval) {
+    mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID}));
+    mChoreographer.setDefaultMouseDisplayId(DISPLAY_ID);
+    InputDeviceInfo disabledMouseDeviceInfo =
+            generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE);
+    disabledMouseDeviceInfo.setEnabled(false);
+
+    InputDeviceInfo enabledMouseDeviceInfo =
+            generateTestDeviceInfo(SECOND_DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE);
+
+    InputDeviceInfo anotherEnabledMouseDeviceInfo =
+            generateTestDeviceInfo(THIRD_DEVICE_ID, AINPUT_SOURCE_MOUSE, ADISPLAY_ID_NONE);
+
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0,
+             {disabledMouseDeviceInfo, enabledMouseDeviceInfo, anotherEnabledMouseDeviceInfo}});
+
+    // Mouse should show, because we have two enabled mice device.
+    auto pc = assertPointerControllerCreated(PointerControllerInterface::ControllerType::MOUSE);
+    ASSERT_TRUE(pc->isPointerShown());
+
+    // Now we remove one of enabled mice device.
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0, {disabledMouseDeviceInfo, enabledMouseDeviceInfo}});
+
+    // Because we still have an enabled mouse device, pointer should still show.
+    ASSERT_TRUE(pc->isPointerShown());
+
+    // We finally remove last enabled mouse device.
+    mChoreographer.notifyInputDevicesChanged({/*id=*/0, {disabledMouseDeviceInfo}});
+
+    // The PointerController should be removed, because there is no enabled mouse device.
+    assertPointerControllerRemoved(pc);
 }
 
 TEST_F(PointerChoreographerTest, WhenShowTouchesEnabledAndDisabledDoesNotCreatePointerController) {

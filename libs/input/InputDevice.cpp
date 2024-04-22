@@ -187,6 +187,7 @@ InputDeviceInfo::InputDeviceInfo(const InputDeviceInfo& other)
         mKeyCharacterMap(other.mKeyCharacterMap),
         mUsiVersion(other.mUsiVersion),
         mAssociatedDisplayId(other.mAssociatedDisplayId),
+        mEnabled(other.mEnabled),
         mHasVibrator(other.mHasVibrator),
         mHasBattery(other.mHasBattery),
         mHasButtonUnderPad(other.mHasButtonUnderPad),
@@ -202,7 +203,7 @@ InputDeviceInfo::~InputDeviceInfo() {
 void InputDeviceInfo::initialize(int32_t id, int32_t generation, int32_t controllerNumber,
                                  const InputDeviceIdentifier& identifier, const std::string& alias,
                                  bool isExternal, bool hasMic, int32_t associatedDisplayId,
-                                 InputDeviceViewBehavior viewBehavior) {
+                                 InputDeviceViewBehavior viewBehavior, bool enabled) {
     mId = id;
     mGeneration = generation;
     mControllerNumber = controllerNumber;
@@ -213,6 +214,7 @@ void InputDeviceInfo::initialize(int32_t id, int32_t generation, int32_t control
     mSources = 0;
     mKeyboardType = AINPUT_KEYBOARD_TYPE_NONE;
     mAssociatedDisplayId = associatedDisplayId;
+    mEnabled = enabled;
     mHasVibrator = false;
     mHasBattery = false;
     mHasButtonUnderPad = false;
