@@ -33,7 +33,7 @@
 #include <memory>
 
 /**
- * Allows to set RenderEngine backend to GLES (default) or SkiaGL (NOT yet supported).
+ * Allows to override the RenderEngine backend.
  */
 #define PROPERTY_DEBUG_RENDERENGINE_BACKEND "debug.renderengine.backend"
 
