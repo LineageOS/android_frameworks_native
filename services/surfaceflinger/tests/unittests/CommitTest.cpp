@@ -94,13 +94,15 @@ TEST_F(CommitTest, metadataNotIncluded) {
     // Create a parent layer with metadata and a child layer without. Metadata should not
     // be included in the child layer when the flag is not set.
     std::unordered_map<uint32_t, std::vector<uint8_t>> metadata = {{1, {'a', 'b'}}};
-    auto parent = std::make_unique<frontend::RequestedLayerState>(
-            createArgs(1, LayerMetadata(metadata), UNASSIGNED_LAYER_ID));
+    auto parentArgs = createArgs(1, LayerMetadata(metadata), UNASSIGNED_LAYER_ID);
+    auto parent = std::make_unique<frontend::RequestedLayerState>(parentArgs);
     mFlinger.addLayer(parent);
+    mFlinger.injectLegacyLayer(sp<Layer>::make(parentArgs));
 
-    auto child =
-            std::make_unique<frontend::RequestedLayerState>(createArgs(11, LayerMetadata(), 1));
+    auto childArgs = createArgs(11, LayerMetadata(), 1);
+    auto child = std::make_unique<frontend::RequestedLayerState>(childArgs);
     mFlinger.addLayer(child);
+    mFlinger.injectLegacyLayer(sp<Layer>::make(childArgs));
 
     bool unused;
     bool mustComposite = mFlinger.updateLayerSnapshots(VsyncId{1}, /*frameTimeNs=*/0,
@@ -136,13 +138,15 @@ TEST_F(CommitTest, metadataIsIncluded) {
     // Create a parent layer with metadata and a child layer without. Metadata from the
     // parent should be included in the child layer when the flag is set.
     std::unordered_map<uint32_t, std::vector<uint8_t>> metadata = {{1, {'a', 'b'}}};
-    auto parent = std::make_unique<frontend::RequestedLayerState>(
-            createArgs(1, LayerMetadata(metadata), UNASSIGNED_LAYER_ID));
+    auto parentArgs = createArgs(1, LayerMetadata(metadata), UNASSIGNED_LAYER_ID);
+    auto parent = std::make_unique<frontend::RequestedLayerState>(parentArgs);
     mFlinger.addLayer(parent);
+    mFlinger.injectLegacyLayer(sp<Layer>::make(parentArgs));
 
-    auto child =
-            std::make_unique<frontend::RequestedLayerState>(createArgs(11, LayerMetadata(), 1));
+    auto childArgs = createArgs(11, LayerMetadata(), 1);
+    auto child = std::make_unique<frontend::RequestedLayerState>(childArgs);
     mFlinger.addLayer(child);
+    mFlinger.injectLegacyLayer(sp<Layer>::make(childArgs));
 
     bool unused;
     bool mustComposite = mFlinger.updateLayerSnapshots(VsyncId{1}, /*frameTimeNs=*/0,
