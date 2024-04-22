@@ -286,8 +286,7 @@ private:
     void transformMotionEntryForInjectionLocked(MotionEntry&,
                                                 const ui::Transform& injectedTransform) const
             REQUIRES(mLock);
-    // Per-display correction of injected events
-    std::map</*displayId*/ int32_t, InputVerifier> mInputFilterVerifiersByDisplay GUARDED_BY(mLock);
+
     std::condition_variable mInjectionSyncFinished;
     void incrementPendingForegroundDispatches(EventEntry& entry);
     void decrementPendingForegroundDispatches(EventEntry& entry);
