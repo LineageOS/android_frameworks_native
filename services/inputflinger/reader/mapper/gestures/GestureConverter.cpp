@@ -420,8 +420,8 @@ std::list<NotifyArgs> GestureConverter::handleFling(nsecs_t when, nsecs_t readTi
 
                     std::list<NotifyArgs> out;
                     mDownTime = when;
+                    mCurrentClassification = MotionClassification::TWO_FINGER_SWIPE;
                     out += exitHover(when, readTime, xCursorPosition, yCursorPosition);
-                    // TODO(b/281106755): add a MotionClassification value for fling stops.
                     out.push_back(makeMotionArgs(when, readTime, AMOTION_EVENT_ACTION_DOWN,
                                                  /*actionButton=*/0, /*buttonState=*/0,
                                                  /*pointerCount=*/1, &coords, xCursorPosition,
@@ -431,6 +431,7 @@ std::list<NotifyArgs> GestureConverter::handleFling(nsecs_t when, nsecs_t readTi
                                                  /*pointerCount=*/1, &coords, xCursorPosition,
                                                  yCursorPosition));
                     out += enterHover(when, readTime, xCursorPosition, yCursorPosition);
+                    mCurrentClassification = MotionClassification::NONE;
                     return out;
                 } else {
                     // Use the tap down state of a fling gesture as an indicator that a contact
