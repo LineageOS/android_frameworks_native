@@ -278,7 +278,7 @@ public:
     void initialize(int32_t id, int32_t generation, int32_t controllerNumber,
                     const InputDeviceIdentifier& identifier, const std::string& alias,
                     bool isExternal, bool hasMic, int32_t associatedDisplayId,
-                    InputDeviceViewBehavior viewBehavior = {{}});
+                    InputDeviceViewBehavior viewBehavior = {{}}, bool enabled = true);
 
     inline int32_t getId() const { return mId; }
     inline int32_t getControllerNumber() const { return mControllerNumber; }
@@ -347,6 +347,9 @@ public:
 
     inline int32_t getAssociatedDisplayId() const { return mAssociatedDisplayId; }
 
+    inline void setEnabled(bool enabled) { mEnabled = enabled; }
+    inline bool isEnabled() const { return mEnabled; }
+
 private:
     int32_t mId;
     int32_t mGeneration;
@@ -361,6 +364,7 @@ private:
     std::shared_ptr<KeyCharacterMap> mKeyCharacterMap;
     std::optional<InputDeviceUsiVersion> mUsiVersion;
     int32_t mAssociatedDisplayId;
+    bool mEnabled;
 
     bool mHasVibrator;
     bool mHasBattery;

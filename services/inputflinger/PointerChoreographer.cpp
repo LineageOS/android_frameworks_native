@@ -434,6 +434,11 @@ PointerChoreographer::PointerDisplayChange PointerChoreographer::updatePointerCo
     // Mark the displayIds or deviceIds of PointerControllers currently needed, and create
     // new PointerControllers if necessary.
     for (const auto& info : mInputDeviceInfos) {
+        if (!info.isEnabled()) {
+            // If device is disabled, we should not keep it, and should not show pointer for
+            // disabled mouse device.
+            continue;
+        }
         const uint32_t sources = info.getSources();
         const bool isKnownMouse = mMouseDevices.count(info.getId()) != 0;
 
