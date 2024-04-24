@@ -420,9 +420,7 @@ void SkiaRenderEngine::mapExternalTextureBuffer(const sp<GraphicBuffer>& buffer,
 
     // If we were to support caching protected buffers then we will need to switch the
     // currently bound context if we are not already using the protected context (and subsequently
-    // switch back after the buffer is cached).  However, for non-protected content we can bind
-    // the texture in either GL context because they are initialized with the same share_context
-    // which allows the texture state to be shared between them.
+    // switch back after the buffer is cached).
     auto context = getActiveContext();
     auto& cache = mTextureCache;
 
