@@ -387,9 +387,9 @@ status_t InputChannel::openInputChannelPair(const std::string& name,
 
 status_t InputChannel::sendMessage(const InputMessage* msg) {
     ATRACE_NAME_IF(ATRACE_ENABLED(),
-                   StringPrintf("sendMessage(inputChannel=%s, seq=0x%" PRIx32 ", type=0x%" PRIx32
-                                ")",
-                                name.c_str(), msg->header.seq, msg->header.type));
+                   StringPrintf("sendMessage(inputChannel=%s, seq=0x%" PRIx32 ", type=%s)",
+                                name.c_str(), msg->header.seq,
+                                ftl::enum_string(msg->header.type).c_str()));
     const size_t msgLength = msg->size();
     InputMessage cleanMsg;
     msg->getSanitizedCopy(&cleanMsg);
@@ -458,9 +458,10 @@ status_t InputChannel::receiveMessage(InputMessage* msg) {
              ftl::enum_string(msg->header.type).c_str());
     if (ATRACE_ENABLED()) {
         // Add an additional trace point to include data about the received message.
-        std::string message = StringPrintf("receiveMessage(inputChannel=%s, seq=0x%" PRIx32
-                                           ", type=0x%" PRIx32 ")",
-                                           name.c_str(), msg->header.seq, msg->header.type);
+        std::string message =
+                StringPrintf("receiveMessage(inputChannel=%s, seq=0x%" PRIx32 ", type=%s)",
+                             name.c_str(), msg->header.seq,
+                             ftl::enum_string(msg->header.type).c_str());
         ATRACE_NAME(message.c_str());
     }
     return OK;

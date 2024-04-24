@@ -115,6 +115,8 @@ enum class InputDeviceSensorAccuracy : int32_t {
     ACCURACY_LOW = 1,
     ACCURACY_MEDIUM = 2,
     ACCURACY_HIGH = 3,
+
+    ftl_last = ACCURACY_HIGH,
 };
 
 enum class InputDeviceSensorReportingMode : int32_t {

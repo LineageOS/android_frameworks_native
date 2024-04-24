@@ -20,6 +20,8 @@
 
 #include <sstream>
 
+#include <ftl/enum.h>
+
 #include "InputDevice.h"
 #include "input/PrintTools.h"
 
@@ -133,7 +135,7 @@ void InputMapper::dumpStylusState(std::string& dump, const StylusState& state) {
     dump += StringPrintf(INDENT4 "When: %" PRId64 "\n", state.when);
     dump += StringPrintf(INDENT4 "Pressure: %s\n", toString(state.pressure).c_str());
     dump += StringPrintf(INDENT4 "Button State: 0x%08x\n", state.buttons);
-    dump += StringPrintf(INDENT4 "Tool Type: %" PRId32 "\n", state.toolType);
+    dump += StringPrintf(INDENT4 "Tool Type: %s\n", ftl::enum_string(state.toolType).c_str());
 }
 
 } // namespace android

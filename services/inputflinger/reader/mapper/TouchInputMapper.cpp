@@ -1069,10 +1069,11 @@ void TouchInputMapper::configureInputDevice(nsecs_t when, bool* outResetNeeded) 
     }
 
     if ((viewportChanged && !skipViewportUpdate) || deviceModeChanged) {
-        ALOGI("Device reconfigured: id=%d, name='%s', size %s, orientation %d, mode %d, "
+        ALOGI("Device reconfigured: id=%d, name='%s', size %s, orientation %s, mode %s, "
               "display id %d",
               getDeviceId(), getDeviceName().c_str(), toString(mDisplayBounds).c_str(),
-              mInputDeviceOrientation, mDeviceMode, mViewport.displayId);
+              ftl::enum_string(mInputDeviceOrientation).c_str(),
+              ftl::enum_string(mDeviceMode).c_str(), mViewport.displayId);
 
         configureVirtualKeys();
 
@@ -1123,7 +1124,8 @@ void TouchInputMapper::dumpDisplay(std::string& dump) {
     dump += StringPrintf(INDENT3 "DisplayBounds: %s\n", toString(mDisplayBounds).c_str());
     dump += StringPrintf(INDENT3 "PhysicalFrameInRotatedDisplay: %s\n",
                          toString(mPhysicalFrameInRotatedDisplay).c_str());
-    dump += StringPrintf(INDENT3 "InputDeviceOrientation: %d\n", mInputDeviceOrientation);
+    dump += StringPrintf(INDENT3 "InputDeviceOrientation: %s\n",
+                         ftl::enum_string(mInputDeviceOrientation).c_str());
 }
 
 void TouchInputMapper::configureVirtualKeys() {
@@ -3099,11 +3101,13 @@ bool TouchInputMapper::preparePointerGestures(nsecs_t when, bool* outCancelPrevi
 
     if (DEBUG_GESTURES) {
         ALOGD("Gestures: finishPreviousGesture=%s, cancelPreviousGesture=%s, "
-              "currentGestureMode=%d, currentGestureIdBits=0x%08x, "
-              "lastGestureMode=%d, lastGestureIdBits=0x%08x",
+              "currentGestureMode=%s, currentGestureIdBits=0x%08x, "
+              "lastGestureMode=%s, lastGestureIdBits=0x%08x",
               toString(*outFinishPreviousGesture), toString(*outCancelPreviousGesture),
-              mPointerGesture.currentGestureMode, mPointerGesture.currentGestureIdBits.value,
-              mPointerGesture.lastGestureMode, mPointerGesture.lastGestureIdBits.value);
+              ftl::enum_string(mPointerGesture.currentGestureMode).c_str(),
+              mPointerGesture.currentGestureIdBits.value,
+              ftl::enum_string(mPointerGesture.lastGestureMode).c_str(),
+              mPointerGesture.lastGestureIdBits.value);
         for (BitSet32 idBits = mPointerGesture.currentGestureIdBits; !idBits.isEmpty();) {
             uint32_t id = idBits.clearFirstMarkedBit();
             uint32_t index = mPointerGesture.currentGestureIdToIndex[id];
