@@ -409,7 +409,7 @@ InputDeviceInfo InputDevice::getDeviceInfo() {
     InputDeviceInfo outDeviceInfo;
     outDeviceInfo.initialize(mId, mGeneration, mControllerNumber, mIdentifier, mAlias, mIsExternal,
                              mHasMic, getAssociatedDisplayId().value_or(ADISPLAY_ID_NONE),
-                             {mShouldSmoothScroll});
+                             {mShouldSmoothScroll}, isEnabled());
 
     for_each_mapper(
             [&outDeviceInfo](InputMapper& mapper) { mapper.populateDeviceInfo(outDeviceInfo); });
