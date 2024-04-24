@@ -68,26 +68,28 @@ class NonNull final {
   constexpr NonNull(const NonNull&) = default;
   constexpr NonNull& operator=(const NonNull&) = default;
 
-  constexpr const Pointer& get() const { return pointer_; }
-  constexpr explicit operator const Pointer&() const { return get(); }
+  [[nodiscard]] constexpr const Pointer& get() const { return pointer_; }
+  [[nodiscard]] constexpr explicit operator const Pointer&() const { return get(); }
 
   // Move operations. These break the invariant, so care must be taken to avoid subsequent access.
 
   constexpr NonNull(NonNull&&) = default;
   constexpr NonNull& operator=(NonNull&&) = default;
 
-  constexpr Pointer take() && { return std::move(pointer_); }
-  constexpr explicit operator Pointer() && { return take(); }
+  [[nodiscard]] constexpr Pointer take() && { return std::move(pointer_); }
+  [[nodiscard]] constexpr explicit operator Pointer() && { return take(); }
 
   // Dereferencing.
-  constexpr decltype(auto) operator*() const { return *get(); }
-  constexpr decltype(auto) operator->() const { return get(); }
+  [[nodiscard]] constexpr decltype(auto) operator*() const { return *get(); }
+  [[nodiscard]] constexpr decltype(auto) operator->() const { return get(); }
+
+  [[nodiscard]] constexpr explicit operator bool() const { return !(pointer_ == nullptr); }
 
   // Private constructor for ftl::as_non_null. Excluded from candidate constructors for conversions
   // through the passkey idiom, for clear compilation errors.
   template <typename P>
   constexpr NonNull(Passkey, P&& pointer) : pointer_(std::forward<P>(pointer)) {
-    if (!pointer_) std::abort();
+    if (pointer_ == nullptr) std::abort();
   }
 
  private:
@@ -98,10 +100,12 @@ class NonNull final {
 };
 
 template <typename P>
-constexpr auto as_non_null(P&& pointer) -> NonNull<std::decay_t<P>> {
+[[nodiscard]] constexpr auto as_non_null(P&& pointer) -> NonNull<std::decay_t<P>> {
   using Passkey = typename NonNull<std::decay_t<P>>::Passkey;
   return {Passkey{}, std::forward<P>(pointer)};
 }
+
+// NonNull<P> <=> NonNull<Q>
 
 template <typename P, typename Q>
 constexpr bool operator==(const NonNull<P>& lhs, const NonNull<Q>& rhs) {
@@ -113,4 +117,96 @@ constexpr bool operator!=(const NonNull<P>& lhs, const NonNull<Q>& rhs) {
   return !operator==(lhs, rhs);
 }
 
+template <typename P, typename Q>
+constexpr bool operator<(const NonNull<P>& lhs, const NonNull<Q>& rhs) {
+  return lhs.get() < rhs.get();
+}
+
+template <typename P, typename Q>
+constexpr bool operator<=(const NonNull<P>& lhs, const NonNull<Q>& rhs) {
+  return lhs.get() <= rhs.get();
+}
+
+template <typename P, typename Q>
+constexpr bool operator>=(const NonNull<P>& lhs, const NonNull<Q>& rhs) {
+  return lhs.get() >= rhs.get();
+}
+
+template <typename P, typename Q>
+constexpr bool operator>(const NonNull<P>& lhs, const NonNull<Q>& rhs) {
+  return lhs.get() > rhs.get();
+}
+
+// NonNull<P> <=> Q
+
+template <typename P, typename Q>
+constexpr bool operator==(const NonNull<P>& lhs, const Q& rhs) {
+  return lhs.get() == rhs;
+}
+
+template <typename P, typename Q>
+constexpr bool operator!=(const NonNull<P>& lhs, const Q& rhs) {
+  return lhs.get() != rhs;
+}
+
+template <typename P, typename Q>
+constexpr bool operator<(const NonNull<P>& lhs, const Q& rhs) {
+  return lhs.get() < rhs;
+}
+
+template <typename P, typename Q>
+constexpr bool operator<=(const NonNull<P>& lhs, const Q& rhs) {
+  return lhs.get() <= rhs;
+}
+
+template <typename P, typename Q>
+constexpr bool operator>=(const NonNull<P>& lhs, const Q& rhs) {
+  return lhs.get() >= rhs;
+}
+
+template <typename P, typename Q>
+constexpr bool operator>(const NonNull<P>& lhs, const Q& rhs) {
+  return lhs.get() > rhs;
+}
+
+// P <=> NonNull<Q>
+
+template <typename P, typename Q>
+constexpr bool operator==(const P& lhs, const NonNull<Q>& rhs) {
+  return lhs == rhs.get();
+}
+
+template <typename P, typename Q>
+constexpr bool operator!=(const P& lhs, const NonNull<Q>& rhs) {
+  return lhs != rhs.get();
+}
+
+template <typename P, typename Q>
+constexpr bool operator<(const P& lhs, const NonNull<Q>& rhs) {
+  return lhs < rhs.get();
+}
+
+template <typename P, typename Q>
+constexpr bool operator<=(const P& lhs, const NonNull<Q>& rhs) {
+  return lhs <= rhs.get();
+}
+
+template <typename P, typename Q>
+constexpr bool operator>=(const P& lhs, const NonNull<Q>& rhs) {
+  return lhs >= rhs.get();
+}
+
+template <typename P, typename Q>
+constexpr bool operator>(const P& lhs, const NonNull<Q>& rhs) {
+  return lhs > rhs.get();
+}
+
 }  // namespace android::ftl
+
+// Specialize std::hash for ftl::NonNull<T>
+template <typename P>
+struct std::hash<android::ftl::NonNull<P>> {
+  std::size_t operator()(const android::ftl::NonNull<P>& ptr) const {
+    return std::hash<P>()(ptr.get());
+  }
+};
