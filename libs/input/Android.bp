@@ -89,11 +89,6 @@ rust_bindgen {
 
     bindgen_flags: [
         "--verbose",
-        "--allowlist-var=AMOTION_EVENT_FLAG_CANCELED",
-        "--allowlist-var=AMOTION_EVENT_FLAG_WINDOW_IS_OBSCURED",
-        "--allowlist-var=AMOTION_EVENT_FLAG_WINDOW_IS_PARTIALLY_OBSCURED",
-        "--allowlist-var=AMOTION_EVENT_FLAG_IS_ACCESSIBILITY_EVENT",
-        "--allowlist-var=AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE",
         "--allowlist-var=AMOTION_EVENT_ACTION_CANCEL",
         "--allowlist-var=AMOTION_EVENT_ACTION_UP",
         "--allowlist-var=AMOTION_EVENT_ACTION_POINTER_DOWN",
@@ -246,6 +241,7 @@ cc_library {
     shared_libs: [
         "libbase",
         "libbinder",
+        "libbinder_ndk",
         "libcutils",
         "liblog",
         "libPlatformProperties",
