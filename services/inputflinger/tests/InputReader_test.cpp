@@ -2907,7 +2907,7 @@ TEST_F(InputDeviceTest, Configure_UniqueId_CorrectlyMatches) {
     const auto initialGeneration = mDevice->getGeneration();
     unused += mDevice->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(),
                                  InputReaderConfiguration::Change::DISPLAY_INFO);
-    ASSERT_EQ(DISPLAY_UNIQUE_ID, mDevice->getAssociatedDisplayUniqueId());
+    ASSERT_EQ(DISPLAY_UNIQUE_ID, mDevice->getAssociatedDisplayUniqueIdByPort());
     ASSERT_GT(mDevice->getGeneration(), initialGeneration);
     ASSERT_EQ(mDevice->getDeviceInfo().getAssociatedDisplayId(), SECONDARY_DISPLAY_ID);
 }
