@@ -9046,7 +9046,7 @@ TEST_F(MultiTouchInputMapperTest, VideoFrames_AreNotRotated) {
 
     // Test all 4 orientations
     for (ui::Rotation orientation : ftl::enum_range<ui::Rotation>()) {
-        SCOPED_TRACE("Orientation " + StringPrintf("%i", orientation));
+        SCOPED_TRACE(StringPrintf("Orientation %s", ftl::enum_string(orientation).c_str()));
         clearViewports();
         prepareDisplay(orientation);
         std::vector<TouchVideoFrame> frames{frame};
@@ -9071,7 +9071,7 @@ TEST_F(MultiTouchInputMapperTest, VideoFrames_WhenNotOrientationAware_AreRotated
 
     // Test all 4 orientations
     for (ui::Rotation orientation : ftl::enum_range<ui::Rotation>()) {
-        SCOPED_TRACE("Orientation " + StringPrintf("%i", orientation));
+        SCOPED_TRACE(StringPrintf("Orientation %s", ftl::enum_string(orientation).c_str()));
         clearViewports();
         prepareDisplay(orientation);
         std::vector<TouchVideoFrame> frames{frame};

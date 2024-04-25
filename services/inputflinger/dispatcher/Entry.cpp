@@ -23,6 +23,7 @@
 
 #include <android-base/stringprintf.h>
 #include <cutils/atomic.h>
+#include <ftl/enum.h>
 #include <inttypes.h>
 
 using android::base::StringPrintf;
@@ -261,9 +262,10 @@ SensorEntry::SensorEntry(int32_t id, nsecs_t eventTime, int32_t deviceId, uint32
 std::string SensorEntry::getDescription() const {
     std::string msg;
     msg += StringPrintf("SensorEntry(deviceId=%d, source=%s, sensorType=%s, "
-                        "accuracy=0x%08x, hwTimestamp=%" PRId64,
+                        "accuracy=%s, hwTimestamp=%" PRId64,
                         deviceId, inputEventSourceToString(source).c_str(),
-                        ftl::enum_string(sensorType).c_str(), accuracy, hwTimestamp);
+                        ftl::enum_string(sensorType).c_str(), ftl::enum_string(accuracy).c_str(),
+                        hwTimestamp);
 
     if (IS_DEBUGGABLE_BUILD) {
         for (size_t i = 0; i < values.size(); i++) {
