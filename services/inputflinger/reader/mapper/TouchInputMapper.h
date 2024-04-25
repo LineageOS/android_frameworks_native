@@ -589,6 +589,8 @@ private:
 
             // Waiting for quiet time to end before starting the next gesture.
             QUIET,
+
+            ftl_last = QUIET,
         };
 
         // When a gesture is sent to an unfocused window, return true if it can bring that window

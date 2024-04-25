@@ -1192,12 +1192,12 @@ TEST_F(GestureConverterTest, FlingTapDownAfterScrollStopsFling) {
                             VariantWith<NotifyMotionArgs>(
                                     WithMotionAction(AMOTION_EVENT_ACTION_CANCEL)),
                             VariantWith<NotifyMotionArgs>(
-                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER),
-                                          WithMotionClassification(MotionClassification::NONE)))));
+                                    WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER))));
     ASSERT_THAT(args,
-                Each(VariantWith<NotifyMotionArgs>(AllOf(WithCoords(POINTER_X, POINTER_Y),
-                                                         WithToolType(ToolType::FINGER),
-                                                         WithDisplayId(ADISPLAY_ID_DEFAULT)))));
+                Each(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithCoords(POINTER_X, POINTER_Y), WithToolType(ToolType::FINGER),
+                              WithDisplayId(ADISPLAY_ID_DEFAULT),
+                              WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE)))));
 }
 
 TEST_F(GestureConverterTest, Tap) {
@@ -2613,12 +2613,12 @@ TEST_F(GestureConverterTestWithChoreographer, FlingTapDownAfterScrollStopsFling)
                             VariantWith<NotifyMotionArgs>(
                                     WithMotionAction(AMOTION_EVENT_ACTION_CANCEL)),
                             VariantWith<NotifyMotionArgs>(
-                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER),
-                                          WithMotionClassification(MotionClassification::NONE)))));
+                                    WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER))));
     ASSERT_THAT(args,
-                Each(VariantWith<NotifyMotionArgs>(AllOf(WithCoords(0, 0),
-                                                         WithToolType(ToolType::FINGER),
-                                                         WithDisplayId(ADISPLAY_ID_DEFAULT)))));
+                Each(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithCoords(0, 0), WithToolType(ToolType::FINGER),
+                              WithDisplayId(ADISPLAY_ID_DEFAULT),
+                              WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE)))));
 }
 
 TEST_F(GestureConverterTestWithChoreographer, Tap) {

@@ -135,7 +135,13 @@ flag {
   description: "Enable prediction pruning based on jerk thresholds."
   bug: "266747654"
   is_fixed_read_only: true
+}
 
+flag {
+  name: "device_associations"
+  namespace: "input"
+  description: "Binds InputDevice name and InputDevice description against display unique id."
+  bug: "324075859"
 }
 
 flag {
