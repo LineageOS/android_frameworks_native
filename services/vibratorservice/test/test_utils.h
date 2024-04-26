@@ -90,13 +90,15 @@ public:
     TestCounter(int32_t init = 0) : mMutex(), mCondVar(), mCount(init) {}
 
     int32_t get() {
-        std::unique_lock<std::mutex> lock(mMutex);
+        std::lock_guard<std::mutex> lock(mMutex);
         return mCount;
     }
 
     void increment() {
-        std::unique_lock<std::mutex> lock(mMutex);
-        mCount += 1;
+        {
+            std::lock_guard<std::mutex> lock(mMutex);
+            mCount += 1;
+        }
         mCondVar.notify_all();
     }
 
