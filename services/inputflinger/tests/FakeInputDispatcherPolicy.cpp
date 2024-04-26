@@ -466,15 +466,4 @@ void FakeInputDispatcherPolicy::assertFilterInputEventWasCalledInternal(
     mFilteredEvent = nullptr;
 }
 
-gui::Uid FakeInputDispatcherPolicy::getPackageUid(std::string pkg) {
-    std::scoped_lock lock(mLock);
-    auto it = mPackageUidMap.find(pkg);
-    return it != mPackageUidMap.end() ? it->second : gui::Uid::INVALID;
-}
-
-void FakeInputDispatcherPolicy::addPackageUidMapping(std::string package, gui::Uid uid) {
-    std::scoped_lock lock(mLock);
-    mPackageUidMap.insert_or_assign(std::move(package), uid);
-}
-
 } // namespace android

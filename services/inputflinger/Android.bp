@@ -107,6 +107,7 @@ cc_defaults {
         "libutils",
         "libstatspull",
         "libstatssocket",
+        "packagemanager_aidl-cpp",
         "server_configurable_flags",
     ],
     static_libs: [
