@@ -7328,6 +7328,154 @@ TEST_F(InputDispatcherTest, InjectedTouchSlips) {
     appearingWindow->assertNoEvents();
 }
 
+/**
+ * Three windows:
+ * - left window, which has FLAG_SLIPPERY, so it supports slippery exit
+ * - right window
+ * - spy window
+ * The three windows do not overlap.
+ *
+ * We have two devices reporting events:
+ * - Device A reports ACTION_DOWN, which lands in the left window
+ * - Device B reports ACTION_DOWN, which lands in the spy window.
+ * - Now, device B reports ACTION_MOVE events which move to the right window.
+ *
+ * The right window should not receive any events because the spy window is not a foreground window,
+ * and also it does not support slippery touches.
+ */
+TEST_F(InputDispatcherTest, MultiDeviceSpyWindowSlipTest) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> leftWindow =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Left window",
+                                       ADISPLAY_ID_DEFAULT);
+    leftWindow->setFrame(Rect(0, 0, 100, 100));
+    leftWindow->setSlippery(true);
+
+    sp<FakeWindowHandle> rightWindow =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Right window",
+                                       ADISPLAY_ID_DEFAULT);
+    rightWindow->setFrame(Rect(100, 0, 200, 100));
+
+    sp<FakeWindowHandle> spyWindow =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Spy Window", ADISPLAY_ID_DEFAULT);
+    spyWindow->setFrame(Rect(200, 0, 300, 100));
+    spyWindow->setSpy(true);
+    spyWindow->setTrustedOverlay(true);
+
+    mDispatcher->onWindowInfosChanged(
+            {{*leftWindow->getInfo(), *rightWindow->getInfo(), *spyWindow->getInfo()}, {}, 0, 0});
+
+    const DeviceId deviceA = 9;
+    const DeviceId deviceB = 3;
+
+    // Tap on left window with device A
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(50).y(50))
+                                      .deviceId(deviceA)
+                                      .build());
+    leftWindow->consumeMotionEvent(AllOf(WithMotionAction(ACTION_DOWN), WithDeviceId(deviceA)));
+
+    // Tap on spy window with device B
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(250).y(50))
+                                      .deviceId(deviceB)
+                                      .build());
+    spyWindow->consumeMotionEvent(AllOf(WithMotionAction(ACTION_DOWN), WithDeviceId(deviceB)));
+
+    // Move to right window with device B. Touches should not slip to the right window, because spy
+    // window is not a foreground window, and it does not have FLAG_SLIPPERY
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(150).y(50))
+                                      .deviceId(deviceB)
+                                      .build());
+    leftWindow->assertNoEvents();
+    rightWindow->assertNoEvents();
+    spyWindow->consumeMotionEvent(AllOf(WithMotionAction(ACTION_MOVE), WithDeviceId(deviceB)));
+}
+
+/**
+ * Three windows arranged horizontally and without any overlap.
+ * The left and right windows have FLAG_SLIPPERY. The middle window does not have any special flags.
+ *
+ * We have two devices reporting events:
+ * - Device A reports ACTION_DOWN which lands in the left window
+ * - Device B reports ACTION_DOWN which lands in the right window
+ * - Device B reports ACTION_MOVE that shifts to the middle window.
+ * This should cause touches for Device B to slip from the right window to the middle window.
+ * The right window should receive ACTION_CANCEL for device B and the
+ * middle window should receive down event for Device B.
+ * If device B reports more ACTION_MOVE events, the middle window should receive remaining events.
+ */
+TEST_F(InputDispatcherTest, MultiDeviceSlipperyWindowTest) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> leftWindow =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Left window",
+                                       ADISPLAY_ID_DEFAULT);
+    leftWindow->setFrame(Rect(0, 0, 100, 100));
+    leftWindow->setSlippery(true);
+
+    sp<FakeWindowHandle> middleWindow =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "middle window",
+                                       ADISPLAY_ID_DEFAULT);
+    middleWindow->setFrame(Rect(100, 0, 200, 100));
+
+    sp<FakeWindowHandle> rightWindow =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Right window",
+                                       ADISPLAY_ID_DEFAULT);
+    rightWindow->setFrame(Rect(200, 0, 300, 100));
+    rightWindow->setSlippery(true);
+
+    mDispatcher->onWindowInfosChanged(
+            {{*leftWindow->getInfo(), *middleWindow->getInfo(), *rightWindow->getInfo()},
+             {},
+             0,
+             0});
+
+    const DeviceId deviceA = 9;
+    const DeviceId deviceB = 3;
+
+    // Tap on left window with device A
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(50).y(50))
+                                      .deviceId(deviceA)
+                                      .build());
+    leftWindow->consumeMotionEvent(AllOf(WithMotionAction(ACTION_DOWN), WithDeviceId(deviceA)));
+
+    // Tap on right window with device B
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(250).y(50))
+                                      .deviceId(deviceB)
+                                      .build());
+    rightWindow->consumeMotionEvent(AllOf(WithMotionAction(ACTION_DOWN), WithDeviceId(deviceB)));
+
+    // Move to middle window with device B. Touches should slip to middle window, because right
+    // window is a foreground window that's associated with device B and has FLAG_SLIPPERY.
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(150).y(50))
+                                      .deviceId(deviceB)
+                                      .build());
+    rightWindow->consumeMotionEvent(AllOf(WithMotionAction(ACTION_CANCEL), WithDeviceId(deviceB)));
+    middleWindow->consumeMotionEvent(AllOf(WithMotionAction(ACTION_DOWN), WithDeviceId(deviceB)));
+
+    // Move to middle window with device A. Touches should slip to middle window, because left
+    // window is a foreground window that's associated with device A and has FLAG_SLIPPERY.
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(150).y(50))
+                                      .deviceId(deviceA)
+                                      .build());
+    leftWindow->consumeMotionEvent(AllOf(WithMotionAction(ACTION_CANCEL), WithDeviceId(deviceA)));
+    middleWindow->consumeMotionEvent(AllOf(WithMotionAction(ACTION_DOWN), WithDeviceId(deviceA)));
+
+    // Ensure that middle window can receive the remaining move events.
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(151).y(51))
+                                      .deviceId(deviceB)
+                                      .build());
+    leftWindow->assertNoEvents();
+    middleWindow->consumeMotionEvent(AllOf(WithMotionAction(ACTION_MOVE), WithDeviceId(deviceB)));
+    rightWindow->assertNoEvents();
+}
+
 TEST_F(InputDispatcherTest, NotifiesDeviceInteractionsWithMotions) {
     using Uid = gui::Uid;
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();

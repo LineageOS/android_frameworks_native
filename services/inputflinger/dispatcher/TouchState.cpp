@@ -192,10 +192,13 @@ sp<WindowInfoHandle> TouchState::getFirstForegroundWindowHandle(DeviceId deviceI
     return nullptr;
 }
 
-bool TouchState::isSlippery() const {
+bool TouchState::isSlippery(DeviceId deviceId) const {
     // Must have exactly one foreground window.
     bool haveSlipperyForegroundWindow = false;
     for (const TouchedWindow& window : windows) {
+        if (!window.hasTouchingPointers(deviceId)) {
+            continue;
+        }
         if (window.targetFlags.test(InputTarget::Flags::FOREGROUND)) {
             if (haveSlipperyForegroundWindow ||
                 !window.windowHandle->getInfo()->inputConfig.test(
