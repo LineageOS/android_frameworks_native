@@ -280,9 +280,18 @@ void LayerHistory::partitionLayers(nsecs_t now, bool isVrrDevice) {
                     case Layer::FrameRateCompatibility::Exact:
                         return LayerVoteType::ExplicitExact;
                     case Layer::FrameRateCompatibility::Gte:
-                        return LayerVoteType::ExplicitGte;
+                        if (isVrrDevice) {
+                            return LayerVoteType::ExplicitGte;
+                        } else {
+                            // For MRR, treat GTE votes as Max because it is used for animations and
+                            // scroll. MRR cannot change frame rate without jank, so it should
+                            // prefer smoothness.
+                            return LayerVoteType::Max;
+                        }
                 }
             }();
+            const bool isValuelessVote = voteType == LayerVoteType::NoVote ||
+                    voteType == LayerVoteType::Min || voteType == LayerVoteType::Max;
 
             if (FlagManager::getInstance().game_default_frame_rate()) {
                 // Determine the layer frame rate considering the following priorities:
@@ -307,7 +316,8 @@ void LayerHistory::partitionLayers(nsecs_t now, bool isVrrDevice) {
                               gameModeFrameRateOverride.getIntValue());
                     }
                 } else if (frameRate.isValid() && frameRate.isVoteValidForMrr(isVrrDevice)) {
-                    info->setLayerVote({setFrameRateVoteType, frameRate.vote.rate,
+                    info->setLayerVote({setFrameRateVoteType,
+                                        isValuelessVote ? 0_Hz : frameRate.vote.rate,
                                         frameRate.vote.seamlessness, frameRate.category});
                     if (CC_UNLIKELY(mTraceEnabled)) {
                         trace(*info, gameFrameRateOverrideVoteType,
@@ -335,8 +345,8 @@ void LayerHistory::partitionLayers(nsecs_t now, bool isVrrDevice) {
             } else {
                 if (frameRate.isValid() && frameRate.isVoteValidForMrr(isVrrDevice)) {
                     const auto type = info->isVisible() ? voteType : LayerVoteType::NoVote;
-                    info->setLayerVote({type, frameRate.vote.rate, frameRate.vote.seamlessness,
-                                        frameRate.category});
+                    info->setLayerVote({type, isValuelessVote ? 0_Hz : frameRate.vote.rate,
+                                        frameRate.vote.seamlessness, frameRate.category});
                 } else {
                     if (!frameRate.isVoteValidForMrr(isVrrDevice)) {
                         ATRACE_FORMAT_INSTANT("Reset layer to ignore explicit vote on MRR %s: %s "
