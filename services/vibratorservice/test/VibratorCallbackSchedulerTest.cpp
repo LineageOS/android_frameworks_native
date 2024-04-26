@@ -14,19 +14,12 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "VibratorHalWrapperAidlTest"
-
-#include <android-base/thread_annotations.h>
-#include <android/hardware/vibrator/IVibrator.h>
-#include <condition_variable>
-
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include <utils/Log.h>
-#include <thread>
-
 #include <vibratorservice/VibratorCallbackScheduler.h>
+
+#include "test_utils.h"
 
 using std::chrono::milliseconds;
 using std::chrono::steady_clock;
@@ -39,29 +32,25 @@ using namespace testing;
 // -------------------------------------------------------------------------------------------------
 
 // Delay allowed for the scheduler to process callbacks during this test.
-static const auto TEST_TIMEOUT = 50ms;
+static const auto TEST_TIMEOUT = 100ms;
 
 class VibratorCallbackSchedulerTest : public Test {
 public:
-    void SetUp() override {
-        mScheduler = std::make_unique<vibrator::CallbackScheduler>();
-        std::lock_guard<std::mutex> lock(mMutex);
-        mExpiredCallbacks.clear();
-    }
+    void SetUp() override { mScheduler = std::make_unique<vibrator::CallbackScheduler>(); }
 
 protected:
     std::mutex mMutex;
-    std::condition_variable_any mCondition;
     std::unique_ptr<vibrator::CallbackScheduler> mScheduler = nullptr;
+    vibrator::TestCounter mCallbackCounter;
     std::vector<int32_t> mExpiredCallbacks GUARDED_BY(mMutex);
 
     std::function<void()> createCallback(int32_t id) {
-        return [=]() {
+        return [this, id]() {
             {
                 std::lock_guard<std::mutex> lock(mMutex);
                 mExpiredCallbacks.push_back(id);
             }
-            mCondition.notify_all();
+            mCallbackCounter.increment();
         };
     }
 
@@ -71,56 +60,42 @@ protected:
     }
 
     int32_t waitForCallbacks(int32_t callbackCount, milliseconds timeout) {
-        time_point<steady_clock> expirationTime = steady_clock::now() + timeout + TEST_TIMEOUT;
-        int32_t expiredCallbackCount = 0;
-        while (steady_clock::now() < expirationTime) {
-            std::lock_guard<std::mutex> lock(mMutex);
-            expiredCallbackCount = mExpiredCallbacks.size();
-            if (callbackCount <= expiredCallbackCount) {
-                return expiredCallbackCount;
-            }
-            auto currentTimeout = std::chrono::duration_cast<std::chrono::milliseconds>(
-                    expirationTime - steady_clock::now());
-            if (currentTimeout > currentTimeout.zero()) {
-                // Use the monotonic steady clock to wait for the requested timeout via wait_for
-                // instead of using a wall clock via wait_until.
-                mCondition.wait_for(mMutex, currentTimeout);
-            }
-        }
-        return expiredCallbackCount;
+        mCallbackCounter.tryWaitUntilCountIsAtLeast(callbackCount, timeout);
+        return mCallbackCounter.get();
     }
 };
 
 // -------------------------------------------------------------------------------------------------
 
 TEST_F(VibratorCallbackSchedulerTest, TestScheduleRunsOnlyAfterDelay) {
+    auto callbackDuration = 50ms;
     time_point<steady_clock> startTime = steady_clock::now();
-    mScheduler->schedule(createCallback(1), 50ms);
+    mScheduler->schedule(createCallback(1), callbackDuration);
 
-    ASSERT_EQ(1, waitForCallbacks(1, 50ms));
+    ASSERT_THAT(waitForCallbacks(1, callbackDuration + TEST_TIMEOUT), Eq(1));
     time_point<steady_clock> callbackTime = steady_clock::now();
 
-    // Callback happened at least 50ms after the beginning of the test.
-    ASSERT_TRUE(startTime + 50ms <= callbackTime);
-    ASSERT_THAT(getExpiredCallbacks(), ElementsAre(1));
+    // Callback took at least the required duration to trigger.
+    ASSERT_THAT(callbackTime, Ge(startTime + callbackDuration));
 }
 
 TEST_F(VibratorCallbackSchedulerTest, TestScheduleMultipleCallbacksRunsInDelayOrder) {
     // Schedule first callbacks long enough that all 3 will be scheduled together and run in order.
-    mScheduler->schedule(createCallback(1), 50ms);
-    mScheduler->schedule(createCallback(2), 40ms);
-    mScheduler->schedule(createCallback(3), 10ms);
+    mScheduler->schedule(createCallback(1), 50ms + 2 * TEST_TIMEOUT);
+    mScheduler->schedule(createCallback(2), 50ms + TEST_TIMEOUT);
+    mScheduler->schedule(createCallback(3), 50ms);
 
-    ASSERT_EQ(3, waitForCallbacks(3, 50ms));
+    // Callbacks triggered in the expected order based on the requested durations.
+    ASSERT_THAT(waitForCallbacks(3, 50ms + 3 * TEST_TIMEOUT), Eq(3));
     ASSERT_THAT(getExpiredCallbacks(), ElementsAre(3, 2, 1));
 }
 
 TEST_F(VibratorCallbackSchedulerTest, TestDestructorDropsPendingCallbacksAndKillsThread) {
     // Schedule callback long enough that scheduler will be destroyed while it's still scheduled.
-    mScheduler->schedule(createCallback(1), 50ms);
+    mScheduler->schedule(createCallback(1), 100ms);
     mScheduler.reset(nullptr);
 
     // Should timeout waiting for callback to run.
-    ASSERT_EQ(0, waitForCallbacks(1, 50ms));
-    ASSERT_TRUE(getExpiredCallbacks().empty());
+    ASSERT_THAT(waitForCallbacks(1, 100ms + TEST_TIMEOUT), Eq(0));
+    ASSERT_THAT(getExpiredCallbacks(), IsEmpty());
 }

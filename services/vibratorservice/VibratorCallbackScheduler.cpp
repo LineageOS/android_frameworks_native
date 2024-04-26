@@ -87,13 +87,13 @@ void CallbackScheduler::loop() {
             lock.lock();
         }
         if (mQueue.empty()) {
-            // Wait until a new callback is scheduled.
-            mCondition.wait(mMutex);
+            // Wait until a new callback is scheduled or destructor was called.
+            mCondition.wait(lock, [this] { return mFinished || !mQueue.empty(); });
         } else {
-            // Wait until next callback expires, or a new one is scheduled.
+            // Wait until next callback expires or a new one is scheduled.
             // Use the monotonic steady clock to wait for the measured delay interval via wait_for
             // instead of using a wall clock via wait_until.
-            mCondition.wait_for(mMutex, mQueue.top().getWaitForExpirationDuration());
+            mCondition.wait_for(lock, mQueue.top().getWaitForExpirationDuration());
         }
     }
 }
