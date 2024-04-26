@@ -80,6 +80,7 @@ public:
     bool graphite_renderengine() const;
     bool latch_unsignaled_with_auto_refresh_changed() const;
     bool deprecate_vsync_sf() const;
+    bool allow_n_vsyncs_in_targeter() const;
 
 protected:
     // overridden for unit tests
