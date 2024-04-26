@@ -26,6 +26,8 @@ MODULE_LIBRARY_DEPS += \
 	$(LIBBINDER_DIR)/trusty/rust \
 	$(LIBBINDER_DIR)/trusty/rust/rpcbinder \
 	$(LOCAL_DIR)/aidl \
+	$(LOCAL_DIR)/binder_rpc_test_session \
+	$(call FIND_CRATE,log) \
 	trusty/user/base/lib/trusty-std \
 
 MODULE_RUST_TESTS := true
