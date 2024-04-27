@@ -184,6 +184,14 @@ static bool should_unload_system_driver(egl_connection_t* cnx) {
         }
     }
 
+    // Return true if app requests to use ANGLE, but ANGLE is not loaded.
+    // Difference with the case above is on devices that don't have an ANGLE apk installed,
+    // ANGLE namespace is not set. In that case if ANGLE in system partition is not loaded,
+    // we should unload the system driver first, and then load ANGLE from system partition.
+    if (!cnx->angleLoaded && android::GraphicsEnv::getInstance().shouldUseAngle()) {
+        return true;
+    }
+
     // Return true if native GLES drivers should be used and ANGLE is already loaded.
     if (android::GraphicsEnv::getInstance().shouldUseNativeDriver() && cnx->angleLoaded) {
         return true;

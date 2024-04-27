@@ -88,13 +88,12 @@ bool isInputTracingEnabled() {
 }
 
 // Create the input tracing backend that writes to perfetto from a single thread.
-std::unique_ptr<trace::InputTracingBackendInterface> createInputTracingBackendIfEnabled(
-        trace::impl::PerfettoBackend::GetPackageUid getPackageUid) {
+std::unique_ptr<trace::InputTracingBackendInterface> createInputTracingBackendIfEnabled() {
     if (!isInputTracingEnabled()) {
         return nullptr;
     }
     return std::make_unique<trace::impl::ThreadedBackend<trace::impl::PerfettoBackend>>(
-            trace::impl::PerfettoBackend(getPackageUid));
+            trace::impl::PerfettoBackend());
 }
 
 template <class Entry>
@@ -904,9 +903,7 @@ private:
 // --- InputDispatcher ---
 
 InputDispatcher::InputDispatcher(InputDispatcherPolicyInterface& policy)
-      : InputDispatcher(policy, createInputTracingBackendIfEnabled([&policy](std::string pkg) {
-                            return policy.getPackageUid(pkg);
-                        })) {}
+      : InputDispatcher(policy, createInputTracingBackendIfEnabled()) {}
 
 InputDispatcher::InputDispatcher(InputDispatcherPolicyInterface& policy,
                                  std::unique_ptr<trace::InputTracingBackendInterface> traceBackend)
@@ -2619,7 +2616,7 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
 
         // Check whether touches should slip outside of the current foreground window.
         if (maskedAction == AMOTION_EVENT_ACTION_MOVE && entry.getPointerCount() == 1 &&
-            tempTouchState.isSlippery()) {
+            tempTouchState.isSlippery(entry.deviceId)) {
             const auto [x, y] = resolveTouchedPosition(entry);
             const bool isStylus = isPointerFromStylus(entry, /*pointerIndex=*/0);
             sp<WindowInfoHandle> oldTouchedWindowHandle =

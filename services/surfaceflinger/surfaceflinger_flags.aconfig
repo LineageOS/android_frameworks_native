@@ -222,4 +222,15 @@ flag {
   }
 }
 
+flag {
+  name: "allow_n_vsyncs_in_targeter"
+  namespace: "core_graphics"
+  description: "This flag will enable utilizing N vsyncs in the FrameTargeter for past vsyncs"
+  bug: "308858993"
+  is_fixed_read_only: true
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}
+
 # This file is locked and should not be changed. Use surfaceflinger_flags_new.aconfig

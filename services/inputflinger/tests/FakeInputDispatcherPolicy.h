@@ -115,7 +115,6 @@ public:
     void setUnhandledKeyHandler(std::function<std::optional<KeyEvent>(const KeyEvent&)> handler);
     void assertUnhandledKeyReported(int32_t keycode);
     void assertUnhandledKeyNotReported();
-    void addPackageUidMapping(std::string package, gui::Uid uid);
 
 private:
     std::mutex mLock;
@@ -150,8 +149,6 @@ private:
     std::condition_variable mNotifyUnhandledKey;
     std::queue<int32_t> mReportedUnhandledKeycodes GUARDED_BY(mLock);
     std::function<std::optional<KeyEvent>(const KeyEvent&)> mUnhandledKeyHandler GUARDED_BY(mLock);
-
-    std::map<std::string, gui::Uid> mPackageUidMap GUARDED_BY(mLock);
 
     /**
      * All three ANR-related callbacks behave the same way, so we use this generic function to wait
@@ -199,7 +196,6 @@ private:
     void notifyDropWindow(const sp<IBinder>& token, float x, float y) override;
     void notifyDeviceInteraction(int32_t deviceId, nsecs_t timestamp,
                                  const std::set<gui::Uid>& uids) override;
-    gui::Uid getPackageUid(std::string) override;
 
     void assertFilterInputEventWasCalledInternal(
             const std::function<void(const InputEvent&)>& verify);

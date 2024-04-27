@@ -16,6 +16,7 @@
 
 #include <gui/TraceUtils.h>
 
+#include <common/FlagManager.h>
 #include <scheduler/FrameTargeter.h>
 #include <scheduler/IVsyncSource.h>
 
@@ -33,8 +34,10 @@ TimePoint FrameTarget::pastVsyncTime(Period minFramePeriod) const {
     return mExpectedPresentTime - Period::fromNs(minFramePeriod.ns() << shift);
 }
 
-const FenceTimePtr& FrameTarget::presentFenceForPastVsync(Period minFramePeriod) const {
-    // TODO(b/267315508): Generalize to N VSYNCs.
+FenceTimePtr FrameTarget::presentFenceForPastVsync(Period minFramePeriod) const {
+    if (FlagManager::getInstance().allow_n_vsyncs_in_targeter()) {
+        return pastVsyncTimePtr();
+    }
     const size_t i = static_cast<size_t>(targetsVsyncsAhead<2>(minFramePeriod));
     return mPresentFences[i].fenceTime;
 }
@@ -44,7 +47,8 @@ bool FrameTarget::wouldPresentEarly(Period minFramePeriod) const {
     // should use `TimePoint::now()` in case of delays since `mFrameBeginTime`.
 
     // TODO(b/267315508): Generalize to N VSYNCs.
-    if (targetsVsyncsAhead<3>(minFramePeriod)) {
+    const bool allowNVsyncs = FlagManager::getInstance().allow_n_vsyncs_in_targeter();
+    if (!allowNVsyncs && targetsVsyncsAhead<3>(minFramePeriod)) {
         return true;
     }
 
@@ -144,8 +148,12 @@ FenceTimePtr FrameTargeter::setPresentFence(sp<Fence> presentFence) {
 }
 
 FenceTimePtr FrameTargeter::setPresentFence(sp<Fence> presentFence, FenceTimePtr presentFenceTime) {
-    mPresentFences[1] = mPresentFences[0];
-    mPresentFences[0] = {std::move(presentFence), presentFenceTime};
+    if (FlagManager::getInstance().allow_n_vsyncs_in_targeter()) {
+        addFence(std::move(presentFence), presentFenceTime, mExpectedPresentTime);
+    } else {
+        mPresentFences[1] = mPresentFences[0];
+        mPresentFences[0] = {std::move(presentFence), presentFenceTime, mExpectedPresentTime};
+    }
     return presentFenceTime;
 }
 
