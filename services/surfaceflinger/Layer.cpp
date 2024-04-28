@@ -3218,6 +3218,10 @@ bool Layer::setBuffer(std::shared_ptr<renderengine::ExternalTexture>& buffer,
     mFlinger->mTimeStats->setPostTime(layerId, mDrawingState.frameNumber, getName().c_str(),
                                       mOwnerUid, postTime, getGameMode());
 
+    if (mFlinger->mLegacyFrontEndEnabled) {
+        recordLayerHistoryBufferUpdate(getLayerProps(), systemTime());
+    }
+
     setFrameTimelineVsyncForBufferTransaction(info, postTime);
 
     if (dequeueTime && *dequeueTime != 0) {
