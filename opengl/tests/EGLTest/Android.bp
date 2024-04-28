@@ -37,6 +37,11 @@ cc_test {
         "libSurfaceFlingerProp",
     ],
 
+    static_libs: [
+        "libgmock",
+        "libgtest",
+    ],
+
     include_dirs: [
         "frameworks/native/opengl/libs",
         "frameworks/native/opengl/libs/EGL",
