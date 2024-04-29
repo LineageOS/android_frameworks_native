@@ -691,10 +691,6 @@ public:
         return mFlinger->initTransactionTraceWriter();
     }
 
-    // Needed since mLayerLifecycleManagerEnabled is false by default and must
-    // be enabled for tests to go through the new front end path.
-    void enableLayerLifecycleManager() { mFlinger->mLayerLifecycleManagerEnabled = true; }
-
     void notifyExpectedPresentIfRequired(PhysicalDisplayId displayId, Period vsyncPeriod,
                                          TimePoint expectedPresentTime, Fps frameInterval,
                                          std::optional<Period> timeoutOpt) {

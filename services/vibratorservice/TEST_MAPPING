@@ -1,17 +1,7 @@
 {
   "presubmit": [
     {
-      "name": "libvibratorservice_test",
-      "options": [
-        {
-          // TODO(b/293603710): Fix flakiness
-          "exclude-filter": "VibratorCallbackSchedulerTest#TestScheduleRunsOnlyAfterDelay"
-        },
-        {
-          // TODO(b/293623689): Fix flakiness
-          "exclude-filter": "VibratorCallbackSchedulerTest#TestScheduleMultipleCallbacksRunsInDelayOrder"
-        }
-      ]
+      "name": "libvibratorservice_test"
     }
   ],
   "postsubmit": [
