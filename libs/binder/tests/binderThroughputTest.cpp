@@ -7,9 +7,10 @@
 #include <cstdlib>
 #include <cstdio>
 
+#include <fstream>
 #include <iostream>
-#include <vector>
 #include <tuple>
+#include <vector>
 
 #include <unistd.h>
 #include <sys/wait.h>
@@ -62,6 +63,18 @@ struct ProcResults {
     }
     uint64_t worst() {
         return *max_element(data.begin(), data.end());
+    }
+    void dump_to_file(string filename) {
+        ofstream output;
+        output.open(filename);
+        if (!output.is_open()) {
+            cerr << "Failed to open '" << filename << "'." << endl;
+            exit(EXIT_FAILURE);
+        }
+        for (uint64_t value : data) {
+            output << value << "\n";
+        }
+        output.close();
     }
     void dump() {
         if (data.size() == 0) {
@@ -293,12 +306,8 @@ void signal_all(vector<Pipe>& v)
     }
 }
 
-void run_main(int iterations,
-              int workers,
-              int payload_size,
-              int cs_pair,
-              bool training_round=false)
-{
+void run_main(int iterations, int workers, int payload_size, int cs_pair,
+              bool training_round = false, bool dump_to_file = false, string dump_filename = "") {
     vector<Pipe> pipes;
     // Create all the workers and wait for them to spawn.
     for (int i = 0; i < workers; i++) {
@@ -349,6 +358,9 @@ void run_main(int iterations,
         warn_latency = 2 * tot_results.worst();
         cout << "Max latency during training: " << tot_results.worst() / 1.0E6 << "ms" << endl;
     } else {
+        if (dump_to_file) {
+            tot_results.dump_to_file(dump_filename);
+        }
         tot_results.dump();
     }
 }
@@ -361,6 +373,8 @@ int main(int argc, char *argv[])
     bool cs_pair = false;
     bool training_round = false;
     int max_time_us;
+    bool dump_to_file = false;
+    string dump_filename;
 
     // Parse arguments.
     for (int i = 1; i < argc; i++) {
@@ -372,6 +386,7 @@ int main(int argc, char *argv[])
             cout << "\t-s N    : Specify payload size." << endl;
             cout << "\t-t      : Run training round." << endl;
             cout << "\t-w N    : Specify total number of workers." << endl;
+            cout << "\t-d FILE : Dump raw data to file." << endl;
             return 0;
         }
         if (string(argv[i]) == "-w") {
@@ -430,14 +445,24 @@ int main(int argc, char *argv[])
             i++;
             continue;
         }
+        if (string(argv[i]) == "-d") {
+            if (i + 1 == argc) {
+                cout << "-d requires an argument\n" << endl;
+                exit(EXIT_FAILURE);
+            }
+            dump_to_file = true;
+            dump_filename = argv[i + 1];
+            i++;
+            continue;
+        }
     }
 
     if (training_round) {
         cout << "Start training round" << endl;
-        run_main(iterations, workers, payload_size, cs_pair, training_round=true);
+        run_main(iterations, workers, payload_size, cs_pair, true);
         cout << "Completed training round" << endl << endl;
     }
 
-    run_main(iterations, workers, payload_size, cs_pair);
+    run_main(iterations, workers, payload_size, cs_pair, false, dump_to_file, dump_filename);
     return 0;
 }
