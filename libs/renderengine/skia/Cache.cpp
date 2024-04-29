@@ -630,7 +630,7 @@ static void drawP3ImageLayers(SkiaRenderEngine* renderengine, const DisplaySetti
 //    kFlushAfterEveryLayer = true
 // in external/skia/src/gpu/gl/builders/GrGLShaderStringBuilder.cpp
 //    gPrintSKSL = true
-void Cache::primeShaderCache(SkiaRenderEngine* renderengine, bool shouldPrimeUltraHDR) {
+void Cache::primeShaderCache(SkiaRenderEngine* renderengine, PrimeCacheConfig config) {
     const int previousCount = renderengine->reportShadersCompiled();
     if (previousCount) {
         ALOGD("%d Shaders already compiled before Cache::primeShaderCache ran\n", previousCount);
@@ -694,13 +694,24 @@ void Cache::primeShaderCache(SkiaRenderEngine* renderengine, bool shouldPrimeUlt
                 impl::ExternalTexture>(srcBuffer, *renderengine,
                                        impl::ExternalTexture::Usage::READABLE |
                                                impl::ExternalTexture::Usage::WRITEABLE);
-        drawHolePunchLayer(renderengine, display, dstTexture);
-        drawSolidLayers(renderengine, display, dstTexture);
-        drawSolidLayers(renderengine, p3Display, dstTexture);
-        drawSolidDimmedLayers(renderengine, display, dstTexture);
 
-        drawShadowLayers(renderengine, display, srcTexture);
-        drawShadowLayers(renderengine, p3Display, srcTexture);
+        if (config.cacheHolePunchLayer) {
+            drawHolePunchLayer(renderengine, display, dstTexture);
+        }
+
+        if (config.cacheSolidLayers) {
+            drawSolidLayers(renderengine, display, dstTexture);
+            drawSolidLayers(renderengine, p3Display, dstTexture);
+        }
+
+        if (config.cacheSolidDimmedLayers) {
+            drawSolidDimmedLayers(renderengine, display, dstTexture);
+        }
+
+        if (config.cacheShadowLayers) {
+            drawShadowLayers(renderengine, display, srcTexture);
+            drawShadowLayers(renderengine, p3Display, srcTexture);
+        }
 
         if (renderengine->supportsBackgroundBlur()) {
             drawBlurLayers(renderengine, display, dstTexture);
@@ -737,27 +748,40 @@ void Cache::primeShaderCache(SkiaRenderEngine* renderengine, bool shouldPrimeUlt
         }
 
         for (auto texture : textures) {
-            drawImageLayers(renderengine, display, dstTexture, texture);
+            if (config.cacheImageLayers) {
+                drawImageLayers(renderengine, display, dstTexture, texture);
+            }
 
-            drawImageDimmedLayers(renderengine, display, dstTexture, texture);
-            drawImageDimmedLayers(renderengine, p3Display, dstTexture, texture);
-            drawImageDimmedLayers(renderengine, bt2020Display, dstTexture, texture);
+            if (config.cacheImageDimmedLayers) {
+                drawImageDimmedLayers(renderengine, display, dstTexture, texture);
+                drawImageDimmedLayers(renderengine, p3Display, dstTexture, texture);
+                drawImageDimmedLayers(renderengine, bt2020Display, dstTexture, texture);
+            }
 
-            // Draw layers for b/185569240.
-            drawClippedLayers(renderengine, display, dstTexture, texture);
+            if (config.cacheClippedLayers) {
+                // Draw layers for b/185569240.
+                drawClippedLayers(renderengine, display, dstTexture, texture);
+            }
         }
 
-        drawPIPImageLayer(renderengine, display, dstTexture, externalTexture);
+        if (config.cachePIPImageLayers) {
+            drawPIPImageLayer(renderengine, display, dstTexture, externalTexture);
+        }
 
-        drawTransparentImageDimmedLayers(renderengine, bt2020Display, dstTexture, externalTexture);
-        drawTransparentImageDimmedLayers(renderengine, display, dstTexture, externalTexture);
-        drawTransparentImageDimmedLayers(renderengine, p3Display, dstTexture, externalTexture);
-        drawTransparentImageDimmedLayers(renderengine, p3DisplayEnhance, dstTexture,
-                                         externalTexture);
+        if (config.cacheTransparentImageDimmedLayers) {
+            drawTransparentImageDimmedLayers(renderengine, bt2020Display, dstTexture,
+                                             externalTexture);
+            drawTransparentImageDimmedLayers(renderengine, display, dstTexture, externalTexture);
+            drawTransparentImageDimmedLayers(renderengine, p3Display, dstTexture, externalTexture);
+            drawTransparentImageDimmedLayers(renderengine, p3DisplayEnhance, dstTexture,
+                                             externalTexture);
+        }
 
-        drawClippedDimmedImageLayers(renderengine, bt2020Display, dstTexture, externalTexture);
+        if (config.cacheClippedDimmedImageLayers) {
+            drawClippedDimmedImageLayers(renderengine, bt2020Display, dstTexture, externalTexture);
+        }
 
-        if (shouldPrimeUltraHDR) {
+        if (config.cacheUltraHDR) {
             drawBT2020ClippedImageLayers(renderengine, bt2020Display, dstTexture, externalTexture);
 
             drawBT2020ImageLayers(renderengine, bt2020Display, dstTexture, externalTexture);
