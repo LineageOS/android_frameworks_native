@@ -334,7 +334,7 @@ void LayerProtoFromSnapshotGenerator::writeHierarchyToProto(
                                                                           variant);
         frontend::LayerSnapshot* childSnapshot = getSnapshot(path, layer);
         if (variant == Variant::Attached || variant == Variant::Detached ||
-            variant == Variant::Mirror) {
+            frontend::LayerHierarchy::isMirror(variant)) {
             mChildToParent[childSnapshot->uniqueSequence] = snapshot->uniqueSequence;
             layerProto->add_children(childSnapshot->uniqueSequence);
         } else if (variant == Variant::Relative) {

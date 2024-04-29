@@ -32,6 +32,17 @@ flag {
   }
 } # deprecate_vsync_sf
 
+ flag {
+  name: "detached_mirror"
+  namespace: "window_surfaces"
+  description: "Ignore local transform when mirroring a partial hierarchy"
+  bug: "337845753"
+  is_fixed_read_only: true
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+} # deprecate_vsync_sf
+
 flag {
   name: "frame_rate_category_mrr"
   namespace: "core_graphics"
