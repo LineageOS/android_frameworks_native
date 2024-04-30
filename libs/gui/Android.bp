@@ -23,6 +23,7 @@ package {
 aconfig_declarations {
     name: "libgui_flags",
     package: "com.android.graphics.libgui.flags",
+    container: "system",
     srcs: ["libgui_flags.aconfig"],
 }
 
