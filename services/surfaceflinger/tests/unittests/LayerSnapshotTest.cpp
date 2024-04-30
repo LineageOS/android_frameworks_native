@@ -1204,34 +1204,34 @@ TEST_F(LayerSnapshotTest, setSensitiveForTracingConfigForSecureLayers) {
     UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
 
     EXPECT_TRUE(getSnapshot(11)->inputInfo.inputConfig.test(
-            gui::WindowInfo::InputConfig::SENSITIVE_FOR_TRACING));
+            gui::WindowInfo::InputConfig::SENSITIVE_FOR_PRIVACY));
     EXPECT_TRUE(getSnapshot(111)->inputInfo.inputConfig.test(
-            gui::WindowInfo::InputConfig::SENSITIVE_FOR_TRACING));
+            gui::WindowInfo::InputConfig::SENSITIVE_FOR_PRIVACY));
     EXPECT_FALSE(getSnapshot(1)->inputInfo.inputConfig.test(
-            gui::WindowInfo::InputConfig::SENSITIVE_FOR_TRACING));
+            gui::WindowInfo::InputConfig::SENSITIVE_FOR_PRIVACY));
     EXPECT_FALSE(getSnapshot(12)->inputInfo.inputConfig.test(
-            gui::WindowInfo::InputConfig::SENSITIVE_FOR_TRACING));
+            gui::WindowInfo::InputConfig::SENSITIVE_FOR_PRIVACY));
     EXPECT_FALSE(getSnapshot(2)->inputInfo.inputConfig.test(
-            gui::WindowInfo::InputConfig::SENSITIVE_FOR_TRACING));
+            gui::WindowInfo::InputConfig::SENSITIVE_FOR_PRIVACY));
 }
 
 TEST_F(LayerSnapshotTest, setSensitiveForTracingFromInputWindowHandle) {
     setInputInfo(11, [](auto& inputInfo) {
-        inputInfo.inputConfig |= gui::WindowInfo::InputConfig::SENSITIVE_FOR_TRACING;
+        inputInfo.inputConfig |= gui::WindowInfo::InputConfig::SENSITIVE_FOR_PRIVACY;
     });
 
     UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
 
     EXPECT_TRUE(getSnapshot(11)->inputInfo.inputConfig.test(
-            gui::WindowInfo::InputConfig::SENSITIVE_FOR_TRACING));
+            gui::WindowInfo::InputConfig::SENSITIVE_FOR_PRIVACY));
     EXPECT_TRUE(getSnapshot(111)->inputInfo.inputConfig.test(
-            gui::WindowInfo::InputConfig::SENSITIVE_FOR_TRACING));
+            gui::WindowInfo::InputConfig::SENSITIVE_FOR_PRIVACY));
     EXPECT_FALSE(getSnapshot(1)->inputInfo.inputConfig.test(
-            gui::WindowInfo::InputConfig::SENSITIVE_FOR_TRACING));
+            gui::WindowInfo::InputConfig::SENSITIVE_FOR_PRIVACY));
     EXPECT_FALSE(getSnapshot(12)->inputInfo.inputConfig.test(
-            gui::WindowInfo::InputConfig::SENSITIVE_FOR_TRACING));
+            gui::WindowInfo::InputConfig::SENSITIVE_FOR_PRIVACY));
     EXPECT_FALSE(getSnapshot(2)->inputInfo.inputConfig.test(
-            gui::WindowInfo::InputConfig::SENSITIVE_FOR_TRACING));
+            gui::WindowInfo::InputConfig::SENSITIVE_FOR_PRIVACY));
 }
 
 // b/314350323

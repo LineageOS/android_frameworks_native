@@ -159,10 +159,12 @@ enum InputConfig {
     GLOBAL_STYLUS_BLOCKS_TOUCH   = 1 << 17,
 
     /**
-     * InputConfig used to indicate that this window is sensitive for tracing.
+     * InputConfig used to indicate that this window is privacy sensitive. This may be used to
+     * redact input interactions from tracing or screen mirroring.
+     *
      * This must be set on windows that use {@link WindowManager.LayoutParams#FLAG_SECURE},
      * but it may also be set without setting FLAG_SECURE. The tracing configuration will
      * determine how these sensitive events are eventually traced.
      */
-     SENSITIVE_FOR_TRACING       = 1 << 18,
+     SENSITIVE_FOR_PRIVACY       = 1 << 18,
 }

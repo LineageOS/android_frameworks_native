@@ -178,8 +178,8 @@ struct WindowInfo : public Parcelable {
                 static_cast<uint32_t>(os::InputConfig::CLONE),
         GLOBAL_STYLUS_BLOCKS_TOUCH =
                 static_cast<uint32_t>(os::InputConfig::GLOBAL_STYLUS_BLOCKS_TOUCH),
-        SENSITIVE_FOR_TRACING =
-                static_cast<uint32_t>(os::InputConfig::SENSITIVE_FOR_TRACING),
+        SENSITIVE_FOR_PRIVACY =
+                static_cast<uint32_t>(os::InputConfig::SENSITIVE_FOR_PRIVACY),
         // clang-format on
     };
 

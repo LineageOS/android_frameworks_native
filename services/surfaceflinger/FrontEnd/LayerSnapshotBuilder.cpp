@@ -1061,8 +1061,8 @@ void LayerSnapshotBuilder::updateInput(LayerSnapshot& snapshot,
     }
 
     if (snapshot.isSecure ||
-        parentSnapshot.inputInfo.inputConfig.test(InputConfig::SENSITIVE_FOR_TRACING)) {
-        snapshot.inputInfo.inputConfig |= InputConfig::SENSITIVE_FOR_TRACING;
+        parentSnapshot.inputInfo.inputConfig.test(InputConfig::SENSITIVE_FOR_PRIVACY)) {
+        snapshot.inputInfo.inputConfig |= InputConfig::SENSITIVE_FOR_PRIVACY;
     }
 
     updateVisibility(snapshot, snapshot.isVisible);
