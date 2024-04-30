@@ -244,7 +244,9 @@ void VulkanInterface::init(bool protectedContent) {
     VK_CHECK(vkEnumerateInstanceVersion(&instanceVersion));
 
     if (instanceVersion < VK_MAKE_VERSION(1, 1, 0)) {
-        return;
+        BAIL("Vulkan instance API version %" PRIu32 ".%" PRIu32 ".%" PRIu32 " < 1.1.0",
+             VK_VERSION_MAJOR(instanceVersion), VK_VERSION_MINOR(instanceVersion),
+             VK_VERSION_PATCH(instanceVersion));
     }
 
     const VkApplicationInfo appInfo = {
@@ -323,8 +325,11 @@ void VulkanInterface::init(bool protectedContent) {
     }
 
     vkGetPhysicalDeviceProperties2(physicalDevice, &physDevProps);
-    if (physDevProps.properties.apiVersion < VK_MAKE_VERSION(1, 1, 0)) {
-        BAIL("Could not find a Vulkan 1.1+ physical device");
+    const uint32_t physicalDeviceApiVersion = physDevProps.properties.apiVersion;
+    if (physicalDeviceApiVersion < VK_MAKE_VERSION(1, 1, 0)) {
+        BAIL("Vulkan physical device API version %" PRIu32 ".%" PRIu32 ".%" PRIu32 " < 1.1.0",
+             VK_VERSION_MAJOR(physicalDeviceApiVersion), VK_VERSION_MINOR(physicalDeviceApiVersion),
+             VK_VERSION_PATCH(physicalDeviceApiVersion));
     }
 
     // Check for syncfd support. Bail if we cannot both import and export them.
@@ -539,7 +544,7 @@ void VulkanInterface::init(bool protectedContent) {
     mDevice = device;
     mQueue = graphicsQueue;
     mQueueIndex = graphicsQueueIndex;
-    mApiVersion = physDevProps.properties.apiVersion;
+    mApiVersion = physicalDeviceApiVersion;
     // grExtensions already constructed
     // feature pointers already constructed
     mGrGetProc = sGetProc;
