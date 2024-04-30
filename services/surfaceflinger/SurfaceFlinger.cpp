@@ -2225,19 +2225,20 @@ void SurfaceFlinger::onComposerHalVsyncIdle(hal::HWDisplayId) {
 
 void SurfaceFlinger::onRefreshRateChangedDebug(const RefreshRateChangedDebugData& data) {
     ATRACE_CALL();
-    if (const auto displayId = getHwComposer().toPhysicalDisplayId(data.display); displayId) {
-        const char* const whence = __func__;
-        static_cast<void>(mScheduler->schedule([=, this]() FTL_FAKE_GUARD(mStateLock) {
-            const Fps fps = Fps::fromPeriodNsecs(getHwComposer().getComposer()->isVrrSupported()
-                                                         ? data.refreshPeriodNanos
-                                                         : data.vsyncPeriodNanos);
-            ATRACE_FORMAT("%s Fps %d", whence, fps.getIntValue());
-            const auto display = getDisplayDeviceLocked(*displayId);
-            FTL_FAKE_GUARD(kMainThreadContext,
-                           display->updateRefreshRateOverlayRate(fps, display->getActiveMode().fps,
-                                                                 /* setByHwc */ true));
-        }));
-    }
+    const char* const whence = __func__;
+    static_cast<void>(mScheduler->schedule([=, this]() FTL_FAKE_GUARD(mStateLock) FTL_FAKE_GUARD(
+                                                   kMainThreadContext) {
+        if (const auto displayIdOpt = getHwComposer().toPhysicalDisplayId(data.display)) {
+            if (const auto display = getDisplayDeviceLocked(*displayIdOpt)) {
+                const Fps fps = Fps::fromPeriodNsecs(getHwComposer().getComposer()->isVrrSupported()
+                                                             ? data.refreshPeriodNanos
+                                                             : data.vsyncPeriodNanos);
+                ATRACE_FORMAT("%s Fps %d", whence, fps.getIntValue());
+                display->updateRefreshRateOverlayRate(fps, display->getActiveMode().fps,
+                                                      /* setByHwc */ true);
+            }
+        }
+    }));
 }
 
 void SurfaceFlinger::configure() {
