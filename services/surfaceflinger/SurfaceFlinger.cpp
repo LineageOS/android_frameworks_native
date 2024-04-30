@@ -3516,12 +3516,20 @@ bool SurfaceFlinger::configureLocked() {
     for (const auto [hwcDisplayId, connection] : events) {
         if (auto info = getHwComposer().onHotplug(hwcDisplayId, connection)) {
             const auto displayId = info->id;
-            const bool connected = connection == hal::Connection::CONNECTED;
+            const ftl::Concat displayString("display ", displayId.value, "(HAL ID ", hwcDisplayId,
+                                            ')');
 
-            if (const char* const log =
-                        processHotplug(displayId, hwcDisplayId, connected, std::move(*info))) {
-                ALOGI("%s display %s (HAL ID %" PRIu64 ")", log, to_string(displayId).c_str(),
-                      hwcDisplayId);
+            if (connection == hal::Connection::CONNECTED) {
+                if (!processHotplugConnect(displayId, hwcDisplayId, std::move(*info),
+                                           displayString.c_str())) {
+                    if (FlagManager::getInstance().hotplug2()) {
+                        mScheduler->dispatchHotplugError(
+                                static_cast<int32_t>(DisplayHotplugEvent::ERROR_UNKNOWN));
+                    }
+                    getHwComposer().disconnectDisplay(displayId);
+                }
+            } else {
+                processHotplugDisconnect(displayId, displayString.c_str());
             }
         }
     }
@@ -3529,36 +3537,19 @@ bool SurfaceFlinger::configureLocked() {
     return !events.empty();
 }
 
-const char* SurfaceFlinger::processHotplug(PhysicalDisplayId displayId,
-                                           hal::HWDisplayId hwcDisplayId, bool connected,
-                                           DisplayIdentificationInfo&& info) {
-    const auto displayOpt = mPhysicalDisplays.get(displayId);
-    if (!connected) {
-        LOG_ALWAYS_FATAL_IF(!displayOpt);
-        const auto& display = displayOpt->get();
-
-        if (const ssize_t index = mCurrentState.displays.indexOfKey(display.token()); index >= 0) {
-            mCurrentState.displays.removeItemsAt(index);
-        }
-
-        mPhysicalDisplays.erase(displayId);
-        return "Disconnecting";
-    }
-
+bool SurfaceFlinger::processHotplugConnect(PhysicalDisplayId displayId,
+                                           hal::HWDisplayId hwcDisplayId,
+                                           DisplayIdentificationInfo&& info,
+                                           const char* displayString) {
     auto [displayModes, activeMode] = loadDisplayModes(displayId);
     if (!activeMode) {
-        ALOGE("Failed to hotplug display %s", to_string(displayId).c_str());
-        if (FlagManager::getInstance().hotplug2()) {
-            mScheduler->dispatchHotplugError(
-                    static_cast<int32_t>(DisplayHotplugEvent::ERROR_UNKNOWN));
-        }
-        getHwComposer().disconnectDisplay(displayId);
-        return nullptr;
+        ALOGE("Failed to hotplug %s", displayString);
+        return false;
     }
 
     ui::ColorModes colorModes = getHwComposer().getColorModes(displayId);
 
-    if (displayOpt) {
+    if (const auto displayOpt = mPhysicalDisplays.get(displayId)) {
         const auto& display = displayOpt->get();
         const auto& snapshot = display.snapshot();
 
@@ -3577,7 +3568,8 @@ const char* SurfaceFlinger::processHotplug(PhysicalDisplayId displayId,
         auto& state = mCurrentState.displays.editValueFor(it->second.token());
         state.sequenceId = DisplayDeviceState{}.sequenceId; // Generate new sequenceId.
         state.physical->activeMode = std::move(activeMode);
-        return "Reconnecting";
+        ALOGI("Reconnecting %s", displayString);
+        return true;
     }
 
     const sp<IBinder> token = sp<BBinder>::make();
@@ -3597,7 +3589,23 @@ const char* SurfaceFlinger::processHotplug(PhysicalDisplayId displayId,
     state.displayName = std::move(info.name);
 
     mCurrentState.displays.add(token, state);
-    return "Connecting";
+    ALOGI("Connecting %s", displayString);
+    return true;
+}
+
+void SurfaceFlinger::processHotplugDisconnect(PhysicalDisplayId displayId,
+                                              const char* displayString) {
+    ALOGI("Disconnecting %s", displayString);
+
+    const auto displayOpt = mPhysicalDisplays.get(displayId);
+    LOG_ALWAYS_FATAL_IF(!displayOpt);
+    const auto& display = displayOpt->get();
+
+    if (const ssize_t index = mCurrentState.displays.indexOfKey(display.token()); index >= 0) {
+        mCurrentState.displays.removeItemsAt(index);
+    }
+
+    mPhysicalDisplays.erase(displayId);
 }
 
 void SurfaceFlinger::dispatchDisplayModeChangeEvent(PhysicalDisplayId displayId,
