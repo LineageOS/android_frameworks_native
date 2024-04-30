@@ -210,7 +210,7 @@ static inline std::unique_ptr<RpcTransportCtxFactory> newTlsFactory(
             return RpcTransportCtxFactoryTls::make(std::move(verifier), std::move(auth));
         }
         default:
-            LOG_ALWAYS_FATAL("Unknown RpcSecurity %d", rpcSecurity);
+            LOG_ALWAYS_FATAL("Unknown RpcSecurity %d", static_cast<int>(rpcSecurity));
     }
 }
 
@@ -256,7 +256,7 @@ public:
         mValue.reset();
         lock.unlock();
         mCvEmpty.notify_all();
-        return std::move(v);
+        return v;
     }
 
 private:

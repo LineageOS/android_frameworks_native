@@ -216,7 +216,7 @@ void BM_repeatTwoPageString(benchmark::State& state) {
     // by how many binder calls work together (and by factors like the scheduler,
     // thermal throttling, core choice, etc..).
     std::string str = std::string(getpagesize() * 2, 'a');
-    CHECK_EQ(str.size(), getpagesize() * 2);
+    CHECK_EQ(static_cast<ssize_t>(str.size()), getpagesize() * 2);
 
     while (state.KeepRunning()) {
         std::string out;

@@ -230,8 +230,8 @@ std::optional<RecordedTransaction> RecordedTransaction::fromFile(const unique_fd
         }
 
         size_t memoryMappedSize = chunkPayloadSize + mmapPayloadStartOffset;
-        void* mappedMemory =
-                mmap(NULL, memoryMappedSize, PROT_READ, MAP_SHARED, fd.get(), mmapPageAlignedStart);
+        void* mappedMemory = mmap(nullptr, memoryMappedSize, PROT_READ, MAP_SHARED, fd.get(),
+                                  mmapPageAlignedStart);
         auto mmap_guard = make_scope_guard(
                 [mappedMemory, memoryMappedSize] { munmap(mappedMemory, memoryMappedSize); });
 
@@ -382,7 +382,7 @@ android::status_t RecordedTransaction::dumpToFile(const unique_fd& fd) const {
         return UNKNOWN_ERROR;
     }
 
-    if (NO_ERROR != writeChunk(fd, END_CHUNK, 0, NULL)) {
+    if (NO_ERROR != writeChunk(fd, END_CHUNK, 0, nullptr)) {
         ALOGE("Failed to write end chunk to fd %d", fd.get());
         return UNKNOWN_ERROR;
     }

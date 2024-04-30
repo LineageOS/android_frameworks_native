@@ -2768,7 +2768,7 @@ void Parcel::ipcSetDataReference(const uint8_t* data, size_t dataSize, const bin
         }
         if (type == BINDER_TYPE_FD) {
             // FDs from the kernel are always owned
-            FdTag(flat->handle, 0, this);
+            FdTag(flat->handle, nullptr, this);
         }
         minOffset = offset + sizeof(flat_binder_object);
     }
