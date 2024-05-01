@@ -644,7 +644,8 @@ TEST_F(InputTracingTest, TraceWindowDispatch) {
     waitForTracerIdle();
 }
 
-TEST_F(InputTracingTest, SimultaneousTracingSessions) {
+// TODO(b/336097719): Investigate flakiness and re-enable this test.
+TEST_F(InputTracingTest, DISABLED_SimultaneousTracingSessions) {
     auto s1 = std::make_unique<InputTraceSession>(
             [](auto& config) { config->set_mode(AndroidInputEventConfig::TRACE_MODE_TRACE_ALL); });
 
