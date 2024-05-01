@@ -153,7 +153,7 @@ void LayerHierarchy::dump(std::ostream& out, const std::string& prefix,
         out << prefix + (isLastChild ? "└─ " : "├─ ");
         if (variant == LayerHierarchy::Variant::Relative) {
             out << "(Relative) ";
-        } else if (variant == LayerHierarchy::Variant::Mirror) {
+        } else if (LayerHierarchy::isMirror(variant)) {
             if (!includeMirroredHierarchy) {
                 out << "(Mirroring) " << *mLayer << "\n" + prefix + "   └─ ...";
                 return;
@@ -289,6 +289,12 @@ void LayerHierarchyBuilder::onLayerAdded(RequestedLayerState* layer) {
         LayerHierarchy* mirror = getHierarchyFromId(mirrorId);
         hierarchy->addChild(mirror, LayerHierarchy::Variant::Mirror);
     }
+    if (FlagManager::getInstance().detached_mirror()) {
+        if (layer->layerIdToMirror != UNASSIGNED_LAYER_ID) {
+            LayerHierarchy* mirror = getHierarchyFromId(layer->layerIdToMirror);
+            hierarchy->addChild(mirror, LayerHierarchy::Variant::Detached_Mirror);
+        }
+    }
 }
 
 void LayerHierarchyBuilder::onLayerDestroyed(RequestedLayerState* layer) {
@@ -325,7 +331,7 @@ void LayerHierarchyBuilder::updateMirrorLayer(RequestedLayerState* layer) {
     LayerHierarchy* hierarchy = getHierarchyFromId(layer->id);
     auto it = hierarchy->mChildren.begin();
     while (it != hierarchy->mChildren.end()) {
-        if (it->second == LayerHierarchy::Variant::Mirror) {
+        if (LayerHierarchy::isMirror(it->second)) {
             it = hierarchy->mChildren.erase(it);
         } else {
             it++;
@@ -334,6 +340,12 @@ void LayerHierarchyBuilder::updateMirrorLayer(RequestedLayerState* layer) {
 
     for (uint32_t mirrorId : layer->mirrorIds) {
         hierarchy->addChild(getHierarchyFromId(mirrorId), LayerHierarchy::Variant::Mirror);
+    }
+    if (FlagManager::getInstance().detached_mirror()) {
+        if (layer->layerIdToMirror != UNASSIGNED_LAYER_ID) {
+            hierarchy->addChild(getHierarchyFromId(layer->layerIdToMirror),
+                                LayerHierarchy::Variant::Detached_Mirror);
+        }
     }
 }
 
@@ -501,7 +513,7 @@ LayerHierarchy::ScopedAddToTraversalPath::ScopedAddToTraversalPath(TraversalPath
     // stored to reset the id upon destruction.
     traversalPath.id = layerId;
     traversalPath.variant = variant;
-    if (variant == LayerHierarchy::Variant::Mirror) {
+    if (LayerHierarchy::isMirror(variant)) {
         traversalPath.mirrorRootIds.emplace_back(mParentPath.id);
     } else if (variant == LayerHierarchy::Variant::Relative) {
         if (std::find(traversalPath.relativeRootIds.begin(), traversalPath.relativeRootIds.end(),
@@ -516,7 +528,7 @@ LayerHierarchy::ScopedAddToTraversalPath::ScopedAddToTraversalPath(TraversalPath
 LayerHierarchy::ScopedAddToTraversalPath::~ScopedAddToTraversalPath() {
     // Reset the traversal id to its original parent state using the state that was saved in
     // the constructor.
-    if (mTraversalPath.variant == LayerHierarchy::Variant::Mirror) {
+    if (LayerHierarchy::isMirror(mTraversalPath.variant)) {
         mTraversalPath.mirrorRootIds.pop_back();
     } else if (mTraversalPath.variant == LayerHierarchy::Variant::Relative) {
         mTraversalPath.relativeRootIds.pop_back();

@@ -155,6 +155,17 @@ protected:
         mLifecycleManager.applyTransactions(transactions);
     }
 
+    void setPosition(uint32_t id, float x, float y) {
+        std::vector<TransactionState> transactions;
+        transactions.emplace_back();
+        transactions.back().states.push_back({});
+        transactions.back().states.front().state.what = layer_state_t::ePositionChanged;
+        transactions.back().states.front().state.x = x;
+        transactions.back().states.front().state.y = y;
+        transactions.back().states.front().layerId = id;
+        mLifecycleManager.applyTransactions(transactions);
+    }
+
     virtual void mirrorLayer(uint32_t id, uint32_t parentId, uint32_t layerIdToMirror) {
         std::vector<std::unique_ptr<RequestedLayerState>> layers;
         layers.emplace_back(std::make_unique<RequestedLayerState>(

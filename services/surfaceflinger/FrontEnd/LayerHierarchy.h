@@ -35,6 +35,7 @@ class LayerHierarchyBuilder;
 // Detached - child of the parent but currently relative parented to another layer
 // Relative - relative child of the parent
 // Mirror - mirrored from another layer
+// Detached_Mirror - mirrored from another layer, ignoring local transform
 //
 // By representing the hierarchy as a graph, we can represent mirrored layer hierarchies without
 // cloning the layer requested state. The mirrored hierarchy and its corresponding
@@ -43,13 +44,18 @@ class LayerHierarchyBuilder;
 class LayerHierarchy {
 public:
     enum Variant : uint32_t {
-        Attached, // child of the parent
-        Detached, // child of the parent but currently relative parented to another layer
-        Relative, // relative child of the parent
-        Mirror,   // mirrored from another layer
+        Attached,        // child of the parent
+        Detached,        // child of the parent but currently relative parented to another layer
+        Relative,        // relative child of the parent
+        Mirror,          // mirrored from another layer
+        Detached_Mirror, // mirrored from another layer, ignoring local transform
         ftl_first = Attached,
-        ftl_last = Mirror,
+        ftl_last = Detached_Mirror,
     };
+    static inline bool isMirror(Variant variant) {
+        return ((variant == Mirror) || (variant == Detached_Mirror));
+    }
+
     // Represents a unique path to a node.
     // The layer hierarchy is represented as a graph. Each node can be visited by multiple parents.
     // This allows us to represent mirroring in an efficient way. See the example below:

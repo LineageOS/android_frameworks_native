@@ -80,6 +80,9 @@ struct LayerSnapshot : public compositionengine::LayerFECompositionState {
     ui::Transform localTransformInverse;
     gui::WindowInfo inputInfo;
     ui::Transform localTransform;
+    // set to true if this snapshot will ignore local transforms. Used when the snapshot
+    // is a mirror root
+    bool ignoreLocalTransform;
     gui::DropInputMode dropInputMode;
     bool isTrustedOverlay;
     gui::GameMode gameMode;
