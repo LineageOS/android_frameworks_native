@@ -131,7 +131,7 @@ public:
 
     sp<Layer> createEffectLayer(const LayerCreationArgs&) override { return nullptr; }
 
-    sp<LayerFE> createLayerFE(const std::string& layerName) override {
+    sp<LayerFE> createLayerFE(const std::string& layerName, const Layer* /* owner */) override {
         return sp<LayerFE>::make(layerName);
     }
 
