@@ -711,25 +711,24 @@ EGLSurface eglCreateWindowSurfaceTmpl(egl_display_t* dp, egl_connection_t* cnx, 
     }
     attrib_list = strippedAttribList.data();
 
-    int err = native_window_set_buffers_format(window, static_cast<int>(format));
-    if (err != 0) {
-        ALOGE("error setting native window pixel format: %s (%d)", strerror(-err), err);
-        if (!cnx->angleLoaded) {
+    if (!cnx->angleLoaded) {
+        int err = native_window_set_buffers_format(window, static_cast<int>(format));
+        if (err != 0) {
+            ALOGE("error setting native window pixel format: %s (%d)", strerror(-err), err);
             native_window_api_disconnect(window, NATIVE_WINDOW_API_EGL);
+            return setError(EGL_BAD_NATIVE_WINDOW, EGL_NO_SURFACE);
         }
-        return setError(EGL_BAD_NATIVE_WINDOW, EGL_NO_SURFACE);
-    }
 
-    android_dataspace dataSpace = dataSpaceFromEGLColorSpace(colorSpace, format);
-    // Set dataSpace even if it could be HAL_DATASPACE_UNKNOWN. HAL_DATASPACE_UNKNOWN is the default
-    // value, but it may have changed at this point.
-    err = native_window_set_buffers_data_space(window, dataSpace);
-    if (err != 0) {
-        ALOGE("error setting native window pixel dataSpace: %s (%d)", strerror(-err), err);
-        if (!cnx->angleLoaded) {
+        android_dataspace dataSpace = dataSpaceFromEGLColorSpace(colorSpace, format);
+        // Set dataSpace even if it could be HAL_DATASPACE_UNKNOWN.
+        // HAL_DATASPACE_UNKNOWN is the default value, but it may have changed
+        // at this point.
+        err = native_window_set_buffers_data_space(window, dataSpace);
+        if (err != 0) {
+            ALOGE("error setting native window pixel dataSpace: %s (%d)", strerror(-err), err);
             native_window_api_disconnect(window, NATIVE_WINDOW_API_EGL);
+            return setError(EGL_BAD_NATIVE_WINDOW, EGL_NO_SURFACE);
         }
-        return setError(EGL_BAD_NATIVE_WINDOW, EGL_NO_SURFACE);
     }
 
     // the EGL spec requires that a new EGLSurface default to swap interval
@@ -744,8 +743,8 @@ EGLSurface eglCreateWindowSurfaceTmpl(egl_display_t* dp, egl_connection_t* cnx, 
     }
 
     // EGLSurface creation failed
-    native_window_set_buffers_format(window, 0);
     if (!cnx->angleLoaded) {
+        native_window_set_buffers_format(window, 0);
         native_window_api_disconnect(window, NATIVE_WINDOW_API_EGL);
     }
     return EGL_NO_SURFACE;
