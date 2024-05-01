@@ -1278,7 +1278,7 @@ static std::vector<BinderRpc::ParamType> getBinderRpcParams() {
                 for (const auto& clientVersion : testVersions()) {
                     for (const auto& serverVersion : testVersions()) {
                         for (bool singleThreaded : {false, true}) {
-                            for (bool noKernel : {false, true}) {
+                            for (bool noKernel : noKernelValues()) {
                                 ret.push_back(BinderRpc::ParamType{
                                         .type = type,
                                         .security = security,
@@ -1299,7 +1299,7 @@ static std::vector<BinderRpc::ParamType> getBinderRpcParams() {
                     .clientVersion = RPC_WIRE_PROTOCOL_VERSION,
                     .serverVersion = RPC_WIRE_PROTOCOL_VERSION,
                     .singleThreaded = false,
-                    .noKernel = false,
+                    .noKernel = !kEnableKernelIpcTesting,
             });
         }
     }
