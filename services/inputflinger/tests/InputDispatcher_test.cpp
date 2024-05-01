@@ -15,7 +15,6 @@
  */
 
 #include "../dispatcher/InputDispatcher.h"
-#include "../BlockingQueue.h"
 #include "FakeApplicationHandle.h"
 #include "TestEventMatchers.h"
 
@@ -31,6 +30,7 @@
 #include <flag_macros.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+#include <input/BlockingQueue.h>
 #include <input/Input.h>
 #include <input/PrintTools.h>
 #include <linux/input.h>
