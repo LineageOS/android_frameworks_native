@@ -200,9 +200,11 @@ cc_library_static {
     defaults: [
         "binder_test_defaults",
     ],
+    header_libs: [
+        "libbinder_headers_base",
+    ],
     shared_libs: [
         "libbase",
-        "liblog",
     ],
     srcs: [
         "FileUtils.cpp",
