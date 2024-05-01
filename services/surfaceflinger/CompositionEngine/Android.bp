@@ -11,6 +11,7 @@ package {
 cc_defaults {
     name: "libcompositionengine_defaults",
     defaults: [
+        "aconfig_lib_cc_static_link.defaults",
         "android.hardware.graphics.composer3-ndk_shared",
         "android.hardware.power-ndk_shared",
         "librenderengine_deps",

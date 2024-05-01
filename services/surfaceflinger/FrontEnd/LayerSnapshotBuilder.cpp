@@ -575,9 +575,11 @@ LayerSnapshot* LayerSnapshotBuilder::createSnapshot(const LayerHierarchy::Traver
     mSnapshots.emplace_back(std::make_unique<LayerSnapshot>(layer, path));
     LayerSnapshot* snapshot = mSnapshots.back().get();
     snapshot->globalZ = static_cast<size_t>(mSnapshots.size()) - 1;
-    if (path.isClone() && path.variant != LayerHierarchy::Variant::Mirror) {
+    if (path.isClone() && !LayerHierarchy::isMirror(path.variant)) {
         snapshot->mirrorRootPath = parentSnapshot.mirrorRootPath;
     }
+    snapshot->ignoreLocalTransform =
+            path.isClone() && path.variant == LayerHierarchy::Variant::Detached_Mirror;
     mPathToSnapshot[path] = snapshot;
 
     mIdToSnapshots.emplace(path.id, snapshot);

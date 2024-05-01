@@ -1059,10 +1059,11 @@ private:
     bool configureLocked() REQUIRES(mStateLock) REQUIRES(kMainThreadContext)
             EXCLUDES(mHotplugMutex);
 
-    // Returns a string describing the hotplug, or nullptr if it was rejected.
-    const char* processHotplug(PhysicalDisplayId, hal::HWDisplayId, bool connected,
-                               DisplayIdentificationInfo&&) REQUIRES(mStateLock)
-            REQUIRES(kMainThreadContext);
+    // Returns false on hotplug failure.
+    bool processHotplugConnect(PhysicalDisplayId, hal::HWDisplayId, DisplayIdentificationInfo&&,
+                               const char* displayString) REQUIRES(mStateLock, kMainThreadContext);
+    void processHotplugDisconnect(PhysicalDisplayId, const char* displayString)
+            REQUIRES(mStateLock, kMainThreadContext);
 
     sp<DisplayDevice> setupNewDisplayDeviceInternal(
             const wp<IBinder>& displayToken,

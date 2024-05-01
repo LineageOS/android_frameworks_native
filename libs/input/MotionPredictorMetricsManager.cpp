@@ -21,7 +21,6 @@
 #include <algorithm>
 
 #include <android-base/logging.h>
-#include <statslog.h>
 
 #include "Eigen/Core"
 #include "Eigen/Geometry"
@@ -45,18 +44,9 @@ inline constexpr float PATH_LENGTH_EPSILON = 0.001;
 
 void MotionPredictorMetricsManager::defaultReportAtomFunction(
         const MotionPredictorMetricsManager::AtomFields& atomFields) {
-    android::util::stats_write(android::util::STYLUS_PREDICTION_METRICS_REPORTED,
-                               /*stylus_vendor_id=*/0,
-                               /*stylus_product_id=*/0,
-                               atomFields.deltaTimeBucketMilliseconds,
-                               atomFields.alongTrajectoryErrorMeanMillipixels,
-                               atomFields.alongTrajectoryErrorStdMillipixels,
-                               atomFields.offTrajectoryRmseMillipixels,
-                               atomFields.pressureRmseMilliunits,
-                               atomFields.highVelocityAlongTrajectoryRmse,
-                               atomFields.highVelocityOffTrajectoryRmse,
-                               atomFields.scaleInvariantAlongTrajectoryRmse,
-                               atomFields.scaleInvariantOffTrajectoryRmse);
+    // TODO(b/338106546): Fix bootanimation build dependency issue, then re-add
+    // the stats_write function call here.
+    (void)atomFields;
 }
 
 MotionPredictorMetricsManager::MotionPredictorMetricsManager(

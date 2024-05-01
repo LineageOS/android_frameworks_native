@@ -249,7 +249,6 @@ cc_library {
         "libcutils",
         "liblog",
         "libPlatformProperties",
-        "libstatslog",
         "libtinyxml2",
         "libutils",
         "libz", // needed by libkernelconfigs

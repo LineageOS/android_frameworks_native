@@ -1302,4 +1302,33 @@ TEST_F(LayerSnapshotTest, canOccludePresentation) {
     EXPECT_EQ(getSnapshot(1221)->inputInfo.canOccludePresentation, true);
 }
 
+TEST_F(LayerSnapshotTest, mirroredHierarchyIgnoresLocalTransform) {
+    SET_FLAG_FOR_TEST(flags::detached_mirror, true);
+    reparentLayer(12, UNASSIGNED_LAYER_ID);
+    setPosition(11, 2, 20);
+    setPosition(111, 20, 200);
+    mirrorLayer(/*layer*/ 14, /*parent*/ 1, /*layerToMirror*/ 11);
+    std::vector<uint32_t> expected = {1, 11, 111, 13, 14, 11, 111, 2};
+    UPDATE_AND_VERIFY(mSnapshotBuilder, expected);
+
+    // mirror root has no position set
+    EXPECT_EQ(getSnapshot({.id = 11, .mirrorRootIds = 14u})->localTransform.tx(), 0);
+    EXPECT_EQ(getSnapshot({.id = 11, .mirrorRootIds = 14u})->localTransform.ty(), 0);
+    // original root still has a position
+    EXPECT_EQ(getSnapshot({.id = 11})->localTransform.tx(), 2);
+    EXPECT_EQ(getSnapshot({.id = 11})->localTransform.ty(), 20);
+
+    // mirror child still has the correct position
+    EXPECT_EQ(getSnapshot({.id = 111, .mirrorRootIds = 14u})->localTransform.tx(), 20);
+    EXPECT_EQ(getSnapshot({.id = 111, .mirrorRootIds = 14u})->localTransform.ty(), 200);
+    EXPECT_EQ(getSnapshot({.id = 111, .mirrorRootIds = 14u})->geomLayerTransform.tx(), 20);
+    EXPECT_EQ(getSnapshot({.id = 111, .mirrorRootIds = 14u})->geomLayerTransform.ty(), 200);
+
+    // original child still has the correct position including its parent's position
+    EXPECT_EQ(getSnapshot({.id = 111})->localTransform.tx(), 20);
+    EXPECT_EQ(getSnapshot({.id = 111})->localTransform.ty(), 200);
+    EXPECT_EQ(getSnapshot({.id = 111})->geomLayerTransform.tx(), 22);
+    EXPECT_EQ(getSnapshot({.id = 111})->geomLayerTransform.ty(), 220);
+}
+
 } // namespace android::surfaceflinger::frontend

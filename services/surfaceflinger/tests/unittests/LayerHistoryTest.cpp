@@ -506,7 +506,7 @@ TEST_F(LayerHistoryTest, oneLayerExplicitVote) {
     EXPECT_EQ(1, activeLayerCount());
     EXPECT_EQ(1, frequentLayerCount(time));
 
-    // layer became inactive, but the vote stays
+    // layer became infrequent, but the vote stays
     setDefaultLayerVote(layer.get(), LayerHistory::LayerVoteType::Heuristic);
     time += MAX_ACTIVE_LAYER_PERIOD_NS.count();
     ASSERT_EQ(1, summarizeLayerHistory(time).size());
@@ -540,7 +540,7 @@ TEST_F(LayerHistoryTest, oneLayerExplicitExactVote) {
     EXPECT_EQ(1, activeLayerCount());
     EXPECT_EQ(1, frequentLayerCount(time));
 
-    // layer became inactive, but the vote stays
+    // layer became infrequent, but the vote stays
     setDefaultLayerVote(layer.get(), LayerHistory::LayerVoteType::Heuristic);
     time += MAX_ACTIVE_LAYER_PERIOD_NS.count();
     ASSERT_EQ(1, summarizeLayerHistory(time).size());
@@ -692,7 +692,7 @@ TEST_F(LayerHistoryTest, oneLayerExplicitCategory) {
     EXPECT_EQ(0_Hz, summarizeLayerHistory(time)[0].desiredRefreshRate);
     EXPECT_EQ(FrameRateCategory::High, summarizeLayerHistory(time)[0].frameRateCategory);
 
-    // layer became inactive, but the vote stays
+    // layer became infrequent, but the vote stays
     setDefaultLayerVote(layer.get(), LayerHistory::LayerVoteType::Heuristic);
     time += MAX_ACTIVE_LAYER_PERIOD_NS.count();
     ASSERT_EQ(1, summarizeLayerHistory(time).size());
@@ -729,7 +729,7 @@ TEST_F(LayerHistoryTest, oneLayerCategoryNoPreference) {
     EXPECT_EQ(1, activeLayerCount());
     EXPECT_EQ(1, frequentLayerCount(time));
 
-    // layer became inactive
+    // layer became infrequent
     time += MAX_ACTIVE_LAYER_PERIOD_NS.count();
     EXPECT_EQ(1, summarizeLayerHistory(time).size());
     EXPECT_EQ(1, activeLayerCount());
@@ -770,7 +770,7 @@ TEST_F(LayerHistoryTest, oneLayerExplicitVoteWithCategory) {
     EXPECT_EQ(73.4_Hz, summarizeLayerHistory(time)[1].desiredRefreshRate);
     EXPECT_EQ(FrameRateCategory::Default, summarizeLayerHistory(time)[1].frameRateCategory);
 
-    // layer became inactive, but the vote stays
+    // layer became infrequent, but the vote stays
     setDefaultLayerVote(layer.get(), LayerHistory::LayerVoteType::Heuristic);
     time += MAX_ACTIVE_LAYER_PERIOD_NS.count();
     ASSERT_EQ(2, summarizeLayerHistory(time).size());
@@ -1175,7 +1175,7 @@ TEST_F(LayerHistoryTest, frontBufferedLayerVotesMax) {
     EXPECT_EQ(0, frequentLayerCount(time));
     EXPECT_EQ(0, animatingLayerCount(time));
 
-    // layer became inactive
+    // Layer still active due to front buffering, but it's infrequent.
     time += MAX_ACTIVE_LAYER_PERIOD_NS.count();
     ASSERT_EQ(1, summarizeLayerHistory(time).size());
     EXPECT_EQ(LayerHistory::LayerVoteType::Max, summarizeLayerHistory(time)[0].vote);
