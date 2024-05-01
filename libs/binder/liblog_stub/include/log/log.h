@@ -54,16 +54,16 @@ int __android_log_print(int prio, const char* tag, const char* fmt, ...)
 #define IF_ALOGW() IF_ALOG(LOG_WARN, LOG_TAG)
 #define IF_ALOGE() IF_ALOG(LOG_ERROR, LOG_TAG)
 
-#define ALOG(priority, tag, fmt, ...)                                          \
-    do {                                                                       \
-        if (false)[[/*VERY*/ unlikely]] { /* ignore unused __VA_ARGS__ */      \
-            std::fprintf(stderr, fmt __VA_OPT__(, ) __VA_ARGS__);              \
-        }                                                                      \
-        IF_ALOG(priority, tag) {                                               \
-            __android_log_print(ANDROID_##priority, tag,                       \
-                                tag ": " fmt "\n" __VA_OPT__(, ) __VA_ARGS__); \
-        }                                                                      \
-        if constexpr (ANDROID_##priority == ANDROID_LOG_FATAL) std::abort();   \
+#define ALOG(priority, tag, fmt, ...)                                        \
+    do {                                                                     \
+        if (false)[[/*VERY*/ unlikely]] { /* ignore unused __VA_ARGS__ */    \
+            std::fprintf(stderr, fmt __VA_OPT__(, ) __VA_ARGS__);            \
+        }                                                                    \
+        IF_ALOG(priority, tag) {                                             \
+            __android_log_print(ANDROID_##priority, tag, "%s: " fmt "\n",    \
+                                (tag)__VA_OPT__(, ) __VA_ARGS__);            \
+        }                                                                    \
+        if constexpr (ANDROID_##priority == ANDROID_LOG_FATAL) std::abort(); \
     } while (false)
 #define ALOGV(...) ALOG(LOG_VERBOSE, LOG_TAG, __VA_ARGS__)
 #define ALOGD(...) ALOG(LOG_DEBUG, LOG_TAG, __VA_ARGS__)
