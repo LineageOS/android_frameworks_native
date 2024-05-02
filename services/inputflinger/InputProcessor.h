@@ -22,7 +22,7 @@
 #include <unordered_map>
 
 #include <aidl/android/hardware/input/processor/IInputProcessor.h>
-#include "BlockingQueue.h"
+#include <input/BlockingQueue.h>
 #include "InputListener.h"
 namespace android {
 
