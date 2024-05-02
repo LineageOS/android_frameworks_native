@@ -9346,7 +9346,7 @@ SurfaceFlinger::getLayerSnapshotsForScreenshots(
                                                     "Couldnt find layer object for %s",
                                                     snapshot->getDebugString().c_str());
                     Layer* legacyLayer = (it == mLegacyLayers.end()) ? nullptr : it->second.get();
-                    sp<LayerFE> layerFE = getFactory().createLayerFE(snapshot->name);
+                    sp<LayerFE> layerFE = getFactory().createLayerFE(snapshot->name, legacyLayer);
                     layerFE->mSnapshot = std::make_unique<frontend::LayerSnapshot>(*snapshot);
                     layers.emplace_back(legacyLayer, std::move(layerFE));
                 });
