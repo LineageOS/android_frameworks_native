@@ -24,6 +24,17 @@
 namespace android::test {
 
 // Keep in sync with example usage in header file.
+TEST(Algorithm, Contains) {
+  const ftl::StaticVector vector = {1, 2, 3};
+  EXPECT_TRUE(ftl::contains(vector, 1));
+
+  EXPECT_FALSE(ftl::contains(vector, 0));
+  EXPECT_TRUE(ftl::contains(vector, 2));
+  EXPECT_TRUE(ftl::contains(vector, 3));
+  EXPECT_FALSE(ftl::contains(vector, 4));
+}
+
+// Keep in sync with example usage in header file.
 TEST(Algorithm, FindIf) {
   using namespace std::string_view_literals;
 

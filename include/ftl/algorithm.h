@@ -24,6 +24,18 @@
 
 namespace android::ftl {
 
+// Determines if a container contains a value. This is a simplified version of the C++23
+// std::ranges::contains function.
+//
+//   const ftl::StaticVector vector = {1, 2, 3};
+//   assert(ftl::contains(vector, 1));
+//
+// TODO: Remove in C++23.
+template <typename Container, typename Value>
+auto contains(const Container& container, const Value& value) -> bool {
+  return std::find(container.begin(), container.end(), value) != container.end();
+}
+
 // Adapter for std::find_if that converts the return value from iterator to optional.
 //
 //   const ftl::StaticVector vector = {"upside"sv, "down"sv, "cake"sv};
