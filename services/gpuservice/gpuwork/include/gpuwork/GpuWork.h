@@ -40,6 +40,7 @@ public:
     ~GpuWork();
 
     void initialize();
+    void stop() { mStop.store(true); }
 
     // Dumps the GPU work information.
     void dump(const Vector<String16>& args, std::string* result);
@@ -47,7 +48,7 @@ public:
 private:
     // Attaches tracepoint |tracepoint_group|/|tracepoint_name| to BPF program at path
     // |program_path|. The tracepoint is also enabled.
-    static bool attachTracepoint(const char* program_path, const char* tracepoint_group,
+    bool attachTracepoint(const char* program_path, const char* tracepoint_group,
                                  const char* tracepoint_name);
 
     // Native atom puller callback registered in statsd.
@@ -79,6 +80,9 @@ private:
 
     // Indicates whether our eBPF components have been initialized.
     std::atomic<bool> mInitialized = false;
+
+    // Indicates whether eBPF initialization should be stopped.
+    std::atomic<bool> mStop = false;
 
     // A thread that periodically checks whether |mGpuWorkMap| is nearly full
     // and, if so, clears it.
