@@ -243,6 +243,7 @@ bool GpuWork::attachTracepoint(const char* programPath, const char* tracepointGr
             return false;
         }
         // Retry until GPU driver loaded or timeout.
+        if (mStop.load()) return false;
         sleep(1);
         errno = 0;
     }
