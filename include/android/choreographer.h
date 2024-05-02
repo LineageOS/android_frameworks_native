@@ -119,14 +119,37 @@ typedef void (*AChoreographer_refreshRateCallback)(int64_t vsyncPeriodNanos, voi
 AChoreographer* AChoreographer_getInstance() __INTRODUCED_IN(24);
 
 /**
- * Deprecated: Use AChoreographer_postFrameCallback64 instead.
+ * Post a callback to be run on the next frame. The data pointer provided will
+ * be passed to the callback function when it's called.
+ *
+ * \bug The callback receives the frame time in nanoseconds as a long. On 32-bit
+ * systems, long is 32-bit, so the frame time will roll over roughly every two
+ * seconds. If your minSdkVersion is 29 or higher, switch to
+ * AChoreographer_postFrameCallback64, which uses a 64-bit frame time for all
+ * platforms. For older OS versions, you must combine the argument with the
+ * upper bits of clock_gettime(CLOCK_MONOTONIC, ...) on 32-bit systems.
+ *
+ * \deprecated Use AChoreographer_postFrameCallback64, which does not have the
+ * bug described above.
  */
 void AChoreographer_postFrameCallback(AChoreographer* choreographer,
                                       AChoreographer_frameCallback callback, void* data)
         __INTRODUCED_IN(24) __DEPRECATED_IN(29, "Use AChoreographer_postFrameCallback64 instead");
 
 /**
- * Deprecated: Use AChoreographer_postFrameCallbackDelayed64 instead.
+ * Post a callback to be run on the frame following the specified delay. The
+ * data pointer provided will be passed to the callback function when it's
+ * called.
+ *
+ * \bug The callback receives the frame time in nanoseconds as a long. On 32-bit
+ * systems, long is 32-bit, so the frame time will roll over roughly every two
+ * seconds. If your minSdkVersion is 29 or higher, switch to
+ * AChoreographer_postFrameCallbackDelayed64, which uses a 64-bit frame time for
+ * all platforms. For older OS versions, you must combine the argument with the
+ * upper bits of clock_gettime(CLOCK_MONOTONIC, ...) on 32-bit systems.
+ *
+ * \deprecated Use AChoreographer_postFrameCallbackDelayed64, which does not
+ * have the bug described above.
  */
 void AChoreographer_postFrameCallbackDelayed(AChoreographer* choreographer,
                                              AChoreographer_frameCallback callback, void* data,
