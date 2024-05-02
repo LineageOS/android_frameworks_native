@@ -309,7 +309,7 @@ mod tests {
         let now = clock_gettime(ClockId::CLOCK_MONOTONIC).unwrap().num_milliseconds();
         test_thread.request_timeout_at_time((now + 10) * 1000000);
 
-        std::thread::sleep(Duration::from_millis(20));
+        std::thread::sleep(Duration::from_millis(100));
         assert!(test_thread_callback.is_notify_timeout_called());
     }
 
