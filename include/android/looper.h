@@ -193,8 +193,9 @@ typedef int (*ALooper_callbackFunc)(int fd, int events, void* data);
  * Returns ALOOPER_POLL_TIMEOUT if there was no data before the given timeout
  * expired. The poll may also have been explicitly woken by ALooper_wake.
  *
- * Returns ALOOPER_POLL_ERROR if an error occurred. The poll may also have been
- * explicitly woken by ALooper_wake.
+ * Returns ALOOPER_POLL_ERROR if the calling thread has no associated Looper or
+ * for unrecoverable internal errors. The poll may also have been explicitly
+ * woken by ALooper_wake.
  *
  * Returns a value >= 0 containing an identifier (the same identifier `ident`
  * passed to ALooper_addFd()) if its file descriptor has data and it has no
