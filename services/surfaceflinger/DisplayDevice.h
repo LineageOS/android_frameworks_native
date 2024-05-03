@@ -329,6 +329,7 @@ struct DisplayDeviceState {
     uint32_t width = 0;
     uint32_t height = 0;
     std::string displayName;
+    std::string uniqueId;
     bool isSecure = false;
     bool isProtected = false;
     // Refer to DisplayDevice::mRequestedRefreshRate, for virtual display only
