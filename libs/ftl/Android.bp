@@ -41,5 +41,6 @@ cc_test {
         "-Wextra",
         "-Wpedantic",
         "-Wthread-safety",
+        "-Wno-gnu-statement-expression-from-macro-expansion",
     ],
 }

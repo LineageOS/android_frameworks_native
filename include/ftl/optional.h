@@ -20,13 +20,14 @@
 #include <optional>
 #include <utility>
 
+#include <android-base/expected.h>
 #include <ftl/details/optional.h>
 
 namespace android::ftl {
 
 // Superset of std::optional<T> with monadic operations, as proposed in https://wg21.link/P0798R8.
 //
-// TODO: Remove in C++23.
+// TODO: Remove standard APIs in C++23.
 //
 template <typename T>
 struct Optional final : std::optional<T> {
@@ -107,6 +108,13 @@ struct Optional final : std::optional<T> {
   constexpr auto or_else(F&& f) && -> details::or_else_result_t<F, T> {
     if (has_value()) return std::move(*this);
     return std::forward<F>(f)();
+  }
+
+  // Maps this Optional<T> to expected<T, E> where nullopt becomes E.
+  template <typename E>
+  constexpr auto ok_or(E&& e) && -> base::expected<T, E> {
+    if (has_value()) return std::move(value());
+    return base::unexpected(std::forward<E>(e));
   }
 
   // Delete new for this class. Its base doesn't have a virtual destructor, and
