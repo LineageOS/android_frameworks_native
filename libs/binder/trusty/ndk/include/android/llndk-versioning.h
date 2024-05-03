@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022 The Android Open Source Project
+ * Copyright (C) 2024 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,15 +15,4 @@
  */
 #pragma once
 
-#if __has_include(<lk/compiler.h>)
-#include <lk/compiler.h>
-
-/* Alias the bionic macros to the ones from lk/compiler.h */
-#define __BEGIN_DECLS __BEGIN_CDECLS
-#define __END_DECLS __END_CDECLS
-
-#else // __has_include(<lk/compiler.h>)
-#include_next <sys/cdefs.h>
-#endif
-
-#define __INTRODUCED_IN(x) /* nothing on Trusty */
+#define __INTRODUCED_IN_LLNDK(x) /* nothing on Trusty */
