@@ -39,6 +39,7 @@ filegroup {
 aconfig_declarations {
     name: "com.android.input.flags-aconfig",
     package: "com.android.input.flags",
+    container: "system",
     srcs: ["input_flags.aconfig"],
 }
 
