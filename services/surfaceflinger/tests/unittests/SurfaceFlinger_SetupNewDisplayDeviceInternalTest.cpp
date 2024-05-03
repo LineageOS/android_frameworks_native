@@ -255,10 +255,15 @@ void SetupNewDisplayDeviceInternalTest::setupNewDisplayDeviceInternalTest() {
             colorModes.push_back(ColorMode::DISPLAY_P3);
         }
 
-        mFlinger.mutablePhysicalDisplays().emplace_or_replace(*displayId, displayToken, *displayId,
-                                                              *connectionType,
-                                                              makeModes(activeMode),
-                                                              std::move(colorModes), std::nullopt);
+        const auto it = mFlinger.mutablePhysicalDisplays()
+                                .emplace_or_replace(*displayId, displayToken, *displayId,
+                                                    *connectionType, makeModes(activeMode),
+                                                    std::move(colorModes), std::nullopt)
+                                .first;
+
+        FTL_FAKE_GUARD(kMainThreadContext,
+                       mFlinger.mutableDisplayModeController()
+                               .registerDisplay(it->second.snapshot(), activeMode->getId(), {}));
     }
 
     state.isSecure = static_cast<bool>(Case::Display::SECURE);

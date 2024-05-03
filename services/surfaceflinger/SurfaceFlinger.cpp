@@ -228,7 +228,7 @@ bool validateCompositionDataspace(Dataspace dataspace) {
     return dataspace == Dataspace::V0_SRGB || dataspace == Dataspace::DISPLAY_P3;
 }
 
-std::chrono::milliseconds getIdleTimerTimeout(DisplayId displayId) {
+std::chrono::milliseconds getIdleTimerTimeout(PhysicalDisplayId displayId) {
     if (const int32_t displayIdleTimerMs =
                 base::GetIntProperty("debug.sf.set_idle_timer_ms_"s +
                                              std::to_string(displayId.value),
@@ -242,7 +242,7 @@ std::chrono::milliseconds getIdleTimerTimeout(DisplayId displayId) {
     return std::chrono::milliseconds(millis);
 }
 
-bool getKernelIdleTimerSyspropConfig(DisplayId displayId) {
+bool getKernelIdleTimerSyspropConfig(PhysicalDisplayId displayId) {
     const bool displaySupportKernelIdleTimer =
             base::GetBoolProperty("debug.sf.support_kernel_idle_timer_"s +
                                           std::to_string(displayId.value),
@@ -3511,15 +3511,40 @@ bool SurfaceFlinger::configureLocked() {
                                             ')');
 
             if (connection == hal::Connection::CONNECTED) {
-                if (!processHotplugConnect(displayId, hwcDisplayId, std::move(*info),
-                                           displayString.c_str())) {
+                const auto activeModeIdOpt =
+                        processHotplugConnect(displayId, hwcDisplayId, std::move(*info),
+                                              displayString.c_str());
+                if (!activeModeIdOpt) {
                     if (FlagManager::getInstance().hotplug2()) {
                         mScheduler->dispatchHotplugError(
                                 static_cast<int32_t>(DisplayHotplugEvent::ERROR_UNKNOWN));
                     }
                     getHwComposer().disconnectDisplay(displayId);
+                    continue;
                 }
+
+                const auto [kernelIdleTimerController, idleTimerTimeoutMs] =
+                        getKernelIdleTimerProperties(displayId);
+
+                using Config = scheduler::RefreshRateSelector::Config;
+                const Config config =
+                        {.enableFrameRateOverride = sysprop::enable_frame_rate_override(true)
+                                 ? Config::FrameRateOverride::Enabled
+                                 : Config::FrameRateOverride::Disabled,
+                         .frameRateMultipleThreshold =
+                                 base::GetIntProperty("debug.sf.frame_rate_multiple_threshold"s, 0),
+                         .legacyIdleTimerTimeout = idleTimerTimeoutMs,
+                         .kernelIdleTimerController = kernelIdleTimerController};
+
+                const auto snapshotOpt =
+                        mPhysicalDisplays.get(displayId).transform(&PhysicalDisplay::snapshotRef);
+                LOG_ALWAYS_FATAL_IF(!snapshotOpt);
+
+                mDisplayModeController.registerDisplay(*snapshotOpt, *activeModeIdOpt, config);
             } else {
+                // Unregister before destroying the DisplaySnapshot below.
+                mDisplayModeController.unregisterDisplay(displayId);
+
                 processHotplugDisconnect(displayId, displayString.c_str());
             }
         }
@@ -3528,16 +3553,17 @@ bool SurfaceFlinger::configureLocked() {
     return !events.empty();
 }
 
-bool SurfaceFlinger::processHotplugConnect(PhysicalDisplayId displayId,
-                                           hal::HWDisplayId hwcDisplayId,
-                                           DisplayIdentificationInfo&& info,
-                                           const char* displayString) {
+std::optional<DisplayModeId> SurfaceFlinger::processHotplugConnect(PhysicalDisplayId displayId,
+                                                                   hal::HWDisplayId hwcDisplayId,
+                                                                   DisplayIdentificationInfo&& info,
+                                                                   const char* displayString) {
     auto [displayModes, activeMode] = loadDisplayModes(displayId);
     if (!activeMode) {
         ALOGE("Failed to hotplug %s", displayString);
-        return false;
+        return std::nullopt;
     }
 
+    const DisplayModeId activeModeId = activeMode->getId();
     ui::ColorModes colorModes = getHwComposer().getColorModes(displayId);
 
     if (const auto displayOpt = mPhysicalDisplays.get(displayId)) {
@@ -3560,7 +3586,7 @@ bool SurfaceFlinger::processHotplugConnect(PhysicalDisplayId displayId,
         state.sequenceId = DisplayDeviceState{}.sequenceId; // Generate new sequenceId.
         state.physical->activeMode = std::move(activeMode);
         ALOGI("Reconnecting %s", displayString);
-        return true;
+        return activeModeId;
     }
 
     const sp<IBinder> token = sp<BBinder>::make();
@@ -3581,7 +3607,7 @@ bool SurfaceFlinger::processHotplugConnect(PhysicalDisplayId displayId,
 
     mCurrentState.displays.add(token, state);
     ALOGI("Connecting %s", displayString);
-    return true;
+    return activeModeId;
 }
 
 void SurfaceFlinger::processHotplugDisconnect(PhysicalDisplayId displayId,
@@ -3624,43 +3650,21 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
     creationArgs.hasWideColorGamut = false;
     creationArgs.supportedPerFrameMetadata = 0;
 
-    if (const auto& physical = state.physical) {
-        creationArgs.activeModeId = physical->activeMode->getId();
-        const auto [kernelIdleTimerController, idleTimerTimeoutMs] =
-                getKernelIdleTimerProperties(compositionDisplay->getId());
+    if (const auto physicalIdOpt = PhysicalDisplayId::tryCast(compositionDisplay->getId())) {
+        const auto physicalId = *physicalIdOpt;
 
-        using Config = scheduler::RefreshRateSelector::Config;
-        const auto enableFrameRateOverride = sysprop::enable_frame_rate_override(true)
-                ? Config::FrameRateOverride::Enabled
-                : Config::FrameRateOverride::Disabled;
-        const Config config =
-                {.enableFrameRateOverride = enableFrameRateOverride,
-                 .frameRateMultipleThreshold =
-                         base::GetIntProperty("debug.sf.frame_rate_multiple_threshold"s, 0),
-                 .legacyIdleTimerTimeout = idleTimerTimeoutMs,
-                 .kernelIdleTimerController = kernelIdleTimerController};
-
+        creationArgs.isPrimary = physicalId == getPrimaryDisplayIdLocked();
         creationArgs.refreshRateSelector =
-                mPhysicalDisplays.get(physical->id)
-                        .transform(&PhysicalDisplay::snapshotRef)
-                        .transform([&](const display::DisplaySnapshot& snapshot) {
-                            return std::make_shared<
-                                    scheduler::RefreshRateSelector>(snapshot.displayModes(),
-                                                                    creationArgs.activeModeId,
-                                                                    config);
-                        })
-                        .value_or(nullptr);
+                FTL_FAKE_GUARD(kMainThreadContext,
+                               mDisplayModeController.selectorPtrFor(physicalId));
 
-        creationArgs.isPrimary = physical->id == getPrimaryDisplayIdLocked();
-
-        mPhysicalDisplays.get(physical->id)
+        mPhysicalDisplays.get(physicalId)
                 .transform(&PhysicalDisplay::snapshotRef)
                 .transform(ftl::unit_fn([&](const display::DisplaySnapshot& snapshot) {
                     for (const auto mode : snapshot.colorModes()) {
                         creationArgs.hasWideColorGamut |= ui::isWideColorMode(mode);
                         creationArgs.hwcColorModes
-                                .emplace(mode,
-                                         getHwComposer().getRenderIntents(physical->id, mode));
+                                .emplace(mode, getHwComposer().getRenderIntents(physicalId, mode));
                     }
                 }));
     }
@@ -7634,13 +7638,12 @@ void SurfaceFlinger::kernelTimerChanged(bool expired) {
 }
 
 std::pair<std::optional<KernelIdleTimerController>, std::chrono::milliseconds>
-SurfaceFlinger::getKernelIdleTimerProperties(DisplayId displayId) {
+SurfaceFlinger::getKernelIdleTimerProperties(PhysicalDisplayId displayId) {
     const bool isKernelIdleTimerHwcSupported = getHwComposer().getComposer()->isSupported(
             android::Hwc2::Composer::OptionalFeature::KernelIdleTimer);
     const auto timeout = getIdleTimerTimeout(displayId);
     if (isKernelIdleTimerHwcSupported) {
-        if (const auto id = PhysicalDisplayId::tryCast(displayId);
-            getHwComposer().hasDisplayIdleTimerCapability(*id)) {
+        if (getHwComposer().hasDisplayIdleTimerCapability(displayId)) {
             // In order to decide if we can use the HWC api for idle timer
             // we query DisplayCapability::DISPLAY_IDLE_TIMER directly on the composer
             // without relying on hasDisplayCapability.

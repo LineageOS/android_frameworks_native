@@ -282,7 +282,7 @@ struct BaseDisplayVariant {
                         .setSecure(Derived::IS_SECURE)
                         .setPowerMode(Derived::INIT_POWER_MODE)
                         .setRefreshRateSelector(test->mFlinger.scheduler()->refreshRateSelector())
-                        .skipRegisterDisplay()
+                        .skipSchedulerRegistration()
                         .inject();
         Mock::VerifyAndClear(test->mNativeWindow.get());
 
