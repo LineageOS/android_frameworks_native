@@ -58,7 +58,7 @@
 #define __INTRODUCED_IN(__api_level) /* nothing */
 #endif
 #if !defined(__DEPRECATED_IN)
-#define __DEPRECATED_IN(__api_level) __attribute__((__deprecated__))
+#define __DEPRECATED_IN(__api_level, ...) __attribute__((__deprecated__))
 #endif
 
 __BEGIN_DECLS
