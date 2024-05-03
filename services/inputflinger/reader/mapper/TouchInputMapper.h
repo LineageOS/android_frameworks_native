@@ -46,7 +46,6 @@
 #include "InputMapper.h"
 #include "InputReaderBase.h"
 #include "NotifyArgs.h"
-#include "PointerControllerInterface.h"
 #include "StylusState.h"
 #include "TouchButtonAccumulator.h"
 
@@ -391,9 +390,6 @@ protected:
 
     // The time the primary pointer last went down.
     nsecs_t mDownTime{0};
-
-    // The pointer controller, or null if the device is not a pointer.
-    std::shared_ptr<PointerControllerInterface> mPointerController;
 
     std::vector<VirtualKey> mVirtualKeys;
 
@@ -837,9 +833,6 @@ private:
 
     // Returns if this touch device is a touch screen with an associated display.
     bool isTouchScreen();
-    // Updates touch spots if they are enabled. Should only be used when this device is a
-    // touchscreen.
-    void updateTouchSpots();
 
     bool isPointInsidePhysicalFrame(int32_t x, int32_t y) const;
     const VirtualKey* findVirtualKeyHit(int32_t x, int32_t y);
