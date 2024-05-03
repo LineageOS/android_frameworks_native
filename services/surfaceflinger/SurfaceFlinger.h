@@ -1486,7 +1486,6 @@ private:
     bool mPowerHintSessionEnabled;
 
     bool mLayerLifecycleManagerEnabled = false;
-    bool mLegacyFrontEndEnabled = true;
 
     frontend::LayerLifecycleManager mLayerLifecycleManager GUARDED_BY(kMainThreadContext);
     frontend::LayerHierarchyBuilder mLayerHierarchyBuilder GUARDED_BY(kMainThreadContext);
