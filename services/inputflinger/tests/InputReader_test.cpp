@@ -10443,6 +10443,28 @@ TEST_F(LightControllerTest, MonoLight) {
     ASSERT_EQ(controller.getLightColor(lights[0].id).value_or(-1), LIGHT_BRIGHTNESS);
 }
 
+TEST_F(LightControllerTest, MonoKeyboardMuteLight) {
+    RawLightInfo infoMono = {.id = 1,
+                             .name = "mono_keyboard_mute",
+                             .maxBrightness = 255,
+                             .flags = InputLightClass::BRIGHTNESS |
+                                     InputLightClass::KEYBOARD_MIC_MUTE,
+                             .path = ""};
+    mFakeEventHub->addRawLightInfo(infoMono.id, std::move(infoMono));
+
+    PeripheralController& controller = addControllerAndConfigure<PeripheralController>();
+    std::list<NotifyArgs> unused =
+            mDevice->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(),
+                               /*changes=*/{});
+
+    InputDeviceInfo info;
+    controller.populateDeviceInfo(&info);
+    std::vector<InputDeviceLightInfo> lights = info.getLights();
+    ASSERT_EQ(1U, lights.size());
+    ASSERT_EQ(InputDeviceLightType::KEYBOARD_MIC_MUTE, lights[0].type);
+    ASSERT_EQ(0U, lights[0].preferredBrightnessLevels.size());
+}
+
 TEST_F(LightControllerTest, MonoKeyboardBacklight) {
     RawLightInfo infoMono = {.id = 1,
                              .name = "mono_keyboard_backlight",

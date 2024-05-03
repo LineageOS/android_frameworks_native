@@ -505,9 +505,14 @@ void PeripheralController::configureLights() {
 
     // Check the rest of raw light infos
     for (const auto& [rawId, rawInfo] : rawInfos) {
-        InputDeviceLightType type = keyboardBacklightIds.find(rawId) != keyboardBacklightIds.end()
-                ? InputDeviceLightType::KEYBOARD_BACKLIGHT
-                : InputDeviceLightType::INPUT;
+        InputDeviceLightType type;
+        if (keyboardBacklightIds.find(rawId) != keyboardBacklightIds.end()) {
+            type = InputDeviceLightType::KEYBOARD_BACKLIGHT;
+        } else if (rawInfo.flags.test(InputLightClass::KEYBOARD_MIC_MUTE)) {
+            type = InputDeviceLightType::KEYBOARD_MIC_MUTE;
+        } else {
+            type = InputDeviceLightType::INPUT;
+        }
 
         // If the node is multi-color led, construct a MULTI_COLOR light
         if (rawInfo.flags.test(InputLightClass::MULTI_INDEX) &&

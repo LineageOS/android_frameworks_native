@@ -177,6 +177,8 @@ enum class InputLightClass : uint32_t {
     MAX_BRIGHTNESS = 0x00000080,
     /* The input light has kbd_backlight name */
     KEYBOARD_BACKLIGHT = 0x00000100,
+    /* The input light has mic_mute name */
+    KEYBOARD_MIC_MUTE = 0x00000200,
 };
 
 enum class InputBatteryClass : uint32_t {
