@@ -42,6 +42,7 @@
 #include "DisplayRenderArea.h"
 #include "FrontEnd/LayerCreationArgs.h"
 #include "Layer.h"
+#include "RenderAreaBuilder.h"
 #include "Scheduler/VsyncController.h"
 #include "SurfaceFlinger.h"
 
@@ -279,8 +280,11 @@ void RegionSamplingThread::captureSample() {
     constexpr bool kHintForSeamlessTransition = false;
 
     SurfaceFlinger::RenderAreaFuture renderAreaFuture = ftl::defer([=] {
-        return DisplayRenderArea::create(displayWeak, sampledBounds, sampledBounds.getSize(),
-                                         ui::Dataspace::V0_SRGB, kHintForSeamlessTransition);
+        DisplayRenderAreaBuilder displayRenderArea(sampledBounds, sampledBounds.getSize(),
+                                                   ui::Dataspace::V0_SRGB,
+                                                   kHintForSeamlessTransition,
+                                                   true /* captureSecureLayers */, displayWeak);
+        return displayRenderArea.build();
     });
 
     std::unordered_set<sp<IRegionSamplingListener>, SpHash<IRegionSamplingListener>> listeners;
