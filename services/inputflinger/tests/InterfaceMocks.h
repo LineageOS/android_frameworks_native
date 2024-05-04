@@ -28,7 +28,6 @@
 #include <EventHub.h>
 #include <InputReaderBase.h>
 #include <NotifyArgs.h>
-#include <PointerControllerInterface.h>
 #include <StylusState.h>
 #include <VibrationElement.h>
 #include <android-base/logging.h>
@@ -53,10 +52,6 @@ public:
     MOCK_METHOD(void, disableVirtualKeysUntil, (nsecs_t time), (override));
     MOCK_METHOD(bool, shouldDropVirtualKey, (nsecs_t now, int32_t keyCode, int32_t scanCode),
                 (override));
-
-    MOCK_METHOD(void, fadePointer, (), (override));
-    MOCK_METHOD(std::shared_ptr<PointerControllerInterface>, getPointerController,
-                (int32_t deviceId), (override));
 
     MOCK_METHOD(void, requestTimeoutAtTime, (nsecs_t when), (override));
     int32_t bumpGeneration() override { return ++mGeneration; }
