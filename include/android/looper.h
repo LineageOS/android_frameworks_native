@@ -35,7 +35,7 @@ extern "C" {
 // This file may also be built on glibc or on Windows/MacOS libc's, so
 // deprecated definitions are provided.
 #if !defined(__REMOVED_IN)
-#define __REMOVED_IN(__api_level) __attribute__((__deprecated__))
+#define __REMOVED_IN(__api_level, msg) __attribute__((__deprecated__(msg)))
 #endif
 
 struct ALooper;
@@ -213,7 +213,8 @@ int ALooper_pollOnce(int timeoutMillis, int* outFd, int* outEvents, void** outDa
  * Removed in API 34 as ALooper_pollAll can swallow ALooper_wake calls.
  * Use ALooper_pollOnce instead.
  */
-int ALooper_pollAll(int timeoutMillis, int* outFd, int* outEvents, void** outData) __REMOVED_IN(1);
+int ALooper_pollAll(int timeoutMillis, int* outFd, int* outEvents, void** outData)
+    __REMOVED_IN(1, "ALooper_pollAll may ignore wakes. Use ALooper_pollOnce instead. See https://github.com/android/ndk/discussions/2020 for more information");
 
 /**
  * Wakes the poll asynchronously.
