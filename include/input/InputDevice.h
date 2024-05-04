@@ -130,8 +130,9 @@ enum class InputDeviceLightType : int32_t {
     INPUT = 0,
     PLAYER_ID = 1,
     KEYBOARD_BACKLIGHT = 2,
+    KEYBOARD_MIC_MUTE = 3,
 
-    ftl_last = KEYBOARD_BACKLIGHT
+    ftl_last = KEYBOARD_MIC_MUTE
 };
 
 enum class InputDeviceLightCapability : uint32_t {

@@ -85,7 +85,7 @@ sp<Layer> DefaultFactory::createEffectLayer(const LayerCreationArgs& args) {
     return sp<Layer>::make(args);
 }
 
-sp<LayerFE> DefaultFactory::createLayerFE(const std::string& layerName) {
+sp<LayerFE> DefaultFactory::createLayerFE(const std::string& layerName, const Layer* /* owner */) {
     return sp<LayerFE>::make(layerName);
 }
 

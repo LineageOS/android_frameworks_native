@@ -60,7 +60,7 @@ struct CommitAndCompositeTest : testing::Test {
                            .setNativeWindow(mNativeWindow)
                            .setPowerMode(hal::PowerMode::ON)
                            .setRefreshRateSelector(mFlinger.scheduler()->refreshRateSelector())
-                           .skipRegisterDisplay()
+                           .skipSchedulerRegistration()
                            .inject();
     }
 

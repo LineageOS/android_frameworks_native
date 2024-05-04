@@ -131,7 +131,7 @@ public:
 
     sp<Layer> createEffectLayer(const LayerCreationArgs&) override { return nullptr; }
 
-    sp<LayerFE> createLayerFE(const std::string& layerName) override {
+    sp<LayerFE> createLayerFE(const std::string& layerName, const Layer* /* owner */) override {
         return sp<LayerFE>::make(layerName);
     }
 
@@ -657,6 +657,7 @@ public:
 
     auto& mutableSupportsWideColor() { return mFlinger->mSupportsWideColor; }
 
+    auto& mutableDisplayModeController() { return mFlinger->mDisplayModeController; }
     auto& mutableCurrentState() { return mFlinger->mCurrentState; }
     auto& mutableDisplayColorSetting() { return mFlinger->mDisplayColorSetting; }
     auto& mutableDisplays() { return mFlinger->mDisplays; }
@@ -690,6 +691,10 @@ public:
         mFlinger->mTransactionTracing.emplace();
         return mFlinger->initTransactionTraceWriter();
     }
+
+    // Needed since mLayerLifecycleManagerEnabled is false by default and must
+    // be enabled for tests to go through the new front end path.
+    void enableLayerLifecycleManager() { mFlinger->mLayerLifecycleManagerEnabled = true; }
 
     void notifyExpectedPresentIfRequired(PhysicalDisplayId displayId, Period vsyncPeriod,
                                          TimePoint expectedPresentTime, Fps frameInterval,
@@ -967,14 +972,14 @@ public:
 
         auto& setDisplayModes(DisplayModes modes, DisplayModeId activeModeId) {
             mDisplayModes = std::move(modes);
-            mCreationArgs.activeModeId = activeModeId;
+            mActiveModeId = activeModeId;
             mCreationArgs.refreshRateSelector = nullptr;
             return *this;
         }
 
         auto& setRefreshRateSelector(RefreshRateSelectorPtr selectorPtr) {
             mDisplayModes = selectorPtr->displayModes();
-            mCreationArgs.activeModeId = selectorPtr->getActiveMode().modePtr->getId();
+            mActiveModeId = selectorPtr->getActiveMode().modePtr->getId();
             mCreationArgs.refreshRateSelector = std::move(selectorPtr);
             return *this;
         }
@@ -1016,8 +1021,9 @@ public:
             return *this;
         }
 
-        auto& skipRegisterDisplay() {
-            mRegisterDisplay = false;
+        // Used to avoid overwriting mocks injected by TestableSurfaceFlinger::setupMockScheduler.
+        auto& skipSchedulerRegistration() {
+            mSchedulerRegistration = false;
             return *this;
         }
 
@@ -1030,12 +1036,24 @@ public:
                                  std::shared_ptr<android::scheduler::VSyncTracker> tracker)
                 NO_THREAD_SAFETY_ANALYSIS {
             const auto displayId = mCreationArgs.compositionDisplay->getDisplayId();
+            LOG_ALWAYS_FATAL_IF(!displayId);
 
             auto& modes = mDisplayModes;
-            auto& activeModeId = mCreationArgs.activeModeId;
+            auto& activeModeId = mActiveModeId;
+            std::optional<Fps> refreshRateOpt;
 
-            if (displayId && !mCreationArgs.refreshRateSelector) {
-                if (const auto physicalId = PhysicalDisplayId::tryCast(*displayId)) {
+            DisplayDeviceState state;
+            state.isSecure = mCreationArgs.isSecure;
+
+            if (const auto physicalId = PhysicalDisplayId::tryCast(*displayId)) {
+                LOG_ALWAYS_FATAL_IF(!mConnectionType);
+                LOG_ALWAYS_FATAL_IF(!mHwcDisplayId);
+
+                if (mCreationArgs.isPrimary) {
+                    mFlinger.mutableActiveDisplayId() = *physicalId;
+                }
+
+                if (!mCreationArgs.refreshRateSelector) {
                     if (modes.empty()) {
                         constexpr DisplayModeId kModeId{0};
                         DisplayModePtr mode =
@@ -1057,48 +1075,38 @@ public:
                     mCreationArgs.refreshRateSelector =
                             std::make_shared<scheduler::RefreshRateSelector>(modes, activeModeId);
                 }
+
+                const auto activeModeOpt = modes.get(activeModeId);
+                LOG_ALWAYS_FATAL_IF(!activeModeOpt);
+                refreshRateOpt = activeModeOpt->get()->getPeakFps();
+
+                state.physical = {.id = *physicalId,
+                                  .hwcDisplayId = *mHwcDisplayId,
+                                  .activeMode = activeModeOpt->get()};
+
+                const auto it = mFlinger.mutablePhysicalDisplays()
+                                        .emplace_or_replace(*physicalId, mDisplayToken, *physicalId,
+                                                            *mConnectionType, std::move(modes),
+                                                            ui::ColorModes(), std::nullopt)
+                                        .first;
+
+                mFlinger.mutableDisplayModeController()
+                        .registerDisplay(*physicalId, it->second.snapshot(),
+                                         mCreationArgs.refreshRateSelector);
+
+                if (mFlinger.scheduler() && mSchedulerRegistration) {
+                    mFlinger.scheduler()->registerDisplay(*physicalId,
+                                                          mCreationArgs.refreshRateSelector,
+                                                          std::move(controller),
+                                                          std::move(tracker));
+                }
             }
 
             sp<DisplayDevice> display = sp<DisplayDevice>::make(mCreationArgs);
             mFlinger.mutableDisplays().emplace_or_replace(mDisplayToken, display);
 
-            DisplayDeviceState state;
-            state.isSecure = mCreationArgs.isSecure;
-
-            if (mConnectionType) {
-                LOG_ALWAYS_FATAL_IF(!displayId);
-                const auto physicalIdOpt = PhysicalDisplayId::tryCast(*displayId);
-                LOG_ALWAYS_FATAL_IF(!physicalIdOpt);
-                const auto physicalId = *physicalIdOpt;
-
-                if (mCreationArgs.isPrimary) {
-                    mFlinger.mutableActiveDisplayId() = physicalId;
-                }
-
-                LOG_ALWAYS_FATAL_IF(!mHwcDisplayId);
-
-                const auto activeMode = modes.get(activeModeId);
-                LOG_ALWAYS_FATAL_IF(!activeMode);
-                const auto fps = activeMode->get()->getPeakFps();
-
-                state.physical = {.id = physicalId,
-                                  .hwcDisplayId = *mHwcDisplayId,
-                                  .activeMode = activeMode->get()};
-
-                mFlinger.mutablePhysicalDisplays().emplace_or_replace(physicalId, mDisplayToken,
-                                                                      physicalId, *mConnectionType,
-                                                                      std::move(modes),
-                                                                      ui::ColorModes(),
-                                                                      std::nullopt);
-
-                if (mFlinger.scheduler() && mRegisterDisplay) {
-                    mFlinger.scheduler()->registerDisplay(physicalId,
-                                                          display->holdRefreshRateSelector(),
-                                                          std::move(controller),
-                                                          std::move(tracker));
-                }
-
-                display->setActiveMode(activeModeId, fps, fps);
+            if (refreshRateOpt) {
+                display->setActiveMode(activeModeId, *refreshRateOpt, *refreshRateOpt);
             }
 
             mFlinger.mutableCurrentState().displays.add(mDisplayToken, state);
@@ -1112,7 +1120,8 @@ public:
         sp<BBinder> mDisplayToken = sp<BBinder>::make();
         DisplayDeviceCreationArgs mCreationArgs;
         DisplayModes mDisplayModes;
-        bool mRegisterDisplay = true;
+        DisplayModeId mActiveModeId;
+        bool mSchedulerRegistration = true;
         const std::optional<ui::DisplayConnectionType> mConnectionType;
         const std::optional<hal::HWDisplayId> mHwcDisplayId;
     };

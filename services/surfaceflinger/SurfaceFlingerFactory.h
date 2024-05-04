@@ -85,7 +85,7 @@ public:
 
     virtual sp<Layer> createBufferStateLayer(const LayerCreationArgs& args) = 0;
     virtual sp<Layer> createEffectLayer(const LayerCreationArgs& args) = 0;
-    virtual sp<LayerFE> createLayerFE(const std::string& layerName) = 0;
+    virtual sp<LayerFE> createLayerFE(const std::string& layerName, const Layer* owner) = 0;
     virtual std::unique_ptr<FrameTracer> createFrameTracer() = 0;
     virtual std::unique_ptr<frametimeline::FrameTimeline> createFrameTimeline(
             std::shared_ptr<TimeStats> timeStats, pid_t surfaceFlingerPid) = 0;

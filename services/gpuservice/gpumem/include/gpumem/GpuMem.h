@@ -34,6 +34,7 @@ public:
     // dumpsys interface
     void dump(const Vector<String16>& args, std::string* result);
     bool isInitialized() { return mInitialized.load(); }
+    void stop() { mStop.store(true); }
 
     // Traverse the gpu memory total map to feed the callback function.
     void traverseGpuMemTotals(const std::function<void(int64_t ts, uint32_t gpuId, uint32_t pid,
@@ -48,6 +49,10 @@ private:
 
     // indicate whether ebpf has been initialized
     std::atomic<bool> mInitialized = false;
+
+    // whether initialization should be stopped
+    std::atomic<bool> mStop = false;
+
     // bpf map for GPU memory total data
     android::bpf::BpfMapRO<uint64_t, uint64_t> mGpuMemTotalMap;
 

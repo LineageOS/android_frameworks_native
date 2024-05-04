@@ -17,6 +17,15 @@
 //! Common definitions of the Android Input Framework in rust.
 
 use bitflags::bitflags;
+use inputconstants::aidl::android::os::IInputConstants::INPUT_EVENT_FLAG_CANCELED;
+use inputconstants::aidl::android::os::IInputConstants::INPUT_EVENT_FLAG_IS_ACCESSIBILITY_EVENT;
+use inputconstants::aidl::android::os::IInputConstants::INPUT_EVENT_FLAG_TAINTED;
+use inputconstants::aidl::android::os::IInputConstants::MOTION_EVENT_FLAG_HOVER_EXIT_PENDING;
+use inputconstants::aidl::android::os::IInputConstants::MOTION_EVENT_FLAG_IS_GENERATED_GESTURE;
+use inputconstants::aidl::android::os::IInputConstants::MOTION_EVENT_FLAG_NO_FOCUS_CHANGE;
+use inputconstants::aidl::android::os::IInputConstants::MOTION_EVENT_FLAG_TARGET_ACCESSIBILITY_FOCUS;
+use inputconstants::aidl::android::os::IInputConstants::MOTION_EVENT_FLAG_WINDOW_IS_OBSCURED;
+use inputconstants::aidl::android::os::IInputConstants::MOTION_EVENT_FLAG_WINDOW_IS_PARTIALLY_OBSCURED;
 use std::fmt;
 
 /// The InputDevice ID.
@@ -182,22 +191,24 @@ bitflags! {
     /// MotionEvent flags.
     #[derive(Debug)]
     pub struct MotionFlags: u32 {
-        /// FLAG_CANCELED
-        const CANCELED = input_bindgen::AMOTION_EVENT_FLAG_CANCELED as u32;
         /// FLAG_WINDOW_IS_OBSCURED
-        const WINDOW_IS_OBSCURED = input_bindgen::AMOTION_EVENT_FLAG_WINDOW_IS_OBSCURED;
+        const WINDOW_IS_OBSCURED = MOTION_EVENT_FLAG_WINDOW_IS_OBSCURED as u32;
         /// FLAG_WINDOW_IS_PARTIALLY_OBSCURED
-        const WINDOW_IS_PARTIALLY_OBSCURED =
-                input_bindgen::AMOTION_EVENT_FLAG_WINDOW_IS_PARTIALLY_OBSCURED;
-        /// FLAG_IS_ACCESSIBILITY_EVENT
-        const IS_ACCESSIBILITY_EVENT =
-                input_bindgen::AMOTION_EVENT_FLAG_IS_ACCESSIBILITY_EVENT;
-        /// FLAG_NO_FOCUS_CHANGE
-        const NO_FOCUS_CHANGE = input_bindgen::AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE;
+        const WINDOW_IS_PARTIALLY_OBSCURED = MOTION_EVENT_FLAG_WINDOW_IS_PARTIALLY_OBSCURED as u32;
+        /// FLAG_HOVER_EXIT_PENDING
+        const HOVER_EXIT_PENDING = MOTION_EVENT_FLAG_HOVER_EXIT_PENDING as u32;
         /// FLAG_IS_GENERATED_GESTURE
-        const IS_GENERATED_GESTURE = input_bindgen::AMOTION_EVENT_FLAG_IS_GENERATED_GESTURE;
+        const IS_GENERATED_GESTURE = MOTION_EVENT_FLAG_IS_GENERATED_GESTURE as u32;
+        /// FLAG_CANCELED
+        const CANCELED = INPUT_EVENT_FLAG_CANCELED as u32;
+        /// FLAG_NO_FOCUS_CHANGE
+        const NO_FOCUS_CHANGE = MOTION_EVENT_FLAG_NO_FOCUS_CHANGE as u32;
+        /// FLAG_IS_ACCESSIBILITY_EVENT
+        const IS_ACCESSIBILITY_EVENT = INPUT_EVENT_FLAG_IS_ACCESSIBILITY_EVENT as u32;
         /// FLAG_TAINTED
-        const TAINTED = input_bindgen::AMOTION_EVENT_FLAG_TAINTED;
+        const TAINTED = INPUT_EVENT_FLAG_TAINTED as u32;
+        /// FLAG_TARGET_ACCESSIBILITY_FOCUS
+        const TARGET_ACCESSIBILITY_FOCUS = MOTION_EVENT_FLAG_TARGET_ACCESSIBILITY_FOCUS as u32;
     }
 }
 

@@ -228,7 +228,7 @@ bool validateCompositionDataspace(Dataspace dataspace) {
     return dataspace == Dataspace::V0_SRGB || dataspace == Dataspace::DISPLAY_P3;
 }
 
-std::chrono::milliseconds getIdleTimerTimeout(DisplayId displayId) {
+std::chrono::milliseconds getIdleTimerTimeout(PhysicalDisplayId displayId) {
     if (const int32_t displayIdleTimerMs =
                 base::GetIntProperty("debug.sf.set_idle_timer_ms_"s +
                                              std::to_string(displayId.value),
@@ -242,7 +242,7 @@ std::chrono::milliseconds getIdleTimerTimeout(DisplayId displayId) {
     return std::chrono::milliseconds(millis);
 }
 
-bool getKernelIdleTimerSyspropConfig(DisplayId displayId) {
+bool getKernelIdleTimerSyspropConfig(PhysicalDisplayId displayId) {
     const bool displaySupportKernelIdleTimer =
             base::GetBoolProperty("debug.sf.support_kernel_idle_timer_"s +
                                           std::to_string(displayId.value),
@@ -531,8 +531,6 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory) : SurfaceFlinger(factory, SkipI
 
     mLayerLifecycleManagerEnabled =
             base::GetBoolProperty("persist.debug.sf.enable_layer_lifecycle_manager"s, true);
-    mLegacyFrontEndEnabled = !mLayerLifecycleManagerEnabled ||
-            base::GetBoolProperty("persist.debug.sf.enable_legacy_frontend"s, false);
 
     // These are set by the HWC implementation to indicate that they will use the workarounds.
     mIsHotplugErrViaNegVsync =
@@ -2441,86 +2439,84 @@ bool SurfaceFlinger::updateLayerSnapshots(VsyncId vsyncId, nsecs_t frameTimeNs,
     mustComposite |= mLayerLifecycleManager.getGlobalChanges().get() != 0;
 
     bool newDataLatched = false;
-    if (!mLegacyFrontEndEnabled) {
-        ATRACE_NAME("DisplayCallbackAndStatsUpdates");
-        mustComposite |= applyTransactionsLocked(update.transactions, vsyncId);
-        traverseLegacyLayers([&](Layer* layer) { layer->commitTransaction(); });
-        const nsecs_t latchTime = systemTime();
-        bool unused = false;
+    ATRACE_NAME("DisplayCallbackAndStatsUpdates");
+    mustComposite |= applyTransactionsLocked(update.transactions, vsyncId);
+    traverseLegacyLayers([&](Layer* layer) { layer->commitTransaction(); });
+    const nsecs_t latchTime = systemTime();
+    bool unused = false;
 
-        for (auto& layer : mLayerLifecycleManager.getLayers()) {
-            if (layer->changes.test(frontend::RequestedLayerState::Changes::Created) &&
-                layer->bgColorLayer) {
-                sp<Layer> bgColorLayer = getFactory().createEffectLayer(
-                        LayerCreationArgs(this, nullptr, layer->name,
-                                          ISurfaceComposerClient::eFXSurfaceEffect, LayerMetadata(),
-                                          std::make_optional(layer->id), true));
-                mLegacyLayers[bgColorLayer->sequence] = bgColorLayer;
-            }
-            const bool willReleaseBufferOnLatch = layer->willReleaseBufferOnLatch();
+    for (auto& layer : mLayerLifecycleManager.getLayers()) {
+        if (layer->changes.test(frontend::RequestedLayerState::Changes::Created) &&
+            layer->bgColorLayer) {
+            sp<Layer> bgColorLayer = getFactory().createEffectLayer(
+                    LayerCreationArgs(this, nullptr, layer->name,
+                                      ISurfaceComposerClient::eFXSurfaceEffect, LayerMetadata(),
+                                      std::make_optional(layer->id), true));
+            mLegacyLayers[bgColorLayer->sequence] = bgColorLayer;
+        }
+        const bool willReleaseBufferOnLatch = layer->willReleaseBufferOnLatch();
 
-            auto it = mLegacyLayers.find(layer->id);
-            if (it == mLegacyLayers.end() &&
-                layer->changes.test(frontend::RequestedLayerState::Changes::Destroyed)) {
-                // Layer handle was created and immediately destroyed. It was destroyed before it
-                // was added to the map.
-                continue;
-            }
-
-            LLOG_ALWAYS_FATAL_WITH_TRACE_IF(it == mLegacyLayers.end(),
-                                            "Couldnt find layer object for %s",
-                                            layer->getDebugString().c_str());
-            if (!layer->hasReadyFrame() && !willReleaseBufferOnLatch) {
-                if (!it->second->hasBuffer()) {
-                    // The last latch time is used to classify a missed frame as buffer stuffing
-                    // instead of a missed frame. This is used to identify scenarios where we
-                    // could not latch a buffer or apply a transaction due to backpressure.
-                    // We only update the latch time for buffer less layers here, the latch time
-                    // is updated for buffer layers when the buffer is latched.
-                    it->second->updateLastLatchTime(latchTime);
-                }
-                continue;
-            }
-
-            const bool bgColorOnly =
-                    !layer->externalTexture && (layer->bgColorLayerId != UNASSIGNED_LAYER_ID);
-            if (willReleaseBufferOnLatch) {
-                mLayersWithBuffersRemoved.emplace(it->second);
-            }
-            it->second->latchBufferImpl(unused, latchTime, bgColorOnly);
-            newDataLatched = true;
-
-            mLayersWithQueuedFrames.emplace(it->second);
-            mLayersIdsWithQueuedFrames.emplace(it->second->sequence);
+        auto it = mLegacyLayers.find(layer->id);
+        if (it == mLegacyLayers.end() &&
+            layer->changes.test(frontend::RequestedLayerState::Changes::Destroyed)) {
+            // Layer handle was created and immediately destroyed. It was destroyed before it
+            // was added to the map.
+            continue;
         }
 
-        updateLayerHistory(latchTime);
-        mLayerSnapshotBuilder.forEachVisibleSnapshot([&](const frontend::LayerSnapshot& snapshot) {
-            if (mLayersIdsWithQueuedFrames.find(snapshot.path.id) ==
-                mLayersIdsWithQueuedFrames.end())
-                return;
-            Region visibleReg;
-            visibleReg.set(snapshot.transformedBoundsWithoutTransparentRegion);
-            invalidateLayerStack(snapshot.outputFilter, visibleReg);
-        });
-
-        for (auto& destroyedLayer : mLayerLifecycleManager.getDestroyedLayers()) {
-            mLegacyLayers.erase(destroyedLayer->id);
+        LLOG_ALWAYS_FATAL_WITH_TRACE_IF(it == mLegacyLayers.end(),
+                                        "Couldnt find layer object for %s",
+                                        layer->getDebugString().c_str());
+        if (!layer->hasReadyFrame() && !willReleaseBufferOnLatch) {
+            if (!it->second->hasBuffer()) {
+                // The last latch time is used to classify a missed frame as buffer stuffing
+                // instead of a missed frame. This is used to identify scenarios where we
+                // could not latch a buffer or apply a transaction due to backpressure.
+                // We only update the latch time for buffer less layers here, the latch time
+                // is updated for buffer layers when the buffer is latched.
+                it->second->updateLastLatchTime(latchTime);
+            }
+            continue;
         }
 
-        {
-            ATRACE_NAME("LLM:commitChanges");
-            mLayerLifecycleManager.commitChanges();
+        const bool bgColorOnly =
+                !layer->externalTexture && (layer->bgColorLayerId != UNASSIGNED_LAYER_ID);
+        if (willReleaseBufferOnLatch) {
+            mLayersWithBuffersRemoved.emplace(it->second);
         }
+        it->second->latchBufferImpl(unused, latchTime, bgColorOnly);
+        newDataLatched = true;
 
-        // enter boot animation on first buffer latch
-        if (CC_UNLIKELY(mBootStage == BootStage::BOOTLOADER && newDataLatched)) {
-            ALOGI("Enter boot animation");
-            mBootStage = BootStage::BOOTANIMATION;
-        }
+        mLayersWithQueuedFrames.emplace(it->second);
+        mLayersIdsWithQueuedFrames.emplace(it->second->sequence);
     }
+
+    updateLayerHistory(latchTime);
+    mLayerSnapshotBuilder.forEachVisibleSnapshot([&](const frontend::LayerSnapshot& snapshot) {
+        if (mLayersIdsWithQueuedFrames.find(snapshot.path.id) == mLayersIdsWithQueuedFrames.end())
+            return;
+        Region visibleReg;
+        visibleReg.set(snapshot.transformedBoundsWithoutTransparentRegion);
+        invalidateLayerStack(snapshot.outputFilter, visibleReg);
+    });
+
+    for (auto& destroyedLayer : mLayerLifecycleManager.getDestroyedLayers()) {
+        mLegacyLayers.erase(destroyedLayer->id);
+    }
+
+    {
+        ATRACE_NAME("LLM:commitChanges");
+        mLayerLifecycleManager.commitChanges();
+    }
+
+    // enter boot animation on first buffer latch
+    if (CC_UNLIKELY(mBootStage == BootStage::BOOTLOADER && newDataLatched)) {
+        ALOGI("Enter boot animation");
+        mBootStage = BootStage::BOOTANIMATION;
+    }
+
     mustComposite |= (getTransactionFlags() & ~eTransactionFlushNeeded) || newDataLatched;
-    if (mustComposite && !mLegacyFrontEndEnabled) {
+    if (mustComposite) {
         commitTransactions();
     }
 
@@ -2622,12 +2618,7 @@ bool SurfaceFlinger::commit(PhysicalDisplayId pacesetterId,
                                     mScheduler->getPacesetterRefreshRate());
 
         const bool flushTransactions = clearTransactionFlags(eTransactionFlushNeeded);
-        bool transactionsAreEmpty;
-        if (mLegacyFrontEndEnabled) {
-            mustComposite |=
-                    updateLayerSnapshotsLegacy(vsyncId, pacesetterFrameTarget.frameBeginTime().ns(),
-                                               flushTransactions, transactionsAreEmpty);
-        }
+        bool transactionsAreEmpty = false;
         if (mLayerLifecycleManagerEnabled) {
             mustComposite |=
                     updateLayerSnapshots(vsyncId, pacesetterFrameTarget.frameBeginTime().ns(),
@@ -3520,15 +3511,40 @@ bool SurfaceFlinger::configureLocked() {
                                             ')');
 
             if (connection == hal::Connection::CONNECTED) {
-                if (!processHotplugConnect(displayId, hwcDisplayId, std::move(*info),
-                                           displayString.c_str())) {
+                const auto activeModeIdOpt =
+                        processHotplugConnect(displayId, hwcDisplayId, std::move(*info),
+                                              displayString.c_str());
+                if (!activeModeIdOpt) {
                     if (FlagManager::getInstance().hotplug2()) {
                         mScheduler->dispatchHotplugError(
                                 static_cast<int32_t>(DisplayHotplugEvent::ERROR_UNKNOWN));
                     }
                     getHwComposer().disconnectDisplay(displayId);
+                    continue;
                 }
+
+                const auto [kernelIdleTimerController, idleTimerTimeoutMs] =
+                        getKernelIdleTimerProperties(displayId);
+
+                using Config = scheduler::RefreshRateSelector::Config;
+                const Config config =
+                        {.enableFrameRateOverride = sysprop::enable_frame_rate_override(true)
+                                 ? Config::FrameRateOverride::Enabled
+                                 : Config::FrameRateOverride::Disabled,
+                         .frameRateMultipleThreshold =
+                                 base::GetIntProperty("debug.sf.frame_rate_multiple_threshold"s, 0),
+                         .legacyIdleTimerTimeout = idleTimerTimeoutMs,
+                         .kernelIdleTimerController = kernelIdleTimerController};
+
+                const auto snapshotOpt =
+                        mPhysicalDisplays.get(displayId).transform(&PhysicalDisplay::snapshotRef);
+                LOG_ALWAYS_FATAL_IF(!snapshotOpt);
+
+                mDisplayModeController.registerDisplay(*snapshotOpt, *activeModeIdOpt, config);
             } else {
+                // Unregister before destroying the DisplaySnapshot below.
+                mDisplayModeController.unregisterDisplay(displayId);
+
                 processHotplugDisconnect(displayId, displayString.c_str());
             }
         }
@@ -3537,16 +3553,17 @@ bool SurfaceFlinger::configureLocked() {
     return !events.empty();
 }
 
-bool SurfaceFlinger::processHotplugConnect(PhysicalDisplayId displayId,
-                                           hal::HWDisplayId hwcDisplayId,
-                                           DisplayIdentificationInfo&& info,
-                                           const char* displayString) {
+std::optional<DisplayModeId> SurfaceFlinger::processHotplugConnect(PhysicalDisplayId displayId,
+                                                                   hal::HWDisplayId hwcDisplayId,
+                                                                   DisplayIdentificationInfo&& info,
+                                                                   const char* displayString) {
     auto [displayModes, activeMode] = loadDisplayModes(displayId);
     if (!activeMode) {
         ALOGE("Failed to hotplug %s", displayString);
-        return false;
+        return std::nullopt;
     }
 
+    const DisplayModeId activeModeId = activeMode->getId();
     ui::ColorModes colorModes = getHwComposer().getColorModes(displayId);
 
     if (const auto displayOpt = mPhysicalDisplays.get(displayId)) {
@@ -3569,7 +3586,7 @@ bool SurfaceFlinger::processHotplugConnect(PhysicalDisplayId displayId,
         state.sequenceId = DisplayDeviceState{}.sequenceId; // Generate new sequenceId.
         state.physical->activeMode = std::move(activeMode);
         ALOGI("Reconnecting %s", displayString);
-        return true;
+        return activeModeId;
     }
 
     const sp<IBinder> token = sp<BBinder>::make();
@@ -3590,7 +3607,7 @@ bool SurfaceFlinger::processHotplugConnect(PhysicalDisplayId displayId,
 
     mCurrentState.displays.add(token, state);
     ALOGI("Connecting %s", displayString);
-    return true;
+    return activeModeId;
 }
 
 void SurfaceFlinger::processHotplugDisconnect(PhysicalDisplayId displayId,
@@ -3633,43 +3650,21 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
     creationArgs.hasWideColorGamut = false;
     creationArgs.supportedPerFrameMetadata = 0;
 
-    if (const auto& physical = state.physical) {
-        creationArgs.activeModeId = physical->activeMode->getId();
-        const auto [kernelIdleTimerController, idleTimerTimeoutMs] =
-                getKernelIdleTimerProperties(compositionDisplay->getId());
+    if (const auto physicalIdOpt = PhysicalDisplayId::tryCast(compositionDisplay->getId())) {
+        const auto physicalId = *physicalIdOpt;
 
-        using Config = scheduler::RefreshRateSelector::Config;
-        const auto enableFrameRateOverride = sysprop::enable_frame_rate_override(true)
-                ? Config::FrameRateOverride::Enabled
-                : Config::FrameRateOverride::Disabled;
-        const Config config =
-                {.enableFrameRateOverride = enableFrameRateOverride,
-                 .frameRateMultipleThreshold =
-                         base::GetIntProperty("debug.sf.frame_rate_multiple_threshold"s, 0),
-                 .legacyIdleTimerTimeout = idleTimerTimeoutMs,
-                 .kernelIdleTimerController = kernelIdleTimerController};
-
+        creationArgs.isPrimary = physicalId == getPrimaryDisplayIdLocked();
         creationArgs.refreshRateSelector =
-                mPhysicalDisplays.get(physical->id)
-                        .transform(&PhysicalDisplay::snapshotRef)
-                        .transform([&](const display::DisplaySnapshot& snapshot) {
-                            return std::make_shared<
-                                    scheduler::RefreshRateSelector>(snapshot.displayModes(),
-                                                                    creationArgs.activeModeId,
-                                                                    config);
-                        })
-                        .value_or(nullptr);
+                FTL_FAKE_GUARD(kMainThreadContext,
+                               mDisplayModeController.selectorPtrFor(physicalId));
 
-        creationArgs.isPrimary = physical->id == getPrimaryDisplayIdLocked();
-
-        mPhysicalDisplays.get(physical->id)
+        mPhysicalDisplays.get(physicalId)
                 .transform(&PhysicalDisplay::snapshotRef)
                 .transform(ftl::unit_fn([&](const display::DisplaySnapshot& snapshot) {
                     for (const auto mode : snapshot.colorModes()) {
                         creationArgs.hasWideColorGamut |= ui::isWideColorMode(mode);
                         creationArgs.hwcColorModes
-                                .emplace(mode,
-                                         getHwComposer().getRenderIntents(physical->id, mode));
+                                .emplace(mode, getHwComposer().getRenderIntents(physicalId, mode));
                     }
                 }));
     }
@@ -5259,16 +5254,9 @@ bool SurfaceFlinger::applyTransactionState(const FrameTimelineInfo& frameTimelin
     nsecs_t now = systemTime();
     uint32_t clientStateFlags = 0;
     for (auto& resolvedState : states) {
-        if (mLegacyFrontEndEnabled) {
-            clientStateFlags |=
-                    setClientStateLocked(frameTimelineInfo, resolvedState, desiredPresentTime,
-                                         isAutoTimestamp, postTime, transactionId);
-
-        } else /*mLayerLifecycleManagerEnabled*/ {
-            clientStateFlags |= updateLayerCallbacksAndStats(frameTimelineInfo, resolvedState,
-                                                             desiredPresentTime, isAutoTimestamp,
-                                                             postTime, transactionId);
-        }
+        clientStateFlags |=
+                updateLayerCallbacksAndStats(frameTimelineInfo, resolvedState, desiredPresentTime,
+                                             isAutoTimestamp, postTime, transactionId);
         if (!mLayerLifecycleManagerEnabled) {
             if ((flags & eAnimation) && resolvedState.state.surface) {
                 if (const auto layer = LayerHandle::getLayer(resolvedState.state.surface)) {
@@ -5340,7 +5328,7 @@ bool SurfaceFlinger::applyAndCommitDisplayTransactionStatesLocked(
     }
 
     mFrontEndDisplayInfosChanged = mTransactionFlags & eDisplayTransactionNeeded;
-    if (mFrontEndDisplayInfosChanged && !mLegacyFrontEndEnabled) {
+    if (mFrontEndDisplayInfosChanged) {
         processDisplayChangesLocked();
         mFrontEndDisplayInfos.clear();
         for (const auto& [_, display] : mDisplays) {
@@ -5983,11 +5971,6 @@ status_t SurfaceFlinger::mirrorDisplay(DisplayId displayId, const LayerCreationA
         return result;
     }
 
-    if (mLegacyFrontEndEnabled) {
-        std::scoped_lock<std::mutex> lock(mMirrorDisplayLock);
-        mMirrorDisplays.emplace_back(layerStack, outResult.handle, args.client);
-    }
-
     setTransactionFlags(eTransactionFlushNeeded);
     return NO_ERROR;
 }
@@ -6102,9 +6085,7 @@ void SurfaceFlinger::initializeDisplays() {
     std::vector<TransactionState> transactions;
     transactions.emplace_back(state);
 
-    if (mLegacyFrontEndEnabled) {
-        applyTransactions(transactions, VsyncId{0});
-    } else {
+    {
         Mutex::Autolock lock(mStateLock);
         applyAndCommitDisplayTransactionStatesLocked(transactions);
     }
@@ -6656,17 +6637,6 @@ perfetto::protos::LayersProto SurfaceFlinger::dumpDrawingStateProto(uint32_t tra
         }
     }
 
-    if (mLegacyFrontEndEnabled) {
-        perfetto::protos::LayersProto layersProto;
-        for (const sp<Layer>& layer : mDrawingState.layersSortedByZ) {
-            if (stackIdsToSkip.find(layer->getLayerStack().id) != stackIdsToSkip.end()) {
-                continue;
-            }
-            layer->writeToProto(layersProto, traceFlags);
-        }
-        return layersProto;
-    }
-
     return LayerProtoFromSnapshotGenerator(mLayerSnapshotBuilder, mFrontEndDisplayInfos,
                                            mLegacyLayers, traceFlags)
             .generate(mLayerHierarchyBuilder.getHierarchy());
@@ -6914,10 +6884,6 @@ void SurfaceFlinger::dumpAll(const DumpArgs& args, const std::string& compositio
         result.append("disabled\n");
     }
     result.push_back('\n');
-
-    if (mLegacyFrontEndEnabled) {
-        dumpHwcLayersMinidumpLockedLegacy(result);
-    }
 
     {
         DumpArgs plannerArgs;
@@ -7672,13 +7638,12 @@ void SurfaceFlinger::kernelTimerChanged(bool expired) {
 }
 
 std::pair<std::optional<KernelIdleTimerController>, std::chrono::milliseconds>
-SurfaceFlinger::getKernelIdleTimerProperties(DisplayId displayId) {
+SurfaceFlinger::getKernelIdleTimerProperties(PhysicalDisplayId displayId) {
     const bool isKernelIdleTimerHwcSupported = getHwComposer().getComposer()->isSupported(
             android::Hwc2::Composer::OptionalFeature::KernelIdleTimer);
     const auto timeout = getIdleTimerTimeout(displayId);
     if (isKernelIdleTimerHwcSupported) {
-        if (const auto id = PhysicalDisplayId::tryCast(displayId);
-            getHwComposer().hasDisplayIdleTimerCapability(*id)) {
+        if (getHwComposer().hasDisplayIdleTimerCapability(displayId)) {
             // In order to decide if we can use the HWC api for idle timer
             // we query DisplayCapability::DISPLAY_IDLE_TIMER directly on the composer
             // without relying on hasDisplayCapability.
@@ -9244,7 +9209,7 @@ void SurfaceFlinger::moveSnapshotsFromCompositionArgs(
             snapshots[i] = std::move(layerFE->mSnapshot);
         }
     }
-    if (mLegacyFrontEndEnabled && !mLayerLifecycleManagerEnabled) {
+    if (!mLayerLifecycleManagerEnabled) {
         for (auto [layer, layerFE] : layers) {
             layer->updateLayerSnapshot(std::move(layerFE->mSnapshot));
         }
@@ -9281,7 +9246,7 @@ std::vector<std::pair<Layer*, LayerFE*>> SurfaceFlinger::moveSnapshotsToComposit
                     layers.emplace_back(legacyLayer.get(), layerFE.get());
                 });
     }
-    if (mLegacyFrontEndEnabled && !mLayerLifecycleManagerEnabled) {
+    if (!mLayerLifecycleManagerEnabled) {
         auto moveSnapshots = [&layers, &refreshArgs, cursorOnly](Layer* layer) {
             if (const auto& layerFE = layer->getCompositionEngineLayerFE()) {
                 if (cursorOnly &&
@@ -9346,7 +9311,7 @@ SurfaceFlinger::getLayerSnapshotsForScreenshots(
                                                     "Couldnt find layer object for %s",
                                                     snapshot->getDebugString().c_str());
                     Layer* legacyLayer = (it == mLegacyLayers.end()) ? nullptr : it->second.get();
-                    sp<LayerFE> layerFE = getFactory().createLayerFE(snapshot->name);
+                    sp<LayerFE> layerFE = getFactory().createLayerFE(snapshot->name, legacyLayer);
                     layerFE->mSnapshot = std::make_unique<frontend::LayerSnapshot>(*snapshot);
                     layers.emplace_back(legacyLayer, std::move(layerFE));
                 });

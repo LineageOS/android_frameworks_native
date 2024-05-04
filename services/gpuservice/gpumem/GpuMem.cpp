@@ -61,6 +61,7 @@ void GpuMem::initialize() {
             return;
         }
         // Retry until GPU driver loaded or timeout.
+        if (mStop.load()) return;
         sleep(1);
     }
 
