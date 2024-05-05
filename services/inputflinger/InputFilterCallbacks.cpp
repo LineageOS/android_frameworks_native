@@ -30,9 +30,9 @@ using AidlKeyEvent = aidl::com::android::server::inputflinger::KeyEvent;
 
 NotifyKeyArgs keyEventToNotifyKeyArgs(const AidlKeyEvent& event) {
     return NotifyKeyArgs(event.id, event.eventTime, event.readTime, event.deviceId,
-                         static_cast<uint32_t>(event.source), event.displayId, event.policyFlags,
-                         static_cast<int32_t>(event.action), event.flags, event.keyCode,
-                         event.scanCode, event.metaState, event.downTime);
+                         static_cast<uint32_t>(event.source), ui::LogicalDisplayId{event.displayId},
+                         event.policyFlags, static_cast<int32_t>(event.action), event.flags,
+                         event.keyCode, event.scanCode, event.metaState, event.downTime);
 }
 
 namespace {

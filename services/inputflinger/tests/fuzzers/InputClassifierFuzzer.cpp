@@ -54,7 +54,7 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t *data, size_t size) {
                     mClassifier->notifyKey({/*sequenceNum=*/fdp.ConsumeIntegral<int32_t>(),
                                             eventTime, readTime,
                                             /*deviceId=*/fdp.ConsumeIntegral<int32_t>(),
-                                            AINPUT_SOURCE_KEYBOARD, ADISPLAY_ID_DEFAULT,
+                                            AINPUT_SOURCE_KEYBOARD, ui::ADISPLAY_ID_DEFAULT,
                                             /*policyFlags=*/fdp.ConsumeIntegral<uint32_t>(),
                                             AKEY_EVENT_ACTION_DOWN,
                                             /*flags=*/fdp.ConsumeIntegral<int32_t>(), AKEYCODE_HOME,

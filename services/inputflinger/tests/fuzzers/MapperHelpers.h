@@ -285,7 +285,7 @@ public:
     void notifyStylusGestureStarted(int32_t, nsecs_t) {}
     bool isInputMethodConnectionActive() override { return mFdp->ConsumeBool(); }
     std::optional<DisplayViewport> getPointerViewportForAssociatedDisplay(
-            int32_t associatedDisplayId) override {
+            ui::LogicalDisplayId associatedDisplayId) override {
         return {};
     }
 };

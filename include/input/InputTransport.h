@@ -353,9 +353,10 @@ public:
      * Other errors probably indicate that the channel is broken.
      */
     status_t publishKeyEvent(uint32_t seq, int32_t eventId, int32_t deviceId, int32_t source,
-                             int32_t displayId, std::array<uint8_t, 32> hmac, int32_t action,
-                             int32_t flags, int32_t keyCode, int32_t scanCode, int32_t metaState,
-                             int32_t repeatCount, nsecs_t downTime, nsecs_t eventTime);
+                             ui::LogicalDisplayId displayId, std::array<uint8_t, 32> hmac,
+                             int32_t action, int32_t flags, int32_t keyCode, int32_t scanCode,
+                             int32_t metaState, int32_t repeatCount, nsecs_t downTime,
+                             nsecs_t eventTime);
 
     /* Publishes a motion event to the input channel.
      *
@@ -366,9 +367,9 @@ public:
      * Other errors probably indicate that the channel is broken.
      */
     status_t publishMotionEvent(uint32_t seq, int32_t eventId, int32_t deviceId, int32_t source,
-                                int32_t displayId, std::array<uint8_t, 32> hmac, int32_t action,
-                                int32_t actionButton, int32_t flags, int32_t edgeFlags,
-                                int32_t metaState, int32_t buttonState,
+                                ui::LogicalDisplayId displayId, std::array<uint8_t, 32> hmac,
+                                int32_t action, int32_t actionButton, int32_t flags,
+                                int32_t edgeFlags, int32_t metaState, int32_t buttonState,
                                 MotionClassification classification, const ui::Transform& transform,
                                 float xPrecision, float yPrecision, float xCursorPosition,
                                 float yCursorPosition, const ui::Transform& rawTransform,

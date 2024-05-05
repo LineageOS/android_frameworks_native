@@ -41,7 +41,7 @@ using perfetto::protos::pbzero::AndroidInputEventConfig;
 
 namespace {
 
-constexpr int32_t DISPLAY_ID = ADISPLAY_ID_DEFAULT;
+constexpr ui::LogicalDisplayId DISPLAY_ID = ui::ADISPLAY_ID_DEFAULT;
 
 // Ensure common actions are interchangeable between keys and motions for convenience.
 static_assert(static_cast<int32_t>(AMOTION_EVENT_ACTION_DOWN) ==
@@ -127,7 +127,7 @@ protected:
         request.token = window->getToken();
         request.windowName = window->getName();
         request.timestamp = systemTime(SYSTEM_TIME_MONOTONIC);
-        request.displayId = window->getInfo()->displayId;
+        request.displayId = window->getInfo()->displayId.val();
         mDispatcher->setFocusedWindow(request);
     }
 

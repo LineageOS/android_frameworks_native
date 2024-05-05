@@ -90,6 +90,10 @@ constexpr int kDumpTableRowLength = 159;
 
 const ui::Transform kIdentityTransform;
 
+ui::LogicalDisplayId toLogicalDisplayId(const ui::LayerStack& layerStack) {
+    return ui::LogicalDisplayId{static_cast<int32_t>(layerStack.id)};
+}
+
 bool assignTransform(ui::Transform* dst, ui::Transform& from) {
     if (*dst == from) {
         return false;
@@ -2465,7 +2469,7 @@ WindowInfo Layer::fillInputInfo(const InputDisplayArgs& displayArgs) {
         mDrawingState.inputInfo.ownerUid = gui::Uid{mOwnerUid};
         mDrawingState.inputInfo.ownerPid = gui::Pid{mOwnerPid};
         mDrawingState.inputInfo.inputConfig |= WindowInfo::InputConfig::NO_INPUT_CHANNEL;
-        mDrawingState.inputInfo.displayId = getLayerStack().id;
+        mDrawingState.inputInfo.displayId = toLogicalDisplayId(getLayerStack());
     }
 
     const ui::Transform& displayTransform =
@@ -2473,7 +2477,7 @@ WindowInfo Layer::fillInputInfo(const InputDisplayArgs& displayArgs) {
 
     WindowInfo info = mDrawingState.inputInfo;
     info.id = sequence;
-    info.displayId = getLayerStack().id;
+    info.displayId = toLogicalDisplayId(getLayerStack());
 
     fillInputFrameInfo(info, displayTransform);
 

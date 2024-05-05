@@ -74,7 +74,7 @@ TEST(FocusResolverTest, SetFocusedWindow) {
     std::optional<FocusResolver::FocusChanges> changes =
             focusResolver.setFocusedWindow(request, windows);
     ASSERT_FOCUS_CHANGE(changes, /*from*/ nullptr, /*to*/ focusableWindowToken);
-    ASSERT_EQ(request.displayId, changes->displayId);
+    ASSERT_EQ(ui::LogicalDisplayId{request.displayId}, changes->displayId);
 
     // invisible window cannot get focused
     request.token = invisibleWindowToken;
@@ -169,19 +169,20 @@ TEST(FocusResolverTest, FocusTransferToMirror) {
     ASSERT_FOCUS_CHANGE(changes, /*from*/ nullptr, /*to*/ focusableWindowToken);
 
     // The mirror window now comes on top, and the focus does not change
-    changes = focusResolver.setInputWindows(request.displayId, {mirror, window});
+    changes = focusResolver.setInputWindows(ui::LogicalDisplayId{request.displayId},
+                                            {mirror, window});
     ASSERT_FALSE(changes.has_value());
 
     // The window now comes on top while the mirror is removed, and the focus does not change
-    changes = focusResolver.setInputWindows(request.displayId, {window});
+    changes = focusResolver.setInputWindows(ui::LogicalDisplayId{request.displayId}, {window});
     ASSERT_FALSE(changes.has_value());
 
     // The window is removed but the mirror is on top, and focus does not change
-    changes = focusResolver.setInputWindows(request.displayId, {mirror});
+    changes = focusResolver.setInputWindows(ui::LogicalDisplayId{request.displayId}, {mirror});
     ASSERT_FALSE(changes.has_value());
 
     // All windows removed
-    changes = focusResolver.setInputWindows(request.displayId, {});
+    changes = focusResolver.setInputWindows(ui::LogicalDisplayId{request.displayId}, {});
     ASSERT_FOCUS_CHANGE(changes, /*from*/ focusableWindowToken, /*to*/ nullptr);
 }
 
@@ -203,12 +204,12 @@ TEST(FocusResolverTest, SetInputWindows) {
     ASSERT_EQ(focusableWindowToken, changes->newFocus);
 
     // When there are no changes to the window, focus does not change
-    changes = focusResolver.setInputWindows(request.displayId, windows);
+    changes = focusResolver.setInputWindows(ui::LogicalDisplayId{request.displayId}, windows);
     ASSERT_FALSE(changes.has_value());
 
     // Window visibility changes and the window loses focus
     window->setVisible(false);
-    changes = focusResolver.setInputWindows(request.displayId, windows);
+    changes = focusResolver.setInputWindows(ui::LogicalDisplayId{request.displayId}, windows);
     ASSERT_FOCUS_CHANGE(changes, /*from*/ focusableWindowToken, /*to*/ nullptr);
 }
 
@@ -232,7 +233,7 @@ TEST(FocusResolverTest, FocusRequestsCanBePending) {
 
     // Window visibility changes and the window gets focused
     invisibleWindow->setVisible(true);
-    changes = focusResolver.setInputWindows(request.displayId, windows);
+    changes = focusResolver.setInputWindows(ui::LogicalDisplayId{request.displayId}, windows);
     ASSERT_FOCUS_CHANGE(changes, /*from*/ nullptr, /*to*/ invisibleWindowToken);
 }
 
@@ -256,25 +257,25 @@ TEST(FocusResolverTest, FocusRequestsArePersistent) {
 
     // Focusability changes and the window gets focused
     window->setFocusable(true);
-    changes = focusResolver.setInputWindows(request.displayId, windows);
+    changes = focusResolver.setInputWindows(ui::LogicalDisplayId{request.displayId}, windows);
     ASSERT_FOCUS_CHANGE(changes, /*from*/ nullptr, /*to*/ windowToken);
 
     // Visibility changes and the window loses focus
     window->setVisible(false);
-    changes = focusResolver.setInputWindows(request.displayId, windows);
+    changes = focusResolver.setInputWindows(ui::LogicalDisplayId{request.displayId}, windows);
     ASSERT_FOCUS_CHANGE(changes, /*from*/ windowToken, /*to*/ nullptr);
 
     // Visibility changes and the window gets focused
     window->setVisible(true);
-    changes = focusResolver.setInputWindows(request.displayId, windows);
+    changes = focusResolver.setInputWindows(ui::LogicalDisplayId{request.displayId}, windows);
     ASSERT_FOCUS_CHANGE(changes, /*from*/ nullptr, /*to*/ windowToken);
 
     // Window is gone and the window loses focus
-    changes = focusResolver.setInputWindows(request.displayId, {});
+    changes = focusResolver.setInputWindows(ui::LogicalDisplayId{request.displayId}, {});
     ASSERT_FOCUS_CHANGE(changes, /*from*/ windowToken, /*to*/ nullptr);
 
     // Window returns and the window gains focus
-    changes = focusResolver.setInputWindows(request.displayId, windows);
+    changes = focusResolver.setInputWindows(ui::LogicalDisplayId{request.displayId}, windows);
     ASSERT_FOCUS_CHANGE(changes, /*from*/ nullptr, /*to*/ windowToken);
 }
 
@@ -307,27 +308,27 @@ TEST(FocusResolverTest, FocusTransferTarget) {
 
     // Embedded is now focusable so will gain focus
     embeddedWindow->setFocusable(true);
-    changes = focusResolver.setInputWindows(request.displayId, windows);
+    changes = focusResolver.setInputWindows(ui::LogicalDisplayId{request.displayId}, windows);
     ASSERT_FOCUS_CHANGE(changes, /*from*/ hostWindowToken, /*to*/ embeddedWindowToken);
 
     // Embedded is not visible so host will get focus
     embeddedWindow->setVisible(false);
-    changes = focusResolver.setInputWindows(request.displayId, windows);
+    changes = focusResolver.setInputWindows(ui::LogicalDisplayId{request.displayId}, windows);
     ASSERT_FOCUS_CHANGE(changes, /*from*/ embeddedWindowToken, /*to*/ hostWindowToken);
 
     // Embedded is now visible so will get focus
     embeddedWindow->setVisible(true);
-    changes = focusResolver.setInputWindows(request.displayId, windows);
+    changes = focusResolver.setInputWindows(ui::LogicalDisplayId{request.displayId}, windows);
     ASSERT_FOCUS_CHANGE(changes, /*from*/ hostWindowToken, /*to*/ embeddedWindowToken);
 
     // Remove focusTransferTarget from host. Host will gain focus.
     hostWindow->editInfo()->focusTransferTarget = nullptr;
-    changes = focusResolver.setInputWindows(request.displayId, windows);
+    changes = focusResolver.setInputWindows(ui::LogicalDisplayId{request.displayId}, windows);
     ASSERT_FOCUS_CHANGE(changes, /*from*/ embeddedWindowToken, /*to*/ hostWindowToken);
 
     // Set invalid token for focusTransferTarget. Host will remain focus
     hostWindow->editInfo()->focusTransferTarget = sp<BBinder>::make();
-    changes = focusResolver.setInputWindows(request.displayId, windows);
+    changes = focusResolver.setInputWindows(ui::LogicalDisplayId{request.displayId}, windows);
     ASSERT_FALSE(changes);
 }
 
@@ -415,16 +416,16 @@ TEST(FocusResolverTest, FocusRequestsAreClearedWhenWindowIsRemoved) {
     std::optional<FocusResolver::FocusChanges> changes =
             focusResolver.setFocusedWindow(request, windows);
     ASSERT_FOCUS_CHANGE(changes, /*from*/ nullptr, /*to*/ windowToken);
-    ASSERT_EQ(request.displayId, changes->displayId);
+    ASSERT_EQ(ui::LogicalDisplayId{request.displayId}, changes->displayId);
 
     // When a display is removed, all windows are removed from the display
     // and our focused window loses focus
-    changes = focusResolver.setInputWindows(request.displayId, {});
+    changes = focusResolver.setInputWindows(ui::LogicalDisplayId{request.displayId}, {});
     ASSERT_FOCUS_CHANGE(changes, /*from*/ windowToken, /*to*/ nullptr);
-    focusResolver.displayRemoved(request.displayId);
+    focusResolver.displayRemoved(ui::LogicalDisplayId{request.displayId});
 
     // When a display is re-added, the window does not get focus since the request was cleared.
-    changes = focusResolver.setInputWindows(request.displayId, windows);
+    changes = focusResolver.setInputWindows(ui::LogicalDisplayId{request.displayId}, windows);
     ASSERT_FALSE(changes);
 }
 

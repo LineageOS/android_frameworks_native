@@ -51,7 +51,7 @@ public:
     void setOrientation(ui::Rotation orientation) { mOrientation = orientation; }
     [[nodiscard]] std::list<NotifyArgs> reset(nsecs_t when);
 
-    void setDisplayId(std::optional<int32_t> displayId) { mDisplayId = displayId; }
+    void setDisplayId(std::optional<ui::LogicalDisplayId> displayId) { mDisplayId = displayId; }
 
     void setBoundsInLogicalDisplay(FloatRect bounds) { mBoundsInLogicalDisplay = bounds; }
 
@@ -100,7 +100,7 @@ private:
     InputReaderContext& mReaderContext;
     const bool mEnableFlingStop;
 
-    std::optional<int32_t> mDisplayId;
+    std::optional<ui::LogicalDisplayId> mDisplayId;
     FloatRect mBoundsInLogicalDisplay{};
     ui::Rotation mOrientation = ui::ROTATION_0;
     RawAbsoluteAxisInfo mXAxisInfo;

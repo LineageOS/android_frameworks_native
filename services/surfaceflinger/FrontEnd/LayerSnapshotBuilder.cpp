@@ -1044,7 +1044,8 @@ void LayerSnapshotBuilder::updateInput(LayerSnapshot& snapshot,
     snapshot.touchCropId = requested.touchCropId;
 
     snapshot.inputInfo.id = static_cast<int32_t>(snapshot.uniqueSequence);
-    snapshot.inputInfo.displayId = static_cast<int32_t>(snapshot.outputFilter.layerStack.id);
+    snapshot.inputInfo.displayId =
+            ui::LogicalDisplayId{static_cast<int32_t>(snapshot.outputFilter.layerStack.id)};
     snapshot.inputInfo.touchOcclusionMode = requested.hasInputInfo()
             ? requested.windowInfoHandle->getInfo()->touchOcclusionMode
             : parentSnapshot.inputInfo.touchOcclusionMode;

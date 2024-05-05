@@ -90,7 +90,7 @@ void scrambleWindow(FuzzedDataProvider& fdp, FakeWindowHandle& window) {
 
 sp<FakeWindowHandle> generateFuzzedWindow(FuzzedDataProvider& fdp,
                                           std::unique_ptr<InputDispatcher>& dispatcher,
-                                          int32_t displayId) {
+                                          ui::LogicalDisplayId displayId) {
     static size_t windowNumber = 0;
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
     std::string windowName = android::base::StringPrintf("Win") + std::to_string(windowNumber++);
@@ -101,10 +101,11 @@ sp<FakeWindowHandle> generateFuzzedWindow(FuzzedDataProvider& fdp,
     return window;
 }
 
-void randomizeWindows(
-        std::unordered_map<int32_t, std::vector<sp<FakeWindowHandle>>>& windowsPerDisplay,
-        FuzzedDataProvider& fdp, std::unique_ptr<InputDispatcher>& dispatcher) {
-    const int32_t displayId = fdp.ConsumeIntegralInRange<int32_t>(0, MAX_RANDOM_DISPLAYS - 1);
+void randomizeWindows(std::unordered_map<ui::LogicalDisplayId, std::vector<sp<FakeWindowHandle>>>&
+                              windowsPerDisplay,
+                      FuzzedDataProvider& fdp, std::unique_ptr<InputDispatcher>& dispatcher) {
+    const ui::LogicalDisplayId displayId{
+            fdp.ConsumeIntegralInRange<int32_t>(0, MAX_RANDOM_DISPLAYS - 1)};
     std::vector<sp<FakeWindowHandle>>& windows = windowsPerDisplay[displayId];
 
     fdp.PickValueInArray<std::function<void()>>({
@@ -148,7 +149,7 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size) {
     // Start InputDispatcher thread
     dispatcher->start();
 
-    std::unordered_map<int32_t, std::vector<sp<FakeWindowHandle>>> windowsPerDisplay;
+    std::unordered_map<ui::LogicalDisplayId, std::vector<sp<FakeWindowHandle>>> windowsPerDisplay;
 
     // Randomly invoke InputDispatcher api's until randomness is exhausted.
     while (fdp.remaining_bytes() > 0) {

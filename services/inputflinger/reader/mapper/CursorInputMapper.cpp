@@ -129,7 +129,8 @@ void CursorInputMapper::dump(std::string& dump) {
                          mWheelXVelocityControl.getParameters().dump().c_str());
     dump += StringPrintf(INDENT3 "VWheelScale: %0.3f\n", mVWheelScale);
     dump += StringPrintf(INDENT3 "HWheelScale: %0.3f\n", mHWheelScale);
-    dump += StringPrintf(INDENT3 "DisplayId: %s\n", toString(mDisplayId).c_str());
+    dump += StringPrintf(INDENT3 "DisplayId: %s\n",
+                         toString(mDisplayId, streamableToString).c_str());
     dump += StringPrintf(INDENT3 "Orientation: %s\n", ftl::enum_string(mOrientation).c_str());
     dump += StringPrintf(INDENT3 "ButtonState: 0x%08x\n", mButtonState);
     dump += StringPrintf(INDENT3 "Down: %s\n", toString(isPointerDown(mButtonState)));
@@ -417,7 +418,7 @@ int32_t CursorInputMapper::getScanCodeState(uint32_t sourceMask, int32_t scanCod
     }
 }
 
-std::optional<int32_t> CursorInputMapper::getAssociatedDisplayId() {
+std::optional<ui::LogicalDisplayId> CursorInputMapper::getAssociatedDisplayId() {
     return mDisplayId;
 }
 
@@ -487,13 +488,13 @@ void CursorInputMapper::configureOnChangePointerSpeed(const InputReaderConfigura
         if (mEnableNewMousePointerBallistics) {
             mNewPointerVelocityControl.setAccelerationEnabled(
                     config.displaysWithMousePointerAccelerationDisabled.count(
-                            mDisplayId.value_or(ADISPLAY_ID_NONE)) == 0);
+                            mDisplayId.value_or(ui::ADISPLAY_ID_NONE)) == 0);
             mNewPointerVelocityControl.setCurve(
                     createAccelerationCurveForPointerSensitivity(config.mousePointerSpeed));
         } else {
             mOldPointerVelocityControl.setParameters(
                     (config.displaysWithMousePointerAccelerationDisabled.count(
-                             mDisplayId.value_or(ADISPLAY_ID_NONE)) == 0)
+                             mDisplayId.value_or(ui::ADISPLAY_ID_NONE)) == 0)
                             ? config.pointerVelocityControlParameters
                             : FLAT_VELOCITY_CONTROL_PARAMS);
         }
@@ -505,7 +506,7 @@ void CursorInputMapper::configureOnChangePointerSpeed(const InputReaderConfigura
 void CursorInputMapper::configureOnChangeDisplayInfo(const InputReaderConfiguration& config) {
     const bool isPointer = mParameters.mode == Parameters::Mode::POINTER;
 
-    mDisplayId = ADISPLAY_ID_NONE;
+    mDisplayId = ui::ADISPLAY_ID_NONE;
     std::optional<DisplayViewport> resolvedViewport;
     if (auto assocViewport = mDeviceContext.getAssociatedViewport(); assocViewport) {
         // This InputDevice is associated with a viewport.
@@ -517,7 +518,7 @@ void CursorInputMapper::configureOnChangeDisplayInfo(const InputReaderConfigurat
         // Always use DISPLAY_ID_NONE for mouse events.
         // PointerChoreographer will make it target the correct the displayId later.
         resolvedViewport = getContext()->getPolicy()->getPointerViewportForAssociatedDisplay();
-        mDisplayId = resolvedViewport ? std::make_optional(ADISPLAY_ID_NONE) : std::nullopt;
+        mDisplayId = resolvedViewport ? std::make_optional(ui::ADISPLAY_ID_NONE) : std::nullopt;
     }
 
     mOrientation = (mParameters.orientationAware && mParameters.hasAssociatedDisplay) ||

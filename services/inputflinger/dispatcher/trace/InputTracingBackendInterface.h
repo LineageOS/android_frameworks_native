@@ -50,7 +50,7 @@ struct TracedKeyEvent {
     uint32_t policyFlags;
     int32_t deviceId;
     uint32_t source;
-    int32_t displayId;
+    ui::LogicalDisplayId displayId;
     int32_t action;
     int32_t keyCode;
     int32_t scanCode;
@@ -70,7 +70,7 @@ struct TracedMotionEvent {
     uint32_t policyFlags;
     int32_t deviceId;
     uint32_t source;
-    int32_t displayId;
+    ui::LogicalDisplayId displayId;
     int32_t action;
     int32_t actionButton;
     int32_t flags;

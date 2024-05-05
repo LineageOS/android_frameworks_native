@@ -555,8 +555,8 @@ std::optional<DisplayViewport> TouchInputMapper::findViewport() {
             if (viewport) {
                 return viewport;
             } else {
-                ALOGW("Can't find designated display viewport with ID %" PRId32 " for pointers.",
-                      mConfig.defaultPointerDisplayId);
+                ALOGW("Can't find designated display viewport with ID %s for pointers.",
+                      mConfig.defaultPointerDisplayId.toString().c_str());
             }
         }
 
@@ -1043,10 +1043,10 @@ void TouchInputMapper::configureInputDevice(nsecs_t when, bool* outResetNeeded) 
 
     if ((viewportChanged && !skipViewportUpdate) || deviceModeChanged) {
         ALOGI("Device reconfigured: id=%d, name='%s', size %s, orientation %s, mode %s, "
-              "display id %d",
+              "display id %s",
               getDeviceId(), getDeviceName().c_str(), toString(mDisplayBounds).c_str(),
               ftl::enum_string(mInputDeviceOrientation).c_str(),
-              ftl::enum_string(mDeviceMode).c_str(), mViewport.displayId);
+              ftl::enum_string(mDeviceMode).c_str(), mViewport.displayId.toString().c_str());
 
         configureVirtualKeys();
 
@@ -2646,7 +2646,7 @@ std::list<NotifyArgs> TouchInputMapper::dispatchPointerGestures(nsecs_t when, ns
         PointerCoords pointerCoords;
         pointerCoords.clear();
         out.push_back(NotifyMotionArgs(getContext()->getNextId(), when, readTime, getDeviceId(),
-                                       mSource, ADISPLAY_ID_NONE, policyFlags,
+                                       mSource, ui::ADISPLAY_ID_NONE, policyFlags,
                                        AMOTION_EVENT_ACTION_HOVER_MOVE, 0, flags, metaState,
                                        buttonState, MotionClassification::NONE,
                                        AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties,
@@ -3477,7 +3477,7 @@ std::list<NotifyArgs> TouchInputMapper::dispatchPointerMouse(nsecs_t when, nsecs
         hovering = false;
     }
 
-    return dispatchPointerSimple(when, readTime, policyFlags, down, hovering, ADISPLAY_ID_NONE);
+    return dispatchPointerSimple(when, readTime, policyFlags, down, hovering, ui::ADISPLAY_ID_NONE);
 }
 
 std::list<NotifyArgs> TouchInputMapper::abortPointerMouse(nsecs_t when, nsecs_t readTime,
@@ -3491,7 +3491,8 @@ std::list<NotifyArgs> TouchInputMapper::abortPointerMouse(nsecs_t when, nsecs_t 
 
 std::list<NotifyArgs> TouchInputMapper::dispatchPointerSimple(nsecs_t when, nsecs_t readTime,
                                                               uint32_t policyFlags, bool down,
-                                                              bool hovering, int32_t displayId) {
+                                                              bool hovering,
+                                                              ui::LogicalDisplayId displayId) {
     LOG_ALWAYS_FATAL_IF(mDeviceMode != DeviceMode::POINTER,
                         "%s cannot be used when the device is not in POINTER mode.", __func__);
     std::list<NotifyArgs> out;
@@ -3683,14 +3684,14 @@ NotifyMotionArgs TouchInputMapper::dispatchMotion(
         source |= AINPUT_SOURCE_BLUETOOTH_STYLUS;
     }
 
-    const int32_t displayId = getAssociatedDisplayId().value_or(ADISPLAY_ID_NONE);
+    const ui::LogicalDisplayId displayId = getAssociatedDisplayId().value_or(ui::ADISPLAY_ID_NONE);
 
     float xCursorPosition = AMOTION_EVENT_INVALID_CURSOR_POSITION;
     float yCursorPosition = AMOTION_EVENT_INVALID_CURSOR_POSITION;
     if (mDeviceMode == DeviceMode::POINTER) {
         xCursorPosition = yCursorPosition = 0.f;
     }
-    const int32_t deviceId = getDeviceId();
+    const DeviceId deviceId = getDeviceId();
     std::vector<TouchVideoFrame> frames = getDeviceContext().getVideoFrames();
     std::for_each(frames.begin(), frames.end(),
                   [this](TouchVideoFrame& frame) { frame.rotate(this->mInputDeviceOrientation); });
@@ -3957,10 +3958,10 @@ bool TouchInputMapper::markSupportedKeyCodes(uint32_t sourceMask,
     return true;
 }
 
-std::optional<int32_t> TouchInputMapper::getAssociatedDisplayId() {
+std::optional<ui::LogicalDisplayId> TouchInputMapper::getAssociatedDisplayId() {
     if (mParameters.hasAssociatedDisplay) {
         if (mDeviceMode == DeviceMode::POINTER) {
-            return ADISPLAY_ID_NONE;
+            return ui::ADISPLAY_ID_NONE;
         } else {
             return std::make_optional(mViewport.displayId);
         }

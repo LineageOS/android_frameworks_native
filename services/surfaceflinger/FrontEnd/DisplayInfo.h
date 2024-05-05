@@ -21,6 +21,7 @@
 #include <gui/DisplayInfo.h>
 #include <ui/DisplayMap.h>
 #include <ui/LayerStack.h>
+#include <ui/LogicalDisplayId.h>
 #include <ui/Transform.h>
 
 namespace android::surfaceflinger::frontend {

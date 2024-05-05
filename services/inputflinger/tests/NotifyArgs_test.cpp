@@ -36,7 +36,7 @@ TEST(NotifyMotionArgsTest, TestCopyAssignmentOperator) {
     nsecs_t readTime = downTime++;
     int32_t deviceId = 7;
     uint32_t source = AINPUT_SOURCE_TOUCHSCREEN;
-    int32_t displayId = 42;
+    ui::LogicalDisplayId displayId = ui::LogicalDisplayId{42};
     uint32_t policyFlags = POLICY_FLAG_GESTURE;
     int32_t action = AMOTION_EVENT_ACTION_HOVER_MOVE;
     int32_t actionButton = AMOTION_EVENT_BUTTON_PRIMARY;

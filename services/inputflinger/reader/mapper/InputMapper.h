@@ -117,7 +117,7 @@ public:
 
     [[nodiscard]] virtual std::list<NotifyArgs> updateExternalStylusState(const StylusState& state);
 
-    virtual std::optional<int32_t> getAssociatedDisplayId() { return std::nullopt; }
+    virtual std::optional<ui::LogicalDisplayId> getAssociatedDisplayId() { return std::nullopt; }
     virtual void updateLedState(bool reset) {}
 
 protected:

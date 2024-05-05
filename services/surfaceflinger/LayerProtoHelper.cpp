@@ -465,7 +465,7 @@ LayerProtoHelper::writeDisplayInfoToProto(const frontend::DisplayInfos& displayI
     displays.Reserve(displayInfos.size());
     for (const auto& [layerStack, displayInfo] : displayInfos) {
         auto displayProto = displays.Add();
-        displayProto->set_id(displayInfo.info.displayId);
+        displayProto->set_id(displayInfo.info.displayId.val());
         displayProto->set_layer_stack(layerStack.id);
         displayProto->mutable_size()->set_w(displayInfo.info.logicalWidth);
         displayProto->mutable_size()->set_h(displayInfo.info.logicalHeight);
