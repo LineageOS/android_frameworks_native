@@ -129,7 +129,7 @@ void FakeInputReaderPolicy::addExcludedDeviceName(const std::string& deviceName)
 
 void FakeInputReaderPolicy::addInputPortAssociation(const std::string& inputPort,
                                                     uint8_t displayPort) {
-    mConfig.portAssociations.insert({inputPort, displayPort});
+    mConfig.inputPortToDisplayPortAssociations.insert({inputPort, displayPort});
 }
 
 void FakeInputReaderPolicy::addDeviceTypeAssociation(const std::string& inputPort,
@@ -139,7 +139,7 @@ void FakeInputReaderPolicy::addDeviceTypeAssociation(const std::string& inputPor
 
 void FakeInputReaderPolicy::addInputUniqueIdAssociation(const std::string& inputUniqueId,
                                                         const std::string& displayUniqueId) {
-    mConfig.uniqueIdAssociationsByPort.insert({inputUniqueId, displayUniqueId});
+    mConfig.inputPortToDisplayUniqueIdAssociations.insert({inputUniqueId, displayUniqueId});
 }
 
 void FakeInputReaderPolicy::addKeyboardLayoutAssociation(const std::string& inputUniqueId,
