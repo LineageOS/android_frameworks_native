@@ -41,7 +41,6 @@ namespace {
 const bool ENABLE_INPUT_DEVICE_USAGE_METRICS =
         sysprop::InputProperties::enable_input_device_usage_metrics().value_or(true);
 
-const bool ENABLE_POINTER_CHOREOGRAPHER = input_flags::enable_pointer_choreographer();
 const bool ENABLE_INPUT_FILTER_RUST = input_flags::enable_input_filter_rust_impl();
 
 int32_t exceptionCodeFromStatusT(status_t status) {
@@ -152,12 +151,10 @@ InputManager::InputManager(const sp<InputReaderPolicyInterface>& readerPolicy,
     mTracingStages.emplace_back(
             std::make_unique<TracedInputListener>("InputProcessor", *mProcessor));
 
-    if (ENABLE_POINTER_CHOREOGRAPHER) {
-        mChoreographer =
-                std::make_unique<PointerChoreographer>(*mTracingStages.back(), choreographerPolicy);
-        mTracingStages.emplace_back(
-                std::make_unique<TracedInputListener>("PointerChoreographer", *mChoreographer));
-    }
+    mChoreographer =
+            std::make_unique<PointerChoreographer>(*mTracingStages.back(), choreographerPolicy);
+    mTracingStages.emplace_back(
+            std::make_unique<TracedInputListener>("PointerChoreographer", *mChoreographer));
 
     mBlocker = std::make_unique<UnwantedInteractionBlocker>(*mTracingStages.back());
     mTracingStages.emplace_back(
@@ -245,10 +242,8 @@ void InputManager::dump(std::string& dump) {
     dump += '\n';
     mBlocker->dump(dump);
     dump += '\n';
-    if (ENABLE_POINTER_CHOREOGRAPHER) {
-        mChoreographer->dump(dump);
-        dump += '\n';
-    }
+    mChoreographer->dump(dump);
+    dump += '\n';
     mProcessor->dump(dump);
     dump += '\n';
     if (ENABLE_INPUT_DEVICE_USAGE_METRICS) {
