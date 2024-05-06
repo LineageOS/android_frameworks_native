@@ -59,6 +59,7 @@ rust_library {
     ],
     host_supported: true,
     vendor_available: true,
+    product_available: true,
     target: {
         darwin: {
             enabled: false,
