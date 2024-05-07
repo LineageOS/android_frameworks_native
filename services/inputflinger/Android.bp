@@ -56,6 +56,16 @@ cc_defaults {
         host: {
             sanitize: {
                 address: true,
+                diag: {
+                    cfi: true,
+                    integer_overflow: true,
+                    memtag_heap: true,
+                    undefined: true,
+                    misc_undefined: [
+                        "bounds",
+                        "all",
+                    ],
+                },
             },
             include_dirs: [
                 "bionic/libc/kernel/android/uapi/",

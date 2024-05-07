@@ -5344,10 +5344,6 @@ TEST_F(SingleTouchInputMapperTest, Process_IgnoresTouchesOutsidePhysicalFrame) {
 }
 
 TEST_F(SingleTouchInputMapperTest, Process_DoesntCheckPhysicalFrameForTouchpads) {
-    std::shared_ptr<FakePointerController> fakePointerController =
-            std::make_shared<FakePointerController>();
-    mFakePolicy->setPointerController(fakePointerController);
-
     addConfigurationProperty("touch.deviceType", "pointer");
     prepareAxes(POSITION);
     prepareDisplay(ui::ROTATION_0);
@@ -6190,52 +6186,6 @@ TEST_F(SingleTouchInputMapperTest, WhenDeviceTypeIsSetToTouchNavigation_setsCorr
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled());
 
     ASSERT_EQ(AINPUT_SOURCE_TOUCH_NAVIGATION, mapper.getSources());
-}
-
-TEST_F(SingleTouchInputMapperTest, Process_WhenConfigEnabled_ShouldShowDirectStylusPointer) {
-    std::shared_ptr<FakePointerController> fakePointerController =
-            std::make_shared<FakePointerController>();
-    addConfigurationProperty("touch.deviceType", "touchScreen");
-    prepareDisplay(ui::ROTATION_0);
-    prepareButtons();
-    prepareAxes(POSITION);
-    mFakeEventHub->addKey(EVENTHUB_ID, BTN_TOOL_PEN, 0, AKEYCODE_UNKNOWN, 0);
-    mFakePolicy->setPointerController(fakePointerController);
-    mFakePolicy->setStylusPointerIconEnabled(true);
-    SingleTouchInputMapper& mapper = constructAndAddMapper<SingleTouchInputMapper>();
-
-    processKey(mapper, BTN_TOOL_PEN, 1);
-    processMove(mapper, 100, 200);
-    processSync(mapper);
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
-            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER),
-                  WithToolType(ToolType::STYLUS),
-                  WithPointerCoords(0, toDisplayX(100), toDisplayY(200)))));
-    ASSERT_TRUE(fakePointerController->isPointerShown());
-    ASSERT_NO_FATAL_FAILURE(
-            fakePointerController->assertPosition(toDisplayX(100), toDisplayY(200)));
-}
-
-TEST_F(SingleTouchInputMapperTest, Process_WhenConfigDisabled_ShouldNotShowDirectStylusPointer) {
-    std::shared_ptr<FakePointerController> fakePointerController =
-            std::make_shared<FakePointerController>();
-    addConfigurationProperty("touch.deviceType", "touchScreen");
-    prepareDisplay(ui::ROTATION_0);
-    prepareButtons();
-    prepareAxes(POSITION);
-    mFakeEventHub->addKey(EVENTHUB_ID, BTN_TOOL_PEN, 0, AKEYCODE_UNKNOWN, 0);
-    mFakePolicy->setPointerController(fakePointerController);
-    mFakePolicy->setStylusPointerIconEnabled(false);
-    SingleTouchInputMapper& mapper = constructAndAddMapper<SingleTouchInputMapper>();
-
-    processKey(mapper, BTN_TOOL_PEN, 1);
-    processMove(mapper, 100, 200);
-    processSync(mapper);
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
-            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER),
-                  WithToolType(ToolType::STYLUS),
-                  WithPointerCoords(0, toDisplayX(100), toDisplayY(200)))));
-    ASSERT_FALSE(fakePointerController->isPointerShown());
 }
 
 TEST_F(SingleTouchInputMapperTest, WhenDeviceTypeIsChangedToTouchNavigation_updatesDeviceType) {
@@ -8717,21 +8667,12 @@ TEST_F(MultiTouchInputMapperTest, Configure_AssignsDisplayUniqueId) {
 }
 
 TEST_F(MultiTouchInputMapperTest, Process_Pointer_ShouldHandleDisplayId) {
-    // Setup for second display.
-    std::shared_ptr<FakePointerController> fakePointerController =
-            std::make_shared<FakePointerController>();
-    fakePointerController->setBounds(0, 0, DISPLAY_WIDTH - 1, DISPLAY_HEIGHT - 1);
-    fakePointerController->setPosition(100, 200);
-    mFakePolicy->setPointerController(fakePointerController);
-
-    mFakePolicy->setDefaultPointerDisplayId(SECONDARY_DISPLAY_ID);
     prepareSecondaryDisplay(ViewportType::EXTERNAL);
 
     prepareDisplay(ui::ROTATION_0);
     prepareAxes(POSITION);
     MultiTouchInputMapper& mapper = constructAndAddMapper<MultiTouchInputMapper>();
 
-    // Check source is mouse that would obtain the PointerController.
     ASSERT_EQ(AINPUT_SOURCE_MOUSE, mapper.getSources());
 
     NotifyMotionArgs motionArgs;
@@ -8740,7 +8681,7 @@ TEST_F(MultiTouchInputMapperTest, Process_Pointer_ShouldHandleDisplayId) {
 
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
     ASSERT_EQ(AMOTION_EVENT_ACTION_HOVER_MOVE, motionArgs.action);
-    ASSERT_EQ(SECONDARY_DISPLAY_ID, motionArgs.displayId);
+    ASSERT_EQ(ADISPLAY_ID_NONE, motionArgs.displayId);
 }
 
 /**
@@ -8918,97 +8859,6 @@ TEST_F(MultiTouchInputMapperTest, Process_DeactivateViewport_TouchesNotAborted) 
     processSync(mapper);
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
             WithMotionAction(AMOTION_EVENT_ACTION_MOVE)));
-}
-
-TEST_F(MultiTouchInputMapperTest, Process_Pointer_ShowTouches) {
-    // Setup the first touch screen device.
-    prepareAxes(POSITION | ID | SLOT);
-    addConfigurationProperty("touch.deviceType", "touchScreen");
-    MultiTouchInputMapper& mapper = constructAndAddMapper<MultiTouchInputMapper>();
-
-    // Create the second touch screen device, and enable multi fingers.
-    const std::string USB2 = "USB2";
-    const std::string DEVICE_NAME2 = "TOUCHSCREEN2";
-    constexpr int32_t SECOND_DEVICE_ID = DEVICE_ID + 1;
-    constexpr int32_t SECOND_EVENTHUB_ID = EVENTHUB_ID + 1;
-    std::shared_ptr<InputDevice> device2 =
-            newDevice(SECOND_DEVICE_ID, DEVICE_NAME2, USB2, SECOND_EVENTHUB_ID,
-                      ftl::Flags<InputDeviceClass>(0));
-
-    mFakeEventHub->addAbsoluteAxis(SECOND_EVENTHUB_ID, ABS_MT_POSITION_X, RAW_X_MIN, RAW_X_MAX,
-                                   /*flat=*/0, /*fuzz=*/0);
-    mFakeEventHub->addAbsoluteAxis(SECOND_EVENTHUB_ID, ABS_MT_POSITION_Y, RAW_Y_MIN, RAW_Y_MAX,
-                                   /*flat=*/0, /*fuzz=*/0);
-    mFakeEventHub->addAbsoluteAxis(SECOND_EVENTHUB_ID, ABS_MT_TRACKING_ID, RAW_ID_MIN, RAW_ID_MAX,
-                                   /*flat=*/0, /*fuzz=*/0);
-    mFakeEventHub->addAbsoluteAxis(SECOND_EVENTHUB_ID, ABS_MT_SLOT, RAW_SLOT_MIN, RAW_SLOT_MAX,
-                                   /*flat=*/0, /*fuzz=*/0);
-    mFakeEventHub->setAbsoluteAxisValue(SECOND_EVENTHUB_ID, ABS_MT_SLOT, /*value=*/0);
-    mFakeEventHub->addConfigurationProperty(SECOND_EVENTHUB_ID, String8("touch.deviceType"),
-                                            String8("touchScreen"));
-
-    // Setup the second touch screen device.
-    device2->addEmptyEventHubDevice(SECOND_EVENTHUB_ID);
-    MultiTouchInputMapper& mapper2 = device2->constructAndAddMapper<
-            MultiTouchInputMapper>(SECOND_EVENTHUB_ID, mFakePolicy->getReaderConfiguration());
-    std::list<NotifyArgs> unused =
-            device2->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(),
-                               /*changes=*/{});
-    unused += device2->reset(ARBITRARY_TIME);
-
-    // Setup PointerController.
-    std::shared_ptr<FakePointerController> fakePointerController =
-            std::make_shared<FakePointerController>();
-    mFakePolicy->setPointerController(fakePointerController);
-
-    // Setup policy for associated displays and show touches.
-    const uint8_t hdmi1 = 0;
-    const uint8_t hdmi2 = 1;
-    mFakePolicy->addInputPortAssociation(DEVICE_LOCATION, hdmi1);
-    mFakePolicy->addInputPortAssociation(USB2, hdmi2);
-    mFakePolicy->setShowTouches(true);
-
-    // Create displays.
-    prepareDisplay(ui::ROTATION_0, hdmi1);
-    prepareSecondaryDisplay(ViewportType::EXTERNAL, hdmi2);
-
-    // Default device will reconfigure above, need additional reconfiguration for another device.
-    unused += device2->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(),
-                                 InputReaderConfiguration::Change::DISPLAY_INFO |
-                                         InputReaderConfiguration::Change::SHOW_TOUCHES);
-
-    // Two fingers down at default display.
-    int32_t x1 = 100, y1 = 125, x2 = 300, y2 = 500;
-    processPosition(mapper, x1, y1);
-    processId(mapper, 1);
-    processSlot(mapper, 1);
-    processPosition(mapper, x2, y2);
-    processId(mapper, 2);
-    processSync(mapper);
-
-    std::map<int32_t, std::vector<int32_t>>::const_iterator iter =
-            fakePointerController->getSpots().find(DISPLAY_ID);
-    ASSERT_TRUE(iter != fakePointerController->getSpots().end());
-    ASSERT_EQ(size_t(2), iter->second.size());
-
-    // Two fingers down at second display.
-    processPosition(mapper2, x1, y1);
-    processId(mapper2, 1);
-    processSlot(mapper2, 1);
-    processPosition(mapper2, x2, y2);
-    processId(mapper2, 2);
-    processSync(mapper2);
-
-    iter = fakePointerController->getSpots().find(SECONDARY_DISPLAY_ID);
-    ASSERT_TRUE(iter != fakePointerController->getSpots().end());
-    ASSERT_EQ(size_t(2), iter->second.size());
-
-    // Disable the show touches configuration and ensure the spots are cleared.
-    mFakePolicy->setShowTouches(false);
-    unused += device2->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(),
-                                 InputReaderConfiguration::Change::SHOW_TOUCHES);
-
-    ASSERT_TRUE(fakePointerController->getSpots().empty());
 }
 
 TEST_F(MultiTouchInputMapperTest, VideoFrames_ReceivedByListener) {
@@ -9703,58 +9553,6 @@ TEST_F(MultiTouchInputMapperTest, StylusSourceIsAddedDynamicallyFromToolType) {
                   WithToolType(ToolType::STYLUS))));
 }
 
-TEST_F(MultiTouchInputMapperTest, Process_WhenConfigEnabled_ShouldShowDirectStylusPointer) {
-    addConfigurationProperty("touch.deviceType", "touchScreen");
-    prepareDisplay(ui::ROTATION_0);
-    prepareAxes(POSITION | ID | SLOT | TOOL_TYPE | PRESSURE);
-    // Add BTN_TOOL_PEN to statically show stylus support, since using ABS_MT_TOOL_TYPE can only
-    // indicate stylus presence dynamically.
-    mFakeEventHub->addKey(EVENTHUB_ID, BTN_TOOL_PEN, 0, AKEYCODE_UNKNOWN, 0);
-    std::shared_ptr<FakePointerController> fakePointerController =
-            std::make_shared<FakePointerController>();
-    mFakePolicy->setPointerController(fakePointerController);
-    mFakePolicy->setStylusPointerIconEnabled(true);
-    MultiTouchInputMapper& mapper = constructAndAddMapper<MultiTouchInputMapper>();
-
-    processId(mapper, FIRST_TRACKING_ID);
-    processPressure(mapper, RAW_PRESSURE_MIN);
-    processPosition(mapper, 100, 200);
-    processToolType(mapper, MT_TOOL_PEN);
-    processSync(mapper);
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
-            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER),
-                  WithToolType(ToolType::STYLUS),
-                  WithPointerCoords(0, toDisplayX(100), toDisplayY(200)))));
-    ASSERT_TRUE(fakePointerController->isPointerShown());
-    ASSERT_NO_FATAL_FAILURE(
-            fakePointerController->assertPosition(toDisplayX(100), toDisplayY(200)));
-}
-
-TEST_F(MultiTouchInputMapperTest, Process_WhenConfigDisabled_ShouldNotShowDirectStylusPointer) {
-    addConfigurationProperty("touch.deviceType", "touchScreen");
-    prepareDisplay(ui::ROTATION_0);
-    prepareAxes(POSITION | ID | SLOT | TOOL_TYPE | PRESSURE);
-    // Add BTN_TOOL_PEN to statically show stylus support, since using ABS_MT_TOOL_TYPE can only
-    // indicate stylus presence dynamically.
-    mFakeEventHub->addKey(EVENTHUB_ID, BTN_TOOL_PEN, 0, AKEYCODE_UNKNOWN, 0);
-    std::shared_ptr<FakePointerController> fakePointerController =
-            std::make_shared<FakePointerController>();
-    mFakePolicy->setPointerController(fakePointerController);
-    mFakePolicy->setStylusPointerIconEnabled(false);
-    MultiTouchInputMapper& mapper = constructAndAddMapper<MultiTouchInputMapper>();
-
-    processId(mapper, FIRST_TRACKING_ID);
-    processPressure(mapper, RAW_PRESSURE_MIN);
-    processPosition(mapper, 100, 200);
-    processToolType(mapper, MT_TOOL_PEN);
-    processSync(mapper);
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(
-            AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER),
-                  WithToolType(ToolType::STYLUS),
-                  WithPointerCoords(0, toDisplayX(100), toDisplayY(200)))));
-    ASSERT_FALSE(fakePointerController->isPointerShown());
-}
-
 // --- MultiTouchInputMapperTest_ExternalDevice ---
 
 class MultiTouchInputMapperTest_ExternalDevice : public MultiTouchInputMapperTest {
@@ -9790,18 +9588,15 @@ TEST_F(MultiTouchInputMapperTest_ExternalDevice, Viewports_Fallback) {
     ASSERT_EQ(SECONDARY_DISPLAY_ID, motionArgs.displayId);
 }
 
-TEST_F(MultiTouchInputMapperTest, Process_TouchpadPointer) {
-    std::shared_ptr<FakePointerController> fakePointerController =
-            std::make_shared<FakePointerController>();
-    fakePointerController->setBounds(0, 0, DISPLAY_WIDTH - 1, DISPLAY_HEIGHT - 1);
-    fakePointerController->setPosition(0, 0);
-
+// TODO(b/281840344): Remove the test when the old touchpad stack is removed. It is currently
+//  unclear what the behavior of the touchpad logic in TouchInputMapper should do after the
+//  PointerChoreographer refactor.
+TEST_F(MultiTouchInputMapperTest, DISABLED_Process_TouchpadPointer) {
     // prepare device
     prepareDisplay(ui::ROTATION_0);
     prepareAxes(POSITION | ID | SLOT);
     mFakeEventHub->addKey(EVENTHUB_ID, BTN_LEFT, 0, AKEYCODE_UNKNOWN, 0);
     mFakeEventHub->addKey(EVENTHUB_ID, BTN_TOUCH, 0, AKEYCODE_UNKNOWN, 0);
-    mFakePolicy->setPointerController(fakePointerController);
     MultiTouchInputMapper& mapper = constructAndAddMapper<MultiTouchInputMapper>();
     // run uncaptured pointer tests - pushes out generic events
     // FINGER 0 DOWN
@@ -9855,13 +9650,9 @@ TEST_F(MultiTouchInputMapperTest, Process_TouchpadPointer) {
 }
 
 TEST_F(MultiTouchInputMapperTest, Touchpad_GetSources) {
-    std::shared_ptr<FakePointerController> fakePointerController =
-            std::make_shared<FakePointerController>();
-
     prepareDisplay(ui::ROTATION_0);
     prepareAxes(POSITION | ID | SLOT);
     mFakeEventHub->addKey(EVENTHUB_ID, BTN_LEFT, 0, AKEYCODE_UNKNOWN, 0);
-    mFakePolicy->setPointerController(fakePointerController);
     mFakePolicy->setPointerCapture(/*window=*/nullptr);
     MultiTouchInputMapper& mapper = constructAndAddMapper<MultiTouchInputMapper>();
 
@@ -9925,10 +9716,6 @@ protected:
     float mPointerXZoomScale;
     void preparePointerMode(int xAxisResolution, int yAxisResolution) {
         addConfigurationProperty("touch.deviceType", "pointer");
-        std::shared_ptr<FakePointerController> fakePointerController =
-                std::make_shared<FakePointerController>();
-        fakePointerController->setBounds(0, 0, DISPLAY_WIDTH - 1, DISPLAY_HEIGHT - 1);
-        fakePointerController->setPosition(0, 0);
         prepareDisplay(ui::ROTATION_0);
 
         prepareAxes(POSITION);
@@ -9937,7 +9724,6 @@ protected:
         // needs to be disabled, and the pointer gesture needs to be enabled.
         mFakePolicy->setPointerCapture(/*window=*/nullptr);
         mFakePolicy->setPointerGestureEnabled(true);
-        mFakePolicy->setPointerController(fakePointerController);
 
         float rawDiagonal = hypotf(RAW_X_MAX - RAW_X_MIN, RAW_Y_MAX - RAW_Y_MIN);
         float displayDiagonal = hypotf(DISPLAY_WIDTH, DISPLAY_HEIGHT);

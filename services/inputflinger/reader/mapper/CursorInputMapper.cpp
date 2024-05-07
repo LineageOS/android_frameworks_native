@@ -40,8 +40,6 @@ namespace android {
 // The default velocity control parameters that has no effect.
 static const VelocityControlParameters FLAT_VELOCITY_CONTROL_PARAMS{};
 
-static const bool ENABLE_POINTER_CHOREOGRAPHER = input_flags::enable_pointer_choreographer();
-
 // --- CursorMotionAccumulator ---
 
 CursorMotionAccumulator::CursorMotionAccumulator() {
@@ -78,21 +76,9 @@ void CursorMotionAccumulator::finishSync() {
 
 CursorInputMapper::CursorInputMapper(InputDeviceContext& deviceContext,
                                      const InputReaderConfiguration& readerConfig)
-      : CursorInputMapper(deviceContext, readerConfig, ENABLE_POINTER_CHOREOGRAPHER) {}
-
-CursorInputMapper::CursorInputMapper(InputDeviceContext& deviceContext,
-                                     const InputReaderConfiguration& readerConfig,
-                                     bool enablePointerChoreographer)
       : InputMapper(deviceContext, readerConfig),
         mLastEventTime(std::numeric_limits<nsecs_t>::min()),
-        mEnablePointerChoreographer(enablePointerChoreographer),
         mEnableNewMousePointerBallistics(input_flags::enable_new_mouse_pointer_ballistics()) {}
-
-CursorInputMapper::~CursorInputMapper() {
-    if (mPointerController != nullptr) {
-        mPointerController->fade(PointerControllerInterface::Transition::IMMEDIATE);
-    }
-}
 
 uint32_t CursorInputMapper::getSources() const {
     return mSource;
@@ -304,22 +290,6 @@ std::list<NotifyArgs> CursorInputMapper::sync(nsecs_t when, nsecs_t readTime) {
     float xCursorPosition = AMOTION_EVENT_INVALID_CURSOR_POSITION;
     float yCursorPosition = AMOTION_EVENT_INVALID_CURSOR_POSITION;
     if (mSource == AINPUT_SOURCE_MOUSE) {
-        if (!mEnablePointerChoreographer) {
-            if (moved || scrolled || buttonsChanged) {
-                mPointerController->setPresentation(
-                        PointerControllerInterface::Presentation::POINTER);
-
-                if (moved) {
-                    mPointerController->move(deltaX, deltaY);
-                }
-                mPointerController->unfade(PointerControllerInterface::Transition::IMMEDIATE);
-            }
-
-            std::tie(xCursorPosition, yCursorPosition) = mPointerController->getPosition();
-
-            pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_X, xCursorPosition);
-            pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_Y, yCursorPosition);
-        }
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, deltaX);
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, deltaY);
     } else {
@@ -470,7 +440,6 @@ void CursorInputMapper::configureBasicParams() {
             mYPrecision = 1.0f;
             mXScale = 1.0f;
             mYScale = 1.0f;
-            mPointerController = getContext()->getPointerController(getDeviceId());
             break;
         case Parameters::Mode::NAVIGATION:
             mSource = AINPUT_SOURCE_TRACKBALL;
@@ -490,8 +459,6 @@ void CursorInputMapper::configureOnPointerCapture(const InputReaderConfiguration
         if (mParameters.mode == Parameters::Mode::POINTER) {
             mParameters.mode = Parameters::Mode::POINTER_RELATIVE;
             mSource = AINPUT_SOURCE_MOUSE_RELATIVE;
-            // Keep PointerController around in order to preserve the pointer position.
-            mPointerController->fade(PointerControllerInterface::Transition::IMMEDIATE);
         } else {
             ALOGE("Cannot request pointer capture, device is not in MODE_POINTER");
         }
@@ -540,38 +507,17 @@ void CursorInputMapper::configureOnChangeDisplayInfo(const InputReaderConfigurat
 
     mDisplayId = ADISPLAY_ID_NONE;
     std::optional<DisplayViewport> resolvedViewport;
-    bool isBoundsSet = false;
     if (auto assocViewport = mDeviceContext.getAssociatedViewport(); assocViewport) {
         // This InputDevice is associated with a viewport.
         // Only generate events for the associated display.
         mDisplayId = assocViewport->displayId;
         resolvedViewport = *assocViewport;
-        if (!mEnablePointerChoreographer) {
-            const bool mismatchedPointerDisplay =
-                    isPointer && (assocViewport->displayId != mPointerController->getDisplayId());
-            if (mismatchedPointerDisplay) {
-                // This device's associated display doesn't match PointerController's current
-                // display. Do not associate it with any display.
-                mDisplayId.reset();
-            }
-        }
     } else if (isPointer) {
         // The InputDevice is not associated with a viewport, but it controls the mouse pointer.
-        if (mEnablePointerChoreographer) {
-            // Always use DISPLAY_ID_NONE for mouse events.
-            // PointerChoreographer will make it target the correct the displayId later.
-            resolvedViewport = getContext()->getPolicy()->getPointerViewportForAssociatedDisplay();
-            mDisplayId = resolvedViewport ? std::make_optional(ADISPLAY_ID_NONE) : std::nullopt;
-        } else {
-            mDisplayId = mPointerController->getDisplayId();
-            if (auto v = config.getDisplayViewportById(*mDisplayId); v) {
-                resolvedViewport = *v;
-            }
-            if (auto bounds = mPointerController->getBounds(); bounds) {
-                mBoundsInLogicalDisplay = *bounds;
-                isBoundsSet = true;
-            }
-        }
+        // Always use DISPLAY_ID_NONE for mouse events.
+        // PointerChoreographer will make it target the correct the displayId later.
+        resolvedViewport = getContext()->getPolicy()->getPointerViewportForAssociatedDisplay();
+        mDisplayId = resolvedViewport ? std::make_optional(ADISPLAY_ID_NONE) : std::nullopt;
     }
 
     mOrientation = (mParameters.orientationAware && mParameters.hasAssociatedDisplay) ||
@@ -579,14 +525,12 @@ void CursorInputMapper::configureOnChangeDisplayInfo(const InputReaderConfigurat
             ? ui::ROTATION_0
             : getInverseRotation(resolvedViewport->orientation);
 
-    if (!isBoundsSet) {
-        mBoundsInLogicalDisplay = resolvedViewport
-                ? FloatRect{static_cast<float>(resolvedViewport->logicalLeft),
-                            static_cast<float>(resolvedViewport->logicalTop),
-                            static_cast<float>(resolvedViewport->logicalRight - 1),
-                            static_cast<float>(resolvedViewport->logicalBottom - 1)}
-                : FloatRect{0, 0, 0, 0};
-    }
+    mBoundsInLogicalDisplay = resolvedViewport
+            ? FloatRect{static_cast<float>(resolvedViewport->logicalLeft),
+                        static_cast<float>(resolvedViewport->logicalTop),
+                        static_cast<float>(resolvedViewport->logicalRight - 1),
+                        static_cast<float>(resolvedViewport->logicalBottom - 1)}
+            : FloatRect{0, 0, 0, 0};
 
     bumpGeneration();
 }

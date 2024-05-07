@@ -24,6 +24,7 @@ cc_test {
         "flags_test.cpp",
         "function_test.cpp",
         "future_test.cpp",
+        "hash_test.cpp",
         "match_test.cpp",
         "mixins_test.cpp",
         "non_null_test.cpp",

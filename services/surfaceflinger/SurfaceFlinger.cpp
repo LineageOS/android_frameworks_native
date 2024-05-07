@@ -148,6 +148,7 @@
 #include "MutexUtils.h"
 #include "NativeWindowSurface.h"
 #include "RegionSamplingThread.h"
+#include "RenderAreaBuilder.h"
 #include "Scheduler/EventThread.h"
 #include "Scheduler/LayerHistory.h"
 #include "Scheduler/Scheduler.h"
@@ -7892,8 +7893,10 @@ void SurfaceFlinger::captureDisplay(const DisplayCaptureArgs& args,
     }
 
     RenderAreaFuture renderAreaFuture = ftl::defer([=] {
-        return DisplayRenderArea::create(displayWeak, args.sourceCrop, reqSize, args.dataspace,
-                                         args.hintForSeamlessTransition, args.captureSecureLayers);
+        DisplayRenderAreaBuilder displayRenderArea(args.sourceCrop, reqSize, args.dataspace,
+                                                   args.hintForSeamlessTransition,
+                                                   args.captureSecureLayers, displayWeak);
+        return displayRenderArea.build();
     });
 
     GetLayerSnapshotsFunction getLayerSnapshots;
@@ -7946,9 +7949,10 @@ void SurfaceFlinger::captureDisplay(DisplayId displayId, const CaptureArgs& args
     }
 
     RenderAreaFuture renderAreaFuture = ftl::defer([=] {
-        return DisplayRenderArea::create(displayWeak, Rect(), size, args.dataspace,
-                                         args.hintForSeamlessTransition,
-                                         false /* captureSecureLayers */);
+        DisplayRenderAreaBuilder displayRenderArea(Rect(), size, args.dataspace,
+                                                   args.hintForSeamlessTransition,
+                                                   false /* captureSecureLayers */, displayWeak);
+        return displayRenderArea.build();
     });
 
     GetLayerSnapshotsFunction getLayerSnapshots;
@@ -8053,25 +8057,22 @@ void SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
         return;
     }
 
-    RenderAreaFuture renderAreaFuture = ftl::defer([=, this]() FTL_FAKE_GUARD(kMainThreadContext)
-                                                           -> std::unique_ptr<RenderArea> {
-        ui::Transform layerTransform;
-        Rect layerBufferSize;
-        frontend::LayerSnapshot* snapshot =
-                mLayerSnapshotBuilder.getSnapshot(parent->getSequence());
-        if (!snapshot) {
-            ALOGW("Couldn't find layer snapshot for %d", parent->getSequence());
-        } else {
-            if (!args.childrenOnly) {
-                layerTransform = snapshot->localTransform.inverse();
-            }
-            layerBufferSize = snapshot->bufferSize;
-        }
+    RenderAreaFuture renderAreaFuture = ftl::defer(
+            [=, this]() FTL_FAKE_GUARD(kMainThreadContext) -> std::unique_ptr<RenderArea> {
+                LayerRenderAreaBuilder layerRenderArea(crop, reqSize, dataspace,
+                                                       args.captureSecureLayers,
+                                                       args.hintForSeamlessTransition, parent,
+                                                       args.childrenOnly);
 
-        return std::make_unique<LayerRenderArea>(parent, crop, reqSize, dataspace,
-                                                 args.captureSecureLayers, layerTransform,
-                                                 layerBufferSize, args.hintForSeamlessTransition);
-    });
+                frontend::LayerSnapshot* snapshot =
+                        mLayerSnapshotBuilder.getSnapshot(parent->getSequence());
+                if (!snapshot) {
+                    ALOGW("Couldn't find layer snapshot for %d", parent->getSequence());
+                } else {
+                    layerRenderArea.setLayerInfo(snapshot);
+                }
+                return layerRenderArea.build();
+            });
     GetLayerSnapshotsFunction getLayerSnapshots;
     if (mLayerLifecycleManagerEnabled) {
         std::optional<FloatRect> parentCrop = std::nullopt;

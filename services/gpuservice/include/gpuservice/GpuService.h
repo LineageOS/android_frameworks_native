@@ -64,6 +64,8 @@ private:
     void setUpdatableDriverPath(const std::string& driverPath) override;
     std::string getUpdatableDriverPath() override;
     void toggleAngleAsSystemDriver(bool enabled) override;
+    void addVulkanEngineName(const std::string& appPackageName, const uint64_t driverVersionCode,
+                             const char *engineName) override;
 
     /*
      * IBinder interface

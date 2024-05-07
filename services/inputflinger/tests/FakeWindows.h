@@ -164,7 +164,7 @@ public:
             using namespace ftl::flag_operators;
             mInfo.layoutParamsFlags &= ~gui::WindowInfo::Flag::SECURE;
         }
-        mInfo.setInputConfig(InputConfig::SENSITIVE_FOR_TRACING, secure);
+        mInfo.setInputConfig(InputConfig::SENSITIVE_FOR_PRIVACY, secure);
     }
 
     inline void setInterceptsStylus(bool interceptsStylus) {

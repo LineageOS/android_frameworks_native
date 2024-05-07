@@ -40,8 +40,6 @@ class InputMapperUnitTest : public testing::Test {
 protected:
     static constexpr int32_t EVENTHUB_ID = 1;
     static constexpr int32_t DEVICE_ID = END_RESERVED_ID + 1000;
-    static constexpr float INITIAL_CURSOR_X = 400;
-    static constexpr float INITIAL_CURSOR_Y = 240;
     virtual void SetUp() override { SetUpWithBus(0); }
     virtual void SetUpWithBus(int bus);
 
@@ -66,7 +64,6 @@ protected:
     InputDeviceIdentifier mIdentifier;
     MockEventHubInterface mMockEventHub;
     sp<FakeInputReaderPolicy> mFakePolicy;
-    std::shared_ptr<FakePointerController> mFakePointerController;
     MockInputReaderContext mMockInputReaderContext;
     std::unique_ptr<InputDevice> mDevice;
 

@@ -88,7 +88,7 @@ InputTargetInfo getTargetInfo(const InputTarget& target) {
     }
     const auto& info = *target.windowHandle->getInfo();
     const bool isSensitiveTarget =
-            info.inputConfig.test(gui::WindowInfo::InputConfig::SENSITIVE_FOR_TRACING);
+            info.inputConfig.test(gui::WindowInfo::InputConfig::SENSITIVE_FOR_PRIVACY);
     return {target.windowHandle->getInfo()->ownerUid, isSensitiveTarget};
 }
 

@@ -20,7 +20,6 @@
 #include <list>
 #include <memory>
 
-#include <PointerControllerInterface.h>
 #include <android/input.h>
 #include <utils/Timers.h>
 
@@ -41,8 +40,7 @@ using std::chrono_literals::operator""ms;
  */
 constexpr std::chrono::nanoseconds TAP_ENABLE_DELAY_NANOS = 400ms;
 
-// Converts Gesture structs from the gestures library into NotifyArgs and the appropriate
-// PointerController calls.
+// Converts Gesture structs from the gestures library into NotifyArgs.
 class GestureConverter {
 public:
     GestureConverter(InputReaderContext& readerContext, const InputDeviceContext& deviceContext,
@@ -85,18 +83,14 @@ private:
                                                     const Gesture& gesture);
     [[nodiscard]] std::list<NotifyArgs> endPinch(nsecs_t when, nsecs_t readTime);
 
-    [[nodiscard]] std::list<NotifyArgs> enterHover(nsecs_t when, nsecs_t readTime,
-                                                   float xCursorPosition, float yCursorPosition);
-    [[nodiscard]] std::list<NotifyArgs> exitHover(nsecs_t when, nsecs_t readTime,
-                                                  float xCursorPosition, float yCursorPosition);
+    [[nodiscard]] std::list<NotifyArgs> enterHover(nsecs_t when, nsecs_t readTime);
+    [[nodiscard]] std::list<NotifyArgs> exitHover(nsecs_t when, nsecs_t readTime);
 
-    NotifyMotionArgs makeHoverEvent(nsecs_t when, nsecs_t readTime, int32_t action,
-                                    float xCursorPosition, float yCursorPosition);
+    NotifyMotionArgs makeHoverEvent(nsecs_t when, nsecs_t readTime, int32_t action);
 
     NotifyMotionArgs makeMotionArgs(nsecs_t when, nsecs_t readTime, int32_t action,
                                     int32_t actionButton, int32_t buttonState,
-                                    uint32_t pointerCount, const PointerCoords* pointerCoords,
-                                    float xCursorPosition, float yCursorPosition);
+                                    uint32_t pointerCount, const PointerCoords* pointerCoords);
 
     void enableTapToClick(nsecs_t when);
     bool mIsHoverCancelled{false};
@@ -104,7 +98,6 @@ private:
 
     const int32_t mDeviceId;
     InputReaderContext& mReaderContext;
-    std::shared_ptr<PointerControllerInterface> mPointerController;
     const bool mEnableFlingStop;
 
     std::optional<int32_t> mDisplayId;

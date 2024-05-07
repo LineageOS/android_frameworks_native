@@ -96,6 +96,7 @@ status_t GpuStatsAppInfo::writeToParcel(Parcel* parcel) const {
     if ((status = parcel->writeUint64(vulkanDeviceFeaturesEnabled)) != OK) return status;
     if ((status = parcel->writeInt32Vector(vulkanInstanceExtensions)) != OK) return status;
     if ((status = parcel->writeInt32Vector(vulkanDeviceExtensions)) != OK) return status;
+    if ((status = parcel->writeUtf8VectorAsUtf16Vector(vulkanEngineNames)) != OK) return status;
 
     return OK;
 }
@@ -118,6 +119,7 @@ status_t GpuStatsAppInfo::readFromParcel(const Parcel* parcel) {
     if ((status = parcel->readUint64(&vulkanDeviceFeaturesEnabled)) != OK) return status;
     if ((status = parcel->readInt32Vector(&vulkanInstanceExtensions)) != OK) return status;
     if ((status = parcel->readInt32Vector(&vulkanDeviceExtensions)) != OK) return status;
+    if ((status = parcel->readUtf8VectorFromUtf16Vector(&vulkanEngineNames)) != OK) return status;
 
     return OK;
 }
@@ -159,6 +161,11 @@ std::string GpuStatsAppInfo::toString() const {
     result.append("vulkanDeviceExtensions:");
     for (int32_t extension : vulkanDeviceExtensions) {
         StringAppendF(&result, " 0x%x", extension);
+    }
+    result.append("\n");
+    result.append("vulkanEngineNames:");
+    for (const std::string& engineName : vulkanEngineNames) {
+        StringAppendF(&result, " %s,", engineName.c_str());
     }
     result.append("\n");
     return result;

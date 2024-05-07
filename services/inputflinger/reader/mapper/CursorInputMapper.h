@@ -20,13 +20,10 @@
 #include "CursorScrollAccumulator.h"
 #include "InputMapper.h"
 
-#include <PointerControllerInterface.h>
 #include <input/VelocityControl.h>
 #include <ui/Rotation.h>
 
 namespace android {
-
-class PointerControllerInterface;
 
 class CursorButtonAccumulator;
 class CursorScrollAccumulator;
@@ -56,7 +53,7 @@ public:
     friend std::unique_ptr<T> createInputMapper(InputDeviceContext& deviceContext,
                                                 const InputReaderConfiguration& readerConfig,
                                                 Args... args);
-    virtual ~CursorInputMapper();
+    virtual ~CursorInputMapper() = default;
 
     virtual uint32_t getSources() const override;
     virtual void populateDeviceInfo(InputDeviceInfo& deviceInfo) override;
@@ -122,21 +119,14 @@ private:
     ui::Rotation mOrientation{ui::ROTATION_0};
     FloatRect mBoundsInLogicalDisplay{};
 
-    std::shared_ptr<PointerControllerInterface> mPointerController;
-
     int32_t mButtonState;
     nsecs_t mDownTime;
     nsecs_t mLastEventTime;
 
-    const bool mEnablePointerChoreographer;
     const bool mEnableNewMousePointerBallistics;
 
     explicit CursorInputMapper(InputDeviceContext& deviceContext,
                                const InputReaderConfiguration& readerConfig);
-    // Constructor for testing.
-    explicit CursorInputMapper(InputDeviceContext& deviceContext,
-                               const InputReaderConfiguration& readerConfig,
-                               bool enablePointerChoreographer);
     void dumpParameters(std::string& dump);
     void configureBasicParams();
     void configureOnPointerCapture(const InputReaderConfiguration& config);
