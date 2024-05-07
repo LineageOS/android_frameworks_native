@@ -89,6 +89,8 @@ public:
     // Set which device extensions are enabled for the app.
     void setVulkanDeviceExtensions(uint32_t enabledExtensionCount,
                                    const char* const* ppEnabledExtensionNames);
+    // Add the engine name passed in VkApplicationInfo during CreateInstance
+    void addVulkanEngineName(const char* engineName);
 
     /*
      * Api for Vk/GL layer injection.  Presently, drivers enable certain

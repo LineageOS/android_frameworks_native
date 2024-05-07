@@ -44,6 +44,9 @@ public:
     void insertTargetStatsArray(const std::string& appPackageName,
                            const uint64_t driverVersionCode, const GpuStatsInfo::Stats stats,
                            const uint64_t* values, const uint32_t valueCount);
+    // Add the engine name passed in VkApplicationInfo during CreateInstance
+    void addVulkanEngineName(const std::string& appPackageName,
+                             const uint64_t driverVersionCode, const char* engineName);
     // dumpsys interface
     void dump(const Vector<String16>& args, std::string* result);
 

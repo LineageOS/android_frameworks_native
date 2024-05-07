@@ -46,6 +46,8 @@ public:
                                      const uint64_t driverVersionCode,
                                      const GpuStatsInfo::Stats stats, const uint64_t* values,
                                      const uint32_t valueCount) = 0;
+    virtual void addVulkanEngineName(const std::string& appPackageName,
+                                     const uint64_t driverVersionCode, const char* engineName) = 0;
 
     // setter and getter for updatable driver path.
     virtual void setUpdatableDriverPath(const std::string& driverPath) = 0;
@@ -64,6 +66,7 @@ public:
         GET_UPDATABLE_DRIVER_PATH,
         TOGGLE_ANGLE_AS_SYSTEM_DRIVER,
         SET_TARGET_STATS_ARRAY,
+        ADD_VULKAN_ENGINE_NAME,
         // Always append new enum to the end.
     };
 

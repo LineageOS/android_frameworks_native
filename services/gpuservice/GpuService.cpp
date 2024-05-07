@@ -100,6 +100,12 @@ void GpuService::setTargetStatsArray(const std::string& appPackageName,
     mGpuStats->insertTargetStatsArray(appPackageName, driverVersionCode, stats, values, valueCount);
 }
 
+void GpuService::addVulkanEngineName(const std::string& appPackageName,
+                                     const uint64_t driverVersionCode,
+                                     const char* engineName) {
+    mGpuStats->addVulkanEngineName(appPackageName, driverVersionCode, engineName);
+}
+
 void GpuService::toggleAngleAsSystemDriver(bool enabled) {
     IPCThreadState* ipc = IPCThreadState::self();
     const int pid = ipc->getCallingPid();
