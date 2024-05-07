@@ -474,7 +474,6 @@ void DisplayDevice::enableRefreshRateOverlay(bool enable, bool setByHwc, bool sh
         features |= RefreshRateOverlay::Features::SetByHwc;
     }
 
-    // TODO(b/296636258) Update to use the render rate range in VRR mode.
     const auto fpsRange = mRefreshRateSelector->getSupportedRefreshRateRange();
     mRefreshRateOverlay = RefreshRateOverlay::create(fpsRange, features);
     if (mRefreshRateOverlay) {
@@ -489,6 +488,9 @@ void DisplayDevice::updateRefreshRateOverlayRate(Fps refreshRate, Fps renderFps,
     ATRACE_CALL();
     if (mRefreshRateOverlay) {
         if (!mRefreshRateOverlay->isSetByHwc() || setByHwc) {
+            if (mRefreshRateSelector->isVrrDevice() && !mRefreshRateOverlay->isSetByHwc()) {
+                refreshRate = renderFps;
+            }
             mRefreshRateOverlay->changeRefreshRate(refreshRate, renderFps);
         } else {
             mRefreshRateOverlay->changeRenderRate(renderFps);

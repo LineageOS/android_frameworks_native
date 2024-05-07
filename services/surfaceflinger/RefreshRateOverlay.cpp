@@ -200,19 +200,13 @@ auto RefreshRateOverlay::getOrCreateBuffers(Fps refreshRate, Fps renderFps) -> c
     BufferCache::const_iterator it =
             mBufferCache.find({refreshRate.getIntValue(), renderFps.getIntValue(), transformHint});
     if (it == mBufferCache.end()) {
-        // HWC minFps is not known by the framework in order
-        // to consider lower rates we set minFps to 0.
-        const int minFps = isSetByHwc() ? 0 : mFpsRange.min.getIntValue();
         const int maxFps = mFpsRange.max.getIntValue();
 
-        // Clamp to the range. The current refreshRate may be outside of this range if the display
-        // has changed its set of supported refresh rates.
-        const int displayIntFps = std::clamp(refreshRate.getIntValue(), minFps, maxFps);
+        // Clamp to supported refresh rate range: the current refresh rate may be outside of this
+        // range if the display has changed its set of supported refresh rates.
+        const int refreshIntFps = std::clamp(refreshRate.getIntValue(), 0, maxFps);
         const int renderIntFps = renderFps.getIntValue();
-
-        // Ensure non-zero range to avoid division by zero.
-        const float fpsScale =
-                static_cast<float>(displayIntFps - minFps) / std::max(1, maxFps - minFps);
+        const float fpsScale = static_cast<float>(refreshIntFps) / maxFps;
 
         constexpr SkColor kMinFpsColor = SK_ColorRED;
         constexpr SkColor kMaxFpsColor = SK_ColorGREEN;
@@ -228,9 +222,9 @@ auto RefreshRateOverlay::getOrCreateBuffers(Fps refreshRate, Fps renderFps) -> c
 
         const SkColor color = colorBase.toSkColor();
 
-        auto buffers = draw(displayIntFps, renderIntFps, color, transformHint, mFeatures);
+        auto buffers = draw(refreshIntFps, renderIntFps, color, transformHint, mFeatures);
         it = mBufferCache
-                     .try_emplace({displayIntFps, renderIntFps, transformHint}, std::move(buffers))
+                     .try_emplace({refreshIntFps, renderIntFps, transformHint}, std::move(buffers))
                      .first;
     }
 
