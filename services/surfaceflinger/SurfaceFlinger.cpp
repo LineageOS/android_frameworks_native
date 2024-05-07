@@ -425,7 +425,8 @@ SurfaceFlinger::SurfaceFlinger(Factory& factory, SkipInitializationTag)
         mInternalDisplayDensity(
                 getDensityFromProperty("ro.sf.lcd_density", !mEmulatedDisplayDensity)),
         mPowerAdvisor(std::make_unique<Hwc2::impl::PowerAdvisor>(*this)),
-        mWindowInfosListenerInvoker(sp<WindowInfosListenerInvoker>::make()) {
+        mWindowInfosListenerInvoker(sp<WindowInfosListenerInvoker>::make()),
+        mSkipPowerOnForQuiescent(base::GetBoolProperty("ro.boot.quiescent"s, false)) {
     ALOGI("Using HWComposer service: %s", mHwcServiceName.c_str());
 }
 
@@ -3883,7 +3884,9 @@ void SurfaceFlinger::processDisplayChanged(const wp<IBinder>& displayToken,
 
         if (currentState.physical) {
             const auto display = getDisplayDeviceLocked(displayToken);
-            setPowerModeInternal(display, hal::PowerMode::ON);
+            if (!mSkipPowerOnForQuiescent) {
+                setPowerModeInternal(display, hal::PowerMode::ON);
+            }
 
             // TODO(b/175678251) Call a listener instead.
             if (currentState.physical->hwcDisplayId == getHwComposer().getPrimaryHwcDisplayId()) {
@@ -6102,8 +6105,11 @@ void SurfaceFlinger::initializeDisplays() {
         // Power on all displays. The primary display is first, so becomes the active display. Also,
         // the DisplayCapability set of a display is populated on its first powering on. Do this now
         // before responding to any Binder query from DisplayManager about display capabilities.
-        for (const auto& [id, display] : mPhysicalDisplays) {
-            setPowerModeInternal(getDisplayDeviceLocked(id), hal::PowerMode::ON);
+        // Additionally, do not turn on displays if the boot should be quiescent.
+        if (!mSkipPowerOnForQuiescent) {
+            for (const auto& [id, display] : mPhysicalDisplays) {
+                setPowerModeInternal(getDisplayDeviceLocked(id), hal::PowerMode::ON);
+            }
         }
     }
 }
@@ -6262,6 +6268,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
 void SurfaceFlinger::setPowerMode(const sp<IBinder>& displayToken, int mode) {
     auto future = mScheduler->schedule([=, this]() FTL_FAKE_GUARD(mStateLock) FTL_FAKE_GUARD(
                                                kMainThreadContext) {
+        mSkipPowerOnForQuiescent = false;
         const auto display = getDisplayDeviceLocked(displayToken);
         if (!display) {
             ALOGE("Attempt to set power mode %d for invalid display token %p", mode,
