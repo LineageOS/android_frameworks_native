@@ -76,6 +76,14 @@ void FakePointerController::setCustomPointerIcon(const SpriteIcon& icon) {
     mCustomIconStyle = icon.style;
 }
 
+void FakePointerController::setSkipScreenshot(int32_t displayId, bool skip) {
+    if (skip) {
+        mDisplaysToSkipScreenshot.insert(displayId);
+    } else {
+        mDisplaysToSkipScreenshot.erase(displayId);
+    }
+};
+
 void FakePointerController::assertViewportSet(int32_t displayId) {
     ASSERT_TRUE(mDisplayId);
     ASSERT_EQ(displayId, mDisplayId);
@@ -115,6 +123,14 @@ void FakePointerController::assertCustomPointerIconSet(PointerIconStyle iconId) 
 
 void FakePointerController::assertCustomPointerIconNotSet() {
     ASSERT_EQ(std::nullopt, mCustomIconStyle);
+}
+
+void FakePointerController::assertIsHiddenOnMirroredDisplays(int32_t displayId, bool isHidden) {
+    if (isHidden) {
+        ASSERT_TRUE(mDisplaysToSkipScreenshot.find(displayId) != mDisplaysToSkipScreenshot.end());
+    } else {
+        ASSERT_TRUE(mDisplaysToSkipScreenshot.find(displayId) == mDisplaysToSkipScreenshot.end());
+    }
 }
 
 bool FakePointerController::isPointerShown() {

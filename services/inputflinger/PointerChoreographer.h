@@ -21,6 +21,7 @@
 #include "PointerChoreographerPolicyInterface.h"
 
 #include <android-base/thread_annotations.h>
+#include <gui/WindowInfosListener.h>
 #include <type_traits>
 
 namespace android {
@@ -83,7 +84,7 @@ class PointerChoreographer : public PointerChoreographerInterface {
 public:
     explicit PointerChoreographer(InputListenerInterface& listener,
                                   PointerChoreographerPolicyInterface&);
-    ~PointerChoreographer() override = default;
+    ~PointerChoreographer() override;
 
     void setDefaultMouseDisplayId(int32_t displayId) override;
     void setDisplayViewports(const std::vector<DisplayViewport>& viewports) override;
@@ -106,6 +107,9 @@ public:
     void notifyDeviceReset(const NotifyDeviceResetArgs& args) override;
     void notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs& args) override;
 
+    // Public because it's also used by tests to simulate the WindowInfosListener callback
+    void onWindowInfosChanged(const std::vector<android::gui::WindowInfo>& windowInfos);
+
     void dump(std::string& dump) override;
 
 private:
@@ -127,6 +131,22 @@ private:
     void processTouchscreenAndStylusEventLocked(const NotifyMotionArgs& args) REQUIRES(mLock);
     void processStylusHoverEventLocked(const NotifyMotionArgs& args) REQUIRES(mLock);
     void processDeviceReset(const NotifyDeviceResetArgs& args);
+    void onControllerAddedOrRemoved() REQUIRES(mLock);
+    void onWindowInfosChangedLocked(const std::vector<android::gui::WindowInfo>& windowInfos)
+            REQUIRES(mLock);
+
+    class PointerChoreographerDisplayInfoListener : public gui::WindowInfosListener {
+    public:
+        explicit PointerChoreographerDisplayInfoListener(PointerChoreographer* pc)
+              : mPointerChoreographer(pc){};
+        void onWindowInfosChanged(const gui::WindowInfosUpdate&) override;
+        void onPointerChoreographerDestroyed();
+
+    private:
+        std::mutex mListenerLock;
+        PointerChoreographer* mPointerChoreographer GUARDED_BY(mListenerLock);
+    };
+    sp<PointerChoreographerDisplayInfoListener> mWindowInfoListener GUARDED_BY(mLock);
 
     using ControllerConstructor =
             ConstructorDelegate<std::function<std::shared_ptr<PointerControllerInterface>()>>;

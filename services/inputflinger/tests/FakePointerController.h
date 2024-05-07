@@ -21,6 +21,7 @@
 #include <input/DisplayViewport.h>
 #include <input/Input.h>
 #include <utils/BitSet.h>
+#include <unordered_set>
 
 namespace android {
 
@@ -45,6 +46,7 @@ public:
     void setDisplayViewport(const DisplayViewport& viewport) override;
     void updatePointerIcon(PointerIconStyle iconId) override;
     void setCustomPointerIcon(const SpriteIcon& icon) override;
+    void setSkipScreenshot(int32_t displayId, bool skip) override;
     void fade(Transition) override;
 
     void assertViewportSet(int32_t displayId);
@@ -55,6 +57,7 @@ public:
     void assertPointerIconNotSet();
     void assertCustomPointerIconSet(PointerIconStyle iconId);
     void assertCustomPointerIconNotSet();
+    void assertIsHiddenOnMirroredDisplays(int32_t displayId, bool isHidden);
     bool isPointerShown();
 
 private:
@@ -77,6 +80,7 @@ private:
     std::optional<PointerIconStyle> mCustomIconStyle;
 
     std::map<int32_t, std::vector<int32_t>> mSpotsByDisplay;
+    std::unordered_set<int32_t> mDisplaysToSkipScreenshot;
 };
 
 } // namespace android
