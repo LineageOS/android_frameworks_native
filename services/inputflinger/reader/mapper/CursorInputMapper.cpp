@@ -507,7 +507,6 @@ void CursorInputMapper::configureOnChangeDisplayInfo(const InputReaderConfigurat
 
     mDisplayId = ADISPLAY_ID_NONE;
     std::optional<DisplayViewport> resolvedViewport;
-    bool isBoundsSet = false;
     if (auto assocViewport = mDeviceContext.getAssociatedViewport(); assocViewport) {
         // This InputDevice is associated with a viewport.
         // Only generate events for the associated display.
@@ -526,14 +525,12 @@ void CursorInputMapper::configureOnChangeDisplayInfo(const InputReaderConfigurat
             ? ui::ROTATION_0
             : getInverseRotation(resolvedViewport->orientation);
 
-    if (!isBoundsSet) {
-        mBoundsInLogicalDisplay = resolvedViewport
-                ? FloatRect{static_cast<float>(resolvedViewport->logicalLeft),
-                            static_cast<float>(resolvedViewport->logicalTop),
-                            static_cast<float>(resolvedViewport->logicalRight - 1),
-                            static_cast<float>(resolvedViewport->logicalBottom - 1)}
-                : FloatRect{0, 0, 0, 0};
-    }
+    mBoundsInLogicalDisplay = resolvedViewport
+            ? FloatRect{static_cast<float>(resolvedViewport->logicalLeft),
+                        static_cast<float>(resolvedViewport->logicalTop),
+                        static_cast<float>(resolvedViewport->logicalRight - 1),
+                        static_cast<float>(resolvedViewport->logicalBottom - 1)}
+            : FloatRect{0, 0, 0, 0};
 
     bumpGeneration();
 }
