@@ -258,57 +258,16 @@ public:
     void sysfsNodeChanged(const std::string& sysfsNodePath) override {}
 };
 
-class FuzzPointerController : public PointerControllerInterface {
-    std::shared_ptr<ThreadSafeFuzzedDataProvider> mFdp;
-
-public:
-    FuzzPointerController(std::shared_ptr<ThreadSafeFuzzedDataProvider> mFdp) : mFdp(mFdp) {}
-    ~FuzzPointerController() {}
-    std::optional<FloatRect> getBounds() const override {
-        if (mFdp->ConsumeBool()) {
-            return {};
-        } else {
-            return FloatRect{mFdp->ConsumeFloatingPoint<float>(),
-                             mFdp->ConsumeFloatingPoint<float>(),
-                             mFdp->ConsumeFloatingPoint<float>(),
-                             mFdp->ConsumeFloatingPoint<float>()};
-        }
-    }
-    void move(float deltaX, float deltaY) override {}
-    void setPosition(float x, float y) override {}
-    FloatPoint getPosition() const override {
-        return {mFdp->ConsumeFloatingPoint<float>(), mFdp->ConsumeFloatingPoint<float>()};
-    }
-    void fade(Transition transition) override {}
-    void unfade(Transition transition) override {}
-    void setPresentation(Presentation presentation) override {}
-    void setSpots(const PointerCoords* spotCoords, const uint32_t* spotIdToIndex,
-                  BitSet32 spotIdBits, int32_t displayId) override {}
-    void clearSpots() override {}
-    int32_t getDisplayId() const override { return mFdp->ConsumeIntegral<int32_t>(); }
-    void setDisplayViewport(const DisplayViewport& displayViewport) override {}
-    void updatePointerIcon(PointerIconStyle iconId) override {}
-    void setCustomPointerIcon(const SpriteIcon& icon) override {}
-    void setSkipScreenshot(int32_t displayId, bool skip) override{};
-    std::string dump() override { return ""; }
-};
-
 class FuzzInputReaderPolicy : public InputReaderPolicyInterface {
     TouchAffineTransformation mTransform;
-    std::shared_ptr<FuzzPointerController> mPointerController;
     std::shared_ptr<ThreadSafeFuzzedDataProvider> mFdp;
 
 protected:
     ~FuzzInputReaderPolicy() {}
 
 public:
-    FuzzInputReaderPolicy(std::shared_ptr<ThreadSafeFuzzedDataProvider> mFdp) : mFdp(mFdp) {
-        mPointerController = std::make_shared<FuzzPointerController>(mFdp);
-    }
+    FuzzInputReaderPolicy(std::shared_ptr<ThreadSafeFuzzedDataProvider> mFdp) : mFdp(mFdp) {}
     void getReaderConfiguration(InputReaderConfiguration* outConfig) override {}
-    std::shared_ptr<PointerControllerInterface> obtainPointerController(int32_t deviceId) override {
-        return mPointerController;
-    }
     void notifyInputDevicesChanged(const std::vector<InputDeviceInfo>& inputDevices) override {}
     std::shared_ptr<KeyCharacterMap> getKeyboardLayoutOverlay(
             const InputDeviceIdentifier& identifier,
@@ -359,10 +318,6 @@ public:
     void disableVirtualKeysUntil(nsecs_t time) override {}
     bool shouldDropVirtualKey(nsecs_t now, int32_t keyCode, int32_t scanCode) override {
         return mFdp->ConsumeBool();
-    }
-    void fadePointer() override {}
-    std::shared_ptr<PointerControllerInterface> getPointerController(int32_t deviceId) override {
-        return mPolicy->obtainPointerController(0);
     }
     void requestTimeoutAtTime(nsecs_t when) override {}
     int32_t bumpGeneration() override { return mFdp->ConsumeIntegral<int32_t>(); }

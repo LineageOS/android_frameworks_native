@@ -155,11 +155,6 @@ void FakeInputReaderPolicy::removeDisabledDevice(int32_t deviceId) {
     mConfig.disabledDevices.erase(deviceId);
 }
 
-void FakeInputReaderPolicy::setPointerController(
-        std::shared_ptr<FakePointerController> controller) {
-    mPointerController = std::move(controller);
-}
-
 const InputReaderConfiguration& FakeInputReaderPolicy::getReaderConfiguration() const {
     return mConfig;
 }
@@ -181,10 +176,6 @@ void FakeInputReaderPolicy::setTouchAffineTransformation(const TouchAffineTransf
 PointerCaptureRequest FakeInputReaderPolicy::setPointerCapture(const sp<IBinder>& window) {
     mConfig.pointerCaptureRequest = {window, mNextPointerCaptureSequenceNumber++};
     return mConfig.pointerCaptureRequest;
-}
-
-void FakeInputReaderPolicy::setShowTouches(bool enabled) {
-    mConfig.showTouches = enabled;
 }
 
 void FakeInputReaderPolicy::setDefaultPointerDisplayId(int32_t pointerDisplayId) {
@@ -226,11 +217,6 @@ bool FakeInputReaderPolicy::isInputMethodConnectionActive() {
 
 void FakeInputReaderPolicy::getReaderConfiguration(InputReaderConfiguration* outConfig) {
     *outConfig = mConfig;
-}
-
-std::shared_ptr<PointerControllerInterface> FakeInputReaderPolicy::obtainPointerController(
-        int32_t /*deviceId*/) {
-    return mPointerController;
 }
 
 void FakeInputReaderPolicy::notifyInputDevicesChanged(

@@ -26,7 +26,6 @@
 #include <InputDevice.h>
 #include <InputReaderBase.h>
 
-#include "FakePointerController.h"
 #include "input/DisplayViewport.h"
 #include "input/InputDevice.h"
 
@@ -62,14 +61,12 @@ public:
                                       const KeyboardLayoutInfo& layoutInfo);
     void addDisabledDevice(int32_t deviceId);
     void removeDisabledDevice(int32_t deviceId);
-    void setPointerController(std::shared_ptr<FakePointerController> controller);
     const InputReaderConfiguration& getReaderConfiguration() const;
     const std::vector<InputDeviceInfo> getInputDevices() const;
     TouchAffineTransformation getTouchAffineTransformation(const std::string& inputDeviceDescriptor,
                                                            ui::Rotation surfaceRotation);
     void setTouchAffineTransformation(const TouchAffineTransformation t);
     PointerCaptureRequest setPointerCapture(const sp<IBinder>& window);
-    void setShowTouches(bool enabled);
     void setDefaultPointerDisplayId(int32_t pointerDisplayId);
     void setPointerGestureEnabled(bool enabled);
     float getPointerGestureMovementSpeedRatio();
@@ -84,8 +81,6 @@ public:
 
 private:
     void getReaderConfiguration(InputReaderConfiguration* outConfig) override;
-    std::shared_ptr<PointerControllerInterface> obtainPointerController(
-            int32_t /*deviceId*/) override;
     void notifyInputDevicesChanged(const std::vector<InputDeviceInfo>& inputDevices) override;
     std::shared_ptr<KeyCharacterMap> getKeyboardLayoutOverlay(
             const InputDeviceIdentifier&, const std::optional<KeyboardLayoutInfo>) override;
@@ -97,7 +92,6 @@ private:
     std::condition_variable mDevicesChangedCondition;
 
     InputReaderConfiguration mConfig;
-    std::shared_ptr<FakePointerController> mPointerController;
     std::vector<InputDeviceInfo> mInputDevices GUARDED_BY(mLock);
     bool mInputDevicesChanged GUARDED_BY(mLock){false};
     std::vector<DisplayViewport> mViewports;

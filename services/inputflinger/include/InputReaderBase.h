@@ -61,9 +61,6 @@ struct InputReaderConfiguration {
         // The display size or orientation changed.
         DISPLAY_INFO = 1u << 2,
 
-        // The visible touches option changed.
-        SHOW_TOUCHES = 1u << 3,
-
         // The keyboard layouts must be reloaded.
         KEYBOARD_LAYOUTS = 1u << 4,
 
@@ -214,9 +211,6 @@ struct InputReaderConfiguration {
     // will cover this portion of the display diagonal.
     float pointerGestureZoomSpeedRatio;
 
-    // True to show the location of touches on the touch screen as spots.
-    bool showTouches;
-
     // The latest request to enable or disable Pointer Capture.
     PointerCaptureRequest pointerCaptureRequest;
 
@@ -268,7 +262,6 @@ struct InputReaderConfiguration {
             pointerGestureSwipeMaxWidthRatio(0.25f),
             pointerGestureMovementSpeedRatio(0.8f),
             pointerGestureZoomSpeedRatio(0.3f),
-            showTouches(false),
             pointerCaptureRequest(),
             touchpadPointerSpeed(0),
             touchpadNaturalScrollingEnabled(true),
@@ -448,10 +441,6 @@ protected:
 public:
     /* Gets the input reader configuration. */
     virtual void getReaderConfiguration(InputReaderConfiguration* outConfig) = 0;
-
-    /* Gets a pointer controller associated with the specified cursor device (ie. a mouse). */
-    virtual std::shared_ptr<PointerControllerInterface> obtainPointerController(
-            int32_t deviceId) = 0;
 
     /* Notifies the input reader policy that some input devices have changed
      * and provides information about all current input devices.

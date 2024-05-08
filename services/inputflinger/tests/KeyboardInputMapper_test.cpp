@@ -72,8 +72,6 @@ protected:
     }
 
     void testPointerVisibilityForKeys(const std::vector<int32_t>& keyCodes, bool expectVisible) {
-        EXPECT_CALL(mMockInputReaderContext, fadePointer)
-                .Times(expectVisible ? 0 : keyCodes.size());
         for (int32_t keyCode : keyCodes) {
             process(EV_KEY, keyCode, 1);
             process(EV_SYN, SYN_REPORT, 0);
@@ -84,7 +82,6 @@ protected:
 
     void testTouchpadTapStateForKeys(const std::vector<int32_t>& keyCodes,
                                      const bool expectPrevent) {
-        EXPECT_CALL(mMockInputReaderContext, isPreventingTouchpadTaps).Times(keyCodes.size());
         if (expectPrevent) {
             EXPECT_CALL(mMockInputReaderContext, setPreventingTouchpadTaps(true))
                     .Times(keyCodes.size());

@@ -28,7 +28,6 @@ class InputDevice;
 class InputListenerInterface;
 class InputMapper;
 class InputReaderPolicyInterface;
-class PointerControllerInterface;
 struct StylusState;
 
 /* Internal interface used by individual input devices to access global input device state
@@ -44,9 +43,6 @@ public:
 
     virtual void disableVirtualKeysUntil(nsecs_t time) = 0;
     virtual bool shouldDropVirtualKey(nsecs_t now, int32_t keyCode, int32_t scanCode) = 0;
-
-    virtual void fadePointer() = 0;
-    virtual std::shared_ptr<PointerControllerInterface> getPointerController(int32_t deviceId) = 0;
 
     virtual void requestTimeoutAtTime(nsecs_t when) = 0;
     virtual int32_t bumpGeneration() = 0;

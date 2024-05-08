@@ -46,7 +46,6 @@
 #include <thread>
 #include "FakeEventHub.h"
 #include "FakeInputReaderPolicy.h"
-#include "FakePointerController.h"
 #include "InputMapperTest.h"
 #include "InstrumentedInputReader.h"
 #include "TestConstants.h"
@@ -1349,8 +1348,6 @@ protected:
     sp<FakeInputReaderPolicy> mFakePolicy;
     std::unique_ptr<InputReaderInterface> mReader;
 
-    std::shared_ptr<FakePointerController> mFakePointerController;
-
     constexpr static auto EVENT_HAPPENED_TIMEOUT = 2000ms;
     constexpr static auto EVENT_DID_NOT_HAPPEN_TIMEOUT = 30ms;
 
@@ -1359,8 +1356,6 @@ protected:
         GTEST_SKIP();
 #endif
         mFakePolicy = sp<FakeInputReaderPolicy>::make();
-        mFakePointerController = std::make_shared<FakePointerController>();
-        mFakePolicy->setPointerController(mFakePointerController);
 
         setupInputReader();
     }
@@ -1654,8 +1649,6 @@ protected:
         } else {
             mFakePolicy->addInputUniqueIdAssociation(INPUT_PORT, UNIQUE_ID);
         }
-        mFakePointerController = std::make_shared<FakePointerController>();
-        mFakePolicy->setPointerController(mFakePointerController);
 
         InputReaderIntegrationTest::setupInputReader();
 
