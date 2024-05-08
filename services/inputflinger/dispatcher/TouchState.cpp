@@ -211,9 +211,11 @@ bool TouchState::isSlippery(DeviceId deviceId) const {
     return haveSlipperyForegroundWindow;
 }
 
-sp<WindowInfoHandle> TouchState::getWallpaperWindow() const {
-    for (size_t i = 0; i < windows.size(); i++) {
-        const TouchedWindow& window = windows[i];
+sp<WindowInfoHandle> TouchState::getWallpaperWindow(DeviceId deviceId) const {
+    for (const auto& window : windows) {
+        if (!window.hasTouchingPointers(deviceId)) {
+            continue;
+        }
         if (window.windowHandle->getInfo()->inputConfig.test(
                     gui::WindowInfo::InputConfig::IS_WALLPAPER)) {
             return window.windowHandle;
