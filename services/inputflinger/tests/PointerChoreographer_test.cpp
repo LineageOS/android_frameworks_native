@@ -15,7 +15,8 @@
  */
 
 #include "../PointerChoreographer.h"
-
+#include <com_android_input_flags.h>
+#include <flag_macros.h>
 #include <gtest/gtest.h>
 #include <deque>
 #include <vector>
@@ -26,6 +27,8 @@
 #include "TestInputListener.h"
 
 namespace android {
+
+namespace input_flags = com::android::input::flags;
 
 using ControllerType = PointerControllerInterface::ControllerType;
 using testing::AllOf;
@@ -1585,6 +1588,76 @@ TEST_F(PointerChoreographerTest, SetsPointerIconForMouseOnTwoDisplays) {
                                               SECOND_DEVICE_ID));
     secondMousePc->assertPointerIconSet(PointerIconStyle::TYPE_TEXT);
     firstMousePc->assertPointerIconNotSet();
+}
+
+TEST_F_WITH_FLAGS(PointerChoreographerTest, HidesTouchSpotsOnMirroredDisplaysForSecureWindow,
+                  REQUIRES_FLAGS_ENABLED(
+                          ACONFIG_FLAG(input_flags, hide_pointer_indicators_for_secure_windows))) {
+    // Add a touch device and enable show touches.
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_TOUCHSCREEN, DISPLAY_ID)}});
+    mChoreographer.setShowTouchesEnabled(true);
+
+    // Emit touch events to create PointerController
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                    .pointer(FIRST_TOUCH_POINTER)
+                    .deviceId(DEVICE_ID)
+                    .displayId(DISPLAY_ID)
+                    .build());
+
+    // By default touch indicators should not be hidden
+    auto pc = assertPointerControllerCreated(ControllerType::TOUCH);
+    pc->assertIsHiddenOnMirroredDisplays(DISPLAY_ID, /*isHidden=*/false);
+    pc->assertIsHiddenOnMirroredDisplays(ANOTHER_DISPLAY_ID, /*isHidden=*/false);
+
+    // adding secure window on display should set flag to hide pointer indicators on corresponding
+    // mirrored display
+    gui::WindowInfo windowInfo;
+    windowInfo.displayId = DISPLAY_ID;
+    windowInfo.inputConfig |= gui::WindowInfo::InputConfig::SENSITIVE_FOR_PRIVACY;
+    mChoreographer.onWindowInfosChanged({windowInfo});
+    pc->assertIsHiddenOnMirroredDisplays(DISPLAY_ID, /*isHidden=*/true);
+    pc->assertIsHiddenOnMirroredDisplays(ANOTHER_DISPLAY_ID, /*isHidden=*/false);
+
+    // removing the secure window should reset the state
+    windowInfo.inputConfig.clear(gui::WindowInfo::InputConfig::SENSITIVE_FOR_PRIVACY);
+    mChoreographer.onWindowInfosChanged({windowInfo});
+    pc->assertIsHiddenOnMirroredDisplays(DISPLAY_ID, /*isHidden=*/false);
+    pc->assertIsHiddenOnMirroredDisplays(ANOTHER_DISPLAY_ID, /*isHidden=*/false);
+}
+
+TEST_F_WITH_FLAGS(PointerChoreographerTest,
+                  DoesNotHidesTouchSpotsOnMirroredDisplaysForInvisibleWindow,
+                  REQUIRES_FLAGS_ENABLED(
+                          ACONFIG_FLAG(input_flags, hide_pointer_indicators_for_secure_windows))) {
+    // Add a touch device and enable show touches.
+    mChoreographer.notifyInputDevicesChanged(
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_TOUCHSCREEN, DISPLAY_ID)}});
+    mChoreographer.setShowTouchesEnabled(true);
+
+    // Emit touch events to create PointerController
+    mChoreographer.notifyMotion(
+            MotionArgsBuilder(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                    .pointer(FIRST_TOUCH_POINTER)
+                    .deviceId(DEVICE_ID)
+                    .displayId(DISPLAY_ID)
+                    .build());
+
+    // By default touch indicators should not be hidden
+    auto pc = assertPointerControllerCreated(ControllerType::TOUCH);
+    pc->assertIsHiddenOnMirroredDisplays(DISPLAY_ID, /*isHidden=*/false);
+    pc->assertIsHiddenOnMirroredDisplays(ANOTHER_DISPLAY_ID, /*isHidden=*/false);
+
+    // adding secure but hidden window on display should still not set flag to hide pointer
+    // indicators
+    gui::WindowInfo windowInfo;
+    windowInfo.displayId = DISPLAY_ID;
+    windowInfo.inputConfig |= gui::WindowInfo::InputConfig::SENSITIVE_FOR_PRIVACY;
+    windowInfo.inputConfig |= gui::WindowInfo::InputConfig::NOT_VISIBLE;
+    mChoreographer.onWindowInfosChanged({windowInfo});
+    pc->assertIsHiddenOnMirroredDisplays(DISPLAY_ID, /*isHidden=*/false);
+    pc->assertIsHiddenOnMirroredDisplays(ANOTHER_DISPLAY_ID, /*isHidden=*/false);
 }
 
 TEST_P(StylusTestFixture, SetsPointerIconForStylus) {

@@ -289,6 +289,7 @@ public:
     void setDisplayViewport(const DisplayViewport& displayViewport) override {}
     void updatePointerIcon(PointerIconStyle iconId) override {}
     void setCustomPointerIcon(const SpriteIcon& icon) override {}
+    void setSkipScreenshot(int32_t displayId, bool skip) override{};
     std::string dump() override { return ""; }
 };
 

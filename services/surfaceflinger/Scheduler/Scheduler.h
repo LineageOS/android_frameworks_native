@@ -346,7 +346,9 @@ private:
     // Used to skip event dispatch before EventThread creation during boot.
     // TODO: b/241285191 - Reorder Scheduler initialization to avoid this.
     bool hasEventThreads() const {
-        return CC_LIKELY(mRenderEventThread && mLastCompositeEventThread);
+        return CC_LIKELY(
+                mRenderEventThread &&
+                (FlagManager::getInstance().deprecate_vsync_sf() || mLastCompositeEventThread));
     }
 
     EventThread& eventThreadFor(Cycle cycle) const {
