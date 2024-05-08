@@ -17,8 +17,20 @@
 /**
  * @addtogroup Choreographer
  *
- * Choreographer coordinates the timing of frame rendering. This is the C version of the
- * android.view.Choreographer object in Java.
+ * Choreographer coordinates the timing of frame rendering. This is the C
+ * version of the android.view.Choreographer object in Java. If you do not use
+ * Choreographer to pace your render loop, you may render too quickly for the
+ * display, increasing latency between frame submission and presentation.
+ *
+ * Input events are guaranteed to be processed before the frame callback is
+ * called, and will not be run concurrently. Input and sensor events should not
+ * be handled in the Choregrapher callback.
+ *
+ * The frame callback is also the appropriate place to run any per-frame state
+ * update logic. For example, in a game, the frame callback should be
+ * responsible for updating things like physics, AI, game state, and rendering
+ * the frame. Input and sensors should be handled separately via callbacks
+ * registered with AInputQueue and ASensorManager.
  *
  * As of API level 33, apps can follow proper frame pacing and even choose a future frame to render.
  * The API is used as follows:
@@ -37,6 +49,11 @@
  * timeline that the platform scheduled for the app, based on device configuration.
  * 4. SurfaceFlinger attempts to follow the chosen frame timeline, by not applying transactions or
  * latching buffers before the desired presentation time.
+ *
+ * On older devices, AChoreographer_postFrameCallback64 or
+ * AChoreographer_postFrameCallback can be used to lesser effect. They cannot be
+ * used to precisely plan your render timeline, but will rate limit to avoid
+ * overloading the display pipeline and increasing frame latency.
  *
  * @{
  */
@@ -129,14 +146,46 @@ typedef void (*AChoreographer_refreshRateCallback)(int64_t vsyncPeriodNanos, voi
 AChoreographer* AChoreographer_getInstance() __INTRODUCED_IN(24);
 
 /**
- * Deprecated: Use AChoreographer_postFrameCallback64 instead.
+ * Post a callback to be run when the application should begin rendering the
+ * next frame. The data pointer provided will be passed to the callback function
+ * when it's called.
+ *
+ * The callback will only be run for the next frame, not all subsequent frames,
+ * so to render continuously the callback should itself call
+ * AChoreographer_postFrameCallback.
+ *
+ * \bug The callback receives the frame time in nanoseconds as a long. On 32-bit
+ * systems, long is 32-bit, so the frame time will roll over roughly every two
+ * seconds. If your minSdkVersion is 29 or higher, switch to
+ * AChoreographer_postFrameCallback64, which uses a 64-bit frame time for all
+ * platforms. For older OS versions, you must combine the argument with the
+ * upper bits of clock_gettime(CLOCK_MONOTONIC, ...) on 32-bit systems.
+ *
+ * \deprecated Use AChoreographer_postFrameCallback64, which does not have the
+ * bug described above.
  */
 void AChoreographer_postFrameCallback(AChoreographer* choreographer,
                                       AChoreographer_frameCallback callback, void* data)
         __INTRODUCED_IN(24) __DEPRECATED_IN(29, "Use AChoreographer_postFrameCallback64 instead");
 
 /**
- * Deprecated: Use AChoreographer_postFrameCallbackDelayed64 instead.
+ * Post a callback to be run when the application should begin rendering the
+ * next frame following the specified delay. The data pointer provided will be
+ * passed to the callback function when it's called.
+ *
+ * The callback will only be run for the next frame after the delay, not all
+ * subsequent frames, so to render continuously the callback should itself call
+ * AChoreographer_postFrameCallbackDelayed.
+ *
+ * \bug The callback receives the frame time in nanoseconds as a long. On 32-bit
+ * systems, long is 32-bit, so the frame time will roll over roughly every two
+ * seconds. If your minSdkVersion is 29 or higher, switch to
+ * AChoreographer_postFrameCallbackDelayed64, which uses a 64-bit frame time for
+ * all platforms. For older OS versions, you must combine the argument with the
+ * upper bits of clock_gettime(CLOCK_MONOTONIC, ...) on 32-bit systems.
+ *
+ * \deprecated Use AChoreographer_postFrameCallbackDelayed64, which does not
+ * have the bug described above.
  */
 void AChoreographer_postFrameCallbackDelayed(AChoreographer* choreographer,
                                              AChoreographer_frameCallback callback, void* data,
@@ -144,8 +193,13 @@ void AChoreographer_postFrameCallbackDelayed(AChoreographer* choreographer,
         __DEPRECATED_IN(29, "Use AChoreographer_postFrameCallbackDelayed64 instead");
 
 /**
- * Post a callback to be run on the next frame.  The data pointer provided will
- * be passed to the callback function when it's called.
+ * Post a callback to be run when the application should begin rendering the
+ * next frame. The data pointer provided will be passed to the callback function
+ * when it's called.
+ *
+ * The callback will only be run on the next frame, not all subsequent frames,
+ * so to render continuously the callback should itself call
+ * AChoreographer_postFrameCallback64.
  *
  * Available since API level 29.
  */
@@ -154,9 +208,13 @@ void AChoreographer_postFrameCallback64(AChoreographer* choreographer,
         __INTRODUCED_IN(29);
 
 /**
- * Post a callback to be run on the frame following the specified delay.  The
- * data pointer provided will be passed to the callback function when it's
- * called.
+ * Post a callback to be run when the application should begin rendering the
+ * next frame following the specified delay. The data pointer provided will be
+ * passed to the callback function when it's called.
+ *
+ * The callback will only be run for the next frame after the delay, not all
+ * subsequent frames, so to render continuously the callback should itself call
+ * AChoreographer_postFrameCallbackDelayed64.
  *
  * Available since API level 29.
  */
@@ -165,8 +223,13 @@ void AChoreographer_postFrameCallbackDelayed64(AChoreographer* choreographer,
                                                uint32_t delayMillis) __INTRODUCED_IN(29);
 
 /**
- * Posts a callback to be run on the next frame. The data pointer provided will
- * be passed to the callback function when it's called.
+ * Posts a callback to be run when the application should begin rendering the
+ * next frame. The data pointer provided will be passed to the callback function
+ * when it's called.
+ *
+ * The callback will only be run for the next frame, not all subsequent frames,
+ * so to render continuously the callback should itself call
+ * AChoreographer_postVsyncCallback.
  *
  * Available since API level 33.
  */
