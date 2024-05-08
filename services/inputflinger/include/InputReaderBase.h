@@ -394,6 +394,12 @@ public:
 
     /* Sysfs node change reported. Recreate device if required to incorporate the new sysfs nodes */
     virtual void sysfsNodeChanged(const std::string& sysfsNodePath) = 0;
+
+    /* Get the ID of the InputDevice that was used most recently.
+     *
+     * Returns ReservedInputDeviceId::INVALID_INPUT_DEVICE_ID if no device has been used since boot.
+     */
+    virtual DeviceId getLastUsedInputDeviceId() = 0;
 };
 
 // --- TouchAffineTransformation ---

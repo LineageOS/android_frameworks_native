@@ -118,6 +118,8 @@ public:
 
     void sysfsNodeChanged(const std::string& sysfsNodePath) override;
 
+    DeviceId getLastUsedInputDeviceId() override;
+
 protected:
     // These members are protected so they can be instrumented by test cases.
     virtual std::shared_ptr<InputDevice> createDeviceLocked(nsecs_t when, int32_t deviceId,
@@ -199,6 +201,9 @@ private:
 
     // records timestamp of the last key press on the physical keyboard
     nsecs_t mLastKeyDownTimestamp GUARDED_BY(mLock){0};
+
+    // The input device that produced a new gesture most recently.
+    DeviceId mLastUsedDeviceId GUARDED_BY(mLock){ReservedInputDeviceId::INVALID_INPUT_DEVICE_ID};
 
     // low-level input event decoding and device management
     [[nodiscard]] std::list<NotifyArgs> processEventsLocked(const RawEvent* rawEvents, size_t count)
