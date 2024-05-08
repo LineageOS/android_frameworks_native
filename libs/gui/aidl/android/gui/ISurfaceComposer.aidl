@@ -105,14 +105,14 @@ interface ISurfaceComposer {
      *
      * requires ACCESS_SURFACE_FLINGER permission.
      */
-    @nullable IBinder createDisplay(@utf8InCpp String displayName, boolean isSecure,
+    @nullable IBinder createVirtualDisplay(@utf8InCpp String displayName, boolean isSecure,
             @utf8InCpp String uniqueId, float requestedRefreshRate);
 
     /**
      * Destroy a virtual display.
      * requires ACCESS_SURFACE_FLINGER permission.
      */
-    void destroyDisplay(IBinder display);
+    void destroyVirtualDisplay(IBinder displayToken);
 
     /**
      * Get stable IDs for connected physical displays.

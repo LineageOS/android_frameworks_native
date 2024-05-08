@@ -39,8 +39,8 @@ using gui::aidl_utils::statusTFromBinderStatus;
 using ui::ColorMode;
 
 namespace {
-const String8 DISPLAY_NAME("Credentials Display Test");
-const String8 SURFACE_NAME("Test Surface Name");
+const std::string kDisplayName("Credentials Display Test");
+const String8 kSurfaceName("Test Surface Name");
 } // namespace
 
 /**
@@ -99,7 +99,7 @@ protected:
         ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getActiveDisplayMode(mDisplay, &mode));
 
         // Background surface
-        mBGSurfaceControl = mComposerClient->createSurface(SURFACE_NAME, mode.resolution.getWidth(),
+        mBGSurfaceControl = mComposerClient->createSurface(kSurfaceName, mode.resolution.getWidth(),
                                                            mode.resolution.getHeight(),
                                                            PIXEL_FORMAT_RGBA_8888, 0);
         ASSERT_TRUE(mBGSurfaceControl != nullptr);
@@ -232,7 +232,7 @@ TEST_F(CredentialsTest, SetActiveColorModeTest) {
 TEST_F(CredentialsTest, CreateDisplayTest) {
     // Only graphics and system processes can create a secure display.
     std::function<bool()> condition = [=]() {
-        sp<IBinder> testDisplay = SurfaceComposerClient::createDisplay(DISPLAY_NAME, true);
+        sp<IBinder> testDisplay = SurfaceComposerClient::createVirtualDisplay(kDisplayName, true);
         return testDisplay.get() != nullptr;
     };
 
@@ -267,7 +267,7 @@ TEST_F(CredentialsTest, CreateDisplayTest) {
     }
 
     condition = [=]() {
-        sp<IBinder> testDisplay = SurfaceComposerClient::createDisplay(DISPLAY_NAME, false);
+        sp<IBinder> testDisplay = SurfaceComposerClient::createVirtualDisplay(kDisplayName, false);
         return testDisplay.get() != nullptr;
     };
     ASSERT_NO_FATAL_FAILURE(checkWithPrivileges(condition, true, false));

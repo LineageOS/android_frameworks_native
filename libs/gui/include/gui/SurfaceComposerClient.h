@@ -376,11 +376,11 @@ public:
     sp<SurfaceControl> mirrorDisplay(DisplayId displayId);
 
     static const std::string kEmpty;
-    static sp<IBinder> createDisplay(const String8& displayName, bool isSecure,
-                                     const std::string& uniqueId = kEmpty,
-                                     float requestedRefreshRate = 0);
+    static sp<IBinder> createVirtualDisplay(const std::string& displayName, bool isSecure,
+                                            const std::string& uniqueId = kEmpty,
+                                            float requestedRefreshRate = 0);
 
-    static void destroyDisplay(const sp<IBinder>& display);
+    static status_t destroyVirtualDisplay(const sp<IBinder>& displayToken);
 
     static std::vector<PhysicalDisplayId> getPhysicalDisplayIds();
 

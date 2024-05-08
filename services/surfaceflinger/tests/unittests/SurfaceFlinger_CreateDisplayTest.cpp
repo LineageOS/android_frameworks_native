@@ -27,7 +27,7 @@ namespace {
 
 class CreateDisplayTest : public DisplayTransactionTest {
 public:
-    void createDisplayWithRequestedRefreshRate(const String8& name, uint64_t displayId,
+    void createDisplayWithRequestedRefreshRate(const std::string& name, uint64_t displayId,
                                                float pacesetterDisplayRefreshRate,
                                                float requestedRefreshRate,
                                                float expectedAdjustedRefreshRate) {
@@ -37,7 +37,7 @@ public:
         // --------------------------------------------------------------------
         // Invocation
 
-        sp<IBinder> displayToken = mFlinger.createDisplay(name, false, requestedRefreshRate);
+        sp<IBinder> displayToken = mFlinger.createVirtualDisplay(name, false, requestedRefreshRate);
 
         // --------------------------------------------------------------------
         // Postconditions
@@ -73,7 +73,7 @@ public:
 };
 
 TEST_F(CreateDisplayTest, createDisplaySetsCurrentStateForNonsecureDisplay) {
-    const String8 name("virtual.test");
+    static const std::string name("virtual.test");
 
     // --------------------------------------------------------------------
     // Call Expectations
@@ -81,7 +81,7 @@ TEST_F(CreateDisplayTest, createDisplaySetsCurrentStateForNonsecureDisplay) {
     // --------------------------------------------------------------------
     // Invocation
 
-    sp<IBinder> displayToken = mFlinger.createDisplay(name, false);
+    sp<IBinder> displayToken = mFlinger.createVirtualDisplay(name, false);
 
     // --------------------------------------------------------------------
     // Postconditions
@@ -101,7 +101,7 @@ TEST_F(CreateDisplayTest, createDisplaySetsCurrentStateForNonsecureDisplay) {
 }
 
 TEST_F(CreateDisplayTest, createDisplaySetsCurrentStateForSecureDisplay) {
-    const String8 name("virtual.test");
+    static const std::string kDisplayName("virtual.test");
 
     // --------------------------------------------------------------------
     // Call Expectations
@@ -112,7 +112,7 @@ TEST_F(CreateDisplayTest, createDisplaySetsCurrentStateForSecureDisplay) {
     // Set the calling identity to graphics so captureDisplay with secure is allowed.
     IPCThreadState::self()->restoreCallingIdentity(static_cast<int64_t>(AID_GRAPHICS) << 32 |
                                                    AID_GRAPHICS);
-    sp<IBinder> displayToken = mFlinger.createDisplay(name, true);
+    sp<IBinder> displayToken = mFlinger.createVirtualDisplay(kDisplayName, true);
     IPCThreadState::self()->restoreCallingIdentity(oldId);
 
     // --------------------------------------------------------------------
@@ -123,7 +123,7 @@ TEST_F(CreateDisplayTest, createDisplaySetsCurrentStateForSecureDisplay) {
     const auto& display = getCurrentDisplayState(displayToken);
     EXPECT_TRUE(display.isVirtual());
     EXPECT_TRUE(display.isSecure);
-    EXPECT_EQ(name.c_str(), display.displayName);
+    EXPECT_EQ(kDisplayName.c_str(), display.displayName);
 
     // --------------------------------------------------------------------
     // Cleanup conditions
@@ -133,8 +133,8 @@ TEST_F(CreateDisplayTest, createDisplaySetsCurrentStateForSecureDisplay) {
 }
 
 TEST_F(CreateDisplayTest, createDisplaySetsCurrentStateForUniqueId) {
-    const String8 name("virtual.test");
-    const std::string uniqueId = "virtual:package:id";
+    static const std::string kDisplayName("virtual.test");
+    static const std::string kUniqueId = "virtual:package:id";
 
     // --------------------------------------------------------------------
     // Call Expectations
@@ -142,7 +142,7 @@ TEST_F(CreateDisplayTest, createDisplaySetsCurrentStateForUniqueId) {
     // --------------------------------------------------------------------
     // Invocation
 
-    sp<IBinder> displayToken = mFlinger.createDisplay(name, false, uniqueId);
+    sp<IBinder> displayToken = mFlinger.createVirtualDisplay(kDisplayName, false, kUniqueId);
 
     // --------------------------------------------------------------------
     // Postconditions
@@ -153,7 +153,7 @@ TEST_F(CreateDisplayTest, createDisplaySetsCurrentStateForUniqueId) {
     EXPECT_TRUE(display.isVirtual());
     EXPECT_FALSE(display.isSecure);
     EXPECT_EQ(display.uniqueId, "virtual:package:id");
-    EXPECT_EQ(name.c_str(), display.displayName);
+    EXPECT_EQ(kDisplayName.c_str(), display.displayName);
 
     // --------------------------------------------------------------------
     // Cleanup conditions
@@ -164,78 +164,78 @@ TEST_F(CreateDisplayTest, createDisplaySetsCurrentStateForUniqueId) {
 
 // Requesting 0 tells SF not to do anything, i.e., default to refresh as physical displays
 TEST_F(CreateDisplayTest, createDisplayWithRequestedRefreshRate0) {
-    const String8 displayName("virtual.test");
-    const uint64_t displayId = 123ull;
-    const float kPacesetterDisplayRefreshRate = 60.f;
-    const float kRequestedRefreshRate = 0.f;
-    const float kExpectedAdjustedRefreshRate = 0.f;
-    createDisplayWithRequestedRefreshRate(displayName, displayId, kPacesetterDisplayRefreshRate,
+    static const std::string kDisplayName("virtual.test");
+    constexpr uint64_t kDisplayId = 123ull;
+    constexpr float kPacesetterDisplayRefreshRate = 60.f;
+    constexpr float kRequestedRefreshRate = 0.f;
+    constexpr float kExpectedAdjustedRefreshRate = 0.f;
+    createDisplayWithRequestedRefreshRate(kDisplayName, kDisplayId, kPacesetterDisplayRefreshRate,
                                           kRequestedRefreshRate, kExpectedAdjustedRefreshRate);
 }
 
 // Requesting negative refresh rate, will be ignored, same as requesting 0
 TEST_F(CreateDisplayTest, createDisplayWithRequestedRefreshRateNegative) {
-    const String8 displayName("virtual.test");
-    const uint64_t displayId = 123ull;
-    const float kPacesetterDisplayRefreshRate = 60.f;
-    const float kRequestedRefreshRate = -60.f;
-    const float kExpectedAdjustedRefreshRate = 0.f;
-    createDisplayWithRequestedRefreshRate(displayName, displayId, kPacesetterDisplayRefreshRate,
+    static const std::string kDisplayName("virtual.test");
+    constexpr uint64_t kDisplayId = 123ull;
+    constexpr float kPacesetterDisplayRefreshRate = 60.f;
+    constexpr float kRequestedRefreshRate = -60.f;
+    constexpr float kExpectedAdjustedRefreshRate = 0.f;
+    createDisplayWithRequestedRefreshRate(kDisplayName, kDisplayId, kPacesetterDisplayRefreshRate,
                                           kRequestedRefreshRate, kExpectedAdjustedRefreshRate);
 }
 
 // Requesting a higher refresh rate than the pacesetter
 TEST_F(CreateDisplayTest, createDisplayWithRequestedRefreshRateHigh) {
-    const String8 displayName("virtual.test");
-    const uint64_t displayId = 123ull;
-    const float kPacesetterDisplayRefreshRate = 60.f;
-    const float kRequestedRefreshRate = 90.f;
-    const float kExpectedAdjustedRefreshRate = 60.f;
-    createDisplayWithRequestedRefreshRate(displayName, displayId, kPacesetterDisplayRefreshRate,
+    static const std::string kDisplayName("virtual.test");
+    constexpr uint64_t kDisplayId = 123ull;
+    constexpr float kPacesetterDisplayRefreshRate = 60.f;
+    constexpr float kRequestedRefreshRate = 90.f;
+    constexpr float kExpectedAdjustedRefreshRate = 60.f;
+    createDisplayWithRequestedRefreshRate(kDisplayName, kDisplayId, kPacesetterDisplayRefreshRate,
                                           kRequestedRefreshRate, kExpectedAdjustedRefreshRate);
 }
 
 // Requesting the same refresh rate as the pacesetter
 TEST_F(CreateDisplayTest, createDisplayWithRequestedRefreshRateSame) {
-    const String8 displayName("virtual.test");
-    const uint64_t displayId = 123ull;
-    const float kPacesetterDisplayRefreshRate = 60.f;
-    const float kRequestedRefreshRate = 60.f;
-    const float kExpectedAdjustedRefreshRate = 60.f;
-    createDisplayWithRequestedRefreshRate(displayName, displayId, kPacesetterDisplayRefreshRate,
+    static const std::string kDisplayName("virtual.test");
+    constexpr uint64_t kDisplayId = 123ull;
+    constexpr float kPacesetterDisplayRefreshRate = 60.f;
+    constexpr float kRequestedRefreshRate = 60.f;
+    constexpr float kExpectedAdjustedRefreshRate = 60.f;
+    createDisplayWithRequestedRefreshRate(kDisplayName, kDisplayId, kPacesetterDisplayRefreshRate,
                                           kRequestedRefreshRate, kExpectedAdjustedRefreshRate);
 }
 
 // Requesting a divisor (30) of the pacesetter (60) should be honored
 TEST_F(CreateDisplayTest, createDisplayWithRequestedRefreshRateDivisor) {
-    const String8 displayName("virtual.test");
-    const uint64_t displayId = 123ull;
-    const float kPacesetterDisplayRefreshRate = 60.f;
-    const float kRequestedRefreshRate = 30.f;
-    const float kExpectedAdjustedRefreshRate = 30.f;
-    createDisplayWithRequestedRefreshRate(displayName, displayId, kPacesetterDisplayRefreshRate,
+    static const std::string kDisplayName("virtual.test");
+    constexpr uint64_t kDisplayId = 123ull;
+    constexpr float kPacesetterDisplayRefreshRate = 60.f;
+    constexpr float kRequestedRefreshRate = 30.f;
+    constexpr float kExpectedAdjustedRefreshRate = 30.f;
+    createDisplayWithRequestedRefreshRate(kDisplayName, kDisplayId, kPacesetterDisplayRefreshRate,
                                           kRequestedRefreshRate, kExpectedAdjustedRefreshRate);
 }
 
 // Requesting a non divisor (45) of the pacesetter (120) should round up to a divisor (60)
 TEST_F(CreateDisplayTest, createDisplayWithRequestedRefreshRateNoneDivisor) {
-    const String8 displayName("virtual.test");
-    const uint64_t displayId = 123ull;
-    const float kPacesetterDisplayRefreshRate = 120.f;
-    const float kRequestedRefreshRate = 45.f;
-    const float kExpectedAdjustedRefreshRate = 60.f;
-    createDisplayWithRequestedRefreshRate(displayName, displayId, kPacesetterDisplayRefreshRate,
+    static const std::string kDisplayName("virtual.test");
+    constexpr uint64_t kDisplayId = 123ull;
+    constexpr float kPacesetterDisplayRefreshRate = 120.f;
+    constexpr float kRequestedRefreshRate = 45.f;
+    constexpr float kExpectedAdjustedRefreshRate = 60.f;
+    createDisplayWithRequestedRefreshRate(kDisplayName, kDisplayId, kPacesetterDisplayRefreshRate,
                                           kRequestedRefreshRate, kExpectedAdjustedRefreshRate);
 }
 
 // Requesting a non divisor (75) of the pacesetter (120) should round up to pacesetter (120)
 TEST_F(CreateDisplayTest, createDisplayWithRequestedRefreshRateNoneDivisorMax) {
-    const String8 displayName("virtual.test");
-    const uint64_t displayId = 123ull;
-    const float kPacesetterDisplayRefreshRate = 120.f;
-    const float kRequestedRefreshRate = 75.f;
-    const float kExpectedAdjustedRefreshRate = 120.f;
-    createDisplayWithRequestedRefreshRate(displayName, displayId, kPacesetterDisplayRefreshRate,
+    static const std::string kDisplayName("virtual.test");
+    constexpr uint64_t kDisplayId = 123ull;
+    constexpr float kPacesetterDisplayRefreshRate = 120.f;
+    constexpr float kRequestedRefreshRate = 75.f;
+    constexpr float kExpectedAdjustedRefreshRate = 120.f;
+    createDisplayWithRequestedRefreshRate(kDisplayName, kDisplayId, kPacesetterDisplayRefreshRate,
                                           kRequestedRefreshRate, kExpectedAdjustedRefreshRate);
 }
 

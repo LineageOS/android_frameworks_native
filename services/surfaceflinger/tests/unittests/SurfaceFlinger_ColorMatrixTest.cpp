@@ -53,7 +53,8 @@ TEST_F(ColorMatrixTest, colorMatrixChangedAfterDisplayTransaction) {
     mFlinger.commitAndComposite();
     EXPECT_COLOR_MATRIX_CHANGED(false, false);
 
-    mFlinger.createDisplay(String8("Test Display"), false);
+    static const std::string kDisplayName("Test Display");
+    mFlinger.createVirtualDisplay(kDisplayName, false /*isSecure=*/);
 
     mFlinger.commit();
     EXPECT_COLOR_MATRIX_CHANGED(false, true);

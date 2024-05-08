@@ -1280,18 +1280,22 @@ status_t SurfaceComposerClient::Transaction::sendSurfaceFlushJankDataTransaction
 }
 // ---------------------------------------------------------------------------
 
-sp<IBinder> SurfaceComposerClient::createDisplay(const String8& displayName, bool isSecure,
-                                                 const std::string& uniqueId,
-                                                 float requestedRefreshRate) {
+sp<IBinder> SurfaceComposerClient::createVirtualDisplay(const std::string& displayName,
+                                                        bool isSecure, const std::string& uniqueId,
+                                                        float requestedRefreshRate) {
     sp<IBinder> display = nullptr;
-    binder::Status status = ComposerServiceAIDL::getComposerService()
-                                    ->createDisplay(std::string(displayName.c_str()), isSecure,
-                                                    uniqueId, requestedRefreshRate, &display);
+    binder::Status status =
+            ComposerServiceAIDL::getComposerService()->createVirtualDisplay(displayName, isSecure,
+                                                                            uniqueId,
+                                                                            requestedRefreshRate,
+                                                                            &display);
     return status.isOk() ? display : nullptr;
 }
 
-void SurfaceComposerClient::destroyDisplay(const sp<IBinder>& display) {
-    ComposerServiceAIDL::getComposerService()->destroyDisplay(display);
+status_t SurfaceComposerClient::destroyVirtualDisplay(const sp<IBinder>& displayToken) {
+    return ComposerServiceAIDL::getComposerService()
+            ->destroyVirtualDisplay(displayToken)
+            .transactionError();
 }
 
 std::vector<PhysicalDisplayId> SurfaceComposerClient::getPhysicalDisplayIds() {
