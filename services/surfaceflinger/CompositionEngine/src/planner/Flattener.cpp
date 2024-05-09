@@ -439,7 +439,7 @@ std::vector<Flattener::Run> Flattener::findCandidateRuns(time_point now) const {
 
         if (!layerDeniedFromCaching && layerIsInactive &&
             (firstLayer || runHasFirstLayer || !layerHasBlur) &&
-            !currentSet->hasUnsupportedDataspace()) {
+            !currentSet->hasKnownColorShift()) {
             if (isPartOfRun) {
                 builder.increment();
             } else {

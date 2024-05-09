@@ -27,8 +27,7 @@
 #include <renderengine/DisplaySettings.h>
 #include <renderengine/RenderEngine.h>
 #include <ui/DebugUtils.h>
-#include <utils/Trace.h>
-
+#include <ui/HdrRenderTypeUtils.h>
 #include <utils/Trace.h>
 
 namespace android::compositionengine::impl::planner {
@@ -306,7 +305,7 @@ bool CachedSet::requiresHolePunch() const {
         return false;
     }
 
-    if (hasUnsupportedDataspace()) {
+    if (hasKnownColorShift()) {
         return false;
     }
 
@@ -366,22 +365,27 @@ compositionengine::OutputLayer* CachedSet::getBlurLayer() const {
     return mBlurLayer ? mBlurLayer->getOutputLayer() : nullptr;
 }
 
-bool CachedSet::hasUnsupportedDataspace() const {
+bool CachedSet::hasKnownColorShift() const {
     return std::any_of(mLayers.cbegin(), mLayers.cend(), [](const Layer& layer) {
         auto dataspace = layer.getState()->getDataspace();
-        const auto transfer = static_cast<ui::Dataspace>(dataspace & ui::Dataspace::TRANSFER_MASK);
-        if (transfer == ui::Dataspace::TRANSFER_ST2084 || transfer == ui::Dataspace::TRANSFER_HLG) {
-            // Skip HDR.
+
+        // Layers are never dimmed when rendering a cached set, meaning that we may ask HWC to
+        // dim a cached set. But this means that we can never cache any HDR layers so that we
+        // don't accidentally dim those layers.
+        const auto hdrType = getHdrRenderType(dataspace, layer.getState()->getPixelFormat(),
+                                              layer.getState()->getHdrSdrRatio());
+        if (hdrType != HdrRenderType::SDR) {
+            return true;
+        }
+
+        // Layers that have dimming disabled pretend that they're HDR.
+        if (!layer.getState()->isDimmingEnabled()) {
             return true;
         }
 
         if ((dataspace & HAL_DATASPACE_STANDARD_MASK) == HAL_DATASPACE_STANDARD_BT601_625) {
             // RenderEngine does not match some DPUs, so skip
             // to avoid flickering/color differences.
-            return true;
-        }
-        // TODO(b/274804887): temp fix of overdimming issue, skip caching if hsdr/sdr ratio > 1.01f
-        if (layer.getState()->getHdrSdrRatio() > 1.01f) {
             return true;
         }
         return false;

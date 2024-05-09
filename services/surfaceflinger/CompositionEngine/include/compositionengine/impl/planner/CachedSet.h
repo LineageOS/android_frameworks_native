@@ -143,7 +143,7 @@ public:
 
     compositionengine::OutputLayer* getBlurLayer() const;
 
-    bool hasUnsupportedDataspace() const;
+    bool hasKnownColorShift() const;
 
     bool hasProtectedLayers() const;
 
