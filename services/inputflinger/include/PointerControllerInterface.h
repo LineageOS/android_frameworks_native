@@ -61,8 +61,6 @@ public:
      * TODO(b/293587049): Refactor the PointerController class into different controller types.
      */
     enum class ControllerType {
-        // The PointerController that is responsible for drawing all icons.
-        LEGACY,
         // Represents a single mouse pointer.
         MOUSE,
         // Represents multiple touch spots.

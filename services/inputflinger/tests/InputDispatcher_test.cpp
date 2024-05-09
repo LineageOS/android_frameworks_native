@@ -117,7 +117,7 @@ static constexpr gui::Uid SECONDARY_WINDOW_UID{1012};
 // An arbitrary pid of the gesture monitor window
 static constexpr gui::Pid MONITOR_PID{2001};
 
-static constexpr int expectedWallpaperFlags =
+static constexpr int EXPECTED_WALLPAPER_FLAGS =
         AMOTION_EVENT_FLAG_WINDOW_IS_OBSCURED | AMOTION_EVENT_FLAG_WINDOW_IS_PARTIALLY_OBSCURED;
 
 using ReservedInputDeviceId::VIRTUAL_KEYBOARD_ID;
@@ -827,7 +827,7 @@ TEST_F(InputDispatcherTest, WhenForegroundWindowDisappears_WallpaperTouchIsCance
 
     // Both foreground window and its wallpaper should receive the touch down
     foregroundWindow->consumeMotionDown();
-    wallpaperWindow->consumeMotionDown(ADISPLAY_ID_DEFAULT, expectedWallpaperFlags);
+    wallpaperWindow->consumeMotionDown(ADISPLAY_ID_DEFAULT, EXPECTED_WALLPAPER_FLAGS);
 
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
               injectMotionEvent(*mDispatcher,
@@ -837,13 +837,13 @@ TEST_F(InputDispatcherTest, WhenForegroundWindowDisappears_WallpaperTouchIsCance
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
 
     foregroundWindow->consumeMotionEvent(WithMotionAction(ACTION_MOVE));
-    wallpaperWindow->consumeMotionMove(ADISPLAY_ID_DEFAULT, expectedWallpaperFlags);
+    wallpaperWindow->consumeMotionMove(ADISPLAY_ID_DEFAULT, EXPECTED_WALLPAPER_FLAGS);
 
     // Now the foreground window goes away, but the wallpaper stays
     mDispatcher->onWindowInfosChanged({{*wallpaperWindow->getInfo()}, {}, 0, 0});
     foregroundWindow->consumeMotionCancel();
     // Since the "parent" window of the wallpaper is gone, wallpaper should receive cancel, too.
-    wallpaperWindow->consumeMotionCancel(ADISPLAY_ID_DEFAULT, expectedWallpaperFlags);
+    wallpaperWindow->consumeMotionCancel(ADISPLAY_ID_DEFAULT, EXPECTED_WALLPAPER_FLAGS);
 }
 
 /**
@@ -908,7 +908,7 @@ TEST_F(InputDispatcherTest, WhenWallpaperDisappears_NoCrash) {
 
     // Both foreground window and its wallpaper should receive the touch down
     foregroundWindow->consumeMotionDown();
-    wallpaperWindow->consumeMotionDown(ADISPLAY_ID_DEFAULT, expectedWallpaperFlags);
+    wallpaperWindow->consumeMotionDown(ADISPLAY_ID_DEFAULT, EXPECTED_WALLPAPER_FLAGS);
 
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
               injectMotionEvent(*mDispatcher, AMOTION_EVENT_ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN,
@@ -916,7 +916,7 @@ TEST_F(InputDispatcherTest, WhenWallpaperDisappears_NoCrash) {
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
 
     foregroundWindow->consumeMotionMove();
-    wallpaperWindow->consumeMotionMove(ADISPLAY_ID_DEFAULT, expectedWallpaperFlags);
+    wallpaperWindow->consumeMotionMove(ADISPLAY_ID_DEFAULT, EXPECTED_WALLPAPER_FLAGS);
 
     // Wallpaper closes its channel, but the window remains.
     wallpaperWindow->destroyReceiver();
@@ -926,6 +926,301 @@ TEST_F(InputDispatcherTest, WhenWallpaperDisappears_NoCrash) {
     // is no longer valid.
     mDispatcher->onWindowInfosChanged({{*wallpaperWindow->getInfo()}, {}, 0, 0});
     foregroundWindow->consumeMotionCancel();
+}
+
+/**
+ * Two windows: left and right, and a separate wallpaper window underneath each. Device A sends a
+ * down event to the left window. Device B sends a down event to the right window. Next, the right
+ * window disappears. Both the right window and its wallpaper window should receive cancel event.
+ * The left window and its wallpaper window should not receive any events.
+ */
+TEST_F(InputDispatcherTest, MultiDeviceDisappearingWindowWithWallpaperWindows) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> leftForegroundWindow =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Left foreground window",
+                                       ADISPLAY_ID_DEFAULT);
+    leftForegroundWindow->setFrame(Rect(0, 0, 100, 100));
+    leftForegroundWindow->setDupTouchToWallpaper(true);
+    sp<FakeWindowHandle> leftWallpaperWindow =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Left wallpaper window",
+                                       ADISPLAY_ID_DEFAULT);
+    leftWallpaperWindow->setFrame(Rect(0, 0, 100, 100));
+    leftWallpaperWindow->setIsWallpaper(true);
+
+    sp<FakeWindowHandle> rightForegroundWindow =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Right foreground window",
+                                       ADISPLAY_ID_DEFAULT);
+    rightForegroundWindow->setFrame(Rect(100, 0, 200, 100));
+    rightForegroundWindow->setDupTouchToWallpaper(true);
+    sp<FakeWindowHandle> rightWallpaperWindow =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Right wallpaper window",
+                                       ADISPLAY_ID_DEFAULT);
+    rightWallpaperWindow->setFrame(Rect(100, 0, 200, 100));
+    rightWallpaperWindow->setIsWallpaper(true);
+
+    mDispatcher->onWindowInfosChanged(
+            {{*leftForegroundWindow->getInfo(), *leftWallpaperWindow->getInfo(),
+              *rightForegroundWindow->getInfo(), *rightWallpaperWindow->getInfo()},
+             {},
+             0,
+             0});
+
+    const DeviceId deviceA = 9;
+    const DeviceId deviceB = 3;
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(50).y(50))
+                                      .deviceId(deviceA)
+                                      .build());
+    leftForegroundWindow->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_DOWN), WithDeviceId(deviceA)));
+    leftWallpaperWindow->consumeMotionEvent(AllOf(WithMotionAction(ACTION_DOWN),
+                                                  WithDeviceId(deviceA),
+                                                  WithFlags(EXPECTED_WALLPAPER_FLAGS)));
+
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(150).y(50))
+                                      .deviceId(deviceB)
+                                      .build());
+    rightForegroundWindow->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_DOWN), WithDeviceId(deviceB)));
+    rightWallpaperWindow->consumeMotionEvent(AllOf(WithMotionAction(ACTION_DOWN),
+                                                   WithDeviceId(deviceB),
+                                                   WithFlags(EXPECTED_WALLPAPER_FLAGS)));
+
+    // Now right foreground window disappears, but right wallpaper window remains.
+    mDispatcher->onWindowInfosChanged(
+            {{*leftForegroundWindow->getInfo(), *leftWallpaperWindow->getInfo(),
+              *rightWallpaperWindow->getInfo()},
+             {},
+             0,
+             0});
+
+    // Left foreground window and left wallpaper window still exist, and should not receive any
+    // events.
+    leftForegroundWindow->assertNoEvents();
+    leftWallpaperWindow->assertNoEvents();
+    // Since right foreground window disappeared, right wallpaper window and right foreground window
+    // should receive cancel events.
+    rightForegroundWindow->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_CANCEL), WithDeviceId(deviceB)));
+    rightWallpaperWindow->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_CANCEL), WithDeviceId(deviceB),
+                  WithFlags(EXPECTED_WALLPAPER_FLAGS | AMOTION_EVENT_FLAG_CANCELED)));
+}
+
+/**
+ * Three windows arranged horizontally and without any overlap. Every window has a
+ * wallpaper window underneath. The middle window also has SLIPPERY flag.
+ * Device A sends a down event to the left window. Device B sends a down event to the middle window.
+ * Next, device B sends move event to the right window. Touch for device B should slip from the
+ * middle window to the right window. Also, the right wallpaper window should receive a down event.
+ * The middle window and its wallpaper window should receive a cancel event. The left window should
+ * not receive any events. If device B continues to report events, the right window and its
+ * wallpaper window should receive remaining events.
+ */
+TEST_F(InputDispatcherTest, MultiDeviceSlipperyTouchWithWallpaperWindow) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> leftForegroundWindow =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Left foreground window",
+                                       ADISPLAY_ID_DEFAULT);
+    leftForegroundWindow->setFrame(Rect(0, 0, 100, 100));
+    leftForegroundWindow->setDupTouchToWallpaper(true);
+    sp<FakeWindowHandle> leftWallpaperWindow =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Left wallpaper window",
+                                       ADISPLAY_ID_DEFAULT);
+    leftWallpaperWindow->setFrame(Rect(0, 0, 100, 100));
+    leftWallpaperWindow->setIsWallpaper(true);
+
+    sp<FakeWindowHandle> middleForegroundWindow =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Middle foreground window",
+                                       ADISPLAY_ID_DEFAULT);
+    middleForegroundWindow->setFrame(Rect(100, 0, 200, 100));
+    middleForegroundWindow->setDupTouchToWallpaper(true);
+    middleForegroundWindow->setSlippery(true);
+    sp<FakeWindowHandle> middleWallpaperWindow =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Middle wallpaper window",
+                                       ADISPLAY_ID_DEFAULT);
+    middleWallpaperWindow->setFrame(Rect(100, 0, 200, 100));
+    middleWallpaperWindow->setIsWallpaper(true);
+
+    sp<FakeWindowHandle> rightForegroundWindow =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Right foreground window",
+                                       ADISPLAY_ID_DEFAULT);
+    rightForegroundWindow->setFrame(Rect(200, 0, 300, 100));
+    rightForegroundWindow->setDupTouchToWallpaper(true);
+    sp<FakeWindowHandle> rightWallpaperWindow =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Right wallpaper window",
+                                       ADISPLAY_ID_DEFAULT);
+    rightWallpaperWindow->setFrame(Rect(200, 0, 300, 100));
+    rightWallpaperWindow->setIsWallpaper(true);
+
+    mDispatcher->onWindowInfosChanged(
+            {{*leftForegroundWindow->getInfo(), *leftWallpaperWindow->getInfo(),
+              *middleForegroundWindow->getInfo(), *middleWallpaperWindow->getInfo(),
+              *rightForegroundWindow->getInfo(), *rightWallpaperWindow->getInfo()},
+             {},
+             0,
+             0});
+
+    const DeviceId deviceA = 9;
+    const DeviceId deviceB = 3;
+    // Device A sends a DOWN event to the left window
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(50).y(50))
+                                      .deviceId(deviceA)
+                                      .build());
+    leftForegroundWindow->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_DOWN), WithDeviceId(deviceA)));
+    leftWallpaperWindow->consumeMotionEvent(AllOf(WithMotionAction(ACTION_DOWN),
+                                                  WithDeviceId(deviceA),
+                                                  WithFlags(EXPECTED_WALLPAPER_FLAGS)));
+    // Device B sends a DOWN event to the middle window
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(150).y(50))
+                                      .deviceId(deviceB)
+                                      .build());
+    middleForegroundWindow->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_DOWN), WithDeviceId(deviceB)));
+    middleWallpaperWindow->consumeMotionEvent(AllOf(WithMotionAction(ACTION_DOWN),
+                                                    WithDeviceId(deviceB),
+                                                    WithFlags(EXPECTED_WALLPAPER_FLAGS)));
+    // Move the events of device B to the top of the right window.
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(250).y(50))
+                                      .deviceId(deviceB)
+                                      .build());
+    middleForegroundWindow->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_CANCEL), WithDeviceId(deviceB)));
+    middleWallpaperWindow->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_CANCEL), WithDeviceId(deviceB),
+                  WithFlags(EXPECTED_WALLPAPER_FLAGS | AMOTION_EVENT_FLAG_CANCELED)));
+    rightForegroundWindow->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_DOWN), WithDeviceId(deviceB)));
+    rightWallpaperWindow->consumeMotionEvent(AllOf(WithMotionAction(ACTION_DOWN),
+                                                   WithDeviceId(deviceB),
+                                                   WithFlags(EXPECTED_WALLPAPER_FLAGS)));
+    // Make sure the window on the right can receive the remaining events.
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(251).y(51))
+                                      .deviceId(deviceB)
+                                      .build());
+    leftForegroundWindow->assertNoEvents();
+    leftWallpaperWindow->assertNoEvents();
+    middleForegroundWindow->assertNoEvents();
+    middleWallpaperWindow->assertNoEvents();
+    rightForegroundWindow->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_MOVE), WithDeviceId(deviceB)));
+    rightWallpaperWindow->consumeMotionEvent(AllOf(WithMotionAction(ACTION_MOVE),
+                                                   WithDeviceId(deviceB),
+                                                   WithFlags(EXPECTED_WALLPAPER_FLAGS)));
+}
+
+/**
+ * Similar to the test above, we have three windows, they are arranged horizontally and without any
+ * overlap, and every window has a wallpaper window. The middle window is a simple window, without
+ * any special flags. Device A reports a down event that lands in left window. Device B sends a down
+ * event to the middle window and then touch is transferred from the middle window to the right
+ * window. The right window and its wallpaper window should receive a down event. The middle window
+ * and its wallpaper window should receive a cancel event. The left window should not receive any
+ * events. Subsequent events reported by device B should go to the right window and its wallpaper.
+ */
+TEST_F(InputDispatcherTest, MultiDeviceTouchTransferWithWallpaperWindows) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> leftForegroundWindow =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Left foreground window",
+                                       ADISPLAY_ID_DEFAULT);
+    leftForegroundWindow->setFrame(Rect(0, 0, 100, 100));
+    leftForegroundWindow->setDupTouchToWallpaper(true);
+    sp<FakeWindowHandle> leftWallpaperWindow =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Left wallpaper window",
+                                       ADISPLAY_ID_DEFAULT);
+    leftWallpaperWindow->setFrame(Rect(0, 0, 100, 100));
+    leftWallpaperWindow->setIsWallpaper(true);
+
+    sp<FakeWindowHandle> middleForegroundWindow =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Middle foreground window",
+                                       ADISPLAY_ID_DEFAULT);
+    middleForegroundWindow->setFrame(Rect(100, 0, 200, 100));
+    middleForegroundWindow->setDupTouchToWallpaper(true);
+    sp<FakeWindowHandle> middleWallpaperWindow =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Middle wallpaper window",
+                                       ADISPLAY_ID_DEFAULT);
+    middleWallpaperWindow->setFrame(Rect(100, 0, 200, 100));
+    middleWallpaperWindow->setIsWallpaper(true);
+
+    sp<FakeWindowHandle> rightForegroundWindow =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Right foreground window",
+                                       ADISPLAY_ID_DEFAULT);
+    rightForegroundWindow->setFrame(Rect(200, 0, 300, 100));
+    rightForegroundWindow->setDupTouchToWallpaper(true);
+    sp<FakeWindowHandle> rightWallpaperWindow =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Right wallpaper window",
+                                       ADISPLAY_ID_DEFAULT);
+    rightWallpaperWindow->setFrame(Rect(200, 0, 300, 100));
+    rightWallpaperWindow->setIsWallpaper(true);
+
+    mDispatcher->onWindowInfosChanged(
+            {{*leftForegroundWindow->getInfo(), *leftWallpaperWindow->getInfo(),
+              *middleForegroundWindow->getInfo(), *middleWallpaperWindow->getInfo(),
+              *rightForegroundWindow->getInfo(), *rightWallpaperWindow->getInfo()},
+             {},
+             0,
+             0});
+
+    const DeviceId deviceA = 9;
+    const DeviceId deviceB = 3;
+    // Device A touch down on the left window
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(50).y(50))
+                                      .deviceId(deviceA)
+                                      .build());
+    leftForegroundWindow->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_DOWN), WithDeviceId(deviceA)));
+    leftWallpaperWindow->consumeMotionEvent(AllOf(WithMotionAction(ACTION_DOWN),
+                                                  WithDeviceId(deviceA),
+                                                  WithFlags(EXPECTED_WALLPAPER_FLAGS)));
+    // Device B touch down on the middle window
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(150).y(50))
+                                      .deviceId(deviceB)
+                                      .build());
+    middleForegroundWindow->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_DOWN), WithDeviceId(deviceB)));
+    middleWallpaperWindow->consumeMotionEvent(AllOf(WithMotionAction(ACTION_DOWN),
+                                                    WithDeviceId(deviceB),
+                                                    WithFlags(EXPECTED_WALLPAPER_FLAGS)));
+
+    // Transfer touch from the middle window to the right window.
+    ASSERT_TRUE(mDispatcher->transferTouchGesture(middleForegroundWindow->getToken(),
+                                                  rightForegroundWindow->getToken()));
+
+    middleForegroundWindow->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_CANCEL), WithDeviceId(deviceB)));
+    middleWallpaperWindow->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_CANCEL), WithDeviceId(deviceB),
+                  WithFlags(EXPECTED_WALLPAPER_FLAGS | AMOTION_EVENT_FLAG_CANCELED)));
+    rightForegroundWindow->consumeMotionEvent(AllOf(WithMotionAction(ACTION_DOWN),
+                                                    WithDeviceId(deviceB),
+                                                    WithFlags(AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE)));
+    rightWallpaperWindow->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_DOWN), WithDeviceId(deviceB),
+                  WithFlags(EXPECTED_WALLPAPER_FLAGS | AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE)));
+
+    // Make sure the right window can receive the remaining events.
+    mDispatcher->notifyMotion(MotionArgsBuilder(ACTION_MOVE, AINPUT_SOURCE_TOUCHSCREEN)
+                                      .pointer(PointerBuilder(0, ToolType::FINGER).x(251).y(51))
+                                      .deviceId(deviceB)
+                                      .build());
+    leftForegroundWindow->assertNoEvents();
+    leftWallpaperWindow->assertNoEvents();
+    middleForegroundWindow->assertNoEvents();
+    middleWallpaperWindow->assertNoEvents();
+    rightForegroundWindow->consumeMotionEvent(AllOf(WithMotionAction(ACTION_MOVE),
+                                                    WithDeviceId(deviceB),
+                                                    WithFlags(AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE)));
+    rightWallpaperWindow->consumeMotionEvent(
+            AllOf(WithMotionAction(ACTION_MOVE), WithDeviceId(deviceB),
+                  WithFlags(EXPECTED_WALLPAPER_FLAGS | AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE)));
 }
 
 class ShouldSplitTouchFixture : public InputDispatcherTest,
@@ -959,7 +1254,7 @@ TEST_P(ShouldSplitTouchFixture, WallpaperWindowReceivesMultiTouch) {
 
     // Both top window and its wallpaper should receive the touch down
     foregroundWindow->consumeMotionDown();
-    wallpaperWindow->consumeMotionDown(ADISPLAY_ID_DEFAULT, expectedWallpaperFlags);
+    wallpaperWindow->consumeMotionDown(ADISPLAY_ID_DEFAULT, EXPECTED_WALLPAPER_FLAGS);
 
     // Second finger down on the top window
     const MotionEvent secondFingerDownEvent =
@@ -975,7 +1270,7 @@ TEST_P(ShouldSplitTouchFixture, WallpaperWindowReceivesMultiTouch) {
 
     foregroundWindow->consumeMotionPointerDown(/*pointerIndex=*/1);
     wallpaperWindow->consumeMotionPointerDown(/*pointerIndex=*/1, ADISPLAY_ID_DEFAULT,
-                                              expectedWallpaperFlags);
+                                              EXPECTED_WALLPAPER_FLAGS);
 
     const MotionEvent secondFingerUpEvent =
             MotionEventBuilder(POINTER_0_UP, AINPUT_SOURCE_TOUCHSCREEN)
@@ -989,7 +1284,7 @@ TEST_P(ShouldSplitTouchFixture, WallpaperWindowReceivesMultiTouch) {
                                 InputEventInjectionSync::WAIT_FOR_RESULT))
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
     foregroundWindow->consumeMotionPointerUp(0);
-    wallpaperWindow->consumeMotionPointerUp(0, ADISPLAY_ID_DEFAULT, expectedWallpaperFlags);
+    wallpaperWindow->consumeMotionPointerUp(0, ADISPLAY_ID_DEFAULT, EXPECTED_WALLPAPER_FLAGS);
 
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
               injectMotionEvent(*mDispatcher,
@@ -1004,7 +1299,7 @@ TEST_P(ShouldSplitTouchFixture, WallpaperWindowReceivesMultiTouch) {
                                 INJECT_EVENT_TIMEOUT, InputEventInjectionSync::WAIT_FOR_RESULT))
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
     foregroundWindow->consumeMotionUp(ADISPLAY_ID_DEFAULT);
-    wallpaperWindow->consumeMotionUp(ADISPLAY_ID_DEFAULT, expectedWallpaperFlags);
+    wallpaperWindow->consumeMotionUp(ADISPLAY_ID_DEFAULT, EXPECTED_WALLPAPER_FLAGS);
 }
 
 /**
@@ -1046,7 +1341,7 @@ TEST_F(InputDispatcherTest, TwoWindows_SplitWallpaperTouch) {
 
     // Both foreground window and its wallpaper should receive the touch down
     leftWindow->consumeMotionDown();
-    wallpaperWindow->consumeMotionDown(ADISPLAY_ID_DEFAULT, expectedWallpaperFlags);
+    wallpaperWindow->consumeMotionDown(ADISPLAY_ID_DEFAULT, EXPECTED_WALLPAPER_FLAGS);
 
     // Second finger down on the right window
     const MotionEvent secondFingerDownEvent =
@@ -1064,14 +1359,14 @@ TEST_F(InputDispatcherTest, TwoWindows_SplitWallpaperTouch) {
     // Since the touch is split, right window gets ACTION_DOWN
     rightWindow->consumeMotionDown(ADISPLAY_ID_DEFAULT);
     wallpaperWindow->consumeMotionPointerDown(/*pointerIndex=*/1, ADISPLAY_ID_DEFAULT,
-                                              expectedWallpaperFlags);
+                                              EXPECTED_WALLPAPER_FLAGS);
 
     // Now, leftWindow, which received the first finger, disappears.
     mDispatcher->onWindowInfosChanged(
             {{*rightWindow->getInfo(), *wallpaperWindow->getInfo()}, {}, 0, 0});
     leftWindow->consumeMotionCancel();
     // Since a "parent" window of the wallpaper is gone, wallpaper should receive cancel, too.
-    wallpaperWindow->consumeMotionCancel(ADISPLAY_ID_DEFAULT, expectedWallpaperFlags);
+    wallpaperWindow->consumeMotionCancel(ADISPLAY_ID_DEFAULT, EXPECTED_WALLPAPER_FLAGS);
 
     // The pointer that's still down on the right window moves, and goes to the right window only.
     // As far as the dispatcher's concerned though, both pointers are still present.
@@ -1126,7 +1421,7 @@ TEST_F(InputDispatcherTest, WallpaperWindowWhenSlippery) {
 
     // Both foreground window and its wallpaper should receive the touch down
     leftWindow->consumeMotionDown();
-    wallpaperWindow->consumeMotionDown(ADISPLAY_ID_DEFAULT, expectedWallpaperFlags);
+    wallpaperWindow->consumeMotionDown(ADISPLAY_ID_DEFAULT, EXPECTED_WALLPAPER_FLAGS);
 
     // Move to right window, the left window should receive cancel.
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
@@ -1136,7 +1431,7 @@ TEST_F(InputDispatcherTest, WallpaperWindowWhenSlippery) {
 
     leftWindow->consumeMotionCancel();
     rightWindow->consumeMotionDown(ADISPLAY_ID_DEFAULT);
-    wallpaperWindow->consumeMotionCancel(ADISPLAY_ID_DEFAULT, expectedWallpaperFlags);
+    wallpaperWindow->consumeMotionCancel(ADISPLAY_ID_DEFAULT, EXPECTED_WALLPAPER_FLAGS);
 }
 
 /**
@@ -5763,7 +6058,7 @@ TEST_P(TransferTouchFixture, TransferTouch_OnePointer) {
     // Only the first window should get the down event
     firstWindow->consumeMotionDown();
     secondWindow->assertNoEvents();
-    wallpaper->consumeMotionDown(ADISPLAY_ID_DEFAULT, expectedWallpaperFlags);
+    wallpaper->consumeMotionDown(ADISPLAY_ID_DEFAULT, EXPECTED_WALLPAPER_FLAGS);
     // Dispatcher reports pointer down outside focus for the wallpaper
     mFakePolicy->assertOnPointerDownEquals(wallpaper->getToken());
 
@@ -5774,7 +6069,7 @@ TEST_P(TransferTouchFixture, TransferTouch_OnePointer) {
     // The first window gets cancel and the second gets down
     firstWindow->consumeMotionCancel();
     secondWindow->consumeMotionDown(ADISPLAY_ID_DEFAULT, AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
-    wallpaper->consumeMotionCancel(ADISPLAY_ID_DEFAULT, expectedWallpaperFlags);
+    wallpaper->consumeMotionCancel(ADISPLAY_ID_DEFAULT, EXPECTED_WALLPAPER_FLAGS);
     // There should not be any changes to the focused window when transferring touch
     ASSERT_NO_FATAL_FAILURE(mFakePolicy->assertOnPointerDownWasNotCalled());
 
@@ -5935,7 +6230,7 @@ TEST_P(TransferTouchFixture, TransferTouch_MultipleWallpapers) {
     // Only the first window should get the down event
     firstWindow->consumeMotionDown();
     secondWindow->assertNoEvents();
-    wallpaper1->consumeMotionDown(ADISPLAY_ID_DEFAULT, expectedWallpaperFlags);
+    wallpaper1->consumeMotionDown(ADISPLAY_ID_DEFAULT, EXPECTED_WALLPAPER_FLAGS);
     wallpaper2->assertNoEvents();
 
     // Transfer touch focus to the second window
@@ -5946,9 +6241,9 @@ TEST_P(TransferTouchFixture, TransferTouch_MultipleWallpapers) {
     // The first window gets cancel and the second gets down
     firstWindow->consumeMotionCancel();
     secondWindow->consumeMotionDown(ADISPLAY_ID_DEFAULT, AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
-    wallpaper1->consumeMotionCancel(ADISPLAY_ID_DEFAULT, expectedWallpaperFlags);
+    wallpaper1->consumeMotionCancel(ADISPLAY_ID_DEFAULT, EXPECTED_WALLPAPER_FLAGS);
     wallpaper2->consumeMotionDown(ADISPLAY_ID_DEFAULT,
-                                  expectedWallpaperFlags | AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
+                                  EXPECTED_WALLPAPER_FLAGS | AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
 
     // Send up event to the second window
     mDispatcher->notifyMotion(generateMotionArgs(AMOTION_EVENT_ACTION_UP, AINPUT_SOURCE_TOUCHSCREEN,
@@ -5958,7 +6253,7 @@ TEST_P(TransferTouchFixture, TransferTouch_MultipleWallpapers) {
     secondWindow->consumeMotionUp(ADISPLAY_ID_DEFAULT, AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
     wallpaper1->assertNoEvents();
     wallpaper2->consumeMotionUp(ADISPLAY_ID_DEFAULT,
-                                expectedWallpaperFlags | AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
+                                EXPECTED_WALLPAPER_FLAGS | AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
 }
 
 // For the cases of single pointer touch and two pointers non-split touch, the api's

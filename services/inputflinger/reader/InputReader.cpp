@@ -402,10 +402,6 @@ void InputReader::refreshConfigurationLocked(ConfigurationChanges changes) {
     ALOGI("Reconfiguring input devices, changes=%s", changes.string().c_str());
     nsecs_t now = systemTime(SYSTEM_TIME_MONOTONIC);
 
-    if (changes.test(Change::DISPLAY_INFO)) {
-        updatePointerDisplayLocked();
-    }
-
     if (changes.test(Change::MUST_REOPEN)) {
         mEventHub->requestReopenDevices();
     } else {
@@ -487,47 +483,6 @@ bool InputReader::shouldDropVirtualKeyLocked(nsecs_t now, int32_t keyCode, int32
         return true;
     } else {
         return false;
-    }
-}
-
-std::shared_ptr<PointerControllerInterface> InputReader::getPointerControllerLocked(
-        int32_t deviceId) {
-    std::shared_ptr<PointerControllerInterface> controller = mPointerController.lock();
-    if (controller == nullptr) {
-        controller = mPolicy->obtainPointerController(deviceId);
-        mPointerController = controller;
-        updatePointerDisplayLocked();
-    }
-    return controller;
-}
-
-void InputReader::updatePointerDisplayLocked() {
-    std::shared_ptr<PointerControllerInterface> controller = mPointerController.lock();
-    if (controller == nullptr) {
-        return;
-    }
-
-    std::optional<DisplayViewport> viewport =
-            mConfig.getDisplayViewportById(mConfig.defaultPointerDisplayId);
-    if (!viewport) {
-        ALOGW("Can't find the designated viewport with ID %" PRId32 " to update cursor input "
-              "mapper. Fall back to default display",
-              mConfig.defaultPointerDisplayId);
-        viewport = mConfig.getDisplayViewportById(ADISPLAY_ID_DEFAULT);
-    }
-    if (!viewport) {
-        ALOGE("Still can't find a viable viewport to update cursor input mapper. Skip setting it to"
-              " PointerController.");
-        return;
-    }
-
-    controller->setDisplayViewport(*viewport);
-}
-
-void InputReader::fadePointerLocked() {
-    std::shared_ptr<PointerControllerInterface> controller = mPointerController.lock();
-    if (controller != nullptr) {
-        controller->fade(PointerControllerInterface::Transition::GRADUAL);
     }
 }
 
@@ -1065,17 +1020,6 @@ bool InputReader::ContextImpl::shouldDropVirtualKey(nsecs_t now, int32_t keyCode
                                                     int32_t scanCode) {
     // lock is already held by the input loop
     return mReader->shouldDropVirtualKeyLocked(now, keyCode, scanCode);
-}
-
-void InputReader::ContextImpl::fadePointer() {
-    // lock is already held by the input loop
-    mReader->fadePointerLocked();
-}
-
-std::shared_ptr<PointerControllerInterface> InputReader::ContextImpl::getPointerController(
-        int32_t deviceId) {
-    // lock is already held by the input loop
-    return mReader->getPointerControllerLocked(deviceId);
 }
 
 void InputReader::ContextImpl::requestTimeoutAtTime(nsecs_t when) {

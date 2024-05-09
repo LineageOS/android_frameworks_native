@@ -483,16 +483,11 @@ std::list<NotifyArgs> KeyboardInputMapper::cancelAllDownKeys(nsecs_t when) {
 void KeyboardInputMapper::onKeyDownProcessed(nsecs_t downTime) {
     InputReaderContext& context = *getContext();
     context.setLastKeyDownTimestamp(downTime);
-    if (context.isPreventingTouchpadTaps()) {
-        // avoid pinging java service unnecessarily, just fade pointer again if it became visible
-        context.fadePointer();
-        return;
-    }
+    // TODO(b/338652288): Move cursor fading logic into PointerChoreographer.
     // Ignore meta keys or multiple simultaneous down keys as they are likely to be keyboard
     // shortcuts
     bool shouldHideCursor = mKeyDowns.size() == 1 && !isMetaKey(mKeyDowns[0].keyCode);
     if (shouldHideCursor && context.getPolicy()->isInputMethodConnectionActive()) {
-        context.fadePointer();
         context.setPreventingTouchpadTaps(true);
     }
 }

@@ -279,14 +279,6 @@ void RegionSamplingThread::captureSample() {
     const Rect sampledBounds = sampleRegion.bounds();
     constexpr bool kHintForSeamlessTransition = false;
 
-    SurfaceFlinger::RenderAreaFuture renderAreaFuture = ftl::defer([=] {
-        DisplayRenderAreaBuilder displayRenderArea(sampledBounds, sampledBounds.getSize(),
-                                                   ui::Dataspace::V0_SRGB,
-                                                   kHintForSeamlessTransition,
-                                                   true /* captureSecureLayers */, displayWeak);
-        return displayRenderArea.build();
-    });
-
     std::unordered_set<sp<IRegionSamplingListener>, SpHash<IRegionSamplingListener>> listeners;
 
     auto layerFilterFn = [&](const char* layerName, uint32_t layerId, const Rect& bounds,
@@ -381,8 +373,14 @@ void RegionSamplingThread::captureSample() {
     constexpr bool kIsProtected = false;
 
     if (const auto fenceResult =
-                mFlinger.captureScreenshot(std::move(renderAreaFuture), getLayerSnapshots, buffer,
-                                           kRegionSampling, kGrayscale, kIsProtected, nullptr)
+                mFlinger.captureScreenshot(SurfaceFlinger::RenderAreaBuilderVariant(
+                                                   std::in_place_type<DisplayRenderAreaBuilder>,
+                                                   sampledBounds, sampledBounds.getSize(),
+                                                   ui::Dataspace::V0_SRGB,
+                                                   kHintForSeamlessTransition,
+                                                   true /* captureSecureLayers */, displayWeak),
+                                           getLayerSnapshots, buffer, kRegionSampling, kGrayscale,
+                                           kIsProtected, nullptr)
                         .get();
         fenceResult.ok()) {
         fenceResult.value()->waitForever(LOG_TAG);

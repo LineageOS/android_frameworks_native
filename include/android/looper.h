@@ -182,23 +182,27 @@ typedef int (*ALooper_callbackFunc)(int fd, int events, void* data);
  * If the timeout is zero, returns immediately without blocking.
  * If the timeout is negative, waits indefinitely until an event appears.
  *
- * Returns ALOOPER_POLL_WAKE if the poll was awoken using wake() before
+ * Returns ALOOPER_POLL_WAKE if the poll was awoken using ALooper_wake() before
  * the timeout expired and no callbacks were invoked and no other file
- * descriptors were ready.
+ * descriptors were ready. **All return values may also imply
+ * ALOOPER_POLL_WAKE.**
  *
- * Returns ALOOPER_POLL_CALLBACK if one or more callbacks were invoked.
+ * Returns ALOOPER_POLL_CALLBACK if one or more callbacks were invoked. The poll
+ * may also have been explicitly woken by ALooper_wake.
  *
- * Returns ALOOPER_POLL_TIMEOUT if there was no data before the given
- * timeout expired.
+ * Returns ALOOPER_POLL_TIMEOUT if there was no data before the given timeout
+ * expired. The poll may also have been explicitly woken by ALooper_wake.
  *
- * Returns ALOOPER_POLL_ERROR if an error occurred.
+ * Returns ALOOPER_POLL_ERROR if the calling thread has no associated Looper or
+ * for unrecoverable internal errors. The poll may also have been explicitly
+ * woken by ALooper_wake.
  *
- * Returns a value >= 0 containing an identifier (the same identifier
- * `ident` passed to ALooper_addFd()) if its file descriptor has data
- * and it has no callback function (requiring the caller here to
- * handle it).  In this (and only this) case outFd, outEvents and
- * outData will contain the poll events and data associated with the
- * fd, otherwise they will be set to NULL.
+ * Returns a value >= 0 containing an identifier (the same identifier `ident`
+ * passed to ALooper_addFd()) if its file descriptor has data and it has no
+ * callback function (requiring the caller here to handle it).  In this (and
+ * only this) case outFd, outEvents and outData will contain the poll events and
+ * data associated with the fd, otherwise they will be set to NULL. The poll may
+ * also have been explicitly woken by ALooper_wake.
  *
  * This method does not return until it has finished invoking the appropriate callbacks
  * for all file descriptors that were signalled.
@@ -210,11 +214,21 @@ int ALooper_pollOnce(int timeoutMillis, int* outFd, int* outEvents, void** outDa
  * data has been consumed or a file descriptor is available with no callback.
  * This function will never return ALOOPER_POLL_CALLBACK.
  *
- * Removed in API 34 as ALooper_pollAll can swallow ALooper_wake calls.
- * Use ALooper_pollOnce instead.
+ * This API cannot be used safely, but a safe alternative exists (see below). As
+ * such, new builds will not be able to call this API and must migrate to the
+ * safe API. Binary compatibility is preserved to support already-compiled apps.
+ *
+ * \bug ALooper_pollAll will not wake in response to ALooper_wake calls if it
+ * also handles another event at the same time.
+ *
+ * \deprecated Calls to ALooper_pollAll should be replaced with
+ * ALooper_pollOnce. If you call ALooper_pollOnce in a loop, you *must* treat
+ * all return values as if they also indicate ALOOPER_POLL_WAKE.
  */
 int ALooper_pollAll(int timeoutMillis, int* outFd, int* outEvents, void** outData)
-    __REMOVED_IN(1, "ALooper_pollAll may ignore wakes. Use ALooper_pollOnce instead. See https://github.com/android/ndk/discussions/2020 for more information");
+        __REMOVED_IN(1,
+                     "ALooper_pollAll may ignore wakes. Use ALooper_pollOnce instead. See "
+                     "The API documentation for more information");
 
 /**
  * Wakes the poll asynchronously.

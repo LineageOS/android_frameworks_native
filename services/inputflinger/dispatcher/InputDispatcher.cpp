@@ -5363,31 +5363,32 @@ void InputDispatcher::setInputWindowsLocked(
         onFocusChangedLocked(*changes, traceContext.getTracker(), removedFocusedWindowHandle);
     }
 
-    std::unordered_map<int32_t, TouchState>::iterator stateIt =
-            mTouchStatesByDisplay.find(displayId);
-    if (stateIt != mTouchStatesByDisplay.end()) {
-        TouchState& state = stateIt->second;
+    if (const auto& it = mTouchStatesByDisplay.find(displayId); it != mTouchStatesByDisplay.end()) {
+        TouchState& state = it->second;
         for (size_t i = 0; i < state.windows.size();) {
             TouchedWindow& touchedWindow = state.windows[i];
-            if (getWindowHandleLocked(touchedWindow.windowHandle) == nullptr) {
-                LOG(INFO) << "Touched window was removed: " << touchedWindow.windowHandle->getName()
-                          << " in display %" << displayId;
-                CancelationOptions options(CancelationOptions::Mode::CANCEL_POINTER_EVENTS,
-                                           "touched window was removed", traceContext.getTracker());
-                synthesizeCancelationEventsForWindowLocked(touchedWindow.windowHandle, options);
-                // Since we are about to drop the touch, cancel the events for the wallpaper as
-                // well.
-                if (touchedWindow.targetFlags.test(InputTarget::Flags::FOREGROUND) &&
-                    touchedWindow.windowHandle->getInfo()->inputConfig.test(
-                            gui::WindowInfo::InputConfig::DUPLICATE_TOUCH_TO_WALLPAPER)) {
-                    if (const auto& ww = state.getWallpaperWindow(); ww) {
+            if (getWindowHandleLocked(touchedWindow.windowHandle) != nullptr) {
+                i++;
+                continue;
+            }
+            LOG(INFO) << "Touched window was removed: " << touchedWindow.windowHandle->getName()
+                      << " in display %" << displayId;
+            CancelationOptions options(CancelationOptions::Mode::CANCEL_POINTER_EVENTS,
+                                       "touched window was removed", traceContext.getTracker());
+            synthesizeCancelationEventsForWindowLocked(touchedWindow.windowHandle, options);
+            // Since we are about to drop the touch, cancel the events for the wallpaper as
+            // well.
+            if (touchedWindow.targetFlags.test(InputTarget::Flags::FOREGROUND) &&
+                touchedWindow.windowHandle->getInfo()->inputConfig.test(
+                        gui::WindowInfo::InputConfig::DUPLICATE_TOUCH_TO_WALLPAPER)) {
+                for (const DeviceId deviceId : touchedWindow.getTouchingDeviceIds()) {
+                    if (const auto& ww = state.getWallpaperWindow(deviceId); ww != nullptr) {
+                        options.deviceId = deviceId;
                         synthesizeCancelationEventsForWindowLocked(ww, options);
                     }
                 }
-                state.windows.erase(state.windows.begin() + i);
-            } else {
-                ++i;
             }
+            state.windows.erase(state.windows.begin() + i);
         }
 
         // If drag window is gone, it would receive a cancel event and broadcast the DRAG_END. We
@@ -5662,13 +5663,13 @@ bool InputDispatcher::transferTouchGesture(const sp<IBinder>& fromToken, const s
             ALOGD("Touch transfer failed because from window is not being touched.");
             return false;
         }
-        std::set<int32_t> deviceIds = touchedWindow->getTouchingDeviceIds();
+        std::set<DeviceId> deviceIds = touchedWindow->getTouchingDeviceIds();
         if (deviceIds.size() != 1) {
             LOG(INFO) << "Can't transfer touch. Currently touching devices: " << dumpSet(deviceIds)
                       << " for window: " << touchedWindow->dump();
             return false;
         }
-        const int32_t deviceId = *deviceIds.begin();
+        const DeviceId deviceId = *deviceIds.begin();
 
         const sp<WindowInfoHandle> fromWindowHandle = touchedWindow->windowHandle;
         const sp<WindowInfoHandle> toWindowHandle = getWindowHandleLocked(toToken, displayId);
@@ -5722,13 +5723,18 @@ bool InputDispatcher::transferTouchGesture(const sp<IBinder>& fromToken, const s
                                        "transferring touch from this window to another window",
                                        traceContext.getTracker());
             synthesizeCancelationEventsForWindowLocked(fromWindowHandle, options, fromConnection);
-            synthesizePointerDownEventsForConnectionLocked(downTimeInTarget, toConnection,
-                                                           newTargetFlags,
-                                                           traceContext.getTracker());
 
             // Check if the wallpaper window should deliver the corresponding event.
             transferWallpaperTouch(oldTargetFlags, newTargetFlags, fromWindowHandle, toWindowHandle,
                                    *state, deviceId, pointers, traceContext.getTracker());
+
+            // Because new window may have a wallpaper window, it will merge input state from it
+            // parent window, after this the firstNewPointerIdx in input state will be reset, then
+            // it will cause new move event be thought inconsistent, so we should synthesize the
+            // down event after it reset.
+            synthesizePointerDownEventsForConnectionLocked(downTimeInTarget, toConnection,
+                                                           newTargetFlags,
+                                                           traceContext.getTracker());
         }
     } // release lock
 
@@ -7039,7 +7045,7 @@ void InputDispatcher::setMonitorDispatchingTimeoutForTest(std::chrono::nanosecon
 void InputDispatcher::slipWallpaperTouch(ftl::Flags<InputTarget::Flags> targetFlags,
                                          const sp<WindowInfoHandle>& oldWindowHandle,
                                          const sp<WindowInfoHandle>& newWindowHandle,
-                                         TouchState& state, int32_t deviceId,
+                                         TouchState& state, DeviceId deviceId,
                                          const PointerProperties& pointerProperties,
                                          std::vector<InputTarget>& targets) const {
     std::vector<PointerProperties> pointers{pointerProperties};
@@ -7049,7 +7055,7 @@ void InputDispatcher::slipWallpaperTouch(ftl::Flags<InputTarget::Flags> targetFl
             newWindowHandle->getInfo()->inputConfig.test(
                     gui::WindowInfo::InputConfig::DUPLICATE_TOUCH_TO_WALLPAPER);
     const sp<WindowInfoHandle> oldWallpaper =
-            oldHasWallpaper ? state.getWallpaperWindow() : nullptr;
+            oldHasWallpaper ? state.getWallpaperWindow(deviceId) : nullptr;
     const sp<WindowInfoHandle> newWallpaper =
             newHasWallpaper ? findWallpaperWindowBelow(newWindowHandle) : nullptr;
     if (oldWallpaper == newWallpaper) {
@@ -7075,7 +7081,7 @@ void InputDispatcher::slipWallpaperTouch(ftl::Flags<InputTarget::Flags> targetFl
 void InputDispatcher::transferWallpaperTouch(
         ftl::Flags<InputTarget::Flags> oldTargetFlags,
         ftl::Flags<InputTarget::Flags> newTargetFlags, const sp<WindowInfoHandle> fromWindowHandle,
-        const sp<WindowInfoHandle> toWindowHandle, TouchState& state, int32_t deviceId,
+        const sp<WindowInfoHandle> toWindowHandle, TouchState& state, DeviceId deviceId,
         const std::vector<PointerProperties>& pointers,
         const std::unique_ptr<trace::EventTrackerInterface>& traceTracker) {
     const bool oldHasWallpaper = oldTargetFlags.test(InputTarget::Flags::FOREGROUND) &&
@@ -7086,7 +7092,7 @@ void InputDispatcher::transferWallpaperTouch(
                     gui::WindowInfo::InputConfig::DUPLICATE_TOUCH_TO_WALLPAPER);
 
     const sp<WindowInfoHandle> oldWallpaper =
-            oldHasWallpaper ? state.getWallpaperWindow() : nullptr;
+            oldHasWallpaper ? state.getWallpaperWindow(deviceId) : nullptr;
     const sp<WindowInfoHandle> newWallpaper =
             newHasWallpaper ? findWallpaperWindowBelow(toWindowHandle) : nullptr;
     if (oldWallpaper == newWallpaper) {

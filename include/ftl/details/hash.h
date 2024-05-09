@@ -43,6 +43,7 @@ constexpr std::uint64_t shift_mix(std::uint64_t v) {
   return v ^ (v >> 47);
 }
 
+__attribute__((no_sanitize("unsigned-integer-overflow")))
 constexpr std::uint64_t hash_length_16(std::uint64_t u, std::uint64_t v) {
   constexpr std::uint64_t kPrime = 0x9ddfea08eb382d69ull;
   auto a = (u ^ v) * kPrime;
@@ -58,6 +59,7 @@ constexpr std::uint64_t kPrime1 = 0xb492b66fbe98f273ull;
 constexpr std::uint64_t kPrime2 = 0x9ae16a3b2f90404full;
 constexpr std::uint64_t kPrime3 = 0xc949d7c7509e6557ull;
 
+__attribute__((no_sanitize("unsigned-integer-overflow")))
 inline std::uint64_t hash_length_0_to_16(const char* str, std::uint64_t length) {
   if (length > 8) {
     const auto a = read_unaligned(str);
@@ -80,6 +82,7 @@ inline std::uint64_t hash_length_0_to_16(const char* str, std::uint64_t length) 
   return kPrime2;
 }
 
+__attribute__((no_sanitize("unsigned-integer-overflow")))
 inline std::uint64_t hash_length_17_to_32(const char* str, std::uint64_t length) {
   const auto a = read_unaligned(str) * kPrime1;
   const auto b = read_unaligned(str + 8);
@@ -89,6 +92,7 @@ inline std::uint64_t hash_length_17_to_32(const char* str, std::uint64_t length)
                         a + rotate(b ^ kPrime3, 20) - c + length);
 }
 
+__attribute__((no_sanitize("unsigned-integer-overflow")))
 inline std::uint64_t hash_length_33_to_64(const char* str, std::uint64_t length) {
   auto z = read_unaligned(str + 24);
   auto a = read_unaligned(str) + (length + read_unaligned(str + length - 16)) * kPrime0;
