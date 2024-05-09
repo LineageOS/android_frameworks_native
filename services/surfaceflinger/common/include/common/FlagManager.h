@@ -51,6 +51,7 @@ public:
     bool refresh_rate_overlay_on_external_display() const;
     bool adpf_gpu_sf() const;
     bool adpf_use_fmq_channel() const;
+    bool adpf_use_fmq_channel_fixed() const;
 
     /// Trunk stable readonly flags ///
     bool connected_display() const;

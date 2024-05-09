@@ -46,10 +46,21 @@ PowerAdvisor::~PowerAdvisor() = default;
 namespace impl {
 
 using aidl::android::hardware::power::Boost;
+using aidl::android::hardware::power::ChannelConfig;
 using aidl::android::hardware::power::Mode;
 using aidl::android::hardware::power::SessionHint;
 using aidl::android::hardware::power::SessionTag;
 using aidl::android::hardware::power::WorkDuration;
+using aidl::android::hardware::power::WorkDurationFixedV1;
+
+using aidl::android::hardware::common::fmq::MQDescriptor;
+using aidl::android::hardware::common::fmq::SynchronizedReadWrite;
+using aidl::android::hardware::power::ChannelMessage;
+using android::hardware::EventFlag;
+
+using ChannelMessageContents = ChannelMessage::ChannelMessageContents;
+using MsgQueue = android::AidlMessageQueue<ChannelMessage, SynchronizedReadWrite>;
+using FlagQueue = android::AidlMessageQueue<int8_t, SynchronizedReadWrite>;
 
 PowerAdvisor::~PowerAdvisor() = default;
 
@@ -140,15 +151,7 @@ void PowerAdvisor::notifyCpuLoadUp() {
     if (!mBootFinished.load()) {
         return;
     }
-    if (usePowerHintSession()) {
-        std::lock_guard lock(mHintSessionMutex);
-        if (ensurePowerHintSessionRunning()) {
-            auto ret = mHintSession->sendHint(SessionHint::CPU_LOAD_UP);
-            if (!ret.isOk()) {
-                mHintSession = nullptr;
-            }
-        }
-    }
+    sendHintSessionHint(SessionHint::CPU_LOAD_UP);
 }
 
 void PowerAdvisor::notifyDisplayUpdateImminentAndCpuReset() {
@@ -160,15 +163,7 @@ void PowerAdvisor::notifyDisplayUpdateImminentAndCpuReset() {
 
     if (mSendUpdateImminent.exchange(false)) {
         ALOGV("AIDL notifyDisplayUpdateImminentAndCpuReset");
-        if (usePowerHintSession()) {
-            std::lock_guard lock(mHintSessionMutex);
-            if (ensurePowerHintSessionRunning()) {
-                auto ret = mHintSession->sendHint(SessionHint::CPU_LOAD_RESET);
-                if (!ret.isOk()) {
-                    mHintSession = nullptr;
-                }
-            }
-        }
+        sendHintSessionHint(SessionHint::CPU_LOAD_RESET);
 
         if (!mHasDisplayUpdateImminent) {
             ALOGV("Skipped sending DISPLAY_UPDATE_IMMINENT because HAL doesn't support it");
@@ -210,6 +205,30 @@ bool PowerAdvisor::shouldCreateSessionWithConfig() {
             FlagManager::getInstance().adpf_use_fmq_channel();
 }
 
+void PowerAdvisor::sendHintSessionHint(SessionHint hint) {
+    if (!mBootFinished || !usePowerHintSession()) {
+        ALOGV("Power hint session is not enabled, skip sending session hint");
+        return;
+    }
+    ATRACE_CALL();
+    if (sTraceHintSessionData) ATRACE_INT("Session hint", static_cast<int>(hint));
+    {
+        std::scoped_lock lock(mHintSessionMutex);
+        if (!ensurePowerHintSessionRunning()) {
+            ALOGV("Hint session not running and could not be started, skip sending session hint");
+            return;
+        }
+        ALOGV("Sending session hint: %d", static_cast<int>(hint));
+        if (!writeHintSessionMessage<ChannelMessageContents::Tag::hint>(&hint, 1)) {
+            auto ret = mHintSession->sendHint(hint);
+            if (!ret.isOk()) {
+                ALOGW("Failed to send session hint with error: %s", ret.errorMessage());
+                mHintSession = nullptr;
+            }
+        }
+    }
+}
+
 bool PowerAdvisor::ensurePowerHintSessionRunning() {
     if (mHintSession == nullptr && !mHintSessionThreadIds.empty() && usePowerHintSession()) {
         if (shouldCreateSessionWithConfig()) {
@@ -221,6 +240,9 @@ bool PowerAdvisor::ensurePowerHintSessionRunning() {
                                                                  &mSessionConfig);
             if (ret.isOk()) {
                 mHintSession = ret.value();
+                if (FlagManager::getInstance().adpf_use_fmq_channel_fixed()) {
+                    setUpFmq();
+                }
             }
             // If it fails the first time we try, or ever returns unsupported, assume unsupported
             else if (mFirstConfigSupportCheck || ret.isUnsupported()) {
@@ -241,9 +263,36 @@ bool PowerAdvisor::ensurePowerHintSessionRunning() {
     return mHintSession != nullptr;
 }
 
+void PowerAdvisor::setUpFmq() {
+    auto&& channelRet = getPowerHal().getSessionChannel(getpid(), static_cast<int32_t>(getuid()));
+    if (!channelRet.isOk()) {
+        ALOGE("Failed to get session channel with error: %s", channelRet.errorMessage());
+        return;
+    }
+    auto& channelConfig = channelRet.value();
+    mMsgQueue = std::make_unique<MsgQueue>(std::move(channelConfig.channelDescriptor), true);
+    LOG_ALWAYS_FATAL_IF(!mMsgQueue->isValid(), "Failed to set up hint session msg queue");
+    LOG_ALWAYS_FATAL_IF(channelConfig.writeFlagBitmask <= 0,
+                        "Invalid flag bit masks found in channel config: writeBitMask(%d)",
+                        channelConfig.writeFlagBitmask);
+    mFmqWriteMask = static_cast<uint32_t>(channelConfig.writeFlagBitmask);
+    if (!channelConfig.eventFlagDescriptor.has_value()) {
+        // For FMQ v1 in Android 15 we will force using shared event flag since the default
+        // no-op FMQ impl in Power HAL v5 will always return a valid channel config with
+        // non-zero masks but no shared flag.
+        mMsgQueue = nullptr;
+        ALOGE("No event flag descriptor found in channel config");
+        return;
+    }
+    mFlagQueue = std::make_unique<FlagQueue>(std::move(*channelConfig.eventFlagDescriptor), true);
+    LOG_ALWAYS_FATAL_IF(!mFlagQueue->isValid(), "Failed to set up hint session flag queue");
+    auto status = EventFlag::createEventFlag(mFlagQueue->getEventFlagWord(), &mEventFlag);
+    LOG_ALWAYS_FATAL_IF(status != OK, "Failed to set up hint session event flag");
+}
+
 void PowerAdvisor::updateTargetWorkDuration(Duration targetDuration) {
     if (!mBootFinished || !usePowerHintSession()) {
-        ALOGV("Power hint session target duration cannot be set, skipping");
+        ALOGV("Power hint session is not enabled, skipping target update");
         return;
     }
     ATRACE_CALL();
@@ -251,10 +300,15 @@ void PowerAdvisor::updateTargetWorkDuration(Duration targetDuration) {
         mTargetDuration = targetDuration;
         if (sTraceHintSessionData) ATRACE_INT64("Time target", targetDuration.ns());
         if (targetDuration == mLastTargetDurationSent) return;
-        std::lock_guard lock(mHintSessionMutex);
-        if (ensurePowerHintSessionRunning()) {
-            ALOGV("Sending target time: %" PRId64 "ns", targetDuration.ns());
-            mLastTargetDurationSent = targetDuration;
+        std::scoped_lock lock(mHintSessionMutex);
+        if (!ensurePowerHintSessionRunning()) {
+            ALOGV("Hint session not running and could not be started, skip updating target");
+            return;
+        }
+        ALOGV("Sending target time: %" PRId64 "ns", targetDuration.ns());
+        mLastTargetDurationSent = targetDuration;
+        auto target = targetDuration.ns();
+        if (!writeHintSessionMessage<ChannelMessageContents::Tag::targetDuration>(&target, 1)) {
             auto ret = mHintSession->updateTargetWorkDuration(targetDuration.ns());
             if (!ret.isOk()) {
                 ALOGW("Failed to set power hint target work duration with error: %s",
@@ -302,21 +356,71 @@ void PowerAdvisor::reportActualWorkDuration() {
     }
 
     {
-        std::lock_guard lock(mHintSessionMutex);
+        std::scoped_lock lock(mHintSessionMutex);
         if (!ensurePowerHintSessionRunning()) {
-            ALOGV("Hint session not running and could not be started, skipping");
+            ALOGV("Hint session not running and could not be started, skip reporting durations");
             return;
         }
         mHintSessionQueue.push_back(*actualDuration);
-
-        auto ret = mHintSession->reportActualWorkDuration(mHintSessionQueue);
-        if (!ret.isOk()) {
-            ALOGW("Failed to report actual work durations with error: %s", ret.errorMessage());
-            mHintSession = nullptr;
-            return;
+        if (!writeHintSessionMessage<
+                    ChannelMessageContents::Tag::workDuration>(mHintSessionQueue.data(),
+                                                               mHintSessionQueue.size())) {
+            auto ret = mHintSession->reportActualWorkDuration(mHintSessionQueue);
+            if (!ret.isOk()) {
+                ALOGW("Failed to report actual work durations with error: %s", ret.errorMessage());
+                mHintSession = nullptr;
+                return;
+            }
         }
     }
     mHintSessionQueue.clear();
+}
+
+template <ChannelMessage::ChannelMessageContents::Tag T, class In>
+bool PowerAdvisor::writeHintSessionMessage(In* contents, size_t count) {
+    if (!mMsgQueue) {
+        ALOGV("Skip using FMQ with message tag %hhd as it's not supported", T);
+        return false;
+    }
+    auto availableSize = mMsgQueue->availableToWrite();
+    if (availableSize < count) {
+        ALOGW("Skip using FMQ with message tag %hhd as there isn't enough space", T);
+        return false;
+    }
+    MsgQueue::MemTransaction tx;
+    if (!mMsgQueue->beginWrite(count, &tx)) {
+        ALOGW("Failed to begin writing message with tag %hhd", T);
+        return false;
+    }
+    for (size_t i = 0; i < count; ++i) {
+        if constexpr (T == ChannelMessageContents::Tag::workDuration) {
+            const WorkDuration& duration = contents[i];
+            new (tx.getSlot(i)) ChannelMessage{
+                    .sessionID = static_cast<int32_t>(mSessionConfig.id),
+                    .timeStampNanos =
+                            (i == count - 1) ? ::android::uptimeNanos() : duration.timeStampNanos,
+                    .data = ChannelMessageContents::make<ChannelMessageContents::Tag::workDuration,
+                                                         WorkDurationFixedV1>({
+                            .durationNanos = duration.durationNanos,
+                            .workPeriodStartTimestampNanos = duration.workPeriodStartTimestampNanos,
+                            .cpuDurationNanos = duration.cpuDurationNanos,
+                            .gpuDurationNanos = duration.gpuDurationNanos,
+                    }),
+            };
+        } else {
+            new (tx.getSlot(i)) ChannelMessage{
+                    .sessionID = static_cast<int32_t>(mSessionConfig.id),
+                    .timeStampNanos = ::android::uptimeNanos(),
+                    .data = ChannelMessageContents::make<T, In>(std::move(contents[i])),
+            };
+        }
+    }
+    if (!mMsgQueue->commitWrite(count)) {
+        ALOGW("Failed to send message with tag %hhd, fall back to binder call", T);
+        return false;
+    }
+    mEventFlag->wake(mFmqWriteMask);
+    return true;
 }
 
 void PowerAdvisor::enablePowerHintSession(bool enabled) {
@@ -334,12 +438,14 @@ bool PowerAdvisor::startPowerHintSession(std::vector<int32_t>&& threadIds) {
     }
     LOG_ALWAYS_FATAL_IF(mHintSessionThreadIds.empty(),
                         "No thread IDs provided to power hint session!");
-    std::lock_guard lock(mHintSessionMutex);
-    if (mHintSession != nullptr) {
-        ALOGE("Cannot start power hint session: already running");
-        return false;
+    {
+        std::scoped_lock lock(mHintSessionMutex);
+        if (mHintSession != nullptr) {
+            ALOGE("Cannot start power hint session: already running");
+            return false;
+        }
+        return ensurePowerHintSessionRunning();
     }
-    return ensurePowerHintSessionRunning();
 }
 
 bool PowerAdvisor::supportsGpuReporting() {

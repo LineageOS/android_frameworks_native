@@ -45,6 +45,7 @@ namespace android::Hwc2::impl {
 class PowerAdvisorTest : public testing::Test {
 public:
     void SetUp() override;
+    void SetUpFmq(bool usesSharedEventFlag, bool isQueueFull);
     void startPowerHintSession(bool returnValidSession = true);
     void fakeBasicFrameTiming(TimePoint startTime, Duration vsyncPeriod);
     void setExpectedTiming(Duration totalFrameTargetDuration, TimePoint expectedPresentTime);
@@ -64,16 +65,26 @@ public:
         Duration postCompDuration = 0ms;
         bool frame1RequiresRenderEngine;
         bool frame2RequiresRenderEngine;
+        bool usesFmq = false;
+        bool usesSharedFmqFlag = true;
+        bool fmqFull = false;
     };
 
-    WorkDuration testGpuScenario(GpuTestConfig& config);
+    void testGpuScenario(GpuTestConfig& config, WorkDuration& ret);
 
 protected:
     TestableSurfaceFlinger mFlinger;
     std::unique_ptr<PowerAdvisor> mPowerAdvisor;
     MockPowerHalController* mMockPowerHalController;
     std::shared_ptr<MockPowerHintSessionWrapper> mMockPowerHintSession;
+    std::shared_ptr<AidlMessageQueue<ChannelMessage, SynchronizedReadWrite>> mBackendFmq;
+    std::shared_ptr<AidlMessageQueue<int8_t, SynchronizedReadWrite>> mBackendFlagQueue;
+    android::hardware::EventFlag* mEventFlag;
+    uint32_t mWriteFlagBitmask = 2;
+    uint32_t mReadFlagBitmask = 1;
+    int64_t mSessionId = 123;
     SET_FLAG_FOR_TEST(android::os::adpf_use_fmq_channel, true);
+    SET_FLAG_FOR_TEST(android::os::adpf_use_fmq_channel_fixed, false);
 };
 
 bool PowerAdvisorTest::sessionExists() {
@@ -95,12 +106,44 @@ void PowerAdvisorTest::SetUp() {
                     ByMove(HalResult<int64_t>::fromStatus(ndk::ScopedAStatus::ok(), 16000))));
 }
 
+void PowerAdvisorTest::SetUpFmq(bool usesSharedEventFlag, bool isQueueFull) {
+    mBackendFmq = std::make_shared<
+            AidlMessageQueue<ChannelMessage, SynchronizedReadWrite>>(2, !usesSharedEventFlag);
+    ChannelConfig config;
+    config.channelDescriptor = mBackendFmq->dupeDesc();
+    if (usesSharedEventFlag) {
+        mBackendFlagQueue =
+                std::make_shared<AidlMessageQueue<int8_t, SynchronizedReadWrite>>(1, true);
+        config.eventFlagDescriptor = mBackendFlagQueue->dupeDesc();
+        ASSERT_EQ(android::hardware::EventFlag::createEventFlag(mBackendFlagQueue
+                                                                        ->getEventFlagWord(),
+                                                                &mEventFlag),
+                  android::NO_ERROR);
+    } else {
+        ASSERT_EQ(android::hardware::EventFlag::createEventFlag(mBackendFmq->getEventFlagWord(),
+                                                                &mEventFlag),
+                  android::NO_ERROR);
+    }
+    config.writeFlagBitmask = static_cast<int32_t>(mWriteFlagBitmask);
+    config.readFlagBitmask = static_cast<int32_t>(mReadFlagBitmask);
+    ON_CALL(*mMockPowerHalController, getSessionChannel)
+            .WillByDefault(Return(
+                    ByMove(HalResult<ChannelConfig>::fromStatus(Status::ok(), std::move(config)))));
+    startPowerHintSession();
+    if (isQueueFull) {
+        std::vector<ChannelMessage> msgs;
+        msgs.resize(2);
+        mBackendFmq->writeBlocking(msgs.data(), 2, mReadFlagBitmask, mWriteFlagBitmask,
+                                   std::chrono::nanoseconds(1ms).count(), mEventFlag);
+    }
+}
+
 void PowerAdvisorTest::startPowerHintSession(bool returnValidSession) {
     mMockPowerHintSession = std::make_shared<NiceMock<MockPowerHintSessionWrapper>>();
     if (returnValidSession) {
         ON_CALL(*mMockPowerHalController, createHintSessionWithConfig)
                 .WillByDefault(DoAll(SetArgPointee<5>(aidl::android::hardware::power::SessionConfig{
-                                             .id = 12}),
+                                             .id = mSessionId}),
                                      Return(HalResult<std::shared_ptr<PowerHintSessionWrapper>>::
                                                     fromStatus(binder::Status::ok(),
                                                                mMockPowerHintSession))));
@@ -137,11 +180,17 @@ void PowerAdvisorTest::allowReportActualToAcquireMutex() {
     mPowerAdvisor->mDelayReportActualMutexAcquisitonPromise.set_value(true);
 }
 
-WorkDuration PowerAdvisorTest::testGpuScenario(GpuTestConfig& config) {
+void PowerAdvisorTest::testGpuScenario(GpuTestConfig& config, WorkDuration& ret) {
     SET_FLAG_FOR_TEST(com::android::graphics::surfaceflinger::flags::adpf_gpu_sf,
                       config.adpfGpuFlagOn);
+    SET_FLAG_FOR_TEST(android::os::adpf_use_fmq_channel_fixed, config.usesFmq);
     mPowerAdvisor->onBootFinished();
-    startPowerHintSession();
+    bool expectsFmqSuccess = config.usesSharedFmqFlag && !config.fmqFull;
+    if (config.usesFmq) {
+        SetUpFmq(config.usesSharedFmqFlag, config.fmqFull);
+    } else {
+        startPowerHintSession();
+    }
 
     std::vector<DisplayId> displayIds{PhysicalDisplayId::fromPort(42u), GpuVirtualDisplayId(0),
                                       GpuVirtualDisplayId(1)};
@@ -150,8 +199,41 @@ WorkDuration PowerAdvisorTest::testGpuScenario(GpuTestConfig& config) {
     // 60hz
 
     TimePoint startTime = TimePoint::now();
+    int64_t target;
+    SessionHint hint;
+    if (!config.usesFmq || !expectsFmqSuccess) {
+        EXPECT_CALL(*mMockPowerHintSession, updateTargetWorkDuration(_))
+                .Times(1)
+                .WillOnce(DoAll(testing::SaveArg<0>(&target),
+                                testing::Return(testing::ByMove(HalResult<void>::ok()))));
+        EXPECT_CALL(*mMockPowerHintSession, sendHint(_))
+                .Times(1)
+                .WillOnce(DoAll(testing::SaveArg<0>(&hint),
+                                testing::Return(testing::ByMove(HalResult<void>::ok()))));
+    }
     // advisor only starts on frame 2 so do an initial frame
     fakeBasicFrameTiming(startTime, config.vsyncPeriod);
+    // send a load hint
+    mPowerAdvisor->notifyCpuLoadUp();
+    if (config.usesFmq && expectsFmqSuccess) {
+        std::vector<ChannelMessage> msgs;
+        ASSERT_EQ(mBackendFmq->availableToRead(), 2uL);
+        msgs.resize(2);
+        ASSERT_TRUE(mBackendFmq->readBlocking(msgs.data(), 2, mReadFlagBitmask, mWriteFlagBitmask,
+                                              std::chrono::nanoseconds(1ms).count(), mEventFlag));
+        ASSERT_EQ(msgs[0].sessionID, mSessionId);
+        ASSERT_GE(msgs[0].timeStampNanos, startTime.ns());
+        ASSERT_EQ(msgs[0].data.getTag(),
+                  ChannelMessage::ChannelMessageContents::Tag::targetDuration);
+        target = msgs[0].data.get<ChannelMessage::ChannelMessageContents::Tag::targetDuration>();
+        ASSERT_EQ(msgs[1].sessionID, mSessionId);
+        ASSERT_GE(msgs[1].timeStampNanos, startTime.ns());
+        ASSERT_EQ(msgs[1].data.getTag(), ChannelMessage::ChannelMessageContents::Tag::hint);
+        hint = msgs[1].data.get<ChannelMessage::ChannelMessageContents::Tag::hint>();
+    }
+    ASSERT_EQ(target, config.vsyncPeriod.ns());
+    ASSERT_EQ(hint, SessionHint::CPU_LOAD_UP);
+
     setExpectedTiming(config.vsyncPeriod, startTime + config.vsyncPeriod);
 
     // report GPU
@@ -171,6 +253,10 @@ WorkDuration PowerAdvisorTest::testGpuScenario(GpuTestConfig& config) {
     std::this_thread::sleep_for(config.vsyncPeriod);
     startTime = TimePoint::now();
     fakeBasicFrameTiming(startTime, config.vsyncPeriod);
+    if (config.usesFmq && expectsFmqSuccess) {
+        // same target update will not trigger FMQ write
+        ASSERT_EQ(mBackendFmq->availableToRead(), 0uL);
+    }
     setExpectedTiming(config.vsyncPeriod, startTime + config.vsyncPeriod);
 
     // report GPU
@@ -192,14 +278,31 @@ WorkDuration PowerAdvisorTest::testGpuScenario(GpuTestConfig& config) {
     mPowerAdvisor->setHwcValidateTiming(displayIds[0], startTime, startTime);
     mPowerAdvisor->setHwcPresentTiming(displayIds[0], startTime, startTime);
 
-    std::vector<aidl::android::hardware::power::WorkDuration> durationReq;
-    EXPECT_CALL(*mMockPowerHintSession, reportActualWorkDuration(_))
-            .Times(1)
-            .WillOnce(DoAll(testing::SaveArg<0>(&durationReq),
-                            testing::Return(testing::ByMove(HalResult<void>::ok()))));
-    mPowerAdvisor->reportActualWorkDuration();
-    EXPECT_EQ(durationReq.size(), 1u);
-    return durationReq[0];
+    if (config.usesFmq && expectsFmqSuccess) {
+        mPowerAdvisor->reportActualWorkDuration();
+        ASSERT_EQ(mBackendFmq->availableToRead(), 1uL);
+        std::vector<ChannelMessage> msgs;
+        msgs.resize(1);
+        ASSERT_TRUE(mBackendFmq->readBlocking(msgs.data(), 1, mReadFlagBitmask, mWriteFlagBitmask,
+                                              std::chrono::nanoseconds(1ms).count(), mEventFlag));
+        ASSERT_EQ(msgs[0].sessionID, mSessionId);
+        ASSERT_GE(msgs[0].timeStampNanos, startTime.ns());
+        ASSERT_EQ(msgs[0].data.getTag(), ChannelMessage::ChannelMessageContents::Tag::workDuration);
+        auto actual = msgs[0].data.get<ChannelMessage::ChannelMessageContents::Tag::workDuration>();
+        ret.workPeriodStartTimestampNanos = actual.workPeriodStartTimestampNanos;
+        ret.cpuDurationNanos = actual.cpuDurationNanos;
+        ret.gpuDurationNanos = actual.gpuDurationNanos;
+        ret.durationNanos = actual.durationNanos;
+    } else {
+        std::vector<aidl::android::hardware::power::WorkDuration> durationReq;
+        EXPECT_CALL(*mMockPowerHintSession, reportActualWorkDuration(_))
+                .Times(1)
+                .WillOnce(DoAll(testing::SaveArg<0>(&durationReq),
+                                testing::Return(testing::ByMove(HalResult<void>::ok()))));
+        mPowerAdvisor->reportActualWorkDuration();
+        ASSERT_EQ(durationReq.size(), 1u);
+        ret = std::move(durationReq[0]);
+    }
 }
 
 Duration PowerAdvisorTest::getFenceWaitDelayDuration(bool skipValidate) {
@@ -375,13 +478,6 @@ TEST_F(PowerAdvisorTest, hintSessionValidWhenNullFromPowerHAL) {
     mPowerAdvisor->reportActualWorkDuration();
 }
 
-TEST_F(PowerAdvisorTest, hintSessionOnlyCreatedOnce) {
-    EXPECT_CALL(*mMockPowerHalController, createHintSessionWithConfig(_, _, _, _, _, _)).Times(1);
-    mPowerAdvisor->onBootFinished();
-    startPowerHintSession();
-    mPowerAdvisor->startPowerHintSession({1, 2, 3});
-}
-
 TEST_F(PowerAdvisorTest, hintSessionTestNotifyReportRace) {
     // notifyDisplayUpdateImminentAndCpuReset or notifyCpuLoadUp gets called in background
     // reportActual gets called during callback and sees true session, passes ensure
@@ -464,15 +560,21 @@ TEST_F(PowerAdvisorTest, hintSessionTestNotifyReportRace) {
 }
 
 TEST_F(PowerAdvisorTest, legacyHintSessionCreationStillWorks) {
-    SET_FLAG_FOR_TEST(android::os::adpf_use_fmq_channel, false);
     mPowerAdvisor->onBootFinished();
     mMockPowerHintSession = std::make_shared<NiceMock<MockPowerHintSessionWrapper>>();
+    EXPECT_CALL(*mMockPowerHalController, createHintSessionWithConfig)
+            .Times(1)
+            .WillOnce(Return(HalResult<std::shared_ptr<PowerHintSessionWrapper>>::
+                                     fromStatus(ndk::ScopedAStatus::fromExceptionCode(
+                                                        EX_UNSUPPORTED_OPERATION),
+                                                nullptr)));
+
     EXPECT_CALL(*mMockPowerHalController, createHintSession)
             .Times(1)
             .WillOnce(Return(HalResult<std::shared_ptr<PowerHintSessionWrapper>>::
                                      fromStatus(binder::Status::ok(), mMockPowerHintSession)));
     mPowerAdvisor->enablePowerHintSession(true);
-    mPowerAdvisor->startPowerHintSession({1, 2, 3});
+    ASSERT_TRUE(mPowerAdvisor->startPowerHintSession({1, 2, 3}));
 }
 
 TEST_F(PowerAdvisorTest, setGpuFenceTime_cpuThenGpuFrames) {
@@ -487,7 +589,8 @@ TEST_F(PowerAdvisorTest, setGpuFenceTime_cpuThenGpuFrames) {
             .frame1RequiresRenderEngine = false,
             .frame2RequiresRenderEngine = true,
     };
-    WorkDuration res = testGpuScenario(config);
+    WorkDuration res;
+    testGpuScenario(config, res);
     EXPECT_EQ(res.gpuDurationNanos, 0L);
     EXPECT_EQ(res.cpuDurationNanos, 0L);
     EXPECT_GE(res.durationNanos, toNanos(30ms + getErrorMargin()));
@@ -505,7 +608,8 @@ TEST_F(PowerAdvisorTest, setGpuFenceTime_cpuThenGpuFrames_flagOn) {
             .frame1RequiresRenderEngine = false,
             .frame2RequiresRenderEngine = true,
     };
-    WorkDuration res = testGpuScenario(config);
+    WorkDuration res;
+    testGpuScenario(config, res);
     EXPECT_EQ(res.gpuDurationNanos, toNanos(30ms));
     EXPECT_EQ(res.cpuDurationNanos, toNanos(10ms));
     EXPECT_EQ(res.durationNanos, toNanos(30ms + getErrorMargin()));
@@ -523,7 +627,8 @@ TEST_F(PowerAdvisorTest, setGpuFenceTime_gpuThenCpuFrames) {
             .frame1RequiresRenderEngine = true,
             .frame2RequiresRenderEngine = false,
     };
-    WorkDuration res = testGpuScenario(config);
+    WorkDuration res;
+    testGpuScenario(config, res);
     EXPECT_EQ(res.gpuDurationNanos, 0L);
     EXPECT_EQ(res.cpuDurationNanos, 0L);
     EXPECT_EQ(res.durationNanos, toNanos(10ms + getErrorMargin()));
@@ -540,7 +645,8 @@ TEST_F(PowerAdvisorTest, setGpuFenceTime_gpuThenCpuFrames_flagOn) {
             .frame1RequiresRenderEngine = true,
             .frame2RequiresRenderEngine = false,
     };
-    WorkDuration res = testGpuScenario(config);
+    WorkDuration res;
+    testGpuScenario(config, res);
     EXPECT_EQ(res.gpuDurationNanos, 0L);
     EXPECT_EQ(res.cpuDurationNanos, toNanos(10ms));
     EXPECT_EQ(res.durationNanos, toNanos(10ms + getErrorMargin()));
@@ -559,7 +665,8 @@ TEST_F(PowerAdvisorTest, setGpuFenceTime_twoSignaledGpuFrames) {
             .frame1RequiresRenderEngine = true,
             .frame2RequiresRenderEngine = true,
     };
-    WorkDuration res = testGpuScenario(config);
+    WorkDuration res;
+    testGpuScenario(config, res);
     EXPECT_EQ(res.gpuDurationNanos, 0L);
     EXPECT_EQ(res.cpuDurationNanos, 0L);
     EXPECT_GE(res.durationNanos, toNanos(50ms + getErrorMargin()));
@@ -577,7 +684,8 @@ TEST_F(PowerAdvisorTest, setGpuFenceTime_twoSignaledGpuFenceFrames_flagOn) {
             .frame1RequiresRenderEngine = true,
             .frame2RequiresRenderEngine = true,
     };
-    WorkDuration res = testGpuScenario(config);
+    WorkDuration res;
+    testGpuScenario(config, res);
     EXPECT_EQ(res.gpuDurationNanos, toNanos(50ms));
     EXPECT_EQ(res.cpuDurationNanos, toNanos(10ms));
     EXPECT_EQ(res.durationNanos, toNanos(50ms + getErrorMargin()));
@@ -594,7 +702,8 @@ TEST_F(PowerAdvisorTest, setGpuFenceTime_UnsingaledGpuFenceFrameUsingPreviousFra
             .frame1RequiresRenderEngine = true,
             .frame2RequiresRenderEngine = true,
     };
-    WorkDuration res = testGpuScenario(config);
+    WorkDuration res;
+    testGpuScenario(config, res);
     EXPECT_EQ(res.gpuDurationNanos, 0L);
     EXPECT_EQ(res.cpuDurationNanos, 0L);
     EXPECT_GE(res.durationNanos, toNanos(30ms + getErrorMargin()));
@@ -612,10 +721,121 @@ TEST_F(PowerAdvisorTest, setGpuFenceTime_UnsingaledGpuFenceFrameUsingPreviousFra
             .frame1RequiresRenderEngine = true,
             .frame2RequiresRenderEngine = true,
     };
-    WorkDuration res = testGpuScenario(config);
+    WorkDuration res;
+    testGpuScenario(config, res);
     EXPECT_EQ(res.gpuDurationNanos, toNanos(30ms));
     EXPECT_EQ(res.cpuDurationNanos, toNanos(110ms));
     EXPECT_EQ(res.durationNanos, toNanos(110ms + getErrorMargin()));
+}
+
+TEST_F(PowerAdvisorTest, fmq_sendTargetAndActualDuration) {
+    GpuTestConfig config{
+            .adpfGpuFlagOn = true,
+            .frame1GpuFenceDuration = 30ms,
+            .frame2GpuFenceDuration = Duration::fromNs(Fence::SIGNAL_TIME_PENDING),
+            .vsyncPeriod = 10ms,
+            .presentDuration = 22ms,
+            .postCompDuration = 88ms,
+            .frame1RequiresRenderEngine = true,
+            .frame2RequiresRenderEngine = true,
+            .usesFmq = true,
+            .usesSharedFmqFlag = true,
+    };
+    WorkDuration res;
+    testGpuScenario(config, res);
+    EXPECT_EQ(res.gpuDurationNanos, toNanos(30ms));
+    EXPECT_EQ(res.cpuDurationNanos, toNanos(110ms));
+    EXPECT_EQ(res.durationNanos, toNanos(110ms + getErrorMargin()));
+}
+
+TEST_F(PowerAdvisorTest, fmq_sendTargetAndActualDuration_noSharedFlag) {
+    GpuTestConfig config{
+            .adpfGpuFlagOn = true,
+            .frame1GpuFenceDuration = 30ms,
+            .frame2GpuFenceDuration = Duration::fromNs(Fence::SIGNAL_TIME_PENDING),
+            .vsyncPeriod = 10ms,
+            .presentDuration = 22ms,
+            .postCompDuration = 88ms,
+            .frame1RequiresRenderEngine = true,
+            .frame2RequiresRenderEngine = true,
+            .usesFmq = true,
+            .usesSharedFmqFlag = false,
+    };
+    WorkDuration res;
+    testGpuScenario(config, res);
+    EXPECT_EQ(res.gpuDurationNanos, toNanos(30ms));
+    EXPECT_EQ(res.cpuDurationNanos, toNanos(110ms));
+    EXPECT_EQ(res.durationNanos, toNanos(110ms + getErrorMargin()));
+}
+
+TEST_F(PowerAdvisorTest, fmq_sendTargetAndActualDuration_queueFull) {
+    GpuTestConfig config{.adpfGpuFlagOn = true,
+                         .frame1GpuFenceDuration = 30ms,
+                         .frame2GpuFenceDuration = Duration::fromNs(Fence::SIGNAL_TIME_PENDING),
+                         .vsyncPeriod = 10ms,
+                         .presentDuration = 22ms,
+                         .postCompDuration = 88ms,
+                         .frame1RequiresRenderEngine = true,
+                         .frame2RequiresRenderEngine = true,
+                         .usesFmq = true,
+                         .usesSharedFmqFlag = true,
+                         .fmqFull = true};
+    WorkDuration res;
+    testGpuScenario(config, res);
+    EXPECT_EQ(res.gpuDurationNanos, toNanos(30ms));
+    EXPECT_EQ(res.cpuDurationNanos, toNanos(110ms));
+    EXPECT_EQ(res.durationNanos, toNanos(110ms + getErrorMargin()));
+}
+
+TEST_F(PowerAdvisorTest, fmq_sendHint) {
+    SET_FLAG_FOR_TEST(android::os::adpf_use_fmq_channel_fixed, true);
+    mPowerAdvisor->onBootFinished();
+    SetUpFmq(true, false);
+    auto startTime = uptimeNanos();
+    mPowerAdvisor->notifyCpuLoadUp();
+    std::vector<ChannelMessage> msgs;
+    ASSERT_EQ(mBackendFmq->availableToRead(), 1uL);
+    msgs.resize(1);
+    ASSERT_TRUE(mBackendFmq->readBlocking(msgs.data(), 1, mReadFlagBitmask, mWriteFlagBitmask,
+                                          std::chrono::nanoseconds(1ms).count(), mEventFlag));
+    ASSERT_EQ(msgs[0].sessionID, mSessionId);
+    ASSERT_GE(msgs[0].timeStampNanos, startTime);
+    ASSERT_EQ(msgs[0].data.getTag(), ChannelMessage::ChannelMessageContents::Tag::hint);
+    auto hint = msgs[0].data.get<ChannelMessage::ChannelMessageContents::Tag::hint>();
+    ASSERT_EQ(hint, SessionHint::CPU_LOAD_UP);
+}
+
+TEST_F(PowerAdvisorTest, fmq_sendHint_noSharedFlag) {
+    SET_FLAG_FOR_TEST(android::os::adpf_use_fmq_channel_fixed, true);
+    mPowerAdvisor->onBootFinished();
+    SetUpFmq(false, false);
+    SessionHint hint;
+    EXPECT_CALL(*mMockPowerHintSession, sendHint(_))
+            .Times(1)
+            .WillOnce(DoAll(testing::SaveArg<0>(&hint),
+                            testing::Return(testing::ByMove(HalResult<void>::ok()))));
+    mPowerAdvisor->notifyCpuLoadUp();
+    ASSERT_EQ(mBackendFmq->availableToRead(), 0uL);
+    ASSERT_EQ(hint, SessionHint::CPU_LOAD_UP);
+}
+
+TEST_F(PowerAdvisorTest, fmq_sendHint_queueFull) {
+    SET_FLAG_FOR_TEST(android::os::adpf_use_fmq_channel_fixed, true);
+    mPowerAdvisor->onBootFinished();
+    SetUpFmq(true, true);
+    ASSERT_EQ(mBackendFmq->availableToRead(), 2uL);
+    SessionHint hint;
+    EXPECT_CALL(*mMockPowerHintSession, sendHint(_))
+            .Times(1)
+            .WillOnce(DoAll(testing::SaveArg<0>(&hint),
+                            testing::Return(testing::ByMove(HalResult<void>::ok()))));
+    std::vector<ChannelMessage> msgs;
+    msgs.resize(1);
+    mBackendFmq->writeBlocking(msgs.data(), 1, mReadFlagBitmask, mWriteFlagBitmask,
+                               std::chrono::nanoseconds(1ms).count(), mEventFlag);
+    mPowerAdvisor->notifyCpuLoadUp();
+    ASSERT_EQ(mBackendFmq->availableToRead(), 2uL);
+    ASSERT_EQ(hint, SessionHint::CPU_LOAD_UP);
 }
 
 } // namespace
