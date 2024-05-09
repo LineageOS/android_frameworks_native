@@ -7899,13 +7899,6 @@ void SurfaceFlinger::captureDisplay(const DisplayCaptureArgs& args,
         }
     }
 
-    RenderAreaFuture renderAreaFuture = ftl::defer([=] {
-        DisplayRenderAreaBuilder displayRenderArea(args.sourceCrop, reqSize, args.dataspace,
-                                                   args.hintForSeamlessTransition,
-                                                   args.captureSecureLayers, displayWeak);
-        return displayRenderArea.build();
-    });
-
     GetLayerSnapshotsFunction getLayerSnapshots;
     if (mLayerLifecycleManagerEnabled) {
         getLayerSnapshots =
@@ -7918,8 +7911,12 @@ void SurfaceFlinger::captureDisplay(const DisplayCaptureArgs& args,
         getLayerSnapshots = RenderArea::fromTraverseLayersLambda(traverseLayers);
     }
 
-    captureScreenCommon(std::move(renderAreaFuture), getLayerSnapshots, reqSize, args.pixelFormat,
-                        args.allowProtected, args.grayscale, captureListener);
+    captureScreenCommon(RenderAreaBuilderVariant(std::in_place_type<DisplayRenderAreaBuilder>,
+                                                 args.sourceCrop, reqSize, args.dataspace,
+                                                 args.hintForSeamlessTransition,
+                                                 args.captureSecureLayers, displayWeak),
+                        getLayerSnapshots, reqSize, args.pixelFormat, args.allowProtected,
+                        args.grayscale, captureListener);
 }
 
 void SurfaceFlinger::captureDisplay(DisplayId displayId, const CaptureArgs& args,
@@ -7955,13 +7952,6 @@ void SurfaceFlinger::captureDisplay(DisplayId displayId, const CaptureArgs& args
         return;
     }
 
-    RenderAreaFuture renderAreaFuture = ftl::defer([=] {
-        DisplayRenderAreaBuilder displayRenderArea(Rect(), size, args.dataspace,
-                                                   args.hintForSeamlessTransition,
-                                                   false /* captureSecureLayers */, displayWeak);
-        return displayRenderArea.build();
-    });
-
     GetLayerSnapshotsFunction getLayerSnapshots;
     if (mLayerLifecycleManagerEnabled) {
         getLayerSnapshots = getLayerSnapshotsForScreenshots(layerStack, CaptureArgs::UNSET_UID,
@@ -7982,8 +7972,12 @@ void SurfaceFlinger::captureDisplay(DisplayId displayId, const CaptureArgs& args
     constexpr bool kAllowProtected = false;
     constexpr bool kGrayscale = false;
 
-    captureScreenCommon(std::move(renderAreaFuture), getLayerSnapshots, size, args.pixelFormat,
-                        kAllowProtected, kGrayscale, captureListener);
+    captureScreenCommon(RenderAreaBuilderVariant(std::in_place_type<DisplayRenderAreaBuilder>,
+                                                 Rect(), size, args.dataspace,
+                                                 args.hintForSeamlessTransition,
+                                                 false /* captureSecureLayers */, displayWeak),
+                        getLayerSnapshots, size, args.pixelFormat, kAllowProtected, kGrayscale,
+                        captureListener);
 }
 
 ScreenCaptureResults SurfaceFlinger::captureLayersSync(const LayerCaptureArgs& args) {
@@ -8064,22 +8058,6 @@ void SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
         return;
     }
 
-    RenderAreaFuture renderAreaFuture = ftl::defer(
-            [=, this]() FTL_FAKE_GUARD(kMainThreadContext) -> std::unique_ptr<RenderArea> {
-                LayerRenderAreaBuilder layerRenderArea(crop, reqSize, dataspace,
-                                                       args.captureSecureLayers,
-                                                       args.hintForSeamlessTransition, parent,
-                                                       args.childrenOnly);
-
-                frontend::LayerSnapshot* snapshot =
-                        mLayerSnapshotBuilder.getSnapshot(parent->getSequence());
-                if (!snapshot) {
-                    ALOGW("Couldn't find layer snapshot for %d", parent->getSequence());
-                } else {
-                    layerRenderArea.setLayerInfo(snapshot);
-                }
-                return layerRenderArea.build();
-            });
     GetLayerSnapshotsFunction getLayerSnapshots;
     if (mLayerLifecycleManagerEnabled) {
         std::optional<FloatRect> parentCrop = std::nullopt;
@@ -8122,8 +8100,12 @@ void SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
         return;
     }
 
-    captureScreenCommon(std::move(renderAreaFuture), getLayerSnapshots, reqSize, args.pixelFormat,
-                        args.allowProtected, args.grayscale, captureListener);
+    captureScreenCommon(RenderAreaBuilderVariant(std::in_place_type<LayerRenderAreaBuilder>, crop,
+                                                 reqSize, dataspace, args.captureSecureLayers,
+                                                 args.hintForSeamlessTransition, parent,
+                                                 args.childrenOnly),
+                        getLayerSnapshots, reqSize, args.pixelFormat, args.allowProtected,
+                        args.grayscale, captureListener);
 }
 
 // Creates a Future release fence for a layer and keeps track of it in a list to
@@ -8150,7 +8132,7 @@ bool SurfaceFlinger::layersHasProtectedLayer(
     return protectedLayerFound;
 }
 
-void SurfaceFlinger::captureScreenCommon(RenderAreaFuture renderAreaFuture,
+void SurfaceFlinger::captureScreenCommon(RenderAreaBuilderVariant renderAreaBuilder,
                                          GetLayerSnapshotsFunction getLayerSnapshots,
                                          ui::Size bufferSize, ui::PixelFormat reqPixelFormat,
                                          bool allowProtected, bool grayscale,
@@ -8199,21 +8181,35 @@ void SurfaceFlinger::captureScreenCommon(RenderAreaFuture renderAreaFuture,
                                                  renderengine::impl::ExternalTexture::Usage::
                                                          WRITEABLE);
     auto futureFence =
-            captureScreenshot(std::move(renderAreaFuture), getLayerSnapshots, texture,
+            captureScreenshot(renderAreaBuilder, getLayerSnapshots, texture,
                               false /* regionSampling */, grayscale, isProtected, captureListener);
     futureFence.get();
 }
 
 ftl::SharedFuture<FenceResult> SurfaceFlinger::captureScreenshot(
-        RenderAreaFuture renderAreaFuture, GetLayerSnapshotsFunction getLayerSnapshots,
+        RenderAreaBuilderVariant renderAreaBuilder, GetLayerSnapshotsFunction getLayerSnapshots,
         const std::shared_ptr<renderengine::ExternalTexture>& buffer, bool regionSampling,
         bool grayscale, bool isProtected, const sp<IScreenCaptureListener>& captureListener) {
     ATRACE_CALL();
 
-    auto takeScreenshotFn = [=, this, renderAreaFuture = std::move(renderAreaFuture)]() REQUIRES(
+    auto takeScreenshotFn = [=, this, renderAreaBuilder = std::move(renderAreaBuilder)]() REQUIRES(
                                     kMainThreadContext) mutable -> ftl::SharedFuture<FenceResult> {
         // LayerSnapshots must be obtained from the main thread.
         auto layers = getLayerSnapshots();
+
+        if (auto* layerRenderAreaBuilder =
+                    std::get_if<LayerRenderAreaBuilder>(&renderAreaBuilder)) {
+            // LayerSnapshotBuilder should only be accessed from the main thread.
+            frontend::LayerSnapshot* snapshot =
+                    mLayerSnapshotBuilder.getSnapshot(layerRenderAreaBuilder->layer->getSequence());
+            if (!snapshot) {
+                ALOGW("Couldn't find layer snapshot for %d",
+                      layerRenderAreaBuilder->layer->getSequence());
+            } else {
+                layerRenderAreaBuilder->setLayerInfo(snapshot);
+            }
+        }
+
         if (FlagManager::getInstance().ce_fence_promise()) {
             for (auto& [layer, layerFE] : layers) {
                 attachReleaseFenceFutureToLayer(layer, layerFE.get(), ui::INVALID_LAYER_STACK);
@@ -8221,7 +8217,10 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::captureScreenshot(
         }
 
         ScreenCaptureResults captureResults;
-        std::shared_ptr<RenderArea> renderArea = renderAreaFuture.get();
+        std::unique_ptr<const RenderArea> renderArea =
+                std::visit([](auto&& arg) -> std::unique_ptr<RenderArea> { return arg.build(); },
+                           renderAreaBuilder);
+
         if (!renderArea) {
             ALOGW("Skipping screen capture because of invalid render area.");
             if (captureListener) {
@@ -8232,8 +8231,8 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::captureScreenshot(
         }
 
         ftl::SharedFuture<FenceResult> renderFuture =
-                renderScreenImpl(renderArea, buffer, regionSampling, grayscale, isProtected,
-                                 captureResults, layers);
+                renderScreenImpl(std::move(renderArea), buffer, regionSampling, grayscale,
+                                 isProtected, captureResults, layers);
 
         if (captureListener) {
             // Defer blocking on renderFuture back to the Binder thread.
@@ -8250,9 +8249,7 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::captureScreenshot(
     };
 
     // TODO(b/294936197): Run takeScreenshotsFn() in a binder thread to reduce the number
-    // of calls on the main thread. renderAreaFuture runs on the main thread and should
-    // no longer be a future, so that it does not need to make an additional jump on the
-    // main thread whenever get() is called.
+    // of calls on the main thread.
     auto future =
             mScheduler->schedule(FTL_FAKE_GUARD(kMainThreadContext, std::move(takeScreenshotFn)));
 
@@ -8265,16 +8262,16 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::captureScreenshot(
 }
 
 ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
-        std::shared_ptr<const RenderArea> renderArea, GetLayerSnapshotsFunction getLayerSnapshots,
+        std::unique_ptr<const RenderArea> renderArea, GetLayerSnapshotsFunction getLayerSnapshots,
         const std::shared_ptr<renderengine::ExternalTexture>& buffer, bool regionSampling,
         bool grayscale, bool isProtected, ScreenCaptureResults& captureResults) {
     auto layers = getLayerSnapshots();
-    return renderScreenImpl(renderArea, buffer, regionSampling, grayscale, isProtected,
+    return renderScreenImpl(std::move(renderArea), buffer, regionSampling, grayscale, isProtected,
                             captureResults, layers);
 }
 
 ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
-        std::shared_ptr<const RenderArea> renderArea,
+        std::unique_ptr<const RenderArea> renderArea,
         const std::shared_ptr<renderengine::ExternalTexture>& buffer, bool regionSampling,
         bool grayscale, bool isProtected, ScreenCaptureResults& captureResults,
         std::vector<std::pair<Layer*, sp<android::LayerFE>>>& layers) {

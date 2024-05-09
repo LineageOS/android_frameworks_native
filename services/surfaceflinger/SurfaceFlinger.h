@@ -192,6 +192,9 @@ enum class LatchUnsignaledConfig {
     Always,
 };
 
+struct DisplayRenderAreaBuilder;
+struct LayerRenderAreaBuilder;
+
 using DisplayColorSetting = compositionengine::OutputColorSetting;
 
 class SurfaceFlinger : public BnSurfaceComposer,
@@ -383,7 +386,7 @@ private:
 
     using TransactionSchedule = scheduler::TransactionSchedule;
     using GetLayerSnapshotsFunction = std::function<std::vector<std::pair<Layer*, sp<LayerFE>>>()>;
-    using RenderAreaFuture = ftl::Future<std::unique_ptr<RenderArea>>;
+    using RenderAreaBuilderVariant = std::variant<DisplayRenderAreaBuilder, LayerRenderAreaBuilder>;
     using DumpArgs = Vector<String16>;
     using Dumper = std::function<void(const DumpArgs&, bool asProto, std::string&)>;
 
@@ -891,12 +894,12 @@ private:
     // Checks if a protected layer exists in a list of layers.
     bool layersHasProtectedLayer(const std::vector<std::pair<Layer*, sp<LayerFE>>>& layers) const;
 
-    void captureScreenCommon(RenderAreaFuture, GetLayerSnapshotsFunction, ui::Size bufferSize,
-                             ui::PixelFormat, bool allowProtected, bool grayscale,
-                             const sp<IScreenCaptureListener>&);
+    void captureScreenCommon(RenderAreaBuilderVariant, GetLayerSnapshotsFunction,
+                             ui::Size bufferSize, ui::PixelFormat, bool allowProtected,
+                             bool grayscale, const sp<IScreenCaptureListener>&);
 
     ftl::SharedFuture<FenceResult> captureScreenshot(
-            RenderAreaFuture, GetLayerSnapshotsFunction,
+            RenderAreaBuilderVariant, GetLayerSnapshotsFunction,
             const std::shared_ptr<renderengine::ExternalTexture>&, bool regionSampling,
             bool grayscale, bool isProtected, const sp<IScreenCaptureListener>&);
 
@@ -904,13 +907,13 @@ private:
     // not yet been captured, and thus cannot yet be passed in as a parameter.
     // Needed for TestableSurfaceFlinger.
     ftl::SharedFuture<FenceResult> renderScreenImpl(
-            std::shared_ptr<const RenderArea>, GetLayerSnapshotsFunction,
+            std::unique_ptr<const RenderArea>, GetLayerSnapshotsFunction,
             const std::shared_ptr<renderengine::ExternalTexture>&, bool regionSampling,
             bool grayscale, bool isProtected, ScreenCaptureResults&) EXCLUDES(mStateLock)
             REQUIRES(kMainThreadContext);
 
     ftl::SharedFuture<FenceResult> renderScreenImpl(
-            std::shared_ptr<const RenderArea>,
+            std::unique_ptr<const RenderArea>,
             const std::shared_ptr<renderengine::ExternalTexture>&, bool regionSampling,
             bool grayscale, bool isProtected, ScreenCaptureResults&,
             std::vector<std::pair<Layer*, sp<android::LayerFE>>>& layers) EXCLUDES(mStateLock)
