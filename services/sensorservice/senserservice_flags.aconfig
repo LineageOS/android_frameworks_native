@@ -14,3 +14,10 @@ flag {
   description: "This flag controls if the callback onDynamicSensorsDisconnected is implemented or not."
   bug: "316958439"
 }
+
+flag {
+  name: "sensor_event_connection_send_event_require_nonnull_scratch"
+  namespace: "sensors"
+  description: "This flag controls we allow to pass in nullptr as scratch in SensorEventConnection::sendEvents()"
+  bug: "339306599"
+}
