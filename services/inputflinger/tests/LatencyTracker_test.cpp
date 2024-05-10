@@ -20,7 +20,6 @@
 #include <android-base/properties.h>
 #include <binder/Binder.h>
 #include <gtest/gtest.h>
-#include <gui/constants.h>
 #include <inttypes.h>
 #include <linux/input.h>
 #include <log/log.h>
@@ -44,7 +43,7 @@ static InputDeviceInfo generateTestDeviceInfo(uint16_t vendorId, uint16_t produc
     identifier.product = productId;
     auto info = InputDeviceInfo();
     info.initialize(deviceId, /*generation=*/1, /*controllerNumber=*/1, identifier, "Test Device",
-                    /*isExternal=*/false, /*hasMic=*/false, ADISPLAY_ID_NONE);
+                    /*isExternal=*/false, /*hasMic=*/false, ui::ADISPLAY_ID_NONE);
     return info;
 }
 

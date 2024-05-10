@@ -32,7 +32,7 @@ void FakePointerController::clearBounds() {
     mHaveBounds = false;
 }
 
-const std::map<int32_t, std::vector<int32_t>>& FakePointerController::getSpots() {
+const std::map<ui::LogicalDisplayId, std::vector<int32_t>>& FakePointerController::getSpots() {
     return mSpotsByDisplay;
 }
 
@@ -51,9 +51,9 @@ FloatPoint FakePointerController::getPosition() const {
     return {mX, mY};
 }
 
-int32_t FakePointerController::getDisplayId() const {
+ui::LogicalDisplayId FakePointerController::getDisplayId() const {
     if (!mEnabled || !mDisplayId) {
-        return ADISPLAY_ID_NONE;
+        return ui::ADISPLAY_ID_NONE;
     }
     return *mDisplayId;
 }
@@ -76,7 +76,7 @@ void FakePointerController::setCustomPointerIcon(const SpriteIcon& icon) {
     mCustomIconStyle = icon.style;
 }
 
-void FakePointerController::setSkipScreenshot(int32_t displayId, bool skip) {
+void FakePointerController::setSkipScreenshot(ui::LogicalDisplayId displayId, bool skip) {
     if (skip) {
         mDisplaysToSkipScreenshot.insert(displayId);
     } else {
@@ -84,7 +84,7 @@ void FakePointerController::setSkipScreenshot(int32_t displayId, bool skip) {
     }
 };
 
-void FakePointerController::assertViewportSet(int32_t displayId) {
+void FakePointerController::assertViewportSet(ui::LogicalDisplayId displayId) {
     ASSERT_TRUE(mDisplayId);
     ASSERT_EQ(displayId, mDisplayId);
 }
@@ -99,7 +99,7 @@ void FakePointerController::assertPosition(float x, float y) {
     ASSERT_NEAR(y, actualY, 1);
 }
 
-void FakePointerController::assertSpotCount(int32_t displayId, int32_t count) {
+void FakePointerController::assertSpotCount(ui::LogicalDisplayId displayId, int32_t count) {
     auto it = mSpotsByDisplay.find(displayId);
     ASSERT_TRUE(it != mSpotsByDisplay.end()) << "Spots not found for display " << displayId;
     ASSERT_EQ(static_cast<size_t>(count), it->second.size());
@@ -125,7 +125,8 @@ void FakePointerController::assertCustomPointerIconNotSet() {
     ASSERT_EQ(std::nullopt, mCustomIconStyle);
 }
 
-void FakePointerController::assertIsHiddenOnMirroredDisplays(int32_t displayId, bool isHidden) {
+void FakePointerController::assertIsHiddenOnMirroredDisplays(ui::LogicalDisplayId displayId,
+                                                             bool isHidden) {
     if (isHidden) {
         ASSERT_TRUE(mDisplaysToSkipScreenshot.find(displayId) != mDisplaysToSkipScreenshot.end());
     } else {
@@ -166,7 +167,7 @@ void FakePointerController::unfade(Transition) {
 }
 
 void FakePointerController::setSpots(const PointerCoords*, const uint32_t*, BitSet32 spotIdBits,
-                                     int32_t displayId) {
+                                     ui::LogicalDisplayId displayId) {
     if (!mEnabled) return;
 
     std::vector<int32_t> newSpots;

@@ -178,7 +178,7 @@ NotifyMotionArgs generateFuzzedMotionArgs(IdGenerator& idGenerator, FuzzedDataPr
         pointerCoords.push_back(coords);
     }
 
-    const int32_t displayId = fdp.ConsumeIntegralInRange<int32_t>(0, maxDisplays - 1);
+    const ui::LogicalDisplayId displayId{fdp.ConsumeIntegralInRange<int32_t>(0, maxDisplays - 1)};
     const int32_t deviceId = fdp.ConsumeIntegralInRange<int32_t>(0, MAX_RANDOM_DEVICES - 1);
 
     // Current time +- 5 seconds

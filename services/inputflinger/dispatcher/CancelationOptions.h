@@ -48,7 +48,7 @@ struct CancelationOptions {
     std::optional<int32_t> deviceId = std::nullopt;
 
     // The specific display id of events to cancel, or nullopt to cancel events on any display.
-    std::optional<int32_t> displayId = std::nullopt;
+    std::optional<ui::LogicalDisplayId> displayId = std::nullopt;
 
     // The specific pointers to cancel, or nullopt to cancel all pointer events
     std::optional<std::bitset<MAX_POINTER_ID + 1>> pointerIds = std::nullopt;

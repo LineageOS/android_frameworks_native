@@ -81,10 +81,10 @@ bool debugResampling() {
 
 void initializeKeyEvent(KeyEvent& event, const InputMessage& msg) {
     event.initialize(msg.body.key.eventId, msg.body.key.deviceId, msg.body.key.source,
-                     msg.body.key.displayId, msg.body.key.hmac, msg.body.key.action,
-                     msg.body.key.flags, msg.body.key.keyCode, msg.body.key.scanCode,
-                     msg.body.key.metaState, msg.body.key.repeatCount, msg.body.key.downTime,
-                     msg.body.key.eventTime);
+                     ui::LogicalDisplayId{msg.body.key.displayId}, msg.body.key.hmac,
+                     msg.body.key.action, msg.body.key.flags, msg.body.key.keyCode,
+                     msg.body.key.scanCode, msg.body.key.metaState, msg.body.key.repeatCount,
+                     msg.body.key.downTime, msg.body.key.eventTime);
 }
 
 void initializeFocusEvent(FocusEvent& event, const InputMessage& msg) {
@@ -117,13 +117,14 @@ void initializeMotionEvent(MotionEvent& event, const InputMessage& msg) {
                           msg.body.motion.dtdyRaw, msg.body.motion.dsdyRaw, msg.body.motion.tyRaw,
                           0, 0, 1});
     event.initialize(msg.body.motion.eventId, msg.body.motion.deviceId, msg.body.motion.source,
-                     msg.body.motion.displayId, msg.body.motion.hmac, msg.body.motion.action,
-                     msg.body.motion.actionButton, msg.body.motion.flags, msg.body.motion.edgeFlags,
-                     msg.body.motion.metaState, msg.body.motion.buttonState,
-                     msg.body.motion.classification, transform, msg.body.motion.xPrecision,
-                     msg.body.motion.yPrecision, msg.body.motion.xCursorPosition,
-                     msg.body.motion.yCursorPosition, displayTransform, msg.body.motion.downTime,
-                     msg.body.motion.eventTime, pointerCount, pointerProperties, pointerCoords);
+                     ui::LogicalDisplayId{msg.body.motion.displayId}, msg.body.motion.hmac,
+                     msg.body.motion.action, msg.body.motion.actionButton, msg.body.motion.flags,
+                     msg.body.motion.edgeFlags, msg.body.motion.metaState,
+                     msg.body.motion.buttonState, msg.body.motion.classification, transform,
+                     msg.body.motion.xPrecision, msg.body.motion.yPrecision,
+                     msg.body.motion.xCursorPosition, msg.body.motion.yCursorPosition,
+                     displayTransform, msg.body.motion.downTime, msg.body.motion.eventTime,
+                     pointerCount, pointerProperties, pointerCoords);
 }
 
 void addSample(MotionEvent& event, const InputMessage& msg) {

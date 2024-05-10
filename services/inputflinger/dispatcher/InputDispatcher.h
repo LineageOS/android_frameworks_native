@@ -114,35 +114,37 @@ public:
     std::unique_ptr<VerifiedInputEvent> verifyInputEvent(const InputEvent& event) override;
 
     void setFocusedApplication(
-            int32_t displayId,
+            ui::LogicalDisplayId displayId,
             const std::shared_ptr<InputApplicationHandle>& inputApplicationHandle) override;
-    void setFocusedDisplay(int32_t displayId) override;
+    void setFocusedDisplay(ui::LogicalDisplayId displayId) override;
     void setMinTimeBetweenUserActivityPokes(std::chrono::milliseconds interval) override;
     void setInputDispatchMode(bool enabled, bool frozen) override;
     void setInputFilterEnabled(bool enabled) override;
     bool setInTouchMode(bool inTouchMode, gui::Pid pid, gui::Uid uid, bool hasPermission,
-                        int32_t displayId) override;
+                        ui::LogicalDisplayId displayId) override;
     void setMaximumObscuringOpacityForTouch(float opacity) override;
 
     bool transferTouchGesture(const sp<IBinder>& fromToken, const sp<IBinder>& toToken,
                               bool isDragDrop = false) override;
-    bool transferTouchOnDisplay(const sp<IBinder>& destChannelToken, int32_t displayId) override;
+    bool transferTouchOnDisplay(const sp<IBinder>& destChannelToken,
+                                ui::LogicalDisplayId displayId) override;
 
     base::Result<std::unique_ptr<InputChannel>> createInputChannel(
             const std::string& name) override;
     void setFocusedWindow(const android::gui::FocusRequest&) override;
-    base::Result<std::unique_ptr<InputChannel>> createInputMonitor(int32_t displayId,
+    base::Result<std::unique_ptr<InputChannel>> createInputMonitor(ui::LogicalDisplayId displayId,
                                                                    const std::string& name,
                                                                    gui::Pid pid) override;
     status_t removeInputChannel(const sp<IBinder>& connectionToken) override;
     status_t pilferPointers(const sp<IBinder>& token) override;
     void requestPointerCapture(const sp<IBinder>& windowToken, bool enabled) override;
     bool flushSensor(int deviceId, InputDeviceSensorType sensorType) override;
-    void setDisplayEligibilityForPointerCapture(int displayId, bool isEligible) override;
+    void setDisplayEligibilityForPointerCapture(ui::LogicalDisplayId displayId,
+                                                bool isEligible) override;
 
     std::array<uint8_t, 32> sign(const VerifiedInputEvent& event) const;
 
-    void displayRemoved(int32_t displayId) override;
+    void displayRemoved(ui::LogicalDisplayId displayId) override;
 
     // Public because it's also used by tests to simulate the WindowInfosListener callback
     void onWindowInfosChanged(const gui::WindowInfosUpdate&);
@@ -155,8 +157,8 @@ public:
     void setKeyRepeatConfiguration(std::chrono::nanoseconds timeout,
                                    std::chrono::nanoseconds delay) override;
 
-    bool isPointerInWindow(const sp<IBinder>& token, int32_t displayId, DeviceId deviceId,
-                           int32_t pointerId) override;
+    bool isPointerInWindow(const sp<IBinder>& token, ui::LogicalDisplayId displayId,
+                           DeviceId deviceId, int32_t pointerId) override;
 
     void setInputMethodConnectionIsActive(bool isActive) override;
 
@@ -249,17 +251,17 @@ private:
     std::shared_ptr<const EventEntry> mNextUnblockedEvent GUARDED_BY(mLock);
 
     sp<android::gui::WindowInfoHandle> findTouchedWindowAtLocked(
-            int32_t displayId, float x, float y, bool isStylus = false,
+            ui::LogicalDisplayId displayId, float x, float y, bool isStylus = false,
             bool ignoreDragWindow = false) const REQUIRES(mLock);
     std::vector<InputTarget> findOutsideTargetsLocked(
-            int32_t displayId, const sp<android::gui::WindowInfoHandle>& touchedWindow,
+            ui::LogicalDisplayId displayId, const sp<android::gui::WindowInfoHandle>& touchedWindow,
             int32_t pointerId) const REQUIRES(mLock);
 
     std::vector<sp<android::gui::WindowInfoHandle>> findTouchedSpyWindowsAtLocked(
-            int32_t displayId, float x, float y, bool isStylus) const REQUIRES(mLock);
+            ui::LogicalDisplayId displayId, float x, float y, bool isStylus) const REQUIRES(mLock);
 
-    sp<android::gui::WindowInfoHandle> findTouchedForegroundWindowLocked(int32_t displayId) const
-            REQUIRES(mLock);
+    sp<android::gui::WindowInfoHandle> findTouchedForegroundWindowLocked(
+            ui::LogicalDisplayId displayId) const REQUIRES(mLock);
 
     std::shared_ptr<Connection> getConnectionLocked(const sp<IBinder>& inputConnectionToken) const
             REQUIRES(mLock);
@@ -283,7 +285,8 @@ private:
     std::optional<gui::Pid> findMonitorPidByTokenLocked(const sp<IBinder>& token) REQUIRES(mLock);
 
     // Input channels that will receive a copy of all input events sent to the provided display.
-    std::unordered_map<int32_t, std::vector<Monitor>> mGlobalMonitorsByDisplay GUARDED_BY(mLock);
+    std::unordered_map<ui::LogicalDisplayId, std::vector<Monitor>> mGlobalMonitorsByDisplay
+            GUARDED_BY(mLock);
 
     const HmacKeyManager mHmacKeyManager;
     const std::array<uint8_t, 32> getSignature(const MotionEntry& motionEntry,
@@ -342,7 +345,8 @@ private:
     // This map is not really needed, but it helps a lot with debugging (dumpsys input).
     // In the java layer, touch mode states are spread across multiple DisplayContent objects,
     // making harder to snapshot and retrieve them.
-    std::map<int32_t /*displayId*/, bool /*inTouchMode*/> mTouchModePerDisplay GUARDED_BY(mLock);
+    std::map<ui::LogicalDisplayId /*displayId*/, bool /*inTouchMode*/> mTouchModePerDisplay
+            GUARDED_BY(mLock);
 
     class DispatcherWindowListener : public gui::WindowInfosListener {
     public:
@@ -354,25 +358,26 @@ private:
     };
     sp<gui::WindowInfosListener> mWindowInfoListener;
 
-    std::unordered_map<int32_t /*displayId*/, std::vector<sp<android::gui::WindowInfoHandle>>>
+    std::unordered_map<ui::LogicalDisplayId /*displayId*/,
+                       std::vector<sp<android::gui::WindowInfoHandle>>>
             mWindowHandlesByDisplay GUARDED_BY(mLock);
-    std::unordered_map<int32_t /*displayId*/, android::gui::DisplayInfo> mDisplayInfos
+    std::unordered_map<ui::LogicalDisplayId /*displayId*/, android::gui::DisplayInfo> mDisplayInfos
             GUARDED_BY(mLock);
     void setInputWindowsLocked(
             const std::vector<sp<android::gui::WindowInfoHandle>>& inputWindowHandles,
-            int32_t displayId) REQUIRES(mLock);
+            ui::LogicalDisplayId displayId) REQUIRES(mLock);
     // Get a reference to window handles by display, return an empty vector if not found.
     const std::vector<sp<android::gui::WindowInfoHandle>>& getWindowHandlesLocked(
-            int32_t displayId) const REQUIRES(mLock);
-    ui::Transform getTransformLocked(int32_t displayId) const REQUIRES(mLock);
+            ui::LogicalDisplayId displayId) const REQUIRES(mLock);
+    ui::Transform getTransformLocked(ui::LogicalDisplayId displayId) const REQUIRES(mLock);
 
     sp<android::gui::WindowInfoHandle> getWindowHandleLocked(
-            const sp<IBinder>& windowHandleToken, std::optional<int32_t> displayId = {}) const
-            REQUIRES(mLock);
+            const sp<IBinder>& windowHandleToken,
+            std::optional<ui::LogicalDisplayId> displayId = {}) const REQUIRES(mLock);
     sp<android::gui::WindowInfoHandle> getWindowHandleLocked(
             const sp<android::gui::WindowInfoHandle>& windowHandle) const REQUIRES(mLock);
-    sp<android::gui::WindowInfoHandle> getFocusedWindowHandleLocked(int displayId) const
-            REQUIRES(mLock);
+    sp<android::gui::WindowInfoHandle> getFocusedWindowHandleLocked(
+            ui::LogicalDisplayId displayId) const REQUIRES(mLock);
     bool canWindowReceiveMotionLocked(const sp<android::gui::WindowInfoHandle>& window,
                                       const MotionEntry& motionEntry) const REQUIRES(mLock);
 
@@ -387,20 +392,21 @@ private:
      */
     void updateWindowHandlesForDisplayLocked(
             const std::vector<sp<android::gui::WindowInfoHandle>>& inputWindowHandles,
-            int32_t displayId) REQUIRES(mLock);
+            ui::LogicalDisplayId displayId) REQUIRES(mLock);
 
-    std::unordered_map<int32_t, TouchState> mTouchStatesByDisplay GUARDED_BY(mLock);
+    std::unordered_map<ui::LogicalDisplayId /*displayId*/, TouchState> mTouchStatesByDisplay
+            GUARDED_BY(mLock);
     std::unique_ptr<DragState> mDragState GUARDED_BY(mLock);
 
     void setFocusedApplicationLocked(
-            int32_t displayId,
+            ui::LogicalDisplayId displayId,
             const std::shared_ptr<InputApplicationHandle>& inputApplicationHandle) REQUIRES(mLock);
     // Focused applications.
-    std::unordered_map<int32_t, std::shared_ptr<InputApplicationHandle>>
+    std::unordered_map<ui::LogicalDisplayId /*displayId*/, std::shared_ptr<InputApplicationHandle>>
             mFocusedApplicationHandlesByDisplay GUARDED_BY(mLock);
 
     // Top focused display.
-    int32_t mFocusedDisplayId GUARDED_BY(mLock);
+    ui::LogicalDisplayId mFocusedDisplayId GUARDED_BY(mLock);
 
     // Keeps track of the focused window per display and determines focus changes.
     FocusResolver mFocusResolver GUARDED_BY(mLock);
@@ -417,7 +423,8 @@ private:
 
     // Displays that are ineligible for pointer capture.
     // TODO(b/214621487): Remove or move to a display flag.
-    std::vector<int32_t> mIneligibleDisplaysForPointerCapture GUARDED_BY(mLock);
+    std::vector<ui::LogicalDisplayId /*displayId*/> mIneligibleDisplaysForPointerCapture
+            GUARDED_BY(mLock);
 
     // Disable Pointer Capture as a result of loss of window focus.
     void disablePointerCaptureForcedLocked() REQUIRES(mLock);
@@ -492,7 +499,7 @@ private:
     /**
      * The displayId that the focused application is associated with.
      */
-    int32_t mAwaitedApplicationDisplayId GUARDED_BY(mLock);
+    ui::LogicalDisplayId mAwaitedApplicationDisplayId GUARDED_BY(mLock);
     void processNoFocusedWindowAnrLocked() REQUIRES(mLock);
 
     /**
@@ -526,7 +533,7 @@ private:
     // shade is pulled down while we are counting down the timeout).
     void resetNoFocusedWindowTimeoutLocked() REQUIRES(mLock);
 
-    int32_t getTargetDisplayId(const EventEntry& entry);
+    ui::LogicalDisplayId getTargetDisplayId(const EventEntry& entry);
     sp<android::gui::WindowInfoHandle> findFocusedWindowTargetLocked(
             nsecs_t currentTime, const EventEntry& entry, nsecs_t& nextWakeupTime,
             android::os::InputEventInjectionResult& outInjectionResult) REQUIRES(mLock);
@@ -551,13 +558,13 @@ private:
                                       std::bitset<MAX_POINTER_ID + 1> pointerIds,
                                       std::optional<nsecs_t> firstDownTimeInTarget,
                                       std::vector<InputTarget>& inputTargets) const REQUIRES(mLock);
-    void addGlobalMonitoringTargetsLocked(std::vector<InputTarget>& inputTargets, int32_t displayId)
-            REQUIRES(mLock);
+    void addGlobalMonitoringTargetsLocked(std::vector<InputTarget>& inputTargets,
+                                          ui::LogicalDisplayId displayId) REQUIRES(mLock);
     void pokeUserActivityLocked(const EventEntry& eventEntry) REQUIRES(mLock);
     // Enqueue a drag event if needed, and update the touch state.
     // Uses findTouchedWindowTargetsLocked to make the decision
     void addDragEventLocked(const MotionEntry& entry) REQUIRES(mLock);
-    void finishDragAndDrop(int32_t displayId, float x, float y) REQUIRES(mLock);
+    void finishDragAndDrop(ui::LogicalDisplayId displayId, float x, float y) REQUIRES(mLock);
 
     struct TouchOcclusionInfo {
         bool hasBlockingOcclusion;
@@ -675,14 +682,14 @@ private:
                                   const std::string& reason) REQUIRES(mLock);
     void updateLastAnrStateLocked(const std::string& windowLabel, const std::string& reason)
             REQUIRES(mLock);
-    std::map<int32_t /*displayId*/, InputVerifier> mVerifiersByDisplay;
+    std::map<ui::LogicalDisplayId /*displayId*/, InputVerifier> mVerifiersByDisplay;
     // Returns a fallback KeyEntry that should be sent to the connection, if required.
     std::unique_ptr<const KeyEntry> afterKeyEventLockedInterruptable(
             const std::shared_ptr<Connection>& connection, DispatchEntry& dispatchEntry,
             const KeyEntry& keyEntry, bool handled) REQUIRES(mLock);
 
     // Find touched state and touched window by token.
-    std::tuple<TouchState*, TouchedWindow*, int32_t /*displayId*/>
+    std::tuple<TouchState*, TouchedWindow*, ui::LogicalDisplayId /*displayId*/>
     findTouchStateWindowAndDisplayLocked(const sp<IBinder>& token) REQUIRES(mLock);
 
     // Statistics gathering.

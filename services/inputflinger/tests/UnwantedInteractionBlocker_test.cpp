@@ -18,7 +18,6 @@
 #include <android-base/silent_death_test.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
-#include <gui/constants.h>
 #include <linux/input.h>
 #include <thread>
 #include "ui/events/ozone/evdev/touch_filter/neural_stylus_palm_detection_filter.h"
@@ -89,7 +88,8 @@ static NotifyMotionArgs generateMotionArgs(nsecs_t downTime, nsecs_t eventTime, 
 
     // Define a valid motion event.
     NotifyMotionArgs args(/*id=*/0, eventTime, /*readTime=*/0, DEVICE_ID, AINPUT_SOURCE_TOUCHSCREEN,
-                          /*displayId=*/0, POLICY_FLAG_PASS_TO_USER, action, /*actionButton=*/0,
+                          /*displayId=*/ui::ADISPLAY_ID_DEFAULT, POLICY_FLAG_PASS_TO_USER, action,
+                          /*actionButton=*/0,
                           /*flags=*/0, AMETA_NONE, /*buttonState=*/0, MotionClassification::NONE,
                           AMOTION_EVENT_EDGE_FLAG_NONE, pointerCount, pointerProperties,
                           pointerCoords, /*xPrecision=*/0, /*yPrecision=*/0,
@@ -104,7 +104,7 @@ static InputDeviceInfo generateTestDeviceInfo() {
 
     auto info = InputDeviceInfo();
     info.initialize(DEVICE_ID, /*generation=*/1, /*controllerNumber=*/1, identifier, "alias",
-                    /*isExternal=*/false, /*hasMic=*/false, ADISPLAY_ID_NONE);
+                    /*isExternal=*/false, /*hasMic=*/false, ui::ADISPLAY_ID_NONE);
     info.addSource(AINPUT_SOURCE_TOUCHSCREEN);
     info.addMotionRange(AMOTION_EVENT_AXIS_X, AINPUT_SOURCE_TOUCHSCREEN, 0, 1599, /*flat=*/0,
                         /*fuzz=*/0, X_RESOLUTION);
@@ -434,7 +434,7 @@ TEST_F(UnwantedInteractionBlockerTest, ConfigurationChangedIsPassedToNextListene
 TEST_F(UnwantedInteractionBlockerTest, KeyIsPassedToNextListener) {
     // Create a basic key event and send to blocker
     NotifyKeyArgs args(/*sequenceNum=*/1, /*eventTime=*/2, /*readTime=*/21, /*deviceId=*/3,
-                       AINPUT_SOURCE_KEYBOARD, ADISPLAY_ID_DEFAULT, /*policyFlags=*/0,
+                       AINPUT_SOURCE_KEYBOARD, ui::ADISPLAY_ID_DEFAULT, /*policyFlags=*/0,
                        AKEY_EVENT_ACTION_DOWN, /*flags=*/4, AKEYCODE_HOME, /*scanCode=*/5,
                        AMETA_NONE, /*downTime=*/6);
 

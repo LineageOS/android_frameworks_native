@@ -314,7 +314,7 @@ common::MotionEvent notifyMotionArgsToHalMotionEvent(const NotifyMotionArgs& arg
     common::MotionEvent event;
     event.deviceId = args.deviceId;
     event.source = getSource(args.source);
-    event.displayId = args.displayId;
+    event.displayId = args.displayId.val();
     event.downTime = args.downTime;
     event.eventTime = args.eventTime;
     event.deviceTimestamp = 0;

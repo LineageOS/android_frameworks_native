@@ -18,7 +18,6 @@
 
 #include <ftl/flags.h>
 #include <gui/WindowInfo.h>
-#include <gui/constants.h>
 #include <ui/Transform.h>
 #include <utils/BitSet.h>
 #include <bitset>

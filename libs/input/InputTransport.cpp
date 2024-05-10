@@ -530,7 +530,7 @@ InputPublisher::~InputPublisher() {
 }
 
 status_t InputPublisher::publishKeyEvent(uint32_t seq, int32_t eventId, int32_t deviceId,
-                                         int32_t source, int32_t displayId,
+                                         int32_t source, ui::LogicalDisplayId displayId,
                                          std::array<uint8_t, 32> hmac, int32_t action,
                                          int32_t flags, int32_t keyCode, int32_t scanCode,
                                          int32_t metaState, int32_t repeatCount, nsecs_t downTime,
@@ -558,7 +558,7 @@ status_t InputPublisher::publishKeyEvent(uint32_t seq, int32_t eventId, int32_t 
     msg.body.key.eventId = eventId;
     msg.body.key.deviceId = deviceId;
     msg.body.key.source = source;
-    msg.body.key.displayId = displayId;
+    msg.body.key.displayId = displayId.val();
     msg.body.key.hmac = std::move(hmac);
     msg.body.key.action = action;
     msg.body.key.flags = flags;
@@ -572,11 +572,11 @@ status_t InputPublisher::publishKeyEvent(uint32_t seq, int32_t eventId, int32_t 
 }
 
 status_t InputPublisher::publishMotionEvent(
-        uint32_t seq, int32_t eventId, int32_t deviceId, int32_t source, int32_t displayId,
-        std::array<uint8_t, 32> hmac, int32_t action, int32_t actionButton, int32_t flags,
-        int32_t edgeFlags, int32_t metaState, int32_t buttonState,
-        MotionClassification classification, const ui::Transform& transform, float xPrecision,
-        float yPrecision, float xCursorPosition, float yCursorPosition,
+        uint32_t seq, int32_t eventId, int32_t deviceId, int32_t source,
+        ui::LogicalDisplayId displayId, std::array<uint8_t, 32> hmac, int32_t action,
+        int32_t actionButton, int32_t flags, int32_t edgeFlags, int32_t metaState,
+        int32_t buttonState, MotionClassification classification, const ui::Transform& transform,
+        float xPrecision, float yPrecision, float xCursorPosition, float yCursorPosition,
         const ui::Transform& rawTransform, nsecs_t downTime, nsecs_t eventTime,
         uint32_t pointerCount, const PointerProperties* pointerProperties,
         const PointerCoords* pointerCoords) {
@@ -596,13 +596,13 @@ status_t InputPublisher::publishMotionEvent(
         std::string transformString;
         transform.dump(transformString, "transform", "        ");
         ALOGD("channel '%s' publisher ~ %s: seq=%u, id=%d, deviceId=%d, source=%s, "
-              "displayId=%" PRId32 ", "
+              "displayId=%s, "
               "action=%s, actionButton=0x%08x, flags=0x%x, edgeFlags=0x%x, "
               "metaState=0x%x, buttonState=0x%x, classification=%s,"
               "xPrecision=%f, yPrecision=%f, downTime=%" PRId64 ", eventTime=%" PRId64 ", "
               "pointerCount=%" PRIu32 "\n%s",
               mChannel->getName().c_str(), __func__, seq, eventId, deviceId,
-              inputEventSourceToString(source).c_str(), displayId,
+              inputEventSourceToString(source).c_str(), displayId.toString().c_str(),
               MotionEvent::actionToString(action).c_str(), actionButton, flags, edgeFlags,
               metaState, buttonState, motionClassificationToString(classification), xPrecision,
               yPrecision, downTime, eventTime, pointerCount, transformString.c_str());
@@ -625,7 +625,7 @@ status_t InputPublisher::publishMotionEvent(
     msg.body.motion.eventId = eventId;
     msg.body.motion.deviceId = deviceId;
     msg.body.motion.source = source;
-    msg.body.motion.displayId = displayId;
+    msg.body.motion.displayId = displayId.val();
     msg.body.motion.hmac = std::move(hmac);
     msg.body.motion.action = action;
     msg.body.motion.actionButton = actionButton;

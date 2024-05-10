@@ -137,7 +137,7 @@ void DisplayDevice::setDisplayName(const std::string& displayName) {
 
 auto DisplayDevice::getFrontEndInfo() const -> frontend::DisplayInfo {
     gui::DisplayInfo info;
-    info.displayId = getLayerStack().id;
+    info.displayId = ui::LogicalDisplayId{static_cast<int32_t>(getLayerStack().id)};
 
     // The physical orientation is set when the orientation of the display panel is
     // different than the default orientation of the device. Other services like

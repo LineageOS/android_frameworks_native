@@ -145,7 +145,7 @@ inline WithMotionActionMatcher WithMotionAction(int32_t action) {
 class WithDisplayIdMatcher {
 public:
     using is_gtest_matcher = void;
-    explicit WithDisplayIdMatcher(int32_t displayId) : mDisplayId(displayId) {}
+    explicit WithDisplayIdMatcher(ui::LogicalDisplayId displayId) : mDisplayId(displayId) {}
 
     bool MatchAndExplain(const NotifyMotionArgs& args, std::ostream*) const {
         return mDisplayId == args.displayId;
@@ -164,10 +164,10 @@ public:
     void DescribeNegationTo(std::ostream* os) const { *os << "wrong display id"; }
 
 private:
-    const int32_t mDisplayId;
+    const ui::LogicalDisplayId mDisplayId;
 };
 
-inline WithDisplayIdMatcher WithDisplayId(int32_t displayId) {
+inline WithDisplayIdMatcher WithDisplayId(ui::LogicalDisplayId displayId) {
     return WithDisplayIdMatcher(displayId);
 }
 

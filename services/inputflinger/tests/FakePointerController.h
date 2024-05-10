@@ -17,7 +17,6 @@
 #pragma once
 
 #include <PointerControllerInterface.h>
-#include <gui/constants.h>
 #include <input/DisplayViewport.h>
 #include <input/Input.h>
 #include <utils/BitSet.h>
@@ -38,26 +37,26 @@ public:
 
     void setBounds(float minX, float minY, float maxX, float maxY);
     void clearBounds();
-    const std::map<int32_t, std::vector<int32_t>>& getSpots();
+    const std::map<ui::LogicalDisplayId, std::vector<int32_t>>& getSpots();
 
     void setPosition(float x, float y) override;
     FloatPoint getPosition() const override;
-    int32_t getDisplayId() const override;
+    ui::LogicalDisplayId getDisplayId() const override;
     void setDisplayViewport(const DisplayViewport& viewport) override;
     void updatePointerIcon(PointerIconStyle iconId) override;
     void setCustomPointerIcon(const SpriteIcon& icon) override;
-    void setSkipScreenshot(int32_t displayId, bool skip) override;
+    void setSkipScreenshot(ui::LogicalDisplayId displayId, bool skip) override;
     void fade(Transition) override;
 
-    void assertViewportSet(int32_t displayId);
+    void assertViewportSet(ui::LogicalDisplayId displayId);
     void assertViewportNotSet();
     void assertPosition(float x, float y);
-    void assertSpotCount(int32_t displayId, int32_t count);
+    void assertSpotCount(ui::LogicalDisplayId displayId, int32_t count);
     void assertPointerIconSet(PointerIconStyle iconId);
     void assertPointerIconNotSet();
     void assertCustomPointerIconSet(PointerIconStyle iconId);
     void assertCustomPointerIconNotSet();
-    void assertIsHiddenOnMirroredDisplays(int32_t displayId, bool isHidden);
+    void assertIsHiddenOnMirroredDisplays(ui::LogicalDisplayId displayId, bool isHidden);
     bool isPointerShown();
 
 private:
@@ -67,20 +66,20 @@ private:
     void unfade(Transition) override;
     void setPresentation(Presentation) override {}
     void setSpots(const PointerCoords*, const uint32_t*, BitSet32 spotIdBits,
-                  int32_t displayId) override;
+                  ui::LogicalDisplayId displayId) override;
     void clearSpots() override;
 
     const bool mEnabled;
     bool mHaveBounds{false};
     float mMinX{0}, mMinY{0}, mMaxX{0}, mMaxY{0};
     float mX{0}, mY{0};
-    std::optional<int32_t> mDisplayId;
+    std::optional<ui::LogicalDisplayId> mDisplayId;
     bool mIsPointerShown{false};
     std::optional<PointerIconStyle> mIconStyle;
     std::optional<PointerIconStyle> mCustomIconStyle;
 
-    std::map<int32_t, std::vector<int32_t>> mSpotsByDisplay;
-    std::unordered_set<int32_t> mDisplaysToSkipScreenshot;
+    std::map<ui::LogicalDisplayId, std::vector<int32_t>> mSpotsByDisplay;
+    std::unordered_set<ui::LogicalDisplayId> mDisplaysToSkipScreenshot;
 };
 
 } // namespace android

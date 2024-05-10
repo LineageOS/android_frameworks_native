@@ -47,10 +47,10 @@ const bool DEBUG_TRANSPORT_CONSUMER =
 std::unique_ptr<KeyEvent> createKeyEvent(const InputMessage& msg) {
     std::unique_ptr<KeyEvent> event = std::make_unique<KeyEvent>();
     event->initialize(msg.body.key.eventId, msg.body.key.deviceId, msg.body.key.source,
-                      msg.body.key.displayId, msg.body.key.hmac, msg.body.key.action,
-                      msg.body.key.flags, msg.body.key.keyCode, msg.body.key.scanCode,
-                      msg.body.key.metaState, msg.body.key.repeatCount, msg.body.key.downTime,
-                      msg.body.key.eventTime);
+                      ui::LogicalDisplayId{msg.body.key.displayId}, msg.body.key.hmac,
+                      msg.body.key.action, msg.body.key.flags, msg.body.key.keyCode,
+                      msg.body.key.scanCode, msg.body.key.metaState, msg.body.key.repeatCount,
+                      msg.body.key.downTime, msg.body.key.eventTime);
     return event;
 }
 
@@ -93,8 +93,8 @@ std::unique_ptr<MotionEvent> createMotionEvent(const InputMessage& msg) {
                           msg.body.motion.dtdyRaw, msg.body.motion.dsdyRaw, msg.body.motion.tyRaw,
                           0, 0, 1});
     event->initialize(msg.body.motion.eventId, msg.body.motion.deviceId, msg.body.motion.source,
-                      msg.body.motion.displayId, msg.body.motion.hmac, msg.body.motion.action,
-                      msg.body.motion.actionButton, msg.body.motion.flags,
+                      ui::LogicalDisplayId{msg.body.motion.displayId}, msg.body.motion.hmac,
+                      msg.body.motion.action, msg.body.motion.actionButton, msg.body.motion.flags,
                       msg.body.motion.edgeFlags, msg.body.motion.metaState,
                       msg.body.motion.buttonState, msg.body.motion.classification, transform,
                       msg.body.motion.xPrecision, msg.body.motion.yPrecision,

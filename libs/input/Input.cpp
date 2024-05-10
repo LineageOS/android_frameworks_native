@@ -27,7 +27,6 @@
 #include <android-base/logging.h>
 #include <android-base/stringprintf.h>
 #include <cutils/compiler.h>
-#include <gui/constants.h>
 #include <input/DisplayViewport.h>
 #include <input/Input.h>
 #include <input/InputDevice.h>
@@ -293,8 +292,8 @@ VerifiedMotionEvent verifiedMotionEventFromMotionEvent(const MotionEvent& event)
             event.getButtonState()};
 }
 
-void InputEvent::initialize(int32_t id, int32_t deviceId, uint32_t source, int32_t displayId,
-                            std::array<uint8_t, 32> hmac) {
+void InputEvent::initialize(int32_t id, int32_t deviceId, uint32_t source,
+                            ui::LogicalDisplayId displayId, std::array<uint8_t, 32> hmac) {
     mId = id;
     mDeviceId = deviceId;
     mSource = source;
@@ -356,10 +355,11 @@ std::optional<int> KeyEvent::getKeyCodeFromLabel(const char* label) {
     return InputEventLookup::getKeyCodeByLabel(label);
 }
 
-void KeyEvent::initialize(int32_t id, int32_t deviceId, uint32_t source, int32_t displayId,
-                          std::array<uint8_t, 32> hmac, int32_t action, int32_t flags,
-                          int32_t keyCode, int32_t scanCode, int32_t metaState, int32_t repeatCount,
-                          nsecs_t downTime, nsecs_t eventTime) {
+void KeyEvent::initialize(int32_t id, int32_t deviceId, uint32_t source,
+                          ui::LogicalDisplayId displayId, std::array<uint8_t, 32> hmac,
+                          int32_t action, int32_t flags, int32_t keyCode, int32_t scanCode,
+                          int32_t metaState, int32_t repeatCount, nsecs_t downTime,
+                          nsecs_t eventTime) {
     InputEvent::initialize(id, deviceId, source, displayId, hmac);
     mAction = action;
     mFlags = flags;
@@ -556,14 +556,15 @@ void PointerCoords::transform(const ui::Transform& transform) {
 
 // --- MotionEvent ---
 
-void MotionEvent::initialize(int32_t id, int32_t deviceId, uint32_t source, int32_t displayId,
-                             std::array<uint8_t, 32> hmac, int32_t action, int32_t actionButton,
-                             int32_t flags, int32_t edgeFlags, int32_t metaState,
-                             int32_t buttonState, MotionClassification classification,
-                             const ui::Transform& transform, float xPrecision, float yPrecision,
-                             float rawXCursorPosition, float rawYCursorPosition,
-                             const ui::Transform& rawTransform, nsecs_t downTime, nsecs_t eventTime,
-                             size_t pointerCount, const PointerProperties* pointerProperties,
+void MotionEvent::initialize(int32_t id, int32_t deviceId, uint32_t source,
+                             ui::LogicalDisplayId displayId, std::array<uint8_t, 32> hmac,
+                             int32_t action, int32_t actionButton, int32_t flags, int32_t edgeFlags,
+                             int32_t metaState, int32_t buttonState,
+                             MotionClassification classification, const ui::Transform& transform,
+                             float xPrecision, float yPrecision, float rawXCursorPosition,
+                             float rawYCursorPosition, const ui::Transform& rawTransform,
+                             nsecs_t downTime, nsecs_t eventTime, size_t pointerCount,
+                             const PointerProperties* pointerProperties,
                              const PointerCoords* pointerCoords) {
     InputEvent::initialize(id, deviceId, source, displayId, hmac);
     mAction = action;
@@ -835,7 +836,7 @@ status_t MotionEvent::readFromParcel(Parcel* parcel) {
     mId = parcel->readInt32();
     mDeviceId = parcel->readInt32();
     mSource = parcel->readUint32();
-    mDisplayId = parcel->readInt32();
+    mDisplayId = ui::LogicalDisplayId{parcel->readInt32()};
     std::vector<uint8_t> hmac;
     status_t result = parcel->readByteVector(&hmac);
     if (result != OK || hmac.size() != 32) {
@@ -903,7 +904,7 @@ status_t MotionEvent::writeToParcel(Parcel* parcel) const {
     parcel->writeInt32(mId);
     parcel->writeInt32(mDeviceId);
     parcel->writeUint32(mSource);
-    parcel->writeInt32(mDisplayId);
+    parcel->writeInt32(mDisplayId.val());
     std::vector<uint8_t> hmac(mHmac.begin(), mHmac.end());
     parcel->writeByteVector(hmac);
     parcel->writeInt32(mAction);
@@ -1203,7 +1204,7 @@ std::ostream& operator<<(std::ostream& out, const MotionEvent& event) {
 
 void FocusEvent::initialize(int32_t id, bool hasFocus) {
     InputEvent::initialize(id, ReservedInputDeviceId::VIRTUAL_KEYBOARD_ID, AINPUT_SOURCE_UNKNOWN,
-                           ADISPLAY_ID_NONE, INVALID_HMAC);
+                           ui::ADISPLAY_ID_NONE, INVALID_HMAC);
     mHasFocus = hasFocus;
 }
 
@@ -1216,7 +1217,7 @@ void FocusEvent::initialize(const FocusEvent& from) {
 
 void CaptureEvent::initialize(int32_t id, bool pointerCaptureEnabled) {
     InputEvent::initialize(id, ReservedInputDeviceId::VIRTUAL_KEYBOARD_ID, AINPUT_SOURCE_UNKNOWN,
-                           ADISPLAY_ID_NONE, INVALID_HMAC);
+                           ui::ADISPLAY_ID_NONE, INVALID_HMAC);
     mPointerCaptureEnabled = pointerCaptureEnabled;
 }
 
@@ -1229,7 +1230,7 @@ void CaptureEvent::initialize(const CaptureEvent& from) {
 
 void DragEvent::initialize(int32_t id, float x, float y, bool isExiting) {
     InputEvent::initialize(id, ReservedInputDeviceId::VIRTUAL_KEYBOARD_ID, AINPUT_SOURCE_UNKNOWN,
-                           ADISPLAY_ID_NONE, INVALID_HMAC);
+                           ui::ADISPLAY_ID_NONE, INVALID_HMAC);
     mIsExiting = isExiting;
     mX = x;
     mY = y;
@@ -1246,7 +1247,7 @@ void DragEvent::initialize(const DragEvent& from) {
 
 void TouchModeEvent::initialize(int32_t id, bool isInTouchMode) {
     InputEvent::initialize(id, ReservedInputDeviceId::VIRTUAL_KEYBOARD_ID, AINPUT_SOURCE_UNKNOWN,
-                           ADISPLAY_ID_NONE, INVALID_HMAC);
+                           ui::ADISPLAY_ID_NONE, INVALID_HMAC);
     mIsInTouchMode = isInTouchMode;
 }
 

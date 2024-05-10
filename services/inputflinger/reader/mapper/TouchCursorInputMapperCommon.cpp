@@ -28,7 +28,7 @@ namespace {
 
 [[nodiscard]] std::list<NotifyArgs> synthesizeButtonKey(
         InputReaderContext* context, int32_t action, nsecs_t when, nsecs_t readTime,
-        int32_t deviceId, uint32_t source, int32_t displayId, uint32_t policyFlags,
+        int32_t deviceId, uint32_t source, ui::LogicalDisplayId displayId, uint32_t policyFlags,
         int32_t lastButtonState, int32_t currentButtonState, int32_t buttonState, int32_t keyCode) {
     std::list<NotifyArgs> out;
     if ((action == AKEY_EVENT_ACTION_DOWN && !(lastButtonState & buttonState) &&
@@ -88,7 +88,7 @@ bool isPointerDown(int32_t buttonState) {
 
 [[nodiscard]] std::list<NotifyArgs> synthesizeButtonKeys(
         InputReaderContext* context, int32_t action, nsecs_t when, nsecs_t readTime,
-        int32_t deviceId, uint32_t source, int32_t displayId, uint32_t policyFlags,
+        int32_t deviceId, uint32_t source, ui::LogicalDisplayId displayId, uint32_t policyFlags,
         int32_t lastButtonState, int32_t currentButtonState) {
     std::list<NotifyArgs> out;
     out += synthesizeButtonKey(context, action, when, readTime, deviceId, source, displayId,

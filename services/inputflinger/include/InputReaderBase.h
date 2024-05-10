@@ -125,7 +125,7 @@ struct InputReaderConfiguration {
     std::unordered_map<std::string, KeyboardLayoutInfo> keyboardLayoutAssociations;
 
     // The suggested display ID to show the cursor.
-    int32_t defaultPointerDisplayId;
+    ui::LogicalDisplayId defaultPointerDisplayId;
 
     // The mouse pointer speed, as a number from -7 (slowest) to 7 (fastest).
     //
@@ -135,7 +135,7 @@ struct InputReaderConfiguration {
     // Displays on which an acceleration curve shouldn't be applied for pointer movements from mice.
     //
     // Currently only used when the enable_new_mouse_pointer_ballistics flag is enabled.
-    std::set<int32_t> displaysWithMousePointerAccelerationDisabled;
+    std::set<ui::LogicalDisplayId> displaysWithMousePointerAccelerationDisabled;
 
     // Velocity control parameters for mouse pointer movements.
     //
@@ -243,6 +243,7 @@ struct InputReaderConfiguration {
 
     InputReaderConfiguration()
           : virtualKeyQuietTime(0),
+            defaultPointerDisplayId(ui::ADISPLAY_ID_DEFAULT),
             mousePointerSpeed(0),
             displaysWithMousePointerAccelerationDisabled(),
             pointerVelocityControlParameters(1.0f, 500.0f, 3000.0f,
@@ -275,7 +276,7 @@ struct InputReaderConfiguration {
     std::optional<DisplayViewport> getDisplayViewportByUniqueId(const std::string& uniqueDisplayId)
             const;
     std::optional<DisplayViewport> getDisplayViewportByPort(uint8_t physicalPort) const;
-    std::optional<DisplayViewport> getDisplayViewportById(int32_t displayId) const;
+    std::optional<DisplayViewport> getDisplayViewportById(ui::LogicalDisplayId displayId) const;
     void setDisplayViewports(const std::vector<DisplayViewport>& viewports);
 
     void dump(std::string& dump) const;
@@ -366,7 +367,7 @@ public:
     virtual std::vector<InputDeviceSensorInfo> getSensors(int32_t deviceId) = 0;
 
     /* Return true if the device can send input events to the specified display. */
-    virtual bool canDispatchToDisplay(int32_t deviceId, int32_t displayId) = 0;
+    virtual bool canDispatchToDisplay(int32_t deviceId, ui::LogicalDisplayId displayId) = 0;
 
     /* Enable sensor in input reader mapper. */
     virtual bool enableSensor(int32_t deviceId, InputDeviceSensorType sensorType,
@@ -471,7 +472,7 @@ public:
      * be used as the range of possible values for pointing devices, like mice and touchpads.
      */
     virtual std::optional<DisplayViewport> getPointerViewportForAssociatedDisplay(
-            int32_t associatedDisplayId = ADISPLAY_ID_NONE) = 0;
+            ui::LogicalDisplayId associatedDisplayId = ui::ADISPLAY_ID_NONE) = 0;
 };
 
 } // namespace android

@@ -125,7 +125,7 @@ std::list<NotifyArgs> RotaryEncoderInputMapper::sync(nsecs_t when, nsecs_t readT
     if (scrolled) {
         int32_t metaState = getContext()->getGlobalMetaState();
         // This is not a pointer, so it's not associated with a display.
-        int32_t displayId = ADISPLAY_ID_NONE;
+        ui::LogicalDisplayId displayId = ui::ADISPLAY_ID_NONE;
 
         if (mOrientation == ui::ROTATION_180) {
             scroll = -scroll;

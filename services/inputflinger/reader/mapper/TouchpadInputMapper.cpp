@@ -309,7 +309,8 @@ void TouchpadInputMapper::dump(std::string& dump) {
     }
     dump += INDENT3 "Captured event converter:\n";
     dump += addLinePrefix(mCapturedEventConverter.dump(), INDENT4);
-    dump += StringPrintf(INDENT3 "DisplayId: %s\n", toString(mDisplayId).c_str());
+    dump += StringPrintf(INDENT3 "DisplayId: %s\n",
+                         toString(mDisplayId, streamableToString).c_str());
 }
 
 std::list<NotifyArgs> TouchpadInputMapper::reconfigure(nsecs_t when,
@@ -321,7 +322,7 @@ std::list<NotifyArgs> TouchpadInputMapper::reconfigure(nsecs_t when,
     }
 
     if (!changes.any() || changes.test(InputReaderConfiguration::Change::DISPLAY_INFO)) {
-        mDisplayId = ADISPLAY_ID_NONE;
+        mDisplayId = ui::ADISPLAY_ID_NONE;
         std::optional<DisplayViewport> resolvedViewport;
         std::optional<FloatRect> boundsInLogicalDisplay;
         if (auto assocViewport = mDeviceContext.getAssociatedViewport(); assocViewport) {
@@ -334,7 +335,7 @@ std::list<NotifyArgs> TouchpadInputMapper::reconfigure(nsecs_t when,
             // Always use DISPLAY_ID_NONE for touchpad events.
             // PointerChoreographer will make it target the correct the displayId later.
             resolvedViewport = getContext()->getPolicy()->getPointerViewportForAssociatedDisplay();
-            mDisplayId = resolvedViewport ? std::make_optional(ADISPLAY_ID_NONE) : std::nullopt;
+            mDisplayId = resolvedViewport ? std::make_optional(ui::ADISPLAY_ID_NONE) : std::nullopt;
         }
 
         mGestureConverter.setDisplayId(mDisplayId);
@@ -497,7 +498,7 @@ std::list<NotifyArgs> TouchpadInputMapper::processGestures(nsecs_t when, nsecs_t
     return out;
 }
 
-std::optional<int32_t> TouchpadInputMapper::getAssociatedDisplayId() {
+std::optional<ui::LogicalDisplayId> TouchpadInputMapper::getAssociatedDisplayId() {
     return mDisplayId;
 }
 

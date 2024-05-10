@@ -92,14 +92,14 @@ public:
      * This method may be called on any thread (usually by the input manager).
      */
     virtual void setFocusedApplication(
-            int32_t displayId,
+            ui::LogicalDisplayId displayId,
             const std::shared_ptr<InputApplicationHandle>& inputApplicationHandle) = 0;
 
     /* Sets the focused display.
      *
      * This method may be called on any thread (usually by the input manager).
      */
-    virtual void setFocusedDisplay(int32_t displayId) = 0;
+    virtual void setFocusedDisplay(ui::LogicalDisplayId displayId) = 0;
 
     /** Sets the minimum time between user activity pokes. */
     virtual void setMinTimeBetweenUserActivityPokes(std::chrono::milliseconds interval) = 0;
@@ -130,7 +130,7 @@ public:
      * Returns true when changing touch mode state.
      */
     virtual bool setInTouchMode(bool inTouchMode, gui::Pid pid, gui::Uid uid, bool hasPermission,
-                                int32_t displayId) = 0;
+                                ui::LogicalDisplayId displayId) = 0;
 
     /**
      * Sets the maximum allowed obscuring opacity by UID to propagate touches.
@@ -156,7 +156,8 @@ public:
      * Returns true on success, false if there was no on-going touch on the display.
      * @deprecated
      */
-    virtual bool transferTouchOnDisplay(const sp<IBinder>& destChannelToken, int32_t displayId) = 0;
+    virtual bool transferTouchOnDisplay(const sp<IBinder>& destChannelToken,
+                                        ui::LogicalDisplayId displayId) = 0;
 
     /**
      * Sets focus on the specified window.
@@ -179,9 +180,8 @@ public:
      *
      * This method may be called on any thread (usually by the input manager).
      */
-    virtual base::Result<std::unique_ptr<InputChannel>> createInputMonitor(int32_t displayId,
-                                                                           const std::string& name,
-                                                                           gui::Pid pid) = 0;
+    virtual base::Result<std::unique_ptr<InputChannel>> createInputMonitor(
+            ui::LogicalDisplayId displayId, const std::string& name, gui::Pid pid) = 0;
 
     /* Removes input channels that will no longer receive input events.
      *
@@ -207,7 +207,8 @@ public:
      * ineligible, all attempts to request pointer capture for windows on that display will fail.
      *  TODO(b/214621487): Remove or move to a display flag.
      */
-    virtual void setDisplayEligibilityForPointerCapture(int displayId, bool isEligible) = 0;
+    virtual void setDisplayEligibilityForPointerCapture(ui::LogicalDisplayId displayId,
+                                                        bool isEligible) = 0;
 
     /* Flush input device motion sensor.
      *
@@ -218,7 +219,7 @@ public:
     /**
      * Called when a display has been removed from the system.
      */
-    virtual void displayRemoved(int32_t displayId) = 0;
+    virtual void displayRemoved(ui::LogicalDisplayId displayId) = 0;
 
     /*
      * Abort the current touch stream.
@@ -234,8 +235,8 @@ public:
     /*
      * Determine if a pointer from a device is being dispatched to the given window.
      */
-    virtual bool isPointerInWindow(const sp<IBinder>& token, int32_t displayId, DeviceId deviceId,
-                                   int32_t pointerId) = 0;
+    virtual bool isPointerInWindow(const sp<IBinder>& token, ui::LogicalDisplayId displayId,
+                                   DeviceId deviceId, int32_t pointerId) = 0;
 
     /*
      * Notify the dispatcher that the state of the input method connection changed.

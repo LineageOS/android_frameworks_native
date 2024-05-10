@@ -32,7 +32,7 @@ AidlKeyEvent notifyKeyArgsToKeyEvent(const NotifyKeyArgs& args) {
     event.eventTime = args.eventTime;
     event.deviceId = args.deviceId;
     event.source = static_cast<Source>(args.source);
-    event.displayId = args.displayId;
+    event.displayId = args.displayId.val();
     event.policyFlags = args.policyFlags;
     event.action = static_cast<KeyEventAction>(args.action);
     event.flags = args.flags;

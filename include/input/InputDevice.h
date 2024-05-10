@@ -280,7 +280,7 @@ public:
 
     void initialize(int32_t id, int32_t generation, int32_t controllerNumber,
                     const InputDeviceIdentifier& identifier, const std::string& alias,
-                    bool isExternal, bool hasMic, int32_t associatedDisplayId,
+                    bool isExternal, bool hasMic, ui::LogicalDisplayId associatedDisplayId,
                     InputDeviceViewBehavior viewBehavior = {{}}, bool enabled = true);
 
     inline int32_t getId() const { return mId; }
@@ -348,7 +348,7 @@ public:
     }
     inline std::optional<InputDeviceUsiVersion> getUsiVersion() const { return mUsiVersion; }
 
-    inline int32_t getAssociatedDisplayId() const { return mAssociatedDisplayId; }
+    inline ui::LogicalDisplayId getAssociatedDisplayId() const { return mAssociatedDisplayId; }
 
     inline void setEnabled(bool enabled) { mEnabled = enabled; }
     inline bool isEnabled() const { return mEnabled; }
@@ -366,7 +366,7 @@ private:
     int32_t mKeyboardType;
     std::shared_ptr<KeyCharacterMap> mKeyCharacterMap;
     std::optional<InputDeviceUsiVersion> mUsiVersion;
-    int32_t mAssociatedDisplayId;
+    ui::LogicalDisplayId mAssociatedDisplayId{ui::ADISPLAY_ID_NONE};
     bool mEnabled;
 
     bool mHasVibrator;

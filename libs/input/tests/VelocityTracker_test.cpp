@@ -24,7 +24,6 @@
 #include <android-base/stringprintf.h>
 #include <attestation/HmacKeyManager.h>
 #include <gtest/gtest.h>
-#include <gui/constants.h>
 #include <input/VelocityTracker.h>
 
 using std::literals::chrono_literals::operator""ms;
@@ -34,7 +33,7 @@ using android::base::StringPrintf;
 
 namespace android {
 
-constexpr int32_t DISPLAY_ID = ADISPLAY_ID_DEFAULT; // default display id
+constexpr ui::LogicalDisplayId DISPLAY_ID = ui::ADISPLAY_ID_DEFAULT; // default display id
 
 constexpr int32_t DEFAULT_POINTER_ID = 0; // pointer ID used for manually defined tests
 
@@ -156,7 +155,7 @@ static std::vector<MotionEvent> createAxisScrollMotionEventStream(
         MotionEvent event;
         ui::Transform identityTransform;
         event.initialize(InputEvent::nextId(), /*deviceId=*/5, AINPUT_SOURCE_ROTARY_ENCODER,
-                         ADISPLAY_ID_NONE, INVALID_HMAC, AMOTION_EVENT_ACTION_SCROLL,
+                         ui::ADISPLAY_ID_NONE, INVALID_HMAC, AMOTION_EVENT_ACTION_SCROLL,
                          /*actionButton=*/0, /*flags=*/0, AMOTION_EVENT_EDGE_FLAG_NONE, AMETA_NONE,
                          /*buttonState=*/0, MotionClassification::NONE, identityTransform,
                          /*xPrecision=*/0, /*yPrecision=*/0, AMOTION_EVENT_INVALID_CURSOR_POSITION,

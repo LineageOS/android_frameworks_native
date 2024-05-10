@@ -106,7 +106,7 @@ TEST(TransactionProtoParserTest, parse) {
 
 TEST(TransactionProtoParserTest, parseDisplayInfo) {
     frontend::DisplayInfo d1;
-    d1.info.displayId = 42;
+    d1.info.displayId = ui::LogicalDisplayId{42};
     d1.info.logicalWidth = 43;
     d1.info.logicalHeight = 44;
     d1.info.transform.set(1, 2, 3, 4);

@@ -53,6 +53,7 @@ using android::gui::WindowInfo;
 using android::gui::WindowInfoHandle;
 using android::os::InputEventInjectionResult;
 using android::os::InputEventInjectionSync;
+using android::ui::ADISPLAY_ID_DEFAULT;
 
 namespace android::inputdispatcher {
 
@@ -72,8 +73,8 @@ static constexpr int32_t DEVICE_ID = DEFAULT_DEVICE_ID;
 static constexpr int32_t SECOND_DEVICE_ID = 2;
 
 // An arbitrary display id.
-static constexpr int32_t DISPLAY_ID = ADISPLAY_ID_DEFAULT;
-static constexpr int32_t SECOND_DISPLAY_ID = 1;
+constexpr ui::LogicalDisplayId DISPLAY_ID = ADISPLAY_ID_DEFAULT;
+constexpr ui::LogicalDisplayId SECOND_DISPLAY_ID = ui::LogicalDisplayId{1};
 
 // Ensure common actions are interchangeable between keys and motions for convenience.
 static_assert(AMOTION_EVENT_ACTION_DOWN == AKEY_EVENT_ACTION_DOWN);
@@ -128,7 +129,7 @@ using ReservedInputDeviceId::VIRTUAL_KEYBOARD_ID;
 static KeyEvent getTestKeyEvent() {
     KeyEvent event;
 
-    event.initialize(InputEvent::nextId(), DEVICE_ID, AINPUT_SOURCE_KEYBOARD, ADISPLAY_ID_NONE,
+    event.initialize(InputEvent::nextId(), DEVICE_ID, AINPUT_SOURCE_KEYBOARD, ui::ADISPLAY_ID_NONE,
                      INVALID_HMAC, AKEY_EVENT_ACTION_DOWN, 0, AKEYCODE_A, KEY_A, AMETA_NONE, 0,
                      ARBITRARY_TIME, ARBITRARY_TIME);
     return event;
@@ -243,7 +244,7 @@ protected:
         request.token = window->getToken();
         request.windowName = window->getName();
         request.timestamp = systemTime(SYSTEM_TIME_MONOTONIC);
-        request.displayId = window->getInfo()->displayId;
+        request.displayId = window->getInfo()->displayId.val();
         mDispatcher->setFocusedWindow(request);
     }
 };
@@ -252,7 +253,7 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesKeyEvents) {
     KeyEvent event;
 
     // Rejects undefined key actions.
-    event.initialize(InputEvent::nextId(), DEVICE_ID, AINPUT_SOURCE_KEYBOARD, ADISPLAY_ID_NONE,
+    event.initialize(InputEvent::nextId(), DEVICE_ID, AINPUT_SOURCE_KEYBOARD, ui::ADISPLAY_ID_NONE,
                      INVALID_HMAC,
                      /*action=*/-1, 0, AKEYCODE_A, KEY_A, AMETA_NONE, 0, ARBITRARY_TIME,
                      ARBITRARY_TIME);
@@ -262,7 +263,7 @@ TEST_F(InputDispatcherTest, InjectInputEvent_ValidatesKeyEvents) {
             << "Should reject key events with undefined action.";
 
     // Rejects ACTION_MULTIPLE since it is not supported despite being defined in the API.
-    event.initialize(InputEvent::nextId(), DEVICE_ID, AINPUT_SOURCE_KEYBOARD, ADISPLAY_ID_NONE,
+    event.initialize(InputEvent::nextId(), DEVICE_ID, AINPUT_SOURCE_KEYBOARD, ui::ADISPLAY_ID_NONE,
                      INVALID_HMAC, AKEY_EVENT_ACTION_MULTIPLE, 0, AKEYCODE_A, KEY_A, AMETA_NONE, 0,
                      ARBITRARY_TIME, ARBITRARY_TIME);
     ASSERT_EQ(InputEventInjectionResult::FAILED,
@@ -438,12 +439,13 @@ static constexpr std::chrono::duration INJECT_EVENT_TIMEOUT = 500ms;
 
 class FakeMonitorReceiver {
 public:
-    FakeMonitorReceiver(InputDispatcher& dispatcher, const std::string name, int32_t displayId)
+    FakeMonitorReceiver(InputDispatcher& dispatcher, const std::string name,
+                        ui::LogicalDisplayId displayId)
           : mInputReceiver(*dispatcher.createInputMonitor(displayId, name, MONITOR_PID), name) {}
 
     sp<IBinder> getToken() { return mInputReceiver.getToken(); }
 
-    void consumeKeyDown(int32_t expectedDisplayId, int32_t expectedFlags = 0) {
+    void consumeKeyDown(ui::LogicalDisplayId expectedDisplayId, int32_t expectedFlags = 0) {
         mInputReceiver.consumeEvent(InputEventType::KEY, AKEY_EVENT_ACTION_DOWN, expectedDisplayId,
                                     expectedFlags);
     }
@@ -455,22 +457,22 @@ public:
 
     void finishEvent(uint32_t consumeSeq) { return mInputReceiver.finishEvent(consumeSeq); }
 
-    void consumeMotionDown(int32_t expectedDisplayId, int32_t expectedFlags = 0) {
+    void consumeMotionDown(ui::LogicalDisplayId expectedDisplayId, int32_t expectedFlags = 0) {
         mInputReceiver.consumeEvent(InputEventType::MOTION, AMOTION_EVENT_ACTION_DOWN,
                                     expectedDisplayId, expectedFlags);
     }
 
-    void consumeMotionMove(int32_t expectedDisplayId, int32_t expectedFlags = 0) {
+    void consumeMotionMove(ui::LogicalDisplayId expectedDisplayId, int32_t expectedFlags = 0) {
         mInputReceiver.consumeEvent(InputEventType::MOTION, AMOTION_EVENT_ACTION_MOVE,
                                     expectedDisplayId, expectedFlags);
     }
 
-    void consumeMotionUp(int32_t expectedDisplayId, int32_t expectedFlags = 0) {
+    void consumeMotionUp(ui::LogicalDisplayId expectedDisplayId, int32_t expectedFlags = 0) {
         mInputReceiver.consumeEvent(InputEventType::MOTION, AMOTION_EVENT_ACTION_UP,
                                     expectedDisplayId, expectedFlags);
     }
 
-    void consumeMotionCancel(int32_t expectedDisplayId, int32_t expectedFlags = 0) {
+    void consumeMotionCancel(ui::LogicalDisplayId expectedDisplayId, int32_t expectedFlags = 0) {
         mInputReceiver.consumeMotionEvent(
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_CANCEL),
                       WithDisplayId(expectedDisplayId),
@@ -498,7 +500,7 @@ private:
 
 static InputEventInjectionResult injectKey(
         InputDispatcher& dispatcher, int32_t action, int32_t repeatCount,
-        int32_t displayId = ADISPLAY_ID_NONE,
+        ui::LogicalDisplayId displayId = ui::ADISPLAY_ID_NONE,
         InputEventInjectionSync syncMode = InputEventInjectionSync::WAIT_FOR_RESULT,
         std::chrono::milliseconds injectionTimeout = INJECT_EVENT_TIMEOUT,
         bool allowKeyRepeat = true, std::optional<gui::Uid> targetUid = {},
@@ -520,30 +522,30 @@ static InputEventInjectionResult injectKey(
 
 static void assertInjectedKeyTimesOut(InputDispatcher& dispatcher) {
     InputEventInjectionResult result =
-            injectKey(dispatcher, AKEY_EVENT_ACTION_DOWN, /*repeatCount=*/0, ADISPLAY_ID_NONE,
+            injectKey(dispatcher, AKEY_EVENT_ACTION_DOWN, /*repeatCount=*/0, ui::ADISPLAY_ID_NONE,
                       InputEventInjectionSync::WAIT_FOR_RESULT, CONSUME_TIMEOUT_NO_EVENT_EXPECTED);
     if (result != InputEventInjectionResult::TIMED_OUT) {
         FAIL() << "Injection should have timed out, but got " << ftl::enum_string(result);
     }
 }
 
-static InputEventInjectionResult injectKeyDown(InputDispatcher& dispatcher,
-                                               int32_t displayId = ADISPLAY_ID_NONE) {
+static InputEventInjectionResult injectKeyDown(
+        InputDispatcher& dispatcher, ui::LogicalDisplayId displayId = ui::ADISPLAY_ID_NONE) {
     return injectKey(dispatcher, AKEY_EVENT_ACTION_DOWN, /*repeatCount=*/0, displayId);
 }
 
 // Inject a down event that has key repeat disabled. This allows InputDispatcher to idle without
 // sending a subsequent key up. When key repeat is enabled, the dispatcher cannot idle because it
 // has to be woken up to process the repeating key.
-static InputEventInjectionResult injectKeyDownNoRepeat(InputDispatcher& dispatcher,
-                                                       int32_t displayId = ADISPLAY_ID_NONE) {
+static InputEventInjectionResult injectKeyDownNoRepeat(
+        InputDispatcher& dispatcher, ui::LogicalDisplayId displayId = ui::ADISPLAY_ID_NONE) {
     return injectKey(dispatcher, AKEY_EVENT_ACTION_DOWN, /*repeatCount=*/0, displayId,
                      InputEventInjectionSync::WAIT_FOR_RESULT, INJECT_EVENT_TIMEOUT,
                      /*allowKeyRepeat=*/false);
 }
 
-static InputEventInjectionResult injectKeyUp(InputDispatcher& dispatcher,
-                                             int32_t displayId = ADISPLAY_ID_NONE) {
+static InputEventInjectionResult injectKeyUp(
+        InputDispatcher& dispatcher, ui::LogicalDisplayId displayId = ui::ADISPLAY_ID_NONE) {
     return injectKey(dispatcher, AKEY_EVENT_ACTION_UP, /*repeatCount=*/0, displayId);
 }
 
@@ -557,7 +559,7 @@ static InputEventInjectionResult injectMotionEvent(
 }
 
 static InputEventInjectionResult injectMotionEvent(
-        InputDispatcher& dispatcher, int32_t action, int32_t source, int32_t displayId,
+        InputDispatcher& dispatcher, int32_t action, int32_t source, ui::LogicalDisplayId displayId,
         const PointF& position = {100, 200},
         const PointF& cursorPosition = {AMOTION_EVENT_INVALID_CURSOR_POSITION,
                                         AMOTION_EVENT_INVALID_CURSOR_POSITION},
@@ -583,18 +585,19 @@ static InputEventInjectionResult injectMotionEvent(
 }
 
 static InputEventInjectionResult injectMotionDown(InputDispatcher& dispatcher, int32_t source,
-                                                  int32_t displayId,
+                                                  ui::LogicalDisplayId displayId,
                                                   const PointF& location = {100, 200}) {
     return injectMotionEvent(dispatcher, AMOTION_EVENT_ACTION_DOWN, source, displayId, location);
 }
 
 static InputEventInjectionResult injectMotionUp(InputDispatcher& dispatcher, int32_t source,
-                                                int32_t displayId,
+                                                ui::LogicalDisplayId displayId,
                                                 const PointF& location = {100, 200}) {
     return injectMotionEvent(dispatcher, AMOTION_EVENT_ACTION_UP, source, displayId, location);
 }
 
-static NotifyKeyArgs generateKeyArgs(int32_t action, int32_t displayId = ADISPLAY_ID_NONE) {
+static NotifyKeyArgs generateKeyArgs(int32_t action,
+                                     ui::LogicalDisplayId displayId = ui::ADISPLAY_ID_NONE) {
     nsecs_t currentTime = systemTime(SYSTEM_TIME_MONOTONIC);
     // Define a valid key event.
     NotifyKeyArgs args(InputEvent::nextId(), currentTime, /*readTime=*/0, DEVICE_ID,
@@ -604,8 +607,8 @@ static NotifyKeyArgs generateKeyArgs(int32_t action, int32_t displayId = ADISPLA
     return args;
 }
 
-static NotifyKeyArgs generateSystemShortcutArgs(int32_t action,
-                                                int32_t displayId = ADISPLAY_ID_NONE) {
+static NotifyKeyArgs generateSystemShortcutArgs(
+        int32_t action, ui::LogicalDisplayId displayId = ui::ADISPLAY_ID_NONE) {
     nsecs_t currentTime = systemTime(SYSTEM_TIME_MONOTONIC);
     // Define a valid key event.
     NotifyKeyArgs args(InputEvent::nextId(), currentTime, /*readTime=*/0, DEVICE_ID,
@@ -615,8 +618,8 @@ static NotifyKeyArgs generateSystemShortcutArgs(int32_t action,
     return args;
 }
 
-static NotifyKeyArgs generateAssistantKeyArgs(int32_t action,
-                                              int32_t displayId = ADISPLAY_ID_NONE) {
+static NotifyKeyArgs generateAssistantKeyArgs(
+        int32_t action, ui::LogicalDisplayId displayId = ui::ADISPLAY_ID_NONE) {
     nsecs_t currentTime = systemTime(SYSTEM_TIME_MONOTONIC);
     // Define a valid key event.
     NotifyKeyArgs args(InputEvent::nextId(), currentTime, /*readTime=*/0, DEVICE_ID,
@@ -627,7 +630,7 @@ static NotifyKeyArgs generateAssistantKeyArgs(int32_t action,
 }
 
 [[nodiscard]] static NotifyMotionArgs generateMotionArgs(int32_t action, int32_t source,
-                                                         int32_t displayId,
+                                                         ui::LogicalDisplayId displayId,
                                                          const std::vector<PointF>& points) {
     size_t pointerCount = points.size();
     if (action == AMOTION_EVENT_ACTION_DOWN || action == AMOTION_EVENT_ACTION_UP) {
@@ -664,7 +667,8 @@ static NotifyMotionArgs generateTouchArgs(int32_t action, const std::vector<Poin
     return generateMotionArgs(action, AINPUT_SOURCE_TOUCHSCREEN, DISPLAY_ID, points);
 }
 
-static NotifyMotionArgs generateMotionArgs(int32_t action, int32_t source, int32_t displayId) {
+static NotifyMotionArgs generateMotionArgs(int32_t action, int32_t source,
+                                           ui::LogicalDisplayId displayId) {
     return generateMotionArgs(action, source, displayId, {PointF{100, 200}});
 }
 
@@ -733,7 +737,7 @@ TEST_F(InputDispatcherTest, WhenDisplayNotSpecified_InjectMotionToDefaultDisplay
     mDispatcher->onWindowInfosChanged({{*window->getInfo()}, {}, 0, 0});
     // Inject a MotionEvent to an unknown display.
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
-              injectMotionDown(*mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ADISPLAY_ID_NONE))
+              injectMotionDown(*mDispatcher, AINPUT_SOURCE_TOUCHSCREEN, ui::ADISPLAY_ID_NONE))
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
 
     // Window should receive motion event.
@@ -1267,7 +1271,6 @@ TEST_P(ShouldSplitTouchFixture, WallpaperWindowReceivesMultiTouch) {
               injectMotionEvent(*mDispatcher, secondFingerDownEvent, INJECT_EVENT_TIMEOUT,
                                 InputEventInjectionSync::WAIT_FOR_RESULT))
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
-
     foregroundWindow->consumeMotionPointerDown(/*pointerIndex=*/1);
     wallpaperWindow->consumeMotionPointerDown(/*pointerIndex=*/1, ADISPLAY_ID_DEFAULT,
                                               EXPECTED_WALLPAPER_FLAGS);
@@ -5567,8 +5570,8 @@ TEST_F(InputDispatcherTest, WhenMultiDisplayWindowSameToken_DispatchCancelToTarg
     ASSERT_NE(nullptr, event);
     EXPECT_EQ(AMOTION_EVENT_ACTION_CANCEL, event->getAction());
 
-    // The cancel event is sent to windowDefaultDisplay of the ADISPLAY_ID_DEFAULT display, so the
-    // coordinates of the cancel are converted by windowDefaultDisplay's transform, the x and y
+    // The cancel event is sent to windowDefaultDisplay of the ADISPLAY_ID_DEFAULT display, so
+    // the coordinates of the cancel are converted by windowDefaultDisplay's transform, the x and y
     // coordinates are both 100, otherwise if the cancel event is sent to windowSecondDisplay of
     // SECOND_DISPLAY_ID, the x and y coordinates are 200
     EXPECT_EQ(100, event->getX(0));
@@ -5589,7 +5592,7 @@ public:
         removeAllWindowsAndDisplays();
     }
 
-    void addDisplayInfo(int displayId, const ui::Transform& transform) {
+    void addDisplayInfo(ui::LogicalDisplayId displayId, const ui::Transform& transform) {
         gui::DisplayInfo info;
         info.displayId = displayId;
         info.transform = transform;
@@ -7278,7 +7281,7 @@ TEST_F(InputDispatcherTest, GeneratedHmac_ChangesWhenFieldsChange) {
     verifiedEvent.eventTimeNanos += 1;
     ASSERT_NE(initialHmac, mDispatcher->sign(verifiedEvent));
 
-    verifiedEvent.displayId += 1;
+    verifiedEvent.displayId = ui::LogicalDisplayId{verifiedEvent.displayId.val() + 1};
     ASSERT_NE(initialHmac, mDispatcher->sign(verifiedEvent));
 
     verifiedEvent.action += 1;
@@ -7323,7 +7326,7 @@ TEST_F(InputDispatcherTest, SetFocusedWindow) {
             << "Inject key event should return InputEventInjectionResult::SUCCEEDED";
 
     // Focused window should receive event.
-    windowSecond->consumeKeyDown(ADISPLAY_ID_NONE);
+    windowSecond->consumeKeyDown(ui::ADISPLAY_ID_NONE);
     windowTop->assertNoEvents();
 }
 
@@ -7388,7 +7391,7 @@ TEST_F(InputDispatcherTest, SetFocusedWindow_CheckFocusedToken) {
             << "Inject key event should return InputEventInjectionResult::SUCCEEDED";
 
     // Focused window should receive event.
-    windowSecond->consumeKeyDown(ADISPLAY_ID_NONE);
+    windowSecond->consumeKeyDown(ui::ADISPLAY_ID_NONE);
 }
 
 TEST_F(InputDispatcherTest, SetFocusedWindow_TransferFocusTokenNotFocusable) {
@@ -7411,7 +7414,7 @@ TEST_F(InputDispatcherTest, SetFocusedWindow_TransferFocusTokenNotFocusable) {
             << "Inject key event should return InputEventInjectionResult::SUCCEEDED";
 
     // Event should be dropped.
-    windowTop->consumeKeyDown(ADISPLAY_ID_NONE);
+    windowTop->consumeKeyDown(ui::ADISPLAY_ID_NONE);
     windowSecond->assertNoEvents();
 }
 
@@ -8516,13 +8519,13 @@ TEST_F(InputDispatcherFocusOnTwoDisplaysTest, SetInputWindow_MultiDisplayFocus) 
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED, injectKeyDownNoRepeat(*mDispatcher))
             << "Inject key event should return InputEventInjectionResult::SUCCEEDED";
     windowInPrimary->assertNoEvents();
-    windowInSecondary->consumeKeyDown(ADISPLAY_ID_NONE);
+    windowInSecondary->consumeKeyDown(ui::ADISPLAY_ID_NONE);
 
     // Remove all windows in secondary display.
     mDispatcher->onWindowInfosChanged({{*windowInPrimary->getInfo()}, {}, 0, 0});
 
     // Old focus should receive a cancel event.
-    windowInSecondary->consumeKeyUp(ADISPLAY_ID_NONE, AKEY_EVENT_FLAG_CANCELED);
+    windowInSecondary->consumeKeyUp(ui::ADISPLAY_ID_NONE, AKEY_EVENT_FLAG_CANCELED);
 
     // Test inject a key down, should timeout because of no target window.
     ASSERT_NO_FATAL_FAILURE(assertInjectedKeyTimesOut(*mDispatcher));
@@ -8567,12 +8570,12 @@ TEST_F(InputDispatcherFocusOnTwoDisplaysTest, MonitorMotionEvent_MultiDisplay) {
     // If specific a display, it will dispatch to the focused window of particular display,
     // or it will dispatch to the focused window of focused display.
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
-              injectMotionDown(*mDispatcher, AINPUT_SOURCE_TRACKBALL, ADISPLAY_ID_NONE))
+              injectMotionDown(*mDispatcher, AINPUT_SOURCE_TRACKBALL, ui::ADISPLAY_ID_NONE))
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
     windowInPrimary->assertNoEvents();
     monitorInPrimary.assertNoEvents();
-    windowInSecondary->consumeMotionDown(ADISPLAY_ID_NONE);
-    monitorInSecondary.consumeMotionDown(ADISPLAY_ID_NONE);
+    windowInSecondary->consumeMotionDown(ui::ADISPLAY_ID_NONE);
+    monitorInSecondary.consumeMotionDown(ui::ADISPLAY_ID_NONE);
 }
 
 // Test per-display input monitors for key event.
@@ -8588,8 +8591,8 @@ TEST_F(InputDispatcherFocusOnTwoDisplaysTest, MonitorKeyEvent_MultiDisplay) {
             << "Inject key event should return InputEventInjectionResult::SUCCEEDED";
     windowInPrimary->assertNoEvents();
     monitorInPrimary.assertNoEvents();
-    windowInSecondary->consumeKeyDown(ADISPLAY_ID_NONE);
-    monitorInSecondary.consumeKeyDown(ADISPLAY_ID_NONE);
+    windowInSecondary->consumeKeyDown(ui::ADISPLAY_ID_NONE);
+    monitorInSecondary.consumeKeyDown(ui::ADISPLAY_ID_NONE);
 }
 
 TEST_F(InputDispatcherFocusOnTwoDisplaysTest, CanFocusWindowOnUnfocusedDisplay) {
@@ -8748,7 +8751,7 @@ TEST_F(InputDispatcherFocusOnTwoDisplaysTest, WhenDropMotionEvent_OnlyCancelCorr
 
 class InputFilterTest : public InputDispatcherTest {
 protected:
-    void testNotifyMotion(int32_t displayId, bool expectToBeFiltered,
+    void testNotifyMotion(ui::LogicalDisplayId displayId, bool expectToBeFiltered,
                           const ui::Transform& transform = ui::Transform()) {
         NotifyMotionArgs motionArgs;
 
@@ -8873,7 +8876,7 @@ protected:
 
         const nsecs_t eventTime = systemTime(SYSTEM_TIME_MONOTONIC);
         event.initialize(InputEvent::nextId(), injectedDeviceId, AINPUT_SOURCE_KEYBOARD,
-                         ADISPLAY_ID_NONE, INVALID_HMAC, AKEY_EVENT_ACTION_DOWN, 0, AKEYCODE_A,
+                         ui::ADISPLAY_ID_NONE, INVALID_HMAC, AKEY_EVENT_ACTION_DOWN, 0, AKEYCODE_A,
                          KEY_A, AMETA_NONE, /*repeatCount=*/0, eventTime, eventTime);
         const int32_t additionalPolicyFlags =
                 POLICY_FLAG_PASS_TO_USER | POLICY_FLAG_DISABLE_KEY_REPEAT;
@@ -8967,7 +8970,7 @@ protected:
         mWindow->consumeFocusEvent(true);
     }
 
-    void notifyAndConsumeMotion(int32_t action, uint32_t source, int32_t displayId,
+    void notifyAndConsumeMotion(int32_t action, uint32_t source, ui::LogicalDisplayId displayId,
                                 nsecs_t eventTime) {
         mDispatcher->notifyMotion(MotionArgsBuilder(action, source)
                                           .displayId(displayId)
@@ -9482,7 +9485,7 @@ TEST_F(InputDispatcherSingleWindowAnr, WhenTouchIsConsumed_NoAnr) {
 // Send a regular key and respond, which should not cause an ANR.
 TEST_F(InputDispatcherSingleWindowAnr, WhenKeyIsConsumed_NoAnr) {
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED, injectKeyDownNoRepeat(*mDispatcher));
-    mWindow->consumeKeyDown(ADISPLAY_ID_NONE);
+    mWindow->consumeKeyDown(ui::ADISPLAY_ID_NONE);
     ASSERT_TRUE(mDispatcher->waitForIdle());
     mFakePolicy->assertNotifyAnrWasNotCalled();
 }
@@ -9558,7 +9561,8 @@ TEST_F(InputDispatcherSingleWindowAnr, FocusedApplication_NoFocusedWindow) {
     // injection times out (instead of failing).
     const InputEventInjectionResult result =
             injectKey(*mDispatcher, AKEY_EVENT_ACTION_DOWN, /*repeatCount=*/0, ADISPLAY_ID_DEFAULT,
-                      InputEventInjectionSync::WAIT_FOR_RESULT, 50ms, /*allowKeyRepeat=*/false);
+                      InputEventInjectionSync::WAIT_FOR_RESULT, 50ms,
+                      /*allowKeyRepeat=*/false);
     ASSERT_EQ(InputEventInjectionResult::TIMED_OUT, result);
     const std::chrono::duration timeout = mApplication->getDispatchingTimeout(DISPATCHING_TIMEOUT);
     mFakePolicy->assertNotifyNoFocusedWindowAnrWasCalled(timeout, mApplication);
@@ -9581,7 +9585,7 @@ TEST_F(InputDispatcherSingleWindowAnr, StaleKeyEventDoesNotAnr) {
             std::chrono::nanoseconds(STALE_EVENT_TIMEOUT).count();
 
     // Define a valid key down event that is stale (too old).
-    event.initialize(InputEvent::nextId(), DEVICE_ID, AINPUT_SOURCE_KEYBOARD, ADISPLAY_ID_NONE,
+    event.initialize(InputEvent::nextId(), DEVICE_ID, AINPUT_SOURCE_KEYBOARD, ui::ADISPLAY_ID_NONE,
                      INVALID_HMAC, AKEY_EVENT_ACTION_DOWN, /*flags=*/0, AKEYCODE_A, KEY_A,
                      AMETA_NONE, /*repeatCount=*/0, eventTime, eventTime);
 
@@ -10262,7 +10266,8 @@ TEST_F(InputDispatcherMultiWindowAnr, PendingKey_GoesToNewlyFocusedWindow) {
 
     InputEventInjectionResult result =
             injectKey(*mDispatcher, AKEY_EVENT_ACTION_DOWN, /*repeatCount=*/0, ADISPLAY_ID_DEFAULT,
-                      InputEventInjectionSync::NONE, /*injectionTimeout=*/100ms);
+                      InputEventInjectionSync::NONE,
+                      /*injectionTimeout=*/100ms);
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED, result);
     // Key will not be sent to the window, yet, because the window is still processing events
     // and the key remains pending, waiting for the touch events to be processed.
@@ -10365,7 +10370,8 @@ TEST_F(InputDispatcherMultiWindowAnr, FocusedWindowWithoutSetFocusedApplication_
     // Key will not be sent anywhere because we have no focused window. It will remain pending.
     InputEventInjectionResult result =
             injectKey(*mDispatcher, AKEY_EVENT_ACTION_DOWN, /*repeatCount=*/0, ADISPLAY_ID_DEFAULT,
-                      InputEventInjectionSync::NONE, /*injectionTimeout=*/100ms,
+                      InputEventInjectionSync::NONE,
+                      /*injectionTimeout=*/100ms,
                       /*allowKeyRepeat=*/false);
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED, result);
 
@@ -10467,7 +10473,8 @@ TEST_F(InputDispatcherMultiWindowAnr, PruningInputQueueShouldNotDropPointerEvent
     // Pretend we are injecting KEYCODE_BACK, but it doesn't actually matter what key it is.
     InputEventInjectionResult result =
             injectKey(*mDispatcher, AKEY_EVENT_ACTION_DOWN, /*repeatCount=*/0, ADISPLAY_ID_DEFAULT,
-                      InputEventInjectionSync::NONE, /*injectionTimeout=*/100ms,
+                      InputEventInjectionSync::NONE,
+                      /*injectionTimeout=*/100ms,
                       /*allowKeyRepeat=*/false);
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED, result);
 
@@ -10476,7 +10483,8 @@ TEST_F(InputDispatcherMultiWindowAnr, PruningInputQueueShouldNotDropPointerEvent
                                       .pointer(PointerBuilder(0, ToolType::FINGER).x(50).y(50))
                                       .build());
     result = injectKey(*mDispatcher, AKEY_EVENT_ACTION_UP, /*repeatCount=*/0, ADISPLAY_ID_DEFAULT,
-                       InputEventInjectionSync::NONE, /*injectionTimeout=*/100ms,
+                       InputEventInjectionSync::NONE,
+                       /*injectionTimeout=*/100ms,
                        /*allowKeyRepeat=*/false);
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED, result);
     // The key that was injected is blocking the dispatcher, so the navigation bar shouldn't be
@@ -10598,7 +10606,7 @@ TEST_F(InputDispatcherMirrorWindowFocusTests, CanGetFocus) {
     mWindow->consumeFocusEvent(true);
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED, injectKeyDown(*mDispatcher))
             << "Inject key event should return InputEventInjectionResult::SUCCEEDED";
-    mWindow->consumeKeyDown(ADISPLAY_ID_NONE);
+    mWindow->consumeKeyDown(ui::ADISPLAY_ID_NONE);
 }
 
 // A focused & mirrored window remains focused only if the window and its mirror are both
@@ -10610,10 +10618,10 @@ TEST_F(InputDispatcherMirrorWindowFocusTests, FocusedIfAllWindowsFocusable) {
     mWindow->consumeFocusEvent(true);
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED, injectKeyDown(*mDispatcher))
             << "Inject key event should return InputEventInjectionResult::SUCCEEDED";
-    mWindow->consumeKeyDown(ADISPLAY_ID_NONE);
+    mWindow->consumeKeyDown(ui::ADISPLAY_ID_NONE);
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED, injectKeyUp(*mDispatcher))
             << "Inject key event should return InputEventInjectionResult::SUCCEEDED";
-    mWindow->consumeKeyUp(ADISPLAY_ID_NONE);
+    mWindow->consumeKeyUp(ui::ADISPLAY_ID_NONE);
 
     mMirror->setFocusable(false);
     mDispatcher->onWindowInfosChanged({{*mWindow->getInfo(), *mMirror->getInfo()}, {}, 0, 0});
@@ -10635,20 +10643,20 @@ TEST_F(InputDispatcherMirrorWindowFocusTests, FocusedIfAnyWindowVisible) {
     mWindow->consumeFocusEvent(true);
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED, injectKeyDown(*mDispatcher))
             << "Inject key event should return InputEventInjectionResult::SUCCEEDED";
-    mWindow->consumeKeyDown(ADISPLAY_ID_NONE);
+    mWindow->consumeKeyDown(ui::ADISPLAY_ID_NONE);
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED, injectKeyUp(*mDispatcher))
             << "Inject key event should return InputEventInjectionResult::SUCCEEDED";
-    mWindow->consumeKeyUp(ADISPLAY_ID_NONE);
+    mWindow->consumeKeyUp(ui::ADISPLAY_ID_NONE);
 
     mMirror->setVisible(false);
     mDispatcher->onWindowInfosChanged({{*mWindow->getInfo(), *mMirror->getInfo()}, {}, 0, 0});
 
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED, injectKeyDown(*mDispatcher))
             << "Inject key event should return InputEventInjectionResult::SUCCEEDED";
-    mWindow->consumeKeyDown(ADISPLAY_ID_NONE);
+    mWindow->consumeKeyDown(ui::ADISPLAY_ID_NONE);
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED, injectKeyUp(*mDispatcher))
             << "Inject key event should return InputEventInjectionResult::SUCCEEDED";
-    mWindow->consumeKeyUp(ADISPLAY_ID_NONE);
+    mWindow->consumeKeyUp(ui::ADISPLAY_ID_NONE);
 
     mWindow->setVisible(false);
     mDispatcher->onWindowInfosChanged({{*mWindow->getInfo(), *mMirror->getInfo()}, {}, 0, 0});
@@ -10669,20 +10677,20 @@ TEST_F(InputDispatcherMirrorWindowFocusTests, FocusedWhileWindowsAlive) {
     mWindow->consumeFocusEvent(true);
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED, injectKeyDown(*mDispatcher))
             << "Inject key event should return InputEventInjectionResult::SUCCEEDED";
-    mWindow->consumeKeyDown(ADISPLAY_ID_NONE);
+    mWindow->consumeKeyDown(ui::ADISPLAY_ID_NONE);
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED, injectKeyUp(*mDispatcher))
             << "Inject key event should return InputEventInjectionResult::SUCCEEDED";
-    mWindow->consumeKeyUp(ADISPLAY_ID_NONE);
+    mWindow->consumeKeyUp(ui::ADISPLAY_ID_NONE);
 
     // single window is removed but the window token remains focused
     mDispatcher->onWindowInfosChanged({{*mMirror->getInfo()}, {}, 0, 0});
 
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED, injectKeyDown(*mDispatcher))
             << "Inject key event should return InputEventInjectionResult::SUCCEEDED";
-    mMirror->consumeKeyDown(ADISPLAY_ID_NONE);
+    mMirror->consumeKeyDown(ui::ADISPLAY_ID_NONE);
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED, injectKeyUp(*mDispatcher))
             << "Inject key event should return InputEventInjectionResult::SUCCEEDED";
-    mMirror->consumeKeyUp(ADISPLAY_ID_NONE);
+    mMirror->consumeKeyUp(ui::ADISPLAY_ID_NONE);
 
     // Both windows are removed
     mDispatcher->onWindowInfosChanged({{}, {}, 0, 0});
@@ -12489,11 +12497,11 @@ TEST_F(InputDispatcherSpyWindowTest, UnfocusableSpyDoesNotReceiveKeyEvents) {
 
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED, injectKeyDown(*mDispatcher))
             << "Inject key event should return InputEventInjectionResult::SUCCEEDED";
-    window->consumeKeyDown(ADISPLAY_ID_NONE);
+    window->consumeKeyDown(ui::ADISPLAY_ID_NONE);
 
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED, injectKeyUp(*mDispatcher))
             << "Inject key event should return InputEventInjectionResult::SUCCEEDED";
-    window->consumeKeyUp(ADISPLAY_ID_NONE);
+    window->consumeKeyUp(ui::ADISPLAY_ID_NONE);
 
     spy->assertNoEvents();
 }
@@ -13073,7 +13081,8 @@ struct User {
     }
 
     InputEventInjectionResult injectTargetedKey(int32_t action) const {
-        return inputdispatcher::injectKey(*mDispatcher, action, /*repeatCount=*/0, ADISPLAY_ID_NONE,
+        return inputdispatcher::injectKey(*mDispatcher, action, /*repeatCount=*/0,
+                                          ui::ADISPLAY_ID_NONE,
                                           InputEventInjectionSync::WAIT_FOR_RESULT,
                                           INJECT_EVENT_TIMEOUT, /*allowKeyRepeat=*/false, {mUid},
                                           mPolicyFlags);
@@ -13105,7 +13114,7 @@ TEST_F(InputDispatcherTargetedInjectionTest, CanInjectIntoOwnedWindow) {
 
     EXPECT_EQ(InputEventInjectionResult::SUCCEEDED,
               owner.injectTargetedKey(AKEY_EVENT_ACTION_DOWN));
-    window->consumeKeyDown(ADISPLAY_ID_NONE);
+    window->consumeKeyDown(ui::ADISPLAY_ID_NONE);
 }
 
 TEST_F(InputDispatcherTargetedInjectionTest, CannotInjectIntoUnownedWindow) {
@@ -13178,7 +13187,7 @@ TEST_F(InputDispatcherTargetedInjectionTest, CanInjectIntoAnyWindowWhenNotTarget
     randosSpy->consumeFocusEvent(true);
 
     EXPECT_EQ(InputEventInjectionResult::SUCCEEDED, injectKeyDown(*mDispatcher));
-    randosSpy->consumeKeyDown(ADISPLAY_ID_NONE);
+    randosSpy->consumeKeyDown(ui::ADISPLAY_ID_NONE);
     window->assertNoEvents();
 }
 

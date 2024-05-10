@@ -19,7 +19,6 @@
 #include <sstream>
 
 #include <android-base/stringprintf.h>
-#include <gui/constants.h>
 #include <input/PrintTools.h>
 #include <linux/input-event-codes.h>
 #include <log/log_main.h>
@@ -279,7 +278,7 @@ NotifyMotionArgs CapturedTouchpadEventConverter::makeMotionArgs(
     LOG_ALWAYS_FATAL_IF(coords.size() != properties.size(),
                         "Mismatched coords and properties arrays.");
     return NotifyMotionArgs(mReaderContext.getNextId(), when, readTime, mDeviceId, SOURCE,
-                            ADISPLAY_ID_NONE, /*policyFlags=*/POLICY_FLAG_WAKE, action,
+                            ui::ADISPLAY_ID_NONE, /*policyFlags=*/POLICY_FLAG_WAKE, action,
                             /*actionButton=*/actionButton, flags,
                             mReaderContext.getGlobalMetaState(), mButtonState,
                             MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE, coords.size(),

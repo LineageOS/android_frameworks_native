@@ -21,14 +21,13 @@
 #include <attestation/HmacKeyManager.h>
 #include <binder/Parcel.h>
 #include <gtest/gtest.h>
-#include <gui/constants.h>
 #include <input/Input.h>
 #include <input/InputEventBuilders.h>
 
 namespace android {
 
 // Default display id.
-static constexpr int32_t DISPLAY_ID = ADISPLAY_ID_DEFAULT;
+static constexpr ui::LogicalDisplayId DISPLAY_ID = ui::ADISPLAY_ID_DEFAULT;
 
 static constexpr float EPSILON = MotionEvent::ROUNDING_PRECISION;
 
@@ -229,7 +228,7 @@ TEST_F(KeyEventTest, Properties) {
     ASSERT_EQ(AINPUT_SOURCE_JOYSTICK, event.getSource());
 
     // Set display id.
-    constexpr int32_t newDisplayId = 2;
+    constexpr ui::LogicalDisplayId newDisplayId = ui::LogicalDisplayId{2};
     event.setDisplayId(newDisplayId);
     ASSERT_EQ(newDisplayId, event.getDisplayId());
 }
@@ -528,7 +527,7 @@ TEST_F(MotionEventTest, Properties) {
     ASSERT_EQ(AINPUT_SOURCE_JOYSTICK, event.getSource());
 
     // Set displayId.
-    constexpr int32_t newDisplayId = 2;
+    constexpr ui::LogicalDisplayId newDisplayId = ui::LogicalDisplayId{2};
     event.setDisplayId(newDisplayId);
     ASSERT_EQ(newDisplayId, event.getDisplayId());
 
@@ -860,7 +859,7 @@ MotionEvent createMotionEvent(int32_t source, uint32_t action, float x, float y,
     nsecs_t eventTime = systemTime(SYSTEM_TIME_MONOTONIC);
     MotionEvent event;
     event.initialize(InputEvent::nextId(), /* deviceId */ 1, source,
-                     /* displayId */ 0, INVALID_HMAC, action,
+                     /* displayId */ ui::ADISPLAY_ID_DEFAULT, INVALID_HMAC, action,
                      /* actionButton */ 0, /* flags */ 0, /* edgeFlags */ 0, AMETA_NONE,
                      /* buttonState */ 0, MotionClassification::NONE, transform,
                      /* xPrecision */ 0, /* yPrecision */ 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,

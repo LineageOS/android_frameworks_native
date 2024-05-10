@@ -64,7 +64,7 @@ TEST(WindowInfo, Parcelling) {
     i.ownerUid = gui::Uid{24};
     i.packageName = "com.example.package";
     i.inputConfig = WindowInfo::InputConfig::NOT_FOCUSABLE;
-    i.displayId = 34;
+    i.displayId = ui::LogicalDisplayId{34};
     i.replaceTouchableRegionWithCrop = true;
     i.touchableRegionCropHandle = touchableRegionCropHandle;
     i.applicationInfo.name = "ApplicationFooBar";

@@ -19,7 +19,6 @@
 #include <android-base/stringprintf.h>
 #include <ftl/enum.h>
 #include <ftl/string.h>
-#include <gui/constants.h>
 #include <input/Input.h>
 #include <ui/Rotation.h>
 
@@ -47,7 +46,7 @@ enum class ViewportType : int32_t {
  * See com.android.server.display.DisplayViewport.
  */
 struct DisplayViewport {
-    int32_t displayId; // -1 if invalid
+    ui::LogicalDisplayId displayId; // ADISPLAY_ID_NONE if invalid
     ui::Rotation orientation;
     int32_t logicalLeft;
     int32_t logicalTop;
@@ -67,7 +66,7 @@ struct DisplayViewport {
     ViewportType type;
 
     DisplayViewport()
-          : displayId(ADISPLAY_ID_NONE),
+          : displayId(ui::ADISPLAY_ID_NONE),
             orientation(ui::ROTATION_0),
             logicalLeft(0),
             logicalTop(0),
@@ -99,12 +98,10 @@ struct DisplayViewport {
         return !(*this == other);
     }
 
-    inline bool isValid() const {
-        return displayId >= 0;
-    }
+    inline bool isValid() const { return displayId.isValid(); }
 
     void setNonDisplayViewport(int32_t width, int32_t height) {
-        displayId = ADISPLAY_ID_NONE;
+        displayId = ui::ADISPLAY_ID_NONE;
         orientation = ui::ROTATION_0;
         logicalLeft = 0;
         logicalTop = 0;
@@ -123,12 +120,13 @@ struct DisplayViewport {
     }
 
     std::string toString() const {
-        return StringPrintf("Viewport %s: displayId=%d, uniqueId=%s, port=%s, orientation=%d, "
+        return StringPrintf("Viewport %s: displayId=%s, uniqueId=%s, port=%s, orientation=%d, "
                             "logicalFrame=[%d, %d, %d, %d], "
                             "physicalFrame=[%d, %d, %d, %d], "
                             "deviceSize=[%d, %d], "
                             "isActive=[%d]",
-                            ftl::enum_string(type).c_str(), displayId, uniqueId.c_str(),
+                            ftl::enum_string(type).c_str(), displayId.toString().c_str(),
+                            uniqueId.c_str(),
                             physicalPort ? ftl::to_string(*physicalPort).c_str() : "<none>",
                             static_cast<int>(orientation), logicalLeft, logicalTop, logicalRight,
                             logicalBottom, physicalLeft, physicalTop, physicalRight, physicalBottom,

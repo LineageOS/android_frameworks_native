@@ -46,7 +46,7 @@ public:
 
     int32_t getMetaState() override;
     bool updateMetaState(int32_t keyCode) override;
-    std::optional<int32_t> getAssociatedDisplayId() override;
+    std::optional<ui::LogicalDisplayId> getAssociatedDisplayId() override;
     void updateLedState(bool reset) override;
 
 private:
@@ -91,7 +91,7 @@ private:
     void dumpParameters(std::string& dump) const;
 
     ui::Rotation getOrientation();
-    int32_t getDisplayId();
+    ui::LogicalDisplayId getDisplayId();
 
     [[nodiscard]] std::list<NotifyArgs> processKey(nsecs_t when, nsecs_t readTime, bool down,
                                                    int32_t scanCode, int32_t usageCode);

@@ -125,13 +125,13 @@ public:
      * pressed (not hovering).
      */
     virtual void setSpots(const PointerCoords* spotCoords, const uint32_t* spotIdToIndex,
-                          BitSet32 spotIdBits, int32_t displayId) = 0;
+                          BitSet32 spotIdBits, ui::LogicalDisplayId displayId) = 0;
 
     /* Removes all spots. */
     virtual void clearSpots() = 0;
 
     /* Gets the id of the display where the pointer should be shown. */
-    virtual int32_t getDisplayId() const = 0;
+    virtual ui::LogicalDisplayId getDisplayId() const = 0;
 
     /* Sets the associated display of this pointer. Pointer should show on that display. */
     virtual void setDisplayViewport(const DisplayViewport& displayViewport) = 0;
@@ -145,7 +145,7 @@ public:
     /* Sets the flag to skip screenshot of the pointer indicators on the display matching the
      * provided displayId.
      */
-    virtual void setSkipScreenshot(int32_t displayId, bool skip) = 0;
+    virtual void setSkipScreenshot(ui::LogicalDisplayId displayId, bool skip) = 0;
 };
 
 } // namespace android
