@@ -64,7 +64,7 @@ static NotifyMotionArgs generateMotionArgs(nsecs_t downTime, nsecs_t eventTime, 
 
     // Define a valid motion event.
     NotifyMotionArgs args(/*id=*/0, eventTime, /*readTime=*/0, deviceId, source,
-                          /*displayId=*/ui::ADISPLAY_ID_DEFAULT, POLICY_FLAG_PASS_TO_USER, action,
+                          ui::LogicalDisplayId::DEFAULT, POLICY_FLAG_PASS_TO_USER, action,
                           /* actionButton */ 0,
                           /*flags=*/0, AMETA_NONE, /*buttonState=*/0, MotionClassification::NONE,
                           AMOTION_EVENT_EDGE_FLAG_NONE, pointerCount, pointerProperties,
@@ -439,7 +439,7 @@ TEST_F(PreferStylusOverTouchTest, MixedStylusAndTouchDeviceIsCanceledAtFirst) {
     InputDeviceInfo stylusDevice;
     stylusDevice.initialize(STYLUS_DEVICE_ID, /*generation=*/1, /*controllerNumber=*/1,
                             /*identifier=*/{}, "stylus device", /*external=*/false,
-                            /*hasMic=*/false, ui::ADISPLAY_ID_NONE);
+                            /*hasMic=*/false, ui::LogicalDisplayId::INVALID);
     notifyInputDevicesChanged({stylusDevice});
     // The touchscreen device was removed, so we no longer remember anything about it. We should
     // again start blocking touch events from it.

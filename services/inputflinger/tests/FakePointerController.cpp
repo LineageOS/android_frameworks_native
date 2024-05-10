@@ -53,7 +53,7 @@ FloatPoint FakePointerController::getPosition() const {
 
 ui::LogicalDisplayId FakePointerController::getDisplayId() const {
     if (!mEnabled || !mDisplayId) {
-        return ui::ADISPLAY_ID_NONE;
+        return ui::LogicalDisplayId::INVALID;
     }
     return *mDisplayId;
 }

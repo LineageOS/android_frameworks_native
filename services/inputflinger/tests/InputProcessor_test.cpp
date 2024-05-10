@@ -44,7 +44,7 @@ static NotifyMotionArgs generateBasicMotionArgs() {
     coords.setAxisValue(AMOTION_EVENT_AXIS_Y, 1);
     static constexpr nsecs_t downTime = 2;
     NotifyMotionArgs motionArgs(/*sequenceNum=*/1, /*eventTime=*/downTime, /*readTime=*/2,
-                                /*deviceId=*/3, AINPUT_SOURCE_ANY, ui::ADISPLAY_ID_DEFAULT,
+                                /*deviceId=*/3, AINPUT_SOURCE_ANY, ui::LogicalDisplayId::DEFAULT,
                                 /*policyFlags=*/4, AMOTION_EVENT_ACTION_DOWN, /*actionButton=*/0,
                                 /*flags=*/0, AMETA_NONE, /*buttonState=*/0,
                                 MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE,
@@ -80,7 +80,7 @@ TEST_F(InputProcessorTest, SendToNextStage_NotifyConfigurationChangedArgs) {
 TEST_F(InputProcessorTest, SendToNextStage_NotifyKeyArgs) {
     // Create a basic key event and send to processor
     NotifyKeyArgs args(/*sequenceNum=*/1, /*eventTime=*/2, /*readTime=*/21, /*deviceId=*/3,
-                       AINPUT_SOURCE_KEYBOARD, ui::ADISPLAY_ID_DEFAULT, /*policyFlags=*/0,
+                       AINPUT_SOURCE_KEYBOARD, ui::LogicalDisplayId::DEFAULT, /*policyFlags=*/0,
                        AKEY_EVENT_ACTION_DOWN, /*flags=*/4, AKEYCODE_HOME, /*scanCode=*/5,
                        AMETA_NONE, /*downTime=*/6);
 

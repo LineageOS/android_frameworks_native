@@ -278,7 +278,7 @@ NotifyMotionArgs CapturedTouchpadEventConverter::makeMotionArgs(
     LOG_ALWAYS_FATAL_IF(coords.size() != properties.size(),
                         "Mismatched coords and properties arrays.");
     return NotifyMotionArgs(mReaderContext.getNextId(), when, readTime, mDeviceId, SOURCE,
-                            ui::ADISPLAY_ID_NONE, /*policyFlags=*/POLICY_FLAG_WAKE, action,
+                            ui::LogicalDisplayId::INVALID, /*policyFlags=*/POLICY_FLAG_WAKE, action,
                             /*actionButton=*/actionButton, flags,
                             mReaderContext.getGlobalMetaState(), mButtonState,
                             MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE, coords.size(),

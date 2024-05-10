@@ -150,7 +150,7 @@ private:
     uint32_t mSource;
     nsecs_t mDownTime;
     nsecs_t mEventTime;
-    ui::LogicalDisplayId mDisplayId{ui::ADISPLAY_ID_DEFAULT};
+    ui::LogicalDisplayId mDisplayId{ui::LogicalDisplayId::DEFAULT};
     uint32_t mPolicyFlags = DEFAULT_POLICY_FLAGS;
     int32_t mActionButton{0};
     int32_t mButtonState{0};
@@ -229,7 +229,7 @@ private:
     uint32_t mSource;
     nsecs_t mDownTime;
     nsecs_t mEventTime;
-    ui::LogicalDisplayId mDisplayId{ui::ADISPLAY_ID_DEFAULT};
+    ui::LogicalDisplayId mDisplayId{ui::LogicalDisplayId::DEFAULT};
     uint32_t mPolicyFlags = DEFAULT_POLICY_FLAGS;
     int32_t mFlags{0};
     int32_t mKeyCode{AKEYCODE_UNKNOWN};

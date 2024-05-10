@@ -90,7 +90,7 @@ private:
     struct KeyMemento {
         DeviceId deviceId;
         uint32_t source;
-        ui::LogicalDisplayId displayId{ui::ADISPLAY_ID_NONE};
+        ui::LogicalDisplayId displayId{ui::LogicalDisplayId::INVALID};
         int32_t keyCode;
         int32_t scanCode;
         int32_t metaState;
@@ -102,7 +102,7 @@ private:
     struct MotionMemento {
         DeviceId deviceId;
         uint32_t source;
-        ui::LogicalDisplayId displayId{ui::ADISPLAY_ID_NONE};
+        ui::LogicalDisplayId displayId{ui::LogicalDisplayId::INVALID};
         int32_t flags;
         float xPrecision;
         float yPrecision;

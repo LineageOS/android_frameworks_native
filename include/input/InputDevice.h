@@ -366,7 +366,7 @@ private:
     int32_t mKeyboardType;
     std::shared_ptr<KeyCharacterMap> mKeyCharacterMap;
     std::optional<InputDeviceUsiVersion> mUsiVersion;
-    ui::LogicalDisplayId mAssociatedDisplayId{ui::ADISPLAY_ID_NONE};
+    ui::LogicalDisplayId mAssociatedDisplayId{ui::LogicalDisplayId::INVALID};
     bool mEnabled;
 
     bool mHasVibrator;

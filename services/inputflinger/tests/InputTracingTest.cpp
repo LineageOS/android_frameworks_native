@@ -41,7 +41,7 @@ using perfetto::protos::pbzero::AndroidInputEventConfig;
 
 namespace {
 
-constexpr ui::LogicalDisplayId DISPLAY_ID = ui::ADISPLAY_ID_DEFAULT;
+constexpr ui::LogicalDisplayId DISPLAY_ID = ui::LogicalDisplayId::DEFAULT;
 
 // Ensure common actions are interchangeable between keys and motions for convenience.
 static_assert(static_cast<int32_t>(AMOTION_EVENT_ACTION_DOWN) ==

@@ -59,8 +59,6 @@ using android::gui::FocusRequest;
 using android::gui::InputApplicationInfo;
 using android::gui::TouchOcclusionMode;
 using android::gui::WindowInfo;
-using android::ui::ADISPLAY_ID_DEFAULT;
-using android::ui::ADISPLAY_ID_NONE;
 
 namespace android {
 namespace {
@@ -313,7 +311,7 @@ public:
         reportedListener->wait();
     }
 
-    void requestFocus(ui::LogicalDisplayId displayId = ADISPLAY_ID_DEFAULT) {
+    void requestFocus(ui::LogicalDisplayId displayId = ui::LogicalDisplayId::DEFAULT) {
         SurfaceComposerClient::Transaction t;
         FocusRequest request;
         request.token = mInputInfo.token;
@@ -438,7 +436,7 @@ void injectTapOnDisplay(int x, int y, ui::LogicalDisplayId displayId) {
 }
 
 void injectTap(int x, int y) {
-    injectTapOnDisplay(x, y, ADISPLAY_ID_DEFAULT);
+    injectTapOnDisplay(x, y, ui::LogicalDisplayId::DEFAULT);
 }
 
 void injectKeyOnDisplay(uint32_t keycode, ui::LogicalDisplayId displayId) {
@@ -451,7 +449,7 @@ void injectKeyOnDisplay(uint32_t keycode, ui::LogicalDisplayId displayId) {
 }
 
 void injectKey(uint32_t keycode) {
-    injectKeyOnDisplay(keycode, ADISPLAY_ID_NONE);
+    injectKeyOnDisplay(keycode, ui::LogicalDisplayId::INVALID);
 }
 
 TEST_F(InputSurfacesTest, can_receive_input) {

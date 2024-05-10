@@ -35,10 +35,20 @@ struct LogicalDisplayId : ftl::Constructible<LogicalDisplayId, int32_t>,
     constexpr bool isValid() const { return val() >= 0; }
 
     std::string toString() const { return std::to_string(val()); }
+
+    static const LogicalDisplayId INVALID;
+    static const LogicalDisplayId DEFAULT;
 };
 
-constexpr LogicalDisplayId ADISPLAY_ID_NONE{-1};
-constexpr LogicalDisplayId ADISPLAY_ID_DEFAULT{0};
+constexpr inline LogicalDisplayId LogicalDisplayId::INVALID{-1};
+constexpr inline LogicalDisplayId LogicalDisplayId::DEFAULT{0};
+
+/**
+ * Deprecated! Use LogicalDisplayId::INVALID / LogicalDisplayId::DEFAULT instead.
+ * TODO(b/339106983): remove these.
+ */
+[[deprecated]] constexpr LogicalDisplayId ADISPLAY_ID_NONE{-1};
+[[deprecated]] constexpr LogicalDisplayId ADISPLAY_ID_DEFAULT{0};
 
 inline std::ostream& operator<<(std::ostream& stream, LogicalDisplayId displayId) {
     return stream << displayId.val();

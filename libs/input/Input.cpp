@@ -1198,7 +1198,7 @@ std::ostream& operator<<(std::ostream& out, const MotionEvent& event) {
 
 void FocusEvent::initialize(int32_t id, bool hasFocus) {
     InputEvent::initialize(id, ReservedInputDeviceId::VIRTUAL_KEYBOARD_ID, AINPUT_SOURCE_UNKNOWN,
-                           ui::ADISPLAY_ID_NONE, INVALID_HMAC);
+                           ui::LogicalDisplayId::INVALID, INVALID_HMAC);
     mHasFocus = hasFocus;
 }
 
@@ -1211,7 +1211,7 @@ void FocusEvent::initialize(const FocusEvent& from) {
 
 void CaptureEvent::initialize(int32_t id, bool pointerCaptureEnabled) {
     InputEvent::initialize(id, ReservedInputDeviceId::VIRTUAL_KEYBOARD_ID, AINPUT_SOURCE_UNKNOWN,
-                           ui::ADISPLAY_ID_NONE, INVALID_HMAC);
+                           ui::LogicalDisplayId::INVALID, INVALID_HMAC);
     mPointerCaptureEnabled = pointerCaptureEnabled;
 }
 
@@ -1224,7 +1224,7 @@ void CaptureEvent::initialize(const CaptureEvent& from) {
 
 void DragEvent::initialize(int32_t id, float x, float y, bool isExiting) {
     InputEvent::initialize(id, ReservedInputDeviceId::VIRTUAL_KEYBOARD_ID, AINPUT_SOURCE_UNKNOWN,
-                           ui::ADISPLAY_ID_NONE, INVALID_HMAC);
+                           ui::LogicalDisplayId::INVALID, INVALID_HMAC);
     mIsExiting = isExiting;
     mX = x;
     mY = y;
@@ -1241,7 +1241,7 @@ void DragEvent::initialize(const DragEvent& from) {
 
 void TouchModeEvent::initialize(int32_t id, bool isInTouchMode) {
     InputEvent::initialize(id, ReservedInputDeviceId::VIRTUAL_KEYBOARD_ID, AINPUT_SOURCE_UNKNOWN,
-                           ui::ADISPLAY_ID_NONE, INVALID_HMAC);
+                           ui::LogicalDisplayId::INVALID, INVALID_HMAC);
     mIsInTouchMode = isInTouchMode;
 }
 

@@ -553,7 +553,7 @@ protected:
     int32_t mId;
     DeviceId mDeviceId;
     uint32_t mSource;
-    ui::LogicalDisplayId mDisplayId{ui::ADISPLAY_ID_NONE};
+    ui::LogicalDisplayId mDisplayId{ui::LogicalDisplayId::INVALID};
     std::array<uint8_t, 32> mHmac;
 };
 

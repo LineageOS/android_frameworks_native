@@ -918,9 +918,9 @@ InputDispatcher::InputDispatcher(InputDispatcherPolicyInterface& policy,
         mDispatchFrozen(false),
         mInputFilterEnabled(false),
         mMaximumObscuringOpacityForTouch(1.0f),
-        mFocusedDisplayId(ui::ADISPLAY_ID_DEFAULT),
+        mFocusedDisplayId(ui::LogicalDisplayId::DEFAULT),
         mWindowTokenWithPointerCapture(nullptr),
-        mAwaitedApplicationDisplayId(ui::ADISPLAY_ID_NONE),
+        mAwaitedApplicationDisplayId(ui::LogicalDisplayId::INVALID),
         mLatencyAggregator(),
         mLatencyTracker(&mLatencyAggregator) {
     mLooper = sp<Looper>::make(false);
@@ -2201,7 +2201,7 @@ void InputDispatcher::resetNoFocusedWindowTimeoutLocked() {
  * Focused display is the display that the user most recently interacted with.
  */
 ui::LogicalDisplayId InputDispatcher::getTargetDisplayId(const EventEntry& entry) {
-    ui::LogicalDisplayId displayId{ui::ADISPLAY_ID_NONE};
+    ui::LogicalDisplayId displayId{ui::LogicalDisplayId::INVALID};
     switch (entry.type) {
         case EventEntry::Type::KEY: {
             const KeyEntry& keyEntry = static_cast<const KeyEntry&>(entry);
@@ -2221,10 +2221,10 @@ ui::LogicalDisplayId InputDispatcher::getTargetDisplayId(const EventEntry& entry
         case EventEntry::Type::SENSOR:
         case EventEntry::Type::DRAG: {
             ALOGE("%s events do not have a target display", ftl::enum_string(entry.type).c_str());
-            return ui::ADISPLAY_ID_NONE;
+            return ui::LogicalDisplayId::INVALID;
         }
     }
-    return displayId == ui::ADISPLAY_ID_NONE ? mFocusedDisplayId : displayId;
+    return displayId == ui::LogicalDisplayId::INVALID ? mFocusedDisplayId : displayId;
 }
 
 bool InputDispatcher::shouldWaitToSendKeyLocked(nsecs_t currentTime,
@@ -2829,7 +2829,7 @@ std::vector<InputTarget> InputDispatcher::findTouchedWindowTargetsLocked(
     // Save changes unless the action was scroll in which case the temporary touch
     // state was only valid for this one action.
     if (maskedAction != AMOTION_EVENT_ACTION_SCROLL) {
-        if (displayId >= ui::ADISPLAY_ID_DEFAULT) {
+        if (displayId >= ui::LogicalDisplayId::DEFAULT) {
             tempTouchState.clearWindowsWithoutPointers();
             mTouchStatesByDisplay[displayId] = tempTouchState;
         } else {
@@ -4862,8 +4862,8 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(const InputEvent* ev
                     isFromSource(event->getSource(), AINPUT_SOURCE_CLASS_POINTER);
             // If a pointer event has no displayId specified, inject it to the default display.
             const ui::LogicalDisplayId displayId =
-                    isPointerEvent && (event->getDisplayId() == ui::ADISPLAY_ID_NONE)
-                    ? ui::ADISPLAY_ID_DEFAULT
+                    isPointerEvent && (event->getDisplayId() == ui::LogicalDisplayId::INVALID)
+                    ? ui::LogicalDisplayId::DEFAULT
                     : event->getDisplayId();
             int32_t flags = motionEvent.getFlags();
 
@@ -4890,9 +4890,9 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(const InputEvent* ev
                 // events for consistency and print an error. An inconsistent event sent from
                 // InputFilter could cause a crash in the later stages of dispatching pipeline.
                 auto [it, _] =
-                        mInputFilterVerifiersByDisplay
-                                .try_emplace(displayId,
-                                             StringPrintf("Injection on %" PRId32, displayId));
+                        mInputFilterVerifiersByDisplay.try_emplace(displayId,
+                                                                   std::string("Injection on ") +
+                                                                           displayId.toString());
                 InputVerifier& verifier = it->second;
 
                 Result<void> result =
@@ -5523,7 +5523,7 @@ void InputDispatcher::setFocusedDisplay(ui::LogicalDisplayId displayId) {
                         options(CancelationOptions::Mode::CANCEL_NON_POINTER_EVENTS,
                                 "The display which contains this window no longer has focus.",
                                 traceContext.getTracker());
-                options.displayId = ui::ADISPLAY_ID_NONE;
+                options.displayId = ui::LogicalDisplayId::INVALID;
                 synthesizeCancelationEventsForWindowLocked(windowHandle, options);
             }
             mFocusedDisplayId = displayId;
@@ -5675,7 +5675,7 @@ InputDispatcher::findTouchStateWindowAndDisplayLocked(const sp<IBinder>& token) 
             }
         }
     }
-    return std::make_tuple(nullptr, nullptr, ui::ADISPLAY_ID_DEFAULT);
+    return std::make_tuple(nullptr, nullptr, ui::LogicalDisplayId::DEFAULT);
 }
 
 bool InputDispatcher::transferTouchGesture(const sp<IBinder>& fromToken, const sp<IBinder>& toToken,
@@ -6125,7 +6125,7 @@ Result<std::unique_ptr<InputChannel>> InputDispatcher::createInputMonitor(
     { // acquire lock
         std::scoped_lock _l(mLock);
 
-        if (displayId < ui::ADISPLAY_ID_DEFAULT) {
+        if (displayId < ui::LogicalDisplayId::DEFAULT) {
             return base::Error(BAD_VALUE) << "Attempted to create input monitor with name " << name
                                           << " without a specified display.";
         }

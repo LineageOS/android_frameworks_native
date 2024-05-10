@@ -38,7 +38,7 @@ static NotifyMotionArgs generateBasicMotionArgs() {
     coords.setAxisValue(AMOTION_EVENT_AXIS_SIZE, 0.5);
     static constexpr nsecs_t downTime = 2;
     NotifyMotionArgs motionArgs(/*sequenceNum=*/1, /*eventTime=*/downTime, /*readTime=*/2,
-                                /*deviceId=*/3, AINPUT_SOURCE_ANY, ui::ADISPLAY_ID_DEFAULT,
+                                /*deviceId=*/3, AINPUT_SOURCE_ANY, ui::LogicalDisplayId::DEFAULT,
                                 /*policyFlags=*/4, AMOTION_EVENT_ACTION_DOWN, /*actionButton=*/0,
                                 /*flags=*/0, AMETA_NONE, /*buttonState=*/0,
                                 MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE,

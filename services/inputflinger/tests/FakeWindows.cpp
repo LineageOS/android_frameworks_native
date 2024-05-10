@@ -152,7 +152,7 @@ void FakeInputReceiver::consumeFocusEvent(bool hasFocus, bool inTouchMode) {
     ASSERT_NE(nullptr, event) << mName.c_str() << ": consumer should have returned non-NULL event.";
     ASSERT_EQ(InputEventType::FOCUS, event->getType()) << "Instead of FocusEvent, got " << *event;
 
-    ASSERT_EQ(ui::ADISPLAY_ID_NONE, event->getDisplayId())
+    ASSERT_EQ(ui::LogicalDisplayId::INVALID, event->getDisplayId())
             << mName.c_str() << ": event displayId should always be NONE.";
 
     FocusEvent& focusEvent = static_cast<FocusEvent&>(*event);
@@ -165,7 +165,7 @@ void FakeInputReceiver::consumeCaptureEvent(bool hasCapture) {
     ASSERT_EQ(InputEventType::CAPTURE, event->getType())
             << "Instead of CaptureEvent, got " << *event;
 
-    ASSERT_EQ(ui::ADISPLAY_ID_NONE, event->getDisplayId())
+    ASSERT_EQ(ui::LogicalDisplayId::INVALID, event->getDisplayId())
             << mName.c_str() << ": event displayId should always be NONE.";
 
     const auto& captureEvent = static_cast<const CaptureEvent&>(*event);
@@ -177,7 +177,7 @@ void FakeInputReceiver::consumeDragEvent(bool isExiting, float x, float y) {
     ASSERT_NE(nullptr, event) << mName.c_str() << ": consumer should have returned non-NULL event.";
     ASSERT_EQ(InputEventType::DRAG, event->getType()) << "Instead of DragEvent, got " << *event;
 
-    EXPECT_EQ(ui::ADISPLAY_ID_NONE, event->getDisplayId())
+    EXPECT_EQ(ui::LogicalDisplayId::INVALID, event->getDisplayId())
             << mName.c_str() << ": event displayId should always be NONE.";
 
     const auto& dragEvent = static_cast<const DragEvent&>(*event);
@@ -192,7 +192,7 @@ void FakeInputReceiver::consumeTouchModeEvent(bool inTouchMode) {
     ASSERT_EQ(InputEventType::TOUCH_MODE, event->getType())
             << "Instead of TouchModeEvent, got " << *event;
 
-    ASSERT_EQ(ui::ADISPLAY_ID_NONE, event->getDisplayId())
+    ASSERT_EQ(ui::LogicalDisplayId::INVALID, event->getDisplayId())
             << mName.c_str() << ": event displayId should always be NONE.";
     const auto& touchModeEvent = static_cast<const TouchModeEvent&>(*event);
     EXPECT_EQ(inTouchMode, touchModeEvent.isInTouchMode());

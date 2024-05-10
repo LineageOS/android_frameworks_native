@@ -497,9 +497,10 @@ void KeyCharacterMap::addKey(Vector<KeyEvent>& outEvents, int32_t deviceId, int3
                              int32_t metaState, bool down, nsecs_t time) {
     outEvents.push();
     KeyEvent& event = outEvents.editTop();
-    event.initialize(InputEvent::nextId(), deviceId, AINPUT_SOURCE_KEYBOARD, ui::ADISPLAY_ID_NONE,
-                     INVALID_HMAC, down ? AKEY_EVENT_ACTION_DOWN : AKEY_EVENT_ACTION_UP, 0, keyCode,
-                     0, metaState, 0, time, time);
+    event.initialize(InputEvent::nextId(), deviceId, AINPUT_SOURCE_KEYBOARD,
+                     ui::LogicalDisplayId::INVALID, INVALID_HMAC,
+                     down ? AKEY_EVENT_ACTION_DOWN : AKEY_EVENT_ACTION_UP, 0, keyCode, 0, metaState,
+                     0, time, time);
 }
 
 void KeyCharacterMap::addMetaKeys(Vector<KeyEvent>& outEvents,

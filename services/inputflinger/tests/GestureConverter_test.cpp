@@ -45,7 +45,6 @@ const auto TOUCHPAD_PALM_REJECTION_V2 =
 
 } // namespace
 
-using android::ui::ADISPLAY_ID_DEFAULT;
 using testing::AllOf;
 using testing::Each;
 using testing::ElementsAre;
@@ -93,7 +92,7 @@ protected:
 TEST_F(GestureConverterTest, Move) {
     InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
     GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
-    converter.setDisplayId(ui::ADISPLAY_ID_DEFAULT);
+    converter.setDisplayId(ui::LogicalDisplayId::DEFAULT);
 
     Gesture moveGesture(kGestureMove, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, -5, 10);
     std::list<NotifyArgs> args =
@@ -107,9 +106,9 @@ TEST_F(GestureConverterTest, Move) {
                                           WithRelativeMotion(-5, 10), WithButtonState(0),
                                           WithPressure(0.0f)))));
     ASSERT_THAT(args,
-                Each(VariantWith<NotifyMotionArgs>(AllOf(WithCoords(0, 0),
-                                                         WithToolType(ToolType::FINGER),
-                                                         WithDisplayId(ADISPLAY_ID_DEFAULT)))));
+                Each(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithCoords(0, 0), WithToolType(ToolType::FINGER),
+                              WithDisplayId(ui::LogicalDisplayId::DEFAULT)))));
 
     // The same gesture again should only repeat the HOVER_MOVE, not the HOVER_ENTER.
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, moveGesture);
@@ -118,14 +117,14 @@ TEST_F(GestureConverterTest, Move) {
                         AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE), WithCoords(0, 0),
                               WithRelativeMotion(-5, 10), WithToolType(ToolType::FINGER),
                               WithButtonState(0), WithPressure(0.0f),
-                              WithDisplayId(ADISPLAY_ID_DEFAULT)))));
+                              WithDisplayId(ui::LogicalDisplayId::DEFAULT)))));
 }
 
 TEST_F(GestureConverterTest, Move_Rotated) {
     InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
     GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
     converter.setOrientation(ui::ROTATION_90);
-    converter.setDisplayId(ui::ADISPLAY_ID_DEFAULT);
+    converter.setDisplayId(ui::LogicalDisplayId::DEFAULT);
 
     Gesture moveGesture(kGestureMove, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, -5, 10);
     std::list<NotifyArgs> args =
@@ -139,15 +138,15 @@ TEST_F(GestureConverterTest, Move_Rotated) {
                                           WithRelativeMotion(10, 5), WithButtonState(0),
                                           WithPressure(0.0f)))));
     ASSERT_THAT(args,
-                Each(VariantWith<NotifyMotionArgs>(AllOf(WithCoords(0, 0),
-                                                         WithToolType(ToolType::FINGER),
-                                                         WithDisplayId(ADISPLAY_ID_DEFAULT)))));
+                Each(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithCoords(0, 0), WithToolType(ToolType::FINGER),
+                              WithDisplayId(ui::LogicalDisplayId::DEFAULT)))));
 }
 
 TEST_F(GestureConverterTest, ButtonsChange) {
     InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
     GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
-    converter.setDisplayId(ui::ADISPLAY_ID_DEFAULT);
+    converter.setDisplayId(ui::LogicalDisplayId::DEFAULT);
 
     // Press left and right buttons at once
     Gesture downGesture(kGestureButtonsChange, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
@@ -170,9 +169,9 @@ TEST_F(GestureConverterTest, ButtonsChange) {
                                           WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY |
                                                           AMOTION_EVENT_BUTTON_SECONDARY)))));
     ASSERT_THAT(args,
-                Each(VariantWith<NotifyMotionArgs>(AllOf(WithCoords(0, 0),
-                                                         WithToolType(ToolType::FINGER),
-                                                         WithDisplayId(ui::ADISPLAY_ID_DEFAULT)))));
+                Each(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithCoords(0, 0), WithToolType(ToolType::FINGER),
+                              WithDisplayId(ui::LogicalDisplayId::DEFAULT)))));
 
     // Then release the left button
     Gesture leftUpGesture(kGestureButtonsChange, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
@@ -185,7 +184,7 @@ TEST_F(GestureConverterTest, ButtonsChange) {
                               WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY),
                               WithButtonState(AMOTION_EVENT_BUTTON_SECONDARY), WithCoords(0, 0),
                               WithToolType(ToolType::FINGER),
-                              WithDisplayId(ADISPLAY_ID_DEFAULT)))));
+                              WithDisplayId(ui::LogicalDisplayId::DEFAULT)))));
 
     // Finally release the right button
     Gesture rightUpGesture(kGestureButtonsChange, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
@@ -201,15 +200,15 @@ TEST_F(GestureConverterTest, ButtonsChange) {
                             VariantWith<NotifyMotionArgs>(
                                     WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER))));
     ASSERT_THAT(args,
-                Each(VariantWith<NotifyMotionArgs>(AllOf(WithButtonState(0), WithCoords(0, 0),
-                                                         WithToolType(ToolType::FINGER),
-                                                         WithDisplayId(ui::ADISPLAY_ID_DEFAULT)))));
+                Each(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithButtonState(0), WithCoords(0, 0), WithToolType(ToolType::FINGER),
+                              WithDisplayId(ui::LogicalDisplayId::DEFAULT)))));
 }
 
 TEST_F(GestureConverterTest, ButtonDownAfterMoveExitsHover) {
     InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
     GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
-    converter.setDisplayId(ui::ADISPLAY_ID_DEFAULT);
+    converter.setDisplayId(ui::LogicalDisplayId::DEFAULT);
 
     Gesture moveGesture(kGestureMove, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, -5, 10);
     std::list<NotifyArgs> args =
@@ -223,13 +222,13 @@ TEST_F(GestureConverterTest, ButtonDownAfterMoveExitsHover) {
                 VariantWith<NotifyMotionArgs>(
                         AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_EXIT), WithButtonState(0),
                               WithCoords(0, 0), WithToolType(ToolType::FINGER),
-                              WithDisplayId(ADISPLAY_ID_DEFAULT))));
+                              WithDisplayId(ui::LogicalDisplayId::DEFAULT))));
 }
 
 TEST_F(GestureConverterTest, DragWithButton) {
     InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
     GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
-    converter.setDisplayId(ui::ADISPLAY_ID_DEFAULT);
+    converter.setDisplayId(ui::LogicalDisplayId::DEFAULT);
 
     // Press the button
     Gesture downGesture(kGestureButtonsChange, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
@@ -246,9 +245,9 @@ TEST_F(GestureConverterTest, DragWithButton) {
                                           WithActionButton(AMOTION_EVENT_BUTTON_PRIMARY),
                                           WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY)))));
     ASSERT_THAT(args,
-                Each(VariantWith<NotifyMotionArgs>(AllOf(WithCoords(0, 0),
-                                                         WithToolType(ToolType::FINGER),
-                                                         WithDisplayId(ui::ADISPLAY_ID_DEFAULT)))));
+                Each(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithCoords(0, 0), WithToolType(ToolType::FINGER),
+                              WithDisplayId(ui::LogicalDisplayId::DEFAULT)))));
 
     // Move
     Gesture moveGesture(kGestureMove, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, -5, 10);
@@ -258,7 +257,7 @@ TEST_F(GestureConverterTest, DragWithButton) {
                         AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE), WithCoords(0, 0),
                               WithRelativeMotion(-5, 10), WithToolType(ToolType::FINGER),
                               WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY), WithPressure(1.0f),
-                              WithDisplayId(ui::ADISPLAY_ID_DEFAULT)))));
+                              WithDisplayId(ui::LogicalDisplayId::DEFAULT)))));
 
     // Release the button
     Gesture upGesture(kGestureButtonsChange, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
@@ -274,16 +273,16 @@ TEST_F(GestureConverterTest, DragWithButton) {
                             VariantWith<NotifyMotionArgs>(
                                     WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER))));
     ASSERT_THAT(args,
-                Each(VariantWith<NotifyMotionArgs>(AllOf(WithButtonState(0), WithCoords(0, 0),
-                                                         WithToolType(ToolType::FINGER),
-                                                         WithDisplayId(ui::ADISPLAY_ID_DEFAULT)))));
+                Each(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithButtonState(0), WithCoords(0, 0), WithToolType(ToolType::FINGER),
+                              WithDisplayId(ui::LogicalDisplayId::DEFAULT)))));
 }
 
 TEST_F(GestureConverterTest, Scroll) {
     const nsecs_t downTime = 12345;
     InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
     GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
-    converter.setDisplayId(ui::ADISPLAY_ID_DEFAULT);
+    converter.setDisplayId(ui::LogicalDisplayId::DEFAULT);
 
     Gesture startGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, -10);
     std::list<NotifyArgs> args =
@@ -303,7 +302,7 @@ TEST_F(GestureConverterTest, Scroll) {
                         AllOf(WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
                               WithFlags(AMOTION_EVENT_FLAG_IS_GENERATED_GESTURE),
                               WithToolType(ToolType::FINGER),
-                              WithDisplayId(ui::ADISPLAY_ID_DEFAULT)))));
+                              WithDisplayId(ui::LogicalDisplayId::DEFAULT)))));
 
     Gesture continueGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, -5);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, continueGesture);
@@ -314,7 +313,7 @@ TEST_F(GestureConverterTest, Scroll) {
                               WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
                               WithToolType(ToolType::FINGER),
                               WithFlags(AMOTION_EVENT_FLAG_IS_GENERATED_GESTURE),
-                              WithDisplayId(ui::ADISPLAY_ID_DEFAULT)))));
+                              WithDisplayId(ui::LogicalDisplayId::DEFAULT)))));
 
     Gesture flingGesture(kGestureFling, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 1, 1,
                          GESTURES_FLING_START);
@@ -332,8 +331,9 @@ TEST_F(GestureConverterTest, Scroll) {
                                           WithCoords(0, 0),
                                           WithMotionClassification(MotionClassification::NONE)))));
     ASSERT_THAT(args,
-                Each(VariantWith<NotifyMotionArgs>(AllOf(WithToolType(ToolType::FINGER),
-                                                         WithDisplayId(ui::ADISPLAY_ID_DEFAULT)))));
+                Each(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithToolType(ToolType::FINGER),
+                              WithDisplayId(ui::LogicalDisplayId::DEFAULT)))));
 }
 
 TEST_F(GestureConverterTest, Scroll_Rotated) {
@@ -341,7 +341,7 @@ TEST_F(GestureConverterTest, Scroll_Rotated) {
     InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
     GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
     converter.setOrientation(ui::ROTATION_90);
-    converter.setDisplayId(ui::ADISPLAY_ID_DEFAULT);
+    converter.setDisplayId(ui::LogicalDisplayId::DEFAULT);
 
     Gesture startGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, -10);
     std::list<NotifyArgs> args =
@@ -360,7 +360,7 @@ TEST_F(GestureConverterTest, Scroll_Rotated) {
                 Each(VariantWith<NotifyMotionArgs>(
                         AllOf(WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
                               WithToolType(ToolType::FINGER),
-                              WithDisplayId(ui::ADISPLAY_ID_DEFAULT)))));
+                              WithDisplayId(ui::LogicalDisplayId::DEFAULT)))));
 
     Gesture continueGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, -5);
     args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, continueGesture);
@@ -370,7 +370,7 @@ TEST_F(GestureConverterTest, Scroll_Rotated) {
                               WithGestureScrollDistance(0, 5, EPSILON),
                               WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE),
                               WithToolType(ToolType::FINGER),
-                              WithDisplayId(ADISPLAY_ID_DEFAULT)))));
+                              WithDisplayId(ui::LogicalDisplayId::DEFAULT)))));
 
     Gesture flingGesture(kGestureFling, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 1, 1,
                          GESTURES_FLING_START);
@@ -387,14 +387,15 @@ TEST_F(GestureConverterTest, Scroll_Rotated) {
                                           WithCoords(0, 0),
                                           WithMotionClassification(MotionClassification::NONE)))));
     ASSERT_THAT(args,
-                Each(VariantWith<NotifyMotionArgs>(AllOf(WithToolType(ToolType::FINGER),
-                                                         WithDisplayId(ui::ADISPLAY_ID_DEFAULT)))));
+                Each(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithToolType(ToolType::FINGER),
+                              WithDisplayId(ui::LogicalDisplayId::DEFAULT)))));
 }
 
 TEST_F(GestureConverterTest, Scroll_ClearsClassificationAfterGesture) {
     InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
     GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
-    converter.setDisplayId(ui::ADISPLAY_ID_DEFAULT);
+    converter.setDisplayId(ui::LogicalDisplayId::DEFAULT);
 
     Gesture startGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, -10);
     std::list<NotifyArgs> args =
@@ -412,13 +413,13 @@ TEST_F(GestureConverterTest, Scroll_ClearsClassificationAfterGesture) {
     ASSERT_THAT(args,
                 ElementsAre(VariantWith<NotifyMotionArgs>(
                         AllOf(WithMotionClassification(MotionClassification::NONE),
-                              WithDisplayId(ui::ADISPLAY_ID_DEFAULT)))));
+                              WithDisplayId(ui::LogicalDisplayId::DEFAULT)))));
 }
 
 TEST_F(GestureConverterTest, Scroll_ClearsScrollDistanceAfterGesture) {
     InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
     GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
-    converter.setDisplayId(ui::ADISPLAY_ID_DEFAULT);
+    converter.setDisplayId(ui::LogicalDisplayId::DEFAULT);
 
     Gesture startGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, -10);
     std::list<NotifyArgs> args =
@@ -443,7 +444,7 @@ TEST_F(GestureConverterTest, Scroll_ClearsScrollDistanceAfterGesture) {
 TEST_F(GestureConverterTest, ThreeFingerSwipe_ClearsClassificationAfterGesture) {
     InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
     GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
-    converter.setDisplayId(ui::ADISPLAY_ID_DEFAULT);
+    converter.setDisplayId(ui::LogicalDisplayId::DEFAULT);
 
     Gesture startGesture(kGestureSwipe, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /*dx=*/0,
                          /*dy=*/0);
@@ -464,7 +465,7 @@ TEST_F(GestureConverterTest, ThreeFingerSwipe_ClearsClassificationAfterGesture) 
 TEST_F(GestureConverterTest, ThreeFingerSwipe_ClearsGestureAxesAfterGesture) {
     InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
     GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
-    converter.setDisplayId(ui::ADISPLAY_ID_DEFAULT);
+    converter.setDisplayId(ui::LogicalDisplayId::DEFAULT);
 
     Gesture startGesture(kGestureSwipe, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /*dx=*/5,
                          /*dy=*/5);
@@ -491,7 +492,7 @@ TEST_F(GestureConverterTest, ThreeFingerSwipe_Vertical) {
     // only checks movement in one dimension.
     InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
     GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
-    converter.setDisplayId(ui::ADISPLAY_ID_DEFAULT);
+    converter.setDisplayId(ui::LogicalDisplayId::DEFAULT);
 
     Gesture startGesture(kGestureSwipe, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /* dx= */ 0,
                          /* dy= */ 10);
@@ -502,7 +503,7 @@ TEST_F(GestureConverterTest, ThreeFingerSwipe_Vertical) {
                 Each(VariantWith<NotifyMotionArgs>(
                         AllOf(WithMotionClassification(MotionClassification::MULTI_FINGER_SWIPE),
                               WithGestureSwipeFingerCount(3), WithToolType(ToolType::FINGER),
-                              WithDisplayId(ui::ADISPLAY_ID_DEFAULT)))));
+                              WithDisplayId(ui::LogicalDisplayId::DEFAULT)))));
 
     // Three fake fingers should be created. We don't actually care where they are, so long as they
     // move appropriately.
@@ -548,7 +549,7 @@ TEST_F(GestureConverterTest, ThreeFingerSwipe_Vertical) {
                       WithGestureOffset(0, -0.005, EPSILON), WithGestureSwipeFingerCount(3),
                       WithMotionClassification(MotionClassification::MULTI_FINGER_SWIPE),
                       WithPointerCount(3u), WithToolType(ToolType::FINGER),
-                      WithDisplayId(ui::ADISPLAY_ID_DEFAULT)));
+                      WithDisplayId(ui::LogicalDisplayId::DEFAULT)));
     EXPECT_EQ(arg.pointerCoords[0].getX(), finger0Start.getX());
     EXPECT_EQ(arg.pointerCoords[1].getX(), finger1Start.getX());
     EXPECT_EQ(arg.pointerCoords[2].getX(), finger2Start.getX());
@@ -589,22 +590,24 @@ TEST_F(GestureConverterTest, ThreeFingerSwipe_Vertical) {
                                           WithCoords(0, 0),
                                           WithMotionClassification(MotionClassification::NONE)))));
     ASSERT_THAT(args,
-                Each(VariantWith<NotifyMotionArgs>(AllOf(WithToolType(ToolType::FINGER),
-                                                         WithDisplayId(ui::ADISPLAY_ID_DEFAULT)))));
+                Each(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithToolType(ToolType::FINGER),
+                              WithDisplayId(ui::LogicalDisplayId::DEFAULT)))));
 }
 
 TEST_F(GestureConverterTest, ThreeFingerSwipe_Rotated) {
     InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
     GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
     converter.setOrientation(ui::ROTATION_90);
-    converter.setDisplayId(ui::ADISPLAY_ID_DEFAULT);
+    converter.setDisplayId(ui::LogicalDisplayId::DEFAULT);
 
     Gesture startGesture(kGestureSwipe, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /* dx= */ 0,
                          /* dy= */ 10);
     std::list<NotifyArgs> args =
             converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, startGesture);
     ASSERT_EQ(4u, args.size());
-    ASSERT_THAT(args, Each(VariantWith<NotifyMotionArgs>(WithDisplayId(ui::ADISPLAY_ID_DEFAULT))));
+    ASSERT_THAT(args,
+                Each(VariantWith<NotifyMotionArgs>(WithDisplayId(ui::LogicalDisplayId::DEFAULT))));
 
     // Three fake fingers should be created. We don't actually care where they are, so long as they
     // move appropriately.
@@ -648,7 +651,7 @@ TEST_F(GestureConverterTest, ThreeFingerSwipe_Rotated) {
     ASSERT_THAT(arg,
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
                       WithGestureOffset(0, -0.005, EPSILON), WithPointerCount(3u),
-                      WithDisplayId(ui::ADISPLAY_ID_DEFAULT)));
+                      WithDisplayId(ui::LogicalDisplayId::DEFAULT)));
     EXPECT_EQ(arg.pointerCoords[0].getX(), finger0Start.getX() - 15);
     EXPECT_EQ(arg.pointerCoords[1].getX(), finger1Start.getX() - 15);
     EXPECT_EQ(arg.pointerCoords[2].getX(), finger2Start.getX() - 15);
@@ -674,13 +677,14 @@ TEST_F(GestureConverterTest, ThreeFingerSwipe_Rotated) {
                                           WithGestureOffset(0, 0, EPSILON), WithPointerCount(1u))),
                             VariantWith<NotifyMotionArgs>(
                                     AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER)))));
-    ASSERT_THAT(args, Each(VariantWith<NotifyMotionArgs>(WithDisplayId(ADISPLAY_ID_DEFAULT))));
+    ASSERT_THAT(args,
+                Each(VariantWith<NotifyMotionArgs>(WithDisplayId(ui::LogicalDisplayId::DEFAULT))));
 }
 
 TEST_F(GestureConverterTest, FourFingerSwipe_Horizontal) {
     InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
     GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
-    converter.setDisplayId(ui::ADISPLAY_ID_DEFAULT);
+    converter.setDisplayId(ui::LogicalDisplayId::DEFAULT);
 
     Gesture startGesture(kGestureFourFingerSwipe, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                          /* dx= */ 10, /* dy= */ 0);
@@ -691,7 +695,7 @@ TEST_F(GestureConverterTest, FourFingerSwipe_Horizontal) {
                 Each(VariantWith<NotifyMotionArgs>(
                         AllOf(WithMotionClassification(MotionClassification::MULTI_FINGER_SWIPE),
                               WithGestureSwipeFingerCount(4), WithToolType(ToolType::FINGER),
-                              WithDisplayId(ui::ADISPLAY_ID_DEFAULT)))));
+                              WithDisplayId(ui::LogicalDisplayId::DEFAULT)))));
 
     // Four fake fingers should be created. We don't actually care where they are, so long as they
     // move appropriately.
@@ -746,7 +750,7 @@ TEST_F(GestureConverterTest, FourFingerSwipe_Horizontal) {
                       WithGestureOffset(0.005, 0, EPSILON), WithGestureSwipeFingerCount(4),
                       WithMotionClassification(MotionClassification::MULTI_FINGER_SWIPE),
                       WithPointerCount(4u), WithToolType(ToolType::FINGER),
-                      WithDisplayId(ui::ADISPLAY_ID_DEFAULT)));
+                      WithDisplayId(ui::LogicalDisplayId::DEFAULT)));
     EXPECT_EQ(arg.pointerCoords[0].getX(), finger0Start.getX() + 15);
     EXPECT_EQ(arg.pointerCoords[1].getX(), finger1Start.getX() + 15);
     EXPECT_EQ(arg.pointerCoords[2].getX(), finger2Start.getX() + 15);
@@ -798,14 +802,15 @@ TEST_F(GestureConverterTest, FourFingerSwipe_Horizontal) {
                                           WithCoords(0, 0),
                                           WithMotionClassification(MotionClassification::NONE)))));
     ASSERT_THAT(args,
-                Each(VariantWith<NotifyMotionArgs>(AllOf(WithToolType(ToolType::FINGER),
-                                                         WithDisplayId(ui::ADISPLAY_ID_DEFAULT)))));
+                Each(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithToolType(ToolType::FINGER),
+                              WithDisplayId(ui::LogicalDisplayId::DEFAULT)))));
 }
 
 TEST_F(GestureConverterTest, Pinch_Inwards) {
     InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
     GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
-    converter.setDisplayId(ui::ADISPLAY_ID_DEFAULT);
+    converter.setDisplayId(ui::LogicalDisplayId::DEFAULT);
 
     Gesture startGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /* dz= */ 1,
                          GESTURES_ZOOM_START);
@@ -825,7 +830,7 @@ TEST_F(GestureConverterTest, Pinch_Inwards) {
                         AllOf(WithMotionClassification(MotionClassification::PINCH),
                               WithGesturePinchScaleFactor(1.0f, EPSILON),
                               WithToolType(ToolType::FINGER),
-                              WithDisplayId(ui::ADISPLAY_ID_DEFAULT)))));
+                              WithDisplayId(ui::LogicalDisplayId::DEFAULT)))));
 
     Gesture updateGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                           /* dz= */ 0.8, GESTURES_ZOOM_UPDATE);
@@ -837,7 +842,7 @@ TEST_F(GestureConverterTest, Pinch_Inwards) {
                               WithGesturePinchScaleFactor(0.8f, EPSILON),
                               WithPointerCoords(0, -80, 0), WithPointerCoords(1, 80, 0),
                               WithPointerCount(2u), WithToolType(ToolType::FINGER),
-                              WithDisplayId(ui::ADISPLAY_ID_DEFAULT)))));
+                              WithDisplayId(ui::LogicalDisplayId::DEFAULT)))));
 
     Gesture endGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /* dz= */ 1,
                        GESTURES_ZOOM_END);
@@ -860,14 +865,15 @@ TEST_F(GestureConverterTest, Pinch_Inwards) {
                                           WithCoords(0, 0),
                                           WithMotionClassification(MotionClassification::NONE)))));
     ASSERT_THAT(args,
-                Each(VariantWith<NotifyMotionArgs>(AllOf(WithToolType(ToolType::FINGER),
-                                                         WithDisplayId(ADISPLAY_ID_DEFAULT)))));
+                Each(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithToolType(ToolType::FINGER),
+                              WithDisplayId(ui::LogicalDisplayId::DEFAULT)))));
 }
 
 TEST_F(GestureConverterTest, Pinch_Outwards) {
     InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
     GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
-    converter.setDisplayId(ADISPLAY_ID_DEFAULT);
+    converter.setDisplayId(ui::LogicalDisplayId::DEFAULT);
 
     Gesture startGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /* dz= */ 1,
                          GESTURES_ZOOM_START);
@@ -887,7 +893,7 @@ TEST_F(GestureConverterTest, Pinch_Outwards) {
                         AllOf(WithMotionClassification(MotionClassification::PINCH),
                               WithGesturePinchScaleFactor(1.0f, EPSILON),
                               WithToolType(ToolType::FINGER),
-                              WithDisplayId(ADISPLAY_ID_DEFAULT)))));
+                              WithDisplayId(ui::LogicalDisplayId::DEFAULT)))));
 
     Gesture updateGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                           /* dz= */ 1.1, GESTURES_ZOOM_UPDATE);
@@ -899,7 +905,7 @@ TEST_F(GestureConverterTest, Pinch_Outwards) {
                               WithGesturePinchScaleFactor(1.1f, EPSILON),
                               WithPointerCoords(0, -110, 0), WithPointerCoords(1, 110, 0),
                               WithPointerCount(2u), WithToolType(ToolType::FINGER),
-                              WithDisplayId(ADISPLAY_ID_DEFAULT)))));
+                              WithDisplayId(ui::LogicalDisplayId::DEFAULT)))));
 
     Gesture endGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /* dz= */ 1,
                        GESTURES_ZOOM_END);
@@ -922,14 +928,15 @@ TEST_F(GestureConverterTest, Pinch_Outwards) {
                                           WithCoords(0, 0),
                                           WithMotionClassification(MotionClassification::NONE)))));
     ASSERT_THAT(args,
-                Each(VariantWith<NotifyMotionArgs>(AllOf(WithToolType(ToolType::FINGER),
-                                                         WithDisplayId(ui::ADISPLAY_ID_DEFAULT)))));
+                Each(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithToolType(ToolType::FINGER),
+                              WithDisplayId(ui::LogicalDisplayId::DEFAULT)))));
 }
 
 TEST_F(GestureConverterTest, Pinch_ClearsClassificationAfterGesture) {
     InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
     GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
-    converter.setDisplayId(ui::ADISPLAY_ID_DEFAULT);
+    converter.setDisplayId(ui::LogicalDisplayId::DEFAULT);
 
     Gesture startGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /*dz=*/1,
                          GESTURES_ZOOM_START);
@@ -954,7 +961,7 @@ TEST_F(GestureConverterTest, Pinch_ClearsClassificationAfterGesture) {
 TEST_F(GestureConverterTest, Pinch_ClearsScaleFactorAfterGesture) {
     InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
     GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
-    converter.setDisplayId(ui::ADISPLAY_ID_DEFAULT);
+    converter.setDisplayId(ui::LogicalDisplayId::DEFAULT);
 
     Gesture startGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /*dz=*/1,
                          GESTURES_ZOOM_START);
@@ -981,7 +988,7 @@ TEST_F(GestureConverterTest, Pinch_ClearsScaleFactorAfterGesture) {
 TEST_F(GestureConverterTest, ResetWithButtonPressed) {
     InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
     GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
-    converter.setDisplayId(ui::ADISPLAY_ID_DEFAULT);
+    converter.setDisplayId(ui::LogicalDisplayId::DEFAULT);
 
     Gesture downGesture(kGestureButtonsChange, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                         /*down=*/GESTURES_BUTTON_LEFT | GESTURES_BUTTON_RIGHT,
@@ -1005,15 +1012,15 @@ TEST_F(GestureConverterTest, ResetWithButtonPressed) {
                                     AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER),
                                           WithButtonState(0)))));
     ASSERT_THAT(args,
-                Each(VariantWith<NotifyMotionArgs>(AllOf(WithCoords(0, 0),
-                                                         WithToolType(ToolType::FINGER),
-                                                         WithDisplayId(ui::ADISPLAY_ID_DEFAULT)))));
+                Each(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithCoords(0, 0), WithToolType(ToolType::FINGER),
+                              WithDisplayId(ui::LogicalDisplayId::DEFAULT)))));
 }
 
 TEST_F(GestureConverterTest, ResetDuringScroll) {
     InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
     GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
-    converter.setDisplayId(ui::ADISPLAY_ID_DEFAULT);
+    converter.setDisplayId(ui::LogicalDisplayId::DEFAULT);
 
     Gesture startGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, -10);
     (void)converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, startGesture);
@@ -1032,14 +1039,15 @@ TEST_F(GestureConverterTest, ResetDuringScroll) {
                                           WithCoords(0, 0),
                                           WithMotionClassification(MotionClassification::NONE)))));
     ASSERT_THAT(args,
-                Each(VariantWith<NotifyMotionArgs>(AllOf(WithToolType(ToolType::FINGER),
-                                                         WithDisplayId(ui::ADISPLAY_ID_DEFAULT)))));
+                Each(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithToolType(ToolType::FINGER),
+                              WithDisplayId(ui::LogicalDisplayId::DEFAULT)))));
 }
 
 TEST_F(GestureConverterTest, ResetDuringThreeFingerSwipe) {
     InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
     GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
-    converter.setDisplayId(ui::ADISPLAY_ID_DEFAULT);
+    converter.setDisplayId(ui::LogicalDisplayId::DEFAULT);
 
     Gesture startGesture(kGestureSwipe, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /*dx=*/0,
                          /*dy=*/10);
@@ -1073,14 +1081,15 @@ TEST_F(GestureConverterTest, ResetDuringThreeFingerSwipe) {
                                     AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER),
                                           WithMotionClassification(MotionClassification::NONE)))));
     ASSERT_THAT(args,
-                Each(VariantWith<NotifyMotionArgs>(AllOf(WithToolType(ToolType::FINGER),
-                                                         WithDisplayId(ui::ADISPLAY_ID_DEFAULT)))));
+                Each(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithToolType(ToolType::FINGER),
+                              WithDisplayId(ui::LogicalDisplayId::DEFAULT)))));
 }
 
 TEST_F(GestureConverterTest, ResetDuringPinch) {
     InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
     GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
-    converter.setDisplayId(ui::ADISPLAY_ID_DEFAULT);
+    converter.setDisplayId(ui::LogicalDisplayId::DEFAULT);
 
     Gesture startGesture(kGesturePinch, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /*dz=*/1,
                          GESTURES_ZOOM_START);
@@ -1105,14 +1114,15 @@ TEST_F(GestureConverterTest, ResetDuringPinch) {
                                           WithCoords(0, 0),
                                           WithMotionClassification(MotionClassification::NONE)))));
     ASSERT_THAT(args,
-                Each(VariantWith<NotifyMotionArgs>(AllOf(WithToolType(ToolType::FINGER),
-                                                         WithDisplayId(ui::ADISPLAY_ID_DEFAULT)))));
+                Each(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithToolType(ToolType::FINGER),
+                              WithDisplayId(ui::LogicalDisplayId::DEFAULT)))));
 }
 
 TEST_F(GestureConverterTest, FlingTapDown) {
     InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
     GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
-    converter.setDisplayId(ui::ADISPLAY_ID_DEFAULT);
+    converter.setDisplayId(ui::LogicalDisplayId::DEFAULT);
 
     Gesture tapDownGesture(kGestureFling, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                            /*vx=*/0.f, /*vy=*/0.f, GESTURES_FLING_TAP_DOWN);
@@ -1122,14 +1132,15 @@ TEST_F(GestureConverterTest, FlingTapDown) {
     ASSERT_THAT(std::get<NotifyMotionArgs>(args.front()),
                 AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER), WithCoords(0, 0),
                       WithRelativeMotion(0.f, 0.f), WithToolType(ToolType::FINGER),
-                      WithButtonState(0), WithPressure(0.0f), WithDisplayId(ADISPLAY_ID_DEFAULT)));
+                      WithButtonState(0), WithPressure(0.0f),
+                      WithDisplayId(ui::LogicalDisplayId::DEFAULT)));
 }
 
 TEST_F(GestureConverterTest, FlingTapDownAfterScrollStopsFling) {
     InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
     input_flags::enable_touchpad_fling_stop(true);
     GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
-    converter.setDisplayId(ui::ADISPLAY_ID_DEFAULT);
+    converter.setDisplayId(ui::LogicalDisplayId::DEFAULT);
 
     Gesture scrollGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, -10);
     std::list<NotifyArgs> args =
@@ -1153,7 +1164,7 @@ TEST_F(GestureConverterTest, FlingTapDownAfterScrollStopsFling) {
     ASSERT_THAT(args,
                 Each(VariantWith<NotifyMotionArgs>(
                         AllOf(WithCoords(0, 0), WithToolType(ToolType::FINGER),
-                              WithDisplayId(ADISPLAY_ID_DEFAULT),
+                              WithDisplayId(ui::LogicalDisplayId::DEFAULT),
                               WithMotionClassification(MotionClassification::TWO_FINGER_SWIPE)))));
 }
 
@@ -1161,7 +1172,7 @@ TEST_F(GestureConverterTest, Tap) {
     // Tap should produce button press/release events
     InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
     GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
-    converter.setDisplayId(ui::ADISPLAY_ID_DEFAULT);
+    converter.setDisplayId(ui::LogicalDisplayId::DEFAULT);
 
     Gesture flingGesture(kGestureFling, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /* vx= */ 0,
                          /* vy= */ 0, GESTURES_FLING_TAP_DOWN);
@@ -1198,17 +1209,17 @@ TEST_F(GestureConverterTest, Tap) {
                                     AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER),
                                           WithButtonState(0), WithPressure(0.0f)))));
     ASSERT_THAT(args,
-                Each(VariantWith<NotifyMotionArgs>(AllOf(WithCoords(0, 0),
-                                                         WithRelativeMotion(0.f, 0.f),
-                                                         WithToolType(ToolType::FINGER),
-                                                         WithDisplayId(ui::ADISPLAY_ID_DEFAULT)))));
+                Each(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithCoords(0, 0), WithRelativeMotion(0.f, 0.f),
+                              WithToolType(ToolType::FINGER),
+                              WithDisplayId(ui::LogicalDisplayId::DEFAULT)))));
 }
 
 TEST_F(GestureConverterTest, Click) {
     // Click should produce button press/release events
     InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
     GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
-    converter.setDisplayId(ui::ADISPLAY_ID_DEFAULT);
+    converter.setDisplayId(ui::LogicalDisplayId::DEFAULT);
 
     Gesture flingGesture(kGestureFling, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /* vx= */ 0,
                          /* vy= */ 0, GESTURES_FLING_TAP_DOWN);
@@ -1235,10 +1246,10 @@ TEST_F(GestureConverterTest, Click) {
                                           WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY),
                                           WithPressure(1.0f)))));
     ASSERT_THAT(args,
-                Each(VariantWith<NotifyMotionArgs>(AllOf(WithCoords(0, 0),
-                                                         WithRelativeMotion(0.f, 0.f),
-                                                         WithToolType(ToolType::FINGER),
-                                                         WithDisplayId(ui::ADISPLAY_ID_DEFAULT)))));
+                Each(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithCoords(0, 0), WithRelativeMotion(0.f, 0.f),
+                              WithToolType(ToolType::FINGER),
+                              WithDisplayId(ui::LogicalDisplayId::DEFAULT)))));
 
     Gesture buttonUpGesture(kGestureButtonsChange, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                             /* down= */ GESTURES_BUTTON_NONE,
@@ -1257,10 +1268,10 @@ TEST_F(GestureConverterTest, Click) {
                                     AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER),
                                           WithPressure(0.0f)))));
     ASSERT_THAT(args,
-                Each(VariantWith<NotifyMotionArgs>(AllOf(WithButtonState(0), WithCoords(0, 0),
-                                                         WithRelativeMotion(0.f, 0.f),
-                                                         WithToolType(ToolType::FINGER),
-                                                         WithDisplayId(ADISPLAY_ID_DEFAULT)))));
+                Each(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithButtonState(0), WithCoords(0, 0), WithRelativeMotion(0.f, 0.f),
+                              WithToolType(ToolType::FINGER),
+                              WithDisplayId(ui::LogicalDisplayId::DEFAULT)))));
 }
 
 TEST_F_WITH_FLAGS(GestureConverterTest, TapWithTapToClickDisabled,
@@ -1273,7 +1284,7 @@ TEST_F_WITH_FLAGS(GestureConverterTest, TapWithTapToClickDisabled,
 
     InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
     GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
-    converter.setDisplayId(ui::ADISPLAY_ID_DEFAULT);
+    converter.setDisplayId(ui::LogicalDisplayId::DEFAULT);
 
     Gesture flingGesture(kGestureFling, currentTime, currentTime, /* vx= */ 0,
                          /* vy= */ 0, GESTURES_FLING_TAP_DOWN);
@@ -1302,7 +1313,7 @@ TEST_F_WITH_FLAGS(GestureConverterTest, TapWithTapToClickDisabledWithDelay,
 
     InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
     GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
-    converter.setDisplayId(ui::ADISPLAY_ID_DEFAULT);
+    converter.setDisplayId(ui::LogicalDisplayId::DEFAULT);
 
     Gesture flingGesture(kGestureFling, currentTime, currentTime, /* vx= */ 0,
                          /* vy= */ 0, GESTURES_FLING_TAP_DOWN);
@@ -1384,7 +1395,7 @@ TEST_F_WITH_FLAGS(GestureConverterTest, ClickWithTapToClickDisabled,
 
     InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
     GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
-    converter.setDisplayId(ui::ADISPLAY_ID_DEFAULT);
+    converter.setDisplayId(ui::LogicalDisplayId::DEFAULT);
 
     Gesture flingGesture(kGestureFling, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, /* vx= */ 0,
                          /* vy= */ 0, GESTURES_FLING_TAP_DOWN);
@@ -1411,10 +1422,10 @@ TEST_F_WITH_FLAGS(GestureConverterTest, ClickWithTapToClickDisabled,
                                           WithButtonState(AMOTION_EVENT_BUTTON_PRIMARY),
                                           WithPressure(1.0f)))));
     ASSERT_THAT(args,
-                Each(VariantWith<NotifyMotionArgs>(AllOf(WithCoords(0, 0),
-                                                         WithRelativeMotion(0.f, 0.f),
-                                                         WithToolType(ToolType::FINGER),
-                                                         WithDisplayId(ui::ADISPLAY_ID_DEFAULT)))));
+                Each(VariantWith<NotifyMotionArgs>(
+                        AllOf(WithCoords(0, 0), WithRelativeMotion(0.f, 0.f),
+                              WithToolType(ToolType::FINGER),
+                              WithDisplayId(ui::LogicalDisplayId::DEFAULT)))));
 
     Gesture buttonUpGesture(kGestureButtonsChange, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME,
                             /* down= */ GESTURES_BUTTON_NONE,
@@ -1428,18 +1439,20 @@ TEST_F_WITH_FLAGS(GestureConverterTest, ClickWithTapToClickDisabled,
                                           WithButtonState(0), WithCoords(0, 0),
                                           WithRelativeMotion(0.f, 0.f),
                                           WithToolType(ToolType::FINGER), WithButtonState(0),
-                                          WithPressure(1.0f), WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                                          WithPressure(1.0f),
+                                          WithDisplayId(ui::LogicalDisplayId::DEFAULT))),
                             VariantWith<NotifyMotionArgs>(
                                     AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
                                           WithCoords(0, 0), WithRelativeMotion(0.f, 0.f),
                                           WithToolType(ToolType::FINGER), WithButtonState(0),
-                                          WithPressure(0.0f), WithDisplayId(ADISPLAY_ID_DEFAULT))),
+                                          WithPressure(0.0f),
+                                          WithDisplayId(ui::LogicalDisplayId::DEFAULT))),
                             VariantWith<NotifyMotionArgs>(
                                     AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_ENTER),
                                           WithCoords(0, 0), WithRelativeMotion(0, 0),
                                           WithToolType(ToolType::FINGER), WithButtonState(0),
                                           WithPressure(0.0f),
-                                          WithDisplayId(ADISPLAY_ID_DEFAULT)))));
+                                          WithDisplayId(ui::LogicalDisplayId::DEFAULT)))));
 
     // Future taps should be re-enabled
     ASSERT_FALSE(mReader->getContext()->isPreventingTouchpadTaps());
@@ -1452,7 +1465,7 @@ TEST_F_WITH_FLAGS(GestureConverterTest, MoveEnablesTapToClick,
 
     InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
     GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
-    converter.setDisplayId(ui::ADISPLAY_ID_DEFAULT);
+    converter.setDisplayId(ui::LogicalDisplayId::DEFAULT);
 
     Gesture moveGesture(kGestureMove, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, -5, 10);
     std::list<NotifyArgs> args =
@@ -1468,7 +1481,7 @@ TEST_F_WITH_FLAGS(GestureConverterTest, KeypressCancelsHoverMove,
     const nsecs_t gestureStartTime = 1000;
     InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
     GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
-    converter.setDisplayId(ui::ADISPLAY_ID_DEFAULT);
+    converter.setDisplayId(ui::LogicalDisplayId::DEFAULT);
 
     // Start a move gesture at gestureStartTime
     Gesture moveGesture(kGestureMove, gestureStartTime, gestureStartTime, -5, 10);

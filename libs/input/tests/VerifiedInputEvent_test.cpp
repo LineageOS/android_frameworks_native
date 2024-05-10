@@ -23,7 +23,7 @@ namespace android {
 static KeyEvent getKeyEventWithFlags(int32_t flags) {
     KeyEvent event;
     event.initialize(InputEvent::nextId(), /*deviceId=*/2, AINPUT_SOURCE_GAMEPAD,
-                     ui::ADISPLAY_ID_DEFAULT, INVALID_HMAC, AKEY_EVENT_ACTION_DOWN, flags,
+                     ui::LogicalDisplayId::DEFAULT, INVALID_HMAC, AKEY_EVENT_ACTION_DOWN, flags,
                      AKEYCODE_BUTTON_X, /*scanCode=*/121, AMETA_ALT_ON, /*repeatCount=*/1,
                      /*downTime=*/1000, /*eventTime=*/2000);
     return event;
@@ -44,7 +44,7 @@ static MotionEvent getMotionEventWithFlags(int32_t flags) {
     transform.set({2, 0, 4, 0, 3, 5, 0, 0, 1});
     ui::Transform identity;
     event.initialize(InputEvent::nextId(), /*deviceId=*/0, AINPUT_SOURCE_MOUSE,
-                     ui::ADISPLAY_ID_DEFAULT, INVALID_HMAC, AMOTION_EVENT_ACTION_DOWN,
+                     ui::LogicalDisplayId::DEFAULT, INVALID_HMAC, AMOTION_EVENT_ACTION_DOWN,
                      /*actionButton=*/0, flags, AMOTION_EVENT_EDGE_FLAG_NONE, AMETA_NONE,
                      /*buttonState=*/0, MotionClassification::NONE, transform, /*xPrecision=*/0.1,
                      /*yPrecision=*/0.2,

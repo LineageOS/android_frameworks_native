@@ -261,22 +261,24 @@ public:
     }
 
     inline void consumeMotionCancel(
-            ui::LogicalDisplayId expectedDisplayId = ui::ADISPLAY_ID_DEFAULT,
+            ui::LogicalDisplayId expectedDisplayId = ui::LogicalDisplayId::DEFAULT,
             int32_t expectedFlags = 0) {
         consumeMotionEvent(testing::AllOf(WithMotionAction(AMOTION_EVENT_ACTION_CANCEL),
                                           WithDisplayId(expectedDisplayId),
                                           WithFlags(expectedFlags | AMOTION_EVENT_FLAG_CANCELED)));
     }
 
-    inline void consumeMotionMove(ui::LogicalDisplayId expectedDisplayId = ui::ADISPLAY_ID_DEFAULT,
-                                  int32_t expectedFlags = 0) {
+    inline void consumeMotionMove(
+            ui::LogicalDisplayId expectedDisplayId = ui::LogicalDisplayId::DEFAULT,
+            int32_t expectedFlags = 0) {
         consumeMotionEvent(testing::AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
                                           WithDisplayId(expectedDisplayId),
                                           WithFlags(expectedFlags)));
     }
 
-    inline void consumeMotionDown(ui::LogicalDisplayId expectedDisplayId = ui::ADISPLAY_ID_DEFAULT,
-                                  int32_t expectedFlags = 0) {
+    inline void consumeMotionDown(
+            ui::LogicalDisplayId expectedDisplayId = ui::LogicalDisplayId::DEFAULT,
+            int32_t expectedFlags = 0) {
         consumeAnyMotionDown(expectedDisplayId, expectedFlags);
     }
 
@@ -292,7 +294,8 @@ public:
     }
 
     inline void consumeMotionPointerDown(
-            int32_t pointerIdx, ui::LogicalDisplayId expectedDisplayId = ui::ADISPLAY_ID_DEFAULT,
+            int32_t pointerIdx,
+            ui::LogicalDisplayId expectedDisplayId = ui::LogicalDisplayId::DEFAULT,
             int32_t expectedFlags = 0) {
         const int32_t action = AMOTION_EVENT_ACTION_POINTER_DOWN |
                 (pointerIdx << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
@@ -302,7 +305,8 @@ public:
     }
 
     inline void consumeMotionPointerUp(
-            int32_t pointerIdx, ui::LogicalDisplayId expectedDisplayId = ui::ADISPLAY_ID_DEFAULT,
+            int32_t pointerIdx,
+            ui::LogicalDisplayId expectedDisplayId = ui::LogicalDisplayId::DEFAULT,
             int32_t expectedFlags = 0) {
         const int32_t action = AMOTION_EVENT_ACTION_POINTER_UP |
                 (pointerIdx << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
@@ -311,15 +315,16 @@ public:
                                           WithFlags(expectedFlags)));
     }
 
-    inline void consumeMotionUp(ui::LogicalDisplayId expectedDisplayId = ui::ADISPLAY_ID_DEFAULT,
-                                int32_t expectedFlags = 0) {
+    inline void consumeMotionUp(
+            ui::LogicalDisplayId expectedDisplayId = ui::LogicalDisplayId::DEFAULT,
+            int32_t expectedFlags = 0) {
         consumeMotionEvent(testing::AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
                                           WithDisplayId(expectedDisplayId),
                                           WithFlags(expectedFlags)));
     }
 
     inline void consumeMotionOutside(
-            ui::LogicalDisplayId expectedDisplayId = ui::ADISPLAY_ID_DEFAULT,
+            ui::LogicalDisplayId expectedDisplayId = ui::LogicalDisplayId::DEFAULT,
             int32_t expectedFlags = 0) {
         consumeMotionEvent(testing::AllOf(WithMotionAction(AMOTION_EVENT_ACTION_OUTSIDE),
                                           WithDisplayId(expectedDisplayId),

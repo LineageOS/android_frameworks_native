@@ -61,7 +61,7 @@ struct NotifyKeyArgs {
 
     int32_t deviceId;
     uint32_t source;
-    ui::LogicalDisplayId displayId{ui::ADISPLAY_ID_NONE};
+    ui::LogicalDisplayId displayId{ui::LogicalDisplayId::INVALID};
     uint32_t policyFlags;
     int32_t action;
     int32_t flags;
@@ -91,7 +91,7 @@ struct NotifyMotionArgs {
 
     int32_t deviceId;
     uint32_t source;
-    ui::LogicalDisplayId displayId{ui::ADISPLAY_ID_NONE};
+    ui::LogicalDisplayId displayId{ui::LogicalDisplayId::INVALID};
     uint32_t policyFlags;
     int32_t action;
     int32_t actionButton;

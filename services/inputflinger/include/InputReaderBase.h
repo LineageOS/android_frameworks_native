@@ -243,7 +243,7 @@ struct InputReaderConfiguration {
 
     InputReaderConfiguration()
           : virtualKeyQuietTime(0),
-            defaultPointerDisplayId(ui::ADISPLAY_ID_DEFAULT),
+            defaultPointerDisplayId(ui::LogicalDisplayId::DEFAULT),
             mousePointerSpeed(0),
             displaysWithMousePointerAccelerationDisabled(),
             pointerVelocityControlParameters(1.0f, 500.0f, 3000.0f,
@@ -472,7 +472,7 @@ public:
      * be used as the range of possible values for pointing devices, like mice and touchpads.
      */
     virtual std::optional<DisplayViewport> getPointerViewportForAssociatedDisplay(
-            ui::LogicalDisplayId associatedDisplayId = ui::ADISPLAY_ID_NONE) = 0;
+            ui::LogicalDisplayId associatedDisplayId = ui::LogicalDisplayId::INVALID) = 0;
 };
 
 } // namespace android

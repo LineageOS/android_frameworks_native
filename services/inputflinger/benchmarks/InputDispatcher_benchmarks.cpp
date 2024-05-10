@@ -37,7 +37,7 @@ namespace {
 constexpr DeviceId DEVICE_ID = 1;
 
 // An arbitrary display id
-constexpr ui::LogicalDisplayId DISPLAY_ID = ui::ADISPLAY_ID_DEFAULT;
+constexpr ui::LogicalDisplayId DISPLAY_ID = ui::LogicalDisplayId::DEFAULT;
 
 static constexpr std::chrono::duration INJECT_EVENT_TIMEOUT = 5s;
 
@@ -62,7 +62,7 @@ static MotionEvent generateMotionEvent() {
     ui::Transform identityTransform;
     MotionEvent event;
     event.initialize(IInputConstants::INVALID_INPUT_EVENT_ID, DEVICE_ID, AINPUT_SOURCE_TOUCHSCREEN,
-                     ui::ADISPLAY_ID_DEFAULT, INVALID_HMAC, AMOTION_EVENT_ACTION_DOWN,
+                     ui::LogicalDisplayId::DEFAULT, INVALID_HMAC, AMOTION_EVENT_ACTION_DOWN,
                      /* actionButton */ 0, /* flags */ 0,
                      /* edgeFlags */ 0, AMETA_NONE, /* buttonState */ 0, MotionClassification::NONE,
                      identityTransform, /* xPrecision */ 0,
@@ -88,7 +88,7 @@ static NotifyMotionArgs generateMotionArgs() {
     const nsecs_t currentTime = now();
     // Define a valid motion event.
     NotifyMotionArgs args(IInputConstants::INVALID_INPUT_EVENT_ID, currentTime, currentTime,
-                          DEVICE_ID, AINPUT_SOURCE_TOUCHSCREEN, ui::ADISPLAY_ID_DEFAULT,
+                          DEVICE_ID, AINPUT_SOURCE_TOUCHSCREEN, ui::LogicalDisplayId::DEFAULT,
                           POLICY_FLAG_PASS_TO_USER, AMOTION_EVENT_ACTION_DOWN,
                           /* actionButton */ 0, /* flags */ 0, AMETA_NONE, /* buttonState */ 0,
                           MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE, 1,

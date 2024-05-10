@@ -234,7 +234,7 @@ struct WindowInfo : public Parcelable {
     Uid ownerUid = Uid::INVALID;
     std::string packageName;
     ftl::Flags<InputConfig> inputConfig;
-    ui::LogicalDisplayId displayId = ui::ADISPLAY_ID_NONE;
+    ui::LogicalDisplayId displayId = ui::LogicalDisplayId::INVALID;
     InputApplicationInfo applicationInfo;
     bool replaceTouchableRegionWithCrop = false;
     wp<IBinder> touchableRegionCropHandle;

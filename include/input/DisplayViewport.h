@@ -46,7 +46,7 @@ enum class ViewportType : int32_t {
  * See com.android.server.display.DisplayViewport.
  */
 struct DisplayViewport {
-    ui::LogicalDisplayId displayId; // ADISPLAY_ID_NONE if invalid
+    ui::LogicalDisplayId displayId;
     ui::Rotation orientation;
     int32_t logicalLeft;
     int32_t logicalTop;
@@ -66,7 +66,7 @@ struct DisplayViewport {
     ViewportType type;
 
     DisplayViewport()
-          : displayId(ui::ADISPLAY_ID_NONE),
+          : displayId(ui::LogicalDisplayId::INVALID),
             orientation(ui::ROTATION_0),
             logicalLeft(0),
             logicalTop(0),
@@ -101,7 +101,7 @@ struct DisplayViewport {
     inline bool isValid() const { return displayId.isValid(); }
 
     void setNonDisplayViewport(int32_t width, int32_t height) {
-        displayId = ui::ADISPLAY_ID_NONE;
+        displayId = ui::LogicalDisplayId::INVALID;
         orientation = ui::ROTATION_0;
         logicalLeft = 0;
         logicalTop = 0;
