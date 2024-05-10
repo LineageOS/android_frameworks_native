@@ -289,6 +289,10 @@ cc_library {
                 "motion_predictor_model_prebuilt",
                 "motion_predictor_model_config",
             ],
+            static_libs: [
+                "libstatslog_libinput",
+                "libstatssocket_lazy",
+            ],
         },
         host: {
             include_dirs: [
@@ -297,6 +301,46 @@ cc_library {
             ],
         },
     },
+}
+
+cc_library_static {
+    name: "libstatslog_libinput",
+    generated_sources: ["statslog_libinput.cpp"],
+    generated_headers: ["statslog_libinput.h"],
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
+    export_generated_headers: ["statslog_libinput.h"],
+    shared_libs: [
+        "libcutils",
+        "liblog",
+        "libutils",
+    ],
+    static_libs: [
+        "libstatssocket_lazy",
+    ],
+}
+
+genrule {
+    name: "statslog_libinput.h",
+    tools: ["stats-log-api-gen"],
+    cmd: "$(location stats-log-api-gen) --header $(genDir)/statslog_libinput.h " +
+        "--module libinput --namespace android,libinput",
+    out: [
+        "statslog_libinput.h",
+    ],
+}
+
+genrule {
+    name: "statslog_libinput.cpp",
+    tools: ["stats-log-api-gen"],
+    cmd: "$(location stats-log-api-gen) --cpp $(genDir)/statslog_libinput.cpp " +
+        "--module libinput --namespace android,libinput " +
+        "--importHeader statslog_libinput.h",
+    out: [
+        "statslog_libinput.cpp",
+    ],
 }
 
 cc_defaults {
