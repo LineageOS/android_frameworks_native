@@ -718,8 +718,16 @@ binder_status_t AIBinder_getExtension(AIBinder* binder, AIBinder** outExt) __INT
  *     When registering the interface, add:
  *         std::shared_ptr<MyFoo> foo = new MyFoo; // class in AOSP codebase
  *         std::shared_ptr<MyBar> bar = new MyBar; // custom extension class
- *         ... = AIBinder_setExtension(foo->asBinder().get(), bar->asBinder().get());
+ *         SpAIBinder binder = foo->asBinder(); // target binder to extend
+ *         ... = AIBinder_setExtension(binder.get(), bar->asBinder().get());
+ *         ... = AServiceManager_addService(binder.get(), instanceName);
  *         // handle error
+ *
+ *         Do not use foo->asBinder().get() as the target binder argument to
+ *         AIBinder_setExtensions because asBinder it creates a new binder
+ *         object that will be destroyed after the function is called. The same
+ *         binder object must be used for AIBinder_setExtension and
+ *         AServiceManager_addService to register the service with an extension.
  *
  *     Then, clients of IFoo can get this extension:
  *         SpAIBinder binder = ...;
