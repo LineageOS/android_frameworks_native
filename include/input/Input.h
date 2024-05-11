@@ -41,13 +41,11 @@
  * Additional private constants not defined in ndk/ui/input.h.
  */
 enum {
-#ifdef __linux__
+
     /* This event was generated or modified by accessibility service. */
     AKEY_EVENT_FLAG_IS_ACCESSIBILITY_EVENT =
             android::os::IInputConstants::INPUT_EVENT_FLAG_IS_ACCESSIBILITY_EVENT,
-#else
-    AKEY_EVENT_FLAG_IS_ACCESSIBILITY_EVENT = 0x800,
-#endif
+
     /* Signifies that the key is being predispatched */
     AKEY_EVENT_FLAG_PREDISPATCH = 0x20000000,
 
@@ -90,15 +88,11 @@ enum {
     AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE =
             android::os::IInputConstants::MOTION_EVENT_FLAG_NO_FOCUS_CHANGE,
 
-#if defined(__linux__)
     /**
      * This event was generated or modified by accessibility service.
      */
     AMOTION_EVENT_FLAG_IS_ACCESSIBILITY_EVENT =
             android::os::IInputConstants::INPUT_EVENT_FLAG_IS_ACCESSIBILITY_EVENT,
-#else
-    AMOTION_EVENT_FLAG_IS_ACCESSIBILITY_EVENT = 0x800,
-#endif
 
     AMOTION_EVENT_FLAG_TARGET_ACCESSIBILITY_FOCUS =
             android::os::IInputConstants::MOTION_EVENT_FLAG_TARGET_ACCESSIBILITY_FOCUS,
@@ -204,9 +198,7 @@ struct AInputDevice {
 
 namespace android {
 
-#ifdef __linux__
 class Parcel;
-#endif
 
 /*
  * Apply the given transform to the point without applying any translation/offset.
@@ -312,12 +304,8 @@ enum {
 
     POLICY_FLAG_RAW_MASK = 0x0000ffff,
 
-#ifdef __linux__
     POLICY_FLAG_INJECTED_FROM_ACCESSIBILITY =
             android::os::IInputConstants::POLICY_FLAG_INJECTED_FROM_ACCESSIBILITY,
-#else
-    POLICY_FLAG_INJECTED_FROM_ACCESSIBILITY = 0x20000,
-#endif
 
     /* These flags are set by the input dispatcher. */
 
@@ -486,10 +474,8 @@ struct PointerCoords {
 
     vec2 getXYValue() const { return vec2(getX(), getY()); }
 
-#ifdef __linux__
     status_t readFromParcel(Parcel* parcel);
     status_t writeToParcel(Parcel* parcel) const;
-#endif
 
     bool operator==(const PointerCoords& other) const;
     inline bool operator!=(const PointerCoords& other) const {
@@ -912,10 +898,8 @@ public:
     // Matrix is in row-major form and compatible with SkMatrix.
     void applyTransform(const std::array<float, 9>& matrix);
 
-#ifdef __linux__
     status_t readFromParcel(Parcel* parcel);
     status_t writeToParcel(Parcel* parcel) const;
-#endif
 
     static bool isTouchEvent(uint32_t source, int32_t action);
     inline bool isTouchEvent() const {
