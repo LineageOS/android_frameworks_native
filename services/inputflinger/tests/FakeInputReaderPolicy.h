@@ -48,7 +48,7 @@ public:
     std::optional<DisplayViewport> getDisplayViewportByType(ViewportType type) const;
     std::optional<DisplayViewport> getDisplayViewportByPort(uint8_t displayPort) const;
     void addDisplayViewport(DisplayViewport viewport);
-    void addDisplayViewport(int32_t displayId, int32_t width, int32_t height,
+    void addDisplayViewport(ui::LogicalDisplayId displayId, int32_t width, int32_t height,
                             ui::Rotation orientation, bool isActive, const std::string& uniqueId,
                             std::optional<uint8_t> physicalPort, ViewportType type);
     bool updateViewport(const DisplayViewport& viewport);
@@ -67,7 +67,7 @@ public:
                                                            ui::Rotation surfaceRotation);
     void setTouchAffineTransformation(const TouchAffineTransformation t);
     PointerCaptureRequest setPointerCapture(const sp<IBinder>& window);
-    void setDefaultPointerDisplayId(int32_t pointerDisplayId);
+    void setDefaultPointerDisplayId(ui::LogicalDisplayId pointerDisplayId);
     void setPointerGestureEnabled(bool enabled);
     float getPointerGestureMovementSpeedRatio();
     float getPointerGestureZoomSpeedRatio();
@@ -77,7 +77,7 @@ public:
     void setIsInputMethodConnectionActive(bool active);
     bool isInputMethodConnectionActive() override;
     std::optional<DisplayViewport> getPointerViewportForAssociatedDisplay(
-            int32_t associatedDisplayId) override;
+            ui::LogicalDisplayId associatedDisplayId) override;
 
 private:
     void getReaderConfiguration(InputReaderConfiguration* outConfig) override;

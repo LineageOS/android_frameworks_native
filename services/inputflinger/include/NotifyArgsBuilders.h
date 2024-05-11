@@ -19,7 +19,6 @@
 #include <NotifyArgs.h>
 #include <android/input.h>
 #include <attestation/HmacKeyManager.h>
-#include <gui/constants.h>
 #include <input/Input.h>
 #include <input/InputEventBuilders.h>
 #include <utils/Timers.h> // for nsecs_t, systemTime
@@ -55,7 +54,7 @@ public:
         return *this;
     }
 
-    MotionArgsBuilder& displayId(int32_t displayId) {
+    MotionArgsBuilder& displayId(ui::LogicalDisplayId displayId) {
         mDisplayId = displayId;
         return *this;
     }
@@ -151,7 +150,7 @@ private:
     uint32_t mSource;
     nsecs_t mDownTime;
     nsecs_t mEventTime;
-    int32_t mDisplayId{ADISPLAY_ID_DEFAULT};
+    ui::LogicalDisplayId mDisplayId{ui::ADISPLAY_ID_DEFAULT};
     uint32_t mPolicyFlags = DEFAULT_POLICY_FLAGS;
     int32_t mActionButton{0};
     int32_t mButtonState{0};
@@ -187,7 +186,7 @@ public:
         return *this;
     }
 
-    KeyArgsBuilder& displayId(int32_t displayId) {
+    KeyArgsBuilder& displayId(ui::LogicalDisplayId displayId) {
         mDisplayId = displayId;
         return *this;
     }
@@ -230,7 +229,7 @@ private:
     uint32_t mSource;
     nsecs_t mDownTime;
     nsecs_t mEventTime;
-    int32_t mDisplayId{ADISPLAY_ID_DEFAULT};
+    ui::LogicalDisplayId mDisplayId{ui::ADISPLAY_ID_DEFAULT};
     uint32_t mPolicyFlags = DEFAULT_POLICY_FLAGS;
     int32_t mFlags{0};
     int32_t mKeyCode{AKEYCODE_UNKNOWN};

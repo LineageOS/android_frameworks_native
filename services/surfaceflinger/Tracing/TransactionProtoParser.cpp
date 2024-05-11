@@ -566,7 +566,7 @@ perfetto::protos::DisplayInfo TransactionProtoParser::toProto(
         const frontend::DisplayInfo& displayInfo, uint32_t layerStack) {
     perfetto::protos::DisplayInfo proto;
     proto.set_layer_stack(layerStack);
-    proto.set_display_id(displayInfo.info.displayId);
+    proto.set_display_id(displayInfo.info.displayId.val());
     proto.set_logical_width(displayInfo.info.logicalWidth);
     proto.set_logical_height(displayInfo.info.logicalHeight);
     asProto(proto.mutable_transform_inverse(), displayInfo.info.transform);
@@ -588,7 +588,7 @@ void fromProto2(ui::Transform& outTransform, const perfetto::protos::Transform& 
 frontend::DisplayInfo TransactionProtoParser::fromProto(
         const perfetto::protos::DisplayInfo& proto) {
     frontend::DisplayInfo displayInfo;
-    displayInfo.info.displayId = proto.display_id();
+    displayInfo.info.displayId = ui::LogicalDisplayId{proto.display_id()};
     displayInfo.info.logicalWidth = proto.logical_width();
     displayInfo.info.logicalHeight = proto.logical_height();
     fromProto2(displayInfo.info.transform, proto.transform_inverse());

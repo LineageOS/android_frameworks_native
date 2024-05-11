@@ -61,7 +61,7 @@ struct NotifyKeyArgs {
 
     int32_t deviceId;
     uint32_t source;
-    int32_t displayId;
+    ui::LogicalDisplayId displayId{ui::ADISPLAY_ID_NONE};
     uint32_t policyFlags;
     int32_t action;
     int32_t flags;
@@ -74,9 +74,9 @@ struct NotifyKeyArgs {
     inline NotifyKeyArgs() {}
 
     NotifyKeyArgs(int32_t id, nsecs_t eventTime, nsecs_t readTime, int32_t deviceId,
-                  uint32_t source, int32_t displayId, uint32_t policyFlags, int32_t action,
-                  int32_t flags, int32_t keyCode, int32_t scanCode, int32_t metaState,
-                  nsecs_t downTime);
+                  uint32_t source, ui::LogicalDisplayId displayId, uint32_t policyFlags,
+                  int32_t action, int32_t flags, int32_t keyCode, int32_t scanCode,
+                  int32_t metaState, nsecs_t downTime);
 
     bool operator==(const NotifyKeyArgs& rhs) const = default;
 
@@ -91,7 +91,7 @@ struct NotifyMotionArgs {
 
     int32_t deviceId;
     uint32_t source;
-    int32_t displayId;
+    ui::LogicalDisplayId displayId{ui::ADISPLAY_ID_NONE};
     uint32_t policyFlags;
     int32_t action;
     int32_t actionButton;
@@ -123,12 +123,12 @@ struct NotifyMotionArgs {
     inline NotifyMotionArgs() {}
 
     NotifyMotionArgs(int32_t id, nsecs_t eventTime, nsecs_t readTime, int32_t deviceId,
-                     uint32_t source, int32_t displayId, uint32_t policyFlags, int32_t action,
-                     int32_t actionButton, int32_t flags, int32_t metaState, int32_t buttonState,
-                     MotionClassification classification, int32_t edgeFlags, uint32_t pointerCount,
-                     const PointerProperties* pointerProperties, const PointerCoords* pointerCoords,
-                     float xPrecision, float yPrecision, float xCursorPosition,
-                     float yCursorPosition, nsecs_t downTime,
+                     uint32_t source, ui::LogicalDisplayId displayId, uint32_t policyFlags,
+                     int32_t action, int32_t actionButton, int32_t flags, int32_t metaState,
+                     int32_t buttonState, MotionClassification classification, int32_t edgeFlags,
+                     uint32_t pointerCount, const PointerProperties* pointerProperties,
+                     const PointerCoords* pointerCoords, float xPrecision, float yPrecision,
+                     float xCursorPosition, float yCursorPosition, nsecs_t downTime,
                      const std::vector<TouchVideoFrame>& videoFrames);
 
     NotifyMotionArgs(const NotifyMotionArgs& other) = default;

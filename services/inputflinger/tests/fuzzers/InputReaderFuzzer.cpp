@@ -119,7 +119,7 @@ public:
         return reader->getSensors(deviceId);
     }
 
-    bool canDispatchToDisplay(int32_t deviceId, int32_t displayId) {
+    bool canDispatchToDisplay(int32_t deviceId, ui::LogicalDisplayId displayId) {
         return reader->canDispatchToDisplay(deviceId, displayId);
     }
 
@@ -241,7 +241,8 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size) {
                 },
                 [&]() -> void {
                     reader->canDispatchToDisplay(fdp->ConsumeIntegral<int32_t>(),
-                                                 fdp->ConsumeIntegral<int32_t>());
+                                                 ui::LogicalDisplayId{
+                                                         fdp->ConsumeIntegral<int32_t>()});
                 },
                 [&]() -> void {
                     reader->getKeyCodeForKeyLocation(fdp->ConsumeIntegral<int32_t>(),

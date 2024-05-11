@@ -28,7 +28,8 @@ InputState::InputState(const IdGenerator& idGenerator) : mIdGenerator(idGenerato
 
 InputState::~InputState() {}
 
-bool InputState::isHovering(DeviceId deviceId, uint32_t source, int32_t displayId) const {
+bool InputState::isHovering(DeviceId deviceId, uint32_t source,
+                            ui::LogicalDisplayId displayId) const {
     for (const MotionMemento& memento : mMotionMementos) {
         if (memento.deviceId == deviceId && memento.source == source &&
             memento.displayId == displayId && memento.hovering) {

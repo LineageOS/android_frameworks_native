@@ -36,7 +36,7 @@ bool isPointerDown(int32_t buttonState);
 
 [[nodiscard]] std::list<NotifyArgs> synthesizeButtonKeys(
         InputReaderContext* context, int32_t action, nsecs_t when, nsecs_t readTime,
-        int32_t deviceId, uint32_t source, int32_t displayId, uint32_t policyFlags,
+        int32_t deviceId, uint32_t source, ui::LogicalDisplayId displayId, uint32_t policyFlags,
         int32_t lastButtonState, int32_t currentButtonState);
 
 // For devices connected over Bluetooth, although they may produce events at a consistent rate,

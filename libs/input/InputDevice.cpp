@@ -23,7 +23,6 @@
 #include <android-base/properties.h>
 #include <android-base/stringprintf.h>
 #include <ftl/enum.h>
-#include <gui/constants.h>
 #include <input/InputDevice.h>
 #include <input/InputEventLabels.h>
 
@@ -170,7 +169,7 @@ std::string InputDeviceIdentifier::getCanonicalName() const {
 // --- InputDeviceInfo ---
 
 InputDeviceInfo::InputDeviceInfo() {
-    initialize(-1, 0, -1, InputDeviceIdentifier(), "", false, false, ADISPLAY_ID_NONE);
+    initialize(-1, 0, -1, InputDeviceIdentifier(), "", false, false, ui::ADISPLAY_ID_NONE);
 }
 
 InputDeviceInfo::InputDeviceInfo(const InputDeviceInfo& other)
@@ -202,7 +201,8 @@ InputDeviceInfo::~InputDeviceInfo() {
 
 void InputDeviceInfo::initialize(int32_t id, int32_t generation, int32_t controllerNumber,
                                  const InputDeviceIdentifier& identifier, const std::string& alias,
-                                 bool isExternal, bool hasMic, int32_t associatedDisplayId,
+                                 bool isExternal, bool hasMic,
+                                 ui::LogicalDisplayId associatedDisplayId,
                                  InputDeviceViewBehavior viewBehavior, bool enabled) {
     mId = id;
     mGeneration = generation;

@@ -47,7 +47,7 @@ void AndroidInputEventProtoConverter::toProtoMotionEvent(const TracedMotionEvent
     outProto.set_source(event.source);
     outProto.set_action(event.action);
     outProto.set_device_id(event.deviceId);
-    outProto.set_display_id(event.displayId);
+    outProto.set_display_id(event.displayId.val());
     outProto.set_classification(static_cast<int32_t>(event.classification));
     outProto.set_flags(event.flags);
     outProto.set_policy_flags(event.policyFlags);
@@ -88,7 +88,7 @@ void AndroidInputEventProtoConverter::toProtoKeyEvent(const TracedKeyEvent& even
     outProto.set_source(event.source);
     outProto.set_action(event.action);
     outProto.set_device_id(event.deviceId);
-    outProto.set_display_id(event.displayId);
+    outProto.set_display_id(event.displayId.val());
     outProto.set_repeat_count(event.repeatCount);
     outProto.set_flags(event.flags);
     outProto.set_policy_flags(event.policyFlags);

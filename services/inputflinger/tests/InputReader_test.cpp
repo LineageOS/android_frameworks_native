@@ -40,7 +40,6 @@
 #include <com_android_input_flags.h>
 #include <ftl/enum.h>
 #include <gtest/gtest.h>
-#include <gui/constants.h>
 #include <ui/Rotation.h>
 
 #include <thread>
@@ -60,13 +59,14 @@ using std::chrono_literals::operator""ms;
 using std::chrono_literals::operator""s;
 
 // Arbitrary display properties.
-static constexpr int32_t DISPLAY_ID = 0;
+static constexpr ui::LogicalDisplayId DISPLAY_ID = ui::ADISPLAY_ID_DEFAULT;
 static const std::string DISPLAY_UNIQUE_ID = "local:1";
-static constexpr int32_t SECONDARY_DISPLAY_ID = DISPLAY_ID + 1;
+static constexpr ui::LogicalDisplayId SECONDARY_DISPLAY_ID =
+        ui::LogicalDisplayId{DISPLAY_ID.val() + 1};
 static const std::string SECONDARY_DISPLAY_UNIQUE_ID = "local:2";
 static constexpr int32_t DISPLAY_WIDTH = 480;
 static constexpr int32_t DISPLAY_HEIGHT = 800;
-static constexpr int32_t VIRTUAL_DISPLAY_ID = 1;
+static constexpr ui::LogicalDisplayId VIRTUAL_DISPLAY_ID = ui::LogicalDisplayId{1};
 static constexpr int32_t VIRTUAL_DISPLAY_WIDTH = 400;
 static constexpr int32_t VIRTUAL_DISPLAY_HEIGHT = 500;
 static const char* VIRTUAL_DISPLAY_UNIQUE_ID = "virtual:1";
@@ -358,7 +358,7 @@ private:
     virtual void fadePointer() {
     }
 
-    virtual std::optional<int32_t> getAssociatedDisplay() {
+    virtual std::optional<ui::LogicalDisplayId> getAssociatedDisplay() {
         if (mViewport) {
             return std::make_optional(mViewport->displayId);
         }
@@ -417,8 +417,8 @@ TEST_F(InputReaderPolicyTest, Viewports_GetByType) {
     const std::string externalUniqueId = "local:1";
     const std::string virtualUniqueId1 = "virtual:2";
     const std::string virtualUniqueId2 = "virtual:3";
-    constexpr int32_t virtualDisplayId1 = 2;
-    constexpr int32_t virtualDisplayId2 = 3;
+    constexpr ui::LogicalDisplayId virtualDisplayId1 = ui::LogicalDisplayId{2};
+    constexpr ui::LogicalDisplayId virtualDisplayId2 = ui::LogicalDisplayId{3};
 
     // Add an internal viewport
     mFakePolicy->addDisplayViewport(DISPLAY_ID, DISPLAY_WIDTH, DISPLAY_HEIGHT, ui::ROTATION_0,
@@ -475,8 +475,8 @@ TEST_F(InputReaderPolicyTest, Viewports_GetByType) {
 TEST_F(InputReaderPolicyTest, Viewports_TwoOfSameType) {
     const std::string uniqueId1 = "uniqueId1";
     const std::string uniqueId2 = "uniqueId2";
-    constexpr int32_t displayId1 = 2;
-    constexpr int32_t displayId2 = 3;
+    constexpr ui::LogicalDisplayId displayId1 = ui::LogicalDisplayId{2};
+    constexpr ui::LogicalDisplayId displayId2 = ui::LogicalDisplayId{3};
 
     std::vector<ViewportType> types = {ViewportType::INTERNAL, ViewportType::EXTERNAL,
                                        ViewportType::VIRTUAL};
@@ -520,13 +520,13 @@ TEST_F(InputReaderPolicyTest, Viewports_TwoOfSameType) {
 TEST_F(InputReaderPolicyTest, Viewports_ByTypeReturnsDefaultForInternal) {
     const std::string uniqueId1 = "uniqueId1";
     const std::string uniqueId2 = "uniqueId2";
-    constexpr int32_t nonDefaultDisplayId = 2;
-    static_assert(nonDefaultDisplayId != ADISPLAY_ID_DEFAULT,
-                  "Test display ID should not be ADISPLAY_ID_DEFAULT");
+    constexpr ui::LogicalDisplayId nonDefaultDisplayId = ui::LogicalDisplayId{2};
+    ASSERT_NE(nonDefaultDisplayId, ui::ADISPLAY_ID_DEFAULT)
+            << "Test display ID should not be ui::ADISPLAY_ID_DEFAULT ";
 
     // Add the default display first and ensure it gets returned.
     mFakePolicy->clearViewports();
-    mFakePolicy->addDisplayViewport(ADISPLAY_ID_DEFAULT, DISPLAY_WIDTH, DISPLAY_HEIGHT,
+    mFakePolicy->addDisplayViewport(ui::ADISPLAY_ID_DEFAULT, DISPLAY_WIDTH, DISPLAY_HEIGHT,
                                     ui::ROTATION_0, /*isActive=*/true, uniqueId1, NO_PORT,
                                     ViewportType::INTERNAL);
     mFakePolicy->addDisplayViewport(nonDefaultDisplayId, DISPLAY_WIDTH, DISPLAY_HEIGHT,
@@ -536,7 +536,7 @@ TEST_F(InputReaderPolicyTest, Viewports_ByTypeReturnsDefaultForInternal) {
     std::optional<DisplayViewport> viewport =
             mFakePolicy->getDisplayViewportByType(ViewportType::INTERNAL);
     ASSERT_TRUE(viewport);
-    ASSERT_EQ(ADISPLAY_ID_DEFAULT, viewport->displayId);
+    ASSERT_EQ(ui::ADISPLAY_ID_DEFAULT, viewport->displayId);
     ASSERT_EQ(ViewportType::INTERNAL, viewport->type);
 
     // Add the default display second to make sure order doesn't matter.
@@ -544,13 +544,13 @@ TEST_F(InputReaderPolicyTest, Viewports_ByTypeReturnsDefaultForInternal) {
     mFakePolicy->addDisplayViewport(nonDefaultDisplayId, DISPLAY_WIDTH, DISPLAY_HEIGHT,
                                     ui::ROTATION_0, /*isActive=*/true, uniqueId2, NO_PORT,
                                     ViewportType::INTERNAL);
-    mFakePolicy->addDisplayViewport(ADISPLAY_ID_DEFAULT, DISPLAY_WIDTH, DISPLAY_HEIGHT,
+    mFakePolicy->addDisplayViewport(ui::ADISPLAY_ID_DEFAULT, DISPLAY_WIDTH, DISPLAY_HEIGHT,
                                     ui::ROTATION_0, /*isActive=*/true, uniqueId1, NO_PORT,
                                     ViewportType::INTERNAL);
 
     viewport = mFakePolicy->getDisplayViewportByType(ViewportType::INTERNAL);
     ASSERT_TRUE(viewport);
-    ASSERT_EQ(ADISPLAY_ID_DEFAULT, viewport->displayId);
+    ASSERT_EQ(ui::ADISPLAY_ID_DEFAULT, viewport->displayId);
     ASSERT_EQ(ViewportType::INTERNAL, viewport->type);
 }
 
@@ -561,8 +561,8 @@ TEST_F(InputReaderPolicyTest, Viewports_GetByPort) {
     constexpr ViewportType type = ViewportType::EXTERNAL;
     const std::string uniqueId1 = "uniqueId1";
     const std::string uniqueId2 = "uniqueId2";
-    constexpr int32_t displayId1 = 1;
-    constexpr int32_t displayId2 = 2;
+    constexpr ui::LogicalDisplayId displayId1 = ui::LogicalDisplayId{1};
+    constexpr ui::LogicalDisplayId displayId2 = ui::LogicalDisplayId{2};
     const uint8_t hdmi1 = 0;
     const uint8_t hdmi2 = 1;
     const uint8_t hdmi3 = 2;
@@ -1598,7 +1598,7 @@ protected:
         mDeviceInfo = *info;
     }
 
-    void setDisplayInfoAndReconfigure(int32_t displayId, int32_t width, int32_t height,
+    void setDisplayInfoAndReconfigure(ui::LogicalDisplayId displayId, int32_t width, int32_t height,
                                       ui::Rotation orientation, const std::string& uniqueId,
                                       std::optional<uint8_t> physicalPort,
                                       ViewportType viewportType) {
@@ -3244,7 +3244,7 @@ protected:
 
     void testDPadKeyRotation(KeyboardInputMapper& mapper, int32_t originalScanCode,
                              int32_t originalKeyCode, int32_t rotatedKeyCode,
-                             int32_t displayId = ADISPLAY_ID_NONE);
+                             ui::LogicalDisplayId displayId = ui::ADISPLAY_ID_NONE);
 };
 
 /* Similar to setDisplayInfoAndReconfigure, but pre-populates all parameters except for the
@@ -3257,7 +3257,8 @@ void KeyboardInputMapperTest::prepareDisplay(ui::Rotation orientation) {
 
 void KeyboardInputMapperTest::testDPadKeyRotation(KeyboardInputMapper& mapper,
                                                   int32_t originalScanCode, int32_t originalKeyCode,
-                                                  int32_t rotatedKeyCode, int32_t displayId) {
+                                                  int32_t rotatedKeyCode,
+                                                  ui::LogicalDisplayId displayId) {
     NotifyKeyArgs args;
 
     process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, originalScanCode, 1);
@@ -3583,14 +3584,14 @@ TEST_F(KeyboardInputMapperTest, DisplayIdConfigurationChange_NotOrientationAware
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
     process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_UP, 0);
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
-    ASSERT_EQ(ADISPLAY_ID_NONE, args.displayId);
+    ASSERT_EQ(ui::ADISPLAY_ID_NONE, args.displayId);
 
     prepareDisplay(ui::ROTATION_0);
     process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_UP, 1);
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
     process(mapper, ARBITRARY_TIME, READ_TIME, EV_KEY, KEY_UP, 0);
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
-    ASSERT_EQ(ADISPLAY_ID_NONE, args.displayId);
+    ASSERT_EQ(ui::ADISPLAY_ID_NONE, args.displayId);
 }
 
 TEST_F(KeyboardInputMapperTest, DisplayIdConfigurationChange_OrientationAware) {
@@ -3615,7 +3616,7 @@ TEST_F(KeyboardInputMapperTest, DisplayIdConfigurationChange_OrientationAware) {
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
     ASSERT_EQ(DISPLAY_ID, args.displayId);
 
-    constexpr int32_t newDisplayId = 2;
+    constexpr ui::LogicalDisplayId newDisplayId = ui::LogicalDisplayId{2};
     clearViewports();
     setDisplayInfoAndReconfigure(newDisplayId, DISPLAY_WIDTH, DISPLAY_HEIGHT, ui::ROTATION_0,
                                  UNIQUE_ID, NO_PORT, ViewportType::INTERNAL);
@@ -3830,7 +3831,7 @@ TEST_F(KeyboardInputMapperTest, Configure_AssignsDisplayPort) {
     ASSERT_FALSE(device2->isEnabled());
 
     // Prepare second display.
-    constexpr int32_t newDisplayId = 2;
+    constexpr ui::LogicalDisplayId newDisplayId = ui::LogicalDisplayId{2};
     setDisplayInfoAndReconfigure(DISPLAY_ID, DISPLAY_WIDTH, DISPLAY_HEIGHT, ui::ROTATION_0,
                                  UNIQUE_ID, hdmi1, ViewportType::INTERNAL);
     setDisplayInfoAndReconfigure(newDisplayId, DISPLAY_WIDTH, DISPLAY_HEIGHT, ui::ROTATION_0,
@@ -8674,7 +8675,7 @@ TEST_F(MultiTouchInputMapperTest, Process_Pointer_ShouldHandleDisplayId) {
 
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
     ASSERT_EQ(AMOTION_EVENT_ACTION_HOVER_MOVE, motionArgs.action);
-    ASSERT_EQ(ADISPLAY_ID_NONE, motionArgs.displayId);
+    ASSERT_EQ(ui::ADISPLAY_ID_NONE, motionArgs.displayId);
 }
 
 /**
@@ -9571,7 +9572,7 @@ TEST_F(MultiTouchInputMapperTest_ExternalDevice, Viewports_Fallback) {
     processPosition(mapper, 100, 100);
     processSync(mapper);
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
-    ASSERT_EQ(ADISPLAY_ID_DEFAULT, motionArgs.displayId);
+    ASSERT_EQ(ui::ADISPLAY_ID_DEFAULT, motionArgs.displayId);
 
     // Expect the event to be sent to the external viewport if it is present.
     prepareSecondaryDisplay(ViewportType::EXTERNAL);

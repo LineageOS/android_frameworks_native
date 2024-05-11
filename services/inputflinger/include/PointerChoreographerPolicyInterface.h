@@ -53,7 +53,8 @@ public:
      * @param displayId The updated display on which the mouse cursor is shown
      * @param position The new position of the mouse cursor on the logical display
      */
-    virtual void notifyPointerDisplayIdChanged(int32_t displayId, const FloatPoint& position) = 0;
+    virtual void notifyPointerDisplayIdChanged(ui::LogicalDisplayId displayId,
+                                               const FloatPoint& position) = 0;
 };
 
 } // namespace android

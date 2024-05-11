@@ -172,8 +172,8 @@ std::shared_ptr<InputDevice> InputMapperTest::newDevice(int32_t deviceId, const 
     return device;
 }
 
-void InputMapperTest::setDisplayInfoAndReconfigure(int32_t displayId, int32_t width, int32_t height,
-                                                   ui::Rotation orientation,
+void InputMapperTest::setDisplayInfoAndReconfigure(ui::LogicalDisplayId displayId, int32_t width,
+                                                   int32_t height, ui::Rotation orientation,
                                                    const std::string& uniqueId,
                                                    std::optional<uint8_t> physicalPort,
                                                    ViewportType viewportType) {

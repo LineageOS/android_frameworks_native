@@ -26,13 +26,12 @@
 #include <utility>
 #include <vector>
 
-#include <stdint.h>
-#include <gui/constants.h>
 #include <input/DisplayViewport.h>
 #include <input/Input.h>
 #include <input/InputDevice.h>
 #include <input/VelocityControl.h>
 #include <input/VelocityTracker.h>
+#include <stdint.h>
 #include <ui/Rect.h>
 #include <ui/Rotation.h>
 #include <ui/Size.h>
@@ -186,7 +185,7 @@ public:
     [[nodiscard]] std::list<NotifyArgs> timeoutExpired(nsecs_t when) override;
     [[nodiscard]] std::list<NotifyArgs> updateExternalStylusState(
             const StylusState& state) override;
-    std::optional<int32_t> getAssociatedDisplayId() override;
+    std::optional<ui::LogicalDisplayId> getAssociatedDisplayId() override;
 
 protected:
     CursorButtonAccumulator mCursorButtonAccumulator;
@@ -706,7 +705,7 @@ private:
 
         // Values reported for the last pointer event.
         uint32_t source;
-        int32_t displayId;
+        ui::LogicalDisplayId displayId{ui::ADISPLAY_ID_NONE};
         float lastCursorX;
         float lastCursorY;
 
@@ -719,7 +718,7 @@ private:
             hovering = false;
             downTime = 0;
             source = 0;
-            displayId = ADISPLAY_ID_NONE;
+            displayId = ui::ADISPLAY_ID_NONE;
             lastCursorX = 0.f;
             lastCursorY = 0.f;
         }
@@ -810,7 +809,8 @@ private:
 
     [[nodiscard]] std::list<NotifyArgs> dispatchPointerSimple(nsecs_t when, nsecs_t readTime,
                                                               uint32_t policyFlags, bool down,
-                                                              bool hovering, int32_t displayId);
+                                                              bool hovering,
+                                                              ui::LogicalDisplayId displayId);
     [[nodiscard]] std::list<NotifyArgs> abortPointerSimple(nsecs_t when, nsecs_t readTime,
                                                            uint32_t policyFlags);
 

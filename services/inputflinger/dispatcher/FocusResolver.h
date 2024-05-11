@@ -49,22 +49,23 @@ namespace android::inputdispatcher {
 class FocusResolver {
 public:
     // Returns the focused window token on the specified display.
-    sp<IBinder> getFocusedWindowToken(int32_t displayId) const;
+    sp<IBinder> getFocusedWindowToken(ui::LogicalDisplayId displayId) const;
 
     struct FocusChanges {
         sp<IBinder> oldFocus;
         sp<IBinder> newFocus;
-        int32_t displayId;
+        ui::LogicalDisplayId displayId;
         std::string reason;
     };
     std::optional<FocusResolver::FocusChanges> setInputWindows(
-            int32_t displayId, const std::vector<sp<android::gui::WindowInfoHandle>>& windows);
+            ui::LogicalDisplayId displayId,
+            const std::vector<sp<android::gui::WindowInfoHandle>>& windows);
     std::optional<FocusResolver::FocusChanges> setFocusedWindow(
             const android::gui::FocusRequest& request,
             const std::vector<sp<android::gui::WindowInfoHandle>>& windows);
 
     // Display has been removed from the system, clean up old references.
-    void displayRemoved(int32_t displayId);
+    void displayRemoved(ui::LogicalDisplayId displayId);
 
     // exposed for debugging
     bool hasFocusedWindowTokens() const { return !mFocusedWindowTokenByDisplay.empty(); }
@@ -105,20 +106,23 @@ private:
     // the same token. Focus is tracked by the token per display and the events are dispatched
     // to the channel associated by this token.
     typedef std::pair<std::string /* name */, sp<IBinder>> NamedToken;
-    std::unordered_map<int32_t /* displayId */, NamedToken> mFocusedWindowTokenByDisplay;
+    std::unordered_map<ui::LogicalDisplayId /* displayId */, NamedToken>
+            mFocusedWindowTokenByDisplay;
 
     // This map will store the focus request per display. When the input window handles are updated,
     // the current request will be checked to see if it can be processed at that time.
-    std::unordered_map<int32_t /* displayId */, android::gui::FocusRequest> mFocusRequestByDisplay;
+    std::unordered_map<ui::LogicalDisplayId /* displayId */, android::gui::FocusRequest>
+            mFocusRequestByDisplay;
 
     // Last reason for not granting a focus request. This is used to add more debug information
     // in the event logs.
-    std::unordered_map<int32_t /* displayId */, Focusability> mLastFocusResultByDisplay;
+    std::unordered_map<ui::LogicalDisplayId /* displayId */, Focusability>
+            mLastFocusResultByDisplay;
 
     std::optional<FocusResolver::FocusChanges> updateFocusedWindow(
-            int32_t displayId, const std::string& reason, const sp<IBinder>& token,
+            ui::LogicalDisplayId displayId, const std::string& reason, const sp<IBinder>& token,
             const std::string& tokenName = "");
-    std::optional<android::gui::FocusRequest> getFocusRequest(int32_t displayId);
+    std::optional<android::gui::FocusRequest> getFocusRequest(ui::LogicalDisplayId displayId);
 };
 
 } // namespace android::inputdispatcher

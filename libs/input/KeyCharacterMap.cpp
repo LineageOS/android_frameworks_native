@@ -28,7 +28,6 @@
 #include <input/KeyCharacterMap.h>
 #include <input/Keyboard.h>
 
-#include <gui/constants.h>
 #include <utils/Errors.h>
 #include <utils/Log.h>
 #include <utils/Timers.h>
@@ -496,11 +495,11 @@ bool KeyCharacterMap::findKey(char16_t ch, int32_t* outKeyCode, int32_t* outMeta
     return false;
 }
 
-void KeyCharacterMap::addKey(Vector<KeyEvent>& outEvents,
-        int32_t deviceId, int32_t keyCode, int32_t metaState, bool down, nsecs_t time) {
+void KeyCharacterMap::addKey(Vector<KeyEvent>& outEvents, int32_t deviceId, int32_t keyCode,
+                             int32_t metaState, bool down, nsecs_t time) {
     outEvents.push();
     KeyEvent& event = outEvents.editTop();
-    event.initialize(InputEvent::nextId(), deviceId, AINPUT_SOURCE_KEYBOARD, ADISPLAY_ID_NONE,
+    event.initialize(InputEvent::nextId(), deviceId, AINPUT_SOURCE_KEYBOARD, ui::ADISPLAY_ID_NONE,
                      INVALID_HMAC, down ? AKEY_EVENT_ACTION_DOWN : AKEY_EVENT_ACTION_UP, 0, keyCode,
                      0, metaState, 0, time, time);
 }

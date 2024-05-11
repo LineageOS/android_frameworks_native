@@ -82,9 +82,9 @@ void FakeInputReaderPolicy::addDisplayViewport(DisplayViewport viewport) {
     mConfig.setDisplayViewports(mViewports);
 }
 
-void FakeInputReaderPolicy::addDisplayViewport(int32_t displayId, int32_t width, int32_t height,
-                                               ui::Rotation orientation, bool isActive,
-                                               const std::string& uniqueId,
+void FakeInputReaderPolicy::addDisplayViewport(ui::LogicalDisplayId displayId, int32_t width,
+                                               int32_t height, ui::Rotation orientation,
+                                               bool isActive, const std::string& uniqueId,
                                                std::optional<uint8_t> physicalPort,
                                                ViewportType type) {
     const bool isRotated = orientation == ui::ROTATION_90 || orientation == ui::ROTATION_270;
@@ -178,7 +178,7 @@ PointerCaptureRequest FakeInputReaderPolicy::setPointerCapture(const sp<IBinder>
     return mConfig.pointerCaptureRequest;
 }
 
-void FakeInputReaderPolicy::setDefaultPointerDisplayId(int32_t pointerDisplayId) {
+void FakeInputReaderPolicy::setDefaultPointerDisplayId(ui::LogicalDisplayId pointerDisplayId) {
     mConfig.defaultPointerDisplayId = pointerDisplayId;
 }
 
@@ -255,8 +255,8 @@ void FakeInputReaderPolicy::notifyStylusGestureStarted(int32_t deviceId, nsecs_t
 }
 
 std::optional<DisplayViewport> FakeInputReaderPolicy::getPointerViewportForAssociatedDisplay(
-        int32_t associatedDisplayId) {
-    if (associatedDisplayId == ADISPLAY_ID_NONE) {
+        ui::LogicalDisplayId associatedDisplayId) {
+    if (!associatedDisplayId.isValid()) {
         associatedDisplayId = mConfig.defaultPointerDisplayId;
     }
     for (auto& viewport : mViewports) {

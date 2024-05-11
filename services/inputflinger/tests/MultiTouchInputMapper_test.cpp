@@ -35,7 +35,7 @@ using testing::Return;
 using testing::SetArgPointee;
 using testing::VariantWith;
 
-static constexpr int32_t DISPLAY_ID = 0;
+static constexpr ui::LogicalDisplayId DISPLAY_ID = ui::ADISPLAY_ID_DEFAULT;
 static constexpr int32_t DISPLAY_WIDTH = 480;
 static constexpr int32_t DISPLAY_HEIGHT = 800;
 static constexpr std::optional<uint8_t> NO_PORT = std::nullopt; // no physical port is specified

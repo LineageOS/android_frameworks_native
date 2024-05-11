@@ -341,7 +341,7 @@ std::list<NotifyArgs> JoystickInputMapper::sync(nsecs_t when, nsecs_t readTime, 
     // button will likely wake the device.
     // TODO: Use the input device configuration to control this behavior more finely.
     uint32_t policyFlags = 0;
-    int32_t displayId = ADISPLAY_ID_NONE;
+    ui::LogicalDisplayId displayId = ui::ADISPLAY_ID_NONE;
     if (getDeviceContext().getAssociatedViewport()) {
         displayId = getDeviceContext().getAssociatedViewport()->displayId;
     }

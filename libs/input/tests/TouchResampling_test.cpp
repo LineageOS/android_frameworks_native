@@ -84,7 +84,8 @@ status_t TouchResamplingTest::publishSimpleMotionEventWithCoords(
         ADD_FAILURE() << "Downtime should be equal to 0 (hardcoded for convenience)";
     }
     return mPublisher->publishMotionEvent(mSeq++, InputEvent::nextId(), /*deviceId=*/1,
-                                          AINPUT_SOURCE_TOUCHSCREEN, /*displayId=*/0, INVALID_HMAC,
+                                          AINPUT_SOURCE_TOUCHSCREEN,
+                                          /*displayId=*/ui::ADISPLAY_ID_DEFAULT, INVALID_HMAC,
                                           action, /*actionButton=*/0, /*flags=*/0, /*edgeFlags=*/0,
                                           AMETA_NONE, /*buttonState=*/0, MotionClassification::NONE,
                                           identityTransform, /*xPrecision=*/0, /*yPrecision=*/0,

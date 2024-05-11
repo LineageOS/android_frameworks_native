@@ -856,7 +856,7 @@ bool InputReader::isInputDeviceEnabled(int32_t deviceId) {
     return false;
 }
 
-bool InputReader::canDispatchToDisplay(int32_t deviceId, int32_t displayId) {
+bool InputReader::canDispatchToDisplay(int32_t deviceId, ui::LogicalDisplayId displayId) {
     std::scoped_lock _l(mLock);
 
     InputDevice* device = findInputDeviceLocked(deviceId);
@@ -870,10 +870,9 @@ bool InputReader::canDispatchToDisplay(int32_t deviceId, int32_t displayId) {
         return false;
     }
 
-    std::optional<int32_t> associatedDisplayId = device->getAssociatedDisplayId();
+    std::optional<ui::LogicalDisplayId> associatedDisplayId = device->getAssociatedDisplayId();
     // No associated display. By default, can dispatch to all displays.
-    if (!associatedDisplayId ||
-            *associatedDisplayId == ADISPLAY_ID_NONE) {
+    if (!associatedDisplayId || !associatedDisplayId->isValid()) {
         return true;
     }
 

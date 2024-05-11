@@ -86,7 +86,7 @@ public:
 
     std::vector<int32_t> getVibratorIds(int32_t deviceId) override;
 
-    bool canDispatchToDisplay(int32_t deviceId, int32_t displayId) override;
+    bool canDispatchToDisplay(int32_t deviceId, ui::LogicalDisplayId displayId) override;
 
     bool enableSensor(int32_t deviceId, InputDeviceSensorType sensorType,
                       std::chrono::microseconds samplingPeriod,

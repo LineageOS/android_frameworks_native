@@ -41,12 +41,12 @@ struct SpHash {
     size_t operator()(const sp<T>& k) const { return std::hash<T*>()(k.get()); }
 };
 
-sp<IBinder> FocusResolver::getFocusedWindowToken(int32_t displayId) const {
+sp<IBinder> FocusResolver::getFocusedWindowToken(ui::LogicalDisplayId displayId) const {
     auto it = mFocusedWindowTokenByDisplay.find(displayId);
     return it != mFocusedWindowTokenByDisplay.end() ? it->second.second : nullptr;
 }
 
-std::optional<FocusRequest> FocusResolver::getFocusRequest(int32_t displayId) {
+std::optional<FocusRequest> FocusResolver::getFocusRequest(ui::LogicalDisplayId displayId) {
     auto it = mFocusRequestByDisplay.find(displayId);
     return it != mFocusRequestByDisplay.end() ? std::make_optional<>(it->second) : std::nullopt;
 }
@@ -58,7 +58,7 @@ std::optional<FocusRequest> FocusResolver::getFocusRequest(int32_t displayId) {
  * we will check if the previous focus request is eligible to receive focus.
  */
 std::optional<FocusResolver::FocusChanges> FocusResolver::setInputWindows(
-        int32_t displayId, const std::vector<sp<WindowInfoHandle>>& windows) {
+        ui::LogicalDisplayId displayId, const std::vector<sp<WindowInfoHandle>>& windows) {
     std::string removeFocusReason;
 
     const std::optional<FocusRequest> request = getFocusRequest(displayId);
@@ -94,12 +94,11 @@ std::optional<FocusResolver::FocusChanges> FocusResolver::setInputWindows(
 
 std::optional<FocusResolver::FocusChanges> FocusResolver::setFocusedWindow(
         const FocusRequest& request, const std::vector<sp<WindowInfoHandle>>& windows) {
-    const int32_t displayId = request.displayId;
+    const ui::LogicalDisplayId displayId = ui::LogicalDisplayId{request.displayId};
     const sp<IBinder> currentFocus = getFocusedWindowToken(displayId);
     if (currentFocus == request.token) {
-        ALOGD_IF(DEBUG_FOCUS,
-                 "setFocusedWindow %s on display %" PRId32 " ignored, reason: already focused",
-                 request.windowName.c_str(), displayId);
+        ALOGD_IF(DEBUG_FOCUS, "setFocusedWindow %s on display %s ignored, reason: already focused",
+                 request.windowName.c_str(), displayId.toString().c_str());
         return std::nullopt;
     }
 
@@ -193,7 +192,7 @@ FocusResolver::Focusability FocusResolver::isTokenFocusable(
 }
 
 std::optional<FocusResolver::FocusChanges> FocusResolver::updateFocusedWindow(
-        int32_t displayId, const std::string& reason, const sp<IBinder>& newFocus,
+        ui::LogicalDisplayId displayId, const std::string& reason, const sp<IBinder>& newFocus,
         const std::string& tokenName) {
     sp<IBinder> oldFocus = getFocusedWindowToken(displayId);
     if (newFocus == oldFocus) {
@@ -216,8 +215,8 @@ std::string FocusResolver::dumpFocusedWindows() const {
     std::string dump;
     dump += INDENT "FocusedWindows:\n";
     for (const auto& [displayId, namedToken] : mFocusedWindowTokenByDisplay) {
-        dump += base::StringPrintf(INDENT2 "displayId=%" PRId32 ", name='%s'\n", displayId,
-                                   namedToken.first.c_str());
+        dump += base::StringPrintf(INDENT2 "displayId=%s, name='%s'\n",
+                                   displayId.toString().c_str(), namedToken.first.c_str());
     }
     return dump;
 }
@@ -233,13 +232,14 @@ std::string FocusResolver::dump() const {
         auto it = mLastFocusResultByDisplay.find(displayId);
         std::string result =
                 it != mLastFocusResultByDisplay.end() ? ftl::enum_string(it->second) : "";
-        dump += base::StringPrintf(INDENT2 "displayId=%" PRId32 ", name='%s' result='%s'\n",
-                                   displayId, request.windowName.c_str(), result.c_str());
+        dump += base::StringPrintf(INDENT2 "displayId=%s, name='%s' result='%s'\n",
+                                   displayId.toString().c_str(), request.windowName.c_str(),
+                                   result.c_str());
     }
     return dump;
 }
 
-void FocusResolver::displayRemoved(int32_t displayId) {
+void FocusResolver::displayRemoved(ui::LogicalDisplayId displayId) {
     mFocusRequestByDisplay.erase(displayId);
     mLastFocusResultByDisplay.erase(displayId);
 }

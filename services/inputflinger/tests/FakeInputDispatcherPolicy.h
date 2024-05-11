@@ -53,7 +53,7 @@ public:
     struct UserActivityPokeEvent {
         nsecs_t eventTime;
         int32_t eventType;
-        int32_t displayId;
+        ui::LogicalDisplayId displayId;
 
         bool operator==(const UserActivityPokeEvent& rhs) const = default;
         inline friend std::ostream& operator<<(std::ostream& os, const UserActivityPokeEvent& ev) {
@@ -183,13 +183,15 @@ private:
     void notifyVibratorState(int32_t deviceId, bool isOn) override;
     bool filterInputEvent(const InputEvent& inputEvent, uint32_t policyFlags) override;
     void interceptKeyBeforeQueueing(const KeyEvent& inputEvent, uint32_t&) override;
-    void interceptMotionBeforeQueueing(int32_t, uint32_t, int32_t, nsecs_t, uint32_t&) override;
+    void interceptMotionBeforeQueueing(ui::LogicalDisplayId, uint32_t, int32_t, nsecs_t,
+                                       uint32_t&) override;
     nsecs_t interceptKeyBeforeDispatching(const sp<IBinder>&, const KeyEvent&, uint32_t) override;
     std::optional<KeyEvent> dispatchUnhandledKey(const sp<IBinder>&, const KeyEvent& event,
                                                  uint32_t) override;
     void notifySwitch(nsecs_t when, uint32_t switchValues, uint32_t switchMask,
                       uint32_t policyFlags) override;
-    void pokeUserActivity(nsecs_t eventTime, int32_t eventType, int32_t displayId) override;
+    void pokeUserActivity(nsecs_t eventTime, int32_t eventType,
+                          ui::LogicalDisplayId displayId) override;
     bool isStaleEvent(nsecs_t currentTime, nsecs_t eventTime) override;
     void onPointerDownOutsideFocus(const sp<IBinder>& newToken) override;
     void setPointerCapture(const PointerCaptureRequest& request) override;

@@ -81,7 +81,7 @@ void FakeInputReceiver::sendTimeline(int32_t inputEventId,
 }
 
 void FakeInputReceiver::consumeEvent(InputEventType expectedEventType, int32_t expectedAction,
-                                     std::optional<int32_t> expectedDisplayId,
+                                     std::optional<ui::LogicalDisplayId> expectedDisplayId,
                                      std::optional<int32_t> expectedFlags) {
     std::unique_ptr<InputEvent> event = consume(CONSUME_TIMEOUT_EVENT_EXPECTED);
 
@@ -152,7 +152,7 @@ void FakeInputReceiver::consumeFocusEvent(bool hasFocus, bool inTouchMode) {
     ASSERT_NE(nullptr, event) << mName.c_str() << ": consumer should have returned non-NULL event.";
     ASSERT_EQ(InputEventType::FOCUS, event->getType()) << "Instead of FocusEvent, got " << *event;
 
-    ASSERT_EQ(ADISPLAY_ID_NONE, event->getDisplayId())
+    ASSERT_EQ(ui::ADISPLAY_ID_NONE, event->getDisplayId())
             << mName.c_str() << ": event displayId should always be NONE.";
 
     FocusEvent& focusEvent = static_cast<FocusEvent&>(*event);
@@ -165,7 +165,7 @@ void FakeInputReceiver::consumeCaptureEvent(bool hasCapture) {
     ASSERT_EQ(InputEventType::CAPTURE, event->getType())
             << "Instead of CaptureEvent, got " << *event;
 
-    ASSERT_EQ(ADISPLAY_ID_NONE, event->getDisplayId())
+    ASSERT_EQ(ui::ADISPLAY_ID_NONE, event->getDisplayId())
             << mName.c_str() << ": event displayId should always be NONE.";
 
     const auto& captureEvent = static_cast<const CaptureEvent&>(*event);
@@ -177,7 +177,7 @@ void FakeInputReceiver::consumeDragEvent(bool isExiting, float x, float y) {
     ASSERT_NE(nullptr, event) << mName.c_str() << ": consumer should have returned non-NULL event.";
     ASSERT_EQ(InputEventType::DRAG, event->getType()) << "Instead of DragEvent, got " << *event;
 
-    EXPECT_EQ(ADISPLAY_ID_NONE, event->getDisplayId())
+    EXPECT_EQ(ui::ADISPLAY_ID_NONE, event->getDisplayId())
             << mName.c_str() << ": event displayId should always be NONE.";
 
     const auto& dragEvent = static_cast<const DragEvent&>(*event);
@@ -192,7 +192,7 @@ void FakeInputReceiver::consumeTouchModeEvent(bool inTouchMode) {
     ASSERT_EQ(InputEventType::TOUCH_MODE, event->getType())
             << "Instead of TouchModeEvent, got " << *event;
 
-    ASSERT_EQ(ADISPLAY_ID_NONE, event->getDisplayId())
+    ASSERT_EQ(ui::ADISPLAY_ID_NONE, event->getDisplayId())
             << mName.c_str() << ": event displayId should always be NONE.";
     const auto& touchModeEvent = static_cast<const TouchModeEvent&>(*event);
     EXPECT_EQ(inTouchMode, touchModeEvent.isInTouchMode());
@@ -244,7 +244,7 @@ std::atomic<int32_t> FakeWindowHandle::sId{1};
 FakeWindowHandle::FakeWindowHandle(
         const std::shared_ptr<InputApplicationHandle>& inputApplicationHandle,
         const std::unique_ptr<inputdispatcher::InputDispatcher>& dispatcher, const std::string name,
-        int32_t displayId, bool createInputChannel)
+        ui::LogicalDisplayId displayId, bool createInputChannel)
       : mName(name) {
     sp<IBinder> token;
     if (createInputChannel) {
@@ -272,7 +272,7 @@ FakeWindowHandle::FakeWindowHandle(
     mInfo.inputConfig = InputConfig::DEFAULT;
 }
 
-sp<FakeWindowHandle> FakeWindowHandle::clone(int32_t displayId) {
+sp<FakeWindowHandle> FakeWindowHandle::clone(ui::LogicalDisplayId displayId) {
     sp<FakeWindowHandle> handle = sp<FakeWindowHandle>::make(mInfo.name + "(Mirror)");
     handle->mInfo = mInfo;
     handle->mInfo.displayId = displayId;

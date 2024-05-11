@@ -28,7 +28,7 @@ namespace test {
 
 TEST(DisplayInfo, Parcelling) {
     DisplayInfo info;
-    info.displayId = 42;
+    info.displayId = ui::LogicalDisplayId{42};
     info.logicalWidth = 99;
     info.logicalHeight = 78;
     info.transform.set({0.4, -1, 100, 0.5, 0, 40, 0, 0, 1});

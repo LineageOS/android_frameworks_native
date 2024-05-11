@@ -79,7 +79,7 @@ public:
     void sendTimeline(int32_t inputEventId, std::array<nsecs_t, GraphicsTimeline::SIZE> timeline);
 
     void consumeEvent(android::InputEventType expectedEventType, int32_t expectedAction,
-                      std::optional<int32_t> expectedDisplayId,
+                      std::optional<ui::LogicalDisplayId> expectedDisplayId,
                       std::optional<int32_t> expectedFlags);
 
     std::unique_ptr<MotionEvent> consumeMotion();
@@ -119,9 +119,10 @@ public:
 
     FakeWindowHandle(const std::shared_ptr<InputApplicationHandle>& inputApplicationHandle,
                      const std::unique_ptr<inputdispatcher::InputDispatcher>& dispatcher,
-                     const std::string name, int32_t displayId, bool createInputChannel = true);
+                     const std::string name, ui::LogicalDisplayId displayId,
+                     bool createInputChannel = true);
 
-    sp<FakeWindowHandle> clone(int32_t displayId);
+    sp<FakeWindowHandle> clone(ui::LogicalDisplayId displayId);
 
     inline void setTouchable(bool touchable) {
         mInfo.setInputConfig(InputConfig::NOT_TOUCHABLE, !touchable);
@@ -249,37 +250,39 @@ public:
         return keyEvent;
     }
 
-    inline void consumeKeyDown(int32_t expectedDisplayId, int32_t expectedFlags = 0) {
+    inline void consumeKeyDown(ui::LogicalDisplayId expectedDisplayId, int32_t expectedFlags = 0) {
         consumeKeyEvent(testing::AllOf(WithKeyAction(AKEY_EVENT_ACTION_DOWN),
                                        WithDisplayId(expectedDisplayId), WithFlags(expectedFlags)));
     }
 
-    inline void consumeKeyUp(int32_t expectedDisplayId, int32_t expectedFlags = 0) {
+    inline void consumeKeyUp(ui::LogicalDisplayId expectedDisplayId, int32_t expectedFlags = 0) {
         consumeKeyEvent(testing::AllOf(WithKeyAction(AKEY_EVENT_ACTION_UP),
                                        WithDisplayId(expectedDisplayId), WithFlags(expectedFlags)));
     }
 
-    inline void consumeMotionCancel(int32_t expectedDisplayId = ADISPLAY_ID_DEFAULT,
-                                    int32_t expectedFlags = 0) {
+    inline void consumeMotionCancel(
+            ui::LogicalDisplayId expectedDisplayId = ui::ADISPLAY_ID_DEFAULT,
+            int32_t expectedFlags = 0) {
         consumeMotionEvent(testing::AllOf(WithMotionAction(AMOTION_EVENT_ACTION_CANCEL),
                                           WithDisplayId(expectedDisplayId),
                                           WithFlags(expectedFlags | AMOTION_EVENT_FLAG_CANCELED)));
     }
 
-    inline void consumeMotionMove(int32_t expectedDisplayId = ADISPLAY_ID_DEFAULT,
+    inline void consumeMotionMove(ui::LogicalDisplayId expectedDisplayId = ui::ADISPLAY_ID_DEFAULT,
                                   int32_t expectedFlags = 0) {
         consumeMotionEvent(testing::AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
                                           WithDisplayId(expectedDisplayId),
                                           WithFlags(expectedFlags)));
     }
 
-    inline void consumeMotionDown(int32_t expectedDisplayId = ADISPLAY_ID_DEFAULT,
+    inline void consumeMotionDown(ui::LogicalDisplayId expectedDisplayId = ui::ADISPLAY_ID_DEFAULT,
                                   int32_t expectedFlags = 0) {
         consumeAnyMotionDown(expectedDisplayId, expectedFlags);
     }
 
-    inline void consumeAnyMotionDown(std::optional<int32_t> expectedDisplayId = std::nullopt,
-                                     std::optional<int32_t> expectedFlags = std::nullopt) {
+    inline void consumeAnyMotionDown(
+            std::optional<ui::LogicalDisplayId> expectedDisplayId = std::nullopt,
+            std::optional<int32_t> expectedFlags = std::nullopt) {
         consumeMotionEvent(
                 testing::AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
                                testing::Conditional(expectedDisplayId.has_value(),
@@ -288,9 +291,9 @@ public:
                                                     WithFlags(*expectedFlags), testing::_)));
     }
 
-    inline void consumeMotionPointerDown(int32_t pointerIdx,
-                                         int32_t expectedDisplayId = ADISPLAY_ID_DEFAULT,
-                                         int32_t expectedFlags = 0) {
+    inline void consumeMotionPointerDown(
+            int32_t pointerIdx, ui::LogicalDisplayId expectedDisplayId = ui::ADISPLAY_ID_DEFAULT,
+            int32_t expectedFlags = 0) {
         const int32_t action = AMOTION_EVENT_ACTION_POINTER_DOWN |
                 (pointerIdx << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
         consumeMotionEvent(testing::AllOf(WithMotionAction(action),
@@ -298,9 +301,9 @@ public:
                                           WithFlags(expectedFlags)));
     }
 
-    inline void consumeMotionPointerUp(int32_t pointerIdx,
-                                       int32_t expectedDisplayId = ADISPLAY_ID_DEFAULT,
-                                       int32_t expectedFlags = 0) {
+    inline void consumeMotionPointerUp(
+            int32_t pointerIdx, ui::LogicalDisplayId expectedDisplayId = ui::ADISPLAY_ID_DEFAULT,
+            int32_t expectedFlags = 0) {
         const int32_t action = AMOTION_EVENT_ACTION_POINTER_UP |
                 (pointerIdx << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
         consumeMotionEvent(testing::AllOf(WithMotionAction(action),
@@ -308,15 +311,16 @@ public:
                                           WithFlags(expectedFlags)));
     }
 
-    inline void consumeMotionUp(int32_t expectedDisplayId = ADISPLAY_ID_DEFAULT,
+    inline void consumeMotionUp(ui::LogicalDisplayId expectedDisplayId = ui::ADISPLAY_ID_DEFAULT,
                                 int32_t expectedFlags = 0) {
         consumeMotionEvent(testing::AllOf(WithMotionAction(AMOTION_EVENT_ACTION_UP),
                                           WithDisplayId(expectedDisplayId),
                                           WithFlags(expectedFlags)));
     }
 
-    inline void consumeMotionOutside(int32_t expectedDisplayId = ADISPLAY_ID_DEFAULT,
-                                     int32_t expectedFlags = 0) {
+    inline void consumeMotionOutside(
+            ui::LogicalDisplayId expectedDisplayId = ui::ADISPLAY_ID_DEFAULT,
+            int32_t expectedFlags = 0) {
         consumeMotionEvent(testing::AllOf(WithMotionAction(AMOTION_EVENT_ACTION_OUTSIDE),
                                           WithDisplayId(expectedDisplayId),
                                           WithFlags(expectedFlags)));
