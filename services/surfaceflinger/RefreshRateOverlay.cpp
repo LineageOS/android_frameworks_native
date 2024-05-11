@@ -28,7 +28,7 @@
 
 namespace android {
 
-auto RefreshRateOverlay::draw(int vsyncRate, int renderFps, SkColor color,
+auto RefreshRateOverlay::draw(int refreshRate, int renderFps, SkColor color,
                               ui::Transform::RotationFlags rotation, ftl::Flags<Features> features)
         -> Buffers {
     const size_t loopCount = features.test(Features::Spinner) ? 6 : 1;
@@ -71,7 +71,7 @@ auto RefreshRateOverlay::draw(int vsyncRate, int renderFps, SkColor color,
         canvas->setMatrix(canvasTransform);
 
         int left = 0;
-        drawNumber(vsyncRate, left, color, *canvas);
+        drawNumber(refreshRate, left, color, *canvas);
         left += 3 * (kDigitWidth + kDigitSpace);
         if (features.test(Features::Spinner)) {
             switch (i) {
@@ -171,7 +171,7 @@ bool RefreshRateOverlay::initCheck() const {
     return mSurfaceControl != nullptr;
 }
 
-auto RefreshRateOverlay::getOrCreateBuffers(Fps vsyncRate, Fps renderFps) -> const Buffers& {
+auto RefreshRateOverlay::getOrCreateBuffers(Fps refreshRate, Fps renderFps) -> const Buffers& {
     static const Buffers kNoBuffers;
     if (!mSurfaceControl) return kNoBuffers;
 
@@ -198,16 +198,16 @@ auto RefreshRateOverlay::getOrCreateBuffers(Fps vsyncRate, Fps renderFps) -> con
     createTransaction().setTransform(mSurfaceControl->get(), transform).apply();
 
     BufferCache::const_iterator it =
-            mBufferCache.find({vsyncRate.getIntValue(), renderFps.getIntValue(), transformHint});
+            mBufferCache.find({refreshRate.getIntValue(), renderFps.getIntValue(), transformHint});
     if (it == mBufferCache.end()) {
         // HWC minFps is not known by the framework in order
         // to consider lower rates we set minFps to 0.
         const int minFps = isSetByHwc() ? 0 : mFpsRange.min.getIntValue();
         const int maxFps = mFpsRange.max.getIntValue();
 
-        // Clamp to the range. The current vsyncRate may be outside of this range if the display
+        // Clamp to the range. The current refreshRate may be outside of this range if the display
         // has changed its set of supported refresh rates.
-        const int displayIntFps = std::clamp(vsyncRate.getIntValue(), minFps, maxFps);
+        const int displayIntFps = std::clamp(refreshRate.getIntValue(), minFps, maxFps);
         const int renderIntFps = renderFps.getIntValue();
 
         // Ensure non-zero range to avoid division by zero.
@@ -260,25 +260,26 @@ void RefreshRateOverlay::setLayerStack(ui::LayerStack stack) {
     createTransaction().setLayerStack(mSurfaceControl->get(), stack).apply();
 }
 
-void RefreshRateOverlay::changeRefreshRate(Fps vsyncRate, Fps renderFps) {
-    mVsyncRate = vsyncRate;
+void RefreshRateOverlay::changeRefreshRate(Fps refreshRate, Fps renderFps) {
+    mRefreshRate = refreshRate;
     mRenderFps = renderFps;
-    const auto buffer = getOrCreateBuffers(vsyncRate, renderFps)[mFrame];
+    const auto buffer = getOrCreateBuffers(refreshRate, renderFps)[mFrame];
     createTransaction().setBuffer(mSurfaceControl->get(), buffer).apply();
 }
 
 void RefreshRateOverlay::changeRenderRate(Fps renderFps) {
-    if (mFeatures.test(Features::RenderRate) && mVsyncRate && FlagManager::getInstance().misc1()) {
+    if (mFeatures.test(Features::RenderRate) && mRefreshRate &&
+        FlagManager::getInstance().misc1()) {
         mRenderFps = renderFps;
-        const auto buffer = getOrCreateBuffers(*mVsyncRate, renderFps)[mFrame];
+        const auto buffer = getOrCreateBuffers(*mRefreshRate, renderFps)[mFrame];
         createTransaction().setBuffer(mSurfaceControl->get(), buffer).apply();
     }
 }
 
 void RefreshRateOverlay::animate() {
-    if (!mFeatures.test(Features::Spinner) || !mVsyncRate) return;
+    if (!mFeatures.test(Features::Spinner) || !mRefreshRate) return;
 
-    const auto& buffers = getOrCreateBuffers(*mVsyncRate, *mRenderFps);
+    const auto& buffers = getOrCreateBuffers(*mRefreshRate, *mRenderFps);
     mFrame = (mFrame + 1) % buffers.size();
     const auto buffer = buffers[mFrame];
     createTransaction().setBuffer(mSurfaceControl->get(), buffer).apply();

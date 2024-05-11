@@ -485,11 +485,11 @@ void DisplayDevice::enableRefreshRateOverlay(bool enable, bool setByHwc, bool sh
     }
 }
 
-void DisplayDevice::updateRefreshRateOverlayRate(Fps vsyncRate, Fps renderFps, bool setByHwc) {
+void DisplayDevice::updateRefreshRateOverlayRate(Fps refreshRate, Fps renderFps, bool setByHwc) {
     ATRACE_CALL();
     if (mRefreshRateOverlay) {
         if (!mRefreshRateOverlay->isSetByHwc() || setByHwc) {
-            mRefreshRateOverlay->changeRefreshRate(vsyncRate, renderFps);
+            mRefreshRateOverlay->changeRefreshRate(refreshRate, renderFps);
         } else {
             mRefreshRateOverlay->changeRenderRate(renderFps);
         }
