@@ -18,6 +18,7 @@
 
 #include <stdint.h>
 #include <sys/types.h>
+
 #include <set>
 #include <thread>
 #include <unordered_map>
@@ -374,17 +375,15 @@ public:
 
     sp<SurfaceControl> mirrorDisplay(DisplayId displayId);
 
-    //! Create a virtual display
-    static sp<IBinder> createDisplay(const String8& displayName, bool secure,
-                                     float requestedRefereshRate = 0);
+    static const std::string kEmpty;
+    static sp<IBinder> createDisplay(const String8& displayName, bool isSecure,
+                                     const std::string& uniqueId = kEmpty,
+                                     float requestedRefreshRate = 0);
 
-    //! Destroy a virtual display
     static void destroyDisplay(const sp<IBinder>& display);
 
-    //! Get stable IDs for connected physical displays
     static std::vector<PhysicalDisplayId> getPhysicalDisplayIds();
 
-    //! Get token for a physical display given its stable ID
     static sp<IBinder> getPhysicalDisplayToken(PhysicalDisplayId displayId);
 
     // Returns StalledTransactionInfo if a transaction from the provided pid has not been applied

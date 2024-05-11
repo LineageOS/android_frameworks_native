@@ -89,6 +89,8 @@ int64_t generateId() {
 void emptyCallback(nsecs_t, const sp<Fence>&, const std::vector<SurfaceControlStats>&) {}
 } // namespace
 
+const std::string SurfaceComposerClient::kEmpty{};
+
 ComposerService::ComposerService()
 : Singleton<ComposerService>() {
     Mutex::Autolock _l(mLock);
@@ -1278,14 +1280,13 @@ status_t SurfaceComposerClient::Transaction::sendSurfaceFlushJankDataTransaction
 }
 // ---------------------------------------------------------------------------
 
-sp<IBinder> SurfaceComposerClient::createDisplay(const String8& displayName, bool secure,
-                                                 float requestedRefereshRate) {
+sp<IBinder> SurfaceComposerClient::createDisplay(const String8& displayName, bool isSecure,
+                                                 const std::string& uniqueId,
+                                                 float requestedRefreshRate) {
     sp<IBinder> display = nullptr;
-    binder::Status status =
-            ComposerServiceAIDL::getComposerService()->createDisplay(std::string(
-                                                                             displayName.c_str()),
-                                                                     secure, requestedRefereshRate,
-                                                                     &display);
+    binder::Status status = ComposerServiceAIDL::getComposerService()
+                                    ->createDisplay(std::string(displayName.c_str()), isSecure,
+                                                    uniqueId, requestedRefreshRate, &display);
     return status.isOk() ? display : nullptr;
 }
 
