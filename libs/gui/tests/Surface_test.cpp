@@ -673,8 +673,8 @@ public:
         return binder::Status::ok();
     }
 
-    binder::Status createDisplay(const std::string& /*displayName*/, bool /*secure*/,
-                                 float /*requestedRefreshRate*/,
+    binder::Status createDisplay(const std::string& /*displayName*/, bool /*isSecure*/,
+                                 const std::string& /*uniqueId*/, float /*requestedRefreshRate*/,
                                  sp<IBinder>* /*outDisplay*/) override {
         return binder::Status::ok();
     }

@@ -539,15 +539,16 @@ private:
 
     static const size_t MAX_LAYERS = 4096;
 
-    // Implements IBinder.
-    status_t onTransact(uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags) override;
-    status_t dump(int fd, const Vector<String16>& args) override { return priorityDump(fd, args); }
-    bool callingThreadHasUnscopedSurfaceFlingerAccess(bool usePermissionCache = true)
+    static bool callingThreadHasUnscopedSurfaceFlingerAccess(bool usePermissionCache = true)
             EXCLUDES(mStateLock);
 
-    // Implements ISurfaceComposer
-    sp<IBinder> createDisplay(const String8& displayName, bool secure,
-                              float requestedRefreshRate = 0.0f);
+    // IBinder overrides:
+    status_t onTransact(uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags) override;
+    status_t dump(int fd, const Vector<String16>& args) override { return priorityDump(fd, args); }
+
+    // ISurfaceComposer implementation:
+    sp<IBinder> createDisplay(const String8& displayName, bool isSecure,
+                              const std::string& uniqueId, float requestedRefreshRate = 0.0f);
     void destroyDisplay(const sp<IBinder>& displayToken);
     std::vector<PhysicalDisplayId> getPhysicalDisplayIds() const EXCLUDES(mStateLock) {
         Mutex::Autolock lock(mStateLock);
@@ -667,7 +668,7 @@ private:
 
     void updateHdcpLevels(hal::HWDisplayId hwcDisplayId, int32_t connectedLevel, int32_t maxLevel);
 
-    // Implements IBinder::DeathRecipient.
+    // IBinder::DeathRecipient overrides:
     void binderDied(const wp<IBinder>& who) override;
 
     // HWC2::ComposerCallback overrides:
@@ -1559,7 +1560,7 @@ private:
 
 class SurfaceComposerAIDL : public gui::BnSurfaceComposer {
 public:
-    SurfaceComposerAIDL(sp<SurfaceFlinger> sf) : mFlinger(std::move(sf)) {}
+    explicit SurfaceComposerAIDL(sp<SurfaceFlinger> sf) : mFlinger(std::move(sf)) {}
 
     binder::Status bootFinished() override;
     binder::Status createDisplayEventConnection(
@@ -1567,8 +1568,9 @@ public:
             const sp<IBinder>& layerHandle,
             sp<gui::IDisplayEventConnection>* outConnection) override;
     binder::Status createConnection(sp<gui::ISurfaceComposerClient>* outClient) override;
-    binder::Status createDisplay(const std::string& displayName, bool secure,
-                                 float requestedRefreshRate, sp<IBinder>* outDisplay) override;
+    binder::Status createDisplay(const std::string& displayName, bool isSecure,
+                                 const std::string& uniqueId, float requestedRefreshRate,
+                                 sp<IBinder>* outDisplay) override;
     binder::Status destroyDisplay(const sp<IBinder>& display) override;
     binder::Status getPhysicalDisplayIds(std::vector<int64_t>* outDisplayIds) override;
     binder::Status getPhysicalDisplayToken(int64_t displayId, sp<IBinder>* outDisplay) override;
@@ -1690,7 +1692,7 @@ private:
                                               gui::DynamicDisplayInfo*& outInfo);
 
 private:
-    sp<SurfaceFlinger> mFlinger;
+    const sp<SurfaceFlinger> mFlinger;
 };
 
 } // namespace android

@@ -573,13 +573,13 @@ void SurfaceFlinger::run() {
     mScheduler->run();
 }
 
-sp<IBinder> SurfaceFlinger::createDisplay(const String8& displayName, bool secure,
-                                          float requestedRefreshRate) {
+sp<IBinder> SurfaceFlinger::createDisplay(const String8& displayName, bool isSecure,
+                                          const std::string& uniqueId, float requestedRefreshRate) {
     // SurfaceComposerAIDL checks for some permissions, but adding an additional check here.
     // This is to ensure that only root, system, and graphics can request to create a secure
     // display. Secure displays can show secure content so we add an additional restriction on it.
-    const int uid = IPCThreadState::self()->getCallingUid();
-    if (secure && uid != AID_ROOT && uid != AID_GRAPHICS && uid != AID_SYSTEM) {
+    const uid_t uid = IPCThreadState::self()->getCallingUid();
+    if (isSecure && uid != AID_ROOT && uid != AID_GRAPHICS && uid != AID_SYSTEM) {
         ALOGE("Only privileged processes can create a secure display");
         return nullptr;
     }
@@ -603,11 +603,12 @@ sp<IBinder> SurfaceFlinger::createDisplay(const String8& displayName, bool secur
     Mutex::Autolock _l(mStateLock);
     // Display ID is assigned when virtual display is allocated by HWC.
     DisplayDeviceState state;
-    state.isSecure = secure;
+    state.isSecure = isSecure;
     // Set display as protected when marked as secure to ensure no behavior change
     // TODO (b/314820005): separate as a different arg when creating the display.
-    state.isProtected = secure;
+    state.isProtected = isSecure;
     state.displayName = displayName;
+    state.uniqueId = uniqueId;
     state.requestedRefreshRate = Fps::fromValue(requestedRefreshRate);
     mCurrentState.displays.add(token, state);
     return token;
@@ -9552,7 +9553,8 @@ binder::Status SurfaceComposerAIDL::createConnection(sp<gui::ISurfaceComposerCli
     }
 }
 
-binder::Status SurfaceComposerAIDL::createDisplay(const std::string& displayName, bool secure,
+binder::Status SurfaceComposerAIDL::createDisplay(const std::string& displayName, bool isSecure,
+                                                  const std::string& uniqueId,
                                                   float requestedRefreshRate,
                                                   sp<IBinder>* outDisplay) {
     status_t status = checkAccessPermission();
@@ -9560,7 +9562,7 @@ binder::Status SurfaceComposerAIDL::createDisplay(const std::string& displayName
         return binderStatusFromStatusT(status);
     }
     String8 displayName8 = String8::format("%s", displayName.c_str());
-    *outDisplay = mFlinger->createDisplay(displayName8, secure, requestedRefreshRate);
+    *outDisplay = mFlinger->createDisplay(displayName8, isSecure, uniqueId, requestedRefreshRate);
     return binder::Status::ok();
 }
 
@@ -9577,10 +9579,10 @@ binder::Status SurfaceComposerAIDL::getPhysicalDisplayIds(std::vector<int64_t>* 
     std::vector<PhysicalDisplayId> physicalDisplayIds = mFlinger->getPhysicalDisplayIds();
     std::vector<int64_t> displayIds;
     displayIds.reserve(physicalDisplayIds.size());
-    for (auto item : physicalDisplayIds) {
-        displayIds.push_back(static_cast<int64_t>(item.value));
+    for (const auto id : physicalDisplayIds) {
+        displayIds.push_back(static_cast<int64_t>(id.value));
     }
-    *outDisplayIds = displayIds;
+    *outDisplayIds = std::move(displayIds);
     return binder::Status::ok();
 }
 

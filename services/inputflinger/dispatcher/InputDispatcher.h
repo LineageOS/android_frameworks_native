@@ -301,7 +301,9 @@ private:
     void transformMotionEntryForInjectionLocked(MotionEntry&,
                                                 const ui::Transform& injectedTransform) const
             REQUIRES(mLock);
-
+    // Per-display correction of injected events
+    std::map<android::ui::LogicalDisplayId, InputVerifier> mInputFilterVerifiersByDisplay
+            GUARDED_BY(mLock);
     std::condition_variable mInjectionSyncFinished;
     void incrementPendingForegroundDispatches(const EventEntry& entry);
     void decrementPendingForegroundDispatches(const EventEntry& entry);

@@ -132,6 +132,36 @@ TEST_F(CreateDisplayTest, createDisplaySetsCurrentStateForSecureDisplay) {
     EXPECT_CALL(*mFlinger.scheduler(), scheduleFrame()).Times(1);
 }
 
+TEST_F(CreateDisplayTest, createDisplaySetsCurrentStateForUniqueId) {
+    const String8 name("virtual.test");
+    const std::string uniqueId = "virtual:package:id";
+
+    // --------------------------------------------------------------------
+    // Call Expectations
+
+    // --------------------------------------------------------------------
+    // Invocation
+
+    sp<IBinder> displayToken = mFlinger.createDisplay(name, false, uniqueId);
+
+    // --------------------------------------------------------------------
+    // Postconditions
+
+    // The display should have been added to the current state
+    ASSERT_TRUE(hasCurrentDisplayState(displayToken));
+    const auto& display = getCurrentDisplayState(displayToken);
+    EXPECT_TRUE(display.isVirtual());
+    EXPECT_FALSE(display.isSecure);
+    EXPECT_EQ(display.uniqueId, "virtual:package:id");
+    EXPECT_EQ(name.c_str(), display.displayName);
+
+    // --------------------------------------------------------------------
+    // Cleanup conditions
+
+    // Creating the display commits a display transaction.
+    EXPECT_CALL(*mFlinger.scheduler(), scheduleFrame()).Times(1);
+}
+
 // Requesting 0 tells SF not to do anything, i.e., default to refresh as physical displays
 TEST_F(CreateDisplayTest, createDisplayWithRequestedRefreshRate0) {
     const String8 displayName("virtual.test");

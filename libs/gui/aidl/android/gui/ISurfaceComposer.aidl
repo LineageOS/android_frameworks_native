@@ -72,7 +72,7 @@ interface ISurfaceComposer {
     void bootFinished();
 
     /**
-     * Create a display event connection
+     * Create a display event connection.
      *
      * layerHandle
      *     Optional binder handle representing a Layer in SF to associate the new
@@ -89,12 +89,14 @@ interface ISurfaceComposer {
     @nullable ISurfaceComposerClient createConnection();
 
     /**
-     * Create a virtual display
+     * Create a virtual display.
      *
      * displayName
-     *     The name of the virtual display
-     * secure
-     *     Whether this virtual display is secure
+     *     The name of the virtual display.
+     * isSecure
+     *     Whether this virtual display is secure.
+     * uniqueId
+     *     The unique ID for the display.
      * requestedRefreshRate
      *     The refresh rate, frames per second, to request on the virtual display.
      *     This is just a request, the actual rate may be adjusted to align well
@@ -103,11 +105,11 @@ interface ISurfaceComposer {
      *
      * requires ACCESS_SURFACE_FLINGER permission.
      */
-    @nullable IBinder createDisplay(@utf8InCpp String displayName, boolean secure,
-            float requestedRefreshRate);
+    @nullable IBinder createDisplay(@utf8InCpp String displayName, boolean isSecure,
+            @utf8InCpp String uniqueId, float requestedRefreshRate);
 
     /**
-     * Destroy a virtual display
+     * Destroy a virtual display.
      * requires ACCESS_SURFACE_FLINGER permission.
      */
     void destroyDisplay(IBinder display);
