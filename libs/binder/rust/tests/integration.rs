@@ -421,7 +421,7 @@ mod tests {
     }
 
     #[test]
-    fn check_services() {
+    fn check_get_service() {
         let mut sm = binder::get_service("manager").expect("Did not get manager binder service");
         assert!(sm.is_binder_alive());
         assert!(sm.ping_binder().is_ok());
@@ -445,7 +445,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn check_services_async() {
+    async fn check_get_service_async() {
         let mut sm = binder::get_service("manager").expect("Did not get manager binder service");
         assert!(sm.is_binder_alive());
         assert!(sm.ping_binder().is_ok());
@@ -469,6 +469,62 @@ mod tests {
         );
         assert_eq!(
             binder_tokio::get_interface::<dyn IATest<Tokio>>("manager").await.err(),
+            Some(StatusCode::BAD_TYPE)
+        );
+    }
+
+    #[test]
+    fn check_check_service() {
+        let mut sm = binder::check_service("manager").expect("Did not find manager binder service");
+        assert!(sm.is_binder_alive());
+        assert!(sm.ping_binder().is_ok());
+
+        assert!(binder::check_service("this_service_does_not_exist").is_none());
+        assert_eq!(
+            binder::check_interface::<dyn ITest>("this_service_does_not_exist").err(),
+            Some(StatusCode::NAME_NOT_FOUND)
+        );
+        assert_eq!(
+            binder::check_interface::<dyn IATest<Tokio>>("this_service_does_not_exist").err(),
+            Some(StatusCode::NAME_NOT_FOUND)
+        );
+
+        // The service manager service isn't an ITest, so this must fail.
+        assert_eq!(
+            binder::check_interface::<dyn ITest>("manager").err(),
+            Some(StatusCode::BAD_TYPE)
+        );
+        assert_eq!(
+            binder::check_interface::<dyn IATest<Tokio>>("manager").err(),
+            Some(StatusCode::BAD_TYPE)
+        );
+    }
+
+    #[tokio::test]
+    async fn check_check_service_async() {
+        let mut sm = binder::check_service("manager").expect("Did not find manager binder service");
+        assert!(sm.is_binder_alive());
+        assert!(sm.ping_binder().is_ok());
+
+        assert!(binder::check_service("this_service_does_not_exist").is_none());
+        assert_eq!(
+            binder_tokio::check_interface::<dyn ITest>("this_service_does_not_exist").await.err(),
+            Some(StatusCode::NAME_NOT_FOUND)
+        );
+        assert_eq!(
+            binder_tokio::check_interface::<dyn IATest<Tokio>>("this_service_does_not_exist")
+                .await
+                .err(),
+            Some(StatusCode::NAME_NOT_FOUND)
+        );
+
+        // The service manager service isn't an ITest, so this must fail.
+        assert_eq!(
+            binder_tokio::check_interface::<dyn ITest>("manager").await.err(),
+            Some(StatusCode::BAD_TYPE)
+        );
+        assert_eq!(
+            binder_tokio::check_interface::<dyn IATest<Tokio>>("manager").await.err(),
             Some(StatusCode::BAD_TYPE)
         );
     }
