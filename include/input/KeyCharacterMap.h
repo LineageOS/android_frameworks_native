@@ -19,9 +19,7 @@
 #include <stdint.h>
 #include <list>
 
-#ifdef __linux__
 #include <binder/IBinder.h>
-#endif
 
 #include <android-base/result.h>
 #include <input/Input.h>
@@ -144,13 +142,11 @@ public:
     std::pair<int32_t /*keyCode*/, int32_t /*metaState*/> applyKeyBehavior(int32_t keyCode,
                                                                            int32_t metaState) const;
 
-#ifdef __linux__
     /* Reads a key map from a parcel. */
     static std::unique_ptr<KeyCharacterMap> readFromParcel(Parcel* parcel);
 
     /* Writes a key map to a parcel. */
     void writeToParcel(Parcel* parcel) const;
-#endif
 
     bool operator==(const KeyCharacterMap& other) const = default;
 
