@@ -144,12 +144,22 @@ fn interface_cast<T: FromIBinder + ?Sized>(service: Option<SpIBinder>) -> Result
 
 /// Retrieve an existing service, blocking for a few seconds if it doesn't yet
 /// exist.
+#[deprecated = "this polls 5s, use wait_for_service or check_service"]
 pub fn get_service(name: &str) -> Option<SpIBinder> {
     let name = CString::new(name).ok()?;
     // Safety: `AServiceManager_getService` returns either a null pointer or a
     // valid pointer to an owned `AIBinder`. Either of these values is safe to
     // pass to `SpIBinder::from_raw`.
     unsafe { SpIBinder::from_raw(sys::AServiceManager_getService(name.as_ptr())) }
+}
+
+/// Retrieve an existing service. Returns `None` immediately if the service is not available.
+pub fn check_service(name: &str) -> Option<SpIBinder> {
+    let name = CString::new(name).ok()?;
+    // Safety: `AServiceManager_checkService` returns either a null pointer or
+    // a valid pointer to an owned `AIBinder`. Either of these values is safe to
+    // pass to `SpIBinder::from_raw`.
+    unsafe { SpIBinder::from_raw(sys::AServiceManager_checkService(name.as_ptr())) }
 }
 
 /// Retrieve an existing service, or start it if it is configured as a dynamic
@@ -164,8 +174,15 @@ pub fn wait_for_service(name: &str) -> Option<SpIBinder> {
 
 /// Retrieve an existing service for a particular interface, blocking for a few
 /// seconds if it doesn't yet exist.
+#[deprecated = "this polls 5s, use wait_for_interface or check_interface"]
 pub fn get_interface<T: FromIBinder + ?Sized>(name: &str) -> Result<Strong<T>> {
     interface_cast(get_service(name))
+}
+
+/// Retrieve an existing service for a particular interface. Returns
+/// `Err(StatusCode::NAME_NOT_FOUND)` immediately if the service is not available.
+pub fn check_interface<T: FromIBinder + ?Sized>(name: &str) -> Result<Strong<T>> {
+    interface_cast(check_service(name))
 }
 
 /// Retrieve an existing service for a particular interface, or start it if it

@@ -114,9 +114,9 @@ pub use parcel::{ParcelFileDescriptor, Parcelable, ParcelableHolder};
 pub use proxy::{DeathRecipient, SpIBinder, WpIBinder};
 #[cfg(not(trusty))]
 pub use service::{
-    add_service, force_lazy_services_persist, get_declared_instances, get_interface, get_service,
-    is_declared, is_handling_transaction, register_lazy_service, wait_for_interface,
-    wait_for_service, LazyServiceGuard,
+    add_service, check_interface, check_service, force_lazy_services_persist,
+    get_declared_instances, get_interface, get_service, is_declared, is_handling_transaction,
+    register_lazy_service, wait_for_interface, wait_for_service, LazyServiceGuard,
 };
 #[cfg(not(trusty))]
 pub use state::{ProcessState, ThreadState};

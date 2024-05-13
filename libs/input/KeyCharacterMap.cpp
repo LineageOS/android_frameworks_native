@@ -19,11 +19,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef __linux__
-#include <binder/Parcel.h>
-#endif
 #include <android/keycodes.h>
 #include <attestation/HmacKeyManager.h>
+#include <binder/Parcel.h>
 #include <input/InputEventLabels.h>
 #include <input/KeyCharacterMap.h>
 #include <input/Keyboard.h>
@@ -611,7 +609,6 @@ void KeyCharacterMap::addLockedMetaKey(Vector<KeyEvent>& outEvents,
     }
 }
 
-#ifdef __linux__
 std::unique_ptr<KeyCharacterMap> KeyCharacterMap::readFromParcel(Parcel* parcel) {
     if (parcel == nullptr) {
         ALOGE("%s: Null parcel", __func__);
@@ -744,7 +741,6 @@ void KeyCharacterMap::writeToParcel(Parcel* parcel) const {
         parcel->writeInt32(toAndroidKeyCode);
     }
 }
-#endif // __linux__
 
 // --- KeyCharacterMap::Parser ---
 
