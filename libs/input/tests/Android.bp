@@ -79,6 +79,12 @@ cc_test {
     },
     test_suites: ["device-tests"],
     target: {
+        android: {
+            static_libs: [
+                "libstatslog_libinput",
+                "libstatssocket_lazy",
+            ],
+        },
         host: {
             sanitize: {
                 address: true,
