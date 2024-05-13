@@ -84,6 +84,7 @@ public:
     bool allow_n_vsyncs_in_targeter() const;
     bool detached_mirror() const;
     bool commit_not_composited() const;
+    bool local_tonemap_screenshots() const;
 
 protected:
     // overridden for unit tests
