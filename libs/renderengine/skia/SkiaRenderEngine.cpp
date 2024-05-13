@@ -91,7 +91,6 @@ namespace {
 // Debugging settings
 static const bool kPrintLayerSettings = false;
 static const bool kGaneshFlushAfterEveryLayer = kPrintLayerSettings;
-static constexpr bool kEnableLayerBrightening = true;
 
 } // namespace
 
@@ -714,8 +713,7 @@ void SkiaRenderEngine::drawLayersInternal(
 
     // ...and compute the dimming ratio if dimming is requested
     const float displayDimmingRatio = display.targetLuminanceNits > 0.f &&
-                    maxLayerWhitePoint > 0.f &&
-                    (kEnableLayerBrightening || display.targetLuminanceNits > maxLayerWhitePoint)
+                    maxLayerWhitePoint > 0.f && display.targetLuminanceNits > maxLayerWhitePoint
             ? maxLayerWhitePoint / display.targetLuminanceNits
             : 1.f;
 

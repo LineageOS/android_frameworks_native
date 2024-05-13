@@ -8334,10 +8334,7 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
                                       renderArea->getHintForSeamlessTransition());
             sdrWhitePointNits = state.sdrWhitePointNits;
 
-             // TODO(b/298219334): Clean this up once we verify this doesn't break anything
-             static constexpr bool kScreenshotsDontDim = true;
-
-            if (kScreenshotsDontDim && !captureResults.capturedHdrLayers) {
+            if (!captureResults.capturedHdrLayers) {
                 displayBrightnessNits = sdrWhitePointNits;
             } else {
                 displayBrightnessNits = state.displayBrightnessNits;
