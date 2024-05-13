@@ -239,6 +239,8 @@ struct ProcHook {
       f.write(gencom.indent(2) + gencom.base_ext_name(ext) + ',\n')
 
     f.write('\n')
+    # EXTENSION_CORE_xxx API list must be the last set of enums after the extensions.
+    # This allows to easily identify "a" core function hook
     for version in gencom.version_code_list:
       f.write(gencom.indent(2) + 'EXTENSION_CORE_' + version + ',\n')
 
