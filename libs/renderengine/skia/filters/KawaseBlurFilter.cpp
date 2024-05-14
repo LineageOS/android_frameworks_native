@@ -120,7 +120,7 @@ sk_sp<SkImage> KawaseBlurFilter::generate(SkiaGpuContext* context, const uint32_
         surfaceTwo = surface->makeSurface(scaledInfo);
         LOG_ALWAYS_FATAL_IF(!surfaceTwo, "%s: Failed to create second blur surface!", __func__);
 
-        for (auto i = 1; i < numberOfPasses; i++) {
+        for (auto i = 2; i <= numberOfPasses; i++) {
             LOG_ALWAYS_FATAL_IF(tmpBlur == nullptr, "%s: tmpBlur is null for pass %d", __func__, i);
             blurBuilder.child("child") =
                     tmpBlur->makeShader(SkTileMode::kClamp, SkTileMode::kClamp, linear);
