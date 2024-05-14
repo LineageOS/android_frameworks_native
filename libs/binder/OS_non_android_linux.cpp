@@ -21,6 +21,8 @@
 #include <syscall.h>
 #include <cstdarg>
 
+#include <binder/Common.h>
+
 #ifdef __ANDROID__
 #error "This module is not intended for Android, just bare Linux"
 #endif
@@ -47,7 +49,8 @@ bool report_sysprop_change() {
 
 } // namespace android::binder::os
 
-int __android_log_print(int /*prio*/, const char* /*tag*/, const char* fmt, ...) {
+LIBBINDER_EXPORTED int __android_log_print(int /*prio*/, const char* /*tag*/, const char* fmt,
+                                           ...) {
     va_list args;
     va_start(args, fmt);
     vfprintf(stderr, fmt, args);

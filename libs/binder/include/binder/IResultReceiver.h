@@ -16,14 +16,14 @@
 
 #pragma once
 
+#include <binder/Common.h>
 #include <binder/IInterface.h>
 
 namespace android {
 
 // ----------------------------------------------------------------------
 
-class IResultReceiver : public IInterface
-{
+class LIBBINDER_EXPORTED IResultReceiver : public IInterface {
 public:
     DECLARE_META_INTERFACE(ResultReceiver)
 
@@ -36,8 +36,7 @@ public:
 
 // ----------------------------------------------------------------------
 
-class BnResultReceiver : public BnInterface<IResultReceiver>
-{
+class LIBBINDER_EXPORTED BnResultReceiver : public BnInterface<IResultReceiver> {
 public:
     // NOLINTNEXTLINE(google-default-arguments)
     virtual status_t    onTransact( uint32_t code,

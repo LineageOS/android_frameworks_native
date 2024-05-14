@@ -21,6 +21,7 @@
 #include <cstdint>
 #include <optional>
 
+#include <binder/Common.h>
 #include <log/log.h>
 #include <utils/Errors.h>
 
@@ -111,6 +112,6 @@ struct Span {
 //
 // Hex values are printed in order, e.g. 0xDEAD will result in 'adde' because
 // Android is little-endian.
-std::string HexString(const void* bytes, size_t len);
+LIBBINDER_INTERNAL_EXPORTED std::string HexString(const void* bytes, size_t len);
 
 }   // namespace android

@@ -18,6 +18,7 @@
 
 #include <functional>
 
+#include <binder/Common.h>
 #include <binder/IServiceManager.h>
 #include <binder/Status.h>
 #include <utils/StrongPointer.h>
@@ -42,70 +43,71 @@ class ClientCounterCallback;
  * For more information on init .rc configuration, see system/core/init/README.md
  **/
 class LazyServiceRegistrar {
-   public:
-     static LazyServiceRegistrar& getInstance();
-     status_t registerService(const sp<IBinder>& service,
-                              const std::string& name = "default",
-                              bool allowIsolated = false,
-                              int dumpFlags = IServiceManager::DUMP_FLAG_PRIORITY_DEFAULT);
-     /**
-      * Force the service to persist, even when it has 0 clients.
-      * If setting this flag from the server side, make sure to do so before calling
-      * registerService, or there may be a race with the default dynamic shutdown.
-      *
-      * This should only be used if it is every eventually set to false. If a
-      * service needs to persist but doesn't need to dynamically shut down,
-      * prefer to control it with another mechanism such as ctl.start.
-      */
-     void forcePersist(bool persist);
+public:
+    LIBBINDER_EXPORTED static LazyServiceRegistrar& getInstance();
+    LIBBINDER_EXPORTED status_t
+    registerService(const sp<IBinder>& service, const std::string& name = "default",
+                    bool allowIsolated = false,
+                    int dumpFlags = IServiceManager::DUMP_FLAG_PRIORITY_DEFAULT);
+    /**
+     * Force the service to persist, even when it has 0 clients.
+     * If setting this flag from the server side, make sure to do so before calling
+     * registerService, or there may be a race with the default dynamic shutdown.
+     *
+     * This should only be used if it is every eventually set to false. If a
+     * service needs to persist but doesn't need to dynamically shut down,
+     * prefer to control it with another mechanism such as ctl.start.
+     */
+    LIBBINDER_EXPORTED void forcePersist(bool persist);
 
-     /**
-      * Set a callback that is invoked when the active service count (i.e. services with clients)
-      * registered with this process drops to zero (or becomes nonzero).
-      * The callback takes a boolean argument, which is 'true' if there is
-      * at least one service with clients.
-      *
-      * Callback return value:
-      * - false: Default behavior for lazy services (shut down the process if there
-      *          are no clients).
-      * - true:  Don't shut down the process even if there are no clients.
-      *
-      * This callback gives a chance to:
-      * 1 - Perform some additional operations before exiting;
-      * 2 - Prevent the process from exiting by returning "true" from the
-      *     callback.
-      *
-      * This method should be called before 'registerService' to avoid races.
-      */
-     void setActiveServicesCallback(const std::function<bool(bool)>& activeServicesCallback);
+    /**
+     * Set a callback that is invoked when the active service count (i.e. services with clients)
+     * registered with this process drops to zero (or becomes nonzero).
+     * The callback takes a boolean argument, which is 'true' if there is
+     * at least one service with clients.
+     *
+     * Callback return value:
+     * - false: Default behavior for lazy services (shut down the process if there
+     *          are no clients).
+     * - true:  Don't shut down the process even if there are no clients.
+     *
+     * This callback gives a chance to:
+     * 1 - Perform some additional operations before exiting;
+     * 2 - Prevent the process from exiting by returning "true" from the
+     *     callback.
+     *
+     * This method should be called before 'registerService' to avoid races.
+     */
+    LIBBINDER_EXPORTED void setActiveServicesCallback(
+            const std::function<bool(bool)>& activeServicesCallback);
 
-     /**
-      * Try to unregister all services previously registered with 'registerService'.
-      * Returns 'true' if successful. This should only be called within the callback registered by
-      * setActiveServicesCallback.
-      */
-     bool tryUnregister();
+    /**
+     * Try to unregister all services previously registered with 'registerService'.
+     * Returns 'true' if successful. This should only be called within the callback registered by
+     * setActiveServicesCallback.
+     */
+    LIBBINDER_EXPORTED bool tryUnregister();
 
-     /**
-      * Re-register services that were unregistered by 'tryUnregister'.
-      * This method should be called in the case 'tryUnregister' fails
-      * (and should be called on the same thread).
-      */
-     void reRegister();
+    /**
+     * Re-register services that were unregistered by 'tryUnregister'.
+     * This method should be called in the case 'tryUnregister' fails
+     * (and should be called on the same thread).
+     */
+    LIBBINDER_EXPORTED void reRegister();
 
-     /**
-      * Create a second instance of lazy service registrar.
-      *
-      * WARNING: dangerous! DO NOT USE THIS - LazyServiceRegistrar
-      * should be single-instanced, so that the service will only
-      * shut down when all services are unused. A separate instance
-      * is only used to test race conditions.
-      */
-     static LazyServiceRegistrar createExtraTestInstance();
+    /**
+     * Create a second instance of lazy service registrar.
+     *
+     * WARNING: dangerous! DO NOT USE THIS - LazyServiceRegistrar
+     * should be single-instanced, so that the service will only
+     * shut down when all services are unused. A separate instance
+     * is only used to test race conditions.
+     */
+    LIBBINDER_EXPORTED static LazyServiceRegistrar createExtraTestInstance();
 
- private:
-     std::shared_ptr<internal::ClientCounterCallback> mClientCC;
-     LazyServiceRegistrar();
+private:
+    std::shared_ptr<internal::ClientCounterCallback> mClientCC;
+    LazyServiceRegistrar();
 };
 
 }  // namespace binder

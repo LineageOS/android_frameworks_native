@@ -24,6 +24,7 @@
 #include <utils/String16.h>
 #include <utils/Singleton.h>
 #include <utils/SortedVector.h>
+#include <binder/Common.h>
 
 namespace android {
 // ---------------------------------------------------------------------------
@@ -64,17 +65,17 @@ class PermissionCache : Singleton<PermissionCache> {
     void cache(const String16& permission, uid_t uid, bool granted);
 
 public:
-    PermissionCache();
+    LIBBINDER_EXPORTED PermissionCache();
 
-    static bool checkCallingPermission(const String16& permission);
+    LIBBINDER_EXPORTED static bool checkCallingPermission(const String16& permission);
 
-    static bool checkCallingPermission(const String16& permission,
-                                int32_t* outPid, int32_t* outUid);
+    LIBBINDER_EXPORTED static bool checkCallingPermission(const String16& permission,
+                                                          int32_t* outPid, int32_t* outUid);
 
-    static bool checkPermission(const String16& permission,
-            pid_t pid, uid_t uid);
+    LIBBINDER_EXPORTED static bool checkPermission(const String16& permission, pid_t pid,
+                                                   uid_t uid);
 
-    static void purgeCache();
+    LIBBINDER_EXPORTED static void purgeCache();
 };
 
 // ---------------------------------------------------------------------------

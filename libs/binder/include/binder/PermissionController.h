@@ -18,14 +18,14 @@
 
 #ifndef __ANDROID_VNDK__
 
+#include <binder/Common.h>
 #include <binder/IPermissionController.h>
 #include <utils/Mutex.h>
 
 // ---------------------------------------------------------------------------
 namespace android {
 
-class PermissionController
-{
+class PermissionController {
 public:
 
     enum {
@@ -42,13 +42,13 @@ public:
         MODE_DEFAULT = 3,
     };
 
-    PermissionController();
+    LIBBINDER_EXPORTED PermissionController();
 
-    bool checkPermission(const String16& permission, int32_t pid, int32_t uid);
-    int32_t noteOp(const String16& op, int32_t uid, const String16& packageName);
-    void getPackagesForUid(const uid_t uid, Vector<String16>& packages);
-    bool isRuntimePermission(const String16& permission);
-    int getPackageUid(const String16& package, int flags);
+    LIBBINDER_EXPORTED bool checkPermission(const String16& permission, int32_t pid, int32_t uid);
+    LIBBINDER_EXPORTED int32_t noteOp(const String16& op, int32_t uid, const String16& packageName);
+    LIBBINDER_EXPORTED void getPackagesForUid(const uid_t uid, Vector<String16>& packages);
+    LIBBINDER_EXPORTED bool isRuntimePermission(const String16& permission);
+    LIBBINDER_EXPORTED int getPackageUid(const String16& package, int flags);
 
 private:
     Mutex mLock;

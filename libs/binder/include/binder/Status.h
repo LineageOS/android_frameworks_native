@@ -21,6 +21,7 @@
 #include <sstream> // historical
 #include <ostream>
 
+#include <binder/Common.h>
 #include <binder/Parcel.h>
 #include <utils/String8.h>
 #include <string>
@@ -51,7 +52,7 @@ namespace binder {
 //         // exception during handling.
 //     }
 //
-class Status final {
+class LIBBINDER_EXPORTED Status final {
 public:
     // Keep the exception codes in sync with android/os/Parcel.java.
     enum Exception {

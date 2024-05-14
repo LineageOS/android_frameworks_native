@@ -19,6 +19,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+#include <binder/Common.h>
 #include <binder/IMemory.h>
 #include <binder/MemoryHeapBase.h>
 
@@ -29,33 +30,32 @@ class SimpleBestFitAllocator;
 
 // ----------------------------------------------------------------------------
 
-class MemoryDealer : public RefBase
-{
+class MemoryDealer : public RefBase {
 public:
-    explicit MemoryDealer(size_t size, const char* name = nullptr,
-            uint32_t flags = 0 /* or bits such as MemoryHeapBase::READ_ONLY */ );
+    LIBBINDER_EXPORTED explicit MemoryDealer(
+            size_t size, const char* name = nullptr,
+            uint32_t flags = 0 /* or bits such as MemoryHeapBase::READ_ONLY */);
 
-    virtual sp<IMemory> allocate(size_t size);
-    virtual void        dump(const char* what) const;
+    LIBBINDER_EXPORTED virtual sp<IMemory> allocate(size_t size);
+    LIBBINDER_EXPORTED virtual void dump(const char* what) const;
 
     // allocations are aligned to some value. return that value so clients can account for it.
-    static size_t      getAllocationAlignment();
+    LIBBINDER_EXPORTED static size_t getAllocationAlignment();
 
     sp<IMemoryHeap> getMemoryHeap() const { return heap(); }
 
 protected:
-    virtual ~MemoryDealer();
+    LIBBINDER_EXPORTED virtual ~MemoryDealer();
 
 private:
     friend class Allocation;
     virtual void                deallocate(size_t offset);
-    const sp<IMemoryHeap>&      heap() const;
+    LIBBINDER_EXPORTED const sp<IMemoryHeap>& heap() const;
     SimpleBestFitAllocator*     allocator() const;
 
     sp<IMemoryHeap>             mHeap;
     SimpleBestFitAllocator*     mAllocator;
 };
-
 
 // ----------------------------------------------------------------------------
 } // namespace android

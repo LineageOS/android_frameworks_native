@@ -24,8 +24,7 @@
 // ---------------------------------------------------------------------------
 namespace android {
 
-class BufferedTextOutput : public TextOutput
-{
+class LIBBINDER_INTERNAL_EXPORTED BufferedTextOutput : public TextOutput {
 public:
     //** Flags for constructor */
     enum {

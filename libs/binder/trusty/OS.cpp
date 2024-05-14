@@ -21,6 +21,7 @@
 #include <lib/rand/rand.h>
 #endif
 
+#include <binder/Common.h>
 #include <binder/RpcTransportTipcTrusty.h>
 #include <log/log.h>
 #include <trusty_log.h>
@@ -92,7 +93,8 @@ ssize_t receiveMessageFromSocket(
 
 } // namespace android::binder::os
 
-int __android_log_print(int prio [[maybe_unused]], const char* tag, const char* fmt, ...) {
+LIBBINDER_EXPORTED int __android_log_print(int prio [[maybe_unused]], const char* tag,
+                                           const char* fmt, ...) {
 #ifdef TRUSTY_USERSPACE
 #define trusty_tlog _tlog
 #define trusty_vtlog _vtlog
