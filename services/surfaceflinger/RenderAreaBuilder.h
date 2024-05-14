@@ -83,8 +83,11 @@ struct LayerRenderAreaBuilder : RenderAreaBuilder {
             layer(layer),
             childrenOnly(childrenOnly) {}
 
-    // Layer that the render area will be on
+    // Root layer of the render area
     sp<Layer> layer;
+
+    // Layer snapshot of the root layer
+    frontend::LayerSnapshot layerSnapshot;
 
     // Transform to be applied on the layers to transform them
     // into the logical render area
@@ -97,17 +100,18 @@ struct LayerRenderAreaBuilder : RenderAreaBuilder {
     bool childrenOnly;
 
     // Uses parent snapshot to determine layer transform and buffer size
-    void setLayerInfo(const frontend::LayerSnapshot* parentSnapshot) {
+    void setLayerSnapshot(const frontend::LayerSnapshot& parentSnapshot) {
+        layerSnapshot = parentSnapshot;
         if (!childrenOnly) {
-            layerTransform = parentSnapshot->localTransform.inverse();
+            layerTransform = parentSnapshot.localTransform.inverse();
         }
-        layerBufferSize = parentSnapshot->bufferSize;
+        layerBufferSize = parentSnapshot.bufferSize;
     }
 
     std::unique_ptr<RenderArea> build() const override {
-        return std::make_unique<LayerRenderArea>(layer, crop, reqSize, reqDataSpace,
-                                                 allowSecureLayers, layerTransform, layerBufferSize,
-                                                 hintForSeamlessTransition);
+        return std::make_unique<LayerRenderArea>(layer, std::move(layerSnapshot), crop, reqSize,
+                                                 reqDataSpace, allowSecureLayers, layerTransform,
+                                                 layerBufferSize, hintForSeamlessTransition);
     }
 };
 

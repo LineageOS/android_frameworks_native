@@ -4,6 +4,8 @@
 #include <ui/Transform.h>
 
 #include <functional>
+
+#include "FrontEnd/LayerSnapshot.h"
 #include "Layer.h"
 
 namespace android {
@@ -81,6 +83,10 @@ public:
     // If this is a LayerRenderArea, return the root layer of the
     // capture operation.
     virtual sp<Layer> getParentLayer() const { return nullptr; }
+
+    // If this is a LayerRenderArea, return the layer snapshot
+    // of the root layer of the capture operation
+    virtual const frontend::LayerSnapshot* getLayerSnapshot() const { return nullptr; }
 
     // Returns whether the render result may be used for system animations that
     // must preserve the exact colors of the display.
