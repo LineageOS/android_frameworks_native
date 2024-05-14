@@ -15,8 +15,11 @@
  */
 
 #include <ftl/expected.h>
+#include <ftl/optional.h>
+#include <ftl/unit.h>
 #include <gtest/gtest.h>
 
+#include <cctype>
 #include <string>
 #include <system_error>
 
@@ -72,6 +75,44 @@ TEST(Expected, ValueOpt) {
     EXPECT_EQ(ftl::Optional(6), std::move(exp).value_opt().transform(&std::string::length));
     EXPECT_TRUE(exp.value().empty());
   }
+}
+
+namespace {
+
+IntExp increment(IntExp exp) {
+  const int i = FTL_TRY(exp);
+  return IntExp(i + 1);
+}
+
+StringExp repeat(StringExp exp) {
+  const std::string str = FTL_TRY(exp);
+  return StringExp(str + str);
+}
+
+void uppercase(char& c, ftl::Optional<char> opt) {
+  c = std::toupper(FTL_TRY(std::move(opt).ok_or(ftl::Unit())));
+}
+
+}  // namespace
+
+// Keep in sync with example usage in header file.
+TEST(Expected, Try) {
+  EXPECT_EQ(IntExp(100), increment(IntExp(99)));
+  EXPECT_TRUE(repeat(ftl::Unexpected(std::errc::value_too_large)).has_error([](std::errc e) {
+    return e == std::errc::value_too_large;
+  }));
+
+  EXPECT_EQ(StringExp("haha"s), repeat(StringExp("ha"s)));
+  EXPECT_TRUE(repeat(ftl::Unexpected(std::errc::bad_message)).has_error([](std::errc e) {
+    return e == std::errc::bad_message;
+  }));
+
+  char c = '?';
+  uppercase(c, std::nullopt);
+  EXPECT_EQ(c, '?');
+
+  uppercase(c, 'a');
+  EXPECT_EQ(c, 'A');
 }
 
 }  // namespace android::test

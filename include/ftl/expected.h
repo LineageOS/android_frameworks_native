@@ -18,8 +18,56 @@
 
 #include <android-base/expected.h>
 #include <ftl/optional.h>
+#include <ftl/unit.h>
 
 #include <utility>
+
+// Given an expression `expr` that evaluates to an ftl::Expected<T, E> result (R for short), FTL_TRY
+// unwraps T out of R, or bails out of the enclosing function F if R has an error E. The return type
+// of F must be R, since FTL_TRY propagates R in the error case. As a special case, ftl::Unit may be
+// used as the error E to allow FTL_TRY expressions when F returns `void`.
+//
+// The non-standard syntax requires `-Wno-gnu-statement-expression-from-macro-expansion` to compile.
+// The UnitToVoid conversion allows the macro to be used for early exit from a function that returns
+// `void`.
+//
+// Example usage:
+//
+//   using StringExp = ftl::Expected<std::string, std::errc>;
+//
+//   StringExp repeat(StringExp exp) {
+//     const std::string str = FTL_TRY(exp);
+//     return StringExp(str + str);
+//   }
+//
+//   assert(StringExp("haha"s) == repeat(StringExp("ha"s)));
+//   assert(repeat(ftl::Unexpected(std::errc::bad_message)).has_error([](std::errc e) {
+//     return e == std::errc::bad_message;
+//   }));
+//
+//
+// FTL_TRY may be used in void-returning functions by using ftl::Unit as the error type:
+//
+//   void uppercase(char& c, ftl::Optional<char> opt) {
+//     c = std::toupper(FTL_TRY(std::move(opt).ok_or(ftl::Unit())));
+//   }
+//
+//   char c = '?';
+//   uppercase(c, std::nullopt);
+//   assert(c == '?');
+//
+//   uppercase(c, 'a');
+//   assert(c == 'A');
+//
+#define FTL_TRY(expr)                                                     \
+  ({                                                                      \
+    auto exp_ = (expr);                                                   \
+    if (!exp_.has_value()) {                                              \
+      using E = decltype(exp_)::error_type;                               \
+      return android::ftl::details::UnitToVoid<E>::from(std::move(exp_)); \
+    }                                                                     \
+    exp_.value();                                                         \
+  })
 
 namespace android::ftl {
 

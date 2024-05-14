@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <ftl/expected.h>
 #include <ftl/optional.h>
 #include <ftl/static_vector.h>
 #include <ftl/string.h>
@@ -23,6 +24,7 @@
 #include <cstdlib>
 #include <functional>
 #include <numeric>
+#include <system_error>
 #include <utility>
 
 using namespace std::placeholders;
@@ -202,6 +204,19 @@ TEST(Optional, OrElse) {
                      })
                      .and_then(parse_int)
                      .or_else([] { return Optional(-1); }));
+}
+
+TEST(Optional, OkOr) {
+  using CharExp = ftl::Expected<char, std::errc>;
+  using StringExp = ftl::Expected<std::string, std::errc>;
+
+  EXPECT_EQ(CharExp('z'), Optional('z').ok_or(std::errc::broken_pipe));
+  EXPECT_EQ(CharExp(ftl::Unexpected(std::errc::broken_pipe)),
+            Optional<char>().ok_or(std::errc::broken_pipe));
+
+  EXPECT_EQ(StringExp("abc"s), Optional("abc"s).ok_or(std::errc::protocol_error));
+  EXPECT_EQ(StringExp(ftl::Unexpected(std::errc::protocol_error)),
+            Optional<std::string>().ok_or(std::errc::protocol_error));
 }
 
 // Comparison.
