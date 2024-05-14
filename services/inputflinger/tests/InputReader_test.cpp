@@ -27,6 +27,7 @@
 #include <JoystickInputMapper.h>
 #include <KeyboardInputMapper.h>
 #include <MultiTouchInputMapper.h>
+#include <NotifyArgsBuilders.h>
 #include <PeripheralController.h>
 #include <SensorInputMapper.h>
 #include <SingleTouchInputMapper.h>
@@ -1181,6 +1182,82 @@ TEST_F(InputReaderTest, ChangingPointerCaptureNotifiesInputListener) {
     mReader->requestRefreshConfiguration(InputReaderConfiguration::Change::POINTER_CAPTURE);
     mReader->loopOnce();
     mFakeListener->assertNotifyCaptureWasNotCalled();
+}
+
+TEST_F(InputReaderTest, GetLastUsedInputDeviceId) {
+    constexpr int32_t FIRST_DEVICE_ID = END_RESERVED_ID + 1000;
+    constexpr int32_t SECOND_DEVICE_ID = FIRST_DEVICE_ID + 1;
+    FakeInputMapper& firstMapper =
+            addDeviceWithFakeInputMapper(FIRST_DEVICE_ID, FIRST_DEVICE_ID, "first",
+                                         InputDeviceClass::KEYBOARD, AINPUT_SOURCE_KEYBOARD,
+                                         /*configuration=*/nullptr);
+    FakeInputMapper& secondMapper =
+            addDeviceWithFakeInputMapper(SECOND_DEVICE_ID, SECOND_DEVICE_ID, "second",
+                                         InputDeviceClass::TOUCH_MT, AINPUT_SOURCE_STYLUS,
+                                         /*configuration=*/nullptr);
+
+    ASSERT_EQ(ReservedInputDeviceId::INVALID_INPUT_DEVICE_ID, mReader->getLastUsedInputDeviceId());
+
+    // Start a new key gesture from the first device
+    firstMapper.setProcessResult({KeyArgsBuilder(AKEY_EVENT_ACTION_DOWN, AINPUT_SOURCE_KEYBOARD)
+                                          .deviceId(FIRST_DEVICE_ID)
+                                          .build()});
+    mFakeEventHub->enqueueEvent(ARBITRARY_TIME, ARBITRARY_TIME, FIRST_DEVICE_ID, 0, 0, 0);
+    mReader->loopOnce();
+    ASSERT_EQ(firstMapper.getDeviceId(), mReader->getLastUsedInputDeviceId());
+
+    // Start a new touch gesture from the second device
+    secondMapper.setProcessResult(
+            {MotionArgsBuilder(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_STYLUS)
+                     .deviceId(SECOND_DEVICE_ID)
+                     .pointer(PointerBuilder(/*id=*/0, ToolType::FINGER))
+                     .build()});
+    mFakeEventHub->enqueueEvent(ARBITRARY_TIME, ARBITRARY_TIME, SECOND_DEVICE_ID, 0, 0, 0);
+    mReader->loopOnce();
+    ASSERT_EQ(SECOND_DEVICE_ID, mReader->getLastUsedInputDeviceId());
+
+    // Releasing the key is not a new gesture, so it does not update the last used device
+    firstMapper.setProcessResult({KeyArgsBuilder(AKEY_EVENT_ACTION_UP, AINPUT_SOURCE_KEYBOARD)
+                                          .deviceId(FIRST_DEVICE_ID)
+                                          .build()});
+    mFakeEventHub->enqueueEvent(ARBITRARY_TIME, ARBITRARY_TIME, FIRST_DEVICE_ID, 0, 0, 0);
+    mReader->loopOnce();
+    ASSERT_EQ(SECOND_DEVICE_ID, mReader->getLastUsedInputDeviceId());
+
+    // But pressing a new key does start a new gesture
+    firstMapper.setProcessResult({KeyArgsBuilder(AKEY_EVENT_ACTION_DOWN, AINPUT_SOURCE_KEYBOARD)
+                                          .deviceId(FIRST_DEVICE_ID)
+                                          .build()});
+    mFakeEventHub->enqueueEvent(ARBITRARY_TIME, ARBITRARY_TIME, FIRST_DEVICE_ID, 0, 0, 0);
+    mReader->loopOnce();
+    ASSERT_EQ(FIRST_DEVICE_ID, mReader->getLastUsedInputDeviceId());
+
+    // Moving or ending a touch gesture does not update the last used device
+    secondMapper.setProcessResult(
+            {MotionArgsBuilder(AMOTION_EVENT_ACTION_MOVE, AINPUT_SOURCE_STYLUS)
+                     .deviceId(SECOND_DEVICE_ID)
+                     .pointer(PointerBuilder(/*id=*/0, ToolType::STYLUS))
+                     .build()});
+    mFakeEventHub->enqueueEvent(ARBITRARY_TIME, ARBITRARY_TIME, SECOND_DEVICE_ID, 0, 0, 0);
+    mReader->loopOnce();
+    ASSERT_EQ(FIRST_DEVICE_ID, mReader->getLastUsedInputDeviceId());
+    secondMapper.setProcessResult({MotionArgsBuilder(AMOTION_EVENT_ACTION_UP, AINPUT_SOURCE_STYLUS)
+                                           .deviceId(SECOND_DEVICE_ID)
+                                           .pointer(PointerBuilder(/*id=*/0, ToolType::STYLUS))
+                                           .build()});
+    mFakeEventHub->enqueueEvent(ARBITRARY_TIME, ARBITRARY_TIME, SECOND_DEVICE_ID, 0, 0, 0);
+    mReader->loopOnce();
+    ASSERT_EQ(FIRST_DEVICE_ID, mReader->getLastUsedInputDeviceId());
+
+    // Starting a new hover gesture updates the last used device
+    secondMapper.setProcessResult(
+            {MotionArgsBuilder(AMOTION_EVENT_ACTION_HOVER_ENTER, AINPUT_SOURCE_STYLUS)
+                     .deviceId(SECOND_DEVICE_ID)
+                     .pointer(PointerBuilder(/*id=*/0, ToolType::STYLUS))
+                     .build()});
+    mFakeEventHub->enqueueEvent(ARBITRARY_TIME, ARBITRARY_TIME, SECOND_DEVICE_ID, 0, 0, 0);
+    mReader->loopOnce();
+    ASSERT_EQ(SECOND_DEVICE_ID, mReader->getLastUsedInputDeviceId());
 }
 
 class FakeVibratorInputMapper : public FakeInputMapper {

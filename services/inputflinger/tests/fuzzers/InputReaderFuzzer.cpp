@@ -169,6 +169,8 @@ public:
         reader->sysfsNodeChanged(sysfsNodePath);
     }
 
+    DeviceId getLastUsedInputDeviceId() override { return reader->getLastUsedInputDeviceId(); }
+
 private:
     std::unique_ptr<InputReaderInterface> reader;
 };
