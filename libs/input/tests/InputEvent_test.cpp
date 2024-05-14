@@ -858,11 +858,10 @@ MotionEvent createMotionEvent(int32_t source, uint32_t action, float x, float y,
     pointerCoords.back().setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, dy);
     nsecs_t eventTime = systemTime(SYSTEM_TIME_MONOTONIC);
     MotionEvent event;
-    event.initialize(InputEvent::nextId(), /* deviceId */ 1, source, ui::LogicalDisplayId::DEFAULT,
-                     INVALID_HMAC, action,
-                     /* actionButton */ 0, /* flags */ 0, /* edgeFlags */ 0, AMETA_NONE,
-                     /* buttonState */ 0, MotionClassification::NONE, transform,
-                     /* xPrecision */ 0, /* yPrecision */ 0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
+    event.initialize(InputEvent::nextId(), /*deviceId=*/1, source, ui::LogicalDisplayId::DEFAULT,
+                     INVALID_HMAC, action, /*actionButton=*/0, /*flags=*/0, /*edgeFlags=*/0,
+                     AMETA_NONE, /*buttonState=*/0, MotionClassification::NONE, transform,
+                     /*xPrecision=*/0, /*yPrecision=*/0, AMOTION_EVENT_INVALID_CURSOR_POSITION,
                      AMOTION_EVENT_INVALID_CURSOR_POSITION, rawTransform, eventTime, eventTime,
                      pointerCoords.size(), pointerProperties.data(), pointerCoords.data());
     return event;
