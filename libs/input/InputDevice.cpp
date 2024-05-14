@@ -169,7 +169,7 @@ std::string InputDeviceIdentifier::getCanonicalName() const {
 // --- InputDeviceInfo ---
 
 InputDeviceInfo::InputDeviceInfo() {
-    initialize(-1, 0, -1, InputDeviceIdentifier(), "", false, false, ui::ADISPLAY_ID_NONE);
+    initialize(-1, 0, -1, InputDeviceIdentifier(), "", false, false, ui::LogicalDisplayId::INVALID);
 }
 
 InputDeviceInfo::InputDeviceInfo(const InputDeviceInfo& other)

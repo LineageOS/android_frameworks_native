@@ -705,7 +705,7 @@ private:
 
         // Values reported for the last pointer event.
         uint32_t source;
-        ui::LogicalDisplayId displayId{ui::ADISPLAY_ID_NONE};
+        ui::LogicalDisplayId displayId{ui::LogicalDisplayId::INVALID};
         float lastCursorX;
         float lastCursorY;
 
@@ -718,7 +718,7 @@ private:
             hovering = false;
             downTime = 0;
             source = 0;
-            displayId = ui::ADISPLAY_ID_NONE;
+            displayId = ui::LogicalDisplayId::INVALID;
             lastCursorX = 0.f;
             lastCursorY = 0.f;
         }

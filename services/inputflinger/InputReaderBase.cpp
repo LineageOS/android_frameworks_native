@@ -68,7 +68,7 @@ std::optional<DisplayViewport> InputReaderConfiguration::getDisplayViewportByTyp
         if (currentViewport.type == type) {
             if (!result ||
                 (type == ViewportType::INTERNAL &&
-                 currentViewport.displayId == ui::ADISPLAY_ID_DEFAULT)) {
+                 currentViewport.displayId == ui::LogicalDisplayId::DEFAULT)) {
                 result = std::make_optional(currentViewport);
             }
             count++;

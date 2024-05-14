@@ -29,7 +29,7 @@ namespace android::gui {
  * This should only be used by InputFlinger to support raw coordinates in logical display space.
  */
 struct DisplayInfo : public Parcelable {
-    ui::LogicalDisplayId displayId = ui::ADISPLAY_ID_NONE;
+    ui::LogicalDisplayId displayId = ui::LogicalDisplayId::INVALID;
 
     // Logical display dimensions.
     int32_t logicalWidth = 0;

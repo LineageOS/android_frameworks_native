@@ -43,7 +43,7 @@ static InputDeviceInfo generateTestDeviceInfo(uint16_t vendorId, uint16_t produc
     identifier.product = productId;
     auto info = InputDeviceInfo();
     info.initialize(deviceId, /*generation=*/1, /*controllerNumber=*/1, identifier, "Test Device",
-                    /*isExternal=*/false, /*hasMic=*/false, ui::ADISPLAY_ID_NONE);
+                    /*isExternal=*/false, /*hasMic=*/false, ui::LogicalDisplayId::INVALID);
     return info;
 }
 

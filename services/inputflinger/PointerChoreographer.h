@@ -57,7 +57,7 @@ public:
     virtual void setDefaultMouseDisplayId(ui::LogicalDisplayId displayId) = 0;
     virtual void setDisplayViewports(const std::vector<DisplayViewport>& viewports) = 0;
     virtual std::optional<DisplayViewport> getViewportForPointerDevice(
-            ui::LogicalDisplayId associatedDisplayId = ui::ADISPLAY_ID_NONE) = 0;
+            ui::LogicalDisplayId associatedDisplayId = ui::LogicalDisplayId::INVALID) = 0;
     virtual FloatPoint getMouseCursorPosition(ui::LogicalDisplayId displayId) = 0;
     virtual void setShowTouchesEnabled(bool enabled) = 0;
     virtual void setStylusPointerIconEnabled(bool enabled) = 0;

@@ -101,8 +101,8 @@ PointerChoreographer::PointerChoreographer(InputListenerInterface& listener,
         }),
         mNextListener(listener),
         mPolicy(policy),
-        mDefaultMouseDisplayId(ui::ADISPLAY_ID_DEFAULT),
-        mNotifiedPointerDisplayId(ui::ADISPLAY_ID_NONE),
+        mDefaultMouseDisplayId(ui::LogicalDisplayId::DEFAULT),
+        mNotifiedPointerDisplayId(ui::LogicalDisplayId::INVALID),
         mShowTouchesEnabled(false),
         mStylusPointerIconEnabled(false) {}
 
@@ -236,7 +236,7 @@ NotifyMotionArgs PointerChoreographer::processTouchpadEventLocked(const NotifyMo
 }
 
 void PointerChoreographer::processDrawingTabletEventLocked(const android::NotifyMotionArgs& args) {
-    if (args.displayId == ui::ADISPLAY_ID_NONE) {
+    if (args.displayId == ui::LogicalDisplayId::INVALID) {
         return;
     }
 
@@ -557,7 +557,7 @@ PointerChoreographer::PointerDisplayChange PointerChoreographer::updatePointerCo
 
 PointerChoreographer::PointerDisplayChange
 PointerChoreographer::calculatePointerDisplayChangeToNotify() {
-    ui::LogicalDisplayId displayIdToNotify = ui::ADISPLAY_ID_NONE;
+    ui::LogicalDisplayId displayIdToNotify = ui::LogicalDisplayId::INVALID;
     FloatPoint cursorPosition = {0, 0};
     if (const auto it = mMousePointersByDisplay.find(mDefaultMouseDisplayId);
         it != mMousePointersByDisplay.end()) {

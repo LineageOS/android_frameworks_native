@@ -2646,7 +2646,7 @@ std::list<NotifyArgs> TouchInputMapper::dispatchPointerGestures(nsecs_t when, ns
         PointerCoords pointerCoords;
         pointerCoords.clear();
         out.push_back(NotifyMotionArgs(getContext()->getNextId(), when, readTime, getDeviceId(),
-                                       mSource, ui::ADISPLAY_ID_NONE, policyFlags,
+                                       mSource, ui::LogicalDisplayId::INVALID, policyFlags,
                                        AMOTION_EVENT_ACTION_HOVER_MOVE, 0, flags, metaState,
                                        buttonState, MotionClassification::NONE,
                                        AMOTION_EVENT_EDGE_FLAG_NONE, 1, &pointerProperties,
@@ -3477,7 +3477,8 @@ std::list<NotifyArgs> TouchInputMapper::dispatchPointerMouse(nsecs_t when, nsecs
         hovering = false;
     }
 
-    return dispatchPointerSimple(when, readTime, policyFlags, down, hovering, ui::ADISPLAY_ID_NONE);
+    return dispatchPointerSimple(when, readTime, policyFlags, down, hovering,
+                                 ui::LogicalDisplayId::INVALID);
 }
 
 std::list<NotifyArgs> TouchInputMapper::abortPointerMouse(nsecs_t when, nsecs_t readTime,
@@ -3684,7 +3685,8 @@ NotifyMotionArgs TouchInputMapper::dispatchMotion(
         source |= AINPUT_SOURCE_BLUETOOTH_STYLUS;
     }
 
-    const ui::LogicalDisplayId displayId = getAssociatedDisplayId().value_or(ui::ADISPLAY_ID_NONE);
+    const ui::LogicalDisplayId displayId =
+            getAssociatedDisplayId().value_or(ui::LogicalDisplayId::INVALID);
 
     float xCursorPosition = AMOTION_EVENT_INVALID_CURSOR_POSITION;
     float yCursorPosition = AMOTION_EVENT_INVALID_CURSOR_POSITION;
@@ -3961,7 +3963,7 @@ bool TouchInputMapper::markSupportedKeyCodes(uint32_t sourceMask,
 std::optional<ui::LogicalDisplayId> TouchInputMapper::getAssociatedDisplayId() {
     if (mParameters.hasAssociatedDisplay) {
         if (mDeviceMode == DeviceMode::POINTER) {
-            return ui::ADISPLAY_ID_NONE;
+            return ui::LogicalDisplayId::INVALID;
         } else {
             return std::make_optional(mViewport.displayId);
         }

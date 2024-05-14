@@ -114,7 +114,7 @@ ui::LogicalDisplayId KeyboardInputMapper::getDisplayId() {
     if (mViewport) {
         return mViewport->displayId;
     }
-    return ui::ADISPLAY_ID_NONE;
+    return ui::LogicalDisplayId::INVALID;
 }
 
 std::optional<KeyboardLayoutInfo> KeyboardInputMapper::getKeyboardLayoutInfo() const {

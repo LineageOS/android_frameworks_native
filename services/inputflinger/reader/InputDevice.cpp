@@ -442,7 +442,8 @@ std::list<NotifyArgs> InputDevice::updateExternalStylusState(const StylusState& 
 InputDeviceInfo InputDevice::getDeviceInfo() {
     InputDeviceInfo outDeviceInfo;
     outDeviceInfo.initialize(mId, mGeneration, mControllerNumber, mIdentifier, mAlias, mIsExternal,
-                             mHasMic, getAssociatedDisplayId().value_or(ui::ADISPLAY_ID_NONE),
+                             mHasMic,
+                             getAssociatedDisplayId().value_or(ui::LogicalDisplayId::INVALID),
                              {mShouldSmoothScroll}, isEnabled());
 
     for_each_mapper(

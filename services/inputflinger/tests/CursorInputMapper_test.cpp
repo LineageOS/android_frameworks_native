@@ -50,7 +50,7 @@ constexpr auto BUTTON_PRESS = AMOTION_EVENT_ACTION_BUTTON_PRESS;
 constexpr auto BUTTON_RELEASE = AMOTION_EVENT_ACTION_BUTTON_RELEASE;
 constexpr auto HOVER_MOVE = AMOTION_EVENT_ACTION_HOVER_MOVE;
 constexpr auto INVALID_CURSOR_POSITION = AMOTION_EVENT_INVALID_CURSOR_POSITION;
-constexpr ui::LogicalDisplayId DISPLAY_ID = ui::ADISPLAY_ID_DEFAULT;
+constexpr ui::LogicalDisplayId DISPLAY_ID = ui::LogicalDisplayId::DEFAULT;
 constexpr ui::LogicalDisplayId SECONDARY_DISPLAY_ID = ui::LogicalDisplayId{DISPLAY_ID.val() + 1};
 constexpr int32_t DISPLAY_WIDTH = 480;
 constexpr int32_t DISPLAY_HEIGHT = 800;
@@ -909,7 +909,8 @@ TEST_F(CursorInputMapperUnitTest, ConfigureDisplayIdNoAssociatedViewport) {
     EXPECT_THAT(args,
                 ElementsAre(VariantWith<NotifyMotionArgs>(
                         AllOf(WithMotionAction(AMOTION_EVENT_ACTION_HOVER_MOVE),
-                              WithSource(AINPUT_SOURCE_MOUSE), WithDisplayId(ui::ADISPLAY_ID_NONE),
+                              WithSource(AINPUT_SOURCE_MOUSE),
+                              WithDisplayId(ui::LogicalDisplayId::INVALID),
                               WithCoords(0.0f, 0.0f)))));
 }
 
