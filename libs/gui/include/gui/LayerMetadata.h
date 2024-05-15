@@ -74,6 +74,7 @@ enum class GameMode : int32_t {
 } // namespace android::gui
 
 using android::gui::METADATA_ACCESSIBILITY_ID;
+using android::gui::METADATA_CALLING_UID;
 using android::gui::METADATA_DEQUEUE_TIME;
 using android::gui::METADATA_GAME_MODE;
 using android::gui::METADATA_MOUSE_CURSOR;

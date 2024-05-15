@@ -328,6 +328,7 @@ void RequestedLayerState::merge(const ResolvedComposerState& resolvedComposerSta
                 changes |= RequestedLayerState::Changes::GameMode;
             }
         }
+        changes |= RequestedLayerState::Changes::Metadata;
     }
     if (clientState.what & layer_state_t::eFrameRateChanged) {
         const auto compatibility =
