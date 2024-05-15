@@ -507,7 +507,7 @@ TEST_F(DumpstateBinderTest, Baseline) {
         ds_binder->startBugreport(123, "com.example.package", std::move(bugreport_fd),
                                   std::move(screenshot_fd),
                                   Dumpstate::BugreportMode::BUGREPORT_INTERACTIVE, flags, listener,
-                                  true);
+                                  true, false);
     // startBugreport is an async call. Verify binder call succeeded first, then wait till listener
     // gets expected callbacks.
     EXPECT_TRUE(status.isOk());
@@ -545,7 +545,7 @@ TEST_F(DumpstateBinderTest, ServiceDies_OnInvalidInput) {
     android::binder::Status status =
         ds_binder->startBugreport(123, "com.example.package", std::move(bugreport_fd),
                                   std::move(screenshot_fd), 2000,  // invalid bugreport mode
-                                  flags, listener, false);
+                                  flags, listener, false, false);
     EXPECT_EQ(listener->getErrorCode(), IDumpstateListener::BUGREPORT_ERROR_INVALID_INPUT);
 
     // The service should have died, freeing itself up for a new invocation.
@@ -579,7 +579,7 @@ TEST_F(DumpstateBinderTest, SimultaneousBugreportsNotAllowed) {
         ds_binder->startBugreport(123, "com.example.package", std::move(bugreport_fd),
                                   std::move(screenshot_fd),
                                   Dumpstate::BugreportMode::BUGREPORT_INTERACTIVE, flags, listener1,
-                                  true);
+                                  true, false);
     EXPECT_TRUE(status.isOk());
 
     // try to make another call to startBugreport. This should fail.
@@ -587,7 +587,7 @@ TEST_F(DumpstateBinderTest, SimultaneousBugreportsNotAllowed) {
     status = ds_binder->startBugreport(123, "com.example.package", std::move(bugreport_fd2),
                                         std::move(screenshot_fd2),
                                        Dumpstate::BugreportMode::BUGREPORT_INTERACTIVE, flags,
-                                       listener2, true);
+                                       listener2, true, false);
     EXPECT_FALSE(status.isOk());
     WaitTillExecutionComplete(listener2.get());
     EXPECT_EQ(listener2->getErrorCode(),

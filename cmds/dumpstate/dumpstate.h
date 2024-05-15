@@ -364,7 +364,7 @@ class Dumpstate {
      * Initialize() dumpstate before calling this method.
      */
     RunStatus Retrieve(int32_t calling_uid, const std::string& calling_package,
-                        const bool keep_bugreport_on_retrieval);
+                        const bool keep_bugreport_on_retrieval, const bool skip_user_consent);
 
 
 
@@ -412,6 +412,7 @@ class Dumpstate {
         bool do_screenshot = false;
         bool is_screenshot_copied = false;
         bool is_consent_deferred = false;
+        bool skip_user_consent = false;
         bool is_remote_mode = false;
         bool show_header_only = false;
         bool telephony_only = false;
@@ -448,7 +449,8 @@ class Dumpstate {
         void Initialize(BugreportMode bugreport_mode, int bugreport_flags,
                         const android::base::unique_fd& bugreport_fd,
                         const android::base::unique_fd& screenshot_fd,
-                        bool is_screenshot_requested);
+                        bool is_screenshot_requested,
+                        bool skip_user_consent);
 
         /* Returns true if the options set so far are consistent. */
         bool ValidateOptions() const;
@@ -564,7 +566,8 @@ class Dumpstate {
   private:
     RunStatus RunInternal(int32_t calling_uid, const std::string& calling_package);
     RunStatus RetrieveInternal(int32_t calling_uid, const std::string& calling_package,
-                                const bool keep_bugreport_on_retrieval);
+                                const bool keep_bugreport_on_retrieval,
+                                const bool skip_user_consent);
 
     RunStatus DumpstateDefaultAfterCritical();
     RunStatus dumpstate();

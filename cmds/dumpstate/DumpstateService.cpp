@@ -39,6 +39,7 @@ struct DumpstateInfo {
     std::string calling_package;
     int32_t user_id = -1;
     bool keep_bugreport_on_retrieval = false;
+    bool skip_user_consent = false;
 };
 
 static binder::Status exception(uint32_t code, const std::string& msg,
@@ -62,7 +63,8 @@ static binder::Status exception(uint32_t code, const std::string& msg,
 
 [[noreturn]] static void* dumpstate_thread_retrieve(void* data) {
     std::unique_ptr<DumpstateInfo> ds_info(static_cast<DumpstateInfo*>(data));
-    ds_info->ds->Retrieve(ds_info->calling_uid, ds_info->calling_package, ds_info->keep_bugreport_on_retrieval);
+    ds_info->ds->Retrieve(ds_info->calling_uid, ds_info->calling_package,
+    ds_info->keep_bugreport_on_retrieval, ds_info->skip_user_consent);
     MYLOGD("Finished retrieving a bugreport. Exiting.\n");
     exit(0);
 }
@@ -116,7 +118,8 @@ binder::Status DumpstateService::startBugreport(int32_t calling_uid,
                                                 int bugreport_mode,
                                                 int bugreport_flags,
                                                 const sp<IDumpstateListener>& listener,
-                                                bool is_screenshot_requested) {
+                                                bool is_screenshot_requested,
+                                                bool skip_user_consent) {
     MYLOGI("startBugreport() with mode: %d\n", bugreport_mode);
 
     // Ensure there is only one bugreport in progress at a time.
@@ -151,7 +154,7 @@ binder::Status DumpstateService::startBugreport(int32_t calling_uid,
 
     std::unique_ptr<Dumpstate::DumpOptions> options = std::make_unique<Dumpstate::DumpOptions>();
     options->Initialize(static_cast<Dumpstate::BugreportMode>(bugreport_mode), bugreport_flags,
-                        bugreport_fd, screenshot_fd, is_screenshot_requested);
+                        bugreport_fd, screenshot_fd, is_screenshot_requested, skip_user_consent);
 
     if (bugreport_fd.get() == -1 || (options->do_screenshot && screenshot_fd.get() == -1)) {
         MYLOGE("Invalid filedescriptor");
@@ -207,6 +210,7 @@ binder::Status DumpstateService::retrieveBugreport(
     android::base::unique_fd bugreport_fd,
     const std::string& bugreport_file,
     const bool keep_bugreport_on_retrieval,
+    const bool skip_user_consent,
     const sp<IDumpstateListener>& listener) {
 
     ds_ = &(Dumpstate::GetInstance());
@@ -216,6 +220,7 @@ binder::Status DumpstateService::retrieveBugreport(
     ds_info->calling_package = calling_package;
     ds_info->user_id = user_id;
     ds_info->keep_bugreport_on_retrieval = keep_bugreport_on_retrieval;
+    ds_info->skip_user_consent = skip_user_consent;
     ds_->listener_ = listener;
     std::unique_ptr<Dumpstate::DumpOptions> options = std::make_unique<Dumpstate::DumpOptions>();
     // Use a /dev/null FD when initializing options since none is provided.
@@ -223,7 +228,7 @@ binder::Status DumpstateService::retrieveBugreport(
         TEMP_FAILURE_RETRY(open("/dev/null", O_WRONLY | O_CLOEXEC)));
 
     options->Initialize(Dumpstate::BugreportMode::BUGREPORT_DEFAULT,
-                        0, bugreport_fd, devnull_fd, false);
+                        0, bugreport_fd, devnull_fd, false, skip_user_consent);
 
     if (bugreport_fd.get() == -1) {
         MYLOGE("Invalid filedescriptor");
