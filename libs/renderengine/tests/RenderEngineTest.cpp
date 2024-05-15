@@ -1095,7 +1095,7 @@ void RenderEngineTest::fillBufferWithRoundedCorners() {
 
 template <typename SourceVariant>
 void RenderEngineTest::fillBufferAndBlurBackground() {
-    auto blurRadius = 30;
+    auto blurRadius = 50;
     auto center = DEFAULT_DISPLAY_WIDTH / 2;
 
     renderengine::DisplaySettings settings;
