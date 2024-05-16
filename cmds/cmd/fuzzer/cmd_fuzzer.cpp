@@ -58,6 +58,12 @@ void CmdFuzzer::process(const uint8_t* data, size_t size) {
         while (mFDP->remaining_bytes() > 0) {
             size_t sizestr = mFDP->ConsumeIntegralInRange<size_t>(1, mFDP->remaining_bytes());
             string argument = mFDP->ConsumeBytesAsString(sizestr);
+            /**
+             * Filtering out strings based on "-w" argument. Since it leads to timeout.
+             */
+            if(strcmp(argument.c_str(), "-w") == 0) {
+                continue;
+            }
             arguments.emplace_back(argument);
         }
     }
