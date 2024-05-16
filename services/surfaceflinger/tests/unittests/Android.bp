@@ -66,6 +66,7 @@ cc_test {
         "BackgroundExecutorTest.cpp",
         "CommitTest.cpp",
         "CompositionTest.cpp",
+        "DaltonizerTest.cpp",
         "DisplayIdGeneratorTest.cpp",
         "DisplayTransactionTest.cpp",
         "DisplayDevice_GetBestColorModeTest.cpp",
