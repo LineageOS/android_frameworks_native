@@ -681,6 +681,15 @@ void SurfaceFrame::onPresent(nsecs_t presentTime, int32_t displayFrameJankType, 
     }
 }
 
+void SurfaceFrame::onCommitNotComposited(Fps refreshRate, Fps displayFrameRenderRate) {
+    std::scoped_lock lock(mMutex);
+
+    mDisplayFrameRenderRate = displayFrameRenderRate;
+    mActuals.presentTime = mPredictions.presentTime;
+    nsecs_t deadlineDelta = 0;
+    classifyJankLocked(JankType::None, refreshRate, displayFrameRenderRate, deadlineDelta);
+}
+
 void SurfaceFrame::tracePredictions(int64_t displayFrameToken, nsecs_t monoBootOffset) const {
     int64_t expectedTimelineCookie = mTraceCookieCounter.getCookieForTracing();
 
@@ -912,6 +921,15 @@ void FrameTimeline::setSfPresent(nsecs_t sfPresentTime,
     finalizeCurrentDisplayFrame();
 }
 
+void FrameTimeline::onCommitNotComposited() {
+    ATRACE_CALL();
+    std::scoped_lock lock(mMutex);
+    mCurrentDisplayFrame->onCommitNotComposited();
+    mCurrentDisplayFrame.reset();
+    mCurrentDisplayFrame = std::make_shared<DisplayFrame>(mTimeStats, mJankClassificationThresholds,
+                                                          &mTraceCookieCounter);
+}
+
 void FrameTimeline::DisplayFrame::addSurfaceFrame(std::shared_ptr<SurfaceFrame> surfaceFrame) {
     mSurfaceFrames.push_back(surfaceFrame);
 }
@@ -1091,6 +1109,12 @@ void FrameTimeline::DisplayFrame::onPresent(nsecs_t signalTime, nsecs_t previous
     for (auto& surfaceFrame : mSurfaceFrames) {
         surfaceFrame->onPresent(signalTime, mJankType, mRefreshRate, mRenderRate, deadlineDelta,
                                 deltaToVsync);
+    }
+}
+
+void FrameTimeline::DisplayFrame::onCommitNotComposited() {
+    for (auto& surfaceFrame : mSurfaceFrames) {
+        surfaceFrame->onCommitNotComposited(mRefreshRate, mRenderRate);
     }
 }
 
