@@ -362,6 +362,7 @@ LayerSnapshot LayerSnapshotBuilder::getRootSnapshot() {
     snapshot.gameMode = gui::GameMode::Unsupported;
     snapshot.frameRate = {};
     snapshot.fixedTransformHint = ui::Transform::ROT_INVALID;
+    snapshot.ignoreLocalTransform = false;
     return snapshot;
 }
 
