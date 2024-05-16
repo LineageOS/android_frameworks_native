@@ -331,6 +331,7 @@ std::list<NotifyArgs> GestureConverter::handleScroll(nsecs_t when, nsecs_t readT
         out += exitHover(when, readTime);
 
         mCurrentClassification = MotionClassification::TWO_FINGER_SWIPE;
+        coords.clear();
         coords.setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, 1.0f);
         mDownTime = when;
         NotifyMotionArgs args =

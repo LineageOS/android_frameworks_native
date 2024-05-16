@@ -38,6 +38,8 @@ using android::base::StringPrintf;
 
 namespace android {
 
+namespace {
+
 /**
  * Determines if the identifiers passed are a sub-devices. Sub-devices are physical devices
  * that expose multiple input device paths such a keyboard that also has a touchpad input.
@@ -49,8 +51,8 @@ namespace android {
  *    inputs versus the same device plugged into multiple ports.
  */
 
-static bool isSubDevice(const InputDeviceIdentifier& identifier1,
-                        const InputDeviceIdentifier& identifier2) {
+bool isSubDevice(const InputDeviceIdentifier& identifier1,
+                 const InputDeviceIdentifier& identifier2) {
     return (identifier1.vendor == identifier2.vendor &&
             identifier1.product == identifier2.product && identifier1.bus == identifier2.bus &&
             identifier1.version == identifier2.version &&
@@ -58,7 +60,7 @@ static bool isSubDevice(const InputDeviceIdentifier& identifier1,
             identifier1.location == identifier2.location);
 }
 
-static bool isStylusPointerGestureStart(const NotifyMotionArgs& motionArgs) {
+bool isStylusPointerGestureStart(const NotifyMotionArgs& motionArgs) {
     const auto actionMasked = MotionEvent::getActionMasked(motionArgs.action);
     if (actionMasked != AMOTION_EVENT_ACTION_HOVER_ENTER &&
         actionMasked != AMOTION_EVENT_ACTION_DOWN &&
@@ -68,6 +70,28 @@ static bool isStylusPointerGestureStart(const NotifyMotionArgs& motionArgs) {
     const auto actionIndex = MotionEvent::getActionIndex(motionArgs.action);
     return isStylusToolType(motionArgs.pointerProperties[actionIndex].toolType);
 }
+
+bool isNewGestureStart(const NotifyMotionArgs& motion) {
+    return motion.action == AMOTION_EVENT_ACTION_DOWN ||
+            motion.action == AMOTION_EVENT_ACTION_HOVER_ENTER;
+}
+
+bool isNewGestureStart(const NotifyKeyArgs& key) {
+    return key.action == AKEY_EVENT_ACTION_DOWN;
+}
+
+// Return the event's device ID if it marks the start of a new gesture.
+std::optional<DeviceId> getDeviceIdOfNewGesture(const NotifyArgs& args) {
+    if (const auto* motion = std::get_if<NotifyMotionArgs>(&args); motion != nullptr) {
+        return isNewGestureStart(*motion) ? std::make_optional(motion->deviceId) : std::nullopt;
+    }
+    if (const auto* key = std::get_if<NotifyKeyArgs>(&args); key != nullptr) {
+        return isNewGestureStart(*key) ? std::make_optional(key->deviceId) : std::nullopt;
+    }
+    return std::nullopt;
+}
+
+} // namespace
 
 // --- InputReader ---
 
@@ -162,6 +186,11 @@ void InputReader::loopOnce() {
         }
 
         std::swap(notifyArgs, mPendingArgs);
+
+        // Keep track of the last used device
+        for (const NotifyArgs& args : notifyArgs) {
+            mLastUsedDeviceId = getDeviceIdOfNewGesture(args).value_or(mLastUsedDeviceId);
+        }
     } // release lock
 
     // Flush queued events out to the listener.
@@ -881,6 +910,11 @@ bool InputReader::canDispatchToDisplay(int32_t deviceId, ui::LogicalDisplayId di
 
 void InputReader::sysfsNodeChanged(const std::string& sysfsNodePath) {
     mEventHub->sysfsNodeChanged(sysfsNodePath);
+}
+
+DeviceId InputReader::getLastUsedInputDeviceId() {
+    std::scoped_lock _l(mLock);
+    return mLastUsedDeviceId;
 }
 
 void InputReader::dump(std::string& dump) {

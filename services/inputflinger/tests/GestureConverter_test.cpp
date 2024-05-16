@@ -441,6 +441,43 @@ TEST_F(GestureConverterTest, Scroll_ClearsScrollDistanceAfterGesture) {
     EXPECT_THAT(std::get<NotifyMotionArgs>(args.front()), WithGestureScrollDistance(0, 0, EPSILON));
 }
 
+TEST_F(GestureConverterTest, Scroll_ClearsFakeFingerPositionOnSubsequentScrollGestures) {
+    InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
+    GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);
+    converter.setDisplayId(ui::LogicalDisplayId::DEFAULT);
+
+    Gesture startGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 15, -10);
+    std::list<NotifyArgs> args =
+            converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, startGesture);
+
+    Gesture continueGesture(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, -2, -5);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, continueGesture);
+
+    Gesture flingGesture(kGestureFling, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 1, 1,
+                         GESTURES_FLING_START);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, flingGesture);
+    Gesture flingGestureEnd(kGestureFling, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 0, 0,
+                            GESTURES_FLING_TAP_DOWN);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, flingGestureEnd);
+
+    // Start a second scoll gesture, and ensure the fake finger is reset to (0, 0), instead of
+    // continuing from the position where the last scroll gesture's fake finger ended.
+    Gesture secondScrollStart(kGestureScroll, ARBITRARY_GESTURE_TIME, ARBITRARY_GESTURE_TIME, 2,
+                              14);
+    args = converter.handleGesture(ARBITRARY_TIME, READ_TIME, ARBITRARY_TIME, secondScrollStart);
+    ASSERT_THAT(args,
+                ElementsAre(VariantWith<NotifyMotionArgs>(
+                                    WithMotionAction(AMOTION_EVENT_ACTION_HOVER_EXIT)),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_DOWN),
+                                          WithCoords(0, 0),
+                                          WithGestureScrollDistance(0, 0, EPSILON))),
+                            VariantWith<NotifyMotionArgs>(
+                                    AllOf(WithMotionAction(AMOTION_EVENT_ACTION_MOVE),
+                                          WithCoords(2, 14),
+                                          WithGestureScrollDistance(-2, -14, EPSILON)))));
+}
+
 TEST_F(GestureConverterTest, ThreeFingerSwipe_ClearsClassificationAfterGesture) {
     InputDeviceContext deviceContext(*mDevice, EVENTHUB_ID);
     GestureConverter converter(*mReader->getContext(), deviceContext, DEVICE_ID);

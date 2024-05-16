@@ -32,19 +32,22 @@ class SurfaceFlinger;
 
 class LayerRenderArea : public RenderArea {
 public:
-    LayerRenderArea(sp<Layer> layer, const Rect& crop, ui::Size reqSize, ui::Dataspace reqDataSpace,
-                    bool allowSecureLayers, const ui::Transform& layerTransform,
-                    const Rect& layerBufferSize, bool hintForSeamlessTransition);
+    LayerRenderArea(sp<Layer> layer, frontend::LayerSnapshot layerSnapshot, const Rect& crop,
+                    ui::Size reqSize, ui::Dataspace reqDataSpace, bool allowSecureLayers,
+                    const ui::Transform& layerTransform, const Rect& layerBufferSize,
+                    bool hintForSeamlessTransition);
 
     const ui::Transform& getTransform() const override;
     bool isSecure() const override;
     sp<const DisplayDevice> getDisplayDevice() const override;
     Rect getSourceCrop() const override;
 
-    virtual sp<Layer> getParentLayer() const { return mLayer; }
+    sp<Layer> getParentLayer() const override { return mLayer; }
+    const frontend::LayerSnapshot* getLayerSnapshot() const override { return &mLayerSnapshot; }
 
 private:
     const sp<Layer> mLayer;
+    const frontend::LayerSnapshot mLayerSnapshot;
     const Rect mLayerBufferSize;
     const Rect mCrop;
 

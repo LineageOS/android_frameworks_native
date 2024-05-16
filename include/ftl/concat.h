@@ -57,7 +57,7 @@ struct Concat<N, T, Ts...> : Concat<N + details::StaticString<T>::N, Ts...> {
 template <std::size_t N>
 struct Concat<N> {
   static constexpr std::size_t max_size() { return N; }
-  constexpr std::size_t size() const { return end_ - buffer_; }
+  constexpr std::size_t size() const { return static_cast<std::size_t>(end_ - buffer_); }
 
   constexpr const char* c_str() const { return buffer_; }
 
@@ -68,6 +68,8 @@ struct Concat<N> {
 
  protected:
   constexpr Concat() : end_(buffer_) {}
+  constexpr Concat(const Concat&) = delete;
+
   constexpr void append() { *end_ = '\0'; }
 
   char buffer_[N + 1];

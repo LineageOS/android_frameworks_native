@@ -58,4 +58,22 @@ constexpr auto unit_fn(F&& f) -> UnitFn<std::decay_t<F>> {
   return {std::forward<F>(f)};
 }
 
+namespace details {
+
+// Identity function for all T except Unit, which maps to void.
+template <typename T>
+struct UnitToVoid {
+  template <typename U>
+  static auto from(U&& value) {
+    return value;
+  }
+};
+
+template <>
+struct UnitToVoid<Unit> {
+  template <typename U>
+  static void from(U&&) {}
+};
+
+}  // namespace details
 }  // namespace android::ftl
