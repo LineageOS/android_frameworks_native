@@ -19,6 +19,7 @@
 #pragma clang diagnostic ignored "-Wconversion"
 
 #include <android-base/properties.h>
+#include <common/FlagManager.h>
 #include <private/android_filesystem_config.h>
 #include "LayerTransactionTest.h"
 #include "utils/TransactionUtils.h"
@@ -77,6 +78,10 @@ TEST_F(MirrorLayerTest, MirrorColorLayer) {
             .setPosition(mirrorLayer, 500, 500)
             .show(mirrorLayer)
             .apply();
+
+    if (FlagManager::getInstance().detached_mirror()) {
+        Transaction().setPosition(mirrorLayer, 550, 550).apply();
+    }
 
     {
         SCOPED_TRACE("Initial Mirror");
@@ -172,6 +177,9 @@ TEST_F(MirrorLayerTest, MirrorBufferLayer) {
             .show(mirrorLayer)
             .apply();
 
+    if (FlagManager::getInstance().detached_mirror()) {
+        Transaction().setPosition(mirrorLayer, 550, 550).apply();
+    }
     {
         SCOPED_TRACE("Initial Mirror BufferQueueLayer");
         auto shot = screenshot();
@@ -263,6 +271,9 @@ TEST_F(MirrorLayerTest, InitialMirrorState) {
             .setLayer(mirrorLayer, INT32_MAX - 1)
             .apply();
 
+    if (FlagManager::getInstance().detached_mirror()) {
+        Transaction().setPosition(mirrorLayer, 550, 550).apply();
+    }
     {
         SCOPED_TRACE("Offscreen Mirror");
         auto shot = screenshot();
@@ -313,8 +324,15 @@ TEST_F(MirrorLayerTest, OffscreenMirrorScreenshot) {
         ASSERT_NE(mirrorLayer, nullptr);
     }
 
+    sp<SurfaceControl> mirrorParent =
+            createLayer("Grandchild layer", 50, 50, ISurfaceComposerClient::eFXSurfaceBufferState);
+
     // Show the mirror layer, but don't reparent to a layer on screen.
-    Transaction().show(mirrorLayer).apply();
+    Transaction().reparent(mirrorLayer, mirrorParent).show(mirrorLayer).apply();
+
+    if (FlagManager::getInstance().detached_mirror()) {
+        Transaction().setPosition(mirrorLayer, 50, 50).apply();
+    }
 
     {
         SCOPED_TRACE("Offscreen Mirror");
@@ -331,7 +349,7 @@ TEST_F(MirrorLayerTest, OffscreenMirrorScreenshot) {
         SCOPED_TRACE("Capture Mirror");
         // Capture just the mirror layer and child.
         LayerCaptureArgs captureArgs;
-        captureArgs.layerHandle = mirrorLayer->getHandle();
+        captureArgs.layerHandle = mirrorParent->getHandle();
         captureArgs.sourceCrop = childBounds;
         std::unique_ptr<ScreenCapture> shot;
         ScreenCapture::captureLayers(&shot, captureArgs);

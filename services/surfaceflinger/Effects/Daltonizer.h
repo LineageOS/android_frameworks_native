@@ -21,6 +21,9 @@
 
 namespace android {
 
+// Forward declare test class
+class DaltonizerTest;
+
 enum class ColorBlindnessType {
     None,               // Disables the Daltonizer
     Protanomaly,        // L (red) cone deficient
@@ -37,9 +40,14 @@ class Daltonizer {
 public:
     void setType(ColorBlindnessType type);
     void setMode(ColorBlindnessMode mode);
+    // sets level for correction saturation, [0-10].
+    void setLevel(int32_t level);
 
     // returns the color transform to apply in the shader
     const mat4& operator()();
+
+    // For testing.
+    friend class DaltonizerTest;
 
 private:
     void update();
@@ -48,6 +56,8 @@ private:
     ColorBlindnessMode mMode = ColorBlindnessMode::Simulation;
     bool mDirty = true;
     mat4 mColorTransform;
+    // level of error spreading, [0.0-1.0].
+    float mLevel = 0.7f;
 };
 
 } /* namespace android */

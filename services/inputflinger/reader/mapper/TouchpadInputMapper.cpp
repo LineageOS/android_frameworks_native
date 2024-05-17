@@ -183,7 +183,6 @@ private:
     static AStatsManager_PullAtomCallbackReturn pullAtomCallback(int32_t atomTag,
                                                                  AStatsEventList* outEventList,
                                                                  void* cookie) {
-        ALOGI("Received pull request for touchpad usage atom");
         LOG_ALWAYS_FATAL_IF(atomTag != android::util::TOUCHPAD_USAGE);
         MetricsAccumulator& accumulator = MetricsAccumulator::getInstance();
         accumulator.produceAtomsAndReset(*outEventList);
@@ -191,14 +190,12 @@ private:
     }
 
     void produceAtomsAndReset(AStatsEventList& outEventList) {
-        ALOGI("Acquiring lock for touchpad usage metrics...");
         std::scoped_lock lock(mLock);
         produceAtomsLocked(outEventList);
         resetCountersLocked();
     }
 
     void produceAtomsLocked(AStatsEventList& outEventList) const REQUIRES(mLock) {
-        ALOGI("Producing touchpad usage atoms for %zu counters", mCounters.size());
         for (auto& [id, counters] : mCounters) {
             auto [busId, vendorId, productId, versionId] = id;
             addAStatsEvent(&outEventList, android::util::TOUCHPAD_USAGE, vendorId, productId,

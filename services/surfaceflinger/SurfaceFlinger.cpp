@@ -7137,6 +7137,7 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 Mutex::Autolock _l(mStateLock);
                 // daltonize
                 n = data.readInt32();
+                mDaltonizer.setLevel(data.readInt32());
                 switch (n % 10) {
                     case 1:
                         mDaltonizer.setType(ColorBlindnessType::Protanomaly);

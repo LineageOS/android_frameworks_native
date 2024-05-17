@@ -37,6 +37,18 @@ void Daltonizer::setMode(ColorBlindnessMode mode) {
     }
 }
 
+void Daltonizer::setLevel(int32_t level) {
+    if (level < 0 || level > 10) {
+        return;
+    }
+
+    float newLevel = level / 10.0f;
+    if (std::fabs(mLevel - newLevel) > 0.09f) {
+        mDirty = true;
+    }
+    mLevel = newLevel;
+}
+
 const mat4& Daltonizer::operator()() {
     if (mDirty) {
         mDirty = false;
@@ -117,25 +129,24 @@ void Daltonizer::update() {
     // a color blind user and "spread" this error onto the healthy cones.
     // The matrices below perform this last step and have been chosen arbitrarily.
 
-    // The amount of correction can be adjusted here.
-
+    // Scale 0 represents no change (mColorTransform is identical matrix).
     // error spread for protanopia
-    const mat4 errp(    1.0, 0.7, 0.7, 0,
-                        0.0, 1.0, 0.0, 0,
-                        0.0, 0.0, 1.0, 0,
-                          0,   0,   0, 1);
+    const mat4 errp(1.0, mLevel, mLevel, 0.0,
+                    0.0,    1.0,    0.0, 0.0,
+                    0.0,    0.0,    1.0, 0.0,
+                    0.0,    0.0,    0.0, 1.0);
 
     // error spread for deuteranopia
-    const mat4 errd(    1.0, 0.0, 0.0, 0,
-                        0.7, 1.0, 0.7, 0,
-                        0.0, 0.0, 1.0, 0,
-                          0,   0,   0, 1);
+    const mat4 errd(   1.0, 0.0,    0.0, 0.0,
+                    mLevel, 1.0, mLevel, 0.0,
+                       0.0, 0.0,    1.0, 0.0,
+                       0.0, 0.0,    0.0, 1.0);
 
     // error spread for tritanopia
-    const mat4 errt(    1.0, 0.0, 0.0, 0,
-                        0.0, 1.0, 0.0, 0,
-                        0.7, 0.7, 1.0, 0,
-                          0,   0,   0, 1);
+    const mat4 errt(   1.0,    0.0, 0.0, 0.0,
+                       0.0,    1.0, 0.0, 0.0,
+                    mLevel, mLevel, 1.0, 0.0,
+                       0.0,    0.0, 0.0, 1.0);
 
     // And the magic happens here...
     // We construct the matrix that will perform the whole correction.
