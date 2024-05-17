@@ -57,6 +57,7 @@ struct RequestedLayerState : layer_state_t {
         BufferSize = 1u << 18,
         GameMode = 1u << 19,
         BufferUsageFlags = 1u << 20,
+        RequiresComposition = 1u << 21,
     };
     static Rect reduce(const Rect& win, const Region& exclude);
     RequestedLayerState(const LayerCreationArgs&);

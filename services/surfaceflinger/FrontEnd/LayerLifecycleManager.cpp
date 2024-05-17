@@ -41,7 +41,8 @@ void LayerLifecycleManager::addLayers(std::vector<std::unique_ptr<RequestedLayer
         return;
     }
 
-    mGlobalChanges |= RequestedLayerState::Changes::Hierarchy;
+    mGlobalChanges |= RequestedLayerState::Changes::Hierarchy |
+            RequestedLayerState::Changes::RequiresComposition;
     for (auto& newLayer : newLayers) {
         RequestedLayerState& layer = *newLayer.get();
         auto [it, inserted] = mIdToLayer.try_emplace(layer.id, References{.owner = layer});
@@ -104,7 +105,8 @@ void LayerLifecycleManager::onHandlesDestroyed(
         if (!layer.canBeDestroyed()) {
             continue;
         }
-        layer.changes |= RequestedLayerState::Changes::Destroyed;
+        layer.changes |= RequestedLayerState::Changes::Destroyed |
+                RequestedLayerState::Changes::RequiresComposition;
         layersToBeDestroyed.emplace_back(layerId);
     }
 
@@ -112,7 +114,8 @@ void LayerLifecycleManager::onHandlesDestroyed(
         return;
     }
 
-    mGlobalChanges |= RequestedLayerState::Changes::Hierarchy;
+    mGlobalChanges |= RequestedLayerState::Changes::Hierarchy |
+            RequestedLayerState::Changes::RequiresComposition;
     for (size_t i = 0; i < layersToBeDestroyed.size(); i++) {
         uint32_t layerId = layersToBeDestroyed[i];
         auto it = mIdToLayer.find(layerId);
@@ -142,7 +145,8 @@ void LayerLifecycleManager::onHandlesDestroyed(
             if (linkedLayer->parentId == layer.id) {
                 linkedLayer->parentId = UNASSIGNED_LAYER_ID;
                 if (linkedLayer->canBeDestroyed()) {
-                    linkedLayer->changes |= RequestedLayerState::Changes::Destroyed;
+                    linkedLayer->changes |= RequestedLayerState::Changes::Destroyed |
+                            RequestedLayerState::Changes::RequiresComposition;
                     layersToBeDestroyed.emplace_back(linkedLayer->id);
                 }
             }
@@ -249,7 +253,8 @@ void LayerLifecycleManager::applyTransactions(const std::vector<TransactionState
                             layer_state_t::eDataspaceChanged | layer_state_t::eAlphaChanged;
                     bgColorLayer->changes |= RequestedLayerState::Changes::Content;
                     mChangedLayers.push_back(bgColorLayer);
-                    mGlobalChanges |= RequestedLayerState::Changes::Content;
+                    mGlobalChanges |= RequestedLayerState::Changes::Content |
+                            RequestedLayerState::Changes::RequiresComposition;
                 }
             }
 
@@ -407,7 +412,8 @@ void LayerLifecycleManager::fixRelativeZLoop(uint32_t relativeRootId) {
     layer.relativeParentId = unlinkLayer(layer.relativeParentId, layer.id);
     layer.changes |=
             RequestedLayerState::Changes::Hierarchy | RequestedLayerState::Changes::RelativeParent;
-    mGlobalChanges |= RequestedLayerState::Changes::Hierarchy;
+    mGlobalChanges |= RequestedLayerState::Changes::Hierarchy |
+            RequestedLayerState::Changes::RequiresComposition;
 }
 
 // Some layers mirror the entire display stack. Since we don't have a single root layer per display

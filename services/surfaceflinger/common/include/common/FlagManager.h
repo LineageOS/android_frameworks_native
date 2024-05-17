@@ -72,6 +72,7 @@ public:
     bool enable_layer_command_batching() const;
     bool screenshot_fence_preservation() const;
     bool vulkan_renderengine() const;
+    bool vrr_bugfix_24q4() const;
     bool renderable_buffer_usage() const;
     bool restore_blur_step() const;
     bool dont_skip_on_early_ro() const;
