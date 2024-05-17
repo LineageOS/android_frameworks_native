@@ -171,8 +171,8 @@ status_t GraphicBufferMapper::lockAsync(buffer_handle_t handle, uint64_t produce
                                         int32_t* outBytesPerStride) {
     ATRACE_CALL();
 
-    const uint64_t usage = static_cast<uint64_t>(
-            android_convertGralloc1To0Usage(producerUsage, consumerUsage));
+    const uint64_t usage = static_cast<uint64_t>(ANDROID_NATIVE_UNSIGNED_CAST(
+            android_convertGralloc1To0Usage(producerUsage, consumerUsage)));
     return mMapper->lock(handle, usage, bounds, fenceFd, vaddr, outBytesPerPixel,
                          outBytesPerStride);
 }
