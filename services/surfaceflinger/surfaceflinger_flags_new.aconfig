@@ -22,6 +22,17 @@ flag {
  } # ce_fence_promise
 
  flag {
+   name: "commit_not_composited"
+   namespace: "core_graphics"
+   description: "mark frames as non janky if the transaction resulted in no composition"
+   bug: "340633280"
+   is_fixed_read_only: true
+   metadata {
+     purpose: PURPOSE_BUGFIX
+   }
+  } # commit_not_composited
+
+ flag {
   name: "deprecate_vsync_sf"
   namespace: "core_graphics"
   description: "Depracate eVsyncSourceSurfaceFlinger and use vsync_app everywhere"

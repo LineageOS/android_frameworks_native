@@ -700,6 +700,8 @@ private:
     void onChoreographerAttached() override;
     void onExpectedPresentTimePosted(TimePoint expectedPresentTime, ftl::NonNull<DisplayModePtr>,
                                      Fps renderRate) override;
+    void onCommitNotComposited(PhysicalDisplayId pacesetterDisplayId) override
+            REQUIRES(kMainThreadContext);
 
     // ICEPowerCallback overrides:
     void notifyCpuLoadUp() override;

@@ -204,6 +204,8 @@ public:
     void onPresent(nsecs_t presentTime, int32_t displayFrameJankType, Fps refreshRate,
                    Fps displayFrameRenderRate, nsecs_t displayDeadlineDelta,
                    nsecs_t displayPresentDelta);
+    // Sets the frame as none janky as there was no real display frame.
+    void onCommitNotComposited(Fps refreshRate, Fps displayFrameRenderRate);
     // All the timestamps are dumped relative to the baseTime
     void dump(std::string& result, const std::string& indent, nsecs_t baseTime) const;
     // Dumps only the layer, token, is buffer, jank metadata, prediction and present states.
@@ -318,6 +320,10 @@ public:
     virtual void setSfPresent(nsecs_t sfPresentTime, const std::shared_ptr<FenceTime>& presentFence,
                               const std::shared_ptr<FenceTime>& gpuFence) = 0;
 
+    // Tells FrameTimeline that a frame was committed but not composited. This is used to flush
+    // all the associated surface frames.
+    virtual void onCommitNotComposited() = 0;
+
     // Args:
     // -jank : Dumps only the Display Frames that are either janky themselves
     //         or contain janky Surface Frames.
@@ -390,6 +396,8 @@ public:
                         std::optional<TimelineItem> predictions, nsecs_t wakeUpTime);
         // Sets the appropriate metadata and classifies the jank.
         void onPresent(nsecs_t signalTime, nsecs_t previousPresentTime);
+        // Flushes all the surface frames as those were not generating any actual display frames.
+        void onCommitNotComposited();
         // Adds the provided SurfaceFrame to the current display frame.
         void addSurfaceFrame(std::shared_ptr<SurfaceFrame> surfaceFrame);
 
@@ -475,6 +483,7 @@ public:
     void setSfWakeUp(int64_t token, nsecs_t wakeupTime, Fps refreshRate, Fps renderRate) override;
     void setSfPresent(nsecs_t sfPresentTime, const std::shared_ptr<FenceTime>& presentFence,
                       const std::shared_ptr<FenceTime>& gpuFence = FenceTime::NO_FENCE) override;
+    void onCommitNotComposited() override;
     void parseArgs(const Vector<String16>& args, std::string& result) override;
     void setMaxDisplayFrames(uint32_t size) override;
     float computeFps(const std::unordered_set<int32_t>& layerIds) override;
