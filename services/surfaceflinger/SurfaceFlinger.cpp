@@ -7507,14 +7507,11 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 auto future = mScheduler->schedule(
                         [&]() FTL_FAKE_GUARD(mStateLock) FTL_FAKE_GUARD(kMainThreadContext) {
                             n = data.readInt32();
-                            mHdrSdrRatioOverlay = n != 0;
-                            switch (n) {
-                                case 0:
-                                case 1:
-                                    enableHdrSdrRatioOverlay(mHdrSdrRatioOverlay);
-                                    break;
-                                default:
-                                    reply->writeBool(isHdrSdrRatioOverlayEnabled());
+                            if (n == 0 || n == 1) {
+                                mHdrSdrRatioOverlay = n != 0;
+                                enableHdrSdrRatioOverlay(mHdrSdrRatioOverlay);
+                            } else {
+                                reply->writeBool(isHdrSdrRatioOverlayEnabled());
                             }
                         });
                 future.wait();
