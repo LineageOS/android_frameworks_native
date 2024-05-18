@@ -84,4 +84,15 @@ flag {
     is_fixed_read_only: true
 } # local_tonemap_screenshots
 
+flag {
+  name: "vrr_bugfix_24q4"
+  namespace: "core_graphics"
+  description: "bug fixes for VRR"
+  bug: "331513837"
+  is_fixed_read_only: true
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+} # vrr_bugfix_24q4
+
 # IMPORTANT - please keep alphabetize to reduce merge conflicts

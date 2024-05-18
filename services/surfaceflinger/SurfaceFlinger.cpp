@@ -1411,11 +1411,12 @@ void SurfaceFlinger::applyActiveMode(const sp<DisplayDevice>& display) {
     }
 }
 
-void SurfaceFlinger::initiateDisplayModeChanges() {
+bool SurfaceFlinger::initiateDisplayModeChanges() {
     ATRACE_CALL();
 
     std::optional<PhysicalDisplayId> displayToUpdateImmediately;
 
+    bool mustComposite = false;
     for (const auto& [id, physical] : mPhysicalDisplays) {
         const auto display = getDisplayDeviceLocked(id);
         if (!display) continue;
@@ -1472,7 +1473,11 @@ void SurfaceFlinger::initiateDisplayModeChanges() {
         mScheduler->onNewVsyncPeriodChangeTimeline(outTimeline);
 
         if (outTimeline.refreshRequired) {
-            scheduleComposite(FrameHint::kNone);
+            if (FlagManager::getInstance().vrr_bugfix_24q4()) {
+                mustComposite = true;
+            } else {
+                scheduleComposite(FrameHint::kNone);
+            }
         } else {
             // TODO(b/255635711): Remove `displayToUpdateImmediately` to `finalizeDisplayModeChange`
             // for all displays. This was only needed when the loop iterated over `mDisplays` rather
@@ -1490,6 +1495,8 @@ void SurfaceFlinger::initiateDisplayModeChanges() {
             applyActiveMode(display);
         }
     }
+
+    return mustComposite;
 }
 
 void SurfaceFlinger::disableExpensiveRendering() {
@@ -2439,7 +2446,12 @@ bool SurfaceFlinger::updateLayerSnapshots(VsyncId vsyncId, nsecs_t frameTimeNs,
         mUpdateAttachedChoreographer = true;
     }
     outTransactionsAreEmpty = mLayerLifecycleManager.getGlobalChanges().get() == 0;
-    mustComposite |= mLayerLifecycleManager.getGlobalChanges().get() != 0;
+    if (FlagManager::getInstance().vrr_bugfix_24q4()) {
+        mustComposite |= mLayerLifecycleManager.getGlobalChanges().test(
+                frontend::RequestedLayerState::Changes::RequiresComposition);
+    } else {
+        mustComposite |= mLayerLifecycleManager.getGlobalChanges().get() != 0;
+    }
 
     bool newDataLatched = false;
     ATRACE_NAME("DisplayCallbackAndStatsUpdates");
@@ -2664,7 +2676,7 @@ bool SurfaceFlinger::commit(PhysicalDisplayId pacesetterId,
                                                         ? &mLayerHierarchyBuilder.getHierarchy()
                                                         : nullptr,
                                                 updateAttachedChoreographer);
-        initiateDisplayModeChanges();
+        mustComposite |= initiateDisplayModeChanges();
     }
 
     updateCursorAsync();
@@ -9227,7 +9239,9 @@ std::vector<std::pair<Layer*, LayerFE*>> SurfaceFlinger::moveSnapshotsToComposit
     std::vector<std::pair<Layer*, LayerFE*>> layers;
     if (mLayerLifecycleManagerEnabled) {
         nsecs_t currentTime = systemTime();
-        mLayerSnapshotBuilder.forEachVisibleSnapshot(
+        const bool needsMetadata = mCompositionEngine->getFeatureFlags().test(
+                compositionengine::Feature::kSnapshotLayerMetadata);
+        mLayerSnapshotBuilder.forEachSnapshot(
                 [&](std::unique_ptr<frontend::LayerSnapshot>& snapshot) FTL_FAKE_GUARD(
                         kMainThreadContext) {
                     if (cursorOnly &&
@@ -9250,6 +9264,12 @@ std::vector<std::pair<Layer*, LayerFE*>> SurfaceFlinger::moveSnapshotsToComposit
                     layerFE->mSnapshot = std::move(snapshot);
                     refreshArgs.layers.push_back(layerFE);
                     layers.emplace_back(legacyLayer.get(), layerFE.get());
+                },
+                [needsMetadata](const frontend::LayerSnapshot& snapshot) {
+                    return snapshot.isVisible ||
+                            (needsMetadata &&
+                             snapshot.changes.test(
+                                     frontend::RequestedLayerState::Changes::Metadata));
                 });
     }
     if (!mLayerLifecycleManagerEnabled) {

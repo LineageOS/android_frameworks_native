@@ -86,6 +86,11 @@ public:
     // Visit each visible snapshot in z-order and move the snapshot if needed
     void forEachVisibleSnapshot(const Visitor& visitor);
 
+    typedef std::function<bool(const LayerSnapshot& snapshot)> ConstPredicate;
+    // Visit each snapshot that satisfies the predicate and move the snapshot if needed with visible
+    // snapshots in z-order
+    void forEachSnapshot(const Visitor& visitor, const ConstPredicate& predicate);
+
     // Visit each snapshot interesting to input reverse z-order
     void forEachInputSnapshot(const ConstVisitor& visitor) const;
 
