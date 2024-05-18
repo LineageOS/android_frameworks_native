@@ -1590,7 +1590,8 @@ void RefreshRateSelector::dump(utils::Dumper& dumper) const {
     std::lock_guard lock(mLock);
 
     const auto activeMode = getActiveModeLocked();
-    dumper.dump("activeMode"sv, to_string(activeMode));
+    dumper.dump("renderRate"sv, to_string(activeMode.fps));
+    dumper.dump("activeMode"sv, to_string(*activeMode.modePtr));
 
     dumper.dump("displayModes"sv);
     {

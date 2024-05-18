@@ -32,6 +32,7 @@ struct ISchedulerCallback {
     virtual void onChoreographerAttached() = 0;
     virtual void onExpectedPresentTimePosted(TimePoint, ftl::NonNull<DisplayModePtr>,
                                              Fps renderRate) = 0;
+    virtual void onCommitNotComposited(PhysicalDisplayId pacesetterDisplayId) = 0;
 
 protected:
     ~ISchedulerCallback() = default;

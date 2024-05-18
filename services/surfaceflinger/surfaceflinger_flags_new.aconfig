@@ -22,6 +22,17 @@ flag {
  } # ce_fence_promise
 
  flag {
+   name: "commit_not_composited"
+   namespace: "core_graphics"
+   description: "mark frames as non janky if the transaction resulted in no composition"
+   bug: "340633280"
+   is_fixed_read_only: true
+   metadata {
+     purpose: PURPOSE_BUGFIX
+   }
+  } # commit_not_composited
+
+ flag {
   name: "deprecate_vsync_sf"
   namespace: "core_graphics"
   description: "Depracate eVsyncSourceSurfaceFlinger and use vsync_app everywhere"
@@ -64,5 +75,13 @@ flag {
     purpose: PURPOSE_BUGFIX
   }
 } # latch_unsignaled_with_auto_refresh_changed
+
+flag {
+    name: "local_tonemap_screenshots"
+    namespace: "core_graphics"
+    description: "Enables local tonemapping when capturing screenshots"
+    bug: "329464641"
+    is_fixed_read_only: true
+} # local_tonemap_screenshots
 
 # IMPORTANT - please keep alphabetize to reduce merge conflicts
