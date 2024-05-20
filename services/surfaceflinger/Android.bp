@@ -98,6 +98,7 @@ cc_defaults {
         "libscheduler",
         "libserviceutils",
         "libshaders",
+        "libsurfaceflingerflags",
         "libtimestats",
         "libtonemap",
     ],
