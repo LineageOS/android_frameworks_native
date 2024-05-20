@@ -462,8 +462,7 @@ TEST_F(LayerLifecycleManagerTest, layerOpacityChangesSetsVisibilityChangeFlag) {
                                                                GRALLOC_USAGE_PROTECTED /*usage*/));
     EXPECT_EQ(mLifecycleManager.getGlobalChanges().get(),
               ftl::Flags<RequestedLayerState::Changes>(
-                      RequestedLayerState::Changes::Buffer | RequestedLayerState::Changes::Content |
-                      RequestedLayerState::Changes::RequiresComposition)
+                      RequestedLayerState::Changes::Buffer | RequestedLayerState::Changes::Content)
                       .get());
     mLifecycleManager.commitChanges();
 
@@ -497,8 +496,7 @@ TEST_F(LayerLifecycleManagerTest, bufferFormatChangesSetsVisibilityChangeFlag) {
               ftl::Flags<RequestedLayerState::Changes>(
                       RequestedLayerState::Changes::Buffer | RequestedLayerState::Changes::Content |
                       RequestedLayerState::Changes::VisibleRegion |
-                      RequestedLayerState::Changes::Visibility |
-                      RequestedLayerState::Changes::RequiresComposition)
+                      RequestedLayerState::Changes::Visibility)
                       .get());
     mLifecycleManager.commitChanges();
 }
@@ -522,8 +520,7 @@ TEST_F(LayerLifecycleManagerTest, roundedCornerChangesSetsVisibilityChangeFlag) 
                       RequestedLayerState::Changes::AffectsChildren |
                       RequestedLayerState::Changes::Content |
                       RequestedLayerState::Changes::Geometry |
-                      RequestedLayerState::Changes::VisibleRegion |
-                      RequestedLayerState::Changes::RequiresComposition)
+                      RequestedLayerState::Changes::VisibleRegion)
                       .get());
     mLifecycleManager.commitChanges();
 }
@@ -541,8 +538,7 @@ TEST_F(LayerLifecycleManagerTest, alphaChangesAlwaysSetsVisibleRegionFlag) {
               ftl::Flags<RequestedLayerState::Changes>(
                       RequestedLayerState::Changes::Content |
                       RequestedLayerState::Changes::AffectsChildren |
-                      RequestedLayerState::Changes::VisibleRegion |
-                      RequestedLayerState::Changes::RequiresComposition)
+                      RequestedLayerState::Changes::VisibleRegion)
                       .string());
     EXPECT_EQ(mLifecycleManager.getChangedLayers()[0]->color.a, static_cast<half>(startingAlpha));
     mLifecycleManager.commitChanges();
@@ -555,8 +551,7 @@ TEST_F(LayerLifecycleManagerTest, alphaChangesAlwaysSetsVisibleRegionFlag) {
               ftl::Flags<RequestedLayerState::Changes>(
                       RequestedLayerState::Changes::Content |
                       RequestedLayerState::Changes::AffectsChildren |
-                      RequestedLayerState::Changes::VisibleRegion |
-                      RequestedLayerState::Changes::RequiresComposition)
+                      RequestedLayerState::Changes::VisibleRegion)
                       .string());
     EXPECT_EQ(mLifecycleManager.getChangedLayers()[0]->color.a, static_cast<half>(endingAlpha));
     mLifecycleManager.commitChanges();
@@ -586,8 +581,7 @@ TEST_F(LayerLifecycleManagerTest, layerSecureChangesSetsVisibilityChangeFlag) {
                                                             GRALLOC_USAGE_SW_READ_NEVER /*usage*/));
     EXPECT_EQ(mLifecycleManager.getGlobalChanges().get(),
               ftl::Flags<RequestedLayerState::Changes>(
-                      RequestedLayerState::Changes::Buffer | RequestedLayerState::Changes::Content |
-                      RequestedLayerState::Changes::RequiresComposition)
+                      RequestedLayerState::Changes::Buffer | RequestedLayerState::Changes::Content)
                       .get());
     mLifecycleManager.commitChanges();
 
