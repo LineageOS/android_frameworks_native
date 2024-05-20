@@ -63,6 +63,14 @@ public:
     std::vector<int32_t> getDynamicSensorHandles();
 
     void handleDynamicSensorConnection(int handle, bool connected);
+    /**
+     * Removes handle from connected dynamic sensor list. Note that this method must be called after
+     * SensorService has done using sensor data.
+     *
+     * @param handle of the disconnected dynamic sensor.
+     */
+    void cleanupDisconnectedDynamicSensor(int handle);
+
     status_t initCheck() const;
     int getHalDeviceVersion() const;
 
