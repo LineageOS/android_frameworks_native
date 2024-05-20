@@ -7814,6 +7814,7 @@ TEST_F(InputDispatcherTest, MultiDeviceSpyWindowSlipTest) {
  * If device B reports more ACTION_MOVE events, the middle window should receive remaining events.
  */
 TEST_F(InputDispatcherTest, MultiDeviceSlipperyWindowTest) {
+    SCOPED_FLAG_OVERRIDE(enable_multi_device_same_window_stream, true);
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
     sp<FakeWindowHandle> leftWindow =
             sp<FakeWindowHandle>::make(application, mDispatcher, "Left window",
