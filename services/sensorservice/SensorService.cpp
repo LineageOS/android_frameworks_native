@@ -1273,6 +1273,7 @@ bool SensorService::threadLoop() {
                 } else {
                     int handle = mSensorEventBuffer[i].dynamic_sensor_meta.handle;
                     disconnectDynamicSensor(handle, activeConnections);
+                    device.cleanupDisconnectedDynamicSensor(handle);
                 }
             }
         }
