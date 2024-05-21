@@ -41,14 +41,15 @@ protected:
 };
 
 TEST_F(VirtualDisplayTest, VirtualDisplayDestroyedSurfaceReuse) {
+    static const std::string kDisplayName("VirtualDisplay");
     sp<IBinder> virtualDisplay =
-            SurfaceComposerClient::createDisplay(String8("VirtualDisplay"), false /*secure*/);
+            SurfaceComposerClient::createVirtualDisplay(kDisplayName, false /*isSecure*/);
 
     SurfaceComposerClient::Transaction t;
     t.setDisplaySurface(virtualDisplay, mProducer);
     t.apply(true);
 
-    SurfaceComposerClient::destroyDisplay(virtualDisplay);
+    EXPECT_EQ(NO_ERROR, SurfaceComposerClient::destroyVirtualDisplay(virtualDisplay));
     virtualDisplay.clear();
     // Sync here to ensure the display was completely destroyed in SF
     t.apply(true);

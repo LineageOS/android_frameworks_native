@@ -673,13 +673,14 @@ public:
         return binder::Status::ok();
     }
 
-    binder::Status createDisplay(const std::string& /*displayName*/, bool /*isSecure*/,
-                                 const std::string& /*uniqueId*/, float /*requestedRefreshRate*/,
-                                 sp<IBinder>* /*outDisplay*/) override {
+    binder::Status createVirtualDisplay(const std::string& /*displayName*/, bool /*isSecure*/,
+                                        const std::string& /*uniqueId*/,
+                                        float /*requestedRefreshRate*/,
+                                        sp<IBinder>* /*outDisplay*/) override {
         return binder::Status::ok();
     }
 
-    binder::Status destroyDisplay(const sp<IBinder>& /*display*/) override {
+    binder::Status destroyVirtualDisplay(const sp<IBinder>& /*displayToken*/) override {
         return binder::Status::ok();
     }
 

@@ -66,8 +66,9 @@ public:
                 sp<BufferListener> listener = sp<BufferListener>::make(this);
                 itemConsumer->setFrameAvailableListener(listener);
 
-                vDisplay = SurfaceComposerClient::createDisplay(String8("VirtualDisplay"),
-                                                                false /*secure*/);
+                static const std::string kDisplayName("VirtualDisplay");
+                vDisplay = SurfaceComposerClient::createVirtualDisplay(kDisplayName,
+                                                                       false /*isSecure*/);
 
                 constexpr ui::LayerStack layerStack{
                         848472}; // ASCII for TTH (TransactionTestHarnesses)
@@ -107,7 +108,7 @@ public:
                     t.setLayerStack(mirrorSc, ui::INVALID_LAYER_STACK);
                     t.apply(true);
                 }
-                SurfaceComposerClient::destroyDisplay(vDisplay);
+                SurfaceComposerClient::destroyVirtualDisplay(vDisplay);
                 return sc;
         }
     }

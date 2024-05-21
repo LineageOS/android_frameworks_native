@@ -1184,9 +1184,8 @@ public:
     MultiDisplayTests() : InputSurfacesTest() { ProcessState::self()->startThreadPool(); }
 
     void TearDown() override {
-        for (auto& token : mVirtualDisplays) {
-            SurfaceComposerClient::destroyDisplay(token);
-        }
+        std::for_each(mVirtualDisplays.begin(), mVirtualDisplays.end(),
+                      SurfaceComposerClient::destroyVirtualDisplay);
         InputSurfacesTest::TearDown();
     }
 
@@ -1201,7 +1200,7 @@ public:
 
         std::string name = "VirtualDisplay";
         name += std::to_string(mVirtualDisplays.size());
-        sp<IBinder> token = SurfaceComposerClient::createDisplay(String8(name.c_str()), isSecure);
+        sp<IBinder> token = SurfaceComposerClient::createVirtualDisplay(name, isSecure);
         SurfaceComposerClient::Transaction t;
         t.setDisplaySurface(token, producer);
         t.setDisplayFlags(token, receivesInput ? 0x01 /* DisplayDevice::eReceivesInput */ : 0);

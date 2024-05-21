@@ -420,19 +420,21 @@ public:
         commit(kComposite);
     }
 
-    auto createDisplay(const String8& displayName, bool isSecure,
-                       float requestedRefreshRate = 0.0f) {
-        const std::string testId = "virtual:libsurfaceflinger_unittest:TestableSurfaceFlinger";
-        return mFlinger->createDisplay(displayName, isSecure, testId, requestedRefreshRate);
+    auto createVirtualDisplay(const std::string& displayName, bool isSecure,
+                              float requestedRefreshRate = 0.0f) {
+        static const std::string kTestId =
+                "virtual:libsurfaceflinger_unittest:TestableSurfaceFlinger";
+        return mFlinger->createVirtualDisplay(displayName, isSecure, kTestId, requestedRefreshRate);
     }
 
-    auto createDisplay(const String8& displayName, bool isSecure, const std::string& uniqueId,
-                       float requestedRefreshRate = 0.0f) {
-        return mFlinger->createDisplay(displayName, isSecure, uniqueId, requestedRefreshRate);
+    auto createVirtualDisplay(const std::string& displayName, bool isSecure,
+                              const std::string& uniqueId, float requestedRefreshRate = 0.0f) {
+        return mFlinger->createVirtualDisplay(displayName, isSecure, uniqueId,
+                                              requestedRefreshRate);
     }
 
-    auto destroyDisplay(const sp<IBinder>& displayToken) {
-        return mFlinger->destroyDisplay(displayToken);
+    auto destroyVirtualDisplay(const sp<IBinder>& displayToken) {
+        return mFlinger->destroyVirtualDisplay(displayToken);
     }
 
     auto getDisplay(const sp<IBinder>& displayToken) {
