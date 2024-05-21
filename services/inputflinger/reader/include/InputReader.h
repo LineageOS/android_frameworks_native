@@ -61,8 +61,6 @@ public:
 
     std::vector<InputDeviceInfo> getInputDevices() const override;
 
-    bool isInputDeviceEnabled(int32_t deviceId) override;
-
     int32_t getScanCodeState(int32_t deviceId, uint32_t sourceMask, int32_t scanCode) override;
     int32_t getKeyCodeState(int32_t deviceId, uint32_t sourceMask, int32_t keyCode) override;
     int32_t getSwitchState(int32_t deviceId, uint32_t sourceMask, int32_t sw) override;

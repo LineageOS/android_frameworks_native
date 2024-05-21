@@ -310,9 +310,6 @@ public:
     /* Called by the heartbeat to ensures that the reader has not deadlocked. */
     virtual void monitor() = 0;
 
-    /* Returns true if the input device is enabled. */
-    virtual bool isInputDeviceEnabled(int32_t deviceId) = 0;
-
     /* Makes the reader start processing events from the kernel. */
     virtual status_t start() = 0;
 

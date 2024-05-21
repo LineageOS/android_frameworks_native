@@ -55,8 +55,6 @@ public:
 
     void monitor() { reader->monitor(); }
 
-    bool isInputDeviceEnabled(int32_t deviceId) { return reader->isInputDeviceEnabled(deviceId); }
-
     status_t start() { return reader->start(); }
 
     status_t stop() { return reader->stop(); }
@@ -206,7 +204,6 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size) {
                 },
                 [&]() -> void { reader->monitor(); },
                 [&]() -> void { reader->getInputDevices(); },
-                [&]() -> void { reader->isInputDeviceEnabled(fdp->ConsumeIntegral<int32_t>()); },
                 [&]() -> void {
                     reader->getScanCodeState(fdp->ConsumeIntegral<int32_t>(),
                                              fdp->ConsumeIntegral<uint32_t>(),
