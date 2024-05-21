@@ -329,55 +329,6 @@ TEST_F(LayerSnapshotTest, UpdateMetadata) {
     EXPECT_EQ(getSnapshot(1)->layerMetadata.getInt32(METADATA_CALLING_UID, -1), 789);
 }
 
-TEST_F(LayerSnapshotTest, UpdateMetadataOfHiddenLayers) {
-    hideLayer(1);
-
-    std::vector<TransactionState> transactions;
-    transactions.emplace_back();
-    transactions.back().states.push_back({});
-    transactions.back().states.front().state.what = layer_state_t::eMetadataChanged;
-    // This test focuses on metadata used by ARC++ to ensure LayerMetadata is updated correctly,
-    // and not using stale data.
-    transactions.back().states.front().state.metadata = LayerMetadata();
-    transactions.back().states.front().state.metadata.setInt32(METADATA_OWNER_UID, 123);
-    transactions.back().states.front().state.metadata.setInt32(METADATA_WINDOW_TYPE, 234);
-    transactions.back().states.front().state.metadata.setInt32(METADATA_TASK_ID, 345);
-    transactions.back().states.front().state.metadata.setInt32(METADATA_MOUSE_CURSOR, 456);
-    transactions.back().states.front().state.metadata.setInt32(METADATA_ACCESSIBILITY_ID, 567);
-    transactions.back().states.front().state.metadata.setInt32(METADATA_OWNER_PID, 678);
-    transactions.back().states.front().state.metadata.setInt32(METADATA_CALLING_UID, 789);
-
-    transactions.back().states.front().layerId = 1;
-    transactions.back().states.front().state.layerId = static_cast<int32_t>(1);
-
-    mLifecycleManager.applyTransactions(transactions);
-    EXPECT_EQ(mLifecycleManager.getGlobalChanges(),
-              RequestedLayerState::Changes::Metadata | RequestedLayerState::Changes::Visibility |
-                      RequestedLayerState::Changes::VisibleRegion |
-                      RequestedLayerState::Changes::AffectsChildren);
-
-    // Setting includeMetadata=true to ensure metadata update is applied to LayerSnapshot
-    LayerSnapshotBuilder::Args args{.root = mHierarchyBuilder.getHierarchy(),
-                                    .layerLifecycleManager = mLifecycleManager,
-                                    .includeMetadata = true,
-                                    .displays = mFrontEndDisplayInfos,
-                                    .globalShadowSettings = globalShadowSettings,
-                                    .supportsBlur = true,
-                                    .supportedLayerGenericMetadata = {},
-                                    .genericLayerMetadataKeyMap = {}};
-    update(mSnapshotBuilder, args);
-
-    EXPECT_EQ(static_cast<int64_t>(getSnapshot(1)->clientChanges),
-              layer_state_t::eMetadataChanged | layer_state_t::eFlagsChanged);
-    EXPECT_EQ(getSnapshot(1)->layerMetadata.getInt32(METADATA_OWNER_UID, -1), 123);
-    EXPECT_EQ(getSnapshot(1)->layerMetadata.getInt32(METADATA_WINDOW_TYPE, -1), 234);
-    EXPECT_EQ(getSnapshot(1)->layerMetadata.getInt32(METADATA_TASK_ID, -1), 345);
-    EXPECT_EQ(getSnapshot(1)->layerMetadata.getInt32(METADATA_MOUSE_CURSOR, -1), 456);
-    EXPECT_EQ(getSnapshot(1)->layerMetadata.getInt32(METADATA_ACCESSIBILITY_ID, -1), 567);
-    EXPECT_EQ(getSnapshot(1)->layerMetadata.getInt32(METADATA_OWNER_PID, -1), 678);
-    EXPECT_EQ(getSnapshot(1)->layerMetadata.getInt32(METADATA_CALLING_UID, -1), 789);
-}
-
 TEST_F(LayerSnapshotTest, NoLayerVoteForParentWithChildVotes) {
     // ROOT
     // ├── 1
@@ -1372,17 +1323,6 @@ TEST_F(LayerSnapshotTest, NonVisibleLayerWithInput) {
         }
     });
     EXPECT_TRUE(foundInputLayer);
-}
-
-TEST_F(LayerSnapshotTest, ForEachSnapshotsWithPredicate) {
-    std::vector<uint32_t> visitedUniqueSequences;
-    mSnapshotBuilder.forEachSnapshot(
-            [&](const std::unique_ptr<frontend::LayerSnapshot>& snapshot) {
-                visitedUniqueSequences.push_back(snapshot->uniqueSequence);
-            },
-            [](const frontend::LayerSnapshot& snapshot) { return snapshot.uniqueSequence == 111; });
-    EXPECT_EQ(visitedUniqueSequences.size(), 1u);
-    EXPECT_EQ(visitedUniqueSequences[0], 111u);
 }
 
 TEST_F(LayerSnapshotTest, canOccludePresentation) {
