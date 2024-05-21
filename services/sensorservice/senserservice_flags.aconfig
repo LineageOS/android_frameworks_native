@@ -21,3 +21,10 @@ flag {
   description: "This flag controls we allow to pass in nullptr as scratch in SensorEventConnection::sendEvents()"
   bug: "339306599"
 }
+
+flag {
+  name: "sensor_service_clear_dynamic_sensor_data_at_the_end"
+  namespace: "sensors"
+  description: "When this flag is enabled, sensor service will only erase dynamic sensor data at the end of the threadLoop to prevent race condition."
+  bug: "329020894"
+}
