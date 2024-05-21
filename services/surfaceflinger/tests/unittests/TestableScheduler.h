@@ -111,6 +111,11 @@ public:
         Scheduler::unregisterDisplay(displayId);
     }
 
+    void setDisplayPowerMode(PhysicalDisplayId displayId, hal::PowerMode powerMode) {
+        ftl::FakeGuard guard(kMainThreadContext);
+        Scheduler::setDisplayPowerMode(displayId, powerMode);
+    }
+
     std::optional<PhysicalDisplayId> pacesetterDisplayId() const NO_THREAD_SAFETY_ANALYSIS {
         return mPacesetterDisplayId;
     }

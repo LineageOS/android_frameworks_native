@@ -1426,11 +1426,6 @@ bool SurfaceFlinger::initiateDisplayModeChanges() {
             continue;
         }
 
-        if (!shouldApplyRefreshRateSelectorPolicy(*display)) {
-            dropModeRequest(display);
-            continue;
-        }
-
         const auto desiredModeId = desiredModeOpt->mode.modePtr->getId();
         const auto displayModePtrOpt = physical.snapshot().displayModes().get(desiredModeId);
 
@@ -4239,12 +4234,6 @@ void SurfaceFlinger::requestDisplayModes(std::vector<display::DisplayModeRequest
         const auto display = getDisplayDeviceLocked(displayId);
 
         if (!display) continue;
-
-        if (ftl::FakeGuard guard(kMainThreadContext);
-            !shouldApplyRefreshRateSelectorPolicy(*display)) {
-            ALOGV("%s(%s): Skipped applying policy", __func__, to_string(displayId).c_str());
-            continue;
-        }
 
         if (display->refreshRateSelector().isModeAllowed(request.mode)) {
             setDesiredMode(std::move(request));
@@ -8575,35 +8564,11 @@ status_t SurfaceFlinger::setDesiredDisplayModeSpecsInternal(
             break;
     }
 
-    if (!shouldApplyRefreshRateSelectorPolicy(*display)) {
-        ALOGV("%s(%s): Skipped applying policy", __func__, to_string(displayId).c_str());
-        return NO_ERROR;
-    }
-
     return applyRefreshRateSelectorPolicy(displayId, selector);
 }
 
-bool SurfaceFlinger::shouldApplyRefreshRateSelectorPolicy(const DisplayDevice& display) const {
-    if (display.isPoweredOn() || mPhysicalDisplays.size() == 1) return true;
-
-    LOG_ALWAYS_FATAL_IF(display.isVirtual());
-    const auto displayId = display.getPhysicalId();
-
-    // The display is powered off, and this is a multi-display device. If the display is the
-    // inactive internal display of a dual-display foldable, then the policy will be applied
-    // when it becomes active upon powering on.
-    //
-    // TODO(b/255635711): Remove this function (i.e. returning `false` as a special case) once
-    // concurrent mode setting across multiple (potentially powered off) displays is supported.
-    //
-    return displayId == mActiveDisplayId ||
-            !mPhysicalDisplays.get(displayId)
-                     .transform(&PhysicalDisplay::isInternal)
-                     .value_or(false);
-}
-
 status_t SurfaceFlinger::applyRefreshRateSelectorPolicy(
-        PhysicalDisplayId displayId, const scheduler::RefreshRateSelector& selector, bool force) {
+        PhysicalDisplayId displayId, const scheduler::RefreshRateSelector& selector) {
     const scheduler::RefreshRateSelector::Policy currentPolicy = selector.getCurrentPolicy();
     ALOGV("Setting desired display mode specs: %s", currentPolicy.toString().c_str());
 
@@ -8634,7 +8599,7 @@ status_t SurfaceFlinger::applyRefreshRateSelectorPolicy(
         return INVALID_OPERATION;
     }
 
-    setDesiredMode({std::move(preferredMode), .emitEvent = true, .force = force});
+    setDesiredMode({std::move(preferredMode), .emitEvent = true});
 
     // Update the frameRateOverride list as the display render rate might have changed
     if (mScheduler->updateFrameRateOverrides(scheduler::GlobalSignals{}, preferredFps)) {
@@ -8992,13 +8957,8 @@ void SurfaceFlinger::onActiveDisplayChangedLocked(const DisplayDevice* inactiveD
                                                   const DisplayDevice& activeDisplay) {
     ATRACE_CALL();
 
-    // For the first display activated during boot, there is no need to force setDesiredMode,
-    // because DM is about to send its policy via setDesiredDisplayModeSpecs.
-    bool forceApplyPolicy = false;
-
     if (inactiveDisplayPtr) {
         inactiveDisplayPtr->getCompositionDisplay()->setLayerCachingTexturePoolEnabled(false);
-        forceApplyPolicy = true;
     }
 
     mActiveDisplayId = activeDisplay.getPhysicalId();
@@ -9015,12 +8975,11 @@ void SurfaceFlinger::onActiveDisplayChangedLocked(const DisplayDevice* inactiveD
     mActiveDisplayTransformHint = activeDisplay.getTransformHint();
     sActiveDisplayRotationFlags = ui::Transform::toRotationFlags(activeDisplay.getOrientation());
 
-    // The policy of the new active/pacesetter display may have changed while it was inactive. In
-    // that case, its preferred mode has not been propagated to HWC (via setDesiredMode). In either
-    // case, the Scheduler's cachedModeChangedParams must be initialized to the newly active mode,
-    // and the kernel idle timer of the newly active display must be toggled.
-    applyRefreshRateSelectorPolicy(mActiveDisplayId, activeDisplay.refreshRateSelector(),
-                                   forceApplyPolicy);
+    // Whether or not the policy of the new active/pacesetter display changed while it was inactive
+    // (in which case its preferred mode has already been propagated to HWC via setDesiredMode), the
+    // Scheduler's cachedModeChangedParams must be initialized to the newly active mode, and the
+    // kernel idle timer of the newly active display must be toggled.
+    applyRefreshRateSelectorPolicy(mActiveDisplayId, activeDisplay.refreshRateSelector());
 }
 
 status_t SurfaceFlinger::addWindowInfosListener(const sp<IWindowInfosListener>& windowInfosListener,

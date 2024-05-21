@@ -350,6 +350,9 @@ TEST_F(SchedulerTest, chooseDisplayModesMultipleDisplays) {
                                 std::make_shared<RefreshRateSelector>(kDisplay2Modes,
                                                                       kDisplay2Mode60->getId()));
 
+    mScheduler->setDisplayPowerMode(kDisplayId1, hal::PowerMode::ON);
+    mScheduler->setDisplayPowerMode(kDisplayId2, hal::PowerMode::ON);
+
     using DisplayModeChoice = TestableScheduler::DisplayModeChoice;
     TestableScheduler::DisplayModeChoiceMap expectedChoices;
 
@@ -412,6 +415,7 @@ TEST_F(SchedulerTest, chooseDisplayModesMultipleDisplays) {
                 ->registerDisplay(kDisplayId3,
                                   std::make_shared<RefreshRateSelector>(kDisplay3Modes,
                                                                         kDisplay3Mode60->getId()));
+        mScheduler->setDisplayPowerMode(kDisplayId3, hal::PowerMode::ON);
 
         const GlobalSignals globalSignals = {.touch = true};
         mScheduler->replaceTouchTimer(10);
