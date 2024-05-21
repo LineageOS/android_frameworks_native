@@ -96,7 +96,8 @@ interface IDumpstate {
     void startBugreport(int callingUid, @utf8InCpp String callingPackage,
                         FileDescriptor bugreportFd, FileDescriptor screenshotFd,
                         int bugreportMode, int bugreportFlags,
-                        IDumpstateListener listener, boolean isScreenshotRequested);
+                        IDumpstateListener listener, boolean isScreenshotRequested,
+                        boolean skipUserConsent);
 
     /**
      * Cancels the bugreport currently in progress.
@@ -130,5 +131,6 @@ interface IDumpstate {
                            FileDescriptor bugreportFd,
                            @utf8InCpp String bugreportFile,
                            boolean keepBugreportOnRetrieval,
+                           boolean skipUserConsent,
                            IDumpstateListener listener);
 }
