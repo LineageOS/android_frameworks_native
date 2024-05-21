@@ -215,6 +215,10 @@ void FakeInputDispatcherPolicy::setStaleEventTimeout(std::chrono::nanoseconds ti
     mStaleEventTimeout = timeout;
 }
 
+void FakeInputDispatcherPolicy::setConsumeKeyBeforeDispatching(bool consumeKeyBeforeDispatching) {
+    mConsumeKeyBeforeDispatching = consumeKeyBeforeDispatching;
+}
+
 void FakeInputDispatcherPolicy::assertUserActivityNotPoked() {
     std::unique_lock lock(mLock);
     base::ScopedLockAssertion assumeLocked(mLock);
@@ -401,6 +405,9 @@ void FakeInputDispatcherPolicy::interceptMotionBeforeQueueing(ui::LogicalDisplay
 
 nsecs_t FakeInputDispatcherPolicy::interceptKeyBeforeDispatching(const sp<IBinder>&,
                                                                  const KeyEvent&, uint32_t) {
+    if (mConsumeKeyBeforeDispatching) {
+        return -1;
+    }
     nsecs_t delay = std::chrono::nanoseconds(mInterceptKeyTimeout).count();
     // Clear intercept state so we could dispatch the event in next wake.
     mInterceptKeyTimeout = 0ms;
