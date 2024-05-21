@@ -15,6 +15,7 @@
  */
 
 #define LOG_TAG "BpBinder"
+#define ATRACE_TAG ATRACE_TAG_AIDL
 //#define LOG_NDEBUG 0
 
 #include <binder/BpBinder.h>
@@ -25,6 +26,12 @@
 #include <binder/Stability.h>
 
 #include <stdio.h>
+
+#ifndef __TRUSTY__
+#include <cutils/trace.h>
+#else
+#define ATRACE_INT(...)
+#endif
 
 #include "BuildFlags.h"
 #include "file.h"
@@ -209,6 +216,7 @@ sp<BpBinder> BpBinder::create(int32_t handle) {
         sTrackingMap[trackedUid]++;
     }
     uint32_t numProxies = sBinderProxyCount.fetch_add(1, std::memory_order_relaxed);
+    ATRACE_INT("binder_proxies", numProxies);
     uint32_t numLastWarned = sBinderProxyCountWarned.load(std::memory_order_relaxed);
     uint32_t numNextWarn = numLastWarned + kBinderProxyCountWarnInterval;
     if (numProxies >= numNextWarn) {
@@ -632,8 +640,8 @@ BpBinder::~BpBinder() {
             }
         }
     }
-    --sBinderProxyCount;
-
+    [[maybe_unused]] uint32_t numProxies = --sBinderProxyCount;
+    ATRACE_INT("binder_proxies", numProxies);
     if (ipc) {
         ipc->expungeHandle(binderHandle(), this);
         ipc->decWeakHandle(binderHandle());
