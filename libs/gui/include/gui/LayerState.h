@@ -279,9 +279,6 @@ struct layer_state_t {
             layer_state_t::eDropInputModeChanged | layer_state_t::eTrustedOverlayChanged |
             layer_state_t::eLayerStackChanged;
 
-    // Changes requiring a composition pass.
-    static constexpr uint64_t REQUIRES_COMPOSITION = layer_state_t::CONTENT_DIRTY;
-
     // Changes that affect the visible region on a display.
     static constexpr uint64_t VISIBLE_REGION_CHANGES = layer_state_t::GEOMETRY_CHANGES |
             layer_state_t::HIERARCHY_CHANGES | layer_state_t::eAlphaChanged;

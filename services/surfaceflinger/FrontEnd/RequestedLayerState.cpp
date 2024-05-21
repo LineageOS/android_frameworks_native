@@ -58,8 +58,7 @@ RequestedLayerState::RequestedLayerState(const LayerCreationArgs& args)
         parentId(args.parentId),
         layerIdToMirror(args.layerIdToMirror) {
     layerId = static_cast<int32_t>(args.sequence);
-    changes |= RequestedLayerState::Changes::Created |
-            RequestedLayerState::Changes::RequiresComposition;
+    changes |= RequestedLayerState::Changes::Created;
     metadata.merge(args.metadata);
     changes |= RequestedLayerState::Changes::Metadata;
     handleAlive = true;
@@ -249,8 +248,7 @@ void RequestedLayerState::merge(const ResolvedComposerState& resolvedComposerSta
 
     if (hadSomethingToDraw != hasSomethingToDraw()) {
         changes |= RequestedLayerState::Changes::Visibility |
-                RequestedLayerState::Changes::VisibleRegion |
-                RequestedLayerState::Changes::RequiresComposition;
+                RequestedLayerState::Changes::VisibleRegion;
     }
     if (clientChanges & layer_state_t::HIERARCHY_CHANGES)
         changes |= RequestedLayerState::Changes::Hierarchy;
@@ -260,8 +258,6 @@ void RequestedLayerState::merge(const ResolvedComposerState& resolvedComposerSta
         changes |= RequestedLayerState::Changes::Geometry;
     if (clientChanges & layer_state_t::AFFECTS_CHILDREN)
         changes |= RequestedLayerState::Changes::AffectsChildren;
-    if (clientChanges & layer_state_t::REQUIRES_COMPOSITION)
-        changes |= RequestedLayerState::Changes::RequiresComposition;
     if (clientChanges & layer_state_t::INPUT_CHANGES)
         changes |= RequestedLayerState::Changes::Input;
     if (clientChanges & layer_state_t::VISIBLE_REGION_CHANGES)

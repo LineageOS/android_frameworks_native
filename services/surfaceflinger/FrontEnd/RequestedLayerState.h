@@ -26,6 +26,7 @@
 #include "TransactionState.h"
 
 namespace android::surfaceflinger::frontend {
+using namespace ftl::flag_operators;
 
 // Stores client requested states for a layer.
 // This struct does not store any other states or states pertaining to
@@ -57,8 +58,14 @@ struct RequestedLayerState : layer_state_t {
         BufferSize = 1u << 18,
         GameMode = 1u << 19,
         BufferUsageFlags = 1u << 20,
-        RequiresComposition = 1u << 21,
     };
+
+    static constexpr ftl::Flags<Changes> kMustComposite = Changes::Created | Changes::Destroyed |
+            Changes::Hierarchy | Changes::Geometry | Changes::Content | Changes::Input |
+            Changes::Z | Changes::Mirror | Changes::Parent | Changes::RelativeParent |
+            Changes::Metadata | Changes::Visibility | Changes::VisibleRegion | Changes::Buffer |
+            Changes::SidebandStream | Changes::Animation | Changes::BufferSize | Changes::GameMode |
+            Changes::BufferUsageFlags;
     static Rect reduce(const Rect& win, const Region& exclude);
     RequestedLayerState(const LayerCreationArgs&);
     void merge(const ResolvedComposerState&);
