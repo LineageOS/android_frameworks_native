@@ -1172,7 +1172,7 @@ void FrameTimeline::DisplayFrame::addSkippedFrame(pid_t surfaceFlingerPid, nsecs
                     (static_cast<float>(mSurfaceFlingerPredictions.presentTime) -
                      kThresh * static_cast<float>(mRenderRate.getPeriodNsecs())) &&
             static_cast<float>(surfaceFrame->getPredictions().presentTime) >=
-                    (static_cast<float>(previousPredictionPresentTime) -
+                    (static_cast<float>(previousPredictionPresentTime) +
                      kThresh * static_cast<float>(mRenderRate.getPeriodNsecs())) &&
             // sf skipped frame is not considered if app is self janked
             !surfaceFrame->isSelfJanky()) {
