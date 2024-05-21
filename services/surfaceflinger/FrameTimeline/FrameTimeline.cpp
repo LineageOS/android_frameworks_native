@@ -543,12 +543,14 @@ std::string SurfaceFrame::miniDump() const {
 }
 
 void SurfaceFrame::classifyJankLocked(int32_t displayFrameJankType, const Fps& refreshRate,
-                                      Fps displayFrameRenderRate, nsecs_t& deadlineDelta) {
+                                      Fps displayFrameRenderRate, nsecs_t* outDeadlineDelta) {
     if (mActuals.presentTime == Fence::SIGNAL_TIME_INVALID) {
         // Cannot do any classification for invalid present time.
         mJankType = JankType::Unknown;
         mJankSeverityType = JankSeverityType::Unknown;
-        deadlineDelta = -1;
+        if (outDeadlineDelta) {
+            *outDeadlineDelta = -1;
+        }
         return;
     }
 
@@ -559,7 +561,9 @@ void SurfaceFrame::classifyJankLocked(int32_t displayFrameJankType, const Fps& r
         mJankType = mPresentState != PresentState::Presented ? JankType::Dropped
                                                              : JankType::AppDeadlineMissed;
         mJankSeverityType = JankSeverityType::Unknown;
-        deadlineDelta = -1;
+        if (outDeadlineDelta) {
+            *outDeadlineDelta = -1;
+        }
         return;
     }
 
@@ -568,11 +572,14 @@ void SurfaceFrame::classifyJankLocked(int32_t displayFrameJankType, const Fps& r
         return;
     }
 
-    deadlineDelta = mActuals.endTime - mPredictions.endTime;
     const nsecs_t presentDelta = mActuals.presentTime - mPredictions.presentTime;
     const nsecs_t deltaToVsync = refreshRate.getPeriodNsecs() > 0
             ? std::abs(presentDelta) % refreshRate.getPeriodNsecs()
             : 0;
+    const nsecs_t deadlineDelta = mActuals.endTime - mPredictions.endTime;
+    if (outDeadlineDelta) {
+        *outDeadlineDelta = deadlineDelta;
+    }
 
     if (deadlineDelta > mJankClassificationThresholds.deadlineThreshold) {
         mFrameReadyMetadata = FrameReadyMetadata::LateFinish;
@@ -671,7 +678,7 @@ void SurfaceFrame::onPresent(nsecs_t presentTime, int32_t displayFrameJankType, 
     mActuals.presentTime = presentTime;
     nsecs_t deadlineDelta = 0;
 
-    classifyJankLocked(displayFrameJankType, refreshRate, displayFrameRenderRate, deadlineDelta);
+    classifyJankLocked(displayFrameJankType, refreshRate, displayFrameRenderRate, &deadlineDelta);
 
     if (mPredictionState != PredictionState::None) {
         // Only update janky frames if the app used vsync predictions
@@ -686,8 +693,7 @@ void SurfaceFrame::onCommitNotComposited(Fps refreshRate, Fps displayFrameRender
 
     mDisplayFrameRenderRate = displayFrameRenderRate;
     mActuals.presentTime = mPredictions.presentTime;
-    nsecs_t deadlineDelta = 0;
-    classifyJankLocked(JankType::None, refreshRate, displayFrameRenderRate, deadlineDelta);
+    classifyJankLocked(JankType::None, refreshRate, displayFrameRenderRate, nullptr);
 }
 
 void SurfaceFrame::tracePredictions(int64_t displayFrameToken, nsecs_t monoBootOffset) const {
