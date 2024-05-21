@@ -255,8 +255,7 @@ TEST_F(LayerSnapshotTest, FastPathClearsPreviousChangeStates) {
     setColor(11, {1._hf, 0._hf, 0._hf});
     UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
     EXPECT_EQ(getSnapshot(11)->changes,
-              RequestedLayerState::Changes::Content |
-                      RequestedLayerState::Changes::RequiresComposition);
+              RequestedLayerState::Changes::Content);
     EXPECT_EQ(getSnapshot(11)->clientChanges, layer_state_t::eColorChanged);
     EXPECT_EQ(getSnapshot(1)->changes.get(), 0u);
     UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
@@ -267,8 +266,7 @@ TEST_F(LayerSnapshotTest, FastPathSetsChangeFlagToContent) {
     setColor(1, {1._hf, 0._hf, 0._hf});
     UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
     EXPECT_EQ(getSnapshot(1)->changes,
-              RequestedLayerState::Changes::Content |
-                      RequestedLayerState::Changes::RequiresComposition);
+              RequestedLayerState::Changes::Content);
     EXPECT_EQ(getSnapshot(1)->clientChanges, layer_state_t::eColorChanged);
 }
 

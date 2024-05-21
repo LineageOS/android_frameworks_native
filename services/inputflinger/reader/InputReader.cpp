@@ -874,17 +874,6 @@ std::optional<std::string> InputReader::getBluetoothAddress(int32_t deviceId) co
     return std::nullopt;
 }
 
-bool InputReader::isInputDeviceEnabled(int32_t deviceId) {
-    std::scoped_lock _l(mLock);
-
-    InputDevice* device = findInputDeviceLocked(deviceId);
-    if (device) {
-        return device->isEnabled();
-    }
-    ALOGW("Ignoring invalid device id %" PRId32 ".", deviceId);
-    return false;
-}
-
 bool InputReader::canDispatchToDisplay(int32_t deviceId, ui::LogicalDisplayId displayId) {
     std::scoped_lock _l(mLock);
 

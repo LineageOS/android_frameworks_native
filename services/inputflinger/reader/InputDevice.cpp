@@ -281,14 +281,14 @@ std::list<NotifyArgs> InputDevice::configureInternal(nsecs_t when,
             const std::string& inputDeviceDescriptor = mIdentifier.descriptor;
             if (!inputDeviceDescriptor.empty()) {
                 const std::unordered_map<std::string, uint8_t>& ports =
-                        readerConfig.portAssociations;
+                        readerConfig.inputPortToDisplayPortAssociations;
                 const auto& displayPort = ports.find(inputDeviceDescriptor);
                 if (displayPort != ports.end()) {
                     mAssociatedDisplayPort = std::make_optional(displayPort->second);
                 } else {
                     const std::unordered_map<std::string, std::string>&
                             displayUniqueIdsByDescriptor =
-                                    readerConfig.uniqueIdAssociationsByDescriptor;
+                                    readerConfig.inputDeviceDescriptorToDisplayUniqueIdAssociations;
                     const auto& displayUniqueIdByDescriptor =
                             displayUniqueIdsByDescriptor.find(inputDeviceDescriptor);
                     if (displayUniqueIdByDescriptor != displayUniqueIdsByDescriptor.end()) {
@@ -301,13 +301,13 @@ std::list<NotifyArgs> InputDevice::configureInternal(nsecs_t when,
             const std::string& inputPort = mIdentifier.location;
             if (!inputPort.empty()) {
                 const std::unordered_map<std::string, uint8_t>& ports =
-                        readerConfig.portAssociations;
+                        readerConfig.inputPortToDisplayPortAssociations;
                 const auto& displayPort = ports.find(inputPort);
                 if (displayPort != ports.end()) {
                     mAssociatedDisplayPort = std::make_optional(displayPort->second);
                 } else {
                     const std::unordered_map<std::string, std::string>& displayUniqueIdsByPort =
-                            readerConfig.uniqueIdAssociationsByPort;
+                            readerConfig.inputPortToDisplayUniqueIdAssociations;
                     const auto& displayUniqueIdByPort = displayUniqueIdsByPort.find(inputPort);
                     if (displayUniqueIdByPort != displayUniqueIdsByPort.end()) {
                         mAssociatedDisplayUniqueIdByPort = displayUniqueIdByPort->second;

@@ -429,14 +429,18 @@ void SensorDevice::onDynamicSensorsConnected(const std::vector<sensor_t>& dynami
 }
 
 void SensorDevice::onDynamicSensorsDisconnected(
-        const std::vector<int32_t>& dynamicSensorHandlesRemoved) {
-    if (sensorservice_flags::sensor_device_on_dynamic_sensor_disconnected()) {
-        for (auto handle : dynamicSensorHandlesRemoved) {
-            auto it = mConnectedDynamicSensors.find(handle);
-            if (it != mConnectedDynamicSensors.end()) {
-                mConnectedDynamicSensors.erase(it);
-            }
-        }
+        const std::vector<int32_t>& /*dynamicSensorHandlesRemoved*/) {
+    // This function is currently a no-op has removing data in mConnectedDynamicSensors here will
+    // cause a race condition between when this callback is invoked and when the dynamic sensor meta
+    // event is processed by polling. The clean up should only happen after processing the meta
+    // event. See the call stack of cleanupDisconnectedDynamicSensor.
+}
+
+void SensorDevice::cleanupDisconnectedDynamicSensor(int handle) {
+    std::lock_guard<std::mutex> lock(mDynamicSensorsMutex);
+    auto it = mConnectedDynamicSensors.find(handle);
+    if (it != mConnectedDynamicSensors.end()) {
+        mConnectedDynamicSensors.erase(it);
     }
 }
 

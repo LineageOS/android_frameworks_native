@@ -237,7 +237,7 @@ private:
     void tracePredictions(int64_t displayFrameToken, nsecs_t monoBootOffset) const;
     void traceActuals(int64_t displayFrameToken, nsecs_t monoBootOffset) const;
     void classifyJankLocked(int32_t displayFrameJankType, const Fps& refreshRate,
-                            Fps displayFrameRenderRate, nsecs_t& deadlineDelta) REQUIRES(mMutex);
+                            Fps displayFrameRenderRate, nsecs_t* outDeadlineDelta) REQUIRES(mMutex);
 
     const int64_t mToken;
     const int32_t mInputEventId;
