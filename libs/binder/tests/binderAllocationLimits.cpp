@@ -114,12 +114,12 @@ TEST(TestTheTest, OnMalloc) {
     {
         const auto on_malloc = OnMalloc([&](size_t bytes) {
             mallocs++;
-            EXPECT_EQ(bytes, 40);
+            EXPECT_EQ(bytes, 40u);
         });
 
         imaginary_use = new int[10];
     }
-    EXPECT_EQ(mallocs, 1);
+    EXPECT_EQ(mallocs, 1u);
 }
 
 
@@ -196,9 +196,9 @@ TEST(BinderAllocation, InterfaceDescriptorTransaction) {
         // Happens to be SM package length. We could switch to forking
         // and registering our own service if it became an issue.
 #if defined(__LP64__)
-        EXPECT_EQ(bytes, 78);
+        EXPECT_EQ(bytes, 78u);
 #else
-        EXPECT_EQ(bytes, 70);
+        EXPECT_EQ(bytes, 70u);
 #endif
     });
 
@@ -206,7 +206,7 @@ TEST(BinderAllocation, InterfaceDescriptorTransaction) {
     a_binder->getInterfaceDescriptor();
     a_binder->getInterfaceDescriptor();
 
-    EXPECT_EQ(mallocs, 1);
+    EXPECT_EQ(mallocs, 1u);
 }
 
 TEST(BinderAllocation, SmallTransaction) {
@@ -217,11 +217,11 @@ TEST(BinderAllocation, SmallTransaction) {
     const auto on_malloc = OnMalloc([&](size_t bytes) {
         mallocs++;
         // Parcel should allocate a small amount by default
-        EXPECT_EQ(bytes, 128);
+        EXPECT_EQ(bytes, 128u);
     });
     manager->checkService(empty_descriptor);
 
-    EXPECT_EQ(mallocs, 1);
+    EXPECT_EQ(mallocs, 1u);
 }
 
 TEST(RpcBinderAllocation, SetupRpcServer) {
@@ -250,8 +250,8 @@ TEST(RpcBinderAllocation, SetupRpcServer) {
         });
         ASSERT_EQ(OK, remoteBinder->pingBinder());
     }
-    EXPECT_EQ(mallocs, 1);
-    EXPECT_EQ(totalBytes, 40);
+    EXPECT_EQ(mallocs, 1u);
+    EXPECT_EQ(totalBytes, 40u);
 }
 
 int main(int argc, char** argv) {

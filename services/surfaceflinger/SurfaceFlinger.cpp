@@ -56,6 +56,7 @@
 #include <configstore/Utils.h>
 #include <cutils/compiler.h>
 #include <cutils/properties.h>
+#include <fmt/format.h>
 #include <ftl/algorithm.h>
 #include <ftl/concat.h>
 #include <ftl/fake_guard.h>
@@ -573,8 +574,9 @@ void SurfaceFlinger::run() {
     mScheduler->run();
 }
 
-sp<IBinder> SurfaceFlinger::createDisplay(const String8& displayName, bool isSecure,
-                                          const std::string& uniqueId, float requestedRefreshRate) {
+sp<IBinder> SurfaceFlinger::createVirtualDisplay(const std::string& displayName, bool isSecure,
+                                                 const std::string& uniqueId,
+                                                 float requestedRefreshRate) {
     // SurfaceComposerAIDL checks for some permissions, but adding an additional check here.
     // This is to ensure that only root, system, and graphics can request to create a secure
     // display. Secure displays can show secure content so we add an additional restriction on it.
@@ -614,22 +616,23 @@ sp<IBinder> SurfaceFlinger::createDisplay(const String8& displayName, bool isSec
     return token;
 }
 
-void SurfaceFlinger::destroyDisplay(const sp<IBinder>& displayToken) {
+status_t SurfaceFlinger::destroyVirtualDisplay(const sp<IBinder>& displayToken) {
     Mutex::Autolock lock(mStateLock);
 
     const ssize_t index = mCurrentState.displays.indexOfKey(displayToken);
     if (index < 0) {
         ALOGE("%s: Invalid display token %p", __func__, displayToken.get());
-        return;
+        return NAME_NOT_FOUND;
     }
 
     const DisplayDeviceState& state = mCurrentState.displays.valueAt(index);
     if (state.physical) {
         ALOGE("%s: Invalid operation on physical display", __func__);
-        return;
+        return INVALID_OPERATION;
     }
     mCurrentState.displays.removeItemsAt(index);
     setTransactionFlags(eDisplayTransactionNeeded);
+    return NO_ERROR;
 }
 
 void SurfaceFlinger::enableHalVirtualDisplays(bool enable) {
@@ -941,9 +944,34 @@ void SurfaceFlinger::init() FTL_FAKE_GUARD(kMainThreadContext) {
         }
 
         mRenderEnginePrimeCacheFuture.callOnce([this] {
-            const bool shouldPrimeUltraHDR =
+            renderengine::PrimeCacheConfig config;
+            config.cacheHolePunchLayer =
+                    base::GetBoolProperty("debug.sf.prime_shader_cache.hole_punch"s, true);
+            config.cacheSolidLayers =
+                    base::GetBoolProperty("debug.sf.prime_shader_cache.solid_layers"s, true);
+            config.cacheSolidDimmedLayers =
+                    base::GetBoolProperty("debug.sf.prime_shader_cache.solid_dimmed_layers"s, true);
+            config.cacheImageLayers =
+                    base::GetBoolProperty("debug.sf.prime_shader_cache.image_layers"s, true);
+            config.cacheImageDimmedLayers =
+                    base::GetBoolProperty("debug.sf.prime_shader_cache.image_dimmed_layers"s, true);
+            config.cacheClippedLayers =
+                    base::GetBoolProperty("debug.sf.prime_shader_cache.clipped_layers"s, true);
+            config.cacheShadowLayers =
+                    base::GetBoolProperty("debug.sf.prime_shader_cache.shadow_layers"s, true);
+            config.cachePIPImageLayers =
+                    base::GetBoolProperty("debug.sf.prime_shader_cache.pip_image_layers"s, true);
+            config.cacheTransparentImageDimmedLayers = base::
+                    GetBoolProperty("debug.sf.prime_shader_cache.transparent_image_dimmed_layers"s,
+                                    true);
+            config.cacheClippedDimmedImageLayers = base::
+                    GetBoolProperty("debug.sf.prime_shader_cache.clipped_dimmed_image_layers"s,
+                                    true);
+            // ro.surface_flinger.prime_chader_cache.ultrahdr exists as a previous ro property
+            // which we maintain for backwards compatibility.
+            config.cacheUltraHDR =
                     base::GetBoolProperty("ro.surface_flinger.prime_shader_cache.ultrahdr"s, false);
-            return getRenderEngine().primeCache(shouldPrimeUltraHDR);
+            return getRenderEngine().primeCache(config);
         });
 
         if (setSchedFifo(true) != NO_ERROR) {
@@ -1411,12 +1439,11 @@ void SurfaceFlinger::applyActiveMode(const sp<DisplayDevice>& display) {
     }
 }
 
-bool SurfaceFlinger::initiateDisplayModeChanges() {
+void SurfaceFlinger::initiateDisplayModeChanges() {
     ATRACE_CALL();
 
     std::optional<PhysicalDisplayId> displayToUpdateImmediately;
 
-    bool mustComposite = false;
     for (const auto& [id, physical] : mPhysicalDisplays) {
         const auto display = getDisplayDeviceLocked(id);
         if (!display) continue;
@@ -1468,11 +1495,7 @@ bool SurfaceFlinger::initiateDisplayModeChanges() {
         mScheduler->onNewVsyncPeriodChangeTimeline(outTimeline);
 
         if (outTimeline.refreshRequired) {
-            if (FlagManager::getInstance().vrr_bugfix_24q4()) {
-                mustComposite = true;
-            } else {
-                scheduleComposite(FrameHint::kNone);
-            }
+            scheduleComposite(FrameHint::kNone);
         } else {
             // TODO(b/255635711): Remove `displayToUpdateImmediately` to `finalizeDisplayModeChange`
             // for all displays. This was only needed when the loop iterated over `mDisplays` rather
@@ -1490,8 +1513,6 @@ bool SurfaceFlinger::initiateDisplayModeChanges() {
             applyActiveMode(display);
         }
     }
-
-    return mustComposite;
 }
 
 void SurfaceFlinger::disableExpensiveRendering() {
@@ -2671,7 +2692,7 @@ bool SurfaceFlinger::commit(PhysicalDisplayId pacesetterId,
                                                         ? &mLayerHierarchyBuilder.getHierarchy()
                                                         : nullptr,
                                                 updateAttachedChoreographer);
-        mustComposite |= initiateDisplayModeChanges();
+        initiateDisplayModeChanges();
     }
 
     updateCursorAsync();
@@ -6538,18 +6559,19 @@ void SurfaceFlinger::dumpWideColorInfo(std::string& result) const {
     StringAppendF(&result, "DisplayColorSetting: %s\n",
                   decodeDisplayColorSetting(mDisplayColorSetting).c_str());
 
-    // TODO: print out if wide-color mode is active or not
+    // TODO: print out if wide-color mode is active or not.
 
     for (const auto& [id, display] : mPhysicalDisplays) {
         StringAppendF(&result, "Display %s color modes:\n", to_string(id).c_str());
         for (const auto mode : display.snapshot().colorModes()) {
-            StringAppendF(&result, "    %s (%d)\n", decodeColorMode(mode).c_str(), mode);
+            StringAppendF(&result, "    %s (%d)\n", decodeColorMode(mode).c_str(),
+                          fmt::underlying(mode));
         }
 
         if (const auto display = getDisplayDeviceLocked(id)) {
             ui::ColorMode currentMode = display->getCompositionDisplay()->getState().colorMode;
             StringAppendF(&result, "    Current color mode: %s (%d)\n",
-                          decodeColorMode(currentMode).c_str(), currentMode);
+                          decodeColorMode(currentMode).c_str(), fmt::underlying(currentMode));
         }
     }
     result.append("\n");
@@ -7006,8 +7028,8 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         // Used by apps to hook Choreographer to SurfaceFlinger.
         case CREATE_DISPLAY_EVENT_CONNECTION:
         case CREATE_CONNECTION:
-        case CREATE_DISPLAY:
-        case DESTROY_DISPLAY:
+        case CREATE_VIRTUAL_DISPLAY:
+        case DESTROY_VIRTUAL_DISPLAY:
         case GET_PRIMARY_PHYSICAL_DISPLAY_ID:
         case GET_PHYSICAL_DISPLAY_IDS:
         case GET_PHYSICAL_DISPLAY_TOKEN:
@@ -9198,9 +9220,7 @@ std::vector<std::pair<Layer*, LayerFE*>> SurfaceFlinger::moveSnapshotsToComposit
     std::vector<std::pair<Layer*, LayerFE*>> layers;
     if (mLayerLifecycleManagerEnabled) {
         nsecs_t currentTime = systemTime();
-        const bool needsMetadata = mCompositionEngine->getFeatureFlags().test(
-                compositionengine::Feature::kSnapshotLayerMetadata);
-        mLayerSnapshotBuilder.forEachSnapshot(
+        mLayerSnapshotBuilder.forEachVisibleSnapshot(
                 [&](std::unique_ptr<frontend::LayerSnapshot>& snapshot) FTL_FAKE_GUARD(
                         kMainThreadContext) {
                     if (cursorOnly &&
@@ -9223,12 +9243,6 @@ std::vector<std::pair<Layer*, LayerFE*>> SurfaceFlinger::moveSnapshotsToComposit
                     layerFE->mSnapshot = std::move(snapshot);
                     refreshArgs.layers.push_back(layerFE);
                     layers.emplace_back(legacyLayer.get(), layerFE.get());
-                },
-                [needsMetadata](const frontend::LayerSnapshot& snapshot) {
-                    return snapshot.isVisible ||
-                            (needsMetadata &&
-                             snapshot.changes.test(
-                                     frontend::RequestedLayerState::Changes::Metadata));
                 });
     }
     if (!mLayerLifecycleManagerEnabled) {
@@ -9532,26 +9546,25 @@ binder::Status SurfaceComposerAIDL::createConnection(sp<gui::ISurfaceComposerCli
     }
 }
 
-binder::Status SurfaceComposerAIDL::createDisplay(const std::string& displayName, bool isSecure,
-                                                  const std::string& uniqueId,
-                                                  float requestedRefreshRate,
-                                                  sp<IBinder>* outDisplay) {
+binder::Status SurfaceComposerAIDL::createVirtualDisplay(const std::string& displayName,
+                                                         bool isSecure, const std::string& uniqueId,
+                                                         float requestedRefreshRate,
+                                                         sp<IBinder>* outDisplay) {
     status_t status = checkAccessPermission();
     if (status != OK) {
         return binderStatusFromStatusT(status);
     }
-    String8 displayName8 = String8::format("%s", displayName.c_str());
-    *outDisplay = mFlinger->createDisplay(displayName8, isSecure, uniqueId, requestedRefreshRate);
+    *outDisplay =
+            mFlinger->createVirtualDisplay(displayName, isSecure, uniqueId, requestedRefreshRate);
     return binder::Status::ok();
 }
 
-binder::Status SurfaceComposerAIDL::destroyDisplay(const sp<IBinder>& display) {
+binder::Status SurfaceComposerAIDL::destroyVirtualDisplay(const sp<IBinder>& displayToken) {
     status_t status = checkAccessPermission();
     if (status != OK) {
         return binderStatusFromStatusT(status);
     }
-    mFlinger->destroyDisplay(display);
-    return binder::Status::ok();
+    return binder::Status::fromStatusT(mFlinger->destroyVirtualDisplay(displayToken));
 }
 
 binder::Status SurfaceComposerAIDL::getPhysicalDisplayIds(std::vector<int64_t>* outDisplayIds) {

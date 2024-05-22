@@ -20,6 +20,7 @@
 
 #include <inttypes.h>
 #include <unistd.h>
+#include <condition_variable>
 
 #include <android-base/properties.h>
 #include <android/os/BnServiceCallback.h>
@@ -642,7 +643,7 @@ public:
 
 protected:
     // Override realGetService for ServiceManagerShim::waitForService.
-    Status realGetService(const std::string& name, sp<IBinder>* _aidl_return) {
+    Status realGetService(const std::string& name, sp<IBinder>* _aidl_return) override {
         *_aidl_return = getDeviceService({"-g", name}, mOptions);
         return Status::ok();
     }

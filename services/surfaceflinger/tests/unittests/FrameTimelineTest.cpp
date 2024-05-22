@@ -1132,6 +1132,72 @@ void validateTraceEvent(const ProtoFrameEnd& received, const ProtoFrameEnd& sour
     EXPECT_EQ(received.cookie(), source.cookie());
 }
 
+TEST_F(FrameTimelineTest, traceDisplayFrameNoSkipped) {
+    // setup 2 display frames
+    // DF 1: [22, 30] -> [0, 11]
+    // DF 2: [82, 90] -> SF [5, 16]
+    auto tracingSession = getTracingSessionForTest();
+    tracingSession->StartBlocking();
+    int64_t sfToken1 = mTokenManager->generateTokenForPredictions({22, 30, 40});
+    int64_t sfToken2 = mTokenManager->generateTokenForPredictions({82, 90, 100});
+    int64_t surfaceFrameToken1 = mTokenManager->generateTokenForPredictions({0, 11, 25});
+    int64_t surfaceFrameToken2 = mTokenManager->generateTokenForPredictions({5, 16, 30});
+    auto presentFence1 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
+
+    int64_t traceCookie = snoopCurrentTraceCookie();
+
+    // set up 1st display frame
+    FrameTimelineInfo ftInfo1;
+    ftInfo1.vsyncId = surfaceFrameToken1;
+    ftInfo1.inputEventId = sInputEventId;
+    auto surfaceFrame1 =
+            mFrameTimeline->createSurfaceFrameForToken(ftInfo1, sPidOne, sUidOne, sLayerIdOne,
+                                                       sLayerNameOne, sLayerNameOne,
+                                                       /*isBuffer*/ true, sGameMode);
+    surfaceFrame1->setAcquireFenceTime(11);
+    mFrameTimeline->setSfWakeUp(sfToken1, 22, RR_11, RR_30);
+    surfaceFrame1->setPresentState(SurfaceFrame::PresentState::Presented);
+    mFrameTimeline->addSurfaceFrame(surfaceFrame1);
+    mFrameTimeline->setSfPresent(30, presentFence1);
+    presentFence1->signalForTest(40);
+
+    // Trigger a flush by finalizing the next DisplayFrame
+    auto presentFence2 = fenceFactory.createFenceTimeForTest(Fence::NO_FENCE);
+    FrameTimelineInfo ftInfo2;
+    ftInfo2.vsyncId = surfaceFrameToken2;
+    ftInfo2.inputEventId = sInputEventId;
+    auto surfaceFrame2 =
+            mFrameTimeline->createSurfaceFrameForToken(ftInfo2, sPidOne, sUidOne, sLayerIdOne,
+                                                       sLayerNameOne, sLayerNameOne,
+                                                       /*isBuffer*/ true, sGameMode);
+
+    // set up 2nd display frame
+    surfaceFrame2->setAcquireFenceTime(16);
+    mFrameTimeline->setSfWakeUp(sfToken2, 82, RR_11, RR_30);
+    surfaceFrame2->setPresentState(SurfaceFrame::PresentState::Presented);
+    mFrameTimeline->addSurfaceFrame(surfaceFrame2);
+    mFrameTimeline->setSfPresent(90, presentFence2);
+    presentFence2->signalForTest(100);
+
+    // the token of skipped Display Frame
+    auto protoSkippedActualDisplayFrameStart =
+            createProtoActualDisplayFrameStart(traceCookie + 9, 0, kSurfaceFlingerPid,
+                                               FrameTimelineEvent::PRESENT_DROPPED, true, false,
+                                               FrameTimelineEvent::JANK_DROPPED,
+                                               FrameTimelineEvent::SEVERITY_NONE,
+                                               FrameTimelineEvent::PREDICTION_VALID);
+    auto protoSkippedActualDisplayFrameEnd = createProtoFrameEnd(traceCookie + 9);
+
+    // Trigger a flush by finalizing the next DisplayFrame
+    addEmptyDisplayFrame();
+    flushTrace();
+    tracingSession->StopBlocking();
+
+    auto packets = readFrameTimelinePacketsBlocking(tracingSession.get());
+    // 8 Valid Display Frames + 8 Valid Surface Frames + no Skipped Display Frames
+    EXPECT_EQ(packets.size(), 16u);
+}
+
 TEST_F(FrameTimelineTest, traceDisplayFrameSkipped) {
     SET_FLAG_FOR_TEST(com::android::graphics::surfaceflinger::flags::add_sf_skipped_frames_to_trace,
                       true);

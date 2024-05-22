@@ -547,9 +547,10 @@ private:
     status_t dump(int fd, const Vector<String16>& args) override { return priorityDump(fd, args); }
 
     // ISurfaceComposer implementation:
-    sp<IBinder> createDisplay(const String8& displayName, bool isSecure,
-                              const std::string& uniqueId, float requestedRefreshRate = 0.0f);
-    void destroyDisplay(const sp<IBinder>& displayToken);
+    sp<IBinder> createVirtualDisplay(const std::string& displayName, bool isSecure,
+                                     const std::string& uniqueId,
+                                     float requestedRefreshRate = 0.0f);
+    status_t destroyVirtualDisplay(const sp<IBinder>& displayToken);
     std::vector<PhysicalDisplayId> getPhysicalDisplayIds() const EXCLUDES(mStateLock) {
         Mutex::Autolock lock(mStateLock);
         return getPhysicalDisplayIdsLocked();
@@ -736,7 +737,7 @@ private:
     status_t setActiveModeFromBackdoor(const sp<display::DisplayToken>&, DisplayModeId, Fps minFps,
                                        Fps maxFps);
 
-    bool initiateDisplayModeChanges() REQUIRES(mStateLock, kMainThreadContext);
+    void initiateDisplayModeChanges() REQUIRES(mStateLock, kMainThreadContext);
     void finalizeDisplayModeChange(DisplayDevice&) REQUIRES(mStateLock, kMainThreadContext);
 
     // TODO(b/241285191): Replace DisplayDevice with DisplayModeRequest, and move to Scheduler.
@@ -1566,10 +1567,10 @@ public:
             const sp<IBinder>& layerHandle,
             sp<gui::IDisplayEventConnection>* outConnection) override;
     binder::Status createConnection(sp<gui::ISurfaceComposerClient>* outClient) override;
-    binder::Status createDisplay(const std::string& displayName, bool isSecure,
-                                 const std::string& uniqueId, float requestedRefreshRate,
-                                 sp<IBinder>* outDisplay) override;
-    binder::Status destroyDisplay(const sp<IBinder>& display) override;
+    binder::Status createVirtualDisplay(const std::string& displayName, bool isSecure,
+                                        const std::string& uniqueId, float requestedRefreshRate,
+                                        sp<IBinder>* outDisplay) override;
+    binder::Status destroyVirtualDisplay(const sp<IBinder>& displayToken) override;
     binder::Status getPhysicalDisplayIds(std::vector<int64_t>* outDisplayIds) override;
     binder::Status getPhysicalDisplayToken(int64_t displayId, sp<IBinder>* outDisplay) override;
     binder::Status setPowerMode(const sp<IBinder>& display, int mode) override;

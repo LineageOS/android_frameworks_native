@@ -88,6 +88,21 @@ enum class Protection {
     PROTECTED = 2,
 };
 
+// Toggles for skipping or enabling priming of particular shaders.
+struct PrimeCacheConfig {
+    bool cacheHolePunchLayer = true;
+    bool cacheSolidLayers = true;
+    bool cacheSolidDimmedLayers = true;
+    bool cacheImageLayers = true;
+    bool cacheImageDimmedLayers = true;
+    bool cacheClippedLayers = true;
+    bool cacheShadowLayers = true;
+    bool cachePIPImageLayers = true;
+    bool cacheTransparentImageDimmedLayers = true;
+    bool cacheClippedDimmedImageLayers = true;
+    bool cacheUltraHDR = true;
+};
+
 class RenderEngine {
 public:
     enum class ContextPriority {
@@ -145,7 +160,7 @@ public:
     // This interface, while still in use until a suitable replacement is built,
     // should be considered deprecated, minus some methods which still may be
     // used to support legacy behavior.
-    virtual std::future<void> primeCache(bool shouldPrimeUltraHDR) = 0;
+    virtual std::future<void> primeCache(PrimeCacheConfig config) = 0;
 
     // dump the extension strings. always call the base class.
     virtual void dump(std::string& result) = 0;

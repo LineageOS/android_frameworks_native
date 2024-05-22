@@ -42,8 +42,8 @@ TEST_F(SurfaceFlingerGetDisplayStatsTest, explicitToken) {
 }
 
 TEST_F(SurfaceFlingerGetDisplayStatsTest, invalidToken) {
-    const String8 displayName("fakeDisplay");
-    sp<IBinder> displayToken = mFlinger.createDisplay(displayName, false);
+    static const std::string kDisplayName("fakeDisplay");
+    sp<IBinder> displayToken = mFlinger.createVirtualDisplay(kDisplayName, false /*isSecure*/);
     DisplayStatInfo info;
     status_t status = mFlinger.getDisplayStats(displayToken, &info);
     EXPECT_EQ(status, NAME_NOT_FOUND);

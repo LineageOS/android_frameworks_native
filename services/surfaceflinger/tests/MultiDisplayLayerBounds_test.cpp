@@ -53,14 +53,15 @@ protected:
     }
 
     virtual void TearDown() {
-        SurfaceComposerClient::destroyDisplay(mVirtualDisplay);
+        EXPECT_EQ(NO_ERROR, SurfaceComposerClient::destroyVirtualDisplay(mVirtualDisplay));
         LayerTransactionTest::TearDown();
         mColorLayer = 0;
     }
 
     void createDisplay(const ui::Size& layerStackSize, ui::LayerStack layerStack) {
+        static const std::string kDisplayName("VirtualDisplay");
         mVirtualDisplay =
-                SurfaceComposerClient::createDisplay(String8("VirtualDisplay"), false /*secure*/);
+                SurfaceComposerClient::createVirtualDisplay(kDisplayName, false /*isSecure*/);
         asTransaction([&](Transaction& t) {
             t.setDisplaySurface(mVirtualDisplay, mProducer);
             t.setDisplayLayerStack(mVirtualDisplay, layerStack);

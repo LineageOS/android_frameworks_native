@@ -60,7 +60,6 @@
 #include "../FdUtils.h"
 #include "../RpcState.h" // for debugging
 #include "FileUtils.h"
-#include "format.h"
 #include "utils/Errors.h"
 
 namespace android {
@@ -99,7 +98,7 @@ static inline std::vector<uint32_t> testVersions() {
 }
 
 static inline std::string trustyIpcPort(uint32_t serverVersion) {
-    return std::format("com.android.trusty.binderRpcTestService.V{}", serverVersion);
+    return "com.android.trusty.binderRpcTestService.V" + std::to_string(serverVersion);
 }
 
 enum class SocketType {
@@ -210,7 +209,7 @@ static inline std::unique_ptr<RpcTransportCtxFactory> newTlsFactory(
             return RpcTransportCtxFactoryTls::make(std::move(verifier), std::move(auth));
         }
         default:
-            LOG_ALWAYS_FATAL("Unknown RpcSecurity %d", rpcSecurity);
+            LOG_ALWAYS_FATAL("Unknown RpcSecurity %d", static_cast<int>(rpcSecurity));
     }
 }
 
@@ -256,7 +255,7 @@ public:
         mValue.reset();
         lock.unlock();
         mCvEmpty.notify_all();
-        return std::move(v);
+        return v;
     }
 
 private:

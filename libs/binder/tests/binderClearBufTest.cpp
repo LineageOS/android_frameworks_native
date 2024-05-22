@@ -88,7 +88,7 @@ TEST(BinderClearBuf, ClearKernelBuffer) {
     // the buffer must have at least some length for the string, but we will
     // just check it has some length, to avoid assuming anything about the
     // format
-    EXPECT_GT(replyBuffer.size(), 0);
+    EXPECT_GT(replyBuffer.size(), 0u);
 
     for (size_t i = 0; i < replyBuffer.size(); i++) {
         EXPECT_EQ(replyBuffer[i], '0') << "reply buffer at " << i;
