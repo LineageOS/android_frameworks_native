@@ -64,12 +64,12 @@ constexpr char kTrustyIpcDevice[] = "/dev/trusty-ipc-dev0";
 
 static std::string WaitStatusToString(int wstatus) {
     if (WIFEXITED(wstatus)) {
-        return std::format("exit status {}", WEXITSTATUS(wstatus));
+        return "exit status " + std::to_string(WEXITSTATUS(wstatus));
     }
     if (WIFSIGNALED(wstatus)) {
-        return std::format("term signal {}", WTERMSIG(wstatus));
+        return "term signal " + std::to_string(WTERMSIG(wstatus));
     }
-    return std::format("unexpected state {}", wstatus);
+    return "unexpected state " + std::to_string(wstatus);
 }
 
 static void debugBacktrace(pid_t pid) {
@@ -263,9 +263,8 @@ std::unique_ptr<ProcessSession> BinderRpc::createRpcTestSocketServerProcessEtc(
     bool noKernel = GetParam().noKernel;
 
     std::string path = GetExecutableDirectory();
-    auto servicePath =
-            std::format("{}/binder_rpc_test_service{}{}", path,
-                        singleThreaded ? "_single_threaded" : "", noKernel ? "_no_kernel" : "");
+    auto servicePath = path + "/binder_rpc_test_service" +
+            (singleThreaded ? "_single_threaded" : "") + (noKernel ? "_no_kernel" : "");
 
     unique_fd bootstrapClientFd, socketFd;
 
