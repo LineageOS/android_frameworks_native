@@ -9195,9 +9195,7 @@ std::vector<std::pair<Layer*, LayerFE*>> SurfaceFlinger::moveSnapshotsToComposit
     std::vector<std::pair<Layer*, LayerFE*>> layers;
     if (mLayerLifecycleManagerEnabled) {
         nsecs_t currentTime = systemTime();
-        const bool needsMetadata = mCompositionEngine->getFeatureFlags().test(
-                compositionengine::Feature::kSnapshotLayerMetadata);
-        mLayerSnapshotBuilder.forEachSnapshot(
+        mLayerSnapshotBuilder.forEachVisibleSnapshot(
                 [&](std::unique_ptr<frontend::LayerSnapshot>& snapshot) FTL_FAKE_GUARD(
                         kMainThreadContext) {
                     if (cursorOnly &&
@@ -9220,12 +9218,6 @@ std::vector<std::pair<Layer*, LayerFE*>> SurfaceFlinger::moveSnapshotsToComposit
                     layerFE->mSnapshot = std::move(snapshot);
                     refreshArgs.layers.push_back(layerFE);
                     layers.emplace_back(legacyLayer.get(), layerFE.get());
-                },
-                [needsMetadata](const frontend::LayerSnapshot& snapshot) {
-                    return snapshot.isVisible ||
-                            (needsMetadata &&
-                             snapshot.changes.test(
-                                     frontend::RequestedLayerState::Changes::Metadata));
                 });
     }
     if (!mLayerLifecycleManagerEnabled) {
