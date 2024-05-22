@@ -785,12 +785,10 @@ void LayerSnapshotBuilder::updateSnapshot(LayerSnapshot& snapshot, const Args& a
         }
     }
 
-    if (forceUpdate || snapshot.changes.test(RequestedLayerState::Changes::Metadata)) {
-        if (snapshot.changes.test(RequestedLayerState::Changes::GameMode)) {
-            snapshot.gameMode = requested.metadata.has(gui::METADATA_GAME_MODE)
-                    ? requested.gameMode
-                    : parentSnapshot.gameMode;
-        }
+    if (forceUpdate || snapshot.changes.test(RequestedLayerState::Changes::GameMode)) {
+        snapshot.gameMode = requested.metadata.has(gui::METADATA_GAME_MODE)
+                ? requested.gameMode
+                : parentSnapshot.gameMode;
         updateMetadata(snapshot, requested, args);
         if (args.includeMetadata) {
             snapshot.layerMetadata = parentSnapshot.layerMetadata;
