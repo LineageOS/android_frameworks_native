@@ -86,6 +86,7 @@ public:
     bool detached_mirror() const;
     bool commit_not_composited() const;
     bool local_tonemap_screenshots() const;
+    bool override_trusted_overlay() const;
 
 protected:
     // overridden for unit tests

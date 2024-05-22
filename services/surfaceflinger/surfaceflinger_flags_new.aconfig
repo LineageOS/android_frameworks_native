@@ -52,7 +52,7 @@ flag {
   metadata {
     purpose: PURPOSE_BUGFIX
   }
-} # deprecate_vsync_sf
+} # detached_mirror
 
 flag {
   name: "frame_rate_category_mrr"
@@ -83,6 +83,17 @@ flag {
     bug: "329464641"
     is_fixed_read_only: true
 } # local_tonemap_screenshots
+
+ flag {
+  name: "override_trusted_overlay"
+  namespace: "window_surfaces"
+  description: "Allow child to disable trusted overlay set by a parent layer"
+  bug: "339701674"
+  is_fixed_read_only: true
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+} # override_trusted_overlay
 
 flag {
   name: "vrr_bugfix_24q4"

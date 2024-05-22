@@ -5700,7 +5700,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
         if (layer->setHdrMetadata(s.hdrMetadata)) flags |= eTraversalNeeded;
     }
     if (what & layer_state_t::eTrustedOverlayChanged) {
-        if (layer->setTrustedOverlay(s.isTrustedOverlay)) {
+        if (layer->setTrustedOverlay(s.trustedOverlay == gui::TrustedOverlay::ENABLED)) {
             flags |= eTraversalNeeded;
         }
     }

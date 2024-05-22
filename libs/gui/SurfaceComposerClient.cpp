@@ -2175,6 +2175,13 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setAutoR
 
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setTrustedOverlay(
         const sp<SurfaceControl>& sc, bool isTrustedOverlay) {
+    return setTrustedOverlay(sc,
+                             isTrustedOverlay ? gui::TrustedOverlay::ENABLED
+                                              : gui::TrustedOverlay::UNSET);
+}
+
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setTrustedOverlay(
+        const sp<SurfaceControl>& sc, gui::TrustedOverlay trustedOverlay) {
     layer_state_t* s = getLayerState(sc);
     if (!s) {
         mStatus = BAD_INDEX;
@@ -2182,7 +2189,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setTrust
     }
 
     s->what |= layer_state_t::eTrustedOverlayChanged;
-    s->isTrustedOverlay = isTrustedOverlay;
+    s->trustedOverlay = trustedOverlay;
     return *this;
 }
 

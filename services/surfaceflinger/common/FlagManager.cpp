@@ -147,6 +147,7 @@ void FlagManager::dump(std::string& result) const {
     DUMP_READ_ONLY_FLAG(detached_mirror);
     DUMP_READ_ONLY_FLAG(commit_not_composited);
     DUMP_READ_ONLY_FLAG(local_tonemap_screenshots);
+    DUMP_READ_ONLY_FLAG(override_trusted_overlay);
 
 #undef DUMP_READ_ONLY_FLAG
 #undef DUMP_SERVER_FLAG
@@ -244,6 +245,7 @@ FLAG_MANAGER_READ_ONLY_FLAG(allow_n_vsyncs_in_targeter, "");
 FLAG_MANAGER_READ_ONLY_FLAG(detached_mirror, "");
 FLAG_MANAGER_READ_ONLY_FLAG(commit_not_composited, "");
 FLAG_MANAGER_READ_ONLY_FLAG(local_tonemap_screenshots, "debug.sf.local_tonemap_screenshots");
+FLAG_MANAGER_READ_ONLY_FLAG(override_trusted_overlay, "");
 
 /// Trunk stable server flags ///
 FLAG_MANAGER_SERVER_FLAG(refresh_rate_overlay_on_external_display, "")
