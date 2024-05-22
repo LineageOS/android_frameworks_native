@@ -70,7 +70,7 @@ bool Stability::requiresVintfDeclaration(const sp<IBinder>& binder) {
 }
 
 void Stability::tryMarkCompilationUnit(IBinder* binder) {
-    (void)setRepr(binder, getLocalLevel(), REPR_NONE);
+    std::ignore = setRepr(binder, getLocalLevel(), REPR_NONE);
 }
 
 // after deprecation of the VNDK, these should be aliases. At some point

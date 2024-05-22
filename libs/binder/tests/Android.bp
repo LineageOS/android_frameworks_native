@@ -28,6 +28,11 @@ cc_defaults {
     cflags: [
         "-Wall",
         "-Werror",
+        "-Wformat",
+        "-Wpessimizing-move",
+        "-Wsign-compare",
+        "-Wunused-result",
+        "-Wzero-as-null-pointer-constant",
     ],
 }
 
