@@ -1414,12 +1414,11 @@ void SurfaceFlinger::applyActiveMode(const sp<DisplayDevice>& display) {
     }
 }
 
-bool SurfaceFlinger::initiateDisplayModeChanges() {
+void SurfaceFlinger::initiateDisplayModeChanges() {
     ATRACE_CALL();
 
     std::optional<PhysicalDisplayId> displayToUpdateImmediately;
 
-    bool mustComposite = false;
     for (const auto& [id, physical] : mPhysicalDisplays) {
         const auto display = getDisplayDeviceLocked(id);
         if (!display) continue;
@@ -1471,11 +1470,7 @@ bool SurfaceFlinger::initiateDisplayModeChanges() {
         mScheduler->onNewVsyncPeriodChangeTimeline(outTimeline);
 
         if (outTimeline.refreshRequired) {
-            if (FlagManager::getInstance().vrr_bugfix_24q4()) {
-                mustComposite = true;
-            } else {
-                scheduleComposite(FrameHint::kNone);
-            }
+            scheduleComposite(FrameHint::kNone);
         } else {
             // TODO(b/255635711): Remove `displayToUpdateImmediately` to `finalizeDisplayModeChange`
             // for all displays. This was only needed when the loop iterated over `mDisplays` rather
@@ -1493,8 +1488,6 @@ bool SurfaceFlinger::initiateDisplayModeChanges() {
             applyActiveMode(display);
         }
     }
-
-    return mustComposite;
 }
 
 void SurfaceFlinger::disableExpensiveRendering() {
@@ -2674,7 +2667,7 @@ bool SurfaceFlinger::commit(PhysicalDisplayId pacesetterId,
                                                         ? &mLayerHierarchyBuilder.getHierarchy()
                                                         : nullptr,
                                                 updateAttachedChoreographer);
-        mustComposite |= initiateDisplayModeChanges();
+        initiateDisplayModeChanges();
     }
 
     updateCursorAsync();
