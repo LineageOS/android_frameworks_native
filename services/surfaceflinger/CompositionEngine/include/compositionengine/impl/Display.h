@@ -60,6 +60,7 @@ public:
     void applyCompositionStrategy(const std::optional<DeviceRequestedChanges>&) override;
     bool getSkipColorTransform() const override;
     compositionengine::Output::FrameFences presentFrame() override;
+    void executeCommands() override;
     void setExpensiveRenderingExpected(bool) override;
     void finishFrame(GpuCompositionResult&&) override;
     bool supportsOffloadPresent() const override;
