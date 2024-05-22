@@ -60,7 +60,6 @@
 #include "../FdUtils.h"
 #include "../RpcState.h" // for debugging
 #include "FileUtils.h"
-#include "format.h"
 #include "utils/Errors.h"
 
 namespace android {
@@ -99,7 +98,7 @@ static inline std::vector<uint32_t> testVersions() {
 }
 
 static inline std::string trustyIpcPort(uint32_t serverVersion) {
-    return std::format("com.android.trusty.binderRpcTestService.V{}", serverVersion);
+    return "com.android.trusty.binderRpcTestService.V" + std::to_string(serverVersion);
 }
 
 enum class SocketType {
