@@ -1009,7 +1009,7 @@ private:
             typename std::enable_if_t<is_specialization_v<CT, std::vector>, bool> = true>
     status_t writeData(const CT& c) {
         using T = first_template_type_t<CT>;  // The T in CT == C<T, ...>
-        if (c.size() >  std::numeric_limits<int32_t>::max()) return BAD_VALUE;
+        if (c.size() > static_cast<size_t>(std::numeric_limits<int32_t>::max())) return BAD_VALUE;
         const auto size = static_cast<int32_t>(c.size());
         writeData(size);
         if constexpr (is_pointer_equivalent_array_v<T>) {

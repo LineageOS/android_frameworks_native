@@ -528,8 +528,8 @@ TEST_F(BinderLibTest, Freeze) {
     EXPECT_EQ(NO_ERROR, IPCThreadState::self()->getProcessFreezeInfo(pid, &sync_received,
                 &async_received));
 
-    EXPECT_EQ(sync_received, 1);
-    EXPECT_EQ(async_received, 0);
+    EXPECT_EQ(sync_received, 1u);
+    EXPECT_EQ(async_received, 0u);
 
     EXPECT_EQ(NO_ERROR, IPCThreadState::self()->freeze(pid, false, 0));
     EXPECT_EQ(NO_ERROR, m_server->transact(BINDER_LIB_TEST_NOP_TRANSACTION, data, &reply));
@@ -1238,13 +1238,13 @@ TEST_F(BinderLibTest, BufRejected) {
     data.setDataCapacity(1024);
     // Write a bogus object at offset 0 to get an entry in the offset table
     data.writeFileDescriptor(0);
-    EXPECT_EQ(data.objectsCount(), 1);
+    EXPECT_EQ(data.objectsCount(), 1u);
     uint8_t *parcelData = const_cast<uint8_t*>(data.data());
     // And now, overwrite it with the buffer object
     memcpy(parcelData, &obj, sizeof(obj));
     data.setDataSize(sizeof(obj));
 
-    EXPECT_EQ(data.objectsCount(), 1);
+    EXPECT_EQ(data.objectsCount(), 1u);
 
     // Either the kernel should reject this transaction (if it's correct), but
     // if it's not, the server implementation should return an error if it
@@ -1269,7 +1269,7 @@ TEST_F(BinderLibTest, WeakRejected) {
     data.setDataCapacity(1024);
     // Write a bogus object at offset 0 to get an entry in the offset table
     data.writeFileDescriptor(0);
-    EXPECT_EQ(data.objectsCount(), 1);
+    EXPECT_EQ(data.objectsCount(), 1u);
     uint8_t *parcelData = const_cast<uint8_t *>(data.data());
     // And now, overwrite it with the weak binder
     memcpy(parcelData, &obj, sizeof(obj));
@@ -1279,7 +1279,7 @@ TEST_F(BinderLibTest, WeakRejected) {
     // test with an object that libbinder will actually try to release
     EXPECT_EQ(OK, data.writeStrongBinder(sp<BBinder>::make()));
 
-    EXPECT_EQ(data.objectsCount(), 2);
+    EXPECT_EQ(data.objectsCount(), 2u);
 
     // send it many times, since previous error was memory corruption, make it
     // more likely that the server crashes
@@ -1648,8 +1648,8 @@ TEST_P(BinderLibRpcTestP, SetRpcClientDebugNoKeepAliveBinder) {
     EXPECT_THAT(binder->setRpcClientDebug(std::move(socket), nullptr),
                 Debuggable(StatusEq(UNEXPECTED_NULL)));
 }
-INSTANTIATE_TEST_CASE_P(BinderLibTest, BinderLibRpcTestP, testing::Bool(),
-                        BinderLibRpcTestP::ParamToString);
+INSTANTIATE_TEST_SUITE_P(BinderLibTest, BinderLibRpcTestP, testing::Bool(),
+                         BinderLibRpcTestP::ParamToString);
 
 class BinderLibTestService : public BBinder {
 public:

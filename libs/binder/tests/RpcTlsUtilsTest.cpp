@@ -52,9 +52,9 @@ TEST_P(RpcTlsUtilsKeyTest, Test) {
             << "\nactual: " << toDebugString(deserializedPkey.get());
 }
 
-INSTANTIATE_TEST_CASE_P(RpcTlsUtilsTest, RpcTlsUtilsKeyTest,
-                        testing::Values(RpcKeyFormat::PEM, RpcKeyFormat::DER),
-                        RpcTlsUtilsKeyTest::PrintParamInfo);
+INSTANTIATE_TEST_SUITE_P(RpcTlsUtilsTest, RpcTlsUtilsKeyTest,
+                         testing::Values(RpcKeyFormat::PEM, RpcKeyFormat::DER),
+                         RpcTlsUtilsKeyTest::PrintParamInfo);
 
 class RpcTlsUtilsCertTest : public testing::TestWithParam<RpcCertificateFormat> {
 public:
@@ -75,9 +75,9 @@ TEST_P(RpcTlsUtilsCertTest, Test) {
     EXPECT_EQ(0, X509_cmp(cert.get(), deserializedCert.get()));
 }
 
-INSTANTIATE_TEST_CASE_P(RpcTlsUtilsTest, RpcTlsUtilsCertTest,
-                        testing::Values(RpcCertificateFormat::PEM, RpcCertificateFormat::DER),
-                        RpcTlsUtilsCertTest::PrintParamInfo);
+INSTANTIATE_TEST_SUITE_P(RpcTlsUtilsTest, RpcTlsUtilsCertTest,
+                         testing::Values(RpcCertificateFormat::PEM, RpcCertificateFormat::DER),
+                         RpcTlsUtilsCertTest::PrintParamInfo);
 
 class RpcTlsUtilsKeyAndCertTest
       : public testing::TestWithParam<std::tuple<RpcKeyFormat, RpcCertificateFormat>> {
@@ -105,10 +105,10 @@ TEST_P(RpcTlsUtilsKeyAndCertTest, TestCertFromDeserializedKey) {
     EXPECT_EQ(0, X509_cmp(cert.get(), deserializedCert.get()));
 }
 
-INSTANTIATE_TEST_CASE_P(RpcTlsUtilsTest, RpcTlsUtilsKeyAndCertTest,
-                        testing::Combine(testing::Values(RpcKeyFormat::PEM, RpcKeyFormat::DER),
-                                         testing::Values(RpcCertificateFormat::PEM,
-                                                         RpcCertificateFormat::DER)),
-                        RpcTlsUtilsKeyAndCertTest::PrintParamInfo);
+INSTANTIATE_TEST_SUITE_P(RpcTlsUtilsTest, RpcTlsUtilsKeyAndCertTest,
+                         testing::Combine(testing::Values(RpcKeyFormat::PEM, RpcKeyFormat::DER),
+                                          testing::Values(RpcCertificateFormat::PEM,
+                                                          RpcCertificateFormat::DER)),
+                         RpcTlsUtilsKeyAndCertTest::PrintParamInfo);
 
 } // namespace android
