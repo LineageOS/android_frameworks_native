@@ -177,7 +177,7 @@ public:
 
             EXPECT_NE(nullptr, session);
             EXPECT_NE(nullptr, session->state());
-            EXPECT_EQ(0, session->state()->countBinders()) << (session->state()->dump(), "dump:");
+            EXPECT_EQ(0u, session->state()->countBinders()) << (session->state()->dump(), "dump:");
 
             wp<RpcSession> weakSession = session;
             session = nullptr;
@@ -235,7 +235,7 @@ static unique_fd connectToUnixBootstrap(const RpcTransportFd& transportFd) {
     if (binder::os::sendMessageOnSocket(transportFd, &iov, 1, &fds) < 0) {
         PLOGF("Failed sendMessageOnSocket");
     }
-    return std::move(sockClient);
+    return sockClient;
 }
 #endif // BINDER_RPC_TO_TRUSTY_TEST
 
@@ -623,7 +623,7 @@ TEST_P(BinderRpc, OnewayCallQueueing) {
     for (size_t i = 0; i + 1 < kNumQueued; i++) {
         int n;
         proc.rootIface->blockingRecvInt(&n);
-        EXPECT_EQ(n, i);
+        EXPECT_EQ(n, static_cast<ssize_t>(i));
     }
 
     saturateThreadPool(1 + kNumExtraServerThreads, proc.rootIface);
@@ -1148,8 +1148,8 @@ static std::vector<BinderRpc::ParamType> getTrustyBinderRpcParams() {
     return ret;
 }
 
-INSTANTIATE_TEST_CASE_P(Trusty, BinderRpc, ::testing::ValuesIn(getTrustyBinderRpcParams()),
-                        BinderRpc::PrintParamInfo);
+INSTANTIATE_TEST_SUITE_P(Trusty, BinderRpc, ::testing::ValuesIn(getTrustyBinderRpcParams()),
+                         BinderRpc::PrintParamInfo);
 #else // BINDER_RPC_TO_TRUSTY_TEST
 bool testSupportVsockLoopback() {
     // We don't need to enable TLS to know if vsock is supported.
@@ -1308,8 +1308,8 @@ static std::vector<BinderRpc::ParamType> getBinderRpcParams() {
     return ret;
 }
 
-INSTANTIATE_TEST_CASE_P(PerSocket, BinderRpc, ::testing::ValuesIn(getBinderRpcParams()),
-                        BinderRpc::PrintParamInfo);
+INSTANTIATE_TEST_SUITE_P(PerSocket, BinderRpc, ::testing::ValuesIn(getBinderRpcParams()),
+                         BinderRpc::PrintParamInfo);
 
 class BinderRpcServerRootObject
       : public ::testing::TestWithParam<std::tuple<bool, bool, RpcSecurity>> {};
@@ -1337,9 +1337,9 @@ TEST_P(BinderRpcServerRootObject, WeakRootObject) {
     EXPECT_EQ((isStrong2 ? binderRaw2 : nullptr), server->getRootObject());
 }
 
-INSTANTIATE_TEST_CASE_P(BinderRpc, BinderRpcServerRootObject,
-                        ::testing::Combine(::testing::Bool(), ::testing::Bool(),
-                                           ::testing::ValuesIn(RpcSecurityValues())));
+INSTANTIATE_TEST_SUITE_P(BinderRpc, BinderRpcServerRootObject,
+                         ::testing::Combine(::testing::Bool(), ::testing::Bool(),
+                                            ::testing::ValuesIn(RpcSecurityValues())));
 
 class OneOffSignal {
 public:
@@ -1384,7 +1384,7 @@ TEST(BinderRpc, Java) {
     auto binder = sm->checkService(String16("batteryproperties"));
     ASSERT_NE(nullptr, binder);
     auto descriptor = binder->getInterfaceDescriptor();
-    ASSERT_GE(descriptor.size(), 0);
+    ASSERT_GE(descriptor.size(), 0u);
     ASSERT_EQ(OK, binder->pingBinder());
 
     auto rpcServer = RpcServer::make();
@@ -1468,10 +1468,10 @@ TEST_P(BinderRpcServerOnly, Shutdown) {
             << "After server->shutdown() returns true, join() did not stop after 2s";
 }
 
-INSTANTIATE_TEST_CASE_P(BinderRpc, BinderRpcServerOnly,
-                        ::testing::Combine(::testing::ValuesIn(RpcSecurityValues()),
-                                           ::testing::ValuesIn(testVersions())),
-                        BinderRpcServerOnly::PrintTestParam);
+INSTANTIATE_TEST_SUITE_P(BinderRpc, BinderRpcServerOnly,
+                         ::testing::Combine(::testing::ValuesIn(RpcSecurityValues()),
+                                            ::testing::ValuesIn(testVersions())),
+                         BinderRpcServerOnly::PrintTestParam);
 
 class RpcTransportTestUtils {
 public:
@@ -2018,9 +2018,9 @@ TEST_P(RpcTransportTest, CheckWaitingForRead) {
     server->shutdown();
 }
 
-INSTANTIATE_TEST_CASE_P(BinderRpc, RpcTransportTest,
-                        ::testing::ValuesIn(RpcTransportTest::getRpcTranportTestParams()),
-                        RpcTransportTest::PrintParamInfo);
+INSTANTIATE_TEST_SUITE_P(BinderRpc, RpcTransportTest,
+                         ::testing::ValuesIn(RpcTransportTest::getRpcTranportTestParams()),
+                         RpcTransportTest::PrintParamInfo);
 
 class RpcTransportTlsKeyTest
       : public testing::TestWithParam<
@@ -2075,7 +2075,7 @@ TEST_P(RpcTransportTlsKeyTest, PreSignedCertificate) {
     client.run();
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
         BinderRpc, RpcTransportTlsKeyTest,
         testing::Combine(testing::ValuesIn(testSocketTypes(false /* hasPreconnected*/)),
                          testing::Values(RpcCertificateFormat::PEM, RpcCertificateFormat::DER),
