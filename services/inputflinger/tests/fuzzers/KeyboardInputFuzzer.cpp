@@ -50,11 +50,10 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size) {
     FuzzInputReaderContext context(eventHub, fdp);
     InputDevice device = getFuzzedInputDevice(*fdp, &context);
 
-    KeyboardInputMapper& mapper = getMapperForDevice<
-            ThreadSafeFuzzedDataProvider,
-            KeyboardInputMapper>(*fdp.get(), device, InputReaderConfiguration{},
-                                 /*source=*/fdp->ConsumeIntegral<uint32_t>(),
-                                 /*keyboardType=*/fdp->ConsumeIntegral<int32_t>());
+    KeyboardInputMapper& mapper =
+            getMapperForDevice<ThreadSafeFuzzedDataProvider,
+                               KeyboardInputMapper>(*fdp.get(), device, InputReaderConfiguration{},
+                                                    /*source=*/fdp->ConsumeIntegral<uint32_t>());
 
     // Loop through mapper operations until randomness is exhausted.
     while (fdp->remaining_bytes() > 0) {

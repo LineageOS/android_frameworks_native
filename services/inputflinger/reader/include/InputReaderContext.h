@@ -17,6 +17,7 @@
 #pragma once
 
 #include <input/InputDevice.h>
+#include <input/KeyboardClassifier.h>
 #include "NotifyArgs.h"
 
 #include <vector>
@@ -64,6 +65,8 @@ public:
 
     virtual void setLastKeyDownTimestamp(nsecs_t when) = 0;
     virtual nsecs_t getLastKeyDownTimestamp() = 0;
+
+    virtual KeyboardClassifier& getKeyboardClassifier() = 0;
 };
 
 } // namespace android

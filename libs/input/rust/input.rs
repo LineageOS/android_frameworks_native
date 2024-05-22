@@ -16,21 +16,25 @@
 
 //! Common definitions of the Android Input Framework in rust.
 
+use crate::ffi::RustInputDeviceIdentifier;
 use bitflags::bitflags;
-use inputconstants::aidl::android::os::IInputConstants::INPUT_EVENT_FLAG_CANCELED;
-use inputconstants::aidl::android::os::IInputConstants::INPUT_EVENT_FLAG_IS_ACCESSIBILITY_EVENT;
-use inputconstants::aidl::android::os::IInputConstants::INPUT_EVENT_FLAG_TAINTED;
-use inputconstants::aidl::android::os::IInputConstants::MOTION_EVENT_FLAG_HOVER_EXIT_PENDING;
-use inputconstants::aidl::android::os::IInputConstants::MOTION_EVENT_FLAG_IS_GENERATED_GESTURE;
-use inputconstants::aidl::android::os::IInputConstants::MOTION_EVENT_FLAG_NO_FOCUS_CHANGE;
-use inputconstants::aidl::android::os::IInputConstants::MOTION_EVENT_FLAG_TARGET_ACCESSIBILITY_FOCUS;
-use inputconstants::aidl::android::os::IInputConstants::MOTION_EVENT_FLAG_WINDOW_IS_OBSCURED;
-use inputconstants::aidl::android::os::IInputConstants::MOTION_EVENT_FLAG_WINDOW_IS_PARTIALLY_OBSCURED;
+use inputconstants::aidl::android::os::IInputConstants;
 use std::fmt;
 
 /// The InputDevice ID.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct DeviceId(pub i32);
+
+/// The InputDevice equivalent for Rust inputflinger
+#[derive(Debug)]
+pub struct InputDevice {
+    /// InputDevice ID
+    pub device_id: DeviceId,
+    /// InputDevice unique identifier
+    pub identifier: RustInputDeviceIdentifier,
+    /// InputDevice classes (equivalent to EventHub InputDeviceClass)
+    pub classes: DeviceClass,
+}
 
 #[repr(u32)]
 pub enum SourceClass {
@@ -192,23 +196,23 @@ bitflags! {
     #[derive(Debug)]
     pub struct MotionFlags: u32 {
         /// FLAG_WINDOW_IS_OBSCURED
-        const WINDOW_IS_OBSCURED = MOTION_EVENT_FLAG_WINDOW_IS_OBSCURED as u32;
+        const WINDOW_IS_OBSCURED = IInputConstants::MOTION_EVENT_FLAG_WINDOW_IS_OBSCURED as u32;
         /// FLAG_WINDOW_IS_PARTIALLY_OBSCURED
-        const WINDOW_IS_PARTIALLY_OBSCURED = MOTION_EVENT_FLAG_WINDOW_IS_PARTIALLY_OBSCURED as u32;
+        const WINDOW_IS_PARTIALLY_OBSCURED = IInputConstants::MOTION_EVENT_FLAG_WINDOW_IS_PARTIALLY_OBSCURED as u32;
         /// FLAG_HOVER_EXIT_PENDING
-        const HOVER_EXIT_PENDING = MOTION_EVENT_FLAG_HOVER_EXIT_PENDING as u32;
+        const HOVER_EXIT_PENDING = IInputConstants::MOTION_EVENT_FLAG_HOVER_EXIT_PENDING as u32;
         /// FLAG_IS_GENERATED_GESTURE
-        const IS_GENERATED_GESTURE = MOTION_EVENT_FLAG_IS_GENERATED_GESTURE as u32;
+        const IS_GENERATED_GESTURE = IInputConstants::MOTION_EVENT_FLAG_IS_GENERATED_GESTURE as u32;
         /// FLAG_CANCELED
-        const CANCELED = INPUT_EVENT_FLAG_CANCELED as u32;
+        const CANCELED = IInputConstants::INPUT_EVENT_FLAG_CANCELED as u32;
         /// FLAG_NO_FOCUS_CHANGE
-        const NO_FOCUS_CHANGE = MOTION_EVENT_FLAG_NO_FOCUS_CHANGE as u32;
+        const NO_FOCUS_CHANGE = IInputConstants::MOTION_EVENT_FLAG_NO_FOCUS_CHANGE as u32;
         /// FLAG_IS_ACCESSIBILITY_EVENT
-        const IS_ACCESSIBILITY_EVENT = INPUT_EVENT_FLAG_IS_ACCESSIBILITY_EVENT as u32;
+        const IS_ACCESSIBILITY_EVENT = IInputConstants::INPUT_EVENT_FLAG_IS_ACCESSIBILITY_EVENT as u32;
         /// FLAG_TAINTED
-        const TAINTED = INPUT_EVENT_FLAG_TAINTED as u32;
+        const TAINTED = IInputConstants::INPUT_EVENT_FLAG_TAINTED as u32;
         /// FLAG_TARGET_ACCESSIBILITY_FOCUS
-        const TARGET_ACCESSIBILITY_FOCUS = MOTION_EVENT_FLAG_TARGET_ACCESSIBILITY_FOCUS as u32;
+        const TARGET_ACCESSIBILITY_FOCUS = IInputConstants::MOTION_EVENT_FLAG_TARGET_ACCESSIBILITY_FOCUS as u32;
     }
 }
 
@@ -218,6 +222,107 @@ impl Source {
         let class_bits = source_class as u32;
         self.bits() & class_bits == class_bits
     }
+}
+
+bitflags! {
+    /// Device class of the input device. These are duplicated from Eventhub.h
+    /// We need to make sure the two version remain in sync when adding new classes.
+    #[derive(Debug, PartialEq)]
+    pub struct DeviceClass: u32 {
+        /// The input device is a keyboard or has buttons
+        const Keyboard = IInputConstants::DEVICE_CLASS_KEYBOARD as u32;
+        /// The input device is an alpha-numeric keyboard (not just a dial pad)
+        const AlphabeticKey = IInputConstants::DEVICE_CLASS_ALPHAKEY as u32;
+        /// The input device is a touchscreen or a touchpad (either single-touch or multi-touch)
+        const Touch = IInputConstants::DEVICE_CLASS_TOUCH as u32;
+        /// The input device is a cursor device such as a trackball or mouse.
+        const Cursor = IInputConstants::DEVICE_CLASS_CURSOR as u32;
+        /// The input device is a multi-touch touchscreen or touchpad.
+        const MultiTouch = IInputConstants::DEVICE_CLASS_TOUCH_MT as u32;
+        /// The input device is a directional pad (implies keyboard, has DPAD keys).
+        const Dpad = IInputConstants::DEVICE_CLASS_DPAD as u32;
+        /// The input device is a gamepad (implies keyboard, has BUTTON keys).
+        const Gamepad = IInputConstants::DEVICE_CLASS_GAMEPAD as u32;
+        /// The input device has switches.
+        const Switch = IInputConstants::DEVICE_CLASS_SWITCH as u32;
+        /// The input device is a joystick (implies gamepad, has joystick absolute axes).
+        const Joystick = IInputConstants::DEVICE_CLASS_JOYSTICK as u32;
+        /// The input device has a vibrator (supports FF_RUMBLE).
+        const Vibrator = IInputConstants::DEVICE_CLASS_VIBRATOR as u32;
+        /// The input device has a microphone.
+        const Mic = IInputConstants::DEVICE_CLASS_MIC as u32;
+        /// The input device is an external stylus (has data we want to fuse with touch data).
+        const ExternalStylus = IInputConstants::DEVICE_CLASS_EXTERNAL_STYLUS as u32;
+        /// The input device has a rotary encoder
+        const RotaryEncoder = IInputConstants::DEVICE_CLASS_ROTARY_ENCODER as u32;
+        /// The input device has a sensor like accelerometer, gyro, etc
+        const Sensor = IInputConstants::DEVICE_CLASS_SENSOR as u32;
+        /// The input device has a battery
+        const Battery = IInputConstants::DEVICE_CLASS_BATTERY as u32;
+        /// The input device has sysfs controllable lights
+        const Light = IInputConstants::DEVICE_CLASS_LIGHT as u32;
+        /// The input device is a touchpad, requiring an on-screen cursor.
+        const Touchpad = IInputConstants::DEVICE_CLASS_TOUCHPAD as u32;
+        /// The input device is virtual (not a real device, not part of UI configuration).
+        const Virtual = IInputConstants::DEVICE_CLASS_VIRTUAL as u32;
+        /// The input device is external (not built-in).
+        const External = IInputConstants::DEVICE_CLASS_EXTERNAL as u32;
+    }
+}
+
+bitflags! {
+    /// Modifier state flags
+    #[derive(Debug, PartialEq)]
+    pub struct ModifierState: u32 {
+        /// No meta keys are pressed
+        const None = input_bindgen::AMETA_NONE;
+        /// This mask is used to check whether one of the ALT meta keys is pressed
+        const AltOn = input_bindgen::AMETA_ALT_ON;
+        /// This mask is used to check whether the left ALT meta key is pressed
+        const AltLeftOn = input_bindgen::AMETA_ALT_LEFT_ON;
+        /// This mask is used to check whether the right ALT meta key is pressed
+        const AltRightOn = input_bindgen::AMETA_ALT_RIGHT_ON;
+        /// This mask is used to check whether one of the SHIFT meta keys is pressed
+        const ShiftOn = input_bindgen::AMETA_SHIFT_ON;
+        /// This mask is used to check whether the left SHIFT meta key is pressed
+        const ShiftLeftOn = input_bindgen::AMETA_SHIFT_LEFT_ON;
+        /// This mask is used to check whether the right SHIFT meta key is pressed
+        const ShiftRightOn = input_bindgen::AMETA_SHIFT_RIGHT_ON;
+        /// This mask is used to check whether the SYM meta key is pressed
+        const SymOn = input_bindgen::AMETA_SYM_ON;
+        /// This mask is used to check whether the FUNCTION meta key is pressed
+        const FunctionOn = input_bindgen::AMETA_FUNCTION_ON;
+        /// This mask is used to check whether one of the CTRL meta keys is pressed
+        const CtrlOn = input_bindgen::AMETA_CTRL_ON;
+        /// This mask is used to check whether the left CTRL meta key is pressed
+        const CtrlLeftOn = input_bindgen::AMETA_CTRL_LEFT_ON;
+        /// This mask is used to check whether the right CTRL meta key is pressed
+        const CtrlRightOn = input_bindgen::AMETA_CTRL_RIGHT_ON;
+        /// This mask is used to check whether one of the META meta keys is pressed
+        const MetaOn = input_bindgen::AMETA_META_ON;
+        /// This mask is used to check whether the left META meta key is pressed
+        const MetaLeftOn = input_bindgen::AMETA_META_LEFT_ON;
+        /// This mask is used to check whether the right META meta key is pressed
+        const MetaRightOn = input_bindgen::AMETA_META_RIGHT_ON;
+        /// This mask is used to check whether the CAPS LOCK meta key is on
+        const CapsLockOn = input_bindgen::AMETA_CAPS_LOCK_ON;
+        /// This mask is used to check whether the NUM LOCK meta key is on
+        const NumLockOn = input_bindgen::AMETA_NUM_LOCK_ON;
+        /// This mask is used to check whether the SCROLL LOCK meta key is on
+        const ScrollLockOn = input_bindgen::AMETA_SCROLL_LOCK_ON;
+    }
+}
+
+/// A rust enum representation of a Keyboard type.
+#[repr(u32)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub enum KeyboardType {
+    /// KEYBOARD_TYPE_NONE
+    None = input_bindgen::AINPUT_KEYBOARD_TYPE_NONE,
+    /// KEYBOARD_TYPE_NON_ALPHABETIC
+    NonAlphabetic = input_bindgen::AINPUT_KEYBOARD_TYPE_NON_ALPHABETIC,
+    /// KEYBOARD_TYPE_ALPHABETIC
+    Alphabetic = input_bindgen::AINPUT_KEYBOARD_TYPE_ALPHABETIC,
 }
 
 #[cfg(test)]

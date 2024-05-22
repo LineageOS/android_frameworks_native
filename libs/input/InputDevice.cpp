@@ -273,10 +273,7 @@ void InputDeviceInfo::addLightInfo(const InputDeviceLightInfo& info) {
 }
 
 void InputDeviceInfo::setKeyboardType(int32_t keyboardType) {
-    static_assert(AINPUT_KEYBOARD_TYPE_NONE < AINPUT_KEYBOARD_TYPE_NON_ALPHABETIC);
-    static_assert(AINPUT_KEYBOARD_TYPE_NON_ALPHABETIC < AINPUT_KEYBOARD_TYPE_ALPHABETIC);
-    // There can be multiple subdevices with different keyboard types, set it to the highest type
-    mKeyboardType = std::max(mKeyboardType, keyboardType);
+    mKeyboardType = keyboardType;
 }
 
 void InputDeviceInfo::setKeyboardLayoutInfo(KeyboardLayoutInfo layoutInfo) {
