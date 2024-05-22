@@ -944,9 +944,34 @@ void SurfaceFlinger::init() FTL_FAKE_GUARD(kMainThreadContext) {
         }
 
         mRenderEnginePrimeCacheFuture.callOnce([this] {
-            const bool shouldPrimeUltraHDR =
+            renderengine::PrimeCacheConfig config;
+            config.cacheHolePunchLayer =
+                    base::GetBoolProperty("debug.sf.prime_shader_cache.hole_punch"s, true);
+            config.cacheSolidLayers =
+                    base::GetBoolProperty("debug.sf.prime_shader_cache.solid_layers"s, true);
+            config.cacheSolidDimmedLayers =
+                    base::GetBoolProperty("debug.sf.prime_shader_cache.solid_dimmed_layers"s, true);
+            config.cacheImageLayers =
+                    base::GetBoolProperty("debug.sf.prime_shader_cache.image_layers"s, true);
+            config.cacheImageDimmedLayers =
+                    base::GetBoolProperty("debug.sf.prime_shader_cache.image_dimmed_layers"s, true);
+            config.cacheClippedLayers =
+                    base::GetBoolProperty("debug.sf.prime_shader_cache.clipped_layers"s, true);
+            config.cacheShadowLayers =
+                    base::GetBoolProperty("debug.sf.prime_shader_cache.shadow_layers"s, true);
+            config.cachePIPImageLayers =
+                    base::GetBoolProperty("debug.sf.prime_shader_cache.pip_image_layers"s, true);
+            config.cacheTransparentImageDimmedLayers = base::
+                    GetBoolProperty("debug.sf.prime_shader_cache.transparent_image_dimmed_layers"s,
+                                    true);
+            config.cacheClippedDimmedImageLayers = base::
+                    GetBoolProperty("debug.sf.prime_shader_cache.clipped_dimmed_image_layers"s,
+                                    true);
+            // ro.surface_flinger.prime_chader_cache.ultrahdr exists as a previous ro property
+            // which we maintain for backwards compatibility.
+            config.cacheUltraHDR =
                     base::GetBoolProperty("ro.surface_flinger.prime_shader_cache.ultrahdr"s, false);
-            return getRenderEngine().primeCache(shouldPrimeUltraHDR);
+            return getRenderEngine().primeCache(config);
         });
 
         if (setSchedFifo(true) != NO_ERROR) {

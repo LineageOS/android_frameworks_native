@@ -25,6 +25,7 @@
 
 namespace android {
 
+using renderengine::PrimeCacheConfig;
 using testing::_;
 using testing::Eq;
 using testing::Mock;
@@ -48,9 +49,25 @@ TEST_F(RenderEngineThreadedTest, dump) {
     mThreadedRE->dump(testString);
 }
 
+MATCHER_P(EqConfig, other, "Equality for prime cache config") {
+    return arg.cacheHolePunchLayer == other.cacheHolePunchLayer &&
+            arg.cacheSolidLayers == other.cacheSolidLayers &&
+            arg.cacheSolidDimmedLayers == other.cacheSolidDimmedLayers &&
+            arg.cacheImageLayers == other.cacheImageLayers &&
+            arg.cacheImageDimmedLayers == other.cacheImageDimmedLayers &&
+            arg.cacheClippedLayers == other.cacheClippedLayers &&
+            arg.cacheShadowLayers == other.cacheShadowLayers &&
+            arg.cachePIPImageLayers == other.cachePIPImageLayers &&
+            arg.cacheTransparentImageDimmedLayers == other.cacheTransparentImageDimmedLayers &&
+            arg.cacheClippedDimmedImageLayers == other.cacheClippedDimmedImageLayers &&
+            arg.cacheUltraHDR == other.cacheUltraHDR;
+}
+
 TEST_F(RenderEngineThreadedTest, primeCache) {
-    EXPECT_CALL(*mRenderEngine, primeCache(false));
-    mThreadedRE->primeCache(false);
+    PrimeCacheConfig config;
+    config.cacheUltraHDR = false;
+    EXPECT_CALL(*mRenderEngine, primeCache(EqConfig(config)));
+    mThreadedRE->primeCache(config);
     // need to call ANY synchronous function after primeCache to ensure that primeCache has
     // completed asynchronously before the test completes execution.
     mThreadedRE->getContextPriority();

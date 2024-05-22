@@ -3141,7 +3141,9 @@ TEST_P(RenderEngineTest, primeShaderCache) {
     }
     initializeRenderEngine();
 
-    auto fut = mRE->primeCache(false);
+    PrimeCacheConfig config;
+    config.cacheUltraHDR = false;
+    auto fut = mRE->primeCache(config);
     if (fut.valid()) {
         fut.wait();
     }

@@ -33,7 +33,7 @@ public:
     RenderEngine();
     ~RenderEngine() override;
 
-    MOCK_METHOD1(primeCache, std::future<void>(bool));
+    MOCK_METHOD1(primeCache, std::future<void>(PrimeCacheConfig));
     MOCK_METHOD1(dump, void(std::string&));
     MOCK_CONST_METHOD0(getMaxTextureSize, size_t());
     MOCK_CONST_METHOD0(getMaxViewportDims, size_t());

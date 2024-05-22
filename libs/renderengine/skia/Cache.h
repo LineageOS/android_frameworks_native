@@ -16,16 +16,21 @@
 
 #pragma once
 
-namespace android::renderengine::skia {
+namespace android::renderengine {
+
+struct PrimeCacheConfig;
+
+namespace skia {
 
 class SkiaRenderEngine;
 
 class Cache {
 public:
-    static void primeShaderCache(SkiaRenderEngine*, bool shouldPrimeUltraHDR);
+    static void primeShaderCache(SkiaRenderEngine*, PrimeCacheConfig config);
 
 private:
     Cache() = default;
 };
 
-} // namespace android::renderengine::skia
+} // namespace skia
+} // namespace android::renderengine
