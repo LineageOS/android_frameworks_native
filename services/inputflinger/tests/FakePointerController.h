@@ -57,7 +57,10 @@ public:
     void assertPointerIconNotSet();
     void assertCustomPointerIconSet(PointerIconStyle iconId);
     void assertCustomPointerIconNotSet();
-    void assertIsHiddenOnMirroredDisplays(ui::LogicalDisplayId displayId, bool isHidden);
+    void assertIsSkipScreenshotFlagSet(ui::LogicalDisplayId displayId);
+    void assertIsSkipScreenshotFlagNotSet(ui::LogicalDisplayId displayId);
+    void assertSkipScreenshotFlagChanged();
+    void assertSkipScreenshotFlagNotChanged();
     bool isPointerShown();
 
 private:
@@ -81,6 +84,7 @@ private:
 
     std::map<ui::LogicalDisplayId, std::vector<int32_t>> mSpotsByDisplay;
     std::unordered_set<ui::LogicalDisplayId> mDisplaysToSkipScreenshot;
+    bool mDisplaysToSkipScreenshotFlagChanged{false};
 };
 
 } // namespace android

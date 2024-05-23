@@ -30,10 +30,6 @@
 
 namespace android {
 
-namespace input_flags = com::android::input::flags;
-static const bool HIDE_TOUCH_INDICATORS_FOR_SECURE_WINDOWS =
-        input_flags::hide_pointer_indicators_for_secure_windows();
-
 namespace {
 
 bool isFromMouse(const NotifyMotionArgs& args) {
@@ -106,8 +102,31 @@ std::unordered_set<ui::LogicalDisplayId> getPrivacySensitiveDisplaysFromWindowIn
 
 // --- PointerChoreographer ---
 
-PointerChoreographer::PointerChoreographer(InputListenerInterface& listener,
+PointerChoreographer::PointerChoreographer(InputListenerInterface& inputListener,
                                            PointerChoreographerPolicyInterface& policy)
+      : PointerChoreographer(
+                inputListener, policy,
+                [](const sp<android::gui::WindowInfosListener>& listener) {
+                    auto initialInfo = std::make_pair(std::vector<android::gui::WindowInfo>{},
+                                                      std::vector<android::gui::DisplayInfo>{});
+#if defined(__ANDROID__)
+                    SurfaceComposerClient::getDefault()->addWindowInfosListener(listener,
+                                                                                &initialInfo);
+#endif
+                    return initialInfo.first;
+                },
+                [](const sp<android::gui::WindowInfosListener>& listener) {
+#if defined(__ANDROID__)
+                    SurfaceComposerClient::getDefault()->removeWindowInfosListener(listener);
+#endif
+                }) {
+}
+
+PointerChoreographer::PointerChoreographer(
+        android::InputListenerInterface& listener,
+        android::PointerChoreographerPolicyInterface& policy,
+        const android::PointerChoreographer::WindowListenerRegisterConsumer& registerListener,
+        const android::PointerChoreographer::WindowListenerUnregisterConsumer& unregisterListener)
       : mTouchControllerConstructor([this]() {
             return mPolicy.createPointerController(
                     PointerControllerInterface::ControllerType::TOUCH);
@@ -117,7 +136,9 @@ PointerChoreographer::PointerChoreographer(InputListenerInterface& listener,
         mDefaultMouseDisplayId(ui::LogicalDisplayId::DEFAULT),
         mNotifiedPointerDisplayId(ui::LogicalDisplayId::INVALID),
         mShowTouchesEnabled(false),
-        mStylusPointerIconEnabled(false) {}
+        mStylusPointerIconEnabled(false),
+        mRegisterListener(registerListener),
+        mUnregisterListener(unregisterListener) {}
 
 PointerChoreographer::~PointerChoreographer() {
     std::scoped_lock _l(mLock);
@@ -125,6 +146,7 @@ PointerChoreographer::~PointerChoreographer() {
         return;
     }
     mWindowInfoListener->onPointerChoreographerDestroyed();
+    mUnregisterListener(mWindowInfoListener);
 }
 
 void PointerChoreographer::notifyInputDevicesChanged(const NotifyInputDevicesChangedArgs& args) {
@@ -391,7 +413,7 @@ void PointerChoreographer::processDeviceReset(const NotifyDeviceResetArgs& args)
 }
 
 void PointerChoreographer::onControllerAddedOrRemovedLocked() {
-    if (!HIDE_TOUCH_INDICATORS_FOR_SECURE_WINDOWS) {
+    if (!com::android::input::flags::hide_pointer_indicators_for_secure_windows()) {
         return;
     }
     bool requireListener = !mTouchPointersByDevice.empty() || !mMousePointersByDisplay.empty() ||
@@ -399,18 +421,10 @@ void PointerChoreographer::onControllerAddedOrRemovedLocked() {
 
     if (requireListener && mWindowInfoListener == nullptr) {
         mWindowInfoListener = sp<PointerChoreographerDisplayInfoListener>::make(this);
-        auto initialInfo = std::make_pair(std::vector<android::gui::WindowInfo>{},
-                                          std::vector<android::gui::DisplayInfo>{});
-#if defined(__ANDROID__)
-        SurfaceComposerClient::getDefault()->addWindowInfosListener(mWindowInfoListener,
-                                                                    &initialInfo);
-#endif
-        mWindowInfoListener->setInitialDisplayInfos(initialInfo.first);
+        mWindowInfoListener->setInitialDisplayInfos(mRegisterListener(mWindowInfoListener));
         onPrivacySensitiveDisplaysChangedLocked(mWindowInfoListener->getPrivacySensitiveDisplays());
     } else if (!requireListener && mWindowInfoListener != nullptr) {
-#if defined(__ANDROID__)
-        SurfaceComposerClient::getDefault()->removeWindowInfosListener(mWindowInfoListener);
-#endif
+        mUnregisterListener(mWindowInfoListener);
         mWindowInfoListener = nullptr;
     } else if (requireListener && mWindowInfoListener != nullptr) {
         // controller may have been added to an existing privacy sensitive display, we need to
