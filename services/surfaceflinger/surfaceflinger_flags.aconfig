@@ -161,7 +161,7 @@ flag {
 flag {
   name: "graphite_renderengine"
   namespace: "core_graphics"
-  description: "Use Skia's Graphite Vulkan backend in RenderEngine."
+  description: "Compile AND enable Skia's Graphite Vulkan backend in RenderEngine. See also: force_compile_graphite_renderengine."
   bug: "293371537"
   is_fixed_read_only: true
 }
