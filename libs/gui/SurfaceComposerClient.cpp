@@ -3118,6 +3118,10 @@ status_t SurfaceComposerClient::removeWindowInfosListener(
             ->removeWindowInfosListener(windowInfosListener,
                                         ComposerServiceAIDL::getComposerService());
 }
+
+void SurfaceComposerClient::notifyShutdown() {
+    ComposerServiceAIDL::getComposerService()->notifyShutdown();
+}
 // ----------------------------------------------------------------------------
 
 status_t ScreenshotClient::captureDisplay(const DisplayCaptureArgs& captureArgs,

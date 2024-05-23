@@ -1013,8 +1013,9 @@ void SurfaceFlinger::initTransactionTraceWriter() {
                         ALOGD("TransactionTraceWriter: file=%s already exists", filename.c_str());
                         return;
                     }
-                    mTransactionTracing->flush();
+                    ALOGD("TransactionTraceWriter: writing file=%s", filename.c_str());
                     mTransactionTracing->writeToFile(filename);
+                    mTransactionTracing->flush();
                 };
                 if (std::this_thread::get_id() == mMainThreadId) {
                     writeFn();
@@ -10333,6 +10334,11 @@ binder::Status SurfaceComposerAIDL::getStalledTransactionInfo(
 
 binder::Status SurfaceComposerAIDL::getSchedulingPolicy(gui::SchedulingPolicy* outPolicy) {
     return gui::getSchedulingPolicy(outPolicy);
+}
+
+binder::Status SurfaceComposerAIDL::notifyShutdown() {
+    TransactionTraceWriter::getInstance().invoke("systemShutdown_", /* overwrite= */ false);
+    return ::android::binder::Status::ok();
 }
 
 status_t SurfaceComposerAIDL::checkAccessPermission(bool usePermissionCache) {

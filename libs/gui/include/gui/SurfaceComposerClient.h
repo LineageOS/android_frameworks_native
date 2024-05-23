@@ -824,6 +824,8 @@ public:
                     nullptr);
     status_t removeWindowInfosListener(const sp<gui::WindowInfosListener>& windowInfosListener);
 
+    static void notifyShutdown();
+
 protected:
     ReleaseCallbackThread mReleaseCallbackThread;
 

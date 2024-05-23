@@ -985,6 +985,8 @@ public:
         return binder::Status::ok();
     }
 
+    binder::Status notifyShutdown() override { return binder::Status::ok(); }
+
 protected:
     IBinder* onAsBinder() override { return nullptr; }
 
