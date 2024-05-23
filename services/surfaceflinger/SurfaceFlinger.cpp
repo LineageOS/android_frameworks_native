@@ -2254,12 +2254,12 @@ void SurfaceFlinger::onRefreshRateChangedDebug(const RefreshRateChangedDebugData
                                                    kMainThreadContext) {
         if (const auto displayIdOpt = getHwComposer().toPhysicalDisplayId(data.display)) {
             if (const auto display = getDisplayDeviceLocked(*displayIdOpt)) {
-                const Fps fps = Fps::fromPeriodNsecs(getHwComposer().getComposer()->isVrrSupported()
-                                                             ? data.refreshPeriodNanos
-                                                             : data.vsyncPeriodNanos);
-                ATRACE_FORMAT("%s Fps %d", whence, fps.getIntValue());
-                display->updateRefreshRateOverlayRate(fps, display->getActiveMode().fps,
-                                                      /* setByHwc */ true);
+                const Fps refreshRate = Fps::fromPeriodNsecs(
+                        getHwComposer().getComposer()->isVrrSupported() ? data.refreshPeriodNanos
+                                                                        : data.vsyncPeriodNanos);
+                ATRACE_FORMAT("%s refresh rate = %d", whence, refreshRate.getIntValue());
+                display->updateRefreshRateOverlayRate(refreshRate, display->getActiveMode().fps,
+                                                      /* showRefreshRate */ true);
             }
         }
     }));
@@ -8833,7 +8833,8 @@ void SurfaceFlinger::enableRefreshRateOverlay(bool enable) {
                     const auto status =
                             getHwComposer().setRefreshRateChangedCallbackDebugEnabled(id, enable);
                     if (status != NO_ERROR) {
-                        ALOGE("Error updating the refresh rate changed callback debug enabled");
+                        ALOGE("Error %s refresh rate changed callback debug",
+                              enable ? "enabling" : "disabling");
                         enableOverlay(/*setByHwc*/ false);
                     }
                 }
