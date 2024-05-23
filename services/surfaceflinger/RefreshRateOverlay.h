@@ -74,12 +74,12 @@ private:
     SurfaceComposerClient::Transaction createTransaction() const;
 
     struct Key {
-        int vsyncRate;
+        int refreshRate;
         int renderFps;
         ui::Transform::RotationFlags flags;
 
         bool operator==(Key other) const {
-            return vsyncRate == other.vsyncRate && renderFps == other.renderFps &&
+            return refreshRate == other.refreshRate && renderFps == other.renderFps &&
                     flags == other.flags;
         }
     };
@@ -87,7 +87,7 @@ private:
     using BufferCache = ftl::SmallMap<Key, Buffers, 9>;
     BufferCache mBufferCache;
 
-    std::optional<Fps> mVsyncRate;
+    std::optional<Fps> mRefreshRate;
     std::optional<Fps> mRenderFps;
     size_t mFrame = 0;
 
