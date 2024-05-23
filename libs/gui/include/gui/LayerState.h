@@ -128,6 +128,8 @@ public:
 
     client_cache_t cachedBuffer;
 
+    nsecs_t dequeueTime;
+
     // Generates the release callback id based on the buffer id and frame number.
     // This is used as an identifier when release callbacks are invoked.
     ReleaseCallbackId generateReleaseCallbackId() const;

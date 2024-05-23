@@ -436,6 +436,7 @@ void TransactionProtoParser::fromProto(const perfetto::protos::LayerState& proto
         layer.bufferData->flags = ftl::Flags<BufferData::BufferDataChange>(bufferProto.flags());
         layer.bufferData->cachedBuffer.id = bufferProto.cached_buffer_id();
         layer.bufferData->acquireFence = Fence::NO_FENCE;
+        layer.bufferData->dequeueTime = -1;
     }
 
     if (proto.what() & layer_state_t::eApiChanged) {
