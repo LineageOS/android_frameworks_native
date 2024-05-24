@@ -712,8 +712,7 @@ void SkiaRenderEngine::drawLayersInternal(
             [&](const auto& l) { return l.whitePointNits; });
 
     // ...and compute the dimming ratio if dimming is requested
-    const float displayDimmingRatio = display.targetLuminanceNits > 0.f &&
-                    maxLayerWhitePoint > 0.f && display.targetLuminanceNits > maxLayerWhitePoint
+    const float displayDimmingRatio = display.targetLuminanceNits > 0.f && maxLayerWhitePoint > 0.f
             ? maxLayerWhitePoint / display.targetLuminanceNits
             : 1.f;
 
