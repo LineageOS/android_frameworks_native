@@ -374,6 +374,11 @@ std::optional<PnpId> getPnpId(PhysicalDisplayId displayId) {
 
 std::optional<DisplayIdentificationInfo> parseDisplayIdentificationData(
         uint8_t port, const DisplayIdentificationData& data) {
+    if (data.empty()) {
+        ALOGI("Display identification data is empty.");
+        return {};
+    }
+
     if (!isEdid(data)) {
         ALOGE("Display identification data has unknown format.");
         return {};
