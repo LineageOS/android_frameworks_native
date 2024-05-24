@@ -6270,12 +6270,17 @@ void SurfaceFlinger::dumpDisplayIdentificationData(std::string& result) const {
         uint8_t port;
         DisplayIdentificationData data;
         if (!getHwComposer().getDisplayIdentificationData(*hwcDisplayId, &port, &data)) {
-            result.append("no identification data\n");
+            result.append("no display identification data\n");
+            continue;
+        }
+
+        if (data.empty()) {
+            result.append("empty display identification data\n");
             continue;
         }
 
         if (!isEdid(data)) {
-            result.append("unknown identification data\n");
+            result.append("unknown format for display identification data\n");
             continue;
         }
 
