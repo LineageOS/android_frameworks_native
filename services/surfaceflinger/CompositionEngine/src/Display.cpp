@@ -79,7 +79,7 @@ void Display::setSecure(bool secure) {
 }
 
 bool Display::isVirtual() const {
-    return mId.isVirtual();
+    return VirtualDisplayId::tryCast(mId).has_value();
 }
 
 std::optional<DisplayId> Display::getDisplayId() const {
