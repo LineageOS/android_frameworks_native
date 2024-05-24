@@ -244,7 +244,7 @@ TEST_F(FlattenerTest, flattenLayers_ActiveLayersWithLowFpsAreFlattened) {
 
 TEST_F(FlattenerTest, unflattenLayers_onlySourceCropMoved) {
     SET_FLAG_FOR_TEST(com::android::graphics::surfaceflinger::flags::
-                              cache_if_source_crop_layer_only_moved,
+                              cache_when_source_crop_layer_only_moved,
                       true);
 
     auto& layerState1 = mTestLayers[0]->layerState;

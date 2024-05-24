@@ -281,6 +281,12 @@ prebuilt_etc {
 }
 
 prebuilt_etc {
+    name: "android.hardware.telephony.carrierlock.prebuilt.xml",
+    src: "android.hardware.telephony.carrierlock.xml",
+    defaults: ["frameworks_native_data_etc_defaults"],
+}
+
+prebuilt_etc {
     name: "android.hardware.telephony.gsm.prebuilt.xml",
     src: "android.hardware.telephony.gsm.xml",
     defaults: ["frameworks_native_data_etc_defaults"],
@@ -289,6 +295,12 @@ prebuilt_etc {
 prebuilt_etc {
     name: "android.hardware.telephony.ims.prebuilt.xml",
     src: "android.hardware.telephony.ims.xml",
+    defaults: ["frameworks_native_data_etc_defaults"],
+}
+
+prebuilt_etc {
+    name: "android.hardware.telephony.ims.singlereg.prebuilt.xml",
+    src: "android.hardware.telephony.ims.singlereg.xml",
     defaults: ["frameworks_native_data_etc_defaults"],
 }
 

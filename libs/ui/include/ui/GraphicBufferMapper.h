@@ -22,9 +22,11 @@
 
 #include <memory>
 
+#include <android-base/unique_fd.h>
 #include <ui/GraphicTypes.h>
 #include <ui/PixelFormat.h>
 #include <ui/Rect.h>
+#include <ui/Result.h>
 #include <utils/Singleton.h>
 
 // Needed by code that still uses the GRALLOC_USAGE_* constants.
@@ -38,6 +40,12 @@ namespace android {
 
 class GrallocMapper;
 
+/**
+ * This class is a thin wrapper over the various gralloc HALs. It is a "raw" wrapper, having
+ * version-specific behaviors & features. It is not recommend for general use. It is instead
+ * strongly recommended to use AHardwareBuffer or ui::GraphicBuffer which will provide stronger
+ * API compatibility & consistency behaviors.
+ */
 class GraphicBufferMapper : public Singleton<GraphicBufferMapper>
 {
 public:
@@ -66,27 +74,50 @@ public:
     void getTransportSize(buffer_handle_t handle,
             uint32_t* outTransportNumFds, uint32_t* outTransportNumInts);
 
-    status_t lock(buffer_handle_t handle, uint32_t usage, const Rect& bounds, void** vaddr,
-                  int32_t* outBytesPerPixel = nullptr, int32_t* outBytesPerStride = nullptr);
+    struct LockResult {
+        void* address = nullptr;
+        /**
+         * Note: bytesPerPixel is only populated if version is gralloc 3
+         * Gralloc 4 & later should use instead getPlaneLayout()
+         */
+        int32_t bytesPerPixel = -1;
+        /**
+         * Note: bytesPerPixel is only populated if version is gralloc 3
+         * Gralloc 4 & later should use instead getPlaneLayout()
+         */
+        int32_t bytesPerStride = -1;
+    };
+
+    ui::Result<LockResult> lock(buffer_handle_t handle, int64_t usage, const Rect& bounds,
+                                base::unique_fd&& acquireFence = {});
+
+    ui::Result<android_ycbcr> lockYCbCr(buffer_handle_t handle, int64_t usage, const Rect& bounds,
+                                        base::unique_fd&& acquireFence = {});
+
+    status_t lock(buffer_handle_t handle, uint32_t usage, const Rect& bounds, void** vaddr);
 
     status_t lockYCbCr(buffer_handle_t handle,
             uint32_t usage, const Rect& bounds, android_ycbcr *ycbcr);
 
-    status_t unlock(buffer_handle_t handle);
-
     status_t lockAsync(buffer_handle_t handle, uint32_t usage, const Rect& bounds, void** vaddr,
-                       int fenceFd, int32_t* outBytesPerPixel = nullptr,
-                       int32_t* outBytesPerStride = nullptr);
+                       int fenceFd);
 
     status_t lockAsync(buffer_handle_t handle, uint64_t producerUsage, uint64_t consumerUsage,
-                       const Rect& bounds, void** vaddr, int fenceFd,
-                       int32_t* outBytesPerPixel = nullptr, int32_t* outBytesPerStride = nullptr);
+                       const Rect& bounds, void** vaddr, int fenceFd);
 
     status_t lockAsyncYCbCr(buffer_handle_t handle,
             uint32_t usage, const Rect& bounds, android_ycbcr *ycbcr,
             int fenceFd);
 
-    status_t unlockAsync(buffer_handle_t handle, int *fenceFd);
+    status_t unlock(buffer_handle_t handle, base::unique_fd* outFence = nullptr);
+    status_t unlockAsync(buffer_handle_t handle, int* fenceFd) {
+        base::unique_fd temp;
+        status_t result = unlock(handle, fenceFd ? &temp : nullptr);
+        if (fenceFd) {
+            *fenceFd = temp.release();
+        }
+        return result;
+    }
 
     status_t isSupported(uint32_t width, uint32_t height, android::PixelFormat format,
                          uint32_t layerCount, uint64_t usage, bool* outSupported);
@@ -122,6 +153,7 @@ public:
     status_t getChromaSiting(buffer_handle_t bufferHandle, ui::ChromaSiting* outChromaSiting);
     status_t getPlaneLayouts(buffer_handle_t bufferHandle,
                              std::vector<ui::PlaneLayout>* outPlaneLayouts);
+    ui::Result<std::vector<ui::PlaneLayout>> getPlaneLayouts(buffer_handle_t bufferHandle);
     status_t getDataspace(buffer_handle_t bufferHandle, ui::Dataspace* outDataspace);
     status_t setDataspace(buffer_handle_t bufferHandle, ui::Dataspace dataspace);
     status_t getBlendMode(buffer_handle_t bufferHandle, ui::BlendMode* outBlendMode);

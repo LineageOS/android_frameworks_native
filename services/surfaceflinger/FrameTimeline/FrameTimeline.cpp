@@ -390,6 +390,22 @@ void SurfaceFrame::setGpuComposition() {
     mGpuComposition = true;
 }
 
+// TODO(b/316171339): migrate from perfetto side
+bool SurfaceFrame::isSelfJanky() const {
+    int32_t jankType = getJankType().value_or(JankType::None);
+
+    if (jankType == JankType::None) {
+        return false;
+    }
+
+    int32_t jankBitmask = JankType::AppDeadlineMissed | JankType::Unknown;
+    if (jankType & jankBitmask) {
+        return true;
+    }
+
+    return false;
+}
+
 std::optional<int32_t> SurfaceFrame::getJankType() const {
     std::scoped_lock lock(mMutex);
     if (mPresentState == PresentState::Dropped) {
@@ -1113,20 +1129,23 @@ void FrameTimeline::DisplayFrame::tracePredictions(pid_t surfaceFlingerPid,
 }
 
 void FrameTimeline::DisplayFrame::addSkippedFrame(pid_t surfaceFlingerPid, nsecs_t monoBootOffset,
-                                                  nsecs_t previousActualPresentTime) const {
+                                                  nsecs_t previousPredictionPresentTime) const {
     nsecs_t skippedFrameStartTime = 0, skippedFramePresentTime = 0;
     const constexpr float kThresh = 0.5f;
     const constexpr float kRange = 1.5f;
     for (auto& surfaceFrame : mSurfaceFrames) {
-        if (previousActualPresentTime != 0 &&
-            static_cast<float>(mSurfaceFlingerActuals.presentTime - previousActualPresentTime) >=
+        if (previousPredictionPresentTime != 0 &&
+            static_cast<float>(mSurfaceFlingerPredictions.presentTime -
+                               previousPredictionPresentTime) >=
                     static_cast<float>(mRenderRate.getPeriodNsecs()) * kRange &&
             static_cast<float>(surfaceFrame->getPredictions().presentTime) <=
-                    (static_cast<float>(mSurfaceFlingerActuals.presentTime) -
+                    (static_cast<float>(mSurfaceFlingerPredictions.presentTime) -
                      kThresh * static_cast<float>(mRenderRate.getPeriodNsecs())) &&
             static_cast<float>(surfaceFrame->getPredictions().presentTime) >=
-                    (static_cast<float>(previousActualPresentTime) -
-                     kThresh * static_cast<float>(mRenderRate.getPeriodNsecs()))) {
+                    (static_cast<float>(previousPredictionPresentTime) -
+                     kThresh * static_cast<float>(mRenderRate.getPeriodNsecs())) &&
+            // sf skipped frame is not considered if app is self janked
+            !surfaceFrame->isSelfJanky()) {
             skippedFrameStartTime = surfaceFrame->getPredictions().endTime;
             skippedFramePresentTime = surfaceFrame->getPredictions().presentTime;
             break;
@@ -1215,18 +1234,18 @@ void FrameTimeline::DisplayFrame::traceActuals(pid_t surfaceFlingerPid,
     });
 }
 
-void FrameTimeline::DisplayFrame::trace(pid_t surfaceFlingerPid, nsecs_t monoBootOffset,
-                                        nsecs_t previousActualPresentTime) const {
+nsecs_t FrameTimeline::DisplayFrame::trace(pid_t surfaceFlingerPid, nsecs_t monoBootOffset,
+                                           nsecs_t previousPredictionPresentTime) const {
     if (mSurfaceFrames.empty()) {
         // We don't want to trace display frames without any surface frames updates as this cannot
         // be janky
-        return;
+        return previousPredictionPresentTime;
     }
 
     if (mToken == FrameTimelineInfo::INVALID_VSYNC_ID) {
         // DisplayFrame should not have an invalid token.
         ALOGE("Cannot trace DisplayFrame with invalid token");
-        return;
+        return previousPredictionPresentTime;
     }
 
     if (mPredictionState == PredictionState::Valid) {
@@ -1241,8 +1260,9 @@ void FrameTimeline::DisplayFrame::trace(pid_t surfaceFlingerPid, nsecs_t monoBoo
     }
 
     if (FlagManager::getInstance().add_sf_skipped_frames_to_trace()) {
-        addSkippedFrame(surfaceFlingerPid, monoBootOffset, previousActualPresentTime);
+        addSkippedFrame(surfaceFlingerPid, monoBootOffset, previousPredictionPresentTime);
     }
+    return mSurfaceFlingerPredictions.presentTime;
 }
 
 float FrameTimeline::computeFps(const std::unordered_set<int32_t>& layerIds) {
@@ -1333,8 +1353,9 @@ void FrameTimeline::flushPendingPresentFences() {
         const auto& pendingPresentFence = *mPendingPresentFences.begin();
         const nsecs_t signalTime = Fence::SIGNAL_TIME_INVALID;
         auto& displayFrame = pendingPresentFence.second;
-        displayFrame->onPresent(signalTime, mPreviousPresentTime);
-        displayFrame->trace(mSurfaceFlingerPid, monoBootOffset, mPreviousPresentTime);
+        displayFrame->onPresent(signalTime, mPreviousActualPresentTime);
+        mPreviousPredictionPresentTime = displayFrame->trace(mSurfaceFlingerPid, monoBootOffset,
+                                                             mPreviousPredictionPresentTime);
         mPendingPresentFences.erase(mPendingPresentFences.begin());
     }
 
@@ -1349,9 +1370,10 @@ void FrameTimeline::flushPendingPresentFences() {
         }
 
         auto& displayFrame = pendingPresentFence.second;
-        displayFrame->onPresent(signalTime, mPreviousPresentTime);
-        displayFrame->trace(mSurfaceFlingerPid, monoBootOffset, mPreviousPresentTime);
-        mPreviousPresentTime = signalTime;
+        displayFrame->onPresent(signalTime, mPreviousActualPresentTime);
+        mPreviousPredictionPresentTime = displayFrame->trace(mSurfaceFlingerPid, monoBootOffset,
+                                                             mPreviousPredictionPresentTime);
+        mPreviousActualPresentTime = signalTime;
 
         mPendingPresentFences.erase(mPendingPresentFences.begin() + static_cast<int>(i));
         --i;

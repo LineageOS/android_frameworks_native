@@ -33,13 +33,12 @@ namespace android {
 namespace renderengine {
 namespace threaded {
 
-std::unique_ptr<RenderEngineThreaded> RenderEngineThreaded::create(CreateInstanceFactory factory,
-                                                                   RenderEngineType type) {
-    return std::make_unique<RenderEngineThreaded>(std::move(factory), type);
+std::unique_ptr<RenderEngineThreaded> RenderEngineThreaded::create(CreateInstanceFactory factory) {
+    return std::make_unique<RenderEngineThreaded>(std::move(factory));
 }
 
-RenderEngineThreaded::RenderEngineThreaded(CreateInstanceFactory factory, RenderEngineType type)
-      : RenderEngine(type) {
+RenderEngineThreaded::RenderEngineThreaded(CreateInstanceFactory factory)
+      : RenderEngine(Threaded::YES) {
     ATRACE_CALL();
 
     std::lock_guard lockThread(mThreadMutex);
@@ -125,8 +124,10 @@ void RenderEngineThreaded::threadMain(CreateInstanceFactory factory) NO_THREAD_S
 }
 
 void RenderEngineThreaded::waitUntilInitialized() const {
-    std::unique_lock<std::mutex> lock(mInitializedMutex);
-    mInitializedCondition.wait(lock, [=] { return mIsInitialized; });
+    if (!mIsInitialized) {
+        std::unique_lock<std::mutex> lock(mInitializedMutex);
+        mInitializedCondition.wait(lock, [this] { return mIsInitialized.load(); });
+    }
 }
 
 std::future<void> RenderEngineThreaded::primeCache(bool shouldPrimeUltraHDR) {

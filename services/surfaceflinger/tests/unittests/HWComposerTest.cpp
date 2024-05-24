@@ -21,6 +21,7 @@
 #undef LOG_TAG
 #define LOG_TAG "LibSurfaceFlingerUnittests"
 
+#include <optional>
 #include <vector>
 
 // StrictMock<T> derives from T and is not marked final, so the destructor of T is expected to be
@@ -82,6 +83,8 @@ struct HWComposerTest : testing::Test {
         EXPECT_CALL(*mHal, setVsyncEnabled(hwcDisplayId, Hwc2::IComposerClient::Vsync::DISABLE));
         EXPECT_CALL(*mHal, onHotplugConnect(hwcDisplayId));
     }
+
+    void setVrrTimeoutHint(bool status) { mHwc.mEnableVrrTimeout = status; }
 };
 
 TEST_F(HWComposerTest, isHeadless) {
@@ -99,9 +102,32 @@ TEST_F(HWComposerTest, isHeadless) {
     ASSERT_TRUE(mHwc.isHeadless());
 }
 
+TEST_F(HWComposerTest, getDisplayConnectionType) {
+    // Unknown display.
+    EXPECT_EQ(mHwc.getDisplayConnectionType(PhysicalDisplayId::fromPort(0)),
+              ui::DisplayConnectionType::Internal);
+
+    constexpr hal::HWDisplayId kHwcDisplayId = 1;
+    expectHotplugConnect(kHwcDisplayId);
+
+    const auto info = mHwc.onHotplug(kHwcDisplayId, hal::Connection::CONNECTED);
+    ASSERT_TRUE(info);
+
+    EXPECT_CALL(*mHal, getDisplayConnectionType(kHwcDisplayId, _))
+            .WillOnce(DoAll(SetArgPointee<1>(IComposerClient::DisplayConnectionType::EXTERNAL),
+                            Return(V2_4::Error::NONE)));
+
+    // The first call caches the connection type.
+    EXPECT_EQ(mHwc.getDisplayConnectionType(info->id), ui::DisplayConnectionType::External);
+
+    // Subsequent calls return the cached connection type.
+    EXPECT_EQ(mHwc.getDisplayConnectionType(info->id), ui::DisplayConnectionType::External);
+    EXPECT_EQ(mHwc.getDisplayConnectionType(info->id), ui::DisplayConnectionType::External);
+}
+
 TEST_F(HWComposerTest, getActiveMode) {
     // Unknown display.
-    EXPECT_EQ(mHwc.getActiveMode(PhysicalDisplayId::fromPort(0)), std::nullopt);
+    EXPECT_EQ(mHwc.getActiveMode(PhysicalDisplayId::fromPort(0)), ftl::Unexpected(BAD_INDEX));
 
     constexpr hal::HWDisplayId kHwcDisplayId = 2;
     expectHotplugConnect(kHwcDisplayId);
@@ -114,14 +140,20 @@ TEST_F(HWComposerTest, getActiveMode) {
         EXPECT_CALL(*mHal, getActiveConfig(kHwcDisplayId, _))
                 .WillOnce(Return(HalError::BAD_DISPLAY));
 
-        EXPECT_EQ(mHwc.getActiveMode(info->id), std::nullopt);
+        EXPECT_EQ(mHwc.getActiveMode(info->id), ftl::Unexpected(UNKNOWN_ERROR));
+    }
+    {
+        EXPECT_CALL(*mHal, getActiveConfig(kHwcDisplayId, _))
+                .WillOnce(Return(HalError::BAD_CONFIG));
+
+        EXPECT_EQ(mHwc.getActiveMode(info->id), ftl::Unexpected(NO_INIT));
     }
     {
         constexpr hal::HWConfigId kConfigId = 42;
         EXPECT_CALL(*mHal, getActiveConfig(kHwcDisplayId, _))
                 .WillOnce(DoAll(SetArgPointee<1>(kConfigId), Return(HalError::NONE)));
 
-        EXPECT_EQ(mHwc.getActiveMode(info->id), kConfigId);
+        EXPECT_EQ(mHwc.getActiveMode(info->id).value_opt(), kConfigId);
     }
 }
 
@@ -323,6 +355,7 @@ TEST_F(HWComposerTest, getModesWithDisplayConfigurations_VRR_ON) {
         EXPECT_TRUE(mHwc.getModes(info->id, kMaxFrameIntervalNs).empty());
     }
     {
+        setVrrTimeoutHint(true);
         constexpr int32_t kWidth = 480;
         constexpr int32_t kHeight = 720;
         constexpr int32_t kConfigGroup = 1;
@@ -330,10 +363,8 @@ TEST_F(HWComposerTest, getModesWithDisplayConfigurations_VRR_ON) {
         const hal::VrrConfig vrrConfig =
                 hal::VrrConfig{.minFrameIntervalNs = static_cast<Fps>(120_Hz).getPeriodNsecs(),
                                .notifyExpectedPresentConfig = hal::VrrConfig::
-                                       NotifyExpectedPresentConfig{.notifyExpectedPresentHeadsUpNs =
-                                                                           ms2ns(30),
-                                                                   .notifyExpectedPresentTimeoutNs =
-                                                                           ms2ns(30)}};
+                                       NotifyExpectedPresentConfig{.headsUpNs = ms2ns(30),
+                                                                   .timeoutNs = ms2ns(30)}};
         hal::DisplayConfiguration displayConfiguration{.configId = kConfigId,
                                                        .width = kWidth,
                                                        .height = kHeight,
@@ -363,9 +394,9 @@ TEST_F(HWComposerTest, getModesWithDisplayConfigurations_VRR_ON) {
         displayConfiguration.dpi = {kDpi, kDpi};
 
         EXPECT_CALL(*mHal, getDisplayConfigurations(kHwcDisplayId, _, _))
-                .WillOnce(DoAll(SetArgPointee<2>(std::vector<hal::DisplayConfiguration>{
-                                        displayConfiguration}),
-                                Return(HalError::NONE)));
+                .WillRepeatedly(DoAll(SetArgPointee<2>(std::vector<hal::DisplayConfiguration>{
+                                              displayConfiguration}),
+                                      Return(HalError::NONE)));
 
         modes = mHwc.getModes(info->id, kMaxFrameIntervalNs);
         EXPECT_EQ(modes.size(), size_t{1});
@@ -377,6 +408,10 @@ TEST_F(HWComposerTest, getModesWithDisplayConfigurations_VRR_ON) {
         EXPECT_EQ(modes.front().vrrConfig, vrrConfig);
         EXPECT_EQ(modes.front().dpiX, kDpi);
         EXPECT_EQ(modes.front().dpiY, kDpi);
+
+        setVrrTimeoutHint(false);
+        modes = mHwc.getModes(info->id, kMaxFrameIntervalNs);
+        EXPECT_EQ(modes.front().vrrConfig->notifyExpectedPresentConfig, std::nullopt);
     }
 }
 
@@ -437,7 +472,7 @@ TEST_F(HWComposerSetCallbackTest, loadsLayerMetadataSupport) {
                                     {kMetadata1Name, kMetadata1Mandatory},
                                     {kMetadata2Name, kMetadata2Mandatory},
                             }),
-                            Return(hardware::graphics::composer::V2_4::Error::NONE)));
+                            Return(V2_4::Error::NONE)));
     EXPECT_CALL(*mHal, getOverlaySupport(_)).WillOnce(Return(HalError::NONE));
     EXPECT_CALL(*mHal, getHdrConversionCapabilities(_)).WillOnce(Return(HalError::NONE));
 
@@ -455,8 +490,7 @@ TEST_F(HWComposerSetCallbackTest, loadsLayerMetadataSupport) {
 
 TEST_F(HWComposerSetCallbackTest, handlesUnsupportedCallToGetLayerGenericMetadataKeys) {
     EXPECT_CALL(*mHal, getCapabilities()).WillOnce(Return(std::vector<aidl::Capability>{}));
-    EXPECT_CALL(*mHal, getLayerGenericMetadataKeys(_))
-            .WillOnce(Return(hardware::graphics::composer::V2_4::Error::UNSUPPORTED));
+    EXPECT_CALL(*mHal, getLayerGenericMetadataKeys(_)).WillOnce(Return(V2_4::Error::UNSUPPORTED));
     EXPECT_CALL(*mHal, getOverlaySupport(_)).WillOnce(Return(HalError::UNSUPPORTED));
     EXPECT_CALL(*mHal, getHdrConversionCapabilities(_)).WillOnce(Return(HalError::UNSUPPORTED));
     EXPECT_CALL(*mHal, registerCallback(_));
@@ -516,7 +550,7 @@ TEST_F(HWComposerLayerGenericMetadataTest, forwardsSupportedMetadata) {
                 setLayerGenericMetadata(kDisplayId, kLayerId, kLayerGenericMetadata1Name,
                                         kLayerGenericMetadata1Mandatory,
                                         kLayerGenericMetadata1Value))
-            .WillOnce(Return(hardware::graphics::composer::V2_4::Error::NONE));
+            .WillOnce(Return(V2_4::Error::NONE));
     auto result = mLayer.setLayerGenericMetadata(kLayerGenericMetadata1Name,
                                                  kLayerGenericMetadata1Mandatory,
                                                  kLayerGenericMetadata1Value);
@@ -526,7 +560,7 @@ TEST_F(HWComposerLayerGenericMetadataTest, forwardsSupportedMetadata) {
                 setLayerGenericMetadata(kDisplayId, kLayerId, kLayerGenericMetadata2Name,
                                         kLayerGenericMetadata2Mandatory,
                                         kLayerGenericMetadata2Value))
-            .WillOnce(Return(hardware::graphics::composer::V2_4::Error::UNSUPPORTED));
+            .WillOnce(Return(V2_4::Error::UNSUPPORTED));
     result = mLayer.setLayerGenericMetadata(kLayerGenericMetadata2Name,
                                             kLayerGenericMetadata2Mandatory,
                                             kLayerGenericMetadata2Value);

@@ -25,6 +25,7 @@
 #include "FrameTimeline.h"
 #include "Scheduler/MessageQueue.h"
 #include "mock/MockVSyncDispatch.h"
+#include "utils/Timers.h"
 
 namespace android {
 
@@ -41,6 +42,7 @@ struct NoOpCompositor final : ICompositor {
         return {};
     }
     void sample() override {}
+    void sendNotifyExpectedPresentHint(PhysicalDisplayId) {}
 } gNoOpCompositor;
 
 class TestableMessageQueue : public impl::MessageQueue {
@@ -48,6 +50,8 @@ class TestableMessageQueue : public impl::MessageQueue {
         using MessageQueue::Handler::Handler;
 
         MOCK_METHOD(void, dispatchFrame, (VsyncId, TimePoint), (override));
+        MOCK_METHOD(bool, isFramePending, (), (const, override));
+        MOCK_METHOD(TimePoint, getExpectedVsyncTime, (), (const override));
     };
 
     explicit TestableMessageQueue(sp<MockHandler> handler)
@@ -72,7 +76,8 @@ struct MockTokenManager : frametimeline::TokenManager {
 struct MessageQueueTest : testing::Test {
     void SetUp() override {
         EXPECT_CALL(*mVSyncDispatch, registerCallback(_, "sf")).WillOnce(Return(mCallbackToken));
-        EXPECT_NO_FATAL_FAILURE(mEventQueue.initVsync(mVSyncDispatch, mTokenManager, kDuration));
+        EXPECT_NO_FATAL_FAILURE(
+                mEventQueue.initVsyncInternal(mVSyncDispatch, mTokenManager, kDuration));
         EXPECT_CALL(*mVSyncDispatch, unregisterCallback(mCallbackToken)).Times(1);
     }
 
@@ -91,46 +96,62 @@ namespace {
 TEST_F(MessageQueueTest, commit) {
     const auto timing = scheduler::VSyncDispatch::ScheduleTiming{.workDuration = kDuration.ns(),
                                                                  .readyDuration = 0,
-                                                                 .earliestVsync = 0};
-    EXPECT_FALSE(mEventQueue.getScheduledFrameTime());
+                                                                 .lastVsync = 0};
+    EXPECT_FALSE(mEventQueue.getScheduledFrameResult());
 
-    EXPECT_CALL(*mVSyncDispatch, schedule(mCallbackToken, timing)).WillOnce(Return(1234));
+    const auto timePoint = TimePoint::fromNs(1234);
+    const auto scheduleResult = scheduler::ScheduleResult{timePoint, timePoint};
+    EXPECT_CALL(*mVSyncDispatch, schedule(mCallbackToken, timing)).WillOnce(Return(scheduleResult));
     EXPECT_NO_FATAL_FAILURE(mEventQueue.scheduleFrame());
 
-    ASSERT_TRUE(mEventQueue.getScheduledFrameTime());
-    EXPECT_EQ(1234, mEventQueue.getScheduledFrameTime()->time_since_epoch().count());
+    const auto scheduledFrameResult = mEventQueue.getScheduledFrameResult();
+    ASSERT_TRUE(scheduledFrameResult);
+    EXPECT_EQ(1234, scheduledFrameResult->callbackTime.ns());
+    EXPECT_EQ(1234, scheduledFrameResult->vsyncTime.ns());
 }
 
 TEST_F(MessageQueueTest, commitTwice) {
     InSequence s;
     const auto timing = scheduler::VSyncDispatch::ScheduleTiming{.workDuration = kDuration.ns(),
                                                                  .readyDuration = 0,
-                                                                 .earliestVsync = 0};
+                                                                 .lastVsync = 0};
 
-    EXPECT_CALL(*mVSyncDispatch, schedule(mCallbackToken, timing)).WillOnce(Return(1234));
+    auto timePoint = TimePoint::fromNs(1234);
+    auto scheduleResult = scheduler::ScheduleResult{timePoint, timePoint};
+    EXPECT_CALL(*mVSyncDispatch, schedule(mCallbackToken, timing)).WillOnce(Return(scheduleResult));
     EXPECT_NO_FATAL_FAILURE(mEventQueue.scheduleFrame());
 
-    ASSERT_TRUE(mEventQueue.getScheduledFrameTime());
-    EXPECT_EQ(1234, mEventQueue.getScheduledFrameTime()->time_since_epoch().count());
+    auto scheduledFrameResult = mEventQueue.getScheduledFrameResult();
+    ASSERT_TRUE(scheduledFrameResult);
+    EXPECT_EQ(1234, scheduledFrameResult->callbackTime.ns());
+    EXPECT_EQ(1234, scheduledFrameResult->vsyncTime.ns());
 
-    EXPECT_CALL(*mVSyncDispatch, schedule(mCallbackToken, timing)).WillOnce(Return(4567));
+    timePoint = TimePoint::fromNs(4567);
+    scheduleResult = scheduler::ScheduleResult{timePoint, timePoint};
+    EXPECT_CALL(*mVSyncDispatch, schedule(mCallbackToken, timing)).WillOnce(Return(scheduleResult));
     EXPECT_NO_FATAL_FAILURE(mEventQueue.scheduleFrame());
 
-    ASSERT_TRUE(mEventQueue.getScheduledFrameTime());
-    EXPECT_EQ(4567, mEventQueue.getScheduledFrameTime()->time_since_epoch().count());
+    scheduledFrameResult = mEventQueue.getScheduledFrameResult();
+    ASSERT_TRUE(scheduledFrameResult);
+    EXPECT_EQ(4567, scheduledFrameResult->callbackTime.ns());
+    EXPECT_EQ(4567, scheduledFrameResult->vsyncTime.ns());
 }
 
 TEST_F(MessageQueueTest, commitTwiceWithCallback) {
     InSequence s;
     const auto timing = scheduler::VSyncDispatch::ScheduleTiming{.workDuration = kDuration.ns(),
                                                                  .readyDuration = 0,
-                                                                 .earliestVsync = 0};
+                                                                 .lastVsync = 0};
 
-    EXPECT_CALL(*mVSyncDispatch, schedule(mCallbackToken, timing)).WillOnce(Return(1234));
+    const auto timePoint = TimePoint::fromNs(1234);
+    auto scheduleResult = scheduler::ScheduleResult{timePoint, timePoint};
+    EXPECT_CALL(*mVSyncDispatch, schedule(mCallbackToken, timing)).WillOnce(Return(scheduleResult));
     EXPECT_NO_FATAL_FAILURE(mEventQueue.scheduleFrame());
 
-    ASSERT_TRUE(mEventQueue.getScheduledFrameTime());
-    EXPECT_EQ(1234, mEventQueue.getScheduledFrameTime()->time_since_epoch().count());
+    auto scheduledFrameResult = mEventQueue.getScheduledFrameResult();
+    ASSERT_TRUE(scheduledFrameResult);
+    EXPECT_EQ(1234, scheduledFrameResult->callbackTime.ns());
+    EXPECT_EQ(1234, scheduledFrameResult->vsyncTime.ns());
 
     constexpr TimePoint kStartTime = TimePoint::fromNs(100);
     constexpr TimePoint kEndTime = kStartTime + kDuration;
@@ -146,14 +167,15 @@ TEST_F(MessageQueueTest, commitTwiceWithCallback) {
     EXPECT_NO_FATAL_FAILURE(
             mEventQueue.vsyncCallback(kPresentTime.ns(), kStartTime.ns(), kEndTime.ns()));
 
-    EXPECT_FALSE(mEventQueue.getScheduledFrameTime());
+    EXPECT_FALSE(mEventQueue.getScheduledFrameResult());
 
     const auto timingAfterCallback =
             scheduler::VSyncDispatch::ScheduleTiming{.workDuration = kDuration.ns(),
                                                      .readyDuration = 0,
-                                                     .earliestVsync = kPresentTime.ns()};
-
-    EXPECT_CALL(*mVSyncDispatch, schedule(mCallbackToken, timingAfterCallback)).WillOnce(Return(0));
+                                                     .lastVsync = kPresentTime.ns()};
+    scheduleResult = scheduler::ScheduleResult{TimePoint::fromNs(0), TimePoint::fromNs(0)};
+    EXPECT_CALL(*mVSyncDispatch, schedule(mCallbackToken, timingAfterCallback))
+            .WillOnce(Return(scheduleResult));
     EXPECT_NO_FATAL_FAILURE(mEventQueue.scheduleFrame());
 }
 
@@ -163,10 +185,25 @@ TEST_F(MessageQueueTest, commitWithDurationChange) {
     const auto timing =
             scheduler::VSyncDispatch::ScheduleTiming{.workDuration = kDifferentDuration.ns(),
                                                      .readyDuration = 0,
-                                                     .earliestVsync = 0};
+                                                     .lastVsync = 0};
 
-    EXPECT_CALL(*mVSyncDispatch, schedule(mCallbackToken, timing)).WillOnce(Return(0));
+    const auto scheduleResult =
+            scheduler::ScheduleResult{TimePoint::fromNs(0), TimePoint::fromNs(0)};
+    EXPECT_CALL(*mVSyncDispatch, schedule(mCallbackToken, timing)).WillOnce(Return(scheduleResult));
     EXPECT_NO_FATAL_FAILURE(mEventQueue.scheduleFrame());
+}
+
+TEST_F(MessageQueueTest, scheduleResultWhenFrameIsPending) {
+    const auto timePoint = TimePoint::now();
+    EXPECT_CALL(*mEventQueue.mHandler, isFramePending()).WillOnce(Return(true));
+    EXPECT_CALL(*mEventQueue.mHandler, getExpectedVsyncTime()).WillRepeatedly(Return(timePoint));
+
+    const auto scheduledFrameResult = mEventQueue.getScheduledFrameResult();
+
+    ASSERT_TRUE(scheduledFrameResult);
+    EXPECT_NEAR(static_cast<double>(TimePoint::now().ns()),
+                static_cast<double>(scheduledFrameResult->callbackTime.ns()), ms2ns(1));
+    EXPECT_EQ(timePoint, scheduledFrameResult->vsyncTime);
 }
 
 } // namespace

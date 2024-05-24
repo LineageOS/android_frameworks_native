@@ -67,6 +67,11 @@ public:
      */
     virtual bool setPointerIcon(std::variant<std::unique_ptr<SpriteIcon>, PointerIconStyle> icon,
                                 int32_t displayId, DeviceId deviceId) = 0;
+    /**
+     * Set whether pointer icons for mice, touchpads, and styluses should be visible on the
+     * given display.
+     */
+    virtual void setPointerIconVisibility(int32_t displayId, bool visible) = 0;
 
     /**
      * This method may be called on any thread (usually by the input manager on a binder thread).
@@ -89,6 +94,7 @@ public:
     void setStylusPointerIconEnabled(bool enabled) override;
     bool setPointerIcon(std::variant<std::unique_ptr<SpriteIcon>, PointerIconStyle> icon,
                         int32_t displayId, DeviceId deviceId) override;
+    void setPointerIconVisibility(int32_t displayId, bool visible) override;
 
     void notifyInputDevicesChanged(const NotifyInputDevicesChangedArgs& args) override;
     void notifyConfigurationChanged(const NotifyConfigurationChangedArgs& args) override;
@@ -110,6 +116,7 @@ private:
     std::pair<int32_t, PointerControllerInterface&> getDisplayIdAndMouseControllerLocked(
             int32_t associatedDisplayId) REQUIRES(mLock);
     InputDeviceInfo* findInputDeviceLocked(DeviceId deviceId) REQUIRES(mLock);
+    bool canUnfadeOnDisplay(int32_t displayId) REQUIRES(mLock);
 
     NotifyMotionArgs processMotion(const NotifyMotionArgs& args);
     NotifyMotionArgs processMouseEventLocked(const NotifyMotionArgs& args) REQUIRES(mLock);
@@ -143,6 +150,7 @@ private:
     std::vector<DisplayViewport> mViewports GUARDED_BY(mLock);
     bool mShowTouchesEnabled GUARDED_BY(mLock);
     bool mStylusPointerIconEnabled GUARDED_BY(mLock);
+    std::set<int32_t /*displayId*/> mDisplaysWithPointersHidden;
 };
 
 } // namespace android

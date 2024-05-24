@@ -64,7 +64,7 @@ enum ADataSpace : int32_t {
      * Defines the chromaticity coordinates of the source primaries in terms of
      * the CIE 1931 definition of x and y specified in ISO 11664-1.
      */
-    STANDARD_MASK = 63 << 16,
+    ADATASPACE_STANDARD_MASK = 63 << 16,
 
     /**
      * Chromacity coordinates are unknown or are determined by the application.
@@ -79,7 +79,7 @@ enum ADataSpace : int32_t {
      * For all other formats standard is undefined, and implementations should use
      * an appropriate standard for the data represented.
      */
-    STANDARD_UNSPECIFIED = 0 << 16,
+    ADATASPACE_STANDARD_UNSPECIFIED = 0 << 16,
 
     /**
      * <pre>
@@ -92,7 +92,7 @@ enum ADataSpace : int32_t {
      * Use the unadjusted KR = 0.2126, KB = 0.0722 luminance interpretation
      * for RGB conversion.
      */
-    STANDARD_BT709 = 1 << 16,
+    ADATASPACE_STANDARD_BT709 = 1 << 16,
 
     /**
      * <pre>
@@ -107,7 +107,7 @@ enum ADataSpace : int32_t {
      *  to minimize the color shift into RGB space that uses BT.709
      *  primaries.
      */
-    STANDARD_BT601_625 = 2 << 16,
+    ADATASPACE_STANDARD_BT601_625 = 2 << 16,
 
     /**
      * <pre>
@@ -120,7 +120,7 @@ enum ADataSpace : int32_t {
      * Use the unadjusted KR = 0.222, KB = 0.071 luminance interpretation
      * for RGB conversion.
      */
-    STANDARD_BT601_625_UNADJUSTED = 3 << 16,
+    ADATASPACE_STANDARD_BT601_625_UNADJUSTED = 3 << 16,
 
     /**
      * <pre>
@@ -135,7 +135,7 @@ enum ADataSpace : int32_t {
      *  to minimize the color shift into RGB space that uses BT.709
      *  primaries.
      */
-    STANDARD_BT601_525 = 4 << 16,
+    ADATASPACE_STANDARD_BT601_525 = 4 << 16,
 
     /**
      * <pre>
@@ -148,7 +148,7 @@ enum ADataSpace : int32_t {
      * Use the unadjusted KR = 0.212, KB = 0.087 luminance interpretation
      * for RGB conversion (as in SMPTE 240M).
      */
-    STANDARD_BT601_525_UNADJUSTED = 5 << 16,
+    ADATASPACE_STANDARD_BT601_525_UNADJUSTED = 5 << 16,
 
     /**
      * <pre>
@@ -161,7 +161,7 @@ enum ADataSpace : int32_t {
      * Use the unadjusted KR = 0.2627, KB = 0.0593 luminance interpretation
      * for RGB conversion.
      */
-    STANDARD_BT2020 = 6 << 16,
+    ADATASPACE_STANDARD_BT2020 = 6 << 16,
 
     /**
      * <pre>
@@ -174,7 +174,7 @@ enum ADataSpace : int32_t {
      * Use the unadjusted KR = 0.2627, KB = 0.0593 luminance interpretation
      * for RGB conversion using the linear domain.
      */
-    STANDARD_BT2020_CONSTANT_LUMINANCE = 7 << 16,
+    ADATASPACE_STANDARD_BT2020_CONSTANT_LUMINANCE = 7 << 16,
 
     /**
      * <pre>
@@ -187,7 +187,7 @@ enum ADataSpace : int32_t {
      * Use the unadjusted KR = 0.30, KB = 0.11 luminance interpretation
      * for RGB conversion.
      */
-    STANDARD_BT470M = 8 << 16,
+    ADATASPACE_STANDARD_BT470M = 8 << 16,
 
     /**
      * <pre>
@@ -200,7 +200,7 @@ enum ADataSpace : int32_t {
      * Use the unadjusted KR = 0.254, KB = 0.068 luminance interpretation
      * for RGB conversion.
      */
-    STANDARD_FILM = 9 << 16,
+    ADATASPACE_STANDARD_FILM = 9 << 16,
 
     /**
      * SMPTE EG 432-1 and SMPTE RP 431-2. (DCI-P3)
@@ -211,7 +211,7 @@ enum ADataSpace : int32_t {
      *  red             0.680   0.320
      *  white (D65)     0.3127  0.3290</pre>
      */
-    STANDARD_DCI_P3 = 10 << 16,
+    ADATASPACE_STANDARD_DCI_P3 = 10 << 16,
 
     /**
      * Adobe RGB
@@ -222,7 +222,7 @@ enum ADataSpace : int32_t {
      *  red             0.640   0.330
      *  white (D65)     0.3127  0.3290</pre>
      */
-    STANDARD_ADOBE_RGB = 11 << 16,
+    ADATASPACE_STANDARD_ADOBE_RGB = 11 << 16,
 
     /**
      * Transfer aspect
@@ -237,7 +237,7 @@ enum ADataSpace : int32_t {
      * component. Implementation may apply the transfer function in RGB space
      * for all pixel formats if desired.
      */
-    TRANSFER_MASK = 31 << 22,
+    ADATASPACE_TRANSFER_MASK = 31 << 22,
 
     /**
      * Transfer characteristics are unknown or are determined by the
@@ -245,13 +245,13 @@ enum ADataSpace : int32_t {
      *
      * Implementations should use the following transfer functions:
      *
-     * For YCbCr formats: use TRANSFER_SMPTE_170M
-     * For RGB formats: use TRANSFER_SRGB
+     * For YCbCr formats: use ADATASPACE_TRANSFER_SMPTE_170M
+     * For RGB formats: use ADATASPACE_TRANSFER_SRGB
      *
      * For all other formats transfer function is undefined, and implementations
      * should use an appropriate standard for the data represented.
      */
-    TRANSFER_UNSPECIFIED = 0 << 22,
+    ADATASPACE_TRANSFER_UNSPECIFIED = 0 << 22,
 
     /**
      * Linear transfer.
@@ -261,7 +261,7 @@ enum ADataSpace : int32_t {
      *     L - luminance of image 0 <= L <= 1 for conventional colorimetry
      *     E - corresponding electrical signal</pre>
      */
-    TRANSFER_LINEAR = 1 << 22,
+    ADATASPACE_TRANSFER_LINEAR = 1 << 22,
 
     /**
      * sRGB transfer.
@@ -272,7 +272,7 @@ enum ADataSpace : int32_t {
      *     L - luminance of image 0 <= L <= 1 for conventional colorimetry
      *     E - corresponding electrical signal</pre>
      */
-    TRANSFER_SRGB = 2 << 22,
+    ADATASPACE_TRANSFER_SRGB = 2 << 22,
 
     /**
      * SMPTE 170M transfer.
@@ -283,7 +283,7 @@ enum ADataSpace : int32_t {
      *     L - luminance of image 0 <= L <= 1 for conventional colorimetry
      *     E - corresponding electrical signal</pre>
      */
-    TRANSFER_SMPTE_170M = 3 << 22,
+    ADATASPACE_TRANSFER_SMPTE_170M = 3 << 22,
 
     /**
      * Display gamma 2.2.
@@ -293,7 +293,7 @@ enum ADataSpace : int32_t {
      *     L - luminance of image 0 <= L <= 1 for conventional colorimetry
      *     E - corresponding electrical signal</pre>
      */
-    TRANSFER_GAMMA2_2 = 4 << 22,
+    ADATASPACE_TRANSFER_GAMMA2_2 = 4 << 22,
 
     /**
      * Display gamma 2.6.
@@ -303,7 +303,7 @@ enum ADataSpace : int32_t {
      *     L - luminance of image 0 <= L <= 1 for conventional colorimetry
      *     E - corresponding electrical signal</pre>
      */
-    TRANSFER_GAMMA2_6 = 5 << 22,
+    ADATASPACE_TRANSFER_GAMMA2_6 = 5 << 22,
 
     /**
      * Display gamma 2.8.
@@ -313,7 +313,7 @@ enum ADataSpace : int32_t {
      *     L - luminance of image 0 <= L <= 1 for conventional colorimetry
      *     E - corresponding electrical signal</pre>
      */
-    TRANSFER_GAMMA2_8 = 6 << 22,
+    ADATASPACE_TRANSFER_GAMMA2_8 = 6 << 22,
 
     /**
      * SMPTE ST 2084 (Dolby Perceptual Quantizer).
@@ -329,7 +329,7 @@ enum ADataSpace : int32_t {
      *         L = 1 corresponds to 10000 cd/m2
      *     E - corresponding electrical signal</pre>
      */
-    TRANSFER_ST2084 = 7 << 22,
+    ADATASPACE_TRANSFER_ST2084 = 7 << 22,
 
     /**
      * ARIB STD-B67 Hybrid Log Gamma.
@@ -345,7 +345,7 @@ enum ADataSpace : int32_t {
      *          to reference white level of 100 cd/m2
      *      E - corresponding electrical signal</pre>
      */
-    TRANSFER_HLG = 8 << 22,
+    ADATASPACE_TRANSFER_HLG = 8 << 22,
 
     /**
      * Range aspect
@@ -353,7 +353,7 @@ enum ADataSpace : int32_t {
      * Defines the range of values corresponding to the unit range of 0-1.
      * This is defined for YCbCr only, but can be expanded to RGB space.
      */
-    RANGE_MASK = 7 << 27,
+    ADATASPACE_RANGE_MASK = 7 << 27,
 
     /**
      * Range is unknown or are determined by the application.  Implementations
@@ -366,13 +366,13 @@ enum ADataSpace : int32_t {
      * For all other formats range is undefined, and implementations should use
      * an appropriate range for the data represented.
      */
-    RANGE_UNSPECIFIED = 0 << 27,
+    ADATASPACE_RANGE_UNSPECIFIED = 0 << 27,
 
     /**
      * Full range uses all values for Y, Cb and Cr from
      * 0 to 2^b-1, where b is the bit depth of the color format.
      */
-    RANGE_FULL = 1 << 27,
+    ADATASPACE_RANGE_FULL = 1 << 27,
 
     /**
      * Limited range uses values 16/256*2^b to 235/256*2^b for Y, and
@@ -387,7 +387,7 @@ enum ADataSpace : int32_t {
      * Luma (Y) samples should range from 64 to 940, inclusive
      * Chroma (Cb, Cr) samples should range from 64 to 960, inclusive
      */
-    RANGE_LIMITED = 2 << 27,
+    ADATASPACE_RANGE_LIMITED = 2 << 27,
 
     /**
      * Extended range is used for scRGB. Intended for use with
@@ -396,7 +396,7 @@ enum ADataSpace : int32_t {
      * color outside the sRGB gamut.
      * Used to blend / merge multiple dataspaces on a single display.
      */
-    RANGE_EXTENDED = 3 << 27,
+    ADATASPACE_RANGE_EXTENDED = 3 << 27,
 
     /**
      * scRGB linear encoding
@@ -411,7 +411,8 @@ enum ADataSpace : int32_t {
      *
      * Uses extended range, linear transfer and BT.709 standard.
      */
-    ADATASPACE_SCRGB_LINEAR = 406913024, // STANDARD_BT709 | TRANSFER_LINEAR | RANGE_EXTENDED
+    ADATASPACE_SCRGB_LINEAR = 406913024, // ADATASPACE_STANDARD_BT709 | ADATASPACE_TRANSFER_LINEAR |
+                                         // ADATASPACE_RANGE_EXTENDED
 
     /**
      * sRGB gamma encoding
@@ -426,7 +427,8 @@ enum ADataSpace : int32_t {
      *
      * Uses full range, sRGB transfer BT.709 standard.
      */
-    ADATASPACE_SRGB = 142671872, // STANDARD_BT709 | TRANSFER_SRGB | RANGE_FULL
+    ADATASPACE_SRGB = 142671872, // ADATASPACE_STANDARD_BT709 | ADATASPACE_TRANSFER_SRGB |
+                                 // ADATASPACE_RANGE_FULL
 
     /**
      * scRGB
@@ -441,14 +443,16 @@ enum ADataSpace : int32_t {
      *
      * Uses extended range, sRGB transfer and BT.709 standard.
      */
-    ADATASPACE_SCRGB = 411107328, // STANDARD_BT709 | TRANSFER_SRGB | RANGE_EXTENDED
+    ADATASPACE_SCRGB = 411107328, // ADATASPACE_STANDARD_BT709 | ADATASPACE_TRANSFER_SRGB |
+                                  // ADATASPACE_RANGE_EXTENDED
 
     /**
      * Display P3
      *
      * Uses full range, sRGB transfer and D65 DCI-P3 standard.
      */
-    ADATASPACE_DISPLAY_P3 = 143261696, // STANDARD_DCI_P3 | TRANSFER_SRGB | RANGE_FULL
+    ADATASPACE_DISPLAY_P3 = 143261696, // ADATASPACE_STANDARD_DCI_P3 | ADATASPACE_TRANSFER_SRGB |
+                                       // ADATASPACE_RANGE_FULL
 
     /**
      * ITU-R Recommendation 2020 (BT.2020)
@@ -457,7 +461,8 @@ enum ADataSpace : int32_t {
      *
      * Uses full range, SMPTE 2084 (PQ) transfer and BT2020 standard.
      */
-    ADATASPACE_BT2020_PQ = 163971072, // STANDARD_BT2020 | TRANSFER_ST2084 | RANGE_FULL
+    ADATASPACE_BT2020_PQ = 163971072, // ADATASPACE_STANDARD_BT2020 | ADATASPACE_TRANSFER_ST2084 |
+                                      // ADATASPACE_RANGE_FULL
 
     /**
      * ITU-R Recommendation 2020 (BT.2020)
@@ -466,7 +471,8 @@ enum ADataSpace : int32_t {
      *
      * Uses limited range, SMPTE 2084 (PQ) transfer and BT2020 standard.
      */
-    ADATASPACE_BT2020_ITU_PQ = 298188800, // STANDARD_BT2020 | TRANSFER_ST2084 | RANGE_LIMITED
+    ADATASPACE_BT2020_ITU_PQ = 298188800, // ADATASPACE_STANDARD_BT2020 | ADATASPACE_TRANSFER_ST2084
+                                          // | ADATASPACE_RANGE_LIMITED
 
     /**
      * Adobe RGB
@@ -476,7 +482,8 @@ enum ADataSpace : int32_t {
      * Note: Application is responsible for gamma encoding the data as
      * a 2.2 gamma encoding is not supported in HW.
      */
-    ADATASPACE_ADOBE_RGB = 151715840, // STANDARD_ADOBE_RGB | TRANSFER_GAMMA2_2 | RANGE_FULL
+    ADATASPACE_ADOBE_RGB = 151715840, // ADATASPACE_STANDARD_ADOBE_RGB |
+                                      // ADATASPACE_TRANSFER_GAMMA2_2 | ADATASPACE_RANGE_FULL
 
     /**
      * JPEG File Interchange Format (JFIF)
@@ -485,7 +492,8 @@ enum ADataSpace : int32_t {
      *
      * Uses full range, SMPTE 170M transfer and BT.601_625 standard.
      */
-    ADATASPACE_JFIF = 146931712, // STANDARD_BT601_625 | TRANSFER_SMPTE_170M | RANGE_FULL
+    ADATASPACE_JFIF = 146931712, // ADATASPACE_STANDARD_BT601_625 | ADATASPACE_TRANSFER_SMPTE_170M |
+                                 // ADATASPACE_RANGE_FULL
 
     /**
      * ITU-R Recommendation 601 (BT.601) - 625-line
@@ -494,7 +502,8 @@ enum ADataSpace : int32_t {
      *
      * Uses limited range, SMPTE 170M transfer and BT.601_625 standard.
      */
-    ADATASPACE_BT601_625 = 281149440, // STANDARD_BT601_625 | TRANSFER_SMPTE_170M | RANGE_LIMITED
+    ADATASPACE_BT601_625 = 281149440, // ADATASPACE_STANDARD_BT601_625 |
+                                      // ADATASPACE_TRANSFER_SMPTE_170M | ADATASPACE_RANGE_LIMITED
 
     /**
      * ITU-R Recommendation 601 (BT.601) - 525-line
@@ -503,7 +512,8 @@ enum ADataSpace : int32_t {
      *
      * Uses limited range, SMPTE 170M transfer and BT.601_525 standard.
      */
-    ADATASPACE_BT601_525 = 281280512, // STANDARD_BT601_525 | TRANSFER_SMPTE_170M | RANGE_LIMITED
+    ADATASPACE_BT601_525 = 281280512, // ADATASPACE_STANDARD_BT601_525 |
+                                      // ADATASPACE_TRANSFER_SMPTE_170M | ADATASPACE_RANGE_LIMITED
 
     /**
      * ITU-R Recommendation 2020 (BT.2020)
@@ -512,7 +522,8 @@ enum ADataSpace : int32_t {
      *
      * Uses full range, SMPTE 170M transfer and BT2020 standard.
      */
-    ADATASPACE_BT2020 = 147193856, // STANDARD_BT2020 | TRANSFER_SMPTE_170M | RANGE_FULL
+    ADATASPACE_BT2020 = 147193856, // ADATASPACE_STANDARD_BT2020 | ADATASPACE_TRANSFER_SMPTE_170M |
+                                   // ADATASPACE_RANGE_FULL
 
     /**
      * ITU-R Recommendation 709 (BT.709)
@@ -521,7 +532,8 @@ enum ADataSpace : int32_t {
      *
      * Uses limited range, SMPTE 170M transfer and BT.709 standard.
      */
-    ADATASPACE_BT709 = 281083904, // STANDARD_BT709 | TRANSFER_SMPTE_170M | RANGE_LIMITED
+    ADATASPACE_BT709 = 281083904, // ADATASPACE_STANDARD_BT709 | ADATASPACE_TRANSFER_SMPTE_170M |
+                                  // ADATASPACE_RANGE_LIMITED
 
     /**
      * SMPTE EG 432-1 and SMPTE RP 431-2
@@ -533,7 +545,8 @@ enum ADataSpace : int32_t {
      * Note: Application is responsible for gamma encoding the data as
      * a 2.6 gamma encoding is not supported in HW.
      */
-    ADATASPACE_DCI_P3 = 155844608, // STANDARD_DCI_P3 | TRANSFER_GAMMA2_6 | RANGE_FULL
+    ADATASPACE_DCI_P3 = 155844608, // ADATASPACE_STANDARD_DCI_P3 | ADATASPACE_TRANSFER_GAMMA2_6 |
+                                   // ADATASPACE_RANGE_FULL
 
     /**
      * sRGB linear encoding
@@ -547,21 +560,24 @@ enum ADataSpace : int32_t {
      *
      * Uses full range, linear transfer and BT.709 standard.
      */
-    ADATASPACE_SRGB_LINEAR = 138477568, // STANDARD_BT709 | TRANSFER_LINEAR | RANGE_FULL
+    ADATASPACE_SRGB_LINEAR = 138477568, // ADATASPACE_STANDARD_BT709 | ADATASPACE_TRANSFER_LINEAR |
+                                        // ADATASPACE_RANGE_FULL
 
     /**
      * Hybrid Log Gamma encoding
      *
      * Uses full range, hybrid log gamma transfer and BT2020 standard.
      */
-    ADATASPACE_BT2020_HLG = 168165376, // STANDARD_BT2020 | TRANSFER_HLG | RANGE_FULL
+    ADATASPACE_BT2020_HLG = 168165376, // ADATASPACE_STANDARD_BT2020 | ADATASPACE_TRANSFER_HLG |
+                                       // ADATASPACE_RANGE_FULL
 
     /**
      * ITU Hybrid Log Gamma encoding
      *
      * Uses limited range, hybrid log gamma transfer and BT2020 standard.
      */
-    ADATASPACE_BT2020_ITU_HLG = 302383104, // STANDARD_BT2020 | TRANSFER_HLG | RANGE_LIMITED
+    ADATASPACE_BT2020_ITU_HLG = 302383104, // ADATASPACE_STANDARD_BT2020 | ADATASPACE_TRANSFER_HLG |
+                                           // ADATASPACE_RANGE_LIMITED
 
     /**
      * Depth
@@ -575,7 +591,37 @@ enum ADataSpace : int32_t {
      *
      * Embedded depth metadata following the dynamic depth specification.
      */
-    ADATASPACE_DYNAMIC_DEPTH = 4098
+    ADATASPACE_DYNAMIC_DEPTH = 4098,
+
+#ifndef ADATASPACE_SKIP_LEGACY_DEFINES
+    STANDARD_MASK = ADATASPACE_STANDARD_MASK,
+    STANDARD_UNSPECIFIED = ADATASPACE_STANDARD_UNSPECIFIED,
+    STANDARD_BT709 = ADATASPACE_STANDARD_BT709,
+    STANDARD_BT601_625 = ADATASPACE_STANDARD_BT601_625,
+    STANDARD_BT601_625_UNADJUSTED = ADATASPACE_STANDARD_BT601_625_UNADJUSTED,
+    STANDARD_BT601_525 = ADATASPACE_STANDARD_BT601_525,
+    STANDARD_BT601_525_UNADJUSTED = ADATASPACE_STANDARD_BT601_525_UNADJUSTED,
+    STANDARD_BT470M = ADATASPACE_STANDARD_BT470M,
+    STANDARD_BT2020 = ADATASPACE_STANDARD_BT2020,
+    STANDARD_FILM = ADATASPACE_STANDARD_FILM,
+    STANDARD_DCI_P3 = ADATASPACE_STANDARD_DCI_P3,
+    STANDARD_ADOBE_RGB = ADATASPACE_STANDARD_ADOBE_RGB,
+    TRANSFER_MASK = ADATASPACE_TRANSFER_MASK,
+    TRANSFER_UNSPECIFIED = ADATASPACE_TRANSFER_UNSPECIFIED,
+    TRANSFER_LINEAR = ADATASPACE_TRANSFER_LINEAR,
+    TRANSFER_SMPTE_170M = ADATASPACE_TRANSFER_SMPTE_170M,
+    TRANSFER_GAMMA2_2 = ADATASPACE_TRANSFER_GAMMA2_2,
+    TRANSFER_GAMMA2_6 = ADATASPACE_TRANSFER_GAMMA2_6,
+    TRANSFER_GAMMA2_8 = ADATASPACE_TRANSFER_GAMMA2_8,
+    TRANSFER_SRGB = ADATASPACE_TRANSFER_SRGB,
+    TRANSFER_ST2084 = ADATASPACE_TRANSFER_ST2084,
+    TRANSFER_HLG = ADATASPACE_TRANSFER_HLG,
+    RANGE_MASK = ADATASPACE_RANGE_MASK,
+    RANGE_UNSPECIFIED = ADATASPACE_RANGE_UNSPECIFIED,
+    RANGE_FULL = ADATASPACE_RANGE_FULL,
+    RANGE_LIMITED = ADATASPACE_RANGE_LIMITED,
+    RANGE_EXTENDED = ADATASPACE_RANGE_EXTENDED,
+#endif
 };
 
 __END_DECLS

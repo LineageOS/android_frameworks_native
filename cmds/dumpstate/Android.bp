@@ -114,6 +114,7 @@ cc_defaults {
         "libincidentcompanion",
         "libdumpsys",
         "libserviceutils",
+        "android.tracing.flags_c_lib",
     ],
 }
 

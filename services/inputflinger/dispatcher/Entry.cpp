@@ -164,6 +164,11 @@ std::string KeyEntry::getDescription() const {
                         keyCode, scanCode, metaState, repeatCount, policyFlags);
 }
 
+std::ostream& operator<<(std::ostream& out, const KeyEntry& keyEntry) {
+    out << keyEntry.getDescription();
+    return out;
+}
+
 // --- TouchModeEntry ---
 
 TouchModeEntry::TouchModeEntry(int32_t id, nsecs_t eventTime, bool inTouchMode, int displayId)
@@ -277,9 +282,10 @@ std::string SensorEntry::getDescription() const {
 volatile int32_t DispatchEntry::sNextSeqAtomic;
 
 DispatchEntry::DispatchEntry(std::shared_ptr<const EventEntry> eventEntry,
-                             ftl::Flags<InputTarget::Flags> targetFlags,
+                             ftl::Flags<InputTargetFlags> targetFlags,
                              const ui::Transform& transform, const ui::Transform& rawTransform,
-                             float globalScaleFactor)
+                             float globalScaleFactor, gui::Uid targetUid, int64_t vsyncId,
+                             std::optional<int32_t> windowId)
       : seq(nextSeq()),
         eventEntry(std::move(eventEntry)),
         targetFlags(targetFlags),
@@ -287,7 +293,10 @@ DispatchEntry::DispatchEntry(std::shared_ptr<const EventEntry> eventEntry,
         rawTransform(rawTransform),
         globalScaleFactor(globalScaleFactor),
         deliveryTime(0),
-        resolvedFlags(0) {
+        resolvedFlags(0),
+        targetUid(targetUid),
+        vsyncId(vsyncId),
+        windowId(windowId) {
     switch (this->eventEntry->type) {
         case EventEntry::Type::KEY: {
             const KeyEntry& keyEntry = static_cast<const KeyEntry&>(*this->eventEntry);

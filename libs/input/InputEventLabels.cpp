@@ -348,7 +348,9 @@ namespace android {
     DEFINE_KEYCODE(MACRO_1), \
     DEFINE_KEYCODE(MACRO_2), \
     DEFINE_KEYCODE(MACRO_3), \
-    DEFINE_KEYCODE(MACRO_4)
+    DEFINE_KEYCODE(MACRO_4), \
+    DEFINE_KEYCODE(EMOJI_PICKER), \
+    DEFINE_KEYCODE(SCREENSHOT)
 
 // NOTE: If you add a new axis here you must also add it to several other files.
 //       Refer to frameworks/base/core/java/android/view/MotionEvent.java for the full list.

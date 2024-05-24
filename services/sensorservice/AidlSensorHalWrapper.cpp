@@ -178,6 +178,11 @@ ssize_t AidlSensorHalWrapper::pollFmq(sensors_event_t *buffer, size_t maxNumEven
         if ((eventFlagState & asBaseType(INTERNAL_WAKE)) && mReconnecting) {
             ALOGD("Event FMQ internal wake, returning from poll with no events");
             return DEAD_OBJECT;
+        } else if ((eventFlagState & asBaseType(INTERNAL_WAKE)) && mInHalBypassMode &&
+                   availableEvents == 0) {
+            ALOGD("Event FMQ internal wake due to HAL Bypass Mode, returning from poll with no "
+                  "events");
+            return OK;
         }
     }
 
@@ -221,6 +226,17 @@ std::vector<sensor_t> AidlSensorHalWrapper::getSensorsList() {
 
 status_t AidlSensorHalWrapper::setOperationMode(SensorService::Mode mode) {
     if (mSensors == nullptr) return NO_INIT;
+    if (mode == SensorService::Mode::HAL_BYPASS_REPLAY_DATA_INJECTION) {
+        if (!mInHalBypassMode) {
+            mInHalBypassMode = true;
+            mEventQueueFlag->wake(asBaseType(INTERNAL_WAKE));
+        }
+        return OK;
+    } else {
+        if (mInHalBypassMode) {
+            mInHalBypassMode = false;
+        }
+    }
     return convertToStatus(mSensors->setOperationMode(static_cast<ISensors::OperationMode>(mode)));
 }
 

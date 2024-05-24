@@ -65,6 +65,9 @@ private:
     virtual void dispatchFrameRateOverrides(nsecs_t timestamp, PhysicalDisplayId displayId,
                                             std::vector<FrameRateOverride> overrides) = 0;
 
+    virtual void dispatchHdcpLevelsChanged(PhysicalDisplayId displayId, int32_t connectedLevel,
+                                           int32_t maxLevel) = 0;
+
     bool processPendingEvents(nsecs_t* outTimestamp, PhysicalDisplayId* outDisplayId,
                               uint32_t* outCount, VsyncEventData* outVsyncEventData);
 

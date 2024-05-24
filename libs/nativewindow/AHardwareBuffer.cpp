@@ -113,6 +113,22 @@ static_assert(
                 AHARDWAREBUFFER_FORMAT_R10G10B10A10_UNORM,
         "HAL and AHardwareBuffer pixel format don't match");
 
+static enum AHardwareBufferStatus filterStatus(status_t status) {
+    switch (status) {
+        case STATUS_OK:
+            return AHARDWAREBUFFER_STATUS_OK;
+        case STATUS_NO_MEMORY:
+            return AHARDWAREBUFFER_STATUS_NO_MEMORY;
+        case STATUS_BAD_VALUE:
+            return AHARDWAREBUFFER_STATUS_BAD_VALUE;
+        case STATUS_UNKNOWN_TRANSACTION:
+        case STATUS_INVALID_OPERATION:
+            return AHARDWAREBUFFER_STATUS_UNSUPPORTED;
+        default:
+            return AHARDWAREBUFFER_STATUS_UNKNOWN_ERROR;
+    }
+}
+
 // ----------------------------------------------------------------------------
 // Public functions
 // ----------------------------------------------------------------------------
@@ -511,6 +527,24 @@ binder_status_t AHardwareBuffer_writeToParcel(const AHardwareBuffer* _Nonnull bu
     return AParcel_viewPlatformParcel(parcel)->write(*gb);
 }
 
+ADataSpace AHardwareBuffer_getDataSpace(const AHardwareBuffer* _Nonnull buffer) {
+    const GraphicBuffer* gb = AHardwareBuffer_to_GraphicBuffer(buffer);
+    if (!gb) return ADATASPACE_UNKNOWN;
+    ui::Dataspace dataspace = ui::Dataspace::UNKNOWN;
+    status_t status = gb->getDataspace(&dataspace);
+    if (status != OK) {
+        return ADATASPACE_UNKNOWN;
+    }
+    return static_cast<ADataSpace>(dataspace);
+}
+
+enum AHardwareBufferStatus AHardwareBuffer_setDataSpace(AHardwareBuffer* buffer,
+                                                        ADataSpace dataspace) {
+    GraphicBuffer* gb = AHardwareBuffer_to_GraphicBuffer(buffer);
+    auto& mapper = GraphicBufferMapper::get();
+    return filterStatus(mapper.setDataspace(gb->handle, static_cast<ui::Dataspace>(dataspace)));
+}
+
 // ----------------------------------------------------------------------------
 // VNDK functions
 // ----------------------------------------------------------------------------
@@ -550,6 +584,56 @@ int AHardwareBuffer_createFromHandle(const AHardwareBuffer_Desc* desc,
     AHardwareBuffer_acquire(*outBuffer);
 
     return NO_ERROR;
+}
+
+enum AHardwareBufferStatus AHardwareBuffer_allocateWithOptions(
+        const AHardwareBuffer_Desc* desc, const AHardwareBufferLongOptions* additionalOptions,
+        size_t additionalOptionsSize, AHardwareBuffer** outBuffer) {
+    (void)additionalOptions;
+    (void)additionalOptionsSize;
+    if (!outBuffer || !desc) return AHARDWAREBUFFER_STATUS_BAD_VALUE;
+    if (!AHardwareBuffer_isValidDescription(desc, /*log=*/true)) {
+        return AHARDWAREBUFFER_STATUS_BAD_VALUE;
+    }
+
+    int format = AHardwareBuffer_convertToPixelFormat(desc->format);
+    uint64_t usage = AHardwareBuffer_convertToGrallocUsageBits(desc->usage);
+
+    std::vector<GraphicBufferAllocator::AdditionalOptions> extras;
+    extras.reserve(additionalOptionsSize);
+    for (size_t i = 0; i < additionalOptionsSize; i++) {
+        extras.push_back(GraphicBufferAllocator::AdditionalOptions{additionalOptions[i].name,
+                                                                   additionalOptions[i].value});
+    }
+
+    const auto extrasCount = extras.size();
+    auto gbuffer = sp<GraphicBuffer>::make(GraphicBufferAllocator::AllocationRequest{
+            .importBuffer = true,
+            .width = desc->width,
+            .height = desc->height,
+            .format = format,
+            .layerCount = desc->layers,
+            .usage = usage,
+            .requestorName = std::string("AHardwareBuffer pid [") + std::to_string(getpid()) + "]",
+            .extras = std::move(extras),
+    });
+
+    status_t err = gbuffer->initCheck();
+    if (err != 0 || gbuffer->handle == nullptr) {
+        if (err == NO_MEMORY) {
+        GraphicBuffer::dumpAllocationsToSystemLog();
+        }
+        ALOGE("GraphicBuffer(w=%u, h=%u, lc=%u, extrasCount=%zd) failed (%s), handle=%p",
+              desc->width, desc->height, desc->layers, extrasCount, strerror(-err),
+              gbuffer->handle);
+        return filterStatus(err == 0 ? UNKNOWN_ERROR : err);
+    }
+
+    *outBuffer = AHardwareBuffer_from_GraphicBuffer(gbuffer.get());
+
+    // Ensure the buffer doesn't get destroyed when the sp<> goes away.
+    AHardwareBuffer_acquire(*outBuffer);
+    return AHARDWAREBUFFER_STATUS_OK;
 }
 
 // ----------------------------------------------------------------------------
@@ -652,12 +736,9 @@ uint32_t AHardwareBuffer_convertToPixelFormat(uint32_t ahardwarebuffer_format) {
     return ahardwarebuffer_format;
 }
 
+// TODO: Remove, this is just to make an overly aggressive ABI checker happy
 int32_t AHardwareBuffer_getDataSpace(AHardwareBuffer* buffer) {
-    GraphicBuffer* gb = AHardwareBuffer_to_GraphicBuffer(buffer);
-    auto& mapper = GraphicBufferMapper::get();
-    ui::Dataspace dataspace = ui::Dataspace::UNKNOWN;
-    mapper.getDataspace(gb->handle, &dataspace);
-    return static_cast<int32_t>(dataspace);
+    return ::AHardwareBuffer_getDataSpace(buffer);
 }
 
 uint64_t AHardwareBuffer_convertToGrallocUsageBits(uint64_t usage) {

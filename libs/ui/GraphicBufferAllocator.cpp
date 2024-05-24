@@ -113,6 +113,79 @@ void GraphicBufferAllocator::dumpToSystemLog(bool less) {
     ALOGD("%s", s.c_str());
 }
 
+auto GraphicBufferAllocator::allocate(const AllocationRequest& request) -> AllocationResult {
+    ATRACE_CALL();
+    if (!request.width || !request.height) {
+        return AllocationResult(BAD_VALUE);
+    }
+
+    const auto width = request.width;
+    const auto height = request.height;
+
+    const uint32_t bpp = bytesPerPixel(request.format);
+    if (std::numeric_limits<size_t>::max() / width / height < static_cast<size_t>(bpp)) {
+        ALOGE("Failed to allocate (%u x %u) layerCount %u format %d "
+              "usage %" PRIx64 ": Requesting too large a buffer size",
+              request.width, request.height, request.layerCount, request.format, request.usage);
+        return AllocationResult(BAD_VALUE);
+    }
+
+    if (request.layerCount < 1) {
+        return AllocationResult(BAD_VALUE);
+    }
+
+    auto result = mAllocator->allocate(request);
+    if (result.status == UNKNOWN_TRANSACTION) {
+        if (!request.extras.empty()) {
+            ALOGE("Failed to allocate with additional options, allocator version mis-match? "
+                  "gralloc version = %d",
+                  (int)mMapper.getMapperVersion());
+            return result;
+        }
+        // If there's no additional options, fall back to previous allocate version
+        result.status = mAllocator->allocate(request.requestorName, request.width, request.height,
+                                             request.format, request.layerCount, request.usage,
+                                             &result.stride, &result.handle, request.importBuffer);
+    }
+
+    if (result.status != NO_ERROR) {
+        ALOGE("Failed to allocate (%u x %u) layerCount %u format %d "
+              "usage %" PRIx64 ": %d",
+              request.width, request.height, request.layerCount, request.format, request.usage,
+              result.status);
+        return result;
+    }
+
+    if (!request.importBuffer) {
+        return result;
+    }
+    size_t bufSize;
+
+    // if stride has no meaning or is too large,
+    // approximate size with the input width instead
+    if ((result.stride) != 0 &&
+        std::numeric_limits<size_t>::max() / height / (result.stride) < static_cast<size_t>(bpp)) {
+        bufSize = static_cast<size_t>(width) * height * bpp;
+    } else {
+        bufSize = static_cast<size_t>((result.stride)) * height * bpp;
+    }
+
+    Mutex::Autolock _l(sLock);
+    KeyedVector<buffer_handle_t, alloc_rec_t>& list(sAllocList);
+    alloc_rec_t rec;
+    rec.width = width;
+    rec.height = height;
+    rec.stride = result.stride;
+    rec.format = request.format;
+    rec.layerCount = request.layerCount;
+    rec.usage = request.usage;
+    rec.size = bufSize;
+    rec.requestorName = request.requestorName;
+    list.add(result.handle, rec);
+
+    return result;
+}
+
 status_t GraphicBufferAllocator::allocateHelper(uint32_t width, uint32_t height, PixelFormat format,
                                                 uint32_t layerCount, uint64_t usage,
                                                 buffer_handle_t* handle, uint32_t* stride,
@@ -141,7 +214,7 @@ status_t GraphicBufferAllocator::allocateHelper(uint32_t width, uint32_t height,
     usage &= ~static_cast<uint64_t>((1 << 10) | (1 << 13));
 
     status_t error = mAllocator->allocate(requestorName, width, height, format, layerCount, usage,
-                                          1, stride, handle, importBuffer);
+                                          stride, handle, importBuffer);
     if (error != NO_ERROR) {
         ALOGE("Failed to allocate (%u x %u) layerCount %u format %d "
               "usage %" PRIx64 ": %d",

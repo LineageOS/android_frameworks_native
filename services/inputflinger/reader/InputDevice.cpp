@@ -251,6 +251,7 @@ std::list<NotifyArgs> InputDevice::configureInternal(nsecs_t when,
             mAssociatedDeviceType =
                     getValueByKey(readerConfig.deviceTypeAssociations, mIdentifier.location);
             mIsWaking = mConfiguration.getBool("device.wake").value_or(false);
+            mShouldSmoothScroll = mConfiguration.getBool("device.viewBehavior_smoothScroll");
         }
 
         if (!changes.any() || changes.test(Change::DEVICE_ALIAS)) {
@@ -264,6 +265,8 @@ std::list<NotifyArgs> InputDevice::configureInternal(nsecs_t when,
         }
 
         if (!changes.any() || changes.test(Change::DISPLAY_INFO)) {
+            const auto oldAssociatedDisplayId = getAssociatedDisplayId();
+
             // In most situations, no port or name will be specified.
             mAssociatedDisplayPort = std::nullopt;
             mAssociatedDisplayUniqueId = std::nullopt;
@@ -304,6 +307,10 @@ std::list<NotifyArgs> InputDevice::configureInternal(nsecs_t when,
                           "corresponding viewport cannot be found",
                           getName().c_str(), mAssociatedDisplayUniqueId->c_str());
                 }
+            }
+
+            if (getAssociatedDisplayId() != oldAssociatedDisplayId) {
+                bumpGeneration();
             }
         }
 
@@ -350,6 +357,7 @@ std::list<NotifyArgs> InputDevice::process(const RawEvent* rawEvents, size_t cou
 
         if (mDropUntilNextSync) {
             if (rawEvent->type == EV_SYN && rawEvent->code == SYN_REPORT) {
+                out += reset(rawEvent->when);
                 mDropUntilNextSync = false;
                 ALOGD_IF(debugRawEvents(), "Recovered from input event buffer overrun.");
             } else {
@@ -359,7 +367,6 @@ std::list<NotifyArgs> InputDevice::process(const RawEvent* rawEvents, size_t cou
         } else if (rawEvent->type == EV_SYN && rawEvent->code == SYN_DROPPED) {
             ALOGI("Detected input event buffer overrun for device %s.", getName().c_str());
             mDropUntilNextSync = true;
-            out += reset(rawEvent->when);
         } else {
             for_each_mapper_in_subdevice(rawEvent->deviceId, [&](InputMapper& mapper) {
                 out += mapper.process(rawEvent);
@@ -401,7 +408,8 @@ std::list<NotifyArgs> InputDevice::updateExternalStylusState(const StylusState& 
 InputDeviceInfo InputDevice::getDeviceInfo() {
     InputDeviceInfo outDeviceInfo;
     outDeviceInfo.initialize(mId, mGeneration, mControllerNumber, mIdentifier, mAlias, mIsExternal,
-                             mHasMic, getAssociatedDisplayId().value_or(ADISPLAY_ID_NONE));
+                             mHasMic, getAssociatedDisplayId().value_or(ADISPLAY_ID_NONE),
+                             {mShouldSmoothScroll});
 
     for_each_mapper(
             [&outDeviceInfo](InputMapper& mapper) { mapper.populateDeviceInfo(outDeviceInfo); });

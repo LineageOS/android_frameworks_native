@@ -22,7 +22,7 @@
 #include <cutils/atomic.h>
 
 #include <grallocusage/GrallocUsageConversion.h>
-
+#include <sync/sync.h>
 #include <ui/GraphicBufferAllocator.h>
 #include <ui/GraphicBufferMapper.h>
 #include <utils/Trace.h>
@@ -38,6 +38,38 @@ static uint64_t getUniqueId() {
     uint64_t id = static_cast<uint64_t>(getpid()) << 32;
     id |= static_cast<uint32_t>(android_atomic_inc(&nextId));
     return id;
+}
+
+static void resolveLegacyByteLayoutFromPlaneLayout(const std::vector<ui::PlaneLayout>& planeLayouts,
+                                                   int32_t* outBytesPerPixel,
+                                                   int32_t* outBytesPerStride) {
+    if (planeLayouts.empty()) return;
+    if (outBytesPerPixel) {
+        int32_t bitsPerPixel = planeLayouts.front().sampleIncrementInBits;
+        for (const auto& planeLayout : planeLayouts) {
+            if (bitsPerPixel != planeLayout.sampleIncrementInBits) {
+                bitsPerPixel = -1;
+            }
+        }
+        if (bitsPerPixel >= 0 && bitsPerPixel % 8 == 0) {
+            *outBytesPerPixel = bitsPerPixel / 8;
+        } else {
+            *outBytesPerPixel = -1;
+        }
+    }
+    if (outBytesPerStride) {
+        int32_t bytesPerStride = planeLayouts.front().strideInBytes;
+        for (const auto& planeLayout : planeLayouts) {
+            if (bytesPerStride != planeLayout.strideInBytes) {
+                bytesPerStride = -1;
+            }
+        }
+        if (bytesPerStride >= 0) {
+            *outBytesPerStride = bytesPerStride;
+        } else {
+            *outBytesPerStride = -1;
+        }
+    }
 }
 
 sp<GraphicBuffer> GraphicBuffer::from(ANativeWindowBuffer* anwb) {
@@ -106,6 +138,26 @@ GraphicBuffer::GraphicBuffer(const native_handle_t* inHandle, HandleWrapMethod m
                                 inUsage, inStride);
 }
 
+GraphicBuffer::GraphicBuffer(const GraphicBufferAllocator::AllocationRequest& request)
+      : GraphicBuffer() {
+    GraphicBufferAllocator& allocator = GraphicBufferAllocator::get();
+    auto result = allocator.allocate(request);
+    mInitCheck = result.status;
+    if (result.status == NO_ERROR) {
+        handle = result.handle;
+        stride = result.stride;
+
+        mBufferMapper.getTransportSize(handle, &mTransportNumFds, &mTransportNumInts);
+
+        width = static_cast<int>(request.width);
+        height = static_cast<int>(request.height);
+        format = request.format;
+        layerCount = request.layerCount;
+        usage = request.usage;
+        usage_deprecated = int(usage);
+    }
+}
+
 GraphicBuffer::~GraphicBuffer()
 {
     ATRACE_CALL();
@@ -141,6 +193,10 @@ ANativeWindowBuffer* GraphicBuffer::getNativeBuffer() const
 {
     return static_cast<ANativeWindowBuffer*>(
             const_cast<GraphicBuffer*>(this));
+}
+
+status_t GraphicBuffer::getDataspace(ui::Dataspace* outDataspace) const {
+    return mBufferMapper.getDataspace(handle, outDataspace);
 }
 
 status_t GraphicBuffer::reallocate(uint32_t inWidth, uint32_t inHeight,
@@ -255,10 +311,7 @@ status_t GraphicBuffer::lock(uint32_t inUsage, const Rect& rect, void** vaddr,
         return BAD_VALUE;
     }
 
-    status_t res = getBufferMapper().lock(handle, inUsage, rect, vaddr, outBytesPerPixel,
-                                          outBytesPerStride);
-
-    return res;
+    return lockAsync(inUsage, rect, vaddr, -1, outBytesPerPixel, outBytesPerStride);
 }
 
 status_t GraphicBuffer::lockYCbCr(uint32_t inUsage, android_ycbcr* ycbcr)
@@ -278,14 +331,12 @@ status_t GraphicBuffer::lockYCbCr(uint32_t inUsage, const Rect& rect,
                 width, height);
         return BAD_VALUE;
     }
-    status_t res = getBufferMapper().lockYCbCr(handle, inUsage, rect, ycbcr);
-    return res;
+    return lockAsyncYCbCr(inUsage, rect, ycbcr, -1);
 }
 
 status_t GraphicBuffer::unlock()
 {
-    status_t res = getBufferMapper().unlock(handle);
-    return res;
+    return unlockAsync(nullptr);
 }
 
 status_t GraphicBuffer::lockAsync(uint32_t inUsage, void** vaddr, int fenceFd,
@@ -312,10 +363,49 @@ status_t GraphicBuffer::lockAsync(uint64_t inProducerUsage, uint64_t inConsumerU
         return BAD_VALUE;
     }
 
-    status_t res = getBufferMapper().lockAsync(handle, inProducerUsage, inConsumerUsage, rect,
-                                               vaddr, fenceFd, outBytesPerPixel, outBytesPerStride);
+    // Resolve the bpp & bps before doing a lock in case this fails we don't have to worry about
+    // doing an unlock
+    int32_t legacyBpp = -1, legacyBps = -1;
+    if (outBytesPerPixel || outBytesPerStride) {
+        const auto mapperVersion = getBufferMapperVersion();
+        // For gralloc2 we need to guess at the bpp & bps
+        // For gralloc3 the lock() call will return it
+        // For gralloc4 & later the PlaneLayout metadata query is vastly superior and we
+        // resolve bpp & bps just for compatibility
 
-    return res;
+        // TODO: See if we can't just remove gralloc2 support.
+        if (mapperVersion == GraphicBufferMapper::GRALLOC_2) {
+            legacyBpp = bytesPerPixel(format);
+            if (legacyBpp > 0) {
+                legacyBps = stride * legacyBpp;
+            } else {
+                legacyBpp = -1;
+            }
+        } else if (mapperVersion >= GraphicBufferMapper::GRALLOC_4) {
+            auto planeLayout = getBufferMapper().getPlaneLayouts(handle);
+            if (!planeLayout.has_value()) return planeLayout.asStatus();
+            resolveLegacyByteLayoutFromPlaneLayout(planeLayout.value(), &legacyBpp, &legacyBps);
+        }
+    }
+
+    const uint64_t usage = static_cast<uint64_t>(
+            android_convertGralloc1To0Usage(inProducerUsage, inConsumerUsage));
+
+    auto result = getBufferMapper().lock(handle, usage, rect, base::unique_fd{fenceFd});
+
+    if (!result.has_value()) {
+        return result.error().asStatus();
+    }
+    auto value = result.value();
+    *vaddr = value.address;
+
+    if (outBytesPerPixel) {
+        *outBytesPerPixel = legacyBpp != -1 ? legacyBpp : value.bytesPerPixel;
+    }
+    if (outBytesPerStride) {
+        *outBytesPerStride = legacyBps != -1 ? legacyBps : value.bytesPerStride;
+    }
+    return OK;
 }
 
 status_t GraphicBuffer::lockAsyncYCbCr(uint32_t inUsage, android_ycbcr* ycbcr,
@@ -336,14 +426,18 @@ status_t GraphicBuffer::lockAsyncYCbCr(uint32_t inUsage, const Rect& rect,
                 width, height);
         return BAD_VALUE;
     }
-    status_t res = getBufferMapper().lockAsyncYCbCr(handle, inUsage, rect, ycbcr, fenceFd);
-    return res;
+    auto result = getBufferMapper().lockYCbCr(handle, static_cast<int64_t>(inUsage), rect,
+                                              base::unique_fd{fenceFd});
+    if (!result.has_value()) {
+        return result.error().asStatus();
+    }
+    *ycbcr = result.value();
+    return OK;
 }
 
 status_t GraphicBuffer::unlockAsync(int *fenceFd)
 {
-    status_t res = getBufferMapper().unlockAsync(handle, fenceFd);
-    return res;
+    return getBufferMapper().unlockAsync(handle, fenceFd);
 }
 
 status_t GraphicBuffer::isSupported(uint32_t inWidth, uint32_t inHeight, PixelFormat inFormat,

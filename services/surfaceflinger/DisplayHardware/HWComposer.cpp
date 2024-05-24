@@ -77,6 +77,8 @@ using aidl::android::hardware::graphics::common::HdrConversionCapability;
 using aidl::android::hardware::graphics::common::HdrConversionStrategy;
 using aidl::android::hardware::graphics::composer3::Capability;
 using aidl::android::hardware::graphics::composer3::DisplayCapability;
+using aidl::android::hardware::graphics::composer3::VrrConfig;
+using namespace std::string_literals;
 namespace hal = android::hardware::graphics::composer::hal;
 
 namespace android {
@@ -89,7 +91,8 @@ HWComposer::HWComposer(std::unique_ptr<Hwc2::Composer> composer)
       : mComposer(std::move(composer)),
         mMaxVirtualDisplayDimension(static_cast<size_t>(sysprop::max_virtual_display_dimension(0))),
         mUpdateDeviceProductInfoOnHotplugReconnect(
-                sysprop::update_device_product_info_on_hotplug_reconnect(false)) {}
+                sysprop::update_device_product_info_on_hotplug_reconnect(false)),
+        mEnableVrrTimeout(base::GetBoolProperty("debug.sf.vrr_timeout_hint_enabled"s, true)) {}
 
 HWComposer::HWComposer(const std::string& composerServiceName)
       : HWComposer(Hwc2::Composer::create(composerServiceName)) {}
@@ -299,6 +302,10 @@ std::vector<HWComposer::HWCDisplayMode> HWComposer::getModesFromDisplayConfigura
             hwcMode.dpiY = config.dpi->y;
         }
 
+        if (!mEnableVrrTimeout) {
+            hwcMode.vrrConfig->notifyExpectedPresentConfig = {};
+        }
+
         modes.push_back(hwcMode);
     }
 
@@ -336,14 +343,18 @@ std::vector<HWComposer::HWCDisplayMode> HWComposer::getModesFromLegacyDisplayCon
     return modes;
 }
 
-std::optional<hal::HWConfigId> HWComposer::getActiveMode(PhysicalDisplayId displayId) const {
-    RETURN_IF_INVALID_DISPLAY(displayId, std::nullopt);
+ftl::Expected<hal::HWConfigId, status_t> HWComposer::getActiveMode(
+        PhysicalDisplayId displayId) const {
+    RETURN_IF_INVALID_DISPLAY(displayId, ftl::Unexpected(BAD_INDEX));
     const auto hwcId = *fromPhysicalDisplayId(displayId);
 
     hal::HWConfigId configId;
     const auto error = static_cast<hal::Error>(mComposer->getActiveConfig(hwcId, &configId));
+    if (error == hal::Error::BAD_CONFIG) {
+        return ftl::Unexpected(NO_INIT);
+    }
 
-    RETURN_IF_HWC_ERROR_FOR("getActiveConfig", error, displayId, std::nullopt);
+    RETURN_IF_HWC_ERROR_FOR("getActiveConfig", error, displayId, ftl::Unexpected(UNKNOWN_ERROR));
     return configId;
 }
 
@@ -353,15 +364,13 @@ ui::DisplayConnectionType HWComposer::getDisplayConnectionType(PhysicalDisplayId
     RETURN_IF_INVALID_DISPLAY(displayId, ui::DisplayConnectionType::Internal);
     const auto& hwcDisplay = mDisplayData.at(displayId).hwcDisplay;
 
-    ui::DisplayConnectionType type;
-    const auto error = hwcDisplay->getConnectionType(&type);
-
-    const auto FALLBACK_TYPE = hwcDisplay->getId() == mPrimaryHwcDisplayId
-            ? ui::DisplayConnectionType::Internal
-            : ui::DisplayConnectionType::External;
-
-    RETURN_IF_HWC_ERROR(error, displayId, FALLBACK_TYPE);
-    return type;
+    if (const auto connectionType = hwcDisplay->getConnectionType()) {
+        return connectionType.value();
+    } else {
+        LOG_HWC_ERROR(__func__, connectionType.error(), displayId);
+        return hwcDisplay->getId() == mPrimaryHwcDisplayId ? ui::DisplayConnectionType::Internal
+                                                           : ui::DisplayConnectionType::External;
+    }
 }
 
 bool HWComposer::isVsyncPeriodSwitchSupported(PhysicalDisplayId displayId) const {
@@ -369,20 +378,20 @@ bool HWComposer::isVsyncPeriodSwitchSupported(PhysicalDisplayId displayId) const
     return mDisplayData.at(displayId).hwcDisplay->isVsyncPeriodSwitchSupported();
 }
 
-status_t HWComposer::getDisplayVsyncPeriod(PhysicalDisplayId displayId,
-                                           nsecs_t* outVsyncPeriod) const {
-    RETURN_IF_INVALID_DISPLAY(displayId, 0);
+ftl::Expected<nsecs_t, status_t> HWComposer::getDisplayVsyncPeriod(
+        PhysicalDisplayId displayId) const {
+    RETURN_IF_INVALID_DISPLAY(displayId, ftl::Unexpected(BAD_INDEX));
 
     if (!isVsyncPeriodSwitchSupported(displayId)) {
-        return INVALID_OPERATION;
+        return ftl::Unexpected(INVALID_OPERATION);
     }
+
     const auto hwcId = *fromPhysicalDisplayId(displayId);
     Hwc2::VsyncPeriodNanos vsyncPeriodNanos = 0;
-    auto error =
+    const auto error =
             static_cast<hal::Error>(mComposer->getDisplayVsyncPeriod(hwcId, &vsyncPeriodNanos));
-    RETURN_IF_HWC_ERROR(error, displayId, 0);
-    *outVsyncPeriod = static_cast<nsecs_t>(vsyncPeriodNanos);
-    return NO_ERROR;
+    RETURN_IF_HWC_ERROR(error, displayId, ftl::Unexpected(UNKNOWN_ERROR));
+    return static_cast<nsecs_t>(vsyncPeriodNanos);
 }
 
 std::vector<ui::ColorMode> HWComposer::getColorModes(PhysicalDisplayId displayId) const {

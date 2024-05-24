@@ -41,15 +41,21 @@ void FakeInputReaderPolicy::assertInputDevicesNotChanged() {
 }
 
 void FakeInputReaderPolicy::assertStylusGestureNotified(int32_t deviceId) {
-    std::scoped_lock lock(mLock);
-    ASSERT_TRUE(mStylusGestureNotified);
-    ASSERT_EQ(deviceId, *mStylusGestureNotified);
-    mStylusGestureNotified.reset();
+    std::unique_lock lock(mLock);
+    base::ScopedLockAssertion assumeLocked(mLock);
+
+    const bool success =
+            mStylusGestureNotifiedCondition.wait_for(lock, WAIT_TIMEOUT, [this]() REQUIRES(mLock) {
+                return mDeviceIdOfNotifiedStylusGesture.has_value();
+            });
+    ASSERT_TRUE(success) << "Timed out waiting for stylus gesture to be notified";
+    ASSERT_EQ(deviceId, *mDeviceIdOfNotifiedStylusGesture);
+    mDeviceIdOfNotifiedStylusGesture.reset();
 }
 
 void FakeInputReaderPolicy::assertStylusGestureNotNotified() {
     std::scoped_lock lock(mLock);
-    ASSERT_FALSE(mStylusGestureNotified);
+    ASSERT_FALSE(mDeviceIdOfNotifiedStylusGesture);
 }
 
 void FakeInputReaderPolicy::clearViewports() {
@@ -258,7 +264,8 @@ void FakeInputReaderPolicy::waitForInputDevices(std::function<void(bool)> proces
 
 void FakeInputReaderPolicy::notifyStylusGestureStarted(int32_t deviceId, nsecs_t eventTime) {
     std::scoped_lock lock(mLock);
-    mStylusGestureNotified = deviceId;
+    mDeviceIdOfNotifiedStylusGesture = deviceId;
+    mStylusGestureNotifiedCondition.notify_all();
 }
 
 std::optional<DisplayViewport> FakeInputReaderPolicy::getPointerViewportForAssociatedDisplay(

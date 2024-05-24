@@ -164,19 +164,6 @@ void InputReader::loopOnce() {
         std::swap(notifyArgs, mPendingArgs);
     } // release lock
 
-    // Send out a message that the describes the changed input devices.
-    if (inputDevicesChanged) {
-        mPolicy->notifyInputDevicesChanged(inputDevices);
-    }
-
-    // Notify the policy of the start of every new stylus gesture outside the lock.
-    for (const auto& args : notifyArgs) {
-        const auto* motionArgs = std::get_if<NotifyMotionArgs>(&args);
-        if (motionArgs != nullptr && isStylusPointerGestureStart(*motionArgs)) {
-            mPolicy->notifyStylusGestureStarted(motionArgs->deviceId, motionArgs->eventTime);
-        }
-    }
-
     // Flush queued events out to the listener.
     // This must happen outside of the lock because the listener could potentially call
     // back into the InputReader's methods, such as getScanCodeState, or become blocked
@@ -186,6 +173,21 @@ void InputReader::loopOnce() {
     // which occasionally calls into the input reader.
     for (const NotifyArgs& args : notifyArgs) {
         mNextListener.notify(args);
+    }
+
+    // Notify the policy that input devices have changed.
+    // This must be done after flushing events down the listener chain to ensure that the rest of
+    // the listeners are synchronized with the changes before the policy reacts to them.
+    if (inputDevicesChanged) {
+        mPolicy->notifyInputDevicesChanged(inputDevices);
+    }
+
+    // Notify the policy of the start of every new stylus gesture.
+    for (const auto& args : notifyArgs) {
+        const auto* motionArgs = std::get_if<NotifyMotionArgs>(&args);
+        if (motionArgs != nullptr && isStylusPointerGestureStart(*motionArgs)) {
+            mPolicy->notifyStylusGestureStarted(motionArgs->deviceId, motionArgs->eventTime);
+        }
     }
 }
 

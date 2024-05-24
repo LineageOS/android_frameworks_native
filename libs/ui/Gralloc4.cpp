@@ -262,37 +262,8 @@ void Gralloc4Mapper::getTransportSize(buffer_handle_t bufferHandle, uint32_t* ou
 status_t Gralloc4Mapper::lock(buffer_handle_t bufferHandle, uint64_t usage, const Rect& bounds,
                               int acquireFence, void** outData, int32_t* outBytesPerPixel,
                               int32_t* outBytesPerStride) const {
-    std::vector<ui::PlaneLayout> planeLayouts;
-    status_t err = getPlaneLayouts(bufferHandle, &planeLayouts);
-
-    if (err == NO_ERROR && !planeLayouts.empty()) {
-        if (outBytesPerPixel) {
-            int32_t bitsPerPixel = planeLayouts.front().sampleIncrementInBits;
-            for (const auto& planeLayout : planeLayouts) {
-                if (bitsPerPixel != planeLayout.sampleIncrementInBits) {
-                    bitsPerPixel = -1;
-                }
-            }
-            if (bitsPerPixel >= 0 && bitsPerPixel % 8 == 0) {
-                *outBytesPerPixel = bitsPerPixel / 8;
-            } else {
-                *outBytesPerPixel = -1;
-            }
-        }
-        if (outBytesPerStride) {
-            int32_t bytesPerStride = planeLayouts.front().strideInBytes;
-            for (const auto& planeLayout : planeLayouts) {
-                if (bytesPerStride != planeLayout.strideInBytes) {
-                    bytesPerStride = -1;
-                }
-            }
-            if (bytesPerStride >= 0) {
-                *outBytesPerStride = bytesPerStride;
-            } else {
-                *outBytesPerStride = -1;
-            }
-        }
-    }
+    if (outBytesPerPixel) *outBytesPerPixel = -1;
+    if (outBytesPerStride) *outBytesPerStride = -1;
 
     auto buffer = const_cast<native_handle_t*>(bufferHandle);
 
@@ -1069,7 +1040,7 @@ std::string Gralloc4Allocator::dumpDebugInfo(bool less) const {
 
 status_t Gralloc4Allocator::allocate(std::string requestorName, uint32_t width, uint32_t height,
                                      android::PixelFormat format, uint32_t layerCount,
-                                     uint64_t usage, uint32_t bufferCount, uint32_t* outStride,
+                                     uint64_t usage, uint32_t* outStride,
                                      buffer_handle_t* outBufferHandles, bool importBuffers) const {
     IMapper::BufferDescriptorInfo descriptorInfo;
     if (auto error = sBufferDescriptorInfo(requestorName, width, height, format, layerCount, usage,
@@ -1083,6 +1054,8 @@ status_t Gralloc4Allocator::allocate(std::string requestorName, uint32_t width, 
     if (error != NO_ERROR) {
         return error;
     }
+
+    constexpr auto bufferCount = 1;
 
     if (mAidlAllocator) {
         AllocationResult result;

@@ -371,7 +371,7 @@ std::string Gralloc3Allocator::dumpDebugInfo(bool /*less*/) const {
 
 status_t Gralloc3Allocator::allocate(std::string /*requestorName*/, uint32_t width, uint32_t height,
                                      android::PixelFormat format, uint32_t layerCount,
-                                     uint64_t usage, uint32_t bufferCount, uint32_t* outStride,
+                                     uint64_t usage, uint32_t* outStride,
                                      buffer_handle_t* outBufferHandles, bool importBuffers) const {
     IMapper::BufferDescriptorInfo descriptorInfo;
     sBufferDescriptorInfo(width, height, format, layerCount, usage, &descriptorInfo);
@@ -382,6 +382,8 @@ status_t Gralloc3Allocator::allocate(std::string /*requestorName*/, uint32_t wid
     if (error != NO_ERROR) {
         return error;
     }
+
+    constexpr auto bufferCount = 1;
 
     auto ret = mAllocator->allocate(descriptor, bufferCount,
                                     [&](const auto& tmpError, const auto& tmpStride,

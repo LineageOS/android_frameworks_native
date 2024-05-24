@@ -195,6 +195,11 @@ bool DisplayEventDispatcher::processPendingEvents(nsecs_t* outTimestamp,
                     dispatchFrameRateOverrides(ev.header.timestamp, ev.header.displayId,
                                                std::move(mFrameRateOverrides));
                     break;
+                case DisplayEventReceiver::DISPLAY_EVENT_HDCP_LEVELS_CHANGE:
+                    dispatchHdcpLevelsChanged(ev.header.displayId,
+                                              ev.hdcpLevelsChange.connectedLevel,
+                                              ev.hdcpLevelsChange.maxLevel);
+                    break;
                 default:
                     ALOGW("dispatcher %p ~ ignoring unknown event type %#x", this, ev.header.type);
                     break;

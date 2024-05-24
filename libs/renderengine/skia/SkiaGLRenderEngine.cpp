@@ -236,7 +236,13 @@ EGLConfig SkiaGLRenderEngine::chooseEglConfig(EGLDisplay display, int format, bo
             err = selectEGLConfig(display, format, 0, &config);
             if (err != NO_ERROR) {
                 // this EGL is too lame for android
-                LOG_ALWAYS_FATAL("no suitable EGLConfig found, giving up");
+                LOG_ALWAYS_FATAL("no suitable EGLConfig found, giving up"
+                                 " (format: %d, vendor: %s, version: %s, extensions: %s, Client"
+                                 " API: %s)",
+                                 format, eglQueryString(display, EGL_VENDOR),
+                                 eglQueryString(display, EGL_VERSION),
+                                 eglQueryString(display, EGL_EXTENSIONS),
+                                 eglQueryString(display, EGL_CLIENT_APIS) ?: "Not Supported");
             }
         }
     }
@@ -262,7 +268,7 @@ EGLConfig SkiaGLRenderEngine::chooseEglConfig(EGLDisplay display, int format, bo
 SkiaGLRenderEngine::SkiaGLRenderEngine(const RenderEngineCreationArgs& args, EGLDisplay display,
                                        EGLContext ctxt, EGLSurface placeholder,
                                        EGLContext protectedContext, EGLSurface protectedPlaceholder)
-      : SkiaRenderEngine(args.renderEngineType, static_cast<PixelFormat>(args.pixelFormat),
+      : SkiaRenderEngine(args.threaded, static_cast<PixelFormat>(args.pixelFormat),
                          args.supportsBackgroundBlur),
         mEGLDisplay(display),
         mEGLContext(ctxt),

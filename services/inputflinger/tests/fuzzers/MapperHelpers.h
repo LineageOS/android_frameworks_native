@@ -201,6 +201,18 @@ public:
                                   int32_t* outValue) const override {
         return mFdp->ConsumeIntegral<status_t>();
     }
+    base::Result<std::vector<int32_t>> getMtSlotValues(int32_t deviceId, int32_t axis,
+                                                       size_t slotCount) const override {
+        if (mFdp->ConsumeBool()) {
+            std::vector<int32_t> outValues(slotCount + 1);
+            for (size_t i = 0; i < outValues.size(); i++) {
+                outValues.push_back(mFdp->ConsumeIntegral<int32_t>());
+            }
+            return std::move(outValues);
+        } else {
+            return base::ResultError("Fuzzer", UNKNOWN_ERROR);
+        }
+    }
     bool markSupportedKeyCodes(int32_t deviceId, const std::vector<int32_t>& keyCodes,
                                uint8_t* outFlags) const override {
         return mFdp->ConsumeBool();

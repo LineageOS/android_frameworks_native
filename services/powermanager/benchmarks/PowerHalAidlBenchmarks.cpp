@@ -70,12 +70,14 @@ static void runBenchmark(benchmark::State& state, microseconds delay, R (IPower:
 
     if (hal == nullptr) {
         ALOGV("Power HAL not available, skipping test...");
+        state.SkipWithMessage("Power HAL unavailable");
         return;
     }
 
     ndk::ScopedAStatus ret = (*hal.*fn)(std::forward<Args1>(args1)...);
     if (ret.getExceptionCode() == binder::Status::EX_UNSUPPORTED_OPERATION) {
         ALOGV("Power HAL does not support this operation, skipping test...");
+        state.SkipWithMessage("operation unsupported");
         return;
     }
 
@@ -97,6 +99,7 @@ static void runSessionBenchmark(benchmark::State& state, R (IPowerHintSession::*
 
     if (hal == nullptr) {
         ALOGV("Power HAL not available, skipping test...");
+        state.SkipWithMessage("Power HAL unavailable");
         return;
     }
 
@@ -109,12 +112,14 @@ static void runSessionBenchmark(benchmark::State& state, R (IPowerHintSession::*
 
     if (session == nullptr) {
         ALOGV("Power HAL doesn't support session, skipping test...");
+        state.SkipWithMessage("operation unsupported");
         return;
     }
 
     ndk::ScopedAStatus ret = (*session.*fn)(std::forward<Args1>(args1)...);
     if (ret.getExceptionCode() == binder::Status::EX_UNSUPPORTED_OPERATION) {
         ALOGV("Power HAL does not support this operation, skipping test...");
+        state.SkipWithMessage("operation unsupported");
         return;
     }
 
@@ -163,6 +168,7 @@ static void BM_PowerHalAidlBenchmarks_createHintSession(benchmark::State& state)
 
     if (hal == nullptr) {
         ALOGV("Power HAL not available, skipping test...");
+        state.SkipWithMessage("Power HAL unavailable");
         return;
     }
 
@@ -170,6 +176,7 @@ static void BM_PowerHalAidlBenchmarks_createHintSession(benchmark::State& state)
             hal->createHintSession(tgid, uid, threadIds, durationNanos, &appSession);
     if (ret.getExceptionCode() == binder::Status::EX_UNSUPPORTED_OPERATION) {
         ALOGV("Power HAL does not support this operation, skipping test...");
+        state.SkipWithMessage("operation unsupported");
         return;
     }
 

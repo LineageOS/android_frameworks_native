@@ -161,6 +161,9 @@ struct layer_state_t {
         // See SurfaceView scaling behavior for more details.
         eIgnoreDestinationFrame = 0x400,
         eLayerIsRefreshRateIndicator = 0x800, // REFRESH_RATE_INDICATOR
+        // Sets a property on this layer indicating that its visible region should be considered
+        // when computing TrustedPresentation Thresholds.
+        eCanOccludePresentation = 0x1000,
     };
 
     enum {
@@ -206,7 +209,7 @@ struct layer_state_t {
         eBackgroundBlurRadiusChanged = 0x80'00000000,
         eProducerDisconnect = 0x100'00000000,
         eFixedTransformHintChanged = 0x200'00000000,
-        /* unused 0x400'00000000, */
+        eDesiredHdrHeadroomChanged = 0x400'00000000,
         eBlurRegionsChanged = 0x800'00000000,
         eAutoRefreshChanged = 0x1000'00000000,
         eStretchChanged = 0x2000'00000000,
@@ -245,7 +248,8 @@ struct layer_state_t {
             layer_state_t::eSidebandStreamChanged | layer_state_t::eSurfaceDamageRegionChanged |
             layer_state_t::eTransformToDisplayInverseChanged |
             layer_state_t::eTransparentRegionChanged |
-            layer_state_t::eExtendedRangeBrightnessChanged;
+            layer_state_t::eExtendedRangeBrightnessChanged |
+            layer_state_t::eDesiredHdrHeadroomChanged;
 
     // Content updates.
     static constexpr uint64_t CONTENT_CHANGES = layer_state_t::BUFFER_CHANGES |
@@ -416,26 +420,36 @@ public:
 };
 
 struct DisplayState {
-    enum {
+    enum : uint32_t {
         eSurfaceChanged = 0x01,
         eLayerStackChanged = 0x02,
         eDisplayProjectionChanged = 0x04,
         eDisplaySizeChanged = 0x08,
-        eFlagsChanged = 0x10
+        eFlagsChanged = 0x10,
+
+        eAllChanged = ~0u
     };
 
+    // Not for direct use. Prefer constructor below for new displays.
     DisplayState();
+
+    DisplayState(sp<IBinder> token, ui::LayerStack layerStack)
+          : what(eAllChanged),
+            token(std::move(token)),
+            layerStack(layerStack),
+            layerStackSpaceRect(Rect::INVALID_RECT),
+            orientedDisplaySpaceRect(Rect::INVALID_RECT) {}
+
     void merge(const DisplayState& other);
     void sanitize(int32_t permissions);
 
     uint32_t what = 0;
     uint32_t flags = 0;
     sp<IBinder> token;
-    sp<IGraphicBufferProducer> surface;
 
     ui::LayerStack layerStack = ui::DEFAULT_LAYER_STACK;
 
-    // These states define how layers are projected onto the physical display.
+    // These states define how layers are projected onto the physical or virtual display.
     //
     // Layers are first clipped to `layerStackSpaceRect'.  They are then translated and
     // scaled from `layerStackSpaceRect' to `orientedDisplaySpaceRect'.  Finally, they are rotated
@@ -446,10 +460,17 @@ struct DisplayState {
     // will be scaled by a factor of 2 and translated by (20, 10). When orientation is 1, layers
     // will be additionally rotated by 90 degrees around the origin clockwise and translated by (W,
     // 0).
+    //
+    // Rect::INVALID_RECT sizes the space to the active resolution of the physical display, or the
+    // default dimensions of the virtual display surface.
+    //
     ui::Rotation orientation = ui::ROTATION_0;
     Rect layerStackSpaceRect = Rect::EMPTY_RECT;
     Rect orientedDisplaySpaceRect = Rect::EMPTY_RECT;
 
+    // Exclusive to virtual displays: The sink surface into which the virtual display is rendered,
+    // and an optional resolution that overrides its default dimensions.
+    sp<IGraphicBufferProducer> surface;
     uint32_t width = 0;
     uint32_t height = 0;
 

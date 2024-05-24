@@ -169,10 +169,8 @@ inline std::string to_string(
         out << "}, ";
         out << "notifyExpectedPresentConfig={";
         if (vrrConfig->notifyExpectedPresentConfig) {
-            out << "notifyExpectedPresentHeadsUpNs="
-                << vrrConfig->notifyExpectedPresentConfig->notifyExpectedPresentHeadsUpNs
-                << ", notifyExpectedPresentTimeoutNs="
-                << vrrConfig->notifyExpectedPresentConfig->notifyExpectedPresentTimeoutNs;
+            out << "headsUpNs=" << vrrConfig->notifyExpectedPresentConfig->headsUpNs
+                << ", timeoutNs=" << vrrConfig->notifyExpectedPresentConfig->timeoutNs;
         }
         out << "}}";
         return out.str();

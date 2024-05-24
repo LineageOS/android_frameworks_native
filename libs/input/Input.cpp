@@ -374,8 +374,13 @@ std::ostream& operator<<(std::ostream& out, const KeyEvent& event) {
     out << ", deviceId=" << event.getDeviceId();
     out << ", source=" << inputEventSourceToString(event.getSource());
     out << ", displayId=" << event.getDisplayId();
-    out << ", eventId=" << event.getId();
+    out << ", eventId=0x" << std::hex << event.getId() << std::dec;
     out << "}";
+    return out;
+}
+
+std::ostream& operator<<(std::ostream& out, const PointerProperties& properties) {
+    out << "Pointer(id=" << properties.id << ", " << ftl::enum_string(properties.toolType) << ")";
     return out;
 }
 
@@ -1002,6 +1007,33 @@ PointerCoords MotionEvent::calculateTransformedCoords(uint32_t source,
     return out;
 }
 
+bool MotionEvent::operator==(const android::MotionEvent& o) const {
+    // We use NaN values to represent invalid cursor positions. Since NaN values are not equal
+    // to themselves according to IEEE 754, we cannot use the default equality operator to compare
+    // MotionEvents. Therefore we define a custom equality operator with special handling for NaNs.
+    // clang-format off
+    return InputEvent::operator==(static_cast<const InputEvent&>(o)) &&
+            mAction == o.mAction &&
+            mActionButton == o.mActionButton &&
+            mFlags == o.mFlags &&
+            mEdgeFlags == o.mEdgeFlags &&
+            mMetaState == o.mMetaState &&
+            mButtonState == o.mButtonState &&
+            mClassification == o.mClassification &&
+            mTransform == o.mTransform &&
+            mXPrecision == o.mXPrecision &&
+            mYPrecision == o.mYPrecision &&
+            ((std::isnan(mRawXCursorPosition) && std::isnan(o.mRawXCursorPosition)) ||
+                mRawXCursorPosition == o.mRawXCursorPosition) &&
+            ((std::isnan(mRawYCursorPosition) && std::isnan(o.mRawYCursorPosition)) ||
+                mRawYCursorPosition == o.mRawYCursorPosition) &&
+            mRawTransform == o.mRawTransform && mDownTime == o.mDownTime &&
+            mPointerProperties == o.mPointerProperties &&
+            mSampleEventTimes == o.mSampleEventTimes &&
+            mSamplePointerCoords == o.mSamplePointerCoords;
+    // clang-format on
+}
+
 std::ostream& operator<<(std::ostream& out, const MotionEvent& event) {
     out << "MotionEvent { action=" << MotionEvent::actionToString(event.getAction());
     if (event.getActionButton() != 0) {
@@ -1032,6 +1064,9 @@ std::ostream& operator<<(std::ostream& out, const MotionEvent& event) {
     if (event.getMetaState() != 0) {
         out << ", metaState=" << event.getMetaState();
     }
+    if (event.getFlags() != 0) {
+        out << ", flags=0x" << std::hex << event.getFlags() << std::dec;
+    }
     if (event.getEdgeFlags() != 0) {
         out << ", edgeFlags=" << event.getEdgeFlags();
     }
@@ -1046,7 +1081,7 @@ std::ostream& operator<<(std::ostream& out, const MotionEvent& event) {
     out << ", deviceId=" << event.getDeviceId();
     out << ", source=" << inputEventSourceToString(event.getSource());
     out << ", displayId=" << event.getDisplayId();
-    out << ", eventId=" << event.getId();
+    out << ", eventId=0x" << std::hex << event.getId() << std::dec;
     out << "}";
     return out;
 }

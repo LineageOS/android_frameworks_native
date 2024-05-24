@@ -95,6 +95,7 @@ public:
     // isSecure indicates whether this display can be trusted to display
     // secure surfaces.
     bool isSecure() const;
+    void setSecure(bool secure);
 
     int getWidth() const;
     int getHeight() const;
@@ -172,8 +173,8 @@ public:
     /* ------------------------------------------------------------------------
      * Display power mode management.
      */
-    std::optional<hardware::graphics::composer::hal::PowerMode> getPowerMode() const;
-    void setPowerMode(hardware::graphics::composer::hal::PowerMode mode);
+    hardware::graphics::composer::hal::PowerMode getPowerMode() const;
+    void setPowerMode(hardware::graphics::composer::hal::PowerMode);
     bool isPoweredOn() const;
     void tracePowerMode();
 
@@ -188,8 +189,7 @@ public:
 
     enum class DesiredModeAction { None, InitiateDisplayModeSwitch, InitiateRenderRateSwitch };
 
-    DesiredModeAction setDesiredMode(display::DisplayModeRequest&&, bool force = false)
-            EXCLUDES(mDesiredModeLock);
+    DesiredModeAction setDesiredMode(display::DisplayModeRequest&&) EXCLUDES(mDesiredModeLock);
 
     using DisplayModeRequestOpt = ftl::Optional<display::DisplayModeRequest>;
 
@@ -270,9 +270,7 @@ private:
     ui::Rotation mOrientation = ui::ROTATION_0;
     bool mIsOrientationChanged = false;
 
-    // Allow nullopt as initial power mode.
-    using TracedPowerMode = TracedOrdinal<hardware::graphics::composer::hal::PowerMode>;
-    std::optional<TracedPowerMode> mPowerMode;
+    TracedOrdinal<hardware::graphics::composer::hal::PowerMode> mPowerMode;
 
     std::optional<float> mStagedBrightness;
     std::optional<float> mBrightness;
@@ -362,7 +360,8 @@ struct DisplayDeviceCreationArgs {
     HdrCapabilities hdrCapabilities;
     int32_t supportedPerFrameMetadata{0};
     std::unordered_map<ui::ColorMode, std::vector<ui::RenderIntent>> hwcColorModes;
-    std::optional<hardware::graphics::composer::hal::PowerMode> initialPowerMode;
+    hardware::graphics::composer::hal::PowerMode initialPowerMode{
+            hardware::graphics::composer::hal::PowerMode::OFF};
     bool isPrimary{false};
     DisplayModeId activeModeId;
     // Refer to DisplayDevice::mRequestedRefreshRate, for virtual display only

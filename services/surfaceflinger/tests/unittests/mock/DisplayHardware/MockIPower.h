@@ -18,12 +18,21 @@
 
 #include "binder/Status.h"
 
+// FMQ library in IPower does questionable conversions
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
 #include <aidl/android/hardware/power/IPower.h>
+#pragma clang diagnostic pop
+
 #include <gmock/gmock.h>
 
 using aidl::android::hardware::power::Boost;
+using aidl::android::hardware::power::ChannelConfig;
 using aidl::android::hardware::power::IPower;
 using aidl::android::hardware::power::IPowerHintSession;
+using aidl::android::hardware::power::SessionConfig;
+using aidl::android::hardware::power::SessionTag;
+
 using aidl::android::hardware::power::Mode;
 using android::binder::Status;
 
@@ -42,6 +51,14 @@ public:
                  int64_t durationNanos, std::shared_ptr<IPowerHintSession>* session),
                 (override));
     MOCK_METHOD(ndk::ScopedAStatus, getHintSessionPreferredRate, (int64_t * rate), (override));
+    MOCK_METHOD(ndk::ScopedAStatus, createHintSessionWithConfig,
+                (int32_t tgid, int32_t uid, const std::vector<int32_t>& threadIds,
+                 int64_t durationNanos, SessionTag tag, SessionConfig* config,
+                 std::shared_ptr<IPowerHintSession>* _aidl_return),
+                (override));
+    MOCK_METHOD(ndk::ScopedAStatus, getSessionChannel,
+                (int32_t tgid, int32_t uid, ChannelConfig* _aidl_return), (override));
+    MOCK_METHOD(ndk::ScopedAStatus, closeSessionChannel, (int32_t tgid, int32_t uid), (override));
     MOCK_METHOD(ndk::ScopedAStatus, getInterfaceVersion, (int32_t * version), (override));
     MOCK_METHOD(ndk::ScopedAStatus, getInterfaceHash, (std::string * hash), (override));
     MOCK_METHOD(ndk::SpAIBinder, asBinder, (), (override));

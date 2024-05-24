@@ -126,7 +126,20 @@ struct InputReaderConfiguration {
     // The suggested display ID to show the cursor.
     int32_t defaultPointerDisplayId;
 
+    // The mouse pointer speed, as a number from -7 (slowest) to 7 (fastest).
+    //
+    // Currently only used when the enable_new_mouse_pointer_ballistics flag is enabled.
+    int32_t mousePointerSpeed;
+
+    // Displays on which an acceleration curve shouldn't be applied for pointer movements from mice.
+    //
+    // Currently only used when the enable_new_mouse_pointer_ballistics flag is enabled.
+    std::set<int32_t> displaysWithMousePointerAccelerationDisabled;
+
     // Velocity control parameters for mouse pointer movements.
+    //
+    // If the enable_new_mouse_pointer_ballistics flag is enabled, these are ignored and the values
+    // of mousePointerSpeed and mousePointerAccelerationEnabled used instead.
     VelocityControlParameters pointerVelocityControlParameters;
 
     // Velocity control parameters for mouse wheel movements.
@@ -213,6 +226,9 @@ struct InputReaderConfiguration {
     // True to enable tap-to-click on touchpads.
     bool touchpadTapToClickEnabled;
 
+    // True to enable tap dragging on touchpads.
+    bool touchpadTapDraggingEnabled;
+
     // True to enable a zone on the right-hand side of touchpads where clicks will be turned into
     // context (a.k.a. "right") clicks.
     bool touchpadRightClickZoneEnabled;
@@ -229,6 +245,8 @@ struct InputReaderConfiguration {
 
     InputReaderConfiguration()
           : virtualKeyQuietTime(0),
+            mousePointerSpeed(0),
+            displaysWithMousePointerAccelerationDisabled(),
             pointerVelocityControlParameters(1.0f, 500.0f, 3000.0f,
                                              static_cast<float>(
                                                      android::os::IInputConstants::
@@ -251,6 +269,7 @@ struct InputReaderConfiguration {
             touchpadPointerSpeed(0),
             touchpadNaturalScrollingEnabled(true),
             touchpadTapToClickEnabled(true),
+            touchpadTapDraggingEnabled(false),
             touchpadRightClickZoneEnabled(false),
             stylusButtonMotionEventsEnabled(true),
             stylusPointerIconEnabled(false) {}

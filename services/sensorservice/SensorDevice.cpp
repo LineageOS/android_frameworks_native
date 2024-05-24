@@ -16,15 +16,9 @@
 
 #include "SensorDevice.h"
 
-#include "android/hardware/sensors/2.0/types.h"
-#include "android/hardware/sensors/2.1/types.h"
-#include "convertV2_1.h"
-
-#include "AidlSensorHalWrapper.h"
-#include "HidlSensorHalWrapper.h"
-
 #include <android-base/logging.h>
 #include <android/util/ProtoOutputStream.h>
+#include <com_android_frameworks_sensorservice_flags.h>
 #include <cutils/atomic.h>
 #include <frameworks/base/core/proto/android/service/sensor_service.proto.h>
 #include <hardware/sensors-base.h>
@@ -35,13 +29,20 @@
 
 #include <chrono>
 #include <cinttypes>
-#include <cstddef>
-#include <thread>
-#include <mutex>
 #include <condition_variable>
+#include <cstddef>
+#include <mutex>
+#include <thread>
+
+#include "AidlSensorHalWrapper.h"
+#include "HidlSensorHalWrapper.h"
+#include "android/hardware/sensors/2.0/types.h"
+#include "android/hardware/sensors/2.1/types.h"
+#include "convertV2_1.h"
 
 using namespace android::hardware::sensors;
 using android::util::ProtoOutputStream;
+namespace sensorservice_flags = com::android::frameworks::sensorservice::flags;
 
 namespace android {
 // ---------------------------------------------------------------------------
@@ -166,6 +167,9 @@ void SensorDevice::reconnect() {
 
     mActivationCount.clear();
     mSensorList.clear();
+    if (sensorservice_flags::dynamic_sensor_hal_reconnect_handling()) {
+        mConnectedDynamicSensors.clear();
+    }
 
     if (mHalWrapper->connect(this)) {
         initializeSensorList();
@@ -340,6 +344,15 @@ void SensorDevice::dump(ProtoOutputStream* proto) const {
     }
 }
 
+std::vector<int32_t> SensorDevice::getDynamicSensorHandles() {
+    std::vector<int32_t> sensorHandles;
+    std::lock_guard<std::mutex> lock(mDynamicSensorsMutex);
+    for (auto& sensors : mConnectedDynamicSensors) {
+        sensorHandles.push_back(sensors.first);
+    }
+    return sensorHandles;
+}
+
 ssize_t SensorDevice::getSensorList(sensor_t const** list) {
     *list = &mSensorList[0];
 
@@ -416,8 +429,15 @@ void SensorDevice::onDynamicSensorsConnected(const std::vector<sensor_t>& dynami
 }
 
 void SensorDevice::onDynamicSensorsDisconnected(
-        const std::vector<int32_t>& /* dynamicSensorHandlesRemoved */) {
-    // TODO: Currently dynamic sensors do not seem to be removed
+        const std::vector<int32_t>& dynamicSensorHandlesRemoved) {
+    if (sensorservice_flags::sensor_device_on_dynamic_sensor_disconnected()) {
+        for (auto handle : dynamicSensorHandlesRemoved) {
+            auto it = mConnectedDynamicSensors.find(handle);
+            if (it != mConnectedDynamicSensors.end()) {
+                mConnectedDynamicSensors.erase(it);
+            }
+        }
+    }
 }
 
 void SensorDevice::writeWakeLockHandled(uint32_t count) {
@@ -483,12 +503,16 @@ status_t SensorDevice::activateLocked(void* ident, int handle, int enabled) {
     } else {
         ALOGD_IF(DEBUG_CONNECTIONS, "disable index=%zd", info.batchParams.indexOfKey(ident));
 
-        // If a connected dynamic sensor is deactivated, remove it from the
-        // dictionary.
+        // TODO(b/316958439): Remove these line after
+        // sensor_device_on_dynamic_sensor_disconnected is ramped up. Bounded
+        // here since this function is coupled with
+        // dynamic_sensors_hal_disconnect_dynamic_sensor flag. If a connected
+        // dynamic sensor is deactivated, remove it from the dictionary.
         auto it = mConnectedDynamicSensors.find(handle);
         if (it != mConnectedDynamicSensors.end()) {
-            mConnectedDynamicSensors.erase(it);
+          mConnectedDynamicSensors.erase(it);
         }
+        // End of TODO(b/316958439)
 
         if (info.removeBatchParamsForIdent(ident) >= 0) {
             if (info.numActiveClients() == 0) {
@@ -788,7 +812,6 @@ status_t SensorDevice::setMode(uint32_t mode) {
             }
             mInHalBypassMode = true;
         }
-        return OK;
     } else {
         if (mInHalBypassMode) {
             // We are transitioning out of HAL Bypass mode. We need to notify the reader thread

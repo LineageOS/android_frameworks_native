@@ -16,7 +16,7 @@ use super::Buffer;
 
 /// Trait that represents an owner of a buffer that might need to handle events such as a buffer
 /// being dropped.
-pub trait BufferOwner {
+pub trait BufferOwner: Send + Sync {
     /// Called when a buffer is dropped.
     fn on_return(&self, buffer: &Buffer);
 }

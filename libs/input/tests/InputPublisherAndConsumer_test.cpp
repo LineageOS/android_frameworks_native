@@ -40,11 +40,186 @@ struct Pointer {
     bool isResampled = false;
 };
 
+// A collection of arguments to be sent as publishMotionEvent(). The saved members of this struct
+// allow to check the expectations against the event acquired from the InputReceiver. To help
+// simplify expectation checking it carries members not present in MotionEvent, like |rawXScale|.
+struct PublishMotionArgs {
+    const int32_t action;
+    const nsecs_t downTime;
+    const uint32_t seq;
+    const int32_t eventId;
+    const int32_t deviceId = 1;
+    const uint32_t source = AINPUT_SOURCE_TOUCHSCREEN;
+    const int32_t displayId = ADISPLAY_ID_DEFAULT;
+    const int32_t actionButton = 0;
+    const int32_t edgeFlags = AMOTION_EVENT_EDGE_FLAG_TOP;
+    const int32_t metaState = AMETA_ALT_LEFT_ON | AMETA_ALT_ON;
+    const int32_t buttonState = AMOTION_EVENT_BUTTON_PRIMARY;
+    const MotionClassification classification = MotionClassification::AMBIGUOUS_GESTURE;
+    const float xScale = 2;
+    const float yScale = 3;
+    const float xOffset = -10;
+    const float yOffset = -20;
+    const float rawXScale = 4;
+    const float rawYScale = -5;
+    const float rawXOffset = -11;
+    const float rawYOffset = 42;
+    const float xPrecision = 0.25;
+    const float yPrecision = 0.5;
+    const float xCursorPosition = 1.3;
+    const float yCursorPosition = 50.6;
+    std::array<uint8_t, 32> hmac;
+    int32_t flags;
+    ui::Transform transform;
+    ui::Transform rawTransform;
+    const nsecs_t eventTime;
+    size_t pointerCount;
+    std::vector<PointerProperties> pointerProperties;
+    std::vector<PointerCoords> pointerCoords;
+
+    PublishMotionArgs(int32_t action, nsecs_t downTime, const std::vector<Pointer>& pointers,
+                      const uint32_t seq);
+};
+
+PublishMotionArgs::PublishMotionArgs(int32_t inAction, nsecs_t inDownTime,
+                                     const std::vector<Pointer>& pointers, const uint32_t inSeq)
+      : action(inAction),
+        downTime(inDownTime),
+        seq(inSeq),
+        eventId(InputEvent::nextId()),
+        eventTime(systemTime(SYSTEM_TIME_MONOTONIC)) {
+    hmac = {0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15,
+            16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31};
+
+    flags = AMOTION_EVENT_FLAG_WINDOW_IS_OBSCURED;
+    if (action == AMOTION_EVENT_ACTION_CANCEL) {
+        flags |= AMOTION_EVENT_FLAG_CANCELED;
+    }
+    pointerCount = pointers.size();
+    for (size_t i = 0; i < pointerCount; i++) {
+        pointerProperties.push_back({});
+        pointerProperties[i].clear();
+        pointerProperties[i].id = pointers[i].id;
+        pointerProperties[i].toolType = ToolType::FINGER;
+
+        pointerCoords.push_back({});
+        pointerCoords[i].clear();
+        pointerCoords[i].isResampled = pointers[i].isResampled;
+        pointerCoords[i].setAxisValue(AMOTION_EVENT_AXIS_X, pointers[i].x);
+        pointerCoords[i].setAxisValue(AMOTION_EVENT_AXIS_Y, pointers[i].y);
+        pointerCoords[i].setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, 0.5 * i);
+        pointerCoords[i].setAxisValue(AMOTION_EVENT_AXIS_SIZE, 0.7 * i);
+        pointerCoords[i].setAxisValue(AMOTION_EVENT_AXIS_TOUCH_MAJOR, 1.5 * i);
+        pointerCoords[i].setAxisValue(AMOTION_EVENT_AXIS_TOUCH_MINOR, 1.7 * i);
+        pointerCoords[i].setAxisValue(AMOTION_EVENT_AXIS_TOOL_MAJOR, 2.5 * i);
+        pointerCoords[i].setAxisValue(AMOTION_EVENT_AXIS_TOOL_MAJOR, 2.7 * i);
+        pointerCoords[i].setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION, 3.5 * i);
+    }
+    transform.set({xScale, 0, xOffset, 0, yScale, yOffset, 0, 0, 1});
+    rawTransform.set({rawXScale, 0, rawXOffset, 0, rawYScale, rawYOffset, 0, 0, 1});
+}
+
+// Checks expectations against |motionEvent| acquired from an InputConsumer. Floating point
+// comparisons limit precision to EPSILON.
+void verifyArgsEqualToEvent(const PublishMotionArgs& args, const MotionEvent& motionEvent) {
+    EXPECT_EQ(args.eventId, motionEvent.getId());
+    EXPECT_EQ(args.deviceId, motionEvent.getDeviceId());
+    EXPECT_EQ(args.source, motionEvent.getSource());
+    EXPECT_EQ(args.displayId, motionEvent.getDisplayId());
+    EXPECT_EQ(args.hmac, motionEvent.getHmac());
+    EXPECT_EQ(args.action, motionEvent.getAction());
+    EXPECT_EQ(args.downTime, motionEvent.getDownTime());
+    EXPECT_EQ(args.flags, motionEvent.getFlags());
+    EXPECT_EQ(args.edgeFlags, motionEvent.getEdgeFlags());
+    EXPECT_EQ(args.metaState, motionEvent.getMetaState());
+    EXPECT_EQ(args.buttonState, motionEvent.getButtonState());
+    EXPECT_EQ(args.classification, motionEvent.getClassification());
+    EXPECT_EQ(args.transform, motionEvent.getTransform());
+    EXPECT_EQ(args.xOffset, motionEvent.getXOffset());
+    EXPECT_EQ(args.yOffset, motionEvent.getYOffset());
+    EXPECT_EQ(args.xPrecision, motionEvent.getXPrecision());
+    EXPECT_EQ(args.yPrecision, motionEvent.getYPrecision());
+    EXPECT_NEAR(args.xCursorPosition, motionEvent.getRawXCursorPosition(), EPSILON);
+    EXPECT_NEAR(args.yCursorPosition, motionEvent.getRawYCursorPosition(), EPSILON);
+    EXPECT_NEAR(args.xCursorPosition * args.xScale + args.xOffset, motionEvent.getXCursorPosition(),
+                EPSILON);
+    EXPECT_NEAR(args.yCursorPosition * args.yScale + args.yOffset, motionEvent.getYCursorPosition(),
+                EPSILON);
+    EXPECT_EQ(args.rawTransform, motionEvent.getRawTransform());
+    EXPECT_EQ(args.eventTime, motionEvent.getEventTime());
+    EXPECT_EQ(args.pointerCount, motionEvent.getPointerCount());
+    EXPECT_EQ(0U, motionEvent.getHistorySize());
+
+    for (size_t i = 0; i < args.pointerCount; i++) {
+        SCOPED_TRACE(i);
+        EXPECT_EQ(args.pointerProperties[i].id, motionEvent.getPointerId(i));
+        EXPECT_EQ(args.pointerProperties[i].toolType, motionEvent.getToolType(i));
+
+        const auto& pc = args.pointerCoords[i];
+        EXPECT_EQ(pc, motionEvent.getSamplePointerCoords()[i]);
+
+        EXPECT_NEAR(pc.getX() * args.rawXScale + args.rawXOffset, motionEvent.getRawX(i), EPSILON);
+        EXPECT_NEAR(pc.getY() * args.rawYScale + args.rawYOffset, motionEvent.getRawY(i), EPSILON);
+        EXPECT_NEAR(pc.getX() * args.xScale + args.xOffset, motionEvent.getX(i), EPSILON);
+        EXPECT_NEAR(pc.getY() * args.yScale + args.yOffset, motionEvent.getY(i), EPSILON);
+        EXPECT_EQ(pc.getAxisValue(AMOTION_EVENT_AXIS_PRESSURE), motionEvent.getPressure(i));
+        EXPECT_EQ(pc.getAxisValue(AMOTION_EVENT_AXIS_SIZE), motionEvent.getSize(i));
+        EXPECT_EQ(pc.getAxisValue(AMOTION_EVENT_AXIS_TOUCH_MAJOR), motionEvent.getTouchMajor(i));
+        EXPECT_EQ(pc.getAxisValue(AMOTION_EVENT_AXIS_TOUCH_MINOR), motionEvent.getTouchMinor(i));
+        EXPECT_EQ(pc.getAxisValue(AMOTION_EVENT_AXIS_TOOL_MAJOR), motionEvent.getToolMajor(i));
+        EXPECT_EQ(pc.getAxisValue(AMOTION_EVENT_AXIS_TOOL_MINOR), motionEvent.getToolMinor(i));
+
+        // Calculate the orientation after scaling, keeping in mind that an orientation of 0 is
+        // "up", and the positive y direction is "down".
+        const float unscaledOrientation = pc.getAxisValue(AMOTION_EVENT_AXIS_ORIENTATION);
+        const float x = sinf(unscaledOrientation) * args.xScale;
+        const float y = -cosf(unscaledOrientation) * args.yScale;
+        EXPECT_EQ(atan2f(x, -y), motionEvent.getOrientation(i));
+    }
+}
+
+void publishMotionEvent(InputPublisher& publisher, const PublishMotionArgs& a) {
+    status_t status =
+            publisher.publishMotionEvent(a.seq, a.eventId, a.deviceId, a.source, a.displayId,
+                                         a.hmac, a.action, a.actionButton, a.flags, a.edgeFlags,
+                                         a.metaState, a.buttonState, a.classification, a.transform,
+                                         a.xPrecision, a.yPrecision, a.xCursorPosition,
+                                         a.yCursorPosition, a.rawTransform, a.downTime, a.eventTime,
+                                         a.pointerCount, a.pointerProperties.data(),
+                                         a.pointerCoords.data());
+    ASSERT_EQ(OK, status) << "publisher publishMotionEvent should return OK";
+}
+
+void sendAndVerifyFinishedSignal(InputConsumer& consumer, InputPublisher& publisher, uint32_t seq,
+                                 nsecs_t publishTime) {
+    status_t status = consumer.sendFinishedSignal(seq, false);
+    ASSERT_EQ(OK, status) << "consumer sendFinishedSignal should return OK";
+    Result<InputPublisher::ConsumerResponse> result = publisher.receiveConsumerResponse();
+    ASSERT_TRUE(result.ok()) << "receiveConsumerResponse should return OK";
+    ASSERT_TRUE(std::holds_alternative<InputPublisher::Finished>(*result));
+    const InputPublisher::Finished& finish = std::get<InputPublisher::Finished>(*result);
+    ASSERT_EQ(seq, finish.seq)
+            << "receiveConsumerResponse should have returned the original sequence number";
+    ASSERT_FALSE(finish.handled)
+            << "receiveConsumerResponse should have set handled to consumer's reply";
+    ASSERT_GE(finish.consumeTime, publishTime)
+            << "finished signal's consume time should be greater than publish time";
+}
+
+void waitUntilInputAvailable(const InputConsumer& inputConsumer) {
+    bool hasInput;
+    do {
+        // The probablyHasInput() can return false positive under rare circumstances uncontrollable
+        // by the tests. Re-request the availability in this case. Returning |false| for a long
+        // time is not intended, and would cause a test timeout.
+        hasInput = inputConsumer.probablyHasInput();
+    } while (!hasInput);
+}
+
 } // namespace
 
 class InputPublisherAndConsumerTest : public testing::Test {
 protected:
-    std::shared_ptr<InputChannel> mServerChannel, mClientChannel;
     std::unique_ptr<InputPublisher> mPublisher;
     std::unique_ptr<InputConsumer> mConsumer;
     PreallocatedInputEventFactory mEventFactory;
@@ -54,15 +229,15 @@ protected:
         status_t result = InputChannel::openInputChannelPair("channel name",
                 serverChannel, clientChannel);
         ASSERT_EQ(OK, result);
-        mServerChannel = std::move(serverChannel);
-        mClientChannel = std::move(clientChannel);
 
-        mPublisher = std::make_unique<InputPublisher>(mServerChannel);
-        mConsumer = std::make_unique<InputConsumer>(mClientChannel);
+        mPublisher = std::make_unique<InputPublisher>(std::move(serverChannel));
+        mConsumer = std::make_unique<InputConsumer>(std::move(clientChannel));
     }
 
     void publishAndConsumeKeyEvent();
     void publishAndConsumeMotionStream();
+    void publishAndConsumeMotionDown(nsecs_t downTime);
+    void publishAndConsumeBatchedMotionMove(nsecs_t downTime);
     void publishAndConsumeFocusEvent();
     void publishAndConsumeCaptureEvent();
     void publishAndConsumeDragEvent();
@@ -73,24 +248,10 @@ protected:
 private:
     // The sequence number to use when publishing the next event
     uint32_t mSeq = 1;
-
-    void publishAndConsumeMotionEvent(
-            int32_t deviceId, uint32_t source, int32_t displayId, std::array<uint8_t, 32> hmac,
-            int32_t action, int32_t actionButton, int32_t flags, int32_t edgeFlags,
-            int32_t metaState, int32_t buttonState, MotionClassification classification,
-            float xScale, float yScale, float xOffset, float yOffset, float xPrecision,
-            float yPrecision, float xCursorPosition, float yCursorPosition, float rawXScale,
-            float rawYScale, float rawXOffset, float rawYOffset, nsecs_t downTime,
-            nsecs_t eventTime, const std::vector<PointerProperties>& pointerProperties,
-            const std::vector<PointerCoords>& pointerCoords);
 };
 
 TEST_F(InputPublisherAndConsumerTest, GetChannel_ReturnsTheChannel) {
-    ASSERT_NE(nullptr, mPublisher->getChannel());
-    ASSERT_NE(nullptr, mConsumer->getChannel());
-    EXPECT_EQ(mServerChannel.get(), mPublisher->getChannel().get());
-    EXPECT_EQ(mClientChannel.get(), mConsumer->getChannel().get());
-    ASSERT_EQ(mPublisher->getChannel()->getConnectionToken(),
+    ASSERT_EQ(mPublisher->getChannel().getConnectionToken(),
               mConsumer->getChannel()->getConnectionToken());
 }
 
@@ -121,11 +282,14 @@ void InputPublisherAndConsumerTest::publishAndConsumeKeyEvent() {
     ASSERT_EQ(OK, status)
             << "publisher publishKeyEvent should return OK";
 
+    waitUntilInputAvailable(*mConsumer);
     uint32_t consumeSeq;
     InputEvent* event;
     status = mConsumer->consume(&mEventFactory, /*consumeBatches=*/true, -1, &consumeSeq, &event);
     ASSERT_EQ(OK, status)
             << "consumer consume should return OK";
+    EXPECT_FALSE(mConsumer->probablyHasInput())
+            << "no events should be waiting after being consumed";
 
     ASSERT_TRUE(event != nullptr)
             << "consumer should have returned non-NULL event";
@@ -185,176 +349,51 @@ void InputPublisherAndConsumerTest::publishAndConsumeMotionStream() {
                                   Pointer{.id = 2, .x = 300, .y = 400}});
 }
 
-void InputPublisherAndConsumerTest::publishAndConsumeMotionEvent(
-        int32_t action, nsecs_t downTime, const std::vector<Pointer>& pointers) {
-    constexpr int32_t deviceId = 1;
-    constexpr uint32_t source = AINPUT_SOURCE_TOUCHSCREEN;
-    constexpr int32_t displayId = ADISPLAY_ID_DEFAULT;
-    constexpr std::array<uint8_t, 32> hmac = {0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10,
-                                              11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
-                                              22, 23, 24, 25, 26, 27, 28, 29, 30, 31};
-    constexpr int32_t actionButton = 0;
-    int32_t flags = AMOTION_EVENT_FLAG_WINDOW_IS_OBSCURED;
+void InputPublisherAndConsumerTest::publishAndConsumeMotionDown(nsecs_t downTime) {
+    publishAndConsumeMotionEvent(AMOTION_EVENT_ACTION_DOWN, downTime,
+                                 {Pointer{.id = 0, .x = 20, .y = 30}});
+}
 
-    if (action == AMOTION_EVENT_ACTION_CANCEL) {
-        flags |= AMOTION_EVENT_FLAG_CANCELED;
-    }
-    const size_t pointerCount = pointers.size();
-    constexpr int32_t edgeFlags = AMOTION_EVENT_EDGE_FLAG_TOP;
-    constexpr int32_t metaState = AMETA_ALT_LEFT_ON | AMETA_ALT_ON;
-    constexpr int32_t buttonState = AMOTION_EVENT_BUTTON_PRIMARY;
-    constexpr MotionClassification classification = MotionClassification::AMBIGUOUS_GESTURE;
-    constexpr float xScale = 2;
-    constexpr float yScale = 3;
-    constexpr float xOffset = -10;
-    constexpr float yOffset = -20;
-    constexpr float rawXScale = 4;
-    constexpr float rawYScale = -5;
-    constexpr float rawXOffset = -11;
-    constexpr float rawYOffset = 42;
-    constexpr float xPrecision = 0.25;
-    constexpr float yPrecision = 0.5;
-    constexpr float xCursorPosition = 1.3;
-    constexpr float yCursorPosition = 50.6;
+void InputPublisherAndConsumerTest::publishAndConsumeBatchedMotionMove(nsecs_t downTime) {
+    uint32_t seq = mSeq++;
+    const std::vector<Pointer> pointers = {Pointer{.id = 0, .x = 20, .y = 30}};
+    PublishMotionArgs args(AMOTION_EVENT_ACTION_MOVE, downTime, pointers, seq);
+    const nsecs_t publishTime = systemTime(SYSTEM_TIME_MONOTONIC);
+    publishMotionEvent(*mPublisher, args);
 
-    const nsecs_t eventTime = systemTime(SYSTEM_TIME_MONOTONIC);
-    std::vector<PointerProperties> pointerProperties;
-    std::vector<PointerCoords> pointerCoords;
-    for (size_t i = 0; i < pointerCount; i++) {
-        pointerProperties.push_back({});
-        pointerProperties[i].clear();
-        pointerProperties[i].id = pointers[i].id;
-        pointerProperties[i].toolType = ToolType::FINGER;
-
-        pointerCoords.push_back({});
-        pointerCoords[i].clear();
-        pointerCoords[i].isResampled = pointers[i].isResampled;
-        pointerCoords[i].setAxisValue(AMOTION_EVENT_AXIS_X, pointers[i].x);
-        pointerCoords[i].setAxisValue(AMOTION_EVENT_AXIS_Y, pointers[i].y);
-        pointerCoords[i].setAxisValue(AMOTION_EVENT_AXIS_PRESSURE, 0.5 * i);
-        pointerCoords[i].setAxisValue(AMOTION_EVENT_AXIS_SIZE, 0.7 * i);
-        pointerCoords[i].setAxisValue(AMOTION_EVENT_AXIS_TOUCH_MAJOR, 1.5 * i);
-        pointerCoords[i].setAxisValue(AMOTION_EVENT_AXIS_TOUCH_MINOR, 1.7 * i);
-        pointerCoords[i].setAxisValue(AMOTION_EVENT_AXIS_TOOL_MAJOR, 2.5 * i);
-        pointerCoords[i].setAxisValue(AMOTION_EVENT_AXIS_TOOL_MAJOR, 2.7 * i);
-        pointerCoords[i].setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION, 3.5 * i);
-    }
-
-    publishAndConsumeMotionEvent(deviceId, source, displayId, hmac, action, actionButton, flags,
-                                 edgeFlags, metaState, buttonState, classification, xScale, yScale,
-                                 xOffset, yOffset, xPrecision, yPrecision, xCursorPosition,
-                                 yCursorPosition, rawXScale, rawYScale, rawXOffset, rawYOffset,
-                                 downTime, eventTime, pointerProperties, pointerCoords);
+    // Consume leaving a batch behind.
+    uint32_t consumeSeq;
+    InputEvent* event;
+    status_t status = mConsumer->consume(&mEventFactory,
+                                         /*consumeBatches=*/false, -1, &consumeSeq, &event);
+    ASSERT_EQ(WOULD_BLOCK, status)
+            << "consumer consume should return WOULD_BLOCK when a new batch is started";
+    ASSERT_TRUE(mConsumer->hasPendingBatch()) << "consume should have created a batch";
+    EXPECT_TRUE(mConsumer->probablyHasInput())
+            << "should deterministically have input because there is a batch";
+    sendAndVerifyFinishedSignal(*mConsumer, *mPublisher, seq, publishTime);
 }
 
 void InputPublisherAndConsumerTest::publishAndConsumeMotionEvent(
-        int32_t deviceId, uint32_t source, int32_t displayId, std::array<uint8_t, 32> hmac,
-        int32_t action, int32_t actionButton, int32_t flags, int32_t edgeFlags, int32_t metaState,
-        int32_t buttonState, MotionClassification classification, float xScale, float yScale,
-        float xOffset, float yOffset, float xPrecision, float yPrecision, float xCursorPosition,
-        float yCursorPosition, float rawXScale, float rawYScale, float rawXOffset, float rawYOffset,
-        nsecs_t downTime, nsecs_t eventTime,
-        const std::vector<PointerProperties>& pointerProperties,
-        const std::vector<PointerCoords>& pointerCoords) {
-    const uint32_t seq = mSeq++;
-    const int32_t eventId = InputEvent::nextId();
-    ui::Transform transform;
-    transform.set({xScale, 0, xOffset, 0, yScale, yOffset, 0, 0, 1});
-    ui::Transform rawTransform;
-    rawTransform.set({rawXScale, 0, rawXOffset, 0, rawYScale, rawYOffset, 0, 0, 1});
-
-    status_t status;
-    ASSERT_EQ(pointerProperties.size(), pointerCoords.size());
-    const size_t pointerCount = pointerProperties.size();
-    const nsecs_t publishTime = systemTime(SYSTEM_TIME_MONOTONIC);
-    status = mPublisher->publishMotionEvent(seq, eventId, deviceId, source, displayId, hmac, action,
-                                            actionButton, flags, edgeFlags, metaState, buttonState,
-                                            classification, transform, xPrecision, yPrecision,
-                                            xCursorPosition, yCursorPosition, rawTransform,
-                                            downTime, eventTime, pointerCount,
-                                            pointerProperties.data(), pointerCoords.data());
-    ASSERT_EQ(OK, status) << "publisher publishMotionEvent should return OK";
+        int32_t action, nsecs_t downTime, const std::vector<Pointer>& pointers) {
+    uint32_t seq = mSeq++;
+    PublishMotionArgs args(action, downTime, pointers, seq);
+    nsecs_t publishTime = systemTime(SYSTEM_TIME_MONOTONIC);
+    publishMotionEvent(*mPublisher, args);
 
     uint32_t consumeSeq;
     InputEvent* event;
-    status = mConsumer->consume(&mEventFactory, /*consumeBatches=*/true, -1, &consumeSeq, &event);
-    ASSERT_EQ(OK, status)
-            << "consumer consume should return OK";
-
+    status_t status =
+            mConsumer->consume(&mEventFactory, /*consumeBatches=*/true, -1, &consumeSeq, &event);
+    ASSERT_EQ(OK, status) << "consumer consume should return OK";
     ASSERT_TRUE(event != nullptr)
             << "consumer should have returned non-NULL event";
     ASSERT_EQ(InputEventType::MOTION, event->getType())
             << "consumer should have returned a motion event";
-
-    MotionEvent* motionEvent = static_cast<MotionEvent*>(event);
     EXPECT_EQ(seq, consumeSeq);
-    EXPECT_EQ(eventId, motionEvent->getId());
-    EXPECT_EQ(deviceId, motionEvent->getDeviceId());
-    EXPECT_EQ(source, motionEvent->getSource());
-    EXPECT_EQ(displayId, motionEvent->getDisplayId());
-    EXPECT_EQ(hmac, motionEvent->getHmac());
-    EXPECT_EQ(action, motionEvent->getAction());
-    EXPECT_EQ(flags, motionEvent->getFlags());
-    EXPECT_EQ(edgeFlags, motionEvent->getEdgeFlags());
-    EXPECT_EQ(metaState, motionEvent->getMetaState());
-    EXPECT_EQ(buttonState, motionEvent->getButtonState());
-    EXPECT_EQ(classification, motionEvent->getClassification());
-    EXPECT_EQ(transform, motionEvent->getTransform());
-    EXPECT_EQ(xOffset, motionEvent->getXOffset());
-    EXPECT_EQ(yOffset, motionEvent->getYOffset());
-    EXPECT_EQ(xPrecision, motionEvent->getXPrecision());
-    EXPECT_EQ(yPrecision, motionEvent->getYPrecision());
-    EXPECT_NEAR(xCursorPosition, motionEvent->getRawXCursorPosition(), EPSILON);
-    EXPECT_NEAR(yCursorPosition, motionEvent->getRawYCursorPosition(), EPSILON);
-    EXPECT_NEAR(xCursorPosition * xScale + xOffset, motionEvent->getXCursorPosition(), EPSILON);
-    EXPECT_NEAR(yCursorPosition * yScale + yOffset, motionEvent->getYCursorPosition(), EPSILON);
-    EXPECT_EQ(rawTransform, motionEvent->getRawTransform());
-    EXPECT_EQ(downTime, motionEvent->getDownTime());
-    EXPECT_EQ(eventTime, motionEvent->getEventTime());
-    EXPECT_EQ(pointerCount, motionEvent->getPointerCount());
-    EXPECT_EQ(0U, motionEvent->getHistorySize());
 
-    for (size_t i = 0; i < pointerCount; i++) {
-        SCOPED_TRACE(i);
-        EXPECT_EQ(pointerProperties[i].id, motionEvent->getPointerId(i));
-        EXPECT_EQ(pointerProperties[i].toolType, motionEvent->getToolType(i));
-
-        const auto& pc = pointerCoords[i];
-        EXPECT_EQ(pc, motionEvent->getSamplePointerCoords()[i]);
-
-        EXPECT_NEAR(pc.getX() * rawXScale + rawXOffset, motionEvent->getRawX(i), EPSILON);
-        EXPECT_NEAR(pc.getY() * rawYScale + rawYOffset, motionEvent->getRawY(i), EPSILON);
-        EXPECT_NEAR(pc.getX() * xScale + xOffset, motionEvent->getX(i), EPSILON);
-        EXPECT_NEAR(pc.getY() * yScale + yOffset, motionEvent->getY(i), EPSILON);
-        EXPECT_EQ(pc.getAxisValue(AMOTION_EVENT_AXIS_PRESSURE), motionEvent->getPressure(i));
-        EXPECT_EQ(pc.getAxisValue(AMOTION_EVENT_AXIS_SIZE), motionEvent->getSize(i));
-        EXPECT_EQ(pc.getAxisValue(AMOTION_EVENT_AXIS_TOUCH_MAJOR), motionEvent->getTouchMajor(i));
-        EXPECT_EQ(pc.getAxisValue(AMOTION_EVENT_AXIS_TOUCH_MINOR), motionEvent->getTouchMinor(i));
-        EXPECT_EQ(pc.getAxisValue(AMOTION_EVENT_AXIS_TOOL_MAJOR), motionEvent->getToolMajor(i));
-        EXPECT_EQ(pc.getAxisValue(AMOTION_EVENT_AXIS_TOOL_MINOR), motionEvent->getToolMinor(i));
-
-        // Calculate the orientation after scaling, keeping in mind that an orientation of 0 is
-        // "up", and the positive y direction is "down".
-        const float unscaledOrientation = pc.getAxisValue(AMOTION_EVENT_AXIS_ORIENTATION);
-        const float x = sinf(unscaledOrientation) * xScale;
-        const float y = -cosf(unscaledOrientation) * yScale;
-        EXPECT_EQ(atan2f(x, -y), motionEvent->getOrientation(i));
-    }
-
-    status = mConsumer->sendFinishedSignal(seq, false);
-    ASSERT_EQ(OK, status)
-            << "consumer sendFinishedSignal should return OK";
-
-    Result<InputPublisher::ConsumerResponse> result = mPublisher->receiveConsumerResponse();
-    ASSERT_TRUE(result.ok()) << "receiveConsumerResponse should return OK";
-    ASSERT_TRUE(std::holds_alternative<InputPublisher::Finished>(*result));
-    const InputPublisher::Finished& finish = std::get<InputPublisher::Finished>(*result);
-    ASSERT_EQ(seq, finish.seq)
-            << "receiveConsumerResponse should have returned the original sequence number";
-    ASSERT_FALSE(finish.handled)
-            << "receiveConsumerResponse should have set handled to consumer's reply";
-    ASSERT_GE(finish.consumeTime, publishTime)
-            << "finished signal's consume time should be greater than publish time";
+    verifyArgsEqualToEvent(args, static_cast<const MotionEvent&>(*event));
+    sendAndVerifyFinishedSignal(*mConsumer, *mPublisher, seq, publishTime);
 }
 
 void InputPublisherAndConsumerTest::publishAndConsumeFocusEvent() {
@@ -544,6 +583,15 @@ TEST_F(InputPublisherAndConsumerTest, PublishKeyEvent_EndToEnd) {
 
 TEST_F(InputPublisherAndConsumerTest, PublishMotionEvent_EndToEnd) {
     ASSERT_NO_FATAL_FAILURE(publishAndConsumeMotionStream());
+}
+
+TEST_F(InputPublisherAndConsumerTest, PublishMotionMoveEvent_EndToEnd) {
+    // Publish a DOWN event before MOVE to pass the InputVerifier checks.
+    const nsecs_t downTime = systemTime(SYSTEM_TIME_MONOTONIC);
+    ASSERT_NO_FATAL_FAILURE(publishAndConsumeMotionDown(downTime));
+
+    // Publish the MOVE event and check expectations.
+    ASSERT_NO_FATAL_FAILURE(publishAndConsumeBatchedMotionMove(downTime));
 }
 
 TEST_F(InputPublisherAndConsumerTest, PublishFocusEvent_EndToEnd) {

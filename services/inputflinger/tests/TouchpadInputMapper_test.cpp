@@ -37,6 +37,8 @@ constexpr auto ACTION_UP = AMOTION_EVENT_ACTION_UP;
 constexpr auto BUTTON_PRESS = AMOTION_EVENT_ACTION_BUTTON_PRESS;
 constexpr auto BUTTON_RELEASE = AMOTION_EVENT_ACTION_BUTTON_RELEASE;
 constexpr auto HOVER_MOVE = AMOTION_EVENT_ACTION_HOVER_MOVE;
+constexpr auto HOVER_ENTER = AMOTION_EVENT_ACTION_HOVER_ENTER;
+constexpr auto HOVER_EXIT = AMOTION_EVENT_ACTION_HOVER_EXIT;
 constexpr int32_t DISPLAY_ID = 0;
 constexpr int32_t DISPLAY_WIDTH = 480;
 constexpr int32_t DISPLAY_HEIGHT = 800;
@@ -101,14 +103,25 @@ protected:
         setupAxis(ABS_MT_TOUCH_MINOR, /*valid=*/false, /*min=*/0, /*max=*/0, /*resolution=*/0);
         setupAxis(ABS_MT_WIDTH_MAJOR, /*valid=*/false, /*min=*/0, /*max=*/0, /*resolution=*/0);
         setupAxis(ABS_MT_WIDTH_MINOR, /*valid=*/false, /*min=*/0, /*max=*/0, /*resolution=*/0);
+        setupAxis(ABS_MT_TRACKING_ID, /*valid=*/false, /*min=*/0, /*max=*/0, /*resolution=*/0);
+        setupAxis(ABS_MT_DISTANCE, /*valid=*/false, /*min=*/0, /*max=*/0, /*resolution=*/0);
+        setupAxis(ABS_MT_TOOL_TYPE, /*valid=*/false, /*min=*/0, /*max=*/0, /*resolution=*/0);
 
         EXPECT_CALL(mMockEventHub, getAbsoluteAxisValue(EVENTHUB_ID, ABS_MT_SLOT, testing::_))
                 .WillRepeatedly([](int32_t eventHubId, int32_t, int32_t* outValue) {
                     *outValue = 0;
                     return OK;
                 });
-        mMapper = createInputMapper<TouchpadInputMapper>(*mDeviceContext, mReaderConfiguration);
+        EXPECT_CALL(mMockEventHub, getMtSlotValues(EVENTHUB_ID, testing::_, testing::_))
+                .WillRepeatedly([]() -> base::Result<std::vector<int32_t>> {
+                    return base::ResultError("Axis not supported", NAME_NOT_FOUND);
+                });
+        createDevice();
+        mMapper = createInputMapper<TouchpadInputMapper>(*mDeviceContext, mReaderConfiguration,
+                                                         isPointerChoreographerEnabled());
     }
+
+    virtual bool isPointerChoreographerEnabled() { return false; }
 };
 
 class TouchpadInputMapperTest : public TouchpadInputMapperTestBase {
@@ -150,12 +163,14 @@ TEST_F(TouchpadInputMapperTest, HoverAndLeftButtonPress) {
     setScanCodeState(KeyState::UP, {BTN_LEFT});
     args += process(EV_SYN, SYN_REPORT, 0);
     ASSERT_THAT(args,
-                ElementsAre(VariantWith<NotifyMotionArgs>(WithMotionAction(HOVER_MOVE)),
+                ElementsAre(VariantWith<NotifyMotionArgs>(WithMotionAction(HOVER_ENTER)),
+                            VariantWith<NotifyMotionArgs>(WithMotionAction(HOVER_MOVE)),
+                            VariantWith<NotifyMotionArgs>(WithMotionAction(HOVER_EXIT)),
                             VariantWith<NotifyMotionArgs>(WithMotionAction(ACTION_DOWN)),
                             VariantWith<NotifyMotionArgs>(WithMotionAction(BUTTON_PRESS)),
                             VariantWith<NotifyMotionArgs>(WithMotionAction(BUTTON_RELEASE)),
                             VariantWith<NotifyMotionArgs>(WithMotionAction(ACTION_UP)),
-                            VariantWith<NotifyMotionArgs>(WithMotionAction(HOVER_MOVE))));
+                            VariantWith<NotifyMotionArgs>(WithMotionAction(HOVER_ENTER))));
 
     // Liftoff
     args.clear();
@@ -170,10 +185,9 @@ TEST_F(TouchpadInputMapperTest, HoverAndLeftButtonPress) {
 
 class TouchpadInputMapperTestWithChoreographer : public TouchpadInputMapperTestBase {
 protected:
-    void SetUp() override {
-        input_flags::enable_pointer_choreographer(true);
-        TouchpadInputMapperTestBase::SetUp();
-    }
+    void SetUp() override { TouchpadInputMapperTestBase::SetUp(); }
+
+    bool isPointerChoreographerEnabled() override { return true; }
 };
 
 // TODO(b/311416205): De-duplicate the test cases after the refactoring is complete and the flagging
@@ -217,12 +231,14 @@ TEST_F(TouchpadInputMapperTestWithChoreographer, HoverAndLeftButtonPress) {
     setScanCodeState(KeyState::UP, {BTN_LEFT});
     args += process(EV_SYN, SYN_REPORT, 0);
     ASSERT_THAT(args,
-                ElementsAre(VariantWith<NotifyMotionArgs>(WithMotionAction(HOVER_MOVE)),
+                ElementsAre(VariantWith<NotifyMotionArgs>(WithMotionAction(HOVER_ENTER)),
+                            VariantWith<NotifyMotionArgs>(WithMotionAction(HOVER_MOVE)),
+                            VariantWith<NotifyMotionArgs>(WithMotionAction(HOVER_EXIT)),
                             VariantWith<NotifyMotionArgs>(WithMotionAction(ACTION_DOWN)),
                             VariantWith<NotifyMotionArgs>(WithMotionAction(BUTTON_PRESS)),
                             VariantWith<NotifyMotionArgs>(WithMotionAction(BUTTON_RELEASE)),
                             VariantWith<NotifyMotionArgs>(WithMotionAction(ACTION_UP)),
-                            VariantWith<NotifyMotionArgs>(WithMotionAction(HOVER_MOVE))));
+                            VariantWith<NotifyMotionArgs>(WithMotionAction(HOVER_ENTER))));
 
     // Liftoff
     args.clear();

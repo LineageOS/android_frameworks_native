@@ -108,6 +108,8 @@ private:
     // keyed by id as returned from Layer::getSequence()
     using LayerInfos = std::unordered_map<int32_t, LayerPair>;
 
+    std::string dumpGameFrameRateOverridesLocked() const REQUIRES(mLock);
+
     // Iterates over layers maps moving all active layers to mActiveLayerInfos and all inactive
     // layers to mInactiveLayerInfos.
     // worst case time complexity is O(2 * inactive + active)

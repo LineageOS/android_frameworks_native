@@ -21,12 +21,15 @@
 #include <iterator>
 #include <limits>
 #include <map>
+#include <mutex>
 #include <optional>
 
 #include <android-base/stringprintf.h>
+#include <android-base/thread_annotations.h>
 #include <android/input.h>
 #include <com_android_input_flags.h>
 #include <ftl/enum.h>
+#include <input/AccelerationCurve.h>
 #include <input/PrintTools.h>
 #include <linux/input-event-codes.h>
 #include <log/log_main.h>
@@ -44,6 +47,8 @@ namespace android {
 
 namespace {
 
+static const bool ENABLE_POINTER_CHOREOGRAPHER = input_flags::enable_pointer_choreographer();
+
 /**
  * Log details of each gesture output by the gestures library.
  * Enable this via "adb shell setprop log.tag.TouchpadInputMapperGestures DEBUG" (requires
@@ -53,27 +58,10 @@ const bool DEBUG_TOUCHPAD_GESTURES =
         __android_log_is_loggable(ANDROID_LOG_DEBUG, "TouchpadInputMapperGestures",
                                   ANDROID_LOG_INFO);
 
-// Describes a segment of the acceleration curve.
-struct CurveSegment {
-    // The maximum pointer speed which this segment should apply. The last segment in a curve should
-    // always set this to infinity.
-    double maxPointerSpeedMmPerS;
-    double slope;
-    double intercept;
-};
-
-const std::vector<CurveSegment> segments = {
-        {32.002, 3.19, 0},
-        {52.83, 4.79, -51.254},
-        {119.124, 7.28, -182.737},
-        {std::numeric_limits<double>::infinity(), 15.04, -1107.556},
-};
-
-const std::vector<double> sensitivityFactors = {1,  2,  4,  6,  7,  8,  9, 10,
-                                                11, 12, 13, 14, 16, 18, 20};
-
 std::vector<double> createAccelerationCurveForSensitivity(int32_t sensitivity,
                                                           size_t propertySize) {
+    std::vector<AccelerationCurveSegment> segments =
+            createAccelerationCurveForPointerSensitivity(sensitivity);
     LOG_ALWAYS_FATAL_IF(propertySize < 4 * segments.size());
     std::vector<double> output(propertySize, 0);
 
@@ -83,31 +71,23 @@ std::vector<double> createAccelerationCurveForSensitivity(int32_t sensitivity,
     //
     // (a, b, and c are also called sqr_, mul_, and int_ in the Gestures library code.)
     //
-    // We are trying to implement the following function, where slope and intercept are the
-    // parameters specified in the `segments` array above:
-    //     gain(input_speed_mm) =
-    //             0.64 * (sensitivityFactor / 10) * (slope + intercept / input_speed_mm)
+    // createAccelerationCurveForPointerSensitivity gives us parameters for a function of the form:
+    //     gain(input_speed_mm) = baseGain + reciprocal / input_speed_mm
     // Where "gain" is a multiplier applied to the input speed to produce the output speed:
     //     output_speed(input_speed_mm) = input_speed_mm * gain(input_speed_mm)
     //
     // To put our function in the library's form, we substitute it into the function above:
-    //     output_speed(input_speed_mm) =
-    //             input_speed_mm * (0.64 * (sensitivityFactor / 10) *
-    //             (slope + 25.4 * intercept / input_speed_mm))
-    // then expand the brackets so that input_speed_mm cancels out for the intercept term:
-    //     gain(input_speed_mm) =
-    //             0.64 * (sensitivityFactor / 10) * slope * input_speed_mm +
-    //             0.64 * (sensitivityFactor / 10) * intercept
+    //     output_speed(input_speed_mm) = input_speed_mm * (baseGain + reciprocal / input_speed_mm)
+    // then expand the brackets so that input_speed_mm cancels out for the reciprocal term:
+    //     gain(input_speed_mm) = baseGain * input_speed_mm + reciprocal
     //
     // This gives us the following parameters for the Gestures library function form:
     //     a = 0
-    //     b = 0.64 * (sensitivityFactor / 10) * slope
-    //     c = 0.64 * (sensitivityFactor / 10) * intercept
-
-    double commonFactor = 0.64 * sensitivityFactors[sensitivity + 7] / 10;
+    //     b = baseGain
+    //     c = reciprocal
 
     size_t i = 0;
-    for (CurveSegment seg : segments) {
+    for (AccelerationCurveSegment seg : segments) {
         // The library's curve format consists of four doubles per segment:
         // * maximum pointer speed for the segment (mm/s)
         // * multiplier for the x² term (a.k.a. "a" or "sqr")
@@ -116,8 +96,8 @@ std::vector<double> createAccelerationCurveForSensitivity(int32_t sensitivity,
         // (see struct CurveSegment in the library's AccelFilterInterpreter)
         output[i + 0] = seg.maxPointerSpeedMmPerS;
         output[i + 1] = 0;
-        output[i + 2] = commonFactor * seg.slope;
-        output[i + 3] = commonFactor * seg.intercept;
+        output[i + 2] = seg.baseGain;
+        output[i + 3] = seg.reciprocal;
         i += 4;
     }
 
@@ -156,13 +136,20 @@ public:
         return sAccumulator;
     }
 
-    void recordFinger(const TouchpadInputMapper::MetricsIdentifier& id) { mCounters[id].fingers++; }
+    void recordFinger(const TouchpadInputMapper::MetricsIdentifier& id) {
+        std::scoped_lock lock(mLock);
+        mCounters[id].fingers++;
+    }
 
-    void recordPalm(const TouchpadInputMapper::MetricsIdentifier& id) { mCounters[id].palms++; }
+    void recordPalm(const TouchpadInputMapper::MetricsIdentifier& id) {
+        std::scoped_lock lock(mLock);
+        mCounters[id].palms++;
+    }
 
     // Checks whether a Gesture struct is for the end of a gesture that we log metrics for, and
     // records it if so.
     void processGesture(const TouchpadInputMapper::MetricsIdentifier& id, const Gesture& gesture) {
+        std::scoped_lock lock(mLock);
         switch (gesture.type) {
             case kGestureTypeFling:
                 if (gesture.details.fling.fling_state == GESTURES_FLING_START) {
@@ -200,15 +187,20 @@ private:
                                                                  void* cookie) {
         LOG_ALWAYS_FATAL_IF(atomTag != android::util::TOUCHPAD_USAGE);
         MetricsAccumulator& accumulator = MetricsAccumulator::getInstance();
-        accumulator.produceAtoms(outEventList);
-        accumulator.resetCounters();
+        accumulator.produceAtomsAndReset(*outEventList);
         return AStatsManager_PULL_SUCCESS;
     }
 
-    void produceAtoms(AStatsEventList* outEventList) const {
+    void produceAtomsAndReset(AStatsEventList& outEventList) {
+        std::scoped_lock lock(mLock);
+        produceAtomsLocked(outEventList);
+        resetCountersLocked();
+    }
+
+    void produceAtomsLocked(AStatsEventList& outEventList) const REQUIRES(mLock) {
         for (auto& [id, counters] : mCounters) {
             auto [busId, vendorId, productId, versionId] = id;
-            addAStatsEvent(outEventList, android::util::TOUCHPAD_USAGE, vendorId, productId,
+            addAStatsEvent(&outEventList, android::util::TOUCHPAD_USAGE, vendorId, productId,
                            versionId, linuxBusToInputDeviceBusEnum(busId, /*isUsi=*/false),
                            counters.fingers, counters.palms, counters.twoFingerSwipeGestures,
                            counters.threeFingerSwipeGestures, counters.fourFingerSwipeGestures,
@@ -216,7 +208,7 @@ private:
         }
     }
 
-    void resetCounters() { mCounters.clear(); }
+    void resetCountersLocked() REQUIRES(mLock) { mCounters.clear(); }
 
     // Stores the counters for a specific touchpad model. Fields have the same meanings as those of
     // the TouchpadUsage atom; see that definition for detailed documentation.
@@ -232,13 +224,21 @@ private:
 
     // Metrics are aggregated by device model and version, so if two devices of the same model and
     // version are connected at once, they will have the same counters.
-    std::map<TouchpadInputMapper::MetricsIdentifier, Counters> mCounters;
+    std::map<TouchpadInputMapper::MetricsIdentifier, Counters> mCounters GUARDED_BY(mLock);
+
+    // Metrics are pulled by a binder thread, so we need to guard them with a mutex.
+    mutable std::mutex mLock;
 };
 
 } // namespace
 
 TouchpadInputMapper::TouchpadInputMapper(InputDeviceContext& deviceContext,
                                          const InputReaderConfiguration& readerConfig)
+      : TouchpadInputMapper(deviceContext, readerConfig, ENABLE_POINTER_CHOREOGRAPHER) {}
+
+TouchpadInputMapper::TouchpadInputMapper(InputDeviceContext& deviceContext,
+                                         const InputReaderConfiguration& readerConfig,
+                                         bool enablePointerChoreographer)
       : InputMapper(deviceContext, readerConfig),
         mGestureInterpreter(NewGestureInterpreter(), DeleteGestureInterpreter),
         mPointerController(getContext()->getPointerController(getDeviceId())),
@@ -247,7 +247,7 @@ TouchpadInputMapper::TouchpadInputMapper(InputDeviceContext& deviceContext,
         mGestureConverter(*getContext(), deviceContext, getDeviceId()),
         mCapturedEventConverter(*getContext(), deviceContext, mMotionAccumulator, getDeviceId()),
         mMetricsId(metricsIdFromInputDeviceIdentifier(deviceContext.getDeviceIdentifier())),
-        mEnablePointerChoreographer(input_flags::enable_pointer_choreographer()) {
+        mEnablePointerChoreographer(enablePointerChoreographer) {
     RawAbsoluteAxisInfo slotAxisInfo;
     deviceContext.getAbsoluteAxisInfo(ABS_MT_SLOT, &slotAxisInfo);
     if (!slotAxisInfo.valid || slotAxisInfo.maxValue <= 0) {
@@ -382,6 +382,8 @@ std::list<NotifyArgs> TouchpadInputMapper::reconfigure(nsecs_t when,
                     : FloatRect{0, 0, 0, 0};
         }
         mGestureConverter.setBoundsInLogicalDisplay(*boundsInLogicalDisplay);
+
+        bumpGeneration();
     }
     if (!changes.any() || changes.test(InputReaderConfiguration::Change::TOUCHPAD_SETTINGS)) {
         mPropertyProvider.getProperty("Use Custom Touchpad Pointer Accel Curve")
@@ -402,6 +404,8 @@ std::list<NotifyArgs> TouchpadInputMapper::reconfigure(nsecs_t when,
                 .setBoolValues({config.touchpadNaturalScrollingEnabled});
         mPropertyProvider.getProperty("Tap Enable")
                 .setBoolValues({config.touchpadTapToClickEnabled});
+        mPropertyProvider.getProperty("Tap Drag Enable")
+                .setBoolValues({config.touchpadTapDraggingEnabled});
         mPropertyProvider.getProperty("Button Right Click Zone Enable")
                 .setBoolValues({config.touchpadRightClickZoneEnabled});
     }
@@ -448,6 +452,9 @@ void TouchpadInputMapper::resetGestureInterpreter(nsecs_t when) {
 std::list<NotifyArgs> TouchpadInputMapper::process(const RawEvent* rawEvent) {
     if (mPointerCaptured) {
         return mCapturedEventConverter.process(*rawEvent);
+    }
+    if (mMotionAccumulator.getActiveSlotsCount() == 0) {
+        mGestureStartTime = rawEvent->when;
     }
     std::optional<SelfContainedHardwareState> state = mStateConverter.processRawEvent(rawEvent);
     if (state) {
@@ -514,7 +521,7 @@ std::list<NotifyArgs> TouchpadInputMapper::processGestures(nsecs_t when, nsecs_t
     if (mDisplayId) {
         MetricsAccumulator& metricsAccumulator = MetricsAccumulator::getInstance();
         for (Gesture& gesture : mGesturesToProcess) {
-            out += mGestureConverter.handleGesture(when, readTime, gesture);
+            out += mGestureConverter.handleGesture(when, readTime, mGestureStartTime, gesture);
             metricsAccumulator.processGesture(mMetricsId, gesture);
         }
     }

@@ -65,8 +65,9 @@ class MessageQueue {
 public:
     virtual ~MessageQueue() = default;
 
-    virtual void initVsync(std::shared_ptr<scheduler::VSyncDispatch>, frametimeline::TokenManager&,
-                           std::chrono::nanoseconds workDuration) = 0;
+    virtual void initVsyncInternal(std::shared_ptr<scheduler::VSyncDispatch>,
+                                   frametimeline::TokenManager&,
+                                   std::chrono::nanoseconds workDuration) = 0;
     virtual void destroyVsync() = 0;
     virtual void setDuration(std::chrono::nanoseconds workDuration) = 0;
     virtual void waitMessage() = 0;
@@ -75,8 +76,7 @@ public:
     virtual void scheduleConfigure() = 0;
     virtual void scheduleFrame() = 0;
 
-    using Clock = std::chrono::steady_clock;
-    virtual std::optional<Clock::time_point> getScheduledFrameTime() const = 0;
+    virtual std::optional<scheduler::ScheduleResult> getScheduledFrameResult() const = 0;
 };
 
 namespace impl {
@@ -94,7 +94,9 @@ protected:
         explicit Handler(MessageQueue& queue) : mQueue(queue) {}
         void handleMessage(const Message& message) override;
 
-        bool isFramePending() const;
+        virtual TimePoint getExpectedVsyncTime() const { return mExpectedVsyncTime.load(); }
+
+        virtual bool isFramePending() const;
 
         virtual void dispatchFrame(VsyncId, TimePoint expectedVsyncTime);
     };
@@ -123,7 +125,7 @@ private:
         TracedOrdinal<std::chrono::nanoseconds> workDuration
                 GUARDED_BY(mutex) = {"VsyncWorkDuration-sf", std::chrono::nanoseconds(0)};
         TimePoint lastCallbackTime GUARDED_BY(mutex);
-        std::optional<nsecs_t> scheduledFrameTime GUARDED_BY(mutex);
+        std::optional<scheduler::ScheduleResult> scheduledFrameTimeOpt GUARDED_BY(mutex);
         TracedOrdinal<int> value = {"VSYNC-sf", 0};
     };
 
@@ -137,8 +139,8 @@ private:
 public:
     explicit MessageQueue(ICompositor&);
 
-    void initVsync(std::shared_ptr<scheduler::VSyncDispatch>, frametimeline::TokenManager&,
-                   std::chrono::nanoseconds workDuration) override;
+    void initVsyncInternal(std::shared_ptr<scheduler::VSyncDispatch>, frametimeline::TokenManager&,
+                           std::chrono::nanoseconds workDuration) override;
     void destroyVsync() override;
     void setDuration(std::chrono::nanoseconds workDuration) override;
 
@@ -149,7 +151,7 @@ public:
     void scheduleConfigure() override;
     void scheduleFrame() override;
 
-    std::optional<Clock::time_point> getScheduledFrameTime() const override;
+    std::optional<scheduler::ScheduleResult> getScheduledFrameResult() const override;
 };
 
 } // namespace impl

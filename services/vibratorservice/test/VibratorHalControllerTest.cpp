@@ -107,17 +107,38 @@ TEST_F(VibratorHalControllerTest, TestInit) {
     ASSERT_EQ(1, mConnectCounter);
 }
 
-TEST_F(VibratorHalControllerTest, TestGetInfoRetriesOnAnyFailure) {
+TEST_F(VibratorHalControllerTest, TestGetInfoRetriesOnTransactionFailure) {
     EXPECT_CALL(*mMockHal.get(), tryReconnect()).Times(Exactly(1));
     EXPECT_CALL(*mMockHal.get(), getCapabilitiesInternal())
             .Times(Exactly(2))
-            .WillOnce(Return(vibrator::HalResult<vibrator::Capabilities>::failed("message")))
+            .WillOnce(Return(vibrator::HalResult<vibrator::Capabilities>::transactionFailed("msg")))
             .WillRepeatedly(Return(vibrator::HalResult<vibrator::Capabilities>::ok(
                     vibrator::Capabilities::ON_CALLBACK)));
 
     auto result = mController->getInfo();
-    ASSERT_FALSE(result.capabilities.isFailed());
+    ASSERT_TRUE(result.capabilities.isOk());
+    ASSERT_EQ(1, mConnectCounter);
+}
 
+TEST_F(VibratorHalControllerTest, TestGetInfoDoesNotRetryOnOperationFailure) {
+    EXPECT_CALL(*mMockHal.get(), tryReconnect()).Times(Exactly(0));
+    EXPECT_CALL(*mMockHal.get(), getCapabilitiesInternal())
+            .Times(Exactly(1))
+            .WillRepeatedly(Return(vibrator::HalResult<vibrator::Capabilities>::failed("msg")));
+
+    auto result = mController->getInfo();
+    ASSERT_TRUE(result.capabilities.isFailed());
+    ASSERT_EQ(1, mConnectCounter);
+}
+
+TEST_F(VibratorHalControllerTest, TestGetInfoDoesNotRetryOnUnsupported) {
+    EXPECT_CALL(*mMockHal.get(), tryReconnect()).Times(Exactly(0));
+    EXPECT_CALL(*mMockHal.get(), getCapabilitiesInternal())
+            .Times(Exactly(1))
+            .WillRepeatedly(Return(vibrator::HalResult<vibrator::Capabilities>::unsupported()));
+
+    auto result = mController->getInfo();
+    ASSERT_TRUE(result.capabilities.isUnsupported());
     ASSERT_EQ(1, mConnectCounter);
 }
 
@@ -128,47 +149,53 @@ TEST_F(VibratorHalControllerTest, TestApiCallsAreForwardedToHal) {
 
     auto result = mController->doWithRetry<void>(ON_FN, "on");
     ASSERT_TRUE(result.isOk());
-
     ASSERT_EQ(1, mConnectCounter);
 }
 
-TEST_F(VibratorHalControllerTest, TestUnsupportedApiResultDoNotResetHalConnection) {
+TEST_F(VibratorHalControllerTest, TestUnsupportedApiResultDoesNotResetHalConnection) {
+    EXPECT_CALL(*mMockHal.get(), tryReconnect()).Times(Exactly(0));
     EXPECT_CALL(*mMockHal.get(), off())
             .Times(Exactly(1))
             .WillRepeatedly(Return(vibrator::HalResult<void>::unsupported()));
 
-    ASSERT_EQ(0, mConnectCounter);
     auto result = mController->doWithRetry<void>(OFF_FN, "off");
     ASSERT_TRUE(result.isUnsupported());
     ASSERT_EQ(1, mConnectCounter);
 }
 
-TEST_F(VibratorHalControllerTest, TestFailedApiResultResetsHalConnection) {
+TEST_F(VibratorHalControllerTest, TestOperationFailedApiResultDoesNotResetHalConnection) {
+    EXPECT_CALL(*mMockHal.get(), tryReconnect()).Times(Exactly(0));
     EXPECT_CALL(*mMockHal.get(), on(_, _))
-            .Times(Exactly(2))
+            .Times(Exactly(1))
             .WillRepeatedly(Return(vibrator::HalResult<void>::failed("message")));
-    EXPECT_CALL(*mMockHal.get(), tryReconnect()).Times(Exactly(1));
-
-    ASSERT_EQ(0, mConnectCounter);
 
     auto result = mController->doWithRetry<void>(ON_FN, "on");
     ASSERT_TRUE(result.isFailed());
     ASSERT_EQ(1, mConnectCounter);
 }
 
-TEST_F(VibratorHalControllerTest, TestFailedApiResultReturnsSuccessAfterRetries) {
+TEST_F(VibratorHalControllerTest, TestTransactionFailedApiResultResetsHalConnection) {
+    EXPECT_CALL(*mMockHal.get(), tryReconnect()).Times(Exactly(1));
+    EXPECT_CALL(*mMockHal.get(), on(_, _))
+            .Times(Exactly(2))
+            .WillRepeatedly(Return(vibrator::HalResult<void>::transactionFailed("message")));
+
+    auto result = mController->doWithRetry<void>(ON_FN, "on");
+    ASSERT_TRUE(result.isFailed());
+    ASSERT_EQ(1, mConnectCounter);
+}
+
+TEST_F(VibratorHalControllerTest, TestTransactionFailedApiResultReturnsSuccessAfterRetries) {
     {
         InSequence seq;
         EXPECT_CALL(*mMockHal.get(), ping())
                 .Times(Exactly(1))
-                .WillRepeatedly(Return(vibrator::HalResult<void>::failed("message")));
+                .WillRepeatedly(Return(vibrator::HalResult<void>::transactionFailed("message")));
         EXPECT_CALL(*mMockHal.get(), tryReconnect()).Times(Exactly(1));
         EXPECT_CALL(*mMockHal.get(), ping())
                 .Times(Exactly(1))
                 .WillRepeatedly(Return(vibrator::HalResult<void>::ok()));
     }
-
-    ASSERT_EQ(0, mConnectCounter);
 
     auto result = mController->doWithRetry<void>(PING_FN, "ping");
     ASSERT_TRUE(result.isOk());
@@ -221,11 +248,11 @@ TEST_F(VibratorHalControllerTest, TestScheduledCallbackSurvivesReconnection) {
                 });
         EXPECT_CALL(*mMockHal.get(), ping())
                 .Times(Exactly(1))
-                .WillRepeatedly(Return(vibrator::HalResult<void>::failed("message")));
+                .WillRepeatedly(Return(vibrator::HalResult<void>::transactionFailed("message")));
         EXPECT_CALL(*mMockHal.get(), tryReconnect()).Times(Exactly(1));
         EXPECT_CALL(*mMockHal.get(), ping())
                 .Times(Exactly(1))
-                .WillRepeatedly(Return(vibrator::HalResult<void>::failed("message")));
+                .WillRepeatedly(Return(vibrator::HalResult<void>::transactionFailed("message")));
     }
 
     std::unique_ptr<int32_t> callbackCounter = std::make_unique<int32_t>();

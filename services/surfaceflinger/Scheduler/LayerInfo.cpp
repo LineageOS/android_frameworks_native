@@ -62,6 +62,10 @@ void LayerInfo::setLastPresentTime(nsecs_t lastPresentTime, nsecs_t now, LayerUp
             mLastAnimationTime = std::max(lastPresentTime, now);
             break;
         case LayerUpdateType::SetFrameRate:
+            if (FlagManager::getInstance().vrr_config()) {
+                break;
+            }
+            FALLTHROUGH_INTENDED;
         case LayerUpdateType::Buffer:
             FrameTimeData frameTime = {.presentTime = lastPresentTime,
                                        .queueTime = mLastUpdatedTime,
@@ -323,7 +327,8 @@ LayerInfo::RefreshRateVotes LayerInfo::getRefreshRateVote(const RefreshRateSelec
             mLayerVote.type != LayerHistory::LayerVoteType::ExplicitDefault) {
             ATRACE_FORMAT_INSTANT("Vote %s", ftl::enum_string(mLayerVote.type).c_str());
             ALOGV("%s voted %d", mName.c_str(), static_cast<int>(mLayerVote.type));
-            votes.push_back(mLayerVote);
+            votes.push_back({mLayerVote.type, mLayerVote.fps, mLayerVote.seamlessness,
+                             FrameRateCategory::Default, mLayerVote.categorySmoothSwitchOnly});
         }
 
         return votes;
@@ -528,6 +533,8 @@ FrameRateCategory LayerInfo::FrameRate::convertCategory(int8_t category) {
             return FrameRateCategory::Low;
         case ANATIVEWINDOW_FRAME_RATE_CATEGORY_NORMAL:
             return FrameRateCategory::Normal;
+        case ANATIVEWINDOW_FRAME_RATE_CATEGORY_HIGH_HINT:
+            return FrameRateCategory::HighHint;
         case ANATIVEWINDOW_FRAME_RATE_CATEGORY_HIGH:
             return FrameRateCategory::High;
         default:

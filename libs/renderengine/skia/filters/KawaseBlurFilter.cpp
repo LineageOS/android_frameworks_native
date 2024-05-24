@@ -111,7 +111,7 @@ sk_sp<SkImage> KawaseBlurFilter::generate(GrRecordingContext* context,
     constexpr int kSampleCount = 1;
     constexpr bool kMipmapped = false;
     constexpr SkSurfaceProps* kProps = nullptr;
-    sk_sp<SkSurface> surface = SkSurfaces::RenderTarget(context, skgpu::Budgeted::kYes, scaledInfo,
+    sk_sp<SkSurface> surface = SkSurfaces::RenderTarget(context, skgpu::Budgeted::kNo, scaledInfo,
                                                         kSampleCount, kTopLeft_GrSurfaceOrigin,
                                                         kProps, kMipmapped, input->isProtected());
     LOG_ALWAYS_FATAL_IF(!surface, "%s: Failed to create surface for blurring!", __func__);

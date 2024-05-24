@@ -22,4 +22,8 @@ package com.android.server.inputflinger;
 parcelable InputFilterConfiguration {
     // Threshold value for Bounce keys filter (check bounce_keys_filter.rs)
     long bounceKeysThresholdNs;
+    // If sticky keys filter is enabled (check sticky_keys_filter.rs)
+    boolean stickyKeysEnabled;
+    // Threshold value for Slow keys filter (check slow_keys_filter.rs)
+    long slowKeysThresholdNs;
 }

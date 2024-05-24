@@ -340,8 +340,9 @@ void Hal::UnloadBuiltinDriver() {
     ALOGD("Unload builtin Vulkan driver.");
 
     // Close the opened device
-    ALOG_ASSERT(!hal_.dev_->common.close(hal_.dev_->common),
-                "hw_device_t::close() failed.");
+    int err = hal_.dev_->common.close(
+        const_cast<struct hw_device_t*>(&hal_.dev_->common));
+    ALOG_ASSERT(!err, "hw_device_t::close() failed.");
 
     // Close the opened shared library in the hw_module_t
     android_unload_sphal_library(hal_.dev_->common.module->dso);

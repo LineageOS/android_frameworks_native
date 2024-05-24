@@ -26,9 +26,20 @@ namespace android {
 
 namespace inputdispatcher {
 
+namespace {
+
+bool hasPointerId(const std::vector<PointerProperties>& pointers, int32_t pointerId) {
+    return std::find_if(pointers.begin(), pointers.end(),
+                        [&pointerId](const PointerProperties& properties) {
+                            return properties.id == pointerId;
+                        }) != pointers.end();
+}
+
+} // namespace
+
 bool TouchedWindow::hasHoveringPointers() const {
     for (const auto& [_, state] : mDeviceStates) {
-        if (state.hoveringPointerIds.any()) {
+        if (!state.hoveringPointers.empty()) {
             return true;
         }
     }
@@ -42,7 +53,7 @@ bool TouchedWindow::hasHoveringPointers(DeviceId deviceId) const {
     }
     const DeviceState& state = stateIt->second;
 
-    return state.hoveringPointerIds.any();
+    return !state.hoveringPointers.empty();
 }
 
 void TouchedWindow::clearHoveringPointers(DeviceId deviceId) {
@@ -51,7 +62,7 @@ void TouchedWindow::clearHoveringPointers(DeviceId deviceId) {
         return;
     }
     DeviceState& state = stateIt->second;
-    state.hoveringPointerIds.reset();
+    state.hoveringPointers.clear();
     if (!state.hasPointers()) {
         mDeviceStates.erase(stateIt);
     }
@@ -63,22 +74,40 @@ bool TouchedWindow::hasHoveringPointer(DeviceId deviceId, int32_t pointerId) con
         return false;
     }
     const DeviceState& state = stateIt->second;
-
-    return state.hoveringPointerIds.test(pointerId);
+    return hasPointerId(state.hoveringPointers, pointerId);
 }
 
-void TouchedWindow::addHoveringPointer(DeviceId deviceId, int32_t pointerId) {
-    mDeviceStates[deviceId].hoveringPointerIds.set(pointerId);
+void TouchedWindow::addHoveringPointer(DeviceId deviceId, const PointerProperties& pointer) {
+    std::vector<PointerProperties>& hoveringPointers = mDeviceStates[deviceId].hoveringPointers;
+    const size_t initialSize = hoveringPointers.size();
+    std::erase_if(hoveringPointers, [&pointer](const PointerProperties& properties) {
+        return properties.id == pointer.id;
+    });
+    if (hoveringPointers.size() != initialSize) {
+        LOG(ERROR) << __func__ << ": " << pointer << ", device " << deviceId << " was in " << *this;
+    }
+    hoveringPointers.push_back(pointer);
 }
 
 void TouchedWindow::addTouchingPointers(DeviceId deviceId,
-                                        std::bitset<MAX_POINTER_ID + 1> pointers) {
-    mDeviceStates[deviceId].touchingPointerIds |= pointers;
+                                        const std::vector<PointerProperties>& pointers) {
+    std::vector<PointerProperties>& touchingPointers = mDeviceStates[deviceId].touchingPointers;
+    const size_t initialSize = touchingPointers.size();
+    for (const PointerProperties& pointer : pointers) {
+        std::erase_if(touchingPointers, [&pointer](const PointerProperties& properties) {
+            return properties.id == pointer.id;
+        });
+    }
+    if (touchingPointers.size() != initialSize) {
+        LOG(ERROR) << __func__ << ": " << dumpVector(pointers, streamableToString) << ", device "
+                   << deviceId << " already in " << *this;
+    }
+    touchingPointers.insert(touchingPointers.end(), pointers.begin(), pointers.end());
 }
 
 bool TouchedWindow::hasTouchingPointers() const {
     for (const auto& [_, state] : mDeviceStates) {
-        if (state.touchingPointerIds.any()) {
+        if (!state.touchingPointers.empty()) {
             return true;
         }
     }
@@ -86,21 +115,25 @@ bool TouchedWindow::hasTouchingPointers() const {
 }
 
 bool TouchedWindow::hasTouchingPointers(DeviceId deviceId) const {
-    return getTouchingPointers(deviceId).any();
+    return !getTouchingPointers(deviceId).empty();
 }
 
 bool TouchedWindow::hasTouchingPointer(DeviceId deviceId, int32_t pointerId) const {
-    return getTouchingPointers(deviceId).test(pointerId);
+    const auto stateIt = mDeviceStates.find(deviceId);
+    if (stateIt == mDeviceStates.end()) {
+        return false;
+    }
+    const DeviceState& state = stateIt->second;
+    return hasPointerId(state.touchingPointers, pointerId);
 }
 
-std::bitset<MAX_POINTER_ID + 1> TouchedWindow::getTouchingPointers(DeviceId deviceId) const {
+std::vector<PointerProperties> TouchedWindow::getTouchingPointers(DeviceId deviceId) const {
     const auto stateIt = mDeviceStates.find(deviceId);
     if (stateIt == mDeviceStates.end()) {
         return {};
     }
     const DeviceState& state = stateIt->second;
-
-    return state.touchingPointerIds;
+    return state.touchingPointers;
 }
 
 void TouchedWindow::removeTouchingPointer(DeviceId deviceId, int32_t pointerId) {
@@ -118,7 +151,10 @@ void TouchedWindow::removeTouchingPointers(DeviceId deviceId,
     }
     DeviceState& state = stateIt->second;
 
-    state.touchingPointerIds &= ~pointers;
+    std::erase_if(state.touchingPointers, [&pointers](const PointerProperties& properties) {
+        return pointers.test(properties.id);
+    });
+
     state.pilferingPointerIds &= ~pointers;
 
     if (!state.hasPointers()) {
@@ -126,10 +162,26 @@ void TouchedWindow::removeTouchingPointers(DeviceId deviceId,
     }
 }
 
+bool TouchedWindow::hasActiveStylus() const {
+    for (const auto& [_, state] : mDeviceStates) {
+        for (const PointerProperties& properties : state.touchingPointers) {
+            if (properties.toolType == ToolType::STYLUS) {
+                return true;
+            }
+        }
+        for (const PointerProperties& properties : state.hoveringPointers) {
+            if (properties.toolType == ToolType::STYLUS) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 std::set<DeviceId> TouchedWindow::getTouchingDeviceIds() const {
     std::set<DeviceId> deviceIds;
     for (const auto& [deviceId, deviceState] : mDeviceStates) {
-        if (deviceState.touchingPointerIds.any()) {
+        if (!deviceState.touchingPointers.empty()) {
             deviceIds.insert(deviceId);
         }
     }
@@ -198,7 +250,7 @@ void TouchedWindow::removeAllTouchingPointersForDevice(DeviceId deviceId) {
     }
     DeviceState& state = stateIt->second;
 
-    state.touchingPointerIds.reset();
+    state.touchingPointers.clear();
     state.pilferingPointerIds.reset();
     state.downTimeInTarget.reset();
 
@@ -214,7 +266,9 @@ void TouchedWindow::removeHoveringPointer(DeviceId deviceId, int32_t pointerId) 
     }
     DeviceState& state = stateIt->second;
 
-    state.hoveringPointerIds.set(pointerId, false);
+    std::erase_if(state.hoveringPointers, [&pointerId](const PointerProperties& properties) {
+        return properties.id == pointerId;
+    });
 
     if (!state.hasPointers()) {
         mDeviceStates.erase(stateIt);
@@ -228,7 +282,7 @@ void TouchedWindow::removeAllHoveringPointersForDevice(DeviceId deviceId) {
     }
     DeviceState& state = stateIt->second;
 
-    state.hoveringPointerIds.reset();
+    state.hoveringPointers.clear();
 
     if (!state.hasPointers()) {
         mDeviceStates.erase(stateIt);
@@ -236,11 +290,11 @@ void TouchedWindow::removeAllHoveringPointersForDevice(DeviceId deviceId) {
 }
 
 std::string TouchedWindow::deviceStateToString(const TouchedWindow::DeviceState& state) {
-    return StringPrintf("[touchingPointerIds=%s, "
-                        "downTimeInTarget=%s, hoveringPointerIds=%s, pilferingPointerIds=%s]",
-                        bitsetToString(state.touchingPointerIds).c_str(),
+    return StringPrintf("[touchingPointers=%s, "
+                        "downTimeInTarget=%s, hoveringPointers=%s, pilferingPointerIds=%s]",
+                        dumpVector(state.touchingPointers, streamableToString).c_str(),
                         toString(state.downTimeInTarget).c_str(),
-                        bitsetToString(state.hoveringPointerIds).c_str(),
+                        dumpVector(state.hoveringPointers, streamableToString).c_str(),
                         bitsetToString(state.pilferingPointerIds).c_str());
 }
 

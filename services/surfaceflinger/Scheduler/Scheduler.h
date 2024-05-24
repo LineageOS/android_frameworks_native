@@ -56,55 +56,38 @@
 
 #include <FrontEnd/LayerHierarchy.h>
 
-namespace android::scheduler {
-
-// Opaque handle to scheduler connection.
-struct ConnectionHandle {
-    using Id = std::uintptr_t;
-    static constexpr Id INVALID_ID = static_cast<Id>(-1);
-
-    Id id = INVALID_ID;
-
-    explicit operator bool() const { return id != INVALID_ID; }
-};
-
-inline bool operator==(ConnectionHandle lhs, ConnectionHandle rhs) {
-    return lhs.id == rhs.id;
-}
-
-} // namespace android::scheduler
-
-namespace std {
-
-template <>
-struct hash<android::scheduler::ConnectionHandle> {
-    size_t operator()(android::scheduler::ConnectionHandle handle) const {
-        return hash<android::scheduler::ConnectionHandle::Id>()(handle.id);
-    }
-};
-
-} // namespace std
-
 namespace android {
 
 class FenceTime;
+class TimeStats;
 
 namespace frametimeline {
 class TokenManager;
 } // namespace frametimeline
 
+namespace surfaceflinger {
+class Factory;
+} // namespace surfaceflinger
+
 namespace scheduler {
 
 using GlobalSignals = RefreshRateSelector::GlobalSignals;
 
+class RefreshRateStats;
+class VsyncConfiguration;
 class VsyncSchedule;
+
+enum class Cycle {
+    Render,       // Surface rendering.
+    LastComposite // Ahead of display compositing by one refresh period.
+};
 
 class Scheduler : public IEventThreadCallback, android::impl::MessageQueue {
     using Impl = android::impl::MessageQueue;
 
 public:
-    Scheduler(ICompositor&, ISchedulerCallback&, FeatureFlags, sp<VsyncModulator>,
-              IVsyncTrackerCallback&);
+    Scheduler(ICompositor&, ISchedulerCallback&, FeatureFlags, surfaceflinger::Factory&,
+              Fps activeRefreshRate, TimeStats&);
     virtual ~Scheduler();
 
     void startTimers();
@@ -124,11 +107,11 @@ public:
 
     void run();
 
-    using Impl::initVsync;
+    void initVsync(frametimeline::TokenManager&, std::chrono::nanoseconds workDuration);
 
-    using Impl::getScheduledFrameTime;
     using Impl::setDuration;
 
+    using Impl::getScheduledFrameResult;
     using Impl::scheduleConfigure;
     using Impl::scheduleFrame;
 
@@ -147,34 +130,34 @@ public:
         return std::move(future);
     }
 
-    enum class Cycle {
-        Render,       // Surface rendering.
-        LastComposite // Ahead of display compositing by one refresh period.
-    };
-
-    ConnectionHandle createEventThread(Cycle, frametimeline::TokenManager*,
-                                       std::chrono::nanoseconds workDuration,
-                                       std::chrono::nanoseconds readyDuration);
+    void createEventThread(Cycle, frametimeline::TokenManager*,
+                           std::chrono::nanoseconds workDuration,
+                           std::chrono::nanoseconds readyDuration);
 
     sp<IDisplayEventConnection> createDisplayEventConnection(
-            ConnectionHandle, EventRegistrationFlags eventRegistration = {},
+            Cycle, EventRegistrationFlags eventRegistration = {},
             const sp<IBinder>& layerHandle = nullptr) EXCLUDES(mChoreographerLock);
 
-    sp<EventThreadConnection> getEventConnection(ConnectionHandle);
+    const sp<EventThreadConnection>& getEventConnection(Cycle cycle) const {
+        return cycle == Cycle::Render ? mRenderEventConnection : mLastCompositeEventConnection;
+    }
 
-    void onHotplugReceived(ConnectionHandle, PhysicalDisplayId, bool connected);
-    void onHotplugConnectionError(ConnectionHandle, int32_t errorCode);
+    enum class Hotplug { Connected, Disconnected };
+    void dispatchHotplug(PhysicalDisplayId, Hotplug);
 
-    void onPrimaryDisplayModeChanged(ConnectionHandle, const FrameRateMode&) EXCLUDES(mPolicyLock);
-    void onNonPrimaryDisplayModeChanged(ConnectionHandle, const FrameRateMode&);
+    void dispatchHotplugError(int32_t errorCode);
+
+    void onPrimaryDisplayModeChanged(Cycle, const FrameRateMode&) EXCLUDES(mPolicyLock);
+    void onNonPrimaryDisplayModeChanged(Cycle, const FrameRateMode&);
 
     void enableSyntheticVsync(bool = true) REQUIRES(kMainThreadContext);
 
-    void onFrameRateOverridesChanged(ConnectionHandle, PhysicalDisplayId)
-            EXCLUDES(mConnectionsLock);
+    void onFrameRateOverridesChanged(Cycle, PhysicalDisplayId);
+
+    void onHdcpLevelsChanged(Cycle, PhysicalDisplayId, int32_t, int32_t);
 
     // Modifies work duration in the event thread.
-    void setDuration(ConnectionHandle, std::chrono::nanoseconds workDuration,
+    void setDuration(Cycle, std::chrono::nanoseconds workDuration,
                      std::chrono::nanoseconds readyDuration);
 
     VsyncModulator& vsyncModulator() { return *mVsyncModulator; }
@@ -199,7 +182,10 @@ public:
         }
     }
 
-    void setVsyncConfigSet(const VsyncConfigSet&, Period vsyncPeriod);
+    void updatePhaseConfiguration(Fps);
+    void resetPhaseConfiguration(Fps) REQUIRES(kMainThreadContext);
+
+    const VsyncConfiguration& getVsyncConfiguration() const { return *mVsyncConfiguration; }
 
     // Sets the render rate for the scheduler to run at.
     void setRenderRate(PhysicalDisplayId, Fps);
@@ -247,8 +233,10 @@ public:
     // Indicates that touch interaction is taking place.
     void onTouchHint();
 
-    void setDisplayPowerMode(PhysicalDisplayId, hal::PowerMode powerMode)
-            REQUIRES(kMainThreadContext);
+    void setDisplayPowerMode(PhysicalDisplayId, hal::PowerMode) REQUIRES(kMainThreadContext);
+
+    // TODO(b/255635821): Track this per display.
+    void setActiveDisplayPowerModeForRefreshRateStats(hal::PowerMode) REQUIRES(kMainThreadContext);
 
     ConstVsyncSchedulePtr getVsyncSchedule(std::optional<PhysicalDisplayId> = std::nullopt) const
             EXCLUDES(mDisplayLock);
@@ -274,7 +262,7 @@ public:
     bool isVsyncInPhase(TimePoint expectedVsyncTime, Fps frameRate) const;
 
     void dump(utils::Dumper&) const;
-    void dump(ConnectionHandle, std::string&) const;
+    void dump(Cycle, std::string&) const;
     void dumpVsync(std::string&) const EXCLUDES(mDisplayLock);
 
     // Returns the preferred refresh rate and frame rate for the pacesetter display.
@@ -355,8 +343,15 @@ private:
     void onFrameSignal(ICompositor&, VsyncId, TimePoint expectedVsyncTime) override
             REQUIRES(kMainThreadContext, mDisplayLock);
 
-    // Create a connection on the given EventThread.
-    ConnectionHandle createConnection(std::unique_ptr<EventThread>);
+    // Used to skip event dispatch before EventThread creation during boot.
+    // TODO: b/241285191 - Reorder Scheduler initialization to avoid this.
+    bool hasEventThreads() const {
+        return CC_LIKELY(mRenderEventThread && mLastCompositeEventThread);
+    }
+
+    EventThread& eventThreadFor(Cycle cycle) const {
+        return *(cycle == Cycle::Render ? mRenderEventThread : mLastCompositeEventThread);
+    }
 
     // Update feature state machine to given state when corresponding timer resets or expires.
     void kernelIdleTimerCallback(TimerState) EXCLUDES(mDisplayLock);
@@ -444,26 +439,25 @@ private:
     bool throttleVsync(TimePoint, uid_t) override;
     Period getVsyncPeriod(uid_t) override EXCLUDES(mDisplayLock);
     void resync() override EXCLUDES(mDisplayLock);
+    void onExpectedPresentTimePosted(TimePoint expectedPresentTime) override EXCLUDES(mDisplayLock);
 
-    // Stores EventThread associated with a given VSyncSource, and an initial EventThreadConnection.
-    struct Connection {
-        sp<EventThreadConnection> connection;
-        std::unique_ptr<EventThread> thread;
-    };
+    std::unique_ptr<EventThread> mRenderEventThread;
+    sp<EventThreadConnection> mRenderEventConnection;
 
-    ConnectionHandle::Id mNextConnectionHandleId = 0;
-    mutable std::mutex mConnectionsLock;
-    std::unordered_map<ConnectionHandle, Connection> mConnections GUARDED_BY(mConnectionsLock);
-
-    ConnectionHandle mAppConnectionHandle;
-    ConnectionHandle mSfConnectionHandle;
+    std::unique_ptr<EventThread> mLastCompositeEventThread;
+    sp<EventThreadConnection> mLastCompositeEventConnection;
 
     std::atomic<nsecs_t> mLastResyncTime = 0;
 
     const FeatureFlags mFeatures;
 
+    // Stores phase offsets configured per refresh rate.
+    const std::unique_ptr<VsyncConfiguration> mVsyncConfiguration;
+
     // Shifts the VSYNC phase during certain transactions and refresh rate changes.
     const sp<VsyncModulator> mVsyncModulator;
+
+    const std::unique_ptr<RefreshRateStats> mRefreshRateStats;
 
     // Used to choose refresh rate if content detection is enabled.
     LayerHistory mLayerHistory;
@@ -477,8 +471,6 @@ private:
     float mPacesetterFrameDurationFractionToSkip GUARDED_BY(kMainThreadContext) = 0.f;
 
     ISchedulerCallback& mSchedulerCallback;
-
-    IVsyncTrackerCallback& mVsyncTrackerCallback;
 
     // mDisplayLock may be locked while under mPolicyLock.
     mutable std::mutex mPolicyLock;
@@ -495,9 +487,7 @@ private:
               : displayId(displayId),
                 selectorPtr(std::move(selectorPtr)),
                 schedulePtr(std::move(schedulePtr)),
-                targeterPtr(std::make_unique<
-                            FrameTargeter>(displayId,
-                                           features.test(Feature::kBackpressureGpuComposition))) {}
+                targeterPtr(std::make_unique<FrameTargeter>(displayId, features)) {}
 
         const PhysicalDisplayId displayId;
 
@@ -569,7 +559,7 @@ private:
         ftl::Optional<FrameRateMode> modeOpt;
 
         struct ModeChangedParams {
-            ConnectionHandle handle;
+            Cycle cycle;
             FrameRateMode mode;
         };
 

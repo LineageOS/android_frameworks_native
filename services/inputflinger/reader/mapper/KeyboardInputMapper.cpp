@@ -20,6 +20,7 @@
 
 #include "KeyboardInputMapper.h"
 
+#include <ftl/enum.h>
 #include <ui/Rotation.h>
 
 namespace android {
@@ -59,6 +60,36 @@ static bool isSupportedScanCode(int32_t scanCode) {
     return scanCode < BTN_MOUSE || (scanCode >= BTN_JOYSTICK && scanCode < BTN_DIGI) ||
             scanCode == BTN_STYLUS || scanCode == BTN_STYLUS2 || scanCode == BTN_STYLUS3 ||
             scanCode >= BTN_WHEEL;
+}
+
+static bool isMediaKey(int32_t keyCode) {
+    switch (keyCode) {
+        case AKEYCODE_MEDIA_PLAY:
+        case AKEYCODE_MEDIA_PAUSE:
+        case AKEYCODE_MEDIA_PLAY_PAUSE:
+        case AKEYCODE_MUTE:
+        case AKEYCODE_HEADSETHOOK:
+        case AKEYCODE_MEDIA_STOP:
+        case AKEYCODE_MEDIA_NEXT:
+        case AKEYCODE_MEDIA_PREVIOUS:
+        case AKEYCODE_MEDIA_REWIND:
+        case AKEYCODE_MEDIA_RECORD:
+        case AKEYCODE_MEDIA_FAST_FORWARD:
+        case AKEYCODE_MEDIA_SKIP_FORWARD:
+        case AKEYCODE_MEDIA_SKIP_BACKWARD:
+        case AKEYCODE_MEDIA_STEP_FORWARD:
+        case AKEYCODE_MEDIA_STEP_BACKWARD:
+        case AKEYCODE_MEDIA_AUDIO_TRACK:
+        case AKEYCODE_VOLUME_UP:
+        case AKEYCODE_VOLUME_DOWN:
+        case AKEYCODE_VOLUME_MUTE:
+        case AKEYCODE_TV_AUDIO_DESCRIPTION:
+        case AKEYCODE_TV_AUDIO_DESCRIPTION_MIX_UP:
+        case AKEYCODE_TV_AUDIO_DESCRIPTION_MIX_DOWN:
+            return true;
+        default:
+            return false;
+    }
 }
 
 // --- KeyboardInputMapper ---
@@ -113,7 +144,7 @@ void KeyboardInputMapper::dump(std::string& dump) {
     dump += INDENT2 "Keyboard Input Mapper:\n";
     dumpParameters(dump);
     dump += StringPrintf(INDENT3 "KeyboardType: %d\n", mKeyboardType);
-    dump += StringPrintf(INDENT3 "Orientation: %d\n", getOrientation());
+    dump += StringPrintf(INDENT3 "Orientation: %s\n", ftl::enum_string(getOrientation()).c_str());
     dump += StringPrintf(INDENT3 "KeyDowns: %zu keys currently down\n", mKeyDowns.size());
     dump += StringPrintf(INDENT3 "MetaState: 0x%0x\n", mMetaState);
     dump += INDENT3 "KeyboardLayoutInfo: ";
@@ -301,7 +332,8 @@ std::list<NotifyArgs> KeyboardInputMapper::processKey(nsecs_t when, nsecs_t read
     // For internal keyboards and devices for which the default wake behavior is explicitly
     // prevented (e.g. TV remotes), the key layout file should specify the policy flags for each
     // wake key individually.
-    if (down && getDeviceContext().isExternal() && !mParameters.doNotWakeByDefault) {
+    if (down && getDeviceContext().isExternal() && !mParameters.doNotWakeByDefault &&
+        !(mKeyboardType != AINPUT_KEYBOARD_TYPE_ALPHABETIC && isMediaKey(keyCode))) {
         policyFlags |= POLICY_FLAG_WAKE;
     }
 

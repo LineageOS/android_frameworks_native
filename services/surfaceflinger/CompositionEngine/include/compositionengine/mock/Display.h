@@ -33,6 +33,7 @@ public:
 
     MOCK_CONST_METHOD0(getId, DisplayId());
     MOCK_CONST_METHOD0(isSecure, bool());
+    MOCK_METHOD1(setSecure, void(bool));
     MOCK_CONST_METHOD0(isVirtual, bool());
     MOCK_CONST_METHOD0(getPreferredBootHwcConfigId, int32_t());
 

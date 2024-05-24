@@ -57,13 +57,13 @@ class VsyncSchedule final : public IVsyncSource {
 public:
     using RequestHardwareVsync = std::function<void(PhysicalDisplayId, bool enabled)>;
 
-    VsyncSchedule(ftl::NonNull<DisplayModePtr> modePtr, FeatureFlags, RequestHardwareVsync,
-                  IVsyncTrackerCallback&);
+    VsyncSchedule(ftl::NonNull<DisplayModePtr> modePtr, FeatureFlags, RequestHardwareVsync);
     ~VsyncSchedule();
 
     // IVsyncSource overrides:
     Period period() const override;
-    TimePoint vsyncDeadlineAfter(TimePoint) const override;
+    TimePoint vsyncDeadlineAfter(TimePoint,
+                                 ftl::Optional<TimePoint> lastVsyncOpt = {}) const override;
     Period minFramePeriod() const override;
 
     // Inform the schedule that the display mode changed the schedule needs to recalibrate
@@ -81,7 +81,7 @@ public:
     bool addResyncSample(TimePoint timestamp, ftl::Optional<Period> hwcVsyncPeriod);
 
     // TODO(b/185535769): Hide behind API.
-    const VsyncTracker& getTracker() const { return *mTracker; }
+    VsyncTracker& getTracker() const { return *mTracker; }
     VsyncTracker& getTracker() { return *mTracker; }
     VsyncController& getController() { return *mController; }
 
@@ -127,7 +127,7 @@ private:
     friend class android::VsyncScheduleTest;
     friend class android::fuzz::SchedulerFuzzer;
 
-    static TrackerPtr createTracker(ftl::NonNull<DisplayModePtr> modePtr, IVsyncTrackerCallback&);
+    static TrackerPtr createTracker(ftl::NonNull<DisplayModePtr> modePtr);
     static DispatchPtr createDispatch(TrackerPtr);
     static ControllerPtr createController(PhysicalDisplayId, VsyncTracker&, FeatureFlags);
 
