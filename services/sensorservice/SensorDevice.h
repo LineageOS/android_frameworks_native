@@ -60,6 +60,8 @@ public:
 
     ssize_t getSensorList(sensor_t const** list);
 
+    std::vector<int32_t> getDynamicSensorHandles();
+
     void handleDynamicSensorConnection(int handle, bool connected);
     status_t initCheck() const;
     int getHalDeviceVersion() const;

@@ -105,7 +105,13 @@ aidl_library {
 
 cc_library_headers {
     name: "libandroid_headers_private",
+    host_supported: true,
     export_include_dirs: ["include/private"],
+    target: {
+        windows: {
+            enabled: true,
+        },
+    },
 }
 
 filegroup {

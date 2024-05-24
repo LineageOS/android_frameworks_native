@@ -24,6 +24,7 @@
 #include <system/audio.h>
 #include <utils/RefBase.h>
 #include <vibrator/ExternalVibrationUtils.h>
+#include <android/os/ExternalVibrationScale.h>
 
 namespace android {
 namespace os {
@@ -45,10 +46,11 @@ public :
     audio_attributes_t getAudioAttributes() const { return mAttrs; }
     sp<IExternalVibrationController> getController() { return mController; }
 
-    /* Converts the scale from non-public ExternalVibrationService into the HapticScale
+    /* Converts the scale from non-public ExternalVibrationService into the HapticScaleLevel
      * used by the utils.
      */
-    static os::HapticScale externalVibrationScaleToHapticScale(int externalVibrationScale);
+    static os::HapticScale externalVibrationScaleToHapticScale(
+            os::ExternalVibrationScale externalVibrationScale);
 
 private:
     int32_t mUid;

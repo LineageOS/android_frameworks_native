@@ -13,6 +13,10 @@
 // limitations under the License.
 
 // Generate the C++ code that Rust calls into.
+package {
+    default_team: "trendy_team_input_framework",
+}
+
 genrule {
     name: "inputflinger_rs_bootstrap_bridge_code",
     tools: ["cxxbridge"],
@@ -42,6 +46,7 @@ rust_defaults {
         "libbinder_rs",
         "liblog_rust",
         "liblogger",
+        "libnix",
     ],
     host_supported: true,
 }

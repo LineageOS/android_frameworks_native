@@ -18,6 +18,7 @@
 
 #include <android-base/expected.h>
 #include <android-base/thread_annotations.h>
+#include <ftl/expected.h>
 #include <ftl/future.h>
 #include <gui/HdrMetadata.h>
 #include <math/mat4.h>
@@ -120,7 +121,8 @@ public:
     [[nodiscard]] virtual hal::Error getRequests(
             hal::DisplayRequest* outDisplayRequests,
             std::unordered_map<Layer*, hal::LayerRequest>* outLayerRequests) = 0;
-    [[nodiscard]] virtual hal::Error getConnectionType(ui::DisplayConnectionType*) const = 0;
+    [[nodiscard]] virtual ftl::Expected<ui::DisplayConnectionType, hal::Error> getConnectionType()
+            const = 0;
     [[nodiscard]] virtual hal::Error supportsDoze(bool* outSupport) const = 0;
     [[nodiscard]] virtual hal::Error getHdrCapabilities(
             android::HdrCapabilities* outCapabilities) const = 0;
@@ -213,7 +215,7 @@ public:
     hal::Error getRequests(
             hal::DisplayRequest* outDisplayRequests,
             std::unordered_map<HWC2::Layer*, hal::LayerRequest>* outLayerRequests) override;
-    hal::Error getConnectionType(ui::DisplayConnectionType*) const override;
+    ftl::Expected<ui::DisplayConnectionType, hal::Error> getConnectionType() const override;
     hal::Error supportsDoze(bool* outSupport) const override EXCLUDES(mDisplayCapabilitiesMutex);
     hal::Error getHdrCapabilities(android::HdrCapabilities* outCapabilities) const override;
     hal::Error getOverlaySupport(aidl::android::hardware::graphics::composer3::OverlayProperties*
@@ -294,6 +296,8 @@ private:
 
     const hal::HWDisplayId mId;
     hal::DisplayType mType;
+    // Cached on first call to getConnectionType.
+    mutable std::optional<ftl::Expected<ui::DisplayConnectionType, hal::Error>> mConnectionType;
     bool mIsConnected = false;
 
     using Layers = std::unordered_map<hal::HWLayerId, std::weak_ptr<HWC2::impl::Layer>>;

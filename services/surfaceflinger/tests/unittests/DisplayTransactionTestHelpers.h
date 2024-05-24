@@ -347,7 +347,6 @@ struct HwcDisplayVariant {
 
     // The HWC active configuration id
     static constexpr hal::HWConfigId HWC_ACTIVE_CONFIG_ID = 2001;
-    static constexpr PowerMode INIT_POWER_MODE = hal::PowerMode::ON;
 
     static void injectPendingHotplugEvent(DisplayTransactionTest* test, Connection connection) {
         test->mFlinger.mutablePendingHotplugEvents().emplace_back(
@@ -355,7 +354,7 @@ struct HwcDisplayVariant {
     }
 
     // Called by tests to inject a HWC display setup
-    template <bool kInitPowerMode = true>
+    template <hal::PowerMode kPowerMode = hal::PowerMode::ON>
     static void injectHwcDisplayWithNoDefaultCapabilities(DisplayTransactionTest* test) {
         const auto displayId = DisplayVariant::DISPLAY_ID::get();
         ASSERT_FALSE(GpuVirtualDisplayId::tryCast(displayId));
@@ -364,22 +363,37 @@ struct HwcDisplayVariant {
                 .setHwcDisplayId(HWC_DISPLAY_ID)
                 .setResolution(DisplayVariant::RESOLUTION)
                 .setActiveConfig(HWC_ACTIVE_CONFIG_ID)
-                .setPowerMode(kInitPowerMode ? std::make_optional(INIT_POWER_MODE) : std::nullopt)
+                .setPowerMode(kPowerMode)
                 .inject(&test->mFlinger, test->mComposer);
     }
 
     // Called by tests to inject a HWC display setup
-    template <bool kInitPowerMode = true>
+    //
+    // TODO(b/241285876): The `kExpectSetPowerModeOnce` argument is set to `false` by tests that
+    // power on/off displays several times. Replace those catch-all expectations with `InSequence`
+    // and `RetiresOnSaturation`.
+    //
+    template <hal::PowerMode kPowerMode = hal::PowerMode::ON, bool kExpectSetPowerModeOnce = true>
     static void injectHwcDisplay(DisplayTransactionTest* test) {
-        if constexpr (kInitPowerMode) {
-            EXPECT_CALL(*test->mComposer, getDisplayCapabilities(HWC_DISPLAY_ID, _))
-                    .WillOnce(DoAll(SetArgPointee<1>(std::vector<DisplayCapability>({})),
-                                    Return(Error::NONE)));
+        if constexpr (kExpectSetPowerModeOnce) {
+            if constexpr (kPowerMode == hal::PowerMode::ON) {
+                EXPECT_CALL(*test->mComposer, getDisplayCapabilities(HWC_DISPLAY_ID, _))
+                        .WillOnce(DoAll(SetArgPointee<1>(std::vector<DisplayCapability>({})),
+                                        Return(Error::NONE)));
+            }
 
-            EXPECT_CALL(*test->mComposer, setPowerMode(HWC_DISPLAY_ID, INIT_POWER_MODE))
+            EXPECT_CALL(*test->mComposer, setPowerMode(HWC_DISPLAY_ID, kPowerMode))
                     .WillOnce(Return(Error::NONE));
+        } else {
+            EXPECT_CALL(*test->mComposer, getDisplayCapabilities(HWC_DISPLAY_ID, _))
+                    .WillRepeatedly(DoAll(SetArgPointee<1>(std::vector<DisplayCapability>({})),
+                                          Return(Error::NONE)));
+
+            EXPECT_CALL(*test->mComposer, setPowerMode(HWC_DISPLAY_ID, _))
+                    .WillRepeatedly(Return(Error::NONE));
         }
-        injectHwcDisplayWithNoDefaultCapabilities<kInitPowerMode>(test);
+
+        injectHwcDisplayWithNoDefaultCapabilities<kPowerMode>(test);
     }
 
     static std::shared_ptr<compositionengine::Display> injectCompositionDisplay(
@@ -447,9 +461,11 @@ struct HwcDisplayVariant {
                     ? IComposerClient::DisplayConnectionType::INTERNAL
                     : IComposerClient::DisplayConnectionType::EXTERNAL;
 
+            using ::testing::AtLeast;
             EXPECT_CALL(*test->mComposer, getDisplayConnectionType(HWC_DISPLAY_ID, _))
-                    .WillOnce(DoAll(SetArgPointee<1>(CONNECTION_TYPE),
-                                    Return(hal::V2_4::Error::NONE)));
+                    .Times(AtLeast(1))
+                    .WillRepeatedly(DoAll(SetArgPointee<1>(CONNECTION_TYPE),
+                                          Return(hal::V2_4::Error::NONE)));
         }
 
         EXPECT_CALL(*test->mComposer, setClientTargetSlotCount(_))
@@ -481,14 +497,17 @@ constexpr uint32_t GRALLOC_USAGE_PHYSICAL_DISPLAY =
 
 constexpr int PHYSICAL_DISPLAY_FLAGS = 0x1;
 
-template <typename PhysicalDisplay, int width, int height>
+template <typename PhysicalDisplay, int width, int height,
+          Secure secure = (PhysicalDisplay::CONNECTION_TYPE == ui::DisplayConnectionType::Internal)
+                  ? Secure::TRUE
+                  : Secure::FALSE>
 struct PhysicalDisplayVariant
-      : DisplayVariant<PhysicalDisplayIdType<PhysicalDisplay>, width, height, Async::FALSE,
-                       Secure::TRUE, PhysicalDisplay::PRIMARY, GRALLOC_USAGE_PHYSICAL_DISPLAY,
+      : DisplayVariant<PhysicalDisplayIdType<PhysicalDisplay>, width, height, Async::FALSE, secure,
+                       PhysicalDisplay::PRIMARY, GRALLOC_USAGE_PHYSICAL_DISPLAY,
                        PHYSICAL_DISPLAY_FLAGS>,
         HwcDisplayVariant<PhysicalDisplay::HWC_DISPLAY_ID, DisplayType::PHYSICAL,
                           DisplayVariant<PhysicalDisplayIdType<PhysicalDisplay>, width, height,
-                                         Async::FALSE, Secure::TRUE, PhysicalDisplay::PRIMARY,
+                                         Async::FALSE, secure, PhysicalDisplay::PRIMARY,
                                          GRALLOC_USAGE_PHYSICAL_DISPLAY, PHYSICAL_DISPLAY_FLAGS>,
                           PhysicalDisplay> {};
 
@@ -515,6 +534,7 @@ struct SecondaryDisplay {
 };
 
 struct TertiaryDisplay {
+    static constexpr auto CONNECTION_TYPE = ui::DisplayConnectionType::External;
     static constexpr Primary PRIMARY = Primary::FALSE;
     static constexpr uint8_t PORT = 253;
     static constexpr HWDisplayId HWC_DISPLAY_ID = 1003;

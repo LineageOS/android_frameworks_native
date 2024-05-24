@@ -99,8 +99,8 @@ public:
      * This method is expected to set the POLICY_FLAG_PASS_TO_USER policy flag if the event
      * should be dispatched to applications.
      */
-    virtual void interceptMotionBeforeQueueing(int32_t displayId, nsecs_t when,
-                                               uint32_t& policyFlags) = 0;
+    virtual void interceptMotionBeforeQueueing(int32_t displayId, uint32_t source, int32_t action,
+                                               nsecs_t when, uint32_t& policyFlags) = 0;
 
     /* Allows the policy a chance to intercept a key before dispatching. */
     virtual nsecs_t interceptKeyBeforeDispatching(const sp<IBinder>& token,
@@ -131,6 +131,18 @@ public:
         return std::chrono::nanoseconds(currentTime - eventTime) >= STALE_EVENT_TIMEOUT;
     }
 
+    /**
+     * Get the additional latency to add while waiting for other input events to process before
+     * dispatching the pending key.
+     * If there are unprocessed events, the pending key will not be dispatched immediately. Instead,
+     * the dispatcher will wait for this timeout, to account for the possibility that the focus
+     * might change due to touch or other events (such as another app getting launched by keys).
+     * This would give the pending key the opportunity to go to a newly focused window instead.
+     */
+    virtual std::chrono::nanoseconds getKeyWaitingForEventsTimeout() {
+        return KEY_WAITING_FOR_EVENTS_TIMEOUT;
+    }
+
     /* Notifies the policy that a pointer down event has occurred outside the current focused
      * window.
      *
@@ -150,6 +162,13 @@ public:
     /* Notifies the policy that there was an input device interaction with apps. */
     virtual void notifyDeviceInteraction(DeviceId deviceId, nsecs_t timestamp,
                                          const std::set<gui::Uid>& uids) = 0;
+
+private:
+    // Additional key latency in case a connection is still processing some motion events.
+    // This will help with the case when a user touched a button that opens a new window,
+    // and gives us the chance to dispatch the key to this new window.
+    static constexpr std::chrono::nanoseconds KEY_WAITING_FOR_EVENTS_TIMEOUT =
+            std::chrono::milliseconds(500);
 };
 
 } // namespace android

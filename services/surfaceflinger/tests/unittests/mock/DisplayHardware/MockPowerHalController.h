@@ -19,7 +19,10 @@
 #include <gmock/gmock.h>
 #include <scheduler/Time.h>
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
 #include <powermanager/PowerHalController.h>
+#pragma clang diagnostic pop
 
 namespace android {
 namespace hardware {
@@ -31,8 +34,6 @@ class IPower;
 
 namespace android::Hwc2::mock {
 
-using aidl::android::hardware::power::Boost;
-using aidl::android::hardware::power::Mode;
 using android::power::HalResult;
 
 class MockPowerHalController : public power::PowerHalController {
@@ -40,12 +41,22 @@ public:
     MockPowerHalController();
     ~MockPowerHalController() override;
     MOCK_METHOD(void, init, (), (override));
-    MOCK_METHOD(HalResult<void>, setBoost, (Boost, int32_t), (override));
-    MOCK_METHOD(HalResult<void>, setMode, (Mode, bool), (override));
+    MOCK_METHOD(HalResult<void>, setBoost, (aidl::android::hardware::power::Boost, int32_t),
+                (override));
+    MOCK_METHOD(HalResult<void>, setMode, (aidl::android::hardware::power::Mode, bool), (override));
     MOCK_METHOD(HalResult<std::shared_ptr<aidl::android::hardware::power::IPowerHintSession>>,
                 createHintSession, (int32_t, int32_t, const std::vector<int32_t>&, int64_t),
                 (override));
+    MOCK_METHOD(HalResult<std::shared_ptr<aidl::android::hardware::power::IPowerHintSession>>,
+                createHintSessionWithConfig,
+                (int32_t tgid, int32_t uid, const std::vector<int32_t>& threadIds,
+                 int64_t durationNanos, aidl::android::hardware::power::SessionTag tag,
+                 aidl::android::hardware::power::SessionConfig* config),
+                (override));
     MOCK_METHOD(HalResult<int64_t>, getHintSessionPreferredRate, (), (override));
+    MOCK_METHOD(HalResult<aidl::android::hardware::power::ChannelConfig>, getSessionChannel,
+                (int tgid, int uid), (override));
+    MOCK_METHOD(HalResult<void>, closeSessionChannel, (int tgid, int uid), (override));
 };
 
 } // namespace android::Hwc2::mock

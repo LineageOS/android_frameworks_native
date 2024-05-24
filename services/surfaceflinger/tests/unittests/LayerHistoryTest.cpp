@@ -146,12 +146,8 @@ protected:
                                                   DisplayModeId(0));
 
     mock::SchedulerCallback mSchedulerCallback;
-
-    mock::VsyncTrackerCallback mVsyncTrackerCallback;
-    TestableScheduler* mScheduler =
-            new TestableScheduler(mSelector, mSchedulerCallback, mVsyncTrackerCallback);
-
     TestableSurfaceFlinger mFlinger;
+    TestableScheduler* mScheduler = new TestableScheduler(mSelector, mFlinger, mSchedulerCallback);
 };
 
 namespace {
@@ -650,7 +646,7 @@ TEST_F(LayerHistoryTest, oneLayerExplicitVoteWithCategory) {
     // Second LayerRequirement is the frame rate specification
     EXPECT_EQ(LayerHistory::LayerVoteType::ExplicitDefault, summarizeLayerHistory(time)[1].vote);
     EXPECT_EQ(73.4_Hz, summarizeLayerHistory(time)[1].desiredRefreshRate);
-    EXPECT_EQ(FrameRateCategory::High, summarizeLayerHistory(time)[1].frameRateCategory);
+    EXPECT_EQ(FrameRateCategory::Default, summarizeLayerHistory(time)[1].frameRateCategory);
 
     // layer became inactive, but the vote stays
     setDefaultLayerVote(layer.get(), LayerHistory::LayerVoteType::Heuristic);

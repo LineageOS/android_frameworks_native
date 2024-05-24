@@ -189,9 +189,20 @@ TEST(SmallMap, Get) {
   }
 }
 
-TEST(SmallMap, TryEmplace) {
-  SmallMap<int, std::string, 3> map;
-  using Pair = decltype(map)::value_type;
+template <typename Capacity>
+struct SmallMapTest : testing::Test {
+  static constexpr std::size_t kCapacity = Capacity{}();
+};
+
+template <std::size_t N>
+using Capacity = std::integral_constant<std::size_t, N>;
+
+using Capacities = testing::Types<Capacity<3>, Capacity<0>>;
+TYPED_TEST_SUITE(SmallMapTest, Capacities, );
+
+TYPED_TEST(SmallMapTest, TryEmplace) {
+  SmallMap<int, std::string, TestFixture::kCapacity> map;
+  using Pair = typename decltype(map)::value_type;
 
   {
     const auto [it, ok] = map.try_emplace(123, "abc");
@@ -207,14 +218,22 @@ TEST(SmallMap, TryEmplace) {
     const auto [it, ok] = map.try_emplace(-1);
     ASSERT_TRUE(ok);
     EXPECT_EQ(*it, Pair(-1, std::string()));
-    EXPECT_FALSE(map.dynamic());
+    if constexpr (map.static_capacity() > 0) {
+      EXPECT_FALSE(map.dynamic());
+    } else {
+      EXPECT_TRUE(map.dynamic());
+    }
   }
   {
     // Insertion fails if mapping exists.
     const auto [it, ok] = map.try_emplace(42, "!!!");
     EXPECT_FALSE(ok);
     EXPECT_EQ(*it, Pair(42, "???"));
-    EXPECT_FALSE(map.dynamic());
+    if constexpr (map.static_capacity() > 0) {
+      EXPECT_FALSE(map.dynamic());
+    } else {
+      EXPECT_TRUE(map.dynamic());
+    }
   }
   {
     // Insertion at capacity promotes the map.
@@ -240,9 +259,9 @@ struct String {
 
 }  // namespace
 
-TEST(SmallMap, TryReplace) {
-  SmallMap<int, String, 3> map = ftl::init::map(1, "a")(2, "B");
-  using Pair = decltype(map)::value_type;
+TYPED_TEST(SmallMapTest, TryReplace) {
+  SmallMap<int, String, TestFixture::kCapacity> map = ftl::init::map(1, "a")(2, "B");
+  using Pair = typename decltype(map)::value_type;
 
   {
     // Replacing fails unless mapping exists.
@@ -260,7 +279,12 @@ TEST(SmallMap, TryReplace) {
     EXPECT_EQ(*it, Pair(2, "b"));
   }
 
-  EXPECT_FALSE(map.dynamic());
+  if constexpr (map.static_capacity() > 0) {
+    EXPECT_FALSE(map.dynamic());
+  } else {
+    EXPECT_TRUE(map.dynamic());
+  }
+
   EXPECT_TRUE(map.try_emplace(3, "abc").second);
   EXPECT_TRUE(map.try_emplace(4, "d").second);
   EXPECT_TRUE(map.dynamic());
@@ -284,9 +308,9 @@ TEST(SmallMap, TryReplace) {
   EXPECT_EQ(map, SmallMap(ftl::init::map(4, "d"s)(3, "c"s)(2, "b"s)(1, "a"s)));
 }
 
-TEST(SmallMap, EmplaceOrReplace) {
-  SmallMap<int, String, 3> map = ftl::init::map(1, "a")(2, "B");
-  using Pair = decltype(map)::value_type;
+TYPED_TEST(SmallMapTest, EmplaceOrReplace) {
+  SmallMap<int, String, TestFixture::kCapacity> map = ftl::init::map(1, "a")(2, "B");
+  using Pair = typename decltype(map)::value_type;
 
   {
     // New mapping is emplaced.
@@ -305,7 +329,12 @@ TEST(SmallMap, EmplaceOrReplace) {
     EXPECT_EQ(*it, Pair(2, "b"));
   }
 
-  EXPECT_FALSE(map.dynamic());
+  if constexpr (map.static_capacity() > 0) {
+    EXPECT_FALSE(map.dynamic());
+  } else {
+    EXPECT_TRUE(map.dynamic());
+  }
+
   EXPECT_FALSE(map.emplace_or_replace(3, "abc").second);  // Replace.
   EXPECT_TRUE(map.emplace_or_replace(4, "d").second);     // Emplace.
   EXPECT_TRUE(map.dynamic());

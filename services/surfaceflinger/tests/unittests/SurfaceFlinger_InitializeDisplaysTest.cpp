@@ -17,66 +17,49 @@
 #undef LOG_TAG
 #define LOG_TAG "LibSurfaceFlingerUnittests"
 
-#include "DisplayTransactionTestHelpers.h"
+#include "DualDisplayTransactionTest.h"
 
 namespace android {
 namespace {
 
-class InitializeDisplaysTest : public DisplayTransactionTest {};
+constexpr bool kExpectSetPowerModeOnce = false;
+struct InitializeDisplaysTest : DualDisplayTransactionTest<hal::PowerMode::OFF, hal::PowerMode::OFF,
+                                                           kExpectSetPowerModeOnce> {};
 
-TEST_F(InitializeDisplaysTest, commitsPrimaryDisplay) {
-    using Case = SimplePrimaryDisplayCase;
-
-    // --------------------------------------------------------------------
-    // Preconditions
-
-    // A primary display is set up
-    Case::Display::injectHwcDisplay(this);
-    auto primaryDisplay = Case::Display::makeFakeExistingDisplayInjector(this);
-    primaryDisplay.inject();
-
-    // --------------------------------------------------------------------
-    // Call Expectations
-
-    // We expect a call to get the active display config.
-    Case::Display::setupHwcGetActiveConfigCallExpectations(this);
-
-    // We expect a scheduled commit for the display transaction.
-    EXPECT_CALL(*mFlinger.scheduler(), scheduleFrame()).Times(1);
+TEST_F(InitializeDisplaysTest, initializesDisplays) {
+    // Scheduled by the display transaction, and by powering on each display.
+    EXPECT_CALL(*mFlinger.scheduler(), scheduleFrame()).Times(3);
 
     EXPECT_CALL(static_cast<mock::VSyncTracker&>(
                         mFlinger.scheduler()->getVsyncSchedule()->getTracker()),
-                nextAnticipatedVSyncTimeFrom(_))
+                nextAnticipatedVSyncTimeFrom(_, _))
             .WillRepeatedly(Return(0));
-
-    // --------------------------------------------------------------------
-    // Invocation
 
     FTL_FAKE_GUARD(kMainThreadContext, mFlinger.initializeDisplays());
 
-    // --------------------------------------------------------------------
-    // Postconditions
+    for (const auto& display : {mInnerDisplay, mOuterDisplay}) {
+        const auto token = display->getDisplayToken().promote();
+        ASSERT_TRUE(token);
 
-    // The primary display should have a current state
-    ASSERT_TRUE(hasCurrentDisplayState(primaryDisplay.token()));
-    const auto& primaryDisplayState = getCurrentDisplayState(primaryDisplay.token());
+        ASSERT_TRUE(hasCurrentDisplayState(token));
+        const auto& state = getCurrentDisplayState(token);
 
-    // The primary display state should be reset
-    EXPECT_EQ(ui::DEFAULT_LAYER_STACK, primaryDisplayState.layerStack);
-    EXPECT_EQ(ui::ROTATION_0, primaryDisplayState.orientation);
-    EXPECT_EQ(Rect::INVALID_RECT, primaryDisplayState.orientedDisplaySpaceRect);
-    EXPECT_EQ(Rect::INVALID_RECT, primaryDisplayState.layerStackSpaceRect);
+        const ui::LayerStack expectedLayerStack = display == mInnerDisplay
+                ? ui::DEFAULT_LAYER_STACK
+                : ui::LayerStack::fromValue(ui::DEFAULT_LAYER_STACK.id + 1);
 
-    // The width and height should both be zero
-    EXPECT_EQ(0u, primaryDisplayState.width);
-    EXPECT_EQ(0u, primaryDisplayState.height);
+        EXPECT_EQ(expectedLayerStack, state.layerStack);
+        EXPECT_EQ(ui::ROTATION_0, state.orientation);
+        EXPECT_EQ(Rect::INVALID_RECT, state.orientedDisplaySpaceRect);
+        EXPECT_EQ(Rect::INVALID_RECT, state.layerStackSpaceRect);
 
-    // The display should be set to PowerMode::ON
-    ASSERT_TRUE(hasDisplayDevice(primaryDisplay.token()));
-    auto displayDevice = primaryDisplay.mutableDisplayDevice();
-    EXPECT_EQ(PowerMode::ON, displayDevice->getPowerMode());
+        EXPECT_EQ(0u, state.width);
+        EXPECT_EQ(0u, state.height);
 
-    // The display transaction needed flag should be set.
+        ASSERT_TRUE(hasDisplayDevice(token));
+        EXPECT_EQ(PowerMode::ON, getDisplayDevice(token).getPowerMode());
+    }
+
     EXPECT_TRUE(hasTransactionFlagSet(eDisplayTransactionNeeded));
 }
 

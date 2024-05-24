@@ -51,6 +51,7 @@ class Future final : public details::BaseFuture<Future<T, FutureImpl>, T, Future
   // Forwarding functions. Base::share is only defined when FutureImpl is std::future, whereas the
   // following are defined for either FutureImpl:
   using Base::get;
+  using Base::wait_for;
 
   // Attaches a continuation to the future. The continuation is a function that maps T to either R
   // or ftl::Future<R>. In the former case, the chain wraps the result in a future as if by

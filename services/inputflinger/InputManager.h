@@ -29,6 +29,7 @@
 
 #include <InputDispatcherInterface.h>
 #include <InputDispatcherPolicyInterface.h>
+#include <InputFilterPolicyInterface.h>
 #include <PointerChoreographerPolicyInterface.h>
 #include <input/Input.h>
 #include <input/InputTransport.h>
@@ -119,7 +120,8 @@ protected:
 public:
     InputManager(const sp<InputReaderPolicyInterface>& readerPolicy,
                  InputDispatcherPolicyInterface& dispatcherPolicy,
-                 PointerChoreographerPolicyInterface& choreographerPolicy);
+                 PointerChoreographerPolicyInterface& choreographerPolicy,
+                 InputFilterPolicyInterface& inputFilterPolicy);
 
     status_t start() override;
     status_t stop() override;
@@ -134,7 +136,8 @@ public:
     void dump(std::string& dump) override;
 
     status_t dump(int fd, const Vector<String16>& args) override;
-    binder::Status createInputChannel(const std::string& name, InputChannel* outChannel) override;
+    binder::Status createInputChannel(const std::string& name,
+                                      android::os::InputChannelCore* outChannel) override;
     binder::Status removeInputChannel(const sp<IBinder>& connectionToken) override;
     binder::Status setFocusedWindow(const gui::FocusRequest&) override;
 

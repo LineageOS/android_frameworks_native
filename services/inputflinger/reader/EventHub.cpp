@@ -810,14 +810,20 @@ void EventHub::Device::trackInputEvent(const struct input_event& event) {
         case EV_SYN: {
             switch (event.code) {
                 case SYN_REPORT:
-                    currentFrameDropped = false;
+                    if (currentFrameDropped) {
+                        // To recover after a SYN_DROPPED, we need to query the state of the device
+                        // to synchronize our device state with the kernel's to account for the
+                        // dropped events on receiving the next SYN_REPORT.
+                        // Note we don't drop the SYN_REPORT at this point but it is used by the
+                        // InputDevice to reset and repopulate mapper state
+                        readDeviceState();
+                        currentFrameDropped = false;
+                    }
                     break;
                 case SYN_DROPPED:
                     // When we receive SYN_DROPPED, all events in the current frame should be
-                    // dropped. We query the state of the device to synchronize our device state
-                    // with the kernel's to account for the dropped events.
+                    // dropped up to and including next SYN_REPORT
                     currentFrameDropped = true;
-                    readDeviceState();
                     break;
                 default:
                     break;
@@ -1139,6 +1145,22 @@ status_t EventHub::getAbsoluteAxisValue(int32_t deviceId, int32_t axis, int32_t*
     }
     *outValue = it->second.value;
     return OK;
+}
+
+base::Result<std::vector<int32_t>> EventHub::getMtSlotValues(int32_t deviceId, int32_t axis,
+                                                             size_t slotCount) const {
+    std::scoped_lock _l(mLock);
+    const Device* device = getDeviceLocked(deviceId);
+    if (device == nullptr || !device->hasValidFd() || !device->absBitmask.test(axis)) {
+        return base::ResultError("device problem or axis not supported", NAME_NOT_FOUND);
+    }
+    std::vector<int32_t> outValues(slotCount + 1);
+    outValues[0] = axis;
+    const size_t bufferSize = outValues.size() * sizeof(int32_t);
+    if (ioctl(device->fd, EVIOCGMTSLOTS(bufferSize), outValues.data()) != OK) {
+        return base::ErrnoError();
+    }
+    return std::move(outValues);
 }
 
 bool EventHub::markSupportedKeyCodes(int32_t deviceId, const std::vector<int32_t>& keyCodes,

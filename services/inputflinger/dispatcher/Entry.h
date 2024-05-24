@@ -17,7 +17,8 @@
 #pragma once
 
 #include "InjectionState.h"
-#include "InputTarget.h"
+#include "InputTargetFlags.h"
+#include "trace/EventTrackerInterface.h"
 
 #include <gui/InputApplication.h>
 #include <input/Input.h>
@@ -125,6 +126,7 @@ struct KeyEntry : EventEntry {
     int32_t scanCode;
     int32_t metaState;
     nsecs_t downTime;
+    std::unique_ptr<trace::EventTrackerInterface> traceTracker;
 
     bool syntheticRepeat; // set to true for synthetic key repeats
 
@@ -147,6 +149,8 @@ struct KeyEntry : EventEntry {
     std::string getDescription() const override;
 };
 
+std::ostream& operator<<(std::ostream& out, const KeyEntry& motionEntry);
+
 struct MotionEntry : EventEntry {
     int32_t deviceId;
     uint32_t source;
@@ -165,6 +169,7 @@ struct MotionEntry : EventEntry {
     nsecs_t downTime;
     std::vector<PointerProperties> pointerProperties;
     std::vector<PointerCoords> pointerCoords;
+    std::unique_ptr<trace::EventTrackerInterface> traceTracker;
 
     size_t getPointerCount() const { return pointerProperties.size(); }
 
@@ -210,7 +215,7 @@ struct DispatchEntry {
     const uint32_t seq; // unique sequence number, never 0
 
     std::shared_ptr<const EventEntry> eventEntry; // the event to dispatch
-    const ftl::Flags<InputTarget::Flags> targetFlags;
+    const ftl::Flags<InputTargetFlags> targetFlags;
     ui::Transform transform;
     ui::Transform rawTransform;
     float globalScaleFactor;
@@ -222,17 +227,27 @@ struct DispatchEntry {
 
     int32_t resolvedFlags;
 
+    // Information about the dispatch window used for tracing. We avoid holding a window handle
+    // here because information in a window handle may be dynamically updated within the lifespan
+    // of this dispatch entry.
+    gui::Uid targetUid;
+    int64_t vsyncId;
+    // The window that this event is targeting. The only case when this windowId is not populated
+    // is when dispatching an event to a global monitor.
+    std::optional<int32_t> windowId;
+
     DispatchEntry(std::shared_ptr<const EventEntry> eventEntry,
-                  ftl::Flags<InputTarget::Flags> targetFlags, const ui::Transform& transform,
-                  const ui::Transform& rawTransform, float globalScaleFactor);
+                  ftl::Flags<InputTargetFlags> targetFlags, const ui::Transform& transform,
+                  const ui::Transform& rawTransform, float globalScaleFactor, gui::Uid targetUid,
+                  int64_t vsyncId, std::optional<int32_t> windowId);
     DispatchEntry(const DispatchEntry&) = delete;
     DispatchEntry& operator=(const DispatchEntry&) = delete;
 
     inline bool hasForegroundTarget() const {
-        return targetFlags.test(InputTarget::Flags::FOREGROUND);
+        return targetFlags.test(InputTargetFlags::FOREGROUND);
     }
 
-    inline bool isSplit() const { return targetFlags.test(InputTarget::Flags::SPLIT); }
+    inline bool isSplit() const { return targetFlags.test(InputTargetFlags::SPLIT); }
 
 private:
     static volatile int32_t sNextSeqAtomic;

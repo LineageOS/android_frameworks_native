@@ -44,45 +44,25 @@ AidlKeyEvent notifyKeyArgsToKeyEvent(const NotifyKeyArgs& args) {
     return event;
 }
 
-NotifyKeyArgs keyEventToNotifyKeyArgs(const AidlKeyEvent& event) {
-    return NotifyKeyArgs(event.id, event.eventTime, event.readTime, event.deviceId,
-                         static_cast<uint32_t>(event.source), event.displayId, event.policyFlags,
-                         static_cast<int32_t>(event.action), event.flags, event.keyCode,
-                         event.scanCode, event.metaState, event.downTime);
-}
-
-namespace {
-
-class RustCallbacks : public IInputFilter::BnInputFilterCallbacks {
-public:
-    RustCallbacks(InputListenerInterface& nextListener) : mNextListener(nextListener) {}
-    ndk::ScopedAStatus sendKeyEvent(const AidlKeyEvent& event) override {
-        mNextListener.notifyKey(keyEventToNotifyKeyArgs(event));
-        return ndk::ScopedAStatus::ok();
-    }
-
-private:
-    InputListenerInterface& mNextListener;
-};
-
-} // namespace
-
-InputFilter::InputFilter(InputListenerInterface& listener, IInputFlingerRust& rust)
-      : mNextListener(listener), mCallbacks(ndk::SharedRefBase::make<RustCallbacks>(listener)) {
+InputFilter::InputFilter(InputListenerInterface& listener, IInputFlingerRust& rust,
+                         InputFilterPolicyInterface& policy)
+      : mNextListener(listener),
+        mCallbacks(ndk::SharedRefBase::make<InputFilterCallbacks>(listener, policy)),
+        mPolicy(policy) {
     LOG_ALWAYS_FATAL_IF(!rust.createInputFilter(mCallbacks, &mInputFilterRust).isOk());
     LOG_ALWAYS_FATAL_IF(!mInputFilterRust);
 }
 
 void InputFilter::notifyInputDevicesChanged(const NotifyInputDevicesChangedArgs& args) {
+    mDeviceInfos.clear();
+    mDeviceInfos.reserve(args.inputDeviceInfos.size());
+    for (auto info : args.inputDeviceInfos) {
+        AidlDeviceInfo& aidlInfo = mDeviceInfos.emplace_back();
+        aidlInfo.deviceId = info.getId();
+        aidlInfo.external = info.isExternal();
+    }
     if (isFilterEnabled()) {
-        std::vector<AidlDeviceInfo> deviceInfos;
-        for (auto info : args.inputDeviceInfos) {
-            AidlDeviceInfo aidlInfo;
-            aidlInfo.deviceId = info.getId();
-            aidlInfo.external = info.isExternal();
-            deviceInfos.push_back(aidlInfo);
-        }
-        LOG_ALWAYS_FATAL_IF(!mInputFilterRust->notifyInputDevicesChanged(deviceInfos).isOk());
+        LOG_ALWAYS_FATAL_IF(!mInputFilterRust->notifyInputDevicesChanged(mDeviceInfos).isOk());
     }
     mNextListener.notify(args);
 }
@@ -92,11 +72,11 @@ void InputFilter::notifyConfigurationChanged(const NotifyConfigurationChangedArg
 }
 
 void InputFilter::notifyKey(const NotifyKeyArgs& args) {
-    if (!isFilterEnabled()) {
-        mNextListener.notifyKey(args);
+    if (isFilterEnabled()) {
+        LOG_ALWAYS_FATAL_IF(!mInputFilterRust->notifyKey(notifyKeyArgsToKeyEvent(args)).isOk());
         return;
     }
-    LOG_ALWAYS_FATAL_IF(!mInputFilterRust->notifyKey(notifyKeyArgsToKeyEvent(args)).isOk());
+    mNextListener.notify(args);
 }
 
 void InputFilter::notifyMotion(const NotifyMotionArgs& args) {
@@ -134,7 +114,36 @@ void InputFilter::setAccessibilityBounceKeysThreshold(nsecs_t threshold) {
 
     if (mConfig.bounceKeysThresholdNs != threshold) {
         mConfig.bounceKeysThresholdNs = threshold;
-        LOG_ALWAYS_FATAL_IF(!mInputFilterRust->notifyConfigurationChanged(mConfig).isOk());
+        notifyConfigurationChangedLocked();
+    }
+}
+
+void InputFilter::setAccessibilitySlowKeysThreshold(nsecs_t threshold) {
+    std::scoped_lock _l(mLock);
+
+    if (mConfig.slowKeysThresholdNs != threshold) {
+        mConfig.slowKeysThresholdNs = threshold;
+        notifyConfigurationChangedLocked();
+    }
+}
+
+void InputFilter::setAccessibilityStickyKeysEnabled(bool enabled) {
+    std::scoped_lock _l(mLock);
+
+    if (mConfig.stickyKeysEnabled != enabled) {
+        mConfig.stickyKeysEnabled = enabled;
+        notifyConfigurationChangedLocked();
+        if (!enabled) {
+            // When Sticky keys is disabled, send callback to clear any saved sticky state.
+            mPolicy.notifyStickyModifierStateChanged(0, 0);
+        }
+    }
+}
+
+void InputFilter::notifyConfigurationChangedLocked() {
+    LOG_ALWAYS_FATAL_IF(!mInputFilterRust->notifyConfigurationChanged(mConfig).isOk());
+    if (isFilterEnabled()) {
+        LOG_ALWAYS_FATAL_IF(!mInputFilterRust->notifyInputDevicesChanged(mDeviceInfos).isOk());
     }
 }
 

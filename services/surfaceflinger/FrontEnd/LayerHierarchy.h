@@ -17,6 +17,7 @@
 #pragma once
 
 #include "FrontEnd/LayerCreationArgs.h"
+#include "FrontEnd/LayerLifecycleManager.h"
 #include "RequestedLayerState.h"
 #include "ftl/small_vector.h"
 
@@ -197,9 +198,8 @@ private:
 // hierarchy from a list of RequestedLayerState and associated change flags.
 class LayerHierarchyBuilder {
 public:
-    LayerHierarchyBuilder(const std::vector<std::unique_ptr<RequestedLayerState>>&);
-    void update(const std::vector<std::unique_ptr<RequestedLayerState>>& layers,
-                const std::vector<std::unique_ptr<RequestedLayerState>>& destroyedLayers);
+    LayerHierarchyBuilder() = default;
+    void update(LayerLifecycleManager& layerLifecycleManager);
     LayerHierarchy getPartialHierarchy(uint32_t, bool childrenOnly) const;
     const LayerHierarchy& getHierarchy() const;
     const LayerHierarchy& getOffscreenHierarchy() const;
@@ -213,14 +213,18 @@ private:
     void detachFromRelativeParent(LayerHierarchy*);
     void attachHierarchyToRelativeParent(LayerHierarchy*);
     void detachHierarchyFromRelativeParent(LayerHierarchy*);
-
+    void init(const std::vector<std::unique_ptr<RequestedLayerState>>&);
+    void doUpdate(const std::vector<std::unique_ptr<RequestedLayerState>>& layers,
+                  const std::vector<std::unique_ptr<RequestedLayerState>>& destroyedLayers);
     void onLayerDestroyed(RequestedLayerState* layer);
     void updateMirrorLayer(RequestedLayerState* layer);
     LayerHierarchy* getHierarchyFromId(uint32_t layerId, bool crashOnFailure = true);
+
     std::unordered_map<uint32_t, LayerHierarchy*> mLayerIdToHierarchy;
     std::vector<std::unique_ptr<LayerHierarchy>> mHierarchies;
     LayerHierarchy mRoot{nullptr};
     LayerHierarchy mOffscreenRoot{nullptr};
+    bool mInitialized = false;
 };
 
 } // namespace android::surfaceflinger::frontend

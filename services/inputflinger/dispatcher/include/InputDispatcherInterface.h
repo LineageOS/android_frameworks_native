@@ -101,6 +101,9 @@ public:
      */
     virtual void setFocusedDisplay(int32_t displayId) = 0;
 
+    /** Sets the minimum time between user activity pokes. */
+    virtual void setMinTimeBetweenUserActivityPokes(std::chrono::milliseconds interval) = 0;
+
     /* Sets the input dispatching mode.
      *
      * This method may be called on any thread (usually by the input manager).
@@ -137,19 +140,23 @@ public:
      */
     virtual void setMaximumObscuringOpacityForTouch(float opacity) = 0;
 
-    /* Transfers touch focus from one window to another window.
+    /**
+     * Transfers a touch gesture from one window to another window. Transferring touch will not
+     * have any effect on the focused window.
      *
-     * Returns true on success.  False if the window did not actually have touch focus.
+     * Returns true on success.  False if the window did not actually have an active touch gesture.
      */
-    virtual bool transferTouchFocus(const sp<IBinder>& fromToken, const sp<IBinder>& toToken,
-                                    bool isDragDrop) = 0;
+    virtual bool transferTouchGesture(const sp<IBinder>& fromToken, const sp<IBinder>& toToken,
+                                      bool isDragDrop) = 0;
 
     /**
-     * Transfer touch focus to the provided channel, no matter where the current touch is.
+     * Transfer a touch gesture to the provided channel, no matter where the current touch is.
+     * Transferring touch will not have any effect on the focused window.
      *
-     * Return true on success, false if there was no on-going touch.
+     * Returns true on success, false if there was no on-going touch on the display.
+     * @deprecated
      */
-    virtual bool transferTouch(const sp<IBinder>& destChannelToken, int32_t displayId) = 0;
+    virtual bool transferTouchOnDisplay(const sp<IBinder>& destChannelToken, int32_t displayId) = 0;
 
     /**
      * Sets focus on the specified window.

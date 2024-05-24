@@ -37,10 +37,9 @@ using CreateInstanceFactory = std::function<std::unique_ptr<renderengine::Render
  */
 class RenderEngineThreaded : public RenderEngine {
 public:
-    static std::unique_ptr<RenderEngineThreaded> create(CreateInstanceFactory factory,
-                                                        RenderEngineType type);
+    static std::unique_ptr<RenderEngineThreaded> create(CreateInstanceFactory factory);
 
-    RenderEngineThreaded(CreateInstanceFactory factory, RenderEngineType type);
+    RenderEngineThreaded(CreateInstanceFactory factory);
     ~RenderEngineThreaded() override;
     std::future<void> primeCache(bool shouldPrimeUltraHDR) override;
 
@@ -97,7 +96,7 @@ private:
 
     // Used to allow select thread safe methods to be accessed without requiring the
     // method to be invoked on the RenderEngine thread
-    bool mIsInitialized = false;
+    std::atomic_bool mIsInitialized = false;
     mutable std::mutex mInitializedMutex;
     mutable std::condition_variable mInitializedCondition;
 

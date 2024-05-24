@@ -587,8 +587,8 @@ LayerSnapshot* LayerSnapshotBuilder::createSnapshot(const LayerHierarchy::Traver
 bool LayerSnapshotBuilder::sortSnapshotsByZ(const Args& args) {
     if (!mResortSnapshots && args.forceUpdate == ForceUpdateFlags::NONE &&
         !args.layerLifecycleManager.getGlobalChanges().any(
-                RequestedLayerState::Changes::Hierarchy |
-                RequestedLayerState::Changes::Visibility)) {
+                RequestedLayerState::Changes::Hierarchy | RequestedLayerState::Changes::Visibility |
+                RequestedLayerState::Changes::Input)) {
         // We are not force updating and there are no hierarchy or visibility changes. Avoid sorting
         // the snapshots.
         return false;
@@ -1044,6 +1044,8 @@ void LayerSnapshotBuilder::updateInput(LayerSnapshot& snapshot,
     snapshot.inputInfo.touchOcclusionMode = requested.hasInputInfo()
             ? requested.windowInfoHandle->getInfo()->touchOcclusionMode
             : parentSnapshot.inputInfo.touchOcclusionMode;
+    snapshot.inputInfo.canOccludePresentation = parentSnapshot.inputInfo.canOccludePresentation ||
+            (requested.flags & layer_state_t::eCanOccludePresentation);
     if (requested.dropInputMode == gui::DropInputMode::ALL ||
         parentSnapshot.dropInputMode == gui::DropInputMode::ALL) {
         snapshot.dropInputMode = gui::DropInputMode::ALL;
@@ -1217,8 +1219,8 @@ void LayerSnapshotBuilder::updateTouchableRegionCrop(const Args& args) {
             Rect inputBoundsInDisplaySpace =
                     getInputBoundsInDisplaySpace(*cropLayerSnapshot, inputBounds,
                                                  displayInfo.transform);
-            snapshot->inputInfo.touchableRegion = snapshot->inputInfo.touchableRegion.intersect(
-                    displayInfo.transform.transform(inputBoundsInDisplaySpace));
+            snapshot->inputInfo.touchableRegion =
+                    snapshot->inputInfo.touchableRegion.intersect(inputBoundsInDisplaySpace);
         }
 
         // If the layer is a clone, we need to crop the input region to cloned root to prevent

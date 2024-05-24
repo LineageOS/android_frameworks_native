@@ -344,6 +344,13 @@ void Choreographer::dispatchNullEvent(nsecs_t, PhysicalDisplayId) {
     handleRefreshRateUpdates();
 }
 
+void Choreographer::dispatchHdcpLevelsChanged(PhysicalDisplayId displayId, int32_t connectedLevel,
+                                              int32_t maxLevel) {
+    ALOGV("choreographer %p ~ received hdcp levels change event (displayId=%s, connectedLevel=%d, "
+          "maxLevel=%d), ignoring.",
+          this, to_string(displayId).c_str(), connectedLevel, maxLevel);
+}
+
 void Choreographer::handleMessage(const Message& message) {
     switch (message.what) {
         case MSG_SCHEDULE_CALLBACKS:

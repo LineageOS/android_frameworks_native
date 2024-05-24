@@ -46,8 +46,15 @@
 #define ANDROID_HARDWARE_BUFFER_H
 
 #include <android/rect.h>
+#define ADATASPACE_SKIP_LEGACY_DEFINES
+#include <android/data_space.h>
+#undef ADATASPACE_SKIP_LEGACY_DEFINES
 #include <inttypes.h>
 #include <sys/cdefs.h>
+
+#if !defined(__INTRODUCED_IN)
+#define __INTRODUCED_IN(__api_level) /* nothing */
+#endif
 
 __BEGIN_DECLS
 

@@ -26,6 +26,7 @@
 
 #include <android/hardware_buffer.h>
 #include <ui/ANativeObjectBase.h>
+#include <ui/GraphicBufferAllocator.h>
 #include <ui/GraphicBufferMapper.h>
 #include <ui/PixelFormat.h>
 #include <ui/Rect.h>
@@ -103,6 +104,8 @@ public:
             uint32_t inLayerCount, uint64_t inUsage,
             std::string requestorName = "<Unknown>");
 
+    GraphicBuffer(const GraphicBufferAllocator::AllocationRequest&);
+
     // Create a GraphicBuffer from an existing handle.
     enum HandleWrapMethod : uint8_t {
         // Wrap and use the handle directly.  It assumes the handle has been
@@ -168,6 +171,8 @@ public:
     void setGenerationNumber(uint32_t generation) {
         mGenerationNumber = generation;
     }
+
+    status_t getDataspace(ui::Dataspace* outDataspace) const;
 
     // This function is privileged.  It requires access to the allocator
     // device or service, which usually involves adding suitable selinux

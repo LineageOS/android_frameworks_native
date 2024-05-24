@@ -17,9 +17,6 @@
 #ifndef ANDROID_SENSOR_SERVICE_H
 #define ANDROID_SENSOR_SERVICE_H
 
-#include "SensorList.h"
-#include "RecentEventLogger.h"
-
 #include <android-base/macros.h>
 #include <binder/AppOpsManager.h>
 #include <binder/BinderService.h>
@@ -27,11 +24,11 @@
 #include <cutils/compiler.h>
 #include <cutils/multiuser.h>
 #include <private/android_filesystem_config.h>
-#include <sensor/ISensorServer.h>
 #include <sensor/ISensorEventConnection.h>
+#include <sensor/ISensorServer.h>
 #include <sensor/Sensor.h>
-#include "android/hardware/BnSensorPrivacyListener.h"
-
+#include <stdint.h>
+#include <sys/types.h>
 #include <utils/AndroidThreads.h>
 #include <utils/KeyedVector.h>
 #include <utils/Looper.h>
@@ -40,14 +37,16 @@
 #include <utils/Vector.h>
 #include <utils/threads.h>
 
-#include <stdint.h>
-#include <sys/types.h>
 #include <condition_variable>
 #include <mutex>
 #include <queue>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+
+#include "RecentEventLogger.h"
+#include "SensorList.h"
+#include "android/hardware/BnSensorPrivacyListener.h"
 
 #if __clang__
 // Clang warns about SensorEventConnection::dump hiding BBinder::dump. The cause isn't fixable
@@ -57,7 +56,7 @@
 
 // ---------------------------------------------------------------------------
 #define IGNORE_HARDWARE_FUSION  false
-#define DEBUG_CONNECTIONS   false
+#define DEBUG_CONNECTIONS false
 // Max size is 100 KB which is enough to accept a batch of about 1000 events.
 #define MAX_SOCKET_BUFFER_SIZE_BATCHED (100 * 1024)
 // For older HALs which don't support batching, use a smaller socket buffer size.
@@ -341,6 +340,12 @@ private:
             binder::Status onSensorPrivacyChanged(int toggleType, int sensor,
                                                   bool enabled);
 
+            // This callback is used for additional automotive-specific states for sensor privacy
+            // such as AUTO_DRIVER_ASSISTANCE_APPS. The newly defined states will only be valid
+            // for camera privacy on automotive devices. onSensorPrivacyChanged() will still be
+            // invoked whenever the enabled status of a toggle changes.
+            binder::Status onSensorPrivacyStateChanged(int, int, int) {return binder::Status::ok();}
+
         protected:
             std::atomic_bool mSensorPrivacyEnabled;
             wp<SensorService> mService;
@@ -453,6 +458,11 @@ private:
     // Send events from the event cache for this particular connection.
     void sendEventsFromCache(const sp<SensorEventConnection>& connection);
 
+    // Send all events in the buffer to all clients.
+    void sendEventsToAllClients(
+        const std::vector<sp<SensorEventConnection>>& activeConnections,
+        ssize_t count);
+
     // If SensorService is operating in RESTRICTED mode, only select whitelisted packages are
     // allowed to register for or call flush on sensors. Typically only cts test packages are
     // allowed.
@@ -515,6 +525,14 @@ private:
     void uncapRates();
 
     bool isInjectionMode(int mode);
+
+    void handleDeviceReconnection(SensorDevice& device);
+
+    // Removes a connected dynamic sensor and send the corresponding event to
+    // all connections.
+    void disconnectDynamicSensor(
+        int handle,
+        const std::vector<sp<SensorEventConnection>>& activeConnections);
 
     static inline bool isAudioServerOrSystemServerUid(uid_t uid) {
         return multiuser_get_app_id(uid) == AID_SYSTEM || uid == AID_AUDIOSERVER;
@@ -583,6 +601,10 @@ private:
     bool mLastReportedProxIsActive;
     // Listeners subscribed to receive updates on the proximity sensor active state.
     std::vector<sp<ProximityActiveListener>> mProximityActiveListeners;
+
+    // Stores the handle of the dynamic_meta sensor to send clean up event once
+    // HAL crashes.
+    std::optional<int> mDynamicMetaSensorHandle;
 };
 
 } // namespace android

@@ -180,6 +180,8 @@ cc_library {
     ],
     srcs: [
         "android/os/IInputFlinger.aidl",
+        "android/os/InputChannelCore.aidl",
+        "AccelerationCurve.cpp",
         "Input.cpp",
         "InputDevice.cpp",
         "InputEventLabels.cpp",

@@ -839,6 +839,10 @@ enum {
     AKEYCODE_MACRO_3 = 315,
     /** User customizable key #4. */
     AKEYCODE_MACRO_4 = 316,
+    /** Open Emoji picker */
+    AKEYCODE_EMOJI_PICKER = 317,
+    /** Take Screenshot */
+    AKEYCODE_SCREENSHOT = 318,
 
     // NOTE: If you add a new keycode here you must also add it to several other files.
     //       Refer to frameworks/base/core/java/android/view/KeyEvent.java for the full list.

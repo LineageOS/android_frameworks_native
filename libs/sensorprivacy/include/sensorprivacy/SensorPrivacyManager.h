@@ -32,12 +32,22 @@ class SensorPrivacyManager
 public:
     enum {
         TOGGLE_SENSOR_MICROPHONE = 1,
-        TOGGLE_SENSOR_CAMERA = 2
+        TOGGLE_SENSOR_CAMERA = 2,
+        TOGGLE_SENSOR_UNKNOWN = -1
     };
 
     enum {
         TOGGLE_TYPE_SOFTWARE = 1,
-        TOGGLE_TYPE_HARDWARE = 2
+        TOGGLE_TYPE_HARDWARE = 2,
+        TOGGLE_TYPE_UNKNOWN = -1
+    };
+
+    enum {
+        ENABLED = 1,
+        DISABLED = 2,
+        AUTOMOTIVE_DRIVER_ASSISTANCE_HELPFUL_APPS = 3,
+        AUTOMOTIVE_DRIVER_ASSISTANCE_REQUIRED_APPS = 4,
+        AUTOMOTIVE_DRIVER_ASSISTANCE_APPS = 5
     };
 
     SensorPrivacyManager();
@@ -51,6 +61,9 @@ public:
     bool isToggleSensorPrivacyEnabled(int sensor);
     bool isToggleSensorPrivacyEnabled(int toggleType, int sensor);
     status_t isToggleSensorPrivacyEnabled(int toggleType, int sensor, bool &result);
+    int getToggleSensorPrivacyState(int toggleType, int sensor);
+    std::vector<hardware::CameraPrivacyAllowlistEntry> getCameraPrivacyAllowlist();
+    bool isCameraPrivacyEnabled(String16 packageName);
 
     status_t linkToDeath(const sp<IBinder::DeathRecipient>& recipient);
     status_t unlinkToDeath(const sp<IBinder::DeathRecipient>& recipient);

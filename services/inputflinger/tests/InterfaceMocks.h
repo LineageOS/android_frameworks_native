@@ -48,7 +48,7 @@ namespace android {
 class MockInputReaderContext : public InputReaderContext {
 public:
     MOCK_METHOD(void, updateGlobalMetaState, (), (override));
-    int32_t getGlobalMetaState() override { return 0; };
+    MOCK_METHOD(int32_t, getGlobalMetaState, (), (override));
 
     MOCK_METHOD(void, disableVirtualKeysUntil, (nsecs_t time), (override));
     MOCK_METHOD(bool, shouldDropVirtualKey, (nsecs_t now, int32_t keyCode, int32_t scanCode),
@@ -132,6 +132,9 @@ public:
 
     MOCK_METHOD(status_t, getAbsoluteAxisValue, (int32_t deviceId, int32_t axis, int32_t* outValue),
                 (const, override));
+    MOCK_METHOD(base::Result<std::vector<int32_t>>, getMtSlotValues,
+                (int32_t deviceId, int32_t axis, size_t slotCount), (const, override));
+
     MOCK_METHOD(int32_t, getKeyCodeForKeyLocation, (int32_t deviceId, int32_t locationKeyCode),
                 (const, override));
     MOCK_METHOD(bool, markSupportedKeyCodes,

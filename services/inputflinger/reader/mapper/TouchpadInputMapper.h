@@ -72,6 +72,10 @@ private:
     void resetGestureInterpreter(nsecs_t when);
     explicit TouchpadInputMapper(InputDeviceContext& deviceContext,
                                  const InputReaderConfiguration& readerConfig);
+    // Constructor for testing.
+    explicit TouchpadInputMapper(InputDeviceContext& deviceContext,
+                                 const InputReaderConfiguration& readerConfig,
+                                 bool enablePointerChoreographer);
     void updatePalmDetectionMetrics();
     [[nodiscard]] std::list<NotifyArgs> sendHardwareState(nsecs_t when, nsecs_t readTime,
                                                           SelfContainedHardwareState schs);
@@ -113,6 +117,8 @@ private:
     // ADISPLAY_ID_NONE to target the focused display. If there is no display target (i.e.
     // std::nullopt), all events will be ignored.
     std::optional<int32_t> mDisplayId;
+
+    nsecs_t mGestureStartTime{0};
 };
 
 } // namespace android

@@ -330,7 +330,11 @@ std::string AidlComposer::dumpDebugInfo() {
 
     t.join();
     close(pipefds[0]);
-    return str;
+
+    std::string hash;
+    mAidlComposer->getInterfaceHash(&hash);
+    return std::string(mAidlComposer->descriptor) +
+            " version:" + std::to_string(mComposerInterfaceVersion) + " hash:" + hash + str;
 }
 
 void AidlComposer::registerCallback(HWC2::ComposerCallback& callback) {

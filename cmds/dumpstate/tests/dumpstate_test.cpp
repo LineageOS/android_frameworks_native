@@ -16,23 +16,7 @@
 
 #define LOG_TAG "dumpstate_test"
 
-#include "DumpstateInternal.h"
-#include "DumpstateService.h"
-#include "android/os/BnDumpstate.h"
 #include "dumpstate.h"
-#include "DumpPool.h"
-
-#include <gmock/gmock.h>
-#include <gmock/gmock-matchers.h>
-#include <gtest/gtest.h>
-
-#include <fcntl.h>
-#include <libgen.h>
-#include <signal.h>
-#include <sys/types.h>
-#include <unistd.h>
-#include <filesystem>
-#include <thread>
 
 #include <aidl/android/hardware/dumpstate/IDumpstateDevice.h>
 #include <android-base/file.h>
@@ -41,9 +25,26 @@
 #include <android-base/strings.h>
 #include <android-base/unique_fd.h>
 #include <android/hardware/dumpstate/1.1/types.h>
+#include <android_tracing.h>
 #include <cutils/log.h>
 #include <cutils/properties.h>
+#include <fcntl.h>
+#include <gmock/gmock-matchers.h>
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
+#include <libgen.h>
+#include <signal.h>
+#include <sys/types.h>
+#include <unistd.h>
 #include <ziparchive/zip_archive.h>
+
+#include <filesystem>
+#include <thread>
+
+#include "DumpPool.h"
+#include "DumpstateInternal.h"
+#include "DumpstateService.h"
+#include "android/os/BnDumpstate.h"
 
 namespace android {
 namespace os {
@@ -999,10 +1000,13 @@ TEST_F(DumpstateTest, DumpPool_withParallelRunDisabled_isNull) {
 
 TEST_F(DumpstateTest, PreDumpUiData) {
     // These traces are always enabled, i.e. they are always pre-dumped
-    const std::vector<std::filesystem::path> uiTraces = {
-        std::filesystem::path{"/data/misc/wmtrace/wm_transition_trace.winscope"},
-        std::filesystem::path{"/data/misc/wmtrace/shell_transition_trace.winscope"},
-    };
+    std::vector<std::filesystem::path> uiTraces;
+    if (!android_tracing_perfetto_transition_tracing()) {
+        uiTraces.push_back(
+            std::filesystem::path{"/data/misc/wmtrace/wm_transition_trace.winscope"});
+        uiTraces.push_back(
+            std::filesystem::path{"/data/misc/wmtrace/shell_transition_trace.winscope"});
+    }
 
     for (const auto traceFile : uiTraces) {
         std::system(("rm -f " + traceFile.string()).c_str());

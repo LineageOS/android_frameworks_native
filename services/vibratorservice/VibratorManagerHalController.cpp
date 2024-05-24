@@ -46,8 +46,6 @@ template <typename T>
 HalResult<T> ManagerHalController::processHalResult(HalResult<T> result, const char* functionName) {
     if (result.isFailed()) {
         ALOGE("VibratorManager HAL %s failed: %s", functionName, result.errorMessage());
-        std::lock_guard<std::mutex> lock(mConnectedHalMutex);
-        mConnectedHal->tryReconnect();
     }
     return result;
 }
@@ -70,12 +68,16 @@ HalResult<T> ManagerHalController::apply(ManagerHalController::hal_fn<T>& halFn,
         hal = mConnectedHal;
     }
 
-    HalResult<T> ret = processHalResult(halFn(hal), functionName);
-    for (int i = 0; i < MAX_RETRIES && ret.isFailed(); i++) {
-        ret = processHalResult(halFn(hal), functionName);
+    HalResult<T> result = processHalResult(halFn(hal), functionName);
+    for (int i = 0; i < MAX_RETRIES && result.shouldRetry(); i++) {
+        {
+            std::lock_guard<std::mutex> lock(mConnectedHalMutex);
+            mConnectedHal->tryReconnect();
+        }
+        result = processHalResult(halFn(hal), functionName);
     }
 
-    return ret;
+    return result;
 }
 
 // -------------------------------------------------------------------------------------------------

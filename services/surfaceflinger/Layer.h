@@ -233,7 +233,7 @@ public:
         bool autoRefresh = false;
         bool dimmingEnabled = true;
         float currentHdrSdrRatio = 1.f;
-        float desiredHdrSdrRatio = 1.f;
+        float desiredHdrSdrRatio = -1.f;
         gui::CachingHint cachingHint = gui::CachingHint::Enabled;
         int64_t latchedVsyncId = 0;
         bool useVsyncIdForRefreshRateSelection = false;
@@ -317,6 +317,7 @@ public:
     void setDesiredPresentTime(nsecs_t /*desiredPresentTime*/, bool /*isAutoTimestamp*/);
     bool setDataspace(ui::Dataspace /*dataspace*/);
     bool setExtendedRangeBrightness(float currentBufferRatio, float desiredRatio);
+    bool setDesiredHdrHeadroom(float desiredRatio);
     bool setCachingHint(gui::CachingHint cachingHint);
     bool setHdrMetadata(const HdrMetadata& /*hdrMetadata*/);
     bool setSurfaceDamageRegion(const Region& /*surfaceDamage*/);
@@ -546,7 +547,7 @@ public:
         sp<IBinder> mReleaseBufferEndpoint;
 
         bool mFrameLatencyNeeded{false};
-        float mDesiredHdrSdrRatio = 1.f;
+        float mDesiredHdrSdrRatio = -1.f;
     };
 
     BufferInfo mBufferInfo;
@@ -555,7 +556,8 @@ public:
     const compositionengine::LayerFECompositionState* getCompositionState() const;
     bool fenceHasSignaled() const;
     void onPreComposition(nsecs_t refreshStartTime);
-    void onLayerDisplayed(ftl::SharedFuture<FenceResult>, ui::LayerStack layerStack);
+    void onLayerDisplayed(ftl::SharedFuture<FenceResult>, ui::LayerStack layerStack,
+                          std::function<FenceResult(FenceResult)>&& continuation = nullptr);
 
     void setWasClientComposed(const sp<Fence>& fence) {
         mLastClientCompositionFence = fence;
@@ -932,6 +934,19 @@ public:
     // the release fences from the correct displays when we release the last buffer
     // from the layer.
     std::vector<ui::LayerStack> mPreviouslyPresentedLayerStacks;
+    struct FenceAndContinuation {
+        ftl::SharedFuture<FenceResult> future;
+        std::function<FenceResult(FenceResult)> continuation;
+
+        ftl::SharedFuture<FenceResult> chain() const {
+            if (continuation) {
+                return ftl::Future(future).then(continuation).share();
+            } else {
+                return future;
+            }
+        }
+    };
+    std::vector<FenceAndContinuation> mAdditionalPreviousReleaseFences;
     // Exposed so SurfaceFlinger can assert that it's held
     const sp<SurfaceFlinger> mFlinger;
 

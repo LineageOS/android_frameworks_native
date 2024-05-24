@@ -35,8 +35,7 @@ struct RenderEngineThreadedTest : public ::testing::Test {
 
     void SetUp() override {
         mThreadedRE = renderengine::threaded::RenderEngineThreaded::create(
-                [this]() { return std::unique_ptr<renderengine::RenderEngine>(mRenderEngine); },
-                renderengine::RenderEngine::RenderEngineType::SKIA_GL_THREADED);
+                [this]() { return std::unique_ptr<renderengine::RenderEngine>(mRenderEngine); });
     }
 
     std::unique_ptr<renderengine::threaded::RenderEngineThreaded> mThreadedRE;

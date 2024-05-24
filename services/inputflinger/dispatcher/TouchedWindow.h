@@ -38,17 +38,18 @@ struct TouchedWindow {
     bool hasHoveringPointers() const;
     bool hasHoveringPointers(DeviceId deviceId) const;
     bool hasHoveringPointer(DeviceId deviceId, int32_t pointerId) const;
-    void addHoveringPointer(DeviceId deviceId, int32_t pointerId);
+    void addHoveringPointer(DeviceId deviceId, const PointerProperties& pointer);
     void removeHoveringPointer(DeviceId deviceId, int32_t pointerId);
 
     // Touching
     bool hasTouchingPointer(DeviceId deviceId, int32_t pointerId) const;
     bool hasTouchingPointers() const;
     bool hasTouchingPointers(DeviceId deviceId) const;
-    std::bitset<MAX_POINTER_ID + 1> getTouchingPointers(DeviceId deviceId) const;
-    void addTouchingPointers(DeviceId deviceId, std::bitset<MAX_POINTER_ID + 1> pointers);
+    std::vector<PointerProperties> getTouchingPointers(DeviceId deviceId) const;
+    void addTouchingPointers(DeviceId deviceId, const std::vector<PointerProperties>& pointers);
     void removeTouchingPointer(DeviceId deviceId, int32_t pointerId);
     void removeTouchingPointers(DeviceId deviceId, std::bitset<MAX_POINTER_ID + 1> pointers);
+    bool hasActiveStylus() const;
     std::set<DeviceId> getTouchingDeviceIds() const;
 
     // Pilfering pointers
@@ -69,16 +70,16 @@ struct TouchedWindow {
 
 private:
     struct DeviceState {
-        std::bitset<MAX_POINTER_ID + 1> touchingPointerIds;
+        std::vector<PointerProperties> touchingPointers;
         // The pointer ids of the pointers that this window is currently pilfering, by device
         std::bitset<MAX_POINTER_ID + 1> pilferingPointerIds;
         // Time at which the first action down occurred on this window, for each device
         // NOTE: This is not initialized in case of HOVER entry/exit and DISPATCH_AS_OUTSIDE
         // scenario.
         std::optional<nsecs_t> downTimeInTarget;
-        std::bitset<MAX_POINTER_ID + 1> hoveringPointerIds;
+        std::vector<PointerProperties> hoveringPointers;
 
-        bool hasPointers() const { return touchingPointerIds.any() || hoveringPointerIds.any(); };
+        bool hasPointers() const { return !touchingPointers.empty() || !hoveringPointers.empty(); };
     };
 
     std::map<DeviceId, DeviceState> mDeviceStates;

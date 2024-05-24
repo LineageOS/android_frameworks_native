@@ -13,6 +13,7 @@
 // limitations under the License.
 
 package {
+    default_team: "trendy_team_input_framework",
     // See: http://go/android-license-faq
     // A large-scale-change added 'default_applicable_licenses' to import
     // all of the 'license_kinds' from "frameworks_native_license"
@@ -49,6 +50,7 @@ filegroup {
         "Monitor.cpp",
         "TouchedWindow.cpp",
         "TouchState.cpp",
+        "trace/*.cpp",
     ],
 }
 
@@ -72,6 +74,7 @@ cc_defaults {
     static_libs: [
         "libattestation",
         "libgui_window_info_static",
+        "libperfetto_client_experimental",
     ],
     target: {
         android: {

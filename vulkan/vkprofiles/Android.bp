@@ -1,0 +1,68 @@
+package {
+    // See: http://go/android-license-faq
+    // A large-scale-change added 'default_applicable_licenses' to import
+    // all of the 'license_kinds' from "frameworks_native_license"
+    // to get the below license kinds:
+    //   SPDX-license-identifier-Apache-2.0
+    default_applicable_licenses: ["frameworks_native_license"],
+}
+
+cc_defaults {
+    name: "libvkprofiles_deps",
+    shared_libs: [
+        "libvulkan",
+    ],
+}
+
+cc_library_static {
+    name: "libvkprofiles",
+    defaults: [
+        "libvkprofiles_deps",
+    ],
+    srcs: [
+        "vkprofiles.cpp",
+        "generated/vulkan_profiles.cpp",
+    ],
+    cflags: [
+        "-Wall",
+        "-Werror",
+        "-Wimplicit-fallthrough",
+    ],
+    cppflags: [
+        "-Wno-error=unused-parameter",
+        "-Wno-error=missing-braces",
+        "-Wno-sign-compare",
+    ],
+    export_include_dirs: [
+        ".",
+    ],
+    export_shared_lib_headers: [
+        "libvulkan",
+    ],
+}
+
+cc_library_static {
+    name: "libvkprofiles_ndk",
+    srcs: [
+        "vkprofiles.cpp",
+        "generated/vulkan_profiles.cpp",
+    ],
+    cflags: [
+        "-Wall",
+        "-Werror",
+        "-Wimplicit-fallthrough",
+    ],
+    cppflags: [
+        "-Wno-error=unused-parameter",
+        "-Wno-error=missing-braces",
+        "-Wno-sign-compare",
+    ],
+    export_include_dirs: [
+        ".",
+    ],
+    header_libs: [
+        "vulkan_headers",
+    ],
+    sdk_version: "24",
+    stl: "libc++_static",
+}

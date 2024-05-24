@@ -40,6 +40,9 @@ public:
     // True if the display is secure
     virtual bool isSecure() const = 0;
 
+    // Sets the secure flag for the display
+    virtual void setSecure(bool secure) = 0;
+
     // True if the display is virtual
     virtual bool isVirtual() const = 0;
 
@@ -57,7 +60,7 @@ public:
     virtual void createClientCompositionCache(uint32_t cacheSize) = 0;
 
     // Sends the brightness setting to HWC
-    virtual void applyDisplayBrightness(const bool applyImmediately) = 0;
+    virtual void applyDisplayBrightness(bool applyImmediately) = 0;
 
 protected:
     ~Display() = default;

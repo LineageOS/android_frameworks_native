@@ -4018,7 +4018,6 @@ TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings,
 TEST_F(OutputComposeSurfacesTest_UsesExpectedDisplaySettings,
        usesExpectedDisplaySettingsWithFp16Buffer) {
     SET_FLAG_FOR_TEST(flags::fp16_client_target, true);
-    ALOGE("alecmouri: %d", flags::fp16_client_target());
     verify().ifMixedCompositionIs(false)
             .andIfUsesHdr(true)
             .withDisplayBrightnessNits(kDisplayLuminance)
@@ -4093,7 +4092,12 @@ struct OutputComposeSurfacesTest_HandlesProtectedContent : public OutputComposeS
 };
 
 TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifNoProtectedContentLayers) {
-    mOutput.mState.isSecure = true;
+    SET_FLAG_FOR_TEST(flags::protected_if_client, true);
+    if (FlagManager::getInstance().display_protected()) {
+        mOutput.mState.isProtected = true;
+    } else {
+        mOutput.mState.isSecure = true;
+    }
     mLayer2.mLayerFEState.hasProtectedContent = false;
     EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(true));
     EXPECT_CALL(*mRenderSurface, isProtected).WillOnce(Return(true));
@@ -4107,7 +4111,12 @@ TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifNoProtectedContentLa
 }
 
 TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifNotEnabled) {
-    mOutput.mState.isSecure = true;
+    SET_FLAG_FOR_TEST(flags::protected_if_client, true);
+    if (FlagManager::getInstance().display_protected()) {
+        mOutput.mState.isProtected = true;
+    } else {
+        mOutput.mState.isSecure = true;
+    }
     mLayer2.mLayerFEState.hasProtectedContent = true;
     EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(true));
 
@@ -4129,7 +4138,12 @@ TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifNotEnabled) {
 }
 
 TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifAlreadyEnabledEverywhere) {
-    mOutput.mState.isSecure = true;
+    SET_FLAG_FOR_TEST(flags::protected_if_client, true);
+    if (FlagManager::getInstance().display_protected()) {
+        mOutput.mState.isProtected = true;
+    } else {
+        mOutput.mState.isSecure = true;
+    }
     mLayer2.mLayerFEState.hasProtectedContent = true;
     EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(true));
     EXPECT_CALL(*mRenderSurface, isProtected).WillOnce(Return(true));
@@ -4142,7 +4156,12 @@ TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifAlreadyEnabledEveryw
 }
 
 TEST_F(OutputComposeSurfacesTest_HandlesProtectedContent, ifAlreadyEnabledInRenderSurface) {
-    mOutput.mState.isSecure = true;
+    SET_FLAG_FOR_TEST(flags::protected_if_client, true);
+    if (FlagManager::getInstance().display_protected()) {
+        mOutput.mState.isProtected = true;
+    } else {
+        mOutput.mState.isSecure = true;
+    }
     mLayer2.mLayerFEState.hasProtectedContent = true;
     EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(true));
     EXPECT_CALL(*mRenderSurface, isProtected).WillOnce(Return(true));
@@ -4221,6 +4240,7 @@ struct GenerateClientCompositionRequestsTest : public testing::Test {
 
     GenerateClientCompositionRequestsTest() {
         mOutput.mState.needsFiltering = false;
+        mOutput.mState.isProtected = true;
 
         mOutput.setDisplayColorProfileForTest(
                 std::unique_ptr<DisplayColorProfile>(mDisplayColorProfile));
@@ -4245,6 +4265,7 @@ struct GenerateClientCompositionRequestsTest_ThreeLayers
         mOutput.mState.displaySpace.setOrientation(kDisplayOrientation);
         mOutput.mState.needsFiltering = false;
         mOutput.mState.isSecure = false;
+        mOutput.mState.isProtected = true;
 
         for (size_t i = 0; i < mLayers.size(); i++) {
             mLayers[i].mOutputLayerState.clearClientTarget = false;
@@ -4707,7 +4728,7 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             Region(kDisplayFrame),
             false, /* needs filtering */
             false, /* secure */
-            true,  /* supports protected content */
+            true,  /* isProtected */
             kDisplayViewport,
             kDisplayDataspace,
             true /* realContentIsVisible */,
@@ -4720,7 +4741,7 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             Region(kDisplayFrame),
             false, /* needs filtering */
             false, /* secure */
-            true,  /* supports protected content */
+            true,  /* isProtected */
             kDisplayViewport,
             kDisplayDataspace,
             true /* realContentIsVisible */,
@@ -4733,7 +4754,7 @@ TEST_F(GenerateClientCompositionRequestsTest_ThreeLayers,
             Region(kDisplayFrame),
             false, /* needs filtering */
             false, /* secure */
-            true,  /* supports protected content */
+            true,  /* isProtected */
             kDisplayViewport,
             kDisplayDataspace,
             true /* realContentIsVisible */,
@@ -4911,7 +4932,7 @@ TEST_F(GenerateClientCompositionRequestsTest, handlesLandscapeModeSplitScreenReq
             Region(Rect(0, 0, 1000, 1000)),
             false, /* needs filtering */
             true,  /* secure */
-            true,  /* supports protected content */
+            true,  /* isProtected */
             kPortraitViewport,
             kOutputDataspace,
             true /* realContentIsVisible */,
@@ -4930,7 +4951,7 @@ TEST_F(GenerateClientCompositionRequestsTest, handlesLandscapeModeSplitScreenReq
             Region(Rect(1000, 0, 2000, 1000)),
             false, /* needs filtering */
             true,  /* secure */
-            true,  /* supports protected content */
+            true,  /* isProtected */
             kPortraitViewport,
             kOutputDataspace,
             true /* realContentIsVisible */,
@@ -5122,7 +5143,12 @@ struct OutputUpdateProtectedContentStateTest : public testing::Test {
 };
 
 TEST_F(OutputUpdateProtectedContentStateTest, ifProtectedContentLayerComposeByHWC) {
-    mOutput.mState.isSecure = true;
+    SET_FLAG_FOR_TEST(flags::protected_if_client, true);
+    if (FlagManager::getInstance().display_protected()) {
+        mOutput.mState.isProtected = true;
+    } else {
+        mOutput.mState.isSecure = true;
+    }
     mLayer1.mLayerFEState.hasProtectedContent = false;
     mLayer2.mLayerFEState.hasProtectedContent = true;
     EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(true));
@@ -5133,7 +5159,12 @@ TEST_F(OutputUpdateProtectedContentStateTest, ifProtectedContentLayerComposeByHW
 }
 
 TEST_F(OutputUpdateProtectedContentStateTest, ifProtectedContentLayerComposeByClient) {
-    mOutput.mState.isSecure = true;
+    SET_FLAG_FOR_TEST(flags::protected_if_client, true);
+    if (FlagManager::getInstance().display_protected()) {
+        mOutput.mState.isProtected = true;
+    } else {
+        mOutput.mState.isSecure = true;
+    }
     mLayer1.mLayerFEState.hasProtectedContent = false;
     mLayer2.mLayerFEState.hasProtectedContent = true;
     EXPECT_CALL(mRenderEngine, supportsProtectedContent()).WillRepeatedly(Return(true));

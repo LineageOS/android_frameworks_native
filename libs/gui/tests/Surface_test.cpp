@@ -791,6 +791,10 @@ public:
         return binder::Status::ok();
     }
 
+    binder::Status captureLayersSync(const LayerCaptureArgs&, ScreenCaptureResults*) override {
+        return binder::Status::ok();
+    }
+
     binder::Status captureLayers(const LayerCaptureArgs&,
                                  const sp<IScreenCaptureListener>&) override {
         return binder::Status::ok();

@@ -47,6 +47,9 @@ struct ICompositor {
     virtual CompositeResultsPerDisplay composite(PhysicalDisplayId pacesetterId,
                                                  const scheduler::FrameTargeters&) = 0;
 
+    // Sends a hint about the expected present time
+    virtual void sendNotifyExpectedPresentHint(PhysicalDisplayId) = 0;
+
     // Samples the composited frame via RegionSamplingThread.
     virtual void sample() = 0;
 

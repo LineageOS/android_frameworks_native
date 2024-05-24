@@ -393,12 +393,6 @@ bool CachedSet::hasProtectedLayers() const {
                        [](const Layer& layer) { return layer.getState()->isProtected(); });
 }
 
-bool CachedSet::hasSolidColorLayers() const {
-    return std::any_of(mLayers.cbegin(), mLayers.cend(), [](const Layer& layer) {
-        return layer.getState()->hasSolidColorCompositionType();
-    });
-}
-
 bool CachedSet::cachingHintExcludesLayers() const {
     const bool shouldExcludeLayers =
             std::any_of(mLayers.cbegin(), mLayers.cend(), [](const Layer& layer) {

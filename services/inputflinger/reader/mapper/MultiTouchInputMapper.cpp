@@ -35,10 +35,8 @@ MultiTouchInputMapper::MultiTouchInputMapper(InputDeviceContext& deviceContext,
 MultiTouchInputMapper::~MultiTouchInputMapper() {}
 
 std::list<NotifyArgs> MultiTouchInputMapper::reset(nsecs_t when) {
-    // TODO(b/291626046): Sync the MT state with the kernel using EVIOCGMTSLOTS.
-    mMultiTouchMotionAccumulator.reset(getDeviceContext());
     mPointerIdBits.clear();
-
+    mMultiTouchMotionAccumulator.reset(mDeviceContext);
     return TouchInputMapper::reset(when);
 }
 

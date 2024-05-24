@@ -16,6 +16,7 @@ package {
     default_applicable_licenses: [
         "frameworks_native_libs_nativewindow_license",
     ],
+    default_team: "trendy_team_android_core_graphics_stack",
 }
 
 rust_bindgen {

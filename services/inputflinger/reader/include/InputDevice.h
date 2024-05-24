@@ -199,6 +199,7 @@ private:
     std::optional<DisplayViewport> mAssociatedViewport;
     bool mHasMic;
     bool mDropUntilNextSync;
+    std::optional<bool> mShouldSmoothScroll;
 
     typedef int32_t (InputMapper::*GetStateFunc)(uint32_t sourceMask, int32_t code);
     int32_t getState(uint32_t sourceMask, int32_t code, GetStateFunc getStateFunc);
@@ -280,7 +281,7 @@ private:
 class InputDeviceContext {
 public:
     InputDeviceContext(InputDevice& device, int32_t eventHubId);
-    ~InputDeviceContext();
+    virtual ~InputDeviceContext();
 
     inline InputReaderContext* getContext() { return mContext; }
     inline int32_t getId() { return mDeviceId; }
@@ -372,6 +373,10 @@ public:
     inline status_t getAbsoluteAxisValue(int32_t code, int32_t* outValue) const {
         return mEventHub->getAbsoluteAxisValue(mId, code, outValue);
     }
+    inline base::Result<std::vector<int32_t>> getMtSlotValues(int32_t axis,
+                                                              size_t slotCount) const {
+        return mEventHub->getMtSlotValues(mId, axis, slotCount);
+    }
     inline bool markSupportedKeyCodes(const std::vector<int32_t>& keyCodes,
                                       uint8_t* outFlags) const {
         return mEventHub->markSupportedKeyCodes(mId, keyCodes, outFlags);
@@ -450,7 +455,7 @@ public:
     inline std::optional<std::string> getDeviceTypeAssociation() const {
         return mDevice.getDeviceTypeAssociation();
     }
-    inline std::optional<DisplayViewport> getAssociatedViewport() const {
+    virtual std::optional<DisplayViewport> getAssociatedViewport() const {
         return mDevice.getAssociatedViewport();
     }
     [[nodiscard]] inline std::list<NotifyArgs> cancelTouch(nsecs_t when, nsecs_t readTime) {

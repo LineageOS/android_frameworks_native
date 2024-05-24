@@ -176,6 +176,8 @@ struct WindowInfo : public Parcelable {
                 static_cast<uint32_t>(os::InputConfig::INTERCEPTS_STYLUS),
         CLONE =
                 static_cast<uint32_t>(os::InputConfig::CLONE),
+        GLOBAL_STYLUS_BLOCKS_TOUCH =
+                static_cast<uint32_t>(os::InputConfig::GLOBAL_STYLUS_BLOCKS_TOUCH),
         // clang-format on
     };
 
@@ -244,6 +246,10 @@ struct WindowInfo : public Parcelable {
     // any other window.
     sp<IBinder> focusTransferTarget;
 
+    // Sets a property on this window indicating that its visible region should be considered when
+    // computing TrustedPresentation Thresholds.
+    bool canOccludePresentation = false;
+
     void setInputConfig(ftl::Flags<InputConfig> config, bool value);
 
     void addTouchableRegion(const Rect& region);
@@ -266,6 +272,8 @@ struct WindowInfo : public Parcelable {
 
     status_t readFromParcel(const android::Parcel* parcel) override;
 };
+
+std::ostream& operator<<(std::ostream& out, const WindowInfo& window);
 
 /*
  * Handle for a window that can receive input.

@@ -98,13 +98,6 @@ const bool DEBUG_TOUCH_MODE =
 constexpr bool DEBUG_TOUCH_OCCLUSION = true;
 
 /**
- * Log debug messages about the app switch latency optimization.
- * Enable this via "adb shell setprop log.tag.InputDispatcherAppSwitch DEBUG" (requires restart)
- */
-const bool DEBUG_APP_SWITCH =
-        android::base::ShouldLog(android::base::LogSeverity::DEBUG, LOG_TAG "AppSwitch");
-
-/**
  * Log debug messages about hover events.
  * Enable this via "adb shell setprop log.tag.InputDispatcherHover DEBUG" (requires restart)
  */

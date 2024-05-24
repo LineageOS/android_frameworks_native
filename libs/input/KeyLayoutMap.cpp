@@ -97,6 +97,10 @@ static const std::unordered_map<std::string_view, InputDeviceSensorType> SENSOR_
 
 bool kernelConfigsArePresent(const std::set<std::string>& configs) {
 #if defined(__ANDROID__)
+    if (configs.empty()) {
+        return true;
+    }
+
     std::map<std::string, std::string> kernelConfigs;
     const status_t result = android::kernelconfigs::LoadKernelConfigs(&kernelConfigs);
     LOG_ALWAYS_FATAL_IF(result != OK, "Kernel configs could not be fetched");
