@@ -89,7 +89,7 @@ public:
         return mCompositionDisplay;
     }
 
-    bool isVirtual() const { return getId().isVirtual(); }
+    bool isVirtual() const { return VirtualDisplayId::tryCast(getId()).has_value(); }
     bool isPrimary() const { return mIsPrimary; }
 
     // isSecure indicates whether this display can be trusted to display
