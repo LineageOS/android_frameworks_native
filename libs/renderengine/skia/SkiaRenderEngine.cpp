@@ -79,6 +79,7 @@
 #include "filters/GaussianBlurFilter.h"
 #include "filters/KawaseBlurFilter.h"
 #include "filters/LinearEffect.h"
+#include "filters/MouriMap.h"
 #include "log/log_main.h"
 #include "skia/compat/SkiaBackendTexture.h"
 #include "skia/debug/SkiaCapture.h"
@@ -509,9 +510,9 @@ sk_sp<SkShader> SkiaRenderEngine::createRuntimeEffectShader(
     // Determine later on if we need to leverage the stertch shader within
     // surface flinger
     const auto& stretchEffect = parameters.layer.stretchEffect;
+    const auto& targetBuffer = parameters.layer.source.buffer.buffer;
     auto shader = parameters.shader;
     if (stretchEffect.hasEffect()) {
-        const auto targetBuffer = parameters.layer.source.buffer.buffer;
         const auto graphicBuffer = targetBuffer ? targetBuffer->getBuffer() : nullptr;
         if (graphicBuffer && parameters.shader) {
             shader = mStretchShaderFactory.createSkShader(shader, stretchEffect);
@@ -519,9 +520,22 @@ sk_sp<SkShader> SkiaRenderEngine::createRuntimeEffectShader(
     }
 
     if (parameters.requiresLinearEffect) {
+        const auto format = targetBuffer != nullptr
+                ? std::optional<ui::PixelFormat>(
+                          static_cast<ui::PixelFormat>(targetBuffer->getPixelFormat()))
+                : std::nullopt;
+
         if (parameters.display.tonemapStrategy == DisplaySettings::TonemapStrategy::Local) {
-            // TODO: Apply a local tonemap
-            // fallthrough for now
+            // TODO: Handle color matrix transforms in linear space.
+            SkImage* image = parameters.shader->isAImage((SkMatrix*)nullptr, (SkTileMode*)nullptr);
+            if (image) {
+                static MouriMap kMapper;
+                const float ratio = getHdrRenderType(parameters.layer.sourceDataspace, format) ==
+                                HdrRenderType::GENERIC_HDR
+                        ? 1.0f
+                        : parameters.layerDimmingRatio;
+                return kMapper.mouriMap(getActiveContext(), parameters.shader, ratio);
+            }
         }
 
         auto effect =
