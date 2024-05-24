@@ -22,6 +22,7 @@
 #include <numeric>
 #include <optional>
 
+#include <common/FlagManager.h>
 #include <ftl/small_map.h>
 #include <gui/TraceUtils.h>
 #include <ui/DisplayMap.h>
@@ -358,7 +359,7 @@ LayerSnapshot LayerSnapshotBuilder::getRootSnapshot() {
     snapshot.relativeLayerMetadata.mMap.clear();
     snapshot.inputInfo.touchOcclusionMode = gui::TouchOcclusionMode::BLOCK_UNTRUSTED;
     snapshot.dropInputMode = gui::DropInputMode::NONE;
-    snapshot.isTrustedOverlay = false;
+    snapshot.trustedOverlay = gui::TrustedOverlay::UNSET;
     snapshot.gameMode = gui::GameMode::Unsupported;
     snapshot.frameRate = {};
     snapshot.fixedTransformHint = ui::Transform::ROT_INVALID;
@@ -735,7 +736,19 @@ void LayerSnapshotBuilder::updateSnapshot(LayerSnapshot& snapshot, const Args& a
     }
 
     if (forceUpdate || snapshot.clientChanges & layer_state_t::eTrustedOverlayChanged) {
-        snapshot.isTrustedOverlay = parentSnapshot.isTrustedOverlay || requested.isTrustedOverlay;
+        switch (requested.trustedOverlay) {
+            case gui::TrustedOverlay::UNSET:
+                snapshot.trustedOverlay = parentSnapshot.trustedOverlay;
+                break;
+            case gui::TrustedOverlay::DISABLED:
+                snapshot.trustedOverlay = FlagManager::getInstance().override_trusted_overlay()
+                        ? requested.trustedOverlay
+                        : parentSnapshot.trustedOverlay;
+                break;
+            case gui::TrustedOverlay::ENABLED:
+                snapshot.trustedOverlay = requested.trustedOverlay;
+                break;
+        }
     }
 
     if (snapshot.isHiddenByPolicyFromParent &&
@@ -1112,7 +1125,7 @@ void LayerSnapshotBuilder::updateInput(LayerSnapshot& snapshot,
 
     // Inherit the trusted state from the parent hierarchy, but don't clobber the trusted state
     // if it was set by WM for a known system overlay
-    if (snapshot.isTrustedOverlay) {
+    if (snapshot.trustedOverlay == gui::TrustedOverlay::ENABLED) {
         snapshot.inputInfo.inputConfig |= InputConfig::TRUSTED_OVERLAY;
     }
 

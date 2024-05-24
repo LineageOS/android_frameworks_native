@@ -118,7 +118,7 @@ RequestedLayerState::RequestedLayerState(const LayerCreationArgs& args)
     shadowRadius = 0.f;
     fixedTransformHint = ui::Transform::ROT_INVALID;
     destinationFrame.makeInvalid();
-    isTrustedOverlay = false;
+    trustedOverlay = gui::TrustedOverlay::UNSET;
     dropInputMode = gui::DropInputMode::NONE;
     dimmingEnabled = true;
     defaultFrameRateCompatibility = static_cast<int8_t>(scheduler::FrameRateCompatibility::Default);

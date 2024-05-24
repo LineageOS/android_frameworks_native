@@ -494,14 +494,14 @@ protected:
         mLifecycleManager.applyTransactions(transactions);
     }
 
-    void setTrustedOverlay(uint32_t id, bool isTrustedOverlay) {
+    void setTrustedOverlay(uint32_t id, gui::TrustedOverlay trustedOverlay) {
         std::vector<TransactionState> transactions;
         transactions.emplace_back();
         transactions.back().states.push_back({});
 
         transactions.back().states.front().state.what = layer_state_t::eTrustedOverlayChanged;
         transactions.back().states.front().layerId = id;
-        transactions.back().states.front().state.isTrustedOverlay = isTrustedOverlay;
+        transactions.back().states.front().state.trustedOverlay = trustedOverlay;
         mLifecycleManager.applyTransactions(transactions);
     }
 

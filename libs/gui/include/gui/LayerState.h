@@ -30,6 +30,7 @@
 
 #include <android/gui/DropInputMode.h>
 #include <android/gui/FocusRequest.h>
+#include <android/gui/TrustedOverlay.h>
 
 #include <ftl/flags.h>
 #include <gui/DisplayCaptureArgs.h>
@@ -385,7 +386,7 @@ struct layer_state_t {
 
     // An inherited state that indicates that this surface control and its children
     // should be trusted for input occlusion detection purposes
-    bool isTrustedOverlay;
+    gui::TrustedOverlay trustedOverlay;
 
     // Stretch effect to be applied to this layer
     StretchEffect stretchEffect;
