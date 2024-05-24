@@ -519,6 +519,11 @@ sk_sp<SkShader> SkiaRenderEngine::createRuntimeEffectShader(
     }
 
     if (parameters.requiresLinearEffect) {
+        if (parameters.display.tonemapStrategy == DisplaySettings::TonemapStrategy::Local) {
+            // TODO: Apply a local tonemap
+            // fallthrough for now
+        }
+
         auto effect =
                 shaders::LinearEffect{.inputDataspace = parameters.layer.sourceDataspace,
                                       .outputDataspace = parameters.outputDataSpace,
