@@ -1578,8 +1578,8 @@ void IPCThreadState::logExtendedError() {
     }
 #endif
 
-    ALOGE_IF(ee.command != BR_OK, "Binder transaction failure: %d/%d/%d",
-             ee.id, ee.command, ee.param);
+    ALOGE_IF(ee.command != BR_OK, "Binder transaction failure. id: %d, BR_*: %d, error: %d (%s)",
+             ee.id, ee.command, ee.param, strerror(-ee.param));
 }
 
 void IPCThreadState::freeBuffer(const uint8_t* data, size_t /*dataSize*/,
