@@ -573,4 +573,11 @@ interface ISurfaceComposer {
     @nullable StalledTransactionInfo getStalledTransactionInfo(int pid);
 
     SchedulingPolicy getSchedulingPolicy();
+
+    /**
+     * Notifies the SurfaceFlinger that the ShutdownThread is running. When it is called,
+     * transaction traces will be captured and writted into a file.
+     * This method should not block the ShutdownThread therefore it's handled asynchronously.
+     */
+    oneway void notifyShutdown();
 }

@@ -382,7 +382,8 @@ void LayerProtoHelper::writeSnapshotToProto(perfetto::protos::LayerProto* layerI
     layerInfo->set_corner_radius(
             (snapshot.roundedCorner.radius.x + snapshot.roundedCorner.radius.y) / 2.0);
     layerInfo->set_background_blur_radius(snapshot.backgroundBlurRadius);
-    layerInfo->set_is_trusted_overlay(snapshot.isTrustedOverlay);
+    layerInfo->set_is_trusted_overlay(snapshot.trustedOverlay == gui::TrustedOverlay::ENABLED);
+    // TODO(b/339701674) update protos
     LayerProtoHelper::writeToProtoDeprecated(transform, layerInfo->mutable_transform());
     LayerProtoHelper::writePositionToProto(transform.tx(), transform.ty(),
                                            [&]() { return layerInfo->mutable_position(); });

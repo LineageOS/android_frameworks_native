@@ -87,6 +87,7 @@ filegroup {
         "android/gui/DropInputMode.aidl",
         "android/gui/StalledTransactionInfo.aidl",
         "android/**/TouchOcclusionMode.aidl",
+        "android/gui/TrustedOverlay.aidl",
     ],
 }
 

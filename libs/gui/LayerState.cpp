@@ -89,7 +89,7 @@ layer_state_t::layer_state_t()
         frameRateSelectionStrategy(ANATIVEWINDOW_FRAME_RATE_SELECTION_STRATEGY_PROPAGATE),
         fixedTransformHint(ui::Transform::ROT_INVALID),
         autoRefresh(false),
-        isTrustedOverlay(false),
+        trustedOverlay(gui::TrustedOverlay::UNSET),
         bufferCrop(Rect::INVALID_RECT),
         destinationFrame(Rect::INVALID_RECT),
         dropInputMode(gui::DropInputMode::NONE) {
@@ -179,7 +179,7 @@ status_t layer_state_t::write(Parcel& output) const
     SAFE_PARCEL(output.write, stretchEffect);
     SAFE_PARCEL(output.write, bufferCrop);
     SAFE_PARCEL(output.write, destinationFrame);
-    SAFE_PARCEL(output.writeBool, isTrustedOverlay);
+    SAFE_PARCEL(output.writeInt32, static_cast<uint32_t>(trustedOverlay));
 
     SAFE_PARCEL(output.writeUint32, static_cast<uint32_t>(dropInputMode));
 
@@ -308,7 +308,9 @@ status_t layer_state_t::read(const Parcel& input)
     SAFE_PARCEL(input.read, stretchEffect);
     SAFE_PARCEL(input.read, bufferCrop);
     SAFE_PARCEL(input.read, destinationFrame);
-    SAFE_PARCEL(input.readBool, &isTrustedOverlay);
+    uint32_t trustedOverlayInt;
+    SAFE_PARCEL(input.readUint32, &trustedOverlayInt);
+    trustedOverlay = static_cast<gui::TrustedOverlay>(trustedOverlayInt);
 
     uint32_t mode;
     SAFE_PARCEL(input.readUint32, &mode);
@@ -674,7 +676,7 @@ void layer_state_t::merge(const layer_state_t& other) {
     }
     if (other.what & eTrustedOverlayChanged) {
         what |= eTrustedOverlayChanged;
-        isTrustedOverlay = other.isTrustedOverlay;
+        trustedOverlay = other.trustedOverlay;
     }
     if (other.what & eStretchChanged) {
         what |= eStretchChanged;
@@ -779,7 +781,7 @@ uint64_t layer_state_t::diff(const layer_state_t& other) const {
     CHECK_DIFF(diff, eFrameRateSelectionStrategyChanged, other, frameRateSelectionStrategy);
     CHECK_DIFF(diff, eFixedTransformHintChanged, other, fixedTransformHint);
     CHECK_DIFF(diff, eAutoRefreshChanged, other, autoRefresh);
-    CHECK_DIFF(diff, eTrustedOverlayChanged, other, isTrustedOverlay);
+    CHECK_DIFF(diff, eTrustedOverlayChanged, other, trustedOverlay);
     CHECK_DIFF(diff, eStretchChanged, other, stretchEffect);
     CHECK_DIFF(diff, eBufferCropChanged, other, bufferCrop);
     CHECK_DIFF(diff, eDestinationFrameChanged, other, destinationFrame);

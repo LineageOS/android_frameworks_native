@@ -3902,7 +3902,7 @@ bool Layer::isSimpleBufferUpdate(const layer_state_t& s) const {
     }
 
     if (s.what & layer_state_t::eTrustedOverlayChanged) {
-        if (mDrawingState.isTrustedOverlay != s.isTrustedOverlay) {
+        if (mDrawingState.isTrustedOverlay != (s.trustedOverlay == gui::TrustedOverlay::ENABLED)) {
             ATRACE_FORMAT_INSTANT("%s: false [eTrustedOverlayChanged changed]", __func__);
             return false;
         }

@@ -1681,6 +1681,7 @@ public:
     binder::Status getStalledTransactionInfo(
             int pid, std::optional<gui::StalledTransactionInfo>* outInfo) override;
     binder::Status getSchedulingPolicy(gui::SchedulingPolicy* outPolicy) override;
+    binder::Status notifyShutdown() override;
 
 private:
     static const constexpr bool kUsePermissionCache = true;

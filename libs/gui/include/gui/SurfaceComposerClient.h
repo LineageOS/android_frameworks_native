@@ -719,6 +719,8 @@ public:
 
         // Sets that this surface control and its children are trusted overlays for input
         Transaction& setTrustedOverlay(const sp<SurfaceControl>& sc, bool isTrustedOverlay);
+        Transaction& setTrustedOverlay(const sp<SurfaceControl>& sc,
+                                       gui::TrustedOverlay trustedOverlay);
 
         // Queues up transactions using this token in SurfaceFlinger.  By default, all transactions
         // from a client are placed on the same queue. This can be used to prevent multiple
@@ -823,6 +825,8 @@ public:
             std::pair<std::vector<gui::WindowInfo>, std::vector<gui::DisplayInfo>>* outInitialInfo =
                     nullptr);
     status_t removeWindowInfosListener(const sp<gui::WindowInfosListener>& windowInfosListener);
+
+    static void notifyShutdown();
 
 protected:
     ReleaseCallbackThread mReleaseCallbackThread;

@@ -247,7 +247,8 @@ perfetto::protos::LayerState TransactionProtoParser::toProto(
         proto.set_auto_refresh(layer.autoRefresh);
     }
     if (layer.what & layer_state_t::eTrustedOverlayChanged) {
-        proto.set_is_trusted_overlay(layer.isTrustedOverlay);
+        proto.set_is_trusted_overlay(layer.trustedOverlay == gui::TrustedOverlay::ENABLED);
+        // TODO(b/339701674) update protos
     }
     if (layer.what & layer_state_t::eBufferCropChanged) {
         LayerProtoHelper::writeToProto(layer.bufferCrop, proto.mutable_buffer_crop());
@@ -515,7 +516,8 @@ void TransactionProtoParser::fromProto(const perfetto::protos::LayerState& proto
         layer.autoRefresh = proto.auto_refresh();
     }
     if (proto.what() & layer_state_t::eTrustedOverlayChanged) {
-        layer.isTrustedOverlay = proto.is_trusted_overlay();
+        layer.trustedOverlay = proto.is_trusted_overlay() ? gui::TrustedOverlay::ENABLED
+                                                          : gui::TrustedOverlay::UNSET;
     }
     if (proto.what() & layer_state_t::eBufferCropChanged) {
         LayerProtoHelper::readFromProto(proto.buffer_crop(), layer.bufferCrop);
