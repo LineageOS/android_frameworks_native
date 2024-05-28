@@ -519,6 +519,11 @@ sk_sp<SkShader> SkiaRenderEngine::createRuntimeEffectShader(
     }
 
     if (parameters.requiresLinearEffect) {
+        if (parameters.display.tonemapStrategy == DisplaySettings::TonemapStrategy::Local) {
+            // TODO: Apply a local tonemap
+            // fallthrough for now
+        }
+
         auto effect =
                 shaders::LinearEffect{.inputDataspace = parameters.layer.sourceDataspace,
                                       .outputDataspace = parameters.outputDataSpace,
@@ -712,8 +717,7 @@ void SkiaRenderEngine::drawLayersInternal(
             [&](const auto& l) { return l.whitePointNits; });
 
     // ...and compute the dimming ratio if dimming is requested
-    const float displayDimmingRatio = display.targetLuminanceNits > 0.f &&
-                    maxLayerWhitePoint > 0.f && display.targetLuminanceNits > maxLayerWhitePoint
+    const float displayDimmingRatio = display.targetLuminanceNits > 0.f && maxLayerWhitePoint > 0.f
             ? maxLayerWhitePoint / display.targetLuminanceNits
             : 1.f;
 

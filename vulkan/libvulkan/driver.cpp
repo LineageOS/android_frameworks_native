@@ -964,13 +964,19 @@ PFN_vkVoidFunction GetInstanceProcAddr(VkInstance instance, const char* pName) {
 
 PFN_vkVoidFunction GetDeviceProcAddr(VkDevice device, const char* pName) {
     const ProcHook* hook = GetProcHook(pName);
+    PFN_vkVoidFunction drv_func = GetData(device).driver.GetDeviceProcAddr(device, pName);
+
     if (!hook)
-        return GetData(device).driver.GetDeviceProcAddr(device, pName);
+        return drv_func;
 
     if (hook->type != ProcHook::DEVICE) {
         ALOGE("internal vkGetDeviceProcAddr called for %s", pName);
         return nullptr;
     }
+
+    // Don't hook if we don't have a device entry function below for the core function.
+    if (!drv_func && (hook->extension >= ProcHook::EXTENSION_CORE_1_0))
+        return nullptr;
 
     return (GetData(device).hook_extensions[hook->extension]) ? hook->proc
                                                               : nullptr;

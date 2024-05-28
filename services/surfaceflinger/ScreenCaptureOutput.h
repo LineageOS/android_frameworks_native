@@ -39,6 +39,7 @@ struct ScreenCaptureOutputArgs {
     bool treat170mAsSrgb;
     bool dimInGammaSpaceForEnhancedScreenshots;
     bool isProtected = false;
+    bool enableLocalTonemapping = false;
 };
 
 // ScreenCaptureOutput is used to compose a set of layers into a preallocated buffer.
@@ -49,7 +50,8 @@ class ScreenCaptureOutput : public compositionengine::impl::Output {
 public:
     ScreenCaptureOutput(const RenderArea& renderArea,
                         const compositionengine::Output::ColorProfile& colorProfile,
-                        bool regionSampling, bool dimInGammaSpaceForEnhancedScreenshots);
+                        bool regionSampling, bool dimInGammaSpaceForEnhancedScreenshots,
+                        bool enableLocalTonemapping);
 
     void updateColorProfile(const compositionengine::CompositionRefreshArgs&) override;
 
@@ -67,6 +69,7 @@ private:
     const compositionengine::Output::ColorProfile& mColorProfile;
     const bool mRegionSampling;
     const bool mDimInGammaSpaceForEnhancedScreenshots;
+    const bool mEnableLocalTonemapping;
 };
 
 std::shared_ptr<ScreenCaptureOutput> createScreenCaptureOutput(ScreenCaptureOutputArgs);

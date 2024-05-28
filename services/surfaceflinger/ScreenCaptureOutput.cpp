@@ -30,7 +30,7 @@ std::shared_ptr<ScreenCaptureOutput> createScreenCaptureOutput(ScreenCaptureOutp
             ScreenCaptureOutput, compositionengine::CompositionEngine, const RenderArea&,
             const compositionengine::Output::ColorProfile&,
             bool>(args.compositionEngine, args.renderArea, args.colorProfile, args.regionSampling,
-                  args.dimInGammaSpaceForEnhancedScreenshots);
+                  args.dimInGammaSpaceForEnhancedScreenshots, args.enableLocalTonemapping);
     output->editState().isSecure = args.renderArea.isSecure();
     output->editState().isProtected = args.isProtected;
     output->setCompositionEnabled(true);
@@ -63,11 +63,13 @@ std::shared_ptr<ScreenCaptureOutput> createScreenCaptureOutput(ScreenCaptureOutp
 
 ScreenCaptureOutput::ScreenCaptureOutput(
         const RenderArea& renderArea, const compositionengine::Output::ColorProfile& colorProfile,
-        bool regionSampling, bool dimInGammaSpaceForEnhancedScreenshots)
+        bool regionSampling, bool dimInGammaSpaceForEnhancedScreenshots,
+        bool enableLocalTonemapping)
       : mRenderArea(renderArea),
         mColorProfile(colorProfile),
         mRegionSampling(regionSampling),
-        mDimInGammaSpaceForEnhancedScreenshots(dimInGammaSpaceForEnhancedScreenshots) {}
+        mDimInGammaSpaceForEnhancedScreenshots(dimInGammaSpaceForEnhancedScreenshots),
+        mEnableLocalTonemapping(enableLocalTonemapping) {}
 
 void ScreenCaptureOutput::updateColorProfile(const compositionengine::CompositionRefreshArgs&) {
     auto& outputState = editState();
@@ -86,6 +88,11 @@ renderengine::DisplaySettings ScreenCaptureOutput::generateClientCompositionDisp
         renderIntent != ui::RenderIntent::TONE_MAP_COLORIMETRIC) {
         clientCompositionDisplay.dimmingStage =
                 aidl::android::hardware::graphics::composer3::DimmingStage::GAMMA_OETF;
+    }
+
+    if (mEnableLocalTonemapping) {
+        clientCompositionDisplay.tonemapStrategy =
+                renderengine::DisplaySettings::TonemapStrategy::Local;
     }
 
     return clientCompositionDisplay;
