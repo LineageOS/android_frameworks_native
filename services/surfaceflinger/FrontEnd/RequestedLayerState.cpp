@@ -587,23 +587,22 @@ bool RequestedLayerState::isSimpleBufferUpdate(const layer_state_t& s) const {
 
     const uint64_t deniedFlags = layer_state_t::eProducerDisconnect | layer_state_t::eLayerChanged |
             layer_state_t::eRelativeLayerChanged | layer_state_t::eTransparentRegionChanged |
-            layer_state_t::eFlagsChanged | layer_state_t::eBlurRegionsChanged |
-            layer_state_t::eLayerStackChanged | layer_state_t::eReparent |
+            layer_state_t::eBlurRegionsChanged | layer_state_t::eLayerStackChanged |
+            layer_state_t::eReparent |
             (FlagManager::getInstance().latch_unsignaled_with_auto_refresh_changed()
                      ? 0
-                     : layer_state_t::eAutoRefreshChanged);
+                     : (layer_state_t::eAutoRefreshChanged | layer_state_t::eFlagsChanged));
     if (s.what & deniedFlags) {
         ATRACE_FORMAT_INSTANT("%s: false [has denied flags 0x%" PRIx64 "]", __func__,
                               s.what & deniedFlags);
         return false;
     }
 
-    bool changedFlags = diff(s);
-    static constexpr auto deniedChanges = layer_state_t::ePositionChanged |
-            layer_state_t::eAlphaChanged | layer_state_t::eColorTransformChanged |
-            layer_state_t::eBackgroundColorChanged | layer_state_t::eMatrixChanged |
-            layer_state_t::eCornerRadiusChanged | layer_state_t::eBackgroundBlurRadiusChanged |
-            layer_state_t::eBufferTransformChanged |
+    const uint64_t changedFlags = diff(s);
+    const uint64_t deniedChanges = layer_state_t::ePositionChanged | layer_state_t::eAlphaChanged |
+            layer_state_t::eColorTransformChanged | layer_state_t::eBackgroundColorChanged |
+            layer_state_t::eMatrixChanged | layer_state_t::eCornerRadiusChanged |
+            layer_state_t::eBackgroundBlurRadiusChanged | layer_state_t::eBufferTransformChanged |
             layer_state_t::eTransformToDisplayInverseChanged | layer_state_t::eCropChanged |
             layer_state_t::eDataspaceChanged | layer_state_t::eHdrMetadataChanged |
             layer_state_t::eSidebandStreamChanged | layer_state_t::eColorSpaceAgnosticChanged |
@@ -611,10 +610,13 @@ bool RequestedLayerState::isSimpleBufferUpdate(const layer_state_t& s) const {
             layer_state_t::eTrustedOverlayChanged | layer_state_t::eStretchChanged |
             layer_state_t::eBufferCropChanged | layer_state_t::eDestinationFrameChanged |
             layer_state_t::eDimmingEnabledChanged | layer_state_t::eExtendedRangeBrightnessChanged |
-            layer_state_t::eDesiredHdrHeadroomChanged;
+            layer_state_t::eDesiredHdrHeadroomChanged |
+            (FlagManager::getInstance().latch_unsignaled_with_auto_refresh_changed()
+                     ? layer_state_t::eFlagsChanged
+                     : 0);
     if (changedFlags & deniedChanges) {
         ATRACE_FORMAT_INSTANT("%s: false [has denied changes flags 0x%" PRIx64 "]", __func__,
-                              s.what & deniedChanges);
+                              changedFlags & deniedChanges);
         return false;
     }
 
