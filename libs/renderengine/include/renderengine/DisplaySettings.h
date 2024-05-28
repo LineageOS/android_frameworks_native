@@ -86,6 +86,22 @@ struct DisplaySettings {
     // Configures the rendering intent of the output display. This is used for tonemapping.
     aidl::android::hardware::graphics::composer3::RenderIntent renderIntent =
             aidl::android::hardware::graphics::composer3::RenderIntent::TONE_MAP_COLORIMETRIC;
+
+    // Tonemapping strategy to use for each layer. This is only used for tonemapping HDR source
+    // content
+    enum class TonemapStrategy {
+        // Use a tonemapper defined by libtonemap. This may be OEM-defined as of Android 13, aka
+        // undefined.
+        // This is typically a global tonemapper, designed to match what is on screen.
+        Libtonemap,
+        // Use a local tonemapper. Because local tonemapping uses large intermediate allocations,
+        // this
+        // method is primarily recommended for infrequent rendering that does not need to exactly
+        // match
+        // pixels that are on-screen.
+        Local,
+    };
+    TonemapStrategy tonemapStrategy = TonemapStrategy::Libtonemap;
 };
 
 static inline bool operator==(const DisplaySettings& lhs, const DisplaySettings& rhs) {

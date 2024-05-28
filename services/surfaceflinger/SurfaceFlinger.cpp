@@ -8331,6 +8331,9 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
 
     captureResults.capturedDataspace = requestedDataspace;
 
+    const bool enableLocalTonemapping = FlagManager::getInstance().local_tonemap_screenshots() &&
+            !renderArea->getHintForSeamlessTransition();
+
     {
         Mutex::Autolock lock(mStateLock);
         const DisplayDevice* display = nullptr;
@@ -8364,16 +8367,19 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
                 displayBrightnessNits = sdrWhitePointNits;
             } else {
                 displayBrightnessNits = state.displayBrightnessNits;
-                // Only clamp the display brightness if this is not a seamless transition. Otherwise
-                // for seamless transitions it's important to match the current display state as the
-                // buffer will be shown under these same conditions, and we want to avoid any
-                // flickers
-                if (sdrWhitePointNits > 1.0f && !renderArea->getHintForSeamlessTransition()) {
-                    // Restrict the amount of HDR "headroom" in the screenshot to avoid over-dimming
-                    // the SDR portion. 2.0 chosen by experimentation
-                    constexpr float kMaxScreenshotHeadroom = 2.0f;
-                    displayBrightnessNits = std::min(sdrWhitePointNits * kMaxScreenshotHeadroom,
-                                                     displayBrightnessNits);
+
+                if (!enableLocalTonemapping) {
+                    // Only clamp the display brightness if this is not a seamless transition.
+                    // Otherwise for seamless transitions it's important to match the current
+                    // display state as the buffer will be shown under these same conditions, and we
+                    // want to avoid any flickers
+                    if (sdrWhitePointNits > 1.0f && !renderArea->getHintForSeamlessTransition()) {
+                        // Restrict the amount of HDR "headroom" in the screenshot to avoid
+                        // over-dimming the SDR portion. 2.0 chosen by experimentation
+                        constexpr float kMaxScreenshotHeadroom = 2.0f;
+                        displayBrightnessNits = std::min(sdrWhitePointNits * kMaxScreenshotHeadroom,
+                                                         displayBrightnessNits);
+                    }
                 }
             }
 
@@ -8405,7 +8411,8 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
     auto present = [this, buffer = capturedBuffer, dataspace = captureResults.capturedDataspace,
                     sdrWhitePointNits, displayBrightnessNits, grayscale, isProtected,
                     layerFEs = copyLayerFEs(), layerStack, regionSampling,
-                    renderArea = std::move(renderArea), renderIntent]() -> FenceResult {
+                    renderArea = std::move(renderArea), renderIntent,
+                    enableLocalTonemapping]() -> FenceResult {
         std::unique_ptr<compositionengine::CompositionEngine> compositionEngine =
                 mFactory.createCompositionEngine();
         compositionEngine->setRenderEngine(mRenderEngine.get());
@@ -8414,7 +8421,11 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
                                                              .renderIntent = renderIntent};
 
         float targetBrightness = 1.0f;
-        if (dataspace == ui::Dataspace::BT2020_HLG) {
+        if (enableLocalTonemapping) {
+            // Boost the whole scene so that SDR white is at 1.0 while still communicating the hdr
+            // sdr ratio via display brightness / sdrWhite nits.
+            targetBrightness = sdrWhitePointNits / displayBrightnessNits;
+        } else if (dataspace == ui::Dataspace::BT2020_HLG) {
             const float maxBrightnessNits = displayBrightnessNits / sdrWhitePointNits * 203;
             // With a low dimming ratio, don't fit the entire curve. Otherwise mixed content
             // will appear way too bright.
@@ -8440,7 +8451,8 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
                                         .treat170mAsSrgb = mTreat170mAsSrgb,
                                         .dimInGammaSpaceForEnhancedScreenshots =
                                                 dimInGammaSpaceForEnhancedScreenshots,
-                                        .isProtected = isProtected});
+                                        .isProtected = isProtected,
+                                        .enableLocalTonemapping = enableLocalTonemapping});
 
         const float colorSaturation = grayscale ? 0 : 1;
         compositionengine::CompositionRefreshArgs refreshArgs{
