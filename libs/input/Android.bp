@@ -80,10 +80,6 @@ rust_bindgen {
     visibility: ["//frameworks/native/services/inputflinger"],
     wrapper_src: "InputWrapper.hpp",
 
-    include_dirs: [
-        "frameworks/native/include",
-    ],
-
     source_stem: "bindings",
 
     bindgen_flags: [
