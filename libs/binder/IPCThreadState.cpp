@@ -1027,6 +1027,7 @@ status_t IPCThreadState::waitForResponse(Parcel *reply, status_t *acquireResult)
             goto finish;
 
         case BR_FROZEN_REPLY:
+            ALOGW("Transaction failed because process frozen.");
             err = FAILED_TRANSACTION;
             goto finish;
 
