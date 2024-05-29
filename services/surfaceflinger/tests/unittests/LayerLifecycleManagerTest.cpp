@@ -592,4 +592,41 @@ TEST_F(LayerLifecycleManagerTest, layerSecureChangesSetsVisibilityChangeFlag) {
     mLifecycleManager.commitChanges();
 }
 
+TEST_F(LayerLifecycleManagerTest, isSimpleBufferUpdate) {
+    auto layer = rootLayer(1);
+
+    // no buffer changes
+    EXPECT_FALSE(layer->isSimpleBufferUpdate({}));
+
+    {
+        layer_state_t state;
+        state.what = layer_state_t::eBufferChanged;
+        EXPECT_TRUE(layer->isSimpleBufferUpdate(state));
+    }
+
+    {
+        layer_state_t state;
+        state.what = layer_state_t::eReparent | layer_state_t::eBufferChanged;
+        EXPECT_FALSE(layer->isSimpleBufferUpdate(state));
+    }
+
+    {
+        layer_state_t state;
+        state.what = layer_state_t::ePositionChanged | layer_state_t::eBufferChanged;
+        state.x = 9;
+        state.y = 10;
+        EXPECT_FALSE(layer->isSimpleBufferUpdate(state));
+    }
+
+    {
+        layer->x = 9;
+        layer->y = 10;
+        layer_state_t state;
+        state.what = layer_state_t::ePositionChanged | layer_state_t::eBufferChanged;
+        state.x = 9;
+        state.y = 10;
+        EXPECT_TRUE(layer->isSimpleBufferUpdate(state));
+    }
+}
+
 } // namespace android::surfaceflinger::frontend

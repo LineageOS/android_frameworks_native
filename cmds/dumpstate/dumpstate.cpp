@@ -1569,6 +1569,7 @@ static void DumpstateLimitedOnly() {
     printf("== ANR Traces\n");
     printf("========================================================\n");
 
+    ds.anr_data_ = GetDumpFds(ANR_DIR, ANR_FILE_PREFIX);
     AddAnrTraceFiles();
 
     printf("========================================================\n");
