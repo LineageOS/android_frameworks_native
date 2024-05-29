@@ -21,6 +21,8 @@
 #include <utils/Errors.h>
 #include <utils/String16.h>
 
+#include <binder/Common.h>
+
 namespace android {
 
 class Parcel;
@@ -31,7 +33,7 @@ class Parcel;
 #endif
 
 // Abstract interface of all parcelables.
-class Parcelable {
+class LIBBINDER_EXPORTED Parcelable {
 public:
     virtual ~Parcelable() = default;
 

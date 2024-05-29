@@ -18,6 +18,7 @@
 
 #ifndef __ANDROID_VNDK__
 
+#include <binder/Common.h>
 #include <binder/IInterface.h>
 #include <stdlib.h>
 
@@ -25,8 +26,7 @@ namespace android {
 
 // ----------------------------------------------------------------------
 
-class IPermissionController : public IInterface
-{
+class LIBBINDER_EXPORTED IPermissionController : public IInterface {
 public:
     DECLARE_META_INTERFACE(PermissionController)
 
@@ -51,8 +51,7 @@ public:
 
 // ----------------------------------------------------------------------
 
-class BnPermissionController : public BnInterface<IPermissionController>
-{
+class LIBBINDER_EXPORTED BnPermissionController : public BnInterface<IPermissionController> {
 public:
     // NOLINTNEXTLINE(google-default-arguments)
     virtual status_t    onTransact( uint32_t code,

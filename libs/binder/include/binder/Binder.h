@@ -18,6 +18,7 @@
 
 #include <atomic>
 #include <stdint.h>
+#include <binder/Common.h>
 #include <binder/IBinder.h>
 
 // ---------------------------------------------------------------------------
@@ -27,50 +28,47 @@ namespace internal {
 class Stability;
 }
 
-class BBinder : public IBinder
-{
+class BBinder : public IBinder {
 public:
-                        BBinder();
+    LIBBINDER_EXPORTED BBinder();
 
-    virtual const String16& getInterfaceDescriptor() const;
-    virtual bool        isBinderAlive() const;
-    virtual status_t    pingBinder();
-    virtual status_t    dump(int fd, const Vector<String16>& args);
-
-    // NOLINTNEXTLINE(google-default-arguments)
-    virtual status_t    transact(   uint32_t code,
-                                    const Parcel& data,
-                                    Parcel* reply,
-                                    uint32_t flags = 0) final;
+    LIBBINDER_EXPORTED virtual const String16& getInterfaceDescriptor() const;
+    LIBBINDER_EXPORTED virtual bool isBinderAlive() const;
+    LIBBINDER_EXPORTED virtual status_t pingBinder();
+    LIBBINDER_EXPORTED virtual status_t dump(int fd, const Vector<String16>& args);
 
     // NOLINTNEXTLINE(google-default-arguments)
-    virtual status_t    linkToDeath(const sp<DeathRecipient>& recipient,
-                                    void* cookie = nullptr,
-                                    uint32_t flags = 0);
+    LIBBINDER_EXPORTED virtual status_t transact(uint32_t code, const Parcel& data, Parcel* reply,
+                                                 uint32_t flags = 0) final;
 
     // NOLINTNEXTLINE(google-default-arguments)
-    virtual status_t    unlinkToDeath(  const wp<DeathRecipient>& recipient,
-                                        void* cookie = nullptr,
-                                        uint32_t flags = 0,
-                                        wp<DeathRecipient>* outRecipient = nullptr);
+    LIBBINDER_EXPORTED virtual status_t linkToDeath(const sp<DeathRecipient>& recipient,
+                                                    void* cookie = nullptr, uint32_t flags = 0);
 
-    virtual void* attachObject(const void* objectID, void* object, void* cleanupCookie,
-                               object_cleanup_func func) final;
-    virtual void*       findObject(const void* objectID) const final;
-    virtual void* detachObject(const void* objectID) final;
-    void withLock(const std::function<void()>& doWithLock);
-    sp<IBinder> lookupOrCreateWeak(const void* objectID, IBinder::object_make_func make,
-                                   const void* makeArgs);
+    // NOLINTNEXTLINE(google-default-arguments)
+    LIBBINDER_EXPORTED virtual status_t unlinkToDeath(const wp<DeathRecipient>& recipient,
+                                                      void* cookie = nullptr, uint32_t flags = 0,
+                                                      wp<DeathRecipient>* outRecipient = nullptr);
 
-    virtual BBinder*    localBinder();
+    LIBBINDER_EXPORTED virtual void* attachObject(const void* objectID, void* object,
+                                                  void* cleanupCookie,
+                                                  object_cleanup_func func) final;
+    LIBBINDER_EXPORTED virtual void* findObject(const void* objectID) const final;
+    LIBBINDER_EXPORTED virtual void* detachObject(const void* objectID) final;
+    LIBBINDER_EXPORTED void withLock(const std::function<void()>& doWithLock);
+    LIBBINDER_EXPORTED sp<IBinder> lookupOrCreateWeak(const void* objectID,
+                                                      IBinder::object_make_func make,
+                                                      const void* makeArgs);
 
-    bool                isRequestingSid();
+    LIBBINDER_EXPORTED virtual BBinder* localBinder();
+
+    LIBBINDER_EXPORTED bool isRequestingSid();
     // This must be called before the object is sent to another process. Not thread safe.
-    void                setRequestingSid(bool requestSid);
+    LIBBINDER_EXPORTED void setRequestingSid(bool requestSid);
 
-    sp<IBinder>         getExtension();
+    LIBBINDER_EXPORTED sp<IBinder> getExtension();
     // This must be called before the object is sent to another process. Not thread safe.
-    void                setExtension(const sp<IBinder>& extension);
+    LIBBINDER_EXPORTED void setExtension(const sp<IBinder>& extension);
 
     // This must be called before the object is sent to another process. Not thread safe.
     //
@@ -84,35 +82,33 @@ public:
     // Appropriate values are:
     // SCHED_NORMAL: -20 <= priority <= 19
     // SCHED_RR/SCHED_FIFO: 1 <= priority <= 99
-    void                setMinSchedulerPolicy(int policy, int priority);
-    int                 getMinSchedulerPolicy();
-    int                 getMinSchedulerPriority();
+    LIBBINDER_EXPORTED void setMinSchedulerPolicy(int policy, int priority);
+    LIBBINDER_EXPORTED int getMinSchedulerPolicy();
+    LIBBINDER_EXPORTED int getMinSchedulerPriority();
 
     // Whether realtime scheduling policies are inherited.
-    bool                isInheritRt();
+    LIBBINDER_EXPORTED bool isInheritRt();
     // This must be called before the object is sent to another process. Not thread safe.
-    void                setInheritRt(bool inheritRt);
+    LIBBINDER_EXPORTED void setInheritRt(bool inheritRt);
 
-    pid_t               getDebugPid();
+    LIBBINDER_EXPORTED pid_t getDebugPid();
 
     // Whether this binder has been sent to another process.
-    bool wasParceled();
+    LIBBINDER_EXPORTED bool wasParceled();
     // Consider this binder as parceled (setup/init-related calls should no
     // longer by called. This is automatically set by when this binder is sent
     // to another process.
-    void setParceled();
+    LIBBINDER_EXPORTED void setParceled();
 
-    [[nodiscard]] status_t setRpcClientDebug(binder::unique_fd clientFd,
-                                             const sp<IBinder>& keepAliveBinder);
+    [[nodiscard]] LIBBINDER_EXPORTED status_t setRpcClientDebug(binder::unique_fd clientFd,
+                                                                const sp<IBinder>& keepAliveBinder);
 
 protected:
-    virtual             ~BBinder();
+    LIBBINDER_EXPORTED virtual ~BBinder();
 
     // NOLINTNEXTLINE(google-default-arguments)
-    virtual status_t    onTransact( uint32_t code,
-                                    const Parcel& data,
-                                    Parcel* reply,
-                                    uint32_t flags = 0);
+    LIBBINDER_EXPORTED virtual status_t onTransact(uint32_t code, const Parcel& data, Parcel* reply,
+                                                   uint32_t flags = 0);
 
 private:
                         BBinder(const BBinder& o);
@@ -142,17 +138,18 @@ private:
 
 // ---------------------------------------------------------------------------
 
-class BpRefBase : public virtual RefBase
-{
+class BpRefBase : public virtual RefBase {
 protected:
-    explicit                BpRefBase(const sp<IBinder>& o);
-    virtual                 ~BpRefBase();
-    virtual void            onFirstRef();
-    virtual void            onLastStrongRef(const void* id);
-    virtual bool            onIncStrongAttempted(uint32_t flags, const void* id);
+    LIBBINDER_EXPORTED explicit BpRefBase(const sp<IBinder>& o);
+    LIBBINDER_EXPORTED virtual ~BpRefBase();
+    LIBBINDER_EXPORTED virtual void onFirstRef();
+    LIBBINDER_EXPORTED virtual void onLastStrongRef(const void* id);
+    LIBBINDER_EXPORTED virtual bool onIncStrongAttempted(uint32_t flags, const void* id);
 
-    inline IBinder* remote() const { return mRemote; }
-    inline sp<IBinder> remoteStrong() const { return sp<IBinder>::fromExisting(mRemote); }
+    LIBBINDER_EXPORTED inline IBinder* remote() const { return mRemote; }
+    LIBBINDER_EXPORTED inline sp<IBinder> remoteStrong() const {
+        return sp<IBinder>::fromExisting(mRemote);
+    }
 
 private:
                             BpRefBase(const BpRefBase& o);

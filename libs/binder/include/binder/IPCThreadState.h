@@ -16,9 +16,10 @@
 
 #pragma once
 
-#include <utils/Errors.h>
+#include <binder/Common.h>
 #include <binder/Parcel.h>
 #include <binder/ProcessState.h>
+#include <utils/Errors.h>
 #include <utils/Vector.h>
 
 #if defined(_WIN32)
@@ -32,13 +33,12 @@ namespace android {
  * Kernel binder thread state. All operations here refer to kernel binder. This
  * object is allocated per-thread.
  */
-class IPCThreadState
-{
+class IPCThreadState {
 public:
     using CallRestriction = ProcessState::CallRestriction;
 
-    static  IPCThreadState*     self();
-    static  IPCThreadState*     selfOrNull();  // self(), but won't instantiate
+    LIBBINDER_EXPORTED static IPCThreadState* self();
+    LIBBINDER_EXPORTED static IPCThreadState* selfOrNull(); // self(), but won't instantiate
 
     // Freeze or unfreeze the binder interface to a specific process. When freezing, this method
     // will block up to timeout_ms to process pending transactions directed to pid. Unfreeze
@@ -52,182 +52,175 @@ public:
     // binder transactions to be processed.
     //
     // returns: 0 in case of success, a value < 0 in case of error
-    static  status_t            freeze(pid_t pid, bool enabled, uint32_t timeout_ms);
+    LIBBINDER_EXPORTED static status_t freeze(pid_t pid, bool enabled, uint32_t timeout_ms);
 
     // Provide information about the state of a frozen process
-    static  status_t            getProcessFreezeInfo(pid_t pid, uint32_t *sync_received,
-                                                    uint32_t *async_received);
+    LIBBINDER_EXPORTED static status_t getProcessFreezeInfo(pid_t pid, uint32_t* sync_received,
+                                                            uint32_t* async_received);
 
-            status_t            clearLastError();
+    LIBBINDER_EXPORTED status_t clearLastError();
 
-            /**
-             * Returns the PID of the process which has made the current binder
-             * call. If not in a binder call, this will return getpid.
-             *
-             * Warning: oneway transactions do not receive PID. Even if you expect
-             * a transaction to be synchronous, a misbehaving client could send it
-             * as an asynchronous call and result in a 0 PID here. Additionally, if
-             * there is a race and the calling process dies, the PID may still be
-             * 0 for a synchronous call.
-             */
-            [[nodiscard]] pid_t getCallingPid() const;
+    /**
+     * Returns the PID of the process which has made the current binder
+     * call. If not in a binder call, this will return getpid.
+     *
+     * Warning: oneway transactions do not receive PID. Even if you expect
+     * a transaction to be synchronous, a misbehaving client could send it
+     * as an asynchronous call and result in a 0 PID here. Additionally, if
+     * there is a race and the calling process dies, the PID may still be
+     * 0 for a synchronous call.
+     */
+    [[nodiscard]] LIBBINDER_EXPORTED pid_t getCallingPid() const;
 
-            /**
-             * Returns the SELinux security identifier of the process which has
-             * made the current binder call. If not in a binder call this will
-             * return nullptr. If this isn't requested with
-             * Binder::setRequestingSid, it will also return nullptr.
-             *
-             * This can't be restored once it's cleared, and it does not return the
-             * context of the current process when not in a binder call.
-             */
-            [[nodiscard]] const char* getCallingSid() const;
+    /**
+     * Returns the SELinux security identifier of the process which has
+     * made the current binder call. If not in a binder call this will
+     * return nullptr. If this isn't requested with
+     * Binder::setRequestingSid, it will also return nullptr.
+     *
+     * This can't be restored once it's cleared, and it does not return the
+     * context of the current process when not in a binder call.
+     */
+    [[nodiscard]] LIBBINDER_EXPORTED const char* getCallingSid() const;
 
-            /**
-             * Returns the UID of the process which has made the current binder
-             * call. If not in a binder call, this will return 0.
-             */
-            [[nodiscard]] uid_t getCallingUid() const;
+    /**
+     * Returns the UID of the process which has made the current binder
+     * call. If not in a binder call, this will return 0.
+     */
+    [[nodiscard]] LIBBINDER_EXPORTED uid_t getCallingUid() const;
 
-            /**
-             * Make it an abort to rely on getCalling* for a section of
-             * execution.
-             *
-             * Usage:
-             *     IPCThreadState::SpGuard guard {
-             *        .address = __builtin_frame_address(0),
-             *        .context = "...",
-             *     };
-             *     const auto* orig = pushGetCallingSpGuard(&guard);
-             *     {
-             *         // will abort if you call getCalling*, unless you are
-             *         // serving a nested binder transaction
-             *     }
-             *     restoreCallingSpGuard(orig);
-             */
-            struct SpGuard {
-                const void* address;
-                const char* context;
-            };
-            const SpGuard* pushGetCallingSpGuard(const SpGuard* guard);
-            void restoreGetCallingSpGuard(const SpGuard* guard);
-            /**
-             * Used internally by getCalling*. Can also be used to assert that
-             * you are in a binder context (getCalling* is valid). This is
-             * intentionally not exposed as a boolean API since code should be
-             * written to know its environment.
-             */
-            void checkContextIsBinderForUse(const char* use) const;
+    /**
+     * Make it an abort to rely on getCalling* for a section of
+     * execution.
+     *
+     * Usage:
+     *     IPCThreadState::SpGuard guard {
+     *        .address = __builtin_frame_address(0),
+     *        .context = "...",
+     *     };
+     *     const auto* orig = pushGetCallingSpGuard(&guard);
+     *     {
+     *         // will abort if you call getCalling*, unless you are
+     *         // serving a nested binder transaction
+     *     }
+     *     restoreCallingSpGuard(orig);
+     */
+    struct SpGuard {
+        const void* address;
+        const char* context;
+    };
+    LIBBINDER_EXPORTED const SpGuard* pushGetCallingSpGuard(const SpGuard* guard);
+    LIBBINDER_EXPORTED void restoreGetCallingSpGuard(const SpGuard* guard);
+    /**
+     * Used internally by getCalling*. Can also be used to assert that
+     * you are in a binder context (getCalling* is valid). This is
+     * intentionally not exposed as a boolean API since code should be
+     * written to know its environment.
+     */
+    LIBBINDER_EXPORTED void checkContextIsBinderForUse(const char* use) const;
 
-            void                setStrictModePolicy(int32_t policy);
-            int32_t             getStrictModePolicy() const;
+    LIBBINDER_EXPORTED void setStrictModePolicy(int32_t policy);
+    LIBBINDER_EXPORTED int32_t getStrictModePolicy() const;
 
-            // See Binder#setCallingWorkSourceUid in Binder.java.
-            int64_t             setCallingWorkSourceUid(uid_t uid);
-            // Internal only. Use setCallingWorkSourceUid(uid) instead.
-            int64_t             setCallingWorkSourceUidWithoutPropagation(uid_t uid);
-            // See Binder#getCallingWorkSourceUid in Binder.java.
-            uid_t               getCallingWorkSourceUid() const;
-            // See Binder#clearCallingWorkSource in Binder.java.
-            int64_t             clearCallingWorkSource();
-            // See Binder#restoreCallingWorkSource in Binder.java.
-            void                restoreCallingWorkSource(int64_t token);
-            void                clearPropagateWorkSource();
-            bool                shouldPropagateWorkSource() const;
+    // See Binder#setCallingWorkSourceUid in Binder.java.
+    LIBBINDER_EXPORTED int64_t setCallingWorkSourceUid(uid_t uid);
+    // Internal only. Use setCallingWorkSourceUid(uid) instead.
+    LIBBINDER_EXPORTED int64_t setCallingWorkSourceUidWithoutPropagation(uid_t uid);
+    // See Binder#getCallingWorkSourceUid in Binder.java.
+    LIBBINDER_EXPORTED uid_t getCallingWorkSourceUid() const;
+    // See Binder#clearCallingWorkSource in Binder.java.
+    LIBBINDER_EXPORTED int64_t clearCallingWorkSource();
+    // See Binder#restoreCallingWorkSource in Binder.java.
+    LIBBINDER_EXPORTED void restoreCallingWorkSource(int64_t token);
+    LIBBINDER_EXPORTED void clearPropagateWorkSource();
+    LIBBINDER_EXPORTED bool shouldPropagateWorkSource() const;
 
-            void                setLastTransactionBinderFlags(int32_t flags);
-            int32_t             getLastTransactionBinderFlags() const;
+    LIBBINDER_EXPORTED void setLastTransactionBinderFlags(int32_t flags);
+    LIBBINDER_EXPORTED int32_t getLastTransactionBinderFlags() const;
 
-            void                setCallRestriction(CallRestriction restriction);
-            CallRestriction     getCallRestriction() const;
+    LIBBINDER_EXPORTED void setCallRestriction(CallRestriction restriction);
+    LIBBINDER_EXPORTED CallRestriction getCallRestriction() const;
 
-            int64_t             clearCallingIdentity();
-            // Restores PID/UID (not SID)
-            void                restoreCallingIdentity(int64_t token);
-            bool hasExplicitIdentity();
+    LIBBINDER_EXPORTED int64_t clearCallingIdentity();
+    // Restores PID/UID (not SID)
+    LIBBINDER_EXPORTED void restoreCallingIdentity(int64_t token);
+    LIBBINDER_EXPORTED bool hasExplicitIdentity();
 
-            // For main functions - dangerous for libraries to use
-            status_t            setupPolling(int* fd);
-            status_t            handlePolledCommands();
-            void                flushCommands();
-            bool                flushIfNeeded();
+    // For main functions - dangerous for libraries to use
+    LIBBINDER_EXPORTED status_t setupPolling(int* fd);
+    LIBBINDER_EXPORTED status_t handlePolledCommands();
+    LIBBINDER_EXPORTED void flushCommands();
+    LIBBINDER_EXPORTED bool flushIfNeeded();
 
-            // Adds the current thread into the binder threadpool.
-            //
-            // This is in addition to any threads which are started
-            // with startThreadPool. Libraries should not call this
-            // function, as they may be loaded into processes which
-            // try to configure the threadpool differently.
-            void                joinThreadPool(bool isMain = true);
-            
-            // Stop the local process.
-            void                stopProcess(bool immediate = true);
-            
-            status_t            transact(int32_t handle,
-                                         uint32_t code, const Parcel& data,
+    // Adds the current thread into the binder threadpool.
+    //
+    // This is in addition to any threads which are started
+    // with startThreadPool. Libraries should not call this
+    // function, as they may be loaded into processes which
+    // try to configure the threadpool differently.
+    LIBBINDER_EXPORTED void joinThreadPool(bool isMain = true);
+
+    // Stop the local process.
+    LIBBINDER_EXPORTED void stopProcess(bool immediate = true);
+
+    LIBBINDER_EXPORTED status_t transact(int32_t handle, uint32_t code, const Parcel& data,
                                          Parcel* reply, uint32_t flags);
 
-            void                incStrongHandle(int32_t handle, BpBinder *proxy);
-            void                decStrongHandle(int32_t handle);
-            void                incWeakHandle(int32_t handle, BpBinder *proxy);
-            void                decWeakHandle(int32_t handle);
-            status_t            attemptIncStrongHandle(int32_t handle);
-    static  void                expungeHandle(int32_t handle, IBinder* binder);
-            status_t            requestDeathNotification(   int32_t handle,
-                                                            BpBinder* proxy); 
-            status_t            clearDeathNotification( int32_t handle,
-                                                        BpBinder* proxy); 
+    LIBBINDER_EXPORTED void incStrongHandle(int32_t handle, BpBinder* proxy);
+    LIBBINDER_EXPORTED void decStrongHandle(int32_t handle);
+    LIBBINDER_EXPORTED void incWeakHandle(int32_t handle, BpBinder* proxy);
+    LIBBINDER_EXPORTED void decWeakHandle(int32_t handle);
+    LIBBINDER_EXPORTED status_t attemptIncStrongHandle(int32_t handle);
+    LIBBINDER_EXPORTED static void expungeHandle(int32_t handle, IBinder* binder);
+    LIBBINDER_EXPORTED status_t requestDeathNotification(int32_t handle, BpBinder* proxy);
+    LIBBINDER_EXPORTED status_t clearDeathNotification(int32_t handle, BpBinder* proxy);
 
-    static  void                shutdown();
+    LIBBINDER_EXPORTED static void shutdown();
 
     // Call this to disable switching threads to background scheduling when
     // receiving incoming IPC calls.  This is specifically here for the
     // Android system process, since it expects to have background apps calling
     // in to it but doesn't want to acquire locks in its services while in
     // the background.
-    static  void                disableBackgroundScheduling(bool disable);
-            bool                backgroundSchedulingDisabled();
+    LIBBINDER_EXPORTED static void disableBackgroundScheduling(bool disable);
+    LIBBINDER_EXPORTED bool backgroundSchedulingDisabled();
 
-            // Call blocks until the number of executing binder threads is less than
-            // the maximum number of binder threads threads allowed for this process.
-            void                blockUntilThreadAvailable();
+    // Call blocks until the number of executing binder threads is less than
+    // the maximum number of binder threads threads allowed for this process.
+    LIBBINDER_EXPORTED void blockUntilThreadAvailable();
 
-            // Service manager registration
-            void                setTheContextObject(const sp<BBinder>& obj);
+    // Service manager registration
+    LIBBINDER_EXPORTED void setTheContextObject(const sp<BBinder>& obj);
 
-            // WARNING: DO NOT USE THIS API
-            //
-            // Returns a pointer to the stack from the last time a transaction
-            // was initiated by the kernel. Used to compare when making nested
-            // calls between multiple different transports.
-            const void*         getServingStackPointer() const;
+    // WARNING: DO NOT USE THIS API
+    //
+    // Returns a pointer to the stack from the last time a transaction
+    // was initiated by the kernel. Used to compare when making nested
+    // calls between multiple different transports.
+    LIBBINDER_EXPORTED const void* getServingStackPointer() const;
 
-            // The work source represents the UID of the process we should attribute the transaction
-            // to. We use -1 to specify that the work source was not set using #setWorkSource.
-            //
-            // This constant needs to be kept in sync with Binder.UNSET_WORKSOURCE from the Java
-            // side.
-            static const int32_t kUnsetWorkSource = -1;
+    // The work source represents the UID of the process we should attribute the transaction
+    // to. We use -1 to specify that the work source was not set using #setWorkSource.
+    //
+    // This constant needs to be kept in sync with Binder.UNSET_WORKSOURCE from the Java
+    // side.
+    LIBBINDER_EXPORTED static const int32_t kUnsetWorkSource = -1;
+
 private:
-                                IPCThreadState();
-                                ~IPCThreadState();
+    IPCThreadState();
+    ~IPCThreadState();
 
-            status_t            sendReply(const Parcel& reply, uint32_t flags);
-            status_t            waitForResponse(Parcel *reply,
-                                                status_t *acquireResult=nullptr);
-            status_t            talkWithDriver(bool doReceive=true);
-            status_t            writeTransactionData(int32_t cmd,
-                                                     uint32_t binderFlags,
-                                                     int32_t handle,
-                                                     uint32_t code,
-                                                     const Parcel& data,
-                                                     status_t* statusBuffer);
-            status_t            getAndExecuteCommand();
-            status_t            executeCommand(int32_t command);
-            void                processPendingDerefs();
-            void                processPostWriteDerefs();
+    status_t sendReply(const Parcel& reply, uint32_t flags);
+    status_t waitForResponse(Parcel* reply, status_t* acquireResult = nullptr);
+    status_t talkWithDriver(bool doReceive = true);
+    status_t writeTransactionData(int32_t cmd, uint32_t binderFlags, int32_t handle, uint32_t code,
+                                  const Parcel& data, status_t* statusBuffer);
+    status_t getAndExecuteCommand();
+    status_t executeCommand(int32_t command);
+    void processPendingDerefs();
+    void processPostWriteDerefs();
 
-            void                clearCaller();
+    void clearCaller();
 
     static  void                threadDestructor(void *st);
     static void freeBuffer(const uint8_t* data, size_t dataSize, const binder_size_t* objects,

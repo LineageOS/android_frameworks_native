@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <binder/Common.h>
 #include <binder/Parcel.h>
 #include <binder/unique_fd.h>
 #include <mutex>
@@ -32,25 +33,25 @@ class RecordedTransaction {
 public:
     // Filled with the first transaction from fd.
 
-    static std::optional<RecordedTransaction> fromFile(const binder::unique_fd& fd);
+    LIBBINDER_EXPORTED static std::optional<RecordedTransaction> fromFile(
+            const binder::unique_fd& fd);
     // Filled with the arguments.
-    static std::optional<RecordedTransaction> fromDetails(const String16& interfaceName,
-                                                          uint32_t code, uint32_t flags,
-                                                          timespec timestamp, const Parcel& data,
-                                                          const Parcel& reply, status_t err);
-    RecordedTransaction(RecordedTransaction&& t) noexcept;
+    LIBBINDER_EXPORTED static std::optional<RecordedTransaction> fromDetails(
+            const String16& interfaceName, uint32_t code, uint32_t flags, timespec timestamp,
+            const Parcel& data, const Parcel& reply, status_t err);
+    LIBBINDER_EXPORTED RecordedTransaction(RecordedTransaction&& t) noexcept;
 
-    [[nodiscard]] status_t dumpToFile(const binder::unique_fd& fd) const;
+    [[nodiscard]] LIBBINDER_EXPORTED status_t dumpToFile(const binder::unique_fd& fd) const;
 
-    const std::string& getInterfaceName() const;
-    uint32_t getCode() const;
-    uint32_t getFlags() const;
-    int32_t getReturnedStatus() const;
-    timespec getTimestamp() const;
-    uint32_t getVersion() const;
-    const Parcel& getDataParcel() const;
-    const Parcel& getReplyParcel() const;
-    const std::vector<uint64_t>& getObjectOffsets() const;
+    LIBBINDER_EXPORTED const std::string& getInterfaceName() const;
+    LIBBINDER_EXPORTED uint32_t getCode() const;
+    LIBBINDER_EXPORTED uint32_t getFlags() const;
+    LIBBINDER_EXPORTED int32_t getReturnedStatus() const;
+    LIBBINDER_EXPORTED timespec getTimestamp() const;
+    LIBBINDER_EXPORTED uint32_t getVersion() const;
+    LIBBINDER_EXPORTED const Parcel& getDataParcel() const;
+    LIBBINDER_EXPORTED const Parcel& getReplyParcel() const;
+    LIBBINDER_EXPORTED const std::vector<uint64_t>& getObjectOffsets() const;
 
 private:
     RecordedTransaction() = default;

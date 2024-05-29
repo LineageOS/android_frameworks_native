@@ -22,27 +22,29 @@
 #include <memory>
 #include <thread>
 
+#include <binder/Common.h>
+
 namespace android {
 
 #ifdef BINDER_RPC_SINGLE_THREADED
-class RpcMutex {
+class LIBBINDER_EXPORTED RpcMutex {
 public:
     void lock() {}
     void unlock() {}
 };
 
-class RpcMutexUniqueLock {
+class LIBBINDER_EXPORTED RpcMutexUniqueLock {
 public:
     RpcMutexUniqueLock(RpcMutex&) {}
     void unlock() {}
 };
 
-class RpcMutexLockGuard {
+class LIBBINDER_EXPORTED RpcMutexLockGuard {
 public:
     RpcMutexLockGuard(RpcMutex&) {}
 };
 
-class RpcConditionVariable {
+class LIBBINDER_EXPORTED RpcConditionVariable {
 public:
     void notify_one() {}
     void notify_all() {}
@@ -65,7 +67,7 @@ public:
     }
 };
 
-class RpcMaybeThread {
+class LIBBINDER_EXPORTED RpcMaybeThread {
 public:
     RpcMaybeThread() = default;
 
