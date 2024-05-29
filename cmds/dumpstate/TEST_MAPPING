@@ -10,6 +10,14 @@
     },
     {
       "name": "dumpstate_test"
+    },
+    {
+        "name": "CtsSecurityHostTestCases",
+        "options": [
+            {
+                "include-filter": "android.security.cts.SELinuxHostTest#testNoBugreportDenials"
+            }
+        ]
     }
   ],
   "postsubmit": [
