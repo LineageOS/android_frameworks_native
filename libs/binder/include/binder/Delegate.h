@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <binder/Common.h>
 #include <binder/IBinder.h>
 
 #if !defined(__BIONIC__) && defined(BINDER_ENABLE_LIBLOG_ASSERT)

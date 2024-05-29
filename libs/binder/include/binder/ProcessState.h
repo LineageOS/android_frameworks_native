@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <binder/Common.h>
 #include <binder/IBinder.h>
 #include <utils/String16.h>
 #include <utils/String8.h>
@@ -35,10 +36,10 @@ class IPCThreadState;
  */
 class ProcessState : public virtual RefBase {
 public:
-    static sp<ProcessState> self();
-    static sp<ProcessState> selfOrNull();
+    LIBBINDER_EXPORTED static sp<ProcessState> self();
+    LIBBINDER_EXPORTED static sp<ProcessState> selfOrNull();
 
-    static bool isVndservicemanagerEnabled();
+    LIBBINDER_EXPORTED static bool isVndservicemanagerEnabled();
 
     /* initWithDriver() can be used to configure libbinder to use
      * a different binder driver dev node. It must be called *before*
@@ -48,9 +49,9 @@ public:
      *
      * If this is called with nullptr, the behavior is the same as selfOrNull.
      */
-    static sp<ProcessState> initWithDriver(const char* driver);
+    LIBBINDER_EXPORTED static sp<ProcessState> initWithDriver(const char* driver);
 
-    sp<IBinder> getContextObject(const sp<IBinder>& caller);
+    LIBBINDER_EXPORTED sp<IBinder> getContextObject(const sp<IBinder>& caller);
 
     // This should be called before startThreadPool at the beginning
     // of a program, and libraries should never call it because programs
@@ -60,7 +61,7 @@ public:
     // The 'maxThreads' value refers to the total number of threads
     // that will be started by the kernel. This is in addition to any
     // threads started by 'startThreadPool' or 'joinRpcThreadpool'.
-    status_t setThreadPoolMaxThreadCount(size_t maxThreads);
+    LIBBINDER_EXPORTED status_t setThreadPoolMaxThreadCount(size_t maxThreads);
 
     // Libraries should not call this, as processes should configure
     // threadpools themselves. Should be called in the main function
@@ -72,27 +73,27 @@ public:
     // For instance, if setThreadPoolMaxCount(3) is called and
     // startThreadpPool (+1 thread) and joinThreadPool (+1 thread)
     // are all called, then up to 5 threads can be started.
-    void startThreadPool();
+    LIBBINDER_EXPORTED void startThreadPool();
 
-    [[nodiscard]] bool becomeContextManager();
+    [[nodiscard]] LIBBINDER_EXPORTED bool becomeContextManager();
 
-    sp<IBinder> getStrongProxyForHandle(int32_t handle);
-    void expungeHandle(int32_t handle, IBinder* binder);
+    LIBBINDER_EXPORTED sp<IBinder> getStrongProxyForHandle(int32_t handle);
+    LIBBINDER_EXPORTED void expungeHandle(int32_t handle, IBinder* binder);
 
     // TODO: deprecate.
-    void spawnPooledThread(bool isMain);
+    LIBBINDER_EXPORTED void spawnPooledThread(bool isMain);
 
-    status_t enableOnewaySpamDetection(bool enable);
+    LIBBINDER_EXPORTED status_t enableOnewaySpamDetection(bool enable);
 
     // Set the name of the current thread to look like a threadpool
     // thread. Typically this is called before joinThreadPool.
     //
     // TODO: remove this API, and automatically set it intelligently.
-    void giveThreadPoolName();
+    LIBBINDER_EXPORTED void giveThreadPoolName();
 
-    String8 getDriverName();
+    LIBBINDER_EXPORTED String8 getDriverName();
 
-    ssize_t getKernelReferences(size_t count, uintptr_t* buf);
+    LIBBINDER_EXPORTED ssize_t getKernelReferences(size_t count, uintptr_t* buf);
 
     // Only usable by the context manager.
     // This refcount includes:
@@ -100,7 +101,7 @@ public:
     // 2. Temporary strong references held by the kernel during a
     //    transaction on the node.
     // It does NOT include local strong references to the node
-    ssize_t getStrongRefCountForNode(const sp<BpBinder>& binder);
+    LIBBINDER_EXPORTED ssize_t getStrongRefCountForNode(const sp<BpBinder>& binder);
 
     enum class CallRestriction {
         // all calls okay
@@ -112,26 +113,26 @@ public:
     };
     // Sets calling restrictions for all transactions in this process. This must be called
     // before any threads are spawned.
-    void setCallRestriction(CallRestriction restriction);
+    LIBBINDER_EXPORTED void setCallRestriction(CallRestriction restriction);
 
     /**
      * Get the max number of threads that have joined the thread pool.
      * This includes kernel started threads, user joined threads and polling
      * threads if used.
      */
-    size_t getThreadPoolMaxTotalThreadCount() const;
+    LIBBINDER_EXPORTED size_t getThreadPoolMaxTotalThreadCount() const;
 
     /**
      * Check to see if the thread pool has started.
      */
-    bool isThreadPoolStarted() const;
+    LIBBINDER_EXPORTED bool isThreadPoolStarted() const;
 
     enum class DriverFeature {
         ONEWAY_SPAM_DETECTION,
         EXTENDED_ERROR,
     };
     // Determine whether a feature is supported by the binder driver.
-    static bool isDriverFeatureEnabled(const DriverFeature feature);
+    LIBBINDER_EXPORTED static bool isDriverFeatureEnabled(const DriverFeature feature);
 
 private:
     static sp<ProcessState> init(const char* defaultDriver, bool requireDefault);

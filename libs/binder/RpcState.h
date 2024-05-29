@@ -149,8 +149,8 @@ public:
      */
     [[nodiscard]] status_t sendObituaries(const sp<RpcSession>& session);
 
-    size_t countBinders();
-    void dump();
+    LIBBINDER_INTERNAL_EXPORTED size_t countBinders();
+    LIBBINDER_INTERNAL_EXPORTED void dump();
 
     /**
      * Called when reading or writing data to a session fails to clean up

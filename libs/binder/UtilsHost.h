@@ -24,6 +24,7 @@
 #include <vector>
 
 #include <android-base/macros.h>
+#include <binder/Common.h>
 #include <binder/unique_fd.h>
 #include <utils/Errors.h>
 
@@ -40,7 +41,7 @@
 
 namespace android {
 
-struct CommandResult {
+struct LIBBINDER_EXPORTED CommandResult {
     std::optional<int32_t> exitCode;
     std::optional<int32_t> signal;
     std::optional<pid_t> pid;
@@ -72,7 +73,7 @@ private:
     void operator=(const CommandResult&) = delete;
 };
 
-std::ostream& operator<<(std::ostream& os, const CommandResult& res);
+LIBBINDER_EXPORTED std::ostream& operator<<(std::ostream& os, const CommandResult& res);
 
 // Execute a command using tokens specified in @a argStringVec.
 //
@@ -96,6 +97,7 @@ std::ostream& operator<<(std::ostream& os, const CommandResult& res);
 //
 // If the parent process has encountered any errors for system calls, return ExecuteError with
 // the proper errno set.
-std::optional<CommandResult> execute(std::vector<std::string> argStringVec,
-                                     const std::function<bool(const CommandResult&)>& end);
+LIBBINDER_EXPORTED std::optional<CommandResult> execute(
+        std::vector<std::string> argStringVec,
+        const std::function<bool(const CommandResult&)>& end);
 } // namespace android

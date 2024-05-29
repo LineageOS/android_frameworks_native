@@ -22,14 +22,14 @@
 
 #include <utils/RefBase.h>
 #include <utils/Errors.h>
+#include <binder/Common.h>
 #include <binder/IInterface.h>
 
 namespace android {
 
 // ----------------------------------------------------------------------------
 
-class IMemoryHeap : public IInterface
-{
+class LIBBINDER_EXPORTED IMemoryHeap : public IInterface {
 public:
     DECLARE_META_INTERFACE(MemoryHeap)
 
@@ -50,8 +50,7 @@ public:
     size_t  virtualSize() const { return getSize(); }
 };
 
-class BnMemoryHeap : public BnInterface<IMemoryHeap>
-{
+class LIBBINDER_EXPORTED BnMemoryHeap : public BnInterface<IMemoryHeap> {
 public:
     // NOLINTNEXTLINE(google-default-arguments)
     virtual status_t onTransact(
@@ -67,8 +66,7 @@ protected:
 
 // ----------------------------------------------------------------------------
 
-class IMemory : public IInterface
-{
+class LIBBINDER_EXPORTED IMemory : public IInterface {
 public:
     DECLARE_META_INTERFACE(Memory)
 
@@ -105,8 +103,7 @@ private:
     void* fastPointer(const sp<IBinder>& heap, ssize_t offset) const;
 };
 
-class BnMemory : public BnInterface<IMemory>
-{
+class LIBBINDER_EXPORTED BnMemory : public BnInterface<IMemory> {
 public:
     // NOLINTNEXTLINE(google-default-arguments)
     virtual status_t onTransact(

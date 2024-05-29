@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <binder/Common.h>
 #include <binder/Parcel.h>
 #include <binder/Parcelable.h>
 #include <binder/unique_fd.h>
@@ -26,7 +27,7 @@ namespace os {
 /*
  * C++ implementation of the Java class android.os.ParcelFileDescriptor
  */
-class ParcelFileDescriptor : public android::Parcelable {
+class LIBBINDER_EXPORTED ParcelFileDescriptor : public android::Parcelable {
 public:
     ParcelFileDescriptor();
     explicit ParcelFileDescriptor(binder::unique_fd fd);

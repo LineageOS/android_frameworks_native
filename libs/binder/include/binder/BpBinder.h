@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <binder/Common.h>
 #include <binder/IBinder.h>
 #include <binder/RpcThreads.h>
 #include <binder/unique_fd.h>
@@ -38,67 +39,64 @@ class ProcessState;
 using binder_proxy_limit_callback = std::function<void(int)>;
 using binder_proxy_warning_callback = std::function<void(int)>;
 
-class BpBinder : public IBinder
-{
+class BpBinder : public IBinder {
 public:
     /**
      * Return value:
      * true - this is associated with a socket RpcSession
      * false - (usual) binder over e.g. /dev/binder
      */
-    bool isRpcBinder() const;
+    LIBBINDER_EXPORTED bool isRpcBinder() const;
 
-    virtual const String16&    getInterfaceDescriptor() const;
-    virtual bool        isBinderAlive() const;
-    virtual status_t    pingBinder();
-    virtual status_t    dump(int fd, const Vector<String16>& args);
-
-    // NOLINTNEXTLINE(google-default-arguments)
-    virtual status_t    transact(   uint32_t code,
-                                    const Parcel& data,
-                                    Parcel* reply,
-                                    uint32_t flags = 0) final;
+    LIBBINDER_EXPORTED virtual const String16& getInterfaceDescriptor() const;
+    LIBBINDER_EXPORTED virtual bool isBinderAlive() const;
+    LIBBINDER_EXPORTED virtual status_t pingBinder();
+    LIBBINDER_EXPORTED virtual status_t dump(int fd, const Vector<String16>& args);
 
     // NOLINTNEXTLINE(google-default-arguments)
-    virtual status_t    linkToDeath(const sp<DeathRecipient>& recipient,
-                                    void* cookie = nullptr,
-                                    uint32_t flags = 0);
+    LIBBINDER_EXPORTED virtual status_t transact(uint32_t code, const Parcel& data, Parcel* reply,
+                                                 uint32_t flags = 0) final;
 
     // NOLINTNEXTLINE(google-default-arguments)
-    virtual status_t    unlinkToDeath(  const wp<DeathRecipient>& recipient,
-                                        void* cookie = nullptr,
-                                        uint32_t flags = 0,
-                                        wp<DeathRecipient>* outRecipient = nullptr);
+    LIBBINDER_EXPORTED virtual status_t linkToDeath(const sp<DeathRecipient>& recipient,
+                                                    void* cookie = nullptr, uint32_t flags = 0);
 
-    virtual void* attachObject(const void* objectID, void* object, void* cleanupCookie,
-                               object_cleanup_func func) final;
-    virtual void*       findObject(const void* objectID) const final;
-    virtual void* detachObject(const void* objectID) final;
-    void withLock(const std::function<void()>& doWithLock);
-    sp<IBinder> lookupOrCreateWeak(const void* objectID, IBinder::object_make_func make,
-                                   const void* makeArgs);
+    // NOLINTNEXTLINE(google-default-arguments)
+    LIBBINDER_EXPORTED virtual status_t unlinkToDeath(const wp<DeathRecipient>& recipient,
+                                                      void* cookie = nullptr, uint32_t flags = 0,
+                                                      wp<DeathRecipient>* outRecipient = nullptr);
 
-    virtual BpBinder*   remoteBinder();
+    LIBBINDER_EXPORTED virtual void* attachObject(const void* objectID, void* object,
+                                                  void* cleanupCookie,
+                                                  object_cleanup_func func) final;
+    LIBBINDER_EXPORTED virtual void* findObject(const void* objectID) const final;
+    LIBBINDER_EXPORTED virtual void* detachObject(const void* objectID) final;
+    LIBBINDER_EXPORTED void withLock(const std::function<void()>& doWithLock);
+    LIBBINDER_EXPORTED sp<IBinder> lookupOrCreateWeak(const void* objectID,
+                                                      IBinder::object_make_func make,
+                                                      const void* makeArgs);
 
-            void        sendObituary();
+    LIBBINDER_EXPORTED virtual BpBinder* remoteBinder();
 
-    static uint32_t     getBinderProxyCount(uint32_t uid);
-    static void         getCountByUid(Vector<uint32_t>& uids, Vector<uint32_t>& counts);
-    static void         enableCountByUid();
-    static void         disableCountByUid();
-    static void         setCountByUidEnabled(bool enable);
-    static void         setBinderProxyCountEventCallback(binder_proxy_limit_callback cbl,
-                                                         binder_proxy_warning_callback cbw);
-    static void         setBinderProxyCountWatermarks(int high, int low, int warning);
-    static uint32_t     getBinderProxyCount();
+    LIBBINDER_EXPORTED void sendObituary();
 
-    std::optional<int32_t> getDebugBinderHandle() const;
+    LIBBINDER_EXPORTED static uint32_t getBinderProxyCount(uint32_t uid);
+    LIBBINDER_EXPORTED static void getCountByUid(Vector<uint32_t>& uids, Vector<uint32_t>& counts);
+    LIBBINDER_EXPORTED static void enableCountByUid();
+    LIBBINDER_EXPORTED static void disableCountByUid();
+    LIBBINDER_EXPORTED static void setCountByUidEnabled(bool enable);
+    LIBBINDER_EXPORTED static void setBinderProxyCountEventCallback(
+            binder_proxy_limit_callback cbl, binder_proxy_warning_callback cbw);
+    LIBBINDER_EXPORTED static void setBinderProxyCountWatermarks(int high, int low, int warning);
+    LIBBINDER_EXPORTED static uint32_t getBinderProxyCount();
+
+    LIBBINDER_EXPORTED std::optional<int32_t> getDebugBinderHandle() const;
 
     // Start recording transactions to the unique_fd.
     // See RecordedTransaction.h for more details.
-    status_t startRecordingBinder(const binder::unique_fd& fd);
+    LIBBINDER_EXPORTED status_t startRecordingBinder(const binder::unique_fd& fd);
     // Stop the current recording.
-    status_t stopRecordingBinder();
+    LIBBINDER_EXPORTED status_t stopRecordingBinder();
 
     class ObjectManager {
     public:
@@ -150,7 +148,9 @@ public:
 
         const BpBinder* mBinder;
     };
-    const PrivateAccessor getPrivateAccessor() const { return PrivateAccessor(this); }
+    LIBBINDER_EXPORTED const PrivateAccessor getPrivateAccessor() const {
+        return PrivateAccessor(this);
+    }
 
 private:
     friend PrivateAccessor;

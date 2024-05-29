@@ -22,6 +22,8 @@
 #include <cutils/trace.h>
 #endif
 
+#include <binder/Common.h>
+
 #ifdef ATRACE_TAG_AIDL
 #if ATRACE_TAG_AIDL != (1 << 24)
 #error "Mismatched ATRACE_TAG_AIDL definitions"
@@ -41,7 +43,7 @@ void trace_begin(uint64_t tag, const char* name);
 void trace_end(uint64_t tag);
 } // namespace os
 
-class ScopedTrace {
+class LIBBINDER_EXPORTED ScopedTrace {
 public:
     inline ScopedTrace(uint64_t tag, const char* name) : mTag(tag) { os::trace_begin(mTag, name); }
 

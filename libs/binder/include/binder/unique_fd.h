@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include <binder/Common.h>
+
 #ifndef BINDER_NO_LIBBASE
 
 #include <android-base/unique_fd.h>
@@ -43,7 +45,7 @@ namespace android::binder {
 //
 //      return 0; // Descriptor is closed for you.
 //
-class unique_fd final {
+class LIBBINDER_EXPORTED unique_fd final {
 public:
     unique_fd() {}
 
@@ -99,7 +101,7 @@ private:
 // If you think of unique_fd as being like std::string in that represents
 // ownership, borrowed_fd is like std::string_view (and int is like const
 // char*).
-struct borrowed_fd {
+struct LIBBINDER_EXPORTED borrowed_fd {
     /* implicit */ borrowed_fd(int fd) : fd_(fd) {}                      // NOLINT
     /* implicit */ borrowed_fd(const unique_fd& ufd) : fd_(ufd.get()) {} // NOLINT
 
