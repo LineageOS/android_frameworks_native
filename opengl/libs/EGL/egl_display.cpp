@@ -254,6 +254,7 @@ EGLBoolean egl_display_t::initialize(EGLint* major, EGLint* minor) {
         }
     }
 
+    std::vector<std::string> extensionStrings;
     { // scope for lock
         std::lock_guard<std::mutex> _l(lock);
 
@@ -315,16 +316,14 @@ EGLBoolean egl_display_t::initialize(EGLint* major, EGLint* minor) {
         }
         mClientApiString = sClientApiString;
 
-        mExtensionString = gBuiltinExtensionString;
-
         // b/269060366 Conditionally enabled EGL_ANDROID_get_frame_timestamps extension if the
         // device's present timestamps are reliable (which may not be the case on emulators).
         if (cnx->angleLoaded) {
             if (android::base::GetBoolProperty("service.sf.present_timestamp", false)) {
-                mExtensionString.append("EGL_ANDROID_get_frame_timestamps ");
+                extensionStrings.push_back("EGL_ANDROID_get_frame_timestamps");
             }
         } else {
-            mExtensionString.append("EGL_ANDROID_get_frame_timestamps ");
+            extensionStrings.push_back("EGL_ANDROID_get_frame_timestamps");
         }
 
         hasColorSpaceSupport = findExtension(disp.queryString.extensions, "EGL_KHR_gl_colorspace");
@@ -335,10 +334,12 @@ EGLBoolean egl_display_t::initialize(EGLint* major, EGLint* minor) {
 
         // Add wide-color extensions if device can support wide-color
         if (wideColorBoardConfig && hasColorSpaceSupport) {
-            mExtensionString.append(
-                    "EGL_EXT_gl_colorspace_scrgb EGL_EXT_gl_colorspace_scrgb_linear "
-                    "EGL_EXT_gl_colorspace_display_p3_linear EGL_EXT_gl_colorspace_display_p3 "
-                    "EGL_EXT_gl_colorspace_display_p3_passthrough ");
+            std::vector<std::string> wideColorExtensions =
+                    {"EGL_EXT_gl_colorspace_scrgb", "EGL_EXT_gl_colorspace_scrgb_linear",
+                     "EGL_EXT_gl_colorspace_display_p3_linear", "EGL_EXT_gl_colorspace_display_p3",
+                     "EGL_EXT_gl_colorspace_display_p3_passthrough"};
+            extensionStrings.insert(extensionStrings.end(), wideColorExtensions.begin(),
+                                    wideColorExtensions.end());
         }
 
         bool hasHdrBoardConfig = android::sysprop::has_HDR_display(false);
@@ -348,9 +349,11 @@ EGLBoolean egl_display_t::initialize(EGLint* major, EGLint* minor) {
             // Typically that means there is an HDR capable display attached, but could be
             // support for attaching an HDR display. In either case, advertise support for
             // HDR color spaces.
-            mExtensionString.append("EGL_EXT_gl_colorspace_bt2020_hlg "
-                                    "EGL_EXT_gl_colorspace_bt2020_linear "
-                                    "EGL_EXT_gl_colorspace_bt2020_pq ");
+            std::vector<std::string> hdrExtensions = {"EGL_EXT_gl_colorspace_bt2020_hlg",
+                                                      "EGL_EXT_gl_colorspace_bt2020_linear",
+                                                      "EGL_EXT_gl_colorspace_bt2020_pq"};
+            extensionStrings.insert(extensionStrings.end(), hdrExtensions.begin(),
+                                    hdrExtensions.end());
         }
 
         char const* start = gExtensionString;
@@ -361,7 +364,7 @@ EGLBoolean egl_display_t::initialize(EGLint* major, EGLint* minor) {
                 // NOTE: we could avoid the copy if we had strnstr.
                 const std::string ext(start, len);
                 if (findExtension(disp.queryString.extensions, ext.c_str(), len)) {
-                    mExtensionString.append(ext + " ");
+                    extensionStrings.push_back(ext);
                 }
                 // advance to the next extension name, skipping the space.
                 start += len;
@@ -388,6 +391,14 @@ EGLBoolean egl_display_t::initialize(EGLint* major, EGLint* minor) {
         refCond.notify_all();
     }
 
+    auto mergeExtensionStrings = [](const std::vector<std::string>& strings) {
+        std::ostringstream combinedStringStream;
+        std::copy(strings.begin(), strings.end(),
+                  std::ostream_iterator<std::string>(combinedStringStream, " "));
+        // gBuiltinExtensionString already has a trailing space so is added here
+        return gBuiltinExtensionString + combinedStringStream.str();
+    };
+    mExtensionString = mergeExtensionStrings(extensionStrings);
     return EGL_TRUE;
 }
 
