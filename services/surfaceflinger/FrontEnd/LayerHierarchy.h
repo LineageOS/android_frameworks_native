@@ -147,7 +147,7 @@ public:
         if (mLayer) {
             root.id = mLayer->id;
         }
-        traverse(visitor, root);
+        traverse(visitor, root, /*depth=*/0);
     }
 
     // Traverse the hierarchy in z-order, skipping children that have relative parents.
@@ -190,7 +190,8 @@ private:
     void sortChildrenByZOrder();
     void updateChild(LayerHierarchy*, LayerHierarchy::Variant);
     void traverseInZOrder(const Visitor& visitor, LayerHierarchy::TraversalPath& parent) const;
-    void traverse(const Visitor& visitor, LayerHierarchy::TraversalPath& parent) const;
+    void traverse(const Visitor& visitor, LayerHierarchy::TraversalPath& parent,
+                  uint32_t depth = 0) const;
     void dump(std::ostream& out, const std::string& prefix, LayerHierarchy::Variant variant,
               bool isLastChild, bool includeMirroredHierarchy) const;
 
