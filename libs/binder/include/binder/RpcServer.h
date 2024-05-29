@@ -15,6 +15,7 @@
  */
 #pragma once
 
+#include <binder/Common.h>
 #include <binder/IBinder.h>
 #include <binder/RpcSession.h>
 #include <binder/RpcThreads.h>
@@ -47,7 +48,7 @@ class RpcSocketAddress;
  */
 class RpcServer final : public virtual RefBase, private RpcSession::EventListener {
 public:
-    static sp<RpcServer> make(
+    LIBBINDER_EXPORTED static sp<RpcServer> make(
             std::unique_ptr<RpcTransportCtxFactory> rpcTransportCtxFactory = nullptr);
 
     /**
@@ -59,7 +60,8 @@ public:
      * to RpcSession::setupUnixDomainSocketBootstrapClient. Multiple client
      * session can be created from the client end of the pair.
      */
-    [[nodiscard]] status_t setupUnixDomainSocketBootstrapServer(binder::unique_fd serverFd);
+    [[nodiscard]] LIBBINDER_EXPORTED status_t
+    setupUnixDomainSocketBootstrapServer(binder::unique_fd serverFd);
 
     /**
      * This represents a session for responses, e.g.:
@@ -69,7 +71,7 @@ public:
      *     process B makes binder b and sends it to A
      *     A uses this 'back session' to send things back to B
      */
-    [[nodiscard]] status_t setupUnixDomainServer(const char* path);
+    [[nodiscard]] LIBBINDER_EXPORTED status_t setupUnixDomainServer(const char* path);
 
     /**
      * Sets up an RPC server with a raw socket file descriptor.
@@ -79,12 +81,13 @@ public:
      * This method is used in the libbinder_rpc_unstable API
      * RunInitUnixDomainRpcServer().
      */
-    [[nodiscard]] status_t setupRawSocketServer(binder::unique_fd socket_fd);
+    [[nodiscard]] LIBBINDER_EXPORTED status_t setupRawSocketServer(binder::unique_fd socket_fd);
 
     /**
      * Creates an RPC server binding to the given CID at the given port.
      */
-    [[nodiscard]] status_t setupVsockServer(unsigned int bindCid, unsigned int port);
+    [[nodiscard]] LIBBINDER_EXPORTED status_t setupVsockServer(unsigned int bindCid,
+                                                               unsigned int port);
 
     /**
      * Creates an RPC server at the current port using IPv4.
@@ -100,24 +103,25 @@ public:
      * "0.0.0.0" allows for connections on any IP address that the device may
      * have
      */
-    [[nodiscard]] status_t setupInetServer(const char* address, unsigned int port,
-                                           unsigned int* assignedPort = nullptr);
+    [[nodiscard]] LIBBINDER_EXPORTED status_t setupInetServer(const char* address,
+                                                              unsigned int port,
+                                                              unsigned int* assignedPort = nullptr);
 
     /**
      * If setup*Server has been successful, return true. Otherwise return false.
      */
-    [[nodiscard]] bool hasServer();
+    [[nodiscard]] LIBBINDER_EXPORTED bool hasServer();
 
     /**
      * If hasServer(), return the server FD. Otherwise return invalid FD.
      */
-    [[nodiscard]] binder::unique_fd releaseServer();
+    [[nodiscard]] LIBBINDER_EXPORTED binder::unique_fd releaseServer();
 
     /**
      * Set up server using an external FD previously set up by releaseServer().
      * Return false if there's already a server.
      */
-    [[nodiscard]] status_t setupExternalServer(binder::unique_fd serverFd);
+    [[nodiscard]] LIBBINDER_EXPORTED status_t setupExternalServer(binder::unique_fd serverFd);
 
     /**
      * This must be called before adding a client session. This corresponds
@@ -130,15 +134,15 @@ public:
      * TODO(b/167966510): these are currently created per client, but these
      * should be shared.
      */
-    void setMaxThreads(size_t threads);
-    size_t getMaxThreads();
+    LIBBINDER_EXPORTED void setMaxThreads(size_t threads);
+    LIBBINDER_EXPORTED size_t getMaxThreads();
 
     /**
      * By default, the latest protocol version which is supported by a client is
      * used. However, this can be used in order to prevent newer protocol
      * versions from ever being used. This is expected to be useful for testing.
      */
-    [[nodiscard]] bool setProtocolVersion(uint32_t version);
+    [[nodiscard]] LIBBINDER_EXPORTED bool setProtocolVersion(uint32_t version);
 
     /**
      * Set the supported transports for sending and receiving file descriptors.
@@ -146,7 +150,7 @@ public:
      * Clients will propose a mode when connecting. If the mode is not in the
      * provided list, the connection will be rejected.
      */
-    void setSupportedFileDescriptorTransportModes(
+    LIBBINDER_EXPORTED void setSupportedFileDescriptorTransportModes(
             const std::vector<RpcSession::FileDescriptorTransportMode>& modes);
 
     /**
@@ -155,11 +159,11 @@ public:
      *
      * Holds a strong reference to the root object.
      */
-    void setRootObject(const sp<IBinder>& binder);
+    LIBBINDER_EXPORTED void setRootObject(const sp<IBinder>& binder);
     /**
      * Holds a weak reference to the root object.
      */
-    void setRootObjectWeak(const wp<IBinder>& binder);
+    LIBBINDER_EXPORTED void setRootObjectWeak(const wp<IBinder>& binder);
     /**
      * Allows a root object to be created for each session.
      *
@@ -174,9 +178,9 @@ public:
      *   validate the size, then cast the type-erased pointer to a pointer to the actual type of the
      *   address, e.g., const void* to const sockaddr_vm*.
      */
-    void setPerSessionRootObject(
+    LIBBINDER_EXPORTED void setPerSessionRootObject(
             std::function<sp<IBinder>(wp<RpcSession> session, const void*, size_t)>&& object);
-    sp<IBinder> getRootObject();
+    LIBBINDER_EXPORTED sp<IBinder> getRootObject();
 
     /**
      * Set optional filter of incoming connections based on the peer's address.
@@ -186,24 +190,25 @@ public:
      * See the description of setPerSessionRootObject() for details about
      * the callable's arguments.
      */
-    void setConnectionFilter(std::function<bool(const void*, size_t)>&& filter);
+    LIBBINDER_EXPORTED void setConnectionFilter(std::function<bool(const void*, size_t)>&& filter);
 
     /**
      * Set optional modifier of each newly created server socket.
      *
      * The only argument is a successfully created file descriptor, not bound to an address yet.
      */
-    void setServerSocketModifier(std::function<void(binder::borrowed_fd)>&& modifier);
+    LIBBINDER_EXPORTED void setServerSocketModifier(
+            std::function<void(binder::borrowed_fd)>&& modifier);
 
     /**
      * See RpcTransportCtx::getCertificate
      */
-    std::vector<uint8_t> getCertificate(RpcCertificateFormat);
+    LIBBINDER_EXPORTED std::vector<uint8_t> getCertificate(RpcCertificateFormat);
 
     /**
      * Runs join() in a background thread. Immediately returns.
      */
-    void start();
+    LIBBINDER_EXPORTED void start();
 
     /**
      * You must have at least one client session before calling this.
@@ -216,7 +221,7 @@ public:
      * still occurring. To ensure that the service is fully shutdown, you might
      * want to call shutdown after 'join' returns.
      */
-    void join();
+    LIBBINDER_EXPORTED void join();
 
     /**
      * Shut down any existing join(). Return true if successfully shut down, false otherwise
@@ -225,20 +230,20 @@ public:
      *
      * Warning: this will hang if it is called from its own thread.
      */
-    [[nodiscard]] bool shutdown();
+    [[nodiscard]] LIBBINDER_EXPORTED bool shutdown();
 
     /**
      * For debugging!
      */
-    std::vector<sp<RpcSession>> listSessions();
-    size_t numUninitializedSessions();
+    LIBBINDER_EXPORTED std::vector<sp<RpcSession>> listSessions();
+    LIBBINDER_EXPORTED size_t numUninitializedSessions();
 
     /**
      * Whether any requests are currently being processed.
      */
-    bool hasActiveRequests();
+    LIBBINDER_EXPORTED bool hasActiveRequests();
 
-    ~RpcServer();
+    LIBBINDER_EXPORTED ~RpcServer();
 
 private:
     friend RpcServerTrusty;

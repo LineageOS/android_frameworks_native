@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <binder/Common.h>
 #include <binder/Parcel.h>
 #include <binder/Parcelable.h>
 #include <utils/String16.h>
@@ -28,7 +29,7 @@ namespace os {
 /*
  * C++ implementation of the Java class android.os.ParcelableHolder
  */
-class ParcelableHolder : public android::Parcelable {
+class LIBBINDER_EXPORTED ParcelableHolder : public android::Parcelable {
 public:
     ParcelableHolder() = delete;
     explicit ParcelableHolder(Stability stability) : mStability(stability){}

@@ -17,6 +17,7 @@
 #pragma once
 
 #include <binder/Binder.h>
+#include <binder/Common.h>
 
 #include <assert.h>
 
@@ -24,8 +25,7 @@ namespace android {
 
 // ----------------------------------------------------------------------
 
-class IInterface : public virtual RefBase
-{
+class LIBBINDER_EXPORTED IInterface : public virtual RefBase {
 public:
             IInterface();
             static sp<IBinder>  asBinder(const IInterface*);
@@ -66,9 +66,8 @@ inline sp<INTERFACE> checked_interface_cast(const sp<IBinder>& obj)
 
 // ----------------------------------------------------------------------
 
-template<typename INTERFACE>
-class BnInterface : public INTERFACE, public BBinder
-{
+template <typename INTERFACE>
+class LIBBINDER_EXPORTED BnInterface : public INTERFACE, public BBinder {
 public:
     virtual sp<IInterface>      queryLocalInterface(const String16& _descriptor);
     virtual const String16&     getInterfaceDescriptor() const;
@@ -80,9 +79,8 @@ protected:
 
 // ----------------------------------------------------------------------
 
-template<typename INTERFACE>
-class BpInterface : public INTERFACE, public BpRefBase
-{
+template <typename INTERFACE>
+class LIBBINDER_EXPORTED BpInterface : public INTERFACE, public BpRefBase {
 public:
     explicit                    BpInterface(const sp<IBinder>& remote);
     typedef INTERFACE BaseInterface;

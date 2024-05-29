@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <binder/Common.h>
 #include <binder/IInterface.h>
 #include <binder/Parcel.h>
 
@@ -34,7 +35,7 @@ namespace android {
 namespace SafeInterface {
 
 // ParcelHandler is responsible for writing/reading various types to/from a Parcel in a generic way
-class ParcelHandler {
+class LIBBINDER_EXPORTED ParcelHandler {
 public:
     explicit ParcelHandler(const char* logTag) : mLogTag(logTag) {}
 
@@ -243,7 +244,7 @@ struct ParamExtractor<Return (Class::*)(Params...) const> {
 } // namespace SafeInterface
 
 template <typename Interface>
-class SafeBpInterface : public BpInterface<Interface> {
+class LIBBINDER_EXPORTED SafeBpInterface : public BpInterface<Interface> {
 protected:
     SafeBpInterface(const sp<IBinder>& impl, const char* logTag)
           : BpInterface<Interface>(impl), mLogTag(logTag) {}
@@ -438,7 +439,7 @@ private:
 };
 
 template <typename Interface>
-class SafeBnInterface : public BnInterface<Interface> {
+class LIBBINDER_EXPORTED SafeBnInterface : public BnInterface<Interface> {
 public:
     explicit SafeBnInterface(const char* logTag) : mLogTag(logTag) {}
 

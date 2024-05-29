@@ -19,6 +19,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 
+#include <binder/Common.h>
 #include <binder/IMemory.h>
 
 
@@ -26,8 +27,7 @@ namespace android {
 
 // ---------------------------------------------------------------------------
 
-class MemoryBase : public BnMemory 
-{
+class LIBBINDER_EXPORTED MemoryBase : public BnMemory {
 public:
     MemoryBase(const sp<IMemoryHeap>& heap, ssize_t offset, size_t size);
     virtual ~MemoryBase();

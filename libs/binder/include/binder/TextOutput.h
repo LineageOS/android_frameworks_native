@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <binder/Common.h>
 #include <utils/Errors.h>
 #include <utils/String8.h>
 
@@ -26,8 +27,7 @@
 // ---------------------------------------------------------------------------
 namespace android {
 
-class TextOutput
-{
+class LIBBINDER_EXPORTED TextOutput {
 public:
                         TextOutput();
     virtual             ~TextOutput();
@@ -52,17 +52,17 @@ public:
 // DO NOT USE: prefer libutils/libbase logs, which don't require static data to
 // be allocated.
 // Text output stream for printing to the log (via utils/Log.h).
-extern TextOutput& alog;
+extern LIBBINDER_EXPORTED TextOutput& alog;
 
 // DO NOT USE: prefer libutils/libbase logs, which don't require static data to
 // be allocated.
 // Text output stream for printing to stdout.
-extern TextOutput& aout;
+extern LIBBINDER_EXPORTED TextOutput& aout;
 
 // DO NOT USE: prefer libutils/libbase logs, which don't require static data to
 // be allocated.
 // Text output stream for printing to stderr.
-extern TextOutput& aerr;
+extern LIBBINDER_EXPORTED TextOutput& aerr;
 
 typedef TextOutput& (*TextOutputManipFunc)(TextOutput&);
 
@@ -80,10 +80,9 @@ TextOutput& operator<<(TextOutput& to, const T& val)
     return to;
 }
 
-TextOutput& operator<<(TextOutput& to, TextOutputManipFunc func);
+LIBBINDER_EXPORTED TextOutput& operator<<(TextOutput& to, TextOutputManipFunc func);
 
-class TypeCode
-{
+class LIBBINDER_EXPORTED TypeCode {
 public:
     inline explicit TypeCode(uint32_t code);
     inline ~TypeCode();
@@ -94,10 +93,9 @@ private:
     uint32_t mCode;
 };
 
-std::ostream& operator<<(std::ostream& to, const TypeCode& val);
+LIBBINDER_EXPORTED std::ostream& operator<<(std::ostream& to, const TypeCode& val);
 
-class HexDump
-{
+class LIBBINDER_EXPORTED HexDump {
 public:
     HexDump(const void *buf, size_t size, size_t bytesPerLine=16);
     inline ~HexDump();
@@ -123,7 +121,7 @@ private:
     bool mCArrayStyle;
 };
 
-std::ostream& operator<<(std::ostream& to, const HexDump& val);
+LIBBINDER_EXPORTED std::ostream& operator<<(std::ostream& to, const HexDump& val);
 inline TextOutput& operator<<(TextOutput& to,
                               decltype(std::endl<char,
                                        std::char_traits<char>>)
