@@ -15,6 +15,7 @@
  */
 
 #include <gtest/gtest.h>
+#include <gmock/gmock.h>
 
 #include <SurfaceFlingerProperties.h>
 #include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
@@ -28,6 +29,8 @@
 #include <gui/IProducerListener.h>
 #include <gui/IGraphicBufferConsumer.h>
 #include <gui/BufferQueue.h>
+
+#include "egl_display.h"
 
 bool hasEglExtension(EGLDisplay dpy, const char* extensionName) {
     const char* exts = eglQueryString(dpy, EGL_EXTENSIONS);
@@ -1011,4 +1014,57 @@ TEST_F(EGLTest, EGLCreateWindowTwoColorspaces) {
 
     EXPECT_TRUE(eglDestroySurface(mEglDisplay, eglSurface));
 }
+
+TEST_F(EGLTest, EGLCheckExtensionString) {
+    // check that the format of the extension string is correct
+
+    egl_display_t* display = egl_display_t::get(mEglDisplay);
+    ASSERT_NE(display, nullptr);
+
+    std::string extensionStrRegex = "((EGL_ANDROID_front_buffer_auto_refresh|"
+       "EGL_ANDROID_get_native_client_buffer|"
+       "EGL_ANDROID_presentation_time|"
+       "EGL_EXT_surface_CTA861_3_metadata|"
+       "EGL_EXT_surface_SMPTE2086_metadata|"
+       "EGL_KHR_get_all_proc_addresses|"
+       "EGL_KHR_swap_buffers_with_damage|"
+       "EGL_ANDROID_get_frame_timestamps|"
+       "EGL_EXT_gl_colorspace_scrgb|"
+       "EGL_EXT_gl_colorspace_scrgb_linear|"
+       "EGL_EXT_gl_colorspace_display_p3_linear|"
+       "EGL_EXT_gl_colorspace_display_p3|"
+       "EGL_EXT_gl_colorspace_display_p3_passthrough|"
+       "EGL_EXT_gl_colorspace_bt2020_hlg|"
+       "EGL_EXT_gl_colorspace_bt2020_linear|"
+       "EGL_EXT_gl_colorspace_bt2020_pq|"
+       "EGL_ANDROID_image_native_buffer|"
+       "EGL_ANDROID_native_fence_sync|"
+       "EGL_ANDROID_recordable|"
+       "EGL_EXT_create_context_robustness|"
+       "EGL_EXT_image_gl_colorspace|"
+       "EGL_EXT_pixel_format_float|"
+       "EGL_EXT_protected_content|"
+       "EGL_EXT_yuv_surface|"
+       "EGL_IMG_context_priority|"
+       "EGL_KHR_config_attribs|"
+       "EGL_KHR_create_context|"
+       "EGL_KHR_fence_sync|"
+       "EGL_KHR_gl_colorspace|"
+       "EGL_KHR_gl_renderbuffer_image|"
+       "EGL_KHR_gl_texture_2D_image|"
+       "EGL_KHR_gl_texture_3D_image|"
+       "EGL_KHR_gl_texture_cubemap_image|"
+       "EGL_KHR_image|"
+       "EGL_KHR_image_base|"
+       "EGL_KHR_mutable_render_buffer|"
+       "EGL_KHR_no_config_context|"
+       "EGL_KHR_partial_update|"
+       "EGL_KHR_surfaceless_context|"
+       "EGL_KHR_wait_sync|"
+       "EGL_EXT_buffer_age|"
+       "EGL_KHR_reusable_sync|"
+       "EGL_NV_context_priority_realtime) )+";
+    EXPECT_THAT(display->getExtensionString(), testing::MatchesRegex(extensionStrRegex));
+}
+
 }
