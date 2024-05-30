@@ -190,6 +190,7 @@ void add_mountinfo();
 #define SDK_EXT_INFO "/apex/com.android.sdkext/bin/derive_sdk"
 #define DROPBOX_DIR "/data/system/dropbox"
 #define PRINT_FLAGS "/system/bin/printflags"
+#define UWB_LOG_DIR "/data/misc/apexdata/com.android.uwb/log"
 
 // TODO(narayan): Since this information has to be kept in sync
 // with tombstoned, we should just put it in a common header.
@@ -1962,6 +1963,9 @@ Dumpstate::RunStatus Dumpstate::DumpstateDefaultAfterCritical() {
 
     RunCommand("SDK EXTENSIONS", {SDK_EXT_INFO, "--dump"},
                CommandOptions::WithTimeout(10).Always().DropRoot().Build());
+
+    // Dump UWB UCI logs here because apexdata requires root access
+    ds.AddDir(UWB_LOG_DIR, true);
 
     if (dump_pool_) {
         RETURN_IF_USER_DENIED_CONSENT();
