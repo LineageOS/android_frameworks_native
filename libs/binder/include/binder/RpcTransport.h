@@ -27,6 +27,7 @@
 
 #include <utils/Errors.h>
 
+#include <binder/Common.h>
 #include <binder/Functional.h>
 #include <binder/RpcCertificateFormat.h>
 #include <binder/RpcThreads.h>
@@ -51,7 +52,7 @@ class RpcTransportCtxTipcTrusty;
 
 // Represents a socket connection.
 // No thread-safety is guaranteed for these APIs.
-class RpcTransport {
+class LIBBINDER_EXPORTED RpcTransport {
 public:
     virtual ~RpcTransport() = default;
 
@@ -123,7 +124,7 @@ private:
 
 // Represents the context that generates the socket connection.
 // All APIs are thread-safe. See RpcTransportCtxRaw and RpcTransportCtxTls for details.
-class RpcTransportCtx {
+class LIBBINDER_EXPORTED RpcTransportCtx {
 public:
     virtual ~RpcTransportCtx() = default;
 
@@ -154,7 +155,7 @@ private:
 
 // A factory class that generates RpcTransportCtx.
 // All APIs are thread-safe.
-class RpcTransportCtxFactory {
+class LIBBINDER_EXPORTED RpcTransportCtxFactory {
 public:
     virtual ~RpcTransportCtxFactory() = default;
     // Creates server context.
@@ -171,7 +172,7 @@ protected:
     RpcTransportCtxFactory() = default;
 };
 
-struct RpcTransportFd final {
+struct LIBBINDER_EXPORTED RpcTransportFd final {
 private:
     mutable bool isPolling{false};
 

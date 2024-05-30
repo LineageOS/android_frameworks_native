@@ -19,6 +19,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 
+#include <binder/Common.h>
 #include <binder/IMemory.h>
 
 
@@ -26,8 +27,7 @@ namespace android {
 
 // ---------------------------------------------------------------------------
 
-class MemoryHeapBase : public BnMemoryHeap
-{
+class MemoryHeapBase : public BnMemoryHeap {
 public:
     static constexpr auto MEMFD_ALLOW_SEALING_FLAG = 0x00000800;
     enum {
@@ -56,42 +56,44 @@ public:
      * maps the memory referenced by fd. but DOESN'T take ownership
      * of the filedescriptor (it makes a copy with dup()
      */
-    MemoryHeapBase(int fd, size_t size, uint32_t flags = 0, off_t offset = 0);
+    LIBBINDER_EXPORTED MemoryHeapBase(int fd, size_t size, uint32_t flags = 0, off_t offset = 0);
 
     /*
      * maps memory from the given device
      */
-    explicit MemoryHeapBase(const char* device, size_t size = 0, uint32_t flags = 0);
+    LIBBINDER_EXPORTED explicit MemoryHeapBase(const char* device, size_t size = 0,
+                                               uint32_t flags = 0);
 
     /*
      * maps memory from ashmem, with the given name for debugging
      * if the READ_ONLY flag is set, the memory will be writeable by the calling process,
      * but not by others. this is NOT the case with the other ctors.
      */
-    explicit MemoryHeapBase(size_t size, uint32_t flags = 0, char const* name = nullptr);
+    LIBBINDER_EXPORTED explicit MemoryHeapBase(size_t size, uint32_t flags = 0,
+                                               char const* name = nullptr);
 
-    virtual ~MemoryHeapBase();
+    LIBBINDER_EXPORTED virtual ~MemoryHeapBase();
 
     /* implement IMemoryHeap interface */
-    int         getHeapID() const override;
+    LIBBINDER_EXPORTED int getHeapID() const override;
 
     /* virtual address of the heap. returns MAP_FAILED in case of error */
-    void*       getBase() const override;
+    LIBBINDER_EXPORTED void* getBase() const override;
 
-    size_t      getSize() const override;
-    uint32_t    getFlags() const override;
-    off_t       getOffset() const override;
+    LIBBINDER_EXPORTED size_t getSize() const override;
+    LIBBINDER_EXPORTED uint32_t getFlags() const override;
+    LIBBINDER_EXPORTED off_t getOffset() const override;
 
-    const char*         getDevice() const;
+    LIBBINDER_EXPORTED const char* getDevice() const;
 
     /* this closes this heap -- use carefully */
-    void dispose();
+    LIBBINDER_EXPORTED void dispose();
 
 protected:
-            MemoryHeapBase();
+    LIBBINDER_EXPORTED MemoryHeapBase();
     // init() takes ownership of fd
-    status_t init(int fd, void *base, size_t size,
-            int flags = 0, const char* device = nullptr);
+    LIBBINDER_EXPORTED status_t init(int fd, void* base, size_t size, int flags = 0,
+                                     const char* device = nullptr);
 
 private:
     status_t mapfd(int fd, bool writeableByCaller, size_t size, off_t offset = 0);

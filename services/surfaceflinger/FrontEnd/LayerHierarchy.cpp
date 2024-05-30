@@ -52,8 +52,12 @@ LayerHierarchy::LayerHierarchy(const LayerHierarchy& hierarchy, bool childrenOnl
     mChildren = hierarchy.mChildren;
 }
 
-void LayerHierarchy::traverse(const Visitor& visitor,
-                              LayerHierarchy::TraversalPath& traversalPath) const {
+void LayerHierarchy::traverse(const Visitor& visitor, LayerHierarchy::TraversalPath& traversalPath,
+                              uint32_t depth) const {
+    LLOG_ALWAYS_FATAL_WITH_TRACE_IF(depth > 50,
+                                    "Cycle detected in LayerHierarchy::traverse. See "
+                                    "traverse_stack_overflow_transactions.winscope");
+
     if (mLayer) {
         bool breakTraversal = !visitor(*this, traversalPath);
         if (breakTraversal) {
@@ -66,7 +70,7 @@ void LayerHierarchy::traverse(const Visitor& visitor,
     for (auto& [child, childVariant] : mChildren) {
         ScopedAddToTraversalPath addChildToTraversalPath(traversalPath, child->mLayer->id,
                                                          childVariant);
-        child->traverse(visitor, traversalPath);
+        child->traverse(visitor, traversalPath, depth + 1);
     }
 }
 

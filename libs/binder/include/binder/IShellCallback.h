@@ -16,14 +16,14 @@
 
 #pragma once
 
+#include <binder/Common.h>
 #include <binder/IInterface.h>
 
 namespace android {
 
 // ----------------------------------------------------------------------
 
-class IShellCallback : public IInterface
-{
+class LIBBINDER_EXPORTED IShellCallback : public IInterface {
 public:
     DECLARE_META_INTERFACE(ShellCallback)
 
@@ -37,8 +37,7 @@ public:
 
 // ----------------------------------------------------------------------
 
-class BnShellCallback : public BnInterface<IShellCallback>
-{
+class LIBBINDER_EXPORTED BnShellCallback : public BnInterface<IShellCallback> {
 public:
     // NOLINTNEXTLINE(google-default-arguments)
     virtual status_t    onTransact( uint32_t code,

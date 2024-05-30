@@ -15,6 +15,7 @@
  */
 
 #pragma once
+#include <binder/Common.h>
 #include <binder/IInterface.h>
 #include <utils/Vector.h>
 #include <utils/String16.h>
@@ -29,8 +30,7 @@ namespace android {
  *
  * IInterface is only for legacy ABI compatibility
  */
-class IServiceManager : public IInterface
-{
+class LIBBINDER_EXPORTED IServiceManager : public IInterface {
 public:
     // for ABI compatibility
     virtual const String16& getInterfaceDescriptor() const;
@@ -149,7 +149,7 @@ public:
     virtual std::vector<ServiceDebugInfo> getServiceDebugInfo() = 0;
 };
 
-sp<IServiceManager> defaultServiceManager();
+LIBBINDER_EXPORTED sp<IServiceManager> defaultServiceManager();
 
 /**
  * Directly set the default service manager. Only used for testing.
@@ -157,7 +157,7 @@ sp<IServiceManager> defaultServiceManager();
  * *before* any call to defaultServiceManager(); if the latter is
  * called first, setDefaultServiceManager() will abort.
  */
-void setDefaultServiceManager(const sp<IServiceManager>& sm);
+LIBBINDER_EXPORTED void setDefaultServiceManager(const sp<IServiceManager>& sm);
 
 template<typename INTERFACE>
 sp<INTERFACE> waitForService(const String16& name) {
@@ -207,13 +207,14 @@ status_t getService(const String16& name, sp<INTERFACE>* outService)
     return NAME_NOT_FOUND;
 }
 
-void* openDeclaredPassthroughHal(const String16& interface, const String16& instance, int flag);
+LIBBINDER_EXPORTED void* openDeclaredPassthroughHal(const String16& interface,
+                                                    const String16& instance, int flag);
 
-bool checkCallingPermission(const String16& permission);
-bool checkCallingPermission(const String16& permission,
-                            int32_t* outPid, int32_t* outUid);
-bool checkPermission(const String16& permission, pid_t pid, uid_t uid,
-                     bool logPermissionFailure = true);
+LIBBINDER_EXPORTED bool checkCallingPermission(const String16& permission);
+LIBBINDER_EXPORTED bool checkCallingPermission(const String16& permission, int32_t* outPid,
+                                               int32_t* outUid);
+LIBBINDER_EXPORTED bool checkPermission(const String16& permission, pid_t pid, uid_t uid,
+                                        bool logPermissionFailure = true);
 
 #ifndef __ANDROID__
 // Create an IServiceManager that delegates the service manager on the device via adb.
@@ -233,7 +234,7 @@ bool checkPermission(const String16& permission, pid_t pid, uid_t uid,
 struct RpcDelegateServiceManagerOptions {
     std::optional<size_t> maxOutgoingConnections;
 };
-sp<IServiceManager> createRpcDelegateServiceManager(
+LIBBINDER_EXPORTED sp<IServiceManager> createRpcDelegateServiceManager(
         const RpcDelegateServiceManagerOptions& options);
 #endif
 

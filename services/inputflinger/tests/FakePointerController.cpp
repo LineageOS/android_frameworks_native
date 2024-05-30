@@ -76,13 +76,13 @@ void FakePointerController::setCustomPointerIcon(const SpriteIcon& icon) {
     mCustomIconStyle = icon.style;
 }
 
-void FakePointerController::setSkipScreenshot(ui::LogicalDisplayId displayId, bool skip) {
-    if (skip) {
-        mDisplaysToSkipScreenshot.insert(displayId);
-    } else {
-        mDisplaysToSkipScreenshot.erase(displayId);
-    }
-};
+void FakePointerController::setSkipScreenshotFlagForDisplay(ui::LogicalDisplayId displayId) {
+    mDisplaysToSkipScreenshot.insert(displayId);
+}
+
+void FakePointerController::clearSkipScreenshotFlags() {
+    mDisplaysToSkipScreenshot.clear();
+}
 
 void FakePointerController::assertViewportSet(ui::LogicalDisplayId displayId) {
     ASSERT_TRUE(mDisplayId);

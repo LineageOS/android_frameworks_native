@@ -23,6 +23,7 @@
 #include <android-base/thread_annotations.h>
 #include <gui/WindowInfosListener.h>
 #include <type_traits>
+#include <unordered_set>
 
 namespace android {
 
@@ -108,7 +109,8 @@ public:
     void notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs& args) override;
 
     // Public because it's also used by tests to simulate the WindowInfosListener callback
-    void onWindowInfosChanged(const std::vector<android::gui::WindowInfo>& windowInfos);
+    void onPrivacySensitiveDisplaysChanged(
+            const std::unordered_set<ui::LogicalDisplayId>& privacySensitiveDisplays);
 
     void dump(std::string& dump) override;
 
@@ -133,20 +135,32 @@ private:
     void processTouchscreenAndStylusEventLocked(const NotifyMotionArgs& args) REQUIRES(mLock);
     void processStylusHoverEventLocked(const NotifyMotionArgs& args) REQUIRES(mLock);
     void processDeviceReset(const NotifyDeviceResetArgs& args);
-    void onControllerAddedOrRemoved() REQUIRES(mLock);
-    void onWindowInfosChangedLocked(const std::vector<android::gui::WindowInfo>& windowInfos)
+    void onControllerAddedOrRemovedLocked() REQUIRES(mLock);
+    void onPrivacySensitiveDisplaysChangedLocked(
+            const std::unordered_set<ui::LogicalDisplayId>& privacySensitiveDisplays)
             REQUIRES(mLock);
 
+    /* This listener keeps tracks of visible privacy sensitive displays and updates the
+     * choreographer if there are any changes.
+     *
+     * Listener uses mListenerLock to guard all private data as choreographer and SurfaceComposer
+     * both can call into the listener. To prevent deadlocks Choreographer can call listener with
+     * its lock held, but listener must not call choreographer with its lock.
+     */
     class PointerChoreographerDisplayInfoListener : public gui::WindowInfosListener {
     public:
         explicit PointerChoreographerDisplayInfoListener(PointerChoreographer* pc)
               : mPointerChoreographer(pc){};
         void onWindowInfosChanged(const gui::WindowInfosUpdate&) override;
+        void setInitialDisplayInfos(const std::vector<gui::WindowInfo>& windowInfos);
+        std::unordered_set<ui::LogicalDisplayId /*displayId*/> getPrivacySensitiveDisplays();
         void onPointerChoreographerDestroyed();
 
     private:
         std::mutex mListenerLock;
         PointerChoreographer* mPointerChoreographer GUARDED_BY(mListenerLock);
+        std::unordered_set<ui::LogicalDisplayId /*displayId*/> mPrivacySensitiveDisplays
+                GUARDED_BY(mListenerLock);
     };
     sp<PointerChoreographerDisplayInfoListener> mWindowInfoListener GUARDED_BY(mLock);
 

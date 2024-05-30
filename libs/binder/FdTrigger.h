@@ -25,7 +25,7 @@
 namespace android {
 
 /** This is not a pipe. */
-class FdTrigger {
+class LIBBINDER_INTERNAL_EXPORTED FdTrigger {
 public:
     /** Returns nullptr for error case */
     static std::unique_ptr<FdTrigger> make();
