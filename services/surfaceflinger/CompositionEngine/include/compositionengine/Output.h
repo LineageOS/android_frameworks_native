@@ -306,7 +306,7 @@ protected:
     virtual void finishFrame(GpuCompositionResult&&) = 0;
     virtual std::optional<base::unique_fd> composeSurfaces(
             const Region&, std::shared_ptr<renderengine::ExternalTexture>, base::unique_fd&) = 0;
-    virtual void presentFrameAndReleaseLayers() = 0;
+    virtual void presentFrameAndReleaseLayers(bool flushEvenWhenDisabled) = 0;
     virtual void renderCachedSets(const CompositionRefreshArgs&) = 0;
     virtual bool chooseCompositionStrategy(
             std::optional<android::HWComposer::DeviceRequestedChanges>*) = 0;
@@ -314,6 +314,7 @@ protected:
             const std::optional<android::HWComposer::DeviceRequestedChanges>& changes) = 0;
     virtual bool getSkipColorTransform() const = 0;
     virtual FrameFences presentFrame() = 0;
+    virtual void executeCommands() = 0;
     virtual std::vector<LayerFE::LayerSettings> generateClientCompositionRequests(
             bool supportsProtectedContent, ui::Dataspace outputDataspace,
             std::vector<LayerFE*> &outLayerRef) = 0;

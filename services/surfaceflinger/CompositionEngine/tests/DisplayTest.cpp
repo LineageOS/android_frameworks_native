@@ -1067,8 +1067,8 @@ TEST_F(DisplayFunctionalTest, presentFrameAndReleaseLayersCriticalCallsAreOrdere
 
     EXPECT_CALL(mHwComposer, presentAndGetReleaseFences(_, _));
     EXPECT_CALL(*mDisplaySurface, onFrameCommitted());
-
-    mDisplay->presentFrameAndReleaseLayers();
+    constexpr bool kFlushEvenWhenDisabled = false;
+    mDisplay->presentFrameAndReleaseLayers(kFlushEvenWhenDisabled);
 }
 
 } // namespace

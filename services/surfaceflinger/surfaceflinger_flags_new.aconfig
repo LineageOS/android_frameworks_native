@@ -55,6 +55,17 @@ flag {
 } # detached_mirror
 
 flag {
+  name: "flush_buffer_slots_to_uncache"
+  namespace: "core_graphics"
+  description: "Flush DisplayCommands for disabled displays in order to uncache requested buffers."
+  bug: "330806421"
+  is_fixed_read_only: true
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+} # flush_buffer_slots_to_uncache
+
+flag {
   name: "frame_rate_category_mrr"
   namespace: "core_graphics"
   description: "Enable to use frame rate category and newer frame rate votes such as GTE in SurfaceFlinger scheduler, to guard dVRR changes from MRR devices"

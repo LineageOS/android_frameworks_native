@@ -600,6 +600,13 @@ status_t HWComposer::presentAndGetReleaseFences(
     return NO_ERROR;
 }
 
+status_t HWComposer::executeCommands(HalDisplayId displayId) {
+    auto& hwcDisplay = mDisplayData[displayId].hwcDisplay;
+    auto error = static_cast<hal::Error>(mComposer->executeCommands(hwcDisplay->getId()));
+    RETURN_IF_HWC_ERROR_FOR("executeCommands", error, displayId, UNKNOWN_ERROR);
+    return NO_ERROR;
+}
+
 status_t HWComposer::setPowerMode(PhysicalDisplayId displayId, hal::PowerMode mode) {
     RETURN_IF_INVALID_DISPLAY(displayId, BAD_INDEX);
 
