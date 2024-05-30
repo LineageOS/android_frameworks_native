@@ -129,9 +129,9 @@ public:
     setupUnixDomainSocketBootstrapClient(binder::unique_fd bootstrap);
 
     /**
-     * Connects to an RPC server at the CVD & port.
+     * Connects to an RPC server at the CID & port.
      */
-    [[nodiscard]] LIBBINDER_EXPORTED status_t setupVsockClient(unsigned int cvd, unsigned int port);
+    [[nodiscard]] LIBBINDER_EXPORTED status_t setupVsockClient(unsigned int cid, unsigned int port);
 
     /**
      * Connects to an RPC server at the given address and port.
