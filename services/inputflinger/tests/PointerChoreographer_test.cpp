@@ -1636,72 +1636,69 @@ TEST_F(PointerChoreographerTest, SetsPointerIconForMouseOnTwoDisplays) {
     firstMousePc->assertPointerIconNotSet();
 }
 
-TEST_F_WITH_FLAGS(PointerChoreographerTest, HidesTouchSpotsOnMirroredDisplaysForSecureWindow,
-                  REQUIRES_FLAGS_ENABLED(
-                          ACONFIG_FLAG(input_flags, hide_pointer_indicators_for_secure_windows))) {
-    // Add a touch device and enable show touches.
+using HidePointerForPrivacySensitiveDisplaysFixtureParam =
+        std::tuple<std::string_view /*name*/, uint32_t /*source*/, ControllerType, PointerBuilder,
+                   std::function<void(PointerChoreographer&)>, int32_t /*action*/>;
+
+class HidePointerForPrivacySensitiveDisplaysTestFixture
+      : public PointerChoreographerTest,
+        public ::testing::WithParamInterface<HidePointerForPrivacySensitiveDisplaysFixtureParam> {};
+
+INSTANTIATE_TEST_SUITE_P(
+        PointerChoreographerTest, HidePointerForPrivacySensitiveDisplaysTestFixture,
+        ::testing::Values(
+                std::make_tuple(
+                        "TouchSpots", AINPUT_SOURCE_TOUCHSCREEN, ControllerType::TOUCH,
+                        FIRST_TOUCH_POINTER,
+                        [](PointerChoreographer& pc) { pc.setShowTouchesEnabled(true); },
+                        AMOTION_EVENT_ACTION_DOWN),
+                std::make_tuple(
+                        "Mouse", AINPUT_SOURCE_MOUSE, ControllerType::MOUSE, MOUSE_POINTER,
+                        [](PointerChoreographer& pc) {}, AMOTION_EVENT_ACTION_DOWN),
+                std::make_tuple(
+                        "Stylus", AINPUT_SOURCE_STYLUS, ControllerType::STYLUS, STYLUS_POINTER,
+                        [](PointerChoreographer& pc) { pc.setStylusPointerIconEnabled(true); },
+                        AMOTION_EVENT_ACTION_HOVER_ENTER),
+                std::make_tuple(
+                        "DrawingTablet", AINPUT_SOURCE_MOUSE | AINPUT_SOURCE_STYLUS,
+                        ControllerType::MOUSE, STYLUS_POINTER, [](PointerChoreographer& pc) {},
+                        AMOTION_EVENT_ACTION_HOVER_ENTER)),
+        [](const testing::TestParamInfo<HidePointerForPrivacySensitiveDisplaysFixtureParam>& p) {
+            return std::string{std::get<0>(p.param)};
+        });
+
+TEST_P(HidePointerForPrivacySensitiveDisplaysTestFixture,
+       HidesPointerOnMirroredDisplaysForPrivacySensitiveDisplay) {
+    const auto& [name, source, controllerType, pointerBuilder, onControllerInit, action] =
+            GetParam();
+    input_flags::hide_pointer_indicators_for_secure_windows(true);
+    mChoreographer.setDisplayViewports(createViewports({DISPLAY_ID}));
+
+    // Add appropriate pointer device
     mChoreographer.notifyInputDevicesChanged(
-            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_TOUCHSCREEN, DISPLAY_ID)}});
-    mChoreographer.setShowTouchesEnabled(true);
+            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, source, DISPLAY_ID)}});
+    onControllerInit(mChoreographer);
 
-    // Emit touch events to create PointerController
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
-                    .pointer(FIRST_TOUCH_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(DISPLAY_ID)
-                    .build());
+    // Emit input events to create PointerController
+    mChoreographer.notifyMotion(MotionArgsBuilder(action, source)
+                                        .pointer(pointerBuilder)
+                                        .deviceId(DEVICE_ID)
+                                        .displayId(DISPLAY_ID)
+                                        .build());
 
-    // By default touch indicators should not be hidden
-    auto pc = assertPointerControllerCreated(ControllerType::TOUCH);
+    // By default pointer indicators should not be hidden
+    auto pc = assertPointerControllerCreated(controllerType);
     pc->assertIsHiddenOnMirroredDisplays(DISPLAY_ID, /*isHidden=*/false);
     pc->assertIsHiddenOnMirroredDisplays(ANOTHER_DISPLAY_ID, /*isHidden=*/false);
 
-    // adding secure window on display should set flag to hide pointer indicators on corresponding
-    // mirrored display
-    gui::WindowInfo windowInfo;
-    windowInfo.displayId = DISPLAY_ID;
-    windowInfo.inputConfig |= gui::WindowInfo::InputConfig::SENSITIVE_FOR_PRIVACY;
-    mChoreographer.onWindowInfosChanged({windowInfo});
+    // marking a display privacy sensitive should set flag to hide pointer indicators on the
+    // corresponding mirrored display
+    mChoreographer.onPrivacySensitiveDisplaysChanged(/*privacySensitiveDisplays=*/{DISPLAY_ID});
     pc->assertIsHiddenOnMirroredDisplays(DISPLAY_ID, /*isHidden=*/true);
     pc->assertIsHiddenOnMirroredDisplays(ANOTHER_DISPLAY_ID, /*isHidden=*/false);
 
-    // removing the secure window should reset the state
-    windowInfo.inputConfig.clear(gui::WindowInfo::InputConfig::SENSITIVE_FOR_PRIVACY);
-    mChoreographer.onWindowInfosChanged({windowInfo});
-    pc->assertIsHiddenOnMirroredDisplays(DISPLAY_ID, /*isHidden=*/false);
-    pc->assertIsHiddenOnMirroredDisplays(ANOTHER_DISPLAY_ID, /*isHidden=*/false);
-}
-
-TEST_F_WITH_FLAGS(PointerChoreographerTest,
-                  DoesNotHidesTouchSpotsOnMirroredDisplaysForInvisibleWindow,
-                  REQUIRES_FLAGS_ENABLED(
-                          ACONFIG_FLAG(input_flags, hide_pointer_indicators_for_secure_windows))) {
-    // Add a touch device and enable show touches.
-    mChoreographer.notifyInputDevicesChanged(
-            {/*id=*/0, {generateTestDeviceInfo(DEVICE_ID, AINPUT_SOURCE_TOUCHSCREEN, DISPLAY_ID)}});
-    mChoreographer.setShowTouchesEnabled(true);
-
-    // Emit touch events to create PointerController
-    mChoreographer.notifyMotion(
-            MotionArgsBuilder(AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN)
-                    .pointer(FIRST_TOUCH_POINTER)
-                    .deviceId(DEVICE_ID)
-                    .displayId(DISPLAY_ID)
-                    .build());
-
-    // By default touch indicators should not be hidden
-    auto pc = assertPointerControllerCreated(ControllerType::TOUCH);
-    pc->assertIsHiddenOnMirroredDisplays(DISPLAY_ID, /*isHidden=*/false);
-    pc->assertIsHiddenOnMirroredDisplays(ANOTHER_DISPLAY_ID, /*isHidden=*/false);
-
-    // adding secure but hidden window on display should still not set flag to hide pointer
-    // indicators
-    gui::WindowInfo windowInfo;
-    windowInfo.displayId = DISPLAY_ID;
-    windowInfo.inputConfig |= gui::WindowInfo::InputConfig::SENSITIVE_FOR_PRIVACY;
-    windowInfo.inputConfig |= gui::WindowInfo::InputConfig::NOT_VISIBLE;
-    mChoreographer.onWindowInfosChanged({windowInfo});
+    // un-marking the privacy sensitive display should reset the state
+    mChoreographer.onPrivacySensitiveDisplaysChanged(/*privacySensitiveDisplays=*/{});
     pc->assertIsHiddenOnMirroredDisplays(DISPLAY_ID, /*isHidden=*/false);
     pc->assertIsHiddenOnMirroredDisplays(ANOTHER_DISPLAY_ID, /*isHidden=*/false);
 }
