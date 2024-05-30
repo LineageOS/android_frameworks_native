@@ -26,10 +26,7 @@ rust_library {
     },
     apex_available: [
         "//apex_available:platform",
-        "com.android.compos",
-        "com.android.rkpd",
-        "com.android.uwb",
-        "com.android.virt",
+        "//apex_available:anyapex",
     ],
     min_sdk_version: "Tiramisu",
 }
@@ -67,9 +64,7 @@ rust_library {
     },
     apex_available: [
         "//apex_available:platform",
-        "com.android.compos",
-        "com.android.uwb",
-        "com.android.virt",
+        "//apex_available:anyapex",
     ],
     min_sdk_version: "Tiramisu",
 }
@@ -94,10 +89,7 @@ rust_library {
     },
     apex_available: [
         "//apex_available:platform",
-        "com.android.compos",
-        "com.android.rkpd",
-        "com.android.uwb",
-        "com.android.virt",
+        "//apex_available:anyapex",
     ],
     min_sdk_version: "Tiramisu",
     lints: "none",
@@ -153,10 +145,7 @@ rust_bindgen {
     },
     apex_available: [
         "//apex_available:platform",
-        "com.android.compos",
-        "com.android.rkpd",
-        "com.android.uwb",
-        "com.android.virt",
+        "//apex_available:anyapex",
     ],
     min_sdk_version: "Tiramisu",
 }
