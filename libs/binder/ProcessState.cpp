@@ -516,22 +516,23 @@ String8 ProcessState::getDriverName() {
     return mDriverName;
 }
 
-static unique_fd open_driver(const char* driver) {
+static unique_fd open_driver(const char* driver, String8* error) {
     auto fd = unique_fd(open(driver, O_RDWR | O_CLOEXEC));
     if (!fd.ok()) {
-        PLOGE("Opening '%s' failed", driver);
+        error->appendFormat("%d (%s) Opening '%s' failed", errno, strerror(errno), driver);
         return {};
     }
     int vers = 0;
     int result = ioctl(fd.get(), BINDER_VERSION, &vers);
     if (result == -1) {
-        PLOGE("Binder ioctl to obtain version failed");
+        error->appendFormat("%d (%s) Binder ioctl to obtain version failed", errno,
+                            strerror(errno));
         return {};
     }
     if (result != 0 || vers != BINDER_CURRENT_PROTOCOL_VERSION) {
-        ALOGE("Binder driver protocol(%d) does not match user space protocol(%d)! "
-              "ioctl() return value: %d",
-              vers, BINDER_CURRENT_PROTOCOL_VERSION, result);
+        error->appendFormat("Binder driver protocol(%d) does not match user space protocol(%d)! "
+                            "ioctl() return value: %d",
+                            vers, BINDER_CURRENT_PROTOCOL_VERSION, result);
         return {};
     }
     size_t maxThreads = DEFAULT_MAX_BINDER_THREADS;
@@ -565,7 +566,8 @@ ProcessState::ProcessState(const char* driver)
         mThreadPoolStarted(false),
         mThreadPoolSeq(1),
         mCallRestriction(CallRestriction::NONE) {
-    unique_fd opened = open_driver(driver);
+    String8 error;
+    unique_fd opened = open_driver(driver, &error);
 
     if (opened.ok()) {
         // mmap the binder, providing a chunk of virtual address space to receive transactions.
@@ -580,8 +582,9 @@ ProcessState::ProcessState(const char* driver)
     }
 
 #ifdef __ANDROID__
-    LOG_ALWAYS_FATAL_IF(!opened.ok(), "Binder driver '%s' could not be opened. Terminating.",
-                        driver);
+    LOG_ALWAYS_FATAL_IF(!opened.ok(),
+                        "Binder driver '%s' could not be opened. Error: %s. Terminating.",
+                        error.c_str(), driver);
 #endif
 
     if (opened.ok()) {
