@@ -215,7 +215,7 @@ void CompositionTest::captureScreenComposition() {
                                                                       HAL_PIXEL_FORMAT_RGBA_8888, 1,
                                                                       usage);
 
-    auto future = mFlinger.renderScreenImpl(std::move(renderArea), getLayerSnapshots,
+    auto future = mFlinger.renderScreenImpl(mDisplay, std::move(renderArea), getLayerSnapshots,
                                             mCaptureScreenBuffer, regionSampling);
     ASSERT_TRUE(future.valid());
     const auto fenceResult = future.get();
