@@ -50,7 +50,27 @@ else
   exit 1
 fi
 
-if pm art on-ota-staged --slot "$TARGET_SLOT_SUFFIX"; then
+# A source that infinitely emits arbitrary lines.
+# When connected to STDIN of another process, this source keeps STDIN open until
+# the consumer process closes STDIN or this script dies.
+function infinite_source {
+  while echo .; do
+    sleep 1
+  done
+}
+
+# Delegate to Pre-reboot Dexopt, a feature of ART Service.
+# ART Service decides what to do with this request:
+# - If Pre-reboot Dexopt is disabled or unsupported, the command returns
+#   non-zero. This is always the case if the current system is Android 14 or
+#   earlier.
+# - If Pre-reboot Dexopt is enabled in synchronous mode, the command blocks
+#   until Pre-reboot Dexopt finishes, and returns zero no matter it succeeds or
+#   not. This is the default behavior if the current system is Android 15.
+# - If Pre-reboot Dexopt is enabled in asynchronous mode, the command schedules
+#   an asynchronous job and returns 0 immediately. The job will then run by the
+#   job scheduler when the device is idle and charging.
+if infinite_source | pm art on-ota-staged --slot "$TARGET_SLOT_SUFFIX"; then
   # Handled by Pre-reboot Dexopt.
   exit 0
 fi
