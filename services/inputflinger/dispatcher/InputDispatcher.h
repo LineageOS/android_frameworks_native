@@ -687,8 +687,8 @@ private:
     std::map<ui::LogicalDisplayId /*displayId*/, InputVerifier> mVerifiersByDisplay;
     // Returns a fallback KeyEntry that should be sent to the connection, if required.
     std::unique_ptr<const KeyEntry> afterKeyEventLockedInterruptable(
-            const std::shared_ptr<Connection>& connection, DispatchEntry& dispatchEntry,
-            const KeyEntry& keyEntry, bool handled) REQUIRES(mLock);
+            const std::shared_ptr<Connection>& connection, DispatchEntry* dispatchEntry,
+            bool handled) REQUIRES(mLock);
 
     // Find touched state and touched window by token.
     std::tuple<TouchState*, TouchedWindow*, ui::LogicalDisplayId /*displayId*/>
