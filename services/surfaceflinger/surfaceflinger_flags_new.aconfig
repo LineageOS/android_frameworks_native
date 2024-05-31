@@ -66,6 +66,14 @@ flag {
 } # flush_buffer_slots_to_uncache
 
 flag {
+  name: "force_compile_graphite_renderengine"
+  namespace: "core_graphics"
+  description: "Compile Skia's Graphite Vulkan backend in RenderEngine, but do NOT enable it, unless graphite_renderengine is also set. It can also be enabled with the debug.renderengine.graphite system property for testing. In contrast, the graphite_renderengine flag both compiles AND enables Graphite in RenderEngine."
+  bug: "293371537"
+  is_fixed_read_only: true
+} # force_compile_graphite_renderengine
+
+flag {
   name: "frame_rate_category_mrr"
   namespace: "core_graphics"
   description: "Enable to use frame rate category and newer frame rate votes such as GTE in SurfaceFlinger scheduler, to guard dVRR changes from MRR devices"
