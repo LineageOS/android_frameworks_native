@@ -6388,9 +6388,8 @@ void InputDispatcher::doDispatchCycleFinishedCommand(nsecs_t finishTime,
         }
 
         if (dispatchEntry.eventEntry->type == EventEntry::Type::KEY) {
-            const KeyEntry& keyEntry = static_cast<const KeyEntry&>(*(dispatchEntry.eventEntry));
             fallbackKeyEntry =
-                    afterKeyEventLockedInterruptable(connection, dispatchEntry, keyEntry, handled);
+                    afterKeyEventLockedInterruptable(connection, &dispatchEntry, handled);
         }
     } // End critical section: The -LockedInterruptable methods may have released the lock.
 
@@ -6614,8 +6613,17 @@ void InputDispatcher::processConnectionResponsiveLocked(const Connection& connec
 }
 
 std::unique_ptr<const KeyEntry> InputDispatcher::afterKeyEventLockedInterruptable(
-        const std::shared_ptr<Connection>& connection, DispatchEntry& dispatchEntry,
-        const KeyEntry& keyEntry, bool handled) {
+        const std::shared_ptr<Connection>& connection, DispatchEntry* dispatchEntry, bool handled) {
+    // The dispatchEntry is currently valid, but it might point to a deleted object after we release
+    // the lock. For simplicity, make copies of the data of interest here and assume that
+    // 'dispatchEntry' is not valid after this section.
+    // Hold a strong reference to the EventEntry to ensure it's valid for the duration of this
+    // function, even if the DispatchEntry gets destroyed and releases its share of the ownership.
+    std::shared_ptr<const EventEntry> eventEntry = dispatchEntry->eventEntry;
+    const bool hasForegroundTarget = dispatchEntry->hasForegroundTarget();
+    const KeyEntry& keyEntry = static_cast<const KeyEntry&>(*(eventEntry));
+    // To prevent misuse, ensure dispatchEntry is no longer valid.
+    dispatchEntry = nullptr;
     if (keyEntry.flags & AKEY_EVENT_FLAG_FALLBACK) {
         if (!handled) {
             // Report the key as unhandled, since the fallback was not handled.
@@ -6632,7 +6640,7 @@ std::unique_ptr<const KeyEntry> InputDispatcher::afterKeyEventLockedInterruptabl
         connection->inputState.removeFallbackKey(originalKeyCode);
     }
 
-    if (handled || !dispatchEntry.hasForegroundTarget()) {
+    if (handled || !hasForegroundTarget) {
         // If the application handles the original key for which we previously
         // generated a fallback or if the window is not a foreground window,
         // then cancel the associated fallback key, if any.

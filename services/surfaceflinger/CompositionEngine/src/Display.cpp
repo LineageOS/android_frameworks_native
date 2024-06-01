@@ -361,6 +361,15 @@ void Display::applyClientTargetRequests(const ClientTargetProperty& clientTarget
             static_cast<ui::PixelFormat>(clientTargetProperty.clientTargetProperty.pixelFormat));
 }
 
+void Display::executeCommands() {
+    const auto halDisplayIdOpt = HalDisplayId::tryCast(mId);
+    if (mIsDisconnected || !halDisplayIdOpt) {
+        return;
+    }
+
+    getCompositionEngine().getHwComposer().executeCommands(*halDisplayIdOpt);
+}
+
 compositionengine::Output::FrameFences Display::presentFrame() {
     auto fences = impl::Output::presentFrame();
 

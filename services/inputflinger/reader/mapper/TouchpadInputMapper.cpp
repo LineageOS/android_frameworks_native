@@ -24,6 +24,7 @@
 #include <mutex>
 #include <optional>
 
+#include <android-base/logging.h>
 #include <android-base/stringprintf.h>
 #include <android-base/thread_annotations.h>
 #include <android/input.h>
@@ -241,10 +242,10 @@ TouchpadInputMapper::TouchpadInputMapper(InputDeviceContext& deviceContext,
         mMetricsId(metricsIdFromInputDeviceIdentifier(deviceContext.getDeviceIdentifier())) {
     RawAbsoluteAxisInfo slotAxisInfo;
     deviceContext.getAbsoluteAxisInfo(ABS_MT_SLOT, &slotAxisInfo);
-    if (!slotAxisInfo.valid || slotAxisInfo.maxValue <= 0) {
-        ALOGW("Touchpad \"%s\" doesn't have a valid ABS_MT_SLOT axis, and probably won't work "
-              "properly.",
-              deviceContext.getName().c_str());
+    if (!slotAxisInfo.valid || slotAxisInfo.maxValue < 0) {
+        LOG(WARNING) << "Touchpad " << deviceContext.getName()
+                     << " doesn't have a valid ABS_MT_SLOT axis, and probably won't work properly.";
+        slotAxisInfo.maxValue = 0;
     }
     mMotionAccumulator.configure(deviceContext, slotAxisInfo.maxValue + 1, true);
 

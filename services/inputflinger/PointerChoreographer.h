@@ -108,10 +108,6 @@ public:
     void notifyDeviceReset(const NotifyDeviceResetArgs& args) override;
     void notifyPointerCaptureChanged(const NotifyPointerCaptureChangedArgs& args) override;
 
-    // Public because it's also used by tests to simulate the WindowInfosListener callback
-    void onPrivacySensitiveDisplaysChanged(
-            const std::unordered_set<ui::LogicalDisplayId>& privacySensitiveDisplays);
-
     void dump(std::string& dump) override;
 
 private:
@@ -139,6 +135,8 @@ private:
     void onPrivacySensitiveDisplaysChangedLocked(
             const std::unordered_set<ui::LogicalDisplayId>& privacySensitiveDisplays)
             REQUIRES(mLock);
+    void onPrivacySensitiveDisplaysChanged(
+            const std::unordered_set<ui::LogicalDisplayId>& privacySensitiveDisplays);
 
     /* This listener keeps tracks of visible privacy sensitive displays and updates the
      * choreographer if there are any changes.
@@ -194,6 +192,20 @@ private:
     bool mShowTouchesEnabled GUARDED_BY(mLock);
     bool mStylusPointerIconEnabled GUARDED_BY(mLock);
     std::set<ui::LogicalDisplayId /*displayId*/> mDisplaysWithPointersHidden;
+
+protected:
+    using WindowListenerRegisterConsumer = std::function<std::vector<gui::WindowInfo>(
+            const sp<android::gui::WindowInfosListener>&)>;
+    using WindowListenerUnregisterConsumer =
+            std::function<void(const sp<android::gui::WindowInfosListener>&)>;
+    explicit PointerChoreographer(InputListenerInterface& listener,
+                                  PointerChoreographerPolicyInterface&,
+                                  const WindowListenerRegisterConsumer& registerListener,
+                                  const WindowListenerUnregisterConsumer& unregisterListener);
+
+private:
+    const WindowListenerRegisterConsumer mRegisterListener;
+    const WindowListenerUnregisterConsumer mUnregisterListener;
 };
 
 } // namespace android

@@ -27,7 +27,9 @@
 
 #include <EventHub.h>
 #include <InputReaderBase.h>
+#include <InputReaderContext.h>
 #include <NotifyArgs.h>
+#include <PointerChoreographerPolicyInterface.h>
 #include <StylusState.h>
 #include <VibrationElement.h>
 #include <android-base/logging.h>
@@ -172,6 +174,14 @@ public:
     MOCK_METHOD(status_t, enableDevice, (int32_t deviceId), (override));
     MOCK_METHOD(status_t, disableDevice, (int32_t deviceId), (override));
     MOCK_METHOD(void, sysfsNodeChanged, (const std::string& sysfsNodePath), (override));
+};
+
+class MockPointerChoreographerPolicyInterface : public PointerChoreographerPolicyInterface {
+public:
+    MOCK_METHOD(std::shared_ptr<PointerControllerInterface>, createPointerController,
+                (PointerControllerInterface::ControllerType), (override));
+    MOCK_METHOD(void, notifyPointerDisplayIdChanged,
+                (ui::LogicalDisplayId displayId, const FloatPoint& position), (override));
 };
 
 } // namespace android

@@ -1027,6 +1027,7 @@ status_t IPCThreadState::waitForResponse(Parcel *reply, status_t *acquireResult)
             goto finish;
 
         case BR_FROZEN_REPLY:
+            ALOGW("Transaction failed because process frozen.");
             err = FAILED_TRANSACTION;
             goto finish;
 
@@ -1578,8 +1579,8 @@ void IPCThreadState::logExtendedError() {
     }
 #endif
 
-    ALOGE_IF(ee.command != BR_OK, "Binder transaction failure: %d/%d/%d",
-             ee.id, ee.command, ee.param);
+    ALOGE_IF(ee.command != BR_OK, "Binder transaction failure. id: %d, BR_*: %d, error: %d (%s)",
+             ee.id, ee.command, ee.param, strerror(-ee.param));
 }
 
 void IPCThreadState::freeBuffer(const uint8_t* data, size_t /*dataSize*/,
