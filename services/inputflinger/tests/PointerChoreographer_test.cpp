@@ -113,17 +113,31 @@ TestPointerChoreographer::TestPointerChoreographer(
                     windowInfoListener = nullptr;
                 }) {}
 
-class PointerChoreographerTest : public testing::Test, public PointerChoreographerPolicyInterface {
+class PointerChoreographerTest : public testing::Test {
 protected:
     TestInputListener mTestListener;
     sp<gui::WindowInfosListener> mRegisteredWindowInfoListener;
     std::vector<gui::WindowInfo> mInjectedInitialWindowInfos;
-    TestPointerChoreographer mChoreographer{mTestListener, *this, mRegisteredWindowInfoListener,
+    testing::NiceMock<MockPointerChoreographerPolicyInterface> mMockPolicy;
+    TestPointerChoreographer mChoreographer{mTestListener, mMockPolicy,
+                                            mRegisteredWindowInfoListener,
                                             mInjectedInitialWindowInfos};
 
     void SetUp() override {
         // flag overrides
         input_flags::hide_pointer_indicators_for_secure_windows(true);
+
+        ON_CALL(mMockPolicy, createPointerController).WillByDefault([this](ControllerType type) {
+            std::shared_ptr<FakePointerController> pc = std::make_shared<FakePointerController>();
+            EXPECT_FALSE(pc->isPointerShown());
+            mCreatedControllers.emplace_back(type, pc);
+            return pc;
+        });
+
+        ON_CALL(mMockPolicy, notifyPointerDisplayIdChanged)
+                .WillByDefault([this](ui::LogicalDisplayId displayId, const FloatPoint& position) {
+                    mPointerDisplayIdNotified = displayId;
+                });
     }
 
     std::shared_ptr<FakePointerController> assertPointerControllerCreated(
@@ -177,19 +191,6 @@ private:
     std::deque<std::pair<ControllerType, std::shared_ptr<FakePointerController>>>
             mCreatedControllers;
     std::optional<ui::LogicalDisplayId> mPointerDisplayIdNotified;
-
-    std::shared_ptr<PointerControllerInterface> createPointerController(
-            ControllerType type) override {
-        std::shared_ptr<FakePointerController> pc = std::make_shared<FakePointerController>();
-        EXPECT_FALSE(pc->isPointerShown());
-        mCreatedControllers.emplace_back(type, pc);
-        return pc;
-    }
-
-    void notifyPointerDisplayIdChanged(ui::LogicalDisplayId displayId,
-                                       const FloatPoint& position) override {
-        mPointerDisplayIdNotified = displayId;
-    }
 };
 
 TEST_F(PointerChoreographerTest, ForwardsArgsToInnerListener) {
