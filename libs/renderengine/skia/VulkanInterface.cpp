@@ -197,7 +197,9 @@ void VulkanInterface::onVkDeviceFault(void* callbackContext, const std::string& 
     LOG_ALWAYS_FATAL("%s", crashMsg.str().c_str());
 };
 
-static GrVkGetProc sGetProc = [](const char* proc_name, VkInstance instance, VkDevice device) {
+static skgpu::VulkanGetProc sGetProc = [](const char* proc_name,
+                                          VkInstance instance,
+                                          VkDevice device) {
     if (device != VK_NULL_HANDLE) {
         return vkGetDeviceProcAddr(device, proc_name);
     }
@@ -604,7 +606,7 @@ void VulkanInterface::teardown() {
     mQueue = VK_NULL_HANDLE;          // Implicitly destroyed by destroying mDevice.
     mQueueIndex = 0;
     mApiVersion = 0;
-    mGrExtensions = GrVkExtensions();
+    mGrExtensions = skgpu::VulkanExtensions();
     mGrGetProc = nullptr;
     mIsProtected = false;
     mIsRealtimePriority = false;
