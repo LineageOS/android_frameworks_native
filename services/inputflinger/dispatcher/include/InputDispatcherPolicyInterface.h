@@ -76,6 +76,11 @@ public:
                                       InputDeviceSensorAccuracy accuracy) = 0;
     virtual void notifyVibratorState(int32_t deviceId, bool isOn) = 0;
 
+    /*
+     * Notifies the system that focused display has changed.
+     */
+    virtual void notifyFocusedDisplayChanged(ui::LogicalDisplayId displayId) = 0;
+
     /* Filters an input event.
      * Return true to dispatch the event unmodified, false to consume the event.
      * A filter can also transform and inject events later by passing POLICY_FLAG_FILTERED

@@ -5526,6 +5526,13 @@ void InputDispatcher::setFocusedDisplay(ui::LogicalDisplayId displayId) {
                 synthesizeCancelationEventsForWindowLocked(windowHandle, options);
             }
             mFocusedDisplayId = displayId;
+            // Enqueue a command to run outside the lock to tell the policy that the focused display
+            // changed.
+            auto command = [this]() REQUIRES(mLock) {
+                scoped_unlock unlock(mLock);
+                mPolicy.notifyFocusedDisplayChanged(mFocusedDisplayId);
+            };
+            postCommandLocked(std::move(command));
 
             // Only a window on the focused display can have Pointer Capture, so disable the active
             // Pointer Capture session if there is one, since the focused display changed.

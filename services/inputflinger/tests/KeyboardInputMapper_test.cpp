@@ -70,15 +70,6 @@ protected:
                                                          AINPUT_SOURCE_KEYBOARD);
     }
 
-    void testPointerVisibilityForKeys(const std::vector<int32_t>& keyCodes, bool expectVisible) {
-        for (int32_t keyCode : keyCodes) {
-            process(EV_KEY, keyCode, 1);
-            process(EV_SYN, SYN_REPORT, 0);
-            process(EV_KEY, keyCode, 0);
-            process(EV_SYN, SYN_REPORT, 0);
-        }
-    }
-
     void testTouchpadTapStateForKeys(const std::vector<int32_t>& keyCodes,
                                      const bool expectPrevent) {
         if (expectPrevent) {
@@ -93,42 +84,6 @@ protected:
         }
     }
 };
-
-/**
- * Pointer visibility should remain unaffected if there is no active Input Method Connection
- */
-TEST_F(KeyboardInputMapperUnitTest, KeystrokesWithoutIMeConnectionDoesNotHidePointer) {
-    testPointerVisibilityForKeys({KEY_0, KEY_A, KEY_LEFTCTRL}, /* expectVisible= */ true);
-}
-
-/**
- * Pointer should hide if there is a active Input Method Connection
- */
-TEST_F(KeyboardInputMapperUnitTest, AlphanumericKeystrokesWithIMeConnectionHidePointer) {
-    mFakePolicy->setIsInputMethodConnectionActive(true);
-    testPointerVisibilityForKeys({KEY_0, KEY_A}, /* expectVisible= */ false);
-}
-
-/**
- * Pointer should still hide if touchpad taps are already disabled
- */
-TEST_F(KeyboardInputMapperUnitTest, AlphanumericKeystrokesWithTouchpadTapDisabledHidePointer) {
-    mFakePolicy->setIsInputMethodConnectionActive(true);
-    EXPECT_CALL(mMockInputReaderContext, isPreventingTouchpadTaps).WillRepeatedly(Return(true));
-    testPointerVisibilityForKeys({KEY_0, KEY_A}, /* expectVisible= */ false);
-}
-
-/**
- * Pointer visibility should remain unaffected by meta keys even if Input Method Connection is
- * active
- */
-TEST_F(KeyboardInputMapperUnitTest, MetaKeystrokesWithIMeConnectionDoesNotHidePointer) {
-    mFakePolicy->setIsInputMethodConnectionActive(true);
-    std::vector<int32_t> metaKeys{KEY_LEFTALT,   KEY_RIGHTALT, KEY_LEFTSHIFT, KEY_RIGHTSHIFT,
-                                  KEY_FN,        KEY_LEFTCTRL, KEY_RIGHTCTRL, KEY_LEFTMETA,
-                                  KEY_RIGHTMETA, KEY_CAPSLOCK, KEY_NUMLOCK,   KEY_SCROLLLOCK};
-    testPointerVisibilityForKeys(metaKeys, /* expectVisible= */ true);
-}
 
 /**
  * Touchpad tap should not be disabled if there is no active Input Method Connection

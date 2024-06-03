@@ -21,6 +21,7 @@
 #include <attestation/HmacKeyManager.h>
 #include <input/Input.h>
 #include <input/InputEventBuilders.h>
+#include <input/Keyboard.h>
 #include <utils/Timers.h> // for nsecs_t, systemTime
 
 #include <vector>
@@ -203,6 +204,12 @@ public:
 
     KeyArgsBuilder& keyCode(int32_t keyCode) {
         mKeyCode = keyCode;
+        return *this;
+    }
+
+    KeyArgsBuilder& metaState(int32_t metaState) {
+        mMetaState |= metaState;
+        mMetaState = normalizeMetaState(/*oldMetaState=*/mMetaState);
         return *this;
     }
 
