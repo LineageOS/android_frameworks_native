@@ -64,12 +64,26 @@
 
 namespace android {
 
+#ifdef BINDER_NO_KERNEL_IPC_TESTING
+constexpr bool kEnableKernelIpcTesting = false;
+#else
+constexpr bool kEnableKernelIpcTesting = true;
+#endif
+
 constexpr char kLocalInetAddress[] = "127.0.0.1";
 
 enum class RpcSecurity { RAW, TLS };
 
 static inline std::vector<RpcSecurity> RpcSecurityValues() {
     return {RpcSecurity::RAW, RpcSecurity::TLS};
+}
+
+static inline std::vector<bool> noKernelValues() {
+    std::vector<bool> values = {true};
+    if (kEnableKernelIpcTesting) {
+        values.push_back(false);
+    }
+    return values;
 }
 
 static inline bool hasExperimentalRpc() {
