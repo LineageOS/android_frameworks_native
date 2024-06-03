@@ -38,7 +38,7 @@ protected:
         event.type = type;
         event.code = code;
         event.value = value;
-        mMotionAccumulator.process(&event);
+        mMotionAccumulator.process(event);
     }
 };
 

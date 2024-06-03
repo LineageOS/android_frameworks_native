@@ -1404,9 +1404,9 @@ void TouchInputMapper::clearStylusDataPendingFlags() {
 }
 
 std::list<NotifyArgs> TouchInputMapper::process(const RawEvent* rawEvent) {
-    mCursorButtonAccumulator.process(rawEvent);
-    mCursorScrollAccumulator.process(rawEvent);
-    mTouchButtonAccumulator.process(rawEvent);
+    mCursorButtonAccumulator.process(*rawEvent);
+    mCursorScrollAccumulator.process(*rawEvent);
+    mTouchButtonAccumulator.process(*rawEvent);
 
     std::list<NotifyArgs> out;
     if (rawEvent->type == EV_SYN && rawEvent->code == SYN_REPORT) {

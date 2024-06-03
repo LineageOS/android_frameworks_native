@@ -34,7 +34,7 @@ public:
     CursorMotionAccumulator();
     void reset(InputDeviceContext& deviceContext);
 
-    void process(const RawEvent* rawEvent);
+    void process(const RawEvent& rawEvent);
     void finishSync();
 
     inline int32_t getRelativeX() const { return mRelX; }

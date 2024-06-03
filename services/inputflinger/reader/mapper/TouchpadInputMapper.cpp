@@ -424,7 +424,7 @@ std::list<NotifyArgs> TouchpadInputMapper::process(const RawEvent* rawEvent) {
     if (mMotionAccumulator.getActiveSlotsCount() == 0) {
         mGestureStartTime = rawEvent->when;
     }
-    std::optional<SelfContainedHardwareState> state = mStateConverter.processRawEvent(rawEvent);
+    std::optional<SelfContainedHardwareState> state = mStateConverter.processRawEvent(*rawEvent);
     if (state) {
         updatePalmDetectionMetrics();
         return sendHardwareState(rawEvent->when, rawEvent->readTime, *state);

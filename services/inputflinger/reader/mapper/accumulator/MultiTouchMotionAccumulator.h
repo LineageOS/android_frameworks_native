@@ -76,7 +76,7 @@ public:
     void configure(const InputDeviceContext& deviceContext, size_t slotCount,
                    bool usingSlotsProtocol);
     void reset(const InputDeviceContext& deviceContext);
-    void process(const RawEvent* rawEvent);
+    void process(const RawEvent& rawEvent);
     void finishSync();
 
     size_t getActiveSlotsCount() const;

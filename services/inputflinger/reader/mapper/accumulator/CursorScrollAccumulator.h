@@ -31,7 +31,7 @@ public:
     void configure(InputDeviceContext& deviceContext);
     void reset(InputDeviceContext& deviceContext);
 
-    void process(const RawEvent* rawEvent);
+    void process(const RawEvent& rawEvent);
     void finishSync();
 
     inline bool haveRelativeVWheel() const { return mHaveRelWheel; }

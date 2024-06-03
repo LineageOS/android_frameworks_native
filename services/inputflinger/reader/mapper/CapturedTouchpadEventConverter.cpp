@@ -155,8 +155,8 @@ std::list<NotifyArgs> CapturedTouchpadEventConverter::process(const RawEvent& ra
         mMotionAccumulator.finishSync();
     }
 
-    mCursorButtonAccumulator.process(&rawEvent);
-    mMotionAccumulator.process(&rawEvent);
+    mCursorButtonAccumulator.process(rawEvent);
+    mMotionAccumulator.process(rawEvent);
     return out;
 }
 
