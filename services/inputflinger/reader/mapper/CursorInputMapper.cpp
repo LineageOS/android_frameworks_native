@@ -55,14 +55,14 @@ void CursorMotionAccumulator::clearRelativeAxes() {
     mRelY = 0;
 }
 
-void CursorMotionAccumulator::process(const RawEvent* rawEvent) {
-    if (rawEvent->type == EV_REL) {
-        switch (rawEvent->code) {
+void CursorMotionAccumulator::process(const RawEvent& rawEvent) {
+    if (rawEvent.type == EV_REL) {
+        switch (rawEvent.code) {
             case REL_X:
-                mRelX = rawEvent->value;
+                mRelX = rawEvent.value;
                 break;
             case REL_Y:
-                mRelY = rawEvent->value;
+                mRelY = rawEvent.value;
                 break;
         }
     }
@@ -217,9 +217,9 @@ std::list<NotifyArgs> CursorInputMapper::reset(nsecs_t when) {
 
 std::list<NotifyArgs> CursorInputMapper::process(const RawEvent* rawEvent) {
     std::list<NotifyArgs> out;
-    mCursorButtonAccumulator.process(rawEvent);
-    mCursorMotionAccumulator.process(rawEvent);
-    mCursorScrollAccumulator.process(rawEvent);
+    mCursorButtonAccumulator.process(*rawEvent);
+    mCursorMotionAccumulator.process(*rawEvent);
+    mCursorScrollAccumulator.process(*rawEvent);
 
     if (rawEvent->type == EV_SYN && rawEvent->code == SYN_REPORT) {
         const auto [eventTime, readTime] =

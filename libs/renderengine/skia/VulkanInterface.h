@@ -17,7 +17,8 @@
 #pragma once
 
 #include <include/gpu/vk/GrVkBackendContext.h>
-#include <include/gpu/vk/GrVkExtensions.h>
+#include <include/gpu/vk/VulkanExtensions.h>
+#include <include/gpu/vk/VulkanTypes.h>
 
 #include <vulkan/vulkan.h>
 
@@ -85,12 +86,12 @@ private:
     VkQueue mQueue = VK_NULL_HANDLE;
     int mQueueIndex = 0;
     uint32_t mApiVersion = 0;
-    GrVkExtensions mGrExtensions;
+    skgpu::VulkanExtensions mGrExtensions;
     VkPhysicalDeviceFeatures2* mPhysicalDeviceFeatures2 = nullptr;
     VkPhysicalDeviceSamplerYcbcrConversionFeatures* mSamplerYcbcrConversionFeatures = nullptr;
     VkPhysicalDeviceProtectedMemoryFeatures* mProtectedMemoryFeatures = nullptr;
     VkPhysicalDeviceFaultFeaturesEXT* mDeviceFaultFeatures = nullptr;
-    GrVkGetProc mGrGetProc = nullptr;
+    skgpu::VulkanGetProc mGrGetProc = nullptr;
     bool mIsProtected = false;
     bool mIsRealtimePriority = false;
 

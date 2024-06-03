@@ -52,60 +52,60 @@ void TouchButtonAccumulator::reset() {
     mHidUsageAccumulator.reset();
 }
 
-void TouchButtonAccumulator::process(const RawEvent* rawEvent) {
-    mHidUsageAccumulator.process(*rawEvent);
+void TouchButtonAccumulator::process(const RawEvent& rawEvent) {
+    mHidUsageAccumulator.process(rawEvent);
 
-    if (rawEvent->type == EV_KEY) {
-        switch (rawEvent->code) {
+    if (rawEvent.type == EV_KEY) {
+        switch (rawEvent.code) {
             case BTN_TOUCH:
-                mBtnTouch = rawEvent->value;
+                mBtnTouch = rawEvent.value;
                 break;
             case BTN_STYLUS:
-                mBtnStylus = rawEvent->value;
+                mBtnStylus = rawEvent.value;
                 break;
             case BTN_STYLUS2:
             case BTN_0: // BTN_0 is what gets mapped for the HID usage
                         // Digitizers.SecondaryBarrelSwitch
-                mBtnStylus2 = rawEvent->value;
+                mBtnStylus2 = rawEvent.value;
                 break;
             case BTN_TOOL_FINGER:
-                mBtnToolFinger = rawEvent->value;
+                mBtnToolFinger = rawEvent.value;
                 break;
             case BTN_TOOL_PEN:
-                mBtnToolPen = rawEvent->value;
+                mBtnToolPen = rawEvent.value;
                 break;
             case BTN_TOOL_RUBBER:
-                mBtnToolRubber = rawEvent->value;
+                mBtnToolRubber = rawEvent.value;
                 break;
             case BTN_TOOL_BRUSH:
-                mBtnToolBrush = rawEvent->value;
+                mBtnToolBrush = rawEvent.value;
                 break;
             case BTN_TOOL_PENCIL:
-                mBtnToolPencil = rawEvent->value;
+                mBtnToolPencil = rawEvent.value;
                 break;
             case BTN_TOOL_AIRBRUSH:
-                mBtnToolAirbrush = rawEvent->value;
+                mBtnToolAirbrush = rawEvent.value;
                 break;
             case BTN_TOOL_MOUSE:
-                mBtnToolMouse = rawEvent->value;
+                mBtnToolMouse = rawEvent.value;
                 break;
             case BTN_TOOL_LENS:
-                mBtnToolLens = rawEvent->value;
+                mBtnToolLens = rawEvent.value;
                 break;
             case BTN_TOOL_DOUBLETAP:
-                mBtnToolDoubleTap = rawEvent->value;
+                mBtnToolDoubleTap = rawEvent.value;
                 break;
             case BTN_TOOL_TRIPLETAP:
-                mBtnToolTripleTap = rawEvent->value;
+                mBtnToolTripleTap = rawEvent.value;
                 break;
             case BTN_TOOL_QUADTAP:
-                mBtnToolQuadTap = rawEvent->value;
+                mBtnToolQuadTap = rawEvent.value;
                 break;
             case BTN_TOOL_QUINTTAP:
-                mBtnToolQuintTap = rawEvent->value;
+                mBtnToolQuintTap = rawEvent.value;
                 break;
             default:
-                processMappedKey(rawEvent->code, rawEvent->value);
+                processMappedKey(rawEvent.code, rawEvent.value);
         }
         return;
     }

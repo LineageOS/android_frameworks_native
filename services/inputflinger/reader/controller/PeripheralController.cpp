@@ -418,7 +418,11 @@ void PeripheralController::configureLights() {
         }
         rawInfos.insert_or_assign(rawId, rawInfo.value());
         // Check if this is a group LEDs for player ID
-        std::regex lightPattern("([a-z]+)([0-9]+)");
+        // The name for the light has already been parsed and is the `function`
+        // value; for player ID lights the function is expected to be `player-#`.
+        // However, the Sony driver will use `sony#` instead on SIXAXIS
+        // gamepads.
+        std::regex lightPattern("(player|sony)-?([0-9]+)");
         std::smatch results;
         if (std::regex_match(rawInfo->name, results, lightPattern)) {
             std::string commonName = results[1].str();

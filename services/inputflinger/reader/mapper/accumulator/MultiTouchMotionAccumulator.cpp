@@ -45,12 +45,12 @@ void MultiTouchMotionAccumulator::resetSlots() {
     mCurrentSlot = -1;
 }
 
-void MultiTouchMotionAccumulator::process(const RawEvent* rawEvent) {
-    if (rawEvent->type == EV_ABS) {
+void MultiTouchMotionAccumulator::process(const RawEvent& rawEvent) {
+    if (rawEvent.type == EV_ABS) {
         bool newSlot = false;
         if (mUsingSlotsProtocol) {
-            if (rawEvent->code == ABS_MT_SLOT) {
-                mCurrentSlot = rawEvent->value;
+            if (rawEvent.code == ABS_MT_SLOT) {
+                mCurrentSlot = rawEvent.value;
                 newSlot = true;
             }
         } else if (mCurrentSlot < 0) {
@@ -72,12 +72,12 @@ void MultiTouchMotionAccumulator::process(const RawEvent* rawEvent) {
             if (!mUsingSlotsProtocol) {
                 slot.mInUse = true;
             }
-            if (rawEvent->code == ABS_MT_POSITION_X || rawEvent->code == ABS_MT_POSITION_Y) {
-                warnIfNotInUse(*rawEvent, slot);
+            if (rawEvent.code == ABS_MT_POSITION_X || rawEvent.code == ABS_MT_POSITION_Y) {
+                warnIfNotInUse(rawEvent, slot);
             }
-            slot.populateAxisValue(rawEvent->code, rawEvent->value);
+            slot.populateAxisValue(rawEvent.code, rawEvent.value);
         }
-    } else if (rawEvent->type == EV_SYN && rawEvent->code == SYN_MT_REPORT) {
+    } else if (rawEvent.type == EV_SYN && rawEvent.code == SYN_MT_REPORT) {
         // MultiTouch Sync: The driver has returned all data for *one* of the pointers.
         mCurrentSlot += 1;
     }

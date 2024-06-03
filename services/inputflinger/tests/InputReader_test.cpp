@@ -10595,24 +10595,24 @@ TEST_F(LightControllerTest, MultiColorRGBKeyboardBacklight) {
     ASSERT_EQ(controller.getLightColor(lights[0].id).value_or(-1), LIGHT_COLOR);
 }
 
-TEST_F(LightControllerTest, PlayerIdLight) {
+TEST_F(LightControllerTest, SonyPlayerIdLight) {
     RawLightInfo info1 = {.id = 1,
-                          .name = "player1",
+                          .name = "sony1",
                           .maxBrightness = 255,
                           .flags = InputLightClass::BRIGHTNESS,
                           .path = ""};
     RawLightInfo info2 = {.id = 2,
-                          .name = "player2",
+                          .name = "sony2",
                           .maxBrightness = 255,
                           .flags = InputLightClass::BRIGHTNESS,
                           .path = ""};
     RawLightInfo info3 = {.id = 3,
-                          .name = "player3",
+                          .name = "sony3",
                           .maxBrightness = 255,
                           .flags = InputLightClass::BRIGHTNESS,
                           .path = ""};
     RawLightInfo info4 = {.id = 4,
-                          .name = "player4",
+                          .name = "sony4",
                           .maxBrightness = 255,
                           .flags = InputLightClass::BRIGHTNESS,
                           .path = ""};
@@ -10626,6 +10626,49 @@ TEST_F(LightControllerTest, PlayerIdLight) {
     controller.populateDeviceInfo(&info);
     std::vector<InputDeviceLightInfo> lights = info.getLights();
     ASSERT_EQ(1U, lights.size());
+    ASSERT_STREQ("sony", lights[0].name.c_str());
+    ASSERT_EQ(InputDeviceLightType::PLAYER_ID, lights[0].type);
+    ASSERT_FALSE(lights[0].capabilityFlags.test(InputDeviceLightCapability::BRIGHTNESS));
+    ASSERT_FALSE(lights[0].capabilityFlags.test(InputDeviceLightCapability::RGB));
+
+    ASSERT_FALSE(controller.setLightColor(lights[0].id, LIGHT_COLOR));
+    ASSERT_TRUE(controller.setLightPlayerId(lights[0].id, LIGHT_PLAYER_ID));
+    ASSERT_EQ(controller.getLightPlayerId(lights[0].id).value_or(-1), LIGHT_PLAYER_ID);
+    ASSERT_STREQ("sony", lights[0].name.c_str());
+}
+
+TEST_F(LightControllerTest, PlayerIdLight) {
+    RawLightInfo info1 = {.id = 1,
+                          .name = "player-1",
+                          .maxBrightness = 255,
+                          .flags = InputLightClass::BRIGHTNESS,
+                          .path = ""};
+    RawLightInfo info2 = {.id = 2,
+                          .name = "player-2",
+                          .maxBrightness = 255,
+                          .flags = InputLightClass::BRIGHTNESS,
+                          .path = ""};
+    RawLightInfo info3 = {.id = 3,
+                          .name = "player-3",
+                          .maxBrightness = 255,
+                          .flags = InputLightClass::BRIGHTNESS,
+                          .path = ""};
+    RawLightInfo info4 = {.id = 4,
+                          .name = "player-4",
+                          .maxBrightness = 255,
+                          .flags = InputLightClass::BRIGHTNESS,
+                          .path = ""};
+    mFakeEventHub->addRawLightInfo(info1.id, std::move(info1));
+    mFakeEventHub->addRawLightInfo(info2.id, std::move(info2));
+    mFakeEventHub->addRawLightInfo(info3.id, std::move(info3));
+    mFakeEventHub->addRawLightInfo(info4.id, std::move(info4));
+
+    PeripheralController& controller = addControllerAndConfigure<PeripheralController>();
+    InputDeviceInfo info;
+    controller.populateDeviceInfo(&info);
+    std::vector<InputDeviceLightInfo> lights = info.getLights();
+    ASSERT_EQ(1U, lights.size());
+    ASSERT_STREQ("player", lights[0].name.c_str());
     ASSERT_EQ(InputDeviceLightType::PLAYER_ID, lights[0].type);
     ASSERT_FALSE(lights[0].capabilityFlags.test(InputDeviceLightCapability::BRIGHTNESS));
     ASSERT_FALSE(lights[0].capabilityFlags.test(InputDeviceLightCapability::RGB));

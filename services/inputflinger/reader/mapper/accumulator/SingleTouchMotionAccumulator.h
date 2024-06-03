@@ -28,7 +28,7 @@ class SingleTouchMotionAccumulator {
 public:
     SingleTouchMotionAccumulator();
 
-    void process(const RawEvent* rawEvent);
+    void process(const RawEvent& rawEvent);
     void reset(InputDeviceContext& deviceContext);
 
     inline int32_t getAbsoluteX() const { return mAbsX; }

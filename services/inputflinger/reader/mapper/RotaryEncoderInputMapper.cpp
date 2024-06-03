@@ -103,7 +103,7 @@ std::list<NotifyArgs> RotaryEncoderInputMapper::reset(nsecs_t when) {
 
 std::list<NotifyArgs> RotaryEncoderInputMapper::process(const RawEvent* rawEvent) {
     std::list<NotifyArgs> out;
-    mRotaryEncoderScrollAccumulator.process(rawEvent);
+    mRotaryEncoderScrollAccumulator.process(*rawEvent);
 
     if (rawEvent->type == EV_SYN && rawEvent->code == SYN_REPORT) {
         out += sync(rawEvent->when, rawEvent->readTime);

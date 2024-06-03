@@ -39,6 +39,8 @@ void trace_begin(uint64_t, const char*) {}
 
 void trace_end(uint64_t) {}
 
+void trace_int(uint64_t, const char*, int32_t) {}
+
 uint64_t GetThreadId() {
     return syscall(__NR_gettid);
 }

@@ -181,7 +181,8 @@ inline bool isPointerEvent(int32_t source) {
 }
 
 bool shouldResampleTool(ToolType toolType) {
-    return toolType == ToolType::FINGER || toolType == ToolType::UNKNOWN;
+    return toolType == ToolType::FINGER || toolType == ToolType::MOUSE ||
+            toolType == ToolType::STYLUS || toolType == ToolType::UNKNOWN;
 }
 
 } // namespace
@@ -592,6 +593,11 @@ void InputConsumer::resampleTouchState(nsecs_t sampleTime, MotionEvent* event,
             ALOGD_IF(debugResampling(), "Not resampled, missing id %d", id);
             return;
         }
+        if (!shouldResampleTool(event->getToolType(i))) {
+            ALOGD_IF(debugResampling(),
+                     "Not resampled, containing unsupported tool type at pointer %d", id);
+            return;
+        }
     }
 
     // Find the data to use for resampling.
@@ -639,8 +645,16 @@ void InputConsumer::resampleTouchState(nsecs_t sampleTime, MotionEvent* event,
     }
 
     if (current->eventTime == sampleTime) {
-        // Prevents having 2 events with identical times and coordinates.
+        ALOGD_IF(debugResampling(), "Not resampled, 2 events with identical times.");
         return;
+    }
+
+    for (size_t i = 0; i < pointerCount; i++) {
+        uint32_t id = event->getPointerId(i);
+        if (!other->idBits.hasBit(id)) {
+            ALOGD_IF(debugResampling(), "Not resampled, the other doesn't have pointer id %d.", id);
+            return;
+        }
     }
 
     // Resample touch coordinates.
@@ -670,22 +684,16 @@ void InputConsumer::resampleTouchState(nsecs_t sampleTime, MotionEvent* event,
         const PointerCoords& currentCoords = current->getPointerById(id);
         resampledCoords = currentCoords;
         resampledCoords.isResampled = true;
-        if (other->idBits.hasBit(id) && shouldResampleTool(event->getToolType(i))) {
-            const PointerCoords& otherCoords = other->getPointerById(id);
-            resampledCoords.setAxisValue(AMOTION_EVENT_AXIS_X,
-                                         lerp(currentCoords.getX(), otherCoords.getX(), alpha));
-            resampledCoords.setAxisValue(AMOTION_EVENT_AXIS_Y,
-                                         lerp(currentCoords.getY(), otherCoords.getY(), alpha));
-            ALOGD_IF(debugResampling(),
-                     "[%d] - out (%0.3f, %0.3f), cur (%0.3f, %0.3f), "
-                     "other (%0.3f, %0.3f), alpha %0.3f",
-                     id, resampledCoords.getX(), resampledCoords.getY(), currentCoords.getX(),
-                     currentCoords.getY(), otherCoords.getX(), otherCoords.getY(), alpha);
-        } else {
-            ALOGD_IF(debugResampling(), "[%d] - out (%0.3f, %0.3f), cur (%0.3f, %0.3f)", id,
-                     resampledCoords.getX(), resampledCoords.getY(), currentCoords.getX(),
-                     currentCoords.getY());
-        }
+        const PointerCoords& otherCoords = other->getPointerById(id);
+        resampledCoords.setAxisValue(AMOTION_EVENT_AXIS_X,
+                                     lerp(currentCoords.getX(), otherCoords.getX(), alpha));
+        resampledCoords.setAxisValue(AMOTION_EVENT_AXIS_Y,
+                                     lerp(currentCoords.getY(), otherCoords.getY(), alpha));
+        ALOGD_IF(debugResampling(),
+                 "[%d] - out (%0.3f, %0.3f), cur (%0.3f, %0.3f), "
+                 "other (%0.3f, %0.3f), alpha %0.3f",
+                 id, resampledCoords.getX(), resampledCoords.getY(), currentCoords.getX(),
+                 currentCoords.getY(), otherCoords.getX(), otherCoords.getY(), alpha);
     }
 
     event->addSample(sampleTime, touchState.lastResample.pointers);
