@@ -297,10 +297,9 @@ TEST_F(TouchResamplingTest, EventIsResampledWithDifferentId) {
 }
 
 /**
- * Stylus pointer coordinates are not resampled, but an event is still generated for the batch with
- * a resampled timestamp and should be marked as such.
+ * Stylus pointer coordinates are resampled.
  */
-TEST_F(TouchResamplingTest, StylusCoordinatesNotResampledFor) {
+TEST_F(TouchResamplingTest, StylusEventIsResampled) {
     std::chrono::nanoseconds frameTime;
     std::vector<InputEventEntry> entries, expectedEntries;
 
@@ -330,10 +329,86 @@ TEST_F(TouchResamplingTest, StylusCoordinatesNotResampledFor) {
             //      id  x   y
             {10ms, {{0, 20, 30, .toolType = ToolType::STYLUS}}, AMOTION_EVENT_ACTION_MOVE},
             {20ms, {{0, 30, 30, .toolType = ToolType::STYLUS}}, AMOTION_EVENT_ACTION_MOVE},
-            // A resampled event is generated, but the stylus coordinates are not resampled.
             {25ms,
-             {{0, 30, 30, .toolType = ToolType::STYLUS, .isResampled = true}},
+             {{0, 35, 30, .toolType = ToolType::STYLUS, .isResampled = true}},
              AMOTION_EVENT_ACTION_MOVE},
+    };
+    consumeInputEventEntries(expectedEntries, frameTime);
+}
+
+/**
+ * Mouse pointer coordinates are resampled.
+ */
+TEST_F(TouchResamplingTest, MouseEventIsResampled) {
+    std::chrono::nanoseconds frameTime;
+    std::vector<InputEventEntry> entries, expectedEntries;
+
+    // Initial ACTION_DOWN should be separate, because the first consume event will only return
+    // InputEvent with a single action.
+    entries = {
+            //      id  x   y
+            {0ms, {{0, 10, 20, .toolType = ToolType::MOUSE}}, AMOTION_EVENT_ACTION_DOWN},
+    };
+    publishInputEventEntries(entries);
+    frameTime = 5ms;
+    expectedEntries = {
+            //      id  x   y
+            {0ms, {{0, 10, 20, .toolType = ToolType::MOUSE}}, AMOTION_EVENT_ACTION_DOWN},
+    };
+    consumeInputEventEntries(expectedEntries, frameTime);
+
+    // Two ACTION_MOVE events 10 ms apart that move in X direction and stay still in Y
+    entries = {
+            //      id  x   y
+            {10ms, {{0, 20, 30, .toolType = ToolType::MOUSE}}, AMOTION_EVENT_ACTION_MOVE},
+            {20ms, {{0, 30, 30, .toolType = ToolType::MOUSE}}, AMOTION_EVENT_ACTION_MOVE},
+    };
+    publishInputEventEntries(entries);
+    frameTime = 35ms;
+    expectedEntries = {
+            //      id  x   y
+            {10ms, {{0, 20, 30, .toolType = ToolType::MOUSE}}, AMOTION_EVENT_ACTION_MOVE},
+            {20ms, {{0, 30, 30, .toolType = ToolType::MOUSE}}, AMOTION_EVENT_ACTION_MOVE},
+            {25ms,
+             {{0, 35, 30, .toolType = ToolType::MOUSE, .isResampled = true}},
+             AMOTION_EVENT_ACTION_MOVE},
+    };
+    consumeInputEventEntries(expectedEntries, frameTime);
+}
+
+/**
+ * Motion events with palm tool type are not resampled.
+ */
+TEST_F(TouchResamplingTest, PalmEventIsNotResampled) {
+    std::chrono::nanoseconds frameTime;
+    std::vector<InputEventEntry> entries, expectedEntries;
+
+    // Initial ACTION_DOWN should be separate, because the first consume event will only return
+    // InputEvent with a single action.
+    entries = {
+            //      id  x   y
+            {0ms, {{0, 10, 20, .toolType = ToolType::PALM}}, AMOTION_EVENT_ACTION_DOWN},
+    };
+    publishInputEventEntries(entries);
+    frameTime = 5ms;
+    expectedEntries = {
+            //      id  x   y
+            {0ms, {{0, 10, 20, .toolType = ToolType::PALM}}, AMOTION_EVENT_ACTION_DOWN},
+    };
+    consumeInputEventEntries(expectedEntries, frameTime);
+
+    // Two ACTION_MOVE events 10 ms apart that move in X direction and stay still in Y
+    entries = {
+            //      id  x   y
+            {10ms, {{0, 20, 30, .toolType = ToolType::PALM}}, AMOTION_EVENT_ACTION_MOVE},
+            {20ms, {{0, 30, 30, .toolType = ToolType::PALM}}, AMOTION_EVENT_ACTION_MOVE},
+    };
+    publishInputEventEntries(entries);
+    frameTime = 35ms;
+    expectedEntries = {
+            //      id  x   y
+            {10ms, {{0, 20, 30, .toolType = ToolType::PALM}}, AMOTION_EVENT_ACTION_MOVE},
+            {20ms, {{0, 30, 30, .toolType = ToolType::PALM}}, AMOTION_EVENT_ACTION_MOVE},
     };
     consumeInputEventEntries(expectedEntries, frameTime);
 }
