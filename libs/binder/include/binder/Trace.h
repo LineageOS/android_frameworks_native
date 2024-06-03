@@ -41,6 +41,7 @@ namespace os {
 // libcutils/libutils
 void trace_begin(uint64_t tag, const char* name);
 void trace_end(uint64_t tag);
+void trace_int(uint64_t tag, const char* name, int32_t value);
 } // namespace os
 
 class LIBBINDER_EXPORTED ScopedTrace {

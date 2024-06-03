@@ -461,6 +461,20 @@ cc_test {
 }
 
 cc_test {
+    name: "binderRpcTestNoKernelAtAll",
+    defaults: [
+        "binderRpcTest_defaults",
+        "binderRpcTest_static_defaults",
+    ],
+    static_libs: [
+        "libbinder_rpc_no_kernel",
+    ],
+    cflags: [
+        "-DBINDER_NO_KERNEL_IPC_TESTING",
+    ],
+}
+
+cc_test {
     name: "binderRpcTestSingleThreaded",
     defaults: [
         "binderRpcTest_defaults",
