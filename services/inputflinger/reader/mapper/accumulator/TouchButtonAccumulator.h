@@ -33,7 +33,7 @@ public:
     void configure();
     void reset();
 
-    void process(const RawEvent* rawEvent);
+    void process(const RawEvent& rawEvent);
 
     uint32_t getButtonState() const;
     ToolType getToolType() const;

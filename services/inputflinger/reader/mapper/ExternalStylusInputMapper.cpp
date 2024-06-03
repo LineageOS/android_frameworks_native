@@ -63,8 +63,8 @@ std::list<NotifyArgs> ExternalStylusInputMapper::reset(nsecs_t when) {
 
 std::list<NotifyArgs> ExternalStylusInputMapper::process(const RawEvent* rawEvent) {
     std::list<NotifyArgs> out;
-    mSingleTouchMotionAccumulator.process(rawEvent);
-    mTouchButtonAccumulator.process(rawEvent);
+    mSingleTouchMotionAccumulator.process(*rawEvent);
+    mTouchButtonAccumulator.process(*rawEvent);
 
     if (rawEvent->type == EV_SYN && rawEvent->code == SYN_REPORT) {
         out += sync(rawEvent->when);

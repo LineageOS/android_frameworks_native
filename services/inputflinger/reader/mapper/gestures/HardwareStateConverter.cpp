@@ -40,15 +40,15 @@ HardwareStateConverter::HardwareStateConverter(const InputDeviceContext& deviceC
 }
 
 std::optional<SelfContainedHardwareState> HardwareStateConverter::processRawEvent(
-        const RawEvent* rawEvent) {
+        const RawEvent& rawEvent) {
     std::optional<SelfContainedHardwareState> out;
-    if (rawEvent->type == EV_SYN && rawEvent->code == SYN_REPORT) {
-        out = produceHardwareState(rawEvent->when);
+    if (rawEvent.type == EV_SYN && rawEvent.code == SYN_REPORT) {
+        out = produceHardwareState(rawEvent.when);
         mMotionAccumulator.finishSync();
         mMscTimestamp = 0;
     }
-    if (rawEvent->type == EV_MSC && rawEvent->code == MSC_TIMESTAMP) {
-        mMscTimestamp = rawEvent->value;
+    if (rawEvent.type == EV_MSC && rawEvent.code == MSC_TIMESTAMP) {
+        mMscTimestamp = rawEvent.value;
     }
     mCursorButtonAccumulator.process(rawEvent);
     mMotionAccumulator.process(rawEvent);

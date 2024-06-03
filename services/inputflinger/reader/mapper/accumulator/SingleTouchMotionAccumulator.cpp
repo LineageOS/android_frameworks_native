@@ -45,29 +45,29 @@ void SingleTouchMotionAccumulator::clearAbsoluteAxes() {
     mAbsTiltY = 0;
 }
 
-void SingleTouchMotionAccumulator::process(const RawEvent* rawEvent) {
-    if (rawEvent->type == EV_ABS) {
-        switch (rawEvent->code) {
+void SingleTouchMotionAccumulator::process(const RawEvent& rawEvent) {
+    if (rawEvent.type == EV_ABS) {
+        switch (rawEvent.code) {
             case ABS_X:
-                mAbsX = rawEvent->value;
+                mAbsX = rawEvent.value;
                 break;
             case ABS_Y:
-                mAbsY = rawEvent->value;
+                mAbsY = rawEvent.value;
                 break;
             case ABS_PRESSURE:
-                mAbsPressure = rawEvent->value;
+                mAbsPressure = rawEvent.value;
                 break;
             case ABS_TOOL_WIDTH:
-                mAbsToolWidth = rawEvent->value;
+                mAbsToolWidth = rawEvent.value;
                 break;
             case ABS_DISTANCE:
-                mAbsDistance = rawEvent->value;
+                mAbsDistance = rawEvent.value;
                 break;
             case ABS_TILT_X:
-                mAbsTiltX = rawEvent->value;
+                mAbsTiltX = rawEvent.value;
                 break;
             case ABS_TILT_Y:
-                mAbsTiltY = rawEvent->value;
+                mAbsTiltY = rawEvent.value;
                 break;
         }
     }

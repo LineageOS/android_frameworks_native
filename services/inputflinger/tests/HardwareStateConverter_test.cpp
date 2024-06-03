@@ -81,7 +81,7 @@ protected:
         event.type = type;
         event.code = code;
         event.value = value;
-        std::optional<SelfContainedHardwareState> schs = mConverter->processRawEvent(&event);
+        std::optional<SelfContainedHardwareState> schs = mConverter->processRawEvent(event);
         EXPECT_FALSE(schs.has_value());
     }
 
@@ -93,7 +93,7 @@ protected:
         event.type = EV_SYN;
         event.code = SYN_REPORT;
         event.value = 0;
-        return mConverter->processRawEvent(&event);
+        return mConverter->processRawEvent(event);
     }
 
     std::shared_ptr<FakeEventHub> mFakeEventHub;

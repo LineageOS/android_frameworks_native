@@ -29,7 +29,7 @@ public:
     CursorButtonAccumulator();
     void reset(const InputDeviceContext& deviceContext);
 
-    void process(const RawEvent* rawEvent);
+    void process(const RawEvent& rawEvent);
 
     uint32_t getButtonState() const;
     inline bool isLeftPressed() const { return mBtnLeft; }

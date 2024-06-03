@@ -39,14 +39,14 @@ void CursorScrollAccumulator::clearRelativeAxes() {
     mRelHWheel = 0;
 }
 
-void CursorScrollAccumulator::process(const RawEvent* rawEvent) {
-    if (rawEvent->type == EV_REL) {
-        switch (rawEvent->code) {
+void CursorScrollAccumulator::process(const RawEvent& rawEvent) {
+    if (rawEvent.type == EV_REL) {
+        switch (rawEvent.code) {
             case REL_WHEEL:
-                mRelWheel = rawEvent->value;
+                mRelWheel = rawEvent.value;
                 break;
             case REL_HWHEEL:
-                mRelHWheel = rawEvent->value;
+                mRelHWheel = rawEvent.value;
                 break;
         }
     }

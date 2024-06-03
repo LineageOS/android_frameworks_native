@@ -44,7 +44,7 @@ public:
     HardwareStateConverter(const InputDeviceContext& deviceContext,
                            MultiTouchMotionAccumulator& motionAccumulator);
 
-    std::optional<SelfContainedHardwareState> processRawEvent(const RawEvent* event);
+    std::optional<SelfContainedHardwareState> processRawEvent(const RawEvent& event);
     void reset();
 
 private:

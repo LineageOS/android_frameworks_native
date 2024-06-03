@@ -33,7 +33,7 @@ std::list<NotifyArgs> SingleTouchInputMapper::reset(nsecs_t when) {
 std::list<NotifyArgs> SingleTouchInputMapper::process(const RawEvent* rawEvent) {
     std::list<NotifyArgs> out = TouchInputMapper::process(rawEvent);
 
-    mSingleTouchMotionAccumulator.process(rawEvent);
+    mSingleTouchMotionAccumulator.process(*rawEvent);
     return out;
 }
 
