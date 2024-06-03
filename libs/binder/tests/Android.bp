@@ -62,6 +62,7 @@ cc_test {
         "binderStatusUnitTest.cpp",
         "binderMemoryHeapBaseUnitTest.cpp",
         "binderRecordedTransactionTest.cpp",
+        "binderPersistableBundleTest.cpp",
     ],
     shared_libs: [
         "libbinder",
