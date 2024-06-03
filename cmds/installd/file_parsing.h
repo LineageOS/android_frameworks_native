@@ -51,7 +51,7 @@ bool ParseFile(std::istream& input_stream, Func parse) {
 }
 
 template<typename Func>
-bool ParseFile(std::string_view str_file, Func parse) {
+bool ParseFile(const std::string& str_file, Func parse) {
   std::ifstream ifs(str_file);
   if (!ifs.is_open()) {
     return false;
