@@ -4885,10 +4885,11 @@ InputEventInjectionResult InputDispatcher::injectInputEvent(const InputEvent* ev
 
             mLock.lock();
 
-            if (policyFlags & POLICY_FLAG_FILTERED) {
-                // The events from InputFilter impersonate real hardware devices. Check these
-                // events for consistency and print an error. An inconsistent event sent from
-                // InputFilter could cause a crash in the later stages of dispatching pipeline.
+            {
+                // Verify all injected streams, whether the injection is coming from apps or from
+                // input filter. Print an error if the stream becomes inconsistent with this event.
+                // An inconsistent injected event sent could cause a crash in the later stages of
+                // dispatching pipeline.
                 auto [it, _] =
                         mInputFilterVerifiersByDisplay.try_emplace(displayId,
                                                                    std::string("Injection on ") +
