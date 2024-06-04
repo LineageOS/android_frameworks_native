@@ -7933,23 +7933,14 @@ void SurfaceFlinger::captureDisplay(const DisplayCaptureArgs& args,
         }
     }
 
-    GetLayerSnapshotsFunction getLayerSnapshots;
-    if (mLayerLifecycleManagerEnabled) {
-        getLayerSnapshots =
-                getLayerSnapshotsForScreenshots(layerStack, args.uid, std::move(excludeLayerIds));
-    } else {
-        auto traverseLayers = [this, args, excludeLayerIds,
-                               layerStack](const LayerVector::Visitor& visitor) {
-            traverseLayersInLayerStack(layerStack, args.uid, std::move(excludeLayerIds), visitor);
-        };
-        getLayerSnapshots = RenderArea::fromTraverseLayersLambda(traverseLayers);
-    }
+    GetLayerSnapshotsFunction getLayerSnapshotsFn =
+            getLayerSnapshotsForScreenshots(layerStack, args.uid, std::move(excludeLayerIds));
 
     captureScreenCommon(RenderAreaBuilderVariant(std::in_place_type<DisplayRenderAreaBuilder>,
                                                  args.sourceCrop, reqSize, args.dataspace,
                                                  args.hintForSeamlessTransition,
                                                  args.captureSecureLayers, displayWeak),
-                        getLayerSnapshots, reqSize, args.pixelFormat, args.allowProtected,
+                        getLayerSnapshotsFn, reqSize, args.pixelFormat, args.allowProtected,
                         args.grayscale, captureListener);
 }
 
@@ -7986,16 +7977,9 @@ void SurfaceFlinger::captureDisplay(DisplayId displayId, const CaptureArgs& args
         return;
     }
 
-    GetLayerSnapshotsFunction getLayerSnapshots;
-    if (mLayerLifecycleManagerEnabled) {
-        getLayerSnapshots = getLayerSnapshotsForScreenshots(layerStack, CaptureArgs::UNSET_UID,
-                                                            /*snapshotFilterFn=*/nullptr);
-    } else {
-        auto traverseLayers = [this, layerStack](const LayerVector::Visitor& visitor) {
-            traverseLayersInLayerStack(layerStack, CaptureArgs::UNSET_UID, {}, visitor);
-        };
-        getLayerSnapshots = RenderArea::fromTraverseLayersLambda(traverseLayers);
-    }
+    GetLayerSnapshotsFunction getLayerSnapshotsFn =
+            getLayerSnapshotsForScreenshots(layerStack, CaptureArgs::UNSET_UID,
+                                            /*snapshotFilterFn=*/nullptr);
 
     if (captureListener == nullptr) {
         ALOGE("capture screen must provide a capture listener callback");
@@ -8010,7 +7994,7 @@ void SurfaceFlinger::captureDisplay(DisplayId displayId, const CaptureArgs& args
                                                  Rect(), size, args.dataspace,
                                                  args.hintForSeamlessTransition,
                                                  false /* captureSecureLayers */, displayWeak),
-                        getLayerSnapshots, size, args.pixelFormat, kAllowProtected, kGrayscale,
+                        getLayerSnapshotsFn, size, args.pixelFormat, kAllowProtected, kGrayscale,
                         captureListener);
 }
 
@@ -8092,41 +8076,15 @@ void SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
         return;
     }
 
-    GetLayerSnapshotsFunction getLayerSnapshots;
-    if (mLayerLifecycleManagerEnabled) {
-        std::optional<FloatRect> parentCrop = std::nullopt;
-        if (args.childrenOnly) {
-            parentCrop = crop.isEmpty() ? FloatRect(0, 0, reqSize.width, reqSize.height)
-                                        : crop.toFloatRect();
-        }
-
-        getLayerSnapshots = getLayerSnapshotsForScreenshots(parent->sequence, args.uid,
-                                                            std::move(excludeLayerIds),
-                                                            args.childrenOnly, parentCrop);
-    } else {
-        auto traverseLayers = [parent, args, excludeLayerIds](const LayerVector::Visitor& visitor) {
-            parent->traverseChildrenInZOrder(LayerVector::StateSet::Drawing, [&](Layer* layer) {
-                if (!layer->isVisible()) {
-                    return;
-                } else if (args.childrenOnly && layer == parent.get()) {
-                    return;
-                } else if (args.uid != CaptureArgs::UNSET_UID && args.uid != layer->getOwnerUid()) {
-                    return;
-                }
-
-                auto p = sp<Layer>::fromExisting(layer);
-                while (p != nullptr) {
-                    if (excludeLayerIds.count(p->sequence) != 0) {
-                        return;
-                    }
-                    p = p->getParent();
-                }
-
-                visitor(layer);
-            });
-        };
-        getLayerSnapshots = RenderArea::fromTraverseLayersLambda(traverseLayers);
+    std::optional<FloatRect> parentCrop = std::nullopt;
+    if (args.childrenOnly) {
+        parentCrop = crop.isEmpty() ? FloatRect(0, 0, reqSize.width, reqSize.height)
+                                    : crop.toFloatRect();
     }
+
+    GetLayerSnapshotsFunction getLayerSnapshotsFn =
+            getLayerSnapshotsForScreenshots(parent->sequence, args.uid, std::move(excludeLayerIds),
+                                            args.childrenOnly, parentCrop);
 
     if (captureListener == nullptr) {
         ALOGD("capture screen must provide a capture listener callback");
@@ -8138,7 +8096,7 @@ void SurfaceFlinger::captureLayers(const LayerCaptureArgs& args,
                                                  reqSize, dataspace, args.captureSecureLayers,
                                                  args.hintForSeamlessTransition, parent,
                                                  args.childrenOnly),
-                        getLayerSnapshots, reqSize, args.pixelFormat, args.allowProtected,
+                        getLayerSnapshotsFn, reqSize, args.pixelFormat, args.allowProtected,
                         args.grayscale, captureListener);
 }
 
@@ -8167,7 +8125,7 @@ bool SurfaceFlinger::layersHasProtectedLayer(
 }
 
 void SurfaceFlinger::captureScreenCommon(RenderAreaBuilderVariant renderAreaBuilder,
-                                         GetLayerSnapshotsFunction getLayerSnapshots,
+                                         GetLayerSnapshotsFunction getLayerSnapshotsFn,
                                          ui::Size bufferSize, ui::PixelFormat reqPixelFormat,
                                          bool allowProtected, bool grayscale,
                                          const sp<IScreenCaptureListener>& captureListener) {
@@ -8188,7 +8146,7 @@ void SurfaceFlinger::captureScreenCommon(RenderAreaBuilderVariant renderAreaBuil
     const bool supportsProtected = getRenderEngine().supportsProtectedContent();
     bool hasProtectedLayer = false;
     if (allowProtected && supportsProtected) {
-        auto layers = mScheduler->schedule([=]() { return getLayerSnapshots(); }).get();
+        auto layers = mScheduler->schedule([=]() { return getLayerSnapshotsFn(); }).get();
         hasProtectedLayer = layersHasProtectedLayer(layers);
     }
     const bool isProtected = hasProtectedLayer && allowProtected && supportsProtected;
@@ -8215,7 +8173,7 @@ void SurfaceFlinger::captureScreenCommon(RenderAreaBuilderVariant renderAreaBuil
                                                  renderengine::impl::ExternalTexture::Usage::
                                                          WRITEABLE);
     auto futureFence =
-            captureScreenshot(renderAreaBuilder, getLayerSnapshots, texture,
+            captureScreenshot(renderAreaBuilder, getLayerSnapshotsFn, texture,
                               false /* regionSampling */, grayscale, isProtected, captureListener);
     futureFence.get();
 }
