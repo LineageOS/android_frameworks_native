@@ -485,16 +485,21 @@ public:
         return mFlinger->setPowerModeInternal(display, mode);
     }
 
-    auto renderScreenImpl(std::unique_ptr<const RenderArea> renderArea,
+    auto renderScreenImpl(const sp<DisplayDevice> display,
+                          std::unique_ptr<const RenderArea> renderArea,
                           SurfaceFlinger::GetLayerSnapshotsFunction traverseLayers,
                           const std::shared_ptr<renderengine::ExternalTexture>& buffer,
                           bool regionSampling) {
+        Mutex::Autolock lock(mFlinger->mStateLock);
+        ftl::FakeGuard guard(kMainThreadContext);
+
         ScreenCaptureResults captureResults;
-        return FTL_FAKE_GUARD(kMainThreadContext,
-                              mFlinger->renderScreenImpl(std::move(renderArea), traverseLayers,
-                                                         buffer, regionSampling,
-                                                         false /* grayscale */,
-                                                         false /* isProtected */, captureResults));
+        SurfaceFlinger::OutputCompositionState state = display->getCompositionDisplay()->getState();
+        auto layers = mFlinger->getLayerSnapshotsFromMainThread(traverseLayers);
+
+        return mFlinger->renderScreenImpl(std::move(renderArea), buffer, regionSampling,
+                                          false /* grayscale */, false /* isProtected */,
+                                          captureResults, display, state, layers);
     }
 
     auto traverseLayersInLayerStack(ui::LayerStack layerStack, int32_t uid,
