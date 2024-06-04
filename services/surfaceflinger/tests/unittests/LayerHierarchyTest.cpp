@@ -777,4 +777,28 @@ TEST_F(LayerHierarchyTest, canMirrorDisplayWithMirrors) {
     EXPECT_EQ(getTraversalPath(hierarchyBuilder.getOffscreenHierarchy()), expected);
 }
 
+// (b/343901186)
+TEST_F(LayerHierarchyTest, cleanUpDanglingMirrorLayer) {
+    LayerHierarchyBuilder hierarchyBuilder;
+    hierarchyBuilder.update(mLifecycleManager);
+    mirrorLayer(/*layer*/ 14, /*parent*/ 1, /*layerToMirror*/ 2);
+    UPDATE_AND_VERIFY(hierarchyBuilder);
+
+    std::vector<uint32_t> expectedTraversalPath = {1, 11, 111, 12, 121, 122, 1221, 13, 14, 2, 2};
+    EXPECT_EQ(getTraversalPath(hierarchyBuilder.getHierarchy()), expectedTraversalPath);
+    EXPECT_EQ(getTraversalPathInZOrder(hierarchyBuilder.getHierarchy()), expectedTraversalPath);
+    expectedTraversalPath = {};
+    EXPECT_EQ(getTraversalPath(hierarchyBuilder.getOffscreenHierarchy()), expectedTraversalPath);
+
+    // destroy layer handle
+    reparentLayer(2, UNASSIGNED_LAYER_ID);
+    destroyLayerHandle(2);
+    UPDATE_AND_VERIFY(hierarchyBuilder);
+    expectedTraversalPath = {1, 11, 111, 12, 121, 122, 1221, 13, 14};
+    EXPECT_EQ(getTraversalPath(hierarchyBuilder.getHierarchy()), expectedTraversalPath);
+    EXPECT_EQ(getTraversalPathInZOrder(hierarchyBuilder.getHierarchy()), expectedTraversalPath);
+    expectedTraversalPath = {};
+    EXPECT_EQ(getTraversalPath(hierarchyBuilder.getOffscreenHierarchy()), expectedTraversalPath);
+}
+
 } // namespace android::surfaceflinger::frontend
