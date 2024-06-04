@@ -7846,13 +7846,12 @@ status_t SurfaceFlinger::setSchedAttr(bool enabled) {
 
 namespace {
 
-ui::Dataspace pickBestDataspace(ui::Dataspace requestedDataspace, const DisplayDevice* display,
+ui::Dataspace pickBestDataspace(ui::Dataspace requestedDataspace,
+                                const compositionengine::impl::OutputCompositionState& state,
                                 bool capturingHdrLayers, bool hintForSeamlessTransition) {
-    if (requestedDataspace != ui::Dataspace::UNKNOWN || display == nullptr) {
+    if (requestedDataspace != ui::Dataspace::UNKNOWN) {
         return requestedDataspace;
     }
-
-    const auto& state = display->getCompositionDisplay()->getState();
 
     const auto dataspaceForColorMode = ui::pickDataspaceFor(state.colorMode);
 
@@ -8358,8 +8357,7 @@ ftl::SharedFuture<FenceResult> SurfaceFlinger::renderScreenImpl(
 
     if (display != nullptr) {
         captureResults.capturedDataspace =
-                pickBestDataspace(requestedDataspace, display.get(),
-                                  captureResults.capturedHdrLayers,
+                pickBestDataspace(requestedDataspace, state, captureResults.capturedHdrLayers,
                                   renderArea->getHintForSeamlessTransition());
         sdrWhitePointNits = state.sdrWhitePointNits;
 
