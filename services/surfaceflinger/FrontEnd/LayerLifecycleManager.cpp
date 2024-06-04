@@ -152,6 +152,10 @@ void LayerLifecycleManager::onHandlesDestroyed(
             if (swapErase(linkedLayer->mirrorIds, layer.id)) {
                 linkedLayer->changes |= RequestedLayerState::Changes::Mirror;
             }
+            if (linkedLayer->layerIdToMirror == layer.id) {
+                linkedLayer->layerIdToMirror = UNASSIGNED_LAYER_ID;
+                linkedLayer->changes |= RequestedLayerState::Changes::Mirror;
+            }
             if (linkedLayer->touchCropId == layer.id) {
                 linkedLayer->touchCropId = UNASSIGNED_LAYER_ID;
             }
