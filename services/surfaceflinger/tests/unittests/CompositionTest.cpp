@@ -205,7 +205,8 @@ void CompositionTest::captureScreenComposition() {
                                                    CaptureArgs::UNSET_UID, {}, visitor);
     };
 
-    auto getLayerSnapshots = RenderArea::fromTraverseLayersLambda(traverseLayers);
+    // TODO: Use SurfaceFlinger::getLayerSnapshotsForScreenshots instead of this legacy function
+    auto getLayerSnapshotsFn = RenderArea::fromTraverseLayersLambda(traverseLayers);
 
     const uint32_t usage = GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN |
             GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_TEXTURE;
@@ -215,7 +216,7 @@ void CompositionTest::captureScreenComposition() {
                                                                       HAL_PIXEL_FORMAT_RGBA_8888, 1,
                                                                       usage);
 
-    auto future = mFlinger.renderScreenImpl(mDisplay, std::move(renderArea), getLayerSnapshots,
+    auto future = mFlinger.renderScreenImpl(mDisplay, std::move(renderArea), getLayerSnapshotsFn,
                                             mCaptureScreenBuffer, regionSampling);
     ASSERT_TRUE(future.valid());
     const auto fenceResult = future.get();
