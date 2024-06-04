@@ -38,6 +38,7 @@
 #include <binder/IServiceManager.h>
 #include <binder/RpcServer.h>
 #include <binder/RpcSession.h>
+#include <binder/Status.h>
 #include <binder/unique_fd.h>
 #include <utils/Flattenable.h>
 
@@ -57,6 +58,7 @@ using namespace std::string_literals;
 using namespace std::chrono_literals;
 using android::base::testing::HasValue;
 using android::base::testing::Ok;
+using android::binder::Status;
 using android::binder::unique_fd;
 using testing::ExplainMatchResult;
 using testing::Matcher;
@@ -253,7 +255,7 @@ class BinderLibTest : public ::testing::Test {
     public:
         virtual void SetUp() {
             m_server = static_cast<BinderLibTestEnv *>(binder_env)->getServer();
-            IPCThreadState::self()->restoreCallingWorkSource(0); 
+            IPCThreadState::self()->restoreCallingWorkSource(0);
         }
         virtual void TearDown() {
         }
@@ -459,6 +461,35 @@ TEST_F(BinderLibTest, AddManagerToManager) {
     sp<IServiceManager> sm = defaultServiceManager();
     sp<IBinder> binder = IInterface::asBinder(sm);
     EXPECT_EQ(NO_ERROR, sm->addService(String16("binderLibTest-manager"), binder));
+}
+
+TEST_F(BinderLibTest, RegisterForNotificationsFailure) {
+    auto sm = defaultServiceManager();
+    using LocalRegistrationCallback = IServiceManager::LocalRegistrationCallback;
+    class LocalRegistrationCallbackImpl : public virtual LocalRegistrationCallback {
+        void onServiceRegistration(const String16&, const sp<IBinder>&) override {}
+        virtual ~LocalRegistrationCallbackImpl() {}
+    };
+    sp<LocalRegistrationCallback> cb = sp<LocalRegistrationCallbackImpl>::make();
+
+    EXPECT_EQ(BAD_VALUE, sm->registerForNotifications(String16("ValidName"), nullptr));
+    EXPECT_EQ(UNKNOWN_ERROR, sm->registerForNotifications(String16("InvalidName!$"), cb));
+}
+
+TEST_F(BinderLibTest, UnregisterForNotificationsFailure) {
+    auto sm = defaultServiceManager();
+    using LocalRegistrationCallback = IServiceManager::LocalRegistrationCallback;
+    class LocalRegistrationCallbackImpl : public virtual LocalRegistrationCallback {
+        void onServiceRegistration(const String16&, const sp<IBinder>&) override {}
+        virtual ~LocalRegistrationCallbackImpl() {}
+    };
+    sp<LocalRegistrationCallback> cb = sp<LocalRegistrationCallbackImpl>::make();
+
+    EXPECT_EQ(OK, sm->registerForNotifications(String16("ValidName"), cb));
+
+    EXPECT_EQ(BAD_VALUE, sm->unregisterForNotifications(String16("ValidName"), nullptr));
+    EXPECT_EQ(BAD_VALUE, sm->unregisterForNotifications(String16("AnotherValidName"), cb));
+    EXPECT_EQ(BAD_VALUE, sm->unregisterForNotifications(String16("InvalidName!!!"), cb));
 }
 
 TEST_F(BinderLibTest, WasParceled) {
