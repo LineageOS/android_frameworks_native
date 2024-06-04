@@ -40,10 +40,10 @@ std::list<NotifyArgs> MultiTouchInputMapper::reset(nsecs_t when) {
     return TouchInputMapper::reset(when);
 }
 
-std::list<NotifyArgs> MultiTouchInputMapper::process(const RawEvent* rawEvent) {
+std::list<NotifyArgs> MultiTouchInputMapper::process(const RawEvent& rawEvent) {
     std::list<NotifyArgs> out = TouchInputMapper::process(rawEvent);
 
-    mMultiTouchMotionAccumulator.process(*rawEvent);
+    mMultiTouchMotionAccumulator.process(rawEvent);
     return out;
 }
 

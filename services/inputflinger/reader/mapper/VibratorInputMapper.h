@@ -30,7 +30,7 @@ public:
 
     virtual uint32_t getSources() const override;
     virtual void populateDeviceInfo(InputDeviceInfo& deviceInfo) override;
-    [[nodiscard]] std::list<NotifyArgs> process(const RawEvent* rawEvent) override;
+    [[nodiscard]] std::list<NotifyArgs> process(const RawEvent& rawEvent) override;
 
     [[nodiscard]] std::list<NotifyArgs> vibrate(const VibrationSequence& sequence, ssize_t repeat,
                                                 int32_t token) override;

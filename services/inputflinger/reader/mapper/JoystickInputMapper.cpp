@@ -259,29 +259,29 @@ std::list<NotifyArgs> JoystickInputMapper::reset(nsecs_t when) {
     return InputMapper::reset(when);
 }
 
-std::list<NotifyArgs> JoystickInputMapper::process(const RawEvent* rawEvent) {
+std::list<NotifyArgs> JoystickInputMapper::process(const RawEvent& rawEvent) {
     std::list<NotifyArgs> out;
-    switch (rawEvent->type) {
+    switch (rawEvent.type) {
         case EV_ABS: {
-            auto it = mAxes.find(rawEvent->code);
+            auto it = mAxes.find(rawEvent.code);
             if (it != mAxes.end()) {
                 Axis& axis = it->second;
                 float newValue, highNewValue;
                 switch (axis.axisInfo.mode) {
                     case AxisInfo::MODE_INVERT:
-                        newValue = (axis.rawAxisInfo.maxValue - rawEvent->value) * axis.scale +
+                        newValue = (axis.rawAxisInfo.maxValue - rawEvent.value) * axis.scale +
                                 axis.offset;
                         highNewValue = 0.0f;
                         break;
                     case AxisInfo::MODE_SPLIT:
-                        if (rawEvent->value < axis.axisInfo.splitValue) {
-                            newValue = (axis.axisInfo.splitValue - rawEvent->value) * axis.scale +
+                        if (rawEvent.value < axis.axisInfo.splitValue) {
+                            newValue = (axis.axisInfo.splitValue - rawEvent.value) * axis.scale +
                                     axis.offset;
                             highNewValue = 0.0f;
-                        } else if (rawEvent->value > axis.axisInfo.splitValue) {
+                        } else if (rawEvent.value > axis.axisInfo.splitValue) {
                             newValue = 0.0f;
                             highNewValue =
-                                    (rawEvent->value - axis.axisInfo.splitValue) * axis.highScale +
+                                    (rawEvent.value - axis.axisInfo.splitValue) * axis.highScale +
                                     axis.highOffset;
                         } else {
                             newValue = 0.0f;
@@ -289,7 +289,7 @@ std::list<NotifyArgs> JoystickInputMapper::process(const RawEvent* rawEvent) {
                         }
                         break;
                     default:
-                        newValue = rawEvent->value * axis.scale + axis.offset;
+                        newValue = rawEvent.value * axis.scale + axis.offset;
                         highNewValue = 0.0f;
                         break;
                 }
@@ -300,9 +300,9 @@ std::list<NotifyArgs> JoystickInputMapper::process(const RawEvent* rawEvent) {
         }
 
         case EV_SYN:
-            switch (rawEvent->code) {
+            switch (rawEvent.code) {
                 case SYN_REPORT:
-                    out += sync(rawEvent->when, rawEvent->readTime, /*force=*/false);
+                    out += sync(rawEvent.when, rawEvent.readTime, /*force=*/false);
                     break;
             }
             break;

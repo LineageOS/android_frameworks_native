@@ -44,7 +44,7 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size) {
                 [&]() -> void { mapper.getSources(); },
                 [&]() -> void {
                     RawEvent rawEvent = getFuzzedRawEvent(*fdp);
-                    std::list<NotifyArgs> unused = mapper.process(&rawEvent);
+                    std::list<NotifyArgs> unused = mapper.process(rawEvent);
                 },
                 [&]() -> void {
                     mapper.getSwitchState(fdp->ConsumeIntegral<uint32_t>(),

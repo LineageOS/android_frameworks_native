@@ -36,7 +36,7 @@ void VibratorInputMapper::populateDeviceInfo(InputDeviceInfo& info) {
     info.setVibrator(true);
 }
 
-std::list<NotifyArgs> VibratorInputMapper::process(const RawEvent* rawEvent) {
+std::list<NotifyArgs> VibratorInputMapper::process(const RawEvent& rawEvent) {
     // TODO: Handle FF_STATUS, although it does not seem to be widely supported.
     return {};
 }

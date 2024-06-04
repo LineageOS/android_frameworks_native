@@ -81,7 +81,7 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size) {
                             mapper.reconfigure(fdp->ConsumeIntegral<nsecs_t>(), policyConfig,
                                                InputReaderConfiguration::Change(0));
                     RawEvent rawEvent = getFuzzedRawEvent(*fdp);
-                    unused += mapper.process(&rawEvent);
+                    unused += mapper.process(rawEvent);
                 },
                 [&]() -> void {
                     std::list<NotifyArgs> unused = mapper.reset(fdp->ConsumeIntegral<nsecs_t>());

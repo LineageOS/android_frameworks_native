@@ -309,9 +309,9 @@ private:
         return {};
     }
 
-    std::list<NotifyArgs> process(const RawEvent* rawEvent) override {
+    std::list<NotifyArgs> process(const RawEvent& rawEvent) override {
         std::scoped_lock<std::mutex> lock(mLock);
-        mLastEvent = *rawEvent;
+        mLastEvent = rawEvent;
         mProcessWasCalled = true;
         mStateChangedCondition.notify_all();
         return mProcessResult;

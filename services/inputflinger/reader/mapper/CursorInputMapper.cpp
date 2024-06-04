@@ -215,16 +215,16 @@ std::list<NotifyArgs> CursorInputMapper::reset(nsecs_t when) {
     return InputMapper::reset(when);
 }
 
-std::list<NotifyArgs> CursorInputMapper::process(const RawEvent* rawEvent) {
+std::list<NotifyArgs> CursorInputMapper::process(const RawEvent& rawEvent) {
     std::list<NotifyArgs> out;
-    mCursorButtonAccumulator.process(*rawEvent);
-    mCursorMotionAccumulator.process(*rawEvent);
-    mCursorScrollAccumulator.process(*rawEvent);
+    mCursorButtonAccumulator.process(rawEvent);
+    mCursorMotionAccumulator.process(rawEvent);
+    mCursorScrollAccumulator.process(rawEvent);
 
-    if (rawEvent->type == EV_SYN && rawEvent->code == SYN_REPORT) {
+    if (rawEvent.type == EV_SYN && rawEvent.code == SYN_REPORT) {
         const auto [eventTime, readTime] =
                 applyBluetoothTimestampSmoothening(getDeviceContext().getDeviceIdentifier(),
-                                                   rawEvent->when, rawEvent->readTime,
+                                                   rawEvent.when, rawEvent.readTime,
                                                    mLastEventTime);
         out += sync(eventTime, readTime);
         mLastEventTime = eventTime;

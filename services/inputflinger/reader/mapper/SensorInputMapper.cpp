@@ -251,35 +251,35 @@ void SensorInputMapper::processHardWareTimestamp(nsecs_t evTime, int32_t mscTime
     mPrevMscTime = static_cast<uint32_t>(mscTime);
 }
 
-std::list<NotifyArgs> SensorInputMapper::process(const RawEvent* rawEvent) {
+std::list<NotifyArgs> SensorInputMapper::process(const RawEvent& rawEvent) {
     std::list<NotifyArgs> out;
-    switch (rawEvent->type) {
+    switch (rawEvent.type) {
         case EV_ABS: {
-            auto it = mAxes.find(rawEvent->code);
+            auto it = mAxes.find(rawEvent.code);
             if (it != mAxes.end()) {
                 Axis& axis = it->second;
-                axis.newValue = rawEvent->value * axis.scale + axis.offset;
+                axis.newValue = rawEvent.value * axis.scale + axis.offset;
             }
             break;
         }
 
         case EV_SYN:
-            switch (rawEvent->code) {
+            switch (rawEvent.code) {
                 case SYN_REPORT:
                     for (std::pair<const int32_t, Axis>& pair : mAxes) {
                         Axis& axis = pair.second;
                         axis.currentValue = axis.newValue;
                     }
-                    out += sync(rawEvent->when, /*force=*/false);
+                    out += sync(rawEvent.when, /*force=*/false);
                     break;
             }
             break;
 
         case EV_MSC:
-            switch (rawEvent->code) {
+            switch (rawEvent.code) {
                 case MSC_TIMESTAMP:
                     // hardware timestamp is nano seconds
-                    processHardWareTimestamp(rawEvent->when, rawEvent->value);
+                    processHardWareTimestamp(rawEvent.when, rawEvent.value);
                     break;
             }
     }

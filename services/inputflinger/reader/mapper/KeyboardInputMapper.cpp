@@ -237,15 +237,15 @@ std::list<NotifyArgs> KeyboardInputMapper::reset(nsecs_t when) {
     return out;
 }
 
-std::list<NotifyArgs> KeyboardInputMapper::process(const RawEvent* rawEvent) {
+std::list<NotifyArgs> KeyboardInputMapper::process(const RawEvent& rawEvent) {
     std::list<NotifyArgs> out;
-    mHidUsageAccumulator.process(*rawEvent);
-    switch (rawEvent->type) {
+    mHidUsageAccumulator.process(rawEvent);
+    switch (rawEvent.type) {
         case EV_KEY: {
-            int32_t scanCode = rawEvent->code;
+            int32_t scanCode = rawEvent.code;
 
             if (isSupportedScanCode(scanCode)) {
-                out += processKey(rawEvent->when, rawEvent->readTime, rawEvent->value != 0,
+                out += processKey(rawEvent.when, rawEvent.readTime, rawEvent.value != 0,
                                   scanCode, mHidUsageAccumulator.consumeCurrentHidUsage());
             }
             break;
