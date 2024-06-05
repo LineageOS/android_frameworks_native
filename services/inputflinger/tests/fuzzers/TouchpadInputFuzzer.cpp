@@ -176,7 +176,7 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size) {
                 },
                 [&]() -> void {
                     RawEvent event = getFuzzedRawEvent(*fdp);
-                    std::list<NotifyArgs> unused = mapper.process(&event);
+                    std::list<NotifyArgs> unused = mapper.process(event);
                 },
         })();
     }

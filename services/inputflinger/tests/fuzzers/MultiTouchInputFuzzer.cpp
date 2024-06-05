@@ -100,7 +100,7 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t* data, size_t size) {
                 },
                 [&]() -> void {
                     RawEvent rawEvent = getFuzzedRawEvent(*fdp);
-                    std::list<NotifyArgs> unused = mapper.process(&rawEvent);
+                    std::list<NotifyArgs> unused = mapper.process(rawEvent);
                 },
                 [&]() -> void {
                     mapper.getKeyCodeState(fdp->ConsumeIntegral<uint32_t>(),

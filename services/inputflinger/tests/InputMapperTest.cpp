@@ -104,7 +104,7 @@ std::list<NotifyArgs> InputMapperUnitTest::process(nsecs_t when, int32_t type, i
     event.type = type;
     event.code = code;
     event.value = value;
-    return mMapper->process(&event);
+    return mMapper->process(event);
 }
 
 const char* InputMapperTest::DEVICE_NAME = "device";
@@ -195,7 +195,7 @@ std::list<NotifyArgs> InputMapperTest::process(InputMapper& mapper, nsecs_t when
     event.type = type;
     event.code = code;
     event.value = value;
-    std::list<NotifyArgs> processArgList = mapper.process(&event);
+    std::list<NotifyArgs> processArgList = mapper.process(event);
     for (const NotifyArgs& args : processArgList) {
         mFakeListener->notify(args);
     }

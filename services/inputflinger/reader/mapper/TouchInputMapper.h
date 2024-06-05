@@ -174,7 +174,7 @@ public:
                                                     const InputReaderConfiguration& config,
                                                     ConfigurationChanges changes) override;
     [[nodiscard]] std::list<NotifyArgs> reset(nsecs_t when) override;
-    [[nodiscard]] std::list<NotifyArgs> process(const RawEvent* rawEvent) override;
+    [[nodiscard]] std::list<NotifyArgs> process(const RawEvent& rawEvent) override;
 
     int32_t getKeyCodeState(uint32_t sourceMask, int32_t keyCode) override;
     int32_t getScanCodeState(uint32_t sourceMask, int32_t scanCode) override;

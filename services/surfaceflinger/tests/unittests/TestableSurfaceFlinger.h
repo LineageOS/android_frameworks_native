@@ -487,7 +487,7 @@ public:
 
     auto renderScreenImpl(const sp<DisplayDevice> display,
                           std::unique_ptr<const RenderArea> renderArea,
-                          SurfaceFlinger::GetLayerSnapshotsFunction traverseLayers,
+                          SurfaceFlinger::GetLayerSnapshotsFunction getLayerSnapshotsFn,
                           const std::shared_ptr<renderengine::ExternalTexture>& buffer,
                           bool regionSampling) {
         Mutex::Autolock lock(mFlinger->mStateLock);
@@ -495,7 +495,7 @@ public:
 
         ScreenCaptureResults captureResults;
         SurfaceFlinger::OutputCompositionState state = display->getCompositionDisplay()->getState();
-        auto layers = mFlinger->getLayerSnapshotsFromMainThread(traverseLayers);
+        auto layers = mFlinger->getLayerSnapshotsFromMainThread(getLayerSnapshotsFn);
 
         return mFlinger->renderScreenImpl(std::move(renderArea), buffer, regionSampling,
                                           false /* grayscale */, false /* isProtected */,
@@ -505,8 +505,7 @@ public:
     auto traverseLayersInLayerStack(ui::LayerStack layerStack, int32_t uid,
                                     std::unordered_set<uint32_t> excludeLayerIds,
                                     const LayerVector::Visitor& visitor) {
-        return mFlinger->SurfaceFlinger::traverseLayersInLayerStack(layerStack, uid,
-                                                                    excludeLayerIds, visitor);
+        return mFlinger->traverseLayersInLayerStack(layerStack, uid, excludeLayerIds, visitor);
     }
 
     auto getDisplayNativePrimaries(const sp<IBinder>& displayToken,
