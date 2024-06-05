@@ -90,7 +90,7 @@ void PropertyProvider::loadPropertiesFromIdcFile(const PropertyMap& idcPropertie
     // prefixed with "gestureProp." and have spaces replaced by underscores. So, for example, the
     // configuration key "gestureProp.Palm_Width" refers to the "Palm Width" property.
     const std::string gesturePropPrefix = "gestureProp.";
-    for (const std::string key : idcProperties.getKeysWithPrefix(gesturePropPrefix)) {
+    for (const std::string& key : idcProperties.getKeysWithPrefix(gesturePropPrefix)) {
         std::string propertyName = key.substr(gesturePropPrefix.length());
         for (size_t i = 0; i < propertyName.length(); i++) {
             if (propertyName[i] == '_') {
