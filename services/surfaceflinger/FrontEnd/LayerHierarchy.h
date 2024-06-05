@@ -218,6 +218,7 @@ private:
     void detachFromParent(LayerHierarchy*);
     void attachToRelativeParent(LayerHierarchy*);
     void detachFromRelativeParent(LayerHierarchy*);
+    std::vector<LayerHierarchy*> getDescendants(LayerHierarchy*);
     void attachHierarchyToRelativeParent(LayerHierarchy*);
     void detachHierarchyFromRelativeParent(LayerHierarchy*);
     void init(const std::vector<std::unique_ptr<RequestedLayerState>>&);

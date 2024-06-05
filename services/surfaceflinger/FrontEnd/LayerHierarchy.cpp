@@ -260,27 +260,36 @@ void LayerHierarchyBuilder::detachFromRelativeParent(LayerHierarchy* hierarchy) 
     hierarchy->mParent->updateChild(hierarchy, LayerHierarchy::Variant::Attached);
 }
 
-void LayerHierarchyBuilder::attachHierarchyToRelativeParent(LayerHierarchy* root) {
-    if (root->mLayer) {
-        attachToRelativeParent(root);
-    }
-    for (auto& [child, childVariant] : root->mChildren) {
-        if (childVariant == LayerHierarchy::Variant::Detached ||
-            childVariant == LayerHierarchy::Variant::Attached) {
-            attachHierarchyToRelativeParent(child);
+std::vector<LayerHierarchy*> LayerHierarchyBuilder::getDescendants(LayerHierarchy* root) {
+    std::vector<LayerHierarchy*> hierarchies;
+    hierarchies.push_back(root);
+    std::vector<LayerHierarchy*> descendants;
+    for (size_t i = 0; i < hierarchies.size(); i++) {
+        LayerHierarchy* hierarchy = hierarchies[i];
+        if (hierarchy->mLayer) {
+            descendants.push_back(hierarchy);
         }
+        for (auto& [child, childVariant] : hierarchy->mChildren) {
+            if (childVariant == LayerHierarchy::Variant::Detached ||
+                childVariant == LayerHierarchy::Variant::Attached) {
+                hierarchies.push_back(child);
+            }
+        }
+    }
+    return descendants;
+}
+
+void LayerHierarchyBuilder::attachHierarchyToRelativeParent(LayerHierarchy* root) {
+    std::vector<LayerHierarchy*> hierarchiesToAttach = getDescendants(root);
+    for (LayerHierarchy* hierarchy : hierarchiesToAttach) {
+        attachToRelativeParent(hierarchy);
     }
 }
 
 void LayerHierarchyBuilder::detachHierarchyFromRelativeParent(LayerHierarchy* root) {
-    if (root->mLayer) {
-        detachFromRelativeParent(root);
-    }
-    for (auto& [child, childVariant] : root->mChildren) {
-        if (childVariant == LayerHierarchy::Variant::Detached ||
-            childVariant == LayerHierarchy::Variant::Attached) {
-            detachHierarchyFromRelativeParent(child);
-        }
+    std::vector<LayerHierarchy*> hierarchiesToDetach = getDescendants(root);
+    for (LayerHierarchy* hierarchy : hierarchiesToDetach) {
+        detachFromRelativeParent(hierarchy);
     }
 }
 

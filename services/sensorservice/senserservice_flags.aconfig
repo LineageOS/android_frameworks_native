@@ -28,3 +28,10 @@ flag {
   description: "When this flag is enabled, sensor service will only erase dynamic sensor data at the end of the threadLoop to prevent race condition."
   bug: "329020894"
 }
+
+flag {
+  name: "sensor_service_report_sensor_usage_in_tracing"
+  namespace: "sensors"
+  description: "When this flag is enabled, sensor service will report sensor usage when system trace is enabled."
+  bug: "333132224"
+}

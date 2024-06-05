@@ -898,25 +898,26 @@ private:
                              ui::Size bufferSize, ui::PixelFormat, bool allowProtected,
                              bool grayscale, const sp<IScreenCaptureListener>&);
 
+    using OutputCompositionState = compositionengine::impl::OutputCompositionState;
+
+    const sp<const DisplayDevice> getRenderAreaDisplay(RenderAreaBuilderVariant& renderAreaBuilder,
+                                                       OutputCompositionState& state)
+            REQUIRES(kMainThreadContext);
+
+    std::vector<std::pair<Layer*, sp<android::LayerFE>>> getLayerSnapshotsFromMainThread(
+            GetLayerSnapshotsFunction getLayerSnapshotsFn) REQUIRES(kMainThreadContext);
+
     ftl::SharedFuture<FenceResult> captureScreenshot(
             RenderAreaBuilderVariant, GetLayerSnapshotsFunction,
             const std::shared_ptr<renderengine::ExternalTexture>&, bool regionSampling,
             bool grayscale, bool isProtected, const sp<IScreenCaptureListener>&);
 
-    // Overloaded version of renderScreenImpl that is used when layer snapshots have
-    // not yet been captured, and thus cannot yet be passed in as a parameter.
-    // Needed for TestableSurfaceFlinger.
-    ftl::SharedFuture<FenceResult> renderScreenImpl(
-            std::unique_ptr<const RenderArea>, GetLayerSnapshotsFunction,
-            const std::shared_ptr<renderengine::ExternalTexture>&, bool regionSampling,
-            bool grayscale, bool isProtected, ScreenCaptureResults&) EXCLUDES(mStateLock)
-            REQUIRES(kMainThreadContext);
-
     ftl::SharedFuture<FenceResult> renderScreenImpl(
             std::unique_ptr<const RenderArea>,
             const std::shared_ptr<renderengine::ExternalTexture>&, bool regionSampling,
             bool grayscale, bool isProtected, ScreenCaptureResults&,
-            std::vector<std::pair<Layer*, sp<android::LayerFE>>>& layers) EXCLUDES(mStateLock)
+            const sp<const DisplayDevice> display, const OutputCompositionState& state,
+            std::vector<std::pair<Layer*, sp<android::LayerFE>>>& layers)
             REQUIRES(kMainThreadContext);
 
     // If the uid provided is not UNSET_UID, the traverse will skip any layers that don't have a
