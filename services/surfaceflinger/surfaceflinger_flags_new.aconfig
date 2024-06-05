@@ -103,6 +103,17 @@ flag {
     is_fixed_read_only: true
 } # local_tonemap_screenshots
 
+flag {
+  name: "single_hop_screenshot"
+  namespace: "window_surfaces"
+  description: "Only access SF main thread once during a screenshot"
+  bug: "285553970"
+  is_fixed_read_only: true
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+ } # single_hop_screenshot
+
  flag {
   name: "override_trusted_overlay"
   namespace: "window_surfaces"

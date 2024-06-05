@@ -892,22 +892,35 @@ private:
     void attachReleaseFenceFutureToLayer(Layer* layer, LayerFE* layerFE, ui::LayerStack layerStack);
 
     // Checks if a protected layer exists in a list of layers.
-    bool layersHasProtectedLayer(const std::vector<std::pair<Layer*, sp<LayerFE>>>& layers) const;
+    bool layersHasProtectedLayer(const std::vector<sp<LayerFE>>& layers) const;
+
+    using OutputCompositionState = compositionengine::impl::OutputCompositionState;
+
+    std::optional<OutputCompositionState> getDisplayAndLayerSnapshotsFromMainThread(
+            RenderAreaBuilderVariant& renderAreaBuilder,
+            GetLayerSnapshotsFunction getLayerSnapshotsFn, std::vector<sp<LayerFE>>& layerFEs);
 
     void captureScreenCommon(RenderAreaBuilderVariant, GetLayerSnapshotsFunction,
                              ui::Size bufferSize, ui::PixelFormat, bool allowProtected,
                              bool grayscale, const sp<IScreenCaptureListener>&);
 
-    using OutputCompositionState = compositionengine::impl::OutputCompositionState;
+    std::optional<OutputCompositionState> getDisplayStateFromRenderAreaBuilder(
+            RenderAreaBuilderVariant& renderAreaBuilder) REQUIRES(kMainThreadContext);
 
-    const sp<const DisplayDevice> getRenderAreaDisplay(RenderAreaBuilderVariant& renderAreaBuilder,
-                                                       OutputCompositionState& state)
-            REQUIRES(kMainThreadContext);
-
-    std::vector<std::pair<Layer*, sp<android::LayerFE>>> getLayerSnapshotsFromMainThread(
-            GetLayerSnapshotsFunction getLayerSnapshotsFn) REQUIRES(kMainThreadContext);
+    // Legacy layer raw pointer is not safe to access outside the main thread.
+    // Creates a new vector consisting only of LayerFEs, which can be safely
+    // accessed outside the main thread.
+    std::vector<sp<LayerFE>> extractLayerFEs(
+            const std::vector<std::pair<Layer*, sp<LayerFE>>>& layers) const;
 
     ftl::SharedFuture<FenceResult> captureScreenshot(
+            const RenderAreaBuilderVariant& renderAreaBuilder,
+            const std::shared_ptr<renderengine::ExternalTexture>& buffer, bool regionSampling,
+            bool grayscale, bool isProtected, const sp<IScreenCaptureListener>& captureListener,
+            std::optional<OutputCompositionState>& displayState,
+            std::vector<sp<LayerFE>>& layerFEs);
+
+    ftl::SharedFuture<FenceResult> captureScreenshotLegacy(
             RenderAreaBuilderVariant, GetLayerSnapshotsFunction,
             const std::shared_ptr<renderengine::ExternalTexture>&, bool regionSampling,
             bool grayscale, bool isProtected, const sp<IScreenCaptureListener>&);
@@ -916,9 +929,9 @@ private:
             std::unique_ptr<const RenderArea>,
             const std::shared_ptr<renderengine::ExternalTexture>&, bool regionSampling,
             bool grayscale, bool isProtected, ScreenCaptureResults&,
-            const sp<const DisplayDevice> display, const OutputCompositionState& state,
-            std::vector<std::pair<Layer*, sp<android::LayerFE>>>& layers)
-            REQUIRES(kMainThreadContext);
+            std::optional<OutputCompositionState>& displayState,
+            std::vector<std::pair<Layer*, sp<LayerFE>>>& layers,
+            std::vector<sp<LayerFE>>& layerFEs);
 
     // If the uid provided is not UNSET_UID, the traverse will skip any layers that don't have a
     // matching ownerUid

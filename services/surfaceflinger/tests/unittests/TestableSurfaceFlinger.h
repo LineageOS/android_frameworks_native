@@ -494,12 +494,13 @@ public:
         ftl::FakeGuard guard(kMainThreadContext);
 
         ScreenCaptureResults captureResults;
-        SurfaceFlinger::OutputCompositionState state = display->getCompositionDisplay()->getState();
-        auto layers = mFlinger->getLayerSnapshotsFromMainThread(getLayerSnapshotsFn);
+        auto displayState = std::optional{display->getCompositionDisplay()->getState()};
+        auto layers = getLayerSnapshotsFn();
+        auto layerFEs = mFlinger->extractLayerFEs(layers);
 
         return mFlinger->renderScreenImpl(std::move(renderArea), buffer, regionSampling,
                                           false /* grayscale */, false /* isProtected */,
-                                          captureResults, display, state, layers);
+                                          captureResults, displayState, layers, layerFEs);
     }
 
     auto traverseLayersInLayerStack(ui::LayerStack layerStack, int32_t uid,
