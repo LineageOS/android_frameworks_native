@@ -22,6 +22,7 @@
 #pragma clang diagnostic ignored "-Wconversion"
 #pragma clang diagnostic ignored "-Wextra"
 
+#include <com_android_graphics_surfaceflinger_flags.h>
 #include <cutils/properties.h>
 #include <gtest/gtest.h>
 #include <renderengine/ExternalTexture.h>
@@ -40,6 +41,14 @@
 #include "../skia/SkiaGLRenderEngine.h"
 #include "../skia/SkiaVkRenderEngine.h"
 #include "../threaded/RenderEngineThreaded.h"
+
+// TODO: b/341728634 - Clean up conditional compilation.
+#if COM_ANDROID_GRAPHICS_SURFACEFLINGER_FLAGS(GRAPHITE_RENDERENGINE) || \
+        COM_ANDROID_GRAPHICS_SURFACEFLINGER_FLAGS(FORCE_COMPILE_GRAPHITE_RENDERENGINE)
+#define COMPILE_GRAPHITE_RENDERENGINE 1
+#else
+#define COMPILE_GRAPHITE_RENDERENGINE 0
+#endif
 
 constexpr int DEFAULT_DISPLAY_WIDTH = 128;
 constexpr int DEFAULT_DISPLAY_HEIGHT = 256;
@@ -152,6 +161,8 @@ public:
     }
 };
 
+// TODO: b/341728634 - Clean up conditional compilation.
+#if COMPILE_GRAPHITE_RENDERENGINE
 class GraphiteVkRenderEngineFactory : public RenderEngineFactory {
 public:
     std::string name() override { return "GraphiteVkRenderEngineFactory"; }
@@ -164,6 +175,7 @@ public:
         return renderengine::RenderEngine::SkiaBackend::GRAPHITE;
     }
 };
+#endif
 
 class RenderEngineTest : public ::testing::TestWithParam<std::shared_ptr<RenderEngineFactory>> {
 public:
@@ -1497,10 +1509,15 @@ void RenderEngineTest::tonemap(ui::Dataspace sourceDataspace, std::function<vec3
     expectBufferColor(Rect(kGreyLevels, 1), generator, 2);
 }
 
+// TODO: b/341728634 - Clean up conditional compilation.
 INSTANTIATE_TEST_SUITE_P(PerRenderEngineType, RenderEngineTest,
                          testing::Values(std::make_shared<SkiaGLESRenderEngineFactory>(),
-                                         std::make_shared<GaneshVkRenderEngineFactory>(),
-                                         std::make_shared<GraphiteVkRenderEngineFactory>()));
+                                         std::make_shared<GaneshVkRenderEngineFactory>()
+#if COMPILE_GRAPHITE_RENDERENGINE
+                                                 ,
+                                         std::make_shared<GraphiteVkRenderEngineFactory>()
+#endif
+                                                 ));
 
 TEST_P(RenderEngineTest, drawLayers_noLayersToDraw) {
     if (!GetParam()->apiSupported()) {
