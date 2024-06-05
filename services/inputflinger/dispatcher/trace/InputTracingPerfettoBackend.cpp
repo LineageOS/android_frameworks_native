@@ -22,6 +22,8 @@
 
 #include <android-base/logging.h>
 #include <perfetto/trace/android/android_input_event.pbzero.h>
+#include <perfetto/trace/android/winscope_extensions.pbzero.h>
+#include <perfetto/trace/android/winscope_extensions_impl.pbzero.h>
 
 namespace android::inputdispatcher::trace::impl {
 
@@ -66,7 +68,9 @@ PerfettoBackend::PerfettoBackend() {
 void PerfettoBackend::traceMotionEvent(const TracedMotionEvent& event) {
     InputEventDataSource::Trace([&](InputEventDataSource::TraceContext ctx) {
         auto tracePacket = ctx.NewTracePacket();
-        auto* inputEvent = tracePacket->set_android_input_event();
+        auto* winscopeExtensions = static_cast<perfetto::protos::pbzero::WinscopeExtensionsImpl*>(
+                tracePacket->set_winscope_extensions());
+        auto* inputEvent = winscopeExtensions->set_android_input_event();
         auto* dispatchMotion = inputEvent->set_dispatcher_motion_event();
         AndroidInputEventProtoConverter::toProtoMotionEvent(event, *dispatchMotion);
     });
@@ -75,7 +79,9 @@ void PerfettoBackend::traceMotionEvent(const TracedMotionEvent& event) {
 void PerfettoBackend::traceKeyEvent(const TracedKeyEvent& event) {
     InputEventDataSource::Trace([&](InputEventDataSource::TraceContext ctx) {
         auto tracePacket = ctx.NewTracePacket();
-        auto* inputEvent = tracePacket->set_android_input_event();
+        auto* winscopeExtensions = static_cast<perfetto::protos::pbzero::WinscopeExtensionsImpl*>(
+                tracePacket->set_winscope_extensions());
+        auto* inputEvent = winscopeExtensions->set_android_input_event();
         auto* dispatchKey = inputEvent->set_dispatcher_key_event();
         AndroidInputEventProtoConverter::toProtoKeyEvent(event, *dispatchKey);
     });
@@ -84,7 +90,9 @@ void PerfettoBackend::traceKeyEvent(const TracedKeyEvent& event) {
 void PerfettoBackend::traceWindowDispatch(const WindowDispatchArgs& dispatchArgs) {
     InputEventDataSource::Trace([&](InputEventDataSource::TraceContext ctx) {
         auto tracePacket = ctx.NewTracePacket();
-        auto* inputEventProto = tracePacket->set_android_input_event();
+        auto* winscopeExtensions = static_cast<perfetto::protos::pbzero::WinscopeExtensionsImpl*>(
+                tracePacket->set_winscope_extensions());
+        auto* inputEventProto = winscopeExtensions->set_android_input_event();
         auto* dispatchEventProto = inputEventProto->set_dispatcher_window_dispatch_event();
         AndroidInputEventProtoConverter::toProtoWindowDispatchEvent(dispatchArgs,
                                                                     *dispatchEventProto);
