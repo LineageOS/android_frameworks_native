@@ -120,8 +120,8 @@ VsyncSchedule::TrackerPtr VsyncSchedule::createTracker(ftl::NonNull<DisplayModeP
     constexpr size_t kMinSamplesForPrediction = 6;
     constexpr uint32_t kDiscardOutlierPercent = 20;
 
-    return std::make_unique<VSyncPredictor>(std::make_unique<SystemClock>(), modePtr, kHistorySize,
-                                            kMinSamplesForPrediction, kDiscardOutlierPercent);
+    return std::make_unique<VSyncPredictor>(modePtr, kHistorySize, kMinSamplesForPrediction,
+                                            kDiscardOutlierPercent);
 }
 
 VsyncSchedule::DispatchPtr VsyncSchedule::createDispatch(TrackerPtr tracker) {
