@@ -114,7 +114,6 @@ rust_bindgen {
     crate_name: "binder_rs_serialization_bindgen",
     wrapper_src: "serialization.hpp",
     source_stem: "bindings",
-    cpp_std: "gnu++17",
     bindgen_flags: [
         "--allowlist-type", "Transaction",
         "--allowlist-var", "TESTDATA_.*",
