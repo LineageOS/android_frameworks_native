@@ -30,16 +30,16 @@ uint32_t SwitchInputMapper::getSources() const {
     return AINPUT_SOURCE_SWITCH;
 }
 
-std::list<NotifyArgs> SwitchInputMapper::process(const RawEvent* rawEvent) {
+std::list<NotifyArgs> SwitchInputMapper::process(const RawEvent& rawEvent) {
     std::list<NotifyArgs> out;
-    switch (rawEvent->type) {
+    switch (rawEvent.type) {
         case EV_SW:
-            processSwitch(rawEvent->code, rawEvent->value);
+            processSwitch(rawEvent.code, rawEvent.value);
             break;
 
         case EV_SYN:
-            if (rawEvent->code == SYN_REPORT) {
-                out += sync(rawEvent->when);
+            if (rawEvent.code == SYN_REPORT) {
+                out += sync(rawEvent.when);
             }
     }
     return out;

@@ -1403,14 +1403,14 @@ void TouchInputMapper::clearStylusDataPendingFlags() {
     mExternalStylusFusionTimeout = LLONG_MAX;
 }
 
-std::list<NotifyArgs> TouchInputMapper::process(const RawEvent* rawEvent) {
-    mCursorButtonAccumulator.process(*rawEvent);
-    mCursorScrollAccumulator.process(*rawEvent);
-    mTouchButtonAccumulator.process(*rawEvent);
+std::list<NotifyArgs> TouchInputMapper::process(const RawEvent& rawEvent) {
+    mCursorButtonAccumulator.process(rawEvent);
+    mCursorScrollAccumulator.process(rawEvent);
+    mTouchButtonAccumulator.process(rawEvent);
 
     std::list<NotifyArgs> out;
-    if (rawEvent->type == EV_SYN && rawEvent->code == SYN_REPORT) {
-        out += sync(rawEvent->when, rawEvent->readTime);
+    if (rawEvent.type == EV_SYN && rawEvent.code == SYN_REPORT) {
+        out += sync(rawEvent.when, rawEvent.readTime);
     }
     return out;
 }

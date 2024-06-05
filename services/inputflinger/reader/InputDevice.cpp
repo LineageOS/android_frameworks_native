@@ -403,7 +403,7 @@ std::list<NotifyArgs> InputDevice::process(const RawEvent* rawEvents, size_t cou
             mDropUntilNextSync = true;
         } else {
             for_each_mapper_in_subdevice(rawEvent->deviceId, [&](InputMapper& mapper) {
-                out += mapper.process(rawEvent);
+                out += mapper.process(*rawEvent);
             });
         }
         --count;
