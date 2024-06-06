@@ -737,7 +737,9 @@ bool VSyncPredictor::VsyncTimeline::isVSyncInPhase(Model model, nsecs_t vsync, F
         return ticks<std::milli, float>(TimePoint::fromNs(timePoint) - now);
     };
 
-    Fps displayFps = mRenderRateOpt ? *mRenderRateOpt : Fps::fromPeriodNsecs(mIdealPeriod.ns());
+    Fps displayFps = !FlagManager::getInstance().vrr_bugfix_24q4() && mRenderRateOpt
+            ? *mRenderRateOpt
+            : Fps::fromPeriodNsecs(mIdealPeriod.ns());
     const auto divisor = RefreshRateSelector::getFrameRateDivisor(displayFps, frameRate);
     const auto now = TimePoint::now();
 
