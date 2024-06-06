@@ -509,13 +509,8 @@ std::vector<std::unique_ptr<InputMapper>> InputDevice::createMappers(
     // Touchscreens and touchpad devices.
     static const bool ENABLE_TOUCHPAD_GESTURES_LIBRARY =
             sysprop::InputProperties::enable_touchpad_gestures_library().value_or(true);
-    // TODO(b/272518665): Fix the new touchpad stack for Sony DualShock 4 (5c4, 9cc) touchpads, or
-    // at least load this setting from the IDC file.
-    const InputDeviceIdentifier identifier = contextPtr.getDeviceIdentifier();
-    const bool isSonyDualShock4Touchpad = identifier.vendor == 0x054c &&
-            (identifier.product == 0x05c4 || identifier.product == 0x09cc);
     if (ENABLE_TOUCHPAD_GESTURES_LIBRARY && classes.test(InputDeviceClass::TOUCHPAD) &&
-        classes.test(InputDeviceClass::TOUCH_MT) && !isSonyDualShock4Touchpad) {
+        classes.test(InputDeviceClass::TOUCH_MT)) {
         mappers.push_back(createInputMapper<TouchpadInputMapper>(contextPtr, readerConfig));
     } else if (classes.test(InputDeviceClass::TOUCH_MT)) {
         mappers.push_back(createInputMapper<MultiTouchInputMapper>(contextPtr, readerConfig));

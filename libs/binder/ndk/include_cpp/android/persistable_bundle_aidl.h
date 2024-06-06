@@ -37,6 +37,13 @@
 
 namespace aidl::android::os {
 
+#if defined(__ANDROID_VENDOR__)
+#define AT_LEAST_V_OR_202404 constexpr(__ANDROID_VENDOR_API__ >= 202404)
+#else
+// TODO(b/322384429) switch this to __ANDROID_API_V__ when V is finalized
+#define AT_LEAST_V_OR_202404 (__builtin_available(android __ANDROID_API_FUTURE__, *))
+#endif
+
 /**
  * Wrapper class that enables interop with AIDL NDK generation
  * Takes ownership of the APersistableBundle* given to it in reset() and will automatically

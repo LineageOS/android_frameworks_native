@@ -109,11 +109,13 @@ public:
     void dump(std::string& dump) override;
 
 private:
-    void updatePointerControllersLocked() REQUIRES(mLock);
-    void notifyPointerDisplayIdChangedLocked() REQUIRES(mLock);
+    using PointerDisplayChange =
+            std::optional<std::tuple<int32_t /*displayId*/, FloatPoint /*cursorPosition*/>>;
+    [[nodiscard]] PointerDisplayChange updatePointerControllersLocked() REQUIRES(mLock);
+    [[nodiscard]] PointerDisplayChange calculatePointerDisplayChangeToNotify() REQUIRES(mLock);
     const DisplayViewport* findViewportByIdLocked(int32_t displayId) const REQUIRES(mLock);
     int32_t getTargetMouseDisplayLocked(int32_t associatedDisplayId) const REQUIRES(mLock);
-    std::pair<int32_t, PointerControllerInterface&> getDisplayIdAndMouseControllerLocked(
+    std::pair<int32_t /*displayId*/, PointerControllerInterface&> ensureMouseControllerLocked(
             int32_t associatedDisplayId) REQUIRES(mLock);
     InputDeviceInfo* findInputDeviceLocked(DeviceId deviceId) REQUIRES(mLock);
     bool canUnfadeOnDisplay(int32_t displayId) REQUIRES(mLock);
@@ -121,6 +123,7 @@ private:
     NotifyMotionArgs processMotion(const NotifyMotionArgs& args);
     NotifyMotionArgs processMouseEventLocked(const NotifyMotionArgs& args) REQUIRES(mLock);
     NotifyMotionArgs processTouchpadEventLocked(const NotifyMotionArgs& args) REQUIRES(mLock);
+    void processDrawingTabletEventLocked(const NotifyMotionArgs& args) REQUIRES(mLock);
     void processTouchscreenAndStylusEventLocked(const NotifyMotionArgs& args) REQUIRES(mLock);
     void processStylusHoverEventLocked(const NotifyMotionArgs& args) REQUIRES(mLock);
     void processDeviceReset(const NotifyDeviceResetArgs& args);
@@ -141,6 +144,8 @@ private:
     std::map<DeviceId, std::shared_ptr<PointerControllerInterface>> mTouchPointersByDevice
             GUARDED_BY(mLock);
     std::map<DeviceId, std::shared_ptr<PointerControllerInterface>> mStylusPointersByDevice
+            GUARDED_BY(mLock);
+    std::map<DeviceId, std::shared_ptr<PointerControllerInterface>> mDrawingTabletPointersByDevice
             GUARDED_BY(mLock);
 
     int32_t mDefaultMouseDisplayId GUARDED_BY(mLock);
