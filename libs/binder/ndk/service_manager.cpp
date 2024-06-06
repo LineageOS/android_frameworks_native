@@ -49,25 +49,7 @@ binder_exception_t AServiceManager_addServiceWithFlags(AIBinder* binder, const c
     sp<IServiceManager> sm = defaultServiceManager();
 
     bool allowIsolated = flags & AServiceManager_AddServiceFlag::ADD_SERVICE_ALLOW_ISOLATED;
-    int dumpFlags = 0;
-    if (flags & AServiceManager_AddServiceFlag::ADD_SERVICE_DUMP_FLAG_PRIORITY_CRITICAL) {
-        dumpFlags |= IServiceManager::DUMP_FLAG_PRIORITY_CRITICAL;
-    }
-    if (flags & AServiceManager_AddServiceFlag::ADD_SERVICE_DUMP_FLAG_PRIORITY_HIGH) {
-        dumpFlags |= IServiceManager::DUMP_FLAG_PRIORITY_HIGH;
-    }
-    if (flags & AServiceManager_AddServiceFlag::ADD_SERVICE_DUMP_FLAG_PRIORITY_NORMAL) {
-        dumpFlags |= IServiceManager::DUMP_FLAG_PRIORITY_NORMAL;
-    }
-    if (flags & AServiceManager_AddServiceFlag::ADD_SERVICE_DUMP_FLAG_PRIORITY_DEFAULT) {
-        dumpFlags |= IServiceManager::DUMP_FLAG_PRIORITY_DEFAULT;
-    }
-    if (dumpFlags == 0) {
-        dumpFlags = IServiceManager::DUMP_FLAG_PRIORITY_DEFAULT;
-    }
-    status_t exception =
-            sm->addService(String16(instance), binder->getBinder(), allowIsolated, dumpFlags);
-
+    status_t exception = sm->addService(String16(instance), binder->getBinder(), allowIsolated);
     return PruneException(exception);
 }
 
