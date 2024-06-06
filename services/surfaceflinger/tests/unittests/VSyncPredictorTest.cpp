@@ -535,6 +535,28 @@ TEST_F(VSyncPredictorTest, isVSyncInPhase) {
     }
 }
 
+TEST_F(VSyncPredictorTest, isVSyncInPhaseWithRenderRate) {
+    SET_FLAG_FOR_TEST(flags::vrr_bugfix_24q4, true);
+    auto last = mNow;
+    for (auto i = 0u; i < kMinimumSamplesForPrediction; i++) {
+        EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow), Eq(last + mPeriod));
+        mNow += mPeriod;
+        last = mNow;
+        tracker.addVsyncTimestamp(mNow);
+    }
+
+    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow), Eq(mNow + mPeriod));
+    EXPECT_THAT(tracker.nextAnticipatedVSyncTimeFrom(mNow + mPeriod), Eq(mNow + 2 * mPeriod));
+
+    const auto renderRateFps = Fps::fromPeriodNsecs(mPeriod * 2);
+    tracker.setRenderRate(renderRateFps, /*applyImmediately*/ true);
+
+    EXPECT_FALSE(tracker.isVSyncInPhase(mNow, renderRateFps));
+    EXPECT_TRUE(tracker.isVSyncInPhase(mNow + mPeriod, renderRateFps));
+    EXPECT_FALSE(tracker.isVSyncInPhase(mNow + 2 * mPeriod, renderRateFps));
+    EXPECT_TRUE(tracker.isVSyncInPhase(mNow + 3 * mPeriod, renderRateFps));
+}
+
 TEST_F(VSyncPredictorTest, isVSyncInPhaseForDivisors) {
     auto last = mNow;
     for (auto i = 0u; i < kMinimumSamplesForPrediction; i++) {
