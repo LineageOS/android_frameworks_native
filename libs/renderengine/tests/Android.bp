@@ -46,6 +46,7 @@ cc_test {
         "libshaders",
         "libtonemap",
         "libsurfaceflinger_common",
+        "libsurfaceflingerflags",
     ],
     header_libs: [
         "libtonemap_headers",

@@ -28,6 +28,7 @@ cc_library_headers {
     recovery_available: true,
     host_supported: true,
     native_bridge_supported: true,
+    cmake_snapshot_supported: true,
 
     header_libs: [
         "libbinder_headers_platform_shared",
@@ -83,6 +84,124 @@ cc_library_headers {
     },
 }
 
+cc_cmake_snapshot {
+    name: "binder_sdk",
+    modules: [
+        "libbinder_sdk",
+        "libbinder_sdk_single_threaded",
+        "libbinder_ndk_sdk",
+        "binderRpcTestNoKernel",
+    ],
+    prebuilts: [
+        // to enable arm64 host support, build with musl - e.g. on aosp_cf_arm64_phone
+        "aidl",
+        "libc++",
+    ],
+    include_sources: true,
+    cflags: [
+        "-DNDEBUG",
+        "-DBINDER_ENABLE_LIBLOG_ASSERT",
+        "-DBINDER_DISABLE_NATIVE_HANDLE",
+        "-DBINDER_DISABLE_BLOB",
+        "-DBINDER_NO_LIBBASE",
+        "-DBINDER_NO_KERNEL_IPC_TESTING",
+
+        // from Soong's global.go commonGlobalCflags and noOverrideGlobalCflags
+        "-Wno-c99-designator",
+        "-Wno-missing-field-initializers",
+
+        // warnings that only pop up on gcc
+        "-Wno-unknown-pragmas", // "pragma clang"
+        "-Wno-attributes", // attributes on compound-statements
+        "-Wno-psabi", // reminders about old ABI changes
+    ],
+    cflags_ignored: [
+        // gcc requires all header constexprs to be used in all dependent compilatinon units
+        "-Wunused-const-variable",
+    ],
+    library_mapping: [
+        {
+            android_name: "libssl",
+            mapped_name: "ssl",
+            package_pregenerated: "external/boringssl",
+        },
+        {
+            android_name: "libcrypto",
+            mapped_name: "crypto",
+            package_pregenerated: "external/boringssl",
+        },
+        {
+            android_name: "libgtest",
+            mapped_name: "GTest::gtest",
+            package_system: "GTest",
+        },
+        {
+            android_name: "libgtest_main",
+            mapped_name: "GTest::gtest",
+            package_system: "GTest",
+        },
+
+        // use libbinder_sdk and friends instead of full Android's libbinder
+        {
+            android_name: "libbinder_rpc_no_kernel",
+            mapped_name: "android::libbinder_sdk",
+        },
+        {
+            android_name: "libbinder_rpc_single_threaded_no_kernel",
+            mapped_name: "android::libbinder_sdk_single_threaded",
+        },
+        {
+            android_name: "libbinder_headers",
+            mapped_name: "android::libbinder_headers_base",
+        },
+        {
+            android_name: "libbinder",
+            mapped_name: "android::libbinder_sdk",
+        },
+        {
+            android_name: "libbinder_ndk",
+            mapped_name: "android::libbinder_ndk_sdk",
+        },
+        {
+            android_name: "liblog",
+            mapped_name: "android::liblog_stub",
+        },
+
+        // explicitly included by Binder tests, but not needed outside of Android
+        {
+            android_name: "libbase",
+        },
+        {
+            android_name: "libcutils",
+        },
+        {
+            android_name: "libutils",
+        },
+
+        // disable tests that don't work outside of Android yet
+        {
+            android_name: "binder_rpc_test_service",
+        },
+        {
+            android_name: "binder_rpc_test_service_single_threaded",
+        },
+
+        // trusty mocks are artificially triggered and not needed outside of Android build
+        {
+            android_name: "libbinder_on_trusty_mock",
+        },
+        {
+            android_name: "libbinder_ndk_on_trusty_mock",
+        },
+        {
+            android_name: "binderRpcTestService_on_trusty_mock",
+        },
+        {
+            android_name: "binderRpcTest_on_trusty_mock",
+        },
+    ],
+}
+
 // These interfaces are android-specific implementation unrelated to binder
 // transport itself and should be moved to AIDL or in domain-specific libs.
 //
@@ -124,6 +243,9 @@ cc_defaults {
     ],
 
     header_libs: [
+        "libbinder_headers_base",
+    ],
+    export_header_lib_headers: [
         "libbinder_headers_base",
     ],
 
@@ -369,6 +491,7 @@ cc_library {
     double_loadable: true,
     // TODO(b/153609531): remove when no longer needed.
     native_bridge_supported: true,
+    cmake_snapshot_supported: false,
 
     // libbinder does not offer a stable wire protocol.
     // if a second copy of it is installed, then it may break after security
@@ -408,16 +531,8 @@ cc_library {
     afdo: true,
 }
 
-cc_library_host_shared {
-    name: "libbinder_sdk",
-
-    defaults: [
-        "libbinder_common_defaults",
-    ],
-
-    shared_libs: [
-        "libutils_binder_sdk",
-    ],
+cc_defaults {
+    name: "binder_sdk_defaults",
 
     cflags: [
         "-DBINDER_ENABLE_LIBLOG_ASSERT",
@@ -428,6 +543,21 @@ cc_library_host_shared {
 
     header_libs: [
         "liblog_stub",
+    ],
+}
+
+cc_defaults {
+    name: "libbinder_sdk_defaults",
+
+    cmake_snapshot_supported: true,
+
+    defaults: [
+        "libbinder_common_defaults",
+        "binder_sdk_defaults",
+    ],
+
+    shared_libs: [
+        "libutils_binder_sdk",
     ],
 
     srcs: [
@@ -444,6 +574,19 @@ cc_library_host_shared {
             enabled: false,
         },
     },
+}
+
+cc_library_host_shared {
+    name: "libbinder_sdk",
+    defaults: ["libbinder_sdk_defaults"],
+}
+
+cc_library_host_shared {
+    name: "libbinder_sdk_single_threaded",
+    defaults: ["libbinder_sdk_defaults"],
+    cflags: [
+        "-DBINDER_RPC_SINGLE_THREADED",
+    ],
 }
 
 cc_library {
@@ -535,6 +678,7 @@ cc_defaults {
     defaults: ["libbinder_tls_shared_deps"],
     vendor_available: true,
     host_supported: true,
+    cmake_snapshot_supported: true,
 
     header_libs: [
         "libbinder_headers",

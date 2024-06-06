@@ -40,6 +40,7 @@
 #include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
 #include <binder/PermissionCache.h>
+#include <com_android_graphics_surfaceflinger_flags.h>
 #include <common/FlagManager.h>
 #include <compositionengine/CompositionEngine.h>
 #include <compositionengine/CompositionRefreshArgs.h>
@@ -813,8 +814,24 @@ void chooseRenderEngineType(renderengine::RenderEngineCreationArgs::Builder& bui
                 .setGraphicsApi(renderengine::RenderEngine::GraphicsApi::VK);
     } else {
         const auto kVulkan = renderengine::RenderEngine::GraphicsApi::VK;
+// TODO: b/341728634 - Clean up conditional compilation.
+// Note: this guard in particular must check e.g.
+// COM_ANDROID_GRAPHICS_SURFACEFLINGER_FLAGS_GRAPHITE_RENDERENGINE directly (instead of calling e.g.
+// COM_ANDROID_GRAPHICS_SURFACEFLINGER_FLAGS(GRAPHITE_RENDERENGINE)) because that macro is undefined
+// in the libsurfaceflingerflags_test variant of com_android_graphics_surfaceflinger_flags.h, which
+// is used by layertracegenerator (which also needs SurfaceFlinger.cpp). :)
+#if COM_ANDROID_GRAPHICS_SURFACEFLINGER_FLAGS_GRAPHITE_RENDERENGINE || \
+        COM_ANDROID_GRAPHICS_SURFACEFLINGER_FLAGS_FORCE_COMPILE_GRAPHITE_RENDERENGINE
         const bool useGraphite = FlagManager::getInstance().graphite_renderengine() &&
                 renderengine::RenderEngine::canSupport(kVulkan);
+#else
+        const bool useGraphite = false;
+        if (FlagManager::getInstance().graphite_renderengine()) {
+            ALOGE("RenderEngine's Graphite Skia backend was requested with the "
+                  "debug.renderengine.graphite system property, but it is not compiled in this "
+                  "build! Falling back to Ganesh backend selection logic.");
+        }
+#endif
         const bool useVulkan = useGraphite ||
                 (FlagManager::getInstance().vulkan_renderengine() &&
                  renderengine::RenderEngine::canSupport(kVulkan));
