@@ -17,6 +17,7 @@ cc_defaults {
     shared_libs: [
         "libSurfaceFlingerProp",
         "server_configurable_flags",
+        "libaconfig_storage_read_api_cc",
     ],
     static_libs: [
         "librenderengine_includes",
@@ -56,6 +57,7 @@ cc_defaults {
     name: "libsurfaceflinger_common_deps",
     shared_libs: [
         "server_configurable_flags",
+        "libaconfig_storage_read_api_cc",
     ],
     static_libs: [
         "libsurfaceflinger_common",
@@ -69,6 +71,7 @@ cc_defaults {
     name: "libsurfaceflinger_common_test_deps",
     shared_libs: [
         "server_configurable_flags",
+        "libaconfig_storage_read_api_cc",
     ],
     static_libs: [
         "libsurfaceflinger_common_test",
