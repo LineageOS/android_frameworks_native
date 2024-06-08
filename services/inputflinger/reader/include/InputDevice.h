@@ -79,6 +79,8 @@ public:
 
     inline bool isIgnored() { return !getMapperCount() && !mController; }
 
+    inline KeyboardType getKeyboardType() const { return mKeyboardType; }
+
     bool isEnabled();
 
     void dump(std::string& dump, const std::string& eventHubDevStr);
@@ -123,6 +125,8 @@ public:
     void updateMetaState(int32_t keyCode);
 
     void addKeyRemapping(int32_t fromKeyCode, int32_t toKeyCode);
+
+    void setKeyboardType(KeyboardType keyboardType);
 
     void bumpGeneration();
 
@@ -196,6 +200,7 @@ private:
     uint32_t mSources;
     bool mIsWaking;
     bool mIsExternal;
+    KeyboardType mKeyboardType = KeyboardType::NONE;
     std::optional<uint8_t> mAssociatedDisplayPort;
     std::optional<std::string> mAssociatedDisplayUniqueIdByPort;
     std::optional<std::string> mAssociatedDisplayUniqueIdByDescriptor;
@@ -470,6 +475,10 @@ public:
     }
     inline void bumpGeneration() { mDevice.bumpGeneration(); }
     inline const PropertyMap& getConfiguration() const { return mDevice.getConfiguration(); }
+    inline KeyboardType getKeyboardType() const { return mDevice.getKeyboardType(); }
+    inline void setKeyboardType(KeyboardType keyboardType) {
+        return mDevice.setKeyboardType(keyboardType);
+    }
 
 private:
     InputDevice& mDevice;

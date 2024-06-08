@@ -85,64 +85,67 @@ std::ostream& operator<<(std::ostream& out, const RawAbsoluteAxisInfo& info);
 
 /*
  * Input device classes.
+ *
+ * These classes are duplicated in rust side here: /frameworks/native/libs/input/rust/input.rs.
+ * If any new classes are added, we need to add them in rust input side too.
  */
 enum class InputDeviceClass : uint32_t {
     /* The input device is a keyboard or has buttons. */
-    KEYBOARD = 0x00000001,
+    KEYBOARD = android::os::IInputConstants::DEVICE_CLASS_KEYBOARD,
 
     /* The input device is an alpha-numeric keyboard (not just a dial pad). */
-    ALPHAKEY = 0x00000002,
+    ALPHAKEY = android::os::IInputConstants::DEVICE_CLASS_ALPHAKEY,
 
     /* The input device is a touchscreen or a touchpad (either single-touch or multi-touch). */
-    TOUCH = 0x00000004,
+    TOUCH = android::os::IInputConstants::DEVICE_CLASS_TOUCH,
 
     /* The input device is a cursor device such as a trackball or mouse. */
-    CURSOR = 0x00000008,
+    CURSOR = android::os::IInputConstants::DEVICE_CLASS_CURSOR,
 
     /* The input device is a multi-touch touchscreen or touchpad. */
-    TOUCH_MT = 0x00000010,
+    TOUCH_MT = android::os::IInputConstants::DEVICE_CLASS_TOUCH_MT,
 
     /* The input device is a directional pad (implies keyboard, has DPAD keys). */
-    DPAD = 0x00000020,
+    DPAD = android::os::IInputConstants::DEVICE_CLASS_DPAD,
 
     /* The input device is a gamepad (implies keyboard, has BUTTON keys). */
-    GAMEPAD = 0x00000040,
+    GAMEPAD = android::os::IInputConstants::DEVICE_CLASS_GAMEPAD,
 
     /* The input device has switches. */
-    SWITCH = 0x00000080,
+    SWITCH = android::os::IInputConstants::DEVICE_CLASS_SWITCH,
 
     /* The input device is a joystick (implies gamepad, has joystick absolute axes). */
-    JOYSTICK = 0x00000100,
+    JOYSTICK = android::os::IInputConstants::DEVICE_CLASS_JOYSTICK,
 
     /* The input device has a vibrator (supports FF_RUMBLE). */
-    VIBRATOR = 0x00000200,
+    VIBRATOR = android::os::IInputConstants::DEVICE_CLASS_VIBRATOR,
 
     /* The input device has a microphone. */
-    MIC = 0x00000400,
+    MIC = android::os::IInputConstants::DEVICE_CLASS_MIC,
 
     /* The input device is an external stylus (has data we want to fuse with touch data). */
-    EXTERNAL_STYLUS = 0x00000800,
+    EXTERNAL_STYLUS = android::os::IInputConstants::DEVICE_CLASS_EXTERNAL_STYLUS,
 
     /* The input device has a rotary encoder */
-    ROTARY_ENCODER = 0x00001000,
+    ROTARY_ENCODER = android::os::IInputConstants::DEVICE_CLASS_ROTARY_ENCODER,
 
     /* The input device has a sensor like accelerometer, gyro, etc */
-    SENSOR = 0x00002000,
+    SENSOR = android::os::IInputConstants::DEVICE_CLASS_SENSOR,
 
     /* The input device has a battery */
-    BATTERY = 0x00004000,
+    BATTERY = android::os::IInputConstants::DEVICE_CLASS_BATTERY,
 
     /* The input device has sysfs controllable lights */
-    LIGHT = 0x00008000,
+    LIGHT = android::os::IInputConstants::DEVICE_CLASS_LIGHT,
 
     /* The input device is a touchpad, requiring an on-screen cursor. */
-    TOUCHPAD = 0x00010000,
+    TOUCHPAD = android::os::IInputConstants::DEVICE_CLASS_TOUCHPAD,
 
     /* The input device is virtual (not a real device, not part of UI configuration). */
-    VIRTUAL = 0x40000000,
+    VIRTUAL = android::os::IInputConstants::DEVICE_CLASS_VIRTUAL,
 
     /* The input device is external (not built-in). */
-    EXTERNAL = 0x80000000,
+    EXTERNAL = android::os::IInputConstants::DEVICE_CLASS_EXTERNAL,
 };
 
 enum class SysfsClass : uint32_t {
