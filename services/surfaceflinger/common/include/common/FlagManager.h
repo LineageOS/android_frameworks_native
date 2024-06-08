@@ -89,6 +89,7 @@ public:
     bool override_trusted_overlay() const;
     bool flush_buffer_slots_to_uncache() const;
     bool force_compile_graphite_renderengine() const;
+    bool single_hop_screenshot() const;
 
 protected:
     // overridden for unit tests

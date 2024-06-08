@@ -65,7 +65,7 @@ private:
 
     using Buffers = std::vector<sp<GraphicBuffer>>;
 
-    static Buffers draw(int vsyncRate, int renderFps, SkColor, ui::Transform::RotationFlags,
+    static Buffers draw(int refreshRate, int renderFps, SkColor, ui::Transform::RotationFlags,
                         ftl::Flags<Features>);
     static void drawNumber(int number, int left, SkColor, SkCanvas&);
 
