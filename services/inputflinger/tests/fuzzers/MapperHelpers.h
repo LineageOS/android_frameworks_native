@@ -338,9 +338,11 @@ public:
 
     void setLastKeyDownTimestamp(nsecs_t when) { mLastKeyDownTimestamp = when; };
     nsecs_t getLastKeyDownTimestamp() { return mLastKeyDownTimestamp; };
+    KeyboardClassifier& getKeyboardClassifier() override { return *mClassifier; }
 
 private:
     nsecs_t mLastKeyDownTimestamp;
+    std::unique_ptr<KeyboardClassifier> mClassifier = std::make_unique<KeyboardClassifier>();
 };
 
 template <class Fdp>

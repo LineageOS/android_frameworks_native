@@ -61,7 +61,6 @@ private:
     };
 
     uint32_t mSource{};
-    int32_t mKeyboardType{};
     std::optional<KeyboardLayoutInfo> mKeyboardLayoutInfo;
 
     std::vector<KeyDown> mKeyDowns{}; // keys that are down
@@ -85,8 +84,7 @@ private:
     } mParameters{};
 
     KeyboardInputMapper(InputDeviceContext& deviceContext,
-                        const InputReaderConfiguration& readerConfig, uint32_t source,
-                        int32_t keyboardType);
+                        const InputReaderConfiguration& readerConfig, uint32_t source);
     void configureParameters();
     void dumpParameters(std::string& dump) const;
 

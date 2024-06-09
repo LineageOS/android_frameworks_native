@@ -21,6 +21,7 @@
 #include "KeyboardInputMapper.h"
 
 #include <ftl/enum.h>
+#include <input/KeyboardClassifier.h>
 #include <ui/Rotation.h>
 
 namespace android {
@@ -96,8 +97,8 @@ static bool isMediaKey(int32_t keyCode) {
 
 KeyboardInputMapper::KeyboardInputMapper(InputDeviceContext& deviceContext,
                                          const InputReaderConfiguration& readerConfig,
-                                         uint32_t source, int32_t keyboardType)
-      : InputMapper(deviceContext, readerConfig), mSource(source), mKeyboardType(keyboardType) {}
+                                         uint32_t source)
+      : InputMapper(deviceContext, readerConfig), mSource(source) {}
 
 uint32_t KeyboardInputMapper::getSources() const {
     return mSource;
@@ -131,7 +132,6 @@ std::optional<KeyboardLayoutInfo> KeyboardInputMapper::getKeyboardLayoutInfo() c
 void KeyboardInputMapper::populateDeviceInfo(InputDeviceInfo& info) {
     InputMapper::populateDeviceInfo(info);
 
-    info.setKeyboardType(mKeyboardType);
     info.setKeyCharacterMap(getDeviceContext().getKeyCharacterMap());
 
     std::optional keyboardLayoutInfo = getKeyboardLayoutInfo();
@@ -143,7 +143,6 @@ void KeyboardInputMapper::populateDeviceInfo(InputDeviceInfo& info) {
 void KeyboardInputMapper::dump(std::string& dump) {
     dump += INDENT2 "Keyboard Input Mapper:\n";
     dumpParameters(dump);
-    dump += StringPrintf(INDENT3 "KeyboardType: %d\n", mKeyboardType);
     dump += StringPrintf(INDENT3 "Orientation: %s\n", ftl::enum_string(getOrientation()).c_str());
     dump += StringPrintf(INDENT3 "KeyDowns: %zu keys currently down\n", mKeyDowns.size());
     dump += StringPrintf(INDENT3 "MetaState: 0x%0x\n", mMetaState);
@@ -327,13 +326,24 @@ std::list<NotifyArgs> KeyboardInputMapper::processKey(nsecs_t when, nsecs_t read
         keyMetaState = mMetaState;
     }
 
+    DeviceId deviceId = getDeviceId();
+
+    // On first down: Process key for keyboard classification (will send reconfiguration if the
+    // keyboard type change)
+    if (down && !keyDownIndex) {
+        KeyboardClassifier& classifier = getDeviceContext().getContext()->getKeyboardClassifier();
+        classifier.processKey(deviceId, scanCode, keyMetaState);
+        getDeviceContext().setKeyboardType(classifier.getKeyboardType(deviceId));
+    }
+
+    KeyboardType keyboardType = getDeviceContext().getKeyboardType();
     // Any key down on an external keyboard should wake the device.
     // We don't do this for internal keyboards to prevent them from waking up in your pocket.
     // For internal keyboards and devices for which the default wake behavior is explicitly
     // prevented (e.g. TV remotes), the key layout file should specify the policy flags for each
     // wake key individually.
     if (down && getDeviceContext().isExternal() && !mParameters.doNotWakeByDefault &&
-        !(mKeyboardType != AINPUT_KEYBOARD_TYPE_ALPHABETIC && isMediaKey(keyCode))) {
+        !(keyboardType != KeyboardType::ALPHABETIC && isMediaKey(keyCode))) {
         policyFlags |= POLICY_FLAG_WAKE;
     }
 
@@ -341,8 +351,8 @@ std::list<NotifyArgs> KeyboardInputMapper::processKey(nsecs_t when, nsecs_t read
         policyFlags |= POLICY_FLAG_DISABLE_KEY_REPEAT;
     }
 
-    out.emplace_back(NotifyKeyArgs(getContext()->getNextId(), when, readTime, getDeviceId(),
-                                   mSource, getDisplayId(), policyFlags,
+    out.emplace_back(NotifyKeyArgs(getContext()->getNextId(), when, readTime, deviceId, mSource,
+                                   getDisplayId(), policyFlags,
                                    down ? AKEY_EVENT_ACTION_DOWN : AKEY_EVENT_ACTION_UP, flags,
                                    keyCode, scanCode, keyMetaState, downTime));
     return out;

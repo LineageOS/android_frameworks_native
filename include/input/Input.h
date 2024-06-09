@@ -258,6 +258,16 @@ enum class KeyState {
     ftl_last = VIRTUAL,
 };
 
+/**
+ * The keyboard type. This should have 1:1 correspondence with the values of anonymous enum
+ * defined in input.h
+ */
+enum class KeyboardType {
+    NONE = AINPUT_KEYBOARD_TYPE_NONE,
+    NON_ALPHABETIC = AINPUT_KEYBOARD_TYPE_NON_ALPHABETIC,
+    ALPHABETIC = AINPUT_KEYBOARD_TYPE_ALPHABETIC,
+};
+
 bool isStylusToolType(ToolType toolType);
 
 struct PointerProperties;

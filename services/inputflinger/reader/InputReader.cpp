@@ -102,6 +102,7 @@ InputReader::InputReader(std::shared_ptr<EventHubInterface> eventHub,
         mEventHub(eventHub),
         mPolicy(policy),
         mNextListener(listener),
+        mKeyboardClassifier(std::make_unique<KeyboardClassifier>()),
         mGlobalMetaState(AMETA_NONE),
         mLedMetaState(AMETA_NONE),
         mGeneration(1),
@@ -1074,6 +1075,10 @@ EventHubInterface* InputReader::ContextImpl::getEventHub() {
 
 int32_t InputReader::ContextImpl::getNextId() {
     return mIdGenerator.nextId();
+}
+
+KeyboardClassifier& InputReader::ContextImpl::getKeyboardClassifier() {
+    return *mReader->mKeyboardClassifier;
 }
 
 } // namespace android

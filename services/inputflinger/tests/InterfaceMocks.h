@@ -38,6 +38,7 @@
 #include <input/InputDevice.h>
 #include <input/KeyCharacterMap.h>
 #include <input/KeyLayoutMap.h>
+#include <input/KeyboardClassifier.h>
 #include <input/PropertyMap.h>
 #include <input/TouchVideoFrame.h>
 #include <input/VirtualKeyMap.h>
@@ -77,8 +78,11 @@ public:
     MOCK_METHOD(void, setLastKeyDownTimestamp, (nsecs_t when));
     MOCK_METHOD(nsecs_t, getLastKeyDownTimestamp, ());
 
+    KeyboardClassifier& getKeyboardClassifier() override { return *mClassifier; };
+
 private:
     int32_t mGeneration = 0;
+    std::unique_ptr<KeyboardClassifier> mClassifier = std::make_unique<KeyboardClassifier>();
 };
 
 class MockEventHubInterface : public EventHubInterface {

@@ -67,8 +67,7 @@ protected:
         EXPECT_CALL(mMockInputReaderContext, getPolicy).WillRepeatedly(Return(mFakePolicy.get()));
 
         mMapper = createInputMapper<KeyboardInputMapper>(*mDeviceContext, mReaderConfiguration,
-                                                         AINPUT_SOURCE_KEYBOARD,
-                                                         AINPUT_KEYBOARD_TYPE_ALPHABETIC);
+                                                         AINPUT_SOURCE_KEYBOARD);
     }
 
     void testPointerVisibilityForKeys(const std::vector<int32_t>& keyCodes, bool expectVisible) {
