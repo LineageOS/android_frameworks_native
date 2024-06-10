@@ -22,6 +22,7 @@
 #include <gtest/gtest.h>
 #include <input/Input.h>
 #include <perfetto/config/android/android_input_event_config.pbzero.h>
+#include <perfetto/trace/android/android_input_event.pbzero.h>
 #include <perfetto/trace/trace.pbzero.h>
 #include <perfetto/tracing.h>
 #include <variant>
