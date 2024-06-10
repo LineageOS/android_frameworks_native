@@ -11054,6 +11054,37 @@ TEST_F(InputDispatcherPointerCaptureTests, MouseHoverAndPointerCapture) {
     mWindow->assertNoEvents();
 }
 
+TEST_F(InputDispatcherPointerCaptureTests, MultiDisplayPointerCapture) {
+    // The default display is the focused display to begin with.
+    requestAndVerifyPointerCapture(mWindow, true);
+
+    // Move the second window to a second display, make it the focused window on that display.
+    mSecondWindow->editInfo()->displayId = SECOND_DISPLAY_ID;
+    mDispatcher->onWindowInfosChanged({{*mWindow->getInfo(), *mSecondWindow->getInfo()}, {}, 0, 0});
+    setFocusedWindow(mSecondWindow);
+    mSecondWindow->consumeFocusEvent(true);
+
+    mWindow->assertNoEvents();
+
+    // The second window cannot gain capture because it is not on the focused display.
+    mDispatcher->requestPointerCapture(mSecondWindow->getToken(), true);
+    mFakePolicy->assertSetPointerCaptureNotCalled();
+    mSecondWindow->assertNoEvents();
+
+    // Make the second display the focused display.
+    mDispatcher->setFocusedDisplay(SECOND_DISPLAY_ID);
+
+    // This causes the first window to lose pointer capture, and it's unable to request capture.
+    mWindow->consumeCaptureEvent(false);
+    mFakePolicy->assertSetPointerCaptureCalled(mWindow, false);
+
+    mDispatcher->requestPointerCapture(mWindow->getToken(), true);
+    mFakePolicy->assertSetPointerCaptureNotCalled();
+
+    // The second window is now able to gain pointer capture successfully.
+    requestAndVerifyPointerCapture(mSecondWindow, true);
+}
+
 using InputDispatcherPointerCaptureDeathTest = InputDispatcherPointerCaptureTests;
 
 TEST_F(InputDispatcherPointerCaptureDeathTest,

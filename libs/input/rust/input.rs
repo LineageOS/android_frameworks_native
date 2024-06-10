@@ -272,7 +272,7 @@ bitflags! {
 
 bitflags! {
     /// Modifier state flags
-    #[derive(Debug, PartialEq)]
+    #[derive(Default, Debug, Copy, Clone, Eq, PartialEq)]
     pub struct ModifierState: u32 {
         /// No meta keys are pressed
         const None = input_bindgen::AMETA_NONE;

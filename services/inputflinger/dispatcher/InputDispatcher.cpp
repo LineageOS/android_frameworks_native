@@ -5529,6 +5529,10 @@ void InputDispatcher::setFocusedDisplay(ui::LogicalDisplayId displayId) {
             }
             mFocusedDisplayId = displayId;
 
+            // Only a window on the focused display can have Pointer Capture, so disable the active
+            // Pointer Capture session if there is one, since the focused display changed.
+            disablePointerCaptureForcedLocked();
+
             // Find new focused window and validate
             sp<IBinder> newFocusedWindowToken = mFocusResolver.getFocusedWindowToken(displayId);
             sendFocusChangedCommandLocked(oldFocusedWindowToken, newFocusedWindowToken);
@@ -6929,17 +6933,17 @@ void InputDispatcher::onFocusChangedLocked(
         enqueueFocusEventLocked(changes.newFocus, /*hasFocus=*/true, changes.reason);
     }
 
-    // If a window has pointer capture, then it must have focus. We need to ensure that this
-    // contract is upheld when pointer capture is being disabled due to a loss of window focus.
-    // If the window loses focus before it loses pointer capture, then the window can be in a state
-    // where it has pointer capture but not focus, violating the contract. Therefore we must
-    // dispatch the pointer capture event before the focus event. Since focus events are added to
-    // the front of the queue (above), we add the pointer capture event to the front of the queue
-    // after the focus events are added. This ensures the pointer capture event ends up at the
-    // front.
-    disablePointerCaptureForcedLocked();
-
     if (mFocusedDisplayId == changes.displayId) {
+        // If a window has pointer capture, then it must have focus and must be on the top-focused
+        // display. We need to ensure that this contract is upheld when pointer capture is being
+        // disabled due to a loss of window focus. If the window loses focus before it loses pointer
+        // capture, then the window can be in a state where it has pointer capture but not focus,
+        // violating the contract. Therefore we must dispatch the pointer capture event before the
+        // focus event. Since focus events are added to the front of the queue (above), we add the
+        // pointer capture event to the front of the queue after the focus events are added. This
+        // ensures the pointer capture event ends up at the front.
+        disablePointerCaptureForcedLocked();
+
         sendFocusChangedCommandLocked(changes.oldFocus, changes.newFocus);
     }
 }
