@@ -123,7 +123,7 @@ namespace android::ftl {
 //   // Create a typedef to give a more meaningful name and bound the size.
 //   using MyFunction = ftl::Function<int(std::string_view), 2>;
 //   int* ptr = nullptr;
-//   auto f1 = MyFunction::make_function(
+//   auto f1 = MyFunction::make(
 //       [cls = &cls, ptr](std::string_view sv) {
 //           return cls->on_string(ptr, sv);
 //       });
