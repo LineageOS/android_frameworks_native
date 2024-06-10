@@ -47,6 +47,7 @@ rust_defaults {
         "liblog_rust",
         "liblogger",
         "libnix",
+        "libinput_rust",
     ],
     host_supported: true,
 }

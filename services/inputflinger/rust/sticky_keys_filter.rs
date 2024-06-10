@@ -23,6 +23,7 @@ use crate::input_filter::{Filter, ModifierStateListener};
 use com_android_server_inputflinger::aidl::com::android::server::inputflinger::{
     DeviceInfo::DeviceInfo, KeyEvent::KeyEvent, KeyEventAction::KeyEventAction,
 };
+use input::ModifierState;
 use std::collections::HashSet;
 
 // Modifier keycodes: values are from /frameworks/native/include/android/keycodes.h
@@ -40,20 +41,6 @@ const KEYCODE_META_RIGHT: i32 = 118;
 const KEYCODE_FUNCTION: i32 = 119;
 const KEYCODE_NUM_LOCK: i32 = 143;
 
-// Modifier states: values are from /frameworks/native/include/android/input.h
-const META_ALT_ON: u32 = 0x02;
-const META_ALT_LEFT_ON: u32 = 0x10;
-const META_ALT_RIGHT_ON: u32 = 0x20;
-const META_SHIFT_ON: u32 = 0x01;
-const META_SHIFT_LEFT_ON: u32 = 0x40;
-const META_SHIFT_RIGHT_ON: u32 = 0x80;
-const META_CTRL_ON: u32 = 0x1000;
-const META_CTRL_LEFT_ON: u32 = 0x2000;
-const META_CTRL_RIGHT_ON: u32 = 0x4000;
-const META_META_ON: u32 = 0x10000;
-const META_META_LEFT_ON: u32 = 0x20000;
-const META_META_RIGHT_ON: u32 = 0x40000;
-
 pub struct StickyKeysFilter {
     next: Box<dyn Filter + Send + Sync>,
     listener: ModifierStateListener,
@@ -61,11 +48,11 @@ pub struct StickyKeysFilter {
     contributing_devices: HashSet<i32>,
     /// State describing the current enabled modifiers. This contain both locked and non-locked
     /// modifier state bits.
-    modifier_state: u32,
+    modifier_state: ModifierState,
     /// State describing the current locked modifiers. These modifiers will not be cleared on a
     /// non-modifier key press. They will be cleared only if the locked modifier key is pressed
     /// again.
-    locked_modifier_state: u32,
+    locked_modifier_state: ModifierState,
 }
 
 impl StickyKeysFilter {
@@ -78,8 +65,8 @@ impl StickyKeysFilter {
             next,
             listener,
             contributing_devices: HashSet::new(),
-            modifier_state: 0,
-            locked_modifier_state: 0,
+            modifier_state: ModifierState::None,
+            locked_modifier_state: ModifierState::None,
         }
     }
 }
@@ -93,12 +80,12 @@ impl Filter for StickyKeysFilter {
             // If non-ephemeral modifier key (i.e. non-modifier keys + toggle modifier keys like
             // CAPS_LOCK, NUM_LOCK etc.), don't block key and pass in the sticky modifier state with
             // the KeyEvent.
-            let old_modifier_state = event.metaState as u32;
+            let old_modifier_state = ModifierState::from_bits(event.metaState as u32).unwrap();
             let mut new_event = *event;
             // Send the current modifier state with the key event before clearing non-locked
             // modifier state
             new_event.metaState =
-                (clear_ephemeral_modifier_state(old_modifier_state) | modifier_state) as i32;
+                (clear_ephemeral_modifier_state(old_modifier_state) | modifier_state).bits() as i32;
             self.next.notify_key(&new_event);
             if up && !is_modifier_key(event.keyCode) {
                 modifier_state =
@@ -110,10 +97,10 @@ impl Filter for StickyKeysFilter {
             // If ephemeral modifier key, capture the key and update the sticky modifier states
             let modifier_key_mask = get_ephemeral_modifier_key_mask(event.keyCode);
             let symmetrical_modifier_key_mask = get_symmetrical_modifier_key_mask(event.keyCode);
-            if locked_modifier_state & modifier_key_mask != 0 {
+            if locked_modifier_state & modifier_key_mask != ModifierState::None {
                 locked_modifier_state &= !symmetrical_modifier_key_mask;
                 modifier_state &= !symmetrical_modifier_key_mask;
-            } else if modifier_key_mask & modifier_state != 0 {
+            } else if modifier_key_mask & modifier_state != ModifierState::None {
                 locked_modifier_state |= modifier_key_mask;
                 modifier_state =
                     (modifier_state & !symmetrical_modifier_key_mask) | modifier_key_mask;
@@ -134,11 +121,12 @@ impl Filter for StickyKeysFilter {
         // Clear state if all contributing devices removed
         self.contributing_devices.retain(|id| device_infos.iter().any(|x| *id == x.deviceId));
         if self.contributing_devices.is_empty()
-            && (self.modifier_state != 0 || self.locked_modifier_state != 0)
+            && (self.modifier_state != ModifierState::None
+                || self.locked_modifier_state != ModifierState::None)
         {
-            self.modifier_state = 0;
-            self.locked_modifier_state = 0;
-            self.listener.modifier_state_changed(0, 0);
+            self.modifier_state = ModifierState::None;
+            self.locked_modifier_state = ModifierState::None;
+            self.listener.modifier_state_changed(ModifierState::None, ModifierState::None);
         }
         self.next.notify_devices_changed(device_infos);
     }
@@ -181,51 +169,53 @@ fn is_ephemeral_modifier_key(keycode: i32) -> bool {
     )
 }
 
-fn get_ephemeral_modifier_key_mask(keycode: i32) -> u32 {
+fn get_ephemeral_modifier_key_mask(keycode: i32) -> ModifierState {
     match keycode {
-        KEYCODE_ALT_LEFT => META_ALT_LEFT_ON | META_ALT_ON,
-        KEYCODE_ALT_RIGHT => META_ALT_RIGHT_ON | META_ALT_ON,
-        KEYCODE_SHIFT_LEFT => META_SHIFT_LEFT_ON | META_SHIFT_ON,
-        KEYCODE_SHIFT_RIGHT => META_SHIFT_RIGHT_ON | META_SHIFT_ON,
-        KEYCODE_CTRL_LEFT => META_CTRL_LEFT_ON | META_CTRL_ON,
-        KEYCODE_CTRL_RIGHT => META_CTRL_RIGHT_ON | META_CTRL_ON,
-        KEYCODE_META_LEFT => META_META_LEFT_ON | META_META_ON,
-        KEYCODE_META_RIGHT => META_META_RIGHT_ON | META_META_ON,
-        _ => 0,
+        KEYCODE_ALT_LEFT => ModifierState::AltLeftOn | ModifierState::AltOn,
+        KEYCODE_ALT_RIGHT => ModifierState::AltRightOn | ModifierState::AltOn,
+        KEYCODE_SHIFT_LEFT => ModifierState::ShiftLeftOn | ModifierState::ShiftOn,
+        KEYCODE_SHIFT_RIGHT => ModifierState::ShiftRightOn | ModifierState::ShiftOn,
+        KEYCODE_CTRL_LEFT => ModifierState::CtrlLeftOn | ModifierState::CtrlOn,
+        KEYCODE_CTRL_RIGHT => ModifierState::CtrlRightOn | ModifierState::CtrlOn,
+        KEYCODE_META_LEFT => ModifierState::MetaLeftOn | ModifierState::MetaOn,
+        KEYCODE_META_RIGHT => ModifierState::MetaRightOn | ModifierState::MetaOn,
+        _ => ModifierState::None,
     }
 }
 
 /// Modifier mask including both left and right versions of a modifier key.
-fn get_symmetrical_modifier_key_mask(keycode: i32) -> u32 {
+fn get_symmetrical_modifier_key_mask(keycode: i32) -> ModifierState {
     match keycode {
-        KEYCODE_ALT_LEFT | KEYCODE_ALT_RIGHT => META_ALT_LEFT_ON | META_ALT_RIGHT_ON | META_ALT_ON,
+        KEYCODE_ALT_LEFT | KEYCODE_ALT_RIGHT => {
+            ModifierState::AltLeftOn | ModifierState::AltRightOn | ModifierState::AltOn
+        }
         KEYCODE_SHIFT_LEFT | KEYCODE_SHIFT_RIGHT => {
-            META_SHIFT_LEFT_ON | META_SHIFT_RIGHT_ON | META_SHIFT_ON
+            ModifierState::ShiftLeftOn | ModifierState::ShiftRightOn | ModifierState::ShiftOn
         }
         KEYCODE_CTRL_LEFT | KEYCODE_CTRL_RIGHT => {
-            META_CTRL_LEFT_ON | META_CTRL_RIGHT_ON | META_CTRL_ON
+            ModifierState::CtrlLeftOn | ModifierState::CtrlRightOn | ModifierState::CtrlOn
         }
         KEYCODE_META_LEFT | KEYCODE_META_RIGHT => {
-            META_META_LEFT_ON | META_META_RIGHT_ON | META_META_ON
+            ModifierState::MetaLeftOn | ModifierState::MetaRightOn | ModifierState::MetaOn
         }
-        _ => 0,
+        _ => ModifierState::None,
     }
 }
 
-fn clear_ephemeral_modifier_state(modifier_state: u32) -> u32 {
+fn clear_ephemeral_modifier_state(modifier_state: ModifierState) -> ModifierState {
     modifier_state
-        & !(META_ALT_LEFT_ON
-            | META_ALT_RIGHT_ON
-            | META_ALT_ON
-            | META_SHIFT_LEFT_ON
-            | META_SHIFT_RIGHT_ON
-            | META_SHIFT_ON
-            | META_CTRL_LEFT_ON
-            | META_CTRL_RIGHT_ON
-            | META_CTRL_ON
-            | META_META_LEFT_ON
-            | META_META_RIGHT_ON
-            | META_META_ON)
+        & !(ModifierState::AltLeftOn
+            | ModifierState::AltRightOn
+            | ModifierState::AltOn
+            | ModifierState::ShiftLeftOn
+            | ModifierState::ShiftRightOn
+            | ModifierState::ShiftOn
+            | ModifierState::CtrlLeftOn
+            | ModifierState::CtrlRightOn
+            | ModifierState::CtrlOn
+            | ModifierState::MetaLeftOn
+            | ModifierState::MetaRightOn
+            | ModifierState::MetaOn)
 }
 
 #[cfg(test)]
@@ -237,9 +227,7 @@ mod tests {
         StickyKeysFilter, KEYCODE_ALT_LEFT, KEYCODE_ALT_RIGHT, KEYCODE_CAPS_LOCK,
         KEYCODE_CTRL_LEFT, KEYCODE_CTRL_RIGHT, KEYCODE_FUNCTION, KEYCODE_META_LEFT,
         KEYCODE_META_RIGHT, KEYCODE_NUM_LOCK, KEYCODE_SCROLL_LOCK, KEYCODE_SHIFT_LEFT,
-        KEYCODE_SHIFT_RIGHT, KEYCODE_SYM, META_ALT_LEFT_ON, META_ALT_ON, META_ALT_RIGHT_ON,
-        META_CTRL_LEFT_ON, META_CTRL_ON, META_CTRL_RIGHT_ON, META_META_LEFT_ON, META_META_ON,
-        META_META_RIGHT_ON, META_SHIFT_LEFT_ON, META_SHIFT_ON, META_SHIFT_RIGHT_ON,
+        KEYCODE_SHIFT_RIGHT, KEYCODE_SYM,
     };
     use android_hardware_input_common::aidl::android::hardware::input::common::Source::Source;
     use binder::Strong;
@@ -247,6 +235,7 @@ mod tests {
         DeviceInfo::DeviceInfo, IInputFilter::IInputFilterCallbacks::IInputFilterCallbacks,
         KeyEvent::KeyEvent, KeyEventAction::KeyEventAction,
     };
+    use input::ModifierState;
     use std::sync::{Arc, RwLock};
 
     static DEVICE_ID: i32 = 1;
@@ -347,30 +336,30 @@ mod tests {
             Arc::new(RwLock::new(Strong::new(Box::new(test_callbacks.clone())))),
         );
         let test_states = &[
-            (KEYCODE_ALT_LEFT, META_ALT_ON | META_ALT_LEFT_ON),
-            (KEYCODE_ALT_RIGHT, META_ALT_ON | META_ALT_RIGHT_ON),
-            (KEYCODE_CTRL_LEFT, META_CTRL_ON | META_CTRL_LEFT_ON),
-            (KEYCODE_CTRL_RIGHT, META_CTRL_ON | META_CTRL_RIGHT_ON),
-            (KEYCODE_SHIFT_LEFT, META_SHIFT_ON | META_SHIFT_LEFT_ON),
-            (KEYCODE_SHIFT_RIGHT, META_SHIFT_ON | META_SHIFT_RIGHT_ON),
-            (KEYCODE_META_LEFT, META_META_ON | META_META_LEFT_ON),
-            (KEYCODE_META_RIGHT, META_META_ON | META_META_RIGHT_ON),
+            (KEYCODE_ALT_LEFT, ModifierState::AltOn | ModifierState::AltLeftOn),
+            (KEYCODE_ALT_RIGHT, ModifierState::AltOn | ModifierState::AltRightOn),
+            (KEYCODE_CTRL_LEFT, ModifierState::CtrlOn | ModifierState::CtrlLeftOn),
+            (KEYCODE_CTRL_RIGHT, ModifierState::CtrlOn | ModifierState::CtrlRightOn),
+            (KEYCODE_SHIFT_LEFT, ModifierState::ShiftOn | ModifierState::ShiftLeftOn),
+            (KEYCODE_SHIFT_RIGHT, ModifierState::ShiftOn | ModifierState::ShiftRightOn),
+            (KEYCODE_META_LEFT, ModifierState::MetaOn | ModifierState::MetaLeftOn),
+            (KEYCODE_META_RIGHT, ModifierState::MetaOn | ModifierState::MetaRightOn),
         ];
         for test_state in test_states.iter() {
             test_filter.clear();
             test_callbacks.clear();
             sticky_keys_filter.notify_key(&KeyEvent { keyCode: test_state.0, ..BASE_KEY_DOWN });
-            assert_eq!(test_callbacks.get_last_modifier_state(), 0);
-            assert_eq!(test_callbacks.get_last_locked_modifier_state(), 0);
+            assert_eq!(test_callbacks.get_last_modifier_state(), ModifierState::None);
+            assert_eq!(test_callbacks.get_last_locked_modifier_state(), ModifierState::None);
 
             sticky_keys_filter.notify_key(&KeyEvent { keyCode: test_state.0, ..BASE_KEY_UP });
             assert_eq!(test_callbacks.get_last_modifier_state(), test_state.1);
-            assert_eq!(test_callbacks.get_last_locked_modifier_state(), 0);
+            assert_eq!(test_callbacks.get_last_locked_modifier_state(), ModifierState::None);
 
             // Re-send keys to lock it
             sticky_keys_filter.notify_key(&KeyEvent { keyCode: test_state.0, ..BASE_KEY_DOWN });
             assert_eq!(test_callbacks.get_last_modifier_state(), test_state.1);
-            assert_eq!(test_callbacks.get_last_locked_modifier_state(), 0);
+            assert_eq!(test_callbacks.get_last_locked_modifier_state(), ModifierState::None);
 
             sticky_keys_filter.notify_key(&KeyEvent { keyCode: test_state.0, ..BASE_KEY_UP });
             assert_eq!(test_callbacks.get_last_modifier_state(), test_state.1);
@@ -382,8 +371,8 @@ mod tests {
             assert_eq!(test_callbacks.get_last_locked_modifier_state(), test_state.1);
 
             sticky_keys_filter.notify_key(&KeyEvent { keyCode: test_state.0, ..BASE_KEY_UP });
-            assert_eq!(test_callbacks.get_last_modifier_state(), 0);
-            assert_eq!(test_callbacks.get_last_locked_modifier_state(), 0);
+            assert_eq!(test_callbacks.get_last_modifier_state(), ModifierState::None);
+            assert_eq!(test_callbacks.get_last_locked_modifier_state(), ModifierState::None);
         }
     }
 
@@ -398,14 +387,17 @@ mod tests {
         sticky_keys_filter.notify_key(&KeyEvent { keyCode: KEYCODE_CTRL_LEFT, ..BASE_KEY_DOWN });
         sticky_keys_filter.notify_key(&KeyEvent { keyCode: KEYCODE_CTRL_LEFT, ..BASE_KEY_UP });
 
-        assert_eq!(test_callbacks.get_last_modifier_state(), META_CTRL_LEFT_ON | META_CTRL_ON);
-        assert_eq!(test_callbacks.get_last_locked_modifier_state(), 0);
+        assert_eq!(
+            test_callbacks.get_last_modifier_state(),
+            ModifierState::CtrlLeftOn | ModifierState::CtrlOn
+        );
+        assert_eq!(test_callbacks.get_last_locked_modifier_state(), ModifierState::None);
 
         sticky_keys_filter.notify_key(&KeyEvent { keyCode: KEY_A, ..BASE_KEY_DOWN });
         sticky_keys_filter.notify_key(&KeyEvent { keyCode: KEY_A, ..BASE_KEY_UP });
 
-        assert_eq!(test_callbacks.get_last_modifier_state(), 0);
-        assert_eq!(test_callbacks.get_last_locked_modifier_state(), 0);
+        assert_eq!(test_callbacks.get_last_modifier_state(), ModifierState::None);
+        assert_eq!(test_callbacks.get_last_locked_modifier_state(), ModifierState::None);
     }
 
     #[test]
@@ -427,20 +419,26 @@ mod tests {
 
         assert_eq!(
             test_callbacks.get_last_modifier_state(),
-            META_SHIFT_LEFT_ON | META_SHIFT_ON | META_CTRL_LEFT_ON | META_CTRL_ON
+            ModifierState::ShiftLeftOn
+                | ModifierState::ShiftOn
+                | ModifierState::CtrlLeftOn
+                | ModifierState::CtrlOn
         );
         assert_eq!(
             test_callbacks.get_last_locked_modifier_state(),
-            META_CTRL_LEFT_ON | META_CTRL_ON
+            ModifierState::CtrlLeftOn | ModifierState::CtrlOn
         );
 
         sticky_keys_filter.notify_key(&KeyEvent { keyCode: KEY_A, ..BASE_KEY_DOWN });
         sticky_keys_filter.notify_key(&KeyEvent { keyCode: KEY_A, ..BASE_KEY_UP });
 
-        assert_eq!(test_callbacks.get_last_modifier_state(), META_CTRL_LEFT_ON | META_CTRL_ON);
+        assert_eq!(
+            test_callbacks.get_last_modifier_state(),
+            ModifierState::CtrlLeftOn | ModifierState::CtrlOn
+        );
         assert_eq!(
             test_callbacks.get_last_locked_modifier_state(),
-            META_CTRL_LEFT_ON | META_CTRL_ON
+            ModifierState::CtrlLeftOn | ModifierState::CtrlOn
         );
     }
 
@@ -458,13 +456,13 @@ mod tests {
         sticky_keys_filter.notify_key(&KeyEvent { keyCode: KEY_A, ..BASE_KEY_DOWN });
         assert_eq!(
             test_filter.last_event().unwrap().metaState as u32,
-            META_CTRL_LEFT_ON | META_CTRL_ON
+            (ModifierState::CtrlLeftOn | ModifierState::CtrlOn).bits()
         );
 
         sticky_keys_filter.notify_key(&KeyEvent { keyCode: KEY_A, ..BASE_KEY_UP });
         assert_eq!(
             test_filter.last_event().unwrap().metaState as u32,
-            META_CTRL_LEFT_ON | META_CTRL_ON
+            (ModifierState::CtrlLeftOn | ModifierState::CtrlOn).bits()
         );
     }
 
@@ -499,15 +497,18 @@ mod tests {
         });
 
         sticky_keys_filter.notify_devices_changed(&[DeviceInfo { deviceId: 2, external: true }]);
-        assert_eq!(test_callbacks.get_last_modifier_state(), META_CTRL_LEFT_ON | META_CTRL_ON);
+        assert_eq!(
+            test_callbacks.get_last_modifier_state(),
+            ModifierState::CtrlLeftOn | ModifierState::CtrlOn
+        );
         assert_eq!(
             test_callbacks.get_last_locked_modifier_state(),
-            META_CTRL_LEFT_ON | META_CTRL_ON
+            ModifierState::CtrlLeftOn | ModifierState::CtrlOn
         );
 
         sticky_keys_filter.notify_devices_changed(&[]);
-        assert_eq!(test_callbacks.get_last_modifier_state(), 0);
-        assert_eq!(test_callbacks.get_last_locked_modifier_state(), 0);
+        assert_eq!(test_callbacks.get_last_modifier_state(), ModifierState::None);
+        assert_eq!(test_callbacks.get_last_locked_modifier_state(), ModifierState::None);
     }
 
     fn setup_filter(
