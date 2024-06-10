@@ -30,6 +30,8 @@
 #include <gtest/gtest.h>
 #include <input/Input.h>
 #include <perfetto/trace/android/android_input_event.pbzero.h>
+#include <perfetto/trace/android/winscope_extensions.pbzero.h>
+#include <perfetto/trace/android/winscope_extensions_impl.pbzero.h>
 #include <perfetto/trace/trace.pbzero.h>
 #include <private/android_filesystem_config.h>
 #include <map>
