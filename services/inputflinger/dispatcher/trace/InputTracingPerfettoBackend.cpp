@@ -23,8 +23,6 @@
 #include <android-base/logging.h>
 #include <binder/IServiceManager.h>
 #include <perfetto/trace/android/android_input_event.pbzero.h>
-#include <perfetto/trace/android/winscope_extensions.pbzero.h>
-#include <perfetto/trace/android/winscope_extensions_impl.pbzero.h>
 #include <private/android_filesystem_config.h>
 #include <utils/String16.h>
 
@@ -231,9 +229,7 @@ void PerfettoBackend::traceMotionEvent(const TracedMotionEvent& event,
         }
         const bool isRedacted = traceLevel == TraceLevel::TRACE_LEVEL_REDACTED;
         auto tracePacket = ctx.NewTracePacket();
-        auto* winscopeExtensions = static_cast<perfetto::protos::pbzero::WinscopeExtensionsImpl*>(
-                tracePacket->set_winscope_extensions());
-        auto* inputEvent = winscopeExtensions->set_android_input_event();
+        auto* inputEvent = tracePacket->set_android_input_event();
         auto* dispatchMotion = isRedacted ? inputEvent->set_dispatcher_motion_event_redacted()
                                           : inputEvent->set_dispatcher_motion_event();
         AndroidInputEventProtoConverter::toProtoMotionEvent(event, *dispatchMotion, isRedacted);
@@ -257,9 +253,7 @@ void PerfettoBackend::traceKeyEvent(const TracedKeyEvent& event,
         }
         const bool isRedacted = traceLevel == TraceLevel::TRACE_LEVEL_REDACTED;
         auto tracePacket = ctx.NewTracePacket();
-        auto* winscopeExtensions = static_cast<perfetto::protos::pbzero::WinscopeExtensionsImpl*>(
-                tracePacket->set_winscope_extensions());
-        auto* inputEvent = winscopeExtensions->set_android_input_event();
+        auto* inputEvent = tracePacket->set_android_input_event();
         auto* dispatchKey = isRedacted ? inputEvent->set_dispatcher_key_event_redacted()
                                        : inputEvent->set_dispatcher_key_event();
         AndroidInputEventProtoConverter::toProtoKeyEvent(event, *dispatchKey, isRedacted);
@@ -283,9 +277,7 @@ void PerfettoBackend::traceWindowDispatch(const WindowDispatchArgs& dispatchArgs
         }
         const bool isRedacted = traceLevel == TraceLevel::TRACE_LEVEL_REDACTED;
         auto tracePacket = ctx.NewTracePacket();
-        auto* winscopeExtensions = static_cast<perfetto::protos::pbzero::WinscopeExtensionsImpl*>(
-                tracePacket->set_winscope_extensions());
-        auto* inputEvent = winscopeExtensions->set_android_input_event();
+        auto* inputEvent = tracePacket->set_android_input_event();
         auto* dispatchEvent = isRedacted
                 ? inputEvent->set_dispatcher_window_dispatch_event_redacted()
                 : inputEvent->set_dispatcher_window_dispatch_event();

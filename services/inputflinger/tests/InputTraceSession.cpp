@@ -20,9 +20,6 @@
 #include <android-base/logging.h>
 #include <gtest/gtest.h>
 #include <input/PrintTools.h>
-#include <perfetto/trace/android/android_input_event.pbzero.h>
-#include <perfetto/trace/android/winscope_extensions.pbzero.h>
-#include <perfetto/trace/android/winscope_extensions_impl.pbzero.h>
 
 #include <utility>
 
@@ -33,8 +30,6 @@ using perfetto::protos::pbzero::AndroidInputEventConfig;
 using perfetto::protos::pbzero::AndroidKeyEvent;
 using perfetto::protos::pbzero::AndroidMotionEvent;
 using perfetto::protos::pbzero::AndroidWindowInputDispatchEvent;
-using perfetto::protos::pbzero::WinscopeExtensions;
-using perfetto::protos::pbzero::WinscopeExtensionsImpl;
 
 // These operator<< definitions must be in the global namespace for them to be accessible to the
 // GTEST library. They cannot be in the anonymous namespace.
@@ -90,45 +85,38 @@ auto decodeTrace(const std::string& rawTrace) {
 
     Trace::Decoder trace{rawTrace};
     if (trace.has_packet()) {
-        for (auto it = trace.packet(); it; it++) {
+        auto it = trace.packet();
+        while (it) {
             TracePacket::Decoder packet{it->as_bytes()};
-            if (!packet.has_winscope_extensions()) {
-                continue;
+            if (packet.has_android_input_event()) {
+                AndroidInputEvent::Decoder event{packet.android_input_event()};
+                if (event.has_dispatcher_motion_event()) {
+                    tracedMotions.emplace_back(event.dispatcher_motion_event(),
+                                               /*redacted=*/false);
+                }
+                if (event.has_dispatcher_motion_event_redacted()) {
+                    tracedMotions.emplace_back(event.dispatcher_motion_event_redacted(),
+                                               /*redacted=*/true);
+                }
+                if (event.has_dispatcher_key_event()) {
+                    tracedKeys.emplace_back(event.dispatcher_key_event(),
+                                            /*redacted=*/false);
+                }
+                if (event.has_dispatcher_key_event_redacted()) {
+                    tracedKeys.emplace_back(event.dispatcher_key_event_redacted(),
+                                            /*redacted=*/true);
+                }
+                if (event.has_dispatcher_window_dispatch_event()) {
+                    tracedWindowDispatches.emplace_back(event.dispatcher_window_dispatch_event(),
+                                                        /*redacted=*/false);
+                }
+                if (event.has_dispatcher_window_dispatch_event_redacted()) {
+                    tracedWindowDispatches
+                            .emplace_back(event.dispatcher_window_dispatch_event_redacted(),
+                                          /*redacted=*/true);
+                }
             }
-
-            WinscopeExtensions::Decoder extensions{packet.winscope_extensions()};
-            const auto& field =
-                    extensions.Get(WinscopeExtensionsImpl::kAndroidInputEventFieldNumber);
-            if (!field.valid()) {
-                continue;
-            }
-
-            AndroidInputEvent::Decoder event{field.as_bytes()};
-            if (event.has_dispatcher_motion_event()) {
-                tracedMotions.emplace_back(event.dispatcher_motion_event(),
-                                           /*redacted=*/false);
-            }
-            if (event.has_dispatcher_motion_event_redacted()) {
-                tracedMotions.emplace_back(event.dispatcher_motion_event_redacted(),
-                                           /*redacted=*/true);
-            }
-            if (event.has_dispatcher_key_event()) {
-                tracedKeys.emplace_back(event.dispatcher_key_event(),
-                                        /*redacted=*/false);
-            }
-            if (event.has_dispatcher_key_event_redacted()) {
-                tracedKeys.emplace_back(event.dispatcher_key_event_redacted(),
-                                        /*redacted=*/true);
-            }
-            if (event.has_dispatcher_window_dispatch_event()) {
-                tracedWindowDispatches.emplace_back(event.dispatcher_window_dispatch_event(),
-                                                    /*redacted=*/false);
-            }
-            if (event.has_dispatcher_window_dispatch_event_redacted()) {
-                tracedWindowDispatches
-                        .emplace_back(event.dispatcher_window_dispatch_event_redacted(),
-                                      /*redacted=*/true);
-            }
+            it++;
         }
     }
     return std::tuple{std::move(tracedMotions), std::move(tracedKeys),
