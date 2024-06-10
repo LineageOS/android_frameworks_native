@@ -31,6 +31,7 @@ use crate::bounce_keys_filter::BounceKeysFilter;
 use crate::input_filter_thread::InputFilterThread;
 use crate::slow_keys_filter::SlowKeysFilter;
 use crate::sticky_keys_filter::StickyKeysFilter;
+use input::ModifierState;
 use log::{error, info};
 use std::sync::{Arc, Mutex, RwLock};
 
@@ -169,12 +170,15 @@ impl ModifierStateListener {
         Self(callbacks)
     }
 
-    pub fn modifier_state_changed(&self, modifier_state: u32, locked_modifier_state: u32) {
-        let _ = self
-            .0
-            .read()
-            .unwrap()
-            .onModifierStateChanged(modifier_state as i32, locked_modifier_state as i32);
+    pub fn modifier_state_changed(
+        &self,
+        modifier_state: ModifierState,
+        locked_modifier_state: ModifierState,
+    ) {
+        let _ = self.0.read().unwrap().onModifierStateChanged(
+            modifier_state.bits() as i32,
+            locked_modifier_state.bits() as i32,
+        );
     }
 }
 
@@ -396,14 +400,15 @@ pub mod test_callbacks {
         IInputThread::{BnInputThread, IInputThread, IInputThreadCallback::IInputThreadCallback},
         KeyEvent::KeyEvent,
     };
+    use input::ModifierState;
     use nix::{sys::time::TimeValLike, time::clock_gettime, time::ClockId};
     use std::sync::{atomic::AtomicBool, atomic::Ordering, Arc, RwLock, RwLockWriteGuard};
     use std::time::Duration;
 
     #[derive(Default)]
     struct TestCallbacksInner {
-        last_modifier_state: u32,
-        last_locked_modifier_state: u32,
+        last_modifier_state: ModifierState,
+        last_locked_modifier_state: ModifierState,
         last_event: Option<KeyEvent>,
         test_thread: Option<FakeCppThread>,
     }
@@ -428,15 +433,15 @@ pub mod test_callbacks {
 
         pub fn clear(&mut self) {
             self.inner().last_event = None;
-            self.inner().last_modifier_state = 0;
-            self.inner().last_locked_modifier_state = 0;
+            self.inner().last_modifier_state = ModifierState::None;
+            self.inner().last_locked_modifier_state = ModifierState::None;
         }
 
-        pub fn get_last_modifier_state(&self) -> u32 {
+        pub fn get_last_modifier_state(&self) -> ModifierState {
             self.0.read().unwrap().last_modifier_state
         }
 
-        pub fn get_last_locked_modifier_state(&self) -> u32 {
+        pub fn get_last_locked_modifier_state(&self) -> ModifierState {
             self.0.read().unwrap().last_locked_modifier_state
         }
 
@@ -459,8 +464,10 @@ pub mod test_callbacks {
             modifier_state: i32,
             locked_modifier_state: i32,
         ) -> std::result::Result<(), binder::Status> {
-            self.inner().last_modifier_state = modifier_state as u32;
-            self.inner().last_locked_modifier_state = locked_modifier_state as u32;
+            self.inner().last_modifier_state =
+                ModifierState::from_bits(modifier_state as u32).unwrap();
+            self.inner().last_locked_modifier_state =
+                ModifierState::from_bits(locked_modifier_state as u32).unwrap();
             Result::Ok(())
         }
 
