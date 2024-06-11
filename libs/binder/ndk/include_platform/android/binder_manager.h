@@ -30,7 +30,11 @@ enum AServiceManager_AddServiceFlag : uint32_t {
      * Services with methods that perform file IO, web socket creation or ways to egress data must
      * not be added with this flag for privacy concerns.
      */
-    ADD_SERVICE_ALLOW_ISOLATED = 1,
+    ADD_SERVICE_ALLOW_ISOLATED = 1 << 0,
+    ADD_SERVICE_DUMP_FLAG_PRIORITY_CRITICAL = 1 << 1,
+    ADD_SERVICE_DUMP_FLAG_PRIORITY_HIGH = 1 << 2,
+    ADD_SERVICE_DUMP_FLAG_PRIORITY_NORMAL = 1 << 3,
+    ADD_SERVICE_DUMP_FLAG_PRIORITY_DEFAULT = 1 << 4,
 };
 
 /**
