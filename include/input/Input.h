@@ -488,8 +488,6 @@ struct PointerCoords {
     // axes, however the window scaling will not.
     void scale(float globalScale, float windowXScale, float windowYScale);
 
-    void transform(const ui::Transform& transform, int32_t motionEventFlags);
-
     inline float getX() const {
         return getAxisValue(AMOTION_EVENT_AXIS_X);
     }
@@ -958,6 +956,8 @@ public:
     static vec2 calculateTransformedXY(uint32_t source, const ui::Transform&, const vec2& xy);
     static float calculateTransformedAxisValue(int32_t axis, uint32_t source, int32_t flags,
                                                const ui::Transform&, const PointerCoords&);
+    static void calculateTransformedCoordsInPlace(PointerCoords& coords, uint32_t source,
+                                                  int32_t flags, const ui::Transform&);
     static PointerCoords calculateTransformedCoords(uint32_t source, int32_t flags,
                                                     const ui::Transform&, const PointerCoords&);
     // The rounding precision for transformed motion events.

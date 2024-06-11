@@ -548,26 +548,6 @@ bool PointerCoords::operator==(const PointerCoords& other) const {
     return true;
 }
 
-void PointerCoords::transform(const ui::Transform& transform, int32_t motionEventFlags) {
-    const vec2 xy = transform.transform(getXYValue());
-    setAxisValue(AMOTION_EVENT_AXIS_X, xy.x);
-    setAxisValue(AMOTION_EVENT_AXIS_Y, xy.y);
-
-    if (BitSet64::hasBit(bits, AMOTION_EVENT_AXIS_RELATIVE_X) ||
-        BitSet64::hasBit(bits, AMOTION_EVENT_AXIS_RELATIVE_Y)) {
-        const ui::Transform rotation(transform.getOrientation());
-        const vec2 relativeXy = rotation.transform(getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X),
-                                                   getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y));
-        setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, relativeXy.x);
-        setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, relativeXy.y);
-    }
-
-    if ((motionEventFlags & AMOTION_EVENT_PRIVATE_FLAG_SUPPORTS_ORIENTATION) != 0) {
-        setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION,
-                     transformOrientation(transform, *this, motionEventFlags));
-    }
-}
-
 // --- MotionEvent ---
 
 void MotionEvent::initialize(int32_t id, int32_t deviceId, uint32_t source,
@@ -804,8 +784,9 @@ void MotionEvent::applyTransform(const std::array<float, 9>& matrix) {
     transform.set(matrix);
 
     // Apply the transformation to all samples.
-    std::for_each(mSamplePointerCoords.begin(), mSamplePointerCoords.end(),
-                  [&](PointerCoords& c) { c.transform(transform, mFlags); });
+    std::for_each(mSamplePointerCoords.begin(), mSamplePointerCoords.end(), [&](PointerCoords& c) {
+        calculateTransformedCoordsInPlace(c, mSource, mFlags, transform);
+    });
 
     if (mRawXCursorPosition != AMOTION_EVENT_INVALID_CURSOR_POSITION &&
         mRawYCursorPosition != AMOTION_EVENT_INVALID_CURSOR_POSITION) {
@@ -1107,28 +1088,32 @@ float MotionEvent::calculateTransformedAxisValue(int32_t axis, uint32_t source, 
 
 // Keep in sync with calculateTransformedAxisValue. This is an optimization of
 // calculateTransformedAxisValue for all PointerCoords axes.
-PointerCoords MotionEvent::calculateTransformedCoords(uint32_t source, int32_t flags,
-                                                      const ui::Transform& transform,
-                                                      const PointerCoords& coords) {
+void MotionEvent::calculateTransformedCoordsInPlace(PointerCoords& coords, uint32_t source,
+                                                    int32_t flags, const ui::Transform& transform) {
     if (shouldDisregardTransformation(source)) {
-        return coords;
+        return;
     }
-    PointerCoords out = coords;
 
     const vec2 xy = calculateTransformedXYUnchecked(source, transform, coords.getXYValue());
-    out.setAxisValue(AMOTION_EVENT_AXIS_X, xy.x);
-    out.setAxisValue(AMOTION_EVENT_AXIS_Y, xy.y);
+    coords.setAxisValue(AMOTION_EVENT_AXIS_X, xy.x);
+    coords.setAxisValue(AMOTION_EVENT_AXIS_Y, xy.y);
 
     const vec2 relativeXy =
             transformWithoutTranslation(transform,
                                         {coords.getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X),
                                          coords.getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y)});
-    out.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, relativeXy.x);
-    out.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, relativeXy.y);
+    coords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, relativeXy.x);
+    coords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, relativeXy.y);
 
-    out.setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION,
-                     transformOrientation(transform, coords, flags));
+    coords.setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION,
+                        transformOrientation(transform, coords, flags));
+}
 
+PointerCoords MotionEvent::calculateTransformedCoords(uint32_t source, int32_t flags,
+                                                      const ui::Transform& transform,
+                                                      const PointerCoords& coords) {
+    PointerCoords out = coords;
+    calculateTransformedCoordsInPlace(out, source, flags, transform);
     return out;
 }
 
