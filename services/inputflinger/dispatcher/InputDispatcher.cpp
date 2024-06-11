@@ -1894,8 +1894,6 @@ bool InputDispatcher::dispatchKeyLocked(nsecs_t currentTime, std::shared_ptr<con
                 doInterceptKeyBeforeDispatchingCommand(focusedWindowToken, *entry);
             };
             postCommandLocked(std::move(command));
-            // Poke user activity for keys not passed to user
-            pokeUserActivityLocked(*entry);
             return false; // wait for the command to run
         } else {
             entry->interceptKeyResult = KeyEntry::InterceptKeyResult::CONTINUE;
@@ -1912,8 +1910,12 @@ bool InputDispatcher::dispatchKeyLocked(nsecs_t currentTime, std::shared_ptr<con
                            *dropReason == DropReason::POLICY ? InputEventInjectionResult::SUCCEEDED
                                                              : InputEventInjectionResult::FAILED);
         mReporter->reportDroppedKey(entry->id);
-        // Poke user activity for undispatched keys
-        pokeUserActivityLocked(*entry);
+        // Poke user activity for consumed keys, as it may have not been reported due to
+        // the focused window requesting user activity to be disabled
+        if (*dropReason == DropReason::POLICY &&
+            mPendingEvent->policyFlags & POLICY_FLAG_PASS_TO_USER) {
+            pokeUserActivityLocked(*entry);
+        }
         return true;
     }
 
@@ -3313,22 +3315,16 @@ void InputDispatcher::pokeUserActivityLocked(const EventEntry& eventEntry) {
             if (keyEntry.flags & AKEY_EVENT_FLAG_CANCELED) {
                 return;
             }
-            // If the key code is unknown, we don't consider it user activity
-            if (keyEntry.keyCode == AKEYCODE_UNKNOWN) {
-                return;
-            }
             // Don't inhibit events that were intercepted or are not passed to
             // the apps, like system shortcuts
             if (windowDisablingUserActivityInfo != nullptr &&
-                keyEntry.interceptKeyResult != KeyEntry::InterceptKeyResult::SKIP &&
-                keyEntry.policyFlags & POLICY_FLAG_PASS_TO_USER) {
+                keyEntry.interceptKeyResult != KeyEntry::InterceptKeyResult::SKIP) {
                 if (DEBUG_DISPATCH_CYCLE) {
                     ALOGD("Not poking user activity: disabled by window '%s'.",
                           windowDisablingUserActivityInfo->name.c_str());
                 }
                 return;
             }
-
             break;
         }
         default: {

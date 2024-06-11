@@ -610,28 +610,6 @@ static NotifyKeyArgs generateKeyArgs(
     return args;
 }
 
-static NotifyKeyArgs generateSystemShortcutArgs(
-        int32_t action, ui::LogicalDisplayId displayId = ui::LogicalDisplayId::INVALID) {
-    nsecs_t currentTime = systemTime(SYSTEM_TIME_MONOTONIC);
-    // Define a valid key event.
-    NotifyKeyArgs args(InputEvent::nextId(), currentTime, /*readTime=*/0, DEVICE_ID,
-                       AINPUT_SOURCE_KEYBOARD, displayId, 0, action, /*flags=*/0, AKEYCODE_C, KEY_C,
-                       AMETA_META_ON, currentTime);
-
-    return args;
-}
-
-static NotifyKeyArgs generateAssistantKeyArgs(
-        int32_t action, ui::LogicalDisplayId displayId = ui::LogicalDisplayId::INVALID) {
-    nsecs_t currentTime = systemTime(SYSTEM_TIME_MONOTONIC);
-    // Define a valid key event.
-    NotifyKeyArgs args(InputEvent::nextId(), currentTime, /*readTime=*/0, DEVICE_ID,
-                       AINPUT_SOURCE_KEYBOARD, displayId, 0, action, /*flags=*/0, AKEYCODE_ASSIST,
-                       KEY_ASSISTANT, AMETA_NONE, currentTime);
-
-    return args;
-}
-
 [[nodiscard]] static NotifyMotionArgs generateMotionArgs(int32_t action, int32_t source,
                                                          ui::LogicalDisplayId displayId,
                                                          const std::vector<PointF>& points) {
@@ -6628,17 +6606,18 @@ TEST_F(InputDispatcherTest, FocusedWindow_DisableUserActivity) {
 
     window->consumeFocusEvent(true);
 
-    mDispatcher->notifyKey(generateKeyArgs(AKEY_EVENT_ACTION_DOWN, ui::LogicalDisplayId::DEFAULT));
+    mDispatcher->notifyKey(
+            KeyArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_KEYBOARD).keyCode(AKEYCODE_A).build());
 
     // Window should receive key down event.
     window->consumeKeyDown(ui::LogicalDisplayId::DEFAULT);
 
-    // Should have poked user activity
+    // Should have not poked user activity
     mDispatcher->waitForIdle();
     mFakePolicy->assertUserActivityNotPoked();
 }
 
-TEST_F(InputDispatcherTest, FocusedWindow_DoesNotReceiveSystemShortcut) {
+TEST_F(InputDispatcherTest, FocusedWindow_DoesNotReceivePolicyConsumedKey) {
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
     sp<FakeWindowHandle> window =
             sp<FakeWindowHandle>::make(application, mDispatcher, "Fake Window",
@@ -6650,41 +6629,20 @@ TEST_F(InputDispatcherTest, FocusedWindow_DoesNotReceiveSystemShortcut) {
 
     window->consumeFocusEvent(true);
 
+    mFakePolicy->setConsumeKeyBeforeDispatching(true);
+
     mDispatcher->notifyKey(
-            generateSystemShortcutArgs(AKEY_EVENT_ACTION_DOWN, ui::LogicalDisplayId::DEFAULT));
+            KeyArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_KEYBOARD).keyCode(AKEYCODE_A).build());
     mDispatcher->waitForIdle();
 
-    // System key is not passed down
+    // Key is not passed down
     window->assertNoEvents();
 
     // Should have poked user activity
     mFakePolicy->assertUserActivityPoked();
 }
 
-TEST_F(InputDispatcherTest, FocusedWindow_DoesNotReceiveAssistantKey) {
-    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
-    sp<FakeWindowHandle> window =
-            sp<FakeWindowHandle>::make(application, mDispatcher, "Fake Window",
-                                       ui::LogicalDisplayId::DEFAULT);
-
-    window->setFocusable(true);
-    mDispatcher->onWindowInfosChanged({{*window->getInfo()}, {}, 0, 0});
-    setFocusedWindow(window);
-
-    window->consumeFocusEvent(true);
-
-    mDispatcher->notifyKey(
-            generateAssistantKeyArgs(AKEY_EVENT_ACTION_DOWN, ui::LogicalDisplayId::DEFAULT));
-    mDispatcher->waitForIdle();
-
-    // System key is not passed down
-    window->assertNoEvents();
-
-    // Should have poked user activity
-    mFakePolicy->assertUserActivityPoked();
-}
-
-TEST_F(InputDispatcherTest, FocusedWindow_SystemKeyIgnoresDisableUserActivity) {
+TEST_F(InputDispatcherTest, FocusedWindow_PolicyConsumedKeyIgnoresDisableUserActivity) {
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
     sp<FakeWindowHandle> window =
             sp<FakeWindowHandle>::make(application, mDispatcher, "Fake Window",
@@ -6697,8 +6655,10 @@ TEST_F(InputDispatcherTest, FocusedWindow_SystemKeyIgnoresDisableUserActivity) {
 
     window->consumeFocusEvent(true);
 
+    mFakePolicy->setConsumeKeyBeforeDispatching(true);
+
     mDispatcher->notifyKey(
-            generateSystemShortcutArgs(AKEY_EVENT_ACTION_DOWN, ui::LogicalDisplayId::DEFAULT));
+            KeyArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_KEYBOARD).keyCode(AKEYCODE_A).build());
     mDispatcher->waitForIdle();
 
     // System key is not passed down
@@ -6707,6 +6667,39 @@ TEST_F(InputDispatcherTest, FocusedWindow_SystemKeyIgnoresDisableUserActivity) {
     // Should have poked user activity
     mFakePolicy->assertUserActivityPoked();
 }
+
+class DisableUserActivityInputDispatcherTest : public InputDispatcherTest,
+                                               public ::testing::WithParamInterface<bool> {};
+
+TEST_P(DisableUserActivityInputDispatcherTest, NotPassedToUserUserActivity) {
+    std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
+    sp<FakeWindowHandle> window =
+            sp<FakeWindowHandle>::make(application, mDispatcher, "Fake Window",
+                                       ui::LogicalDisplayId::DEFAULT);
+
+    window->setDisableUserActivity(GetParam());
+
+    window->setFocusable(true);
+    mDispatcher->onWindowInfosChanged({{*window->getInfo()}, {}, 0, 0});
+    setFocusedWindow(window);
+
+    window->consumeFocusEvent(true);
+
+    mDispatcher->notifyKey(KeyArgsBuilder(ACTION_DOWN, AINPUT_SOURCE_KEYBOARD)
+                                   .keyCode(AKEYCODE_A)
+                                   .policyFlags(0)
+                                   .build());
+    mDispatcher->waitForIdle();
+
+    // Key is not passed down
+    window->assertNoEvents();
+
+    // Should not have poked user activity
+    mFakePolicy->assertUserActivityNotPoked();
+}
+
+INSTANTIATE_TEST_CASE_P(DisableUserActivity, DisableUserActivityInputDispatcherTest,
+                        ::testing::Bool());
 
 TEST_F(InputDispatcherTest, InjectedTouchesPokeUserActivity) {
     std::shared_ptr<FakeApplicationHandle> application = std::make_shared<FakeApplicationHandle>();
