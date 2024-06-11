@@ -79,14 +79,26 @@ TEST(Expected, ValueOpt) {
 
 namespace {
 
-IntExp increment(IntExp exp) {
+IntExp increment_try(IntExp exp) {
   const int i = FTL_TRY(exp);
   return IntExp(i + 1);
 }
 
-StringExp repeat(StringExp exp) {
+std::errc increment_expect(IntExp exp, int& out) {
+  const int i = FTL_EXPECT(exp);
+  out = i + 1;
+  return std::errc::operation_in_progress;
+}
+
+StringExp repeat_try(StringExp exp) {
   const std::string str = FTL_TRY(exp);
   return StringExp(str + str);
+}
+
+std::errc repeat_expect(StringExp exp, std::string& out) {
+  const std::string str = FTL_EXPECT(exp);
+  out = str + str;
+  return std::errc::operation_in_progress;
 }
 
 void uppercase(char& c, ftl::Optional<char> opt) {
@@ -97,13 +109,13 @@ void uppercase(char& c, ftl::Optional<char> opt) {
 
 // Keep in sync with example usage in header file.
 TEST(Expected, Try) {
-  EXPECT_EQ(IntExp(100), increment(IntExp(99)));
-  EXPECT_TRUE(repeat(ftl::Unexpected(std::errc::value_too_large)).has_error([](std::errc e) {
+  EXPECT_EQ(IntExp(100), increment_try(IntExp(99)));
+  EXPECT_TRUE(increment_try(ftl::Unexpected(std::errc::value_too_large)).has_error([](std::errc e) {
     return e == std::errc::value_too_large;
   }));
 
-  EXPECT_EQ(StringExp("haha"s), repeat(StringExp("ha"s)));
-  EXPECT_TRUE(repeat(ftl::Unexpected(std::errc::bad_message)).has_error([](std::errc e) {
+  EXPECT_EQ(StringExp("haha"s), repeat_try(StringExp("ha"s)));
+  EXPECT_TRUE(repeat_try(ftl::Unexpected(std::errc::bad_message)).has_error([](std::errc e) {
     return e == std::errc::bad_message;
   }));
 
@@ -113,6 +125,21 @@ TEST(Expected, Try) {
 
   uppercase(c, 'a');
   EXPECT_EQ(c, 'A');
+}
+
+TEST(Expected, Expect) {
+  int i = 0;
+  EXPECT_EQ(std::errc::operation_in_progress, increment_expect(IntExp(99), i));
+  EXPECT_EQ(100, i);
+  EXPECT_EQ(std::errc::value_too_large,
+            increment_expect(ftl::Unexpected(std::errc::value_too_large), i));
+  EXPECT_EQ(100, i);
+
+  std::string str;
+  EXPECT_EQ(std::errc::operation_in_progress, repeat_expect(StringExp("ha"s), str));
+  EXPECT_EQ("haha"s, str);
+  EXPECT_EQ(std::errc::bad_message, repeat_expect(ftl::Unexpected(std::errc::bad_message), str));
+  EXPECT_EQ("haha"s, str);
 }
 
 }  // namespace android::test

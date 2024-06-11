@@ -96,6 +96,19 @@ int32_t resolveActionForSplitMotionEvent(
     return AMOTION_EVENT_ACTION_DOWN;
 }
 
+float transformOrientation(const ui::Transform& transform, const PointerCoords& coords,
+                           int32_t motionEventFlags) {
+    if ((motionEventFlags & AMOTION_EVENT_PRIVATE_FLAG_SUPPORTS_ORIENTATION) == 0) {
+        return 0;
+    }
+
+    const bool isDirectionalAngle =
+            (motionEventFlags & AMOTION_EVENT_PRIVATE_FLAG_SUPPORTS_DIRECTIONAL_ORIENTATION) != 0;
+
+    return transformAngle(transform, coords.getAxisValue(AMOTION_EVENT_AXIS_ORIENTATION),
+                          isDirectionalAngle);
+}
+
 } // namespace
 
 const char* motionClassificationToString(MotionClassification classification) {
@@ -187,7 +200,7 @@ vec2 transformWithoutTranslation(const ui::Transform& transform, const vec2& xy)
     return roundTransformedCoords(transformedXy - transformedOrigin);
 }
 
-float transformAngle(const ui::Transform& transform, float angleRadians) {
+float transformAngle(const ui::Transform& transform, float angleRadians, bool isDirectional) {
     // Construct and transform a vector oriented at the specified clockwise angle from vertical.
     // Coordinate system: down is increasing Y, right is increasing X.
     float x = sinf(angleRadians);
@@ -200,6 +213,11 @@ float transformAngle(const ui::Transform& transform, float angleRadians) {
 
     transformedPoint.x -= origin.x;
     transformedPoint.y -= origin.y;
+
+    if (!isDirectional && transformedPoint.y > 0) {
+        // Limit the range of atan2f to [-pi/2, pi/2] by reversing the direction of the vector.
+        transformedPoint *= -1;
+    }
 
     // Derive the transformed vector's clockwise angle from vertical.
     // The return value of atan2f is in range [-pi, pi] which conforms to the orientation API.
@@ -530,26 +548,6 @@ bool PointerCoords::operator==(const PointerCoords& other) const {
     return true;
 }
 
-void PointerCoords::transform(const ui::Transform& transform) {
-    const vec2 xy = transform.transform(getXYValue());
-    setAxisValue(AMOTION_EVENT_AXIS_X, xy.x);
-    setAxisValue(AMOTION_EVENT_AXIS_Y, xy.y);
-
-    if (BitSet64::hasBit(bits, AMOTION_EVENT_AXIS_RELATIVE_X) ||
-        BitSet64::hasBit(bits, AMOTION_EVENT_AXIS_RELATIVE_Y)) {
-        const ui::Transform rotation(transform.getOrientation());
-        const vec2 relativeXy = rotation.transform(getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X),
-                                                   getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y));
-        setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, relativeXy.x);
-        setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, relativeXy.y);
-    }
-
-    if (BitSet64::hasBit(bits, AMOTION_EVENT_AXIS_ORIENTATION)) {
-        const float val = getAxisValue(AMOTION_EVENT_AXIS_ORIENTATION);
-        setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION, transformAngle(transform, val));
-    }
-}
-
 // --- MotionEvent ---
 
 void MotionEvent::initialize(int32_t id, int32_t deviceId, uint32_t source,
@@ -723,13 +721,13 @@ const PointerCoords* MotionEvent::getHistoricalRawPointerCoords(
 float MotionEvent::getHistoricalRawAxisValue(int32_t axis, size_t pointerIndex,
                                              size_t historicalIndex) const {
     const PointerCoords& coords = *getHistoricalRawPointerCoords(pointerIndex, historicalIndex);
-    return calculateTransformedAxisValue(axis, mSource, mRawTransform, coords);
+    return calculateTransformedAxisValue(axis, mSource, mFlags, mRawTransform, coords);
 }
 
 float MotionEvent::getHistoricalAxisValue(int32_t axis, size_t pointerIndex,
                                           size_t historicalIndex) const {
     const PointerCoords& coords = *getHistoricalRawPointerCoords(pointerIndex, historicalIndex);
-    return calculateTransformedAxisValue(axis, mSource, mTransform, coords);
+    return calculateTransformedAxisValue(axis, mSource, mFlags, mTransform, coords);
 }
 
 ssize_t MotionEvent::findPointerIndex(int32_t pointerId) const {
@@ -786,8 +784,9 @@ void MotionEvent::applyTransform(const std::array<float, 9>& matrix) {
     transform.set(matrix);
 
     // Apply the transformation to all samples.
-    std::for_each(mSamplePointerCoords.begin(), mSamplePointerCoords.end(),
-                  [&transform](PointerCoords& c) { c.transform(transform); });
+    std::for_each(mSamplePointerCoords.begin(), mSamplePointerCoords.end(), [&](PointerCoords& c) {
+        calculateTransformedCoordsInPlace(c, mSource, mFlags, transform);
+    });
 
     if (mRawXCursorPosition != AMOTION_EVENT_INVALID_CURSOR_POSITION &&
         mRawYCursorPosition != AMOTION_EVENT_INVALID_CURSOR_POSITION) {
@@ -1059,7 +1058,7 @@ vec2 MotionEvent::calculateTransformedXY(uint32_t source, const ui::Transform& t
 }
 
 // Keep in sync with calculateTransformedCoords.
-float MotionEvent::calculateTransformedAxisValue(int32_t axis, uint32_t source,
+float MotionEvent::calculateTransformedAxisValue(int32_t axis, uint32_t source, int32_t flags,
                                                  const ui::Transform& transform,
                                                  const PointerCoords& coords) {
     if (shouldDisregardTransformation(source)) {
@@ -1081,7 +1080,7 @@ float MotionEvent::calculateTransformedAxisValue(int32_t axis, uint32_t source,
     }
 
     if (axis == AMOTION_EVENT_AXIS_ORIENTATION) {
-        return transformAngle(transform, coords.getAxisValue(AMOTION_EVENT_AXIS_ORIENTATION));
+        return transformOrientation(transform, coords, flags);
     }
 
     return coords.getAxisValue(axis);
@@ -1089,29 +1088,32 @@ float MotionEvent::calculateTransformedAxisValue(int32_t axis, uint32_t source,
 
 // Keep in sync with calculateTransformedAxisValue. This is an optimization of
 // calculateTransformedAxisValue for all PointerCoords axes.
-PointerCoords MotionEvent::calculateTransformedCoords(uint32_t source,
-                                                      const ui::Transform& transform,
-                                                      const PointerCoords& coords) {
+void MotionEvent::calculateTransformedCoordsInPlace(PointerCoords& coords, uint32_t source,
+                                                    int32_t flags, const ui::Transform& transform) {
     if (shouldDisregardTransformation(source)) {
-        return coords;
+        return;
     }
-    PointerCoords out = coords;
 
     const vec2 xy = calculateTransformedXYUnchecked(source, transform, coords.getXYValue());
-    out.setAxisValue(AMOTION_EVENT_AXIS_X, xy.x);
-    out.setAxisValue(AMOTION_EVENT_AXIS_Y, xy.y);
+    coords.setAxisValue(AMOTION_EVENT_AXIS_X, xy.x);
+    coords.setAxisValue(AMOTION_EVENT_AXIS_Y, xy.y);
 
     const vec2 relativeXy =
             transformWithoutTranslation(transform,
                                         {coords.getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X),
                                          coords.getAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y)});
-    out.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, relativeXy.x);
-    out.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, relativeXy.y);
+    coords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, relativeXy.x);
+    coords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, relativeXy.y);
 
-    out.setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION,
-                     transformAngle(transform,
-                                    coords.getAxisValue(AMOTION_EVENT_AXIS_ORIENTATION)));
+    coords.setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION,
+                        transformOrientation(transform, coords, flags));
+}
 
+PointerCoords MotionEvent::calculateTransformedCoords(uint32_t source, int32_t flags,
+                                                      const ui::Transform& transform,
+                                                      const PointerCoords& coords) {
+    PointerCoords out = coords;
+    calculateTransformedCoordsInPlace(out, source, flags, transform);
     return out;
 }
 

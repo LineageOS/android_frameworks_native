@@ -116,6 +116,31 @@ interface IInputConstants
     const int MOTION_EVENT_FLAG_NO_FOCUS_CHANGE = 0x40;
 
     /**
+     * This flag indicates that the event has a valid value for AXIS_ORIENTATION.
+     *
+     * This is a private flag that is not used in Java.
+     * @hide
+     */
+    const int MOTION_EVENT_PRIVATE_FLAG_SUPPORTS_ORIENTATION = 0x80;
+
+    /**
+     * This flag indicates that the pointers' AXIS_ORIENTATION can be used to precisely determine
+     * the direction in which the tool is pointing. The value of the orientation axis will be in
+     * the range [-pi, pi], which represents a full circle. This is usually supported by devices
+     * like styluses.
+     *
+     * Conversely, AXIS_ORIENTATION cannot be used to tell which direction the tool is pointing
+     * when this flag is not set. In this case, the axis value will have a range of [-pi/2, pi/2],
+     * which represents half a circle. This is usually the case for devices like touchscreens and
+     * touchpads, for which it is difficult to tell which direction along the major axis of the
+     * touch ellipse the finger is pointing.
+     *
+     * This is a private flag that is not used in Java.
+     * @hide
+     */
+    const int MOTION_EVENT_PRIVATE_FLAG_SUPPORTS_DIRECTIONAL_ORIENTATION = 0x100;
+
+    /**
      * The input event was generated or modified by accessibility service.
      * Shared by both KeyEvent and MotionEvent flags, so this value should not overlap with either
      * set of flags, including in input/Input.h and in android/input.h.

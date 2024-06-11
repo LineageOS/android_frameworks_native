@@ -96,7 +96,9 @@ PublishMotionArgs::PublishMotionArgs(int32_t inAction, nsecs_t inDownTime,
     hmac = {0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15,
             16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31};
 
-    flags = AMOTION_EVENT_FLAG_WINDOW_IS_OBSCURED;
+    flags = AMOTION_EVENT_FLAG_WINDOW_IS_OBSCURED |
+            AMOTION_EVENT_PRIVATE_FLAG_SUPPORTS_ORIENTATION |
+            AMOTION_EVENT_PRIVATE_FLAG_SUPPORTS_DIRECTIONAL_ORIENTATION;
     if (action == AMOTION_EVENT_ACTION_CANCEL) {
         flags |= AMOTION_EVENT_FLAG_CANCELED;
     }

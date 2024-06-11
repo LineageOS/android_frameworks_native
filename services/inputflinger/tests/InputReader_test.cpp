@@ -5472,6 +5472,9 @@ TEST_F(SingleTouchInputMapperTest, Process_AllAxes_DefaultCalibration) {
     ASSERT_NO_FATAL_FAILURE(assertPointerCoords(args.pointerCoords[0],
             x, y, pressure, size, tool, tool, tool, tool, orientation, distance));
     ASSERT_EQ(tilt, args.pointerCoords[0].getAxisValue(AMOTION_EVENT_AXIS_TILT));
+    ASSERT_EQ(args.flags,
+              AMOTION_EVENT_PRIVATE_FLAG_SUPPORTS_ORIENTATION |
+                      AMOTION_EVENT_PRIVATE_FLAG_SUPPORTS_DIRECTIONAL_ORIENTATION);
 }
 
 TEST_F(SingleTouchInputMapperTest, Process_XYAxes_AffineCalibration) {
@@ -7914,6 +7917,7 @@ TEST_F(MultiTouchInputMapperTest, Process_AllAxes_WithDefaultCalibration) {
     ASSERT_NO_FATAL_FAILURE(assertPointerCoords(args.pointerCoords[0],
             x, y, pressure, size, touchMajor, touchMinor, toolMajor, toolMinor,
             orientation, distance));
+    ASSERT_EQ(args.flags, AMOTION_EVENT_PRIVATE_FLAG_SUPPORTS_ORIENTATION);
 }
 
 TEST_F(MultiTouchInputMapperTest, Process_TouchAndToolAxes_GeometricCalibration) {

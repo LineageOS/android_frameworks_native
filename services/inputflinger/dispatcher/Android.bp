@@ -56,7 +56,9 @@ filegroup {
 
 cc_defaults {
     name: "libinputdispatcher_defaults",
-    srcs: [":libinputdispatcher_sources"],
+    srcs: [
+        ":libinputdispatcher_sources",
+    ],
     shared_libs: [
         "libbase",
         "libbinder",
@@ -78,6 +80,7 @@ cc_defaults {
         "libattestation",
         "libgui_window_info_static",
         "libperfetto_client_experimental",
+        "perfetto_winscope_extensions_zero",
     ],
     target: {
         android: {

@@ -115,6 +115,7 @@ public:
     void setUnhandledKeyHandler(std::function<std::optional<KeyEvent>(const KeyEvent&)> handler);
     void assertUnhandledKeyReported(int32_t keycode);
     void assertUnhandledKeyNotReported();
+    void setConsumeKeyBeforeDispatching(bool consumeKeyBeforeDispatching);
 
 private:
     std::mutex mLock;
@@ -143,6 +144,8 @@ private:
     std::chrono::milliseconds mInterceptKeyTimeout = 0ms;
 
     std::chrono::nanoseconds mStaleEventTimeout = 1000ms;
+
+    bool mConsumeKeyBeforeDispatching = false;
 
     BlockingQueue<std::pair<int32_t /*deviceId*/, std::set<gui::Uid>>> mNotifiedInteractions;
 

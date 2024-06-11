@@ -69,6 +69,36 @@
     exp_.value();                                                         \
   })
 
+// Given an expression `expr` that evaluates to an ftl::Expected<T, E> result (R for short),
+// FTL_EXPECT unwraps T out of R, or bails out of the enclosing function F if R has an error E.
+// While FTL_TRY bails out with R, FTL_EXPECT bails out with E, which is useful when F does not
+// need to propagate R because T is not relevant to the caller.
+//
+// Example usage:
+//
+//   using StringExp = ftl::Expected<std::string, std::errc>;
+//
+//   std::errc repeat(StringExp exp, std::string& out) {
+//     const std::string str = FTL_EXPECT(exp);
+//     out = str + str;
+//     return std::errc::operation_in_progress;
+//   }
+//
+//   std::string str;
+//   assert(std::errc::operation_in_progress == repeat(StringExp("ha"s), str));
+//   assert("haha"s == str);
+//   assert(std::errc::bad_message == repeat(ftl::Unexpected(std::errc::bad_message), str));
+//   assert("haha"s == str);
+//
+#define FTL_EXPECT(expr)              \
+  ({                                  \
+    auto exp_ = (expr);               \
+    if (!exp_.has_value()) {          \
+      return std::move(exp_.error()); \
+    }                                 \
+    exp_.value();                     \
+  })
+
 namespace android::ftl {
 
 // Superset of base::expected<T, E> with monadic operations.
