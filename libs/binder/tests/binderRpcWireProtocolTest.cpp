@@ -14,13 +14,14 @@
  * limitations under the License.
  */
 
-#include <android-base/logging.h>
-#include <android-base/properties.h>
-#include <android-base/strings.h>
 #include <binder/Parcel.h>
 #include <binder/RpcSession.h>
 #include <binder/Status.h>
 #include <gtest/gtest.h>
+
+#ifdef __ANDROID__
+#include <android-base/properties.h>
+#endif
 
 #include "../Debug.h"
 #include "../Utils.h"
@@ -69,8 +70,8 @@ static const std::vector<std::function<void(Parcel* p)>> kFillFuns {
     [](Parcel* p) { ASSERT_EQ(OK, p->writeString16(String16(u"a"))); },
     [](Parcel* p) { ASSERT_EQ(OK, p->writeString16(String16(u"baba"))); },
     [](Parcel* p) { ASSERT_EQ(OK, p->writeStrongBinder(nullptr)); },
-    [](Parcel* p) { ASSERT_EQ(OK, p->writeInt32Array(arraysize(kInt32Array), kInt32Array)); },
-    [](Parcel* p) { ASSERT_EQ(OK, p->writeByteArray(arraysize(kByteArray), kByteArray)); },
+    [](Parcel* p) { ASSERT_EQ(OK, p->writeInt32Array(countof(kInt32Array), kInt32Array)); },
+    [](Parcel* p) { ASSERT_EQ(OK, p->writeByteArray(countof(kByteArray), kByteArray)); },
     [](Parcel* p) { ASSERT_EQ(OK, p->writeBool(true)); },
     [](Parcel* p) { ASSERT_EQ(OK, p->writeBool(false)); },
     [](Parcel* p) { ASSERT_EQ(OK, p->writeChar('a')); },
@@ -162,8 +163,8 @@ static const std::vector<std::function<void(Parcel* p)>> kFillFuns {
 
 static void setParcelForRpc(Parcel* p, uint32_t version) {
     auto session = RpcSession::make();
-    CHECK(session->setProtocolVersion(version));
-    CHECK_EQ(OK, session->addNullDebuggingClient());
+    EXPECT_TRUE(session->setProtocolVersion(version));
+    EXPECT_EQ(OK, session->addNullDebuggingClient());
     p->markForRpc(session);
 }
 
@@ -180,13 +181,25 @@ static std::string buildRepr(uint32_t version) {
     return result;
 }
 
+// To be replaced with std::views::split (and std::views::zip) once C++ compilers catch up.
+static std::vector<std::string> split(std::string_view s, char delimiter) {
+    std::vector<std::string> result;
+    size_t pos = 0;
+    while (true) {
+        const auto found = s.find(delimiter, pos);
+        result.emplace_back(s.substr(pos, found - pos));
+        if (found == s.npos) return result;
+        pos = found + 1;
+    }
+}
+
 static void checkRepr(const std::string& repr, uint32_t version) {
     const std::string actualRepr = buildRepr(version);
 
-    auto expected = base::Split(repr, "|");
+    auto expected = split(repr, '|');
     ASSERT_EQ(expected.size(), kFillFuns.size());
 
-    auto actual = base::Split(actualRepr, "|");
+    auto actual = split(actualRepr, '|');
     ASSERT_EQ(actual.size(), kFillFuns.size());
 
     for (size_t i = 0; i < kFillFuns.size(); i++) {
@@ -257,8 +270,13 @@ TEST(RpcWire, NextIsPlusOneReminder) {
 
 TEST(RpcWire, ReleaseBranchHasFrozenRpcWireProtocol) {
     if (RPC_WIRE_PROTOCOL_VERSION == RPC_WIRE_PROTOCOL_VERSION_EXPERIMENTAL) {
-        EXPECT_FALSE(base::GetProperty("ro.build.version.codename", "") == "REL")
-                << "Binder RPC wire protocol must be frozen on a release branch!";
+#ifdef __ANDROID__
+        bool isRelease = base::GetProperty("ro.build.version.codename", "") == "REL";
+#else
+        bool isRelease = true;
+#endif
+        EXPECT_FALSE(isRelease)
+                << "Binder RPC wire protocol must be frozen in release configuration!";
     }
 }
 
