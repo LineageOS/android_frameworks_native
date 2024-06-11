@@ -99,6 +99,18 @@ enum {
 
     /* Motion event is inconsistent with previously sent motion events. */
     AMOTION_EVENT_FLAG_TAINTED = android::os::IInputConstants::INPUT_EVENT_FLAG_TAINTED,
+
+    /** Private flag, not used in Java. */
+    AMOTION_EVENT_PRIVATE_FLAG_SUPPORTS_ORIENTATION =
+            android::os::IInputConstants::MOTION_EVENT_PRIVATE_FLAG_SUPPORTS_ORIENTATION,
+
+    /** Private flag, not used in Java. */
+    AMOTION_EVENT_PRIVATE_FLAG_SUPPORTS_DIRECTIONAL_ORIENTATION = android::os::IInputConstants::
+            MOTION_EVENT_PRIVATE_FLAG_SUPPORTS_DIRECTIONAL_ORIENTATION,
+
+    /** Mask for all private flags that are not used in Java. */
+    AMOTION_EVENT_PRIVATE_FLAG_MASK = AMOTION_EVENT_PRIVATE_FLAG_SUPPORTS_ORIENTATION |
+            AMOTION_EVENT_PRIVATE_FLAG_SUPPORTS_DIRECTIONAL_ORIENTATION,
 };
 
 /**
@@ -209,8 +221,12 @@ vec2 transformWithoutTranslation(const ui::Transform& transform, const vec2& xy)
  * Transform an angle on the x-y plane. An angle of 0 radians corresponds to "north" or
  * pointing upwards in the negative Y direction, a positive angle points towards the right, and a
  * negative angle points towards the left.
+ *
+ * If the angle represents a direction that needs to be preserved, set isDirectional to true to get
+ * an output range of [-pi, pi]. If the angle's direction does not need to be preserved, set
+ * isDirectional to false to get an output range of [-pi/2, pi/2].
  */
-float transformAngle(const ui::Transform& transform, float angleRadians);
+float transformAngle(const ui::Transform& transform, float angleRadians, bool isDirectional);
 
 /**
  * The type of the InputEvent.
@@ -472,7 +488,7 @@ struct PointerCoords {
     // axes, however the window scaling will not.
     void scale(float globalScale, float windowXScale, float windowYScale);
 
-    void transform(const ui::Transform& transform);
+    void transform(const ui::Transform& transform, int32_t motionEventFlags);
 
     inline float getX() const {
         return getAxisValue(AMOTION_EVENT_AXIS_X);
@@ -940,10 +956,10 @@ public:
     // relative mouse device (since SOURCE_RELATIVE_MOUSE is a non-pointer source). These methods
     // are used to apply these transformations for different axes.
     static vec2 calculateTransformedXY(uint32_t source, const ui::Transform&, const vec2& xy);
-    static float calculateTransformedAxisValue(int32_t axis, uint32_t source, const ui::Transform&,
-                                               const PointerCoords&);
-    static PointerCoords calculateTransformedCoords(uint32_t source, const ui::Transform&,
-                                                    const PointerCoords&);
+    static float calculateTransformedAxisValue(int32_t axis, uint32_t source, int32_t flags,
+                                               const ui::Transform&, const PointerCoords&);
+    static PointerCoords calculateTransformedCoords(uint32_t source, int32_t flags,
+                                                    const ui::Transform&, const PointerCoords&);
     // The rounding precision for transformed motion events.
     static constexpr float ROUNDING_PRECISION = 0.001f;
 

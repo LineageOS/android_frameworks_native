@@ -444,10 +444,10 @@ std::unique_ptr<DispatchEntry> createDispatchEntry(const IdGenerator& idGenerato
             newCoords.copyFrom(motionEntry.pointerCoords[i]);
             // First, apply the current pointer's transform to update the coordinates into
             // window space.
-            newCoords.transform(currTransform);
+            newCoords.transform(currTransform, motionEntry.flags);
             // Next, apply the inverse transform of the normalized coordinates so the
             // current coordinates are transformed into the normalized coordinate space.
-            newCoords.transform(inverseTransform);
+            newCoords.transform(inverseTransform, motionEntry.flags);
         }
     }
 
@@ -5133,8 +5133,8 @@ void InputDispatcher::transformMotionEntryForInjectionLocked(
     }
     for (uint32_t i = 0; i < entry.getPointerCount(); i++) {
         entry.pointerCoords[i] =
-                MotionEvent::calculateTransformedCoords(entry.source, transformToDisplay,
-                                                        entry.pointerCoords[i]);
+                MotionEvent::calculateTransformedCoords(entry.source, entry.flags,
+                                                        transformToDisplay, entry.pointerCoords[i]);
     }
 }
 

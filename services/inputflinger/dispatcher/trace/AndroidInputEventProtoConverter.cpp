@@ -123,7 +123,8 @@ void AndroidInputEventProtoConverter::toProtoWindowDispatchEvent(
 
             const auto& coords = motion->pointerCoords[i];
             const auto coordsInWindow =
-                    MotionEvent::calculateTransformedCoords(motion->source, args.transform, coords);
+                    MotionEvent::calculateTransformedCoords(motion->source, motion->flags,
+                                                            args.transform, coords);
             auto bits = BitSet64(coords.bits);
             for (int32_t axisIndex = 0; !bits.isEmpty(); axisIndex++) {
                 const uint32_t axis = bits.clearFirstMarkedBit();
