@@ -213,6 +213,17 @@ TEST_F(LayerSnapshotTest, childBehindParentCanBeHiddenByParent) {
     UPDATE_AND_VERIFY(mSnapshotBuilder, {1, 12, 121, 122, 1221, 13, 2});
 }
 
+TEST_F(LayerSnapshotTest, offscreenLayerSnapshotIsInvisible) {
+    EXPECT_EQ(getSnapshot(111)->isVisible, true);
+
+    reparentLayer(11, UNASSIGNED_LAYER_ID);
+    destroyLayerHandle(11);
+    UPDATE_AND_VERIFY(mSnapshotBuilder, {1, 12, 121, 122, 1221, 13, 2});
+
+    EXPECT_EQ(getSnapshot(111)->isVisible, false);
+    EXPECT_TRUE(getSnapshot(111)->changes.test(RequestedLayerState::Changes::Visibility));
+}
+
 // relative tests
 TEST_F(LayerSnapshotTest, RelativeParentCanHideChild) {
     reparentRelativeLayer(13, 11);
