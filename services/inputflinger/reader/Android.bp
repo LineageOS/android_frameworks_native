@@ -90,7 +90,6 @@ cc_defaults {
         "libutils",
     ],
     static_libs: [
-        "libc++fs",
         "libchrome-gestures",
         "libui-types",
     ],
@@ -155,7 +154,6 @@ cc_library_shared {
         },
     },
     static_libs: [
-        "libc++fs",
         "libchrome-gestures",
     ],
 }
