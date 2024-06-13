@@ -3149,8 +3149,7 @@ void Layer::resetDrawingStateBufferInfo() {
 
 bool Layer::setBuffer(std::shared_ptr<renderengine::ExternalTexture>& buffer,
                       const BufferData& bufferData, nsecs_t postTime, nsecs_t desiredPresentTime,
-                      bool isAutoTimestamp, std::optional<nsecs_t> dequeueTime,
-                      const FrameTimelineInfo& info) {
+                      bool isAutoTimestamp, const FrameTimelineInfo& info) {
     ATRACE_FORMAT("setBuffer %s - hasBuffer=%s", getDebugName(), (buffer ? "true" : "false"));
 
     const bool frameNumberChanged =
@@ -3224,10 +3223,11 @@ bool Layer::setBuffer(std::shared_ptr<renderengine::ExternalTexture>& buffer,
 
     setFrameTimelineVsyncForBufferTransaction(info, postTime);
 
-    if (dequeueTime && *dequeueTime != 0) {
+    if (bufferData.dequeueTime > 0) {
         const uint64_t bufferId = mDrawingState.buffer->getId();
         mFlinger->mFrameTracer->traceNewLayer(layerId, getName().c_str());
-        mFlinger->mFrameTracer->traceTimestamp(layerId, bufferId, frameNumber, *dequeueTime,
+        mFlinger->mFrameTracer->traceTimestamp(layerId, bufferId, frameNumber,
+                                               bufferData.dequeueTime,
                                                FrameTracer::FrameEvent::DEQUEUE);
         mFlinger->mFrameTracer->traceTimestamp(layerId, bufferId, frameNumber, postTime,
                                                FrameTracer::FrameEvent::QUEUE);

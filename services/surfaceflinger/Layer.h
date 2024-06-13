@@ -312,7 +312,7 @@ public:
     bool setBuffer(std::shared_ptr<renderengine::ExternalTexture>& /* buffer */,
                    const BufferData& /* bufferData */, nsecs_t /* postTime */,
                    nsecs_t /*desiredPresentTime*/, bool /*isAutoTimestamp*/,
-                   std::optional<nsecs_t> /* dequeueTime */, const FrameTimelineInfo& /*info*/);
+                   const FrameTimelineInfo& /*info*/);
     void setDesiredPresentTime(nsecs_t /*desiredPresentTime*/, bool /*isAutoTimestamp*/);
     bool setDataspace(ui::Dataspace /*dataspace*/);
     bool setExtendedRangeBrightness(float currentBufferRatio, float desiredRatio);

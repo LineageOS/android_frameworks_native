@@ -5635,10 +5635,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
         layer->setInputInfo(*s.windowInfoHandle->getInfo());
         flags |= eTraversalNeeded;
     }
-    std::optional<nsecs_t> dequeueBufferTimestamp;
     if (what & layer_state_t::eMetadataChanged) {
-        dequeueBufferTimestamp = s.metadata.getInt64(gui::METADATA_DEQUEUE_TIME);
-
         if (const int32_t gameMode = s.metadata.getInt32(gui::METADATA_GAME_MODE, -1);
             gameMode != -1) {
             // The transaction will be received on the Task layer and needs to be applied to all
@@ -5780,8 +5777,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(const FrameTimelineInfo& frameTime
 
     if (what & layer_state_t::eBufferChanged) {
         if (layer->setBuffer(composerState.externalTexture, *s.bufferData, postTime,
-                             desiredPresentTime, isAutoTimestamp, dequeueBufferTimestamp,
-                             frameTimelineInfo)) {
+                             desiredPresentTime, isAutoTimestamp, frameTimelineInfo)) {
             flags |= eTraversalNeeded;
         }
     } else if (frameTimelineInfo.vsyncId != FrameTimelineInfo::INVALID_VSYNC_ID) {
@@ -5867,10 +5863,6 @@ uint32_t SurfaceFlinger::updateLayerCallbacksAndStats(const FrameTimelineInfo& f
     if (what & layer_state_t::eProducerDisconnect) {
         layer->onDisconnect();
     }
-    std::optional<nsecs_t> dequeueBufferTimestamp;
-    if (what & layer_state_t::eMetadataChanged) {
-        dequeueBufferTimestamp = s.metadata.getInt64(gui::METADATA_DEQUEUE_TIME);
-    }
 
     std::vector<sp<CallbackHandle>> callbackHandles;
     if ((what & layer_state_t::eHasListenerCallbacksChanged) && (!filteredListeners.empty())) {
@@ -5917,8 +5909,7 @@ uint32_t SurfaceFlinger::updateLayerCallbacksAndStats(const FrameTimelineInfo& f
         }
         layer->setTransformHint(transformHint);
         if (layer->setBuffer(composerState.externalTexture, *s.bufferData, postTime,
-                             desiredPresentTime, isAutoTimestamp, dequeueBufferTimestamp,
-                             frameTimelineInfo)) {
+                             desiredPresentTime, isAutoTimestamp, frameTimelineInfo)) {
             flags |= eTraversalNeeded;
         }
         mLayersWithQueuedFrames.emplace(layer);
