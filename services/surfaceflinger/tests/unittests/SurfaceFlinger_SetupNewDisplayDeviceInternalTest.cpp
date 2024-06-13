@@ -232,7 +232,9 @@ void SetupNewDisplayDeviceInternalTest::setupNewDisplayDeviceInternalTest() {
     // Invocation
 
     DisplayDeviceState state;
-    if constexpr (constexpr auto connectionType = Case::Display::CONNECTION_TYPE::value) {
+
+    constexpr auto kConnectionTypeOpt = Case::Display::CONNECTION_TYPE::value;
+    if constexpr (kConnectionTypeOpt) {
         const auto displayId = PhysicalDisplayId::tryCast(Case::Display::DISPLAY_ID::get());
         ASSERT_TRUE(displayId);
         const auto hwcDisplayId = Case::Display::HWC_DISPLAY_ID_OPT::value;
@@ -257,7 +259,7 @@ void SetupNewDisplayDeviceInternalTest::setupNewDisplayDeviceInternalTest() {
 
         const auto it = mFlinger.mutablePhysicalDisplays()
                                 .emplace_or_replace(*displayId, displayToken, *displayId,
-                                                    *connectionType, makeModes(activeMode),
+                                                    *kConnectionTypeOpt, makeModes(activeMode),
                                                     std::move(colorModes), std::nullopt)
                                 .first;
 
@@ -291,9 +293,12 @@ void SetupNewDisplayDeviceInternalTest::setupNewDisplayDeviceInternalTest() {
     EXPECT_EQ(Case::Display::DISPLAY_FLAGS & DisplayDevice::eReceivesInput,
               device->receivesInput());
 
-    if constexpr (Case::Display::CONNECTION_TYPE::value) {
+    if constexpr (kConnectionTypeOpt) {
         ftl::FakeGuard guard(kMainThreadContext);
-        EXPECT_EQ(Case::Display::HWC_ACTIVE_CONFIG_ID, device->getActiveMode().modePtr->getHwcId());
+        EXPECT_EQ(Case::Display::HWC_ACTIVE_CONFIG_ID,
+                  mFlinger.mutableDisplayModeController()
+                          .getActiveMode(device->getPhysicalId())
+                          .modePtr->getHwcId());
     }
 }
 

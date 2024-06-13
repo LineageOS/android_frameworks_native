@@ -27,14 +27,10 @@ cc_library_static {
         "libselinux",
         "libbinder",
     ],
-    whole_static_libs: [
-        "libc++fs",
-    ],
 
     cflags: [
         "-Wall",
         "-Werror",
-        "-DXP_UNIX",
     ],
 }
 
@@ -58,6 +54,5 @@ cc_binary {
     cflags: [
         "-Wall",
         "-Werror",
-        "-DXP_UNIX",
     ],
 }

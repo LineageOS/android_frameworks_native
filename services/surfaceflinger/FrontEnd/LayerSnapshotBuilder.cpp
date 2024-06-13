@@ -256,6 +256,9 @@ auto getBlendMode(const LayerSnapshot& snapshot, const RequestedLayerState& requ
 }
 
 void updateVisibility(LayerSnapshot& snapshot, bool visible) {
+    if (snapshot.isVisible != visible) {
+        snapshot.changes |= RequestedLayerState::Changes::Visibility;
+    }
     snapshot.isVisible = visible;
 
     // TODO(b/238781169) we are ignoring this compat for now, since we will have
