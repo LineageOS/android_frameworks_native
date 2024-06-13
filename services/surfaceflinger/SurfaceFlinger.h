@@ -737,12 +737,12 @@ private:
     status_t setActiveModeFromBackdoor(const sp<display::DisplayToken>&, DisplayModeId, Fps minFps,
                                        Fps maxFps);
 
-    void initiateDisplayModeChanges() REQUIRES(mStateLock, kMainThreadContext);
-    void finalizeDisplayModeChange(DisplayDevice&) REQUIRES(mStateLock, kMainThreadContext);
+    void initiateDisplayModeChanges() REQUIRES(kMainThreadContext) EXCLUDES(mStateLock);
+    void finalizeDisplayModeChange(PhysicalDisplayId) REQUIRES(kMainThreadContext)
+            EXCLUDES(mStateLock);
 
-    // TODO(b/241285191): Replace DisplayDevice with DisplayModeRequest, and move to Scheduler.
-    void dropModeRequest(const sp<DisplayDevice>&) REQUIRES(mStateLock);
-    void applyActiveMode(const sp<DisplayDevice>&) REQUIRES(mStateLock);
+    void dropModeRequest(PhysicalDisplayId) REQUIRES(kMainThreadContext);
+    void applyActiveMode(PhysicalDisplayId) REQUIRES(kMainThreadContext);
 
     // Called on the main thread in response to setPowerMode()
     void setPowerModeInternal(const sp<DisplayDevice>& display, hal::PowerMode mode)
@@ -1098,8 +1098,7 @@ private:
                                const DisplayDeviceState& drawingState)
             REQUIRES(mStateLock, kMainThreadContext);
 
-    void dispatchDisplayModeChangeEvent(PhysicalDisplayId, const scheduler::FrameRateMode&)
-            REQUIRES(mStateLock);
+    void dispatchDisplayModeChangeEvent(PhysicalDisplayId, const scheduler::FrameRateMode&);
 
     /*
      * VSYNC
@@ -1339,9 +1338,7 @@ private:
     display::PhysicalDisplays mPhysicalDisplays GUARDED_BY(mStateLock);
 
     // The inner or outer display for foldables, assuming they have mutually exclusive power states.
-    // Atomic because writes from onActiveDisplayChangedLocked are not always under mStateLock, but
-    // reads from ISchedulerCallback::requestDisplayModes may happen concurrently.
-    std::atomic<PhysicalDisplayId> mActiveDisplayId GUARDED_BY(mStateLock);
+    std::atomic<PhysicalDisplayId> mActiveDisplayId;
 
     display::DisplayModeController mDisplayModeController;
 
