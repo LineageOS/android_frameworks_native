@@ -34,7 +34,6 @@ cc_library_static {
     cflags: [
         "-Wall",
         "-Werror",
-        "-DXP_UNIX",
     ],
 }
 
@@ -58,6 +57,5 @@ cc_binary {
     cflags: [
         "-Wall",
         "-Werror",
-        "-DXP_UNIX",
     ],
 }
