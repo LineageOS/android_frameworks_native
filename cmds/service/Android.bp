@@ -27,7 +27,6 @@ cc_binary {
     ],
 
     cflags: [
-        "-DXP_UNIX",
         "-Wall",
         "-Werror",
     ],
@@ -46,7 +45,6 @@ cc_binary {
     ],
 
     cflags: [
-        "-DXP_UNIX",
         "-DVENDORSERVICES",
         "-Wall",
         "-Werror",
@@ -65,7 +63,6 @@ cc_binary_host {
     ],
 
     cflags: [
-        "-DXP_UNIX",
         "-Wall",
         "-Werror",
     ],
