@@ -38,6 +38,7 @@ cc_library_static {
         "libsurfaceflingerflags",
         "android.os.flags-aconfig-cc",
         "android.server.display.flags-aconfig-cc",
+        "libguiflags_no_apex",
     ],
 }
 
@@ -50,6 +51,7 @@ cc_library_static {
         "libsurfaceflingerflags_test",
         "android.os.flags-aconfig-cc-test",
         "android.server.display.flags-aconfig-cc",
+        "libguiflags_no_apex",
     ],
 }
 
@@ -64,6 +66,7 @@ cc_defaults {
         "libsurfaceflingerflags",
         "android.os.flags-aconfig-cc",
         "android.server.display.flags-aconfig-cc",
+        "libguiflags_no_apex",
     ],
 }
 
@@ -78,5 +81,6 @@ cc_defaults {
         "libsurfaceflingerflags_test",
         "android.os.flags-aconfig-cc-test",
         "android.server.display.flags-aconfig-cc",
+        "libguiflags_no_apex",
     ],
 }
