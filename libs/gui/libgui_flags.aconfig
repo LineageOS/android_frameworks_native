@@ -7,7 +7,7 @@ flag {
   description: "This flag controls plumbing setFrameRate thru BufferQueue"
   bug: "281695725"
   is_fixed_read_only: true
-}
+} # bq_setframerate
 
 flag {
   name: "frametimestamps_previousrelease"
@@ -15,7 +15,7 @@ flag {
   description: "Controls a fence fixup for timestamp apis"
   bug: "310927247"
   is_fixed_read_only: true
-}
+} # frametimestamps_previousrelease
 
 flag {
   name: "bq_extendedallocate"
@@ -23,4 +23,15 @@ flag {
   description: "Add BQ support for allocate with extended options"
   bug: "268382490"
   is_fixed_read_only: true
-}
+} # bq_extendedallocate
+
+flag {
+  name: "trace_frame_rate_override"
+  namespace: "core_graphics"
+  description: "Trace FrameRateOverride fps"
+  bug: "347314033"
+  is_fixed_read_only: true
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+} # trace_frame_rate_override
