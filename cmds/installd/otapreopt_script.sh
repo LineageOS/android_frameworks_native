@@ -59,22 +59,27 @@ function infinite_source {
   done
 }
 
-# Delegate to Pre-reboot Dexopt, a feature of ART Service.
-# ART Service decides what to do with this request:
-# - If Pre-reboot Dexopt is disabled or unsupported, the command returns
-#   non-zero. This is always the case if the current system is Android 14 or
-#   earlier.
-# - If Pre-reboot Dexopt is enabled in synchronous mode, the command blocks
-#   until Pre-reboot Dexopt finishes, and returns zero no matter it succeeds or
-#   not. This is the default behavior if the current system is Android 15.
-# - If Pre-reboot Dexopt is enabled in asynchronous mode, the command schedules
-#   an asynchronous job and returns 0 immediately. The job will then run by the
-#   job scheduler when the device is idle and charging.
-if infinite_source | pm art on-ota-staged --slot "$TARGET_SLOT_SUFFIX"; then
-  # Handled by Pre-reboot Dexopt.
-  exit 0
+PR_DEXOPT_JOB_VERSION="$(pm art pr-dexopt-job --version)"
+if (( $? == 0 )) && (( $PR_DEXOPT_JOB_VERSION >= 2 )); then
+  # Delegate to Pre-reboot Dexopt, a feature of ART Service.
+  # ART Service decides what to do with this request:
+  # - If Pre-reboot Dexopt is disabled or unsupported, the command returns
+  #   non-zero. This is always the case if the current system is Android 14 or
+  #   earlier.
+  # - If Pre-reboot Dexopt is enabled in synchronous mode, the command blocks
+  #   until Pre-reboot Dexopt finishes, and returns zero no matter it succeeds or
+  #   not. This is the default behavior if the current system is Android 15.
+  # - If Pre-reboot Dexopt is enabled in asynchronous mode, the command schedules
+  #   an asynchronous job and returns 0 immediately. The job will then run by the
+  #   job scheduler when the device is idle and charging.
+  if infinite_source | pm art on-ota-staged --slot "$TARGET_SLOT_SUFFIX"; then
+    # Handled by Pre-reboot Dexopt.
+    exit 0
+  fi
+  echo "Pre-reboot Dexopt not enabled. Fall back to otapreopt."
+else
+  echo "Pre-reboot Dexopt is too old. Fall back to otapreopt."
 fi
-echo "Pre-reboot Dexopt not enabled. Fall back to otapreopt."
 
 if [ "$(/system/bin/otapreopt_chroot --version)" != 2 ]; then
   # We require an updated chroot wrapper that reads dexopt commands from stdin.
