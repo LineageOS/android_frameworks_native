@@ -538,7 +538,8 @@ TEST_F(LayerLifecycleManagerTest, alphaChangesAlwaysSetsVisibleRegionFlag) {
               ftl::Flags<RequestedLayerState::Changes>(
                       RequestedLayerState::Changes::Content |
                       RequestedLayerState::Changes::AffectsChildren |
-                      RequestedLayerState::Changes::VisibleRegion)
+                      RequestedLayerState::Changes::VisibleRegion |
+                      RequestedLayerState::Changes::Input)
                       .string());
     EXPECT_EQ(mLifecycleManager.getChangedLayers()[0]->color.a, static_cast<half>(startingAlpha));
     mLifecycleManager.commitChanges();
@@ -551,7 +552,8 @@ TEST_F(LayerLifecycleManagerTest, alphaChangesAlwaysSetsVisibleRegionFlag) {
               ftl::Flags<RequestedLayerState::Changes>(
                       RequestedLayerState::Changes::Content |
                       RequestedLayerState::Changes::AffectsChildren |
-                      RequestedLayerState::Changes::VisibleRegion)
+                      RequestedLayerState::Changes::VisibleRegion |
+                      RequestedLayerState::Changes::Input)
                       .string());
     EXPECT_EQ(mLifecycleManager.getChangedLayers()[0]->color.a, static_cast<half>(endingAlpha));
     mLifecycleManager.commitChanges();
