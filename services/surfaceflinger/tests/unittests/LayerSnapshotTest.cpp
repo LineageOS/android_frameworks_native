@@ -1172,6 +1172,16 @@ TEST_F(LayerSnapshotTest, setTrustedOverlayForNonVisibleInput) {
             gui::WindowInfo::InputConfig::TRUSTED_OVERLAY));
 }
 
+TEST_F(LayerSnapshotTest, alphaChangesPropagateToInput) {
+    Region touch{Rect{0, 0, 1000, 1000}};
+    setTouchableRegion(1, touch);
+    UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
+
+    setAlpha(1, 0.5f);
+    UPDATE_AND_VERIFY(mSnapshotBuilder, STARTING_ZORDER);
+    EXPECT_EQ(getSnapshot(1)->inputInfo.alpha, 0.5f);
+}
+
 TEST_F(LayerSnapshotTest, isFrontBuffered) {
     setBuffer(1,
               std::make_shared<renderengine::mock::FakeExternalTexture>(
