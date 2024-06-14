@@ -81,7 +81,8 @@ public:
      * outside of our control, such as how long apps take to respond, so we don't want to depend on
      * that.
      */
-    virtual void eventProcessingComplete(const EventTrackerInterface&) = 0;
+    virtual void eventProcessingComplete(const EventTrackerInterface&,
+                                         nsecs_t processingTimestamp) = 0;
 
     /**
      * Trace an input event that is derived from another event. This is used in cases where an event

@@ -1282,9 +1282,11 @@ TEST_P(ShouldSplitTouchFixture, WallpaperWindowReceivesMultiTouch) {
               injectMotionEvent(*mDispatcher, secondFingerUpEvent, INJECT_EVENT_TIMEOUT,
                                 InputEventInjectionSync::WAIT_FOR_RESULT))
             << "Inject motion event should return InputEventInjectionResult::SUCCEEDED";
-    foregroundWindow->consumeMotionPointerUp(0);
-    wallpaperWindow->consumeMotionPointerUp(0, ui::LogicalDisplayId::DEFAULT,
-                                            EXPECTED_WALLPAPER_FLAGS);
+    foregroundWindow->consumeMotionPointerUp(/*pointerIdx=*/0,
+                                             WithDisplayId(ui::LogicalDisplayId::DEFAULT));
+    wallpaperWindow->consumeMotionPointerUp(/*pointerIdx=*/0,
+                                            AllOf(WithDisplayId(ui::LogicalDisplayId::DEFAULT),
+                                                  WithFlags(EXPECTED_WALLPAPER_FLAGS)));
 
     ASSERT_EQ(InputEventInjectionResult::SUCCEEDED,
               injectMotionEvent(*mDispatcher,
@@ -6220,8 +6222,10 @@ TEST_P(TransferTouchFixture, TransferTouch_TwoPointersNonSplitTouch) {
                                                  {touchPoint, touchPoint}));
     // The first window gets nothing and the second gets pointer up
     firstWindow->assertNoEvents();
-    secondWindow->consumeMotionPointerUp(1, ui::LogicalDisplayId::DEFAULT,
-                                         AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
+    secondWindow->consumeMotionPointerUp(/*pointerIdx=*/1,
+                                         AllOf(WithDisplayId(ui::LogicalDisplayId::DEFAULT),
+                                               WithFlags(AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE),
+                                               WithPointerCount(2)));
 
     // Send up event to the second window
     mDispatcher->notifyMotion(generateMotionArgs(AMOTION_EVENT_ACTION_UP, AINPUT_SOURCE_TOUCHSCREEN,
@@ -6363,8 +6367,10 @@ TEST_F(InputDispatcherTest, TransferTouch_TwoPointersSplitTouch) {
                                                  {pointInFirst, pointInSecond}));
     // The first window gets nothing and the second gets pointer up
     firstWindow->assertNoEvents();
-    secondWindow->consumeMotionPointerUp(1, ui::LogicalDisplayId::DEFAULT,
-                                         AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE);
+    secondWindow->consumeMotionPointerUp(/*pointerIdx=*/1,
+                                         AllOf(WithDisplayId(ui::LogicalDisplayId::DEFAULT),
+                                               WithFlags(AMOTION_EVENT_FLAG_NO_FOCUS_CHANGE),
+                                               WithPointerCount(2)));
 
     // Send up event to the second window
     mDispatcher->notifyMotion(generateMotionArgs(AMOTION_EVENT_ACTION_UP, AINPUT_SOURCE_TOUCHSCREEN,
@@ -12881,10 +12887,14 @@ TEST_F(InputDispatcherPilferPointersTest, PartiallyPilferRequiredPointers) {
 
     // Spy window pilfers the pointers.
     EXPECT_EQ(OK, mDispatcher->pilferPointers(spy->getToken()));
-    window->consumeMotionPointerUp(/*idx=*/2, ui::LogicalDisplayId::DEFAULT,
-                                   AMOTION_EVENT_FLAG_CANCELED);
-    window->consumeMotionPointerUp(/*idx=*/1, ui::LogicalDisplayId::DEFAULT,
-                                   AMOTION_EVENT_FLAG_CANCELED);
+    window->consumeMotionPointerUp(/*pointerIdx=*/2,
+                                   AllOf(WithDisplayId(ui::LogicalDisplayId::DEFAULT),
+                                         WithFlags(AMOTION_EVENT_FLAG_CANCELED),
+                                         WithPointerCount(3)));
+    window->consumeMotionPointerUp(/*pointerIdx=*/1,
+                                   AllOf(WithDisplayId(ui::LogicalDisplayId::DEFAULT),
+                                         WithFlags(AMOTION_EVENT_FLAG_CANCELED),
+                                         WithPointerCount(2)));
 
     spy->assertNoEvents();
     window->assertNoEvents();
