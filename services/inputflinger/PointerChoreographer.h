@@ -76,6 +76,11 @@ public:
     virtual void setPointerIconVisibility(ui::LogicalDisplayId displayId, bool visible) = 0;
 
     /**
+     * Used by Dispatcher to notify changes in the current focused display.
+     */
+    virtual void setFocusedDisplay(ui::LogicalDisplayId displayId) = 0;
+
+    /**
      * This method may be called on any thread (usually by the input manager on a binder thread).
      */
     virtual void dump(std::string& dump) = 0;
@@ -97,6 +102,7 @@ public:
     bool setPointerIcon(std::variant<std::unique_ptr<SpriteIcon>, PointerIconStyle> icon,
                         ui::LogicalDisplayId displayId, DeviceId deviceId) override;
     void setPointerIconVisibility(ui::LogicalDisplayId displayId, bool visible) override;
+    void setFocusedDisplay(ui::LogicalDisplayId displayId) override;
 
     void notifyInputDevicesChanged(const NotifyInputDevicesChangedArgs& args) override;
     void notifyConfigurationChanged(const NotifyConfigurationChangedArgs& args) override;
@@ -124,6 +130,7 @@ private:
     InputDeviceInfo* findInputDeviceLocked(DeviceId deviceId) REQUIRES(mLock);
     bool canUnfadeOnDisplay(ui::LogicalDisplayId displayId) REQUIRES(mLock);
 
+    void fadeMouseCursorOnKeyPress(const NotifyKeyArgs& args);
     NotifyMotionArgs processMotion(const NotifyMotionArgs& args);
     NotifyMotionArgs processMouseEventLocked(const NotifyMotionArgs& args) REQUIRES(mLock);
     NotifyMotionArgs processTouchpadEventLocked(const NotifyMotionArgs& args) REQUIRES(mLock);
@@ -192,6 +199,7 @@ private:
     bool mShowTouchesEnabled GUARDED_BY(mLock);
     bool mStylusPointerIconEnabled GUARDED_BY(mLock);
     std::set<ui::LogicalDisplayId /*displayId*/> mDisplaysWithPointersHidden;
+    ui::LogicalDisplayId mCurrentFocusedDisplay GUARDED_BY(mLock);
 
 protected:
     using WindowListenerRegisterConsumer = std::function<std::vector<gui::WindowInfo>(
