@@ -99,6 +99,8 @@ struct TracedEventMetadata {
     std::set<gui::Uid> targets;
     // True if the there was an active input method connection while this event was processed.
     bool isImeConnectionActive;
+    // The timestamp for when the dispatching decisions were made for the event by the system.
+    nsecs_t processingTimestamp;
 };
 
 /** Additional information about an input event being dispatched to a window. */
