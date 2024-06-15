@@ -90,6 +90,7 @@ public:
     bool flush_buffer_slots_to_uncache() const;
     bool force_compile_graphite_renderengine() const;
     bool single_hop_screenshot() const;
+    bool trace_frame_rate_override() const;
 
 protected:
     // overridden for unit tests

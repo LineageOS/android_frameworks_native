@@ -879,7 +879,7 @@ std::pair<bool /*cancelPointers*/, bool /*cancelNonPointers*/> expandCancellatio
 class ScopedSyntheticEventTracer {
 public:
     ScopedSyntheticEventTracer(std::unique_ptr<trace::InputTracerInterface>& tracer)
-          : mTracer(tracer) {
+          : mTracer(tracer), mProcessingTimestamp(now()) {
         if (mTracer) {
             mEventTracker = mTracer->createTrackerForSyntheticEvent();
         }
@@ -887,7 +887,7 @@ public:
 
     ~ScopedSyntheticEventTracer() {
         if (mTracer) {
-            mTracer->eventProcessingComplete(*mEventTracker);
+            mTracer->eventProcessingComplete(*mEventTracker, mProcessingTimestamp);
         }
     }
 
@@ -896,8 +896,9 @@ public:
     }
 
 private:
-    std::unique_ptr<trace::InputTracerInterface>& mTracer;
+    const std::unique_ptr<trace::InputTracerInterface>& mTracer;
     std::unique_ptr<trace::EventTrackerInterface> mEventTracker;
+    const nsecs_t mProcessingTimestamp;
 };
 
 } // namespace
@@ -1263,7 +1264,7 @@ void InputDispatcher::dispatchOnceInnerLocked(nsecs_t& nextWakeupTime) {
 
         if (mTracer) {
             if (auto& traceTracker = getTraceTracker(*mPendingEvent); traceTracker != nullptr) {
-                mTracer->eventProcessingComplete(*traceTracker);
+                mTracer->eventProcessingComplete(*traceTracker, currentTime);
             }
         }
 

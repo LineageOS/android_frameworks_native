@@ -103,6 +103,11 @@ auto decodeTrace(const std::string& rawTrace) {
                 continue;
             }
 
+            EXPECT_TRUE(packet.has_timestamp());
+            EXPECT_TRUE(packet.has_timestamp_clock_id());
+            EXPECT_EQ(packet.timestamp_clock_id(),
+                      static_cast<uint32_t>(perfetto::protos::pbzero::BUILTIN_CLOCK_MONOTONIC));
+
             AndroidInputEvent::Decoder event{field.as_bytes()};
             if (event.has_dispatcher_motion_event()) {
                 tracedMotions.emplace_back(event.dispatcher_motion_event(),

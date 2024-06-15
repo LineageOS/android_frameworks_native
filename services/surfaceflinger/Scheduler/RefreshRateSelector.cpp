@@ -1066,6 +1066,11 @@ auto RefreshRateSelector::getFrameRateOverrides(const std::vector<LayerRequireme
         ALOGV("%s: overriding to %s for uid=%d", __func__, to_string(overrideFps).c_str(), uid);
         ATRACE_FORMAT_INSTANT("%s: overriding to %s for uid=%d", __func__,
                               to_string(overrideFps).c_str(), uid);
+        if (ATRACE_ENABLED() && FlagManager::getInstance().trace_frame_rate_override()) {
+            std::stringstream ss;
+            ss << "FrameRateOverride " << uid;
+            ATRACE_INT(ss.str().c_str(), overrideFps.getIntValue());
+        }
         frameRateOverrides.emplace(uid, overrideFps);
     }
 

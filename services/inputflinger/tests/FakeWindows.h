@@ -304,15 +304,11 @@ public:
                                           WithFlags(expectedFlags)));
     }
 
-    inline void consumeMotionPointerUp(
-            int32_t pointerIdx,
-            ui::LogicalDisplayId expectedDisplayId = ui::LogicalDisplayId::DEFAULT,
-            int32_t expectedFlags = 0) {
+    inline void consumeMotionPointerUp(int32_t pointerIdx,
+                                       const ::testing::Matcher<MotionEvent>& matcher) {
         const int32_t action = AMOTION_EVENT_ACTION_POINTER_UP |
                 (pointerIdx << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
-        consumeMotionEvent(testing::AllOf(WithMotionAction(action),
-                                          WithDisplayId(expectedDisplayId),
-                                          WithFlags(expectedFlags)));
+        consumeMotionEvent(testing::AllOf(WithMotionAction(action), matcher));
     }
 
     inline void consumeMotionUp(

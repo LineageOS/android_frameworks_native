@@ -145,7 +145,8 @@ void InputTracer::dispatchToTargetHint(const EventTrackerInterface& cookie,
     eventState->metadata.isSecure |= targetInfo.isSecureWindow;
 }
 
-void InputTracer::eventProcessingComplete(const EventTrackerInterface& cookie) {
+void InputTracer::eventProcessingComplete(const EventTrackerInterface& cookie,
+                                          nsecs_t processingTimestamp) {
     if (isDerivedCookie(cookie)) {
         LOG(FATAL) << "Event processing cannot be set from a derived cookie.";
     }
@@ -154,7 +155,7 @@ void InputTracer::eventProcessingComplete(const EventTrackerInterface& cookie) {
         LOG(FATAL) << "Traced event was already logged. "
                       "eventProcessingComplete() was likely called more than once.";
     }
-    eventState->onEventProcessingComplete();
+    eventState->onEventProcessingComplete(processingTimestamp);
 }
 
 std::unique_ptr<EventTrackerInterface> InputTracer::traceDerivedEvent(
@@ -242,7 +243,8 @@ bool InputTracer::isDerivedCookie(const EventTrackerInterface& cookie) {
 
 // --- InputTracer::EventState ---
 
-void InputTracer::EventState::onEventProcessingComplete() {
+void InputTracer::EventState::onEventProcessingComplete(nsecs_t processingTimestamp) {
+    metadata.processingTimestamp = processingTimestamp;
     metadata.isImeConnectionActive = tracer.mIsImeConnectionActive;
 
     // Write all of the events known so far to the trace.
@@ -277,7 +279,7 @@ InputTracer::EventState::~EventState() {
     // We should never end up here in normal operation. However, in tests, it's possible that we
     // stop and destroy InputDispatcher without waiting for it to finish processing events, at
     // which point an event (and thus its EventState) may be destroyed before processing finishes.
-    onEventProcessingComplete();
+    onEventProcessingComplete(systemTime(CLOCK_MONOTONIC));
 }
 
 } // namespace android::inputdispatcher::trace::impl

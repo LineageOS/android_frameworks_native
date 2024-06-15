@@ -231,6 +231,8 @@ void PerfettoBackend::traceMotionEvent(const TracedMotionEvent& event,
         }
         const bool isRedacted = traceLevel == TraceLevel::TRACE_LEVEL_REDACTED;
         auto tracePacket = ctx.NewTracePacket();
+        tracePacket->set_timestamp(metadata.processingTimestamp);
+        tracePacket->set_timestamp_clock_id(perfetto::protos::pbzero::BUILTIN_CLOCK_MONOTONIC);
         auto* winscopeExtensions = static_cast<perfetto::protos::pbzero::WinscopeExtensionsImpl*>(
                 tracePacket->set_winscope_extensions());
         auto* inputEvent = winscopeExtensions->set_android_input_event();
@@ -257,6 +259,8 @@ void PerfettoBackend::traceKeyEvent(const TracedKeyEvent& event,
         }
         const bool isRedacted = traceLevel == TraceLevel::TRACE_LEVEL_REDACTED;
         auto tracePacket = ctx.NewTracePacket();
+        tracePacket->set_timestamp(metadata.processingTimestamp);
+        tracePacket->set_timestamp_clock_id(perfetto::protos::pbzero::BUILTIN_CLOCK_MONOTONIC);
         auto* winscopeExtensions = static_cast<perfetto::protos::pbzero::WinscopeExtensionsImpl*>(
                 tracePacket->set_winscope_extensions());
         auto* inputEvent = winscopeExtensions->set_android_input_event();
@@ -283,6 +287,8 @@ void PerfettoBackend::traceWindowDispatch(const WindowDispatchArgs& dispatchArgs
         }
         const bool isRedacted = traceLevel == TraceLevel::TRACE_LEVEL_REDACTED;
         auto tracePacket = ctx.NewTracePacket();
+        tracePacket->set_timestamp(dispatchArgs.deliveryTime);
+        tracePacket->set_timestamp_clock_id(perfetto::protos::pbzero::BUILTIN_CLOCK_MONOTONIC);
         auto* winscopeExtensions = static_cast<perfetto::protos::pbzero::WinscopeExtensionsImpl*>(
                 tracePacket->set_winscope_extensions());
         auto* inputEvent = winscopeExtensions->set_android_input_event();

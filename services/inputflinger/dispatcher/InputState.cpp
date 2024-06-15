@@ -499,67 +499,53 @@ std::vector<std::unique_ptr<MotionEntry>> InputState::synthesizeCancelationEvent
         nsecs_t currentTime) {
     std::vector<std::unique_ptr<MotionEntry>> events;
     std::vector<uint32_t> canceledPointerIndices;
-    std::vector<PointerProperties> pointerProperties(MAX_POINTERS);
-    std::vector<PointerCoords> pointerCoords(MAX_POINTERS);
+
     for (uint32_t pointerIdx = 0; pointerIdx < memento.getPointerCount(); pointerIdx++) {
         uint32_t pointerId = uint32_t(memento.pointerProperties[pointerIdx].id);
-        pointerProperties[pointerIdx] = memento.pointerProperties[pointerIdx];
-        pointerCoords[pointerIdx] = memento.pointerCoords[pointerIdx];
         if (pointerIds.test(pointerId)) {
             canceledPointerIndices.push_back(pointerIdx);
         }
     }
 
     if (canceledPointerIndices.size() == memento.getPointerCount()) {
-        const int32_t action =
-                memento.hovering ? AMOTION_EVENT_ACTION_HOVER_EXIT : AMOTION_EVENT_ACTION_CANCEL;
-        int32_t flags = memento.flags;
-        if (action == AMOTION_EVENT_ACTION_CANCEL) {
-            flags |= AMOTION_EVENT_FLAG_CANCELED;
+        // We are cancelling all pointers.
+        events.emplace_back(createCancelEntryForMemento(memento, currentTime));
+        return events;
+    }
+
+    // If we aren't canceling all pointers, we need to generate ACTION_POINTER_UP with
+    // FLAG_CANCELED for each of the canceled pointers. For each event, we must remove the
+    // previously canceled pointers from PointerProperties and PointerCoords, and update
+    // pointerCount appropriately. For convenience, sort the canceled pointer indices in
+    // descending order so that we can just slide the remaining pointers to the beginning of
+    // the array when a pointer is canceled.
+    std::sort(canceledPointerIndices.begin(), canceledPointerIndices.end(),
+              std::greater<uint32_t>());
+
+    std::vector<PointerProperties> pointerProperties = memento.pointerProperties;
+    std::vector<PointerCoords> pointerCoords = memento.pointerCoords;
+    for (const uint32_t pointerIdx : canceledPointerIndices) {
+        if (pointerProperties.size() <= 1) {
+            LOG(FATAL) << "Unexpected code path for canceling all pointers!";
         }
+        const int32_t action = AMOTION_EVENT_ACTION_POINTER_UP |
+                (pointerIdx << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
         events.push_back(
                 std::make_unique<MotionEntry>(mIdGenerator.nextId(), /*injectionState=*/nullptr,
                                               currentTime, memento.deviceId, memento.source,
                                               memento.displayId, memento.policyFlags, action,
-                                              /*actionButton=*/0, flags, AMETA_NONE,
-                                              /*buttonState=*/0, MotionClassification::NONE,
+                                              /*actionButton=*/0,
+                                              memento.flags | AMOTION_EVENT_FLAG_CANCELED,
+                                              AMETA_NONE, /*buttonState=*/0,
+                                              MotionClassification::NONE,
                                               AMOTION_EVENT_EDGE_FLAG_NONE, memento.xPrecision,
                                               memento.yPrecision, memento.xCursorPosition,
                                               memento.yCursorPosition, memento.downTime,
-                                              memento.pointerProperties, memento.pointerCoords));
-    } else {
-        // If we aren't canceling all pointers, we need to generate ACTION_POINTER_UP with
-        // FLAG_CANCELED for each of the canceled pointers. For each event, we must remove the
-        // previously canceled pointers from PointerProperties and PointerCoords, and update
-        // pointerCount appropriately. For convenience, sort the canceled pointer indices so that we
-        // can just slide the remaining pointers to the beginning of the array when a pointer is
-        // canceled.
-        std::sort(canceledPointerIndices.begin(), canceledPointerIndices.end(),
-                  std::greater<uint32_t>());
+                                              pointerProperties, pointerCoords));
 
-        uint32_t pointerCount = memento.getPointerCount();
-        for (const uint32_t pointerIdx : canceledPointerIndices) {
-            const int32_t action = pointerCount == 1 ? AMOTION_EVENT_ACTION_CANCEL
-                                                     : AMOTION_EVENT_ACTION_POINTER_UP |
-                            (pointerIdx << AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
-            events.push_back(
-                    std::make_unique<MotionEntry>(mIdGenerator.nextId(), /*injectionState=*/nullptr,
-                                                  currentTime, memento.deviceId, memento.source,
-                                                  memento.displayId, memento.policyFlags, action,
-                                                  /*actionButton=*/0,
-                                                  memento.flags | AMOTION_EVENT_FLAG_CANCELED,
-                                                  AMETA_NONE, /*buttonState=*/0,
-                                                  MotionClassification::NONE,
-                                                  AMOTION_EVENT_EDGE_FLAG_NONE, memento.xPrecision,
-                                                  memento.yPrecision, memento.xCursorPosition,
-                                                  memento.yCursorPosition, memento.downTime,
-                                                  pointerProperties, pointerCoords));
-
-            // Cleanup pointer information
-            pointerProperties.erase(pointerProperties.begin() + pointerIdx);
-            pointerCoords.erase(pointerCoords.begin() + pointerIdx);
-            pointerCount--;
-        }
+        // Cleanup pointer information
+        pointerProperties.erase(pointerProperties.begin() + pointerIdx);
+        pointerCoords.erase(pointerCoords.begin() + pointerIdx);
     }
     return events;
 }
